@@ -133,7 +133,14 @@ func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *c
 
 // makePathtest extracts pathtest information using a single connection and the connection check's reverse dns map
 func (s *npCollectorImpl) makePathtest(conn npmodel.NetworkPathConnection) common.Pathtest {
-	protocol := modelProtocolToPayload[conn.Type]
+	// Use conn.Protocol when explicitly set (e.g. by NDM converter which can express ICMP);
+	// fall back to the Type-based mapping for CNM/NPM connections where conn.Protocol is zero.
+	var protocol payload.Protocol
+	if conn.Protocol != "" {
+		protocol = conn.Protocol
+	} else {
+		protocol = modelProtocolToPayload[conn.Type]
+	}
 	if s.collectorConfigs.icmpMode.ShouldUseICMP(protocol) {
 		protocol = payload.ProtocolICMP
 	}
@@ -145,7 +152,11 @@ func (s *npCollectorImpl) makePathtest(conn npmodel.NetworkPathConnection) commo
 	}
 
 	hostname := conn.Dest.Addr().String()
-	if conn.Domain != "" {
+	// For NDM-origin connections, always probe by IP. The rDNS-derived domain
+	// is unreliable as a probe target — PTR records often don't forward-resolve
+	// to the same IP. Domain is preserved in Metadata.ReverseDNSHostname for
+	// event tagging. See plan §1.8.
+	if conn.Domain != "" && conn.Origin != npmodel.OriginNetworkDevice {
 		hostname = conn.Domain
 	}
 
@@ -154,8 +165,12 @@ func (s *npCollectorImpl) makePathtest(conn npmodel.NetworkPathConnection) commo
 		Port:              remotePort,
 		Protocol:          protocol,
 		SourceContainerID: conn.SourceContainerID,
+		Origin:            conn.Origin,
+		DestIP:            conn.DestIP,
 		Metadata: common.PathtestMetadata{
 			ReverseDNSHostname: conn.Domain,
+			Namespaces:         conn.Namespaces,
+			ExporterAddrs:      conn.ExporterAddrs,
 		},
 	}
 }
@@ -198,18 +213,25 @@ func (s *npCollectorImpl) checkPassesConnCIDRFilters(conn npmodel.NetworkPathCon
 }
 
 func (s *npCollectorImpl) shouldScheduleNetworkPathForConn(conn npmodel.NetworkPathConnection, vpcSubnets []netip.Prefix) bool {
-	if conn.IntraHost {
-		_ = s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_intra_host"}, 1)
-		return false
+	// IntraHost, SystemProbeConn, and Direction are agent-host concepts that don't apply
+	// to connections sourced from network devices (e.g. NetFlow records from NDM).
+	// Skip these checks for OriginNetworkDevice; preserve exact existing behavior for
+	// OriginAgentTraffic (zero-value, used by CNM/NPM).
+	if conn.Origin != npmodel.OriginNetworkDevice {
+		if conn.IntraHost {
+			_ = s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_intra_host"}, 1)
+			return false
+		}
+		if conn.SystemProbeConn {
+			_ = s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_system_probe_conn"}, 1)
+			return false
+		}
+		if conn.Direction != model.ConnectionDirection_outgoing {
+			_ = s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_incoming"}, 1)
+			return false
+		}
 	}
-	if conn.SystemProbeConn {
-		_ = s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_system_probe_conn"}, 1)
-		return false
-	}
-	if conn.Direction != model.ConnectionDirection_outgoing {
-		_ = s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_incoming"}, 1)
-		return false
-	}
+
 	// only ipv4 is supported currently
 	// if domain is present, we will traceroute the domain, so, it doesn't matter if the conn family is IPv4 or IPv6
 	if conn.Domain == "" && conn.Family != model.ConnectionFamily_v4 {
@@ -246,7 +268,10 @@ func (s *npCollectorImpl) getVPCSubnets() ([]netip.Prefix, error) {
 }
 
 func (s *npCollectorImpl) ScheduleNetworkPathTests(conns iter.Seq[npmodel.NetworkPathConnection]) {
-	if !s.collectorConfigs.connectionsMonitoringEnabled {
+	// Activate if any origin's trigger is enabled (CNM or NDM). Caller-side
+	// gates (the CNM sender, the NDM pathtestscheduler) prevent unwanted
+	// origins from reaching this point.
+	if !s.collectorConfigs.networkPathCollectorEnabled() {
 		return
 	}
 	vpcSubnets, err := s.getVPCSubnets()
@@ -371,7 +396,28 @@ func (s *npCollectorImpl) runTracerouteForPath(ptest *pathteststore.PathtestCont
 
 	path.Source.ContainerID = ptest.Pathtest.SourceContainerID
 	path.Namespace = s.networkDevicesNamespace
-	path.Origin = payload.PathOriginNetworkTraffic
+	if ptest.Pathtest.DestIP.IsValid() {
+		path.Destination.IPAddress = ptest.Pathtest.DestIP.AsSlice()
+	}
+	switch ptest.Pathtest.Origin {
+	case npmodel.OriginNetworkDevice:
+		path.Origin = payload.PathOriginNetworkDevices
+		md := ptest.Pathtest.Metadata
+		if len(md.Namespaces) > 0 || len(md.ExporterAddrs) > 0 {
+			exporters := make([]string, 0, len(md.ExporterAddrs))
+			for _, addr := range md.ExporterAddrs {
+				exporters = append(exporters, addr.String())
+			}
+			path.NetworkDeviceInfo = &payload.NetworkDeviceOriginInfo{
+				Namespaces:        md.Namespaces,
+				ExporterAddresses: exporters,
+				ExporterCount:     len(exporters),
+			}
+		}
+	default:
+		// OriginAgentTraffic (zero value) and any unknown origin → existing behavior
+		path.Origin = payload.PathOriginNetworkTraffic
+	}
 	path.TestRunType = payload.TestRunTypeDynamic
 	path.SourceProduct = s.collectorConfigs.sourceProduct
 	path.CollectorType = payload.CollectorTypeAgent

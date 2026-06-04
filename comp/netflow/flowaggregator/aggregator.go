@@ -32,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/netflow/common"
 	"github.com/DataDog/datadog-agent/comp/netflow/config/def"
 	"github.com/DataDog/datadog-agent/comp/netflow/goflowlib"
+	pathtestscheduler "github.com/DataDog/datadog-agent/comp/netflow/pathtestscheduler/def"
 )
 
 const flushFlowsToSendInterval = 10 * time.Second
@@ -58,8 +59,9 @@ type FlowAggregator struct {
 	lastSequencePerExporter   map[sequenceDeltaKey]uint32
 	lastSequencePerExporterMu sync.Mutex
 
-	flowFilter FlowFlushFilter
-	logger     log.Component
+	flowFilter        FlowFlushFilter
+	logger            log.Component
+	pathtestScheduler pathtestscheduler.Component
 }
 
 type sequenceDeltaKey struct {
@@ -88,7 +90,7 @@ var maxNegativeSequenceDiffToReset = map[common.FlowType]int{
 }
 
 // NewFlowAggregator returns a new FlowAggregator
-func NewFlowAggregator(sender sender.Sender, epForwarder eventplatform.Forwarder, config *config.NetflowConfig, hostname string, logger log.Component, rdnsQuerier rdnsquerier.Component) *FlowAggregator {
+func NewFlowAggregator(sender sender.Sender, epForwarder eventplatform.Forwarder, config *config.NetflowConfig, hostname string, logger log.Component, rdnsQuerier rdnsquerier.Component, pathtestScheduler pathtestscheduler.Component) *FlowAggregator {
 	flushConfig := common.FlushConfig{
 		FlowCollectionDuration: time.Duration(config.AggregatorFlushInterval) * time.Second,
 		FlushTickFrequency:     flushFlowsToSendInterval,
@@ -124,6 +126,7 @@ func NewFlowAggregator(sender sender.Sender, epForwarder eventplatform.Forwarder
 		lastSequencePerExporter:      make(map[sequenceDeltaKey]uint32),
 		logger:                       logger,
 		flowFilter:                   topNFilter,
+		pathtestScheduler:            pathtestScheduler,
 	}
 }
 
@@ -179,6 +182,10 @@ func (agg *FlowAggregator) sendFlows(flows []*common.Flow, flushTime time.Time) 
 			agg.logger.Errorf("Error sending to event platform forwarder: %s", err)
 			continue
 		}
+	}
+
+	if agg.pathtestScheduler != nil {
+		agg.pathtestScheduler.ScheduleFromFlows(flows)
 	}
 }
 

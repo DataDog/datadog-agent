@@ -8,7 +8,9 @@ package common
 import (
 	"encoding/binary"
 	"hash/fnv"
+	"net/netip"
 
+	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/model"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 )
 
@@ -21,6 +23,12 @@ type PathtestMetadata struct {
 	// ReverseDNSHostname is an optional hostname which will be used in place of rDNS querying for
 	// the destination address.
 	ReverseDNSHostname string
+	// Namespaces is the set of NetFlow namespaces that observed this destination.
+	// Empty for CNM-origin tests.
+	Namespaces []string
+	// ExporterAddrs is the set of NetFlow exporter device IPs that observed this destination.
+	// Empty for CNM-origin tests.
+	ExporterAddrs []netip.Addr
 }
 
 // Pathtest details of information necessary to run a traceroute
@@ -29,7 +37,12 @@ type Pathtest struct {
 	Port              uint16
 	Protocol          payload.Protocol
 	SourceContainerID string
-	Metadata          PathtestMetadata
+	// Origin identifies how this path test was triggered.
+	Origin model.OriginType
+	// DestIP is the originally-observed destination IP, preserved for event tagging
+	// even when Hostname is a domain name. Not included in the dedup hash.
+	DestIP   netip.Addr
+	Metadata PathtestMetadata
 }
 
 // GetHash returns the hash of the Pathtest
@@ -39,5 +52,6 @@ func (p Pathtest) GetHash() uint64 {
 	_ = binary.Write(h, binary.LittleEndian, p.Port)
 	_, _ = h.Write([]byte(p.Protocol))
 	_, _ = h.Write([]byte(p.SourceContainerID))
+	_, _ = h.Write([]byte(p.Origin))
 	return h.Sum64()
 }

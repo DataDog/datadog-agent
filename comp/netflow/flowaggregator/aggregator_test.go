@@ -172,7 +172,7 @@ func TestAggregator(t *testing.T) {
 	logger := logmock.New(t)
 	rdnsQuerier := fxutil.Test[rdnsquerier.Component](t, rdnsquerierfxmock.MockModule())
 
-	aggregator := NewFlowAggregator(sender, epForwarder, &conf, "my-hostname", logger, rdnsQuerier)
+	aggregator := NewFlowAggregator(sender, epForwarder, &conf, "my-hostname", logger, rdnsQuerier, nil)
 	aggregator.FlushConfig.FlushTickFrequency = 1 * time.Second
 	aggregator.TimeNowFunction = func() time.Time {
 		return flushTime
@@ -288,7 +288,7 @@ func TestAggregator_withMockPayload(t *testing.T) {
 
 	logger := logmock.New(t)
 	rdnsQuerier := fxutil.Test[rdnsquerier.Component](t, rdnsquerierfxmock.MockModule())
-	aggregator := NewFlowAggregator(sender, epForwarder, &conf, "my-hostname", logger, rdnsQuerier)
+	aggregator := NewFlowAggregator(sender, epForwarder, &conf, "my-hostname", logger, rdnsQuerier, nil)
 	aggregator.FlushConfig.FlushTickFrequency = 1 * time.Second
 	aggregator.TimeNowFunction = func() time.Time {
 		return flushTime
@@ -388,7 +388,7 @@ func TestFlowAggregator_flush_submitCollectorMetrics_error(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	epForwarder := eventplatformimpl.NewMockEventPlatformForwarder(ctrl)
 
-	aggregator := NewFlowAggregator(sender, epForwarder, &conf, "my-hostname", logger, rdnsQuerier)
+	aggregator := NewFlowAggregator(sender, epForwarder, &conf, "my-hostname", logger, rdnsQuerier, nil)
 	aggregator.goflowPrometheusGatherer = prometheus.GathererFunc(func() ([]*promClient.MetricFamily, error) {
 		return nil, errors.New("some prometheus gatherer error")
 	})
@@ -429,7 +429,7 @@ func TestFlowAggregator_submitCollectorMetrics(t *testing.T) {
 	logger := logmock.New(t)
 	rdnsQuerier := fxutil.Test[rdnsquerier.Component](t, rdnsquerierfxmock.MockModule())
 
-	aggregator := NewFlowAggregator(sender, epForwarder, &conf, "my-hostname", logger, rdnsQuerier)
+	aggregator := NewFlowAggregator(sender, epForwarder, &conf, "my-hostname", logger, rdnsQuerier, nil)
 	aggregator.goflowPrometheusGatherer = prometheus.GathererFunc(func() ([]*promClient.MetricFamily, error) {
 		return []*promClient.MetricFamily{
 			{
@@ -506,7 +506,7 @@ func TestFlowAggregator_submitCollectorMetrics_error(t *testing.T) {
 	logger := logmock.New(t)
 	rdnsQuerier := fxutil.Test[rdnsquerier.Component](t, rdnsquerierfxmock.MockModule())
 
-	aggregator := NewFlowAggregator(sender, epForwarder, &conf, "my-hostname", logger, rdnsQuerier)
+	aggregator := NewFlowAggregator(sender, epForwarder, &conf, "my-hostname", logger, rdnsQuerier, nil)
 	aggregator.goflowPrometheusGatherer = prometheus.GathererFunc(func() ([]*promClient.MetricFamily, error) {
 		return nil, errors.New("some prometheus gatherer error")
 	})
@@ -541,7 +541,7 @@ func TestFlowAggregator_sendExporterMetadata_multiplePayloads(t *testing.T) {
 	logger := logmock.New(t)
 	rdnsQuerier := fxutil.Test[rdnsquerier.Component](t, rdnsquerierfxmock.MockModule())
 
-	aggregator := NewFlowAggregator(sender, epForwarder, &conf, "my-hostname", logger, rdnsQuerier)
+	aggregator := NewFlowAggregator(sender, epForwarder, &conf, "my-hostname", logger, rdnsQuerier, nil)
 
 	var flows []*common.Flow
 	for i := 1; i <= 250; i++ {
@@ -627,7 +627,7 @@ func TestFlowAggregator_sendExporterMetadata_noPayloads(t *testing.T) {
 	logger := logmock.New(t)
 	rdnsQuerier := fxutil.Test[rdnsquerier.Component](t, rdnsquerierfxmock.MockModule())
 
-	aggregator := NewFlowAggregator(sender, epForwarder, &conf, "my-hostname", logger, rdnsQuerier)
+	aggregator := NewFlowAggregator(sender, epForwarder, &conf, "my-hostname", logger, rdnsQuerier, nil)
 
 	var flows []*common.Flow
 	now := time.Unix(1681295467, 0)
@@ -660,7 +660,7 @@ func TestFlowAggregator_sendExporterMetadata_invalidIPIgnored(t *testing.T) {
 
 	logger := logmock.New(t)
 	rdnsQuerier := fxutil.Test[rdnsquerier.Component](t, rdnsquerierfxmock.MockModule())
-	aggregator := NewFlowAggregator(sender, epForwarder, &conf, "my-hostname", logger, rdnsQuerier)
+	aggregator := NewFlowAggregator(sender, epForwarder, &conf, "my-hostname", logger, rdnsQuerier, nil)
 
 	now := time.Unix(1681295467, 0)
 	flows := []*common.Flow{
@@ -746,7 +746,7 @@ func TestFlowAggregator_sendExporterMetadata_multipleNamespaces(t *testing.T) {
 
 	logger := logmock.New(t)
 	rdnsQuerier := fxutil.Test[rdnsquerier.Component](t, rdnsquerierfxmock.MockModule())
-	aggregator := NewFlowAggregator(sender, epForwarder, &conf, "my-hostname", logger, rdnsQuerier)
+	aggregator := NewFlowAggregator(sender, epForwarder, &conf, "my-hostname", logger, rdnsQuerier, nil)
 
 	now := time.Unix(1681295467, 0)
 	flows := []*common.Flow{
@@ -852,7 +852,7 @@ func TestFlowAggregator_sendExporterMetadata_singleExporterIpWithMultipleFlowTyp
 	logger := logmock.New(t)
 	rdnsQuerier := fxutil.Test[rdnsquerier.Component](t, rdnsquerierfxmock.MockModule())
 
-	aggregator := NewFlowAggregator(sender, epForwarder, &conf, "my-hostname", logger, rdnsQuerier)
+	aggregator := NewFlowAggregator(sender, epForwarder, &conf, "my-hostname", logger, rdnsQuerier, nil)
 
 	now := time.Unix(1681295467, 0)
 	flows := []*common.Flow{
@@ -1205,7 +1205,7 @@ func TestFlowAggregator_getSequenceDelta(t *testing.T) {
 				AggregatorPortRollupThreshold:          10,
 				AggregatorRollupTrackerRefreshInterval: 3600,
 			}
-			agg := NewFlowAggregator(sender, nil, &conf, "my-hostname", logger, rdnsQuerier)
+			agg := NewFlowAggregator(sender, nil, &conf, "my-hostname", logger, rdnsQuerier, nil)
 			for roundNum, testRound := range tt.rounds {
 				assert.Equal(t, testRound.expectedSequenceDelta, agg.getSequenceDelta(testRound.flowsToFlush), fmt.Sprintf("Test Round %d", roundNum))
 			}
@@ -1250,7 +1250,7 @@ func TestAggregatorFlushing(t *testing.T) {
 		logger := logmock.New(t)
 		rdnsQuerier := fxutil.Test[rdnsquerier.Component](t, rdnsquerierfxmock.MockModule())
 
-		aggregator := NewFlowAggregator(sender, epForwarder, &conf, "test-hostname", logger, rdnsQuerier)
+		aggregator := NewFlowAggregator(sender, epForwarder, &conf, "test-hostname", logger, rdnsQuerier, nil)
 		aggregator.TimeNowFunction = func() time.Time {
 			return flushTime
 		}
@@ -1353,7 +1353,7 @@ func TestAggregatorFlushing(t *testing.T) {
 		logger := logmock.New(t)
 		rdnsQuerier := fxutil.Test[rdnsquerier.Component](t, rdnsquerierfxmock.MockModule())
 
-		aggregator := NewFlowAggregator(sender, epForwarder, &conf, "test-hostname", logger, rdnsQuerier)
+		aggregator := NewFlowAggregator(sender, epForwarder, &conf, "test-hostname", logger, rdnsQuerier, nil)
 		aggregator.TimeNowFunction = func() time.Time {
 			return startTime
 		}
@@ -1452,5 +1452,156 @@ func TestAggregatorFlushing(t *testing.T) {
 		// Verify TopN metrics were submitted
 		sender.AssertCalled(t, "Histogram", "datadog.netflow.flow_truncation.runtime_ms", mock.Anything, mock.Anything, mock.Anything)
 		sender.AssertCalled(t, "Gauge", "datadog.netflow.flow_truncation.threshold_value", float64(100), mock.Anything, mock.Anything)
+	})
+}
+
+// recordingScheduler is a stub pathtestscheduler.Component that records flows
+// passed to ScheduleFromFlows. It is safe for concurrent use.
+type recordingScheduler struct {
+	mu    sync.Mutex
+	flows []*common.Flow
+}
+
+func (r *recordingScheduler) ScheduleFromFlows(flows []*common.Flow) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.flows = append(r.flows, flows...)
+}
+
+func (r *recordingScheduler) RecordedFlows() []*common.Flow {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	result := make([]*common.Flow, len(r.flows))
+	copy(result, r.flows)
+	return result
+}
+
+func TestFlowAggregator_PathtestSchedulerInvokedOnFlush(t *testing.T) {
+	flushTime, _ := time.Parse(time.RFC3339, "2019-02-18T16:00:06Z")
+	sender := mocksender.NewMockSender("")
+	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	sender.On("Count", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	sender.On("Commit").Return()
+
+	conf := config.NetflowConfig{
+		StopTimeout:                            10,
+		AggregatorBufferSize:                   20,
+		AggregatorFlushInterval:                1,
+		AggregatorPortRollupThreshold:          10,
+		AggregatorRollupTrackerRefreshInterval: 3600,
+	}
+
+	ctrl := gomock.NewController(t)
+	epForwarder := eventplatformimpl.NewMockEventPlatformForwarder(ctrl)
+	epForwarder.EXPECT().SendEventPlatformEventBlocking(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+
+	logger := logmock.New(t)
+	rdnsQuerier := fxutil.Test[rdnsquerier.Component](t, rdnsquerierfxmock.MockModule())
+
+	scheduler := &recordingScheduler{}
+	aggregator := NewFlowAggregator(sender, epForwarder, &conf, "my-hostname", logger, rdnsQuerier, scheduler)
+	aggregator.TimeNowFunction = func() time.Time { return flushTime }
+	setMockTimeNow(flushTime)
+
+	flow1 := &common.Flow{
+		Namespace:      "test-ns",
+		FlowType:       common.TypeNetFlow9,
+		ExporterAddr:   []byte{127, 0, 0, 1},
+		StartTimestamp: 1234568,
+		EndTimestamp:   1234569,
+		Bytes:          10,
+		Packets:        1,
+		SrcAddr:        []byte{10, 0, 0, 1},
+		DstAddr:        []byte{10, 0, 0, 2},
+		IPProtocol:     uint32(6),
+		SrcPort:        1000,
+		DstPort:        80,
+		EtherType:      uint32(0x0800),
+	}
+	flow2 := &common.Flow{
+		Namespace:      "test-ns",
+		FlowType:       common.TypeNetFlow9,
+		ExporterAddr:   []byte{127, 0, 0, 1},
+		StartTimestamp: 1234568,
+		EndTimestamp:   1234569,
+		Bytes:          20,
+		Packets:        2,
+		SrcAddr:        []byte{10, 0, 0, 3},
+		DstAddr:        []byte{10, 0, 0, 4},
+		IPProtocol:     uint32(6),
+		SrcPort:        2000,
+		DstPort:        443,
+		EtherType:      uint32(0x0800),
+	}
+
+	aggregator.flowAcc.add(flow1)
+	aggregator.flowAcc.add(flow2)
+
+	flushCtx := common.FlushContext{
+		FlushTime:     flushTime,
+		LastFlushedAt: time.Time{},
+		NumFlushes:    1,
+	}
+	flushedCount := aggregator.flush(flushCtx)
+	assert.Equal(t, 2, flushedCount)
+
+	recorded := scheduler.RecordedFlows()
+	assert.Equal(t, 2, len(recorded), "scheduler should have received exactly 2 flows")
+}
+
+func TestFlowAggregator_PathtestSchedulerNilSafe(t *testing.T) {
+	flushTime, _ := time.Parse(time.RFC3339, "2019-02-18T16:00:06Z")
+	sender := mocksender.NewMockSender("")
+	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	sender.On("Count", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	sender.On("Commit").Return()
+
+	conf := config.NetflowConfig{
+		StopTimeout:                            10,
+		AggregatorBufferSize:                   20,
+		AggregatorFlushInterval:                1,
+		AggregatorPortRollupThreshold:          10,
+		AggregatorRollupTrackerRefreshInterval: 3600,
+	}
+
+	ctrl := gomock.NewController(t)
+	epForwarder := eventplatformimpl.NewMockEventPlatformForwarder(ctrl)
+	epForwarder.EXPECT().SendEventPlatformEventBlocking(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+
+	logger := logmock.New(t)
+	rdnsQuerier := fxutil.Test[rdnsquerier.Component](t, rdnsquerierfxmock.MockModule())
+
+	// pathtestScheduler is nil — must not panic
+	aggregator := NewFlowAggregator(sender, epForwarder, &conf, "my-hostname", logger, rdnsQuerier, nil)
+	aggregator.TimeNowFunction = func() time.Time { return flushTime }
+	setMockTimeNow(flushTime)
+
+	flow := &common.Flow{
+		Namespace:      "test-ns",
+		FlowType:       common.TypeNetFlow9,
+		ExporterAddr:   []byte{127, 0, 0, 1},
+		StartTimestamp: 1234568,
+		EndTimestamp:   1234569,
+		Bytes:          10,
+		Packets:        1,
+		SrcAddr:        []byte{10, 0, 0, 1},
+		DstAddr:        []byte{10, 0, 0, 2},
+		IPProtocol:     uint32(6),
+		SrcPort:        1000,
+		DstPort:        80,
+		EtherType:      uint32(0x0800),
+	}
+	aggregator.flowAcc.add(flow)
+
+	flushCtx := common.FlushContext{
+		FlushTime:     flushTime,
+		LastFlushedAt: time.Time{},
+		NumFlushes:    1,
+	}
+	// Should not panic with a nil pathtestScheduler
+	assert.NotPanics(t, func() {
+		aggregator.flush(flushCtx)
 	})
 }

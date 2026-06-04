@@ -22,6 +22,7 @@ import (
 	forwarder "github.com/DataDog/datadog-agent/comp/ndmtmp/forwarder/def"
 	nfconfig "github.com/DataDog/datadog-agent/comp/netflow/config/def"
 	"github.com/DataDog/datadog-agent/comp/netflow/flowaggregator"
+	pathtestscheduler "github.com/DataDog/datadog-agent/comp/netflow/pathtestscheduler/def"
 	server "github.com/DataDog/datadog-agent/comp/netflow/server/def"
 	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
 	rdnsquerierimplnone "github.com/DataDog/datadog-agent/comp/rdnsquerier/impl-none"
@@ -30,13 +31,14 @@ import (
 // Requires defines the dependencies for the netflow server component.
 type Requires struct {
 	compdef.In
-	Lc            compdef.Lifecycle
-	Config        nfconfig.Component
-	Logger        log.Component
-	Demultiplexer demultiplexer.Component
-	Forwarder     forwarder.Component
-	Hostname      hostname.Component
-	RDNSQuerier   rdnsquerier.Component
+	Lc                compdef.Lifecycle
+	Config            nfconfig.Component
+	Logger            log.Component
+	Demultiplexer     demultiplexer.Component
+	Forwarder         forwarder.Component
+	Hostname          hostname.Component
+	RDNSQuerier       rdnsquerier.Component
+	PathtestScheduler pathtestscheduler.Component `optional:"true"`
 }
 
 // Provides defines what the netflow server component provides.
@@ -68,7 +70,7 @@ func NewComponent(deps Requires) (Provides, error) {
 		deps.Logger.Infof("Reverse DNS Enrichment is disabled for NDM NetFlow")
 	}
 
-	flowAgg := flowaggregator.NewFlowAggregator(sender, deps.Forwarder, conf, deps.Hostname.GetSafe(context.Background()), deps.Logger, rdnsQuerier)
+	flowAgg := flowaggregator.NewFlowAggregator(sender, deps.Forwarder, conf, deps.Hostname.GetSafe(context.Background()), deps.Logger, rdnsQuerier, deps.PathtestScheduler)
 
 	srv := &Server{
 		config:  conf,
