@@ -38,7 +38,6 @@ func TestFIPSConsistencyWindowsSuite(t *testing.T) {
 
 func (s *fipsConsistencyWinSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
-	defer s.CleanupOnSetupFailure()
 
 	agentHost := s.Env().WindowsVM
 	dockerHost := s.Env().LinuxDockerVM

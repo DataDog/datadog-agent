@@ -279,20 +279,14 @@ func (bs *BaseSuite[Env]) EventuallyWithTf(condition func(*assert.CollectT), wai
 //
 // BaseSuite registers a `t.Cleanup` hook that invokes this method automatically when
 // SetupSuite fails to complete, so derived suites do not need to `defer` it themselves.
-// Existing `defer s.CleanupOnSetupFailure()` callers continue to work; on the rare path
-// where both fire, `provisioner.Destroy` is idempotent so duplicate calls are harmless.
-//
-// When called from a `defer`, `recover()` captures any panic in the deferring frame; in
-// that case the panic is consumed here (testify's outer recoverAndFailOnPanic will not see
-// it). When called from the t.Cleanup hook, `recover()` returns nil and we fall through to
-// the `T().Failed()` branch.
 func (bs *BaseSuite[Env]) CleanupOnSetupFailure() {
-	if err := recover(); err != nil || bs.T().Failed() {
+	if bs.T().Failed() {
 		bs.firstFailTest = "Initial provisioning SetupSuite" // This is required to handle skipDeleteOnFailure
 		defer func() {
-			utils.Logf(bs.T(), "Calling TearDownSuite after SetupSuite failed with the following error: %v", err)
+			utils.Logf(bs.T(), "Calling TearDownSuite after SetupSuite failed")
 			bs.TearDownSuite()
-			bs.T().Fatal("TearDownSuite called after SetupSuite failed")
+			utils.Logf(bs.T(), "TearDownSuite called after SetupSuite failed")
+			bs.T().Fail()
 		}()
 
 		// run environment diagnose

@@ -49,7 +49,6 @@ func TestPARRshellK8sSuite(t *testing.T) {
 // SetupSuite waits for PAR to be ready and actively polling fakeintake.
 func (s *parK8sSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
-	defer s.CleanupOnSetupFailure()
 	s.waitForPARReady()
 }
 

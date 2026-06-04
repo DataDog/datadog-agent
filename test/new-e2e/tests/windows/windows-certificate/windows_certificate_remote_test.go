@@ -145,7 +145,6 @@ func (v *multiVMSuite) runCheckAndWaitForMetric(host *components.RemoteHost, exp
 
 func (v *multiVMSuite) SetupSuite() {
 	v.BaseSuite.SetupSuite()
-	defer v.CleanupOnSetupFailure()
 
 	agentHost := v.Env().AgentHost
 	certificateHost := v.Env().CertificateHost

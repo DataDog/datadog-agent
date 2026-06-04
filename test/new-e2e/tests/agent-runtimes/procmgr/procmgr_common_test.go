@@ -52,7 +52,6 @@ type baseProcmgrSuite struct {
 
 func (s *baseProcmgrSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
-	defer s.CleanupOnSetupFailure()
 
 	_, err := s.Env().RemoteHost.Execute(s.platform.checkBinCmd(s.platform.daemonBin))
 	if err != nil {

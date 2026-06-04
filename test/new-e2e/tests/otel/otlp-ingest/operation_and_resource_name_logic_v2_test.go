@@ -43,8 +43,6 @@ datadog:
 
 func (s *otlpIngestOpNameV2RecvrV1TestSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
-	// SetupSuite needs to defer CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
-	defer s.CleanupOnSetupFailure()
 
 	utils.TestCalendarApp(s, false, utils.CalendarService)
 }
@@ -79,8 +77,6 @@ datadog:
 
 func (s *otlpIngestOpNameV2RecvrV2TestSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
-	// SetupSuite needs to defer CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
-	defer s.CleanupOnSetupFailure()
 
 	utils.TestCalendarApp(s, false, utils.CalendarService)
 }
@@ -121,8 +117,6 @@ agents:
 
 func (s *otlpIngestOpNameV2SpanAsResNameTestSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
-	// SetupSuite needs to defer CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
-	defer s.CleanupOnSetupFailure()
 
 	utils.TestCalendarApp(s, false, utils.CalendarService)
 }
@@ -164,8 +158,6 @@ agents:
 
 func (s *otlpIngestOpNameV2RemappingTestSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
-	// SetupSuite needs to defer CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
-	defer s.CleanupOnSetupFailure()
 
 	utils.TestCalendarApp(s, false, utils.CalendarService)
 }

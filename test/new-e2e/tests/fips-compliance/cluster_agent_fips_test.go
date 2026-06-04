@@ -79,8 +79,6 @@ func TestFIPSCiphersClusterAgentSuite(t *testing.T) {
 
 func (s *fipsServerClusterAgentSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
-	// SetupSuite needs to defer s.CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
-	defer s.CleanupOnSetupFailure()
 
 	host := s.Env().RemoteHost
 	// lookup the compose file used by environments.DockerHost

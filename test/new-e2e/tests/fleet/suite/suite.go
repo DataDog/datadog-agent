@@ -73,8 +73,6 @@ type FleetSuite struct {
 // SetupSuite sets up the fleet suite.
 func (s *FleetSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
-	// SetupSuite needs to defer s.CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
-	defer s.CleanupOnSetupFailure()
 
 	s.Agent = agent.New(s.T, s.Env())
 	s.Backend = backend.New(s.T, s.Env())

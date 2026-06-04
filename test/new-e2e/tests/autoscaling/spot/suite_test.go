@@ -189,7 +189,6 @@ func TestSpotSchedulingKindCI(t *testing.T) {
 
 func (s *spotSchedulingSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
-	defer s.CleanupOnSetupFailure()
 
 	s.kubeClient = s.Env().KubernetesCluster.Client()
 	s.identifyNodes()

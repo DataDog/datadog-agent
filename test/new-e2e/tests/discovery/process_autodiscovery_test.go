@@ -54,7 +54,6 @@ func TestProcessAutodiscoverySuite(t *testing.T) {
 
 func (s *processAutodiscoverySuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
-	defer s.CleanupOnSetupFailure()
 
 	// Install Redis - it starts automatically and binds to localhost:6379 by default
 	_, err := s.Env().RemoteHost.Execute("sudo apt-get update && sudo apt-get install -y redis-server")

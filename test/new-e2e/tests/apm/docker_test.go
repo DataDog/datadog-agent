@@ -31,7 +31,6 @@ type DockerFakeintakeSuite struct {
 // This function is called by [testify Suite].
 func (s *DockerFakeintakeSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
-	defer s.CleanupOnSetupFailure() // cleanup if setup fails
 
 	// Pre-pull Docker image once for all tests to avoid network timeout issues during test execution
 	s.Env().RemoteHost.MustExecute("docker pull ghcr.io/datadog/apps-tracegen:" + apps.Version)

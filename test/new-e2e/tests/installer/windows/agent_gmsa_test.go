@@ -52,10 +52,6 @@ func TestAgentUpgradesOnDCWithGMSA(t *testing.T) {
 
 // SetupSuite configures the gMSA account on the Domain Controller.
 func (s *testAgentUpgradeOnDCWithGMSASuite) SetupSuite() {
-	// Required for WithSkipDeleteOnFailure to apply when the test-level setup
-	// (createKDSRootKey / createGMSAAccount below) fails — the BaseSuite's own
-	// defer only protects the framework's provisioning phase.
-	defer s.CleanupOnSetupFailure()
 	s.testAgentUpgradeSuite.SetupSuite()
 
 	host := s.Env().RemoteHost
