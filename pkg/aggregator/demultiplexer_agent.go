@@ -520,8 +520,7 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 	metrics.Serialize(
 		series,
 		sketches,
-		nil, nil,
-		func(seriesSink metrics.SerieSink, sketchesSink metrics.SketchesSink, _ metrics.ExplicitBucketHistogramSink, _ metrics.ExponentialHistogramSink) {
+		func(seriesSink metrics.SerieSink, sketchesSink metrics.SketchesSink) {
 			// flush DogStatsD pipelines (statsd/time samplers)
 			// ------------------------------------------------
 
@@ -571,9 +570,7 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 				updateSketchTelemetry(start, sketchesCount, err)
 				addFlushCount("Sketches", int64(sketchesCount))
 			}
-		},
-		func(_ metrics.ExplicitBucketHistogramSource) {},
-		func(_ metrics.ExponentialHistogramSource) {})
+		})
 
 	addFlushTime("MainFlushTime", int64(time.Since(start)))
 	aggregatorNumberOfFlush.Add(1)

@@ -18,8 +18,7 @@ func TestIterableSeries(t *testing.T) {
 	Serialize(
 		NewIterableSeries(func(*Serie) {}, 10, 1),
 		NewIterableSketches(func(*SketchSeries) {}, 10, 2),
-		nil, nil,
-		func(serieSink SerieSink, _ SketchesSink, _ ExplicitBucketHistogramSink, _ ExponentialHistogramSink) {
+		func(serieSink SerieSink, _ SketchesSink) {
 			serieSink.Append(&Serie{Name: "serie1"})
 			serieSink.Append(&Serie{Name: "serie2"})
 			serieSink.Append(&Serie{Name: "serie3"})
@@ -27,9 +26,7 @@ func TestIterableSeries(t *testing.T) {
 			for serieSource.MoveNext() {
 				names = append(names, serieSource.Current().Name)
 			}
-		}, func(_ SketchesSource) {},
-		func(_ ExplicitBucketHistogramSource) {},
-		func(_ ExponentialHistogramSource) {})
+		}, func(_ SketchesSource) {})
 
 	r := require.New(t)
 	r.Len(names, 3)
@@ -69,8 +66,7 @@ func BenchmarkIterableSeries(b *testing.B) {
 			Serialize(
 				NewIterableSeries(func(*Serie) {}, 100, bufferSize),
 				NewIterableSketches(func(*SketchSeries) {}, 10, 2),
-				nil, nil,
-				func(serieSink SerieSink, _ SketchesSink, _ ExplicitBucketHistogramSink, _ ExponentialHistogramSink) {
+				func(serieSink SerieSink, _ SketchesSink) {
 					for i := 0; i < b.N; i++ {
 						serieSink.Append(&Serie{Name: "name"})
 					}
@@ -78,9 +74,7 @@ func BenchmarkIterableSeries(b *testing.B) {
 				func(seriesSource SerieSource) {
 					for seriesSource.MoveNext() {
 					}
-				}, func(_ SketchesSource) {},
-				func(_ ExplicitBucketHistogramSource) {},
-				func(_ ExponentialHistogramSource) {})
+				}, func(_ SketchesSource) {})
 		})
 	}
 }
@@ -91,8 +85,7 @@ func TestIterableSeriesSeveralValues(t *testing.T) {
 	Serialize(
 		NewIterableSeries(func(*Serie) {}, 10, 2),
 		NewIterableSketches(func(*SketchSeries) {}, 10, 2),
-		nil, nil,
-		func(serieSink SerieSink, _ SketchesSink, _ ExplicitBucketHistogramSink, _ ExponentialHistogramSink) {
+		func(serieSink SerieSink, _ SketchesSink) {
 			for i := 0; i < 101; i++ {
 				name := "serie" + strconv.Itoa(i)
 				expected = append(expected, name)
@@ -102,9 +95,7 @@ func TestIterableSeriesSeveralValues(t *testing.T) {
 			for serieSource.MoveNext() {
 				series = append(series, serieSource.Current())
 			}
-		}, func(_ SketchesSource) {},
-		func(_ ExplicitBucketHistogramSource) {},
-		func(_ ExponentialHistogramSource) {})
+		}, func(_ SketchesSource) {})
 
 	r := require.New(t)
 	r.Len(series, len(expected))

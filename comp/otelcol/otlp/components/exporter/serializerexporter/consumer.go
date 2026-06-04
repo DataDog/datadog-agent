@@ -301,39 +301,71 @@ func (c *serializerConsumer) addGatewayUsage(hostname string, params exporter.Se
 
 // Send exports all data recorded by the consumer. It does not reset the consumer.
 func (c *serializerConsumer) Send(s serializer.MetricSerializer) error {
-	var serieErr, sketchesErr, explicitHistErr, exponentialHistErr error
+	var serieErr, sketchesErr error
 	metrics.Serialize(
 		metrics.NewIterableSeries(func(_ *metrics.Serie) {}, 200, 4000),
 		metrics.NewIterableSketches(func(_ *metrics.SketchSeries) {}, 200, 4000),
-		metrics.NewIterableExplicitBucketHistograms(func(_ *metrics.ExplicitBucketHistogramSeries) {}, 200, 4000),
-		metrics.NewIterableExponentialHistograms(func(_ *metrics.ExponentialHistogramSeries) {}, 200, 4000),
-		func(seriesSink metrics.SerieSink, sketchesSink metrics.SketchesSink, explicitSink metrics.ExplicitBucketHistogramSink, exponentialSink metrics.ExponentialHistogramSink) {
+		func(seriesSink metrics.SerieSink, sketchesSink metrics.SketchesSink) {
 			for _, serie := range c.series {
 				seriesSink.Append(serie)
 			}
 			for _, sketch := range c.sketches {
 				sketchesSink.Append(sketch)
 			}
-			for _, h := range c.explicitBucketHistograms {
-				explicitSink.Append(h)
-			}
-			for _, h := range c.exponentialHistograms {
-				exponentialSink.Append(h)
-			}
 		}, func(serieSource metrics.SerieSource) {
 			serieErr = s.SendIterableSeries(serieSource)
 		}, func(sketchesSource metrics.SketchesSource) {
 			sketchesErr = s.SendSketch(sketchesSource)
 		},
-		func(source metrics.ExplicitBucketHistogramSource) {
-			explicitHistErr = s.SendExplicitBucketHistograms(source)
-		},
-		func(source metrics.ExponentialHistogramSource) {
-			exponentialHistErr = s.SendExponentialHistograms(source)
-		},
 	)
+	explicitHistErr := s.SendExplicitBucketHistograms(&sliceExplicitBucketHistogramSource{data: c.explicitBucketHistograms, index: -1})
+	exponentialHistErr := s.SendExponentialHistograms(&sliceExponentialHistogramSource{data: c.exponentialHistograms, index: -1})
 	apmErr := c.sendAPMStats()
 	return multierr.Combine(serieErr, sketchesErr, explicitHistErr, exponentialHistErr, apmErr)
+}
+
+type sliceExplicitBucketHistogramSource struct {
+	data  []*metrics.ExplicitBucketHistogramSeries
+	index int
+}
+
+func (s *sliceExplicitBucketHistogramSource) MoveNext() bool {
+	s.index++
+	return s.index < len(s.data)
+}
+
+func (s *sliceExplicitBucketHistogramSource) Current() *metrics.ExplicitBucketHistogramSeries {
+	return s.data[s.index]
+}
+
+func (s *sliceExplicitBucketHistogramSource) Count() uint64 {
+	return uint64(len(s.data))
+}
+
+func (s *sliceExplicitBucketHistogramSource) WaitForValue() bool {
+	return false
+}
+
+type sliceExponentialHistogramSource struct {
+	data  []*metrics.ExponentialHistogramSeries
+	index int
+}
+
+func (s *sliceExponentialHistogramSource) MoveNext() bool {
+	s.index++
+	return s.index < len(s.data)
+}
+
+func (s *sliceExponentialHistogramSource) Current() *metrics.ExponentialHistogramSeries {
+	return s.data[s.index]
+}
+
+func (s *sliceExponentialHistogramSource) Count() uint64 {
+	return uint64(len(s.data))
+}
+
+func (s *sliceExponentialHistogramSource) WaitForValue() bool {
+	return false
 }
 
 func (c *serializerConsumer) sendAPMStats() error {

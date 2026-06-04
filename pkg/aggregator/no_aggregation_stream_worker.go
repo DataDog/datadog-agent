@@ -162,8 +162,7 @@ func (w *noAggregationStreamWorker) run() {
 		metrics.Serialize(
 			w.seriesSink,
 			w.sketchesSink,
-			nil, nil,
-			func(seriesSink metrics.SerieSink, _ metrics.SketchesSink, _ metrics.ExplicitBucketHistogramSink, _ metrics.ExponentialHistogramSink) {
+			func(seriesSink metrics.SerieSink, _ metrics.SketchesSink) {
 			mainloop:
 				for {
 					select {
@@ -249,9 +248,7 @@ func (w *noAggregationStreamWorker) run() {
 				sendIterableSeries(w.serializer, start, serieSource)
 			}, func(_ metrics.SketchesSource) {
 				// noop: we do not support sketches in the no-agg pipeline.
-			},
-			func(_ metrics.ExplicitBucketHistogramSource) {},
-			func(_ metrics.ExponentialHistogramSource) {})
+			})
 
 		if stopped {
 			break
