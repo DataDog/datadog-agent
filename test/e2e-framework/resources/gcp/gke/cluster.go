@@ -30,7 +30,11 @@ func NewCluster(e gcp.Environment, name string, autopilot bool, opts ...pulumi.R
 	clusterLabels := e.ResourcesTags()
 	clusterLabels = clusterLabels.ToStringMapOutput().ApplyT(func(labels map[string]string) map[string]string {
 		for k, v := range labels {
-			labels[k] = strings.ReplaceAll(strings.ToLower(v), ".", "-")
+			v = strings.ReplaceAll(strings.ToLower(v), ".", "-")
+			if len(v) > gcp.MaxResourceLabelValueLen {
+				v = v[:gcp.MaxResourceLabelValueLen]
+			}
+			labels[k] = v
 		}
 
 		return labels
