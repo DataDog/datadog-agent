@@ -144,7 +144,7 @@
       },
       {
         "matchManagers": ["bazelisk"],
-        "matchUpdateTypes": ["major"],
+        "matchDepNames": ["*"],
         "enabled": false
       },
       {
@@ -163,7 +163,7 @@
       },
       {
         "matchManagers": ["bazel-module"],
-        "matchDepTypes": ["git_override"],
+        "matchDepTypes": ["archive_override", "git_override", "git_repository", "local_path_override"],
         "enabled": false
       },
       {
