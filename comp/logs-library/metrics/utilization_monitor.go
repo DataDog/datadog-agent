@@ -9,7 +9,11 @@ import (
 	"time"
 
 	"github.com/benbjohnson/clock"
+
+	log "github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+const saturationThrottleDuration = 10 * time.Minute
 
 // UtilizationMonitor is an interface for monitoring the utilization of a component.
 type UtilizationMonitor interface {
@@ -41,6 +45,14 @@ type TelemetryUtilizationMonitor struct {
 	instance   string
 	started    bool
 	clock      clock.Clock
+
+	// Saturation episode tracking for log emission.
+	isSaturated     bool
+	saturatedSince  time.Time
+	lastThrottleLog time.Time
+	episodeMaxUtil  float64
+	episodeMaxItems int64
+	episodeMaxBytes int64
 }
 
 // NewTelemetryUtilizationMonitor creates a new TelemetryUtilizationMonitor.
@@ -105,6 +117,57 @@ func (u *TelemetryUtilizationMonitor) reportIfNeeded() {
 		u.idle = 0
 		u.inUse = 0
 		u.lastSample = now
+
+		u.updateSaturationState(now)
+	}
+}
+
+// updateSaturationState drives the per-component saturation state machine and emits
+// log events on transitions and on a throttled cadence during sustained saturation.
+// Must be called with the sample lock held (i.e. from inside reportIfNeeded).
+func (u *TelemetryUtilizationMonitor) updateSaturationState(now time.Time) {
+	currentlySaturated := u.shortAvg >= SaturationThreshold
+
+	if currentlySaturated {
+		snap, _ := lookupComponentSnapshot(u.name, u.instance)
+
+		if !u.isSaturated {
+			// Entering saturation: log once and initialise episode tracking.
+			u.isSaturated = true
+			u.saturatedSince = now
+			u.lastThrottleLog = now
+			u.episodeMaxUtil = u.shortAvg
+			u.episodeMaxItems = snap.RawItems
+			u.episodeMaxBytes = snap.RawBytes
+			log.Warnf("Logs Agent pipeline component saturated component=%s instance=%s utilization=%.0f%% duration=0s max_utilization=%.0f%% max_items=%d max_bytes=%d",
+				u.name, u.instance, u.shortAvg*100, u.episodeMaxUtil*100, u.episodeMaxItems, u.episodeMaxBytes)
+		} else {
+			// Ongoing saturation: keep episode maxes up to date.
+			if u.shortAvg > u.episodeMaxUtil {
+				u.episodeMaxUtil = u.shortAvg
+			}
+			if snap.RawItems > u.episodeMaxItems {
+				u.episodeMaxItems = snap.RawItems
+			}
+			if snap.RawBytes > u.episodeMaxBytes {
+				u.episodeMaxBytes = snap.RawBytes
+			}
+
+			// Throttled summary every saturationThrottleDuration.
+			if now.Sub(u.lastThrottleLog) >= saturationThrottleDuration {
+				log.Warnf("Logs Agent pipeline component saturated component=%s instance=%s utilization=%.0f%% duration=%s max_utilization=%.0f%% max_items=%d max_bytes=%d",
+					u.name, u.instance, u.shortAvg*100, now.Sub(u.saturatedSince), u.episodeMaxUtil*100, u.episodeMaxItems, u.episodeMaxBytes)
+				u.lastThrottleLog = now
+			}
+		}
+	} else if u.isSaturated {
+		// Recovery: log once with episode summary.
+		log.Infof("Logs Agent pipeline component recovered component=%s instance=%s saturated_duration=%s max_utilization=%.0f%% max_items=%d max_bytes=%d",
+			u.name, u.instance, now.Sub(u.saturatedSince), u.episodeMaxUtil*100, u.episodeMaxItems, u.episodeMaxBytes)
+		u.isSaturated = false
+		u.episodeMaxUtil = 0
+		u.episodeMaxItems = 0
+		u.episodeMaxBytes = 0
 	}
 }
 

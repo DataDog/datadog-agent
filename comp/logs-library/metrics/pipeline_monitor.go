@@ -89,6 +89,18 @@ func GlobalComponentSnapshots() []ComponentSnapshot {
 	return result
 }
 
+// lookupComponentSnapshot returns the current snapshot for a single component instance.
+// Returns the zero value and false if no snapshot exists for the given name:instance pair.
+func lookupComponentSnapshot(name, instance string) (ComponentSnapshot, bool) {
+	globalSnapshotsMu.RLock()
+	defer globalSnapshotsMu.RUnlock()
+	s := globalSnapshots[name+":"+instance]
+	if s == nil {
+		return ComponentSnapshot{}, false
+	}
+	return *s, true
+}
+
 // ClearComponentSnapshots removes all stored component snapshots.
 // Called when the logs pipeline stops so stale entries don't outlive the pipeline.
 func ClearComponentSnapshots() {
