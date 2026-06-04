@@ -4550,9 +4550,7 @@ properties:
             items:
               type: string
             visibility: public
-            description: |-
-              A list of tags to attach to every trap forwarded to Datadog and to every
-              SNMP traps telemetry metric emitted by the Agent.
+            description: A list of low-cardinality tags (e.g. application, team, environment) attached to every trap forwarded to Datadog and to every SNMP traps telemetry metric emitted by the Agent.
             example: |2-
 
                 - "application:my-app"

@@ -4576,10 +4576,7 @@ api_key:
 
 #     # @param tags - list of strings - optional - default: []
 #     # @env DD_NETWORK_DEVICES_SNMP_TRAPS_TAGS - space-separated list of strings - optional - default: []
-#     # A list of tags to attach to every trap forwarded to Datadog and to every
-#     # SNMP traps telemetry metric emitted by the Agent. Keep these values
-#     # low-cardinality (e.g. application, team, environment) — per-device or
-#     # per-instance values multiply telemetry metric series.
+#     # A list of low-cardinality tags (e.g. application, team, environment) attached to every trap forwarded to Datadog and to every SNMP traps telemetry metric emitted by the Agent.
 #
 #     tags:
 #       - "application:<APPLICATION_ID>"
