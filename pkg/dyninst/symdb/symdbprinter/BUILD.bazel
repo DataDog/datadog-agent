@@ -1,0 +1,21 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "symdbprinter",
+    srcs = ["symdbprinter.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/symdb/symdbprinter",
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/dyninst/symdb/uploader"],
+)
+
+go_test(
+    name = "symdbprinter_test",
+    srcs = ["symdbprinter_test.go"],
+    embed = [":symdbprinter"],
+    gotags = ["test"],
+    deps = [
+        "//pkg/dyninst/symdb",
+        "//pkg/dyninst/symdb/uploader",
+        "@com_github_stretchr_testify//require",
+    ],
+)
