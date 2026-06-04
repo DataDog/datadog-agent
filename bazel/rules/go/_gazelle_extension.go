@@ -78,6 +78,12 @@ func (l *lang) ApparentLoads(moduleToApparentName func(string) string) []rule.Lo
 	})
 }
 
+// KnownDirectives registers dd_agent_go_test alongside the Go extension's
+// directives so Gazelle's -strict mode accepts it.
+func (l *lang) KnownDirectives() []string {
+	return append(l.Language.KnownDirectives(), extName)
+}
+
 // Configure reads the # gazelle:dd_agent_go_test directive from the BUILD file.
 // "off" disables the go_test → dd_agent_go_test conversion; "on" re-enables it.
 // The setting is inheritable: it applies to this package and all subpackages

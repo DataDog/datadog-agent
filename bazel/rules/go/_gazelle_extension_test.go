@@ -217,6 +217,25 @@ func TestLoads(t *testing.T) {
 	}
 }
 
+// TestKnownDirectives ensures the directive is registered so Gazelle's -strict
+// mode accepts `# gazelle:dd_agent_go_test`, and that the Go extension's own
+// directives are still advertised.
+func TestKnownDirectives(t *testing.T) {
+	dirs := NewLanguage().(*lang).KnownDirectives()
+	found := false
+	for _, d := range dirs {
+		if d == extName {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("%q not in KnownDirectives: %v", extName, dirs)
+	}
+	if len(dirs) <= 1 {
+		t.Errorf("expected Go extension directives to be preserved, got %v", dirs)
+	}
+}
+
 func TestConfigure_DirectiveOff(t *testing.T) {
 	f := &rule.File{}
 	f.Directives = []rule.Directive{{Key: "dd_agent_go_test", Value: "off"}}
