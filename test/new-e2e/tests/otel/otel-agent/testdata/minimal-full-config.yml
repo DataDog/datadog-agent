@@ -145,7 +145,7 @@ processors:
     allow_hostname_override: false
     cardinality: 0
   filter/drop-prometheus-internal-metrics/dd-autoconfigured:
-    error_mode: propagate
+    error_mode: ignore
     log_conditions: []
     logs:
       exclude: null

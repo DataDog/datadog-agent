@@ -2,8 +2,11 @@ load("@rules_go//go:def.bzl", "go_library")
 
 go_library(
     name = "orchestratorinterface",
-    srcs = ["component.go"],
+    srcs = [
+        "component.go",
+        "doc.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface",
     visibility = ["//visibility:public"],
-    deps = ["//comp/forwarder/defaultforwarder"],
+    deps = ["//comp/forwarder/defaultforwarder/def"],
 )

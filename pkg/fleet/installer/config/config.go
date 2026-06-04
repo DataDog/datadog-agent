@@ -19,8 +19,8 @@ import (
 	"regexp"
 	"strings"
 
+	patch "github.com/evanphx/json-patch/v5"
 	"go.yaml.in/yaml/v2"
-	patch "gopkg.in/evanphx/json-patch.v4"
 )
 
 // FileOperationType is the type of operation to perform on the config.
