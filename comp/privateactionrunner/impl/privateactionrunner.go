@@ -227,13 +227,13 @@ func (p *PrivateActionRunner) start(ctx context.Context) error {
 
 	keysManager := taskverifier.NewKeyManager(p.rcClient)
 	taskVerifier := taskverifier.NewTaskVerifier(keysManager, cfg)
-	opmsClient := opms.NewClient(cfg)
+	opmsClient := opms.NewClient(p.coreConfig, cfg)
 
 	p.workflowRunner, err = runners.NewWorkflowRunner(cfg, keysManager, taskVerifier, opmsClient, p.traceroute, p.eventPlatform, p.ipc.GetClient())
 	if err != nil {
 		return err
 	}
-	p.commonRunner = runners.NewCommonRunner(cfg)
+	p.commonRunner = runners.NewCommonRunner(p.coreConfig, cfg)
 	err = p.workflowRunner.Start(ctx)
 	if err != nil {
 		return err
@@ -329,9 +329,9 @@ func (p *PrivateActionRunner) performSelfEnrollment(ctx context.Context, cfg *pa
 		err              error
 	)
 	if apiKeyOnlyEnrollment {
-		enrollmentResult, err = enrollment.SelfEnrollApiKeyOnly(ctx, ddSite, runnerNamePrefix, apiKey, agentIdentifier, cfg.OpmsExtraHeaders)
+		enrollmentResult, err = enrollment.SelfEnrollApiKeyOnly(ctx, p.coreConfig, ddSite, runnerNamePrefix, apiKey, agentIdentifier, cfg.OpmsExtraHeaders)
 	} else {
-		enrollmentResult, err = enrollment.SelfEnroll(ctx, ddSite, runnerNamePrefix, apiKey, appKey, agentIdentifier, cfg.OpmsExtraHeaders)
+		enrollmentResult, err = enrollment.SelfEnroll(ctx, p.coreConfig, ddSite, runnerNamePrefix, apiKey, appKey, agentIdentifier, cfg.OpmsExtraHeaders)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("enrollment API call failed: %w", err)

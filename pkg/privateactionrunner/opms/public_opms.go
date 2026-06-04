@@ -14,12 +14,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	app "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/constants"
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/modes"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/parversion"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/par"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
+	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/jsonapi"
 	"github.com/go-jose/go-jose/v4"
 )
@@ -64,12 +66,13 @@ type publicClient struct {
 	extraHeaders map[string]string
 }
 
-func NewPublicClient(ddBaseURL string, extraHeaders map[string]string) PublicClient {
+func NewPublicClient(cfg model.Reader, ddBaseURL string, extraHeaders map[string]string) PublicClient {
 	apiHost := strings.Replace(ddBaseURL, "https://", "", 1)
 	return &publicClient{
 		ddApiHost: apiHost,
 		httpClient: &http.Client{
-			Timeout: time.Millisecond * time.Duration(30_000),
+			Timeout:   30 * time.Second,
+			Transport: httputils.CreateHTTPTransport(cfg),
 		},
 		extraHeaders: extraHeaders,
 	}
@@ -188,8 +191,9 @@ func (p *publicClient) doEnrollRequest(ctx context.Context, url string, body []b
 		req.Header.Set(k, v)
 	}
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := p.httpClient.Do(req)
 	if err != nil {
+		log.Errorf("PAR enrollment request failed - if the agent is behind a proxy, ensure proxy settings are configured in datadog.yaml: %v", err)
 		return nil, 0, fmt.Errorf("failed to send runner creation request: %w", err)
 	}
 	defer func() {

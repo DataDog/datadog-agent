@@ -13,6 +13,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -20,9 +21,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	app "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/constants"
 )
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
 
 // newTestKey generates a throwaway ECDSA key for unit tests.
 func newTestKey(t *testing.T) *ecdsa.PrivateKey {
@@ -253,4 +259,45 @@ func TestHealthCheck_RetryAfterMs_PopulatedOnError(t *testing.T) {
 	require.Error(t, err)
 	require.NotNil(t, data)
 	assert.Equal(t, 3000*time.Millisecond, data.RetryAfter)
+}
+
+// ---------- proxy transport wiring ----------
+
+func TestNewClientHasProxyAwareTransport(t *testing.T) {
+	cfg := configmock.New(t)
+	parCfg := &config.Config{OpmsRequestTimeout: 5000}
+
+	c := NewClient(cfg, parCfg).(*client)
+
+	assert.NotNil(t, c.httpClient.Transport)
+	assert.NotEqual(t, http.DefaultTransport, c.httpClient.Transport)
+}
+
+func TestNewPublicClientHasProxyAwareTransport(t *testing.T) {
+	cfg := configmock.New(t)
+
+	pc := NewPublicClient(cfg, "https://api.datadoghq.com", nil).(*publicClient)
+
+	assert.NotNil(t, pc.httpClient.Transport)
+	assert.NotEqual(t, http.DefaultTransport, pc.httpClient.Transport)
+}
+
+func TestDoEnrollRequestUsesOwnHttpClient(t *testing.T) {
+	var transportCalled bool
+	p := &publicClient{
+		httpClient: &http.Client{
+			Transport: roundTripFunc(func(_ *http.Request) (*http.Response, error) {
+				transportCalled = true
+				return &http.Response{
+					StatusCode: http.StatusOK,
+					Body:       io.NopCloser(strings.NewReader("{}")),
+				}, nil
+			}),
+		},
+	}
+
+	_, _, err := p.doEnrollRequest(context.Background(), "https://app.datadoghq.com/enroll", []byte("{}"), "apikey", "")
+
+	require.NoError(t, err)
+	assert.True(t, transportCalled, "doEnrollRequest must use p.httpClient, not http.DefaultClient")
 }
