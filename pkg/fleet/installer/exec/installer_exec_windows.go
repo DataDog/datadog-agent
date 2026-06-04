@@ -20,7 +20,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/config"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/db"
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/garbagecollect"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
@@ -101,5 +100,13 @@ func (i *InstallerExec) GarbageCollect(ctx context.Context) (err error) {
 	}()
 
 	repos := repository.NewRepositories(paths.PackagesPath, i.preRemoveHooks)
-	return garbagecollect.Run(ctx, repos, paths.RootTmpDir)
+	err = repos.Cleanup(ctx)
+	if err != nil {
+		return fmt.Errorf("could not cleanup packages: %w", err)
+	}
+	err = repository.CleanupTmpDirectory(paths.RootTmpDir)
+	if err != nil {
+		return fmt.Errorf("could not cleanup tmp directory: %w", err)
+	}
+	return nil
 }

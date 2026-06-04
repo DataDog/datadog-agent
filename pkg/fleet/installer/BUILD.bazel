@@ -13,7 +13,6 @@ go_library(
         "//pkg/fleet/installer/db",
         "//pkg/fleet/installer/env",
         "//pkg/fleet/installer/errors",
-        "//pkg/fleet/installer/garbagecollect",
         "//pkg/fleet/installer/oci",
         "//pkg/fleet/installer/packages",
         "//pkg/fleet/installer/packages/extensions",

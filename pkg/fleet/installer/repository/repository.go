@@ -18,6 +18,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/symlink"
@@ -325,6 +326,47 @@ func (r *Repository) Cleanup(ctx context.Context) error {
 		return err
 	}
 	return repository.cleanup(ctx)
+}
+
+// CleanupTmpDirectory removes files and directories in rootTmpDir that are older than 24 hours.
+func CleanupTmpDirectory(rootTmpDir string) error {
+	if _, err := os.Stat(rootTmpDir); os.IsNotExist(err) {
+		return nil
+	}
+
+	cutoffTime := time.Now().Add(-24 * time.Hour)
+	entries, err := os.ReadDir(rootTmpDir)
+	if err != nil {
+		return fmt.Errorf("could not read tmp directory: %w", err)
+	}
+
+	var cleanupErrors []string
+	for _, entry := range entries {
+		entryPath := filepath.Join(rootTmpDir, entry.Name())
+		info, err := entry.Info()
+		if err != nil {
+			log.Warnf("Could not get info for %s: %v", entryPath, err)
+			continue
+		}
+
+		if info.ModTime().Before(cutoffTime) {
+			log.Debugf("Removing old tmp file/directory: %s (modified: %v)", entryPath, info.ModTime())
+
+			err := os.RemoveAll(entryPath)
+			if err != nil {
+				cleanupErrors = append(cleanupErrors, fmt.Sprintf("failed to remove %s: %v", entryPath, err))
+				log.Warnf("Could not remove old tmp file/directory %s: %v", entryPath, err)
+			} else {
+				log.Debugf("Successfully removed old tmp file/directory: %s", entryPath)
+			}
+		}
+	}
+
+	if len(cleanupErrors) > 0 {
+		return fmt.Errorf("tmp directory cleanup completed with errors: %s", strings.Join(cleanupErrors, "; "))
+	}
+
+	return nil
 }
 
 type repositoryFiles struct {

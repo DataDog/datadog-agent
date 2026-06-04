@@ -18,7 +18,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/config"
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/garbagecollect"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 
@@ -707,7 +706,15 @@ func (i *installerImpl) Remove(ctx context.Context, pkg string) error {
 func (i *installerImpl) GarbageCollect(ctx context.Context) error {
 	i.m.Lock()
 	defer i.m.Unlock()
-	return garbagecollect.Run(ctx, i.packages, paths.RootTmpDir)
+	err := i.packages.Cleanup(ctx)
+	if err != nil {
+		return fmt.Errorf("could not cleanup packages: %w", err)
+	}
+	err = repository.CleanupTmpDirectory(paths.RootTmpDir)
+	if err != nil {
+		return fmt.Errorf("could not cleanup tmp directory: %w", err)
+	}
+	return nil
 }
 
 // InstrumentAPMInjector instruments the APM injector.
