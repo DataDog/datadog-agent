@@ -114,8 +114,8 @@ func newComponent(reqs Requires) (*networkDeviceConfigImpl, error) {
 		log:             reqs.Logger,
 		store:           store,
 		sender:          sender,
-		deviceConfigs:   make(map[string]*ncmconfig.DeviceInstance),
-		lastReportTimes: make(map[string]time.Time),
+		deviceConfigs:   NewMap[*ncmconfig.DeviceInstance](),
+		lastReportTimes: NewMap[time.Time](),
 		hostname:        hostname,
 		profiles:        profiles,
 		connect:         ncmremote.ConnectOverSSH,
@@ -131,10 +131,10 @@ type networkDeviceConfigImpl struct {
 
 	// deviceConfigs maps deviceIDs to their data. It is populated by check
 	// instances calling RegisterDevice
-	deviceConfigs map[string]*ncmconfig.DeviceInstance
+	deviceConfigs *Map[*ncmconfig.DeviceInstance]
 	// lastReportTimes maps a deviceID to the timestamp of the last time a
 	// config report was requested for that deviceID.
-	lastReportTimes       map[string]time.Time
+	lastReportTimes       *Map[time.Time]
 	inventoryMaxInterval  time.Duration
 	lastInventoryReportAt time.Time
 	clock                 clock.Clock
@@ -146,13 +146,10 @@ type networkDeviceConfigImpl struct {
 
 // RegisterDevice tells the component how to connect to a device.
 func (n *networkDeviceConfigImpl) RegisterDevice(config *ncmconfig.DeviceInstance) error {
-	// TODO should we bother with a mutex here? The only case where it matters
-	// is if for some reason multiple checks are running for the same device at
-	// the same time, which shouldn't ever happen.
-	if _, exists := n.deviceConfigs[config.DeviceID()]; exists {
+	_, loaded := n.deviceConfigs.LoadOrStore(config.DeviceID(), config)
+	if loaded {
 		return fmt.Errorf("duplicate registration for device %q", config.DeviceID())
 	}
-	n.deviceConfigs[config.DeviceID()] = config
 	return nil
 }
 
@@ -209,7 +206,7 @@ func (n *networkDeviceConfigImpl) ReportConfigWithSender(deviceID string, baseSe
 		format = fmt.Sprintf("ncm[%s]: %s", deviceID, format)
 		n.log.Debugf(format, params...)
 	}
-	device, ok := n.deviceConfigs[deviceID]
+	device, ok := n.deviceConfigs.Load(deviceID)
 	if !ok {
 		return fmt.Errorf("unknown device: %q", deviceID)
 	}
@@ -296,8 +293,9 @@ func (n *networkDeviceConfigImpl) ReportConfigWithSender(deviceID string, baseSe
 	} else {
 		debugf("no new config and no need to send inventory data")
 	}
-	sender.SendNCMCheckMetrics(startTime, n.lastReportTimes[deviceID])
-	n.lastReportTimes[deviceID] = startTime
+	lastTime, _ := n.lastReportTimes.Swap(deviceID, startTime)
+	sender.SendNCMCheckMetrics(startTime, lastTime)
+
 	return nil
 }
 
