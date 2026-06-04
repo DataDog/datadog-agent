@@ -9,6 +9,7 @@ package main
 
 import (
 	"context"
+	"github.com/DataDog/datadog-agent/comp/logs-library/processor"
 	"os"
 	"strings"
 	"sync"
@@ -50,6 +51,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
+	serverlessLogs "github.com/DataDog/datadog-agent/pkg/serverless/logs"
 	"github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/otlp"
 	serverlessTag "github.com/DataDog/datadog-agent/pkg/serverless/tags"
@@ -151,6 +153,10 @@ func setup(secretComp secrets.Component, delegatedAuthComp delegatedauth.Compone
 	origin := cloudService.GetOrigin()
 	// Note: we do not modify tags for the LogsAgent.
 	logsAgent := serverlessInitLog.SetupLogAgent(agentLogConfig, tagConfig.Tags, tagger, compression, hostname, origin)
+	// Snapshot the startup log tags so the lifecycle server can append lambda_microvm_id
+	// at /launch without losing the base set. Must be computed after SetupLogAgent
+	// since MapToArray normalises the same map that SetupLogAgent passes to SetLogsTags.
+	logTagsBase := serverlessTag.MapToArray(tagConfig.Tags)
 
 	// When no API key is configured, skip trace and metric agent initialization
 	// to avoid noisy error logs. The process wrapper and logs agent still function normally.
@@ -170,6 +176,11 @@ func setup(secretComp secrets.Component, delegatedAuthComp delegatedauth.Compone
 				SampleDrainer: metricAgent,
 				FlushTimeout:  agentLogConfig.FlushTimeout,
 				SidecarMode:   modeConf.SidecarMode,
+				LogsTagSetter: lifecycle.LogsTagSetterFunc(func(tags []string) {
+					serverlessLogs.SetLogsTags(tags)
+					processor.SetServerlessInitTagCache(tags)
+				}),
+				BaseTags: logTagsBase,
 			},
 		}
 		// Only MicroVM needs initialization without an API key: its Init starts the
@@ -202,6 +213,11 @@ func setup(secretComp secrets.Component, delegatedAuthComp delegatedauth.Compone
 			SampleDrainer: metricAgent,
 			FlushTimeout:  agentLogConfig.FlushTimeout,
 			SidecarMode:   modeConf.SidecarMode,
+			LogsTagSetter: lifecycle.LogsTagSetterFunc(func(tags []string) {
+				serverlessLogs.SetLogsTags(tags)
+				processor.SetServerlessInitTagCache(tags)
+			}),
+			BaseTags: logTagsBase,
 		},
 	}
 
