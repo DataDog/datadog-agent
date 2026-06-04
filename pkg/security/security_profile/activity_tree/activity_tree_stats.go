@@ -86,6 +86,9 @@ func (stats *Stats) ApproximateSize() int64 {
 // backings, map buckets, struct headers). Used by V2 callers for max-size checks and
 // the profile_size RAM metric.
 func (stats *Stats) HeapSize() int64 {
+	if stats.SizeBytes == 0 {
+		return stats.ApproximateSize()
+	}
 	return stats.SizeBytes
 }
 
