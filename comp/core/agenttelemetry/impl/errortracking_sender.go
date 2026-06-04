@@ -78,6 +78,7 @@ func enrichErrorLog(e errortracking.ErrorLog) Log {
 		TracerTime: e.Time.Unix(),
 		Count:      count,
 		IsCrash:    false,
+		ErrorKind:  callerPackage(e),
 	}
 	out.StackTrace = symbolizeStackFrames(e)
 	return out
@@ -109,4 +110,24 @@ func symbolizeStackFrames(e errortracking.ErrorLog) string {
 		}
 	}
 	return b.String()
+}
+
+// callerPackage returns the agent-internal package path of the first
+// captured stack frame, e.g. "comp/core/tagger/impl". It strips the
+// module prefix so the result is a compact component identifier suitable
+// for use as error.kind in the Error Tracking pipeline.
+// Returns empty string when no PCs were captured.
+func callerPackage(e errortracking.ErrorLog) string {
+	if e.PCsLen == 0 {
+		return ""
+	}
+	frames := runtime.CallersFrames(e.PCs[:1])
+	frame, _ := frames.Next()
+	fn := strings.TrimPrefix(frame.Function, "github.com/DataDog/datadog-agent/")
+	// fn is now "comp/core/tagger/impl.(*taggerImpl).startComponent";
+	// split at the first dot to isolate the package path.
+	if idx := strings.IndexByte(fn, '.'); idx > 0 {
+		return fn[:idx]
+	}
+	return fn
 }

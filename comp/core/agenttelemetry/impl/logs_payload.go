@@ -38,6 +38,7 @@ type Log struct {
 	TraceID    string   `json:"trace_id"`
 	SpanID     string   `json:"span_id"`
 	IsCrash    bool     `json:"is_crash"`
+	ErrorKind  string   `json:"error_kind"`
 }
 
 // LogsPayload is the inner "payload" field of the apmtelemetry envelope
