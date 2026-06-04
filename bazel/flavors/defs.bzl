@@ -15,6 +15,10 @@ load(
     "WINDOWS_INCLUDED_TAGS",
 )
 
+# Canonical sorted list of flavor names, derived from the single source of
+# truth so it can't drift from the keys flavor_gotags() accepts.
+ALL_FLAVORS = sorted(FLAVOR_UNIT_TEST_TAGS.keys())
+
 def _without(tags, excluded):
     return [t for t in tags if t not in excluded]
 

@@ -1,7 +1,5 @@
 load("@rules_go//go:def.bzl", "go_test")
-load("//bazel/flavors:defs.bzl", "flavor_gotags")
-
-_ALL_FLAVORS = ["base", "dogstatsd", "fips", "heroku", "iot"]
+load("//bazel/flavors:defs.bzl", "ALL_FLAVORS", "flavor_gotags")
 
 def dd_agent_go_test(name, flavors = None, tags = None, **kwargs):
     """Wraps go_test with per-flavor variants grouped under a test_suite.
@@ -23,7 +21,7 @@ def dd_agent_go_test(name, flavors = None, tags = None, **kwargs):
         **kwargs: Remaining attrs forwarded to each go_test (srcs, embed, deps, …).
     """
     if flavors == None:
-        flavors = _ALL_FLAVORS
+        flavors = ALL_FLAVORS
     user_tags = tags or []
     for flavor in flavors:
         go_test(

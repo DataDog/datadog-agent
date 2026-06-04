@@ -263,8 +263,8 @@ func findRule(file *rule.File, kind, name string) (*rule.Rule, bool) {
 }
 
 // allFlavors returns the canonical flavor list (sorted by name) used by the
-// dd_agent_go_test macro. Matches _ALL_FLAVORS in bazel/rules/go/dd_agent_go_test.bzl,
-// derived from FlavorUnitTestTags keys so we don't maintain two copies.
+// dd_agent_go_test macro. Like ALL_FLAVORS in bazel/flavors/defs.bzl, it is
+// derived from FlavorUnitTestTags to keep a single source of truth.
 func allFlavors() []string {
 	out := make([]string, 0, len(FlavorUnitTestTags))
 	for f := range FlavorUnitTestTags {
