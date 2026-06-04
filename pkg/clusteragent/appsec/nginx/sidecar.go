@@ -54,17 +54,6 @@ const (
 	labelNameValue      = "ingress-nginx"
 	labelComponentKey   = "app.kubernetes.io/component"
 	labelComponentValue = "controller"
-
-	// initContainerRunAsUser/Group pin the init container to a non-root identity.
-	// The datadog/ingress-nginx-injection image declares no USER (defaults to
-	// root), so RunAsNonRoot alone makes the kubelet reject the container with
-	// "container has runAsNonRoot and image will run as root". An explicit
-	// non-root UID/GID is required. We reuse ingress-nginx's own well-known
-	// www-data identity (101:82) so the copied module file ownership matches the
-	// controller container that consumes it; the module is world-readable
-	// regardless, so this only needs to be any non-zero ID.
-	initContainerRunAsUser  int64 = 101
-	initContainerRunAsGroup int64 = 82
 )
 
 var _ appsecconfig.SidecarInjectionPattern = (*nginxSidecarPattern)(nil)
@@ -168,7 +157,7 @@ func (n *nginxSidecarPattern) MutatePod(pod *corev1.Pod, ns string, client dynam
 		},
 	})
 
-	pod.Spec.InitContainers = append(pod.Spec.InitContainers, buildInitContainer(initImageRef, moduleMountPath))
+	pod.Spec.InitContainers = append(pod.Spec.InitContainers, buildInitContainer(initImageRef, moduleMountPath, n.config.Nginx.InitRunAsUser, n.config.Nginx.InitRunAsGroup))
 
 	// Add volume mount to controller container
 	container.VolumeMounts = append(container.VolumeMounts, corev1.VolumeMount{
@@ -310,7 +299,27 @@ func imageIsFullyQualified(image string) bool {
 
 // buildInitContainer creates the init container spec that copies the nginx-datadog module.
 // image must be a fully-qualified image reference including the tag (e.g. "repo/image:tag").
-func buildInitContainer(image, moduleMountPath string) corev1.Container {
+//
+// runAsUser/runAsGroup set the container's non-root identity. The stock init
+// image declares no USER (runs as root), which the kubelet rejects under
+// RunAsNonRoot ("container has runAsNonRoot and image will run as root"), so a
+// non-root UID/GID is required for it. A negative value leaves the respective
+// field unset so a custom image's own USER is honored.
+func buildInitContainer(image, moduleMountPath string, runAsUser, runAsGroup int64) corev1.Container {
+	sc := &corev1.SecurityContext{
+		RunAsNonRoot:             ptr.To(true),
+		AllowPrivilegeEscalation: ptr.To(false),
+		ReadOnlyRootFilesystem:   ptr.To(true),
+		Capabilities: &corev1.Capabilities{
+			Drop: []corev1.Capability{"ALL"},
+		},
+	}
+	if runAsUser >= 0 {
+		sc.RunAsUser = ptr.To(runAsUser)
+	}
+	if runAsGroup >= 0 {
+		sc.RunAsGroup = ptr.To(runAsGroup)
+	}
 	return corev1.Container{
 		Name:    initContainerName,
 		Image:   image,
@@ -321,15 +330,6 @@ func buildInitContainer(image, moduleMountPath string) corev1.Container {
 				MountPath: moduleMountPath,
 			},
 		},
-		SecurityContext: &corev1.SecurityContext{
-			RunAsNonRoot:             ptr.To(true),
-			RunAsUser:                ptr.To(initContainerRunAsUser),
-			RunAsGroup:               ptr.To(initContainerRunAsGroup),
-			AllowPrivilegeEscalation: ptr.To(false),
-			ReadOnlyRootFilesystem:   ptr.To(true),
-			Capabilities: &corev1.Capabilities{
-				Drop: []corev1.Capability{"ALL"},
-			},
-		},
+		SecurityContext: sc,
 	}
 }
