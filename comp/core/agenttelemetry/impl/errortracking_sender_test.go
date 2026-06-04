@@ -178,8 +178,8 @@ func TestErrorLogToLog_WireShape(t *testing.T) {
 	assert.Equal(t, 1, out.Count)
 	assert.False(t, out.IsCrash)
 	assert.NotEmpty(t, out.StackTrace, "captured PCs must produce file:line stack_trace")
-	assert.Equal(t, "comp/core/agenttelemetry/impl", out.ErrorKind,
-		"ErrorKind must be the agent-internal package of the call site")
+	assert.Empty(t, out.ErrorKind,
+		"ErrorKind must be empty when no error attribute is present in the log record")
 
 	// Wire schema fields that are intentionally not populated.
 	assert.Empty(t, out.Message, "Message must NOT be on the wire")
@@ -196,25 +196,6 @@ func TestErrorLogToLog_NoPC_EmptyStackTrace(t *testing.T) {
 	out := enrichErrorLog(in)
 	assert.Empty(t, out.StackTrace, "no captured PCs must produce empty stack_trace")
 	assert.Empty(t, out.ErrorKind, "no captured PCs must produce empty error_kind")
-}
-
-// TestCallerPackage_AgentPackage locks the package-extraction logic for
-// frames within the agent module: the module prefix must be stripped and
-// only the internal package path returned.
-func TestCallerPackage_AgentPackage(t *testing.T) {
-	var in errortracking.ErrorLog
-	in.PCsLen = runtime.Callers(1, in.PCs[:])
-	require.GreaterOrEqual(t, in.PCsLen, 1)
-
-	got := callerPackage(in)
-	assert.Equal(t, "comp/core/agenttelemetry/impl", got)
-}
-
-// TestCallerPackage_NoPCs locks the zero-value case: no stack captured
-// must produce an empty string, not a panic.
-func TestCallerPackage_NoPCs(t *testing.T) {
-	in := errortracking.ErrorLog{}
-	assert.Empty(t, callerPackage(in))
 }
 
 // TestErrorLogToLog_MultiFramePCs locks the multi-frame stack format
