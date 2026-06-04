@@ -69,8 +69,13 @@ tests_linux-x64-py3_hybrid:
     - .linux_x64
   after_script:
     - !reference [.upload_junit_source]
-    - !reference [.upload_coverage]
-    - !reference [.upload_coverage_datadog]
+    # skip coverage upload for several reasons
+    # 1. It would conflate with coverate from the regular job
+    # 2. the bazel tests are not doing coverage yet
+    # 3. when bazel starts it makes the symlink .cache/bazel/…/execroot/_main/junit-out-AgentFlavor.base.xml
+    #    pointing to <top>/junit-out-AgentFlavor.base.xml. Then the coverage uploader fails on the symlink.
+    #    A possible fix for that is to change `datadog-ci coverage upload` so that it can gracefully
+    #    skip symlinks rather than choking. Or, we move XDG_CACHE out of the CI root.
   variables:
     CONDA_ENV: ddpy3
     EXPERIMENTAL_USE_BAZEL_TESTS: "1"
