@@ -231,17 +231,7 @@ func applyLocationEnvOverlay(base APMTags, locOps map[string][]iisEnvVarOp, site
 	if !applied {
 		return base
 	}
-	result := base
-	if aspNetCore.DDService != "" {
-		result.DDService = aspNetCore.DDService
-	}
-	if aspNetCore.DDEnv != "" {
-		result.DDEnv = aspNetCore.DDEnv
-	}
-	if aspNetCore.DDVersion != "" {
-		result.DDVersion = aspNetCore.DDVersion
-	}
-	return result
+	return base.Overlay(aspNetCore)
 }
 
 func buildPathTagTree(xmlcfg *iisConfiguration) map[uint32]*pathTreeEntry {
@@ -270,7 +260,7 @@ func buildPathTagTree(xmlcfg *iisConfiguration) map[uint32]*pathTreeEntry {
 
 			var ddjson APMTags
 			var appconfig APMTags
-			configFromEnv := false
+			var webcfgEnv APMTags
 			hasddjson := false
 			haswebcfg := false
 
@@ -279,6 +269,11 @@ func buildPathTagTree(xmlcfg *iisConfiguration) map[uint32]*pathTreeEntry {
 					// Non-"/" virtual paths are virtual directories, not the app root.
 					continue
 				}
+
+				// Reset per vdir so a later root vdir without these files
+				// doesn't keep an earlier one's stale state.
+				hasddjson = false
+				haswebcfg = false
 
 				// check to see if the datadog.json or web.config exists
 				ppath := vdir.PhysicalPath
@@ -307,30 +302,20 @@ func buildPathTagTree(xmlcfg *iisConfiguration) map[uint32]*pathTreeEntry {
 					}
 				}
 				if haswebcfg {
-					parsed, fromEnv, perr := ReadDotNetConfig(webcfg)
+					envTags, appSettingsTags, perr := ReadDotNetConfig(webcfg)
 					if perr != nil {
 						haswebcfg = false
 					} else {
-						appconfig = parsed
-						configFromEnv = fromEnv
+						appconfig = appSettingsTags
+						webcfgEnv = envTags
 					}
 				}
 			}
 
 			// Core web.config <aspNetCore> env overrides the pool env (ANCM
-			// applies it last); fold it in so it outranks applicationHost.
-			if configFromEnv {
-				if appconfig.DDService != "" {
-					envvars.DDService = appconfig.DDService
-				}
-				if appconfig.DDEnv != "" {
-					envvars.DDEnv = appconfig.DDEnv
-				}
-				if appconfig.DDVersion != "" {
-					envvars.DDVersion = appconfig.DDVersion
-				}
-				appconfig = APMTags{}
-			}
+			// applies it last); fold it in so it outranks applicationHost. For a
+			// Framework app webcfgEnv is empty, so this is a no-op.
+			envvars = envvars.Overlay(webcfgEnv)
 
 			// Add a node for every <application> (a worker boundary) even if empty,
 			// so a child worker with no DD_* env doesn't inherit the parent's tags.

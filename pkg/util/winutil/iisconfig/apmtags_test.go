@@ -21,15 +21,14 @@ func TestAppConfig(t *testing.T) {
 
 	apppath := filepath.Join(path, "testdata", "app_1.config.xml")
 	//apppath := filepath.Join(path, "testdata", "iisconfig.xml")
-	iisCfg, fromEnv, err := ReadDotNetConfig(apppath)
+	envTags, appSettingsTags, err := ReadDotNetConfig(apppath)
 	assert.Nil(t, err)
-	assert.NotNil(t, iisCfg)
-	// appSettings-only (no <aspNetCore>) -> .NET Framework tier.
-	assert.False(t, fromEnv)
+	// appSettings-only (no <aspNetCore>) -> .NET Framework tier, no env tier.
+	assert.True(t, envTags.isEmpty())
 
-	assert.Equal(t, iisCfg.DDService, "service1")
-	assert.Equal(t, iisCfg.DDEnv, "false")
-	assert.Equal(t, iisCfg.DDVersion, "1.0-prerelease")
+	assert.Equal(t, appSettingsTags.DDService, "service1")
+	assert.Equal(t, appSettingsTags.DDEnv, "false")
+	assert.Equal(t, appSettingsTags.DDVersion, "1.0-prerelease")
 
 }
 
@@ -40,13 +39,14 @@ func TestAppConfigEnvironmentVariables(t *testing.T) {
 	require.Nil(t, err)
 
 	apppath := filepath.Join(path, "testdata", "app_envvars.config.xml")
-	iisCfg, fromEnv, err := ReadDotNetConfig(apppath)
+	envTags, appSettingsTags, err := ReadDotNetConfig(apppath)
 	assert.Nil(t, err)
-	assert.True(t, fromEnv)
+	// Core (<aspNetCore>) -> env tier only, no appSettings tier.
+	assert.True(t, appSettingsTags.isEmpty())
 
-	assert.Equal(t, "from-env", iisCfg.DDService) // env wins over appSettings
-	assert.Equal(t, "", iisCfg.DDEnv)             // appSettings-only -> dropped on Core
-	assert.Equal(t, "2.0-env", iisCfg.DDVersion)  // env only
+	assert.Equal(t, "from-env", envTags.DDService) // env wins over appSettings
+	assert.Equal(t, "", envTags.DDEnv)             // appSettings-only -> dropped on Core
+	assert.Equal(t, "2.0-env", envTags.DDVersion)  // env only
 }
 
 // On the Framework path, <appSettings> outranks the DD_TRACE_CONFIG_FILE
@@ -56,13 +56,14 @@ func TestAppConfigAppSettingsOutranksDatadogJSON(t *testing.T) {
 	require.Nil(t, err)
 
 	apppath := filepath.Join(path, "testdata", "app_framework.config.xml")
-	iisCfg, fromEnv, err := ReadDotNetConfig(apppath)
+	envTags, appSettingsTags, err := ReadDotNetConfig(apppath)
 	assert.Nil(t, err)
-	assert.False(t, fromEnv)
+	// Framework (<appSettings>) -> appSettings tier only, no env tier.
+	assert.True(t, envTags.isEmpty())
 
-	assert.Equal(t, "appsettings-service", iisCfg.DDService) // both -> appSettings wins
-	assert.Equal(t, "appsettings-version", iisCfg.DDVersion) // both -> appSettings wins
-	assert.Equal(t, "json-env", iisCfg.DDEnv)                // json fills the gap
+	assert.Equal(t, "appsettings-service", appSettingsTags.DDService) // both -> appSettings wins
+	assert.Equal(t, "appsettings-version", appSettingsTags.DDVersion) // both -> appSettings wins
+	assert.Equal(t, "json-env", appSettingsTags.DDEnv)                // json fills the gap
 }
 
 func TestPathSplitting(t *testing.T) {

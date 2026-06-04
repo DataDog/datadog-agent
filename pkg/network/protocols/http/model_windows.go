@@ -123,28 +123,15 @@ func (tx *WinHttpTransaction) DynamicTags() []string {
 
 	// Per-field precedence (matches the .NET tracer): real env (TagsFromAppHost)
 	// > Framework appSettings (TagsFromConfig) > datadog.json (TagsFromJson).
-	if len(tx.TagsFromAppHost.DDEnv) > 0 {
-		tags = append(tags, fmt.Sprintf("env:%v", tx.TagsFromAppHost.DDEnv))
-	} else if len(tx.TagsFromConfig.DDEnv) > 0 {
-		tags = append(tags, fmt.Sprintf("env:%v", tx.TagsFromConfig.DDEnv))
-	} else if len(tx.TagsFromJson.DDEnv) > 0 {
-		tags = append(tags, fmt.Sprintf("env:%v", tx.TagsFromJson.DDEnv))
+	merged := tx.TagsFromJson.Overlay(tx.TagsFromConfig).Overlay(tx.TagsFromAppHost)
+	if merged.DDEnv != "" {
+		tags = append(tags, fmt.Sprintf("env:%v", merged.DDEnv))
 	}
-
-	if len(tx.TagsFromAppHost.DDService) > 0 {
-		tags = append(tags, fmt.Sprintf("service:%v", tx.TagsFromAppHost.DDService))
-	} else if len(tx.TagsFromConfig.DDService) > 0 {
-		tags = append(tags, fmt.Sprintf("service:%v", tx.TagsFromConfig.DDService))
-	} else if len(tx.TagsFromJson.DDService) > 0 {
-		tags = append(tags, fmt.Sprintf("service:%v", tx.TagsFromJson.DDService))
+	if merged.DDService != "" {
+		tags = append(tags, fmt.Sprintf("service:%v", merged.DDService))
 	}
-
-	if len(tx.TagsFromAppHost.DDVersion) > 0 {
-		tags = append(tags, fmt.Sprintf("version:%v", tx.TagsFromAppHost.DDVersion))
-	} else if len(tx.TagsFromConfig.DDVersion) > 0 {
-		tags = append(tags, fmt.Sprintf("version:%v", tx.TagsFromConfig.DDVersion))
-	} else if len(tx.TagsFromJson.DDVersion) > 0 {
-		tags = append(tags, fmt.Sprintf("version:%v", tx.TagsFromJson.DDVersion))
+	if merged.DDVersion != "" {
+		tags = append(tags, fmt.Sprintf("version:%v", merged.DDVersion))
 	}
 	if len(tags) == 0 {
 		return nil
