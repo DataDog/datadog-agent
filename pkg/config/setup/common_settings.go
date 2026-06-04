@@ -371,6 +371,12 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	// ingress-nginx injection configuration
 	config.BindEnvAndSetDefault("admission_controller.appsec.nginx.init_image", "datadog/ingress-nginx-injection")
 	config.BindEnvAndSetDefault("admission_controller.appsec.nginx.module_mount_path", "/modules_mount")
+	// Non-root UID/GID for the injected init container. Defaults match the
+	// stock datadog/ingress-nginx-injection image, which declares no USER and
+	// would otherwise be rejected under runAsNonRoot. Set to a negative value
+	// to leave the security context unset and honor a custom init_image's own USER.
+	config.BindEnvAndSetDefault("admission_controller.appsec.nginx.init_run_as_user", 101)
+	config.BindEnvAndSetDefault("admission_controller.appsec.nginx.init_run_as_group", 82)
 
 	config.BindEnvAndSetDefault("cluster_agent.kube_metadata_collection.enabled", false)
 	// list of kubernetes resources for which we collect metadata
