@@ -2237,6 +2237,14 @@ properties:
             - DD_EVENT_MONITORING_CONFIG_DNS_RESOLUTION_CACHE_SIZE
             - DD_RUNTIME_SECURITY_CONFIG_DNS_RESOLUTION_CACHE_SIZE
             tags: []
+          cname_max_depth:
+            node_type: setting
+            type: integer
+            default: 2
+            env_vars:
+            - DD_EVENT_MONITORING_CONFIG_DNS_RESOLUTION_CNAME_MAX_DEPTH
+            - DD_RUNTIME_SECURITY_CONFIG_DNS_RESOLUTION_CNAME_MAX_DEPTH
+            tags: []
           enabled:
             node_type: setting
             type: boolean
@@ -2740,6 +2748,12 @@ properties:
   gpu_monitoring:
     node_type: section
     type: object
+    title: System Probe GPU Monitoring module
+    description: |-
+      Configuration for the GPU Monitoring module, which uses eBPF probes to collect
+      per-process GPU metrics on Linux hosts (kernel 5.8+).
+      Required for GPU monitoring on non-containerized Linux hosts alongside
+      gpu.enabled: true in datadog.yaml.
     properties:
       attacher_detailed_logs:
         node_type: setting
