@@ -54,7 +54,7 @@ type ConfigReader interface {
 type configReaderFactory func(target) (ConfigReader, error)
 
 type configCollector interface {
-	Run(context.Context, ConfigReader) error
+	Collect(context.Context, ConfigReader) ([]ConfigFile, error)
 }
 
 type targetResolver struct {
