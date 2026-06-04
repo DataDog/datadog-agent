@@ -201,7 +201,7 @@ func (s *AdaptiveSampler) shouldSample(msg *message.Message, tokens []Token) boo
 	return matchesAnyFilter(s.config.Include, msg, tokens, s.config.MatchThreshold)
 }
 
-func (s *AdaptiveSampler) tagPatternHash(msg *message.Message, tokens []Token) {
+func (s *AdaptiveSampler) appendPatternHashTagIfEnabled(msg *message.Message, tokens []Token) {
 	if s.config.TagPatternHash {
 		msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, adaptiveSamplerLogHashTag(tokens))
 	}
@@ -211,12 +211,10 @@ func (s *AdaptiveSampler) tagPatternHash(msg *message.Message, tokens []Token) {
 // Returns the message if allowed, nil if dropped.
 func (s *AdaptiveSampler) Process(msg *message.Message, tokens []Token) *message.Message {
 	if !s.shouldSample(msg, tokens) {
-		s.tagPatternHash(msg, tokens)
 		tlmAdaptiveSamplerKept.Inc(s.source)
 		return msg
 	}
 	if s.config.ProtectImportantLogs && isImportant(tokens) {
-		s.tagPatternHash(msg, tokens)
 		tlmAdaptiveSamplerKept.Inc(s.source)
 		tlmAdaptiveSamplerProtected.Inc(s.source)
 		return msg
@@ -243,13 +241,23 @@ func (s *AdaptiveSampler) Process(msg *message.Message, tokens []Token) *message
 		// entry after the first swap.
 		allow := e.credits >= 1.0
 		if allow {
-			s.tagPatternHash(msg, matchedTokens)
 			e.credits--
-			if !s.config.DetectionOnly && e.sampled > 0 {
+		}
+		// Detection-only keeps every message, so it only annotates the messages
+		// that would have been dropped. Normal sampling tracks real drops in
+		// sampled so the next allowed message can report the suppressed count.
+		if s.config.DetectionOnly {
+			if !allow {
+				s.appendPatternHashTagIfEnabled(msg, matchedTokens)
+				msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, adaptiveSamplerNoisyLogTag)
+			}
+			e.sampled = 0
+		} else if allow {
+			if e.sampled > 0 {
 				msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, adaptiveSamplerSampledCountTag(e.sampled))
 			}
 			e.sampled = 0
-		} else if !s.config.DetectionOnly {
+		} else {
 			e.sampled++
 		}
 
@@ -264,8 +272,6 @@ func (s *AdaptiveSampler) Process(msg *message.Message, tokens []Token) *message
 			return msg
 		}
 		if s.config.DetectionOnly {
-			s.tagPatternHash(msg, matchedTokens)
-			msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, adaptiveSamplerNoisyLogTag)
 			tlmAdaptiveSamplerKept.Inc(s.source)
 			return msg
 		}
@@ -288,7 +294,6 @@ func (s *AdaptiveSampler) Process(msg *message.Message, tokens []Token) *message
 		matchCount: 1,
 		sampled:    0,
 	})
-	s.tagPatternHash(msg, tokens)
 	tlmAdaptiveSamplerKept.Inc(s.source)
 	return msg
 }

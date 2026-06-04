@@ -223,9 +223,11 @@ config {
     -- noisy_log:true instead of being dropped.
     detection_only: Boolean = false
 
-    -- When true, emitted logs are tagged with log_hash:<hash>, where
-    -- the hash is computed from the canonical structural token sequence
-    -- for the matched sampler pattern.
+    -- When true, noisy_log:true detection-only logs are tagged with
+    -- log_hash:<hash>, where the hash is computed from the canonical
+    -- structural token sequence for the matched sampler pattern.
+    -- It does not tag bypassed, new-pattern, protected, under-burst,
+    -- or adaptive_sampler_sampled_count:<n> logs.
     tag_pattern_hash: Boolean = false
 }
 
@@ -262,16 +264,18 @@ rule EmitMatchingLog {
     ensures: entry.match_count = entry.match_count + 1
     ensures: entry.sampled_count = 0
     ensures: if config.detection_only:
-        LogEmitted(message, sampled_count: 0, pattern_hash: entry.signature if config.tag_pattern_hash)
-    ensures: if not config.detection_only:
-        LogEmitted(message, sampled_count: prior_sampled_count, pattern_hash: entry.signature if config.tag_pattern_hash)
+        LogEmitted(message, sampled_count: 0)
+    ensures: if not config.detection_only and prior_sampled_count > 0:
+        LogEmitted(message, sampled_count: prior_sampled_count)
+    ensures: if not config.detection_only and prior_sampled_count = 0:
+        LogEmitted(message, sampled_count: 0)
 
     @guidance
         -- If not in detection-only mode and prior_sampled_count > 0,
         -- the emitted message is tagged
         -- adaptive_sampler_sampled_count:<n>. If 0 no tag is added.
         -- Detection-only mode never emits adaptive_sampler_sampled_count
-        -- because it does not actually drop matching logs.
+        -- on allowed logs because it does not actually drop matching logs.
         --
         -- After updating, the entry is bubbled toward the front of
         -- the sorted table to maintain descending match_count order.
@@ -335,7 +339,7 @@ rule RegisterNewPattern {
         match_count: 1,
         sampled_count: 0
     )
-    ensures: LogEmitted(message, sampled_count: 0, pattern_hash: incoming if config.tag_pattern_hash)
+    ensures: LogEmitted(message, sampled_count: 0)
 
     @guidance
         -- New entries start with burst_size - 1 credits because the
@@ -363,7 +367,7 @@ rule EvictAndRegisterPattern {
         match_count: 1,
         sampled_count: 0
     )
-    ensures: LogEmitted(message, sampled_count: 0, pattern_hash: incoming if config.tag_pattern_hash)
+    ensures: LogEmitted(message, sampled_count: 0)
 
     @guidance
         -- When multiple entries share the minimum match_count, the
@@ -425,7 +429,8 @@ invariant SampledCountNonNegative {
 -- MessageContentIntegrity: the sampler never modifies log content
 --   bytes. Emitted messages are byte-identical to their input.
 --   Only metadata tags (adaptive_sampler_sampled_count, noisy_log,
---   log_hash) may be added.
+--   log_hash) may be added. log_hash is limited to emitted
+--   noisy_log:true logs.
 --
 -- SteadyStateRateBound: after burst exhaustion, a pattern emits
 --   at most rate_limit logs per second. Over interval T seconds,

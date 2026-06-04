@@ -432,27 +432,54 @@ func TestAdaptiveSampler_DoesNotTagPatternHashByDefault(t *testing.T) {
 	requireNoTagWithPrefix(t, out, "log_hash:")
 }
 
-func TestAdaptiveSampler_TagPatternHashUsesCanonicalPattern(t *testing.T) {
+func TestAdaptiveSampler_TagPatternHashSkipsUnimpactedLogs(t *testing.T) {
 	s := NewAdaptiveSampler(AdaptiveSamplerConfig{
 		MaxPatterns:    10,
 		RateLimit:      0,
-		BurstSize:      10,
+		BurstSize:      2,
+		MatchThreshold: 0.9,
+		TagPatternHash: true,
+		Exclude:        []AdaptiveSamplerFilter{{Regex: regexp.MustCompile(`bypass`)}},
+	}, "test")
+
+	out1 := s.Process(testMsgWith("bypass me", message.StatusInfo), patternA)
+	require.NotNil(t, out1)
+	requireNoTagWithPrefix(t, out1, "log_hash:")
+
+	out2 := s.Process(testMsg(), patternA)
+	require.NotNil(t, out2, "new patterns should pass through without hash tagging")
+	requireNoTagWithPrefix(t, out2, "log_hash:")
+
+	out3 := s.Process(testMsg(), patternA)
+	require.NotNil(t, out3, "under-burst matches should pass through without hash tagging")
+	requireNoTagWithPrefix(t, out3, "log_hash:")
+}
+
+func TestAdaptiveSampler_TagPatternHashSkipsSampledCountLogs(t *testing.T) {
+	s := NewAdaptiveSampler(AdaptiveSamplerConfig{
+		MaxPatterns:    10,
+		RateLimit:      1,
+		BurstSize:      1,
 		MatchThreshold: 0.9,
 		TagPatternHash: true,
 	}, "test")
+	t0 := time.Now()
+	s.now = func() time.Time { return t0 }
 
 	canonical := []Token{C1, D1, Fslash, C2, D2, Period, C3, D3, Dash, C4}
 	similar := []Token{C1, D1, Fslash, C2, D2, Period, C3, D3, Dash, D4}
 
 	out1 := s.Process(testMsg(), canonical)
 	require.NotNil(t, out1)
-	hashTag := requireTagWithPrefix(t, out1, "log_hash:")
-	assert.Equal(t, adaptiveSamplerLogHashTag(canonical), hashTag)
+	requireNoTagWithPrefix(t, out1, "log_hash:")
 
+	require.Nil(t, s.Process(testMsg(), similar), "similar pattern should be suppressed after burst is exhausted")
+
+	s.now = func() time.Time { return t0.Add(time.Second) }
 	out2 := s.Process(testMsg(), similar)
 	require.NotNil(t, out2)
-	assert.Contains(t, out2.ParsingExtra.Tags, hashTag)
-	assert.NotEqual(t, adaptiveSamplerLogHashTag(similar), hashTag, "the test should prove matched logs use the canonical pattern hash")
+	requireSampledCountTag(t, out2, 1)
+	requireNoTagWithPrefix(t, out2, "log_hash:")
 }
 
 // --- AdaptiveSampler: important log protection ---
