@@ -170,13 +170,9 @@ spec:
               readOnly: false
             # Shared with the agent container — provides the IPC cert written
             # by the agent at startup so the PAR's RC client can verify it.
+            # Also hosts the PAR identity file (privateactionrunner_private_identity.json)
+            # which is persisted via the par-identity hostPath volume below.
             - name: auth-token
-              mountPath: /etc/datadog-agent/auth
-              readOnly: false
-            # Persists the PAR enrollment identity across pod restarts.
-            # Without this, every pod restart triggers a new enrollment,
-            # creating zombie runner rows under the same hostname.
-            - name: par-identity
               mountPath: /etc/datadog-agent/auth
               readOnly: false
             - name: tmpdir
@@ -202,14 +198,15 @@ spec:
           emptyDir: {}
         - name: tmpdir
           emptyDir: {}
+        # auth-token is backed by a hostPath so the PAR identity file
+        # (privateactionrunner_private_identity.json) survives pod restarts on
+        # the same node. Without persistence, every restart triggers a fresh
+        # enrollment, creating zombie runner rows under the same hostname.
+        # Replace with a PVC for multi-node clusters, or rely on
+        # identity_use_k8s_secret: true (requires a cluster agent).
         - name: auth-token
-          emptyDir: {}
-        # hostPath persists the PAR identity (URN + private key) across pod
-        # restarts on the same node. Replace with a PVC for multi-node clusters,
-        # or rely on identity_use_k8s_secret: true (cluster agent required).
-        - name: par-identity
           hostPath:
-            path: /var/lib/datadog-par-identity
+            path: /var/lib/datadog-par-auth
             type: DirectoryOrCreate
         - name: dsdsocket
           hostPath:
