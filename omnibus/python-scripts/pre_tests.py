@@ -126,10 +126,10 @@ class TestPre(unittest.TestCase):
         os.rmdir(storage_location)
         os.rmdir(legacy_location)
 
-    def test_pre_no_baseline_anywhere_returns_zero(self):
-        # When no baseline exists in any location (e.g. the reaper removed it before the
-        # persistent storage move, or this is a fresh install), pre must be a non-fatal
-        # no-op: return 0 and create nothing.
+    def test_pre_no_baseline_first_install_returns_zero(self):
+        # First install: no baseline exists anywhere AND no prior installation marker
+        # (embedded/.installed_by_pkg.txt) is present. There is nothing to diff, so pre
+        # must be a non-fatal no-op: return 0 and create nothing.
         install_directory = tempfile.mkdtemp()
         storage_location = tempfile.mkdtemp()
         legacy_location = tempfile.mkdtemp()
@@ -147,6 +147,40 @@ class TestPre(unittest.TestCase):
         self.assertFalse(os.path.exists(pre_file))
 
         # Cleanup (rmdir verifies the directories are empty)
+        os.rmdir(install_directory)
+        os.rmdir(storage_location)
+        os.rmdir(legacy_location)
+
+    def test_pre_no_baseline_on_upgrade_returns_error(self):
+        # Upgrade with a lost baseline: no baseline exists anywhere, but the install
+        # directory has the embedded/.installed_by_pkg.txt marker proving a prior Agent
+        # was installed. This is the reaping bug we want to surface, so pre must return 1
+        # (the caller logs a warning, so the upgrade itself still proceeds) and write nothing.
+        install_directory = tempfile.mkdtemp()
+        storage_location = tempfile.mkdtemp()
+        legacy_location = tempfile.mkdtemp()
+
+        embedded_dir = os.path.join(install_directory, 'embedded')
+        os.makedirs(embedded_dir)
+        installed_by_pkg_file = os.path.join(embedded_dir, '.installed_by_pkg.txt')
+        with open(installed_by_pkg_file, 'w', encoding='utf-8') as f:
+            f.write("embedded/lib/python3.12/site-packages/datadog_checks_base\n")
+
+        with mock.patch.object(pre_module, 'LEGACY_OCI_STORAGE_LOCATION', legacy_location):
+            result = pre(install_directory, storage_location)
+
+        # error surfaced (non-fatal at the caller)
+        self.assertEqual(result, 1)
+
+        # nothing should have been written
+        diff_file = os.path.join(storage_location, '.diff_python_installed_packages.txt')
+        pre_file = os.path.join(storage_location, '.pre_python_installed_packages.txt')
+        self.assertFalse(os.path.exists(diff_file))
+        self.assertFalse(os.path.exists(pre_file))
+
+        # Cleanup
+        os.remove(installed_by_pkg_file)
+        os.rmdir(embedded_dir)
         os.rmdir(install_directory)
         os.rmdir(storage_location)
         os.rmdir(legacy_location)

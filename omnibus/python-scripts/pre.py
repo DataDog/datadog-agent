@@ -52,12 +52,23 @@ def pre(install_directory, storage_location):
                 packages.create_diff_installed_packages_file(storage_location, post_python_installed_packages_file, pre_python_installed_packages_file)
                 packages.cleanup_files(post_python_installed_packages_file, pre_python_installed_packages_file)
             else:
-                # No baseline anywhere: the reaper may have removed it before the persistent
-                # storage move, or this is a fresh install with no prior baseline. There is
-                # nothing to diff, so no custom integrations need to be restored. Treat this
-                # as a non-fatal no-op rather than an error to avoid failing the upgrade.
-                print("No baseline file found in primary, legacy, or install locations; nothing to diff. Skipping custom integration save (non-fatal).")
-                return 0
+                # No baseline anywhere. Distinguish a genuine first install from an upgrade
+                # whose baseline was lost. pre.py is the "save" step and only has something
+                # to diff when a previous Agent was installed; that previous install is marked
+                # by embedded/.installed_by_pkg.txt (the same marker used to remove custom
+                # integrations on uninstall). On a first install this marker is absent.
+                installed_by_pkg_file = os.path.join(install_directory, "embedded", ".installed_by_pkg.txt")
+                if not os.path.exists(installed_by_pkg_file):
+                    # First install: no prior Agent, so no baseline is expected and there is
+                    # nothing to diff. Non-fatal no-op.
+                    print(f"No prior installation detected ('{installed_by_pkg_file}' missing); treating as first install. Nothing to diff (non-fatal).")
+                    return 0
+                # A prior Agent is installed but its baseline is gone (e.g. reaped from the
+                # legacy tmp dir before it could be migrated to persistent storage). Report a
+                # failure so it surfaces in telemetry. The caller only logs a warning, so the
+                # upgrade itself still proceeds.
+                print("Baseline file missing despite an existing installation; cannot save custom integrations.")
+                return 1
         else:
             print(f"Directory {install_directory} and {storage_location} do not exist.")
             return 1
