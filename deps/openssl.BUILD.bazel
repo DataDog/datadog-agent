@@ -97,23 +97,22 @@ configure_make(
         ],
         "//conditions:default": [],
     }) + select({
-        # Bake OPENSSLDIR and ENGINESDIR/MODULESDIR to their actual runtime
-        # locations at configure time via --prefix, so no binary patching is
-        # needed after the build. --install-prefix redirects the install
-        # destination into the Bazel sandbox without affecting the baked paths.
-        # rules_foreign_cc auto-injects --prefix=$$BUILD_TMPDIR$$/...; configure
-        # processes args sequentially and the later --prefix wins, so our
-        # --prefix below overrides the sandbox path for the baked locations.
-        # $(INSTALL_DIR) is provided by //:install_dir via the toolchains
-        # attribute below.
-        # The four-`$` escaping yields `$$INSTALLDIR$$` after Bazel's
-        # make-variable substitution, which is the shell-variable placeholder
-        # rules_foreign_cc expands to the sandbox install dir.
+        # Bake OPENSSLDIR/MODULESDIR to their real runtime locations via
+        # --prefix. It wins over the --prefix=$$BUILD_TMPDIR$$/... that
+        # rules_foreign_cc injects earlier (later --prefix wins). Since it now
+        # points outside the sandbox, `make install` is redirected with DESTDIR
+        # (see `args`) and flattened into $INSTALLDIR (see `postfix_script`).
         "@platforms//os:windows": [],
-        "//conditions:default": [
-            "--prefix=$(INSTALL_DIR)/embedded",
-            "--install-prefix=$$$$INSTALLDIR$$$$",
-        ],
+        "//conditions:default": ["--prefix=$(INSTALL_DIR)/embedded"],
+    }),
+    args = select({
+        # Stage `make install` under the sandbox instead of the absolute
+        # --prefix. DESTDIR is prepended to INSTALLTOP, so files land at
+        # $BUILD_TMPDIR/dest/$(INSTALL_DIR)/embedded/...; postfix_script flattens
+        # them into $INSTALLDIR. Wrapped $$BUILD_TMPDIR$$ is required: make `args`
+        # skip make-variable expansion, so only the $$..$$ placeholder resolves.
+        "@platforms//os:windows": [],
+        "//conditions:default": ["DESTDIR=$$BUILD_TMPDIR$$/dest"],
     }),
     build_data = select({
         "@platforms//os:windows": [
@@ -200,7 +199,9 @@ configure_make(
         mv $$INSTALLDIR/lib/libcrypto.dll.a $$INSTALLDIR/lib/libcrypto.lib
         mv $$INSTALLDIR/lib/libssl.dll.a $$INSTALLDIR/lib/libssl.lib
         """,
-        "//conditions:default": "",
+        # Flatten the DESTDIR-staged install (see `args`) into $INSTALLDIR, the
+        # flat layout rules_foreign_cc collects outputs from.
+        "//conditions:default": 'cp -a "$$BUILD_TMPDIR/dest$(INSTALL_DIR)/embedded/." "$$INSTALLDIR/"',
     }),
 )
 
