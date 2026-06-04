@@ -392,6 +392,23 @@ log "Configure complete."
 log "Building Python ${PYTHON_VERSION} with make -j$NPROC"
 log "  (This step takes approximately 20 minutes on POWER8 — please be patient.)"
 
+# Create the runtime-path symlink BEFORE make so that the baked-in -blibpath
+# resolves during Python's own build-time module import tests.
+# Python self-tests each extension module by importing it mid-build; those .so
+# files carry -blibpath:$EMBEDDED/lib (from _PYTHON_LDFLAGS), so the symlink
+# must exist for the loader to find libpython3.13.so and other staged libs.
+if [ -L "$EMBEDDED" ] && [ "$(readlink "$EMBEDDED")" = "$EMBEDDED_DESTDIR" ]; then
+    log "INFO: $EMBEDDED symlink already correct."
+else
+    if [ -e "$EMBEDDED" ] && [ ! -L "$EMBEDDED" ]; then
+        log "INFO: $EMBEDDED is a real path — removing to create symlink"
+        rm -rf "$EMBEDDED"
+    fi
+    mkdir -p "$(dirname "$EMBEDDED")"
+    ln -sf "$EMBEDDED_DESTDIR" "$EMBEDDED"
+    log "Created runtime-path symlink: $EMBEDDED -> $EMBEDDED_DESTDIR"
+fi
+
 cd "$PYTHON_SRC"
 make -j"$NPROC"
 
@@ -416,30 +433,6 @@ log "Python executable: $EMBEDDED_DESTDIR/bin/python${PYTHON_MAJ_MIN}"
 if [ ! -f "$EMBEDDED_DESTDIR/bin/python${PYTHON_MAJ_MIN}" ]; then
     log "ERROR: $EMBEDDED_DESTDIR/bin/python${PYTHON_MAJ_MIN} not found after make install — install failed."
     exit 1
-fi
-
-# ─── Step 6b: Create runtime-path symlink ────────────────────────────────────
-#
-# Python's sys.prefix is baked-in as $EMBEDDED (/opt/datadog-agent/embedded).
-# The Python binaries now carry -blibpath:$EMBEDDED/lib in their XCOFF loader
-# section (see _PYTHON_LDFLAGS above). We must create the symlink BEFORE the
-# first invocation of the staged Python (ensurepip below) so that libpython
-# can be found via the baked-in path on a clean build host.
-#
-# The symlink also ensures that C extensions in later stages can resolve
-# ld_so_aix and Python config files at the $EMBEDDED prefix.
-# The 10-assemble stage removes this symlink and replaces it with real files.
-
-if [ -L "$EMBEDDED" ] && [ "$(readlink "$EMBEDDED")" = "$EMBEDDED_DESTDIR" ]; then
-    log "INFO: $EMBEDDED symlink already correct."
-else
-    if [ -e "$EMBEDDED" ] && [ ! -L "$EMBEDDED" ]; then
-        log "INFO: $EMBEDDED is a real path — removing to create symlink"
-        rm -rf "$EMBEDDED"
-    fi
-    mkdir -p "$(dirname "$EMBEDDED")"
-    ln -sf "$EMBEDDED_DESTDIR" "$EMBEDDED"
-    log "Created runtime-path symlink: $EMBEDDED -> $EMBEDDED_DESTDIR"
 fi
 
 # ─── Step 7: Bootstrap pip ───────────────────────────────────────────────────
