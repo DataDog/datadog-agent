@@ -69,7 +69,7 @@ func (l *lang) ApparentLoads(moduleToApparentName func(string) string) []rule.Lo
 		base = mal.ApparentLoads(moduleToApparentName)
 	}
 	return append(base, rule.LoadInfo{
-		Name:    "//bazel/rules/dd_agent_go_test:defs.bzl",
+		Name:    "//bazel/rules/go:dd_agent_go_test.bzl",
 		Symbols: []string{"dd_agent_go_test"},
 		After:   []string{"go_test"},
 	})
@@ -247,7 +247,7 @@ func findRule(file *rule.File, kind, name string) (*rule.Rule, bool) {
 }
 
 // allFlavors returns the canonical flavor list (sorted by name) used by the
-// dd_agent_go_test macro. Matches _ALL_FLAVORS in bazel/rules/dd_agent_go_test/defs.bzl,
+// dd_agent_go_test macro. Matches _ALL_FLAVORS in bazel/rules/go/dd_agent_go_test.bzl,
 // derived from FlavorUnitTestTags keys so we don't maintain two copies.
 func allFlavors() []string {
 	out := make([]string, 0, len(FlavorUnitTestTags))

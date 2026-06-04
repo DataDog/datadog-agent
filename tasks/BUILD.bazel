@@ -20,7 +20,7 @@ exports_files(["core_checks.py"])
 # file input to generate its tags.go.
 exports_files(
     ["build_tags.bzl"],
-    visibility = ["//bazel/rules/dd_agent_go_test:__pkg__"],
+    visibility = ["//bazel/rules/go:__pkg__"],
 )
 
 # No `data = [...]` for renovate.json / deps/ / .renovate-untracked.json on

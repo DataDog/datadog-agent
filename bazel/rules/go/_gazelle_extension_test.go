@@ -204,7 +204,7 @@ func TestLoads(t *testing.T) {
 	loads := mal.ApparentLoads(func(string) string { return "" })
 	found := false
 	for _, li := range loads {
-		if li.Name == "//bazel/rules/dd_agent_go_test:defs.bzl" {
+		if li.Name == "//bazel/rules/go:dd_agent_go_test.bzl" {
 			for _, sym := range li.Symbols {
 				if sym == "dd_agent_go_test" {
 					found = true

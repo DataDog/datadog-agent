@@ -45,7 +45,7 @@ go_library(
         "tags.go",
         ":gazelle_extension_src",
     ],
-    importpath = "github.com/DataDog/datadog-agent/bazel/rules/dd_agent_go_test",
+    importpath = "github.com/DataDog/datadog-agent/bazel/rules/go",
     visibility = ["//visibility:public"],
     deps = [
         "@gazelle//config",
