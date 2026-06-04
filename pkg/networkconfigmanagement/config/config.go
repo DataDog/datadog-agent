@@ -21,7 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
-	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/profile"
 	"github.com/DataDog/datadog-agent/pkg/snmp/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -90,8 +89,6 @@ type NcmCheckContext struct {
 	Device                     *DeviceInstance
 	MinCollectionInterval      time.Duration
 	InventoryReportMaxInterval time.Duration
-	ProfileMap                 profile.Map
-	ProfileCache               *profile.Cache
 }
 
 // NewNcmCheckContext creates a new NcmCheckContext from raw instance and init config data
@@ -120,28 +117,11 @@ func NewNcmCheckContext(rawInstance integration.Data, rawInitConfig integration.
 		return nil, fmt.Errorf("invalid device config for %s: %w", deviceInstance.IPAddress, err)
 	}
 
-	// Populate the profiles map (from defaults/OOTB)
-	profMap, err := profile.GetProfileMap()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get profile map: %w", err)
-	}
-
-	profileCache := &profile.Cache{}
-	if deviceInstance.Profile != "" {
-		profile, ok := profMap[deviceInstance.Profile]
-		if !ok {
-			return nil, fmt.Errorf("unknown profile for %s: %s", deviceInstance.IPAddress, deviceInstance.Profile)
-		}
-		profileCache.ProfileName = profile.Name
-		profileCache.Profile = profile
-	}
 	// Build the final context to send out
 	ncc := &NcmCheckContext{
 		MinCollectionInterval:      time.Duration(initConfig.MinCollectionInterval) * time.Second,
 		InventoryReportMaxInterval: time.Duration(initConfig.InventoryReportMaxInterval) * time.Second,
 		Device:                     &deviceInstance,
-		ProfileMap:                 profMap,
-		ProfileCache:               profileCache,
 	}
 	return ncc, nil
 }
