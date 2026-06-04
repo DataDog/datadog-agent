@@ -192,6 +192,21 @@ api_key:
 #
 # remote_updates: true
 
+## @param process_manager - custom object - optional
+## When true (see `enabled` below), the Datadog process manager daemon (dd-procmgrd) is enabled for this host install.
+## On Windows, the core Agent starts the Windows service `dd-procmgr-service` when this option is true.
+## On Linux, dd-procmgrd is started by systemd (`datadog-agent-procmgr.service` linked to the main Agent unit);
+## this setting is ignored on Linux and does not enable or disable the systemd unit.
+#
+# process_manager:
+
+#   # @param enabled - boolean - optional - default: true
+#   # @env DD_PROCESS_MANAGER_ENABLED - boolean - optional - default: true
+#   # When true (Windows only), the core Agent starts the dd-procmgr-service Windows service.
+#   # On Linux, the process manager daemon is started by systemd; this option is ignored.
+#
+#   enabled: true
+
 ## @param tag_value_split_separator - object - optional - default: {}
 ## @env DD_TAG_VALUE_SPLIT_SEPARATOR - JSON object of string to string - optional - default: {}
 ## Split tag values according to a given separator. Only applies to host tags,
