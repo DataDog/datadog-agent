@@ -18,22 +18,9 @@ import (
 	"k8s.io/client-go/dynamic"
 )
 
-// isInstrumentationCRDNotFound returns true if the error indicates the DatadogInstrumentation CRD
-// is not installed in the cluster (i.e., the API group is not registered).
-func isInstrumentationCRDNotFound(err error) bool {
-	status, ok := err.(*apierrors.StatusError)
-	if !ok {
-		return false
-	}
-	details := status.Status().Details
-	return status.Status().Reason == metav1.StatusReasonNotFound &&
-		details != nil &&
-		details.Group == instrumentation.DatadogInstrumentationGVR.Group
-}
-
 func tryCheckInstrumentationCRD(check checkAPI) error {
 	if err := check(); err != nil {
-		if isInstrumentationCRDNotFound(err) {
+		if apierrors.IsNotFound(err) {
 			return err
 		}
 		log.Errorf("DatadogInstrumentation CRD check failed: not retryable: %s", err)
@@ -43,7 +30,7 @@ func tryCheckInstrumentationCRD(check checkAPI) error {
 	return nil
 }
 
-func waitForInstrumentationCRD(ctx context.Context, dynamicClient dynamic.Interface) {
+func waitForInstrumentationCRD(ctx context.Context, dynamicClient dynamic.Interface) error {
 	exp := &backoff.ExponentialBackOff{
 		InitialInterval:     crdCheckInitialInterval,
 		RandomizationFactor: 0,
@@ -58,14 +45,15 @@ func waitForInstrumentationCRD(ctx context.Context, dynamicClient dynamic.Interf
 	}
 
 	attempt := 0
-	_, _ = backoff.Retry(ctx, func() (any, error) {
+	_, err := backoff.Retry(ctx, func() (any, error) {
 		err := tryCheckInstrumentationCRD(check)
-		if err != nil && isInstrumentationCRDNotFound(err) {
+		if err != nil && apierrors.IsNotFound(err) {
 			attempt++
 			log.Warnf("DatadogInstrumentation CRD missing (attempt=%d): will retry", attempt)
 		}
 		return nil, err
 	}, backoff.WithBackOff(exp), backoff.WithMaxElapsedTime(crdCheckMaxElapsedTime))
+	return err
 }
 
 // startDatadogInstrumentationController starts the shared DatadogInstrumentation reconciliation controller.
@@ -78,9 +66,8 @@ func startDatadogInstrumentationController(ctx *ControllerContext, _ chan error)
 	}()
 
 	go func() {
-		waitForInstrumentationCRD(controllerCtx, ctx.DynamicClient)
-
-		if controllerCtx.Err() != nil {
+		if err := waitForInstrumentationCRD(controllerCtx, ctx.DynamicClient); err != nil {
+			log.Warnf("DatadogInstrumentation controller will not start: %v", err)
 			return
 		}
 
