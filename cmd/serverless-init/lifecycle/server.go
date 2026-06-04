@@ -71,7 +71,7 @@ const (
 	resumeMetricName    = "aws.lambda.microvm.enhanced.resume"
 	terminateMetricName = "aws.lambda.microvm.enhanced.terminate"
 
-	instanceIDTagPrefix = "instance_id:"
+	lambdaMicroVmId = "lambda_microvm_id:"
 )
 
 // Flusher is satisfied by serverless.FlushableAgent.
@@ -98,6 +98,18 @@ type SampleDrainer interface {
 	WaitForPendingSamples()
 }
 
+// LogsTagSetter can replace the full tag slice on the live log pipeline.
+// Satisfied by serverlessLogs.SetLogsTags (wrapped via LogsTagSetterFunc).
+type LogsTagSetter interface {
+	SetLogsTags(tags []string)
+}
+
+// LogsTagSetterFunc wraps a bare function so it satisfies LogsTagSetter.
+type LogsTagSetterFunc func([]string)
+
+// SetLogsTags implements LogsTagSetter.
+func (f LogsTagSetterFunc) SetLogsTags(tags []string) { f(tags) }
+
 // launchBody is the JSON payload sent by the MicroVM platform on /launch.
 type launchBody struct {
 	MicroVMID string `json:"microVmId"`
@@ -119,6 +131,9 @@ type Server struct {
 	fwd         *Forwarder  // nil = no opt-in; today's behavior preserved
 	heartbeat   *Heartbeat  // nil-safe; nil disables periodic heartbeat emission
 
+	logsTagSetter LogsTagSetter // nil-safe; set via SetLogsTagSetter after construction
+	baseTags      []string      // startup tag snapshot; lambda_microvm_id is appended at /launch
+
 	httpServer *http.Server
 }
 
@@ -133,8 +148,8 @@ func NewServer(
 	metricSource metrics.MetricSource,
 	flushTimeout time.Duration,
 	childHandle ChildHandle, // may be nil
-	fwd *Forwarder,          // may be nil
-	heartbeat *Heartbeat,    // may be nil
+	fwd *Forwarder, // may be nil
+	heartbeat *Heartbeat, // may be nil
 ) *Server {
 	s := &Server{
 		metricFlusher: metricFlusher,
@@ -174,6 +189,14 @@ func NewServer(
 		WriteTimeout: writeTimeout,
 	}
 	return s
+}
+
+// SetLogsTagSetter wires a LogsTagSetter and a baseline tag slice into the server.
+// Must be called before the first /launch request. baseTags is the startup tag
+// snapshot; lambda_microvm_id is appended to it when /launch fires.
+func (s *Server) SetLogsTagSetter(setter LogsTagSetter, baseTags []string) {
+	s.logsTagSetter = setter
+	s.baseTags = baseTags
 }
 
 // Listen binds the TCP port synchronously. Call before Serve so the socket is
@@ -391,7 +414,6 @@ func (s *Server) aliveCheckReady(w http.ResponseWriter) {
 // collapsed into dispatchHook directly. The ID is captured before Start
 // so the first heartbeat emission already carries the correct microvm_id tag.
 func (s *Server) handleLaunch(w http.ResponseWriter, r *http.Request) {
-	log.Info("MicroVM lifecycle: launch")
 	// Read the body once so we can parse the instance ID AND still forward the
 	// original payload to the user app. Without this, the forwarder path would
 	// consume r.Body before the decode, losing the instance_id tag on all
@@ -403,8 +425,14 @@ func (s *Server) handleLaunch(w http.ResponseWriter, r *http.Request) {
 		log.Debugf("MicroVM lifecycle: could not parse launch body: %v", err)
 	}
 	if body.MicroVMID != "" {
+		log.Infof("MicroVM lifecycle: launch (microvm_id=%s)", body.MicroVMID)
 		s.instanceID.Store(body.MicroVMID)
 		s.heartbeat.SetMicroVMID(body.MicroVMID)
+		if s.logsTagSetter != nil {
+			s.logsTagSetter.SetLogsTags(append(append([]string{}, s.baseTags...), lambdaMicroVmId+body.MicroVMID))
+		}
+	} else {
+		log.Info("MicroVM lifecycle: launch")
 	}
 	s.heartbeat.Start()
 	r.Body = io.NopCloser(bytes.NewReader(bodyBytes))
@@ -477,7 +505,7 @@ func (s *Server) dispatchHook(metricName, path string, withFlush bool, w http.Re
 func (s *Server) emitLifecycleMetric(name string) {
 	var extraTags []string
 	if id := s.instanceID.Load(); id != "" {
-		extraTags = []string{instanceIDTagPrefix + id}
+		extraTags = []string{lambdaMicroVmId + id}
 	}
 	emitMetric(s.metricEmitter, s.metricSource, name, extraTags...)
 }
