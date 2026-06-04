@@ -24,7 +24,7 @@ def build_testbench(ctx):
 # --- Run ---
 
 
-ALL_DETECTORS = "bocpd,tukey_biweight,holt_residual,rrcf,scanmw,scanwelch"
+ALL_DETECTORS = "bocpd,holt_residual,tukey_biweight"
 
 
 @task

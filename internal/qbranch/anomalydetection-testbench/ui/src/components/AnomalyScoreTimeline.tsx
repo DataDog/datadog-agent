@@ -167,8 +167,9 @@ export function AnomalyScoreTimeline({
   phaseMarkers = [],
 }: AnomalyScoreTimelineProps) {
   // ── display controls ──────────────────────────────────────────────────────
-  const [scalePower, setScalePower] = useState(1.0);
+  const [scalePower, setScalePower] = useState(1.9);
   const [ewmaAlpha, setEwmaAlpha] = useState(0.16);
+  const [saturationK, setSaturationK] = useState(10);
 
   // ── event-detection controls ──────────────────────────────────────────────
   const [lowThreshold, setLowThresholdRaw] = useState(0.49);
@@ -250,8 +251,17 @@ export function AnomalyScoreTimeline({
 
   // ── EWMA ──────────────────────────────────────────────────────────────────
   const ewmaValues = useMemo(
-    () => computeEWMA(buckets.map((b) => (b.total > 0 ? b.scoreSum / b.total : 0)), ewmaAlpha),
-    [buckets, ewmaAlpha],
+    () => computeEWMA(
+      buckets.map((b) => {
+        if (b.total === 0) return 0;
+        const meanScore = b.scoreSum / b.total;
+        // Saturating count factor: mean_score × (1 − e^(−count/k))
+        // k controls how many anomalies are needed to reach full amplification.
+        return meanScore * (1 - Math.exp(-b.total / saturationK));
+      }),
+      ewmaAlpha,
+    ),
+    [buckets, ewmaAlpha, saturationK],
   );
 
   const { ewmaMin, ewmaRange } = useMemo(() => {
@@ -414,6 +424,9 @@ export function AnomalyScoreTimeline({
           <SliderRow label="EWMA α" leftLabel="Smooth" rightLabel="Raw"
             min={0.01} max={1} step={0.01} value={ewmaAlpha} onChange={setEwmaAlpha}
             valueLabel={ewmaAlpha.toFixed(2)} thumbHex="#67e8f9" />
+          <SliderRow label="Count saturation k" leftLabel="1 (fast)" rightLabel="30 (slow)"
+            min={1} max={30} step={1} value={saturationK} onChange={setSaturationK}
+            valueLabel={`k=${saturationK}`} thumbHex="#f97316" />
         </div>
 
         {/* Right: event detection */}
