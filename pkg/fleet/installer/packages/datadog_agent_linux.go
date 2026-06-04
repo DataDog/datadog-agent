@@ -396,9 +396,12 @@ func preRemoveDatadogAgent(ctx HookContext) error {
 			log.Warnf("failed to uninstall filesystem: %s", err)
 		}
 	case true:
+		// For OCI packages, the integration baseline must persist across upgrades,
+		// so it lives in the persistent RunPath rather than the 24h-reaped RootTmpDir.
+		// For deb/rpm it stays in the package path (== /opt/datadog-agent).
 		storagePath := ctx.PackagePath
 		if strings.HasPrefix(ctx.PackagePath, paths.PackagesPath) {
-			storagePath = paths.RootTmpDir
+			storagePath = paths.RunPath
 		}
 		if err := integrations.SaveCustomIntegrations(ctx, ctx.PackagePath, storagePath); err != nil {
 			log.Warnf("failed to save custom integrations: %s", err)
@@ -429,7 +432,9 @@ func preStartExperimentDatadogAgent(ctx HookContext) error {
 	if err != nil {
 		return fmt.Errorf("failed to remove experiment units: %s", err)
 	}
-	if err := integrations.SaveCustomIntegrations(ctx, ctx.PackagePath, paths.RootTmpDir); err != nil {
+	// Experiments are OCI-only; persist the integration baseline in RunPath so it
+	// survives the 24h reaping of RootTmpDir between this save and the next upgrade.
+	if err := integrations.SaveCustomIntegrations(ctx, ctx.PackagePath, paths.RunPath); err != nil {
 		log.Warnf("failed to save custom integrations: %s", err)
 	}
 	if err := saveAgentExtensions(ctx, false); err != nil {

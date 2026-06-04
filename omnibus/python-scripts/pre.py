@@ -10,25 +10,54 @@ import os
 import sys
 import packages
 
+# Older Agent versions wrote the integration baseline (.post_python_installed_packages.txt)
+# to /opt/datadog-packages/tmp, which the installer reaps after 24h. The baseline now lives
+# in the persistent run directory, but a baseline written by a previously-installed version
+# may still be here, so we fall back to it. Linux/OCI only; on other platforms the path does
+# not exist and is skipped.
+LEGACY_OCI_STORAGE_LOCATION = "/opt/datadog-packages/tmp"
+
+def find_baseline_file(storage_location, install_directory):
+    """
+    Locate the .post baseline, trying in order:
+      1. the primary storage location (run dir for OCI, install dir for deb/rpm)
+      2. the legacy OCI tmp directory (baselines written by older versions)
+      3. the install directory (deb/rpm -> OCI migration)
+    Returns the path to an existing baseline file, or None if none is found.
+    """
+    candidates = [storage_location]
+    if os.name != 'nt':
+        candidates.append(LEGACY_OCI_STORAGE_LOCATION)
+    candidates.append(install_directory)
+    seen = set()
+    for directory in candidates:
+        if not directory or directory in seen:
+            continue
+        seen.add(directory)
+        candidate = packages.post_python_installed_packages_file(directory)
+        if os.path.exists(candidate):
+            print(f"Using baseline from: '{candidate}'")
+            return candidate
+        print(f"Baseline not found at: '{candidate}'")
+    return None
+
 def pre(install_directory, storage_location):
     print(f"pre: install_directory='{install_directory}', storage_location='{storage_location}'")
     try:
         if os.path.exists(install_directory) and os.path.exists(storage_location):
-            post_python_installed_packages_file = packages.post_python_installed_packages_file(storage_location)
-            if not os.path.exists(post_python_installed_packages_file):
-                # Fallback: use the install directory if the file doesn't exist in the storage location, we might be migrating from deb/rpm to OCI
-                print(f"Baseline not found at '{post_python_installed_packages_file}', falling back to install directory")
-                post_python_installed_packages_file = packages.post_python_installed_packages_file(install_directory)
-            else:
-                print(f"Using baseline from storage location: '{post_python_installed_packages_file}'")
-            if os.path.exists(post_python_installed_packages_file):
+            post_python_installed_packages_file = find_baseline_file(storage_location, install_directory)
+            if post_python_installed_packages_file:
                 pre_python_installed_packages_file = packages.pre_python_installed_packages_file(storage_location)
                 packages.create_python_installed_packages_file(pre_python_installed_packages_file)
                 packages.create_diff_installed_packages_file(storage_location, post_python_installed_packages_file, pre_python_installed_packages_file)
                 packages.cleanup_files(post_python_installed_packages_file, pre_python_installed_packages_file)
             else:
-                print(f"ERROR: baseline file '{post_python_installed_packages_file}' does not exist — cannot compute diff; custom integrations will not be restored")
-                return 1
+                # No baseline anywhere: the reaper may have removed it before the persistent
+                # storage move, or this is a fresh install with no prior baseline. There is
+                # nothing to diff, so no custom integrations need to be restored. Treat this
+                # as a non-fatal no-op rather than an error to avoid failing the upgrade.
+                print("No baseline file found in primary, legacy, or install locations; nothing to diff. Skipping custom integration save (non-fatal).")
+                return 0
         else:
             print(f"Directory {install_directory} and {storage_location} do not exist.")
             return 1
