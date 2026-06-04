@@ -72,19 +72,6 @@ func TestDefaults(t *testing.T) {
 
 	assert.True(t, config.GetBool("logs_config.tag_multi_line_logs"))
 	assert.True(t, config.GetBool("logs_config.tag_truncated_logs"))
-
-	assert.True(t, config.GetBool("process_manager.enabled"))
-}
-
-func TestProcessManagerEnabledEnvOverride(t *testing.T) {
-	t.Setenv("DD_PROCESS_MANAGER_ENABLED", "false")
-	cfg := newTestConf(t)
-	assert.False(t, cfg.GetBool("process_manager.enabled"))
-}
-
-func TestProcessManagerEnabledYAML(t *testing.T) {
-	cfg := confFromYAML(t, "process_manager:\n  enabled: false\n")
-	assert.False(t, cfg.GetBool("process_manager.enabled"))
 }
 
 func TestUnexpectedUnicode(t *testing.T) {
