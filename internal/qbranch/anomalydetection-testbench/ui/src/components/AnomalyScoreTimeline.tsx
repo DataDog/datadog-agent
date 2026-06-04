@@ -168,13 +168,13 @@ export function AnomalyScoreTimeline({
 }: AnomalyScoreTimelineProps) {
   // ── display controls ──────────────────────────────────────────────────────
   const [scalePower, setScalePower] = useState(1.0);
-  const [ewmaAlpha, setEwmaAlpha] = useState(0.15);
+  const [ewmaAlpha, setEwmaAlpha] = useState(0.16);
 
   // ── event-detection controls ──────────────────────────────────────────────
-  const [lowThreshold, setLowThresholdRaw] = useState(0.33);
+  const [lowThreshold, setLowThresholdRaw] = useState(0.49);
   const [highThreshold, setHighThresholdRaw] = useState(0.66);
-  const [margin, setMargin] = useState(0.05);
-  const [cooldownSecs, setCooldownSecs] = useState(120);
+  const [margin, setMargin] = useState(0.06);
+  const [cooldownSecs, setCooldownSecs] = useState(300);
 
   const setLowThreshold = (v: number) => setLowThresholdRaw(Math.min(v, highThreshold - 0.02));
   const setHighThreshold = (v: number) => setHighThresholdRaw(Math.max(v, lowThreshold + 0.02));
