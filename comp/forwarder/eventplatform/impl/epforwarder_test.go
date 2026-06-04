@@ -191,6 +191,80 @@ func (suite *EventPlatformForwarderTestSuite) TestNewHTTPPassthroughPipelineComp
 	}
 }
 
+// TestGetClusterAgentPassthroughPipelines verifies that the DCA-specific
+// pipeline source contains exactly the right descriptors.
+func (suite *EventPlatformForwarderTestSuite) TestGetClusterAgentPassthroughPipelinesWithoutKubeActions() {
+	// kubeactions.enabled defaults to false – only network-path should be present.
+	descs := getClusterAgentPassthroughPipelines(suite.config)
+
+	suite.Require().Len(descs, 1, "expected exactly 1 pipeline when kubeactions.enabled=false")
+	suite.Equal(eventplatform.EventTypeNetworkPath, descs[0].eventType)
+}
+
+func (suite *EventPlatformForwarderTestSuite) TestGetClusterAgentPassthroughPipelinesWithKubeActions() {
+	suite.config.SetWithoutSource("kubeactions.enabled", true)
+
+	descs := getClusterAgentPassthroughPipelines(suite.config)
+
+	suite.Require().Len(descs, 2, "expected exactly 2 pipelines when kubeactions.enabled=true")
+
+	eventTypes := make(map[string]bool, 2)
+	for _, d := range descs {
+		eventTypes[d.eventType] = true
+	}
+	suite.True(eventTypes[eventplatform.EventTypeNetworkPath], "network-path must be present")
+	suite.True(eventTypes[eventplatform.EventTypeKubeActions], "kube-actions must be present when kubeactions.enabled=true")
+}
+
+func (suite *EventPlatformForwarderTestSuite) TestGetClusterAgentPassthroughPipelinesExcludesDefaultTypes() {
+	suite.config.SetWithoutSource("kubeactions.enabled", true)
+
+	descs := getClusterAgentPassthroughPipelines(suite.config)
+
+	excluded := []string{
+		eventTypeDBMSamples,
+		eventTypeDBMMetrics,
+		eventTypeDBMActivity,
+		eventTypeDBMMetadata,
+		eventTypeDBMHealth,
+		eventTypeDBMColumnStatistics,
+		eventTypeDataStreamsMessage,
+		eventTypeDoQueryResults,
+		eventplatform.EventTypeNetworkDevicesMetadata,
+		eventplatform.EventTypeSnmpTraps,
+		eventplatform.EventTypeNetworkDevicesNetFlow,
+		eventplatform.EventTypeNetworkConfigManagement,
+		eventplatform.EventTypeContainerLifecycle,
+		eventplatform.EventTypeContainerImages,
+		eventplatform.EventTypeContainerSBOM,
+		eventplatform.EventTypeGenResources,
+		eventplatform.EventTypeSynthetics,
+		eventplatform.EventTypeEventManagement,
+		eventplatform.EventTypeSoftwareInventory,
+	}
+	present := make(map[string]bool, len(descs))
+	for _, d := range descs {
+		present[d.eventType] = true
+	}
+	for _, et := range excluded {
+		suite.False(present[et], "cluster-agent pipelines must not contain eventType=%s", et)
+	}
+}
+
+func (suite *EventPlatformForwarderTestSuite) TestGetClusterAgentPassthroughPipelinesNetworkPathDescriptor() {
+	descs := getClusterAgentPassthroughPipelines(suite.config)
+
+	suite.Require().Len(descs, 1)
+	np := descs[0]
+	suite.Equal(eventplatform.EventTypeNetworkPath, np.eventType)
+	suite.Equal("Network Path", np.category)
+	suite.Equal("network_path.forwarder.", np.endpointsConfigPrefix)
+	suite.Equal("netpath-intake.", np.hostnameEndpointPrefix)
+	suite.Equal(laconfig.IntakeTrackType("netpath"), np.intakeTrackType)
+	suite.Equal(10, np.defaultBatchMaxConcurrentSend)
+	suite.Nil(np.extraHeadersHook, "network-path descriptor must not have an extraHeadersHook")
+}
+
 func (suite *EventPlatformForwarderTestSuite) TestGetECSFargateTaskARN() {
 	suite.Run("returns empty when not on fargate", func() {
 		// ECS_FARGATE is not set in test environment

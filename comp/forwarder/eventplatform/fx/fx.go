@@ -25,3 +25,11 @@ func Module(params eventplatform.Params) fxutil.Module {
 		fx.Supply(params),
 	)
 }
+
+// ClusterAgentModule returns the fx options for the Cluster Agent's event
+// platform forwarder.  Only the pipelines needed by the DCA (network-path
+// and, when enabled, kube-actions) are built; all other pipelines are
+// excluded to reduce binary size and resource usage.
+func ClusterAgentModule() fxutil.Module {
+	return Module(eventplatform.NewClusterAgentParams())
+}

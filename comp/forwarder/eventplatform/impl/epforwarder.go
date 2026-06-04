@@ -76,6 +76,20 @@ const (
 	eventTypeDoQueryResults      = "do-query-results"
 )
 
+// dataStreamsExtraHeaders returns the HTTP headers that must be attached to
+// every Data Streams intake request.  It is referenced only by the Data
+// Streams pipeline descriptor so that the ECS/Fargate metadata dependency is
+// not pulled into pipelines that do not need it.
+func dataStreamsExtraHeaders(hostname string) map[string]string {
+	tags := fmt.Sprintf("host:%s,agent_version:%s", hostname, version.AgentVersion)
+	if taskARN := getECSFargateTaskARN(); taskARN != "" {
+		tags += ",task_arn:" + taskARN
+	}
+	return map[string]string{
+		"X-Datadog-Additional-Tags": tags,
+	}
+}
+
 func getPassthroughPipelines() []passthroughPipelineDesc {
 	var passthroughPipelineDescs = []passthroughPipelineDesc{
 		{
@@ -327,6 +341,7 @@ func getPassthroughPipelines() []passthroughPipelineDesc {
 			defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
 			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
 			defaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
+			extraHeadersHook:              dataStreamsExtraHeaders,
 		},
 		{
 			eventType:                     eventTypeDoQueryResults,
@@ -380,6 +395,49 @@ func getPassthroughPipelines() []passthroughPipelineDesc {
 	}
 
 	return passthroughPipelineDescs
+}
+
+// getClusterAgentPassthroughPipelines returns the minimal set of pipeline
+// descriptors required by the Cluster Agent: network-path (always) and
+// kube-actions (only when kubeactions.enabled is true).  All other pipelines
+// (DBM, NDM, NetFlow, container lifecycle, SBOM, Synthetics, etc.) are
+// intentionally excluded to reduce binary size and resource usage.
+func getClusterAgentPassthroughPipelines(cfg model.Reader) []passthroughPipelineDesc {
+	descs := []passthroughPipelineDesc{
+		{
+			eventType:                     eventplatform.EventTypeNetworkPath,
+			category:                      "Network Path",
+			contentType:                   logshttp.JSONContentType,
+			endpointsConfigPrefix:         "network_path.forwarder.",
+			hostnameEndpointPrefix:        "netpath-intake.",
+			intakeTrackType:               "netpath",
+			defaultBatchMaxConcurrentSend: 10,
+			defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
+			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
+			defaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
+		},
+	}
+	if cfg.GetBool("kubeactions.enabled") {
+		kubeactionsPipeline := passthroughPipelineDesc{
+			eventType:                     eventplatform.EventTypeKubeActions,
+			category:                      "Kubernetes Actions",
+			contentType:                   logshttp.JSONContentType,
+			endpointsConfigPrefix:         "kubeactions.forwarder.",
+			hostnameEndpointPrefix:        "kubeops-intake.",
+			intakeTrackType:               "kubeactions",
+			defaultBatchMaxConcurrentSend: 10,
+			defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
+			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
+			defaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
+		}
+		descs = append(descs, kubeactionsPipeline)
+		// TODO(kubeactions): Remove this log once EVP intake is stable
+		log.Infof("[KubeActions] EVP pipeline registered (cluster-agent): host_prefix=%s, track_type=%s, v2_api=%v",
+			kubeactionsPipeline.hostnameEndpointPrefix,
+			kubeactionsPipeline.intakeTrackType,
+			cfg.GetBool("kubeactions.forwarder.use_v2_api"))
+	}
+	return descs
 }
 
 type defaultEventPlatformForwarder struct {
@@ -573,6 +631,11 @@ type passthroughPipelineDesc struct {
 	forceCompressionKind          string
 	forceCompressionLevel         int
 	useStreamStrategy             bool
+	// extraHeadersHook, when non-nil, is called with the agent hostname and
+	// its return value is set as ExtraHTTPHeaders on every endpoint of this
+	// pipeline.  Use this for per-pipeline HTTP header customisation (e.g.
+	// the Data Streams pipeline attaches ECS/Fargate task metadata here).
+	extraHeadersHook func(hostname string) map[string]string
 }
 
 // newHTTPPassthroughPipeline creates a new HTTP-only event platform pipeline that sends messages directly to intake
@@ -608,14 +671,8 @@ func newHTTPPassthroughPipeline(
 		return nil, errors.New("endpoints must be http")
 	}
 
-	if desc.eventType == eventTypeDataStreamsMessage {
-		tags := fmt.Sprintf("host:%s,agent_version:%s", hostname, version.AgentVersion)
-		if taskARN := getECSFargateTaskARN(); taskARN != "" {
-			tags += ",task_arn:" + taskARN
-		}
-		extraHeaders := map[string]string{
-			"X-Datadog-Additional-Tags": tags,
-		}
+	if desc.extraHeadersHook != nil {
+		extraHeaders := desc.extraHeadersHook(hostname)
 		for i := range endpoints.Endpoints {
 			endpoints.Endpoints[i].ExtraHTTPHeaders = extraHeaders
 		}
@@ -741,12 +798,22 @@ func joinHosts(endpoints []config.Endpoint) string {
 	return strings.Join(additionalHosts, ",")
 }
 
-func newDefaultEventPlatformForwarder(config model.Reader, eventPlatformReceiver eventplatformreceiver.Component, compression logscompression.Component, hostname string, secretsComp secrets.Component) *defaultEventPlatformForwarder {
+// newDefaultEventPlatformForwarder creates a forwarder whose pipelines are
+// determined by pipelineSource.  Callers pass either getPassthroughPipelines
+// (full set) or a narrower source such as getClusterAgentPassthroughPipelines.
+func newDefaultEventPlatformForwarder(
+	cfg model.Reader,
+	eventPlatformReceiver eventplatformreceiver.Component,
+	compression logscompression.Component,
+	hostname string,
+	secretsComp secrets.Component,
+	pipelineSource func() []passthroughPipelineDesc,
+) *defaultEventPlatformForwarder {
 	destinationsCtx := client.NewDestinationsContext()
 	destinationsCtx.Start()
 	pipelines := make(map[string]*passthroughPipeline)
-	for i, desc := range getPassthroughPipelines() {
-		p, err := newHTTPPassthroughPipeline(config, eventPlatformReceiver, compression, desc, destinationsCtx, i, hostname, secretsComp)
+	for i, desc := range pipelineSource() {
+		p, err := newHTTPPassthroughPipeline(cfg, eventPlatformReceiver, compression, desc, destinationsCtx, i, hostname, secretsComp)
 		if err != nil {
 			log.Errorf("Failed to initialize event platform forwarder pipeline. eventType=%s, error=%s", desc.eventType, err.Error())
 			continue
@@ -766,7 +833,15 @@ func newEventPlatformForwarder(reqs Requires) eventplatform.Component {
 		forwarder = newNoopEventPlatformForwarder(reqs.Hostname, reqs.Compression)
 	} else if reqs.Params.UseEventPlatformForwarder {
 		hostnameStr := reqs.Hostname.GetSafe(context.Background())
-		forwarder = newDefaultEventPlatformForwarder(reqs.Config, reqs.EventPlatformReceiver, reqs.Compression, hostnameStr, reqs.Secrets)
+		var pipelineSource func() []passthroughPipelineDesc
+		if reqs.Params.UseClusterAgentPipelines {
+			pipelineSource = func() []passthroughPipelineDesc {
+				return getClusterAgentPassthroughPipelines(reqs.Config)
+			}
+		} else {
+			pipelineSource = getPassthroughPipelines
+		}
+		forwarder = newDefaultEventPlatformForwarder(reqs.Config, reqs.EventPlatformReceiver, reqs.Compression, hostnameStr, reqs.Secrets, pipelineSource)
 	}
 	if forwarder == nil {
 		return option.NonePtr[eventplatform.Forwarder]()
@@ -792,7 +867,7 @@ func NewNoopEventPlatformForwarder(hostname hostnameinterface.Component, compres
 
 func newNoopEventPlatformForwarder(hostname hostnameinterface.Component, compression logscompression.Component) *defaultEventPlatformForwarder {
 	hostnameStr := hostname.GetSafe(context.Background())
-	f := newDefaultEventPlatformForwarder(pkgconfigsetup.Datadog(), eventplatformreceiverimpl.NewReceiver(hostname, pkgconfigsetup.Datadog()).Comp, compression, hostnameStr, secretsnoopimpl.NewComponent().Comp)
+	f := newDefaultEventPlatformForwarder(pkgconfigsetup.Datadog(), eventplatformreceiverimpl.NewReceiver(hostname, pkgconfigsetup.Datadog()).Comp, compression, hostnameStr, secretsnoopimpl.NewComponent().Comp, getPassthroughPipelines)
 	// remove the senders
 	for _, p := range f.pipelines {
 		p.strategy = nil
