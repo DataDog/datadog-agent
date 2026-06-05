@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -45,6 +46,51 @@ func TestPipelineMonitorTracksCorrectCapacity(t *testing.T) {
 	assert.Equal(t, pm.getMonitor("1", "test").ingress-pm.getMonitor("1", "test").egress, int64(0))
 	assert.Equal(t, pm.getMonitor("5", "test").ingress-pm.getMonitor("5", "test").egress, int64(0))
 	assert.Equal(t, pm.getMonitor("10", "test").ingress-pm.getMonitor("10", "test").egress, int64(0))
+}
+
+// TestTelemetryPipelineMonitor_StartStopLifecycle verifies the periodic-sampler goroutine
+// has a clean lifecycle: Stop returns (does not hang waiting on the loop), Stop is safe to
+// call without Start, and Start/Stop are idempotent. This guards against a leaked goroutine
+// outliving the pipeline.
+func TestTelemetryPipelineMonitor_StartStopLifecycle(t *testing.T) {
+	clk := clock.NewMock()
+
+	// Stop without Start must be a no-op, not block on a nil channel.
+	pm := newTelemetryPipelineMonitorWithClock(clk, time.Second)
+	pm.Stop()
+
+	pm = newTelemetryPipelineMonitorWithClock(clk, time.Second)
+	pm.Start()
+	pm.Start() // idempotent: must not spawn a second loop
+	// Stop blocks until the loop goroutine exits; if it leaked, the test would hang here.
+	pm.Stop()
+	pm.Stop() // idempotent
+}
+
+// TestTelemetryPipelineMonitor_TickerSamplesRegisteredMonitor verifies the running ticker
+// actually samples the utilization monitors it created. A registered monitor is held in-use
+// (Start, no Stop); advancing the clock must let the loop sample it so its EWMA rises.
+// Eventually is used because the mock ticker delivers with a non-blocking send, so an
+// individual tick may be dropped if the loop goroutine is not yet parked on the channel.
+func TestTelemetryPipelineMonitor_TickerSamplesRegisteredMonitor(t *testing.T) {
+	ClearComponentSnapshots()
+	defer ClearComponentSnapshots()
+
+	clk := clock.NewMock()
+	pm := newTelemetryPipelineMonitorWithClock(clk, time.Second)
+	um := pm.MakeUtilizationMonitor("processor", "0").(*TelemetryUtilizationMonitor)
+
+	pm.Start()
+	defer pm.Stop()
+	um.Start() // blocked in-use, never Stop
+
+	require.Eventually(t, func() bool {
+		clk.Add(time.Second)
+		um.mu.Lock()
+		defer um.mu.Unlock()
+		return um.avg > 0
+	}, 2*time.Second, 5*time.Millisecond,
+		"the pipeline monitor's ticker must sample its registered utilization monitor")
 }
 
 // TestGlobalComponentSnapshotsAt_IdleDecay is the registry-level regression for the

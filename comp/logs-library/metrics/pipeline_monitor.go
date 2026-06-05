@@ -8,6 +8,8 @@ package metrics
 import (
 	"sync"
 	"time"
+
+	"github.com/benbjohnson/clock"
 )
 
 const ewmaAlpha = 2 / (float64(15) + 1) // ~0.125 — 15-second smoothing window
@@ -155,6 +157,10 @@ type PipelineMonitor interface {
 	ReportComponentIngress(size MeasurablePayload, name string, instanceID string)
 	ReportComponentEgress(size MeasurablePayload, name string, instanceID string)
 	MakeUtilizationMonitor(name string, instanceID string) UtilizationMonitor
+	// Start begins periodic sampling of the utilization monitors this pipeline monitor
+	// created; Stop ends it. They bracket the pipeline's lifetime (wired into Sender).
+	Start()
+	Stop()
 }
 
 // NoopPipelineMonitor is a no-op implementation of PipelineMonitor.
@@ -188,17 +194,42 @@ func (n *NoopPipelineMonitor) MakeUtilizationMonitor(_ string, _ string) Utiliza
 	return &NoopUtilizationMonitor{}
 }
 
+// Start does nothing.
+func (n *NoopPipelineMonitor) Start() {}
+
+// Stop does nothing.
+func (n *NoopPipelineMonitor) Stop() {}
+
+// utilizationSampleInterval is how often the pipeline monitor's ticker samples each
+// utilization monitor so in-flight blocking operations are observed between Start/Stop.
+const utilizationSampleInterval = 1 * time.Second
+
 // TelemetryPipelineMonitor is a PipelineMonitor that reports capacity metrics to telemetry
 type TelemetryPipelineMonitor struct {
 	monitors map[string]*CapacityMonitor
 	lock     sync.RWMutex
+
+	// utilizationMonitors are the monitors created by MakeUtilizationMonitor; the sampleLoop
+	// ticks each one so a component blocked between Start and Stop is still sampled.
+	utilizationMonitors []*TelemetryUtilizationMonitor
+	clock               clock.Clock
+	sampleInterval      time.Duration
+	stopCh              chan struct{}
+	doneCh              chan struct{}
+	started             bool
 }
 
 // NewTelemetryPipelineMonitor creates a new pipeline monitort that reports capacity and utiilization metrics as telemetry
 func NewTelemetryPipelineMonitor() *TelemetryPipelineMonitor {
+	return newTelemetryPipelineMonitorWithClock(clock.New(), utilizationSampleInterval)
+}
+
+func newTelemetryPipelineMonitorWithClock(clk clock.Clock, sampleInterval time.Duration) *TelemetryPipelineMonitor {
 	return &TelemetryPipelineMonitor{
-		monitors: make(map[string]*CapacityMonitor),
-		lock:     sync.RWMutex{},
+		monitors:       make(map[string]*CapacityMonitor),
+		lock:           sync.RWMutex{},
+		clock:          clk,
+		sampleInterval: sampleInterval,
 	}
 }
 
@@ -221,9 +252,66 @@ func (c *TelemetryPipelineMonitor) getMonitor(name string, instanceID string) *C
 	return monitor
 }
 
-// MakeUtilizationMonitor creates a new utilization monitor for a component.
+// MakeUtilizationMonitor creates a new utilization monitor for a component and registers it
+// for periodic sampling by this pipeline monitor's ticker. The monitor shares the pipeline
+// monitor's clock so the ticker and the monitor's own accounting advance consistently.
 func (c *TelemetryPipelineMonitor) MakeUtilizationMonitor(name string, instanceID string) UtilizationMonitor {
-	return NewTelemetryUtilizationMonitor(name, instanceID)
+	m := newTelemetryUtilizationMonitorWithSampleRateAndClock(name, instanceID, c.sampleInterval, c.clock)
+	c.lock.Lock()
+	c.utilizationMonitors = append(c.utilizationMonitors, m)
+	c.lock.Unlock()
+	return m
+}
+
+// Start launches the periodic sampling loop. Idempotent; safe to call once per pipeline
+// lifetime (wired into Sender.Start).
+func (c *TelemetryPipelineMonitor) Start() {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	if c.started {
+		return
+	}
+	c.started = true
+	c.stopCh = make(chan struct{})
+	c.doneCh = make(chan struct{})
+	go c.sampleLoop(c.stopCh, c.doneCh)
+}
+
+// Stop ends the periodic sampling loop and blocks until the goroutine has exited so it never
+// outlives the pipeline. Idempotent.
+func (c *TelemetryPipelineMonitor) Stop() {
+	c.lock.Lock()
+	if !c.started {
+		c.lock.Unlock()
+		return
+	}
+	c.started = false
+	close(c.stopCh)
+	done := c.doneCh
+	c.lock.Unlock()
+	<-done
+}
+
+func (c *TelemetryPipelineMonitor) sampleLoop(stop, done chan struct{}) {
+	defer close(done)
+	ticker := c.clock.Ticker(c.sampleInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-stop:
+			return
+		case <-ticker.C:
+			now := c.clock.Now()
+			c.lock.RLock()
+			// Snapshot the slice header under the lock; MakeUtilizationMonitor only appends,
+			// so iterating the captured length never races with a concurrent registration.
+			monitors := c.utilizationMonitors
+			c.lock.RUnlock()
+			for _, m := range monitors {
+				m.sample(now)
+			}
+		}
+	}
 }
 
 // GetCapacityMonitor returns the capacity monitor for the given name and instance ID.

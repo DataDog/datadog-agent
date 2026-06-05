@@ -75,6 +75,45 @@ func runIdleIterations(um *TelemetryUtilizationMonitor, clk interface{ Add(time.
 	}
 }
 
+// TestSample_BlockedComponentObserved is the core regression for the event-driven
+// sampling blind spot. A component enters in-use (Start) and never returns (Stop) —
+// modelling a goroutine blocked on a full output channel, which is the backpressure
+// event we most want to observe. With only Start/Stop sampling, no sample would ever be
+// taken and the EWMA would freeze at 0. The periodic sample() must credit the in-progress
+// in-use interval so the EWMA climbs to saturation while the component is still blocked.
+func TestSample_BlockedComponentObserved(t *testing.T) {
+	clk := clock.NewMock()
+	um := newTelemetryUtilizationMonitorWithSampleRateAndClock("comp", "0", time.Second, clk)
+
+	um.Start() // enter in-use; deliberately never call Stop
+
+	for i := 0; i < 40; i++ {
+		clk.Add(time.Second)
+		um.sample(clk.Now())
+	}
+
+	require.GreaterOrEqual(t, um.avg, SaturationThreshold,
+		"a component blocked in-use must reach saturation via periodic sampling, not freeze at 0")
+	assert.True(t, um.isSaturated, "saturation state must flip while still blocked, before any Stop")
+}
+
+// TestSample_IdleComponentStaysLow verifies the symmetric case: periodic sampling of a
+// component that is not in-use credits idle time, so the EWMA stays at 0 rather than being
+// pulled up. Guards against settleLocked mis-attributing idle ticks as in-use.
+func TestSample_IdleComponentStaysLow(t *testing.T) {
+	clk := clock.NewMock()
+	um := newTelemetryUtilizationMonitorWithSampleRateAndClock("comp", "0", time.Second, clk)
+
+	// Never Start: the open interval is idle the whole time.
+	for i := 0; i < 40; i++ {
+		clk.Add(time.Second)
+		um.sample(clk.Now())
+	}
+
+	assert.InDelta(t, 0.0, um.avg, 0.0001, "an idle component sampled periodically must stay at 0 utilization")
+	assert.False(t, um.isSaturated)
+}
+
 // TestSaturationStateOnset verifies that the saturation state machine marks a
 // component as saturated once the EWMA reaches SaturationThreshold.
 func TestSaturationStateOnset(t *testing.T) {

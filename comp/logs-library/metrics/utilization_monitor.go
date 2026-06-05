@@ -6,6 +6,7 @@
 package metrics
 
 import (
+	"sync"
 	"time"
 
 	"github.com/benbjohnson/clock"
@@ -38,6 +39,10 @@ func (n *NoopUtilizationMonitor) Stop() {}
 
 // TelemetryUtilizationMonitor is a UtilizationMonitor that reports utilization metrics as telemetry.
 type TelemetryUtilizationMonitor struct {
+	// mu guards all mutable state. Start/Stop are called on the component's own goroutine,
+	// while sample is called from the pipeline monitor's periodic ticker goroutine.
+	mu sync.Mutex
+
 	inUse      time.Duration
 	idle       time.Duration
 	startIdle  time.Time
@@ -83,6 +88,8 @@ func newTelemetryUtilizationMonitorWithSampleRateAndClock(name, instance string,
 
 // Start tracks a start event in the utilization tracker.
 func (u *TelemetryUtilizationMonitor) Start() {
+	u.mu.Lock()
+	defer u.mu.Unlock()
 	if u.started {
 		return
 	}
@@ -90,47 +97,79 @@ func (u *TelemetryUtilizationMonitor) Start() {
 	now := u.clock.Now()
 	u.idle += now.Sub(u.startIdle)
 	u.startInUse = now
-	u.reportIfNeeded()
+	u.reportIfNeededLocked(now)
 }
 
 // Stop tracks a finish event in the utilization tracker.
 func (u *TelemetryUtilizationMonitor) Stop() {
+	u.mu.Lock()
+	defer u.mu.Unlock()
 	if !u.started {
 		return
 	}
 	u.started = false
-	u.inUse += u.clock.Since(u.startInUse)
-	u.startIdle = u.clock.Now()
-	u.reportIfNeeded()
+	now := u.clock.Now()
+	u.inUse += now.Sub(u.startInUse)
+	u.startIdle = now
+	u.reportIfNeededLocked(now)
 }
 
-func (u *TelemetryUtilizationMonitor) reportIfNeeded() {
-	if u.clock.Since(u.lastSample) >= u.sampleRate {
-		rawRatio := 0.0
-		if total := u.idle + u.inUse; total > 0 {
-			rawRatio = float64(u.inUse) / float64(total)
-		}
-		u.avg = ewma(rawRatio, u.avg)
+// sample is called periodically by the pipeline monitor's ticker so a component that is
+// blocked mid-operation (e.g. on a full output channel) is still observed. Utilization is
+// otherwise sampled only on Start/Stop, so a long in-flight block produces no sample until it
+// completes — freezing the EWMA and suppressing saturation logs during the exact backpressure
+// event we want to surface. settleLocked credits the in-progress interval up to now before
+// reporting.
+func (u *TelemetryUtilizationMonitor) sample(now time.Time) {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	u.settleLocked(now)
+	u.reportIfNeededLocked(now)
+}
 
-		now := u.clock.Now()
-		u.history.add(now, u.avg)
-
-		TlmUtilizationRatio.Set(u.avg, u.name, u.instance)
-		// Pass the live history rather than a precomputed WindowStats: window stats are
-		// recomputed at read-time so an idle component's stats decay against the live clock.
-		setComponentUtilization(u.name, u.instance, u.avg, rawRatio, u.history)
-		u.idle = 0
-		u.inUse = 0
-		u.lastSample = now
-
-		u.updateSaturationState(now)
+// settleLocked credits the time elapsed in the currently-open interval (in-use if started,
+// idle otherwise) up to now, then advances the interval start so the same span is not
+// double-counted by the eventual Start/Stop. Caller must hold u.mu.
+func (u *TelemetryUtilizationMonitor) settleLocked(now time.Time) {
+	if u.started {
+		u.inUse += now.Sub(u.startInUse)
+		u.startInUse = now
+	} else {
+		u.idle += now.Sub(u.startIdle)
+		u.startIdle = now
 	}
+}
+
+// reportIfNeededLocked computes and publishes a utilization sample if at least sampleRate has
+// elapsed since the last one. Caller must hold u.mu. now is passed in (rather than read from
+// the clock) so Start/Stop/sample all report against a single consistent instant.
+func (u *TelemetryUtilizationMonitor) reportIfNeededLocked(now time.Time) {
+	if now.Sub(u.lastSample) < u.sampleRate {
+		return
+	}
+	rawRatio := 0.0
+	if total := u.idle + u.inUse; total > 0 {
+		rawRatio = float64(u.inUse) / float64(total)
+	}
+	u.avg = ewma(rawRatio, u.avg)
+
+	u.history.add(now, u.avg)
+
+	TlmUtilizationRatio.Set(u.avg, u.name, u.instance)
+	// Pass the live history rather than a precomputed WindowStats: window stats are
+	// recomputed at read-time so an idle component's stats decay against the live clock.
+	setComponentUtilization(u.name, u.instance, u.avg, rawRatio, u.history)
+	u.idle = 0
+	u.inUse = 0
+	u.lastSample = now
+
+	u.updateSaturationState(now)
 }
 
 // updateSaturationState drives the per-component saturation state machine and emits
 // log events on transitions and on a throttled cadence during sustained saturation.
-// Called only from reportIfNeeded, i.e. serially on the monitor's own goroutine —
-// the monitor has no lock and assumes single-goroutine Start/Stop.
+// Called only from reportIfNeededLocked with u.mu held, so its access to the episode
+// tracking fields is serialized against Start/Stop and the periodic sample tick.
 func (u *TelemetryUtilizationMonitor) updateSaturationState(now time.Time) {
 	currentlySaturated := u.avg >= SaturationThreshold
 
