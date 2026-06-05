@@ -297,6 +297,28 @@ func TestInstallPromoteExperiment(t *testing.T) {
 	})
 }
 
+func TestPromoteExperimentNoExperiment(t *testing.T) {
+	s := fixtures.NewServer(t)
+	installer := newTestPackageManager(t, s, t.TempDir())
+	defer installer.db.Close()
+	installer.testHooks.noop = true
+
+	err := installer.Install(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil)
+	assert.NoError(t, err)
+
+	// No experiment is staged: promoting must be a benign no-op, not an error,
+	// so it stays out of Error Tracking.
+	err = installer.PromoteExperiment(testCtx, fixtures.FixtureSimpleV1.Package)
+	assert.NoError(t, err)
+
+	// Stable is unchanged and no experiment exists.
+	r := installer.packages.Get(fixtures.FixtureSimpleV1.Package)
+	state, err := r.GetState()
+	assert.NoError(t, err)
+	assert.Equal(t, fixtures.FixtureSimpleV1.Version, state.Stable)
+	assert.False(t, state.HasExperiment())
+}
+
 func TestUninstallExperiment(t *testing.T) {
 	doTestInstallers(t, func(instFactory installFnFactory, t *testing.T) {
 		s := fixtures.NewServer(t)

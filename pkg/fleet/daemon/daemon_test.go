@@ -355,6 +355,22 @@ func TestPromoteExperiment(t *testing.T) {
 	i.pm.AssertExpectations(t)
 }
 
+func TestPromoteExperimentNoExperiment(t *testing.T) {
+	i := newTestInstaller(t)
+	defer i.Stop()
+
+	pkg := "test-package"
+	// When no experiment is staged the installer reports ErrNoExperiment. This
+	// is a benign no-op, so the daemon must not surface it as an error (which
+	// would mark the span error=1 and pollute Error Tracking).
+	i.pm.On("PromoteExperiment", mock.Anything, pkg).Return(repository.ErrNoExperiment).Once()
+
+	err := i.PromoteExperiment(context.Background(), pkg)
+	assert.NoError(t, err)
+
+	i.pm.AssertExpectations(t)
+}
+
 func TestUpdateCatalog(t *testing.T) {
 	i := newTestInstaller(t)
 	defer i.Stop()

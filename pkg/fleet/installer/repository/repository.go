@@ -31,6 +31,10 @@ const (
 
 var (
 	errRepositoryNotCreated = errors.New("repository not created")
+	// ErrNoExperiment is returned by PromoteExperiment when there is no experiment
+	// staged to promote. This is a benign, expected no-op (nothing to do), not a
+	// failure, and callers should not treat it as an error.
+	ErrNoExperiment = errors.New("no experiment to promote")
 )
 
 // PreRemoveHook are called before a package is removed.  It returns a boolean
@@ -274,7 +278,7 @@ func (r *Repository) PromoteExperiment(ctx context.Context) error {
 		return errors.New("experiment link does not exist, invalid state")
 	}
 	if repository.experiment.Target() == "" || repository.stable.Target() == repository.experiment.Target() {
-		return errors.New("no experiment to promote")
+		return ErrNoExperiment
 	}
 	err = repository.stable.Set(*repository.experiment.packagePath)
 	if err != nil {

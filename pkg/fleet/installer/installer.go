@@ -495,14 +495,17 @@ func (i *installerImpl) PromoteExperiment(ctx context.Context, pkg string) error
 	i.m.Lock()
 	defer i.m.Unlock()
 
-	repository := i.packages.Get(pkg)
-	state, err := repository.GetState()
+	repo := i.packages.Get(pkg)
+	state, err := repo.GetState()
 	if err != nil {
 		return fmt.Errorf("could not get repository state: %w", err)
 	}
 	if !state.HasExperiment() {
-		// Fail early
-		return errors.New("no experiment to promote")
+		// No experiment is staged: promoting is a benign no-op, not a failure.
+		// Returning nil (instead of an error) keeps this expected case out of
+		// Error Tracking. See repository.ErrNoExperiment.
+		log.Infof("No experiment to promote for package %s, skipping", pkg)
+		return nil
 	}
 
 	err = i.hooks.PrePromoteExperiment(ctx, pkg)
@@ -510,7 +513,13 @@ func (i *installerImpl) PromoteExperiment(ctx context.Context, pkg string) error
 		return fmt.Errorf("could not promote experiment: %w", err)
 	}
 
-	err = repository.PromoteExperiment(ctx)
+	err = repo.PromoteExperiment(ctx)
+	if errors.Is(err, repository.ErrNoExperiment) {
+		// The repository state changed between GetState above and here and there
+		// is nothing to promote. This is still a benign no-op, not a failure.
+		log.Infof("No experiment to promote for package %s, skipping", pkg)
+		return nil
+	}
 	if err != nil {
 		return fmt.Errorf("could not promote experiment: %w", err)
 	}
@@ -521,7 +530,7 @@ func (i *installerImpl) PromoteExperiment(ctx context.Context, pkg string) error
 	}
 
 	// Update db
-	state, err = repository.GetState()
+	state, err = repo.GetState()
 	if err != nil {
 		return fmt.Errorf("could not get repository state: %w", err)
 	}

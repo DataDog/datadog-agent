@@ -484,6 +484,14 @@ func (d *daemonImpl) promoteExperiment(ctx context.Context, pkg string) (err err
 
 	log.Infof("Daemon: Promoting experiment for package %s", pkg)
 	err = d.installer(d.env).PromoteExperiment(ctx, pkg)
+	if errors.Is(err, repository.ErrNoExperiment) {
+		// No experiment staged is a benign no-op, not a failure. Returning nil
+		// keeps the span from being marked error=1 and out of Error Tracking.
+		// In production the installer runs out-of-process and already returns
+		// success for this case; this guards the in-process path.
+		log.Infof("Daemon: No experiment to promote for package %s, skipping", pkg)
+		return nil
+	}
 	if err != nil {
 		return fmt.Errorf("could not promote experiment: %w", err)
 	}

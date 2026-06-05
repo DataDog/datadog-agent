@@ -168,7 +168,7 @@ func TestPromoteExperimentWithoutExperiment(t *testing.T) {
 	repository := createTestRepository(t, dir, "v1", nil)
 
 	err := repository.PromoteExperiment(context.Background())
-	assert.Error(t, err)
+	assert.ErrorIs(t, err, ErrNoExperiment)
 }
 
 func TestDeleteExperiment(t *testing.T) {
