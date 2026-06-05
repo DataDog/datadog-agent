@@ -138,9 +138,12 @@ func (c *converterWithoutAgent) Convert(_ context.Context, conf *confmap.Conf) e
 }
 
 func (c *converterWithoutAgent) ensureMetricsPipeline(conf confMap) error {
-	metrics, err := confmaputils.Ensure[confMap](conf, "service::pipelines::metrics")
-	if err != nil {
-		return err
+	// Only operate on a metrics pipeline the user actually declared. Using Ensure here would
+	// materialize an empty service::pipelines::metrics for profiles-only configs, which then
+	// fails validation with "service::pipelines::metrics: must have at least one receiver".
+	metrics, ok := confmaputils.Get[confMap](conf, "service::pipelines::metrics")
+	if !ok {
+		return nil
 	}
 
 	processors, err := confmaputils.Ensure[[]any](metrics, "processors")
