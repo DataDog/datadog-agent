@@ -101,7 +101,6 @@ exports_files(glob(
 # gazelle:exclude comp/core/tagger/fx-mock
 # gazelle:exclude comp/core/tagger/impl
 # gazelle:exclude comp/core/tagger/impl-dual
-# gazelle:exclude comp/core/tagger/mock
 # gazelle:exclude comp/core/workloadmeta/collectors/catalog
 # gazelle:exclude comp/core/workloadmeta/collectors/catalog-clusteragent
 # gazelle:exclude comp/core/workloadmeta/collectors/catalog-core
