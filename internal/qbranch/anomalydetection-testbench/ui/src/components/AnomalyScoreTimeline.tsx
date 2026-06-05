@@ -57,8 +57,8 @@ const SCORED_DETECTORS = new Set(['holt_residual', 'tukey_biweight']);
 const EWMA_SLIDER_MAX = 5.0;
 // Default thresholds (approximate; tune with sliders after observing live data).
 //   With level weights, baseline EWMA stays near 0.1–0.3; disruption peaks 1–2.
-const DEFAULT_LOW_THRESHOLD  = 0.5;
-const DEFAULT_HIGH_THRESHOLD = 1.2;
+const DEFAULT_LOW_THRESHOLD  = 0.25;
+const DEFAULT_HIGH_THRESHOLD = 0.5;
 const DEFAULT_MARGIN         = 0.15;
 const DEFAULT_EWMA_ALPHA     = 0.16;
 const DEFAULT_SATURATION_K   = 5;
@@ -222,6 +222,22 @@ interface Hovered {
   events: SeverityEvent[];
 }
 
+function usePersistedState(key: string, defaultValue: number): [number, (v: number) => void] {
+  const [value, setValueRaw] = useState<number>(() => {
+    try {
+      const stored = localStorage.getItem(`ast:${key}`);
+      return stored !== null ? parseFloat(stored) : defaultValue;
+    } catch {
+      return defaultValue;
+    }
+  });
+  const setValue = useCallback((v: number) => {
+    setValueRaw(v);
+    try { localStorage.setItem(`ast:${key}`, String(v)); } catch { /* ignore */ }
+  }, [key]);
+  return [value, setValue];
+}
+
 export function AnomalyScoreTimeline({
   anomalies,
   scenarioStart,
@@ -230,19 +246,19 @@ export function AnomalyScoreTimeline({
   phaseMarkers = [],
 }: AnomalyScoreTimelineProps) {
   // ── display controls ──────────────────────────────────────────────────────
-  const [ewmaAlpha, setEwmaAlpha] = useState(DEFAULT_EWMA_ALPHA);
-  const [saturationK, setSaturationK] = useState(DEFAULT_SATURATION_K);
+  const [ewmaAlpha, setEwmaAlpha] = usePersistedState('ewmaAlpha', DEFAULT_EWMA_ALPHA);
+  const [saturationK, setSaturationK] = usePersistedState('saturationK', DEFAULT_SATURATION_K);
   // aggregationWindow: 0 = auto (fit ~80 bars), >0 = manual seconds per display bar
-  const [aggregationWindow, setAggregationWindow] = useState(0);
+  const [aggregationWindow, setAggregationWindow] = usePersistedState('aggregationWindow', 0);
 
-  // ── event-detection controls ──────────────────────────────────────────────
-  const [lowThreshold, setLowThresholdRaw] = useState(DEFAULT_LOW_THRESHOLD);
-  const [highThreshold, setHighThresholdRaw] = useState(DEFAULT_HIGH_THRESHOLD);
-  const [margin, setMargin] = useState(DEFAULT_MARGIN);
-  const [cooldownSecs, setCooldownSecs] = useState(300);
+  // ── event-detection controls (persisted across scenario loads) ─────────────
+  const [lowThreshold, setLowThresholdRaw] = usePersistedState('lowThreshold', DEFAULT_LOW_THRESHOLD);
+  const [highThreshold, setHighThresholdRaw] = usePersistedState('highThreshold', DEFAULT_HIGH_THRESHOLD);
+  const [margin, setMargin] = usePersistedState('margin', DEFAULT_MARGIN);
+  const [cooldownSecs, setCooldownSecs] = usePersistedState('cooldownSecs', 300);
 
-  const setLowThreshold = (v: number) => setLowThresholdRaw(Math.min(v, highThreshold - 0.1));
-  const setHighThreshold = (v: number) => setHighThresholdRaw(Math.max(v, lowThreshold + 0.1));
+  const setLowThreshold = (v: number) => setLowThresholdRaw(Math.min(v, highThreshold - 0.05));
+  const setHighThreshold = (v: number) => setHighThresholdRaw(Math.max(v, lowThreshold + 0.05));
 
   // ── layout ────────────────────────────────────────────────────────────────
   const [chartWidth, setChartWidth] = useState(600);
