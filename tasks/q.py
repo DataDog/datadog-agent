@@ -1746,6 +1746,612 @@ def fetch_k8s_observer_parquet(ctx, dest: str = "/tmp/k8s-observer-metrics"):
     print(color_message(f"Fetched observer parquet files to {dest}", Color.GREEN))
 
 
+# --- Local Episode Runner ---
+
+_DEFAULT_GENSIM_PATH = os.path.expanduser("~/dd/gensim-episodes")
+_DEFAULT_CLUSTER_NAME = "observer-local"
+
+# Subdirectories to search for episodes within the gensim-episodes repo.
+_EPISODE_SUBDIRS = ["postmortems", "synthetics"]
+
+
+def _find_episode_dir(gensim_path, ep_name):
+    """Find an episode directory by searching known subdirectories."""
+    direct = os.path.join(gensim_path, ep_name)
+    if os.path.isdir(direct):
+        return direct
+    for subdir in _EPISODE_SUBDIRS:
+        candidate = os.path.join(gensim_path, subdir, ep_name)
+        if os.path.isdir(candidate):
+            return candidate
+    checked = [direct] + [os.path.join(gensim_path, s, ep_name) for s in _EPISODE_SUBDIRS]
+    raise FileNotFoundError(f"Episode '{ep_name}' not found. Checked: {', '.join(checked)}")
+
+
+_LOCAL_EPISODE_LOG = "/tmp/local-episode-runner.log"
+
+
+def _update_run_status(ctx, kube_ctx, run_id, image, episodes, started_at=None, completed_at=None):
+    """Creates or updates the gensim-run-status ConfigMap with the same schema
+    as the EKS orchestrator, so gensim-status.py can display local runs."""
+    import datetime as _dt
+
+    status = {
+        "runId": run_id,
+        "image": image,
+        "startedAt": started_at or _dt.datetime.now(_dt.timezone.utc).isoformat(),
+        "episodes": episodes,
+    }
+    if completed_at:
+        status["completedAt"] = completed_at
+
+    # Write JSON to a temp file to avoid shell-escaping issues with --from-literal.
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as sf:
+        json.dump(status, sf)
+        status_path = sf.name
+    try:
+        ctx.run(
+            f"kubectl --context {kube_ctx} create configmap gensim-run-status "
+            f"--from-file=status={status_path} "
+            f"--dry-run=client -o yaml | kubectl --context {kube_ctx} apply -f -",
+            hide=True,
+            warn=True,
+        )
+    finally:
+        os.unlink(status_path)
+
+
+def _ensure_kind_cluster(ctx, cluster_name):
+    """Creates a Kind cluster if it doesn't already exist."""
+    result = ctx.run(f"kind get clusters 2>/dev/null | grep -q '^{cluster_name}$'", warn=True, hide=True)
+    if result.ok:
+        print(color_message(f"Kind cluster '{cluster_name}' already exists", Color.GREEN))
+        return
+
+    print(color_message(f"Creating Kind cluster '{cluster_name}'...", Color.BLUE))
+    kind_config = """
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+  - role: control-plane
+  - role: worker
+"""
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
+        f.write(kind_config)
+        f.flush()
+        ctx.run(f"kind create cluster --name {cluster_name} --config {f.name}")
+    os.unlink(f.name)
+    print(color_message(f"Kind cluster '{cluster_name}' created", Color.GREEN))
+
+
+def _build_and_load_episode_images(ctx, episode_dir, cluster_name):
+    """Builds episode service images and loads them into Kind."""
+    compose_file = os.path.join(episode_dir, "docker-compose.yaml")
+    if not os.path.exists(compose_file):
+        print(color_message("No docker-compose.yaml, skipping service image build", Color.BLUE))
+        return
+
+    print(color_message("Building episode service images...", Color.BLUE))
+    ctx.run(f"docker compose -f {compose_file} build", env={"DOCKER_BUILDKIT": "1"})
+
+    # Parse image names from docker-compose.yaml and load each into Kind
+    import yaml as pyyaml
+
+    with open(compose_file) as f:
+        compose = pyyaml.safe_load(f)
+
+    images = [svc.get("image") for svc in compose.get("services", {}).values() if svc.get("image")]
+    for img in images:
+        print(color_message(f"  Loading {img} into Kind...", Color.BLUE))
+        ctx.run(f"kind load docker-image {img} --name {cluster_name}")
+
+    print(color_message(f"Loaded {len(images)} service images into Kind", Color.GREEN))
+
+
+def _load_agent_image(ctx, image, cluster_name):
+    """Pulls (if needed) and loads the agent image into Kind."""
+    # Pull if not already present
+    result = ctx.run(f"docker image inspect {image} >/dev/null 2>&1", warn=True, hide=True)
+    if not result.ok:
+        print(color_message(f"Pulling {image}...", Color.BLUE))
+        ctx.run(f"docker pull {image}")
+
+    print(color_message("Loading agent image into Kind...", Color.BLUE))
+    ctx.run(f"kind load docker-image {image} --name {cluster_name}")
+
+
+def _generate_agent_values(image, mode, cluster_name):
+    """Generates Helm values YAML for the Datadog Agent with observer config."""
+    repo, tag = image.rsplit(":", 1) if ":" in image else (image, "latest")
+
+    env_vars = [
+        ("DD_OBSERVER_RECORDING_ENABLED", "true"),
+        ("DD_OBSERVER_RECORDING_PARQUET_OUTPUT_DIR", "/tmp/observer-parquet"),
+        ("DD_OBSERVER_RECORDING_PARQUET_FLUSH_INTERVAL", "30s"),
+        ("DD_OBSERVER_RECORDING_PARQUET_RETENTION", "24h"),
+        ("DD_OBSERVER_HIGH_FREQUENCY_SYSTEM_CHECKS_ENABLED", "true"),
+        ("DD_OBSERVER_HIGH_FREQUENCY_CONTAINER_CHECKS_ENABLED", "true"),
+    ]
+
+    if mode in ("live-anomaly-detection", "live-and-record"):
+        env_vars.append(("DD_OBSERVER_ANALYSIS_ENABLED", "true"))
+        env_vars.append(("DD_OBSERVER_EVENT_REPORTER_SENDING_ENABLED", "true"))
+
+    if mode in ("live-anomaly-detection",):
+        # Disable recording for live-only mode
+        env_vars = [(k, v) for k, v in env_vars if "RECORDING" not in k]
+
+    env_block = "\n".join(f"  - name: {k}\n    value: \"{v}\"" for k, v in env_vars)
+
+    return f"""datadog:
+  apiKeyExistingSecret: "datadog-secret"
+  clusterName: "{cluster_name}"
+  logLevel: "INFO"
+  apm:
+    instrumentation:
+      enabled: true
+  logs:
+    enabled: true
+    containerCollectAll: true
+  processAgent:
+    enabled: true
+    processCollection: true
+  kubelet:
+    tlsVerify: false
+  clusterChecks:
+    enabled: true
+  env:
+{env_block}
+
+agents:
+  image:
+    pullPolicy: "IfNotPresent"
+    repository: "{repo}"
+    tag: "{tag}"
+    doNotCheckTag: true
+
+clusterAgent:
+  enabled: true
+  replicas: 1
+"""
+
+
+@task
+def run_local_episode(
+    ctx,
+    episode: str = "",
+    scenario: str = "",
+    episode_manifest: str = "",
+    image: str = "",
+    mode: str = "live-and-record",
+    gensim_path: str = "",
+    cluster_name: str = "",
+    output_dir: str = "",
+    skip_build: bool = False,
+    skip_teardown: bool = False,
+):
+    """
+    Runs a gensim episode locally on a Kind cluster with the observer agent.
+
+    This is the local equivalent of `dda inv aws.eks.gensim.submit` — it builds
+    episode service images, deploys them to Kind alongside the observer agent,
+    executes the episode's play-episode.sh, collects parquet recordings, and
+    optionally tears down. Output is compatible with q.eval-scenarios.
+
+    Episode can be specified by name (--episode) or via a manifest file
+    (--episode-manifest). The manifest uses the same format as
+    q_branch/gensim-eval-scenarios.json.
+
+    Example:
+        dda inv q.run-local-episode \\
+            --episode=food-delivery-redis \\
+            --image=datadog/agent-dev:my-tag \\
+            --mode=live-and-record
+
+        dda inv q.run-local-episode \\
+            --episode-manifest=q_branch/gensim-eval-scenarios.json \\
+            --image=datadog/agent-dev:my-tag
+    """
+    if not image:
+        raise ValueError("--image is required")
+
+    # Resolve paths and defaults
+    gensim_path = gensim_path or os.environ.get("GENSIM_REPO_PATH", _DEFAULT_GENSIM_PATH)
+    cluster_name = cluster_name or _DEFAULT_CLUSTER_NAME
+
+    # Build episode list from --episode or --episode-manifest
+    if episode and episode_manifest:
+        raise ValueError("--episode and --episode-manifest are mutually exclusive.")
+    if not episode and not episode_manifest:
+        episode = "food-delivery-redis"  # default
+
+    episode_pairs = []
+    if episode_manifest:
+        with open(episode_manifest) as f:
+            entries = json.load(f)
+        for entry in entries:
+            ep_name = entry.get("episode", "").strip()
+            scen_name = entry.get("scenario", "").strip()
+            if ep_name and scen_name:
+                episode_pairs.append((ep_name, scen_name))
+        if not episode_pairs:
+            raise ValueError(f"No valid episodes in manifest: {episode_manifest}")
+    else:
+        # Single episode — resolve scenario from the episodes/ directory
+        episode_dir = _find_episode_dir(gensim_path, episode)
+        if scenario:
+            episode_pairs.append((episode, scenario))
+        else:
+            # Auto-detect: use the first .yaml in episodes/
+            episodes_dir = os.path.join(episode_dir, "episodes")
+            if os.path.isdir(episodes_dir):
+                yamls = sorted(f[:-5] for f in os.listdir(episodes_dir) if f.endswith(".yaml"))
+                if yamls:
+                    episode_pairs.append((episode, yamls[0]))
+            if not episode_pairs:
+                raise ValueError(f"No scenario found for episode '{episode}', specify --scenario")
+
+    # Run each episode sequentially
+    for ep_name, scen_name in episode_pairs:
+        _run_single_episode(
+            ctx,
+            ep_name,
+            scen_name,
+            image,
+            mode,
+            gensim_path,
+            cluster_name,
+            output_dir,
+            skip_build,
+            skip_teardown,
+        )
+        # After the first episode, images are already loaded
+        skip_build = True
+
+
+def _run_single_episode(
+    ctx,
+    episode,
+    scenario,
+    image,
+    mode,
+    gensim_path,
+    cluster_name,
+    output_dir,
+    skip_build,
+    skip_teardown,
+):
+    """Run a single episode. Extracted so run_local_episode can loop over a manifest."""
+    episode_dir = _find_episode_dir(gensim_path, episode)
+
+    scenario_file = os.path.join(episode_dir, "episodes", f"{scenario}.yaml")
+    if not os.path.exists(scenario_file):
+        raise FileNotFoundError(f"Scenario file not found: {scenario_file}")
+
+    if not output_dir:
+        # Map to scenario directory compatible with q.eval-scenarios.
+        # Try SCENARIO_EPISODE_NAMES reverse lookup first, fall back to episode basename.
+        basename = os.path.basename(episode_dir)
+        short_name = {v: k for k, v in SCENARIO_EPISODE_NAMES.items()}.get(basename, basename)
+        output_dir = os.path.join("comp", "observer", "scenarios", short_name, "parquet")
+
+    release_name = f"gensim-{episode}"
+    namespace = "default"
+    dd_env = f"local-{episode}-{os.getpid()}"
+    run_id = f"local-{episode}-{os.getpid()}"
+
+    # Validate credentials
+    api_key = os.environ.get("DDDEV_API_KEY") or os.environ.get("DD_API_KEY", "")
+    app_key = os.environ.get("DDDEV_APP_KEY") or os.environ.get("DD_APP_KEY", "")
+    if not api_key:
+        raise RuntimeError("DDDEV_API_KEY or DD_API_KEY must be set")
+
+    print(color_message(f"{'=' * 60}", Color.BLUE))
+    print(color_message("Local Episode Runner", Color.BLUE))
+    print(color_message(f"  Episode:  {episode} ({scenario})", Color.BLUE))
+    print(color_message(f"  Image:    {image}", Color.BLUE))
+    print(color_message(f"  Mode:     {mode}", Color.BLUE))
+    print(color_message(f"  Cluster:  {cluster_name}", Color.BLUE))
+    print(color_message(f"  Output:   {output_dir}", Color.BLUE))
+    print(color_message(f"{'=' * 60}", Color.BLUE))
+
+    kube_ctx = f"kind-{cluster_name}"
+
+    # Episode status tracking (mirrors gensim-run-status ConfigMap schema)
+    import datetime as _dt
+
+    ep_status = [{"episode": episode, "scenario": scenario, "status": "queued", "phase": ""}]
+    started_at = _dt.datetime.now(_dt.timezone.utc).isoformat()
+
+    def _set_phase(status, phase=""):
+        ep_status[0]["status"] = status
+        ep_status[0]["phase"] = phase
+        _update_run_status(ctx, kube_ctx, run_id, image, ep_status, started_at)
+
+    # Phase 1: Ensure Kind cluster
+    print(color_message("\n[Phase 1/7] Ensuring Kind cluster...", Color.BLUE))
+    _ensure_kind_cluster(ctx, cluster_name)
+
+    _set_phase("running", "cluster-setup")
+
+    # Phase 2: Build and load images
+    print(color_message("\n[Phase 2/7] Building and loading images...", Color.BLUE))
+    _set_phase("running", "image-build")
+    if not skip_build:
+        _build_and_load_episode_images(ctx, episode_dir, cluster_name)
+    _load_agent_image(ctx, image, cluster_name)
+
+    # Wrap phases 3-7 in try/finally so helm releases and secrets are cleaned up on failure.
+    try:
+        _run_episode_phases(
+            ctx,
+            kube_ctx,
+            release_name,
+            namespace,
+            dd_env,
+            api_key,
+            app_key,
+            episode_dir,
+            scenario,
+            image,
+            mode,
+            cluster_name,
+            output_dir,
+            run_id,
+            ep_status,
+            started_at,
+            _set_phase,
+            skip_teardown,
+        )
+    except Exception:
+        if not skip_teardown:
+            print(color_message("\nCleaning up after failure...", Color.RED))
+            ctx.run(
+                f"helm --kube-context {kube_ctx} uninstall {release_name} --wait 2>/dev/null || true",
+                warn=True,
+                hide=True,
+            )
+            ctx.run(
+                f"helm --kube-context {kube_ctx} uninstall datadog-agent --wait 2>/dev/null || true",
+                warn=True,
+                hide=True,
+            )
+        raise
+
+
+def _run_episode_phases(
+    ctx,
+    kube_ctx,
+    release_name,
+    namespace,
+    dd_env,
+    api_key,
+    app_key,
+    episode_dir,
+    scenario,
+    image,
+    mode,
+    cluster_name,
+    output_dir,
+    run_id,
+    ep_status,
+    started_at,
+    _set_phase,
+    skip_teardown,
+):
+    """Inner function for phases 3-7, wrapped in try/finally by the caller."""
+
+    # Phase 3: Create secrets
+    print(color_message("\n[Phase 3/7] Creating K8s secrets...", Color.BLUE))
+    ctx.run(
+        f"kubectl --context {kube_ctx} delete secret datadog-secret --ignore-not-found",
+        hide=True,
+        warn=True,
+    )
+    ctx.run(
+        f"kubectl --context {kube_ctx} create secret generic datadog-secret "
+        f"--from-literal api-key={api_key} --from-literal app-key={app_key}",
+    )
+
+    # Phase 4: Install episode chart
+    _set_phase("running", "episode-install")
+    print(color_message("\n[Phase 4/7] Installing episode chart...", Color.BLUE))
+    chart_dir = os.path.join(episode_dir, "chart")
+    ctx.run(f"helm --kube-context {kube_ctx} uninstall {release_name} --wait 2>/dev/null || true", warn=True, hide=True)
+    # Use a temp values file for credentials to avoid leaking keys in process list.
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as ef:
+        ef.write(
+            f"agent:\n  enabled: false\n"
+            f"namespace: {namespace}\n"
+            f"datadog:\n  env: {dd_env}\n  apiKey: {api_key}\n  appKey: {app_key}\n"
+        )
+        episode_values_path = ef.name
+    try:
+        ctx.run(
+            f"helm --kube-context {kube_ctx} install {release_name} {chart_dir} "
+            f"-f {episode_values_path} --timeout 5m --wait"
+        )
+    finally:
+        os.unlink(episode_values_path)
+
+    # Phase 5: Install Datadog Agent
+    _set_phase("running", "agent-install")
+    print(color_message("\n[Phase 5/7] Installing Datadog Agent...", Color.BLUE))
+    values_yaml = _generate_agent_values(image, mode, cluster_name)
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
+        f.write(values_yaml)
+        values_path = f.name
+
+    try:
+        ctx.run("helm repo add datadog https://helm.datadoghq.com 2>/dev/null || true", hide=True, warn=True)
+        ctx.run("helm repo update datadog", hide=True, warn=True)
+        ctx.run(
+            f"helm --kube-context {kube_ctx} uninstall datadog-agent --wait 2>/dev/null || true", warn=True, hide=True
+        )
+        ctx.run(
+            f"helm --kube-context {kube_ctx} install datadog-agent datadog/datadog "
+            f"-f {values_path} --timeout 5m --wait"
+        )
+    finally:
+        os.unlink(values_path)
+
+    # Wait for agent pod to be ready
+    print(color_message("  Waiting for agent pod readiness...", Color.BLUE))
+    ctx.run(
+        f"kubectl --context {kube_ctx} wait --for=condition=ready pod " f"-l app=datadog-agent --timeout=120s",
+        warn=True,
+    )
+
+    # Phase 6: Run episode
+    print(color_message(f"\n[Phase 6/7] Running episode ({scenario})...", Color.BLUE))
+    print(color_message("  This will take ~34 minutes (warmup + baseline + disruption + cooldown)", Color.BLUE))
+
+    episode_env = {
+        "DD_API_KEY": api_key,
+        "DD_APP_KEY": app_key,
+        "DD_ENV": dd_env,
+        "DD_SITE": "datadoghq.com",
+        "KUBE_NAMESPACE": namespace,
+        "KUBECONFIG": os.path.expanduser("~/.kube/config"),
+        "KUBECTL_CONTEXT": kube_ctx,
+    }
+
+    # Pre-flight: verify API credentials work before starting the long episode.
+    # Use env vars for the curl headers to avoid leaking keys in the process list.
+    print(color_message("  Validating Datadog API credentials...", Color.BLUE))
+    preflight = ctx.run(
+        'curl -s -o /dev/null -w "%{http_code}" '
+        '-X GET "https://api.datadoghq.com/api/v1/validate" '
+        '-H "DD-API-KEY: ${DD_API_KEY}" '
+        '-H "DD-APPLICATION-KEY: ${DD_APP_KEY}"',
+        hide=True,
+        env=episode_env,
+    )
+    if preflight.stdout.strip() != "200":
+        raise RuntimeError(
+            f"Datadog API credential validation failed (HTTP {preflight.stdout.strip()}). "
+            f"Check that DDDEV_API_KEY and DDDEV_APP_KEY are correct."
+        )
+    print(color_message("  API credentials validated OK", Color.GREEN))
+
+    _set_phase("running", "episode-running")
+
+    play_script = os.path.join(episode_dir, "play-episode.sh")
+    # Pipe episode output to a log file so gensim-status.py can tail it.
+    ctx.run(
+        f"bash {shlex.quote(play_script)} run-episode {shlex.quote(scenario)} " f"2>&1 | tee {_LOCAL_EPISODE_LOG}",
+        env=episode_env,
+    )
+
+    # Phase 7: Collect parquet
+    _set_phase("running", "collecting-parquet")
+    print(color_message("\n[Phase 7/7] Collecting parquet recordings...", Color.BLUE))
+    os.makedirs(output_dir, exist_ok=True)
+
+    agent_pod = ctx.run(
+        f"kubectl --context {kube_ctx} get pod -l app=datadog-agent " f"-o jsonpath='{{.items[0].metadata.name}}'",
+        hide=True,
+    ).stdout.strip()
+
+    if agent_pod:
+        ctx.run(f"kubectl --context {kube_ctx} cp {agent_pod}:/tmp/observer-parquet/ {output_dir}/", warn=True)
+        parquet_count = len(glob.glob(os.path.join(output_dir, "*.parquet")))
+        print(color_message(f"  Collected {parquet_count} parquet files to {output_dir}", Color.GREEN))
+    else:
+        print(color_message("  WARNING: Agent pod not found, could not collect parquets", Color.RED))
+
+    # Teardown (episode + agent, but leave cluster)
+    if not skip_teardown:
+        print(color_message("\nTearing down episode and agent...", Color.BLUE))
+        ctx.run(
+            f"helm --kube-context {kube_ctx} uninstall {release_name} --wait 2>/dev/null || true", warn=True, hide=True
+        )
+        ctx.run(
+            f"helm --kube-context {kube_ctx} uninstall datadog-agent --wait 2>/dev/null || true", warn=True, hide=True
+        )
+
+    import datetime as _dt
+
+    ep_status[0]["parquetFiles"] = len(glob.glob(os.path.join(output_dir, "*.parquet")))
+    _set_phase("done", "")
+    completed_at = _dt.datetime.now(_dt.timezone.utc).isoformat()
+    _update_run_status(ctx, kube_ctx, run_id, image, ep_status, started_at, completed_at)
+
+    print(color_message(f"\n{'=' * 60}", Color.GREEN))
+    print(color_message("Episode complete!", Color.GREEN))
+    print(color_message(f"  Parquets: {output_dir}", Color.GREEN))
+    print(color_message("", Color.GREEN))
+    print(color_message("  Next steps:", Color.GREEN))
+    print(color_message("    dda inv q.eval-scenarios --scenario=food_delivery_redis", Color.GREEN))
+    print(color_message(f"{'=' * 60}", Color.GREEN))
+
+
+# --- Parquet utilities ---
+
+
+@task
+def compact_parquets(ctx, parquet_dir: str = "", scenario: str = "food_delivery_redis"):
+    """
+    Combines per-flush parquet files into one file per type (logs, metrics,
+    trace-stats, traces). Dramatically reduces size on disk thanks to larger
+    row groups and shared dictionary encoding.
+
+    Example:
+        dda inv q.compact-parquets --scenario=food_delivery_redis
+        dda inv q.compact-parquets --parquet-dir=/tmp/my-parquets
+    """
+    if not parquet_dir:
+        parquet_dir = os.path.join("comp", "observer", "scenarios", scenario, "parquet")
+
+    if not os.path.isdir(parquet_dir):
+        raise FileNotFoundError(f"Parquet directory not found: {parquet_dir}")
+
+    prefixes = ["observer-logs", "observer-metrics", "observer-trace-stats", "observer-traces"]
+
+    before_size = sum(
+        os.path.getsize(os.path.join(parquet_dir, f)) for f in os.listdir(parquet_dir) if f.endswith(".parquet")
+    )
+    before_count = sum(1 for f in os.listdir(parquet_dir) if f.endswith(".parquet"))
+
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+
+    for prefix in prefixes:
+        parts = sorted(glob.glob(os.path.join(parquet_dir, f"{prefix}-*.parquet")))
+        if len(parts) <= 1:
+            print(f"  {prefix}: {len(parts)} file(s), skipping")
+            continue
+
+        combined_path = os.path.join(parquet_dir, f"{prefix}.parquet")
+        print(color_message(f"  {prefix}: combining {len(parts)} files...", Color.BLUE))
+
+        tables = [pq.read_table(f) for f in parts]
+        pq.write_table(pa.concat_tables(tables), combined_path, compression='zstd')
+
+        if os.path.exists(combined_path) and os.path.getsize(combined_path) > 0:
+            for p in parts:
+                os.unlink(p)
+            combined_size = os.path.getsize(combined_path)
+            print(color_message(f"    → {combined_size / 1024 / 1024:.1f}MB", Color.GREEN))
+        else:
+            print(color_message("    ✕ produced empty file, keeping originals", Color.RED))
+
+    after_size = sum(
+        os.path.getsize(os.path.join(parquet_dir, f)) for f in os.listdir(parquet_dir) if f.endswith(".parquet")
+    )
+    after_count = sum(1 for f in os.listdir(parquet_dir) if f.endswith(".parquet"))
+
+    ratio = (1 - after_size / before_size) * 100 if before_size > 0 else 0
+    print(
+        color_message(
+            f"\n  {before_count} files ({before_size / 1024 / 1024:.0f}MB) → "
+            f"{after_count} files ({after_size / 1024 / 1024:.0f}MB) "
+            f"({ratio:.0f}% reduction)",
+            Color.GREEN,
+        )
+    )
+
+
 # --- Benchmarks ---
 
 

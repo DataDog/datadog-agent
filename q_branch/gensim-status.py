@@ -15,15 +15,15 @@ Real-time TUI that tracks a gensim-eks evaluation run by polling:
   - AWS EKS cluster status (optional)
 
 Usage:
-    # 1. Submit an evaluation run
-    dda inv aws.eks.gensim.submit --image=<agent-image> --episodes=<ep:scenario> --mode=record-parquet
-
-    # 2. Monitor it live with this TUI (run under aws-vault for EKS status)
+    # Remote (EKS) — monitor an evaluation run on gensim-eks
     aws-vault exec sso-agent-sandbox-account-admin -- uv run q_branch/gensim-status.py
 
+    # Local (Kind) — monitor a local episode run
+    uv run q_branch/gensim-status.py --local
+
     # Other useful commands
-    dda inv aws.eks.gensim.status    # Quick non-interactive status check
-    dda inv aws.eks.gensim.destroy   # Tear down the EKS cluster
+    dda inv aws.eks.gensim.status    # Quick non-interactive status check (EKS)
+    dda inv q.run-local-episode ...  # Start a local episode run
 """
 
 from __future__ import annotations
@@ -32,31 +32,64 @@ import asyncio
 import json
 import os
 import re
+import subprocess
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.containers import Horizontal
+from textual.containers import Horizontal, Vertical
 from textual.reactive import reactive
+from textual.screen import Screen
 from textual.widgets import Footer, Header, Static
 
 # ---------------------------------------------------------------------------
 # Config
 # ---------------------------------------------------------------------------
 
-# Auto-detect stack name from the user prefix (matches e2e framework convention).
+# ---------------------------------------------------------------------------
+# Mode config — mutable globals, set by mode selection screen or --local flag
+# ---------------------------------------------------------------------------
+LOCAL_MODE = "--local" in sys.argv
+
 _USER = os.environ.get("USER", "unknown").replace(".", "-")
 _STACK_NAME = os.environ.get("GENSIM_STACK_NAME", f"{_USER}-gensim-eks")
-
-# All paths derived from stack name -- override via env vars if needed.
-KUBECONFIG = os.environ.get("KUBECONFIG", f"{_STACK_NAME}-kubeconfig.yaml")
-PULUMI_STATE = os.path.expanduser(os.environ.get("PULUMI_STATE", f"~/.pulumi/stacks/{_STACK_NAME}.json"))
-EKS_CLUSTER_NAME = os.environ.get("EKS_CLUSTER_NAME", _STACK_NAME)
+_LOCAL_CLUSTER = os.environ.get("LOCAL_CLUSTER_NAME", "observer-local")
 EKS_REGION = os.environ.get("EKS_REGION", "us-east-1")
 
-KUBECTL_ENV = {**os.environ, "KUBECONFIG": KUBECONFIG}
+# These are reconfigured by _apply_mode() after selection.
+KUBECONFIG = ""
+PULUMI_STATE = ""
+EKS_CLUSTER_NAME = ""
+LOCAL_EPISODE_LOG = ""
+KUBECTL_ENV: dict[str, str] = {}
+
+
+def _apply_mode(local: bool) -> None:
+    """Configure global variables for the selected mode."""
+    global LOCAL_MODE, KUBECONFIG, PULUMI_STATE, EKS_CLUSTER_NAME, LOCAL_EPISODE_LOG, KUBECTL_ENV
+    LOCAL_MODE = local
+    if local:
+        KUBECONFIG = os.path.expanduser("~/.kube/config")
+        PULUMI_STATE = "/dev/null"
+        EKS_CLUSTER_NAME = ""
+        LOCAL_EPISODE_LOG = "/tmp/local-episode-runner.log"
+        KUBECTL_ENV = {**os.environ, "KUBECONFIG": KUBECONFIG, "KUBECTL_CONTEXT": f"kind-{_LOCAL_CLUSTER}"}
+    else:
+        KUBECONFIG = os.environ.get("KUBECONFIG", f"{_STACK_NAME}-kubeconfig.yaml")
+        PULUMI_STATE = os.path.expanduser(os.environ.get("PULUMI_STATE", f"~/.pulumi/stacks/{_STACK_NAME}.json"))
+        EKS_CLUSTER_NAME = os.environ.get("EKS_CLUSTER_NAME", _STACK_NAME)
+        LOCAL_EPISODE_LOG = ""
+        KUBECTL_ENV = {**os.environ, "KUBECONFIG": KUBECONFIG}
+
+
+# Apply immediately if --local was passed (skip the selection screen).
+if LOCAL_MODE:
+    _apply_mode(True)
+else:
+    _apply_mode(False)
 
 # Phase durations (seconds) extracted from typical gensim orchestrator defaults.
 PHASE_DURATIONS: dict[str, int] = {
@@ -114,16 +147,17 @@ async def fetch_pulumi_state() -> dict[str, Any]:
 async def fetch_configmap() -> dict[str, Any] | None:
     """Fetch the gensim-run-status configmap."""
     raw = await run_cmd(
-        [
-            "kubectl",
-            "get",
-            "configmap",
-            "gensim-run-status",
-            "-o",
-            "jsonpath={.data.status}",
-            "-n",
-            "default",
-        ],
+        _kubectl_cmd(
+            [
+                "get",
+                "configmap",
+                "gensim-run-status",
+                "-o",
+                "jsonpath={.data.status}",
+                "-n",
+                "default",
+            ]
+        ),
         env=KUBECTL_ENV,
     )
     if not raw:
@@ -135,7 +169,17 @@ async def fetch_configmap() -> dict[str, Any] | None:
 
 
 async def fetch_logs() -> str:
-    """Fetch recent orchestrator logs."""
+    """Fetch recent orchestrator logs (or local episode log in --local mode)."""
+    if LOCAL_MODE:
+        try:
+            path = Path(LOCAL_EPISODE_LOG)
+            if not path.exists():
+                return ""
+            text = await asyncio.to_thread(path.read_text)
+            # Return last 80 lines to match the kubectl tail behavior
+            return "\n".join(text.splitlines()[-80:])
+        except Exception:
+            return ""
     return await run_cmd(
         [
             "kubectl",
@@ -172,14 +216,22 @@ async def fetch_eks_status() -> str:
     )
 
 
+def _kubectl_cmd(args: list[str]) -> list[str]:
+    """Build a kubectl command, injecting --context for local mode."""
+    cmd = ["kubectl"]
+    if LOCAL_MODE:
+        cmd += ["--context", f"kind-{_LOCAL_CLUSTER}"]
+    return cmd + args
+
+
 async def fetch_node_pod_counts() -> tuple[str, str]:
     """Fetch node and pod ready counts."""
     nodes_raw = await run_cmd(
-        ["kubectl", "get", "nodes", "-o", "json"],
+        _kubectl_cmd(["get", "nodes", "-o", "json"]),
         env=KUBECTL_ENV,
     )
     pods_raw = await run_cmd(
-        ["kubectl", "get", "pods", "-A", "-o", "json"],
+        _kubectl_cmd(["get", "pods", "-A", "-o", "json"]),
         env=KUBECTL_ENV,
     )
 
@@ -213,16 +265,17 @@ async def fetch_node_pod_counts() -> tuple[str, str]:
 async def fetch_pod_list() -> list[dict[str, str]]:
     """Fetch pod names and statuses in default namespace using lightweight output."""
     raw = await run_cmd(
-        [
-            "kubectl",
-            "get",
-            "pods",
-            "-n",
-            "default",
-            "--no-headers",
-            "-o",
-            "custom-columns=NAME:.metadata.name,STATUS:.status.phase,READY:.status.containerStatuses[*].ready,RESTARTS:.status.containerStatuses[*].restartCount",
-        ],
+        _kubectl_cmd(
+            [
+                "get",
+                "pods",
+                "-n",
+                "default",
+                "--no-headers",
+                "-o",
+                "custom-columns=NAME:.metadata.name,STATUS:.status.phase,READY:.status.containerStatuses[*].ready,RESTARTS:.status.containerStatuses[*].restartCount",
+            ]
+        ),
         env=KUBECTL_ENV,
     )
     if not raw:
@@ -316,6 +369,18 @@ def build_episode_markup(
     remaining: int | None,
 ) -> str:
     if cm is None:
+        if LOCAL_MODE:
+            return (
+                "[bold]No active local run detected.[/bold]\n"
+                "\n"
+                "Start one with:\n"
+                "  [bold cyan]dda inv q.run-local-episode \\\\[/bold cyan]\n"
+                "    [cyan]--episode=food-delivery-redis \\\\[/cyan]\n"
+                "    [cyan]--image=<agent-image> \\\\[/cyan]\n"
+                "    [cyan]--mode=live-and-record[/cyan]\n"
+                "\n"
+                "[dim]This TUI will auto-refresh when a run starts.[/dim]"
+            )
         return (
             "[bold]No active gensim run detected.[/bold]\n"
             "\n"
@@ -685,12 +750,217 @@ class PodLogsWidget(Static):
 
 
 # ---------------------------------------------------------------------------
+# Mode selection screen
+# ---------------------------------------------------------------------------
+
+
+def _probe_local() -> str:
+    """Quick synchronous probe: is a local Kind run active? Returns status string."""
+    try:
+        r = subprocess.run(
+            [
+                "kubectl",
+                "--context",
+                f"kind-{_LOCAL_CLUSTER}",
+                "get",
+                "configmap",
+                "gensim-run-status",
+                "-o",
+                "jsonpath={.data.status}",
+                "-n",
+                "default",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=1,
+            env={**os.environ, "KUBECONFIG": os.path.expanduser("~/.kube/config")},
+        )
+        if r.returncode == 0 and r.stdout.strip():
+            data = json.loads(r.stdout.strip())
+            eps = data.get("episodes", [])
+            if eps:
+                ep = eps[0]
+                status = ep.get("status", "?")
+                phase = ep.get("phase", "")
+                name = ep.get("episode", "?")
+                if status == "done":
+                    return f"[green]●[/green] {name}: done"
+                return f"[yellow]●[/yellow] {name}: {status} ({phase})"
+            return "[yellow]●[/yellow] run detected"
+        # Check if cluster exists at all
+        r2 = subprocess.run(
+            ["kind", "get", "clusters"],
+            capture_output=True,
+            text=True,
+            timeout=1,
+        )
+        if _LOCAL_CLUSTER in (r2.stdout or ""):
+            return "[dim]○[/dim] cluster exists, no active run"
+        return "[dim]✕[/dim] no cluster"
+    except Exception:
+        return "[dim]✕[/dim] unavailable"
+
+
+def _probe_aws_auth() -> str:
+    """Check AWS auth via sts get-caller-identity. Returns a short status string."""
+    try:
+        r = subprocess.run(
+            ["aws", "sts", "get-caller-identity", "--output", "json"],
+            capture_output=True,
+            text=True,
+            timeout=1,
+        )
+        if r.returncode == 0 and r.stdout.strip():
+            data = json.loads(r.stdout.strip())
+            arn = data.get("Arn", "")
+            # Show just the role/user name, not the full ARN
+            short = arn.rsplit("/", 1)[-1] if "/" in arn else arn
+            return f"[green]✓[/green] {short}"
+        return "[red]✕[/red] not authenticated"
+    except FileNotFoundError:
+        return "[dim]✕[/dim] aws cli not installed"
+    except Exception:
+        return "[red]✕[/red] auth failed"
+
+
+def _probe_remote() -> str:
+    """Quick synchronous probe: is a remote EKS run active? Returns status string."""
+    # First check AWS auth — everything else depends on it.
+    aws_status = _probe_aws_auth()
+    if "✕" in aws_status:
+        return f"[dim]✕[/dim] AWS: {aws_status}"
+
+    kc = os.environ.get("KUBECONFIG", f"{_STACK_NAME}-kubeconfig.yaml")
+    try:
+        r = subprocess.run(
+            ["kubectl", "get", "configmap", "gensim-run-status", "-o", "jsonpath={.data.status}", "-n", "default"],
+            capture_output=True,
+            text=True,
+            timeout=1,
+            env={**os.environ, "KUBECONFIG": kc},
+        )
+        if r.returncode == 0 and r.stdout.strip():
+            data = json.loads(r.stdout.strip())
+            eps = data.get("episodes", [])
+            if eps:
+                statuses = [e.get("status", "?") for e in eps]
+                running = sum(1 for s in statuses if s == "running")
+                done = sum(1 for s in statuses if s == "done")
+                if running:
+                    return f"[yellow]●[/yellow] {running} running, {done} done  (AWS: {aws_status})"
+                return f"[green]●[/green] {len(eps)} done  (AWS: {aws_status})"
+            return f"[yellow]●[/yellow] run detected  (AWS: {aws_status})"
+        # Check if kubeconfig exists
+        if Path(kc).exists():
+            return f"[dim]○[/dim] no active run  (AWS: {aws_status})"
+        return f"[dim]✕[/dim] no kubeconfig  (AWS: {aws_status})"
+    except Exception:
+        return f"[dim]✕[/dim] cluster unreachable  (AWS: {aws_status})"
+
+
+class ModeOption(Static):
+    """A selectable mode option in the picker."""
+
+    def __init__(self, label: str, status: str, is_local: bool, **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+        self.label = label
+        self.status = status
+        self.is_local = is_local
+        self.selected = False
+
+    def render(self) -> str:
+        arrow = "[bold cyan]▸[/bold cyan] " if self.selected else "  "
+        return f"{arrow}[bold]{self.label}[/bold]\n    {self.status}"
+
+
+class ModeSelectScreen(Screen):
+    """Startup screen to pick local or remote mode."""
+
+    BINDINGS = [
+        Binding("up", "move_up", "Up", show=False),
+        Binding("down", "move_down", "Down", show=False),
+        Binding("k", "move_up", "Up", show=False),
+        Binding("j", "move_down", "Down", show=False),
+        Binding("enter", "select", "Select"),
+        Binding("q", "quit", "Quit"),
+    ]
+
+    CSS = """
+    ModeSelectScreen {
+        align: center middle;
+    }
+    #mode-box {
+        width: 60;
+        height: auto;
+        padding: 1 2;
+        border: round $accent;
+    }
+    #mode-title {
+        text-align: center;
+        text-style: bold;
+        margin-bottom: 1;
+    }
+    ModeOption {
+        height: 3;
+        margin: 0 1;
+    }
+    #mode-hint {
+        text-align: center;
+        margin-top: 1;
+        color: $text-muted;
+    }
+    """
+
+    def __init__(self, local_status: str, remote_status: str, **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+        self._local_status = local_status
+        self._remote_status = remote_status
+        self._selected = 0  # 0 = local, 1 = remote
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="mode-box"):
+            yield Static("Gensim Status Monitor", id="mode-title")
+            yield ModeOption("Local (Kind)", self._local_status, is_local=True, id="opt-local")
+            yield ModeOption("Remote (EKS)", self._remote_status, is_local=False, id="opt-remote")
+            yield Static("↑↓ to select, Enter to confirm", id="mode-hint")
+
+    def on_mount(self) -> None:
+        self._update_selection()
+
+    def action_move_up(self) -> None:
+        self._selected = 0
+        self._update_selection()
+
+    def action_move_down(self) -> None:
+        self._selected = 1
+        self._update_selection()
+
+    def action_select(self) -> None:
+        is_local = self._selected == 0
+        _apply_mode(is_local)
+        self.app.title = "Gensim Local Monitor" if is_local else "Gensim EKS Monitor"
+        self.app.pop_screen()
+        self.app._start_monitoring()  # noqa: SLF001
+
+    def action_quit(self) -> None:
+        self.app.exit()
+
+    def _update_selection(self) -> None:
+        local_opt = self.query_one("#opt-local", ModeOption)
+        remote_opt = self.query_one("#opt-remote", ModeOption)
+        local_opt.selected = self._selected == 0
+        remote_opt.selected = self._selected == 1
+        local_opt.refresh()
+        remote_opt.refresh()
+
+
+# ---------------------------------------------------------------------------
 # App
 # ---------------------------------------------------------------------------
 
 
 class GensimStatusApp(App):
-    """Gensim EKS evaluation run monitor."""
+    """Gensim evaluation run monitor."""
 
     CSS = """
     #top-row {
@@ -698,7 +968,7 @@ class GensimStatusApp(App):
     }
     """
 
-    TITLE = "Gensim EKS Monitor"
+    TITLE = "Gensim Status Monitor"
     BINDINGS = [
         Binding("q", "quit", "Quit"),
         Binding("r", "refresh", "Refresh now"),
@@ -731,13 +1001,26 @@ class GensimStatusApp(App):
         yield Footer()
 
     def on_mount(self) -> None:
+        if "--local" in sys.argv or "--remote" in sys.argv:
+            # Mode was specified on CLI — skip the picker.
+            self._start_monitoring()
+        else:
+            # Probe both and show the picker.
+            local_status = _probe_local()
+            remote_status = _probe_remote()
+            self.push_screen(ModeSelectScreen(local_status, remote_status))
+
+    def _start_monitoring(self) -> None:
+        """Begin polling after mode has been selected."""
+        self.title = "Gensim Local Monitor" if LOCAL_MODE else "Gensim EKS Monitor"
         self.call_later(self.action_refresh)
-        self.set_interval(5, self._poll_pulumi)
+        if not LOCAL_MODE:
+            self.set_interval(5, self._poll_pulumi)
+            self.set_interval(60, self._poll_eks)
         self.set_interval(10, self._poll_configmap)
         self.set_interval(5, self._poll_logs)
         self.set_interval(30, self._poll_infra_kube)
         self.set_interval(30, self._poll_pods)
-        self.set_interval(60, self._poll_eks)
         self._update_pod_logs_visibility()
 
     def on_resize(self) -> None:
@@ -756,14 +1039,16 @@ class GensimStatusApp(App):
 
     async def action_refresh(self) -> None:
         """Manual refresh all data sources."""
-        await asyncio.gather(
-            self._poll_pulumi(),
+        pollers = [
             self._poll_configmap(),
             self._poll_logs(),
             self._poll_infra_kube(),
             self._poll_pods(),
-            self._poll_eks(),
-        )
+        ]
+        if not LOCAL_MODE:
+            pollers.append(self._poll_pulumi())
+            pollers.append(self._poll_eks())
+        await asyncio.gather(*pollers)
 
     async def _poll_pulumi(self) -> None:
         self._pulumi_data = await fetch_pulumi_state()
@@ -829,8 +1114,10 @@ class GensimStatusApp(App):
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
-    import sys
-
     headless = "--headless" in sys.argv
+    if "--remote" in sys.argv:
+        _apply_mode(False)
+    # Strip custom flags before Textual sees argv
+    sys.argv = [a for a in sys.argv if a not in ("--local", "--remote", "--headless")]
     app = GensimStatusApp()
     app.run(headless=headless)
