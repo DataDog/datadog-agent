@@ -101,10 +101,18 @@ func categorizeDownloadError(err error) string {
 //   - append `-N` release suffix if the input has a patch component but lacks
 //     one (so `7.78.0` → `7.78.0-1`)
 //
+// `DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_AGENT` (via
+// env.DefaultPackagesVersionOverride) takes precedence — its value is
+// returned unmodified so CI pipelines can pin an exact OCI tag without it
+// being rewritten by the normalization above. Matches bootstrap.getInstallerOCI.
+//
 // Returns `"latest"` when no version is requested. Bare minor (e.g.
 // `MINOR=78`) maps to `7.78`, which the registry serves as a moving tag
 // pointing to the latest patch.
 func resolveAgentOCITag(e *env.Env) string {
+	if override := e.DefaultPackagesVersionOverride[agentPackage]; override != "" {
+		return override
+	}
 	v := strings.ReplaceAll(e.GetAgentVersion(), "~", "-")
 	if v == "latest" {
 		return v
