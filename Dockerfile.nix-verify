@@ -1,0 +1,52 @@
+# Dockerfile.nix-verify — Clean-room container for Nix dev shell verification.
+#
+# Build:
+#   docker build -f Dockerfile.nix-verify -t dd-agent-nix-verify .
+#
+# Run (fresh clone, warm Nix store via named volume):
+#   docker run --rm \
+#     -v nix-store-cache:/nix \
+#     -v "$PWD":/repo:ro \
+#     -e REPO_BRANCH=$(git branch --show-current) \
+#     dd-agent-nix-verify --suite=all
+#
+# The container clones a fresh copy of the repo from /repo (the read-only mount)
+# so the "fresh clone" contract is honoured even when run locally.
+
+FROM ubuntu:24.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y \
+    curl git xz-utils sudo ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Nix (Determinate Systems installer — enables flakes by default)
+RUN curl -sSfL https://install.determinate.systems/nix | sh -s -- install linux \
+    --init none \
+    --no-confirm \
+    --extra-conf "sandbox = false" \
+    && echo "trusted-users = root" >> /etc/nix/nix.conf
+
+ENV PATH="/nix/var/nix/profiles/default/bin:$PATH"
+
+# Create an unprivileged user (mirrors the `bits` workspace user)
+RUN useradd -m -u 2000 -s /bin/bash bits && \
+    echo "bits ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+
+USER bits
+WORKDIR /home/bits
+
+# The Nix store is mounted at runtime via -v nix-store-cache:/nix.
+# The repo is bind-mounted read-only at /repo; we clone from it locally
+# (file:// protocol) to get a "fresh clone" without a network round-trip.
+ENTRYPOINT ["/bin/bash", "-c", "\
+    set -euo pipefail; \
+    BRANCH=${REPO_BRANCH:-nix/adopt}; \
+    echo '[nix-verify] cloning fresh copy from /repo...'; \
+    git clone --branch \"$BRANCH\" /repo /home/bits/datadog-agent; \
+    cd /home/bits/datadog-agent; \
+    git add -N flake.nix .envrc flake.lock 2>/dev/null || true; \
+    echo '[nix-verify] entering nix develop...'; \
+    exec nix develop --command bash tasks/nix-verify.sh \"$@\" \
+"]
+CMD ["--suite=all"]

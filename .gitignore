@@ -257,3 +257,16 @@ pkg/config/schema/compressed/*.zstd
 .python-nix-home
 .venv-nix
 flake.lock
+
+# Nix dev shell writable tool caches (populated by nix develop / install-tools)
+/.gobin/
+/.gomodcache/
+/.gopath/
+/.cargo-home/
+/.gem/
+/.bundle/
+/.direnv/
+
+# Nix build outputs
+/result
+/result-*

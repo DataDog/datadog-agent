@@ -1,4 +1,15 @@
 cmake_minimum_required(VERSION 3.15)
+
+# Allow an external dependency manager (e.g. Nix) to point CMake at a specific
+# Python without disturbing default discovery used by Conda/buildimage builds.
+# The Nix devShell exports DD_RTLOADER_PYTHON3_ROOT to its Python prefix;
+# when the variable is absent this block is a no-op and discovery is unchanged.
+if(DEFINED ENV{DD_RTLOADER_PYTHON3_ROOT})
+  set(Python3_ROOT_DIR "$ENV{DD_RTLOADER_PYTHON3_ROOT}"
+      CACHE PATH "Python root provided by Nix devShell")
+  set(Python3_FIND_STRATEGY LOCATION)
+endif()
+
 find_package (Python3 COMPONENTS Interpreter Development)
 
 if(Python3_VERSION_MINOR LESS "7")

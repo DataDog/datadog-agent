@@ -1,4 +1,6 @@
-toolchain.components = [
+[toolchain]
+channel = "1.91.0"
+components = [
   "rust-analyzer",
   "cargo",
   "rustfmt",
@@ -6,3 +8,4 @@ toolchain.components = [
   "rustc",
   "rust-src"
 ]
+
