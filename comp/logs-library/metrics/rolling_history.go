@@ -228,11 +228,17 @@ func (h *rollingHistory) allStats(now time.Time) WindowStats {
 	)
 
 	// --- Fine tier (last 5 minutes, 1-second resolution) ---
+	// The ring evicts by count, not by time: if the component is idle, samples can be
+	// much older than 5 minutes. Break at c30m so stale entries never inflate satFine
+	// or LastSaturatedAt — consistent with how the medium tier uses break at c30m.
 	for i := 0; i < h.fineSize; i++ {
 		idx := (h.fineHead - 1 - i + fineTierCapacity) % fineTierCapacity
 		s := h.fine[idx]
 		v := s.ewmaValue
 
+		if s.tsNano < c30m {
+			break // all remaining samples are older; none are relevant to any window
+		}
 		if !hasLastSat && v >= SaturationThreshold {
 			lastSat = time.Unix(0, s.tsNano)
 			hasLastSat = true
