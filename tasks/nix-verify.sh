@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # nix-verify.sh — Run the datadog-agent Nix dev shell verification suite.
 #
-# Usage (inside nix develop):
-#   bash tasks/nix-verify.sh [--suite=<slice|all>] [--include-slow]
+# Usage (inside nix develop or nix develop .#release):
+#   bash tasks/nix-verify.sh [--suite=<slice|all|release>] [--include-slow]
 #
 # Suites:
 #   slice0   nix develop entry only
@@ -14,6 +14,8 @@
 #   slice6   agent.build
 #   slice7   Ruby + omnibus (tight check; full build requires --include-slow)
 #   all      full 15-item suite (default)
+#   release  release-shell checks: cross-compilers, glibc floor, embedded Python
+#            Run inside `nix develop .#release` to prove release artifacts are correct.
 #
 # Pass/fail is reported per item; overall exit code is non-zero if any required item fails.
 set -euo pipefail
@@ -163,6 +165,63 @@ if [[ "$SUITE" == "all" ]]; then
   run_check "[12] file tailer integration" dda inv test --targets=./pkg/logs/tailers/file --build-include=test
   run_check "[13] configsync integration" dda inv test --targets=./comp/core/configsync/impl --build-include=test
   run_check "[14] fakeintake client tests" dda inv test --targets=./test/fakeintake/client
+fi
+
+# --- Release suite (run inside `nix develop .#release`) ---
+# This is the local equivalent of the CI glibc floor check (plan Section 6, Tier 2).
+# Proves the devShells.release toolchain produces release-quality binaries.
+if [[ "$SUITE" =~ ^(release)$ ]]; then
+  echo ""
+  echo "── Release suite (nix develop .#release) ──"
+
+  run_check "x86_64 cross-gcc present" bash -c 'command -v x86_64-unknown-linux-gnu-gcc'
+  run_check "aarch64 cross-gcc present" bash -c 'command -v aarch64-unknown-linux-gnu-gcc'
+
+  # Build the agent with the Nix cross-compilers (non-Bazel path)
+  run_check "agent.build with Nix release toolchain" bash -c '
+    DD_CC=x86_64-unknown-linux-gnu-gcc \
+    DD_CXX=x86_64-unknown-linux-gnu-g++ \
+      dda inv agent.build --build-exclude=systemd 2>&1 | tail -5
+  '
+
+  # Tier 2 gate: glibc floor check.
+  # PASS iff the binary's max GLIBC symbol version <= 2.17 (x86_64) / <= 2.23 (aarch64).
+  # shellcheck disable=SC2016  # $max_glibc and $agent_bin expand inside bash -c's scope
+  run_check "glibc floor <= 2.17 (x86_64 release target)" bash -c '
+    agent_bin="$(find bin/agent -name "agent" -type f 2>/dev/null | head -1)"
+    if [ -z "$agent_bin" ]; then echo "agent binary not found"; exit 1; fi
+    max_glibc=$(objdump -T "$agent_bin" 2>/dev/null \
+      | grep -oP "GLIBC_\K[0-9.]+" | sort -V | tail -1)
+    echo "  Max GLIBC ref: $max_glibc"
+    python3 -c "
+from packaging.version import Version
+import sys
+max_v = Version(\"$max_glibc\")
+limit = Version(\"2.17\")
+if max_v <= limit:
+    print(f\"  {max_v} <= {limit} ✓\")
+    sys.exit(0)
+else:
+    print(f\"  {max_v} > {limit} — binary not glibc 2.17 compatible\")
+    sys.exit(1)
+"
+  '
+
+  # Embedded Python check: verify EMBEDDED_PYTHON is set and is Python 3.12.6
+  # shellcheck disable=SC2016  # $EMBEDDED_PYTHON expands inside bash -c's scope
+  run_check "EMBEDDED_PYTHON set to 3.12.6" bash -c '
+    if [ -z "$EMBEDDED_PYTHON" ]; then
+      echo "  EMBEDDED_PYTHON not set — nix/embedded-python.nix not yet built (TBD-1/2)"
+      exit 1
+    fi
+    "$EMBEDDED_PYTHON/bin/python3" --version | grep -q "3.12.6"
+  '
+
+  # shellcheck disable=SC2016  # $EMBEDDED_PYTHON expands inside bash -c's scope
+  run_check "embedded Python has libpython3.12.so (shared)" bash -c '
+    if [ -z "$EMBEDDED_PYTHON" ]; then exit 1; fi
+    ldd "$EMBEDDED_PYTHON/lib/libpython3.12.so" > /dev/null
+  '
 fi
 
 # --- Summary ---

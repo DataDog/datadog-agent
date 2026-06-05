@@ -98,6 +98,18 @@ def build(
     """
     flavor = AgentFlavor[flavor]
 
+    # TBD-11: EMBEDDED_PYTHON env var — set by `nix develop .#release` shellHook to point
+    # at the Nix-built embedded Python derivation (nix/embedded-python.nix). When set, it
+    # overrides python_home_3 so the Nix Python is used instead of the Conda ambient prefix.
+    # Only honoured on the non-Bazel path (enable_bazel=False); the Bazel path manages its
+    # own Python via @cpython and is unaffected.
+    nix_embedded_python = os.getenv("EMBEDDED_PYTHON")
+    if nix_embedded_python and python_home_3 is None and not enable_bazel:
+        python_home_3 = nix_embedded_python
+        if embedded_path is None:
+            embedded_path = nix_embedded_python
+        print(f"[nix] Using EMBEDDED_PYTHON for python_home_3: {nix_embedded_python}")
+
     if not exclude_rtloader and not flavor.is_iot() and sys.platform != "aix":
         # On AIX, rtloader is built natively in advance as a prerequisite.
         with gitlab_section("Install embedded rtloader", collapsed=True):
