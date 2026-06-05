@@ -14,6 +14,8 @@ import (
 	"strings"
 )
 
+const ddaTestingDomain = "internal.dda-testing.com"
+
 // WrapRoundTripper wraps the round tripper with the telemetry round tripper.
 func WrapRoundTripper(rt http.RoundTripper) http.RoundTripper {
 	if rt == nil {
@@ -54,7 +56,7 @@ func (rt *roundTripper) RoundTrip(req *http.Request) (res *http.Response, err er
 	res, err = rt.base.RoundTrip(req)
 	if err != nil {
 		span.SetTag("http.errors", err.Error())
-		if isDNSNotFoundError(err) {
+		if isExpectedDNSNotFoundError(req, err) {
 			expectedError = true
 			span.SetTag("expected_error", "dns_not_found")
 		}
@@ -68,9 +70,14 @@ func (rt *roundTripper) RoundTrip(req *http.Request) (res *http.Response, err er
 	return res, err
 }
 
-func isDNSNotFoundError(err error) bool {
+func isExpectedDNSNotFoundError(req *http.Request, err error) bool {
 	var dnsErr *net.DNSError
-	return errors.As(err, &dnsErr) && dnsErr.IsNotFound
+	return errors.As(err, &dnsErr) && dnsErr.IsNotFound && isDDATestingHost(req.URL.Hostname())
+}
+
+func isDDATestingHost(host string) bool {
+	host = strings.TrimSuffix(strings.ToLower(host), ".")
+	return host == ddaTestingDomain || strings.HasSuffix(host, "."+ddaTestingDomain)
 }
 
 // urlFromRequest returns the URL from the HTTP request. The URL query string is included in the return object iff queryString is true
