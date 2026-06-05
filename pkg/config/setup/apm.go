@@ -55,7 +55,11 @@ func setupAPM(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("apm_config.features", []string{}, "DD_APM_FEATURES")
 	config.BindEnvAndSetDefault("apm_config.max_catalog_entries", 0)
 
-	bindVectorOptions(config, Traces)
+	// Vector options for traces
+	config.BindEnvAndSetDefault("observability_pipelines_worker.traces.enabled", false)
+	config.BindEnvAndSetDefault("observability_pipelines_worker.traces.url", "")
+	config.BindEnvAndSetDefault("vector.traces.enabled", false)
+	config.BindEnvAndSetDefault("vector.traces.url", "")
 
 	config.BindEnvAndSetDefault("apm_config.enabled", true, "DD_APM_ENABLED")
 	config.BindEnvAndSetDefault("apm_config.receiver_enabled", true, "DD_APM_RECEIVER_ENABLED")
