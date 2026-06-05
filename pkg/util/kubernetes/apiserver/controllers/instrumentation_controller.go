@@ -20,11 +20,13 @@ import (
 
 func tryCheckInstrumentationCRD(check checkAPI) error {
 	if err := check(); err != nil {
-		if apierrors.IsNotFound(err) {
-			return err
+		// Only treat auth/permission failures as permanent — the CRD or apiserver may
+		// not be ready yet for any other reason (NotFound, 5xx, throttling, network errors).
+		if apierrors.IsUnauthorized(err) || apierrors.IsForbidden(err) {
+			log.Errorf("DatadogInstrumentation CRD check failed: not retryable: %s", err)
+			return backoff.Permanent(err)
 		}
-		log.Errorf("DatadogInstrumentation CRD check failed: not retryable: %s", err)
-		return backoff.Permanent(err)
+		return err
 	}
 	log.Info("DatadogInstrumentation CRD check successful")
 	return nil
@@ -47,9 +49,13 @@ func waitForInstrumentationCRD(ctx context.Context, dynamicClient dynamic.Interf
 	attempt := 0
 	_, err := backoff.Retry(ctx, func() (any, error) {
 		err := tryCheckInstrumentationCRD(check)
-		if err != nil && apierrors.IsNotFound(err) {
+		if err != nil {
 			attempt++
-			log.Warnf("DatadogInstrumentation CRD missing (attempt=%d): will retry", attempt)
+			if apierrors.IsNotFound(err) {
+				log.Warnf("DatadogInstrumentation CRD missing (attempt=%d): will retry", attempt)
+			} else {
+				log.Warnf("DatadogInstrumentation CRD check failed transiently (attempt=%d): %v: will retry", attempt, err)
+			}
 		}
 		return nil, err
 	}, backoff.WithBackOff(exp), backoff.WithMaxElapsedTime(crdCheckMaxElapsedTime))
