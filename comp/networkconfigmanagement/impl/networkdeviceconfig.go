@@ -299,7 +299,7 @@ func (n *networkDeviceConfigImpl) ReportConfigWithSender(deviceID string, baseSe
 	// Update the remote client's device profile to access the correct commands
 	conn.SetProfile(profile)
 
-	deviceTags := n.getDeviceTags(device)
+	deviceTags := n.getDeviceTags(device, profile.Name)
 	sender.SetDeviceTags(deviceTags)
 	var nonBlockingErrors []error
 
@@ -364,14 +364,14 @@ func (n *networkDeviceConfigImpl) ReportConfigWithSender(deviceID string, baseSe
 	return fmt.Errorf("check completed but with errors: %v", errors.Join(nonBlockingErrors...))
 }
 
-func (n *networkDeviceConfigImpl) getDeviceTags(device *ncmconfig.DeviceInstance) []string {
+func (n *networkDeviceConfigImpl) getDeviceTags(device *ncmconfig.DeviceInstance, profileName string) []string {
 	return []string{
 		"device_namespace:" + device.Namespace,
 		"device_ip:" + device.IPAddress,
 		"device_id:" + device.DeviceID(),
 		// TODO: device_hostname - may need to be extracted from config / output to be retrieved in NCM core check
 		"config_source:cli",
-		"profile:" + device.Profile,
+		"profile:" + profileName,
 	}
 }
 
