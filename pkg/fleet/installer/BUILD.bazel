@@ -36,6 +36,7 @@ go_test(
         "//pkg/fleet/installer/config",
         "//pkg/fleet/installer/db",
         "//pkg/fleet/installer/env",
+        "//pkg/fleet/installer/errors",
         "//pkg/fleet/installer/fixtures",
         "//pkg/fleet/installer/oci",
         "//pkg/fleet/installer/packages",
