@@ -218,6 +218,8 @@ runtime_security_config:
   syscalls:
     capture_all_errors:
       enabled: {{ .CaptureAllSyscallErrorsEnabled }}
+  apm_correlation:
+    legacy_enabled: {{ .LegacyAPMCorrelationEnabled }}
 `
 
 const (

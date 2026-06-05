@@ -133,6 +133,9 @@ func computeCallbacksTable() map[string]func(*kernel.Version) uint64 {
 		OffsetNameMountMountpoint:             getMountMountpointOffset,
 		OffsetNameTaskStructRealParent:        getTaskStructRealParentOffset,
 		OffsetNameTaskStructTGID:              getTaskStructTGIDOffset,
+		OffsetNameTaskStructThread:            getTaskStructThreadOffset,
+		OffsetNameThreadStructFsbase:          getThreadStructFsbaseOffset,
+		OffsetNameThreadStructUw:              getThreadStructUwOffset,
 	}
 }
 
@@ -1079,6 +1082,31 @@ func getTaskStructRealParentOffset(kv *kernel.Version) uint64 {
 	default:
 		return ErrorSentinel
 	}
+}
+
+// OTel TLSDESC thread pointer offsets (x86_64 only).
+// These offsets are used to read task_struct->thread.fsbase for OTel Thread Local
+// Context Record support in native applications.
+// BTF is the primary source for these offsets; fallbacks are minimal since the
+// task_struct.thread offset varies significantly with kernel config.
+
+func getTaskStructThreadOffset(_ *kernel.Version) uint64 {
+	// The offset of 'thread' within task_struct depends heavily on kernel config
+	// (debug options, KASAN, etc.). BTF is strongly preferred for this offset.
+	return ErrorSentinel
+}
+
+func getThreadStructFsbaseOffset(_ *kernel.Version) uint64 {
+	// thread_struct.fsbase is at offset 40 on x86_64 for kernels >= 4.15.
+	// Before 4.15, the field was named 'fsbase' but at a different offset or
+	// accessed via usergs_base. BTF is preferred for accuracy.
+	return ErrorSentinel
+}
+
+func getThreadStructUwOffset(_ *kernel.Version) uint64 {
+	// thread_struct.uw offset on ARM64. Varies with kernel config.
+	// BTF is strongly preferred for this offset.
+	return ErrorSentinel
 }
 
 func getTaskStructTGIDOffset(kv *kernel.Version) uint64 {

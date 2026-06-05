@@ -30,6 +30,7 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
+	tracermetadatamodel "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
@@ -86,6 +87,8 @@ type EBPFResolver struct {
 	pidCacheMap         ebpf.Map
 	pathIDMap           ebpf.Map
 	kernelThreadPidsMap ebpf.Map
+	otelTLSMap   ebpf.Map
+	goLabelsMap  ebpf.Map
 	opts                ResolverOpts
 
 	// stats
@@ -560,7 +563,7 @@ func (p *EBPFResolver) UpdateArgsEnvs(event *model.ArgsEnvsEvent) {
 // AddForkEntry adds an entry to the local cache and returns the newly created entry
 func (p *EBPFResolver) AddForkEntry(event *model.Event, cgroupContext model.CGroupContext, newEntryCb func(*model.ProcessCacheEntry, error)) error {
 	p.ApplyBootTime(event.ProcessCacheEntry)
-	event.ProcessCacheEntry.SetSpan(event.SpanContext.SpanID, event.SpanContext.TraceID)
+	event.ProcessCacheEntry.SetSpanContext(event.SpanContext)
 
 	if event.ProcessCacheEntry.Pid == 0 {
 		return errors.New("no pid")
@@ -579,6 +582,14 @@ func (p *EBPFResolver) AddForkEntry(event *model.Event, cgroupContext model.CGro
 func (p *EBPFResolver) AddExecEntry(event *model.Event, cgroupContext model.CGroupContext) error {
 	p.Lock()
 	defer p.Unlock()
+
+	// Mirror AddForkEntry: if fill_span_context captured a span at
+	// prepare_binprm (e.g. the parent had a legacy/OTel/Go tracer active when
+	// it execve'd), persist it on the new PCE so the process serializer can
+	// surface it as process.span_context. This is a no-op for the fork+exec
+	// case where the child's tgid has no correlation entry — event.SpanContext
+	// is zero there and ancestor lineage still carries the parent's span.
+	event.ProcessCacheEntry.SetSpanContext(event.SpanContext)
 
 	var err error
 	if err := p.resolveNewProcessCacheEntry(event.ProcessCacheEntry); err != nil {
@@ -1465,7 +1476,9 @@ func (p *EBPFResolver) UpdateLoginUID(pid uint32, e *model.Event) {
 	}
 }
 
-// AddTracerMetadata reads tracer metadata from a memfd and adds it to the process cache entry
+// AddTracerMetadata reads tracer metadata from a memfd and adds it to the process cache entry.
+// If the metadata is successfully parsed, it also attempts to resolve the OTel TLS symbol
+// from the process's ELF binary and populate the otel_tls BPF map.
 func (p *EBPFResolver) AddTracerMetadata(pid uint32, event *model.Event) error {
 	fd := event.TracerMemfdSeal.Fd
 	fdPath := kernel.HostProc(strconv.Itoa(int(pid)), "fd", strconv.Itoa(int(fd)))
@@ -1475,15 +1488,73 @@ func (p *EBPFResolver) AddTracerMetadata(pid uint32, event *model.Event) error {
 		return fmt.Errorf("failed to read tracer metadata: %w", err)
 	}
 
-	p.Lock()
-	defer p.Unlock()
+	p.applyTracerMetadata(pid, tmeta)
+	return nil
+}
 
-	entry := p.entryCache[pid]
-	if entry != nil {
-		entry.TracerMetadata = tmeta
+// SnapshotTracer detects whether a pre-existing process (one that started
+// before the agent) is running a Datadog tracer and, if so, populates the
+// user-space tracer metadata and the kernel-side offset maps (go_labels_procs
+// or otel_tls) the same way the runtime tracer_memfd_seal event handler does.
+//
+// Called from the startup snapshot for every pid; processes without a tracer
+// memfd return cheaply via the GetTracerMetadata error path.
+func (p *EBPFResolver) SnapshotTracer(pid uint32) {
+	// Only do the (mildly expensive) /proc/<pid>/fd scan for pids that
+	// SyncCache actually entered into the cache — anything else can't be
+	// updated downstream anyway.
+	p.RLock()
+	hasEntry := p.entryCache[pid] != nil
+	p.RUnlock()
+	if !hasEntry {
+		return
 	}
 
-	return nil
+	tmeta, err := tracermetadata.GetTracerMetadata(int(pid), kernel.HostProc())
+	if err != nil {
+		// The common case for non-tracer processes — silent.
+		return
+	}
+
+	p.applyTracerMetadata(pid, tmeta)
+}
+
+// applyTracerMetadata stores tracer metadata on the process cache entry and
+// resolves the language-appropriate offset map (Go pprof labels or native
+// OTel TLS). Must be called WITHOUT the resolver lock held; ELF I/O happens
+// outside the lock.
+func (p *EBPFResolver) applyTracerMetadata(pid uint32, tmeta tracermetadatamodel.TracerMetadata) {
+	p.Lock()
+	if entry := p.entryCache[pid]; entry != nil {
+		entry.Tracer.Metadata = tmeta
+	}
+	p.Unlock()
+
+	if tmeta.TracerLanguage == "go" {
+		// Go: resolve pprof label offsets for goroutine-level span context.
+		if err := p.resolveGoLabels(pid); err != nil {
+			seclog.Debugf("Go labels resolution for pid %d: %s", pid, err)
+		}
+		return
+	}
+	// Native: resolve OTel TLS symbol for TLSDESC-based span context.
+	if p.otelTLSMap != nil {
+		if err := p.resolveAndUpdateOTelTLS(pid, tmeta.TracerLanguage); err != nil {
+			seclog.Debugf("OTel TLS resolution for pid %d: %s", pid, err)
+		}
+	}
+}
+
+// resolveAndUpdateOTelTLS resolves the OTel TLS symbol from the process's ELF
+// binary and writes the offset + runtime to the otel_tls BPF map.
+func (p *EBPFResolver) resolveAndUpdateOTelTLS(pid uint32, tracerLanguage string) error {
+	offset, runtimeLang, err := resolveOTelTLS(pid, tracerLanguage)
+	if err != nil {
+		return err
+	}
+
+	value := serializeOTelTLSValue(offset, runtimeLang)
+	return p.otelTLSMap.Put(pid, value)
 }
 
 // UpdateAWSSecurityCredentials updates the list of AWS Security Credentials
@@ -1552,6 +1623,10 @@ func (p *EBPFResolver) Start(ctx context.Context) error {
 	if p.kernelThreadPidsMap, err = managerhelper.Map(p.manager, "kernel_thread_pids"); err != nil {
 		return err
 	}
+
+	// otel_tls and go_labels_procs maps are optional — non-fatal if not found.
+	p.otelTLSMap, _ = managerhelper.Map(p.manager, "otel_tls")
+	p.goLabelsMap, _ = managerhelper.Map(p.manager, "go_labels_procs")
 
 	go p.cacheFlush(ctx)
 

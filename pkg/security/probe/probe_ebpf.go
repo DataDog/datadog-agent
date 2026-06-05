@@ -10,6 +10,7 @@ package probe
 
 import (
 	"context"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"math"
@@ -17,8 +18,10 @@ import (
 	"net/netip"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -157,8 +160,11 @@ type EBPFProbe struct {
 	discarderPushedCallbacksLock sync.RWMutex
 	discarderRateLimiter         *rate.Limiter
 
+	// OTel span attributes
+	otelSpanAttrsMap *lib.Map
+
 	// kill action
-	killListMap           *lib.Map
+	killListMap *lib.Map
 	supportsBPFSendSignal bool
 	processKiller         *ProcessKiller
 
@@ -588,6 +594,9 @@ func (p *EBPFProbe) Init() error {
 	}
 
 	p.eventStream.SetMonitor(p.monitors.eventStreamMonitor)
+
+	// otel_span_attrs map is optional — non-fatal if not found.
+	p.otelSpanAttrsMap, _ = managerhelper.Map(p.Manager, "otel_span_attrs")
 
 	p.killListMap, err = managerhelper.Map(p.Manager, "kill_list")
 	if err != nil {
@@ -1073,6 +1082,93 @@ func (p *EBPFProbe) unmarshalContexts(data []byte, event *model.Event, cgroupCon
 	return read, nil
 }
 
+// resolveOTelSpanAttrs looks up OTel custom attributes from the otel_span_attrs BPF map
+// and parses them using the ThreadlocalAttributeKeys from the process's TracerMetadata.
+//
+// For fork/exec events, when attributes are successfully resolved, they are
+// also pushed onto the cached PCE via SetSpanContextAttributes — at this
+// point AddForkEntry / AddExecEntry already stamped the IDs onto the PCE, so
+// we only need to add the now-resolved Attributes. For other event types the
+// PCE is the existing cached entry shared with future events and must not be
+// mutated with the transient event's attributes.
+func (p *EBPFProbe) resolveOTelSpanAttrs(event *model.Event, eventType model.EventType) {
+	// Build the map key: span_id + trace_id[2]
+	key := make([]byte, 24)
+	binary.NativeEndian.PutUint64(key[0:8], event.SpanContext.SpanID)
+	binary.NativeEndian.PutUint64(key[8:16], event.SpanContext.TraceID.Lo)
+	binary.NativeEndian.PutUint64(key[16:24], event.SpanContext.TraceID.Hi)
+
+	data, err := p.otelSpanAttrsMap.LookupBytes(key)
+	if err != nil || len(data) < 2 {
+		return
+	}
+
+	// Delete the entry after reading (one-shot consumption).
+	_ = p.otelSpanAttrsMap.Delete(key)
+
+	// Parse the value: u16 size + data[OTEL_ATTRS_MAX_SIZE]
+	size := binary.NativeEndian.Uint16(data[0:2])
+	if size == 0 || int(size)+2 > len(data) {
+		return
+	}
+	attrsData := data[2 : 2+size]
+
+	// Get the ThreadlocalAttributeKeys from the process's TracerMetadata.
+	// ProcessContext may not be resolved yet at unmarshal time, so guard against nil.
+	// For exec events the new PCE has no TracerMetadata (touch never sealed a
+	// tracer-info memfd); the metadata lives on the pre-exec PCE in the ancestor
+	// lineage. Walk ancestors until we find one with non-empty
+	// ThreadlocalAttributeKeys so we can map index → name correctly.
+	var keyNames []string
+	if event.ProcessContext != nil {
+		keyNames = event.ProcessContext.Process.Tracer.Metadata.ThreadlocalAttributeKeys
+		if len(keyNames) == 0 {
+			for pce := event.ProcessContext.Ancestor; pce != nil; pce = pce.Ancestor {
+				if len(pce.Process.Tracer.Metadata.ThreadlocalAttributeKeys) > 0 {
+					keyNames = pce.Process.Tracer.Metadata.ThreadlocalAttributeKeys
+					break
+				}
+			}
+		}
+	}
+
+	// Parse attrs_data: repeated [key(u8) + length(u8) + val(u8[length])]
+	attrs := make(map[string]string)
+	off := 0
+	for off+2 <= len(attrsData) {
+		keyIdx := attrsData[off]
+		valLen := int(attrsData[off+1])
+		off += 2
+
+		if off+valLen > len(attrsData) {
+			break
+		}
+		val := string(attrsData[off : off+valLen])
+		off += valLen
+
+		// Map key index to attribute name.
+		var keyName string
+		if int(keyIdx) < len(keyNames) {
+			keyName = keyNames[keyIdx]
+		} else {
+			keyName = strconv.Itoa(int(keyIdx))
+		}
+		attrs[keyName] = val
+	}
+
+	if len(attrs) > 0 {
+		event.SpanContext.Attributes = attrs
+
+		// For fork/exec events, push the resolved attributes onto the cached
+		// PCE so the per-process span_context serializer can surface them.
+		// AddForkEntry / AddExecEntry already stamped SpanID/TraceID earlier;
+		// only the Attributes field still needs to be set here.
+		if event.ProcessCacheEntry != nil && (eventType == model.ForkEventType || eventType == model.ExecEventType) {
+			event.ProcessCacheEntry.SetSpanContextAttributes(attrs)
+		}
+	}
+}
+
 func eventWithNoProcessContext(eventType model.EventType) bool {
 	switch eventType {
 	case model.ShortDNSResponseEventType,
@@ -1339,6 +1435,14 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 	// resolve process context
 	if !p.setProcessContext(eventType, event, cgroupContext) {
 		return
+	}
+
+	// Resolve OTel custom attributes now that process context (and
+	// TracerMetadata) is available. resolveOTelSpanAttrs also handles
+	// pushing the resolved attributes onto the cached PCE for fork/exec
+	// events via SetSpanContextAttributes.
+	if event.SpanContext.HasExtraAttrs && p.otelSpanAttrsMap != nil {
+		p.resolveOTelSpanAttrs(event, eventType)
 	}
 
 	// handle regular events
@@ -2861,6 +2965,10 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 			Value: utils.BoolTouint64(p.config.RuntimeSecurity.CaptureAllSyscallErrorsEnabled),
 		},
 		manager.ConstantEditor{
+			Name:  "legacy_apm_correlation_enabled",
+			Value: utils.BoolTouint64(p.config.RuntimeSecurity.LegacyAPMCorrelationEnabled),
+		},
+		manager.ConstantEditor{
 			Name:  "imds_ip",
 			Value: uint64(p.config.RuntimeSecurity.IMDSIPv4),
 		},
@@ -3520,6 +3628,17 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	}
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameTaskStructRealParent, "struct task_struct", "real_parent")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameTaskStructTGID, "struct task_struct", "tgid")
+
+	// OTel TLSDESC thread pointer offsets for reading OTel Thread Local Context Records
+	// from native applications.
+	// x86_64: reads task_struct->thread.fsbase
+	// ARM64:  reads task_struct->thread.uw.tp_value (tp_value is at offset 0 within uw)
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameTaskStructThread, "struct task_struct", "thread")
+	if runtime.GOARCH == "amd64" {
+		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameThreadStructFsbase, "struct thread_struct", "fsbase")
+	} else if runtime.GOARCH == "arm64" {
+		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameThreadStructUw, "struct thread_struct", "uw")
+	}
 
 	// splice event
 	constantFetcher.AppendSizeofRequest(constantfetch.SizeOfPipeBuffer, "struct pipe_buffer")
