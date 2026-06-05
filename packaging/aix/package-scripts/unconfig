@@ -10,8 +10,6 @@ while [ $i -lt 30 ]; do
     ps -fu dd-agent 2>/dev/null | awk 'NR>1{f=1}END{exit !f}' || break
     sleep 1; i=$((i+1))
 done
-odmdelete -o SRCsubsys -q "subsysname='datadog-agent'" > /dev/null 2>&1 || true
-odmdelete -o SRCsubsys -q "subsysname='datadog-trace-agent'" > /dev/null 2>&1 || true
 rmssys -s datadog-agent 2>/dev/null || true
 rmssys -s datadog-trace-agent 2>/dev/null || true
 rmuser dd-agent 2>/dev/null || true
