@@ -470,13 +470,30 @@ func (d *daemonImpl) startExperiment(ctx context.Context, url string) (err error
 }
 
 // PromoteExperiment promotes the experiment to stable.
+//
+// This is the explicit operator path (local API, triggered by
+// `datadog-installer daemon promote-experiment`). A promote with no experiment
+// staged is a genuine error here and is surfaced to the caller, unlike the
+// Remote Config path which treats it as a benign no-op.
 func (d *daemonImpl) PromoteExperiment(ctx context.Context, pkg string) error {
 	d.m.Lock()
 	defer d.m.Unlock()
-	return d.promoteExperiment(ctx, pkg)
+	return d.promoteExperiment(ctx, pkg, false)
 }
 
-func (d *daemonImpl) promoteExperiment(ctx context.Context, pkg string) (err error) {
+// promoteExperiment promotes the experiment to stable.
+//
+// swallowNoExperiment scopes the benign-no-op behavior to the Remote Config
+// path. RC promotes are state-reconciling and re-delivered: the per-process
+// dedup is cleared on any daemon/host restart, so an already-applied promote
+// gets replayed. By then the experiment link equals stable (a successful
+// promote keeps it there; a stop or a timed-out/failed experiment resets it),
+// so the installer reports no experiment via the ErrNoExperiment code (which
+// survives the installer subprocess boundary). For RC that is a benign
+// idempotent no-op, so we clear the error to keep this span out of Error
+// Tracking. Explicit operator promotes pass swallowNoExperiment=false and still
+// surface the error.
+func (d *daemonImpl) promoteExperiment(ctx context.Context, pkg string, swallowNoExperiment bool) (err error) {
 	span, ctx := telemetry.StartSpanFromContext(ctx, "promote_experiment")
 	defer func() { span.Finish(err) }()
 	d.refreshState(ctx)
@@ -484,16 +501,7 @@ func (d *daemonImpl) promoteExperiment(ctx context.Context, pkg string) (err err
 
 	log.Infof("Daemon: Promoting experiment for package %s", pkg)
 	err = d.installer(d.env).PromoteExperiment(ctx, pkg)
-	if installerErrors.GetCode(err) == installerErrors.ErrNoExperiment {
-		// Remote Config promotes are state-reconciling and re-delivered: the
-		// per-process dedup is cleared on any daemon/host restart, so an
-		// already-applied promote gets replayed. By then the experiment link
-		// equals stable (a successful promote keeps it there; a stop or a
-		// timed-out/failed experiment resets it), so the installer reports no
-		// experiment via the ErrNoExperiment code (which survives the installer
-		// subprocess boundary). This is a benign idempotent no-op, not a
-		// failure, so we return nil to keep the span out of Error Tracking.
-		// Explicit operator promotes still surface the error via the CLI.
+	if swallowNoExperiment && installerErrors.GetCode(err) == installerErrors.ErrNoExperiment {
 		log.Infof("Daemon: No experiment to promote for package %s, skipping", pkg)
 		return nil
 	}
@@ -699,7 +707,7 @@ func (d *daemonImpl) handleRemoteAPIRequest(request remoteAPIRequest) (err error
 
 	case methodPromoteExperiment:
 		log.Infof("Installer: Received remote request %s to promote experiment for package %s", request.ID, request.Package)
-		return d.promoteExperiment(ctx, request.Package)
+		return d.promoteExperiment(ctx, request.Package, true)
 
 	case methodStartConfigExperiment:
 		var params experimentTaskParams
