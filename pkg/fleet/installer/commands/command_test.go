@@ -266,3 +266,24 @@ func TestSetupCommandHasHumanReadableAnnotation(t *testing.T) {
 	assert.Equal(t, "true", cmd.Annotations[AnnotationHumanReadableErrors],
 		"setup command should have human-readable-errors annotation")
 }
+
+func TestStopWithErrorCanceledContext(t *testing.T) {
+	// A command whose context was canceled during a host/process shutdown should
+	// finish its span without an error.
+	canceledCmd := newCmd("unit_test", withQuiet())
+	canceledCmd.stopSigHandler() // cancel the command's context, as happens on shutdown
+	canceledCmd.stopWithError(canceledCmd.ctx.Err())
+	assert.ErrorIs(t, canceledCmd.ctx.Err(), context.Canceled)
+	assert.False(t, canceledCmd.span.HasError(), "a canceled context should not mark the span as error")
+
+	// A wrapped cancellation (e.g. the error returned by installer.NewInstaller) must
+	// also be treated as a clean abort.
+	wrappedCmd := newCmd("unit_test", withQuiet())
+	wrappedCmd.stopWithError(fmt.Errorf("could not create packages db: %w", context.Canceled))
+	assert.False(t, wrappedCmd.span.HasError(), "a wrapped canceled context should not mark the span as error")
+
+	// A genuine failure must still be reported as a span error.
+	failedCmd := newCmd("unit_test", withQuiet())
+	failedCmd.stopWithError(errors.New("disk full"))
+	assert.True(t, failedCmd.span.HasError(), "a genuine error should mark the span as error")
+}

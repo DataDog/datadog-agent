@@ -126,6 +126,18 @@ func (c *cmd) stop(err error) {
 	c.stopSigHandler()
 }
 
+// stopWithError stops the command after a non-nil error. A canceled context means
+// the host/process was shutting down: this is a benign abort rather than a real
+// failure, so the span is finished without an error instead of being reported as a
+// span error / Error Tracking issue. Any other error is reported as usual.
+func (c *cmd) stopWithError(err error) {
+	if errors.Is(err, context.Canceled) {
+		c.stop(nil)
+		return
+	}
+	c.stop(err)
+}
+
 type installerCmd struct {
 	*cmd
 	installer.Installer
@@ -135,14 +147,7 @@ func newInstallerCmd(operation string, opts ...cmdOption) (_ *installerCmd, err 
 	cmd := newCmd(operation, opts...)
 	defer func() {
 		if err != nil {
-			if errors.Is(err, context.Canceled) {
-				// The installer could not be created because the context was canceled
-				// during a host/process shutdown. This is a benign abort rather than a
-				// real failure, so the command span is finished without an error.
-				cmd.stop(nil)
-				return
-			}
-			cmd.stop(err)
+			cmd.stopWithError(err)
 		}
 	}()
 	var i installer.Installer

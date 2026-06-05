@@ -110,6 +110,13 @@ func (s *Span) SetResourceName(name string) {
 	s.span.Resource = name
 }
 
+// HasError reports whether the span was finished with an error.
+func (s *Span) HasError() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.span.Error != 0
+}
+
 // SetTopLevel sets the span as a top level span.
 func (s *Span) SetTopLevel() {
 	s.SetTag("_top_level", 1)

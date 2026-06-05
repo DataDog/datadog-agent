@@ -98,14 +98,6 @@ func NewInstaller(ctx context.Context, env *env.Env) (Installer, error) {
 	}
 	db, err := db.New(ctx, filepath.Join(paths.PackagesPath, "packages.db"), db.WithTimeout(5*time.Minute))
 	if err != nil {
-		if errors.Is(err, context.Canceled) {
-			// The context is canceled when the host/process is shutting down. This is an
-			// expected, benign abort rather than a real failure, so we log it at debug level
-			// and return the cancellation error directly so callers treat it as a clean abort
-			// instead of reporting it as a span error / Error Tracking issue.
-			log.Debugf("installer init aborted during shutdown: %v", err)
-			return nil, err
-		}
 		return nil, fmt.Errorf("could not create packages db: %w", err)
 	}
 	pkgs := repository.NewRepositories(paths.PackagesPath, packages.AsyncPreRemoveHooks)
