@@ -1,6 +1,6 @@
 load("@py_agent_integrations_tool_requirements//:requirements.bzl", "requirement")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
-load("@rules_pkg//pkg:mappings.bzl", "REMOVE_BASE_DIRECTORY", "pkg_files")
+load("@rules_pkg//pkg:mappings.bzl", "REMOVE_BASE_DIRECTORY", "pkg_attributes", "pkg_files")
 load("@rules_python//python:py_binary.bzl", "py_binary")
 load("//deps/agent_integrations:defs.bzl", "install_wheels")
 
@@ -27,18 +27,47 @@ install_wheels(
     tags = ["manual"],
 )
 
-pkg_files(
-    name = "integrations_dependency_files",
+filegroup(
+    name = "integrations_dependencies_runtime",
     srcs = [":integrations_dependencies"],
+    output_group = "runtime",
+    tags = ["manual"],
+)
+
+filegroup(
+    name = "integrations_dependencies_bin",
+    srcs = [":integrations_dependencies"],
+    output_group = "bin",
+    tags = ["manual"],
+)
+
+pkg_files(
+    name = "integrations_dependency_runtime_files",
+    srcs = [":integrations_dependencies_runtime"],
+    attributes = pkg_attributes(mode = "0644"),
     prefix = "embedded",
     renames = {
-        ":integrations_dependencies": REMOVE_BASE_DIRECTORY,
+        ":integrations_dependencies_runtime": REMOVE_BASE_DIRECTORY,
+    },
+    tags = ["manual"],
+)
+
+pkg_files(
+    name = "integrations_dependency_bin_files",
+    srcs = [":integrations_dependencies_bin"],
+    attributes = pkg_attributes(mode = "0755"),
+    prefix = "embedded/bin",
+    renames = {
+        ":integrations_dependencies_bin": REMOVE_BASE_DIRECTORY,
     },
     tags = ["manual"],
 )
 
 pkg_install(
     name = "install_dependencies",
-    srcs = [":integrations_dependency_files"],
+    srcs = [
+        ":integrations_dependency_bin_files",
+        ":integrations_dependency_runtime_files",
+    ],
     tags = ["manual"],
 )

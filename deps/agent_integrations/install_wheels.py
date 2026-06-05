@@ -11,7 +11,8 @@ from installer.sources import WheelFile
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--output", required=True, type=Path)
+    parser.add_argument("--runtime-output", required=True, type=Path)
+    parser.add_argument("--bin-output", required=True, type=Path)
     parser.add_argument("--python-version", required=True)
     parser.add_argument(
         "--interpreter",
@@ -29,14 +30,17 @@ def parse_args() -> argparse.Namespace:
 
 def main():
     args = parse_args()
-    site_packages = args.output / "lib" / f"python{args.python_version}" / "site-packages"
+    args.runtime_output.mkdir(parents=True, exist_ok=True)
+    args.bin_output.mkdir(parents=True, exist_ok=True)
+
+    site_packages = args.runtime_output / "lib" / f"python{args.python_version}" / "site-packages"
 
     scheme = {
         "purelib": str(site_packages),
         "platlib": str(site_packages),
-        "headers": str(args.output / "include" / f"python{args.python_version}"),
-        "scripts": str(args.output / "bin"),
-        "data": str(args.output),
+        "headers": str(args.runtime_output / "include" / f"python{args.python_version}"),
+        "scripts": str(args.bin_output),
+        "data": str(args.runtime_output),
     }
 
     destination = SchemeDictionaryDestination(

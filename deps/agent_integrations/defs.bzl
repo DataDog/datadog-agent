@@ -4,13 +4,16 @@ load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
 load("@cpython_versions//:constants.bzl", "PYTHON_MAJOR_MINOR")
 
 def _install_wheels_impl(ctx):
-    installation_dir = ctx.actions.declare_directory(ctx.attr.output or ctx.attr.name)
+    output = ctx.attr.output or ctx.attr.name
+    runtime_dir = ctx.actions.declare_directory(output + "_runtime")
+    bin_dir = ctx.actions.declare_directory(output + "_bin")
 
     args = ctx.actions.args()
     install_dir = ctx.attr.install_dir[BuildSettingInfo].value.rstrip("/")
     script_interpreter = install_dir + "/" + ctx.attr.script_interpreter_relative_path.lstrip("/")
 
-    args.add("--output", installation_dir.path)
+    args.add("--runtime-output", runtime_dir.path)
+    args.add("--bin-output", bin_dir.path)
     args.add("--python-version", ctx.attr.python_version)
     args.add("--interpreter", script_interpreter)
     args.add("--script-kind", ctx.attr.script_kind)
@@ -19,15 +22,21 @@ def _install_wheels_impl(ctx):
     ctx.actions.run(
         mnemonic = "InstallPythonWheels",
         inputs = ctx.files.srcs,
-        outputs = [installation_dir],
+        outputs = [runtime_dir, bin_dir],
         executable = ctx.executable._installer,
         arguments = [args],
         progress_message = "Installing Python wheels for %{label}",
     )
 
-    return DefaultInfo(
-        files = depset([installation_dir]),
-    )
+    return [
+        DefaultInfo(
+            files = depset([runtime_dir, bin_dir]),
+        ),
+        OutputGroupInfo(
+            runtime = depset([runtime_dir]),
+            bin = depset([bin_dir]),
+        ),
+    ]
 
 install_wheels = rule(
     implementation = _install_wheels_impl,
