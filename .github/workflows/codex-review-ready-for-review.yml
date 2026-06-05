@@ -160,6 +160,9 @@ jobs:
               pullRequest(number: $pr) {
                 reviews(first: 50, after: $cursor) {
                   nodes {
+                    id
+                    isMinimized
+                    body
                     reactionGroups {
                       content
                       users {
@@ -180,6 +183,9 @@ jobs:
                           login
                         }
                       }
+                    }
+                    author {
+                      login
                     }
                   }
                   pageInfo {
@@ -237,14 +243,29 @@ jobs:
                   or .author.login == env.CHATGPT_CODEX_REST_BOT;
 
                 .data.repository.pullRequest.reviews.nodes[] as $review
-                | $review.comments.nodes[]
-                | select(
-                    is_codex_bot
-                    and (.isMinimized | not)
-                    and (thumbs_up_count == 0)
-                    and ($review | thumbs_up_count == 0)
+                | (
+                    # Collect comment IDs to minimize
+                    $review.comments.nodes[]
+                    | select(
+                        is_codex_bot
+                        and (.isMinimized | not)
+                        and (thumbs_up_count == 0)
+                        and ($review | thumbs_up_count == 0)
+                      )
+                    | .id
+                  ),
+                  (
+                    # Collect review ID to minimize
+                    $review
+                    | select(
+                        is_codex_bot
+                        and (.isMinimized | not)
+                        and (.body | length > 0)
+                        and (thumbs_up_count == 0)
+                        and ([$review.comments.nodes[] | thumbs_up_count] | add == 0)
+                      )
+                    | .id
                   )
-                | .id
               ' <<< "${response}"
             )"
             review_comment_ids=()
@@ -253,7 +274,7 @@ jobs:
             fi
 
             for review_comment_id in "${review_comment_ids[@]}"; do
-              echo "Minimizing pull request review comment ${review_comment_id}"
+              echo "Minimizing pull request review artifact ${review_comment_id}"
               gh api graphql \
                 -f "query=${minimize_mutation}" \
                 -f "subjectId=${review_comment_id}" \
