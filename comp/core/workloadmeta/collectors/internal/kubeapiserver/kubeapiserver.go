@@ -20,6 +20,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	kubernetesresourceparsers "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util/kubernetes_resource_parsers"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/autoscalinggate"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -261,6 +262,23 @@ func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Componen
 		reflector, store := newDeploymentStore(ctx, wlmetaStore, c.config, client)
 		objectStores = append(objectStores, store)
 		go reflector.Run(ctx.Done())
+	}
+
+	if shouldHaveKueueQueueStores(c.config) {
+		gvrs, err := getGVRsForRequestedResources(client.Discovery(), kueueQueueGVRStrings())
+		if err != nil {
+			log.Errorf("failed to discover Kueue queue resources: %v", err)
+		} else {
+			for _, gvr := range gvrs {
+				queueType, ok := kubernetesresourceparsers.QueueTypeForKueueResource(gvr.Resource)
+				if !ok {
+					continue
+				}
+				reflector, store := newKueueQueueStore(ctx, wlmetaStore, apiserverClient.DynamicInformerCl, gvr, queueType)
+				objectStores = append(objectStores, store)
+				go reflector.Run(ctx.Done())
+			}
+		}
 	}
 
 	if c.config.GetBool("cluster_checks.crd_collection") {

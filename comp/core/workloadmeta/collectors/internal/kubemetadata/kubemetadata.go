@@ -291,6 +291,7 @@ func (c *collector) parsePods(
 		}
 
 		nsLabels, nsAnnotations := provider.getNamespaceMetadata(pod.Metadata.Namespace)
+		kueueQueueTags := provider.getKueueQueueTags(pod)
 
 		entityID := workloadmeta.EntityID{
 			Kind: workloadmeta.KindKubernetesPod,
@@ -310,6 +311,7 @@ func (c *collector) parsePods(
 			KubeServices:         services,
 			NamespaceLabels:      nsLabels,
 			NamespaceAnnotations: nsAnnotations,
+			KueueQueueTags:       kueueQueueTags,
 		}
 
 		events = append(events, workloadmeta.CollectorEvent{

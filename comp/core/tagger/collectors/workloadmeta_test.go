@@ -1459,6 +1459,123 @@ func TestHandleKubeMetadata(t *testing.T) {
 	}
 }
 
+func TestHandleKubeKueueQueue(t *testing.T) {
+	queueID := workloadmeta.EntityID{
+		Kind: workloadmeta.KindKubernetesKueueQueue,
+		ID:   "localqueue/default/batch",
+	}
+
+	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
+		fx.Supply(context.Background()),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+
+	cfg := configmock.New(t)
+	collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
+
+	actual := collector.handleKubeKueueQueue(workloadmeta.Event{
+		Type: workloadmeta.EventTypeSet,
+		Entity: &workloadmeta.KubernetesKueueQueue{
+			EntityID: queueID,
+			EntityMeta: workloadmeta.EntityMeta{
+				Name:      "batch",
+				Namespace: "default",
+			},
+			QueueType:        workloadmeta.KueueLocalQueue,
+			ClusterQueueName: "cluster-batch",
+		},
+		IsComplete: true,
+	})
+
+	expected := []*types.TagInfo{
+		{
+			Source:               kueueQueueSource,
+			EntityID:             types.NewEntityID(types.KubernetesKueueQueue, queueID.ID),
+			IsComplete:           true,
+			HighCardTags:         []string{},
+			OrchestratorCardTags: []string{},
+			LowCardTags: []string{
+				"kube_namespace:default",
+				"kueue_cluster_queue:cluster-batch",
+				"kueue_local_queue:batch",
+			},
+			StandardTags: []string{},
+		},
+	}
+	assertTagInfoListEqual(t, expected, actual)
+	assert.ElementsMatch(t, expected[0].LowCardTags, collector.kueueQueues[queueID.ID].Low)
+}
+
+func TestKueueQueueTagsPropagateToPodContainers(t *testing.T) {
+	const (
+		podUID      = "pod-uid"
+		containerID = "container-id"
+	)
+
+	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
+		fx.Supply(context.Background()),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+	store.Set(&workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainer,
+			ID:   containerID,
+		},
+	})
+
+	cfg := configmock.New(t)
+	collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
+	collector.kueueQueues["localqueue/default/batch"] = workloadmeta.KueueQueueTags{
+		Low: []string{
+			"kube_namespace:default",
+			"kueue_cluster_queue:cluster-batch",
+			"kueue_local_queue:batch",
+		},
+	}
+
+	actual := collector.handleKubePod(workloadmeta.Event{
+		Type: workloadmeta.EventTypeSet,
+		Entity: &workloadmeta.KubernetesPod{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindKubernetesPod,
+				ID:   podUID,
+			},
+			EntityMeta: workloadmeta.EntityMeta{
+				Name:      "pod",
+				Namespace: "default",
+				Labels: map[string]string{
+					kubernetes.KueueLocalQueueNameLabelKey: "batch",
+				},
+			},
+			Containers: []workloadmeta.OrchestratorContainer{
+				{
+					ID:   containerID,
+					Name: "app",
+				},
+			},
+		},
+		IsComplete: true,
+	})
+
+	assert.Len(t, actual, 2)
+	for _, tagInfo := range actual {
+		if tagInfo.EntityID != types.NewEntityID(types.ContainerID, containerID) {
+			continue
+		}
+		assert.Subset(t, tagInfo.LowCardTags, []string{
+			"kube_namespace:default",
+			"kueue_cluster_queue:cluster-batch",
+			"kueue_local_queue:batch",
+		})
+		return
+	}
+	t.Fatal("container tag info not found")
+}
+
 func TestHandleKubeCRD(t *testing.T) {
 	const (
 		crdNamespace = "datadog"

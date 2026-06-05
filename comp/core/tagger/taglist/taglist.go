@@ -92,6 +92,35 @@ func (l *TagList) AddAuto(name, value string) {
 	l.AddLow(name, value)
 }
 
+// AddLowTag adds an already formatted low cardinality tag.
+func (l *TagList) AddLowTag(tag string) {
+	if tag != "" {
+		l.lowCardTags[tag] = true
+	}
+}
+
+// AddOrchestratorTag adds an already formatted orchestrator cardinality tag.
+func (l *TagList) AddOrchestratorTag(tag string) {
+	if tag != "" {
+		l.orchestratorCardTags[tag] = true
+	}
+}
+
+// AddHighTag adds an already formatted high cardinality tag.
+func (l *TagList) AddHighTag(tag string) {
+	if tag != "" {
+		l.highCardTags[tag] = true
+	}
+}
+
+// AddStandardTag adds an already formatted standard tag.
+func (l *TagList) AddStandardTag(tag string) {
+	if tag != "" {
+		l.standardTags[tag] = true
+		l.lowCardTags[tag] = true
+	}
+}
+
 // Compute returns four string arrays in the format "tag:value"
 // - low cardinality
 // - orchestrator cardinality

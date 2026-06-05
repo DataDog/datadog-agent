@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    The agent automatically detects Kueue-related labels in pods and adds them as ``kueue_local_queue`` and ``kueue_cluster_queue`` tags.
+    The Agent automatically detects Kueue-related labels in pods and adds them as ``kueue_local_queue`` and ``kueue_cluster_queue`` tags. When the Cluster Agent can watch Kueue ``LocalQueue`` and ``ClusterQueue`` resources, node Agents also inherit queue-derived tags through the Cluster Agent metadata stream without watching Kueue CRDs directly.

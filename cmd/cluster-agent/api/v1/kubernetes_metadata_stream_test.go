@@ -101,7 +101,7 @@ func TestSubscribeToNamespaceEvents(t *testing.T) {
 	ch2 := srv.subscribeToNamespaceEvents("node1")
 	defer srv.unsubscribeFromNamespaceEvents("node1", ch2)
 
-	srv.processNamespaceEvents(testNamespaceSetEvents())
+	srv.processWmetaEvents(testNamespaceSetEvents())
 
 	assertNotified(t, "first", ch1)
 	assertNotified(t, "second", ch2)
@@ -114,7 +114,7 @@ func TestUnsubscribeFromNamespaceEvents(t *testing.T) {
 		newerCh := srv.subscribeToNamespaceEvents("node1")
 
 		srv.unsubscribeFromNamespaceEvents("node1", olderCh)
-		srv.processNamespaceEvents(testNamespaceSetEvents())
+		srv.processWmetaEvents(testNamespaceSetEvents())
 
 		assertNotified(t, "newer", newerCh)
 		assertNotNotified(t, "older", olderCh)
@@ -126,7 +126,7 @@ func TestUnsubscribeFromNamespaceEvents(t *testing.T) {
 		newerCh := srv.subscribeToNamespaceEvents("node1")
 
 		srv.unsubscribeFromNamespaceEvents("node1", newerCh)
-		srv.processNamespaceEvents(testNamespaceSetEvents())
+		srv.processWmetaEvents(testNamespaceSetEvents())
 
 		assertNotified(t, "older", olderCh)
 		assertNotNotified(t, "newer", newerCh)
@@ -139,7 +139,7 @@ func TestUnsubscribeFromNamespaceEvents(t *testing.T) {
 
 		unknown := make(chan struct{}, 1)
 		srv.unsubscribeFromNamespaceEvents("node1", unknown)
-		srv.processNamespaceEvents(testNamespaceSetEvents())
+		srv.processWmetaEvents(testNamespaceSetEvents())
 
 		assertNotified(t, "older", olderCh)
 		assertNotified(t, "newer", newerCh)
@@ -452,6 +452,102 @@ func TestComputeNamespacesDiff(t *testing.T) {
 	}
 }
 
+func TestProcessKueueQueueEvents(t *testing.T) {
+	srv := NewKubeMetadataStreamServer(nil, nil)
+
+	srv.processWmetaEvents([]workloadmeta.Event{
+		{
+			Type: workloadmeta.EventTypeSet,
+			Entity: &workloadmeta.KubernetesKueueQueue{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindKubernetesKueueQueue,
+					ID:   "localqueue/ns1/local-a",
+				},
+				EntityMeta: workloadmeta.EntityMeta{
+					Name:      "local-a",
+					Namespace: "ns1",
+				},
+				QueueType:        workloadmeta.KueueLocalQueue,
+				ClusterQueueName: "cluster-a",
+			},
+		},
+	})
+
+	snapshot := srv.buildKueueQueuesSnapshot()
+	entry := snapshot["ns1/local-a"]
+	assert.Equal(t, "ns1", entry.namespace)
+	assert.Equal(t, "local-a", entry.localQueue)
+	assert.ElementsMatch(t, []string{
+		"kube_namespace:ns1",
+		"kueue_cluster_queue:cluster-a",
+		"kueue_local_queue:local-a",
+	}, entry.tags.Low)
+
+	srv.processWmetaEvents([]workloadmeta.Event{
+		{
+			Type: workloadmeta.EventTypeUnset,
+			Entity: &workloadmeta.KubernetesKueueQueue{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindKubernetesKueueQueue,
+					ID:   "localqueue/ns1/local-a",
+				},
+				EntityMeta: workloadmeta.EntityMeta{
+					Name:      "local-a",
+					Namespace: "ns1",
+				},
+				QueueType: workloadmeta.KueueLocalQueue,
+			},
+		},
+	})
+
+	assert.Empty(t, srv.buildKueueQueuesSnapshot())
+}
+
+func TestComputeKueueQueueTagsDiff(t *testing.T) {
+	old := map[string]kueueQueueTagsEntry{
+		"ns1/local-a": {
+			namespace:  "ns1",
+			localQueue: "local-a",
+			tags: workloadmeta.KueueQueueTags{
+				Low: []string{"kueue_local_queue:local-a"},
+			},
+		},
+		"ns1/local-b": {
+			namespace:  "ns1",
+			localQueue: "local-b",
+			tags: workloadmeta.KueueQueueTags{
+				Low: []string{"kueue_local_queue:local-b"},
+			},
+		},
+	}
+	current := map[string]kueueQueueTagsEntry{
+		"ns1/local-a": {
+			namespace:  "ns1",
+			localQueue: "local-a",
+			tags: workloadmeta.KueueQueueTags{
+				Low: []string{"kueue_local_queue:local-a", "kueue_cluster_queue:cluster-a"},
+			},
+		},
+	}
+
+	diff := computeKueueQueueTagsDiff(old, current)
+
+	assert.ElementsMatch(t, []*pb.KueueQueueTags{
+		{
+			Namespace:          "ns1",
+			LocalQueue:         "local-a",
+			LowCardinalityTags: []string{"kueue_local_queue:local-a", "kueue_cluster_queue:cluster-a"},
+			Type:               pb.KubeMetadataEventType_SET,
+		},
+		{
+			Namespace:          "ns1",
+			LocalQueue:         "local-b",
+			LowCardinalityTags: []string{"kueue_local_queue:local-b"},
+			Type:               pb.KubeMetadataEventType_UNSET,
+		},
+	}, diff)
+}
+
 func TestFullStateResponse(t *testing.T) {
 	pods := map[string]podServiceEntry{
 		"ns1/pod1": {
@@ -467,7 +563,7 @@ func TestFullStateResponse(t *testing.T) {
 		},
 	}
 
-	resp := fullStateResponse(pods, namespaces)
+	resp := fullStateResponse(pods, namespaces, nil)
 
 	expected := &pb.KubeMetadataStreamResponse{
 		IsFullState: true,

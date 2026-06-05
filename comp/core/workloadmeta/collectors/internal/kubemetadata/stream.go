@@ -29,6 +29,7 @@ import (
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -226,6 +227,19 @@ func (p *streamingProvider) handleDCAStreamUpdate(update streamUpdate, seenPods 
 				}
 			}
 		}
+
+		for queueKey := range update.updatedKueueQueues {
+			for _, uid := range seenPods {
+				pod, err := p.wmeta.GetKubernetesPod(uid)
+				if err != nil {
+					continue
+				}
+				if podKueueLocalQueueKey(pod) != queueKey {
+					continue
+				}
+				events = append(events, p.buildPodEvent(pod))
+			}
+		}
 	}
 
 	if len(events) > 0 {
@@ -242,6 +256,7 @@ func (p *streamingProvider) buildPodEvent(pod *workloadmeta.KubernetesPod) workl
 	}
 
 	nsLabels, nsAnnotations := p.getNamespaceMetadata(pod.Namespace)
+	queueTags := p.getKueueQueueTags(pod)
 
 	return workloadmeta.CollectorEvent{
 		Source: workloadmeta.SourceClusterOrchestrator,
@@ -257,6 +272,7 @@ func (p *streamingProvider) buildPodEvent(pod *workloadmeta.KubernetesPod) workl
 			KubeServices:         services,
 			NamespaceLabels:      nsLabels,
 			NamespaceAnnotations: nsAnnotations,
+			KueueQueueTags:       queueTags,
 		},
 	}
 }
@@ -280,10 +296,30 @@ func (p *streamingProvider) getNamespaceMetadata(ns string) (labels, annotations
 	return selectNamespaceMetadata(metadata, p.collectNamespaceLabels, p.collectNamespaceAnnotations)
 }
 
+func (p *streamingProvider) getKueueQueueTags(pod *workloadmeta.KubernetesPod) workloadmeta.KueueQueueTags {
+	queueKey := podKueueLocalQueueKey(pod)
+	if queueKey == "" {
+		return workloadmeta.KueueQueueTags{}
+	}
+	return p.dcaStream.getKueueQueueTags(queueKey)
+}
+
+func podKueueLocalQueueKey(pod *workloadmeta.KubernetesPod) string {
+	queueName := pod.Labels[kubernetes.KueueLocalQueueNameLabelKey]
+	if queueName == "" {
+		queueName = pod.Labels[kubernetes.KueueQueueNameLabelKey]
+	}
+	if queueName == "" {
+		return ""
+	}
+	return pod.Namespace + "/" + queueName
+}
+
 type streamUpdate struct {
-	updateIsFullState bool
-	updatedPods       map[string]struct{} // keys are "namespace/name"
-	updatedNamespaces map[string]struct{}
+	updateIsFullState  bool
+	updatedPods        map[string]struct{} // keys are "namespace/name"
+	updatedNamespaces  map[string]struct{}
+	updatedKueueQueues map[string]struct{} // keys are "namespace/localQueue"
 }
 
 // dcaStreamClient manages a gRPC streaming connection to the DCA for
@@ -295,6 +331,7 @@ type dcaStreamClient struct {
 	mu            sync.RWMutex
 	podServices   map[string][]string          // "namespace/podName" -> services
 	namespaces    map[string]namespaceMetadata // namespace name -> labels/annotations
+	kueueQueues   map[string]workloadmeta.KueueQueueTags
 	initialized   bool
 	unimplemented bool
 	pendingUpdate streamUpdate
@@ -313,6 +350,7 @@ func newDCAStreamClient(nodeName string, cfg configmodel.Reader) *dcaStreamClien
 		cfg:         cfg,
 		podServices: make(map[string][]string),
 		namespaces:  make(map[string]namespaceMetadata),
+		kueueQueues: make(map[string]workloadmeta.KueueQueueTags),
 		readyCh:     make(chan struct{}),
 		updateCh:    make(chan struct{}, 1),
 	}
@@ -376,6 +414,13 @@ func (sc *dcaStreamClient) getNamespaceMetadata(namespace string) (labels, annot
 		return nil, nil, false
 	}
 	return ns.labels, ns.annotations, true
+}
+
+func (sc *dcaStreamClient) getKueueQueueTags(queueKey string) workloadmeta.KueueQueueTags {
+	sc.mu.RLock()
+	defer sc.mu.RUnlock()
+
+	return sc.kueueQueues[queueKey]
 }
 
 func (sc *dcaStreamClient) isUnimplemented() bool {
@@ -507,6 +552,18 @@ func (sc *dcaStreamClient) applyResponse(resp *pb.KubeMetadataStreamResponse) {
 		}
 		sc.namespaces = newNamespaces
 
+		newKueueQueues := make(map[string]workloadmeta.KueueQueueTags, len(resp.KueueQueueTags))
+		for _, queueTags := range resp.KueueQueueTags {
+			key := queueTags.Namespace + "/" + queueTags.LocalQueue
+			newKueueQueues[key] = workloadmeta.KueueQueueTags{
+				Low:          queueTags.LowCardinalityTags,
+				Orchestrator: queueTags.OrchestratorCardinalityTags,
+				High:         queueTags.HighCardinalityTags,
+				Standard:     queueTags.StandardTags,
+			}
+		}
+		sc.kueueQueues = newKueueQueues
+
 		sc.initialized = true
 		sc.pendingUpdate.updateIsFullState = true
 		sc.notifyUpdate()
@@ -514,7 +571,7 @@ func (sc *dcaStreamClient) applyResponse(resp *pb.KubeMetadataStreamResponse) {
 		return
 	}
 
-	if !sc.initialized && (len(resp.Mappings) > 0 || len(resp.NamespaceMetadata) > 0) {
+	if !sc.initialized && (len(resp.Mappings) > 0 || len(resp.NamespaceMetadata) > 0 || len(resp.KueueQueueTags) > 0) {
 		log.Errorf("Received incremental kube metadata update before full state, ignoring")
 		return
 	}
@@ -555,7 +612,29 @@ func (sc *dcaStreamClient) applyResponse(resp *pb.KubeMetadataStreamResponse) {
 		sc.pendingUpdate.updatedNamespaces[ns.Namespace] = struct{}{}
 	}
 
-	if len(resp.Mappings) > 0 || len(resp.NamespaceMetadata) > 0 {
+	for _, queueTags := range resp.KueueQueueTags {
+		key := queueTags.Namespace + "/" + queueTags.LocalQueue
+		switch queueTags.Type {
+		case pb.KubeMetadataEventType_SET:
+			sc.kueueQueues[key] = workloadmeta.KueueQueueTags{
+				Low:          queueTags.LowCardinalityTags,
+				Orchestrator: queueTags.OrchestratorCardinalityTags,
+				High:         queueTags.HighCardinalityTags,
+				Standard:     queueTags.StandardTags,
+			}
+		case pb.KubeMetadataEventType_UNSET:
+			delete(sc.kueueQueues, key)
+		default:
+			log.Errorf("Unknown event type %d for Kueue queue metadata %s", queueTags.Type, key)
+			continue
+		}
+		if sc.pendingUpdate.updatedKueueQueues == nil {
+			sc.pendingUpdate.updatedKueueQueues = make(map[string]struct{})
+		}
+		sc.pendingUpdate.updatedKueueQueues[key] = struct{}{}
+	}
+
+	if len(resp.Mappings) > 0 || len(resp.NamespaceMetadata) > 0 || len(resp.KueueQueueTags) > 0 {
 		sc.notifyUpdate()
 	}
 }

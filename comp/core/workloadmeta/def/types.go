@@ -49,6 +49,7 @@ const (
 	KindKubeletMetrics         Kind = "kubelet_metrics"
 	KindKubeCapabilities       Kind = "kubernetes_capabilities"
 	KindKubernetesDeployment   Kind = "kubernetes_deployment"
+	KindKubernetesKueueQueue   Kind = "kubernetes_kueue_queue"
 	KindECSTask                Kind = "ecs_task"
 	KindContainerImageMetadata Kind = "container_image_metadata"
 	KindProcess                Kind = "process"
@@ -827,6 +828,7 @@ type KubernetesPod struct {
 	KubeServices               []string
 	NamespaceLabels            map[string]string
 	NamespaceAnnotations       map[string]string   `proto:"ignore"`
+	KueueQueueTags             KueueQueueTags      `proto:"ignore"`
 	FinishedAt                 time.Time           `proto:"ignore"`
 	SecurityContext            *PodSecurityContext `proto:"ignore"`
 	Resources                  ContainerResources  `proto:"ignore"`
@@ -1418,6 +1420,68 @@ func (d KubernetesDeployment) String(verbose bool) string {
 }
 
 var _ Entity = &KubernetesDeployment{}
+
+// KueueQueueTags contains tags inherited from a Kueue queue.
+type KueueQueueTags struct {
+	Low          []string
+	Orchestrator []string
+	High         []string
+	Standard     []string
+}
+
+// KueueQueueType identifies the Kueue queue resource type.
+type KueueQueueType string
+
+const (
+	// KueueLocalQueue is a namespaced Kueue LocalQueue.
+	KueueLocalQueue KueueQueueType = "localqueue"
+	// KueueClusterQueue is a cluster-scoped Kueue ClusterQueue.
+	KueueClusterQueue KueueQueueType = "clusterqueue"
+)
+
+// KubernetesKueueQueue is an Entity representing a Kueue LocalQueue or ClusterQueue.
+type KubernetesKueueQueue struct {
+	EntityID
+	EntityMeta
+	QueueType        KueueQueueType
+	ClusterQueueName string
+}
+
+// GetID implements Entity#GetID.
+func (q *KubernetesKueueQueue) GetID() EntityID {
+	return q.EntityID
+}
+
+// Merge implements Entity#Merge.
+func (q *KubernetesKueueQueue) Merge(e Entity) error {
+	qq, ok := e.(*KubernetesKueueQueue)
+	if !ok {
+		return fmt.Errorf("cannot merge KubernetesKueueQueue with different kind %T", e)
+	}
+
+	return merge(q, qq)
+}
+
+// DeepCopy implements Entity#DeepCopy.
+func (q KubernetesKueueQueue) DeepCopy() Entity {
+	cq := deepcopy.Copy(q).(KubernetesKueueQueue)
+	return &cq
+}
+
+// String implements Entity#String.
+func (q KubernetesKueueQueue) String(verbose bool) string {
+	var sb strings.Builder
+	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")
+	_, _ = fmt.Fprintln(&sb, q.EntityID.String(verbose))
+	_, _ = fmt.Fprintln(&sb, "----------- Entity Meta -----------")
+	_, _ = fmt.Fprint(&sb, q.EntityMeta.String(verbose))
+	_, _ = fmt.Fprintln(&sb, "----------- Kueue Queue -----------")
+	_, _ = fmt.Fprintln(&sb, "Queue Type:", q.QueueType)
+	_, _ = fmt.Fprintln(&sb, "Cluster Queue:", q.ClusterQueueName)
+	return sb.String()
+}
+
+var _ Entity = &KubernetesKueueQueue{}
 
 // ECSTaskKnownStatusStopped is the known status of an ECS task that has stopped.
 const ECSTaskKnownStatusStopped = "STOPPED"

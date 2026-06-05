@@ -27,8 +27,19 @@ message NamespaceMetadata {
   KubeMetadataEventType type = 4;
 }
 
+message KueueQueueTags {
+  string namespace = 1;
+  string local_queue = 2;
+  repeated string low_cardinality_tags = 3;
+  repeated string orchestrator_cardinality_tags = 4;
+  repeated string high_cardinality_tags = 5;
+  repeated string standard_tags = 6;
+  KubeMetadataEventType type = 7;
+}
+
 message KubeMetadataStreamResponse {
   bool is_full_state = 1;
   repeated PodServiceMapping mappings = 2;
   repeated NamespaceMetadata namespace_metadata = 3;
+  repeated KueueQueueTags kueue_queue_tags = 4;
 }
