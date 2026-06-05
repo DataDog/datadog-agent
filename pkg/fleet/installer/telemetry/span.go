@@ -84,7 +84,9 @@ func (s *Span) Finish(err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.span.Duration = time.Now().UnixNano() - s.span.Start
-	if err != nil {
+	// A canceled context indicates a graceful shutdown / clean abort rather than a
+	// real failure, so we don't report it as a span error / Error Tracking issue.
+	if err != nil && !errors.Is(err, context.Canceled) {
 		s.span.Error = 1
 		s.setTag("error.message", err.Error())
 		s.setTag("error.type", getRootErrorType(err))

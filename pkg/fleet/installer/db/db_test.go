@@ -115,3 +115,20 @@ func TestTimeout(t *testing.T) {
 	assert.ErrorIs(t, err, bbolterr.ErrTimeout)
 	assert.GreaterOrEqual(t, time.Since(before), time.Second-100*time.Millisecond) // bbolt timeout can be shorter by up to 50ms
 }
+
+// TestCanceledContext ensures that a canceled context aborts opening the database
+// and surfaces a context.Canceled error. Callers (e.g. installer.NewInstaller) rely
+// on errors.Is(err, context.Canceled) to treat host shutdown as a clean abort rather
+// than a real failure.
+func TestCanceledContext(t *testing.T) {
+	dbFile := filepath.Join(t.TempDir(), "test.db")
+	dbLock, err := New(context.Background(), dbFile)
+	assert.NoError(t, err)
+	defer dbLock.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	// Use a long timeout so the only way New returns is via the canceled context.
+	_, err = New(ctx, dbFile, WithTimeout(time.Minute))
+	assert.ErrorIs(t, err, context.Canceled)
+}
