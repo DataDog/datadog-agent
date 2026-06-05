@@ -9,6 +9,7 @@ import (
 	kubernetesProvider "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
+	fakeintakeComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/fakeintake"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/local"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/openshift"
@@ -41,5 +42,16 @@ func Run(ctx *pulumi.Context) error {
 		return err
 	}
 
-	return openshift.DeployComponents(ctx, &localEnv, kubeProvider, cluster, nil)
+	var fakeIntake *fakeintakeComp.Fakeintake
+	if localEnv.AgentUseFakeintake() {
+		fakeIntake, err = fakeintakeComp.NewLocalDockerFakeintake(&localEnv, "fakeintake")
+		if err != nil {
+			return err
+		}
+		if err := fakeIntake.Export(ctx, nil); err != nil {
+			return err
+		}
+	}
+
+	return openshift.DeployComponents(ctx, &localEnv, kubeProvider, cluster, fakeIntake)
 }
