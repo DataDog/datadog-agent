@@ -45,10 +45,10 @@ go_test(
     ],
     gotags = ["test"],
     deps = [
+        "//pkg/proto/datadog/healthplatform:healthplatform_go_proto",
         "//test/fakeintake/aggregator",
         "//test/fakeintake/api",
         "//test/fakeintake/fixtures",
-        "@com_github_datadog_agent_payload_v5//healthplatform",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ] + select({
