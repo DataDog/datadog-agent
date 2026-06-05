@@ -243,9 +243,11 @@ func (n *networkDeviceConfigImpl) ReportConfigWithSender(deviceID string, baseSe
 
 	deviceTags := n.getDeviceTags(device)
 	sender.SetDeviceTags(deviceTags)
+	var nonBlockingErrors []error
 
 	if err := sender.SendDeviceMetadata(deviceID, device.IPAddress); err != nil {
 		n.log.Warnf("ncm[%s]: failed to send device metadata: %s", deviceID, err)
+		nonBlockingErrors = append(nonBlockingErrors, fmt.Errorf("failed to send device metadata: %w", err))
 	}
 	defer sender.Commit()
 	configStore := n.store
@@ -254,6 +256,7 @@ func (n *networkDeviceConfigImpl) ReportConfigWithSender(deviceID string, baseSe
 
 	if runningConfig, stored, err := n.retrieveAndStoreConfig(ctx, device, conn, profile, ncmtypes.RUNNING, deviceTags); err != nil {
 		n.log.Warnf("ncm[%s]: unable to retrieve running config, will not send: %v", deviceID, err)
+		nonBlockingErrors = append(nonBlockingErrors, fmt.Errorf("failed to retrieve running config: %w", err))
 	} else {
 		localStoreChanged = localStoreChanged || stored
 		configs = append(configs, *runningConfig)
@@ -261,6 +264,7 @@ func (n *networkDeviceConfigImpl) ReportConfigWithSender(deviceID string, baseSe
 
 	if startupConfig, stored, err := n.retrieveAndStoreConfig(ctx, device, conn, profile, ncmtypes.STARTUP, deviceTags); err != nil {
 		n.log.Warnf("ncm[%s]: unable to retrieve startup config, will not send: %v", deviceID, err)
+		nonBlockingErrors = append(nonBlockingErrors, fmt.Errorf("failed to retrieve startup config: %w", err))
 	} else {
 		localStoreChanged = localStoreChanged || stored
 		configs = append(configs, *startupConfig)
@@ -282,20 +286,24 @@ func (n *networkDeviceConfigImpl) ReportConfigWithSender(deviceID string, baseSe
 	}
 	if len(configs)+len(inventoryEntries) > 0 {
 		debugf("Sending NCM payload with %d configs and %d inventory entries", len(configs), len(inventoryEntries))
-		checkErr := sender.SendNCMPayload(ncmreport.ToNCMPayload(device.Namespace, n.hostname, configs, inventoryEntries, n.clock.Now().Unix()))
-		if checkErr != nil {
-			return checkErr
-		}
-		if len(inventoryEntries) > 0 {
+		err := sender.SendNCMPayload(ncmreport.ToNCMPayload(device.Namespace, n.hostname, configs, inventoryEntries, n.clock.Now().Unix()))
+		if err != nil {
+			n.log.Warnf("ncm[%v]: Failed to send payload to backend: %v", deviceID, err)
+			nonBlockingErrors = append(nonBlockingErrors, fmt.Errorf("failed to send payload to backend: %w", err))
+		} else if len(inventoryEntries) > 0 {
 			n.setLastInventoryTime(n.clock.Now())
 		}
 	} else {
 		debugf("no new config and no need to send inventory data")
 	}
-	lastTime, _ := n.lastReportTimes.Swap(deviceID, startTime)
-	sender.SendNCMCheckMetrics(startTime, lastTime)
-
-	return nil
+	if len(nonBlockingErrors) == 0 {
+		lastTime, _ := n.lastReportTimes.Swap(deviceID, startTime)
+		sender.SendNCMCheckMetrics(startTime, lastTime, true)
+		return nil
+	}
+	lastTime, _ := n.lastReportTimes.Load(deviceID)
+	sender.SendNCMCheckMetrics(startTime, lastTime, false)
+	return fmt.Errorf("check completed but with errors: %v", errors.Join(nonBlockingErrors...))
 }
 
 func (n *networkDeviceConfigImpl) getDeviceTags(device *ncmconfig.DeviceInstance) []string {
