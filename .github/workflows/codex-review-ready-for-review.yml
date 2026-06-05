@@ -232,13 +232,14 @@ jobs:
                     | .users.totalCount
                   ] | add // 0);
 
+                def is_codex_bot:
+                  .author.login == env.CHATGPT_CODEX_GRAPHQL_BOT
+                  or .author.login == env.CHATGPT_CODEX_REST_BOT;
+
                 .data.repository.pullRequest.reviews.nodes[] as $review
                 | $review.comments.nodes[]
                 | select(
-                    (
-                      (.author.login == env.CHATGPT_CODEX_GRAPHQL_BOT)
-                      or (.author.login == env.CHATGPT_CODEX_REST_BOT)
-                    )
+                    is_codex_bot
                     and (.isMinimized | not)
                     and (thumbs_up_count == 0)
                     and ($review | thumbs_up_count == 0)
