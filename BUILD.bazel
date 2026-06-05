@@ -124,6 +124,8 @@ exports_files(glob(
 # gazelle:exclude comp/core/flare/helpers
 # gazelle:exclude comp/core/gui/fx
 # gazelle:exclude comp/core/gui/impl
+# service_test.go appears to be test helper code that is not marked with go:build test.
+# It depends on many packages that are not ready to migrate yet. We need the owning team to sort this out.
 # gazelle:exclude comp/core/hostname/hostnameimpl/service_test.go
 # gazelle:exclude comp/core/hostname/remotehostnameimpl
 # gazelle:exclude comp/core/profiler/fx
