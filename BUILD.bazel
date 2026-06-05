@@ -159,7 +159,13 @@ exports_files(glob(
 # gazelle:exclude comp/metadata/haagent/fx
 # gazelle:exclude comp/metadata/haagent/impl
 # gazelle:exclude comp/metadata/host/fx
-# gazelle:exclude comp/metadata/host/impl
+# gazelle:exclude comp/metadata/host/impl/host.go
+# gazelle:exclude comp/metadata/host/impl/host_test.go
+# gazelle:exclude comp/metadata/host/impl/payload.go
+# gazelle:exclude comp/metadata/host/impl/payload_no_gohai.go
+# gazelle:exclude comp/metadata/host/impl/status.go
+# gazelle:exclude comp/metadata/host/impl/status_templates
+# gazelle:exclude comp/metadata/host/impl/utils
 # gazelle:exclude comp/metadata/hostgpu/fx
 # gazelle:exclude comp/metadata/hostgpu/impl
 # gazelle:exclude comp/metadata/hostsysteminfo/fx
