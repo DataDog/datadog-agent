@@ -2254,8 +2254,8 @@ func TestDeviceIDAsHostname(t *testing.T) {
 		return sess, nil
 	}
 	chk := Check{sessionFactory: sessionFactory, agentConfig: agentconfigmock.New(t)}
-	mockConfig.SetWithoutSource("hostname", "test-hostname")
-	mockConfig.SetWithoutSource("tags", []string{"agent_tag1:val1", "agent_tag2:val2"})
+	mockConfig.SetInTest("hostname", "test-hostname")
+	mockConfig.SetInTest("tags", []string{"agent_tag1:val1", "agent_tag2:val2"})
 	senderManager := deps.Demultiplexer
 
 	// language=yaml

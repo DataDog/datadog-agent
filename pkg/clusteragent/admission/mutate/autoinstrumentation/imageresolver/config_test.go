@@ -41,7 +41,7 @@ func TestNewConfig(t *testing.T) {
 			name: "default_config",
 			configFactory: func(t *testing.T) config.Component {
 				mockConfig := configmock.New(t)
-				mockConfig.SetWithoutSource("site", "datadoghq.com")
+				mockConfig.SetInTest("site", "datadoghq.com")
 				return mockConfig
 			},
 			expectedState: Config{
@@ -56,8 +56,8 @@ func TestNewConfig(t *testing.T) {
 			name: "custom_dd_registries",
 			configFactory: func(t *testing.T) config.Component {
 				mockConfig := configmock.New(t)
-				mockConfig.SetWithoutSource("site", "datadoghq.com")
-				mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.default_dd_registries", []string{"helloworld.io/datadog"})
+				mockConfig.SetInTest("site", "datadoghq.com")
+				mockConfig.SetInTest("admission_controller.auto_instrumentation.default_dd_registries", []string{"helloworld.io/datadog"})
 				return mockConfig
 			},
 			expectedState: Config{
@@ -72,7 +72,7 @@ func TestNewConfig(t *testing.T) {
 			name: "configured_site",
 			configFactory: func(t *testing.T) config.Component {
 				mockConfig := configmock.New(t)
-				mockConfig.SetWithoutSource("site", "datad0g.com")
+				mockConfig.SetInTest("site", "datad0g.com")
 				return mockConfig
 			},
 			expectedState: Config{
@@ -87,8 +87,8 @@ func TestNewConfig(t *testing.T) {
 			name: "bucket_id_based_on_api_key",
 			configFactory: func(t *testing.T) config.Component {
 				mockConfig := configmock.New(t)
-				mockConfig.SetWithoutSource("site", "datadoghq.com")
-				mockConfig.SetWithoutSource("api_key", "1234567890abcdef")
+				mockConfig.SetInTest("site", "datadoghq.com")
+				mockConfig.SetInTest("api_key", "1234567890abcdef")
 				return mockConfig
 			},
 			expectedState: Config{
@@ -103,9 +103,9 @@ func TestNewConfig(t *testing.T) {
 			name: "gradual_rollout_disabled",
 			configFactory: func(t *testing.T) config.Component {
 				mockConfig := configmock.New(t)
-				mockConfig.SetWithoutSource("site", "datadoghq.com")
-				mockConfig.SetWithoutSource("api_key", "1234567890abcdef")
-				mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.gradual_rollout.enabled", false)
+				mockConfig.SetInTest("site", "datadoghq.com")
+				mockConfig.SetInTest("api_key", "1234567890abcdef")
+				mockConfig.SetInTest("admission_controller.auto_instrumentation.gradual_rollout.enabled", false)
 				return mockConfig
 			},
 			expectedState: Config{
@@ -120,9 +120,9 @@ func TestNewConfig(t *testing.T) {
 			name: "gradual_rollout_cache_ttl_hours_configured",
 			configFactory: func(t *testing.T) config.Component {
 				mockConfig := configmock.New(t)
-				mockConfig.SetWithoutSource("site", "datadoghq.com")
-				mockConfig.SetWithoutSource("api_key", "1234567890abcdef")
-				mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.gradual_rollout.cache_ttl", "2h")
+				mockConfig.SetInTest("site", "datadoghq.com")
+				mockConfig.SetInTest("api_key", "1234567890abcdef")
+				mockConfig.SetInTest("admission_controller.auto_instrumentation.gradual_rollout.cache_ttl", "2h")
 				return mockConfig
 			},
 			expectedState: Config{

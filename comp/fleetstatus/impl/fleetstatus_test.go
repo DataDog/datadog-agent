@@ -45,7 +45,7 @@ func TestFleetStatus(t *testing.T) {
 			}
 
 			cfg := configmock.New(t)
-			cfg.SetWithoutSource("remote_updates", tt.remoteUpdatesConfig)
+			cfg.SetInTest("remote_updates", tt.remoteUpdatesConfig)
 
 			daemonChecker := daemoncheckerMock.Mock(t)
 

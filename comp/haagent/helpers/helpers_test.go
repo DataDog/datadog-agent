@@ -22,6 +22,6 @@ func TestIsEnabled(t *testing.T) {
 
 func TestGetConfigID(t *testing.T) {
 	cfg := configmock.New(t)
-	cfg.SetWithoutSource("config_id", "my-config-id")
+	cfg.SetInTest("config_id", "my-config-id")
 	assert.Equal(t, "my-config-id", GetConfigID(cfg))
 }

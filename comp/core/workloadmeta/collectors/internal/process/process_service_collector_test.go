@@ -380,8 +380,8 @@ func TestServiceStoreLifetimeProcessCollectionDisabled(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			cfg := configmock.New(t)
-			cfg.SetWithoutSource("process_config.process_collection.enabled", false)
-			cfg.SetWithoutSource("language_detection.enabled", false)
+			cfg.SetInTest("process_config.process_collection.enabled", false)
+			cfg.SetInTest("language_detection.enabled", false)
 
 			c := setUpCollectorTest(t, cfg, sysConfigOverrides, nil)
 
@@ -608,8 +608,8 @@ func TestServiceStoreLifetime(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			cfg := configmock.New(t)
-			cfg.SetWithoutSource("process_config.process_collection.enabled", true)
-			cfg.SetWithoutSource("language_detection.enabled", true)
+			cfg.SetInTest("process_config.process_collection.enabled", true)
+			cfg.SetInTest("language_detection.enabled", true)
 			// setting process collection interval to the same as the service collection interval
 			// because it makes the test simpler until the service collection interval is configurable
 			cfg.SetInTest("process_config.intervals.process", collectionIntervalSeconds)
@@ -716,8 +716,8 @@ func TestProcessDeathRemovesServiceData(t *testing.T) {
 	}
 
 	cfg := configmock.New(t)
-	cfg.SetWithoutSource("process_config.process_collection.enabled", true)
-	cfg.SetWithoutSource("language_detection.enabled", true)
+	cfg.SetInTest("process_config.process_collection.enabled", true)
+	cfg.SetInTest("language_detection.enabled", true)
 	// setting process collection interval to the same as the service collection interval
 	// because it makes the test simpler until the service collection interval is configurable
 	cfg.SetInTest("process_config.intervals.process", collectionIntervalSeconds)

@@ -21,11 +21,11 @@ func New(t testing.TB) configdef.Component {
 	return configimpl.NewCfgFromPkgConfig(mock.New(t))
 }
 
-// NewWithOverrides creates a mock config and calls SetWithoutSource on every item in overrides.
+// NewWithOverrides creates a mock config and calls SetInTest on every item in overrides.
 func NewWithOverrides(t testing.TB, overrides map[string]interface{}) configdef.Component {
 	conf := mock.New(t)
 	for k, v := range overrides {
-		conf.SetWithoutSource(k, v)
+		conf.SetInTest(k, v)
 	}
 	return configimpl.NewCfgFromPkgConfig(conf)
 }

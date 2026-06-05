@@ -50,7 +50,7 @@ func TestNewComponent_WithoutBin(t *testing.T) {
 
 			// Create mock components
 			mockConfig := configmock.New(t)
-			mockConfig.SetWithoutSource("apm_config.workload_selection", tt.workloadSelectionEnabled)
+			mockConfig.SetInTest("apm_config.workload_selection", tt.workloadSelectionEnabled)
 			mockLog := logmock.New(t)
 
 			reqs := Requires{

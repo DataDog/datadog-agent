@@ -49,7 +49,7 @@ func TestSend(t *testing.T) {
 	defer server.Close()
 
 	cfg := configmock.New(t)
-	cfg.SetWithoutSource("api_key", "test-api-key")
+	cfg.SetInTest("api_key", "test-api-key")
 
 	fwd := newTestForwarder(t, cfg)
 	fwd.intakeURL = server.URL
@@ -82,7 +82,7 @@ func TestSendHTTPError(t *testing.T) {
 	defer server.Close()
 
 	cfg := configmock.New(t)
-	cfg.SetWithoutSource("api_key", "test-api-key")
+	cfg.SetInTest("api_key", "test-api-key")
 
 	fwd := newTestForwarder(t, cfg)
 	fwd.intakeURL = server.URL

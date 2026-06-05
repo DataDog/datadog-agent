@@ -1010,7 +1010,7 @@ func (suite *ConfigTestSuite) TestBuildEndpointsWithLegacyVectorDualShipReliable
 // in that configuration — the OPW block is skipped entirely.
 func TestBuildEndpointsWithOPWDualShipNoOPWEnabledWarns(t *testing.T) {
 	cfg := configmock.New(t)
-	cfg.SetWithoutSource("api_key", "123")
+	cfg.SetInTest("api_key", "123")
 	// OPW is NOT enabled — dual_ship=true should warn and silently no-op.
 	cfg.SetInTest("observability_pipelines_worker.logs.dual_ship", true)
 
@@ -1030,9 +1030,9 @@ func TestBuildEndpointsWithOPWDualShipNoOPWEnabledWarns(t *testing.T) {
 // reliability setting is silently ignored in that configuration.
 func TestBuildEndpointsWithOPWDualShipReliableWithoutDualShipWarns(t *testing.T) {
 	cfg := configmock.New(t)
-	cfg.SetWithoutSource("api_key", "123")
-	cfg.SetWithoutSource("observability_pipelines_worker.logs.enabled", true)
-	cfg.SetWithoutSource("observability_pipelines_worker.logs.url", "https://opw.example.com:8443/")
+	cfg.SetInTest("api_key", "123")
+	cfg.SetInTest("observability_pipelines_worker.logs.enabled", true)
+	cfg.SetInTest("observability_pipelines_worker.logs.url", "https://opw.example.com:8443/")
 	// dual_ship_reliable=true but dual_ship is false (default) — should warn.
 	cfg.SetInTest("observability_pipelines_worker.logs.dual_ship_reliable", true)
 
@@ -1443,9 +1443,9 @@ func TestShouldUseTCP(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := configmock.New(t)
-			cfg.SetWithoutSource("api_key", "test-key")
-			cfg.SetWithoutSource("logs_config.force_use_tcp", tt.forceTCP)
-			cfg.SetWithoutSource("logs_config.socks5_proxy_address", tt.socks5Proxy)
+			cfg.SetInTest("api_key", "test-key")
+			cfg.SetInTest("logs_config.force_use_tcp", tt.forceTCP)
+			cfg.SetInTest("logs_config.socks5_proxy_address", tt.socks5Proxy)
 
 			if tt.additionalEndpoints {
 				cfg.SetInTest("logs_config.additional_endpoints", []map[string]interface{}{{"host": "additional-host.com", "port": 10516, "api_key": "additional-key"}})

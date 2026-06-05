@@ -69,7 +69,7 @@ func TestAutoMultilineEnabled(t *testing.T) {
 	}
 
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("logs_config.auto_multi_line_detection", false)
+	mockConfig.SetInTest("logs_config.auto_multi_line_detection", false)
 	assert.False(t, decode(`{"auto_multi_line_detection":false}`).AutoMultiLineEnabled(mockConfig))
 
 	mockConfig.SetInTest("logs_config.auto_multi_line_detection", true)
@@ -125,7 +125,7 @@ func TestExperimentalNoisyLogDetectionDecode(t *testing.T) {
 func TestAutoMultiLineStatus(t *testing.T) {
 	t.Run("per-source false overrides global true", func(t *testing.T) {
 		mockConfig := configmock.New(t)
-		mockConfig.SetWithoutSource("logs_config.auto_multi_line_detection", true)
+		mockConfig.SetInTest("logs_config.auto_multi_line_detection", true)
 		enabled, isDefault := decode(`{"auto_multi_line_detection":false}`).AutoMultiLineStatus(mockConfig)
 		assert.False(t, enabled)
 		assert.False(t, isDefault)
@@ -133,7 +133,7 @@ func TestAutoMultiLineStatus(t *testing.T) {
 
 	t.Run("per-source true overrides global false", func(t *testing.T) {
 		mockConfig := configmock.New(t)
-		mockConfig.SetWithoutSource("logs_config.auto_multi_line_detection", false)
+		mockConfig.SetInTest("logs_config.auto_multi_line_detection", false)
 		enabled, isDefault := decode(`{"auto_multi_line_detection":true}`).AutoMultiLineStatus(mockConfig)
 		assert.True(t, enabled)
 		assert.False(t, isDefault)
@@ -141,7 +141,7 @@ func TestAutoMultiLineStatus(t *testing.T) {
 
 	t.Run("global explicitly true is not default", func(t *testing.T) {
 		mockConfig := configmock.New(t)
-		mockConfig.SetWithoutSource("logs_config.auto_multi_line_detection", true)
+		mockConfig.SetInTest("logs_config.auto_multi_line_detection", true)
 		enabled, isDefault := decode(`{}`).AutoMultiLineStatus(mockConfig)
 		assert.True(t, enabled)
 		assert.False(t, isDefault)
@@ -149,7 +149,7 @@ func TestAutoMultiLineStatus(t *testing.T) {
 
 	t.Run("global explicitly false is not default", func(t *testing.T) {
 		mockConfig := configmock.New(t)
-		mockConfig.SetWithoutSource("logs_config.auto_multi_line_detection", false)
+		mockConfig.SetInTest("logs_config.auto_multi_line_detection", false)
 		enabled, isDefault := decode(`{}`).AutoMultiLineStatus(mockConfig)
 		assert.False(t, enabled)
 		assert.False(t, isDefault)
@@ -164,7 +164,7 @@ func TestAutoMultiLineStatus(t *testing.T) {
 
 	t.Run("deprecated experimental true is not default", func(t *testing.T) {
 		mockConfig := configmock.New(t)
-		mockConfig.SetWithoutSource("logs_config.experimental_auto_multi_line_detection", true)
+		mockConfig.SetInTest("logs_config.experimental_auto_multi_line_detection", true)
 		enabled, isDefault := decode(`{}`).AutoMultiLineStatus(mockConfig)
 		assert.True(t, enabled)
 		assert.False(t, isDefault)
@@ -172,8 +172,8 @@ func TestAutoMultiLineStatus(t *testing.T) {
 
 	t.Run("deprecated experimental false with auto true is not default", func(t *testing.T) {
 		mockConfig := configmock.New(t)
-		mockConfig.SetWithoutSource("logs_config.experimental_auto_multi_line_detection", false)
-		mockConfig.SetWithoutSource("logs_config.auto_multi_line_detection", true)
+		mockConfig.SetInTest("logs_config.experimental_auto_multi_line_detection", false)
+		mockConfig.SetInTest("logs_config.auto_multi_line_detection", true)
 		enabled, isDefault := decode(`{}`).AutoMultiLineStatus(mockConfig)
 		assert.True(t, enabled)
 		assert.False(t, isDefault)
@@ -188,12 +188,12 @@ func decode(cfg string) *LogsConfig {
 
 func TestLegacyAutoMultilineEnabled(t *testing.T) {
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("logs_config.auto_multi_line_detection", false)
+	mockConfig.SetInTest("logs_config.auto_multi_line_detection", false)
 	assert.False(t, decode(`{"auto_multi_line_detection":false}`).LegacyAutoMultiLineEnabled(mockConfig))
 	assert.False(t, decode(`{"auto_multi_line_detection":true}`).LegacyAutoMultiLineEnabled(mockConfig))
 
 	mockConfig = configmock.New(t)
-	mockConfig.SetWithoutSource("logs_config.auto_multi_line_detection", true)
+	mockConfig.SetInTest("logs_config.auto_multi_line_detection", true)
 	assert.False(t, decode(`{"auto_multi_line_detection":false}`).LegacyAutoMultiLineEnabled(mockConfig))
 	assert.False(t, decode(`{"auto_multi_line_detection":true}`).LegacyAutoMultiLineEnabled(mockConfig))
 
@@ -201,38 +201,38 @@ func TestLegacyAutoMultilineEnabled(t *testing.T) {
 	assert.True(t, decode(`{"auto_multi_line_match_threshold": 0.4}`).LegacyAutoMultiLineEnabled(mockConfig))
 
 	mockConfig = configmock.New(t)
-	mockConfig.SetWithoutSource("logs_config.force_auto_multi_line_detection_v1", true)
+	mockConfig.SetInTest("logs_config.force_auto_multi_line_detection_v1", true)
 	assert.True(t, decode(`{}`).LegacyAutoMultiLineEnabled(mockConfig))
 
 	mockConfig = configmock.New(t)
-	mockConfig.SetWithoutSource("logs_config.auto_multi_line_detection", true)
-	mockConfig.SetWithoutSource("logs_config.auto_multi_line_default_sample_size", 10)
+	mockConfig.SetInTest("logs_config.auto_multi_line_detection", true)
+	mockConfig.SetInTest("logs_config.auto_multi_line_default_sample_size", 10)
 	assert.True(t, decode(`{}`).LegacyAutoMultiLineEnabled(mockConfig))
 
 	mockConfig = configmock.New(t)
-	mockConfig.SetWithoutSource("logs_config.auto_multi_line_detection", true)
-	mockConfig.SetWithoutSource("logs_config.auto_multi_line_default_match_timeout", 100)
+	mockConfig.SetInTest("logs_config.auto_multi_line_detection", true)
+	mockConfig.SetInTest("logs_config.auto_multi_line_default_match_timeout", 100)
 	assert.True(t, decode(`{}`).LegacyAutoMultiLineEnabled(mockConfig))
 
 	mockConfig = configmock.New(t)
-	mockConfig.SetWithoutSource("logs_config.auto_multi_line_detection", true)
-	mockConfig.SetWithoutSource("logs_config.auto_multi_line_default_match_threshold", 501)
+	mockConfig.SetInTest("logs_config.auto_multi_line_detection", true)
+	mockConfig.SetInTest("logs_config.auto_multi_line_default_match_threshold", 501)
 	assert.True(t, decode(`{}`).LegacyAutoMultiLineEnabled(mockConfig))
 
 	mockConfig = configmock.New(t)
-	mockConfig.SetWithoutSource("logs_config.force_auto_multi_line_detection_v1", true)
+	mockConfig.SetInTest("logs_config.force_auto_multi_line_detection_v1", true)
 	assert.False(t, decode(`{"auto_multi_line_detection":false}`).LegacyAutoMultiLineEnabled(mockConfig))
 
 	mockConfig = configmock.New(t)
-	mockConfig.SetWithoutSource("logs_config.auto_multi_line_default_sample_size", 10)
+	mockConfig.SetInTest("logs_config.auto_multi_line_default_sample_size", 10)
 	assert.True(t, decode(`{"auto_multi_line_detection":true}`).LegacyAutoMultiLineEnabled(mockConfig))
 
 	mockConfig = configmock.New(t)
-	mockConfig.SetWithoutSource("logs_config.auto_multi_line_default_match_timeout", 100)
+	mockConfig.SetInTest("logs_config.auto_multi_line_default_match_timeout", 100)
 	assert.True(t, decode(`{"auto_multi_line_detection":true}`).LegacyAutoMultiLineEnabled(mockConfig))
 
 	mockConfig = configmock.New(t)
-	mockConfig.SetWithoutSource("logs_config.auto_multi_line_default_match_threshold", 501)
+	mockConfig.SetInTest("logs_config.auto_multi_line_default_match_threshold", 501)
 	assert.True(t, decode(`{"auto_multi_line_detection":true}`).LegacyAutoMultiLineEnabled(mockConfig))
 }
 
