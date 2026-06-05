@@ -12,7 +12,6 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/core/config/def"
 	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 )
 

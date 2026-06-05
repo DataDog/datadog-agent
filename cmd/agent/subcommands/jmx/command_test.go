@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 
-	configComponent "github.com/DataDog/datadog-agent/comp/core/config/def"
+	configComponent "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
@@ -143,7 +143,7 @@ func newGlobalParamsTest(t *testing.T) *command.GlobalParams {
 	err := os.WriteFile(configPath, []byte("hostname: test"), 0644)
 	require.NoError(t, err)
 
-	configComponent.NewMockFromYAMLFile(t, configPath)
+	configComponent.NewFromYAMLFile(t, configPath)
 	// JMX command should work when an Agent has been run at least one time, so we need to
 	// This is done by building the IPC component
 	// ensure we have exisiting IPC auth artifacts.

@@ -26,13 +26,13 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	configComp "github.com/DataDog/datadog-agent/comp/core/config/def"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/cwsinstrumentation"
-	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/certificate"
@@ -43,7 +43,7 @@ const (
 	tick    = 50 * time.Millisecond
 )
 
-func getV1Cfg(t *testing.T) Config { return NewConfig(true, false, false, configComp.NewMock(t)) }
+func getV1Cfg(t *testing.T) Config { return NewConfig(true, false, false, configmock.New(t)) }
 
 func TestSecretNotFoundV1(t *testing.T) {
 	if runtime.GOOS == "darwin" || runtime.GOOS == "windows" {
@@ -1073,7 +1073,7 @@ func TestGenerateTemplatesV1(t *testing.T) {
 	wmeta := fxutil.Test[workloadmeta.Component](t,
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Provide(func() configComp.Component {
-			return configComp.NewMockWithOverrides(t, map[string]interface{}{"kube_resources_namespace": "nsfoo"})
+			return configmock.NewWithOverrides(t, map[string]interface{}{"kube_resources_namespace": "nsfoo"})
 		}),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	)

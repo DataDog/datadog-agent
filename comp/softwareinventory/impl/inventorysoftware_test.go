@@ -21,7 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/core/config/def"
 	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"

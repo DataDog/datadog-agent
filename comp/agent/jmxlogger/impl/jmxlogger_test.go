@@ -15,7 +15,6 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	jmxlogger "github.com/DataDog/datadog-agent/comp/agent/jmxlogger/def"
-	"github.com/DataDog/datadog-agent/comp/core/config/def"
 	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 )

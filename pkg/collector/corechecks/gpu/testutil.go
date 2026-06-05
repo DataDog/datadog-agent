@@ -14,7 +14,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/core/config/def"
 	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	taggercollectors "github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
 	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"

@@ -19,7 +19,6 @@ import (
 
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 
-	"github.com/DataDog/datadog-agent/comp/core/config/def"
 	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	configsync "github.com/DataDog/datadog-agent/comp/core/configsync/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"

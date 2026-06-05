@@ -10,7 +10,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	compConfig "github.com/DataDog/datadog-agent/comp/core/config/def"
+	compConfig "github.com/DataDog/datadog-agent/comp/core/config/mock"
 )
 
 func TestLogSourceSettings(t *testing.T) {
@@ -64,7 +64,7 @@ func TestLogSourceSettings(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := compConfig.NewMockWithOverrides(t, tt.overrides)
+			cfg := compConfig.NewWithOverrides(t, tt.overrides)
 			assert.Equal(t, tt.want, newLogSourceSettings(cfg))
 		})
 	}

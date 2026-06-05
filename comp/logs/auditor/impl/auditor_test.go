@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 
-	configmock "github.com/DataDog/datadog-agent/comp/core/config/def"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	kubehealthmock "github.com/DataDog/datadog-agent/comp/logs-library/kubehealth/mock"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
@@ -39,7 +39,7 @@ func (suite *AuditorTestSuite) SetupTest() {
 
 	suite.testRegistryPath = filepath.Join(suite.testRunPathDir, "registry.json")
 
-	configComponent := configmock.NewMock(suite.T())
+	configComponent := configmock.New(suite.T())
 	logComponent := logmock.New(suite.T())
 	kubeHealthRegistrar := kubehealthmock.NewMockRegistrar()
 	configComponent.SetInTest("logs_config.run_path", suite.testRunPathDir)
@@ -248,7 +248,7 @@ func (suite *AuditorTestSuite) TestAuditorLiveness() {
 
 func (suite *AuditorTestSuite) TestAuditorRegistryWriterSelection() {
 	// Test atomic write enabled
-	configComponent := configmock.NewMock(suite.T())
+	configComponent := configmock.New(suite.T())
 	logComponent := logmock.New(suite.T())
 	configComponent.SetInTest("logs_config.run_path", suite.testRunPathDir)
 	configComponent.SetInTest("logs_config.atomic_registry_write", true)
@@ -260,7 +260,7 @@ func (suite *AuditorTestSuite) TestAuditorRegistryWriterSelection() {
 	suite.Equal("*auditorimpl.atomicRegistryWriter", fmt.Sprintf("%T", auditor.registryWriter))
 
 	// Test atomic write disabled
-	configComponent = configmock.NewMock(suite.T())
+	configComponent = configmock.New(suite.T())
 	logComponent = logmock.New(suite.T())
 	configComponent.SetInTest("logs_config.run_path", suite.testRunPathDir)
 	configComponent.SetInTest("logs_config.atomic_registry_write", false)

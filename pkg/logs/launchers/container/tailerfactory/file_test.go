@@ -22,6 +22,7 @@ import (
 	"go.uber.org/fx"
 
 	compConfig "github.com/DataDog/datadog-agent/comp/core/config/def"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -29,7 +30,6 @@ import (
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/comp/logs-library/pipeline"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/containersorpods"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/types"
@@ -124,7 +124,7 @@ func newWorkloadmetaMock(t *testing.T) workloadmetamock.Mock {
 
 	return fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
-		fx.Provide(func() compConfig.Component { return compConfig.NewMock(t) }),
+		fx.Provide(func() compConfig.Component { return configmock.New(t) }),
 		fx.Supply(context.Background()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
@@ -504,7 +504,7 @@ func TestMakeK8sSource(t *testing.T) {
 
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
-		fx.Provide(func() compConfig.Component { return compConfig.NewMock(t) }),
+		fx.Provide(func() compConfig.Component { return configmock.New(t) }),
 		fx.Supply(context.Background()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
@@ -594,7 +594,7 @@ func TestGetPodAndContainer_wmeta_not_initialize(t *testing.T) {
 func TestGetPodAndContainer_pod_not_found(t *testing.T) {
 	workloadmetaStore := fxutil.Test[option.Option[workloadmeta.Component]](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
-		fx.Provide(func() compConfig.Component { return compConfig.NewMock(t) }),
+		fx.Provide(func() compConfig.Component { return configmock.New(t) }),
 		fx.Supply(context.Background()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
@@ -742,7 +742,7 @@ func TestLogsConfigFieldCoverage(t *testing.T) {
 	// Set up K8s workloadmeta so makeK8sFileSource can resolve the pod
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
-		fx.Provide(func() compConfig.Component { return compConfig.NewMock(t) }),
+		fx.Provide(func() compConfig.Component { return configmock.New(t) }),
 		fx.Supply(context.Background()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))

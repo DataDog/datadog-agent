@@ -30,12 +30,11 @@ import (
 	sysprobeconfigdef "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	sysprobeconfigmock "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/mock"
 
-	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-func createGenericConfig(t *testing.T) model.Config {
+func createGenericConfig(t *testing.T) config.Component {
 	handler := profilermock.NewMockHandler()
 
 	server := httptest.NewServer(handler)

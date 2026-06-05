@@ -20,6 +20,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
 	configcomp "github.com/DataDog/datadog-agent/comp/core/config/def"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
@@ -32,7 +33,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
-	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	kubeletmock "github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet/mock"
@@ -393,7 +393,7 @@ func TestProvider_Provide(t *testing.T) {
 func creatFakeStore(t *testing.T) workloadmetamock.Mock {
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
-		fx.Provide(func() configcomp.Component { return configcomp.NewMock(t) }),
+		fx.Provide(func() configcomp.Component { return configmock.New(t) }),
 		fx.Supply(context.Background()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
@@ -493,7 +493,7 @@ type FilteringTestSuite struct {
 func (suite *FilteringTestSuite) SetupTest() {
 	store := fxutil.Test[workloadmetamock.Mock](suite.T(), fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(suite.T()) }),
-		fx.Provide(func() configcomp.Component { return configcomp.NewMock(suite.T()) }),
+		fx.Provide(func() configcomp.Component { return configmock.New(suite.T()) }),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
@@ -760,7 +760,7 @@ func TestStaticPodUIDMismatchFallback(t *testing.T) {
 	// Setup workloadmeta store with pod using canonical UUID
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
-		fx.Provide(func() configcomp.Component { return configcomp.NewMock(t) }),
+		fx.Provide(func() configcomp.Component { return configmock.New(t) }),
 		fx.Supply(context.Background()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))

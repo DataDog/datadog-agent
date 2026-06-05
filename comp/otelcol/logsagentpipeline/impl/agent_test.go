@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	configComponent "github.com/DataDog/datadog-agent/comp/core/config/def"
+	configComponent "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/logs-library/client/http"
 	"github.com/DataDog/datadog-agent/comp/logs-library/client/mock"
@@ -19,7 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
-	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
@@ -58,7 +57,7 @@ func (suite *AgentTestSuite) TearDownTest() {
 func createAgent(suite *AgentTestSuite, endpoints *config.Endpoints) *Agent {
 	agent := &Agent{
 		log:         logmock.New(suite.T()),
-		config:      configComponent.NewMockWithOverrides(suite.T(), suite.configOverrides),
+		config:      configComponent.NewWithOverrides(suite.T(), suite.configOverrides),
 		endpoints:   endpoints,
 		compression: compressionfx.NewMockCompressor(),
 	}
@@ -165,7 +164,7 @@ func TestAgentTestSuite(t *testing.T) {
 }
 
 func TestBuildEndpoints(t *testing.T) {
-	cfg := configComponent.NewMock(t)
+	cfg := configComponent.New(t)
 	lg := logmock.New(t)
 	cfg.Set("logs_config.force_use_http", true, pkgconfigmodel.SourceDefault)
 

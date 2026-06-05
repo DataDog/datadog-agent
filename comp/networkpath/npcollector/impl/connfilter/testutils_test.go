@@ -11,14 +11,14 @@ import (
 	"errors"
 	"testing"
 
-	configComponent "github.com/DataDog/datadog-agent/comp/core/config/def"
+	configComponent "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
 )
 
 func getConnFilter(t *testing.T, configString string, ddSite string, monitorIPWithoutDomain bool) (*ConnFilter, error) {
 	var configs []Config
 
-	cfg := configComponent.NewMockFromYAML(t, configString)
+	cfg := configComponent.NewFromYAML(t, configString)
 	err := structure.UnmarshalKey(cfg, "filters", &configs)
 	if err != nil {
 		return nil, err

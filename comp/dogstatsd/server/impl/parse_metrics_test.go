@@ -10,6 +10,7 @@ import (
 	"time"
 
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config/def"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
@@ -26,7 +27,7 @@ func parseMetricSample(t *testing.T, overrides map[string]any, rawSample []byte)
 	deps := fxutil.Test[ServerDeps](t,
 		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
 		fx.Provide(func(t testing.TB) configComponent.Component {
-			return configComponent.NewMockWithOverrides(t, overrides)
+			return configmock.NewWithOverrides(t, overrides)
 		}),
 		mocktelemetry.Module(),
 		hostnameimpl.MockModule(),

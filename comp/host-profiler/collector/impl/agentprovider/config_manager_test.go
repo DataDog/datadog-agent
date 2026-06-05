@@ -10,7 +10,6 @@ package agentprovider
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/core/config/def"
 	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	"github.com/stretchr/testify/assert"
 )
