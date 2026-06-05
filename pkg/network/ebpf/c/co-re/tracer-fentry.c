@@ -196,7 +196,7 @@ int BPF_PROG(tcp_recvmsg_exit_pre_5_19_0, struct sock *sk, struct msghdr *msg, s
     return handle_tcp_recv(pid_tgid, sk, copied);
 }
 
-SEC("fentry/tcp_close")
+SEC("fentry/tcp_close") // JMW check all new fentry probes agains the kprobe veresions
 int BPF_PROG(tcp_close, struct sock *sk, long timeout) {
     conn_tuple_t t = {};
     u64 pid_tgid = bpf_get_current_pid_tgid();
@@ -222,7 +222,7 @@ int BPF_PROG(tcp_close, struct sock *sk, long timeout) {
     return 0;
 }
 
-SEC("fentry/tcp_done")
+SEC("fentry/tcp_done") // JMW check all new fentry probes agains the kprobe veresions
 int BPF_PROG(tcp_done, struct sock *sk) { // JMW should these all be bypassable?
     conn_tuple_t t = {};
 
@@ -583,7 +583,7 @@ int BPF_PROG(inet6_bind_exit, struct socket *sock, struct sockaddr *uaddr, int a
 
 // tcp_read_sock fexit probe — fexit gives us both args and return value,
 // so no fentry entry probe is needed
-SEC("fexit/tcp_read_sock")
+SEC("fexit/tcp_read_sock") // JMW check all new fentry probes agains the kprobe veresions
 int BPF_PROG(tcp_read_sock_exit, struct sock *sk, read_descriptor_t *desc, sk_read_actor_t recv_actor, int recv) {
     if (recv < 0) {
         return 0;
@@ -594,49 +594,49 @@ int BPF_PROG(tcp_read_sock_exit, struct sock *sk, read_descriptor_t *desc, sk_re
 }
 
 // Protocol classification socket filters
-SEC("socket/classifier_entry")
+SEC("socket/classifier_entry") // JMW check all new fentry probes agains the kprobe veresions
 int socket__classifier_entry(struct __sk_buff *skb) {
     protocol_classifier_entrypoint(skb);
     return 0;
 }
 
-SEC("socket/classifier_tls_handshake_client")
+SEC("socket/classifier_tls_handshake_client") // JMW check all new fentry probes agains the kprobe veresions
 int socket__classifier_tls_handshake_client(struct __sk_buff *skb) {
     protocol_classifier_entrypoint_tls_handshake_client(skb);
     return 0;
 }
 
-SEC("socket/classifier_tls_handshake_server")
+SEC("socket/classifier_tls_handshake_server") // JMW check all new fentry probes agains the kprobe veresions
 int socket__classifier_tls_handshake_server(struct __sk_buff *skb) {
     protocol_classifier_entrypoint_tls_handshake_server(skb);
     return 0;
 }
 
-SEC("socket/classifier_queues")
+SEC("socket/classifier_queues") // JMW check all new fentry probes agains the kprobe veresions
 int socket__classifier_queues(struct __sk_buff *skb) {
     protocol_classifier_entrypoint_queues(skb);
     return 0;
 }
 
-SEC("socket/classifier_dbs")
+SEC("socket/classifier_dbs") // JMW check all new fentry probes agains the kprobe veresions
 int socket__classifier_dbs(struct __sk_buff *skb) {
     protocol_classifier_entrypoint_dbs(skb);
     return 0;
 }
 
-SEC("socket/classifier_grpc")
+SEC("socket/classifier_grpc") // JMW check all new fentry probes agains the kprobe veresions
 int socket__classifier_grpc(struct __sk_buff *skb) {
     protocol_classifier_entrypoint_grpc(skb);
     return 0;
 }
 
-static __always_inline struct sock *fentry_sk_buff_sk(struct sk_buff *skb) {
+static __always_inline struct sock *fentry_sk_buff_sk(struct sk_buff *skb) { // JMW check all new fentry probes agains the kprobe veresions
     struct sock *sk = NULL;
     BPF_CORE_READ_INTO(&sk, skb, sk);
     return sk;
 }
 
-static __always_inline int fentry_handle_net_dev_queue(struct sk_buff* skb) {
+static __always_inline int fentry_handle_net_dev_queue(struct sk_buff* skb) { // JMW check all new fentry probes agains the kprobe veresions
     struct sock *sk = fentry_sk_buff_sk(skb);
     if (!sk) {
         return 0;
@@ -671,7 +671,7 @@ static __always_inline int fentry_handle_net_dev_queue(struct sk_buff* skb) {
 
 // fentry requires 5.8+ which always supports raw tracepoints (4.17+),
 // so no tracepoint or kprobe fallbacks are needed.
-SEC("raw_tracepoint/net/net_dev_queue")
+SEC("raw_tracepoint/net/net_dev_queue") // JMW check all new fentry probes agains the kprobe veresions
 int BPF_PROG(raw_tracepoint__net__net_dev_queue, struct sk_buff *skb) {
     if (!skb) {
         return 0;
