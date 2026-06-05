@@ -132,3 +132,31 @@ func TestAllStats_IdleFineSamplesIn30mAverages(t *testing.T) {
 	assert.Equal(t, 0.0, ws.Max5m, "nothing occurred in the last 5m")
 	assert.Equal(t, 0.0, ws.Avg5m, "nothing occurred in the last 5m")
 }
+
+// TestAllStats_MediumBucketStraddlesC30m verifies that a minute-aligned medium bucket whose
+// start precedes the 30m cutoff but whose end is inside the window is still counted. Dropping
+// it (a bucket-start comparison) would under-report 30m avg/max/saturation and could clear the
+// backpressure state up to a minute early.
+func TestAllStats_MediumBucketStraddlesC30m(t *testing.T) {
+	h := newRollingHistory()
+
+	// One completed, fully-saturated 1-minute bucket aligned at base (covers base..base+60s).
+	h.medium[0] = aggregateBucket{
+		tsNano:            base.UnixNano(),
+		ewmaSum:           60.0, // 60 samples at 1.0
+		ewmaMax:           1.0,
+		count:             60,
+		saturatedCount:    60,
+		lastSaturatedNano: base.Add(59 * time.Second).UnixNano(),
+	}
+	h.mediumHead = 1
+	h.mediumSize = 1
+
+	// Read so that c30m (= now-30m = base+30s) falls inside the bucket: start < c30m < end.
+	ws := h.allStats(base.Add(30*time.Minute + 30*time.Second))
+
+	assert.InDelta(t, 1.0, ws.Max30m, 0.0001, "straddling medium bucket must contribute to Max30m")
+	assert.InDelta(t, 1.0, ws.Avg30m, 0.0001, "straddling medium bucket must contribute to Avg30m")
+	assert.Equal(t, time.Duration(60)*time.Second, ws.Saturated30m,
+		"straddling saturated bucket must count toward Saturated30m, not be dropped")
+}

@@ -316,7 +316,13 @@ func (h *rollingHistory) allStats(now time.Time) WindowStats {
 		idx := (h.mediumHead - 1 - i + mediumTierCapacity) % mediumTierCapacity
 		b := h.medium[idx]
 
-		if b.tsNano < c30m {
+		// Minute buckets are time-aligned, so the oldest in-window bucket can start before
+		// c30m yet still hold samples inside the window. Compare against the bucket END so a
+		// straddling bucket is included; like the coarse tier this can slightly over-report
+		// (it pulls in that bucket's pre-c30m samples too) — the safe direction for a
+		// backpressure diagnostic, never hiding recent saturation.
+		bucketEnd := b.tsNano + int64(mediumBucketDuration)
+		if bucketEnd <= c30m {
 			break
 		}
 		if b.count > 0 {
