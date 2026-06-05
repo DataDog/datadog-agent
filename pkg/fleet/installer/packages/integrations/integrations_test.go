@@ -13,9 +13,12 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func TestMigrateLegacyOCIFile(t *testing.T) {
+	t.Parallel()
+
 	const legacyContent = "datadog-ping==1.0.2\n"
 	const existingContent = "datadog-postgres==7.0.0\n"
 
@@ -23,16 +26,19 @@ func TestMigrateLegacyOCIFile(t *testing.T) {
 		name           string
 		legacyContent  string // "" means no legacy file
 		storageContent string // "" means no pre-existing storage file
+		legacyNewer    bool   // when both files exist, stamp legacy newer than storage
 		want           string // "" means the storage file should not exist
 	}{
-		{"migrated when storage absent", legacyContent, "", legacyContent},
-		{"existing storage file not clobbered", legacyContent, existingContent, existingContent},
-		{"no legacy file is a no-op", "", "", ""},
+		{"migrated when storage absent", legacyContent, "", false, legacyContent},
+		{"stale storage refreshed from newer legacy", legacyContent, existingContent, true, legacyContent},
+		{"newer storage not clobbered by older legacy", legacyContent, existingContent, false, existingContent},
+		{"no legacy file is a no-op", "", "", false, ""},
 	}
 
 	for _, fileName := range []string{baselineFileName, diffFileName} {
 		for _, tt := range tests {
 			t.Run(fileName+"/"+tt.name, func(t *testing.T) {
+				t.Parallel()
 				legacyDir := t.TempDir()
 				storageDir := filepath.Join(t.TempDir(), "run") // not pre-created; exercises MkdirAll
 				if tt.legacyContent != "" {
@@ -46,6 +52,21 @@ func TestMigrateLegacyOCIFile(t *testing.T) {
 					}
 					if err := os.WriteFile(filepath.Join(storageDir, fileName), []byte(tt.storageContent), 0o644); err != nil {
 						t.Fatalf("failed to seed storage file: %v", err)
+					}
+				}
+				if tt.legacyContent != "" && tt.storageContent != "" {
+					// Stamp deterministic mtimes so the refresh decision does not depend
+					// on filesystem timestamp granularity between the two writes above.
+					older, newer := time.Now().Add(-time.Hour), time.Now()
+					legacyTime, storageTime := older, newer
+					if tt.legacyNewer {
+						legacyTime, storageTime = newer, older
+					}
+					if err := os.Chtimes(filepath.Join(legacyDir, fileName), legacyTime, legacyTime); err != nil {
+						t.Fatalf("failed to set legacy mtime: %v", err)
+					}
+					if err := os.Chtimes(filepath.Join(storageDir, fileName), storageTime, storageTime); err != nil {
+						t.Fatalf("failed to set storage mtime: %v", err)
 					}
 				}
 
@@ -72,6 +93,8 @@ func TestMigrateLegacyOCIFile(t *testing.T) {
 }
 
 func TestCopyOCIFile(t *testing.T) {
+	t.Parallel()
+
 	const srcContent = "datadog-ping==1.0.2\n"
 	const dstContent = "datadog-postgres==7.0.0\n"
 
@@ -88,6 +111,7 @@ func TestCopyOCIFile(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			srcDir := t.TempDir()
 			dstDir := filepath.Join(t.TempDir(), "tmp") // not pre-created; exercises MkdirAll
 			if tt.srcContent != "" {
@@ -126,6 +150,8 @@ func TestCopyOCIFile(t *testing.T) {
 }
 
 func TestMirrorOCIFile(t *testing.T) {
+	t.Parallel()
+
 	const srcContent = "datadog-ping==1.0.2\n"
 	const dstContent = "datadog-postgres==7.0.0\n"
 
@@ -144,6 +170,7 @@ func TestMirrorOCIFile(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			srcDir := t.TempDir()
 			dstDir := filepath.Join(t.TempDir(), "tmp") // not pre-created unless the case asks for it
 			if tt.srcContent != "" {
@@ -184,6 +211,26 @@ func TestMirrorOCIFile(t *testing.T) {
 				t.Errorf("content mismatch: got %q want %q", got, tt.wantContent)
 			}
 		})
+	}
+}
+
+func TestMirrorOCIFileStatError(t *testing.T) {
+	t.Parallel()
+
+	srcDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(srcDir, diffFileName), []byte("datadog-ping==1.0.2\n"), 0o644); err != nil {
+		t.Fatalf("failed to seed source file: %v", err)
+	}
+	// A regular file where a directory component is expected makes os.Stat(dstDir)
+	// fail with ENOTDIR rather than os.IsNotExist, exercising the error branch.
+	blocker := filepath.Join(t.TempDir(), "blocker")
+	if err := os.WriteFile(blocker, nil, 0o644); err != nil {
+		t.Fatalf("failed to create stat blocker: %v", err)
+	}
+	dstDir := filepath.Join(blocker, "tmp")
+
+	if err := mirrorOCIFile(srcDir, dstDir, diffFileName); err == nil {
+		t.Fatal("expected an error from a non-IsNotExist stat, got nil")
 	}
 }
 

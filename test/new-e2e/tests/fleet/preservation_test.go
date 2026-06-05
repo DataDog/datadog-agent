@@ -258,9 +258,9 @@ func (s *integrationPreservationSuite) TestIntegrationPreservationSurvivesTmpRea
 	s.Require().NoError(err)
 	// Confirm the legacy baseline is actually gone, so the test really exercises the
 	// persistent run-dir storage instead of silently passing on a stale tmp copy.
-	tmpBaseline, err := s.Env().RemoteHost.Execute("sudo cat /opt/datadog-packages/tmp/.post_python_installed_packages.txt 2>&1 || echo PURGED")
+	tmpBaseline, err := s.Env().RemoteHost.Execute("test -f /opt/datadog-packages/tmp/.post_python_installed_packages.txt && echo PRESENT || echo PURGED")
 	s.Require().NoError(err)
-	s.Require().Contains(tmpBaseline, "PURGED", "legacy tmp baseline should be gone after the simulated reaper purge")
+	s.Require().Equal("PURGED", strings.TrimSpace(tmpBaseline), "legacy tmp baseline should be gone after the simulated reaper purge")
 	snapshotIntegrationState(s.T(), s.Env(), "TmpReaping: after purging /opt/datadog-packages/tmp (simulated reaper)")
 
 	targetVersion := s.Backend.Catalog().Latest(backend.BranchStable, "datadog-agent")

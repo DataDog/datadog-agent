@@ -24,8 +24,10 @@ var (
 	datadogInstalledIntegrationsPattern = regexp.MustCompile(`embedded/lib/python[^/]+/site-packages/datadog_.*`)
 )
 
-const baselineFileName = ".post_python_installed_packages.txt"
-const diffFileName = ".diff_python_installed_packages.txt"
+const (
+	baselineFileName = ".post_python_installed_packages.txt"
+	diffFileName     = ".diff_python_installed_packages.txt"
+)
 
 // executePythonScript executes a Python script with the given arguments
 func executePythonScript(ctx context.Context, installPath, scriptName string, args ...string) error {
@@ -51,14 +53,26 @@ func executePythonScript(ctx context.Context, installPath, scriptName string, ar
 	return nil
 }
 
+// integrationStoragePath returns the directory that holds the integration
+// save/restore files for installPath. OCI packages keep them in the persistent
+// RunPath (the install dir is immutable and versioned); deb/rpm keep them in the
+// install dir itself (== /opt/datadog-agent).
+func integrationStoragePath(installPath string) string {
+	if strings.HasPrefix(installPath, paths.PackagesPath) {
+		return paths.RunPath
+	}
+	return installPath
+}
+
 // SaveCustomIntegrations saves custom integrations from the previous installation
 // Today it calls pre.py to persist the custom integrations; though we should probably
 // port this to Go in the future.
-func SaveCustomIntegrations(ctx context.Context, installPath string, storagePath string) (err error) {
+func SaveCustomIntegrations(ctx context.Context, installPath string) (err error) {
 	span, ctx := telemetry.StartSpanFromContext(ctx, "save_custom_integrations")
 	defer func() {
 		span.Finish(err)
 	}()
+	storagePath := integrationStoragePath(installPath)
 	if storagePath == paths.RunPath {
 		if err := migrateLegacyOCIFile(paths.RootTmpDir, storagePath, baselineFileName); err != nil {
 			return err
@@ -78,32 +92,48 @@ func SaveCustomIntegrations(ctx context.Context, installPath string, storagePath
 }
 
 // migrateLegacyOCIFile seeds storageDir with a save/restore file an older OCI
-// package wrote to the legacy RootTmpDir, so the first upgrade to a RunPath-based
-// version still finds it. No-op if the destination exists or the legacy file does not.
+// package wrote to the legacy RootTmpDir, so an upgrade to a RunPath-based version
+// still finds it. It copies the legacy file when the destination is missing or
+// older than the legacy copy, leaving a newer (authoritative) destination untouched.
+// No-op if the legacy file does not exist.
 func migrateLegacyOCIFile(legacyDir, storageDir, fileName string) error {
-	if _, err := os.Stat(filepath.Join(storageDir, fileName)); err == nil {
-		return nil
-	} else if !os.IsNotExist(err) {
-		return fmt.Errorf("failed to stat %s: %w", filepath.Join(storageDir, fileName), err)
-	}
-	return copyOCIFile(legacyDir, storageDir, fileName)
-}
-
-// copyOCIFile copies fileName from srcDir to dstDir, creating dstDir if needed.
-// No-op if the source file does not exist.
-func copyOCIFile(srcDir, dstDir, fileName string) error {
-	data, err := os.ReadFile(filepath.Join(srcDir, fileName))
+	legacyPath := filepath.Join(legacyDir, fileName)
+	storagePath := filepath.Join(storageDir, fileName)
+	legacyInfo, err := os.Stat(legacyPath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil
 		}
-		return fmt.Errorf("failed to read %s: %w", filepath.Join(srcDir, fileName), err)
+		return fmt.Errorf("failed to stat %s: %w", legacyPath, err)
+	}
+	storageInfo, err := os.Stat(storagePath)
+	if err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("failed to stat %s: %w", storagePath, err)
+	}
+	if err == nil && !legacyInfo.ModTime().After(storageInfo.ModTime()) {
+		return nil
+	}
+	return copyOCIFile(legacyDir, storageDir, fileName)
+}
+
+// copyOCIFile copies fileName from srcDir to dstDir, overwriting any existing
+// dstDir copy and creating dstDir if needed. No-op if the source file does not
+// exist.
+func copyOCIFile(srcDir, dstDir, fileName string) error {
+	srcPath := filepath.Join(srcDir, fileName)
+	dstPath := filepath.Join(dstDir, fileName)
+	data, err := os.ReadFile(srcPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return fmt.Errorf("failed to read %s: %w", srcPath, err)
 	}
 	if err := os.MkdirAll(dstDir, 0o755); err != nil {
 		return fmt.Errorf("failed to create %s: %w", dstDir, err)
 	}
-	if err := os.WriteFile(filepath.Join(dstDir, fileName), data, 0o644); err != nil {
-		return fmt.Errorf("failed to write %s: %w", filepath.Join(dstDir, fileName), err)
+	if err := os.WriteFile(dstPath, data, 0o644); err != nil {
+		return fmt.Errorf("failed to write %s: %w", dstPath, err)
 	}
 	return nil
 }
@@ -129,13 +159,7 @@ func RestoreCustomIntegrations(ctx context.Context, installPath string) (err err
 		span.Finish(err)
 	}()
 
-	// For OCI packages, the baseline must persist across upgrades (days-weeks),
-	// so it lives in the persistent RunPath rather than the 24h-reaped RootTmpDir.
-	// For deb/rpm (installPath == /opt/datadog-agent) it stays in the install dir.
-	storagePath := installPath
-	if strings.HasPrefix(installPath, paths.PackagesPath) {
-		storagePath = paths.RunPath
-	}
+	storagePath := integrationStoragePath(installPath)
 
 	// An older package's pre.py wrote the diff to RootTmpDir; this restore reads RunPath.
 	// Seed it so the first upgrade to this version restores instead of dropping integrations.
