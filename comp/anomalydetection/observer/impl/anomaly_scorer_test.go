@@ -83,16 +83,18 @@ func TestEWMABasic(t *testing.T) {
 	b := st.Buckets[0]
 
 	// count=1, weight=2.0, meanWeight=2.0, saturation=1−exp(−1/1)=0.6321…
+	// EWMA always uses the formula: alpha*input + (1-alpha)*0 = alpha*input on first second.
 	expectedInput := 2.0 * (1 - math.Exp(-1.0/1.0))
-	if math.Abs(b.Ewma-expectedInput) > 1e-9 {
-		t.Errorf("EWMA seed: got %.6f, want %.6f", b.Ewma, expectedInput)
+	expectedEWMA := cfg.Alpha*expectedInput + (1-cfg.Alpha)*0
+	if math.Abs(b.Ewma-expectedEWMA) > 1e-9 {
+		t.Errorf("EWMA first bucket: got %.6f, want %.6f", b.Ewma, expectedEWMA)
 	}
 
 	// Second advance with no anomalies → EWMA decays by (1-alpha)
 	s.Advance(1001)
 	st = s.ScoreState()
 	b2 := st.Buckets[1]
-	expected2 := cfg.Alpha*0 + (1-cfg.Alpha)*b.Ewma
+	expected2 := cfg.Alpha*0 + (1-cfg.Alpha)*expectedEWMA
 	if math.Abs(b2.Ewma-expected2) > 1e-9 {
 		t.Errorf("EWMA decay: got %.6f, want %.6f", b2.Ewma, expected2)
 	}

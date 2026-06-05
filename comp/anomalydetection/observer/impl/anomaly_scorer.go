@@ -122,8 +122,7 @@ type anomalyScorer struct {
 	pending map[int64][]observer.Anomaly
 
 	// EWMA state
-	ewma   float64
-	seeded bool
+	ewma float64
 
 	// Severity state machine
 	state            observer.SeverityLevel
@@ -141,8 +140,10 @@ func NewScorer(cfg observer.ScorerConfig) *anomalyScorer {
 	return &anomalyScorer{
 		config:  cfg,
 		pending: make(map[int64][]observer.Anomaly),
-		// lastStateEntryTs = math.MinInt64 so the first decrease is never blocked.
-		lastStateEntryTs: math.MinInt64,
+		// lastStateEntryTs = 0: sec - 0 >> cooldownSecs for any real unix timestamp,
+		// so the first downward transition is never suppressed.
+		// (Using math.MinInt64 would overflow the int64 subtraction.)
+		lastStateEntryTs: 0,
 	}
 }
 
@@ -163,7 +164,7 @@ func (s *anomalyScorer) Advance(dataTime int64) {
 	defer s.mu.Unlock()
 
 	start := s.lastAdvancedSec + 1
-	if !s.seeded {
+	if s.lastAdvancedSec == 0 {
 		// First Advance: start from the earliest pending anomaly (or dataTime if
 		// no anomalies), to avoid emitting empty buckets for all seconds since epoch.
 		start = dataTime
@@ -225,12 +226,12 @@ func (s *anomalyScorer) advanceSecond(sec int64) {
 		input = meanWeight * (1 - math.Exp(-float64(count)/s.config.SaturationK))
 	}
 
-	if !s.seeded {
-		s.ewma = input
-		s.seeded = true
-	} else {
-		s.ewma = s.config.Alpha*input + (1-s.config.Alpha)*s.ewma
-	}
+	// Always apply the EWMA formula starting from 0.
+	// In the live scorer, empty scenario seconds precede any anomalies, so the
+	// EWMA is effectively already near 0 when the first anomaly arrives.
+	// In the replay, starting from 0 avoids seeding a spuriously high initial
+	// state from a dense first anomaly second.
+	s.ewma = s.config.Alpha*input + (1-s.config.Alpha)*s.ewma
 
 	s.buckets = append(s.buckets, observer.ScoreBucket{
 		Second:    sec,
@@ -335,9 +336,8 @@ func (s *anomalyScorer) Reset() {
 
 	s.pending = make(map[int64][]observer.Anomaly)
 	s.ewma = 0
-	s.seeded = false
 	s.state = observer.SeverityLow
-	s.lastStateEntryTs = math.MinInt64
+	s.lastStateEntryTs = 0
 	s.stateInitialized = false
 	s.lastAdvancedSec = 0
 	s.buckets = nil
