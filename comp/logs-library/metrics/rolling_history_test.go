@@ -110,3 +110,25 @@ func TestAllStats_CurrentlySaturatedBelowThreshold(t *testing.T) {
 	assert.False(t, h.allStats(base.Add(time.Second)).CurrentlySaturated,
 		"a fresh sub-threshold newest sample must clear CurrentlySaturated")
 }
+
+// TestAllStats_IdleFineSamplesIn30mAverages verifies that fine samples retained past the
+// 5m window (because the ring evicts by count, not time) still feed the 30m avg/max — not
+// just Saturated30m. A short saturated burst followed by >5m of idle must not report
+// Saturated30m > 0 while showing 30m avg/max as 0, which would hide the actual peak.
+func TestAllStats_IdleFineSamplesIn30mAverages(t *testing.T) {
+	h := newRollingHistory()
+
+	// 10 saturated samples in a short burst, then the component goes idle (no more adds).
+	for i := 0; i < 10; i++ {
+		h.add(base.Add(time.Duration(i)*time.Second), 1.0)
+	}
+
+	// Read 6 minutes later: every sample is now older than 5m but within 30m.
+	ws := h.allStats(base.Add(6 * time.Minute))
+
+	assert.Equal(t, time.Duration(10)*time.Second, ws.Saturated30m, "burst must count as 30m saturation")
+	assert.InDelta(t, 1.0, ws.Max30m, 0.0001, "30m max must reflect the saturated burst, not 0")
+	assert.InDelta(t, 1.0, ws.Avg30m, 0.0001, "30m avg must reflect the saturated burst, not 0")
+	assert.Equal(t, 0.0, ws.Max5m, "nothing occurred in the last 5m")
+	assert.Equal(t, 0.0, ws.Avg5m, "nothing occurred in the last 5m")
+}

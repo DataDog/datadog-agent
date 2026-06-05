@@ -269,6 +269,15 @@ func (h *rollingHistory) allStats(now time.Time) WindowStats {
 			lastSat = time.Unix(0, s.tsNano)
 			hasLastSat = true
 		}
+		// Every sample reaching here is within the 30m window (the break guarantees it),
+		// including idle samples in [c30m, c5m) that the count-based fine ring still retains.
+		// These must feed the 30m avg/max — otherwise a short burst followed by >5m of idle
+		// would report Saturated30m > 0 while showing 30m avg/max as 0, hiding the peak.
+		sum30m += v
+		cnt30m++
+		if v > max30m {
+			max30m = v
+		}
 		if s.tsNano >= c5m {
 			sum5m += v
 			cnt5m++
@@ -324,12 +333,6 @@ func (h *rollingHistory) allStats(now time.Time) WindowStats {
 		}
 	}
 
-	// Combine fine + medium for 30m totals.
-	sum30m += sum5m
-	cnt30m += cnt5m
-	if max5m > max30m {
-		max30m = max5m
-	}
 	sat30m := satFine + satMedium
 
 	var avg5m, avg30m float64
