@@ -387,20 +387,22 @@ func (d *dispatcher) rebalanceUsingUtilization(force bool) []types.RebalanceResp
 	currentConfigsDistribution := d.currentDistribution()
 	proposedDistribution := newConfigsDistribution(currentConfigsDistribution.runnerWorkers())
 
-	// Place the rest greedily by descending workersNeeded.
+	// Place configs in proposed: pinned ones stay on their current runner,
+	// the rest go greedily on the least busy runner (descending workersNeeded).
 	for _, digest := range currentConfigsDistribution.configsSortedByWorkersNeeded() {
 		config := currentConfigsDistribution.Configs[digest]
 		if config.Pinned {
 			proposedDistribution.addConfig(digest, config.CheckName, config.WorkersNeeded, config.Runner, true)
+		} else {
+			proposedDistribution.addToLeastBusy(
+				digest,
+				config.CheckName,
+				config.WorkersNeeded,
+				config.Runner,
+				"",
+				false,
+			)
 		}
-		proposedDistribution.addToLeastBusy(
-			digest,
-			config.CheckName,
-			config.WorkersNeeded,
-			config.Runner,
-			"",
-			false,
-		)
 	}
 
 	// We don't calculate the optimal distribution, so it might be worse than

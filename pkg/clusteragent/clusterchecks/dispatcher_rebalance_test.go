@@ -1783,6 +1783,81 @@ func TestRebalanceUsingUtilization_GroupsAndSpreadsMultiInstanceConfigs(t *testi
 	assert.Equal(t, "digestLight", checksMoved2[0].Digest)
 }
 
+// Verifies that checks whose AverageExecutionTime is 0 (e.g. long-running checks
+// or checks that haven't completed a meaningful run yet) are pinned to their
+// current runner and excluded from rebalancing, while a sibling check with real
+// execution-time data remains eligible to move.
+func TestRebalanceUsingUtilization_PinsChecksWithoutExecutionTime(t *testing.T) {
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	testDispatcher := newDispatcher(fakeTagger)
+
+	mockClient := &rebalanceTestClcRunnerClient{
+		testStats: make(map[string]types.CLCRunnersStats),
+	}
+	testDispatcher.clcRunnersClient = mockClient
+	testDispatcher.advancedDispatching.Store(true)
+
+	testDispatcher.store.active = true
+	testDispatcher.store.nodes["node1"] = newNodeStore("node1", "10.0.0.1")
+	testDispatcher.store.nodes["node1"].workers = pkgconfigsetup.DefaultNumWorkers
+	testDispatcher.store.nodes["node2"] = newNodeStore("node2", "10.0.0.2")
+	testDispatcher.store.nodes["node2"].workers = pkgconfigsetup.DefaultNumWorkers
+
+	// All three checks start on node1: two with AverageExecutionTime == 0
+	// (pinned) and one with real data (eligible to move).
+	node1Stats := types.CLCRunnersStats{
+		"pinned1": {AverageExecutionTime: 0, IsClusterCheck: true},
+		"pinned2": {AverageExecutionTime: 0, IsClusterCheck: true},
+		"movable": {AverageExecutionTime: 2000, IsClusterCheck: true},
+	}
+	testDispatcher.store.nodes["node1"].clcRunnerStats = node1Stats
+	mockClient.testStats["10.0.0.1"] = node1Stats
+	mockClient.testStats["10.0.0.2"] = types.CLCRunnersStats{}
+
+	testDispatcher.store.idToDigest = map[checkid.ID]string{
+		"pinned1": "digestPinned1",
+		"pinned2": "digestPinned2",
+		"movable": "digestMovable",
+	}
+	testDispatcher.store.digestToConfig = map[string]integration.Config{
+		"digestPinned1": {Name: "pinned1"},
+		"digestPinned2": {Name: "pinned2"},
+		"digestMovable": {Name: "movable"},
+	}
+	testDispatcher.store.digestToNode = map[string]string{
+		"digestPinned1": "node1",
+		"digestPinned2": "node1",
+		"digestMovable": "node1",
+	}
+
+	// currentDistribution should mark the two zero-execution-time checks as
+	// pinned and leave the movable one unpinned.
+	dist := testDispatcher.currentDistribution()
+	require.Contains(t, dist.Configs, "digestPinned1")
+	require.Contains(t, dist.Configs, "digestPinned2")
+	require.Contains(t, dist.Configs, "digestMovable")
+	assert.True(t, dist.Configs["digestPinned1"].Pinned, "pinned1 should be pinned (AverageExecutionTime == 0)")
+	assert.True(t, dist.Configs["digestPinned2"].Pinned, "pinned2 should be pinned (AverageExecutionTime == 0)")
+	assert.False(t, dist.Configs["digestMovable"].Pinned, "movable should not be pinned")
+
+	// Force the rebalance and verify pinned checks are never relocated.
+	checksMoved := testDispatcher.rebalanceUsingUtilization(true)
+
+	requireNotLocked(t, testDispatcher.store)
+
+	for _, move := range checksMoved {
+		assert.NotEqual(t, "digestPinned1", move.Digest, "pinned1 must not move")
+		assert.NotEqual(t, "digestPinned2", move.Digest, "pinned2 must not move")
+	}
+
+	// Final placement: both pinned checks remain on node1 regardless of what
+	// the rebalancer decided to do with the movable check.
+	assert.Contains(t, testDispatcher.store.nodes["node1"].clcRunnerStats, "pinned1")
+	assert.Contains(t, testDispatcher.store.nodes["node1"].clcRunnerStats, "pinned2")
+	assert.NotContains(t, testDispatcher.store.nodes["node2"].clcRunnerStats, "pinned1")
+	assert.NotContains(t, testDispatcher.store.nodes["node2"].clcRunnerStats, "pinned2")
+}
+
 // Verifies that two configs sharing a check name but with different digests
 // (e.g., two postgres configs monitoring different databases) get separate
 // distribution entries and are moved independently.
