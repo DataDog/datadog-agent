@@ -30,7 +30,6 @@ import (
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -236,23 +235,6 @@ func (p *streamingProvider) handleDCAStreamUpdate(update streamUpdate, seenPods 
 				}
 			}
 		}
-
-		for queueID := range update.updatedKueueQueues {
-			if !strings.HasPrefix(queueID, string(workloadmeta.KueueLocalQueue)+"/") {
-				continue
-			}
-			queueKey := kueueQueueEntityIDToKey(queueID)
-			for _, uid := range seenPods {
-				pod, err := p.wmeta.GetKubernetesPod(uid)
-				if err != nil {
-					continue
-				}
-				if podKueueLocalQueueKey(pod) != queueKey {
-					continue
-				}
-				events = append(events, p.buildPodEvent(pod))
-			}
-		}
 	}
 
 	if len(events) > 0 {
@@ -332,17 +314,6 @@ func (p *streamingProvider) buildKueueQueueEvents(updatedQueueIDs map[string]str
 		})
 	}
 	return events
-}
-
-func podKueueLocalQueueKey(pod *workloadmeta.KubernetesPod) string {
-	queueName := pod.Labels[kubernetes.KueueLocalQueueNameLabelKey]
-	if queueName == "" {
-		queueName = pod.Labels[kubernetes.KueueQueueNameLabelKey]
-	}
-	if queueName == "" {
-		return ""
-	}
-	return pod.Namespace + "/" + queueName
 }
 
 type streamUpdate struct {
@@ -724,10 +695,6 @@ func kueueQueueID(queueMetadata *pb.KueueQueue) string {
 		return ""
 	}
 	return id
-}
-
-func kueueQueueEntityIDToKey(queueID string) string {
-	return strings.TrimPrefix(queueID, string(workloadmeta.KueueLocalQueue)+"/")
 }
 
 // notifyUpdate sends signal on updateCh. Must be called with sc.mu held.
