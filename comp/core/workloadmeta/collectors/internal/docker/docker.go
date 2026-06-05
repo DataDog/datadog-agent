@@ -709,8 +709,8 @@ func layersFromDockerHistoryAndInspect(history []image.HistoryResponseItem, insp
 		shouldAssignDigests = false
 	}
 
-	// inspectIdx tracks the current RootFS layer ID index (in Docker, this corresponds to the Diff ID of a layer)
-	// NOTE: Docker returns the RootFS layers in chronological order
+	// inspectIdx tracks the current RootFS layer index (in Docker, RootFS.Layers
+	// holds diff_ids in chronological order).
 	inspectIdx := 0
 
 	// Docker returns the history layers in reverse-chronological order
@@ -719,20 +719,20 @@ func layersFromDockerHistoryAndInspect(history []image.HistoryResponseItem, insp
 		isEmptyLayer := history[i].Size == 0
 		isInheritedLayer := isInheritedLayer(history[i])
 
-		digest := ""
+		diffID := ""
 		if shouldAssignDigests && (isInheritedLayer || !isEmptyLayer) {
 			if isInheritedLayer {
-				log.Debugf("detected an inherited layer for image ID: \"%s\", assigning it digest: \"%s\"", inspect.ID, inspect.RootFS.Layers[inspectIdx])
+				log.Debugf("detected an inherited layer for image ID: \"%s\", assigning it diff_id: \"%s\"", inspect.ID, inspect.RootFS.Layers[inspectIdx])
 			}
-			digest = inspect.RootFS.Layers[inspectIdx]
+			diffID = inspect.RootFS.Layers[inspectIdx]
 			inspectIdx++
 		} else {
 			// Fallback to previous behavior
-			digest = history[i].ID
+			diffID = history[i].ID
 		}
 
 		layer := workloadmeta.ContainerImageLayer{
-			Digest:    digest,
+			DiffID:    diffID,
 			SizeBytes: history[i].Size,
 			History: &v1.History{
 				Created:    &created,
