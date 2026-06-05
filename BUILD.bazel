@@ -52,7 +52,9 @@ exports_files(glob(
 # gazelle:exclude comp/agent/bundle_test.go
 # gazelle:exclude comp/agent/cloudfoundrycontainer/fx
 # gazelle:exclude comp/agent/cloudfoundrycontainer/impl
-# gazelle:exclude comp/aggregator/demultiplexer
+# gazelle:exclude comp/aggregator/demultiplexer/fx
+# gazelle:exclude comp/aggregator/demultiplexer/impl
+# gazelle:exclude comp/aggregator/demultiplexer/mock
 # gazelle:exclude comp/aggregator/demultiplexerendpoint/fx
 # gazelle:exclude comp/aggregator/demultiplexerendpoint/impl
 # gazelle:exclude comp/api/api/apiimpl/api.go
