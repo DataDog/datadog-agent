@@ -90,7 +90,7 @@ func TestAutoMultilineEnabled(t *testing.T) {
 }
 
 func TestExperimentalAdaptiveSamplingOptionsDecode(t *testing.T) {
-	cfg := decode(`{"experimental_adaptive_sampling":{"enabled":true,"max_patterns":42,"rate_limit":2.5,"burst_size":17.5,"match_threshold":0.75,"tokenizer_max_input_bytes":512,"protect_important_logs":false,"include":[{"regex":"foo.*bar"},{"sample":"my 123 fun log sample"}],"exclude":[{"regex":"baz.*qux"},{"sample":"my 456 bad log sample"}]}}`)
+	cfg := decode(`{"experimental_adaptive_sampling":{"enabled":true,"max_patterns":42,"rate_limit":2.5,"burst_size":17.5,"match_threshold":0.75,"tokenizer_max_input_bytes":512,"protect_important_logs":false,"tag_pattern_hash":true,"include":[{"regex":"foo.*bar"},{"sample":"my 123 fun log sample"}],"exclude":[{"regex":"baz.*qux"},{"sample":"my 456 bad log sample"}]}}`)
 	require.NotNil(t, cfg.ExperimentalAdaptiveSampling)
 	require.NotNil(t, cfg.ExperimentalAdaptiveSampling.Enabled)
 	assert.True(t, *cfg.ExperimentalAdaptiveSampling.Enabled)
@@ -106,12 +106,20 @@ func TestExperimentalAdaptiveSamplingOptionsDecode(t *testing.T) {
 	assert.Equal(t, 512, *cfg.ExperimentalAdaptiveSampling.TokenizerMaxInputBytes)
 	require.NotNil(t, cfg.ExperimentalAdaptiveSampling.ProtectImportantLogs)
 	assert.False(t, *cfg.ExperimentalAdaptiveSampling.ProtectImportantLogs)
+	require.NotNil(t, cfg.ExperimentalAdaptiveSampling.TagPatternHash)
+	assert.True(t, *cfg.ExperimentalAdaptiveSampling.TagPatternHash)
 	require.Len(t, cfg.ExperimentalAdaptiveSampling.Include, 2)
 	assert.Equal(t, "foo.*bar", cfg.ExperimentalAdaptiveSampling.Include[0].Regex)
 	assert.Equal(t, "my 123 fun log sample", cfg.ExperimentalAdaptiveSampling.Include[1].Sample)
 	require.Len(t, cfg.ExperimentalAdaptiveSampling.Exclude, 2)
 	assert.Equal(t, "baz.*qux", cfg.ExperimentalAdaptiveSampling.Exclude[0].Regex)
 	assert.Equal(t, "my 456 bad log sample", cfg.ExperimentalAdaptiveSampling.Exclude[1].Sample)
+}
+
+func TestExperimentalNoisyLogDetectionDecode(t *testing.T) {
+	cfg := decode(`{"experimental_noisy_log_detection":true}`)
+	require.NotNil(t, cfg.ExperimentalNoisyLogDetection)
+	assert.True(t, *cfg.ExperimentalNoisyLogDetection)
 }
 
 func TestAutoMultiLineStatus(t *testing.T) {
