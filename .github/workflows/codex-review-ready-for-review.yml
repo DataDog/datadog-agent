@@ -27,9 +27,11 @@ jobs:
           REPOSITORY: ${{ github.repository }}
           CHATGPT_CODEX_GRAPHQL_BOT: chatgpt-codex-connector
           CHATGPT_CODEX_REST_BOT: chatgpt-codex-connector[bot]
+          GITHUB_ACTIONS_BOT: github-actions
+          GITHUB_ACTIONS_BOT_ALT: github-actions[bot]
+          LEGACY_GITHUB_ACTIONS_BOT: github_actions
+          LEGACY_GITHUB_ACTIONS_BOT_ALT: github_actions[bot]
           CODEX_REVIEW_BODY: "@codex review"
-          GITHUB_ACTIONS_BOT: github-actions[bot]
-          LEGACY_GITHUB_ACTIONS_BOT: github_actions[bot]
         run: |
           set -euo pipefail
 
@@ -101,23 +103,22 @@ jobs:
                     | .users.totalCount
                   ] | add // 0);
 
+                def is_github_actions_bot:
+                  .author.login == env.GITHUB_ACTIONS_BOT
+                  or .author.login == env.GITHUB_ACTIONS_BOT_ALT
+                  or .author.login == env.LEGACY_GITHUB_ACTIONS_BOT
+                  or .author.login == env.LEGACY_GITHUB_ACTIONS_BOT_ALT;
+
+                def is_codex_bot:
+                  .author.login == env.CHATGPT_CODEX_GRAPHQL_BOT
+                  or .author.login == env.CHATGPT_CODEX_REST_BOT;
+
                 .data.repository.pullRequest.comments.nodes[]
                 | select(
                     (thumbs_up_count == 0)
                     and (
-                      (
-                        (
-                          (.author.login == env.GITHUB_ACTIONS_BOT)
-                          or (.author.login == env.LEGACY_GITHUB_ACTIONS_BOT)
-                        )
-                        and .body == env.CODEX_REVIEW_BODY
-                      )
-                      or (
-                        (
-                          (.author.login == env.CHATGPT_CODEX_GRAPHQL_BOT)
-                          or (.author.login == env.CHATGPT_CODEX_REST_BOT)
-                        )
-                      )
+                      (is_github_actions_bot and .body == env.CODEX_REVIEW_BODY)
+                      or is_codex_bot
                     )
                   )
                 | .id
