@@ -371,6 +371,12 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	// ingress-nginx injection configuration
 	config.BindEnvAndSetDefault("admission_controller.appsec.nginx.init_image", "datadog/ingress-nginx-injection")
 	config.BindEnvAndSetDefault("admission_controller.appsec.nginx.module_mount_path", "/modules_mount")
+	// Non-root UID/GID for the injected init container. Defaults match the
+	// stock datadog/ingress-nginx-injection image, which declares no USER and
+	// would otherwise be rejected under runAsNonRoot. Set to a negative value
+	// to leave the security context unset and honor a custom init_image's own USER.
+	config.BindEnvAndSetDefault("admission_controller.appsec.nginx.init_run_as_user", 101)
+	config.BindEnvAndSetDefault("admission_controller.appsec.nginx.init_run_as_group", 82)
 
 	config.BindEnvAndSetDefault("cluster_agent.kube_metadata_collection.enabled", false)
 	// list of kubernetes resources for which we collect metadata
@@ -1486,6 +1492,7 @@ func serializer(config pkgconfigmodel.Setup) {
 	// Warning: do not change the following values. Your payloads will get dropped by Datadog's intake.
 	config.BindEnvAndSetDefault("serializer_max_payload_size", 2*megaByte+megaByte/2)
 	config.BindEnvAndSetDefault("serializer_max_uncompressed_payload_size", 4*megaByte)
+	config.BindEnvAndSetDefault("serializer_max_series_points_per_payload", 10000)
 	config.BindEnvAndSetDefault("serializer_max_series_payload_size", 512000)
 	config.BindEnvAndSetDefault("serializer_max_series_uncompressed_payload_size", 5242880)
 	config.BindEnvAndSetDefault("serializer_compressor_kind", DefaultCompressorKind)
