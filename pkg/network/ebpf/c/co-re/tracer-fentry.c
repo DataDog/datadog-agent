@@ -4,6 +4,8 @@
 #include "bpf_tracing.h"
 #include "bpf_metadata.h"
 
+#include "bpf_bypass.h"
+
 #include "ip.h"
 #include "ipv6.h"
 #include "sock.h"
@@ -18,39 +20,11 @@
 #include "tracer/telemetry.h"
 #include "tracer/port.h"
 
+#include "protocols/classification/protocol-classification.h"
+#include "protocols/tls/tls-certs.h"
+
 BPF_PERCPU_HASH_MAP(udp6_send_skb_args, u64, u64, 1024)
 BPF_PERCPU_HASH_MAP(udp_send_skb_args, u64, conn_tuple_t, 1024)
-
-#define RETURN_IF_NOT_IN_SYSPROBE_TASK(prog_name)           \
-    if (!event_in_task(prog_name)) {                        \
-        return 0;                                           \
-    }
-
-static __always_inline __u32 systemprobe_dev() {
-    __u64 val = 0;
-    LOAD_CONSTANT("systemprobe_device", val);
-    return (__u32)val;
-}
-
-static __always_inline __u32 systemprobe_ino() {
-    __u64 val = 0;
-    LOAD_CONSTANT("systemprobe_ino", val);
-    return (__u32)val;
-}
-
-static __always_inline bool event_in_task(char *prog_name) {
-    __u32 dev = systemprobe_dev();
-    __u32 ino = systemprobe_ino();
-    struct bpf_pidns_info ns = {};
-
-    u64 error = bpf_get_ns_current_pid_tgid(dev, ino, &ns, sizeof(struct bpf_pidns_info));
-
-    if (error) {
-        log_debug("%s: err=event originates from outside current fargate task", prog_name);
-    }
-
-    return !error;
-}
 
 static __always_inline int read_conn_tuple_partial_from_flowi4(conn_tuple_t *t, struct flowi4 *fl4, u64 pid_tgid, metadata_mask_t type) {
     t->pid = GET_USER_MODE_PID(pid_tgid);
@@ -138,7 +112,6 @@ static __always_inline int read_conn_tuple_partial_from_flowi6(conn_tuple_t *t, 
 
 SEC("fexit/tcp_sendmsg")
 int BPF_PROG(tcp_sendmsg_exit, struct sock *sk, struct msghdr *msg, size_t size, int sent) {
-    RETURN_IF_NOT_IN_SYSPROBE_TASK("fexit/tcp_sendmsg");
     if (sent < 0) {
         log_debug("fexit/tcp_sendmsg: tcp_sendmsg err=%d", sent);
         return 0;
@@ -163,7 +136,6 @@ int BPF_PROG(tcp_sendmsg_exit, struct sock *sk, struct msghdr *msg, size_t size,
 
 SEC("fexit/tcp_sendpage")
 int BPF_PROG(tcp_sendpage_exit, struct sock *sk, struct page *page, int offset, size_t size, int flags, int sent) {
-RETURN_IF_NOT_IN_SYSPROBE_TASK("fexit/tcp_sendpage");
     if (sent < 0) {
         log_debug("fexit/tcp_sendpage: err=%d", sent);
         return 0;
@@ -188,7 +160,6 @@ RETURN_IF_NOT_IN_SYSPROBE_TASK("fexit/tcp_sendpage");
 
 SEC("fexit/udp_sendpage")
 int BPF_PROG(udp_sendpage_exit, struct sock *sk, struct page *page, int offset, size_t size, int flags, int sent) {
-    RETURN_IF_NOT_IN_SYSPROBE_TASK("fexit/udp_sendpage");
     if (sent < 0) {
         log_debug("fexit/udp_sendpage: err=%d", sent);
         return 0;
@@ -207,7 +178,6 @@ int BPF_PROG(udp_sendpage_exit, struct sock *sk, struct page *page, int offset, 
 
 SEC("fexit/tcp_recvmsg")
 int BPF_PROG(tcp_recvmsg_exit, struct sock *sk, struct msghdr *msg, size_t len, int flags, int *addr_len, int copied) {
-    RETURN_IF_NOT_IN_SYSPROBE_TASK("fexit/tcp_recvmsg");
     if (copied < 0) { // error
         return 0;
     }
@@ -218,7 +188,6 @@ int BPF_PROG(tcp_recvmsg_exit, struct sock *sk, struct msghdr *msg, size_t len, 
 
 SEC("fexit/tcp_recvmsg")
 int BPF_PROG(tcp_recvmsg_exit_pre_5_19_0, struct sock *sk, struct msghdr *msg, size_t len, int nonblock, int flags, int *addr_len, int copied) {
-    RETURN_IF_NOT_IN_SYSPROBE_TASK("fexit/tcp_recvmsg");
     if (copied < 0) { // error
         return 0;
     }
@@ -229,7 +198,6 @@ int BPF_PROG(tcp_recvmsg_exit_pre_5_19_0, struct sock *sk, struct msghdr *msg, s
 
 SEC("fentry/tcp_close")
 int BPF_PROG(tcp_close, struct sock *sk, long timeout) {
-    RETURN_IF_NOT_IN_SYSPROBE_TASK("fentry/tcp_close");
     conn_tuple_t t = {};
     u64 pid_tgid = bpf_get_current_pid_tgid();
 
@@ -245,7 +213,49 @@ int BPF_PROG(tcp_close, struct sock *sk, long timeout) {
 
     bpf_map_delete_elem(&tcp_ongoing_connect_pid, &skp_conn);
 
-    cleanup_conn(ctx, &t, sk);
+    handle_tcp_failure(sk, &t);
+    clean_protocol_classification(&t);
+
+    if (cleanup_conn(ctx, &t, sk) == 0) {
+        increment_telemetry_count(tcp_close_connection_flush);
+    }
+    return 0;
+}
+
+SEC("fentry/tcp_done")
+int BPF_PROG(tcp_done, struct sock *sk) {
+    // NOTE: no RETURN_IF_NOT_IN_SYSPROBE_TASK here — tcp_done often fires from
+    // timeout/RST paths in idle/softirq context where the PID namespace check
+    // would incorrectly reject the event, silently dropping failed connections.
+    conn_tuple_t t = {};
+
+    if (!read_conn_tuple(&t, sk, 0, CONN_TYPE_TCP)) {
+        increment_telemetry_count(tcp_done_failed_tuple);
+        return 0;
+    }
+    log_debug("fentry/tcp_done: netns: %u, sport: %u, dport: %u", t.netns, t.sport, t.dport);
+    skp_conn_tuple_t skp_conn = {.sk = sk, .tup = t};
+
+    // connection timeouts will have 0 pids as they are cleaned up by an idle process.
+    // resets can also have kernel pids as they are triggered by receiving an RST packet from the server
+    // get the pid from the ongoing failure map in this case, as it should have been set in connect(). else bail
+    pid_ts_t *failed_conn_pid = bpf_map_lookup_elem(&tcp_ongoing_connect_pid, &skp_conn);
+    if (failed_conn_pid) {
+        bpf_map_delete_elem(&tcp_ongoing_connect_pid, &skp_conn);
+        t.pid = GET_USER_MODE_PID(failed_conn_pid->pid_tgid);
+    } else {
+        increment_telemetry_count(tcp_done_missing_pid);
+        return 0;
+    }
+
+    if (!handle_tcp_failure(sk, &t)) {
+        return 0;
+    }
+
+    if (cleanup_conn(ctx, &t, sk) == 0) {
+        increment_telemetry_count(tcp_done_connection_flush);
+    }
+
     return 0;
 }
 
@@ -267,7 +277,6 @@ static __always_inline int handle_udp_send(struct sock *sk, int sent) {
 
 SEC("kprobe/udp_v6_send_skb")
 int kprobe__udp_v6_send_skb(struct pt_regs *ctx) {
-    RETURN_IF_NOT_IN_SYSPROBE_TASK("kprobe/udp_v6_send_skb");
     struct sk_buff *skb = (struct sk_buff*) PT_REGS_PARM1(ctx);
     struct flowi6 *fl6 = (struct flowi6*) PT_REGS_PARM2(ctx);
     u64 pid_tgid = bpf_get_current_pid_tgid();
@@ -288,13 +297,11 @@ int kprobe__udp_v6_send_skb(struct pt_regs *ctx) {
 
 SEC("fexit/udpv6_sendmsg")
 int BPF_PROG(udpv6_sendmsg_exit, struct sock *sk, struct msghdr *msg, size_t len, int sent) {
-    RETURN_IF_NOT_IN_SYSPROBE_TASK("fexit/udpv6_sendmsg");
     return handle_udp_send(sk, sent);
 }
 
-SEC("kprobe/udp_send_skb")
+SEC("kprobe/udp_send_skb") // JMW why kprobe for fentry tracer?
 int kprobe__udp_send_skb(struct pt_regs *ctx) {
-    RETURN_IF_NOT_IN_SYSPROBE_TASK("kprobe/udp_send_skb");
     struct sk_buff *skb = (struct sk_buff*) PT_REGS_PARM1(ctx);
     struct flowi4 *fl4 = (struct flowi4*) PT_REGS_PARM2(ctx);
     u64 pid_tgid = bpf_get_current_pid_tgid();
@@ -315,7 +322,6 @@ int kprobe__udp_send_skb(struct pt_regs *ctx) {
 
 SEC("fexit/udp_sendmsg")
 int BPF_PROG(udp_sendmsg_exit, struct sock *sk, struct msghdr *msg, size_t len, int sent) {
-    RETURN_IF_NOT_IN_SYSPROBE_TASK("fexit/udp_sendmsg");
     return handle_udp_send(sk, sent);
 }
 
@@ -338,14 +344,12 @@ static __always_inline int handle_udp_recvmsg_ret() {
 
 SEC("fentry/udp_recvmsg")
 int BPF_PROG(udp_recvmsg, struct sock *sk, struct msghdr *msg, size_t len, int noblock, int flags) {
-    RETURN_IF_NOT_IN_SYSPROBE_TASK("fentry/udp_recvmsg");
     log_debug("fentry/udp_recvmsg: flags: %x", flags);
     return handle_udp_recvmsg(sk, flags);
 }
 
 SEC("fentry/udpv6_recvmsg")
 int BPF_PROG(udpv6_recvmsg, struct sock *sk, struct msghdr *msg, size_t len, int noblock, int flags) {
-    RETURN_IF_NOT_IN_SYSPROBE_TASK("fentry/udpv6_recvmsg");
     log_debug("fentry/udpv6_recvmsg: flags: %x", flags);
     return handle_udp_recvmsg(sk, flags);
 }
@@ -354,7 +358,6 @@ SEC("fexit/udp_recvmsg")
 int BPF_PROG(udp_recvmsg_exit, struct sock *sk, struct msghdr *msg, size_t len,
              int flags, int *addr_len,
              int copied) {
-    RETURN_IF_NOT_IN_SYSPROBE_TASK("fexit/udp_recvmsg");
     return handle_udp_recvmsg_ret();
 }
 
@@ -362,7 +365,6 @@ SEC("fexit/udp_recvmsg")
 int BPF_PROG(udp_recvmsg_exit_pre_5_19_0, struct sock *sk, struct msghdr *msg, size_t len, int noblock,
              int flags, int *addr_len,
              int copied) {
-    RETURN_IF_NOT_IN_SYSPROBE_TASK("fexit/udp_recvmsg");
     return handle_udp_recvmsg_ret();
 }
 
@@ -370,7 +372,6 @@ SEC("fexit/udpv6_recvmsg")
 int BPF_PROG(udpv6_recvmsg_exit, struct sock *sk, struct msghdr *msg, size_t len,
              int flags, int *addr_len,
              int copied) {
-    RETURN_IF_NOT_IN_SYSPROBE_TASK("fexit/udpv6_recvmsg");
     return handle_udp_recvmsg_ret();
 }
 
@@ -378,31 +379,26 @@ SEC("fexit/udpv6_recvmsg")
 int BPF_PROG(udpv6_recvmsg_exit_pre_5_19_0, struct sock *sk, struct msghdr *msg, size_t len, int noblock,
              int flags, int *addr_len,
              int copied) {
-    RETURN_IF_NOT_IN_SYSPROBE_TASK("fexit/udpv6_recvmsg");
     return handle_udp_recvmsg_ret();
 }
 
 SEC("fentry/skb_free_datagram_locked")
 int BPF_PROG(skb_free_datagram_locked, struct sock *sk, struct sk_buff *skb) {
-    RETURN_IF_NOT_IN_SYSPROBE_TASK("fentry/skb_free_datagram_locked");
     return handle_skb_consume_udp(sk, skb, 0);
 }
 
 SEC("fentry/__skb_free_datagram_locked")
 int BPF_PROG(__skb_free_datagram_locked, struct sock *sk, struct sk_buff *skb, int len) {
-    RETURN_IF_NOT_IN_SYSPROBE_TASK("fentry/__skb_free_datagram_locked");
     return handle_skb_consume_udp(sk, skb, len);
 }
 
 SEC("fentry/skb_consume_udp")
 int BPF_PROG(skb_consume_udp, struct sock *sk, struct sk_buff *skb, int len) {
-    RETURN_IF_NOT_IN_SYSPROBE_TASK("fentry/skb_consume_udp");
     return handle_skb_consume_udp(sk, skb, len);
 }
 
 SEC("fentry/tcp_retransmit_skb")
 int BPF_PROG(tcp_retransmit_skb, struct sock *sk, struct sk_buff *skb, int segs, int err) {
-    RETURN_IF_NOT_IN_SYSPROBE_TASK("fentry/tcp_retransmit_skb");
     log_debug("fexntry/tcp_retransmit");
     u64 pid_tgid = bpf_get_current_pid_tgid();
     tcp_retransmit_skb_args_t args = {};
@@ -418,7 +414,6 @@ int BPF_PROG(tcp_retransmit_skb, struct sock *sk, struct sk_buff *skb, int segs,
 
 SEC("fexit/tcp_retransmit_skb")
 int BPF_PROG(tcp_retransmit_skb_exit, struct sock *sk, struct sk_buff *skb, int segs, int err) {
-    RETURN_IF_NOT_IN_SYSPROBE_TASK("fexit/tcp_retransmit_skb");
     log_debug("fexit/tcp_retransmit");
     u64 pid_tgid = bpf_get_current_pid_tgid();
     if (err < 0) {
@@ -442,7 +437,6 @@ int BPF_PROG(tcp_retransmit_skb_exit, struct sock *sk, struct sk_buff *skb, int 
 
 SEC("fentry/tcp_connect")
 int BPF_PROG(tcp_connect, struct sock *sk) {
-    RETURN_IF_NOT_IN_SYSPROBE_TASK("fentry/tcp_connect");
     u64 pid_tgid = bpf_get_current_pid_tgid();
     log_debug("fentry/tcp_connect: kernel thread id: %llu, user mode pid: %llu", GET_KERNEL_THREAD_ID(pid_tgid), GET_USER_MODE_PID(pid_tgid));
 
@@ -461,7 +455,6 @@ int BPF_PROG(tcp_connect, struct sock *sk) {
 
 SEC("fentry/tcp_finish_connect")
 int BPF_PROG(tcp_finish_connect, struct sock *sk, struct sk_buff *skb, int rc) {
-    RETURN_IF_NOT_IN_SYSPROBE_TASK("fentry/tcp_finish_connect");
     conn_tuple_t t = {};
     if (!read_conn_tuple(&t, sk, 0, CONN_TYPE_TCP)) {
         increment_telemetry_count(tcp_finish_connect_failed_tuple);
@@ -486,7 +479,6 @@ int BPF_PROG(tcp_finish_connect, struct sock *sk, struct sk_buff *skb, int rc) {
 
 SEC("fexit/inet_csk_accept")
 int BPF_PROG(inet_csk_accept_exit, struct sock *_sk, int flags, int *err, bool kern, struct sock *sk) {
-    RETURN_IF_NOT_IN_SYSPROBE_TASK("fexit/inet_csk_accept");
     if (sk == NULL) {
         return 0;
     }
@@ -515,7 +507,6 @@ int BPF_PROG(inet_csk_accept_exit, struct sock *_sk, int flags, int *err, bool k
 
 SEC("fentry/inet_csk_listen_stop")
 int BPF_PROG(inet_csk_listen_stop_enter, struct sock *sk) {
-    RETURN_IF_NOT_IN_SYSPROBE_TASK("fentry/inet_csk_listen_stop");
     __u16 lport = read_sport(sk);
     if (lport == 0) {
         log_debug("ERR(inet_csk_listen_stop): lport is 0 ");
@@ -561,42 +552,135 @@ static __always_inline int handle_udp_destroy_sock(void *ctx, struct sock *sk) {
 
 SEC("fentry/udp_destroy_sock")
 int BPF_PROG(udp_destroy_sock, struct sock *sk) {
-    RETURN_IF_NOT_IN_SYSPROBE_TASK("fentry/udp_destroy_sock");
     return handle_udp_destroy_sock(ctx, sk);
 }
 
 SEC("fentry/udpv6_destroy_sock")
 int BPF_PROG(udpv6_destroy_sock, struct sock *sk) {
-    RETURN_IF_NOT_IN_SYSPROBE_TASK("fentry/udpv6_destroy_sock");
     return handle_udp_destroy_sock(ctx, sk);
 }
 
 SEC("fentry/inet_bind")
 int BPF_PROG(inet_bind_enter, struct socket *sock, struct sockaddr *uaddr, int addr_len) {
-    RETURN_IF_NOT_IN_SYSPROBE_TASK("fentry/inet_bind");
     log_debug("fentry/inet_bind");
     return sys_enter_bind(sock, uaddr);
 }
 
 SEC("fentry/inet6_bind")
 int BPF_PROG(inet6_bind_enter, struct socket *sock, struct sockaddr *uaddr, int addr_len) {
-    RETURN_IF_NOT_IN_SYSPROBE_TASK("fentry/inet6_bind");
     log_debug("fentry/inet6_bind");
     return sys_enter_bind(sock, uaddr);
 }
 
 SEC("fexit/inet_bind")
 int BPF_PROG(inet_bind_exit, struct socket *sock, struct sockaddr *uaddr, int addr_len, int rc) {
-    RETURN_IF_NOT_IN_SYSPROBE_TASK("fexit/inet_bind");
     log_debug("fexit/inet_bind: rc=%d", rc);
     return sys_exit_bind(rc);
 }
 
 SEC("fexit/inet6_bind")
 int BPF_PROG(inet6_bind_exit, struct socket *sock, struct sockaddr *uaddr, int addr_len, int rc) {
-    RETURN_IF_NOT_IN_SYSPROBE_TASK("fexit/inet6_bind");
     log_debug("fexit/inet6_bind: rc=%d", rc);
     return sys_exit_bind(rc);
+}
+
+// tcp_read_sock fexit probe — fexit gives us both args and return value,
+// so no fentry entry probe is needed
+SEC("fexit/tcp_read_sock")
+int BPF_PROG(tcp_read_sock_exit, struct sock *sk, read_descriptor_t *desc, sk_read_actor_t recv_actor, int recv) {
+    RETURN_IF_NOT_IN_SYSPROBE_TASK("fexit/tcp_read_sock");
+    if (recv < 0) {
+        return 0;
+    }
+
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    return handle_tcp_recv(pid_tgid, sk, recv);
+}
+
+// Protocol classification socket filters
+SEC("socket/classifier_entry")
+int socket__classifier_entry(struct __sk_buff *skb) {
+    protocol_classifier_entrypoint(skb);
+    return 0;
+}
+
+SEC("socket/classifier_tls_handshake_client")
+int socket__classifier_tls_handshake_client(struct __sk_buff *skb) {
+    protocol_classifier_entrypoint_tls_handshake_client(skb);
+    return 0;
+}
+
+SEC("socket/classifier_tls_handshake_server")
+int socket__classifier_tls_handshake_server(struct __sk_buff *skb) {
+    protocol_classifier_entrypoint_tls_handshake_server(skb);
+    return 0;
+}
+
+SEC("socket/classifier_queues")
+int socket__classifier_queues(struct __sk_buff *skb) {
+    protocol_classifier_entrypoint_queues(skb);
+    return 0;
+}
+
+SEC("socket/classifier_dbs")
+int socket__classifier_dbs(struct __sk_buff *skb) {
+    protocol_classifier_entrypoint_dbs(skb);
+    return 0;
+}
+
+SEC("socket/classifier_grpc")
+int socket__classifier_grpc(struct __sk_buff *skb) {
+    protocol_classifier_entrypoint_grpc(skb);
+    return 0;
+}
+
+static __always_inline struct sock *fentry_sk_buff_sk(struct sk_buff *skb) {
+    struct sock *sk = NULL;
+    BPF_CORE_READ_INTO(&sk, skb, sk);
+    return sk;
+}
+
+static __always_inline int fentry_handle_net_dev_queue(struct sk_buff* skb) {
+    struct sock *sk = fentry_sk_buff_sk(skb);
+    if (!sk) {
+        return 0;
+    }
+
+    conn_tuple_t skb_tup;
+    bpf_memset(&skb_tup, 0, sizeof(conn_tuple_t));
+    if (sk_buff_to_tuple(skb, &skb_tup) <= 0) {
+        return 0;
+    }
+
+    if (!(skb_tup.metadata & CONN_TYPE_TCP)) {
+        return 0;
+    }
+
+    conn_tuple_t sock_tup;
+    bpf_memset(&sock_tup, 0, sizeof(conn_tuple_t));
+    if (!read_conn_tuple(&sock_tup, sk, 0, CONN_TYPE_TCP)) {
+        return 0;
+    }
+    sock_tup.netns = 0;
+    sock_tup.pid = 0;
+
+    if (!is_equal(&skb_tup, &sock_tup)) {
+        normalize_tuple(&skb_tup);
+        normalize_tuple(&sock_tup);
+        bpf_map_update_with_telemetry(conn_tuple_to_socket_skb_conn_tuple, &sock_tup, &skb_tup, BPF_NOEXIST, -EEXIST);
+    }
+
+    return 0;
+}
+
+// fentry requires 5.8+ which always supports raw tracepoints (4.17+),
+// so no tracepoint or kprobe fallbacks are needed.
+SEC("raw_tracepoint/net/net_dev_queue")
+int BPF_PROG(raw_tracepoint__net__net_dev_queue, struct sk_buff *skb) {
+    if (!skb) {
+        return 0;
+    }
+    return fentry_handle_net_dev_queue(skb);
 }
 
 // tcp_enter_loss, tcp_enter_recovery, and tcp_send_probe0 are static kernel

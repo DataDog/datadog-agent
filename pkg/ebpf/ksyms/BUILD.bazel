@@ -1,0 +1,18 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "ksyms",
+    srcs = ["ksyms.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/ebpf/ksyms",
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/process/util"],
+)
+
+go_test(
+    name = "ksyms_test",
+    srcs = ["ksyms_test.go"],
+    data = glob(["testdata/**"]),
+    embed = [":ksyms"],
+    gotags = ["test"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)
