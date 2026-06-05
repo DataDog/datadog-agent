@@ -34,7 +34,6 @@ needs-rules:
     - lint_macos_gitlab_amd64
     - new-e2e-cleanup-on-failure
     - lint_macos_gitlab_arm64
-    - protobuf_test
     - publish_winget_7_x64
     - revert_latest_7
     - security_go_generate_check
@@ -104,6 +103,7 @@ job-owners:
     - single-machine-performance-regression_detector
     - single-machine-performance-regression_detector-pr-comment
     - trigger-single-machine-performance-regression_detector
+    - trigger-single-machine-performance-regression_detector-main
     - test_install_script
     - trace-agent-v04-2cpus-normal_load-fixed_sps
     - trace-agent-v04-2cpus-stress_load-fixed_sps

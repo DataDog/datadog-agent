@@ -8,19 +8,9 @@ package model
 
 // NoisyNeighborStats contains the statistics from the noisy neighbor check
 type NoisyNeighborStats struct {
-	CgroupID           uint64
-	SumLatenciesNs     uint64
-	EventCount         uint64
-	PreemptionCount    uint64
-	UniquePidCount     uint64 // kernel task_struct->pid (TID) count
-	SumCycles          uint64
-	SumInstructions    uint64
-	SumCacheMisses     uint64
-	SumITLBMisses      uint64
-	SumSoftirqNs       uint64
-	BlockIORequests    uint64
-	SumBranchMisses    uint64
-	SumCPUMigrations   uint64
-	WakeupCount        uint64
-	SumCacheReferences uint64
+	CgroupID        uint64
+	SumLatenciesNs  uint64
+	EventCount      uint64
+	PreemptionCount uint64
+	UniquePidCount  uint64 // kernel task_struct->pid (TID) count
 }

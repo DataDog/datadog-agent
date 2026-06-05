@@ -12,7 +12,7 @@ import (
 
 	logssource "github.com/DataDog/datadog-agent/comp/anomalydetection/logssource/def"
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
-	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery"
+	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
 	config "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"

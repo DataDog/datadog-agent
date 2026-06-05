@@ -36,9 +36,10 @@ def build_binary(ctx, package: str, output_path: str, label: str) -> str:
     help={
         "lookback_seconds": "Metrics lookback window in seconds",
         "org": "Datadog org filter: prod, staging. If not provided, use all configured orgs",
+        "metric_filter": "Additional Datadog metric filter expression, ANDed with the GPU config filter",
     },
 )
-def validate_metrics(ctx, lookback_seconds=3600, org: str | None = None):
+def validate_metrics(ctx, lookback_seconds=3600, org: str | None = None, metric_filter: str | None = None):
     """
     Validate live GPU metrics for the selected Datadog org(s).
     """
@@ -72,6 +73,8 @@ def validate_metrics(ctx, lookback_seconds=3600, org: str | None = None):
                     f"--lookback-seconds {int(lookback_seconds)} "
                     f"--output-file {shlex.quote(tmp.name)}"
                 )
+                if metric_filter:
+                    command += f" --metric-filter {shlex.quote(metric_filter)}"
                 print(" - running validator...")
                 res = ctx.run(command, warn=True)
                 result = validation_results_from_dict(json.load(tmp), site=VALIDATOR_SITE)

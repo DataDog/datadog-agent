@@ -19,16 +19,16 @@ features:
 
     Metrics emitted:
 
-    - ``nccl.collective.exec_time_us`` — time a rank spends inside a
+    - ``gpu.nccl.collective.exec_time_us`` — time a rank spends inside a
       collective operation. A rank with a significantly lower value than
       its peers is the straggler; ranks with higher values are waiting at
       the barrier.
-    - ``nccl.collective.algo_bandwidth_gbps`` — algorithm bandwidth of
+    - ``gpu.nccl.collective.algo_bandwidth_gbps`` — algorithm bandwidth of
       the collective.
-    - ``nccl.collective.bus_bandwidth_gbps`` — bus bandwidth normalised
+    - ``gpu.nccl.collective.bus_bandwidth_gbps`` — bus bandwidth normalised
       for the collective type.
-    - ``nccl.collective.msg_size_bytes`` — tensor size being communicated.
-    - ``nccl.rank.seconds_since_last_event`` — seconds since this rank
+    - ``gpu.nccl.collective.msg_size_bytes`` — tensor size being communicated.
+    - ``gpu.nccl.rank.seconds_since_last_event`` — seconds since this rank
       last reported an event; non-zero values indicate a potential hang.
 
     Enable the check cluster-wide by setting ``gpu.nccl.enabled: true`` in the

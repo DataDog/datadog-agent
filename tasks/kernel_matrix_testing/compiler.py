@@ -235,8 +235,8 @@ class CompilerImage:
                 user="root",
             )
 
-        # We need to make the /go directory writable by the compiler user
-        self.exec("chmod -R a+rw /go", user="root")
+        # We need to make the following directories writable by the compiler user
+        self.exec("chmod -R a+rw /usr/local/go /var/lib/dd /var/cache/dd", user="root")
 
         cross_arch = ARCH_ARM64 if self.arch == ARCH_AMD64 else ARCH_AMD64
         self.exec("chmod a+rx /root", user="root")  # Some binaries will be in /root and need to be readable
@@ -283,7 +283,6 @@ class CompilerImage:
             user="root",
         )
         self.exec("mkdir ~/.cargo && touch ~/.cargo/env", user=self.compiler_user)
-        self.exec("dda self telemetry disable", user=self.compiler_user, force_color=False)
         self.exec(f"install -d -m 0777 -o {self.host_uid} -g {self.host_gid} /go", user="root")
         self.exec(
             f"echo export DD_CC=/opt/toolchains/{self.arch.gcc_arch}/bin/{self.arch.gcc_arch}-unknown-linux-gnu-gcc >> /home/{self.compiler_user}/.bashrc",
