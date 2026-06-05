@@ -10,6 +10,7 @@ import (
 	"hash/fnv"
 	"regexp"
 	"strconv"
+	"sync/atomic"
 	"time"
 
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
@@ -63,6 +64,9 @@ var tlmAdaptiveSamplerEvictions = telemetryimpl.GetCompatComponent().NewCounter(
 
 var tlmAdaptiveSamplerProtected = telemetryimpl.GetCompatComponent().NewCounter("logs_adaptive_sampler", "protected",
 	[]string{"source"}, "Number of important log messages that bypassed adaptive sampling")
+
+var tlmAdaptiveSamplerTagBytesDropped = telemetryimpl.GetCompatComponent().NewCounter("logs_adaptive_sampler", "tag_bytes_dropped",
+	[]string{"source"}, "Estimated tag metadata bytes for logs dropped by the adaptive sampler")
 
 func adaptiveSamplerSampledCountTag(count int64) string {
 	return "adaptive_sampler_sampled_count:" + strconv.FormatInt(count, 10)
@@ -135,20 +139,23 @@ type samplerEntry struct {
 // frequently matched patterns appear at the front, so the scan exits early for the
 // common case where a hot pattern is matched.
 type AdaptiveSampler struct {
-	entries []samplerEntry
-	config  AdaptiveSamplerConfig
-	source  string // used as a telemetry tag
-	now     func() time.Time
+	entries  []samplerEntry
+	config   AdaptiveSamplerConfig
+	source   string // used as a telemetry tag
+	now      func() time.Time
+	tagBytes *atomic.Int64
 }
 
 // NewAdaptiveSampler creates a new AdaptiveSampler.
 // source is the log source name used for telemetry tagging.
-func NewAdaptiveSampler(config AdaptiveSamplerConfig, source string) *AdaptiveSampler {
+// tagBytes, when non-nil, is read at drop time to estimate tag metadata bytes.
+func NewAdaptiveSampler(config AdaptiveSamplerConfig, source string, tagBytes *atomic.Int64) *AdaptiveSampler {
 	return &AdaptiveSampler{
-		entries: make([]samplerEntry, 0, config.MaxPatterns),
-		config:  config,
-		source:  source,
-		now:     time.Now,
+		entries:  make([]samplerEntry, 0, config.MaxPatterns),
+		config:   config,
+		source:   source,
+		now:      time.Now,
+		tagBytes: tagBytes,
 	}
 }
 
@@ -277,6 +284,14 @@ func (s *AdaptiveSampler) Process(msg *message.Message, tokens []Token) *message
 		}
 		tlmAdaptiveSamplerDropped.Inc(s.source)
 		tlmAdaptiveSamplerBytesDropped.Add(float64(msg.RawDataLen), s.source)
+		var tb int
+		if s.tagBytes != nil {
+			tb = int(s.tagBytes.Load())
+		}
+		tb = message.AppendTagMetadataBytes(tb, msg.ParsingExtra.Tags)
+		if tb > 0 {
+			tlmAdaptiveSamplerTagBytesDropped.Add(float64(tb), s.source)
+		}
 		return nil
 	}
 

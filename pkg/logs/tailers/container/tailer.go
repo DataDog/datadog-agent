@@ -431,14 +431,33 @@ func buildMessage(tailer *Tailer, output *message.Message) *message.Message {
 	tailer.setLastSince(output.ParsingExtra.Timestamp)
 	origin.Identifier = tailer.Identifier()
 
+	providerTags := tailer.tagProvider.GetTags()
+	// Update the tag-byte estimate so the adaptive sampler uses current provider
+	// tags for subsequent drop decisions. Note: this message has already exited
+	// the sampler, so the estimate takes effect on the next message.
+	if tailer.decoder != nil {
+		tailer.decoder.SetTagBytes(estimateTagBytes(tailer.Source, providerTags))
+	}
+
 	var tags []string
 	tags = append(tags, output.ParsingExtra.Tags...)
-	tags = append(tags, tailer.tagProvider.GetTags()...)
+	tags = append(tags, providerTags...)
 	origin.SetTags(tags)
 
 	// XXX(remy): is it OK recreating a message here?
 	// Preserve ParsingExtra information from decoder output (including IsTruncated flag)
 	return message.NewMessageWithParsingExtra(output.GetContent(), origin, output.Status, output.IngestionTimestamp, output.ParsingExtra)
+}
+
+func estimateTagBytes(source *sources.LogSource, providerTags []string) int {
+	if source == nil || source.Config == nil {
+		return message.TagMetadataBytes(providerTags)
+	}
+	return message.TagMetadataBytes(
+		source.Config.Tags,
+		message.SourceCategoryTag(source.Config.SourceCategory),
+		providerTags,
+	)
 }
 
 // forward forwards decoded messages to the next pipeline,

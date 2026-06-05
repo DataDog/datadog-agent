@@ -7,6 +7,7 @@ package decoder
 
 import (
 	"regexp"
+	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
@@ -51,6 +52,9 @@ type Decoder interface {
 	GetDetectedPattern() *regexp.Regexp
 	InputChan() chan *message.Message
 	OutputChan() chan *message.Message
+	// SetTagBytes stores the estimated tag metadata byte count for this source,
+	// making it available to the adaptive sampler at drop time.
+	SetTagBytes(n int)
 }
 
 // decoderImpl is the default implementation of the Decoder interface
@@ -66,6 +70,8 @@ type decoderImpl struct {
 	// pass a multiline pattern up from the line handler in order to surface it to the tailer.
 	// The tailer uses this to determine if a pattern should be reused when a file rotates.
 	detectedPattern *DetectedPattern
+
+	tagBytes *atomic.Int64
 }
 
 func (d *decoderImpl) InputChan() chan *message.Message {
@@ -74,6 +80,16 @@ func (d *decoderImpl) InputChan() chan *message.Message {
 
 func (d *decoderImpl) OutputChan() chan *message.Message {
 	return d.outputChan
+}
+
+// SetTagBytes stores the estimated tag metadata byte count so the adaptive
+// sampler can include it in drop telemetry. File tailers call this once at
+// startup (config tags only) and then per-message as provider tags arrive.
+// Container tailers call it per forwarded message from buildMessage.
+func (d *decoderImpl) SetTagBytes(n int) {
+	if d.tagBytes != nil {
+		d.tagBytes.Store(int64(n))
+	}
 }
 
 // InitializeDecoder returns a properly initialized Decoder
@@ -126,9 +142,14 @@ func NewDecoderWithFraming(source *sources.ReplaceableSource, parser parsers.Par
 	outputChan := make(chan *message.Message)
 	detectedPattern := &DetectedPattern{}
 
+	tagBytes := &atomic.Int64{}
+	tagBytes.Store(int64(message.TagMetadataBytes(
+		source.Config().Tags,
+		message.SourceCategoryTag(source.Config().SourceCategory),
+	)))
 	tokenizerMaxInputBytes, labelerMaxBytes := resolveTokenizerAndLabelerMaxInputBytes(source.Config().AutoMultiLineOptions, source.Config().ExperimentalAdaptiveSampling, source.Config().ExperimentalNoisyLogDetection)
 	tok := preprocessor.NewTokenizer(tokenizerMaxInputBytes)
-	lineHandler := buildLineHandler(source, multiLinePattern, tailerInfo, outputChan, detectedPattern, tok, labelerMaxBytes)
+	lineHandler := buildLineHandler(source, multiLinePattern, tailerInfo, outputChan, detectedPattern, tok, labelerMaxBytes, tagBytes)
 
 	var lineParser LineParser
 	if parser.SupportsPartialLine() {
@@ -139,7 +160,9 @@ func NewDecoderWithFraming(source *sources.ReplaceableSource, parser parsers.Par
 
 	framer := framer.NewFramer(lineParser.process, framing, maxMessageSize)
 
-	return New(inputChan, outputChan, framer, lineParser, lineHandler, detectedPattern)
+	d := New(inputChan, outputChan, framer, lineParser, lineHandler, detectedPattern)
+	d.(*decoderImpl).tagBytes = tagBytes
+	return d
 }
 
 // resolveTokenizerAndLabelerMaxInputBytes computes the tokenizer and labeler byte windows.
@@ -304,7 +327,7 @@ func resolveAdaptiveSamplerFilters(rules []*config.AdaptiveSamplingRule, tok *pr
 	return filters
 }
 
-func buildLineHandler(source *sources.ReplaceableSource, multiLinePattern *regexp.Regexp, tailerInfo *status.InfoRegistry, outputChan chan *message.Message, detectedPattern *DetectedPattern, tok *preprocessor.Tokenizer, labelerMaxBytes int) LineHandler {
+func buildLineHandler(source *sources.ReplaceableSource, multiLinePattern *regexp.Regexp, tailerInfo *status.InfoRegistry, outputChan chan *message.Message, detectedPattern *DetectedPattern, tok *preprocessor.Tokenizer, labelerMaxBytes int, tagBytes *atomic.Int64) LineHandler {
 	maxContentSize := config.MaxMessageSizeBytes(pkgconfigsetup.Datadog())
 	flushTimeout := config.AggregationTimeout(pkgconfigsetup.Datadog())
 
@@ -312,9 +335,9 @@ func buildLineHandler(source *sources.ReplaceableSource, multiLinePattern *regex
 	sourceConfig := source.Config()
 	switch resolveSamplerMode(sourceConfig.ExperimentalAdaptiveSampling, sourceConfig.ExperimentalNoisyLogDetection) {
 	case samplerAdaptiveSampling:
-		sampler = preprocessor.NewAdaptiveSampler(resolveAdaptiveSamplerConfig(sourceConfig.ExperimentalAdaptiveSampling, tok), source.UnderlyingSource().Name)
+		sampler = preprocessor.NewAdaptiveSampler(resolveAdaptiveSamplerConfig(sourceConfig.ExperimentalAdaptiveSampling, tok), source.UnderlyingSource().Name, tagBytes)
 	case samplerNoisyLogDetection:
-		sampler = preprocessor.NewAdaptiveSampler(resolveNoisyLogDetectionConfig(sourceConfig.ExperimentalAdaptiveSampling, tok), source.UnderlyingSource().Name)
+		sampler = preprocessor.NewAdaptiveSampler(resolveNoisyLogDetectionConfig(sourceConfig.ExperimentalAdaptiveSampling, tok), source.UnderlyingSource().Name, tagBytes)
 	default:
 		sampler = preprocessor.NewNoopSampler()
 	}

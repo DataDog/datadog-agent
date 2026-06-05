@@ -8,6 +8,7 @@ package preprocessor
 import (
 	"regexp"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -25,7 +26,7 @@ func newSampler(maxPatterns int, burstSize, rateLimit float64) *AdaptiveSampler 
 		RateLimit:      rateLimit,
 		BurstSize:      burstSize,
 		MatchThreshold: 0.9,
-	}, "test")
+	}, "test", nil)
 }
 
 func newSamplerWithProtect(maxPatterns int, burstSize, rateLimit float64, protect bool) *AdaptiveSampler {
@@ -35,7 +36,7 @@ func newSamplerWithProtect(maxPatterns int, burstSize, rateLimit float64, protec
 		BurstSize:            burstSize,
 		MatchThreshold:       0.9,
 		ProtectImportantLogs: protect,
-	}, "test")
+	}, "test", nil)
 }
 
 func testMsg() *message.Message {
@@ -195,7 +196,7 @@ func TestAdaptiveSampler_DetectionOnlyTagsWouldDrop(t *testing.T) {
 		BurstSize:      1,
 		MatchThreshold: 0.9,
 		DetectionOnly:  true,
-	}, "test")
+	}, "test", nil)
 	t0 := time.Now()
 	s.now = func() time.Time { return t0 }
 
@@ -217,7 +218,7 @@ func TestAdaptiveSampler_DetectionOnlyDoesNotEmitSampledCountAfterRefill(t *test
 		BurstSize:      1,
 		MatchThreshold: 0.9,
 		DetectionOnly:  true,
-	}, "test")
+	}, "test", nil)
 	t0 := time.Now()
 	s.now = func() time.Time { return t0 }
 
@@ -377,7 +378,7 @@ func TestAdaptiveSampler_DetectionOnlyHashUsesMatchedPatternAfterBubbling(t *tes
 		MatchThreshold: 0.9,
 		DetectionOnly:  true,
 		TagPatternHash: true,
-	}, "test")
+	}, "test", nil)
 	t0 := time.Now()
 	s.now = func() time.Time { return t0 }
 
@@ -440,7 +441,7 @@ func TestAdaptiveSampler_TagPatternHashSkipsUnimpactedLogs(t *testing.T) {
 		MatchThreshold: 0.9,
 		TagPatternHash: true,
 		Exclude:        []AdaptiveSamplerFilter{{Regex: regexp.MustCompile(`bypass`)}},
-	}, "test")
+	}, "test", nil)
 
 	out1 := s.Process(testMsgWith("bypass me", message.StatusInfo), patternA)
 	require.NotNil(t, out1)
@@ -462,7 +463,7 @@ func TestAdaptiveSampler_TagPatternHashSkipsSampledCountLogs(t *testing.T) {
 		BurstSize:      1,
 		MatchThreshold: 0.9,
 		TagPatternHash: true,
-	}, "test")
+	}, "test", nil)
 	t0 := time.Now()
 	s.now = func() time.Time { return t0 }
 
@@ -572,7 +573,7 @@ func TestAdaptiveSampler_IncludeFiltersSampleMatchingLogs(t *testing.T) {
 				BurstSize:      1,
 				MatchThreshold: 0.9,
 				Include:        []AdaptiveSamplerFilter{tt.filter},
-			}, "test")
+			}, "test", nil)
 			t0 := time.Now()
 			s.now = func() time.Time { return t0 }
 
@@ -590,7 +591,7 @@ func TestAdaptiveSampler_IncludeFiltersBypassNonMatchingLogs(t *testing.T) {
 		BurstSize:      1,
 		MatchThreshold: 0.9,
 		Include:        []AdaptiveSamplerFilter{{Regex: regexp.MustCompile(`error`)}},
-	}, "test")
+	}, "test", nil)
 	msg := testMsgWith("ordinary info log", message.StatusInfo)
 	tokens := tokenize("ordinary info log")
 
@@ -606,7 +607,7 @@ func TestAdaptiveSampler_EmptyConfiguredIncludeBypassesAllLogs(t *testing.T) {
 		BurstSize:         1,
 		MatchThreshold:    0.9,
 		IncludeConfigured: true,
-	}, "test")
+	}, "test", nil)
 	msg := testMsgWith("ordinary info log", message.StatusInfo)
 	tokens := tokenize("ordinary info log")
 
@@ -644,7 +645,7 @@ func TestAdaptiveSampler_ExcludeFiltersBypassMatchingLogs(t *testing.T) {
 				BurstSize:      1,
 				MatchThreshold: 0.9,
 				Exclude:        []AdaptiveSamplerFilter{tt.filter},
-			}, "test")
+			}, "test", nil)
 
 			require.NotNil(t, s.Process(tt.msg, tt.tokens))
 			require.NotNil(t, s.Process(tt.msg, tt.tokens))
@@ -661,7 +662,7 @@ func TestAdaptiveSampler_ExcludeTakesPrecedenceOverInclude(t *testing.T) {
 		MatchThreshold: 0.9,
 		Include:        []AdaptiveSamplerFilter{{Regex: regexp.MustCompile(`foo.*bar`)}},
 		Exclude:        []AdaptiveSamplerFilter{{SampleTokens: tokenize("foo hello bar")}},
-	}, "test")
+	}, "test", nil)
 	msg := testMsgWith("foo hello bar", message.StatusInfo)
 	tokens := tokenize("foo hello bar")
 
@@ -688,4 +689,107 @@ func TestIsImportant(t *testing.T) {
 	assert.False(t, isImportant(tokenize("request processed successfully")))
 	assert.False(t, isImportant(nil))
 	assert.False(t, isImportant([]Token{}))
+}
+
+func TestAdaptiveSampler_TagBytesDropped(t *testing.T) {
+	tb := &atomic.Int64{}
+	tb.Store(42)
+	s := NewAdaptiveSampler(AdaptiveSamplerConfig{
+		MaxPatterns:    10,
+		RateLimit:      0,
+		BurstSize:      1,
+		MatchThreshold: 0.9,
+	}, "test_tags", tb)
+	t0 := time.Now()
+	s.now = func() time.Time { return t0 }
+
+	tokens := tokenize("hello world 123")
+	msg := testMsg()
+
+	// First message passes (burst)
+	require.NotNil(t, s.Process(msg, tokens))
+
+	before := tlmAdaptiveSamplerTagBytesDropped.WithValues("test_tags").Get()
+
+	// Second message is dropped — tag bytes should be tracked
+	require.Nil(t, s.Process(testMsg(), tokens))
+
+	after := tlmAdaptiveSamplerTagBytesDropped.WithValues("test_tags").Get()
+	assert.Equal(t, float64(42), after-before)
+}
+
+func TestAdaptiveSampler_TagBytesDroppedIncludesParsingExtra(t *testing.T) {
+	tb := &atomic.Int64{}
+	tb.Store(10)
+	s := NewAdaptiveSampler(AdaptiveSamplerConfig{
+		MaxPatterns:    10,
+		RateLimit:      0,
+		BurstSize:      1,
+		MatchThreshold: 0.9,
+	}, "test_tags_extra", tb)
+	t0 := time.Now()
+	s.now = func() time.Time { return t0 }
+
+	tokens := tokenize("hello world 123")
+
+	// Exhaust burst
+	require.NotNil(t, s.Process(testMsg(), tokens))
+
+	before := tlmAdaptiveSamplerTagBytesDropped.WithValues("test_tags_extra").Get()
+
+	// Drop a message with ParsingExtra.Tags
+	msg := testMsg()
+	msg.ParsingExtra.Tags = []string{"truncated:single_line", "multiline:aggregate"}
+	require.Nil(t, s.Process(msg, tokens))
+
+	after := tlmAdaptiveSamplerTagBytesDropped.WithValues("test_tags_extra").Get()
+	expected := float64(message.AppendTagMetadataBytes(10, []string{"truncated:single_line", "multiline:aggregate"}))
+	assert.Equal(t, expected, after-before)
+}
+
+func TestAdaptiveSampler_TagBytesDroppedIncludesParsingExtraWithoutBaseTags(t *testing.T) {
+	s := NewAdaptiveSampler(AdaptiveSamplerConfig{
+		MaxPatterns:    10,
+		RateLimit:      0,
+		BurstSize:      1,
+		MatchThreshold: 0.9,
+	}, "test_tags_extra_no_base", nil)
+	t0 := time.Now()
+	s.now = func() time.Time { return t0 }
+
+	tokens := tokenize("hello world 123")
+
+	require.NotNil(t, s.Process(testMsg(), tokens))
+
+	before := tlmAdaptiveSamplerTagBytesDropped.WithValues("test_tags_extra_no_base").Get()
+
+	msg := testMsg()
+	msg.ParsingExtra.Tags = []string{"truncated:single_line", "multiline:aggregate"}
+	require.Nil(t, s.Process(msg, tokens))
+
+	after := tlmAdaptiveSamplerTagBytesDropped.WithValues("test_tags_extra_no_base").Get()
+	expected := float64(message.TagMetadataBytes([]string{"truncated:single_line", "multiline:aggregate"}))
+	assert.Equal(t, expected, after-before)
+}
+
+func TestAdaptiveSampler_TagBytesDroppedZeroWhenNoTags(t *testing.T) {
+	s := NewAdaptiveSampler(AdaptiveSamplerConfig{
+		MaxPatterns:    10,
+		RateLimit:      0,
+		BurstSize:      1,
+		MatchThreshold: 0.9,
+	}, "test_tags_zero", nil)
+	t0 := time.Now()
+	s.now = func() time.Time { return t0 }
+
+	tokens := tokenize("hello world 123")
+
+	require.NotNil(t, s.Process(testMsg(), tokens))
+
+	before := tlmAdaptiveSamplerTagBytesDropped.WithValues("test_tags_zero").Get()
+
+	require.Nil(t, s.Process(testMsg(), tokens))
+
+	after := tlmAdaptiveSamplerTagBytesDropped.WithValues("test_tags_zero").Get()
+	assert.Equal(t, float64(0), after-before, "no tag bytes should be tracked when tagBytesFunc returns 0")
 }

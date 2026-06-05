@@ -51,6 +51,14 @@ type mockReaderSleep struct {
 	timeout time.Duration
 }
 
+type staticTagProvider struct {
+	tags []string
+}
+
+func (p staticTagProvider) GetTags() []string {
+	return p.tags
+}
+
 func newMockReaderSleep(ctx context.Context) *mockReaderSleep {
 	return &mockReaderSleep{ctx: ctx, timeout: 2 * testReadTimeout}
 }
@@ -109,6 +117,32 @@ func NewTestTailer(reader io.ReadCloser, unsafeReader io.ReadCloser, cancelFunc 
 func TestTailerIdentifier(t *testing.T) {
 	tailer := &Tailer{ContainerID: "test"}
 	assert.Equal(t, "docker:test", tailer.Identifier())
+}
+
+func TestBuildMessageUpdatesTagBytesWithSourceCategory(t *testing.T) {
+	mockDecoder := decoder.NewMockDecoder()
+	source := sources.NewLogSource("foo", &config.LogsConfig{
+		SourceCategory: "app",
+		Tags:           []string{"env:prod"},
+	})
+	providerTags := []string{"container_id:123"}
+	tailer := &Tailer{
+		ContainerID:        "123",
+		decoder:            mockDecoder,
+		Source:             source,
+		tagProvider:        staticTagProvider{tags: providerTags},
+		lastSince:          time.Now().UTC().Format(config.DateFormat),
+		outputChan:         make(chan *message.Message, 1),
+		erroredContainerID: make(chan string, 1),
+	}
+	output := message.NewMessage([]byte("hello"), nil, message.StatusInfo, time.Now().UnixNano())
+
+	_ = buildMessage(tailer, output)
+
+	assert.Equal(t,
+		message.TagMetadataBytes(source.Config.Tags, message.SourceCategoryTag(source.Config.SourceCategory), providerTags),
+		mockDecoder.TagBytes(),
+	)
 }
 
 func TestGetLastSince(t *testing.T) {

@@ -16,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/goleak"
 
@@ -47,6 +48,12 @@ type TailerTestSuite struct {
 	tailer     *Tailer
 	outputChan chan *message.Message
 	source     *sources.ReplaceableSource
+}
+
+type panicTagProvider struct{}
+
+func (panicTagProvider) GetTags() []string {
+	panic("estimateTagBytes must not call tagProvider.GetTags")
 }
 
 // createTailerOptions creates TailerOptions with common defaults.
@@ -84,6 +91,34 @@ func (suite *TailerTestSuite) createTailerOptions(opts *tailerTestOptions) *Tail
 
 func TestSuite(t *testing.T) {
 	suite.Run(t, new(TailerTestSuite))
+}
+
+func TestEstimateTagBytesUsesTagMetadata(t *testing.T) {
+	source := sources.NewLogSource("", &config.LogsConfig{
+		Type:           config.FileType,
+		Path:           "/var/log/app.log",
+		SourceCategory: "app",
+		Tags:           []string{"env:prod", "team:logs"},
+	})
+	tailer := &Tailer{
+		file:        NewFile("/var/log/app.log", source, false),
+		tags:        []string{"filename:app.log", "dirname:/var/log"},
+		tagProvider: panicTagProvider{},
+	}
+	providerTags := []string{"container_id:abc"}
+
+	assert.Equal(t,
+		message.TagMetadataBytes(
+			source.Config.Tags,
+			message.SourceCategoryTag(source.Config.SourceCategory),
+			tailer.tags,
+			providerTags,
+		),
+		tailer.estimateTagBytes(providerTags),
+	)
+	assert.NotPanics(t, func() {
+		_ = tailer.estimateTagBytes(nil)
+	})
 }
 
 func (suite *TailerTestSuite) SetupTest() {
