@@ -120,9 +120,10 @@ func (m *syslogFrameMatcher) FindFrame(buf []byte, seen int) ([]byte, int, bool)
 // A run longer than contentLenLimit is emitted in bounded chunks: the matcher
 // emits contentLenLimit bytes, enters (or stays in) overflowMalformed, and the
 // remainder returns here on the next call. The continuation flag distinguishes
-// the first chunk of a fresh run (counts the oversized frame; a whole sub-limit
-// run is not flagged truncated) from a continuation chunk (already counted;
-// every emitted piece belongs to a truncated frame).
+// the first chunk of a fresh run (counts the oversized frame once) from a
+// continuation chunk (already counted). Truncation follows "never the last": a
+// bounded chunk emitted before the sync point is truncated, while the chunk
+// that reaches the sync point (the final segment of the run) is not.
 func (m *syslogFrameMatcher) scanMalformed(buf []byte, continuation bool) ([]byte, int, bool) {
 	for i := 1; i < len(buf); i++ {
 		if isSyslogFrameStart(buf, i) || buf[i] == '\n' || buf[i] == 0 {
@@ -141,7 +142,10 @@ func (m *syslogFrameMatcher) scanMalformed(buf []byte, continuation bool) ([]byt
 			}
 			m.recordDiscarded(int64(len(content)))
 			m.overflow = overflowNone
-			return content, rawDataLen, continuation
+			// Reaching the sync point ends the malformed run, so this is its
+			// final segment: never truncated ("never the last"). A whole
+			// sub-limit run likewise emits untruncated.
+			return content, rawDataLen, false
 		}
 	}
 	// No sync point yet. If the run already fills a chunk, emit it now and
@@ -264,10 +268,13 @@ func (m *syslogFrameMatcher) findOctetCounted(buf []byte) ([]byte, int, bool) {
 }
 
 // emitOctetContinuation emits the next bounded chunk of an octet-counted
-// frame's remaining declared body. Continuation chunks carry no header and are
-// always flagged truncated: the matcher only enters overflowOctet when the
-// frame could not be held whole under contentLenLimit. The matcher waits only
-// for a single chunk's worth of bytes, so the buffer never exceeds the limit.
+// frame's remaining declared body. Continuation chunks carry no header. Every
+// chunk is flagged truncated except the one that completes the declared length:
+// per the "never the last" contract, the final segment of the split frame is
+// not truncated (it carries no trailing marker — MSG-LEN is the authoritative
+// boundary, so the matcher knows when the body is complete). The matcher waits
+// only for a single chunk's worth of bytes, so the buffer never exceeds the
+// limit.
 func (m *syslogFrameMatcher) emitOctetContinuation(buf []byte) ([]byte, int, bool) {
 	chunk := m.octetRemaining
 	if chunk > m.contentLenLimit {
@@ -281,7 +288,9 @@ func (m *syslogFrameMatcher) emitOctetContinuation(buf []byte) ([]byte, int, boo
 		m.octetRemaining = 0
 		m.overflow = overflowNone
 	}
-	return buf[:chunk], chunk, true
+	// Truncated unless this chunk completed the declared body (the last
+	// segment is never truncated).
+	return buf[:chunk], chunk, m.overflow == overflowOctet
 }
 
 // findNonTransparent scans a fresh non-transparent frame for its LF/NUL
@@ -304,10 +313,11 @@ func (m *syslogFrameMatcher) findNonTransparent(buf []byte, seen int) ([]byte, i
 // on the next call. start lets a fresh frame skip already-scanned bytes.
 //
 // The continuation flag distinguishes the first chunk of a fresh frame (counts
-// the oversized frame; a whole sub-limit frame is not flagged truncated) from a
-// continuation chunk (already counted; every emitted piece belongs to a
-// truncated frame, and a delimiter that lands exactly at the chunk boundary is
-// consumed without emitting an empty frame).
+// the oversized frame once) from a continuation chunk (already counted, and a
+// delimiter that lands exactly at the chunk boundary is consumed without
+// emitting an empty frame). Truncation follows "never the last": a chunk
+// emitted because the buffer filled before the delimiter arrived is truncated,
+// while the chunk that reaches the delimiter (the final segment) is not.
 func (m *syslogFrameMatcher) scanNonTransparent(buf []byte, start int, continuation bool) ([]byte, int, bool) {
 	for i := start; i < len(buf); i++ {
 		if buf[i] == '\n' || buf[i] == 0 {
@@ -329,7 +339,10 @@ func (m *syslogFrameMatcher) scanNonTransparent(buf []byte, start int, continuat
 				// forwarded.
 				return nil, i + 1, false
 			}
-			return content, i + 1, continuation // include the delimiter
+			// The delimiter terminates the frame, so this is its final
+			// segment: never truncated ("never the last"). A whole sub-limit
+			// frame likewise emits untruncated.
+			return content, i + 1, false // include the delimiter
 		}
 	}
 	// No delimiter yet. If the frame already fills a chunk, emit it now and
@@ -350,23 +363,25 @@ func (m *syslogFrameMatcher) scanNonTransparent(buf []byte, start int, continuat
 // chunk the moment the buffer reaches the limit), so there is nothing to chunk
 // here — flush is always a straight dump of the trailing bytes.
 //
-// Trailing LF/CR/NUL delimiters are stripped; a remainder that is only
-// delimiters (or empty) emits nothing rather than a blank frame. The frame is
-// flagged truncated when it is the tail of an oversized frame still in
-// overflow, and malformed-overflow bytes are counted as discarded so the
-// telemetry total stays accurate.
-func (m *syslogFrameMatcher) FlushFrame(buf []byte) ([]byte, int, bool) {
+// The flushed bytes are always the terminal segment of their logical line, so
+// the frame is never reported as truncated ("never the last"): if its frame
+// was split during Process, the leading "...TRUNCATED..." marker is added
+// downstream by the line handler's carry-over, and no trailing marker belongs
+// on the final piece. Trailing LF/CR/NUL delimiters are stripped; a remainder
+// that is only delimiters (or empty) emits nothing rather than a blank frame.
+// Malformed-overflow bytes are counted as discarded so the telemetry total
+// stays accurate.
+func (m *syslogFrameMatcher) FlushFrame(buf []byte) ([]byte, int) {
 	content := syslogTrimTrailer(buf)
 	if len(content) == 0 {
 		m.overflow = overflowNone
-		return nil, 0, false
+		return nil, 0
 	}
-	truncated := m.overflow != overflowNone
 	if m.overflow == overflowMalformed {
 		m.recordDiscarded(int64(len(content)))
 	}
 	m.overflow = overflowNone
-	return content, len(buf), truncated
+	return content, len(buf)
 }
 
 // recordDiscarded increments both the global telemetry counter and the

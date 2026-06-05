@@ -271,8 +271,9 @@ func (fr *Framer) normalizeBuffer() {
 
 // Flush emits any unframed remainder left in the buffer by delegating to the
 // matcher's FlushFrame in a loop. Called by the decoder at end-of-stream
-// (e.g. when a TCP connection closes). The loop allows matchers to emit
-// oversized remainders in bounded chunks.
+// (e.g. when a TCP connection closes). A flushed frame is always the terminal
+// segment of its logical line, so it is never reported as truncated — see the
+// "never the last" contract on FrameMatcher.
 func (fr *Framer) Flush() {
 	for {
 		framed := fr.bytesFramed
@@ -281,11 +282,11 @@ func (fr *Framer) Flush() {
 			break
 		}
 		buf := fr.buffer.Bytes()[framed:]
-		content, rawDataLen, isTruncated := fr.matcher.FlushFrame(buf)
+		content, rawDataLen := fr.matcher.FlushFrame(buf)
 		if content == nil {
 			break
 		}
-		fr.emitFrame(fr.lastInput, content, rawDataLen, isTruncated)
+		fr.emitFrame(fr.lastInput, content, rawDataLen, false)
 		fr.bytesFramed += rawDataLen
 	}
 	fr.normalizeBuffer()

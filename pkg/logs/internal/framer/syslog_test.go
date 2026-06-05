@@ -329,8 +329,15 @@ func TestSyslogOctetCountedStraddlesLimit(t *testing.T) {
 	assert.Equal(t, body, strings.Join(contents, ""), "header must be stripped and the split chunks must reconstruct the body with no data loss")
 	for i, f := range contents {
 		require.NotEmpty(t, f, "framer emitted an empty frame at index %d", i)
-		assert.True(t, truncated[i], "a frame split at the framing limit must be flagged truncated")
 	}
+	// "never the last": every split chunk except the final one is flagged
+	// truncated. The final chunk completes the declared body, so it carries no
+	// trailing truncation marker.
+	lastIdx := len(contents) - 1
+	for i := 0; i < lastIdx; i++ {
+		assert.True(t, truncated[i], "non-final chunk %d (%q) must be flagged truncated", i, contents[i])
+	}
+	assert.False(t, truncated[lastIdx], "final chunk (%q) must NOT be flagged truncated", contents[lastIdx])
 }
 
 func TestSyslogOversizedFlushFrame(t *testing.T) {
@@ -342,13 +349,13 @@ func TestSyslogOversizedFlushFrame(t *testing.T) {
 		matcher := &syslogFrameMatcher{contentLenLimit: limit}
 		buf := []byte("<134>" + strings.Repeat("A", 25)) // 30 bytes
 
-		content, rawDataLen, _ := matcher.FlushFrame(buf)
+		content, rawDataLen := matcher.FlushFrame(buf)
 		require.NotNil(t, content)
 		assert.Len(t, content, len(buf), "the whole remainder is emitted as a single frame")
 		assert.Equal(t, len(buf), rawDataLen)
 
 		// Nothing remains to drain.
-		content, rawDataLen, _ = matcher.FlushFrame(buf[rawDataLen:])
+		content, rawDataLen = matcher.FlushFrame(buf[rawDataLen:])
 		assert.Nil(t, content)
 		assert.Equal(t, 0, rawDataLen)
 	})
@@ -582,7 +589,26 @@ func TestSyslogMalformedFrameEmission(t *testing.T) {
 }
 
 func TestSyslogSplitTruncationFlags(t *testing.T) {
-	t.Run("octet-counted split marks all chunks truncated", func(t *testing.T) {
+	// assertNeverTheLast checks the "never the last" contract for a stream of
+	// the form [split-frame chunks..., trailing independent message]. Every
+	// chunk of the split frame except its final one must be flagged truncated;
+	// the split frame's final chunk and the trailing independent message must
+	// not be. frameChunks is the number of chunks the oversized frame produced.
+	assertNeverTheLast := func(t *testing.T, contents []string, truncated []bool, frameChunks int, trailing string) {
+		t.Helper()
+		require.True(t, len(contents) >= frameChunks+1,
+			"expected %d split chunks plus the trailing message, got %d: %v", frameChunks, len(contents), contents)
+
+		frameLast := frameChunks - 1
+		for i := 0; i < frameLast; i++ {
+			assert.True(t, truncated[i], "non-final split chunk %d (%q) should be truncated", i, contents[i])
+		}
+		assert.False(t, truncated[frameLast], "final split chunk (%q) should NOT be truncated (never the last)", contents[frameLast])
+		assert.False(t, truncated[frameChunks], "trailing independent message (%q) should NOT be truncated", contents[frameChunks])
+		assert.Equal(t, trailing, contents[frameChunks])
+	}
+
+	t.Run("octet-counted split flags every chunk except the last", func(t *testing.T) {
 		limit := 15
 		body := "<34>1 " + strings.Repeat("B", 40) // 46 bytes
 		frame := fmt.Sprintf("%d %s", len(body), body)
@@ -601,17 +627,12 @@ func TestSyslogSplitTruncationFlags(t *testing.T) {
 		fr := NewSyslogFramer(outputFn, limit, tailerInfo)
 		fr.Process(message.NewMessage(input, nil, "", 0))
 
-		require.True(t, len(contents) >= 3, "expected split chunks plus next message, got %d: %v", len(contents), contents)
-
-		lastIdx := len(contents) - 1
-		for i := 0; i < lastIdx; i++ {
-			assert.True(t, truncated[i], "chunk %d (%q) should be truncated", i, contents[i])
-		}
-		assert.False(t, truncated[lastIdx], "next independent message (%q) should NOT be truncated", contents[lastIdx])
-		assert.Equal(t, nextMsg, contents[lastIdx])
+		// 46-byte body at limit 15 → chunks of 15, 15, 15, 1.
+		assertNeverTheLast(t, contents, truncated, 4, nextMsg)
+		assert.Equal(t, body, strings.Join(contents[:4], ""), "split chunks must reconstruct the body")
 	})
 
-	t.Run("non-transparent split marks all chunks truncated", func(t *testing.T) {
+	t.Run("non-transparent split flags every chunk except the last", func(t *testing.T) {
 		limit := 15
 		body := "<34>1 " + strings.Repeat("C", 40) // 46 bytes
 		nextMsg := "<34>1 next"
@@ -629,17 +650,12 @@ func TestSyslogSplitTruncationFlags(t *testing.T) {
 		fr := NewSyslogFramer(outputFn, limit, tailerInfo)
 		fr.Process(message.NewMessage(input, nil, "", 0))
 
-		require.True(t, len(contents) >= 3, "expected split chunks plus next message, got %d: %v", len(contents), contents)
-
-		lastIdx := len(contents) - 1
-		for i := 0; i < lastIdx; i++ {
-			assert.True(t, truncated[i], "chunk %d (%q) should be truncated", i, contents[i])
-		}
-		assert.False(t, truncated[lastIdx], "next independent message (%q) should NOT be truncated", contents[lastIdx])
-		assert.Equal(t, nextMsg, contents[lastIdx])
+		// 46-byte body at limit 15 → chunks of 15, 15, 15, 1.
+		assertNeverTheLast(t, contents, truncated, 4, nextMsg)
+		assert.Equal(t, body, strings.Join(contents[:4], ""), "split chunks must reconstruct the body")
 	})
 
-	t.Run("malformed split marks all chunks truncated", func(t *testing.T) {
+	t.Run("malformed split flags every chunk except the last", func(t *testing.T) {
 		limit := 10
 		junk := strings.Repeat("Z", 25)
 		validMsg := "<34>1 msg"
@@ -657,17 +673,12 @@ func TestSyslogSplitTruncationFlags(t *testing.T) {
 		fr := NewSyslogFramer(outputFn, limit, tailerInfo)
 		fr.Process(message.NewMessage(input, nil, "", 0))
 
-		require.True(t, len(contents) >= 3, "expected split malformed chunks plus valid, got %d: %v", len(contents), contents)
-
-		lastIdx := len(contents) - 1
-		for i := 0; i < lastIdx; i++ {
-			assert.True(t, truncated[i], "chunk %d (%q) should be truncated", i, contents[i])
-		}
-		assert.False(t, truncated[lastIdx], "valid message (%q) should NOT be truncated", contents[lastIdx])
-		assert.Equal(t, validMsg, contents[lastIdx])
+		// 25 bytes of junk at limit 10 → chunks of 10, 10, 5.
+		assertNeverTheLast(t, contents, truncated, 3, validMsg)
+		assert.Equal(t, junk, strings.Join(contents[:3], ""), "split chunks must reconstruct the junk run")
 	})
 
-	t.Run("octet continuation emitted promptly and truncated", func(t *testing.T) {
+	t.Run("octet continuation emitted promptly", func(t *testing.T) {
 		// Octet-counted frame whose declared body exceeds the limit. Because
 		// MSG-LEN is the authoritative boundary, the continuation bytes are
 		// emitted as raw chunks as soon as they are available — they are never
@@ -690,7 +701,7 @@ func TestSyslogSplitTruncationFlags(t *testing.T) {
 		fr.Process(message.NewMessage(input, nil, "", 0))
 		require.Len(t, contents, 2, "oversized octet frame split into two chunks during Process")
 		assert.True(t, truncated[0], "first split chunk should be truncated")
-		assert.True(t, truncated[1], "continuation chunk should be truncated")
+		assert.False(t, truncated[1], "final chunk completes the declared body, so it is not truncated (never the last)")
 
 		fr.Flush()
 		require.Len(t, contents, 2, "nothing left to flush")
@@ -727,7 +738,7 @@ func TestSyslogSplitTruncationFlags(t *testing.T) {
 
 		fr.Flush()
 		require.Len(t, contents, 2, "remaining delivered bytes flushed at EOF")
-		assert.True(t, truncated[1], "flush continuation should be truncated")
+		assert.False(t, truncated[1], "flushed tail is the final segment, so it is not truncated (never the last)")
 
 		// Header is stripped; only the bytes actually delivered are emitted.
 		combined := strings.Join(contents, "")

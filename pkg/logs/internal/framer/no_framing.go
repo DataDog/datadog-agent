@@ -10,7 +10,7 @@ type noFramingMatcher struct{}
 
 // FlushFrame implements FrameMatcher. No-framing already emits everything
 // in FindFrame, so there is no remainder to flush.
-func (m *noFramingMatcher) FlushFrame([]byte) ([]byte, int, bool) { return nil, 0, false }
+func (m *noFramingMatcher) FlushFrame([]byte) ([]byte, int) { return nil, 0 }
 
 // FindFrame considers the given bytes buffer as one full frame.
 func (m *noFramingMatcher) FindFrame(buf []byte, _ int) ([]byte, int, bool) {

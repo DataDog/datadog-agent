@@ -31,7 +31,7 @@ type twoByteNewLineMatcher struct {
 
 // FlushFrame implements FrameMatcher. Partial newline-delimited lines are
 // not emitted at end-of-stream.
-func (tb *twoByteNewLineMatcher) FlushFrame([]byte) ([]byte, int, bool) { return nil, 0, false }
+func (tb *twoByteNewLineMatcher) FlushFrame([]byte) ([]byte, int) { return nil, 0 }
 
 // FindFrame implements FrameMatcher#FindFrame.
 func (tb *twoByteNewLineMatcher) FindFrame(buf []byte, seen int) ([]byte, int, bool) {

@@ -24,17 +24,16 @@ type oneByteNewLineMatcher struct {
 }
 
 // FlushFrame implements FrameMatcher. By default, partial newline-delimited
-// lines are not emitted at end-of-stream. When flushPartial is set, any
-// remaining buffered bytes are emitted as a final frame, capped at
-// contentLenLimit.
-func (ob *oneByteNewLineMatcher) FlushFrame(buf []byte) ([]byte, int, bool) {
+// lines are not emitted at end-of-stream. When flushPartial is set, the
+// buffered remainder is emitted as the final frame. The Framer chops the
+// buffer into contentLenLimit-sized frames during Process, so the remainder is
+// always under the limit and is the terminal segment of its line — never
+// truncated.
+func (ob *oneByteNewLineMatcher) FlushFrame(buf []byte) ([]byte, int) {
 	if !ob.flushPartial || len(buf) == 0 {
-		return nil, 0, false
+		return nil, 0
 	}
-	if len(buf) > ob.contentLenLimit {
-		return buf[:ob.contentLenLimit], ob.contentLenLimit, true
-	}
-	return buf, len(buf), false
+	return buf, len(buf)
 }
 
 // FindFrame implements FrameMatcher#FindFrame.
