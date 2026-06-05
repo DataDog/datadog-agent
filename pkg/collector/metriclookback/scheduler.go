@@ -26,6 +26,8 @@ const (
 	defaultShadowStopTimeout = 5 * time.Second
 )
 
+var errShadowSchedulerStopped = errors.New("shadow scheduler is stopped")
+
 // SenderManagerFactory returns a sender manager scoped to one shadow check.
 type SenderManagerFactory func(context.Context) sender.SenderManager
 
@@ -121,7 +123,7 @@ func (s *ShadowScheduler) Schedule(configs []ShadowConfig) error {
 		s.mu.Lock()
 		if s.stopped {
 			s.mu.Unlock()
-			return errors.New("shadow scheduler is stopped")
+			return errShadowSchedulerStopped
 		}
 		if _, exists := s.checks[key]; exists {
 			s.mu.Unlock()
@@ -144,7 +146,10 @@ func (s *ShadowScheduler) Schedule(configs []ShadowConfig) error {
 		if s.stopped {
 			s.mu.Unlock()
 			_ = handle.stop(s.stopTimeout)
-			return errors.New("shadow scheduler is stopped")
+			if firstErr == nil {
+				firstErr = errShadowSchedulerStopped
+			}
+			continue
 		}
 		if _, exists := s.checks[key]; exists {
 			s.mu.Unlock()
@@ -230,6 +235,7 @@ func (s *ShadowScheduler) Unschedule(configs []ShadowConfig) error {
 // the scheduler stop timeout.
 func (s *ShadowScheduler) Stop() error {
 	s.mu.Lock()
+	s.stopped = true
 	handles := make([]*shadowCheckHandle, 0, len(s.checks))
 	for key, handle := range s.checks {
 		handles = append(handles, handle)
