@@ -230,16 +230,13 @@ func newEbpfTracer(config *config.Config, _ telemetryComponent.Component) (Trace
 	mgrOptions.MapSpecEditors[probes.PortBindingsMap] = manager.MapSpecEditor{MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries}
 	mgrOptions.MapSpecEditors[probes.UDPPortBindingsMap] = manager.MapSpecEditor{MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries}
 
-	log.Info("JMW network tracer: attempting to load SK tracer")
 	m, closeTracerFn, err = sk.LoadTracer(config, mgrOptions, connCloseEventHandler)
 	if err != nil && !errors.Is(err, sk.ErrorDisabled) {
 		// failed to load sk tracer
 		return nil, err
 	}
 	if err == nil {
-		log.Info("JMW network tracer: SK tracer loaded successfully")
-	} else {
-		log.Info("JMW network tracer: SK tracer is disabled (network_config.enable_sk_tracer=false), skipping")
+		log.Info("sk tracer loaded successfully")
 	}
 
 	if err != nil {
@@ -254,13 +251,12 @@ func newEbpfTracer(config *config.Config, _ telemetryComponent.Component) (Trace
 		mgrOptions.MapSpecEditors[probes.TCPRecvMsgArgsMap] = manager.MapSpecEditor{MaxEntries: config.MaxTrackedConnections / 32, EditorFlag: manager.EditMaxEntries}
 
 		tracerType = TracerTypeFentry
-		log.Info("JMW network tracer: attempting to load fentry tracer")
 		m, closeTracerFn, err = fentry.LoadTracer(config, mgrOptions, connCloseEventHandler)
 		switch {
 		case err == nil:
-			log.Info("JMW network tracer: fentry tracer loaded successfully")
+			log.Info("fentry tracer loaded successfully")
 		case errors.Is(err, fentry.ErrorDisabled):
-			log.Info("JMW network tracer: fentry tracer is disabled (network_config.enable_fentry=false), skipping")
+			// fentry not enabled — fall through to kprobe
 		case errors.Is(err, fentry.ErrorUnsupported):
 			// fentry is enabled but this system can't run it due to a known kernel
 			// limitation (e.g. the RCU-exit deadlock on kernels < 6.9). This would
@@ -281,14 +277,13 @@ func newEbpfTracer(config *config.Config, _ telemetryComponent.Component) (Trace
 		}
 
 		if err != nil {
-			log.Info("JMW network tracer: attempting to load kprobe tracer")
 			var kprobeTracerType kprobe.TracerType
 			m, closeTracerFn, kprobeTracerType, err = kprobe.LoadTracer(config, mgrOptions, connCloseEventHandler)
 			if err != nil {
 				return nil, err
 			}
 			tracerType = TracerType(kprobeTracerType)
-			log.Info("JMW network tracer: kprobe tracer loaded successfully")
+			log.Info("kprobe tracer loaded successfully")
 		}
 	}
 	m.DumpHandler = dumpMapsHandler
