@@ -51,9 +51,9 @@ type eventInput struct {
 // flags the timeline as incomplete.
 func buildEventTitle(complete bool, totalMs int64) string {
 	if complete {
-		return fmt.Sprintf("Device booted: total boot & login duration took %d ms", totalMs)
+		return fmt.Sprintf("Device booted up: Boot & login took %d ms", totalMs)
 	}
-	return "Device booted: boot timeline incomplete"
+	return "Device booted up: Boot timeline incomplete"
 }
 
 func buildEventPayload(input eventInput) (map[string]interface{}, error) {

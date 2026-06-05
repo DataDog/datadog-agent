@@ -358,7 +358,7 @@ func TestSubmitEvent_PayloadFormat(t *testing.T) {
 
 	attrs, ok := data["attributes"].(map[string]interface{})
 	require.True(t, ok)
-	assert.Equal(t, "Device booted: boot timeline incomplete", attrs["title"])
+	assert.Equal(t, "Device booted up: Boot timeline incomplete", attrs["title"])
 	assert.Equal(t, "alert", attrs["category"])
 	assert.Equal(t, "system-notable-events", attrs["integration_id"])
 
@@ -432,7 +432,7 @@ func TestSubmitEvent_TitleReflectsCompleteness(t *testing.T) {
 				SessionLogon:        boot.Add(30 * time.Second),
 				DesktopVisibleStart: boot.Add(90 * time.Second),
 			},
-			expected: "Device booted: total boot & login duration took 70000 ms",
+			expected: "Device booted up: Boot & login took 70000 ms",
 		},
 		{
 			name: "boot only",
@@ -440,7 +440,7 @@ func TestSubmitEvent_TitleReflectsCompleteness(t *testing.T) {
 				BootStart:    boot,
 				LoginUIStart: boot.Add(10 * time.Second),
 			},
-			expected: "Device booted: boot timeline incomplete",
+			expected: "Device booted up: Boot timeline incomplete",
 		},
 		{
 			name: "logon only",
@@ -449,12 +449,12 @@ func TestSubmitEvent_TitleReflectsCompleteness(t *testing.T) {
 				SessionLogon:        boot.Add(30 * time.Second),
 				DesktopVisibleStart: boot.Add(90 * time.Second),
 			},
-			expected: "Device booted: boot timeline incomplete",
+			expected: "Device booted up: Boot timeline incomplete",
 		},
 		{
 			name:     "neither",
 			timeline: BootTimeline{BootStart: boot},
-			expected: "Device booted: boot timeline incomplete",
+			expected: "Device booted up: Boot timeline incomplete",
 		},
 	}
 
