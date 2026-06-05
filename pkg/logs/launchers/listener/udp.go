@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/comp/logs-library/pipeline"
@@ -21,23 +20,18 @@ import (
 // The UDP listener is limited by the size of its read buffer,
 // if the content of the message is bigger than the buffer length,
 // it will arbitrary be truncated.
-// For examples for |MSG| := |F1|F2|F3| where |F1| + |F2| > BUF_LEN and |F1| < BUF_LEN :
-// sending: |F1|
-// sending: |F2|
-// sending: |F3|
-// would result in sending |MSG| to the logs-backend.
-// sending: |MSG|
-// would result in sending TRUNC(|F1|+|F2|) to the logs-backend.
 
 // A UDPListener opens a new UDP connection, keeps it alive and delegates the read operations to a tailer.
+// When the source's Format is "syslog", it creates a DatagramTailer that produces
+// structured messages. Otherwise, it creates an unstructured DatagramTailer.
 type UDPListener struct {
 	pipelineProvider pipeline.Provider
 	source           *sources.LogSource
 	frameSize        int
 	ipFilter         *ipfilter.Filter
 	denialInfo       *ipfilter.DenialInfo
-	tailer           *tailer.Tailer
-	Conn             net.UDPConn
+	tailer           *tailer.DatagramTailer
+	Conn             *net.UDPConn
 }
 
 // NewUDPListener returns an initialized UDPListener or an error if critical
@@ -83,69 +77,24 @@ func (l *UDPListener) Stop() {
 	}
 }
 
-// startNewTailer starts a new Tailer
+// startNewTailer starts a new DatagramTailer
 func (l *UDPListener) startNewTailer() error {
 	conn, err := l.newUDPConnection()
 	if err != nil {
 		return err
 	}
-	l.tailer = tailer.NewTailer(l.source, conn, l.pipelineProvider.NextPipelineChan(), l.read)
+	outputChan, capacityMonitor := l.pipelineProvider.NextPipelineChanWithMonitor()
+	l.tailer = tailer.NewDatagramTailer(l.source, conn, outputChan, true, l.frameSize, capacityMonitor)
+	if l.ipFilter != nil {
+		l.tailer.SetIPFilter(l.ipFilter, l.denialInfo)
+	}
+	l.tailer.SetOnError(func() { l.resetTailer() })
 	l.tailer.Start()
 	return nil
 }
 
-// newUDPConnection returns a new UDP connection,
-// returns an error if the creation failed.
-func (l *UDPListener) newUDPConnection() (net.Conn, error) {
-	udpAddr, err := net.ResolveUDPAddr("udp", fmt.Sprintf(":%d", l.source.Config.Port))
-	if err != nil {
-		return nil, err
-	}
-	udpConn, err := net.ListenUDP("udp", udpAddr)
-	if err != nil {
-		return nil, err
-	}
-	l.Conn = *udpConn
-	return udpConn, nil
-}
-
-// read reads data from the tailer connection, returns an error if it failed
-// and resets the tailer. When an IP filter is active, denied datagrams are
-// consumed in a loop so that no nil/empty data reaches the decoder pipeline.
-func (l *UDPListener) read(_ *tailer.Tailer) ([]byte, string, error) {
-	frame := make([]byte, l.frameSize+1)
-	for {
-		n, udpAddr, err := l.Conn.ReadFromUDP(frame)
-		switch {
-		case err != nil && isClosedConnError(err):
-			return nil, "", err
-		case err != nil:
-			go l.resetTailer()
-			return nil, "", err
-		default:
-			if l.ipFilter != nil {
-				if d := l.ipFilter.Check(udpAddr); !d.Allowed() {
-					metrics.TlmListenerIPDenied.Inc("udp")
-					l.denialInfo.Record(d.Reason())
-					continue
-				}
-			}
-			// Make sure all logs are separated by line feeds so they
-			// get properly split downstream.
-			if n > l.frameSize {
-				// the message is bigger than the length of the read buffer,
-				// the trailing part of the content will be dropped.
-				frame[l.frameSize] = '\n'
-			} else if n > 0 && frame[n-1] != '\n' {
-				frame[n] = '\n'
-				n++
-			}
-			return frame[:n], udpAddr.IP.String(), nil
-		}
-	}
-}
-
-// resetTailer creates a new tailer.
+// resetTailer tears down the current tailer and connection, then starts
+// a fresh one. Called automatically on transient read errors.
 func (l *UDPListener) resetTailer() {
 	log.Infof("Resetting the UDP connection on port: %d", l.source.Config.Port)
 	l.tailer.Stop()
@@ -156,4 +105,19 @@ func (l *UDPListener) resetTailer() {
 		return
 	}
 	l.source.Status.Success()
+}
+
+// newUDPConnection returns a new UDP connection,
+// returns an error if the creation failed.
+func (l *UDPListener) newUDPConnection() (*net.UDPConn, error) {
+	udpAddr, err := net.ResolveUDPAddr("udp", fmt.Sprintf(":%d", l.source.Config.Port))
+	if err != nil {
+		return nil, err
+	}
+	udpConn, err := net.ListenUDP("udp", udpAddr)
+	if err != nil {
+		return nil, err
+	}
+	l.Conn = udpConn
+	return udpConn, nil
 }

@@ -14,7 +14,7 @@ import (
 	"io"
 	"sort"
 
-	collectorcomp "github.com/DataDog/datadog-agent/comp/collector/collector"
+	collectorcomp "github.com/DataDog/datadog-agent/comp/collector/collector/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 )

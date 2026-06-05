@@ -64,6 +64,7 @@ Triggers are events that correspond to types of activity seen by the system. The
 | `setuid` | Process | A process changed its effective uid | 7.27 |
 | `setxattr` | File | Set exteneded attributes | 7.27 |
 | `signal` | Process | A signal was sent | 7.35 |
+| `socket` | Network | A socket was created | 7.81 |
 | `splice` | File | A splice command was executed | 7.36 |
 | `sysctl` | Kernel | A sysctl parameter was read or modified | 7.65 |
 | `unlink` | File | A file was deleted | 7.27 |
@@ -775,7 +776,9 @@ A DNS request was sent
 | [`dns.question.name.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`dns.question.name.root_domain`](#common-string-root_domain-doc) | Root domain of the corresponding element |
 | [`dns.question.type`](#dns-question-type-doc) | a two octet code which specifies the DNS question type |
+| [`dns.response.cnames`](#dns-response-cnames-doc) | CNAME targets returned by the DNS response |
 | [`dns.response.code`](#dns-response-code-doc) | Response code of the DNS response according to RFC 1035 |
+| [`dns.response.ips`](#dns-response-ips-doc) | IP addresses resolved by the DNS response |
 | [`network.destination.ip`](#common-ipportcontext-ip-doc) | IP address |
 | [`network.destination.is_public`](#common-ipportcontext-is_public-doc) | Whether the IP address belongs to a public network |
 | [`network.destination.port`](#common-ipportcontext-port-doc) | Port number |
@@ -2654,6 +2657,17 @@ A signal was sent
 | [`signal.target.user_session.ssh_session_id`](#common-sshsessioncontext-ssh_session_id-doc) | Unique identifier of the SSH user session on the host |
 | [`signal.type`](#signal-type-doc) | Signal type (ex: SIGHUP, SIGINT, SIGQUIT, etc) |
 
+### Event `socket`
+
+A socket was created
+
+| Property | Definition |
+| -------- | ------------- |
+| [`socket.domain`](#socket-domain-doc) | Socket domain |
+| [`socket.protocol`](#socket-protocol-doc) | Socket protocol |
+| [`socket.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
+| [`socket.type`](#socket-type-doc) | Socket type |
+
 ### Event `splice`
 
 A splice command was executed
@@ -3595,8 +3609,8 @@ Type: int
 
 Definition: Return value of the syscall
 
-`*.retval` has 27 possible prefixes:
-`accept` `bind` `bpf` `chdir` `chmod` `chown` `connect` `link` `load_module` `mkdir` `mmap` `mount` `mprotect` `open` `prctl` `ptrace` `removexattr` `rename` `rmdir` `setrlimit` `setsockopt` `setxattr` `signal` `splice` `unlink` `unload_module` `utimes`
+`*.retval` has 28 possible prefixes:
+`accept` `bind` `bpf` `chdir` `chmod` `chown` `connect` `link` `load_module` `mkdir` `mmap` `mount` `mprotect` `open` `prctl` `ptrace` `removexattr` `rename` `rmdir` `setrlimit` `setsockopt` `setxattr` `signal` `socket` `splice` `unlink` `unload_module` `utimes`
 
 Constants: [Error constants](#error-constants)
 
@@ -4096,6 +4110,13 @@ Constants: [DNS qtypes](#dns-qtypes)
 
 
 
+### `dns.response.cnames` {#dns-response-cnames-doc}
+Type: string
+
+Definition: CNAME targets returned by the DNS response
+
+
+
 ### `dns.response.code` {#dns-response-code-doc}
 Type: int
 
@@ -4103,6 +4124,13 @@ Definition: Response code of the DNS response according to RFC 1035
 
 
 Constants: [DNS Responses](#dns-responses)
+
+
+
+### `dns.response.ips` {#dns-response-ips-doc}
+Type: IP/CIDR
+
+Definition: IP addresses resolved by the DNS response
 
 
 
@@ -4847,6 +4875,27 @@ Definition: Signal type (ex: SIGHUP, SIGINT, SIGQUIT, etc)
 
 
 Constants: [Signal constants](#signal-constants)
+
+
+
+### `socket.domain` {#socket-domain-doc}
+Type: int
+
+Definition: Socket domain
+
+
+
+### `socket.protocol` {#socket-protocol-doc}
+Type: int
+
+Definition: Socket protocol
+
+
+
+### `socket.type` {#socket-type-doc}
+Type: int
+
+Definition: Socket type
 
 
 
@@ -6495,6 +6544,28 @@ Signal constants are the supported signals for the kill syscall.
 | `SIGPOLL` | all |
 | `SIGPWR` | all |
 | `SIGSYS` | all |
+
+### `Socket domains` {#socket-domains}
+Socket domains are the supported socket domains.
+
+| Name | Architectures |
+| ---- |---------------|
+| `AF_UNSPEC` | all |
+| `AF_INET` | all |
+| `AF_INET6` | all |
+| `AF_UNIX` | all |
+
+### `Socket protocols` {#socket-protocols}
+Socket protocols are the supported socket protocols.
+
+| Name | Architectures |
+| ---- |---------------|
+| `IPPROTO_IP` | all |
+| `IPPROTO_TCP` | all |
+| `IPPROTO_UDP` | all |
+| `IPPROTO_ICMP` | all |
+| `IPPROTO_IPV6` | all |
+| `IPPROTO_ICMPV6` | all |
 
 ### `Socket types` {#socket-types}
 Socket types are the supported socket types.

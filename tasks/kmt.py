@@ -62,7 +62,7 @@ from tasks.libs.ciproviders.gitlab_api import (
 )
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.git import get_current_branch
-from tasks.libs.common.utils import get_build_flags
+from tasks.libs.common.utils import get_build_flags, get_gobin
 from tasks.libs.pipeline.tools import GitlabJobStatus, loop_status
 from tasks.libs.releasing.json import load_release_json
 from tasks.libs.releasing.version import VERSION_RE, check_version
@@ -954,7 +954,7 @@ def _prepare(
         # In CI, these binaries are always present
         llc_path = LLC_PATH_CI
         clang_path = CLANG_PATH_CI
-        gotestsum_path = Path(f"{os.getenv('GOPATH')}/bin/gotestsum")
+        gotestsum_path = Path(get_gobin(ctx)) / "gotestsum"
 
         # Copy the binaries to the target directory, CI will take them from those
         # paths as artifacts

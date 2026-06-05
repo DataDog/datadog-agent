@@ -14,13 +14,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hashicorp/go-multierror"
-
 	configcomp "github.com/DataDog/datadog-agent/comp/core/config"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/core/settings"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	settings "github.com/DataDog/datadog-agent/comp/core/settings/def"
+	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	rcclient "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/def"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
@@ -356,7 +354,7 @@ func (rc *rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig
 		return
 	}
 
-	var errs error
+	var errList []error
 
 	targetCmp := rc.config
 	localSysProbeConf, isSet := rc.sysprobeConfig.Get()
@@ -382,7 +380,7 @@ func (rc *rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig
 			newLevel := mergedConfig.LogLevel
 			pkglog.Infof("Changing log level to '%s' through remote config", newLevel)
 			if err := rc.settingsComponent.SetRuntimeSetting("log_level", newLevel, model.SourceRC); err != nil {
-				errs = multierror.Append(errs, err)
+				errList = append(errList, err)
 			}
 		}
 
@@ -402,9 +400,11 @@ func (rc *rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig
 		// Might be possible to add a check in deeper functions to avoid unnecessary work
 		pkglog.Infof("Changing log level to '%s' through remote config (new source)", mergedConfig.LogLevel)
 		if err := rc.settingsComponent.SetRuntimeSetting("log_level", mergedConfig.LogLevel, model.SourceRC); err != nil {
-			errs = multierror.Append(errs, err)
+			errList = append(errList, err)
 		}
 	}
+
+	errs := errors.Join(errList...)
 
 	// Apply the new status to all configs
 	for cfgPath := range updates {

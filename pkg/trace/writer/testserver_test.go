@@ -82,7 +82,8 @@ func TestTestServer(t *testing.T) {
 			start time.Time
 			d     time.Duration
 		)
-		ts := newTestServerWithLatency(50 * time.Millisecond)
+		const latency = 50 * time.Millisecond
+		ts := newTestServerWithLatency(latency)
 		defer ts.Close()
 
 		assert := assert.New(t)
@@ -97,7 +98,7 @@ func TestTestServer(t *testing.T) {
 		assert.NoError(err)
 		assert.Equal(200, resp.StatusCode)
 		resp.Body.Close()
-		assert.True(d > 50*time.Millisecond)
+		assert.GreaterOrEqual(d, latency)
 	})
 
 	t.Run("payloads", func(t *testing.T) {

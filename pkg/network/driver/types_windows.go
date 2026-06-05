@@ -3,7 +3,7 @@
 
 package driver
 
-const Signature = 0xddfd00000017
+const Signature = 0xddfd00000018
 
 const (
 	GetStatsIOCTL             = 0x122004
@@ -136,6 +136,7 @@ type PerFlowData struct {
 	Tls_alpn_requested       uint64
 	Tls_alpn_chosen          uint64
 	Protocol_u               [36]byte
+	InterfaceIndex           uint32
 	Tls_cipher_suite         uint16
 }
 type TCPFlowData struct {
@@ -149,7 +150,7 @@ type UDPFlowData struct {
 	Reserved uint64
 }
 
-const PerFlowDataSize = 0xbe
+const PerFlowDataSize = 0xc2
 
 const (
 	FlowDirectionMask     = 0x300

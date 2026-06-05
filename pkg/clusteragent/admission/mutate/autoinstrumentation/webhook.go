@@ -28,7 +28,7 @@ const (
 
 var (
 	// WebhookResources are the Kubernetes resources this webhook should be invoked for.
-	WebhookResources = map[string][]string{"": {"pods"}}
+	WebhookResources = []common.WebhookResourceRule{{APIGroup: "", APIVersion: "v1", Resources: []string{"pods"}}}
 
 	// WebhookOperations are the operations on the resources specified for which the webhook should be invoked.
 	WebhookOperations = []admissionregistrationv1.OperationType{admissionregistrationv1.Create}
@@ -56,7 +56,7 @@ func NewWebhookConfig(datadogConfig config.Component) *WebhookConfig {
 // Webhook is the auto instrumentation webhook used for Single Step Instrumentation.
 type Webhook struct {
 	name            string
-	resources       map[string][]string
+	resources       []common.WebhookResourceRule
 	operations      []admissionregistrationv1.OperationType
 	matchConditions []admissionregistrationv1.MatchCondition
 	mutator         mutatecommon.Mutator
@@ -99,7 +99,7 @@ func (w *Webhook) Endpoint() string {
 }
 
 // Resources returns the kubernetes resources for which the webhook should be invoked.
-func (w *Webhook) Resources() map[string][]string {
+func (w *Webhook) Resources() []common.WebhookResourceRule {
 	return w.resources
 }
 

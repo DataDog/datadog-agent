@@ -15,16 +15,59 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
-// validateScalarPathFilter validates that the path can be handled by the basename filter
-func validateScalarPathFilter(value rules.FilterValue) bool {
+const (
+	patternPrefixSize = 3 // has to be in sync with the kernel side of the approvers
+	// minParentBasenameSize avoids registering a parent-basename approver on a very short directory name
+	// (e.g. "a"), which would match files in any same-named directory across the filesystem and make the
+	// kernel approver too coarse to filter anything useful.
+	minParentBasenameSize = 3
+)
+
+func validateBasenameFilter(pattern string) bool {
+	if !strings.Contains(pattern, "*") {
+		return true
+	}
+
+	// Only accept wildcard basenames with a pre-'*' prefix of at least
+	// patternPrefixSize bytes: newBasenameKFilter slices els[0] to that
+	// length without bounds-checking, and shorter prefixes would be too
+	// coarse to be useful as kernel approvers anyway.
+	els := strings.Split(pattern, "*")
+	return len(els[0]) >= patternPrefixSize
+}
+
+func validateParentBasenameFilter(pattern string) bool {
+	return !strings.Contains(pattern, "*")
+}
+
+// validatePathFilter validates that the path can be handled by the basename filter
+func validatePathFilter(value rules.FilterValue) bool {
 	switch value.Type {
 	case eval.ScalarValueType:
 		return true
 	case eval.GlobValueType, eval.PatternValueType:
-		pattern := path.Base(value.Value.(string))
-		if !strings.Contains(pattern, "*") {
+		if validateBasenameFilter(path.Base(value.Value.(string))) {
 			return true
 		}
+
+		parentBasename := path.Base(path.Dir(value.Value.(string)))
+		if len(parentBasename) < minParentBasenameSize {
+			return false
+		}
+
+		return validateParentBasenameFilter(parentBasename)
+	}
+
+	return false
+}
+
+// validateNameFilter validates the name
+func validateNameFilter(value rules.FilterValue) bool {
+	switch value.Type {
+	case eval.ScalarValueType:
+		return true
+	case eval.PatternValueType:
+		return validateBasenameFilter(path.Base(value.Value.(string)))
 	}
 
 	return false
@@ -38,12 +81,32 @@ func buildFileCapabilities(event string, fields ...string) rules.FieldCapabiliti
 			{
 				Field:        event + "." + field + ".path",
 				TypeBitmask:  eval.ScalarValueType | eval.PatternValueType | eval.GlobValueType,
-				ValidateFnc:  validateScalarPathFilter,
+				ValidateFnc:  validatePathFilter,
 				FilterWeight: 300,
+				// FilterWeightFnc adjusts the path approver weight depending on what can actually
+				// be pushed to the kernel. A precise leaf-basename approver keeps the full weight,
+				// while a coarse parent-basename approver is demoted below the flags approvers.
+				FilterWeightFnc: func(value rules.FilterValue) int {
+					strValue, ok := value.Value.(string)
+					if !ok {
+						// only string paths can be demoted to a parent-basename approver; keep the full weight
+						return 300
+					}
+					// the leaf basename is a usable kernel approver (a plain basename, or a wildcard
+					// with a prefix of at least patternPrefixSize bytes): keep the full weight
+					if validateBasenameFilter(path.Base(strValue)) {
+						return 300
+					}
+					// otherwise only the parent directory basename can be pushed to the kernel, which is
+					// a coarse approver: weigh it below the flags approvers (open.flags is 100,
+					// open.file.in_upper_layer is 50) so a more selective field is preferred when available
+					return 20
+				},
 			},
 			{
 				Field:        event + "." + field + ".name",
 				TypeBitmask:  eval.ScalarValueType,
+				ValidateFnc:  validateNameFilter,
 				FilterWeight: 300,
 			},
 		}...)
@@ -78,4 +141,5 @@ func init() {
 	allCapabilities["connect"] = connectCapabilities
 	allCapabilities["prctl"] = prctlCapabilities
 	allCapabilities["setsockopt"] = setsockoptCapabilities
+	allCapabilities["socket"] = socketCapabilities
 }

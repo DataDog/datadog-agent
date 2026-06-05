@@ -125,6 +125,15 @@ func GetClientTrace(log log.Component) *httptrace.ClientTrace {
 // Compile-time check to ensure that HTTPTransaction conforms to the Transaction interface
 var _ Transaction = &HTTPTransaction{}
 
+// PointCountTelemetry tracks the number of points that were successfully
+// delivered or dropped while processing a transaction. Implementations are
+// safe to nil-check at the call site so transactions can be processed
+// without telemetry (e.g. SyncForwarder).
+type PointCountTelemetry interface {
+	OnPointSuccessfullySent(count int)
+	OnPointDropped(count int)
+}
+
 // HTTPAttemptHandler is an event handler that will get called each time this transaction is attempted
 type HTTPAttemptHandler func(transaction *HTTPTransaction)
 
@@ -274,7 +283,7 @@ type TransactionsSerializer interface {
 
 // Transaction represents the task to process for a Worker.
 type Transaction interface {
-	Process(ctx context.Context, config config.Component, log log.Component, secrets secrets.Component, client *http.Client) error
+	Process(ctx context.Context, config config.Component, log log.Component, secrets secrets.Component, client *http.Client, pointCountTelemetry PointCountTelemetry) error
 	GetCreatedAt() time.Time
 	GetTarget() string
 	GetPriority() Priority
@@ -359,10 +368,10 @@ func (t *HTTPTransaction) GetDestination() Destination {
 }
 
 // Process sends the Payload of the transaction to the right Endpoint and Domain.
-func (t *HTTPTransaction) Process(ctx context.Context, config config.Component, log log.Component, secrets secrets.Component, client *http.Client) error {
+func (t *HTTPTransaction) Process(ctx context.Context, config config.Component, log log.Component, secrets secrets.Component, client *http.Client, pointCountTelemetry PointCountTelemetry) error {
 	t.AttemptHandler(t)
 
-	statusCode, body, err := t.internalProcess(ctx, config, log, secrets, client)
+	statusCode, body, err := t.internalProcess(ctx, config, log, secrets, client, pointCountTelemetry)
 
 	if err == nil || !t.Retryable {
 		t.CompletionHandler(t, statusCode, body, err)
@@ -379,7 +388,7 @@ func (t *HTTPTransaction) Process(ctx context.Context, config config.Component, 
 
 // internalProcess does the  work of actually sending the http request to the specified domain
 // This will return  (http status code, response body, error).
-func (t *HTTPTransaction) internalProcess(ctx context.Context, config config.Component, log log.Component, secrets secrets.Component, client *http.Client) (int, []byte, error) {
+func (t *HTTPTransaction) internalProcess(ctx context.Context, config config.Component, log log.Component, secrets secrets.Component, client *http.Client, pointCountTelemetry PointCountTelemetry) (int, []byte, error) {
 	payload := t.Payload.GetContent()
 	reader := bytes.NewReader(payload)
 	url := t.Domain + t.Endpoint.Route
@@ -446,6 +455,9 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, config config.Com
 		TransactionsDroppedByEndpoint.Add(transactionEndpointName, 1)
 		TransactionsDropped.Add(1)
 		TlmTxDropped.Inc(t.Domain, transactionEndpointName)
+		if pointCountTelemetry != nil {
+			pointCountTelemetry.OnPointDropped(t.GetPointCount())
+		}
 		return resp.StatusCode, body, nil
 	} else if resp.StatusCode == 403 {
 		// Trigger throttled secret refresh based on secret_refresh_on_api_key_failure_interval on API key error
@@ -460,6 +472,9 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, config config.Com
 		TransactionsDroppedByEndpoint.Add(transactionEndpointName, 1)
 		TransactionsDropped.Add(1)
 		TlmTxDropped.Inc(t.Domain, transactionEndpointName)
+		if pointCountTelemetry != nil {
+			pointCountTelemetry.OnPointDropped(t.GetPointCount())
+		}
 		return resp.StatusCode, body, nil
 	} else if resp.StatusCode > 400 {
 		t.ErrorCount++
@@ -468,6 +483,9 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, config config.Com
 		return resp.StatusCode, body, fmt.Errorf("error %q while sending transaction to %q, rescheduling it: %q", resp.Status, logURL, truncateBodyForLog(body))
 	}
 
+	if pointCountTelemetry != nil {
+		pointCountTelemetry.OnPointSuccessfullySent(t.GetPointCount())
+	}
 	tlmTxSuccessCount.Inc(t.Domain, transactionEndpointName, resp.Proto)
 	tlmTxSuccessBytes.Add(float64(t.GetPayloadSize()), t.Domain, transactionEndpointName)
 	TransactionsSuccessByEndpoint.Add(transactionEndpointName, 1)

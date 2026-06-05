@@ -189,6 +189,21 @@ type SourceAdaptiveSamplingOptions struct {
 
 	// ProtectImportantLogs overrides whether important logs bypass adaptive sampling for this source when set.
 	ProtectImportantLogs *bool `mapstructure:"protect_important_logs" json:"protect_important_logs" yaml:"protect_important_logs"`
+
+	// Include limits adaptive sampling to logs matching at least one rule when set.
+	Include []*AdaptiveSamplingRule `mapstructure:"include" json:"include" yaml:"include"`
+
+	// Exclude prevents adaptive sampling from applying to logs matching any rule when set.
+	Exclude []*AdaptiveSamplingRule `mapstructure:"exclude" json:"exclude" yaml:"exclude"`
+}
+
+// AdaptiveSamplingRule defines a log matching rule for adaptive sampler include/exclude filters.
+type AdaptiveSamplingRule struct {
+	// Regex is matched against the raw log content.
+	Regex string `mapstructure:"regex,omitempty" json:"regex,omitempty" yaml:"regex,omitempty"`
+
+	// Sample is tokenized and structurally matched against the log content.
+	Sample string `mapstructure:"sample,omitempty" json:"sample,omitempty" yaml:"sample,omitempty"`
 }
 
 // AutoMultilineSample defines a sample used to create auto multiline detection
@@ -508,6 +523,10 @@ func (c *LogsConfig) Validate() error {
 		return fmt.Errorf("unsupported format %q (supported: %q or empty)", c.Format, SyslogFormat)
 	}
 
+	if c.Format == SyslogFormat && c.Encoding != "" {
+		log.Warn("non-UTF-8 encodings are not currently supported by the syslog format. The encoding setting will be ignored.")
+	}
+
 	err := ValidateFingerprintConfig(c.FingerprintConfig)
 	if err != nil {
 		return err
@@ -625,13 +644,12 @@ func (c *LogsConfig) AutoMultiLineStatus(coreConfig pkgconfigmodel.Reader) (enab
 	if c.AutoMultiLine != nil {
 		return *c.AutoMultiLine, false
 	}
-	if coreConfig.GetBool("logs_config.experimental_auto_multi_line_detection") {
+	if coreConfig.IsConfigured("logs_config.experimental_auto_multi_line_detection") {
 		log.Warn("logs_config.experimental_auto_multi_line_detection is deprecated, use logs_config.auto_multi_line_detection instead")
-		return true, false
 	}
 	isDefault = !coreConfig.IsConfigured("logs_config.auto_multi_line_detection") &&
 		!coreConfig.IsConfigured("logs_config.experimental_auto_multi_line_detection")
-	return coreConfig.GetBool("logs_config.auto_multi_line_detection"), isDefault
+	return coreConfig.GetBool("logs_config.auto_multi_line_detection") || coreConfig.GetBool("logs_config.experimental_auto_multi_line_detection"), isDefault
 }
 
 // AutoMultiLineEnabled determines whether auto multi line detection is enabled for this config,

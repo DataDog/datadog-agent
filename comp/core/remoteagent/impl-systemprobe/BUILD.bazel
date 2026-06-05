@@ -2,7 +2,11 @@ load("@rules_go//go:def.bzl", "go_library")
 
 go_library(
     name = "impl-systemprobe",
-    srcs = ["remoteagent.go"],
+    srcs = [
+        "flare_linux.go",
+        "flare_other.go",
+        "remoteagent.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/comp/core/remoteagent/impl-systemprobe",
     visibility = ["//visibility:public"],
     deps = [
@@ -11,11 +15,21 @@ go_library(
         "//comp/core/log/def",
         "//comp/core/remoteagent/def",
         "//comp/core/remoteagent/helper",
+        "//comp/core/sysprobeconfig/def",
         "//comp/core/telemetry/def",
         "//comp/def",
+        "//comp/logs-library/metrics",
         "//pkg/compliance/statusregistry",
-        "//pkg/logs/metrics",
         "//pkg/proto/pbgo/core",
+        "//pkg/security/flareregistry",
         "//pkg/util/flavor",
-    ],
+    ] + select({
+        "@rules_go//go/platform:android": [
+            "@com_github_datadog_ebpf_manager//tracefs",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@com_github_datadog_ebpf_manager//tracefs",
+        ],
+        "//conditions:default": [],
+    }),
 )

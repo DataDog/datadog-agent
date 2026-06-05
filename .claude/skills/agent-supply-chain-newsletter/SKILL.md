@@ -90,7 +90,7 @@ Use `mcp__claude_ai_Atlassian__createConfluencePage` with:
 ### 6b. Gmail draft
 
 Use `mcp__claude_ai_Gmail__gmail_create_draft` with:
-- `to`: `agent-all-teams@datadoghq.com`
+- `to`: `agent-community@datadoghq.com`
 - `subject`: `<Period> - Agent Supply Chain Monthly Update`
 - `contentType`: `text/html`
 - Rich HTML body matching the Confluence content

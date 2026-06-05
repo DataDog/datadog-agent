@@ -1,0 +1,14 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    Logs Agent: ``logs_config.tag_multi_line_logs`` and
+    ``logs_config.tag_truncated_logs`` now default to ``true`` so file logs
+    are tagged by default when they were aggregated as multiline logs or
+    truncated by the Agent.

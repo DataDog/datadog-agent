@@ -49,6 +49,7 @@ go_library(
         "selinux.schema.json",
         "setrlimit.schema.json",
         "signal.schema.json",
+        "socket.schema.json",
         "span.schema.json",
         "span_context.schema.json",
         "splice.schema.json",

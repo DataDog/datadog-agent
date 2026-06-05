@@ -24,7 +24,7 @@ import (
 	profiler "github.com/DataDog/datadog-agent/comp/core/profiler/def"
 	profilerfx "github.com/DataDog/datadog-agent/comp/core/profiler/fx"
 	profilermock "github.com/DataDog/datadog-agent/comp/core/profiler/mock"
-	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
+	settingsmock "github.com/DataDog/datadog-agent/comp/core/settings/mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/server/testutil"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -97,7 +97,7 @@ func getProfiler(t testing.TB) profiler.Component {
 	deps := fxutil.Test[deps](
 		t,
 		core.MockBundle(),
-		settingsimpl.MockModule(),
+		settingsmock.MockModule(),
 		profilerfx.Module(),
 		fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
 		fx.Provide(func(ipcomp ipc.Component) ipc.HTTPClient { return ipcomp.GetClient() }),
@@ -131,6 +131,7 @@ func (c *commandTestSuite) TestReadProfileData() {
 		mockSysProbeConfig.SetWithoutSource("system_probe_config.enabled", true)
 		mockSysProbeConfig.SetWithoutSource("system_probe_config.sysprobe_socket", c.sysprobeSocketPath)
 		mockSysProbeConfig.SetWithoutSource("network_config.enabled", true)
+		mockSysProbeConfig.SetWithoutSource("network_config.direct_send", false)
 	}
 
 	profiler := getProfiler(t)
@@ -201,12 +202,13 @@ func (c *commandTestSuite) TestReadProfileDataNoTraceAgent() {
 		mockSysProbeConfig.SetWithoutSource("system_probe_config.enabled", true)
 		mockSysProbeConfig.SetWithoutSource("system_probe_config.sysprobe_socket", c.sysprobeSocketPath)
 		mockSysProbeConfig.SetWithoutSource("network_config.enabled", true)
+		mockSysProbeConfig.SetWithoutSource("network_config.direct_send", false)
 	}
 
 	profiler := getProfiler(t)
 	data, err := profiler.ReadProfileData(10, func(string, ...interface{}) error { return nil })
 	require.Error(t, err)
-	require.Regexp(t, "^* error collecting trace agent profile: ", err.Error())
+	require.Regexp(t, "^error collecting trace agent profile: ", err.Error())
 
 	expected := flaretypes.ProfileData{
 		"core-1st-heap.pprof":           []byte("heap_profile"),

@@ -69,6 +69,8 @@ const (
 	columnSketchBinCnts
 	columnSourceTypeNameRef
 	columnOriginRef
+	columnDictUnitStr
+	columnUnitRef
 	numberOfColumns
 )
 
@@ -98,6 +100,8 @@ var columnNames = []string{
 	"SketchBinCounts",
 	"SourceTypeName",
 	"OriginInfo",
+	"DictUnitStr",
+	"UnitRef",
 }
 
 // Constants for type column
@@ -113,6 +117,7 @@ const (
 	valueFloat64 int64 = 0x30
 
 	flagNoIndex = 0x100
+	flagHasUnit = 0x200
 )
 
 const (
@@ -131,6 +136,7 @@ type payloadsBuilderV3 struct {
 	deltaTimestamp         deltaEncoder
 	deltaSourceTypeNameRef deltaEncoder
 	deltaOriginRef         deltaEncoder
+	deltaUnitRef           deltaEncoder
 
 	pointsThisPayload   int
 	maxPointsPerPayload int
@@ -306,6 +312,7 @@ func (pb *payloadsBuilderV3) reset() {
 	pb.deltaTimestamp.reset()
 	pb.deltaSourceTypeNameRef.reset()
 	pb.deltaOriginRef.reset()
+	pb.deltaUnitRef.reset()
 	pb.compressor.Reset()
 	pb.stats = v3stats{}
 }
@@ -456,8 +463,16 @@ func (pb *payloadsBuilderV3) writeSerieToTxn(serie *metrics.Serie) {
 	if serie.NoIndex {
 		typeValue |= flagNoIndex
 	}
+	if serie.Unit != "" {
+		typeValue |= flagHasUnit
+	}
 
 	pb.txn.Int64(columnType, typeValue)
+
+	if serie.Unit != "" {
+		pb.txn.Sint64(columnUnitRef,
+			pb.deltaUnitRef.encode(pb.dict.internUnit(serie.Unit)))
+	}
 
 	for _, pnt := range serie.Points {
 		pb.writePointCommon(int64(pnt.Ts))
@@ -664,6 +679,7 @@ type dictionaryBuilder struct {
 	tagsInterner           interner[istr]
 	resourceInterner       interner[istr]
 	sourceTypeNameInterner interner[istr]
+	unitInterner           interner[istr]
 
 	originInfoInterner interner[originInfo]
 
@@ -693,6 +709,7 @@ func newDictionaryBuilder(txn *stream.ColumnTransaction) *dictionaryBuilder {
 		resourceInterner: newInterner[istr](txn, columnDictResourceStr),
 
 		sourceTypeNameInterner: newInterner[istr](txn, columnDictSourceTypeName),
+		unitInterner:           newInterner[istr](txn, columnDictUnitStr),
 
 		originInfoInterner: newInterner[originInfo](txn, columnDictOrigin),
 
@@ -706,6 +723,7 @@ func (db *dictionaryBuilder) reset() {
 	db.tagsInterner.reset()
 	db.resourceInterner.reset()
 	db.sourceTypeNameInterner.reset()
+	db.unitInterner.reset()
 	db.originInfoInterner.reset()
 	db.tagsLastID = 0
 	db.tagsIndex = map[tagsKey]int64{}
@@ -819,6 +837,13 @@ func (db *dictionaryBuilder) internSourceTypeName(stn string) int64 {
 		return 0
 	}
 	return db.sourceTypeNameInterner.intern(istr(stn))
+}
+
+func (db *dictionaryBuilder) internUnit(unit string) int64 {
+	if unit == "" {
+		return 0
+	}
+	return db.unitInterner.intern(istr(unit))
 }
 
 // pointType represents the kind (integer or floating point, range) of a time series point value.

@@ -178,9 +178,9 @@ func TestAdmissionControllerFailureModeV1beta1(t *testing.T) {
 		mockConfig.SetWithoutSource("admission_controller.failure_policy", value)
 		c.config = NewConfig(true, false, false, mockConfig)
 
-		validatingWebhookSkeleton := c.getValidatingWebhookSkeleton("foo", "/bar", []admiv1beta1.OperationType{admiv1beta1.Create}, map[string][]string{"": {"pods"}}, nil, nil, nil, 0)
+		validatingWebhookSkeleton := c.getValidatingWebhookSkeleton("foo", "/bar", []admiv1beta1.OperationType{admiv1beta1.Create}, []common.WebhookResourceRule{{APIGroup: "", APIVersion: "v1", Resources: []string{"pods"}}}, nil, nil, nil, 0)
 		assert.Equal(t, admiv1beta1.Ignore, *validatingWebhookSkeleton.FailurePolicy)
-		mutatingWebhookSkeleton := c.getMutatingWebhookSkeleton("foo", "/bar", []admiv1beta1.OperationType{admiv1beta1.Create}, map[string][]string{"": {"pods"}}, nil, nil, nil, 0)
+		mutatingWebhookSkeleton := c.getMutatingWebhookSkeleton("foo", "/bar", []admiv1beta1.OperationType{admiv1beta1.Create}, []common.WebhookResourceRule{{APIGroup: "", APIVersion: "v1", Resources: []string{"pods"}}}, nil, nil, nil, 0)
 		assert.Equal(t, admiv1beta1.Ignore, *mutatingWebhookSkeleton.FailurePolicy)
 	}
 
@@ -188,9 +188,9 @@ func TestAdmissionControllerFailureModeV1beta1(t *testing.T) {
 		mockConfig.SetWithoutSource("admission_controller.failure_policy", value)
 		c.config = NewConfig(true, false, false, mockConfig)
 
-		validatingWebhookSkeleton := c.getValidatingWebhookSkeleton("foo", "/bar", []admiv1beta1.OperationType{admiv1beta1.Create}, map[string][]string{"": {"pods"}}, nil, nil, nil, 0)
+		validatingWebhookSkeleton := c.getValidatingWebhookSkeleton("foo", "/bar", []admiv1beta1.OperationType{admiv1beta1.Create}, []common.WebhookResourceRule{{APIGroup: "", APIVersion: "v1", Resources: []string{"pods"}}}, nil, nil, nil, 0)
 		assert.Equal(t, admiv1beta1.Fail, *validatingWebhookSkeleton.FailurePolicy)
-		mutatingWebhookSkeleton := c.getMutatingWebhookSkeleton("foo", "/bar", []admiv1beta1.OperationType{admiv1beta1.Create}, map[string][]string{"": {"pods"}}, nil, nil, nil, 0)
+		mutatingWebhookSkeleton := c.getMutatingWebhookSkeleton("foo", "/bar", []admiv1beta1.OperationType{admiv1beta1.Create}, []common.WebhookResourceRule{{APIGroup: "", APIVersion: "v1", Resources: []string{"pods"}}}, nil, nil, nil, 0)
 		assert.Equal(t, admiv1beta1.Fail, *mutatingWebhookSkeleton.FailurePolicy)
 	}
 }
@@ -204,7 +204,7 @@ func TestAdmissionControllerReinvocationPolicyV1beta1(t *testing.T) {
 		mockConfig.SetWithoutSource("admission_controller.reinvocationpolicy", value)
 		c.config = NewConfig(true, false, false, mockConfig)
 
-		mutatingWebhookSkeleton := c.getMutatingWebhookSkeleton("foo", "/bar", []admiv1beta1.OperationType{admiv1beta1.Create}, map[string][]string{"": {"pods"}}, nil, nil, nil, 0)
+		mutatingWebhookSkeleton := c.getMutatingWebhookSkeleton("foo", "/bar", []admiv1beta1.OperationType{admiv1beta1.Create}, []common.WebhookResourceRule{{APIGroup: "", APIVersion: "v1", Resources: []string{"pods"}}}, nil, nil, nil, 0)
 		assert.Equal(t, admiv1beta1.IfNeededReinvocationPolicy, *mutatingWebhookSkeleton.ReinvocationPolicy)
 	}
 }
@@ -1014,7 +1014,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 			c := &ControllerV1beta1{}
 			c.config = tt.configFunc(mockConfig)
 			filterStore := newFilterStoreFromConfig(t, mockConfig)
-			c.webhooks = c.generateWebhooks(mockConfig, wmeta, nil, nil, nil, filterStore)
+			c.webhooks = c.generateWebhooks(mockConfig, wmeta, nil, nil, nil, filterStore, nil, nil, nil)
 			c.generateTemplates()
 
 			assert.EqualValues(t, tt.want(), c.mutatingWebhookTemplates)
@@ -1121,7 +1121,7 @@ func TestGetValidatingWebhookSkeletonV1beta1(t *testing.T) {
 
 			nsSelector, objSelector := common.DefaultLabelSelectors(tt.namespaceSelector, common.LabelSelectorsConfig{})
 
-			assert.EqualValues(t, tt.want, c.getValidatingWebhookSkeleton(tt.args.nameSuffix, tt.args.path, []admiv1beta1.OperationType{admiv1beta1.Create}, map[string][]string{"": {"pods"}}, nsSelector, objSelector, nil, 0))
+			assert.EqualValues(t, tt.want, c.getValidatingWebhookSkeleton(tt.args.nameSuffix, tt.args.path, []admiv1beta1.OperationType{admiv1beta1.Create}, []common.WebhookResourceRule{{APIGroup: "", APIVersion: "v1", Resources: []string{"pods"}}}, nsSelector, objSelector, nil, 0))
 		})
 	}
 }
@@ -1227,7 +1227,7 @@ func TestGetMutatingWebhookSkeletonV1beta1(t *testing.T) {
 
 			nsSelector, objSelector := common.DefaultLabelSelectors(tt.namespaceSelector, common.LabelSelectorsConfig{})
 
-			assert.EqualValues(t, tt.want, c.getMutatingWebhookSkeleton(tt.args.nameSuffix, tt.args.path, []admiv1beta1.OperationType{admiv1beta1.Create}, map[string][]string{"": {"pods"}}, nsSelector, objSelector, nil, 0))
+			assert.EqualValues(t, tt.want, c.getMutatingWebhookSkeleton(tt.args.nameSuffix, tt.args.path, []admiv1beta1.OperationType{admiv1beta1.Create}, []common.WebhookResourceRule{{APIGroup: "", APIVersion: "v1", Resources: []string{"pods"}}}, nsSelector, objSelector, nil, 0))
 		})
 	}
 }
@@ -1261,6 +1261,9 @@ func (f *fixtureV1beta1) createController() (*ControllerV1beta1, informers.Share
 		datadogConfig,
 		nil,
 		newFilterStoreFromConfig(f.t, datadogConfig),
+		nil,
+		nil,
+		nil,
 	), factory
 }
 

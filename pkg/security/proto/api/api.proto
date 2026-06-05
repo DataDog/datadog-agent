@@ -2,7 +2,7 @@ syntax = "proto3";
 
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/empty.proto";
-option go_package = "pkg/security/proto/api";
+option go_package = "github.com/DataDog/datadog-agent/pkg/security/proto/api";
 
 package api;
 

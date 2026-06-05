@@ -126,7 +126,7 @@ func (d *Monitor) SendStats() error {
 			_ = d.statsdClient.Count(metrics.MetricEventApproved, int64(stats.EventApprovedByInUpperLayer), tagsForInUpperLayerApprovedEvents, 1.0)
 		}
 	}
-	for i := uint32(0); i != uint32(model.LastApproverEventType); i++ {
+	for i := uint32(0); i <= uint32(model.LastApproverEventType); i++ {
 		_ = buffer.Put(i, d.statsZero)
 	}
 

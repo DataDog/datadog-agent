@@ -5,3 +5,8 @@ probes:
   captureSnapshot: true
   where:
     methodName: main.noop
+- id: b
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.busyloop

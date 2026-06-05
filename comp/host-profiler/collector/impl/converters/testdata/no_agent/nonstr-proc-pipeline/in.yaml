@@ -1,0 +1,17 @@
+processors:
+  batch: {}
+service:
+  pipelines:
+    profiles:
+      processors:
+      - batch
+      - 123
+      - null
+      - infraattributes
+      receivers: []
+      exporters:
+      - otlp_http
+exporters:
+  otlp_http:
+    headers:
+      dd-api-key: test-api-key

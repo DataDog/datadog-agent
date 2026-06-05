@@ -66,7 +66,7 @@ ZLIB_VERSION="1.3.1"
 BZIP2_VERSION="1.0.8"
 OPENSSL_VERSION="3.5.6"
 XZ_VERSION="5.8.1"
-LIBXML2_VERSION="2.14.5"    # built from source (AIX Toolbox also available but we build)
+LIBXML2_VERSION="2.15.3"    # built from source (AIX Toolbox also available but we build)
 LIBXSLT_VERSION="1.1.45"   # from AIX Toolbox (yum install libxslt-devel; source build fails on AIX)
 
 # These are sourced from AIX Toolbox (build from source fails on AIX)
@@ -426,7 +426,7 @@ else
     # Build as a shared library wrapped in a .a archive (AIX convention).
     # Python's configure link tests require a shared member to detect sqlite3.
     $CC "$CFLAGS" -DSQLITE_ENABLE_MATH_FUNCTIONS -shared -Wl,-brtl -Wl,-bexpall \
-        sqlite3.c -lpthreads -o libsqlite3.so.0
+        sqlite3.c -lpthreads -lm -o libsqlite3.so.0
     ar -X64 -rcs "$EMBEDDED_DESTDIR/lib/libsqlite3.a" libsqlite3.so.0
     cp sqlite3.h sqlite3ext.h "$EMBEDDED_DESTDIR/include/"
     lib_cache_save sqlite "$SQLITE_VERSION" "$_pre"

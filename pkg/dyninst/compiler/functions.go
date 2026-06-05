@@ -103,6 +103,25 @@ func (e ProcessCondition) String() string {
 	return fmt.Sprintf("ProcessCondition[%s@0x%x]", e.EventRootType.GetName(), e.InjectionPC)
 }
 
+// ProcessConditionLeaf is a function that evaluates a single entry-side
+// leaf of a split-event-kind condition. Compiling each leaf to its own
+// SM sub-function isolates leaf-internal aborts (nil deref / OOB) to the
+// leaf boundary: the existing abort path's sm_return lands in the
+// entry-side driver, which captures the leaf's outcome via
+// SM_OP_CONDITION_LEAF_RECORD and proceeds to the next leaf.
+type ProcessConditionLeaf struct {
+	baseFunctionID
+	EventRootType *ir.EventRootType
+	InjectionPC   uint64
+	LeafIdx       uint8
+}
+
+// String returns a human-readable identifier for the function.
+func (e ProcessConditionLeaf) String() string {
+	return fmt.Sprintf("ProcessConditionLeaf[%s@0x%x.leaf[%d]]",
+		e.EventRootType.GetName(), e.InjectionPC, e.LeafIdx)
+}
+
 // ProcessType is a function that processes user data of a specific type, chasing
 // pointers, resolving interfaces, etc (after the data was already read into ringbuf).
 // The generated function expects output offset to be set to the beginning of the data.

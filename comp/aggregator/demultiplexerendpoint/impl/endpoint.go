@@ -15,7 +15,7 @@ import (
 
 	"github.com/DataDog/zstd"
 
-	demultiplexerComp "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
+	demultiplexerComp "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/def"
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"

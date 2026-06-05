@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/integrations"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	sortutil "github.com/DataDog/datadog-agent/pkg/util/sort"
@@ -147,6 +147,15 @@ func computeInterfaceStatus(adminStatus devicemetadata.IfAdminStatus, operStatus
 	return devicemetadata.InterfaceStatusDown
 }
 
+// isEmptyMetadataScalarValue: polled scalar has no usable string (trim empty, ToString err); try next symbol.
+func isEmptyMetadataScalarValue(value valuestore.ResultValue) bool {
+	s, err := value.ToString()
+	if err != nil {
+		return true
+	}
+	return strings.TrimSpace(s) == ""
+}
+
 func buildMetadataStore(metadataConfigs profiledefinition.MetadataConfig, values *valuestore.ResultValueStore) *metadata.Store {
 	metadataStore := metadata.NewMetadataStore()
 	if values == nil {
@@ -171,6 +180,9 @@ func buildMetadataStore(metadataConfigs profiledefinition.MetadataConfig, values
 					value, err := getScalarValueFromSymbol(values, symbol)
 					if err != nil {
 						log.Debugf("error getting scalar value: %v", err)
+						continue
+					}
+					if isEmptyMetadataScalarValue(value) {
 						continue
 					}
 					metadataStore.AddScalarValue(fieldFullName, value)
@@ -524,7 +536,43 @@ func getRemDeviceAddressIfIPType(store *metadata.Store, strIndex string, address
 	return ""
 }
 
-func resolveLocalInterface(deviceID string, interfaceIndexByIDType map[string]map[string][]int32, localInterfaceIDType string, localInterfaceID string) string {
+type interfaceCandidate struct {
+	ifIndex    int32
+	isPhysical bool
+	macAddress string
+}
+
+// singlePhysicalCandidateSharingMAC returns the sole physical candidate among
+// candidates iff (a) all candidates share the same non-empty MAC and (b)
+// exactly one of them is physical. The shared-MAC precondition is what makes
+// the physical-preference choice sound: LLDP frames originate on the physical
+// port, virtual siblings sharing a MAC (sub-interfaces, VLAN SVIs, LAG
+// members) are invisible on the wire.
+func singlePhysicalCandidateSharingMAC(candidates map[int32]interfaceCandidate) (interfaceCandidate, bool) {
+	var found interfaceCandidate
+	var physicalCount int
+	var sharedMAC string
+	for _, c := range candidates {
+		if c.macAddress == "" {
+			return interfaceCandidate{}, false
+		}
+		if sharedMAC == "" {
+			sharedMAC = c.macAddress
+		} else if c.macAddress != sharedMAC {
+			return interfaceCandidate{}, false
+		}
+		if c.isPhysical {
+			found = c
+			physicalCount++
+			if physicalCount > 1 {
+				return interfaceCandidate{}, false
+			}
+		}
+	}
+	return found, physicalCount == 1
+}
+
+func resolveLocalInterface(deviceID string, interfaceIndexByIDType map[string]map[string][]interfaceCandidate, localInterfaceIDType string, localInterfaceID string) string {
 	if localInterfaceID == "" {
 		return ""
 	}
@@ -538,47 +586,59 @@ func resolveLocalInterface(deviceID string, interfaceIndexByIDType map[string]ma
 	} else {
 		typesToTry = []string{localInterfaceIDType}
 	}
-	matchedIfIndexesMap := make(map[int32]struct{})
+	matchedCandidates := make(map[int32]interfaceCandidate)
 	for _, idType := range typesToTry {
 		interfaceIndexByIDValue, ok := interfaceIndexByIDType[idType]
 		if ok {
-			ifIndexes, ok := interfaceIndexByIDValue[localInterfaceID]
+			candidates, ok := interfaceIndexByIDValue[localInterfaceID]
 			if ok {
-				for _, ifIndex := range ifIndexes {
-					matchedIfIndexesMap[ifIndex] = struct{}{}
+				for _, candidate := range candidates {
+					matchedCandidates[candidate.ifIndex] = candidate
 				}
 			}
 		}
 	}
-	if len(matchedIfIndexesMap) == 1 {
+	if len(matchedCandidates) == 1 {
 		var matchedIfIndexes []int32
-		for key := range matchedIfIndexesMap {
+		for key := range matchedCandidates {
 			matchedIfIndexes = append(matchedIfIndexes, key)
 		}
 		interfaceID := deviceID + ":" + strconv.Itoa(int(matchedIfIndexes[0]))
 		log.Tracef("[local interface resolution] found 1 matching interface (idType=%s, id=%s) resolved to interface_id `%s`", localInterfaceIDType, localInterfaceID, interfaceID)
 		return interfaceID
-	} else if len(matchedIfIndexesMap) > 1 {
-		log.Tracef("[local interface resolution] expected 1 matching interface but found %d (idType=%s, id=%s): %+v", len(matchedIfIndexesMap), localInterfaceIDType, localInterfaceID, matchedIfIndexesMap)
+	} else if len(matchedCandidates) > 1 {
+		if physical, ok := singlePhysicalCandidateSharingMAC(matchedCandidates); ok {
+			interfaceID := deviceID + ":" + strconv.Itoa(int(physical.ifIndex))
+			log.Tracef("[local interface resolution] resolved %d candidates to single physical interface_id `%s` (idType=%s, id=%s)", len(matchedCandidates), interfaceID, localInterfaceIDType, localInterfaceID)
+			return interfaceID
+		}
+		log.Tracef("[local interface resolution] expected 1 matching interface but found %d (idType=%s, id=%s): %+v", len(matchedCandidates), localInterfaceIDType, localInterfaceID, matchedCandidates)
 	} else {
 		log.Tracef("[local interface resolution] expected 1 matching interface but found 0 (idType=%s, id=%s)", localInterfaceIDType, localInterfaceID)
 	}
 	return ""
 }
 
-func buildInterfaceIndexByIDType(interfaces []devicemetadata.InterfaceMetadata) map[string]map[string][]int32 {
-	interfaceIndexByIDType := make(map[string]map[string][]int32) // map[ID_TYPE]map[ID_VALUE]IF_INDEX
+func buildInterfaceIndexByIDType(interfaces []devicemetadata.InterfaceMetadata) map[string]map[string][]interfaceCandidate {
+	interfaceIndexByIDType := make(map[string]map[string][]interfaceCandidate) // map[ID_TYPE]map[ID_VALUE][]interfaceCandidate
 	for _, idType := range []string{"mac_address", "interface_name", "interface_alias", "interface_index"} {
-		interfaceIndexByIDType[idType] = make(map[string][]int32)
+		interfaceIndexByIDType[idType] = make(map[string][]interfaceCandidate)
 	}
 	for _, devInterface := range interfaces {
-		interfaceIndexByIDType["mac_address"][devInterface.MacAddress] = append(interfaceIndexByIDType["mac_address"][devInterface.MacAddress], devInterface.Index)
-		interfaceIndexByIDType["interface_name"][devInterface.Name] = append(interfaceIndexByIDType["interface_name"][devInterface.Name], devInterface.Index)
-		interfaceIndexByIDType["interface_alias"][devInterface.Alias] = append(interfaceIndexByIDType["interface_alias"][devInterface.Alias], devInterface.Index)
+		isPhysical := devInterface.IsPhysical != nil && *devInterface.IsPhysical
+		candidate := interfaceCandidate{
+			ifIndex:    devInterface.Index,
+			isPhysical: isPhysical,
+			macAddress: devInterface.MacAddress,
+		}
+
+		interfaceIndexByIDType["mac_address"][devInterface.MacAddress] = append(interfaceIndexByIDType["mac_address"][devInterface.MacAddress], candidate)
+		interfaceIndexByIDType["interface_name"][devInterface.Name] = append(interfaceIndexByIDType["interface_name"][devInterface.Name], candidate)
+		interfaceIndexByIDType["interface_alias"][devInterface.Alias] = append(interfaceIndexByIDType["interface_alias"][devInterface.Alias], candidate)
 
 		// interface_index is not a type defined by LLDP, it's used in local interface "smart resolution" when the idType is not present
 		strIndex := strconv.Itoa(int(devInterface.Index))
-		interfaceIndexByIDType["interface_index"][strIndex] = append(interfaceIndexByIDType["interface_index"][strIndex], devInterface.Index)
+		interfaceIndexByIDType["interface_index"][strIndex] = append(interfaceIndexByIDType["interface_index"][strIndex], candidate)
 	}
 	return interfaceIndexByIDType
 }

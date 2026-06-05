@@ -19,7 +19,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/process-agent/command"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
-	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
+	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/impl/utils"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/process/util/status"

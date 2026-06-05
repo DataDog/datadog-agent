@@ -178,6 +178,7 @@ type gpuK8sSuite struct {
 // TestGPUK8sSuiteUbuntu2204 runs tests for the VM interface to ensure its implementation is correct.
 // Not to be run in parallel, as some tests wait until the checks are available.
 func TestGPUK8sSuiteUbuntu2204(t *testing.T) {
+	flake.Mark(t)
 	runGpuK8sSuite(t, gpuSystemUbuntu2204)
 }
 

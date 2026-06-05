@@ -1,0 +1,2 @@
+e302f9ecd2d189fa80aac1c3392e9b9c  opt/test/alphabet.bin
+6f5902ac237024bdd0c176cb93063dc4  opt/test/hello.bin

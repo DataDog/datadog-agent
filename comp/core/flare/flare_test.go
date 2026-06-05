@@ -20,10 +20,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
-	"github.com/DataDog/datadog-agent/comp/collector/collector"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
+	demultiplexerimpl "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/impl"
+	collectornoopimpl "github.com/DataDog/datadog-agent/comp/collector/collector/noop-impl"
+	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
+	adcmock "github.com/DataDog/datadog-agent/comp/core/autodiscovery/mock"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flarebuilder "github.com/DataDog/datadog-agent/comp/core/flare/builder"
@@ -73,11 +73,11 @@ func getFlareWithParams(t *testing.T, params Params, overrides map[string]interf
 			fx.Provide(func() secrets.Component { return secretsmock.New(t) }),
 			demultiplexerimpl.MockModule(),
 			fx.Provide(func() Params { return params }),
-			collector.NoneModule(),
+			collectornoopimpl.NoneModule(),
 			workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-			autodiscoveryimpl.MockModule(),
-			fx.Supply(autodiscoveryimpl.MockParams{Scheduler: scheduler.NewController()}),
-			fx.Provide(func(ac autodiscovery.Mock) autodiscovery.Component { return ac.(autodiscovery.Component) }),
+			adcmock.MockModule(),
+			fx.Supply(adcmock.MockParams{Scheduler: scheduler.NewController()}),
+			fx.Provide(func(ac adcmock.Mock) autodiscovery.Component { return ac.(autodiscovery.Component) }),
 			fx.Provide(func() taggermock.Mock { return fakeTagger }),
 			fx.Provide(func() tagger.Component { return fakeTagger }),
 			fillerModule,
@@ -101,11 +101,11 @@ func getFlareComponent(t *testing.T, params Params, overrides map[string]interfa
 			fx.Provide(func() secrets.Component { return secretsmock.New(t) }),
 			demultiplexerimpl.MockModule(),
 			fx.Provide(func() Params { return params }),
-			collector.NoneModule(),
+			collectornoopimpl.NoneModule(),
 			workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-			autodiscoveryimpl.MockModule(),
-			fx.Supply(autodiscoveryimpl.MockParams{Scheduler: scheduler.NewController()}),
-			fx.Provide(func(ac autodiscovery.Mock) autodiscovery.Component { return ac.(autodiscovery.Component) }),
+			adcmock.MockModule(),
+			fx.Supply(adcmock.MockParams{Scheduler: scheduler.NewController()}),
+			fx.Provide(func(ac adcmock.Mock) autodiscovery.Component { return ac.(autodiscovery.Component) }),
 			fx.Provide(func() taggermock.Mock { return fakeTagger }),
 			fx.Provide(func() tagger.Component { return fakeTagger }),
 			fillerModule,
@@ -393,6 +393,11 @@ func TestLocalFlareFileContent(t *testing.T) {
 
 	errIpc := errors.New("connection refused")
 	flareComp := getFlareWithParams(t, NewLocalParams("", "", "", "", "", ""), nil)
+	// Override providers to prevent them from running past the timeout and writing into
+	// t.TempDir()-backed flare directories during test cleanup.
+	// This also avoids side-effects caused by default providers.
+	// The "local" file under test is written before providers run, so this is safe to nil out.
+	flareComp.providers = nil
 	// Save() is a no-op in the mock and returns an error; the local file is still written.
 	_, _ = flareComp.Create(types.ProfileData{}, 0, errIpc, []byte{})
 

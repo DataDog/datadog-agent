@@ -19,7 +19,7 @@ HOOK_SYSCALL_ENTRY0(splice) {
         .policy = policy,
     };
 
-    cache_syscall(&syscall);
+    cache_syscall_update_cgroup(ctx, &syscall);
     return 0;
 }
 
@@ -56,7 +56,8 @@ int rethook_get_pipe_info(ctx_t *ctx) {
         syscall->resolver.dentry = syscall->splice.dentry;
         syscall->resolver.iteration = 0;
         syscall->resolver.ret = 0;
-        syscall->resolver.discarder_event_type = dentry_resolver_discarder_event_type(syscall);
+        syscall->resolver.event_type = syscall->type;
+        syscall->resolver.flags = get_resolver_flags(syscall, 1);
 
         resolve_dentry(ctx, KPROBE_OR_FENTRY_TYPE);
 
@@ -81,8 +82,8 @@ int __attribute__((always_inline)) sys_splice_ret(void *ctx, int retval) {
         return 0;
     }
 
-    if (syscall->resolver.ret == DENTRY_DISCARDED) {
-        monitor_discarded(EVENT_SPLICE);
+    apply_dentry_resolution_outcome(syscall, EVENT_SPLICE);
+    if (syscall->state == DISCARDED) {
         return 0;
     }
 

@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "format",
@@ -8,5 +8,16 @@ go_library(
     deps = [
         "//comp/core/diagnose/def",
         "@com_github_fatih_color//:color",
+    ],
+)
+
+go_test(
+    name = "format_test",
+    srcs = ["format_test.go"],
+    embed = [":format"],
+    gotags = ["test"],
+    deps = [
+        "//comp/core/diagnose/def",
+        "@com_github_stretchr_testify//assert",
     ],
 )

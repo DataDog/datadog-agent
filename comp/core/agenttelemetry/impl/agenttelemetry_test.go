@@ -509,7 +509,7 @@ func TestNoTagSpecifiedAggregationCounter(t *testing.T) {
           metric:
             metrics:
               - name: bar.zoo
-                aggregate_tags: []
+                preserve_tags: []
   `
 
 	// setup and initiate atel
@@ -548,7 +548,7 @@ func TestNoTagSpecifiedExplicitAggregationGauge(t *testing.T) {
           metric:
             metrics:
               - name: bar.zoo
-                aggregate_tags: []
+                preserve_tags: []
   `
 
 	// setup and initiate atel
@@ -625,7 +625,7 @@ func TestNoTagSpecifiedAggregationHistogram(t *testing.T) {
           metric:
             metrics:
               - name: bar.zoo
-                aggregate_tags: []
+                preserve_tags: []
   `
 
 	// setup and initiate atel
@@ -657,7 +657,9 @@ func TestNoTagSpecifiedAggregationHistogram(t *testing.T) {
 	assert.Nil(t, m.GetLabel())
 }
 
-func TestTagSpecifiedAggregationCounter(t *testing.T) {
+// TestAggregateTagsAliasBackwardCompat verifies that the deprecated aggregate_tags YAML key
+// is accepted and behaves identically to preserve_tags for existing custom configurations.
+func TestAggregateTagsAliasBackwardCompat(t *testing.T) {
 	var c = `
     agent_telemetry:
       enabled: true
@@ -667,6 +669,43 @@ func TestTagSpecifiedAggregationCounter(t *testing.T) {
             metrics:
               - name: bar.zoo
                 aggregate_tags:
+                  - tag1
+    `
+	tel := makeTelMock(t)
+	counter := tel.NewCounter("bar", "zoo", []string{"tag1", "tag2"}, "")
+	counter.AddWithTags(10, map[string]string{"tag1": "a1", "tag2": "b1"})
+	counter.AddWithTags(20, map[string]string{"tag1": "a1", "tag2": "b2"})
+	counter.AddWithTags(30, map[string]string{"tag1": "a2", "tag2": "b3"})
+
+	s := &senderMock{}
+	r := newRunnerMock()
+	a := getTestAtel(t, tel, c, s, nil, r)
+	require.True(t, a.enabled)
+
+	a.start()
+	r.(*runnerMock).run()
+
+	// aggregate_tags: [tag1] should aggregate by tag1, dropping tag2
+	require.Equal(t, 1, len(s.sentMetrics))
+	require.Equal(t, 2, len(s.sentMetrics[0].metrics))
+	metrics := makeStableMetricMap(s.sentMetrics[0].metrics)
+
+	require.Contains(t, metrics, "tag1:a1:")
+	assert.Equal(t, float64(30), metrics["tag1:a1:"].Counter.GetValue())
+	require.Contains(t, metrics, "tag1:a2:")
+	assert.Equal(t, float64(30), metrics["tag1:a2:"].Counter.GetValue())
+}
+
+func TestTagSpecifiedAggregationCounter(t *testing.T) {
+	var c = `
+    agent_telemetry:
+      enabled: true
+      profiles:
+        - name: foo
+          metric:
+            metrics:
+              - name: bar.zoo
+                preserve_tags:
                   - tag1
     `
 
@@ -715,7 +754,7 @@ func TestTagAggregateTotalCounter(t *testing.T) {
             metrics:
               - name: bar.zoo
                 aggregate_total: true
-                aggregate_tags:
+                preserve_tags:
                   - tag1
     `
 	// setup and initiate atel
@@ -781,7 +820,7 @@ func TestAggregateTotalDeltaStabilityOnTimeseriesCountChange(t *testing.T) {
             metrics:
               - name: bar.zoo
                 aggregate_total: true
-                aggregate_tags:
+                preserve_tags:
                   - tag1
     `
 	tel := makeTelMock(t)
@@ -854,13 +893,13 @@ func TestTwoProfilesOnTheSameScheduleGenerateSinglePayload(t *testing.T) {
           metric:
             metrics:
               - name: bar.bar
-                aggregate_tags:
+                preserve_tags:
                   - tag1
         - name: bar
           metric:
             metrics:
               - name: foo.foo
-                aggregate_tags:
+                preserve_tags:
                   - tag1
     `
 	// setup and initiate a tel
@@ -897,7 +936,7 @@ func TestOneProfileWithOneMetricMultipleContextsGenerateTwoPayloads(t *testing.T
           metric:
             metrics:
               - name: bar.bar
-                aggregate_tags:
+                preserve_tags:
                   - tag1
     `
 	// setup and initiate atel
@@ -968,10 +1007,10 @@ func TestOneProfileWithTwoMetricGenerateSinglePayloads(t *testing.T) {
           metric:
             metrics:
               - name: bar.bar
-                aggregate_tags:
+                preserve_tags:
                   - tag1
               - name: foo.foo
-                aggregate_tags:
+                preserve_tags:
                   - tag1
     `
 	// setup and initiate atel
@@ -1141,13 +1180,13 @@ func TestGetAsJSONScrub(t *testing.T) {
           metric:
             metrics:
               - name: foo.bar_auth
-                aggregate_tags:
+                preserve_tags:
                   - password
               - name: foo.bar_key
-                aggregate_tags:
+                preserve_tags:
                   - api_key
               - name: foo.bar_text
-                aggregate_tags:
+                preserve_tags:
                   - text
     `
 
@@ -1195,14 +1234,14 @@ func TestAdjustPrometheusCounterValueMultipleTags(t *testing.T) {
           metric:
             metrics:
               - name: foo.bar
-                aggregate_tags:
+                preserve_tags:
                   - tag1
                   - tag2
               - name: foo.cat
-                aggregate_tags:
+                preserve_tags:
                   - tag
               - name: zoo.bar
-                aggregate_tags:
+                preserve_tags:
                   - tag1
                   - tag2
               - name: zoo.cat
@@ -1312,7 +1351,7 @@ func TestAdjustPrometheusCounterValueMultipleTagValues(t *testing.T) {
           metric:
             metrics:
               - name: foo.bar
-                aggregate_tags:
+                preserve_tags:
                   - tag
     `
 
@@ -1615,7 +1654,7 @@ func TestHistogramFloatUpperBoundNormalizationWithTags(t *testing.T) {
           metric:
             metrics:
               - name: foo.bar
-                aggregate_tags:
+                preserve_tags:
                   - tag1
                   - tag2
     `
@@ -1732,7 +1771,7 @@ func TestHistogramFloatUpperBoundNormalizationWithMultivalueTags(t *testing.T) {
           metric:
             metrics:
               - name: foo.bar
-                aggregate_tags:
+                preserve_tags:
                   - tag
     `
 
@@ -2083,7 +2122,7 @@ func TestUsingPayloadCompressionInAgentTelemetrySender(t *testing.T) {
           metric:
             metrics:
               - name: foo.bar
-                aggregate_tags:
+                preserve_tags:
     `
 
 	// setup and initiate atel
@@ -2107,6 +2146,48 @@ func TestUsingPayloadCompressionInAgentTelemetrySender(t *testing.T) {
 	compressBodyLen := len(cl1.(*clientMock).body)
 	nonCompressBodyLen := len(cl2.(*clientMock).body)
 	assert.True(t, float64(nonCompressBodyLen)/float64(compressBodyLen) > 1.5)
+}
+
+func TestCoalescesDefaultAndNoDefaultMetricFamiliesBeforeAggregation(t *testing.T) {
+	var c = `
+    agent_telemetry:
+      enabled: true
+      profiles:
+        - name: points
+          metric:
+            metrics:
+              - name: point.sent
+                aggregate_tags:
+                  - domain
+                  - remote_agent
+    `
+
+	// setup and initiate atel
+	tel := makeTelMock(t)
+	s := makeSenderImpl(t, nil, c)
+	r := newRunnerMock()
+	a := getTestAtel(t, tel, c, s, nil, r)
+	require.True(t, a.enabled)
+
+	corePointSent := tel.NewGaugeWithOpts("point", "sent", []string{"domain"}, "", telemetry.Options{DefaultMetric: true})
+	adpPointSent := tel.NewGaugeWithOpts("point", "sent", []string{"domain", "remote_agent"}, "", telemetry.Options{DefaultMetric: false})
+	corePointSent.Set(5, "https://api.datadoghq.com")
+	adpPointSent.Set(400, "https://api.datadoghq.com", "agent-data-plane")
+
+	metrics, ok := getPayloadFilteredMetricList(a, "point.sent")
+	require.True(t, ok)
+	require.Len(t, metrics, 2)
+
+	coreMetric, ok := getPayloadMetricByTagValues(metrics, map[string]interface{}{"domain": "https://api.datadoghq.com"})
+	require.True(t, ok)
+	assert.Equal(t, 5.0, coreMetric.Value)
+
+	adpMetric, ok := getPayloadMetricByTagValues(metrics, map[string]interface{}{
+		"domain":       "https://api.datadoghq.com",
+		"remote_agent": "agent-data-plane",
+	})
+	require.True(t, ok)
+	assert.Equal(t, 400.0, adpMetric.Value)
 }
 
 func TestDefaultAndNoDefaultPromRegistries(t *testing.T) {
@@ -2166,7 +2247,7 @@ func TestAgentTelemetryEventConfiguration(t *testing.T) {
         metric:
           metrics:
             - name: checks.execution_time
-              aggregate_tags:
+              preserve_tags:
                 - check_name
             - name: pymem.inuse
         schedule:

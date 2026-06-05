@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    [DBM] Bump ``go-sqllexer`` to v0.2.2 to fix the following bugs:
+    - Obfuscate ``EXTRACT`` field keywords (e.g. ``epoch``, ``year``) so that queries from
+      ``pg_stat_activity`` and ``pg_stat_statements`` converge on the same DBM signature.
+    - Fix handling of PostgreSQL ``VACUUM`` commands so they are correctly extracted into
+      statement metadata.
+    - Fix lexer handling of multiline comments immediately following keywords.

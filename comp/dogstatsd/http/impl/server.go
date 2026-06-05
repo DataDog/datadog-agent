@@ -12,11 +12,8 @@ import (
 	"net"
 	"net/http"
 
-	"golang.org/x/net/http2"
-	"golang.org/x/net/http2/h2c"
-
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -29,8 +26,7 @@ type server struct {
 	hostname hostname.Component
 	out      serializer
 
-	http  *http.Server
-	http2 *http2.Server
+	http *http.Server
 }
 
 type serializer interface {
@@ -60,12 +56,12 @@ func (s *server) start(ctx context.Context) error {
 	mux.Handle("POST /series", &seriesHandler{base})
 	mux.Handle("POST /sketches", &sketchesHandler{base})
 
-	s.http2 = &http2.Server{}
+	var p http.Protocols
+	p.SetHTTP1(true)
+	p.SetUnencryptedHTTP2(true)
 	s.http = &http.Server{
-		Handler: h2c.NewHandler(mux, s.http2),
-	}
-	if err := http2.ConfigureServer(s.http, s.http2); err != nil {
-		return fmt.Errorf("failed to configure http2 server: %w", err)
+		Handler:   mux,
+		Protocols: &p,
 	}
 
 	addr := s.config.GetString("dogstatsd_experimental_http.listen_address")

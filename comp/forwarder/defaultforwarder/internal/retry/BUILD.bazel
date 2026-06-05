@@ -1,9 +1,9 @@
+# gazelle:proto_strip_import_prefix /comp/forwarder/defaultforwarder/internal/retry
 load("@protobuf//bazel:proto_library.bzl", "proto_library")
 load("@rules_go//go:def.bzl", "go_library", "go_test")
 load("@rules_go//proto:def.bzl", "go_proto_library")
 load("//bazel/rules/write_pb_go:defs.bzl", "write_pb_go")
 
-# gazelle:proto_strip_import_prefix /comp/forwarder/defaultforwarder/internal/retry
 proto_library(
     name = "retry_proto",
     srcs = ["HttpTransactionProto.proto"],
@@ -19,15 +19,6 @@ go_proto_library(
         "//comp/forwarder/defaultforwarder:__subpackages__",
         "@com_github_datadog_datadog_agent_comp_forwarder_defaultforwarder//:__subpackages__",
     ],
-)
-
-write_pb_go(
-    name = "write_pb_go",
-    srcs = {
-        ":retry_go_proto": [
-            "HttpTransactionProto.pb.go",
-        ],
-    },
 )
 
 go_library(
@@ -59,7 +50,6 @@ go_library(
         "//comp/forwarder/defaultforwarder/transaction",
         "//pkg/config/utils",
         "//pkg/util/filesystem",
-        "@com_github_hashicorp_go_multierror//:go-multierror",
         "@org_golang_google_protobuf//proto",
     ],
 )
@@ -88,4 +78,13 @@ go_test(
         "@com_github_stretchr_testify//require",
         "@org_golang_google_protobuf//proto",
     ],
+)
+
+write_pb_go(
+    name = "write_pb_go",
+    srcs = {
+        ":retry_go_proto": [
+            "HttpTransactionProto.pb.go",
+        ],
+    },
 )

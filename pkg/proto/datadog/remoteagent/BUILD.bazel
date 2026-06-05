@@ -1,0 +1,47 @@
+# gazelle:proto file
+load("@protobuf//bazel:proto_library.bzl", "proto_library")
+load("@rules_go//proto:def.bzl", "go_proto_library")
+
+proto_library(
+    name = "flare_proto",
+    srcs = ["flare.proto"],
+    strip_import_prefix = "/pkg/proto",
+    visibility = ["//visibility:public"],
+)
+
+proto_library(
+    name = "remoteagent_proto",
+    srcs = ["remoteagent.proto"],
+    strip_import_prefix = "/pkg/proto",
+    visibility = ["//visibility:public"],
+)
+
+proto_library(
+    name = "status_proto",
+    srcs = ["status.proto"],
+    strip_import_prefix = "/pkg/proto",
+    visibility = ["//visibility:public"],
+)
+
+proto_library(
+    name = "telemetry_proto",
+    srcs = ["telemetry.proto"],
+    strip_import_prefix = "/pkg/proto",
+    visibility = ["//visibility:public"],
+)
+
+go_proto_library(
+    name = "core_go_proto",
+    compilers = [
+        "@rules_go//proto:go_proto",
+        "//bazel/rules/go_proto_compiler:go_grpc_futureproof",
+    ],
+    importpath = "pkg/proto/pbgo/core",
+    protos = [
+        ":flare_proto",
+        ":remoteagent_proto",
+        ":status_proto",
+        ":telemetry_proto",
+    ],
+    visibility = ["//visibility:public"],
+)

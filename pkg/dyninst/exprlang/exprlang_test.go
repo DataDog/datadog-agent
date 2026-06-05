@@ -168,6 +168,13 @@ var testCases = []struct {
 	{name: "ge arity 3", input: `{"ge": [{"ref": "x"}, 1, 2]}`},
 	{name: "ne arity 0", input: `{"ne": []}`},
 	{name: "eq arity 0", input: `{"eq": []}`},
+	// Arity error cases for any / all.
+	{name: "any arity 0", input: `{"any": []}`},
+	{name: "any arity 1", input: `{"any": [{"ref": "xs"}]}`},
+	{name: "any arity 3", input: `{"any": [{"ref": "xs"}, {"ref": "@it"}, 0]}`},
+	{name: "all arity 0", input: `{"all": []}`},
+	{name: "all arity 1", input: `{"all": [{"ref": "xs"}]}`},
+	{name: "all arity 3", input: `{"all": [{"ref": "xs"}, {"ref": "@it"}, 0]}`},
 }
 
 // exprResult represents the result of parsing an expression for storage in JSON.
@@ -244,6 +251,14 @@ func exprToResult(expr Expr, err error) exprResult {
 	case *NotExpr:
 		operand := exprToResult(e.Operand, nil)
 		return exprResult{Type: "not", Left: &operand}
+	case *AnyExpr:
+		base := exprToResult(e.Base, nil)
+		pred := exprToResult(e.Pred, nil)
+		return exprResult{Type: "any", Left: &base, Right: &pred}
+	case *AllExpr:
+		base := exprToResult(e.Base, nil)
+		pred := exprToResult(e.Pred, nil)
+		return exprResult{Type: "all", Left: &base, Right: &pred}
 	case *LiteralExpr:
 		return exprResult{Type: "literal", Value: e.Value}
 	case *UnsupportedExpr:
@@ -361,6 +376,10 @@ func TestParse(t *testing.T) {
 				actualJSON, _ := json.Marshal(actualResult)
 				expectedJSON, _ := json.Marshal(expectedResult)
 				require.JSONEq(t, string(expectedJSON), string(actualJSON), "comparison expression mismatch")
+			case *AnyExpr, *AllExpr:
+				actualJSON, _ := json.Marshal(actualResult)
+				expectedJSON, _ := json.Marshal(expectedResult)
+				require.JSONEq(t, string(expectedJSON), string(actualJSON), "any/all expression mismatch")
 			case *LiteralExpr:
 				actualJSON, _ := json.Marshal(actualResult)
 				expectedJSON, _ := json.Marshal(expectedResult)
@@ -418,6 +437,8 @@ func TestRewrite(t *testing.T) {
 			&IndexExpr{Base: &RefExpr{Ref: "a"}, Index: &LiteralExpr{Value: int64(0)}},
 			&LenExpr{Operand: &RefExpr{Ref: "s"}},
 			&IsEmptyExpr{Operand: &RefExpr{Ref: "s"}},
+			&AnyExpr{Base: &RefExpr{Ref: "xs"}, Pred: &RefExpr{Ref: "@it"}},
+			&AllExpr{Base: &RefExpr{Ref: "xs"}, Pred: &RefExpr{Ref: "@it"}},
 		}
 		for _, in := range cases {
 			out := Rewrite(in, func(Expr) Expr { return nil })
@@ -565,6 +586,8 @@ func TestRewrite(t *testing.T) {
 			&IndexExpr{Base: &RefExpr{Ref: "a"}, Index: &LiteralExpr{Value: int64(0)}},
 			&LenExpr{Operand: &RefExpr{Ref: "s"}},
 			&IsEmptyExpr{Operand: &RefExpr{Ref: "s"}},
+			&AnyExpr{Base: &RefExpr{Ref: "xs"}, Pred: &RefExpr{Ref: "@it"}},
+			&AllExpr{Base: &RefExpr{Ref: "xs"}, Pred: &RefExpr{Ref: "@it"}},
 		}
 		for _, in := range cases {
 			out := Rewrite(in, func(Expr) Expr { return nil })

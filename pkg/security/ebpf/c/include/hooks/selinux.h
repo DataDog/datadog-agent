@@ -59,12 +59,14 @@ int __attribute__((always_inline)) handle_selinux_event(void *ctx, struct file *
 
     syscall.resolver.key = syscall.selinux.file.path_key;
     syscall.resolver.dentry = syscall.selinux.dentry;
-    syscall.resolver.discarder_event_type = dentry_resolver_discarder_event_type(&syscall);
+    syscall.resolver.event_type = syscall.type;
+    syscall.resolver.flags = get_resolver_flags(&syscall, 1);
     syscall.resolver.callback = DR_SELINUX_CALLBACK_KPROBE_KEY;
     syscall.resolver.iteration = 0;
     syscall.resolver.ret = 0;
 
-    cache_syscall(&syscall);
+    cache_syscall(ctx, &syscall);
+    update_proc_cache_cgroup();
 
     // tail call
     resolve_dentry(ctx, KPROBE_OR_FENTRY_TYPE);
@@ -81,12 +83,12 @@ int __attribute__((always_inline)) dr_selinux_callback(void *ctx, int retval) {
         return 0;
     }
 
-    if (syscall->resolver.ret == DENTRY_DISCARDED) {
-        monitor_discarded(EVENT_SELINUX);
+    if (syscall->resolver.ret == DENTRY_INVALID) {
         return 0;
     }
 
-    if (syscall->resolver.ret == DENTRY_INVALID) {
+    apply_dentry_resolution_outcome(syscall, EVENT_SELINUX);
+    if (syscall->state == DISCARDED) {
         return 0;
     }
 

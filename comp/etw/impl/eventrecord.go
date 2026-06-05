@@ -11,7 +11,7 @@ import (
 	"encoding/binary"
 	"unsafe"
 
-	"github.com/DataDog/datadog-agent/comp/etw"
+	etw "github.com/DataDog/datadog-agent/comp/etw/def"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 

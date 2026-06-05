@@ -29,7 +29,7 @@ import (
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
-	"github.com/DataDog/datadog-agent/comp/etw"
+	etw "github.com/DataDog/datadog-agent/comp/etw/def"
 	etwtracer "github.com/DataDog/datadog-agent/comp/trace/etwtracer/def"
 )
 

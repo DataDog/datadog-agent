@@ -12,7 +12,8 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
+	sysprobeconfigdef "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
+	sysprobeconfigmock "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/mock"
 	processdiscoverycheck "github.com/DataDog/datadog-agent/comp/process/processdiscoverycheck/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -65,10 +66,13 @@ func TestProcessDiscoveryIsEnabled(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			sysprobeConf := sysprobeconfigmock.NewMock(t)
+			for k, v := range tc.sysProbeConfigs {
+				sysprobeConf.SetWithoutSource(k, v)
+			}
 			c := fxutil.Test[processdiscoverycheck.Component](t, fx.Options(
 				fx.Provide(func(t testing.TB) config.Component { return config.NewMockWithOverrides(t, tc.configs) }),
-				sysprobeconfigimpl.MockModule(),
-				fx.Replace(sysprobeconfigimpl.MockParams{Overrides: tc.sysProbeConfigs}),
+				fx.Provide(func() sysprobeconfigdef.Component { return sysprobeConf }),
 				fxutil.ProvideComponentConstructor(NewCheck),
 			))
 			assert.Equal(t, tc.enabled, c.Object().IsEnabled())

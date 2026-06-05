@@ -111,7 +111,7 @@ static __attribute__((always_inline)) bool reserve_traced_cgroup_spot(struct cgr
         return false;
     }
 
-    u64 cgroup_inode = cgroup->cgroup_file.ino;
+    u64 cgroup_inode = cgroup->path_key.ino;
     int ret = bpf_map_update_elem(&traced_cgroups, &cgroup_inode, &cookie, BPF_NOEXIST);
     if (ret < 0) {
         // we didn't get a lock, skip this cgroup for now and go back to it later
@@ -168,13 +168,13 @@ static __attribute__((always_inline)) u64 should_trace_new_process_cgroup(void *
     bpf_probe_read(&cgroup_context, sizeof(cgroup_context), cgroup);
 
     u32 cgroup_filter = get_cgroup_mount_id_filter();
-    if (!is_cgroup_mount_id_filter_valid(cgroup_filter, &cgroup_context.cgroup_file)) {
+    if (!is_cgroup_mount_id_filter_valid(cgroup_filter, &cgroup_context.path_key)) {
         return 0;
     }
 
     if (is_cgroup_activity_dumps_enabled()) {
 
-        u64 cgroup_inode = cgroup_context.cgroup_file.ino;
+        u64 cgroup_inode = cgroup_context.path_key.ino;
 
         // is this cgroup discarded ?
         u8 *discarded = bpf_map_lookup_elem(&traced_cgroups_discarded, &cgroup_inode);

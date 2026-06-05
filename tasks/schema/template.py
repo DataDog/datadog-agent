@@ -5,9 +5,10 @@ Config template generation tasks.
 import os
 import textwrap
 
-import yaml
 from invoke import task
 from invoke.exceptions import Exit
+
+from tasks.schema.merge_schema import resolve_schema
 
 # Available Variables
 #
@@ -238,8 +239,10 @@ def _get_node_types_and_default(full_name, node, os_target):
             yaml_type, env_type = "list of integers", "space-separated list of integers"
         else:
             raise Exception(f"unknown array of type: {node['items']['type']}")
-    elif node_type == "number":
+    elif node_type in ["number", "integer", "int", "int64"]:
         yaml_type, env_type = "integer", "integer"
+    elif node_type == '[]int':
+        yaml_type, env_type = "list of integers", "space-separated list of integers"
     elif node_type == "float64":
         return "float", "float", default
     elif node_type == "object":
@@ -387,8 +390,7 @@ def _render(build_type, os_target, previous_path, name, node, indent_level):
 
 
 def generate_template(schema_file, dest, build_type, os_target):
-    with open(schema_file) as f:
-        schema = yaml.safe_load(f)
+    schema = resolve_schema(schema_file)
 
     config_template = ""
     child_nodes = _filter_hidden_nodes(schema.get("properties", {}), os_target)

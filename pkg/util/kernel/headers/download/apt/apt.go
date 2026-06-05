@@ -18,10 +18,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/DataDog/aptly/aptly"
-	"github.com/DataDog/aptly/deb"
-	"github.com/DataDog/aptly/http"
-	"github.com/DataDog/aptly/pgp"
+	"github.com/aptly-dev/aptly/aptly"
+	"github.com/aptly-dev/aptly/deb"
+	"github.com/aptly-dev/aptly/http"
+	"github.com/aptly-dev/aptly/pgp"
 	"github.com/xor-gate/ar"
 
 	"github.com/DataDog/datadog-agent/pkg/util/kernel/headers/download/extract"
@@ -70,7 +70,7 @@ func (b *Backend) downloadPackage(downloader aptly.Downloader, verifier pgp.Veri
 	stanza := make(deb.Stanza, 32)
 
 	for _, repoInfo := range b.repoCollection {
-		repo, err := deb.NewRemoteRepo(repoInfo.repoID, repoInfo.uri, repoInfo.distribution, repoInfo.components, []string{repoInfo.arch}, false, false, false)
+		repo, err := deb.NewRemoteRepo(repoInfo.repoID, repoInfo.uri, repoInfo.distribution, repoInfo.components, []string{repoInfo.arch}, false, false, false, false)
 		if err != nil {
 			b.logger.Errorf("Failed to create remote repo: %s", err)
 			continue
@@ -80,7 +80,7 @@ func (b *Backend) downloadPackage(downloader aptly.Downloader, verifier pgp.Veri
 		repo.SkipComponentCheck = true
 
 		stanza.Clear()
-		if err := repo.FetchBuffered(stanza, downloader, verifier); err != nil {
+		if err := repo.FetchBuffered(stanza, downloader, verifier, false); err != nil {
 			b.logger.Debugf("Error fetching repo: %s", err)
 			// not every repo has to be successful
 			continue
@@ -89,7 +89,7 @@ func (b *Backend) downloadPackage(downloader aptly.Downloader, verifier pgp.Veri
 		b.logger.Debug("Downloading package indexes")
 		// factory is not used by DownloadPackageIndexes so we can use nil here
 		var factory *deb.CollectionFactory
-		if err := repo.DownloadPackageIndexes(nil, downloader, nil, factory, false); err != nil {
+		if err := repo.DownloadPackageIndexes(nil, downloader, nil, factory, false, false); err != nil {
 			b.logger.Debugf("Failed to download package indexes: %s", err)
 			// not every repo has to be successful
 			continue
@@ -168,7 +168,7 @@ func (b *Backend) createGpgVerifier() (*pgp.GoVerifier, error) {
 		}
 	}
 
-	if err := gpgVerifier.InitKeyring(); err != nil {
+	if err := gpgVerifier.InitKeyring(false); err != nil {
 		return nil, err
 	}
 	return gpgVerifier, nil

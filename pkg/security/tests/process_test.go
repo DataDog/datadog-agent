@@ -21,6 +21,7 @@ import (
 	"path"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"syscall"
 	"testing"
@@ -28,6 +29,7 @@ import (
 
 	"github.com/creack/pty"
 
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
@@ -1146,13 +1148,17 @@ func TestProcessExecCTime(t *testing.T) {
 
 func TestProcessPIDVariable(t *testing.T) {
 	SkipIfNotAvailable(t)
-	flake.MarkOnJobName(t, "ubuntu_25.10")
-
-	executable := which(t, "touch")
+	procRoot := "/proc"
+	processPid := strconv.Itoa(os.Getpid())
+	if env.IsContainerized() {
+		procRoot = "/host/proc"
+		processPid = "self"
+	}
+	openPath := fmt.Sprintf("%s/%s/maps", procRoot, processPid)
 
 	ruleDef := &rules.RuleDefinition{
 		ID:         "test_rule_var",
-		Expression: `open.file.path =~ "/proc/*/maps" && open.file.path != "/proc/${process.pid}/maps"`,
+		Expression: fmt.Sprintf(`open.file.path == "%s/${process.pid}/maps"`, procRoot),
 	}
 
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{ruleDef})
@@ -1162,8 +1168,8 @@ func TestProcessPIDVariable(t *testing.T) {
 	defer test.Close()
 
 	test.WaitSignalFromRule(t, func() error {
-		cmd := exec.Command(executable, fmt.Sprintf("/proc/%d/maps", os.Getpid()))
-		return cmd.Run()
+		_, err := os.Open(openPath)
+		return err
 	}, func(_ *model.Event, rule *rules.Rule) {
 		assert.Equal(t, "test_rule_var", rule.ID, "wrong rule triggered")
 	}, "test_rule_var")

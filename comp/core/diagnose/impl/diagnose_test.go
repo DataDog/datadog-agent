@@ -194,6 +194,71 @@ func TestFlareProvider(t *testing.T) {
 	mock.AssertFileContent(strings.TrimSuffix(expectedResult, "\n"), "diagnose.log")
 }
 
+func TestFilterSuiteDiagnoses(t *testing.T) {
+	makeDiagnoses := func(checkName, category string) []diagnose.Diagnosis {
+		return []diagnose.Diagnosis{
+			{Status: diagnose.DiagnosisSuccess, Name: "d1", Diagnosis: "ok", CheckName: checkName, Category: category},
+			{Status: diagnose.DiagnosisSuccess, Name: "d2", Diagnosis: "ok", CheckName: "mysql", Category: "other"},
+		}
+	}
+
+	noFilter := diagSuiteFilter{}
+	includePostgres := mustBuildFilter(t, []string{"postgres"}, nil)
+	excludePostgres := mustBuildFilter(t, nil, []string{"postgres"})
+	includeCheckDatadog := mustBuildFilter(t, []string{"check-datadog"}, nil)
+
+	t.Run("no filter passes all", func(t *testing.T) {
+		got := filterSuiteDiagnoses(noFilter, "check-datadog", makeDiagnoses("postgres", "dbm"))
+		assert.Len(t, got, 2)
+	})
+
+	t.Run("include matches CheckName", func(t *testing.T) {
+		got := filterSuiteDiagnoses(includePostgres, "check-datadog", makeDiagnoses("postgres", "dbm"))
+		assert.Len(t, got, 1)
+		assert.Equal(t, "d1", got[0].Name)
+	})
+
+	t.Run("include matches Category", func(t *testing.T) {
+		got := filterSuiteDiagnoses(includePostgres, "check-datadog", makeDiagnoses("", "postgres"))
+		assert.Len(t, got, 1)
+		assert.Equal(t, "d1", got[0].Name)
+	})
+
+	t.Run("include suite name passes all diagnoses in suite", func(t *testing.T) {
+		got := filterSuiteDiagnoses(includeCheckDatadog, "check-datadog", makeDiagnoses("postgres", "dbm"))
+		assert.Len(t, got, 2)
+	})
+
+	t.Run("exclude drops matching diagnoses", func(t *testing.T) {
+		got := filterSuiteDiagnoses(excludePostgres, "check-datadog", makeDiagnoses("postgres", "dbm"))
+		assert.Len(t, got, 1)
+		assert.Equal(t, "mysql", got[0].CheckName)
+	})
+
+	t.Run("no CheckName or Category falls back to suite name match", func(t *testing.T) {
+		got := filterSuiteDiagnoses(includePostgres, "check-datadog", makeDiagnoses("", ""))
+		assert.Len(t, got, 0)
+
+		got = filterSuiteDiagnoses(includeCheckDatadog, "check-datadog", makeDiagnoses("", ""))
+		assert.Len(t, got, 2)
+	})
+}
+
+func mustBuildFilter(t *testing.T, include, exclude []string) diagSuiteFilter {
+	t.Helper()
+	var f diagSuiteFilter
+	var err error
+	if len(include) > 0 {
+		f.include, err = strToRegexList(include)
+		assert.NoError(t, err)
+	}
+	if len(exclude) > 0 {
+		f.exclude, err = strToRegexList(exclude)
+		assert.NoError(t, err)
+	}
+	return f
+}
+
 func setupDiagonseSuites(t *testing.T) {
 	t.Helper()
 
