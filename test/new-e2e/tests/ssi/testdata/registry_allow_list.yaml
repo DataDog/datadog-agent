@@ -12,12 +12,6 @@ clusterAgent:
     - name: DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_GRADUAL_ROLLOUT_ENABLED
       value: "false"
 
-# Temporary until the Datadog CSI driver is released
-datadog-csi-driver:
-  image:
-    repository: "registry.datadoghq.com/csi-driver"
-    tag: "1.2.0"
-
 datadog:
   csi:
     enabled: true
