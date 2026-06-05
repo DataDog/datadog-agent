@@ -7,7 +7,6 @@ package ebpftest
 
 import (
 	"os"
-	"runtime"
 	"testing"
 
 	"github.com/cilium/ebpf/rlimit"
@@ -37,26 +36,33 @@ func SupportedBuildModes() []BuildMode {
 }
 
 // fentrySupported approximates whether the fentry tracer can load on this host,
-// using per-arch kernel-version floors as a stand-in for features.SupportsFentry()
+// using a kernel-version floor as a stand-in for features.SupportsFentry().
 //
-// TODO: replace this hardcoded kernel-version gate with a call to
-// features.SupportsFentry() once the pkg/ebpf import-cycle reorg lands (see
-// PRs #51821/#51825). Importing pkg/ebpf/features here today pulls in an
-// amd64-only test import cycle (ebpftest -> features -> kernelbugs ->
-// bytecode/runtime -> pkg/ebpf), so until that's untangled we approximate
-// fentry support with per-arch kernel-version floors. This broadens KMT
-// coverage beyond the old amazon/5.10-only carveout to every KMT distro with
-// a new-enough kernel. fentry/fexit BPF trampolines: amd64 since 5.5, arm64
-// since 6.0. All current KMT images at/above these floors ship BTF.
+// The binding constraint is NOT the fentry/fexit trampoline floor (amd64 5.5,
+// arm64 6.0) but the RCU-exit deadlock bug: fentry.LoadTracer refuses to load on
+// any kernel carrying the tasks_rcu_exit_srcu symbol (present ~5.7 through 6.8 on
+// both arches), which was removed by the upstream fix in 6.9. So fentry only
+// actually loads on kernels >= 6.9 (modulo distro backports). Since 6.9 is above
+// both trampoline floors, we gate on it for every arch. This keeps the fentry
+// build mode from being selected on kernels where fentry.LoadTracer would fail
+// its HasTasksRCUExitLockSymbol() check (e.g. KMT amazon_2023/6.1,
+// ubuntu_24.04/6.8) — which previously turned the whole fentry matrix red.
+//
+// This is an upstream-version proxy: the deadlock symbol's presence depends on
+// the distro patch level, not the upstream version, so a kernel that calls
+// itself < 6.9 but has the fix backported (e.g. Ubuntu 6.8.0-86, where the
+// symbol is gone) actually runs fentry fine but is excluded here. Use
+// TEST_FENTRY_OVERRIDE=true to force the fentry build mode on such kernels —
+// fentry.LoadTracer's runtime HasTasksRCUExitLockSymbol() check still gates the
+// real load, so the override is safe (it only loads where the symbol is absent).
+//
+// TODO: replace this hardcoded gate with features.SupportsFentry() once the
+// pkg/ebpf import-cycle reorg lands (see PRs #51821/#51825). Importing
+// pkg/ebpf/features here today pulls in an amd64-only test import cycle
+// (ebpftest -> features -> kernelbugs -> bytecode/runtime -> pkg/ebpf). Only the
+// real SupportsFentry() probe gets backported sub-6.9 kernels right.
 func fentrySupported() bool {
-	switch runtime.GOARCH {
-	case "amd64":
-		return kv >= kernel.VersionCode(5, 5, 0)
-	case "arm64":
-		return kv >= kernel.VersionCode(6, 0, 0)
-	default:
-		return false
-	}
+	return kv >= kernel.VersionCode(6, 9, 0)
 }
 
 // TestBuildModes runs the test under all the provided build modes
