@@ -1505,10 +1505,9 @@ func TestHandleKubeKueueQueue(t *testing.T) {
 		},
 	}
 	assertTagInfoListEqual(t, expected, actual)
-	assert.ElementsMatch(t, expected[0].LowCardTags, collector.kueueQueues[queueID.ID].Low)
 }
 
-func TestKueueQueueTagsPropagateToPodContainers(t *testing.T) {
+func TestKueueQueueEntityTagsPropagateToPodContainers(t *testing.T) {
 	const (
 		podUID      = "pod-uid"
 		containerID = "container-id"
@@ -1529,13 +1528,18 @@ func TestKueueQueueTagsPropagateToPodContainers(t *testing.T) {
 
 	cfg := configmock.New(t)
 	collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
-	collector.kueueQueues["localqueue/default/batch"] = workloadmeta.KueueQueueTags{
-		Low: []string{
-			"kube_namespace:default",
-			"kueue_cluster_queue:cluster-batch",
-			"kueue_local_queue:batch",
+	store.Set(&workloadmeta.KubernetesKueueQueue{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesKueueQueue,
+			ID:   "localqueue/default/batch",
 		},
-	}
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:      "batch",
+			Namespace: "default",
+		},
+		QueueType:        workloadmeta.KueueLocalQueue,
+		ClusterQueueName: "cluster-batch",
+	})
 
 	actual := collector.handleKubePod(workloadmeta.Event{
 		Type: workloadmeta.EventTypeSet,

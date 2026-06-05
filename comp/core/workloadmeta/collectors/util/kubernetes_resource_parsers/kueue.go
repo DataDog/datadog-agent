@@ -60,19 +60,13 @@ func (p kueueQueueParser) Parse(obj interface{}) workloadmeta.Entity {
 }
 
 func (p kueueQueueParser) entityID(namespace, name string) string {
-	if p.queueType == workloadmeta.KueueLocalQueue {
-		return string(p.queueType) + "/" + namespace + "/" + name
-	}
-	return string(p.queueType) + "//" + name
+	id, _ := workloadmeta.GenerateKueueQueueEntityID(p.queueType, namespace, name)
+	return id
 }
 
 // GenerateKueueQueueEntityID returns the workloadmeta entity ID for a Kueue queue.
 func GenerateKueueQueueEntityID(queueType workloadmeta.KueueQueueType, namespace, name string) (string, error) {
-	if err := validateKueueQueueType(queueType); err != nil {
-		return "", err
-	}
-
-	return kueueQueueParser{queueType: queueType}.entityID(namespace, name), nil
+	return workloadmeta.GenerateKueueQueueEntityID(queueType, namespace, name)
 }
 
 // QueueTypeForKueueResource returns the workloadmeta queue type for a Kueue resource name.

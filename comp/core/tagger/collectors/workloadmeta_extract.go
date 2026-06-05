@@ -126,16 +126,6 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 	var tagInfos []*types.TagInfo
 
 	for _, ev := range evBundle.Events {
-		if ev.Type != workloadmeta.EventTypeSet {
-			continue
-		}
-		if ev.Entity.GetID().Kind != workloadmeta.KindKubernetesKueueQueue {
-			continue
-		}
-		c.updateKueueQueueTags(ev.Entity.(*workloadmeta.KubernetesKueueQueue))
-	}
-
-	for _, ev := range evBundle.Events {
 		entity := ev.Entity
 		entityID := entity.GetID()
 
@@ -532,7 +522,7 @@ func (c *WorkloadMetaCollector) handleKubePod(ev workloadmeta.Event) []*types.Ta
 	tagInfos := []*types.TagInfo{c.extractTagsFromPodEntity(pod, tagList, ev.IsComplete)}
 
 	c.extractTagsFromPodLabels(pod, tagList)
-	c.extractTagsFromKueueQueue(pod, tagList)
+	c.extractTagsFromPodKueueInfo(pod, tagList)
 
 	for _, podContainer := range pod.GetAllContainers() {
 		cTagInfo, err := c.extractTagsFromPodContainer(pod, podContainer, tagList.Copy(), ev.IsComplete)
@@ -773,8 +763,9 @@ func (c *WorkloadMetaCollector) handleKubeMetadata(ev workloadmeta.Event) []*typ
 func (c *WorkloadMetaCollector) handleKubeKueueQueue(ev workloadmeta.Event) []*types.TagInfo {
 	queue := ev.Entity.(*workloadmeta.KubernetesKueueQueue)
 
-	queueTags := c.updateKueueQueueTags(queue)
-	low, orch, high, standard := queueTags.Low, queueTags.Orchestrator, queueTags.High, queueTags.Standard
+	tagList := taglist.NewTagList()
+	c.extractKueueQueueTags(queue, tagList)
+	low, orch, high, standard := tagList.Compute()
 
 	if len(low)+len(orch)+len(high)+len(standard) == 0 {
 		return nil
@@ -791,21 +782,6 @@ func (c *WorkloadMetaCollector) handleKubeKueueQueue(ev workloadmeta.Event) []*t
 			IsComplete:           ev.IsComplete,
 		},
 	}
-}
-
-func (c *WorkloadMetaCollector) updateKueueQueueTags(queue *workloadmeta.KubernetesKueueQueue) workloadmeta.KueueQueueTags {
-	tagList := taglist.NewTagList()
-	c.extractKueueQueueTags(queue, tagList)
-
-	low, orch, high, standard := tagList.Compute()
-	queueTags := workloadmeta.KueueQueueTags{
-		Low:          low,
-		Orchestrator: orch,
-		High:         high,
-		Standard:     standard,
-	}
-	c.kueueQueues[queue.EntityID.ID] = queueTags
-	return queueTags
 }
 
 func (c *WorkloadMetaCollector) handleGPU(ev workloadmeta.Event) []*types.TagInfo {
@@ -973,47 +949,45 @@ func (c *WorkloadMetaCollector) extractKueueQueueTags(queue *workloadmeta.Kubern
 	}
 }
 
-func (c *WorkloadMetaCollector) extractTagsFromKueueQueue(pod *workloadmeta.KubernetesPod, tagList *taglist.TagList) {
-	if !kueueQueueTagsEmpty(pod.KueueQueueTags) {
-		addKueueQueueTags(tagList, pod.KueueQueueTags)
-		return
+func (c *WorkloadMetaCollector) extractTagsFromPodKueueInfo(pod *workloadmeta.KubernetesPod, tagList *taglist.TagList) {
+	clusterQueueName := pod.Labels[kubernetes.KueueClusterQueueNameLabelKey]
+	localQueueName := pod.Labels[kubernetes.KueueLocalQueueNameLabelKey]
+	if localQueueName == "" {
+		// plain pods will not have the local-queue-name annotation but instead the queue-name one, so
+		// fall back to that one
+		localQueueName = pod.Labels[kubernetes.KueueQueueNameLabelKey]
 	}
 
-	queueName := pod.Labels[kubernetes.KueueLocalQueueNameLabelKey]
-	if queueName == "" {
-		queueName = pod.Labels[kubernetes.KueueQueueNameLabelKey]
-	}
-	if queueName == "" {
-		return
+	if localQueueName != "" {
+		localQueueID, err := workloadmeta.GenerateKueueQueueEntityID(workloadmeta.KueueLocalQueue, pod.Namespace, localQueueName)
+		if err != nil {
+			log.Debugf("Could not generate Kueue LocalQueue entity ID for pod %s/%s: %v", pod.Namespace, pod.Name, err)
+			return
+		}
+
+		queue, err := c.store.GetKubernetesKueueQueue(localQueueID)
+		if err == nil && queue != nil {
+			c.extractKueueQueueTags(queue, tagList)
+
+			if clusterQueueName == "" {
+				// fallback to the cluster queue associated to the local queue
+				clusterQueueName = queue.ClusterQueueName
+			}
+		}
 	}
 
-	queueID := kueueLocalQueueID(pod.Namespace, queueName)
-	if queueTags, found := c.kueueQueues[queueID]; found {
-		addKueueQueueTags(tagList, queueTags)
-	}
-}
+	if clusterQueueName != "" {
+		clusterQueueID, err := workloadmeta.GenerateKueueQueueEntityID(workloadmeta.KueueClusterQueue, "", clusterQueueName)
+		if err != nil {
+			log.Debugf("Could not generate Kueue ClusterQueue entity ID for pod %s/%s: %v", pod.Namespace, pod.Name, err)
+			return
+		}
 
-func addKueueQueueTags(tagList *taglist.TagList, queueTags workloadmeta.KueueQueueTags) {
-	for _, tag := range queueTags.Low {
-		tagList.AddLowTag(tag)
+		queue, err := c.store.GetKubernetesKueueQueue(clusterQueueID)
+		if err == nil && queue != nil {
+			c.extractKueueQueueTags(queue, tagList)
+		}
 	}
-	for _, tag := range queueTags.Orchestrator {
-		tagList.AddOrchestratorTag(tag)
-	}
-	for _, tag := range queueTags.High {
-		tagList.AddHighTag(tag)
-	}
-	for _, tag := range queueTags.Standard {
-		tagList.AddStandardTag(tag)
-	}
-}
-
-func kueueQueueTagsEmpty(queueTags workloadmeta.KueueQueueTags) bool {
-	return len(queueTags.Low)+len(queueTags.Orchestrator)+len(queueTags.High)+len(queueTags.Standard) == 0
-}
-
-func kueueLocalQueueID(namespace, name string) string {
-	return string(workloadmeta.KueueLocalQueue) + "/" + namespace + "/" + name
 }
 
 func kueueQueueGroupResource(queueType workloadmeta.KueueQueueType) string {
@@ -1159,9 +1133,6 @@ func (c *WorkloadMetaCollector) handleDelete(ev workloadmeta.Event) []*types.Tag
 
 	delete(c.children, taggerEntityID)
 	delete(c.entityCompleteness, entityID)
-	if entityID.Kind == workloadmeta.KindKubernetesKueueQueue {
-		delete(c.kueueQueues, entityID.ID)
-	}
 
 	return tagInfos
 }

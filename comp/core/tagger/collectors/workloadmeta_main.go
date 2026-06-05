@@ -56,7 +56,6 @@ type WorkloadMetaCollector struct {
 	cfg          config.Component
 	children     map[types.EntityID]map[types.EntityID]struct{}
 	tagProcessor taggerdef.Processor
-	kueueQueues  map[string]workloadmeta.KueueQueueTags
 
 	containerEnvAsTags    map[string]string
 	containerLabelsAsTags map[string]string
@@ -187,7 +186,6 @@ func NewWorkloadMetaCollector(ctx context.Context, cfg config.Component, store w
 		store:                             store,
 		cfg:                               cfg,
 		children:                          make(map[types.EntityID]map[types.EntityID]struct{}),
-		kueueQueues:                       make(map[string]workloadmeta.KueueQueueTags),
 		staticTags:                        make(map[string][]string),
 		collectEC2ResourceTags:            cfg.GetBool("ecs_collect_resource_tags_ec2"),
 		collectPersistentVolumeClaimsTags: cfg.GetBool("kubernetes_persistent_volume_claims_as_tags"),

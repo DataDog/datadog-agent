@@ -828,7 +828,6 @@ type KubernetesPod struct {
 	KubeServices               []string
 	NamespaceLabels            map[string]string
 	NamespaceAnnotations       map[string]string   `proto:"ignore"`
-	KueueQueueTags             KueueQueueTags      `proto:"ignore"`
 	FinishedAt                 time.Time           `proto:"ignore"`
 	SecurityContext            *PodSecurityContext `proto:"ignore"`
 	Resources                  ContainerResources  `proto:"ignore"`
@@ -1421,14 +1420,6 @@ func (d KubernetesDeployment) String(verbose bool) string {
 
 var _ Entity = &KubernetesDeployment{}
 
-// KueueQueueTags contains tags inherited from a Kueue queue.
-type KueueQueueTags struct {
-	Low          []string
-	Orchestrator []string
-	High         []string
-	Standard     []string
-}
-
 // KueueQueueType identifies the Kueue queue resource type.
 type KueueQueueType string
 
@@ -1438,6 +1429,18 @@ const (
 	// KueueClusterQueue is a cluster-scoped Kueue ClusterQueue.
 	KueueClusterQueue KueueQueueType = "clusterqueue"
 )
+
+// GenerateKueueQueueEntityID returns the workloadmeta entity ID for a Kueue queue.
+func GenerateKueueQueueEntityID(queueType KueueQueueType, namespace, name string) (string, error) {
+	switch queueType {
+	case KueueLocalQueue:
+		return string(queueType) + "/" + namespace + "/" + name, nil
+	case KueueClusterQueue:
+		return string(queueType) + "//" + name, nil
+	default:
+		return "", fmt.Errorf("unsupported Kueue queue type %q", queueType)
+	}
+}
 
 // KubernetesKueueQueue is an Entity representing a Kueue LocalQueue or ClusterQueue.
 type KubernetesKueueQueue struct {

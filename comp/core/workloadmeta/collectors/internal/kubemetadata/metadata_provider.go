@@ -13,7 +13,6 @@ import (
 
 	"k8s.io/apimachinery/pkg/util/sets"
 
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
@@ -39,8 +38,6 @@ type metadataProvider interface {
 	getKubernetesServices(pod *kubelet.Pod) []string
 	// getNamespaceMetadata returns namespace labels/annotations.
 	getNamespaceMetadata(ns string) (labels, annotations map[string]string)
-	// getKueueQueueTags returns tags derived from the pod's referenced Kueue queue.
-	getKueueQueueTags(pod *kubelet.Pod) workloadmeta.KueueQueueTags
 	// getCollectedNamespaces returns the namespaces collected while parsing pods.
 	getCollectedNamespaces() map[string]namespaceMetadata
 }
@@ -109,10 +106,6 @@ func (p *localAPIServerProvider) getNamespaceMetadata(ns string) (labels, annota
 	return nil, nil
 }
 
-func (p *localAPIServerProvider) getKueueQueueTags(_ *kubelet.Pod) workloadmeta.KueueQueueTags {
-	return workloadmeta.KueueQueueTags{}
-}
-
 func (p *localAPIServerProvider) getCollectedNamespaces() map[string]namespaceMetadata {
 	return p.nsCache.getCollectedNamespaces()
 }
@@ -155,10 +148,6 @@ func (p *dcaPerPodProvider) getKubernetesServices(pod *kubelet.Pod) []string {
 
 func (p *dcaPerPodProvider) getNamespaceMetadata(ns string) (labels, annotations map[string]string) {
 	return getNamespaceLabelsOnly(&p.nsCache, p.dcaClient, ns, p.collectNamespaceLabels, p.collectNamespaceAnnotations)
-}
-
-func (p *dcaPerPodProvider) getKueueQueueTags(_ *kubelet.Pod) workloadmeta.KueueQueueTags {
-	return workloadmeta.KueueQueueTags{}
 }
 
 func (p *dcaPerPodProvider) getCollectedNamespaces() map[string]namespaceMetadata {
@@ -221,10 +210,6 @@ func (p *dcaPerNodeProvider) getKubernetesServices(pod *kubelet.Pod) []string {
 
 func (p *dcaPerNodeProvider) getNamespaceMetadata(ns string) (labels, annotations map[string]string) {
 	return getNamespaceLabelsOnly(&p.nsCache, p.dcaClient, ns, p.collectNamespaceLabels, p.collectNamespaceAnnotations)
-}
-
-func (p *dcaPerNodeProvider) getKueueQueueTags(_ *kubelet.Pod) workloadmeta.KueueQueueTags {
-	return workloadmeta.KueueQueueTags{}
 }
 
 func (p *dcaPerNodeProvider) getCollectedNamespaces() map[string]namespaceMetadata {
