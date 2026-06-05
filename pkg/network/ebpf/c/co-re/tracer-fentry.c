@@ -223,10 +223,7 @@ int BPF_PROG(tcp_close, struct sock *sk, long timeout) {
 }
 
 SEC("fentry/tcp_done")
-int BPF_PROG(tcp_done, struct sock *sk) {
-    // NOTE: no RETURN_IF_NOT_IN_SYSPROBE_TASK here — tcp_done often fires from
-    // timeout/RST paths in idle/softirq context where the PID namespace check
-    // would incorrectly reject the event, silently dropping failed connections.
+int BPF_PROG(tcp_done, struct sock *sk) { // JMW should these all be bypassable?
     conn_tuple_t t = {};
 
     if (!read_conn_tuple(&t, sk, 0, CONN_TYPE_TCP)) {
@@ -588,7 +585,6 @@ int BPF_PROG(inet6_bind_exit, struct socket *sock, struct sockaddr *uaddr, int a
 // so no fentry entry probe is needed
 SEC("fexit/tcp_read_sock")
 int BPF_PROG(tcp_read_sock_exit, struct sock *sk, read_descriptor_t *desc, sk_read_actor_t recv_actor, int recv) {
-    RETURN_IF_NOT_IN_SYSPROBE_TASK("fexit/tcp_read_sock");
     if (recv < 0) {
         return 0;
     }
