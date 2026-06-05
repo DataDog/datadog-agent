@@ -27,14 +27,14 @@ def dd_agent_go_test(name, flavors = None, tags = None, **kwargs):
         go_test(
             name = name + "_" + flavor,
             gotags = flavor_gotags(flavor),
-            tags = user_tags + ["go_tests", "flavor_" + flavor],
+            tags = user_tags + ["dd_agent_go_test", "flavor_" + flavor],
             **kwargs
         )
     native.test_suite(
         name = name,
         # Propagate user-supplied tags to the suite itself so wildcard target
         # patterns honour them: without this, `tags = ["manual"]` on the
-        # macro call would only land on the per-flavor go_tests; the suite
+        # macro call would only land on the per-flavor variants; the suite
         # would still be picked up by `bazel test //...` and Bazel's
         # test_suite expansion would then run the manual member tests anyway.
         tags = user_tags,
