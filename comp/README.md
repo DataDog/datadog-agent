@@ -308,7 +308,7 @@ Package connectionsforwarder defines a component to send connections data to the
 
 ### [comp/forwarder/defaultforwarder](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder)
 
-Package defaultforwarder implements a component to send payloads to the backend
+Package defaultforwarder defines the interface for the default forwarder component.
 
 ### [comp/forwarder/eventplatform](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/forwarder/eventplatform)
 
@@ -326,7 +326,7 @@ Package eventplatformreceiver implements the receiver for the event platform pac
 
 *Datadog Team*: kubernetes-experiences
 
-Package orchestrator implements the orchestrator forwarder component.
+Package orchestrator defines the interface for the orchestrator forwarder component.
 
 ### [comp/forwarder/orchestrator/orchestratorinterface](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface)
 

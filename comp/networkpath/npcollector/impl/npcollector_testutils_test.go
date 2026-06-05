@@ -28,7 +28,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	mocktelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	defaultforwardermock "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/mock"
 	eventplatformmock "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/mock"
 	eventplatformreceiverimpl "github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/impl"
 	forwardermock "github.com/DataDog/datadog-agent/comp/ndmtmp/forwarder/mock"
@@ -54,7 +54,7 @@ var testOptions = fx.Options(
 	Module(),
 	forwardermock.MockModule(),
 	demultiplexerimpl.MockModule(),
-	defaultforwarder.MockModule(),
+	defaultforwardermock.MockModule(),
 	eventplatformmock.MockModule(),
 	eventplatformreceiverimpl.Module(),
 	rdnsqueriermock.MockModule(),

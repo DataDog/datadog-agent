@@ -133,7 +133,7 @@ func TestFilterOpenBasenameApprover(t *testing.T) {
 	}
 }
 
-func TestFilterOpenBasenameWildcardApprover(t *testing.T) {
+func TestFilterOpenBasenamePrefixApprover(t *testing.T) {
 	SkipIfNotAvailable(t)
 
 	// generate a basename up to the current limit of the agent
@@ -169,6 +169,92 @@ func TestFilterOpenBasenameWildcardApprover(t *testing.T) {
 	}
 
 	testFile2, _, err = test.Path("test-oba-2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(testFile2)
+
+	// stats
+	err = retry.Do(func() error {
+		test.eventMonitor.SendStats()
+		defer test.statsdClient.Flush()
+		if count := test.statsdClient.Get(metrics.MetricEventApproved + ":approver_type:basename"); count == 0 {
+			return fmt.Errorf("expected metrics not found: %+v", test.statsdClient.GetByPrefix(metrics.MetricEventApproved))
+		}
+
+		if count := test.statsdClient.Get(metrics.MetricEventApproved + ":event_type:open"); count == 0 {
+			return fmt.Errorf("expected metrics not found: %+v", test.statsdClient.GetByPrefix(metrics.MetricEventApproved))
+		}
+
+		return nil
+	}, retry.Delay(1*time.Second), retry.Attempts(5), retry.DelayType(retry.FixedDelay))
+	assert.NoError(t, err)
+
+	if err := waitForOpenProbeEvent(test, func() error {
+		fd2, err = openTestFile(test, testFile2, syscall.O_CREAT)
+		if err != nil {
+			return err
+		}
+		return syscall.Close(fd2)
+	}, testFile2); err == nil {
+		t.Fatal("shouldn't get an event")
+	}
+}
+
+func TestFilterOpenParentBasenameApprover(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	// generate a basename up to the current limit of the agent
+	basename := strings.Repeat("a", model.MaxSegmentLength)
+	rule := &rules.RuleDefinition{
+		ID:         "test_rule",
+		Expression: `open.file.path =~ "{{.Root}}/test/*"`,
+	}
+
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, withDynamicOpts(dynamicTestOpts{disableBundledRules: true}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	var fd1, fd2 int
+	var testDir, testFile1, testFile2 string
+
+	testDir, _, err = test.Path("test")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := os.MkdirAll(filepath.Dir(testDir), 0777); err != nil {
+		t.Fatal(err)
+	}
+
+	testFile1, _, err = test.Path("test/" + basename)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(testFile1)
+
+	if err := waitForOpenProbeEvent(test, func() error {
+		fd1, err = openTestFile(test, testFile1, syscall.O_CREAT)
+		if err != nil {
+			return err
+		}
+		return syscall.Close(fd1)
+	}, testFile1); err != nil {
+		t.Fatal(err)
+	}
+
+	testDir2, _, err := test.Path("test-2")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := os.MkdirAll(filepath.Dir(testDir2), 0777); err != nil {
+		t.Fatal(err)
+	}
+
+	testFile2, _, err = test.Path("test-2/" + basename)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -282,7 +368,7 @@ func TestFilterOpenLeafDiscarderActivityDump(t *testing.T) {
 	// a discarder is created).
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
-		Expression: `open.filename =~ "/tmp/*-no-approver-*"`,
+		Expression: `open.filename =~ "/*mp/*-no-approver-*"`,
 	}
 
 	outputDir := t.TempDir()
@@ -355,7 +441,7 @@ func testFilterOpenParentDiscarder(t *testing.T, parents ...string) {
 	// a discarder is created).
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
-		Expression: `open.file.path =~ "{{.Root}}/*-no-approver-*" && open.flags & (O_CREAT | O_SYNC) > 0`,
+		Expression: `open.file.path =~ "{{.Root}}/no-parent-*/*-no-approver-*" && open.flags & (O_CREAT | O_SYNC) > 0`,
 	}
 
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule})
@@ -506,15 +592,15 @@ func TestFilterOpenAUIDEqualApprover(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_equal_1",
-			Expression: `open.file.path =~ "/tmp/*est-a*" && process.auid == 1005`,
+			Expression: `open.file.path =~ "/tm*/*est-a*" && process.auid == 1005`,
 		},
 		{
 			ID:         "test_equal_2",
-			Expression: `open.file.path =~ "/tmp/*est-a*" && process.auid == 0`,
+			Expression: `open.file.path =~ "/tm*/*est-a*" && process.auid == 0`,
 		},
 		{
 			ID:         "test_equal_3",
-			Expression: `open.file.path =~ "/tmp/*est-a*" && process.auid == AUDIT_AUID_UNSET`,
+			Expression: `open.file.path =~ "/tm*/*est-a*" && process.auid == AUDIT_AUID_UNSET`,
 		},
 	}
 
@@ -560,7 +646,7 @@ func TestFilterOpenAUIDLesserApprover(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_range_lesser",
-			Expression: `open.file.path =~ "/tmp/*est-a*" && process.auid < 500`,
+			Expression: `open.file.path =~ "/tm*/*est-a*" && process.auid < 500`,
 		},
 	}
 
@@ -596,7 +682,7 @@ func TestFilterOpenAUIDGreaterApprover(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_range_greater",
-			Expression: `open.file.path =~ "/tmp/*est-a*" && process.auid > 1000`,
+			Expression: `open.file.path =~ "/tm*/*est-a*" && process.auid > 1000`,
 		},
 	}
 
@@ -632,7 +718,7 @@ func TestFilterOpenAUIDNotEqualUnsetApprover(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_equal_4",
-			Expression: `open.file.path =~ "/tmp/*est-a*" && process.auid != AUDIT_AUID_UNSET`,
+			Expression: `open.file.path =~ "/tm*/*est-a*" && process.auid != AUDIT_AUID_UNSET`,
 		},
 	}
 
@@ -668,7 +754,7 @@ func TestFilterUnlinkAUIDEqualApprover(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_equal_1",
-			Expression: `unlink.file.path =~ "/tmp/*est-a*" && process.auid == 1009`,
+			Expression: `unlink.file.path =~ "/tm*/*est-a*" && process.auid == 1009`,
 		},
 	}
 
@@ -1154,7 +1240,7 @@ func TestFilterDiscarderRetention(t *testing.T) {
 	// a discarder is created).
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
-		Expression: `open.file.path =~ "{{.Root}}/*-no-approver-*" && open.flags & (O_CREAT | O_SYNC) > 0`,
+		Expression: `open.file.path =~ "{{.Root}}/parent*/*-no-approver-*" && open.flags & (O_CREAT | O_SYNC) > 0`,
 	}
 
 	testDrive, err := newTestDrive(t, "xfs", nil, "")

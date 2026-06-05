@@ -9,7 +9,7 @@ package configfilesdiscoveryimpl
 import (
 	"context"
 
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
+	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
 	configfilesdiscovery "github.com/DataDog/datadog-agent/comp/core/configfilesdiscovery/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"

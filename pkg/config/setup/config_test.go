@@ -629,41 +629,6 @@ func TestNumWorkers(t *testing.T) {
 	assert.Equal(t, workers, 1)
 }
 
-// TestOverrides validates that the config overrides system works well.
-func TestApplyOverrides(t *testing.T) {
-	pkgconfigmodel.CleanOverride(t)
-	assert := assert.New(t)
-
-	datadogYaml := `
-dd_url: "https://app.datadoghq.eu"
-api_key: fakeapikey
-
-external_config:
-  external_agent_dd_url: "https://custom.external-agent.datadoghq.eu"
-`
-	pkgconfigmodel.AddOverrides(map[string]interface{}{
-		"api_key": "overrided",
-	})
-
-	config := confFromYAML(t, datadogYaml)
-	pkgconfigmodel.ApplyOverrideFuncs(config)
-
-	assert.Equal(config.GetString("api_key"), "overrided", "the api key should have been overrided")
-	assert.Equal(config.GetString("dd_url"), "https://app.datadoghq.eu", "this shouldn't be overrided")
-	assert.Equal(config.GetSource("api_key"), pkgconfigmodel.SourceAgentRuntime)
-	assert.Equal(config.GetSource("dd_url"), pkgconfigmodel.SourceFile)
-
-	pkgconfigmodel.AddOverrides(map[string]interface{}{
-		"dd_url": "http://localhost",
-	})
-	pkgconfigmodel.ApplyOverrideFuncs(config)
-
-	assert.Equal(config.GetString("api_key"), "overrided", "the api key should have been overrided")
-	assert.Equal(config.GetString("dd_url"), "http://localhost", "this dd_url should have been overrided")
-	assert.Equal(config.GetSource("api_key"), pkgconfigmodel.SourceAgentRuntime)
-	assert.Equal(config.GetSource("dd_url"), pkgconfigmodel.SourceAgentRuntime)
-}
-
 func TestNetworkDevicesNamespace(t *testing.T) {
 	datadogYaml := `
 network_devices:
@@ -874,6 +839,21 @@ data_plane:
 		assert.True(t, cfg.GetBool("data_plane.enabled"),
 			"data_plane.enabled must not be touched by the suppression override")
 	})
+}
+
+func TestDataPlaneDefaults(t *testing.T) {
+	cfg := confFromYAML(t, "")
+
+	assert.True(t, cfg.GetBool("data_plane.use_new_config_stream_endpoint"))
+	assert.True(t, cfg.GetBool("data_plane.remote_agent_enabled"))
+	assert.Equal(t, "tcp://0.0.0.0:5100", cfg.GetString("data_plane.api_listen_address"))
+	assert.Equal(t, "tcp://0.0.0.0:5101", cfg.GetString("data_plane.secure_api_listen_address"))
+	assert.False(t, cfg.GetBool("data_plane.telemetry_enabled"))
+	assert.Equal(t, "tcp://0.0.0.0:5102", cfg.GetString("data_plane.telemetry_listen_addr"))
+	assert.Equal(t, DefaultDataPlaneLogFile, cfg.GetString("data_plane.log_file"))
+	assert.True(t, cfg.GetBool("data_plane.otlp.proxy.traces.enabled"))
+	assert.True(t, cfg.GetBool("data_plane.otlp.proxy.metrics.enabled"))
+	assert.True(t, cfg.GetBool("data_plane.otlp.proxy.logs.enabled"))
 }
 
 func TestUsePodmanLogsAndDockerPathOverride(t *testing.T) {

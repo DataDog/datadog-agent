@@ -30,20 +30,20 @@ profiles:
     metrics:
       - name: dogstatsd.udp_packets_bytes
         preserve_tags:
-          - remote_agent
+          - emitter
       - name: dogstatsd.uds_packets_bytes
         preserve_tags:
-          - remote_agent
+          - emitter
       - name: logs.bytes_missed
       - name: logs.bytes_sent
         preserve_tags:
-          - remote_agent
+          - emitter
         aggregate_total: true
       - name: logs.decoded
       - name: logs.dropped
       - name: logs.encoded_bytes_sent
         preserve_tags:
-          - remote_agent
+          - emitter
           - compression_kind
         aggregate_total: true
       - name: logs.http_connectivity_check
@@ -52,6 +52,9 @@ profiles:
       - name: logs.http_connectivity_retry_attempt
         preserve_tags:
           - status
+      - name: logs.http_connectivity_failure
+        preserve_tags:
+          - failure_cause
       - name: logs.restart_attempt
         preserve_tags:
           - status

@@ -49,7 +49,7 @@
 
 # -- binary specific variables --
 .agent_variables: &agent_variables
-  IMAGE_VERSION: tmpl-v23
+  IMAGE_VERSION: tmpl-v24
   IMAGE_NAME: datadog-agent
   TMPL_SRC_REPO: ci/datadog-agent/agent
 
@@ -68,6 +68,7 @@
   IMAGE_VERSION: tmpl-v1
   IMAGE_NAME: ddot-ebpf
   TMPL_SRC_REPO: ci/datadog-agent/ddot-ebpf
+  RELEASE_PROD: "true"
 
 # -- publish jobs --
 publish_internal_container_image-jmx:

@@ -605,16 +605,6 @@ func TestAggregationVersionData(t *testing.T) {
 		a.flushOnTime(testTime.Add(oldestBucketStart + time.Nanosecond))
 		require.Len(t, msw.payloads, 1)
 
-		// Add the expected gitCommitSha and imageTag on c1, c2, c3, and cDefault for these assertions.
-		c1.GitCommitSha = "sha-from-container-tags"
-		c1.ImageTag = "image-tag-from-container-tags"
-		c2.GitCommitSha = "sha-from-container-tags"
-		c2.ImageTag = "image-tag-from-container-tags"
-		c3.GitCommitSha = "sha-from-container-tags"
-		c3.ImageTag = "image-tag-from-container-tags"
-		cDefault.GitCommitSha = "sha-from-container-tags"
-		cDefault.ImageTag = "image-tag-from-container-tags"
-
 		aggCounts := msw.payloads[0]
 		assertAggCountsPayload(t, aggCounts)
 
@@ -639,6 +629,54 @@ func TestAggregationVersionData(t *testing.T) {
 		assert.Equal("image-tag-from-container-tags", aggCounts.Stats[0].ImageTag)
 		assert.Equal("sha-from-container-tags", aggCounts.Stats[0].GitCommitSha)
 		assert.Len(a.buckets, 0)
+	})
+
+	t.Run("version comes from container tags when not set in payload", func(t *testing.T) {
+		assert := assert.New(t)
+		a := newTestAggregator()
+		msw := &mockStatsWriter{}
+		a.writer = msw
+		cfg := config.New()
+		cfg.ContainerTags = func(_ string) ([]string, error) {
+			return []string{"git.commit.sha:sha-from-container-tags", "image_tag:image-tag-from-container-tags", "version:version-from-container-tags"}, nil
+		}
+		a.conf = cfg
+		testTime := time.Unix(time.Now().Unix(), 0)
+
+		bak := BucketsAggregationKey{Service: "s", Name: "test.op"}
+		c1 := payloadWithCounts(testTime, bak, "1", "", "", "", "", 11, 7, 100)
+
+		a.add(testTime, deepCopy(c1))
+		a.flushOnTime(testTime.Add(oldestBucketStart + time.Nanosecond))
+		require.Len(t, msw.payloads, 1)
+
+		aggCounts := msw.payloads[0]
+		assert.Equal("version-from-container-tags", aggCounts.Stats[0].Version)
+		assert.Equal("image-tag-from-container-tags", aggCounts.Stats[0].ImageTag)
+		assert.Equal("sha-from-container-tags", aggCounts.Stats[0].GitCommitSha)
+	})
+
+	t.Run("payload version overrides container tags", func(t *testing.T) {
+		assert := assert.New(t)
+		a := newTestAggregator()
+		msw := &mockStatsWriter{}
+		a.writer = msw
+		cfg := config.New()
+		cfg.ContainerTags = func(_ string) ([]string, error) {
+			return []string{"version:version-from-container-tags"}, nil
+		}
+		a.conf = cfg
+		testTime := time.Unix(time.Now().Unix(), 0)
+
+		bak := BucketsAggregationKey{Service: "s", Name: "test.op"}
+		c1 := payloadWithCounts(testTime, bak, "1", "payload-version", "", "", "", 11, 7, 100)
+
+		a.add(testTime, deepCopy(c1))
+		a.flushOnTime(testTime.Add(oldestBucketStart + time.Nanosecond))
+		require.Len(t, msw.payloads, 1)
+
+		aggCounts := msw.payloads[0]
+		assert.Equal("payload-version", aggCounts.Stats[0].Version)
 	})
 
 	t.Run("payload git commit sha and image tag override container tags", func(t *testing.T) {

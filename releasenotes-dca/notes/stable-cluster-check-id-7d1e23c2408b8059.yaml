@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    Cluster checks now keep the same check ID across Cluster Agent restarts when
+    their configuration is unchanged.

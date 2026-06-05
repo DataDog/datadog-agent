@@ -177,6 +177,29 @@ log "All package lifecycle scripts installed"
 # causes permission errors at runtime. chown -h (portable spelling: -Rh) also
 # fixes symbolic link ownership without following the link target.
 
+# ─── Step 5b: Remove build-only static archives ──────────────────────────────
+#
+# Static archives (.a without a shared member) in embedded/lib are build-time
+# artefacts used when compiling Python and its C extensions. Nothing in the
+# installed package needs them at runtime — all consumers link statically.
+#
+# Shipping these archives is actively harmful: the agent wrapper puts
+# embedded/lib first in LIBPATH, so they shadow the system libraries of the
+# same name. When a user runs `pip install ibm_db` (or any C extension that
+# depends on e.g. libz), the linker finds our static-only libz.a first,
+# has no shared member to use for dynamic linking, and fails. Removing the
+# archives lets the linker fall through to the system versions (zlibNX, etc.)
+# which are proper shared libraries.
+for _lib in \
+    "$EMBEDDED_DESTDIR/lib/libz.a" \
+    "$EMBEDDED_DESTDIR/lib/libbz2.a" \
+; do
+    if [ -f "$_lib" ]; then
+        log "Removing build-only static archive: $_lib"
+        rm -f "$_lib"
+    fi
+done
+
 log "Setting root ownership on staging tree"
 chown -Rh 0:0 "$STAGING/opt" "$STAGING/etc" "$STAGING/var"
 log "Ownership set"

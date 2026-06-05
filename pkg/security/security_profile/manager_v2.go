@@ -12,6 +12,7 @@ import (
 	"bytes"
 	"container/list"
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"strconv"
@@ -21,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"go.uber.org/atomic"
 
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
@@ -82,9 +84,12 @@ type ManagerV2 struct {
 	// Pending profile removals (selector -> time when removal was queued)
 	pendingProfileRemovals     map[cgroupModel.WorkloadSelector]time.Time
 	pendingProfileRemovalsLock sync.Mutex
+
+	containerFilters workloadfilter.FilterBundle
+	imageExcluder    *imageExcluder
 }
 
-func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, resolvers *resolvers.EBPFResolvers, kernelVersion *kernel.Version, dumpHandler backend.ActivityDumpHandler, sendAnomalyDetection func(*model.Event), hostname string) (*ManagerV2, error) {
+func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, resolvers *resolvers.EBPFResolvers, kernelVersion *kernel.Version, dumpHandler backend.ActivityDumpHandler, sendAnomalyDetection func(*model.Event), hostname string, filterStore workloadfilter.Component) (*ManagerV2, error) {
 
 	localStorage, err := storage.NewDirectory(cfg.RuntimeSecurity.ActivityDumpLocalStorageDirectory, cfg.RuntimeSecurity.ActivityDumpLocalStorageMaxDumpsCount)
 	if err != nil {
@@ -113,6 +118,19 @@ func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, resol
 		"",
 	))
 
+	var containerFilter workloadfilter.FilterBundle
+	if filterStore != nil {
+		containerFilter = filterStore.GetContainerRuntimeSecurityFilters()
+		if errs := containerFilter.GetErrors(); len(errs) > 0 {
+			return nil, errors.Join(errs...)
+		}
+	}
+
+	imgExcluder, err := newImageExcluder(cfg.RuntimeSecurity.SecurityProfileV2ExcludedImages)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't build security profile v2 image excluder: %w", err)
+	}
+
 	m := &ManagerV2{
 		config:                    cfg,
 		statsdClient:              statsdClient,
@@ -132,6 +150,8 @@ func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, resol
 		eventFiltering:            make(map[eventFilteringEntry]*atomic.Uint64),
 		resolvedCgroups:           make(map[containerutils.CGroupID]struct{}),
 		pendingProfileRemovals:    make(map[cgroupModel.WorkloadSelector]time.Time),
+		containerFilters:          containerFilter,
+		imageExcluder:             imgExcluder,
 	}
 
 	m.initMetricsMap()
@@ -235,7 +255,6 @@ func (m *ManagerV2) onCGroupDeleted(cgce *cgroupModel.CacheEntry) {
 	// Find and unlink this workload from its profile
 	m.profilesLock.Lock()
 	defer m.profilesLock.Unlock()
-
 	for selector, prof := range m.profiles {
 		if removed, remainingInstances := m.unlinkWorkloadFromProfile(prof, cgce); removed {
 			if remainingInstances == 0 {
@@ -584,6 +603,48 @@ func (m *ManagerV2) SendStats() error {
 		}
 	}
 
+	// Per-profile size (RAM and disk reported under the same metric, differentiated by storage tag).
+	// Snapshot the active-profiles map under the lock and then call ComputeHeapSize / statsd
+	// outside it — ComputeHeapSize takes the per-profile lock, and we don't want to hold
+	// profilesLock across that or across the statsd send.
+	type profileEntry struct {
+		selector cgroupModel.WorkloadSelector
+		profile  *profile.Profile
+	}
+	m.profilesLock.Lock()
+	ramEntries := make([]profileEntry, 0, len(m.profiles))
+	for selector, p := range m.profiles {
+		ramEntries = append(ramEntries, profileEntry{selector: selector, profile: p})
+	}
+	m.profilesLock.Unlock()
+
+	for _, entry := range ramEntries {
+		tags := []string{
+			"profile_image_name:" + entry.selector.Image,
+			"profile_image_tag:" + entry.selector.Tag,
+			"storage:ram",
+		}
+		if err := m.statsdClient.Gauge(metrics.MetricSecurityProfileV2ProfileSize, float64(entry.profile.ComputeHeapSize()), tags, 1.0); err != nil {
+			return err
+		}
+	}
+
+	for selector, size := range m.localStorage.SizesBySelector() {
+		// Skip entries with an unresolved selector: the on-disk file is tracked for cleanup
+		// but emitting metrics with empty image/tag tags pollutes cardinality without adding signal.
+		if !selector.IsReady() {
+			continue
+		}
+		tags := []string{
+			"profile_image_name:" + selector.Image,
+			"profile_image_tag:" + selector.Tag,
+			"storage:disk",
+		}
+		if err := m.statsdClient.Gauge(metrics.MetricSecurityProfileV2ProfileSize, float64(size), tags, 1.0); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -621,9 +682,11 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 	workload := m.getOrCreateWorkload(event, selector, workloadID)
 	m.linkWorkloadToProfile(secprof, workload)
 
-	// Check if profile has reached max size
+	// Check if profile has reached max size. V2 uses its own knob evaluated against the
+	// accurate heap footprint — V1's activity_dump.max_dump_size keeps its legacy shallow
+	// semantics for ActivityDump/legacy Manager paths.
 	// TODO: we should handle this in a better way
-	if secprof.ActivityTree.Stats.ApproximateSize() >= int64(m.config.RuntimeSecurity.ActivityDumpMaxDumpSize()) {
+	if secprof.ActivityTree.Stats.HeapSize() >= int64(m.config.RuntimeSecurity.SecurityProfileV2MaxDumpSize()) {
 		m.incrementEventFilteringStat(event.GetEventType(), model.ProfileAtMaxSize, NA)
 		m.eventsDroppedMaxSize.Inc()
 		return nil, false
@@ -636,7 +699,9 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 	imageTag := secprof.GetTagValue("image_tag")
 	inserted, err := secprof.Insert(event, true, imageTag, activity_tree.Runtime, m.resolvers)
 	if err != nil {
-		seclog.Errorf("couldn't insert event into profile: %v", err)
+		if !activity_tree.IsExpectedFilterError(err) {
+			seclog.Debugf("couldn't insert event into profile: %v", err)
+		}
 		return nil, false
 	}
 
@@ -737,6 +802,18 @@ func (m *ManagerV2) getOrCreateProfile(selector cgroupModel.WorkloadSelector, ev
 		return secprof, nil
 	}
 
+	containerName, imageName, podNamespace := utils.GetContainerFilterTags(event.ProcessContext.Process.ContainerContext.Tags)
+	if m.containerFilters != nil && m.containerFilters.IsExcluded(workloadfilter.CreateContainer("", containerName, imageName, workloadfilter.CreatePod("", "", podNamespace, nil, nil))) {
+		seclog.Debugf("workload %s excluded by container filter (container=%s image=%s namespace=%s)", selector.String(), containerName, imageName, podNamespace)
+		return nil, errors.New("workload excluded")
+	}
+
+	imageTag := utils.GetTagValue("image_tag", event.ProcessContext.Process.ContainerContext.Tags)
+	if m.imageExcluder.IsExcluded(imageName, imageTag) {
+		seclog.Debugf("workload %s excluded by image filter (image=%s tag=%s)", selector.String(), imageName, imageTag)
+		return nil, errors.New("workload excluded")
+	}
+
 	// Try to load from local storage first
 	secprof, loaded := m.loadProfileFromStorage(selector, event)
 	if !loaded {
@@ -777,7 +854,8 @@ func (m *ManagerV2) loadProfileFromStorage(selector cgroupModel.WorkloadSelector
 		return nil, false
 	}
 
-	// Profile was loaded successfully
+	// Profile was loaded successfully; recompute stats so SizeBytes reflects the loaded tree.
+	secprof.ActivityTree.ComputeActivityTreeStats()
 	secprof.SetTreeType(secprof, "security_profile")
 
 	// Update metadata with current event context for proper matching
