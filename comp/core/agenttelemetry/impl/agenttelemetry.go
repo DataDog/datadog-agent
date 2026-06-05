@@ -818,6 +818,11 @@ func (a *atel) start() error {
 	// are awaited via runner.stop() in atel.stop. profiles==nil is the
 	// discriminator the job's Run dispatches on.
 	if a.errortrackingEnabled {
+		bouncerWindow := time.Duration(a.cfgComp.GetInt("agent_telemetry.errortracking.bouncer_window_seconds")) * time.Second
+		bouncer := errortracking.NewBouncer(bouncerWindow, 0)
+		pkglogsetup.RegisterErrortrackingSubmitter(func(elog errortracking.ErrorLog) { a.SubmitErrorLog(elog) })
+		pkglogsetup.RegisterErrortrackingBouncer(bouncer)
+
 		flushPeriodSec := uint(a.errLogsFlushInterval / time.Second)
 		if flushPeriodSec == 0 {
 			// Guard against a zero flush interval from misconfiguration; Period:0

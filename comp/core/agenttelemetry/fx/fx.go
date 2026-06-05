@@ -7,8 +7,6 @@
 package fx
 
 import (
-	"go.uber.org/fx"
-
 	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	agenttelemetryimpl "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -21,6 +19,5 @@ func Module() fxutil.Module {
 			agenttelemetryimpl.NewComponent,
 		),
 		fxutil.ProvideOptional[agenttelemetry.Component](),
-		fx.Invoke(installErrortrackingHandler),
 	)
 }
