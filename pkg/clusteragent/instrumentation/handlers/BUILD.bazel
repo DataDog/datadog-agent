@@ -28,6 +28,7 @@ go_test(
         "test",
     ],
     deps = [
+        "//comp/core/autodiscovery/integration",
         "//pkg/clusteragent/instrumentation",
         "@com_github_datadog_datadog_operator_api//datadoghq/v1alpha1",
         "@com_github_stretchr_testify//assert",
@@ -35,5 +36,6 @@ go_test(
         "@io_k8s_api//autoscaling/v2:autoscaling",
         "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
         "@io_k8s_apimachinery//pkg/runtime",
+        "@io_k8s_apimachinery//pkg/types",
     ],
 )

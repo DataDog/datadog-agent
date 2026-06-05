@@ -43,7 +43,7 @@ var (
 		"php":    "v1",
 	}
 
-	// TODO: Add new entry when a new language is supported
+	// Default bundle library image versions.
 	defaultLibImageVersions = map[language]string{
 		java:   "registry/dd-lib-java-init:" + defaultLibraries["java"],
 		js:     "registry/dd-lib-js-init:" + defaultLibraries["js"],

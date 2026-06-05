@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Fix nginx AppSec init container image having the controller version tag
+    appended even when ``admission_controller.appsec.nginx.init_image`` is
+    set to a fully-qualified image reference that already includes a tag.

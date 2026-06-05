@@ -58,7 +58,13 @@ func StopUnits(ctx context.Context, units ...string) error {
 // StopUnit starts a systemd unit
 func StopUnit(ctx context.Context, unit string, args ...string) error {
 	args = append([]string{"stop", unit}, args...)
-	err := telemetry.CommandContext(ctx, "systemctl", args...).Run()
+	err := telemetry.CommandContext(ctx, "systemctl", args...).
+		WithExpectedExitCodes(
+			5,   // unit not loaded — https://github.com/systemd/systemd/issues/25708
+			143, // self-stop via SIGTERM (128+15), see handleSystemdSelfStops
+			// Note: signal-killed processes (ExitCode -1) are not registered here;
+			// handleSystemdSelfStops filters SIGTERM-specifically via WaitStatus.
+		).Run()
 	exitErr := &exec.ExitError{}
 	if !errors.As(err, &exitErr) {
 		return err
@@ -81,7 +87,12 @@ func StartUnit(ctx context.Context, unit string, args ...string) error {
 		return nil
 	}
 	args = append([]string{"start", unit}, args...)
-	err = telemetry.CommandContext(ctx, "systemctl", args...).Run()
+	err = telemetry.CommandContext(ctx, "systemctl", args...).
+		WithExpectedExitCodes(
+			143, // self-stop via SIGTERM (128+15), see handleSystemdSelfStops
+			// Note: signal-killed processes (ExitCode -1) are not registered here;
+			// handleSystemdSelfStops filters SIGTERM-specifically via WaitStatus.
+		).Run()
 	return handleSystemdSelfStops(err)
 }
 
@@ -96,7 +107,12 @@ func RestartUnit(ctx context.Context, unit string, args ...string) error {
 		return nil
 	}
 	args = append([]string{"restart", unit}, args...)
-	err = telemetry.CommandContext(ctx, "systemctl", args...).Run()
+	err = telemetry.CommandContext(ctx, "systemctl", args...).
+		WithExpectedExitCodes(
+			143, // self-stop via SIGTERM (128+15), see handleSystemdSelfStops
+			// Note: signal-killed processes (ExitCode -1) are not registered here;
+			// handleSystemdSelfStops filters SIGTERM-specifically via WaitStatus.
+		).Run()
 	return handleSystemdSelfStops(err)
 }
 
@@ -125,13 +141,20 @@ func DisableUnits(ctx context.Context, units ...string) error {
 
 // DisableUnit disables a systemd unit
 func DisableUnit(ctx context.Context, unit string) error {
-	enabledErr := telemetry.CommandContext(ctx, "systemctl", "is-enabled", "--quiet", unit).Run()
+	enabledErr := telemetry.CommandContext(ctx, "systemctl", "is-enabled", "--quiet", unit).
+		WithExpectedExitCodes(
+			1, // unit is not enabled (disabled, masked, static, etc.) — https://man7.org/linux/man-pages/man1/systemctl.1.html
+			4, // no such unit file — https://man7.org/linux/man-pages/man1/systemctl.1.html
+		).Run()
 	if enabledErr != nil {
 		// unit is already disabled or doesn't exist, we can return fast
 		return nil
 	}
 
-	err := telemetry.CommandContext(ctx, "systemctl", "disable", "--force", unit).Run()
+	err := telemetry.CommandContext(ctx, "systemctl", "disable", "--force", unit).
+		WithExpectedExitCodes(
+			5, // unit not loaded — https://github.com/systemd/systemd/issues/25708
+		).Run()
 	exitErr := &exec.ExitError{}
 	if !errors.As(err, &exitErr) {
 		return err

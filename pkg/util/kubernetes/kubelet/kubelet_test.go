@@ -261,7 +261,7 @@ func (suite *KubeletTestSuite) TestLocateKubeletHTTP() {
 	select {
 	case r := <-kubelet.Requests:
 		require.Equal(suite.T(), "GET", r.Method)
-		require.Equal(suite.T(), "/spec", r.URL.Path)
+		require.Equal(suite.T(), "/healthz", r.URL.Path)
 	case <-time.After(2 * time.Second):
 		require.FailNow(suite.T(), "Timeout on receive channel")
 	}

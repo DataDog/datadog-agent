@@ -46,8 +46,8 @@ Invoke-BuildScript `
 
     # Copy the schema files to c:\mnt so they are available as CI artifacts
     # even if the template comparison below fails.
-    $schemaDir = Join-Path (Get-Location) "pkg\config\schema"
-    $mntSchemaDir = "c:\mnt\pkg\config\schema"
+    $schemaDir = Join-Path (Get-Location) "pkg\config\schema\yaml"
+    $mntSchemaDir = "c:\mnt\pkg\config\schema\yaml"
     New-Item -ItemType Directory -Force -Path $mntSchemaDir | Out-Null
     Copy-Item -Path "$schemaDir\*" -Destination $mntSchemaDir -Force
 
