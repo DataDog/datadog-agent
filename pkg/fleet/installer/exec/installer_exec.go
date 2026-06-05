@@ -10,6 +10,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -233,7 +234,13 @@ func (i *InstallerExec) PromoteConfigExperiment(ctx context.Context, pkg string)
 // GarbageCollect runs the garbage collector.
 func (i *InstallerExec) GarbageCollect(ctx context.Context) (err error) {
 	cmd := i.newInstallerCmd(ctx, "garbage-collect")
-	defer func() { cmd.span.Finish(err) }()
+	defer func() {
+		spanErr := err
+		if errors.Is(err, context.Canceled) {
+			spanErr = nil
+		}
+		cmd.span.Finish(spanErr)
+	}()
 	return cmd.Run()
 }
 
@@ -374,6 +381,9 @@ func (iCmd *installerCmd) Run() error {
 	err := iCmd.Cmd.Run()
 	if err == nil {
 		return nil
+	}
+	if ctxErr := iCmd.ctx.Err(); ctxErr != nil {
+		return fmt.Errorf("run canceled: %w", ctxErr)
 	}
 
 	if len(errBuf.Bytes()) == 0 {

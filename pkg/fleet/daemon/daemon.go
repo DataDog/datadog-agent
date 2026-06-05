@@ -367,9 +367,7 @@ func (d *daemonImpl) Start(_ context.Context) error {
 				d.m.Lock()
 				err := d.installer(d.env).GarbageCollect(d.ctx)
 				d.m.Unlock()
-				if err != nil {
-					log.Errorf("Daemon: could not run GC: %v", err)
-				}
+				d.handleGarbageCollectError(err)
 			case <-refreshStateTicker.C:
 				d.m.Lock()
 				d.refreshState(d.ctx)
@@ -384,6 +382,17 @@ func (d *daemonImpl) Start(_ context.Context) error {
 	}()
 	d.rc.Start(d.handleConfigsUpdate, d.handleCatalogUpdate, d.scheduleRemoteAPIRequest)
 	return nil
+}
+
+func (d *daemonImpl) handleGarbageCollectError(err error) {
+	if err == nil {
+		return
+	}
+	if errors.Is(err, context.Canceled) {
+		log.Debugf("Daemon: GC interrupted by shutdown: %v", err)
+		return
+	}
+	log.Errorf("Daemon: could not run GC: %v", err)
 }
 
 // Stop stops the garbage collector.
