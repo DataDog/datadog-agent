@@ -25,6 +25,7 @@ modules:
   comp/core/config:
     used_by_otel: true
   comp/core/configsync: default
+  comp/core/configstreamconsumer/def: default
   comp/core/delegatedauth:
     independent: false
     used_by_otel: true
