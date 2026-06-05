@@ -11,7 +11,9 @@ import (
 	"sync"
 
 	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
+
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/configresolver"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/discoverer"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
@@ -22,6 +24,11 @@ import (
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+// discoveredChangesBuffer is the buffer size for the channel that delivers
+// asynchronously-discovered configs to AutoConfig. Sized to absorb a burst
+// of completions without blocking the worker goroutine on a busy scheduler.
+const discoveredChangesBuffer = 128
 
 // configManager implements the logic of handling additions and removals of
 // configs (which may or may not be templates) and services, and reconciling
@@ -56,6 +63,16 @@ type configManager interface {
 
 	// getActiveServices returns the currently active services
 	getActiveServices() map[string]listeners.Service
+
+	// start spins up background discovery worker.
+	start()
+
+	// stop tears down background discovery worker.
+	stop()
+
+	// discoveredChanges returns a channel that emits ConfigChanges produced
+	// asynchronously by the configuration-discovery worker.
+	discoveredChanges() <-chan integration.ConfigChanges
 }
 
 // serviceAndADIDs bundles a service and its associated AD identifiers.
@@ -115,13 +132,21 @@ type reconcilingConfigManager struct {
 
 	secretResolver secrets.Component
 	healthPlatform healthplatformdef.Component
+
+	// discoveryWorker is the workqueue-backed driver that probes integrations
+	// to fill in instance configs for Discovery templates.
+	discoveryWorker *discoverer.Worker
+
+	// discoveredCh carries ConfigChanges produced by the discoveryWorker
+	// back to AutoConfig.
+	discoveredCh chan integration.ConfigChanges
 }
 
 var _ configManager = &reconcilingConfigManager{}
 
 // newReconcilingConfigManager creates a new, empty reconcilingConfigManager.
-func newReconcilingConfigManager(secretResolver secrets.Component, healthPlatform healthplatformdef.Component, staticConfigIndex *listeners.StaticConfigIndex) configManager {
-	return &reconcilingConfigManager{
+func newReconcilingConfigManager(secretResolver secrets.Component, healthPlatform healthplatformdef.Component, staticConfigIndex *listeners.StaticConfigIndex, disco discoverer.ConfigDiscoverer) configManager {
+	cm := &reconcilingConfigManager{
 		activeConfigs:      map[string]integration.Config{},
 		activeServices:     map[string]serviceAndADIDs{},
 		templatesByADID:    newMultimap(),
@@ -132,6 +157,29 @@ func newReconcilingConfigManager(secretResolver secrets.Component, healthPlatfor
 		secretResolver:     secretResolver,
 		healthPlatform:     healthPlatform,
 	}
+	if disco != nil {
+		cm.discoveredCh = make(chan integration.ConfigChanges, discoveredChangesBuffer)
+		cm.discoveryWorker = discoverer.NewWorker(disco, cmServiceLookup{cm}, cm.onDiscoveryResult, discoverer.Config{})
+	}
+	return cm
+}
+
+// cmServiceLookup adapts *reconcilingConfigManager to the
+// discoverer.ServiceLookup interface without exposing the rest of the manager
+// to the discoverer package.
+type cmServiceLookup struct {
+	cm *reconcilingConfigManager
+}
+
+// LookupService implements discoverer.ServiceLookup.
+func (l cmServiceLookup) LookupService(svcID string) (listeners.Service, bool) {
+	l.cm.m.Lock()
+	defer l.cm.m.Unlock()
+	svcAndADIDs, ok := l.cm.activeServices[svcID]
+	if !ok {
+		return nil, false
+	}
+	return svcAndADIDs.svc, true
 }
 
 // processNewService implements configManager#processNewService.
@@ -187,6 +235,8 @@ func (cm *reconcilingConfigManager) processDelService(svc listeners.Service) int
 	//  2. update templatesByADID or servicesByADID to match
 	for _, adID := range svcAndADIDs.adIDs {
 		cm.servicesByADID.remove(adID, svcID)
+		// No explicit cancellation of in-flight discovery probes needed.
+		// When they dequeue, ServiceLookup fails and aborts the disocvery.
 	}
 
 	//  3. update serviceResolutions, generating changes
@@ -430,9 +480,17 @@ func (cm *reconcilingConfigManager) reconcileService(svcID string) integration.C
 }
 
 // resolveTemplateForService resolves a template config for the given service,
-// updating errorStats in the process.  If the resolution fails, this method
-// returns false.
+// updating errorStats in the process. If the resolution fails or discovery is enabled,
+// this method returns false.
 func (cm *reconcilingConfigManager) resolveTemplateForService(tpl integration.Config, svc listeners.Service) (integration.Config, bool) {
+	// Configuration Discovery is enabled on the integration template.
+	// Do not resolve the template through the synchronous path.
+	// Instead enqueue a discovery probe for the template and service pair.
+	if tpl.Discovery != nil {
+		cm.discoveryWorker.Enqueue(svc.GetServiceID(), tpl.Digest(), tpl.Name)
+		return tpl, false
+	}
+
 	digest := tpl.Digest()
 	config, err := configresolver.Resolve(tpl, svc)
 	if err != nil {
@@ -496,6 +554,111 @@ func (cm *reconcilingConfigManager) clearTemplateResolutionFailureByID(tplName, 
 	}
 	issueID := "ad-template:" + tplName + ":" + svcID + ":" + tplDigest
 	cm.healthPlatform.ResolveIssue(issueID)
+}
+
+// start implements configManager#start.
+func (cm *reconcilingConfigManager) start() {
+	if cm.discoveryWorker != nil {
+		cm.discoveryWorker.Start()
+	}
+}
+
+// stop implements configManager#stop.
+func (cm *reconcilingConfigManager) stop() {
+	if cm.discoveryWorker != nil {
+		cm.discoveryWorker.Stop()
+	}
+}
+
+// discoveredChanges implements configManager#discoveredChanges.
+func (cm *reconcilingConfigManager) discoveredChanges() <-chan integration.ConfigChanges {
+	if cm.discoveredCh == nil {
+		return nil
+	}
+	return cm.discoveredCh
+}
+
+// onDiscoveryResult is the callback the discovery worker invokes when a probe
+// returns a usable config. It runs in the worker goroutine.
+func (cm *reconcilingConfigManager) onDiscoveryResult(svcID, tplDigest string, configs []integration.Config) {
+	cm.m.Lock()
+	changes := cm.applyDiscoveredConfigsLocked(svcID, tplDigest, configs)
+	cm.m.Unlock()
+	if len(changes.Schedule) == 0 && len(changes.Unschedule) == 0 {
+		return
+	}
+	select {
+	case cm.discoveredCh <- changes:
+	default:
+		log.Warnf("dropping discovered changes for service %s (channel full)", svcID)
+	}
+}
+
+// applyDiscoveredConfigsLocked merges a discovered config into a copy of the
+// original template, resolves it through the standard configresolver and
+// secret-decryption path, and updates the manager's resolution + scheduled
+// maps. Returns the ConfigChanges to be applied via the scheduler.
+//
+// Only the first entry in configs is used today (mirroring the original
+// design); integrations that need multiple instances should return a single
+// discoveredConfig with multiple instances.
+//
+// Must be called with cm.m locked.
+func (cm *reconcilingConfigManager) applyDiscoveredConfigsLocked(svcID, tplDigest string, configs []integration.Config) integration.ConfigChanges {
+	var changes integration.ConfigChanges
+
+	svcAndADIDs, ok := cm.activeServices[svcID]
+	if !ok {
+		// Service went away while the probe was in flight.
+		return changes
+	}
+	tpl, ok := cm.activeConfigs[tplDigest]
+	if !ok {
+		// Template was removed while the probe was in flight.
+		return changes
+	}
+	if len(configs) == 0 {
+		return changes
+	}
+	discovered := configs[0]
+
+	merged := tpl
+	merged.Discovery = nil // IMPORTANT: make sure resolveTemplateForService doesn't loop on the discovered/resolved result
+	merged.InitConfig = discovered.InitConfig
+	merged.Instances = discovered.Instances
+	merged.MetricConfig = discovered.MetricConfig
+	merged.LogsConfig = discovered.LogsConfig
+	merged.IgnoreAutodiscoveryTags = discovered.IgnoreAutodiscoveryTags
+	merged.CheckTagCardinality = discovered.CheckTagCardinality
+
+	resolved, err := configresolver.Resolve(merged, svcAndADIDs.svc)
+	if err != nil {
+		log.Errorf("error resolving discovered config %s for service %s: %v", merged.Name, svcID, err)
+		errorStats.setResolveWarning(tpl.Name, err.Error())
+		return changes
+	}
+	decrypted, err := decryptConfig(resolved, cm.secretResolver, tplDigest)
+	if err != nil {
+		log.Errorf("error decrypting discovered config %s for service %s: %v", resolved.Name, svcID, err)
+		errorStats.setResolveWarning(tpl.Name, err.Error())
+		return changes
+	}
+
+	existing, ok := cm.serviceResolutions[svcID]
+	if !ok {
+		existing = map[string]string{}
+	}
+	if prevDigest, hadPrev := existing[tplDigest]; hadPrev {
+		if old, found := cm.scheduledConfigs[prevDigest]; found {
+			changes.UnscheduleConfig(old)
+		}
+	}
+	existing[tplDigest] = decrypted.Digest()
+	cm.serviceResolutions[svcID] = existing
+
+	changes.ScheduleConfig(decrypted)
+	errorStats.removeResolveWarnings(tpl.Name)
+	return cm.applyChanges(changes)
 }
 
 // applyChanges applies the given changes to cm.scheduledConfigs

@@ -1,0 +1,209 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+package discoverer
+
+import (
+	"context"
+	"sync"
+	"time"
+
+	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/util/workqueue"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
+const (
+	DefaultMaxAttempts = 5
+	DefaultRetryDelay  = 10 * time.Second
+)
+
+// jobKey uniquely identifies a discovery probe
+type jobKey struct {
+	svcID           string
+	tplDigest       string
+	integrationName string
+}
+
+// Config configures Worker construction
+type Config struct {
+	MaxAttempts int
+	RetryDelay  time.Duration
+}
+
+// Worker drives configuration-discovery probes asynchronously. It owns a
+// delayed workqueue and a single goroutine that pops jobs, calls into the
+// ConfigDiscoverer, and reports successful results back via the supplied
+// ResultCallback.
+type Worker struct {
+	queue    workqueue.TypedDelayingInterface[jobKey]
+	disco    ConfigDiscoverer
+	services ServiceLookup
+	onResult ResultCallback
+
+	maxAttempts int
+	retryDelay  time.Duration
+
+	m sync.Mutex
+	// attempts tracks per-key failure counts so we can give up at maxAttempts
+	attempts map[jobKey]int
+
+	started     bool
+	stopCh      chan struct{}
+	workerDone  chan struct{}
+	startStopMu sync.Mutex
+}
+
+// NewWorker constructs a Worker. disco should never be nil.
+func NewWorker(disco ConfigDiscoverer, services ServiceLookup, onResult ResultCallback, cfg Config) *Worker {
+	if cfg.MaxAttempts <= 0 {
+		cfg.MaxAttempts = DefaultMaxAttempts
+	}
+	if cfg.RetryDelay <= 0 {
+		cfg.RetryDelay = DefaultRetryDelay
+	}
+	return &Worker{
+		queue: workqueue.NewTypedDelayingQueueWithConfig(workqueue.TypedDelayingQueueConfig[jobKey]{
+			Name: "ADConfigDiscoverer",
+		}),
+		disco:       disco,
+		services:    services,
+		onResult:    onResult,
+		maxAttempts: cfg.MaxAttempts,
+		retryDelay:  cfg.RetryDelay,
+		attempts:    map[jobKey]int{},
+	}
+}
+
+// Enqueue schedules a discovery probe for the given service / integration.
+func (w *Worker) Enqueue(svcID, tplDigest, integrationName string) {
+	k := jobKey{svcID: svcID, tplDigest: tplDigest, integrationName: integrationName}
+	w.queue.Add(k)
+}
+
+// Start spins up the worker goroutine
+func (w *Worker) Start() {
+	w.startStopMu.Lock()
+	defer w.startStopMu.Unlock()
+	if w.started {
+		return
+	}
+	w.started = true
+	w.stopCh = make(chan struct{})
+	w.workerDone = make(chan struct{})
+	go w.run()
+}
+
+// Stop shuts the workqueue down and waits for the worker goroutine to exit.
+func (w *Worker) Stop() {
+	w.startStopMu.Lock()
+	defer w.startStopMu.Unlock()
+	if !w.started {
+		return
+	}
+	w.started = false
+	close(w.stopCh)
+	w.queue.ShutDown()
+	<-w.workerDone
+}
+
+func (w *Worker) run() {
+	defer close(w.workerDone)
+	wait.Until(func() {
+		for w.processNext() {
+		}
+	}, time.Second, w.stopCh)
+}
+
+func (w *Worker) processNext() bool {
+	key, quit := w.queue.Get()
+	if quit {
+		return false
+	}
+	defer w.queue.Done(key)
+
+	// If service is not found, drop the attempt permanently.
+	svc, ok := w.services.LookupService(key.svcID)
+	if !ok {
+		w.dropAttempts(key)
+		return true
+	}
+
+	serviceJSON, hasHost, err := marshalService(svc)
+	if err != nil {
+		log.Debugf("marshalling service %s failed: %v", key.svcID, err)
+		w.requeueOrDrop(key)
+		return true
+	}
+	if !hasHost {
+		// No reachable host yet — typical during container startup. Retry.
+		log.Debugf("service %s has no host yet, retrying", key.svcID)
+		w.requeueOrDrop(key)
+		return true
+	}
+
+	resultJSON, err := w.disco.DiscoverConfig(key.integrationName, serviceJSON)
+	if err != nil {
+		log.Debugf("DiscoveryConfig for integration %s on service %s failed: %v", key.integrationName, key.svcID, err)
+		w.requeueOrDrop(key)
+		return true
+	}
+	if resultJSON == "" {
+		log.Debugf("DiscoveryConfig for integration %s returned empty result for %s", key.integrationName, key.svcID)
+		w.requeueOrDrop(key)
+		return true
+	}
+
+	configs, err := parseDiscoveryResult(key.integrationName, resultJSON)
+	if err != nil {
+		log.Warnf("DiscoveryConfig for integration %s returned invalid result for %s: %v", key.integrationName, key.svcID, err)
+		w.requeueOrDrop(key)
+		return true
+	}
+	if len(configs) == 0 {
+		log.Debugf("DiscoveryConfig for integration %s returned no configs for %s", key.integrationName, key.svcID)
+		w.requeueOrDrop(key)
+		return true
+	}
+
+	w.dropAttempts(key)
+	w.onResult(key.svcID, key.tplDigest, configs)
+	return true
+}
+
+func (w *Worker) requeueOrDrop(key jobKey) {
+	w.m.Lock()
+	w.attempts[key]++
+	attempt := w.attempts[key]
+	w.m.Unlock()
+	if attempt >= w.maxAttempts {
+		log.Debugf("autodiscovery/discoverer: giving up on %s/%s after %d attempts",
+			key.svcID, key.integrationName, attempt)
+		w.dropAttempts(key)
+		return
+	}
+	w.queue.AddAfter(key, w.retryDelay)
+}
+
+// dropAttempts releases the per-key retry counter on a terminal outcome.
+func (w *Worker) dropAttempts(key jobKey) {
+	w.m.Lock()
+	delete(w.attempts, key)
+	w.m.Unlock()
+}
+
+// runOnce is exported for tests so they can drive the worker synchronously.
+func (w *Worker) runOnce(ctx context.Context) {
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		w.processNext()
+	}()
+	select {
+	case <-done:
+	case <-ctx.Done():
+	}
+}

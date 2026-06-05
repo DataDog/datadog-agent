@@ -83,6 +83,7 @@ type AutoConfig struct {
 	listenerRetryStop        chan struct{}
 	schedulerController      *scheduler.Controller
 	listenerStop             chan struct{}
+	discoveryStop            chan struct{}
 	healthListening          *health.Handle
 	newService               chan listeners.Service
 	delService               chan listeners.Service
@@ -204,12 +205,13 @@ func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolv
 		log.Infof("Health platform component not available. Issue reporting disabled for config providers.")
 	}
 	staticConfigIndex := listeners.NewStaticConfigIndex()
-	cfgMgr := newReconcilingConfigManager(secretResolver, hpComp, staticConfigIndex)
+	cfgMgr := newReconcilingConfigManager(secretResolver, hpComp, staticConfigIndex, nil)
 	ac := &AutoConfig{
 		configPollers:            make([]*configPoller, 0, 9),
 		listenerCandidates:       make(map[string]*listenerCandidate),
 		listenerRetryStop:        nil, // We'll open it if needed
 		listenerStop:             make(chan struct{}),
+		discoveryStop:            make(chan struct{}),
 		healthListening:          health.RegisterLiveness("ad-servicelistening"),
 		newService:               make(chan listeners.Service),
 		delService:               make(chan listeners.Service),
@@ -366,6 +368,27 @@ func (ac *AutoConfig) start() {
 	setupAcErrors()
 	// Start the service listener
 	go ac.serviceListening()
+	ac.cfgMgr.start()
+	if ch := ac.cfgMgr.discoveredChanges(); ch != nil {
+		go ac.discoveredChangesLoop(ch)
+	}
+}
+
+// discoveredChangesLoop drains ConfigChanges produced asynchronously by the
+// configuration-discovery worker and forwards them to the scheduler. Exits
+// when discoveryStop is closed.
+func (ac *AutoConfig) discoveredChangesLoop(ch <-chan integration.ConfigChanges) {
+	for {
+		select {
+		case <-ac.discoveryStop:
+			return
+		case changes, ok := <-ch:
+			if !ok {
+				return
+			}
+			ac.applyChanges(changes)
+		}
+	}
 }
 
 // stop just shuts down AutoConfig in a clean way.
@@ -379,6 +402,12 @@ func (ac *AutoConfig) stop() {
 
 	// stop the service listener
 	ac.listenerStop <- struct{}{}
+
+	// stop the discovered-changes drain loop and then the worker itself.
+	if ac.cfgMgr.discoveredChanges() != nil {
+		close(ac.discoveryStop)
+	}
+	ac.cfgMgr.stop()
 
 	// stop the meta scheduler
 	ac.schedulerController.Stop()

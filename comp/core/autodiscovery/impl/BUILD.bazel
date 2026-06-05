@@ -17,6 +17,7 @@ go_library(
     deps = [
         "//comp/api/api/def",
         "//comp/core/autodiscovery/def",
+        "//comp/core/autodiscovery/discoverer",
         "//comp/core/autodiscovery/integration",
         "//comp/core/autodiscovery/providers/names",
         "//comp/core/autodiscovery/providers/types",
@@ -61,6 +62,7 @@ go_test(
         "autoconfig_cel_test.go",
         "autoconfig_test.go",
         "common_test.go",
+        "configmgr_discovery_test.go",
         "configmgr_test.go",
         "multimap_test.go",
         "secrets_test.go",
