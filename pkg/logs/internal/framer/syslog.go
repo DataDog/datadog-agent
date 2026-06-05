@@ -344,73 +344,29 @@ func (m *syslogFrameMatcher) scanNonTransparent(buf []byte, start int, continuat
 	return nil, 0, false
 }
 
-// FlushFrame implements FrameMatcher. At end-of-stream, emit any remaining
-// bytes in bounded chunks. The caller (Framer.Flush) loops until the buffer
-// is drained. The returned wasTruncated flag is true when the chunk is part
-// of an oversized frame — either an overflow in progress from FindFrame, or a
-// remainder discovered to be oversized here.
+// FlushFrame implements FrameMatcher. At end-of-stream it emits whatever
+// unframed bytes remain as a single final frame. The Framer only ever leaves a
+// remainder smaller than contentLenLimit buffered (Process emits a bounded
+// chunk the moment the buffer reaches the limit), so there is nothing to chunk
+// here — flush is always a straight dump of the trailing bytes.
+//
+// Trailing LF/CR/NUL delimiters are stripped; a remainder that is only
+// delimiters (or empty) emits nothing rather than a blank frame. The frame is
+// flagged truncated when it is the tail of an oversized frame still in
+// overflow, and malformed-overflow bytes are counted as discarded so the
+// telemetry total stays accurate.
 func (m *syslogFrameMatcher) FlushFrame(buf []byte) ([]byte, int, bool) {
-	if len(buf) == 0 {
-		return nil, 0, false
-	}
-
-	// Drain an overflow that was in progress when the stream ended.
-	switch m.overflow {
-	case overflowOctet:
-		chunk := m.octetRemaining
-		if chunk > m.contentLenLimit {
-			chunk = m.contentLenLimit
-		}
-		if chunk > len(buf) {
-			chunk = len(buf) // sender under-sent the declared length
-		}
-		m.octetRemaining -= chunk
-		if m.octetRemaining <= 0 {
-			m.octetRemaining = 0
-			m.overflow = overflowNone
-		}
-		if chunk == 0 {
-			return nil, 0, false
-		}
-		return buf[:chunk], chunk, true
-	case overflowMalformed:
-		// Malformed bytes drained at EOF are discarded data and must be
-		// counted, mirroring the in-stream scanMalformed path, so the
-		// discarded_bytes telemetry stays an accurate total.
-		content := syslogTrimTrailer(buf)
-		if len(content) > m.contentLenLimit {
-			m.recordDiscarded(int64(m.contentLenLimit))
-			return buf[:m.contentLenLimit], m.contentLenLimit, true
-		}
-		m.overflow = overflowNone
-		if len(content) == 0 {
-			return nil, 0, false
-		}
-		m.recordDiscarded(int64(len(content)))
-		return content, len(buf), true
-	case overflowNonTransparent:
-		content := syslogTrimTrailer(buf)
-		if len(content) > m.contentLenLimit {
-			return buf[:m.contentLenLimit], m.contentLenLimit, true
-		}
-		m.overflow = overflowNone
-		if len(content) == 0 {
-			return nil, 0, false
-		}
-		return content, len(buf), true
-	}
-
-	// No active overflow: drain the trailing remainder, chunking if oversized.
 	content := syslogTrimTrailer(buf)
 	if len(content) == 0 {
+		m.overflow = overflowNone
 		return nil, 0, false
 	}
-	if len(content) > m.contentLenLimit {
-		m.recordOversized()
-		m.overflow = overflowNonTransparent
-		return content[:m.contentLenLimit], m.contentLenLimit, true
+	truncated := m.overflow != overflowNone
+	if m.overflow == overflowMalformed {
+		m.recordDiscarded(int64(len(content)))
 	}
-	return content, len(buf), false
+	m.overflow = overflowNone
+	return content, len(buf), truncated
 }
 
 // recordDiscarded increments both the global telemetry counter and the

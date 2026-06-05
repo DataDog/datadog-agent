@@ -334,31 +334,23 @@ func TestSyslogOctetCountedStraddlesLimit(t *testing.T) {
 }
 
 func TestSyslogOversizedFlushFrame(t *testing.T) {
-	t.Run("matcher splits oversized buffer", func(t *testing.T) {
-		// Test the FlushFrame method directly on the matcher.
+	t.Run("matcher dumps the whole remainder in one shot", func(t *testing.T) {
+		// FlushFrame does not chunk: the Framer never leaves a remainder larger
+		// than contentLenLimit buffered, so flush is a straight dump of the
+		// trailing bytes. Calling it directly emits the entire buffer at once.
 		limit := 10
 		matcher := &syslogFrameMatcher{contentLenLimit: limit}
 		buf := []byte("<134>" + strings.Repeat("A", 25)) // 30 bytes
 
-		// First call: emits limit bytes.
 		content, rawDataLen, _ := matcher.FlushFrame(buf)
 		require.NotNil(t, content)
-		assert.Len(t, content, limit)
-		assert.Equal(t, limit, rawDataLen)
+		assert.Len(t, content, len(buf), "the whole remainder is emitted as a single frame")
+		assert.Equal(t, len(buf), rawDataLen)
 
-		// Second call with remainder.
-		buf = buf[rawDataLen:]
-		content, rawDataLen, _ = matcher.FlushFrame(buf)
-		require.NotNil(t, content)
-		assert.Len(t, content, limit)
-		assert.Equal(t, limit, rawDataLen)
-
-		// Third call with final remainder.
-		buf = buf[rawDataLen:]
-		content, rawDataLen, _ = matcher.FlushFrame(buf)
-		require.NotNil(t, content)
-		assert.Len(t, content, 10)
-		assert.Equal(t, 10, rawDataLen)
+		// Nothing remains to drain.
+		content, rawDataLen, _ = matcher.FlushFrame(buf[rawDataLen:])
+		assert.Nil(t, content)
+		assert.Equal(t, 0, rawDataLen)
 	})
 
 	t.Run("Flush loop emits all bytes at EOF", func(t *testing.T) {
