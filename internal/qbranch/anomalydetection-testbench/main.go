@@ -42,10 +42,15 @@ type CLIParams struct {
 	ComponentSettings observerimpl.ComponentSettings
 
 	// Headless mode: run a scenario and exit (no HTTP server)
-	Headless   string // scenario name to run (empty = interactive mode)
-	Output     string // path for observer JSON output
-	Verbose    bool   // include full detail in JSON output (headless mode only)
-	MemProfile string // path to write heap profile after headless run (empty = disabled)
+	Headless    string // scenario name to run (empty = interactive mode)
+	Output      string // path for observer JSON output
+	Verbose     bool   // include full detail in JSON output (headless mode only)
+	MemProfile  string // path to write heap profile after headless run (empty = disabled)
+	RecordStats string // path for score recording JSON output (headless mode only; empty = disabled)
+
+	// Summarize mode: aggregate all ScoreRecording JSONs in a directory and exit
+	Summarize     string // directory of ScoreRecording JSONs (empty = disabled)
+	SummaryOutput string // path for CalibrationSummary JSON (default: <summarize-dir>/calibration-summary.json)
 
 	// SendAnomalyEvent mode: run scenario and send one Datadog event per correlation
 	SendAnomalyEvent string // scenario name to run (empty = disabled)
@@ -70,6 +75,9 @@ func main() {
 	output := flag.String("output", "", "Path for eval JSON output (headless mode only)")
 	verbose := flag.Bool("verbose", false, "Include full detail in JSON output (headless mode only)")
 	memProfile := flag.String("memprofile", "", "Write heap profile to this file after headless run (headless mode only)")
+	recordStats := flag.String("record-stats", "", "Path for score recording JSON output (headless mode only; empty = disabled)")
+	summarize := flag.String("summarize", "", "Directory of ScoreRecording JSONs to aggregate into a CalibrationSummary, then exit")
+	summaryOutput := flag.String("summary-output", "", "Path for CalibrationSummary JSON (default: <summarize-dir>/calibration-summary.json)")
 	sendAnomalyEvent := flag.String("send-anomaly-event", "", "Run scenario and send one Datadog event per correlation, then exit")
 	skipDropped := flag.Bool("skip-dropped", true, "Skip metrics marked as dropped by the live observer's channel during parquet load")
 	logsOnly := flag.Bool("logs-only", false, "Load only log rows from scenarios; skip parquet metrics and trace stats (interactive and headless)")
@@ -122,7 +130,7 @@ func main() {
 		componentSettings = observerimpl.ComponentSettings{Enabled: overrides}
 	}
 
-	if *headless == "" {
+	if *headless == "" && *summarize == "" {
 		fmt.Printf("Observer Test Bench\n")
 		fmt.Printf("  Scenarios dir: %s\n", *scenariosDir)
 		fmt.Printf("  HTTP address:  %s\n", *httpAddr)
@@ -130,6 +138,20 @@ func main() {
 			fmt.Printf("  Logs-only:     true (parquet metrics and trace stats are not loaded)\n")
 		}
 		fmt.Println()
+	}
+
+	// Summarize mode is a pure file operation — no observer/fx setup required.
+	if *summarize != "" {
+		outPath := *summaryOutput
+		if outPath == "" {
+			outPath = *summarize + "/calibration-summary.json"
+		}
+		if err := bench.SummarizeDir(*summarize, outPath); err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to summarize recordings: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Printf("Calibration summary written to %s\n", outPath)
+		return
 	}
 
 	err := fxutil.OneShot(run,
@@ -153,6 +175,7 @@ func main() {
 			Output:             *output,
 			Verbose:            *verbose,
 			MemProfile:         *memProfile,
+			RecordStats:        *recordStats,
 			SendAnomalyEvent:   *sendAnomalyEvent,
 			SkipDroppedMetrics: *skipDropped,
 			LogsOnly:           *logsOnly,
@@ -199,7 +222,7 @@ func run(
 
 	// Headless mode: run scenario, write output, exit (no HTTP server)
 	if params.Headless != "" {
-		if err := tb.RunHeadless(params.Headless, params.Output, params.Verbose); err != nil {
+		if err := tb.RunHeadless(params.Headless, params.Output, params.Verbose, params.RecordStats); err != nil {
 			return err
 		}
 		if params.MemProfile != "" {

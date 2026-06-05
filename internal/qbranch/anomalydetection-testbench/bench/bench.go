@@ -895,7 +895,9 @@ func (tb *Bench) IsCorrelatorsProcessing() bool {
 }
 
 // RunHeadless runs a scenario synchronously without the HTTP server and writes output.
-func (tb *Bench) RunHeadless(scenario, outputPath string, verbose bool) error {
+// statsPath is optional: when non-empty a ScoreRecording JSON is written there in addition
+// to the standard observer output.
+func (tb *Bench) RunHeadless(scenario, outputPath string, verbose bool, statsPath string) error {
 	if err := tb.LoadScenario(scenario); err != nil {
 		return fmt.Errorf("loading scenario %q: %w", scenario, err)
 	}
@@ -907,6 +909,13 @@ func (tb *Bench) RunHeadless(scenario, outputPath string, verbose bool) error {
 			return fmt.Errorf("writing observer output: %w", err)
 		}
 		fmt.Printf("Observer output written to %s\n", outputPath)
+	}
+
+	if statsPath != "" {
+		if err := tb.WriteScoreRecording(statsPath); err != nil {
+			return fmt.Errorf("writing score recording: %w", err)
+		}
+		fmt.Printf("Score recording written to %s\n", statsPath)
 	}
 
 	return nil
