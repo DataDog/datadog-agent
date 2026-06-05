@@ -24,6 +24,7 @@ go_test(
     name = "telemetry_test",
     srcs = [
         "cmd_wrapper_test.go",
+        "http_wrapper_test.go",
         "telemetry_test.go",
     ],
     embed = [":telemetry"],

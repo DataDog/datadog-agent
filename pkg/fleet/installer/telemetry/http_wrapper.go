@@ -7,6 +7,8 @@
 package telemetry
 
 import (
+	"errors"
+	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -31,7 +33,14 @@ type roundTripper struct {
 
 func (rt *roundTripper) RoundTrip(req *http.Request) (res *http.Response, err error) {
 	span, _ := StartSpanFromContext(req.Context(), "http.request")
-	defer func() { span.Finish(err) }()
+	var expectedError bool
+	defer func() {
+		if expectedError {
+			span.Finish(nil)
+			return
+		}
+		span.Finish(err)
+	}()
 
 	url := *req.URL
 	url.User = nil
@@ -45,6 +54,10 @@ func (rt *roundTripper) RoundTrip(req *http.Request) (res *http.Response, err er
 	res, err = rt.base.RoundTrip(req)
 	if err != nil {
 		span.SetTag("http.errors", err.Error())
+		if isDNSNotFoundError(err) {
+			expectedError = true
+			span.SetTag("expected_error", "dns_not_found")
+		}
 		return res, err
 	}
 	span.SetTag("aws_pop", res.Header.Get("X-Amz-Cf-Pop"))
@@ -53,6 +66,11 @@ func (rt *roundTripper) RoundTrip(req *http.Request) (res *http.Response, err er
 		span.SetTag("http.errors", res.Status)
 	}
 	return res, err
+}
+
+func isDNSNotFoundError(err error) bool {
+	var dnsErr *net.DNSError
+	return errors.As(err, &dnsErr) && dnsErr.IsNotFound
 }
 
 // urlFromRequest returns the URL from the HTTP request. The URL query string is included in the return object iff queryString is true

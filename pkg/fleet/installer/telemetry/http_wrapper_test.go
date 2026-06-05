@@ -1,0 +1,68 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2026-present Datadog, Inc.
+
+package telemetry
+
+import (
+	"context"
+	"errors"
+	"net"
+	"net/http"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+type errorRoundTripper struct {
+	err error
+}
+
+func (rt errorRoundTripper) RoundTrip(*http.Request) (*http.Response, error) {
+	return nil, rt.err
+}
+
+func TestRoundTripDNSNotFoundErrorExpected(t *testing.T) {
+	globalTracer = &tracer{spans: make(map[uint64]*Span)}
+	rt := WrapRoundTripper(errorRoundTripper{
+		err: &net.DNSError{
+			Err:        "no such host",
+			Name:       "install.datadoghq.com.internal.dda-testing.com",
+			IsNotFound: true,
+		},
+	})
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "https://example.com", nil)
+	require.NoError(t, err)
+
+	res, err := rt.RoundTrip(req)
+	require.Error(t, err)
+	require.Nil(t, res)
+
+	spans := globalTracer.flushCompletedSpans()
+	require.Len(t, spans, 1)
+	assert.Equal(t, int32(0), spans[0].span.Error)
+	assert.Equal(t, err.Error(), spans[0].span.Meta["http.errors"])
+	assert.Equal(t, "dns_not_found", spans[0].span.Meta["expected_error"])
+	assert.NotContains(t, spans[0].span.Meta, "error.message")
+}
+
+func TestRoundTripNonDNSTransportErrorUnexpected(t *testing.T) {
+	globalTracer = &tracer{spans: make(map[uint64]*Span)}
+	rtErr := errors.New("connection refused")
+	rt := WrapRoundTripper(errorRoundTripper{err: rtErr})
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "https://example.com", nil)
+	require.NoError(t, err)
+
+	res, err := rt.RoundTrip(req)
+	require.ErrorIs(t, err, rtErr)
+	require.Nil(t, res)
+
+	spans := globalTracer.flushCompletedSpans()
+	require.Len(t, spans, 1)
+	assert.Equal(t, int32(1), spans[0].span.Error)
+	assert.Equal(t, rtErr.Error(), spans[0].span.Meta["http.errors"])
+	assert.Equal(t, rtErr.Error(), spans[0].span.Meta["error.message"])
+	assert.NotContains(t, spans[0].span.Meta, "expected_error")
+}
