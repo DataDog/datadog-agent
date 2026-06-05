@@ -128,7 +128,8 @@ func (u *TelemetryUtilizationMonitor) reportIfNeeded() {
 
 // updateSaturationState drives the per-component saturation state machine and emits
 // log events on transitions and on a throttled cadence during sustained saturation.
-// Must be called with the sample lock held (i.e. from inside reportIfNeeded).
+// Called only from reportIfNeeded, i.e. serially on the monitor's own goroutine —
+// the monitor has no lock and assumes single-goroutine Start/Stop.
 func (u *TelemetryUtilizationMonitor) updateSaturationState(now time.Time) {
 	currentlySaturated := u.avg >= SaturationThreshold
 

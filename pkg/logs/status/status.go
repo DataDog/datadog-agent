@@ -91,7 +91,7 @@ type ComponentUtilization struct {
 	Max2h  float64 `json:"max_2h"`
 	Max5h  float64 `json:"max_5h"`
 	Max10h float64 `json:"max_10h"`
-	// Saturation stats (threshold = 90% raw ratio)
+	// Saturation stats (threshold = 90% EWMA utilization)
 	Saturated1mSeconds  int64  `json:"saturated_1m_s"`    // seconds spent saturated in last 1m
 	Saturated30mSeconds int64  `json:"saturated_30m_s"`   // seconds spent saturated in last 30m
 	LastSaturatedAt     string `json:"last_saturated_at"` // "15:04:05" or ""
