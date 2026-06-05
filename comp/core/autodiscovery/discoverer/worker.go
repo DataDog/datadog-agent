@@ -19,6 +19,7 @@ import (
 const (
 	DefaultMaxAttempts = 5
 	DefaultRetryDelay  = 10 * time.Second
+	DefaultWorkerCount = 4
 )
 
 // jobKey uniquely identifies a discovery probe
@@ -32,6 +33,7 @@ type jobKey struct {
 type Config struct {
 	MaxAttempts int
 	RetryDelay  time.Duration
+	Workers     int
 }
 
 // Worker drives configuration-discovery probes asynchronously. It owns a
@@ -46,6 +48,7 @@ type Worker struct {
 
 	maxAttempts int
 	retryDelay  time.Duration
+	workers     int
 
 	m sync.Mutex
 	// attempts tracks per-key failure counts so we can give up at maxAttempts
@@ -53,7 +56,7 @@ type Worker struct {
 
 	started     bool
 	stopCh      chan struct{}
-	workerDone  chan struct{}
+	workerWG    sync.WaitGroup
 	startStopMu sync.Mutex
 }
 
@@ -65,6 +68,9 @@ func NewWorker(disco ConfigDiscoverer, services ServiceLookup, onResult ResultCa
 	if cfg.RetryDelay <= 0 {
 		cfg.RetryDelay = DefaultRetryDelay
 	}
+	if cfg.Workers <= 0 {
+		cfg.Workers = DefaultWorkerCount
+	}
 	return &Worker{
 		queue: workqueue.NewTypedDelayingQueueWithConfig(workqueue.TypedDelayingQueueConfig[jobKey]{
 			Name: "ADConfigDiscoverer",
@@ -74,6 +80,7 @@ func NewWorker(disco ConfigDiscoverer, services ServiceLookup, onResult ResultCa
 		onResult:    onResult,
 		maxAttempts: cfg.MaxAttempts,
 		retryDelay:  cfg.RetryDelay,
+		workers:     cfg.Workers,
 		attempts:    map[jobKey]int{},
 	}
 }
@@ -84,7 +91,7 @@ func (w *Worker) Enqueue(svcID, tplDigest, integrationName string) {
 	w.queue.Add(k)
 }
 
-// Start spins up the worker goroutine
+// Start spins up the worker goroutines.
 func (w *Worker) Start() {
 	w.startStopMu.Lock()
 	defer w.startStopMu.Unlock()
@@ -93,11 +100,13 @@ func (w *Worker) Start() {
 	}
 	w.started = true
 	w.stopCh = make(chan struct{})
-	w.workerDone = make(chan struct{})
-	go w.run()
+	for range w.workers {
+		w.workerWG.Add(1)
+		go w.run()
+	}
 }
 
-// Stop shuts the workqueue down and waits for the worker goroutine to exit.
+// Stop shuts the workqueue down and waits for all worker goroutines to exit.
 func (w *Worker) Stop() {
 	w.startStopMu.Lock()
 	defer w.startStopMu.Unlock()
@@ -107,11 +116,11 @@ func (w *Worker) Stop() {
 	w.started = false
 	close(w.stopCh)
 	w.queue.ShutDown()
-	<-w.workerDone
+	w.workerWG.Wait()
 }
 
 func (w *Worker) run() {
-	defer close(w.workerDone)
+	defer w.workerWG.Done()
 	wait.Until(func() {
 		for w.processNext() {
 		}
@@ -180,7 +189,7 @@ func (w *Worker) requeueOrDrop(key jobKey) {
 	attempt := w.attempts[key]
 	w.m.Unlock()
 	if attempt >= w.maxAttempts {
-		log.Debugf("autodiscovery/discoverer: giving up on %s/%s after %d attempts",
+		log.Debugf("Giving up on DiscoveryConfig for integration %s for service %s after %d attempts",
 			key.svcID, key.integrationName, attempt)
 		w.dropAttempts(key)
 		return

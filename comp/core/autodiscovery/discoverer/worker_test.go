@@ -8,6 +8,7 @@ package discoverer
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -257,6 +258,71 @@ func TestWorker_NoBookkeepingLeakAfterServiceRemoval(t *testing.T) {
 		defer w.m.Unlock()
 		return len(w.attempts) == 0
 	}, time.Second, 2*time.Millisecond, "attempts map must be reaped after the service is removed")
+}
+
+// TestWorker_ParallelProbes_DifferentServices verifies that the worker pool
+// processes probes for different services in parallel.
+func TestWorker_ParallelProbes_DifferentServices(t *testing.T) {
+	const workers = 4
+
+	release := make(chan struct{})
+	var inFlight atomic.Int32
+	disco := &fakeDiscoverer{fn: func(_, _ string) (string, error) {
+		inFlight.Add(1)
+		// This will block all of the workers from processing the next job.
+		<-release
+		inFlight.Add(-1)
+		return `[{"instances":[{}]}]`, nil
+	}}
+
+	services := map[string]listeners.Service{}
+	for i := range workers {
+		id := fmt.Sprintf("svc-%d", i)
+		services[id] = newSvc(id)
+	}
+	lookup := &fixedLookup{services: services}
+	cb := &recordingCallback{}
+
+	w := NewWorker(disco, lookup, cb.callback, Config{Workers: workers, MaxAttempts: 1, RetryDelay: 5 * time.Millisecond})
+	w.Start()
+	defer w.Stop()
+	for id := range services {
+		w.Enqueue(id, testTplDigest, "myinteg")
+	}
+
+	require.Eventually(t, func() bool { return inFlight.Load() == workers }, time.Second, 50*time.Millisecond,
+		"expected %d concurrent probes, got %d", workers, inFlight.Load())
+	close(release)
+	require.Eventually(t, func() bool { return inFlight.Load() == 0 }, time.Second, 50*time.Millisecond)
+}
+
+// TestWorker_SameKeyStillSerial verifies that the workqueue's per-key
+// dedupe survives the move to a worker pool: enqueueing the same key many
+// times while a probe is in flight never yields more than one concurrent
+// probe for that key.
+func TestWorker_SameKeyStillSerial(t *testing.T) {
+	release := make(chan struct{})
+	var inFlight atomic.Int32
+	disco := &fakeDiscoverer{fn: func(_, _ string) (string, error) {
+		inFlight.Add(1)
+		<-release
+		inFlight.Add(-1)
+		return "", errors.New("fail")
+	}}
+	lookup := &fixedLookup{services: map[string]listeners.Service{"svc-1": newSvc("svc-1")}}
+	cb := &recordingCallback{}
+
+	w := NewWorker(disco, lookup, cb.callback, Config{Workers: 4, MaxAttempts: 10, RetryDelay: 5 * time.Millisecond})
+	w.Start()
+	defer w.Stop()
+	for range 20 {
+		w.Enqueue("svc-1", testTplDigest, "myinteg")
+	}
+
+	require.Eventually(t, func() bool { return inFlight.Load() == 1 }, time.Second, 50*time.Millisecond)
+	require.Never(t, func() bool { return inFlight.Load() != 1 }, 250*time.Millisecond, 25*time.Millisecond)
+	close(release)
+	require.Eventually(t, func() bool { return inFlight.Load() == 0 }, time.Second, 50*time.Millisecond)
 }
 
 // TestWorker_StopIsIdempotent: extra Stop calls do not panic and the worker

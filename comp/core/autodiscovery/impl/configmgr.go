@@ -487,6 +487,10 @@ func (cm *reconcilingConfigManager) resolveTemplateForService(tpl integration.Co
 	// Do not resolve the template through the synchronous path.
 	// Instead enqueue a discovery probe for the template and service pair.
 	if tpl.Discovery != nil {
+		if cm.discoveryWorker == nil {
+			// temporary path until real impl included
+			return tpl, false
+		}
 		cm.discoveryWorker.Enqueue(svc.GetServiceID(), tpl.Digest(), tpl.Name)
 		return tpl, false
 	}
