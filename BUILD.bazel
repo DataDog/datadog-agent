@@ -442,7 +442,6 @@ exports_files(glob(
 # gazelle:exclude pkg/network/usm/tests
 # gazelle:exclude pkg/network/usm/testutil/grpc
 # gazelle:exclude pkg/network/usm/utils
-# gazelle:exclude pkg/networkconfigmanagement/sender
 # gazelle:exclude pkg/networkdevice/sender
 # gazelle:exclude pkg/networkpath/telemetry
 # gazelle:exclude pkg/networkpath/traceroute/runner
