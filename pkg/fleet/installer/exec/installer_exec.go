@@ -177,11 +177,15 @@ func (i *InstallerExec) PromoteExperiment(ctx context.Context, pkg string) (err 
 	defer func() { cmd.span.Finish(err) }()
 	err = cmd.Run()
 	if installerErrors.GetCode(err) == installerErrors.ErrNoExperiment {
-		// The daemon promotes speculatively, so "no experiment staged" is a
-		// benign no-op rather than a failure. Swallow it here (the error code
-		// survives the subprocess JSON boundary) so neither this span nor the
-		// daemon's spans are marked error=1. Genuine promotion failures carry
-		// other codes and are returned unchanged.
+		// Remote Config promotes are state-reconciling and re-delivered, so a
+		// promote often arrives when the experiment is already promoted,
+		// stopped, or reverted (experiment link == stable). "No experiment
+		// staged" is then a benign idempotent no-op rather than a failure.
+		// Swallow it here (the error code survives the subprocess JSON
+		// boundary) so neither this span nor the daemon's spans are marked
+		// error=1. Genuine promotion failures carry other codes and are
+		// returned unchanged; explicit operator promotes use the in-process
+		// path and still surface the error.
 		log.Infof("No experiment to promote for package %s, skipping", pkg)
 		return nil
 	}
