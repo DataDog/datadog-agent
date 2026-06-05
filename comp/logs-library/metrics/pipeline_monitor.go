@@ -9,10 +9,7 @@ import (
 	"sync"
 )
 
-const (
-	ewmaAlpha      = 2 / (float64(30) + 1) // ~0.0645 — 30-second smoothing window
-	shortEwmaAlpha = 2 / (float64(15) + 1) // ~0.125 — 15-second smoothing window
-)
+const ewmaAlpha = 2 / (float64(15) + 1) // ~0.125 — 15-second smoothing window
 
 // ComponentSnapshot holds the most-recently-reported utilization and capacity metrics
 // for a single named component instance. Written by monitors on each report cycle;
@@ -20,18 +17,15 @@ const (
 type ComponentSnapshot struct {
 	Name     string
 	Instance string
-	// AvgRatio is the N=30 EWMA-smoothed utilization ratio (~30-second window).
+	// AvgRatio is the N=15 EWMA-smoothed utilization ratio (~15-second window).
 	AvgRatio float64
 	// RawRatio is the instantaneous ratio over the last 1-second sample window (pre-EWMA).
 	RawRatio float64
-	// ShortAvgRatio is the N=15 EWMA-smoothed utilization ratio (~15-second window).
-	// Responds to sustained saturation within ~22 seconds, compared to ~45 seconds for AvgRatio.
-	ShortAvgRatio float64
-	// AvgItems is the N=30 EWMA-smoothed count of items held in the component's buffers.
+	// AvgItems is the N=15 EWMA-smoothed count of items held in the component's buffers.
 	AvgItems float64
 	// RawItems is the raw item count at the last capacity sample (ingress - egress).
 	RawItems int64
-	// AvgBytes is the N=30 EWMA-smoothed byte count.
+	// AvgBytes is the N=15 EWMA-smoothed byte count.
 	AvgBytes float64
 	// RawBytes is the raw byte count at the last capacity sample.
 	RawBytes int64
@@ -46,7 +40,7 @@ var (
 
 // setComponentUtilization updates the utilization fields of the snapshot for name:instance.
 // Called from TelemetryUtilizationMonitor on each report tick.
-func setComponentUtilization(name, instance string, avgRatio, rawRatio, shortAvgRatio float64, ws WindowStats) {
+func setComponentUtilization(name, instance string, avgRatio, rawRatio float64, ws WindowStats) {
 	key := name + ":" + instance
 	globalSnapshotsMu.Lock()
 	defer globalSnapshotsMu.Unlock()
@@ -57,7 +51,6 @@ func setComponentUtilization(name, instance string, avgRatio, rawRatio, shortAvg
 	}
 	s.AvgRatio = avgRatio
 	s.RawRatio = rawRatio
-	s.ShortAvgRatio = shortAvgRatio
 	s.Windows = ws
 }
 

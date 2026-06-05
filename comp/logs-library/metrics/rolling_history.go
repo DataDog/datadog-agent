@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	// SaturationThreshold is the short-EWMA value above which a component is considered saturated.
+	// SaturationThreshold is the EWMA value above which a component is considered saturated.
 	SaturationThreshold = 0.90
 
 	// Fine tier: 1-second resolution, last 5 minutes.
@@ -53,15 +53,15 @@ type WindowStats struct {
 	Max2h  float64
 	Max5h  float64
 	Max10h float64
-	// Saturated1m is total time within the last 1 minute where short-EWMA >= SaturationThreshold.
+	// Saturated1m is total time within the last 1 minute where EWMA >= SaturationThreshold.
 	Saturated1m time.Duration
-	// Saturated30m is total time within the last 30 minutes where short-EWMA >= SaturationThreshold.
+	// Saturated30m is total time within the last 30 minutes where EWMA >= SaturationThreshold.
 	Saturated30m     time.Duration
 	LastSaturatedAt  time.Time
 	HasLastSaturated bool
 }
 
-// rollingHistory is a three-tier time-series store for component short-EWMA values.
+// rollingHistory is a three-tier time-series store for component EWMA values.
 //
 //   Fine tier   — 1-second samples, last 5 minutes        (~4.8 KB)
 //   Medium tier — 1-minute aggregates, 5m–30m (25 buckets) (~1.0 KB)
@@ -100,7 +100,7 @@ func newRollingHistory() *rollingHistory {
 	return &rollingHistory{}
 }
 
-// add records a new 1-second short-EWMA sample. Called at 1-second intervals.
+// add records a new 1-second EWMA sample. Called at 1-second intervals.
 // Samples that overflow the fine window are automatically rolled up into the
 // medium tier; medium buckets that overflow 30 minutes roll into coarse.
 func (h *rollingHistory) add(ts time.Time, ewmaValue float64) {
@@ -252,8 +252,25 @@ func (h *rollingHistory) allStats(now time.Time) WindowStats {
 		}
 	}
 
-	// --- Medium tier (5m–30m, 1-minute buckets) ---
+	// --- Medium pending (samples aged out of fine but minute not yet closed) ---
+	// This bucket lives between the fine and medium ring: its samples are gone from fine
+	// but not yet pushed to the ring, so without this check LastSaturatedAt and the 30m
+	// saturation count can jump backward by up to 60 seconds.
 	var satMedium int
+	if h.hasMediumPending && h.mediumPending.count > 0 && h.mediumPending.tsNano >= c30m {
+		satMedium += int(h.mediumPending.saturatedCount)
+		sum30m += h.mediumPending.ewmaSum
+		cnt30m += int(h.mediumPending.count)
+		if h.mediumPending.ewmaMax > max30m {
+			max30m = h.mediumPending.ewmaMax
+		}
+		if !hasLastSat && h.mediumPending.lastSaturatedNano > 0 {
+			lastSat = time.Unix(0, h.mediumPending.lastSaturatedNano)
+			hasLastSat = true
+		}
+	}
+
+	// --- Medium tier (5m–30m, 1-minute buckets) ---
 	for i := 0; i < h.mediumSize; i++ {
 		idx := (h.mediumHead - 1 - i + mediumTierCapacity) % mediumTierCapacity
 		b := h.medium[idx]

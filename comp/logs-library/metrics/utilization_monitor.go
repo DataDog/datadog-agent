@@ -13,7 +13,13 @@ import (
 	log "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const saturationThrottleDuration = 10 * time.Minute
+const (
+	saturationThrottleDuration = 10 * time.Minute
+	// recoveryDebounce is how long the EWMA must stay below SaturationThreshold before
+	// recovery is logged. Prevents false recoveries when the EWMA briefly dips below
+	// the threshold between processing bursts.
+	recoveryDebounce = 10 * time.Second
+)
 
 // UtilizationMonitor is an interface for monitoring the utilization of a component.
 type UtilizationMonitor interface {
@@ -38,8 +44,7 @@ type TelemetryUtilizationMonitor struct {
 	startInUse time.Time
 	lastSample time.Time
 	sampleRate time.Duration
-	avg        float64 // N=30 EWMA
-	shortAvg   float64 // N=15 EWMA
+	avg float64 // EWMA utilization (N=15, α≈0.125)
 	history    *rollingHistory
 	name       string
 	instance   string
@@ -47,12 +52,13 @@ type TelemetryUtilizationMonitor struct {
 	clock      clock.Clock
 
 	// Saturation episode tracking for log emission.
-	isSaturated     bool
-	saturatedSince  time.Time
-	lastThrottleLog time.Time
-	episodeMaxUtil  float64
-	episodeMaxItems int64
-	episodeMaxBytes int64
+	isSaturated          bool
+	saturatedSince       time.Time
+	lastThrottleLog      time.Time
+	episodeMaxUtil       float64
+	episodeMaxItems      int64
+	episodeMaxBytes      int64
+	pendingRecoverySince time.Time // non-zero while EWMA is below threshold but debounce not yet met
 }
 
 // NewTelemetryUtilizationMonitor creates a new TelemetryUtilizationMonitor.
@@ -68,8 +74,7 @@ func newTelemetryUtilizationMonitorWithSampleRateAndClock(name, instance string,
 		startInUse: clock.Now(),
 		lastSample: clock.Now(),
 		sampleRate: sampleRate,
-		avg:        0,
-		shortAvg:   0,
+		avg: 0,
 		history:    newRollingHistory(),
 		started:    false,
 		clock:      clock,
@@ -82,8 +87,9 @@ func (u *TelemetryUtilizationMonitor) Start() {
 		return
 	}
 	u.started = true
-	u.idle += u.clock.Since(u.startIdle)
-	u.startInUse = u.clock.Now()
+	now := u.clock.Now()
+	u.idle += now.Sub(u.startIdle)
+	u.startInUse = now
 	u.reportIfNeeded()
 }
 
@@ -105,15 +111,13 @@ func (u *TelemetryUtilizationMonitor) reportIfNeeded() {
 			rawRatio = float64(u.inUse) / float64(total)
 		}
 		u.avg = ewma(rawRatio, u.avg)
-		u.shortAvg = shortEwma(rawRatio, u.shortAvg)
 
 		now := u.clock.Now()
-		u.history.add(now, u.shortAvg)
+		u.history.add(now, u.avg)
 		ws := u.history.allStats(now)
 
 		TlmUtilizationRatio.Set(u.avg, u.name, u.instance)
-		TlmUtilizationShortRatio.Set(u.shortAvg, u.name, u.instance)
-		setComponentUtilization(u.name, u.instance, u.avg, rawRatio, u.shortAvg, ws)
+		setComponentUtilization(u.name, u.instance, u.avg, rawRatio, ws)
 		u.idle = 0
 		u.inUse = 0
 		u.lastSample = now
@@ -126,9 +130,12 @@ func (u *TelemetryUtilizationMonitor) reportIfNeeded() {
 // log events on transitions and on a throttled cadence during sustained saturation.
 // Must be called with the sample lock held (i.e. from inside reportIfNeeded).
 func (u *TelemetryUtilizationMonitor) updateSaturationState(now time.Time) {
-	currentlySaturated := u.shortAvg >= SaturationThreshold
+	currentlySaturated := u.avg >= SaturationThreshold
 
 	if currentlySaturated {
+		// Any re-entry above threshold cancels a pending recovery.
+		u.pendingRecoverySince = time.Time{}
+
 		snap, _ := lookupComponentSnapshot(u.name, u.instance)
 
 		if !u.isSaturated {
@@ -136,15 +143,18 @@ func (u *TelemetryUtilizationMonitor) updateSaturationState(now time.Time) {
 			u.isSaturated = true
 			u.saturatedSince = now
 			u.lastThrottleLog = now
-			u.episodeMaxUtil = u.shortAvg
+			u.episodeMaxUtil = u.avg
 			u.episodeMaxItems = snap.RawItems
 			u.episodeMaxBytes = snap.RawBytes
-			log.Warnf("Logs Agent pipeline component saturated component=%s instance=%s utilization=%.0f%% duration=0s max_utilization=%.0f%% max_items=%d max_bytes=%d",
-				u.name, u.instance, u.shortAvg*100, u.episodeMaxUtil*100, u.episodeMaxItems, u.episodeMaxBytes)
+			// Omit max_items/max_bytes at onset — the capacity snapshot may not have
+			// ticked yet so values can be 0. They are tracked through the episode and
+			// reported accurately at recovery and in throttled summaries.
+			log.Warnf("Logs Agent pipeline component saturated component=%s instance=%s utilization=%.0f%%",
+				u.name, u.instance, u.avg*100)
 		} else {
 			// Ongoing saturation: keep episode maxes up to date.
-			if u.shortAvg > u.episodeMaxUtil {
-				u.episodeMaxUtil = u.shortAvg
+			if u.avg > u.episodeMaxUtil {
+				u.episodeMaxUtil = u.avg
 			}
 			if snap.RawItems > u.episodeMaxItems {
 				u.episodeMaxItems = snap.RawItems
@@ -156,21 +166,24 @@ func (u *TelemetryUtilizationMonitor) updateSaturationState(now time.Time) {
 			// Throttled summary every saturationThrottleDuration.
 			if now.Sub(u.lastThrottleLog) >= saturationThrottleDuration {
 				log.Warnf("Logs Agent pipeline component saturated component=%s instance=%s utilization=%.0f%% duration=%s max_utilization=%.0f%% max_items=%d max_bytes=%d",
-					u.name, u.instance, u.shortAvg*100, now.Sub(u.saturatedSince), u.episodeMaxUtil*100, u.episodeMaxItems, u.episodeMaxBytes)
+					u.name, u.instance, u.avg*100, now.Sub(u.saturatedSince), u.episodeMaxUtil*100, u.episodeMaxItems, u.episodeMaxBytes)
 				u.lastThrottleLog = now
 			}
 		}
 	} else if u.isSaturated {
-		// Recovery: log once with episode summary.
-		log.Infof("Logs Agent pipeline component recovered component=%s instance=%s saturated_duration=%s max_utilization=%.0f%% max_items=%d max_bytes=%d",
-			u.name, u.instance, now.Sub(u.saturatedSince), u.episodeMaxUtil*100, u.episodeMaxItems, u.episodeMaxBytes)
-		u.isSaturated = false
-		u.episodeMaxUtil = 0
-		u.episodeMaxItems = 0
-		u.episodeMaxBytes = 0
+		// EWMA is below threshold. Start or advance the recovery debounce timer.
+		if u.pendingRecoverySince.IsZero() {
+			u.pendingRecoverySince = now
+		} else if now.Sub(u.pendingRecoverySince) >= recoveryDebounce {
+			// Confirmed recovery: EWMA has stayed below threshold for recoveryDebounce.
+			log.Infof("Logs Agent pipeline component recovered component=%s instance=%s saturated_duration=%s max_utilization=%.0f%% max_items=%d max_bytes=%d",
+				u.name, u.instance, now.Sub(u.saturatedSince), u.episodeMaxUtil*100, u.episodeMaxItems, u.episodeMaxBytes)
+			u.isSaturated = false
+			u.pendingRecoverySince = time.Time{}
+			u.episodeMaxUtil = 0
+			u.episodeMaxItems = 0
+			u.episodeMaxBytes = 0
+		}
 	}
 }
 
-func shortEwma(newValue, oldValue float64) float64 {
-	return newValue*shortEwmaAlpha + oldValue*(1-shortEwmaAlpha)
-}

@@ -103,7 +103,6 @@ func (b *Builder) getComponentUtilization() []ComponentUtilization {
 			Instance:            s.Instance,
 			AvgRatio:            s.AvgRatio,
 			RawRatio:            s.RawRatio,
-			ShortAvgRatio:       s.ShortAvgRatio,
 			AvgItems:            s.AvgItems,
 			RawItems:            s.RawItems,
 			AvgBytes:            s.AvgBytes,
@@ -138,7 +137,7 @@ func (b *Builder) getComponentUtilization() []ComponentUtilization {
 // Returns SATURATED if any component was saturated in the last 1m, WARNING if any
 // component was saturated in the last 30m but not the last 1m, or HEALTHY otherwise.
 func (b *Builder) getBackpressureStatus(utils []ComponentUtilization) BackpressureStatus {
-	// Track the component with the highest live short-EWMA for the SATURATED signal.
+	// Track the component with the highest live EWMA for the SATURATED signal.
 	var maxCurrRatio float64
 	var currSatName, currSatInst string
 	var currSat30m int64
@@ -150,8 +149,8 @@ func (b *Builder) getBackpressureStatus(utils []ComponentUtilization) Backpressu
 	var satName30m, satInst30m string
 
 	for _, u := range utils {
-		if u.ShortAvgRatio > maxCurrRatio {
-			maxCurrRatio = u.ShortAvgRatio
+		if u.AvgRatio > maxCurrRatio {
+			maxCurrRatio = u.AvgRatio
 			currSatName = u.Name
 			currSatInst = u.Instance
 			currSat30m = u.Saturated30mSeconds
@@ -237,7 +236,7 @@ func (b *Builder) formatBackpressureSection(utils []ComponentUtilization, bp Bac
 		sb.WriteString(fmt.Sprintf(rowFmt,
 			u.Name,
 			u.Instance,
-			bpPct(u.ShortAvgRatio),
+			bpPct(u.AvgRatio),
 			bpPctRange(u.Avg5m, u.Max5m),
 			bpPctRange(u.Avg30m, u.Max30m),
 			bpPct(u.Max2h),

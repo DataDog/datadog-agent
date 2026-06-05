@@ -88,12 +88,9 @@ var (
 	// TlmAutoMultilineStackTraceAggregatorFlush counts Go stack trace aggregation outcomes.
 	TlmAutoMultilineStackTraceAggregatorFlush = telemetryimpl.GetCompatComponent().NewCounter("logs", "auto_multi_line_go_stack_trace_aggregator_flush", []string{"result"}, "Count of Go stack traces flushed from the stack trace aggregator")
 
-	// TlmUtilizationRatio is the utilization ratio with a 30-second EWMA window (N=30, α≈0.065).
-	// Suitable for long-term trend dashboards; responds to saturation within ~45 seconds.
-	TlmUtilizationRatio = telemetryimpl.GetCompatComponent().NewGauge("logs_component_utilization", "ratio", []string{"name", "instance"}, "Gauge of the utilization ratio of a component (N=30 EWMA, ~30s window)")
-	// TlmUtilizationShortRatio is the utilization ratio with a 5-second EWMA window (N=5, α≈0.333).
-	// Responds to sustained saturation within ~7 seconds; use for near-real-time backpressure detection.
-	TlmUtilizationShortRatio = telemetryimpl.GetCompatComponent().NewGauge("logs_component_utilization", "ratio_short", []string{"name", "instance"}, "Gauge of the utilization ratio using a short (N=5) EWMA window for faster backpressure detection")
+	// TlmUtilizationRatio is the utilization ratio with a 15-second EWMA window (N=15, α≈0.125).
+	// Responds to sustained saturation within ~22 seconds.
+	TlmUtilizationRatio = telemetryimpl.GetCompatComponent().NewGauge("logs_component_utilization", "ratio", []string{"name", "instance"}, "Gauge of the utilization ratio of a component (N=15 EWMA, ~15s window)")
 	// TlmUtilizationItems is the capacity of a component by number of elements
 	// Both the number of items and the number of bytes are aggregated and exposed as a ewma.
 	TlmUtilizationItems = telemetryimpl.GetCompatComponent().NewGauge("logs_component_utilization", "items", []string{"name", "instance"}, "Gauge of the number of items currently held in a component and its buffers")
