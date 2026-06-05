@@ -36,7 +36,7 @@ func shouldHaveKueueQueueStores(cfg config.Reader) bool {
 	return cfg.GetBool("cluster_agent.collect_kubernetes_tags")
 }
 
-func newKueueQueueStore(ctx context.Context, wlmetaStore workloadmeta.Component, client dynamic.Interface, gvr schema.GroupVersionResource, queueType workloadmeta.KueueQueueType) (*cache.Reflector, *reflectorStore) {
+func newKueueQueueStore(ctx context.Context, wlmetaStore workloadmeta.Component, client dynamic.Interface, gvr schema.GroupVersionResource, queueType workloadmeta.KueueQueueType) (*cache.Reflector, *reflectorStore, error) {
 	listerWatcher := &cache.ListWatch{
 		ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
 			obj, err := client.Resource(gvr).Namespace(metav1.NamespaceAll).List(ctx, options)
@@ -54,10 +54,15 @@ func newKueueQueueStore(ctx context.Context, wlmetaStore workloadmeta.Component,
 		},
 	}
 
+	parser, err := kubernetesresourceparsers.NewKueueQueueParser(queueType)
+	if err != nil {
+		return nil, nil, fmt.Errorf("creating Kueue %s parser: %w", gvr.Resource, err)
+	}
+
 	store := &reflectorStore{
 		wlmetaStore: wlmetaStore,
 		seen:        make(map[string]workloadmeta.EntityID),
-		parser:      kubernetesresourceparsers.NewKueueQueueParser(queueType),
+		parser:      parser,
 		filter:      nil,
 	}
 	reflector := cache.NewNamedReflector(
@@ -67,5 +72,5 @@ func newKueueQueueStore(ctx context.Context, wlmetaStore workloadmeta.Component,
 		store,
 		noResync,
 	)
-	return reflector, store
+	return reflector, store, nil
 }

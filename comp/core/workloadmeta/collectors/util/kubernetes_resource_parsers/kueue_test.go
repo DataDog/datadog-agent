@@ -84,8 +84,61 @@ func TestKueueQueueParser(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			parser := NewKueueQueueParser(test.queueType)
+			parser, err := NewKueueQueueParser(test.queueType)
+			assert.NoError(t, err)
 			assert.Equal(t, test.expected, parser.Parse(test.obj))
 		})
 	}
+}
+
+func TestGenerateKueueQueueEntityID(t *testing.T) {
+	tests := []struct {
+		name        string
+		queueType   workloadmeta.KueueQueueType
+		namespace   string
+		queueName   string
+		expectedID  string
+		expectedErr string
+	}{
+		{
+			name:       "local queue",
+			queueType:  workloadmeta.KueueLocalQueue,
+			namespace:  "team-a",
+			queueName:  "local-a",
+			expectedID: "localqueue/team-a/local-a",
+		},
+		{
+			name:       "cluster queue",
+			queueType:  workloadmeta.KueueClusterQueue,
+			namespace:  "ignored",
+			queueName:  "cluster-a",
+			expectedID: "clusterqueue//cluster-a",
+		},
+		{
+			name:        "unsupported queue type",
+			queueType:   workloadmeta.KueueQueueType("cohort"),
+			namespace:   "team-a",
+			queueName:   "cohort-a",
+			expectedErr: `unsupported Kueue queue type "cohort"`,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			entityID, err := GenerateKueueQueueEntityID(test.queueType, test.namespace, test.queueName)
+			if test.expectedErr != "" {
+				assert.EqualError(t, err, test.expectedErr)
+				assert.Empty(t, entityID)
+				return
+			}
+			assert.NoError(t, err)
+			assert.Equal(t, test.expectedID, entityID)
+		})
+	}
+}
+
+func TestNewKueueQueueParserUnsupportedQueueType(t *testing.T) {
+	parser, err := NewKueueQueueParser(workloadmeta.KueueQueueType("cohort"))
+	assert.EqualError(t, err, `unsupported Kueue queue type "cohort"`)
+	assert.Nil(t, parser)
 }

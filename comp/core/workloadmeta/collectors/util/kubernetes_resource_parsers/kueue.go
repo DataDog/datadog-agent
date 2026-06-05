@@ -8,6 +8,8 @@
 package kubernetesresourceparsers
 
 import (
+	"fmt"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
@@ -20,8 +22,11 @@ type kueueQueueParser struct {
 }
 
 // NewKueueQueueParser returns a parser for Kueue queue resources.
-func NewKueueQueueParser(queueType workloadmeta.KueueQueueType) ObjectParser {
-	return kueueQueueParser{queueType: queueType}
+func NewKueueQueueParser(queueType workloadmeta.KueueQueueType) (ObjectParser, error) {
+	if err := validateKueueQueueType(queueType); err != nil {
+		return nil, err
+	}
+	return kueueQueueParser{queueType: queueType}, nil
 }
 
 func (p kueueQueueParser) Parse(obj interface{}) workloadmeta.Entity {
@@ -37,7 +42,7 @@ func (p kueueQueueParser) Parse(obj interface{}) workloadmeta.Entity {
 	queue := &workloadmeta.KubernetesKueueQueue{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindKubernetesKueueQueue,
-			ID:   GenerateKueueQueueEntityID(p.queueType, meta.Namespace, meta.Name),
+			ID:   p.entityID(meta.Namespace, meta.Name),
 		},
 		EntityMeta: meta,
 		QueueType:  p.queueType,
@@ -54,27 +59,40 @@ func (p kueueQueueParser) Parse(obj interface{}) workloadmeta.Entity {
 	return queue
 }
 
-// GenerateKueueQueueEntityID returns the workloadmeta entity ID for a Kueue queue.
-func GenerateKueueQueueEntityID(queueType workloadmeta.KueueQueueType, namespace, name string) string {
-	switch queueType {
-	case workloadmeta.KueueLocalQueue:
-		return string(queueType) + "/" + namespace + "/" + name
-	case workloadmeta.KueueClusterQueue:
-		return string(queueType) + "//" + name
-	default:
-		return string(queueType) + "/" + namespace + "/" + name
+func (p kueueQueueParser) entityID(namespace, name string) string {
+	if p.queueType == workloadmeta.KueueLocalQueue {
+		return string(p.queueType) + "/" + namespace + "/" + name
 	}
+	return string(p.queueType) + "//" + name
+}
+
+// GenerateKueueQueueEntityID returns the workloadmeta entity ID for a Kueue queue.
+func GenerateKueueQueueEntityID(queueType workloadmeta.KueueQueueType, namespace, name string) (string, error) {
+	if err := validateKueueQueueType(queueType); err != nil {
+		return "", err
+	}
+
+	return kueueQueueParser{queueType: queueType}.entityID(namespace, name), nil
 }
 
 // QueueTypeForKueueResource returns the workloadmeta queue type for a Kueue resource name.
-func QueueTypeForKueueResource(resource string) (workloadmeta.KueueQueueType, bool) {
+func QueueTypeForKueueResource(resource string) (workloadmeta.KueueQueueType, error) {
 	switch resource {
 	case kubernetes.KueueLocalQueueResourceName:
-		return workloadmeta.KueueLocalQueue, true
+		return workloadmeta.KueueLocalQueue, nil
 	case kubernetes.KueueClusterQueueResourceName:
-		return workloadmeta.KueueClusterQueue, true
+		return workloadmeta.KueueClusterQueue, nil
 	default:
-		return "", false
+		return "", fmt.Errorf("unsupported Kueue resource %q", resource)
+	}
+}
+
+func validateKueueQueueType(queueType workloadmeta.KueueQueueType) error {
+	switch queueType {
+	case workloadmeta.KueueLocalQueue, workloadmeta.KueueClusterQueue:
+		return nil
+	default:
+		return fmt.Errorf("unsupported Kueue queue type %q", queueType)
 	}
 }
 

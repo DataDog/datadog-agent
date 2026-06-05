@@ -270,11 +270,16 @@ func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Componen
 			log.Errorf("failed to discover Kueue queue resources: %v", err)
 		} else {
 			for _, gvr := range gvrs {
-				queueType, ok := kubernetesresourceparsers.QueueTypeForKueueResource(gvr.Resource)
-				if !ok {
+				queueType, err := kubernetesresourceparsers.QueueTypeForKueueResource(gvr.Resource)
+				if err != nil {
+					log.Errorf("failed to get Kueue queue type for %s: %v", gvr.Resource, err)
 					continue
 				}
-				reflector, store := newKueueQueueStore(ctx, wlmetaStore, apiserverClient.DynamicInformerCl, gvr, queueType)
+				reflector, store, err := newKueueQueueStore(ctx, wlmetaStore, apiserverClient.DynamicInformerCl, gvr, queueType)
+				if err != nil {
+					log.Errorf("failed to create Kueue queue store for %s: %v", gvr.Resource, err)
+					continue
+				}
 				objectStores = append(objectStores, store)
 				go reflector.Run(ctx.Done())
 			}
