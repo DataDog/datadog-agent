@@ -96,7 +96,6 @@ exports_files(glob(
 # gazelle:exclude comp/core/remoteagentregistry/fx
 # gazelle:exclude comp/core/remoteagentregistry/impl
 # gazelle:exclude comp/core/sysprobeconfig/sysprobeconfigimpl
-# gazelle:exclude comp/core/tagger/collectors
 # gazelle:exclude comp/core/tagger/fx
 # gazelle:exclude comp/core/tagger/fx-dual
 # gazelle:exclude comp/core/tagger/fx-mock
