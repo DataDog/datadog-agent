@@ -30,7 +30,7 @@
 
         # Rust: use rust-overlay to honour rust-toolchain.toml (which has
         # components but needs a channel — see rust-toolchain.toml).
-        rustPkg = pkgs.rust-bin.fromToolchainFile ./rust-toolchain.toml { sha256 = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="; };
+        rustPkg = pkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml;
 
         # Python: resolve python3XX from major.minor
         pyAttr =
@@ -51,7 +51,11 @@
             rustPkg
             pythonPkg
             pythonPkg.pkgs.setuptools   # needed by some cgo builds
-            pkgs.ruby_2_7
+            # Ruby 2.7 is EOL and not in nixpkgs; use 3.3 (stable LTS).
+            # The omnibus Gemfile has no hard Ruby version constraint.
+            # Ruby 2.7 is EOL and not in nixpkgs; use 3.3 (stable LTS).
+            # The omnibus Gemfile has no hard Ruby version constraint.
+            pkgs.ruby_3_3
             pkgs.bundler
 
             # --- Host C/C++ toolchain (for rtloader CMake build) ---

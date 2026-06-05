@@ -137,7 +137,7 @@ fi
 if [[ "$SUITE" =~ ^(slice7|all)$ ]]; then
   echo ""
   echo "── Slice 7: Ruby + omnibus ──"
-  run_check "ruby version 2.7.x" bash -c 'ruby --version | grep -q "2\.7"'
+  run_check "ruby version 3.x (nix provides 3.3; omnibus has no hard constraint)" bash -c 'ruby --version | grep -q "ruby 3\."'
   run_check "bundler present" bash -c 'command -v bundle || command -v bundler'
   run_check "bundle install in omnibus/" bash -c 'cd omnibus && bundle install --quiet'
   run_check "bundle exec omnibus --version" bash -c 'cd omnibus && bundle exec omnibus --version'
