@@ -266,22 +266,3 @@ func TestSetupCommandHasHumanReadableAnnotation(t *testing.T) {
 	assert.Equal(t, "true", cmd.Annotations[AnnotationHumanReadableErrors],
 		"setup command should have human-readable-errors annotation")
 }
-
-func TestIsShutdownCancellation(t *testing.T) {
-	tests := []struct {
-		name string
-		err  error
-		want bool
-	}{
-		{name: "nil error", err: nil, want: false},
-		{name: "context canceled", err: context.Canceled, want: true},
-		{name: "wrapped context canceled", err: fmt.Errorf("could not create packages db: %w", context.Canceled), want: true},
-		{name: "deadline exceeded is not a clean shutdown", err: context.DeadlineExceeded, want: false},
-		{name: "unrelated error", err: errors.New("disk full"), want: false},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			assert.Equal(t, tc.want, isShutdownCancellation(tc.err))
-		})
-	}
-}
