@@ -580,16 +580,21 @@ func (m *ManagerV2) SendStats() error {
 		return err
 	}
 
+	var tags [][]string
 	m.profilesLock.Lock()
 	for selector, prof := range m.profiles {
 		if prof.IsEnabled() {
 			continue
 		}
-		if err := m.statsdClient.Gauge(metrics.MetricSecurityProfileV2DisabledProfiles, 1, []string{"profile_image_name:" + selector.Image, "profile_image_tag:" + selector.Tag}, 1.0); err != nil {
+		tags = append(tags, []string{"profile_image_name:" + selector.Image, "profile_image_tag:" + selector.Tag})
+	}
+	m.profilesLock.Unlock()
+
+	for _, tag := range tags {
+		if err := m.statsdClient.Gauge(metrics.MetricSecurityProfileV2DisabledProfiles, 1, tag, 1.0); err != nil {
 			return err
 		}
 	}
-	m.profilesLock.Unlock()
 
 	// Event filtering metrics
 	for entry, count := range m.eventFiltering {
@@ -1025,6 +1030,7 @@ func (m *ManagerV2) evictUnusedNodes() {
 			continue
 		}
 
+		heapSize := profile.ComputeHeapSize()
 		profile.Lock()
 		if profile.ActivityTree == nil {
 			profile.Unlock()
@@ -1032,6 +1038,9 @@ func (m *ManagerV2) evictUnusedNodes() {
 		}
 		evicted := profile.ActivityTree.EvictUnusedNodes(evictionTime, filepathsInProcessCache, selector.Image, selector.Tag)
 		if evicted > 0 {
+			if !profile.IsEnabled() && heapSize < int64(m.config.RuntimeSecurity.SecurityProfileV2MaxDumpSize()) {
+				profile.Enable()
+			}
 			totalEvicted += evicted
 			seclog.Debugf("evicted %d unused process nodes from profile [%s] ", evicted, selector.String())
 
