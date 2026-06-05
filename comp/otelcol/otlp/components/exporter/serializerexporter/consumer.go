@@ -147,7 +147,7 @@ func (c *serializerConsumer) ConsumeSketch(_ context.Context, dimensions *otlpme
 		Interval: interval,
 		Points: []metrics.SketchPoint{{
 			Ts:     int64(ts / 1e9),
-			Sketch: qsketch,
+			Sketch: metrics.QuantileSketch { qsketch },
 		}},
 		Source: msrc,
 	})

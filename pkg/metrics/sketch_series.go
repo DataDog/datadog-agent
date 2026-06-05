@@ -11,6 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
+	"github.com/DataDog/datadog-agent/pkg/util/quantile"
 )
 
 // A SketchSeries is a timeseries of quantile sketches.
@@ -38,11 +39,14 @@ func (sl SketchSeries) String() string {
 	return reqBody.String()
 }
 
+type SketchWriter interface {
+	WriteDDSketch(ts, cnt int64, min, max, sum, avg float64, k []int32, n []uint32) error
+}
+
 // SketchData is the interface the serializer uses to read sketch content.
 // It is satisfied by *quantile.Sketch.
 type SketchData interface {
-	// Cols returns bin keys and per-bin counts in ascending key order.
-	Cols() (k []int32, n []uint32)
+	WriteTo(w SketchWriter, ts int64) error
 	// BasicStats returns the five summary fields used in the wire format.
 	BasicStats() (cnt int64, min, max, sum, avg float64)
 }
@@ -51,6 +55,16 @@ type SketchData interface {
 type SketchPoint struct {
 	Sketch SketchData `json:"sketch"`
 	Ts     int64      `json:"ts"`
+}
+
+type QuantileSketch struct {
+	*quantile.Sketch
+}
+
+func (q QuantileSketch) WriteTo(w SketchWriter, ts int64) error {
+	cnt, min, max, sum, avg := q.Sketch.BasicStats()
+	k, n := q.Sketch.Cols()
+	return w.WriteDDSketch(ts, cnt, min, max, sum, avg, k, n)
 }
 
 // SketchSeriesList is a collection of SketchSeries

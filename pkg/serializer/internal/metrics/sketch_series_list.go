@@ -192,7 +192,6 @@ func (pb *payloadsBuilder) writeSketch(ss *metrics.SketchSeries) error {
 	const sketchHost = 2
 	// const sketchDistributions = 3
 	const sketchTags = 4
-	const sketchDogsketches = 7
 	const sketchMetadata = 8
 	// const distributionTs = 1
 	// const distributionCnt = 2
@@ -204,14 +203,6 @@ func (pb *payloadsBuilder) writeSketch(ss *metrics.SketchSeries) error {
 	// const distributionG = 8
 	// const distributionDelta = 9
 	// const distributionBuf = 10
-	const dogsketchTs = 1
-	const dogsketchCnt = 2
-	const dogsketchMin = 3
-	const dogsketchMax = 4
-	const dogsketchAvg = 5
-	const dogsketchSum = 6
-	const dogsketchK = 7
-	const dogsketchN = 8
 
 	const sketchMetadataOrigin = 1
 	//         |------| 'Metadata' message
@@ -259,52 +250,7 @@ func (pb *payloadsBuilder) writeSketch(ss *metrics.SketchSeries) error {
 		}
 
 		for _, p := range ss.Points {
-			err = ps.Embedded(sketchDogsketches, func(ps *molecule.ProtoStream) error {
-				k, n := p.Sketch.Cols()
-				bCnt, bMin, bMax, bSum, bAvg := p.Sketch.BasicStats()
-
-				err = ps.Int64(dogsketchTs, p.Ts)
-				if err != nil {
-					return err
-				}
-
-				err = ps.Int64(dogsketchCnt, bCnt)
-				if err != nil {
-					return err
-				}
-
-				err = ps.Double(dogsketchMin, bMin)
-				if err != nil {
-					return err
-				}
-
-				err = ps.Double(dogsketchMax, bMax)
-				if err != nil {
-					return err
-				}
-
-				err = ps.Double(dogsketchAvg, bAvg)
-				if err != nil {
-					return err
-				}
-
-				err = ps.Double(dogsketchSum, bSum)
-				if err != nil {
-					return err
-				}
-
-				err = ps.Sint32Packed(dogsketchK, k)
-				if err != nil {
-					return err
-				}
-
-				err = ps.Uint32Packed(dogsketchN, n)
-				if err != nil {
-					return err
-				}
-
-				return nil
-			})
+			err := p.Sketch.WriteTo(sketchPointWriter { ps }, p.Ts)
 			if err != nil {
 				return err
 			}
@@ -388,6 +334,66 @@ func (pb *payloadsBuilder) writeSketch(ss *metrics.SketchSeries) error {
 	}
 
 	return nil
+}
+
+type sketchPointWriter struct {
+	*molecule.ProtoStream
+}
+
+func (ps sketchPointWriter) WriteDDSketch(ts int64, bCnt int64, bMin, bMax, bSum, bAvg float64, k []int32, n []uint32) error {
+	const sketchDogsketches = 7
+	const dogsketchTs = 1
+	const dogsketchCnt = 2
+	const dogsketchMin = 3
+	const dogsketchMax = 4
+	const dogsketchAvg = 5
+	const dogsketchSum = 6
+	const dogsketchK = 7
+	const dogsketchN = 8
+
+	return ps.Embedded(sketchDogsketches, func(ps *molecule.ProtoStream) error {
+		err := ps.Int64(dogsketchTs, ts)
+		if err != nil {
+			return err
+		}
+
+		err = ps.Int64(dogsketchCnt, bCnt)
+		if err != nil {
+			return err
+		}
+
+		err = ps.Double(dogsketchMin, bMin)
+		if err != nil {
+			return err
+		}
+
+		err = ps.Double(dogsketchMax, bMax)
+		if err != nil {
+			return err
+		}
+
+		err = ps.Double(dogsketchAvg, bAvg)
+		if err != nil {
+			return err
+		}
+
+		err = ps.Double(dogsketchSum, bSum)
+		if err != nil {
+			return err
+		}
+
+		err = ps.Sint32Packed(dogsketchK, k)
+		if err != nil {
+			return err
+		}
+
+		err = ps.Uint32Packed(dogsketchN, n)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	})
 }
 
 func (pb *payloadsBuilder) finishPayload() error {

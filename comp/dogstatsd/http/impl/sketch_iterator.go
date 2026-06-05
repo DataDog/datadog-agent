@@ -21,12 +21,12 @@ type sketchData struct {
 	min, max, sum, avg float64
 }
 
-func (s *sketchData) Cols() ([]int32, []uint32) {
-	return s.k, s.n
-}
-
 func (s *sketchData) BasicStats() (int64, float64, float64, float64, float64) {
 	return s.cnt, s.min, s.max, s.sum, s.avg
+}
+
+func (s *sketchData) WriteTo(w metrics.SketchWriter, ts int64) error {
+	return w.WriteDDSketch(ts, s.cnt, s.min, s.max, s.sum, s.avg, s.k, s.n)
 }
 
 type sketchIterator struct {

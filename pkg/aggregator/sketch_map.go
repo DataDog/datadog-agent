@@ -77,7 +77,9 @@ func (m sketchMap) flushBefore(beforeTs int64, f func(ckey.ContextKey, metrics.S
 
 		for ck, as := range byCtx {
 			f(ck, metrics.SketchPoint{
-				Sketch: as.Finish(),
+				Sketch: metrics.QuantileSketch{
+					Sketch: as.Finish(),
+				},
 				Ts:     ts,
 			})
 		}

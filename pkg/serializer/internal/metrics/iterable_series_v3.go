@@ -551,6 +551,7 @@ func (pb *payloadsBuilderV3) writeSketchToTxn(sketch *metrics.SketchSeries) {
 
 	for _, pnt := range sketch.Points {
 		pb.writePointCommon(pnt.Ts)
+
 		bCnt, bMin, bMax, bSum, _ := pnt.Sketch.BasicStats()
 
 		switch valueType {
@@ -577,15 +578,21 @@ func (pb *payloadsBuilderV3) writeSketchToTxn(sketch *metrics.SketchSeries) {
 		pb.txn.Sint64(columnValueSint64, bCnt)
 		pb.stats.valuesSint64++
 
-		k, n := pnt.Sketch.Cols()
-		kDelta := deltaEncoder{}
-		for i := range k {
-			pb.txn.Sint64(columnSketchBinKeys, kDelta.encode(int64(k[i])))
-			pb.txn.Uint64(columnSketchBinCnts, uint64(n[i]))
-		}
-		pb.txn.Uint64(columnSketchNumBins, uint64(len(k)))
+		_ = pnt.Sketch.WriteTo(pb, pnt.Ts)
 	}
 }
+
+func (pb *payloadsBuilderV3) WriteDDSketch(ts, bCnt int64, bMin, bMax, bSum, bAvg float64, k []int32, n []uint32) error {
+	kDelta := deltaEncoder{}
+	for i := range k {
+		pb.txn.Sint64(columnSketchBinKeys, kDelta.encode(int64(k[i])))
+		pb.txn.Uint64(columnSketchBinCnts, uint64(n[i]))
+	}
+	pb.txn.Uint64(columnSketchNumBins, uint64(len(k)))
+
+	return nil
+}
+
 
 func (pb *payloadsBuilderV3) updateValuesStats() {
 	tlmValuesCount.Add(float64(pb.stats.valuesZero), "zero")
