@@ -115,6 +115,7 @@ go_test(
         "@io_opentelemetry_go_collector_exporter//:exporter",
         "@io_opentelemetry_go_collector_exporter_exportertest//:exportertest",
         "@io_opentelemetry_go_collector_featuregate//:featuregate",
+        "@io_opentelemetry_go_collector_pdata//pcommon",
         "@io_opentelemetry_go_collector_pdata//pmetric",
         "@org_golang_google_protobuf//proto",
         "@org_golang_google_protobuf//testing/protocmp",
