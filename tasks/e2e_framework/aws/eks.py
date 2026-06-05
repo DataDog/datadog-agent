@@ -37,6 +37,7 @@ scenario_name = "aws/eks"
         "helm_config": doc.helm_config,
         "local_chart_path": doc.local_chart_path,
         "kube_version": doc.kubernetes_version,
+        "interactive": doc.interactive,
     }
 )
 def create_eks(
@@ -62,6 +63,7 @@ def create_eks(
     helm_config: str | None = None,
     local_chart_path: str | None = None,
     kube_version: str | None = None,
+    interactive: bool | None = True,
 ):
     """
     Create a new EKS environment. It lasts around 20 minutes.
@@ -111,13 +113,15 @@ def create_eks(
         helm_config=helm_config,
     )
 
-    tool.notify(ctx, "Your EKS cluster is now created")
+    if interactive:
+        tool.notify(ctx, "Your EKS cluster is now created")
 
-    _show_connection_message(ctx, full_stack_name, config_path)
+    _show_connection_message(ctx, full_stack_name, config_path, interactive)
 
 
-def _show_connection_message(ctx: Context, full_stack_name: str, config_path: str | None):
-    import pyperclip
+def _show_connection_message(
+    ctx: Context, full_stack_name: str, config_path: str | None, interactive: bool | None = True
+):
     from pydantic import ValidationError
 
     from tasks.e2e_framework import config
@@ -139,8 +143,11 @@ def _show_connection_message(ctx: Context, full_stack_name: str, config_path: st
 
     print(f"\nYou can run the following command to connect to the EKS cluster\n\n{command}\n")
 
-    input("Press a key to copy command to clipboard...")
-    pyperclip.copy(command)
+    if interactive:
+        import pyperclip
+
+        input("Press a key to copy command to clipboard...")
+        pyperclip.copy(command)
 
 
 @task(help={"stack_name": doc.stack_name})

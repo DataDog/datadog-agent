@@ -34,8 +34,6 @@ receivers:
             enabled: false
 service:
     pipelines:
-        metrics:
-            processors: []
         profiles:
             exporters:
                 - logging

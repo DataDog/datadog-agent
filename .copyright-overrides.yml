@@ -304,7 +304,7 @@ github.com/antchfx/htmlquery: Copyright (c) 2016 Zheng Chun
 github.com/antchfx/xmlquery: Copyright (c) 2016 Zheng Chun
 github.com/antchfx/xpath: Copyright (c) 2016 Zheng Chun
 github.com/kouhin/envflag: Copyright (c) 2015 kouhin
-
+github.com/nexus-rpc/nexus-proto-annotations/*: Copyright (c) 2024 Temporal Technologies Inc. All Rights Reserved
 
 # The Copyright information is not contained in the LICENSE file, but it can be found in other
 # files in the package, such as:

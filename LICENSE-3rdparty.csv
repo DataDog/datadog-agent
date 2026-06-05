@@ -1650,6 +1650,7 @@ core,github.com/netsampler/goflow2/pb,BSD-3-Clause,"Copyright (c) 2021, NetSampl
 core,github.com/netsampler/goflow2/producer,BSD-3-Clause,"Copyright (c) 2021, NetSampler"
 core,github.com/netsampler/goflow2/transport,BSD-3-Clause,"Copyright (c) 2021, NetSampler"
 core,github.com/netsampler/goflow2/utils,BSD-3-Clause,"Copyright (c) 2021, NetSampler"
+core,github.com/nexus-rpc/nexus-proto-annotations/go/nexusannotations/v1,MIT,Copyright (c) 2024 Temporal Technologies Inc. All Rights Reserved
 core,github.com/nexus-rpc/sdk-go/nexus,MIT,Copyright (c) 2023 Temporal Technologies Inc. All Rights Reserved
 core,github.com/oklog/ulid/v2,Apache-2.0,- Peter Bourgon (@peterbourgon) | - Tomás Senart (@tsenart)
 core,github.com/oliveagle/jsonpath,MIT,"Copyright (c) 2021, 2015; DoltHub Authors, oliver"
@@ -2983,8 +2984,10 @@ core,go.opentelemetry.io/proto/otlp/resource/v1,Apache-2.0,Copyright The OpenTel
 core,go.opentelemetry.io/proto/otlp/trace/v1,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.temporal.io/api/activity/v1,MIT,Copyright (c) 2025 Temporal Technologies Inc.  All rights reserved
 core,go.temporal.io/api/batch/v1,MIT,Copyright (c) 2025 Temporal Technologies Inc.  All rights reserved
+core,go.temporal.io/api/callback/v1,MIT,Copyright (c) 2025 Temporal Technologies Inc.  All rights reserved
 core,go.temporal.io/api/command/v1,MIT,Copyright (c) 2025 Temporal Technologies Inc.  All rights reserved
 core,go.temporal.io/api/common/v1,MIT,Copyright (c) 2025 Temporal Technologies Inc.  All rights reserved
+core,go.temporal.io/api/compute/v1,MIT,Copyright (c) 2025 Temporal Technologies Inc.  All rights reserved
 core,go.temporal.io/api/deployment/v1,MIT,Copyright (c) 2025 Temporal Technologies Inc.  All rights reserved
 core,go.temporal.io/api/enums/v1,MIT,Copyright (c) 2025 Temporal Technologies Inc.  All rights reserved
 core,go.temporal.io/api/errordetails/v1,MIT,Copyright (c) 2025 Temporal Technologies Inc.  All rights reserved
@@ -3004,6 +3007,7 @@ core,go.temporal.io/api/namespace/v1,MIT,Copyright (c) 2025 Temporal Technologie
 core,go.temporal.io/api/nexus/v1,MIT,Copyright (c) 2025 Temporal Technologies Inc.  All rights reserved
 core,go.temporal.io/api/operatorservice/v1,MIT,Copyright (c) 2025 Temporal Technologies Inc.  All rights reserved
 core,go.temporal.io/api/protocol/v1,MIT,Copyright (c) 2025 Temporal Technologies Inc.  All rights reserved
+core,go.temporal.io/api/protometa/v1,MIT,Copyright (c) 2025 Temporal Technologies Inc.  All rights reserved
 core,go.temporal.io/api/proxy,MIT,Copyright (c) 2025 Temporal Technologies Inc.  All rights reserved
 core,go.temporal.io/api/query/v1,MIT,Copyright (c) 2025 Temporal Technologies Inc.  All rights reserved
 core,go.temporal.io/api/replication/v1,MIT,Copyright (c) 2025 Temporal Technologies Inc.  All rights reserved

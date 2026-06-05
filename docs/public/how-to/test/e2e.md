@@ -41,34 +41,6 @@ dda inv e2e.setup --with-azure --with-gcp
 
 The configuration is persisted to `~/.test_infra_config.yaml` (chmod `0600`, since it contains the auto-generated Pulumi passphrase). Re-running `dda inv e2e.setup` is idempotent — it prints `✓ already configured` checks and exits.
 
-## Setting Up the Development Environment
-
-E2E tests should be run within a [developer environment](../../tutorials/dev/env.md) to ensure consistency and proper isolation.
-
-### Start a Developer Environment
-
-1. **Clone the repository** (if using local checkout):
-   ```bash
-   git clone https://github.com/DataDog/datadog-agent.git
-   cd datadog-agent
-   ```
-
-2. **Start the environment** The following example is for an amd64 environment:
-   ```bash
-   dda env dev start --id devenv-amd --arch amd64
-   ```
-
-   Or use a remote clone for better isolation:
-   ```bash
-   dda env dev start --clone
-   ```
-
-3. **Enter the environment shell**:
-   ```bash
-   dda env dev shell --id devenv-amd
-   ```
-
-For detailed information about developer environments, see the [Using developer environments](../../tutorials/dev/env.md) tutorial.
 
 ## Running E2E Tests
 

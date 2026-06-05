@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent
 
-go 1.25.9
+go 1.26.0
 
 // v0.8.0 was tagged long ago, and appared on pkg.go.dev.  We do not want any tagged version
 // to appear there.  The trick to accomplish this is to make a new version (in this case v0.9.0)
@@ -174,7 +174,7 @@ require (
 	github.com/DataDog/viper v1.15.1
 	// TODO: pin to a WPA released version once there is a release that includes the apis module
 	github.com/DataDog/watermarkpodautoscaler/apis v0.0.0-20250108152814-82e58d0231d1
-	github.com/DataDog/zstd v1.5.7
+	github.com/DataDog/zstd v1.5.8-0.20260421145859-31a7e515a571
 	github.com/Masterminds/semver/v3 v3.5.0
 	github.com/Masterminds/sprig/v3 v3.3.0
 	github.com/Microsoft/go-winio v0.6.2
@@ -251,7 +251,7 @@ require (
 	github.com/gosnmp/gosnmp v1.38.0
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0
 	github.com/h2non/filetype v1.1.3
-	github.com/hashicorp/consul/api v1.32.1
+	github.com/hashicorp/consul/api v1.34.3
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/go-version v1.9.0
 	github.com/hashicorp/golang-lru/v2 v2.0.7
@@ -318,7 +318,7 @@ require (
 	github.com/syndtr/gocapability v0.0.0-20200815063812-42c35b437635
 	github.com/tinylib/msgp v1.6.4
 	github.com/tklauser/go-sysconf v0.3.16 // indirect
-	github.com/twmb/franz-go v1.21.1
+	github.com/twmb/franz-go v1.21.2
 	github.com/twmb/franz-go/pkg/kadm v1.18.0
 	github.com/twmb/franz-go/pkg/kmsg v1.13.1
 	github.com/twmb/murmur3 v1.1.8
@@ -890,7 +890,7 @@ require (
 	golang.org/x/lint v0.0.0-20241112194109-818c5a804067 // indirect
 	golang.org/x/oauth2 v0.36.0
 	golang.org/x/telemetry v0.0.0-20260508192327-42602be52be6 // indirect
-	golang.org/x/term v0.43.0 // indirect
+	golang.org/x/term v0.43.0
 	gomodules.xyz/jsonpatch/v2 v2.5.0 // indirect
 	gonum.org/v1/gonum v0.17.0 // indirect
 	google.golang.org/api v0.279.0 // indirect
@@ -946,6 +946,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/trace/stats v0.77.0
 	github.com/DataDog/datadog-agent/pkg/trace/traceutil v0.77.0
 	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.64.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/confmaputils v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/hostport v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace v0.77.0-devel.0.20260211235139-a5361978c2b6
 	github.com/DataDog/ddtrivy v0.0.0-20260115083325-07614fb0b8d5
@@ -972,9 +973,9 @@ require (
 	github.com/rabbitmq/amqp091-go v1.9.0
 	github.com/santhosh-tekuri/jsonschema/v5 v5.3.1
 	gitlab.com/gitlab-org/api/client-go v1.46.0
-	go.etcd.io/etcd/client/v2 v2.305.17
+	go.etcd.io/etcd/client/v2 v2.305.30
 	go.opentelemetry.io/collector/otelcol/otelcoltest v0.153.0
-	go.temporal.io/api v1.62.2
+	go.temporal.io/api v1.62.13
 	go.temporal.io/sdk v1.39.0
 	go.uber.org/mock v0.6.0
 	mvdan.cc/sh/v3 v3.13.1
@@ -1133,7 +1134,8 @@ require (
 	github.com/minio/simdjson-go v0.4.5 // indirect
 	github.com/mitchellh/pointerstructure v1.2.1 // indirect
 	github.com/montanaflynn/stats v0.7.1 // indirect
-	github.com/nexus-rpc/sdk-go v0.5.1 // indirect
+	github.com/nexus-rpc/nexus-proto-annotations v0.1.0 // indirect
+	github.com/nexus-rpc/sdk-go v0.6.0 // indirect
 	github.com/nicolai86/scaleway-sdk v1.10.2-0.20180628010248-798f60e20bb2 // indirect
 	github.com/oklog/run v1.2.0 // indirect
 	github.com/okta/okta-sdk-golang/v5 v5.0.2 // indirect
@@ -1402,6 +1404,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/cgroups => ./pkg/util/cgroups
 	github.com/DataDog/datadog-agent/pkg/util/common => ./pkg/util/common
 	github.com/DataDog/datadog-agent/pkg/util/compression => ./pkg/util/compression
+	github.com/DataDog/datadog-agent/pkg/util/confmaputils => ./pkg/util/confmaputils
 	github.com/DataDog/datadog-agent/pkg/util/containers/image => ./pkg/util/containers/image
 	github.com/DataDog/datadog-agent/pkg/util/defaultpaths => ./pkg/util/defaultpaths
 	github.com/DataDog/datadog-agent/pkg/util/executable => ./pkg/util/executable

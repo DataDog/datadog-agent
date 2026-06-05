@@ -318,6 +318,8 @@ type RuntimeSecurityConfig struct {
 	// SecurityProfileV2ExcludedImages defines the list of "image_name:image_tag" entries excluded from V2 profiling.
 	// The tag may be "*" to match any tag for the given image name.
 	SecurityProfileV2ExcludedImages []string
+	// SecurityProfileV2MaxDumpSize returns the V2-only max profile size in bytes.
+	SecurityProfileV2MaxDumpSize func() int
 
 	// AnomalyDetectionEventTypes defines the list of events that should be allowed to generate anomaly detections
 	AnomalyDetectionEventTypes []model.EventType
@@ -648,6 +650,10 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		SecurityProfileCleanupDelay:        pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.security_profile.profile_cleanup_delay"),
 		SecurityProfileV2EventTypes:        parseEventTypeStringSlice(pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.security_profile.v2.event_types")),
 		SecurityProfileV2ExcludedImages:    pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.security_profile.v2.excluded_images"),
+		SecurityProfileV2MaxDumpSize: func() int {
+			mds := max(pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.security_profile.v2.max_dump_size"), ADMinMaxDumSize)
+			return mds * (1 << 10)
+		},
 
 		// anomaly detection
 		AnomalyDetectionEventTypes:                   parseEventTypeStringSlice(pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.security_profile.anomaly_detection.event_types")),

@@ -316,6 +316,8 @@ modules:
     used_by_otel: true
   pkg/util/compression:
     used_by_otel: true
+  pkg/util/confmaputils:
+    used_by_otel: true
   pkg/util/containers/image:
     used_by_otel: true
   pkg/util/defaultpaths:

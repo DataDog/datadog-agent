@@ -2,11 +2,11 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
-//go:build windows
 
 package filesystem
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/DataDog/go-acl"
@@ -67,4 +67,32 @@ func (p *Permission) RestrictAccessToUser(path string) error {
 // RemoveAccessToOtherUsers on Windows this function calls RestrictAccessToUser
 func (p *Permission) RemoveAccessToOtherUsers(path string) error {
 	return p.RestrictAccessToUser(path)
+}
+
+// isSystemOrAgentSID reports whether sid is the Administrators group, the SYSTEM account,
+// or the dd-agent service account.
+func (p *Permission) isSystemOrAgentSID(sid *windows.SID) bool {
+	return windows.EqualSid(sid, p.administratorSid) ||
+		windows.EqualSid(sid, p.ddUserSid) ||
+		windows.EqualSid(sid, p.systemSid)
+}
+
+// checkOwner verifies that path is owned by a trusted user (Administrators, SYSTEM, or dd-agent).
+func (p *Permission) checkOwner(path string) error {
+	var ownerSid *windows.SID
+	err := winutil.GetNamedSecurityInfo(path,
+		windows.SE_FILE_OBJECT,
+		windows.OWNER_SECURITY_INFORMATION,
+		&ownerSid,
+		nil, nil, nil, nil)
+
+	if err != nil {
+		return err
+	}
+
+	if !p.isSystemOrAgentSID(ownerSid) {
+		return errors.New("file owner is neither `Administrator`, system or dd user")
+	}
+
+	return nil
 }

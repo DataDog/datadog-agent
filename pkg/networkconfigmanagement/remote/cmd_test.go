@@ -100,8 +100,8 @@ func TestSCPCommand(t *testing.T) {
 		name: "unchecked_command",
 		op: func(shell *ShellContext) uint32 {
 			shell.stdout.Write([]byte{0, 0})
-			// wait for the other end to write some data so we don't close stdin early
-			shell.stdin.ReadByte()
+			// wait for the other end to *finish* writing so we don't close stdin early
+			io.Copy(io.Discard, shell.stdin)
 			return 0
 		},
 		expected: "",
@@ -130,8 +130,8 @@ func TestSCPCommand(t *testing.T) {
 		name: "validate_response",
 		op: func(shell *ShellContext) uint32 {
 			io.WriteString(shell.stdout, "\x00\x00returning feedback")
-			// wait for the other end to write some data so we don't close shell.stdin early
-			shell.stdin.ReadByte()
+			// wait for the other end to *finish* writing so we don't close shell.stdin early
+			io.Copy(io.Discard, shell.stdin)
 			return 0
 		},
 		validator: profile.Validator{
@@ -144,8 +144,8 @@ func TestSCPCommand(t *testing.T) {
 		name: "invalid_response",
 		op: func(shell *ShellContext) uint32 {
 			io.WriteString(shell.stdout, "\x00\x00incorrect response")
-			// wait for the other end to write some data so we don't close shell.stdin early
-			shell.stdin.Read(make([]byte, 100))
+			// wait for the other end to *finish* writing so we don't close shell.stdin early
+			io.Copy(io.Discard, shell.stdin)
 			return 0
 		},
 		validator: profile.Validator{

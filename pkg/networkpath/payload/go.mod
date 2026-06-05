@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/networkpath/payload
 
-go 1.25.0
+go 1.26.0
 
 require (
 	github.com/DataDog/datadog-agent/pkg/network/payload v0.0.0-20250128160050-7ac9ccd58c07
@@ -161,6 +161,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/cgroups => ../../../pkg/util/cgroups
 	github.com/DataDog/datadog-agent/pkg/util/common => ../../../pkg/util/common
 	github.com/DataDog/datadog-agent/pkg/util/compression => ../../../pkg/util/compression
+	github.com/DataDog/datadog-agent/pkg/util/confmaputils => ../../../pkg/util/confmaputils
 	github.com/DataDog/datadog-agent/pkg/util/containers/image => ../../../pkg/util/containers/image
 	github.com/DataDog/datadog-agent/pkg/util/defaultpaths => ../../../pkg/util/defaultpaths
 	github.com/DataDog/datadog-agent/pkg/util/executable => ../../../pkg/util/executable

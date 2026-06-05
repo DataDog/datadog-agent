@@ -178,7 +178,7 @@ func parseImageInfo(info map[string]string, layerFilePath string, imgID string) 
 
 				// Create and append the layer with the matched history
 				layer := workloadmeta.ContainerImageLayer{
-					Digest:  layerDigest,
+					DiffID:  layerDigest,
 					History: historyEntry,
 				}
 

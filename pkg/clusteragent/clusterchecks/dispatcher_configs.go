@@ -240,12 +240,3 @@ func (d *dispatcher) patchConfiguration(in integration.Config) (integration.Conf
 
 	return out, nil
 }
-
-// getConfigAndDigest returns config and digest of a check by checkID
-func (d *dispatcher) getConfigAndDigest(checkID string) (integration.Config, string) {
-	d.store.RLock()
-	defer d.store.RUnlock()
-
-	digest := d.store.idToDigest[checkid.ID(checkID)]
-	return d.store.digestToConfig[digest], digest
-}

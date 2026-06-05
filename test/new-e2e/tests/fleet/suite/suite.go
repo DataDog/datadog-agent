@@ -8,8 +8,10 @@ package suite
 
 import (
 	"fmt"
+	"os"
 	"regexp"
 	"slices"
+	"strings"
 	"testing"
 
 	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
@@ -47,13 +49,36 @@ var (
 	AllPlatforms = append(LinuxPlatforms, WindowsPlatforms...)
 )
 
-// Platforms returns the list of platforms to test, excluding Windows platforms
-// when the E2E_SKIP_WINDOWS parameter is set to "true".
+// platformGroupEnvVar selects a subset of platforms to run the fleet tests
+// against ("linux" or "windows"). It is used to split the fleet e2e jobs
+// across multiple parallel CI jobs so each platform group runs independently.
+const platformGroupEnvVar = "E2E_FLEET_PLATFORM_GROUP"
+
+// Platforms returns the list of platforms to test.
+//
+// The set of platforms can be narrowed down with the E2E_FLEET_PLATFORM_GROUP
+// environment variable ("linux" or "windows"), which is used to split the
+// fleet e2e jobs across multiple parallel CI jobs. When it is unset, all
+// platforms are returned.
+//
+// Windows platforms are always excluded when the E2E_SKIP_WINDOWS parameter is
+// set to "true".
 func Platforms() []e2eos.Descriptor {
 	skipWindows, err := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.SkipWindows, false)
 	if err != nil {
 		panic(fmt.Sprintf("failed to get %s parameter %v\n", parameters.SkipWindows, err))
 	}
+
+	switch strings.ToLower(os.Getenv(platformGroupEnvVar)) {
+	case "linux":
+		return LinuxPlatforms
+	case "windows":
+		if skipWindows {
+			return nil
+		}
+		return WindowsPlatforms
+	}
+
 	if skipWindows {
 		return LinuxPlatforms
 	}

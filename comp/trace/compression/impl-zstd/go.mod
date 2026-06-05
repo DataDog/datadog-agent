@@ -4,7 +4,7 @@ go 1.25.0
 
 require (
 	github.com/DataDog/datadog-agent/comp/trace/compression/def v0.61.0
-	github.com/DataDog/zstd v1.5.7
+	github.com/DataDog/zstd v1.5.8-0.20260421145859-31a7e515a571
 )
 
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
@@ -151,6 +151,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/cgroups => ../../../../pkg/util/cgroups
 	github.com/DataDog/datadog-agent/pkg/util/common => ../../../../pkg/util/common
 	github.com/DataDog/datadog-agent/pkg/util/compression => ../../../../pkg/util/compression
+	github.com/DataDog/datadog-agent/pkg/util/confmaputils => ../../../../pkg/util/confmaputils
 	github.com/DataDog/datadog-agent/pkg/util/containers/image => ../../../../pkg/util/containers/image
 	github.com/DataDog/datadog-agent/pkg/util/defaultpaths => ../../../../pkg/util/defaultpaths
 	github.com/DataDog/datadog-agent/pkg/util/executable => ../../../../pkg/util/executable

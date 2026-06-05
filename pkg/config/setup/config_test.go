@@ -72,19 +72,6 @@ func TestDefaults(t *testing.T) {
 
 	assert.True(t, config.GetBool("logs_config.tag_multi_line_logs"))
 	assert.True(t, config.GetBool("logs_config.tag_truncated_logs"))
-
-	assert.True(t, config.GetBool("process_manager.enabled"))
-}
-
-func TestProcessManagerEnabledEnvOverride(t *testing.T) {
-	t.Setenv("DD_PROCESS_MANAGER_ENABLED", "false")
-	cfg := newTestConf(t)
-	assert.False(t, cfg.GetBool("process_manager.enabled"))
-}
-
-func TestProcessManagerEnabledYAML(t *testing.T) {
-	cfg := confFromYAML(t, "process_manager:\n  enabled: false\n")
-	assert.False(t, cfg.GetBool("process_manager.enabled"))
 }
 
 func TestUnexpectedUnicode(t *testing.T) {
@@ -640,41 +627,6 @@ func TestNumWorkers(t *testing.T) {
 	setNumWorkers(config)
 	workers = config.GetInt("check_runners")
 	assert.Equal(t, workers, 1)
-}
-
-// TestOverrides validates that the config overrides system works well.
-func TestApplyOverrides(t *testing.T) {
-	pkgconfigmodel.CleanOverride(t)
-	assert := assert.New(t)
-
-	datadogYaml := `
-dd_url: "https://app.datadoghq.eu"
-api_key: fakeapikey
-
-external_config:
-  external_agent_dd_url: "https://custom.external-agent.datadoghq.eu"
-`
-	pkgconfigmodel.AddOverrides(map[string]interface{}{
-		"api_key": "overrided",
-	})
-
-	config := confFromYAML(t, datadogYaml)
-	pkgconfigmodel.ApplyOverrideFuncs(config)
-
-	assert.Equal(config.GetString("api_key"), "overrided", "the api key should have been overrided")
-	assert.Equal(config.GetString("dd_url"), "https://app.datadoghq.eu", "this shouldn't be overrided")
-	assert.Equal(config.GetSource("api_key"), pkgconfigmodel.SourceAgentRuntime)
-	assert.Equal(config.GetSource("dd_url"), pkgconfigmodel.SourceFile)
-
-	pkgconfigmodel.AddOverrides(map[string]interface{}{
-		"dd_url": "http://localhost",
-	})
-	pkgconfigmodel.ApplyOverrideFuncs(config)
-
-	assert.Equal(config.GetString("api_key"), "overrided", "the api key should have been overrided")
-	assert.Equal(config.GetString("dd_url"), "http://localhost", "this dd_url should have been overrided")
-	assert.Equal(config.GetSource("api_key"), pkgconfigmodel.SourceAgentRuntime)
-	assert.Equal(config.GetSource("dd_url"), pkgconfigmodel.SourceAgentRuntime)
 }
 
 func TestNetworkDevicesNamespace(t *testing.T) {

@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -38,6 +39,22 @@ type OpenNode struct {
 	model.SyscallEvent
 	Flags uint32
 	Mode  uint32
+}
+
+// size approximates this node's own heap footprint
+func (fn *FileNode) size() int64 {
+	s := int64(unsafe.Sizeof(*fn))
+	s += seenBytes(fn.NodeBase)
+	s += int64(len(fn.Name))
+	if fn.File != nil {
+		s += fileEventStringsBytes(fn.File)
+	}
+	if fn.Open != nil {
+		s += int64(unsafe.Sizeof(*fn.Open))
+	}
+	s += sliceBackingBytes(cap(fn.MatchedRules), unsafe.Sizeof((*model.MatchedRule)(nil)))
+	s += stringMapBytes(fn.Children)
+	return s
 }
 
 // NewFileNode returns a new FileActivityNode instance
@@ -174,12 +191,15 @@ func (fn *FileNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Eve
 			break
 		}
 		if len(currentPath) <= nextParentIndex+1 {
-			currentFn.Children[parent] = NewFileNode(fileEvent, event, parent, imageTagID, generationType, reducedPath, resolvers)
+			leafNode := NewFileNode(fileEvent, event, parent, imageTagID, generationType, reducedPath, resolvers)
+			currentFn.Children[parent] = leafNode
 			stats.FileNodes++
+			stats.SizeBytes += leafNode.size()
 			break
 		}
 		newChild := NewFileNode(nil, nil, parent, imageTagID, generationType, "", resolvers)
 		currentFn.Children[parent] = newChild
+		stats.SizeBytes += newChild.size()
 		currentFn = newChild
 		currentPath = currentPath[nextParentIndex:]
 	}
@@ -193,18 +213,20 @@ func (fn *FileNode) tagAllNodes(imageTagID uint64, timestamp time.Time) {
 	}
 }
 
-func (fn *FileNode) evictImageTag(imageTagID uint64) bool {
+func (fn *FileNode) evictImageTag(imageTagID uint64) (bool, int64) {
 	if !fn.HasImageTag(imageTagID) {
-		return false
+		return false, 0
 	}
-	evicted := fn.EvictImageTag(imageTagID)
-	if evicted {
-		return true
+	if fn.EvictImageTag(imageTagID) {
+		return true, fileSubtreeSizeBytes(fn)
 	}
+	var removed int64
 	for filename, child := range fn.Children {
-		if shouldRemoveNode := child.evictImageTag(imageTagID); shouldRemoveNode {
+		shouldRemove, childRemoved := child.evictImageTag(imageTagID)
+		if shouldRemove {
 			delete(fn.Children, filename)
 		}
+		removed += childRemoved
 	}
-	return false
+	return false, removed
 }

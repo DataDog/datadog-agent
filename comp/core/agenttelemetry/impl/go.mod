@@ -20,7 +20,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/jsonquery v0.0.0-20251027120702-0e91eee9852f
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.75.4
 	github.com/DataDog/datadog-agent/pkg/version v0.75.4
-	github.com/DataDog/zstd v1.5.7
+	github.com/DataDog/zstd v1.5.8-0.20260421145859-31a7e515a571
 	github.com/prometheus/client_model v0.6.2
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/stretchr/testify v1.11.1
@@ -258,6 +258,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/cgroups => ../../../../pkg/util/cgroups
 	github.com/DataDog/datadog-agent/pkg/util/common => ../../../../pkg/util/common
 	github.com/DataDog/datadog-agent/pkg/util/compression => ../../../../pkg/util/compression
+	github.com/DataDog/datadog-agent/pkg/util/confmaputils => ../../../../pkg/util/confmaputils
 	github.com/DataDog/datadog-agent/pkg/util/containers/image => ../../../../pkg/util/containers/image
 	github.com/DataDog/datadog-agent/pkg/util/defaultpaths => ../../../../pkg/util/defaultpaths
 	github.com/DataDog/datadog-agent/pkg/util/executable => ../../../../pkg/util/executable

@@ -31,8 +31,6 @@ from tasks.libs.common.utils import (
     REPO_PATH,
     bin_name,
     get_build_flags,
-    get_embedded_path,
-    get_goenv,
     get_version,
     gitlab_section,
 )
@@ -63,7 +61,7 @@ CACHED_WHEEL_FULL_PATH_PATTERN = CACHED_WHEEL_DIRECTORY_PATTERN + CACHED_WHEEL_F
 LAST_DIRECTORY_COMMIT_PATTERN = "git -C {integrations_dir} rev-list -1 HEAD {integration}"
 
 
-@task(iterable=['bundle'])
+@task
 @run_on_devcontainer
 def build(
     ctx,
@@ -82,8 +80,6 @@ def build(
     go_mod="readonly",
     windows_sysprobe=False,
     cmake_options='',
-    bundle=None,
-    bundle_ebpf=False,
     agent_bin=None,
     run_on=None,  # noqa: U100, F841. Used by the run_on_devcontainer decorator
     glibc=True,
@@ -117,7 +113,6 @@ def build(
         python_home_3=python_home_3,
     )
 
-    bundled_agents = ["agent"]
     if sys.platform == 'win32' or os.getenv("GOOS") == "windows":
         # Important for x-compiling
         env["CGO_ENABLED"] = "1"
@@ -133,28 +128,17 @@ def build(
                 vars=vars,
                 out="cmd/agent/rsrc.syso",
             )
-    else:
-        bundled_agents += bundle or []
 
     if flavor.is_iot():
         # Iot mode overrides whatever passed through `--build-exclude` and `--build-include`
         build_tags = get_default_build_tags(build="agent", flavor=flavor)
     else:
-        all_tags = set()
-        if bundle_ebpf and "system-probe" in bundled_agents:
-            all_tags.add("ebpf_bindata")
-
-        for build in bundled_agents:
-            all_tags.add("bundle_" + build.replace("-", "_"))
-            build_tags = compute_build_tags_for_flavor(
-                build=build,
-                flavor=flavor,
-                build_include=build_include,
-                build_exclude=build_exclude,
-            )
-
-            all_tags |= set(build_tags)
-        build_tags = list(all_tags)
+        build_tags = compute_build_tags_for_flavor(
+            build="agent",
+            flavor=flavor,
+            build_include=build_include,
+            build_exclude=build_exclude,
+        )
 
     if not glibc:
         build_tags = list(set(build_tags).difference({"nvml"}))
@@ -185,23 +169,6 @@ def build(
             coverage=os.getenv("E2E_COVERAGE_PIPELINE") == "true",
         )
 
-    if embedded_path is None:
-        embedded_path = get_embedded_path(ctx)
-        assert embedded_path, "Failed to find embedded path"
-
-    for build in bundled_agents:
-        if build == "agent":
-            continue
-
-        bundled_agent_dir = os.path.join(BIN_DIR, build)
-        bundled_agent_bin = os.path.join(bundled_agent_dir, bin_name(build))
-        agent_fullpath = os.path.normpath(os.path.join(embedded_path, "..", "bin", "agent", bin_name("agent")))
-
-        if not os.path.exists(os.path.dirname(bundled_agent_bin)):
-            os.mkdir(os.path.dirname(bundled_agent_bin))
-
-        create_launcher(ctx, build, agent_fullpath, bundled_agent_bin)
-
     with gitlab_section("Generate configuration files", collapsed=True):
         render_config(
             ctx,
@@ -212,22 +179,6 @@ def build(
             development=development,
             windows_sysprobe=windows_sysprobe,
         )
-
-
-def create_launcher(ctx, agent, src, dst):
-    cc = get_goenv(ctx, "CC")
-    if not cc:
-        print("Failed to find C compiler")
-        raise Exit(code=1)
-
-    cmd = "{cc} -DDD_AGENT_PATH='\"{agent_bin}\"' -DDD_AGENT='\"{agent}\"' -o {launcher_bin} ./cmd/agent/launcher/launcher.c"
-    args = {
-        "cc": cc,
-        "agent": agent,
-        "agent_bin": src,
-        "launcher_bin": dst,
-    }
-    ctx.run(cmd.format(**args))
 
 
 def render_config(ctx, env, flavor, skip_assets, build_tags, development, windows_sysprobe):

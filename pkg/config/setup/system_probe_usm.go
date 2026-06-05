@@ -14,9 +14,12 @@ func initUSMSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	// General USM Configuration
 	// ========================================
 	cfg.BindEnvAndSetDefault("service_monitoring_config.enabled", false, "DD_SYSTEM_PROBE_SERVICE_MONITORING_ENABLED")
-	cfg.BindEnv("service_monitoring_config.max_concurrent_requests")  //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	cfg.BindEnv("service_monitoring_config.enable_quantization")      //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	cfg.BindEnv("service_monitoring_config.enable_connection_rollup") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	// max_concurrent_requests default of 0 is intentional: adjustUSM applies a
+	// dynamic default (max_tracked_connections) via applyDefault when this key
+	// is not configured by the user.
+	cfg.BindEnvAndSetDefault("service_monitoring_config.max_concurrent_requests", 0)
+	cfg.BindEnvAndSetDefault("service_monitoring_config.enable_quantization", false)
+	cfg.BindEnvAndSetDefault("service_monitoring_config.enable_connection_rollup", false)
 	cfg.BindEnvAndSetDefault("service_monitoring_config.enable_ring_buffers", true)
 	cfg.BindEnvAndSetDefault("service_monitoring_config.enable_event_stream", true)
 	// kernel_buffer_pages determines the number of pages allocated *per CPU*
@@ -127,15 +130,21 @@ func initUSMSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	// Native TLS Configuration
 	// ========================================
 	cfg.BindEnvAndSetDefault("service_monitoring_config.tls.native.enabled", true)
-	// For backward compatibility
-	cfg.BindEnv("network_config.enable_https_monitoring", "DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTPS_MONITORING") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	// For backward compatibility. Default is false because the canonical key
+	// (service_monitoring_config.tls.native.enabled, defaulted to true above)
+	// is the authoritative source; deprecateBool only forwards the deprecated
+	// alias when it is explicitly configured.
+	cfg.BindEnvAndSetDefault("network_config.enable_https_monitoring", false, "DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTPS_MONITORING")
 
 	// ========================================
 	// Go TLS Configuration
 	// ========================================
 	cfg.BindEnvAndSetDefault("service_monitoring_config.tls.go.enabled", true)
-	// For backward compatibility
-	cfg.BindEnv("service_monitoring_config.enable_go_tls_support") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	// For backward compatibility. Default is false because the canonical key
+	// (service_monitoring_config.tls.go.enabled, defaulted to true above) is
+	// the authoritative source; deprecateBool only forwards the deprecated
+	// alias when it is explicitly configured.
+	cfg.BindEnvAndSetDefault("service_monitoring_config.enable_go_tls_support", false)
 	cfg.BindEnvAndSetDefault("service_monitoring_config.tls.go.exclude_self", true)
 
 	// ========================================
@@ -147,5 +156,5 @@ func initUSMSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	// ========================================
 	// Node.js TLS Configuration
 	// ========================================
-	cfg.BindEnv("service_monitoring_config.tls.nodejs.enabled") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	cfg.BindEnvAndSetDefault("service_monitoring_config.tls.nodejs.enabled", false)
 }

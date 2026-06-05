@@ -119,7 +119,7 @@ func (a *authArtifactBase) checkAuthStack() {
 	a.EventuallyWithT(func(c *assert.CollectT) {
 		_, err = a.svcManager.Status(a.svcName)
 		require.Error(c, err)
-	}, 10*time.Second, 1*time.Second, "datadog Agent should be stopped")
+	}, 15*time.Second, 1*time.Second, "datadog Agent should be stopped")
 
 	// Removing log files and artifacts files
 	a.Env().RemoteHost.MustExecute(fmt.Sprintf(a.removeFilesCmdTmpl, a.logFolder, a.authTokenPath, a.ipcCertPath))

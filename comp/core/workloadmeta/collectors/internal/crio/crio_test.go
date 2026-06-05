@@ -449,12 +449,12 @@ func TestGenerateImageEventFromContainer(t *testing.T) {
 					Variant:      "v8",
 					Layers: []workloadmeta.ContainerImageLayer{
 						{
-							Digest:    "sha256:layer1digest",
+							DiffID:    "sha256:layer1digest",
 							History:   &imgspecs.History{Created: &time1, CreatedBy: "command1", Author: "author1", Comment: "Layer 1 comment"},
 							SizeBytes: 0,
 						},
 						{
-							Digest:    "sha256:layer2digest",
+							DiffID:    "sha256:layer2digest",
 							History:   &imgspecs.History{Created: &time2, CreatedBy: "command2", Author: "author2", Comment: "Layer 2 comment"},
 							SizeBytes: 0,
 						},

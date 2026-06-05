@@ -72,7 +72,7 @@ func IsAnyContainerFeaturePresent() bool {
 		IsFeaturePresent(NonstandardCRIRuntime)
 }
 
-func detectContainerFeatures(features FeatureMap, cfg model.Reader) {
+func detectContainerFeatures(features FeatureMap, cfg model.ReaderWriter) {
 	detectKubernetes(features, cfg)
 	detectDocker(features)
 	detectCriRuntimes(features, cfg)
@@ -121,7 +121,7 @@ func detectDocker(features FeatureMap) {
 }
 
 // detectCriRuntimes checks for both containerd and crio runtimes
-func detectCriRuntimes(features FeatureMap, cfg model.Reader) {
+func detectCriRuntimes(features FeatureMap, cfg model.ReaderWriter) {
 	// CRI Socket - Do not automatically default socket path if the Agent runs in Docker
 	// as we'll very likely discover the containerd instance wrapped by Docker.
 	criSocket := cfg.GetString("cri_socket_path")
@@ -132,7 +132,7 @@ func detectCriRuntimes(features FeatureMap, cfg model.Reader) {
 			// Check default CRI paths
 			criSocket = checkCriSocket(defaultCriPath)
 			if criSocket != "" {
-				model.AddOverride("cri_socket_path", criSocket)
+				cfg.Set("cri_socket_path", criSocket, model.SourceAgentRuntime)
 				// Currently we do not support multiple CRI paths
 				break
 			}
@@ -170,7 +170,7 @@ func checkCriSocket(socketPath string) string {
 	return ""
 }
 
-func mergeContainerdNamespaces(cfg model.Reader) {
+func mergeContainerdNamespaces(cfg model.ReaderWriter) {
 	// Merge containerd_namespace with containerd_namespaces
 	namespaces := merge(
 		cfg.GetStringSlice("containerd_namespaces"),
@@ -179,7 +179,7 @@ func mergeContainerdNamespaces(cfg model.Reader) {
 
 	// Workaround: convert to []interface{}.
 	// The MergeConfigOverride func in "github.com/DataDog/viper" (tested in
-	// v1.10.0) raises an error if we send a []string{} in AddOverride():
+	// v1.10.0) raises an error if we send a []string{} in Set():
 	// "svType != tvType; key=containerd_namespace, st=[]interface {}, tt=[]string, sv=[], tv=[]"
 	// The reason is that when reading from a config file, all the arrays are
 	// considered as []interface{} by Viper, and the merge fails when the types
@@ -189,8 +189,8 @@ func mergeContainerdNamespaces(cfg model.Reader) {
 		convertedNamespaces[i] = namespace
 	}
 
-	model.AddOverride("containerd_namespace", convertedNamespaces)
-	model.AddOverride("containerd_namespaces", convertedNamespaces)
+	cfg.Set("containerd_namespace", convertedNamespaces, model.SourceAgentRuntime)
+	cfg.Set("containerd_namespaces", convertedNamespaces, model.SourceAgentRuntime)
 }
 
 func isCriSupported() bool {

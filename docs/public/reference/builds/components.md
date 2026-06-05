@@ -1,7 +1,7 @@
 # Agent components
 ## Agent binaries
 
-The "Agent" is not distributed as a single binary. Instead, running an Agent on a given host will usually involve multiple processes communicating with each other, spawned from different binaries[^1].
+The "Agent" is not distributed as a single binary. Instead, running an Agent on a given host will usually involve multiple processes communicating with each other, spawned from different binaries.
 
 These binaries have a good amount of code shared between them, but are all buildable individually. Here is the exhaustive list:
 
@@ -17,8 +17,6 @@ These binaries have a good amount of code shared between them, but are all build
 /// info
 Every binary is built from the same codebase. By leveraging [Go build constraints](https://pkg.go.dev/cmd/go#hdr-Build_constraints), we end up compiling different parts of the source code for each binary.
 ///
-
-[^1]: This is not always the case: the Agent can, as an option, combine multiple binaries into a single one to reduce disk space usage. See [here](../../how-to/build/standalone.md#agent-bundles) for more info.
 
 ## Agent "features"
 

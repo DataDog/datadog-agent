@@ -302,11 +302,6 @@ var (
 	// Tags: -
 	MetricActivityDumpLocalStorageDeleted = newAgentMetric(".activity_dump.local_storage.deleted")
 
-	// MetricActivityDumpLocalStorageSizeOnDisk is the name of the metric used to track the size that the profiles are
-	// using on disk
-	// Tags: -
-	MetricActivityDumpLocalStorageSizeOnDisk = newRuntimeMetric(".activity_dump.local_storage.size_on_disk")
-
 	// SBOM resolver metrics
 
 	// MetricSBOMResolverActiveSBOMs is the name of the metric used to report the count of SBOMs kept in memory
@@ -583,6 +578,12 @@ var (
 	// MetricSecurityProfileV2CleanupProfilesRemoved is the name of the metric used to report profiles removed after cleanup delay
 	// Tags: -
 	MetricSecurityProfileV2CleanupProfilesRemoved = newRuntimeMetric(".security_profile_v2.cleanup.profiles_removed")
+
+	// MetricSecurityProfileV2ProfileSize is the unified size metric for active security profiles.
+	// Tags: profile_image_name, profile_image_tag, storage (ram|disk).
+	// Note: profile_image_* is used instead of image_* to avoid collision with Datadog's
+	// container auto-tagging (the submitting agent's own image_name gets stamped on metrics).
+	MetricSecurityProfileV2ProfileSize = newRuntimeMetric(".security_profile_v2.profile_size")
 
 	// Event sampling metrics (kernel-side)
 

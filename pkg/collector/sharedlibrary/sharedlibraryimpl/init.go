@@ -26,9 +26,15 @@ func InitSharedLibraryChecksLoader() {
 	libFolderPath := pkgconfigsetup.Datadog().GetString("shared_library_check.library_folder_path")
 
 	factory := func(senderManager sender.SenderManager, logReceiver option.Option[integrations.Component], tagger tagger.Component, filter workloadfilter.Component) (check.Loader, int, error) {
-		sharedLibraryLoader := ffi.NewSharedLibraryLoader(libFolderPath)
-		loader, err := newCheckLoader(senderManager, logReceiver, tagger, filter, sharedLibraryLoader)
 		priority := 40
+
+		sharedLibraryLoader, err := ffi.NewSharedLibraryLoader(libFolderPath)
+		if err != nil {
+			return nil, priority, err
+		}
+
+		loader, err := newCheckLoader(senderManager, logReceiver, tagger, filter, sharedLibraryLoader)
+
 		return loader, priority, err
 	}
 

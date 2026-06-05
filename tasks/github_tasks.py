@@ -24,7 +24,7 @@ from tasks.libs.pipeline.notifications import DEFAULT_SLACK_CHANNEL, GITHUB_SLAC
 from tasks.libs.releasing.version import current_version
 from tasks.libs.types.types import PermissionCheck
 
-ALL_TEAMS = '@datadog/agent-all'
+ALL_TEAMS = '@datadog/agent-community-eng'
 
 
 def _update_windows_runner_version(new_version=None, repo="ci-platform-machine-images"):

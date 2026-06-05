@@ -55,8 +55,6 @@ receivers:
                         - 127.0.0.1:8889
 service:
     pipelines:
-        metrics:
-            processors: []
         metrics/profiler-internal-health:
             exporters:
                 - otlphttp

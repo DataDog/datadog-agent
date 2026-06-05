@@ -30,8 +30,6 @@ receivers:
             enabled: false
 service:
     pipelines:
-        metrics:
-            processors: []
         profiles:
             exporters:
                 - otlp_http

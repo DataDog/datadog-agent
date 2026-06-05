@@ -68,8 +68,6 @@ service:
         - custom
         - other
     pipelines:
-        metrics:
-            processors: []
         metrics/profiler-internal-health:
             exporters:
                 - otlp_http
