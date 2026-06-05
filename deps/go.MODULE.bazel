@@ -1,6 +1,9 @@
 go_sdk = use_extension("@rules_go//go:extensions.bzl", "go_sdk")
-go_sdk.from_file(go_work = "//:go.work")
-use_repo(go_sdk, "go_host_compatible_sdk_label")
+go_sdk.from_file(
+    name = "go_work_sdk",
+    go_work = "//:go.work",
+)
+use_repo(go_sdk, "go_work_sdk")
 # go_sdk.nogo(nogo = "//:nogo")  # TODO(agent-build): assess benefits of the `nogo` static code analyzer
 
 go_deps = use_extension("@gazelle//:extensions.bzl", "go_deps")
