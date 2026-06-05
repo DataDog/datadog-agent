@@ -11,6 +11,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -39,7 +40,7 @@ type Option func(*InstallerExec)
 // WithPreRemoveHooks configures hooks run before package versions are removed by garbage collection.
 func WithPreRemoveHooks(preRemoveHooks map[string]repository.PreRemoveHook) Option {
 	return func(i *InstallerExec) {
-		i.preRemoveHooks = preRemoveHooks
+		i.preRemoveHooks = maps.Clone(preRemoveHooks)
 	}
 }
 

@@ -1,0 +1,5 @@
+fixes:
+  - |
+      On Windows, run Fleet Installer garbage collection in-process to avoid
+      daemon error spans caused by installer subprocess DLL initialization
+      failures.

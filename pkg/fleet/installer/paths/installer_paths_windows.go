@@ -118,6 +118,60 @@ func init() {
 	StableInstallerPath = filepath.Join(DatadogProgramFilesDir, "bin", "datadog-installer.exe")
 }
 
+// InstallerDirectories contains the installer data directories derived from the
+// Agent data directory.
+type InstallerDirectories struct {
+	DatadogDataDir       string
+	DatadogInstallerData string
+	PackagesPath         string
+	ConfigsPath          string
+	RootTmpDir           string
+	RunPath              string
+}
+
+// CurrentInstallerDirectories returns the process-wide installer directories.
+func CurrentInstallerDirectories() InstallerDirectories {
+	return InstallerDirectories{
+		DatadogDataDir:       DatadogDataDir,
+		DatadogInstallerData: DatadogInstallerData,
+		PackagesPath:         PackagesPath,
+		ConfigsPath:          ConfigsPath,
+		RootTmpDir:           RootTmpDir,
+		RunPath:              RunPath,
+	}
+}
+
+// InstallerDirectoriesForMsiParams returns the installer directories that a
+// subprocess would compute after receiving the MSI path overrides in its
+// environment.
+func InstallerDirectoriesForMsiParams(msiParams env.MsiParamsEnv) InstallerDirectories {
+	if msiParams.ApplicationDataDirectory == "" {
+		return CurrentInstallerDirectories()
+	}
+
+	datadogDataDir := msiParams.ApplicationDataDirectory
+	datadogInstallerData := filepath.Join(datadogDataDir, "Installer")
+	return InstallerDirectories{
+		DatadogDataDir:       datadogDataDir,
+		DatadogInstallerData: datadogInstallerData,
+		PackagesPath:         filepath.Join(datadogInstallerData, "packages"),
+		ConfigsPath:          filepath.Join(datadogInstallerData, "managed"),
+		RootTmpDir:           filepath.Join(datadogInstallerData, "tmp"),
+		RunPath:              filepath.Join(datadogInstallerData, "packages", "run"),
+	}
+}
+
+// EnsureInstallerDirectoriesForPaths creates the installer data, packages,
+// configs, tmp, and run directories if they do not exist.
+func EnsureInstallerDirectoriesForPaths(dirs InstallerDirectories) error {
+	err := ensureInstallerDataDir(dirs)
+	if err != nil {
+		return fmt.Errorf("could not ensure installer data directory permissions: %w", err)
+	}
+
+	return ensureInstallerSubdirectories(dirs.PackagesPath, dirs.ConfigsPath, dirs.RootTmpDir, dirs.RunPath)
+}
+
 // createDirIfNotExists creates a directory if it doesn't exist.
 // Returns an error if the path exists but is not a directory, or if creation fails.
 //
@@ -230,22 +284,26 @@ func SetupInstallerDataDir() error {
 //
 // It is meant to be safe to call frequently and outside of initial setup.
 func EnsureInstallerDataDir() error {
+	return ensureInstallerDataDir(CurrentInstallerDirectories())
+}
+
+func ensureInstallerDataDir(dirs InstallerDirectories) error {
 	sddl := installerDataSecurityDescriptor
 
 	// fast path: if DatadogInstallerData exists and is secure
-	if IsDirSecure(DatadogInstallerData) == nil {
+	if IsDirSecure(dirs.DatadogInstallerData) == nil {
 		return nil
 	}
 	// Directory does not exist or is not secure, we need to create it
 
 	// check if DatadogDataDir exists
-	_, err := os.Stat(DatadogDataDir)
+	_, err := os.Stat(dirs.DatadogDataDir)
 	if errors.Is(err, fs.ErrNotExist) {
 		// DatadogDataDir does not exist, so we need to create it
 		// probably means the MSI has yet to run
 		// we'll create the directory with the restricted permissions
 		// the MSI will run and fix the permissions soon after
-		err = createDirectoryWithSDDL(DatadogDataDir, sddl)
+		err = createDirectoryWithSDDL(dirs.DatadogDataDir, sddl)
 		if err != nil {
 			return fmt.Errorf("failed to create DatadogDataDir: %w", err)
 		}
@@ -253,12 +311,12 @@ func EnsureInstallerDataDir() error {
 
 	// Enabling privileges can be audited/noisy and this function may be called frequently,
 	// so try to avoid enabling privileges if possible.
-	err = SecureCreateDirectory(DatadogInstallerData, sddl)
+	err = SecureCreateDirectory(dirs.DatadogInstallerData, sddl)
 	if err != nil {
 		// try again with privileges
 		privilegesRequired := []string{"SeTakeOwnershipPrivilege"}
 		return winio.RunWithPrivileges(privilegesRequired, func() error {
-			return SecureCreateDirectory(DatadogInstallerData, sddl)
+			return SecureCreateDirectory(dirs.DatadogInstallerData, sddl)
 		})
 	}
 

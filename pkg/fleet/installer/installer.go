@@ -706,15 +706,7 @@ func (i *installerImpl) Remove(ctx context.Context, pkg string) error {
 func (i *installerImpl) GarbageCollect(ctx context.Context) error {
 	i.m.Lock()
 	defer i.m.Unlock()
-	err := i.packages.Cleanup(ctx)
-	if err != nil {
-		return fmt.Errorf("could not cleanup packages: %w", err)
-	}
-	err = repository.CleanupTmpDirectory(paths.RootTmpDir)
-	if err != nil {
-		return fmt.Errorf("could not cleanup tmp directory: %w", err)
-	}
-	return nil
+	return repository.GarbageCollect(ctx, i.packages, paths.RootTmpDir)
 }
 
 // InstrumentAPMInjector instruments the APM injector.

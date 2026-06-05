@@ -74,39 +74,46 @@ func (i *InstallerExec) getStates(ctx context.Context) (_ *repository.PackageSta
 	}, nil
 }
 
+func (i *InstallerExec) installerDirectories() paths.InstallerDirectories {
+	if i.env == nil {
+		return paths.CurrentInstallerDirectories()
+	}
+	return paths.InstallerDirectoriesForMsiParams(i.env.MsiParams)
+}
+
 // GarbageCollect runs the garbage collector.
 // On Windows there is no privilege boundary between the daemon and the installer
 // binary, so we clean up unused packages and temporary files in-process instead
 // of spawning a subprocess.
 func (i *InstallerExec) GarbageCollect(ctx context.Context) (err error) {
-	span, _ := telemetry.StartSpanFromContext(ctx, "installer.garbage-collect")
-	defer func() { span.Finish(err) }()
+	span, ctx := telemetry.StartSpanFromContext(ctx, "installer.garbage-collect")
+	var packagesDB *db.PackagesDB
+	defer func() {
+		if packagesDB != nil {
+			if dbErr := packagesDB.Close(); dbErr != nil {
+				dbErr = fmt.Errorf("failed to close packages database: %w", dbErr)
+				err = errors.Join(err, dbErr)
+			}
+		}
+		span.Finish(err)
+	}()
 
-	if err := paths.EnsureInstallerDirectories(); err != nil {
+	installerDirs := i.installerDirectories()
+	if err := paths.EnsureInstallerDirectoriesForPaths(installerDirs); err != nil {
 		return fmt.Errorf("could not ensure packages and config directory exists: %w", err)
 	}
 
 	// Hold the same packages database lock as the installer command while
 	// deleting unused package directories.
-	packagesDB, err := db.New(ctx, filepath.Join(paths.PackagesPath, "packages.db"), db.WithTimeout(5*time.Minute))
+	packagesDB, err = db.New(ctx, filepath.Join(installerDirs.PackagesPath, "packages.db"), db.WithTimeout(5*time.Minute))
 	if err != nil {
 		return fmt.Errorf("could not create packages db: %w", err)
 	}
-	defer func() {
-		if dbErr := packagesDB.Close(); dbErr != nil {
-			dbErr = fmt.Errorf("failed to close packages database: %w", dbErr)
-			err = errors.Join(err, dbErr)
-		}
-	}()
 
-	repos := repository.NewRepositories(paths.PackagesPath, i.preRemoveHooks)
-	err = repos.Cleanup(ctx)
+	repos := repository.NewRepositories(installerDirs.PackagesPath, i.preRemoveHooks)
+	err = repository.GarbageCollect(ctx, repos, installerDirs.RootTmpDir)
 	if err != nil {
-		return fmt.Errorf("could not cleanup packages: %w", err)
-	}
-	err = repository.CleanupTmpDirectory(paths.RootTmpDir)
-	if err != nil {
-		return fmt.Errorf("could not cleanup tmp directory: %w", err)
+		return err
 	}
 	return nil
 }

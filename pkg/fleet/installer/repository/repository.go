@@ -328,6 +328,19 @@ func (r *Repository) Cleanup(ctx context.Context) error {
 	return repository.cleanup(ctx)
 }
 
+// GarbageCollect removes unused packages and old temporary files.
+func GarbageCollect(ctx context.Context, repositories *Repositories, rootTmpDir string) error {
+	err := repositories.Cleanup(ctx)
+	if err != nil {
+		return fmt.Errorf("could not cleanup packages: %w", err)
+	}
+	err = CleanupTmpDirectory(rootTmpDir)
+	if err != nil {
+		return fmt.Errorf("could not cleanup tmp directory: %w", err)
+	}
+	return nil
+}
+
 // CleanupTmpDirectory removes files and directories in rootTmpDir that are older than 24 hours.
 func CleanupTmpDirectory(rootTmpDir string) error {
 	if _, err := os.Stat(rootTmpDir); os.IsNotExist(err) {

@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/symlink"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func createTestRepository(t *testing.T, dir string, stablePackageName string, preRemoveHook PreRemoveHook) *Repository {
@@ -408,6 +409,8 @@ func TestRepairDirectoryDifferentCasing(t *testing.T) {
 }
 
 func TestCleanupTmpDirectory(t *testing.T) {
+	t.Parallel()
+
 	tmpDir := t.TempDir()
 	entries := []struct {
 		name       string
@@ -423,19 +426,20 @@ func TestCleanupTmpDirectory(t *testing.T) {
 
 	for _, entry := range entries {
 		if entry.isDir {
-			assert.NoError(t, os.MkdirAll(filepath.Join(entry.path, "subdir"), 0755))
+			require.NoError(t, os.MkdirAll(filepath.Join(entry.path, "subdir"), 0755))
 		} else {
-			assert.NoError(t, os.WriteFile(entry.path, []byte(entry.name), 0644))
+			require.NoError(t, os.WriteFile(entry.path, []byte(entry.name), 0644))
 		}
 		entryTime := time.Now().Add(entry.age)
-		assert.NoError(t, os.Chtimes(entry.path, entryTime, entryTime))
+		require.NoError(t, os.Chtimes(entry.path, entryTime, entryTime))
 	}
 
-	assert.NoError(t, CleanupTmpDirectory(tmpDir))
+	require.NoError(t, CleanupTmpDirectory(tmpDir))
 
 	for _, entry := range entries {
-		entry := entry
 		t.Run(entry.name, func(t *testing.T) {
+			t.Parallel()
+
 			if entry.wantExists {
 				assert.FileExists(t, entry.path)
 			} else if entry.isDir {
@@ -448,7 +452,9 @@ func TestCleanupTmpDirectory(t *testing.T) {
 }
 
 func TestCleanupTmpDirectoryIgnoresMissingDirectory(t *testing.T) {
-	assert.NoError(t, CleanupTmpDirectory(filepath.Join(t.TempDir(), "missing")))
+	t.Parallel()
+
+	require.NoError(t, CleanupTmpDirectory(filepath.Join(t.TempDir(), "missing")))
 }
 
 // This test is used to verify that the repository can handle external packages that are symlinked.

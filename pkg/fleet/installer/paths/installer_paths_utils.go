@@ -20,19 +20,23 @@ func EnsureInstallerDirectories() error {
 		return fmt.Errorf("could not ensure installer data directory permissions: %w", err)
 	}
 
-	err = os.MkdirAll(PackagesPath, 0755)
+	return ensureInstallerSubdirectories(PackagesPath, ConfigsPath, RootTmpDir, RunPath)
+}
+
+func ensureInstallerSubdirectories(packagesPath, configsPath, rootTmpDir, runPath string) error {
+	err := os.MkdirAll(packagesPath, 0755)
 	if err != nil {
 		return fmt.Errorf("error creating packages directory: %w", err)
 	}
-	err = os.MkdirAll(ConfigsPath, 0755)
+	err = os.MkdirAll(configsPath, 0755)
 	if err != nil {
 		return fmt.Errorf("error creating configs directory: %w", err)
 	}
-	err = os.MkdirAll(RootTmpDir, 0755)
+	err = os.MkdirAll(rootTmpDir, 0755)
 	if err != nil {
 		return fmt.Errorf("error creating tmp directory: %w", err)
 	}
-	err = os.MkdirAll(RunPath, 0755)
+	err = os.MkdirAll(runPath, 0755)
 	if err != nil {
 		return fmt.Errorf("error creating run directory: %w", err)
 	}
