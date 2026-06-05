@@ -9,7 +9,6 @@ go_library(
         "//comp/agent/jmxlogger/def",
         "//comp/core/config",
         "//comp/def",
-        "//pkg/util/defaultpaths",
         "//pkg/util/log/setup",
     ],
 )
