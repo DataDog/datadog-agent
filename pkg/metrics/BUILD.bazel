@@ -12,8 +12,6 @@ go_library(
         "histogram.go",
         "histogram_bucket.go",
         "historate.go",
-        "iterable_explicit_bucket_histograms.go",
-        "iterable_exponential_histograms.go",
         "iterable_metrics.go",
         "iterable_series.go",
         "iterable_skeches.go",
