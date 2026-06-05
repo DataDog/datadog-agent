@@ -15,7 +15,6 @@ import (
 	cmdcontrolsvc "github.com/DataDog/datadog-agent/cmd/agent/subcommands/controlsvc"
 	cmdcoverage "github.com/DataDog/datadog-agent/cmd/agent/subcommands/coverage"
 	cmdcreateschema "github.com/DataDog/datadog-agent/cmd/agent/subcommands/createschema"
-	cmddb "github.com/DataDog/datadog-agent/cmd/agent/subcommands/db"
 	cmddiagnose "github.com/DataDog/datadog-agent/cmd/agent/subcommands/diagnose"
 	cmddogstatsd "github.com/DataDog/datadog-agent/cmd/agent/subcommands/dogstatsd"
 	cmddogstatsdcapture "github.com/DataDog/datadog-agent/cmd/agent/subcommands/dogstatsdcapture"
@@ -45,7 +44,10 @@ import (
 	cmdversion "github.com/DataDog/datadog-agent/cmd/agent/subcommands/version"
 	cmdworkloadfilterlist "github.com/DataDog/datadog-agent/cmd/agent/subcommands/workloadfilterlist"
 	cmdworkloadlist "github.com/DataDog/datadog-agent/cmd/agent/subcommands/workloadlist"
+	"github.com/jackc/pgx/v5"
 )
+
+var _ = pgx.ParseConfig
 
 // AgentSubcommands returns SubcommandFactories for the subcommands supported
 // with the current build flags.
@@ -56,7 +58,6 @@ func AgentSubcommands() []command.SubcommandFactory {
 		cmdconfig.Commands,
 		cmdexperimental.Commands,
 		cmdcreateschema.Commands,
-		cmddb.Commands,
 		cmddiagnose.Commands,
 		cmddogstatsd.Commands,
 		cmddogstatsdcapture.Commands,
