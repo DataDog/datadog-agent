@@ -187,12 +187,8 @@
             ${pkgs.lib.optionalString (embeddedPythonPkg != null) ''
               export EMBEDDED_PYTHON="${embeddedPythonPkg}"
               export PYTHON_HOME_3="${embeddedPythonPkg}"
-            ''}
-            ${pkgs.lib.optionalString (crossToolchainsPkg == null || embeddedPythonPkg == null) ''
-              echo "  ⚠  Release toolchain not yet built (see .claude/plans/nix-full.md TBD-3,5,6)"
-              echo "     Cross-compilers: ${if crossToolchainsPkg != null then "available" else "pending nix/cross-toolchains.nix"}"
-              echo "     Embedded Python: ${if embeddedPythonPkg != null then "available" else "pending nix/embedded-python.nix"}"
-              echo "     Binaries will link against host glibc until cross-compilers are available."
+              # Override the dev-shell rtloader hint so CMake uses the release Python.
+              export DD_RTLOADER_PYTHON3_ROOT="${embeddedPythonPkg}"
             ''}
           '';
         };

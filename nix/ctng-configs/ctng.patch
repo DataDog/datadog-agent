@@ -1,0 +1,24 @@
+From b9b0f49fc2b4f653bb9a402809b05062c7aea9e3 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Hugo=20Beauz=C3=A9e-Luyssen?= <hugo.beauzee@datadoghq.com>
+Date: Tue, 1 Oct 2024 14:58:10 +0200
+Subject: [PATCH] add a new gnu mirror
+
+---
+ scripts/functions | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/scripts/functions b/scripts/functions
+index 94fd1e9e..8166e556 100644
+--- a/scripts/functions
++++ b/scripts/functions
+@@ -1778,6 +1778,7 @@ CT_Mirrors()
+ 
+     case "${org}" in
+     GNU)
++        echo "https://gnu.mirror.constant.com/${project}"
+         echo "https://ftpmirror.gnu.org/gnu/${project}"
+         echo "http://ftpmirror.gnu.org/gnu/${project}"
+         echo "https://ftp.gnu.org/gnu/${project}"
+-- 
+2.34.1
+
