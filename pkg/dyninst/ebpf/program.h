@@ -83,6 +83,13 @@ struct {
 
 volatile const uint32_t num_go_runtime_types = 0;
 
+// IR type id of the synthetic TraceContextType. Set at attach time by the
+// loader. Used by SM_OP_GO_CONTEXT_CHAIN_INIT to rewrite the synthetic data
+// item header's type field. If 0 (unset) when INIT runs, the data item
+// becomes unrecognizable to the decoder; the loader is required to set it
+// before attach.
+volatile const uint32_t trace_context_type_id = 0;
+
 // Swiss map hash support: addresses of runtime hash globals.
 // These are read from userspace via bpf_probe_read_user at probe time.
 volatile const uint64_t VARIABLE_runtime_dot_useAeshash = 0;

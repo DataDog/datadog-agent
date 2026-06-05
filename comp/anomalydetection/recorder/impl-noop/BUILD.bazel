@@ -1,0 +1,12 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "impl-noop",
+    srcs = ["recorder.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/impl-noop",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/anomalydetection/observer/def",
+        "//comp/anomalydetection/recorder/def",
+    ],
+)

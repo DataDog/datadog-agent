@@ -27,7 +27,26 @@ files:
         The certificate store to query from when verifying the Windows certificates.
         This check can only query from local machine certificates.
         Enter the store name as found in `HKEY_LOCAL_MACHINE\Software\Microsoft\SystemCertificates`
-      required: true
+        
+        At least one of `certificate_store` or `certificate_store_regex` (non-empty) must be set.
+        If both are set, this store is always monitored in addition to stores matched by the regex list (union).
+      required: false
+    - name: certificate_store_regex
+      fleet_configurable: true
+      value:
+        type: array
+        items:
+          type: string
+        example: ["^MY$", "^CA$"]
+      description: |
+        A list of regular expressions (Go `regexp` syntax) matched against certificate store names
+        (subkeys of `HKEY_LOCAL_MACHINE\Software\Microsoft\SystemCertificates`). Every store that
+        matches at least one pattern is monitored. Use anchors (for example `^MY$`) for an exact name.
+        
+        At least one of `certificate_store` or `certificate_store_regex` (non-empty) must be set.
+        When both are set, `certificate_store` is included together with regex matches (union, deduplicated).
+        An empty list is not allowed when `certificate_store` is omitted.
+      required: false
     - name: certificate_subjects
       fleet_configurable: true
       value:
@@ -41,7 +60,7 @@ files:
         and you have a certificate with subject,
         "CN=Microsoft Root Authority, OU=Microsoft Corporation, OU=Copyright (c) 1997 Microsoft Corp."
         then the certificate will be matched and metrics will be collected for that certificate.
-        If `certificate_subjects` is empty then all certificates in `certificate_store` are collected.
+        If `certificate_subjects` is empty then all certificates in the selected store or stores are collected.
       required: false
     - name: server
       fleet_configurable: true
@@ -95,7 +114,7 @@ files:
         example: false
         default: false
       description: |
-        Enables monitoring of expiration of all Certificate Revocation Lists (CRLs) in `certificate_store`.
+        Enables monitoring of expiration of all Certificate Revocation Lists (CRLs) in the selected store or stores.
       required: false
     - name: crl_days_warning
       fleet_configurable: true

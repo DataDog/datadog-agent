@@ -6,6 +6,7 @@
 package preprocessor
 
 import (
+	"regexp"
 	"testing"
 	"time"
 
@@ -38,6 +39,10 @@ func newSamplerWithProtect(maxPatterns int, burstSize, rateLimit float64, protec
 
 func testMsg() *message.Message {
 	return message.NewMessage([]byte("test"), nil, message.StatusInfo, 0)
+}
+
+func testMsgWith(content, status string) *message.Message {
+	return message.NewMessage([]byte(content), nil, status, 0)
 }
 
 func requireSampledCountTag(t *testing.T, msg *message.Message, want int64) {
@@ -372,6 +377,135 @@ func TestAdaptiveSampler_ProtectDisabled(t *testing.T) {
 	out1 := s.Process(testMsg(), importantTokens)
 	require.NotNil(t, out1, "first message allowed (new pattern)")
 	assert.Nil(t, s.Process(testMsg(), importantTokens), "second message should be dropped — protection disabled")
+}
+
+// --- AdaptiveSampler: include/exclude filters ---
+
+func TestAdaptiveSampler_IncludeFiltersSampleMatchingLogs(t *testing.T) {
+	tests := []struct {
+		name   string
+		filter AdaptiveSamplerFilter
+		msg    *message.Message
+		tokens []Token
+	}{
+		{
+			name:   "regex",
+			filter: AdaptiveSamplerFilter{Regex: regexp.MustCompile(`foo.*bar`)},
+			msg:    testMsgWith("foo hello bar", message.StatusDebug),
+			tokens: tokenize("foo hello bar"),
+		},
+		{
+			name:   "sample",
+			filter: AdaptiveSamplerFilter{SampleTokens: tokenize("my 123 fun log sample")},
+			msg:    testMsgWith("my 456 fun log sample", message.StatusDebug),
+			tokens: tokenize("my 456 fun log sample"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := NewAdaptiveSampler(AdaptiveSamplerConfig{
+				MaxPatterns:    10,
+				RateLimit:      0,
+				BurstSize:      1,
+				MatchThreshold: 0.9,
+				Include:        []AdaptiveSamplerFilter{tt.filter},
+			}, "test")
+			t0 := time.Now()
+			s.now = func() time.Time { return t0 }
+
+			require.NotNil(t, s.Process(tt.msg, tt.tokens))
+			assert.Nil(t, s.Process(tt.msg, tt.tokens), "matching logs should be sampled after the burst is exhausted")
+			require.Len(t, s.entries, 1)
+		})
+	}
+}
+
+func TestAdaptiveSampler_IncludeFiltersBypassNonMatchingLogs(t *testing.T) {
+	s := NewAdaptiveSampler(AdaptiveSamplerConfig{
+		MaxPatterns:    10,
+		RateLimit:      0,
+		BurstSize:      1,
+		MatchThreshold: 0.9,
+		Include:        []AdaptiveSamplerFilter{{Regex: regexp.MustCompile(`error`)}},
+	}, "test")
+	msg := testMsgWith("ordinary info log", message.StatusInfo)
+	tokens := tokenize("ordinary info log")
+
+	require.NotNil(t, s.Process(msg, tokens))
+	require.NotNil(t, s.Process(msg, tokens))
+	assert.Empty(t, s.entries, "non-included logs should bypass the sampler pattern table")
+}
+
+func TestAdaptiveSampler_EmptyConfiguredIncludeBypassesAllLogs(t *testing.T) {
+	s := NewAdaptiveSampler(AdaptiveSamplerConfig{
+		MaxPatterns:       10,
+		RateLimit:         0,
+		BurstSize:         1,
+		MatchThreshold:    0.9,
+		IncludeConfigured: true,
+	}, "test")
+	msg := testMsgWith("ordinary info log", message.StatusInfo)
+	tokens := tokenize("ordinary info log")
+
+	require.NotNil(t, s.Process(msg, tokens))
+	require.NotNil(t, s.Process(msg, tokens))
+	assert.Empty(t, s.entries, "an explicitly empty include list should not sample every log")
+}
+
+func TestAdaptiveSampler_ExcludeFiltersBypassMatchingLogs(t *testing.T) {
+	tests := []struct {
+		name   string
+		filter AdaptiveSamplerFilter
+		msg    *message.Message
+		tokens []Token
+	}{
+		{
+			name:   "regex",
+			filter: AdaptiveSamplerFilter{Regex: regexp.MustCompile(`foo.*bar`)},
+			msg:    testMsgWith("foo hello bar", message.StatusDebug),
+			tokens: tokenize("foo hello bar"),
+		},
+		{
+			name:   "sample",
+			filter: AdaptiveSamplerFilter{SampleTokens: tokenize("my 123 fun log sample")},
+			msg:    testMsgWith("my 456 fun log sample", message.StatusDebug),
+			tokens: tokenize("my 456 fun log sample"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := NewAdaptiveSampler(AdaptiveSamplerConfig{
+				MaxPatterns:    10,
+				RateLimit:      0,
+				BurstSize:      1,
+				MatchThreshold: 0.9,
+				Exclude:        []AdaptiveSamplerFilter{tt.filter},
+			}, "test")
+
+			require.NotNil(t, s.Process(tt.msg, tt.tokens))
+			require.NotNil(t, s.Process(tt.msg, tt.tokens))
+			assert.Empty(t, s.entries, "excluded logs should bypass the sampler pattern table")
+		})
+	}
+}
+
+func TestAdaptiveSampler_ExcludeTakesPrecedenceOverInclude(t *testing.T) {
+	s := NewAdaptiveSampler(AdaptiveSamplerConfig{
+		MaxPatterns:    10,
+		RateLimit:      0,
+		BurstSize:      1,
+		MatchThreshold: 0.9,
+		Include:        []AdaptiveSamplerFilter{{Regex: regexp.MustCompile(`foo.*bar`)}},
+		Exclude:        []AdaptiveSamplerFilter{{SampleTokens: tokenize("foo hello bar")}},
+	}, "test")
+	msg := testMsgWith("foo hello bar", message.StatusInfo)
+	tokens := tokenize("foo hello bar")
+
+	require.NotNil(t, s.Process(msg, tokens))
+	require.NotNil(t, s.Process(msg, tokens))
+	assert.Empty(t, s.entries, "excluded logs should bypass even when they also match include")
 }
 
 // isImportant returns false for tokens that contain no critical keywords.

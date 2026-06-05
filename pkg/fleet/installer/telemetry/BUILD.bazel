@@ -22,7 +22,10 @@ go_library(
 
 go_test(
     name = "telemetry_test",
-    srcs = ["telemetry_test.go"],
+    srcs = [
+        "cmd_wrapper_test.go",
+        "telemetry_test.go",
+    ],
     embed = [":telemetry"],
     gotags = ["test"],
     deps = [

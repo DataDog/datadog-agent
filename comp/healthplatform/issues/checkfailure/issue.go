@@ -16,7 +16,7 @@ const (
 	issueName  = "check_execution_failure"
 	category   = "check-execution"
 	location   = "collector"
-	severity   = "medium"
+	severity   = healthplatform.IssueSeverity_ISSUE_SEVERITY_MEDIUM
 	source     = "collector"
 	unknownVal = "unknown"
 	failedMsg  = "Check execution failed"
@@ -111,7 +111,6 @@ func (t *CheckFailureIssue) BuildIssue(context map[string]string) (*healthplatfo
 	}
 
 	return &healthplatform.Issue{
-		Id:          IssueID,
 		IssueName:   issueName,
 		Title:       string(title),
 		Description: string(desc),

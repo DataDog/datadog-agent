@@ -10,6 +10,7 @@ package v1
 import (
 	"context"
 	"maps"
+	"slices"
 	"sync"
 	"time"
 
@@ -49,9 +50,13 @@ type KubeMetadataStreamServer struct {
 	store *controllers.MetaBundleStore
 	wmeta workloadmeta.Component
 
-	namespacesMutex      sync.RWMutex
-	namespaces           map[string]namespaceEntry // keys are namespace names
-	namespaceSubscribers map[string]chan struct{}  // keys are node names
+	namespacesMutex sync.RWMutex
+	namespaces      map[string]namespaceEntry // keys are namespace names
+	// namespaceSubscribers holds notification channels per node name. A node
+	// can have multiple subscribers because more than one process (for example,
+	// the running agent plus "agent diagnose", "agent check", etc.) may stream
+	// metadata for the same node concurrently.
+	namespaceSubscribers map[string][]chan struct{}
 }
 
 // NewKubeMetadataStreamServer creates a new KubeMetadataStreamServer
@@ -60,7 +65,7 @@ func NewKubeMetadataStreamServer(store *controllers.MetaBundleStore, wmeta workl
 		store:                store,
 		wmeta:                wmeta,
 		namespaces:           make(map[string]namespaceEntry),
-		namespaceSubscribers: make(map[string]chan struct{}),
+		namespaceSubscribers: make(map[string][]chan struct{}),
 	}
 }
 
@@ -229,10 +234,15 @@ func (srv *KubeMetadataStreamServer) processNamespaceEvents(events []workloadmet
 }
 
 func (srv *KubeMetadataStreamServer) notifyNamespaceSubscribers() {
-	for _, ch := range srv.namespaceSubscribers {
-		select {
-		case ch <- struct{}{}:
-		default:
+	for _, channels := range srv.namespaceSubscribers {
+		for _, ch := range channels {
+			select {
+			// Non-blocking send: if a signal is already pending, we drop it.
+			// This is safe because the consumer re-reads the full state from
+			// the store on each signal.
+			case ch <- struct{}{}:
+			default:
+			}
 		}
 	}
 }
@@ -242,7 +252,12 @@ func (srv *KubeMetadataStreamServer) subscribeToNamespaceEvents(nodeName string)
 	defer srv.namespacesMutex.Unlock()
 
 	ch := make(chan struct{}, 1)
-	srv.namespaceSubscribers[nodeName] = ch
+	srv.namespaceSubscribers[nodeName] = append(srv.namespaceSubscribers[nodeName], ch)
+
+	log.Debugf("Subscribed to namespace metadata updates for node %s (subscribers=%d)",
+		nodeName,
+		len(srv.namespaceSubscribers[nodeName]))
+
 	return ch
 }
 
@@ -250,9 +265,20 @@ func (srv *KubeMetadataStreamServer) unsubscribeFromNamespaceEvents(nodeName str
 	srv.namespacesMutex.Lock()
 	defer srv.namespacesMutex.Unlock()
 
-	if srv.namespaceSubscribers[nodeName] == ch {
+	channels := srv.namespaceSubscribers[nodeName]
+	for i, c := range channels {
+		if c == ch {
+			srv.namespaceSubscribers[nodeName] = slices.Delete(channels, i, i+1)
+			break
+		}
+	}
+
+	remaining := len(srv.namespaceSubscribers[nodeName])
+	if remaining == 0 {
 		delete(srv.namespaceSubscribers, nodeName)
 	}
+
+	log.Debugf("Unsubscribed from namespace metadata updates for node %s (subscribers=%d)", nodeName, remaining)
 }
 
 func (srv *KubeMetadataStreamServer) buildNamespacesSnapshot() map[string]namespaceEntry {

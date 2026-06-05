@@ -11,6 +11,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
+	"strconv"
 
 	"go.uber.org/fx"
 
@@ -101,7 +103,8 @@ func getAutoscalerURL(config config.Component) (string, error) {
 
 	var urlstr string
 	if flavor.GetFlavor() == flavor.ClusterAgent {
-		urlstr = fmt.Sprintf("https://%v:%v/autoscaler-list", ipcAddress, config.GetInt("cluster_agent.cmd_port"))
+		addr := net.JoinHostPort(ipcAddress, strconv.Itoa(config.GetInt("cluster_agent.cmd_port")))
+		urlstr = fmt.Sprintf("https://%s/autoscaler-list", addr)
 	} else {
 		return "", errors.New("running autoscaler-list is only supported on the cluster agent")
 	}
@@ -137,7 +140,8 @@ func getLocalAutoscalingWorkloadCheck(w io.Writer, config config.Component, c ip
 	if err != nil {
 		return err
 	}
-	urlstr := fmt.Sprintf("https://%v:%v/local-autoscaling-check", ipcAddress, config.GetInt("cluster_agent.cmd_port"))
+	addr := net.JoinHostPort(ipcAddress, strconv.Itoa(config.GetInt("cluster_agent.cmd_port")))
+	urlstr := fmt.Sprintf("https://%s/local-autoscaling-check", addr)
 
 	r, err := c.Get(urlstr, ipchttp.WithLeaveConnectionOpen)
 	if err != nil {

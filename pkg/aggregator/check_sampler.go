@@ -9,6 +9,7 @@ import (
 	"math"
 	"time"
 
+	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
@@ -41,6 +42,7 @@ type CheckSampler struct {
 	contextResolverMetrics bool
 	logThrottling          util.SimpleThrottler
 	allowSketchBucketReset bool
+	observerHandle         observer.Handle
 }
 
 // newCheckSampler returns a newly initialized CheckSampler
@@ -68,8 +70,16 @@ func newCheckSampler(
 	}
 }
 
+// SetObserverHandle sets the observer handle for mirroring check samples.
+func (cs *CheckSampler) SetObserverHandle(h observer.Handle) {
+	cs.observerHandle = h
+}
+
 func (cs *CheckSampler) addSample(metricSample *metrics.MetricSample, tagFilterList filterlist.TagMatcher) {
 	contextKey := cs.contextResolver.trackContext(metricSample, tagFilterList)
+	if cs.observerHandle != nil {
+		cs.observerHandle.ObserveMetric(metricSample)
+	}
 	if metricSample.Mtype == metrics.DistributionType {
 		cs.sketchMap.insert(int64(metricSample.Timestamp), contextKey, metricSample.Value, metricSample.SampleRate)
 		return

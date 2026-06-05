@@ -1,0 +1,16 @@
+{
+  "type": "ne",
+  "operation": "",
+  "left": {
+    "type": "ref",
+    "ref": "p",
+    "operation": "",
+    "error": ""
+  },
+  "right": {
+    "type": "literal",
+    "operation": "",
+    "error": ""
+  },
+  "error": ""
+}

@@ -1,0 +1,15 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "hostport",
+    srcs = ["hostport.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/hostport",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "hostport_test",
+    srcs = ["hostport_test.go"],
+    embed = [":hostport"],
+    gotags = ["test"],
+)

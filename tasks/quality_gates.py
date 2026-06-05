@@ -1,6 +1,5 @@
 import os
 import traceback
-import typing
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -17,10 +16,8 @@ from tasks.libs.common.git import (
 )
 from tasks.libs.package.size import InfraError
 from tasks.static_quality_gates.decisions import (
-    PER_PR_THRESHOLD,
-    ExceptionApprovalChecker,
-    identify_gates_exceeding_pr_threshold,
-    should_bypass_failure,
+    GateVerdict,
+    evaluate_gates,
 )
 from tasks.static_quality_gates.experimental_gates import (
     measure_image_local as _measure_image_local,
@@ -29,7 +26,9 @@ from tasks.static_quality_gates.experimental_gates import (
     measure_package_local as _measure_package_local,
 )
 from tasks.static_quality_gates.gates import (
+    GateExecutionError,
     GateMetricHandler,
+    GateResult,
     QualityGateFactory,
     StaticQualityGate,
     byte_to_string,
@@ -53,69 +52,27 @@ from tasks.static_quality_gates.thresholds import (
 )
 
 
-def _print_quality_gates_report(gate_states: list[dict[str, typing.Any]]):
+def _print_quality_gates_report(verdicts: list[GateVerdict]):
     print(color_message("======== Static Quality Gates Report ========", "magenta"))
-    for gate in sorted(gate_states, key=lambda x: x["error_type"] is not None):
-        if gate["error_type"] is None:
-            print(color_message(f"Gate {gate['name']} succeeded {SUCCESS_CHAR}", "blue"))
-        elif gate["error_type"] == "AssertionError":
-            print(
-                color_message(
-                    f"Gate {gate['name']} failed {FAIL_CHAR} because of the following assertion failures :\n{gate['message']}",
-                    "orange",
-                )
-            )
+    for verdict in sorted(verdicts, key=lambda v: v.failure is not None):
+        if verdict.failure is None:
+            print(color_message(f"Gate {verdict.name} succeeded {SUCCESS_CHAR}", "blue"))
         else:
             print(
                 color_message(
-                    f"Gate {gate['name']} failed {FAIL_CHAR} with the following stack trace :\n{gate['message']}",
+                    f"Gate {verdict.name} failed {FAIL_CHAR} with the following message:\n{verdict.message}",
                     "orange",
                 )
             )
 
 
-def _run_gate(ctx, gate: StaticQualityGate):
+def _run_gate(ctx, gate: StaticQualityGate) -> GateResult | GateExecutionError:
     try:
-        result = gate.execute_gate(ctx)
-        error_message = None
-        error_type = None
-        if not result.success:
-            violation_messages = []
-            for violation in result.violations:
-                current_mb = violation.current_size / (1024 * 1024)
-                max_mb = violation.max_size / (1024 * 1024)
-                excess_mb = violation.excess_bytes / (1024 * 1024)
-                if excess_mb < 1:
-                    excess_kb = violation.excess_bytes / 1024
-                    excess_str = f"{excess_kb:.1f} KB"
-                else:
-                    excess_str = f"{excess_mb:.1f} MB"
-                violation_messages.append(
-                    f"{violation.measurement_type.title()} size {current_mb:.1f} MB "
-                    f"exceeds limit of {max_mb:.1f} MB by {excess_str}"
-                )
-            error_message = f"{gate.config.gate_name} failed!\n" + "\n".join(violation_messages)
-            error_type = "StaticQualityGateFailed"
-            print(color_message(error_message, "red"))
-        return {
-            "name": result.config.gate_name,
-            "state": result.success,
-            "error_type": error_type,
-            "message": error_message,
-            "result": result,
-            "blocking": not result.success,
-        }
-    # re-raise the InfraError as is, don't swallow it as Exception
+        return gate.execute_gate(ctx)
     except InfraError:
         raise
     except Exception:
-        return {
-            "name": gate.config.gate_name,
-            "state": False,
-            "error_type": "StackTrace",
-            "message": traceback.format_exc(),
-            "blocking": True,  # StackTrace errors are always blocking
-        }
+        return GateExecutionError(name=gate.config.gate_name, traceback=traceback.format_exc())
 
 
 @task
@@ -126,8 +83,6 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
     :param config_path: Static quality gates configuration file path
     :return: List of quality gates
     """
-    final_state = "success"
-    gate_states = []
     metric_handler = GateMetricHandler(
         git_ref=os.environ["CI_COMMIT_REF_SLUG"], bucket_branch=os.environ["BUCKET_BRANCH"]
     )
@@ -170,7 +125,7 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
                     print(color_message(f"PR author: {pr_author}", "cyan"))
 
     # Run all gates in parallel (I/O-bound: pulling images, measuring packages)
-    gate_results: dict[StaticQualityGate, dict] = {}
+    gate_results: dict[StaticQualityGate, GateResult | GateExecutionError] = {}
     executor = ThreadPoolExecutor()
     future_to_gate = {executor.submit(_run_gate, ctx, gate): gate for gate in gate_list}
     try:
@@ -187,14 +142,12 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
         raise Exit(code=42) from e
     executor.shutdown(wait=False)
 
-    # Process results in original gate order
+    # Register measurement values with the metrics handler
     for gate in gate_list:
-        gate_result = gate_results[gate]
-        gate_states.append(gate_result)
-        if 'blocking' in gate_result and gate_result['blocking']:
-            final_state = "failure"
-        result = gate_result.get('result')
-        # Build tags dict - only include pr_number and pr_author if we have a PR
+        outcome = gate_results[gate]
+        if isinstance(outcome, GateExecutionError):
+            continue
+
         gate_tags = {
             "gate_name": gate.config.gate_name,
             "arch": gate.config.arch,
@@ -208,102 +161,53 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
         if pr_author:
             gate_tags["pr_author"] = pr_author
 
+        # Only register current sizes if gate executed successfully and we have a result
         metric_handler.register_gate_tags(gate.config.gate_name, **gate_tags)
         metric_handler.register_metric(gate.config.gate_name, "max_on_wire_size", gate.config.max_on_wire_size)
         metric_handler.register_metric(gate.config.gate_name, "max_on_disk_size", gate.config.max_on_disk_size)
-
-        # Only register current sizes if gate executed successfully and we have a result
-        if result is not None:
-            metric_handler.register_metric(
-                gate.config.gate_name, "current_on_wire_size", result.measurement.on_wire_size
-            )
-            metric_handler.register_metric(
-                gate.config.gate_name, "current_on_disk_size", result.measurement.on_disk_size
-            )
+        metric_handler.register_metric(gate.config.gate_name, "current_on_wire_size", outcome.measurement.on_wire_size)
+        metric_handler.register_metric(gate.config.gate_name, "current_on_disk_size", outcome.measurement.on_disk_size)
 
     # Calculate relative sizes (delta from ancestor) before sending metrics
     # This is done for all branches to include delta metrics in Datadog
     # Use get_ancestor_base_branch to correctly handle PRs targeting release branches
     ancestor = get_ancestor(ctx, branch)
+    metric_handler.generate_relative_size(ancestor=ancestor)
+    metric_handler.send_metrics_to_datadog()
     current_commit = get_commit_sha(ctx)
     is_on_main_branch = ancestor == current_commit
     is_merge_queue = branch.startswith("mq-working-branch-")
-    metric_handler.generate_relative_size(ancestor=ancestor)
 
-    # Post-process gate failures: mark as non-blocking if delta <= 0
-    # This tolerance only applies to PRs - on main branch, failures should always block unconditionally
-    # This means on PRs, the size issue existed before this PR and wasn't introduced by current changes
-    exception_checker = ExceptionApprovalChecker(pr)
+    # Take a decision on gate results based on measurements
+    evaluation = evaluate_gates(
+        gate_list,
+        gate_results,
+        metric_handler,
+        is_on_main_branch=is_on_main_branch,
+        is_merge_queue=is_merge_queue,
+        pr=pr,
+    )
 
-    if not is_on_main_branch:
-        for gate_state in gate_states:
-            if gate_state["state"] is False and gate_state.get("blocking", True):
-                # Only StaticQualityGateFailed errors are eligible for bypass (not StackTrace errors)
-                if gate_state["error_type"] == "StaticQualityGateFailed":
-                    if should_bypass_failure(gate_state["name"], metric_handler):
-                        gate_state["blocking"] = False
-                        print(
-                            color_message(
-                                f"Gate {gate_state['name']} failure is non-blocking (size unchanged from ancestor)",
-                                "orange",
-                            )
-                        )
-
-        # Check per-PR threshold: if any gate increased by more than PER_PR_THRESHOLD, mark it as failing
-        # Skip for merge queue jobs: the MQ working branch is an ephemeral merge preview, not a PR
-        if not is_merge_queue:
-            per_pr_exceeding = identify_gates_exceeding_pr_threshold(metric_handler)
-            if per_pr_exceeding:
-                threshold_str = byte_to_string(PER_PR_THRESHOLD)
-                print(
-                    color_message(
-                        f"Per-PR threshold ({threshold_str}) exceeded by: {', '.join(per_pr_exceeding)}",
-                        "red",
-                    )
-                )
-                for gate_state in gate_states:
-                    if gate_state["name"] in per_pr_exceeding and gate_state["state"] is True:
-                        delta = metric_handler.metrics.get(gate_state["name"], {}).get("relative_on_disk_size", 0)
-                        gate_state["state"] = False
-                        gate_state["error_type"] = "PerPRThresholdExceeded"
-                        gate_state["message"] = (
-                            f"On-disk size increase of {byte_to_string(delta)} exceeds the per-PR threshold of {threshold_str}"
-                        )
-                        gate_state["blocking"] = exception_checker.get() is None
-
-    # Recompute final_state now that all post-processing is done (bypass logic and per-PR threshold
-    # can both change gate states after the initial gate execution loop).
-    if any(gs["state"] is False for gs in gate_states):
-        final_state = "failure"
+    # Compute final_state now that all post-processing is done.
+    final_state = "failure" if any(v.failure is not None for v in evaluation.verdicts) else "success"
     ctx.run(f"datadog-ci tag --level job --tags static_quality_gates:\"{final_state}\"")
 
-    # Reporting part
-    # Send metrics to Datadog (now includes delta metrics)
-    # and then print the summary table in the job's log
-    metric_handler.send_metrics_to_datadog()
-
     # Print summary table directly with composition-based gates and metric handler
-    QualityGateOutputFormatter.print_summary_table(gate_list, gate_states, metric_handler)
+    QualityGateOutputFormatter.print_summary_table(gate_list, evaluation.verdicts, metric_handler)
 
-    # Then print the traditional report for any failures
-    if final_state != "success":
-        _print_quality_gates_report(gate_states)
+    # Then print the traditional report for any failures (blocking or non-blocking)
+    if any(v.failure is not None for v in evaluation.verdicts):
+        _print_quality_gates_report(evaluation.verdicts)
 
     # We don't need a PR notification nor gate failures on release branches
     if not is_a_release_branch(ctx, branch):
-        # Determine if there are blocking failures (non-blocking failures have delta=0)
-        has_blocking_failures = any(gs["state"] is False and gs.get("blocking", True) for gs in gate_states)
-
         # Reuse cached PR lookup from earlier
         if pr:
-            # Pass True for final_state if there are no blocking failures
-            display_pr_comment(
-                ctx, not has_blocking_failures, gate_states, metric_handler, ancestor, pr, exception_checker.get()
-            )
+            display_pr_comment(ctx, evaluation, metric_handler, ancestor, pr)
 
         # Nightly pipelines have different package size and gates thresholds are unreliable for nightly pipelines
         # Only fail for blocking failures (non-blocking failures have delta=0 and don't block the PR)
-        if has_blocking_failures and not nightly_run:
+        if evaluation.has_blocking_failures and not nightly_run:
             metric_handler.generate_metric_reports(ctx, branch=branch, is_nightly=nightly_run)
             raise Exit(code=1)
     # We are generating our metric reports at the end to include relative size metrics

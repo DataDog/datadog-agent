@@ -29,12 +29,10 @@ build do
         # TODO: flavor can be defaulted and set from the bazel wrapper based on the environment.
         command_on_repo_root "bazelisk run --//:install_dir=#{install_dir} --//packages/agent:flavor=#{flavor_arg} -- //packages/install_dir:install"
 
-	if linux_target?
-	    if heroku_target?
-               command_on_repo_root "bazelisk run --//:install_dir=#{install_dir} -- //packages/agent/heroku:license_files_install --destdir=#{install_dir}"
-            else
-               command_on_repo_root "bazelisk run --//:install_dir=#{install_dir} -- //packages/agent/linux:license_files_install --destdir=#{install_dir}"
-            end
+        if linux_target?
+            command_on_repo_root "bazelisk run --//:install_dir=#{install_dir} --//packages/agent:flavor=#{flavor_arg} -- //packages/agent/linux:license_files_install --destdir=#{install_dir}"
+        elsif osx_target?
+            command_on_repo_root "bazelisk run --//:install_dir=#{install_dir} --//packages/agent:flavor=#{flavor_arg} -- //packages/agent/dependencies:license_files_install --destdir=#{install_dir}"
         end
 
         # Conf files

@@ -3,7 +3,6 @@
 load("@@//bazel/rules:dd_agent_expand_template.bzl", "dd_agent_expand_template")
 load("@@//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
 load("@@//bazel/rules/dd_packaging:dd_collect_dependencies.bzl", "dd_collect_dependencies")
-load("@@//bazel/rules/rewrite_rpath:rewrite_rpath.bzl", "rewrite_rpath")
 load("@@//compliance/rules:purl.bzl", "purl_for_generic")
 load("@@//compliance/rules:ship_source_offer.bzl", "ship_source_offer")
 load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
@@ -482,6 +481,10 @@ cc_library(
         "-O2",
     ],
     deps = [
+        # libxml2 is needed only for the <libxml/xmlerror.h> header pulled in by
+        # common/_error.h. The xmlError type is referenced as a pointer parameter
+        # but no libxml2 function is actually called, so nothing from libxml2
+        # gets linked into libopenscap_sce.so.
         "@libxml2//:libxml2",
     ],
     local_defines = COMMON_DEFINES,
@@ -622,19 +625,6 @@ cc_binary(
     local_defines = COMMON_DEFINES,
 )
 
-rewrite_rpath(
-    name = "bin_files_patched",
-    inputs = [":oscap", ":oscap-io"],
-    package_metadata = [],
-)
-
-pkg_files(
-    name = "bin_files",
-    srcs = [":bin_files_patched"],
-    prefix = "bin/",
-    attributes = pkg_attributes("0755"),
-)
-
 pkg_files(
     name = "xccdf-resources",
     srcs = glob(["xsl/*.xsl", "xsl/*.xml"]),
@@ -652,6 +642,14 @@ pkg_files(
 dd_cc_packaged(
     name = "openscap_pkg",
     input = ":openscap",
+    installed_executables = {
+        ":oscap": "bin",
+        ":oscap-io": "bin",
+    },
+    installed_files = [
+        ":xccdf-resources",
+        ":cpe_files",
+    ],
     version = "33.1.2",
     visibility = ["//visibility:public"],
 )
@@ -675,9 +673,6 @@ dd_collect_dependencies(
 pkg_filegroup(
     name = "all_files",
     srcs = [
-        ":bin_files",
-        ":xccdf-resources",
-        ":cpe_files",
         ":_dep_libs",
     ],
     prefix = "embedded",

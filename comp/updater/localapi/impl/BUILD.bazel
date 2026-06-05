@@ -11,6 +11,6 @@ go_library(
         "//comp/def",
         "//comp/updater/localapi/def",
         "//comp/updater/updater/def",
-        "@//pkg/fleet/daemon",
+        "//pkg/fleet/daemon",
     ],
 )

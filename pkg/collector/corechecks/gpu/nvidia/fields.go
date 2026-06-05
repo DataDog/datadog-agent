@@ -8,38 +8,25 @@
 package nvidia
 
 import (
+	"errors"
 	"fmt"
-	"math"
 	"slices"
-	"time"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
-	"github.com/hashicorp/go-multierror"
 
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const computeRate = true
-
-type lastPoint struct {
-	value     float64
-	timestamp time.Time
-}
-
 type fieldsCollector struct {
 	device       ddnvml.Device
 	fieldMetrics []fieldValueMetric
-	lastPoints   map[string]lastPoint
-	now          func() time.Time
 }
 
 func newFieldsCollector(device ddnvml.Device, _ *CollectorDependencies) (Collector, error) {
 	c := &fieldsCollector{
-		device:     device,
-		lastPoints: make(map[string]lastPoint),
-		now:        time.Now,
+		device: device,
 	}
 	c.fieldMetrics = append(c.fieldMetrics, allFieldMetrics...) // copy all metrics to avoid modifying the original slice
 
@@ -118,62 +105,36 @@ func (c *fieldsCollector) getFieldValues() ([]nvml.FieldValue, error) {
 }
 
 // Collect collects all the metrics from the given NVML device.
-func (c *fieldsCollector) Collect() ([]Metric, error) {
-	now := c.now()
+func (c *fieldsCollector) Collect() ([]*Metric, error) {
 	fields, err := c.getFieldValues()
 	if err != nil {
 		return nil, err
 	}
 
 	metrics := make([]Metric, 0, len(c.fieldMetrics))
+	var errs []error
 	for i, val := range fields {
 		name := c.fieldMetrics[i].name
 		if val.NvmlReturn != uint32(nvml.SUCCESS) {
-			err = multierror.Append(err, fmt.Errorf("failed to get field value %s: %s", name, nvml.ErrorString(nvml.Return(val.NvmlReturn))))
+			errs = append(errs, fmt.Errorf("failed to get field value %s: %s", name, nvml.ErrorString(nvml.Return(val.NvmlReturn))))
 			continue
 		}
 
 		value, convErr := fieldValueToNumber[float64](nvml.ValueType(val.ValueType), val.Value)
 		if convErr != nil {
-			err = multierror.Append(err, fmt.Errorf("failed to convert field value %s: %w", name, convErr))
-		}
-
-		if c.fieldMetrics[i].computeRate {
-			currPoint := lastPoint{
-				value:     value,
-				timestamp: now,
-			}
-
-			lastPoint, ok := c.lastPoints[name]
-			c.lastPoints[name] = currPoint
-			if !ok {
-				// Compute rate only when we have a previous point
-				continue
-			}
-
-			delta := currPoint.value - lastPoint.value
-			seconds := now.Sub(lastPoint.timestamp).Seconds()
-			if seconds <= 0 {
-				continue
-			}
-
-			if delta < 0 {
-				delta = 0
-			}
-
-			rate := float64(delta) / float64(seconds)
-			value = rate
+			errs = append(errs, fmt.Errorf("failed to convert field value %s: %w", name, convErr))
 		}
 
 		metrics = append(metrics, Metric{
-			Name:     name,
-			Value:    value,
-			Type:     c.fieldMetrics[i].metricType,
-			Priority: c.fieldMetrics[i].priority,
+			Name:                name,
+			Value:               value,
+			Type:                c.fieldMetrics[i].metricType,
+			Priority:            c.fieldMetrics[i].priority,
+			RateCalculationMode: c.fieldMetrics[i].rateCalculationMode,
 		})
 	}
 
-	return metrics, err
+	return metricValuesToPointers(metrics), errors.Join(errs...)
 }
 
 // Name returns the name of the collector.
@@ -197,7 +158,7 @@ type fieldValueMetric struct {
 	// so collector initialization can treat INVALID_ARGUMENT as unsupported.
 	markUnsupportedOnInvalidArgument bool
 	metricType                       metrics.MetricType
-	computeRate                      bool
+	rateCalculationMode              RateCalculationMode
 	priority                         MetricPriority
 }
 
@@ -214,48 +175,11 @@ var allFieldMetrics = []fieldValueMetric{
 	{name: "pci.replay_counter", fieldValueID: nvml.FI_DEV_PCIE_REPLAY_COUNTER, metricType: metrics.GaugeType},
 	{name: "slowdown_temperature", fieldValueID: nvml.FI_DEV_PERF_POLICY_THERMAL, metricType: metrics.GaugeType},
 
-	// -- NVLink throughput --
-	// Despite NVIDIA calling these "throughput", they report cumulative bytes transferred,
-	// so we compute the rate ourselves.
-	// scopeId=MaxUint32 aggregates across all links (see nvml.h L2175-L2177).
-	{name: "nvlink.throughput.data.rx", fieldValueID: nvml.FI_DEV_NVLINK_THROUGHPUT_DATA_RX, scopeID: math.MaxUint32, metricType: metrics.GaugeType, computeRate: computeRate},
-	{name: "nvlink.throughput.data.tx", fieldValueID: nvml.FI_DEV_NVLINK_THROUGHPUT_DATA_TX, scopeID: math.MaxUint32, metricType: metrics.GaugeType, computeRate: computeRate},
-	{name: "nvlink.throughput.raw.rx", fieldValueID: nvml.FI_DEV_NVLINK_THROUGHPUT_RAW_RX, scopeID: math.MaxUint32, metricType: metrics.GaugeType, computeRate: computeRate},
-	{name: "nvlink.throughput.raw.tx", fieldValueID: nvml.FI_DEV_NVLINK_THROUGHPUT_RAW_TX, scopeID: math.MaxUint32, metricType: metrics.GaugeType, computeRate: computeRate},
-
-	// -- NVLink speed --
-	// MediumLow: newer field (164), uses scopeId=0 for link 0 speed. As we do not report per-link speeds, we assume all links are at the same speed.
-	// Low (default): legacy SPEED_MBPS_COMMON (90), returns common speed across all active links.
-	{name: "nvlink.speed", fieldValueID: nvml.FI_DEV_NVLINK_GET_SPEED, priority: MediumLow, metricType: metrics.GaugeType},
-	{name: "nvlink.speed", fieldValueID: nvml.FI_DEV_NVLINK_SPEED_MBPS_COMMON, metricType: metrics.GaugeType},
-
-	// -- NVLink connection info --
-	{name: "nvlink.nvswitch_connected", fieldValueID: nvml.FI_DEV_NVSWITCH_CONNECTED_LINK_COUNT, metricType: metrics.GaugeType},
-
-	// -- NVLink error counters --
-	{name: "nvlink.errors.crc.data", fieldValueID: nvml.FI_DEV_NVLINK_CRC_DATA_ERROR_COUNT_TOTAL, metricType: metrics.GaugeType},
-	{name: "nvlink.errors.crc.flit", fieldValueID: nvml.FI_DEV_NVLINK_CRC_FLIT_ERROR_COUNT_TOTAL, metricType: metrics.GaugeType},
-	{name: "nvlink.errors.ecc", fieldValueID: nvml.FI_DEV_NVLINK_ECC_DATA_ERROR_COUNT_TOTAL, metricType: metrics.GaugeType},
-	{name: "nvlink.errors.recovery", fieldValueID: nvml.FI_DEV_NVLINK_RECOVERY_ERROR_COUNT_TOTAL, metricType: metrics.GaugeType},
-	{name: "nvlink.errors.replay", fieldValueID: nvml.FI_DEV_NVLINK_REPLAY_ERROR_COUNT_TOTAL, metricType: metrics.GaugeType},
-	{name: "nvlink.rx.packets", fieldValueID: nvml.FI_DEV_NVLINK_COUNT_RCV_PACKETS, metricType: metrics.GaugeType},
-	{name: "nvlink.tx.packets", fieldValueID: nvml.FI_DEV_NVLINK_COUNT_XMIT_PACKETS, metricType: metrics.GaugeType},
-	{name: "nvlink.tx.discards", fieldValueID: nvml.FI_DEV_NVLINK_COUNT_XMIT_DISCARDS, metricType: metrics.GaugeType},
-	{name: "nvlink.errors.malformed.packet", fieldValueID: nvml.FI_DEV_NVLINK_COUNT_MALFORMED_PACKET_ERRORS, metricType: metrics.GaugeType},
-	{name: "nvlink.errors.buffer.overrun", fieldValueID: nvml.FI_DEV_NVLINK_COUNT_BUFFER_OVERRUN_ERRORS, metricType: metrics.GaugeType},
-	{name: "nvlink.errors.rx", fieldValueID: nvml.FI_DEV_NVLINK_COUNT_RCV_ERRORS, metricType: metrics.GaugeType},
-	{name: "nvlink.errors.rx.remote", fieldValueID: nvml.FI_DEV_NVLINK_COUNT_RCV_REMOTE_ERRORS, metricType: metrics.GaugeType},
-	{name: "nvlink.errors.rx.general", fieldValueID: nvml.FI_DEV_NVLINK_COUNT_RCV_GENERAL_ERRORS, metricType: metrics.GaugeType},
-	{name: "nvlink.errors.local.link.integrity", fieldValueID: nvml.FI_DEV_NVLINK_COUNT_LOCAL_LINK_INTEGRITY_ERRORS, metricType: metrics.GaugeType},
-	{name: "nvlink.recovery.events.successful", fieldValueID: nvml.FI_DEV_NVLINK_COUNT_LINK_RECOVERY_SUCCESSFUL_EVENTS, metricType: metrics.GaugeType},
-	{name: "nvlink.recovery.events.failed", fieldValueID: nvml.FI_DEV_NVLINK_COUNT_LINK_RECOVERY_FAILED_EVENTS, metricType: metrics.GaugeType},
-	{name: "nvlink.errors.effective", fieldValueID: nvml.FI_DEV_NVLINK_COUNT_EFFECTIVE_ERRORS, metricType: metrics.GaugeType},
-	{name: "nvlink.ber.effective", fieldValueID: nvml.FI_DEV_NVLINK_COUNT_EFFECTIVE_BER, metricType: metrics.GaugeType},
-	{name: "nvlink.errors.symbol", fieldValueID: nvml.FI_DEV_NVLINK_COUNT_SYMBOL_ERRORS, metricType: metrics.GaugeType},
-	{name: "nvlink.ber.symbol", fieldValueID: nvml.FI_DEV_NVLINK_COUNT_SYMBOL_BER, metricType: metrics.GaugeType},
-
 	// -- C2C link error counters --
 	{name: "c2c.errors.interrupt", fieldValueID: nvml.FI_DEV_C2C_LINK_ERROR_INTR, markUnsupportedOnInvalidArgument: true, metricType: metrics.GaugeType},
 	{name: "c2c.errors.replay", fieldValueID: nvml.FI_DEV_C2C_LINK_ERROR_REPLAY, markUnsupportedOnInvalidArgument: true, metricType: metrics.GaugeType},
 	{name: "c2c.errors.replay.b2b", fieldValueID: nvml.FI_DEV_C2C_LINK_ERROR_REPLAY_B2B, markUnsupportedOnInvalidArgument: true, metricType: metrics.GaugeType},
+
+	// -- NVSwitch connection --
+	{name: "nvlink.nvswitch_connected", fieldValueID: nvml.FI_DEV_NVSWITCH_CONNECTED_LINK_COUNT, metricType: metrics.GaugeType},
 }

@@ -5,7 +5,7 @@ from invoke.context import Context
 
 def extract_deb(ctx: Context, deb_path: str, extract_path: str):
     os.makedirs(extract_path)
-    ctx.run(f"tar xf {deb_path} -C {extract_path}")
+    ctx.run(f"ar x {deb_path} --output {extract_path}")
     with ctx.cd(extract_path):
         ctx.run("tar xf data.tar.xz")
         ctx.run("rm data.tar.xz")

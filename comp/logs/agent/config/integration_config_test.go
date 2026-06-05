@@ -90,7 +90,7 @@ func TestAutoMultilineEnabled(t *testing.T) {
 }
 
 func TestExperimentalAdaptiveSamplingOptionsDecode(t *testing.T) {
-	cfg := decode(`{"experimental_adaptive_sampling":{"enabled":true,"max_patterns":42,"rate_limit":2.5,"burst_size":17.5,"match_threshold":0.75,"tokenizer_max_input_bytes":512,"protect_important_logs":false}}`)
+	cfg := decode(`{"experimental_adaptive_sampling":{"enabled":true,"max_patterns":42,"rate_limit":2.5,"burst_size":17.5,"match_threshold":0.75,"tokenizer_max_input_bytes":512,"protect_important_logs":false,"include":[{"regex":"foo.*bar"},{"sample":"my 123 fun log sample"}],"exclude":[{"regex":"baz.*qux"},{"sample":"my 456 bad log sample"}]}}`)
 	require.NotNil(t, cfg.ExperimentalAdaptiveSampling)
 	require.NotNil(t, cfg.ExperimentalAdaptiveSampling.Enabled)
 	assert.True(t, *cfg.ExperimentalAdaptiveSampling.Enabled)
@@ -106,6 +106,12 @@ func TestExperimentalAdaptiveSamplingOptionsDecode(t *testing.T) {
 	assert.Equal(t, 512, *cfg.ExperimentalAdaptiveSampling.TokenizerMaxInputBytes)
 	require.NotNil(t, cfg.ExperimentalAdaptiveSampling.ProtectImportantLogs)
 	assert.False(t, *cfg.ExperimentalAdaptiveSampling.ProtectImportantLogs)
+	require.Len(t, cfg.ExperimentalAdaptiveSampling.Include, 2)
+	assert.Equal(t, "foo.*bar", cfg.ExperimentalAdaptiveSampling.Include[0].Regex)
+	assert.Equal(t, "my 123 fun log sample", cfg.ExperimentalAdaptiveSampling.Include[1].Sample)
+	require.Len(t, cfg.ExperimentalAdaptiveSampling.Exclude, 2)
+	assert.Equal(t, "baz.*qux", cfg.ExperimentalAdaptiveSampling.Exclude[0].Regex)
+	assert.Equal(t, "my 456 bad log sample", cfg.ExperimentalAdaptiveSampling.Exclude[1].Sample)
 }
 
 func TestAutoMultiLineStatus(t *testing.T) {
@@ -502,6 +508,30 @@ func TestValidateWildcardWithBeginningMode(t *testing.T) {
 		err := config.Validate()
 		assert.Nil(t, err, "Wildcard path %s with tailing mode %s should be valid", config.Path, config.TailingMode)
 	}
+}
+
+func TestValidateSyslogFormatWithEncoding(t *testing.T) {
+	t.Run("syslog format with non-UTF8 encoding warns but passes", func(t *testing.T) {
+		cfg := &LogsConfig{
+			Type:     FileType,
+			Path:     "/var/log/syslog",
+			Source:   "mysource",
+			Format:   SyslogFormat,
+			Encoding: UTF16LE,
+		}
+		err := cfg.Validate()
+		assert.Nil(t, err)
+	})
+
+	t.Run("syslog format without encoding passes", func(t *testing.T) {
+		cfg := &LogsConfig{
+			Type:   FileType,
+			Path:   "/var/log/syslog",
+			Format: SyslogFormat,
+		}
+		err := cfg.Validate()
+		assert.Nil(t, err)
+	})
 }
 
 func TestValidateIPFilter(t *testing.T) {

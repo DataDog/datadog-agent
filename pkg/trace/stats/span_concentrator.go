@@ -55,9 +55,10 @@ func matchingPeerTags(meta map[string]string, peerTagKeys []string) []string {
 	if len(peerTagKeys) == 0 {
 		return nil
 	}
+	reg := semantics.DefaultRegistry()
 	a := semantics.NewStringMapAccessor(meta)
-	spanKind := semantics.LookupString(ddRegistry, a, semantics.ConceptSpanKind)
-	baseService := semantics.LookupString(ddRegistry, a, semantics.ConceptDDBaseService)
+	spanKind := semantics.LookupString(reg, a, semantics.ConceptSpanKind)
+	baseService := semantics.LookupString(reg, a, semantics.ConceptDDBaseService)
 	var pt []string
 	for _, t := range peerTagKeysToAggregateForSpan(spanKind, baseService, peerTagKeys) {
 		if v, ok := meta[t]; ok && v != "" {
@@ -73,7 +74,7 @@ func matchingPeerTagsV1(s *idx.InternalSpan, peerTagKeys []string) []string {
 		return nil
 	}
 	a := semantics.NewDDSpanAccessorV1(s)
-	baseService := semantics.LookupString(ddRegistry, a, semantics.ConceptDDBaseService)
+	baseService := semantics.LookupString(semantics.DefaultRegistry(), a, semantics.ConceptDDBaseService)
 	var pt []string
 	for _, t := range peerTagKeysToAggregateForSpan(s.SpanKind(), baseService, peerTagKeys) {
 		if v, ok := s.GetAttributeAsString(t); ok && v != "" {
@@ -212,7 +213,7 @@ func (sc *SpanConcentrator) NewStatSpanWithConfig(config StatSpanConfig) (statSp
 		config.Metrics = make(map[string]float64)
 	}
 	a := semantics.NewDDSpanAccessor(config.Meta, config.Metrics)
-	spanKind := semantics.LookupString(ddRegistry, a, semantics.ConceptSpanKind)
+	spanKind := semantics.LookupString(semantics.DefaultRegistry(), a, semantics.ConceptSpanKind)
 	eligibleSpanKind := sc.computeStatsBySpanKind && computeStatsForSpanKind(spanKind)
 	isTopLevel := traceutil.HasTopLevelMetrics(config.Metrics)
 	if !(isTopLevel || traceutil.IsMeasuredMetrics(config.Metrics) || eligibleSpanKind) {

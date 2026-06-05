@@ -12,7 +12,50 @@ import (
 	"github.com/stretchr/testify/require"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
+
+func TestDiscoverComponentsFromConfigForHTTPSD(t *testing.T) {
+	configmock.SetDefaultConfigType(t, "yaml")
+	flavor.SetTestFlavor(t, flavor.ClusterAgent)
+
+	t.Run("legacy single url triggers provider", func(t *testing.T) {
+		configmock.NewFromYAML(t, `
+prometheus_http_sd:
+  url: http://legacy/sd
+  check_template: '{"name":"openmetrics","init_config":{},"instances":[{}]}'
+`)
+		providers, _ := DiscoverComponentsFromConfig()
+		require.True(t, containsProvider(providers, "prometheus_http_sd"))
+	})
+
+	t.Run("configs list triggers provider", func(t *testing.T) {
+		configmock.NewFromYAML(t, `
+prometheus_http_sd:
+  configs:
+    - url: http://a/sd
+      check_template: '{"name":"openmetrics","init_config":{},"instances":[{}]}'
+`)
+		providers, _ := DiscoverComponentsFromConfig()
+		require.True(t, containsProvider(providers, "prometheus_http_sd"))
+	})
+
+	t.Run("no http_sd config means no provider", func(t *testing.T) {
+		configmock.NewFromYAML(t, ``)
+		providers, _ := DiscoverComponentsFromConfig()
+		require.False(t, containsProvider(providers, "prometheus_http_sd"))
+	})
+}
+
+func containsProvider(providers []pkgconfigsetup.ConfigurationProviders, name string) bool {
+	for _, p := range providers {
+		if p.Name == name {
+			return true
+		}
+	}
+	return false
+}
 
 func TestDiscoverComponentsFromConfigForSnmp(t *testing.T) {
 	configmock.SetDefaultConfigType(t, "yaml")

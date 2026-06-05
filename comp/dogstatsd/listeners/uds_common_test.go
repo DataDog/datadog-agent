@@ -47,7 +47,7 @@ func testSocketPath(t *testing.T) string {
 }
 
 func newPacketPoolManagerUDS(cfg config.Component, packetsTelemetryStore *packets.TelemetryStore) *packets.PoolManager[packets.Packet] {
-	packetPoolUDS := packets.NewPool(cfg.GetInt("dogstatsd_buffer_size"), packetsTelemetryStore)
+	packetPoolUDS := packets.NewPool(cfg, cfg.GetInt("dogstatsd_buffer_size"), packetsTelemetryStore)
 	return packets.NewPoolManager[packets.Packet](packetPoolUDS)
 }
 

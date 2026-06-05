@@ -1,0 +1,14 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    Add new ``ad_tag_completeness_max_wait`` configuration option. When set,
+    autodiscovery waits up to that many seconds for an entity's tags to be
+    complete before scheduling checks for it. This avoids checks running
+    briefly with incomplete tags. It's disabled by default.

@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    Parse the ECS ``/tasks`` host metadata endpoint on Managed Instances and
+    populate ``DaemonName`` for daemon-scheduled tasks.

@@ -33,3 +33,71 @@ func TestCompileShouldFailWithInvalidRules(t *testing.T) {
 		assert.Nil(t, rule.Regex)
 	}
 }
+
+func TestValidateRemapSource(t *testing.T) {
+	t.Run("valid", func(t *testing.T) {
+		rules := []*ProcessingRule{{
+			Type: RemapSource,
+			Name: "remap_test",
+			Matching: []*SourceMatchEntry{
+				{Attribute: "siem.device_vendor", Value: "Security", NewSource: "arcsight"},
+				{Attribute: "siem.device_product", Value: "palo alto", NewSource: "pan"},
+			},
+		}}
+		assert.NoError(t, ValidateProcessingRules(rules))
+	})
+
+	t.Run("missing matching", func(t *testing.T) {
+		rules := []*ProcessingRule{{
+			Type: RemapSource,
+			Name: "remap_test",
+		}}
+		assert.ErrorContains(t, ValidateProcessingRules(rules), "no matching entries provided")
+	})
+
+	t.Run("empty attribute", func(t *testing.T) {
+		rules := []*ProcessingRule{{
+			Type: RemapSource,
+			Name: "remap_test",
+			Matching: []*SourceMatchEntry{
+				{Attribute: "", Value: "x", NewSource: "y"},
+			},
+		}}
+		assert.ErrorContains(t, ValidateProcessingRules(rules), "empty attribute")
+	})
+
+	t.Run("empty value", func(t *testing.T) {
+		rules := []*ProcessingRule{{
+			Type: RemapSource,
+			Name: "remap_test",
+			Matching: []*SourceMatchEntry{
+				{Attribute: "a", Value: "", NewSource: "y"},
+			},
+		}}
+		assert.ErrorContains(t, ValidateProcessingRules(rules), "empty value")
+	})
+
+	t.Run("empty new_source", func(t *testing.T) {
+		rules := []*ProcessingRule{{
+			Type: RemapSource,
+			Name: "remap_test",
+			Matching: []*SourceMatchEntry{
+				{Attribute: "a", Value: "b", NewSource: ""},
+			},
+		}}
+		assert.ErrorContains(t, ValidateProcessingRules(rules), "empty new_source")
+	})
+}
+
+func TestCompileSkipsRemapSource(t *testing.T) {
+	rules := []*ProcessingRule{{
+		Type: RemapSource,
+		Name: "remap_test",
+		Matching: []*SourceMatchEntry{
+			{Attribute: "siem.device_vendor", Value: "Security", NewSource: "arcsight"},
+		},
+	}}
+	err := CompileProcessingRules(rules)
+	assert.NoError(t, err)
+	assert.Nil(t, rules[0].Regex)
+}

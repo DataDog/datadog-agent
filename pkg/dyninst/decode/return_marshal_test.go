@@ -40,7 +40,7 @@ func makeCaptureEvent(
 
 	// Build root expressions.
 	nExprs := len(names)
-	presenceBitsetSize := uint32((2*nExprs + 7) / 8)
+	presenceBitsetSize := uint32((ir.ExprStatusBits*nExprs + 7) / 8)
 	expressions := make([]*ir.RootExpression, nExprs)
 	offset := presenceBitsetSize
 	for i, name := range names {
@@ -67,10 +67,11 @@ func makeCaptureEvent(
 
 	// Build root data: presence bitset (all present) + int values.
 	rootData := make([]byte, offset)
-	// Set all presence bits (bit 2*i for each expression).
+	// Set the low bit of each expression's status (ExprStatusPresent = 1).
 	for i := range nExprs {
-		byteIdx := (2 * i) / 8
-		bitIdx := uint((2 * i) % 8)
+		bitOffset := i * ir.ExprStatusBits
+		byteIdx := bitOffset / 8
+		bitIdx := uint(bitOffset % 8)
 		rootData[byteIdx] |= 1 << bitIdx
 	}
 	for i, val := range values {

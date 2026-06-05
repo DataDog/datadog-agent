@@ -25,12 +25,13 @@ go_library(
     visibility = ["//visibility:public"],
     deps = select({
         "@rules_go//go/platform:android": [
+            "//pkg/security/common/usergrouputils",
             "//pkg/security/proto/ebpfless",
             "//pkg/security/secl/containerutils",
             "//pkg/security/secl/model/sharedconsts",
             "//pkg/security/secl/model/utils",
+            "//pkg/security/utils/cgroup",
             "//pkg/util/safeelf",
-            "@//pkg/security/common/usergrouputils",
             "@com_github_avast_retry_go_v4//:retry-go",
             "@com_github_elastic_go_seccomp_bpf//:go-seccomp-bpf",
             "@com_github_elastic_go_seccomp_bpf//arch",
@@ -40,12 +41,13 @@ go_library(
             "@org_golang_x_time//rate",
         ],
         "@rules_go//go/platform:linux": [
+            "//pkg/security/common/usergrouputils",
             "//pkg/security/proto/ebpfless",
             "//pkg/security/secl/containerutils",
             "//pkg/security/secl/model/sharedconsts",
             "//pkg/security/secl/model/utils",
+            "//pkg/security/utils/cgroup",
             "//pkg/util/safeelf",
-            "@//pkg/security/common/usergrouputils",
             "@com_github_avast_retry_go_v4//:retry-go",
             "@com_github_elastic_go_seccomp_bpf//:go-seccomp-bpf",
             "@com_github_elastic_go_seccomp_bpf//arch",
@@ -110,20 +112,15 @@ go_library(
 
 go_test(
     name = "ptracer_test",
-    srcs = [
-        "ptracer_test.go",
-        "utils_test.go",
-    ],
+    srcs = ["ptracer_test.go"],
     embed = [":ptracer"],
     gotags = ["test"],
     deps = select({
         "@rules_go//go/platform:android": [
-            "//pkg/security/secl/containerutils",
             "@com_github_kraken_hpc_go_fork//:go-fork",
             "@com_github_stretchr_testify//assert",
         ],
         "@rules_go//go/platform:linux": [
-            "//pkg/security/secl/containerutils",
             "@com_github_kraken_hpc_go_fork//:go-fork",
             "@com_github_stretchr_testify//assert",
         ],

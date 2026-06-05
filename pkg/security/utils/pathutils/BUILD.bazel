@@ -27,6 +27,7 @@ go_test(
     name = "pathutils_test",
     srcs = ["path_linux_test.go"],
     embed = [":pathutils"],
+    gotags = ["test"],
     deps = select({
         "@rules_go//go/platform:android": [
             "@com_github_stretchr_testify//assert",

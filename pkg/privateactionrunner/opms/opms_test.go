@@ -10,11 +10,13 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
+	"github.com/DataDog/jsonapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -44,6 +46,7 @@ func newTestClient(t *testing.T, srv *httptest.Server) *client {
 			RunnerId:           "test-runner",
 			PrivateKey:         newTestKey(t),
 		},
+		runnerStartedAt: time.Now().UTC(),
 	}
 }
 
@@ -119,6 +122,73 @@ func TestDequeueTask_RetryAfterMs_AbsentHeader(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, time.Duration(0), retryAfter)
 }
+
+// ---------- dequeue request body ----------
+
+// TestDequeueTask_RequestBody walks the runner through a scripted sequence of
+// server responses and asserts what each request body contains:
+//   - runner_started_at is on every request and stable
+//   - last_task_received_at is omitted until a non-empty dequeue succeeds, then
+//     populated, and not updated by empty or error responses.
+func TestDequeueTask_RequestBody(t *testing.T) {
+	empty := func(w http.ResponseWriter) { w.WriteHeader(http.StatusOK) }
+	fail := func(w http.ResponseWriter) { w.WriteHeader(http.StatusServiceUnavailable) }
+	task := func(w http.ResponseWriter) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"data":{"id":"task-1"}}`))
+	}
+
+	steps := []struct {
+		name                   string
+		respond                func(w http.ResponseWriter)
+		wantErr                bool
+		wantLastTaskReceivedAt bool
+	}{
+		{"first call, no prior task", empty, false, false},
+		{"error response does not record a timestamp", fail, true, false},
+		{"empty response does not record a timestamp", empty, false, false},
+		{"successful task: body sent before timestamp is recorded", task, false, false},
+		{"after a successful task, body carries the timestamp", empty, false, true},
+	}
+
+	bodies := make(chan DequeueJSONRequest, len(steps))
+	var i int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		raw, err := io.ReadAll(r.Body)
+		require.NoError(t, err)
+		var body DequeueJSONRequest
+		require.NoError(t, jsonapi.Unmarshal(raw, &body))
+		bodies <- body
+		steps[i].respond(w)
+		i++
+	}))
+	defer srv.Close()
+
+	c := newTestClient(t, srv)
+	runnerStartedAt := c.runnerStartedAt.Format(time.RFC3339)
+
+	for _, s := range steps {
+		_, _, err := c.DequeueTask(context.Background())
+		if s.wantErr {
+			require.Error(t, err, s.name)
+		} else {
+			require.NoError(t, err, s.name)
+		}
+
+		body := <-bodies
+		assert.Equal(t, runnerStartedAt, body.RunnerStartedAt, "%s: runner_started_at", s.name)
+
+		if s.wantLastTaskReceivedAt {
+			require.NotEmpty(t, body.LastTaskReceivedAt, "%s: last_task_received_at must be set", s.name)
+			_, err := time.Parse(time.RFC3339, body.LastTaskReceivedAt)
+			require.NoError(t, err, "%s: last_task_received_at must be RFC3339", s.name)
+		} else {
+			assert.Empty(t, body.LastTaskReceivedAt, "%s: last_task_received_at must be empty", s.name)
+		}
+	}
+}
+
+// ---------- DequeueTask error handling ----------
 
 func TestDequeueTask_RetryAfterMs_OnErrorResponse(t *testing.T) {
 	// Server returns a 429 with a retry-after hint.

@@ -8,10 +8,10 @@
 package nvidia
 
 import (
+	"errors"
 	"fmt"
 
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
-	"github.com/hashicorp/go-multierror"
 )
 
 // apiCallInfo represents a single NVML API call that can produce one or more metrics.
@@ -65,9 +65,9 @@ func (c *baseCollector) Name() CollectorName {
 // Collect executes all supported API calls and returns the collected metrics.
 // For stateless collectors, timestamps are ignored (passed as 0, returned timestamp ignored).
 // For sampling collectors, timestamps are maintained per API call.
-func (c *baseCollector) Collect() ([]Metric, error) {
-	var allMetrics []Metric
-	var multiErr error
+func (c *baseCollector) Collect() ([]*Metric, error) {
+	var allMetrics []*Metric
+	var multiErr []error
 
 	for _, apiCall := range c.supportedAPIs {
 		// Get last timestamp for this API call (0 for stateless collectors)
@@ -76,7 +76,7 @@ func (c *baseCollector) Collect() ([]Metric, error) {
 		// Execute the API call
 		metrics, newTimestamp, err := apiCall.Handler(c.device, lastTimestamp)
 		if err != nil {
-			multiErr = multierror.Append(multiErr, fmt.Errorf("%s returned an error: %w", apiCall.Name, err))
+			multiErr = append(multiErr, fmt.Errorf("%s returned an error: %w", apiCall.Name, err))
 		}
 
 		// Update timestamp if this is a sampling collector (newTimestamp != 0)
@@ -84,8 +84,8 @@ func (c *baseCollector) Collect() ([]Metric, error) {
 			c.lastTimestamps[apiCall.Name] = newTimestamp
 		}
 
-		allMetrics = append(allMetrics, metrics...)
+		allMetrics = append(allMetrics, metricValuesToPointers(metrics)...)
 	}
 
-	return allMetrics, multiErr
+	return allMetrics, errors.Join(multiErr...)
 }

@@ -68,6 +68,7 @@ type CWSPtracerCtx struct {
 	cancel              context.Context
 	cancelFnc           context.CancelFunc
 	containerID         containerutils.ContainerID
+	cgroupID            containerutils.CGroupID
 	probeAddr           string
 	client              net.Conn
 	clientReady         chan bool
@@ -308,6 +309,10 @@ func (ctx *CWSPtracerCtx) initCtxCommon() error {
 	if err != nil {
 		logger.Errorf("Retrieve container ID from proc failed: %v\n", err)
 	}
+	ctx.cgroupID, err = getCurrentProcCGroupID()
+	if err != nil {
+		logger.Errorf("Retrieve cgroup ID from proc failed: %v\n", err)
+	}
 	containerCtx, err := newContainerContext(ctx.containerID)
 	if err != nil {
 		return err
@@ -325,6 +330,7 @@ func (ctx *CWSPtracerCtx) initCtxCommon() error {
 			Mode:             ctx.opts.mode,
 			NSID:             getNSID(),
 			ContainerContext: containerCtx,
+			CGroupID:         ctx.cgroupID,
 			EntrypointArgs:   ctx.Args,
 		},
 	}

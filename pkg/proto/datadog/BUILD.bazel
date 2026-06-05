@@ -1,0 +1,3 @@
+# gazelle:go_grpc_compilers @rules_go//proto:go_proto,//bazel/rules/go_proto_compiler:go_grpc_futureproof
+# gazelle:proto package
+# gazelle:proto_strip_import_prefix /pkg/proto

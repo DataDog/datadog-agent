@@ -7,7 +7,6 @@ package nodetreemodel
 
 import (
 	"bytes"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -1603,32 +1602,16 @@ func TestEnvVarTransformers(t *testing.T) {
 	cfg.BindEnvAndSetDefault("tag_set", []map[string]string{}, "TEST_TAG_SET")
 	cfg.BindEnvAndSetDefault("list_keypairs", map[string]interface{}{}, "TEST_LIST_KEYPAIRS")
 
-	t.Setenv("TEST_LIST_OF_NUMS", "34,67.5,901.125")
+	t.Setenv("TEST_LIST_OF_NUMS", "[34,67.5,901.125]")
 	t.Setenv("TEST_LIST_OF_FRUIT", "apple,banana,cherry")
 	t.Setenv("TEST_TAG_SET", `[{"cat":"meow"},{"dog":"bark"}]`)
 	t.Setenv("TEST_LIST_KEYPAIRS", `a=1,b=2,c=3`)
 
-	cfg.ParseEnvAsSlice("list_of_nums", func(in string) []interface{} {
-		vals := []interface{}{}
-		for str := range strings.SplitSeq(in, ",") {
-			f, err := strconv.ParseFloat(str, 64)
-			if err != nil {
-				continue
-			}
-			vals = append(vals, f)
-		}
-		return vals
-	})
+	cfg.ParseEnvJSON("list_of_nums", []float64{})
 	cfg.ParseEnvAsStringSlice("list_of_fruit", func(in string) []string {
 		return strings.Split(in, ",")
 	})
-	cfg.ParseEnvAsSliceMapString("tag_set", func(in string) []map[string]string {
-		var out []map[string]string
-		if err := json.Unmarshal([]byte(in), &out); err != nil {
-			assert.Fail(t, "failed to json.Unmarshal", err)
-		}
-		return out
-	})
+	cfg.ParseEnvJSON("tag_set", []map[string]string{})
 	cfg.ParseEnvAsMapStringInterface("list_keypairs", func(in string) map[string]interface{} {
 		parts := strings.Split(in, ",")
 		res := map[string]interface{}{}
@@ -1744,6 +1727,91 @@ func TestSequenceID(t *testing.T) {
 
 	config.UnsetForSource("a", model.SourceAgentRuntime)
 	assert.Equal(t, uint64(3), config.GetSequenceID())
+}
+
+func TestParseEnvSplitComma(t *testing.T) {
+	t.Setenv("TEST_MY_LIST", "a,b,c")
+	t.Setenv("TEST_MY_LIST_2", "")
+
+	cfg := NewNodeTreeConfig("test", "TEST", nil)
+	cfg.BindEnvAndSetDefault("my_list", []string{"a"}, "TEST_MY_LIST")
+	cfg.BindEnvAndSetDefault("my_list_2", []string{"a"}, "TEST_MY_LIST_2")
+	cfg.ParseEnvSplitComma("my_list")
+	cfg.ParseEnvSplitComma("my_list_2")
+	cfg.BuildSchema()
+
+	assert.Equal(t, []string{"a", "b", "c"}, cfg.GetStringSlice("my_list"))
+	assert.Equal(t, model.SourceEnvVar, cfg.GetSource("my_list"))
+	assert.Equal(t, []string{"a"}, cfg.GetStringSlice("my_list_2"))
+	assert.Equal(t, model.SourceDefault, cfg.GetSource("my_list_2"))
+
+	assert.PanicsWithValue(t, "env transform for my_list already exists", func() {
+		cfg2 := NewNodeTreeConfig("test", "TEST", nil)
+		cfg2.BindEnvAndSetDefault("my_list", []string{})
+		cfg2.ParseEnvSplitComma("my_list")
+		cfg2.ParseEnvSplitComma("my_list")
+	})
+}
+
+func TestParseEnvSplitSpace(t *testing.T) {
+	t.Setenv("TEST_MY_LIST", "a b c")
+	t.Setenv("TEST_MY_LIST_2", "")
+
+	cfg := NewNodeTreeConfig("test", "TEST", nil)
+	cfg.BindEnvAndSetDefault("my_list", []string{"a"}, "TEST_MY_LIST")
+	cfg.BindEnvAndSetDefault("my_list_2", []string{"a"}, "TEST_MY_LIST_2")
+	cfg.ParseEnvSplitSpace("my_list")
+	cfg.ParseEnvSplitComma("my_list_2")
+	cfg.BuildSchema()
+
+	assert.Equal(t, []string{"a", "b", "c"}, cfg.GetStringSlice("my_list"))
+	assert.Equal(t, model.SourceEnvVar, cfg.GetSource("my_list"))
+	assert.Equal(t, []string{"a"}, cfg.GetStringSlice("my_list_2"))
+	assert.Equal(t, model.SourceDefault, cfg.GetSource("my_list_2"))
+
+	assert.PanicsWithValue(t, "env transform for my_list already exists", func() {
+		cfg2 := NewNodeTreeConfig("test", "TEST", nil)
+		cfg2.BindEnvAndSetDefault("my_list", []string{})
+		cfg2.ParseEnvSplitSpace("my_list")
+		cfg2.ParseEnvSplitSpace("my_list")
+	})
+}
+
+func TestParseEnvJSON(t *testing.T) {
+	t.Run("parses string slice", func(t *testing.T) {
+		t.Setenv("TEST_MY_LIST", `["a","b","c"]`)
+
+		cfg := NewNodeTreeConfig("test", "TEST", nil)
+		cfg.BindEnvAndSetDefault("my_list", []string{}, "TEST_MY_LIST")
+		cfg.ParseEnvJSON("my_list", []string{})
+		cfg.BuildSchema()
+
+		assert.Equal(t, []string{"a", "b", "c"}, cfg.GetStringSlice("my_list"))
+		assert.Equal(t, model.SourceEnvVar, cfg.GetSource("my_list"))
+	})
+
+	t.Run("parses slice of map[string]string", func(t *testing.T) {
+		t.Setenv("TEST_MY_TAGS", `[{"key":"val"},{"foo":"bar"}]`)
+
+		cfg := NewNodeTreeConfig("test", "TEST", nil)
+		cfg.BindEnvAndSetDefault("my_tags", []map[string]string{}, "TEST_MY_TAGS")
+		cfg.ParseEnvJSON("my_tags", []map[string]string{})
+		cfg.BuildSchema()
+
+		val := cfg.Get("my_tags")
+		tags, ok := val.([]map[string]string)
+		require.True(t, ok)
+		assert.Equal(t, []map[string]string{{"key": "val"}, {"foo": "bar"}}, tags)
+	})
+
+	t.Run("panics on duplicate registration", func(t *testing.T) {
+		assert.PanicsWithValue(t, "env transform for my_list already exists", func() {
+			cfg := NewNodeTreeConfig("test", "TEST", nil)
+			cfg.BindEnvAndSetDefault("my_list", []string{})
+			cfg.ParseEnvJSON("my_list", []string{})
+			cfg.ParseEnvJSON("my_list", []string{})
+		})
+	})
 }
 
 func TestMultipleTransformersRaisesError(t *testing.T) {

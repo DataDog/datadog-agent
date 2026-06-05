@@ -36,6 +36,10 @@ func TestAgentUpgradesOnDCWithGMSA(t *testing.T) {
 	//TODO: https://datadoghq.atlassian.net/browse/WINA-2095
 	flake.Mark(t)
 	e2e.Run(t, &testAgentUpgradeOnDCWithGMSASuite{},
+		// Keep the stack alive on failure so the team can investigate Active Directory
+		// provisioning failures (see WINA-2095). A Datadog log monitor on the
+		// "SkipDeleteOnFailure feature is enabled" line notifies #windows-products-ops.
+		e2e.WithSkipDeleteOnFailure(),
 		e2e.WithProvisioner(
 			winawshost.ProvisionerNoAgentNoFakeIntake(
 				winawshost.WithRunOptions(scenwin.WithActiveDirectoryOptions(
@@ -48,6 +52,10 @@ func TestAgentUpgradesOnDCWithGMSA(t *testing.T) {
 
 // SetupSuite configures the gMSA account on the Domain Controller.
 func (s *testAgentUpgradeOnDCWithGMSASuite) SetupSuite() {
+	// Required for WithSkipDeleteOnFailure to apply when the test-level setup
+	// (createKDSRootKey / createGMSAAccount below) fails — the BaseSuite's own
+	// defer only protects the framework's provisioning phase.
+	defer s.CleanupOnSetupFailure()
 	s.testAgentUpgradeSuite.SetupSuite()
 
 	host := s.Env().RemoteHost

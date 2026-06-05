@@ -1804,15 +1804,11 @@ func TestRemediationCustomEventNotTriggered(t *testing.T) {
 	defer test.Close()
 
 	t.Run("not-triggered-sent-at-startup", func(t *testing.T) {
-		// Allow any in-flight remediation_status from the previous subtest to be delivered, then clear again.
-		time.Sleep(2000 * time.Millisecond)
-		test.msgSender.flush()
-
 		newRuleDefs := []*rules.RuleDefinition{remediationNotTriggeredRule}
 		if err := setTestPolicy(commonCfgDir, nil, newRuleDefs); err != nil {
 			t.Fatalf("failed to set new policy: %v", err)
 		}
-
+		test.msgSender.flush()
 		// After reload, the engine evaluates remediation rules and sends not_triggered for rules that did not fire.
 		test.reloadPolicies()
 		err = retry.Do(func() error {
@@ -1822,37 +1818,45 @@ func TestRemediationCustomEventNotTriggered(t *testing.T) {
 			}
 
 			// Assert status is "not_triggered", remediation_action "kill", and rule_tags present.
+			var validationErr error
 			jsonPathValidation(test, msg.Data, func(_ *testModule, obj interface{}) {
 				if el, err := jsonpath.JsonPathLookup(obj, `$.agent.rule_id`); err != nil || el != "remediation_status" {
-					t.Errorf("agent.rule_id should be 'remediation_status': %s => %v", string(msg.Data), err)
+					validationErr = fmt.Errorf("agent.rule_id should be 'remediation_status': %s => %v", string(msg.Data), err)
+					return
 				}
 
 				if el, err := jsonpath.JsonPathLookup(obj, `$.event_type`); err != nil || el != "remediation_status" {
-					t.Errorf("event_type should be 'remediation_status': %s => %v", string(msg.Data), err)
+					validationErr = fmt.Errorf("event_type should be 'remediation_status': %s => %v", string(msg.Data), err)
+					return
 				}
 
 				if el, err := jsonpath.JsonPathLookup(obj, `$.status`); err != nil || el != sprobe.RemediationStatusNotTriggered {
-					t.Errorf("status should be 'not_triggered': %s => %v", string(msg.Data), err)
+					validationErr = fmt.Errorf("status should be 'not_triggered': %s => %v", string(msg.Data), err)
+					return
 				}
 
 				if el, err := jsonpath.JsonPathLookup(obj, `$.remediation_action`); err != nil || el != "kill" {
-					t.Errorf("remediation_action should be 'kill': %s => %v", string(msg.Data), err)
+					validationErr = fmt.Errorf("remediation_action should be 'kill': %s => %v", string(msg.Data), err)
+					return
 				}
 
 				if el, err := jsonpath.JsonPathLookup(obj, `$.scope`); err != nil || el != "process" {
-					t.Errorf("scope should be 'process': %s => %v", string(msg.Data), err)
+					validationErr = fmt.Errorf("scope should be 'process': %s => %v", string(msg.Data), err)
+					return
 				}
 
 				if el, err := jsonpath.JsonPathLookup(obj, `$.rule_tags.remediation_rule`); err != nil || el != "true" {
-					t.Errorf("rule_tags.remediation_rule should be 'true': %s => %v", string(msg.Data), err)
+					validationErr = fmt.Errorf("rule_tags.remediation_rule should be 'true': %s => %v", string(msg.Data), err)
+					return
 				}
 
 				if el, err := jsonpath.JsonPathLookup(obj, `$.rule_tags.agent_event_id`); err != nil || el != "BDoIdt0EAAAbKF9Rg_3TKKJ" {
-					t.Errorf("rule_tags.agent_event_id should be 'BDoIdt0EAAAbKF9Rg_3TKKJ': %s => %v", string(msg.Data), err)
+					validationErr = fmt.Errorf("rule_tags.agent_event_id should be 'BDoIdt0EAAAbKF9Rg_3TKKJ': %s => %v", string(msg.Data), err)
+					return
 				}
 			})
 
-			return nil
+			return validationErr
 		}, retry.Delay(200*time.Millisecond), retry.Attempts(10), retry.DelayType(retry.FixedDelay))
 		assert.NoError(t, err)
 	})

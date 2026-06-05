@@ -10,6 +10,7 @@ package activitytree
 
 import (
 	"time"
+	"unsafe"
 )
 
 // SyscallNode is used to store a syscall node
@@ -19,13 +20,19 @@ type SyscallNode struct {
 	Syscall        int
 }
 
+// size approximates this node's heap footprint: struct overhead plus the NodeBase.seen
+// backing slice. No other heap-allocated fields.
+func (sn *SyscallNode) size() int64 {
+	return int64(unsafe.Sizeof(*sn)) + seenBytes(sn.NodeBase)
+}
+
 // NewSyscallNode returns a new SyscallNode instance
-func NewSyscallNode(syscall int, timestamp time.Time, imageTag string, generationType NodeGenerationType) *SyscallNode {
+func NewSyscallNode(syscall int, timestamp time.Time, imageTagID uint64, generationType NodeGenerationType) *SyscallNode {
 	node := &SyscallNode{
 		Syscall:        syscall,
 		GenerationType: generationType,
 	}
 	node.NodeBase = NewNodeBase()
-	node.AppendImageTag(imageTag, timestamp)
+	node.AppendImageTagID(imageTagID, timestamp)
 	return node
 }

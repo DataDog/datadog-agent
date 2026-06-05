@@ -13,4 +13,4 @@ probes:
       methodName: main.HandleHTTP
     captureSnapshot: true
     capture:
-      maxReferenceDepth: 1
+      maxReferenceDepth: 2

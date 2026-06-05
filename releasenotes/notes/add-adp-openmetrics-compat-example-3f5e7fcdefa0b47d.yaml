@@ -1,0 +1,6 @@
+---
+enhancements:
+  - |
+    Add an example OpenMetrics check configuration for Agent Data Plane
+    deployments to restore ``datadog.agent.dogstatsd.*`` and
+    ``datadog.agent.forwarder.transactions.*`` metrics.

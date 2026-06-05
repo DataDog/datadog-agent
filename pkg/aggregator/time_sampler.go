@@ -11,6 +11,7 @@ import (
 	"math"
 	"strconv"
 
+	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
@@ -45,6 +46,10 @@ type TimeSampler struct {
 	idString string
 
 	hostname string
+
+	// observerHandle is set when the observer component is wired in.
+	// Nil when the feature is disabled or the observer is not included in the binary.
+	observerHandle observer.Handle
 }
 
 // NewTimeSampler returns a newly initialized TimeSampler
@@ -81,6 +86,10 @@ func (s *TimeSampler) isBucketStillOpen(bucketStartTimestamp, timestamp int64) b
 }
 
 func (s *TimeSampler) sample(metricSample *metrics.MetricSample, timestamp float64, filterList filterlist.TagMatcher) {
+	if s.observerHandle != nil {
+		s.observerHandle.ObserveMetric(metricSample)
+	}
+
 	// use the timestamp provided in the sample if any
 	if metricSample.Timestamp > 0 {
 		timestamp = metricSample.Timestamp

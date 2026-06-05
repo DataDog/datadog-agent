@@ -5,5 +5,5 @@ go_library(
     srcs = ["component_mock.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/process/gpusubscriber/mock",
     visibility = ["//visibility:public"],
-    deps = ["@//comp/process/gpusubscriber/def"],
+    deps = ["//comp/process/gpusubscriber/def"],
 )

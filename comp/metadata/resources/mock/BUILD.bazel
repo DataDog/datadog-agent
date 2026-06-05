@@ -6,8 +6,8 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/metadata/resources/mock",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/metadata/resources/def",
         "//pkg/util/fxutil",
-        "@//comp/metadata/resources/def",
         "@org_uber_go_fx//:fx",
     ],
 )

@@ -23,6 +23,7 @@ func NewFilterCommand(cl **client.Client) (cmd *cobra.Command) {
 		NewFilterEventsCommand(cl),
 		NewFilterLogsCommand(cl),
 		NewFilterMetricsCommand(cl),
+		NewFilterSketchesCommand(cl),
 		NewFilterSBOMCommand(cl),
 		NewFilterHostTagsCommand(cl),
 	)

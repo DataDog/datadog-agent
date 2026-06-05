@@ -281,7 +281,21 @@ done:
 	}
 }
 
-// newConfigStreamForTest creates a config stream for testing without lifecycle
+func TestNewComponentNoError(t *testing.T) {
+	mockLog := logmock.New(t)
+	telemetryComp := telemetrynoops.GetCompatComponent()
+	cfg := configmock.New(t)
+	_, err := NewComponent(Requires{
+		Lifecycle: compdef.NewTestLifecycle(t),
+		Config:    cfg,
+		Log:       mockLog,
+		Telemetry: telemetryComp,
+	})
+	require.NoError(t, err)
+}
+
+// newConfigStreamForTest creates a config stream for testing without lifecycle.
+// It manually starts the run loop since the test lifecycle does not execute hooks.
 func newConfigStreamForTest(t *testing.T, cfg config.Component, logger log.Component) *configStream {
 	telemetryComp := telemetrynoops.GetCompatComponent()
 	reqs := Requires{
@@ -290,10 +304,9 @@ func newConfigStreamForTest(t *testing.T, cfg config.Component, logger log.Compo
 		Log:       logger,
 		Telemetry: telemetryComp,
 	}
-	provides := NewComponent(reqs)
+	provides, err := NewComponent(reqs)
+	require.NoError(t, err)
 
-	// Extract the underlying configStream
-	// and start the run loop manually since lifecycle hooks are not executed
 	cs := provides.Comp.(*configStream)
 	go cs.run()
 
@@ -342,10 +355,11 @@ func buildComponent(t *testing.T) (Provides, *configInterceptor) {
 		Telemetry: telemetrynoops.GetCompatComponent(),
 	}
 
-	provides := NewComponent(reqs)
+	provides, err := NewComponent(reqs)
+	require.NoError(t, err)
 
 	// Start the component's run loop
-	err := lc.Start(context.Background())
+	err = lc.Start(context.Background())
 	require.NoError(t, err)
 
 	t.Cleanup(func() {

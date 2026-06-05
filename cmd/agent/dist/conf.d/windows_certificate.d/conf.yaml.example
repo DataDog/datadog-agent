@@ -13,12 +13,28 @@ init_config:
 #
 instances:
 
-    ## @param certificate_store - string - required
+    ## @param certificate_store - string - optional
     ## The certificate store to query from when verifying the Windows certificates.
     ## This check can only query from local machine certificates.
     ## Enter the store name as found in `HKEY_LOCAL_MACHINE\Software\Microsoft\SystemCertificates`
+    ##
+    ## At least one of `certificate_store` or `certificate_store_regex` (non-empty) must be set.
+    ## If both are set, `certificate_store` is always monitored in addition to every store matching any pattern.
     #
     # - certificate_store: MY
+
+    ## @param certificate_store_regex - list of strings - optional
+    ## Each entry is a regular expression (Go `regexp` syntax) matched against subkey names under
+    ## `HKEY_LOCAL_MACHINE\Software\Microsoft\SystemCertificates`. All stores matching any pattern
+    ## are opened and monitored. Use anchors (for example `^MY$`) to match a single store name exactly.
+    ##
+    ## At least one of `certificate_store` or `certificate_store_regex` (non-empty) must be set.
+    ## When both are set, the explicit `certificate_store` is included together with regex matches (union, deduplicated).
+    ## `certificate_store_regex: []` is invalid when `certificate_store` is omitted.
+    #
+    # certificate_store_regex:
+    #   - '^MY$'
+    #   - '^CA$'
 
     ## @param certificate_subject - list of strings - optional
     ## A list of strings to filter by the subjects of the certificates.
@@ -26,7 +42,7 @@ instances:
     ## and you have a certificate with subject,
     ## "CN=Microsoft Root Authority, OU=Microsoft Corporation, OU=Copyright (c) 1997 Microsoft Corp."
     ## then the certificate will be matched and metrics will be collected for that certificate.
-    ## If `certificate_subjects` is empty then all certificates in `certificate_store` are collected.
+    ## If `certificate_subjects` is empty then all certificates in the selected store or stores are collected.
     #
     # certificate_subjects:
     #   - <SUBJECT_1>
@@ -60,7 +76,7 @@ instances:
     # days_critical: 7
 
     ## @param enable_crl_monitoring - boolean - optional - default: false
-    ## Enables monitoring of expiration of all Certificate Revocation Lists (CRLs) in `certificate_store`.
+    ## Enables monitoring of expiration of all Certificate Revocation Lists (CRLs) in the selected store or stores.
     #
     # enable_crl_monitoring: false
 

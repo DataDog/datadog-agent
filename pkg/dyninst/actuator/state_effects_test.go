@@ -108,6 +108,30 @@ func (e effectUnloadProgram) yamlData() map[string]any {
 	}
 }
 
+type effectReportProbeError struct {
+	programID ir.ProgramID
+	processID ProcessID
+	probeID   string
+	hasReason bool
+}
+
+func (e effectReportProbeError) yamlTag() string {
+	return "!report-probe-error"
+}
+
+func (e effectReportProbeError) yamlData() map[string]any {
+	reason := "no"
+	if e.hasReason {
+		reason = "yes"
+	}
+	return map[string]any{
+		"program_id": int(e.programID),
+		"process_id": int(e.processID.PID),
+		"probe_id":   e.probeID,
+		"reason":     reason,
+	}
+}
+
 // effectRecorder records effects for testing
 type effectRecorder struct {
 	effects []effect
@@ -175,5 +199,16 @@ func (er *effectRecorder) unloadProgram(lp *loadedProgram) {
 	// For tests we just record that the sink and program are being closed.
 	er.recordEffect(effectUnloadProgram{
 		programID: lp.programID,
+	})
+}
+
+func (er *effectRecorder) reportProbeError(
+	ap *attachedProgram, probe ir.ProbeDefinition, reason error,
+) {
+	er.recordEffect(effectReportProbeError{
+		programID: ap.programID,
+		processID: ap.processID,
+		probeID:   probe.GetID(),
+		hasReason: reason != nil,
 	})
 }

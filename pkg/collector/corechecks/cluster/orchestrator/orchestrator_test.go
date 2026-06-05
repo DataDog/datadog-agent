@@ -84,7 +84,7 @@ func TestOrchestratorCheckSafeReSchedule(t *testing.T) {
 	vpaClient := vpa.NewSimpleClientset() //nolint:staticcheck // SA1019 NewClientset not yet available in VPA
 	crdClient := crd.NewSimpleClientset()
 	crClient := cr.NewSimpleDynamicClient(scheme)
-	cl := &apiserver.APIClient{InformerCl: client, VPAInformerClient: vpaClient, CRDInformerClient: crdClient, DynamicInformerCl: crClient}
+	cl := &apiserver.APIClient{Cl: client, InformerCl: client, VPAInformerClient: vpaClient, CRDInformerClient: crdClient, DynamicInformerCl: crClient}
 
 	cfg := mockconfig.New(t)
 	mockStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
@@ -211,6 +211,7 @@ func TestOrchestratorCheckConfigure(t *testing.T) {
 		vpaClient := vpa.NewSimpleClientset() //nolint:staticcheck // SA1019 NewClientset not yet available in VPA
 		crdClient := crd.NewSimpleClientset()
 		orchCheck.apiClient = &apiserver.APIClient{
+			Cl:                client,
 			InformerCl:        client,
 			VPAInformerClient: vpaClient,
 			CRDInformerClient: crdClient,

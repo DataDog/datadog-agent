@@ -10,6 +10,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"time"
 
@@ -23,8 +24,8 @@ func Get() (string, error) {
 		return "", err
 	}
 
-	pprofURL := fmt.Sprintf("http://%v:%s/debug/pprof/goroutine?debug=2",
-		ipcAddress, pkgconfigsetup.Datadog().GetString("expvar_port"))
+	addr := net.JoinHostPort(ipcAddress, pkgconfigsetup.Datadog().GetString("expvar_port"))
+	pprofURL := fmt.Sprintf("http://%s/debug/pprof/goroutine?debug=2", addr)
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	client := http.Client{}

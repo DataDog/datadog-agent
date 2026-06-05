@@ -1,0 +1,19 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "backend",
+    srcs = ["backend.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/kernel/headers/download/rpm/dnfv2/backend",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/util/kernel/headers/download/rpm/dnfv2/internal/utils",
+            "//pkg/util/kernel/headers/download/rpm/dnfv2/repo",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/util/kernel/headers/download/rpm/dnfv2/internal/utils",
+            "//pkg/util/kernel/headers/download/rpm/dnfv2/repo",
+        ],
+        "//conditions:default": [],
+    }),
+)

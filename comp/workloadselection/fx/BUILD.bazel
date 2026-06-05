@@ -6,9 +6,9 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/workloadselection/fx",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/workloadselection/def",
         "//comp/workloadselection/impl",
         "//pkg/util/fxutil",
-        "@//comp/workloadselection/def",
         "@org_uber_go_fx//:fx",
     ],
 )

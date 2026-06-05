@@ -25,8 +25,9 @@ import (
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	profilerdef "github.com/DataDog/datadog-agent/comp/core/profiler/def"
 	profilermock "github.com/DataDog/datadog-agent/comp/core/profiler/mock"
-	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
+	settingsmock "github.com/DataDog/datadog-agent/comp/core/settings/mock"
+	sysprobeconfigdef "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
+	sysprobeconfigmock "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/mock"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -70,17 +71,16 @@ type reqs struct {
 }
 
 func getProfiler(t testing.TB, overrideSysProbe map[string]interface{}) profiler {
+	sysprobeConf := sysprobeconfigmock.NewMockWithOverrides(t, overrideSysProbe)
 	deps := fxutil.Test[reqs](
 		t,
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Provide(func() config.Component {
 			return config.NewMock(t)
 		}),
-		fx.Replace(sysprobeconfigimpl.MockParams{
-			Overrides: overrideSysProbe,
-		}),
-		sysprobeconfigimpl.MockModule(),
-		settingsimpl.MockModule(),
+		fx.Provide(func() sysprobeconfigdef.Component { return sysprobeConf }),
+		fxutil.ProvideOptional[sysprobeconfigdef.Component](),
+		settingsmock.MockModule(),
 		fxutil.ProvideComponentConstructor(NewComponent),
 		fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
 		fx.Provide(func(ipcComp ipc.Component) ipc.HTTPClient { return ipcComp.GetClient() }),
@@ -228,6 +228,7 @@ func TestTimeout(t *testing.T) {
 			extraCfgs: map[string]interface{}{},
 			extraSysCfgs: map[string]interface{}{
 				"network_config.enabled":      true,
+				"network_config.direct_send":  false,
 				"system_probe_config.enabled": true,
 			},
 			profileDuration: defaultProfileDuration,
@@ -239,6 +240,7 @@ func TestTimeout(t *testing.T) {
 			extraSysCfgs: map[string]interface{}{
 				"service_monitoring_config.enabled": true,
 				"system_probe_config.enabled":       true,
+				"network_config.direct_send":        false,
 			},
 			profileDuration: defaultProfileDuration,
 			expTimeout:      baseTimeout + 8*defaultProfileDuration,
@@ -248,6 +250,7 @@ func TestTimeout(t *testing.T) {
 			extraCfgs: map[string]interface{}{},
 			extraSysCfgs: map[string]interface{}{
 				"system_probe_config.enabled": true,
+				"network_config.direct_send":  false,
 			},
 			profileDuration: defaultProfileDuration,
 			expTimeout:      baseTimeout + 8*defaultProfileDuration, // config enables NPM, which enables process agent
@@ -261,6 +264,7 @@ func TestTimeout(t *testing.T) {
 			},
 			extraSysCfgs: map[string]interface{}{
 				"system_probe_config.enabled": true,
+				"network_config.direct_send":  false,
 			},
 			profileDuration: defaultProfileDuration,
 			expTimeout:      baseTimeout + 10*defaultProfileDuration,

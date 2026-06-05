@@ -101,6 +101,86 @@ func TestNoDefaultNodeHasBothTodoTags(t *testing.T) {
 	}
 }
 
+// TestParseEnvSetsEnvParser verifies that ParseEnvSplitComma, ParseEnvSplitSpace,
+// and ParseEnvJSON set the correct env_parser value on the schema node.
+func TestParseEnvSetsEnvParser(t *testing.T) {
+	cases := []struct {
+		name       string
+		call       func(b *builder)
+		path       []string
+		wantParser string
+	}{
+		{
+			name:       "ParseEnvSplitComma",
+			call:       func(b *builder) { b.BindEnvAndSetDefault("my_list", []string{}); b.ParseEnvSplitComma("my_list") },
+			path:       []string{"my_list"},
+			wantParser: "comma_separated",
+		},
+		{
+			name:       "ParseEnvSplitSpace",
+			call:       func(b *builder) { b.BindEnvAndSetDefault("my_list", []string{}); b.ParseEnvSplitSpace("my_list") },
+			path:       []string{"my_list"},
+			wantParser: "space_separated",
+		},
+		{
+			name:       "ParseEnvJSON",
+			call:       func(b *builder) { b.BindEnvAndSetDefault("my_list", []string{}); b.ParseEnvJSON("my_list", []string{}) },
+			path:       []string{"my_list"},
+			wantParser: "json",
+		},
+		{
+			name: "ParseEnvSplitComma nested key",
+			call: func(b *builder) {
+				b.BindEnvAndSetDefault("section.my_list", []string{})
+				b.ParseEnvSplitComma("section.my_list")
+			},
+			path:       []string{"section", "my_list"},
+			wantParser: "comma_separated",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			b := NewSchemaBuilder("", "", nil).(*builder)
+			tc.call(b)
+
+			leaf := nodeAt(b.Schema, tc.path...)
+			if leaf == nil {
+				t.Fatalf("node not found at path %v", tc.path)
+			}
+			got, ok := leaf["env_parser"].(string)
+			if !ok {
+				t.Fatalf("env_parser not set or wrong type: %v", leaf)
+			}
+			if got != tc.wantParser {
+				t.Errorf("env_parser = %q, want %q", got, tc.wantParser)
+			}
+		})
+	}
+}
+
+// TestParseEnvPanicsOnUnknownKey verifies that ParseEnvSplitComma panics when
+// called for a key that has not been registered in the schema.
+func TestParseEnvPanicsOnUnknownKey(t *testing.T) {
+	b := NewSchemaBuilder("", "", nil).(*builder)
+	b.BindEnvAndSetDefault("known_key", []string{})
+
+	for _, fn := range []func(){
+		func() { b.ParseEnvSplitComma("unknown_key") },
+		func() { b.ParseEnvSplitSpace("unknown_key") },
+		func() { b.ParseEnvJSON("unknown_key", []string{}) },
+	} {
+		func() {
+			defer func() {
+				if r := recover(); r == nil {
+					t.Error("expected panic for unknown key, got none")
+				}
+			}()
+			fn()
+		}()
+	}
+}
+
 // TestSectionNodeHasNodeTypeSection verifies that intermediate section nodes
 // carry node_type: "section" (existing behaviour, regression guard).
 func TestSectionNodeHasNodeTypeSection(t *testing.T) {

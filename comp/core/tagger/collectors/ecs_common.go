@@ -9,17 +9,17 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taglist"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
-func addResourceTags(t *taglist.TagList, m map[string]string) {
+func addResourceTags(cfg pkgconfigmodel.Reader, t *taglist.TagList, m map[string]string) {
 	for k, v := range m {
 		// Ignore non user-defined tags
 		if strings.HasPrefix(k, "aws:") {
 			continue
 		}
 
-		if pkgconfigsetup.Datadog().GetBool("ecs_resource_tags_replace_colon") {
+		if cfg.GetBool("ecs_resource_tags_replace_colon") {
 			k = strings.ReplaceAll(k, ":", "_")
 		}
 

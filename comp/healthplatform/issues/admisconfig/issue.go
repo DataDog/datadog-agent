@@ -9,7 +9,6 @@ import (
 	"fmt"
 
 	"github.com/DataDog/agent-payload/v5/healthplatform"
-	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/core/def"
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
@@ -17,7 +16,7 @@ const (
 	issueName  = "ad_misconfiguration"
 	category   = "autodiscovery"
 	location   = "autodiscovery"
-	severity   = "medium"
+	severity   = healthplatform.IssueSeverity_ISSUE_SEVERITY_MEDIUM
 	source     = "autodiscovery"
 	unknownVal = "unknown"
 	failedMsg  = "Autodiscovery misconfiguration error detected"
@@ -73,7 +72,6 @@ func (t *ADMisconfigurationIssue) BuildIssue(context map[string]string) (*health
 	}
 
 	return &healthplatform.Issue{
-		Id:          healthplatformdef.ADMisconfigurationIssueID,
 		IssueName:   issueName,
 		Title:       content.title,
 		Description: content.description,

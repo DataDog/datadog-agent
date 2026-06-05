@@ -9,10 +9,10 @@
 // integration test drive specific drop scenarios by sending tailored
 // requests against a shrunken ringbuf.
 //
-// URL schema: GET /<fn>?size=<n>&return_size=<n>&iter=<n>
+// URL schema: GET /<fn>?size=<n>&return_size=<n>&iter=<n>&ms=<n>
 //
 //	fn            one of "bytes", "bytes_return", "chain", "chain_return",
-//	              "string_chain"
+//	              "string_chain", "sleep"
 //	size          payload byte length (entry side, or chain length for "chain")
 //	return_size   result byte length (only used by "bytes_return")
 //	entry_nodes   chain length on the entry side (only used by "chain_return")
@@ -20,6 +20,7 @@
 //	nodes         chain length (only used by "string_chain")
 //	str_len       per-node string length in bytes (only used by "string_chain")
 //	iter          number of back-to-back invocations (default 1)
+//	ms            sleep duration in milliseconds (only used by "sleep")
 //
 // On startup the program prints "Listening on port %d" on stdout so the
 // harness can discover the port.
@@ -58,6 +59,7 @@ func main() {
 	mux.HandleFunc("/chain", handleChain)
 	mux.HandleFunc("/chain_return", handleChainReturn)
 	mux.HandleFunc("/string_chain", handleStringChain)
+	mux.HandleFunc("/sleep", handleSleep)
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
@@ -125,6 +127,18 @@ func CaptureBytesReturn(payload []byte, tag string) ([]byte, error) {
 type Node struct {
 	Value [64]byte
 	Next  *Node
+}
+
+// CaptureSleep is a paired (entry + return) probe target whose
+// observable @duration is dominated by an explicit sleep, so a probe
+// condition can reliably distinguish a "long" call from a "short" one.
+// The ms argument is kept live across the sleep (via sinkInt) so the
+// probe template can capture it.
+//
+//go:noinline
+func CaptureSleep(ms int) {
+	time.Sleep(time.Duration(ms) * time.Millisecond)
+	sinkInt = sinkInt ^ ms
 }
 
 // CaptureChain is a pointer-chasing probe target. A probe captures
@@ -267,6 +281,15 @@ func handleBytesReturn(w http.ResponseWriter, r *http.Request) {
 
 	for i := 0; i < iter; i++ {
 		_, _ = CaptureBytesReturn(payload, "tag")
+	}
+	w.WriteHeader(http.StatusOK)
+}
+
+func handleSleep(w http.ResponseWriter, r *http.Request) {
+	ms := parseIntQuery(r, "ms", 0)
+	iter := parseIntQuery(r, "iter", 1)
+	for i := 0; i < iter; i++ {
+		CaptureSleep(ms)
 	}
 	w.WriteHeader(http.StatusOK)
 }

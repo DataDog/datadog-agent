@@ -339,5 +339,40 @@ class TestCheckRelativeDefaults(unittest.TestCase):
         self.assertFalse(any("valid_conf_path" in e for e in errors))
 
 
+class TestCheckEnvParser(unittest.TestCase):
+    def test_valid_schema_produces_no_errors(self):
+        errors = errors_for(lint.check_env_parser, "valid.yaml")
+        self.assertEqual(errors, [])
+
+    def test_invalid_env_parser_value(self):
+        errors = errors_for(lint.check_env_parser, "bad_env_parser.yaml")
+        self.assertTrue(
+            any("bad_value" in e for e in errors),
+            f"Expected error for bad_value, got: {errors}",
+        )
+
+    def test_env_parser_on_section_is_error(self):
+        errors = errors_for(lint.check_env_parser, "bad_env_parser.yaml")
+        self.assertTrue(
+            any("env_parser_on_section" in e for e in errors),
+            f"Expected error for env_parser_on_section, got: {errors}",
+        )
+
+    def test_valid_env_parser_values_pass(self):
+        errors = errors_for(lint.check_env_parser, "bad_env_parser.yaml")
+        for key in ("valid_comma_separated", "valid_space_separated", "valid_json"):
+            self.assertFalse(
+                any(key in e for e in errors),
+                f"Valid setting '{key}' should not produce an error, got: {errors}",
+            )
+
+    def test_child_of_bad_section_is_not_flagged(self):
+        errors = errors_for(lint.check_env_parser, "bad_env_parser.yaml")
+        self.assertFalse(
+            any("env_parser_on_section.child" in e for e in errors),
+            f"Child setting of bad section should not be flagged, got: {errors}",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

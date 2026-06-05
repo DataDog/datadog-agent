@@ -9,6 +9,7 @@ package common
 import (
 	"errors"
 	"fmt"
+	"net"
 	"path/filepath"
 	"runtime"
 	"strconv"
@@ -41,17 +42,17 @@ func GetCmdSocketPath(socketPath string, cmdSocketPath string) (string, error) {
 
 			cmdSocketPath = fmt.Sprintf("%scmd-%s", socketDir, socketName)
 		} else {
-			addrPort := strings.Split(socketPath, ":")
-			if len(addrPort) != 2 {
+			host, portStr, err := net.SplitHostPort(socketPath)
+			if err != nil {
 				return "", fmt.Errorf("invalid socket path: %s", socketPath)
 			}
 
-			port, err := strconv.Atoi(addrPort[1])
+			port, err := strconv.Atoi(portStr)
 			if err != nil {
-				return "", fmt.Errorf("invalid socket port: %s", addrPort[1])
+				return "", fmt.Errorf("invalid socket port: %s", portStr)
 			}
 
-			cmdSocketPath = addrPort[0] + ":" + strconv.Itoa(port+1)
+			cmdSocketPath = net.JoinHostPort(host, strconv.Itoa(port+1))
 		}
 	}
 

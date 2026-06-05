@@ -18,6 +18,7 @@ var parserMap = map[string]parserFunc{
 	"/api/v1/series":      getV1MetricPayLoadJSON,
 	"/api/v1/check_run":   getCheckRunPayLoadJSON,
 	"/api/v1/connections": getConnectionsPayLoadProtobuf,
+	"/api/beta/sketches":  getSketchPayloadProtobuf,
 }
 
 func getLogPayLoadJSON(payload api.Payload) (interface{}, error) {
@@ -38,6 +39,10 @@ func getCheckRunPayLoadJSON(payload api.Payload) (interface{}, error) {
 
 func getConnectionsPayLoadProtobuf(payload api.Payload) (interface{}, error) {
 	return aggregator.ParseConnections(payload)
+}
+
+func getSketchPayloadProtobuf(payload api.Payload) (interface{}, error) {
+	return aggregator.ParseSketches(payload)
 }
 
 // IsRouteHandled checks if a route is handled by the Datadog parsed store

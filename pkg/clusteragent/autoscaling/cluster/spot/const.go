@@ -27,3 +27,12 @@ const (
 	// SpotAssignedLabelValue is the SpotAssignedLabel value for pods assigned to spot instances.
 	SpotAssignedLabelValue = "true"
 )
+
+// Spot node label and taint.
+// Use our own namespace so we control it independently of the cluster autoscaler.
+const (
+	spotNodeLabelKey   = "autoscaling.datadoghq.com/capacity-type"
+	spotNodeLabelValue = "interruptible"
+	spotNodeTaintKey   = "autoscaling.datadoghq.com/capacity-type"
+	spotNodeTaintValue = "interruptible"
+)

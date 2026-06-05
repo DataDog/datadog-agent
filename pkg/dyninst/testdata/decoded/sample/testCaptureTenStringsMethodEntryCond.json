@@ -19,13 +19,7 @@
           "location": {
             "method": "main.testTenStrings"
           }
-        },
-        "evaluationErrors": [
-          {
-            "expr": "@duration",
-            "message": "not available: function has no body"
-          }
-        ]
+        }
       },
       "type": "snapshot"
     },

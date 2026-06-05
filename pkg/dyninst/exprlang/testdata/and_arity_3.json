@@ -1,5 +1,5 @@
 {
   "type": "error",
   "operation": "",
-  "error": "parse error: malformed and: expected exactly two operands"
+  "error": "parse error: malformed and: expected exactly two operands, got 3 or more"
 }

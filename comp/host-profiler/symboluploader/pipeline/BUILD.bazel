@@ -15,6 +15,7 @@ go_test(
     name = "pipeline_test",
     srcs = ["pipeline_test.go"],
     embed = [":pipeline"],
+    gotags = ["test"],
     deps = [
         "@com_github_jonboulle_clockwork//:clockwork",
         "@com_github_stretchr_testify//require",

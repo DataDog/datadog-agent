@@ -40,6 +40,7 @@ var stateTelemetry = struct {
 	postgresStatsDropped   *telemetryComponent.StatCounterWrapper
 	redisStatsDropped      *telemetryComponent.StatCounterWrapper
 	dnsPidCollisions       *telemetryComponent.StatCounterWrapper
+	windowsLingeringFlows  *telemetryComponent.StatCounterWrapper
 	incomingDirectionFixes telemetryComponent.Counter
 	outgoingDirectionFixes telemetryComponent.Counter
 }{
@@ -55,6 +56,7 @@ var stateTelemetry = struct {
 	telemetryComponent.NewStatCounterWrapper(telemetryimpl.GetCompatComponent(), stateModuleName, "postgres_stats_dropped", []string{}, "Counter measuring the number of postgres stats dropped"),
 	telemetryComponent.NewStatCounterWrapper(telemetryimpl.GetCompatComponent(), stateModuleName, "redis_stats_dropped", []string{}, "Counter measuring the number of redis stats dropped"),
 	telemetryComponent.NewStatCounterWrapper(telemetryimpl.GetCompatComponent(), stateModuleName, "dns_pid_collisions", []string{}, "Counter measuring the number of DNS PID collisions"),
+	telemetryComponent.NewStatCounterWrapper(telemetryimpl.GetCompatComponent(), stateModuleName, "windows_lingering_flows", []string{}, "Counter measuring flows that were already reported closed but are still being re-reported with failures by the Windows NPM driver (lingering openFlows bug)"),
 	telemetryimpl.GetCompatComponent().NewCounter(stateModuleName, "incoming_direction_fixes", []string{}, "Counter measuring the number of udp direction fixes for incoming connections"),
 	telemetryimpl.GetCompatComponent().NewCounter(stateModuleName, "outgoing_direction_fixes", []string{}, "Counter measuring the number of udp/tcp direction fixes for outgoing connections"),
 }
@@ -134,6 +136,7 @@ type lastStateTelemetry struct {
 	postgresStatsDropped  int64
 	redisStatsDropped     int64
 	dnsPidCollisions      int64
+	windowsLingeringFlows int64
 }
 
 const minClosedCapacity = 1024
@@ -446,6 +449,7 @@ func (ns *networkState) logTelemetry() {
 	postgresStatsDroppedDelta := stateTelemetry.postgresStatsDropped.Load() - ns.lastTelemetry.postgresStatsDropped
 	redisStatsDroppedDelta := stateTelemetry.redisStatsDropped.Load() - ns.lastTelemetry.redisStatsDropped
 	dnsPidCollisionsDelta := stateTelemetry.dnsPidCollisions.Load() - ns.lastTelemetry.dnsPidCollisions
+	windowsLingeringFlowsDelta := stateTelemetry.windowsLingeringFlows.Load() - ns.lastTelemetry.windowsLingeringFlows
 
 	// Flush log line if any metric is non-zero
 	if connDroppedDelta > 0 || closedConnDroppedDelta > 0 || dnsStatsDroppedDelta > 0 || httpStatsDroppedDelta > 0 ||
@@ -473,17 +477,20 @@ func (ns *networkState) logTelemetry() {
 
 	// debug metrics that aren't useful for customers to see
 	if statsCookieCollisionsDelta > 0 || statsUnderflowsDelta > 0 ||
-		timeSyncCollisionsDelta > 0 || dnsPidCollisionsDelta > 0 {
+		timeSyncCollisionsDelta > 0 || dnsPidCollisionsDelta > 0 ||
+		windowsLingeringFlowsDelta > 0 {
 		s := "State telemetry debug: "
 		s += " [%d stats cookie collisions]"
 		s += " [%d stats underflows]"
 		s += " [%d time sync collisions]"
 		s += " [%d DNS pid collisions]"
+		s += " [%d Windows lingering flows suppressed]"
 		log.Debugf(s,
 			statsCookieCollisionsDelta,
 			statsUnderflowsDelta,
 			timeSyncCollisionsDelta,
 			dnsPidCollisionsDelta,
+			windowsLingeringFlowsDelta,
 		)
 	}
 
@@ -499,6 +506,7 @@ func (ns *networkState) logTelemetry() {
 	ns.lastTelemetry.postgresStatsDropped = stateTelemetry.postgresStatsDropped.Load()
 	ns.lastTelemetry.redisStatsDropped = stateTelemetry.redisStatsDropped.Load()
 	ns.lastTelemetry.dnsPidCollisions = stateTelemetry.dnsPidCollisions.Load()
+	ns.lastTelemetry.windowsLingeringFlows = stateTelemetry.windowsLingeringFlows.Load()
 }
 
 // RegisterClient registers a client before it first gets stream of data.
@@ -741,6 +749,8 @@ func (ns *networkState) updateConnWithStats(client *client, cookie StatCookie, c
 			c.Monotonic = c.Monotonic.Max(sts)
 			last, _ = c.Monotonic.Sub(sts)
 		}
+
+		dropStaleFlowFailures(c, sts, last)
 
 		c.Last = c.Last.Add(last)
 		client.stats[cookie] = c.Monotonic

@@ -1,0 +1,21 @@
+# When both endpoint and profiles_endpoint are set, endpoint takes precedence:
+# the exporter is reused for internal-health metrics without inferring/setting
+# metrics_endpoint from profiles_endpoint.
+receivers:
+  profiling:
+    symbol_uploader:
+      enabled: false
+service:
+  pipelines:
+    profiles:
+      processors: []
+      receivers:
+      - profiling
+      exporters:
+      - otlphttp
+exporters:
+  otlphttp:
+    endpoint: https://otlp.us3.datadoghq.com
+    profiles_endpoint: https://otlp.datadoghq.com/v1development/profiles
+    headers:
+      dd-api-key: test-api-key
