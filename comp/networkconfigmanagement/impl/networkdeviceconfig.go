@@ -102,12 +102,15 @@ func newComponent(reqs Requires) (*networkDeviceConfigImpl, error) {
 	if rollbackEnabled {
 		runPath := reqs.Config.GetString("run_path")
 		dbPath := filepath.Join(runPath, "ncm_config.db")
-		reqs.Logger.Debugf("config rollback enabled; local db is %v", dbPath)
 		store, err = ncmstore.Open(dbPath)
 		if err != nil {
-			return nil, err
+			store = nil
+			reqs.Logger.Errorf("ncm: rollback is enabled but storage db %v could not be opened: %v", dbPath, err)
+			reqs.Logger.Errorf("ncm: running in no-rollback mode - configs will be not saved locally for rollback")
+		} else {
+			reqs.Logger.Debugf("ncm: config rollback enabled; local db is %v", dbPath)
+			reqs.Lifecycle.Append(compdef.Hook{OnStop: store.Close})
 		}
-		reqs.Lifecycle.Append(compdef.Hook{OnStop: store.Close})
 	}
 
 	impl := newNetworkDeviceConfigImpl(
