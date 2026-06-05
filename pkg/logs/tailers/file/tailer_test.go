@@ -680,3 +680,54 @@ func TestNoGoLeakWithNonBlockingStop(t *testing.T) {
 
 	// The deferred goleak.VerifyNone() will detect if goroutine leaked
 }
+
+// TestReplaceSourceRefreshesSymlinkPolicy verifies that ReplaceSource updates
+// the tailer's symlinkPolicy to match the new source's NoFollow flag.
+func TestReplaceSourceRefreshesSymlinkPolicy(t *testing.T) {
+	testDir := t.TempDir()
+	testPath := filepath.Join(testDir, "tailer.log")
+	f, err := os.Create(testPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+
+	info := status.NewInfoRegistry()
+	makeSource := func(noFollow bool) *sources.LogSource {
+		return sources.NewLogSource("", &config.LogsConfig{
+			Type:     config.FileType,
+			Path:     testPath,
+			NoFollow: noFollow,
+		})
+	}
+
+	tailerOptions := &TailerOptions{
+		OutputChan:      make(chan *message.Message, chanSize),
+		File:            NewFile(testPath, makeSource(false), false),
+		SleepDuration:   10 * time.Millisecond,
+		Decoder:         decoder.NewDecoderFromSource(sources.NewReplaceableSource(makeSource(false)), info),
+		Info:            info,
+		CapacityMonitor: metrics.NewNoopPipelineMonitor("").GetCapacityMonitor("", ""),
+		Registry:        auditor.NewMockRegistry(),
+		FileOpener:      opener.NewFileOpener(),
+	}
+
+	tailer := NewTailer(tailerOptions)
+
+	// Initial state: NoFollow=false → FollowSymlinks.
+	if tailer.symlinkPolicy != opener.FollowSymlinks {
+		t.Fatalf("expected FollowSymlinks initially, got %v", tailer.symlinkPolicy)
+	}
+
+	// Replace with NoFollow=true → policy must become RejectSymlinks.
+	tailer.ReplaceSource(makeSource(true))
+	if tailer.symlinkPolicy != opener.RejectSymlinks {
+		t.Fatalf("expected RejectSymlinks after NoFollow=true source, got %v", tailer.symlinkPolicy)
+	}
+
+	// Replace again with NoFollow=false → policy must revert to FollowSymlinks.
+	tailer.ReplaceSource(makeSource(false))
+	if tailer.symlinkPolicy != opener.FollowSymlinks {
+		t.Fatalf("expected FollowSymlinks after NoFollow=false source, got %v", tailer.symlinkPolicy)
+	}
+}

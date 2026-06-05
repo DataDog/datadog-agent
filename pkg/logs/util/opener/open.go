@@ -12,12 +12,28 @@ import (
 	"github.com/spf13/afero"
 
 	internalOpener "github.com/DataDog/datadog-agent/pkg/logs/internal/util/opener"
+	plcommon "github.com/DataDog/datadog-agent/pkg/privileged-logs/common"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
+)
+
+// SymlinkPolicy re-exports the type from pkg/privileged-logs/common so that
+// callers of this package need not import that package directly.
+type SymlinkPolicy = plcommon.SymlinkPolicy
+
+// FollowSymlinks and RejectSymlinks re-export the constants from
+// pkg/privileged-logs/common for use by callers of this package.
+const (
+	FollowSymlinks = plcommon.FollowSymlinks
+	RejectSymlinks = plcommon.RejectSymlinks
 )
 
 // FileOpener is an interface that defines the method to open a log file.
 type FileOpener interface {
-	OpenLogFile(path string) (afero.File, error)
+	// OpenLogFile opens a log file using the given symlink policy.  Callers must
+	// explicitly pass either FollowSymlinks or RejectSymlinks; passing the zero
+	// value causes an error so that new call sites cannot silently get the wrong
+	// behaviour.
+	OpenLogFile(path string, policy SymlinkPolicy) (afero.File, error)
 	OpenShared(path string) (afero.File, error)
 	Abs(path string) (string, error)
 }
@@ -35,8 +51,8 @@ type fileOpenerImpl struct {
 // On some operating systems, this will involve making an attempt to open the file via a privileged logs client.
 // If the file is not intended to attempt privilege escalation for access (e.g. it is not a log file), then the OpenShared
 // function should be used instead. This will minimize avoidable error logs for failed privilege escalation attempts.
-func (f *fileOpenerImpl) OpenLogFile(path string) (afero.File, error) {
-	return internalOpener.OpenLogFile(path)
+func (f *fileOpenerImpl) OpenLogFile(path string, policy SymlinkPolicy) (afero.File, error) {
+	return internalOpener.OpenLogFile(path, policy)
 }
 
 // OpenShared utilizes an os-specific implementation to open a generic file in a shared mode.

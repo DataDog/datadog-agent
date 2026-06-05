@@ -133,6 +133,11 @@ type Tailer struct {
 	registry        auditor.Registry
 	CapacityMonitor *metrics.CapacityMonitor
 	fileOpener      opener.FileOpener
+
+	// symlinkPolicy controls whether openLogFile follows or rejects symbolic links.
+	// It is set once at construction from the source's LogsConfig and then used at
+	// every file open site (initial open, rotation re-open).
+	symlinkPolicy opener.SymlinkPolicy
 }
 
 // TailerOptions holds all possible parameters that NewTailer requires in addition to optional parameters that can be optionally passed into. This can be used for more optional parameters if required in future
@@ -182,6 +187,11 @@ func NewTailer(opts *TailerOptions) *Tailer {
 	movingSum := util.NewMovingSum(timeWindow, bucketSize, clock.New())
 	opts.Info.Register(movingSum)
 
+	symlinkPolicy := opener.FollowSymlinks
+	if cfg := opts.File.Source.Config(); cfg != nil && cfg.NoFollow {
+		symlinkPolicy = opener.RejectSymlinks
+	}
+
 	t := &Tailer{
 		file:                         opts.File,
 		outputChan:                   opts.OutputChan,
@@ -209,6 +219,7 @@ func NewTailer(opts *TailerOptions) *Tailer {
 		CapacityMonitor:              opts.CapacityMonitor,
 		registry:                     opts.Registry,
 		fileOpener:                   opts.FileOpener,
+		symlinkPolicy:                symlinkPolicy,
 	}
 
 	if fileRotated {
@@ -451,6 +462,13 @@ func (t *Tailer) GetDetectedPattern() *regexp.Regexp {
 	return t.decoder.GetDetectedPattern()
 }
 
+// openLogFile opens a log file using this tailer's symlink policy.  All open
+// sites (initial open, rotation re-open) must call this helper rather than
+// t.fileOpener.OpenLogFile directly, to ensure the policy is always applied.
+func (t *Tailer) openLogFile(path string) (afero.File, error) {
+	return t.fileOpener.OpenLogFile(path, t.symlinkPolicy)
+}
+
 // wait lets the tailer sleep for a bit
 func (t *Tailer) wait() {
 	time.Sleep(t.sleepDuration)
@@ -461,9 +479,15 @@ func (t *Tailer) recordBytes(n int64) {
 	t.bytesRead.Add(n)
 }
 
-// ReplaceSource replaces the current source
+// ReplaceSource replaces the current source and refreshes open-policy state
+// derived from the source config (e.g. NoFollow).
 func (t *Tailer) ReplaceSource(newSource *sources.LogSource) {
 	t.file.Source.Replace(newSource)
+	if cfg := newSource.Config; cfg != nil && cfg.NoFollow {
+		t.symlinkPolicy = opener.RejectSymlinks
+	} else {
+		t.symlinkPolicy = opener.FollowSymlinks
+	}
 }
 
 // Source gets the source (currently only used for testing)

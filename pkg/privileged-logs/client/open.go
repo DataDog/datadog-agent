@@ -11,22 +11,24 @@ package client
 import (
 	"errors"
 	"os"
+	"syscall"
 
 	"bytes"
 	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
-	"syscall"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/privileged-logs/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// OpenPrivileged opens a file in system-probe and returns the file descriptor
-// This function uses a custom HTTP client that can handle file descriptor transfer
-func OpenPrivileged(socketPath string, filePath string) (*os.File, error) {
+// OpenPrivileged opens a file in system-probe and returns the file descriptor.
+// This function uses a custom HTTP client that can handle file descriptor transfer.
+// When policy is common.RejectSymlinks, the request asks system-probe to reject any
+// symbolic link in the path rather than resolving it.
+func OpenPrivileged(socketPath string, filePath string, policy common.SymlinkPolicy) (*os.File, error) {
 	// Create a new connection instead of reusing the shared connection from
 	// pkg/system-probe/api/client/client.go, since the connection is hijacked
 	// from the control of the HTTP server library on the server side.  It also
@@ -39,7 +41,8 @@ func OpenPrivileged(socketPath string, filePath string) (*os.File, error) {
 	defer conn.Close()
 
 	req := common.OpenFileRequest{
-		Path: filePath,
+		Path:     filePath,
+		NoFollow: policy == common.RejectSymlinks,
 	}
 
 	reqBody, err := json.Marshal(req)
@@ -111,7 +114,7 @@ func OpenPrivileged(socketPath string, filePath string) (*os.File, error) {
 	return nil, errors.New("no file descriptor received")
 }
 
-func maybeOpenPrivileged(path string, originalError error) (*os.File, error) {
+func maybeOpenPrivileged(path string, originalError error, policy common.SymlinkPolicy) (*os.File, error) {
 	enabled := pkgconfigsetup.SystemProbe().GetBool("privileged_logs.enabled")
 	if !enabled {
 		return nil, originalError
@@ -120,7 +123,7 @@ func maybeOpenPrivileged(path string, originalError error) (*os.File, error) {
 	log.Debugf("Permission denied, opening file with system-probe: %v", path)
 
 	socketPath := pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket")
-	file, spErr := OpenPrivileged(socketPath, path)
+	file, spErr := OpenPrivileged(socketPath, path, policy)
 	log.Tracef("Opened file with system-probe: %v, err: %v", path, spErr)
 	if spErr != nil {
 		return nil, fmt.Errorf("failed to open file with system-probe: %w, original error: %w", spErr, originalError)
@@ -129,20 +132,35 @@ func maybeOpenPrivileged(path string, originalError error) (*os.File, error) {
 	return file, nil
 }
 
-// Open attempts to open a file, and if it fails due to permissions, it opens
-// the file using system-probe if the privileged logs module is available.
-func Open(path string) (*os.File, error) {
-	file, err := os.Open(path)
+// Open attempts to open a file. The symlink policy must be [common.FollowSymlinks]
+// or [common.RejectSymlinks]; the zero value returns an error.
+//
+// With [common.FollowSymlinks], opening uses normal path resolution; if open fails
+// with permission denied, the file may be opened via system-probe when privileged
+// logs is enabled.
+//
+// With [common.RejectSymlinks], each path component is traversed with O_NOFOLLOW,
+// rejecting any symbolic link in the path.  If the file exists but opening it fails
+// with permission denied rather than a symlink (ELOOP), privileged-log escalation
+// via system-probe is attempted, and the NoFollow flag is forwarded so that
+// system-probe also skips symbolic-link resolution.  Use this for file sources
+// discovered by the process_log provider, where the path comes from /proc/<pid>/fd
+// and is canonical at discovery time; any symlink found later is an
+// attacker-controlled swap and must be rejected.
+func Open(path string, policy common.SymlinkPolicy) (*os.File, error) {
+	var file *os.File
+	var err error
+
+	if policy == common.FollowSymlinks {
+		file, err = os.Open(path)
+	} else {
+		file, err = common.OpenPathWithoutSymlinks(path)
+	}
 	if err == nil || !errors.Is(err, os.ErrPermission) {
 		return file, err
 	}
 
-	file, err = maybeOpenPrivileged(path, err)
-	if err != nil {
-		return nil, err
-	}
-
-	return file, nil
+	return maybeOpenPrivileged(path, err, policy)
 }
 
 // Stat attempts to stat a file, and if it fails due to permissions, it opens
@@ -154,7 +172,7 @@ func Stat(path string) (os.FileInfo, error) {
 		return info, err
 	}
 
-	file, err := maybeOpenPrivileged(path, err)
+	file, err := maybeOpenPrivileged(path, err, common.FollowSymlinks)
 	if err != nil {
 		return nil, err
 	}
