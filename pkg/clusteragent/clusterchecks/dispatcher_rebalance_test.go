@@ -1858,6 +1858,74 @@ func TestRebalanceUsingUtilization_PinsChecksWithoutExecutionTime(t *testing.T) 
 	assert.NotContains(t, testDispatcher.store.nodes["node2"].clcRunnerStats, "pinned2")
 }
 
+// Regression: when a pinned config and a movable config share a runner, the
+// pinned config's load must be accounted for before greedy placement so the
+// movable one is rebalanced off the (already overloaded) runner. Without the
+// two-loop split, sorting by WorkersNeeded places the heavier movable config
+// first while both runners still look empty, which anchors it to its current
+// (overloaded) runner.
+func TestRebalanceUsingUtilization_PinnedLoadAccountedBeforeGreedyPlacement(t *testing.T) {
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	testDispatcher := newDispatcher(fakeTagger)
+
+	mockClient := &rebalanceTestClcRunnerClient{
+		testStats: make(map[string]types.CLCRunnersStats),
+	}
+	testDispatcher.clcRunnersClient = mockClient
+	testDispatcher.advancedDispatching.Store(true)
+
+	// Pin the "pinned" check via the exclusion list so it ends up with
+	// WorkersNeeded > 0 (the AverageExecutionTime == 0 path would give 0).
+	testDispatcher.excludedChecksFromDispatching = map[string]struct{}{
+		"pinned": {},
+	}
+
+	testDispatcher.store.active = true
+	testDispatcher.store.nodes["node1"] = newNodeStore("node1", "10.0.0.1")
+	testDispatcher.store.nodes["node1"].workers = pkgconfigsetup.DefaultNumWorkers
+	testDispatcher.store.nodes["node2"] = newNodeStore("node2", "10.0.0.2")
+	testDispatcher.store.nodes["node2"].workers = pkgconfigsetup.DefaultNumWorkers
+
+	// node1: pinned (0.6 workers) + movable (0.7 workers). node2: empty.
+	// With a default 15s interval, AvgExecTime in ms equals workersNeeded * 15000.
+	node1Stats := types.CLCRunnersStats{
+		"pinned":  {AverageExecutionTime: 9000, IsClusterCheck: true},  // 0.6 workers
+		"movable": {AverageExecutionTime: 10500, IsClusterCheck: true}, // 0.7 workers
+	}
+	testDispatcher.store.nodes["node1"].clcRunnerStats = node1Stats
+	mockClient.testStats["10.0.0.1"] = node1Stats
+	mockClient.testStats["10.0.0.2"] = types.CLCRunnersStats{}
+
+	testDispatcher.store.idToDigest = map[checkid.ID]string{
+		"pinned":  "digestPinned",
+		"movable": "digestMovable",
+	}
+	testDispatcher.store.digestToConfig = map[string]integration.Config{
+		"digestPinned":  {Name: "pinned"},
+		"digestMovable": {Name: "movable"},
+	}
+	testDispatcher.store.digestToNode = map[string]string{
+		"digestPinned":  "node1",
+		"digestMovable": "node1",
+	}
+
+	checksMoved := testDispatcher.rebalanceUsingUtilization(true)
+
+	requireNotLocked(t, testDispatcher.store)
+
+	// The pinned check must stay on node1; the movable one must move to node2
+	// because node1 already carries 0.6 workers of pinned load.
+	require.Len(t, checksMoved, 1)
+	assert.Equal(t, "digestMovable", checksMoved[0].Digest)
+	assert.Equal(t, "node1", checksMoved[0].SourceNodeName)
+	assert.Equal(t, "node2", checksMoved[0].DestNodeName)
+
+	assert.Contains(t, testDispatcher.store.nodes["node1"].clcRunnerStats, "pinned")
+	assert.NotContains(t, testDispatcher.store.nodes["node1"].clcRunnerStats, "movable")
+	assert.Contains(t, testDispatcher.store.nodes["node2"].clcRunnerStats, "movable")
+	assert.NotContains(t, testDispatcher.store.nodes["node2"].clcRunnerStats, "pinned")
+}
+
 // Verifies that two configs sharing a check name but with different digests
 // (e.g., two postgres configs monitoring different databases) get separate
 // distribution entries and are moved independently.
