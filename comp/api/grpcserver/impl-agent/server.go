@@ -15,6 +15,7 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
 
+	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
 	autodiscoverystream "github.com/DataDog/datadog-agent/comp/core/autodiscovery/stream"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -328,9 +329,9 @@ func (s *serverSecure) ReportHealthIssue(_ context.Context, in *pb.ReportHealthI
 		return nil, err
 	}
 
-	issue := in.GetIssue()
-	if issue == nil {
-		return nil, status.Error(codes.InvalidArgument, "issue cannot be nil")
+	issue := &healthplatformpayload.Issue{}
+	if err := in.GetIssue().UnmarshalTo(issue); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "issue must be a healthplatform.Issue: %v", err)
 	}
 	if issue.GetId() == "" {
 		return nil, status.Error(codes.InvalidArgument, "issue id cannot be empty")
