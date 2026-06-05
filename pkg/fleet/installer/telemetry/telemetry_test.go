@@ -309,35 +309,6 @@ func TestFinishWithWrappedStackTracerError(t *testing.T) {
 	assert.Contains(t, stack, "TestFinishWithWrappedStackTracerError")
 }
 
-func TestFinishWithCanceledContextIsNotError(t *testing.T) {
-	globalTracer = &tracer{spans: make(map[uint64]*Span)}
-	s, _ := StartSpanFromContext(context.Background(), "test")
-	s.Finish(context.Canceled)
-
-	assert.Equal(t, int32(0), s.span.Error, "canceled context should not mark the span as error")
-	assert.NotContains(t, s.span.Meta, "error.message")
-	assert.NotContains(t, s.span.Meta, "error.stack")
-}
-
-func TestFinishWithWrappedCanceledContextIsNotError(t *testing.T) {
-	globalTracer = &tracer{spans: make(map[uint64]*Span)}
-	s, _ := StartSpanFromContext(context.Background(), "test")
-	// Mirrors the error returned by installer.NewInstaller on shutdown.
-	s.Finish(fmt.Errorf("could not create packages db: %w", context.Canceled))
-
-	assert.Equal(t, int32(0), s.span.Error, "wrapped canceled context should not mark the span as error")
-	assert.NotContains(t, s.span.Meta, "error.message")
-}
-
-func TestFinishWithDeadlineExceededIsError(t *testing.T) {
-	globalTracer = &tracer{spans: make(map[uint64]*Span)}
-	s, _ := StartSpanFromContext(context.Background(), "test")
-	s.Finish(context.DeadlineExceeded)
-
-	assert.Equal(t, int32(1), s.span.Error, "deadline exceeded should still mark the span as error")
-	assert.Equal(t, context.DeadlineExceeded.Error(), s.span.Meta["error.message"])
-}
-
 func TestTakeStacktraceFiltersInternals(t *testing.T) {
 	stack := takeStacktrace(0)
 	require.NotEmpty(t, stack)

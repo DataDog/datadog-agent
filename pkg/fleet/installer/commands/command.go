@@ -9,6 +9,7 @@ package commands
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -134,6 +135,14 @@ func newInstallerCmd(operation string, opts ...cmdOption) (_ *installerCmd, err 
 	cmd := newCmd(operation, opts...)
 	defer func() {
 		if err != nil {
+			if isShutdownCancellation(err) {
+				// The installer could not be created because the context was canceled
+				// during a host/process shutdown. This is a benign abort rather than a
+				// real failure, so the command span is finished without an error instead
+				// of being reported as a span error / Error Tracking issue.
+				cmd.stop(nil)
+				return
+			}
 			cmd.stop(err)
 		}
 	}()
@@ -150,6 +159,15 @@ func newInstallerCmd(operation string, opts ...cmdOption) (_ *installerCmd, err 
 		Installer: i,
 		cmd:       cmd,
 	}, nil
+}
+
+// isShutdownCancellation reports whether err was caused by the context being
+// canceled during a host/process shutdown. Such cancellations are benign aborts
+// rather than real failures, so installer initialization should not report them
+// as span errors / Error Tracking issues. A deadline being exceeded is treated as
+// a genuine failure and is intentionally not matched here.
+func isShutdownCancellation(err error) bool {
+	return errors.Is(err, context.Canceled)
 }
 
 func (i *installerCmd) stop(err error) {
