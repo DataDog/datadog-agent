@@ -152,7 +152,7 @@ func TestAutoInstrumentation(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Create a mock config.
-			mockConfig := configmock.NewFromFile(t, tt.config)
+			mockConfig := configmock.NewFromYAMLFile(t, tt.config)
 
 			// Create a mock meta.
 			wmeta := fxutil.Test[workloadmetamock.Mock](t, fx.Options(

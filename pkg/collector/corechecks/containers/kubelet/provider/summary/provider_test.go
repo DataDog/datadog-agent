@@ -33,7 +33,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
-	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	kubeletmock "github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet/mock"
 )
@@ -487,7 +486,7 @@ type FilteringTestSuite struct {
 	provider       *Provider
 	mockSender     *mocksender.MockSender
 	mockKubelet    *kubeletmock.KubeletMock
-	mockConfig     model.Config
+	mockConfig     configcomp.Component
 }
 
 func (suite *FilteringTestSuite) SetupTest() {

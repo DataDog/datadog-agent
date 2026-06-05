@@ -12,7 +12,6 @@ import (
 	"testing"
 	"time"
 
-	agentconfig "github.com/DataDog/datadog-agent/comp/core/config/def"
 	agentconfigmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	snmpscanmanager "github.com/DataDog/datadog-agent/comp/snmpscanmanager/def"
 	snmpscanmanagermock "github.com/DataDog/datadog-agent/comp/snmpscanmanager/mock"

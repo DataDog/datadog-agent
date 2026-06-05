@@ -41,7 +41,6 @@ import (
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	processapiserver "github.com/DataDog/datadog-agent/comp/process/apiserver/def"
 	processapiserverimpl "github.com/DataDog/datadog-agent/comp/process/apiserver/fx"
-	model "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -80,7 +79,7 @@ func TestRegistryJSON(t *testing.T) {
 	mock.AssertFileContent("mockfilecontent", "registry.json")
 }
 
-func setupIPCAddress(t *testing.T, confMock model.Config, URL string) {
+func setupIPCAddress(t *testing.T, confMock config.Component, URL string) {
 	u, err := url.Parse(URL)
 	require.NoError(t, err)
 	host, port, err := net.SplitHostPort(u.Host)

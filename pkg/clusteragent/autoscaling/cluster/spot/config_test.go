@@ -13,7 +13,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	coreconfig "github.com/DataDog/datadog-agent/comp/core/config/def"
 	coreconfigmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	spot "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/cluster/spot"
 )

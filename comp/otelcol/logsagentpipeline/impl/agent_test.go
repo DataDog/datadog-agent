@@ -111,7 +111,7 @@ func (suite *AgentTestSuite) TestAgentTcp() {
 }
 
 func (suite *AgentTestSuite) TestAgentHttp() {
-	cfg := configmock.New(suite.T())
+	cfg := configComponent.New(suite.T())
 	server := http.NewTestServer(200, cfg)
 	defer server.Stop()
 	endpoints := config.NewEndpoints(server.Endpoint, nil, false, true)
