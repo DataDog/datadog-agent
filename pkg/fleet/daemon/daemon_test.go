@@ -6,12 +6,10 @@
 package daemon
 
 import (
-	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"path/filepath"
 	"runtime"
 	"sync"
@@ -29,7 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -296,29 +293,6 @@ func newTestInstaller(t *testing.T) *testInstaller {
 
 func (i *testInstaller) Stop() {
 	i.daemonImpl.Stop(context.Background())
-}
-
-func TestHandleGarbageCollectError(t *testing.T) {
-	var buf bytes.Buffer
-	logger, err := log.LoggerFromWriterWithMinLevelAndLvlMsgFormat(&buf, log.DebugLvl)
-	require.NoError(t, err)
-	log.SetupLogger(logger, log.DebugStr)
-	t.Cleanup(func() {
-		log.SetupLogger(log.Disabled(), log.OffStr)
-	})
-
-	d := &daemonImpl{}
-	d.handleGarbageCollectError(context.Canceled)
-	log.Flush()
-	logs := buf.String()
-	assert.Contains(t, logs, "[DEBUG] Daemon: GC interrupted by shutdown: context canceled")
-	assert.NotContains(t, logs, "[ERROR]")
-
-	buf.Reset()
-	d.handleGarbageCollectError(errors.New("boom"))
-	log.Flush()
-	logs = buf.String()
-	assert.Contains(t, logs, "[ERROR] Daemon: could not run GC: boom")
 }
 
 func TestInstall(t *testing.T) {

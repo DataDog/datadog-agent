@@ -58,7 +58,6 @@ go_test(
         "//pkg/fleet/installer/repository",
         "//pkg/proto/pbgo/core",
         "//pkg/remoteconfig/state",
-        "//pkg/util/log",
         "//pkg/version",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//mock",
