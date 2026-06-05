@@ -245,7 +245,8 @@ type KSMCheck struct {
 	tagger                     tagger.Component
 	cancel                     context.CancelFunc
 	cancelCR                   context.CancelFunc
-	crMu                       sync.Mutex
+	cancelled                  bool
+	cancelMu                   sync.Mutex
 	isCLCRunner                bool
 	isRunningOnNodeAgent       bool
 	clusterIDTagValue          string
@@ -297,6 +298,10 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 	k.BuildID(integrationConfigDigest, config, initConfig)
 	k.agentConfig = pkgconfigsetup.Datadog()
 
+	k.cancelMu.Lock()
+	k.cancelled = false
+	k.cancelMu.Unlock()
+
 	err := k.CommonConfigure(senderManager, initConfig, config, source, provider)
 	if err != nil {
 		return err
@@ -329,13 +334,13 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 	k.mergeLabelsMapper(defaultLabelsMapper())
 
 	if k.instance.usesCustomResourceMetrics() && k.instance.PodCollectionMode != nodeKubeletPodCollection {
-		k.crMu.Lock()
+		k.cancelMu.Lock()
 		if k.cancelCR == nil {
 			ctx, cancel := context.WithCancel(context.Background())
 			k.customResourceDiscoverer = customresources.StartDiscovery(ctx)
 			k.cancelCR = cancel
 		}
-		k.crMu.Unlock()
+		k.cancelMu.Unlock()
 	}
 
 	// Retry configuration steps related to API Server in check executions if necessary
@@ -500,12 +505,21 @@ func (k *KSMCheck) buildStores() error {
 	// Start the collection process
 	k.allStores = builder.BuildStores()
 
-	// Cancel the old reflectors after the new store is created. Cancelling the
-	// old context ensures previous reflectors release their resources.
-	if k.cancel != nil {
-		k.cancel()
-	}
+	// Swap in the new cancel func under the mutex. If Cancel() already ran while
+	// BuildStores was in progress (cancelled==true), immediately stop the fresh
+	// reflectors so they don't leak.
+	k.cancelMu.Lock()
+	oldCancel := k.cancel
 	k.cancel = cancel
+	alreadyCancelled := k.cancelled
+	k.cancelMu.Unlock()
+
+	if oldCancel != nil {
+		oldCancel()
+	}
+	if alreadyCancelled {
+		cancel()
+	}
 
 	return nil
 }
@@ -672,9 +686,9 @@ func (k *KSMCheck) Run() error {
 
 	// Check if the custom resource discoverer was updated and rebuild KSM if needed
 	// Only check if discoverer was initialized (not in node_kubelet mode)
-	k.crMu.Lock()
+	k.cancelMu.Lock()
 	discoverer := k.customResourceDiscoverer
-	k.crMu.Unlock()
+	k.cancelMu.Unlock()
 	if discoverer != nil {
 		wasUpdated := false
 		discoverer.SafeRead(func() {
@@ -777,16 +791,21 @@ func (k *KSMCheck) Run() error {
 // Cancel is called when the check is unscheduled, it stops the informers used by the metrics store
 func (k *KSMCheck) Cancel() {
 	log.Infof("Shutting down informers used by the check '%s'", k.ID())
-	if k.cancel != nil {
-		k.cancel()
+	k.cancelMu.Lock()
+	k.cancelled = true
+	cancelFn := k.cancel
+	k.cancel = nil
+	k.cancelMu.Unlock()
+	if cancelFn != nil {
+		cancelFn()
 	}
-	k.crMu.Lock()
+	k.cancelMu.Lock()
 	if k.cancelCR != nil {
 		log.Infof("Shutting down custom resource informers")
 		k.cancelCR()
 		k.cancelCR = nil
 	}
-	k.crMu.Unlock()
+	k.cancelMu.Unlock()
 }
 
 // processMetrics attaches tags and forwards metrics to the aggregator
