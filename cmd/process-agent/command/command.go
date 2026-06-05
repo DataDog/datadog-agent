@@ -19,6 +19,7 @@ import (
 	sysprobeconfigimpl "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/impl"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
 )
@@ -87,13 +88,11 @@ func MakeCommand(subcommandFactories []SubcommandFactory, winParams bool, rootCm
 		SilenceUsage: true,
 	}
 
-	rootCmd.PersistentFlags().StringVar(&globalParams.ConfFilePath, flags.CfgPath, flags.DefaultConfPath(), "Path to datadog.yaml config")
+	rootCmd.PersistentFlags().StringVar(&globalParams.ConfFilePath, flags.CfgPath, defaultpaths.GetDefaultConfFile(), "Path to datadog.yaml config")
 	rootCmd.PersistentFlags().StringVar(&globalParams.FleetPoliciesDirPath, flags.FleetCfgPath, "", "Path to the directory containing fleet policies")
 	_ = rootCmd.PersistentFlags().MarkHidden(flags.FleetCfgPath)
 
-	if flags.DefaultSysProbeConfPath() != "" {
-		rootCmd.PersistentFlags().StringVar(&globalParams.SysProbeConfFilePath, flags.SysProbeConfig, flags.DefaultSysProbeConfPath(), "Path to system-probe.yaml config")
-	}
+	rootCmd.PersistentFlags().StringVar(&globalParams.SysProbeConfFilePath, flags.SysProbeConfig, defaultpaths.GetDefaultSysProbeConfFile(), "Path to system-probe.yaml config")
 
 	rootCmd.PersistentFlags().StringVarP(&globalParams.PidFilePath, "pid", "p", "", "Path to set pidfile for process")
 	rootCmd.PersistentFlags().BoolP("version", "v", false, "[deprecated] Print the version and exit")

@@ -108,6 +108,16 @@ func GetDefaultConfPath() string {
 	return DefaultConfPath
 }
 
+// GetDefaultConfFile returns the default location of datadog.yaml
+func GetDefaultConfFile() string {
+	return filepath.Join(GetDefaultConfPath(), "datadog.yaml")
+}
+
+// GetDefaultSysProbeConfFile returns the default location of system-probe.yaml
+func GetDefaultSysProbeConfFile() string {
+	return filepath.Join(GetDefaultConfPath(), "system-probe.yaml")
+}
+
 // GetDefaultConfdPath returns the path to the conf.d directory
 func GetDefaultConfdPath() string {
 	return DefaultConfdPath

@@ -3,22 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !windows && !darwin
-
+//nolint:revive // TODO(PROC) Fix revive linter
 package flags
 
-import (
-	"path/filepath"
-
-	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
+const (
+	// CfgPath defines the cfgpath flag
+	CfgPath = "cfgpath"
+	// SysProbeConfig defines the sysprobe-config flag
+	SysProbeConfig = "sysprobe-config"
+	// FleetCfgPath defines the fleetcfgpath flag
+	FleetCfgPath = "fleetcfgpath"
 )
-
-// DefaultConfPath returns the default location of datadog.yaml
-func DefaultConfPath() string {
-	return filepath.Join(defaultpaths.GetDefaultConfPath(), "datadog.yaml")
-}
-
-// DefaultSysProbeConfPath returns the default location of system-probe.yaml
-func DefaultSysProbeConfPath() string {
-	return filepath.Join(defaultpaths.GetDefaultConfPath(), "system-probe.yaml")
-}

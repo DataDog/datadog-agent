@@ -1,5 +1,3 @@
-// Unless explicitly stated otherwise all files in this repository are licensed
-// under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
@@ -127,6 +125,16 @@ func init() {
 // GetDefaultConfPath returns the path to the folder containing datadog.yaml
 func GetDefaultConfPath() string {
 	return confPath
+}
+
+// GetDefaultConfFile returns the default location of datadog.yaml
+func GetDefaultConfFile() string {
+	return filepath.Join(GetDefaultConfPath(), "datadog.yaml")
+}
+
+// GetDefaultSysProbeConfFile returns the default location of system-probe.yaml
+func GetDefaultSysProbeConfFile() string {
+	return filepath.Join(GetDefaultConfPath(), "system-probe.yaml")
 }
 
 // GetDefaultConfdPath returns the path to the conf.d directory
