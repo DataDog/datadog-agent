@@ -100,10 +100,10 @@ func (m *SenderManager) GetDefaultSender() (aggregatorsender.Sender, error) {
 
 // Sender implements sender.Sender for lookback shadow checks.
 type Sender struct {
-	ctx     context.Context
-	id      checkid.ID
-	writer  Writer
-	factory *aggregatorsender.CheckMetricSampleFactory
+	ctx       context.Context
+	id        checkid.ID
+	writer    Writer
+	formatter *aggregatorsender.CheckMetricSampleFormatter
 
 	mu        sync.Mutex
 	samples   []metrics.MetricSample
@@ -118,7 +118,7 @@ func newSender(ctx context.Context, id checkid.ID, defaultHostname string, write
 		ctx:       ctx,
 		id:        id,
 		writer:    writer,
-		factory:   aggregatorsender.NewCheckMetricSampleFactory(id, defaultHostname, now),
+		formatter: aggregatorsender.NewCheckMetricSampleFormatter(id, defaultHostname, now),
 		stats:     stats.NewSenderStats(),
 		priorStat: stats.NewSenderStats(),
 	}
@@ -143,7 +143,7 @@ func (s *Sender) Commit() {
 }
 
 func (s *Sender) appendScalarSample(input aggregatorsender.ScalarSample) {
-	sample := *s.factory.BuildMetricSample(input)
+	sample := *s.formatter.Format(input)
 	sample.Tags = cloneTags(sample.Tags)
 
 	s.mu.Lock()
@@ -168,7 +168,7 @@ func (s *Sender) GetSenderStats() stats.SenderStats {
 
 // DisableDefaultHostname controls default hostname injection for scalar samples.
 func (s *Sender) DisableDefaultHostname(disable bool) {
-	s.factory.DisableDefaultHostname(disable)
+	s.formatter.DisableDefaultHostname(disable)
 }
 
 // SetCheckCustomTags stores tags from check configuration.
@@ -177,7 +177,7 @@ func (s *Sender) SetCheckCustomTags(tags []string) {
 	s.checkTags = tags
 	s.mu.Unlock()
 
-	s.factory.SetCheckCustomTags(tags)
+	s.formatter.SetCheckCustomTags(tags)
 }
 
 // SetCheckService stores the service tag to apply at finalization time.
@@ -189,7 +189,7 @@ func (s *Sender) SetCheckService(service string) {
 
 // SetNoIndex controls no-index behavior for scalar samples.
 func (s *Sender) SetNoIndex(noIndex bool) {
-	s.factory.SetNoIndex(noIndex)
+	s.formatter.SetNoIndex(noIndex)
 }
 
 // FinalizeCheckServiceTag applies the configured service tag to scalar samples.
@@ -204,7 +204,7 @@ func (s *Sender) FinalizeCheckServiceTag() {
 	checkTags := s.checkTags
 	s.mu.Unlock()
 
-	s.factory.SetCheckCustomTags(checkTags)
+	s.formatter.SetCheckCustomTags(checkTags)
 }
 
 func (s *Sender) Gauge(metric string, value float64, hostname string, tags []string) {

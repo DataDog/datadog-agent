@@ -14,12 +14,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
-func TestCheckMetricSampleFactoryBuildsSenderMetricSampleFields(t *testing.T) {
-	factory := NewCheckMetricSampleFactory(checkid.ID("cpu:instance"), "default-host", func() float64 { return 1234 })
-	factory.SetCheckCustomTags([]string{"custom:tag"})
-	factory.SetNoIndex(true)
+func TestCheckMetricSampleFormatterFormatsSenderMetricSampleFields(t *testing.T) {
+	formatter := NewCheckMetricSampleFormatter(checkid.ID("cpu:instance"), "default-host", func() float64 { return 1234 })
+	formatter.SetCheckCustomTags([]string{"custom:tag"})
+	formatter.SetNoIndex(true)
 
-	sample := factory.BuildMetricSample(ScalarSample{
+	sample := formatter.Format(ScalarSample{
 		Name:            "system.cpu.user",
 		Value:           42,
 		Hostname:        "",
@@ -42,10 +42,10 @@ func TestCheckMetricSampleFactoryBuildsSenderMetricSampleFields(t *testing.T) {
 	assert.Equal(t, metrics.MetricSourceCPU, sample.Source)
 }
 
-func TestCheckMetricSampleFactoryPreservesExplicitHostnameTimestampAndNoIndex(t *testing.T) {
-	factory := NewCheckMetricSampleFactory(checkid.ID("unknown:instance"), "default-host", func() float64 { return 1234 })
+func TestCheckMetricSampleFormatterPreservesExplicitHostnameTimestampAndNoIndex(t *testing.T) {
+	formatter := NewCheckMetricSampleFormatter(checkid.ID("unknown:instance"), "default-host", func() float64 { return 1234 })
 
-	sample := factory.BuildMetricSample(ScalarSample{
+	sample := formatter.Format(ScalarSample{
 		Name:      "custom.metric",
 		Value:     7,
 		Hostname:  "submitted-host",
@@ -60,11 +60,11 @@ func TestCheckMetricSampleFactoryPreservesExplicitHostnameTimestampAndNoIndex(t 
 	assert.Equal(t, metrics.MetricSourceUnknown, sample.Source)
 }
 
-func TestCheckMetricSampleFactoryCanDisableDefaultHostname(t *testing.T) {
-	factory := NewCheckMetricSampleFactory(checkid.ID("cpu:instance"), "default-host", func() float64 { return 1234 })
-	factory.DisableDefaultHostname(true)
+func TestCheckMetricSampleFormatterCanDisableDefaultHostname(t *testing.T) {
+	formatter := NewCheckMetricSampleFormatter(checkid.ID("cpu:instance"), "default-host", func() float64 { return 1234 })
+	formatter.DisableDefaultHostname(true)
 
-	sample := factory.BuildMetricSample(ScalarSample{
+	sample := formatter.Format(ScalarSample{
 		Name:  "system.cpu.user",
 		Value: 42,
 		Type:  metrics.GaugeType,
