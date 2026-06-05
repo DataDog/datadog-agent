@@ -114,14 +114,16 @@ function computeSeverityEvents(
       if (v < lowT - margin) return 0;
       return 1;
     }
-    if (v < lowT - margin) return 0;
+    // cur === 2 (High): cap decrease to one level at a time so we always pass through Medium
     if (v < highT - margin) return 1;
     return 2;
   }
 
   const initialLevel = rawLevel(ewmaValues[0]);
   let cur = initialLevel;
-  let lastDecreaseTs = -Infinity;
+  // Track when we entered the current state; cooldown prevents leaving an elevated state
+  // too soon, enforcing minimum dwell time before each step down.
+  let lastStateEntryTs = -Infinity;
   const events: SeverityEvent[] = [];
 
   for (let i = 1; i < ewmaValues.length; i++) {
@@ -129,9 +131,9 @@ function computeSeverityEvents(
     const target = nextLevel(ewmaValues[i], cur);
     if (target === cur) continue;
     const dir = target > cur ? 'increase' : 'decrease';
-    if (dir === 'decrease' && ts - lastDecreaseTs < cooldownSecs) continue;
+    if (dir === 'decrease' && ts - lastStateEntryTs < cooldownSecs) continue;
     events.push({ bucketIdx: i, timestamp: ts, direction: dir, fromLevel: cur, toLevel: target });
-    if (dir === 'decrease') lastDecreaseTs = ts;
+    lastStateEntryTs = ts;
     cur = target;
   }
   return { events, initialLevel };
