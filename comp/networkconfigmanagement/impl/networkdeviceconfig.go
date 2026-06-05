@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"net/http"
 	"path/filepath"
+	"sync"
 
 	"time"
 
@@ -137,6 +138,7 @@ type networkDeviceConfigImpl struct {
 	lastReportTimes       *Map[time.Time]
 	inventoryMaxInterval  time.Duration
 	lastInventoryReportAt time.Time
+	inventoryLock         sync.Mutex
 	clock                 clock.Clock
 	hostname              string
 	profiles              ncmprofile.Map
@@ -265,7 +267,7 @@ func (n *networkDeviceConfigImpl) ReportConfigWithSender(deviceID string, baseSe
 	}
 
 	var inventoryEntries []ncmreport.InventoryEntry
-	timeSinceInventory := startTime.Sub(n.lastInventoryReportAt)
+	timeSinceInventory := startTime.Sub(n.getLastInventoryTime())
 	if configStore == nil {
 		debugf("rollback is disabled, so no inventory will be reported.")
 	} else if localStoreChanged {
@@ -285,7 +287,7 @@ func (n *networkDeviceConfigImpl) ReportConfigWithSender(deviceID string, baseSe
 			return checkErr
 		}
 		if len(inventoryEntries) > 0 {
-			n.lastInventoryReportAt = n.clock.Now()
+			n.setLastInventoryTime(n.clock.Now())
 		}
 	} else {
 		debugf("no new config and no need to send inventory data")
@@ -355,4 +357,16 @@ func (n *networkDeviceConfigImpl) findMatchingProfile(device *ncmconfig.DeviceIn
 		return profName, true
 	}
 	return "", false
+}
+
+func (n *networkDeviceConfigImpl) getLastInventoryTime() time.Time {
+	n.inventoryLock.Lock()
+	defer n.inventoryLock.Unlock()
+	return n.lastInventoryReportAt
+}
+
+func (n *networkDeviceConfigImpl) setLastInventoryTime(now time.Time) {
+	n.inventoryLock.Lock()
+	defer n.inventoryLock.Unlock()
+	n.lastInventoryReportAt = now
 }
