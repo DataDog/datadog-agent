@@ -309,6 +309,85 @@ type Correlator interface {
 	Reset()
 }
 
+// ScorerConfig holds the tunable parameters for the anomaly scoring pipeline.
+// All fields use calibrated defaults (see ANOMALY_SCORING.md §2.8).
+type ScorerConfig struct {
+	// Alpha is the EWMA smoothing factor (0 < α ≤ 1). Lower = smoother.
+	Alpha float64 `json:"alpha"`
+	// SaturationK is the saturation constant k: saturation = 1−exp(−n/k).
+	SaturationK float64 `json:"saturation_k"`
+	// LowThreshold is the EWMA level defining the Low/Medium severity boundary.
+	LowThreshold float64 `json:"low_threshold"`
+	// HighThreshold is the EWMA level defining the Medium/High severity boundary.
+	HighThreshold float64 `json:"high_threshold"`
+	// MarginPct is the hysteresis margin as a fraction of HighThreshold.
+	// effectiveMargin = HighThreshold × MarginPct.
+	MarginPct float64 `json:"margin_pct"`
+	// CooldownSecs is the minimum seconds to remain in any elevated state
+	// before a decrease transition is allowed.
+	CooldownSecs int64 `json:"cooldown_secs"`
+}
+
+// ScoreBucket is the per-second telemetry unit emitted by the scorer.
+// One bucket is produced for every 1-second tick, even if it has no anomalies.
+type ScoreBucket struct {
+	// Second is the Unix timestamp (floor) for this bucket.
+	Second int64 `json:"second"`
+	// Bins[L] is the number of deduplicated anomalies at level L (0=VeryLow … 4=XHigh).
+	Bins [5]int `json:"bins"`
+	// Count is the total number of anomalies in this bucket (sum of Bins).
+	Count int `json:"count"`
+	// WeightSum is the sum of level weights for all anomalies in this bucket.
+	WeightSum float64 `json:"weight_sum"`
+	// Ewma is the EWMA value after processing this bucket.
+	Ewma float64 `json:"ewma"`
+}
+
+// SeverityLevel represents one of three severity states: Low, Medium, High.
+type SeverityLevel int
+
+const (
+	SeverityLow    SeverityLevel = 0
+	SeverityMedium SeverityLevel = 1
+	SeverityHigh   SeverityLevel = 2
+)
+
+// SeverityEvent records a state-machine transition.
+type SeverityEvent struct {
+	// Timestamp is the Unix second at which the transition occurred.
+	Timestamp int64 `json:"timestamp"`
+	// FromLevel is the state before the transition.
+	FromLevel SeverityLevel `json:"from_level"`
+	// ToLevel is the state after the transition.
+	ToLevel SeverityLevel `json:"to_level"`
+}
+
+// ScoreState is the full snapshot of the scorer's current state.
+// This is what the testbench API serialises and the UI renders.
+type ScoreState struct {
+	Buckets []ScoreBucket   `json:"buckets"`
+	Events  []SeverityEvent `json:"events"`
+	Config  ScorerConfig    `json:"config"`
+}
+
+// Scorer computes a smoothed anomaly intensity signal and derives severity
+// state transitions from it. It mirrors the Correlator lifecycle:
+// ProcessAnomaly → Advance (once per second tick) → ScoreState → Reset.
+type Scorer interface {
+	// Name returns the scorer name for debugging.
+	Name() string
+	// ProcessAnomaly feeds a raw anomaly into the scorer's current-second buffer.
+	ProcessAnomaly(a Anomaly)
+	// Advance finalises the bucket at dataTime (unix seconds) and runs the
+	// EWMA + state-machine update for that second. Callers must invoke this
+	// after each 1-second detection cycle.
+	Advance(dataTime int64)
+	// ScoreState returns the accumulated telemetry (all buckets + events so far).
+	ScoreState() ScoreState
+	// Reset clears all internal state for reanalysis.
+	Reset()
+}
+
 // Reporter receives reports and displays or delivers them.
 type Reporter interface {
 	// Name returns the reporter name for debugging.

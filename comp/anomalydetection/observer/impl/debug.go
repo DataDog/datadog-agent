@@ -78,9 +78,13 @@ type StateView interface {
 	ActiveCorrelations() []observerdef.ActiveCorrelation
 	CorrelationHistory() []observerdef.ActiveCorrelation
 
-	// Detector / correlator metadata
+	// Scoring
+	ScoreState() observerdef.ScoreState
+
+	// Detector / correlator / scorer metadata
 	ListDetectors() []ComponentStateInfo
 	ListCorrelators() []ComponentStateInfo
+	ListScorers() []ComponentStateInfo
 
 	// Timing
 	LastAnalyzedTime() int64
