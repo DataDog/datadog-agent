@@ -24,6 +24,7 @@ go_library(
         "rate.go",
         "series.go",
         "set.go",
+        "sketch_data_otel.go",
         "sketch_series.go",
         "test_helper.go",
     ],
