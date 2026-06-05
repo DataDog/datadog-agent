@@ -20,8 +20,6 @@ import (
 
 func tryCheckInstrumentationCRD(check checkAPI) error {
 	if err := check(); err != nil {
-		// Only treat auth/permission failures as permanent — the CRD or apiserver may
-		// not be ready yet for any other reason (NotFound, 5xx, throttling, network errors).
 		if apierrors.IsUnauthorized(err) || apierrors.IsForbidden(err) {
 			log.Errorf("DatadogInstrumentation CRD check failed: not retryable: %s", err)
 			return backoff.Permanent(err)
@@ -52,9 +50,9 @@ func waitForInstrumentationCRD(ctx context.Context, dynamicClient dynamic.Interf
 		if err != nil {
 			attempt++
 			if apierrors.IsNotFound(err) {
-				log.Warnf("DatadogInstrumentation CRD missing (attempt=%d): will retry", attempt)
+				log.Debugf("DatadogInstrumentation CRD missing (attempt=%d): will retry", attempt)
 			} else {
-				log.Warnf("DatadogInstrumentation CRD check failed transiently (attempt=%d): %v: will retry", attempt, err)
+				log.Debugf("DatadogInstrumentation CRD check failed transiently (attempt=%d): %v: will retry", attempt, err)
 			}
 		}
 		return nil, err
@@ -73,7 +71,7 @@ func startDatadogInstrumentationController(ctx *ControllerContext, _ chan error)
 
 	go func() {
 		if err := waitForInstrumentationCRD(controllerCtx, ctx.DynamicClient); err != nil {
-			log.Warnf("DatadogInstrumentation controller will not start: %v", err)
+			log.Infof("DatadogInstrumentation controller will not start: %v", err)
 			return
 		}
 
