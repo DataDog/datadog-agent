@@ -63,7 +63,10 @@ func (info *Info) fillPlatformInfo() {
 		// Fall back to uname fields if gopsutil fails.
 		info.KernelName = utils.NewValue(utils.StringFromBytes(uname.Sysname[:]))
 		info.Hostname = utils.NewValue(utils.StringFromBytes(uname.Nodename[:]))
-		info.KernelVersion = utils.NewValue(utils.StringFromBytes(uname.Version[:]))
+
+		// Extract first 2 parts of the kernel version ("7.3.1.4" -> "7.3")
+		kernelVersion := utils.StringFromBytes(uname.Version[:]) + "." + utils.StringFromBytes(uname.Release[:])
+		info.KernelVersion = utils.NewValue(kernelVersion)
 	} else {
 		// Both gopsutil and uname failed; report the actual errors.
 		info.KernelName = utils.NewErrorValue[string](err)
