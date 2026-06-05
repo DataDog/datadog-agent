@@ -85,6 +85,32 @@ func TestRoundTripDNSNotFoundErrorUnexpectedForRegularHost(t *testing.T) {
 	assert.NotContains(t, spans[0].span.Meta, "expected_error")
 }
 
+func TestRoundTripDNSNotFoundErrorUnexpectedForProxyHost(t *testing.T) {
+	globalTracer = &tracer{spans: make(map[uint64]*Span)}
+	host := "install.datadoghq.com.internal.dda-testing.com"
+	proxyHost := "proxy.example.com"
+	rtErr := &net.DNSError{
+		Err:        "no such host",
+		Name:       proxyHost,
+		IsNotFound: true,
+	}
+	rt := WrapRoundTripper(errorRoundTripper{
+		err: &url.Error{Op: "proxyconnect", URL: "https://" + proxyHost + "/", Err: rtErr},
+	})
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "https://"+host+"/v2/", nil)
+	require.NoError(t, err)
+
+	err = roundTripWithClosedBody(t, rt, req)
+	require.Error(t, err)
+
+	spans := globalTracer.flushCompletedSpans()
+	require.Len(t, spans, 1)
+	assert.Equal(t, int32(1), spans[0].span.Error)
+	assert.Equal(t, err.Error(), spans[0].span.Meta["http.errors"])
+	assert.Equal(t, err.Error(), spans[0].span.Meta["error.message"])
+	assert.NotContains(t, spans[0].span.Meta, "expected_error")
+}
+
 func TestRoundTripNonDNSTransportErrorUnexpected(t *testing.T) {
 	globalTracer = &tracer{spans: make(map[uint64]*Span)}
 	rtErr := errors.New("connection refused")

@@ -72,12 +72,21 @@ func (rt *roundTripper) RoundTrip(req *http.Request) (res *http.Response, err er
 
 func isExpectedDNSNotFoundError(req *http.Request, err error) bool {
 	var dnsErr *net.DNSError
-	return errors.As(err, &dnsErr) && dnsErr.IsNotFound && isDDATestingHost(req.URL.Hostname())
+	if !errors.As(err, &dnsErr) || !dnsErr.IsNotFound {
+		return false
+	}
+	requestHost := normalizeDNSHost(req.URL.Hostname())
+	errorHost := normalizeDNSHost(dnsErr.Name)
+	return requestHost == errorHost && isDDATestingHost(requestHost)
 }
 
 func isDDATestingHost(host string) bool {
-	host = strings.TrimSuffix(strings.ToLower(host), ".")
+	host = normalizeDNSHost(host)
 	return host == ddaTestingDomain || strings.HasSuffix(host, "."+ddaTestingDomain)
+}
+
+func normalizeDNSHost(host string) string {
+	return strings.TrimSuffix(strings.ToLower(host), ".")
 }
 
 // urlFromRequest returns the URL from the HTTP request. The URL query string is included in the return object iff queryString is true
