@@ -492,6 +492,12 @@ func (pb *payloadsBuilderV3) writeSerieToTxn(serie *metrics.Serie) {
 }
 
 func (pb *payloadsBuilderV3) writeSketch(sketch *metrics.SketchSeries) error {
+	if sketch.Kind != metrics.SketchKindDDSketch {
+		// Native OTel histograms: AMP team will implement encoding with sketchFlags.
+		// Skip entirely to avoid writing a stale/empty transaction into the payload.
+		return nil
+	}
+
 	if !pb.pipelineConfig.Filter.Filter(sketch) {
 		return nil
 	}
@@ -502,24 +508,12 @@ func (pb *payloadsBuilderV3) writeSketch(sketch *metrics.SketchSeries) error {
 	}
 
 	for {
-		pb.writeSketchToTxn(sketch)
+		pb.writeDDSketchToTxn(sketch)
 		err := pb.finishTxn(nPoints)
 		if err == errRetry {
 			continue
 		}
 		return err
-	}
-}
-
-func (pb *payloadsBuilderV3) writeSketchToTxn(sketch *metrics.SketchSeries) {
-	switch sketch.Kind {
-	case metrics.SketchKindExplicitBound, metrics.SketchKindExponential:
-		// Native OTel histograms: AMP team will implement encoding with sketchFlags.
-		// For now, write only the common metadata (name, tags, resources) so the
-		// data flows through the pipeline without panic; actual bin encoding is a no-op.
-		return
-	default:
-		pb.writeDDSketchToTxn(sketch)
 	}
 }
 
