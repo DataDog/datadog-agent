@@ -123,11 +123,8 @@ exports_files(glob(
 # gazelle:exclude comp/core/workloadmeta/collectors/internal/process
 # gazelle:exclude comp/core/workloadmeta/collectors/internal/remote/processcollector
 # gazelle:exclude comp/core/workloadmeta/collectors/internal/remote/workloadmeta
-# gazelle:exclude comp/core/workloadmeta/collectors/util
 # gazelle:exclude comp/core/workloadmeta/defaults
 # gazelle:exclude comp/core/workloadmeta/fx
-# gazelle:exclude comp/core/workloadmeta/fx-mock
-# gazelle:exclude comp/core/workloadmeta/impl
 # gazelle:exclude comp/core/workloadmeta/init
 # gazelle:exclude comp/core/workloadmeta/server
 # gazelle:exclude comp/dogstatsd/http/fx
