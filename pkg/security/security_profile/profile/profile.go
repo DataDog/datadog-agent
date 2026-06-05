@@ -103,6 +103,11 @@ func (p *Profile) Disable() {
 	p.isEnabled.Store(false)
 }
 
+// Enable enables the profile
+func (p *Profile) Enable() {
+	p.isEnabled.Store(true)
+}
+
 // HasAlreadyBeenSent returns true if the profile has already been sent
 func (p *Profile) HasAlreadyBeenSent() bool {
 	return p.hasAlreadyBeenSent.Load()
