@@ -66,10 +66,7 @@ func TestShouldHaveDeploymentStore(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := configmock.NewWithOverrides(t, tt.cfg)
-			expectedStores := collectResultStoreGenerator(tt.expectedStoresGenerator, cfg)
-			stores := collectResultStoreGenerator(storeGenerators(cfg), cfg)
-
-			assert.Equal(t, expectedStores, stores)
+			assert.Equal(t, tt.expected, shouldHaveDeploymentStore(cfg))
 		})
 	}
 }
@@ -124,7 +121,7 @@ func TestShouldHavePodStore(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			cfg := config.NewMockWithOverrides(t, test.cfg)
+			cfg := configmock.NewWithOverrides(t, test.cfg)
 			assert.Equal(t, test.expected, shouldHavePodStore(cfg))
 		})
 	}
@@ -180,7 +177,7 @@ func TestPodsRequiredAtStartup(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := config.NewMockWithOverrides(t, tt.cfg)
+			cfg := configmock.NewWithOverrides(t, tt.cfg)
 			assert.Equal(t, tt.expected, podsRequiredAtStartup(cfg))
 		})
 	}

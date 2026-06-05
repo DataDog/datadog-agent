@@ -1009,8 +1009,8 @@ func (suite *ConfigTestSuite) TestBuildEndpointsWithLegacyVectorDualShipReliable
 // OPW is not enabled (or has no URL) emits a startup warning, because dual_ship has no effect
 // in that configuration — the OPW block is skipped entirely.
 func TestBuildEndpointsWithOPWDualShipNoOPWEnabledWarns(t *testing.T) {
-	cfg := config.NewMock(t)
-	cfg.SetInTest("api_key", "123")
+	cfg := configmock.New(t)
+	cfg.SetWithoutSource("api_key", "123")
 	// OPW is NOT enabled — dual_ship=true should warn and silently no-op.
 	cfg.SetInTest("observability_pipelines_worker.logs.dual_ship", true)
 
@@ -1029,10 +1029,10 @@ func TestBuildEndpointsWithOPWDualShipNoOPWEnabledWarns(t *testing.T) {
 // dual_ship_reliable=true without dual_ship=true emits a startup warning, because the
 // reliability setting is silently ignored in that configuration.
 func TestBuildEndpointsWithOPWDualShipReliableWithoutDualShipWarns(t *testing.T) {
-	cfg := config.NewMock(t)
-	cfg.SetInTest("api_key", "123")
-	cfg.SetInTest("observability_pipelines_worker.logs.enabled", true)
-	cfg.SetInTest("observability_pipelines_worker.logs.url", "https://opw.example.com:8443/")
+	cfg := configmock.New(t)
+	cfg.SetWithoutSource("api_key", "123")
+	cfg.SetWithoutSource("observability_pipelines_worker.logs.enabled", true)
+	cfg.SetWithoutSource("observability_pipelines_worker.logs.url", "https://opw.example.com:8443/")
 	// dual_ship_reliable=true but dual_ship is false (default) — should warn.
 	cfg.SetInTest("observability_pipelines_worker.logs.dual_ship_reliable", true)
 
