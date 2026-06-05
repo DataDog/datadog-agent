@@ -25,6 +25,16 @@ func (rt errorRoundTripper) RoundTrip(*http.Request) (*http.Response, error) {
 	return nil, rt.err
 }
 
+func roundTripWithClosedBody(t *testing.T, rt http.RoundTripper, req *http.Request) error {
+	t.Helper()
+	res, err := rt.RoundTrip(req)
+	if res != nil && res.Body != nil {
+		require.NoError(t, res.Body.Close())
+	}
+	require.Nil(t, res)
+	return err
+}
+
 func TestRoundTripDNSNotFoundErrorExpected(t *testing.T) {
 	globalTracer = &tracer{spans: make(map[uint64]*Span)}
 	host := "install.datadoghq.com.internal.dda-testing.com"
@@ -39,9 +49,8 @@ func TestRoundTripDNSNotFoundErrorExpected(t *testing.T) {
 	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "https://"+host+"/v2/", nil)
 	require.NoError(t, err)
 
-	res, err := rt.RoundTrip(req)
+	err = roundTripWithClosedBody(t, rt, req)
 	require.Error(t, err)
-	require.Nil(t, res)
 
 	spans := globalTracer.flushCompletedSpans()
 	require.Len(t, spans, 1)
@@ -65,9 +74,8 @@ func TestRoundTripDNSNotFoundErrorUnexpectedForRegularHost(t *testing.T) {
 	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "https://"+host+"/v2/", nil)
 	require.NoError(t, err)
 
-	res, err := rt.RoundTrip(req)
+	err = roundTripWithClosedBody(t, rt, req)
 	require.Error(t, err)
-	require.Nil(t, res)
 
 	spans := globalTracer.flushCompletedSpans()
 	require.Len(t, spans, 1)
@@ -84,9 +92,8 @@ func TestRoundTripNonDNSTransportErrorUnexpected(t *testing.T) {
 	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "https://example.com", nil)
 	require.NoError(t, err)
 
-	res, err := rt.RoundTrip(req)
+	err = roundTripWithClosedBody(t, rt, req)
 	require.ErrorIs(t, err, rtErr)
-	require.Nil(t, res)
 
 	spans := globalTracer.flushCompletedSpans()
 	require.Len(t, spans, 1)
