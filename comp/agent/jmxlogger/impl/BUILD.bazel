@@ -21,7 +21,6 @@ go_test(
     gotags = ["test"],
     deps = [
         "//comp/agent/jmxlogger/def",
-        "//comp/core/config/def",
         "//comp/core/config/mock",
         "//comp/def",
         "@com_github_stretchr_testify//assert",

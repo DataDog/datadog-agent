@@ -19,7 +19,6 @@ go_test(
     embed = [":impl"],
     gotags = ["test"],
     deps = [
-        "//comp/core/config/def",
         "//comp/core/config/mock",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

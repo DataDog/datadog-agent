@@ -38,7 +38,6 @@ go_test(
     embed = [":impl"],
     gotags = ["test"],
     deps = [
-        "//comp/core/config/def",
         "//comp/core/config/mock",
         "//comp/core/configsync/def",
         "//comp/core/ipc/mock",

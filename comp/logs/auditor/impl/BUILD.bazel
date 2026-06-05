@@ -34,7 +34,7 @@ go_test(
     embed = [":impl"],
     gotags = ["test"],
     deps = [
-        "//comp/core/config/def",
+        "//comp/core/config/mock",
         "//comp/core/log/mock",
         "//comp/logs-library/kubehealth/mock",
         "//comp/logs/agent/config",

@@ -21,7 +21,7 @@ go_test(
     embed = [":connfilter"],
     gotags = ["test"],
     deps = [
-        "//comp/core/config/def",
+        "//comp/core/config/mock",
         "//pkg/config/structure",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
