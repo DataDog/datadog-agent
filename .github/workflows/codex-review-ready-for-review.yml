@@ -33,67 +33,152 @@ jobs:
         run: |
           set -euo pipefail
 
-          comments_endpoint="repos/${REPOSITORY}/issues/${PR_NUMBER}/comments"
-
-          comment_filter="$(cat <<'JQ'
-          def thumbs_up_count:
-            (.reactions["+1"] // 0);
-
-          .[]
-          | select(
-              thumbs_up_count == 0
-              and (
-                (
-                  (
-                    (.user.login == env.GITHUB_ACTIONS_BOT)
-                    or (.user.login == env.LEGACY_GITHUB_ACTIONS_BOT)
-                  )
-                  and .body == env.CODEX_REVIEW_BODY
-                )
-                or (
-                  (
-                    (.user.login == env.CHATGPT_CODEX_GRAPHQL_BOT)
-                    or (.user.login == env.CHATGPT_CODEX_REST_BOT)
-                  )
-                )
-              )
-            )
-          | .id
-          JQ
-          )"
-
-          echo "Deleting matching Codex issue comments from PR ${PR_NUMBER}"
-          comment_ids_output="$(
-            gh api --paginate "${comments_endpoint}" \
-              --jq "${comment_filter}"
-          )"
-          comment_ids=()
-          if [ -n "${comment_ids_output}" ]; then
-            mapfile -t comment_ids <<< "${comment_ids_output}"
-          fi
-
-          for comment_id in "${comment_ids[@]}"; do
-            echo "Deleting issue comment ${comment_id}"
-            gh api --method DELETE \
-              "repos/${REPOSITORY}/issues/comments/${comment_id}"
-          done
-
-          reviews_query="$(cat <<'GRAPHQL'
+          # For issue comments, the REST endpoint does not include a reactions object in the default list response schema,
+          # so the expression falls back to 0 even when someone has reacted with 👍. In PRs where a maintainer thumbs-up'd
+          # a Codex issue comment to keep it, the ready_for_review cleanup still deletes it; use the reactions endpoint
+          # or a GraphQL query if thumbs-up is meant to be an opt-out for issue comments.
+          comments_query="$(cat <<'GRAPHQL'
           query($owner: String!, $repo: String!, $pr: Int!, $cursor: String) {
             repository(owner: $owner, name: $repo) {
               pullRequest(number: $pr) {
-                reviews(first: 100, after: $cursor) {
+                comments(first: 100, after: $cursor) {
                   nodes {
                     id
-                    isMinimized
+                    body
+                    author {
+                      login
+                    }
                     reactionGroups {
                       content
                       users {
                         totalCount
                       }
                     }
-                    author {
-                      login
+                  }
+                  pageInfo {
+                    hasNextPage
+                    endCursor
+                  }
+                }
+              }
+            }
+          }
+          GRAPHQL
+          )"
+
+          delete_comment_mutation="$(cat <<'GRAPHQL'
+          mutation($id: ID!) {
+            deleteIssueComment(input: {id: $id}) {
+              clientMutationId
+            }
+          }
+          GRAPHQL
+          )"
+
+          echo "Deleting matching Codex issue comments from PR ${PR_NUMBER}"
+          cursor=""
+          while true; do
+            cursor_arg=(-F "cursor=null")
+            if [ -n "${cursor}" ]; then
+              cursor_arg=(-f "cursor=${cursor}")
+            fi
+
+            response="$(
+              gh api graphql \
+                -f "owner=${OWNER}" \
+                -f "repo=${REPO}" \
+                -F "pr=${PR_NUMBER}" \
+                "${cursor_arg[@]}" \
+                -f "query=${comments_query}"
+            )"
+
+            comment_ids_output="$(
+              jq -r '
+                def thumbs_up_count:
+                  ([
+                    .reactionGroups[]?
+                    | select(.content == "THUMBS_UP")
+                    | .users.totalCount
+                  ] | add // 0);
+
+                .data.repository.pullRequest.comments.nodes[]
+                | select(
+                    (thumbs_up_count == 0)
+                    and (
+                      (
+                        (
+                          (.author.login == env.GITHUB_ACTIONS_BOT)
+                          or (.author.login == env.LEGACY_GITHUB_ACTIONS_BOT)
+                        )
+                        and .body == env.CODEX_REVIEW_BODY
+                      )
+                      or (
+                        (
+                          (.author.login == env.CHATGPT_CODEX_GRAPHQL_BOT)
+                          or (.author.login == env.CHATGPT_CODEX_REST_BOT)
+                        )
+                      )
+                    )
+                  )
+                | .id
+              ' <<< "${response}"
+            )"
+
+            comment_ids=()
+            if [ -n "${comment_ids_output}" ]; then
+              mapfile -t comment_ids <<< "${comment_ids_output}"
+            fi
+
+            for comment_id in "${comment_ids[@]}"; do
+              echo "Deleting issue comment ${comment_id}"
+              gh api graphql \
+                -f "query=${delete_comment_mutation}" \
+                -f "id=${comment_id}" \
+                > /dev/null
+            done
+
+            has_next_page="$(
+              jq -r '
+                .data.repository.pullRequest.comments.pageInfo.hasNextPage
+              ' <<< "${response}"
+            )"
+            if [ "${has_next_page}" != "true" ]; then
+              break
+            fi
+
+            cursor="$(
+              jq -r '
+                .data.repository.pullRequest.comments.pageInfo.endCursor
+              ' <<< "${response}"
+            )"
+          done
+
+          reviews_query="$(cat <<'GRAPHQL'
+          query($owner: String!, $repo: String!, $pr: Int!, $cursor: String) {
+            repository(owner: $owner, name: $repo) {
+              pullRequest(number: $pr) {
+                reviews(first: 50, after: $cursor) {
+                  nodes {
+                    reactionGroups {
+                      content
+                      users {
+                        totalCount
+                      }
+                    }
+                    comments(first: 100) {
+                      nodes {
+                        id
+                        isMinimized
+                        reactionGroups {
+                          content
+                          users {
+                            totalCount
+                          }
+                        }
+                        author {
+                          login
+                        }
+                      }
                     }
                   }
                   pageInfo {
@@ -137,7 +222,7 @@ jobs:
                 -f "query=${reviews_query}"
             )"
 
-            review_ids_output="$(
+            review_comment_ids_output="$(
               jq -r '
                 def thumbs_up_count:
                   ([
@@ -147,6 +232,8 @@ jobs:
                   ] | add // 0);
 
                 .data.repository.pullRequest.reviews.nodes[]
+                | as $review
+                | .comments.nodes[]
                 | select(
                     (
                       (.author.login == env.CHATGPT_CODEX_GRAPHQL_BOT)
@@ -154,20 +241,21 @@ jobs:
                     )
                     and (.isMinimized | not)
                     and (thumbs_up_count == 0)
+                    and ($review | thumbs_up_count == 0)
                   )
                 | .id
               ' <<< "${response}"
             )"
-            review_ids=()
-            if [ -n "${review_ids_output}" ]; then
-              mapfile -t review_ids <<< "${review_ids_output}"
+            review_comment_ids=()
+            if [ -n "${review_comment_ids_output}" ]; then
+              mapfile -t review_comment_ids <<< "${review_comment_ids_output}"
             fi
 
-            for review_id in "${review_ids[@]}"; do
-              echo "Minimizing pull request review ${review_id}"
+            for review_comment_id in "${review_comment_ids[@]}"; do
+              echo "Minimizing pull request review comment ${review_comment_id}"
               gh api graphql \
                 -f "query=${minimize_mutation}" \
-                -f "subjectId=${review_id}" \
+                -f "subjectId=${review_comment_id}" \
                 > /dev/null
             done
 
