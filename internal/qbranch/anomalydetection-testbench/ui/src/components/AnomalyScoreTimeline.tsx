@@ -207,6 +207,7 @@ interface DisplayBucket {
   bins: number[];
   scoreSum: number;
   total: number;
+  ewmaValue: number; // last 1-second EWMA value in this window (display only)
 }
 
 interface Hovered {
@@ -327,6 +328,23 @@ export function AnomalyScoreTimeline({
     return map;
   }, [dedupedAnomalies, bounds]);
 
+  // ── 1-second EWMA (canonical — identical to what the live Go agent runs) ────
+  // Saturation + EWMA tick at 1-second resolution; the display aggregation
+  // window only affects rendering, not the signal.
+  const secondsStart = useMemo(() => (bounds ? Math.floor(bounds.start) : 0), [bounds]);
+  const secondsCount = useMemo(() => (bounds ? Math.ceil(bounds.end) - Math.floor(bounds.start) : 0), [bounds]);
+
+  const ewmaPerSecond = useMemo(() => {
+    if (!bounds || secondsCount === 0) return [] as number[];
+    const inputs = Array.from({ length: secondsCount }, (_, i) => {
+      const sb = secondBuckets.get(secondsStart + i);
+      if (!sb || sb.total === 0) return 0;
+      const meanRaw = sb.scoreSum / sb.total;
+      return meanRaw * (1 - Math.exp(-sb.total / saturationK));
+    });
+    return computeEWMA(inputs, ewmaAlpha);
+  }, [bounds, secondBuckets, saturationK, ewmaAlpha, secondsStart, secondsCount]);
+
   // ── resolved aggregation window (seconds per display bar) ─────────────────
   const resolvedWindow = useMemo(() => {
     if (!bounds) return 1;
@@ -335,7 +353,9 @@ export function AnomalyScoreTimeline({
     return Math.max(1, Math.ceil(durationSecs / DEFAULT_DISPLAY_BARS));
   }, [bounds, aggregationWindow]);
 
-  // ── display buckets (aggregated from 1-second bins) ───────────────────────
+  // ── display buckets (aggregated for rendering only) ───────────────────────
+  // Bins are summed for the bar chart; ewmaValue is the last 1-second EWMA
+  // value within the window — the most recent state at the end of that bar.
   const displayBuckets = useMemo((): DisplayBucket[] => {
     if (!bounds) return [];
     const durationSecs = Math.ceil(bounds.end - bounds.start);
@@ -346,37 +366,33 @@ export function AnomalyScoreTimeline({
       const bins = new Array<number>(SCORE_BINS).fill(0);
       let scoreSum = 0;
       let total = 0;
+      let ewmaValue = 0;
       for (let sec = Math.floor(start); sec < Math.ceil(end); sec++) {
         const sb = secondBuckets.get(sec);
-        if (!sb) continue;
-        for (let bi = 0; bi < SCORE_BINS; bi++) bins[bi] += sb.bins[bi];
-        scoreSum += sb.scoreSum;
-        total += sb.total;
+        if (sb) {
+          for (let bi = 0; bi < SCORE_BINS; bi++) bins[bi] += sb.bins[bi];
+          scoreSum += sb.scoreSum;
+          total += sb.total;
+        }
+        const ewmaIdx = sec - secondsStart;
+        if (ewmaIdx >= 0 && ewmaIdx < ewmaPerSecond.length) {
+          ewmaValue = ewmaPerSecond[ewmaIdx];
+        }
       }
-      return { start, end, bins, scoreSum, total };
+      return { start, end, bins, scoreSum, total, ewmaValue };
     });
-  }, [bounds, secondBuckets, resolvedWindow]);
+  }, [bounds, secondBuckets, resolvedWindow, ewmaPerSecond, secondsStart]);
 
   const displayCount = displayBuckets.length;
 
-  // ── EWMA ──────────────────────────────────────────────────────────────────
-  const ewmaValues = useMemo(
-    () => computeEWMA(
-      displayBuckets.map((b) => {
-        if (b.total === 0) return 0;
-        const meanRaw = b.scoreSum / b.total;
-        return meanRaw * (1 - Math.exp(-b.total / saturationK));
-      }),
-      ewmaAlpha,
-    ),
-    [displayBuckets, ewmaAlpha, saturationK],
-  );
+  // ── display-resolution EWMA values (for chart polyline) ───────────────────
+  const ewmaValues = useMemo(() => displayBuckets.map((b) => b.ewmaValue), [displayBuckets]);
 
-  // Dynamic display ceiling: high threshold sits near the top; expands if EWMA exceeds it.
+  // Dynamic display ceiling: derived from the full 1-second EWMA stream.
   const ewmaDisplayMax = useMemo(() => {
-    const peak = ewmaValues.length > 0 ? Math.max(...ewmaValues) : 0;
+    const peak = ewmaPerSecond.length > 0 ? Math.max(...ewmaPerSecond) : 0;
     return Math.max(highThreshold, peak) * 1.15;
-  }, [highThreshold, ewmaValues]);
+  }, [highThreshold, ewmaPerSecond]);
 
   const ewmaToY = useCallback(
     (v: number) => CHART_H - Math.min(1, Math.max(0, v / ewmaDisplayMax)) * CHART_H,
@@ -395,37 +411,47 @@ export function AnomalyScoreTimeline({
   const lowThresholdY  = CHART_H - (lowThreshold  / ewmaDisplayMax) * CHART_H;
   const highThresholdY = CHART_H - (highThreshold / ewmaDisplayMax) * CHART_H;
 
-  // ── severity events (run on raw EWMA with raw thresholds) ─────────────────
+  // ── severity events (run on 1-second EWMA — same as live Go agent) ──────────
   const { severityEvents, stateSegments } = useMemo(() => {
-    if (!bounds || displayCount === 0) return { severityEvents: [], stateSegments: [] };
+    if (!bounds || ewmaPerSecond.length === 0 || displayCount === 0) {
+      return { severityEvents: [], stateSegments: [] };
+    }
 
     const { events, initialLevel } = computeSeverityEvents(
-      ewmaValues, resolvedWindow, bounds.start,
+      ewmaPerSecond, 1.0, secondsStart,
       lowThreshold, highThreshold, margin, cooldownSecs,
     );
+
+    // Convert 1-second event timestamps to display-bucket indices for rendering.
+    const tsToDisplayIdx = (ts: number) =>
+      Math.min(displayCount - 1, Math.max(0, Math.floor((ts - bounds.start) / resolvedWindow)));
 
     const segs: { fromBucket: number; toBucket: number; level: 0 | 1 | 2 }[] = [];
     let cur: 0 | 1 | 2 = initialLevel;
     let curFrom = 0;
     for (const ev of events) {
-      segs.push({ fromBucket: curFrom, toBucket: ev.bucketIdx, level: cur });
-      curFrom = ev.bucketIdx;
+      const dispIdx = tsToDisplayIdx(ev.timestamp);
+      segs.push({ fromBucket: curFrom, toBucket: dispIdx, level: cur });
+      curFrom = dispIdx;
       cur = ev.toLevel;
     }
     segs.push({ fromBucket: curFrom, toBucket: displayCount, level: cur });
 
     return { severityEvents: events, stateSegments: segs };
-  }, [ewmaValues, bounds, displayCount, resolvedWindow, lowThreshold, highThreshold, margin, cooldownSecs]);
+  }, [ewmaPerSecond, bounds, displayCount, resolvedWindow, secondsStart, lowThreshold, highThreshold, margin, cooldownSecs]);
 
   const eventsByBucket = useMemo(() => {
     const map = new Map<number, SeverityEvent[]>();
+    if (!bounds) return map;
     severityEvents.forEach((ev) => {
-      const arr = map.get(ev.bucketIdx) ?? [];
+      const dispIdx = Math.min(displayCount - 1, Math.max(0,
+        Math.floor((ev.timestamp - bounds.start) / resolvedWindow)));
+      const arr = map.get(dispIdx) ?? [];
       arr.push(ev);
-      map.set(ev.bucketIdx, arr);
+      map.set(dispIdx, arr);
     });
     return map;
-  }, [severityEvents]);
+  }, [severityEvents, bounds, displayCount, resolvedWindow]);
 
   // ── hover handlers ────────────────────────────────────────────────────────
   const handleMouseMove = useCallback(
@@ -465,8 +491,8 @@ export function AnomalyScoreTimeline({
     acc.set(a.type, (acc.get(a.type) ?? 0) + 1);
     return acc;
   }, new Map<TimelineAnomalyType, number>());
-  const ewmaEnd  = ewmaValues.length > 0 ? ewmaValues[ewmaValues.length - 1] : 0;
-  const ewmaPeak = ewmaValues.length > 0 ? Math.max(...ewmaValues) : 0;
+  const ewmaEnd  = ewmaPerSecond.length > 0 ? ewmaPerSecond[ewmaPerSecond.length - 1] : 0;
+  const ewmaPeak = ewmaPerSecond.length > 0 ? Math.max(...ewmaPerSecond) : 0;
 
   const tsToX    = (ts: number) => ((ts - bounds.start) / (bounds.end - bounds.start)) * chartWidth;
   const bucketCx = (idx: number) => ((idx + 0.5) * chartWidth) / displayCount;
@@ -652,7 +678,7 @@ export function AnomalyScoreTimeline({
 
           {/* Event triangles */}
           {severityEvents.map((ev, i) => {
-            const cx = bucketCx(ev.bucketIdx);
+            const cx = tsToX(ev.timestamp);
             const cy = CHART_H + EVENTS_H / 2;
             const color = SEVERITY_COLORS[ev.toLevel];
             const isHovered = hoveredEventIdx === i;
@@ -688,7 +714,7 @@ export function AnomalyScoreTimeline({
         {/* Hover tooltip */}
         {(hovered !== null || hoveredEvent !== null) && (() => {
           const anchorX = hoveredEvent !== null
-            ? bucketCx(hoveredEvent.bucketIdx)
+            ? tsToX(hoveredEvent.timestamp)
             : hovered!.mouseX;
           const anchorY = hoveredEvent !== null
             ? CHART_H + EVENTS_H / 2

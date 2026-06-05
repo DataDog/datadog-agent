@@ -4,6 +4,10 @@ This document describes the post-detector scoring pipeline that aggregates
 raw anomaly events from multiple detectors into a single smoothed intensity
 signal and derives discrete severity state transitions from it.
 
+Steps 0–6 form the **core algorithm** that must be replicated in the live
+Go agent. Step 7 (display-window aggregation) is **testbench UI only** and
+has no equivalent in a live deployment.
+
 ---
 
 ## Part 1 — Overview (visual)
@@ -18,10 +22,11 @@ flowchart LR
 
     S -->|level 0‥4| Dedup[Deduplication\nsame series × same second]
     Dedup -->|one anomaly\nper series/sec| Bucket[1-second bucketing]
-    Bucket -->|aggregate W-second\nwindow| Agg[Display-window\naggregation]
-    Agg -->|mean weight\n× saturation| EWMA[EWMA smoother]
+    Bucket -->|mean weight\n× saturation| EWMA[EWMA smoother\n1-second ticks]
     EWMA -->|smoothed\nintensity| SM[Severity state machine]
     SM --> E([Events\nLow / Medium / High])
+
+    EWMA -.->|testbench display only| Agg[W-second bar\naggregation]
 ```
 
 ### 1.2 Scoring: raw score → unified level
@@ -41,12 +46,12 @@ flowchart TD
     T -- ≥ 35   --> L4[XHigh · w=3.0]
 ```
 
-### 1.3 From buckets to severity events
+### 1.3 From 1-second buckets to severity events
 
 ```mermaid
 flowchart LR
-    subgraph "Per display-bucket"
-        B1[sum weights\nin window] -->|÷ count| MW[mean weight]
+    subgraph "Per 1-second bucket (live agent tick)"
+        B1[sum weights\nin second] -->|÷ count| MW[mean weight]
         MW -->|× saturation\n1−e^−n/k| SI[saturated input]
     end
 
@@ -149,33 +154,18 @@ count[s]     += 1
 
 ---
 
-### 2.4 Step 3 — Display-window aggregation
+### 2.4 Step 3 — Saturated input (per second)
 
-1-second buckets are aggregated into display buckets of width
-`W` seconds (default: auto-fit to ~80 bars, or user-selected).
-
-For display bucket `i` spanning `[t_i, t_i + W)`:
+For each 1-second bucket `s`, compute the saturated EWMA input:
 
 ```
-scoreSum_i = Σ  weightSum[s]   for s in [t_i, t_i+W)
-total_i    = Σ  count[s]       for s in [t_i, t_i+W)
-bins_i[L]  = Σ  bins[s][L]    for s in [t_i, t_i+W)
-```
+meanWeight_s = weightSum[s] / count[s]     (0 if count[s] = 0)
 
----
-
-### 2.5 Step 4 — Saturated input
-
-For each display bucket `i`, compute the saturated EWMA input:
-
-```
-meanWeight_i = scoreSum_i / total_i        (0 if total_i = 0)
-
-input_i = meanWeight_i × (1 − exp(−total_i / k))
+input_s = meanWeight_s × (1 − exp(−count[s] / k))
 ```
 
 The saturation factor `(1 − exp(−n/k))` dampens the mean when `n` is small
-(early/sparse buckets) and approaches 1 as `n → ∞`.
+(sparse seconds) and approaches 1 as `n → ∞`.
 
 **Default constant:** `k = 5`
 
@@ -189,23 +179,25 @@ The saturation factor `(1 − exp(−n/k))` dampens the mean when `n` is small
 
 ---
 
-### 2.6 Step 5 — EWMA
+### 2.5 Step 4 — EWMA (1-second ticks)
 
 ```
 ewma[0] = input[0]
 ewma[i] = α × input[i] + (1 − α) × ewma[i−1]
 ```
 
+`i` indexes 1-second buckets; one EWMA update per second in the live agent.
+
 **Default constant:** `α = 0.16`
 
 Recent inputs are weighted exponentially more than older ones.  Higher `α`
 makes the signal react faster to new data; lower `α` smooths over longer
 windows.  At α = 0.16, the effective memory half-life is roughly
-`−1 / log₂(1 − α) ≈ 4` buckets.
+`−1 / log₂(1 − α) ≈ 4 seconds`.
 
 ---
 
-### 2.7 Step 6 — Severity state machine
+### 2.6 Step 5 — Severity state machine
 
 The EWMA stream drives a 3-state machine: **Low (0)**, **Medium (1)**,
 **High (2)**.
@@ -224,6 +216,10 @@ elevated), the correct state is entered immediately.
 | `high`    | 0.50    | EWMA level that defines the Medium/High boundary |
 | `margin`  | 0.15    | Hysteresis half-width (avoids chattering at boundaries) |
 | `cooldown`| 300 s   | Minimum time to spend in any elevated state before stepping down |
+
+> **Note on threshold calibration:** the default values above were tuned
+> interactively on the testbench with 1-second EWMA ticks.  They will need
+> re-validation once the algorithm runs on live production traffic.
 
 #### Transition logic
 
@@ -265,6 +261,30 @@ itself cause.
 
 ---
 
+### 2.7 Step 6 — Display-window aggregation *(testbench UI only)*
+
+> **This step does not exist in the live Go agent.**  It is purely a
+> rendering optimisation: the testbench replays a full recorded scenario at
+> once and needs to fit potentially hours of data into a fixed-width chart.
+
+1-second buckets and the already-computed `ewmaPerSecond` array are
+aggregated into display bars of width `W` seconds.
+
+```
+W = user-selected seconds/bar   (default: auto-fit to ~80 bars)
+
+For display bar i spanning [t_i, t_i + W):
+  bins_i[L]    = Σ  bins[s][L]     for s in [t_i, t_i+W)
+  total_i      = Σ  count[s]       for s in [t_i, t_i+W)
+  ewmaValue_i  = ewmaPerSecond[last s in window]   # most-recent EWMA in bar
+```
+
+The bar chart renders `bins_i` as stacked colours and the EWMA line renders
+`ewmaValue_i` as the representative EWMA for that bar.  Severity event
+triangles are pinned to their exact 1-second timestamps, not to bar centres.
+
+---
+
 ### 2.8 Constants summary
 
 | Constant | Default | Notes |
@@ -273,8 +293,8 @@ itself cause.
 | `LEVEL_WEIGHTS`  | `[0.2, 0.5, 1.0, 2.0, 3.0]` | Per-level EWMA weight |
 | `bocpd` fixed level | 2 (Medium, w=1.0) | No score emitted |
 | Saturation k | 5 | Count at which saturation ≈ 63 % |
-| EWMA α | 0.16 | Smoothing factor |
-| Low threshold | 0.25 | EWMA units |
-| High threshold | 0.50 | EWMA units |
+| EWMA α | 0.16 | Smoothing factor; half-life ≈ 4 s at 1-second tick rate |
+| Low threshold | 0.25 | EWMA units (tuned on testbench, re-validate on live data) |
+| High threshold | 0.50 | EWMA units (tuned on testbench, re-validate on live data) |
 | Hysteresis margin | 0.15 | EWMA units |
 | Cooldown | 300 s (5 min) | Minimum dwell time per elevated state |
