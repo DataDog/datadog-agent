@@ -23,6 +23,7 @@ from invoke.context import Context
 from invoke.exceptions import Exit
 from invoke.tasks import task
 
+from tasks.e2e_framework.deploy import get_pipeline_commit_sha
 from tasks.flavor import AgentFlavor
 from tasks.gotest import process_test_result, test_flavor
 from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
@@ -532,6 +533,7 @@ def _compute_go_test_timeout(explicit: str | None, now: datetime.datetime | None
         "impacted": "Only run tests that are impacted by the changes (only available in CI for now)",
         "keep_stack": "Keep the stack after running the test, you are responsible for destroying the stack later.",
         "timeout": "Go test timeout (Go duration string, e.g. '1h55m'). Defaults to CI_JOB_TIMEOUT minus a teardown buffer when running in GitLab CI, otherwise to 4h.",
+        "pipeline_id": "GitLab pipeline ID to use; the commit SHA is automatically fetched from this pipeline for container-based tests",
     },
 )
 def run(
@@ -568,6 +570,7 @@ def run(
     module_name="test/new-e2e",
     recursive=True,
     timeout="",
+    pipeline_id="",
 ):
     """
     Run E2E Tests based on test-infra-definitions infrastructure provisioning.
@@ -662,7 +665,25 @@ def run(
         env_vars["E2E_IMAGE_PULL_REGISTRY"] = ",".join(registries)
         env_vars["E2E_IMAGE_PULL_USERNAME"] = ",".join(usernames)
         env_vars["E2E_IMAGE_PULL_PASSWORD"] = ",".join(passwords)
-    if not running_in_ci():
+    # resolved_commit_sha is the short SHA used for containers.GitCommit; start from local HEAD
+    resolved_commit_sha = get_commit_sha(ctx, short=True)
+
+    if pipeline_id:
+        # Explicit pipeline ID: fetch its commit SHA and wire up env vars directly
+        print(color_message(f"Using pipeline {pipeline_id}...", "blue"))
+        pipeline_commit_sha = get_pipeline_commit_sha(pipeline_id)
+        if pipeline_commit_sha:
+            resolved_commit_sha = pipeline_commit_sha
+            print(color_message(f"Fetched commit SHA {resolved_commit_sha} from pipeline {pipeline_id}", "blue"))
+        else:
+            print(
+                color_message(
+                    f"Could not fetch commit SHA for pipeline {pipeline_id}, falling back to local HEAD", "yellow"
+                )
+            )
+        env_vars["E2E_PIPELINE_ID"] = pipeline_id
+        env_vars["E2E_COMMIT_SHA"] = resolved_commit_sha
+    elif not running_in_ci():
         # Auto-detect pipeline ID and commit SHA for local runs if not already set
         if "E2E_PIPELINE_ID" not in os.environ:
             print(
@@ -677,11 +698,16 @@ def run(
             commit_sha = get_commit_sha(ctx)
             short_commit_sha = get_commit_sha(ctx, short=True)
             print(color_message(f"Auto-detecting pipeline for commit {short_commit_sha}...", "blue"))
-            pipeline_id = _find_pipeline_for_commit_sha(ctx, commit_sha)
-            if pipeline_id:
-                print(color_message(f"Auto-detected pipeline {pipeline_id} for commit {short_commit_sha}", "blue"))
-                env_vars["E2E_PIPELINE_ID"] = pipeline_id
+            detected_pipeline_id = _find_pipeline_for_commit_sha(ctx, commit_sha)
+            if detected_pipeline_id:
+                print(
+                    color_message(
+                        f"Auto-detected pipeline {detected_pipeline_id} for commit {short_commit_sha}", "blue"
+                    )
+                )
+                env_vars["E2E_PIPELINE_ID"] = detected_pipeline_id
                 env_vars["E2E_COMMIT_SHA"] = short_commit_sha
+                resolved_commit_sha = short_commit_sha
             else:
                 print(
                     color_message(
@@ -773,7 +799,7 @@ def run(
         "verbose": "-test.v" if verbose else "",
         "nocache": "-test.count=1" if not cache else "",
         "REPO_PATH": REPO_PATH,
-        "commit": get_commit_sha(ctx, short=True),
+        "commit": resolved_commit_sha,
         "run": '-test.run ' + '"{}"'.format('|'.join(clean_run)) if run else '',
         "skip": '-test.skip ' + '"{}"'.format('|'.join(clean_skip)) if skip else '',
         "test_run_arg": test_run_arg,
@@ -1425,6 +1451,10 @@ def _destroy_stack(ctx: Context, stack: str):
                     ),
                     1,
                 )
+            if "no previous deployment" in ret.stderr:
+                # Stack was created but never had a successful up; no resources to destroy.
+                print(f"Stack {stack} has no previous deployment, skipping destroy")
+                return
             # run with refresh on first destroy attempt failure
             ret = ctx.run(
                 f"pulumi destroy --stack {stack} -r --yes --remove --skip-preview",

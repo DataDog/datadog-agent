@@ -17,12 +17,10 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/gorilla/mux"
-
 	"github.com/DataDog/datadog-agent/cmd/security-agent/api/agent"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
-	"github.com/DataDog/datadog-agent/comp/core/settings"
+	settings "github.com/DataDog/datadog-agent/comp/core/settings/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -35,7 +33,7 @@ type Server struct {
 	listener       net.Listener
 	agent          *agent.Agent
 	tlsConfig      *tls.Config
-	authMiddleware mux.MiddlewareFunc
+	authMiddleware func(http.Handler) http.Handler
 }
 
 // NewServer creates a new Server instance
@@ -55,13 +53,15 @@ func NewServer(statusComponent status.Component, settings settings.Component, wm
 // Start creates the router and starts the HTTP server
 func (s *Server) Start() error {
 	// create the root HTTP router
-	r := mux.NewRouter()
+	mux := http.NewServeMux()
 
 	// IPC REST API server
-	s.agent.SetupHandlers(r.PathPrefix("/agent").Subrouter())
+	agentMux := http.NewServeMux()
+	s.agent.SetupHandlers(agentMux)
+	mux.Handle("/agent/", http.StripPrefix("/agent", agentMux))
 
 	// Validate token for every request
-	r.Use(s.authMiddleware)
+	r := s.authMiddleware(mux)
 
 	// Use a stack depth of 4 on top of the default one to get a relevant filename in the stdlib
 	logWriter, _ := pkglogsetup.NewLogWriter(4, log.ErrorLvl)

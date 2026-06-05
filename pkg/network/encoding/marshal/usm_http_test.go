@@ -15,7 +15,7 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/sketches-go/ddsketch"
 	"github.com/DataDog/sketches-go/ddsketch/pb/sketchpb"
-	"github.com/golang/protobuf/proto"
+	"github.com/golang/protobuf/proto" //nolint:staticcheck // SA1019: agent-payload/v5/process types are gogo-generated and do not implement protoreflect.ProtoMessage
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 

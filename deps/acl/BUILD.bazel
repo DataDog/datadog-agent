@@ -11,7 +11,6 @@ generate_module_bazel(
     strip_prefix = "acl-%s" % VERSION,
     tags = ["manual"],
     urls = [
-        "https://dd-agent-omnibus.s3.amazonaws.com/bazel/acl-%s.tar.xz" % VERSION,
         "https://download.savannah.nongnu.org/releases/acl/acl-%s.tar.xz" % VERSION,
     ],
 )

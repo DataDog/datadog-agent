@@ -66,7 +66,7 @@ func TestProcessOTLPTraces(t *testing.T) {
 		enableObfuscation                bool
 		enableReceiveResourceSpansV2     bool
 		enableOperationAndResourceNameV2 bool
-		enableContainerTagsV2            bool
+		disableContainerTagsV2           bool
 	}{
 		{
 			name:     "empty trace id",
@@ -322,10 +322,34 @@ func TestProcessOTLPTraces(t *testing.T) {
 			),
 		},
 		{
-			name: "k8s.pod.uid used as a fallback for container.id by default",
+			name: "k8s.pod.uid not used as a fallback for container.id by default",
 			rattrs: map[string]string{
 				"k8s.pod.uid": "test_pod_uid",
 			},
+			expected: createStatsPayload(
+				agentEnv,
+				agentHost,
+				"otlpresourcenoservicename",
+				"opentelemetry.unspecified",
+				"custom",
+				"unspecified",
+				"",
+				agentHost,
+				agentEnv,
+				"",
+				"",
+				nil,
+				nil,
+				true,
+				false,
+			),
+		},
+		{
+			name: "k8s.pod.uid used as a fallback for container.id with container tags v2 disabled",
+			rattrs: map[string]string{
+				"k8s.pod.uid": "test_pod_uid",
+			},
+			disableContainerTagsV2: true,
 			expected: createStatsPayload(
 				agentEnv,
 				agentHost,
@@ -337,30 +361,6 @@ func TestProcessOTLPTraces(t *testing.T) {
 				agentHost,
 				agentEnv,
 				"test_pod_uid",
-				"",
-				nil,
-				nil,
-				true,
-				false,
-			),
-		},
-		{
-			name: "k8s.pod.uid not used as a fallback for container.id with container tags v2",
-			rattrs: map[string]string{
-				"k8s.pod.uid": "test_pod_uid",
-			},
-			enableContainerTagsV2: true,
-			expected: createStatsPayload(
-				agentEnv,
-				agentHost,
-				"otlpresourcenoservicename",
-				"opentelemetry.unspecified",
-				"custom",
-				"unspecified",
-				"",
-				agentHost,
-				agentEnv,
-				"",
 				"",
 				nil,
 				nil,
@@ -430,8 +430,8 @@ func TestProcessOTLPTraces(t *testing.T) {
 				}
 				return nil, nil
 			}
-			if tt.enableContainerTagsV2 {
-				conf.Features["enable_otlp_container_tags_v2"] = struct{}{}
+			if tt.disableContainerTagsV2 {
+				conf.Features["disable_otlp_container_tags_v2"] = struct{}{}
 			}
 
 			concentrator := newTestConcentratorWithCfg(time.Now(), conf)

@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "workloadmeta",
@@ -9,5 +9,18 @@ go_library(
         "//comp/core/workloadfilter/def",
         "//comp/core/workloadmeta/def",
         "//pkg/proto/pbgo/core",
+        "//pkg/util/kubernetes",
+    ],
+)
+
+go_test(
+    name = "workloadmeta_test",
+    srcs = ["create_test.go"],
+    embed = [":workloadmeta"],
+    gotags = ["test"],
+    deps = [
+        "//comp/core/workloadmeta/def",
+        "//pkg/proto/pbgo/core",
+        "@com_github_stretchr_testify//assert",
     ],
 )

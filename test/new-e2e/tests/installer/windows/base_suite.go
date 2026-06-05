@@ -375,6 +375,11 @@ func (s *BaseSuite) AfterTest(suiteName, testName string) {
 		// collect agent logs
 		s.collectAgentLogs()
 		s.collectInstallerLogs()
+		// Pick up an xperf .etl that step-scoped collectxperf left on the
+		// remote because the test had not yet failed when the deferred
+		// stop ran (e.g. assertion fails after the xperf-wrapped helper
+		// returns).
+		s.collectOrphanXperf()
 	}
 }
 
@@ -497,6 +502,16 @@ func (s *BaseSuite) StartExperimentCurrentVersion() (string, error) {
 	)
 }
 
+const (
+	xperfBinPath = "C:/xperf/xperf.exe"
+	// xperfStopOutputPath is the path on the remote host where `xperf -stop -d`
+	// writes the merged kernel trace. Each subsequent stop overwrites it.
+	xperfStopOutputPath = "C:/full_host_profiles.etl"
+	// xperfLocalArtifactName is the basename used when copying the trace into
+	// the test's SessionOutputDir().
+	xperfLocalArtifactName = "full_host_profiles.etl"
+)
+
 func (s *BaseSuite) startxperf() {
 	host := s.Env().RemoteHost
 
@@ -507,27 +522,52 @@ func (s *BaseSuite) startxperf() {
 	_, err = host.Execute("if (-Not (Test-Path -Path C:/xperf)) { Expand-Archive -Path C:/xperf.zip -DestinationPath C:/xperf }")
 	s.Require().NoError(err)
 
-	outputPath := "C:/kernel.etl"
-	xperfPath := "C:/xperf/xperf.exe"
-	_, err = host.Execute(fmt.Sprintf(`& "%s" -On Base+Latency+CSwitch+PROC_THREAD+LOADER+Profile+DISPATCHER -stackWalk CSwitch+Profile+ReadyThread+ThreadCreate -f %s -MaxBuffers 1024 -BufferSize 1024 -MaxFile 1024 -FileMode Circular`, xperfPath, outputPath))
+	_, err = host.Execute(fmt.Sprintf(`& "%s" -On Base+Latency+CSwitch+PROC_THREAD+LOADER+Profile+DISPATCHER -stackWalk CSwitch+Profile+ReadyThread+ThreadCreate -f %s -MaxBuffers 1024 -BufferSize 1024 -MaxFile 1024 -FileMode Circular`, xperfBinPath, "C:/kernel.etl"))
 	s.Require().NoError(err)
 }
 
 func (s *BaseSuite) collectxperf() {
 	host := s.Env().RemoteHost
 
-	xperfPath := "C:/xperf/xperf.exe"
-	outputPath := "C:/full_host_profiles.etl"
-
-	_, err := host.Execute(fmt.Sprintf(`& "%s" -stop -d %s`, xperfPath, outputPath))
+	_, err := host.Execute(fmt.Sprintf(`& "%s" -stop -d %s`, xperfBinPath, xperfStopOutputPath))
 	s.Require().NoError(err)
 
 	// collect xperf if the test failed
 	if s.T().Failed() {
 		outDir := s.SessionOutputDir()
-		err = host.GetFile(outputPath, filepath.Join(outDir, "full_host_profiles.etl"))
+		err = host.GetFile(xperfStopOutputPath, filepath.Join(outDir, xperfLocalArtifactName))
 		s.Require().NoError(err)
+		// Delete the remote .etl so AfterTest's orphan-collector doesn't
+		// re-upload it (and so a later step's xperf trace can't masquerade
+		// as this one in the artifacts).
+		s.Assert().NoError(host.Remove(xperfStopOutputPath), "should remove xperf .etl from remote after copy")
 	}
+}
+
+// collectOrphanXperf picks up an xperf .etl that was stopped by a step-scoped
+// `defer s.collectxperf()` before any assertion had failed, so the deferred
+// collector skipped the local copy. Intended to be called from AfterTest on
+// test failure.
+//
+// No-op if the remote .etl is absent (e.g. the test never ran an xperf-wrapped
+// helper, or a step-scoped collector already copied and deleted it).
+func (s *BaseSuite) collectOrphanXperf() {
+	host := s.Env().RemoteHost
+
+	exists, err := host.FileExists(xperfStopOutputPath)
+	if !s.Assert().NoError(err, "should check for orphan xperf .etl") {
+		return
+	}
+	if !exists {
+		return
+	}
+
+	s.T().Logf("Collecting orphan xperf trace: %s", xperfStopOutputPath)
+	dst := filepath.Join(s.SessionOutputDir(), xperfLocalArtifactName)
+	if !s.Assert().NoError(host.GetFile(xperfStopOutputPath, dst), "should download orphan xperf .etl") {
+		return
+	}
+	s.Assert().NoError(host.Remove(xperfStopOutputPath), "should remove orphan xperf .etl from remote after copy")
 }
 
 // startProcdump sets up procdump and starts it in the background.

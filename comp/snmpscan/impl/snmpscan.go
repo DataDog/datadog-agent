@@ -14,7 +14,7 @@ import (
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	rcclienttypes "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
 	snmpscan "github.com/DataDog/datadog-agent/comp/snmpscan/def"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"

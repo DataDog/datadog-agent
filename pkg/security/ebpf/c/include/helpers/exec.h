@@ -35,7 +35,8 @@ int __attribute__((always_inline)) handle_exec_event(ctx_t *ctx, struct syscall_
     // resolve dentry
     syscall->resolver.key = syscall->exec.file.path_key;
     syscall->resolver.dentry = syscall->exec.dentry;
-    syscall->resolver.discarder_event_type = 0;
+    syscall->resolver.event_type = 0;
+    syscall->resolver.flags = 0;
     syscall->resolver.callback = DR_NO_CALLBACK;
     syscall->resolver.iteration = 0;
     syscall->resolver.ret = 0;

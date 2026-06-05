@@ -13,9 +13,11 @@ import (
 
 	"github.com/go-viper/mapstructure/v2"
 
+	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
+	"github.com/DataDog/datadog-agent/comp/healthplatform/issues/checkfailure"
 	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -51,6 +53,7 @@ var EventPlatformNameTranslations = map[string]string{
 	"dbm-activity":               "Database Monitoring Activity Samples",
 	"dbm-metadata":               "Database Monitoring Metadata Samples",
 	"dbm-health":                 "Database Monitoring Health Events",
+	"genresources":               "Generic Resources",
 	"network-devices-metadata":   "Network Devices Metadata",
 	"network-devices-netflow":    "Network Devices NetFlow",
 	"network-devices-snmp-traps": "SNMP Traps",
@@ -306,8 +309,6 @@ func (cs *Stats) reportToHealthPlatform(err error) {
 		return
 	}
 
-	// Build context for the issue report
-	// Format totalErrors without importing strconv to reduce binary size
 	totalErrorsStr := formatUint64(cs.TotalErrors)
 	context := map[string]string{
 		"checkName":    cs.CheckName,
@@ -317,19 +318,20 @@ func (cs *Stats) reportToHealthPlatform(err error) {
 		"checkVersion": cs.CheckVersion,
 	}
 
-	// Report the issue to health platform.
-	// IssueId = instance key; IssueType = template; Source = integration name.
-	reportErr := cs.healthPlatform.ReportIssue(
-		healthplatformdef.IssueReport{
-			IssueID:   "check-execution-failure:" + string(cs.CheckID),
-			IssueType: "check-execution-failure",
+	issueID := "check-execution-failure:" + string(cs.CheckID)
+	issue, buildErr := checkfailure.NewCheckFailureIssue().BuildIssue(context)
+	if buildErr != nil {
+		issue = &healthplatformpayload.Issue{
+			Id:        issueID,
+			IssueName: "check-execution-failure",
 			Source:    cs.CheckName,
-			Context:   context,
-			Tags:      []string{cs.CheckName, cs.CheckLoader},
-		},
-	)
+		}
+	} else {
+		issue.Id = issueID
+		issue.Tags = append(issue.Tags, cs.CheckName, cs.CheckLoader)
+	}
 
-	if reportErr != nil {
+	if reportErr := cs.healthPlatform.ReportIssue(issue); reportErr != nil {
 		log.Warnf("Failed to report check failure to health platform for check %s: %v", cs.CheckName, reportErr)
 	} else {
 		log.Debugf("Reported check failure to health platform for check %s", cs.CheckName)

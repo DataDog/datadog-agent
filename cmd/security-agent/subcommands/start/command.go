@@ -29,9 +29,10 @@ import (
 	autoexitfx "github.com/DataDog/datadog-agent/comp/agent/autoexit/fx"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
+	configsync "github.com/DataDog/datadog-agent/comp/core/configsync/def"
+	configsyncfx "github.com/DataDog/datadog-agent/comp/core/configsync/fx"
 	fxinstrumentation "github.com/DataDog/datadog-agent/comp/core/fxinstrumentation/fx"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/remotehostnameimpl"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
@@ -40,8 +41,8 @@ import (
 	pidimpl "github.com/DataDog/datadog-agent/comp/core/pid/impl"
 	remoteagentfx "github.com/DataDog/datadog-agent/comp/core/remoteagent/fx-securityagent"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
-	"github.com/DataDog/datadog-agent/comp/core/settings"
-	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
+	settings "github.com/DataDog/datadog-agent/comp/core/settings/def"
+	settingsfx "github.com/DataDog/datadog-agent/comp/core/settings/fx"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
 	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
@@ -172,7 +173,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					},
 				),
 				statusimpl.Module(),
-				configsyncimpl.Module(configsyncimpl.NewDefaultParams()),
+				configsyncfx.Module(configsync.NewDefaultParams()),
 				autoexitfx.Module(),
 				fx.Supply(pidimpl.NewParams(params.pidfilePath)),
 				fx.Provide(func(c config.Component) settings.Params {
@@ -183,7 +184,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 						Config: c,
 					}
 				}),
-				settingsimpl.Module(),
+				settingsfx.Module(),
 				logscompressionfx.Module(),
 				ipcfx.ModuleReadWrite(),
 				remoteagentfx.Module(),

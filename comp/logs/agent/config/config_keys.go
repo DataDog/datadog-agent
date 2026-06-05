@@ -59,7 +59,7 @@ func (l *LogsConfigKeys) getConfigKey(key string) string {
 }
 
 func isSetAndNotEmpty(config pkgconfigmodel.Reader, key string) bool {
-	return config.IsSet(key) && len(config.GetString(key)) > 0
+	return config.IsConfigured(key) && len(config.GetString(key)) > 0
 }
 
 func (l *LogsConfigKeys) isSetAndNotEmpty(key string) bool {
@@ -324,6 +324,39 @@ func (l *LogsConfigKeys) obsPipelineWorkerEnabled() bool {
 		return true
 	}
 	return l.getConfig().GetBool(l.getObsPipelineConfigKey("vector", "enabled"))
+}
+
+// obsPipelineWorkerDualShip returns true when dual-ship mode is enabled, i.e. logs should be
+// sent to both the primary Datadog intake and the Observability Pipelines Worker simultaneously.
+// This method always returns false when the vectorPrefix is empty (i.e. the config keys instance
+// was not constructed with OPW support).
+// It mirrors the fallback pattern of obsPipelineWorkerEnabled / getObsPipelineURL: if the modern
+// observability_pipelines_worker key is not set it falls back to the legacy vector.* key so that
+// users still on the legacy config are not silently broken.
+func (l *LogsConfigKeys) obsPipelineWorkerDualShip() bool {
+	if l.vectorPrefix == "" {
+		return false
+	}
+	if l.getConfig().GetBool(l.getObsPipelineConfigKey("observability_pipelines_worker", "dual_ship")) {
+		return true
+	}
+	return l.getConfig().GetBool(l.getObsPipelineConfigKey("vector", "dual_ship"))
+}
+
+// obsPipelineWorkerDualShipReliable reports whether the OPW dual-ship endpoint should be treated
+// as reliable. Reliable additional endpoints apply backpressure to the main pipeline if they fail,
+// which can stall delivery to Datadog when OPW is degraded. The default is false (best-effort) so
+// that an unhealthy OPW cannot block the primary Datadog destination; operators who want OPW to
+// participate in flow control can opt in by setting this key to true.
+// Like obsPipelineWorkerDualShip it falls back to the legacy vector.* prefix.
+func (l *LogsConfigKeys) obsPipelineWorkerDualShipReliable() bool {
+	if l.vectorPrefix == "" {
+		return false
+	}
+	if l.getConfig().GetBool(l.getObsPipelineConfigKey("observability_pipelines_worker", "dual_ship_reliable")) {
+		return true
+	}
+	return l.getConfig().GetBool(l.getObsPipelineConfigKey("vector", "dual_ship_reliable"))
 }
 
 func (l *LogsConfigKeys) getObsPipelineURL() (string, bool) {

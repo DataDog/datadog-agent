@@ -22,7 +22,9 @@ type DebugView interface {
 	// parquet data to ensure StateView reflects all ingested observations.
 	Flush()
 	// Reset clears all engine state, resets storage, and reconfigures components.
-	Reset(settings ComponentSettings)
+	// storageCfg is forwarded to the engine so callers control retention policy
+	// (e.g. testbench passes StorageConfig{PointRetentionSecs: 0} for unbounded replay storage).
+	Reset(settings ComponentSettings, storageCfg StorageConfig)
 	// GetReplayProgress returns lock-free replay progress counters.
 	GetReplayProgress() ReplayProgress
 	// SetReplayPhase updates the replay phase string for progress reporting.
@@ -47,6 +49,12 @@ type DebugView interface {
 	// IngestMetricSync feeds a metric directly into the engine, bypassing
 	// the dispatch channel. Synchronous; same caveats as IngestLogSync.
 	IngestMetricSync(source string, sample observerdef.MetricView)
+	// IngestLogNoAdvance feeds a log directly into the engine without driving
+	// any scheduler-triggered advances. Used during batch pre-loading in the
+	// testbench replay path so that extractor state is built up and log
+	// metrics are written to storage, but detector/correlator advances are
+	// deferred to the subsequent ReplayStoredData call.
+	IngestLogNoAdvance(source string, msg observerdef.LogView)
 }
 
 // StateView is a read-only window into engine state.

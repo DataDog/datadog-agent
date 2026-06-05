@@ -13,8 +13,7 @@ import (
 	"net/http"
 	"sort"
 
-	"github.com/gorilla/mux"
-
+	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/observability"
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/pkg/api/coverage"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
@@ -26,21 +25,24 @@ import (
 
 // SetupHandlers adds the specific handlers for /agent endpoints
 func SetupHandlers(
-	r *mux.Router,
+	r *http.ServeMux,
 	providers []api.EndpointProvider,
-) *mux.Router {
+) *http.ServeMux {
 	// Register the handlers from the component providers
 	sort.Slice(providers, func(i, j int) bool { return providers[i].Route() < providers[j].Route() })
 	for _, p := range providers {
-		r.HandleFunc(p.Route(), p.HandlerFunc()).Methods(p.Methods()...)
+		for _, method := range p.Methods() {
+			observability.WrapWithRouteTemplate(r, method, p.Route(), http.HandlerFunc(p.HandlerFunc()))
+		}
 	}
 
 	// TODO: move these to a component that is registerable
-	r.HandleFunc("/status/health", getHealth).Methods("GET")
-	r.HandleFunc("/jmx/status", setJMXStatus).Methods("POST")
-	r.HandleFunc("/jmx/configs", getJMXConfigs).Methods("GET")
-	r.HandleFunc("/install-info", installinfo.HandleGetInstallInfo).Methods("GET")
-	r.HandleFunc("/install-info", installinfo.HandleSetInstallInfo).Methods("POST", "PUT")
+	observability.WrapWithRouteTemplate(r, "GET", "/status/health", http.HandlerFunc(getHealth))
+	observability.WrapWithRouteTemplate(r, "POST", "/jmx/status", http.HandlerFunc(setJMXStatus))
+	observability.WrapWithRouteTemplate(r, "GET", "/jmx/configs", http.HandlerFunc(getJMXConfigs))
+	observability.WrapWithRouteTemplate(r, "GET", "/install-info", http.HandlerFunc(installinfo.HandleGetInstallInfo))
+	observability.WrapWithRouteTemplate(r, "POST", "/install-info", http.HandlerFunc(installinfo.HandleSetInstallInfo))
+	observability.WrapWithRouteTemplate(r, "PUT", "/install-info", http.HandlerFunc(installinfo.HandleSetInstallInfo))
 	coverage.SetupCoverageHandler(r)
 	return r
 }

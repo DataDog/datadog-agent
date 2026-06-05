@@ -92,8 +92,7 @@ func TestObserverDropsMetricsWhenIngestMetricsDisabled(t *testing.T) {
 		"log-extractor virtual metrics must keep flowing into storage even when observer.ingest_metrics.enabled=false")
 }
 
-// TestMetricDropHandle covers the wrapper in isolation, mirroring
-// the pattern used in system_filter_test.go for hfFilteredHandle.
+// TestMetricDropHandle covers the metricDropHandle wrapper in isolation.
 func TestMetricDropHandle(t *testing.T) {
 	inner := &countingHandle{}
 	wrap := &metricDropHandle{inner: inner}

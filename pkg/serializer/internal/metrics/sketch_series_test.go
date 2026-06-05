@@ -23,10 +23,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func testPipelines() PipelineSet {
-	return PipelineSet{{AllowAllFilter{}, false}: {}}
-}
-
 func check(t *testing.T, in metrics.SketchPoint, pb gogen.SketchPayload_Sketch_Dogsketch) {
 	t.Helper()
 	s := in.Sketch

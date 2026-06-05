@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/benbjohnson/clock"
-	"github.com/urfave/negroni"
+	"github.com/urfave/negroni/v3"
 )
 
 // routeCaptureKey is the context key used to share the route template between
@@ -34,23 +34,32 @@ func extractPath(r *http.Request) string {
 	return reqURL.Path
 }
 
-// SetRouteTemplate stores template in the route capture context, if one is present.
-// Callers that know the matched route pattern call this after routing so the telemetry
-// middleware can use the template instead of the raw request path for metric tags.
-func SetRouteTemplate(r *http.Request, template string) {
-	if capture, ok := r.Context().Value(routeCaptureKey{}).(*routeCapture); ok {
-		capture.template = template
-	}
+// WrapWithRouteTemplate registers h on mux for the given method and path, storing the
+// path template in the capture context so the telemetry middleware can use it for metric
+// cardinality reduction instead of the raw request path.
+// When the mux is mounted under a path prefix, use MountWithPrefix at the mount site
+// to have the prefix prepended automatically to the captured template.
+func WrapWithRouteTemplate(mux *http.ServeMux, method, path string, h http.Handler) {
+	mux.Handle(method+" "+path, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if capture, ok := r.Context().Value(routeCaptureKey{}).(*routeCapture); ok {
+			capture.template = path
+		}
+		h.ServeHTTP(w, r)
+	}))
 }
 
-// WrapWithRouteTemplate wraps h, storing prefix+template in the capture context
-// so the telemetry middleware can use it for metric cardinality reduction instead of
-// the raw request path. Use this at handler registration time with net/http ServeMux.
-// Pass prefix="" when the handler is not mounted under http.StripPrefix.
-func WrapWithRouteTemplate(prefix, template string, h http.Handler) http.Handler {
+// MountWithPrefix strips prefix from the request path and passes it to h, then
+// prepends prefix to whatever route template h stored in the capture context.
+// Use this instead of http.StripPrefix when mounting a prefix-agnostic sub-mux:
+// the sub-mux registers routes relative to its own root and the mount site owns
+// the prefix, keeping the two decoupled.
+func MountWithPrefix(prefix string, h http.Handler) http.Handler {
+	stripped := http.StripPrefix(prefix, h)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		SetRouteTemplate(r, prefix+template)
-		h.ServeHTTP(w, r)
+		stripped.ServeHTTP(w, r)
+		if capture, ok := r.Context().Value(routeCaptureKey{}).(*routeCapture); ok && capture.template != "" {
+			capture.template = prefix + capture.template
+		}
 	})
 }
 

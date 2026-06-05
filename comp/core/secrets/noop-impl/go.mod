@@ -21,8 +21,8 @@ require (
 	go.uber.org/fx v1.24.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.28.0 // indirect
-	golang.org/x/sys v0.43.0 // indirect
-	golang.org/x/text v0.36.0 // indirect
+	golang.org/x/sys v0.45.0 // indirect
+	golang.org/x/text v0.37.0 // indirect
 )
 
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
@@ -41,6 +41,8 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/flare/builder => ../../../../comp/core/flare/builder
 	github.com/DataDog/datadog-agent/comp/core/flare/types => ../../../../comp/core/flare/types
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface => ../../../../comp/core/hostname/hostnameinterface
+	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def => ../../../../comp/core/hostname/hostnameinterface/def
+	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock => ../../../../comp/core/hostname/hostnameinterface/mock
 	github.com/DataDog/datadog-agent/comp/core/ipc/def => ../../../../comp/core/ipc/def
 	github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers => ../../../../comp/core/ipc/httphelpers
 	github.com/DataDog/datadog-agent/comp/core/ipc/impl => ../../../../comp/core/ipc/impl
@@ -167,6 +169,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/cgroups => ../../../../pkg/util/cgroups
 	github.com/DataDog/datadog-agent/pkg/util/common => ../../../../pkg/util/common
 	github.com/DataDog/datadog-agent/pkg/util/compression => ../../../../pkg/util/compression
+	github.com/DataDog/datadog-agent/pkg/util/confmaputils => ../../../../pkg/util/confmaputils
 	github.com/DataDog/datadog-agent/pkg/util/containers/image => ../../../../pkg/util/containers/image
 	github.com/DataDog/datadog-agent/pkg/util/defaultpaths => ../../../../pkg/util/defaultpaths
 	github.com/DataDog/datadog-agent/pkg/util/executable => ../../../../pkg/util/executable

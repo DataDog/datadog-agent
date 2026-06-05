@@ -48,7 +48,7 @@ type TargetMutator struct {
 
 // NewTargetMutator creates a new mutator for target based workload selection. We convert the targets to a more
 // efficient internal format for quick lookups.
-func NewTargetMutator(config *Config, wmeta workloadmeta.Component, imageResolver imageresolver.Resolver) (*TargetMutator, error) {
+func NewTargetMutator(config *Config, wmeta workloadmeta.Component, imageResolver imageresolver.Resolver, csiDriverWatcher libraryinjection.CSIDriverWatcher) (*TargetMutator, error) {
 	// Create a map of user-configured disabled namespaces for quick lookups.
 	// Default namespaces (kube-system, datadog agent namespace) are excluded at
 	// the webhook layer via namespace selectors and not duplicated here.
@@ -156,7 +156,7 @@ func NewTargetMutator(config *Config, wmeta workloadmeta.Component, imageResolve
 
 	// Create the core mutator. This is a bit gross.
 	// The target mutator is also the filter which we are passing in.
-	core := newMutatorCore(config, wmeta, m, imageResolver)
+	core := newMutatorCore(config, wmeta, m, imageResolver, csiDriverWatcher)
 	m.core = core
 
 	return m, nil
@@ -489,11 +489,10 @@ func getEnabledLabel(pod *corev1.Pod) (bool, bool) {
 	return false, found
 }
 
-// getAllLatestDefaultLibraries returns all supported by APM Instrumentation tracing libraries
-// that should be enabled by default
+// getAllLatestDefaultLibraries returns the tracing libraries included in the default/all bundle.
 func getAllLatestDefaultLibraries(containerRegistry string) []libInfo {
 	var libsToInject []libInfo
-	for _, lang := range supportedLanguages {
+	for _, lang := range defaultInjectedLanguages {
 		libsToInject = append(libsToInject, lang.defaultLibInfo(containerRegistry, ""))
 	}
 

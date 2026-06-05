@@ -12,7 +12,6 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/ipc/def",
-        "@com_github_gorilla_mux//:mux",
         "@in_yaml_go_yaml_v3//:yaml",
         "@io_opentelemetry_go_collector_component//:component",
         "@io_opentelemetry_go_collector_component_componentstatus//:componentstatus",

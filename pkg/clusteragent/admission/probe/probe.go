@@ -21,7 +21,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 
+	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/healthplatform/issues/admissionprobe"
 	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	admcommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/cloudprovider"
@@ -255,16 +257,20 @@ func (p *Probe) reportHealthIssue() {
 		return
 	}
 
-	report := healthplatformdef.IssueReport{
-		IssueID:   healthIssueID,
-		IssueType: healthIssueID,
-		Source:    "cluster-agent",
-		Context: map[string]string{
-			"remediation": p.diagnosticHint,
-		},
+	issue, buildErr := (&admissionprobe.AdmissionProbeIssue{}).BuildIssue(map[string]string{
+		"remediation": p.diagnosticHint,
+	})
+	if buildErr != nil {
+		issue = &healthplatformpayload.Issue{
+			Id:        healthIssueID,
+			IssueName: healthIssueID,
+			Source:    "cluster-agent",
+		}
+	} else {
+		issue.Id = healthIssueID
 	}
 
-	if reportErr := hp.ReportIssue(report); reportErr != nil {
+	if reportErr := hp.ReportIssue(issue); reportErr != nil {
 		log.Warnf("Failed to report admission probe health issue: %v", reportErr)
 	}
 }

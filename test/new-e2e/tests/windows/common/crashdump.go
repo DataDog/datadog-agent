@@ -153,6 +153,7 @@ var DefaultIgnoredCrashDumpImages = []string{
 	"svchost.exe",
 	"WmiPrvSE.exe",
 	"powershell.exe",
+	"TiWorker.exe",
 }
 
 // IsIgnoredCrashDump reports whether the dump's image name appears in ignore

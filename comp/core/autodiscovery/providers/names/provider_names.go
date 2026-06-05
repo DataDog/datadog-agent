@@ -57,12 +57,14 @@ const (
 	Zookeeper = "zookeeper"
 	// GPU discovers GPU devices and generates check configurations for GPU monitoring.
 	GPU = "gpu"
-	// DataStreamsLiveMessages provides live message sampling configurations for Data Streams Monitoring.
-	DataStreamsLiveMessages = "dsm-live-messages"
+	// DataStreamsKafkaActions provides one-off Kafka action configurations for Data Streams Monitoring.
+	DataStreamsKafkaActions = "dsm-kafka-actions"
 	// DOQueryActions provides check configurations for Database Observability query-level actions.
 	DOQueryActions = "do-query-actions"
 	// PrometheusHTTPSD discovers check configurations from a Prometheus HTTP Service Discovery endpoint.
 	PrometheusHTTPSD = "prometheus-http-sd"
+	// InstrumentationChecks pulls AD configurations derived from DatadogInstrumentation CRs via the cluster-agent.
+	InstrumentationChecks = "instrumentation-checks"
 )
 
 // Internal Autodiscovery names for the config providers
@@ -70,20 +72,21 @@ const (
 // And they're kept unchanged for backward compatibility
 // as they could be hardcoded in the agent config.
 const (
-	ConsulRegisterName             = "consul"
-	ClusterChecksRegisterName      = "clusterchecks"
-	EndpointsChecksRegisterName    = "endpointschecks"
-	EtcdRegisterName               = "etcd"
-	KubeletRegisterName            = "kubelet"
-	KubeContainerRegisterName      = "kubernetes-container-allinone"
-	KubeServicesRegisterName       = "kube_services"
-	KubeServicesFileRegisterName   = "kube_services_file"
-	KubeEndpointsRegisterName      = "kube_endpoints"
-	KubeEndpointsFileRegisterName  = "kube_endpoints_file"
-	KubeCrdRegisterName            = "kube_crd"
-	PrometheusPodsRegisterName     = "prometheus_pods"
-	PrometheusServicesRegisterName = "prometheus_services"
-	PrometheusHTTPSDRegisterName   = "prometheus_http_sd"
-	RemoteConfigRegisterName       = "remote_config"
-	ZookeeperRegisterName          = "zookeeper"
+	ConsulRegisterName                = "consul"
+	ClusterChecksRegisterName         = "clusterchecks"
+	EndpointsChecksRegisterName       = "endpointschecks"
+	EtcdRegisterName                  = "etcd"
+	KubeletRegisterName               = "kubelet"
+	KubeContainerRegisterName         = "kubernetes-container-allinone"
+	KubeServicesRegisterName          = "kube_services"
+	KubeServicesFileRegisterName      = "kube_services_file"
+	KubeEndpointsRegisterName         = "kube_endpoints"
+	KubeEndpointsFileRegisterName     = "kube_endpoints_file"
+	KubeCrdRegisterName               = "kube_crd"
+	PrometheusPodsRegisterName        = "prometheus_pods"
+	PrometheusServicesRegisterName    = "prometheus_services"
+	PrometheusHTTPSDRegisterName      = "prometheus_http_sd"
+	InstrumentationChecksRegisterName = "instrumentation_checks"
+	RemoteConfigRegisterName          = "remote_config"
+	ZookeeperRegisterName             = "zookeeper"
 )

@@ -6,6 +6,7 @@
 package aggregator
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -16,9 +17,10 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
-	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
-	orchestratorforwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator"
+	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/def"
+	forwarderimpl "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/impl"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
+	orchestratorforwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/def"
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
@@ -54,9 +56,8 @@ type AgentDemultiplexer struct {
 
 	m sync.RWMutex
 
-	// stopChan completely stops the flushLoop of the Demultiplexer when receiving
-	// a message, not doing anything else. Passing a non-nil trigger will perform
-	// a final flush.
+	// stopChan receives a trigger that performs a final flush and stops the
+	// flushLoop of the Demultiplexer.
 	stopChan chan *trigger
 	// flushChan receives a trigger to run an internal flush of all
 	// samplers (TimeSampler, BufferedAggregator (CheckSampler, Events, ServiceChecks))
@@ -66,6 +67,8 @@ type AgentDemultiplexer struct {
 	// options are the options with which the demultiplexer has been created
 	options    AgentDemultiplexerOptions
 	aggregator *BufferedAggregator
+	// pendingShutdownEvent is sent through a one-shot lifecycle send during the final Stop().
+	pendingShutdownEvent *event.Event
 	dataOutputs
 
 	senders *senders
@@ -115,7 +118,7 @@ type statsd struct {
 }
 
 type forwarders struct {
-	containerLifecycle *forwarder.DefaultForwarder
+	containerLifecycle *forwarderimpl.DefaultForwarder
 }
 
 type dataOutputs struct {
@@ -283,29 +286,69 @@ func (d *AgentDemultiplexer) SetObserver(obs observer.Component) {
 }
 
 // AddAgentStartupTelemetry adds a startup event and count (in a DSD time sampler)
-// to be sent on the next flush.
+// to be sent on the next flush, and stages the matching shutdown event for the
+// final Stop() flush.
 func (d *AgentDemultiplexer) AddAgentStartupTelemetry(agentVersion string) {
-	if agentVersion != "" {
-		d.AggregateSample(metrics.MetricSample{
-			Name:       fmt.Sprintf("datadog.%s.started", d.aggregator.agentName),
-			Value:      1,
-			Tags:       d.aggregator.tags(true),
-			Host:       d.aggregator.hostname,
-			Mtype:      metrics.CountType,
-			SampleRate: 1,
-			Timestamp:  0,
-		})
-
-		if d.aggregator.hostname != "" {
-			// Send startup event only when we have a valid hostname
-			d.aggregator.eventIn <- event.Event{
-				Text:           "Version " + agentVersion,
-				SourceTypeName: "System",
-				Host:           d.aggregator.hostname,
-				EventType:      "Agent Startup",
-			}
-		}
+	if agentVersion == "" {
+		return
 	}
+
+	d.AggregateSample(metrics.MetricSample{
+		Name:       fmt.Sprintf("datadog.%s.started", d.aggregator.agentName),
+		Value:      1,
+		Tags:       d.aggregator.tags(true),
+		Host:       d.aggregator.hostname,
+		Mtype:      metrics.CountType,
+		SampleRate: 1,
+		Timestamp:  0,
+	})
+
+	if startupEvent, ok := d.agentLifecycleEvent(agentVersion, "Agent Startup"); ok {
+		d.aggregator.eventIn <- startupEvent
+	}
+
+	if shutdownEvent, ok := d.agentLifecycleEvent(agentVersion, "Agent Shutdown"); ok {
+		d.m.Lock()
+		defer d.m.Unlock()
+
+		d.pendingShutdownEvent = &shutdownEvent
+	}
+}
+
+func (d *AgentDemultiplexer) takePendingShutdownEvent() *event.Event {
+	d.m.Lock()
+	defer d.m.Unlock()
+
+	shutdownEvent := d.pendingShutdownEvent
+	d.pendingShutdownEvent = nil
+	return shutdownEvent
+}
+
+func (d *AgentDemultiplexer) sendAgentShutdownEvent(shutdownEvent *event.Event) {
+	if shutdownEvent == nil {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	if err := d.sharedSerializer.SendAgentShutdownEvent(ctx, shutdownEvent); err != nil {
+		d.log.Debugf("failed to send Agent Shutdown event: %v", err)
+	}
+}
+
+func (d *AgentDemultiplexer) agentLifecycleEvent(agentVersion string, eventType string) (event.Event, bool) {
+	if d.aggregator.hostname == "" {
+		return event.Event{}, false
+	}
+
+	return event.Event{
+		Title:          eventType,
+		Text:           "Version " + agentVersion,
+		SourceTypeName: "System",
+		Host:           d.aggregator.hostname,
+		EventType:      eventType,
+	}, true
 }
 
 // run runs all demultiplexer parts
@@ -357,7 +400,9 @@ func (d *AgentDemultiplexer) flushLoop() {
 		case trigger, ok := <-d.stopChan:
 			if ok && trigger != nil {
 				// Final flush requested
+				shutdownEvent := d.takePendingShutdownEvent()
 				d.flushToSerializer(trigger.time, trigger.waitForSerializer, trigger.forceFlushAll)
+				d.sendAgentShutdownEvent(shutdownEvent)
 				if trigger.blockChan != nil {
 					trigger.blockChan <- struct{}{}
 				}
@@ -376,46 +421,35 @@ func (d *AgentDemultiplexer) flushLoop() {
 	}
 }
 
-// Stop stops the demultiplexer.
-// Resources are released, the instance should not be used after a call to `Stop()`.
-func (d *AgentDemultiplexer) Stop(flush bool) {
+// Stop performs a final flush, then releases resources. The instance should
+// not be used after a call to `Stop()`.
+func (d *AgentDemultiplexer) Stop() {
 	timeout := pkgconfigsetup.Datadog().GetDuration("aggregator_stop_timeout") * time.Second
 	forceFlushAll := pkgconfigsetup.Datadog().GetBool("dogstatsd_flush_incomplete_buckets")
 
 	if d.noAggStreamWorker != nil {
-		d.noAggStreamWorker.stop(flush)
+		d.noAggStreamWorker.stop()
 	}
 
-	// do a manual complete flush then stop
-	// stop all automatic flush & the mainloop,
-	if flush {
-		trigger := trigger{
-			time:              time.Now(),
-			blockChan:         make(chan struct{}),
-			waitForSerializer: flush,
-			forceFlushAll:     forceFlushAll,
-		}
-		timeoutStart := time.Now()
+	// do a manual complete flush then stop all automatic flush & the mainloop
+	trigger := trigger{
+		time:              time.Now(),
+		blockChan:         make(chan struct{}),
+		waitForSerializer: true,
+		forceFlushAll:     forceFlushAll,
+	}
+	timeoutStart := time.Now()
 
+	select {
+	case <-time.After(timeout):
+		d.log.Errorf("triggering flushing data on Stop() timed out")
+
+	case d.stopChan <- &trigger:
+		timeout = timeout - time.Since(timeoutStart)
 		select {
+		case <-trigger.blockChan:
 		case <-time.After(timeout):
-			d.log.Errorf("triggering flushing data on Stop() timed out")
-
-		case d.stopChan <- &trigger:
-			timeout = timeout - time.Since(timeoutStart)
-			select {
-			case <-trigger.blockChan:
-			case <-time.After(timeout):
-				d.log.Errorf("completing flushing data on Stop() timed out")
-			}
-		}
-
-	} else {
-		// stops the flushloop and makes sure no automatic flushes will happen anymore
-		select {
-		case d.stopChan <- nil:
-		case <-time.After(timeout):
-			d.log.Debug("unable to guarantee flush loop termination on Stop()")
+			d.log.Errorf("completing flushing data on Stop() timed out")
 		}
 	}
 

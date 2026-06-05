@@ -11,3 +11,8 @@ func initConfig() {
 	ddcfg := GlobalConfigBuilder()
 	initCommonConfigComponents(ddcfg)
 }
+
+func fixupInitConfig() {
+	ddcfg := Datadog()
+	fixupInitCommonConfigComponents(ddcfg)
+}

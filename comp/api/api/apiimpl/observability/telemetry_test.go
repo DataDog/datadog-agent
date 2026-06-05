@@ -67,7 +67,7 @@ func TestTelemetryMiddleware(t *testing.T) {
 			// Use WrapWithRouteTemplate so the telemetry middleware resolves the route
 			// template instead of the raw request path for the metric tag.
 			mux := http.NewServeMux()
-			mux.Handle(tc.method+" "+tc.path, WrapWithRouteTemplate("", tc.path, tcHandler))
+			WrapWithRouteTemplate(mux, tc.method, tc.path, tcHandler)
 			server := httptest.NewServer(telemetryHandler(mux))
 			defer server.Close()
 

@@ -7,7 +7,7 @@
 package logs
 
 import (
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/agentimpl"

@@ -18,10 +18,18 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// wmetaStore is the subset of workloadmeta.Component used by sourceProvider.
+// Keeping the dependency narrow makes the type testable with a simple stub.
+type wmetaStore interface {
+	Subscribe(name string, priority workloadmeta.SubscriberPriority, filter *workloadmeta.Filter) chan workloadmeta.EventBundle
+	Unsubscribe(ch chan workloadmeta.EventBundle)
+	GetContainer(id string) (*workloadmeta.Container, error)
+}
+
 // sourceProvider translates workloadmeta container events into LogSources,
 // publishing them to the provided LogSources instance.
 type sourceProvider struct {
-	wmeta       workloadmeta.Component
+	wmeta       wmetaStore
 	logSources  *sources.LogSources
 	pauseFilter workloadfilter.FilterBundle
 
@@ -32,7 +40,7 @@ type sourceProvider struct {
 	stopped sync.WaitGroup
 }
 
-func newSourceProvider(wmeta workloadmeta.Component, logSources *sources.LogSources, pauseFilter workloadfilter.FilterBundle) *sourceProvider {
+func newSourceProvider(wmeta wmetaStore, logSources *sources.LogSources, pauseFilter workloadfilter.FilterBundle) *sourceProvider {
 	return &sourceProvider{
 		wmeta:         wmeta,
 		logSources:    logSources,
@@ -166,6 +174,20 @@ func (sp *sourceProvider) isPauseContainer(c *workloadmeta.Container) bool {
 // unbounded feedback loop (agent logs → observer → more agent logs → ...).
 func isAgentContainer(c *workloadmeta.Container) bool {
 	return strings.Contains(strings.ToLower(c.Image.ShortName), "agent")
+}
+
+// isAgentContainerID returns true when workloadmeta identifies containerID as
+// an Agent container. Lookup failures are treated as non-Agent so AD collection
+// is not accidentally disabled while workloadmeta is still catching up.
+func (sp *sourceProvider) isAgentContainerID(containerID string) bool {
+	if sp == nil || sp.wmeta == nil || containerID == "" {
+		return false
+	}
+	container, err := sp.wmeta.GetContainer(containerID)
+	if err != nil {
+		return false
+	}
+	return isAgentContainer(container)
 }
 
 // suppressIdentifier marks containerID as owned by an AD source.

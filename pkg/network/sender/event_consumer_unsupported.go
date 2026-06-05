@@ -17,3 +17,8 @@ import (
 func NewDirectSenderConsumer(_ EventConsumerRegistry, _ log.Component, _ sysprobeconfig.Component) (eventmonitor.EventConsumer, error) {
 	return nil, nil
 }
+
+// NewDirectSenderPoller is not supported on non-linux systems
+func NewDirectSenderPoller(_ log.Component, _ sysprobeconfig.Component) error {
+	return nil
+}

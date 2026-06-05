@@ -16,7 +16,7 @@ const (
 	issueName = "admission_controller_unreachable"
 	category  = "availability"
 	location  = "admission-controller"
-	severity  = "high"
+	severity  = healthplatform.IssueSeverity_ISSUE_SEVERITY_HIGH
 	source    = "cluster-agent"
 )
 

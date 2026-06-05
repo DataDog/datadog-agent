@@ -31,14 +31,15 @@ import (
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
-	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
+	settingsmock "github.com/DataDog/datadog-agent/comp/core/settings/mock"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
 	taggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx"
 	mocktelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
-	processapiserver "github.com/DataDog/datadog-agent/comp/process/apiserver"
+	processapiserver "github.com/DataDog/datadog-agent/comp/process/apiserver/def"
+	processapiserverimpl "github.com/DataDog/datadog-agent/comp/process/apiserver/fx"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	model "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -92,7 +93,7 @@ func setupIPCAddress(t *testing.T, confMock model.Config, URL string) {
 
 func setupProcessAPIServer(t *testing.T) {
 	_ = fxutil.Test[processapiserver.Component](t, fx.Options(
-		processapiserver.Module(),
+		processapiserverimpl.Module(),
 		fx.Provide(func() config.Component { return config.NewMock(t) }),
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		mocktelemetry.Module(),
@@ -104,7 +105,7 @@ func setupProcessAPIServer(t *testing.T) {
 		),
 		taggerfx.Module(),
 		statusimpl.Module(),
-		settingsimpl.MockModule(),
+		settingsmock.MockModule(),
 		fx.Provide(func() secrets.Component { return secretsmock.New(t) }),
 		fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
 	))

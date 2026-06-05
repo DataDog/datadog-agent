@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	gpuspec "github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/spec"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 )
 
 // WithGPUConfigEnabled enables the GPU check configuration for testing
@@ -123,6 +124,11 @@ func ValidateEmittedMetricsAgainstSpec(t *testing.T, specs *gpuspec.Specs, confi
 			}
 		})
 	}
+}
+
+// InjectXIDEventsForTest injects device events into the check's device event gatherer.
+func (c *Check) InjectXIDEventsForTest(uuid string, events []ddnvml.DeviceEventData) error {
+	return c.deviceEvtGatherer.InjectEventsForTest(uuid, events)
 }
 
 func SetupWorkloadmetaGPUs(t *testing.T, wmetaMock workloadmetamock.Mock, fakeTagger taggermock.Mock, mode gpuspec.DeviceMode, validateDeviceCount bool) {
