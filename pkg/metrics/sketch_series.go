@@ -9,17 +9,18 @@ import (
 	"bytes"
 	"encoding/json"
 
-	"go.opentelemetry.io/collector/pdata/pmetric"
-
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
-// SketchKind discriminates the type of data in a SketchSeries.
-type SketchKind uint8
+// SketchKind discriminates the type of data in a SketchPoint.
+// Defined as a type alias so that implementations in other modules
+// (e.g. pkg/util/quantile) can satisfy the SketchData interface
+// by returning plain uint8 without importing this package.
+type SketchKind = uint8
 
 const (
-	// SketchKindDDSketch is the default DDSketch type; Points field is populated.
+	// SketchKindDDSketch is the default DDSketch type.
 	SketchKindDDSketch SketchKind = 0
 	// SketchKindExplicitBound carries raw OTel explicit-bound histogram points.
 	SketchKindExplicitBound SketchKind = 1
@@ -28,10 +29,7 @@ const (
 )
 
 // A SketchSeries is a timeseries of quantile sketches or native OTel histograms.
-// Kind discriminates which point slice is populated:
-//   - SketchKindDDSketch (default): Points
-//   - SketchKindExplicitBound: ExplicitHistogramPoints
-//   - SketchKindExponential: ExponentialHistogramPoints
+// The Kind of data is determined per-point via SketchPoint.Sketch.Kind().
 type SketchSeries struct {
 	Name       string               `json:"metric"`
 	Tags       tagset.CompositeTags `json:"tags"`
@@ -41,22 +39,11 @@ type SketchSeries struct {
 	ContextKey ckey.ContextKey      `json:"-"`
 	NoIndex    bool                 `json:"-"` // This is only used by api V2
 	Source     MetricSource         `json:"-"` // This is only used by api V2
-	Kind       SketchKind           `json:"-"`
-
-	ExplicitHistogramPoints    []pmetric.HistogramDataPoint            `json:"-"`
-	ExponentialHistogramPoints []pmetric.ExponentialHistogramDataPoint `json:"-"`
 }
 
-// NumPoints returns the number of data points regardless of Kind.
+// NumPoints returns the number of data points.
 func (sl *SketchSeries) NumPoints() int {
-	switch sl.Kind {
-	case SketchKindExplicitBound:
-		return len(sl.ExplicitHistogramPoints)
-	case SketchKindExponential:
-		return len(sl.ExponentialHistogramPoints)
-	default:
-		return len(sl.Points)
-	}
+	return len(sl.Points)
 }
 
 // GetName returns the name of the SketchSeries
@@ -73,12 +60,28 @@ func (sl SketchSeries) String() string {
 }
 
 // SketchData is the interface the serializer uses to read sketch content.
-// It is satisfied by *quantile.Sketch.
+// It is satisfied by *quantile.Sketch (DDSketch) and the OTel histogram
+// wrapper types ExplicitBoundHistogramPoint / ExponentialHistogramPoint.
+//
+// All method signatures use primitive types so that implementations in
+// separate Go modules (e.g. pkg/util/quantile) can satisfy it without
+// importing this package.
 type SketchData interface {
+	// Kind returns the sketch type: SketchKindDDSketch, SketchKindExplicitBound, or SketchKindExponential.
+	Kind() SketchKind
+
 	// Cols returns bin keys and per-bin counts in ascending key order.
+	// Only meaningful for DDSketch; other kinds return nil, nil.
 	Cols() (k []int32, n []uint32)
+
 	// BasicStats returns the five summary fields used in the wire format.
+	// Only meaningful for DDSketch; other kinds return zeros.
 	BasicStats() (cnt int64, min, max, sum, avg float64)
+
+	// SummaryValues returns min, max, sum for the data point.
+	// Used by the V3 serializer to determine the narrowest value encoding
+	// across all points in a series before writing.
+	SummaryValues() (min, max, sum float64)
 }
 
 // A SketchPoint represents a quantile sketch at a specific time

@@ -21,12 +21,18 @@ type sketchData struct {
 	min, max, sum, avg float64
 }
 
+func (s *sketchData) Kind() uint8 { return 0 } // DDSketch
+
 func (s *sketchData) Cols() ([]int32, []uint32) {
 	return s.k, s.n
 }
 
 func (s *sketchData) BasicStats() (int64, float64, float64, float64, float64) {
 	return s.cnt, s.min, s.max, s.sum, s.avg
+}
+
+func (s *sketchData) SummaryValues() (float64, float64, float64) {
+	return s.min, s.max, s.sum
 }
 
 type sketchIterator struct {

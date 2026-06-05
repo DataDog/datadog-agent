@@ -245,22 +245,26 @@ func TestSendHistograms(t *testing.T) {
 		ecsFargateTags: make(map[string]struct{}),
 		sketches: metrics.SketchSeriesList{
 			{
-				Name:                    "test.histogram",
-				Tags:                    tagset.CompositeTagsFromSlice([]string{"env:test"}),
-				Host:                    "testhost",
-				Interval:                10,
-				Kind:                    metrics.SketchKindExplicitBound,
-				ExplicitHistogramPoints: []pmetric.HistogramDataPoint{dp},
-				Source:                  metrics.MetricSourceOpenTelemetryCollectorUnknown,
+				Name:     "test.histogram",
+				Tags:     tagset.CompositeTagsFromSlice([]string{"env:test"}),
+				Host:     "testhost",
+				Interval: 10,
+				Points: []metrics.SketchPoint{{
+					Ts:     0,
+					Sketch: &metrics.ExplicitBoundHistogramPoint{Point: dp},
+				}},
+				Source: metrics.MetricSourceOpenTelemetryCollectorUnknown,
 			},
 			{
-				Name:                       "test.exp.histogram",
-				Tags:                       tagset.CompositeTagsFromSlice([]string{"env:test"}),
-				Host:                       "testhost",
-				Interval:                   10,
-				Kind:                       metrics.SketchKindExponential,
-				ExponentialHistogramPoints: []pmetric.ExponentialHistogramDataPoint{edp},
-				Source:                     metrics.MetricSourceOpenTelemetryCollectorUnknown,
+				Name:     "test.exp.histogram",
+				Tags:     tagset.CompositeTagsFromSlice([]string{"env:test"}),
+				Host:     "testhost",
+				Interval: 10,
+				Points: []metrics.SketchPoint{{
+					Ts:     0,
+					Sketch: &metrics.ExponentialHistogramPoint{Point: edp},
+				}},
+				Source: metrics.MetricSourceOpenTelemetryCollectorUnknown,
 			},
 		},
 	}
@@ -271,7 +275,10 @@ func TestSendHistograms(t *testing.T) {
 
 	var explicit, exponential []*metrics.SketchSeries
 	for _, s := range mock.sketches {
-		switch s.Kind {
+		if len(s.Points) == 0 {
+			continue
+		}
+		switch s.Points[0].Sketch.Kind() {
 		case metrics.SketchKindExplicitBound:
 			explicit = append(explicit, s)
 		case metrics.SketchKindExponential:
@@ -283,16 +290,18 @@ func TestSendHistograms(t *testing.T) {
 	assert.Equal(t, "test.histogram", explicit[0].Name)
 	assert.Equal(t, "testhost", explicit[0].Host)
 	assert.Equal(t, int64(10), explicit[0].Interval)
-	require.Len(t, explicit[0].ExplicitHistogramPoints, 1)
-	assert.Equal(t, uint64(11), explicit[0].ExplicitHistogramPoints[0].Count())
-	assert.Equal(t, 42.0, explicit[0].ExplicitHistogramPoints[0].Sum())
+	require.Len(t, explicit[0].Points, 1)
+	ep := explicit[0].Points[0].Sketch.(*metrics.ExplicitBoundHistogramPoint)
+	assert.Equal(t, uint64(11), ep.Point.Count())
+	assert.Equal(t, 42.0, ep.Point.Sum())
 
 	require.Len(t, exponential, 1)
 	assert.Equal(t, "test.exp.histogram", exponential[0].Name)
 	assert.Equal(t, "testhost", exponential[0].Host)
-	require.Len(t, exponential[0].ExponentialHistogramPoints, 1)
-	assert.Equal(t, uint64(65), exponential[0].ExponentialHistogramPoints[0].Count())
-	assert.Equal(t, int32(4), exponential[0].ExponentialHistogramPoints[0].Scale())
+	require.Len(t, exponential[0].Points, 1)
+	xp := exponential[0].Points[0].Sketch.(*metrics.ExponentialHistogramPoint)
+	assert.Equal(t, uint64(65), xp.Point.Count())
+	assert.Equal(t, int32(4), xp.Point.Scale())
 }
 
 func TestSendHistograms_Empty(t *testing.T) {
@@ -308,15 +317,18 @@ func TestSendHistograms_Empty(t *testing.T) {
 }
 
 func TestSendHistograms_Multiple(t *testing.T) {
+	dp := pmetric.NewHistogramDataPoint()
+	edp := pmetric.NewExponentialHistogramDataPoint()
+
 	sc := serializerConsumer{
 		hosts:          make(map[string]struct{}),
 		ecsFargateTags: make(map[string]struct{}),
 		sketches: metrics.SketchSeriesList{
-			{Name: "hist1", Host: "host1", Kind: metrics.SketchKindExplicitBound},
-			{Name: "hist2", Host: "host2", Kind: metrics.SketchKindExplicitBound},
-			{Name: "hist3", Host: "host3", Kind: metrics.SketchKindExplicitBound},
-			{Name: "exp1", Host: "host1", Kind: metrics.SketchKindExponential},
-			{Name: "exp2", Host: "host2", Kind: metrics.SketchKindExponential},
+			{Name: "hist1", Host: "host1", Points: []metrics.SketchPoint{{Sketch: &metrics.ExplicitBoundHistogramPoint{Point: dp}}}},
+			{Name: "hist2", Host: "host2", Points: []metrics.SketchPoint{{Sketch: &metrics.ExplicitBoundHistogramPoint{Point: dp}}}},
+			{Name: "hist3", Host: "host3", Points: []metrics.SketchPoint{{Sketch: &metrics.ExplicitBoundHistogramPoint{Point: dp}}}},
+			{Name: "exp1", Host: "host1", Points: []metrics.SketchPoint{{Sketch: &metrics.ExponentialHistogramPoint{Point: edp}}}},
+			{Name: "exp2", Host: "host2", Points: []metrics.SketchPoint{{Sketch: &metrics.ExponentialHistogramPoint{Point: edp}}}},
 		},
 	}
 
@@ -326,7 +338,10 @@ func TestSendHistograms_Multiple(t *testing.T) {
 
 	var explicit, exponential []*metrics.SketchSeries
 	for _, s := range mock.sketches {
-		switch s.Kind {
+		if len(s.Points) == 0 {
+			continue
+		}
+		switch s.Points[0].Sketch.Kind() {
 		case metrics.SketchKindExplicitBound:
 			explicit = append(explicit, s)
 		case metrics.SketchKindExponential:

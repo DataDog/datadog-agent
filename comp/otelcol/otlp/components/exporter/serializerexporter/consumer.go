@@ -109,35 +109,39 @@ const (
 	agentOTLPIngest
 )
 
-func (c *serializerConsumer) ConsumeExplicitBoundHistogram(_ context.Context, dimensions *otlpmetrics.Dimensions, _ uint64, interval int64, point pmetric.HistogramDataPoint, _ bool) {
+func (c *serializerConsumer) ConsumeExplicitBoundHistogram(_ context.Context, dimensions *otlpmetrics.Dimensions, ts uint64, interval int64, point pmetric.HistogramDataPoint, _ bool) {
 	msrc, ok := metricOriginsMappings[dimensions.OriginProductDetail()]
 	if !ok {
 		msrc = metrics.MetricSourceOpenTelemetryCollectorUnknown
 	}
 	c.sketches = append(c.sketches, &metrics.SketchSeries{
-		Name:                    dimensions.Name(),
-		Tags:                    tagset.CompositeTagsFromSlice(enrichTags(c.extraTags, dimensions)),
-		Host:                    dimensions.Host(),
-		Interval:                interval,
-		Kind:                    metrics.SketchKindExplicitBound,
-		ExplicitHistogramPoints: []pmetric.HistogramDataPoint{point},
-		Source:                  msrc,
+		Name:     dimensions.Name(),
+		Tags:     tagset.CompositeTagsFromSlice(enrichTags(c.extraTags, dimensions)),
+		Host:     dimensions.Host(),
+		Interval: interval,
+		Points: []metrics.SketchPoint{{
+			Ts:     int64(ts / 1e9),
+			Sketch: &metrics.ExplicitBoundHistogramPoint{Point: point},
+		}},
+		Source: msrc,
 	})
 }
 
-func (c *serializerConsumer) ConsumeExponentialHistogram(_ context.Context, dimensions *otlpmetrics.Dimensions, _ uint64, interval int64, point pmetric.ExponentialHistogramDataPoint) {
+func (c *serializerConsumer) ConsumeExponentialHistogram(_ context.Context, dimensions *otlpmetrics.Dimensions, ts uint64, interval int64, point pmetric.ExponentialHistogramDataPoint) {
 	msrc, ok := metricOriginsMappings[dimensions.OriginProductDetail()]
 	if !ok {
 		msrc = metrics.MetricSourceOpenTelemetryCollectorUnknown
 	}
 	c.sketches = append(c.sketches, &metrics.SketchSeries{
-		Name:                       dimensions.Name(),
-		Tags:                       tagset.CompositeTagsFromSlice(enrichTags(c.extraTags, dimensions)),
-		Host:                       dimensions.Host(),
-		Interval:                   interval,
-		Kind:                       metrics.SketchKindExponential,
-		ExponentialHistogramPoints: []pmetric.ExponentialHistogramDataPoint{point},
-		Source:                     msrc,
+		Name:     dimensions.Name(),
+		Tags:     tagset.CompositeTagsFromSlice(enrichTags(c.extraTags, dimensions)),
+		Host:     dimensions.Host(),
+		Interval: interval,
+		Points: []metrics.SketchPoint{{
+			Ts:     int64(ts / 1e9),
+			Sketch: &metrics.ExponentialHistogramPoint{Point: point},
+		}},
+		Source: msrc,
 	})
 }
 
@@ -169,7 +173,6 @@ func (c *serializerConsumer) ConsumeSketch(_ context.Context, dimensions *otlpme
 		Tags:     tagset.CompositeTagsFromSlice(enrichTags(c.extraTags, dimensions)),
 		Host:     dimensions.Host(),
 		Interval: interval,
-		Kind:     metrics.SketchKindDDSketch,
 		Points: []metrics.SketchPoint{{
 			Ts:     int64(ts / 1e9),
 			Sketch: qsketch,

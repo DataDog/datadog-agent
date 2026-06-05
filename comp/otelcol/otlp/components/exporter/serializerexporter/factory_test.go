@@ -121,7 +121,7 @@ func TestNativeHistogramFeatureGateWiring(t *testing.T) {
 
 	assert.Eventually(t, func() bool {
 		for _, s := range mock.sketches {
-			if s.Kind == metrics.SketchKindExplicitBound {
+			if len(s.Points) > 0 && s.Points[0].Sketch.Kind() == metrics.SketchKindExplicitBound {
 				return true
 			}
 		}

@@ -183,7 +183,7 @@ func (pb *payloadsBuilder) startPayload() error {
 }
 
 func (pb *payloadsBuilder) writeSketch(ss *metrics.SketchSeries) error {
-	if ss.Kind != metrics.SketchKindDDSketch {
+	if len(ss.Points) > 0 && ss.Points[0].Sketch.Kind() != metrics.SketchKindDDSketch {
 		return nil
 	}
 	// constants for the protobuf data we will be writing, taken from
