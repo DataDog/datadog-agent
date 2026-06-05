@@ -414,7 +414,16 @@ func (p *PodAutoscalerInternal) SetActiveScalingValues(currentTime time.Time, ho
 
 	// Update scaling values
 	p.scalingValues.Horizontal = selectScalingValues(horizontalActiveSource).Horizontal
-	p.scalingValues.Vertical = selectScalingValues(verticalActiveSource).Vertical
+
+	// Nil source means no backend recommendation yet (e.g. first window after restart).
+	// Setting vertical to nil lets sync() exit early rather than self-assigning the
+	// already-constrained value, which would propagate the burstable sentinel and prevent
+	// a rollout when burstable is toggled off.
+	if verticalActiveSource == nil {
+		p.scalingValues.Vertical = nil
+	} else {
+		p.scalingValues.Vertical = selectScalingValues(verticalActiveSource).Vertical
+	}
 
 	// Update error states based on main product recommendations
 	p.scalingValues.HorizontalError = p.mainScalingValues.HorizontalError

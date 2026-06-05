@@ -905,3 +905,62 @@ func TestIsPodsGuaranteedQOS(t *testing.T) {
 		assert.False(t, isPodsGuaranteedQOS(pods))
 	})
 }
+
+// TestApplyVerticalConstraints_BurstableHashChange verifies that enabling and disabling
+// burstable mode produces distinct ResourcesHash values.  This hash difference is what
+// the vertical controller uses as the recommendationID: when pods carry the old hash and
+// the new recommendationID differs, a rollout is triggered.  Concretely:
+//   - burstable=false with no constraints is a no-op (hash unchanged from backend value)
+//   - burstable=true stamps removeLimitSentinel on every CPU limit and recomputes the hash
+//
+// The two hashes must never be equal, otherwise unsetting spec.options.burstable would not
+// trigger a rollout to restore CPU limits.
+func TestApplyVerticalConstraints_BurstableHashChange(t *testing.T) {
+	backendHash := "backend-hash-v1"
+	baseRec := func() *model.VerticalScalingValues {
+		return &model.VerticalScalingValues{
+			ResourcesHash: backendHash,
+			ContainerResources: []datadoghqcommon.DatadogPodAutoscalerContainerResources{
+				{
+					Name:     "app",
+					Requests: corev1.ResourceList{"cpu": resource.MustParse("200m")},
+					Limits:   corev1.ResourceList{"cpu": resource.MustParse("400m")},
+				},
+			},
+		}
+	}
+
+	t.Run("burstable=false with no constraints leaves hash unchanged", func(t *testing.T) {
+		rec := baseRec()
+		_, err := applyVerticalConstraints(rec, nil, false)
+		require.NoError(t, err)
+		assert.Equal(t, backendHash, rec.ResourcesHash,
+			"burstable=false with no constraints must not modify the hash")
+	})
+
+	t.Run("burstable=true stamps sentinel and recomputes hash", func(t *testing.T) {
+		rec := baseRec()
+		_, err := applyVerticalConstraints(rec, nil, true)
+		require.NoError(t, err)
+		assert.NotEqual(t, backendHash, rec.ResourcesHash,
+			"burstable=true must recompute the hash after stamping the CPU-limit sentinel")
+		cpuLimit := rec.ContainerResources[0].Limits[corev1.ResourceCPU]
+		assert.Equal(t, removeLimitSentinel, cpuLimit,
+			"burstable=true must stamp removeLimitSentinel on each CPU limit")
+	})
+
+	t.Run("burstable hash differs from non-burstable hash — rollout is triggered on toggle", func(t *testing.T) {
+		withBurstable := baseRec()
+		_, err := applyVerticalConstraints(withBurstable, nil, true)
+		require.NoError(t, err)
+
+		withoutBurstable := baseRec()
+		// burstable=false with no constraints is a no-op; hash stays as backendHash.
+		_, err = applyVerticalConstraints(withoutBurstable, nil, false)
+		require.NoError(t, err)
+
+		assert.NotEqual(t, withBurstable.ResourcesHash, withoutBurstable.ResourcesHash,
+			"toggling burstable must change the recommendationID so the vertical controller "+
+				"detects that pods carry a stale hash and triggers a rollout to restore CPU limits")
+	})
+}

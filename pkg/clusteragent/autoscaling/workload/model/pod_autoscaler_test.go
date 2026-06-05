@@ -1044,3 +1044,37 @@ func TestUpdateFromPodAutoscalerResyncsOnWatchedMetadata(t *testing.T) {
 	pai.UpdateFromPodAutoscaler(dpa)
 	assert.True(t, pai.IsBurstable())
 }
+
+// TestSetActiveScalingValues_NilSource_ClearsVertical verifies that a nil verticalActiveSource
+// (no backend recommendation yet) sets scalingValues.Vertical to nil instead of self-assigning
+// the previously-constrained value.  Self-assigning propagates the burstable sentinel, which
+// causes applyVerticalConstraints(burstable=false) to early-return and suppress the rollout.
+func TestSetActiveScalingValues_NilSource_ClearsVertical(t *testing.T) {
+	// Simulate a sentinel-containing constrained recommendation (from a previous burstable=true cycle).
+	constrainedRec := &VerticalScalingValues{
+		ResourcesHash: "burstable-hash",
+		ContainerResources: []datadoghqcommon.DatadogPodAutoscalerContainerResources{{
+			Name:   "app",
+			Limits: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("-1")},
+		}},
+	}
+
+	// mainScalingValues.Vertical is nil (no backend recommendation yet).
+	pai := FakePodAutoscalerInternal{
+		Namespace: "ns",
+		Name:      "dpa",
+		// scalingValues carries the sentinel from the previous burstable cycle.
+		ScalingValues: ScalingValues{Vertical: constrainedRec},
+	}.Build()
+
+	// SetActiveScalingValues with nil verticalActiveSource.
+	pai.SetActiveScalingValues(time.Now(), nil, nil)
+
+	// scalingValues.Vertical must be nil — not the sentinel-containing constrained value.
+	// sync() will exit early (no recommendation), preventing a phantom rolloutDecisionComplete.
+	got := pai.ScalingValues().Vertical
+	assert.Nil(t, got,
+		"SetActiveScalingValues(nil source) must set scalingValues.Vertical to nil, not "+
+			"self-assign the sentinel-containing constrained value; the sentinel would cause "+
+			"applyVerticalConstraints(burstable=false) to early-return and suppress the rollout")
+}
