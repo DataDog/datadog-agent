@@ -168,14 +168,16 @@ func TestShouldForwardRateLimitTriggerOnDropped(t *testing.T) {
 	s := newLogSampler(limits, limits, onDropped)
 
 	for i := 0; i < 20; i++ {
-		s.ShouldForward(newMsg("warn"))  // high tier
-		s.ShouldForward(newMsg("info"))  // medium tier
-		s.ShouldForward(newMsg("debug")) // low tier
+		s.ShouldForward(newMsg("warn"))                   // high tier
+		s.ShouldForward(newMsg("info"))                   // medium tier
+		s.ShouldForward(newMsg("debug"))                  // low tier
+		s.ShouldForward(newMsg("warn", "source:kubelet")) // high tier + kubelet
 	}
 
 	assert.Equal(t, 10, drops["containers/high"], "10 high-tier drops expected")
 	assert.Equal(t, 10, drops["containers/medium"], "10 medium-tier drops expected")
 	assert.Equal(t, 10, drops["containers/low"], "10 low-tier drops expected")
+	assert.Equal(t, 10, drops["kubelet/high"], "10 high-tier drops expected for kubelet")
 }
 
 func TestShouldForwardSeverityFilteredDropsDoNotFireOnDropped(t *testing.T) {
