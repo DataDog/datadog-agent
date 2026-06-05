@@ -484,15 +484,16 @@ func (d *daemonImpl) promoteExperiment(ctx context.Context, pkg string) (err err
 
 	log.Infof("Daemon: Promoting experiment for package %s", pkg)
 	err = d.installer(d.env).PromoteExperiment(ctx, pkg)
-	if errors.Is(err, repository.ErrNoExperiment) {
+	if installerErrors.GetCode(err) == installerErrors.ErrNoExperiment {
 		// Remote Config promotes are state-reconciling and re-delivered: the
 		// per-process dedup is cleared on any daemon/host restart, so an
 		// already-applied promote gets replayed. By then the experiment link
 		// equals stable (a successful promote keeps it there; a stop or a
-		// timed-out/failed experiment resets it), so State reports no
-		// experiment. This is a benign idempotent no-op, not a failure, so we
-		// return nil to keep the span out of Error Tracking. Explicit operator
-		// promotes still surface the error via the in-process CLI path.
+		// timed-out/failed experiment resets it), so the installer reports no
+		// experiment via the ErrNoExperiment code (which survives the installer
+		// subprocess boundary). This is a benign idempotent no-op, not a
+		// failure, so we return nil to keep the span out of Error Tracking.
+		// Explicit operator promotes still surface the error via the CLI.
 		log.Infof("Daemon: No experiment to promote for package %s, skipping", pkg)
 		return nil
 	}

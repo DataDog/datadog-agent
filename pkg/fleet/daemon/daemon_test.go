@@ -10,6 +10,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"path/filepath"
 	"runtime"
 	"sync"
@@ -24,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/config"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
+	installerErrors "github.com/DataDog/datadog-agent/pkg/fleet/installer/errors"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
@@ -360,10 +362,12 @@ func TestPromoteExperimentNoExperiment(t *testing.T) {
 	defer i.Stop()
 
 	pkg := "test-package"
-	// When no experiment is staged the installer reports ErrNoExperiment. This
-	// is a benign no-op, so the daemon must not surface it as an error (which
-	// would mark the span error=1 and pollute Error Tracking).
-	i.pm.On("PromoteExperiment", mock.Anything, pkg).Return(repository.ErrNoExperiment).Once()
+	// When no experiment is staged the installer returns an error carrying the
+	// ErrNoExperiment code (this is what crosses the installer subprocess
+	// boundary in production). It is a benign no-op, so the daemon must not
+	// surface it as an error (which would mark the span error=1 and pollute
+	// Error Tracking).
+	i.pm.On("PromoteExperiment", mock.Anything, pkg).Return(installerErrors.Wrap(installerErrors.ErrNoExperiment, errors.New("no experiment to promote"))).Once()
 
 	err := i.PromoteExperiment(context.Background(), pkg)
 	assert.NoError(t, err)

@@ -308,11 +308,12 @@ func TestPromoteExperimentNoExperiment(t *testing.T) {
 	assert.NoError(t, err)
 
 	// No experiment is staged. The in-process installer (used by the CLI) must
-	// surface this as an error, tagged with ErrNoExperiment so speculative
-	// callers (the daemon) can recognize the benign case. The code must survive
-	// extraction so it can also be read across the subprocess JSON boundary.
+	// still surface this as an error, but tagged with the ErrNoExperiment code
+	// so speculative callers (the daemon) can recognize the benign case. The
+	// code must survive extraction so it can be read across the subprocess JSON
+	// boundary.
 	err = installer.PromoteExperiment(testCtx, fixtures.FixtureSimpleV1.Package)
-	assert.ErrorIs(t, err, repository.ErrNoExperiment)
+	assert.Error(t, err)
 	assert.Equal(t, installerErrors.ErrNoExperiment, installerErrors.GetCode(err))
 
 	// Stable is unchanged and no experiment exists.

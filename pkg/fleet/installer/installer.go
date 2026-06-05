@@ -495,20 +495,21 @@ func (i *installerImpl) PromoteExperiment(ctx context.Context, pkg string) error
 	i.m.Lock()
 	defer i.m.Unlock()
 
-	repo := i.packages.Get(pkg)
-	state, err := repo.GetState()
+	repository := i.packages.Get(pkg)
+	state, err := repository.GetState()
 	if err != nil {
 		return fmt.Errorf("could not get repository state: %w", err)
 	}
 	if !state.HasExperiment() {
-		// No experiment staged (the experiment link equals stable). This is a
-		// real error for explicit callers (the operator CLI runs this
-		// in-process and should be told the promote did nothing), but it
-		// carries ErrNoExperiment so Remote-Config-driven callers (the daemon),
-		// whose promotes are idempotent and re-delivered, can recognize the
-		// benign no-op and keep it out of Error Tracking. The code survives the
-		// JSON process boundary; see installerErrors.
-		return installerErrors.Wrap(installerErrors.ErrNoExperiment, repository.ErrNoExperiment)
+		// No experiment is staged (the experiment link equals stable), so the
+		// promote did nothing. Explicit callers still receive a non-nil error:
+		// the operator CLI runs this in-process and must be told the promote
+		// was a no-op. We only tag it with the ErrNoExperiment code so the
+		// out-of-process daemon, whose Remote-Config promotes are idempotent
+		// and re-delivered, can recognize this benign no-op across the
+		// subprocess JSON boundary and keep it out of Error Tracking. Genuine
+		// promotion failures carry other codes and stay errors everywhere.
+		return installerErrors.Wrap(installerErrors.ErrNoExperiment, errors.New("no experiment to promote"))
 	}
 
 	err = i.hooks.PrePromoteExperiment(ctx, pkg)
@@ -516,13 +517,7 @@ func (i *installerImpl) PromoteExperiment(ctx context.Context, pkg string) error
 		return fmt.Errorf("could not promote experiment: %w", err)
 	}
 
-	err = repo.PromoteExperiment(ctx)
-	if errors.Is(err, repository.ErrNoExperiment) {
-		// The experiment was promoted, stopped, or reverted between GetState
-		// above and here (e.g. a concurrent stop/timeout), so there is nothing
-		// to promote. Tag with ErrNoExperiment for the same reason as above.
-		return installerErrors.Wrap(installerErrors.ErrNoExperiment, err)
-	}
+	err = repository.PromoteExperiment(ctx)
 	if err != nil {
 		return fmt.Errorf("could not promote experiment: %w", err)
 	}
@@ -533,7 +528,7 @@ func (i *installerImpl) PromoteExperiment(ctx context.Context, pkg string) error
 	}
 
 	// Update db
-	state, err = repo.GetState()
+	state, err = repository.GetState()
 	if err != nil {
 		return fmt.Errorf("could not get repository state: %w", err)
 	}
