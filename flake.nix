@@ -71,6 +71,9 @@
             pkgs.zlib.dev
             pkgs.libffi
             pkgs.libffi.dev
+            # systemd dev headers: required by go-systemd (coreos/go-systemd) for
+            # linter typechecking; agent.build excludes systemd but linter sees all.
+            pkgs.systemd.dev
 
             # --- uv (for dda install) ---
             pkgs.uv
@@ -93,6 +96,12 @@
             # Writable per-repo tool directories so go install / cargo install
             # / bundle install work as non-root without touching /nix/store.
             # ----------------------------------------------------------------
+
+            # Override TMPDIR: Nix sets it to /tmp/nix-shell.XXXX which produces
+            # very long paths that exceed Linux's 108-char Unix socket path limit,
+            # breaking tests that create sockets via t.TempDir().
+            export TMPDIR=/tmp
+
             export GOBIN="$PWD/.gobin"
             export GOMODCACHE="$PWD/.gomodcache"
             export GOPATH="$PWD/.gopath"
