@@ -336,3 +336,31 @@ func TestRawPacketDropAction(t *testing.T) {
 		testRawPacketDropAction(t, filters, "test/raw_packet_drop_action", probes.TCActUnspec, 1, rawpacket.DefaultProgOpts(), true)
 	})
 }
+
+// TestRawPacketActionWithInvalidFilter ensures that when a set of filters contains an
+// invalid BPF expression alongside a valid one, the invalid filter is skipped while the
+// valid filter is still compiled into a program (the number of generated programs is not 0).
+func TestRawPacketActionWithInvalidFilter(t *testing.T) {
+	filters := []rawpacket.Filter{
+		{
+			RuleID:    "invalid",
+			BPFFilter: "((( invalid bpf syntax",
+			Policy:    rawpacket.PolicyDrop,
+			CGroupPathKey: model.PathKey{
+				Inode: 456,
+			},
+		},
+		{
+			RuleID:    "valid",
+			BPFFilter: "tcp dst port 5555 and tcp[tcpflags] == tcp-syn",
+			Policy:    rawpacket.PolicyDrop,
+			CGroupPathKey: model.PathKey{
+				Inode: 456,
+			},
+		},
+	}
+
+	// catchCompilerError is false: the invalid filter is expected to fail compilation and
+	// be skipped, but the valid filter should still produce a single program (and match).
+	testRawPacketDropAction(t, filters, "test/raw_packet_drop_action", 255, 1, rawpacket.DefaultProgOpts(), false)
+}

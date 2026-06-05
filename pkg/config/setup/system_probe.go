@@ -221,12 +221,18 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 
 	cfg.BindEnvAndSetDefault("system_probe_config.process_service_inference.use_improved_algorithm", false)
 
-	// For backward compatibility
-	cfg.BindEnv("service_monitoring_config.process_service_inference.enabled", "DD_SYSTEM_PROBE_PROCESS_SERVICE_INFERENCE_ENABLED") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	// For backward compatibility. Default is false because the canonical key
+	// (system_probe_config.process_service_inference.enabled, below) is the
+	// authoritative source; deprecateBool only forwards this deprecated alias
+	// when it is explicitly configured.
+	cfg.BindEnvAndSetDefault("service_monitoring_config.process_service_inference.enabled", false, "DD_SYSTEM_PROBE_PROCESS_SERVICE_INFERENCE_ENABLED")
 	cfg.BindEnvAndSetDefault("system_probe_config.process_service_inference.enabled", runtime.GOOS == "windows")
 
-	// For backward compatibility
-	cfg.BindEnv("service_monitoring_config.process_service_inference.use_windows_service_name", "DD_SYSTEM_PROBE_PROCESS_SERVICE_INFERENCE_USE_WINDOWS_SERVICE_NAME") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	// For backward compatibility. Default is false because the canonical key
+	// (system_probe_config.process_service_inference.use_windows_service_name,
+	// below) is the authoritative source; deprecateBool only forwards this
+	// deprecated alias when it is explicitly configured.
+	cfg.BindEnvAndSetDefault("service_monitoring_config.process_service_inference.use_windows_service_name", false, "DD_SYSTEM_PROBE_PROCESS_SERVICE_INFERENCE_USE_WINDOWS_SERVICE_NAME")
 	// default on windows is now enabled; default on linux is still disabled
 	cfg.BindEnvAndSetDefault("system_probe_config.process_service_inference.use_windows_service_name", true)
 
@@ -300,6 +306,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	eventMonitorBindEnvAndSetDefault(cfg, "event_monitoring_config.pid_cache_size", 10000)
 	eventMonitorBindEnvAndSetDefault(cfg, "event_monitoring_config.dns_resolution.cache_size", 1024)
 	eventMonitorBindEnvAndSetDefault(cfg, "event_monitoring_config.dns_resolution.enabled", true)
+	eventMonitorBindEnvAndSetDefault(cfg, "event_monitoring_config.dns_resolution.cname_max_depth", 2)
 	eventMonitorBindEnvAndSetDefault(cfg, "event_monitoring_config.events_stats.tags_cardinality", "high")
 	eventMonitorBindEnvAndSetDefault(cfg, "event_monitoring_config.custom_sensitive_words", []string{})
 	eventMonitorBindEnvAndSetDefault(cfg, "event_monitoring_config.custom_sensitive_regexps", []string{})
