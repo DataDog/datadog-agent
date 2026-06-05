@@ -9,6 +9,7 @@
 ## Unreleased
 
 <!-- Add entries here for changes not yet in a release. -->
+- Fix uninstallation: `unconfig` now uses `rmssys` only to deregister SRC subsystems, dropping the preceding `odmdelete` calls that left stale entries in the live srcmstr daemon
 
 ---
 
