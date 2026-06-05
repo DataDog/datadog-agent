@@ -55,9 +55,6 @@ func NewComponent(reqs Requires) (Provides, error) {
 	} else {
 		syslogURI := pkglogsetup.GetSyslogURI(config)
 		jmxLogFile := config.GetString("jmx_log_file")
-		if jmxLogFile == "" {
-			jmxLogFile = defaultpaths.GetDefaultJmxLogFile()
-		}
 
 		if config.GetBool("disable_file_logging") {
 			// this will prevent any logging on file
