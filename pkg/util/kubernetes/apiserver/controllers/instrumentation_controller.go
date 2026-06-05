@@ -11,6 +11,7 @@ import (
 	"context"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/instrumentation"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/cenkalti/backoff/v5"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -26,7 +27,6 @@ func tryCheckInstrumentationCRD(check checkAPI) error {
 		}
 		return err
 	}
-	log.Info("DatadogInstrumentation CRD check successful")
 	return nil
 }
 
@@ -61,8 +61,12 @@ func waitForInstrumentationCRD(ctx context.Context, dynamicClient dynamic.Interf
 }
 
 // startDatadogInstrumentationController starts the shared DatadogInstrumentation reconciliation controller.
-// It waits asynchronously for the DatadogInstrumentation CRD to be installed before starting.
 func startDatadogInstrumentationController(ctx *ControllerContext, _ chan error) {
+	if !pkgconfigsetup.Datadog().GetBool("admission_controller.enabled") || !pkgconfigsetup.Datadog().GetBool("admission_controller.validation.enabled") {
+		log.Info("DatadogInstrumentation controller not starting, admission controller is needed to run.")
+		return
+	}
+
 	controllerCtx, cancel := context.WithCancel(context.Background())
 	go func() {
 		<-ctx.StopCh
