@@ -1555,12 +1555,16 @@ func TestUnmarshalKeyIntSliceFromEnv(t *testing.T) {
 		env             string
 		stringUnmarshal bool
 		want            []int
+		wantErr         bool
 	}{
-		{"ntm/space-separated", "ntm", "53 5353", false, []int{53, 5353}},
-		{"ntm/json+stringunmarshal", "ntm", "[53,5353]", true, []int{53, 5353}},
-		{"ntm/single+stringunmarshal", "ntm", "5353", true, []int{5353}},
-		{"viper/json+stringunmarshal", "viper", "[53,5353]", true, []int{53, 5353}},
-		{"viper/single+stringunmarshal", "viper", "5353", true, []int{5353}},
+		{"ntm/space-separated", "ntm", "53 5353", false, []int{53, 5353}, false},
+		{"ntm/json+stringunmarshal", "ntm", "[53,5353]", true, []int{53, 5353}, false},
+		{"ntm/single+stringunmarshal", "ntm", "5353", true, []int{5353}, false},
+		{"viper/json+stringunmarshal", "viper", "[53,5353]", true, []int{53, 5353}, false},
+		{"viper/single+stringunmarshal", "viper", "5353", true, []int{5353}, false},
+		// viper has no env-layer type conversion (unlike nodetreemodel's
+		// ConvertToDefaultType), so a space-separated list is not supported
+		{"viper/space-separated unsupported", "viper", "53 5353", true, nil, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			cfg := build(t, tc.backend, tc.env)
@@ -1570,6 +1574,10 @@ func TestUnmarshalKeyIntSliceFromEnv(t *testing.T) {
 				err = UnmarshalKey(cfg, key, &got, EnableStringUnmarshal)
 			} else {
 				err = UnmarshalKey(cfg, key, &got)
+			}
+			if tc.wantErr {
+				require.Error(t, err)
+				return
 			}
 			require.NoError(t, err)
 			assert.Equal(t, tc.want, got)
