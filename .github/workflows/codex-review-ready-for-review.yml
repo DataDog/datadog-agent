@@ -231,9 +231,8 @@ jobs:
                     | .users.totalCount
                   ] | add // 0);
 
-                .data.repository.pullRequest.reviews.nodes[]
-                | as $review
-                | .comments.nodes[]
+                .data.repository.pullRequest.reviews.nodes[] as $review
+                | $review.comments.nodes[]
                 | select(
                     (
                       (.author.login == env.CHATGPT_CODEX_GRAPHQL_BOT)
