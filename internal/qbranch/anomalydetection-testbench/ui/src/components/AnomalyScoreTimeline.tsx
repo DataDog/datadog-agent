@@ -57,10 +57,13 @@ const SCORED_DETECTORS = new Set(['holt_residual', 'tukey_biweight']);
 const EWMA_SLIDER_MAX = 5.0;
 // Default thresholds (approximate; tune with sliders after observing live data).
 //   With level weights, baseline EWMA stays near 0.1–0.3; disruption peaks 1–2.
-const DEFAULT_LOW_THRESHOLD  = 0.25;
-const DEFAULT_HIGH_THRESHOLD = 0.5;
-const DEFAULT_MARGIN         = 0.15;
-const DEFAULT_EWMA_ALPHA     = 0.16;
+const DEFAULT_LOW_THRESHOLD  = 0.040;
+const DEFAULT_HIGH_THRESHOLD = 0.060;
+// Headroom above max(ewmaPeak, highThreshold) as a fraction of that max.
+const CHART_TOP_PADDING = 0.20;
+// Margin stored as a fraction of highThreshold (e.g. 0.20 = 20 %).
+const DEFAULT_MARGIN_PCT     = 0.20;
+const DEFAULT_EWMA_ALPHA     = 0.014;
 const DEFAULT_SATURATION_K   = 5;
 
 const SCORE_BINS = 5;
@@ -255,11 +258,11 @@ export function AnomalyScoreTimeline({
   // ── event-detection controls (persisted across scenario loads) ─────────────
   const [lowThreshold, setLowThresholdRaw] = usePersistedState('lowThreshold', DEFAULT_LOW_THRESHOLD);
   const [highThreshold, setHighThresholdRaw] = usePersistedState('highThreshold', DEFAULT_HIGH_THRESHOLD);
-  const [margin, setMargin] = usePersistedState('margin', DEFAULT_MARGIN);
+  const [marginPct, setMarginPct] = usePersistedState('marginPct', DEFAULT_MARGIN_PCT);
   const [cooldownSecs, setCooldownSecs] = usePersistedState('cooldownSecs', 300);
 
-  const setLowThreshold = (v: number) => setLowThresholdRaw(Math.min(v, highThreshold - 0.05));
-  const setHighThreshold = (v: number) => setHighThresholdRaw(Math.max(v, lowThreshold + 0.05));
+  const setLowThreshold  = (v: number) => setLowThresholdRaw(Math.min(v, highThreshold * 0.95));
+  const setHighThreshold = (v: number) => setHighThresholdRaw(Math.max(v, lowThreshold  * 1.05));
 
   // ── layout ────────────────────────────────────────────────────────────────
   const [chartWidth, setChartWidth] = useState(600);
@@ -391,7 +394,7 @@ export function AnomalyScoreTimeline({
   // Dynamic display ceiling: derived from the full 1-second EWMA stream.
   const ewmaDisplayMax = useMemo(() => {
     const peak = ewmaPerSecond.length > 0 ? Math.max(...ewmaPerSecond) : 0;
-    return Math.max(highThreshold, peak) * 1.15;
+    return Math.max(highThreshold, peak) * (1 + CHART_TOP_PADDING);
   }, [highThreshold, ewmaPerSecond]);
 
   const ewmaToY = useCallback(
@@ -417,9 +420,10 @@ export function AnomalyScoreTimeline({
       return { severityEvents: [], stateSegments: [] };
     }
 
+    const effectiveMargin = highThreshold * marginPct;
     const { events, initialLevel } = computeSeverityEvents(
       ewmaPerSecond, 1.0, secondsStart,
-      lowThreshold, highThreshold, margin, cooldownSecs,
+      lowThreshold, highThreshold, effectiveMargin, cooldownSecs,
     );
 
     // Convert 1-second event timestamps to display-bucket indices for rendering.
@@ -438,7 +442,7 @@ export function AnomalyScoreTimeline({
     segs.push({ fromBucket: curFrom, toBucket: displayCount, level: cur });
 
     return { severityEvents: events, stateSegments: segs };
-  }, [ewmaPerSecond, bounds, displayCount, resolvedWindow, secondsStart, lowThreshold, highThreshold, margin, cooldownSecs]);
+  }, [ewmaPerSecond, bounds, displayCount, resolvedWindow, secondsStart, lowThreshold, highThreshold, marginPct, cooldownSecs]);
 
   const eventsByBucket = useMemo(() => {
     const map = new Map<number, SeverityEvent[]>();
@@ -534,8 +538,8 @@ export function AnomalyScoreTimeline({
         <div className="space-y-2">
           <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Display</div>
           <SliderRow label="EWMA α" leftLabel="Smooth" rightLabel="Raw"
-            min={0.01} max={1} step={0.01} value={ewmaAlpha} onChange={setEwmaAlpha}
-            valueLabel={ewmaAlpha.toFixed(2)} thumbHex="#67e8f9" />
+            min={0.001} max={1} step={0.001} value={ewmaAlpha} onChange={setEwmaAlpha}
+            valueLabel={ewmaAlpha.toFixed(3)} thumbHex="#67e8f9" logScale />
           <SliderRow label="Count saturation k" leftLabel="1 (fast)" rightLabel="30 (slow)"
             min={1} max={30} step={1} value={saturationK} onChange={setSaturationK}
             valueLabel={`k=${saturationK}`} thumbHex="#f97316" />
@@ -547,15 +551,15 @@ export function AnomalyScoreTimeline({
         {/* Right: event detection */}
         <div className="space-y-2">
           <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Event detection</div>
-          <SliderRow label="Low threshold" leftLabel="0" rightLabel={ewmaDisplayMax.toFixed(2)}
-            min={0} max={Math.max(EWMA_SLIDER_MAX, ewmaDisplayMax)} step={0.05} value={lowThreshold} onChange={setLowThreshold}
-            valueLabel={lowThreshold.toFixed(2)} thumbHex="#22c55e" />
-          <SliderRow label="High threshold" leftLabel="0" rightLabel={ewmaDisplayMax.toFixed(2)}
-            min={0} max={Math.max(EWMA_SLIDER_MAX, ewmaDisplayMax)} step={0.05} value={highThreshold} onChange={setHighThreshold}
-            valueLabel={highThreshold.toFixed(2)} thumbHex="#ef4444" />
-          <SliderRow label="Margin (hysteresis)" leftLabel="0" rightLabel="0.5"
-            min={0} max={0.5} step={0.01} value={margin} onChange={setMargin}
-            valueLabel={margin.toFixed(2)} thumbHex="#f59e0b" />
+          <SliderRow label="Low threshold" leftLabel="0.01" rightLabel={ewmaDisplayMax.toFixed(2)}
+            min={0.01} max={Math.max(EWMA_SLIDER_MAX, ewmaDisplayMax)} step={0.001} value={lowThreshold} onChange={setLowThreshold}
+            valueLabel={lowThreshold.toFixed(3)} thumbHex="#22c55e" logScale />
+          <SliderRow label="High threshold" leftLabel="0.01" rightLabel={ewmaDisplayMax.toFixed(2)}
+            min={0.01} max={Math.max(EWMA_SLIDER_MAX, ewmaDisplayMax)} step={0.001} value={highThreshold} onChange={setHighThreshold}
+            valueLabel={highThreshold.toFixed(3)} thumbHex="#ef4444" logScale />
+          <SliderRow label="Margin (hysteresis)" leftLabel="0%" rightLabel="50%"
+            min={0} max={0.50} step={0.01} value={marginPct} onChange={setMarginPct}
+            valueLabel={`${(marginPct * 100).toFixed(0)}% of high`} thumbHex="#f59e0b" />
           <SliderRow label="Cooldown (decrease)" leftLabel="0s" rightLabel="10m"
             min={0} max={600} step={10} value={cooldownSecs} onChange={setCooldownSecs}
             valueLabel={formatDuration(cooldownSecs)} thumbHex="#3b82f6" />
@@ -840,16 +844,24 @@ interface SliderRowProps {
   valueLabel: string;
   /** Hex color for the thumb, e.g. "#a855f7". Uses accent-color (safe from Tailwind JIT stripping). */
   thumbHex: string;
+  /** When true the slider position maps logarithmically to [min, max]. min must be > 0. */
+  logScale?: boolean;
 }
 
-function SliderRow({ label, leftLabel, rightLabel, min, max, step, value, onChange, valueLabel, thumbHex }: SliderRowProps) {
+function SliderRow({ label, leftLabel, rightLabel, min, max, step, value, onChange, valueLabel, thumbHex, logScale = false }: SliderRowProps) {
+  // For log scale the native range input travels [0, 1] and we convert.
+  const toPos  = (v: number) => logScale ? (Math.log(v) - Math.log(min)) / (Math.log(max) - Math.log(min)) : v;
+  const toVal  = (p: number) => logScale ? min * Math.pow(max / min, p) : p;
+
   return (
     <div className="flex items-center gap-2">
       <label className="text-xs text-slate-400 min-w-[130px] shrink-0">{label}:</label>
       <span className="text-[10px] text-slate-600 shrink-0">{leftLabel}</span>
       <input
-        type="range" min={min} max={max} step={step} value={value}
-        onChange={(e) => onChange(parseFloat(e.target.value))}
+        type="range"
+        min={logScale ? 0 : min} max={logScale ? 1 : max} step={logScale ? 0.001 : step}
+        value={toPos(value)}
+        onChange={(e) => onChange(toVal(parseFloat(e.target.value)))}
         style={{ '--thumb-color': thumbHex } as React.CSSProperties}
         className="flex-1 h-1 bg-slate-700 rounded appearance-none cursor-pointer
           [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:w-3

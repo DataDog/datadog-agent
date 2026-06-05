@@ -55,7 +55,7 @@ flowchart LR
         MW -->|× saturation\n1−e^−n/k| SI[saturated input]
     end
 
-    SI -->|α=0.16| EW[EWMA]
+    SI -->|α=0.014| EW[EWMA]
 
     subgraph "Severity state machine"
         EW --> CMP{compare\nto thresholds}
@@ -74,15 +74,17 @@ flowchart LR
 stateDiagram-v2
     [*] --> Low : initial state from\nrawLevel(ewma₀)
 
-    Low --> Medium : EWMA ≥ low + margin
-    Low --> High   : EWMA ≥ high + margin
+    Low --> Medium : EWMA ≥ low + m
+    Low --> High   : EWMA ≥ high + m
 
-    Medium --> High : EWMA ≥ high + margin
-    Medium --> Low  : EWMA < low − margin\nAND cooldown elapsed
+    Medium --> High : EWMA ≥ high + m
+    Medium --> Low  : EWMA < low − m\nAND cooldown elapsed
 
-    High --> Medium : EWMA < high − margin\nAND cooldown elapsed
+    High --> Medium : EWMA < high − m\nAND cooldown elapsed
     note right of High : can only drop one level\nat a time (no High→Low)
 ```
+
+> `m = high × marginPct` (effective absolute margin, recomputed each evaluation).
 
 ---
 
@@ -188,12 +190,15 @@ ewma[i] = α × input[i] + (1 − α) × ewma[i−1]
 
 `i` indexes 1-second buckets; one EWMA update per second in the live agent.
 
-**Default constant:** `α = 0.16`
+**Default constant:** `α = 0.014`
 
 Recent inputs are weighted exponentially more than older ones.  Higher `α`
 makes the signal react faster to new data; lower `α` smooths over longer
-windows.  At α = 0.16, the effective memory half-life is roughly
-`−1 / log₂(1 − α) ≈ 4 seconds`.
+windows.  At α = 0.014, the effective memory half-life is roughly
+`−1 / log₂(1 − α) ≈ 49 seconds`.
+
+The testbench α slider uses a **logarithmic scale** (range 0.001–1) so that
+small values (slow smoothing) can be tuned precisely.
 
 ---
 
@@ -210,12 +215,15 @@ elevated), the correct state is entered immediately.
 
 #### Thresholds
 
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `low`     | 0.25    | EWMA level that defines the Low/Medium boundary |
-| `high`    | 0.50    | EWMA level that defines the Medium/High boundary |
-| `margin`  | 0.15    | Hysteresis half-width (avoids chattering at boundaries) |
-| `cooldown`| 300 s   | Minimum time to spend in any elevated state before stepping down |
+| Parameter     | Default | Description |
+|---------------|---------|-------------|
+| `low`         | 0.040   | EWMA level that defines the Low/Medium boundary |
+| `high`        | 0.060   | EWMA level that defines the Medium/High boundary |
+| `marginPct`   | 20 %    | Hysteresis half-width as a **percentage of `high`**; `effectiveMargin = high × marginPct` |
+| `cooldown`    | 300 s   | Minimum time to spend in any elevated state before stepping down |
+
+> The `low` and `high` sliders use a **logarithmic scale** (range 0.01–5) for fine control at small values.
+> `marginPct` is a linear 0–50 % slider; `effectiveMargin` is recomputed on each evaluation as `high × marginPct`.
 
 > **Note on threshold calibration:** the default values above were tuned
 > interactively on the testbench with 1-second EWMA ticks.  They will need
@@ -226,6 +234,8 @@ elevated), the correct state is entered immediately.
 From state `cur`, the **target** state for EWMA value `v` is:
 
 ```
+margin = high × marginPct              # e.g. 0.060 × 0.20 = 0.012
+
 cur = Low (0):
   v ≥ high + margin  →  High (2)      # direct jump to High allowed on way up
   v ≥ low  + margin  →  Medium (1)
@@ -293,8 +303,9 @@ triangles are pinned to their exact 1-second timestamps, not to bar centres.
 | `LEVEL_WEIGHTS`  | `[0.2, 0.5, 1.0, 2.0, 3.0]` | Per-level EWMA weight |
 | `bocpd` fixed level | 2 (Medium, w=1.0) | No score emitted |
 | Saturation k | 5 | Count at which saturation ≈ 63 % |
-| EWMA α | 0.16 | Smoothing factor; half-life ≈ 4 s at 1-second tick rate |
-| Low threshold | 0.25 | EWMA units (tuned on testbench, re-validate on live data) |
-| High threshold | 0.50 | EWMA units (tuned on testbench, re-validate on live data) |
-| Hysteresis margin | 0.15 | EWMA units |
+| EWMA α | 0.014 | Log-scale slider (0.001–1); half-life ≈ 49 s at 1-second tick rate |
+| Low threshold | 0.040 | Log-scale slider (0.01–5); re-validate on live data |
+| High threshold | 0.060 | Log-scale slider (0.01–5); re-validate on live data |
+| Hysteresis margin | 20 % of `high` | Linear slider (0–50 %); absolute value = `high × marginPct` |
+| Chart top padding | 20 % of max | `ewmaDisplayMax = max(ewmaPeak, high) × 1.20` |
 | Cooldown | 300 s (5 min) | Minimum dwell time per elevated state |
