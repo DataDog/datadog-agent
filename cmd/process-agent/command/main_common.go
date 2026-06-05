@@ -18,6 +18,7 @@ import (
 	autoexit "github.com/DataDog/datadog-agent/comp/agent/autoexit/def"
 	autoexitfx "github.com/DataDog/datadog-agent/comp/agent/autoexit/fx"
 	"github.com/DataDog/datadog-agent/comp/core"
+	agenttelemetryfx "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	configsync "github.com/DataDog/datadog-agent/comp/core/configsync/def"
 	configsyncfx "github.com/DataDog/datadog-agent/comp/core/configsync/fx"
@@ -134,6 +135,7 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 
 		// Provide core components
 		core.Bundle(core.WithSecrets()),
+		agenttelemetryfx.Module(),
 		hostnameimpl.Module(),
 
 		// Provide process agent bundle so fx knows where to find components

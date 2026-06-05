@@ -33,6 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/common"
 	autoexit "github.com/DataDog/datadog-agent/comp/agent/autoexit/def"
 	autoexitfx "github.com/DataDog/datadog-agent/comp/agent/autoexit/fx"
+	agenttelemetryfx "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	configstreamconsumer "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/def"
 	configstreamconsumerfx "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/fx"
@@ -156,6 +157,7 @@ func getSharedFxOption() fx.Option {
 		sysprobeconfigfx.Module(),
 		systemprobeloggerfx.Module(),
 		telemetryfx.Module(),
+		agenttelemetryfx.Module(),
 		pidfx.Module(),
 		fx.Supply(rcclient.Params{AgentName: "system-probe", AgentVersion: version.AgentVersion, IsSystemProbe: true}),
 		secretsnoopfx.Module(),
