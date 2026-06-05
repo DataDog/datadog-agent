@@ -34,7 +34,11 @@ interface SeverityEvent {
 const DETECTOR_NORM: Record<string, { mu: number; sigma: number } | null> = {
   holt_residual:  { mu: 8.3, sigma: 4.0 }, // calibrated: baseline μ=8.3 σ=4.0
   tukey_biweight: null, // baseline ≈ disruption scores → count-only
-  bocpd:          null, // no Score field emitted
+  bocpd:          null, // no Score field emitted → uses DETECTOR_FIXED_SCORE
+};
+// Detectors with no Score that still contribute a fixed raw weight to the EWMA.
+const DETECTOR_FIXED_SCORE: Record<string, number> = {
+  bocpd: 1,
 };
 // EWMA lives in raw score space. 15.0 covers postmark max (13.55) with headroom.
 const EWMA_DISPLAY_MAX = 15.0;
@@ -90,12 +94,16 @@ function perDetectorNormBin(a: TimelineAnomaly): number {
   return 1 / (1 + Math.exp(-z));
 }
 
-// Raw score used as EWMA input (0 for count-only detectors / missing scores).
+// Raw score used as EWMA input.
+// Known detectors with a normalization entry use their raw score.
+// Known detectors without normalization fall back to DETECTOR_FIXED_SCORE (or 0).
+// Unknown detectors return 0.
 function perDetectorRawScore(a: TimelineAnomaly): number {
-  if (!(a.detectorName in DETECTOR_NORM)) return 0; // unknown detector
+  const known = a.detectorName in DETECTOR_NORM || a.detectorName in DETECTOR_FIXED_SCORE;
+  if (!known) return 0;
   const n = DETECTOR_NORM[a.detectorName];
-  if (!n || a.score == null || Number.isNaN(a.score)) return 0;
-  return a.score;
+  if (n && a.score != null && !Number.isNaN(a.score)) return a.score;
+  return DETECTOR_FIXED_SCORE[a.detectorName] ?? 0;
 }
 
 function scoreToBin(normScore: number, scalePower: number): number {
