@@ -280,11 +280,11 @@ func (m *ManagerV2) cleanupPendingProfiles() {
 
 	now := time.Now()
 
-	m.pendingProfileRemovalsLock.Lock()
-	defer m.pendingProfileRemovalsLock.Unlock()
-
 	m.profilesLock.Lock()
 	defer m.profilesLock.Unlock()
+
+	m.pendingProfileRemovalsLock.Lock()
+	defer m.pendingProfileRemovalsLock.Unlock()
 
 	for selector, queuedAt := range m.pendingProfileRemovals {
 		if now.Sub(queuedAt) < cleanupDelay {
@@ -686,7 +686,12 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 	// accurate heap footprint — V1's activity_dump.max_dump_size keeps its legacy shallow
 	// semantics for ActivityDump/legacy Manager paths.
 	// TODO: we should handle this in a better way
-	if secprof.ActivityTree.Stats.HeapSize() >= int64(m.config.RuntimeSecurity.SecurityProfileV2MaxDumpSize()) {
+	if !secprof.IsEnabled() {
+		m.incrementEventFilteringStat(event.GetEventType(), model.ProfileAtMaxSize, NA)
+		return nil, false
+	}
+
+	if secprof.ComputeHeapSize() >= int64(m.config.RuntimeSecurity.SecurityProfileV2MaxDumpSize()) {
 		m.incrementEventFilteringStat(event.GetEventType(), model.ProfileAtMaxSize, NA)
 		m.eventsDroppedMaxSize.Inc()
 		return nil, false
@@ -1029,6 +1034,12 @@ func (m *ManagerV2) evictUnusedNodes() {
 		}
 		evicted := profile.ActivityTree.EvictUnusedNodes(evictionTime, filepathsInProcessCache, selector.Image, selector.Tag)
 		if evicted > 0 {
+			// Re-enable against the post-eviction size: EvictUnusedNodes just updated
+			// Stats under the lock we hold, so reading it directly is both correct and
+			// race-free (going through ComputeHeapSize here would re-lock and deadlock).
+			if !profile.IsEnabled() && profile.ActivityTree.Stats.HeapSize() < int64(m.config.RuntimeSecurity.SecurityProfileV2MaxDumpSize()) {
+				profile.Enable()
+			}
 			totalEvicted += evicted
 			seclog.Debugf("evicted %d unused process nodes from profile [%s] ", evicted, selector.String())
 
