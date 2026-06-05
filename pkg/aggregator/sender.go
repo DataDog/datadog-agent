@@ -32,7 +32,7 @@ type checkSender struct {
 	id                      checkid.ID
 	defaultHostname         string
 	defaultHostnameDisabled bool
-	sampleFactory           *sender.CheckMetricSampleFactory
+	sampleFormatter         *sender.CheckMetricSampleFormatter
 	metricStats             stats.SenderStats
 	priormetricStats        stats.SenderStats
 	statsLock               sync.RWMutex
@@ -107,7 +107,7 @@ func newCheckSender(
 	return &checkSender{
 		id:                      id,
 		defaultHostname:         defaultHostname,
-		sampleFactory:           sender.NewCheckMetricSampleFactory(id, defaultHostname, timeNowNano),
+		sampleFormatter:         sender.NewCheckMetricSampleFormatter(id, defaultHostname, timeNowNano),
 		itemsOut:                itemsOut,
 		serviceCheckOut:         serviceCheckOut,
 		eventOut:                eventOut,
@@ -123,14 +123,14 @@ func newCheckSender(
 // when no hostname is specified at submission (for metrics, events and service checks).
 func (s *checkSender) DisableDefaultHostname(disable bool) {
 	s.defaultHostnameDisabled = disable
-	s.sampleFactory.DisableDefaultHostname(disable)
+	s.sampleFormatter.DisableDefaultHostname(disable)
 }
 
 // SetCheckCustomTags stores the tags set in the check configuration file.
 // They will be appended to each send (metric, event and service)
 func (s *checkSender) SetCheckCustomTags(tags []string) {
 	s.checkTags = tags
-	s.sampleFactory.SetCheckCustomTags(tags)
+	s.sampleFormatter.SetCheckCustomTags(tags)
 }
 
 // SetCheckService appends the service as a tag for metrics, events, and service checks
@@ -143,13 +143,13 @@ func (s *checkSender) SetCheckService(service string) {
 func (s *checkSender) FinalizeCheckServiceTag() {
 	if s.service != "" {
 		s.checkTags = append(s.checkTags, "service:"+s.service)
-		s.sampleFactory.SetCheckCustomTags(s.checkTags)
+		s.sampleFormatter.SetCheckCustomTags(s.checkTags)
 	}
 }
 
 func (s *checkSender) SetNoIndex(noIndex bool) {
 	s.noIndex = noIndex
-	s.sampleFactory.SetNoIndex(noIndex)
+	s.sampleFormatter.SetNoIndex(noIndex)
 }
 
 // Commit commits the metric samples & histogram buckets that were added during a check run
@@ -189,7 +189,7 @@ func (s *checkSender) sendMetricSample(
 	noIndex bool,
 	timestamp float64,
 ) {
-	metricSample := s.sampleFactory.BuildMetricSample(sender.ScalarSample{
+	metricSample := s.sampleFormatter.Format(sender.ScalarSample{
 		Name:            metric,
 		Value:           value,
 		Hostname:        hostname,

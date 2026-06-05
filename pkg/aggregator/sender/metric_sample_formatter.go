@@ -10,7 +10,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
-// ScalarSample contains the sender input needed to build a MetricSample.
+// ScalarSample contains the sender input needed to format a MetricSample.
 type ScalarSample struct {
 	Name            string
 	Value           float64
@@ -22,9 +22,9 @@ type ScalarSample struct {
 	Timestamp       float64
 }
 
-// CheckMetricSampleFactory builds MetricSample values with check sender identity
+// CheckMetricSampleFormatter formats MetricSample values with check sender identity
 // behavior shared by normal and lookback senders.
-type CheckMetricSampleFactory struct {
+type CheckMetricSampleFormatter struct {
 	checkID                 checkid.ID
 	defaultHostname         string
 	now                     func() float64
@@ -33,9 +33,9 @@ type CheckMetricSampleFactory struct {
 	noIndex                 bool
 }
 
-// NewCheckMetricSampleFactory creates a factory for scalar check metric samples.
-func NewCheckMetricSampleFactory(checkID checkid.ID, defaultHostname string, now func() float64) *CheckMetricSampleFactory {
-	return &CheckMetricSampleFactory{
+// NewCheckMetricSampleFormatter creates a formatter for scalar check metric samples.
+func NewCheckMetricSampleFormatter(checkID checkid.ID, defaultHostname string, now func() float64) *CheckMetricSampleFormatter {
+	return &CheckMetricSampleFormatter{
 		checkID:         checkID,
 		defaultHostname: defaultHostname,
 		now:             now,
@@ -43,23 +43,23 @@ func NewCheckMetricSampleFactory(checkID checkid.ID, defaultHostname string, now
 }
 
 // DisableDefaultHostname controls whether an empty submitted hostname is
-// replaced with the factory's default hostname.
-func (f *CheckMetricSampleFactory) DisableDefaultHostname(disable bool) {
+// replaced with the formatter's default hostname.
+func (f *CheckMetricSampleFormatter) DisableDefaultHostname(disable bool) {
 	f.defaultHostnameDisabled = disable
 }
 
 // SetCheckCustomTags stores tags from check configuration.
-func (f *CheckMetricSampleFactory) SetCheckCustomTags(tags []string) {
+func (f *CheckMetricSampleFormatter) SetCheckCustomTags(tags []string) {
 	f.checkTags = tags
 }
 
-// SetNoIndex controls whether built samples are marked no-index.
-func (f *CheckMetricSampleFactory) SetNoIndex(noIndex bool) {
+// SetNoIndex controls whether formatted samples are marked no-index.
+func (f *CheckMetricSampleFormatter) SetNoIndex(noIndex bool) {
 	f.noIndex = noIndex
 }
 
-// BuildMetricSample builds a MetricSample from scalar sender input.
-func (f *CheckMetricSampleFactory) BuildMetricSample(input ScalarSample) *metrics.MetricSample {
+// Format returns a MetricSample from scalar sender input.
+func (f *CheckMetricSampleFormatter) Format(input ScalarSample) *metrics.MetricSample {
 	tags := append(input.Tags, f.checkTags...)
 	timestamp := input.Timestamp
 	if timestamp == 0 {
