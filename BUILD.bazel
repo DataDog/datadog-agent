@@ -309,6 +309,7 @@ exports_files(glob(
 # gazelle:exclude pkg/collector/corechecks/network-devices/cisco-sdwan/report
 # gazelle:exclude pkg/collector/corechecks/network-devices/versa/*.go
 # gazelle:exclude pkg/collector/corechecks/network-devices/versa/client/*.go
+# gazelle:exclude pkg/collector/corechecks/network-devices/versa/client/fixtures
 # gazelle:exclude pkg/collector/corechecks/network-devices/versa/payload
 # gazelle:exclude pkg/collector/corechecks/network-devices/versa/report
 # gazelle:exclude pkg/collector/corechecks/networkconfigmanagement
