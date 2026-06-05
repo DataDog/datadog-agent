@@ -151,7 +151,7 @@ http_file(
         self.assertIn(f'sha256 = "{"e" * 64}"', updated)
         self.assertNotIn(f'sha256 = "{"d" * 64}"', updated)
 
-    def test_templated_name_replacement_fails_loudly(self):
+    def test_templated_name_replaces_resolved_dict_sha256(self):
         text = """
 [
     http_archive(
@@ -172,7 +172,36 @@ http_file(
             identity=(),
         )
 
-        with self.assertRaisesRegex(Exception, "Templated names"):
+        updated = _replace_sha256_in_rule_block(text, call, "e" * 64)
+
+        self.assertIn(f'"xz": "{"e" * 64}"', updated)
+        self.assertNotIn(f'"xz": "{"d" * 64}"', updated)
+
+    def test_templated_name_replacement_fails_on_ambiguous_sha256(self):
+        text = """
+[
+    http_archive(
+        name = "{}_win".format(name),
+        sha256 = sha256,
+        url = "https://example.com/{}.zip".format(name),
+    )
+    for name, sha256 in {
+        "xz": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "zlib": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    }.items()
+]
+"""
+        call = RepositoryRuleCall(
+            kind="http_archive",
+            name="xz_win",
+            path=ROOT / "deps" / "cpython" / "cpython.MODULE.bazel",
+            relative_path="deps/cpython/cpython.MODULE.bazel",
+            sha256="d" * 64,
+            urls=("https://example.com/xz.zip",),
+            identity=(),
+        )
+
+        with self.assertRaisesRegex(Exception, "found 2"):
             _replace_sha256_in_rule_block(text, call, "e" * 64)
 
 

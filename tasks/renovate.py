@@ -649,13 +649,44 @@ def _replace_sha256_in_rule_block(text: str, call: RepositoryRuleCall, new_sha: 
         return f"{match.group('indent')}{call.kind}(\n{new_body}{match.group('indent')})"
 
     new_text = REPOSITORY_RULE_BLOCK_RE.sub(repl, text)
-    if replacements != 1:
+    if replacements == 1:
+        return new_text
+    if replacements > 1:
         raise Exit(
             f"Expected to replace sha256 for exactly 1 {call.kind}(name={call.name!r}) block "
-            f"in {call.relative_path}, found {replacements}. Templated names or sha256 values "
+            f"in {call.relative_path}, found {replacements}."
+        )
+    return _replace_resolved_sha256_literal(text, call, new_sha)
+
+
+def _replace_resolved_sha256_literal(text: str, call: RepositoryRuleCall, new_sha: str) -> str:
+    """Rewrite a resolved sha256 literal for loop-emitted repository rules.
+
+    Some deps are emitted from Starlark comprehensions:
+
+        http_archive(name = "{}_win".format(name), sha256 = sha256, ...)
+
+    The evaluated call has a concrete name like ``xz_win``, but the source block
+    has no literal ``name = "xz_win"`` and no literal ``sha256`` field in the
+    block. In that case the concrete hash usually lives in the dict the loop
+    iterates. Replace that exact old hash only when it appears once in the file;
+    otherwise fail loudly instead of editing the wrong dependency.
+    """
+    if call.sha256 is None:
+        raise Exit(
+            f"Could not replace sha256 for {call.kind}(name={call.name!r}) in {call.relative_path}: "
+            "the resolved call has no sha256 field."
+        )
+
+    old_literal = f'"{call.sha256}"'
+    occurrences = text.count(old_literal)
+    if occurrences != 1:
+        raise Exit(
+            f"Expected exactly 1 resolved sha256 literal for {call.kind}(name={call.name!r}) "
+            f"in {call.relative_path}, found {occurrences}. Templated names or sha256 values "
             "must be refreshed manually."
         )
-    return new_text
+    return text.replace(old_literal, f'"{new_sha}"', 1)
 
 
 if __name__ == "__main__":
