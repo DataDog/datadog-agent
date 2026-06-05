@@ -18,7 +18,8 @@ flowchart LR
 
     S -->|level 0‥4| Dedup[Deduplication\nsame series × same second]
     Dedup -->|one anomaly\nper series/sec| Bucket[1-second bucketing]
-    Bucket -->|mean weight\n× saturation| EWMA[EWMA smoother]
+    Bucket -->|aggregate W-second\nwindow| Agg[Display-window\naggregation]
+    Agg -->|mean weight\n× saturation| EWMA[EWMA smoother]
     EWMA -->|smoothed\nintensity| SM[Severity state machine]
     SM --> E([Events\nLow / Medium / High])
 ```
@@ -66,7 +67,7 @@ flowchart LR
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Low
+    [*] --> Low : initial state from\nrawLevel(ewma₀)
 
     Low --> Medium : EWMA ≥ low + margin
     Low --> High   : EWMA ≥ high + margin
@@ -197,8 +198,10 @@ ewma[i] = α × input[i] + (1 − α) × ewma[i−1]
 
 **Default constant:** `α = 0.16`
 
-At steady state the EWMA tracks the running average of `input`, with
-higher `α` following faster changes and lower `α` producing more smoothing.
+Recent inputs are weighted exponentially more than older ones.  Higher `α`
+makes the signal react faster to new data; lower `α` smooths over longer
+windows.  At α = 0.16, the effective memory half-life is roughly
+`−1 / log₂(1 − α) ≈ 4` buckets.
 
 ---
 
@@ -206,6 +209,12 @@ higher `α` following faster changes and lower `α` producing more smoothing.
 
 The EWMA stream drives a 3-state machine: **Low (0)**, **Medium (1)**,
 **High (2)**.
+
+The **initial state** is computed directly from `ewma[0]` using the raw
+thresholds (no hysteresis): `≥ high → High`, `≥ low → Medium`, else `Low`.
+In practice `ewma[0] = input[0]` which is near zero, so the machine
+always starts at Low.  If a scenario opens mid-incident (EWMA seed already
+elevated), the correct state is entered immediately.
 
 #### Thresholds
 
@@ -248,6 +257,11 @@ now − lastStateEntryTimestamp < cooldown
 decreases alike), so the cooldown timer resets each time a new state is
 entered.  This ensures the cascade `High → Medium → Low` takes at minimum
 `2 × cooldown` total time.
+
+`lastStateEntryTimestamp` is initialised to `−∞`, which means the first
+decrease from the initial state is **never** blocked — correct when a
+scenario opens in an already-elevated state that the pipeline did not
+itself cause.
 
 ---
 
