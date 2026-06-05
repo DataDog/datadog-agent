@@ -91,11 +91,12 @@ var (
 	// TlmUtilizationRatio is the utilization ratio with a 15-second EWMA window (N=15, α≈0.125).
 	// Responds to sustained saturation within ~22 seconds.
 	TlmUtilizationRatio = telemetryimpl.GetCompatComponent().NewGauge("logs_component_utilization", "ratio", []string{"name", "instance"}, "Gauge of the utilization ratio of a component (N=15 EWMA, ~15s window)")
-	// TlmUtilizationItems is the capacity of a component by number of elements
-	// Both the number of items and the number of bytes are aggregated and exposed as a ewma.
-	TlmUtilizationItems = telemetryimpl.GetCompatComponent().NewGauge("logs_component_utilization", "items", []string{"name", "instance"}, "Gauge of the number of items currently held in a component and its buffers")
-	// TlmUtilizationBytes is the capacity of a component by number of bytes
-	TlmUtilizationBytes = telemetryimpl.GetCompatComponent().NewGauge("logs_component_utilization", "bytes", []string{"name", "instance"}, "Gauge of the number of bytes currently held in a component and its buffers")
+	// TlmUtilizationItems is the capacity of a component by number of elements.
+	// Both the number of items and the number of bytes are aggregated with the same
+	// N=15 EWMA (α≈0.125, ~15s window) as the utilization ratio.
+	TlmUtilizationItems = telemetryimpl.GetCompatComponent().NewGauge("logs_component_utilization", "items", []string{"name", "instance"}, "Gauge of the number of items currently held in a component and its buffers (N=15 EWMA, ~15s window)")
+	// TlmUtilizationBytes is the capacity of a component by number of bytes.
+	TlmUtilizationBytes = telemetryimpl.GetCompatComponent().NewGauge("logs_component_utilization", "bytes", []string{"name", "instance"}, "Gauge of the number of bytes currently held in a component and its buffers (N=15 EWMA, ~15s window)")
 	// TlmDestNumWorkers is the number of destination workers in use.
 	TlmDestNumWorkers = telemetryimpl.GetCompatComponent().NewGauge("logs_destination", "destination_workers", []string{"instance"}, "Gauge of the number of destination workers in use")
 	// TlmDestVirtualLatency is a moving average of the destination's latency.
