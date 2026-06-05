@@ -98,7 +98,6 @@ exports_files(glob(
 # gazelle:exclude comp/core/sysprobeconfig/sysprobeconfigimpl
 # gazelle:exclude comp/core/tagger/fx
 # gazelle:exclude comp/core/tagger/fx-dual
-# gazelle:exclude comp/core/tagger/fx-mock
 # gazelle:exclude comp/core/tagger/impl-dual
 # gazelle:exclude comp/core/workloadmeta/collectors/catalog
 # gazelle:exclude comp/core/workloadmeta/collectors/catalog-clusteragent
