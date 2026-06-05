@@ -109,6 +109,7 @@ BPF_LRU_MAP_FLAGS(bind_samples, struct bind_connect_sample_key_t, u8, 1, BPF_F_N
 BPF_LRU_MAP_FLAGS(connect_samples, struct bind_connect_sample_key_t, u8, 1, BPF_F_NO_COMMON_LRU) // max entries will be overridden at runtime
 
 BPF_SK_MAP(sk_storage_meta, struct sock_meta_t);
+BPF_SK_MAP(sk_storage_pid, u32); // stores the pid owning a socket, used for TC pid resolution through bpf_sk_lookup
 
 BPF_PERCPU_ARRAY_MAP(dr_erpc_state, struct dr_erpc_state_t, 1)
 BPF_PERCPU_ARRAY_MAP(cgroup_tracing_event_gen, struct cgroup_tracing_event_t, EVENT_GEN_SIZE)

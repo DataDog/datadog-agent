@@ -104,6 +104,7 @@ var bpfMapNames = []string{
 	"setsockopt_even",
 	"setsockopt_leve",
 	"sk_storage_meta",
+	"sk_storage_pid",
 	"sock_cookie_pid",
 	"sock_meta",
 	"socket_field_ap",

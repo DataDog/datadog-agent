@@ -2915,6 +2915,10 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 			Value: utils.BoolTouint64(p.kernelVersion.HasBpfGetCurrentPidTgidForSchedCLS()),
 		},
 		manager.ConstantEditor{
+			Name:  "sk_lookup_pid_enabled",
+			Value: utils.BoolTouint64(p.isSkLookupPidResolutionEnabled()),
+		},
+		manager.ConstantEditor{
 			Name:  "sched_cls_has_current_cgroup_id_helper",
 			Value: utils.BoolTouint64(p.kernelVersion.HasBpfGetCurrentCgroupIDForSchedCLS()),
 		},
@@ -3013,6 +3017,23 @@ func (p *EBPFProbe) isSKStorageSupported() bool {
 	return p.kernelVersion.HasSKStorageInTracingPrograms()
 }
 
+// isSkLookupPidResolutionEnabled returns whether the TC classifier should resolve packet pids
+// through bpf_sk_lookup + sk-local storage instead of the flow_pid map. The pid is recorded in
+// sk-local storage by the cgroup/sock_create hook and read back from the TC classifier after a
+// bpf_sk_lookup. This needs the cgroup socket hook to be attached, sk-local storage usable from
+// both cgroup/sock and sched_cls programs, and bpf_sk_lookup in sched_cls. None of this requires
+// fentry, so it also works in kprobe mode.
+func (p *EBPFProbe) isSkLookupPidResolutionEnabled() bool {
+	if !p.kernelVersion.HasBpfGetSocketCookieForCgroupSocket() {
+		// the cgroup/sock_create hook that populates sk_storage_pid isn't attached
+		return false
+	}
+
+	return p.kernelVersion.HasSkLookupForSchedCLS() &&
+		p.kernelVersion.HasSKStorageInSchedCLS() &&
+		p.kernelVersion.HasSKStorageInCgroupSock()
+}
+
 // initManagerOptionsMaps initializes the eBPF manager map spec editors and map reader startup
 func (p *EBPFProbe) initManagerOptionsMapSpecEditors() {
 	opts := probes.MapSpecEditorOpts{
@@ -3024,6 +3045,7 @@ func (p *EBPFProbe) initManagerOptionsMapSpecEditors() {
 		SecurityProfileMaxCount:       p.config.RuntimeSecurity.SecurityProfileMaxCount,
 		NetworkFlowMonitorEnabled:     p.config.Probe.NetworkFlowMonitorEnabled,
 		NetworkSkStorageEnabled:       p.isSKStorageSupported(),
+		NetworkSkLookupPidEnabled:     p.isSkLookupPidResolutionEnabled(),
 		SpanTrackMaxCount:             1,
 		CapabilitiesMonitoringEnabled: p.config.Probe.CapabilitiesMonitoringEnabled,
 		CgroupSocketEnabled:           p.kernelVersion.HasBpfGetSocketCookieForCgroupSocket(),
