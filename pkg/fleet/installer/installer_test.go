@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/config"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/db"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
+	installerErrors "github.com/DataDog/datadog-agent/pkg/fleet/installer/errors"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/fixtures"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/oci"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages"
@@ -306,10 +307,13 @@ func TestPromoteExperimentNoExperiment(t *testing.T) {
 	err := installer.Install(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil)
 	assert.NoError(t, err)
 
-	// No experiment is staged: promoting must be a benign no-op, not an error,
-	// so it stays out of Error Tracking.
+	// No experiment is staged. The in-process installer (used by the CLI) must
+	// surface this as an error, tagged with ErrNoExperiment so speculative
+	// callers (the daemon) can recognize the benign case. The code must survive
+	// extraction so it can also be read across the subprocess JSON boundary.
 	err = installer.PromoteExperiment(testCtx, fixtures.FixtureSimpleV1.Package)
-	assert.NoError(t, err)
+	assert.ErrorIs(t, err, repository.ErrNoExperiment)
+	assert.Equal(t, installerErrors.ErrNoExperiment, installerErrors.GetCode(err))
 
 	// Stable is unchanged and no experiment exists.
 	r := installer.packages.Get(fixtures.FixtureSimpleV1.Package)

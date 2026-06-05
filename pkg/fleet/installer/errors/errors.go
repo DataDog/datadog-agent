@@ -29,6 +29,10 @@ const (
 	ErrConfigNotFound InstallerErrorCode = 5
 	// ErrPasswordNotProvided is the code for a password not provided.
 	ErrPasswordNotProvided InstallerErrorCode = 6
+	// ErrNoExperiment is the code for a promote/stop with no experiment staged.
+	// This is a benign no-op rather than a genuine failure: speculative callers
+	// (e.g. the daemon) use this code to avoid surfacing it as an error.
+	ErrNoExperiment InstallerErrorCode = 7
 )
 
 // InstallerError is an error type used by the installer.

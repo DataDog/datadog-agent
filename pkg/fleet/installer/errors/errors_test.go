@@ -73,6 +73,17 @@ func TestFromJSON(t *testing.T) {
 	assert.Equal(t, GetCode(err), ErrDownloadFailed)
 }
 
+func TestNoExperimentCodeSurvivesJSON(t *testing.T) {
+	// Mirrors the production flow: the installer subprocess wraps the benign
+	// "no experiment" case with ErrNoExperiment, serializes it to stderr via
+	// ToJSON, and the daemon reconstructs it via FromJSON. The sentinel value
+	// identity is lost across this boundary, but the code must survive so the
+	// daemon can recognize the benign case.
+	wrapped := Wrap(ErrNoExperiment, errors.New("no experiment to promote"))
+	roundtripped := FromJSON(ToJSON(wrapped))
+	assert.Equal(t, ErrNoExperiment, GetCode(roundtripped))
+}
+
 func TestWrapCapturesStack(t *testing.T) {
 	err := errors.New("test error")
 	wrapped := Wrap(ErrDownloadFailed, err)

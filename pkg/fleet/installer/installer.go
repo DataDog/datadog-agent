@@ -501,11 +501,11 @@ func (i *installerImpl) PromoteExperiment(ctx context.Context, pkg string) error
 		return fmt.Errorf("could not get repository state: %w", err)
 	}
 	if !state.HasExperiment() {
-		// No experiment is staged: promoting is a benign no-op, not a failure.
-		// Returning nil (instead of an error) keeps this expected case out of
-		// Error Tracking. See repository.ErrNoExperiment.
-		log.Infof("No experiment to promote for package %s, skipping", pkg)
-		return nil
+		// No experiment staged. This is an error for explicit callers (the CLI),
+		// but it carries ErrNoExperiment so speculative callers (the daemon) can
+		// recognize the benign case and avoid surfacing it in Error Tracking.
+		// The code survives the JSON process boundary; see installerErrors.
+		return installerErrors.Wrap(installerErrors.ErrNoExperiment, repository.ErrNoExperiment)
 	}
 
 	err = i.hooks.PrePromoteExperiment(ctx, pkg)
@@ -516,9 +516,8 @@ func (i *installerImpl) PromoteExperiment(ctx context.Context, pkg string) error
 	err = repo.PromoteExperiment(ctx)
 	if errors.Is(err, repository.ErrNoExperiment) {
 		// The repository state changed between GetState above and here and there
-		// is nothing to promote. This is still a benign no-op, not a failure.
-		log.Infof("No experiment to promote for package %s, skipping", pkg)
-		return nil
+		// is nothing to promote. Tag with ErrNoExperiment for the same reason.
+		return installerErrors.Wrap(installerErrors.ErrNoExperiment, err)
 	}
 	if err != nil {
 		return fmt.Errorf("could not promote experiment: %w", err)
