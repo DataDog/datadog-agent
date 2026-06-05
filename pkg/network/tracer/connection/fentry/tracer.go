@@ -34,6 +34,12 @@ const probeUID = "net"
 // ErrorDisabled is the error that occurs when enable_fentry is false
 var ErrorDisabled = errors.New("fentry tracer is disabled")
 
+// ErrorUnsupported is the error that occurs when the fentry tracer is enabled but
+// cannot run on this system because of a known kernel limitation (as opposed to an
+// unexpected load failure). Callers may treat this as a soft failure and fall back
+// to another tracer.
+var ErrorUnsupported = errors.New("fentry tracer is not supported on this system")
+
 // LoadTracer loads a new tracer
 func LoadTracer(config *config.Config, mgrOpts manager.Options, connCloseEventHandler *perf.EventHandler) (*ddebpf.Manager, func(), error) {
 	if !config.EnableFentry {
@@ -45,7 +51,7 @@ func LoadTracer(config *config.Config, mgrOpts manager.Options, connCloseEventHa
 		return nil, nil, fmt.Errorf("failed to check HasTasksRCUExitLockSymbol: %w", err)
 	}
 	if hasPotentialFentryDeadlock {
-		return nil, nil, errors.New("unable to load fentry because this kernel version has a potential deadlock (fixed in kernel v6.9+)")
+		return nil, nil, fmt.Errorf("%w: this kernel version has a potential deadlock (fixed in kernel v6.9+)", ErrorUnsupported)
 	}
 
 	m := ddebpf.NewManagerWithDefault(&manager.Manager{}, "network", &ebpftelemetry.ErrorsTelemetryModifier{}, connCloseEventHandler)

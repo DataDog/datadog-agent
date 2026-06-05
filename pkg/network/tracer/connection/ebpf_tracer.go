@@ -261,11 +261,20 @@ func newEbpfTracer(config *config.Config, _ telemetryComponent.Component) (Trace
 			log.Info("JMW network tracer: fentry tracer loaded successfully")
 		case errors.Is(err, fentry.ErrorDisabled):
 			log.Info("JMW network tracer: fentry tracer is disabled (network_config.enable_fentry=false), skipping")
+		case errors.Is(err, fentry.ErrorUnsupported):
+			// fentry is enabled but this system can't run it due to a known kernel
+			// limitation (e.g. the RCU-exit deadlock on kernels < 6.9). This would
+			// normally be a soft "won't work here" that falls back to the kprobe
+			// tracer, but while the fentry tracer is experimental and under
+			// validation we hard-fail instead so unexpected-platform results surface
+			// loudly rather than being masked by a silent kprobe fallback.
+			// TODO: fall back to the kprobe tracer here once fentry is validated.
+			return nil, fmt.Errorf("fentry tracer unsupported on this system: %w", err)
 		default:
-			// fentry was explicitly enabled (enable_fentry=true) but failed to
-			// load. Do NOT fall back to kprobe: while the fentry tracer is
-			// experimental and under validation we want a hard failure here so we
-			// get a clear signal on systems where fentry is expected to work,
+			// fentry was explicitly enabled (enable_fentry=true) and failed to load
+			// for an unexpected reason. Do NOT fall back to kprobe: while the fentry
+			// tracer is experimental and under validation we want a hard failure here
+			// so we get a clear signal on systems where fentry is expected to work,
 			// rather than silently masking the breakage behind the kprobe tracer.
 			// TODO: restore a kprobe fallback once the fentry tracer is validated.
 			return nil, fmt.Errorf("fentry tracer failed to load: %w", err)
