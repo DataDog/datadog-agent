@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2026-present Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package metriclookback
 
@@ -18,7 +18,7 @@ import (
 func TestDeriveShadowConfigsFromSystemWideConfig(t *testing.T) {
 	source := integration.Config{
 		Name:       "cpu",
-		InitConfig: integration.Data("init: true"),
+		InitConfig: integration.Data("loader: core\ninit: true"),
 		Instances: []integration.Data{
 			integration.Data("tags:\n  - instance:one\n"),
 			integration.Data("tags:\n  - instance:two\n"),
@@ -44,12 +44,14 @@ func TestDeriveShadowConfigsFromSystemWideConfig(t *testing.T) {
 func TestDeriveShadowConfigsHonorsCheckNameAllowList(t *testing.T) {
 	configs := []integration.Config{
 		{
-			Name:      "cpu",
-			Instances: []integration.Data{integration.Data("metric_lookback:\n  enabled: true\n")},
+			Name:       "cpu",
+			InitConfig: integration.Data("loader: core\n"),
+			Instances:  []integration.Data{integration.Data("metric_lookback:\n  enabled: true\n")},
 		},
 		{
-			Name:      "disk",
-			Instances: []integration.Data{integration.Data("{}")},
+			Name:       "disk",
+			InitConfig: integration.Data("loader: core\n"),
+			Instances:  []integration.Data{integration.Data("{}")},
 		},
 	}
 
@@ -61,7 +63,8 @@ func TestDeriveShadowConfigsHonorsCheckNameAllowList(t *testing.T) {
 
 func TestDeriveShadowConfigsUsesPerInstanceEnablement(t *testing.T) {
 	source := integration.Config{
-		Name: "cpu",
+		Name:       "cpu",
+		InitConfig: integration.Data("loader: core\n"),
 		Instances: []integration.Data{
 			integration.Data("metric_lookback:\n  enabled: true\n"),
 			integration.Data("metric_lookback:\n  enabled: false\n"),
@@ -78,7 +81,8 @@ func TestDeriveShadowConfigsUsesPerInstanceEnablement(t *testing.T) {
 
 func TestDeriveShadowConfigsAllowsPerInstanceOptOutFromSystemWideEnablement(t *testing.T) {
 	source := integration.Config{
-		Name: "cpu",
+		Name:       "cpu",
+		InitConfig: integration.Data("loader: core\n"),
 		Instances: []integration.Data{
 			integration.Data("name: included\n"),
 			integration.Data("name: excluded\nmetric_lookback:\n  enabled: false\n"),
@@ -91,20 +95,41 @@ func TestDeriveShadowConfigsAllowsPerInstanceOptOutFromSystemWideEnablement(t *t
 	assert.Equal(t, 0, shadowConfigs[0].InstanceIndex)
 }
 
+func TestDeriveShadowConfigsInheritsSystemWideEnablementWhenInstanceEnabledIsUnset(t *testing.T) {
+	source := integration.Config{
+		Name:       "cpu",
+		InitConfig: integration.Data("loader: core\n"),
+		Instances: []integration.Data{
+			integration.Data("name: empty\nmetric_lookback: {}\n"),
+			integration.Data("name: future\nmetric_lookback:\n  future_option: true\n"),
+			integration.Data("name: disabled\nmetric_lookback:\n  enabled: false\n"),
+		},
+	}
+
+	shadowConfigs := DeriveShadowConfigs([]integration.Config{source}, Options{Enabled: true})
+
+	require.Len(t, shadowConfigs, 2)
+	assert.Equal(t, 0, shadowConfigs[0].InstanceIndex)
+	assert.Equal(t, 1, shadowConfigs[1].InstanceIndex)
+}
+
 func TestDeriveShadowConfigsSkipsUnsupportedConfigs(t *testing.T) {
 	configs := []integration.Config{
 		{
 			Name:         "cluster",
 			ClusterCheck: true,
+			InitConfig:   integration.Data("loader: core\n"),
 			Instances:    []integration.Data{integration.Data("{}")},
 		},
 		{
 			Name:            "metrics_excluded",
 			MetricsExcluded: true,
+			InitConfig:      integration.Data("loader: core\n"),
 			Instances:       []integration.Data{integration.Data("{}")},
 		},
 		{
 			Name:       "logs_only",
+			InitConfig: integration.Data("loader: core\n"),
 			LogsConfig: integration.Data("[]"),
 		},
 		{
@@ -129,6 +154,53 @@ func TestDeriveShadowConfigsSkipsUnsupportedConfigs(t *testing.T) {
 
 	require.Len(t, shadowConfigs, 1)
 	assert.Equal(t, "core_explicit", shadowConfigs[0].SourceConfig.Name)
+}
+
+func TestDeriveShadowConfigsSkipsEmptyLoaderConfigs(t *testing.T) {
+	source := integration.Config{
+		Name: "cpu",
+		Instances: []integration.Data{
+			integration.Data("metric_lookback:\n  enabled: true\n"),
+			integration.Data("loader: core\nmetric_lookback:\n  enabled: true\n"),
+		},
+	}
+
+	shadowConfigs := DeriveShadowConfigs([]integration.Config{source}, Options{Enabled: true})
+
+	require.Len(t, shadowConfigs, 1)
+	assert.Equal(t, 1, shadowConfigs[0].InstanceIndex)
+}
+
+func TestDeriveShadowConfigsHonorsInstanceLoaderOverride(t *testing.T) {
+	source := integration.Config{
+		Name:       "cpu",
+		InitConfig: integration.Data("loader: python\n"),
+		Instances: []integration.Data{
+			integration.Data("loader: core\nmetric_lookback:\n  enabled: true\n"),
+			integration.Data("metric_lookback:\n  enabled: true\n"),
+		},
+	}
+
+	shadowConfigs := DeriveShadowConfigs([]integration.Config{source}, Options{})
+
+	require.Len(t, shadowConfigs, 1)
+	assert.Equal(t, 0, shadowConfigs[0].InstanceIndex)
+}
+
+func TestDeriveShadowConfigsSkipsInstanceLoaderOverrideFromCore(t *testing.T) {
+	source := integration.Config{
+		Name:       "cpu",
+		InitConfig: integration.Data("loader: core\n"),
+		Instances: []integration.Data{
+			integration.Data("loader: python\nmetric_lookback:\n  enabled: true\n"),
+			integration.Data("metric_lookback:\n  enabled: true\n"),
+		},
+	}
+
+	shadowConfigs := DeriveShadowConfigs([]integration.Config{source}, Options{})
+
+	require.Len(t, shadowConfigs, 1)
+	assert.Equal(t, 1, shadowConfigs[0].InstanceIndex)
 }
 
 func TestDeriveShadowConfigsDoesNotMutateSourceConfig(t *testing.T) {

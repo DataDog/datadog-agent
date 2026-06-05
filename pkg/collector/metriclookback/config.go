@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2026-present Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // Package metriclookback contains helpers for 1Hz check metric lookback.
 package metriclookback
@@ -115,7 +115,10 @@ func isCoreLoaderSelected(initLoader string, instance integration.Data) bool {
 		selectedLoader = cfg.LoaderName
 	}
 
-	return selectedLoader == "" || selectedLoader == goCheckLoaderName
+	// V1 only supports Go/core shadow checks. An empty loader means the normal
+	// scheduler tries default loaders in priority order, so do not infer core
+	// here; Python may win before core.
+	return selectedLoader == goCheckLoaderName
 }
 
 func instanceLookbackEnabled(instance integration.Data) (enabled bool, found bool) {
@@ -133,14 +136,14 @@ func instanceLookbackEnabled(instance integration.Data) (enabled bool, found boo
 	case integration.RawMap:
 		enabledValue, ok := typedValue["enabled"]
 		if !ok {
-			return false, true
+			return false, false
 		}
 		enabled, ok := enabledValue.(bool)
 		return enabled && ok, true
 	case map[interface{}]interface{}:
 		enabledValue, ok := typedValue["enabled"]
 		if !ok {
-			return false, true
+			return false, false
 		}
 		enabled, ok := enabledValue.(bool)
 		return enabled && ok, true
