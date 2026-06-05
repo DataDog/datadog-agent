@@ -151,7 +151,7 @@ func makeExponentialHistogramMetric(name string, delta bool, scale int32, zeroCo
 	dp.Positive().SetOffset(0)
 	dp.Positive().BucketCounts().FromRaw(posCounts)
 
-	var total uint64 = zeroCount
+	total := zeroCount
 	for _, c := range posCounts {
 		total += c
 	}
