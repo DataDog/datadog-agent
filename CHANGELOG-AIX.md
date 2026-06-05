@@ -9,6 +9,7 @@
 ## Unreleased
 
 <!-- Add entries here for changes not yet in a release. -->
+- Remove `sharedlibrarycheck` from the AIX agent build (the shared-library check loader was included but not validated on AIX)
 
 ---
 
