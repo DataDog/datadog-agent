@@ -8,6 +8,7 @@
 package stub
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"time"
@@ -28,7 +29,7 @@ var _ networkconfigmanagement.Component = (*NCMStub)(nil)
 func (s *NCMStub) RegisterDevice(_ *config.DeviceInstance) error          { return errNoNCM }
 func (s *NCMStub) ReportConfig(_ string) error                            { return errNoNCM }
 func (s *NCMStub) ReportConfigWithSender(_ string, _ sender.Sender) error { return errNoNCM }
-func (s *NCMStub) RollbackConfig(_, _, _ string) error                    { return errNoNCM }
+func (s *NCMStub) RollbackConfig(_ context.Context, _, _, _ string) error { return errNoNCM }
 func (s *NCMStub) SetMaxReportInterval(_ time.Duration)                   {}
 
 // GetConfigEndpointHandler implements [networkconfigmanagement.Component].

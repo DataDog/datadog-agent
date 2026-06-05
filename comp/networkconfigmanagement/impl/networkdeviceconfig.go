@@ -144,14 +144,14 @@ func (n *networkDeviceConfigImpl) ReportConfigWithSender(deviceID string, baseSe
 		nonBlockingErrors = append(nonBlockingErrors, fmt.Errorf("failed to send device metadata: %w", err))
 	}
 	defer sender.Commit()
-	configStore := n.store
 
 	configs, localStoreChanged, confErrs := retrieveAndStoreBothConfigs(ctx, dc, conn, n.store)
 	nonBlockingErrors = append(nonBlockingErrors, confErrs...)
 
 	var inventoryEntries []ncmreport.InventoryEntry
 	timeSinceInventory := startTime.Sub(n.getLastInventoryTime())
-	if configStore == nil {
+	hasStore := n.store != nil
+	if !hasStore {
 		log.Debugf("rollback is disabled, so no inventory will be reported.")
 	} else if localStoreChanged {
 		log.Debugf("local configstore has updated, so inventory will be reported.")
@@ -160,8 +160,7 @@ func (n *networkDeviceConfigImpl) ReportConfigWithSender(deviceID string, baseSe
 	} else {
 		log.Debugf("local config store unchanged since last report %v ago (< %v).", timeSinceInventory, n.inventoryMaxInterval)
 	}
-	if configStore != nil && (localStoreChanged || timeSinceInventory > n.inventoryMaxInterval) {
-		var err error
+	if hasStore && (localStoreChanged || timeSinceInventory > n.inventoryMaxInterval) {
 		inventoryEntries, err = n.buildInventoryReport()
 		if err != nil {
 			log.Errorf("skipping inventory report due to error: %v", err)
@@ -210,8 +209,52 @@ func (n *networkDeviceConfigImpl) buildInventoryReport() ([]ncmreport.InventoryE
 
 // RollbackConfig rolls back a device to a previous configuration that's
 // saved locally on this agent.
-func (n *networkDeviceConfigImpl) RollbackConfig(_ string, _ string, _ string) error {
-	return errors.New("not implemented")
+func (n *networkDeviceConfigImpl) RollbackConfig(ctx context.Context, deviceID string, configVersion string, hash string) error {
+	if n.store == nil {
+		return errors.New("rollback is disabled")
+	}
+	var log log.Component = NewLogWrapper(n.log, fmt.Sprintf("ncm[%s]: ", deviceID))
+
+	ctx = WithLogger(ctx, log)
+	dc, ok := n.devices.Load(deviceID)
+	if !ok {
+		return fmt.Errorf("unknown device: %q", deviceID)
+	}
+	// lock the device so that if two threads try to use the same device at the
+	// same time they won't collide.
+	dc.Lock()
+	defer dc.Unlock()
+	profile := dc.GetExplicitProfile()
+	if profile == nil {
+		return fmt.Errorf("no NCM profile configured for device %s", deviceID)
+	}
+
+	rawConfig, metadata, err := n.store.GetConfig(configVersion)
+	if err != nil {
+		return err
+	}
+	if metadata.DeviceID != deviceID {
+		return fmt.Errorf("input mismatch: config %q is not for device %q", configVersion, deviceID)
+	}
+
+	expectedHash := ncmstore.HashConfig(rawConfig)
+	if expectedHash != hash {
+		return fmt.Errorf("hash mismatch for config %q", configVersion)
+	}
+
+	conn, err := n.connect(dc.device)
+	if err != nil {
+		return fmt.Errorf("%v: %w", deviceID, err)
+	}
+	defer conn.Close()
+	conn.SetProfile(profile)
+
+	err = conn.PushConfig(ctx, rawConfig)
+	if err != nil {
+		return fmt.Errorf("cannot push config to device %q: %w", deviceID, err)
+	}
+
+	return n.ReportConfig(deviceID)
 }
 
 // findMatchingProfile tests each profile until one is successful.

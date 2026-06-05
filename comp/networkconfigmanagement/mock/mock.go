@@ -7,6 +7,7 @@
 package mock
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -57,7 +58,7 @@ func (m *mockNetworkConfigManagement) RegisterDevice(device *config.DeviceInstan
 }
 
 // RollbackConfig implements [networkconfigmanagement.Component].
-func (m *mockNetworkConfigManagement) RollbackConfig(_ string, _ string, _ string) error {
+func (m *mockNetworkConfigManagement) RollbackConfig(_ context.Context, _, _, _ string) error {
 	return errors.New("TODO unimplemented")
 }
 
