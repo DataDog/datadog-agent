@@ -41,7 +41,7 @@ func (c *telemetryCaptureClient) Do(req *http.Request) (*http.Response, error) {
 	}, err
 }
 
-func TestGarbageCollectContextCanceledDoesNotMarkSpanError(t *testing.T) {
+func TestGarbageCollectContextCanceledMarksSpanError(t *testing.T) {
 	helperPath := filepath.Join(t.TempDir(), "installer-helper")
 	readyPath := filepath.Join(t.TempDir(), "ready")
 	require.NoError(t, os.WriteFile(helperPath, []byte("#!/bin/sh\ntouch \"$INSTALLER_EXEC_READY_FILE\"\nexec sleep 1000\n"), 0o755))
@@ -108,8 +108,8 @@ func TestGarbageCollectContextCanceledDoesNotMarkSpanError(t *testing.T) {
 				continue
 			}
 			found = true
-			assert.Equal(t, int32(0), span.Error)
-			assert.NotContains(t, span.Meta, "error.message")
+			assert.Equal(t, int32(1), span.Error)
+			assert.Contains(t, span.Meta["error.message"], "context canceled")
 		}
 	}
 	assert.True(t, found, "expected installer.garbage-collect span")
