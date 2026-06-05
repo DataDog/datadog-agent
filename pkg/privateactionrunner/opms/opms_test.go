@@ -263,23 +263,37 @@ func TestHealthCheck_RetryAfterMs_PopulatedOnError(t *testing.T) {
 
 // ---------- proxy transport wiring ----------
 
-func TestNewClientHasProxyAwareTransport(t *testing.T) {
+func TestNewClientHonorsProxyConfig(t *testing.T) {
 	cfg := configmock.New(t)
+	cfg.SetWithoutSource("proxy.https", "https://proxy.example.com:3128")
 	parCfg := &config.Config{OpmsRequestTimeout: 5000}
 
 	c := NewClient(cfg, parCfg).(*client)
 
-	assert.NotNil(t, c.httpClient.Transport)
-	assert.NotEqual(t, http.DefaultTransport, c.httpClient.Transport)
+	transport, ok := c.httpClient.Transport.(*http.Transport)
+	require.True(t, ok)
+	require.NotNil(t, transport.Proxy)
+
+	req, _ := http.NewRequest(http.MethodPost, "https://api.datadoghq.com/api/v2/on-prem-management-service/workflow-tasks/dequeue", nil)
+	proxyURL, err := transport.Proxy(req)
+	require.NoError(t, err)
+	assert.Equal(t, "https://proxy.example.com:3128", proxyURL.String())
 }
 
-func TestNewPublicClientHasProxyAwareTransport(t *testing.T) {
+func TestNewPublicClientHonorsProxyConfig(t *testing.T) {
 	cfg := configmock.New(t)
+	cfg.SetWithoutSource("proxy.https", "https://proxy.example.com:3128")
 
 	pc := NewPublicClient(cfg, "https://api.datadoghq.com", nil).(*publicClient)
 
-	assert.NotNil(t, pc.httpClient.Transport)
-	assert.NotEqual(t, http.DefaultTransport, pc.httpClient.Transport)
+	transport, ok := pc.httpClient.Transport.(*http.Transport)
+	require.True(t, ok)
+	require.NotNil(t, transport.Proxy)
+
+	req, _ := http.NewRequest(http.MethodPost, "https://api.datadoghq.com/api/unstable/on_prem_runners", nil)
+	proxyURL, err := transport.Proxy(req)
+	require.NoError(t, err)
+	assert.Equal(t, "https://proxy.example.com:3128", proxyURL.String())
 }
 
 func TestDoEnrollRequestUsesOwnHttpClient(t *testing.T) {
