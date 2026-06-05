@@ -491,6 +491,7 @@ export function MetricsView({
       title: a.title,
       score: a.score,
       type: getAnomalySourceKind(a, seriesById) as TimelineAnomalyType,
+      sourceSeriesId: a.sourceSeriesId,
     }));
   }, [anomalies, seriesById]);
 

@@ -10,6 +10,7 @@ export interface TimelineAnomaly {
   title: string;
   score?: number;
   type: TimelineAnomalyType;
+  sourceSeriesId?: string;
 }
 
 interface AnomalyScoreTimelineProps {
@@ -28,30 +29,42 @@ interface SeverityEvent {
   toLevel: 0 | 1 | 2;
 }
 
-// ── Calibration constants (derived from 3-scenario offline calibration) ───────
-// Scores are raw unbounded floats from each detector at detection time.
-// null = count-only detector (no meaningful score magnitude to normalize).
-const DETECTOR_NORM: Record<string, { mu: number; sigma: number } | null> = {
-  holt_residual:  { mu: 8.3, sigma: 4.0 }, // calibrated: baseline μ=8.3 σ=4.0
-  tukey_biweight: null, // baseline ≈ disruption scores → count-only
-  bocpd:          null, // no Score field emitted → uses DETECTOR_FIXED_SCORE
+// ── Anomaly level weights ──────────────────────────────────────────────────────
+// Each anomaly is mapped to one of 5 levels (0=VeryLow … 4=XHigh).
+// The weight is the only value used for both bar coloring (bin index = level)
+// and the EWMA input (mean weight per bucket × saturation factor).
+// This keeps all detectors on the same proportionate scale.
+const LEVEL_WEIGHTS = [0.2, 0.5, 1.0, 2.0, 3.0] as const;
+const LEVEL_LABELS  = ['VeryLow', 'Low', 'Medium', 'High', 'XHigh'] as const;
+
+// Score → level thresholds (from 3-scenario calibration).
+// Both holt_residual and tukey_biweight emit scores in the same numeric range
+// (global means 14.4 and 12.7 respectively), so a single threshold table works
+// for all scored detectors.
+//   baseline: mean=8.3 P95=15.8 | disruption: P50=13.1 P95=36.8 P99=49.4
+const SCORE_THRESHOLDS = [6, 12, 20, 35] as const; // [<6→0, <12→1, <20→2, <35→3, ≥35→4]
+
+// Fixed level for detectors that emit no score at all.
+//   bocpd: no Score field → use Medium as a reliable change-point signal
+const DETECTOR_FIXED_LEVEL: Record<string, number> = {
+  bocpd: 2, // Medium (1.0)
 };
-// Detectors with no Score that still contribute a fixed raw weight to the EWMA.
-const DETECTOR_FIXED_SCORE: Record<string, number> = {
-  bocpd: 1,
-};
-// EWMA lives in raw score space. 15.0 covers postmark max (13.55) with headroom.
-const EWMA_DISPLAY_MAX = 15.0;
-// Thresholds from calibration (raw EWMA space):
-//   baseline P95=4.94, disruption P5=4.34, disruption P50=7.40
-const DEFAULT_LOW_THRESHOLD  = 4.5;
-const DEFAULT_HIGH_THRESHOLD = 9.0;
-const DEFAULT_MARGIN         = 0.5;
+
+// Detectors whose score should be used with SCORE_THRESHOLDS.
+const SCORED_DETECTORS = new Set(['holt_residual', 'tukey_biweight']);
+
+// Slider ceiling for EWMA thresholds (extended dynamically when EWMA exceeds this).
+const EWMA_SLIDER_MAX = 5.0;
+// Default thresholds (approximate; tune with sliders after observing live data).
+//   With level weights, baseline EWMA stays near 0.1–0.3; disruption peaks 1–2.
+const DEFAULT_LOW_THRESHOLD  = 0.5;
+const DEFAULT_HIGH_THRESHOLD = 1.2;
+const DEFAULT_MARGIN         = 0.15;
 const DEFAULT_EWMA_ALPHA     = 0.16;
-const DEFAULT_SATURATION_K   = 5;    // k=5 gives best baseline/disruption gap per calibration
+const DEFAULT_SATURATION_K   = 5;
 
 const SCORE_BINS = 5;
-const CHART_H = 96;
+const CHART_H = 192;
 const EVENTS_H = 22;
 const TOTAL_H = CHART_H + EVENTS_H;
 const TRI_SIZE = 5;
@@ -86,29 +99,25 @@ function formatDuration(secs: number): string {
   return `${Math.floor(secs / 60)}m${secs % 60 > 0 ? `${secs % 60}s` : ''}`;
 }
 
-// Per-detector sigmoid normalization → [0, 1] used for bin display coloring only.
-function perDetectorNormBin(a: TimelineAnomaly): number {
-  const n = DETECTOR_NORM[a.detectorName];
-  if (!n || a.score == null || Number.isNaN(a.score)) return 0;
-  const z = (a.score - n.mu) / n.sigma;
-  return 1 / (1 + Math.exp(-z));
+// Maps a raw detector score to a level index 0–4.
+function scoreToLevel(score: number): number {
+  for (let i = 0; i < SCORE_THRESHOLDS.length; i++) {
+    if (score < SCORE_THRESHOLDS[i]) return i;
+  }
+  return SCORE_THRESHOLDS.length; // 4 = XHigh
 }
 
-// Raw score used as EWMA input.
-// Known detectors with a normalization entry use their raw score.
-// Known detectors without normalization fall back to DETECTOR_FIXED_SCORE (or 0).
-// Unknown detectors return 0.
-function perDetectorRawScore(a: TimelineAnomaly): number {
-  const known = a.detectorName in DETECTOR_NORM || a.detectorName in DETECTOR_FIXED_SCORE;
-  if (!known) return 0;
-  const n = DETECTOR_NORM[a.detectorName];
-  if (n && a.score != null && !Number.isNaN(a.score)) return a.score;
-  return DETECTOR_FIXED_SCORE[a.detectorName] ?? 0;
+// Single entry-point: returns the level index [0–4] for any anomaly.
+// Level drives both bar coloring (bin index) and EWMA weight.
+function perDetectorLevel(a: TimelineAnomaly): number {
+  if (SCORED_DETECTORS.has(a.detectorName) && a.score != null && !Number.isNaN(a.score)) {
+    return scoreToLevel(a.score);
+  }
+  return DETECTOR_FIXED_LEVEL[a.detectorName] ?? 2; // unknown or no score → Medium
 }
 
-function scoreToBin(normScore: number, scalePower: number): number {
-  const clamped = Math.max(0, Math.min(1, normScore));
-  return Math.min(SCORE_BINS - 1, Math.floor(Math.pow(clamped, scalePower) * SCORE_BINS));
+function perDetectorWeight(a: TimelineAnomaly): number {
+  return LEVEL_WEIGHTS[perDetectorLevel(a)];
 }
 
 function computeEWMA(values: number[], alpha: number): number[] {
@@ -187,8 +196,8 @@ function triDown(cx: number, cy: number, s: number): string {
 }
 
 interface SecondBucket {
-  bins: number[];    // SCORE_BINS counts using sigmoid-normalized bin assignment
-  scoreSum: number;  // sum of raw scores (for EWMA input)
+  bins: number[];    // SCORE_BINS counts, index = anomaly level (0=VeryLow…4=XHigh)
+  scoreSum: number;  // sum of LEVEL_WEIGHTS (feeds EWMA)
   total: number;
 }
 
@@ -206,7 +215,7 @@ interface Hovered {
   mouseY: number;
   total: number;
   bins: number[];
-  meanRawScore: number;
+  meanWeight: number;
   ewmaValue: number;
   bucketStart: number;
   bucketEnd: number;
@@ -221,7 +230,6 @@ export function AnomalyScoreTimeline({
   phaseMarkers = [],
 }: AnomalyScoreTimelineProps) {
   // ── display controls ──────────────────────────────────────────────────────
-  const [scalePower, setScalePower] = useState(1.9);
   const [ewmaAlpha, setEwmaAlpha] = useState(DEFAULT_EWMA_ALPHA);
   const [saturationK, setSaturationK] = useState(DEFAULT_SATURATION_K);
   // aggregationWindow: 0 = auto (fit ~80 bars), >0 = manual seconds per display bar
@@ -264,27 +272,44 @@ export function AnomalyScoreTimeline({
     return start !== null && end !== null && end > start ? { start, end } : null;
   }, [anomalies, scenarioEnd, scenarioStart, timeRange]);
 
+  // ── Deduplication: same series × same second, multiple detectors → keep highest level ──
+  const dedupedAnomalies = useMemo(() => {
+    // Key: "floor(ts):sourceSeriesId" — groups co-firing detectors on the same series.
+    // Anomalies without a sourceSeriesId are never merged (no identity to match on).
+    const best = new Map<string, TimelineAnomaly>();
+    for (const a of anomalies) {
+      if (!a.sourceSeriesId) continue;
+      const key = `${Math.floor(a.timestamp)}:${a.sourceSeriesId}`;
+      const existing = best.get(key);
+      if (!existing || perDetectorLevel(a) > perDetectorLevel(existing)) {
+        best.set(key, a);
+      }
+    }
+    // Re-add anomalies without a sourceSeriesId unchanged.
+    const unkeyed = anomalies.filter((a) => !a.sourceSeriesId);
+    return [...best.values(), ...unkeyed];
+  }, [anomalies]);
+
   // ── 1-second raw buckets ──────────────────────────────────────────────────
-  // Two separate scores per anomaly:
-  //   - normBin: sigmoid(raw, mu, sigma) → [0,1] for visual bar coloring
-  //   - rawScore: raw detector score (or 0 for count-only) → feeds EWMA
+  // level = perDetectorLevel(a) drives both the bin color (index) and the
+  // EWMA weight (LEVEL_WEIGHTS[level]), so there is a single unified score path.
   const secondBuckets = useMemo(() => {
     if (!bounds) return new Map<number, SecondBucket>();
     const map = new Map<number, SecondBucket>();
-    for (const a of anomalies) {
+    for (const a of dedupedAnomalies) {
       if (a.timestamp < bounds.start || a.timestamp > bounds.end) continue;
       const sec = Math.floor(a.timestamp);
       if (!map.has(sec)) {
         map.set(sec, { bins: new Array<number>(SCORE_BINS).fill(0), scoreSum: 0, total: 0 });
       }
       const b = map.get(sec)!;
-      const normBin = perDetectorNormBin(a);
-      b.bins[scoreToBin(normBin, scalePower)] += 1;
-      b.scoreSum += perDetectorRawScore(a);
+      const level = perDetectorLevel(a);
+      b.bins[level] += 1;
+      b.scoreSum += LEVEL_WEIGHTS[level];
       b.total += 1;
     }
     return map;
-  }, [anomalies, bounds, scalePower]);
+  }, [dedupedAnomalies, bounds]);
 
   // ── resolved aggregation window (seconds per display bar) ─────────────────
   const resolvedWindow = useMemo(() => {
@@ -331,10 +356,15 @@ export function AnomalyScoreTimeline({
     [displayBuckets, ewmaAlpha, saturationK],
   );
 
-  // Fixed display scale — no retrospective min/max needed.
+  // Dynamic display ceiling: high threshold sits near the top; expands if EWMA exceeds it.
+  const ewmaDisplayMax = useMemo(() => {
+    const peak = ewmaValues.length > 0 ? Math.max(...ewmaValues) : 0;
+    return Math.max(highThreshold, peak) * 1.15;
+  }, [highThreshold, ewmaValues]);
+
   const ewmaToY = useCallback(
-    (v: number) => CHART_H - Math.min(1, Math.max(0, v / EWMA_DISPLAY_MAX)) * CHART_H,
-    [],
+    (v: number) => CHART_H - Math.min(1, Math.max(0, v / ewmaDisplayMax)) * CHART_H,
+    [ewmaDisplayMax],
   );
 
   const ewmaYValues = useMemo(() => ewmaValues.map(ewmaToY), [ewmaValues, ewmaToY]);
@@ -346,8 +376,8 @@ export function AnomalyScoreTimeline({
   }, [ewmaYValues, chartWidth, displayCount]);
 
   // ── threshold y positions (raw EWMA space, fixed scale) ───────────────────
-  const lowThresholdY  = CHART_H - (lowThreshold  / EWMA_DISPLAY_MAX) * CHART_H;
-  const highThresholdY = CHART_H - (highThreshold / EWMA_DISPLAY_MAX) * CHART_H;
+  const lowThresholdY  = CHART_H - (lowThreshold  / ewmaDisplayMax) * CHART_H;
+  const highThresholdY = CHART_H - (highThreshold / ewmaDisplayMax) * CHART_H;
 
   // ── severity events (run on raw EWMA with raw thresholds) ─────────────────
   const { severityEvents, stateSegments } = useMemo(() => {
@@ -396,7 +426,7 @@ export function AnomalyScoreTimeline({
         mouseY: relY,
         total: b.total,
         bins: b.bins,
-        meanRawScore: b.total > 0 ? b.scoreSum / b.total : 0,
+        meanWeight: b.total > 0 ? b.scoreSum / b.total : 0,
         ewmaValue: ewmaValues[idx] ?? 0,
         bucketStart: b.start,
         bucketEnd: b.end,
@@ -424,13 +454,6 @@ export function AnomalyScoreTimeline({
 
   const tsToX    = (ts: number) => ((ts - bounds.start) / (bounds.end - bounds.start)) * chartWidth;
   const bucketCx = (idx: number) => ((idx + 0.5) * chartWidth) / displayCount;
-
-  const getBinRange = (binIdx: number) => {
-    if (Math.abs(scalePower - 1.0) < 0.01) return `${binIdx * 20}–${binIdx === SCORE_BINS - 1 ? 100 : (binIdx + 1) * 20}%`;
-    const s = Math.pow(binIdx / SCORE_BINS, 1 / scalePower);
-    const e = Math.pow((binIdx + 1) / SCORE_BINS, 1 / scalePower);
-    return `${Math.round(s * 100)}–${Math.round(e * 100)}%`;
-  };
 
   const hoveredEvent = hoveredEventIdx !== null
     ? severityEvents[hoveredEventIdx]
@@ -468,9 +491,6 @@ export function AnomalyScoreTimeline({
         {/* Left: display */}
         <div className="space-y-2">
           <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Display</div>
-          <SliderRow label="Score scale" leftLabel="Spread" rightLabel="Compress"
-            min={0.1} max={10} step={0.1} value={scalePower} onChange={setScalePower}
-            valueLabel={`x^${scalePower.toFixed(2)}`} thumbHex="#a855f7" />
           <SliderRow label="EWMA α" leftLabel="Smooth" rightLabel="Raw"
             min={0.01} max={1} step={0.01} value={ewmaAlpha} onChange={setEwmaAlpha}
             valueLabel={ewmaAlpha.toFixed(2)} thumbHex="#67e8f9" />
@@ -485,15 +505,15 @@ export function AnomalyScoreTimeline({
         {/* Right: event detection */}
         <div className="space-y-2">
           <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Event detection</div>
-          <SliderRow label="Low threshold" leftLabel="0" rightLabel={EWMA_DISPLAY_MAX.toFixed(0)}
-            min={0} max={EWMA_DISPLAY_MAX} step={0.1} value={lowThreshold} onChange={setLowThreshold}
-            valueLabel={lowThreshold.toFixed(1)} thumbHex="#22c55e" />
-          <SliderRow label="High threshold" leftLabel="0" rightLabel={EWMA_DISPLAY_MAX.toFixed(0)}
-            min={0} max={EWMA_DISPLAY_MAX} step={0.1} value={highThreshold} onChange={setHighThreshold}
-            valueLabel={highThreshold.toFixed(1)} thumbHex="#ef4444" />
-          <SliderRow label="Margin (hysteresis)" leftLabel="0" rightLabel="3"
-            min={0} max={3} step={0.1} value={margin} onChange={setMargin}
-            valueLabel={margin.toFixed(1)} thumbHex="#f59e0b" />
+          <SliderRow label="Low threshold" leftLabel="0" rightLabel={ewmaDisplayMax.toFixed(2)}
+            min={0} max={Math.max(EWMA_SLIDER_MAX, ewmaDisplayMax)} step={0.05} value={lowThreshold} onChange={setLowThreshold}
+            valueLabel={lowThreshold.toFixed(2)} thumbHex="#22c55e" />
+          <SliderRow label="High threshold" leftLabel="0" rightLabel={ewmaDisplayMax.toFixed(2)}
+            min={0} max={Math.max(EWMA_SLIDER_MAX, ewmaDisplayMax)} step={0.05} value={highThreshold} onChange={setHighThreshold}
+            valueLabel={highThreshold.toFixed(2)} thumbHex="#ef4444" />
+          <SliderRow label="Margin (hysteresis)" leftLabel="0" rightLabel="0.5"
+            min={0} max={0.5} step={0.01} value={margin} onChange={setMargin}
+            valueLabel={margin.toFixed(2)} thumbHex="#f59e0b" />
           <SliderRow label="Cooldown (decrease)" leftLabel="0s" rightLabel="10m"
             min={0} max={600} step={10} value={cooldownSecs} onChange={setCooldownSecs}
             valueLabel={formatDuration(cooldownSecs)} thumbHex="#3b82f6" />
@@ -690,8 +710,8 @@ export function AnomalyScoreTimeline({
                     </div>
                   )}
                   <div className="flex justify-between gap-3">
-                    <span className="text-slate-400">mean raw score</span>
-                    <span className="text-slate-200">{hovered.meanRawScore.toFixed(2)}</span>
+                    <span className="text-slate-400">mean weight</span>
+                    <span className="text-slate-200">{hovered.meanWeight.toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between gap-3">
                     <span className="text-cyan-400">EWMA</span>
@@ -726,18 +746,19 @@ export function AnomalyScoreTimeline({
       {/* Legend */}
       <div className="flex items-center justify-between gap-4 mt-3 text-xs text-slate-500 flex-wrap">
         <div className="flex items-center gap-2 flex-wrap">
-          <span>bins (norm):</span>
+          <span>levels:</span>
           {SCORE_COLORS.map((color, idx) => (
             <span key={idx} className="inline-flex items-center gap-1">
               <span className={`inline-block w-2.5 h-2.5 rounded-sm ${color}`} />
-              {getBinRange(idx)}
+              <span className="text-slate-400">{LEVEL_LABELS[idx]}</span>
+              <span className="text-slate-600">({LEVEL_WEIGHTS[idx]})</span>
             </span>
           ))}
           <span className="inline-flex items-center gap-1 ml-2">
             <svg width="16" height="8" viewBox="0 0 16 8">
               <polyline points="0,7 4,5 8,3 12,4 16,2" fill="none" stroke="#67e8f9" strokeWidth="1.5" strokeLinejoin="round" />
             </svg>
-            EWMA (raw, max={EWMA_DISPLAY_MAX})
+            EWMA (ceil={ewmaDisplayMax.toFixed(2)})
           </span>
         </div>
         <div className="flex items-center gap-3 flex-wrap">
