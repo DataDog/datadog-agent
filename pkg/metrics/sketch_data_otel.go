@@ -12,28 +12,30 @@ import (
 )
 
 var (
-	_ SketchData = (*ExplicitBoundHistogramPoint)(nil)
-	_ SketchData = (*ExponentialHistogramPoint)(nil)
+	_ ExplicitBoundProvider = (*ExplicitBoundHistogramPoint)(nil)
+	_ ExponentialProvider   = (*ExponentialHistogramPoint)(nil)
 )
 
 // ExplicitBoundHistogramPoint wraps a pmetric.HistogramDataPoint
-// to satisfy the SketchData interface.
+// and satisfies ExplicitBoundProvider.
 type ExplicitBoundHistogramPoint struct {
 	Point pmetric.HistogramDataPoint
 }
 
-// Kind returns SketchKindExplicitBound.
-func (h *ExplicitBoundHistogramPoint) Kind() SketchKind { return SketchKindExplicitBound }
-
-// Cols is not applicable; returns nil, nil.
-func (h *ExplicitBoundHistogramPoint) Cols() ([]int32, []uint32) { return nil, nil }
-
-// BasicStats is not applicable; returns zeros.
-func (h *ExplicitBoundHistogramPoint) BasicStats() (int64, float64, float64, float64, float64) {
-	return 0, 0, 0, 0, 0
+func (h *ExplicitBoundHistogramPoint) ExplicitBounds() []float64 {
+	return h.Point.ExplicitBounds().AsRaw()
 }
+func (h *ExplicitBoundHistogramPoint) BucketCounts() []uint64 {
+	return h.Point.BucketCounts().AsRaw()
+}
+func (h *ExplicitBoundHistogramPoint) Count() uint64 { return h.Point.Count() }
+func (h *ExplicitBoundHistogramPoint) HasSum() bool  { return h.Point.HasSum() }
+func (h *ExplicitBoundHistogramPoint) Sum() float64  { return h.Point.Sum() }
+func (h *ExplicitBoundHistogramPoint) HasMin() bool  { return h.Point.HasMin() }
+func (h *ExplicitBoundHistogramPoint) Min() float64  { return h.Point.Min() }
+func (h *ExplicitBoundHistogramPoint) HasMax() bool  { return h.Point.HasMax() }
+func (h *ExplicitBoundHistogramPoint) Max() float64  { return h.Point.Max() }
 
-// SummaryValues returns min, max, sum from the histogram data point.
 func (h *ExplicitBoundHistogramPoint) SummaryValues() (min, max, sum float64) {
 	if h.Point.HasMin() {
 		min = h.Point.Min()
@@ -48,23 +50,33 @@ func (h *ExplicitBoundHistogramPoint) SummaryValues() (min, max, sum float64) {
 }
 
 // ExponentialHistogramPoint wraps a pmetric.ExponentialHistogramDataPoint
-// to satisfy the SketchData interface.
+// and satisfies ExponentialProvider.
 type ExponentialHistogramPoint struct {
 	Point pmetric.ExponentialHistogramDataPoint
 }
 
-// Kind returns SketchKindExponential.
-func (h *ExponentialHistogramPoint) Kind() SketchKind { return SketchKindExponential }
-
-// Cols is not applicable; returns nil, nil.
-func (h *ExponentialHistogramPoint) Cols() ([]int32, []uint32) { return nil, nil }
-
-// BasicStats is not applicable; returns zeros.
-func (h *ExponentialHistogramPoint) BasicStats() (int64, float64, float64, float64, float64) {
-	return 0, 0, 0, 0, 0
+func (h *ExponentialHistogramPoint) Scale() int32      { return h.Point.Scale() }
+func (h *ExponentialHistogramPoint) ZeroCount() uint64 { return h.Point.ZeroCount() }
+func (h *ExponentialHistogramPoint) PositiveOffset() int32 {
+	return h.Point.Positive().Offset()
 }
+func (h *ExponentialHistogramPoint) PositiveBucketCounts() []uint64 {
+	return h.Point.Positive().BucketCounts().AsRaw()
+}
+func (h *ExponentialHistogramPoint) NegativeOffset() int32 {
+	return h.Point.Negative().Offset()
+}
+func (h *ExponentialHistogramPoint) NegativeBucketCounts() []uint64 {
+	return h.Point.Negative().BucketCounts().AsRaw()
+}
+func (h *ExponentialHistogramPoint) Count() uint64 { return h.Point.Count() }
+func (h *ExponentialHistogramPoint) HasSum() bool  { return h.Point.HasSum() }
+func (h *ExponentialHistogramPoint) Sum() float64  { return h.Point.Sum() }
+func (h *ExponentialHistogramPoint) HasMin() bool  { return h.Point.HasMin() }
+func (h *ExponentialHistogramPoint) Min() float64  { return h.Point.Min() }
+func (h *ExponentialHistogramPoint) HasMax() bool  { return h.Point.HasMax() }
+func (h *ExponentialHistogramPoint) Max() float64  { return h.Point.Max() }
 
-// SummaryValues returns min, max, sum from the exponential histogram data point.
 func (h *ExponentialHistogramPoint) SummaryValues() (min, max, sum float64) {
 	min = math.Inf(1)
 	if h.Point.HasMin() {

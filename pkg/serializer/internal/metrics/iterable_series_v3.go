@@ -492,36 +492,32 @@ func (pb *payloadsBuilderV3) writeSerieToTxn(serie *metrics.Serie) {
 }
 
 func (pb *payloadsBuilderV3) writeSketch(sketch *metrics.SketchSeries) error {
-	if len(sketch.Points) > 0 && sketch.Points[0].Sketch.Kind() != metrics.SketchKindDDSketch {
-		// Native OTel histograms: AMP team will implement encoding with sketchFlags.
-		// Example of how to access the raw OTel data for encoding:
-		//
-		//   for _, pnt := range sketch.Points {
-		//       switch pnt.Sketch.Kind() {
-		//       case metrics.SketchKindExplicitBound:
-		//           ep := pnt.Sketch.(*metrics.ExplicitBoundHistogramPoint)
-		//           bounds := ep.Point.ExplicitBounds().AsRaw()   // []float64
-		//           counts := ep.Point.BucketCounts().AsRaw()     // []uint64
-		//           count  := ep.Point.Count()                    // uint64
-		//           sum    := ep.Point.Sum()                      // float64
-		//           // encode bounds, counts, count, sum into V3 columns
-		//           // with typeValue = metricSketch | sketchFlags(kind=2)
-		//
-		//       case metrics.SketchKindExponential:
-		//           xp := pnt.Sketch.(*metrics.ExponentialHistogramPoint)
-		//           scale     := xp.Point.Scale()                          // int32
-		//           zeroCount := xp.Point.ZeroCount()                      // uint64
-		//           posOffset := xp.Point.Positive().Offset()              // int32
-		//           posCounts := xp.Point.Positive().BucketCounts().AsRaw() // []uint64
-		//           negOffset := xp.Point.Negative().Offset()              // int32
-		//           negCounts := xp.Point.Negative().BucketCounts().AsRaw() // []uint64
-		//           count     := xp.Point.Count()                          // uint64
-		//           sum       := xp.Point.Sum()                            // float64
-		//           // encode scale, offsets, buckets into V3 columns
-		//           // with typeValue = metricSketch | sketchFlags(kind=1)
-		//       }
-		//   }
-		return nil
+	if len(sketch.Points) > 0 {
+		if _, ok := sketch.Points[0].Sketch.(metrics.DDSketchProvider); !ok {
+			// Native OTel histograms: AMP team will implement encoding with sketchFlags.
+			// Access the data via ExplicitBoundProvider / ExponentialProvider type switches:
+			//
+			//   for _, pnt := range sketch.Points {
+			//       switch sd := pnt.Sketch.(type) {
+			//       case metrics.ExplicitBoundProvider:
+			//           bounds := sd.ExplicitBounds()        // []float64
+			//           counts := sd.BucketCounts()          // []uint64
+			//           count  := sd.Count()                 // uint64
+			//           sum    := sd.Sum()                   // float64
+			//
+			//       case metrics.ExponentialProvider:
+			//           scale     := sd.Scale()                  // int32
+			//           zeroCount := sd.ZeroCount()              // uint64
+			//           posOffset := sd.PositiveOffset()         // int32
+			//           posCounts := sd.PositiveBucketCounts()   // []uint64
+			//           negOffset := sd.NegativeOffset()         // int32
+			//           negCounts := sd.NegativeBucketCounts()   // []uint64
+			//           count     := sd.Count()                  // uint64
+			//           sum       := sd.Sum()                    // float64
+			//       }
+			//   }
+			return nil
+		}
 	}
 
 	if !pb.pipelineConfig.Filter.Filter(sketch) {
@@ -581,7 +577,8 @@ func (pb *payloadsBuilderV3) writeDDSketchToTxn(sketch *metrics.SketchSeries) {
 
 	for _, pnt := range sketch.Points {
 		pb.writePointCommon(pnt.Ts)
-		bCnt, bMin, bMax, bSum, _ := pnt.Sketch.BasicStats()
+		dd := pnt.Sketch.(metrics.DDSketchProvider)
+		bCnt, bMin, bMax, bSum, _ := dd.BasicStats()
 
 		switch valueType {
 		case valueZero:
@@ -606,7 +603,7 @@ func (pb *payloadsBuilderV3) writeDDSketchToTxn(sketch *metrics.SketchSeries) {
 		pb.txn.Sint64(columnValueSint64, bCnt)
 		pb.stats.valuesSint64++
 
-		k, n := pnt.Sketch.Cols()
+		k, n := dd.Cols()
 		kDelta := deltaEncoder{}
 		for i := range k {
 			pb.txn.Sint64(columnSketchBinKeys, kDelta.encode(int64(k[i])))

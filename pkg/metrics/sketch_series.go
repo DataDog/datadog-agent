@@ -13,23 +13,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
-// SketchKind discriminates the type of data in a SketchPoint.
-// Defined as a type alias so that implementations in other modules
-// (e.g. pkg/util/quantile) can satisfy the SketchData interface
-// by returning plain uint8 without importing this package.
-type SketchKind = uint8
-
-const (
-	// SketchKindDDSketch is the default DDSketch type.
-	SketchKindDDSketch SketchKind = 0
-	// SketchKindExplicitBound carries raw OTel explicit-bound histogram points.
-	SketchKindExplicitBound SketchKind = 1
-	// SketchKindExponential carries raw OTel exponential histogram points.
-	SketchKindExponential SketchKind = 2
-)
-
 // A SketchSeries is a timeseries of quantile sketches or native OTel histograms.
-// The Kind of data is determined per-point via SketchPoint.Sketch.Kind().
+// The concrete type behind each SketchPoint.Sketch determines the kind of data;
+// use a Go type switch to discriminate (DDSketchProvider, ExplicitBoundProvider,
+// ExponentialProvider).
 type SketchSeries struct {
 	Name       string               `json:"metric"`
 	Tags       tagset.CompositeTags `json:"tags"`
@@ -59,29 +46,58 @@ func (sl SketchSeries) String() string {
 	return reqBody.String()
 }
 
-// SketchData is the interface the serializer uses to read sketch content.
-// It is satisfied by *quantile.Sketch (DDSketch) and the OTel histogram
-// wrapper types ExplicitBoundHistogramPoint / ExponentialHistogramPoint.
-//
-// All method signatures use primitive types so that implementations in
-// separate Go modules (e.g. pkg/util/quantile) can satisfy it without
-// importing this package.
+// SketchData is the minimal interface every sketch point must satisfy.
+// The serializer uses Go type switches on the capability interfaces below
+// (DDSketchProvider, ExplicitBoundProvider, ExponentialProvider) to access
+// kind-specific data without importing source-model packages.
 type SketchData interface {
-	// Kind returns the sketch type: SketchKindDDSketch, SketchKindExplicitBound, or SketchKindExponential.
-	Kind() SketchKind
-
-	// Cols returns bin keys and per-bin counts in ascending key order.
-	// Only meaningful for DDSketch; other kinds return nil, nil.
-	Cols() (k []int32, n []uint32)
-
-	// BasicStats returns the five summary fields used in the wire format.
-	// Only meaningful for DDSketch; other kinds return zeros.
-	BasicStats() (cnt int64, min, max, sum, avg float64)
-
 	// SummaryValues returns min, max, sum for the data point.
 	// Used by the V3 serializer to determine the narrowest value encoding
 	// across all points in a series before writing.
 	SummaryValues() (min, max, sum float64)
+}
+
+// DDSketchProvider gives access to DDSketch bin data and summary statistics.
+// Satisfied by *quantile.Sketch and the dogstatsd HTTP sketch iterator.
+type DDSketchProvider interface {
+	SketchData
+	Cols() (k []int32, n []uint32)
+	BasicStats() (cnt int64, min, max, sum, avg float64)
+}
+
+// ExplicitBoundProvider gives access to an explicit-boundary histogram's
+// buckets and summary statistics. The method signatures use only primitive
+// and slice types so that implementors need not import this package.
+type ExplicitBoundProvider interface {
+	SketchData
+	ExplicitBounds() []float64
+	BucketCounts() []uint64
+	Count() uint64
+	HasSum() bool
+	Sum() float64
+	HasMin() bool
+	Min() float64
+	HasMax() bool
+	Max() float64
+}
+
+// ExponentialProvider gives access to an exponential histogram's scale,
+// zero bucket, positive/negative bucket arrays, and summary statistics.
+type ExponentialProvider interface {
+	SketchData
+	Scale() int32
+	ZeroCount() uint64
+	PositiveOffset() int32
+	PositiveBucketCounts() []uint64
+	NegativeOffset() int32
+	NegativeBucketCounts() []uint64
+	Count() uint64
+	HasSum() bool
+	Sum() float64
+	HasMin() bool
+	Min() float64
+	HasMax() bool
+	Max() float64
 }
 
 // A SketchPoint represents a quantile sketch at a specific time

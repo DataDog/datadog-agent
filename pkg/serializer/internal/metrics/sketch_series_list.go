@@ -183,8 +183,10 @@ func (pb *payloadsBuilder) startPayload() error {
 }
 
 func (pb *payloadsBuilder) writeSketch(ss *metrics.SketchSeries) error {
-	if len(ss.Points) > 0 && ss.Points[0].Sketch.Kind() != metrics.SketchKindDDSketch {
-		return nil
+	if len(ss.Points) > 0 {
+		if _, ok := ss.Points[0].Sketch.(metrics.DDSketchProvider); !ok {
+			return nil
+		}
 	}
 	// constants for the protobuf data we will be writing, taken from
 	// https://github.com/DataDog/agent-payload/v5/blob/a2cd634bc9c088865b75c6410335270e6d780416/proto/metrics/agent_payload.proto#L47-L81
@@ -263,8 +265,9 @@ func (pb *payloadsBuilder) writeSketch(ss *metrics.SketchSeries) error {
 
 		for _, p := range ss.Points {
 			err = ps.Embedded(sketchDogsketches, func(ps *molecule.ProtoStream) error {
-				k, n := p.Sketch.Cols()
-				bCnt, bMin, bMax, bSum, bAvg := p.Sketch.BasicStats()
+				dd := p.Sketch.(metrics.DDSketchProvider)
+				k, n := dd.Cols()
+				bCnt, bMin, bMax, bSum, bAvg := dd.BasicStats()
 
 				err = ps.Int64(dogsketchTs, p.Ts)
 				if err != nil {

@@ -56,10 +56,11 @@ func TestSketchIterator(t *testing.T) {
 
 	pt := s.Points[0]
 	require.Equal(t, int64(1000), pt.Ts)
-	k, n := pt.Sketch.Cols()
+	dd := pt.Sketch.(metrics.DDSketchProvider)
+	k, n := dd.Cols()
 	require.Equal(t, []int32{0, 2}, k)
 	require.Equal(t, []uint32{1, 1}, n)
-	cnt, min, max, sum, avg := pt.Sketch.BasicStats()
+	cnt, min, max, sum, avg := dd.BasicStats()
 	require.Equal(t, int64(2), cnt)
 	require.Equal(t, 1.0, min)
 	require.Equal(t, 3.0, max)
@@ -68,10 +69,11 @@ func TestSketchIterator(t *testing.T) {
 
 	pt = s.Points[1]
 	require.Equal(t, int64(2000), pt.Ts)
-	k, n = pt.Sketch.Cols()
+	dd = pt.Sketch.(metrics.DDSketchProvider)
+	k, n = dd.Cols()
 	require.Equal(t, []int32{1}, k)
 	require.Equal(t, []uint32{3}, n)
-	cnt, min, max, sum, avg = pt.Sketch.BasicStats()
+	cnt, min, max, sum, avg = dd.BasicStats()
 	require.Equal(t, int64(3), cnt)
 	require.Equal(t, 2.0, min)
 	require.Equal(t, 4.0, max)
@@ -86,10 +88,11 @@ func TestSketchIterator(t *testing.T) {
 
 	pt = s.Points[0]
 	require.Equal(t, int64(3000), pt.Ts)
-	k, n = pt.Sketch.Cols()
+	dd = pt.Sketch.(metrics.DDSketchProvider)
+	k, n = dd.Cols()
 	require.Empty(t, k)
 	require.Empty(t, n)
-	cnt, min, max, sum, avg = pt.Sketch.BasicStats()
+	cnt, min, max, sum, avg = dd.BasicStats()
 	require.Equal(t, int64(5), cnt)
 	require.Equal(t, 0.0, min)
 	require.Equal(t, 0.0, max)

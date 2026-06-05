@@ -13,15 +13,13 @@ import (
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/dogstatsdhttp"
 )
 
-// sketchData implements metrics.SketchData from reader-provided sketch columns and summary.
+// sketchData satisfies metrics.DDSketchProvider from reader-provided sketch columns and summary.
 type sketchData struct {
 	k                  []int32
 	n                  []uint32
 	cnt                int64
 	min, max, sum, avg float64
 }
-
-func (s *sketchData) Kind() uint8 { return 0 } // DDSketch
 
 func (s *sketchData) Cols() ([]int32, []uint32) {
 	return s.k, s.n

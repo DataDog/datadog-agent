@@ -177,19 +177,13 @@ func (s *Sketch) Equals(o *Sketch) bool {
 	return true
 }
 
-// Kind returns 0 (DDSketch). It implements the metrics.SketchData interface.
-// Returns uint8 to avoid importing pkg/metrics (which would create a circular
-// module dependency).
-func (s *Sketch) Kind() uint8 { return 0 }
-
 // BasicStats returns the five summary fields used by the serializer.
-// It implements the metrics.SketchData interface.
+// Together with Cols and SummaryValues, it satisfies metrics.DDSketchProvider.
 func (s *Sketch) BasicStats() (cnt int64, min, max, sum, avg float64) {
 	return s.Basic.Cnt, s.Basic.Min, s.Basic.Max, s.Basic.Sum, s.Basic.Avg
 }
 
-// SummaryValues returns min, max, sum. It implements the metrics.SketchData
-// interface for V3 value-type pre-scanning.
+// SummaryValues returns min, max, sum for V3 value-type pre-scanning.
 func (s *Sketch) SummaryValues() (min, max, sum float64) {
 	return s.Basic.Min, s.Basic.Max, s.Basic.Sum
 }

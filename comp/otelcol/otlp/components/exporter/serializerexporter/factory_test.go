@@ -121,11 +121,13 @@ func TestNativeHistogramFeatureGateWiring(t *testing.T) {
 
 	assert.Eventually(t, func() bool {
 		for _, s := range mock.sketches {
-			if len(s.Points) > 0 && s.Points[0].Sketch.Kind() == metrics.SketchKindExplicitBound {
-				return true
+			if len(s.Points) > 0 {
+				if _, ok := s.Points[0].Sketch.(metrics.ExplicitBoundProvider); ok {
+					return true
+				}
 			}
 		}
 		return false
 	}, 5*time.Second, 10*time.Millisecond,
-		"with NativeHistogramFeatureGate ON, delta explicit-bound histograms should flow through SendSketch as SketchKindExplicitBound")
+		"with NativeHistogramFeatureGate ON, delta explicit-bound histograms should flow through SendSketch as ExplicitBoundProvider")
 }

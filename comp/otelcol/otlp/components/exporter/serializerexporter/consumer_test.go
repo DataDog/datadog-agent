@@ -278,10 +278,10 @@ func TestSendHistograms(t *testing.T) {
 		if len(s.Points) == 0 {
 			continue
 		}
-		switch s.Points[0].Sketch.Kind() {
-		case metrics.SketchKindExplicitBound:
+		switch s.Points[0].Sketch.(type) {
+		case metrics.ExplicitBoundProvider:
 			explicit = append(explicit, s)
-		case metrics.SketchKindExponential:
+		case metrics.ExponentialProvider:
 			exponential = append(exponential, s)
 		}
 	}
@@ -291,17 +291,17 @@ func TestSendHistograms(t *testing.T) {
 	assert.Equal(t, "testhost", explicit[0].Host)
 	assert.Equal(t, int64(10), explicit[0].Interval)
 	require.Len(t, explicit[0].Points, 1)
-	ep := explicit[0].Points[0].Sketch.(*metrics.ExplicitBoundHistogramPoint)
-	assert.Equal(t, uint64(11), ep.Point.Count())
-	assert.Equal(t, 42.0, ep.Point.Sum())
+	ep := explicit[0].Points[0].Sketch.(metrics.ExplicitBoundProvider)
+	assert.Equal(t, uint64(11), ep.Count())
+	assert.Equal(t, 42.0, ep.Sum())
 
 	require.Len(t, exponential, 1)
 	assert.Equal(t, "test.exp.histogram", exponential[0].Name)
 	assert.Equal(t, "testhost", exponential[0].Host)
 	require.Len(t, exponential[0].Points, 1)
-	xp := exponential[0].Points[0].Sketch.(*metrics.ExponentialHistogramPoint)
-	assert.Equal(t, uint64(65), xp.Point.Count())
-	assert.Equal(t, int32(4), xp.Point.Scale())
+	xp := exponential[0].Points[0].Sketch.(metrics.ExponentialProvider)
+	assert.Equal(t, uint64(65), xp.Count())
+	assert.Equal(t, int32(4), xp.Scale())
 }
 
 func TestSendHistograms_Empty(t *testing.T) {
@@ -341,10 +341,10 @@ func TestSendHistograms_Multiple(t *testing.T) {
 		if len(s.Points) == 0 {
 			continue
 		}
-		switch s.Points[0].Sketch.Kind() {
-		case metrics.SketchKindExplicitBound:
+		switch s.Points[0].Sketch.(type) {
+		case metrics.ExplicitBoundProvider:
 			explicit = append(explicit, s)
-		case metrics.SketchKindExponential:
+		case metrics.ExponentialProvider:
 			exponential = append(exponential, s)
 		}
 	}

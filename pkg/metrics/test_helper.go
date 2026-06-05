@@ -83,8 +83,8 @@ func AssertSerieEqual(t *testing.T, expected, actual *Serie) {
 	AssertPointsEqual(t, expected.Points, actual.Points)
 }
 
-// SketchesEqual checks whether two SketchData values are exactly equal.
-func SketchesEqual(exp, act SketchData) bool {
+// SketchesEqual checks whether two DDSketchProvider values are exactly equal.
+func SketchesEqual(exp, act DDSketchProvider) bool {
 	expCnt, expMin, expMax, expSum, expAvg := exp.BasicStats()
 	actCnt, actMin, actMax, actSum, actAvg := act.BasicStats()
 
@@ -113,8 +113,8 @@ func almostEqual(a, b, e float64) bool {
 	return math.Abs((a-b)/a) <= e
 }
 
-// SketchesApproxEqual checks whether two SketchData values are approximately equal.
-func SketchesApproxEqual(exp, act SketchData, e float64) bool {
+// SketchesApproxEqual checks whether two DDSketchProvider values are approximately equal.
+func SketchesApproxEqual(exp, act DDSketchProvider, e float64) bool {
 	expCnt, expMin, expMax, expSum, expAvg := exp.BasicStats()
 	actCnt, actMin, actMax, actSum, actAvg := act.BasicStats()
 
@@ -154,18 +154,18 @@ func SketchesApproxEqual(exp, act SketchData, e float64) bool {
 	return true
 }
 
-type sketchComparator func(exp, act SketchData) bool
+type sketchComparator func(exp, act DDSketchProvider) bool
 
 // AssertSketchSeriesEqual checks whether two SketchSeries are equal
 func AssertSketchSeriesEqual(t assert.TestingT, exp, act *SketchSeries) {
-	assertSketchSeriesEqualWithComparator(t, exp, act, func(exp, act SketchData) bool {
+	assertSketchSeriesEqualWithComparator(t, exp, act, func(exp, act DDSketchProvider) bool {
 		return SketchesEqual(exp, act)
 	})
 }
 
 // AssertSketchSeriesApproxEqual checks whether two SketchSeries are approximately equal. e represents the acceptable error %
 func AssertSketchSeriesApproxEqual(t assert.TestingT, exp, act *SketchSeries, e float64) {
-	assertSketchSeriesEqualWithComparator(t, exp, act, func(exp, act SketchData) bool {
+	assertSketchSeriesEqualWithComparator(t, exp, act, func(exp, act DDSketchProvider) bool {
 		return SketchesApproxEqual(exp, act, e)
 	})
 }
@@ -209,7 +209,13 @@ func assertSketchSeriesEqualWithComparator(t assert.TestingT, exp, act *SketchSe
 			if a.Ts != e.Ts {
 				t.Errorf("Mismatched timestamps [%d]: %s != %s", e.Ts, a.Sketch, e.Sketch)
 			}
-			if !compareFn(a.Sketch, e.Sketch) {
+			aDD, aOK := a.Sketch.(DDSketchProvider)
+			eDD, eOK := e.Sketch.(DDSketchProvider)
+			if !aOK || !eOK {
+				t.Errorf("Points[%d]: expected DDSketchProvider, got %T / %T", e.Ts, a.Sketch, e.Sketch)
+				continue
+			}
+			if !compareFn(aDD, eDD) {
 				t.Errorf("Points[%d]: %s != %s", e.Ts, a.Sketch, e.Sketch)
 			}
 		}
