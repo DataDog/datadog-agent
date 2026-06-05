@@ -55,6 +55,7 @@ go_test(
         "//pkg/fleet/installer",
         "//pkg/fleet/installer/config",
         "//pkg/fleet/installer/env",
+        "//pkg/fleet/installer/errors",
         "//pkg/fleet/installer/repository",
         "//pkg/proto/pbgo/core",
         "//pkg/remoteconfig/state",
