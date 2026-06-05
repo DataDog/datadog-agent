@@ -585,6 +585,7 @@ exports_files(glob(
 # gazelle:exclude test/e2e-framework/scenarios/aws/gensim-eks
 # gazelle:exclude test/e2e-framework/scenarios/aws/installer
 # gazelle:exclude test/e2e-framework/scenarios/aws/kindvm
+# gazelle:exclude test/e2e-framework/scenarios/aws/kubeadm
 # gazelle:exclude test/e2e-framework/scenarios/aws/microVMs/config
 # gazelle:exclude test/e2e-framework/scenarios/aws/microVMs/microvms/files
 # gazelle:exclude test/e2e-framework/scenarios/aws/test
