@@ -29,6 +29,7 @@ go_test(
     name = "exec_test",
     srcs = ["installer_exec_windows_test.go"],
     embed = [":exec"],
+    gotags = ["test"],
     deps = select({
         "@rules_go//go/platform:windows": [
             "//pkg/fleet/installer/env",
