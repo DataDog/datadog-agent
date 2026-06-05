@@ -50,7 +50,9 @@ type subscriber struct {
 func (w *workloadmeta) start(ctx context.Context) {
 	w.firstCollectorReady = make(chan struct{})
 
+	w.startWg.Add(1)
 	go func() {
+		defer w.startWg.Done()
 		health := health.RegisterLiveness("workloadmeta-store")
 		for {
 			select {
@@ -73,13 +75,17 @@ func (w *workloadmeta) start(ctx context.Context) {
 	// Start collectors in the background so we don't block the pull goroutine
 	// for the full retry duration (which can cause E2E timeouts when context
 	// is cancelled during slow startup).
+	w.startWg.Add(1)
 	go func() {
+		defer w.startWg.Done()
 		if err := w.startCandidatesWithRetry(ctx); err != nil {
 			w.log.Errorf("error starting collectors: %s", err)
 		}
 	}()
 
+	w.startWg.Add(1)
 	go func() {
+		defer w.startWg.Done()
 		pullTicker := time.NewTicker(minCollectorPullInterval)
 
 		// Wait for at least one collector or timeout before first pull, so we
