@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "client.go",
         "config.go",
+        "mock_remote_client.go",
         "peer_tags.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/trace/config",
@@ -17,6 +18,7 @@ go_library(
         "//pkg/trace/log",
         "//pkg/trace/semantics",
         "//pkg/trace/traceutil",
+        "@org_uber_go_mock//gomock",
     ],
 )
 

@@ -4,7 +4,6 @@ go_library(
     name = "remoteconfighandler",
     srcs = [
         "agent_failover.go",
-        "mock_remote_client.go",
         "mock_samplers.go",
         "remote_config_handler.go",
     ],
