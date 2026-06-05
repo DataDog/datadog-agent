@@ -24,6 +24,11 @@ type mockNetworkConfigManagement struct {
 	devices map[string]*config.DeviceInstance
 }
 
+// RollbackEndpointHandler implements [networkconfigmanagement.Component].
+func (m *mockNetworkConfigManagement) RollbackEndpointHandler() http.HandlerFunc {
+	panic("unimplemented")
+}
+
 // GetConfigEndpointHandler implements [networkconfigmanagement.Component].
 func (m *mockNetworkConfigManagement) GetConfigEndpointHandler() http.HandlerFunc {
 	panic("unimplemented")

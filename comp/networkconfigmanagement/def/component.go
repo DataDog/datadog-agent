@@ -34,4 +34,6 @@ type Component interface {
 	SetMaxReportInterval(interval time.Duration)
 	// GetConfigEndpointHandler returns an HTTP handler for getting configuration
 	GetConfigEndpointHandler() http.HandlerFunc
+	// RollbackEndpointHandler returns an HTTP handler for getting configuration
+	RollbackEndpointHandler() http.HandlerFunc
 }

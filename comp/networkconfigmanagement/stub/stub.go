@@ -37,3 +37,8 @@ func (s *NCMStub) GetConfigEndpointHandler() http.HandlerFunc {
 		http.Error(w, `{"error": "ncm rollbacks not available for agent"}`, http.StatusBadRequest)
 	}
 }
+
+// RollbackEndpointHandler implements [networkconfigmanagement.Component].
+func (s *NCMStub) RollbackEndpointHandler() http.HandlerFunc {
+	return s.GetConfigEndpointHandler()
+}

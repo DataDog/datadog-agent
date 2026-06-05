@@ -35,6 +35,7 @@ type Provides struct {
 
 	Comp              option.Option[networkconfigmanagement.Component]
 	GetConfigEndpoint api.EndpointProvider `group:"agent_endpoint"`
+	RollbackEndpoint  api.EndpointProvider `group:"agent_endpoint"`
 }
 
 // Requires defines the dependencies for the networkconfigmanagement component
@@ -60,6 +61,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 	return Provides{
 		Comp:              option.New(comp),
 		GetConfigEndpoint: api.NewAgentEndpointProvider(comp.GetConfigEndpointHandler(), "/ncm/config", "GET").Provider,
+		RollbackEndpoint:  api.NewAgentEndpointProvider(comp.RollbackEndpointHandler(), "/ncm/rollback", "POST").Provider,
 	}, nil
 
 }
