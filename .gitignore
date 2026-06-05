@@ -256,7 +256,8 @@ AUTO_JIRA.md
 pkg/config/schema/compressed/*.zstd
 .python-nix-home
 .venv-nix
-flake.lock
+# Track the Nix flake.lock (source of truth for toolchain provenance)
+!flake.lock
 
 # Nix dev shell writable tool caches (populated by nix develop / install-tools)
 /.gobin/
