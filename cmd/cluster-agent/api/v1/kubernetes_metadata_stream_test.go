@@ -474,14 +474,31 @@ func TestProcessKueueQueueEvents(t *testing.T) {
 	})
 
 	snapshot := srv.buildKueueQueuesSnapshot()
-	entry := snapshot["ns1/local-a"]
+	entry := snapshot["localqueue/ns1/local-a"]
 	assert.Equal(t, "ns1", entry.namespace)
-	assert.Equal(t, "local-a", entry.localQueue)
-	assert.ElementsMatch(t, []string{
-		"kube_namespace:ns1",
-		"kueue_cluster_queue:cluster-a",
-		"kueue_local_queue:local-a",
-	}, entry.tags.Low)
+	assert.Equal(t, "local-a", entry.name)
+	assert.Equal(t, workloadmeta.KueueLocalQueue, entry.queueType)
+	assert.Equal(t, "cluster-a", entry.clusterQueueName)
+
+	srv.processWmetaEvents([]workloadmeta.Event{
+		{
+			Type: workloadmeta.EventTypeSet,
+			Entity: &workloadmeta.KubernetesKueueQueue{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindKubernetesKueueQueue,
+					ID:   "clusterqueue//cluster-a",
+				},
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: "cluster-a",
+				},
+				QueueType:        workloadmeta.KueueClusterQueue,
+				ClusterQueueName: "cluster-a",
+			},
+		},
+	})
+	entry = srv.buildKueueQueuesSnapshot()["clusterqueue//cluster-a"]
+	assert.Equal(t, "cluster-a", entry.name)
+	assert.Equal(t, workloadmeta.KueueClusterQueue, entry.queueType)
 
 	srv.processWmetaEvents([]workloadmeta.Event{
 		{
@@ -498,52 +515,62 @@ func TestProcessKueueQueueEvents(t *testing.T) {
 				QueueType: workloadmeta.KueueLocalQueue,
 			},
 		},
+		{
+			Type: workloadmeta.EventTypeUnset,
+			Entity: &workloadmeta.KubernetesKueueQueue{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindKubernetesKueueQueue,
+					ID:   "clusterqueue//cluster-a",
+				},
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: "cluster-a",
+				},
+				QueueType: workloadmeta.KueueClusterQueue,
+			},
+		},
 	})
 
 	assert.Empty(t, srv.buildKueueQueuesSnapshot())
 }
 
-func TestComputeKueueQueueTagsDiff(t *testing.T) {
-	old := map[string]kueueQueueTagsEntry{
-		"ns1/local-a": {
-			namespace:  "ns1",
-			localQueue: "local-a",
-			tags: workloadmeta.KueueQueueTags{
-				Low: []string{"kueue_local_queue:local-a"},
-			},
+func TestComputeKueueQueueDiff(t *testing.T) {
+	old := map[string]kueueQueueEntry{
+		"localqueue/ns1/local-a": {
+			namespace: "ns1",
+			name:      "local-a",
+			queueType: workloadmeta.KueueLocalQueue,
+			labels:    map[string]string{"queue": "old"},
 		},
-		"ns1/local-b": {
-			namespace:  "ns1",
-			localQueue: "local-b",
-			tags: workloadmeta.KueueQueueTags{
-				Low: []string{"kueue_local_queue:local-b"},
-			},
+		"localqueue/ns1/local-b": {
+			namespace: "ns1",
+			name:      "local-b",
+			queueType: workloadmeta.KueueLocalQueue,
 		},
 	}
-	current := map[string]kueueQueueTagsEntry{
-		"ns1/local-a": {
-			namespace:  "ns1",
-			localQueue: "local-a",
-			tags: workloadmeta.KueueQueueTags{
-				Low: []string{"kueue_local_queue:local-a", "kueue_cluster_queue:cluster-a"},
-			},
+	current := map[string]kueueQueueEntry{
+		"localqueue/ns1/local-a": {
+			namespace: "ns1",
+			name:      "local-a",
+			queueType: workloadmeta.KueueLocalQueue,
+			labels:    map[string]string{"queue": "new"},
 		},
 	}
 
-	diff := computeKueueQueueTagsDiff(old, current)
+	diff := computeKueueQueueDiff(old, current)
 
-	assert.ElementsMatch(t, []*pb.KueueQueueTags{
+	assert.ElementsMatch(t, []*pb.KueueQueue{
 		{
-			Namespace:          "ns1",
-			LocalQueue:         "local-a",
-			LowCardinalityTags: []string{"kueue_local_queue:local-a", "kueue_cluster_queue:cluster-a"},
-			Type:               pb.KubeMetadataEventType_SET,
+			Namespace: "ns1",
+			Name:      "local-a",
+			QueueType: pb.KueueQueueType_LOCAL_QUEUE,
+			Labels:    map[string]string{"queue": "new"},
+			Type:      pb.KubeMetadataEventType_SET,
 		},
 		{
-			Namespace:          "ns1",
-			LocalQueue:         "local-b",
-			LowCardinalityTags: []string{"kueue_local_queue:local-b"},
-			Type:               pb.KubeMetadataEventType_UNSET,
+			Namespace: "ns1",
+			Name:      "local-b",
+			QueueType: pb.KueueQueueType_LOCAL_QUEUE,
+			Type:      pb.KubeMetadataEventType_UNSET,
 		},
 	}, diff)
 }

@@ -9,6 +9,11 @@ enum KubeMetadataEventType {
   UNSET = 1;
 }
 
+enum KueueQueueType {
+  LOCAL_QUEUE = 0;
+  CLUSTER_QUEUE = 1;
+}
+
 message KubeMetadataStreamRequest {
   string node_name = 1;
 }
@@ -27,19 +32,20 @@ message NamespaceMetadata {
   KubeMetadataEventType type = 4;
 }
 
-message KueueQueueTags {
+message KueueQueue {
   string namespace = 1;
-  string local_queue = 2;
-  repeated string low_cardinality_tags = 3;
-  repeated string orchestrator_cardinality_tags = 4;
-  repeated string high_cardinality_tags = 5;
-  repeated string standard_tags = 6;
-  KubeMetadataEventType type = 7;
+  string name = 2;
+  KueueQueueType queue_type = 3;
+  string cluster_queue = 4;
+  map<string, string> labels = 5;
+  map<string, string> annotations = 6;
+  string uid = 7;
+  KubeMetadataEventType type = 8;
 }
 
 message KubeMetadataStreamResponse {
   bool is_full_state = 1;
   repeated PodServiceMapping mappings = 2;
   repeated NamespaceMetadata namespace_metadata = 3;
-  repeated KueueQueueTags kueue_queue_tags = 4;
+  repeated KueueQueue kueue_queues = 4;
 }
