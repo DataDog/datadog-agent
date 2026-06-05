@@ -191,8 +191,7 @@ mod tests {
                 name_or_uuid: String::new(),
             })
             .await
-            .err()
-            .expect("expected invalid_argument");
+            .expect_err("expected invalid_argument");
         assert_eq!(err.code(), tonic::Code::InvalidArgument);
     }
 
