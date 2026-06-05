@@ -2,6 +2,46 @@
 Release Notes
 =============
 
+.. _Release Notes_7.79.2:
+
+7.79.2
+======
+
+.. _Release Notes_7.79.2_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-06-03
+Pinned to datadog-agent v7.79.2: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7792>`_.
+
+
+.. _Release Notes_7.79.2_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Cluster Agent: Evaluate AppSec sidecar admission webhook match conditions
+  against the deleted object for pod deletion requests.
+
+- Cluster Agent: Prevent disabled AppSec proxy injection cleanup from enabling
+  the AppSec sidecar admission webhook.
+
+
+.. _Release Notes_7.79.1:
+
+7.79.1
+======
+
+.. _Release Notes_7.79.1_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-05-28
+Pinned to datadog-agent v7.79.1: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7791>`_.
+
+
 .. _Release Notes_7.79.0:
 
 7.79.0
