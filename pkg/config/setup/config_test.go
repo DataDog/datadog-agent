@@ -72,6 +72,7 @@ func TestDefaults(t *testing.T) {
 
 	assert.True(t, config.GetBool("logs_config.tag_multi_line_logs"))
 	assert.True(t, config.GetBool("logs_config.tag_truncated_logs"))
+	assert.Equal(t, "registry.datadoghq.com", config.GetString("admission_controller.container_registry"))
 }
 
 func TestUnexpectedUnicode(t *testing.T) {

@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    The Cluster Agent admission controller now defaults to ``registry.datadoghq.com`` for injected Datadog images.
+    Existing ``admission_controller.container_registry`` overrides continue to be honored.
