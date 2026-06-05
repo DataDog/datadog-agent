@@ -2046,7 +2046,7 @@ func TestCheckKnownKeyConcurrentAccess(t *testing.T) {
 	assert.True(t, cfg.GetBool("known_key"))
 }
 
-func TestSkipEnvLayer(t *testing.T) {
+func TestClearEnvVars(t *testing.T) {
 	t.Setenv("TEST_A", "from-env")
 	t.Setenv("TEST_B", "from-env")
 
@@ -2060,7 +2060,7 @@ func TestSkipEnvLayer(t *testing.T) {
 	assert.Equal(t, "from-env", cfg.GetString("a"))
 	assert.Equal(t, model.SourceEnvVar, cfg.GetSource("a"))
 
-	cfg.(*ntmConfig).SkipEnvLayer()
+	cfg.(*ntmConfig).ClearEnvVars()
 
 	assert.Equal(t, "default-a", cfg.GetString("a"))
 	assert.Equal(t, model.SourceDefault, cfg.GetSource("a"))

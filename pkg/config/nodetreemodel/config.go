@@ -121,7 +121,7 @@ type ntmConfig struct {
 	configEnvVars map[string][]string
 
 	// when true, buildEnvVars produces an empty env layer instead of reading os.LookupEnv
-	skipEnvLayer atomic.Bool
+	envVarsCleared atomic.Bool
 
 	// known keys are the set of valid keys to get either leaf or inner node values
 	// they are defined by one of (1) SetDefault (2) BindEnv (3) SetKnown
@@ -617,7 +617,7 @@ func (c *ntmConfig) isReady() bool {
 }
 
 func (c *ntmConfig) buildEnvVars() {
-	if c.skipEnvLayer.Load() {
+	if c.envVarsCleared.Load() {
 		c.envs = newInnerNode(nil)
 		return
 	}
@@ -641,11 +641,12 @@ func (c *ntmConfig) buildEnvVars() {
 	c.warnings = append(c.warnings, envWarnings...)
 }
 
-// SkipEnvLayer clears the env layer and prevents future rebuilds from repopulating it.
-func (c *ntmConfig) SkipEnvLayer() {
+// ClearEnvVars empties the env layer and re-merges. The envVarsCleared flag guards against
+// repopulation if a test rebuilds the schema (production never rebuilds — see allowDynamicSchema).
+func (c *ntmConfig) ClearEnvVars() {
 	c.Lock()
 	defer c.Unlock()
-	c.skipEnvLayer.Store(true)
+	c.envVarsCleared.Store(true)
 	c.envs = newInnerNode(nil)
 	if c.isReady() {
 		if err := c.mergeAllLayers(); err != nil {

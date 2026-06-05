@@ -10,13 +10,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net"
 	"net/http"
 	_ "net/http/pprof" // activate pprof profiling
 	"os"
 	"os/signal"
 	"os/user"
-	"strconv"
 	"syscall"
 	"time"
 
@@ -47,7 +45,6 @@ import (
 	pid "github.com/DataDog/datadog-agent/comp/core/pid/def"
 	pidfx "github.com/DataDog/datadog-agent/comp/core/pid/fx"
 	pidimpl "github.com/DataDog/datadog-agent/comp/core/pid/impl"
-	remoteagent "github.com/DataDog/datadog-agent/comp/core/remoteagent/def"
 	remoteagentfx "github.com/DataDog/datadog-agent/comp/core/remoteagent/fx-systemprobe"
 	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	settings "github.com/DataDog/datadog-agent/comp/core/settings/def"
@@ -78,7 +75,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
-	"github.com/DataDog/datadog-agent/pkg/configstreambootstrap"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	ddruntime "github.com/DataDog/datadog-agent/pkg/runtime"
@@ -125,38 +121,22 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Short: "Run the System Probe",
 		Long:  `Runs the system-probe in the foreground`,
 		RunE: func(_ *cobra.Command, _ []string) error {
-			cfgstream := configstreambootstrap.IsEnabled(globalParams.DatadogConfFilePath())
-			var configParams config.Params
-			if cfgstream {
-				err := configstreambootstrap.Run(context.Background(), configstreambootstrap.Params{
-					ClientName:    systemProbeBootstrapClient,
-					CLIConfigPath: globalParams.DatadogConfFilePath(),
-				})
-				if err != nil {
-					return err
-				}
-				// NewParams instead of NewAgentParams: avoids a second InitConfigObjects
-				// that would wipe the snapshot the bootstrap just seeded.
-				configParams = config.NewParams(
-					config.DefaultConfPath,
-					config.WithConfFilePath(globalParams.DatadogConfFilePath()),
-					config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath),
-					config.WithConfigstreamEnabled(true),
-				)
-			} else {
-				configParams = config.NewAgentParams(globalParams.DatadogConfFilePath())
-			}
 			opts := []fx.Option{
 				fx.Invoke(func(_ log.Component) {
 					ddruntime.SetMaxProcs()
 				}),
-				fx.Supply(configParams),
+				fx.Supply(config.NewAgentParams(
+					globalParams.DatadogConfFilePath(),
+					config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath),
+				)),
 				fx.Supply(sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.ConfFilePath), sysprobeconfigimpl.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath))),
 				fx.Supply(pidimpl.NewParams(cliParams.pidfilePath)),
+				fx.Supply(configstreamconsumer.Params{
+					ClientName:    systemProbeBootstrapClient,
+					CLIConfigPath: globalParams.DatadogConfFilePath(),
+				}),
+				configstreamconsumerfx.Module(),
 				getSharedFxOption(),
-			}
-			if cfgstream {
-				opts = append(opts, configstreamFxOptions())
 			}
 			return fxutil.OneShot(run, opts...)
 		},
@@ -228,43 +208,6 @@ func getSharedFxOption() fx.Option {
 		eventplatformfx.Module(eventplatform.NewDefaultParams()),
 		rdnsquerierfx.Module(),
 		npcollectorfx.Module(),
-	)
-}
-
-// configstreamFxOptions returns FX options for the config stream consumer.
-// Only include this when remote_agent.configstream.consumer.enabled is true.
-func configstreamFxOptions() fx.Option {
-	return fx.Options(
-		// Expose config.Component as model.Writer for the config stream consumer to write remote config into.
-		fx.Provide(func(c config.Component) model.Writer {
-			return c
-		}),
-		// SessionIDProvider from RAR: only system-probe's remote agent implements this.
-		fx.Provide(func(ra remoteagent.Component) configstreamconsumer.SessionIDProvider {
-			if ra == nil {
-				return nil
-			}
-			if p, ok := ra.(configstreamconsumer.SessionIDProvider); ok {
-				return p
-			}
-			return nil
-		}),
-		fx.Provide(func(c config.Component, sessionProvider configstreamconsumer.SessionIDProvider) configstreamconsumer.Params {
-			host := c.GetString("cmd_host")
-			port := c.GetInt("cmd_port")
-			if port <= 0 {
-				port = 5001
-			}
-			return configstreamconsumer.Params{
-				ClientName:        "system-probe",
-				CoreAgentAddress:  net.JoinHostPort(host, strconv.Itoa(port)),
-				VSockAddr:         c.GetString("vsock_addr"),
-				SessionIDProvider: sessionProvider,
-			}
-		}),
-		configstreamconsumerfx.Module(),
-		// Trigger instantiation; OnStart handles the blocking wait internally.
-		fx.Invoke(func(_ configstreamconsumer.Component) {}),
 	)
 }
 

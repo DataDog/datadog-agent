@@ -14,12 +14,15 @@ import (
 	configstreamconsumer "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/def"
 )
 
-// Mock is a mock implementation of configstreamconsumer.Component
+// Mock is a mock implementation of configstreamconsumer.Component.
 type Mock struct {
-	t *testing.T
+	Active bool
 }
 
-// New creates a new mock configstreamconsumer component
-func New(t *testing.T) configstreamconsumer.Component {
-	return &Mock{t: t}
+// IsActive reports the configured Active flag.
+func (m *Mock) IsActive() bool { return m.Active }
+
+// New creates a new mock configstreamconsumer component.
+func New(_ *testing.T) configstreamconsumer.Component {
+	return &Mock{}
 }
