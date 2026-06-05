@@ -352,6 +352,66 @@ func TestGoStackTrace_AbandonBeforeAnyChunk(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// Timestamp / offset carry tests
+// ---------------------------------------------------------------------------
+
+// makeMsgTS builds a message carrying a per-line parser timestamp, mirroring
+// how the container/Docker tailer populates ParsingExtra.Timestamp.
+func makeMsgTS(content, ts string) *message.Message {
+	msg := makeMsg(content)
+	msg.ParsingExtra.Timestamp = ts
+	return msg
+}
+
+// When a trace is combined, the emitted message must carry the LAST combined
+// line's timestamp so downstream offset trackers advance past every folded
+// line; otherwise a reader restart replays lines 2..N as duplicates.
+func TestGoStackTrace_Combine_CarriesLastLineTimestamp(t *testing.T) {
+	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize)
+	lines := []struct{ content, ts string }{
+		{"panic: bad", "t0"},
+		{"", "t1"},
+		{"goroutine 1 [running]:", "t2"},
+		{"main.main()", "t3"},
+		{"\t/path/main.go:1 +0x1", "t4"},
+	}
+	var out []*message.Message
+	for _, l := range lines {
+		out = append(out, agg.Process(makeMsgTS(l.content, l.ts))...)
+	}
+	out = append(out, agg.Flush()...)
+	assertCombined(t, out)
+	assert.Equal(t, "t4", out[0].ParsingExtra.Timestamp,
+		"combined message must carry the last combined line's timestamp")
+}
+
+// When the trailing tentative lines are rolled back, the combined message must
+// carry the timestamp of the last COMMITTED line, not the rolled-back tail.
+func TestGoStackTrace_Combine_CarriesLastCommittedTimestampAfterRollback(t *testing.T) {
+	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize)
+	steps := []struct{ content, ts string }{
+		{"panic: bad", "t0"},
+		{"", "t1"},
+		{"goroutine 1 [running]:", "t2"},
+		{"main.foo()", "t3"},
+		{"\t/path/main.go:42 +0x1", "t4"},
+		{"exit status 2", "t5"}, // tentative, rolled back
+	}
+	var out []*message.Message
+	for _, s := range steps {
+		out = append(out, agg.Process(makeMsgTS(s.content, s.ts))...)
+	}
+	// Rejection triggers resolve with rollback of the tentative "exit status 2".
+	out = append(out, agg.Process(makeMsgTS("2024-01-01 INFO next log", "t6"))...)
+	require.Len(t, out, 3, "combined trace + rolled-back func + rejected line")
+	assert.True(t, out[0].ParsingExtra.IsMultiLine)
+	assert.Equal(t, "t4", out[0].ParsingExtra.Timestamp,
+		"combined message must carry the last committed line's timestamp, not the rolled-back tail")
+	assert.Equal(t, "t5", out[1].ParsingExtra.Timestamp,
+		"rolled-back line keeps its own timestamp")
+}
+
+// ---------------------------------------------------------------------------
 // Uncommitted rollback tests
 // ---------------------------------------------------------------------------
 

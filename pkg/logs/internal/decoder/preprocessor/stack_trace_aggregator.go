@@ -203,6 +203,13 @@ func (s *stackTraceAggregator) combine() {
 	out.RawDataLen = s.rawDataLen
 	out.ParsingExtra.IsMultiLine = true
 	out.ParsingExtra.Tags = append(out.ParsingExtra.Tags, message.MultiLineSourceTag("go_stack"))
+	// Carry the LAST combined line's parser timestamp so downstream offset
+	// trackers (the container/Docker tailer's lastSince, in particular) advance
+	// past every line folded into the trace. Without this, a reader restart
+	// resumes from the panic header's timestamp and replays lines 2..N of the
+	// trace as duplicates. messageBuf has already had any uncommitted tail
+	// stripped in resolve(), so the last entry is the final committed line.
+	out.ParsingExtra.Timestamp = s.messageBuf[len(s.messageBuf)-1].ParsingExtra.Timestamp
 
 	s.collected = append(s.collected, out)
 	s.resetBuffer()
