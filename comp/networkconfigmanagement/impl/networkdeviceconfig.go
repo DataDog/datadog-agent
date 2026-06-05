@@ -38,7 +38,6 @@ import (
 
 // CheckName is the name of the check
 const CheckName = "network_config_management"
-const noProfileMatch = "--no matching profile--"
 
 // Provides defines the output of the networkconfigmanagement component
 type Provides struct {
@@ -111,18 +110,31 @@ func newComponent(reqs Requires) (*networkDeviceConfigImpl, error) {
 		reqs.Lifecycle.Append(compdef.Hook{OnStop: store.Close})
 	}
 
-	impl := &networkDeviceConfigImpl{
-		log:             reqs.Logger,
-		store:           store,
-		sender:          sender,
-		deviceConfigs:   NewMap[*ncmconfig.DeviceInstance](),
-		lastReportTimes: NewMap[time.Time](),
-		hostname:        hostname,
-		profiles:        profiles,
-		connect:         ncmremote.ConnectOverSSH,
-		clock:           clock.New(),
-	}
+	impl := newNetworkDeviceConfigImpl(
+		reqs.Logger,
+		store,
+		sender,
+		hostname,
+		profiles,
+		ncmremote.ConnectOverSSH,
+		clock.New(),
+	)
 	return impl, nil
+}
+
+func newNetworkDeviceConfigImpl(log log.Component, store ncmstore.ConfigStore, sender sender.Sender, hostname string, profiles ncmprofile.Map, connectFn func(*ncmconfig.DeviceInstance) (ncmremote.Connection, error), clock clock.Clock) *networkDeviceConfigImpl {
+	return &networkDeviceConfigImpl{
+		log:              log,
+		store:            store,
+		sender:           sender,
+		deviceConfigs:    NewMap[*ncmconfig.DeviceInstance](),
+		lastReportTimes:  NewMap[time.Time](),
+		detectedProfiles: NewMap[*ncmprofile.NCMProfile](),
+		hostname:         hostname,
+		profiles:         profiles,
+		connect:          connectFn,
+		clock:            clock,
+	}
 }
 
 type networkDeviceConfigImpl struct {
@@ -132,7 +144,8 @@ type networkDeviceConfigImpl struct {
 
 	// deviceConfigs maps deviceIDs to their data. It is populated by check
 	// instances calling RegisterDevice
-	deviceConfigs *Map[*ncmconfig.DeviceInstance]
+	deviceConfigs    *Map[*ncmconfig.DeviceInstance]
+	detectedProfiles *Map[*ncmprofile.NCMProfile]
 	// lastReportTimes maps a deviceID to the timestamp of the last time a
 	// config report was requested for that deviceID.
 	lastReportTimes       *Map[time.Time]
@@ -197,6 +210,48 @@ func (n *networkDeviceConfigImpl) retrieveAndStoreConfig(
 	return &conf, stored, nil
 }
 
+// getSavedProfileForDevice returns the profile for this device, if known. If
+// explicitOnly is true, then it will only return a profile if the device is
+// explicitly configured with one; otherwise, it will return a previously
+// detected profile if we have one. A return value of (nil, nil), i.e. no
+// profile but no error, means that we don't yet have a profile for this device
+// but we haven't tested to see if any of our known profiles work.
+func (n *networkDeviceConfigImpl) getSavedProfileForDevice(device *ncmconfig.DeviceInstance, explicitOnly bool) (prof *ncmprofile.NCMProfile, err error) {
+	deviceID := device.DeviceID()
+	if device.Profile != "" {
+		knownProfile, ok := n.profiles[device.Profile]
+		if !ok {
+			// device is explicitly configured with a profile we don't know
+			return nil, fmt.Errorf("nonexistent NCM profile %q specified for device %s", device.Profile, deviceID)
+		}
+		return knownProfile, nil
+	}
+	if explicitOnly {
+		return nil, fmt.Errorf("no profile configured for device %s", deviceID)
+	}
+	profile, ok := n.detectedProfiles.Load(deviceID)
+	if ok {
+		if profile == nil {
+			// explicit nil indicates that we've already tried to detect a profile and failed.
+			return nil, fmt.Errorf("no matching NCM profile for device %s", deviceID)
+		}
+		return profile, nil
+	}
+	// nil, nil means we don't have a profile for this device but we might find one if we try to detect it.
+	return nil, nil
+}
+
+// saveDetectedProfileForDevice records the profile we've detected for a device.
+func (n *networkDeviceConfigImpl) saveDetectedProfileForDevice(device *ncmconfig.DeviceInstance, prof *ncmprofile.NCMProfile) {
+	n.detectedProfiles.Store(device.DeviceID(), prof)
+}
+
+// saveNoProfileForDevice records that we've tried all our profiles for this
+// device and none of them worked.
+func (n *networkDeviceConfigImpl) saveNoProfileForDevice(device *ncmconfig.DeviceInstance) {
+	n.detectedProfiles.Store(device.DeviceID(), nil)
+}
+
 func (n *networkDeviceConfigImpl) ReportConfigWithSender(deviceID string, baseSender sender.Sender) error {
 	var configs []ncmreport.NetworkDeviceConfig
 	ctx := context.Background()
@@ -209,12 +264,11 @@ func (n *networkDeviceConfigImpl) ReportConfigWithSender(deviceID string, baseSe
 	if !ok {
 		return fmt.Errorf("unknown device: %q", deviceID)
 	}
-	// noProfileMatch is a sentinel used to remember that we checked all
-	// profiles against this device already and none of them worked.
-	if device.Profile == noProfileMatch {
-		debugf("past attempts at profile matching have failed.")
-		return fmt.Errorf("no matching NCM profile for device %s", deviceID)
+	profile, err := n.getSavedProfileForDevice(device, false)
+	if err != nil {
+		return err
 	}
+
 	sender := ncmsender.NewNCMSender(baseSender, device.Namespace, n.clock, n.hostname)
 
 	conn, err := n.connect(device)
@@ -224,21 +278,19 @@ func (n *networkDeviceConfigImpl) ReportConfigWithSender(deviceID string, baseSe
 	}
 	defer conn.Close()
 
-	if device.Profile == "" {
+	if profile == nil {
 		debugf("No profile specified, testing known profiles")
-		pname, ok := n.findMatchingProfile(device, conn)
+		prof, ok := n.findMatchingProfile(device, conn)
 		if !ok {
-			device.Profile = noProfileMatch
+			// store explicit nil to indicate that we shouldn't try to search for this again.
+			n.saveNoProfileForDevice(device)
 			return fmt.Errorf("no matching NCM profile for device %s", deviceID)
 		}
-		device.Profile = pname
+		n.saveDetectedProfileForDevice(device, prof)
+		profile = prof
 	}
-	debugf("Using profile %q", device.Profile)
+	debugf("Using profile %q", profile.Name)
 	// Update the remote client's device profile to access the correct commands
-	profile := n.profiles[device.Profile]
-	if profile == nil {
-		return fmt.Errorf("nonexistent NCM profile %q specified for device %s", device.Profile, deviceID)
-	}
 	conn.SetProfile(profile)
 
 	deviceTags := n.getDeviceTags(device)
@@ -354,17 +406,18 @@ func (n *networkDeviceConfigImpl) SetMaxReportInterval(interval time.Duration) {
 
 // findMatchingProfile tests each profile until one is successful.
 // TODO use GetVersion instead of fetching the entire config.
-func (n *networkDeviceConfigImpl) findMatchingProfile(device *ncmconfig.DeviceInstance, conn ncmremote.Connection) (string, bool) {
+func (n *networkDeviceConfigImpl) findMatchingProfile(device *ncmconfig.DeviceInstance, conn ncmremote.Connection) (*ncmprofile.NCMProfile, bool) {
 	for profName, prof := range n.profiles {
+		n.log.Debugf("ncm[%s] testing profile %s", device.DeviceID(), profName)
 		conn.SetProfile(prof)
 		_, err := conn.RetrieveRunningConfig(context.Background())
 		if err != nil {
 			n.log.Infof("profile %s does not match remote device %s: %s", profName, device.IPAddress, err)
 			continue
 		}
-		return profName, true
+		return prof, true
 	}
-	return "", false
+	return nil, false
 }
 
 func (n *networkDeviceConfigImpl) getLastInventoryTime() time.Time {
