@@ -220,14 +220,6 @@ func enabledPrograms(c *config.Config) (map[string]struct{}, error) {
 		enableProgram(enabled, tcpDone)
 		enableProgram(enabled, tcpReadSockReturn)
 
-		// TODO: see comments above on availability for these
-		//       hooks
-		// ksymPath := filepath.Join(c.ProcRoot, "kallsyms")
-		// missing, err := ebpf.VerifyKernelFuncs(ksymPath, []string{"sockfd_lookup_light"})
-		// if err == nil && len(missing) == 0 {
-		// 	enableProgram(enabled, sockFDLookupRet)
-		// }
-
 		if hasSendPage {
 			enableProgram(enabled, tcpSendPageReturn)
 		}

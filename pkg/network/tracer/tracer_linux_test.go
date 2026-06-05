@@ -2656,6 +2656,7 @@ LOOP:
 
 var failedConnectionsBuildModes = map[ebpftest.BuildMode]struct{}{
 	ebpftest.CORE:            {},
+	ebpftest.Fentry:          {},
 	ebpftest.RuntimeCompiled: {},
 	ebpftest.SK:              {},
 }
