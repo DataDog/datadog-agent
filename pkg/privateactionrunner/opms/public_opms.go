@@ -6,6 +6,7 @@
 package opms
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -175,7 +176,7 @@ func (p *publicClient) doEnrollRequestWithRetry(ctx context.Context, url string,
 // success. On non-2xx responses, returns the status code so the caller can
 // decide whether to retry.
 func (p *publicClient) doEnrollRequest(ctx context.Context, url string, body []byte, apiKey, appKey string) ([]byte, int, error) {
-	req, err := http.NewRequestWithContext(ctx, "POST", url, strings.NewReader(string(body)))
+	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(body))
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to build runner creation request: %w", err)
 	}
@@ -193,7 +194,6 @@ func (p *publicClient) doEnrollRequest(ctx context.Context, url string, body []b
 
 	resp, err := p.httpClient.Do(req)
 	if err != nil {
-		log.Errorf("PAR enrollment request failed - if the agent is behind a proxy, ensure proxy settings are configured in datadog.yaml: %v", err)
 		return nil, 0, fmt.Errorf("failed to send runner creation request: %w", err)
 	}
 	defer func() {
