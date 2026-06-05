@@ -90,16 +90,14 @@ type SerializerConsumer interface {
 }
 
 type serializerConsumer struct {
-	extraTags                []string
-	series                   metrics.Series
-	sketches                 metrics.SketchSeriesList
-	explicitBucketHistograms []*metrics.ExplicitBucketHistogramSeries
-	exponentialHistograms    []*metrics.ExponentialHistogramSeries
-	apmstats                 []io.Reader
-	apmReceiverAddr          string
-	ipath                    ingestionPath
-	hosts                    map[string]struct{}
-	ecsFargateTags           map[string]struct{}
+	extraTags       []string
+	series          metrics.Series
+	sketches        metrics.SketchSeriesList
+	apmstats        []io.Reader
+	apmReceiverAddr string
+	ipath           ingestionPath
+	hosts           map[string]struct{}
+	ecsFargateTags  map[string]struct{}
 }
 
 // ingestionPath specifies which ingestion path is using the serializer exporter
@@ -116,13 +114,14 @@ func (c *serializerConsumer) ConsumeExplicitBoundHistogram(_ context.Context, di
 	if !ok {
 		msrc = metrics.MetricSourceOpenTelemetryCollectorUnknown
 	}
-	c.explicitBucketHistograms = append(c.explicitBucketHistograms, &metrics.ExplicitBucketHistogramSeries{
-		Name:           dimensions.Name(),
-		EnrichmentTags: tagset.CompositeTagsFromSlice(enrichTags(c.extraTags, dimensions)),
-		Host:           dimensions.Host(),
-		Interval:       interval,
-		Points:         []pmetric.HistogramDataPoint{point},
-		Source:         msrc,
+	c.sketches = append(c.sketches, &metrics.SketchSeries{
+		Name:                    dimensions.Name(),
+		Tags:                    tagset.CompositeTagsFromSlice(enrichTags(c.extraTags, dimensions)),
+		Host:                    dimensions.Host(),
+		Interval:                interval,
+		Kind:                    metrics.SketchKindExplicitBound,
+		ExplicitHistogramPoints: []pmetric.HistogramDataPoint{point},
+		Source:                  msrc,
 	})
 }
 
@@ -131,13 +130,14 @@ func (c *serializerConsumer) ConsumeExponentialHistogram(_ context.Context, dime
 	if !ok {
 		msrc = metrics.MetricSourceOpenTelemetryCollectorUnknown
 	}
-	c.exponentialHistograms = append(c.exponentialHistograms, &metrics.ExponentialHistogramSeries{
-		Name:           dimensions.Name(),
-		EnrichmentTags: tagset.CompositeTagsFromSlice(enrichTags(c.extraTags, dimensions)),
-		Host:           dimensions.Host(),
-		Interval:       interval,
-		Points:         []pmetric.ExponentialHistogramDataPoint{point},
-		Source:         msrc,
+	c.sketches = append(c.sketches, &metrics.SketchSeries{
+		Name:                       dimensions.Name(),
+		Tags:                       tagset.CompositeTagsFromSlice(enrichTags(c.extraTags, dimensions)),
+		Host:                       dimensions.Host(),
+		Interval:                   interval,
+		Kind:                       metrics.SketchKindExponential,
+		ExponentialHistogramPoints: []pmetric.ExponentialHistogramDataPoint{point},
+		Source:                     msrc,
 	})
 }
 
@@ -169,6 +169,7 @@ func (c *serializerConsumer) ConsumeSketch(_ context.Context, dimensions *otlpme
 		Tags:     tagset.CompositeTagsFromSlice(enrichTags(c.extraTags, dimensions)),
 		Host:     dimensions.Host(),
 		Interval: interval,
+		Kind:     metrics.SketchKindDDSketch,
 		Points: []metrics.SketchPoint{{
 			Ts:     int64(ts / 1e9),
 			Sketch: qsketch,
@@ -318,54 +319,8 @@ func (c *serializerConsumer) Send(s serializer.MetricSerializer) error {
 			sketchesErr = s.SendSketch(sketchesSource)
 		},
 	)
-	explicitHistErr := s.SendExplicitBucketHistograms(&sliceExplicitBucketHistogramSource{data: c.explicitBucketHistograms, index: -1})
-	exponentialHistErr := s.SendExponentialHistograms(&sliceExponentialHistogramSource{data: c.exponentialHistograms, index: -1})
 	apmErr := c.sendAPMStats()
-	return multierr.Combine(serieErr, sketchesErr, explicitHistErr, exponentialHistErr, apmErr)
-}
-
-type sliceExplicitBucketHistogramSource struct {
-	data  []*metrics.ExplicitBucketHistogramSeries
-	index int
-}
-
-func (s *sliceExplicitBucketHistogramSource) MoveNext() bool {
-	s.index++
-	return s.index < len(s.data)
-}
-
-func (s *sliceExplicitBucketHistogramSource) Current() *metrics.ExplicitBucketHistogramSeries {
-	return s.data[s.index]
-}
-
-func (s *sliceExplicitBucketHistogramSource) Count() uint64 {
-	return uint64(len(s.data))
-}
-
-func (s *sliceExplicitBucketHistogramSource) WaitForValue() bool {
-	return false
-}
-
-type sliceExponentialHistogramSource struct {
-	data  []*metrics.ExponentialHistogramSeries
-	index int
-}
-
-func (s *sliceExponentialHistogramSource) MoveNext() bool {
-	s.index++
-	return s.index < len(s.data)
-}
-
-func (s *sliceExponentialHistogramSource) Current() *metrics.ExponentialHistogramSeries {
-	return s.data[s.index]
-}
-
-func (s *sliceExponentialHistogramSource) Count() uint64 {
-	return uint64(len(s.data))
-}
-
-func (s *sliceExponentialHistogramSource) WaitForValue() bool {
-	return false
+	return multierr.Combine(serieErr, sketchesErr, apmErr)
 }
 
 func (c *serializerConsumer) sendAPMStats() error {

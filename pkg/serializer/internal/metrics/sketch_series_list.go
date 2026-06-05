@@ -183,6 +183,9 @@ func (pb *payloadsBuilder) startPayload() error {
 }
 
 func (pb *payloadsBuilder) writeSketch(ss *metrics.SketchSeries) error {
+	if ss.Kind != metrics.SketchKindDDSketch {
+		return nil
+	}
 	// constants for the protobuf data we will be writing, taken from
 	// https://github.com/DataDog/agent-payload/v5/blob/a2cd634bc9c088865b75c6410335270e6d780416/proto/metrics/agent_payload.proto#L47-L81
 	// Unused fields are commented out

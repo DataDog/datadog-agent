@@ -496,13 +496,14 @@ func (pb *payloadsBuilderV3) writeSketch(sketch *metrics.SketchSeries) error {
 		return nil
 	}
 
-	if ok, err := pb.checkPointsLimit(len(sketch.Points)); !ok {
+	nPoints := sketch.NumPoints()
+	if ok, err := pb.checkPointsLimit(nPoints); !ok {
 		return err
 	}
 
 	for {
 		pb.writeSketchToTxn(sketch)
-		err := pb.finishTxn(len(sketch.Points))
+		err := pb.finishTxn(nPoints)
 		if err == errRetry {
 			continue
 		}
@@ -511,6 +512,18 @@ func (pb *payloadsBuilderV3) writeSketch(sketch *metrics.SketchSeries) error {
 }
 
 func (pb *payloadsBuilderV3) writeSketchToTxn(sketch *metrics.SketchSeries) {
+	switch sketch.Kind {
+	case metrics.SketchKindExplicitBound, metrics.SketchKindExponential:
+		// Native OTel histograms: AMP team will implement encoding with sketchFlags.
+		// For now, write only the common metadata (name, tags, resources) so the
+		// data flows through the pipeline without panic; actual bin encoding is a no-op.
+		return
+	default:
+		pb.writeDDSketchToTxn(sketch)
+	}
+}
+
+func (pb *payloadsBuilderV3) writeDDSketchToTxn(sketch *metrics.SketchSeries) {
 	pb.txn.Reset()
 
 	pb.resourcesBuf = pb.resourcesBuf[:0]
@@ -530,8 +543,6 @@ func (pb *payloadsBuilderV3) writeSketchToTxn(sketch *metrics.SketchSeries) {
 		len(sketch.Points),
 	)
 
-	// find a single smallest type that can fit all summary values
-	// without loss of precision
 	pointKind := pointKindZero
 	for _, pnt := range sketch.Points {
 		_, bMin, bMax, bSum, _ := pnt.Sketch.BasicStats()
@@ -572,7 +583,6 @@ func (pb *payloadsBuilderV3) writeSketchToTxn(sketch *metrics.SketchSeries) {
 			pb.stats.valuesFloat64 += 3
 		}
 
-		// can share column with sum, min max, if so, cnt must be last.
 		pb.txn.Sint64(columnValueSint64, bCnt)
 		pb.stats.valuesSint64++
 

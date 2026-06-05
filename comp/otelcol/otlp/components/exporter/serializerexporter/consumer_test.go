@@ -193,17 +193,11 @@ func (m *MockSerializer) SendEvents(_ event.Events) error { return nil }
 func (m *MockSerializer) SendAgentShutdownEvent(_ context.Context, _ *event.Event) error {
 	return nil
 }
-func (m *MockSerializer) SendServiceChecks(_ servicecheck.ServiceChecks) error { return nil }
-func (m *MockSerializer) SendIterableSeries(_ metrics.SerieSource) error       { return nil }
-func (m *MockSerializer) AreSeriesEnabled() bool                               { return true }
-func (m *MockSerializer) SendSketch(_ metrics.SketchesSource) error            { return nil }
-func (m *MockSerializer) AreSketchesEnabled() bool                             { return true }
-func (m *MockSerializer) SendExplicitBucketHistograms(_ metrics.ExplicitBucketHistogramSource) error {
-	return nil
-}
-func (m *MockSerializer) SendExponentialHistograms(_ metrics.ExponentialHistogramSource) error {
-	return nil
-}
+func (m *MockSerializer) SendServiceChecks(_ servicecheck.ServiceChecks) error    { return nil }
+func (m *MockSerializer) SendIterableSeries(_ metrics.SerieSource) error          { return nil }
+func (m *MockSerializer) AreSeriesEnabled() bool                                  { return true }
+func (m *MockSerializer) SendSketch(_ metrics.SketchesSource) error               { return nil }
+func (m *MockSerializer) AreSketchesEnabled() bool                                { return true }
 func (m *MockSerializer) SendMetadata(_ marshaler.JSONMarshaler) error            { return nil }
 func (m *MockSerializer) SendHostMetadata(_ marshaler.JSONMarshaler) error        { return nil }
 func (m *MockSerializer) SendProcessesMetadata(_ interface{}) error               { return nil }
@@ -217,23 +211,16 @@ func (m *MockSerializer) SendOrchestratorManifests(_ []types.ProcessMessageBody,
 	return nil
 }
 
-// capturingMockSerializer extends MockSerializer to capture histogram data passed to Send methods.
+// capturingMockSerializer extends MockSerializer to capture sketch data (including native histograms)
+// passed through SendSketch.
 type capturingMockSerializer struct {
 	MockSerializer
-	explicitHistograms    []*metrics.ExplicitBucketHistogramSeries
-	exponentialHistograms []*metrics.ExponentialHistogramSeries
+	sketches []*metrics.SketchSeries
 }
 
-func (m *capturingMockSerializer) SendExplicitBucketHistograms(src metrics.ExplicitBucketHistogramSource) error {
+func (m *capturingMockSerializer) SendSketch(src metrics.SketchesSource) error {
 	for src.MoveNext() {
-		m.explicitHistograms = append(m.explicitHistograms, src.Current())
-	}
-	return nil
-}
-
-func (m *capturingMockSerializer) SendExponentialHistograms(src metrics.ExponentialHistogramSource) error {
-	for src.MoveNext() {
-		m.exponentialHistograms = append(m.exponentialHistograms, src.Current())
+		m.sketches = append(m.sketches, src.Current())
 	}
 	return nil
 }
@@ -256,24 +243,24 @@ func TestSendHistograms(t *testing.T) {
 	sc := serializerConsumer{
 		hosts:          make(map[string]struct{}),
 		ecsFargateTags: make(map[string]struct{}),
-		explicitBucketHistograms: []*metrics.ExplicitBucketHistogramSeries{
+		sketches: metrics.SketchSeriesList{
 			{
-				Name:           "test.histogram",
-				EnrichmentTags: tagset.CompositeTagsFromSlice([]string{"env:test"}),
-				Host:           "testhost",
-				Interval:       10,
-				Points:         []pmetric.HistogramDataPoint{dp},
-				Source:         metrics.MetricSourceOpenTelemetryCollectorUnknown,
+				Name:                    "test.histogram",
+				Tags:                    tagset.CompositeTagsFromSlice([]string{"env:test"}),
+				Host:                    "testhost",
+				Interval:                10,
+				Kind:                    metrics.SketchKindExplicitBound,
+				ExplicitHistogramPoints: []pmetric.HistogramDataPoint{dp},
+				Source:                  metrics.MetricSourceOpenTelemetryCollectorUnknown,
 			},
-		},
-		exponentialHistograms: []*metrics.ExponentialHistogramSeries{
 			{
-				Name:           "test.exp.histogram",
-				EnrichmentTags: tagset.CompositeTagsFromSlice([]string{"env:test"}),
-				Host:           "testhost",
-				Interval:       10,
-				Points:         []pmetric.ExponentialHistogramDataPoint{edp},
-				Source:         metrics.MetricSourceOpenTelemetryCollectorUnknown,
+				Name:                       "test.exp.histogram",
+				Tags:                       tagset.CompositeTagsFromSlice([]string{"env:test"}),
+				Host:                       "testhost",
+				Interval:                   10,
+				Kind:                       metrics.SketchKindExponential,
+				ExponentialHistogramPoints: []pmetric.ExponentialHistogramDataPoint{edp},
+				Source:                     metrics.MetricSourceOpenTelemetryCollectorUnknown,
 			},
 		},
 	}
@@ -282,20 +269,30 @@ func TestSendHistograms(t *testing.T) {
 	err := sc.Send(mock)
 	require.NoError(t, err)
 
-	require.Len(t, mock.explicitHistograms, 1)
-	assert.Equal(t, "test.histogram", mock.explicitHistograms[0].Name)
-	assert.Equal(t, "testhost", mock.explicitHistograms[0].Host)
-	assert.Equal(t, int64(10), mock.explicitHistograms[0].Interval)
-	require.Len(t, mock.explicitHistograms[0].Points, 1)
-	assert.Equal(t, uint64(11), mock.explicitHistograms[0].Points[0].Count())
-	assert.Equal(t, 42.0, mock.explicitHistograms[0].Points[0].Sum())
+	var explicit, exponential []*metrics.SketchSeries
+	for _, s := range mock.sketches {
+		switch s.Kind {
+		case metrics.SketchKindExplicitBound:
+			explicit = append(explicit, s)
+		case metrics.SketchKindExponential:
+			exponential = append(exponential, s)
+		}
+	}
 
-	require.Len(t, mock.exponentialHistograms, 1)
-	assert.Equal(t, "test.exp.histogram", mock.exponentialHistograms[0].Name)
-	assert.Equal(t, "testhost", mock.exponentialHistograms[0].Host)
-	require.Len(t, mock.exponentialHistograms[0].Points, 1)
-	assert.Equal(t, uint64(65), mock.exponentialHistograms[0].Points[0].Count())
-	assert.Equal(t, int32(4), mock.exponentialHistograms[0].Points[0].Scale())
+	require.Len(t, explicit, 1)
+	assert.Equal(t, "test.histogram", explicit[0].Name)
+	assert.Equal(t, "testhost", explicit[0].Host)
+	assert.Equal(t, int64(10), explicit[0].Interval)
+	require.Len(t, explicit[0].ExplicitHistogramPoints, 1)
+	assert.Equal(t, uint64(11), explicit[0].ExplicitHistogramPoints[0].Count())
+	assert.Equal(t, 42.0, explicit[0].ExplicitHistogramPoints[0].Sum())
+
+	require.Len(t, exponential, 1)
+	assert.Equal(t, "test.exp.histogram", exponential[0].Name)
+	assert.Equal(t, "testhost", exponential[0].Host)
+	require.Len(t, exponential[0].ExponentialHistogramPoints, 1)
+	assert.Equal(t, uint64(65), exponential[0].ExponentialHistogramPoints[0].Count())
+	assert.Equal(t, int32(4), exponential[0].ExponentialHistogramPoints[0].Scale())
 }
 
 func TestSendHistograms_Empty(t *testing.T) {
@@ -307,22 +304,19 @@ func TestSendHistograms_Empty(t *testing.T) {
 	mock := &capturingMockSerializer{}
 	err := sc.Send(mock)
 	require.NoError(t, err)
-	assert.Empty(t, mock.explicitHistograms)
-	assert.Empty(t, mock.exponentialHistograms)
+	assert.Empty(t, mock.sketches)
 }
 
 func TestSendHistograms_Multiple(t *testing.T) {
 	sc := serializerConsumer{
 		hosts:          make(map[string]struct{}),
 		ecsFargateTags: make(map[string]struct{}),
-		explicitBucketHistograms: []*metrics.ExplicitBucketHistogramSeries{
-			{Name: "hist1", Host: "host1"},
-			{Name: "hist2", Host: "host2"},
-			{Name: "hist3", Host: "host3"},
-		},
-		exponentialHistograms: []*metrics.ExponentialHistogramSeries{
-			{Name: "exp1", Host: "host1"},
-			{Name: "exp2", Host: "host2"},
+		sketches: metrics.SketchSeriesList{
+			{Name: "hist1", Host: "host1", Kind: metrics.SketchKindExplicitBound},
+			{Name: "hist2", Host: "host2", Kind: metrics.SketchKindExplicitBound},
+			{Name: "hist3", Host: "host3", Kind: metrics.SketchKindExplicitBound},
+			{Name: "exp1", Host: "host1", Kind: metrics.SketchKindExponential},
+			{Name: "exp2", Host: "host2", Kind: metrics.SketchKindExponential},
 		},
 	}
 
@@ -330,61 +324,22 @@ func TestSendHistograms_Multiple(t *testing.T) {
 	err := sc.Send(mock)
 	require.NoError(t, err)
 
-	require.Len(t, mock.explicitHistograms, 3)
-	assert.Equal(t, "hist1", mock.explicitHistograms[0].Name)
-	assert.Equal(t, "hist2", mock.explicitHistograms[1].Name)
-	assert.Equal(t, "hist3", mock.explicitHistograms[2].Name)
-
-	require.Len(t, mock.exponentialHistograms, 2)
-	assert.Equal(t, "exp1", mock.exponentialHistograms[0].Name)
-	assert.Equal(t, "exp2", mock.exponentialHistograms[1].Name)
-}
-
-func TestSliceExplicitBucketHistogramSource(t *testing.T) {
-	data := []*metrics.ExplicitBucketHistogramSeries{
-		{Name: "hist1"},
-		{Name: "hist2"},
-		{Name: "hist3"},
+	var explicit, exponential []*metrics.SketchSeries
+	for _, s := range mock.sketches {
+		switch s.Kind {
+		case metrics.SketchKindExplicitBound:
+			explicit = append(explicit, s)
+		case metrics.SketchKindExponential:
+			exponential = append(exponential, s)
+		}
 	}
-	src := &sliceExplicitBucketHistogramSource{data: data, index: -1}
 
-	assert.Equal(t, uint64(3), src.Count())
-	assert.False(t, src.WaitForValue())
+	require.Len(t, explicit, 3)
+	assert.Equal(t, "hist1", explicit[0].Name)
+	assert.Equal(t, "hist2", explicit[1].Name)
+	assert.Equal(t, "hist3", explicit[2].Name)
 
-	assert.True(t, src.MoveNext())
-	assert.Equal(t, "hist1", src.Current().Name)
-	assert.True(t, src.MoveNext())
-	assert.Equal(t, "hist2", src.Current().Name)
-	assert.True(t, src.MoveNext())
-	assert.Equal(t, "hist3", src.Current().Name)
-	assert.False(t, src.MoveNext(), "should return false after last element")
-}
-
-func TestSliceExponentialHistogramSource(t *testing.T) {
-	data := []*metrics.ExponentialHistogramSeries{
-		{Name: "exp1"},
-		{Name: "exp2"},
-	}
-	src := &sliceExponentialHistogramSource{data: data, index: -1}
-
-	assert.Equal(t, uint64(2), src.Count())
-	assert.False(t, src.WaitForValue())
-
-	assert.True(t, src.MoveNext())
-	assert.Equal(t, "exp1", src.Current().Name)
-	assert.True(t, src.MoveNext())
-	assert.Equal(t, "exp2", src.Current().Name)
-	assert.False(t, src.MoveNext(), "should return false after last element")
-}
-
-func TestSliceExplicitBucketHistogramSource_Empty(t *testing.T) {
-	src := &sliceExplicitBucketHistogramSource{data: nil, index: -1}
-	assert.Equal(t, uint64(0), src.Count())
-	assert.False(t, src.MoveNext())
-}
-
-func TestSliceExponentialHistogramSource_Empty(t *testing.T) {
-	src := &sliceExponentialHistogramSource{data: nil, index: -1}
-	assert.Equal(t, uint64(0), src.Count())
-	assert.False(t, src.MoveNext())
+	require.Len(t, exponential, 2)
+	assert.Equal(t, "exp1", exponential[0].Name)
+	assert.Equal(t, "exp2", exponential[1].Name)
 }

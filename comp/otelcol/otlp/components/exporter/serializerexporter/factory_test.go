@@ -21,6 +21,8 @@ import (
 	"go.opentelemetry.io/collector/featuregate"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/pmetric"
+
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
 // newFactory creates a factory for test-only
@@ -117,9 +119,13 @@ func TestNativeHistogramFeatureGateWiring(t *testing.T) {
 	err = exporter.ConsumeMetrics(context.Background(), md)
 	require.NoError(t, err)
 
-	// Give async queue time to process
 	assert.Eventually(t, func() bool {
-		return len(mock.explicitHistograms) > 0
+		for _, s := range mock.sketches {
+			if s.Kind == metrics.SketchKindExplicitBound {
+				return true
+			}
+		}
+		return false
 	}, 5*time.Second, 10*time.Millisecond,
-		"with NativeHistogramFeatureGate ON, delta explicit-bound histograms should be sent as native histograms, not sketches")
+		"with NativeHistogramFeatureGate ON, delta explicit-bound histograms should flow through SendSketch as SketchKindExplicitBound")
 }

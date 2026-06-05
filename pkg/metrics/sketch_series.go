@@ -9,11 +9,29 @@ import (
 	"bytes"
 	"encoding/json"
 
+	"go.opentelemetry.io/collector/pdata/pmetric"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
-// A SketchSeries is a timeseries of quantile sketches.
+// SketchKind discriminates the type of data in a SketchSeries.
+type SketchKind uint8
+
+const (
+	// SketchKindDDSketch is the default DDSketch type; Points field is populated.
+	SketchKindDDSketch SketchKind = 0
+	// SketchKindExplicitBound carries raw OTel explicit-bound histogram points.
+	SketchKindExplicitBound SketchKind = 1
+	// SketchKindExponential carries raw OTel exponential histogram points.
+	SketchKindExponential SketchKind = 2
+)
+
+// A SketchSeries is a timeseries of quantile sketches or native OTel histograms.
+// Kind discriminates which point slice is populated:
+//   - SketchKindDDSketch (default): Points
+//   - SketchKindExplicitBound: ExplicitHistogramPoints
+//   - SketchKindExponential: ExponentialHistogramPoints
 type SketchSeries struct {
 	Name       string               `json:"metric"`
 	Tags       tagset.CompositeTags `json:"tags"`
@@ -23,6 +41,22 @@ type SketchSeries struct {
 	ContextKey ckey.ContextKey      `json:"-"`
 	NoIndex    bool                 `json:"-"` // This is only used by api V2
 	Source     MetricSource         `json:"-"` // This is only used by api V2
+	Kind       SketchKind           `json:"-"`
+
+	ExplicitHistogramPoints    []pmetric.HistogramDataPoint            `json:"-"`
+	ExponentialHistogramPoints []pmetric.ExponentialHistogramDataPoint `json:"-"`
+}
+
+// NumPoints returns the number of data points regardless of Kind.
+func (sl *SketchSeries) NumPoints() int {
+	switch sl.Kind {
+	case SketchKindExplicitBound:
+		return len(sl.ExplicitHistogramPoints)
+	case SketchKindExponential:
+		return len(sl.ExponentialHistogramPoints)
+	default:
+		return len(sl.Points)
+	}
 }
 
 // GetName returns the name of the SketchSeries
