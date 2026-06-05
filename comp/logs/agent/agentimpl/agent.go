@@ -329,6 +329,10 @@ func (a *logAgent) stop(context.Context) error {
 		a.destinationsCtx.Stop()
 	})
 
+	// Clear backpressure snapshots only after the pipeline monitors have stopped,
+	// otherwise an in-flight sample tick would repopulate the global map.
+	metrics.ClearComponentSnapshots()
+
 	return nil
 }
 

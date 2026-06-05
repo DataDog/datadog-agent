@@ -323,16 +323,23 @@ func (h *rollingHistory) allStats(now time.Time) WindowStats {
 		idx := (h.coarseHead - 1 - i + coarseTierCapacity) % coarseTierCapacity
 		b := h.coarse[idx]
 
-		if b.tsNano < c10h {
-			break // all remaining buckets are older than 10h; none are relevant
+		// Coarse buckets are hour-aligned, so a bucket whose start precedes a cutoff can
+		// still contain samples inside the window. Compare against the bucket's END so a
+		// bucket that straddles the cutoff is included; this only stores ewmaMax per hour,
+		// so a straddling bucket may slightly over-report a window max — the safe direction
+		// for a backpressure diagnostic (never hide recent saturation).
+		bucketEnd := b.tsNano + int64(coarseBucketDuration)
+
+		if bucketEnd <= c10h {
+			break // bucket ends before the 10h window starts; all older buckets too
 		}
 		if b.ewmaMax > max10h {
 			max10h = b.ewmaMax
 		}
-		if b.tsNano >= c5h && b.ewmaMax > max5h {
+		if bucketEnd > c5h && b.ewmaMax > max5h {
 			max5h = b.ewmaMax
 		}
-		if b.tsNano >= c2h && b.ewmaMax > max2h {
+		if bucketEnd > c2h && b.ewmaMax > max2h {
 			max2h = b.ewmaMax
 		}
 		if !hasLastSat && b.lastSaturatedNano > 0 {

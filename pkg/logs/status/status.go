@@ -160,7 +160,10 @@ func Clear() {
 	builder = nil
 	warnings = nil
 	errors = nil
-	metrics.ClearComponentSnapshots()
+	// Component snapshots are NOT cleared here: Clear() runs before the pipeline
+	// monitors are stopped, so they would immediately repopulate the map. The agent
+	// clears snapshots after stopComponents() returns instead (see agent.stop /
+	// agent.partialStop).
 }
 
 // Get returns the status of the logs-agent computed on the fly.
