@@ -217,6 +217,7 @@ func (h *rollingHistory) allStats(now time.Time) WindowStats {
 	c30m := now.Add(-30 * time.Minute).UnixNano()
 	c2h := now.Add(-2 * time.Hour).UnixNano()
 	c5h := now.Add(-5 * time.Hour).UnixNano()
+	c10h := now.Add(-10 * time.Hour).UnixNano()
 
 	var (
 		sum5m, sum30m        float64
@@ -322,6 +323,9 @@ func (h *rollingHistory) allStats(now time.Time) WindowStats {
 		idx := (h.coarseHead - 1 - i + coarseTierCapacity) % coarseTierCapacity
 		b := h.coarse[idx]
 
+		if b.tsNano < c10h {
+			break // all remaining buckets are older than 10h; none are relevant
+		}
 		if b.ewmaMax > max10h {
 			max10h = b.ewmaMax
 		}

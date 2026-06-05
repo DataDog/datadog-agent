@@ -13,6 +13,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/telemetry/impl",
+        "//pkg/util/log",
         "@com_github_benbjohnson_clock//:clock",
     ],
 )
@@ -23,6 +24,7 @@ go_test(
         "capacity_monitor_test.go",
         "metrics_test.go",
         "pipeline_monitor_test.go",
+        "rolling_history_test.go",
         "utilization_monitor_test.go",
     ],
     embed = [":metrics"],

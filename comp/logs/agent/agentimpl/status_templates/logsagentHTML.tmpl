@@ -42,7 +42,7 @@
           <tr>
             <td style="padding:2px 8px">{{ .Name }}</td>
             <td style="padding:2px 8px">{{ .Instance }}</td>
-            <td style="padding:2px 8px">{{ printf "%d%%" (pctInt .RawRatio) }}</td>
+            <td style="padding:2px 8px">{{ printf "%d%%" (pctInt .AvgRatio) }}</td>
             <td style="padding:2px 8px">{{ printf "%d/%d%%" (pctInt .Avg5m) (pctInt .Max5m) }}</td>
             <td style="padding:2px 8px">{{ printf "%d/%d%%" (pctInt .Avg30m) (pctInt .Max30m) }}</td>
             <td style="padding:2px 8px">{{ printf "%d%%" (pctInt .Max2h) }}</td>
