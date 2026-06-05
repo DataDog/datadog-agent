@@ -8,11 +8,9 @@
 package nvidia
 
 import (
-	"encoding/binary"
 	"testing"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
-	"github.com/NVIDIA/go-nvml/pkg/nvml/mock"
 	"github.com/stretchr/testify/require"
 
 	gpuspec "github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/spec"
@@ -96,26 +94,15 @@ func TestNVLinkFECCollectorConfigurableLightErrorThreshold(t *testing.T) {
 		pkgconfigsetup.Datadog().SetWithoutSource(nvlinkFECLightErrorThresholdConfig, defaultNVLinkFECLightErrorThreshold)
 	})
 
-	mockDevice := setupMockDeviceWithLibOpts(t, func(device *mock.Device) *mock.Device {
-		testutil.WithMockAllDeviceFunctions()(device)
-		device.GetFieldValuesFunc = func(values []nvml.FieldValue) nvml.Return {
-			if len(values) == 1 && values[0].FieldId == nvml.FI_DEV_NVLINK_LINK_COUNT {
-				values[0].NvmlReturn = uint32(nvml.SUCCESS)
-				values[0].ValueType = uint32(nvml.VALUE_TYPE_UNSIGNED_INT)
-				binary.LittleEndian.PutUint32(values[0].Value[:], 1)
-				return nvml.SUCCESS
-			}
+	fieldValues := make(map[uint32]testutil.MockFieldValue, len(nvlinkFECHistoryFieldIDs))
+	for i, fieldID := range nvlinkFECHistoryFieldIDs {
+		fieldValues[fieldID] = testutil.NewFieldValue(uint64(i))
+	}
 
-			require.Len(t, values, len(nvlinkFECHistoryFieldIDs))
-			for i := range values {
-				values[i].NvmlReturn = uint32(nvml.SUCCESS)
-				values[i].ValueType = uint32(nvml.VALUE_TYPE_UNSIGNED_LONG_LONG)
-				binary.LittleEndian.PutUint64(values[i].Value[:], uint64(i))
-			}
-			return nvml.SUCCESS
-		}
-		return device
-	})
+	mockDevice := setupMockDevice(t,
+		testutil.WithNVLinkLinkCount(1),
+		testutil.WithFieldValuesFullOverride(fieldValues),
+	)
 
 	collector, err := newNVLinkFECCollector(mockDevice, &CollectorDependencies{
 		Config: pkgconfigsetup.Datadog(),
