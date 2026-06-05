@@ -30,6 +30,7 @@ go_test(
     srcs = [
         "message_test.go",
         "transform_test.go",
+        "windowsevent_proptest_test.go",
     ],
     embed = [":windowsevent"],
     gotags = ["test"],
@@ -38,5 +39,6 @@ go_test(
         "//pkg/logs/message",
         "//pkg/logs/sources",
         "@com_github_stretchr_testify//assert",
+        "@net_pgregory_rapid//:rapid",
     ],
 )
