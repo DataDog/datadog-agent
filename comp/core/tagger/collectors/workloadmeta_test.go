@@ -253,8 +253,6 @@ func TestHandleKubePod(t *testing.T) {
 						"kube_app_component:agent",
 						"kube_app_managed_by:helm",
 						"kube_app_part_of:datadog",
-						"kueue_local_queue:batch",
-						"kueue_cluster_queue:batch",
 						"kube_ownerref_kind:deployment",
 						"kube_priority_class:high-priority",
 						"kube_service:service1",
