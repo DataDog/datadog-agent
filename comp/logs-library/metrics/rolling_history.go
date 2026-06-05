@@ -24,6 +24,12 @@ const (
 	// Coarse tier: 1-hour aggregations, covers 30m–10h (10 buckets).
 	coarseBucketDuration = time.Hour
 	coarseTierCapacity   = 10
+
+	// currentSaturationWindow is how recent the newest sample must be for a component to
+	// count as saturated *now*. Utilization is sampled only when the component does work
+	// (Start/Stop), so an idle component's EWMA freezes at its last value; without this
+	// freshness bound a stale high EWMA would be read as ongoing live saturation.
+	currentSaturationWindow = 15 * time.Second
 )
 
 // fineSample is one 1-second entry in the fine-resolution ring buffer.
@@ -59,13 +65,19 @@ type WindowStats struct {
 	Saturated30m     time.Duration
 	LastSaturatedAt  time.Time
 	HasLastSaturated bool
+	// CurrentlySaturated reports whether the component is saturated *now*: the most recent
+	// sample is at/above SaturationThreshold AND is fresh (within currentSaturationWindow of
+	// now). Because utilization is sampled only when the component does work (Start/Stop),
+	// an idle component's EWMA freezes; the freshness check prevents a stale high EWMA from
+	// being read as live saturation.
+	CurrentlySaturated bool
 }
 
 // rollingHistory is a three-tier time-series store for component EWMA values.
 //
-//   Fine tier   — 1-second samples, last 5 minutes        (~4.8 KB)
-//   Medium tier — 1-minute aggregates, 5m–30m (25 buckets) (~1.0 KB)
-//   Coarse tier — 1-hour aggregates, 30m–10h (10 buckets)  (~0.4 KB)
+//	Fine tier   — 1-second samples, last 5 minutes        (~4.8 KB)
+//	Medium tier — 1-minute aggregates, 5m–30m (25 buckets) (~1.0 KB)
+//	Coarse tier — 1-hour aggregates, 30m–10h (10 buckets)  (~0.4 KB)
 //
 // Total memory per component: ~6.2 KB, down from ~864 KB with the previous
 // 10-hour per-second raw-sample ring buffer.
@@ -220,13 +232,26 @@ func (h *rollingHistory) allStats(now time.Time) WindowStats {
 	c10h := now.Add(-10 * time.Hour).UnixNano()
 
 	var (
-		sum5m, sum30m        float64
-		cnt5m, cnt30m        int
-		max5m, max30m        float64
-		sat1m, satFine       int
-		lastSat              time.Time
-		hasLastSat           bool
+		sum5m, sum30m      float64
+		cnt5m, cnt30m      int
+		max5m, max30m      float64
+		sat1m, satFine     int
+		lastSat            time.Time
+		hasLastSat         bool
+		currentlySaturated bool
 	)
+
+	// CurrentlySaturated is judged from the single newest sample: it must be saturated and
+	// fresh (within currentSaturationWindow of now). This is evaluated independently of the
+	// c30m break below so it stays correct even when allStats is recomputed at read-time
+	// against a live clock long after the component went idle.
+	if h.fineSize > 0 {
+		newest := h.fine[(h.fineHead-1+fineTierCapacity)%fineTierCapacity]
+		if newest.ewmaValue >= SaturationThreshold &&
+			now.UnixNano()-newest.tsNano <= int64(currentSaturationWindow) {
+			currentlySaturated = true
+		}
+	}
 
 	// --- Fine tier (last 5 minutes, 1-second resolution) ---
 	// The ring evicts by count, not by time: if the component is idle, samples can be
@@ -349,16 +374,17 @@ func (h *rollingHistory) allStats(now time.Time) WindowStats {
 	}
 
 	return WindowStats{
-		Avg5m:            avg5m,
-		Max5m:            max5m,
-		Avg30m:           avg30m,
-		Max30m:           max30m,
-		Max2h:            max2h,
-		Max5h:            max5h,
-		Max10h:           max10h,
-		Saturated1m:      time.Duration(sat1m) * time.Second,
-		Saturated30m:     time.Duration(sat30m) * time.Second,
-		LastSaturatedAt:  lastSat,
-		HasLastSaturated: hasLastSat,
+		Avg5m:              avg5m,
+		Max5m:              max5m,
+		Avg30m:             avg30m,
+		Max30m:             max30m,
+		Max2h:              max2h,
+		Max5h:              max5h,
+		Max10h:             max10h,
+		Saturated1m:        time.Duration(sat1m) * time.Second,
+		Saturated30m:       time.Duration(sat30m) * time.Second,
+		LastSaturatedAt:    lastSat,
+		HasLastSaturated:   hasLastSat,
+		CurrentlySaturated: currentlySaturated,
 	}
 }

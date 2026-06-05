@@ -96,6 +96,10 @@ type ComponentUtilization struct {
 	Saturated30mSeconds int64  `json:"saturated_30m_s"`   // seconds spent saturated in last 30m
 	LastSaturatedAt     string `json:"last_saturated_at"` // "15:04:05" or ""
 	HasLastSaturated    bool   `json:"has_last_saturated"`
+	// CurrentlySaturated is true only when the most recent sample is both at/above threshold
+	// and fresh. Unlike AvgRatio (which freezes when a component goes idle), this clears once
+	// the component stops doing work, so it is the correct signal for the live SATURATED state.
+	CurrentlySaturated bool `json:"currently_saturated"`
 }
 
 // BackpressureStatus summarises the overall backpressure state of the logs pipeline.

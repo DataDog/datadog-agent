@@ -78,3 +78,35 @@ func TestAllStats_MediumPendingSaturated30m(t *testing.T) {
 	assert.Equal(t, time.Duration(1)*time.Second, ws.Saturated30m,
 		"mediumPending saturated count must be included in Saturated30m")
 }
+
+// TestAllStats_CurrentlySaturatedFresh verifies that a recent saturated sample sets
+// CurrentlySaturated, and that re-reading allStats against a later clock (no new samples,
+// as happens when the component goes idle) clears it once the newest sample ages past
+// currentSaturationWindow. This is the core of the stale-EWMA regression.
+func TestAllStats_CurrentlySaturatedFresh(t *testing.T) {
+	h := newRollingHistory()
+	h.add(base, 0.95) // saturated, newest sample
+
+	// Read immediately: newest sample is fresh and saturated.
+	assert.True(t, h.allStats(base).CurrentlySaturated,
+		"a fresh saturated sample must report CurrentlySaturated")
+
+	// Read just inside the freshness window: still saturated.
+	assert.True(t, h.allStats(base.Add(currentSaturationWindow)).CurrentlySaturated,
+		"sample at exactly currentSaturationWindow must still count as fresh")
+
+	// Read past the freshness window with no new samples (idle component): must decay.
+	assert.False(t, h.allStats(base.Add(currentSaturationWindow+time.Second)).CurrentlySaturated,
+		"a stale saturated sample must not report CurrentlySaturated")
+}
+
+// TestAllStats_CurrentlySaturatedBelowThreshold verifies a fresh but sub-threshold newest
+// sample does not report CurrentlySaturated even if older samples were saturated.
+func TestAllStats_CurrentlySaturatedBelowThreshold(t *testing.T) {
+	h := newRollingHistory()
+	h.add(base, 0.95)                  // saturated
+	h.add(base.Add(time.Second), 0.10) // newest: well below threshold
+
+	assert.False(t, h.allStats(base.Add(time.Second)).CurrentlySaturated,
+		"a fresh sub-threshold newest sample must clear CurrentlySaturated")
+}

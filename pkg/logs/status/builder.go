@@ -118,6 +118,7 @@ func (b *Builder) getComponentUtilization() []ComponentUtilization {
 			Saturated30mSeconds: int64(s.Windows.Saturated30m.Seconds()),
 			LastSaturatedAt:     lastSat,
 			HasLastSaturated:    s.Windows.HasLastSaturated,
+			CurrentlySaturated:  s.Windows.CurrentlySaturated,
 		})
 	}
 	sort.Slice(result, func(i, j int) bool {
@@ -137,7 +138,10 @@ func (b *Builder) getComponentUtilization() []ComponentUtilization {
 // Returns SATURATED if any component was saturated in the last 1m, WARNING if any
 // component was saturated in the last 30m but not the last 1m, or HEALTHY otherwise.
 func (b *Builder) getBackpressureStatus(utils []ComponentUtilization) BackpressureStatus {
-	// Track the component with the highest live EWMA for the SATURATED signal.
+	// Track a component that is saturated right now for the SATURATED signal. CurrentlySaturated
+	// is fresh+decaying (unlike AvgRatio, which freezes when a component goes idle), so among
+	// live-saturated components we surface the one with the highest EWMA.
+	var hasCurrSat bool
 	var maxCurrRatio float64
 	var currSatName, currSatInst string
 	var currSat30m int64
@@ -149,7 +153,8 @@ func (b *Builder) getBackpressureStatus(utils []ComponentUtilization) Backpressu
 	var satName30m, satInst30m string
 
 	for _, u := range utils {
-		if u.AvgRatio > maxCurrRatio {
+		if u.CurrentlySaturated && u.AvgRatio > maxCurrRatio {
+			hasCurrSat = true
 			maxCurrRatio = u.AvgRatio
 			currSatName = u.Name
 			currSatInst = u.Instance
@@ -169,7 +174,7 @@ func (b *Builder) getBackpressureStatus(utils []ComponentUtilization) Backpressu
 	}
 
 	// SATURATED: a component is at or above threshold right now. Clears within seconds of recovery.
-	if maxCurrRatio >= logsMetrics.SaturationThreshold {
+	if hasCurrSat {
 		dur30m := time.Duration(currSat30m) * time.Second
 		return BackpressureStatus{
 			State:  "SATURATED",

@@ -167,12 +167,39 @@ func TestGetBackpressureStatus_Healthy(t *testing.T) {
 func TestGetBackpressureStatus_Saturated(t *testing.T) {
 	b := &Builder{}
 	utils := []ComponentUtilization{
-		{Name: "processor", Instance: "0", AvgRatio: 0.95, Saturated30mSeconds: 120},
+		{Name: "processor", Instance: "0", AvgRatio: 0.95, CurrentlySaturated: true, Saturated30mSeconds: 120},
 	}
 	bp := b.getBackpressureStatus(utils)
 	assert.Equal(t, "SATURATED", bp.State)
 	assert.Contains(t, bp.Reason, "processor")
 	assert.Contains(t, bp.Reason, "2m0s") // 120s formatted
+}
+
+// TestGetBackpressureStatus_FrozenRatioNotSaturated is the regression test for the
+// stale-EWMA bug: a component that went idle keeps a high AvgRatio (the EWMA freezes
+// without new samples), but CurrentlySaturated is false because the newest sample is no
+// longer fresh. The overall state must NOT be SATURATED — it falls through to WARNING
+// (saturation happened recently) rather than reporting a permanent false saturation.
+func TestGetBackpressureStatus_FrozenRatioNotSaturated(t *testing.T) {
+	b := &Builder{}
+	utils := []ComponentUtilization{
+		{Name: "processor", Instance: "0", AvgRatio: 0.95, CurrentlySaturated: false, Saturated30mSeconds: 120},
+	}
+	bp := b.getBackpressureStatus(utils)
+	assert.NotEqual(t, "SATURATED", bp.State, "a frozen high AvgRatio must not read as live saturation")
+	assert.Equal(t, "WARNING", bp.State)
+}
+
+// TestGetBackpressureStatus_FrozenRatioFullyIdleHealthy verifies that a component whose
+// EWMA froze high but has no recent saturation counts reports HEALTHY, not SATURATED.
+func TestGetBackpressureStatus_FrozenRatioFullyIdleHealthy(t *testing.T) {
+	b := &Builder{}
+	utils := []ComponentUtilization{
+		{Name: "processor", Instance: "0", AvgRatio: 0.95, CurrentlySaturated: false},
+	}
+	bp := b.getBackpressureStatus(utils)
+	assert.Equal(t, "HEALTHY", bp.State)
+	assert.Empty(t, bp.Reason)
 }
 
 func TestGetBackpressureStatus_WarningSat1m(t *testing.T) {
@@ -200,8 +227,8 @@ func TestGetBackpressureStatus_WarningSat30mOnly(t *testing.T) {
 func TestGetBackpressureStatus_SaturatedPicksHighestRatio(t *testing.T) {
 	b := &Builder{}
 	utils := []ComponentUtilization{
-		{Name: "processor", Instance: "0", AvgRatio: 0.85, Saturated30mSeconds: 10},
-		{Name: "sender", Instance: "1", AvgRatio: 0.98, Saturated30mSeconds: 60},
+		{Name: "processor", Instance: "0", AvgRatio: 0.85, CurrentlySaturated: true, Saturated30mSeconds: 10},
+		{Name: "sender", Instance: "1", AvgRatio: 0.98, CurrentlySaturated: true, Saturated30mSeconds: 60},
 	}
 	bp := b.getBackpressureStatus(utils)
 	assert.Equal(t, "SATURATED", bp.State)

@@ -44,7 +44,7 @@ type TelemetryUtilizationMonitor struct {
 	startInUse time.Time
 	lastSample time.Time
 	sampleRate time.Duration
-	avg float64 // EWMA utilization (N=15, α≈0.125)
+	avg        float64 // EWMA utilization (N=15, α≈0.125)
 	history    *rollingHistory
 	name       string
 	instance   string
@@ -74,7 +74,7 @@ func newTelemetryUtilizationMonitorWithSampleRateAndClock(name, instance string,
 		startInUse: clock.Now(),
 		lastSample: clock.Now(),
 		sampleRate: sampleRate,
-		avg: 0,
+		avg:        0,
 		history:    newRollingHistory(),
 		started:    false,
 		clock:      clock,
@@ -114,10 +114,11 @@ func (u *TelemetryUtilizationMonitor) reportIfNeeded() {
 
 		now := u.clock.Now()
 		u.history.add(now, u.avg)
-		ws := u.history.allStats(now)
 
 		TlmUtilizationRatio.Set(u.avg, u.name, u.instance)
-		setComponentUtilization(u.name, u.instance, u.avg, rawRatio, ws)
+		// Pass the live history rather than a precomputed WindowStats: window stats are
+		// recomputed at read-time so an idle component's stats decay against the live clock.
+		setComponentUtilization(u.name, u.instance, u.avg, rawRatio, u.history)
 		u.idle = 0
 		u.inUse = 0
 		u.lastSample = now
@@ -187,4 +188,3 @@ func (u *TelemetryUtilizationMonitor) updateSaturationState(now time.Time) {
 		}
 	}
 }
-

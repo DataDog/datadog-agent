@@ -7,6 +7,7 @@ package metrics
 
 import (
 	"sync"
+	"time"
 )
 
 const ewmaAlpha = 2 / (float64(15) + 1) // ~0.125 — 15-second smoothing window
@@ -29,8 +30,17 @@ type ComponentSnapshot struct {
 	AvgBytes float64
 	// RawBytes is the raw byte count at the last capacity sample.
 	RawBytes int64
-	// Windows contains rolling-window statistics for backpressure diagnostics.
+	// Windows contains rolling-window statistics for backpressure diagnostics. When the
+	// snapshot carries a live history (utilization components), Windows is recomputed at
+	// read-time against the current clock so idle components decay correctly.
 	Windows WindowStats
+
+	// history, when non-nil, is the live rolling history for this component. Utilization is
+	// sampled only when the component does work (Start/Stop), so an idle component's stored
+	// stats would otherwise freeze. Recomputing Windows from history against the read-time
+	// clock lets the windowed maxes, saturation counts, and CurrentlySaturated all decay.
+	// Cleared on the copies returned to callers so the pointer never escapes this package.
+	history *rollingHistory
 }
 
 var (
@@ -39,8 +49,10 @@ var (
 )
 
 // setComponentUtilization updates the utilization fields of the snapshot for name:instance.
-// Called from TelemetryUtilizationMonitor on each report tick.
-func setComponentUtilization(name, instance string, avgRatio, rawRatio float64, ws WindowStats) {
+// Called from TelemetryUtilizationMonitor on each report tick. The history pointer is stored
+// (not a precomputed WindowStats) so window stats can be recomputed against the read-time
+// clock — see globalComponentSnapshotsAt.
+func setComponentUtilization(name, instance string, avgRatio, rawRatio float64, history *rollingHistory) {
 	key := name + ":" + instance
 	globalSnapshotsMu.Lock()
 	defer globalSnapshotsMu.Unlock()
@@ -51,7 +63,7 @@ func setComponentUtilization(name, instance string, avgRatio, rawRatio float64, 
 	}
 	s.AvgRatio = avgRatio
 	s.RawRatio = rawRatio
-	s.Windows = ws
+	s.history = history
 }
 
 // setComponentCapacity updates the capacity fields of the snapshot for name:instance.
@@ -71,13 +83,27 @@ func setComponentCapacity(name, instance string, avgItems, avgBytes float64, raw
 	s.RawBytes = rawBytes
 }
 
-// GlobalComponentSnapshots returns a copy of all current component snapshots.
+// GlobalComponentSnapshots returns a copy of all current component snapshots, with window
+// stats recomputed against the current wall clock.
 func GlobalComponentSnapshots() []ComponentSnapshot {
+	return globalComponentSnapshotsAt(time.Now())
+}
+
+// globalComponentSnapshotsAt returns a copy of all current component snapshots. For snapshots
+// carrying a live history the window stats are recomputed against now, so an idle component's
+// windowed maxes, saturation counts, and CurrentlySaturated decay instead of freezing at the
+// last sampled value. The history pointer is stripped from the returned copies.
+func globalComponentSnapshotsAt(now time.Time) []ComponentSnapshot {
 	globalSnapshotsMu.RLock()
 	defer globalSnapshotsMu.RUnlock()
 	result := make([]ComponentSnapshot, 0, len(globalSnapshots))
 	for _, s := range globalSnapshots {
-		result = append(result, *s)
+		snap := *s
+		if s.history != nil {
+			snap.Windows = s.history.allStats(now)
+		}
+		snap.history = nil
+		result = append(result, snap)
 	}
 	return result
 }
