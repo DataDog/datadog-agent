@@ -415,6 +415,13 @@ func TestCheck_Run_ProfileMatch(t *testing.T) {
 	if assert.NotNil(t, p) {
 		assert.Equal(t, "p2", p.Name, "Device profile should be detected as p2")
 	}
+
+	t.Run("reloading config resets detected profile", func(t *testing.T) {
+		comp.RegisterDevice(device)
+		p, err = comp.getSavedProfileForDevice(device, false)
+		assert.NoError(t, err)
+		assert.Nil(t, p)
+	})
 }
 
 func TestCheck_FindMatchingProfile(t *testing.T) {

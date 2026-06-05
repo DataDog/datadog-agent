@@ -160,8 +160,11 @@ type networkDeviceConfigImpl struct {
 }
 
 // RegisterDevice tells the component how to connect to a device.
-func (n *networkDeviceConfigImpl) RegisterDevice(config *ncmconfig.DeviceInstance) error {
-	n.deviceConfigs.Store(config.DeviceID(), config)
+func (n *networkDeviceConfigImpl) RegisterDevice(device *ncmconfig.DeviceInstance) error {
+	n.deviceConfigs.Store(device.DeviceID(), device)
+	// If the config is reloaded, clear any detected profile in case the config
+	// change means something different works now.
+	n.detectedProfiles.Delete(device.DeviceID())
 	return nil
 }
 
