@@ -6,6 +6,7 @@
 package remoteconfighandler
 
 import (
+	"crypto/tls"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -332,7 +333,7 @@ func TestLogLevel(t *testing.T) {
 	rareSampler := NewMockrareSampler(ctrl)
 
 	pkglog.SetupLogger(pkglog.Default(), "debug")
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "Bearer fakeToken", r.Header.Get("Authorization"))
 		w.WriteHeader(200)
 	}))
@@ -344,6 +345,7 @@ func TestLogLevel(t *testing.T) {
 		DefaultEnv:         "agent-env",
 		DebugServerPort:    port,
 		AuthToken:          "fakeToken",
+		IPCTLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 	}
 	h := New(&agentConfig, prioritySampler, rareSampler, errorsSampler)
 
