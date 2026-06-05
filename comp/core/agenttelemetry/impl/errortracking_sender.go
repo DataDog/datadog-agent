@@ -43,7 +43,7 @@ func (s *senderImpl) sendLogsBatch(ctx context.Context, logs []Log) error {
 	payload := s.payloadTemplate
 	payload.RequestType = logsPayloadType
 	payload.EventTime = time.Now().Unix()
-	payload.Payload = LogsPayload{Logs: logs}
+	payload.Payload = LogsPayload{Logs: logs, AgentMetadata: s.metadataPayloadTemplate}
 
 	return s.sendPayload(ctx, payload, logsPayloadType)
 }

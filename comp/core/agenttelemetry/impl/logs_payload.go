@@ -45,5 +45,6 @@ type Log struct {
 // when the request_type is "logs". The outer key is "logs" (NOT "records")
 // per dd-go's LogsPayload definition.
 type LogsPayload struct {
-	Logs []Log `json:"logs"`
+	Logs          []Log                `json:"logs"`
+	AgentMetadata AgentMetadataPayload `json:"agent_metadata"`
 }
