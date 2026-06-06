@@ -22,7 +22,7 @@ from pathlib import Path
 import requests
 from invoke import task
 from invoke.context import Context
-from invoke.exceptions import Exit, UnexpectedExit
+from invoke.exceptions import Exit
 
 from tasks.build_tags import compute_build_tags_for_flavor
 from tasks.collector import OTEL_CONTRIB_VERSION
@@ -210,17 +210,16 @@ def get_bazel_test_targets(ctx, flavor: str, modules: list[GoModule], bazel_flag
 
     scope = ' + '.join(bazel_patterns)
     all_flags = ["-k", "--color=no"] + (bazel_flags or [])
-    try:
-        result = run_bazel(
-            ctx,
-            "cquery",
-            *all_flags,
-            f"kind(go_test, {scope}) except attr(tags, manual, {scope})",
-            # hide="both",
-        )
-        output = result.stdout
-    except UnexpectedExit as e:
-        output = e.result.stdout
+    # We don't care about failure. There might be broken packages during
+    # development. We enumerate what we can and test those.
+    result = run_bazel(
+        ctx,
+        "cquery",
+        *all_flags,
+        f"kind(go_test, {scope}) except attr(tags, manual, {scope})",
+        # hide="both",
+    )
+    output = result.stdout
 
     if not output:
         return {}
@@ -311,11 +310,9 @@ def _run_bazel_tests(
     t_start = time.monotonic()
 
     for batch in batches:
-        try:
-            result = run_bazel(ctx, *base_args, *batch, verbose=True)
-            output = result.stdout
-        except UnexpectedExit as e:
-            output = e.result.stdout
+        result = run_bazel(ctx, *base_args, *batch, verbose=True)
+        output = result.stdout
+        if result.returncode != 0:
             run_failed = True
 
         if output:
