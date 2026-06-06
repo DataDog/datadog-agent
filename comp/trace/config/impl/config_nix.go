@@ -22,4 +22,4 @@ func DefaultLogFilePath() string {
 }
 
 // defaultDDAgentBin specifies the default path to the main agent binary.
-var defaultDDAgentBin = filepath.Join(setup.InstallPath, "bin/agent/agent")
+var defaultDDAgentBin = filepath.Join(defaultpaths.GetInstallPath(), "bin/agent/agent")
