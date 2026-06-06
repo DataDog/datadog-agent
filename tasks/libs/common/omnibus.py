@@ -58,6 +58,15 @@ ENV_PASSHTROUGH = {
     'rvm_prefix': 'rvm / Ruby stuff to make sure Omnibus itself runs correctly',
     'rvm_version': 'rvm / Ruby stuff to make sure Omnibus itself runs correctly',
     'AGENT_DATA_PLANE_VERSION': 'Agent Data Plane Version',
+    # Set by the Nix devShell (flake.nix) to the libpcap include directory.
+    # Forwarded so datadog-agent.rb can append it to CGO_CFLAGS; nil in CI.
+    'DD_LIBPCAP_INCLUDE': 'Nix devShell: path to libpcap include dir (e.g. /nix/store/.../include); unset in CI',
+    # Set by the Nix devShell (flake.nix) to the libpcap lib directory.
+    # Forwarded so datadog-agent.rb can append -L to CGO_LDFLAGS; nil in CI.
+    'DD_LIBPCAP_LIB': 'Nix devShell: path to libpcap lib dir (e.g. /nix/store/.../lib); unset in CI',
+    # Set by the Nix devShell (flake.nix) to the Nix-store libresolv lib directory.
+    # Forwarded so datadog-agent.rb can append -L to CGO_LDFLAGS; nil in CI.
+    'DD_NIX_LIBRESOLV_LIB': 'Nix devShell Darwin: path to Nix libresolv lib dir for Go linker (-lresolv); unset in CI',
 }
 
 OS_SPECIFIC_ENV_PASSTHROUGH = {

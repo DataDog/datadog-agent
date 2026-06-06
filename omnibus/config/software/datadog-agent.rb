@@ -32,7 +32,13 @@ end
 
 source path: '..',
        options: {
-         exclude: ["**/.cache/**/*", "**/testdata/**/*"],
+         exclude: [
+           "**/.cache/**/*",
+           "**/testdata/**/*",
+           # macOS git fsmonitor daemon creates a Unix socket that omnibus
+           # file_syncer cannot handle (File.ftype returns 'socket').
+           "**/.git/fsmonitor--daemon.ipc",
+         ],
        }
 relative_path 'src/github.com/DataDog/datadog-agent'
 
@@ -59,6 +65,25 @@ build do
     env['LDFLAGS'] = "-Wl,-rpath,#{install_dir}/embedded/lib -L#{install_dir}/embedded/lib"
     env['CGO_CFLAGS'] = "-I. -I#{install_dir}/embedded/include"
     env['CGO_LDFLAGS'] = "-Wl,-rpath,#{install_dir}/embedded/lib -L#{install_dir}/embedded/lib"
+  end
+  # Nix dev: libpcap headers live in the Nix store, not in install_dir/embedded/include.
+  # DD_LIBPCAP_INCLUDE is set by flake.nix shellHook and forwarded via omnibus.py ENV_PASSTHROUGH.
+  # Appending here is a no-op in CI (env var is nil) and on Windows (CGO_CFLAGS already unset above).
+  if ENV['DD_LIBPCAP_INCLUDE'] && !ENV['DD_LIBPCAP_INCLUDE'].empty?
+    env['CGO_CFLAGS'] = "#{env['CGO_CFLAGS']} -I#{ENV['DD_LIBPCAP_INCLUDE']}"
+  end
+  # Nix dev: libpcap dylib lives in a split Nix output (pkgs.libpcap.lib), not in embedded/lib.
+  # DD_LIBPCAP_LIB is set by flake.nix shellHook and forwarded via omnibus.py ENV_PASSTHROUGH.
+  # Appending here is a no-op in CI (env var is nil).
+  if ENV['DD_LIBPCAP_LIB'] && !ENV['DD_LIBPCAP_LIB'].empty?
+    env['CGO_LDFLAGS'] = "#{env['CGO_LDFLAGS']} -L#{ENV['DD_LIBPCAP_LIB']}"
+  end
+  # Nix dev Darwin: Go's net package needs -lresolv; on Nix Darwin this library lives in the Nix
+  # store, not the macOS SDK (NIX_LDFLAGS is stripped by omnibus replace_env).
+  # DD_NIX_LIBRESOLV_LIB is set by flake.nix shellHook and forwarded via omnibus.py ENV_PASSTHROUGH.
+  # Appending here is a no-op in CI (env var is nil).
+  if ENV['DD_NIX_LIBRESOLV_LIB'] && !ENV['DD_NIX_LIBRESOLV_LIB'].empty?
+    env['CGO_LDFLAGS'] = "#{env['CGO_LDFLAGS']} -L#{ENV['DD_NIX_LIBRESOLV_LIB']}"
   end
 
   unless ENV["OMNIBUS_GOMODCACHE"].nil? || ENV["OMNIBUS_GOMODCACHE"].empty?
