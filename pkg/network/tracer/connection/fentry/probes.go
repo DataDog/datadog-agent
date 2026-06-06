@@ -80,8 +80,10 @@ const (
 	// tcpSendProbe0 traces tcp_send_probe0() to count zero-window probe events.
 	tcpSendProbe0 = "kprobe__tcp_send_probe0"
 
-	// inetCskAcceptReturn traces the return value for the inet_csk_accept syscall
+	// inetCskAcceptReturn traces the return value for the inet_csk_accept syscall (kernels < 6.10)
 	inetCskAcceptReturn = "inet_csk_accept_exit"
+	// inetCskAcceptReturn610 is the 6.10+ variant where inet_csk_accept takes proto_accept_arg
+	inetCskAcceptReturn610 = "inet_csk_accept_exit_610"
 
 	// inetBind traces the bind() syscall for IPv4
 	inetBind = "inet_bind_enter"
@@ -110,6 +112,7 @@ var programs = map[string]struct{}{
 	inet6BindRet:              {},
 	inetBindRet:               {},
 	inetCskAcceptReturn:       {},
+	inetCskAcceptReturn610:    {},
 	inetCskListenStop:         {},
 	tcpRecvMsgReturn:          {},
 	tcpClose:                  {},
@@ -210,7 +213,7 @@ func enabledPrograms(c *config.Config) (map[string]struct{}, error) {
 		enableProgram(enabled, tcpClose)
 		enableProgram(enabled, tcpConnect)
 		enableProgram(enabled, tcpFinishConnect)
-		enableProgram(enabled, inetCskAcceptReturn)
+		enableProgram(enabled, selectVersionBasedProbe(kv, inetCskAcceptReturn610, inetCskAcceptReturn, kernel.VersionCode(6, 10, 0)))
 		enableProgram(enabled, inetCskListenStop)
 		enableProgram(enabled, tcpRetransmit)
 		enableProgram(enabled, tcpRetransmitRet)

@@ -474,8 +474,7 @@ int BPF_PROG(tcp_finish_connect, struct sock *sk, struct sk_buff *skb, int rc) {
     return 0;
 }
 
-SEC("fexit/inet_csk_accept")
-int BPF_PROG(inet_csk_accept_exit, struct sock *_sk, int flags, int *err, bool kern, struct sock *sk) {
+static __always_inline int handle_inet_csk_accept_exit(struct sock *sk) {
     if (sk == NULL) {
         return 0;
     }
@@ -500,6 +499,18 @@ int BPF_PROG(inet_csk_accept_exit, struct sock *_sk, int flags, int *err, bool k
     bpf_map_update_with_telemetry(tcp_ongoing_connect_pid, &skp_conn, &pid_ts, BPF_ANY);
     log_debug("fexit/inet_csk_accept: netns: %u, sport: %u, dport: %u", t.netns, t.sport, t.dport);
     return 0;
+}
+
+// Used on kernels < 6.10 where inet_csk_accept takes (sk, flags, err, kern).
+SEC("fexit/inet_csk_accept")
+int BPF_PROG(inet_csk_accept_exit, struct sock *_sk, int flags, int *err, bool kern, struct sock *sk) {
+    return handle_inet_csk_accept_exit(sk);
+}
+
+// Used on kernels >= 6.10 where inet_csk_accept takes (sk, proto_accept_arg).
+SEC("fexit/inet_csk_accept")
+int BPF_PROG(inet_csk_accept_exit_610, struct sock *_sk, struct proto_accept_arg *arg, struct sock *sk) {
+    return handle_inet_csk_accept_exit(sk);
 }
 
 SEC("fentry/inet_csk_listen_stop")
