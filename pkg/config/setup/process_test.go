@@ -28,7 +28,7 @@ func TestProcessDefaultConfig(t *testing.T) {
 	}{
 		{
 			key:          "process_config.dd_agent_bin",
-			defaultValue: DefaultDDAgentBin,
+			defaultValue: defaultpaths.GetDefaultDDAgentBin(),
 		},
 		{
 			key:          "process_config.log_file",

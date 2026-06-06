@@ -851,7 +851,7 @@ func TestDataPlaneDefaults(t *testing.T) {
 	assert.Equal(t, "tcp://0.0.0.0:5101", cfg.GetString("data_plane.secure_api_listen_address"))
 	assert.False(t, cfg.GetBool("data_plane.telemetry_enabled"))
 	assert.Equal(t, "tcp://0.0.0.0:5102", cfg.GetString("data_plane.telemetry_listen_addr"))
-	assert.Equal(t, DefaultDataPlaneLogFile, cfg.GetString("data_plane.log_file"))
+	assert.Equal(t, defaultpaths.GetDefaultDataPlaneLogFile(), cfg.GetString("data_plane.log_file"))
 	assert.True(t, cfg.GetBool("data_plane.otlp.proxy.traces.enabled"))
 	assert.True(t, cfg.GetBool("data_plane.otlp.proxy.metrics.enabled"))
 	assert.True(t, cfg.GetBool("data_plane.otlp.proxy.logs.enabled"))
