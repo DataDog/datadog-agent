@@ -21,6 +21,10 @@ build do
     license :project_license
 
     output_config_dir = ENV["OUTPUT_CONFIG_DIR"]
+    # Allow redirecting system paths so non-root local builds can succeed.
+    # CI and packaging builds leave these unset to use the real system paths.
+    sys_bin_dir = ENV.fetch("DD_SYS_BIN_DIR", "/usr/bin")
+    log_dir = ENV.fetch("DD_LOG_DIR", "/var/log/datadog")
     flavor_arg = ENV['AGENT_FLAVOR']
     # TODO too many things done here, should be split
     block do
@@ -65,7 +69,7 @@ build do
         if linux_target?
             # Move configuration files
             mkdir "#{output_config_dir}/etc/datadog-agent"
-            move "#{install_dir}/bin/agent/dd-agent", "/usr/bin/dd-agent"
+            move "#{install_dir}/bin/agent/dd-agent", "#{sys_bin_dir}/dd-agent"
             move "#{install_dir}/etc/datadog-agent/datadog.yaml.example", "#{output_config_dir}/etc/datadog-agent"
             move "#{install_dir}/etc/datadog-agent/conf.d", "#{output_config_dir}/etc/datadog-agent", :force=>true
             move "#{install_dir}/etc/datadog-agent/application_monitoring.yaml.example", "#{output_config_dir}/etc/datadog-agent"
@@ -92,7 +96,7 @@ build do
             # Create empty directories so that they're owned by the package
             # (also requires `extra_package_file` directive in project def)
             mkdir "#{output_config_dir}/etc/datadog-agent/checks.d"
-            mkdir "/var/log/datadog"
+            mkdir log_dir
 
             # Process manager config directory (read-only, under install dir)
             mkdir "#{install_dir}/processes.d"

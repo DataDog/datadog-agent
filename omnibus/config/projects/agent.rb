@@ -7,6 +7,9 @@ require "./lib/project_helpers.rb"
 require "./lib/omnibus/packagers/tarball.rb"
 flavor = ENV['AGENT_FLAVOR']
 output_config_dir = ENV["OUTPUT_CONFIG_DIR"]
+# Allow redirecting system paths for non-root local builds (same vars as finalize.rb).
+sys_bin_dir = ENV.fetch("DD_SYS_BIN_DIR", "/usr/bin")
+log_dir = ENV.fetch("DD_LOG_DIR", "/var/log/datadog")
 
 if flavor.nil? || flavor == 'base'
   name 'agent'
@@ -256,8 +259,8 @@ disable_version_manifest do_package
 
 if linux_target?
   extra_package_file "#{output_config_dir}/etc/datadog-agent/"
-  extra_package_file '/usr/bin/dd-agent'
-  extra_package_file '/var/log/datadog/'
+  extra_package_file "#{sys_bin_dir}/dd-agent"
+  extra_package_file "#{log_dir}/"
   extra_package_file "#{install_dir}/.install_root"
 end
 

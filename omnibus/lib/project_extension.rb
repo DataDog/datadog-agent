@@ -294,9 +294,26 @@ module Omnibus
     #
     # Runs a command from the root of the datadog-agent repository
     #
-    def command_on_repo_root(*args, **kwargs)
-      command *args, **kwargs, cwd: File.join(Omnibus::Config.project_root, "..")
+    def command_on_repo_root(cmd, options = {})
+      command cmd, options.merge(cwd: File.join(Omnibus::Config.project_root, ".."))
     end
     expose :command_on_repo_root
+  end
+
+  # Patch XZ packager: nix coreutils returns 'unknown' for `uname --processor`
+  # on Linux; fall back to `uname -m` so the packager can detect the arch.
+  module Packager
+    class XZ
+      def safe_architecture(_val = nil)
+        val = shellout!("uname --processor").stdout.strip
+        val = shellout!("uname -m").stdout.strip if val == "unknown"
+        case val
+        when "x86_64", "x64", "amd64" then "amd64"
+        when "arm64", "aarch64"        then "arm64"
+        when "armv7l"                  then "arm"
+        else raise ArgumentError, "Unknown architecture '#{val}'"
+        end
+      end
+    end
   end
 end
