@@ -10,7 +10,6 @@ package configimpl
 import (
 	"path/filepath"
 
-	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 )
 
