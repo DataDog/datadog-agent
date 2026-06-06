@@ -121,7 +121,7 @@ func TestFormatHTTPStats(t *testing.T) {
 
 func TestFormatHTTPStatsDiscoveryMode(t *testing.T) {
 	mockSystemProbe := mock.NewSystemProbe(t)
-	mockSystemProbe.SetWithoutSource("discovery.service_map.enabled", true)
+	mockSystemProbe.SetInTest("discovery.service_map.enabled", true)
 
 	const (
 		clientPort = uint16(52800)
