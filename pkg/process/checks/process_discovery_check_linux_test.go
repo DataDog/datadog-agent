@@ -22,9 +22,9 @@ func TestProcessDiscoveryLinuxRunsInCoreAgent(t *testing.T) {
 	// On Linux, process discovery checks always run in the core agent
 	cfg := configmock.New(t)
 	sysCfg := configmock.NewSystemProbe(t)
-	cfg.SetWithoutSource("process_config.process_collection.enabled", false)
-	cfg.SetWithoutSource("process_config.process_discovery.enabled", true)
-	sysCfg.SetWithoutSource("discovery.enabled", false)
+	cfg.SetInTest("process_config.process_collection.enabled", false)
+	cfg.SetInTest("process_config.process_discovery.enabled", true)
+	sysCfg.SetInTest("discovery.enabled", false)
 
 	tests := []struct {
 		name    string

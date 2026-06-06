@@ -52,10 +52,10 @@ func TestAddResourceTags(t *testing.T) {
 				expectedTags.AddLow("environment", "sandbox")
 				expectedTags.AddLow("project", "ecs-test")
 				expectedTags.AddLow("foo_bar_baz", "val")
-				cfg.SetWithoutSource("ecs_resource_tags_replace_colon", true)
+				cfg.SetInTest("ecs_resource_tags_replace_colon", true)
 				return expectedTags
 			},
-			resetFunc: func() { cfg.SetWithoutSource("ecs_resource_tags_replace_colon", false) },
+			resetFunc: func() { cfg.SetInTest("ecs_resource_tags_replace_colon", false) },
 		},
 		{
 			name: "replace colon enabled, do not replace tag value",
@@ -71,10 +71,10 @@ func TestAddResourceTags(t *testing.T) {
 				expectedTags.AddLow("environment", "sandbox")
 				expectedTags.AddLow("project", "ecs-test")
 				expectedTags.AddLow("foo_bar_baz", "val1:val2")
-				cfg.SetWithoutSource("ecs_resource_tags_replace_colon", true)
+				cfg.SetInTest("ecs_resource_tags_replace_colon", true)
 				return expectedTags
 			},
-			resetFunc: func() { cfg.SetWithoutSource("ecs_resource_tags_replace_colon", false) },
+			resetFunc: func() { cfg.SetInTest("ecs_resource_tags_replace_colon", false) },
 		},
 		{
 			name: "replace colon disabled",

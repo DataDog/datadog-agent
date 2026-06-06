@@ -22,9 +22,9 @@ func TestGet(t *testing.T) {
 	t.Cleanup(func() {
 		// erase cache
 		cache.Cache.Delete(cache.BuildAgentKey("hostname"))
-		cfg.SetWithoutSource("hostname", "")
+		cfg.SetInTest("hostname", "")
 	})
-	cfg.SetWithoutSource("hostname", "test-hostname")
+	cfg.SetInTest("hostname", "test-hostname")
 	s := fxutil.Test[hostname.Component](t, Module())
 	name, err := s.Get(context.Background())
 	require.NoError(t, err)
@@ -36,9 +36,9 @@ func TestGetWithProvider(t *testing.T) {
 	t.Cleanup(func() {
 		// erase cache)
 		cache.Cache.Delete(cache.BuildAgentKey("hostname"))
-		cfg.SetWithoutSource("hostname", "")
+		cfg.SetInTest("hostname", "")
 	})
-	cfg.SetWithoutSource("hostname", "test-hostname2")
+	cfg.SetInTest("hostname", "test-hostname2")
 	s := fxutil.Test[hostname.Component](t, Module())
 	data, err := s.GetWithProvider(context.Background())
 	require.NoError(t, err)

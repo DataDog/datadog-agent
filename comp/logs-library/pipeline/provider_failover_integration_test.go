@@ -38,8 +38,8 @@ func TestProviderFailoverIntegrationSuite(t *testing.T) {
 
 func (suite *ProviderFailoverIntegrationSuite) SetupTest() {
 	cfg := configmock.New(suite.T())
-	cfg.SetWithoutSource("logs_config.pipeline_failover.enabled", true)
-	cfg.SetWithoutSource("logs_config.message_channel_size", 5)
+	cfg.SetInTest("logs_config.pipeline_failover.enabled", true)
+	cfg.SetInTest("logs_config.message_channel_size", 5)
 
 	endpoints := config.NewMockEndpointsWithOptions([]config.Endpoint{config.NewMockEndpoint()}, map[string]interface{}{
 		"use_http": true,
@@ -169,8 +169,8 @@ func (suite *ProviderFailoverIntegrationSuite) TestGracefulShutdownUnderConcurre
 func (suite *ProviderFailoverIntegrationSuite) TestRapidStartStopCycles() {
 	for iteration := 0; iteration < 5; iteration++ {
 		cfg := configmock.New(suite.T())
-		cfg.SetWithoutSource("logs_config.pipeline_failover.enabled", true)
-		cfg.SetWithoutSource("logs_config.message_channel_size", 5)
+		cfg.SetInTest("logs_config.pipeline_failover.enabled", true)
+		cfg.SetInTest("logs_config.message_channel_size", 5)
 
 		endpoints := config.NewMockEndpointsWithOptions([]config.Endpoint{config.NewMockEndpoint()}, map[string]interface{}{
 			"use_http": true,

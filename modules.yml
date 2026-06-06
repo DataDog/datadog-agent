@@ -174,10 +174,6 @@ modules:
     independent: false
     should_tag: false
     should_test_condition: never
-  internal/tools/proto:
-    independent: false
-    should_tag: false
-    should_test_condition: never
   internal/tools/worksynchronizer:
     independent: false
     should_tag: false

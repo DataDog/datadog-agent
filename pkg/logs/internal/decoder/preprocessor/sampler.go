@@ -7,6 +7,7 @@
 package preprocessor
 
 import (
+	"hash/fnv"
 	"regexp"
 	"strconv"
 	"time"
@@ -67,6 +68,18 @@ func adaptiveSamplerSampledCountTag(count int64) string {
 	return "adaptive_sampler_sampled_count:" + strconv.FormatInt(count, 10)
 }
 
+const adaptiveSamplerNoisyLogTag = "noisy_log:true"
+
+func adaptiveSamplerLogHashTag(tokens []Token) string {
+	var b [1]byte
+	h := fnv.New64a()
+	for _, t := range tokens {
+		b[0] = byte(t)
+		_, _ = h.Write(b[:])
+	}
+	return "log_hash:" + strconv.FormatUint(h.Sum64(), 16)
+}
+
 // AdaptiveSamplerConfig holds the configuration for the AdaptiveSampler.
 type AdaptiveSamplerConfig struct {
 	// MaxPatterns is the maximum number of distinct patterns tracked simultaneously.
@@ -83,6 +96,10 @@ type AdaptiveSamplerConfig struct {
 	// ProtectImportantLogs bypasses rate limiting for logs containing critical severity
 	// keywords (FATAL, ERROR, PANIC, etc.). Protected logs are never dropped.
 	ProtectImportantLogs bool
+	// DetectionOnly tags messages that would be dropped, without dropping them.
+	DetectionOnly bool
+	// TagPatternHash tags messages with the hash of their structural pattern.
+	TagPatternHash bool
 	// Include limits adaptive sampling to messages matching at least one filter.
 	// When empty, all messages are eligible unless excluded.
 	Include []AdaptiveSamplerFilter
@@ -184,6 +201,12 @@ func (s *AdaptiveSampler) shouldSample(msg *message.Message, tokens []Token) boo
 	return matchesAnyFilter(s.config.Include, msg, tokens, s.config.MatchThreshold)
 }
 
+func (s *AdaptiveSampler) appendPatternHashTagIfEnabled(msg *message.Message, tokens []Token) {
+	if s.config.TagPatternHash {
+		msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, adaptiveSamplerLogHashTag(tokens))
+	}
+}
+
 // Process applies credit-based rate limiting to the message.
 // Returns the message if allowed, nil if dropped.
 func (s *AdaptiveSampler) Process(msg *message.Message, tokens []Token) *message.Message {
@@ -203,6 +226,7 @@ func (s *AdaptiveSampler) Process(msg *message.Message, tokens []Token) *message
 		if !IsMatch(e.tokens, tokens, s.config.MatchThreshold) {
 			continue
 		}
+		matchedTokens := e.tokens
 		// Refill credits based on time elapsed since last seen.
 		elapsed := now.Sub(e.lastSeen).Seconds()
 		e.credits += elapsed * s.config.RateLimit
@@ -218,6 +242,17 @@ func (s *AdaptiveSampler) Process(msg *message.Message, tokens []Token) *message
 		allow := e.credits >= 1.0
 		if allow {
 			e.credits--
+		}
+		// Detection-only keeps every message, so it only annotates the messages
+		// that would have been dropped. Normal sampling tracks real drops in
+		// sampled so the next allowed message can report the suppressed count.
+		if s.config.DetectionOnly {
+			if !allow {
+				s.appendPatternHashTagIfEnabled(msg, matchedTokens)
+				msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, adaptiveSamplerNoisyLogTag)
+			}
+			e.sampled = 0
+		} else if allow {
 			if e.sampled > 0 {
 				msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, adaptiveSamplerSampledCountTag(e.sampled))
 			}
@@ -233,6 +268,10 @@ func (s *AdaptiveSampler) Process(msg *message.Message, tokens []Token) *message
 		}
 
 		if allow {
+			tlmAdaptiveSamplerKept.Inc(s.source)
+			return msg
+		}
+		if s.config.DetectionOnly {
 			tlmAdaptiveSamplerKept.Inc(s.source)
 			return msg
 		}

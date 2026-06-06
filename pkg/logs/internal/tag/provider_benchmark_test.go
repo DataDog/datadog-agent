@@ -21,7 +21,7 @@ func setupConfig(t testing.TB, tags []string) (model.Config, time.Time) {
 	startTime := pkgconfigsetup.StartTime
 	pkgconfigsetup.StartTime = time.Now()
 
-	mockConfig.SetWithoutSource("tags", tags)
+	mockConfig.SetInTest("tags", tags)
 
 	return mockConfig, startTime
 }
@@ -40,11 +40,11 @@ func BenchmarkProviderExpectedTags(b *testing.B) {
 		pkgconfigsetup.StartTime = start
 	}()
 
-	defer m.SetWithoutSource("tags", nil)
+	defer m.SetInTest("tags", nil)
 
 	// Setting a test-friendly value for the deadline (test should not take 1m)
-	m.SetWithoutSource("logs_config.expected_tags_duration", "1m")
-	defer m.SetWithoutSource("logs_config.expected_tags_duration", 0)
+	m.SetInTest("logs_config.expected_tags_duration", "1m")
+	defer m.SetInTest("logs_config.expected_tags_duration", 0)
 
 	p := NewProvider(types.NewEntityID(types.ContainerID, "foo"), dummyTagAdder{})
 
@@ -66,8 +66,8 @@ func BenchmarkProviderExpectedTagsEmptySlice(b *testing.B) {
 	}
 
 	// Setting a test-friendly value for the deadline (test should not take 1m)
-	m.SetWithoutSource("logs_config.expected_tags_duration", "1m")
-	defer m.SetWithoutSource("logs_config.expected_tags_duration", 0)
+	m.SetInTest("logs_config.expected_tags_duration", "1m")
+	defer m.SetInTest("logs_config.expected_tags_duration", 0)
 
 	p := NewProvider(types.NewEntityID(types.ContainerID, "foo"), dummyTagAdder{})
 
@@ -89,8 +89,8 @@ func BenchmarkProviderExpectedTagsNil(b *testing.B) {
 	}
 
 	// Setting a test-friendly value for the deadline (test should not take 1m)
-	m.SetWithoutSource("logs_config.expected_tags_duration", "1m")
-	defer m.SetWithoutSource("logs_config.expected_tags_duration", 0)
+	m.SetInTest("logs_config.expected_tags_duration", "1m")
+	defer m.SetInTest("logs_config.expected_tags_duration", 0)
 
 	p := NewProvider(types.NewEntityID(types.ContainerID, "foo"), dummyTagAdder{})
 
@@ -107,10 +107,10 @@ func BenchmarkProviderNoExpectedTags(b *testing.B) {
 		pkgconfigsetup.StartTime = start
 	}()
 
-	defer m.SetWithoutSource("tags", nil)
+	defer m.SetInTest("tags", nil)
 
 	// Setting a test-friendly value for the deadline (test should not take 1m)
-	m.SetWithoutSource("logs_config.expected_tags_duration", "0")
+	m.SetInTest("logs_config.expected_tags_duration", "0")
 
 	p := NewProvider(types.NewEntityID(types.ContainerID, "foo"), dummyTagAdder{})
 
@@ -127,10 +127,10 @@ func BenchmarkProviderNoExpectedTagsNil(b *testing.B) {
 		pkgconfigsetup.StartTime = start
 	}()
 
-	defer m.SetWithoutSource("tags", nil)
+	defer m.SetInTest("tags", nil)
 
 	// Setting a test-friendly value for the deadline (test should not take 1m)
-	m.SetWithoutSource("logs_config.expected_tags_duration", "0")
+	m.SetInTest("logs_config.expected_tags_duration", "0")
 
 	p := NewProvider(types.NewEntityID(types.ContainerID, "foo"), dummyTagAdder{})
 

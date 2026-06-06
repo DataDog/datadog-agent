@@ -52,11 +52,11 @@ func TestHostnameProvider(t *testing.T) {
 	assert.Equal(t, "node-name", hostName)
 
 	testClusterName := "laika"
-	mockConfig.SetWithoutSource("cluster_name", testClusterName)
+	mockConfig.SetInTest("cluster_name", testClusterName)
 	clustername.ResetClusterName() // reset state as clustername was already read
 
 	// defer a reset of the state so that future hostname fetches are not impacted
-	defer mockConfig.SetWithoutSource("cluster_name", "")
+	defer mockConfig.SetInTest("cluster_name", "")
 	defer clustername.ResetClusterName()
 
 	hostName, err = GetHostname(ctx)
@@ -81,11 +81,11 @@ func TestHostnameProviderWillBeValid(t *testing.T) {
 	}
 
 	// defer a reset of the state so that future hostname fetches are not impacted
-	defer mockConfig.SetWithoutSource("cluster_name", "")
+	defer mockConfig.SetInTest("cluster_name", "")
 	defer clustername.ResetClusterName()
 
 	testClusterName := "laika_willbe_valid"
-	mockConfig.SetWithoutSource("cluster_name", testClusterName)
+	mockConfig.SetInTest("cluster_name", testClusterName)
 	clustername.ResetClusterName() // reset state as clustername was already read
 
 	hostName, err := GetHostname(ctx)
@@ -111,11 +111,11 @@ func TestHostnameProviderInvalid(t *testing.T) {
 	}
 
 	// defer a reset of the state so that future hostname fetches are not impacted
-	defer mockConfig.SetWithoutSource("cluster_name", "")
+	defer mockConfig.SetInTest("cluster_name", "")
 	defer clustername.ResetClusterName()
 
 	testClusterName := "laika_invalid_"
-	mockConfig.SetWithoutSource("cluster_name", testClusterName)
+	mockConfig.SetInTest("cluster_name", testClusterName)
 	clustername.ResetClusterName() // reset state as clustername was already read
 
 	hostName, err := GetHostname(ctx)

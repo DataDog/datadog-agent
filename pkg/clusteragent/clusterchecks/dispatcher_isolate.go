@@ -60,6 +60,7 @@ func (d *dispatcher) isolateCheck(isolateCheckID string) types.IsolateResponse {
 			config.WorkersNeeded,
 			config.Runner,
 			isolateNode,
+			false,
 		)
 	}
 

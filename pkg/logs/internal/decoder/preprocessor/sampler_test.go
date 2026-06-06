@@ -7,6 +7,7 @@ package preprocessor
 
 import (
 	"regexp"
+	"strings"
 	"testing"
 	"time"
 
@@ -54,6 +55,24 @@ func requireNoSampledCountTag(t *testing.T, msg *message.Message) {
 	t.Helper()
 	for _, tag := range msg.ParsingExtra.Tags {
 		assert.NotContains(t, tag, "adaptive_sampler_sampled_count:")
+	}
+}
+
+func requireTagWithPrefix(t *testing.T, msg *message.Message, prefix string) string {
+	t.Helper()
+	for _, tag := range msg.ParsingExtra.Tags {
+		if strings.HasPrefix(tag, prefix) {
+			return tag
+		}
+	}
+	require.Failf(t, "missing tag", "expected tag with prefix %q in %v", prefix, msg.ParsingExtra.Tags)
+	return ""
+}
+
+func requireNoTagWithPrefix(t *testing.T, msg *message.Message, prefix string) {
+	t.Helper()
+	for _, tag := range msg.ParsingExtra.Tags {
+		assert.Falsef(t, strings.HasPrefix(tag, prefix), "unexpected tag %q with prefix %q", tag, prefix)
 	}
 }
 
@@ -167,6 +186,54 @@ func TestAdaptiveSampler_TagsSuppressedMatchesAfterLongDelay(t *testing.T) {
 	require.NotNil(t, out2)
 	requireSampledCountTag(t, out2, 1)
 	assert.Equal(t, int64(0), s.entries[0].sampled, "emitting should reset the suppressed count")
+}
+
+func TestAdaptiveSampler_DetectionOnlyTagsWouldDrop(t *testing.T) {
+	s := NewAdaptiveSampler(AdaptiveSamplerConfig{
+		MaxPatterns:    10,
+		RateLimit:      0,
+		BurstSize:      1,
+		MatchThreshold: 0.9,
+		DetectionOnly:  true,
+	}, "test")
+	t0 := time.Now()
+	s.now = func() time.Time { return t0 }
+
+	out1 := s.Process(testMsg(), patternA)
+	require.NotNil(t, out1, "first message should still be allowed")
+	requireNoTagWithPrefix(t, out1, "noisy_log:")
+
+	out2 := s.Process(testMsg(), patternA)
+	require.NotNil(t, out2, "detection-only should keep messages that would be dropped")
+	assert.Contains(t, out2.ParsingExtra.Tags, adaptiveSamplerNoisyLogTag)
+	requireNoSampledCountTag(t, out2)
+	assert.Equal(t, int64(0), s.entries[0].sampled, "detection-only should not count kept messages as suppressed")
+}
+
+func TestAdaptiveSampler_DetectionOnlyDoesNotEmitSampledCountAfterRefill(t *testing.T) {
+	s := NewAdaptiveSampler(AdaptiveSamplerConfig{
+		MaxPatterns:    10,
+		RateLimit:      1,
+		BurstSize:      1,
+		MatchThreshold: 0.9,
+		DetectionOnly:  true,
+	}, "test")
+	t0 := time.Now()
+	s.now = func() time.Time { return t0 }
+
+	require.NotNil(t, s.Process(testMsg(), patternA))
+	out2 := s.Process(testMsg(), patternA)
+	require.NotNil(t, out2)
+	assert.Contains(t, out2.ParsingExtra.Tags, adaptiveSamplerNoisyLogTag)
+	requireNoSampledCountTag(t, out2)
+	assert.Equal(t, int64(0), s.entries[0].sampled)
+
+	s.now = func() time.Time { return t0.Add(time.Second) }
+	out3 := s.Process(testMsg(), patternA)
+	require.NotNil(t, out3, "the next credited message should still pass through normally")
+	requireNoTagWithPrefix(t, out3, "noisy_log:")
+	requireNoSampledCountTag(t, out3)
+	assert.Equal(t, int64(0), s.entries[0].sampled)
 }
 
 // Credits are capped at BurstSize even if a long time has passed.
@@ -302,6 +369,44 @@ func TestAdaptiveSampler_BubblingAliasesSampledCount(t *testing.T) {
 	requireSampledCountTag(t, out, 1)
 }
 
+func TestAdaptiveSampler_DetectionOnlyHashUsesMatchedPatternAfterBubbling(t *testing.T) {
+	s := NewAdaptiveSampler(AdaptiveSamplerConfig{
+		MaxPatterns:    10,
+		RateLimit:      1,
+		BurstSize:      1,
+		MatchThreshold: 0.9,
+		DetectionOnly:  true,
+		TagPatternHash: true,
+	}, "test")
+	t0 := time.Now()
+	s.now = func() time.Time { return t0 }
+
+	// Create A and bump its matchCount to 3.
+	s.Process(testMsg(), patternA)
+	s.now = func() time.Time { return t0.Add(1 * time.Second) }
+	s.Process(testMsg(), patternA)
+	s.now = func() time.Time { return t0.Add(2 * time.Second) }
+	s.Process(testMsg(), patternA)
+
+	// Create B and bump its matchCount to 3, matching A without bubbling yet.
+	s.now = func() time.Time { return t0.Add(3 * time.Second) }
+	s.Process(testMsg(), patternB)
+	s.now = func() time.Time { return t0.Add(4 * time.Second) }
+	s.Process(testMsg(), patternB)
+	s.now = func() time.Time { return t0.Add(5 * time.Second) }
+	s.Process(testMsg(), patternB)
+
+	// A same-timestamp B match has no refill, would be dropped, and bubbles B
+	// past A. Detection-only keeps it, so the hash must still be B's pattern.
+	out := s.Process(testMsg(), patternB)
+	require.NotNil(t, out, "detection-only should keep the would-drop message")
+	assert.Contains(t, out.ParsingExtra.Tags, adaptiveSamplerNoisyLogTag)
+
+	hashTag := requireTagWithPrefix(t, out, "log_hash:")
+	assert.Equal(t, adaptiveSamplerLogHashTag(patternB), hashTag)
+	assert.NotEqual(t, adaptiveSamplerLogHashTag(patternA), hashTag)
+}
+
 // --- AdaptiveSampler: misc ---
 
 func TestAdaptiveSampler_FlushReturnsNil(t *testing.T) {
@@ -318,6 +423,63 @@ func TestAdaptiveSampler_EmptyTokensNewPattern(t *testing.T) {
 	out := s.Process(msg, nil)
 	assert.NotNil(t, out, "empty-token message should be allowed as new pattern")
 	require.Len(t, s.entries, 1)
+}
+
+func TestAdaptiveSampler_DoesNotTagPatternHashByDefault(t *testing.T) {
+	s := newSampler(10, 5.0, 0)
+	out := s.Process(testMsg(), patternA)
+	require.NotNil(t, out)
+	requireNoTagWithPrefix(t, out, "log_hash:")
+}
+
+func TestAdaptiveSampler_TagPatternHashSkipsUnimpactedLogs(t *testing.T) {
+	s := NewAdaptiveSampler(AdaptiveSamplerConfig{
+		MaxPatterns:    10,
+		RateLimit:      0,
+		BurstSize:      2,
+		MatchThreshold: 0.9,
+		TagPatternHash: true,
+		Exclude:        []AdaptiveSamplerFilter{{Regex: regexp.MustCompile(`bypass`)}},
+	}, "test")
+
+	out1 := s.Process(testMsgWith("bypass me", message.StatusInfo), patternA)
+	require.NotNil(t, out1)
+	requireNoTagWithPrefix(t, out1, "log_hash:")
+
+	out2 := s.Process(testMsg(), patternA)
+	require.NotNil(t, out2, "new patterns should pass through without hash tagging")
+	requireNoTagWithPrefix(t, out2, "log_hash:")
+
+	out3 := s.Process(testMsg(), patternA)
+	require.NotNil(t, out3, "under-burst matches should pass through without hash tagging")
+	requireNoTagWithPrefix(t, out3, "log_hash:")
+}
+
+func TestAdaptiveSampler_TagPatternHashSkipsSampledCountLogs(t *testing.T) {
+	s := NewAdaptiveSampler(AdaptiveSamplerConfig{
+		MaxPatterns:    10,
+		RateLimit:      1,
+		BurstSize:      1,
+		MatchThreshold: 0.9,
+		TagPatternHash: true,
+	}, "test")
+	t0 := time.Now()
+	s.now = func() time.Time { return t0 }
+
+	canonical := []Token{C1, D1, Fslash, C2, D2, Period, C3, D3, Dash, C4}
+	similar := []Token{C1, D1, Fslash, C2, D2, Period, C3, D3, Dash, D4}
+
+	out1 := s.Process(testMsg(), canonical)
+	require.NotNil(t, out1)
+	requireNoTagWithPrefix(t, out1, "log_hash:")
+
+	require.Nil(t, s.Process(testMsg(), similar), "similar pattern should be suppressed after burst is exhausted")
+
+	s.now = func() time.Time { return t0.Add(time.Second) }
+	out2 := s.Process(testMsg(), similar)
+	require.NotNil(t, out2)
+	requireSampledCountTag(t, out2, 1)
+	requireNoTagWithPrefix(t, out2, "log_hash:")
 }
 
 // --- AdaptiveSampler: important log protection ---

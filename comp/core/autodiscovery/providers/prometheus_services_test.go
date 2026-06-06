@@ -163,7 +163,7 @@ func TestPrometheusServicesCollect(t *testing.T) {
 	}
 
 	cfg := pkgconfigmock.New(t)
-	cfg.SetWithoutSource("prometheus_scrape.version", 2)
+	cfg.SetInTest("prometheus_scrape.version", 2)
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			ctx := context.Background()

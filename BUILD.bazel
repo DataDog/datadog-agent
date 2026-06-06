@@ -352,6 +352,7 @@ exports_files(glob(
 # gazelle:exclude pkg/dyninst/irgen/cli
 # gazelle:exclude pkg/dyninst/module
 # gazelle:exclude pkg/dyninst/symdb/cli
+# gazelle:exclude pkg/dyninst/testprogs/progs/panic_recover
 # gazelle:exclude pkg/dyninst/testprogs/progs/rc_tester
 # gazelle:exclude pkg/dyninst/testprogs/progs/rc_tester_v1
 # gazelle:exclude pkg/dyninst/testprogs/progs/sample/arrays.go

@@ -60,12 +60,11 @@ func enforcesBudget(t *testing.T, busyloopPath string) {
 	// the throttling assertions below are not contaminated by the
 	// other probe's hits.
 	keepProbeWithID(&irp.Probes, "a")
+	require.Equal(t, 1, len(irp.Probes))
 
 	// Adjust throttling parameters.
 	// Practically infinite period, with specific event count.
-	require.Equal(t, 1, len(irp.Probes))
 	expectedEvents := 7
-
 	irp.Probes[0].ProbeDefinition = &overriddenThrottle{
 		ProbeDefinition: irp.Probes[0].ProbeDefinition,
 		periodMs:        1000 * 1000,

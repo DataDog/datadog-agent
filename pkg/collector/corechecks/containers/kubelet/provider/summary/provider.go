@@ -11,7 +11,6 @@ package summary
 import (
 	"context"
 	"regexp"
-	"runtime"
 	"strings"
 	"time"
 
@@ -77,14 +76,7 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) e
 		return err
 	}
 
-	useStatsAsSource := false
-	if p.config.UseStatsSummaryAsSource == nil {
-		if runtime.GOOS == "windows" {
-			useStatsAsSource = true
-		}
-	} else {
-		useStatsAsSource = *p.config.UseStatsSummaryAsSource
-	}
+	useStatsAsSource := common.UseStatsSummaryAsSource(p.config)
 
 	rateFilterList := p.defaultRateFilterList
 	if len(p.config.EnabledRates) > 0 {
@@ -232,9 +224,14 @@ func (p *Provider) processContainerStats(sender sender.Sender,
 		!useStatsAsSource {
 		return
 	}
-	containerData := make(map[string]*workloadmeta.OrchestratorContainer)
-	for i := range podData.Containers {
-		containerData[podData.Containers[i].Name] = &podData.Containers[i]
+	// Include init and ephemeral containers so /stats/summary covers them
+	// when use_stats_summary_as_source is on. Without this, the cAdvisor
+	// transformers dropped by the kubelet check (issue #50544) leave those
+	// containers without CPU/memory/filesystem metrics.
+	allContainers := podData.GetAllContainers()
+	containerData := make(map[string]*workloadmeta.OrchestratorContainer, len(allContainers))
+	for i := range allContainers {
+		containerData[allContainers[i].Name] = &allContainers[i]
 	}
 	for idx := range podStats.Containers {
 		containerStats := &podStats.Containers[idx]

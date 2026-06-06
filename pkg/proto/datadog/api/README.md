@@ -25,7 +25,7 @@ To add generated files to its scope, declare the relevant rule
 We are currently pinned to fairly old versions for some of the
 protobuf/grpc dependencies and tooling. These are required as a
 consequence of third-party libraries (most notably etcd). Please
-see `go.mod` and `internal/tools/proto/go.mod` to understand the
+see `go.mod` and `internal/tools/go.mod` to understand the
 version requirements.
 
 The tooling in place should help our protobuf versions be consistent

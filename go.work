@@ -88,7 +88,6 @@ use (
 	internal/tools/independent-lint
 	internal/tools/modformatter
 	internal/tools/modparser
-	internal/tools/proto
 	internal/tools/worksynchronizer
 	pkg/aggregator/ckey
 	pkg/api

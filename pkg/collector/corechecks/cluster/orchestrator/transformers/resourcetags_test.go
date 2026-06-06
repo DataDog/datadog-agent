@@ -19,9 +19,9 @@ import (
 
 func TestRetrieveUST(t *testing.T) {
 	cfg := configmock.New(t)
-	cfg.SetWithoutSource("env", "staging")
-	cfg.SetWithoutSource(tagKeyService, "not-applied")
-	cfg.SetWithoutSource(tagKeyVersion, "not-applied")
+	cfg.SetInTest("env", "staging")
+	cfg.SetInTest(tagKeyService, "not-applied")
+	cfg.SetInTest(tagKeyVersion, "not-applied")
 
 	tests := []struct {
 		name   string
@@ -107,7 +107,7 @@ func TestRetrieveTeamTag(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := configmock.New(t)
-			cfg.SetWithoutSource("auto_team_tag_collection", tt.autoTeamTagCollection)
+			cfg.SetInTest("auto_team_tag_collection", tt.autoTeamTagCollection)
 
 			got := RetrieveTeamTag(tt.labels, tt.annotations)
 			assert.ElementsMatch(t, tt.want, got)

@@ -20,7 +20,7 @@ import (
 
 func TestGetHostAliases(t *testing.T) {
 	cfg := configmock.New(t)
-	cfg.SetWithoutSource("cloud_provider_metadata", []string{"oracle"})
+	cfg.SetInTest("cloud_provider_metadata", []string{"oracle"})
 
 	ctx := context.Background()
 	expected := "ocid1.instance.oc1.iad.anuwcljte6cuweqcz7sarpn43hst2kaaaxbbbccbaaa6vpd66tvcyhgiifsq"
@@ -45,7 +45,7 @@ func TestGetHostAliases(t *testing.T) {
 
 func TestGetNTPHosts(t *testing.T) {
 	cfg := configmock.New(t)
-	cfg.SetWithoutSource("cloud_provider_metadata", []string{"oracle"})
+	cfg.SetInTest("cloud_provider_metadata", []string{"oracle"})
 
 	ctx := context.Background()
 	expectedHosts := []string{"169.254.169.254"}
@@ -65,7 +65,7 @@ func TestGetNTPHosts(t *testing.T) {
 
 func TestGetHostCCRID(t *testing.T) {
 	cfg := configmock.New(t)
-	cfg.SetWithoutSource("cloud_provider_metadata", []string{"oracle"})
+	cfg.SetInTest("cloud_provider_metadata", []string{"oracle"})
 
 	ctx := context.Background()
 	expected := "ocid1.instance.oc1.iad.anuwcljsma7556acga2pgx4yidhq5fncc66ixo5ohiziovqvmki3r6au5piq"
@@ -89,7 +89,7 @@ func TestGetHostCCRID(t *testing.T) {
 
 func TestGetInstanceType(t *testing.T) {
 	cfg := configmock.New(t)
-	cfg.SetWithoutSource("cloud_provider_metadata", []string{"oracle"})
+	cfg.SetInTest("cloud_provider_metadata", []string{"oracle"})
 
 	ctx := context.Background()
 	expected := "VM.Standard.E5.Flex"

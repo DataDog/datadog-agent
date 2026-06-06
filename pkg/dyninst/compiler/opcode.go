@@ -84,6 +84,10 @@ const (
 	OpcodeSwissMapLoopBegin
 	OpcodeSwissMapLoopEnd
 	OpcodeExprAdvanceOffset
+	// Recovery probe opcodes — see ir.PanicUnwindPrepareOp /
+	// PanicUnwindEvictSlotsOp.
+	OpcodePanicUnwindPrepare
+	OpcodePanicUnwindEvictSlots
 )
 
 //revive:enable:exported

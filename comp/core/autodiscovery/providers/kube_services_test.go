@@ -244,7 +244,7 @@ func TestParseKubeServiceAnnotations(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			cfg := configmock.New(t)
 			if tc.hybrid {
-				cfg.SetWithoutSource("cluster_checks.support_hybrid_ignore_ad_tags", true)
+				cfg.SetInTest("cluster_checks.support_hybrid_ignore_ad_tags", true)
 			}
 
 			provider := KubeServiceConfigProvider{

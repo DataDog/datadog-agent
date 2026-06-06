@@ -186,4 +186,5 @@ deploy_containers-host-profiler-preview:
       allow_failure: true
   # Update manually in branches that trigger preview image.
   variables:
+    IMG_REGISTRIES: default
     PREVIEW_NUMBER: ""

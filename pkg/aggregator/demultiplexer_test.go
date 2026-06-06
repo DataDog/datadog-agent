@@ -109,7 +109,7 @@ func TestDemuxForwardersCreated(t *testing.T) {
 	// now, simulate a cluster-agent environment and enabled the orchestrator feature
 
 	cfg := configmock.New(t)
-	cfg.SetWithoutSource("orchestrator_explorer.enabled", true)
+	cfg.SetInTest("orchestrator_explorer.enabled", true)
 	t.Setenv("KUBERNETES_SERVICE_PORT", "443")
 
 	// since we're running the tests with -tags orchestrator and we've enabled the
@@ -215,7 +215,7 @@ func TestGetDogStatsDWorkerAndPipelineCount(t *testing.T) {
 
 	// auto-adjust
 
-	cfg.SetWithoutSource("dogstatsd_pipeline_autoadjust", true)
+	cfg.SetInTest("dogstatsd_pipeline_autoadjust", true)
 
 	dsdWorkers, pipelines := getDogStatsDWorkerAndPipelineCount(16)
 	assert.Equal(8, dsdWorkers)
@@ -235,8 +235,8 @@ func TestGetDogStatsDWorkerAndPipelineCount(t *testing.T) {
 
 	// no auto-adjust
 
-	cfg.SetWithoutSource("dogstatsd_pipeline_autoadjust", false)
-	cfg.SetWithoutSource("dogstatsd_pipeline_count", pc) // default value
+	cfg.SetInTest("dogstatsd_pipeline_autoadjust", false)
+	cfg.SetInTest("dogstatsd_pipeline_count", pc) // default value
 
 	dsdWorkers, pipelines = getDogStatsDWorkerAndPipelineCount(16)
 	assert.Equal(14, dsdWorkers)
@@ -256,8 +256,8 @@ func TestGetDogStatsDWorkerAndPipelineCount(t *testing.T) {
 
 	// no auto-adjust + pipeline count
 
-	cfg.SetWithoutSource("dogstatsd_pipeline_autoadjust", false)
-	cfg.SetWithoutSource("dogstatsd_pipeline_count", 4)
+	cfg.SetInTest("dogstatsd_pipeline_autoadjust", false)
+	cfg.SetInTest("dogstatsd_pipeline_count", 4)
 
 	dsdWorkers, pipelines = getDogStatsDWorkerAndPipelineCount(16)
 	assert.Equal(11, dsdWorkers)

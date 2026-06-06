@@ -421,7 +421,8 @@ func (c *APIClient) connect() error {
 		pkgconfigsetup.Datadog().GetBool("instrumentation_crd_controller.enabled") ||
 		pkgconfigsetup.Datadog().GetBool("cluster_checks.enabled") ||
 		pkgconfigsetup.Datadog().GetBool("autoscaling.workload.enabled") ||
-		pkgconfigsetup.Datadog().GetBool("autoscaling.cluster.enabled") {
+		pkgconfigsetup.Datadog().GetBool("autoscaling.cluster.enabled") ||
+		pkgconfigsetup.Datadog().GetBool("instrumentation_crd_controller.enabled") {
 		c.DynamicInformerFactory = dynamicinformer.NewDynamicSharedInformerFactory(c.DynamicInformerCl, c.defaultInformerResyncPeriod)
 	}
 

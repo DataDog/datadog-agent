@@ -307,7 +307,7 @@ func TestProvider_Provide(t *testing.T) {
 			}
 
 			mockConfig := configmock.New(t)
-			mockConfig.SetWithoutSource("container_exclude", "name:fluentbit-gke")
+			mockConfig.SetInTest("container_exclude", "name:fluentbit-gke")
 			mockFilterStore := workloadfilterfxmock.SetupMockFilter(t)
 
 			p, err := NewProvider(

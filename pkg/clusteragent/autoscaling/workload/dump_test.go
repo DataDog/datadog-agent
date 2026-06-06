@@ -34,7 +34,7 @@ import (
 
 func TestDump(t *testing.T) {
 	config := config.NewMock(t)
-	config.SetWithoutSource("autoscaling.workload.enabled", true)
+	config.SetInTest("autoscaling.workload.enabled", true)
 	testTime := time.Now()
 	f := newFixture(t, testTime)
 	InitDumper(f.store)

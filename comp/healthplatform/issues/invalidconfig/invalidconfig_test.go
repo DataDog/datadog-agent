@@ -51,7 +51,7 @@ func TestCheck_HealthyConfigReturnsNil(t *testing.T) {
 // the violation and the checker wraps it into an IssueReport.
 func TestCheck_SchemaViolationProducesReport(t *testing.T) {
 	cfg := config.NewMock(t)
-	cfg.SetWithoutSource("agent_ipc.port", "not-a-number")
+	cfg.SetInTest("agent_ipc.port", "not-a-number")
 
 	reports, err := newChecker(cfg).Run()
 	require.NoError(t, err)

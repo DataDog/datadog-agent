@@ -17,8 +17,8 @@ import (
 
 func setupConfig(t testing.TB) pkgconfigmodel.Config {
 	c := configmock.New(t)
-	c.SetWithoutSource("histogram_aggregates", []string{"max", "median", "avg", "count"})
-	c.SetWithoutSource("histogram_percentiles", []string{"0.95"})
+	c.SetInTest("histogram_aggregates", []string{"max", "median", "avg", "count"})
+	c.SetInTest("histogram_percentiles", []string{"0.95"})
 	return c
 }
 

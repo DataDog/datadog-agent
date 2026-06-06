@@ -73,38 +73,38 @@ func TestGetPreferredDSDEndpoint(t *testing.T) {
 	cfg := configmock.New(t)
 
 	t.Run("UDS configured but not available", func(t *testing.T) {
-		cfg.SetWithoutSource("dogstatsd_socket", "/tmp/nonexistent-dsd-test.sock")
-		cfg.SetWithoutSource("dogstatsd_port", "8125")
-		cfg.SetWithoutSource("use_dogstatsd", true)
+		cfg.SetInTest("dogstatsd_socket", "/tmp/nonexistent-dsd-test.sock")
+		cfg.SetInTest("dogstatsd_port", "8125")
+		cfg.SetInTest("use_dogstatsd", true)
 
 		j := NewJMXFetch(nil, nil)
 		assert.Equal(t, "statsd:localhost:8125", j.getPreferredDSDEndpoint())
 	})
 
 	t.Run("UDS not configured", func(t *testing.T) {
-		cfg.SetWithoutSource("dogstatsd_socket", "")
-		cfg.SetWithoutSource("dogstatsd_port", "8125")
-		cfg.SetWithoutSource("use_dogstatsd", true)
+		cfg.SetInTest("dogstatsd_socket", "")
+		cfg.SetInTest("dogstatsd_port", "8125")
+		cfg.SetInTest("use_dogstatsd", true)
 
 		j := NewJMXFetch(nil, nil)
 		assert.Equal(t, "statsd:localhost:8125", j.getPreferredDSDEndpoint())
 	})
 
 	t.Run("bind host 0.0.0.0 normalized to localhost", func(t *testing.T) {
-		cfg.SetWithoutSource("dogstatsd_socket", "")
-		cfg.SetWithoutSource("dogstatsd_port", "8125")
-		cfg.SetWithoutSource("use_dogstatsd", true)
-		cfg.SetWithoutSource("bind_host", "0.0.0.0")
+		cfg.SetInTest("dogstatsd_socket", "")
+		cfg.SetInTest("dogstatsd_port", "8125")
+		cfg.SetInTest("use_dogstatsd", true)
+		cfg.SetInTest("bind_host", "0.0.0.0")
 
 		j := NewJMXFetch(nil, nil)
 		assert.Equal(t, "statsd:localhost:8125", j.getPreferredDSDEndpoint())
 	})
 
 	t.Run("custom bind host and port", func(t *testing.T) {
-		cfg.SetWithoutSource("dogstatsd_socket", "")
-		cfg.SetWithoutSource("dogstatsd_port", "9125")
-		cfg.SetWithoutSource("use_dogstatsd", true)
-		cfg.SetWithoutSource("bind_host", "127.0.0.2")
+		cfg.SetInTest("dogstatsd_socket", "")
+		cfg.SetInTest("dogstatsd_port", "9125")
+		cfg.SetInTest("use_dogstatsd", true)
+		cfg.SetInTest("bind_host", "127.0.0.2")
 
 		j := NewJMXFetch(nil, nil)
 		assert.Equal(t, "statsd:127.0.0.2:9125", j.getPreferredDSDEndpoint())

@@ -45,7 +45,7 @@ import (
 // test by injecting it into the mock config and flushing the hostname cache.
 func mockAgentHostname(t *testing.T, hostname string) {
 	cfg := configmock.New(t)
-	cfg.SetWithoutSource("hostname", hostname)
+	cfg.SetInTest("hostname", hostname)
 	cache.Cache.Delete(cache.BuildAgentKey("hostname"))
 	t.Cleanup(func() { cache.Cache.Delete(cache.BuildAgentKey("hostname")) })
 }
