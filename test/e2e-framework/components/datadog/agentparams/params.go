@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+	"go.yaml.in/yaml/v3"
 
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common"
@@ -39,6 +40,7 @@ import (
 //   - [WithLogs]
 //   - [WithAdditionalInstallParameters]
 //   - [WithSkipAPIKeyInConfig]
+//   - [WithV3MetricsEnabled]
 //
 // [Functional options pattern]: https://dave.cheney.net/2014/10/17/functional-options-for-friendly-apis
 
@@ -61,6 +63,10 @@ type Params struct {
 	// parameters like the MSI flags.
 	AdditionalInstallParameters []string
 	SkipAPIKeyInConfig          bool
+
+	// intakeURL is set by withIntakeHostname so WithV3MetricsEnabled can inject V3 endpoint
+	// config without recomposing the URL from its parts.
+	intakeURL      *pulumi.StringOutput
 }
 
 type Option = func(*Params) error
@@ -269,6 +275,9 @@ func WithPulumiResourceOptions(resources ...pulumi.ResourceOption) func(*Params)
 
 func withIntakeHostname(scheme pulumi.StringInput, hostname pulumi.StringInput, port pulumi.IntInput) func(*Params) error {
 	return func(p *Params) error {
+		u := pulumi.Sprintf("%s://%s:%d", scheme, hostname, port)
+		p.intakeURL = &u
+
 		extraConfig := pulumi.Sprintf(`dd_url: %[3]s://%[1]s:%[2]d
 logs_config.logs_dd_url: %[1]s:%[2]d
 logs_config.logs_no_ssl: true
@@ -378,3 +387,34 @@ func WithHostname(hostname string) func(*Params) error {
 		return nil
 	}
 }
+
+// WithV3MetricsEnabled opts the agent into the V3 series intake API for its primary fakeintake
+// endpoint. It adds serializer_experimental_use_v3_api.series.endpoints pointing at the same URL
+// used for dd_url, so the serializer sends to /api/intake/metrics/v3/series instead of
+// /api/v2/series.
+//
+// Only series are redirected; sketches V3 support is not yet implemented in fakeintake.
+//
+// Must be called after WithFakeintake (or WithIntakeHostname) so the intake URL is known.
+func WithV3MetricsEnabled() func(*Params) error {
+	return func(p *Params) error {
+		if p.intakeURL == nil {
+			return fmt.Errorf("WithV3MetricsEnabled must be called after WithFakeintake or WithIntakeHostname")
+		}
+		v3Config := (*p.intakeURL).ApplyT(func(url string) (string, error) {
+			var cfg struct {
+				V3API struct {
+					Series struct {
+						Endpoints []string `yaml:"endpoints"`
+					} `yaml:"series"`
+				} `yaml:"serializer_experimental_use_v3_api"`
+			}
+			cfg.V3API.Series.Endpoints = []string{url}
+			out, err := yaml.Marshal(cfg)
+			return string(out), err
+		}).(pulumi.StringOutput)
+		p.ExtraAgentConfig = append(p.ExtraAgentConfig, v3Config)
+		return nil
+	}
+}
+

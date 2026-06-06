@@ -5,6 +5,8 @@
 
 package config
 
+//go:generate go run go.uber.org/mock/mockgen -source=$GOFILE -package=$GOPACKAGE -destination=mock_remote_client.go -build_constraint test
+
 import (
 	"crypto/tls"
 	"errors"

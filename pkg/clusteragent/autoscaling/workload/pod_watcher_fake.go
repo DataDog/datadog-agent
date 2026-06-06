@@ -34,6 +34,10 @@ func (f *fakePodWatcher) GetReadyPodsForOwner(owner NamespacedPodOwner) int32 {
 	return f.Called(owner).Get(0).(int32)
 }
 
+func (f *fakePodWatcher) HasSynced() bool {
+	return true
+}
+
 func (f *fakePodWatcher) mockGetPodsForOwner(owner NamespacedPodOwner, pods []*workloadmeta.KubernetesPod) {
 	mockCall := f.On("GetPodsForOwner", owner)
 	mockCall.Return(pods)
