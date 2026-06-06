@@ -138,7 +138,6 @@ exports_files(glob(
 # gazelle:exclude comp/core/flare/helpers
 # gazelle:exclude comp/core/gui/fx
 # gazelle:exclude comp/core/gui/impl
-# gazelle:exclude comp/core/hostname/remotehostnameimpl
 # gazelle:exclude comp/core/profiler/fx
 # gazelle:exclude comp/core/profiler/impl
 # gazelle:exclude comp/core/remoteagentregistry/fx
@@ -179,15 +178,12 @@ exports_files(glob(
 # gazelle:exclude comp/dogstatsd/status/fx
 # gazelle:exclude comp/dogstatsd/status/impl
 # gazelle:exclude comp/forwarder/orchestrator/orchestratorimpl
-# gazelle:exclude comp/haagent/fx
-# gazelle:exclude comp/haagent/impl
 # gazelle:exclude comp/host-profiler/collector/fx
 # gazelle:exclude comp/host-profiler/collector/impl/processor
 # gazelle:exclude comp/host-profiler/flare
 # gazelle:exclude comp/languagedetection/client/fx
 # gazelle:exclude comp/languagedetection/client/impl
 # gazelle:exclude comp/logonduration/fx
-# gazelle:exclude comp/logonduration/impl
 # gazelle:exclude comp/anomalydetection/logssource/impl
 # gazelle:exclude comp/logs/adscheduler/fx
 # gazelle:exclude comp/logs/adscheduler/impl
@@ -219,8 +215,6 @@ exports_files(glob(
 # gazelle:exclude comp/metadata/inventoryhost/impl
 # gazelle:exclude comp/metadata/packagesigning/fx
 # gazelle:exclude comp/metadata/packagesigning/impl
-# gazelle:exclude comp/metadata/resources/fx
-# gazelle:exclude comp/metadata/resources/impl
 # gazelle:exclude comp/metadata/securityagent/fx
 # gazelle:exclude comp/metadata/securityagent/impl
 # gazelle:exclude comp/metadata/systemprobe/fx
@@ -238,7 +232,6 @@ exports_files(glob(
 # gazelle:exclude comp/networkpath/traceroute/fx-local
 # gazelle:exclude comp/networkpath/traceroute/impl-local
 # gazelle:exclude comp/notableevents/fx
-# gazelle:exclude comp/notableevents/impl
 # gazelle:exclude comp/offlinereporter/fx
 # gazelle:exclude comp/offlinereporter/impl
 # gazelle:exclude comp/otelcol/collector/fx-pipeline
@@ -491,7 +484,6 @@ exports_files(glob(
 # gazelle:exclude pkg/networkdevice/sender
 # gazelle:exclude pkg/networkpath/telemetry
 # gazelle:exclude pkg/networkpath/traceroute/runner
-# gazelle:exclude pkg/orchestrator/config
 # gazelle:exclude pkg/privateactionrunner/autoconnections
 # gazelle:exclude pkg/privateactionrunner/runners
 # gazelle:exclude pkg/privileged-logs/module
@@ -515,7 +507,6 @@ exports_files(glob(
 # gazelle:exclude pkg/security/events
 # gazelle:exclude pkg/security/generators/backend_doc
 # gazelle:exclude pkg/security/module
-# gazelle:exclude pkg/security/probe/config
 # gazelle:exclude pkg/security/probe/constantfetch
 # gazelle:exclude pkg/security/probe/eventstream
 # gazelle:exclude pkg/security/probe/kfilters
