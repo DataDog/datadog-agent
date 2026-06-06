@@ -102,7 +102,8 @@ func ExamplePrintJSON() {
 	//   },
 	//   "CommonTypes": {
 	//     "G": "4 StructureType runtime.g",
-	//     "M": "5 StructureType runtime.m"
+	//     "M": "5 StructureType runtime.m",
+	//     "Panic": null
 	//   },
 	//   "IsARM64": false
 	// }
@@ -150,6 +151,7 @@ func ExamplePrintYAML() {
 	// CommonTypes:
 	//     G: 4 StructureType runtime.g
 	//     M: 5 StructureType runtime.m
+	//     Panic: null
 	// IsARM64: false
 }
 
