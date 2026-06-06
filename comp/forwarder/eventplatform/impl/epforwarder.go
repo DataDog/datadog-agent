@@ -655,6 +655,11 @@ func newHTTPPassthroughPipeline(
 		endpoints.BatchMaxConcurrentSend,
 		endpoints.BatchMaxConcurrentSend,
 		secretsComp,
+		// Noop: passthrough pipelines must not write to the logs-agent's global backpressure
+		// snapshot registry. Every passthrough sender uses identical component names/instances
+		// ("worker:q0s0", "destination_reliable_0:q0s0"), so a real monitor here would collide
+		// with the logs pipeline and with the other passthrough pipelines on shared keys.
+		pipelineMonitor,
 	)
 
 	var encoder compressioncommon.Compressor

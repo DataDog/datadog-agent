@@ -93,6 +93,66 @@ func TestTelemetryPipelineMonitor_TickerSamplesRegisteredMonitor(t *testing.T) {
 		"the pipeline monitor's ticker must sample its registered utilization monitor")
 }
 
+// findSnapshot returns the snapshot for name:instance from a slice, or fails the test.
+func findSnapshot(t *testing.T, snaps []ComponentSnapshot, name, instance string) ComponentSnapshot {
+	t.Helper()
+	for _, s := range snaps {
+		if s.Name == name && s.Instance == instance {
+			return s
+		}
+	}
+	t.Fatalf("no snapshot for %s:%s", name, instance)
+	return ComponentSnapshot{}
+}
+
+// TestGlobalSnapshots_SaturationHoldsThenDecaysToWarning drives the full path that the status
+// page reads — periodic sampler → utilization monitor → component snapshot → window stats —
+// through the exact scenario behind the reported flip-flop. A component blocks in-use (the
+// backpressure event), is sampled to saturation, and the displayed CurrentlySaturated must
+// stay true on every read while blocked (no per-second flapping). After it recovers and goes
+// idle, CurrentlySaturated must decay to false while Saturated30m stays > 0 — the WARNING
+// condition that must persist instead of dropping straight to HEALTHY.
+func TestGlobalSnapshots_SaturationHoldsThenDecaysToWarning(t *testing.T) {
+	ClearComponentSnapshots()
+	defer ClearComponentSnapshots()
+
+	clk := clock.NewMock()
+	pm := newTelemetryPipelineMonitorWithClock(clk, time.Second)
+	um := pm.MakeUtilizationMonitor("processor", "0").(*TelemetryUtilizationMonitor)
+
+	um.Start() // enter in-use and never Stop: models a goroutine blocked on a full output channel
+
+	// Drive periodic samples while blocked: the EWMA must climb to saturation.
+	for i := 0; i < 40; i++ {
+		clk.Add(time.Second)
+		um.sample(clk.Now())
+	}
+	require.True(t, findSnapshot(t, globalComponentSnapshotsAt(clk.Now()), "processor", "0").Windows.CurrentlySaturated,
+		"a component blocked in-use must read as currently saturated")
+
+	// While still blocked, repeated reads (each a status-page render) must stay saturated.
+	for i := 0; i < 10; i++ {
+		clk.Add(time.Second)
+		um.sample(clk.Now())
+		assert.True(t, findSnapshot(t, globalComponentSnapshotsAt(clk.Now()), "processor", "0").Windows.CurrentlySaturated,
+			"CurrentlySaturated must not flap while the component remains saturated (read %d)", i)
+	}
+
+	// Recover: the component finishes its work and goes idle. Continued idle sampling decays
+	// the EWMA and ages the saturated samples out of the sticky current-saturation window.
+	um.Stop()
+	for i := 0; i < 20; i++ {
+		clk.Add(time.Second)
+		um.sample(clk.Now())
+	}
+
+	final := findSnapshot(t, globalComponentSnapshotsAt(clk.Now()), "processor", "0")
+	assert.False(t, final.Windows.CurrentlySaturated,
+		"once recovered and idle, CurrentlySaturated must decay to false")
+	assert.Greater(t, final.Windows.Saturated30m, time.Duration(0),
+		"the past saturation must persist as Saturated30m so the state holds at WARNING, not HEALTHY")
+}
+
 // TestGlobalComponentSnapshotsAt_IdleDecay is the registry-level regression for the
 // stale-EWMA bug. A component is recorded as saturated, then no further samples arrive
 // (the component went idle — utilization is sampled only on Start/Stop). Reading the

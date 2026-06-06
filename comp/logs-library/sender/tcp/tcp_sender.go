@@ -17,7 +17,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// NewTCPSender returns a new tcp sender.
+// NewTCPSender returns a new tcp sender. The pipelineMonitor is supplied by the caller (rather
+// than created here) so callers that do not want per-component telemetry can pass a
+// NoopPipelineMonitor — see NewHTTPSender for why sharing a real monitor across senders collides
+// on the process-global snapshot registry.
 func NewTCPSender(
 	config pkgconfigmodel.Reader,
 	sink sender.Sink,
@@ -29,9 +32,9 @@ func NewTCPSender(
 	componentName string,
 	queueCount int,
 	workersPerQueue int,
+	pipelineMonitor metrics.PipelineMonitor,
 ) *sender.Sender {
 	log.Debugf("Creating a new sender for component %s with %d queues, %d tcp workers", componentName, queueCount, workersPerQueue)
-	pipelineMonitor := metrics.NewTelemetryPipelineMonitor()
 
 	destinationFactory := tcpDestinationFactory(endpoints, destinationsCtx, serverlessMeta, status)
 

@@ -100,15 +100,42 @@ func TestAllStats_CurrentlySaturatedFresh(t *testing.T) {
 		"a stale saturated sample must not report CurrentlySaturated")
 }
 
-// TestAllStats_CurrentlySaturatedBelowThreshold verifies a fresh but sub-threshold newest
-// sample does not report CurrentlySaturated even if older samples were saturated.
-func TestAllStats_CurrentlySaturatedBelowThreshold(t *testing.T) {
+// TestAllStats_CurrentlySaturatedStickyWindow verifies the sticky-window semantics that
+// prevent per-second flapping: a single dip below threshold does NOT clear CurrentlySaturated
+// while a saturated sample is still within currentSaturationWindow, but it does clear once the
+// last saturated sample ages out of that window.
+func TestAllStats_CurrentlySaturatedStickyWindow(t *testing.T) {
 	h := newRollingHistory()
 	h.add(base, 0.95)                  // saturated
-	h.add(base.Add(time.Second), 0.10) // newest: well below threshold
+	h.add(base.Add(time.Second), 0.10) // newest dips below threshold
 
-	assert.False(t, h.allStats(base.Add(time.Second)).CurrentlySaturated,
-		"a fresh sub-threshold newest sample must clear CurrentlySaturated")
+	// A single sub-threshold sample must not clear it: the saturated sample 1s ago is still
+	// inside the window. This is the anti-flap guarantee.
+	assert.True(t, h.allStats(base.Add(time.Second)).CurrentlySaturated,
+		"a single dip must not clear CurrentlySaturated while a saturated sample is still in-window")
+
+	// Once the saturated sample ages past currentSaturationWindow, it clears.
+	assert.False(t, h.allStats(base.Add(currentSaturationWindow+time.Second)).CurrentlySaturated,
+		"CurrentlySaturated must clear once the last saturated sample ages out of the window")
+}
+
+// TestAllStats_CurrentlySaturatedNoFlapNearThreshold is the regression for the reported UI
+// flip-flop. With 1Hz sampling and an EWMA oscillating around the threshold (alternating just
+// above and just below), CurrentlySaturated must stay true on every read rather than toggling
+// each second — every 15s window always contains a saturated sample.
+func TestAllStats_CurrentlySaturatedNoFlapNearThreshold(t *testing.T) {
+	h := newRollingHistory()
+
+	for i := 0; i < 30; i++ {
+		v := 0.88
+		if i%2 == 0 {
+			v = 0.92 // every other sample is just above threshold
+		}
+		now := base.Add(time.Duration(i) * time.Second)
+		h.add(now, v)
+		assert.True(t, h.allStats(now).CurrentlySaturated,
+			"CurrentlySaturated must not flap while saturated samples keep landing within the window (i=%d)", i)
+	}
 }
 
 // TestAllStats_IdleFineSamplesIn30mAverages verifies that fine samples retained past the

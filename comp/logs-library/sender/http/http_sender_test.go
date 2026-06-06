@@ -149,3 +149,47 @@ func TestHttpDestinationFactory(t *testing.T) {
 		})
 	}
 }
+
+// TestNewHTTPSender_UsesCallerPipelineMonitor is the regression for the backpressure
+// status flip-flop. The component utilization/capacity snapshots live in a process-global
+// registry keyed by component name:instance (e.g. "worker:q0s0",
+// "destination_reliable_0:q0s0"). Those keys are only unique within a single pipeline
+// monitor, so every sender that owns a real TelemetryPipelineMonitor collides on them. The
+// event-platform forwarder spins up ~19 passthrough senders alongside the one logs sender;
+// when NewHTTPSender fabricated its own real monitor, all 20 wrote the same keys and the
+// logs status page flapped between the saturated logs sender and the idle passthrough
+// senders every second. The fix threads the caller's monitor through so passthrough
+// pipelines can pass a NoopPipelineMonitor and stay out of the registry. This test pins
+// that contract: NewHTTPSender must use the monitor it is given, not create one.
+func TestNewHTTPSender_UsesCallerPipelineMonitor(t *testing.T) {
+	endpoints := config.NewMockEndpoints([]config.Endpoint{
+		config.NewMockEndpointWithOptions(map[string]interface{}{
+			"host":        "localhost:8080",
+			"is_reliable": true,
+		}),
+	})
+	mockConfig := configmock.New(t)
+	noop := metrics.NewNoopPipelineMonitor("test")
+
+	s := NewHTTPSender(
+		mockConfig,
+		&sender.NoopSink{},
+		1,
+		sender.NewServerlessMeta(false),
+		endpoints,
+		client.NewDestinationsContext(),
+		"test-component",
+		"application/json",
+		"",
+		1,
+		1,
+		1,
+		1,
+		secretsnoopimpl.NewComponent().Comp,
+		noop,
+	)
+
+	assert.Same(t, noop, s.PipelineMonitor(),
+		"NewHTTPSender must use the caller-provided pipeline monitor, not fabricate its own — "+
+			"a passthrough pipeline passing a Noop monitor must not register global snapshots")
+}

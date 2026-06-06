@@ -65,11 +65,12 @@ type WindowStats struct {
 	Saturated30m     time.Duration
 	LastSaturatedAt  time.Time
 	HasLastSaturated bool
-	// CurrentlySaturated reports whether the component is saturated *now*: the most recent
-	// sample is at/above SaturationThreshold AND is fresh (within currentSaturationWindow of
-	// now). Because utilization is sampled only when the component does work (Start/Stop),
-	// an idle component's EWMA freezes; the freshness check prevents a stale high EWMA from
-	// being read as live saturation.
+	// CurrentlySaturated reports whether the component is saturated *now*. It is a sticky window:
+	// true while any sample within the last currentSaturationWindow was at/above
+	// SaturationThreshold. Sampling runs at 1Hz, so judging it from the single newest sample
+	// would flap the state every second when the EWMA hovers near the threshold; the window
+	// debounces that. It still decays for idle/recovered components because the window slides
+	// with now — once the last saturated sample ages out, it clears.
 	CurrentlySaturated bool
 }
 
@@ -224,6 +225,7 @@ func (h *rollingHistory) allStats(now time.Time) WindowStats {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
+	cCurrent := now.Add(-currentSaturationWindow).UnixNano()
 	c1m := now.Add(-1 * time.Minute).UnixNano()
 	c5m := now.Add(-5 * time.Minute).UnixNano()
 	c30m := now.Add(-30 * time.Minute).UnixNano()
@@ -241,17 +243,13 @@ func (h *rollingHistory) allStats(now time.Time) WindowStats {
 		currentlySaturated bool
 	)
 
-	// CurrentlySaturated is judged from the single newest sample: it must be saturated and
-	// fresh (within currentSaturationWindow of now). This is evaluated independently of the
-	// c30m break below so it stays correct even when allStats is recomputed at read-time
-	// against a live clock long after the component went idle.
-	if h.fineSize > 0 {
-		newest := h.fine[(h.fineHead-1+fineTierCapacity)%fineTierCapacity]
-		if newest.ewmaValue >= SaturationThreshold &&
-			now.UnixNano()-newest.tsNano <= int64(currentSaturationWindow) {
-			currentlySaturated = true
-		}
-	}
+	// CurrentlySaturated is computed in the fine-tier loop below as a sticky window: it holds
+	// true while ANY sample within the last currentSaturationWindow was saturated, not just the
+	// single newest sample. Sampling runs at 1Hz, so judging it from one sample would toggle the
+	// state every second whenever the EWMA hovers near the threshold — the flapping that makes
+	// the displayed backpressure state unreadable. Requiring a sustained window below threshold
+	// before clearing debounces that flap while still decaying for idle/recovered components,
+	// because the window slides with now.
 
 	// --- Fine tier (last 5 minutes, 1-second resolution) ---
 	// The ring evicts by count, not by time: if the component is idle, samples can be
@@ -264,6 +262,11 @@ func (h *rollingHistory) allStats(now time.Time) WindowStats {
 
 		if s.tsNano < c30m {
 			break // all remaining samples are older; none are relevant to any window
+		}
+		// Sticky current-saturation window: any saturated sample within the last
+		// currentSaturationWindow keeps the component "currently saturated" (see comment above).
+		if s.tsNano >= cCurrent && v >= SaturationThreshold {
+			currentlySaturated = true
 		}
 		if !hasLastSat && v >= SaturationThreshold {
 			lastSat = time.Unix(0, s.tsNano)

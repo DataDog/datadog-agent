@@ -153,6 +153,9 @@ func tcpSender(
 		componentName,
 		queueCount,
 		workersPerQueue,
+		// A real monitor: the logs-agent pipeline is the sole owner of the global backpressure
+		// snapshot registry, so its components are the only ones that should populate it.
+		metrics.NewTelemetryPipelineMonitor(),
 	)
 }
 
@@ -210,6 +213,9 @@ func httpSender(
 		minSenderConcurrency,
 		maxSenderConcurrency,
 		secretsComp,
+		// A real monitor: the logs-agent pipeline is the sole owner of the global backpressure
+		// snapshot registry, so its components are the only ones that should populate it.
+		metrics.NewTelemetryPipelineMonitor(),
 	)
 }
 
