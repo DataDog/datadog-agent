@@ -62,6 +62,10 @@ sm_emit_filter_slice_element_noctx(void) {
     scratch_buf_set_len(buf, pre_emit_len);
     return 0;
   }
+  // Point sm->offset at the emitted payload so the subsequent CallOp
+  // for the element's type handler (ProcessType[T]) reads from the
+  // correct buffer location when chasing nested pointers.
+  sm->offset = r;
   fst->output_index = idx + 1;
   return 1;
 }
@@ -126,6 +130,9 @@ sm_emit_filter_map_element_noctx(void) {
   if (rem != 0) total += 8 - rem;
   scratch_buf_set_len(buf, tail + total);
 
+  // Point sm->offset at the emitted payload so the subsequent CallOp
+  // for the element's type handler reads from the correct location.
+  sm->offset = payload_off;
   fst->output_index = idx + 1;
   return 1;
 }
