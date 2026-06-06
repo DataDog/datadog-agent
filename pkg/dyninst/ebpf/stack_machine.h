@@ -5015,9 +5015,14 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
   case SM_OP_EMIT_FILTER_SLICE_MARKER: {
     type_t data_type = (type_t)sm_read_program_uint32(sm);
     uint32_t elem_size = sm_read_program_uint32(sm);
-    int r = sm_emit_filter_slice_marker(ctx, data_type, elem_size);
-    if (r != 0) {
+    int r = sm_emit_filter_slice_marker_noctx(data_type, elem_size);
+    if (r == 2) {
       return 1;
+    }
+    if (r == 0) {
+      // Helper stored chase params in sm->di_0; enqueue the chase.
+      sm_record_pointer(ctx, sm->di_0.type, sm->di_0.address,
+                        /*decrease_ttl=*/false, sm->di_0.length);
     }
   } break;
 
@@ -5051,9 +5056,14 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
     type_t data_type = (type_t)sm_read_program_uint32(sm);
     uint32_t swiss_header_size = sm_read_program_uint32(sm);
     uint32_t used_field_offset = sm_read_program_uint32(sm);
-    int r = sm_emit_filter_map_marker(ctx, data_type, swiss_header_size, used_field_offset);
-    if (r != 0) {
+    int r = sm_emit_filter_map_marker_noctx(data_type, swiss_header_size,
+                                            used_field_offset);
+    if (r == 2) {
       return 1;
+    }
+    if (r == 0) {
+      sm_record_pointer(ctx, sm->di_0.type, sm->di_0.address,
+                        /*decrease_ttl=*/false, sm->di_0.length);
     }
   } break;
 

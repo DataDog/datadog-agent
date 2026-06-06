@@ -137,20 +137,29 @@ sm_emit_filter_map_element_noctx(void) {
   return 1;
 }
 
-// sm_emit_filter_slice_marker: SM_OP_EMIT_FILTER_SLICE_MARKER body.
-__attribute__((always_inline)) static inline int
-sm_emit_filter_slice_marker(global_ctx_t* ctx, type_t data_type, uint32_t elem_size) {
-  if (!ctx) return 1;
-  stack_machine_t* sm = ctx->stack_machine;
-  scratch_buf_t* buf = ctx->buf;
+// sm_emit_filter_slice_marker_noctx: noinline body for
+// SM_OP_EMIT_FILTER_SLICE_MARKER. Validates the slice header at
+// sm->offset, computes the capped byte length, and stores the chase
+// parameters in filter_loop_state (data_type_id, data_ptr,
+// remaining as a temporary chase-bytes channel). Returns:
+//   0 = chase needed; sm_loop should call sm_record_pointer.
+//   1 = skip (null pointer, zero len, or zero elem_size).
+//   2 = error (bounds check failure, map lookup failure).
+__attribute__((noinline)) int
+sm_emit_filter_slice_marker_noctx(type_t data_type, uint32_t elem_size) {
+  const uint32_t zero = 0;
+  stack_machine_t* sm = bpf_map_lookup_elem(&stack_machine_buf, &zero);
+  scratch_buf_t* buf = bpf_map_lookup_elem(&events_scratch_buf_map, &zero);
+  filter_loop_state_t* fst = filter_loop_state_load();
+  if (!buf || !sm || !fst) return 2;
   if (!scratch_buf_bounds_check(&sm->offset, 24)) {
-    return 1;
+    return 2;
   }
   target_ptr_t data_ptr = *(target_ptr_t*)(&(*buf)[sm->offset]);
   int64_t signed_len = *(int64_t*)(&(*buf)[sm->offset + 8]);
 
   if (data_ptr == 0 || signed_len <= 0 || elem_size == 0) {
-    return 0;
+    return 1;
   }
   uint64_t len = (uint64_t)signed_len;
 
@@ -162,25 +171,34 @@ sm_emit_filter_slice_marker(global_ctx_t* ctx, type_t data_type, uint32_t elem_s
   if (capped_bytes > 0xFFFFFFFFULL) {
     capped_bytes = 0xFFFFFFFFULL;
   }
-  sm_record_pointer(ctx, data_type, data_ptr,
-                    /*decrease_ttl=*/false, (uint32_t)capped_bytes);
+  // Store chase parameters in sm->di_0 for sm_loop to pass to
+  // sm_record_pointer. di_0 is the standard channel for passing data
+  // items in the chase path; we reuse it here since the marker runs
+  // before any chase processing.
+  sm->di_0.type = data_type;
+  sm->di_0.address = data_ptr;
+  sm->di_0.length = (uint32_t)capped_bytes;
   return 0;
 }
 
-// sm_emit_filter_map_marker: SM_OP_EMIT_FILTER_MAP_MARKER body.
-__attribute__((always_inline)) static inline int
-sm_emit_filter_map_marker(global_ctx_t* ctx, type_t data_type,
-                          uint32_t swiss_header_size,
-                          uint32_t used_field_offset) {
-  if (!ctx) return 1;
-  stack_machine_t* sm = ctx->stack_machine;
-  scratch_buf_t* buf = ctx->buf;
+// sm_emit_filter_map_marker_noctx: noinline body for
+// SM_OP_EMIT_FILTER_MAP_MARKER. Validates the map pointer at
+// sm->offset, reads the used count, and stores chase parameters in
+// sm->di_0. Returns same codes as the slice variant.
+__attribute__((noinline)) int
+sm_emit_filter_map_marker_noctx(type_t data_type,
+                                uint32_t swiss_header_size,
+                                uint32_t used_field_offset) {
+  const uint32_t zero = 0;
+  stack_machine_t* sm = bpf_map_lookup_elem(&stack_machine_buf, &zero);
+  scratch_buf_t* buf = bpf_map_lookup_elem(&events_scratch_buf_map, &zero);
+  if (!buf || !sm) return 2;
   if (!scratch_buf_bounds_check(&sm->offset, 8)) {
-    return 1;
+    return 2;
   }
   target_ptr_t map_addr = *(target_ptr_t*)(&(*buf)[sm->offset]);
   if (map_addr == 0) {
-    return 0;
+    return 1;
   }
 
   uint64_t used = 0;
@@ -191,8 +209,9 @@ sm_emit_filter_map_marker(global_ctx_t* ctx, type_t data_type,
     }
   }
 
-  sm_record_pointer(ctx, data_type, map_addr,
-                    /*decrease_ttl=*/false, swiss_header_size);
+  sm->di_0.type = data_type;
+  sm->di_0.address = map_addr;
+  sm->di_0.length = swiss_header_size;
   return 0;
 }
 
