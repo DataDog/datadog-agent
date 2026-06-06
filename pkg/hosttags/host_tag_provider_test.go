@@ -22,11 +22,11 @@ func TestExpectedTagDurationNotSet(t *testing.T) {
 	mockConfig := configmock.New(t)
 
 	tags := []string{"tag1:value1", "tag2:value2", "tag3:value3"}
-	mockConfig.SetWithoutSource("tags", tags)
-	defer mockConfig.SetWithoutSource("tags", nil)
+	mockConfig.SetInTest("tags", tags)
+	defer mockConfig.SetInTest("tags", nil)
 
 	// Setting expected_tags_duration to 0 (no host tags should be added)
-	mockConfig.SetWithoutSource("expected_tags_duration", "0")
+	mockConfig.SetInTest("expected_tags_duration", "0")
 
 	p := NewHostTagProvider()
 
@@ -49,13 +49,13 @@ func TestHostTagProviderExpectedTags(t *testing.T) {
 
 	// Define and set the expected tags
 	hosttags := []string{"tag1:value1", "tag2:value2", "tag3:value3"}
-	mockConfig.SetWithoutSource("tags", hosttags)
-	defer mockConfig.SetWithoutSource("tags", nil)
+	mockConfig.SetInTest("tags", hosttags)
+	defer mockConfig.SetInTest("tags", nil)
 
 	// Set the expected tags expiration duration to 5 seconds
 	expectedTagsDuration := 5 * time.Second
-	mockConfig.SetWithoutSource("expected_tags_duration", "5s")
-	defer mockConfig.SetWithoutSource("expected_tags_duration", "0")
+	mockConfig.SetInTest("expected_tags_duration", "5s")
+	defer mockConfig.SetInTest("expected_tags_duration", "0")
 
 	p := newHostTagProviderWithClock(mockClock, pkgconfigsetup.Datadog().GetDuration("expected_tags_duration"))
 
