@@ -160,25 +160,20 @@ func StartService(host *components.RemoteHost, service string) error {
 	return fmt.Errorf("failed to start service %s after %d attempts: %w", service, windowsServiceOpMaxAttempts, lastErr)
 }
 
-// RestartService restarts the service.
-// It retries on failure for the same transient SCM issues as StopService (stop phase or start phase).
+// RestartService restarts the service by stopping then starting it.
+//
+// We do not use Restart-Service and treat "still Running" after a failure as success: SCM can
+// return errors such as CouldNotStopService while the previous service instance remains running,
+// so callers that change config and then restart could continue without an actual recycle.
+// StopService and StartService each apply retries for transient SCM failures.
 func RestartService(host *components.RemoteHost, service string) error {
-	var lastErr error
-	for attempt := 1; attempt <= windowsServiceOpMaxAttempts; attempt++ {
-		cmd := fmt.Sprintf("Restart-Service -Force -Name '%s'", service)
-		_, err := host.Execute(cmd)
-		if err == nil {
-			return nil
-		}
-		lastErr = err
-		if status, statusErr := GetServiceStatus(host, service); statusErr == nil && strings.EqualFold(strings.TrimSpace(status), "Running") {
-			return nil
-		}
-		if attempt < windowsServiceOpMaxAttempts {
-			time.Sleep(windowsServiceOpRetryInterval)
-		}
+	if err := StopService(host, service); err != nil {
+		return fmt.Errorf("restart %s (stop phase): %w", service, err)
 	}
-	return fmt.Errorf("failed to restart service %s after %d attempts: %w", service, windowsServiceOpMaxAttempts, lastErr)
+	if err := StartService(host, service); err != nil {
+		return fmt.Errorf("restart %s (start phase): %w", service, err)
+	}
+	return nil
 }
 
 // GetServiceConfig returns the configuration of the service
