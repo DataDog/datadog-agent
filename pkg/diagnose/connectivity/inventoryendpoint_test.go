@@ -94,11 +94,11 @@ func TestBuildRoute(t *testing.T) {
 			}
 			version.AgentVersion = "6.0.0"
 			mockConfig := configmock.New(t)
-			mockConfig.SetWithoutSource("site", tt.domain.site)
-			mockConfig.SetWithoutSource("multi_region_failover.enabled", tt.domain.isFailover)
-			mockConfig.SetWithoutSource("multi_region_failover.site", tt.domain.site)
+			mockConfig.SetInTest("site", tt.domain.site)
+			mockConfig.SetInTest("multi_region_failover.enabled", tt.domain.isFailover)
+			mockConfig.SetInTest("multi_region_failover.site", tt.domain.site)
 			if tt.urlOverrideKey != "" {
-				mockConfig.SetWithoutSource(tt.urlOverrideKey, tt.urlOverrideValue)
+				mockConfig.SetInTest(tt.urlOverrideKey, tt.urlOverrideValue)
 			}
 			url := endpointDescription.buildRoute(mockConfig, tt.domain)
 			assert.Equal(t, tt.expected, url)
@@ -218,13 +218,13 @@ func TestBuildEndpoints(t *testing.T) {
 			mockConfig := configmock.New(t)
 
 			for key, value := range tt.config {
-				mockConfig.SetWithoutSource(key, value)
+				mockConfig.SetInTest(key, value)
 			}
 
-			mockConfig.SetWithoutSource("site", tt.domains[0].site)
+			mockConfig.SetInTest("site", tt.domains[0].site)
 			if len(tt.domains) > 1 {
-				mockConfig.SetWithoutSource("multi_region_failover.enabled", true)
-				mockConfig.SetWithoutSource("multi_region_failover.site", tt.domains[1].site)
+				mockConfig.SetInTest("multi_region_failover.enabled", true)
+				mockConfig.SetInTest("multi_region_failover.site", tt.domains[1].site)
 			}
 
 			endpoints := tt.endpointDescription.buildEndpoints(mockConfig, tt.domains)
@@ -314,11 +314,11 @@ func TestGetDomainInfo(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockConfig := configmock.New(t)
-			mockConfig.SetWithoutSource("api_key", tt.apiKey)
-			mockConfig.SetWithoutSource("site", tt.site)
-			mockConfig.SetWithoutSource("multi_region_failover.enabled", tt.multiRegionFailover)
-			mockConfig.SetWithoutSource("multi_region_failover.site", tt.multiRegionFailoverSite)
-			mockConfig.SetWithoutSource("multi_region_failover.api_key", tt.multiRegionFailoverAPIKey)
+			mockConfig.SetInTest("api_key", tt.apiKey)
+			mockConfig.SetInTest("site", tt.site)
+			mockConfig.SetInTest("multi_region_failover.enabled", tt.multiRegionFailover)
+			mockConfig.SetInTest("multi_region_failover.site", tt.multiRegionFailoverSite)
+			mockConfig.SetInTest("multi_region_failover.api_key", tt.multiRegionFailoverAPIKey)
 			domains := getDomains(mockConfig)
 			assert.Equal(t, tt.expectedKeys, domains)
 		})
@@ -364,7 +364,7 @@ func TestCheckGet(t *testing.T) {
 
 func TestRun(t *testing.T) {
 	cfg := configmock.New(t)
-	cfg.SetWithoutSource("api_key", "test-api-key")
+	cfg.SetInTest("api_key", "test-api-key")
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == "HEAD" {
