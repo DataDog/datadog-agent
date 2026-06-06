@@ -662,6 +662,10 @@ func (g *generator) addExpressionHandler(injectionPC uint64, rootType *ir.EventR
 			// The lookup writes the value element at sm->offset on success.
 			lastOpSize = op.ValByteSize
 			ops = append(ops, swissMapOps(op, exprIdx)...)
+		case *ir.PanicUnwindPrepareOp:
+			ops = append(ops, PanicUnwindPrepareOp{})
+		case *ir.PanicUnwindEvictSlotsOp:
+			ops = append(ops, PanicUnwindEvictSlotsOp{})
 		default:
 			panic(fmt.Sprintf("unexpected ir.Operation: %#v", op))
 		}
