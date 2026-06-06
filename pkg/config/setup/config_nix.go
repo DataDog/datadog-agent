@@ -19,41 +19,10 @@ const (
 	defaultGuiPort = -1
 )
 
-// Exported default paths - sourced from defaultpaths package (the source of truth)
-// These are used by external packages that need default paths for logging setup.
-// For runtime path access, use defaultpaths getters
-var (
-	InstallPath = defaultpaths.DefaultInstallPath
-	// DefaultUpdaterLogFile is the default updater log file
-	DefaultUpdaterLogFile = defaultpaths.DefaultUpdaterLogFile
-	// DefaultSecurityAgentLogFile points to the log file that will be used by the security-agent if not configured
-	DefaultSecurityAgentLogFile = defaultpaths.DefaultSecurityAgentLogFile
-	// DefaultProcessAgentLogFile is the default process-agent log file
-	DefaultProcessAgentLogFile = defaultpaths.DefaultProcessAgentLogFile
-	// DefaultOTelAgentLogFile is the default otel-agent log file
-	DefaultOTelAgentLogFile = defaultpaths.DefaultOTelAgentLogFile
-	// DefaultHostProfilerLogFile is the default host-profiler log file
-	DefaultHostProfilerLogFile = defaultpaths.DefaultHostProfilerLogFile
-	// DefaultPrivateActionRunnerLogFile is the default private-action-runner log file
-	DefaultPrivateActionRunnerLogFile = defaultpaths.DefaultPrivateActionRunnerLogFile
-	// DefaultStreamlogsLogFile points to the stream logs log file that will be used if not configured
-	DefaultStreamlogsLogFile = defaultpaths.DefaultStreamlogsLogFile
-	// DefaultSystemProbeAddress is the default unix socket path to be used for connecting to the system probe
-	DefaultSystemProbeAddress = defaultpaths.DefaultSystemProbeAddress
-	// DefaultDDAgentBin the process agent's binary
-	DefaultDDAgentBin = filepath.Join(defaultpaths.DefaultBinPath, "agent")
-	// DefaultDataPlaneLogFile is the default log file used by the data-plane agent if not configured
-	DefaultDataPlaneLogFile = defaultpaths.DefaultDataPlaneLogFile
-)
-
 // called by init in config.go, to ensure any os-specific config is done
 // in time
 func osinit() {
-	InstallPath = defaultpaths.GetInstallPath()
-
-	DefaultDDAgentBin = filepath.Join(InstallPath, "bin", "agent")
-	DefaultSystemProbeAddress = filepath.Join(InstallPath, "run", "sysprobe.sock")
-	defaultSystemProbeBPFDir = filepath.Join(InstallPath, "embedded/share/system-probe/ebpf")
+	defaultSystemProbeBPFDir = filepath.Join(defaultpaths.GetInstallPath(), "embedded/share/system-probe/ebpf")
 }
 
 // FleetConfigOverride is a no-op on Linux

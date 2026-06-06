@@ -236,3 +236,18 @@ func GetDefaultLogFile() string {
 func GetEmbeddedBinPath() string {
 	return filepath.Join(GetInstallPath(), "..", "..", "embedded", "bin")
 }
+
+// GetDefaultSystemProbeAddress returns the default unix socket path to be used for connecting to the system probe
+func GetDefaultSystemProbeAddress() string {
+	return DefaultSystemProbeAddress
+}
+
+// GetDefaultDDAgentBin returns the default path to the core agent binary
+func GetDefaultDDAgentBin() string {
+	return filepath.Join(GetInstallPath(), "bin/agent/agent")
+}
+
+// GetDefaultDataPlaneLogFile returns the default log file used by the data-plane agent if not configured
+func GetDefaultDataPlaneLogFile() string {
+	return DefaultDataPlaneLogFile
+}

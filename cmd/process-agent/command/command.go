@@ -18,7 +18,6 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	sysprobeconfigimpl "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/impl"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
@@ -28,7 +27,7 @@ import (
 const LoggerName pkglogsetup.LoggerName = "PROCESS"
 
 // DaemonLogParams are the log params should be given to the `core.BundleParams` for when the process agent is running as a daemon
-var DaemonLogParams = log.ForDaemon(string(LoggerName), "process_config.log_file", pkgconfigsetup.DefaultProcessAgentLogFile)
+var DaemonLogParams = log.ForDaemon(string(LoggerName), "process_config.log_file", defaultpaths.GetDefaultProcessAgentLogFile())
 
 // OneShotLogParams are the log params that are given to commands
 var OneShotLogParams = log.ForOneShot(string(LoggerName), "info", true)

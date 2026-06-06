@@ -20,59 +20,7 @@ const (
 	defaultGuiPort = 5002
 )
 
-// Exported default paths - sourced from defaultpaths package (the source of truth)
-// These are used by external packages that need default paths for logging setup.
-// For runtime path access, use defaultpaths getters
-// Note: On Windows, defaultpaths.init() handles registry-based path customization.
-var (
-	// InstallPath is the default install path for the agent
-	InstallPath = defaultpaths.GetInstallPath()
-	// DefaultUpdaterLogFile is the default updater log file
-	DefaultUpdaterLogFile = defaultpaths.GetDefaultUpdaterLogFile()
-	// DefaultSecurityAgentLogFile points to the log file that will be used by the security-agent if not configured
-	DefaultSecurityAgentLogFile = defaultpaths.DefaultSecurityAgentLogFile
-	// DefaultProcessAgentLogFile is the default process-agent log file
-	DefaultProcessAgentLogFile = defaultpaths.DefaultProcessAgentLogFile
-	// DefaultOTelAgentLogFile is the default otel-agent log file
-	DefaultOTelAgentLogFile = defaultpaths.DefaultOTelAgentLogFile
-	// DefaultHostProfilerLogFile is the default host-profiler log file
-	DefaultHostProfilerLogFile = defaultpaths.DefaultHostProfilerLogFile
-	// DefaultPrivateActionRunnerLogFile is the default private-action-runner log file
-	DefaultPrivateActionRunnerLogFile = defaultpaths.GetDefaultPrivateActionRunnerLogFile()
-	// DefaultStreamlogsLogFile points to the stream logs log file that will be used if not configured
-	DefaultStreamlogsLogFile = defaultpaths.GetDefaultStreamlogsLogFile()
-	// DefaultSystemProbeAddress is the default address to be used for connecting to the system probe
-	DefaultSystemProbeAddress = defaultpaths.DefaultSystemProbeAddress
-	// DefaultDDAgentBin the process agent's binary
-	DefaultDDAgentBin = defaultpaths.DefaultDDAgentBin
-	// DefaultDataPlaneLogFile is the default log file used by the data-plane agent if not configured
-	DefaultDataPlaneLogFile = defaultpaths.DefaultDataPlaneLogFile
-)
-
 func osinit() {
-	// The config dir is configurable on Windows, so fetch the path from the registry
-	// This updates the exported vars to reflect the actual ProgramData location
-	pd, err := winutil.GetProgramDataDir()
-	if err == nil {
-		DefaultSecurityAgentLogFile = filepath.Join(pd, "logs", "security-agent.log")
-		DefaultProcessAgentLogFile = filepath.Join(pd, "logs", "process-agent.log")
-		DefaultUpdaterLogFile = filepath.Join(pd, "logs", "updater.log")
-		DefaultOTelAgentLogFile = filepath.Join(pd, "logs", "otel-agent.log")
-		DefaultHostProfilerLogFile = filepath.Join(pd, "logs", "host-profiler.log")
-		DefaultPrivateActionRunnerLogFile = filepath.Join(pd, "logs", "private-action-runner.log")
-		DefaultStreamlogsLogFile = filepath.Join(pd, "logs", "streamlogs_info", "streamlogs.log")
-		DefaultDataPlaneLogFile = filepath.Join(pd, "logs", "agent-data-plane.log")
-	}
-
-	// The install path is configurable on Windows, so fetch the path from the registry
-	// Do NOT use executable.Folder() or _here to calculate the path, some exe files are in different locations
-	// so this can lead to an incorrect result.
-	pd, err = winutil.GetProgramFilesDirForProduct("Datadog Agent")
-	if err == nil {
-		InstallPath = pd
-		DefaultDDAgentBin = filepath.Join(InstallPath, "bin", "agent.exe")
-	}
-
 	// Fleet Automation
 	pkgconfigmodel.AddOverrideFunc(FleetConfigOverride)
 }

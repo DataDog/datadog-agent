@@ -949,7 +949,7 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	if runtime.GOOS == "windows" {
 		config.BindEnvAndSetDefault("runtime_security_config.socket", "localhost:3335")
 	} else {
-		config.BindEnvAndSetDefault("runtime_security_config.socket", filepath.Join(InstallPath, "run/runtime-security.sock"))
+		config.BindEnvAndSetDefault("runtime_security_config.socket", filepath.Join(defaultpaths.GetInstallPath(), "run/runtime-security.sock"))
 	}
 	config.BindEnvAndSetDefault("runtime_security_config.cmd_socket", "")
 	config.BindEnvAndSetDefault("runtime_security_config.use_secruntime_track", true)
@@ -1060,7 +1060,7 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("data_plane.secure_api_listen_address", "tcp://0.0.0.0:5101")
 	config.BindEnvAndSetDefault("data_plane.telemetry_enabled", false)
 	config.BindEnvAndSetDefault("data_plane.telemetry_listen_addr", "tcp://0.0.0.0:5102")
-	config.BindEnvAndSetDefault("data_plane.log_file", DefaultDataPlaneLogFile)
+	config.BindEnvAndSetDefault("data_plane.log_file", defaultpaths.GetDefaultDataPlaneLogFile())
 	config.BindEnvAndSetDefault("data_plane.dogstatsd.enabled", true)
 	config.BindEnvAndSetDefault("data_plane.otlp.enabled", false)
 	config.BindEnvAndSetDefault("data_plane.otlp.proxy.enabled", false)

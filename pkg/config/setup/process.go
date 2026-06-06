@@ -113,7 +113,7 @@ func setupProcesses(config pkgconfigmodel.Setup) {
 	procBindEnvAndSetDefault(config, "process_config.intervals.container_realtime", 2)
 	procBindEnvAndSetDefault(config, "process_config.intervals.connections", 30)
 
-	procBindEnvAndSetDefault(config, "process_config.dd_agent_bin", DefaultDDAgentBin)
+	procBindEnvAndSetDefault(config, "process_config.dd_agent_bin", defaultpaths.GetDefaultDDAgentBin())
 	config.BindEnvAndSetDefault("process_config.custom_sensitive_words", []string{},
 		"DD_CUSTOM_SENSITIVE_WORDS",
 		"DD_PROCESS_CONFIG_CUSTOM_SENSITIVE_WORDS",

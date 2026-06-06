@@ -7,40 +7,11 @@ package setup
 
 import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 )
 
 const (
 	// defaultGuiPort is the default GUI port on Darwin
 	defaultGuiPort = 5002
-)
-
-// Exported default paths - sourced from defaultpaths package (the source of truth)
-// These are used by external packages that need default paths for logging setup.
-// For runtime path access, use defaultpaths getters
-var (
-	// InstallPath is the default install path for the agent
-	InstallPath = defaultpaths.DefaultInstallPath
-	// DefaultUpdaterLogFile is the default updater log file
-	DefaultUpdaterLogFile = defaultpaths.DefaultUpdaterLogFile
-	// DefaultSecurityAgentLogFile points to the log file that will be used by the security-agent if not configured
-	DefaultSecurityAgentLogFile = defaultpaths.DefaultSecurityAgentLogFile
-	// DefaultProcessAgentLogFile is the default process-agent log file
-	DefaultProcessAgentLogFile = defaultpaths.DefaultProcessAgentLogFile
-	// DefaultOTelAgentLogFile is the default otel-agent log file
-	DefaultOTelAgentLogFile = defaultpaths.DefaultOTelAgentLogFile
-	// DefaultHostProfilerLogFile is the default host-profiler log file
-	DefaultHostProfilerLogFile = defaultpaths.DefaultHostProfilerLogFile
-	// DefaultPrivateActionRunnerLogFile is the default private-action-runner log file
-	DefaultPrivateActionRunnerLogFile = defaultpaths.DefaultPrivateActionRunnerLogFile
-	// DefaultStreamlogsLogFile points to the stream logs log file that will be used if not configured
-	DefaultStreamlogsLogFile = defaultpaths.DefaultStreamlogsLogFile
-	// DefaultSystemProbeAddress is the default unix socket path to be used for connecting to the system probe
-	DefaultSystemProbeAddress = defaultpaths.DefaultSystemProbeAddress
-	// DefaultDDAgentBin the process agent's binary
-	DefaultDDAgentBin = defaultpaths.DefaultDDAgentBin
-	// DefaultDataPlaneLogFile is the default log file used by the data-plane agent if not configured
-	DefaultDataPlaneLogFile = defaultpaths.DefaultDataPlaneLogFile
 )
 
 // called by init in config.go, to ensure any os-specific config is done

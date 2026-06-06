@@ -51,7 +51,7 @@ const (
 
 var (
 	// defaultSystemProbeBPFDir is the default path for eBPF programs
-	defaultSystemProbeBPFDir = filepath.Join(InstallPath, "embedded/share/system-probe/ebpf")
+	defaultSystemProbeBPFDir = filepath.Join(defaultpaths.GetInstallPath(), "embedded/share/system-probe/ebpf")
 )
 
 // InitSystemProbeConfig declares all the configuration values normally read from system-probe.yaml.
@@ -97,7 +97,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("system_probe_config.external", false, "DD_SYSTEM_PROBE_EXTERNAL")
 	cfg.SetDefault("system_probe_config.adjusted", false)
 
-	cfg.BindEnvAndSetDefault("system_probe_config.sysprobe_socket", DefaultSystemProbeAddress, "DD_SYSPROBE_SOCKET")
+	cfg.BindEnvAndSetDefault("system_probe_config.sysprobe_socket", defaultpaths.GetDefaultSystemProbeAddress(), "DD_SYSPROBE_SOCKET")
 	cfg.BindEnvAndSetDefault("system_probe_config.max_conns_per_message", defaultConnsMessageBatchSize)
 
 	cfg.BindEnvAndSetDefault("system_probe_config.debug_port", 0)
