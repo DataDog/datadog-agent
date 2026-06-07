@@ -377,6 +377,13 @@
   review:
     name: '#sdlc-security'
     id: 'C027P1CK07N'
+'@datadog/sensitive-data-scanner':
+  notification:
+    name: '#sensitive-data-scanner-team'
+    id: 'C01EF92BCJH'
+  review:
+    name: '#sdlc-security'
+    id: 'C027P1CK07N'
 '@datadog/serverless':
   notification:
     name: '#serverless-agent'

@@ -10,6 +10,9 @@ end
 
 dependency 'datadog-agent-data-plane' if linux_target? && !heroku_target?
 
+# Sensitive Data Scanner shared library. No Windows support for now.
+dependency 'sds' if linux_target? || osx_target?
+
 # Used for memory profiling with the `status py` agent subcommand
 dependency 'pympler'
 

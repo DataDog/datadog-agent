@@ -7,12 +7,19 @@
 package aggregator
 
 import (
+	"encoding/json"
+	"time"
 	"unsafe"
 
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
+
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	metricsevent "github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/sds"
 )
 
 /*
@@ -180,4 +187,77 @@ func SubmitEventPlatformEvent(checkID *C.char, rawEventPtr *C.char, rawEventSize
 		return
 	}
 	sender.EventPlatformEvent(C.GoBytes(unsafe.Pointer(rawEventPtr), rawEventSize), C.GoString(eventType))
+}
+
+// ScanAndSubmitEventPlatformEvent scans the raw event with the Sensitive Data
+// Scanner and submits the processed (e.g. redacted) event to the event platform.
+// This lets integrations forward raw extracted data to the Agent and have the
+// Agent perform the sensitive-data analysis before the event is shipped to the
+// Datadog backend.
+//
+//export ScanAndSubmitEventPlatformEvent
+func ScanAndSubmitEventPlatformEvent(checkID *C.char, rawEventPtr *C.char, rawEventSize C.int, eventType *C.char) {
+	_checkID := C.GoString(checkID)
+	checkContext, err := GetCheckContext()
+	if err != nil {
+		log.Errorf("check context: %v", err)
+		return
+	}
+
+	sender, err := checkContext.senderManager.GetSender(checkid.ID(_checkID))
+	if err != nil || sender == nil {
+		log.Errorf("Error submitting event platform event to the Sender: %v", err)
+		return
+	}
+
+	rawEvent := C.GoBytes(unsafe.Pointer(rawEventPtr), rawEventSize)
+
+	var event dbScanEvent
+	if err := json.Unmarshal(rawEvent, &event); err != nil {
+		log.Errorf("Error parsing event platform event for SDS scanning: %v", err)
+		return
+	}
+
+	// Scan only the rows: each row is scanned as a structured map event so we
+	// can attribute matches back to their row index and column.
+	start := time.Now()
+	rowMatches := make([][]sds.Match, len(event.Rows))
+	for i, row := range event.Rows {
+		matches, scanErr := sds.ScanMap(row)
+		if scanErr != nil {
+			log.Errorf("Error scanning row %d with SDS: %v", i, scanErr)
+			continue
+		}
+		rowMatches[i] = matches
+	}
+	scanDuration := time.Since(start)
+
+	p := buildSdsResultPayload(event, rowMatches, scanDuration)
+
+	// Forward the protobuf-encoded payload to the sds-result intake.
+	if raw, err := proto.Marshal(p); err != nil {
+		log.Errorf("Error encoding SDS result protobuf payload: %v", err)
+	} else {
+		sender.EventPlatformEvent(raw, eventplatform.EventTypeSDSResult)
+	}
+
+	// Also submit a Datadog event with the JSON-rendered payload, wrapped in
+	// Datadog markdown delimiters with a fenced JSON code block so the Event
+	// Explorer renders it as formatted JSON.
+	payload, err := protojson.MarshalOptions{Multiline: true, Indent: "  ", UseProtoNames: true}.Marshal(p)
+	if err != nil {
+		log.Errorf("Error encoding SDS result payload: %v", err)
+		return
+	}
+	text := "%%%\n```json\n" + string(payload) + "\n```\n%%%"
+	sender.Event(metricsevent.Event{
+		Title:     "Data security analysis",
+		Text:      text,
+		Priority:  metricsevent.PriorityNormal,
+		AlertType: metricsevent.AlertTypeInfo,
+		EventType: C.GoString(eventType),
+		Host:      event.Host,
+		Tags:      []string{"table:" + event.Table, "database_instance:" + event.DatabaseInstance},
+		Ts:        time.Now().Unix(),
+	})
 }

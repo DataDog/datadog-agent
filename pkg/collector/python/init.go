@@ -96,6 +96,7 @@ char* ObfuscateSQLExecPlan(char *, bool, char **);
 double getProcessStartTime();
 char* ObfuscateMongoDBString(char *, char **);
 void EmitAgentTelemetry(char *, char *, double, char *);
+char* Scan(char *, char **);
 
 void initDatadogAgentModule(rtloader_t *rtloader) {
 	set_get_clustername_cb(rtloader, GetClusterName);
@@ -115,6 +116,7 @@ void initDatadogAgentModule(rtloader_t *rtloader) {
 	set_get_process_start_time_cb(rtloader, getProcessStartTime);
 	set_obfuscate_mongodb_string_cb(rtloader, ObfuscateMongoDBString);
 	set_emit_agent_telemetry_cb(rtloader, EmitAgentTelemetry);
+	set_scan_cb(rtloader, Scan);
 }
 
 //
@@ -127,6 +129,7 @@ void SubmitServiceCheck(char *, char *, int, char **, char *, char *);
 void SubmitEvent(char *, event_t *);
 void SubmitHistogramBucket(char *, char *, long long, float, float, int, char *, char **, bool);
 void SubmitEventPlatformEvent(char *, char *, int, char *);
+void ScanAndSubmitEventPlatformEvent(char *, char *, int, char *);
 
 void initAggregatorModule(rtloader_t *rtloader) {
 	set_submit_metric_cb(rtloader, SubmitMetric);
@@ -134,6 +137,7 @@ void initAggregatorModule(rtloader_t *rtloader) {
 	set_submit_event_cb(rtloader, SubmitEvent);
 	set_submit_histogram_bucket_cb(rtloader, SubmitHistogramBucket);
 	set_submit_event_platform_event_cb(rtloader, SubmitEventPlatformEvent);
+	set_scan_and_submit_event_platform_event_cb(rtloader, ScanAndSubmitEventPlatformEvent);
 }
 
 //

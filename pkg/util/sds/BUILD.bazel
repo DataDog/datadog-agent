@@ -1,0 +1,44 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "sds",
+    srcs = [
+        "scanner.go",
+        "scanner_nosds.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/sds",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_datadog_dd_sensitive_data_scanner_sds_go_go//:go",
+    ],
+)
+
+go_test(
+    name = "sds_test",
+    srcs = [
+        "scanner_nosds_test.go",
+        "scanner_test.go",
+    ],
+    embed = [":sds"],
+    # `sds` compiles the real cgo scanner (scanner.go / scanner_test.go) and links
+    # libdd_sds via //deps/sds:dd_sds, so the test exercises the native library
+    # instead of the scanner_nosds.go stub. The gazelle go_build_tags extension
+    # appends `test` and preserves `sds`.
+    gotags = [
+        "sds",
+        "test",
+    ],
+    deps = ["@com_github_stretchr_testify//require"],
+)
+
+# Stub variant: built without the `sds` tag so the embedded library compiles
+# scanner_nosds.go instead of the cgo scanner. This guards the no-sds build path
+# from regressing.
+# keep
+go_test(
+    name = "sds_nosds_test",
+    srcs = ["scanner_nosds_test.go"],  # keep
+    embed = [":sds"],
+    gotags = ["test"],  # keep
+    deps = ["@com_github_stretchr_testify//require"],
+)

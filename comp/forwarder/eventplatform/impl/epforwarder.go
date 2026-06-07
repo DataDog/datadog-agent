@@ -340,6 +340,18 @@ func getPassthroughPipelines() []passthroughPipelineDesc {
 			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
 			defaultInputChanSize:          500,
 		},
+		{
+			eventType:                     eventplatform.EventTypeSDSResult,
+			category:                      "DSPM",
+			contentType:                   logshttp.ProtobufContentType,
+			endpointsConfigPrefix:         "sds_result.forwarder.",
+			hostnameEndpointPrefix:        "sds-intake.",
+			intakeTrackType:               "sdsresult",
+			defaultBatchMaxConcurrentSend: 10,
+			defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
+			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
+			defaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
+		},
 	}
 
 	if pkgconfigsetup.Datadog().GetBool("kubeactions.enabled") {

@@ -285,6 +285,14 @@ public:
     */
     virtual void setSubmitEventPlatformEventCb(cb_submit_event_platform_event_t) = 0;
 
+    //! setScanAndSubmitEventPlatformEventCb member.
+    /*!
+      \param A cb_submit_event_platform_event_t function pointer to the CGO callback.
+
+      Scanning and event submission happen in go-land, this allows us to set the CGO callback.
+    */
+    virtual void setScanAndSubmitEventPlatformEventCb(cb_submit_event_platform_event_t) = 0;
+
     // datadog_agent API
 
     //! setGetVersionCb member.
@@ -480,6 +488,15 @@ public:
       specific check instances.
     */
     virtual void setGetProcessStartTimeCb(cb_get_process_start_time_t) = 0;
+
+    //! setScanCb member.
+    /*!
+      \param A cb_scan_t function pointer to the CGO callback.
+
+      This allows us to set the relevant CGO callback that backs the
+      `datadog_agent.scan` python method.
+    */
+    virtual void setScanCb(cb_scan_t) = 0;
 
     //! initPymemStats member.
     /*!

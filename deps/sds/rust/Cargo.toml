@@ -1,0 +1,18 @@
+[package]
+name = "dd_sds_ffi"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+# Thin wrapper that re-exposes the upstream dd-sensitive-data-scanner C ABI
+# (the `dd_sds_go` FFI) as libdd_sds. The actual implementation lives in the
+# crates.io `dd-sensitive-data-scanner` crate; this crate exists only so bazel
+# (rules_rust) can emit a cdylib/staticlib named `dd_sds` consumable by the cgo
+# sds-go binding via //deps/sds:dd_sds.
+[lib]
+name = "dd_sds"
+crate-type = ["cdylib", "staticlib"]
+
+[dependencies]
+dd-sensitive-data-scanner = { workspace = true, features = ["dd_sds_go"] }

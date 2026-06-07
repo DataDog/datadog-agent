@@ -56,4 +56,5 @@
 '@datadog/synthetics-executing': SYNORG
 '@datadog/agent-health': AGTHEAL
 '@datadog/profiling-full-host': 'PROF'
+'@datadog/sensitive-data-scanner': 'DSEC'
 '@datadog/q-branch': DEFAULT_JIRA_PROJECT

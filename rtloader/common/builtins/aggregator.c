@@ -12,6 +12,7 @@ static cb_submit_service_check_t cb_submit_service_check = NULL;
 static cb_submit_event_t cb_submit_event = NULL;
 static cb_submit_histogram_bucket_t cb_submit_histogram_bucket = NULL;
 static cb_submit_event_platform_event_t cb_submit_event_platform_event = NULL;
+static cb_submit_event_platform_event_t cb_scan_and_submit_event_platform_event = NULL;
 
 // forward declarations
 static PyObject *submit_metric(PyObject *self, PyObject *args);
@@ -19,6 +20,7 @@ static PyObject *submit_service_check(PyObject *self, PyObject *args);
 static PyObject *submit_event(PyObject *self, PyObject *args);
 static PyObject *submit_histogram_bucket(PyObject *self, PyObject *args);
 static PyObject *submit_event_platform_event(PyObject *self, PyObject *args);
+static PyObject *scan_and_submit_event_platform_event(PyObject *self, PyObject *args);
 
 static PyMethodDef methods[] = {
     { "submit_metric", (PyCFunction)submit_metric, METH_VARARGS, "Submit metrics." },
@@ -26,6 +28,7 @@ static PyMethodDef methods[] = {
     { "submit_event", (PyCFunction)submit_event, METH_VARARGS, "Submit events." },
     { "submit_histogram_bucket", (PyCFunction)submit_histogram_bucket, METH_VARARGS, "Submit histogram bucket." },
     { "submit_event_platform_event", (PyCFunction)submit_event_platform_event, METH_VARARGS, "Submit event platform event." },
+    { "scan_and_submit_event_platform_event", (PyCFunction)scan_and_submit_event_platform_event, METH_VARARGS, "Scan an event with the Sensitive Data Scanner then submit it as an event platform event." },
     { NULL, NULL } // guards
 };
 
@@ -80,6 +83,11 @@ void _set_submit_histogram_bucket_cb(cb_submit_histogram_bucket_t cb)
 void _set_submit_event_platform_event_cb(cb_submit_event_platform_event_t cb)
 {
     cb_submit_event_platform_event = cb;
+}
+
+void _set_scan_and_submit_event_platform_event_cb(cb_submit_event_platform_event_t cb)
+{
+    cb_scan_and_submit_event_platform_event = cb;
 }
 
 
@@ -430,6 +438,36 @@ static PyObject *submit_event_platform_event(PyObject *self, PyObject *args)
     }
 
     cb_submit_event_platform_event(check_id, raw_event_ptr, raw_event_sz, event_type);
+    PyGILState_Release(gstate);
+    Py_RETURN_NONE;
+}
+
+static PyObject *scan_and_submit_event_platform_event(PyObject *self, PyObject *args)
+{
+    if (cb_scan_and_submit_event_platform_event == NULL) {
+        Py_RETURN_NONE;
+    }
+
+    PyGILState_STATE gstate = PyGILState_Ensure();
+
+    PyObject *check = NULL;
+    char *check_id = NULL;
+    char *raw_event_ptr = NULL;
+    Py_ssize_t raw_event_sz = 0;
+    char *event_type = NULL;
+
+    if (!PyArg_ParseTuple(args, "Oss#s", &check, &check_id, &raw_event_ptr, &raw_event_sz, &event_type)) {
+        PyGILState_Release(gstate);
+        return NULL;
+    }
+
+    if (raw_event_sz > INT_MAX) {
+        PyErr_SetString(PyExc_ValueError, "event is too large");
+        PyGILState_Release(gstate);
+        return NULL;
+    }
+
+    cb_scan_and_submit_event_platform_event(check_id, raw_event_ptr, raw_event_sz, event_type);
     PyGILState_Release(gstate);
     Py_RETURN_NONE;
 }
