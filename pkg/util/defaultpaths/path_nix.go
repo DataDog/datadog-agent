@@ -264,7 +264,7 @@ func GetEmbeddedBinPath() string {
 
 // GetDefaultSystemProbeAddress returns the default unix socket path to be used for connecting to the system probe
 func GetDefaultSystemProbeAddress() string {
-	return DefaultSystemProbeAddress
+	return filepath.Join(GetInstallPath(), "run/sysprobe.sock")
 }
 
 // GetDefaultDDAgentBin returns the default path to the core agent binary
