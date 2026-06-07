@@ -6,8 +6,6 @@
 package setup
 
 import (
-	"path/filepath"
-
 	"golang.org/x/sys/windows/registry"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
