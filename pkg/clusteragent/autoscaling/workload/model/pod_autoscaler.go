@@ -96,17 +96,15 @@ type PodAutoscalerInternal struct {
 	// previewOptions holds the parsed preview feature flags from the DPA annotations
 	previewOptions previewOptions
 
-<<<<<<< HEAD
 	// metadataHash fingerprints the K8s state read by UpdateFromPodAutoscaler
 	// (.metadata.generation plus watched labels/annotations), so that a single
 	// equality check captures both spec changes and out-of-spec edits.
 	metadataHash uint64
-=======
+
 	// clusterBurstableDefault is the cluster-level default for burstable mode, read once
 	// from config at controller startup and injected via PodAutoscalerInternalBuilder.
 	// It is the lowest-priority fallback: spec.options.burstable > preview annotation > this.
 	clusterBurstableDefault bool
->>>>>>> 09695e925e (feat(autoscaling): add burstable cluster default via PodAutoscalerInternalBuilder)
 
 	// podsGuaranteedQOS is true when all observed pods are in Guaranteed QOS class.
 	// Set by the vertical controller each sync via SetPodsGuaranteedQOS.

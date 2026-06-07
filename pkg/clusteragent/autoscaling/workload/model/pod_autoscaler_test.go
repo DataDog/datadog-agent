@@ -1026,7 +1026,7 @@ func TestUpdateFromPodAutoscalerResyncsOnWatchedMetadata(t *testing.T) {
 		Spec:       datadoghq.DatadogPodAutoscalerSpec{Owner: datadoghqcommon.DatadogPodAutoscalerLocalOwner},
 	}
 
-	pai := NewPodAutoscalerInternal(dpa)
+	pai := NewPodAutoscalerInternalBuilder(false).NewFromKubernetes(dpa)
 	assert.False(t, pai.IsBurstable())
 
 	// Annotation-only edit: same generation, new preview annotation.
