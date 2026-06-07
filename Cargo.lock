@@ -17,7 +17,6 @@ dependencies = [
  "cfg-if",
  "getrandom 0.3.4",
  "once_cell",
- "serde",
  "version_check",
  "zerocopy",
 ]
@@ -683,9 +682,9 @@ dependencies = [
 
 [[package]]
 name = "dd-sensitive-data-scanner"
-version = "0.1.0-20260604-b6508b798d1a"
+version = "0.1.0-20260601-3c48e9fa5604"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c05e0b4ab56658eeea7d50def5aef4fc6630dcd9ef522d5c2cba90379eaa58ee"
+checksum = "5c22a3c424e6461ca5e017b7039154e05f314eb00303f564bd4c7f27598ce75b"
 dependencies = [
  "ahash",
  "aws-sign-v4",

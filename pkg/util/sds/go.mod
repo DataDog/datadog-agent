@@ -3,7 +3,7 @@ module github.com/DataDog/datadog-agent/pkg/util/sds
 go 1.25.9
 
 require (
-	github.com/DataDog/dd-sensitive-data-scanner/sds-go/go v0.0.0-20260604130022-b6508b798d1a
+	github.com/DataDog/dd-sensitive-data-scanner/sds-go/go v0.0.0-20260601185219-3c48e9fa5604
 	github.com/stretchr/testify v1.11.1
 )
 
