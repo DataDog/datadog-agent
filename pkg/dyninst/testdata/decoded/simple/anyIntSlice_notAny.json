@@ -24,7 +24,6 @@
       "type": "snapshot"
     },
     "timestamp": "[ts]",
-    "duration": "[duration]",
     "message": "not_any42 tag=anymiss_allmatch",
     "process_tags": "entrypoint.name:sample,svc.user:sample"
   },
@@ -53,7 +52,6 @@
       "type": "snapshot"
     },
     "timestamp": "[ts]",
-    "duration": "[duration]",
     "message": "not_any42 tag=allmiss",
     "process_tags": "entrypoint.name:sample,svc.user:sample"
   },
@@ -82,7 +80,6 @@
       "type": "snapshot"
     },
     "timestamp": "[ts]",
-    "duration": "[duration]",
     "message": "not_any42 tag=empty",
     "process_tags": "entrypoint.name:sample,svc.user:sample"
   },
@@ -106,18 +103,11 @@
           "location": {
             "method": "main.anyAllIntSlice"
           }
-        },
-        "evaluationErrors": [
-          {
-            "expr": "not(any(xs, {@it == 42}))",
-            "message": "error evaluating condition"
-          }
-        ]
+        }
       },
       "type": "snapshot"
     },
     "timestamp": "[ts]",
-    "duration": "[duration]",
     "message": "not_any42 tag=toolarge",
     "process_tags": "entrypoint.name:sample,svc.user:sample"
   },
@@ -141,18 +131,11 @@
           "location": {
             "method": "main.anyAllIntSlice"
           }
-        },
-        "evaluationErrors": [
-          {
-            "expr": "not(any(xs, {@it == 42}))",
-            "message": "error evaluating condition"
-          }
-        ]
+        }
       },
       "type": "snapshot"
     },
     "timestamp": "[ts]",
-    "duration": "[duration]",
     "message": "not_any42 tag=scall",
     "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
