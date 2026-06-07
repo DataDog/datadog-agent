@@ -1,0 +1,7 @@
+---
+deprecations:
+  - |
+    APM : The ``evp_proxy_config.app_key`` configuration option has been removed,
+    along with support for the ``X-Datadog-NeedsAppKey`` request header in the
+    trace-agent EVP proxy. The EVP proxy no longer attaches an Application key to
+    forwarded requests.

@@ -6,7 +6,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/datastreams",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/core/autodiscovery",
+        "//comp/core/autodiscovery/def",
         "//comp/core/autodiscovery/integration",
         "//comp/core/autodiscovery/providers/names",
         "//comp/core/autodiscovery/providers/types",
@@ -24,7 +24,7 @@ go_test(
     embed = [":datastreams"],
     gotags = ["test"],
     deps = [
-        "//comp/core/autodiscovery",
+        "//comp/core/autodiscovery/def",
         "//comp/core/autodiscovery/integration",
         "//comp/core/autodiscovery/noopimpl",
         "//pkg/config/remote/data",

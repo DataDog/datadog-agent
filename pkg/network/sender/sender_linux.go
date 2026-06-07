@@ -34,7 +34,8 @@ import (
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	connectionsforwarder "github.com/DataDog/datadog-agent/comp/forwarder/connectionsforwarder/def"
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	defaultforwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/def"
+	defaultforwarderimpl "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/impl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	npcollector "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/def"
@@ -121,7 +122,7 @@ func New(
 	if err != nil {
 		return nil, err
 	}
-	forwarderOpts := defaultforwarder.NewOptionsWithResolvers(deps.Config, deps.Logger, resolvers)
+	forwarderOpts := defaultforwarderimpl.NewOptionsWithResolvers(deps.Config, deps.Logger, resolvers)
 	forwarderOpts.DisableAPIKeyChecking = true
 	forwarderOpts.RetryQueuePayloadsTotalMaxSize = queueBytes
 

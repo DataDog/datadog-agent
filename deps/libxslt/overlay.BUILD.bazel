@@ -6,7 +6,7 @@ load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
 
-XSLT_VERSION = "1.1.43"
+XSLT_VERSION = "1.1.45"
 EXSLT_VERSION = "0.8.25"
 
 license(
@@ -32,7 +32,7 @@ expand_template(
     out = "libxslt/xsltconfig.h",
     substitutions = {
         "@VERSION@": XSLT_VERSION,
-        "@LIBXSLT_VERSION_NUMBER@": "10143",
+        "@LIBXSLT_VERSION_NUMBER@": "10145",
         "@LIBXSLT_VERSION_EXTRA@": "",
         "@WITH_XSLT_DEBUG@": "0",
         "@WITH_TRIO@": "0",
@@ -57,6 +57,7 @@ _PUBLIC_XSLT_HDRS = [
     "libxslt/security.h",
     "libxslt/templates.h",
     "libxslt/transform.h",
+    "libxslt/transformInternals.h",
     "libxslt/variables.h",
     "libxslt/xslt.h",
     "libxslt/xsltexports.h",
@@ -201,7 +202,7 @@ pkg_files(
 dd_cc_packaged(
     name = "exslt_pkg",
     input = ":exslt",
-    version = "0.8.24",
+    version = "0.8.25",
     installed_files = [":exslt_headers"],
     visibility = ["//visibility:public"],
 )
