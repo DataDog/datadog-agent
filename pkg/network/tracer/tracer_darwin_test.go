@@ -78,6 +78,10 @@ func (m *mockConnTracer) Describe(_ chan<- *prometheus.Desc) {}
 
 func (m *mockConnTracer) Collect(_ chan<- prometheus.Metric) {}
 
+func (m *mockConnTracer) GetProtocolClassifierStats() (calls, skippedFullyClassified, skippedMaxAttempts uint64) {
+	return 0, 0, 0
+}
+
 // ============================================================================
 // Mock network.State
 // ============================================================================
