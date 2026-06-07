@@ -16,8 +16,8 @@ import (
 	"go.uber.org/atomic"
 	utilserror "k8s.io/apimachinery/pkg/util/errors"
 
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	adtypes "github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
+	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"

@@ -26,10 +26,10 @@ go_test(
     gotags = ["test"],
     deps = [
         "//comp/core/config",
-        "//comp/core/hostname/hostnameinterface",
+        "//comp/core/hostname/hostnameinterface/mock",
         "//comp/core/log/mock",
+        "//pkg/config/basic",
         "//pkg/config/mock",
-        "@com_github_go_viper_mapstructure_v2//:mapstructure",
         "@com_github_gosnmp_gosnmp//:gosnmp",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

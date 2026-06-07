@@ -321,6 +321,9 @@ func (s *agentRunner) createConfigFile(conf []byte) (string, error) {
 	if !v.IsSet("api_key") {
 		v.Set("api_key", "testing123")
 	}
+	if !v.IsSet("hostname") {
+		v.Set("hostname", "trace-agent-test")
+	}
 	if !v.IsSet("apm_config.trace_writer.flush_period_seconds") {
 		v.Set("apm_config.trace_writer.flush_period_seconds", 0.1)
 	}

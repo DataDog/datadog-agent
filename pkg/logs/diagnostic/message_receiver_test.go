@@ -9,7 +9,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -24,7 +24,7 @@ func getNewHostname(name hostnameinterface.MockHostname) hostnameinterface.Mock 
 
 func getTestConfig(t *testing.T) pkgconfigmodel.Reader {
 	cfg := configmock.New(t)
-	cfg.SetWithoutSource("logs_config.message_channel_size", 100)
+	cfg.SetInTest("logs_config.message_channel_size", 100)
 	return cfg
 }
 
