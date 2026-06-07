@@ -5,16 +5,16 @@
 
 //go:build test
 
-// Package agent contains logs agent component.
-package agent
+package mock
 
 import (
+	agent "github.com/DataDog/datadog-agent/comp/logs/agent/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
 // Mock implements mock-specific methods.
 type Mock interface {
-	Component
+	agent.Component
 
 	SetSources(sources *sources.LogSources)
 }

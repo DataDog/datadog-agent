@@ -36,7 +36,7 @@ import (
 	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform"
 	"github.com/DataDog/datadog-agent/comp/logs-library/pipeline"
 	"github.com/DataDog/datadog-agent/comp/logs-library/processor"
-	"github.com/DataDog/datadog-agent/comp/logs/agent/agentimpl"
+	agentimpl "github.com/DataDog/datadog-agent/comp/logs/agent/impl"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
