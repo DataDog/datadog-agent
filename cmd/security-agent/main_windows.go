@@ -50,7 +50,6 @@ import (
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
-	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/security/agent"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
@@ -114,7 +113,7 @@ func (s *service) Run(svcctx context.Context) error {
 		fx.Supply(core.BundleParams{
 			ConfigParams:         config.NewSecurityAgentParams(defaultSecurityAgentConfigFilePaths),
 			SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(defaultSysProbeConfPath)),
-			LogParams:            log.ForDaemon(command.LoggerName, "security_agent.log_file", setup.DefaultSecurityAgentLogFile),
+			LogParams:            log.ForDaemon(command.LoggerName, "security_agent.log_file", defaultpaths.GetDefaultSecurityAgentLogFile()),
 		}),
 		core.Bundle(core.WithSecrets()),
 		remotehostnameimpl.Module(),
