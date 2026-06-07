@@ -1,26 +1,39 @@
 { pkgs }:
 
-# Ruby 2.7.8 built against the nixpkgs-unstable stdenv.
+# Ruby 2.7.8 (nixpkgs-unstable stdenv; GCC 13 on Linux, Apple Clang on macOS).
 #
-# We deliberately do NOT use the nixpkgs-ruby27 (nixos-23.11) package for this:
+# We deliberately do NOT use the nixpkgs-ruby27 (nixos-23.11) package:
 # that snapshot's Darwin bootstrap chain requires building LLVM 16 from source,
 # which fails on macOS 26 (Darwin 25.x / Tahoe) because LLVM 16's TargetParser
 # unit tests compare the runtime macOS version to the SDK version baked into the
 # binary and abort when they don't match.  Building against the nixpkgs-unstable
 # stdenv (LLVM 18+) sidesteps this entirely.
 #
+# We use GCC 13 (not the default GCC 15) because Ruby 2.7.8 uses K&R-style
+# function pointer declarations that GCC 14+ treats as hard errors (-Wincompatible-
+# pointer-types, empty-paren -> void, conflicting types in defs/keywords etc.).
+# GCC 13 still accepts these patterns as warnings, and the resulting binary is
+# correct. GCC 13 is available in nixpkgs-unstable alongside the default GCC 15.
+#
 # Bundler 2.4.22 is installed into the Ruby gem directory during the build using
 # a pre-fetched .gem file (no network access required in the Nix sandbox).
 # CI uses bundler 2.4.20; 2.4.22 is API-compatible.
 
 let
+  # On Linux, GCC 14+ made Ruby 2.7.8's K&R function-pointer patterns hard
+  # errors. GCC 13 still accepts them as warnings. On macOS, stdenv uses Apple
+  # Clang which never had this strictness change, so keep it as-is.
+  rubyStdenv = if pkgs.stdenv.isDarwin
+    then pkgs.stdenv
+    else pkgs.overrideCC pkgs.stdenv pkgs.gcc13;
+
   bundlerGem = pkgs.fetchurl {
     url  = "https://rubygems.org/downloads/bundler-2.4.22.gem";
     hash = "sha256-dHulCw5n3yXL07SPlYMad6TVOlgdVfBjly/LFG0ULF8=";
   };
 in
 
-pkgs.stdenv.mkDerivation rec {
+rubyStdenv.mkDerivation rec {
   pname   = "ruby";
   version = "2.7.8";
 
