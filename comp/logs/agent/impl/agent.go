@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"go.uber.org/atomic"
-	"go.uber.org/fx"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	apiutils "github.com/DataDog/datadog-agent/comp/api/api/utils/stream"
@@ -27,11 +26,12 @@ import (
 	statusComponent "github.com/DataDog/datadog-agent/comp/core/status"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/comp/logs-library/client"
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/comp/logs-library/pipeline"
-	"github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	agent "github.com/DataDog/datadog-agent/comp/logs/agent/def"
 	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
@@ -70,13 +70,13 @@ const (
 // Module defines the fx options for this component.
 func Module() fxutil.Module {
 	return fxutil.Component(
-		fx.Provide(newLogsAgent))
+		fxutil.ProvideComponentConstructor(newLogsAgent))
 }
 
 type dependencies struct {
-	fx.In
+	compdef.In
 
-	Lc                 fx.Lifecycle
+	Lc                 compdef.Lifecycle
 	Log                log.Component
 	Config             configComponent.Component
 	InventoryAgent     inventoryagent.Component
@@ -90,7 +90,7 @@ type dependencies struct {
 }
 
 type provides struct {
-	fx.Out
+	compdef.Out
 
 	Comp           option.Option[agent.Component]
 	FlareProvider  flaretypes.Provider
@@ -167,7 +167,7 @@ func newLogsAgent(deps dependencies) provides {
 			compression:        deps.Compression,
 			secrets:            deps.Secrets,
 		}
-		deps.Lc.Append(fx.Hook{
+		deps.Lc.Append(compdef.Hook{
 			OnStart: logsAgent.start,
 			OnStop:  logsAgent.stop,
 		})
