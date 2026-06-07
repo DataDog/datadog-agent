@@ -17,9 +17,6 @@ import (
 // Exported default path constants for use in BindEnvAndSetDefault and similar config registration.
 // These are the raw, untransformed paths. Use getter functions for runtime transformed paths.
 const (
-	// DefaultInstallPath is the default install path for the agent
-	// It might be overridden at build time
-	DefaultInstallPath = "/opt/datadog-agent"
 	// DefaultRunPath is the default runtime directory for the agent
 	DefaultRunPath = "/opt/datadog-agent/run"
 	// DefaultConfPath points to the folder containing datadog.yaml
@@ -80,6 +77,10 @@ const (
 )
 
 var (
+	// DefaultInstallPath is the default install path for the agent
+	// It might be overridden at build time via ldflags so it is a var instead of const
+	DefaultInstallPath = "/opt/datadog-agent"
+
 	// utility variables
 	_here, _ = executable.Folder()
 	// PyChecksPath holds the path to the python checks from integrations-core shipped with the agent
