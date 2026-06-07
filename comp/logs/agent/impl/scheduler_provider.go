@@ -6,13 +6,13 @@
 package agentimpl
 
 import (
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
-	"go.uber.org/fx"
 )
 
 // SchedulerProvider provides a scheduler for the log Agent.
 type SchedulerProvider struct {
-	fx.Out
+	compdef.Out
 
 	Scheduler schedulers.Scheduler `group:"log-agent-scheduler"`
 }

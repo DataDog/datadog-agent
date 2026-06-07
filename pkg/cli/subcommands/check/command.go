@@ -66,7 +66,7 @@ import (
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform"
 	healthplatformmock "github.com/DataDog/datadog-agent/comp/healthplatform/store/mock"
-	logagent "github.com/DataDog/datadog-agent/comp/logs/agent"
+	logagent "github.com/DataDog/datadog-agent/comp/logs/agent/def"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	inventorychecks "github.com/DataDog/datadog-agent/comp/metadata/inventorychecks/def"
 	inventorychecksfx "github.com/DataDog/datadog-agent/comp/metadata/inventorychecks/fx"

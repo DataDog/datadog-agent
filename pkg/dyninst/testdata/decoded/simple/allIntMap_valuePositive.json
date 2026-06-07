@@ -106,13 +106,7 @@
           "location": {
             "method": "main.anyAllIntMap"
           }
-        },
-        "evaluationErrors": [
-          {
-            "expr": "all(m, {@value > 0})",
-            "message": "error evaluating condition"
-          }
-        ]
+        }
       },
       "type": "snapshot"
     },

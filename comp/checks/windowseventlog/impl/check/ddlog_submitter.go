@@ -11,7 +11,7 @@ import (
 	"fmt"
 	"sync"
 
-	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
+	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent/def"
 	publishermetadatacache "github.com/DataDog/datadog-agent/comp/publishermetadatacache/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"

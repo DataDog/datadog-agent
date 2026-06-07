@@ -23,7 +23,7 @@ import (
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	logagent "github.com/DataDog/datadog-agent/comp/logs/agent"
+	logagent "github.com/DataDog/datadog-agent/comp/logs/agent/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
 	inventorychecks "github.com/DataDog/datadog-agent/comp/metadata/inventorychecks/def"
 	runnerdef "github.com/DataDog/datadog-agent/comp/metadata/runner/def"

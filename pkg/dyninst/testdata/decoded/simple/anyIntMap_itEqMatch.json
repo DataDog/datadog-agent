@@ -19,13 +19,7 @@
           "location": {
             "method": "main.anyAllIntMap"
           }
-        },
-        "evaluationErrors": [
-          {
-            "expr": "any(m, {@it == \"match\"})",
-            "message": "error evaluating condition"
-          }
-        ]
+        }
       },
       "type": "snapshot"
     },

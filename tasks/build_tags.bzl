@@ -310,6 +310,7 @@ AIX_EXCLUDED_TAGS = set([
     "orchestrator",
     "pcap",
     "podman",
+    "sharedlibrarycheck",
     "systemd",
     "systemprobechecks",
     "trivy",

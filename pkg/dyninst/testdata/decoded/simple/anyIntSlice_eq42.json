@@ -24,7 +24,6 @@
       "type": "snapshot"
     },
     "timestamp": "[ts]",
-    "duration": "[duration]",
     "message": "any42 tag=match",
     "process_tags": "entrypoint.name:sample,svc.user:sample"
   },
@@ -53,7 +52,6 @@
       "type": "snapshot"
     },
     "timestamp": "[ts]",
-    "duration": "[duration]",
     "message": "any42 tag=cap",
     "process_tags": "entrypoint.name:sample,svc.user:sample"
   },
@@ -82,7 +80,6 @@
       "type": "snapshot"
     },
     "timestamp": "[ts]",
-    "duration": "[duration]",
     "message": "any42 tag=capplus",
     "process_tags": "entrypoint.name:sample,svc.user:sample"
   },
@@ -106,18 +103,11 @@
           "location": {
             "method": "main.anyAllIntSlice"
           }
-        },
-        "evaluationErrors": [
-          {
-            "expr": "any(xs, {@it == 42})",
-            "message": "error evaluating condition"
-          }
-        ]
+        }
       },
       "type": "snapshot"
     },
     "timestamp": "[ts]",
-    "duration": "[duration]",
     "message": "any42 tag=toolarge",
     "process_tags": "entrypoint.name:sample,svc.user:sample"
   },
@@ -146,7 +136,6 @@
       "type": "snapshot"
     },
     "timestamp": "[ts]",
-    "duration": "[duration]",
     "message": "any42 tag=scany",
     "process_tags": "entrypoint.name:sample,svc.user:sample"
   },
@@ -170,18 +159,11 @@
           "location": {
             "method": "main.anyAllIntSlice"
           }
-        },
-        "evaluationErrors": [
-          {
-            "expr": "any(xs, {@it == 42})",
-            "message": "error evaluating condition"
-          }
-        ]
+        }
       },
       "type": "snapshot"
     },
     "timestamp": "[ts]",
-    "duration": "[duration]",
     "message": "any42 tag=scall",
     "process_tags": "entrypoint.name:sample,svc.user:sample"
   }

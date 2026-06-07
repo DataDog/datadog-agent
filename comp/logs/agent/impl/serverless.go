@@ -13,7 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log/impl"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	"github.com/DataDog/datadog-agent/comp/logs/agent"
+	agent "github.com/DataDog/datadog-agent/comp/logs/agent/def"
 	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
 	auditornoop "github.com/DataDog/datadog-agent/comp/logs/auditor/impl-none"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"

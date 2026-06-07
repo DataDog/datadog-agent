@@ -5,12 +5,12 @@
 
 //go:build test
 
-package agentimpl
+package mock
 
 import (
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/logs/agent"
+	agent "github.com/DataDog/datadog-agent/comp/logs/agent/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
 )
 

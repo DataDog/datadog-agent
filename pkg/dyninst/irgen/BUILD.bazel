@@ -37,6 +37,7 @@ go_library(
 go_test(
     name = "irgen_test",
     srcs = [
+        "contains_equivalence_test.go",
         "go_context_test.go",
         "implementors_test.go",
         "irgen_all_symbols_test.go",

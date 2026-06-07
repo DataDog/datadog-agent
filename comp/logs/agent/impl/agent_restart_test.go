@@ -121,7 +121,7 @@ func createTestAgent(suite *RestartTestSuite, endpoints *config.Endpoints) (*log
 
 	suite.configOverrides["logs_enabled"] = true
 
-	deps := fxutil.Test[testDeps](suite.T(), fx.Options(
+	deps := fxutil.Test[testDeps](suite.T(),
 		fx.Provide(func() log.Component { return logmock.New(suite.T()) }),
 		fx.Provide(func() configComponent.Component {
 			return configComponent.NewMockWithOverrides(suite.T(), suite.configOverrides)
@@ -129,8 +129,8 @@ func createTestAgent(suite *RestartTestSuite, endpoints *config.Endpoints) (*log
 		hostnameimpl.MockModule(),
 		inventoryagentmock.MockModule(),
 		auditorfx.Module(),
-		fx.Provide(kubehealthmock.NewProvides),
-	))
+		fxutil.ProvideComponentConstructor(kubehealthmock.NewProvides),
+	)
 
 	fakeTagger := taggerfxmock.SetupFakeTagger(suite.T())
 	suite.kubeHealthRegistrar = deps.KubeHealthRegistrar

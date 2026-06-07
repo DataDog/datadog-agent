@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/checks/windowseventlog/impl/check/eventdatafilter"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
-	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
+	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent/def"
 	publishermetadatacache "github.com/DataDog/datadog-agent/comp/publishermetadatacache/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
