@@ -3109,6 +3109,12 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
   } break;
 
   case SM_OP_EXPR_PREPARE: {
+    // Start each expression with the condition error flags cleared so that
+    // a faulting any/all loop body in a template segment or capture
+    // expression cannot leak into the next condition's ConditionCheck.
+    // Mirrors the ConditionBegin / ConditionCheck lifecycle for conditions.
+    sm->condition_eval_error = false;
+    sm->condition_nil_deref = false;
     sm->expr_results_end_offset = scratch_buf_len(buf);
     sm->offset = sm->expr_results_end_offset;
     if (sm->expr_type == POINTER) {
