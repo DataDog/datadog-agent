@@ -35,60 +35,60 @@ var (
 // These are the static default values before init() may update them based on registry.
 // For runtime paths that reflect registry customization, use getter functions instead.
 const (
-	DefaultConfPath                   = "c:\\programdata\\datadog"
-	DefaultConfdPath                  = "c:\\programdata\\datadog\\conf.d"
-	DefaultAdditionalChecksPath       = "c:\\programdata\\datadog\\checks.d"
-	DefaultLogFile                    = "c:\\programdata\\datadog\\logs\\agent.log"
-	DefaultUpdaterLogFile             = "c:\\programdata\\datadog\\logs\\updater.log"
-	DefaultSecurityAgentLogFile       = "c:\\programdata\\datadog\\logs\\security-agent.log"
-	DefaultProcessAgentLogFile        = "c:\\programdata\\datadog\\logs\\process-agent.log"
-	DefaultOTelAgentLogFile           = "c:\\programdata\\datadog\\logs\\otel-agent.log"
-	DefaultHostProfilerLogFile        = "c:\\programdata\\datadog\\logs\\host-profiler.log"
-	DefaultPrivateActionRunnerLogFile = "c:\\programdata\\datadog\\logs\\private-action-runner.log"
-	DefaultStreamlogsLogFile          = "c:\\programdata\\datadog\\logs\\streamlogs_info\\streamlogs.log"
-	DefaultSystemProbeLogFile         = "c:\\programdata\\datadog\\logs\\system-probe.log"
-	DefaultSystemProbeAddress         = `\\.\pipe\dd_system_probe`
-	DefaultStatsdSocket               = ""
-	DefaultReceiverSocket             = ""
-	DefaultRunPath                    = "c:\\programdata\\datadog\\run"
-	DefaultDDAgentBin                 = "c:\\Program Files\\Datadog\\Datadog Agent\\bin\\agent.exe"
-	DefaultDataPlaneLogFile           = "C:\\ProgramData\\Datadog\\logs\\agent-data-plane.log"
+	defaultConfPath                   = "c:\\programdata\\datadog"
+	defaultConfdPath                  = "c:\\programdata\\datadog\\conf.d"
+	defaultAdditionalChecksPath       = "c:\\programdata\\datadog\\checks.d"
+	defaultLogFile                    = "c:\\programdata\\datadog\\logs\\agent.log"
+	defaultUpdaterLogFile             = "c:\\programdata\\datadog\\logs\\updater.log"
+	defaultSecurityAgentLogFile       = "c:\\programdata\\datadog\\logs\\security-agent.log"
+	defaultProcessAgentLogFile        = "c:\\programdata\\datadog\\logs\\process-agent.log"
+	defaultOTelAgentLogFile           = "c:\\programdata\\datadog\\logs\\otel-agent.log"
+	defaultHostProfilerLogFile        = "c:\\programdata\\datadog\\logs\\host-profiler.log"
+	defaultPrivateActionRunnerLogFile = "c:\\programdata\\datadog\\logs\\private-action-runner.log"
+	defaultStreamlogsLogFile          = "c:\\programdata\\datadog\\logs\\streamlogs_info\\streamlogs.log"
+	defaultSystemProbeLogFile         = "c:\\programdata\\datadog\\logs\\system-probe.log"
+	defaultSystemProbeAddress         = `\\.\pipe\dd_system_probe`
+	defaultStatsdSocket               = ""
+	defaultReceiverSocket             = ""
+	defaultRunPath                    = "c:\\programdata\\datadog\\run"
+	defaultDDAgentBin                 = "c:\\Program Files\\Datadog\\Datadog Agent\\bin\\agent.exe"
+	defaultDataPlaneLogFile           = "C:\\ProgramData\\Datadog\\logs\\agent-data-plane.log"
 )
 
-// Default paths for Windows systems.
+// default paths for Windows systems.
 // These may be updated by init() based on the registry and ProgramData location.
 var (
 	// Config paths
-	confPath             = DefaultConfPath
-	confdPath            = DefaultConfdPath
-	additionalChecksPath = DefaultAdditionalChecksPath
+	confPath             = defaultConfPath
+	confdPath            = defaultConfdPath
+	additionalChecksPath = defaultAdditionalChecksPath
 
 	// Log files
-	logFile                    = DefaultLogFile
+	logFile                    = defaultLogFile
 	dcaLogFile                 = "c:\\programdata\\datadog\\logs\\cluster-agent.log"
 	jmxLogFile                 = "c:\\programdata\\datadog\\logs\\jmxfetch.log"
 	dogstatsDProtocolLogFile   = "c:\\programdata\\datadog\\logs\\dogstatsd_info\\dogstatsd-stats.log"
 	dogstatsDServiceLogFile    = "c:\\programdata\\datadog\\logs\\dogstatsd.log"
 	traceAgentLogFile          = "c:\\programdata\\datadog\\logs\\trace-agent.log"
-	streamlogsLogFile          = DefaultStreamlogsLogFile
-	updaterLogFile             = DefaultUpdaterLogFile
-	securityAgentLogFile       = DefaultSecurityAgentLogFile
-	processAgentLogFile        = DefaultProcessAgentLogFile
-	otelAgentLogFile           = DefaultOTelAgentLogFile
-	hostProfilerLogFile        = DefaultHostProfilerLogFile
-	privateActionRunnerLogFile = DefaultPrivateActionRunnerLogFile
-	systemProbeLogFile         = DefaultSystemProbeLogFile
+	streamlogsLogFile          = defaultStreamlogsLogFile
+	updaterLogFile             = defaultUpdaterLogFile
+	securityAgentLogFile       = defaultSecurityAgentLogFile
+	processAgentLogFile        = defaultProcessAgentLogFile
+	otelAgentLogFile           = defaultOTelAgentLogFile
+	hostProfilerLogFile        = defaultHostProfilerLogFile
+	privateActionRunnerLogFile = defaultPrivateActionRunnerLogFile
+	systemProbeLogFile         = defaultSystemProbeLogFile
 
 	// Flare directories
 	checkFlareDirectory = "c:\\programdata\\datadog\\logs\\checks\\"
 	jmxFlareDirectory   = "c:\\programdata\\datadog\\logs\\jmxinfo\\"
 
 	// Socket paths (empty on Windows by default - Windows uses named pipes)
-	statsdSocket   = DefaultStatsdSocket
-	receiverSocket = DefaultReceiverSocket
+	statsdSocket   = defaultStatsdSocket
+	receiverSocket = defaultReceiverSocket
 
 	// Run path
-	runPath = DefaultRunPath
+	runPath = defaultRunPath
 
 	// PID file path
 	pidFilePath = "c:\\programdata\\datadog\\datadog-agent.pid"
@@ -307,7 +307,7 @@ func GetEmbeddedBinPath() string {
 
 // GetDefaultSystemProbeAddress returns the default unix socket path to be used for connecting to the system probe
 func GetDefaultSystemProbeAddress() string {
-	return DefaultSystemProbeAddress
+	return defaultSystemProbeAddress
 }
 
 // GetDefaultDDAgentBin returns the default path to the core agent binary
@@ -317,5 +317,5 @@ func GetDefaultDDAgentBin() string {
 
 // GetDefaultDataPlaneLogFile returns the default log file used by the data-plane agent if not configured
 func GetDefaultDataPlaneLogFile() string {
-	return DefaultDataPlaneLogFile
+	return defaultDataPlaneLogFile
 }
