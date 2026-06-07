@@ -86,7 +86,9 @@ exports_files(glob(
 # gazelle:exclude comp/agent/bundle_test.go
 # gazelle:exclude comp/agent/cloudfoundrycontainer/fx
 # gazelle:exclude comp/agent/cloudfoundrycontainer/impl
-# gazelle:exclude comp/aggregator/demultiplexer
+# gazelle:exclude comp/aggregator/demultiplexer/fx
+# gazelle:exclude comp/aggregator/demultiplexer/impl
+# gazelle:exclude comp/aggregator/demultiplexer/mock
 # gazelle:exclude comp/aggregator/demultiplexerendpoint/fx
 # gazelle:exclude comp/aggregator/demultiplexerendpoint/impl
 # gazelle:exclude comp/api/api/apiimpl/api.go
@@ -124,23 +126,15 @@ exports_files(glob(
 # gazelle:exclude comp/core/flare/helpers
 # gazelle:exclude comp/core/gui/fx
 # gazelle:exclude comp/core/gui/impl
-# service_test.go appears to be test helper code that is not marked with go:build test.
-# It depends on many packages that are not ready to migrate yet. We need the owning team to sort this out.
-# gazelle:exclude comp/core/hostname/hostnameimpl/service_test.go
 # gazelle:exclude comp/core/hostname/remotehostnameimpl
 # gazelle:exclude comp/core/profiler/fx
 # gazelle:exclude comp/core/profiler/impl
 # gazelle:exclude comp/core/remoteagentregistry/fx
 # gazelle:exclude comp/core/remoteagentregistry/impl
 # gazelle:exclude comp/core/sysprobeconfig/sysprobeconfigimpl
-# gazelle:exclude comp/core/tagger/collectors
 # gazelle:exclude comp/core/tagger/fx
 # gazelle:exclude comp/core/tagger/fx-dual
-# gazelle:exclude comp/core/tagger/fx-mock
-# gazelle:exclude comp/core/tagger/impl
 # gazelle:exclude comp/core/tagger/impl-dual
-# gazelle:exclude comp/core/tagger/mock
-# gazelle:exclude comp/core/tagger/tagstore
 # gazelle:exclude comp/core/workloadmeta/collectors/catalog
 # gazelle:exclude comp/core/workloadmeta/collectors/catalog-clusteragent
 # gazelle:exclude comp/core/workloadmeta/collectors/catalog-core
@@ -159,11 +153,8 @@ exports_files(glob(
 # gazelle:exclude comp/core/workloadmeta/collectors/internal/process
 # gazelle:exclude comp/core/workloadmeta/collectors/internal/remote/processcollector
 # gazelle:exclude comp/core/workloadmeta/collectors/internal/remote/workloadmeta
-# gazelle:exclude comp/core/workloadmeta/collectors/util
 # gazelle:exclude comp/core/workloadmeta/defaults
 # gazelle:exclude comp/core/workloadmeta/fx
-# gazelle:exclude comp/core/workloadmeta/fx-mock
-# gazelle:exclude comp/core/workloadmeta/impl
 # gazelle:exclude comp/core/workloadmeta/init
 # gazelle:exclude comp/core/workloadmeta/server
 # gazelle:exclude comp/dogstatsd/http/fx
@@ -188,8 +179,11 @@ exports_files(glob(
 # gazelle:exclude comp/anomalydetection/logssource/impl
 # gazelle:exclude comp/logs/adscheduler/fx
 # gazelle:exclude comp/logs/adscheduler/impl
-# gazelle:exclude comp/logs/agent/agentimpl
+# gazelle:exclude comp/logs/agent/def
 # gazelle:exclude comp/logs/agent/flare
+# gazelle:exclude comp/logs/agent/fx
+# gazelle:exclude comp/logs/agent/impl
+# gazelle:exclude comp/logs/agent/mock
 # gazelle:exclude comp/logs/streamlogs/fx
 # gazelle:exclude comp/logs/streamlogs/impl
 # gazelle:exclude comp/metadata/clusteragent/fx
@@ -288,7 +282,6 @@ exports_files(glob(
 # gazelle:exclude comp/trace/config/fx
 # gazelle:exclude comp/trace/config/impl
 # gazelle:exclude comp/trace/config/mock
-# gazelle:exclude pkg/aggregator/mocksender
 # gazelle:exclude pkg/cli/subcommands/autoscalerlist
 # gazelle:exclude pkg/cli/subcommands/check
 # gazelle:exclude pkg/cli/subcommands/clusterchecks
@@ -482,7 +475,6 @@ exports_files(glob(
 # gazelle:exclude pkg/network/usm/tests
 # gazelle:exclude pkg/network/usm/testutil/grpc
 # gazelle:exclude pkg/network/usm/utils
-# gazelle:exclude pkg/networkconfigmanagement/sender
 # gazelle:exclude pkg/networkdevice/sender
 # gazelle:exclude pkg/networkpath/telemetry
 # gazelle:exclude pkg/networkpath/traceroute/runner
@@ -547,11 +539,6 @@ exports_files(glob(
 # gazelle:exclude pkg/status/clusteragent
 # gazelle:exclude pkg/system-probe/api/client/check_test.go
 # gazelle:exclude pkg/system-probe/api/module
-# gazelle:exclude pkg/util/containers/metrics/containerd
-# gazelle:exclude pkg/util/containers/metrics/docker
-# gazelle:exclude pkg/util/containers/metrics/kubelet
-# gazelle:exclude pkg/util/containers/metrics/mock
-# gazelle:exclude pkg/util/containers/metrics/system
 # gazelle:exclude pkg/util/crashreport
 # gazelle:exclude pkg/util/kubernetes/apiserver/controllers
 # gazelle:exclude pkg/util/kubernetes/apiserver/leaderelection/status_templates

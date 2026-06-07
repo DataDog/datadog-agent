@@ -5,7 +5,8 @@
 
 //go:build test
 
-package agentimpl
+// Package mock provides a mock for the logs agent component
+package mock
 
 import (
 	"context"
@@ -14,7 +15,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/logs-library/pipeline"
-	"github.com/DataDog/datadog-agent/comp/logs/agent"
+	agent "github.com/DataDog/datadog-agent/comp/logs/agent/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
@@ -22,11 +23,18 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
+// Requires defines the minimal dependencies for the mock component.
+type Requires struct {
+	fx.In
+
+	Lc fx.Lifecycle
+}
+
 // MockModule defines the fx options for the mock component.
 func MockModule() fxutil.Module {
 	return fxutil.Component(
 		fx.Provide(newMock),
-		fx.Provide(func(m agent.Mock) agent.Component { return m }))
+		fx.Provide(func(m Mock) agent.Component { return m }))
 }
 
 type mockLogsAgent struct {
@@ -37,7 +45,7 @@ type mockLogsAgent struct {
 	logSources      *sources.LogSources
 }
 
-func newMock(deps dependencies) option.Option[agent.Mock] {
+func newMock(deps Requires) option.Option[Mock] {
 	logsAgent := &mockLogsAgent{
 		hasFlushed:      false,
 		addedSchedulers: make([]schedulers.Scheduler, 0),
@@ -48,7 +56,7 @@ func newMock(deps dependencies) option.Option[agent.Mock] {
 		OnStart: logsAgent.start,
 		OnStop:  logsAgent.stop,
 	})
-	return option.New[agent.Mock](logsAgent)
+	return option.New[Mock](logsAgent)
 }
 
 func (a *mockLogsAgent) start(context.Context) error {
