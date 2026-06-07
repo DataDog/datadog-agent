@@ -177,35 +177,64 @@ if [[ "$SUITE" =~ ^(release)$ ]]; then
   run_check "x86_64 cross-gcc present" bash -c 'command -v x86_64-unknown-linux-gnu-gcc'
   run_check "aarch64 cross-gcc present" bash -c 'command -v aarch64-unknown-linux-gnu-gcc'
 
-  # Build the agent with the Nix cross-compilers (non-Bazel path)
-  run_check "agent.build with Nix release toolchain" bash -c '
-    DD_CC=x86_64-unknown-linux-gnu-gcc \
-    DD_CXX=x86_64-unknown-linux-gnu-g++ \
+  # Build the agent and check the glibc floor using the host-arch toolchain.
+  # On x86_64 hosts: native build with x86_64-unknown-linux-gnu-gcc, floor <= 2.17.
+  # On aarch64 hosts: native build with aarch64-unknown-linux-gnu-gcc, floor <= 2.23.
+  # DD_CC (not DD_CC_CROSS) is used because arch.is_cross_compiling() is False when
+  # building for the host arch — DD_CC is the non-Bazel CC override path in utils.py.
+  _host_arch=$(uname -m)
+  if [ "$_host_arch" = "x86_64" ]; then
+    _rel_cc=x86_64-unknown-linux-gnu-gcc
+    _rel_cxx=x86_64-unknown-linux-gnu-g++
+    _glibc_floor=2.17
+    _floor_label="x86_64 release target"
+  else
+    _rel_cc=aarch64-unknown-linux-gnu-gcc
+    _rel_cxx=aarch64-unknown-linux-gnu-g++
+    _glibc_floor=2.23
+    _floor_label="aarch64 release target"
+  fi
+
+  # Write a cmake toolchain file that points cmake at the cross-compiler so
+  # the rtloader is built with glibc ≤2.23 stubs (not the host's glibc 2.42).
+  # We also clean rtloader/build first — a stale host-GCC build would otherwise
+  # satisfy make's up-to-date check and the toolchain file would be ignored.
+  _cmake_toolchain=$(mktemp /tmp/dd-nix-toolchain-XXXXXX.cmake)
+  printf 'set(CMAKE_C_COMPILER %s)\nset(CMAKE_CXX_COMPILER %s)\n' \
+      "${_rel_cc}" "${_rel_cxx}" > "${_cmake_toolchain}"
+
+  run_check "agent.build with Nix release toolchain" bash -eo pipefail -c "
+    rm -rf rtloader/build
+    DD_CC=${_rel_cc} DD_CXX=${_rel_cxx} \
+    DD_CMAKE_TOOLCHAIN=${_cmake_toolchain} \
       dda inv agent.build --build-exclude=systemd 2>&1 | tail -5
-  '
+  "
+  rm -f "${_cmake_toolchain}"
 
   # Tier 2 gate: glibc floor check.
-  # PASS iff the binary's max GLIBC symbol version <= 2.17 (x86_64) / <= 2.23 (aarch64).
+  # PASS iff the binary's max GLIBC symbol version <= floor for this arch.
+  # Scope: checks the agent ELF only. Bundled libpython3.12.so (Nix-built) still
+  # requires glibc 2.34+ at runtime; a production release must cross-compile Python
+  # from source against the old sysroot to be fully glibc-2.23-runnable on aarch64.
   # shellcheck disable=SC2016  # $max_glibc and $agent_bin expand inside bash -c's scope
-  run_check "glibc floor <= 2.17 (x86_64 release target)" bash -c '
-    agent_bin="$(find bin/agent -name "agent" -type f 2>/dev/null | head -1)"
-    if [ -z "$agent_bin" ]; then echo "agent binary not found"; exit 1; fi
-    max_glibc=$(objdump -T "$agent_bin" 2>/dev/null \
-      | grep -oP "GLIBC_\K[0-9.]+" | sort -V | tail -1)
-    echo "  Max GLIBC ref: $max_glibc"
-    python3 -c "
-from packaging.version import Version
+  run_check "glibc floor <= ${_glibc_floor} (${_floor_label})" bash -c "
+    agent_bin=\"\$(find bin/agent -name 'agent' -type f 2>/dev/null | head -1)\"
+    if [ -z \"\$agent_bin\" ]; then echo 'agent binary not found'; exit 1; fi
+    max_glibc=\$(objdump -T \"\$agent_bin\" 2>/dev/null \
+      | grep -oP 'GLIBC_\K[0-9.]+' | sort -V | tail -1)
+    echo \"  Max GLIBC ref: \$max_glibc\"
+    python3 -c \"
 import sys
-max_v = Version(\"$max_glibc\")
-limit = Version(\"2.17\")
-if max_v <= limit:
-    print(f\"  {max_v} <= {limit} ✓\")
+max_parts = [int(x) for x in '\$max_glibc'.split('.')]
+lim_parts = [int(x) for x in '${_glibc_floor}'.split('.')]
+if max_parts <= lim_parts:
+    print('  \$max_glibc <= ${_glibc_floor} ✓')
     sys.exit(0)
 else:
-    print(f\"  {max_v} > {limit} — binary not glibc 2.17 compatible\")
+    print('  \$max_glibc > ${_glibc_floor} — binary not glibc ${_glibc_floor} compatible')
     sys.exit(1)
-"
-  '
+\"
+  "
 
   # Embedded Python check: verify EMBEDDED_PYTHON is set and is Python 3.12.6
   # shellcheck disable=SC2016  # $EMBEDDED_PYTHON expands inside bash -c's scope

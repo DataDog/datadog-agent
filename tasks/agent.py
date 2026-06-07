@@ -106,8 +106,9 @@ def build(
     nix_embedded_python = os.getenv("EMBEDDED_PYTHON")
     if nix_embedded_python and python_home_3 is None and not enable_bazel:
         python_home_3 = nix_embedded_python
-        if embedded_path is None:
-            embedded_path = nix_embedded_python
+        # Do NOT set embedded_path = nix_embedded_python: the Nix store is read-only,
+        # so cmake's "make install" would fail trying to install the rtloader there.
+        # embedded_path stays None and resolves to the writable dev/ directory.
         print(f"[nix] Using EMBEDDED_PYTHON for python_home_3: {nix_embedded_python}")
 
     if not exclude_rtloader and not flavor.is_iot() and sys.platform != "aix":

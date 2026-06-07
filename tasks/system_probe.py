@@ -354,7 +354,9 @@ def test(
     args["output_params"] = f"-c -o {output_path}" if output_path else ""
     args["run"] = f"-run {run}" if run else ""
     args["go"] = "go"
-    args["sudo"] = "sudo -E " if not is_windows and not output_path and not is_root() else ""
+    args["sudo"] = (
+        f'sudo -E env "PATH={os.environ["PATH"]}" ' if not is_windows and not output_path and not is_root() else ""
+    )
     args["extra_arguments"] = extra_arguments
 
     _, _, env = get_build_flags(ctx)

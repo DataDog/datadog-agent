@@ -13,5 +13,7 @@ pkgs.python312.overrideAttrs (_old: {
     url = "https://www.python.org/ftp/python/3.12.6/Python-3.12.6.tgz";
     hash = "sha256-haTBvpBtIOXFpp8kZrANp2nCIdamhKz9OlFNv1vxCmY=";
   };
-  patches = [];
+  # Inherit nixpkgs patches — they are version-independent (sysconfig layout,
+  # ncurses/CPPFLAGS, reproducibility, virtualenv detection) and apply cleanly
+  # across the 3.12.x series. Only drop specific patches if one fails to apply.
 })
