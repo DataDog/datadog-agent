@@ -326,12 +326,7 @@ func runHTTPMonitorIntegrationWithResponseBodyTest(t *testing.T, params commonTe
 			serverAddr := fmt.Sprintf("127.0.0.1:%d", params.serverPort)
 
 			monitor := params.setupMonitor(t)
-			// HTTPServer defaults to 1s read/write timeouts. The handler echoes the
-			// request body back, so for the 10mb case the server must read and write
-			// 10mb per request; on slower hosts (notably Windows CI) that can exceed
-			// 1s, making the server reset the connection. The client's response read
-			// (see requestGenerator) then fails with a net.OpError instead of a clean
-			// io.EOF. Use generous timeouts so large transfers complete reliably.
+			// Generous timeouts so large (10mb) body transfers complete on slow hosts (e.g. Windows CI).
 			srvDoneFn := testutil.HTTPServer(t, serverAddr, testutil.Options{
 				EnableKeepAlive: true,
 				ReadTimeout:     30 * time.Second,
