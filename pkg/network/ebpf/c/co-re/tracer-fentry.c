@@ -281,10 +281,12 @@ static __always_inline int handle_udp_send(struct sock *sk, int sent) {
     return 0;
 }
 
-SEC("kprobe/udp_v6_send_skb")
-int kprobe__udp_v6_send_skb(struct pt_regs *ctx) {
-    struct sk_buff *skb = (struct sk_buff*) PT_REGS_PARM1(ctx);
-    struct flowi6 *fl6 = (struct flowi6*) PT_REGS_PARM2(ctx);
+// udp_send_skb is fentry-traceable (the SK tracer attaches fentry to it too).
+// fentry gives typed access to the skb and resolved routing flow (flowi6), which
+// carries the destination even for unconnected UDP sockets. We capture the tuple
+// here and join it to the byte count at fexit/udpv6_sendmsg via udp_send_skb_args.
+SEC("fentry/udp_v6_send_skb")
+int BPF_PROG(udp_v6_send_skb_entry, struct sk_buff *skb, struct flowi6 *fl6) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     struct sock *sk = BPF_CORE_READ(skb, sk);
     conn_tuple_t t;
@@ -306,10 +308,10 @@ int BPF_PROG(udpv6_sendmsg_exit, struct sock *sk, struct msghdr *msg, size_t len
     return handle_udp_send(sk, sent);
 }
 
-SEC("kprobe/udp_send_skb") // JMW why kprobe for fentry tracer?
-int kprobe__udp_send_skb(struct pt_regs *ctx) {
-    struct sk_buff *skb = (struct sk_buff*) PT_REGS_PARM1(ctx);
-    struct flowi4 *fl4 = (struct flowi4*) PT_REGS_PARM2(ctx);
+// See udp_v6_send_skb_entry above: fentry capture of the resolved IPv4 flow,
+// joined to the byte count at fexit/udp_sendmsg via udp_send_skb_args.
+SEC("fentry/udp_send_skb")
+int BPF_PROG(udp_send_skb_entry, struct sk_buff *skb, struct flowi4 *fl4) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     struct sock *sk = BPF_CORE_READ(skb, sk);
     conn_tuple_t t;

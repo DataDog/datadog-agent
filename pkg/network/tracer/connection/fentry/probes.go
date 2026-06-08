@@ -54,7 +54,7 @@ const (
 	udpRecvMsgReturn        = "udp_recvmsg_exit"
 	udpRecvMsgPre5190Return = "udp_recvmsg_exit_pre_5_19_0"
 	udpSendMsgReturn        = "udp_sendmsg_exit"
-	udpSendSkb              = "kprobe__udp_send_skb"
+	udpSendSkb              = "udp_send_skb_entry"
 
 	skbFreeDatagramLocked   = "skb_free_datagram_locked"
 	__skbFreeDatagramLocked = "__skb_free_datagram_locked" // nolint:revive
@@ -64,7 +64,7 @@ const (
 	udpv6RecvMsgReturn        = "udpv6_recvmsg_exit"
 	udpv6RecvMsgPre5190Return = "udpv6_recvmsg_exit_pre_5_19_0"
 	udpv6SendMsgReturn        = "udpv6_sendmsg_exit"
-	udpv6SendSkb              = "kprobe__udp_v6_send_skb"
+	udpv6SendSkb              = "udp_v6_send_skb_entry"
 
 	// udpDestroySock traces the udp_destroy_sock() function
 	udpDestroySock = "udp_destroy_sock"
