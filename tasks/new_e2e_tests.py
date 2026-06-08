@@ -1402,6 +1402,22 @@ def _clean_stacks(ctx: Context, skip_destroy: bool):
         print(f"🗑️ Removing stack {stack}")
         _remove_stack(ctx, stack)
 
+    _clean_workspaces()
+
+
+def _clean_workspaces():
+    """Remove Pulumi workspace directories from the system temp dir.
+
+    These hold Pulumi.<stack>.yaml files that cache stack config between runs.
+    Stale keys persist here even after removing values from
+    ~/.test_infra_config.yaml, causing failures on the next run.
+    """
+    workspace_root = Path(tempfile.gettempdir()) / "pulumi-workspace"
+    if not workspace_root.exists():
+        return
+    shutil.rmtree(workspace_root)
+    print(f"🗑️  Deleted stale workspace configs: {workspace_root}")
+
 
 def _get_existing_stacks(ctx: Context) -> list[str]:
     e2e_stacks: list[str] = []
