@@ -74,9 +74,12 @@ func (i *CapacityMonitor) sample() {
 	}
 	select {
 	case <-i.tickChan:
-		i.avgItems = ewma(float64(i.ingress-i.egress), i.avgItems)
-		i.avgBytes = ewma(float64(i.ingressBytes-i.egressBytes), i.avgBytes)
+		rawItems := i.ingress - i.egress
+		rawBytes := i.ingressBytes - i.egressBytes
+		i.avgItems = ewma(float64(rawItems), i.avgItems)
+		i.avgBytes = ewma(float64(rawBytes), i.avgBytes)
 		i.report()
+		setComponentCapacity(i.name, i.instance, i.avgItems, i.avgBytes, rawItems, rawBytes)
 	default:
 	}
 }

@@ -153,6 +153,8 @@ func tcpSender(
 		componentName,
 		queueCount,
 		workersPerQueue,
+		// The logs-agent pipeline is the sole owner of the backpressure snapshot registry.
+		metrics.NewTelemetryPipelineMonitor(),
 	)
 }
 
@@ -210,6 +212,8 @@ func httpSender(
 		minSenderConcurrency,
 		maxSenderConcurrency,
 		secretsComp,
+		// The logs-agent pipeline is the sole owner of the backpressure snapshot registry.
+		metrics.NewTelemetryPipelineMonitor(),
 	)
 }
 

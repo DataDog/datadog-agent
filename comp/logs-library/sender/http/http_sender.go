@@ -19,7 +19,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// NewHTTPSender returns a new http sender.
+// NewHTTPSender returns a new http sender. pipelineMonitor is caller-supplied so pipelines that
+// shouldn't report component telemetry can pass a NoopPipelineMonitor (see globalSnapshots).
 func NewHTTPSender(
 	config pkgconfigmodel.Reader,
 	sink sender.Sink,
@@ -35,6 +36,7 @@ func NewHTTPSender(
 	minWorkerConcurrency int,
 	maxWorkerConcurrency int,
 	secretsComp secrets.Component,
+	pipelineMonitor metrics.PipelineMonitor,
 ) *sender.Sender {
 	log.Debugf(
 		"Creating a new sender for component %s with %d queues, %d http workers, %d min sender concurrency, and %d max sender concurrency",
@@ -44,7 +46,6 @@ func NewHTTPSender(
 		minWorkerConcurrency,
 		maxWorkerConcurrency,
 	)
-	pipelineMonitor := metrics.NewTelemetryPipelineMonitor()
 
 	destinationFactory := httpDestinationFactory(
 		endpoints,
