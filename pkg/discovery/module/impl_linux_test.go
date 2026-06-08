@@ -20,7 +20,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 	"syscall"
 	"testing"
 	"time"
@@ -38,7 +37,6 @@ import (
 	spclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 func findService(pid int, services []model.Service) *model.Service {
@@ -79,16 +77,6 @@ func setupRustLibraryDiscoveryModule(t *testing.T) *testDiscoveryModule {
 
 func setupRustDiscoveryModule(t *testing.T) *testDiscoveryModule {
 	t.Helper()
-
-	// Skip on CentOS 7 due to Rust binary not being statically linked
-	platform, err := kernel.Platform()
-	require.NoError(t, err)
-	platformVersion, err := kernel.PlatformVersion()
-	require.NoError(t, err)
-
-	if platform == "centos" && strings.HasPrefix(platformVersion, "7") {
-		t.Skip("Skipping Rust binary test on CentOS 7 due to glibc compatibility issues with non-static binary")
-	}
 
 	curDir, err := testutil.CurDir()
 	require.NoError(t, err)
