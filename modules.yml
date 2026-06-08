@@ -174,10 +174,6 @@ modules:
     independent: false
     should_tag: false
     should_test_condition: never
-  internal/tools/proto:
-    independent: false
-    should_tag: false
-    should_test_condition: never
   internal/tools/worksynchronizer:
     independent: false
     should_tag: false
@@ -315,6 +311,8 @@ modules:
   pkg/util/common:
     used_by_otel: true
   pkg/util/compression:
+    used_by_otel: true
+  pkg/util/confmaputils:
     used_by_otel: true
   pkg/util/containers/image:
     used_by_otel: true
