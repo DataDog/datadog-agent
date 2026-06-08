@@ -340,7 +340,7 @@ exports_files(glob(
 # gazelle:exclude pkg/collector/corechecks/system/filehandles
 # gazelle:exclude pkg/collector/corechecks/system/memory
 # gazelle:exclude pkg/collector/corechecks/system/uptime
-# gazelle:exclude pkg/collector/corechecks/system/wincrashdetect
+# gazelle:exclude pkg/collector/corechecks/system/wincrashdetect/*.go
 # gazelle:exclude pkg/collector/corechecks/system/windowscertificate
 # gazelle:exclude pkg/collector/corechecks/system/winkmem
 # gazelle:exclude pkg/collector/corechecks/system/winproc
