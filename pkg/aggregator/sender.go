@@ -32,7 +32,6 @@ type checkSender struct {
 	id                      checkid.ID
 	defaultHostname         string
 	defaultHostnameDisabled bool
-	sampleFormatter         *sender.CheckMetricSampleFormatter
 	metricStats             stats.SenderStats
 	priormetricStats        stats.SenderStats
 	statsLock               sync.RWMutex
@@ -107,7 +106,6 @@ func newCheckSender(
 	return &checkSender{
 		id:                      id,
 		defaultHostname:         defaultHostname,
-		sampleFormatter:         sender.NewCheckMetricSampleFormatter(id, defaultHostname, timeNowNano),
 		itemsOut:                itemsOut,
 		serviceCheckOut:         serviceCheckOut,
 		eventOut:                eventOut,
@@ -123,14 +121,12 @@ func newCheckSender(
 // when no hostname is specified at submission (for metrics, events and service checks).
 func (s *checkSender) DisableDefaultHostname(disable bool) {
 	s.defaultHostnameDisabled = disable
-	s.sampleFormatter.DisableDefaultHostname(disable)
 }
 
 // SetCheckCustomTags stores the tags set in the check configuration file.
 // They will be appended to each send (metric, event and service)
 func (s *checkSender) SetCheckCustomTags(tags []string) {
 	s.checkTags = tags
-	s.sampleFormatter.SetCheckCustomTags(tags)
 }
 
 // SetCheckService appends the service as a tag for metrics, events, and service checks
@@ -143,13 +139,11 @@ func (s *checkSender) SetCheckService(service string) {
 func (s *checkSender) FinalizeCheckServiceTag() {
 	if s.service != "" {
 		s.checkTags = append(s.checkTags, "service:"+s.service)
-		s.sampleFormatter.SetCheckCustomTags(s.checkTags)
 	}
 }
 
 func (s *checkSender) SetNoIndex(noIndex bool) {
 	s.noIndex = noIndex
-	s.sampleFormatter.SetNoIndex(noIndex)
 }
 
 // Commit commits the metric samples & histogram buckets that were added during a check run
@@ -189,19 +183,31 @@ func (s *checkSender) sendMetricSample(
 	noIndex bool,
 	timestamp float64,
 ) {
-	metricSample := s.sampleFormatter.Format(sender.ScalarSample{
-		Name:            metric,
-		Value:           value,
-		Hostname:        hostname,
-		Tags:            tags,
-		Type:            mType,
-		FlushFirstValue: flushFirstValue,
-		NoIndex:         noIndex,
-		Timestamp:       timestamp,
-	})
+	tags = append(tags, s.checkTags...)
 
 	if log.ShouldLog(log.TraceLvl) {
-		log.Trace(mType.String(), " sample: ", metric, ": ", value, " for hostname: ", hostname, " tags: ", metricSample.Tags)
+		log.Trace(mType.String(), " sample: ", metric, ": ", value, " for hostname: ", hostname, " tags: ", tags)
+	}
+
+	if timestamp == 0 {
+		timestamp = timeNowNano()
+	}
+
+	metricSample := &metrics.MetricSample{
+		Name:            metric,
+		Value:           value,
+		Mtype:           mType,
+		Tags:            tags,
+		Host:            hostname,
+		SampleRate:      1,
+		Timestamp:       timestamp,
+		FlushFirstValue: flushFirstValue,
+		NoIndex:         s.noIndex || noIndex,
+		Source:          metrics.CheckNameToMetricSource(checkid.IDToCheckName(s.id)),
+	}
+
+	if hostname == "" && !s.defaultHostnameDisabled {
+		metricSample.Host = s.defaultHostname
 	}
 
 	s.itemsOut <- &senderMetricSample{s.id, metricSample, false}
