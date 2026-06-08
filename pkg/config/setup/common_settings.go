@@ -1194,6 +1194,14 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("check_system_probe_startup_time", 5*time.Minute)
 	config.BindEnvAndSetDefault("check_system_probe_timeout", 60*time.Second)
 	config.BindEnvAndSetDefault("check_watchdog_warning_timeout", 0*time.Second) // If not zero, the agent will log a warning if a check is running for longer than this timeout
+
+	// Metric lookback ring buffer
+	config.BindEnvAndSetDefault("metric_lookback.enabled", false)
+	config.BindEnvAndSetDefault("metric_lookback.interval", time.Second)
+	config.BindEnvAndSetDefault("metric_lookback.retention", 24*time.Hour)
+	config.BindEnvAndSetDefault("metric_lookback.max_disk_bytes", int64(1<<30))
+	config.BindEnvAndSetDefault("metric_lookback.wal_rotation_interval", 5*time.Minute)
+	config.BindEnvAndSetDefault("metric_lookback.enabled_checks", []string{})
 	config.BindEnvAndSetDefault("auth_token_file_path", "")
 	// used to override the path where the IPC cert/key files are stored/retrieved
 	config.BindEnvAndSetDefault("ipc_cert_file_path", "")

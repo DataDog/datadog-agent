@@ -1,0 +1,16 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "impl",
+    srcs = ["lookback.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/lookback/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/log/def",
+        "//comp/lookback/def",
+        "//pkg/metrics",
+        "@//pkg/collector/check/id",
+        "@org_uber_go_fx//:fx",
+    ],
+)

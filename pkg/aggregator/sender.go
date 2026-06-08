@@ -27,23 +27,114 @@ type RawSender interface {
 	Event(e event.Event)
 }
 
-// checkSender implements Sender
-type checkSender struct {
+// baseSender holds the fields and methods shared by checkSender and shadowSender:
+// identity, hostname, tags, noIndex flag, and sender stats.
+type baseSender struct {
 	id                      checkid.ID
 	defaultHostname         string
 	defaultHostnameDisabled bool
 	metricStats             stats.SenderStats
 	priormetricStats        stats.SenderStats
 	statsLock               sync.RWMutex
+	checkTags               []string
+	service                 string
+	noIndex                 bool
+}
+
+// DisableDefaultHostname allows a check to override the default hostname injected
+// when no hostname is specified.
+func (b *baseSender) DisableDefaultHostname(disable bool) {
+	b.defaultHostnameDisabled = disable
+}
+
+// SetCheckCustomTags stores tags set in the check configuration file; they are
+// appended to every metric, event and service check submission.
+func (b *baseSender) SetCheckCustomTags(tags []string) {
+	b.checkTags = tags
+}
+
+// SetCheckService records the service tag value.  Only the last call takes effect.
+func (b *baseSender) SetCheckService(service string) {
+	b.service = service
+}
+
+// FinalizeCheckServiceTag appends the stored service as a "service:<value>" tag.
+func (b *baseSender) FinalizeCheckServiceTag() {
+	if b.service != "" {
+		b.checkTags = append(b.checkTags, "service:"+b.service)
+	}
+}
+
+// SetNoIndex marks all subsequent metric submissions as not indexed by the backend.
+func (b *baseSender) SetNoIndex(noIndex bool) {
+	b.noIndex = noIndex
+}
+
+// GetSenderStats returns the stats from the previous check run.
+func (b *baseSender) GetSenderStats() stats.SenderStats {
+	b.statsLock.RLock()
+	defer b.statsLock.RUnlock()
+	return b.priormetricStats.Copy()
+}
+
+func (b *baseSender) cyclemetricStats() {
+	b.statsLock.Lock()
+	defer b.statsLock.Unlock()
+	b.priormetricStats = b.metricStats.Copy()
+	b.metricStats = stats.NewSenderStats()
+}
+
+// buildMetricSample constructs a MetricSample with tag appending, hostname injection,
+// and timestamp defaulting applied.  It does not write to any channel.
+func (b *baseSender) buildMetricSample(
+	metric string,
+	value float64,
+	hostname string,
+	tags []string,
+	mType metrics.MetricType,
+	flushFirstValue bool,
+	noIndex bool,
+	timestamp float64,
+) *metrics.MetricSample {
+	tags = append(tags, b.checkTags...)
+
+	if log.ShouldLog(log.TraceLvl) {
+		log.Trace(mType.String(), " sample: ", metric, ": ", value, " for hostname: ", hostname, " tags: ", tags)
+	}
+
+	if timestamp == 0 {
+		timestamp = timeNowNano()
+	}
+
+	metricSample := &metrics.MetricSample{
+		Name:            metric,
+		Value:           value,
+		Mtype:           mType,
+		Tags:            tags,
+		Host:            hostname,
+		SampleRate:      1,
+		Timestamp:       timestamp,
+		FlushFirstValue: flushFirstValue,
+		NoIndex:         b.noIndex || noIndex,
+		Source:          metrics.CheckNameToMetricSource(checkid.IDToCheckName(b.id)),
+	}
+
+	if hostname == "" && !b.defaultHostnameDisabled {
+		metricSample.Host = b.defaultHostname
+	}
+
+	return metricSample
+}
+
+// checkSender implements Sender, routing samples to the BufferedAggregator via channels.
+type checkSender struct {
+	baseSender
 	itemsOut                chan<- senderItem
 	serviceCheckOut         chan<- servicecheck.ServiceCheck
 	eventOut                chan<- event.Event
 	orchestratorMetadataOut chan<- senderOrchestratorMetadata
 	orchestratorManifestOut chan<- senderOrchestratorManifest
 	eventPlatformOut        chan<- senderEventPlatformEvent
-	checkTags               []string
-	service                 string
-	noIndex                 bool
 }
 
 // senderItem knows how the aggregator should handle it
@@ -104,46 +195,19 @@ func newCheckSender(
 	eventPlatformOut chan<- senderEventPlatformEvent,
 ) *checkSender {
 	return &checkSender{
-		id:                      id,
-		defaultHostname:         defaultHostname,
+		baseSender: baseSender{
+			id:               id,
+			defaultHostname:  defaultHostname,
+			metricStats:      stats.NewSenderStats(),
+			priormetricStats: stats.NewSenderStats(),
+		},
 		itemsOut:                itemsOut,
 		serviceCheckOut:         serviceCheckOut,
 		eventOut:                eventOut,
-		metricStats:             stats.NewSenderStats(),
-		priormetricStats:        stats.NewSenderStats(),
 		orchestratorMetadataOut: orchestratorMetadataOut,
 		orchestratorManifestOut: orchestratorManifestOut,
 		eventPlatformOut:        eventPlatformOut,
 	}
-}
-
-// DisableDefaultHostname allows check to override the default hostname that will be injected
-// when no hostname is specified at submission (for metrics, events and service checks).
-func (s *checkSender) DisableDefaultHostname(disable bool) {
-	s.defaultHostnameDisabled = disable
-}
-
-// SetCheckCustomTags stores the tags set in the check configuration file.
-// They will be appended to each send (metric, event and service)
-func (s *checkSender) SetCheckCustomTags(tags []string) {
-	s.checkTags = tags
-}
-
-// SetCheckService appends the service as a tag for metrics, events, and service checks
-// This may be called any number of times, though the only the last call will have an effect
-func (s *checkSender) SetCheckService(service string) {
-	s.service = service
-}
-
-// FinalizeCheckServiceTag appends the service as a tag for metrics, events, and service checks
-func (s *checkSender) FinalizeCheckServiceTag() {
-	if s.service != "" {
-		s.checkTags = append(s.checkTags, "service:"+s.service)
-	}
-}
-
-func (s *checkSender) SetNoIndex(noIndex bool) {
-	s.noIndex = noIndex
 }
 
 // Commit commits the metric samples & histogram buckets that were added during a check run
@@ -152,19 +216,6 @@ func (s *checkSender) Commit() {
 	// we use a metric sample to commit both for metrics & sketches
 	s.itemsOut <- &senderMetricSample{s.id, &metrics.MetricSample{}, true}
 	s.cyclemetricStats()
-}
-
-func (s *checkSender) GetSenderStats() (metricStats stats.SenderStats) {
-	s.statsLock.RLock()
-	defer s.statsLock.RUnlock()
-	return s.priormetricStats.Copy()
-}
-
-func (s *checkSender) cyclemetricStats() {
-	s.statsLock.Lock()
-	defer s.statsLock.Unlock()
-	s.priormetricStats = s.metricStats.Copy()
-	s.metricStats = stats.NewSenderStats()
 }
 
 // SendRawMetricSample sends the raw sample
@@ -183,33 +234,7 @@ func (s *checkSender) sendMetricSample(
 	noIndex bool,
 	timestamp float64,
 ) {
-	tags = append(tags, s.checkTags...)
-
-	if log.ShouldLog(log.TraceLvl) {
-		log.Trace(mType.String(), " sample: ", metric, ": ", value, " for hostname: ", hostname, " tags: ", tags)
-	}
-
-	if timestamp == 0 {
-		timestamp = timeNowNano()
-	}
-
-	metricSample := &metrics.MetricSample{
-		Name:            metric,
-		Value:           value,
-		Mtype:           mType,
-		Tags:            tags,
-		Host:            hostname,
-		SampleRate:      1,
-		Timestamp:       timestamp,
-		FlushFirstValue: flushFirstValue,
-		NoIndex:         s.noIndex || noIndex,
-		Source:          metrics.CheckNameToMetricSource(checkid.IDToCheckName(s.id)),
-	}
-
-	if hostname == "" && !s.defaultHostnameDisabled {
-		metricSample.Host = s.defaultHostname
-	}
-
+	metricSample := s.buildMetricSample(metric, value, hostname, tags, mType, flushFirstValue, noIndex, timestamp)
 	s.itemsOut <- &senderMetricSample{s.id, metricSample, false}
 
 	s.statsLock.Lock()
@@ -405,7 +430,7 @@ func (s *checkSender) Event(e event.Event) {
 	s.statsLock.Unlock()
 }
 
-// Event submits an event
+// EventPlatformEvent submits an event platform event
 func (s *checkSender) EventPlatformEvent(rawEvent []byte, eventType string) {
 	s.eventPlatformOut <- senderEventPlatformEvent{
 		id:        s.id,

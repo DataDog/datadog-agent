@@ -9,23 +9,16 @@ package collector
 import (
 	"expvar"
 	"fmt"
-	"slices"
-	"strings"
 	"sync"
 
-	yaml "go.yaml.in/yaml/v2"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 
 	collectorcomp "github.com/DataDog/datadog-agent/comp/collector/collector/def"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	filter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
-	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
-	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -36,14 +29,6 @@ var (
 	errorStats     = newCollectorErrors()
 	checkScheduler *CheckScheduler
 )
-
-type commonInitConfig struct {
-	LoaderName string `yaml:"loader"`
-}
-
-type commonInstanceConfig struct {
-	LoaderName string `yaml:"loader"`
-}
 
 func init() {
 	schedulerErrs = expvar.NewMap("CheckScheduler")
@@ -58,26 +43,21 @@ func init() {
 // CheckScheduler is the check scheduler
 type CheckScheduler struct {
 	configToChecks map[string][]checkid.ID // cache the ID of checks we load for each config
-	loaders        []check.Loader
+	loader         *CheckLoader
 	collector      option.Option[collectorcomp.Component]
-	senderManager  sender.SenderManager
 	m              sync.RWMutex
 }
 
-// InitCheckScheduler creates and returns a check scheduler
-func InitCheckScheduler(collector option.Option[collectorcomp.Component], senderManager sender.SenderManager, logReceiver option.Option[integrations.Component], tagger tagger.Component, filterStore filter.Component) *CheckScheduler {
+// InitCheckScheduler creates and returns a check scheduler.
+// The checkLoader must be created via NewCheckLoader; passing the same instance
+// to collectorimpl (as an optional fx dep) allows collectorimpl.start() to call
+// ConfigureShadow on it before any checks are scheduled.
+func InitCheckScheduler(collector option.Option[collectorcomp.Component], checkLoader *CheckLoader) *CheckScheduler {
 	checkScheduler = &CheckScheduler{
 		collector:      collector,
-		senderManager:  senderManager,
+		loader:         checkLoader,
 		configToChecks: make(map[string][]checkid.ID),
-		loaders:        make([]check.Loader, 0, len(loaders.LoaderCatalog(senderManager, logReceiver, tagger, filterStore))),
 	}
-	// add the check loaders
-	for _, loader := range loaders.LoaderCatalog(senderManager, logReceiver, tagger, filterStore) {
-		checkScheduler.addLoader(loader)
-		log.Debugf("Added %s to Check Scheduler", loader)
-	}
-
 	return checkScheduler
 }
 
@@ -100,6 +80,30 @@ func (s *CheckScheduler) Schedule(configs []integration.Config) {
 		}
 	} else {
 		log.Errorf("Collector not available, unable to schedule checks")
+	}
+
+	// Shadow scheduling: load separate check instances with the shadow SenderManager
+	// and enter them into the shadow scheduler at the configured higher frequency.
+	if s.loader.shadowScheduler != nil {
+		for _, config := range configs {
+			if !config.IsCheckConfig() {
+				continue
+			}
+			if !s.loader.isShadowed(config.Name) {
+				continue
+			}
+			shadowChecks, err := s.loader.LoadChecks(config, s.loader.shadowSenderMgr)
+			if err != nil {
+				log.Errorf("Shadow pipeline: unable to load checks for '%s': %v", config.Name, err)
+				continue
+			}
+			for _, c := range shadowChecks {
+				sc := newShadowCheck(c)
+				if err := s.loader.shadowScheduler.EnterWithInterval(sc, s.loader.shadowInterval); err != nil {
+					log.Errorf("Shadow pipeline: unable to schedule check '%s': %v", sc.ID(), err)
+				}
+			}
+		}
 	}
 }
 
@@ -131,6 +135,14 @@ func (s *CheckScheduler) Unschedule(configs []integration.Config) {
 			} else {
 				log.Errorf("Collector not available, unable to stop check %s", id)
 			}
+
+			// Cancel the corresponding shadow check from the shadow scheduler.
+			if s.loader.shadowScheduler != nil {
+				shadowID := checkid.ID(string(id) + ":shadow")
+				if err := s.loader.shadowScheduler.Cancel(shadowID); err != nil {
+					log.Errorf("Shadow pipeline: error cancelling check %s: %s", shadowID, err)
+				}
+			}
 		}
 
 		// remove the entry from `configToChecks`
@@ -152,88 +164,6 @@ func (s *CheckScheduler) Unschedule(configs []integration.Config) {
 
 // Stop is a stub to satisfy the scheduler interface
 func (s *CheckScheduler) Stop() {}
-
-// addLoader adds a new Loader that AutoConfig can use to load a check.
-func (s *CheckScheduler) addLoader(loader check.Loader) {
-	if slices.Contains(s.loaders, loader) {
-		log.Warnf("Loader %s was already added, skipping...", loader)
-		return
-	}
-	s.loaders = append(s.loaders, loader)
-}
-
-// getChecks takes a check configuration and returns a slice of Check instances
-// along with any error it might happen during the process
-func (s *CheckScheduler) getChecks(config integration.Config) ([]check.Check, error) {
-	checks := []check.Check{}
-	numLoaders := len(s.loaders)
-
-	initConfig := commonInitConfig{}
-	err := yaml.Unmarshal(config.InitConfig, &initConfig)
-	if err != nil {
-		return nil, err
-	}
-	selectedLoader := initConfig.LoaderName
-
-	for instanceIndex, instance := range config.Instances {
-		if check.IsJMXInstance(config.Name, instance, config.InitConfig) {
-			log.Debugf("skip loading jmx check '%s', it is handled elsewhere", config.Name)
-			continue
-		}
-
-		selectedInstanceLoader := selectedLoader
-		instanceConfig := commonInstanceConfig{}
-
-		err := yaml.Unmarshal(instance, &instanceConfig)
-		if err != nil {
-			log.Warnf("Unable to parse instance config for check `%s`: %v", config.Name, instance)
-			continue
-		}
-
-		if instanceConfig.LoaderName != "" {
-			selectedInstanceLoader = instanceConfig.LoaderName
-		}
-		if selectedInstanceLoader != "" {
-			log.Debugf("Loading check instance for check '%s' using loader %s (init_config loader: %s, instance loader: %s)", config.Name, selectedInstanceLoader, initConfig.LoaderName, instanceConfig.LoaderName)
-		} else {
-			log.Debugf("Loading check instance for check '%s' using default loaders", config.Name)
-		}
-
-		loaderErrors := make(map[string]error, len(s.loaders))
-		for _, loader := range s.loaders {
-			// the loader is skipped if the loader name is set and does not match
-			if (selectedInstanceLoader != "") && (selectedInstanceLoader != loader.Name()) {
-				log.Debugf("Loader name %v does not match, skip loader %v for check %v", selectedInstanceLoader, loader.Name(), config.Name)
-				continue
-			}
-			c, err := loader.Load(s.senderManager, config, instance, instanceIndex)
-			if err == nil {
-				log.Debugf("%v: successfully loaded check '%s'", loader, config.Name)
-				checks = append(checks, c)
-				break
-			}
-			loaderErrors[fmt.Sprintf("%v", loader)] = err
-		}
-
-		if len(loaderErrors) == numLoaders {
-			var concatErr strings.Builder
-			for loaderName, err := range loaderErrors {
-				errMsg := err.Error()
-				errorStats.setLoaderError(config.Name, loaderName, errMsg)
-
-				concatErr.WriteString(loaderName)
-				concatErr.WriteString(": ")
-				concatErr.WriteString(errMsg)
-				concatErr.WriteString("; ")
-			}
-			log.Errorf("Unable to load a check from instance of config '%s': %s", config.Name, concatErr.String())
-		} else {
-			errorStats.removeLoaderErrors(config.Name)
-		}
-	}
-
-	return checks, nil
-}
 
 // GetChecksByNameForConfigs returns checks matching name for passed in configs
 func GetChecksByNameForConfigs(checkName string, configs []integration.Config) []check.Check {
@@ -270,7 +200,7 @@ func (s *CheckScheduler) GetChecksFromConfigs(configs []integration.Config, popu
 			continue
 		}
 		configDigest := config.Digest()
-		checks, err := s.getChecks(config)
+		checks, err := s.loader.LoadChecks(config, s.loader.senderManager)
 		if err != nil {
 			log.Errorf("Unable to load the check: %v", err)
 			continue
@@ -285,6 +215,12 @@ func (s *CheckScheduler) GetChecksFromConfigs(configs []integration.Config, popu
 	}
 
 	return allChecks
+}
+
+// GetCheckScheduler returns the global CheckScheduler instance created by InitCheckScheduler.
+// Returns nil if InitCheckScheduler has not been called yet.
+func GetCheckScheduler() *CheckScheduler {
+	return checkScheduler
 }
 
 // GetLoaderErrors returns the check loader errors

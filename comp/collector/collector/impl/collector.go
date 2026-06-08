@@ -27,8 +27,11 @@ import (
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
 	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
+	lookbackdef "github.com/DataDog/datadog-agent/comp/lookback/def"
 	metadata "github.com/DataDog/datadog-agent/comp/metadata/runner/def"
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
@@ -60,6 +63,13 @@ type dependencies struct {
 	SenderManager    sender.SenderManager
 	MetricSerializer option.Option[serializer.MetricSerializer]
 	AgentTelemetry   option.Option[agenttelemetry.Component]
+	// Lookback is provided by comp/lookback when the shadow pipeline is enabled.
+	// optional:"true" so the field is nil when the component is absent.
+	Lookback    lookbackdef.Component    `optional:"true"`
+	// CheckLoader is the same instance passed to InitCheckScheduler.
+	// ConfigureShadow is called on it during start() so that CheckScheduler
+	// can route shadow checks without going through collector.Component.
+	CheckLoader *pkgcollector.CheckLoader `optional:"true"`
 }
 
 type collectorImpl struct {
@@ -81,6 +91,13 @@ type collectorImpl struct {
 	runner         *runner.Runner
 	checks         map[checkid.ID]*middleware.CheckWrapper
 	eventReceivers []collector.EventReceiver
+
+	// Shadow check pipeline — nil when the shadow pipeline is disabled.
+	shadowRunner    *runner.Runner
+	shadowScheduler *scheduler.Scheduler
+	shadowSenderMgr sender.SenderManager
+	shadowSink      lookbackdef.Component // nil when comp/lookback is absent
+	checkLoader     *pkgcollector.CheckLoader
 
 	cancelCheckTimeout     time.Duration
 	watchdogWarningTimeout time.Duration
@@ -132,6 +149,8 @@ func newCollector(deps dependencies) *collectorImpl {
 		senderManager:          deps.SenderManager,
 		metricSerializer:       deps.MetricSerializer,
 		agentTelemetry:         deps.AgentTelemetry,
+		shadowSink:             deps.Lookback,
+		checkLoader:            deps.CheckLoader,
 		checks:                 make(map[checkid.ID]*middleware.CheckWrapper),
 		state:                  atomic.NewUint32(stopped),
 		checkInstances:         int64(0),
@@ -186,6 +205,25 @@ func (c *collectorImpl) start(_ context.Context) error {
 	c.runner = run
 	c.state.Store(started)
 
+	// Shadow check pipeline: create a dedicated runner+scheduler, then wire it
+	// into the CheckLoader so CheckScheduler can route shadow checks.
+	if c.shadowSink != nil && c.config.GetBool("metric_lookback.enabled") {
+		hostname := c.hostname.GetSafe(context.Background())
+		sm := aggregator.NewShadowSenderManager(c.shadowSink, hostname)
+
+		c.shadowRunner = runner.NewRunner(sm, c.haAgent, c.healthPlatform)
+		c.shadowScheduler = scheduler.NewScheduler(c.shadowRunner.GetChan())
+		c.shadowRunner.SetScheduler(c.shadowScheduler)
+		c.shadowScheduler.Run()
+		c.shadowSenderMgr = sm
+
+		if c.checkLoader != nil {
+			interval := c.config.GetDuration("metric_lookback.interval")
+			names := c.config.GetStringSlice("metric_lookback.enabled_checks")
+			c.checkLoader.ConfigureShadow(c.shadowScheduler, sm, interval, names)
+		}
+	}
+
 	c.log.Debug("Collector up and running!")
 
 	return nil
@@ -203,6 +241,14 @@ func (c *collectorImpl) stop(_ context.Context) error {
 	if c.runner != nil {
 		c.runner.Stop()
 		c.runner = nil
+	}
+	if c.shadowScheduler != nil {
+		_ = c.shadowScheduler.Stop()
+		c.shadowScheduler = nil
+	}
+	if c.shadowRunner != nil {
+		c.shadowRunner.Stop()
+		c.shadowRunner = nil
 	}
 	c.state.Store(stopped)
 	return nil
