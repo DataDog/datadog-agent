@@ -120,8 +120,8 @@ func TestScrubDataObj_StringElementsInList(t *testing.T) {
 
 	endpoints := layer.(map[string]interface{})["additional_endpoints"].(map[string]interface{})
 	list := endpoints["https://metrics.agent.datadoghq.com"].([]interface{})
-	assert.Equal(t, "****************************aaaa", list[0])
-	assert.Equal(t, "****************************bbbb", list[1])
+	assert.Equal(t, "********", list[0])
+	assert.Equal(t, "********", list[1])
 }
 
 // Single-line replacers must apply per-line so regexes like Bearer's [^*]+

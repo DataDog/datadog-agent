@@ -108,7 +108,19 @@ func (c *Scrubber) ScrubDataObj(data *interface{}) {
 			lowerKey := strings.ToLower(key)
 			if replacer.YAMLKeyRegex.Match([]byte(lowerKey)) {
 				if replacer.ProcessValue != nil {
-					return true, replacer.ProcessValue(value)
+					result := replacer.ProcessValue(value)
+					// If ProcessValue returned a string, still apply the value-content pass
+					// so embedded credentials (e.g. API keys in a JSON-encoded string) get scrubbed.
+					if resultStr, ok := result.(string); ok {
+						lines := strings.Split(resultStr, "\n")
+						for i, line := range lines {
+							lines[i] = string(c.scrub([]byte(line), c.singleLineReplacers, true))
+						}
+						joined := strings.Join(lines, "\n")
+						scrubbed := string(c.scrub([]byte(joined), c.multiLineReplacers, false))
+						return true, scrubbed
+					}
+					return true, result
 				}
 				return true, defaultReplacement
 			}
