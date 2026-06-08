@@ -8225,8 +8225,8 @@ properties:
         properties:
           interval:
             node_type: setting
-            type: integer
-            default: 0
+            type: string
+            default: 0s
       persist_on_kubernetes:
         node_type: setting
         type: boolean
