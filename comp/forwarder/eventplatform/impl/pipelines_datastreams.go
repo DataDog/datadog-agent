@@ -7,6 +7,7 @@ package eventplatformimpl
 
 import (
 	logshttp "github.com/DataDog/datadog-agent/comp/logs-library/client/http"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 const eventTypeDataStreamsMessage = "data-streams-message"
@@ -21,9 +22,9 @@ func getDataStreamsPipelines() []passthroughPipelineDesc {
 			hostnameEndpointPrefix:        "trace.agent.",
 			intakeTrackType:               "data_streams_messages",
 			defaultBatchMaxConcurrentSend: 10,
-			defaultBatchMaxContentSize:    epfDefaultBatchMaxContentSize,
-			defaultBatchMaxSize:           epfDefaultBatchMaxSize,
-			defaultInputChanSize:          epfDefaultInputChanSize,
+			defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
+			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
+			defaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
 		},
 	}
 }

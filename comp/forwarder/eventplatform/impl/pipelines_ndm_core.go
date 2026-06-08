@@ -8,6 +8,7 @@ package eventplatformimpl
 import (
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	logshttp "github.com/DataDog/datadog-agent/comp/logs-library/client/http"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 func getNDMCorePipelines() []passthroughPipelineDesc {
@@ -20,9 +21,9 @@ func getNDMCorePipelines() []passthroughPipelineDesc {
 			hostnameEndpointPrefix:        "ndm-intake.",
 			intakeTrackType:               "ndm",
 			defaultBatchMaxConcurrentSend: 10,
-			defaultBatchMaxContentSize:    epfDefaultBatchMaxContentSize,
-			defaultBatchMaxSize:           epfDefaultBatchMaxSize,
-			defaultInputChanSize:          epfDefaultInputChanSize,
+			defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
+			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
+			defaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
 		},
 		{
 			eventType:                     eventplatform.EventTypeSnmpTraps,
@@ -32,9 +33,9 @@ func getNDMCorePipelines() []passthroughPipelineDesc {
 			hostnameEndpointPrefix:        "snmp-traps-intake.",
 			intakeTrackType:               "ndmtraps",
 			defaultBatchMaxConcurrentSend: 10,
-			defaultBatchMaxContentSize:    epfDefaultBatchMaxContentSize,
-			defaultBatchMaxSize:           epfDefaultBatchMaxSize,
-			defaultInputChanSize:          epfDefaultInputChanSize,
+			defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
+			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
+			defaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
 		},
 	}
 }

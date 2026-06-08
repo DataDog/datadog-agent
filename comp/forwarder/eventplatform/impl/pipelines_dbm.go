@@ -7,6 +7,7 @@ package eventplatformimpl
 
 import (
 	logshttp "github.com/DataDog/datadog-agent/comp/logs-library/client/http"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 const (
@@ -30,7 +31,7 @@ func getDBMPipelines() []passthroughPipelineDesc {
 			// raise the default batch_max_concurrent_send from 0 to 10 to ensure this pipeline is able to handle 4k events/s
 			defaultBatchMaxConcurrentSend: 10,
 			defaultBatchMaxContentSize:    10e6,
-			defaultBatchMaxSize:           epfDefaultBatchMaxSize,
+			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
 			// High input chan size is needed to handle high number of DBM events being flushed by DBM integrations
 			defaultInputChanSize: 500,
 		},
@@ -44,7 +45,7 @@ func getDBMPipelines() []passthroughPipelineDesc {
 			// raise the default batch_max_concurrent_send from 0 to 10 to ensure this pipeline is able to handle 4k events/s
 			defaultBatchMaxConcurrentSend: 10,
 			defaultBatchMaxContentSize:    20e6,
-			defaultBatchMaxSize:           epfDefaultBatchMaxSize,
+			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
 			// High input chan size is needed to handle high number of DBM events being flushed by DBM integrations
 			defaultInputChanSize: 500,
 		},
@@ -61,7 +62,7 @@ func getDBMPipelines() []passthroughPipelineDesc {
 			// raise the default batch_max_concurrent_send from 0 to 10 to ensure this pipeline is able to handle 4k events/s
 			defaultBatchMaxConcurrentSend: 10,
 			defaultBatchMaxContentSize:    20e6,
-			defaultBatchMaxSize:           epfDefaultBatchMaxSize,
+			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
 			// High input chan size is needed to handle high number of DBM events being flushed by DBM integrations
 			defaultInputChanSize: 500,
 		},
@@ -75,7 +76,7 @@ func getDBMPipelines() []passthroughPipelineDesc {
 			// raise the default batch_max_concurrent_send from 0 to 10 to ensure this pipeline is able to handle 4k events/s
 			defaultBatchMaxConcurrentSend: 10,
 			defaultBatchMaxContentSize:    20e6,
-			defaultBatchMaxSize:           epfDefaultBatchMaxSize,
+			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
 			// High input chan size is needed to handle high number of DBM events being flushed by DBM integrations
 			defaultInputChanSize: 500,
 		},
@@ -90,7 +91,7 @@ func getDBMPipelines() []passthroughPipelineDesc {
 			// raise the default batch_max_concurrent_send from 0 to 10 to ensure this pipeline is able to handle 4k events/s
 			defaultBatchMaxConcurrentSend: 10,
 			defaultBatchMaxContentSize:    20e6,
-			defaultBatchMaxSize:           epfDefaultBatchMaxSize,
+			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
 			// High input chan size is needed to handle high number of DBM events being flushed by DBM integrations
 			defaultInputChanSize: 500,
 		},
@@ -105,7 +106,7 @@ func getDBMPipelines() []passthroughPipelineDesc {
 			// raise the default batch_max_concurrent_send from 0 to 10 to ensure this pipeline is able to handle 4k events/s
 			defaultBatchMaxConcurrentSend: 10,
 			defaultBatchMaxContentSize:    20e6,
-			defaultBatchMaxSize:           epfDefaultBatchMaxSize,
+			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
 			// High input chan size is needed to handle high number of DBM events being flushed by DBM integrations
 			defaultInputChanSize: 500,
 		},

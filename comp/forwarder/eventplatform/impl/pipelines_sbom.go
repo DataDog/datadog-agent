@@ -8,6 +8,7 @@ package eventplatformimpl
 import (
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	logshttp "github.com/DataDog/datadog-agent/comp/logs-library/client/http"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 func getSBOMPipelines() []passthroughPipelineDesc {
@@ -20,8 +21,8 @@ func getSBOMPipelines() []passthroughPipelineDesc {
 			hostnameEndpointPrefix:        "sbom-intake.",
 			intakeTrackType:               "sbom",
 			defaultBatchMaxConcurrentSend: 10,
-			defaultBatchMaxContentSize:    epfDefaultBatchMaxContentSize,
-			defaultBatchMaxSize:           epfDefaultBatchMaxSize,
+			defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
+			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
 			// on every periodic refresh, we re-send all the SBOMs for all the
 			// container images in the workloadmeta store. This can be a lot of
 			// payloads at once, so we need a large input channel size to avoid dropping

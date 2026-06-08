@@ -169,6 +169,7 @@ linters:
             - "!**/comp/forwarder/eventplatform/impl/pipelines_ndm_core.go"
             - "!**/comp/forwarder/eventplatform/impl/pipelines_ndm_integrations.go"
             - "!**/comp/forwarder/eventplatform/impl/pipelines_networkpath.go"
+            - "!**/comp/forwarder/eventplatform/impl/pipelines_sbom.go"
             - "!**/comp/forwarder/eventplatform/impl/pipelines_softwareinventory.go"
             - "!**/comp/forwarder/eventplatform/impl/pipelines_synthetics.go"
             - "!**/comp/logs-library/pipeline/provider.go"

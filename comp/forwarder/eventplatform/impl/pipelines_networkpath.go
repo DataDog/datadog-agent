@@ -8,6 +8,7 @@ package eventplatformimpl
 import (
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	logshttp "github.com/DataDog/datadog-agent/comp/logs-library/client/http"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 func getNetworkPathPipelines() []passthroughPipelineDesc {
@@ -20,9 +21,9 @@ func getNetworkPathPipelines() []passthroughPipelineDesc {
 			hostnameEndpointPrefix:        "netpath-intake.",
 			intakeTrackType:               "netpath",
 			defaultBatchMaxConcurrentSend: 10,
-			defaultBatchMaxContentSize:    epfDefaultBatchMaxContentSize,
-			defaultBatchMaxSize:           epfDefaultBatchMaxSize,
-			defaultInputChanSize:          epfDefaultInputChanSize,
+			defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
+			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
+			defaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
 		},
 	}
 }

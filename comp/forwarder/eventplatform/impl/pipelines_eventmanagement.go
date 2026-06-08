@@ -8,6 +8,7 @@ package eventplatformimpl
 import (
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	logshttp "github.com/DataDog/datadog-agent/comp/logs-library/client/http"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 func getEventManagementPipelines() []passthroughPipelineDesc {
@@ -19,10 +20,10 @@ func getEventManagementPipelines() []passthroughPipelineDesc {
 			endpointsConfigPrefix:         "event_management.forwarder.",
 			hostnameEndpointPrefix:        "event-management-intake.",
 			intakeTrackType:               "events",
-			defaultBatchMaxConcurrentSend: epfDefaultBatchMaxConcurrentSend,
-			defaultBatchMaxContentSize:    epfDefaultBatchMaxContentSize,
-			defaultBatchMaxSize:           epfDefaultBatchMaxSize,
-			defaultInputChanSize:          epfDefaultInputChanSize,
+			defaultBatchMaxConcurrentSend: pkgconfigsetup.DefaultBatchMaxConcurrentSend,
+			defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
+			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
+			defaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
 			//nolint:misspell
 			// TODO(ECT-4272): event-management-intake does not support batching/array, must send one event at a time
 			useStreamStrategy: true,
