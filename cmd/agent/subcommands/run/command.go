@@ -130,6 +130,7 @@ import (
 	eventplatformreceiverimpl "github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/impl"
 	orchestratordef "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/def"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/impl"
+	haagentdef "github.com/DataDog/datadog-agent/comp/haagent/def"
 	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform"
 	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 
@@ -293,6 +294,7 @@ func run(log log.Component,
 	_ inventoryagent.Component,
 	_ inventoryhost.Component,
 	_ haagentmetadata.Component,
+	haAgent haagentdef.Component,
 	_ secrets.Component,
 	invChecks inventorychecks.Component,
 	logReceiver option.Option[integrations.Component],
@@ -382,6 +384,7 @@ func run(log log.Component,
 		ipc,
 		snmpScanManager,
 		traceroute,
+		haAgent,
 		healthplatformComp,
 		ncmComp,
 	); err != nil {
@@ -619,6 +622,7 @@ func startAgent(
 	ipc ipc.Component,
 	snmpScanManager snmpscanmanager.Component,
 	traceroute traceroute.Component,
+	haAgent haagentdef.Component,
 	healthplatformComp healthplatformdef.Component,
 	ncmComp option.Option[networkconfigmanagement.Component],
 ) error {
@@ -710,6 +714,7 @@ func startAgent(
 	// Set up check collector
 	commonchecks.RegisterChecks(wmeta, filterStore, tagger, cfg, tlm, rcclient, flare, snmpScanManager, traceroute, ncmComp)
 	ac.AddScheduler("check", pkgcollector.InitCheckScheduler(option.New(collectorComponent), demultiplexer, logReceiver, tagger, filterStore), true)
+	registerMetricLookbackScheduler(ac, cfg, demultiplexer, logReceiver, tagger, filterStore, haAgent, healthplatformComp, hostname)
 
 	demultiplexer.AddAgentStartupTelemetry(version.AgentVersion)
 
