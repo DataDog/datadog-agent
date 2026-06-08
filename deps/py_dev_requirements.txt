@@ -1,3 +1,4 @@
 invoke==2.2.1
 patch-ng==1.19.1
 pyyaml==6.0.3
+starlark-pyo3==2026.1

@@ -1,5 +1,6 @@
 load("@rules_python//python:py_binary.bzl", "py_binary")
 load("@rules_python//python:py_library.bzl", "py_library")
+load("@rules_python//python:py_test.bzl", "py_test")
 
 package(default_visibility = ["//visibility:private"])
 
@@ -14,6 +15,16 @@ py_library(
 )
 
 exports_files(["core_checks.py"])
+
+py_library(
+    name = "renovate_lib",
+    srcs = ["renovate.py"],
+    imports = [".."],
+    deps = [
+        "@py_dev_requirements//invoke",
+        "@py_dev_requirements//starlark_pyo3",
+    ],
+)
 
 # Used by //pkg/config/schema:merged_core_schema to inline the per-section
 # sub-files referenced by core_schema.yaml's $refs.
@@ -33,5 +44,21 @@ py_binary(
     name = "check_renovate_bazel_coverage",
     srcs = ["renovate.py"],
     main = "renovate.py",
-    deps = ["@py_dev_requirements//invoke"],
+    deps = [":renovate_lib"],
+)
+
+py_binary(
+    name = "refresh_renovate_archive_hashes",
+    srcs = ["renovate_refresh.py"],
+    main = "renovate_refresh.py",
+    deps = [":renovate_lib"],
+)
+
+py_test(
+    name = "renovate_tests",
+    srcs = ["unit_tests/renovate_tests.py"],
+    imports = [".."],
+    deps = [
+        ":renovate_lib",
+    ],
 )
