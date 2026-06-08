@@ -267,7 +267,7 @@ Probes:
           events:
             - Kind: Entry
               Type: 968 EventRootType Probe[main.anyAllPtrIntSlice]
-              InjectionPoints: [{PC: "0xc0508", Frameless: false}]
+              InjectionPoints: [{PC: "0xc05d8", Frameless: false}]
               Condition:
                 Type: 6 BaseType bool
                 Operations:
@@ -302,7 +302,7 @@ Probes:
                 IsSplit: false
             - Kind: Return
               Type: 969 EventRootType Probe[main.anyAllPtrIntSlice]Return
-              InjectionPoints: [{PC: "0xc0580", Frameless: false}]
+              InjectionPoints: [{PC: "0xc0650", Frameless: false}]
               Condition: null
           probeTemplate:
             TemplateString: allptrint_nonnull tag={tag}
@@ -701,7 +701,7 @@ Probes:
           events:
             - Kind: Entry
               Type: 978 EventRootType Probe[main.anyAllBigKeyMap]
-              InjectionPoints: [{PC: "0xc08f8", Frameless: false}]
+              InjectionPoints: [{PC: "0xc09c8", Frameless: false}]
               Condition:
                 Type: 6 BaseType bool
                 Operations:
@@ -756,7 +756,7 @@ Probes:
                 IsSplit: false
             - Kind: Return
               Type: 979 EventRootType Probe[main.anyAllBigKeyMap]Return
-              InjectionPoints: [{PC: "0xc097c", Frameless: false}]
+              InjectionPoints: [{PC: "0xc0a4c", Frameless: false}]
               Condition: null
           probeTemplate:
             TemplateString: anybigkey tag={tag}
@@ -788,7 +788,7 @@ Probes:
           events:
             - Kind: Entry
               Type: 976 EventRootType Probe[main.anyAllBigValMap]
-              InjectionPoints: [{PC: "0xc0828", Frameless: false}]
+              InjectionPoints: [{PC: "0xc08f8", Frameless: false}]
               Condition:
                 Type: 6 BaseType bool
                 Operations:
@@ -843,7 +843,7 @@ Probes:
                 IsSplit: false
             - Kind: Return
               Type: 977 EventRootType Probe[main.anyAllBigValMap]Return
-              InjectionPoints: [{PC: "0xc08ac", Frameless: false}]
+              InjectionPoints: [{PC: "0xc097c", Frameless: false}]
               Condition: null
           probeTemplate:
             TemplateString: anybigval tag={tag}
@@ -1581,7 +1581,7 @@ Probes:
           events:
             - Kind: Entry
               Type: 964 EventRootType Probe[main.anyAllPtrMap]
-              InjectionPoints: [{PC: "0xc0378", Frameless: false}]
+              InjectionPoints: [{PC: "0xc0448", Frameless: false}]
               Condition:
                 Type: 6 BaseType bool
                 Operations:
@@ -1653,7 +1653,7 @@ Probes:
                 IsSplit: false
             - Kind: Return
               Type: 965 EventRootType Probe[main.anyAllPtrMap]Return
-              InjectionPoints: [{PC: "0xc03fc", Frameless: false}]
+              InjectionPoints: [{PC: "0xc04cc", Frameless: false}]
               Condition: null
           probeTemplate:
             TemplateString: anyptrmap_guarded tag={tag}
@@ -1836,7 +1836,7 @@ Probes:
           events:
             - Kind: Entry
               Type: 966 EventRootType Probe[main.anyAllPtrStrSlice]
-              InjectionPoints: [{PC: "0xc0448", Frameless: false}]
+              InjectionPoints: [{PC: "0xc0518", Frameless: false}]
               Condition:
                 Type: 6 BaseType bool
                 Operations:
@@ -1871,7 +1871,7 @@ Probes:
                 IsSplit: false
             - Kind: Return
               Type: 967 EventRootType Probe[main.anyAllPtrStrSlice]Return
-              InjectionPoints: [{PC: "0xc04c0", Frameless: false}]
+              InjectionPoints: [{PC: "0xc0590", Frameless: false}]
               Condition: null
           probeTemplate:
             TemplateString: anyptrstr_nonnull tag={tag}
@@ -1906,7 +1906,7 @@ Probes:
           events:
             - Kind: Entry
               Type: 974 EventRootType Probe[main.anyAllPtrStructKeyMap]
-              InjectionPoints: [{PC: "0xc0758", Frameless: false}]
+              InjectionPoints: [{PC: "0xc0828", Frameless: false}]
               Condition:
                 Type: 6 BaseType bool
                 Operations:
@@ -1961,7 +1961,7 @@ Probes:
                 IsSplit: false
             - Kind: Return
               Type: 975 EventRootType Probe[main.anyAllPtrStructKeyMap]Return
-              InjectionPoints: [{PC: "0xc07dc", Frameless: false}]
+              InjectionPoints: [{PC: "0xc08ac", Frameless: false}]
               Condition: null
           probeTemplate:
             TemplateString: anyptrstructkey tag={tag}
@@ -1987,7 +1987,7 @@ Probes:
           events:
             - Kind: Entry
               Type: 992 EventRootType Probe[main.anyAllStringArray]
-              InjectionPoints: [{PC: "0xc0a88", Frameless: false}]
+              InjectionPoints: [{PC: "0xc0b58", Frameless: false}]
               Condition:
                 Type: 6 BaseType bool
                 Operations:
@@ -2021,7 +2021,7 @@ Probes:
                 IsSplit: false
             - Kind: Return
               Type: 993 EventRootType Probe[main.anyAllStringArray]Return
-              InjectionPoints: [{PC: "0xc0b04", Frameless: false}]
+              InjectionPoints: [{PC: "0xc0bd4", Frameless: false}]
               Condition: null
           probeTemplate:
             TemplateString: anyStrArrMatch tag={tag}
@@ -2047,7 +2047,7 @@ Probes:
           events:
             - Kind: Entry
               Type: 980 EventRootType Probe[main.anyAllStringSlice]
-              InjectionPoints: [{PC: "0xc09c8", Frameless: false}]
+              InjectionPoints: [{PC: "0xc0a98", Frameless: false}]
               Condition:
                 Type: 6 BaseType bool
                 Operations:
@@ -2080,7 +2080,7 @@ Probes:
                 IsSplit: false
             - Kind: Return
               Type: 981 EventRootType Probe[main.anyAllStringSlice]Return
-              InjectionPoints: [{PC: "0xc0a40", Frameless: false}]
+              InjectionPoints: [{PC: "0xc0b10", Frameless: false}]
               Condition: null
           probeTemplate:
             TemplateString: anyStrMatch tag={tag}
@@ -2112,7 +2112,7 @@ Probes:
           events:
             - Kind: Entry
               Type: 972 EventRootType Probe[main.anyAllStructKeyMap]
-              InjectionPoints: [{PC: "0xc0688", Frameless: false}]
+              InjectionPoints: [{PC: "0xc0758", Frameless: false}]
               Condition:
                 Type: 6 BaseType bool
                 Operations:
@@ -2163,7 +2163,7 @@ Probes:
                 IsSplit: false
             - Kind: Return
               Type: 973 EventRootType Probe[main.anyAllStructKeyMap]Return
-              InjectionPoints: [{PC: "0xc070c", Frameless: false}]
+              InjectionPoints: [{PC: "0xc07dc", Frameless: false}]
               Condition: null
           probeTemplate:
             TemplateString: anystructkey tag={tag}
@@ -2412,11 +2412,11 @@ Probes:
           events:
             - Kind: Entry
               Type: 970 EventRootType Probe[main.anyAllPtrIntSlice]
-              InjectionPoints: [{PC: "0xc0508", Frameless: false}]
+              InjectionPoints: [{PC: "0xc05d8", Frameless: false}]
               Condition: null
             - Kind: Return
               Type: 971 EventRootType Probe[main.anyAllPtrIntSlice]Return
-              InjectionPoints: [{PC: "0xc0580", Frameless: false}]
+              InjectionPoints: [{PC: "0xc0650", Frameless: false}]
               Condition: null
     - id: captureAnyStructSlice_I32eq300
       version: 0
@@ -2538,11 +2538,11 @@ Probes:
           events:
             - Kind: Entry
               Type: 982 EventRootType Probe[main.anyAllStringSlice]
-              InjectionPoints: [{PC: "0xc09c8", Frameless: false}]
+              InjectionPoints: [{PC: "0xc0a98", Frameless: false}]
               Condition: null
             - Kind: Return
               Type: 983 EventRootType Probe[main.anyAllStringSlice]Return
-              InjectionPoints: [{PC: "0xc0a40", Frameless: false}]
+              InjectionPoints: [{PC: "0xc0b10", Frameless: false}]
               Condition: null
     - id: captureDuration_return
       version: 0
@@ -2694,11 +2694,11 @@ Probes:
           events:
             - Kind: Entry
               Type: 984 EventRootType Probe[main.anyAllStringSlice]
-              InjectionPoints: [{PC: "0xc09c8", Frameless: false}]
+              InjectionPoints: [{PC: "0xc0a98", Frameless: false}]
               Condition: null
             - Kind: Return
               Type: 987 EventRootType Probe[main.anyAllStringSlice]Return
-              InjectionPoints: [{PC: "0xc0a40", Frameless: false}]
+              InjectionPoints: [{PC: "0xc0b10", Frameless: false}]
               Condition: null
     - id: captureFilterStructSlice_I32gt0
       version: 0
@@ -9372,7 +9372,7 @@ Probes:
           events:
             - Kind: Entry
               Type: 994 EventRootType Probe[main.anyAllStringArray]
-              InjectionPoints: [{PC: "0xc0a88", Frameless: false}]
+              InjectionPoints: [{PC: "0xc0b58", Frameless: false}]
               Condition:
                 Type: 6 BaseType bool
                 Operations:
@@ -9406,7 +9406,7 @@ Probes:
                 IsSplit: false
             - Kind: Return
               Type: 995 EventRootType Probe[main.anyAllStringArray]Return
-              InjectionPoints: [{PC: "0xc0b04", Frameless: false}]
+              InjectionPoints: [{PC: "0xc0bd4", Frameless: false}]
               Condition: null
           probeTemplate:
             TemplateString: containsStrArrMatch tag={tag}
@@ -9435,7 +9435,7 @@ Probes:
           events:
             - Kind: Entry
               Type: 988 EventRootType Probe[main.anyAllStringSlice]
-              InjectionPoints: [{PC: "0xc09c8", Frameless: false}]
+              InjectionPoints: [{PC: "0xc0a98", Frameless: false}]
               Condition:
                 Type: 6 BaseType bool
                 Operations:
@@ -9468,7 +9468,7 @@ Probes:
                 IsSplit: false
             - Kind: Return
               Type: 989 EventRootType Probe[main.anyAllStringSlice]Return
-              InjectionPoints: [{PC: "0xc0a40", Frameless: false}]
+              InjectionPoints: [{PC: "0xc0b10", Frameless: false}]
               Condition: null
           probeTemplate:
             TemplateString: containsStrMatch tag={tag}
@@ -9490,21 +9490,21 @@ Probes:
           events:
             - Kind: Entry
               Type: 996 EventRootType Probe[main.genericIdentity[go.shape.string]]
-              InjectionPoints: [{PC: "0xc0cc8", Frameless: false}]
+              InjectionPoints: [{PC: "0xc0d98", Frameless: false}]
               Condition: null
             - Kind: Return
               Type: 997 EventRootType Probe[main.genericIdentity[go.shape.string]]Return
-              InjectionPoints: [{PC: "0xc0d18", Frameless: false}]
+              InjectionPoints: [{PC: "0xc0de8", Frameless: false}]
               Condition: null
         - subprogram: {subprogram: 94}
           events:
             - Kind: Entry
               Type: 998 EventRootType Probe[main.genericIdentity[go.shape.int]]
-              InjectionPoints: [{PC: "0xc0d58", Frameless: false}]
+              InjectionPoints: [{PC: "0xc0e28", Frameless: false}]
               Condition: null
             - Kind: Return
               Type: 999 EventRootType Probe[main.genericIdentity[go.shape.int]]Return
-              InjectionPoints: [{PC: "0xc0d9c", Frameless: false}]
+              InjectionPoints: [{PC: "0xc0e6c", Frameless: false}]
               Condition: null
     - id: indexBigArrayStruct_last
       version: 0
@@ -10492,7 +10492,7 @@ Probes:
           events:
             - Kind: Entry
               Type: 1004 EventRootType Probe[main.(*methodValueReceiver).inlinedMethod]
-              InjectionPoints: [{PC: "0xc0dc4", Frameless: true}]
+              InjectionPoints: [{PC: "0xc0e94", Frameless: true}]
               Condition: null
     - id: intArg
       version: 0
@@ -12870,11 +12870,11 @@ Probes:
           events:
             - Kind: Entry
               Type: 990 EventRootType Probe[main.anyAllStringSlice]
-              InjectionPoints: [{PC: "0xc09c8", Frameless: false}]
+              InjectionPoints: [{PC: "0xc0a98", Frameless: false}]
               Condition: null
             - Kind: Return
               Type: 991 EventRootType Probe[main.anyAllStringSlice]Return
-              InjectionPoints: [{PC: "0xc0a40", Frameless: false}]
+              InjectionPoints: [{PC: "0xc0b10", Frameless: false}]
               Condition: null
           probeTemplate:
             TemplateString: containsStrMatch={contains(xs, "match")} tag={tag}
@@ -15505,13 +15505,13 @@ Subprograms:
       DictRegister: null
     - ID: 81
       Name: main.anyAllPtrMap
-      OutOfLinePCRanges: [0xc0360..0xc0430]
+      OutOfLinePCRanges: [0xc0430..0xc0500]
       InlinePCRanges: []
       Variables:
         - Name: m
           Type: 181 GoMapType map[string]*main.condFields
           Locations:
-            - Range: 0xc0360..0xc03b4
+            - Range: 0xc0430..0xc0484
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
@@ -15519,19 +15519,19 @@ Subprograms:
         - Name: tag
           Type: 11 GoStringHeaderType string
           Locations:
-            - Range: 0xc0360..0xc03a4
+            - Range: 0xc0430..0xc0474
               Pieces:
                 - Size: 8
                   Op: {RegNo: 1, Shift: 0}
                 - Size: 8
                   Op: {RegNo: 2, Shift: 0}
-            - Range: 0xc03a4..0xc03ac
+            - Range: 0xc0474..0xc047c
               Pieces:
                 - Size: 8
                   Op: {CfaOffset: 16}
                 - Size: 8
                   Op: {CfaOffset: 24}
-            - Range: 0xc03ac..0xc0430
+            - Range: 0xc047c..0xc0500
               Pieces:
                 - Size: 8
                   Op: {CfaOffset: 16}
@@ -15543,13 +15543,13 @@ Subprograms:
       DictRegister: null
     - ID: 82
       Name: main.anyAllPtrStrSlice
-      OutOfLinePCRanges: [0xc0430..0xc04f0]
+      OutOfLinePCRanges: [0xc0500..0xc05c0]
       InlinePCRanges: []
       Variables:
         - Name: xs
           Type: 186 GoSliceHeaderType []*string
           Locations:
-            - Range: 0xc0430..0xc0468
+            - Range: 0xc0500..0xc0538
               Pieces:
                 - Size: 8
                   Op: {RegNo: 0, Shift: 0}
@@ -15557,7 +15557,7 @@ Subprograms:
                   Op: {RegNo: 1, Shift: 0}
                 - Size: 8
                   Op: {RegNo: 2, Shift: 0}
-            - Range: 0xc0468..0xc0478
+            - Range: 0xc0538..0xc0548
               Pieces:
                 - Size: 8
                   Op: {RegNo: 0, Shift: 0}
@@ -15565,7 +15565,7 @@ Subprograms:
                   Op: {RegNo: 1, Shift: 0}
                 - Size: 8
                   Op: null
-            - Range: 0xc0478..0xc047c
+            - Range: 0xc0548..0xc054c
               Pieces:
                 - Size: 8
                   Op: null
@@ -15579,19 +15579,19 @@ Subprograms:
         - Name: tag
           Type: 11 GoStringHeaderType string
           Locations:
-            - Range: 0xc0430..0xc0470
+            - Range: 0xc0500..0xc0540
               Pieces:
                 - Size: 8
                   Op: {RegNo: 3, Shift: 0}
                 - Size: 8
                   Op: {RegNo: 4, Shift: 0}
-            - Range: 0xc0470..0xc047c
+            - Range: 0xc0540..0xc054c
               Pieces:
                 - Size: 8
                   Op: {CfaOffset: 32}
                 - Size: 8
                   Op: {CfaOffset: 40}
-            - Range: 0xc047c..0xc04f0
+            - Range: 0xc054c..0xc05c0
               Pieces:
                 - Size: 8
                   Op: {CfaOffset: 32}
@@ -15603,13 +15603,13 @@ Subprograms:
       DictRegister: null
     - ID: 83
       Name: main.anyAllPtrIntSlice
-      OutOfLinePCRanges: [0xc04f0..0xc05b0]
+      OutOfLinePCRanges: [0xc05c0..0xc0680]
       InlinePCRanges: []
       Variables:
         - Name: xs
           Type: 188 GoSliceHeaderType []*int
           Locations:
-            - Range: 0xc04f0..0xc0528
+            - Range: 0xc05c0..0xc05f8
               Pieces:
                 - Size: 8
                   Op: {RegNo: 0, Shift: 0}
@@ -15617,7 +15617,7 @@ Subprograms:
                   Op: {RegNo: 1, Shift: 0}
                 - Size: 8
                   Op: {RegNo: 2, Shift: 0}
-            - Range: 0xc0528..0xc0538
+            - Range: 0xc05f8..0xc0608
               Pieces:
                 - Size: 8
                   Op: {RegNo: 0, Shift: 0}
@@ -15625,7 +15625,7 @@ Subprograms:
                   Op: {RegNo: 1, Shift: 0}
                 - Size: 8
                   Op: null
-            - Range: 0xc0538..0xc053c
+            - Range: 0xc0608..0xc060c
               Pieces:
                 - Size: 8
                   Op: null
@@ -15639,19 +15639,19 @@ Subprograms:
         - Name: tag
           Type: 11 GoStringHeaderType string
           Locations:
-            - Range: 0xc04f0..0xc0530
+            - Range: 0xc05c0..0xc0600
               Pieces:
                 - Size: 8
                   Op: {RegNo: 3, Shift: 0}
                 - Size: 8
                   Op: {RegNo: 4, Shift: 0}
-            - Range: 0xc0530..0xc053c
+            - Range: 0xc0600..0xc060c
               Pieces:
                 - Size: 8
                   Op: {CfaOffset: 32}
                 - Size: 8
                   Op: {CfaOffset: 40}
-            - Range: 0xc053c..0xc05b0
+            - Range: 0xc060c..0xc0680
               Pieces:
                 - Size: 8
                   Op: {CfaOffset: 32}
@@ -15663,13 +15663,13 @@ Subprograms:
       DictRegister: null
     - ID: 84
       Name: main.anyAllOversizedSlice
-      OutOfLinePCRanges: [0xc05b0..0xc0670]
+      OutOfLinePCRanges: [0xc0680..0xc0740]
       InlinePCRanges: []
       Variables:
         - Name: xs
           Type: 190 GoSliceHeaderType []main.oversizedElem
           Locations:
-            - Range: 0xc05b0..0xc05e8
+            - Range: 0xc0680..0xc06b8
               Pieces:
                 - Size: 8
                   Op: {RegNo: 0, Shift: 0}
@@ -15677,7 +15677,7 @@ Subprograms:
                   Op: {RegNo: 1, Shift: 0}
                 - Size: 8
                   Op: {RegNo: 2, Shift: 0}
-            - Range: 0xc05e8..0xc05f8
+            - Range: 0xc06b8..0xc06c8
               Pieces:
                 - Size: 8
                   Op: {RegNo: 0, Shift: 0}
@@ -15685,7 +15685,7 @@ Subprograms:
                   Op: {RegNo: 1, Shift: 0}
                 - Size: 8
                   Op: null
-            - Range: 0xc05f8..0xc05fc
+            - Range: 0xc06c8..0xc06cc
               Pieces:
                 - Size: 8
                   Op: null
@@ -15699,19 +15699,19 @@ Subprograms:
         - Name: tag
           Type: 11 GoStringHeaderType string
           Locations:
-            - Range: 0xc05b0..0xc05f0
+            - Range: 0xc0680..0xc06c0
               Pieces:
                 - Size: 8
                   Op: {RegNo: 3, Shift: 0}
                 - Size: 8
                   Op: {RegNo: 4, Shift: 0}
-            - Range: 0xc05f0..0xc05fc
+            - Range: 0xc06c0..0xc06cc
               Pieces:
                 - Size: 8
                   Op: {CfaOffset: 32}
                 - Size: 8
                   Op: {CfaOffset: 40}
-            - Range: 0xc05fc..0xc0670
+            - Range: 0xc06cc..0xc0740
               Pieces:
                 - Size: 8
                   Op: {CfaOffset: 32}
@@ -15723,49 +15723,11 @@ Subprograms:
       DictRegister: null
     - ID: 85
       Name: main.anyAllStructKeyMap
-      OutOfLinePCRanges: [0xc0670..0xc0740]
-      InlinePCRanges: []
-      Variables:
-        - Name: m
-          Type: 193 GoMapType map[main.condFields]int
-          Locations:
-            - Range: 0xc0670..0xc06c4
-              Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
-          Role: Parameter
-          DictIndex: -1
-          LoopBaseOffset: 0
-        - Name: tag
-          Type: 11 GoStringHeaderType string
-          Locations:
-            - Range: 0xc0670..0xc06b4
-              Pieces:
-                - Size: 8
-                  Op: {RegNo: 1, Shift: 0}
-                - Size: 8
-                  Op: {RegNo: 2, Shift: 0}
-            - Range: 0xc06b4..0xc06bc
-              Pieces:
-                - Size: 8
-                  Op: {CfaOffset: 16}
-                - Size: 8
-                  Op: {CfaOffset: 24}
-            - Range: 0xc06bc..0xc0740
-              Pieces:
-                - Size: 8
-                  Op: {CfaOffset: 16}
-                - Size: 8
-                  Op: {CfaOffset: 24}
-          Role: Parameter
-          DictIndex: -1
-          LoopBaseOffset: 0
-      DictRegister: null
-    - ID: 86
-      Name: main.anyAllPtrStructKeyMap
       OutOfLinePCRanges: [0xc0740..0xc0810]
       InlinePCRanges: []
       Variables:
         - Name: m
-          Type: 198 GoMapType map[*main.condFields]int
+          Type: 193 GoMapType map[main.condFields]int
           Locations:
             - Range: 0xc0740..0xc0794
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
@@ -15797,13 +15759,13 @@ Subprograms:
           DictIndex: -1
           LoopBaseOffset: 0
       DictRegister: null
-    - ID: 87
-      Name: main.anyAllBigValMap
+    - ID: 86
+      Name: main.anyAllPtrStructKeyMap
       OutOfLinePCRanges: [0xc0810..0xc08e0]
       InlinePCRanges: []
       Variables:
         - Name: m
-          Type: 119 GoMapType map[string]main.bigStruct
+          Type: 198 GoMapType map[*main.condFields]int
           Locations:
             - Range: 0xc0810..0xc0864
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
@@ -15835,13 +15797,13 @@ Subprograms:
           DictIndex: -1
           LoopBaseOffset: 0
       DictRegister: null
-    - ID: 88
-      Name: main.anyAllBigKeyMap
+    - ID: 87
+      Name: main.anyAllBigValMap
       OutOfLinePCRanges: [0xc08e0..0xc09b0]
       InlinePCRanges: []
       Variables:
         - Name: m
-          Type: 203 GoMapType map[main.bigStruct]int
+          Type: 119 GoMapType map[string]main.bigStruct
           Locations:
             - Range: 0xc08e0..0xc0934
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
@@ -15873,15 +15835,53 @@ Subprograms:
           DictIndex: -1
           LoopBaseOffset: 0
       DictRegister: null
+    - ID: 88
+      Name: main.anyAllBigKeyMap
+      OutOfLinePCRanges: [0xc09b0..0xc0a80]
+      InlinePCRanges: []
+      Variables:
+        - Name: m
+          Type: 203 GoMapType map[main.bigStruct]int
+          Locations:
+            - Range: 0xc09b0..0xc0a04
+              Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
+          Role: Parameter
+          DictIndex: -1
+          LoopBaseOffset: 0
+        - Name: tag
+          Type: 11 GoStringHeaderType string
+          Locations:
+            - Range: 0xc09b0..0xc09f4
+              Pieces:
+                - Size: 8
+                  Op: {RegNo: 1, Shift: 0}
+                - Size: 8
+                  Op: {RegNo: 2, Shift: 0}
+            - Range: 0xc09f4..0xc09fc
+              Pieces:
+                - Size: 8
+                  Op: {CfaOffset: 16}
+                - Size: 8
+                  Op: {CfaOffset: 24}
+            - Range: 0xc09fc..0xc0a80
+              Pieces:
+                - Size: 8
+                  Op: {CfaOffset: 16}
+                - Size: 8
+                  Op: {CfaOffset: 24}
+          Role: Parameter
+          DictIndex: -1
+          LoopBaseOffset: 0
+      DictRegister: null
     - ID: 89
       Name: main.anyAllStringSlice
-      OutOfLinePCRanges: [0xc09b0..0xc0a70]
+      OutOfLinePCRanges: [0xc0a80..0xc0b40]
       InlinePCRanges: []
       Variables:
         - Name: xs
           Type: 112 GoSliceHeaderType []string
           Locations:
-            - Range: 0xc09b0..0xc09e8
+            - Range: 0xc0a80..0xc0ab8
               Pieces:
                 - Size: 8
                   Op: {RegNo: 0, Shift: 0}
@@ -15889,7 +15889,7 @@ Subprograms:
                   Op: {RegNo: 1, Shift: 0}
                 - Size: 8
                   Op: {RegNo: 2, Shift: 0}
-            - Range: 0xc09e8..0xc09f8
+            - Range: 0xc0ab8..0xc0ac8
               Pieces:
                 - Size: 8
                   Op: {RegNo: 0, Shift: 0}
@@ -15897,7 +15897,7 @@ Subprograms:
                   Op: {RegNo: 1, Shift: 0}
                 - Size: 8
                   Op: null
-            - Range: 0xc09f8..0xc09fc
+            - Range: 0xc0ac8..0xc0acc
               Pieces:
                 - Size: 8
                   Op: null
@@ -15911,19 +15911,19 @@ Subprograms:
         - Name: tag
           Type: 11 GoStringHeaderType string
           Locations:
-            - Range: 0xc09b0..0xc09f0
+            - Range: 0xc0a80..0xc0ac0
               Pieces:
                 - Size: 8
                   Op: {RegNo: 3, Shift: 0}
                 - Size: 8
                   Op: {RegNo: 4, Shift: 0}
-            - Range: 0xc09f0..0xc09fc
+            - Range: 0xc0ac0..0xc0acc
               Pieces:
                 - Size: 8
                   Op: {CfaOffset: 32}
                 - Size: 8
                   Op: {CfaOffset: 40}
-            - Range: 0xc09fc..0xc0a70
+            - Range: 0xc0acc..0xc0b40
               Pieces:
                 - Size: 8
                   Op: {CfaOffset: 32}
@@ -15935,13 +15935,13 @@ Subprograms:
       DictRegister: null
     - ID: 90
       Name: main.anyAllStringArray
-      OutOfLinePCRanges: [0xc0a70..0xc0b30]
+      OutOfLinePCRanges: [0xc0b40..0xc0c00]
       InlinePCRanges: []
       Variables:
         - Name: xs
           Type: 113 ArrayType [3]string
           Locations:
-            - Range: 0xc0a70..0xc0b30
+            - Range: 0xc0b40..0xc0c00
               Pieces: [{Size: 48, Op: {CfaOffset: 8}}]
           Role: Parameter
           DictIndex: -1
@@ -15949,19 +15949,19 @@ Subprograms:
         - Name: tag
           Type: 11 GoStringHeaderType string
           Locations:
-            - Range: 0xc0a70..0xc0ab8
+            - Range: 0xc0b40..0xc0b88
               Pieces:
                 - Size: 8
                   Op: {RegNo: 0, Shift: 0}
                 - Size: 8
                   Op: {RegNo: 1, Shift: 0}
-            - Range: 0xc0ab8..0xc0abc
+            - Range: 0xc0b88..0xc0b8c
               Pieces:
                 - Size: 8
                   Op: {CfaOffset: 56}
                 - Size: 8
                   Op: {CfaOffset: 64}
-            - Range: 0xc0abc..0xc0b30
+            - Range: 0xc0b8c..0xc0c00
               Pieces:
                 - Size: 8
                   Op: {CfaOffset: 56}
@@ -15973,13 +15973,13 @@ Subprograms:
       DictRegister: null
     - ID: 91
       Name: main.anyAllIntSliceOfSlice
-      OutOfLinePCRanges: [0xc0b30..0xc0bf0]
+      OutOfLinePCRanges: [0xc0c00..0xc0cc0]
       InlinePCRanges: []
       Variables:
         - Name: xs
           Type: 208 GoSliceHeaderType [][]int
           Locations:
-            - Range: 0xc0b30..0xc0b68
+            - Range: 0xc0c00..0xc0c38
               Pieces:
                 - Size: 8
                   Op: {RegNo: 0, Shift: 0}
@@ -15987,7 +15987,7 @@ Subprograms:
                   Op: {RegNo: 1, Shift: 0}
                 - Size: 8
                   Op: {RegNo: 2, Shift: 0}
-            - Range: 0xc0b68..0xc0b78
+            - Range: 0xc0c38..0xc0c48
               Pieces:
                 - Size: 8
                   Op: {RegNo: 0, Shift: 0}
@@ -15995,7 +15995,7 @@ Subprograms:
                   Op: {RegNo: 1, Shift: 0}
                 - Size: 8
                   Op: null
-            - Range: 0xc0b78..0xc0b7c
+            - Range: 0xc0c48..0xc0c4c
               Pieces:
                 - Size: 8
                   Op: null
@@ -16009,19 +16009,19 @@ Subprograms:
         - Name: tag
           Type: 11 GoStringHeaderType string
           Locations:
-            - Range: 0xc0b30..0xc0b70
+            - Range: 0xc0c00..0xc0c40
               Pieces:
                 - Size: 8
                   Op: {RegNo: 3, Shift: 0}
                 - Size: 8
                   Op: {RegNo: 4, Shift: 0}
-            - Range: 0xc0b70..0xc0b7c
+            - Range: 0xc0c40..0xc0c4c
               Pieces:
                 - Size: 8
                   Op: {CfaOffset: 32}
                 - Size: 8
                   Op: {CfaOffset: 40}
-            - Range: 0xc0b7c..0xc0bf0
+            - Range: 0xc0c4c..0xc0cc0
               Pieces:
                 - Size: 8
                   Op: {CfaOffset: 32}
@@ -16033,13 +16033,13 @@ Subprograms:
       DictRegister: null
     - ID: 92
       Name: main.anyAllIntSliceOfMap
-      OutOfLinePCRanges: [0xc0bf0..0xc0cb0]
+      OutOfLinePCRanges: [0xc0cc0..0xc0d80]
       InlinePCRanges: []
       Variables:
         - Name: xs
           Type: 209 GoSliceHeaderType []map[string]int
           Locations:
-            - Range: 0xc0bf0..0xc0c28
+            - Range: 0xc0cc0..0xc0cf8
               Pieces:
                 - Size: 8
                   Op: {RegNo: 0, Shift: 0}
@@ -16047,7 +16047,7 @@ Subprograms:
                   Op: {RegNo: 1, Shift: 0}
                 - Size: 8
                   Op: {RegNo: 2, Shift: 0}
-            - Range: 0xc0c28..0xc0c38
+            - Range: 0xc0cf8..0xc0d08
               Pieces:
                 - Size: 8
                   Op: {RegNo: 0, Shift: 0}
@@ -16055,7 +16055,7 @@ Subprograms:
                   Op: {RegNo: 1, Shift: 0}
                 - Size: 8
                   Op: null
-            - Range: 0xc0c38..0xc0c3c
+            - Range: 0xc0d08..0xc0d0c
               Pieces:
                 - Size: 8
                   Op: null
@@ -16069,19 +16069,19 @@ Subprograms:
         - Name: tag
           Type: 11 GoStringHeaderType string
           Locations:
-            - Range: 0xc0bf0..0xc0c30
+            - Range: 0xc0cc0..0xc0d00
               Pieces:
                 - Size: 8
                   Op: {RegNo: 3, Shift: 0}
                 - Size: 8
                   Op: {RegNo: 4, Shift: 0}
-            - Range: 0xc0c30..0xc0c3c
+            - Range: 0xc0d00..0xc0d0c
               Pieces:
                 - Size: 8
                   Op: {CfaOffset: 32}
                 - Size: 8
                   Op: {CfaOffset: 40}
-            - Range: 0xc0c3c..0xc0cb0
+            - Range: 0xc0d0c..0xc0d80
               Pieces:
                 - Size: 8
                   Op: {CfaOffset: 32}
@@ -16093,25 +16093,25 @@ Subprograms:
       DictRegister: null
     - ID: 93
       Name: main.genericIdentity[go.shape.string]
-      OutOfLinePCRanges: [0xc0cb0..0xc0d40]
+      OutOfLinePCRanges: [0xc0d80..0xc0e10]
       InlinePCRanges: []
       Variables:
         - Name: x
           Type: 211 GoStringHeaderType go.shape.string
           Locations:
-            - Range: 0xc0cb0..0xc0ce0
+            - Range: 0xc0d80..0xc0db0
               Pieces:
                 - Size: 8
                   Op: {RegNo: 1, Shift: 0}
                 - Size: 8
                   Op: {RegNo: 2, Shift: 0}
-            - Range: 0xc0ce0..0xc0ce4
+            - Range: 0xc0db0..0xc0db4
               Pieces:
                 - Size: 8
                   Op: {CfaOffset: 16}
                 - Size: 8
                   Op: {CfaOffset: 24}
-            - Range: 0xc0ce4..0xc0d40
+            - Range: 0xc0db4..0xc0e10
               Pieces:
                 - Size: 8
                   Op: {CfaOffset: 16}
@@ -16123,15 +16123,15 @@ Subprograms:
         - Name: ~r0
           Type: 211 GoStringHeaderType go.shape.string
           Locations:
-            - Range: 0xc0cb0..0xc0d18
+            - Range: 0xc0d80..0xc0de8
               Pieces: []
-            - Range: 0xc0d18..0xc0d19
+            - Range: 0xc0de8..0xc0de9
               Pieces:
                 - Size: 8
                   Op: {RegNo: 0, Shift: 0}
                 - Size: 8
                   Op: {RegNo: 1, Shift: 0}
-            - Range: 0xc0d19..0xc0d40
+            - Range: 0xc0de9..0xc0e10
               Pieces: []
           Role: Return
           DictIndex: 0
@@ -16139,15 +16139,15 @@ Subprograms:
       DictRegister: 0
     - ID: 94
       Name: main.genericIdentity[go.shape.int]
-      OutOfLinePCRanges: [0xc0d40..0xc0dc0]
+      OutOfLinePCRanges: [0xc0e10..0xc0e90]
       InlinePCRanges: []
       Variables:
         - Name: x
           Type: 212 BaseType go.shape.int
           Locations:
-            - Range: 0xc0d40..0xc0d6c
+            - Range: 0xc0e10..0xc0e3c
               Pieces: [{Size: 8, Op: {RegNo: 1, Shift: 0}}]
-            - Range: 0xc0d6c..0xc0dc0
+            - Range: 0xc0e3c..0xc0e90
               Pieces: [{Size: 8, Op: {CfaOffset: 16}}]
           Role: Parameter
           DictIndex: 0
@@ -16155,11 +16155,11 @@ Subprograms:
         - Name: ~r0
           Type: 212 BaseType go.shape.int
           Locations:
-            - Range: 0xc0d40..0xc0d9c
+            - Range: 0xc0e10..0xc0e6c
               Pieces: []
-            - Range: 0xc0d9c..0xc0d9d
+            - Range: 0xc0e6c..0xc0e6d
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
-            - Range: 0xc0d9d..0xc0dc0
+            - Range: 0xc0e6d..0xc0e90
               Pieces: []
           Role: Return
           DictIndex: 0
@@ -16305,13 +16305,13 @@ Subprograms:
       Name: main.(*methodValueReceiver).inlinedMethod
       OutOfLinePCRanges: []
       InlinePCRanges:
-        - Ranges: [0xc0dc4..0xc0dc8]
-          RootRanges: [0xc0dc0..0xc0dd0]
+        - Ranges: [0xc0e94..0xc0e98]
+          RootRanges: [0xc0e90..0xc0ea0]
       Variables:
         - Name: m
           Type: 215 PointerType *main.methodValueReceiver
           Locations:
-            - Range: 0xc0dc4..0xc0dd0
+            - Range: 0xc0e94..0xc0ea0
               Pieces: [{Size: 8, Op: {RegNo: 1, Shift: 0}}]
           Role: Parameter
           DictIndex: -1

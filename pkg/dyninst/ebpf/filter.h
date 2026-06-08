@@ -13,6 +13,19 @@
 // existing field offsets out of the verifier's bounds-tracking window.
 // Each helper that touches the state calls filter_loop_state_load() to
 // re-derive the pointer with fresh verifier bounds.
+//
+// Bounds-check pattern. The BPF compiler frequently spills `tail` between
+// successive helper calls and the verifier loses range refinement on
+// reload, so each `bpf_probe_read_user` here is preceded by a fresh
+// scratch_buf_bounds_check with a compile-time-constant `len` (variable
+// `len` defeats verifier propagation). For map emit/advance, two writes
+// are issued per pair (key at +0, value at +vo), so the constant covers
+// the worst-case verifier-visible extent of both fields: with `vo`/`vs`
+// each masked to `0xff` (verifier sees each ≤ 255), the worst case is
+// sizeof(header) + 2 * MAX_ELEM_BYTES. The runtime `vo + vs ≤
+// MAX_ELEM_BYTES` check below is what bounds actual writes; the * 2 is
+// the price of the verifier losing that runtime constraint at stack
+// spills.
 
 #include "context.h"
 #include "framing.h"
@@ -80,9 +93,6 @@ sm_emit_filter_map_element_noctx(void) {
   scratch_buf_t* buf = bpf_map_lookup_elem(&events_scratch_buf_map, &zero);
   filter_loop_state_t* fst = filter_loop_state_load();
   if (!buf || !sm || !fst) return 0;
-  // Clamp sizes once via bitmask. The verifier loses value-flow info
-  // across stack spills inside this noinline function; bitmasks survive
-  // because the verifier tracks bitwise constraints precisely.
   uint32_t ks = fst->elem_size & 0xff;
   uint32_t vs = fst->val_size & 0xff;
   uint32_t vo = fst->val_offset_in_pair & 0xff;
@@ -98,29 +108,51 @@ sm_emit_filter_map_element_noctx(void) {
                            fst->map_slots_offset +
                            (target_ptr_t)fst->map_slot_idx * fst->map_slot_size;
 
-  // `& 0x7FFF` (= SCRATCH_BUF_LEN - 1) on offsets below is for the
-  // verifier; the runtime bound is established by the check that follows.
+  // Slack = header + worst-case (vo + vs) per the file-header comment.
+  // On failure flush-and-continue so a large matching set spans multiple
+  // fragments (mirrors the slice emit path).
   buf_offset_t tail = scratch_buf_len(buf);
-  if (!scratch_buf_bounds_check(&tail, sizeof(di_data_item_header_t) + COLLECTION_PREDICATE_MAX_ELEM_BYTES + 8)) {
-    return 0;
+  if (!scratch_buf_bounds_check(&tail,
+          sizeof(di_data_item_header_t) +
+          2 * COLLECTION_PREDICATE_MAX_ELEM_BYTES)) {
+    if (!scratch_buf_flush_and_continue(
+            buf, &sm->continuation_seq, &sm->last_submitted_seq,
+            sm->start_ns, sm->entry_ktime_ns)) {
+      sm->continuation_aborted = true;
+      return 0;
+    }
+    tail = scratch_buf_len(buf);
+    if (!scratch_buf_bounds_check(&tail,
+            sizeof(di_data_item_header_t) +
+            2 * COLLECTION_PREDICATE_MAX_ELEM_BYTES)) {
+      return 0;
+    }
   }
-  buf_offset_t hdr_off = tail & 0x7FFF;
   di_data_item_header_t hdr = {
       .type = type,
       .length = payload_len,
       .address = idx,
   };
-  *(di_data_item_header_t*)(&(*buf)[hdr_off]) = hdr;
-  buf_offset_t payload_off = (hdr_off + sizeof(di_data_item_header_t)) & 0x7FFF;
-
+  // Stash original tail on filter_loop_state so we can mutate `tail` in
+  // place below without paying for an extra stack local (we're tight
+  // against the BPF 512-byte combined-stack limit).
+  fst->it_start = tail;
+  *(di_data_item_header_t*)(&(*buf)[tail]) = hdr;
+  tail += sizeof(di_data_item_header_t);
+  if (!scratch_buf_bounds_check(&tail, COLLECTION_PREDICATE_MAX_ELEM_BYTES)) {
+    return 0;
+  }
   uint16_t kios = fst->map_key_in_slot_offset & 0xfff;
-  if (bpf_probe_read_user(&(*buf)[payload_off], ks,
+  if (bpf_probe_read_user(&(*buf)[tail], ks,
                           (void*)(slot_base + kios)) != 0) {
     return 0;
   }
-  buf_offset_t val_off = (payload_off + vo) & 0x7FFF;
+  tail += vo;
+  if (!scratch_buf_bounds_check(&tail, COLLECTION_PREDICATE_MAX_ELEM_BYTES)) {
+    return 0;
+  }
   uint16_t vios = fst->map_val_in_slot_offset & 0xfff;
-  if (bpf_probe_read_user(&(*buf)[val_off], vs,
+  if (bpf_probe_read_user(&(*buf)[tail], vs,
                           (void*)(slot_base + vios)) != 0) {
     return 0;
   }
@@ -128,11 +160,11 @@ sm_emit_filter_map_element_noctx(void) {
   uint32_t total = sizeof(di_data_item_header_t) + payload_len;
   uint32_t rem = payload_len % 8;
   if (rem != 0) total += 8 - rem;
-  scratch_buf_set_len(buf, tail + total);
+  scratch_buf_set_len(buf, fst->it_start + total);
 
   // Point sm->offset at the emitted payload so the subsequent CallOp
   // for the element's type handler reads from the correct location.
-  sm->offset = payload_off;
+  sm->offset = fst->it_start + sizeof(di_data_item_header_t);
   fst->output_index = idx + 1;
   return 1;
 }
@@ -267,19 +299,13 @@ sm_filter_slice_init_noctx(uint32_t elem_size,
   }
   fst->it_start = tail;
   sm->cur_loop_it_start = tail;
-  // Bit-mask elem_size: clamps value-flow can be lost across stack
-  // spills around bpf_map_lookup_elem above, but `& mask` survives
-  // because the verifier tracks bitwise constraints precisely.
   uint32_t es = elem_size & (COLLECTION_PREDICATE_MAX_ELEM_BYTES - 1);
   if (es == 0) es = 1;
-  // Re-check tail's bounds at the point of use; the verifier loses the
-  // bounds info after the spill around bpf_map_lookup_elem above.
-  buf_offset_t t = tail;
-  if (!scratch_buf_bounds_check(&t, COLLECTION_PREDICATE_MAX_ELEM_BYTES)) {
+  if (!scratch_buf_bounds_check(&tail, COLLECTION_PREDICATE_MAX_ELEM_BYTES)) {
     fst->in_progress = 0;
     return 2;
   }
-  if (bpf_probe_read_user(&(*buf)[t], es, (void*)data_ptr) != 0) {
+  if (bpf_probe_read_user(&(*buf)[tail], es, (void*)data_ptr) != 0) {
     fst->in_progress = 0;
     return 2;
   }
@@ -324,15 +350,13 @@ sm_filter_slice_advance_noctx(uint32_t elem_size,
   }
   fst->it_start = tail;
   sm->cur_loop_it_start = tail;
-  // Re-clamp elem_size and tail (see sm_filter_slice_init_noctx).
   uint32_t es = elem_size & (COLLECTION_PREDICATE_MAX_ELEM_BYTES - 1);
   if (es == 0) es = 1;
-  buf_offset_t t = tail;
-  if (!scratch_buf_bounds_check(&t, COLLECTION_PREDICATE_MAX_ELEM_BYTES)) {
+  if (!scratch_buf_bounds_check(&tail, COLLECTION_PREDICATE_MAX_ELEM_BYTES)) {
     fst->in_progress = 0;
     return 2;
   }
-  if (bpf_probe_read_user(&(*buf)[t], es,
+  if (bpf_probe_read_user(&(*buf)[tail], es,
                           (void*)fst->data_ptr) != 0) {
     fst->in_progress = 0;
     return 2;
@@ -436,7 +460,8 @@ sm_filter_map_advance_and_read_noctx(uint32_t iter_scratch_budget) {
     }
     fst->map_slot_idx = found_idx;
     buf_offset_t tail = scratch_buf_len(buf);
-    if (!scratch_buf_bounds_check(&tail, iter_scratch_budget)) {
+    if (!scratch_buf_bounds_check(&tail, iter_scratch_budget) ||
+        !scratch_buf_bounds_check(&tail, 2 * COLLECTION_PREDICATE_MAX_ELEM_BYTES)) {
       if (!scratch_buf_flush_and_continue(
               buf, &sm->continuation_seq, &sm->last_submitted_seq,
               sm->start_ns, sm->entry_ktime_ns)) {
@@ -444,14 +469,13 @@ sm_filter_map_advance_and_read_noctx(uint32_t iter_scratch_budget) {
         return 2;
       }
       tail = scratch_buf_len(buf);
-      if (!scratch_buf_bounds_check(&tail, iter_scratch_budget)) {
+      if (!scratch_buf_bounds_check(&tail, iter_scratch_budget) ||
+          !scratch_buf_bounds_check(&tail, 2 * COLLECTION_PREDICATE_MAX_ELEM_BYTES)) {
         return 2;
       }
     }
     fst->it_start = tail;
     sm->cur_loop_it_start = tail;
-    // Bitmask-clamp sizes/offsets so the verifier tracks tight bounds;
-    // `& 0x7FFF` (= SCRATCH_BUF_LEN - 1) on offsets is verifier-only.
     uint32_t ks = fst->elem_size & 0xff;
     uint32_t vs = fst->val_size & 0xff;
     uint32_t vo = fst->val_offset_in_pair & 0xff;
@@ -461,16 +485,27 @@ sm_filter_map_advance_and_read_noctx(uint32_t iter_scratch_budget) {
                              (target_ptr_t)fst->map_group_idx * fst->map_group_byte_size +
                              fst->map_slots_offset +
                              (target_ptr_t)fst->map_slot_idx * fst->map_slot_size;
-    buf_offset_t k_off = tail & 0x7FFF;
+    // `tail` is mutated in place between writes (rather than introducing
+    // k_off / v_off stack locals) to stay under the BPF 512-byte
+    // combined-stack limit. `fst->it_start` (set above) carries the
+    // original tail through to sm->offset at the end.
+    if (!scratch_buf_bounds_check(&tail, COLLECTION_PREDICATE_MAX_ELEM_BYTES)) {
+      fst->in_progress = 0;
+      return 2;
+    }
     uint16_t kios = fst->map_key_in_slot_offset & 0xfff;
-    if (bpf_probe_read_user(&(*buf)[k_off], ks,
+    if (bpf_probe_read_user(&(*buf)[tail], ks,
                             (void*)(slot_base + kios)) != 0) {
       fst->in_progress = 0;
       return 2;
     }
-    buf_offset_t v_off = (tail + vo) & 0x7FFF;
+    tail += vo;
+    if (!scratch_buf_bounds_check(&tail, COLLECTION_PREDICATE_MAX_ELEM_BYTES)) {
+      fst->in_progress = 0;
+      return 2;
+    }
     uint16_t vios = fst->map_val_in_slot_offset & 0xfff;
-    if (bpf_probe_read_user(&(*buf)[v_off], vs,
+    if (bpf_probe_read_user(&(*buf)[tail], vs,
                             (void*)(slot_base + vios)) != 0) {
       fst->in_progress = 0;
       return 2;
@@ -483,7 +518,7 @@ sm_filter_map_advance_and_read_noctx(uint32_t iter_scratch_budget) {
     // call via the map_slot_returned flag.
     fst->map_slot_returned = 1;
     fst->remaining--;
-    sm->offset = tail;
+    sm->offset = fst->it_start;
     return 0;
   }
   return 3;
