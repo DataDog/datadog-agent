@@ -465,6 +465,44 @@ done:
     return true;
 }
 
+char *Three::discoverConfig(RtLoaderPyObject *py_class, const char *service_json)
+{
+    if (py_class == NULL) {
+        return NULL;
+    }
+
+    PyObject *klass = reinterpret_cast<PyObject *>(py_class);
+
+    // result will be eventually returned as a copy and the corresponding Python
+    // string decref'ed, caller will be responsible for memory deallocation.
+    char *ret = NULL;
+    char func_name[] = "discover_config";
+    char format[] = "(s)"; // use parentheses to force Tuple creation
+    PyObject *result = NULL;
+
+    result = PyObject_CallMethod(klass, func_name, format, service_json);
+    if (result == NULL) {
+        setError("error invoking 'discover_config' method: " + _fetchPythonError());
+        goto done;
+    }
+
+    if (!PyUnicode_Check(result)) {
+        setError("error invoking 'discover_config' method: method returned non-string result");
+        goto done;
+    }
+
+    ret = as_string(result);
+    if (ret == NULL) {
+        // as_string clears the error, so we can't fetch it here
+        setError("error converting 'discover_config' result to string");
+        goto done;
+    }
+
+done:
+    Py_XDECREF(result);
+    return ret;
+}
+
 char *Three::runCheck(RtLoaderPyObject *check)
 {
     if (check == NULL) {

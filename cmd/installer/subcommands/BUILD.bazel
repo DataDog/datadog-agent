@@ -1,0 +1,15 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "subcommands",
+    srcs = ["subcommands.go"],
+    importpath = "github.com/DataDog/datadog-agent/cmd/installer/subcommands",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cmd/installer/command",
+        "//cmd/installer/subcommands/daemon",
+        "//cmd/installer/user",
+        "//pkg/fleet/installer/commands",
+        "@com_github_spf13_cobra//:cobra",
+    ],
+)

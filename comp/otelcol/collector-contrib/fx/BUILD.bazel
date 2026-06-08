@@ -1,0 +1,13 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "fx",
+    srcs = ["fx.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/fx",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/otelcol/collector-contrib/def",
+        "//comp/otelcol/collector-contrib/impl",
+        "//pkg/util/fxutil",
+    ],
+)
