@@ -94,7 +94,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey v0.77.0-devel.0.20260213154712-e02b9359151a
 	github.com/DataDog/datadog-agent/pkg/api v0.77.0-devel.0.20260213154712-e02b9359151a
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.78.1
-	github.com/DataDog/datadog-agent/pkg/config/basic v0.78.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/basic v0.78.1
 	github.com/DataDog/datadog-agent/pkg/config/create v0.78.1
 	github.com/DataDog/datadog-agent/pkg/config/env v0.78.1
 	github.com/DataDog/datadog-agent/pkg/config/helper v0.78.1
@@ -183,7 +183,7 @@ require (
 	github.com/ProtonMail/go-crypto v1.4.1
 	github.com/acobaugh/osrelease v0.1.0
 	github.com/alecthomas/units v0.0.0-20240927000941-0f3dac36c52b
-	github.com/aquasecurity/trivy v0.70.0
+	github.com/aquasecurity/trivy v0.71.0
 	github.com/aquasecurity/trivy-db v0.0.0-20250604074528-8a8d6e3cc002
 	github.com/avast/retry-go/v4 v4.7.0
 	github.com/aws/aws-sdk-go-v2 v1.41.7
