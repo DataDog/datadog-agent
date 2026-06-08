@@ -75,6 +75,7 @@ go_test(
     deps = [
         "//comp/core",
         "//comp/core/autodiscovery/common/types",
+        "//comp/core/autodiscovery/discoverer",
         "//comp/core/autodiscovery/integration",
         "//comp/core/autodiscovery/providers/names",
         "//comp/core/autodiscovery/providers/types",
@@ -106,6 +107,7 @@ go_test(
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@com_github_stretchr_testify//suite",
+        "@org_uber_go_atomic//:atomic",
         "@org_uber_go_fx//:fx",
     ],
 )

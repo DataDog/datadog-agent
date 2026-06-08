@@ -8,12 +8,12 @@ package autodiscoveryimpl
 import (
 	"encoding/json"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/discoverer"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -23,8 +23,12 @@ import (
 // stubDiscoverer is a discoverer.ConfigDiscoverer used by configmgr tests.
 type stubDiscoverer struct {
 	mu     sync.Mutex
-	called atomic.Int32
+	called *atomic.Int32
 	fn     func(integrationName, serviceJSON string) (string, error)
+}
+
+func newStubDiscoverer(fn func(integrationName, serviceJSON string) (string, error)) *stubDiscoverer {
+	return &stubDiscoverer{called: atomic.NewInt32(0), fn: fn}
 }
 
 func (s *stubDiscoverer) DiscoverConfig(integrationName, serviceJSON string) (string, error) {
@@ -72,9 +76,9 @@ func TestConfigMgr_DiscoveryTemplate_DormantWhenNoDiscoverer(t *testing.T) {
 // via discoveredChanges() to be applied by AutoConfig.
 func TestConfigMgr_DiscoveryTemplate_RoutesThroughDiscoverer(t *testing.T) {
 	mockResolver := MockSecretResolver{}
-	disco := &stubDiscoverer{fn: func(_, _ string) (string, error) {
+	disco := newStubDiscoverer(func(_, _ string) (string, error) {
 		return `[{"instances":[{"openmetrics_endpoint":"http://%%host%%:8080/metrics"}]}]`, nil
-	}}
+	})
 	cm := newReconcilingConfigManager(&mockResolver, nil, nil, disco).(*reconcilingConfigManager)
 	cm.start()
 	defer cm.stop()
@@ -119,11 +123,11 @@ func TestConfigMgr_DiscoveryTemplate_RoutesThroughDiscoverer(t *testing.T) {
 // deleting the service forgets in-flight probes so the worker stops retrying.
 func TestConfigMgr_DiscoveryTemplate_ServiceDeletionCancels(t *testing.T) {
 	mockResolver := MockSecretResolver{}
-	disco := &stubDiscoverer{fn: func(_, _ string) (string, error) {
+	disco := newStubDiscoverer(func(_, _ string) (string, error) {
 		// Always fail so the worker keeps retrying — until the service is
 		// forgotten.
 		return "", assert.AnError
-	}}
+	})
 	cm := newReconcilingConfigManager(&mockResolver, nil, nil, disco).(*reconcilingConfigManager)
 	cm.start()
 	defer cm.stop()
@@ -162,7 +166,7 @@ func TestConfigMgr_DiscoveryTemplate_ServiceDeletionCancels(t *testing.T) {
 func makeDiscoveryCM(t *testing.T, payload string) (*reconcilingConfigManager, *stubDiscoverer) {
 	t.Helper()
 	mockResolver := MockSecretResolver{}
-	disco := &stubDiscoverer{fn: func(_, _ string) (string, error) { return payload, nil }}
+	disco := newStubDiscoverer(func(_, _ string) (string, error) { return payload, nil })
 	cm := newReconcilingConfigManager(&mockResolver, nil, nil, disco).(*reconcilingConfigManager)
 	cm.start()
 	t.Cleanup(cm.stop)
@@ -374,10 +378,10 @@ func TestConfigMgr_Lifecycle_MultipleInstances(t *testing.T) {
 func TestConfigMgr_Lifecycle_HostPortsPassedToDiscoverer(t *testing.T) {
 	var capturedJSON atomic.Value
 	mockResolver := MockSecretResolver{}
-	disco := &stubDiscoverer{fn: func(_, serviceJSON string) (string, error) {
+	disco := newStubDiscoverer(func(_, serviceJSON string) (string, error) {
 		capturedJSON.Store(serviceJSON)
 		return `[{"instances":[{"port":8080}]}]`, nil
-	}}
+	})
 	cm := newReconcilingConfigManager(&mockResolver, nil, nil, disco).(*reconcilingConfigManager)
 	cm.start()
 	t.Cleanup(cm.stop)
@@ -427,10 +431,10 @@ func TestConfigMgr_Lifecycle_HostPortsPassedToDiscoverer(t *testing.T) {
 func TestConfigMgr_Lifecycle_HostMultiNetworkBridge(t *testing.T) {
 	var capturedJSON atomic.Value
 	mockResolver := MockSecretResolver{}
-	disco := &stubDiscoverer{fn: func(_, serviceJSON string) (string, error) {
+	disco := newStubDiscoverer(func(_, serviceJSON string) (string, error) {
 		capturedJSON.Store(serviceJSON)
 		return `[{"instances":[{"port":8080}]}]`, nil
-	}}
+	})
 	cm := newReconcilingConfigManager(&mockResolver, nil, nil, disco).(*reconcilingConfigManager)
 	cm.start()
 	t.Cleanup(cm.stop)

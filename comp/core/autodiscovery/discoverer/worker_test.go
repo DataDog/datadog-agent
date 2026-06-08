@@ -10,12 +10,12 @@ import (
 	"errors"
 	"fmt"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
@@ -129,7 +129,7 @@ func TestWorker_RetriesUpToMax(t *testing.T) {
 // TestWorker_RetriesOnEmptyResult: an empty-array result is treated the same
 // as an error and retried.
 func TestWorker_RetriesOnEmptyResult(t *testing.T) {
-	var attempts atomic.Int32
+	attempts := atomic.NewInt32(0)
 	disco := &fakeDiscoverer{fn: func(_, _ string) (string, error) {
 		n := attempts.Add(1)
 		if n < 3 {
@@ -158,7 +158,7 @@ func TestWorker_ServiceRemovedBetweenRetries(t *testing.T) {
 	// probe completes, giving us a deterministic window to remove the
 	// service before the retry pop.
 	release := make(chan struct{})
-	var called atomic.Int32
+	called := atomic.NewInt32(0)
 	disco := &fakeDiscoverer{fn: func(_, _ string) (string, error) {
 		called.Add(1)
 		<-release
@@ -233,7 +233,7 @@ func TestWorker_NoHost_TriggersRetry(t *testing.T) {
 // the workqueue's own dedupe, the only state the worker holds is bounded
 // by the number of currently-retrying jobs.
 func TestWorker_NoBookkeepingLeakAfterServiceRemoval(t *testing.T) {
-	var called atomic.Int32
+	called := atomic.NewInt32(0)
 	disco := &fakeDiscoverer{fn: func(_, _ string) (string, error) {
 		called.Add(1)
 		return "", errors.New("fail")
@@ -266,7 +266,7 @@ func TestWorker_ParallelProbes_DifferentServices(t *testing.T) {
 	const workers = 4
 
 	release := make(chan struct{})
-	var inFlight atomic.Int32
+	inFlight := atomic.NewInt32(0)
 	disco := &fakeDiscoverer{fn: func(_, _ string) (string, error) {
 		inFlight.Add(1)
 		// This will block all of the workers from processing the next job.
@@ -302,7 +302,7 @@ func TestWorker_ParallelProbes_DifferentServices(t *testing.T) {
 // probe for that key.
 func TestWorker_SameKeyStillSerial(t *testing.T) {
 	release := make(chan struct{})
-	var inFlight atomic.Int32
+	inFlight := atomic.NewInt32(0)
 	disco := &fakeDiscoverer{fn: func(_, _ string) (string, error) {
 		inFlight.Add(1)
 		<-release
