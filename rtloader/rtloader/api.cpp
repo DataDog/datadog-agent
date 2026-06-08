@@ -273,6 +273,11 @@ int get_check_deprecated(rtloader_t *rtloader, rtloader_pyobject_t *py_class, co
         : 0;
 }
 
+char *discover_config(rtloader_t *rtloader, rtloader_pyobject_t *py_class, const char *service_json)
+{
+    return AS_TYPE(RtLoader, rtloader)->discoverConfig(AS_TYPE(RtLoaderPyObject, py_class), service_json);
+}
+
 char *run_check(rtloader_t *rtloader, rtloader_pyobject_t *check)
 {
     return AS_TYPE(RtLoader, rtloader)->runCheck(AS_TYPE(RtLoaderPyObject, check));
