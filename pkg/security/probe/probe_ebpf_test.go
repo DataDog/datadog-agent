@@ -9,13 +9,10 @@
 package probe
 
 import (
-<<<<<<< HEAD
 	"math"
+	"net"
 	"os"
 	"strings"
-=======
-	"net"
->>>>>>> main
 	"testing"
 
 	"github.com/google/gopacket/layers"
