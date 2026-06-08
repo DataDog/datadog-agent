@@ -17,8 +17,6 @@ import (
 // Exported default path constants for use in BindEnvAndSetDefault and similar config registration.
 // These are the raw, untransformed paths. Use getter functions for runtime transformed paths.
 const (
-	// defaultRunPath is the default runtime directory for the agent
-	defaultRunPath = "/opt/datadog-agent/run"
 	// defaultConfPath points to the folder containing datadog.yaml
 	defaultConfPath = "/etc/datadog-agent"
 	// defaultConfdPath points to the folder containing integration configuration files
@@ -68,8 +66,6 @@ const (
 
 	// Sockets
 
-	// defaultSystemProbeAddress is the default unix socket path to be used for connecting to the system probe
-	defaultSystemProbeAddress = "/opt/datadog-agent/run/sysprobe.sock"
 	// defaultStatsdSocket is the default dogstatsd socket path, it is at /var/run/datadog for historical reasons
 	defaultStatsdSocket = "/var/run/datadog/dsd.socket"
 	// defaultStatsdSocket is the default trace agent socket path, it is at /var/run/datadog for historical reasons
