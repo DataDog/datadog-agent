@@ -25,9 +25,10 @@ var l *loader
 
 func init() {
 	l = &loader{
-		modules: make(map[sysconfigtypes.ModuleName]Module),
-		errors:  make(map[sysconfigtypes.ModuleName]error),
-		routers: make(map[sysconfigtypes.ModuleName]*Router),
+		modules:    make(map[sysconfigtypes.ModuleName]Module),
+		errors:     make(map[sysconfigtypes.ModuleName]error),
+		routers:    make(map[sysconfigtypes.ModuleName]*Router),
+		moduleStop: make(map[sysconfigtypes.ModuleName]chan struct{}),
 	}
 }
 
@@ -43,6 +44,13 @@ type loader struct {
 	cfg     *sysconfigtypes.Config
 	routers map[sysconfigtypes.ModuleName]*Router
 	closed  bool
+
+	// httpMux is retained from Register so modules enabled after boot can mount
+	// their routes on the running server.
+	httpMux *http.ServeMux
+	// moduleStop holds the stop channel for each module's stats goroutine, so it
+	// can be torn down when a single module is disabled.
+	moduleStop map[sysconfigtypes.ModuleName]chan struct{}
 
 	statsUpdateTime  telemetry.Gauge
 	statsUpdateCount telemetry.Counter
@@ -116,6 +124,7 @@ func Register(cfg *sysconfigtypes.Config, httpMux *http.ServeMux, factories []*F
 	}
 
 	l.cfg = cfg
+	l.httpMux = httpMux
 	if len(l.modules) == 0 {
 		return errors.New("no module could be loaded")
 	}
@@ -124,7 +133,7 @@ func Register(cfg *sysconfigtypes.Config, httpMux *http.ServeMux, factories []*F
 
 	l.stats = make(map[string]any)
 	l.forEachModule(func(name sysconfigtypes.ModuleName, mod Module) {
-		go updateModuleStats(name, mod)
+		l.startModuleStats(name, mod)
 	})
 	go updateGlobalStats()
 
@@ -205,6 +214,86 @@ func RestartModule(factory *Factory, deps FactoryDependencies) error {
 	return nil
 }
 
+// EnableModule constructs and registers a module that is not currently running.
+// It is a no-op if the module is already loaded. Unlike RestartModule, it can
+// start a module that was not enabled at boot, which is how a module is turned
+// on at runtime.
+func EnableModule(factory *Factory, deps FactoryDependencies) error {
+	l.Lock()
+	defer l.Unlock()
+
+	if l.closed {
+		return errors.New("can't enable module because system-probe is shutting down")
+	}
+	if _, running := l.modules[factory.Name]; running {
+		return nil
+	}
+
+	// Reuse the router from a previous enable if one exists; creating a second
+	// router for the same name would re-register the prefix on the mux and panic.
+	router, ok := l.routers[factory.Name]
+	if !ok {
+		if l.httpMux == nil {
+			return fmt.Errorf("can't enable module %s before the api server is started", factory.Name)
+		}
+		router = NewRouter(string(factory.Name), l.httpMux)
+		l.routers[factory.Name] = router
+	}
+
+	var newModule Module
+	var err error
+	withModule(factory.Name, func() {
+		newModule, err = factory.Fn(l.cfg, deps)
+	})
+	if err != nil {
+		l.errors[factory.Name] = err
+		return err
+	}
+	if err := newModule.Register(router); err != nil {
+		l.errors[factory.Name] = err
+		return err
+	}
+
+	delete(l.errors, factory.Name)
+	l.modules[factory.Name] = newModule
+	l.startModuleStats(factory.Name, newModule)
+	log.Infof("module %s enabled", factory.Name)
+	return nil
+}
+
+// DisableModule unregisters and closes a running module. It is a no-op if the
+// module is not loaded. The router is retained so the module can be re-enabled
+// later without re-registering its prefix on the HTTP mux.
+func DisableModule(name sysconfigtypes.ModuleName) error {
+	l.Lock()
+	defer l.Unlock()
+
+	if l.closed {
+		return errors.New("can't disable module because system-probe is shutting down")
+	}
+	mod, running := l.modules[name]
+	if !running {
+		return nil
+	}
+
+	withModule(name, func() {
+		if router, ok := l.routers[name]; ok {
+			router.Unregister()
+		}
+		mod.Close()
+	})
+
+	if stop, ok := l.moduleStop[name]; ok {
+		close(stop)
+		delete(l.moduleStop, name)
+	}
+	delete(l.modules, name)
+	delete(l.errors, name)
+	delete(l.stats, string(name))
+	log.Infof("module %s disabled", name)
+	return nil
+}
+
 // Close each registered module
 func Close() {
 	l.Lock()
@@ -232,7 +321,20 @@ func (l *loader) IsClosed() bool {
 	return l.closed
 }
 
-func updateModuleStats(name sysconfigtypes.ModuleName, mod Module) {
+// startModuleStats launches the stats-polling goroutine for a module and records
+// its stop channel so it can be torn down independently when the module is
+// disabled. Callers either hold l or run during boot registration. Telemetry
+// must already be configured.
+func (l *loader) startModuleStats(name sysconfigtypes.ModuleName, mod Module) {
+	if l.statsUpdateTime == nil {
+		return
+	}
+	stop := make(chan struct{})
+	l.moduleStop[name] = stop
+	go updateModuleStats(name, mod, stop)
+}
+
+func updateModuleStats(name sysconfigtypes.ModuleName, mod Module, stop <-chan struct{}) {
 	nameStr := string(name)
 	ticker := time.NewTicker(15 * time.Second)
 	defer ticker.Stop()
@@ -240,6 +342,11 @@ func updateModuleStats(name sysconfigtypes.ModuleName, mod Module) {
 	for {
 		if l.IsClosed() {
 			return
+		}
+		select {
+		case <-stop:
+			return
+		default:
 		}
 
 		startUpdateTs := time.Now()
@@ -252,7 +359,11 @@ func updateModuleStats(name sysconfigtypes.ModuleName, mod Module) {
 		l.stats[nameStr] = stats
 		l.Unlock()
 
-		<-ticker.C
+		select {
+		case <-ticker.C:
+		case <-stop:
+			return
+		}
 	}
 }
 
