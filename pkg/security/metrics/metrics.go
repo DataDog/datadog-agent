@@ -23,6 +23,21 @@ var (
 	// security-agent was not processing them fast enough
 	// Tags: rule_id
 	MetricEventServerExpired = newRuntimeMetric(".rules.event_server.expired")
+	// MetricEventServerRetry counts how many times a queued event was scheduled for retry
+	// Tags: -
+	MetricEventServerRetry = newRuntimeMetric(".rules.event_server.retry")
+	// MetricEventServerSkippedRetry counts retries that were skipped because the queue was at capacity
+	// Tags: -
+	MetricEventServerSkippedRetry = newRuntimeMetric(".rules.event_server.skipped_retry")
+	// MetricEventServerMissingTags counts events that were sent with missing container tags
+	// Tags: -
+	MetricEventServerMissingTags = newRuntimeMetric(".rules.event_server.missing_tags")
+	// MetricEventServerQueueSize is the current number of events waiting in the retry queue
+	// Tags: -
+	MetricEventServerQueueSize = newRuntimeMetric(".rules.event_server.queue_size")
+	// MetricEventServerRetriesBeforeSend is a distribution of the number of retries an event required before being sent
+	// Tags: -
+	MetricEventServerRetriesBeforeSend = newRuntimeMetric(".rules.event_server.retries_before_send")
 
 	// Rate limiter metrics
 
@@ -569,6 +584,12 @@ var (
 	// MetricSecurityProfileV2CleanupProfilesRemoved is the name of the metric used to report profiles removed after cleanup delay
 	// Tags: -
 	MetricSecurityProfileV2CleanupProfilesRemoved = newRuntimeMetric(".security_profile_v2.cleanup.profiles_removed")
+
+	// MetricSecurityProfileV2ProfileSize is the unified size metric for active security profiles.
+	// Tags: profile_image_name, profile_image_tag, storage (ram|disk).
+	// Note: profile_image_* is used instead of image_* to avoid collision with Datadog's
+	// container auto-tagging (the submitting agent's own image_name gets stamped on metrics).
+	MetricSecurityProfileV2ProfileSize = newRuntimeMetric(".security_profile_v2.profile_size")
 
 	// Event sampling metrics (kernel-side)
 

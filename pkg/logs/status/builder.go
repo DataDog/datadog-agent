@@ -166,12 +166,38 @@ func (b *Builder) toDictionary(c *config.LogsConfig) map[string]interface{} {
 	dictionary["Service"] = c.Service
 	dictionary["Source"] = c.Source
 	switch c.Type {
-	case config.TCPType, config.UDPType:
+	case config.TCPType:
 		dictionary["Port"] = c.Port
+		if c.TLS != nil {
+			dictionary["TLS"] = "true"
+		}
+		if c.Format != "" {
+			dictionary["Format"] = c.Format
+		}
+		if len(c.AllowedIPs) > 0 {
+			dictionary["AllowedIPs"] = strings.Join(c.AllowedIPs, ", ")
+		}
+		if len(c.DeniedIPs) > 0 {
+			dictionary["DeniedIPs"] = strings.Join(c.DeniedIPs, ", ")
+		}
+	case config.UDPType:
+		dictionary["Port"] = c.Port
+		if c.Format != "" {
+			dictionary["Format"] = c.Format
+		}
+		if len(c.AllowedIPs) > 0 {
+			dictionary["AllowedIPs"] = strings.Join(c.AllowedIPs, ", ")
+		}
+		if len(c.DeniedIPs) > 0 {
+			dictionary["DeniedIPs"] = strings.Join(c.DeniedIPs, ", ")
+		}
 	case config.FileType:
 		dictionary["Path"] = c.Path
 		dictionary["TailingMode"] = c.TailingMode
 		dictionary["Identifier"] = c.Identifier
+		if c.Format != "" {
+			dictionary["Format"] = c.Format
+		}
 	case config.DockerType:
 		dictionary["Image"] = c.Image
 		dictionary["Label"] = c.Label

@@ -9,7 +9,10 @@
 package main
 
 import (
+	"fmt"
 	"os"
+
+	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/cmd/host-profiler/command"
 	"github.com/DataDog/datadog-agent/cmd/internal/runcmd"
@@ -18,6 +21,13 @@ import (
 )
 
 func main() {
+	// Prevent this process and all children from gaining new privileges via
+	// setuid binaries or file capabilities. Inherited across fork/exec.
+	if err := unix.Prctl(unix.PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0); err != nil {
+		fmt.Fprintf(os.Stderr, "failed to set PR_SET_NO_NEW_PRIVS: %v\n", err)
+		os.Exit(1)
+	}
+
 	flavor.SetFlavor(flavor.HostProfiler)
 	os.Exit(runcmd.Run(command.MakeRootCommand()))
 }

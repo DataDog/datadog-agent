@@ -160,6 +160,18 @@ Invoke-BuildScript `
             # Non-fatal: print but do not fail the script
             Write-Host -ForegroundColor Red "coverage upload failed (non-fatal): $($_.Exception.Message)"
         }
+        # Upload coverage to Datadog Code Coverage (side-by-side with Codecov)
+        try {
+            $Env:DD_API_KEY = Get-VaultSecret -parameterName "$Env:API_KEY_ORG2" -ErrorAction Stop
+            & datadog-ci.exe coverage upload --format=go-coverprofile coverage.out
+            if ($LASTEXITCODE -ne 0) {
+                throw "Datadog coverage upload failed with exit code $LASTEXITCODE"
+            }
+        }
+        catch {
+            # Non-fatal: print but do not fail the script
+            Write-Host -ForegroundColor Red "Datadog coverage upload failed (non-fatal): $($_.Exception.Message)"
+        }
     }
     if ($UploadTestResults) {
         try {

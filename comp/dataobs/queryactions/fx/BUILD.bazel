@@ -1,0 +1,17 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "fx",
+    srcs = [
+        "fx.go",
+        "fx_noop.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/dataobs/queryactions/fx",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/dataobs/queryactions/def",
+        "//comp/dataobs/queryactions/impl",
+        "//pkg/util/fxutil",
+        "@org_uber_go_fx//:fx",
+    ],
+)

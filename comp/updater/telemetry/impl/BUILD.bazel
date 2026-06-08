@@ -1,0 +1,16 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "impl",
+    srcs = ["telemetry.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/updater/telemetry/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/def",
+        "//comp/updater/telemetry/def",
+        "//pkg/config/utils",
+        "//pkg/fleet/installer/telemetry",
+        "//pkg/util/http",
+    ],
+)

@@ -12,11 +12,9 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/gorilla/mux"
-
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
-	"github.com/DataDog/datadog-agent/comp/core/settings"
+	settings "github.com/DataDog/datadog-agent/comp/core/settings/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/api/coverage"
@@ -46,24 +44,24 @@ func NewAgent(statusComponent status.Component, settings settings.Component, wme
 }
 
 // SetupHandlers adds the specific handlers for /agent endpoints
-func (a *Agent) SetupHandlers(r *mux.Router) {
-	r.HandleFunc("/version", version.Get).Methods("GET")
-	r.HandleFunc("/flare", a.makeFlare).Methods("POST")
-	r.HandleFunc("/stop", a.stopAgent).Methods("POST")
-	r.HandleFunc("/status", a.getStatus).Methods("GET")
-	r.HandleFunc("/status/health", a.getHealth).Methods("GET")
-	r.HandleFunc("/config", a.settings.GetFullConfig("")).Methods("GET")
-	r.HandleFunc("/config/without-defaults", a.settings.GetFullConfigWithoutDefaults("")).Methods("GET")
+func (a *Agent) SetupHandlers(r *http.ServeMux) {
+	r.HandleFunc("GET /version", version.Get)
+	r.HandleFunc("POST /flare", a.makeFlare)
+	r.HandleFunc("POST /stop", a.stopAgent)
+	r.HandleFunc("GET /status", a.getStatus)
+	r.HandleFunc("GET /status/health", a.getHealth)
+	r.HandleFunc("GET /config", a.settings.GetFullConfig(""))
+	r.HandleFunc("GET /config/without-defaults", a.settings.GetFullConfigWithoutDefaults(""))
 	// FIXME: this returns the entire datadog.yaml and not just security-agent.yaml config
-	r.HandleFunc("/config/by-source", a.settings.GetFullConfigBySource()).Methods("GET")
-	r.HandleFunc("/config/list-runtime", a.settings.ListConfigurable).Methods("GET")
-	r.HandleFunc("/config/{setting}", a.settings.GetValue).Methods("GET")
-	r.HandleFunc("/config/{setting}", a.settings.SetValue).Methods("POST")
-	r.HandleFunc("/workload-list", func(w http.ResponseWriter, r *http.Request) {
+	r.HandleFunc("GET /config/by-source", a.settings.GetFullConfigBySource())
+	r.HandleFunc("GET /config/list-runtime", a.settings.ListConfigurable)
+	r.HandleFunc("GET /config/{setting}", a.settings.GetValue)
+	r.HandleFunc("POST /config/{setting}", a.settings.SetValue)
+	r.HandleFunc("GET /workload-list", func(w http.ResponseWriter, r *http.Request) {
 		verbose := r.URL.Query().Get("verbose") == "true"
 		workloadList(w, verbose, a.wmeta)
-	}).Methods("GET")
-	r.HandleFunc("/secret/refresh", a.refreshSecrets).Methods("GET")
+	})
+	r.HandleFunc("GET /secret/refresh", a.refreshSecrets)
 
 	// Special handler to compute running agent Code coverage
 	coverage.SetupCoverageHandler(r)

@@ -9,9 +9,9 @@ package preprocessor
 import (
 	"bytes"
 
+	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 )
 
 // PassThroughAggregator is a stateless Aggregator that emits each message immediately

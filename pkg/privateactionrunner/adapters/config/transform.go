@@ -8,6 +8,7 @@ package config
 import (
 	"crypto/ecdsa"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -18,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/modes"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -85,7 +87,9 @@ func FromDDConfig(config config.Component) (*Config, error) {
 		ActionsAllowlist:          makeActionsAllowlist(config),
 		Allowlist:                 config.GetStringSlice(setup.PARHttpAllowlist),
 		AllowIMDSEndpoint:         config.GetBool(setup.PARHttpAllowImdsEndpoint),
-		RShellAllowedPaths:        config.GetStringSlice(setup.PARRestrictedShellAllowedPaths),
+		RShellAllowedPaths:        rshellAllowedPaths(config),
+		RShellAllowedCommands:     rshellAllowedCommands(config),
+		OpmsExtraHeaders:          config.GetStringMapString(setup.PAROpmsExtraHeaders),
 		DDHost:                    ddHost,
 		DDApiHost:                 "api." + ddSite,
 		Modes:                     []modes.Mode{modes.ModePull},
@@ -124,6 +128,71 @@ func makeActionsAllowlist(config config.Component) map[string]sets.Set[string] {
 	}
 
 	return allowlist
+}
+
+// rshellAllowedCommands returns the operator-configured rshell command allowlist.
+//
+// The default value is a wildcard ["rshell:*"] created to match all commands in the rshell namespace.
+// See pkg/config/setup/privateactionrunner.go for more details.
+//
+// If the wildcard "rshell:*" is present, the operator-configured list acts as an ALLOW ALL:
+// only the backend will be used to filter the commands.
+//
+// If the wildcard "rshell:*" is not present, the operator-configured list is used to filter the commands.
+// For a command to be executed by rshell, it needs to be present in both the operator-configured list
+// AND the backend's allowed commands list. (intersection operation)
+func rshellAllowedCommands(config config.Component) []string {
+	commands := config.GetStringSlice(setup.PARRestrictedShellAllowedCommands)
+	warnUnnamespacedCommands(commands)
+	return commands
+}
+
+func warnUnnamespacedCommands(commands []string) {
+	for _, c := range commands {
+		if !strings.HasPrefix(c, RshellCommandNamespacePrefix) {
+			log.Warnf(
+				"%s entry %q is missing the %q prefix and will never match a backend command; use %q instead",
+				setup.PARRestrictedShellAllowedCommands,
+				c,
+				RshellCommandNamespacePrefix,
+				RshellCommandNamespacePrefix+c,
+			)
+		}
+	}
+}
+
+// rshellAllowedPaths returns the operator-configured rshell path allowlist.
+//
+// The default value is ["/"] matching all paths.
+// See pkg/config/setup/privateactionrunner.go for more details.
+//
+// The operator-configured list is used to filter the paths.
+// For a path to be accessible by rshell, it needs to be present in both the operator-configured list
+// AND the backend's allowed paths list. (intersection operation)
+func rshellAllowedPaths(config config.Component) []string {
+	paths := config.GetStringSlice(setup.PARRestrictedShellAllowedPaths)
+	warnBackslashPaths(paths)
+	warnNonDirectoryPaths(paths)
+	return paths
+}
+
+func warnBackslashPaths(paths []string) {
+	for _, p := range paths {
+		if strings.ContainsRune(p, '\\') {
+			log.Warnf("%s entry %q contains a backslash; only forward-slash paths are supported and this entry will never match a backend rule",
+				setup.PARRestrictedShellAllowedPaths, p)
+		}
+	}
+}
+
+func warnNonDirectoryPaths(paths []string) {
+	for _, p := range paths {
+		info, err := os.Stat(p)
+		if err == nil && !info.IsDir() {
+			log.Warnf("%s entry %q is not a directory; rshell's sandbox only accepts directory entries and will drop this entry at runtime. Use the containing directory instead.",
+				setup.PARRestrictedShellAllowedPaths, p)
+		}
+	}
 }
 
 // getDatadogHost extracts and normalizes the Datadog host from the main endpoint.

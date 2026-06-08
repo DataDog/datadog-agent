@@ -1,0 +1,22 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "deployments",
+    srcs = [
+        "approve_or_reject_project_deployment.gen.go",
+        "create_project_deployment.go",
+        "delete_project_deployment.gen.go",
+        "entrypoint.gen.go",
+        "get_project_deployment.gen.go",
+        "list_project_deployments.gen.go",
+        "update_project_deployment.gen.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/gitlab/deployments",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/privateactionrunner/bundle-support/gitlab",
+        "//pkg/privateactionrunner/libs/privateconnection",
+        "//pkg/privateactionrunner/types",
+        "@com_gitlab_gitlab_org_api_client_go//:client-go",
+    ],
+)

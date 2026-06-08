@@ -17,6 +17,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/api/apiutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -94,7 +95,7 @@ func newPipelineStatsProxy(conf *config.AgentConfig, urls []*url.URL, apiKeys []
 	return &httputil.ReverseProxy{
 		Director:  director,
 		ErrorLog:  stdlog.New(logger, "pipeline_stats.Proxy: ", 0),
-		Transport: &multiDataStreamsTransport{rt: conf.NewHTTPTransport(), targets: urls, keys: apiKeys},
+		Transport: &multiDataStreamsTransport{rt: conf.NewHTTPTransport(), targets: urls, keys: apiKeys, maxRequestBytes: conf.MaxRequestBytes},
 	}
 }
 
@@ -105,9 +106,10 @@ func newPipelineStatsProxy(conf *config.AgentConfig, urls []*url.URL, apiKeys []
 // response is discarded. There is no de-duplication done between endpoint
 // hosts or api keys.
 type multiDataStreamsTransport struct {
-	rt      http.RoundTripper
-	targets []*url.URL
-	keys    []string
+	rt              http.RoundTripper
+	targets         []*url.URL
+	keys            []string
+	maxRequestBytes int64
 }
 
 func (m *multiDataStreamsTransport) RoundTrip(req *http.Request) (rresp *http.Response, rerr error) {
@@ -127,6 +129,7 @@ func (m *multiDataStreamsTransport) RoundTrip(req *http.Request) (rresp *http.Re
 
 		return rresp, rerr
 	}
+	req.Body = apiutil.NewLimitedReader(req.Body, m.maxRequestBytes)
 	slurp, err := io.ReadAll(req.Body)
 	if err != nil {
 		return nil, err

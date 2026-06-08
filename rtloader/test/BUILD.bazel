@@ -21,6 +21,21 @@ copy_to_directory(
     visibility = ["//rtloader/test:__subpackages__"],
 )
 
+# Copies the full Python Windows installation (python_win outputs) into a single
+# directory that is reachable via the runfiles tree.
+# Without this, the @cpython//:python_win outputs live under +http_archive+cpython/build/
+# in the runfiles, but that path is unreachable because the +http_archive+cpython junction
+# points to the extracted source archive (which has no build/ subdirectory).
+copy_to_directory(
+    name = "dir_with_python_home",
+    srcs = ["@cpython//:python_win"],
+    out = "python_home",
+    include_external_repositories = ["*"],
+    root_paths = ["build"],
+    target_compatible_with = ["@platforms//os:windows"],
+    visibility = ["//rtloader/test:__subpackages__"],
+)
+
 # Directory for making it easier to reference to the python stubs when passing
 # the location to the tests
 copy_to_directory(

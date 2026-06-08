@@ -1,0 +1,39 @@
+{
+  "type": "and",
+  "operation": "",
+  "left": {
+    "type": "gt",
+    "operation": "",
+    "left": {
+      "type": "ref",
+      "ref": "x",
+      "operation": "",
+      "error": ""
+    },
+    "right": {
+      "type": "literal",
+      "operation": "",
+      "value": 1,
+      "error": ""
+    },
+    "error": ""
+  },
+  "right": {
+    "type": "le",
+    "operation": "",
+    "left": {
+      "type": "ref",
+      "ref": "x",
+      "operation": "",
+      "error": ""
+    },
+    "right": {
+      "type": "literal",
+      "operation": "",
+      "value": 10,
+      "error": ""
+    },
+    "error": ""
+  },
+  "error": ""
+}

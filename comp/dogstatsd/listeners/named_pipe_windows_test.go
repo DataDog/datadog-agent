@@ -16,9 +16,10 @@ import (
 	winio "github.com/Microsoft/go-winio"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	mocktelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -124,10 +125,10 @@ type namedPipeListenerTest struct {
 }
 
 func newNamedPipeListenerTest(t *testing.T) namedPipeListenerTest {
-	telemetryComp := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+	telemetryComp := fxutil.Test[telemetry.Component](t, mocktelemetry.Module())
 	packetsTelemetryStore := packets.NewTelemetryStore(nil, telemetryComp)
 
-	pool := packets.NewPool(maxPipeMessageCount, packetsTelemetryStore)
+	pool := packets.NewPool(configmock.New(t), maxPipeMessageCount, packetsTelemetryStore)
 	poolManager := packets.NewPoolManager(pool)
 	packetOut := make(chan packets.Packets, maxPipeMessageCount)
 	packetManager := packets.NewPacketManager(10, maxPipeMessageCount, 10*time.Millisecond, packetOut, poolManager, packetsTelemetryStore)

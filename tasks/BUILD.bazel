@@ -1,3 +1,4 @@
+load("@rules_python//python:py_binary.bzl", "py_binary")
 load("@rules_python//python:py_library.bzl", "py_library")
 
 package(default_visibility = ["//visibility:private"])
@@ -13,3 +14,24 @@ py_library(
 )
 
 exports_files(["core_checks.py"])
+
+# Used by //pkg/config/schema:merged_core_schema to inline the per-section
+# sub-files referenced by core_schema.yaml's $refs.
+py_binary(
+    name = "merge_schema",
+    srcs = ["schema/merge_schema.py"],
+    main = "schema/merge_schema.py",
+    visibility = ["//pkg/config/schema:__pkg__"],
+    deps = ["@py_dev_requirements//pyyaml"],
+)
+
+# No `data = [...]` for renovate.json / deps/ / .renovate-untracked.json on
+# purpose: the script resolves them via $BUILD_WORKSPACE_DIRECTORY (set by
+# `bazel run`) so it reads the live workspace, not the bazel sandbox. Adding
+# them as data deps would silently shadow the real files.
+py_binary(
+    name = "check_renovate_bazel_coverage",
+    srcs = ["renovate.py"],
+    main = "renovate.py",
+    deps = ["@py_dev_requirements//invoke"],
+)

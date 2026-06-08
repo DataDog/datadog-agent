@@ -10,8 +10,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/actions"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
@@ -43,9 +45,10 @@ func NewWorkflowRunner(
 	opmsClient opms.Client,
 	traceroute traceroute.Component,
 	eventPlatform eventplatform.Component,
+	ipcClient ipc.HTTPClient,
 ) (*WorkflowRunner, error) {
 	return &WorkflowRunner{
-		registry:     privatebundles.NewRegistry(configuration, traceroute, eventPlatform),
+		registry:     privatebundles.NewRegistry(configuration, traceroute, eventPlatform, ipcClient),
 		opmsClient:   opmsClient,
 		resolver:     resolver.NewPrivateCredentialResolver(),
 		config:       configuration,
@@ -85,7 +88,7 @@ func (n *WorkflowRunner) RunTask(
 	ctx context.Context,
 	task *types.Task,
 	credential *privateconnection.PrivateCredentials,
-) (interface{}, error) {
+) (output interface{}, err error) {
 	fqn := task.GetFQN()
 	bundleName, actionName := actions.SplitFQN(fqn)
 	bundle := n.registry.GetBundle(bundleName)
@@ -112,8 +115,14 @@ func (n *WorkflowRunner) RunTask(
 	defer heartbeatCancel()
 	go n.startHeartbeat(heartbeatCtx, task, logger)
 
+	ctx = telemetry.WithService(ctx, observability.ParService)
+	span, ctx := telemetry.StartSpanFromUint64IDs(ctx, observability.ActionRunOperation, task.Data.Attributes.TraceId, task.Data.Attributes.SpanId)
+	span.SetResourceName(fqn)
+	span.SetTag("task_id", task.Data.ID)
+	defer func() { span.Finish(err) }()
+
 	startTime := observability.ReportExecutionStart(n.config.MetricsClient, task.Data.Attributes.Client, fqn, task.Data.ID, logger)
-	output, err := action.Run(ctx, task, credential)
+	output, err = action.Run(ctx, task, credential)
 	observability.ReportExecutionCompleted(n.config.MetricsClient, task.Data.Attributes.Client, fqn, task.Data.ID, startTime, err, logger)
 
 	if err != nil {

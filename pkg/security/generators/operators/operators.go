@@ -6,10 +6,11 @@
 package main
 
 import (
+	"bytes"
 	"flag"
 	"fmt"
+	"go/format"
 	"os"
-	"os/exec"
 	"text/template"
 )
 
@@ -315,10 +316,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 {{end}}
 `))
 
-	outputFile, err := os.Create(output)
-	if err != nil {
-		panic(err)
-	}
+	var buf bytes.Buffer
 
 	stdCompare := func(op string) func(a string, b string) string {
 		return func(a string, b string) string {
@@ -668,16 +666,16 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 		},
 	}
 
-	if err := tmpl.Execute(outputFile, data); err != nil {
+	if err := tmpl.Execute(&buf, data); err != nil {
 		panic(err)
 	}
 
-	if err := outputFile.Close(); err != nil {
+	formatted, err := format.Source(buf.Bytes())
+	if err != nil {
 		panic(err)
 	}
 
-	cmd := exec.Command("gofmt", "-s", "-w", output)
-	if err := cmd.Run(); err != nil {
+	if err := os.WriteFile(output, formatted, 0644); err != nil {
 		panic(err)
 	}
 }

@@ -16,7 +16,7 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
+	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -27,7 +27,7 @@ func RegisterProvider(name string,
 	providerCatalog map[string]types.ConfigProviderFactory) {
 	RegisterProviderWithComponents(
 		name,
-		func(providerConfig *pkgconfigsetup.ConfigurationProviders, _ workloadmeta.Component, _ tagger.Component, _ workloadfilter.Component, _ healthplatform.Component, telemetryStore *telemetry.Store) (types.ConfigProvider, error) {
+		func(providerConfig *pkgconfigsetup.ConfigurationProviders, _ workloadmeta.Component, _ tagger.Component, _ workloadfilter.Component, _ healthplatformdef.Component, telemetryStore *telemetry.Store) (types.ConfigProvider, error) {
 			return factory(providerConfig, telemetryStore)
 		},
 		providerCatalog,
@@ -55,6 +55,7 @@ func RegisterProviders(providerCatalog map[string]types.ConfigProviderFactory) {
 	RegisterProvider(names.ConsulRegisterName, NewConsulConfigProvider, providerCatalog)
 	RegisterProviderWithComponents(names.KubeContainer, NewContainerConfigProvider, providerCatalog)
 	RegisterProvider(names.EndpointsChecksRegisterName, NewEndpointsChecksConfigProvider, providerCatalog)
+	RegisterProvider(names.InstrumentationChecksRegisterName, NewInstrumentationChecksConfigProvider, providerCatalog)
 	RegisterProvider(names.EtcdRegisterName, NewEtcdConfigProvider, providerCatalog)
 	RegisterProvider(names.KubeServicesFileRegisterName, NewKubeServiceFileConfigProvider, providerCatalog)
 	RegisterProvider(names.KubeServicesRegisterName, NewKubeServiceConfigProvider, providerCatalog)
@@ -74,4 +75,5 @@ func RegisterProviders(providerCatalog map[string]types.ConfigProviderFactory) {
 	RegisterProvider(names.KubeEndpointsFileRegisterName, endpointsFileProvider, providerCatalog)
 	RegisterProvider(names.KubeEndpointsRegisterName, endpointsProvider, providerCatalog)
 	RegisterProvider(names.KubeCrdRegisterName, NewKubeCRDConfigProvider, providerCatalog)
+	RegisterProvider(names.PrometheusHTTPSDRegisterName, NewPrometheusHTTPSDConfigProvider, providerCatalog)
 }

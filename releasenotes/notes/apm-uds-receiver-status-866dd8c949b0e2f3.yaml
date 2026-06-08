@@ -1,0 +1,8 @@
+---
+enhancements:
+  - |
+    APM : The Trace Agent ``agent status`` output now shows the UDS (Unix Domain
+    Socket) receiver path when UDS is enabled, in addition to the existing TCP
+    receiver address. Each per-client entry in the receiver stats section also
+    displays the connection type (``tcp``, ``uds``, or ``pipe``), making it
+    easier to distinguish traffic arriving via different transports.

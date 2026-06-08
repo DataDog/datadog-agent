@@ -149,7 +149,8 @@ func runTest(t *testing.T, cfg testprogs.Config, prog string) {
 	}
 
 	// Make sure that the IR eventually gets to the same set of types as
-	// when we don't have a limit.
+	// when we don't have a limit. Skipped under -short since each
+	// iteration runs a full GenerateIR pass.
 	var irWithLimit1 *ir.Program
 	for i := 1; ; i++ {
 		probesCfgs := testprogs.MustGetProbeDefinitions(t, prog)
@@ -160,6 +161,9 @@ func runTest(t *testing.T, cfg testprogs.Config, prog string) {
 
 		if i == 1 {
 			irWithLimit1 = irWithLimit
+			if testing.Short() {
+				break
+			}
 		}
 		typeNames := func(p *ir.Program) []string {
 			var names []string

@@ -9,11 +9,13 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
@@ -21,7 +23,29 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
+// setupReadSecretsTree materialises the read-secrets layout in a temp dir.
+// We build it from code instead of reading checked-in testdata so the test
+// behaves identically under `go test` and `bazel test` (Bazel stages files
+// from `data` via runfiles symlinks, which the file provider's symlink-safety
+// check rejects — see also cmd/secrethelper/providers/file_test.go).
+func setupReadSecretsTree(t *testing.T) string {
+	t.Helper()
+	dir := filepath.Join(t.TempDir(), "read-secrets")
+	require.NoError(t, os.Mkdir(dir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "secret1"), []byte("secret1-value"), 0o600))
+	return dir
+}
+
 func TestReadSecrets(t *testing.T) {
+	path := setupReadSecretsTree(t)
+	secretAbsPath := func(secretName string) string {
+		absPath, err := filepath.Abs(filepath.Join(path, secretName))
+		require.NoError(t, err)
+		// Windows uses "\" as the directory separator. "\" is the escape char
+		// in JSON, so we need to escape them.
+		return strings.ReplaceAll(absPath, "\\", "\\\\")
+	}
+
 	newKubeClientFunc := func(namespace, name string) (map[string][]byte, error) {
 		kubeClient := fake.NewSimpleClientset(&v1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
@@ -161,7 +185,6 @@ func TestReadSecrets(t *testing.T) {
 		},
 	}
 
-	path := filepath.Join("testdata", "read-secrets")
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			var w bytes.Buffer
@@ -181,15 +204,6 @@ func TestReadSecrets(t *testing.T) {
 			}
 		})
 	}
-}
-
-func secretAbsPath(secretName string) string {
-	testdataPath := filepath.Join("testdata", "read-secrets", secretName)
-	absPath, _ := filepath.Abs(testdataPath)
-
-	// Windows uses "\" as the directory separator. "\" is the escape char in
-	// JSON, so we need to escape them.
-	return strings.ReplaceAll(absPath, "\\", "\\\\")
 }
 
 func TestReadCmdCommand(t *testing.T) {

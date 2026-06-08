@@ -1,0 +1,9 @@
+description: Config defines configuration for the logs agent exporter.
+type: object
+properties:
+  host_metadata:
+    description: HostMetadata defines the host metadata specific configuration
+    $ref: github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/config.host_metadata_config
+  sending_queue:
+    x-optional: true
+    $ref: go.opentelemetry.io/collector/exporter/exporterhelper.queue_batch_config

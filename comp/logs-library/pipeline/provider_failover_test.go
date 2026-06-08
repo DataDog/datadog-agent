@@ -12,13 +12,13 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
+	"github.com/DataDog/datadog-agent/comp/logs-library/sender"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
-	"github.com/DataDog/datadog-agent/pkg/logs/sender"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
@@ -64,8 +64,8 @@ func createMockSender() sender.PipelineComponent {
 // createTestProviderWithFailover creates a test provider with failover enabled
 func createTestProviderWithFailover(t *testing.T, numberOfPipelines int) *provider {
 	cfg := configmock.New(t)
-	cfg.SetWithoutSource("logs_config.pipeline_failover.enabled", true)
-	cfg.SetWithoutSource("logs_config.message_channel_size", 10)
+	cfg.SetInTest("logs_config.pipeline_failover.enabled", true)
+	cfg.SetInTest("logs_config.message_channel_size", 10)
 
 	endpoints := config.NewMockEndpointsWithOptions([]config.Endpoint{config.NewMockEndpoint()}, map[string]interface{}{
 		"use_http": true,

@@ -37,6 +37,8 @@ type FilterConfig struct {
 	ContainerRuntimeSecurityExclude []string
 	ContainerComplianceInclude      []string
 	ContainerComplianceExclude      []string
+	CWSAdmissionInclude             []string
+	CWSAdmissionExclude             []string
 
 	// Legacy AC filters
 	ACInclude []string `json:"ac_include"`
@@ -90,6 +92,9 @@ func NewFilterConfig(cfg config.Component) (*FilterConfig, error) {
 
 		ContainerRuntimeSecurityInclude: systemProbeCfg.GetStringSlice("runtime_security_config.container_include"),
 		ContainerRuntimeSecurityExclude: systemProbeCfg.GetStringSlice("runtime_security_config.container_exclude"),
+
+		CWSAdmissionInclude: cfg.GetStringSlice("admission_controller.cws_instrumentation.include"),
+		CWSAdmissionExclude: cfg.GetStringSlice("admission_controller.cws_instrumentation.exclude"),
 
 		// Legacy AC filters
 		ACInclude: cfg.GetStringSlice("ac_include"),

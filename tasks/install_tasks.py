@@ -17,7 +17,6 @@ TOOL_LIST = [
     'github.com/go-enry/go-license-detector/v4/cmd/license-detector',
     'github.com/golangci/golangci-lint/v2/cmd/golangci-lint',
     'github.com/goware/modvendor',
-    'github.com/stormcat24/protodep',
     'gotest.tools/gotestsum',
     'github.com/vektra/mockery/v3',
     'github.com/wadey/gocovmerge',
@@ -25,14 +24,8 @@ TOOL_LIST = [
     'github.com/aarzilli/whydeadcode',
 ]
 
-# TODO(agent-build): replace `//go:generate mockgen` by `//go:generate go run github.com/golang/mock/mockgen` to remove:
-TOOL_LIST_PROTO = [
-    'github.com/golang/mock/mockgen',
-]
-
 TOOLS = {
     'internal/tools': TOOL_LIST,
-    'internal/tools/proto': TOOL_LIST_PROTO,
 }
 
 
@@ -124,8 +117,8 @@ def install_rust_license_tool(ctx):
     Install dd-rust-license-tool and cargo-deny for Rust license verification.
     Required to run the lint-rust-licenses task.
     """
-    ctx.run("cargo install --git https://github.com/DataDog/rust-license-tool dd-rust-license-tool")
-    ctx.run("cargo install cargo-deny --locked")
+    ctx.run("cargo install dd-rust-license-tool@1.0.6 --locked")
+    ctx.run("cargo install cargo-deny@0.19.4 --locked")
 
 
 @task
@@ -133,4 +126,4 @@ def install_devcontainer_cli(ctx):
     """
     Install the devcontainer CLI
     """
-    ctx.run("npm install -g @devcontainers/cli")
+    ctx.run("npm install -g @devcontainers/cli@0.86.0")

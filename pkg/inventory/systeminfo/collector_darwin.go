@@ -56,7 +56,13 @@ func getChassisType(productName string, modelIdentifier string) string {
 		return "Laptop"
 	}
 
+	// Desktop product names can come back as either a marketing string
+	// (e.g. "Mac mini (M1, 2020)", "Mac Pro", "Mac Studio") or, when the
+	// product-name property is missing, as the device-tree / model
+	// identifier (e.g. "Macmini9,1", "MacPro7,1"). Match both shapes.
 	if strings.HasPrefix(lowerName, "imac") ||
+		strings.HasPrefix(lowerName, "macmini") ||
+		strings.HasPrefix(lowerName, "macpro") ||
 		strings.HasPrefix(lowerName, "mac mini") ||
 		strings.HasPrefix(lowerName, "mac pro") ||
 		strings.HasPrefix(lowerName, "mac studio") {

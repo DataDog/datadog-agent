@@ -456,11 +456,12 @@ func getLayersWithHistory(ocispecImage ocispec.Image, manifest ocispec.Manifest)
 
 	historyIndex := 0
 	for manifestIndex, manifestLayer := range manifest.Layers {
-		// Prefer the diffID for the current layer, but fall back to the digest as it appears in the
-		// manifest in the event of a mismatch.
-		digest := manifestLayer.Digest.String()
+		// DiffID is the OCI rootfs diff_id. When the image config is
+		// short of one (off-spec), fall back to the manifest layer
+		// digest -- a wrong-but-best-effort value rather than empty.
+		diffID := manifestLayer.Digest.String()
 		if manifestIndex < len(ocispecImage.RootFS.DiffIDs) {
-			digest = ocispecImage.RootFS.DiffIDs[manifestIndex].String()
+			diffID = ocispecImage.RootFS.DiffIDs[manifestIndex].String()
 		}
 		// Append all empty layers encountered before a non-empty layer
 		for historyIndex < len(ocispecImage.History) {
@@ -486,7 +487,7 @@ func getLayersWithHistory(ocispecImage ocispec.Image, manifest ocispec.Manifest)
 		// Create and append the layer with manifest and matched history
 		layer := workloadmeta.ContainerImageLayer{
 			MediaType: manifestLayer.MediaType,
-			Digest:    digest,
+			DiffID:    diffID,
 			SizeBytes: manifestLayer.Size,
 			URLs:      manifestLayer.URLs,
 			History:   history,

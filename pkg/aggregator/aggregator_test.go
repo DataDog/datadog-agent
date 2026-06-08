@@ -30,9 +30,9 @@ import (
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	filterlistmock "github.com/DataDog/datadog-agent/comp/filterlist/fx-mock"
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
-	orchestratorforwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator"
+	defaultforwardermock "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/mock"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
+	orchestratorforwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/def"
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
 	logscompressionmock "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
@@ -127,7 +127,7 @@ func TestDeregisterCheckSampler(t *testing.T) {
 	deps := createAggrDeps(t)
 	demux := deps.Demultiplexer
 
-	defer demux.Stop(false)
+	defer demux.Stop()
 
 	agg := demux.Aggregator()
 	agg.checkSamplers = make(map[checkid.ID]*CheckSampler)
@@ -290,7 +290,7 @@ func TestDefaultSeries(t *testing.T) {
 	taggerComponent := taggerfxmock.SetupFakeTagger(t)
 
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("config_id", "config123")
+	mockConfig.SetInTest("config_id", "config123")
 
 	mockHaAgent := haagentmock.NewMockHaAgent().(haagentmock.Component)
 	mockHaAgent.SetEnabled(true)
@@ -380,8 +380,9 @@ func TestSeriesTooManyTags(t *testing.T) {
 
 			s.On("AreSeriesEnabled").Return(true)
 			s.On("AreSketchesEnabled").Return(true)
-			s.On("SendServiceChecks", mock.Anything).Return(nil).Times(1)
-			s.On("SendIterableSeries", mock.Anything).Return(nil).Times(1)
+			// Stop() performs a final flush, so allow these to be called more than once.
+			s.On("SendServiceChecks", mock.Anything).Return(nil)
+			s.On("SendIterableSeries", mock.Anything).Return(nil)
 
 			demux.ForceFlushToSerializer(start, true)
 			s.AssertNotCalled(t, "SendEvents")
@@ -396,7 +397,7 @@ func TestSeriesTooManyTags(t *testing.T) {
 			assert.Equal(t, expMap, gotMap)
 
 			// reset telemetry for next tests
-			demux.Stop(false)
+			demux.Stop()
 			recurrentSeries = metrics.Series{}
 			tagsetTlm.reset()
 		}
@@ -643,8 +644,8 @@ func TestTags(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockConfig := configmock.New(t)
-			mockConfig.SetWithoutSource("basic_telemetry_add_container_tags", tt.tlmContainerTagsEnabled)
-			mockConfig.SetWithoutSource("config_id", tt.configID)
+			mockConfig.SetInTest("basic_telemetry_add_container_tags", tt.tlmContainerTagsEnabled)
+			mockConfig.SetInTest("config_id", tt.configID)
 
 			taggerComponent := taggerfxmock.SetupFakeTagger(t)
 
@@ -678,7 +679,7 @@ func TestConfigIDTags(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockConfig := configmock.New(t)
-			mockConfig.SetWithoutSource("config_id", tt.configID)
+			mockConfig.SetInTest("config_id", tt.configID)
 
 			taggerComponent := taggerfxmock.SetupFakeTagger(t)
 			mockHaAgent := haagentmock.NewMockHaAgent().(haagentmock.Component)
@@ -691,7 +692,7 @@ func TestConfigIDTags(t *testing.T) {
 
 func TestTimeSamplerFlush(t *testing.T) {
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("dogstatsd_pipeline_count", 1)
+	mockConfig.SetInTest("dogstatsd_pipeline_count", 1)
 
 	s := &MockSerializerIterableSerie{}
 	s.On("AreSeriesEnabled").Return(true)
@@ -710,7 +711,7 @@ func TestAddDJMRecurrentSeries(t *testing.T) {
 	// this test IS USING globals (recurrentSeries)
 	// -
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("djm_config.enabled", true)
+	mockConfig.SetInTest("djm_config.enabled", true)
 
 	s := &MockSerializerIterableSerie{}
 	// NewBufferedAggregator with DJM enable will create a new recurrentSeries
@@ -810,7 +811,7 @@ type aggregatorDeps struct {
 func createAggrDeps(t *testing.T) aggregatorDeps {
 	deps := fxutil.Test[TestDeps](t,
 		fx.Provide(func() secrets.Component { return secretsmock.New(t) }),
-		defaultforwarder.MockModule(),
+		defaultforwardermock.MockModule(),
 		core.MockBundle(),
 		hostnameimpl.MockModule(),
 		logscompressionmock.MockModule(),

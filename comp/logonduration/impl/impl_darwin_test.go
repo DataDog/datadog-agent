@@ -21,13 +21,12 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
-	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
+	sysprobeconfigmock "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/mock"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
+	eventplatformimpl "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/impl"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	logscompressionmock "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/logonduration"
@@ -523,9 +522,9 @@ func newFixture(t *testing.T, enabled bool) *testFixture {
 	logComp := logmock.New(t)
 
 	configComp := config.NewMock(t)
-	configComp.SetWithoutSource("logon_duration.enabled", enabled)
+	configComp.SetInTest("logon_duration.enabled", enabled)
 
-	sysprobeConfigComp := fxutil.Test[sysprobeconfig.Component](t, sysprobeconfigimpl.MockModule())
+	sysprobeConfigComp := sysprobeconfigmock.NewMock(t)
 
 	hostnameComp := fxutil.Test[hostnameinterface.Component](t, hostnameimpl.MockModule())
 	compressionComp := fxutil.Test[logscompression.Component](t, logscompressionmock.MockModule())

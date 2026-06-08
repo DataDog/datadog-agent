@@ -1,84 +1,171 @@
 import getpass
 import json
 import os
+import secrets
 from pathlib import Path
 
 from invoke.context import Context
-from invoke.exceptions import Exit
+from invoke.exceptions import Exit, UnexpectedExit
 
 from tasks.e2e_framework.config import Config
-from tasks.e2e_framework.setup.ssh_keys import KeyInfo
-from tasks.e2e_framework.tool import ask, ask_yesno, get_aws_cmd, info, is_windows, warn
+from tasks.e2e_framework.setup.ssh_keys import KeyInfo, add_key_to_ssh_agent, default_key_paths
+from tasks.e2e_framework.tool import ask, ask_yesno, error, get_aws_cmd, info, is_windows, warn
 
 SUPPORTED_KEY_TYPES = ["rsa", "ed25519"]
 AVAILABLE_AWS_ACCOUNTS = ["agent-sandbox", "sandbox", "tse-playground"]
+DEFAULT_AWS_ACCOUNT = "agent-sandbox"
+DEFAULT_KEY_TYPE = "rsa"
 
 
-def setup_aws_config(ctx: Context, config: Config):
-    if config.configParams is None:
-        config.configParams = Config.Params(aws=None, agent=None, pulumi=None, azure=None, devMode=False)
+def _default_keypair_name(account: str, user: str) -> str:
+    return f"e2e-{account}-{user}".replace("_", "-")
+
+
+def setup_aws_config(ctx: Context, config: Config, account: str | None = None):
+    """
+    Configure AWS keypair, SSO profile and team tag with computed defaults.
+
+    Idempotent: re-running on a fully configured machine prints "✓ already configured"
+    lines and exits without prompts. The only interactive step is the team tag, asked
+    once on first setup.
+    """
     if config.configParams.aws is None:
         config.configParams.aws = Config.Params.Aws(keyPairName=None, publicKeyPath=None, account=None, teamTag=None)
 
-    # aws account
-    if config.configParams.aws.account is None:
-        config.configParams.aws.account = "agent-sandbox"
-    default_aws_account = config.configParams.aws.account
-    while True:
-        config.configParams.aws.account = default_aws_account
-        aws_account = ask(
-            f"Which aws account do you want to create instances on? Default [{config.configParams.aws.account}], available [agent-sandbox|sandbox|tse-playground]: "
+    aws = config.configParams.aws
+    user = getpass.getuser()
+
+    # Account
+    if account:
+        if account not in AVAILABLE_AWS_ACCOUNTS:
+            raise Exit(f"Unknown AWS account: {account}. Available: {'|'.join(AVAILABLE_AWS_ACCOUNTS)}")
+        aws.account = account
+    elif not aws.account:
+        aws.account = DEFAULT_AWS_ACCOUNT
+    info(f"✓ AWS account: {aws.account}")
+
+    # Keypair name & paths — derived from username, no prompt.
+    if not aws.keyPairName:
+        aws.keyPairName = _default_keypair_name(aws.account, user)
+    default_priv, default_pub = default_key_paths(aws.account, user)
+    if not aws.privateKeyPath:
+        aws.privateKeyPath = str(default_priv)
+    if not aws.publicKeyPath:
+        aws.publicKeyPath = str(default_pub)
+
+    # AWS authentication (SSO profile in ~/.aws/config + active aws-vault session) is
+    # handled outside of this task — by your org tooling or manually. The keypair check
+    # below uses aws-vault and will surface any auth errors with the standard aws-vault
+    # output if the session is not valid.
+    _ensure_aws_keypair(ctx, config)
+
+    # Team tag — single prompt, only on first setup.
+    if not aws.teamTag:
+        team = ask(
+            "🔖 GitHub team (used to tag AWS resources, kebab-case e.g. agent-platform) " "[default: unspecified]: ",
+            color="cyan",
+        ).strip()
+        aws.teamTag = team or "unspecified"
+        if aws.teamTag == "unspecified":
+            warn(
+                "Team tag set to 'unspecified' — update aws.teamTag in ~/.test_infra_config.yaml later for cost attribution"
+            )
+    info(f"✓ Team tag: {aws.teamTag}")
+
+
+def _ensure_aws_keypair(ctx: Context, config: Config) -> None:
+    """
+    Make the configured keypair exist both in AWS and on disk. Branches:
+    - Both present → ✓ skip.
+    - Local files only → import to AWS.
+    - AWS keypair only → fail with actionable message (don't auto-overwrite).
+    - Neither → create in AWS and save locally.
+    """
+    assert config.configParams.aws is not None
+    aws = config.configParams.aws
+    keypair_name = aws.keyPairName or ""
+    private_path = Path(aws.privateKeyPath or "").expanduser()
+    public_path = Path(aws.publicKeyPath or "").expanduser()
+    aws_account = aws.account
+
+    info(f"🔍 Checking AWS keypair '{keypair_name}' (this may prompt for aws-vault auth)...")
+    aws_has_keypair = _aws_keypair_exists(ctx, keypair_name, aws_account)
+    local_has_files = private_path.is_file() and public_path.is_file()
+
+    if aws_has_keypair and local_has_files:
+        info(f"✓ AWS keypair '{keypair_name}' present on disk and in AWS")
+        return
+
+    if not aws_has_keypair and not local_has_files:
+        info(f"🔑 Creating AWS keypair '{keypair_name}' → {private_path}")
+        _aws_create_keypair(
+            ctx,
+            config,
+            keypair_name=keypair_name,
+            key_type=DEFAULT_KEY_TYPE,
+            private_key_path=str(private_path),
+            public_key_path=str(public_path),
+            use_aws_vault=True,
+            aws_account_name=aws_account,
         )
-        if len(aws_account) > 0:
-            config.configParams.aws.account = aws_account
-        if config.configParams.aws.account in AVAILABLE_AWS_ACCOUNTS:
-            break
-        warn(f"{config.configParams.aws.account} is not a valid aws account")
+        return
 
-    if config.configParams.aws.keyPairName and config.configParams.aws.publicKeyPath:
-        info(f"Using key pair name: {config.configParams.aws.keyPairName}")
-        info(f"Using public key path: {config.configParams.aws.publicKeyPath}")
-        info(f"Using private key path: {config.configParams.aws.privateKeyPath}")
+    if local_has_files and not aws_has_keypair:
+        info(f"🔑 Importing existing local key {public_path} as AWS keypair '{keypair_name}'")
+        _aws_import_keypair(
+            ctx,
+            config,
+            keypair_name=keypair_name,
+            private_key_path=str(private_path),
+            public_key_path=str(public_path),
+            use_aws_vault=True,
+            aws_account_name=aws_account,
+        )
+        return
 
-    # ask user if they want to create a new key or import an existing key
-    if ask_yesno("Do you want to create a new key pair?"):
-        _aws_create_keypair(ctx, config, use_aws_vault=True, aws_account_name=config.configParams.aws.account)
-    elif ask_yesno("Do you want to import an existing key pair?"):
-        _aws_import_keypair(ctx, config, use_aws_vault=True, aws_account_name=config.configParams.aws.account)
-
-    if not config.configParams.aws.keyPairName or not config.configParams.aws.publicKeyPath:
-        warn("No key pair configured, you will need to manually configure a key pair")
-
-    # check keypair name
-    if config.options is None:
-        config.options = Config.Options(checkKeyPair=False)
-    default_check_key_pair = "Y" if config.options.checkKeyPair else "N"
-    checkKeyPair = ask(
-        f"Do you want to check if the keypair is loaded in ssh agent when creating manual environments or running e2e tests [Y/N]? Default [{default_check_key_pair}]: "
+    # AWS has the keypair, but local files are missing — don't auto-clobber.
+    delete_cmd = get_aws_cmd(
+        f'ec2 delete-key-pair --key-name "{keypair_name}"',
+        use_aws_vault=True,
+        aws_account=aws_account,
     )
-    if len(checkKeyPair) > 0:
-        config.options.checkKeyPair = checkKeyPair.lower() == "y" or checkKeyPair.lower() == "yes"
-
-    # team tag
-    if config.configParams.aws.teamTag is None:
-        config.configParams.aws.teamTag = ""
-    while True:
-        msg = "🔖 What is your github team? This will tag all your resources by `team:<team>`. Use kebab-case format (example: agent-platform)"
-        if len(config.configParams.aws.teamTag) > 0:
-            msg += f". Default [{config.configParams.aws.teamTag}]"
-        msg += ": "
-        teamTag = ask(msg)
-        if len(teamTag) > 0:
-            config.configParams.aws.teamTag = teamTag
-        if len(config.configParams.aws.teamTag) > 0:
-            break
-        warn("Provide a non-empty team")
-
-    setup_aws_sso_config(config)
+    error(
+        f"AWS already has keypair '{keypair_name}' but the local private/public key files "
+        f"({private_path}, {public_path}) are missing. Either restore the files from a backup, "
+        f"or delete the remote keypair and recreate with `dda inv e2e.setup.aws-create-keypair`:\n"
+        f"  {delete_cmd}"
+    )
+    raise Exit(code=1)
 
 
-def setup_aws_sso_config(config: Config):
-    if not config.configParams or not config.configParams.aws:
+def _aws_keypair_exists(ctx: Context, keypair_name: str, aws_account: str | None) -> bool:
+    if not keypair_name:
+        return False
+    cmd = get_aws_cmd(
+        f'ec2 describe-key-pairs --key-names "{keypair_name}"',
+        use_aws_vault=True,
+        aws_account=aws_account,
+    )
+    try:
+        # Don't hide stdout/stderr: aws-vault may prompt for SSO auth or a keychain
+        # password, and hiding the prompt makes the task look like it's hanging.
+        # Suppress stdout via `out_stream` to /dev/null only after we know auth works
+        # — but the simplest correct behavior is to leave the prompt visible.
+        out = ctx.run(cmd, warn=True, hide="stdout")
+    except UnexpectedExit:
+        return False
+    return out is not None and out.exited == 0
+
+
+def setup_aws_sso_config(config: Config, interactive: bool = True):
+    """
+    Append the agent-sandbox SSO profile to ~/.aws/config if it isn't already there.
+
+    When interactive=False (called from the wizard), no yes/no prompts are shown — the
+    profile is added unconditionally. When interactive=True (used by the standalone
+    e2e.setup.aws-sso task), the user is asked to confirm.
+    """
+    if not config.configParams.aws:
         raise Exit("AWS config not found")
 
     aws = config.configParams.aws
@@ -98,11 +185,8 @@ def setup_aws_sso_config(config: Config):
         with open(aws_conf_path) as f:
             conf = f.read()
             if profile_name in conf:
-                info(f"Profile {profile_name} already exists in {aws_conf_path}")
+                info(f"✓ AWS SSO profile '{profile_name}' already in {aws_conf_path}")
                 return
-
-    if not ask_yesno(f"Do you want to setup AWS SSO profile for {aws.account}?"):
-        return
 
     # https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-sso.html#cli-configure-sso-manual
     conf = f"""
@@ -125,12 +209,17 @@ credential_process = aws-vault exec {profile_name} --json
 # END Automatically added by e2e setup script
 """
 
-    info(conf)
-    if not ask_yesno(f"Add the above config to {aws_conf_path}"):
-        return
+    if interactive:
+        info(conf)
+        if not ask_yesno(f"Add the above config to {aws_conf_path}"):
+            return
+        if not ask_yesno(f"Do you want to setup AWS SSO profile for {aws.account}?"):
+            return
 
+    aws_conf_path.parent.mkdir(parents=True, exist_ok=True)
     with open(aws_conf_path, "a") as f:
         f.write(conf)
+    info(f"✓ Wrote AWS SSO profile '{profile_name}' to {aws_conf_path}")
 
 
 def _aws_create_keypair(
@@ -143,7 +232,7 @@ def _aws_create_keypair(
     use_aws_vault: bool | None = False,
     aws_account_name: str | None = None,
 ) -> None:
-    if config.configParams is None or config.configParams.aws is None:
+    if config.configParams.aws is None:
         raise Exit("Config is missing aws section")
 
     keypair_opts = aws_resolve_keypair_opts(
@@ -199,6 +288,12 @@ def _aws_create_keypair(
     with open(public_key_path, "w") as f:
         f.write(public_key)
 
+    # encrypt the private key with a random passphrase (matches token_urlsafe length used for Pulumi)
+    passphrase = secrets.token_urlsafe(32)
+    ctx.run(f'ssh-keygen -p -P "" -N "{passphrase}" -f "{private_key_path}"', hide=True)
+    info("✓ Private key encrypted with passphrase (stored in ~/.test_infra_config.yaml, chmod 0600)")
+    add_key_to_ssh_agent(ctx, private_key_path, passphrase)
+
     # update config object
     awsConf = config.configParams.aws
     if keypair_name:
@@ -207,6 +302,7 @@ def _aws_create_keypair(
         awsConf.publicKeyPath = public_key_path
     if private_key_path:
         awsConf.privateKeyPath = private_key_path
+    awsConf.privateKeyPassword = passphrase
 
 
 def aws_resolve_keypair_opts(
@@ -227,7 +323,7 @@ def aws_resolve_keypair_opts(
 
     Returns a dict with the resolved values.
     """
-    if config.configParams is None or config.configParams.aws is None:
+    if config.configParams.aws is None:
         raise Exit("Config is missing aws section")
     awsConf = config.configParams.aws
 
@@ -341,7 +437,7 @@ def update_config_aws_keypair(
     config: Config,
     config_path: str | None = None,
 ) -> None:
-    if config.configParams is None or config.configParams.aws is None:
+    if config.configParams.aws is None:
         raise Exit("Config is missing aws section")
     awsConf = config.configParams.aws
     info(f"keyPairName: {awsConf.keyPairName}")
@@ -384,7 +480,7 @@ def _aws_import_keypair(
     use_aws_vault: bool | None = False,
     aws_account_name: str | None = None,
 ) -> None:
-    if config.configParams is None or config.configParams.aws is None:
+    if config.configParams.aws is None:
         raise Exit("Config is missing aws section")
 
     keypair_opts = aws_resolve_keypair_opts(

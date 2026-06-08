@@ -1,6 +1,8 @@
 import collections
 import re
 
+import yaml
+
 
 def get_indent(line):
     count = 0
@@ -92,10 +94,27 @@ def is_node_section(node):
     return node.get("node_type", "") == "section"
 
 
+def example_matches_default(example, node):
+    """
+    Return True if the example is merely the serialized form of the node's default.
+
+    The example is the raw YAML text taken from the config template (e.g. '"full"',
+    'false', '""'), while the default stored on the node is the already-parsed value
+    (e.g. 'full', False, ''). When the example parses back to the same value as the
+    default, keeping it in the schema is redundant.
+    """
+    if "default" not in node:
+        return False
+    try:
+        return yaml.safe_load(example) == node["default"]
+    except yaml.YAMLError:
+        # If the example isn't valid YAML it can't be a serialized default; keep it.
+        return False
+
+
 class Parser:
     def __init__(self):
         self.current_title = ""
-        self.order = 0
         self.trackorder = collections.defaultdict(list)
         self.parents = []
         self.previous_name = ""
@@ -139,16 +158,14 @@ class Parser:
             node["title"] = self.current_title
             self.current_title = ""
         if not is_node_section(node):
-            if example and node.get("default") != example:
+            if example and not example_matches_default(example, node):
                 node["example"] = example
 
         tags = node.get("tags", [])
         if self.template_section != "":
             tags.append(f"template_section:{self.template_section}")
-        tags.append(f"template_section_order:{self.order}")
         node["tags"] = tags
 
-        self.order += 1
         self.trackorder['.'.join(self.parents)].append(name)
 
     def handle_template_section(self, line):
@@ -199,6 +216,7 @@ def nice_key_order(obj):
         'type',
         'default',
         'env_vars',
+        'env_parser',
         'items',
         'additionalProperties',
         'format',
@@ -230,7 +248,7 @@ def reorder_it(schema, currpath, trackorder):
         raise RuntimeError(f'*** key:{currkey} missing: {missing_from_want}')
     # If there are missing from `havekeys` that's okay. These are *undocumented* keys that are
     # defined in setup.go but not in the config_template.yaml
-    missing_from_have = set(havekeys) - set(useorder)
+    missing_from_have = sorted(set(havekeys) - set(useorder))
     # Iterate the keys in order seen in config_template.yaml
     for k in useorder:
         item = obj[k]
@@ -251,7 +269,7 @@ def parse_template(tmpl, schema):
     with open(tmpl) as f:
         template = f.read()
 
-    # fix the one edge case or the API key not being formated like the rest of the template
+    # fix the one edge case of the API key not being formated like the rest of the template
     template = template.replace("\napi_key:\n", "\n# api_key: \"\"\n")
 
     parser = Parser()

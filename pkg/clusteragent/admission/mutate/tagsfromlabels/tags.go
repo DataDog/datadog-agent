@@ -29,7 +29,7 @@ type Webhook struct {
 	name            string
 	isEnabled       bool
 	endpoint        string
-	resources       map[string][]string
+	resources       []common.WebhookResourceRule
 	operations      []admissionregistrationv1.OperationType
 	matchConditions []admissionregistrationv1.MatchCondition
 	mutator         mutatecommon.Mutator
@@ -41,7 +41,7 @@ func NewWebhook(datadogConfig config.Component, mutator mutatecommon.Mutator) *W
 		name:            webhookName,
 		isEnabled:       datadogConfig.GetBool("admission_controller.inject_tags.enabled"),
 		endpoint:        datadogConfig.GetString("admission_controller.inject_tags.endpoint"),
-		resources:       map[string][]string{"": {"pods"}},
+		resources:       []common.WebhookResourceRule{{APIGroup: "", APIVersion: "v1", Resources: []string{"pods"}}},
 		operations:      []admissionregistrationv1.OperationType{admissionregistrationv1.Create},
 		matchConditions: []admissionregistrationv1.MatchCondition{},
 		mutator:         mutator,
@@ -70,7 +70,7 @@ func (w *Webhook) Endpoint() string {
 
 // Resources returns the kubernetes resources for which the webhook should
 // be invoked
-func (w *Webhook) Resources() map[string][]string {
+func (w *Webhook) Resources() []common.WebhookResourceRule {
 	return w.resources
 }
 

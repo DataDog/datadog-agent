@@ -149,6 +149,11 @@ func (s *dpkgScanner) listInstalledFilesFromDir(root *os.Root, baseDir string) (
 				continue
 			}
 			pkgName := strings.TrimSuffix(fileName, md5sumsSuffix)
+			// dpkg info files for multiarch packages are named "pkg:arch.md5sums"
+			// but the Package: field in the status file is unqualified ("pkg"), so strip the arch suffix.
+			if i := strings.LastIndex(pkgName, ":"); i >= 0 {
+				pkgName = pkgName[:i]
+			}
 
 			installedFiles, err := s.parseInfoFile(root, filepath.Join(baseDir, fileName))
 			if err != nil {
@@ -158,7 +163,7 @@ func (s *dpkgScanner) listInstalledFilesFromDir(root *os.Root, baseDir string) (
 				continue
 			}
 
-			res[pkgName] = installedFiles
+			res[pkgName] = append(res[pkgName], installedFiles...)
 		}
 	}
 

@@ -8,6 +8,7 @@
 package serializer
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -22,7 +23,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/impl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
@@ -41,7 +42,7 @@ import (
 
 func TestInitExtraHeadersNoopCompression(t *testing.T) {
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("serializer_compressor_kind", "blah")
+	mockConfig.SetInTest("serializer_compressor_kind", "blah")
 
 	compressor := metricscompressionimpl.NewCompressorReq(metricscompressionimpl.Requires{Cfg: mockConfig}).Comp
 	s := NewSerializer(nil, nil, compressor, mockConfig, logmock.New(t), "testhost")
@@ -80,7 +81,7 @@ func TestInitExtraHeadersWithCompression(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			mockConfig := configmock.New(t)
-			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
+			mockConfig.SetInTest("serializer_compressor_kind", tc.kind)
 			compressor := metricscompressionimpl.NewCompressorReq(metricscompressionimpl.Requires{Cfg: mockConfig}).Comp
 			s := NewSerializer(nil, nil, compressor, mockConfig, logmock.New(t), "testhost")
 			initExtraHeaders(s)
@@ -258,7 +259,7 @@ func TestSendV1EventsNew(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			mockConfig := configmock.New(t)
-			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
+			mockConfig.SetInTest("serializer_compressor_kind", tc.kind)
 			f := &forwarder.MockedForwarder{}
 
 			compressor := metricscompressionimpl.NewCompressorReq(metricscompressionimpl.Requires{Cfg: mockConfig}).Comp
@@ -273,6 +274,28 @@ func TestSendV1EventsNew(t *testing.T) {
 	}
 }
 
+func TestSendAgentShutdownEvent(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest("serializer_compressor_kind", compression.ZlibKind)
+	f := &forwarder.MockedForwarder{}
+
+	compressor := metricscompressionimpl.NewCompressorReq(metricscompressionimpl.Requires{Cfg: mockConfig}).Comp
+	s := NewSerializer(f, nil, compressor, mockConfig, logmock.New(t), "testhost")
+	matcher := createJSONPayloadMatcher(`{"apiKey":"","events":{"System":[{"msg_title":"","msg_text":"Version 7.0.0","timestamp":0,"host":"testhost","source_type_name":"System","event_type":"Agent Shutdown"}]},"internalHostname"`, s)
+	f.On("SubmitV1IntakeDirect", mock.Anything, matcher, mock.MatchedBy(func(kind transaction.Kind) bool {
+		return kind == transaction.Events
+	}), s.jsonExtraHeadersWithCompression).Return(nil).Once()
+
+	err := s.SendAgentShutdownEvent(context.Background(), &event.Event{
+		Text:           "Version 7.0.0",
+		SourceTypeName: "System",
+		Host:           "testhost",
+		EventType:      "Agent Shutdown",
+	})
+	require.NoError(t, err)
+	f.AssertExpectations(t)
+}
+
 func TestSendV1EventsNewNoEmpty(t *testing.T) {
 	tests := map[string]struct {
 		kind string
@@ -283,7 +306,7 @@ func TestSendV1EventsNewNoEmpty(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			mockConfig := configmock.New(t)
-			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
+			mockConfig.SetInTest("serializer_compressor_kind", tc.kind)
 			f := &forwarder.MockedForwarder{}
 
 			compressor := metricscompressionimpl.NewCompressorReq(metricscompressionimpl.Requires{Cfg: mockConfig}).Comp
@@ -307,7 +330,7 @@ func TestSendV1ServiceChecks(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			f := &forwarder.MockedForwarder{}
 			mockConfig := configmock.New(t)
-			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
+			mockConfig.SetInTest("serializer_compressor_kind", tc.kind)
 
 			compressor := metricscompressionimpl.NewCompressorReq(metricscompressionimpl.Requires{Cfg: mockConfig}).Comp
 			s := NewSerializer(f, nil, compressor, mockConfig, logmock.New(t), "testhost")
@@ -333,8 +356,8 @@ func TestSendV1Series(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			f := &forwarder.MockedForwarder{}
 			mockConfig := configmock.New(t)
-			mockConfig.SetWithoutSource("use_v2_api.series", false)
-			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
+			mockConfig.SetInTest("use_v2_api.series", false)
+			mockConfig.SetInTest("serializer_compressor_kind", tc.kind)
 
 			compressor := metricscompressionimpl.NewCompressorReq(metricscompressionimpl.Requires{Cfg: mockConfig}).Comp
 			s := NewSerializer(f, nil, compressor, mockConfig, logmock.New(t), "testhost")
@@ -390,8 +413,8 @@ func TestSendSeries(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			f := setupMockForwarder(t)
 			mockConfig := configmock.New(t)
-			mockConfig.SetWithoutSource("use_v2_api.series", true) // default value, but just to be sure
-			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
+			mockConfig.SetInTest("use_v2_api.series", true) // default value, but just to be sure
+			mockConfig.SetInTest("serializer_compressor_kind", tc.kind)
 
 			compressor := metricscompressionimpl.NewCompressorReq(metricscompressionimpl.Requires{Cfg: mockConfig}).Comp
 			s := NewSerializer(f, nil, compressor, mockConfig, logmock.New(t), "testhost")
@@ -444,8 +467,8 @@ func TestSendSketch(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			f := setupMockForwarder(t)
 			mockConfig := configmock.New(t)
-			mockConfig.SetWithoutSource("use_v2_api.series", true) // default value, but just to be sure
-			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
+			mockConfig.SetInTest("use_v2_api.series", true) // default value, but just to be sure
+			mockConfig.SetInTest("serializer_compressor_kind", tc.kind)
 
 			compressor := metricscompressionimpl.NewCompressorReq(metricscompressionimpl.Requires{Cfg: mockConfig}).Comp
 			s := NewSerializer(f, nil, compressor, mockConfig, logmock.New(t), "testhost")
@@ -476,7 +499,7 @@ func TestSendMetadata(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			f := &forwarder.MockedForwarder{}
 			mockConfig := configmock.New(t)
-			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
+			mockConfig.SetInTest("serializer_compressor_kind", tc.kind)
 
 			compressor := metricscompressionimpl.NewCompressorReq(metricscompressionimpl.Requires{Cfg: mockConfig}).Comp
 			s := NewSerializer(f, nil, compressor, mockConfig, logmock.New(t), "testhost")
@@ -513,7 +536,7 @@ func TestSendProcessesMetadata(t *testing.T) {
 			f := &forwarder.MockedForwarder{}
 			payload := []byte("\"test\"")
 			mockConfig := configmock.New(t)
-			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
+			mockConfig.SetInTest("serializer_compressor_kind", tc.kind)
 
 			compressor := metricscompressionimpl.NewCompressorReq(metricscompressionimpl.Requires{Cfg: mockConfig}).Comp
 			s := NewSerializer(f, nil, compressor, mockConfig, logmock.New(t), "testhost")
@@ -548,12 +571,12 @@ func TestSendWithDisabledKind(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			mockConfig := configmock.New(t)
 
-			mockConfig.SetWithoutSource("enable_payloads.events", false)
-			mockConfig.SetWithoutSource("enable_payloads.series", false)
-			mockConfig.SetWithoutSource("enable_payloads.service_checks", false)
-			mockConfig.SetWithoutSource("enable_payloads.sketches", false)
-			mockConfig.SetWithoutSource("enable_payloads.json_to_v1_intake", false)
-			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
+			mockConfig.SetInTest("enable_payloads.events", false)
+			mockConfig.SetInTest("enable_payloads.series", false)
+			mockConfig.SetInTest("enable_payloads.service_checks", false)
+			mockConfig.SetInTest("enable_payloads.sketches", false)
+			mockConfig.SetInTest("enable_payloads.json_to_v1_intake", false)
+			mockConfig.SetInTest("serializer_compressor_kind", tc.kind)
 
 			f := &forwarder.MockedForwarder{}
 
@@ -564,11 +587,13 @@ func TestSendWithDisabledKind(t *testing.T) {
 			payload := &testPayload{}
 
 			s.SendEvents(make(event.Events, 0))
+			s.SendAgentShutdownEvent(context.Background(), &event.Event{})
 			s.SendIterableSeries(metricsserializer.CreateSerieSource(metrics.Series{}))
 			s.SendSketch(metrics.NewSketchesSourceTest())
 			s.SendServiceChecks(make(servicecheck.ServiceChecks, 0))
 			s.SendProcessesMetadata("test")
 
+			f.AssertNotCalled(t, "SubmitV1IntakeDirect")
 			f.AssertNotCalled(t, "SubmitMetadata")
 			f.AssertNotCalled(t, "SubmitV1CheckRuns")
 			f.AssertNotCalled(t, "SubmitV1Series")

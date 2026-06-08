@@ -19,7 +19,7 @@ go_test(
     name = "api_test",
     srcs = ["http_test.go"],
     embed = [":api"],
-    gotags = ["test"],  # keep: pkg/config/nodetreemodel SetWithoutSource / assert_testonly
+    gotags = ["test"],
     deps = [
         "//pkg/config/mock",
         "@com_github_coreos_go_semver//semver",

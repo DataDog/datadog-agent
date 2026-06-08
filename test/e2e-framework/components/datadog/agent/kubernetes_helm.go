@@ -7,11 +7,11 @@ package agent
 
 import (
 	"fmt"
+	"maps"
 	"os"
 	"strings"
 
 	"go.yaml.in/yaml/v3"
-	"golang.org/x/exp/maps"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"

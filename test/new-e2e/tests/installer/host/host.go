@@ -837,6 +837,15 @@ func (s *State) AssertUnitsRunning(names ...string) {
 	}
 }
 
+// AssertUnitsActive asserts that a systemd unit is active (covers oneshot+RemainAfterExit services whose substate is "exited").
+func (s *State) AssertUnitsActive(names ...string) {
+	for _, name := range names {
+		unit, ok := s.Units[name]
+		assert.True(s.t, ok, "unit %v is not active", name)
+		assert.Equal(s.t, "active", unit.Active, "unit %v is not active", name)
+	}
+}
+
 // AssertUnitsNotLoaded asserts that a systemd unit is not loaded.
 func (s *State) AssertUnitsNotLoaded(names ...string) {
 	for _, name := range names {

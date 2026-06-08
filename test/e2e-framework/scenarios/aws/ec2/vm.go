@@ -86,6 +86,8 @@ func NewVM(e aws.Environment, name string, params ...VMOption) (*remote.Host, er
 			sshUser,
 			remote.WithPrivateKeyPath(e.DefaultPrivateKeyPath()),
 			remote.WithPrivateKeyPassword(e.DefaultPrivateKeyPassword()),
+			remote.WithDialErrorLimit(e.InfraDialErrorLimit()),
+			remote.WithPerDialTimeoutSeconds(e.InfraPerDialTimeoutSeconds()),
 		)
 		if err != nil {
 			return err
@@ -152,12 +154,11 @@ func defaultVMArgs(e aws.Environment, vmArgs *vmArgs) error {
 		}
 	}
 
-	// TODO: disabled for now while testing diffrent instance types
-	// if vmArgs.volumeThroughput == 0 && vmArgs.osInfo.Family() == os.WindowsFamily {
-	// 	// Increase throughput for Windows instances to 400 MiB/s to reduce test flakiness
-	// 	// May be able to lower this if we can disable some on-boot services in custom AMIs
-	// 	vmArgs.volumeThroughput = 400
-	// }
+	if vmArgs.volumeThroughput == 0 && vmArgs.osInfo.Family() == os.WindowsFamily {
+		// Increase throughput for Windows instances to 400 MiB/s to reduce test flakiness
+		// May be able to lower this if we can disable some on-boot services in custom AMIs
+		vmArgs.volumeThroughput = 400
+	}
 
 	// macOS dedicated host defaults
 	if vmArgs.osInfo.Family() == os.MacOSFamily {

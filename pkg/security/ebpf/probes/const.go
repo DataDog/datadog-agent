@@ -117,3 +117,8 @@ const (
 	// FlushNetworkStatsExecKey is the key to the program that flushes network stats before resuming the normal exec event processing
 	FlushNetworkStatsExecKey
 )
+
+const (
+	// CacheSyscallUpdateProcCacheCgroupKey is the key to the program that refreshes the cached cgroup inode of the current process
+	CacheSyscallUpdateProcCacheCgroupKey uint32 = iota
+)

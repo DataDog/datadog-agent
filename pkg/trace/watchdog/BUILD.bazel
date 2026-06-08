@@ -71,7 +71,7 @@ go_test(
         "logonpanic_test.go",
     ],
     embed = [":watchdog"],
-    gotags = ["test"],  # keep: log.NewBufferLogger in pkg/trace/log/buflogger.go
+    gotags = ["test"],
     deps = [
         "//pkg/trace/log",
         "@com_github_datadog_datadog_go_v5//statsd",

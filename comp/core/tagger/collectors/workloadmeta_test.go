@@ -190,6 +190,7 @@ func TestHandleKubePod(t *testing.T) {
 						"app.kubernetes.io/component":  "agent",
 						"app.kubernetes.io/part-of":    "datadog",
 						"app.kubernetes.io/managed-by": "helm",
+						"kueue.x-k8s.io/queue-name":    "batch",
 					},
 				},
 
@@ -252,6 +253,8 @@ func TestHandleKubePod(t *testing.T) {
 						"kube_app_component:agent",
 						"kube_app_managed_by:helm",
 						"kube_app_part_of:datadog",
+						"kueue_local_queue:batch",
+						"kueue_cluster_queue:batch",
 						"kube_ownerref_kind:deployment",
 						"kube_priority_class:high-priority",
 						"kube_service:service1",
@@ -1211,7 +1214,7 @@ func TestHandleKubePodWithoutPvcAsTags(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := configmock.New(t)
-			cfg.SetWithoutSource("kubernetes_persistent_volume_claims_as_tags", false)
+			cfg.SetInTest("kubernetes_persistent_volume_claims_as_tags", false)
 			collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
 			collector.staticTags = tt.staticTags
 
@@ -1868,6 +1871,67 @@ func TestHandleECSTask(t *testing.T) {
 			},
 		},
 		{
+			name: "ECS Managed Instances daemon task",
+			task: workloadmeta.ECSTask{
+				EntityID: entityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: "foobar",
+				},
+				ClusterName:  "ecs-cluster",
+				Family:       "datadog-agent-daemon",
+				Version:      "1",
+				AWSAccountID: "1234567891234",
+				LaunchType:   workloadmeta.ECSLaunchTypeManagedInstances,
+				Containers: []workloadmeta.OrchestratorContainer{
+					{
+						ID:   containerID,
+						Name: containerName,
+					},
+				},
+				DaemonName:        "datadog-agent-daemon-daemon-o9hflg",
+				Region:            "us-east-1",
+				ClusterARN:        "arn:aws:ecs:us-east-1:1234567891234:cluster/ecs-cluster",
+				DaemonARN:         "arn:aws:ecs:us-east-1:1234567891234:daemon/ecs-cluster/datadog-agent-daemon-daemon-o9hflg",
+				TaskDefinitionARN: "arn:aws:ecs:us-east-1:1234567891234:daemon-task-definition/datadog-agent-daemon:1",
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:       taskSource,
+					EntityID:     taggerEntityID,
+					HighCardTags: []string{},
+					OrchestratorCardTags: []string{
+						"task_arn:foobar",
+						"task_definition_arn:arn:aws:ecs:us-east-1:1234567891234:daemon-task-definition/datadog-agent-daemon:1",
+					},
+					LowCardTags: []string{
+						"cluster_name:ecs-cluster",
+						"ecs_cluster_name:ecs-cluster",
+						"ecs_container_name:agent",
+						"task_family:datadog-agent-daemon",
+						"task_name:datadog-agent-daemon",
+						"task_version:1",
+						"ecs_daemon:datadog-agent-daemon-daemon-o9hflg",
+						"aws_account:1234567891234",
+						"region:us-east-1",
+						"cluster_arn:arn:aws:ecs:us-east-1:1234567891234:cluster/ecs-cluster",
+						"daemon_arn:arn:aws:ecs:us-east-1:1234567891234:daemon/ecs-cluster/datadog-agent-daemon-daemon-o9hflg",
+					},
+					StandardTags: []string{},
+				},
+				{
+					Source:               taskSource,
+					EntityID:             types.GetGlobalEntityID(),
+					HighCardTags:         []string{},
+					OrchestratorCardTags: []string{},
+					LowCardTags: []string{
+						"ecs_cluster_name:ecs-cluster",
+						"cluster_arn:arn:aws:ecs:us-east-1:1234567891234:cluster/ecs-cluster",
+					},
+					StandardTags: []string{},
+				},
+			},
+		},
+		{
 			// Tasks can be emitted from metadata API that are still pending
 			// and thus only contain constant task-definition level metadata
 			// It should not trigger an update to the global-entity
@@ -1900,7 +1964,7 @@ func TestHandleECSTask(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := configmock.New(t)
-			cfg.SetWithoutSource("ecs_collect_resource_tags_ec2", true)
+			cfg.SetInTest("ecs_collect_resource_tags_ec2", true)
 			collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
 
 			actual := collector.handleECSTask(workloadmeta.Event{
@@ -3188,10 +3252,10 @@ func TestNoGlobalTags(t *testing.T) {
 	fakeProcessor := &fakeProcessor{ch: collectorCh}
 
 	// Global tags that SHOULD NOT be stored in the tagger's global entity
-	mockConfig.SetWithoutSource("tags", []string{"some:tag"})
-	mockConfig.SetWithoutSource("extra_tags", []string{"extra:tag"})
-	mockConfig.SetWithoutSource("cluster_checks.extra_tags", []string{"cluster:tag"})
-	mockConfig.SetWithoutSource("orchestrator_explorer.extra_tags", []string{"orch:tag"})
+	mockConfig.SetInTest("tags", []string{"some:tag"})
+	mockConfig.SetInTest("extra_tags", []string{"extra:tag"})
+	mockConfig.SetInTest("cluster_checks.extra_tags", []string{"cluster:tag"})
+	mockConfig.SetInTest("orchestrator_explorer.extra_tags", []string{"orch:tag"})
 
 	wmetaCollector := NewWorkloadMetaCollector(context.Background(), mockConfig, nil, fakeProcessor)
 	wmetaCollector.collectStaticGlobalTags(context.Background(), mockConfig)

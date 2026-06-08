@@ -34,16 +34,6 @@ type ddExtensionFactory struct {
 	ipcComp                option.Option[ipc.Component]
 }
 
-// isOCB returns true if extension was built with OCB
-func (f *ddExtensionFactory) isOCB() bool {
-	return f.factories == nil
-}
-
-// NewFactory creates a factory for Datadog Flare Extension for use with OCB and OSS Collector
-func NewFactory() extension.Factory {
-	return &ddExtensionFactory{}
-}
-
 // NewFactoryForAgent creates a factory for Datadog Flare Extension for use with Agent
 func NewFactoryForAgent(factories *otelcol.Factories, configProviderSettings otelcol.ConfigProviderSettings, ipcComp option.Option[ipc.Component], byoc bool) extension.Factory {
 	return &ddExtensionFactory{
@@ -61,7 +51,7 @@ func (f *ddExtensionFactory) CreateExtension(ctx context.Context, set extension.
 		configProviderSettings: f.configProviderSettings,
 	}
 	config.HTTPConfig = cfg.(*Config).HTTPConfig
-	return NewExtension(ctx, config, set.TelemetrySettings, set.BuildInfo, f.ipcComp, !f.isOCB(), f.byoc)
+	return NewExtension(ctx, config, set.TelemetrySettings, set.BuildInfo, f.ipcComp, true, f.byoc)
 }
 
 // Create creates a new instance of the Datadog Flare Extension, as of v0.112.0 or later
@@ -71,7 +61,7 @@ func (f *ddExtensionFactory) Create(ctx context.Context, set extension.Settings,
 		configProviderSettings: f.configProviderSettings,
 	}
 	config.HTTPConfig = cfg.(*Config).HTTPConfig
-	return NewExtension(ctx, config, set.TelemetrySettings, set.BuildInfo, f.ipcComp, !f.isOCB(), f.byoc)
+	return NewExtension(ctx, config, set.TelemetrySettings, set.BuildInfo, f.ipcComp, true, f.byoc)
 }
 
 func (f *ddExtensionFactory) CreateDefaultConfig() component.Config {

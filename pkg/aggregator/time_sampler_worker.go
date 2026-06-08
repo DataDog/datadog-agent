@@ -6,6 +6,7 @@
 package aggregator
 
 import (
+	"context"
 	"io"
 	"time"
 
@@ -46,6 +47,8 @@ type timeSamplerWorker struct {
 	// samplesChan is used to communicate between from the processLoop receiving the
 	// samples and the TimeSampler.
 	samplesChan chan []metrics.MetricSample
+	// samplesDrained is closed after last sample is read from samplesChan
+	samplesDrained chan struct{}
 	// use this chan to trigger a flush of the time sampler
 	flushChan chan flushTrigger
 	// use this chan to trigger a filterList reconfiguration
@@ -79,6 +82,7 @@ func newTimeSamplerWorker(sampler *TimeSampler, flushInterval time.Duration, buf
 		flushFilterList: flushFilterList,
 
 		samplesChan:          make(chan []metrics.MetricSample, bufferSize),
+		samplesDrained:       make(chan struct{}),
 		stopChan:             make(chan struct{}),
 		flushChan:            make(chan flushTrigger),
 		dumpChan:             make(chan dumpTrigger),
@@ -104,6 +108,11 @@ func (w *timeSamplerWorker) run() {
 		case <-w.stopChan:
 			return
 		case ms := <-w.samplesChan:
+			if ms == nil {
+				close(w.samplesDrained)
+				continue
+			}
+
 			aggregatorDogstatsdMetricSample.Add(int64(len(ms)))
 			tlmProcessed.Add(float64(len(ms)), shard, "dogstatsd_metrics")
 			t := timeNowNano()
@@ -144,4 +153,28 @@ func (w *timeSamplerWorker) dumpContexts(dest io.Writer) error {
 	done := make(chan error)
 	w.dumpChan <- dumpTrigger{dest: dest, done: done}
 	return <-done
+}
+
+func (w *timeSamplerWorker) addSamples(ms []metrics.MetricSample) {
+	if len(ms) == 0 {
+		return
+	}
+	w.samplesChan <- ms
+}
+
+func (w *timeSamplerWorker) shutdown(ctx context.Context) {
+	// Close would be more idiomatic, but we can't be sure everyone
+	// holding a ref to the demultiplexer will be stopped before
+	// demultiplexer Stop(), and we don't want panics.
+	select {
+	case w.samplesChan <- nil:
+	case <-ctx.Done():
+	}
+}
+
+func (w *timeSamplerWorker) waitForShutdown(ctx context.Context) {
+	select {
+	case <-w.samplesDrained:
+	case <-ctx.Done():
+	}
 }

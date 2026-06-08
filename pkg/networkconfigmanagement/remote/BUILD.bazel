@@ -1,0 +1,41 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "remote",
+    srcs = [
+        "cmd.go",
+        "fake_server.go",
+        "interfaces.go",
+        "retry.go",
+        "scp.go",
+        "ssh.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/remote",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/networkconfigmanagement/config",
+        "//pkg/networkconfigmanagement/profile",
+        "//pkg/util/log",
+        "@org_golang_x_crypto//ssh",
+        "@org_golang_x_crypto//ssh/knownhosts",
+    ],
+)
+
+go_test(
+    name = "remote_test",
+    srcs = [
+        "cmd_test.go",
+        "retry_test.go",
+        "ssh_test.go",
+    ],
+    embed = [":remote"],
+    gotags = ["test"],
+    deps = [
+        "//pkg/networkconfigmanagement/config",
+        "//pkg/networkconfigmanagement/profile",
+        "//pkg/util/log",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_golang_x_crypto//ssh",
+    ],
+)

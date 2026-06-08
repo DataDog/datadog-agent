@@ -8,7 +8,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey => ../aggregator/ckey/
 	github.com/DataDog/datadog-agent/pkg/config/model => ../config/model/
 	github.com/DataDog/datadog-agent/pkg/tagset => ../tagset/
-	github.com/DataDog/datadog-agent/pkg/telemetry => ../telemetry/
 	github.com/DataDog/datadog-agent/pkg/util/buf => ../util/buf/
 	github.com/DataDog/datadog-agent/pkg/util/fxutil => ../util/fxutil/
 	github.com/DataDog/datadog-agent/pkg/util/log => ../util/log/
@@ -19,7 +18,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey v0.51.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/config/model v0.51.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/tagset v0.51.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/telemetry v0.51.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/util/buf v0.51.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/util/log v0.51.0-rc.1
 	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.29.0

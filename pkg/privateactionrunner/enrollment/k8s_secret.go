@@ -32,6 +32,7 @@ const (
 	defaultSecretName  = "private-action-runner-identity"
 	privateKeyField    = "private_key"
 	urnField           = "urn"
+	orchClusterIDField = "orch_cluster_id"
 	secretPollInterval = 1 * time.Second
 )
 
@@ -142,8 +143,9 @@ func parseSecretData(secret *corev1.Secret, ns, secretName string) (*PersistedId
 	log.Infof("Loaded PAR identity from K8s secret: %s/%s", ns, secretName)
 
 	return &PersistedIdentity{
-		PrivateKey: string(privateKey),
-		URN:        string(urn),
+		PrivateKey:    string(privateKey),
+		URN:           string(urn),
+		OrchClusterID: string(secret.Data[orchClusterIDField]),
 	}, nil
 }
 
@@ -192,8 +194,9 @@ func persistIdentityToK8sSecret(ctx context.Context, cfg configModel.Reader, res
 		},
 		Type: corev1.SecretTypeOpaque,
 		Data: map[string][]byte{
-			privateKeyField: []byte(encodedPrivateKey),
-			urnField:        []byte(result.URN),
+			privateKeyField:    []byte(encodedPrivateKey),
+			urnField:           []byte(result.URN),
+			orchClusterIDField: []byte(result.OrchClusterID),
 		},
 	}
 

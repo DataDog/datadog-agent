@@ -12,7 +12,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -137,7 +139,7 @@ func TestGetNTPHosts(t *testing.T) {
 	mockConfig := configmock.New(t)
 
 	metadataURL = ts.URL
-	mockConfig.SetWithoutSource("cloud_provider_metadata", []string{"azure"})
+	mockConfig.SetInTest("cloud_provider_metadata", []string{"azure"})
 	actualHosts := GetNTPHosts(ctx)
 
 	assert.Equal(t, expectedHosts, actualHosts)
@@ -172,11 +174,72 @@ func TestGetHostname(t *testing.T) {
 	mockConfig := configmock.New(t)
 
 	for _, tt := range cases {
-		mockConfig.SetWithoutSource(hostnameStyleSetting, tt.style)
+		mockConfig.SetInTest(hostnameStyleSetting, tt.style)
 		hostname, err := getHostnameWithConfig(ctx, mockConfig)
 		assert.Equal(t, tt.value, hostname)
 		assert.Equal(t, tt.err, (err != nil))
 	}
+}
+
+func TestGetHostnameSkipsRetryWhenProviderDisabled(t *testing.T) {
+	ctx := context.Background()
+
+	var calls int32
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		atomic.AddInt32(&calls, 1)
+		http.Error(w, "should not be called", http.StatusInternalServerError)
+	}))
+	defer ts.Close()
+
+	metadataURL = ts.URL
+	instanceMetaFetcher.Reset()
+	t.Cleanup(func() { instanceMetaFetcher.Reset() })
+
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest("cloud_provider_metadata", []string{"aws"})
+	mockConfig.SetInTest(hostnameStyleSetting, "name_and_resource_group")
+
+	start := time.Now()
+	_, err := getHostnameWithConfig(ctx, mockConfig)
+	elapsed := time.Since(start)
+
+	require.Error(t, err)
+	require.Zero(t, atomic.LoadInt32(&calls), "IMDS should not be hit when Azure provider is disabled")
+	require.Less(t, elapsed, hostnameFetchMaxElapsedTime, "must short-circuit instead of burning the full retry window")
+}
+
+func TestGetHostnameRetriesTransientIMDSFailure(t *testing.T) {
+	ctx := context.Background()
+
+	var calls int32
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		if atomic.AddInt32(&calls, 1) <= 2 {
+			http.Error(w, "transient", http.StatusBadGateway)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		io.WriteString(w, `{
+			"name": "vm-name",
+			"resourceGroupName": "my-resource-group",
+			"subscriptionId": "2370ac56-5683-45f8-a2d4-d1054292facb",
+			"vmId": "b33fa46-6aff-4dfa-be0a-9e922ca3ac6d"
+		}`)
+	}))
+	defer ts.Close()
+
+	metadataURL = ts.URL
+	instanceMetaFetcher.Reset()
+	t.Cleanup(func() { instanceMetaFetcher.Reset() })
+
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest("cloud_provider_metadata", []string{"azure"})
+	mockConfig.SetInTest(hostnameStyleSetting, "name_and_resource_group")
+
+	hostname, err := getHostnameWithConfig(ctx, mockConfig)
+	require.NoError(t, err)
+	require.Equal(t, "vm-name.my-resource-group", hostname)
+	require.GreaterOrEqual(t, atomic.LoadInt32(&calls), int32(3),
+		"expected IMDS to be retried past the initial failure")
 }
 
 func TestGetHostnameWithInvalidMetadata(t *testing.T) {
@@ -199,7 +262,7 @@ func TestGetHostnameWithInvalidMetadata(t *testing.T) {
 
 		t.Run(fmt.Sprintf("with response '%s'", response), func(t *testing.T) {
 			for _, style := range styles {
-				mockConfig.SetWithoutSource(hostnameStyleSetting, style)
+				mockConfig.SetInTest(hostnameStyleSetting, style)
 				hostname, err := getHostnameWithConfig(ctx, mockConfig)
 				assert.Empty(t, hostname)
 				assert.NotNil(t, err)

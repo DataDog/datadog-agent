@@ -16,7 +16,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"reflect"
 	"strconv"
 	"sync"
 	"testing"
@@ -38,7 +37,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tinylib/msgp/msgp"
-	vmsgp "github.com/vmihailenco/msgpack/v4"
+	vmsgp "github.com/vmihailenco/msgpack/v5"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
@@ -75,7 +75,11 @@ func newTestReceiverConfig() *config.AgentConfig {
 	conf.Endpoints[0].APIKey = "test"
 	conf.DecoderTimeout = 10000
 	conf.ReceiverTimeout = 1
-	conf.ReceiverPort = 8326 // use non-default port to avoid conflict with a running agent
+	port, err := testutil.FindTCPPort()
+	if err != nil {
+		panic(err)
+	}
+	conf.ReceiverPort = port
 	// Reset IdleTimeout so the server uses ReadTimeout (1s) instead of the production
 	// default (60s). Without this, tests that call io.ReadAll(resp.Body) on a real server
 	// block for 60 seconds waiting for the connection to close.
@@ -163,7 +167,7 @@ func TestServerShutdown(t *testing.T) {
 			defer wg.Done()
 			for n := 0; n < 200; n++ {
 				// Send to TCP endpoint
-				req, _ := http.NewRequest("POST", "http://localhost:8326/v0.4/traces", bytes.NewReader(bts))
+				req, _ := http.NewRequest("POST", fmt.Sprintf("http://localhost:%d/v0.4/traces", conf.ReceiverPort), bytes.NewReader(bts))
 				req.Header.Set("Content-Type", "application/msgpack")
 				resp, _ := tcpClient.Do(req)
 				if resp != nil {
@@ -1079,7 +1083,7 @@ func TestHandleStats(t *testing.T) {
 
 		resp.Body.Close()
 		gotp, gotlang, gotTracerVersion, containerID := mockProcessor.Got()
-		assert.True(t, reflect.DeepEqual(gotp, p), "payload did not match")
+		assert.True(t, proto.Equal(gotp, p), "payload did not match")
 		assert.Equal(t, "lang1", gotlang, "lang did not match")
 		assert.Equal(t, "0.1.0", gotTracerVersion, "tracerVersion did not match")
 		assert.Equal(t, "abcdef123789456", containerID, "containerID did not match")

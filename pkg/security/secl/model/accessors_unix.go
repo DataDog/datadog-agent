@@ -60,6 +60,7 @@ func (_ *Model) GetEventTypes() []eval.EventType {
 		eval.EventType("setuid"),
 		eval.EventType("setxattr"),
 		eval.EventType("signal"),
+		eval.EventType("socket"),
 		eval.EventType("splice"),
 		eval.EventType("sysctl"),
 		eval.EventType("unlink"),
@@ -1994,15 +1995,44 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "dns.response.cnames":
+		return &eval.StringArrayEvaluator{
+			OpOverrides: []*eval.OpOverrides{eval.CaseInsensitiveCmp},
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.DNS.HasResponse() {
+					return []string{}
+				}
+				return ev.DNS.Response.CNames
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "dns.response.code":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				if !ev.DNS.HasResponse() {
-					return 0
+					return -1
 				}
 				return int(ev.DNS.Response.ResponseCode)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "dns.response.ips":
+		return &eval.CIDRArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []net.IPNet {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.DNS.HasResponse() {
+					return []net.IPNet{}
+				}
+				return ev.DNS.Response.IPs
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -3395,6 +3425,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return int(ev.Exec.Process.PIDContext.PPid)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "exec.sid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Exec.Process.PIDContext.SID)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -4809,6 +4850,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return int(ev.Exit.Process.PIDContext.PPid)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "exit.sid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Exit.Process.PIDContext.SID)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -11038,6 +11090,33 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
+	case "process.ancestors.sid":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.BaseEvent.ProcessContext.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := int(element.ProcessContext.Process.PIDContext.SID)
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
+					return int(current.ProcessContext.Process.PIDContext.SID)
+				})
+				ctx.IntCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
 	case "process.ancestors.tid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
@@ -14131,6 +14210,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "process.parent.sid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.BaseEvent.ProcessContext.HasParent() {
+					return 0
+				}
+				return int(ev.BaseEvent.ProcessContext.Parent.PIDContext.SID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "process.parent.tid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -14372,6 +14465,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return int(ev.BaseEvent.ProcessContext.Process.PIDContext.PPid)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "process.sid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.BaseEvent.ProcessContext.Process.PIDContext.SID)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -17453,6 +17557,33 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				}
 				results := newIterator(iterator, "PTrace.Tracee.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
 					return int(current.ProcessContext.Process.PIDContext.PPid)
+				})
+				ctx.IntCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.ancestors.sid":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.PTrace.Tracee.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := int(element.ProcessContext.Process.PIDContext.SID)
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "PTrace.Tracee.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
+					return int(current.ProcessContext.Process.PIDContext.SID)
 				})
 				ctx.IntCache[field] = results
 				return results
@@ -20554,6 +20685,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "ptrace.tracee.parent.sid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.PTrace.Tracee.HasParent() {
+					return 0
+				}
+				return int(ev.PTrace.Tracee.Parent.PIDContext.SID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "ptrace.tracee.parent.tid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -20795,6 +20940,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return int(ev.PTrace.Tracee.Process.PIDContext.PPid)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.sid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.PTrace.Tracee.Process.PIDContext.SID)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -25312,6 +25468,33 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
+	case "setrlimit.target.ancestors.sid":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := int(element.ProcessContext.Process.PIDContext.SID)
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
+					return int(current.ProcessContext.Process.PIDContext.SID)
+				})
+				ctx.IntCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
 	case "setrlimit.target.ancestors.tid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
@@ -28405,6 +28588,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "setrlimit.target.parent.sid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return 0
+				}
+				return int(ev.Setrlimit.Target.Parent.PIDContext.SID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "setrlimit.target.parent.tid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -28646,6 +28843,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return int(ev.Setrlimit.Target.Process.PIDContext.PPid)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.sid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Setrlimit.Target.Process.PIDContext.SID)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -32257,6 +32465,33 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
+	case "signal.target.ancestors.sid":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Signal.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := int(element.ProcessContext.Process.PIDContext.SID)
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Signal.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
+					return int(current.ProcessContext.Process.PIDContext.SID)
+				})
+				ctx.IntCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
 	case "signal.target.ancestors.tid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
@@ -35350,6 +35585,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "signal.target.parent.sid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Signal.Target.HasParent() {
+					return 0
+				}
+				return int(ev.Signal.Target.Parent.PIDContext.SID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "signal.target.parent.tid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -35596,6 +35845,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "signal.target.sid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Signal.Target.Process.PIDContext.SID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "signal.target.tid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -35778,6 +36038,50 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return int(ev.Signal.Type)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "socket.domain":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Socket.Domain)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "socket.protocol":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Socket.Protocol)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "socket.retval":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Socket.SyscallEvent.Retval)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "socket.type":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Socket.Type)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -37082,7 +37386,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"dns.question.name.length",
 		"dns.question.name.root_domain",
 		"dns.question.type",
+		"dns.response.cnames",
 		"dns.response.code",
+		"dns.response.ips",
 		"event.async",
 		"event.hostname",
 		"event.origin",
@@ -37195,6 +37501,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"exec.netns",
 		"exec.pid",
 		"exec.ppid",
+		"exec.sid",
 		"exec.syscall.path",
 		"exec.tid",
 		"exec.tty_name",
@@ -37309,6 +37616,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"exit.netns",
 		"exit.pid",
 		"exit.ppid",
+		"exit.sid",
 		"exit.tid",
 		"exit.tty_name",
 		"exit.uid",
@@ -37687,6 +37995,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.ancestors.netns",
 		"process.ancestors.pid",
 		"process.ancestors.ppid",
+		"process.ancestors.sid",
 		"process.ancestors.tid",
 		"process.ancestors.tty_name",
 		"process.ancestors.uid",
@@ -37891,6 +38200,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.parent.netns",
 		"process.parent.pid",
 		"process.parent.ppid",
+		"process.parent.sid",
 		"process.parent.tid",
 		"process.parent.tty_name",
 		"process.parent.uid",
@@ -37909,6 +38219,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.parent.user_session.ssh_session_id",
 		"process.pid",
 		"process.ppid",
+		"process.sid",
 		"process.tid",
 		"process.tty_name",
 		"process.uid",
@@ -38023,6 +38334,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"ptrace.tracee.ancestors.netns",
 		"ptrace.tracee.ancestors.pid",
 		"ptrace.tracee.ancestors.ppid",
+		"ptrace.tracee.ancestors.sid",
 		"ptrace.tracee.ancestors.tid",
 		"ptrace.tracee.ancestors.tty_name",
 		"ptrace.tracee.ancestors.uid",
@@ -38227,6 +38539,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"ptrace.tracee.parent.netns",
 		"ptrace.tracee.parent.pid",
 		"ptrace.tracee.parent.ppid",
+		"ptrace.tracee.parent.sid",
 		"ptrace.tracee.parent.tid",
 		"ptrace.tracee.parent.tty_name",
 		"ptrace.tracee.parent.uid",
@@ -38245,6 +38558,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"ptrace.tracee.parent.user_session.ssh_session_id",
 		"ptrace.tracee.pid",
 		"ptrace.tracee.ppid",
+		"ptrace.tracee.sid",
 		"ptrace.tracee.tid",
 		"ptrace.tracee.tty_name",
 		"ptrace.tracee.uid",
@@ -38487,6 +38801,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"setrlimit.target.ancestors.netns",
 		"setrlimit.target.ancestors.pid",
 		"setrlimit.target.ancestors.ppid",
+		"setrlimit.target.ancestors.sid",
 		"setrlimit.target.ancestors.tid",
 		"setrlimit.target.ancestors.tty_name",
 		"setrlimit.target.ancestors.uid",
@@ -38691,6 +39006,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"setrlimit.target.parent.netns",
 		"setrlimit.target.parent.pid",
 		"setrlimit.target.parent.ppid",
+		"setrlimit.target.parent.sid",
 		"setrlimit.target.parent.tid",
 		"setrlimit.target.parent.tty_name",
 		"setrlimit.target.parent.uid",
@@ -38709,6 +39025,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"setrlimit.target.parent.user_session.ssh_session_id",
 		"setrlimit.target.pid",
 		"setrlimit.target.ppid",
+		"setrlimit.target.sid",
 		"setrlimit.target.tid",
 		"setrlimit.target.tty_name",
 		"setrlimit.target.uid",
@@ -38870,6 +39187,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"signal.target.ancestors.netns",
 		"signal.target.ancestors.pid",
 		"signal.target.ancestors.ppid",
+		"signal.target.ancestors.sid",
 		"signal.target.ancestors.tid",
 		"signal.target.ancestors.tty_name",
 		"signal.target.ancestors.uid",
@@ -39074,6 +39392,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"signal.target.parent.netns",
 		"signal.target.parent.pid",
 		"signal.target.parent.ppid",
+		"signal.target.parent.sid",
 		"signal.target.parent.tid",
 		"signal.target.parent.tty_name",
 		"signal.target.parent.uid",
@@ -39092,6 +39411,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"signal.target.parent.user_session.ssh_session_id",
 		"signal.target.pid",
 		"signal.target.ppid",
+		"signal.target.sid",
 		"signal.target.tid",
 		"signal.target.tty_name",
 		"signal.target.uid",
@@ -39109,6 +39429,10 @@ func (ev *Event) GetFields() []eval.Field {
 		"signal.target.user_session.ssh_public_key",
 		"signal.target.user_session.ssh_session_id",
 		"signal.type",
+		"socket.domain",
+		"socket.protocol",
+		"socket.retval",
+		"socket.type",
 		"splice.file.change_time",
 		"splice.file.extension",
 		"splice.file.filesystem",
@@ -39563,8 +39887,12 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "dns", reflect.String, "string", false, nil
 	case "dns.question.type":
 		return "dns", reflect.Int, "int", false, nil
+	case "dns.response.cnames":
+		return "dns", reflect.String, "string", true, nil
 	case "dns.response.code":
 		return "dns", reflect.Int, "int", false, nil
+	case "dns.response.ips":
+		return "dns", reflect.Struct, "net.IPNet", true, nil
 	case "event.async":
 		return "", reflect.Bool, "bool", false, nil
 	case "event.hostname":
@@ -39788,6 +40116,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 	case "exec.pid":
 		return "exec", reflect.Int, "int", false, nil
 	case "exec.ppid":
+		return "exec", reflect.Int, "int", false, nil
+	case "exec.sid":
 		return "exec", reflect.Int, "int", false, nil
 	case "exec.syscall.path":
 		return "exec", reflect.String, "string", false, nil
@@ -40016,6 +40346,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 	case "exit.pid":
 		return "exit", reflect.Int, "int", false, nil
 	case "exit.ppid":
+		return "exit", reflect.Int, "int", false, nil
+	case "exit.sid":
 		return "exit", reflect.Int, "int", false, nil
 	case "exit.tid":
 		return "exit", reflect.Int, "int", false, nil
@@ -40773,6 +41105,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "", reflect.Int, "int", false, nil
 	case "process.ancestors.ppid":
 		return "", reflect.Int, "int", false, nil
+	case "process.ancestors.sid":
+		return "", reflect.Int, "int", false, nil
 	case "process.ancestors.tid":
 		return "", reflect.Int, "int", false, nil
 	case "process.ancestors.tty_name":
@@ -41181,6 +41515,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "", reflect.Int, "int", false, nil
 	case "process.parent.ppid":
 		return "", reflect.Int, "int", false, nil
+	case "process.parent.sid":
+		return "", reflect.Int, "int", false, nil
 	case "process.parent.tid":
 		return "", reflect.Int, "int", false, nil
 	case "process.parent.tty_name":
@@ -41216,6 +41552,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 	case "process.pid":
 		return "", reflect.Int, "int", false, nil
 	case "process.ppid":
+		return "", reflect.Int, "int", false, nil
+	case "process.sid":
 		return "", reflect.Int, "int", false, nil
 	case "process.tid":
 		return "", reflect.Int, "int", false, nil
@@ -41444,6 +41782,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 	case "ptrace.tracee.ancestors.pid":
 		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.ancestors.ppid":
+		return "ptrace", reflect.Int, "int", false, nil
+	case "ptrace.tracee.ancestors.sid":
 		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.ancestors.tid":
 		return "ptrace", reflect.Int, "int", false, nil
@@ -41853,6 +42193,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.parent.ppid":
 		return "ptrace", reflect.Int, "int", false, nil
+	case "ptrace.tracee.parent.sid":
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.parent.tid":
 		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.parent.tty_name":
@@ -41888,6 +42230,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 	case "ptrace.tracee.pid":
 		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.ppid":
+		return "ptrace", reflect.Int, "int", false, nil
+	case "ptrace.tracee.sid":
 		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.tid":
 		return "ptrace", reflect.Int, "int", false, nil
@@ -42373,6 +42717,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.ancestors.ppid":
 		return "setrlimit", reflect.Int, "int", false, nil
+	case "setrlimit.target.ancestors.sid":
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.ancestors.tid":
 		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.ancestors.tty_name":
@@ -42781,6 +43127,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.parent.ppid":
 		return "setrlimit", reflect.Int, "int", false, nil
+	case "setrlimit.target.parent.sid":
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.parent.tid":
 		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.parent.tty_name":
@@ -42816,6 +43164,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 	case "setrlimit.target.pid":
 		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.ppid":
+		return "setrlimit", reflect.Int, "int", false, nil
+	case "setrlimit.target.sid":
 		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.tid":
 		return "setrlimit", reflect.Int, "int", false, nil
@@ -43138,6 +43488,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 	case "signal.target.ancestors.pid":
 		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.ancestors.ppid":
+		return "signal", reflect.Int, "int", false, nil
+	case "signal.target.ancestors.sid":
 		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.ancestors.tid":
 		return "signal", reflect.Int, "int", false, nil
@@ -43547,6 +43899,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.parent.ppid":
 		return "signal", reflect.Int, "int", false, nil
+	case "signal.target.parent.sid":
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.parent.tid":
 		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.parent.tty_name":
@@ -43583,6 +43937,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.ppid":
 		return "signal", reflect.Int, "int", false, nil
+	case "signal.target.sid":
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.tid":
 		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.tty_name":
@@ -43617,6 +43973,14 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "signal", reflect.Int, "int", false, nil
 	case "signal.type":
 		return "signal", reflect.Int, "int", false, nil
+	case "socket.domain":
+		return "socket", reflect.Int, "int", false, nil
+	case "socket.protocol":
+		return "socket", reflect.Int, "int", false, nil
+	case "socket.retval":
+		return "socket", reflect.Int, "int", false, nil
+	case "socket.type":
+		return "socket", reflect.Int, "int", false, nil
 	case "splice.file.change_time":
 		return "splice", reflect.Int, "int", false, nil
 	case "splice.file.extension":
@@ -44193,11 +44557,29 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return &eval.ErrFieldReadOnly{Field: "dns.question.name.root_domain"}
 	case "dns.question.type":
 		return ev.setUint16FieldValue("dns.question.type", &ev.DNS.Question.Type, value)
+	case "dns.response.cnames":
+		if ev.DNS.Response == nil {
+			ev.DNS.Response = &DNSResponse{}
+		}
+		return ev.setStringArrayFieldValue("dns.response.cnames", &ev.DNS.Response.CNames, value)
 	case "dns.response.code":
 		if ev.DNS.Response == nil {
 			ev.DNS.Response = &DNSResponse{}
 		}
 		return ev.setUint8FieldValue("dns.response.code", &ev.DNS.Response.ResponseCode, value)
+	case "dns.response.ips":
+		if ev.DNS.Response == nil {
+			ev.DNS.Response = &DNSResponse{}
+		}
+		switch rv := value.(type) {
+		case net.IPNet:
+			ev.DNS.Response.IPs = append(ev.DNS.Response.IPs, rv)
+		case []net.IPNet:
+			ev.DNS.Response.IPs = append(ev.DNS.Response.IPs, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "dns.response.ips"}
+		}
+		return nil
 	case "event.async":
 		return ev.setBoolFieldValue("event.async", &ev.Async, value)
 	case "event.hostname":
@@ -44532,6 +44914,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setUint32FieldValue("exec.pid", &ev.Exec.Process.PIDContext.Pid, value)
 	case "exec.ppid":
 		return ev.setUint32FieldValue("exec.ppid", &ev.Exec.Process.PIDContext.PPid, value)
+	case "exec.sid":
+		return ev.setUint32FieldValue("exec.sid", &ev.Exec.Process.PIDContext.SID, value)
 	case "exec.syscall.path":
 		return ev.setStringFieldValue("exec.syscall.path", &ev.Exec.SyscallContext.StrArg1, value)
 	case "exec.tid":
@@ -44875,6 +45259,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setUint32FieldValue("exit.pid", &ev.Exit.Process.PIDContext.Pid, value)
 	case "exit.ppid":
 		return ev.setUint32FieldValue("exit.ppid", &ev.Exit.Process.PIDContext.PPid, value)
+	case "exit.sid":
+		return ev.setUint32FieldValue("exit.sid", &ev.Exit.Process.PIDContext.SID, value)
 	case "exit.tid":
 		return ev.setUint32FieldValue("exit.tid", &ev.Exit.Process.PIDContext.Tid, value)
 	case "exit.tty_name":
@@ -45812,6 +46198,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setUint32FieldValue("process.ancestors.pid", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.PIDContext.Pid, value)
 	case "process.ancestors.ppid":
 		return ev.setUint32FieldValue("process.ancestors.ppid", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.PIDContext.PPid, value)
+	case "process.ancestors.sid":
+		return ev.setUint32FieldValue("process.ancestors.sid", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.PIDContext.SID, value)
 	case "process.ancestors.tid":
 		return ev.setUint32FieldValue("process.ancestors.tid", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.PIDContext.Tid, value)
 	case "process.ancestors.tty_name":
@@ -46445,6 +46833,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setUint32FieldValue("process.parent.pid", &ev.BaseEvent.ProcessContext.Parent.PIDContext.Pid, value)
 	case "process.parent.ppid":
 		return ev.setUint32FieldValue("process.parent.ppid", &ev.BaseEvent.ProcessContext.Parent.PIDContext.PPid, value)
+	case "process.parent.sid":
+		return ev.setUint32FieldValue("process.parent.sid", &ev.BaseEvent.ProcessContext.Parent.PIDContext.SID, value)
 	case "process.parent.tid":
 		return ev.setUint32FieldValue("process.parent.tid", &ev.BaseEvent.ProcessContext.Parent.PIDContext.Tid, value)
 	case "process.parent.tty_name":
@@ -46486,6 +46876,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setUint32FieldValue("process.pid", &ev.BaseEvent.ProcessContext.Process.PIDContext.Pid, value)
 	case "process.ppid":
 		return ev.setUint32FieldValue("process.ppid", &ev.BaseEvent.ProcessContext.Process.PIDContext.PPid, value)
+	case "process.sid":
+		return ev.setUint32FieldValue("process.sid", &ev.BaseEvent.ProcessContext.Process.PIDContext.SID, value)
 	case "process.tid":
 		return ev.setUint32FieldValue("process.tid", &ev.BaseEvent.ProcessContext.Process.PIDContext.Tid, value)
 	case "process.tty_name":
@@ -46829,6 +47221,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setUint32FieldValue("ptrace.tracee.ancestors.pid", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.PIDContext.Pid, value)
 	case "ptrace.tracee.ancestors.ppid":
 		return ev.setUint32FieldValue("ptrace.tracee.ancestors.ppid", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.PIDContext.PPid, value)
+	case "ptrace.tracee.ancestors.sid":
+		return ev.setUint32FieldValue("ptrace.tracee.ancestors.sid", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.PIDContext.SID, value)
 	case "ptrace.tracee.ancestors.tid":
 		return ev.setUint32FieldValue("ptrace.tracee.ancestors.tid", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.PIDContext.Tid, value)
 	case "ptrace.tracee.ancestors.tty_name":
@@ -47462,6 +47856,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setUint32FieldValue("ptrace.tracee.parent.pid", &ev.PTrace.Tracee.Parent.PIDContext.Pid, value)
 	case "ptrace.tracee.parent.ppid":
 		return ev.setUint32FieldValue("ptrace.tracee.parent.ppid", &ev.PTrace.Tracee.Parent.PIDContext.PPid, value)
+	case "ptrace.tracee.parent.sid":
+		return ev.setUint32FieldValue("ptrace.tracee.parent.sid", &ev.PTrace.Tracee.Parent.PIDContext.SID, value)
 	case "ptrace.tracee.parent.tid":
 		return ev.setUint32FieldValue("ptrace.tracee.parent.tid", &ev.PTrace.Tracee.Parent.PIDContext.Tid, value)
 	case "ptrace.tracee.parent.tty_name":
@@ -47503,6 +47899,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setUint32FieldValue("ptrace.tracee.pid", &ev.PTrace.Tracee.Process.PIDContext.Pid, value)
 	case "ptrace.tracee.ppid":
 		return ev.setUint32FieldValue("ptrace.tracee.ppid", &ev.PTrace.Tracee.Process.PIDContext.PPid, value)
+	case "ptrace.tracee.sid":
+		return ev.setUint32FieldValue("ptrace.tracee.sid", &ev.PTrace.Tracee.Process.PIDContext.SID, value)
 	case "ptrace.tracee.tid":
 		return ev.setUint32FieldValue("ptrace.tracee.tid", &ev.PTrace.Tracee.Process.PIDContext.Tid, value)
 	case "ptrace.tracee.tty_name":
@@ -48678,6 +49076,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
 		}
 		return ev.setUint32FieldValue("setrlimit.target.ancestors.ppid", &ev.Setrlimit.Target.Ancestor.ProcessContext.Process.PIDContext.PPid, value)
+	case "setrlimit.target.ancestors.sid":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setUint32FieldValue("setrlimit.target.ancestors.sid", &ev.Setrlimit.Target.Ancestor.ProcessContext.Process.PIDContext.SID, value)
 	case "setrlimit.target.ancestors.tid":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -50256,6 +50662,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Setrlimit.Target.Parent = &Process{}
 		}
 		return ev.setUint32FieldValue("setrlimit.target.parent.ppid", &ev.Setrlimit.Target.Parent.PIDContext.PPid, value)
+	case "setrlimit.target.parent.sid":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		return ev.setUint32FieldValue("setrlimit.target.parent.sid", &ev.Setrlimit.Target.Parent.PIDContext.SID, value)
 	case "setrlimit.target.parent.tid":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -50399,6 +50813,11 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Setrlimit.Target = &ProcessContext{}
 		}
 		return ev.setUint32FieldValue("setrlimit.target.ppid", &ev.Setrlimit.Target.Process.PIDContext.PPid, value)
+	case "setrlimit.target.sid":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		return ev.setUint32FieldValue("setrlimit.target.sid", &ev.Setrlimit.Target.Process.PIDContext.SID, value)
 	case "setrlimit.target.tid":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -51470,6 +51889,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
 		return ev.setUint32FieldValue("signal.target.ancestors.ppid", &ev.Signal.Target.Ancestor.ProcessContext.Process.PIDContext.PPid, value)
+	case "signal.target.ancestors.sid":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Ancestor == nil {
+			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setUint32FieldValue("signal.target.ancestors.sid", &ev.Signal.Target.Ancestor.ProcessContext.Process.PIDContext.SID, value)
 	case "signal.target.ancestors.tid":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -53048,6 +53475,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Signal.Target.Parent = &Process{}
 		}
 		return ev.setUint32FieldValue("signal.target.parent.ppid", &ev.Signal.Target.Parent.PIDContext.PPid, value)
+	case "signal.target.parent.sid":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Parent == nil {
+			ev.Signal.Target.Parent = &Process{}
+		}
+		return ev.setUint32FieldValue("signal.target.parent.sid", &ev.Signal.Target.Parent.PIDContext.SID, value)
 	case "signal.target.parent.tid":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -53191,6 +53626,11 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Signal.Target = &ProcessContext{}
 		}
 		return ev.setUint32FieldValue("signal.target.ppid", &ev.Signal.Target.Process.PIDContext.PPid, value)
+	case "signal.target.sid":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		return ev.setUint32FieldValue("signal.target.sid", &ev.Signal.Target.Process.PIDContext.SID, value)
 	case "signal.target.tid":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -53278,6 +53718,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setUint64FieldValue("signal.target.user_session.ssh_session_id", &ev.Signal.Target.Process.UserSession.SSHSessionContext.SSHSessionID, value)
 	case "signal.type":
 		return ev.setUint32FieldValue("signal.type", &ev.Signal.Type, value)
+	case "socket.domain":
+		return ev.setUint16FieldValue("socket.domain", &ev.Socket.Domain, value)
+	case "socket.protocol":
+		return ev.setUint16FieldValue("socket.protocol", &ev.Socket.Protocol, value)
+	case "socket.retval":
+		return ev.setInt64FieldValue("socket.retval", &ev.Socket.SyscallEvent.Retval, value)
+	case "socket.type":
+		return ev.setUint16FieldValue("socket.type", &ev.Socket.Type, value)
 	case "splice.file.change_time":
 		return ev.setUint64FieldValue("splice.file.change_time", &ev.Splice.File.FileFields.CTime, value)
 	case "splice.file.extension":

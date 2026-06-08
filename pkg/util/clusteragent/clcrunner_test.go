@@ -131,7 +131,7 @@ const (
 
 func (suite *clcRunnerSuite) SetupTest() {
 	os.Remove(suite.authTokenPath)
-	suite.conf.SetWithoutSource("cluster_agent.auth_token", clcRunnerTokenValue)
+	suite.conf.SetInTest("cluster_agent.auth_token", clcRunnerTokenValue)
 }
 
 func (suite *clcRunnerSuite) TestGetCLCRunnerStats() {

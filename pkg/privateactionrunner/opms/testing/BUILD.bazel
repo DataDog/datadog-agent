@@ -1,0 +1,14 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "testing",
+    srcs = ["fake_opms_client.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms/testing",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/privateactionrunner/opms",
+        "//pkg/privateactionrunner/types",
+        "//pkg/proto/pbgo/privateactionrunner/actionsclient",
+        "//pkg/proto/pbgo/privateactionrunner/errorcode",
+    ],
+)

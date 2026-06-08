@@ -9,7 +9,7 @@ package run
 
 import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 )
 
 func maybeSPLite(_ sysprobeconfig.Component, _ string, _ log.Component) *spLiteExecCmd {

@@ -18,7 +18,7 @@ go_test(
     name = "impl_test",
     srcs = ["logger_test.go"],
     embed = [":impl"],
-    gotags = ["test"],  # keep
+    gotags = ["test"],
     deps = [
         "//comp/core/log/def",
         "//comp/def",

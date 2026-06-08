@@ -326,6 +326,45 @@ func TestObfuscateConfig(t *testing.T) {
 	})
 }
 
+// TestObfuscateSpan_openSearchWhenElasticEnabledWithoutElasticBody documents a bug in
+// obfuscateSpanInternal: when both elasticsearch and opensearch JSON obfuscation are enabled,
+// the code returns early if elasticsearch.body is missing and never obfuscates opensearch.body.
+func TestObfuscateSpan_openSearchWhenElasticEnabledWithoutElasticBody(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	cfg := config.New()
+	cfg.Endpoints[0].APIKey = "test"
+	cfg.Obfuscation = &config.ObfuscationConfig{
+		ES:         obfuscate.JSONConfig{Enabled: true},
+		OpenSearch: obfuscate.JSONConfig{Enabled: true},
+	}
+	agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
+
+	raw := `{"role": "database"}`
+	want := `{"role":"?"}`
+	span := &pb.Span{
+		Type: "opensearch",
+		Meta: map[string]string{
+			"opensearch.body": raw,
+		},
+	}
+	agnt.ObfuscateSpan(span)
+	assert.Equal(t, want, span.Meta["opensearch.body"],
+		"opensearch.body should still be obfuscated when elasticsearch.body is absent")
+
+	t.Run("elasticsearch-span-type-same-bug", func(t *testing.T) {
+		span := &pb.Span{
+			Type: "elasticsearch",
+			Meta: map[string]string{
+				"opensearch.body": raw,
+			},
+		}
+		agnt.ObfuscateSpan(span)
+		assert.Equal(t, want, span.Meta["opensearch.body"],
+			"OpenSearch-instrumented spans may use type elasticsearch with only opensearch.body")
+	})
+}
+
 func SQLSpan(query string) *pb.Span {
 	return &pb.Span{
 		Resource: query,

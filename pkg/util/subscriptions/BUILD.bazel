@@ -17,7 +17,7 @@ go_test(
     name = "subscriptions_test",
     srcs = ["subscriptions_test.go"],
     embed = [":subscriptions"],
-    gotags = ["test"],  # keep - uses fxutil.Test which is behind //go:build test
+    gotags = ["test"],
     deps = [
         "//pkg/util/fxutil",
         "@com_github_stretchr_testify//require",

@@ -119,6 +119,10 @@ func TestOTelAgentDogtelSecretsStandalone(t *testing.T) {
 	t.Parallel()
 	e2e.Run(t, &dogtelSecretsTestSuite{},
 		e2e.WithProvisioner(dogtelSecretsStandaloneProvisioner()),
+		e2e.WithCoverageRequired(map[string]bool{
+			"agent":      false,
+			"otel-agent": true,
+		}),
 	)
 }
 

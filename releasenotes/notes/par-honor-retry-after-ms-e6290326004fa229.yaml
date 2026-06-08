@@ -1,0 +1,6 @@
+---
+enhancements:
+  - |
+    The Private Action Runner now honors the ``X-Retry-After-Ms`` response
+    header returned by the Datadog backend on workflow task dequeue and
+    health check requests.

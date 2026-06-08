@@ -1,0 +1,23 @@
+receivers:
+    otlp:
+
+exporters:
+    nop:
+
+extensions:
+    datadog/myname:
+        api:
+            key: user-supplied-key
+            site: datadoghq.eu
+
+service:
+    pipelines:
+        traces:
+            receivers: [nop]
+            exporters: [nop]
+        metrics:
+            receivers: [nop]
+            exporters: [nop]
+        logs:
+            receivers: [nop]
+            exporters: [nop]

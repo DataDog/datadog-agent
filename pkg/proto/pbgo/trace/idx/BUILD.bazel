@@ -1,4 +1,15 @@
 load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("//bazel/rules/write_pb_go:defs.bzl", "write_pb_go")
+
+write_pb_go(
+    name = "write_pb_go",
+    srcs = {
+        "//pkg/proto/datadog/trace/idx:idx_go_proto": [
+            "span.pb.go",
+            "tracer_payload.pb.go",
+        ],
+    },
+)
 
 go_library(
     name = "idx",
@@ -34,6 +45,6 @@ go_test(
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@com_github_tinylib_msgp//msgp",
-        "@com_github_vmihailenco_msgpack_v4//:msgpack",
+        "@com_github_vmihailenco_msgpack_v5//:msgpack",
     ],
 )

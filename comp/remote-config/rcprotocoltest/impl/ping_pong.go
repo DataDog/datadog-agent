@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"path"
 	"strconv"
+	"strings"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/config/remote/api"
@@ -40,8 +41,9 @@ func RunTransportTests(ctx context.Context, httpClient *api.HTTPClient, runCount
 	}
 
 	var wg sync.WaitGroup
-	wg.Add(3)
+	wg.Add(4)
 	go func() { defer wg.Done(); runWebSocketTest(ctx, httpClient, runCount) }()
+	go func() { defer wg.Done(); runWebSocketTestWithALPN(ctx, httpClient, runCount) }()
 	go func() { defer wg.Done(); runGrpcTest(ctx, httpClient, runCount) }()
 	go func() { defer wg.Done(); runTCPTest(ctx, httpClient) }()
 	wg.Wait()
@@ -93,12 +95,38 @@ func runWebSocketTest(ctx context.Context, httpClient *api.HTTPClient, runCount 
 		}
 	}()
 
-	n, err := runEchoLoop(ctx, httpClient, runCount)
+	n, err := runEchoLoop(ctx, httpClient, runCount, ALPNDefault)
 	if err != nil {
 		log.Debugf("websocket echo test failed: %s (%d data frames exchanged)", err, n)
 		return
 	}
 	log.Debugf("websocket echo test complete (%d data frames exchanged)", n)
+}
+
+func runWebSocketTestWithALPN(ctx context.Context, httpClient *api.HTTPClient, runCount uint64) {
+	defer func() {
+		if err := recover(); err != nil {
+			log.Warnf("unexpected websocket echo with ALPN connectivity test failure: %s", err)
+		}
+	}()
+
+	// ALPN requires TLS, check if TLS is enabled before running test.
+	baseURL, err := httpClient.BaseURL()
+	if err != nil {
+		log.Debugf("websocket echo test with ALPN failed to get base URL: %s", err)
+		return
+	}
+	if strings.ToLower(baseURL.Scheme) == "http" {
+		log.Debug("websocket echo test with ALPN skipped: TLS is disabled")
+		return
+	}
+
+	n, err := runEchoLoop(ctx, httpClient, runCount, ALPNDDRC)
+	if err != nil {
+		log.Debugf("websocket echo test with ALPN failed: %s (%d data frames exchanged)", err, n)
+		return
+	}
+	log.Debugf("websocket echo test with ALPN complete (%d data frames exchanged)", n)
 }
 
 func runGrpcTest(ctx context.Context, httpClient *api.HTTPClient, runCount uint64) {

@@ -1,15 +1,22 @@
 {
-  "type": "unsupported",
-  "operation": "any",
-  "argument": [
-    {
-      "ref": "collection"
+  "type": "any",
+  "operation": "",
+  "left": {
+    "type": "ref",
+    "ref": "collection",
+    "operation": "",
+    "error": ""
+  },
+  "right": {
+    "type": "isEmpty",
+    "operation": "",
+    "left": {
+      "type": "ref",
+      "ref": "@it",
+      "operation": "",
+      "error": ""
     },
-    {
-      "isEmpty": {
-        "ref": "@it"
-      }
-    }
-  ],
+    "error": ""
+  },
   "error": ""
 }

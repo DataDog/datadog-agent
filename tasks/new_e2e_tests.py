@@ -4,6 +4,7 @@ Running E2E Tests with infra based on Pulumi
 
 from __future__ import annotations
 
+import datetime
 import json
 import multiprocessing
 import os
@@ -22,6 +23,7 @@ from invoke.context import Context
 from invoke.exceptions import Exit
 from invoke.tasks import task
 
+from tasks.e2e_framework.deploy import get_pipeline_commit_sha
 from tasks.flavor import AgentFlavor
 from tasks.gotest import process_test_result, test_flavor
 from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
@@ -48,6 +50,67 @@ from tasks.testwasher import TestWasher
 from tasks.tools.e2e_stacks import destroy_remote_stack_api, destroy_remote_stack_local
 
 DEFAULT_DYNTEST_BUCKET_URI = "s3://dd-ci-persistent-artefacts-build-stable/datadog-agent"
+
+
+def _load_e2e_local_config():
+    """
+    Load ~/.test_infra_config.yaml. Returns the Config or None if absent / invalid.
+    Imported lazily so we don't pay the pydantic cost on unrelated invoke tasks.
+    """
+    try:
+        from tasks.e2e_framework import config as e2e_config
+
+        return e2e_config.get_local_config()
+    except Exception:
+        return None
+
+
+def _check_e2e_local_config_or_exit(
+    profile: str | None = None,
+    with_azure: bool = False,
+    with_gcp: bool = False,
+):
+    """
+    Pre-flight check for `dda inv new-e2e-tests.run` on a developer machine.
+
+    Fails fast with a single actionable line if ~/.test_infra_config.yaml is missing
+    or doesn't contain the fields the runner relies on. Skipped in CI (where config
+    comes from AWS SSM via the CI profile).
+
+    Prints a warning when Azure or GCP are not configured, because the test target
+    is not known until the test actually runs. Pass --with-azure / --with-gcp to
+    turn those warnings into hard errors.
+    """
+    if running_in_ci() or os.environ.get("E2E_PROFILE") == "ci" or profile == "ci":
+        return
+    cfg = _load_e2e_local_config()
+    aws = cfg.get_aws() if cfg is not None else None
+    if cfg is None or aws is None or not aws.keyPairName:
+        raise Exit(
+            "Local E2E config is missing or incomplete. "
+            "Run `dda inv e2e.setup` once to configure (~30s, opens an SSO browser flow).",
+            1,
+        )
+    azure_missing = cfg is None or cfg.configParams.azure is None
+    gcp_missing = cfg is None or cfg.configParams.gcp is None
+    if azure_missing:
+        msg = (
+            "Azure is not configured in ~/.test_infra_config.yaml. "
+            "Tests targeting Azure will fail. "
+            "Run `dda inv e2e.setup --with-azure` to configure it."
+        )
+        if with_azure:
+            raise Exit(msg, 1)
+        print(color_message(f"Warning: {msg}", "yellow"))
+    if gcp_missing:
+        msg = (
+            "GCP is not configured in ~/.test_infra_config.yaml. "
+            "Tests targeting GCP will fail. "
+            "Run `dda inv e2e.setup --with-gcp` to configure it."
+        )
+        if with_gcp:
+            raise Exit(msg, 1)
+        print(color_message(f"Warning: {msg}", "yellow"))
 
 
 class TestState:
@@ -358,6 +421,100 @@ def _download_prebuilt_binaries(ctx, s3_base_uri, targets):
     return True
 
 
+# Buffer subtracted from the remaining GitLab job time to derive the go test
+# timeout. It gives the test framework (TearDownSuite: pulumi destroy, cluster
+# state dump, dashboard URL log) a window to run after go test panics on its
+# own timeout and before GitLab kills the whole job.
+GO_TEST_CI_TIMEOUT_BUFFER_SECONDS = 5 * 60
+
+# Floor for the go test timeout: below this, attempting cleanup is pointless,
+# but we still want go test to exit with its own timeout (and stack dump)
+# rather than be killed mid-run by GitLab with no output.
+GO_TEST_MIN_TIMEOUT_SECONDS = 60
+
+# Fallback go test timeout when no GitLab CI timeout is available (local runs).
+DEFAULT_GO_TEST_TIMEOUT = "4h"
+
+
+def _format_go_duration(seconds: int) -> str:
+    """Format an integer number of seconds as a Go duration literal (e.g. "1h55m0s")."""
+    if seconds < 0:
+        seconds = 0
+    hours, remainder = divmod(seconds, 3600)
+    minutes, secs = divmod(remainder, 60)
+    return f"{hours}h{minutes}m{secs}s"
+
+
+def _ci_job_elapsed_seconds(now: datetime.datetime | None = None) -> int | None:
+    """Return seconds elapsed since the GitLab job started, or None when unknown.
+
+    Uses `CI_JOB_STARTED_AT` (ISO 8601 UTC) set by GitLab, so the value
+    accounts for `before_script` time and any earlier retry attempts within
+    the same job.
+    """
+    started_at = os.environ.get("CI_JOB_STARTED_AT")
+    if not started_at:
+        return None
+    try:
+        # GitLab uses trailing 'Z' for UTC; datetime.fromisoformat needs '+00:00'.
+        parsed = datetime.datetime.fromisoformat(started_at.replace("Z", "+00:00"))
+    except ValueError:
+        print(f"WARNING: CI_JOB_STARTED_AT={started_at!r} is not a valid ISO 8601 datetime")
+        return None
+    if now is None:
+        now = datetime.datetime.now(datetime.timezone.utc)
+    return int((now - parsed).total_seconds())
+
+
+def _compute_go_test_timeout(explicit: str | None, now: datetime.datetime | None = None) -> str:
+    """Resolve the value passed to `go test -timeout`.
+
+    Priority:
+      1. Explicit CLI value (`--timeout`).
+      2. Remaining GitLab job time (`CI_JOB_TIMEOUT` minus elapsed since
+         `CI_JOB_STARTED_AT`) minus a teardown buffer, so go test panics a
+         few minutes before GitLab kills the job and TearDownSuite can
+         complete.
+      3. Hardcoded fallback (`DEFAULT_GO_TEST_TIMEOUT`).
+    """
+    if explicit:
+        print(f"Using explicit go test timeout: {explicit}")
+        return explicit
+
+    ci_job_timeout = os.environ.get("CI_JOB_TIMEOUT")
+    if not ci_job_timeout:
+        return DEFAULT_GO_TEST_TIMEOUT
+    try:
+        job_seconds = int(ci_job_timeout)
+    except ValueError:
+        print(
+            f"WARNING: CI_JOB_TIMEOUT={ci_job_timeout!r} is not an integer, "
+            f"falling back to default go test timeout {DEFAULT_GO_TEST_TIMEOUT}"
+        )
+        return DEFAULT_GO_TEST_TIMEOUT
+
+    elapsed = _ci_job_elapsed_seconds(now=now) or 0
+    remaining = job_seconds - elapsed
+    go_seconds = remaining - GO_TEST_CI_TIMEOUT_BUFFER_SECONDS
+
+    if go_seconds < GO_TEST_MIN_TIMEOUT_SECONDS:
+        print(
+            f"WARNING: only {remaining}s left in the GitLab job (CI_JOB_TIMEOUT={job_seconds}s, "
+            f"elapsed={elapsed}s); the {GO_TEST_CI_TIMEOUT_BUFFER_SECONDS}s teardown buffer does "
+            f"not fit. Clamping go test timeout to {GO_TEST_MIN_TIMEOUT_SECONDS}s — cleanup may "
+            f"not finish before GitLab kills the job."
+        )
+        return _format_go_duration(GO_TEST_MIN_TIMEOUT_SECONDS)
+
+    go_timeout = _format_go_duration(go_seconds)
+    print(
+        f"Derived go test timeout from remaining GitLab job time "
+        f"(CI_JOB_TIMEOUT={job_seconds}s, elapsed={elapsed}s, "
+        f"buffer={GO_TEST_CI_TIMEOUT_BUFFER_SECONDS}s): {go_timeout}"
+    )
+    return go_timeout
+
+
 @task(
     iterable=['tags', 'targets', 'configparams', 'run', 'skip'],
     help={
@@ -375,6 +532,8 @@ def _download_prebuilt_binaries(ctx, s3_base_uri, targets):
         "max_retries": "Maximum number of retries for failed tests, default 3",
         "impacted": "Only run tests that are impacted by the changes (only available in CI for now)",
         "keep_stack": "Keep the stack after running the test, you are responsible for destroying the stack later.",
+        "timeout": "Go test timeout (Go duration string, e.g. '1h55m'). Defaults to CI_JOB_TIMEOUT minus a teardown buffer when running in GitLab CI, otherwise to 4h.",
+        "pipeline_id": "GitLab pipeline ID to use; the commit SHA is automatically fetched from this pipeline for container-based tests",
     },
 )
 def run(
@@ -410,6 +569,8 @@ def run(
     osdescriptors="",
     module_name="test/new-e2e",
     recursive=True,
+    timeout="",
+    pipeline_id="",
 ):
     """
     Run E2E Tests based on test-infra-definitions infrastructure provisioning.
@@ -422,6 +583,9 @@ def run(
             "pulumi CLI not found, Pulumi needs to be installed on the system (see https://github.com/DataDog/datadog-agent/blob/main/test/e2e-framework/README.md)",
             1,
         )
+
+    _check_e2e_local_config_or_exit(profile)
+    local_e2e_cfg = _load_e2e_local_config()
 
     e2e_module = get_default_modules()[module_name]
 
@@ -453,6 +617,15 @@ def run(
     env_vars = {}
     if profile:
         env_vars["E2E_PROFILE"] = profile
+
+    # Export PULUMI_CONFIG_PASSPHRASE from local config when not already set in the
+    # environment. Lets developers run E2E without putting the passphrase in their rc.
+    if "PULUMI_CONFIG_PASSPHRASE" not in os.environ and local_e2e_cfg is not None:
+        from tasks.e2e_framework.config import get_pulumi_passphrase
+
+        passphrase = get_pulumi_passphrase(local_e2e_cfg)
+        if passphrase:
+            env_vars["PULUMI_CONFIG_PASSPHRASE"] = passphrase
 
     parsed_params = {}
 
@@ -492,7 +665,25 @@ def run(
         env_vars["E2E_IMAGE_PULL_REGISTRY"] = ",".join(registries)
         env_vars["E2E_IMAGE_PULL_USERNAME"] = ",".join(usernames)
         env_vars["E2E_IMAGE_PULL_PASSWORD"] = ",".join(passwords)
-    if not running_in_ci():
+    # resolved_commit_sha is the short SHA used for containers.GitCommit; start from local HEAD
+    resolved_commit_sha = get_commit_sha(ctx, short=True)
+
+    if pipeline_id:
+        # Explicit pipeline ID: fetch its commit SHA and wire up env vars directly
+        print(color_message(f"Using pipeline {pipeline_id}...", "blue"))
+        pipeline_commit_sha = get_pipeline_commit_sha(pipeline_id)
+        if pipeline_commit_sha:
+            resolved_commit_sha = pipeline_commit_sha
+            print(color_message(f"Fetched commit SHA {resolved_commit_sha} from pipeline {pipeline_id}", "blue"))
+        else:
+            print(
+                color_message(
+                    f"Could not fetch commit SHA for pipeline {pipeline_id}, falling back to local HEAD", "yellow"
+                )
+            )
+        env_vars["E2E_PIPELINE_ID"] = pipeline_id
+        env_vars["E2E_COMMIT_SHA"] = resolved_commit_sha
+    elif not running_in_ci():
         # Auto-detect pipeline ID and commit SHA for local runs if not already set
         if "E2E_PIPELINE_ID" not in os.environ:
             print(
@@ -507,11 +698,16 @@ def run(
             commit_sha = get_commit_sha(ctx)
             short_commit_sha = get_commit_sha(ctx, short=True)
             print(color_message(f"Auto-detecting pipeline for commit {short_commit_sha}...", "blue"))
-            pipeline_id = _find_pipeline_for_commit_sha(ctx, commit_sha)
-            if pipeline_id:
-                print(color_message(f"Auto-detected pipeline {pipeline_id} for commit {short_commit_sha}", "blue"))
-                env_vars["E2E_PIPELINE_ID"] = pipeline_id
+            detected_pipeline_id = _find_pipeline_for_commit_sha(ctx, commit_sha)
+            if detected_pipeline_id:
+                print(
+                    color_message(
+                        f"Auto-detected pipeline {detected_pipeline_id} for commit {short_commit_sha}", "blue"
+                    )
+                )
+                env_vars["E2E_PIPELINE_ID"] = detected_pipeline_id
                 env_vars["E2E_COMMIT_SHA"] = short_commit_sha
+                resolved_commit_sha = short_commit_sha
             else:
                 print(
                     color_message(
@@ -586,6 +782,7 @@ def run(
         )
 
     cmd += f'{{junit_file_flag}} {{json_flag}} --packages="{{packages}}" {raw_command} -- -ldflags="-X {{REPO_PATH}}/test/new-e2e/tests/containers.GitCommit={{commit}}" {{verbose}} -mod={{go_mod}} -vet=off -timeout {{timeout}} -tags "{{go_build_tags}}" {{nocache}} {{run}} {{skip}} {{test_run_arg}} -args {{osdescriptors}} {{flavor}} {{cws_supported_osdescriptors}} {{src_agent_version}} {{dest_agent_version}} {{extra_flags}}'
+
     # Strinbuilt_binaries:gs can come with extra double-quotes which can break the command, remove them
     clean_run = []
     clean_skip = []
@@ -596,11 +793,13 @@ def run(
 
     args = {
         "go_mod": "readonly",
-        "timeout": "4h",
+        # Set per-attempt inside the retry loop so each attempt reflects the
+        # remaining GitLab job budget.
+        "timeout": "",
         "verbose": "-test.v" if verbose else "",
         "nocache": "-test.count=1" if not cache else "",
         "REPO_PATH": REPO_PATH,
-        "commit": get_commit_sha(ctx, short=True),
+        "commit": resolved_commit_sha,
         "run": '-test.run ' + '"{}"'.format('|'.join(clean_run)) if run else '',
         "skip": '-test.skip ' + '"{}"'.format('|'.join(clean_skip)) if skip else '',
         "test_run_arg": test_run_arg,
@@ -618,6 +817,10 @@ def run(
     result_jsons: list[str] = []
     result_junits: list[str] = []
     for attempt in range(max_retries + 1):
+        # Recomputed each attempt because retries eat into the GitLab job
+        # budget; a stale value would overshoot the kill deadline.
+        args["timeout"] = _compute_go_test_timeout(timeout)
+
         remaining_tries = max_retries - attempt
         if remaining_tries > 0:
             # If any tries are left, avoid destroying infra on failure
@@ -730,7 +933,7 @@ def run(
             with open(partial_file) as f:
                 merged_file.writelines(line.strip() + "\n" for line in f.readlines())
 
-    success = process_test_result(
+    success, _ = process_test_result(
         ctx, test_res, junit_tar, result_junits, AgentFlavor.base, test_washer, test_system="e2e"
     )
 
@@ -1248,6 +1451,10 @@ def _destroy_stack(ctx: Context, stack: str):
                     ),
                     1,
                 )
+            if "no previous deployment" in ret.stderr:
+                # Stack was created but never had a successful up; no resources to destroy.
+                print(f"Stack {stack} has no previous deployment, skipping destroy")
+                return
             # run with refresh on first destroy attempt failure
             ret = ctx.run(
                 f"pulumi destroy --stack {stack} -r --yes --remove --skip-preview",
@@ -1748,3 +1955,20 @@ def setup_env(ctx, fmt="bash", build="pipeline", prefix=None, pkg=None, branch=N
     else:  # bash
         for key, value in env_vars.items():
             print(f'export {key}="{value}"')
+
+
+@task(
+    help={
+        "input": "Path to a test2json JSONL file produced by a Go e2e test run",
+    }
+)
+def print_utof_report(ctx, input):
+    """Print the UTOF report that would be generated from an e2e test output JSON file."""
+    from tasks.libs.testing.result_json import ResultJson
+    from tasks.libs.testing.utof import format_report
+    from tasks.libs.testing.utof.go.e2e import convert_e2e_test_results, generate_metadata
+
+    result_json = ResultJson.from_file(input)
+    metadata = generate_metadata(ctx, test_system="e2e")
+    doc = convert_e2e_test_results(ctx, result_json, metadata=metadata)
+    print(format_report(doc))

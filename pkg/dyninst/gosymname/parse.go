@@ -454,8 +454,16 @@ func buildInterpretations(s *Symbol) {
 // allocation for small segment counts.
 func decomposeChain(dst []segment, local string) []segment {
 	segments := dst
+	prev := -1
 	i := 0
 	for i < len(local) {
+		if i == prev {
+			// Defensive: every branch below must advance i. If a future
+			// change introduces a non-advancing path, panic loudly rather
+			// than spin forever.
+			panic("gosymname: decomposeChain failed to advance at " + local[i:])
+		}
+		prev = i
 		// Skip leading dots between segments.
 		if local[i] == '.' {
 			i++
@@ -597,7 +605,11 @@ func parsePtrRecvSegment(local string, start int) (segment, int) {
 			i = bracketEnd + 1
 			break
 		}
-		if local[i] == '.' || local[i] == '-' {
+		if local[i] == '.' {
+			methName = local[methStart:i]
+			break
+		}
+		if local[i] == '-' && i > methStart && isWrapperSuffixStart(local, i) {
 			methName = local[methStart:i]
 			break
 		}
@@ -661,12 +673,34 @@ func parseNameSegment(local string, start int) (string, *GenericParams, int) {
 			}
 			return name, gen, bracketEnd + 1
 		}
-		if local[i] == '.' || local[i] == '-' {
+		if local[i] == '.' {
+			return local[start:i], nil, i
+		}
+		// A '-' terminates the name only when it introduces a recognized
+		// suffix (-range, -fm). Otherwise it is part of the identifier, e.g.
+		// an embedded import path containing a module name like "antlr4-go".
+		if local[i] == '-' && i > start && isWrapperSuffixStart(local, i) {
 			return local[start:i], nil, i
 		}
 		i++
 	}
 	return local[start:i], nil, i
+}
+
+// isWrapperSuffixStart reports whether the '-' at position i introduces one
+// of the recognised wrapper suffixes handled by decomposeChain (-rangeN or
+// -fm[.]).
+func isWrapperSuffixStart(local string, i int) bool {
+	rest := local[i+1:]
+	if strings.HasPrefix(rest, "range") {
+		end := i + 1 + len("range")
+		return end < len(local) && local[end] >= '0' && local[end] <= '9'
+	}
+	if strings.HasPrefix(rest, "fm") {
+		end := i + 1 + len("fm")
+		return end >= len(local) || local[end] == '.'
+	}
+	return false
 }
 
 // splitClosureChain separates trailing closure/nesting/wrapper segments from

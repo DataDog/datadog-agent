@@ -173,6 +173,7 @@
   before_script:
     - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
     - !reference [.retrieve_linux_go_deps]
+    - !reference [.retrieve_linux_go_tools_deps]
     - !reference [.retrieve_linux_go_e2e_deps]
     - !reference [.retrieve_linux_pulumi_plugins]
     - !reference [.kmt_new_profile]

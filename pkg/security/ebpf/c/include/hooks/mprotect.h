@@ -17,7 +17,7 @@ HOOK_SYSCALL_ENTRY0(mprotect) {
         .policy = policy,
     };
 
-    cache_syscall(&syscall);
+    cache_syscall_update_cgroup(ctx, &syscall);
     return 0;
 }
 

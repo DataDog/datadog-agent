@@ -637,14 +637,21 @@ static PyObject *set_external_tags(PyObject *self, PyObject *args)
     char *hostname = NULL;
     char *source_type = NULL;
     // We already PyList_Check input_list, so PyList_Size won't fail and return -1
-    int input_len = PyList_Size(input_list);
-    int i;
+    Py_ssize_t input_len = PyList_Size(input_list);
+    Py_ssize_t i;
     for (i = 0; i < input_len; i++) {
         PyObject *tuple = PyList_GetItem(input_list, i);
 
         // list must contain only tuples in form ('hostname', {'source_type': ['tag1', 'tag2']},)
         if (!PyTuple_Check(tuple)) {
             PyErr_SetString(PyExc_TypeError, "external host tags list must contain only tuples");
+            error = 1;
+            goto done;
+        }
+
+        // PyTuple_GetItem returns NULL for an out-of-range index
+        if (PyTuple_Size(tuple) < 2) {
+            PyErr_SetString(PyExc_TypeError, "external host tags tuple must have at least 2 elements");
             error = 1;
             goto done;
         }
@@ -691,15 +698,24 @@ static PyObject *set_external_tags(PyObject *self, PyObject *args)
         // allocate an array of char* to store the tags we'll send to the Go function
         char **tags;
         // We already PyList_Check value, so PyList_Size won't fail and return -1
-        int tags_len = PyList_Size(value);
-        if (!(tags = (char **)_malloc(sizeof(*tags) * tags_len + 1))) {
+        Py_ssize_t tags_len = PyList_Size(value);
+        // Sanity-check tags_len and guard the allocation size against overflow
+        if (tags_len < 0 || (size_t)tags_len > SIZE_MAX / sizeof(*tags) - 1) {
+            PyErr_SetString(PyExc_OverflowError, "tag list too large");
+            error = 1;
+            goto done;
+        }
+        // +1 slot for the trailing NULL sentinel; the Go side walks the array
+        // until it hits NULL. Parentheses around (tags_len + 1) are required —
+        // without them, operator precedence adds 1 byte instead of 1 pointer slot.
+        if (!(tags = (char **)_malloc(sizeof(*tags) * (tags_len + 1)))) {
             PyErr_SetString(PyExc_MemoryError, "unable to allocate memory, bailing out");
             error = 1;
             goto done;
         }
 
         // copy the list of tags into an array of char*
-        int j, actual_size = 0;
+        Py_ssize_t j, actual_size = 0;
         for (j = 0; j < tags_len; j++) {
             PyObject *s = PyList_GetItem(value, j);
             if (s == NULL) {

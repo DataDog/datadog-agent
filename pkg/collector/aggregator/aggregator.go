@@ -160,7 +160,7 @@ func SubmitHistogramBucket(checkID *C.char, metricName *C.char, value C.longlong
 	_tags := CStringArrayToSlice(unsafe.Pointer(tags))
 	_flushFirstValue := bool(flushFirstValue)
 
-	sender.HistogramBucket(_name, _value, _lowerBound, _upperBound, _monotonic, _hostname, _tags, _flushFirstValue)
+	sender.OpenmetricsBucket(_name, _value, _lowerBound, _upperBound, _monotonic, _hostname, _tags, _flushFirstValue)
 }
 
 // SubmitEventPlatformEvent is the method exposed to scripts to submit event platform events

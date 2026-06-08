@@ -19,15 +19,15 @@
           "location": {
             "method": "main.intSliceArg"
           }
-        }
+        },
+        "evaluationErrors": [
+          {
+            "expr": "s[5]",
+            "message": "index out of bounds"
+          }
+        ]
       },
-      "type": "snapshot",
-      "evaluationErrors": [
-        {
-          "expr": "s[5]",
-          "message": "index out of bounds"
-        }
-      ]
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
     "duration": "[duration]",

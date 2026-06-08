@@ -48,6 +48,13 @@ func (c *ddConverter) enhanceConfig(ctx context.Context, conf *confmap.Conf) {
 			if c.coreConfig == nil || c.coreConfig.GetString("api_key") == "" {
 				continue
 			}
+			// User already defined a datadog extension but forgot to wire it into
+			// service.extensions — reuse their definition instead of creating a
+			// second datadog/dd-autoconfigured.
+			if existingID := findExistingExtensionID(conf, datadogName); existingID != "" {
+				wireExtensionIDToPipeline(conf, existingID)
+				continue
+			}
 			site := defaultSite
 			if c.coreConfig.GetString("site") != "" {
 				site = c.coreConfig.GetString("site")

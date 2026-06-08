@@ -300,6 +300,24 @@ func (t *Tester) testCurrentVersionExpectations(tt *testing.T) {
 		}
 	})
 
+	tt.Run("config files contain template comments", func(tt *testing.T) {
+		// Verify that config files created by the MSI contain the commented-out
+		// example options from the .example templates, not just bare keys.
+		configTemplateMarkers := map[string]string{
+			"datadog.yaml":        "## Basic Configuration ##",
+			"system-probe.yaml":   "## System Probe Configuration ##",
+			"security-agent.yaml": "## Runtime Security configuration ##",
+		}
+		for configFile, marker := range configTemplateMarkers {
+			configPath := filepath.Join(t.expectedConfigRoot, configFile)
+			content, err := t.host.ReadFile(configPath)
+			if assert.NoError(tt, err, "should read %s", configFile) {
+				assert.Contains(tt, string(content), marker,
+					"%s should contain template comments from %s.example", configFile, configFile)
+			}
+		}
+	})
+
 	tt.Run("creates bin files", func(tt *testing.T) {
 		expected := getExpectedBinFilesForAgentMajorVersion(t.expectedAgentMajorVersion)
 		for _, binPath := range expected {

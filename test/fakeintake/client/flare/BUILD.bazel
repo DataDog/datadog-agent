@@ -1,0 +1,12 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "flare",
+    srcs = [
+        "flare.go",
+        "parse_flare.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/test/fakeintake/client/flare",
+    visibility = ["//visibility:public"],
+    deps = ["//test/fakeintake/api"],
+)

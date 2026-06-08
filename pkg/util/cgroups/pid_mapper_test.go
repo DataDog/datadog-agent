@@ -170,6 +170,13 @@ func TestProcPidMapperCgroupV1(t *testing.T) {
 var (
 	cgroupV2ProcCgroup       = `0::/kubepods/burstable/pod15513b48-e7a5-48fc-b9e3-92f713f36504/a51a9f7d073f848e7fc59e56e8f11524f330a2175a4ed26327da2dfe0d28015f`
 	cgroupV2ProcCgroupNoHost = `0::../../../kubepods-burstable.slice/kubepods-burstable-pod562c01d6_6aba_49fe_ae52_61c40c04eca4.slice/docker-a51a9f7d073f848e7fc59e56e8f11524f330a2175a4ed26327da2dfe0d28015f.scope`
+
+	// Process inside a CrowdStrike Falcon sensor.falcon sub-cgroup on ECS EC2 (CONS-7614).
+	ecsEC2CgroupV2WithSubcgroup = `1:name=systemd:/
+0::/ecstasks.slice/ecstasks-bd5dac18533047b7a4bec4dea5ec093e.slice/docker-a0ed0e6f571da05d4ef63f0fee3511b670aef5b05d380369c05aa1ec30d3a2d0.scope/sensor.falcon`
+	cgroupV2KubePodsWithSubcgroup = `0::/kubepods/burstable/pod15513b48-e7a5-48fc-b9e3-92f713f36504/a51a9f7d073f848e7fc59e56e8f11524f330a2175a4ed26327da2dfe0d28015f/sensor.falcon`
+
+	dindCgroupV2WithSubcgroup = `0::/docker/88ea268ece65a02d68b169fd74bcbcb427eb7f28900db0e3b906fb2eeb7341df/kubelet/kubepods/burstable/poda5ea884f-9e60-4912-bd62-fef9a31db47a/a51a9f7d073f848e7fc59e56e8f11524f330a2175a4ed26327da2dfe0d28015e/sensor.falcon`
 )
 
 func TestProcPidMapperCgroupV2(t *testing.T) {
@@ -206,32 +213,58 @@ func TestIdentiferFromCgroupReferences(t *testing.T) {
 	tests := []struct {
 		name        string
 		fileContent string
+		controller  string
 		expectedID  string
 	}{
 		{
 			name:        "cgroup v1",
 			fileContent: cgroupV1ProcCgroup,
+			controller:  defaultBaseController,
 			expectedID:  "a51a9f7d073f848e7fc59e56e8f11524f330a2175a4ed26327da2dfe0d28015f",
 		},
 		{
 			name:        "cgroup v1 with colons",
 			fileContent: cgroupV1ProcCgroupWithColons,
+			controller:  defaultBaseController,
 			expectedID:  "1c8f503430973935b7d8a80c4f58c0946b052a021e6855b358e5ec38601af120",
 		},
 		{
 			name:        "docker in docker",
 			fileContent: dindProcCgroup,
+			controller:  defaultBaseController,
 			expectedID:  "a51a9f7d073f848e7fc59e56e8f11524f330a2175a4ed26327da2dfe0d28015e",
 		},
 		{
 			name:        "ecs fargate",
 			fileContent: ecsFargateCgroup,
+			controller:  defaultBaseController,
 			expectedID:  "8474ac4cec7a4f488834b00591271ec3-3054012820",
 		},
 		{
 			name:        "ecs fargate shorter",
 			fileContent: ecsFargateCgroupShort,
+			controller:  defaultBaseController,
 			expectedID:  "0520ecd8e4194fd48309d1ae6eec92ec-946514567",
+		},
+		{
+			// Reproduces CONS-7614
+			name:        "cgroupv2 ECS EC2 systemd scope with sensor.falcon sub-cgroup",
+			fileContent: ecsEC2CgroupV2WithSubcgroup,
+			controller:  "",
+			expectedID:  "a0ed0e6f571da05d4ef63f0fee3511b670aef5b05d380369c05aa1ec30d3a2d0",
+		},
+		{
+			// Reproduces CONS-7614
+			name:        "cgroupv2 kubepods bare hex with sensor.falcon sub-cgroup",
+			fileContent: cgroupV2KubePodsWithSubcgroup,
+			controller:  "",
+			expectedID:  "a51a9f7d073f848e7fc59e56e8f11524f330a2175a4ed26327da2dfe0d28015f",
+		},
+		{
+			name:        "cgroupv2 docker-in-docker with sensor.falcon sub-cgroup picks innermost",
+			fileContent: dindCgroupV2WithSubcgroup,
+			controller:  "",
+			expectedID:  "a51a9f7d073f848e7fc59e56e8f11524f330a2175a4ed26327da2dfe0d28015e",
 		},
 	}
 
@@ -243,7 +276,7 @@ func TestIdentiferFromCgroupReferences(t *testing.T) {
 			require.NoErrorf(t, os.MkdirAll(procPIDPath, 0o750), "impossible to create temp directory '%s'", procPath)
 			require.NoError(t, os.WriteFile(filepath.Join(procPIDPath, "cgroup"), []byte(test.fileContent), 0o640))
 
-			id, err := IdentiferFromCgroupReferences(procPath, "123", defaultBaseController, ContainerFilter)
+			id, err := IdentiferFromCgroupReferences(procPath, "123", test.controller, ContainerFilter)
 			require.NoError(t, err)
 			assert.Equal(t, test.expectedID, id)
 		})

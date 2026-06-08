@@ -165,10 +165,10 @@ func testSymdbManagerCancellation(t *testing.T, useStop bool) {
 		symdbURL,
 		object.NewInMemoryLoader(),
 		"", /* cacheDir - no cache */
-		// Use a small buffer (which will force a flush after every package)
-		// in order to have an opportunity to cancel the uploads in between
-		// flushes.
-		withMaxBufferFuncs(1),
+		// Use a flush threshold of 0 (which will force a flush after every
+		// package) in order to have an opportunity to cancel the uploads in
+		// between flushes.
+		withFlushThresholdBytes(0),
 	)
 	t.Cleanup(manager.stop)
 	// Create a dummy runtime ID

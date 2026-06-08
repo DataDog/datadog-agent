@@ -13,6 +13,17 @@
 #include <stdint.h>
 
 /**
+ * Callback type used to forward Rust log records to the Go logging subsystem.
+ *
+ * Parameters:
+ * - `level`: severity — 1=Error, 2=Warn, 3=Info, 4=Debug, 5=Trace.
+ * - `msg` / `msg_len`: UTF-8 log message (NOT NUL-terminated).
+ *
+ * The pointer is only valid for the duration of the call; do not retain it.
+ */
+typedef void (*dd_log_fn)(uint32_t level, const char *msg, size_t msg_len);
+
+/**
  * Length-delimited byte string — avoids NUL-termination so the Go caller
  * can use `C.GoStringN(data, len)` directly without `strlen`.
  * NULL `data` with `len == 0` represents an absent/empty value.
@@ -88,6 +99,20 @@ struct dd_discovery_result {
   int32_t *gpu_pids;
   size_t gpu_pids_len;
 };
+
+/**
+ * Register a Go logging callback. Idempotent: only the first call has effect;
+ * subsequent calls (e.g. from racing goroutines at start-up) are ignored.
+ *
+ * All records are forwarded to the callback regardless of severity. Filtering
+ * is applied on the Go side, which lets `agent config set log_level` take
+ * effect at runtime without re-initialising the bridge.
+ *
+ * # Safety
+ * `callback` must be a valid function pointer that remains valid for the
+ * lifetime of the process.
+ */
+void dd_discovery_init_logger(dd_log_fn callback);
 
 /**
  * Run service discovery and return a heap-allocated result.

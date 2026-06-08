@@ -33,6 +33,26 @@ func confFromYAML(t *testing.T, yamlConfig string) pkgconfigmodel.BuildableConfi
 	return conf
 }
 
+// can be used to ensure proxy tests are isolated from proxy env vars set by CI
+func unsetProxyEnvForTest(t *testing.T) {
+	t.Helper()
+
+	for _, key := range []string{
+		"DD_PROXY_HTTP",
+		"DD_PROXY_HTTPS",
+		"DD_PROXY_NO_PROXY",
+		"HTTP_PROXY",
+		"HTTPS_PROXY",
+		"NO_PROXY",
+		"http_proxy",
+		"https_proxy",
+		"no_proxy",
+	} {
+		t.Setenv(key, "")
+		require.NoError(t, os.Unsetenv(key))
+	}
+}
+
 func TestDefaults(t *testing.T) {
 	config := newTestConf(t)
 
@@ -49,6 +69,9 @@ func TestDefaults(t *testing.T) {
 		"hint_frequency": 60,
 		"interval":       4 * time.Hour,
 	}, config.GetStringMap("process_config.process_discovery"))
+
+	assert.True(t, config.GetBool("logs_config.tag_multi_line_logs"))
+	assert.True(t, config.GetBool("logs_config.tag_truncated_logs"))
 }
 
 func TestUnexpectedUnicode(t *testing.T) {
@@ -134,7 +157,7 @@ b:
 	slices.Sort(res)
 	assert.Equal(t, []string{"aa", "b.c.d"}, res)
 
-	conf.SetWithoutSource("a", 12)
+	conf.SetInTest("a", 12)
 	res = findUnknownKeys(conf)
 	slices.Sort(res)
 	assert.Equal(t, []string{"aa", "b.c.d"}, res)
@@ -145,7 +168,7 @@ b:
 	slices.Sort(res)
 	assert.Equal(t, []string{"aa"}, res)
 
-	conf.SetWithoutSource("unknown_key.unknown_subkey", "true")
+	conf.SetInTest("unknown_key.unknown_subkey", "true")
 	res = findUnknownKeys(conf)
 	slices.Sort(res)
 	assert.Equal(t, []string{"aa", "unknown_key.unknown_subkey"}, res)
@@ -229,9 +252,9 @@ func TestProxy(t *testing.T) {
 		{
 			name: "from configuration",
 			setup: func(_ *testing.T, config pkgconfigmodel.Config) {
-				config.SetWithoutSource("proxy.http", expectedProxy.HTTP)
-				config.SetWithoutSource("proxy.https", expectedProxy.HTTPS)
-				config.SetWithoutSource("proxy.no_proxy", expectedProxy.NoProxy)
+				config.SetInTest("proxy.http", expectedProxy.HTTP)
+				config.SetInTest("proxy.https", expectedProxy.HTTPS)
+				config.SetInTest("proxy.no_proxy", expectedProxy.NoProxy)
 			},
 			tests: func(t *testing.T, config pkgconfigmodel.Config) {
 				assert.Equal(t, expectedProxy, config.GetProxies())
@@ -323,8 +346,8 @@ func TestProxy(t *testing.T) {
 			name: "from UNIX env vars and conf",
 			setup: func(t *testing.T, config pkgconfigmodel.Config) {
 				t.Setenv("HTTP_PROXY", "http_env")
-				config.SetWithoutSource("proxy.no_proxy", []string{"d", "e", "f"})
-				config.SetWithoutSource("proxy.http", "http_conf")
+				config.SetInTest("proxy.no_proxy", []string{"d", "e", "f"})
+				config.SetInTest("proxy.http", "http_conf")
 			},
 			tests: func(t *testing.T, config pkgconfigmodel.Config) {
 				assert.Equal(t,
@@ -341,8 +364,8 @@ func TestProxy(t *testing.T) {
 			name: "from DD env vars and conf",
 			setup: func(t *testing.T, config pkgconfigmodel.Config) {
 				t.Setenv("DD_PROXY_HTTP", "http_env")
-				config.SetWithoutSource("proxy.no_proxy", []string{"d", "e", "f"})
-				config.SetWithoutSource("proxy.http", "http_conf")
+				config.SetInTest("proxy.no_proxy", []string{"d", "e", "f"})
+				config.SetInTest("proxy.http", "http_conf")
 			},
 			tests: func(t *testing.T, config pkgconfigmodel.Config) {
 				assert.Equal(t,
@@ -363,7 +386,7 @@ func TestProxy(t *testing.T) {
 				t.Setenv("HTTP_PROXY", "env_http_url")
 				t.Setenv("HTTPS_PROXY", "")
 				t.Setenv("NO_PROXY", "")
-				config.SetWithoutSource("proxy.https", "https_conf")
+				config.SetInTest("proxy.https", "https_conf")
 			},
 			tests: func(t *testing.T, config pkgconfigmodel.Config) {
 				assert.Equal(t,
@@ -430,9 +453,10 @@ func TestProxy(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
+			unsetProxyEnvForTest(t)
 
 			config := newTestConf(t)
-			config.SetWithoutSource("use_proxy_for_cloud_metadata", c.proxyForCloudMetadata)
+			config.SetInTest("use_proxy_for_cloud_metadata", c.proxyForCloudMetadata)
 
 			path := t.TempDir()
 			configPath := filepath.Join(path, "empty_conf.yaml")
@@ -518,7 +542,7 @@ func TestDatabaseMonitoringAurora(t *testing.T) {
 		{
 			name: "default auto discovery is enabled from configuration",
 			setup: func(_ *testing.T, config pkgconfigmodel.Config) {
-				config.SetWithoutSource("database_monitoring.autodiscovery.aurora.enabled", true)
+				config.SetInTest("database_monitoring.autodiscovery.aurora.enabled", true)
 			},
 			tests: func(t *testing.T, config pkgconfigmodel.Config) {
 				assert.True(t, config.GetBool("database_monitoring.autodiscovery.aurora.enabled"))
@@ -530,12 +554,12 @@ func TestDatabaseMonitoringAurora(t *testing.T) {
 		{
 			name: "auto discovery interval and tags are set from configuration",
 			setup: func(_ *testing.T, config pkgconfigmodel.Config) {
-				config.SetWithoutSource("database_monitoring.autodiscovery.aurora.enabled", true)
-				config.SetWithoutSource("database_monitoring.autodiscovery.aurora.discovery_interval", 10)
-				config.SetWithoutSource("database_monitoring.autodiscovery.aurora.query_timeout", 4)
-				config.SetWithoutSource("database_monitoring.autodiscovery.aurora.tags", []string{"foo:bar"})
-				config.SetWithoutSource("database_monitoring.autodiscovery.aurora.dbm_tag", "usedbm")
-				config.SetWithoutSource("database_monitoring.autodiscovery.aurora.global_view_db_tag", "dbtag")
+				config.SetInTest("database_monitoring.autodiscovery.aurora.enabled", true)
+				config.SetInTest("database_monitoring.autodiscovery.aurora.discovery_interval", 10)
+				config.SetInTest("database_monitoring.autodiscovery.aurora.query_timeout", 4)
+				config.SetInTest("database_monitoring.autodiscovery.aurora.tags", []string{"foo:bar"})
+				config.SetInTest("database_monitoring.autodiscovery.aurora.dbm_tag", "usedbm")
+				config.SetInTest("database_monitoring.autodiscovery.aurora.global_view_db_tag", "dbtag")
 			},
 			tests: func(t *testing.T, config pkgconfigmodel.Config) {
 				assert.True(t, config.GetBool("database_monitoring.autodiscovery.aurora.enabled"))
@@ -572,19 +596,19 @@ func TestDatabaseMonitoringAurora(t *testing.T) {
 func TestSanitizeAPIKeyConfig(t *testing.T) {
 	config := newTestConf(t)
 
-	config.SetWithoutSource("api_key", "foo")
+	config.SetInTest("api_key", "foo")
 	sanitizeAPIKeyConfig(config, "api_key")
 	assert.Equal(t, "foo", config.GetString("api_key"))
 
-	config.SetWithoutSource("api_key", "foo\n")
+	config.SetInTest("api_key", "foo\n")
 	sanitizeAPIKeyConfig(config, "api_key")
 	assert.Equal(t, "foo", config.GetString("api_key"))
 
-	config.SetWithoutSource("api_key", "foo\n\n")
+	config.SetInTest("api_key", "foo\n\n")
 	sanitizeAPIKeyConfig(config, "api_key")
 	assert.Equal(t, "foo", config.GetString("api_key"))
 
-	config.SetWithoutSource("api_key", " \n  foo   \n")
+	config.SetInTest("api_key", " \n  foo   \n")
 	sanitizeAPIKeyConfig(config, "api_key")
 	assert.Equal(t, "foo", config.GetString("api_key"))
 }
@@ -592,52 +616,17 @@ func TestSanitizeAPIKeyConfig(t *testing.T) {
 func TestNumWorkers(t *testing.T) {
 	config := newTestConf(t)
 
-	config.SetWithoutSource("check_runners", 4)
-	config.SetWithoutSource("tracemalloc_debug", false)
+	config.SetInTest("check_runners", 4)
+	config.SetInTest("tracemalloc_debug", false)
 
 	setNumWorkers(config)
 	workers := config.GetInt("check_runners")
 	assert.Equal(t, workers, config.GetInt("check_runners"))
 
-	config.SetWithoutSource("tracemalloc_debug", true)
+	config.SetInTest("tracemalloc_debug", true)
 	setNumWorkers(config)
 	workers = config.GetInt("check_runners")
 	assert.Equal(t, workers, 1)
-}
-
-// TestOverrides validates that the config overrides system works well.
-func TestApplyOverrides(t *testing.T) {
-	pkgconfigmodel.CleanOverride(t)
-	assert := assert.New(t)
-
-	datadogYaml := `
-dd_url: "https://app.datadoghq.eu"
-api_key: fakeapikey
-
-external_config:
-  external_agent_dd_url: "https://custom.external-agent.datadoghq.eu"
-`
-	pkgconfigmodel.AddOverrides(map[string]interface{}{
-		"api_key": "overrided",
-	})
-
-	config := confFromYAML(t, datadogYaml)
-	pkgconfigmodel.ApplyOverrideFuncs(config)
-
-	assert.Equal(config.GetString("api_key"), "overrided", "the api key should have been overrided")
-	assert.Equal(config.GetString("dd_url"), "https://app.datadoghq.eu", "this shouldn't be overrided")
-	assert.Equal(config.GetSource("api_key"), pkgconfigmodel.SourceAgentRuntime)
-	assert.Equal(config.GetSource("dd_url"), pkgconfigmodel.SourceFile)
-
-	pkgconfigmodel.AddOverrides(map[string]interface{}{
-		"dd_url": "http://localhost",
-	})
-	pkgconfigmodel.ApplyOverrideFuncs(config)
-
-	assert.Equal(config.GetString("api_key"), "overrided", "the api key should have been overrided")
-	assert.Equal(config.GetString("dd_url"), "http://localhost", "this dd_url should have been overrided")
-	assert.Equal(config.GetSource("api_key"), pkgconfigmodel.SourceAgentRuntime)
-	assert.Equal(config.GetSource("dd_url"), pkgconfigmodel.SourceAgentRuntime)
 }
 
 func TestNetworkDevicesNamespace(t *testing.T) {
@@ -672,6 +661,17 @@ func TestNetworkPathDefaults(t *testing.T) {
 	assert.Equal(t, true, config.GetBool("network_path.collector.reverse_dns_enrichment.enabled"))
 	assert.Equal(t, 5000, config.GetInt("network_path.collector.reverse_dns_enrichment.timeout"))
 	assert.Equal(t, false, config.GetBool("network_path.collector.disable_windows_driver"))
+}
+
+func TestInfrastructureModeNoneDisablesECSTaskCollection(t *testing.T) {
+	datadogYaml := `
+infrastructure_mode: none
+`
+	config := confFromYAML(t, datadogYaml)
+	applyInfrastructureModeOverrides(config)
+
+	assert.False(t, config.GetBool("ecs_task_collection_enabled"))
+	assert.False(t, config.GetBool("integration.enabled"))
 }
 
 func TestInfrastructureModeLegacyAliases(t *testing.T) {
@@ -726,6 +726,134 @@ infrastructure_mode: end_user_device
 	assert.True(t, foundSlack, "*.slack.com should be in the default filters")
 	assert.True(t, foundGitHub, "*.github.com should be in the default filters")
 
+}
+
+func TestNetworkPathFiltersEndUserDeviceModeAppendsUser(t *testing.T) {
+	datadogYaml := `
+infrastructure_mode: end_user_device
+network_path:
+  collector:
+    filters:
+      - match_ip: 0.0.0.0/0
+        type: include
+`
+	config := confFromYAML(t, datadogYaml)
+	applyInfrastructureModeOverrides(config)
+	filters := config.Get("network_path.collector.filters")
+	require.NotNil(t, filters)
+
+	filtersList, ok := filters.([]map[string]string)
+	require.True(t, ok, "filters should be []map[string]string, got %T", filters)
+
+	last := filtersList[len(filtersList)-1]
+	assert.Equal(t, "0.0.0.0/0", last["match_ip"], "user filter should be appended last")
+	assert.Equal(t, "include", last["type"])
+}
+
+func TestNetworkPathFiltersEndUserDeviceModeMalformedUserFiltersSkipsOverride(t *testing.T) {
+	// Malformed filters: list of scalars instead of list of maps, so structure.UnmarshalKey fails.
+	datadogYaml := `
+infrastructure_mode: end_user_device
+network_path:
+  collector:
+    filters:
+      - "not_a_map"
+      - "still_not_a_map"
+`
+	config := confFromYAML(t, datadogYaml)
+	applyInfrastructureModeOverrides(config)
+
+	// The filter override must be skipped: the user's (malformed) value is left in place
+	// rather than being silently replaced with the EUDM defaults.
+	filters := config.Get("network_path.collector.filters")
+	_, ok := filters.([]map[string]string)
+	assert.False(t, ok, "EUDM defaults should NOT be applied when user filters fail to unmarshal, got %T", filters)
+
+	// The other EUDM overrides should still be applied — a filter parse failure must not
+	// prevent the rest of the mode from taking effect.
+	assert.True(t, config.GetBool("process_config.process_collection.enabled"))
+	assert.True(t, config.GetBool("software_inventory.enabled"))
+	assert.True(t, config.GetBool("notable_events.enabled"))
+}
+
+func TestApplyUseDogstatsdSuppression(t *testing.T) {
+	t.Run("use_dogstatsd=false forces data_plane.dogstatsd.enabled=false", func(t *testing.T) {
+		cfg := confFromYAML(t, `
+use_dogstatsd: false
+data_plane:
+  enabled: true
+  dogstatsd:
+    enabled: true
+`)
+
+		ApplyUseDogstatsdSuppression(cfg)
+
+		assert.False(t, cfg.GetBool("data_plane.dogstatsd.enabled"),
+			"data_plane.dogstatsd.enabled must be forced false when use_dogstatsd=false")
+		assert.True(t, cfg.GetBool("data_plane.enabled"),
+			"data_plane.enabled must not be touched by the suppression override")
+	})
+
+	t.Run("use_dogstatsd=true leaves data_plane.dogstatsd.enabled untouched", func(t *testing.T) {
+		cfg := confFromYAML(t, `
+use_dogstatsd: true
+data_plane:
+  enabled: true
+  dogstatsd:
+    enabled: true
+`)
+
+		ApplyUseDogstatsdSuppression(cfg)
+
+		assert.True(t, cfg.GetBool("data_plane.dogstatsd.enabled"))
+	})
+
+	t.Run("use_dogstatsd unset leaves data_plane.dogstatsd.enabled untouched", func(t *testing.T) {
+		cfg := confFromYAML(t, `
+data_plane:
+  enabled: true
+  dogstatsd:
+    enabled: true
+`)
+
+		ApplyUseDogstatsdSuppression(cfg)
+
+		assert.True(t, cfg.GetBool("data_plane.dogstatsd.enabled"))
+	})
+
+	t.Run("use_dogstatsd=false suppresses default-true data_plane.dogstatsd.enabled (fleet policy scenario)", func(t *testing.T) {
+		// Simulates the fleet policy case: data_plane.dogstatsd.enabled is at its
+		// default (true) when the first override pass runs, but a fleet policy
+		// subsequently sets use_dogstatsd=false. ApplyUseDogstatsdSuppression is
+		// called again after fleet policy merging to handle this.
+		cfg := confFromYAML(t, `
+data_plane:
+  enabled: true
+`)
+		cfg.Set("use_dogstatsd", false, pkgconfigmodel.SourceAgentRuntime)
+
+		ApplyUseDogstatsdSuppression(cfg)
+
+		assert.False(t, cfg.GetBool("data_plane.dogstatsd.enabled"),
+			"data_plane.dogstatsd.enabled must be suppressed when fleet policy sets use_dogstatsd=false")
+		assert.True(t, cfg.GetBool("data_plane.enabled"),
+			"data_plane.enabled must not be touched by the suppression override")
+	})
+}
+
+func TestDataPlaneDefaults(t *testing.T) {
+	cfg := confFromYAML(t, "")
+
+	assert.True(t, cfg.GetBool("data_plane.use_new_config_stream_endpoint"))
+	assert.True(t, cfg.GetBool("data_plane.remote_agent_enabled"))
+	assert.Equal(t, "tcp://0.0.0.0:5100", cfg.GetString("data_plane.api_listen_address"))
+	assert.Equal(t, "tcp://0.0.0.0:5101", cfg.GetString("data_plane.secure_api_listen_address"))
+	assert.False(t, cfg.GetBool("data_plane.telemetry_enabled"))
+	assert.Equal(t, "tcp://0.0.0.0:5102", cfg.GetString("data_plane.telemetry_listen_addr"))
+	assert.Equal(t, DefaultDataPlaneLogFile, cfg.GetString("data_plane.log_file"))
+	assert.True(t, cfg.GetBool("data_plane.otlp.proxy.traces.enabled"))
+	assert.True(t, cfg.GetBool("data_plane.otlp.proxy.metrics.enabled"))
+	assert.True(t, cfg.GetBool("data_plane.otlp.proxy.logs.enabled"))
 }
 
 func TestUsePodmanLogsAndDockerPathOverride(t *testing.T) {
@@ -1045,7 +1173,7 @@ func TestLanguageDetectionSettings(t *testing.T) {
 
 func TestPeerTagsYAML(t *testing.T) {
 	testConfig := newTestConf(t)
-	require.Nil(t, testConfig.GetStringSlice("apm_config.peer_tags"))
+	require.Empty(t, testConfig.GetStringSlice("apm_config.peer_tags"))
 
 	datadogYaml := `
 apm_config:
@@ -1057,7 +1185,7 @@ apm_config:
 
 func TestPeerTagsEnv(t *testing.T) {
 	testConfig := newTestConf(t)
-	require.Nil(t, testConfig.GetStringSlice("apm_config.peer_tags"))
+	require.Empty(t, testConfig.GetStringSlice("apm_config.peer_tags"))
 
 	t.Setenv("DD_APM_PEER_TAGS", `["aws.s3.bucket","db.instance","db.system"]`)
 	testConfig = newTestConf(t)
@@ -1135,7 +1263,7 @@ process_config:
 func TestConfigAssignAtPath(t *testing.T) {
 
 	config := newTestConf(t)
-	config.SetWithoutSource("use_proxy_for_cloud_metadata", true)
+	config.SetInTest("use_proxy_for_cloud_metadata", true)
 
 	configPath := filepath.Join(t.TempDir(), "datadog.yaml")
 	os.WriteFile(configPath, testExampleConf, 0o600)
@@ -1226,7 +1354,7 @@ secret_backend_arguments:
 func TestConfigAssignAtPathSimple(t *testing.T) {
 
 	config := newTestConf(t)
-	config.SetWithoutSource("use_proxy_for_cloud_metadata", true)
+	config.SetInTest("use_proxy_for_cloud_metadata", true)
 	configPath := filepath.Join(t.TempDir(), "datadog.yaml")
 	os.WriteFile(configPath, testSimpleConf, 0o600)
 	config.SetConfigFile(configPath)
@@ -1326,7 +1454,7 @@ additional_endpoints:
   2: carrot
 `)
 	config := newTestConf(t)
-	config.SetWithoutSource("use_proxy_for_cloud_metadata", true)
+	config.SetInTest("use_proxy_for_cloud_metadata", true)
 	configPath := filepath.Join(t.TempDir(), "datadog.yaml")
 	os.WriteFile(configPath, testIntKeysConf, 0o600)
 	config.SetConfigFile(configPath)
@@ -1361,6 +1489,13 @@ func TestServerlessConfigInit(t *testing.T) {
 	// ensure some non-serverless configs are not declared
 	assert.False(t, conf.IsKnown("sbom.enabled"))
 	assert.False(t, conf.IsKnown("inventories_enabled"))
+
+	// comp/trace/config reads these unconditionally; serverless builds only run
+	// initCommonConfigComponents, so the defaults must be reachable from here.
+	assert.True(t, conf.GetBool("evp_proxy_config.enabled"))
+	assert.Equal(t, int64(10*1024*1024), conf.GetInt64("evp_proxy_config.max_payload_size"))
+	assert.True(t, conf.GetBool("ol_proxy_config.enabled"))
+	assert.Equal(t, 2, conf.GetInt("ol_proxy_config.api_version"))
 }
 
 func TestDisableCoreAgent(t *testing.T) {
@@ -1474,4 +1609,106 @@ func TestLoadProxyFromEnv(t *testing.T) {
 	LoadProxyFromEnv(cfg)
 	assert.Equal(t, "http://www.example.com/", cfg.Get("proxy.http"))
 	assert.Equal(t, pkgconfigmodel.SourceConfigPostInit, cfg.GetSource("proxy.http"))
+}
+
+func TestSanitizeDataPlaneConfig(t *testing.T) {
+	tests := []struct {
+		name         string
+		goos         string
+		forceEnable  string // value of DD_DATA_PLANE_FORCE_ENABLE
+		initialValue bool
+		wantValue    bool
+		wantSource   pkgconfigmodel.Source
+	}{
+		{
+			name:         "linux preserves true",
+			goos:         "linux",
+			initialValue: true,
+			wantValue:    true,
+			wantSource:   pkgconfigmodel.SourceFile,
+		},
+		{
+			name:         "windows resets true to false",
+			goos:         "windows",
+			initialValue: true,
+			wantValue:    false,
+			wantSource:   pkgconfigmodel.SourceAgentRuntime,
+		},
+		{
+			name:         "darwin resets true to false",
+			goos:         "darwin",
+			initialValue: true,
+			wantValue:    false,
+			wantSource:   pkgconfigmodel.SourceAgentRuntime,
+		},
+		{
+			// Even when already false, non-Linux writes SourceAgentRuntime so that
+			// lower-priority sources (e.g. fleet policies) cannot re-enable ADP later.
+			name:         "windows locks false via SourceAgentRuntime",
+			goos:         "windows",
+			initialValue: false,
+			wantValue:    false,
+			wantSource:   pkgconfigmodel.SourceAgentRuntime,
+		},
+		{
+			name:         "darwin locks false via SourceAgentRuntime",
+			goos:         "darwin",
+			initialValue: false,
+			wantValue:    false,
+			wantSource:   pkgconfigmodel.SourceAgentRuntime,
+		},
+		{
+			name:         "darwin bypass: force-enable=true preserves true",
+			goos:         "darwin",
+			forceEnable:  "true",
+			initialValue: true,
+			wantValue:    true,
+			wantSource:   pkgconfigmodel.SourceFile,
+		},
+		{
+			name:         "windows bypass: force-enable=true preserves true",
+			goos:         "windows",
+			forceEnable:  "true",
+			initialValue: true,
+			wantValue:    true,
+			wantSource:   pkgconfigmodel.SourceFile,
+		},
+		{
+			// Garbage value in the env var does NOT bypass the gate.
+			name:         "darwin bypass: force-enable=yes is ignored (gate applies)",
+			goos:         "darwin",
+			forceEnable:  "yes",
+			initialValue: true,
+			wantValue:    false,
+			wantSource:   pkgconfigmodel.SourceAgentRuntime,
+		},
+		{
+			// When bypass is active and value is already false, gate is still skipped —
+			// SourceAgentRuntime override is not applied.
+			name:         "darwin bypass: force-enable=true preserves false",
+			goos:         "darwin",
+			forceEnable:  "true",
+			initialValue: false,
+			wantValue:    false,
+			wantSource:   pkgconfigmodel.SourceFile,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := newTestConf(t)
+			cfg.Set("data_plane.enabled", tt.initialValue, pkgconfigmodel.SourceFile)
+
+			envLookup := func(key string) string {
+				if key == "DD_DATA_PLANE_FORCE_ENABLE" {
+					return tt.forceEnable
+				}
+				return ""
+			}
+			sanitizeDataPlaneConfig(cfg, tt.goos, envLookup)
+
+			assert.Equal(t, tt.wantValue, cfg.GetBool("data_plane.enabled"))
+			assert.Equal(t, tt.wantSource, cfg.GetSource("data_plane.enabled"))
+		})
+	}
 }

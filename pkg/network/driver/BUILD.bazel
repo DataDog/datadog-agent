@@ -2,10 +2,7 @@ load("@rules_cc//cc:defs.bzl", "cc_library")
 load("@rules_go//go:def.bzl", "go_library", "go_test")
 load("//bazel/rules/ebpf:cgo_godefs.bzl", "cgo_godefs")
 
-exports_files([
-    "types.go",
-    "types_windows.go",
-])
+exports_files(["types_windows.go"])
 
 cc_library(
     name = "ddnpmapi",
@@ -37,8 +34,8 @@ go_library(
     visibility = ["//visibility:public"],
     deps = select({
         "@rules_go//go/platform:windows": [
-            "//comp/core/telemetry",
-            "//pkg/telemetry",
+            "//comp/core/telemetry/def",
+            "//comp/core/telemetry/impl",
             "//pkg/util/log",
             "//pkg/util/winutil",
             "@org_golang_x_sys//windows",

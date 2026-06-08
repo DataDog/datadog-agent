@@ -11,8 +11,10 @@ package tailerfactory
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"testing"
 
@@ -30,6 +32,7 @@ import (
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/containersorpods"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
+	"github.com/DataDog/datadog-agent/pkg/logs/types"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -57,6 +60,26 @@ func fileTestSetup(t *testing.T) {
 		dockerLogsBasePathNix = oldDockerLogsBasePathNix
 		dockerLogsBasePathWin = oldDockerLogsBasePathWin
 	})
+}
+
+func testAdaptiveSamplingOptions(enabled bool) *config.SourceAdaptiveSamplingOptions {
+	return &config.SourceAdaptiveSamplingOptions{
+		Enabled:                pointer.Ptr(enabled),
+		MaxPatterns:            pointer.Ptr(321),
+		RateLimit:              pointer.Ptr(2.5),
+		BurstSize:              pointer.Ptr(17.5),
+		MatchThreshold:         pointer.Ptr(0.75),
+		TokenizerMaxInputBytes: pointer.Ptr(512),
+		ProtectImportantLogs:   pointer.Ptr(false),
+		Include: []*config.AdaptiveSamplingRule{
+			{Regex: "foo.*bar"},
+			{Sample: "my 123 fun log sample"},
+		},
+		Exclude: []*config.AdaptiveSamplingRule{
+			{Regex: "baz.*qux"},
+			{Sample: "my 456 bad log sample"},
+		},
+	}
 }
 
 func makeTestPod() (*workloadmeta.KubernetesPod, *workloadmeta.Container) {
@@ -134,18 +157,17 @@ func TestMakeFileSource_docker_success(t *testing.T) {
 		cop:              containersorpods.NewDecidedChooser(containersorpods.LogContainers),
 		dockerUtilGetter: &dockerUtilGetterImpl{},
 	}
+	adaptiveSampling := testAdaptiveSamplingOptions(true)
 	source := sources.NewLogSource("test", &config.LogsConfig{
-		Type:                        "docker",
-		Identifier:                  "abc",
-		Source:                      "src",
-		Service:                     "svc",
-		Tags:                        []string{"tag!"},
-		AutoMultiLine:               pointer.Ptr(true),
-		AutoMultiLineSampleSize:     123,
-		AutoMultiLineMatchThreshold: 0.123,
-		ExperimentalAdaptiveSampling: &config.SourceAdaptiveSamplingOptions{
-			Enabled: pointer.Ptr(true),
-		},
+		Type:                         "docker",
+		Identifier:                   "abc",
+		Source:                       "src",
+		Service:                      "svc",
+		Tags:                         []string{"tag!"},
+		AutoMultiLine:                pointer.Ptr(true),
+		AutoMultiLineSampleSize:      123,
+		AutoMultiLineMatchThreshold:  0.123,
+		ExperimentalAdaptiveSampling: adaptiveSampling,
 	})
 	child, err := tf.makeFileSource(source)
 	require.NoError(t, err)
@@ -160,16 +182,43 @@ func TestMakeFileSource_docker_success(t *testing.T) {
 	require.Equal(t, *source.Config.AutoMultiLine, true)
 	require.Equal(t, source.Config.AutoMultiLineSampleSize, 123)
 	require.Equal(t, source.Config.AutoMultiLineMatchThreshold, 0.123)
-	require.NotNil(t, child.Config.ExperimentalAdaptiveSampling)
-	require.NotNil(t, child.Config.ExperimentalAdaptiveSampling.Enabled)
-	require.True(t, *child.Config.ExperimentalAdaptiveSampling.Enabled)
+	require.Equal(t, adaptiveSampling, child.Config.ExperimentalAdaptiveSampling)
+}
+
+func TestMakeFileSource_docker_containerRestartPreservesAdaptiveSamplingConfig(t *testing.T) {
+	fileTestSetup(t)
+
+	tf := &factory{
+		pipelineProvider: pipeline.NewMockProvider(),
+		cop:              containersorpods.NewDecidedChooser(containersorpods.LogContainers),
+		dockerUtilGetter: &dockerUtilGetterImpl{},
+	}
+
+	for _, containerID := range []string{"abc", "def"} {
+		p := filepath.Join(platformDockerLogsBasePath, "containers", containerID, containerID+"-json.log")
+		require.NoError(t, os.MkdirAll(filepath.Dir(p), 0o777))
+		require.NoError(t, os.WriteFile(p, []byte("{}"), 0o666))
+
+		adaptiveSampling := testAdaptiveSamplingOptions(true)
+		source := sources.NewLogSource("test", &config.LogsConfig{
+			Type:                         "docker",
+			Identifier:                   containerID,
+			Source:                       "src",
+			Service:                      "svc",
+			ExperimentalAdaptiveSampling: adaptiveSampling,
+		})
+		child, err := tf.makeFileSource(source)
+		require.NoError(t, err)
+		require.Equal(t, containerID, child.Config.Identifier)
+		require.Equal(t, adaptiveSampling, child.Config.ExperimentalAdaptiveSampling)
+	}
 }
 
 func TestMakeFileSource_podman_success(t *testing.T) {
 	fileTestSetup(t)
 	tmp := t.TempDir()
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("logs_config.use_podman_logs", true)
+	mockConfig.SetInTest("logs_config.use_podman_logs", true)
 
 	// On Windows, podman runs within a Linux virtual machine, so the Agent would believe it runs in a Linux environment with all the paths being nix-like.
 	// The real path on the system is abstracted by the Windows Subsystem for Linux layer, so this unit test is skipped.
@@ -221,8 +270,8 @@ func TestMakeFileSource_podman_with_db_path_uses_annotation_success(t *testing.T
 	tmp := t.TempDir()
 	customPath := filepath.Join(tmp, "/configured/path/containers/storage/db.sql")
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("logs_config.use_podman_logs", true)
-	mockConfig.SetWithoutSource("podman_db_path", customPath)
+	mockConfig.SetInTest("logs_config.use_podman_logs", true)
+	mockConfig.SetInTest("podman_db_path", customPath)
 
 	// On Windows, podman runs within a Linux virtual machine, so the Agent would believe it runs in a Linux environment with all the paths being nix-like.
 	// The real path on the system is abstracted by the Windows Subsystem for Linux layer, so this unit test is skipped.
@@ -283,8 +332,8 @@ func TestMakeFileSource_podman_with_multiple_db_paths_success(t *testing.T) {
 	require.NoError(t, os.WriteFile(userLogPath, []byte("{}"), 0o666))
 
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("logs_config.use_podman_logs", true)
-	mockConfig.SetWithoutSource("podman_db_path", rootDBPath+","+userDBPath)
+	mockConfig.SetInTest("logs_config.use_podman_logs", true)
+	mockConfig.SetInTest("podman_db_path", rootDBPath+","+userDBPath)
 
 	wmeta := newWorkloadmetaMock(t)
 	setPodmanContainerRootDir(wmeta, "abc", userContainersRoot)
@@ -313,8 +362,8 @@ func TestMakeFileSource_podman_without_annotation_errors_even_with_dbpath(t *tes
 
 	tmp := t.TempDir()
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("logs_config.use_podman_logs", true)
-	mockConfig.SetWithoutSource("podman_db_path", filepath.Join(tmp, "configured/path/containers/storage/db.sql"))
+	mockConfig.SetInTest("logs_config.use_podman_logs", true)
+	mockConfig.SetInTest("podman_db_path", filepath.Join(tmp, "configured/path/containers/storage/db.sql"))
 
 	wmeta := newWorkloadmetaMock(t)
 	wmeta.Set(&workloadmeta.Container{
@@ -360,7 +409,7 @@ func TestMakeFileSource_podman_autodiscovery_home_user(t *testing.T) {
 	require.NoError(t, os.WriteFile(userLogPath, []byte("{}"), 0o666))
 
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("logs_config.use_podman_logs", true)
+	mockConfig.SetInTest("logs_config.use_podman_logs", true)
 	// podman_db_path is intentionally left empty (auto-discovery mode)
 
 	// Populate a workloadmeta store with the container annotated with its root dir,
@@ -416,7 +465,7 @@ func TestDockerOverride(t *testing.T) {
 	tmp := t.TempDir()
 	mockConfig := configmock.New(t)
 	customPath := filepath.Join(tmp, "/custom/path")
-	mockConfig.SetWithoutSource("logs_config.docker_path_override", customPath)
+	mockConfig.SetInTest("logs_config.docker_path_override", customPath)
 
 	p := filepath.Join(mockConfig.GetString("logs_config.docker_path_override"), filepath.FromSlash("containers/abc/abc-json.log"))
 	require.NoError(t, os.MkdirAll(filepath.Dir(p), 0o777))
@@ -471,18 +520,17 @@ func TestMakeK8sSource(t *testing.T) {
 	}
 	for _, sourceConfigType := range []string{"docker", "containerd"} {
 		t.Run("source.Config.Type="+sourceConfigType, func(t *testing.T) {
+			adaptiveSampling := testAdaptiveSamplingOptions(false)
 			source := sources.NewLogSource("test", &config.LogsConfig{
-				Type:                        sourceConfigType,
-				Identifier:                  "abc",
-				Source:                      "src",
-				Service:                     "svc",
-				Tags:                        []string{"tag!"},
-				AutoMultiLine:               pointer.Ptr(true),
-				AutoMultiLineSampleSize:     123,
-				AutoMultiLineMatchThreshold: 0.123,
-				ExperimentalAdaptiveSampling: &config.SourceAdaptiveSamplingOptions{
-					Enabled: pointer.Ptr(false),
-				},
+				Type:                         sourceConfigType,
+				Identifier:                   "abc",
+				Source:                       "src",
+				Service:                      "svc",
+				Tags:                         []string{"tag!"},
+				AutoMultiLine:                pointer.Ptr(true),
+				AutoMultiLineSampleSize:      123,
+				AutoMultiLineMatchThreshold:  0.123,
+				ExperimentalAdaptiveSampling: adaptiveSampling,
 			})
 			child, err := tf.makeK8sFileSource(source)
 			require.NoError(t, err)
@@ -496,9 +544,7 @@ func TestMakeK8sSource(t *testing.T) {
 			require.Equal(t, *child.Config.AutoMultiLine, true)
 			require.Equal(t, child.Config.AutoMultiLineSampleSize, 123)
 			require.Equal(t, child.Config.AutoMultiLineMatchThreshold, 0.123)
-			require.NotNil(t, child.Config.ExperimentalAdaptiveSampling)
-			require.NotNil(t, child.Config.ExperimentalAdaptiveSampling.Enabled)
-			require.False(t, *child.Config.ExperimentalAdaptiveSampling.Enabled)
+			require.Equal(t, adaptiveSampling, child.Config.ExperimentalAdaptiveSampling)
 			switch sourceConfigType {
 			case "docker":
 				require.Equal(t, sources.DockerSourceType, child.GetSourceType())
@@ -560,4 +606,304 @@ func TestGetPodAndContainer_pod_not_found(t *testing.T) {
 	require.Nil(t, container)
 	require.Nil(t, pod)
 	require.ErrorContains(t, err, "cannot find pod for container")
+}
+
+// fullyPopulatedLogsConfig returns a LogsConfig with every exported, settable
+// field set to a distinguishable non-zero value. The reflection walk ensures
+// that newly added fields are automatically populated without manual updates.
+func fullyPopulatedLogsConfig() *config.LogsConfig {
+	cfg := &config.LogsConfig{}
+	v := reflect.ValueOf(cfg).Elem()
+	t := v.Type()
+
+	for i := 0; i < t.NumField(); i++ {
+		field := v.Field(i)
+		if !field.CanSet() {
+			continue
+		}
+		setNonZero(field, t.Field(i).Name)
+	}
+	return cfg
+}
+
+// setNonZero sets a reflect.Value to a non-zero sentinel appropriate for its kind.
+func setNonZero(v reflect.Value, name string) {
+	switch v.Kind() {
+	case reflect.String:
+		v.SetString(name + "_val")
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		v.SetInt(42)
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		v.SetUint(42)
+	case reflect.Float32, reflect.Float64:
+		v.SetFloat(0.42)
+	case reflect.Bool:
+		v.SetBool(true)
+	case reflect.Pointer:
+		elem := reflect.New(v.Type().Elem())
+		setNonZero(elem.Elem(), name)
+		v.Set(elem)
+	case reflect.Slice:
+		elemType := v.Type().Elem()
+		elem := reflect.New(elemType).Elem()
+		setNonZero(elem, name)
+		v.Set(reflect.Append(reflect.MakeSlice(v.Type(), 0, 1), elem))
+	case reflect.Chan:
+		v.Set(reflect.MakeChan(v.Type(), 1))
+	case reflect.Struct:
+		for i := 0; i < v.NumField(); i++ {
+			f := v.Field(i)
+			if f.CanSet() {
+				setNonZero(f, v.Type().Field(i).Name)
+			}
+		}
+	case reflect.Map:
+		v.Set(reflect.MakeMap(v.Type()))
+	}
+}
+
+// TestLogsConfigFieldCoverage verifies that every field on LogsConfig is either
+// copied by the container-to-file translation functions or explicitly listed in
+// the exclusion set. When a new field is added to LogsConfig, this test fails
+// unless the developer either copies it or adds it to the exclusion list.
+func TestLogsConfigFieldCoverage(t *testing.T) {
+	// Fields intentionally NOT copied from container source to file source.
+	// If you add a new field to LogsConfig, you MUST either:
+	//   (a) copy it in makeDockerFileSource and makeK8sFileSource, or
+	//   (b) add it here with a comment explaining why it doesn't apply to file tailing.
+	excludedFromFileCopy := map[string]string{
+		// Hardcoded or computed differently per function
+		"Type":   "hardcoded to FileType",
+		"Path":   "computed from container ID / pod metadata",
+		"Source": "computed via defaultSourceAndService",
+
+		// Network fields (tcp/udp only)
+		"Port":           "network source only",
+		"BindHost":       "network source only",
+		"IdleTimeout":    "network source only",
+		"MaxConnections": "network source only",
+		"TLS":            "network source only",
+		"AllowedIPs":     "network source only",
+		"DeniedIPs":      "network source only",
+
+		// Journald fields
+		"ConfigID":               "journald only",
+		"IncludeSystemUnits":     "journald only",
+		"ExcludeSystemUnits":     "journald only",
+		"IncludeUserUnits":       "journald only",
+		"ExcludeUserUnits":       "journald only",
+		"IncludeMatches":         "journald only",
+		"ExcludeMatches":         "journald only",
+		"ContainerMode":          "journald only",
+		"DefaultApplicationName": "journald only",
+
+		// Docker identity fields (container metadata, not log content config)
+		"Image": "docker container identity, not log config",
+		"Label": "docker container identity, not log config",
+		"Name":  "docker container identity, not log config",
+
+		// Windows Event fields
+		"ChannelPath": "windows event only",
+		"Query":       "windows event only",
+
+		// Channel tailer fields
+		"Channel":          "internal channel tailer only",
+		"ChannelTags":      "internal channel tailer only",
+		"ChannelTagsMutex": "internal channel tailer only (sync.Mutex)",
+
+		// File-only fields not relevant to container-sourced file tailing
+		"ExcludePaths": "file wildcard exclusion, not applicable to container log paths",
+
+		// Integration metadata (set by integration config loader, not user config)
+		"IntegrationName":        "integration loader metadata",
+		"IntegrationSource":      "integration loader metadata",
+		"IntegrationSourceIndex": "integration loader metadata",
+
+		// Structured-log tailer fields (journald, windows event only)
+		"ProcessRawMessage": "only affects structured-message tailers (journald, windows event); file tailer always emits unstructured messages",
+
+		// Misc fields not relevant to container-to-file
+		"SourceCategory": "deprecated/unused in container context",
+	}
+
+	inputCfg := fullyPopulatedLogsConfig()
+
+	// Override fields that the functions expect specific values for
+	inputCfg.Type = "docker"
+	inputCfg.Identifier = "abc"
+
+	fileTestSetup(t)
+
+	// Create the docker log file so makeDockerFileSource can open it
+	dockerPath := filepath.Join(platformDockerLogsBasePath, filepath.FromSlash("containers/abc/abc-json.log"))
+	require.NoError(t, os.MkdirAll(filepath.Dir(dockerPath), 0o777))
+	require.NoError(t, os.WriteFile(dockerPath, []byte("{}"), 0o666))
+
+	// Set up K8s workloadmeta so makeK8sFileSource can resolve the pod
+	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() compConfig.Component { return compConfig.NewMock(t) }),
+		fx.Supply(context.Background()),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+	pod, container := makeTestPod()
+	store.Set(pod)
+	store.Set(container)
+
+	// Create the K8s log directory
+	k8sDir := filepath.Join(podLogsBasePath, filepath.FromSlash("podns_podname_poduuid/cname"))
+	require.NoError(t, os.MkdirAll(k8sDir, 0o777))
+	require.NoError(t, os.WriteFile(filepath.Join(k8sDir, "0.log"), []byte("{}"), 0o666))
+
+	type testCase struct {
+		name       string
+		makeSource func(*sources.LogSource) (*sources.LogSource, error)
+	}
+
+	dockerFactory := &factory{
+		pipelineProvider: pipeline.NewMockProvider(),
+		cop:              containersorpods.NewDecidedChooser(containersorpods.LogContainers),
+		dockerUtilGetter: &dockerUtilGetterImpl{},
+	}
+
+	k8sFactory := &factory{
+		pipelineProvider:  pipeline.NewMockProvider(),
+		cop:               containersorpods.NewDecidedChooser(containersorpods.LogPods),
+		dockerUtilGetter:  &dockerUtilGetterImpl{},
+		workloadmetaStore: option.New[workloadmeta.Component](store),
+	}
+
+	cases := []testCase{
+		{"makeDockerFileSource", dockerFactory.makeDockerFileSource},
+		{"makeK8sFileSource", k8sFactory.makeK8sFileSource},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			source := sources.NewLogSource("test", inputCfg)
+			child, err := tc.makeSource(source)
+			require.NoError(t, err)
+
+			checkFieldCoverage(t, inputCfg, child.Config, excludedFromFileCopy)
+		})
+	}
+}
+
+// checkFieldCoverage iterates over every exported field on LogsConfig and
+// verifies that non-zero input fields are either non-zero on the output or
+// present in the exclusion set. It also checks for stale exclusion entries.
+func checkFieldCoverage(t *testing.T, input, output *config.LogsConfig, excluded map[string]string) {
+	t.Helper()
+
+	inVal := reflect.ValueOf(input).Elem()
+	outVal := reflect.ValueOf(output).Elem()
+	structType := inVal.Type()
+
+	allFields := make(map[string]bool, structType.NumField())
+	var missing []string
+
+	for i := 0; i < structType.NumField(); i++ {
+		fieldName := structType.Field(i).Name
+		allFields[fieldName] = true
+
+		inField := inVal.Field(i)
+		outField := outVal.Field(i)
+
+		if !inField.CanInterface() || !outField.CanInterface() {
+			continue
+		}
+
+		if _, ok := excluded[fieldName]; ok {
+			continue
+		}
+
+		if inField.IsZero() {
+			continue
+		}
+
+		if outField.IsZero() {
+			missing = append(missing, fieldName)
+		}
+	}
+
+	if len(missing) > 0 {
+		t.Errorf("LogsConfig fields are set on the container source but missing from the file source output.\n"+
+			"Either copy them in makeDockerFileSource/makeK8sFileSource, or add them to\n"+
+			"excludedFromFileCopy in TestLogsConfigFieldCoverage with a reason.\n"+
+			"Missing fields: %v", missing)
+	}
+
+	for fieldName := range excluded {
+		if !allFields[fieldName] {
+			t.Errorf("Stale entry in excludedFromFileCopy: %q is no longer a field on LogsConfig. Remove it.", fieldName)
+		}
+	}
+}
+
+// TestLogsConfigFieldCoverage_detectsMissingField is a meta-test that verifies
+// the guard logic catches a newly added field that is set on input but missing
+// from output. It simulates the bug by building an output config that
+// deliberately omits Encoding, then checks that Encoding appears in the
+// missing-fields list.
+func TestLogsConfigFieldCoverage_detectsMissingField(t *testing.T) {
+	excluded := map[string]string{
+		"Type": "hardcoded", "Path": "computed", "Source": "computed", "Service": "computed",
+		"Port": "n/a", "BindHost": "n/a", "IdleTimeout": "n/a", "MaxConnections": "n/a",
+		"TLS": "n/a", "AllowedIPs": "n/a", "DeniedIPs": "n/a",
+		"ConfigID": "n/a", "IncludeSystemUnits": "n/a", "ExcludeSystemUnits": "n/a",
+		"IncludeUserUnits": "n/a", "ExcludeUserUnits": "n/a",
+		"IncludeMatches": "n/a", "ExcludeMatches": "n/a",
+		"ContainerMode": "n/a", "DefaultApplicationName": "n/a",
+		"Image": "n/a", "Label": "n/a", "Name": "n/a",
+		"ChannelPath": "n/a", "Query": "n/a",
+		"Channel": "n/a", "ChannelTags": "n/a", "ChannelTagsMutex": "n/a",
+		"ExcludePaths":    "n/a",
+		"IntegrationName": "n/a", "IntegrationSource": "n/a", "IntegrationSourceIndex": "n/a",
+		"SourceCategory": "n/a",
+	}
+
+	input := fullyPopulatedLogsConfig()
+	output := &config.LogsConfig{
+		Type:            config.FileType,
+		TailingMode:     input.TailingMode,
+		Identifier:      input.Identifier,
+		Path:            "some/path",
+		Service:         input.Service,
+		Source:          input.Source,
+		Tags:            input.Tags,
+		ProcessingRules: input.ProcessingRules,
+		FingerprintConfig: &types.FingerprintConfig{
+			FingerprintStrategy: "md5",
+		},
+	}
+
+	inVal := reflect.ValueOf(input).Elem()
+	outVal := reflect.ValueOf(output).Elem()
+	structType := inVal.Type()
+
+	var missing []string
+	for i := 0; i < structType.NumField(); i++ {
+		fieldName := structType.Field(i).Name
+		inField := inVal.Field(i)
+		outField := outVal.Field(i)
+		if !inField.CanInterface() || !outField.CanInterface() {
+			continue
+		}
+		if _, ok := excluded[fieldName]; ok {
+			continue
+		}
+		if !inField.IsZero() && outField.IsZero() {
+			missing = append(missing, fieldName)
+		}
+	}
+
+	require.NotEmpty(t, missing, "Expected to detect missing fields")
+	found := false
+	for _, name := range missing {
+		if name == "Encoding" {
+			found = true
+			break
+		}
+	}
+	require.True(t, found, fmt.Sprintf("Expected 'Encoding' in missing fields, got: %v", missing))
 }

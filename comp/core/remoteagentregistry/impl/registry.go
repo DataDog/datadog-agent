@@ -21,7 +21,7 @@ import (
 	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
 	remoteagentregistryStatus "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/status"
 	"github.com/DataDog/datadog-agent/comp/core/status"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -76,7 +76,7 @@ func newRegistry(reqs Requires) *remoteAgentRegistry {
 
 	reqs.Lifecycle.Append(compdef.Hook{
 		OnStart: func(context.Context) error {
-			go registry.start()
+			registry.start()
 			return nil
 		},
 		OnStop: func(context.Context) error {

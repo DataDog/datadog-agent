@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
@@ -28,7 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
 
 const (
@@ -49,6 +49,7 @@ type PlatformProbe interface {
 	FlushDiscarders() error
 	ApplyRuleSet(_ *rules.RuleSet) (*kfilters.FilterReport, bool, error)
 	OnNewRuleSetLoaded(_ *rules.RuleSet)
+	ShouldEvaluateDiscarders(_ *model.Event) bool
 	OnNewDiscarder(_ *rules.RuleSet, _ *model.Event, _ eval.Field, _ eval.EventType)
 	HandleActions(_ *eval.Context, _ *rules.Rule)
 	NewEvent() *model.Event
@@ -243,6 +244,14 @@ func (p *Probe) Snapshot() error {
 // Walk iterates through the entire tree and call the provided callback on each entry
 func (p *Probe) Walk(cb func(entry *model.ProcessCacheEntry)) {
 	p.PlatformProbe.Walk(cb)
+}
+
+// ShouldEvaluateDiscarders returns whether discarder evaluation should proceed for the given event
+func (p *Probe) ShouldEvaluateDiscarders(ev *model.Event) bool {
+	if p.PlatformProbe == nil {
+		return true
+	}
+	return p.PlatformProbe.ShouldEvaluateDiscarders(ev)
 }
 
 // OnNewDiscarder is called when a new discarder is found

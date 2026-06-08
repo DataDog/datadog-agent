@@ -11,4 +11,5 @@ go_test(
     name = "util_test",
     srcs = ["sanitize_test.go"],
     embed = [":util"],
+    gotags = ["test"],
 )

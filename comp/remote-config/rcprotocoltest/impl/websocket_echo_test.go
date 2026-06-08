@@ -103,8 +103,8 @@ func TestWebSocketTest(t *testing.T) {
 			agentConfig := mock.New(t)
 
 			// TLS test uses bogus certs
-			agentConfig.SetWithoutSource("skip_ssl_validation", true)                    // Transport
-			agentConfig.SetWithoutSource("remote_configuration.no_tls_validation", true) // RC check
+			agentConfig.SetInTest("skip_ssl_validation", true)                    // Transport
+			agentConfig.SetInTest("remote_configuration.no_tls_validation", true) // RC check
 
 			ts := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				// Verify the run count header is present and set to 1 on
@@ -150,7 +150,7 @@ func TestWebSocketTest(t *testing.T) {
 
 			// Drive the test and ensure the expected number of frames were
 			// exchanged.
-			n, err := runEchoLoop(ctx, client, 1)
+			n, err := runEchoLoop(ctx, client, 1, ALPNDefault)
 			assert.NoError(err)
 			assert.Equal(uint(len(tt.frames)), n)
 		})
@@ -212,8 +212,8 @@ func TestNewWebSocket(t *testing.T) {
 			agentConfig := mock.New(t)
 
 			// TLS test uses bogus certs
-			agentConfig.SetWithoutSource("skip_ssl_validation", true)                    // Transport
-			agentConfig.SetWithoutSource("remote_configuration.no_tls_validation", true) // RC check
+			agentConfig.SetInTest("skip_ssl_validation", true)                    // Transport
+			agentConfig.SetInTest("remote_configuration.no_tls_validation", true) // RC check
 
 			ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 			defer cancel()
@@ -284,7 +284,7 @@ func TestNewWebSocket(t *testing.T) {
 				ts.StartTLS()
 			} else {
 				// TLS requires an explicit config opt-in.
-				agentConfig.SetWithoutSource("remote_configuration.no_tls", true)
+				agentConfig.SetInTest("remote_configuration.no_tls", true)
 				ts.Start()
 			}
 
@@ -294,7 +294,7 @@ func TestNewWebSocket(t *testing.T) {
 			client, err := api.NewHTTPClient(auth, agentConfig, url)
 			assert.NoError(err)
 
-			conn, err := newWebSocketClient(ctx, tt.path, client, 0)
+			conn, err := newWebSocketClient(ctx, tt.path, client, 0, ALPNDefault)
 			assert.NoError(err)
 			defer conn.Close()
 
@@ -316,8 +316,8 @@ func TestWebSocketTest_PING_PONG(t *testing.T) {
 	agentConfig := mock.New(t)
 
 	// TLS test uses bogus certs
-	agentConfig.SetWithoutSource("skip_ssl_validation", true)                    // Transport
-	agentConfig.SetWithoutSource("remote_configuration.no_tls_validation", true) // RC check
+	agentConfig.SetInTest("skip_ssl_validation", true)                    // Transport
+	agentConfig.SetInTest("remote_configuration.no_tls_validation", true) // RC check
 
 	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 	defer cancel()
@@ -376,10 +376,10 @@ func TestWebSocketTest_PING_PONG(t *testing.T) {
 	client, err := api.NewHTTPClient(api.Auth{}, agentConfig, url)
 	assert.NoError(err)
 
-	conn, err := newWebSocketClient(ctx, "/bananas", client, 1)
+	conn, err := newWebSocketClient(ctx, "/bananas", client, 1, ALPNDefault)
 	assert.NoError(err)
 	defer conn.Close()
 
-	_, err = runEchoLoop(ctx, client, 1)
+	_, err = runEchoLoop(ctx, client, 1, ALPNDefault)
 	assert.NoError(err)
 }

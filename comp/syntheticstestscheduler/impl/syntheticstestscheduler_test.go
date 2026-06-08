@@ -20,28 +20,25 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
-	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/mock/gomock"
 
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
+	eventplatformimpl "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/impl"
 	"github.com/DataDog/datadog-agent/comp/syntheticstestscheduler/common"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
-	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/trace/teststatsd"
 	utillog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func Test_SyntheticsTestScheduler_StartAndStop(t *testing.T) {
-	// GIVEN
 	testDir := t.TempDir()
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("run_path", testDir)
+	mockConfig.SetInTest("run_path", testDir)
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
 	l, err := utillog.LoggerFromWriterWithMinLevelAndLvlFuncMsgFormat(w, utillog.DebugLvl)
@@ -52,27 +49,23 @@ func Test_SyntheticsTestScheduler_StartAndStop(t *testing.T) {
 		flushInterval:              100 * time.Millisecond,
 		syntheticsSchedulerEnabled: true,
 	}
-	scheduler := newSyntheticsTestScheduler(configs, nil, l, nil, time.Now, &teststatsd.Client{}, nil, newTestPoller(t, l))
+	scheduler := newSyntheticsTestScheduler(configs, nil, l, nil, time.Now, &teststatsd.Client{}, nil, newStubPoller(t, l))
 	assert.Nil(t, err)
 	assert.False(t, scheduler.running)
 
 	ctx := context.TODO()
-	// TEST START
 	err = scheduler.start(ctx)
 	assert.Nil(t, err)
 
 	assert.True(t, scheduler.running)
 
-	// TEST START CALLED TWICE
 	err = scheduler.start(ctx)
 	assert.EqualError(t, err, "server already started")
 
-	// TEST STOP
 	scheduler.stop()
 	assert.False(t, scheduler.running)
 
-	// TEST START/STOP using logs
-	l.Close() // We need to first close the logger to avoid a race-cond between seelog and out test when calling w.Flush()
+	l.Close()
 	w.Flush()
 	logs := b.String()
 
@@ -86,418 +79,6 @@ func Test_SyntheticsTestScheduler_StartAndStop(t *testing.T) {
 	assert.Equal(t, 1, strings.Count(logs, "synthetics test scheduler stopped"), logs)
 }
 
-func Test_SyntheticsTestScheduler_OnConfigUpdate(t *testing.T) {
-	// GIVEN
-
-	var b bytes.Buffer
-	w := bufio.NewWriter(&b)
-	l, err := utillog.LoggerFromWriterWithMinLevelAndLvlFuncMsgFormat(w, utillog.DebugLvl)
-	assert.Nil(t, err)
-	utillog.SetupLogger(l, "debug")
-	configs := &schedulerConfigs{
-		workers:                    2,
-		flushInterval:              100 * time.Millisecond,
-		syntheticsSchedulerEnabled: true,
-	}
-
-	// Table of test cases
-	tests := []struct {
-		name         string
-		updateJSON   map[string]string
-		previousJSON map[string]string
-	}{{
-		name: "no previous config - update with one test",
-		updateJSON: map[string]string{"datadog/2/SYNTHETICS_TEST/config-1/aaa111": `{
-					"version": 1,
-					"type": "network",
-					"subtype": "TCP",
-					"config": {
-						"assertions": [],
-						"request": {
-							"host": "example.com",
-							"port": 443,
-							"tcp_method": "SYN",
-							"probe_count": 3,
-							"traceroute_count": 1,
-							"max_ttl": 30,
-							"timeout": 5,
-							"source_service": "frontend",
-							"destination_service": "backend"
-						}
-					},
-					"org_id": 12345,
-					"main_dc": "us1.staging.dog",
-					"public_id": "puf-1"
-				}`},
-	}, {
-		name: "no previous config - update with 2 tests",
-		updateJSON: map[string]string{"datadog/2/SYNTHETICS_TEST/config-2/bbb222": `{
-					"version": 1,
-					"type": "network",
-					"subtype": "UDP",
-					"config": {
-						"assertions": [],
-						"request": {
-							"host": "example.org",
-							"port": 53,
-							"probe_count": 2,
-							"traceroute_count": 1,
-							"max_ttl": 20,
-							"timeout": 3,
-							"source_service": "api",
-							"destination_service": "db"
-						}
-					},
-					"org_id": 67890,
-					"main_dc": "us2.staging.dog",
-					"public_id": "puf-2"
-				}`,
-			"datadog/2/SYNTHETICS_TEST/config-1/aaa111": `{
-					"version": 1,
-					"type": "network",
-					"subtype": "TCP",
-					"config": {
-						"assertions": [],
-						"request": {
-							"host": "example.com",
-							"port": 443,
-							"tcp_method": "SYN",
-							"probe_count": 3,
-							"traceroute_count": 1,
-							"max_ttl": 30,
-							"timeout": 5,
-							"source_service": "frontend",
-							"destination_service": "backend"
-						}
-					},
-					"org_id": 12345,
-					"main_dc": "us1.staging.dog",
-					"public_id": "puf-1"
-				}`,
-		},
-	}, {
-		name: "previous config with one test- update with test",
-		updateJSON: map[string]string{"datadog/2/SYNTHETICS_TEST/config-1/aaa111": `{
-					"version": 1,
-					"type": "network",
-					"subtype": "TCP",
-					"config": {
-						"assertions": [],
-						"request": {
-							"host": "example.com",
-							"port": 443,
-							"tcp_method": "SYN",
-							"probe_count": 3,
-							"traceroute_count": 1,
-							"max_ttl": 30,
-							"timeout": 5,
-							"source_service": "frontend",
-							"destination_service": "backend"
-						}
-					},
-					"org_id": 12345,
-					"main_dc": "us1.staging.dog",
-					"public_id": "puf-1"
-				}`},
-		previousJSON: map[string]string{"datadog/2/SYNTHETICS_TEST/config-1/aaa111": `{
-					"version": 1,
-					"type": "network",
-					"subtype": "TCP",
-					"config": {
-						"assertions": [],
-						"request": {
-							"host": "example.com",
-							"port": 443,
-							"tcp_method": "SACK",
-							"probe_count": 3,
-							"traceroute_count": 3,
-							"max_ttl": 30,
-							"timeout": 5,
-							"source_service": "frontend",
-							"destination_service": "backend"
-						}
-					},
-					"org_id": 12345,
-					"main_dc": "us1.staging.dog",
-					"public_id": "puf-1"
-				}`},
-	}, {
-		name: "previous config with one test- add a new  test",
-		updateJSON: map[string]string{"datadog/2/SYNTHETICS_TEST/config-2/bbb222": `{
-					"version": 1,
-					"type": "network",
-					"subtype": "UDP",
-					"config": {
-						"assertions": [],
-						"request": {
-							"host": "example.org",
-							"port": 53,
-							"probe_count": 2,
-							"traceroute_count": 1,
-							"max_ttl": 20,
-							"timeout": 3,
-							"source_service": "api",
-							"destination_service": "db"
-						}
-					},
-					"org_id": 67890,
-					"main_dc": "us2.staging.dog",
-					"public_id": "puf-2"
-				}`,
-			"datadog/2/SYNTHETICS_TEST/config-1/aaa111": `{
-					"version": 1,
-					"type": "network",
-					"subtype": "TCP",
-					"config": {
-						"assertions": [],
-						"request": {
-							"host": "example.com",
-							"port": 443,
-							"tcp_method": "SYN",
-							"probe_count": 3,
-							"traceroute_count": 1,
-							"max_ttl": 30,
-							"timeout": 5,
-							"source_service": "frontend",
-							"destination_service": "backend"
-						}
-					},
-					"org_id": 12345,
-					"main_dc": "us1.staging.dog",
-					"public_id": "puf-1"
-				}`},
-		previousJSON: map[string]string{"datadog/2/SYNTHETICS_TEST/config-1/aaa111": `{
-					"version": 1,
-					"type": "network",
-					"subtype": "TCP",
-					"config": {
-						"assertions": [],
-						"request": {
-							"host": "example.com",
-							"port": 443,
-							"tcp_method": "SACK",
-							"probe_count": 3,
-							"traceroute_count": 3,
-							"max_ttl": 30,
-							"timeout": 5,
-							"source_service": "frontend",
-							"destination_service": "backend"
-						}
-					},
-					"org_id": 12345,
-					"main_dc": "us1.staging.dog",
-					"public_id": "puf-1"
-				}`},
-	}, {
-		name:       "previous config with one test- delete",
-		updateJSON: map[string]string{},
-		previousJSON: map[string]string{"datadog/2/SYNTHETICS_TEST/config-1/aaa111": `{
-				"version": 1,
-				"type": "network",
-				"subtype": "TCP",
-				"config": {
-					"assertions": [],
-					"request": {
-						"host": "example.com",
-						"port": 443,
-						"tcp_method": "SACK",
-						"probe_count": 3,
-						"traceroute_count": 3,
-						"max_ttl": 30,
-						"timeout": 5,
-						"source_service": "frontend",
-						"destination_service": "backend"
-					}
-				},
-				"org_id": 12345,
-				"main_dc": "us1.staging.dog",
-				"public_id": "puf-1"
-			}`},
-	}, {
-		name: "previous config with one test- update with test with different version",
-		updateJSON: map[string]string{"datadog/2/SYNTHETICS_TEST/config-1/aaa111": `{
-					"version": 2,
-					"type": "network",
-					"subtype": "TCP",
-					"config": {
-						"assertions": [],
-						"request": {
-							"host": "example.com",
-							"port": 443,
-							"tcp_method": "SYN",
-							"probe_count": 3,
-							"traceroute_count": 1,
-							"max_ttl": 30,
-							"timeout": 5,
-							"source_service": "frontend",
-							"destination_service": "backend"
-						}
-					},
-					"org_id": 12345,
-					"main_dc": "us1.staging.dog",
-					"public_id": "puf-1"
-				}`},
-		previousJSON: map[string]string{"datadog/2/SYNTHETICS_TEST/config-1/aaa111": `{
-					"version": 1,
-					"type": "network",
-					"subtype": "TCP",
-					"config": {
-						"assertions": [],
-						"request": {
-							"host": "example.com",
-							"port": 443,
-							"tcp_method": "SACK",
-							"probe_count": 3,
-							"traceroute_count": 3,
-							"max_ttl": 30,
-							"timeout": 5,
-							"source_service": "frontend",
-							"destination_service": "backend"
-						}
-					},
-					"org_id": 12345,
-					"main_dc": "us1.staging.dog",
-					"public_id": "puf-1"
-				}`},
-	}, {
-		name: "previous config with one test- update with same version (nextRun should be preserved)",
-		updateJSON: map[string]string{"datadog/2/SYNTHETICS_TEST/config-1/aaa111": `{
-					"version": 1,
-					"type": "network",
-					"subtype": "TCP",
-					"config": {
-						"assertions": [],
-						"request": {
-							"host": "example.com",
-							"port": 443,
-							"tcp_method": "SYN",
-							"probe_count": 3,
-							"traceroute_count": 1,
-							"max_ttl": 30,
-							"timeout": 5,
-							"source_service": "frontend",
-							"destination_service": "backend"
-						}
-					},
-					"org_id": 12345,
-					"main_dc": "us1.staging.dog",
-					"public_id": "puf-1"
-				}`},
-		previousJSON: map[string]string{"datadog/2/SYNTHETICS_TEST/config-1/aaa111": `{
-					"version": 1,
-					"type": "network",
-					"subtype": "TCP",
-					"config": {
-						"assertions": [],
-						"request": {
-							"host": "example.com",
-							"port": 443,
-							"tcp_method": "SACK",
-							"probe_count": 3,
-							"traceroute_count": 3,
-							"max_ttl": 30,
-							"timeout": 5,
-							"source_service": "frontend",
-							"destination_service": "backend"
-						}
-					},
-					"org_id": 12345,
-					"main_dc": "us1.staging.dog",
-					"public_id": "puf-1"
-				}`},
-	},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			testDir := t.TempDir()
-			mockConfig := configmock.New(t)
-			mockConfig.SetWithoutSource("run_path", testDir)
-			firstUpdateTime := time.Now()
-			secondUpdateTime := firstUpdateTime.Add(5 * time.Minute)
-			isFirstUpdate := true
-			timeNowFn := func() time.Time {
-				if isFirstUpdate {
-					return firstUpdateTime
-				}
-				return secondUpdateTime
-			}
-
-			scheduler := newSyntheticsTestScheduler(configs, nil, l, nil, timeNowFn, &teststatsd.Client{}, nil, newTestPoller(t, l))
-			assert.False(t, scheduler.running)
-			applied := map[string]state.ApplyStatus{}
-			applyFunc := func(id string, status state.ApplyStatus) {
-				applied[id] = status
-			}
-
-			// Execute previous config
-			previousConfigs := map[string]state.RawConfig{}
-			previousParsedConfigs := map[string]common.SyntheticsTestConfig{}
-			for pathID, pConfig := range tt.previousJSON {
-				previousConfigs[pathID] = state.RawConfig{Config: []byte(pConfig)}
-				var prevCfg common.SyntheticsTestConfig
-				err = json.Unmarshal([]byte(pConfig), &prevCfg)
-				assert.Nil(t, err)
-				previousParsedConfigs[prevCfg.PublicID] = prevCfg
-			}
-			scheduler.onConfigUpdate(previousConfigs, func(_ string, _ state.ApplyStatus) {})
-
-			// Store the nextRun values after previous config to check if they're preserved
-			previousNextRuns := map[string]time.Time{}
-			for pubID, state := range scheduler.state.tests {
-				previousNextRuns[pubID] = state.nextRun
-			}
-
-			// Switch to second update time
-			isFirstUpdate = false
-
-			// Execute update
-			configs := map[string]state.RawConfig{}
-			expectedApplied := map[string]state.ApplyStatus{}
-			for pathID, c := range tt.updateJSON {
-				expectedApplied[pathID] = state.ApplyStatus{
-					State: state.ApplyStateAcknowledged,
-				}
-				configs[pathID] = state.RawConfig{Config: []byte(c)}
-			}
-			scheduler.onConfigUpdate(configs, applyFunc)
-
-			assert.Equal(t, expectedApplied, applied)
-
-			// Build expected state based on the logic
-			cfg := map[string]*runningTestState{}
-			for _, v := range tt.updateJSON {
-				var newUpdate common.SyntheticsTestConfig
-				err = json.Unmarshal([]byte(v), &newUpdate)
-				assert.Nil(t, err)
-
-				expectedNextRun := secondUpdateTime
-
-				// If the test existed before
-				if prevCfg, existed := previousParsedConfigs[newUpdate.PublicID]; existed {
-					// If version didn't change, nextRun should be preserved
-					if newUpdate.Version <= prevCfg.Version {
-						expectedNextRun = previousNextRuns[newUpdate.PublicID]
-					}
-					// If version changed (increased), nextRun should be updated to secondUpdateTime
-					// (which is already set above)
-				}
-				// If it's a new test, nextRun should be secondUpdateTime (already set above)
-
-				cfg[newUpdate.PublicID] = &runningTestState{
-					cfg:     newUpdate,
-					nextRun: expectedNextRun,
-				}
-			}
-
-			opts := []cmp.Option{
-				cmp.AllowUnexported(runningTestState{}),
-			}
-			assert.True(t, cmp.Equal(cfg, scheduler.state.tests, opts...), "Diff: %s", cmp.Diff(cfg, scheduler.state.tests, opts...))
-		})
-	}
-}
-
 type tracerouteRunner struct {
 	fn func(context.Context, config.Config) (payload.NetworkPath, error)
 }
@@ -509,7 +90,7 @@ func (t *tracerouteRunner) Run(ctx context.Context, cfg config.Config) (payload.
 func Test_SyntheticsTestScheduler_Processing(t *testing.T) {
 	type testCase struct {
 		name                  string
-		updateJSON            map[string]string
+		testJSON              string
 		expectedEventJSON     string
 		expectedRunTraceroute func(context.Context, config.Config) (payload.NetworkPath, error)
 	}
@@ -517,12 +98,12 @@ func Test_SyntheticsTestScheduler_Processing(t *testing.T) {
 	testCases := []testCase{
 		{
 			name: "one test provided",
-			updateJSON: map[string]string{"datadog/2/SYNTHETICS_TEST/config-1/aaa111": `{
+			testJSON: `{
 					"version":1,"type":"network","subtype":"TCP",
 					"config":{"assertions":[],"request":{"host":"example.com","port":443,"tcp_method":"SYN","probe_count":3,"traceroute_count":1,"max_ttl":30,"timeout":5,"source_service":"frontend","destination_service":"backend"}},
 					"org_id":12345,"main_dc":"us1.staging.dog","public_id":"puf-9fm-c89","run_type":"scheduled"
-				}`},
-			expectedEventJSON: `{"location":{"id":"agent:test-hostname"},"_dd":{},"result":{"id":"4907739274636687553","initialId":"4907739274636687553","testFinishedAt":1756901488592,"testStartedAt":1756901488591,"testTriggeredAt":1756901488590,"assertions":[],"failure":null,"duration":1,"config":{"assertions":[],"request":{"destinationService":"backend","port":443,"maxTtl":30,"host":"example.com","tracerouteQueries":1,"e2eQueries":3,"sourceService":"frontend","timeout":5,"tcpMethod":"SYN"}},"netstats":{"packetsSent":0,"packetsReceived":0,"packetLossPercentage":0,"jitter":null,"latency":null,"hops":{"avg":0,"min":0,"max":0}},"netpath":{"timestamp":1756901488592,"agent_version":"","namespace":"","test_config_id":"puf-9fm-c89","test_result_id":"4907739274636687553","test_run_id":"test-run-id-111-example.com","origin":"synthetics","test_run_type":"scheduled","source_product":"synthetics","collector_type":"agent","protocol":"TCP","source":{"name":"test-hostname","display_name":"test-hostname","hostname":"test-hostname"},"destination":{"hostname":"example.com","port":443},"traceroute":{"runs":[{"run_id":"1","source":{"ip_address":"","port":0},"destination":{"ip_address":"","port":0},"hops":[{"ttl":0,"ip_address":"1.1.1.1","reachable":false},{"ttl":0,"ip_address":"1.1.1.2","reachable":false}]}],"hop_count":{"avg":0,"min":0,"max":0}},"e2e_probe":{"rtts":null,"packets_sent":0,"packets_received":0,"packet_loss_percentage":0,"jitter":0,"rtt":{"avg":0,"min":0,"max":0}}},"status":"passed","runType":"scheduled"},"test":{"id":"puf-9fm-c89","subType":"tcp","type":"network","version":1},"v":1}`,
+				}`,
+			expectedEventJSON: `{"location":{"id":"agent:test-hostname"},"_dd":{},"result":{"id":"4907739274636687553","initialId":"4907739274636687553","testFinishedAt":1756901488592,"testStartedAt":1756901488591,"testTriggeredAt":1756901488589,"assertions":[],"failure":null,"duration":1,"config":{"assertions":[],"request":{"destinationService":"backend","port":443,"maxTtl":30,"host":"example.com","tracerouteQueries":1,"e2eQueries":3,"sourceService":"frontend","timeout":5,"tcpMethod":"SYN"}},"netstats":{"packetsSent":0,"packetsReceived":0,"packetLossPercentage":0,"jitter":null,"latency":null,"hops":{"avg":0,"min":0,"max":0}},"netpath":{"timestamp":1756901488592,"agent_version":"","namespace":"","test_config_id":"puf-9fm-c89","test_result_id":"4907739274636687553","test_run_id":"test-run-id-111-example.com","origin":"synthetics","test_run_type":"scheduled","source_product":"synthetics","collector_type":"agent","protocol":"TCP","source":{"name":"test-hostname","display_name":"test-hostname","hostname":"test-hostname"},"destination":{"hostname":"example.com","port":443},"traceroute":{"runs":[{"run_id":"1","source":{"ip_address":"","port":0},"destination":{"ip_address":"","port":0},"hops":[{"ttl":0,"ip_address":"1.1.1.1","reachable":false},{"ttl":0,"ip_address":"1.1.1.2","reachable":false}]}],"hop_count":{"avg":0,"min":0,"max":0}},"e2e_probe":{"rtts":null,"packets_sent":0,"packets_received":0,"packet_loss_percentage":0,"jitter":0,"rtt":{"avg":0,"min":0,"max":0}}},"status":"passed","runType":"scheduled"},"test":{"id":"puf-9fm-c89","subType":"tcp","type":"network","version":1},"v":1}`,
 			expectedRunTraceroute: func(_ context.Context, cfg config.Config) (payload.NetworkPath, error) {
 				return payload.NetworkPath{
 					TestRunID:   "test-run-id-111-" + cfg.DestHostname,
@@ -551,7 +132,7 @@ func Test_SyntheticsTestScheduler_Processing(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			testDir := t.TempDir()
 			mockConfig := configmock.New(t)
-			mockConfig.SetWithoutSource("run_path", testDir)
+			mockConfig.SetInTest("run_path", testDir)
 
 			var b bytes.Buffer
 			w := bufio.NewWriter(&b)
@@ -572,23 +153,9 @@ func Test_SyntheticsTestScheduler_Processing(t *testing.T) {
 			mockEpForwarder := eventplatformimpl.NewMockEventPlatformForwarder(ctrl)
 
 			ctx := context.TODO()
-			scheduler := newSyntheticsTestScheduler(configs, mockEpForwarder, l, &mockHostname{}, timeNowFn, &teststatsd.Client{}, &tracerouteRunner{tc.expectedRunTraceroute}, newTestPoller(t, l))
+			poller := newStubPoller(t, l)
+			scheduler := newSyntheticsTestScheduler(configs, mockEpForwarder, l, &mockHostname{}, timeNowFn, &teststatsd.Client{}, &tracerouteRunner{tc.expectedRunTraceroute}, poller)
 			assert.False(t, scheduler.running)
-
-			configs := map[string]state.RawConfig{}
-			expectedApplied := map[string]state.ApplyStatus{}
-			for pathID, c := range tc.updateJSON {
-				expectedApplied[pathID] = state.ApplyStatus{
-					State: state.ApplyStateAcknowledged,
-				}
-				configs[pathID] = state.RawConfig{Config: []byte(c)}
-			}
-
-			scheduler.onConfigUpdate(configs, func(_ string, _ state.ApplyStatus) {})
-
-			tickCh := make(chan time.Time, 1)
-			scheduler.tickerC = tickCh
-			tickCh <- scheduler.timeNowFn()
 
 			scheduler.generateTestResultID = func(func(rand io.Reader, max *big.Int) (n *big.Int, err error)) (string, error) {
 				return "4907739274636687553", nil
@@ -605,13 +172,16 @@ func Test_SyntheticsTestScheduler_Processing(t *testing.T) {
 
 			assert.Nil(t, scheduler.start(ctx))
 
+			var cfg common.SyntheticsTestConfig
+			assert.Nil(t, json.Unmarshal([]byte(tc.testJSON), &cfg))
+			poller.TestsChan <- SyntheticsTestCtx{nextRun: timeNowFn(), cfg: cfg}
+
 			select {
 			case <-done:
 			case <-time.After(3 * time.Second):
 				t.Fatal("mock was never called")
 			}
 			scheduler.stop()
-
 		})
 	}
 }
@@ -648,6 +218,7 @@ func Test_SyntheticsTestScheduler_RunWorker_ProcessesTestCtxAndSendsResult(t *te
 		workers:                      4,
 		hostNameService:              &mockHostname{},
 		statsdClient:                 &teststatsd.Client{},
+		state:                        runningState{tests: map[string]*runningTestState{}},
 		traceroute: &tracerouteRunner{fn: func(context.Context, config.Config) (payload.NetworkPath, error) {
 			return payload.NetworkPath{
 				TestRunID:   "path-123",
@@ -656,12 +227,12 @@ func Test_SyntheticsTestScheduler_RunWorker_ProcessesTestCtxAndSendsResult(t *te
 				Destination: payload.NetworkPathDestination{Hostname: "dst", Port: 443},
 			}, nil
 		}},
-		onDemandPoller: newTestPoller(t, l),
+		testPoller: newStubPoller(t, l),
 	}
 
 	gotCh := make(chan *workerResult, 1)
 	scheduler.sendResult = func(w *workerResult) (string, error) {
-		gotCh <- w // signal test that we got a result
+		gotCh <- w
 		return "", nil
 	}
 
@@ -692,7 +263,6 @@ func Test_SyntheticsTestScheduler_RunWorker_ProcessesTestCtxAndSendsResult(t *te
 	var got *workerResult
 	select {
 	case got = <-gotCh:
-		// ok
 	case <-time.After(2 * time.Second):
 		t.Fatal("timeout waiting for workerResult")
 	}
@@ -706,6 +276,7 @@ func Test_SyntheticsTestScheduler_RunWorker_ProcessesTestCtxAndSendsResult(t *te
 		t.Errorf("unexpected TestRunID: %s", got.tracerouteResult.TestRunID)
 	}
 }
+
 func TestFlushEnqueuesDueTests(t *testing.T) {
 	now := time.Now()
 	var b bytes.Buffer
@@ -723,7 +294,7 @@ func TestFlushEnqueuesDueTests(t *testing.T) {
 				"test1": {
 					cfg: common.SyntheticsTestConfig{
 						PublicID: "test1",
-						Interval: 10, // seconds
+						Interval: 10,
 					},
 					nextRun: now.Add(-10 * time.Second),
 				},
@@ -733,7 +304,6 @@ func TestFlushEnqueuesDueTests(t *testing.T) {
 		log:           l,
 	}
 
-	// Flush at 'now'
 	scheduler.flush(context.Background(), now)
 
 	select {
@@ -747,10 +317,42 @@ func TestFlushEnqueuesDueTests(t *testing.T) {
 	}
 
 	rt := scheduler.state.tests["test1"]
-
-	// The nextRun should be updated based on the old nextRun, not flushTime
-	expectedNextRun := now // old nextRun (-10s) + interval (10s) = now
+	expectedNextRun := now
 	assert.Equal(t, expectedNextRun, rt.nextRun)
+}
+
+func TestFlush_NoOpWhenPollerHealthy(t *testing.T) {
+	now := time.Now()
+	var b bytes.Buffer
+	w := bufio.NewWriter(&b)
+	l, err := utillog.LoggerFromWriterWithMinLevelAndLvlFuncMsgFormat(w, utillog.DebugLvl)
+	assert.Nil(t, err)
+	utillog.SetupLogger(l, "debug")
+
+	scheduler := &syntheticsTestScheduler{
+		timeNowFn:                    func() time.Time { return now },
+		syntheticsTestProcessingChan: make(chan SyntheticsTestCtx, 10),
+		running:                      true,
+		state: runningState{
+			tests: map[string]*runningTestState{
+				"test1": {
+					cfg:     common.SyntheticsTestConfig{PublicID: "test1", Interval: 10},
+					nextRun: now.Add(-10 * time.Second),
+				},
+			},
+		},
+		flushInterval: 10 * time.Second,
+		log:           l,
+		testPoller:    &testPoller{healthy: true},
+	}
+
+	scheduler.flush(context.Background(), now)
+
+	select {
+	case <-scheduler.syntheticsTestProcessingChan:
+		t.Errorf("expected no enqueue while poller is healthy")
+	case <-time.After(200 * time.Millisecond):
+	}
 }
 
 func TestFlushEnqueueExhaustion(t *testing.T) {
@@ -773,14 +375,14 @@ func TestFlushEnqueueExhaustion(t *testing.T) {
 				"test1": {
 					cfg: common.SyntheticsTestConfig{
 						PublicID: "test1",
-						Interval: 10, // seconds
+						Interval: 10,
 					},
 					nextRun: now.Add(-10 * time.Second),
 				},
 				"test2": {
 					cfg: common.SyntheticsTestConfig{
 						PublicID: "test1",
-						Interval: 10, // seconds
+						Interval: 10,
 					},
 					nextRun: now.Add(-10 * time.Second),
 				},
@@ -790,7 +392,6 @@ func TestFlushEnqueueExhaustion(t *testing.T) {
 		log:           tl,
 	}
 
-	// Flush at 'now'
 	scheduler.flush(context.Background(), now)
 
 	select {
@@ -805,9 +406,7 @@ func TestFlushEnqueueExhaustion(t *testing.T) {
 
 	assert.Equal(t, []string{"test queue high usage (≥70%), increase the number of workers", "enqueuing test test1 timed out, increase the number of workers"}, tl.errorCalls)
 	rt := scheduler.state.tests["test1"]
-
-	// The nextRun should be updated based on the old nextRun, not flushTime
-	expectedNextRun := now // old nextRun (-10s) + interval (10s) = now
+	expectedNextRun := now
 	assert.Equal(t, expectedNextRun, rt.nextRun)
 }
 

@@ -1,3 +1,9 @@
-# gazelle:ignore
-# bundle.go is part of an unmigrated module; ignore this directory to prevent
-# Gazelle from generating targets that pull unmigrated external-repo deps.
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "updater",
+    srcs = ["bundle.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/updater",
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/util/fxutil"],
+)

@@ -12,7 +12,7 @@ import "github.com/DataDog/datadog-agent/pkg/logs/sources"
 // the producer to get stuck.
 func consumeSources(sources *sources.LogSources) {
 	go func() {
-		sources := sources.GetAddedForType("foo")
+		sources := sources.GetAddedForType("foo", make(chan struct{}))
 		for source := range sources {
 			// Consume from channel to prevent blocking
 			_ = source

@@ -26,9 +26,14 @@
             "lineNumber": 217
           },
           {
+            "function": "main.runAll",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 80
+          },
+          {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 49
+            "lineNumber": 39
           },
           {
             "function": "runtime.main",
@@ -56,10 +61,6 @@
                 "needle": {
                   "type": "go.shape.string",
                   "value": "b"
-                },
-                "@return": {
-                  "type": "bool",
-                  "notCapturedReason": "unavailable"
                 }
               }
             }
@@ -99,9 +100,14 @@
             "lineNumber": 218
           },
           {
+            "function": "main.runAll",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 80
+          },
+          {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 49
+            "lineNumber": 39
           },
           {
             "function": "runtime.main",
@@ -147,10 +153,6 @@
                 "needle": {
                   "type": "int",
                   "value": "2"
-                },
-                "@return": {
-                  "type": "bool",
-                  "notCapturedReason": "unavailable"
                 }
               }
             }
@@ -190,9 +192,14 @@
             "lineNumber": 222
           },
           {
+            "function": "main.runAll",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 80
+          },
+          {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 49
+            "lineNumber": 39
           },
           {
             "function": "runtime.main",
@@ -238,10 +245,6 @@
                 "needle": {
                   "type": "main.namedInt",
                   "value": "2"
-                },
-                "@return": {
-                  "type": "bool",
-                  "notCapturedReason": "unavailable"
                 }
               }
             }
@@ -281,9 +284,14 @@
             "lineNumber": 263
           },
           {
+            "function": "main.runAll",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 80
+          },
+          {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 49
+            "lineNumber": 39
           },
           {
             "function": "runtime.main",
@@ -329,10 +337,6 @@
                 "needle": {
                   "type": "main.score",
                   "value": "20"
-                },
-                "@return": {
-                  "type": "bool",
-                  "notCapturedReason": "unavailable"
                 }
               }
             }
@@ -372,9 +376,14 @@
             "lineNumber": 264
           },
           {
+            "function": "main.runAll",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 80
+          },
+          {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 49
+            "lineNumber": 39
           },
           {
             "function": "runtime.main",
@@ -416,10 +425,6 @@
                 "needle": {
                   "type": "main.celsius",
                   "value": "100"
-                },
-                "@return": {
-                  "type": "bool",
-                  "notCapturedReason": "unavailable"
                 }
               }
             }

@@ -1,0 +1,17 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "fakeintake",
+    srcs = [
+        "component.go",
+        "docker.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/fakeintake",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/e2e-framework/common/config",
+        "//test/e2e-framework/components",
+        "@com_github_pulumi_pulumi_docker_sdk_v4//go/docker",
+        "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
+    ],
+)

@@ -17,8 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/semantics"
 )
 
-var registry = semantics.DefaultRegistry()
-
 // isPromotedTag returns true if the key is a promoted tag that should be set as a field instead of an attribute
 func isPromotedTag(key string) bool {
 	return key == "env" || key == "version" || key == "component" || key == "span.kind"
@@ -27,6 +25,7 @@ func isPromotedTag(key string) bool {
 // ConvertToIdx converts a TracerPayload to the new string indexed TracerPayload format
 // originPayloadVersion is the version of the original payload, this is used to set the _dd.convertedv1 attribute on the spans (for debugging purposes)
 func ConvertToIdx(payload *pb.TracerPayload, originPayloadVersion string) *idx.InternalTracerPayload {
+	reg := semantics.DefaultRegistry()
 	stringTable := idx.NewStringTable()
 	payloadAttrs := convertAttributesMap(payload.Tags, stringTable)
 	idxChunks := make([]*idx.InternalTraceChunk, len(payload.Chunks))
@@ -57,7 +56,7 @@ func ConvertToIdx(payload *pb.TracerPayload, originPayloadVersion string) *idx.I
 					},
 				}
 			}
-			if p, ok := semantics.LookupFloat64(registry, semantics.NewMetricsMapAccessor(span.Metrics), semantics.ConceptSamplingPriority); ok {
+			if p, ok := semantics.LookupFloat64(reg, semantics.NewMetricsMapAccessor(span.Metrics), semantics.ConceptSamplingPriority); ok {
 				spanConvertedFields.SamplingPriority = int32(p)
 			}
 			for k, v := range span.Metrics {
@@ -107,25 +106,25 @@ func ConvertToIdx(payload *pb.TracerPayload, originPayloadVersion string) *idx.I
 			// the first occurrence to chunk/payload level via spanConvertedFields
 			metaAccessor := semantics.NewStringMapAccessor(span.Meta)
 			var spanEnvRef, spanVersionRef uint32
-			if env := semantics.LookupString(registry, metaAccessor, semantics.ConceptDDEnv); env != "" {
+			if env := semantics.LookupString(reg, metaAccessor, semantics.ConceptDDEnv); env != "" {
 				spanEnvRef = stringTable.Add(env)
 				if spanConvertedFields.EnvRef == 0 {
 					spanConvertedFields.EnvRef = spanEnvRef
 				}
 			}
-			if spanHost := semantics.LookupString(registry, metaAccessor, semantics.ConceptDDHostname); spanHost != "" && spanConvertedFields.HostnameRef == 0 {
+			if spanHost := semantics.LookupString(reg, metaAccessor, semantics.ConceptDDHostname); spanHost != "" && spanConvertedFields.HostnameRef == 0 {
 				spanConvertedFields.HostnameRef = stringTable.Add(spanHost)
 			}
-			if spanVersion := semantics.LookupString(registry, metaAccessor, semantics.ConceptDDVersion); spanVersion != "" {
+			if spanVersion := semantics.LookupString(reg, metaAccessor, semantics.ConceptDDVersion); spanVersion != "" {
 				spanVersionRef = stringTable.Add(spanVersion)
 				if spanConvertedFields.AppVersionRef == 0 {
 					spanConvertedFields.AppVersionRef = spanVersionRef
 				}
 			}
-			if spanGitCommitSha := semantics.LookupString(registry, metaAccessor, semantics.ConceptDDGitCommitSHA); spanGitCommitSha != "" && spanConvertedFields.GitCommitShaRef == 0 {
+			if spanGitCommitSha := semantics.LookupString(reg, metaAccessor, semantics.ConceptDDGitCommitSHA); spanGitCommitSha != "" && spanConvertedFields.GitCommitShaRef == 0 {
 				spanConvertedFields.GitCommitShaRef = stringTable.Add(spanGitCommitSha)
 			}
-			if spanDecisionMaker := semantics.LookupString(registry, metaAccessor, semantics.ConceptDDDecisionMaker); spanDecisionMaker != "" && spanConvertedFields.SamplingMechanism == 0 {
+			if spanDecisionMaker := semantics.LookupString(reg, metaAccessor, semantics.ConceptDDDecisionMaker); spanDecisionMaker != "" && spanConvertedFields.SamplingMechanism == 0 {
 				spanDecisionMaker, _ = strings.CutPrefix(spanDecisionMaker, "-")
 				samplingMechanism, err := strconv.ParseUint(spanDecisionMaker, 10, 32)
 				if err != nil {
@@ -133,14 +132,14 @@ func ConvertToIdx(payload *pb.TracerPayload, originPayloadVersion string) *idx.I
 				}
 				spanConvertedFields.SamplingMechanism = uint32(samplingMechanism)
 			}
-			if spanAPMMode := semantics.LookupString(registry, metaAccessor, semantics.ConceptDDAPMMode); spanAPMMode != "" && spanConvertedFields.APMModeRef == 0 {
+			if spanAPMMode := semantics.LookupString(reg, metaAccessor, semantics.ConceptDDAPMMode); spanAPMMode != "" && spanConvertedFields.APMModeRef == 0 {
 				spanConvertedFields.APMModeRef = stringTable.Add(spanAPMMode)
 			}
-			if spanOrigin := semantics.LookupString(registry, metaAccessor, semantics.ConceptDDOrigin); spanOrigin != "" && spanConvertedFields.OriginRef == 0 {
+			if spanOrigin := semantics.LookupString(reg, metaAccessor, semantics.ConceptDDOrigin); spanOrigin != "" && spanConvertedFields.OriginRef == 0 {
 				spanConvertedFields.OriginRef = stringTable.Add(spanOrigin)
 			}
-			component := semantics.LookupString(registry, metaAccessor, semantics.ConceptComponent)
-			kindStr := semantics.LookupString(registry, metaAccessor, semantics.ConceptSpanKind)
+			component := semantics.LookupString(reg, metaAccessor, semantics.ConceptComponent)
+			kindStr := semantics.LookupString(reg, metaAccessor, semantics.ConceptSpanKind)
 			var kind idx.SpanKind
 			switch kindStr {
 			case "server":

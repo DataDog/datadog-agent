@@ -24,6 +24,7 @@ include:
     - !reference [.install_python_dependencies]
     - !reference [.upload_junit_source]
     - !reference [.upload_coverage]
+    - !reference [.upload_coverage_datadog]
   artifacts:
     expire_in: 2 weeks
     when: always

@@ -19,12 +19,12 @@ import (
 	"go.opentelemetry.io/collector/component"
 
 	configmock "github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	secretnooptypes "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl/types"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
+	noopsimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
 	agentmetrics "github.com/DataDog/datadog-agent/pkg/metrics"
 	serializermock "github.com/DataDog/datadog-agent/pkg/serializer/mocks"
 )

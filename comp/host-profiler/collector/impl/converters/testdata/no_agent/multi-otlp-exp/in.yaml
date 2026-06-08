@@ -1,0 +1,14 @@
+exporters:
+  otlp_http/prod:
+    headers:
+      dd-api-key: 11111
+  otlp_http/staging:
+    headers:
+      dd-api-key: staging-key
+  logging: {}
+service:
+  pipelines:
+    profiles:
+      processors: []
+      receivers: []
+      exporters: [otlp_http/prod, otlp_http/staging, logging]

@@ -292,8 +292,7 @@ func (is *installScriptSuiteSysVInit) TestInstallAgent() {
 		statusOutput, err := client.ExecuteWithRetry("datadog-agent \"status\"")
 		require.NoError(is.T(), err)
 
-		// API Key is invalid we should not check for the following error
-		statusOutput = strings.ReplaceAll(statusOutput, "[ERROR] API Key is invalid", "API Key is invalid")
+		statusOutput = common.SanitizeStatusOutputForKnownNoise(statusOutput)
 		require.NotContains(tt, statusOutput, "ERROR")
 	})
 }

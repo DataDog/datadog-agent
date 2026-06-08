@@ -8,6 +8,7 @@
 package output
 
 import (
+	"fmt"
 	"testing"
 	"unsafe"
 
@@ -222,9 +223,16 @@ func TestEventIterator(t *testing.T) {
 				header.Data_byte_len = uint32(totalSize)
 				return &header
 			}(),
-			expectedStack:      fullStack,
-			expectedDataItems:  []DataItem{fullItems[0]},
-			expectDataItemsErr: []string{"", `not enough bytes to read data item \(8 bytes\): 108 < 112`},
+			expectedStack:     fullStack,
+			expectedDataItems: []DataItem{fullItems[0]},
+			expectDataItemsErr: []string{"", fmt.Sprintf(
+				`not enough bytes to read data item \(8 bytes\): %d < %d`,
+				eventHeaderSize+int(fullHeader.Stack_byte_len)+
+					2*dataItemHeaderSize+nextMultipleOf8(int(fullItems[0].header.Length))+4,
+				eventHeaderSize+int(fullHeader.Stack_byte_len)+
+					2*dataItemHeaderSize+nextMultipleOf8(int(fullItems[0].header.Length))+
+					int(fullItems[1].header.Length),
+			)},
 		},
 		{
 			name: "one valid data item, one truncated data item header",
@@ -351,6 +359,165 @@ func TestEventIterator(t *testing.T) {
 				break
 			}
 		})
+	}
+}
+
+func TestContinuationFlags(t *testing.T) {
+	tests := []struct {
+		name             string
+		seq              uint16
+		flags            uint8
+		isContinuation   bool
+		hasMoreFragments bool
+	}{
+		{
+			name:             "legacy single event",
+			seq:              0,
+			flags:            0,
+			isContinuation:   false,
+			hasMoreFragments: false,
+		},
+		{
+			name:             "first fragment with more",
+			seq:              0,
+			flags:            ContinuationFlagMore,
+			isContinuation:   true,
+			hasMoreFragments: true,
+		},
+		{
+			name:             "middle fragment",
+			seq:              1,
+			flags:            ContinuationFlagMore,
+			isContinuation:   true,
+			hasMoreFragments: true,
+		},
+		{
+			name:             "final fragment",
+			seq:              2,
+			flags:            0,
+			isContinuation:   true,
+			hasMoreFragments: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := &EventHeader{
+				Continuation_seq:   tt.seq,
+				Continuation_flags: tt.flags,
+			}
+			require.Equal(t, tt.isContinuation, h.IsContinuation())
+			require.Equal(t, tt.hasMoreFragments, h.HasMoreFragments())
+		})
+	}
+}
+
+func TestMultiFragmentReassembly(t *testing.T) {
+	// Build a 3-fragment event and verify that concatenating the data item
+	// portions of fragments 1 and 2 onto fragment 0 produces a valid event
+	// that the DataItems iterator can walk.
+
+	rootItem := DataItem{
+		header: &DataItemHeader{Type: 1, Length: 8, Address: 0x100},
+		data:   []byte{1, 2, 3, 4, 5, 6, 7, 8},
+	}
+	itemA := DataItem{
+		header: &DataItemHeader{Type: 2, Length: 4, Address: 0x200},
+		data:   []byte{10, 11, 12, 13},
+	}
+	itemB := DataItem{
+		header: &DataItemHeader{Type: 3, Length: 8, Address: 0x300},
+		data:   []byte{20, 21, 22, 23, 24, 25, 26, 27},
+	}
+	itemC := DataItem{
+		header: &DataItemHeader{Type: 4, Length: 4, Address: 0x400},
+		data:   []byte{30, 31, 32, 33},
+	}
+
+	stack := []uint64{0xdead, 0xbeef}
+	allItems := []DataItem{rootItem, itemA, itemB, itemC}
+
+	// Fragment 0: header + stack + rootItem + itemA
+	frag0Header := EventHeader{
+		Prog_id:            1,
+		Goid:               42,
+		Stack_byte_depth:   100,
+		Probe_id:           7,
+		Stack_byte_len:     16,
+		Ktime_ns:           5000,
+		Continuation_seq:   0,
+		Continuation_flags: ContinuationFlagMore,
+	}
+	frag0Items := []DataItem{rootItem, itemA}
+	frag0 := buildEvent(nil, &frag0Header, stack, frag0Items)
+	frag0Header.Data_byte_len = uint32(len(frag0))
+	*(*EventHeader)(unsafe.Pointer(&frag0[0])) = frag0Header
+
+	// Fragment 1: header + itemB (no stack)
+	frag1Header := EventHeader{
+		Prog_id:            1,
+		Goid:               42,
+		Stack_byte_depth:   100,
+		Probe_id:           7,
+		Stack_byte_len:     0,
+		Ktime_ns:           5000,
+		Continuation_seq:   1,
+		Continuation_flags: ContinuationFlagMore,
+	}
+	frag1 := buildEvent(nil, &frag1Header, nil, []DataItem{itemB})
+	frag1Header.Data_byte_len = uint32(len(frag1))
+	*(*EventHeader)(unsafe.Pointer(&frag1[0])) = frag1Header
+
+	// Fragment 2: header + itemC (final)
+	frag2Header := EventHeader{
+		Prog_id:            1,
+		Goid:               42,
+		Stack_byte_depth:   100,
+		Probe_id:           7,
+		Stack_byte_len:     0,
+		Ktime_ns:           5000,
+		Continuation_seq:   2,
+		Continuation_flags: 0, // final
+	}
+	frag2 := buildEvent(nil, &frag2Header, nil, []DataItem{itemC})
+	frag2Header.Data_byte_len = uint32(len(frag2))
+	*(*EventHeader)(unsafe.Pointer(&frag2[0])) = frag2Header
+
+	// Simulate reassembly: base = frag0, append data-item bytes from frag1
+	// and frag2 (everything after the event header).
+	reassembled := make([]byte, len(frag0))
+	copy(reassembled, frag0)
+	reassembled = append(reassembled, frag1[eventHeaderSize:]...)
+	reassembled = append(reassembled, frag2[eventHeaderSize:]...)
+
+	// Fix up the header.
+	rh := (*EventHeader)(unsafe.Pointer(&reassembled[0]))
+	rh.Data_byte_len = uint32(len(reassembled))
+	rh.Continuation_seq = 0
+	rh.Continuation_flags = 0
+
+	ev := Event(reassembled)
+	header, err := ev.Header()
+	require.NoError(t, err)
+	require.Equal(t, uint32(len(reassembled)), header.Data_byte_len)
+
+	// Verify stack
+	pcs, err := ev.StackPCs()
+	require.NoError(t, err)
+	require.Equal(t, stack, pcs)
+
+	// Verify all data items are present
+	var items []DataItem
+	for item, err := range ev.DataItems() {
+		require.NoError(t, err)
+		data, ok := item.Data()
+		require.True(t, ok)
+		hdr := *item.Header()
+		items = append(items, DataItem{header: &hdr, data: data})
+	}
+	require.Len(t, items, len(allItems))
+	for i := range allItems {
+		require.Equal(t, allItems[i].header, items[i].header, "item %d header", i)
+		require.Equal(t, allItems[i].data, items[i].data, "item %d data", i)
 	}
 }
 

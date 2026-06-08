@@ -127,12 +127,23 @@ func (u *verticalController) sync(ctx context.Context, podAutoscaler *datadoghq.
 		podsPerDirectOwner[pod.Owners[0].ID] = podsPerDirectOwner[pod.Owners[0].ID] + 1
 	}
 
+	// Get the live pod UIDs, prune pod operations for pods that are no longer in the live set.
+	livePodUIDs := make(map[string]struct{}, len(pods))
+	for _, pod := range pods {
+		livePodUIDs[pod.EntityID.ID] = struct{}{}
+	}
+	autoscalerInternal.PrunePodOperations(recommendationID, livePodUIDs)
+
 	// Classify each non-terminating pod by resize status so we can set scaled replicas
 	// (completed pods count) accurately. Pass this slice to syncInternal to avoid
 	// a duplicate call to getPodResizeStatus.
 	podsByResizeStatus := make(map[PodResizeStatus][]classifiedPod)
 	for _, pod := range pods {
 		if pod.DeletionTimestamp != nil {
+			continue
+		}
+		if autoscalerInternal.HasPendingOperation(pod.EntityID.ID, recommendationID) {
+			podsByResizeStatus[PodResizeStatusEvicting] = append(podsByResizeStatus[PodResizeStatusEvicting], classifiedPod{pod: pod})
 			continue
 		}
 		status, ltt := getPodResizeStatus(pod, recommendationID)
@@ -229,13 +240,25 @@ func (u *verticalController) syncInternal(
 		}
 	}
 
-	// If the resize patch was rejected as forbidden (e.g. RBAC missing for
-	// pods/resize), or any pod has been stuck in an unresolvable state for longer
-	// than RolloutFallbackDelay, escalate to a full rollout.
-	if shouldFallbackToRollout(toEvict, podAutoscaler, now, patchForbidden) {
-		if patchForbidden {
+	// Escalate to a full rollout when:
+	//  - the resize patch was rejected as forbidden (e.g. RBAC missing for pods/resize), or
+	//  - any pod is PodResizePending=Infeasible, or
+	//  - any pod has been stuck in an unresolvable state longer than RolloutFallbackDelay.
+	hasInfeasible := len(podsByResizeStatus[PodResizeStatusInfeasible]) > 0
+	if shouldFallbackToRollout(toEvict, hasInfeasible, podAutoscaler, now, patchForbidden) {
+		// Wait for the in-flight rollout to converge rather than restamping the pod template.
+		lastAction := autoscalerInternal.VerticalLastAction()
+		if lastAction != nil &&
+			lastAction.Type == datadoghqcommon.DatadogPodAutoscalerRolloutTriggeredVerticalActionType &&
+			lastAction.Version == recommendationID {
+			return autoscaling.ProcessResult{Requeue: true, RequeueAfter: rolloutCheckRequeueDelay}, nil
+		}
+		switch {
+		case patchForbidden:
 			log.Infof("In-place resize fallback: pods/resize patch forbidden, triggering rollout for autoscaler %s", autoscalerInternal.ID())
-		} else {
+		case hasInfeasible:
+			log.Infof("In-place resize fallback: pod resize Infeasible (exceeds node capacity), triggering rollout for autoscaler %s", autoscalerInternal.ID())
+		default:
 			log.Infof("In-place resize fallback: pods stuck too long, triggering rollout for autoscaler %s", autoscalerInternal.ID())
 		}
 		autoscalerInternal.InPlaceRolloutFallbackInc()
@@ -264,6 +287,7 @@ func (u *verticalController) syncInternal(
 		if result == evictor.Evicted {
 			evictedThisSync++
 			autoscalerInternal.InPlaceEvictionSuccessInc()
+			autoscalerInternal.TrackPodOperation(cp.pod.EntityID.ID, recommendationID)
 		}
 		if result == evictor.PDBLockedOrThrottle || result == evictor.Skipped {
 			pdbBlocked = true
@@ -291,8 +315,14 @@ func (u *verticalController) syncInternal(
 			eventType = corev1.EventTypeWarning
 			reason = model.FailedToEvictEventReason
 		}
+		inFlight := len(podsByResizeStatus[PodResizeStatusEvicting])
+		remaining := int(int32(len(toEvict)) - evictedThisSync - failedEvictions)
+		suffix := fmt.Sprintf("%d remaining", remaining)
+		if inFlight > 0 {
+			suffix += fmt.Sprintf(", %d in-flight", inFlight)
+		}
 		u.eventRecorder.Eventf(podAutoscaler, eventType, reason,
-			"In-place resize eviction: %s (%d pods pending)", strings.Join(parts, ", "), len(toEvict))
+			"In-place resize eviction: %s (%s)", strings.Join(parts, ", "), suffix)
 	}
 
 	// Terminating pods are excluded from podsByResizeStatus, so summing all bucket lengths
@@ -302,6 +332,7 @@ func (u *verticalController) syncInternal(
 		totalActive += len(bucket)
 	}
 	if len(podsByResizeStatus[PodResizeStatusCompleted]) == totalActive {
+		autoscalerInternal.ClearPodOperations()
 		if lastAction := autoscalerInternal.VerticalLastAction(); lastAction != nil &&
 			lastAction.Type == datadoghqcommon.DatadogPodAutoscalerResizeTriggeredVerticalActionType {
 			u.eventRecorder.Eventf(podAutoscaler, corev1.EventTypeNormal, model.ResizeSuccessfulEventReason,

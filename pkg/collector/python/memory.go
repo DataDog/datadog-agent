@@ -14,7 +14,7 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 )
 
 /*
@@ -47,15 +47,15 @@ static inline size_t get_alloc_size(void *ptr) {
 import "C"
 
 var (
-	tlmAllocations = telemetry.NewCounter("rtloader", "allocations",
+	tlmAllocations = telemetryimpl.GetCompatComponent().NewCounter("rtloader", "allocations",
 		nil, "Allocations count")
-	tlmAllocatedBytes = telemetry.NewCounter("rtloader", "allocated_bytes",
+	tlmAllocatedBytes = telemetryimpl.GetCompatComponent().NewCounter("rtloader", "allocated_bytes",
 		nil, "Allocated bytes amount")
-	tlmFrees = telemetry.NewCounter("rtloader", "frees",
+	tlmFrees = telemetryimpl.GetCompatComponent().NewCounter("rtloader", "frees",
 		nil, "Frees count")
-	tlmFreedBytes = telemetry.NewCounter("rtloader", "freed_bytes",
+	tlmFreedBytes = telemetryimpl.GetCompatComponent().NewCounter("rtloader", "freed_bytes",
 		nil, "Freed memory amount")
-	tlmInuseBytes = telemetry.NewGauge("rtloader", "inuse_bytes",
+	tlmInuseBytes = telemetryimpl.GetCompatComponent().NewGauge("rtloader", "inuse_bytes",
 		nil, "In-use memory")
 )
 

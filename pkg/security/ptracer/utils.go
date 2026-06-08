@@ -9,7 +9,6 @@
 package ptracer
 
 import (
-	"bufio"
 	"bytes"
 	"errors"
 	"fmt"
@@ -18,7 +17,6 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"syscall"
 
@@ -28,81 +26,33 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/proto/ebpfless"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model/sharedconsts"
+	cgutil "github.com/DataDog/datadog-agent/pkg/security/utils/cgroup"
 	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
-
-// Funcs mainly copied from github.com/DataDog/datadog-agent/pkg/security/utils/cgroup.go
-// in order to reduce the binary size of cws-instrumentation
-
-type controlGroup struct {
-	// id unique hierarchy ID
-	id int
-
-	// controllers are the list of cgroup controllers bound to the hierarchy
-	controllers []string
-
-	// path is the pathname of the control group to which the process
-	// belongs. It is relative to the mountpoint of the hierarchy.
-	path string
-}
-
-func getProcControlGroupsFromData(data []byte) ([]controlGroup, error) {
-	var cgroups []controlGroup
-	scanner := bufio.NewScanner(bytes.NewReader(data))
-	for scanner.Scan() {
-		t := scanner.Text()
-		parts := strings.Split(t, ":")
-		ID, err := strconv.Atoi(parts[0])
-		if err != nil {
-			continue
-		}
-		c := controlGroup{
-			id:          ID,
-			controllers: strings.Split(parts[1], ","),
-			path:        parts[2],
-		}
-		cgroups = append(cgroups, c)
-	}
-	return cgroups, nil
-}
-
-func getContainerIDFromCgroupData(data []byte) (containerutils.ContainerID, error) {
-	cgroups, err := getProcControlGroupsFromData(data)
-	if err != nil {
-		return "", err
-	}
-
-	for _, cgroup := range cgroups {
-		str := cgroup.path
-		if strings.Contains(cgroup.path, "kubepods") {
-			els := strings.Split(str, "/")
-			if len(els) > 0 {
-				str = els[len(els)-1]
-			}
-		}
-		if cid := containerutils.FindContainerID(containerutils.CGroupID(str)); cid != "" {
-			return cid, nil
-		} else if cid = containerutils.FindContainerID(containerutils.CGroupID(cgroup.path)); cid != "" {
-			return cid, nil
-		}
-	}
-	return "", nil
-}
 
 func getCurrentProcContainerID() (containerutils.ContainerID, error) {
 	data, err := os.ReadFile("/proc/self/cgroup")
 	if err != nil {
 		return "", err
 	}
-	return getContainerIDFromCgroupData(data)
+	return cgutil.FindContainerIDFromEntries(cgutil.ParseProcCgroupDataLenient(data)), nil
 }
 
-func getProcContainerID(pid int) (containerutils.ContainerID, error) {
-	data, err := os.ReadFile(fmt.Sprintf("/proc/%d/cgroup", pid))
+func getCurrentProcCGroupID() (containerutils.CGroupID, error) {
+	data, err := os.ReadFile("/proc/self/cgroup")
 	if err != nil {
 		return "", err
 	}
-	return getContainerIDFromCgroupData(data)
+	return cgutil.CGroupIDFromEntries(cgutil.ParseProcCgroupDataLenient(data)), nil
+}
+
+func getProcContainerContext(pid int) (containerutils.ContainerID, containerutils.CGroupID, error) {
+	data, err := os.ReadFile(fmt.Sprintf("/proc/%d/cgroup", pid))
+	if err != nil {
+		return "", "", err
+	}
+	cid, cgroupID := cgutil.ContainerContextFromProcCgroupData(data)
+	return cid, cgroupID, nil
 }
 
 func getNSID() uint64 {

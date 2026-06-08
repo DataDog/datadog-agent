@@ -10,15 +10,29 @@ package etwimpl
 
 import "C"
 import (
-	"github.com/DataDog/datadog-agent/comp/etw"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"go.uber.org/fx"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
+	etw "github.com/DataDog/datadog-agent/comp/etw/def"
 )
 
-// Module defines the fx options for this component.
-var Module = fxutil.Component(
-	fx.Provide(NewEtw),
-)
+// Requires defines the dependencies for the etw component.
+type Requires struct {
+	compdef.In
+}
+
+// Provides defines the output of the etw component.
+type Provides struct {
+	compdef.Out
+	Comp etw.Component
+}
+
+// NewComponent creates a new etw component.
+func NewComponent(_ Requires) (Provides, error) {
+	comp, err := NewEtw()
+	if err != nil {
+		return Provides{}, err
+	}
+	return Provides{Comp: comp}, nil
+}
 
 // NewEtw returns a new etw component. It is exported so that it can
 // be used by consumers that aren't components themselves.

@@ -26,6 +26,7 @@ import (
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 	"go.uber.org/fx"
 
+	config "github.com/DataDog/datadog-agent/comp/core/config"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/sbomutil"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
@@ -62,11 +63,13 @@ type resolveHook func(ctx context.Context, co container.InspectResponse) (string
 type dependencies struct {
 	fx.In
 
+	Config      config.Component
 	FilterStore workloadfilter.Component
 }
 
 type collector struct {
 	id      string
+	cfg     config.Component
 	store   workloadmeta.Component
 	catalog workloadmeta.AgentType
 
@@ -93,6 +96,7 @@ func NewCollector(deps dependencies) (workloadmeta.CollectorProvider, error) {
 	return workloadmeta.CollectorProvider{
 		Collector: &collector{
 			id:                     collectorID,
+			cfg:                    deps.Config,
 			catalog:                workloadmeta.NodeAgent,
 			filterPausedContainers: deps.FilterStore.GetContainerPausedFilters(),
 			filterSBOMContainers:   deps.FilterStore.GetContainerSBOMFilters(),
@@ -705,8 +709,8 @@ func layersFromDockerHistoryAndInspect(history []image.HistoryResponseItem, insp
 		shouldAssignDigests = false
 	}
 
-	// inspectIdx tracks the current RootFS layer ID index (in Docker, this corresponds to the Diff ID of a layer)
-	// NOTE: Docker returns the RootFS layers in chronological order
+	// inspectIdx tracks the current RootFS layer index (in Docker, RootFS.Layers
+	// holds diff_ids in chronological order).
 	inspectIdx := 0
 
 	// Docker returns the history layers in reverse-chronological order
@@ -715,20 +719,20 @@ func layersFromDockerHistoryAndInspect(history []image.HistoryResponseItem, insp
 		isEmptyLayer := history[i].Size == 0
 		isInheritedLayer := isInheritedLayer(history[i])
 
-		digest := ""
+		diffID := ""
 		if shouldAssignDigests && (isInheritedLayer || !isEmptyLayer) {
 			if isInheritedLayer {
-				log.Debugf("detected an inherited layer for image ID: \"%s\", assigning it digest: \"%s\"", inspect.ID, inspect.RootFS.Layers[inspectIdx])
+				log.Debugf("detected an inherited layer for image ID: \"%s\", assigning it diff_id: \"%s\"", inspect.ID, inspect.RootFS.Layers[inspectIdx])
 			}
-			digest = inspect.RootFS.Layers[inspectIdx]
+			diffID = inspect.RootFS.Layers[inspectIdx]
 			inspectIdx++
 		} else {
 			// Fallback to previous behavior
-			digest = history[i].ID
+			diffID = history[i].ID
 		}
 
 		layer := workloadmeta.ContainerImageLayer{
-			Digest:    digest,
+			DiffID:    diffID,
 			SizeBytes: history[i].Size,
 			History: &v1.History{
 				Created:    &created,

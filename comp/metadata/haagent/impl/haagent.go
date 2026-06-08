@@ -12,13 +12,13 @@ import (
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	haagentcomp "github.com/DataDog/datadog-agent/comp/haagent/def"
 	haagent "github.com/DataDog/datadog-agent/comp/metadata/haagent/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
-	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
+	runnerdef "github.com/DataDog/datadog-agent/comp/metadata/runner/def"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 )
 
@@ -34,7 +34,7 @@ type Requires struct {
 // Provides defines the output of the haagentimpl component
 type Provides struct {
 	Comp                 haagent.Component
-	Provider             runnerimpl.Provider
+	Provider             runnerdef.Provider
 	FlareProvider        flaretypes.Provider
 	StatusHeaderProvider status.HeaderInformationProvider
 	Endpoint             api.AgentEndpointProvider

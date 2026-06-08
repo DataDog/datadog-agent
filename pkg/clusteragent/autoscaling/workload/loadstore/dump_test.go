@@ -40,7 +40,7 @@ func newEntity(metricName, ns, deployment, podName, containerName string) *Entit
 func TestLocalAutoscalingWorkloadCheck(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	testTime := time.Now().Unix()
-	pkgconfigsetup.Datadog().SetWithoutSource("autoscaling.failover.enabled", true)
+	pkgconfigsetup.Datadog().SetInTest("autoscaling.failover.enabled", true)
 	defer cancel()
 	lStore := GetWorkloadMetricStore(ctx)
 	entities := make(map[*Entity]*EntityValue)

@@ -1,0 +1,91 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2020-present Datadog, Inc.
+
+//go:build test
+
+package serverimpl
+
+import (
+	"os"
+	"path/filepath"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/fx"
+
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/snmptraps/senderhelper"
+	server "github.com/DataDog/datadog-agent/comp/snmptraps/server/def"
+	ndmtestutils "github.com/DataDog/datadog-agent/pkg/networkdevice/testutils"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+)
+
+func TestServer(t *testing.T) {
+	confdPath, err := os.MkdirTemp("", "trapsdb")
+	require.NoError(t, err)
+	defer os.RemoveAll(confdPath)
+	snmpD := filepath.Join(confdPath, "snmp.d")
+	tdb := filepath.Join(snmpD, "traps_db")
+	require.NoError(t, os.Mkdir(snmpD, 0777))
+	require.NoError(t, os.Mkdir(tdb, 0777))
+	require.NoError(t, os.WriteFile(filepath.Join(tdb, "foo.json"), []byte{}, 0666))
+	// Pick a deterministic port specific to this test run to avoid collisions
+	port := ndmtestutils.UniqueTestPort(t.Name(), confdPath)
+	srv := fxutil.Test[server.Component](t,
+		senderhelper.Opts,
+		fx.Provide(func(t testing.TB) config.Component {
+			return config.NewMockWithOverrides(t, map[string]interface{}{
+				"confd_path":                                   confdPath,
+				"network_devices.snmp_traps.enabled":           true,
+				"network_devices.snmp_traps.port":              port,
+				"network_devices.snmp_traps.bind_host":         "127.0.0.1",
+				"network_devices.snmp_traps.community_strings": []string{"public"},
+			})
+		}),
+		fxutil.ProvideComponentConstructor(NewComponent),
+	)
+	assert.NotEmpty(t, srv)
+	assert.NoError(t, srv.Error())
+	assert.True(t, srv.Running())
+}
+
+func TestNonBlockingFailure(t *testing.T) {
+	confdPath, err := os.MkdirTemp("", "trapsdb")
+	require.NoError(t, err)
+	defer os.RemoveAll(confdPath)
+	port := ndmtestutils.UniqueTestPort(t.Name(), confdPath)
+	srv := fxutil.Test[server.Component](t,
+		senderhelper.Opts,
+		fx.Provide(func(t testing.TB) config.Component {
+			return config.NewMockWithOverrides(t, map[string]interface{}{
+				"confd_path":                                   confdPath,
+				"network_devices.snmp_traps.enabled":           true,
+				"network_devices.snmp_traps.port":              port,
+				"network_devices.snmp_traps.bind_host":         "127.0.0.1",
+				"network_devices.snmp_traps.community_strings": []string{"public"},
+			})
+		}),
+		fxutil.ProvideComponentConstructor(NewComponent),
+	)
+	assert.NotEmpty(t, srv)
+	assert.ErrorIs(t, srv.Error(), os.ErrNotExist)
+	assert.False(t, srv.Running())
+}
+
+func TestDisabled(t *testing.T) {
+	srv := fxutil.Test[server.Component](t,
+		senderhelper.Opts,
+		fx.Provide(func(t testing.TB) config.Component {
+			return config.NewMockWithOverrides(t, map[string]interface{}{
+				"network_devices.snmp_traps.enabled": false,
+			})
+		}),
+		fxutil.ProvideComponentConstructor(NewComponent),
+	)
+	assert.NotNil(t, srv)
+	assert.NoError(t, srv.Error())
+	assert.False(t, srv.Running())
+}
