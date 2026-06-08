@@ -20,12 +20,19 @@ import (
 // ScrappyCollectorConfig holds configuration for the Scrappy data collector.
 type ScrappyCollectorConfig struct {
 	OutputPath string `json:"output_path"`
+	// TickWindow controls how many seconds of data are aggregated into each
+	// output tick. Default 1 (every Detect() call emits a tick). Set to 60
+	// to aggregate 60 seconds of metrics into a single tick — producing ~30-50
+	// ticks per episode instead of ~2000, which matches the production agent's
+	// 60-second detection window.
+	TickWindow int64 `json:"tick_window"`
 }
 
 // DefaultScrappyCollectorConfig returns the default config.
 func DefaultScrappyCollectorConfig() ScrappyCollectorConfig {
 	return ScrappyCollectorConfig{
 		OutputPath: "/tmp/scrappy-collect.jsonl",
+		TickWindow: 1,
 	}
 }
 
@@ -34,6 +41,9 @@ func readScrappyCollectorConfig(reader ConfigReader, prefix string) any {
 	cfg := DefaultScrappyCollectorConfig()
 	if key := prefix + "output_path"; reader.IsKnown(key) {
 		cfg.OutputPath = reader.GetString(key)
+	}
+	if key := prefix + "tick_window"; reader.IsKnown(key) {
+		cfg.TickWindow = int64(reader.GetInt(key))
 	}
 	return cfg
 }
@@ -48,11 +58,12 @@ func readScrappyCollectorConfig(reader ConfigReader, prefix string) any {
 //   - Non-log metrics use "name" (the metric name as-is).
 //   - Both carry ns (namespace/source), tags, and points.
 type ScrappyCollector struct {
-	config           ScrappyCollectorConfig
-	writer           *bufio.Writer
-	file             *os.File
-	mu               sync.Mutex
-	contextProviders map[string]observerdef.ContextProvider
+	config              ScrappyCollectorConfig
+	writer              *bufio.Writer
+	file                *os.File
+	mu                  sync.Mutex
+	contextProviders    map[string]observerdef.ContextProvider
+	lastEmittedDataTime int64
 }
 
 // scrappyHeader is the first line written to the output file.
@@ -64,7 +75,7 @@ type scrappyHeader struct {
 
 // scrappyTick is one line of output — the complete metric surface at one tick.
 type scrappyTick struct {
-	DataTime int64                `json:"data_time"`
+	DataTime int64               `json:"data_time"`
 	Series   []scrappySeriesSnap `json:"series"`
 }
 
@@ -125,10 +136,29 @@ func (s *ScrappyCollector) Name() string { return "scrappy_collector" }
 
 // Detect implements observerdef.Detector. It reads every series in storage and
 // writes the complete metric surface for this tick to the output file.
+//
+// When TickWindow > 1, Detect() skips calls until TickWindow seconds have
+// elapsed since the last emitted tick, then reads the full window of data
+// aggregated with AggregateAverage. This produces one output tick per window
+// instead of one per second.
 func (s *ScrappyCollector) Detect(storage observerdef.StorageReader, dataTime int64) observerdef.DetectionResult {
 	if s.writer == nil {
 		return observerdef.DetectionResult{}
 	}
+
+	// Skip ticks within the current window
+	window := s.config.TickWindow
+	if window < 1 {
+		window = 1
+	}
+	if s.lastEmittedDataTime > 0 && dataTime-s.lastEmittedDataTime < window {
+		return observerdef.DetectionResult{}
+	}
+	s.lastEmittedDataTime = dataTime
+
+	// Read range: for window=1 use [dataTime-1, dataTime] (single point),
+	// for window=60 use [dataTime-60, dataTime] (aggregate over 60s).
+	rangeStart := dataTime - window
 
 	allSeries := storage.ListSeries(observerdef.WorkloadSeriesFilter())
 
@@ -138,7 +168,7 @@ func (s *ScrappyCollector) Detect(storage observerdef.StorageReader, dataTime in
 	}
 
 	for _, meta := range allSeries {
-		sr := storage.GetSeriesRange(meta.Ref, dataTime-300, dataTime, observerdef.AggregateAverage)
+		sr := storage.GetSeriesRange(meta.Ref, rangeStart, dataTime, observerdef.AggregateAverage)
 		if sr == nil || len(sr.Points) == 0 {
 			continue
 		}

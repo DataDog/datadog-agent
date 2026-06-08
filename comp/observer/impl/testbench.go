@@ -658,10 +658,15 @@ func (tb *TestBench) rerunDetectorsLocked() {
 	// EventReporter would in live mode: one event per pattern appearance, with
 	// patterns eligible to re-fire after going inactive.
 	replay := &replayReporter{storage: tb.engine.Storage()}
-	unsub := tb.engine.Subscribe(&reporterEventSink{
+	sink := &reporterEventSink{
 		reporters: []observerdef.Reporter{replay},
 		state:     tb.engine.StateView(),
-	})
+	}
+	// Attach scrappy reporter if the scrappy detector is enabled.
+	if ci, ok := tb.components["scrappy_detector"]; ok && ci.enabled {
+		sink.scrappyReporter = newScrappyReporter(DefaultScrappyReporterConfig())
+	}
+	unsub := tb.engine.Subscribe(sink)
 
 	// Feed raw logs through the engine's IngestLog path so that extractors,
 	// log observers, and timestamp tracking all use the same code path as

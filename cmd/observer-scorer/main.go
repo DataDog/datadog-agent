@@ -34,6 +34,7 @@ func main() {
 	sigma := flag.Float64("sigma", 30.0, "Gaussian width in seconds")
 	jsonOutput := flag.Bool("json", false, "Output result as JSON")
 	scoreTP := flag.Bool("score-tp", false, "Score true positive detection using metric ground truth from ground_truth.json. Requires passthrough correlator output.")
+	rawDetector := flag.String("raw-detector", "", "Score raw anomalies from a specific detector (bypasses correlator). Requires --verbose output with raw_detector_anomalies.")
 	flag.Parse()
 
 	if *outputPath == "" {
@@ -66,7 +67,13 @@ func main() {
 		return
 	}
 
-	result, err := observerimpl.ScoreOutputFile(*outputPath, gtTimestamps, *scenariosDir, *sigma)
+	var result *observerimpl.ScoreResult
+	var err error
+	if *rawDetector != "" {
+		result, err = observerimpl.ScoreRawDetector(*outputPath, *rawDetector, gtTimestamps, *scenariosDir, *sigma)
+	} else {
+		result, err = observerimpl.ScoreOutputFile(*outputPath, gtTimestamps, *scenariosDir, *sigma)
+	}
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Scoring failed: %v\n", err)
 		os.Exit(1)

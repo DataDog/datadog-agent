@@ -212,6 +212,22 @@ func defaultCatalog() *componentCatalog {
 					return cfg, nil
 				},
 			},
+			{
+				name:           "scrappy_detector",
+				displayName:    "Scrappy Detector",
+				kind:           componentDetector,
+				defaultConfig:  DefaultScrappyDetectorConfig(),
+				factory:        func(cfg any) any { return NewScrappyDetector(cfg.(ScrappyDetectorConfig)) },
+				defaultEnabled: false,
+				readConfig:     readScrappyDetectorConfig,
+				parseJSON: func(defaults any, raw []byte) (any, error) {
+					cfg := defaults.(ScrappyDetectorConfig)
+					if err := json.Unmarshal(raw, &cfg); err != nil {
+						return nil, err
+					}
+					return cfg, nil
+				},
+			},
 			// ---- Correlators ----
 			{
 				name:           "cross_signal",

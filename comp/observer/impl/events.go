@@ -62,9 +62,13 @@ type eventSink interface {
 // When an advance completes, it populates ReportOutput with anomalies from
 // the event and active correlations from the stateView, then calls Report
 // on all registered reporters.
+//
+// If a scrappyReporter is set, it runs first to inject onset/recovery
+// correlations into the output before other reporters see it.
 type reporterEventSink struct {
-	reporters []observerdef.Reporter
-	state     *stateView // for querying current correlations on advance
+	reporters       []observerdef.Reporter
+	state           *stateView // for querying current correlations on advance
+	scrappyReporter *scrappyReporter
 }
 
 func (s *reporterEventSink) onEngineEvent(evt engineEvent) {
@@ -80,6 +84,11 @@ func (s *reporterEventSink) onEngineEvent(evt engineEvent) {
 			// reporters even when their changepoint timestamps are old enough
 			// to be evicted.
 			output.ActiveCorrelations = s.state.CorrelationHistory()
+		}
+		// Run scrappy reporter first — it may inject onset/recovery correlations
+		// that downstream reporters (EventReporter) should see.
+		if s.scrappyReporter != nil {
+			s.scrappyReporter.Report(&output)
 		}
 		for _, r := range s.reporters {
 			r.Report(output)

@@ -390,6 +390,13 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("observer.components.time_cluster.min_cluster_size", 0)
 	config.BindEnvAndSetDefault("observer.components.scrappy_collector.enabled", false)
 	config.BindEnvAndSetDefault("observer.components.scrappy_collector.output_path", "/tmp/scrappy-collect.jsonl")
+	config.BindEnvAndSetDefault("observer.components.scrappy_detector.enabled", false)
+	config.BindEnvAndSetDefault("observer.components.scrappy_detector.vocab_path", "")
+	config.BindEnvAndSetDefault("observer.components.scrappy_detector.model_path", "")
+	config.BindEnvAndSetDefault("observer.components.scrappy_detector.threshold", 0.5)
+	config.BindEnvAndSetDefault("observer.components.scrappy_detector.context_window", 4096)
+	config.BindEnvAndSetDefault("observer.components.scrappy_detector.scores_output", "")
+	config.BindEnvAndSetDefault("observer.components.scrappy_detector.tick_window", 1)
 	config.BindEnvAndSetDefault("observer.components.passthrough.enabled", false)
 
 	// -------------------------------------------------------------

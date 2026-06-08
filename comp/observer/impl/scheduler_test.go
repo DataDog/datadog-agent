@@ -69,9 +69,25 @@ func TestCurrentBehaviorPolicy_OnObservation(t *testing.T) {
 func TestCurrentBehaviorPolicy_OnIdle(t *testing.T) {
 	p := &currentBehaviorPolicy{}
 
-	st := schedulerState{lastAnalyzedDataTime: 10, latestDataTime: 20}
-	reqs := p.onIdle(99999, st)
-	assert.Nil(t, reqs)
+	t.Run("advances when wall clock is ahead of last analyzed", func(t *testing.T) {
+		st := schedulerState{lastAnalyzedDataTime: 10, latestDataTime: 20}
+		reqs := p.onIdle(15, st)
+		assert.Len(t, reqs, 1)
+		assert.Equal(t, int64(14), reqs[0].upToSec)
+		assert.Equal(t, advanceReasonPeriodicFlush, reqs[0].reason)
+	})
+
+	t.Run("no advance when already caught up", func(t *testing.T) {
+		st := schedulerState{lastAnalyzedDataTime: 10, latestDataTime: 10}
+		reqs := p.onIdle(11, st)
+		assert.Nil(t, reqs)
+	})
+
+	t.Run("no advance when wall clock is behind", func(t *testing.T) {
+		st := schedulerState{lastAnalyzedDataTime: 20, latestDataTime: 20}
+		reqs := p.onIdle(15, st)
+		assert.Nil(t, reqs)
+	})
 }
 
 func TestCurrentBehaviorPolicy_OnReplayEnd(t *testing.T) {

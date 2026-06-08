@@ -201,10 +201,16 @@ func NewComponent(deps Requires) Provides {
 	settings := settingsFromAgentConfig(catalog, cfg)
 	detectors, correlators, extractors, components := catalog.Instantiate(settings)
 
-	// Wire context providers to ScrappyCollector so it can resolve log pattern hashes.
+	// Wire context providers to components that resolve log pattern hashes.
+	ctxProviders := collectContextProviders(extractors)
 	if ci, ok := components["scrappy_collector"]; ok && ci.enabled {
 		if sc, ok := ci.instance.(*ScrappyCollector); ok {
-			sc.SetContextProviders(collectContextProviders(extractors))
+			sc.SetContextProviders(ctxProviders)
+		}
+	}
+	if ci, ok := components["scrappy_detector"]; ok && ci.enabled {
+		if sd, ok := ci.instance.(*ScrappyDetector); ok {
+			sd.SetContextProviders(ctxProviders)
 		}
 	}
 
@@ -213,7 +219,7 @@ func NewComponent(deps Requires) Provides {
 		extractors:       extractors,
 		detectors:        detectors,
 		correlators:      correlators,
-		contextProviders: collectContextProviders(extractors),
+		contextProviders: ctxProviders,
 		scheduler:        &currentBehaviorPolicy{},
 	})
 
@@ -221,10 +227,12 @@ func NewComponent(deps Requires) Provides {
 	// The reporterEventSink queries stateView for active correlations on each advance,
 	// so reporters receive all needed data through ReportOutput without backdoor access.
 	reporter := &StdoutReporter{}
-	eng.Subscribe(&reporterEventSink{
-		reporters: []observerdef.Reporter{reporter},
-		state:     eng.StateView(),
-	})
+	stdoutSink := &reporterEventSink{
+		reporters:       []observerdef.Reporter{reporter},
+		state:           eng.StateView(),
+		scrappyReporter: newScrappyReporter(DefaultScrappyReporterConfig()),
+	}
+	eng.Subscribe(stdoutSink)
 
 	telemetryComp := deps.Telemetry
 	if telemetryComp == nil {
@@ -298,8 +306,9 @@ func NewComponent(deps Requires) Provides {
 		} else {
 			eventReporter := &EventReporter{sender: sender, logger: deps.Log}
 			eng.Subscribe(&reporterEventSink{
-				reporters: []observerdef.Reporter{eventReporter},
-				state:     eng.StateView(),
+				reporters:       []observerdef.Reporter{eventReporter},
+				state:           eng.StateView(),
+				scrappyReporter: newScrappyReporter(DefaultScrappyReporterConfig()),
 			})
 		}
 	}
@@ -520,25 +529,44 @@ type observerImpl struct {
 }
 
 // run is the main dispatch loop, processing all observations sequentially.
+// An idle ticker fires every second to advance the detection engine even when
+// no observations arrive, keeping scrappy collection and detectors ticking.
 func (o *observerImpl) run() {
-	for obs := range o.obsCh {
-		var requests []advanceRequest
-		if obs.metric != nil {
-			requests = o.engine.IngestMetric(obs.source, obs.metric)
-		}
-		if obs.log != nil {
-			logRequests, logTelemetry := o.engine.IngestLog(obs.source, obs.log)
-			requests = append(requests, logRequests...)
-			if len(logTelemetry) > 0 {
-				o.telemetryHandler.handleTelemetry(logTelemetry)
+	idleTicker := time.NewTicker(1 * time.Second)
+	defer idleTicker.Stop()
+
+	for {
+		select {
+		case obs, ok := <-o.obsCh:
+			if !ok {
+				return
 			}
-		}
-		if obs.profile != nil {
-			o.processProfile(obs.source, obs.profile)
-		}
-		for _, req := range requests {
-			result := o.engine.advanceWithReason(req.upToSec, req.reason)
-			o.telemetryHandler.handleTelemetry(result.telemetry)
+			var requests []advanceRequest
+			if obs.metric != nil {
+				requests = o.engine.IngestMetric(obs.source, obs.metric)
+			}
+			if obs.log != nil {
+				logRequests, logTelemetry := o.engine.IngestLog(obs.source, obs.log)
+				requests = append(requests, logRequests...)
+				if len(logTelemetry) > 0 {
+					o.telemetryHandler.handleTelemetry(logTelemetry)
+				}
+			}
+			if obs.profile != nil {
+				o.processProfile(obs.source, obs.profile)
+			}
+			for _, req := range requests {
+				result := o.engine.advanceWithReason(req.upToSec, req.reason)
+				o.telemetryHandler.handleTelemetry(result.telemetry)
+			}
+		case <-idleTicker.C:
+			nowSec := time.Now().Unix()
+			st := o.engine.schedulerState()
+			reqs := o.engine.scheduler.onIdle(nowSec, st)
+			for _, req := range reqs {
+				result := o.engine.advanceWithReason(req.upToSec, req.reason)
+				o.telemetryHandler.handleTelemetry(result.telemetry)
+			}
 		}
 	}
 }

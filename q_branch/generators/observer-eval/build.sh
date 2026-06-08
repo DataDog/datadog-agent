@@ -113,7 +113,8 @@ if [ "$PUSH" = true ]; then
         svc_image=$(awk "/$svc_name:/{found=1} found && /image:/{print \$2; exit}" "$compose_file")
         if [ -n "$svc_image" ]; then
           echo "  Building $svc_image from $svc_dir (linux/amd64)"
-          docker buildx build --platform linux/amd64 -t "$svc_image" "$svc_dir" --load
+          docker buildx build --platform linux/amd64 -t "$svc_image" "$svc_dir" --load \
+            || echo "WARN: local service image build failed for $svc_image (will build in generator DinD)"
         fi
       done
     fi

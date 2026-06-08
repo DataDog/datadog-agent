@@ -59,6 +59,7 @@ echo "  Episodes:  $EPISODES"
 echo "  Mode:      $MODE"
 
 RESPONSE=$(curl -s -X POST "$GS_FLOW_URL/api/v1/jobs" \
+  -H "$(ddtool auth token sims --datacenter us1.staging.dog --http-header)" \
   -H "Content-Type: application/json" \
   -d "{
     \"backend\": \"observer-eval\",
@@ -82,10 +83,12 @@ if [ -n "$JOB_ID" ]; then
   echo "Job submitted: $JOB_ID"
   echo ""
   echo "Check status:"
-  echo "  curl -s $GS_FLOW_URL/api/v1/jobs/$JOB_ID | jq"
+  # shellcheck disable=SC2016
+  echo "  curl -s " '-H "$(ddtool auth token sims --datacenter us1.staging.dog --http-header)"' " $GS_FLOW_URL/api/v1/jobs/$JOB_ID | jq"
   echo ""
   echo "Fetch artifacts when done:"
-  echo "  curl -s $GS_FLOW_URL/api/v1/jobs/$JOB_ID/artifacts -o artifacts.tar.gz"
+  # shellcheck disable=SC2016
+  echo "  curl -s " '-H "$(ddtool auth token sims --datacenter us1.staging.dog --http-header)"' " $GS_FLOW_URL/api/v1/jobs/$JOB_ID/artifacts -o artifacts.tar.gz"
 else
   echo "Submit failed:"
   echo "$RESPONSE" | jq . 2>/dev/null || echo "$RESPONSE"

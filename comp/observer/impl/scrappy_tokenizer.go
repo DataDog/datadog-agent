@@ -155,8 +155,8 @@ func deltaFromRatio(ratio float64) string {
 // scrappySeriesInput is the tokenizer's view of one series in a tick.
 type scrappySeriesInput struct {
 	namespace string
-	name      string   // non-empty for named metrics
-	pattern   string   // non-empty for log metrics
+	name      string // non-empty for named metrics
+	pattern   string // non-empty for log metrics
 	tags      []string
 	value     float64
 }
@@ -293,6 +293,7 @@ func splitLogPattern(text string) []string {
 // the Python tokenizer randomizes assignment per episode.
 type tagSlotMap struct {
 	slots   map[string]map[string]string // key → value → slot token
+	reverse map[string]string            // slot token → original value
 	budgets map[string]int
 }
 
@@ -328,6 +329,7 @@ func newTagSlotMap() *tagSlotMap {
 	}
 	return &tagSlotMap{
 		slots:   make(map[string]map[string]string),
+		reverse: make(map[string]string),
 		budgets: budgets,
 	}
 }
@@ -379,7 +381,13 @@ func (m *tagSlotMap) getSlotToken(key, value string) string {
 	}
 	tok := fmt.Sprintf("[%s_%d]", prefix, idx)
 	slotMap[value] = tok
+	m.reverse[tok] = value
 	return tok
+}
+
+// resolveSlot returns the original tag value for a slot token, or empty string.
+func (m *tagSlotMap) resolveSlot(slotToken string) string {
+	return m.reverse[slotToken]
 }
 
 // --- Structural signature slot mapping ---
@@ -387,6 +395,7 @@ func (m *tagSlotMap) getSlotToken(key, value string) string {
 type sigSlotMap struct {
 	counts    map[string]int
 	slots     map[string]string
+	reverse   map[string]string // slot token → original signature
 	nextSlot  int
 	threshold int
 	budget    int
@@ -396,6 +405,7 @@ func newSigSlotMap(threshold, budget int) *sigSlotMap {
 	return &sigSlotMap{
 		counts:    make(map[string]int),
 		slots:     make(map[string]string),
+		reverse:   make(map[string]string),
 		threshold: threshold,
 		budget:    budget,
 	}
@@ -420,8 +430,14 @@ func (m *sigSlotMap) getSlotToken(signature string) string {
 	}
 	tok := fmt.Sprintf("[SIG_%d]", m.nextSlot)
 	m.slots[signature] = tok
+	m.reverse[tok] = signature
 	m.nextSlot++
 	return tok
+}
+
+// resolveSlot returns the original signature for a sig slot token, or empty string.
+func (m *sigSlotMap) resolveSlot(slotToken string) string {
+	return m.reverse[slotToken]
 }
 
 // --- Tag tokenization ---

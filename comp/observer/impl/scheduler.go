@@ -58,8 +58,15 @@ func (p *currentBehaviorPolicy) onObservation(dataTimeSec int64, st schedulerSta
 	return []advanceRequest{{upToSec: analyzeUpTo, reason: advanceReasonInputDriven}}
 }
 
-func (p *currentBehaviorPolicy) onIdle(_ int64, _ schedulerState) []advanceRequest {
-	return nil
+func (p *currentBehaviorPolicy) onIdle(nowUnixSec int64, st schedulerState) []advanceRequest {
+	// Advance to now-1 so detectors see data up to the previous second.
+	// This keeps the detection pipeline ticking even when no new observations
+	// arrive (e.g. between check intervals or during log pipeline startup).
+	analyzeUpTo := nowUnixSec - 1
+	if analyzeUpTo <= st.lastAnalyzedDataTime {
+		return nil
+	}
+	return []advanceRequest{{upToSec: analyzeUpTo, reason: advanceReasonPeriodicFlush}}
 }
 
 func (p *currentBehaviorPolicy) onReplayEnd(st schedulerState) []advanceRequest {

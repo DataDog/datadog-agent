@@ -19,6 +19,10 @@ import (
 type ObserverOutput struct {
 	Metadata       ObserverMetadata      `json:"metadata"`
 	AnomalyPeriods []ObserverCorrelation `json:"anomaly_periods"`
+	// RawDetectorAnomalies contains per-detector anomaly timestamps for direct
+	// scoring of detectors that bypass the correlator (e.g. scrappy_detector).
+	// Keyed by detector name. Populated when verbose is true.
+	RawDetectorAnomalies map[string][]int64 `json:"raw_detector_anomalies,omitempty"`
 }
 
 // ObserverMetadata describes the scenario and pipeline configuration.
@@ -143,6 +147,14 @@ func (tb *TestBench) WriteObserverOutput(path string, verbose bool) error {
 		outCorrelations[i] = oc
 	}
 
+	// Collect raw anomaly timestamps per detector for direct scoring.
+	rawByDetector := make(map[string][]int64)
+	if verbose {
+		for _, a := range tb.engine.RawAnomalies() {
+			rawByDetector[a.DetectorName] = append(rawByDetector[a.DetectorName], a.Timestamp)
+		}
+	}
+
 	output := ObserverOutput{
 		Metadata: ObserverMetadata{
 			Scenario:            scenario,
@@ -154,7 +166,8 @@ func (tb *TestBench) WriteObserverOutput(path string, verbose bool) error {
 			ComponentConfigs:    componentConfigs,
 			Stats:               replayStats,
 		},
-		AnomalyPeriods: outCorrelations,
+		AnomalyPeriods:       outCorrelations,
+		RawDetectorAnomalies: rawByDetector,
 	}
 
 	data, err := json.MarshalIndent(output, "", "  ")

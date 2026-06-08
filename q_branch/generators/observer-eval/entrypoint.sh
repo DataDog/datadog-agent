@@ -15,7 +15,8 @@ set -euo pipefail
 #   EPISODES          - comma-separated episode:scenario pairs
 #
 # Optional env vars:
-#   GENSIM_MODE       - scrappy-collect (default), record-parquet, or live-anomaly-detection
+#   GENSIM_MODE       - scrappy-collect (default), scrappy-detect (live Scrappy
+#                       inference + Datadog events), record-parquet, or live-anomaly-detection
 #   KUBE_NAMESPACE    - namespace for workloads (default: default)
 #   EPISODE_CHART_DIR - path to episode chart tarballs (mounted by gs-flow)
 #   LOGS_ENABLED      - true/false (default: false)
@@ -28,9 +29,19 @@ GAR_REGISTRY="${GAR_REGISTRY:-us-east1-docker.pkg.dev/dd-plt-simulation-environm
 
 # Derive mode flags
 SCRAPPY_ENABLED="false"
+SCRAPPY_DETECT_ENABLED="false"
+SCRAPPY_EVENTS_ENABLED="false"
 DETECTORS_ENABLED="true"
 if [ "$GENSIM_MODE" = "scrappy-collect" ]; then
   SCRAPPY_ENABLED="true"
+  DETECTORS_ENABLED="false"
+elif [ "$GENSIM_MODE" = "scrappy-detect" ]; then
+  # Live Scrappy inference: only the scrappy_detector fires (clean
+  # detector:scrappy_detector attribution), anomalies emitted as Datadog
+  # events. Recording stays on; built-in detectors and the collector are off.
+  SCRAPPY_DETECT_ENABLED="true"
+  SCRAPPY_EVENTS_ENABLED="true"
+  SCRAPPY_ENABLED="false"
   DETECTORS_ENABLED="false"
 fi
 
@@ -39,7 +50,7 @@ AGENT_IMAGE_REPO="${AGENT_IMAGE%:*}"
 AGENT_IMAGE_TAG="${AGENT_IMAGE##*:}"
 
 # Export for envsubst in agent values template
-export AGENT_IMAGE_REPO AGENT_IMAGE_TAG SCRAPPY_ENABLED DETECTORS_ENABLED LOGS_ENABLED GAR_REGISTRY
+export AGENT_IMAGE_REPO AGENT_IMAGE_TAG SCRAPPY_ENABLED SCRAPPY_DETECT_ENABLED SCRAPPY_EVENTS_ENABLED DETECTORS_ENABLED LOGS_ENABLED GAR_REGISTRY
 
 echo "observer-eval generator starting"
 echo "  Mode:       $GENSIM_MODE"
@@ -111,7 +122,10 @@ cat > "$OUTPUT_DIR/fix-pull-policy.sh" <<FIXEOF
 #!/bin/sh
 sed -e 's/imagePullPolicy: Never/imagePullPolicy: Always/g' \
     -e 's|image: gcr.io/datadoghq/agent:7|image: $AGENT_IMAGE|g' \
-    -e 's|memory: 512Mi|memory: 768Mi|g'
+    -e 's|memory: "512Mi"|memory: "8192Mi"|g' \
+    -e 's|cpu: 400m|cpu: 1000m|g' \
+    -e 's|memory: 256Mi|memory: 1024Mi|g' \
+    -e 's|cpu: 200m|cpu: 500m|g'
 FIXEOF
 chmod +x "$OUTPUT_DIR/fix-pull-policy.sh"
 
@@ -228,7 +242,7 @@ for EP_SPEC in "${EP_LIST[@]}"; do
   # 3. Inject observer config into chart's agent (image already swapped by post-renderer)
   echo "Injecting observer config into chart's agent..."
   echo "  Image: $AGENT_IMAGE (swapped via post-renderer)"
-  echo "  Scrappy: $SCRAPPY_ENABLED, Detectors: $DETECTORS_ENABLED"
+  echo "  Scrappy collector: $SCRAPPY_ENABLED, Scrappy detector: $SCRAPPY_DETECT_ENABLED, Events: $SCRAPPY_EVENTS_ENABLED, Detectors: $DETECTORS_ENABLED"
   # Single patch: add log volume mounts + observer env vars (one restart, not two)
   kubectl patch deployment datadog-agent -n "$KUBE_NAMESPACE" --type=json -p="[
     {\"op\":\"add\",\"path\":\"/spec/template/spec/volumes/-\",\"value\":{\"name\":\"podlogs\",\"hostPath\":{\"path\":\"/var/log/pods\"}}},
@@ -239,7 +253,17 @@ for EP_SPEC in "${EP_LIST[@]}"; do
     {\"op\":\"add\",\"path\":\"/spec/template/spec/containers/0/env/-\",\"value\":{\"name\":\"DD_OBSERVER_ANALYSIS_ENABLED\",\"value\":\"true\"}},
     {\"op\":\"add\",\"path\":\"/spec/template/spec/containers/0/env/-\",\"value\":{\"name\":\"DD_OBSERVER_HIGH_FREQUENCY_SYSTEM_CHECKS_ENABLED\",\"value\":\"true\"}},
     {\"op\":\"add\",\"path\":\"/spec/template/spec/containers/0/env/-\",\"value\":{\"name\":\"DD_OBSERVER_COMPONENTS_SCRAPPY_COLLECTOR_ENABLED\",\"value\":\"$SCRAPPY_ENABLED\"}},
-    {\"op\":\"add\",\"path\":\"/spec/template/spec/containers/0/env/-\",\"value\":{\"name\":\"DD_OBSERVER_COMPONENTS_SCRAPPY_COLLECTOR_OUTPUT_PATH\",\"value\":\"/tmp/scrappy-collect.jsonl\"}}
+    {\"op\":\"add\",\"path\":\"/spec/template/spec/containers/0/env/-\",\"value\":{\"name\":\"DD_OBSERVER_COMPONENTS_SCRAPPY_COLLECTOR_OUTPUT_PATH\",\"value\":\"/tmp/scrappy-collect.jsonl\"}},
+    {\"op\":\"add\",\"path\":\"/spec/template/spec/containers/0/env/-\",\"value\":{\"name\":\"DD_OBSERVER_COMPONENTS_SCRAPPY_DETECTOR_ENABLED\",\"value\":\"$SCRAPPY_DETECT_ENABLED\"}},
+    {\"op\":\"add\",\"path\":\"/spec/template/spec/containers/0/env/-\",\"value\":{\"name\":\"DD_OBSERVER_COMPONENTS_SCRAPPY_DETECTOR_MODEL_PATH\",\"value\":\"/opt/scrappy/model.scrappy\"}},
+    {\"op\":\"add\",\"path\":\"/spec/template/spec/containers/0/env/-\",\"value\":{\"name\":\"DD_OBSERVER_COMPONENTS_SCRAPPY_DETECTOR_VOCAB_PATH\",\"value\":\"/opt/scrappy/vocab.json\"}},
+    {\"op\":\"add\",\"path\":\"/spec/template/spec/containers/0/env/-\",\"value\":{\"name\":\"DD_OBSERVER_COMPONENTS_SCRAPPY_DETECTOR_CONTEXT_WINDOW\",\"value\":\"4096\"}},
+    {\"op\":\"add\",\"path\":\"/spec/template/spec/containers/0/env/-\",\"value\":{\"name\":\"DD_OBSERVER_COMPONENTS_SCRAPPY_DETECTOR_THRESHOLD\",\"value\":\"0.1\"}},
+    {\"op\":\"add\",\"path\":\"/spec/template/spec/containers/0/env/-\",\"value\":{\"name\":\"DD_OBSERVER_COMPONENTS_SCRAPPY_DETECTOR_SCORES_OUTPUT\",\"value\":\"/tmp/scrappy-scores.csv\"}},
+    {\"op\":\"add\",\"path\":\"/spec/template/spec/containers/0/env/-\",\"value\":{\"name\":\"DD_OBSERVER_COMPONENTS_SCRAPPY_DETECTOR_TICK_WINDOW\",\"value\":\"30\"}},
+    {\"op\":\"add\",\"path\":\"/spec/template/spec/containers/0/env/-\",\"value\":{\"name\":\"DD_OBSERVER_EVENT_REPORTER_SENDING_ENABLED\",\"value\":\"$SCRAPPY_EVENTS_ENABLED\"}},
+    {\"op\":\"add\",\"path\":\"/spec/template/spec/containers/0/resources/limits/memory\",\"value\":\"8192Mi\"},
+    {\"op\":\"add\",\"path\":\"/spec/template/spec/containers/0/resources/requests/memory\",\"value\":\"2048Mi\"}
   ]" 2>&1 || echo "WARN: patch failed"
 
   echo "Waiting for agent rollout..."
@@ -429,22 +453,50 @@ AGENTEOF
     # every 60s while the episode runs. Protects against vcluster teardown race.
     AGENT_POD_FOR_BG=$(kubectl get pod -n "$KUBE_NAMESPACE" -l app=datadog-agent --field-selector=status.phase=Running -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
     if [ -n "$AGENT_POD_FOR_BG" ]; then
+      # Auto-detect the real container name (single-container Deployment: "datadog-agent")
+      AGENT_CTR=$(kubectl get pod "$AGENT_POD_FOR_BG" -n "$KUBE_NAMESPACE" -o jsonpath='{.spec.containers[0].name}' 2>/dev/null)
+      [ -z "$AGENT_CTR" ] && AGENT_CTR=datadog-agent
+      echo "Background collector using container: $AGENT_CTR"
+
+      # === SCRAPPY SELF-TEST (early) ===
+      echo "=== SCRAPPY SELF-TEST (early) ==="
+      echo "[selftest] containers: $(kubectl get pod "$AGENT_POD_FOR_BG" -n "$KUBE_NAMESPACE" -o jsonpath='{.spec.containers[*].name}' 2>&1)"
+      echo "[selftest] runtime config:"
+      kubectl exec "$AGENT_POD_FOR_BG" -n "$KUBE_NAMESPACE" -c "$AGENT_CTR" -- agent config 2>&1 \
+        | grep -iE "scrappy|event_reporter|sending_enabled|api_key|site|observer|components" | head -40 | sed 's/^/[selftest] /' \
+        || kubectl exec "$AGENT_POD_FOR_BG" -n "$KUBE_NAMESPACE" -c "$AGENT_CTR" -- agent status 2>&1 \
+             | grep -iE "scrappy|event_reporter|sending_enabled|api_key|site|observer|components" | head -40 | sed 's/^/[selftest] /' || true
+      echo "[selftest] startup logs (observer/model/scrappy):"
+      kubectl logs "$AGENT_POD_FOR_BG" -n "$KUBE_NAMESPACE" -c "$AGENT_CTR" --tail=300 2>&1 \
+        | grep -iE "scrappy|observer|vocab|model|detector|event|error" | tail -50 | sed 's/^/[selftest] /' || true
+      echo "=== END SELF-TEST ==="
+
       (
         while true; do
           sleep 60
           # Copy scrappy JSONL to artifact root (gs-flow only serves flat files)
-          kubectl cp "$KUBE_NAMESPACE/$AGENT_POD_FOR_BG:/tmp/scrappy-collect.jsonl" \
-            "$OUTPUT_DIR/scrappy-collect.jsonl" -c agent 2>/dev/null || true
+          kubectl exec "$AGENT_POD_FOR_BG" -n "$KUBE_NAMESPACE" -c "$AGENT_CTR" -- cat /tmp/scrappy-collect.jsonl \
+            > "$OUTPUT_DIR/scrappy-collect.jsonl" 2>>"$OUTPUT_DIR/collect-errors.log" \
+            || echo "[bg-collector] scrappy-collect.jsonl cat failed (see collect-errors.log)"
+          # Copy scrappy detector scores CSV (scrappy-detect mode) to artifact root
+          kubectl exec "$AGENT_POD_FOR_BG" -n "$KUBE_NAMESPACE" -c "$AGENT_CTR" -- cat /tmp/scrappy-scores.csv \
+            > "$OUTPUT_DIR/scrappy-scores.csv" 2>>"$OUTPUT_DIR/collect-errors.log" \
+            || echo "[bg-collector] scrappy-scores.csv cat failed (see collect-errors.log)"
           # Copy parquet — tar locally since gs-flow only serves flat files
           rm -rf "$OUTPUT_DIR/_pq_staging" 2>/dev/null
           kubectl cp "$KUBE_NAMESPACE/$AGENT_POD_FOR_BG:/tmp/observer-parquet" \
-            "$OUTPUT_DIR/_pq_staging" -c agent 2>/dev/null && \
+            "$OUTPUT_DIR/_pq_staging" -c "$AGENT_CTR" 2>/dev/null && \
           tar czf "$OUTPUT_DIR/observer-parquet.tar.gz" -C "$OUTPUT_DIR/_pq_staging" . 2>/dev/null || true
           rm -rf "$OUTPUT_DIR/_pq_staging" 2>/dev/null
           LINES=$(wc -l < "$OUTPUT_DIR/scrappy-collect.jsonl" 2>/dev/null || echo 0)
+          SCORES=$(wc -l < "$OUTPUT_DIR/scrappy-scores.csv" 2>/dev/null || echo 0)
           PQCOUNT=$(tar tzf "$OUTPUT_DIR/observer-parquet.tar.gz" 2>/dev/null | grep -c '.parquet$' || echo 0)
           PQSIZE=$(du -sh "$OUTPUT_DIR/observer-parquet.tar.gz" 2>/dev/null | awk '{print $1}' || echo "0")
-          echo "  [bg-collector] scrappy: $LINES lines, parquet: $PQCOUNT files ($PQSIZE)"
+          echo "  [bg-collector] scrappy: $LINES lines, scores: $SCORES lines, parquet: $PQCOUNT files ($PQSIZE)"
+          # Stream agent logs live into generator stdout (harvested into generator.log)
+          kubectl logs "$AGENT_POD_FOR_BG" -n "$KUBE_NAMESPACE" -c "$AGENT_CTR" --since=70s 2>/dev/null \
+            | grep -iE "scrappy|observer|vocab|model|detector|p_alert|anomal|event|truncat|error" | tail -15 \
+            | sed 's/^/[agent] /'
         done
       ) &
       BG_COLLECTOR_PID=$!
@@ -462,7 +514,7 @@ AGENTEOF
     # Capture agent logs (includes scrappy debug output on stderr)
     if [ -n "${AGENT_POD_FOR_BG:-}" ]; then
       echo "--- Agent logs (last 50 lines) ---"
-      kubectl logs "$AGENT_POD_FOR_BG" -n "$KUBE_NAMESPACE" -c agent --tail=50 2>&1 || true
+      kubectl logs "$AGENT_POD_FOR_BG" -n "$KUBE_NAMESPACE" -c "${AGENT_CTR:-datadog-agent}" --tail=50 2>&1 || true
     fi
   fi
 
@@ -491,6 +543,13 @@ AGENTEOF
     [ -n "$AGENT_POD" ] && echo "Found agent pod by name match: $AGENT_POD"
   fi
 
+  # Auto-detect the real container name for the resolved agent pod
+  if [ -n "$AGENT_POD" ]; then
+    AGENT_CTR=$(kubectl get pod "$AGENT_POD" -n "$KUBE_NAMESPACE" -o jsonpath='{.spec.containers[0].name}' 2>/dev/null)
+    [ -z "$AGENT_CTR" ] && AGENT_CTR=datadog-agent
+    echo "Collection using container: $AGENT_CTR"
+  fi
+
   mkdir -p "$OUTPUT_DIR/results/$EPISODE/parquet"
   mkdir -p "$OUTPUT_DIR/results/$EPISODE/scrappy"
 
@@ -498,12 +557,13 @@ AGENTEOF
     echo "Collecting from pod $AGENT_POD..."
 
     # Check what's actually in /tmp on the agent
-    kubectl exec "$AGENT_POD" -n "$KUBE_NAMESPACE" -c agent -- ls -la /tmp/ 2>&1 || echo "WARN: could not list /tmp"
-    kubectl exec "$AGENT_POD" -n "$KUBE_NAMESPACE" -c agent -- ls -la /tmp/observer-parquet/ 2>&1 || echo "WARN: /tmp/observer-parquet not found"
-    kubectl exec "$AGENT_POD" -n "$KUBE_NAMESPACE" -c agent -- ls -la /tmp/scrappy-collect.jsonl 2>&1 || echo "WARN: /tmp/scrappy-collect.jsonl not found"
+    kubectl exec "$AGENT_POD" -n "$KUBE_NAMESPACE" -c "$AGENT_CTR" -- ls -la /tmp/ 2>&1 || echo "WARN: could not list /tmp"
+    kubectl exec "$AGENT_POD" -n "$KUBE_NAMESPACE" -c "$AGENT_CTR" -- ls -la /tmp/observer-parquet/ 2>&1 || echo "WARN: /tmp/observer-parquet not found"
+    kubectl exec "$AGENT_POD" -n "$KUBE_NAMESPACE" -c "$AGENT_CTR" -- ls -la /tmp/scrappy-collect.jsonl 2>&1 || echo "WARN: /tmp/scrappy-collect.jsonl not found"
+    kubectl exec "$AGENT_POD" -n "$KUBE_NAMESPACE" -c "$AGENT_CTR" -- ls -la /tmp/scrappy-scores.csv 2>&1 || echo "WARN: /tmp/scrappy-scores.csv not found"
 
     # Parquet
-    if kubectl cp "$KUBE_NAMESPACE/$AGENT_POD:/tmp/observer-parquet" "$OUTPUT_DIR/results/$EPISODE/parquet/" -c agent; then
+    if kubectl cp "$KUBE_NAMESPACE/$AGENT_POD:/tmp/observer-parquet" "$OUTPUT_DIR/results/$EPISODE/parquet/" -c "$AGENT_CTR"; then
       PARQUET_COUNT=$(find "$OUTPUT_DIR/results/$EPISODE/parquet" -type f -name '*.parquet' | wc -l)
       echo "Parquet collected: $PARQUET_COUNT files"
     else
@@ -511,12 +571,24 @@ AGENTEOF
     fi
 
     # Scrappy JSONL — copy to both results dir and artifact root (API serves flat files only)
-    if kubectl cp "$KUBE_NAMESPACE/$AGENT_POD:/tmp/scrappy-collect.jsonl" "$OUTPUT_DIR/results/$EPISODE/scrappy/scrappy-collect.jsonl" -c agent; then
+    if kubectl cp "$KUBE_NAMESPACE/$AGENT_POD:/tmp/scrappy-collect.jsonl" "$OUTPUT_DIR/results/$EPISODE/scrappy/scrappy-collect.jsonl" -c "$AGENT_CTR"; then
       cp "$OUTPUT_DIR/results/$EPISODE/scrappy/scrappy-collect.jsonl" "$OUTPUT_DIR/scrappy-collect.jsonl"
       SCRAPPY_LINES=$(wc -l < "$OUTPUT_DIR/scrappy-collect.jsonl")
       echo "Scrappy JSONL collected: $SCRAPPY_LINES lines"
     else
       echo "ERROR: scrappy JSONL collection failed" >&2
+    fi
+
+    # Scrappy detector scores CSV (scrappy-detect mode) — copy to results dir and
+    # artifact root. This is the Phase 03/04 evidence of live inference scoring.
+    if kubectl cp "$KUBE_NAMESPACE/$AGENT_POD:/tmp/scrappy-scores.csv" "$OUTPUT_DIR/results/$EPISODE/scrappy/scrappy-scores.csv" -c "$AGENT_CTR"; then
+      [ -f "$OUTPUT_DIR/results/$EPISODE/scrappy/scrappy-scores.csv" ] && \
+        cp "$OUTPUT_DIR/results/$EPISODE/scrappy/scrappy-scores.csv" "$OUTPUT_DIR/scrappy-scores.csv" || \
+        echo "[teardown] scrappy-scores.csv absent, skipping artifact-root copy"
+      SCORES_LINES=$(wc -l < "$OUTPUT_DIR/scrappy-scores.csv" 2>/dev/null || echo 0)
+      echo "Scrappy scores CSV collected: $SCORES_LINES lines"
+    else
+      echo "ERROR: scrappy scores CSV collection failed (expected in scrappy-detect mode)" >&2
     fi
   else
     echo "ERROR: no agent pod found! Available pods:" >&2
@@ -538,6 +610,11 @@ AGENTEOF
   "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 }
 EOF
+
+  # Dump full agent logs once with the right container before teardown
+  if [ -n "${AGENT_POD:-}" ]; then
+    kubectl logs "$AGENT_POD" -n "$KUBE_NAMESPACE" -c "${AGENT_CTR:-datadog-agent}" > "$OUTPUT_DIR/agent.log" 2>&1 || true
+  fi
 
   # 6. Teardown episode + agent for next iteration
   echo "Tearing down..."

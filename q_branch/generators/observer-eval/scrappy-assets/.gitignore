@@ -1,0 +1,5 @@
+model.scrappy
+agent
+Dockerfile
+*.fromimage
+*.fromimage.*

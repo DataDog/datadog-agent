@@ -61,8 +61,25 @@ func newEventSender(cfg config.Component, logger log.Component, storage observer
 		datadog.ContextAPIKeys,
 		map[string]datadog.APIKey{"apiKeyAuth": {Key: apiKey}},
 	)
+	// Pin the events server URL explicitly so the generated client's fixed
+	// `site` enum is NOT consulted. Custom sites (e.g. gensim.datadoghq.com)
+	// are not in the enum and would otherwise be rejected at request time.
+	site := cfg.GetString("site")
+	if site == "" {
+		site = "datadoghq.com"
+	}
+	site = strings.TrimSuffix(site, ".")
+	configuration := datadog.NewConfiguration()
+	configuration.Servers = datadog.ServerConfigurations{
+		{URL: "https://api." + site, Description: "GenSim/custom site override"},
+	}
+	// CreateEvent carries a per-operation server list (OperationServers) that
+	// takes precedence over Servers and embeds the site enum; clear it so the
+	// pinned Servers URL above is used and the enum is bypassed.
+	configuration.OperationServers = nil
+	apiClient := datadog.NewAPIClient(configuration)
 	return &eventSender{
-		api:     datadogV2.NewEventsApi(datadog.NewAPIClient(datadog.NewConfiguration())),
+		api:     datadogV2.NewEventsApi(apiClient),
 		ctx:     ctx,
 		logger:  logger,
 		storage: storage,
@@ -492,8 +509,25 @@ func newLiveEventSender(cfg config.Component, logger log.Component, storage obse
 		datadog.ContextAPIKeys,
 		map[string]datadog.APIKey{"apiKeyAuth": {Key: apiKey}},
 	)
+	// Pin the events server URL explicitly so the generated client's fixed
+	// `site` enum is NOT consulted. Custom sites (e.g. gensim.datadoghq.com)
+	// are not in the enum and would otherwise be rejected at request time.
+	site := cfg.GetString("site")
+	if site == "" {
+		site = "datadoghq.com"
+	}
+	site = strings.TrimSuffix(site, ".")
+	configuration := datadog.NewConfiguration()
+	configuration.Servers = datadog.ServerConfigurations{
+		{URL: "https://api." + site, Description: "GenSim/custom site override"},
+	}
+	// CreateEvent carries a per-operation server list (OperationServers) that
+	// takes precedence over Servers and embeds the site enum; clear it so the
+	// pinned Servers URL above is used and the enum is bypassed.
+	configuration.OperationServers = nil
+	apiClient := datadog.NewAPIClient(configuration)
 	return &eventSender{
-		api:     datadogV2.NewEventsApi(datadog.NewAPIClient(datadog.NewConfiguration())),
+		api:     datadogV2.NewEventsApi(apiClient),
 		ctx:     ctx,
 		logger:  logger,
 		storage: storage,

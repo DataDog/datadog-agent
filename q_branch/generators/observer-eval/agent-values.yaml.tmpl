@@ -42,10 +42,19 @@ agents:
         enabled: true
         parquet_output_dir: /tmp/observer-parquet
         parquet_flush_interval: 30s
+      event_reporter:
+        sending_enabled: ${SCRAPPY_EVENTS_ENABLED}
       components:
         scrappy_collector:
           enabled: ${SCRAPPY_ENABLED}
           output_path: /tmp/scrappy-collect.jsonl
+        scrappy_detector:
+          enabled: ${SCRAPPY_DETECT_ENABLED}
+          model_path: /opt/scrappy/model.scrappy
+          vocab_path: /opt/scrappy/vocab.json
+          context_window: 4096
+          threshold: 0.5
+          scores_output: /tmp/scrappy-scores.csv
         bocpd:
           enabled: ${DETECTORS_ENABLED}
         rrcf:

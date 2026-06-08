@@ -27,6 +27,14 @@ const (
 	telemetryRRCFScore     = "observer.rrcf.score"
 	telemetryRRCFThreshold = "observer.rrcf.threshold"
 
+	// Scrappy detector
+	telemetryScrappyTickTokens    = "observer.scrappy.tick_tokens"
+	telemetryScrappyContextTokens = "observer.scrappy.context_tokens"
+	telemetryScrappySeriesCount   = "observer.scrappy.series_count"
+	telemetryScrappyPAlert        = "observer.scrappy.p_alert"
+	telemetryScrappyPNormal       = "observer.scrappy.p_normal"
+	telemetryScrappyPrediction    = "observer.scrappy.prediction"
+
 	// Log pattern extractor — counter: delta (new clusters) per processed log
 	telemetryLogPatternExtractorPatternCount = "observer.log_pattern_extractor.pattern_count"
 )
@@ -61,6 +69,42 @@ func newTelemetryHandler(telemetryComp telemetry.Component) *telemetryHandler {
 		telemetryRRCFThreshold,
 		[]string{"detector"},
 		"RRCF dynamic anomaly detection threshold (post-warmup)",
+	)
+	gauges[telemetryScrappyTickTokens] = telemetryComp.NewGauge(
+		"observer",
+		telemetryScrappyTickTokens,
+		[]string{"detector"},
+		"Number of tokens in the current tick",
+	)
+	gauges[telemetryScrappyContextTokens] = telemetryComp.NewGauge(
+		"observer",
+		telemetryScrappyContextTokens,
+		[]string{"detector"},
+		"Total tokens in the sliding context window",
+	)
+	gauges[telemetryScrappySeriesCount] = telemetryComp.NewGauge(
+		"observer",
+		telemetryScrappySeriesCount,
+		[]string{"detector"},
+		"Number of series in the metric surface snapshot",
+	)
+	gauges[telemetryScrappyPAlert] = telemetryComp.NewGauge(
+		"observer",
+		telemetryScrappyPAlert,
+		[]string{"detector"},
+		"Scrappy model P(alert) score for the current tick",
+	)
+	gauges[telemetryScrappyPNormal] = telemetryComp.NewGauge(
+		"observer",
+		telemetryScrappyPNormal,
+		[]string{"detector"},
+		"Scrappy model P(normal) score for the current tick",
+	)
+	gauges[telemetryScrappyPrediction] = telemetryComp.NewGauge(
+		"observer",
+		telemetryScrappyPrediction,
+		[]string{"detector"},
+		"Scrappy per-tick prediction: 1.0 = alert, 0.0 = normal",
 	)
 
 	// Counters

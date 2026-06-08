@@ -26,12 +26,12 @@ SCENARIO_EPISODE_NAMES = {entry["short"]: entry["episode"] for entry in _EVAL_MA
 SCENARIOS = list(SCENARIO_EPISODE_NAMES.keys())
 
 S3_BUCKET = "qbranch-gensim-recordings"
-AWS_PROFILE = "sso-agent-sandbox-account-admin"
+AWS_PROFILE = "sso-sandbox-gensim-s3-operator"
 
 # All available detectors and correlators for ablation / combination search.
 # passthrough is intentionally excluded: it is designed for TP scoring (eval_tp),
 # not for Gaussian F1 eval (eval_scenarios / eval_combinations).
-DETECTORS = ["bocpd", "cusum", "rrcf", "scanmw", "scanwelch"]
+DETECTORS = ["bocpd", "cusum", "rrcf", "scanmw", "scanwelch", "scrappy_detector"]
 CORRELATORS = ["cross_signal", "time_cluster"]
 
 # Log metrics extractors (component_catalog extractors). Not part of the random
