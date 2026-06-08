@@ -15,6 +15,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	"github.com/DataDog/datadog-agent/pkg/collector/ccmtags"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
@@ -1553,4 +1556,41 @@ func TestEnrichTagsWithJMXCheckName(t *testing.T) {
 		})
 
 	}
+}
+
+func TestEnrichMetricSampleJMXCloudCostOnlyTag(t *testing.T) {
+	t.Run("adds CCM tag for eligible JMX check", func(t *testing.T) {
+		cfg := configmock.New(t)
+		cfg.Set("infrastructure_mode", "cloud_cost_only", pkgconfigmodel.SourceFile)
+		cfg.Set("integration.cloud_cost_only.tagged", []string{"kafka"}, pkgconfigmodel.SourceFile)
+		conf := enrichConfig{defaultHostname: "h", ccmCfg: cfg}
+		s, err := parseAndEnrichSingleMetricMessage(t, []byte("jmx.test:1|g|#dd.internal.jmx_check_name:kafka,env:prod"), conf)
+		require.NoError(t, err)
+		assert.Contains(t, s.Tags, ccmtags.InfraModeCloudCostTag)
+	})
+	t.Run("no tag when JMX check not in tagged list", func(t *testing.T) {
+		cfg := configmock.New(t)
+		cfg.Set("infrastructure_mode", "cloud_cost_only", pkgconfigmodel.SourceFile)
+		cfg.Set("integration.cloud_cost_only.tagged", []string{"kafka"}, pkgconfigmodel.SourceFile)
+		conf := enrichConfig{defaultHostname: "h", ccmCfg: cfg}
+		s, err := parseAndEnrichSingleMetricMessage(t, []byte("jmx.test:1|g|#dd.internal.jmx_check_name:tomcat"), conf)
+		require.NoError(t, err)
+		assert.NotContains(t, s.Tags, ccmtags.InfraModeCloudCostTag)
+	})
+	t.Run("no tag without JMX check name tag", func(t *testing.T) {
+		cfg := configmock.New(t)
+		cfg.Set("infrastructure_mode", "cloud_cost_only", pkgconfigmodel.SourceFile)
+		conf := enrichConfig{defaultHostname: "h", ccmCfg: cfg}
+		s, err := parseAndEnrichSingleMetricMessage(t, []byte("app.custom:1|g|#env:prod"), conf)
+		require.NoError(t, err)
+		assert.NotContains(t, s.Tags, ccmtags.InfraModeCloudCostTag)
+	})
+	t.Run("no tag when not in cloud_cost_only mode", func(t *testing.T) {
+		cfg := configmock.New(t)
+		cfg.Set("infrastructure_mode", "full", pkgconfigmodel.SourceFile)
+		conf := enrichConfig{defaultHostname: "h", ccmCfg: cfg}
+		s, err := parseAndEnrichSingleMetricMessage(t, []byte("jmx.test:1|g|#dd.internal.jmx_check_name:kafka"), conf)
+		require.NoError(t, err)
+		assert.NotContains(t, s.Tags, ccmtags.InfraModeCloudCostTag)
+	})
 }

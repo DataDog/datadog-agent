@@ -318,6 +318,7 @@ func newServerCompat(cfg model.ReaderWriter, log log.Component, hostname hostnam
 			entityIDPrecedenceEnabled: entityIDPrecedenceEnabled,
 			defaultHostname:           defaultHostname,
 			serverlessMode:            serverless,
+			ccmCfg:                    cfg,
 		},
 		wmeta:                   wmeta,
 		telemetry:               telemetrycomp,

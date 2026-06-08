@@ -12,6 +12,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/constants"
+	"github.com/DataDog/datadog-agent/pkg/collector/ccmtags"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	metricsevent "github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
@@ -40,6 +42,7 @@ type enrichConfig struct {
 	defaultHostname           string
 	entityIDPrecedenceEnabled bool
 	serverlessMode            bool
+	ccmCfg                    model.Reader // optional: cloud_cost_only JMX DogStatsD tagging; nil skips
 }
 
 // extractTagsMetadata returns tags (client tags + host tag) and information needed to query tagger (origins, cardinality).
@@ -144,7 +147,14 @@ func tsToFloatForSamples(ts time.Time) float64 {
 
 func enrichMetricSample(dest []metrics.MetricSample, ddSample dogstatsdMetricSample, origin string, processID uint32, listenerID string, conf enrichConfig, filterList *utilstrings.Matcher) []metrics.MetricSample {
 	metricName := ddSample.name
-	tags, hostnameFromTags, extractedOrigin, metricSource := extractTagsMetadata(ddSample.tags, origin, processID, ddSample.localData, ddSample.externalData, ddSample.cardinality, conf)
+	// extractTagsMetadata compacts tags in-place and strips dd.internal.jmx_check_name.
+	// When CCM JMX tagging is enabled, pass a copy so ddSample.tags stays intact for AppendJMXDogstatsdCCMTags.
+	tagsInput := ddSample.tags
+	if conf.ccmCfg != nil {
+		tagsInput = append([]string(nil), ddSample.tags...)
+	}
+	tags, hostnameFromTags, extractedOrigin, metricSource := extractTagsMetadata(tagsInput, origin, processID, ddSample.localData, ddSample.externalData, ddSample.cardinality, conf)
+	tags = ccmtags.AppendJMXDogstatsdCCMTags(tags, ddSample.tags, conf.ccmCfg)
 
 	if !isExcluded(metricName, conf.metricPrefix, conf.metricPrefixBlacklist) {
 		metricName = conf.metricPrefix + metricName

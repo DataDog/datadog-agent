@@ -45,8 +45,11 @@ api_key:
 
 ## @param integration.cloud_cost_only.tagged - list of strings - optional - default: []
 ## When ``infrastructure_mode`` is ``cloud_cost_only``, check names in this list receive the
-## ``infrastructure_mode:cloud_cost_only`` tag on integration metrics. When the list is empty (the default),
-## all checks receive the tag.
+## ``infrastructure_mode:cloud_cost_only`` tag on integration metrics from checks loaded through the
+## Agent scheduler, and on JMX integration metrics submitted via DogStatsD when
+## ``dd.internal.jmx_check_name`` matches the check name. When the list is empty (the default), all
+## checks except ``custom_*`` receive the tag. Plain application DogStatsD metrics (without
+## ``dd.internal.jmx_check_name``) are not tagged.
 #
 # integration:
 #   cloud_cost_only:
