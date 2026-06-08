@@ -31,8 +31,8 @@ type fakeDiscoverer struct {
 
 func (f *fakeDiscoverer) DiscoverConfig(integrationName, serviceJSON string) (string, error) {
 	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.calls++
-	f.mu.Unlock()
 	return f.fn(integrationName, serviceJSON)
 }
 
@@ -124,6 +124,25 @@ func TestWorker_RetriesUpToMax(t *testing.T) {
 	time.Sleep(20 * time.Millisecond)
 	assert.Equal(t, max, disco.callCount(), "worker should give up after max attempts")
 	assert.Empty(t, cb.snapshot(), "onResult should never fire when discovery fails")
+}
+
+// TestWorker_PermFail_DropsImmediately: a PermFail error drops the job after
+// the first attempt without consuming any retry budget.
+func TestWorker_PermFail_DropsImmediately(t *testing.T) {
+	disco := &fakeDiscoverer{fn: func(_, _ string) (string, error) {
+		return "", PermFail{Err: errors.New("permanent")}
+	}}
+	lookup := &fixedLookup{services: map[string]listeners.Service{"svc-1": newSvc("svc-1")}}
+	cb := &recordingCallback{}
+
+	w := NewWorker(disco, lookup, cb.callback, Config{MaxAttempts: 10, RetryDelay: 5 * time.Millisecond})
+	w.Start()
+	defer w.Stop()
+	w.Enqueue("svc-1", testTplDigest, "myinteg")
+
+	require.Eventually(t, func() bool { return disco.callCount() >= 1 }, time.Second, 2*time.Millisecond)
+	assert.Equal(t, 1, disco.callCount(), "PermFail must not trigger a retry")
+	assert.Empty(t, cb.snapshot())
 }
 
 // TestWorker_RetriesOnEmptyResult: an empty-array result is treated the same

@@ -25,6 +25,13 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
 )
 
+// PermFail wraps an error to signal the worker that retrying will never
+// succeed. The job is dropped immediately without consuming any retry budget.
+type PermFail struct{ Err error }
+
+func (e PermFail) Error() string { return e.Err.Error() }
+func (e PermFail) Unwrap() error { return e.Err }
+
 // ConfigDiscoverer is the boundary between Autodiscovery and the runtime that
 // hosts the integration's discover_config implementation. The agent serializes
 // the live service information as JSON and the integration returns a JSON

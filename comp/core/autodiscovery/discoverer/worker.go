@@ -7,6 +7,7 @@ package discoverer
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"time"
 
@@ -156,6 +157,11 @@ func (w *Worker) processNext() bool {
 
 	resultJSON, err := w.disco.DiscoverConfig(key.integrationName, serviceJSON)
 	if err != nil {
+		if _, ok := errors.AsType[PermFail](err); ok {
+			log.Debugf("DiscoveryConfig for integration %s on service %s failed permanently: %v", key.integrationName, key.svcID, err)
+			w.dropAttempts(key)
+			return true
+		}
 		log.Debugf("DiscoveryConfig for integration %s on service %s failed: %v", key.integrationName, key.svcID, err)
 		w.requeueOrDrop(key)
 		return true

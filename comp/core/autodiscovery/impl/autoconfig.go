@@ -27,6 +27,7 @@ import (
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	autodiscoverydef "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
+	discovererPkg "github.com/DataDog/datadog-agent/comp/core/autodiscovery/discoverer"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
@@ -205,7 +206,7 @@ func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolv
 		log.Infof("Health platform component not available. Issue reporting disabled for config providers.")
 	}
 	staticConfigIndex := listeners.NewStaticConfigIndex()
-	cfgMgr := newReconcilingConfigManager(secretResolver, hpComp, staticConfigIndex, nil)
+	cfgMgr := newReconcilingConfigManager(secretResolver, hpComp, staticConfigIndex, discovererPkg.NewPythonBridge())
 	ac := &AutoConfig{
 		configPollers:            make([]*configPoller, 0, 9),
 		listenerCandidates:       make(map[string]*listenerCandidate),
@@ -369,9 +370,7 @@ func (ac *AutoConfig) start() {
 	// Start the service listener
 	go ac.serviceListening()
 	ac.cfgMgr.start()
-	if ch := ac.cfgMgr.discoveredChanges(); ch != nil {
-		go ac.discoveredChangesLoop(ch)
-	}
+	go ac.discoveredChangesLoop(ac.cfgMgr.discoveredChanges())
 }
 
 // discoveredChangesLoop drains ConfigChanges produced asynchronously by the
@@ -382,10 +381,7 @@ func (ac *AutoConfig) discoveredChangesLoop(ch <-chan integration.ConfigChanges)
 		select {
 		case <-ac.discoveryStop:
 			return
-		case changes, ok := <-ch:
-			if !ok {
-				return
-			}
+		case changes := <-ch:
 			ac.applyChanges(changes)
 		}
 	}
@@ -404,9 +400,7 @@ func (ac *AutoConfig) stop() {
 	ac.listenerStop <- struct{}{}
 
 	// stop the discovered-changes drain loop and then the worker itself.
-	if ac.cfgMgr.discoveredChanges() != nil {
-		close(ac.discoveryStop)
-	}
+	close(ac.discoveryStop)
 	ac.cfgMgr.stop()
 
 	// stop the meta scheduler

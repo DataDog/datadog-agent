@@ -39,18 +39,29 @@ func (s *stubDiscoverer) DiscoverConfig(integrationName, serviceJSON string) (st
 	return fn(integrationName, serviceJSON)
 }
 
-// TestConfigMgr_DiscoveryTemplate_DormantWhenNoDiscoverer confirms that with
-// disco == nil (the production wiring) a Discovery template never schedules
-// and no error fires.
-func TestConfigMgr_DiscoveryTemplate_DormantWhenNoDiscoverer(t *testing.T) {
-	mockResolver := MockSecretResolver{}
-	cm := newReconcilingConfigManager(&mockResolver, nil, nil, nil)
+// TestConfigMgr_DiscoveryTemplate_NoPythonNeverSchedules verifies that a
+// discoverer returning PermFail (simulating a no-python build) drops the job
+// after a single attempt and never delivers a config to the scheduler.
+func TestConfigMgr_DiscoveryTemplate_NoPythonNeverSchedules(t *testing.T) {
+	called := atomic.NewInt32(0)
+	disco := newStubDiscoverer(func(_, _ string) (string, error) {
+		called.Add(1)
+		return "", discoverer.PermFail{Err: assert.AnError}
+	})
+	cm, _ := makeDiscoveryCM(t, "")
+	cm.discoveryWorker.Stop()
+	cm.discoveryWorker = discoverer.NewWorker(
+		disco,
+		cmServiceLookup{cm},
+		cm.onDiscoveryResult,
+		discoverer.Config{MaxAttempts: fastWorkerMaxAttempts, RetryDelay: 10 * time.Millisecond},
+	)
+	cm.discoveryWorker.Start()
 
 	tpl := integration.Config{
 		Name:          "krakend",
 		ADIdentifiers: []string{"krakend"},
 		Discovery:     &integration.DiscoveryConfig{},
-		Source:        "file:/etc/datadog-agent/conf.d/krakend.d/auto_conf.yaml",
 	}
 	svc := &dummyService{
 		ID:            "docker://k1",
@@ -58,16 +69,17 @@ func TestConfigMgr_DiscoveryTemplate_DormantWhenNoDiscoverer(t *testing.T) {
 		Hosts:         map[string]string{"main": "10.0.0.1"},
 	}
 
-	changes, _ := cm.processNewConfig(tpl)
-	assertConfigsMatch(t, changes.Schedule)
-	assertConfigsMatch(t, changes.Unschedule)
+	cm.processNewConfig(tpl)
+	cm.processNewService(svc)
 
-	changes = cm.processNewService(svc)
-	assertConfigsMatch(t, changes.Schedule /* nothing scheduled — feature dormant */)
-	assertConfigsMatch(t, changes.Unschedule)
+	require.Eventually(t, func() bool { return called.Load() >= 1 }, time.Second, 50*time.Millisecond)
+	assert.Equal(t, int32(1), called.Load(), "PermFail should drop the job after a single attempt")
 
-	// No discovered-changes channel exists in dormant mode.
-	assert.Nil(t, cm.discoveredChanges())
+	select {
+	case <-cm.discoveredChanges():
+		t.Fatal("no config should be delivered when discovery permanently fails")
+	default:
+	}
 }
 
 // TestConfigMgr_DiscoveryTemplate_RoutesThroughDiscoverer verifies the full
