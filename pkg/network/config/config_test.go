@@ -603,7 +603,7 @@ func TestDNSMonitoringPorts(t *testing.T) {
 	t.Run("via YAML - invalid ports should be removed", func(t *testing.T) {
 		// Ports outside 1-65535 are soft-dropped at config load.
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("network_config.dns_monitoring_ports", []int{53, 0, -1, 65536, 99999, 5353})
+		mockSystemProbe.SetInTest("network_config.dns_monitoring_ports", []int{53, 0, -1, 65536, 99999, 5353})
 		cfg := New()
 		assert.Equal(t, []int{53, 5353}, cfg.DNSMonitoringPortList)
 	})
@@ -612,7 +612,7 @@ func TestDNSMonitoringPorts(t *testing.T) {
 		// Every entry is removed by sanitization. The result must not be empty:
 		// an empty list would zero every BPF port slot and disable the filter.
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("network_config.dns_monitoring_ports", []int{0, 80, 443, 99999})
+		mockSystemProbe.SetInTest("network_config.dns_monitoring_ports", []int{0, 80, 443, 99999})
 		cfg := New()
 		assert.Equal(t, []int{53}, cfg.DNSMonitoringPortList)
 	})
@@ -620,7 +620,7 @@ func TestDNSMonitoringPorts(t *testing.T) {
 	t.Run("via YAML - duplicates deduplicated", func(t *testing.T) {
 		// Repeat entries are deduplicated.
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("network_config.dns_monitoring_ports", []int{5353, 53, 53, 5353, 53})
+		mockSystemProbe.SetInTest("network_config.dns_monitoring_ports", []int{5353, 53, 53, 5353, 53})
 		cfg := New()
 		assert.Equal(t, []int{53, 5353}, cfg.DNSMonitoringPortList)
 	})
@@ -629,7 +629,7 @@ func TestDNSMonitoringPorts(t *testing.T) {
 		// 9 distinct ports exceeds DNSPortsMax = 8. After sort-ascending,
 		// the highest port (1008) is dropped.
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("network_config.dns_monitoring_ports", []int{53, 1001, 1002, 1003, 1004, 1005, 1006, 1007, 1008})
+		mockSystemProbe.SetInTest("network_config.dns_monitoring_ports", []int{53, 1001, 1002, 1003, 1004, 1005, 1006, 1007, 1008})
 		cfg := New()
 		assert.Equal(t, []int{53, 1001, 1002, 1003, 1004, 1005, 1006, 1007}, cfg.DNSMonitoringPortList)
 	})
@@ -642,7 +642,7 @@ func TestDNSMonitoringPorts(t *testing.T) {
 		}
 		ports = append(ports, 5353)
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("network_config.dns_monitoring_ports", ports)
+		mockSystemProbe.SetInTest("network_config.dns_monitoring_ports", ports)
 		cfg := New()
 		assert.Equal(t, []int{53, 5353}, cfg.DNSMonitoringPortList)
 	})

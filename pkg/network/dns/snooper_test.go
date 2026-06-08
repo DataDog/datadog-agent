@@ -346,7 +346,7 @@ func TestDNSOverCustomPort(t *testing.T) {
 func TestDNSExceedsMaxPortsTruncates(t *testing.T) {
 	// 9 distinct ports, sorted ascending: 53, 1001, 1002, ..., 1008.
 	// DNSPortsMax = 8, so port 1008 (slot index 8 after sort) is dropped.
-	mock.NewSystemProbe(t).SetWithoutSource(
+	mock.NewSystemProbe(t).SetInTest(
 		"network_config.dns_monitoring_ports",
 		[]int{53, 1001, 1002, 1003, 1004, 1005, 1006, 1007, 1008},
 	)
@@ -396,7 +396,7 @@ func TestDNSDeduplicatesPorts(t *testing.T) {
 		ports = append(ports, 53)
 	}
 	ports = append(ports, 5353)
-	mock.NewSystemProbe(t).SetWithoutSource("network_config.dns_monitoring_ports", ports)
+	mock.NewSystemProbe(t).SetInTest("network_config.dns_monitoring_ports", ports)
 	cfg := config.New()
 	cfg.CollectDNSStats = true
 	cfg.CollectLocalDNS = true
