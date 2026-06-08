@@ -261,6 +261,11 @@ func newServerCompat(cfg model.ReaderWriter, log log.Component, hostname hostnam
 	}
 	sort.UniqInPlace(extraTags)
 
+	var ccmCfg model.Reader
+	if cfg.GetString("infrastructure_mode") == "cloud_cost_only" {
+		ccmCfg = cfg
+	}
+
 	entityIDPrecedenceEnabled := cfg.GetBool("dogstatsd_entity_id_precedence")
 
 	eolTerminationUDP := false
@@ -318,7 +323,7 @@ func newServerCompat(cfg model.ReaderWriter, log log.Component, hostname hostnam
 			entityIDPrecedenceEnabled: entityIDPrecedenceEnabled,
 			defaultHostname:           defaultHostname,
 			serverlessMode:            serverless,
-			ccmCfg:                    cfg,
+			ccmCfg:                    ccmCfg,
 		},
 		wmeta:                   wmeta,
 		telemetry:               telemetrycomp,
