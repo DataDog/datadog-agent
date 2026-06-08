@@ -57,6 +57,9 @@ func StartServer(cfg *sysconfigtypes.Config, settings settings.Component, rcclie
 	mux.HandleFunc("POST /module-enable/{module_name}", func(w http.ResponseWriter, r *http.Request) { enableModuleHandler(w, r, deps) })
 	mux.HandleFunc("POST /module-disable/{module_name}", func(w http.ResponseWriter, r *http.Request) { disableModuleHandler(w, r) })
 
+	// React to remote-config-driven module toggles in the system-probe config.
+	watchRuntimeModuleToggles(deps.SysprobeConfig, deps)
+
 	mux.Handle("GET /debug/pprof/", http.DefaultServeMux)
 	mux.Handle("/debug/vars", http.DefaultServeMux)
 	mux.Handle("/telemetry", deps.Telemetry.Handler())
