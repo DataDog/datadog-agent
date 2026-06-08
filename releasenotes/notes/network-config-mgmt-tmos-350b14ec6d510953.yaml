@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Expands the TMOS default profile in the Network Config Management (NCM)
+    module. This fixes an issue where some TMOS devices were not matching any
+    known profiles, leading them to be unmonitored.
