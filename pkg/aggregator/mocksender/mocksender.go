@@ -70,6 +70,7 @@ type MockSender struct {
 	mock.Mock
 	senderManager sender.SenderManager
 	checkTags     []string
+	infraTags     []string
 }
 
 // GetSenderManager returns the instance of sender.SenderManager
@@ -132,6 +133,7 @@ func (m *MockSender) SetupAcceptAll() {
 	m.On("GetSenderStats", mock.AnythingOfType("stats.SenderStats")).Return()
 	m.On("DisableDefaultHostname", mock.AnythingOfType("bool")).Return()
 	m.On("SetCheckCustomTags", mock.AnythingOfType("[]string")).Return()
+	m.On("AppendInfraTags", mock.AnythingOfType("[]string")).Return()
 	m.On("SetCheckService", mock.AnythingOfType("string")).Return()
 	m.On("FinalizeCheckServiceTag").Return()
 	m.On("SetNoIndex", mock.AnythingOfType("bool")).Return()

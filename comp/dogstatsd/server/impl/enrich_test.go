@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	"github.com/DataDog/datadog-agent/pkg/metricpipelines/names"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
@@ -992,7 +993,7 @@ func TestConvertNamespaceBlacklist(t *testing.T) {
 
 func TestMetricFilterListShouldBlock(t *testing.T) {
 	message := []byte("custom.metric.a:21|ms")
-	filter := utilstrings.NewMatcher([]string{"custom.metric.a", "custom.metric.b"}, false)
+	filter := utilstrings.NewBlocklistMatcher([]string{"custom.metric.a", "custom.metric.b"}, false)
 	conf := enrichConfig{
 		defaultHostname: "default",
 	}
@@ -1003,7 +1004,8 @@ func TestMetricFilterListShouldBlock(t *testing.T) {
 	parsed, err := parser.parseMetricSample(message)
 	assert.NoError(t, err)
 	samples := []metrics.MetricSample{}
-	samples = enrichMetricSample(samples, parsed, "", 0, "", conf, &filter)
+	blockFilters := names.NewTestFilters(names.CriterionMetricFilterList, filter, utilstrings.Matcher{})
+	samples = enrichMetricSample(samples, parsed, "", 0, "", conf, &blockFilters)
 
 	assert.Equal(t, 0, len(samples))
 }
@@ -1029,7 +1031,7 @@ func TestServerlessModeShouldSetEmptyHostname(t *testing.T) {
 
 func TestMetricFilterListShouldNotBlock(t *testing.T) {
 	message := []byte("custom.metric.a:21|ms")
-	filterList := utilstrings.NewMatcher([]string{"custom.metric.b", "custom.metric.c"}, false)
+	blockList := utilstrings.NewBlocklistMatcher([]string{"custom.metric.b", "custom.metric.c"}, false)
 	conf := enrichConfig{
 		defaultHostname: "default",
 	}
@@ -1039,9 +1041,34 @@ func TestMetricFilterListShouldNotBlock(t *testing.T) {
 	parsed, err := parser.parseMetricSample(message)
 	assert.NoError(t, err)
 	samples := []metrics.MetricSample{}
-	samples = enrichMetricSample(samples, parsed, "", 0, "", conf, &filterList)
+	blockFilters := names.NewTestFilters(names.CriterionMetricFilterList, blockList, utilstrings.Matcher{})
+	samples = enrichMetricSample(samples, parsed, "", 0, "", conf, &blockFilters)
 
 	assert.Equal(t, 1, len(samples))
+}
+
+func TestEnrichMetricSampleJMXCheckNameCloudCostFilter(t *testing.T) {
+	conf := enrichConfig{defaultHostname: "default"}
+	allowList := utilstrings.NewAllowlistMatcher([]string{"system.cpu"}, true)
+	filters := names.NewTestCloudCostFilters(utilstrings.Matcher{}, allowList, nil)
+
+	t.Run("custom jmx check bypasses allowlist", func(t *testing.T) {
+		parsed := dogstatsdMetricSample{
+			name: "jmx.custom.metric",
+			tags: []string{"dd.internal.jmx_check_name:custom_myapp"},
+		}
+		samples := enrichMetricSample(nil, parsed, "", 0, "", conf, &filters)
+		assert.Len(t, samples, 1)
+	})
+
+	t.Run("jmx over dogstatsd forwarded", func(t *testing.T) {
+		parsed := dogstatsdMetricSample{
+			name: "kafka.metric",
+			tags: []string{"dd.internal.jmx_check_name:kafka"},
+		}
+		samples := enrichMetricSample(nil, parsed, "", 0, "", conf, &filters)
+		assert.Len(t, samples, 1)
+	})
 }
 
 func TestConvertEntityOriginDetectionNoTags(t *testing.T) {

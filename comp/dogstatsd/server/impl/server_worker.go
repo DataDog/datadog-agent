@@ -9,6 +9,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/metricpipelines/names"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
@@ -36,11 +37,11 @@ type worker struct {
 
 	packetsTelemetry *packets.TelemetryStore
 
-	FilterListUpdate chan utilstrings.Matcher
-	filterList       utilstrings.Matcher
+	MetricBlockListUpdate chan utilstrings.Matcher
+	metricFilters         names.Filters
 }
 
-func newWorker(s *dsdServer, workerNum int, wmeta option.Option[workloadmeta.Component], packetsTelemetry *packets.TelemetryStore, stringInternerTelemetry *stringInternerTelemetry, filterList utilstrings.Matcher) *worker {
+func newWorker(s *dsdServer, workerNum int, wmeta option.Option[workloadmeta.Component], packetsTelemetry *packets.TelemetryStore, stringInternerTelemetry *stringInternerTelemetry, metricFilters names.Filters) *worker {
 	var batcher *batcher
 	if s.ServerlessMode {
 		batcher = newServerlessBatcher(s.demultiplexer, s.tlmChannel)
@@ -49,13 +50,13 @@ func newWorker(s *dsdServer, workerNum int, wmeta option.Option[workloadmeta.Com
 	}
 
 	return &worker{
-		server:           s,
-		batcher:          batcher,
-		parser:           newParser(s.config, s.sharedFloat64List, workerNum, wmeta, stringInternerTelemetry),
-		samples:          make(metrics.MetricSampleBatch, 0, defaultSampleSize),
-		packetsTelemetry: packetsTelemetry,
-		FilterListUpdate: make(chan utilstrings.Matcher),
-		filterList:       filterList,
+		server:                s,
+		batcher:               batcher,
+		parser:                newParser(s.config, s.sharedFloat64List, workerNum, wmeta, stringInternerTelemetry),
+		samples:               make(metrics.MetricSampleBatch, 0, defaultSampleSize),
+		packetsTelemetry:      packetsTelemetry,
+		MetricBlockListUpdate: make(chan utilstrings.Matcher),
+		metricFilters:         metricFilters,
 	}
 }
 
@@ -67,14 +68,14 @@ func (w *worker) run() {
 		case <-w.server.health.C:
 		case <-w.server.serverlessFlushChan:
 			w.batcher.flush()
-		case filterList := <-w.FilterListUpdate:
-			w.filterList = filterList
+		case metricBlockList := <-w.MetricBlockListUpdate:
+			w.metricFilters.SetBlockList(names.CriterionMetricFilterList, metricBlockList)
 		case ps := <-w.server.packetsIn:
 			w.packetsTelemetry.TelemetryUntrackPackets(ps)
 			w.samples = w.samples[0:0]
 			// we return the samples in case the slice was extended
 			// when parsing the packets
-			w.samples = w.server.parsePackets(w.batcher, w.parser, ps, w.samples, &w.filterList)
+			w.samples = w.server.parsePackets(w.batcher, w.parser, ps, w.samples, &w.metricFilters)
 		}
 
 	}

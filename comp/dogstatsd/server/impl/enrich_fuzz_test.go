@@ -8,6 +8,7 @@ package serverimpl
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/metricpipelines/names"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 )
@@ -48,17 +49,18 @@ func FuzzParseMetricWithEnrich(f *testing.F) {
 		deps := newServerDeps(t)
 		stringInternerTelemetry := newSiTelemetry(false, deps.Telemetry)
 		parser := newParser(deps.Config, newFloat64ListPool(deps.Config, deps.Telemetry), 1, deps.WMeta, stringInternerTelemetry)
-		filter := utilstrings.NewMatcher([]string{"custom.metric.a", "custom.metric.b"}, false)
+		filter := utilstrings.NewBlocklistMatcher([]string{"custom.metric.a", "custom.metric.b"}, false)
 
 		parsed, err := parser.parseMetricSample(rawMetric)
 		if err != nil {
 			return
 		}
 		dest := make([]metrics.MetricSample, 0, 1)
+		blockFilters := names.NewTestFilters(names.CriterionMetricFilterList, filter, utilstrings.Matcher{})
 		_ = enrichMetricSample(dest, parsed, origin, processID, "", enrichConfig{
 			entityIDPrecedenceEnabled: entityIDPrecedenceEnabled,
 			serverlessMode:            serverlessMode,
-		}, &filter)
+		}, &blockFilters)
 	})
 }
 

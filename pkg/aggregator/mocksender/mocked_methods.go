@@ -116,6 +116,14 @@ func (m *MockSender) SetCheckCustomTags(tags []string) {
 	m.Called(tags)
 }
 
+// AppendInfraTags appends to stored infrastructure tags (mirrors checkSender.AppendInfraTags).
+func (m *MockSender) AppendInfraTags(tags []string) {
+	if len(tags) > 0 {
+		m.infraTags = append(m.infraTags, tags...)
+	}
+	m.Called(tags)
+}
+
 // SetCheckService enables the setting of check service mock call.
 func (m *MockSender) SetCheckService(service string) {
 	m.Called(service)

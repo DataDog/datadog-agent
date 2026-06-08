@@ -12,11 +12,11 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/constants"
+	"github.com/DataDog/datadog-agent/pkg/metricpipelines/names"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	metricsevent "github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
-	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 )
 
 var (
@@ -69,8 +69,7 @@ func extractTagsMetadata(tags []string, originFromUDS string, processID uint32, 
 			origin.Cardinality = tag[len(CardinalityTagPrefix):]
 			continue
 		} else if strings.HasPrefix(tag, jmxCheckNamePrefix) {
-			checkName := tag[len(jmxCheckNamePrefix):]
-			metricSource = metrics.JMXCheckNameToMetricSource(checkName)
+			metricSource = metrics.JMXCheckNameToMetricSource(tag[len(jmxCheckNamePrefix):])
 			continue
 		}
 		tags[n] = tag
@@ -142,7 +141,7 @@ func tsToFloatForSamples(ts time.Time) float64 {
 	return float64(ts.Unix())
 }
 
-func enrichMetricSample(dest []metrics.MetricSample, ddSample dogstatsdMetricSample, origin string, processID uint32, listenerID string, conf enrichConfig, filterList *utilstrings.Matcher) []metrics.MetricSample {
+func enrichMetricSample(dest []metrics.MetricSample, ddSample dogstatsdMetricSample, origin string, processID uint32, listenerID string, conf enrichConfig, metricFilters *names.Filters) []metrics.MetricSample {
 	metricName := ddSample.name
 	tags, hostnameFromTags, extractedOrigin, metricSource := extractTagsMetadata(ddSample.tags, origin, processID, ddSample.localData, ddSample.externalData, ddSample.cardinality, conf)
 
@@ -150,7 +149,11 @@ func enrichMetricSample(dest []metrics.MetricSample, ddSample dogstatsdMetricSam
 		metricName = conf.metricPrefix + metricName
 	}
 
-	if filterList != nil && filterList.Test(metricName) {
+	if metricFilters != nil && metricFilters.ShouldDrop(names.FilterContext{
+		Name:          metricName,
+		Source:        metricSource,
+		FromDogstatsd: true,
+	}) {
 		tlmFilteredPoints.Inc()
 		return []metrics.MetricSample{}
 	}

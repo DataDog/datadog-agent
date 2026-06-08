@@ -1272,6 +1272,20 @@ func agent(config pkgconfigmodel.Setup) {
 		"windows_registry",
 		"windows_service",
 	})
+	// integration.cloud_cost_only.tagged: checks to tag when infrastructure_mode=cloud_cost_only (empty means all checks)
+	config.BindEnvAndSetDefault("integration.cloud_cost_only.tagged", []string{})
+	// integration.cloud_cost_only.metrics_blocked: explicit metric blocklist in cloud_cost_only mode (empty disables)
+	config.BindEnvAndSetDefault("integration.cloud_cost_only.metrics_blocked", []string{})
+	// integration.cloud_cost_only.metrics: integration metrics to forward in cloud_cost_only mode
+	// (DogStatsD, custom_*, and integration.additional checks always bypass this list).
+	// Unset uses defaultCloudCostMetrics; explicitly set to [] forwards no integration metric names.
+	// Keep in sync with pkg/metricpipelines/allowlist.DefaultCloudCostMetrics.
+	config.BindEnvAndSetDefault("integration.cloud_cost_only.metrics", defaultCloudCostMetrics)
+	config.BindEnvAndSetDefault("integration.cloud_cost_only.metrics_match_prefix", true)
+	// integration.cloud_cost_only.metric_filtering.enabled: opt-in to metric name filtering in cloud_cost_only mode.
+	// When false (default), only tagging is applied; no integration metrics are dropped.
+	config.BindEnvAndSetDefault("integration.cloud_cost_only.metric_filtering.enabled", false)
+
 	// Configuration for TLS for outgoing connections
 	config.BindEnvAndSetDefault("min_tls_version", "tlsv1.2")
 
