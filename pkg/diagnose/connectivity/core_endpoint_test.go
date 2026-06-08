@@ -102,13 +102,13 @@ func TestAcceptRedirection(t *testing.T) {
 func TestGetLogsUseTCP(t *testing.T) {
 	mockConfig := configmock.New(t)
 
-	mockConfig.SetWithoutSource("logs_enabled", true)
+	mockConfig.SetInTest("logs_enabled", true)
 	assert.False(t, getLogsUseTCP())
 
-	mockConfig.SetWithoutSource("logs_config.force_use_tcp", true)
+	mockConfig.SetInTest("logs_config.force_use_tcp", true)
 	assert.True(t, getLogsUseTCP())
 
-	mockConfig.SetWithoutSource("logs_config.force_use_http", true)
+	mockConfig.SetInTest("logs_config.force_use_http", true)
 	assert.False(t, getLogsUseTCP())
 }
 
