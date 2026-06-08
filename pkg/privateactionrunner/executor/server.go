@@ -30,9 +30,13 @@ type Server struct {
 	handler     Handler
 	version     string
 	idleTimeout time.Duration
-	onIdle      func()
+	authToken   string
+	onShutdown  func(string)
 
 	active atomic.Int32
+
+	stateMu      sync.Mutex
+	shuttingDown bool
 
 	mu        sync.Mutex
 	idleTimer *time.Timer
@@ -42,12 +46,13 @@ type Server struct {
 }
 
 // NewServer creates a task executor IPC server.
-func NewServer(handler Handler, version string, idleTimeout time.Duration, onIdle func()) *Server {
+func NewServer(handler Handler, version string, idleTimeout time.Duration, authToken string, onShutdown func(string)) *Server {
 	return &Server{
 		handler:     handler,
 		version:     version,
 		idleTimeout: idleTimeout,
-		onIdle:      onIdle,
+		authToken:   authToken,
+		onShutdown:  onShutdown,
 	}
 }
 
@@ -57,6 +62,7 @@ func (s *Server) Serve(ctx context.Context, listener net.Listener) error {
 	mux := http.NewServeMux()
 	mux.HandleFunc(statusPath, s.handleStatus)
 	mux.HandleFunc(submitPath, s.handleSubmit)
+	mux.HandleFunc(shutdownPath, s.handleShutdown)
 
 	s.httpSrv = &http.Server{
 		Handler: mux,
@@ -99,12 +105,18 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+	if !s.authorize(w, r) {
+		return
+	}
 	writeProto(w, statusResponse(s.active.Load(), s.version))
 }
 
 func (s *Server) handleSubmit(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if !s.authorize(w, r) {
 		return
 	}
 	var req executorpb.SubmitTaskRequest
@@ -118,9 +130,17 @@ func (s *Server) handleSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.stopIdleTimer()
+	s.stateMu.Lock()
+	if s.shuttingDown {
+		s.stateMu.Unlock()
+		writeProto(w, &executorpb.SubmitTaskResponse{Accepted: false, Reason: "executor is shutting down"})
+		return
+	}
 	s.active.Add(1)
 	s.wg.Add(1)
+	s.stateMu.Unlock()
+
+	s.stopIdleTimer()
 	go func() {
 		defer func() {
 			if s.active.Add(-1) == 0 {
@@ -132,6 +152,37 @@ func (s *Server) handleSubmit(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	writeProto(w, &executorpb.SubmitTaskResponse{Accepted: true})
+}
+
+func (s *Server) handleShutdown(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if !s.authorize(w, r) {
+		return
+	}
+	s.stateMu.Lock()
+	s.shuttingDown = true
+	s.stateMu.Unlock()
+	s.stopIdleTimer()
+	s.wg.Wait()
+	writeProto(w, statusResponse(s.active.Load(), s.version))
+	go func() {
+		if s.onShutdown != nil {
+			s.onShutdown("executor shutdown requested, shutting down")
+			return
+		}
+		_ = s.Stop(context.Background())
+	}()
+}
+
+func (s *Server) authorize(w http.ResponseWriter, r *http.Request) bool {
+	if s.authToken == "" || r.Header.Get("Authorization") == "Bearer "+s.authToken {
+		return true
+	}
+	http.Error(w, "unauthorized", http.StatusUnauthorized)
+	return false
 }
 
 func (s *Server) resetIdleTimer() {
@@ -147,8 +198,8 @@ func (s *Server) resetIdleTimer() {
 		if s.active.Load() != 0 {
 			return
 		}
-		if s.onIdle != nil {
-			s.onIdle()
+		if s.onShutdown != nil {
+			s.onShutdown("executor idle timeout reached, shutting down")
 		}
 	})
 }
@@ -162,10 +213,10 @@ func (s *Server) stopIdleTimer() {
 	}
 }
 
-// LogIdleShutdown logs and calls the supplied shutdown function.
-func LogIdleShutdown(ctx context.Context, shutdown func()) func() {
-	return func() {
-		log.FromContext(ctx).Info("executor idle timeout reached, shutting down")
+// LogShutdown logs and calls the supplied shutdown function.
+func LogShutdown(ctx context.Context, shutdown func()) func(string) {
+	return func(message string) {
+		log.FromContext(ctx).Info(message)
 		shutdown()
 	}
 }

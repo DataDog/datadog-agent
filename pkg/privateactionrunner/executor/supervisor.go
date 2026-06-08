@@ -31,6 +31,7 @@ type Supervisor struct {
 	confPath       string
 	extraConfFiles []string
 	capacity       int32
+	authToken      string
 	command        command
 	client         *http.Client
 
@@ -46,7 +47,7 @@ type command struct {
 }
 
 // NewSupervisor creates an executor supervisor.
-func NewSupervisor(socketPath, confPath string, extraConfFiles []string, capacity int32) *Supervisor {
+func NewSupervisor(socketPath, confPath string, extraConfFiles []string, capacity int32, authToken string) *Supervisor {
 	if capacity <= 0 {
 		capacity = 1
 	}
@@ -55,6 +56,7 @@ func NewSupervisor(socketPath, confPath string, extraConfFiles []string, capacit
 		confPath:       confPath,
 		extraConfFiles: append([]string(nil), extraConfFiles...),
 		capacity:       capacity,
+		authToken:      authToken,
 		command:        defaultExecutorCommand(),
 		client:         newHTTPClient(socketPath, 5*time.Second),
 	}
@@ -111,7 +113,7 @@ func (s *Supervisor) SubmitTask(ctx context.Context, task *types.Task) error {
 	}
 	for {
 		var resp executorpb.SubmitTaskResponse
-		err := postProto(ctx, s.client, submitPath, &executorpb.SubmitTaskRequest{TaskJson: taskJSON}, &resp)
+		err := postProto(ctx, s.client, s.authToken, submitPath, &executorpb.SubmitTaskRequest{TaskJson: taskJSON}, &resp)
 		if err == nil && resp.Accepted {
 			return nil
 		}
@@ -137,8 +139,32 @@ func (s *Supervisor) SubmitTask(ctx context.Context, task *types.Task) error {
 // Status returns the executor's current status.
 func (s *Supervisor) Status(ctx context.Context) (*executorpb.StatusResponse, error) {
 	var resp executorpb.StatusResponse
-	err := postProto(ctx, s.client, statusPath, &executorpb.StatusRequest{}, &resp)
+	err := postProto(ctx, s.client, s.authToken, statusPath, &executorpb.StatusRequest{}, &resp)
 	return &resp, err
+}
+
+// ShutdownExisting asks any executor already listening on this supervisor's
+// socket to stop. It is best-effort so orchestrator startup can continue when no
+// previous executor exists.
+func (s *Supervisor) ShutdownExisting(ctx context.Context) {
+	var resp executorpb.StatusResponse
+	shutdownClient := newHTTPClient(s.socketPath, 0)
+	if err := postProto(ctx, shutdownClient, s.authToken, shutdownPath, &executorpb.StatusRequest{}, &resp); err != nil {
+		return
+	}
+
+	ticker := time.NewTicker(statusPollInterval)
+	defer ticker.Stop()
+	for {
+		if _, err := s.Status(ctx); err != nil {
+			return
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+		}
+	}
 }
 
 func (s *Supervisor) ensureRunning(ctx context.Context) error {

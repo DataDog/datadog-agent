@@ -8,7 +8,6 @@ package executor
 import (
 	"bytes"
 	"context"
-	"net"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -39,7 +38,7 @@ func (h *blockingHandler) HandleTask(_ context.Context, _ *types.Task) {
 
 func TestServerSubmitAcceptsTaskOwnership(t *testing.T) {
 	handler := newBlockingHandler()
-	server := NewServer(handler, "test-version", time.Minute, nil)
+	server := NewServer(handler, "test-version", time.Minute, "", nil)
 	server.runCtx = context.Background()
 
 	resp := submitTask(t, server, sampleTaskJSON())
@@ -55,7 +54,7 @@ func TestServerSubmitAcceptsTaskOwnership(t *testing.T) {
 
 func TestServerDoesNotEnforceCapacity(t *testing.T) {
 	handler := newBlockingHandler()
-	server := NewServer(handler, "test-version", time.Minute, nil)
+	server := NewServer(handler, "test-version", time.Minute, "", nil)
 	server.runCtx = context.Background()
 
 	first := submitTask(t, server, sampleTaskJSON())
@@ -73,22 +72,95 @@ func TestServerDoesNotEnforceCapacity(t *testing.T) {
 
 func TestServerIdleTimeoutCallsOnIdle(t *testing.T) {
 	idle := make(chan struct{})
-	server := NewServer(newBlockingHandler(), "test-version", 10*time.Millisecond, func() {
+	server := NewServer(newBlockingHandler(), "test-version", 10*time.Millisecond, "", func(_ string) {
 		close(idle)
 	})
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	require.NoError(t, err)
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	go func() {
-		_ = server.Serve(ctx, listener)
-	}()
+	server.resetIdleTimer()
 
 	select {
 	case <-idle:
 	case <-time.After(time.Second):
 		t.Fatal("idle callback was not called")
 	}
+}
+
+func TestServerShutdownCallsOnIdle(t *testing.T) {
+	shutdown := make(chan struct{})
+	server := NewServer(newBlockingHandler(), "test-version", time.Minute, "", func(_ string) {
+		close(shutdown)
+	})
+	body, err := proto.Marshal(&executorpb.StatusRequest{})
+	require.NoError(t, err)
+	req := httptest.NewRequest(http.MethodPost, shutdownPath, bytes.NewReader(body))
+	rec := httptest.NewRecorder()
+
+	server.handleShutdown(rec, req)
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	select {
+	case <-shutdown:
+	case <-time.After(time.Second):
+		t.Fatal("shutdown callback was not called")
+	}
+}
+
+func TestServerShutdownWaitsForActiveTasks(t *testing.T) {
+	handler := newBlockingHandler()
+	shutdown := make(chan struct{})
+	server := NewServer(handler, "test-version", time.Minute, "", func(_ string) {
+		close(shutdown)
+	})
+	server.runCtx = context.Background()
+
+	resp := submitTask(t, server, sampleTaskJSON())
+	require.True(t, resp.Accepted)
+	select {
+	case <-handler.started:
+	case <-time.After(time.Second):
+		t.Fatal("task handler was not called")
+	}
+
+	done := make(chan struct{})
+	go func() {
+		body, err := proto.Marshal(&executorpb.StatusRequest{})
+		require.NoError(t, err)
+		req := httptest.NewRequest(http.MethodPost, shutdownPath, bytes.NewReader(body))
+		rec := httptest.NewRecorder()
+		server.handleShutdown(rec, req)
+		require.Equal(t, http.StatusOK, rec.Code)
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		t.Fatal("shutdown completed before active task finished")
+	case <-time.After(20 * time.Millisecond):
+	}
+
+	close(handler.release)
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("shutdown did not complete")
+	}
+	select {
+	case <-shutdown:
+	case <-time.After(time.Second):
+		t.Fatal("shutdown callback was not called")
+	}
+}
+
+func TestServerRejectsInvalidAuthToken(t *testing.T) {
+	server := NewServer(newBlockingHandler(), "test-version", time.Minute, "expected-token", nil)
+	body, err := proto.Marshal(&executorpb.StatusRequest{})
+	require.NoError(t, err)
+	req := httptest.NewRequest(http.MethodPost, statusPath, bytes.NewReader(body))
+	rec := httptest.NewRecorder()
+
+	server.handleStatus(rec, req)
+
+	require.Equal(t, http.StatusUnauthorized, rec.Code)
 }
 
 func submitTask(t *testing.T, server *Server, taskJSON []byte) *executorpb.SubmitTaskResponse {

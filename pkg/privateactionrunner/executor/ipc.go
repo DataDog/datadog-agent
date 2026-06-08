@@ -25,8 +25,9 @@ const (
 	// ProtocolVersion is the version of the local executor IPC protocol.
 	ProtocolVersion uint32 = 1
 
-	statusPath = "/v1/status"
-	submitPath = "/v1/submit"
+	statusPath   = "/v1/status"
+	submitPath   = "/v1/submit"
+	shutdownPath = "/v1/shutdown"
 
 	contentTypeProtobuf = "application/x-protobuf"
 )
@@ -56,7 +57,7 @@ func newHTTPClient(address string, timeout time.Duration) *http.Client {
 	}
 }
 
-func postProto(ctx context.Context, client *http.Client, path string, req proto.Message, resp proto.Message) error {
+func postProto(ctx context.Context, client *http.Client, authToken string, path string, req proto.Message, resp proto.Message) error {
 	body, err := proto.Marshal(req)
 	if err != nil {
 		return fmt.Errorf("marshal request: %w", err)
@@ -66,6 +67,9 @@ func postProto(ctx context.Context, client *http.Client, path string, req proto.
 		return err
 	}
 	httpReq.Header.Set("Content-Type", contentTypeProtobuf)
+	if authToken != "" {
+		httpReq.Header.Set("Authorization", "Bearer "+authToken)
+	}
 	httpResp, err := client.Do(httpReq)
 	if err != nil {
 		return err

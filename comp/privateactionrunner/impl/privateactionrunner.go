@@ -257,7 +257,8 @@ func (p *PrivateActionRunner) start(ctx context.Context) error {
 	}
 	var executorSupervisor *executor.Supervisor
 	if p.params.Mode != privateactionrunner.ModeExecutor {
-		executorSupervisor = executor.NewSupervisor(socketPath, p.params.ConfPath, p.params.ExtraConfFiles, cfg.RunnerPoolSize)
+		executorSupervisor = executor.NewSupervisor(socketPath, p.params.ConfPath, p.params.ExtraConfFiles, cfg.RunnerPoolSize, p.ipc.GetAuthToken())
+		executorSupervisor.ShutdownExisting(ctx)
 	}
 
 	p.workflowRunner, err = runners.NewWorkflowRunner(cfg, keysManager, taskVerifier, opmsClient, p.traceroute, p.eventPlatform, p.ipc.GetClient(), executorSupervisor)
@@ -288,7 +289,8 @@ func (p *PrivateActionRunner) startExecutor(ctx context.Context, cfg *parconfig.
 		p.workflowRunner,
 		cfg.Version,
 		cfg.ExecutorIdleTimeout,
-		executor.LogIdleShutdown(ctx, func() {
+		p.ipc.GetAuthToken(),
+		executor.LogShutdown(ctx, func() {
 			if p.shutdowner != nil {
 				_ = p.shutdowner.Shutdown()
 			}
