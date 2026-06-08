@@ -874,7 +874,7 @@
 /test/new-e2e/tests/containers/ecs_test.go    @DataDog/ecs-experiences
 /test/new-e2e/tests/cspm                      @DataDog/agent-cspm @DataDog/agent-security
 /test/new-e2e/tests/discovery                 @DataDog/agent-discovery
-/test/new-e2e/tests/ddot                       @DataDog/agent-runtimes @DataDog/opentelemetry-agent
+/test/new-e2e/tests/ddot                      @DataDog/agent-runtimes
 /test/new-e2e/tests/fips-compliance           @DataDog/agent-runtimes
 /test/new-e2e/tests/ha-agent                  @DataDog/network-device-monitoring-core
 /test/new-e2e/tests/language-detection        @DataDog/container-experiences
