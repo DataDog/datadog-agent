@@ -400,7 +400,17 @@ func (p *provider) Flush(ctx context.Context) {
 	if p.serverlessMeta.IsEnabled() {
 		p.serverlessMeta.Lock()
 		defer p.serverlessMeta.Unlock()
-		// Wait for the logs sender to finish sending payloads to all destinations before allowing the flush to finish
-		p.serverlessMeta.WaitGroup().Wait()
+		// Wait for the logs sender to finish sending payloads to all destinations,
+		// but respect the caller's deadline so a hung send doesn't block past the
+		// graceful shutdown window (e.g. Cloud Run's 10 s SIGTERM → SIGKILL budget).
+		waitDone := make(chan struct{})
+		go func() {
+			p.serverlessMeta.WaitGroup().Wait()
+			close(waitDone)
+		}()
+		select {
+		case <-waitDone:
+		case <-ctx.Done():
+		}
 	}
 }
