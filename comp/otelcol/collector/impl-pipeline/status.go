@@ -11,7 +11,7 @@ import (
 	"embed"
 	"io"
 
-	"github.com/DataDog/datadog-agent/comp/core/status"
+	status "github.com/DataDog/datadog-agent/comp/core/status/def"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/configcheck"
 )

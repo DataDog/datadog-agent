@@ -5,12 +5,11 @@
 
 //go:build test
 
-package statusimpl
+package mock
 
 import (
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -30,7 +29,7 @@ func (s *statusMock) GetSections() []string {
 }
 
 // newMock returns a status Mock
-func newMock() status.Mock {
+func newMock() Mock {
 	return &statusMock{}
 }
 

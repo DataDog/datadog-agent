@@ -15,7 +15,7 @@ import (
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	secretnooptypes "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl/types"
-	"github.com/DataDog/datadog-agent/comp/core/status"
+	status "github.com/DataDog/datadog-agent/comp/core/status/def"
 )
 
 // Provides list the provided interfaces from the secrets Component

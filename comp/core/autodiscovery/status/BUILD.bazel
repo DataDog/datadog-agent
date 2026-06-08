@@ -8,7 +8,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/autodiscovery/def",
-        "//comp/core/status",
+        "//comp/core/status/def",
         "//comp/core/workloadfilter/def",
         "//pkg/config/env",
     ],

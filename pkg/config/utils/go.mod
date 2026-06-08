@@ -1,9 +1,9 @@
 module github.com/DataDog/datadog-agent/pkg/config/utils
 
-go 1.25.0
+go 1.26.0
 
 require (
-	github.com/DataDog/datadog-agent/pkg/config/mock v0.61.0
+	github.com/DataDog/datadog-agent/pkg/config/mock v0.70.0
 	github.com/DataDog/datadog-agent/pkg/config/model v0.77.2
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.61.0
 	github.com/DataDog/datadog-agent/pkg/config/structure v0.77.0-devel.0.20260211235139-a5361978c2b6
@@ -102,7 +102,8 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl => ../../../comp/core/secrets/noop-impl
 	github.com/DataDog/datadog-agent/comp/core/secrets/utils => ../../../comp/core/secrets/utils
 	github.com/DataDog/datadog-agent/comp/core/status => ../../../comp/core/status
-	github.com/DataDog/datadog-agent/comp/core/status/statusimpl => ../../../comp/core/status/statusimpl
+	github.com/DataDog/datadog-agent/comp/core/status/impl => ../../../comp/core/status/impl
+	github.com/DataDog/datadog-agent/comp/core/status/mock => ../../../comp/core/status/mock
 	github.com/DataDog/datadog-agent/comp/core/tagger/def => ../../../comp/core/tagger/def
 	github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote => ../../../comp/core/tagger/fx-remote
 	github.com/DataDog/datadog-agent/comp/core/tagger/generic_store => ../../../comp/core/tagger/generic_store

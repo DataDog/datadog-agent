@@ -11,7 +11,7 @@ import (
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	statusComponent "github.com/DataDog/datadog-agent/comp/core/status"
+	statusComponent "github.com/DataDog/datadog-agent/comp/core/status/def"
 	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	agentpkg "github.com/DataDog/datadog-agent/comp/process/agent"

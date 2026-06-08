@@ -10,7 +10,7 @@ package clusteragent
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/status"
+	status "github.com/DataDog/datadog-agent/comp/core/status/def"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 

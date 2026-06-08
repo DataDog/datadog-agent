@@ -11,7 +11,7 @@ import (
 	"io"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/status"
+	status "github.com/DataDog/datadog-agent/comp/core/status/def"
 	daemonchecker "github.com/DataDog/datadog-agent/comp/updater/daemonchecker/def"
 )
 

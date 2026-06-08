@@ -10,7 +10,7 @@ import (
 	"io"
 	"slices"
 
-	"github.com/DataDog/datadog-agent/comp/core/status"
+	status "github.com/DataDog/datadog-agent/comp/core/status/def"
 )
 
 //go:embed status_templates

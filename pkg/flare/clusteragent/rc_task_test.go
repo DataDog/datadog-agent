@@ -16,7 +16,7 @@ import (
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
-	"github.com/DataDog/datadog-agent/comp/core/status"
+	status "github.com/DataDog/datadog-agent/comp/core/status/def"
 	rcclienttypes "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"

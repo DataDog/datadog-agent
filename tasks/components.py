@@ -130,6 +130,7 @@ ignore_fx_import = [
 
 ignore_provide_component_constructor_missing = [
     "comp/aggregator/demultiplexer",
+    "comp/core/status",
     "comp/forwarder/eventplatform",
     "comp/collector/collector",
     "comp/forwarder/eventplatformreceiver",

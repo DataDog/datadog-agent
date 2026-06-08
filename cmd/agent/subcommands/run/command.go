@@ -100,8 +100,8 @@ import (
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	settings "github.com/DataDog/datadog-agent/comp/core/settings/def"
 	settingsfx "github.com/DataDog/datadog-agent/comp/core/settings/fx"
-	"github.com/DataDog/datadog-agent/comp/core/status"
-	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
+	status "github.com/DataDog/datadog-agent/comp/core/status/def"
+	statusfx "github.com/DataDog/datadog-agent/comp/core/status/fx"
 	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	sysprobeconfigimpl "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/impl"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -464,7 +464,7 @@ func getSharedFxOption() fx.Option {
 		processagentstatusfx.Module(),
 		parStatusImpl.Module(),
 		statsdFx.Module(),
-		statusimpl.Module(),
+		statusfx.Module(),
 		apiimpl.Module(),
 		grpcAgentfx.Module(),
 		commonendpoints.Module(),

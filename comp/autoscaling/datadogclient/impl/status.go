@@ -17,7 +17,7 @@ import (
 	"gopkg.in/zorkian/go-datadog-api.v2"
 
 	datadogclient "github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient/def"
-	"github.com/DataDog/datadog-agent/comp/core/status"
+	status "github.com/DataDog/datadog-agent/comp/core/status/def"
 )
 
 // statusProvider provides the functionality to populate the status output

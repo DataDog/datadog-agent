@@ -16,7 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
-	"github.com/DataDog/datadog-agent/comp/core/status"
+	"github.com/DataDog/datadog-agent/comp/core/status/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	processStatus "github.com/DataDog/datadog-agent/pkg/process/util/status"
 	"github.com/DataDog/datadog-agent/pkg/util/log"

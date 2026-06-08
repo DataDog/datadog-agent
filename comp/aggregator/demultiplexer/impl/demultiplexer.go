@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/core/status"
+	status "github.com/DataDog/datadog-agent/comp/core/status/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
 	defaultforwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/def"

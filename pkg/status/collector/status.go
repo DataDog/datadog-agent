@@ -15,7 +15,7 @@ import (
 	"sort"
 
 	collectorcomp "github.com/DataDog/datadog-agent/comp/collector/collector/def"
-	"github.com/DataDog/datadog-agent/comp/core/status"
+	status "github.com/DataDog/datadog-agent/comp/core/status/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 )
 

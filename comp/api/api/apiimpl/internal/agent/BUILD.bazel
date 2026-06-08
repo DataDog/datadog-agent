@@ -15,10 +15,10 @@ go_library(
         "//pkg/api/coverage",
         "//pkg/jmxfetch",
         "//pkg/status/health",
-        "//pkg/status/jmx",
         "//pkg/util/http",
         "//pkg/util/installinfo",
         "//pkg/util/log",
+        "@//pkg/status/jmx",
     ],
 )
 

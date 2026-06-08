@@ -36,8 +36,8 @@ import (
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	settings "github.com/DataDog/datadog-agent/comp/core/settings/def"
 	settingsfx "github.com/DataDog/datadog-agent/comp/core/settings/fx"
-	"github.com/DataDog/datadog-agent/comp/core/status"
-	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
+	status "github.com/DataDog/datadog-agent/comp/core/status/def"
+	statusfx "github.com/DataDog/datadog-agent/comp/core/status/fx"
 	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	sysprobeconfigimpl "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/impl"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
@@ -157,7 +157,7 @@ func (s *service) Run(svcctx context.Context) error {
 			},
 		),
 
-		statusimpl.Module(),
+		statusfx.Module(),
 
 		configsyncfx.Module(configsync.NewDefaultParams()),
 		autoexitfx.Module(),

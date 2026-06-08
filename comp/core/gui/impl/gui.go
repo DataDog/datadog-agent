@@ -30,7 +30,7 @@ import (
 	guidef "github.com/DataDog/datadog-agent/comp/core/gui/def"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/core/status"
+	status "github.com/DataDog/datadog-agent/comp/core/status/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	template "github.com/DataDog/datadog-agent/pkg/template/html"

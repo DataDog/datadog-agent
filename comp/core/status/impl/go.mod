@@ -1,4 +1,4 @@
-module github.com/DataDog/datadog-agent/comp/core/status/statusimpl
+module github.com/DataDog/datadog-agent/comp/core/status/impl
 
 go 1.26.0
 
@@ -125,6 +125,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl => ../../../../comp/core/secrets/noop-impl
 	github.com/DataDog/datadog-agent/comp/core/secrets/utils => ../../../../comp/core/secrets/utils
 	github.com/DataDog/datadog-agent/comp/core/status => ../../../../comp/core/status
+	github.com/DataDog/datadog-agent/comp/core/status/mock => ../../../../comp/core/status/mock
 	github.com/DataDog/datadog-agent/comp/core/tagger/def => ../../../../comp/core/tagger/def
 	github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote => ../../../../comp/core/tagger/fx-remote
 	github.com/DataDog/datadog-agent/comp/core/tagger/generic_store => ../../../../comp/core/tagger/generic_store

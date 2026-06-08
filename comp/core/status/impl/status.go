@@ -20,7 +20,6 @@ import (
 	"strings"
 	"unicode"
 
-	"go.uber.org/fx"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 
@@ -28,16 +27,15 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/core/status"
+	status "github.com/DataDog/datadog-agent/comp/core/status/def"
 	template "github.com/DataDog/datadog-agent/pkg/template/text"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 //go:embed templates
 var templatesFS embed.FS
 
-type dependencies struct {
-	fx.In
+// Requires defines the dependencies for the status component.
+type Requires struct {
 	Config config.Component
 	Params status.Params
 	Log    log.Component
@@ -46,9 +44,8 @@ type dependencies struct {
 	HeaderProviders []status.HeaderProvider `group:"header_status"`
 }
 
-type provides struct {
-	fx.Out
-
+// Provides defines the output of the status component.
+type Provides struct {
 	Comp              status.Component
 	FlareProvider     flaretypes.Provider
 	APIGetStatus      api.AgentEndpointProvider
@@ -63,13 +60,6 @@ type statusImplementation struct {
 	log                      log.Component
 }
 
-// Module defines the fx options for this component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newStatus),
-	)
-}
-
 func sortByName(providers []status.Provider) []status.Provider {
 	sort.SliceStable(providers, func(i, j int) bool {
 		return providers[i].Name() < providers[j].Name()
@@ -78,14 +68,15 @@ func sortByName(providers []status.Provider) []status.Provider {
 	return providers
 }
 
-func newStatus(deps dependencies) provides {
+// NewStatusComponent creates a new status component.
+func NewStatusComponent(deps Requires) Provides {
 	// Sections are sorted by name
 	// The exception is the collector section. We want that to be the first section to be displayed
 	// We manually insert the collector section in the first place after sorting them alphabetically
 	sortedSectionNames := []string{}
 	collectorSectionPresent := false
 
-	providers := fxutil.GetAndFilterGroup(deps.Providers)
+	providers := filterNilProviders(deps.Providers)
 
 	for _, provider := range providers {
 		if provider.Section() == status.CollectorSection && !collectorSectionPresent {
@@ -118,7 +109,7 @@ func newStatus(deps dependencies) provides {
 	// Header providers are sorted by index
 	// We manually insert the common header provider in the first place after sorting is done
 	sortedHeaderProviders := []status.HeaderProvider{}
-	sortedHeaderProviders = append(sortedHeaderProviders, fxutil.GetAndFilterGroup(deps.HeaderProviders)...)
+	sortedHeaderProviders = append(sortedHeaderProviders, filterNilHeaderProviders(deps.HeaderProviders)...)
 
 	sort.SliceStable(sortedHeaderProviders, func(i, j int) bool {
 		return sortedHeaderProviders[i].Index() < sortedHeaderProviders[j].Index()
@@ -133,7 +124,7 @@ func newStatus(deps dependencies) provides {
 		log:                      deps.Log,
 	}
 
-	return provides{
+	return Provides{
 		Comp:          c,
 		FlareProvider: flaretypes.NewProvider(c.fillFlare),
 		APIGetStatus: api.NewAgentEndpointProvider(
@@ -463,4 +454,24 @@ func renderErrors(w io.Writer, errs []error) error {
 	}
 	t := template.Must(template.New("errors").Parse(string(tmpl)))
 	return t.Execute(w, errs)
+}
+
+func filterNilProviders(providers []status.Provider) []status.Provider {
+	result := make([]status.Provider, 0, len(providers))
+	for _, p := range providers {
+		if p != nil {
+			result = append(result, p)
+		}
+	}
+	return result
+}
+
+func filterNilHeaderProviders(providers []status.HeaderProvider) []status.HeaderProvider {
+	result := make([]status.HeaderProvider, 0, len(providers))
+	for _, p := range providers {
+		if p != nil {
+			result = append(result, p)
+		}
+	}
+	return result
 }

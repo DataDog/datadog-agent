@@ -28,7 +28,7 @@ go_library(
         "//comp/core/log/def",
         "//comp/core/secrets/def",
         "//comp/core/secrets/utils",
-        "//comp/core/status",
+        "//comp/core/status/def",
         "//comp/core/tagger/def",
         "//comp/core/telemetry/def",
         "//comp/core/workloadfilter/def",

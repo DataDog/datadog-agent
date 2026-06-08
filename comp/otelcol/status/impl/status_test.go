@@ -15,7 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
-	"github.com/DataDog/datadog-agent/comp/core/status"
+	status "github.com/DataDog/datadog-agent/comp/core/status/def"
 )
 
 func TestStatusOut(t *testing.T) {

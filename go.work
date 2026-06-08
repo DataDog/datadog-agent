@@ -38,7 +38,8 @@ use (
 	comp/core/secrets/noop-impl
 	comp/core/secrets/utils
 	comp/core/status
-	comp/core/status/statusimpl
+	comp/core/status/impl
+	comp/core/status/mock
 	comp/core/tagger/def
 	comp/core/tagger/fx-remote
 	comp/core/tagger/generic_store

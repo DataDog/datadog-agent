@@ -13,7 +13,7 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/DataDog/datadog-agent/comp/core/status"
+	status "github.com/DataDog/datadog-agent/comp/core/status/def"
 	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
 )

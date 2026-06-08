@@ -27,8 +27,8 @@ import (
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	settingsmock "github.com/DataDog/datadog-agent/comp/core/settings/mock"
-	"github.com/DataDog/datadog-agent/comp/core/status"
-	coreStatusImpl "github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
+	status "github.com/DataDog/datadog-agent/comp/core/status/def"
+	coreStatusImpl statusfx "github.com/DataDog/datadog-agent/comp/core/status/fx"
 	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	sysprobeconfigmock "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/mock"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -68,7 +68,7 @@ func TestBundleDependencies(t *testing.T) {
 		fx.Provide(func() tagger.Component { return taggerfxmock.SetupFakeTagger(t) }),
 		coreStatusImpl.Module(),
 		settingsmock.MockModule(),
-		statusimpl.Module(),
+		statusfx.Module(),
 		fx.Supply(
 			status.Params{
 				PythonVersionGetFunc: python.GetPythonVersion,

@@ -15,7 +15,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/log/def",
-        "//comp/core/status",
+        "//comp/core/status/def",
         "//comp/def",
         "//comp/metadata/inventoryagent/def",
         "//comp/updater/ssistatus/def",

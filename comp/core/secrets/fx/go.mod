@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/comp/core/secrets/fx
 
-go 1.25.0
+go 1.26.0
 
 require (
 	github.com/DataDog/datadog-agent/comp/core/secrets/impl v0.70.0
@@ -10,10 +10,10 @@ require (
 require gopkg.in/yaml.v3 v3.0.1 // indirect
 
 require (
-	github.com/DataDog/datadog-agent/comp/api/api/def v0.68.3 // indirect
+	github.com/DataDog/datadog-agent/comp/api/api/def v0.72.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/delegatedauth v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.68.3 // indirect
-	github.com/DataDog/datadog-agent/comp/core/flare/types v0.68.3 // indirect
+	github.com/DataDog/datadog-agent/comp/core/flare/types v0.72.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.72.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets/utils v0.70.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/status v0.73.0-rc.5 // indirect
@@ -134,7 +134,8 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl => ../../../../comp/core/secrets/noop-impl
 	github.com/DataDog/datadog-agent/comp/core/secrets/utils => ../../../../comp/core/secrets/utils
 	github.com/DataDog/datadog-agent/comp/core/status => ../../../../comp/core/status
-	github.com/DataDog/datadog-agent/comp/core/status/statusimpl => ../../../../comp/core/status/statusimpl
+	github.com/DataDog/datadog-agent/comp/core/status/impl => ../../../../comp/core/status/impl
+	github.com/DataDog/datadog-agent/comp/core/status/mock => ../../../../comp/core/status/mock
 	github.com/DataDog/datadog-agent/comp/core/tagger/def => ../../../../comp/core/tagger/def
 	github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote => ../../../../comp/core/tagger/fx-remote
 	github.com/DataDog/datadog-agent/comp/core/tagger/generic_store => ../../../../comp/core/tagger/generic_store

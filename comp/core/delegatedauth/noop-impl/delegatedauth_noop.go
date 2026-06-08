@@ -11,7 +11,7 @@ import (
 	"io"
 
 	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
-	"github.com/DataDog/datadog-agent/comp/core/status"
+	status "github.com/DataDog/datadog-agent/comp/core/status/def"
 )
 
 // Provides list the provided interfaces from the delegatedauth Component
