@@ -111,9 +111,11 @@ const SEVERITY_LABELS: Record<number, string> = { 0: 'Low', 1: 'Medium', 2: 'Hig
 export function AnomalyScoreTimeline({
   scenarioDataVersion,
   phaseMarkers = [],
+  onScoreState,
 }: {
   scenarioDataVersion: number;
   phaseMarkers?: PhaseMarker[];
+  onScoreState?: (ss: ScoreState) => void;
 }) {
   // Scorer config sliders (persisted)
   const [ewmaAlpha, setEwmaAlpha] = usePersistedState('ewmaAlpha', DEFAULT_EWMA_ALPHA);
@@ -148,7 +150,7 @@ export function AnomalyScoreTimeline({
     if (scenarioDataVersion === 0) return;
     setLoading(true);
     api.replayScores(currentConfig)
-      .then(st => { setScoreState(st); setError(null); })
+      .then(st => { setScoreState(st); setError(null); onScoreState?.(st); })
       .catch(e => setError(String(e)))
       .finally(() => setLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -160,11 +162,11 @@ export function AnomalyScoreTimeline({
     debounceRef.current = setTimeout(() => {
       setLoading(true);
       api.replayScores(cfg)
-        .then(st => { setScoreState(st); setError(null); })
+        .then(st => { setScoreState(st); setError(null); onScoreState?.(st); })
         .catch(e => setError(String(e)))
         .finally(() => setLoading(false));
     }, 250);
-  }, []);
+  }, [onScoreState]);
 
   // Trigger replay when any slider changes
   useEffect(() => {

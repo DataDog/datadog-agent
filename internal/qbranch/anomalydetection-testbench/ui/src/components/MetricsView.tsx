@@ -1,5 +1,4 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { AnomalyScoreTimeline } from './AnomalyScoreTimeline';
 import { ChartWithAnomalyDetails } from './ChartWithAnomalyDetails';
 import { SeriesTree } from './SeriesTree';
 import { api } from '../api/client';
@@ -680,7 +679,6 @@ export function MetricsView({
 
         {state.connectionState === 'ready' && (
           <div className="space-y-6">
-            <AnomalyScoreTimeline scenarioDataVersion={state.scenarioDataVersion} phaseMarkers={phaseMarkers} />
             {selectedGroups.size === 0 ? (
               <div className="text-center py-10 text-slate-500">
                 Select metric groups from the sidebar to view charts

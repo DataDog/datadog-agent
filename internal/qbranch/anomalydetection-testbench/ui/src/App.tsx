@@ -5,10 +5,11 @@ import { CorrelatorView } from './components/CorrelatorView';
 import { LogView } from './components/LogView';
 import { ReportsView } from './components/ReportsView';
 import { BenchmarkView } from './components/BenchmarkView';
+import { ScorerView } from './components/ScorerView';
 import type { EpisodeInfo } from './api/client';
 import type { PhaseMarker } from './components/ChartWithAnomalyDetails';
 
-type TabID = 'timeseries' | 'correlators' | 'logs' | 'reports' | 'benchmark';
+type TabID = 'timeseries' | 'correlators' | 'logs' | 'reports' | 'scorer' | 'benchmark';
 
 function LogsOnlyChip() {
   return (
@@ -488,6 +489,16 @@ function App() {
                 Reports
               </button>
               <button
+                onClick={() => setActiveTab('scorer')}
+                className={`px-3 py-1.5 rounded text-sm transition-colors ${
+                  activeTab === 'scorer'
+                    ? 'bg-purple-600 text-white'
+                    : 'text-slate-400 hover:bg-slate-700'
+                }`}
+              >
+                Scorer
+              </button>
+              <button
                 onClick={() => setActiveTab('benchmark')}
                 className={`px-3 py-1.5 rounded text-sm transition-colors ${
                   activeTab === 'benchmark'
@@ -693,6 +704,14 @@ function App() {
             sidebarWidth={sidebarWidth}
             timeRange={activeTimeRange}
             onTimeRangeChange={setTimeRange}
+            phaseMarkers={phaseMarkers}
+          />
+        </div>
+        <div className={`flex-1 flex ${activeTab !== 'scorer' ? 'hidden' : ''}`}>
+          <ScorerView
+            state={state}
+            actions={actions}
+            sidebarWidth={sidebarWidth}
             phaseMarkers={phaseMarkers}
           />
         </div>
