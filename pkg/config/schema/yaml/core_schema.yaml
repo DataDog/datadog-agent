@@ -6142,6 +6142,21 @@ properties:
         node_type: section
         type: object
         properties:
+          correlation_dedup_max_items:
+            node_type: setting
+            type: integer
+            default: 1000
+            comment: Maximum number of correlation patterns tracked in the reporter
+              dedup map. When exceeded, the oldest inactive entry is evicted.
+          correlation_dedup_ttl_sec:
+            node_type: setting
+            type: integer
+            default: 600
+            comment: |-
+              Seconds of continuous inactivity before a correlation pattern is
+              re-armed for re-emission. Prevents spurious double-fires while still
+              allowing same-timestamp recurrences to fire after the pattern has been
+              genuinely absent for this duration.
           enabled:
             node_type: setting
             type: boolean

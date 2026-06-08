@@ -2075,6 +2075,14 @@ func anomalyDetection(config pkgconfigmodel.Setup) {
 
 	// Anomaly event reporting. Keep false during evaluation / shadow mode.
 	config.BindEnvAndSetDefault("anomaly_detection.reporting.enabled", false)
+	// Dedup TTL: seconds of continuous inactivity before a correlation pattern
+	// is re-armed for re-emission. Prevents spurious double-fires while still
+	// allowing same-timestamp recurrences to fire after the pattern has been
+	// genuinely absent for this duration.
+	config.BindEnvAndSetDefault("anomaly_detection.reporting.correlation_dedup_ttl_sec", 600)
+	// Maximum number of correlation patterns tracked in the reporter dedup map.
+	// When exceeded, the oldest inactive entry is evicted.
+	config.BindEnvAndSetDefault("anomaly_detection.reporting.correlation_dedup_max_items", 1000)
 
 	// Parquet recording of raw ingested signals for offline analysis and replay.
 	config.BindEnvAndSetDefault("anomaly_detection.recording.enabled", false)

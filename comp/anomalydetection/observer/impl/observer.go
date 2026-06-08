@@ -187,13 +187,22 @@ func NewComponent(deps Requires) Provides {
 			storageCfg.PointRetentionSecs = cfg.GetInt64("anomaly_detection.storage.point_retention_secs")
 		}
 	}
-	eng := newEngine(engineConfig{
+	engCfg := engineConfig{
 		storage:     newTimeSeriesStorageWith(storageCfg),
 		extractors:  extractors,
 		detectors:   detectors,
 		correlators: correlators,
 		scheduler:   &currentBehaviorPolicy{},
-	})
+	}
+	if cfg != nil {
+		if cfg.IsConfigured("anomaly_detection.reporting.correlation_dedup_ttl_sec") {
+			engCfg.correlationDedupTTLSec = cfg.GetInt64("anomaly_detection.reporting.correlation_dedup_ttl_sec")
+		}
+		if cfg.IsConfigured("anomaly_detection.reporting.correlation_dedup_max_items") {
+			engCfg.correlationDedupMaxItems = cfg.GetInt("anomaly_detection.reporting.correlation_dedup_max_items")
+		}
+	}
+	eng := newEngine(engCfg)
 
 	// Wire each injected reporter into its own reporterEventSink subscription.
 	// StorageConsumer reporters receive engine storage for windowed log-rate annotations.

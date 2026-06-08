@@ -76,15 +76,13 @@ type engine struct {
 	correlationMu           sync.RWMutex
 
 	// Reporter dedup state — protected by correlationMu.
-	// seenCorrelations records the LastUpdated timestamp at the time each
-	// pattern was last offered to reporters. activeBefore records which
-	// patterns were in the active sliding window on the previous advance.
-	// Together they implement the delta computation in newCorrelations:
-	// a pattern is "new" the first time it appears or when its LastUpdated
-	// changes; the activeBefore cleanup re-arms a pattern for re-emission
-	// after it goes inactive so a genuine same-timestamp recurrence can fire.
-	seenCorrelations map[string]int64 // pattern → LastUpdated at last emission
-	activeBefore     map[string]bool  // patterns active on the previous advance
+	// dedupTracker combines a map (O(1) lookup) with a min-heap (O(log n) TTL
+	// eviction) to track which patterns have been emitted to reporters.
+	// A pattern is re-armed for emission only after it has been continuously
+	// inactive for dedupTracker.ttlSec data-time seconds, eliminating the
+	// spurious re-fire that occurred on the first inactive cycle with the
+	// previous activeBefore cleanup approach.
+	dedupTracker *correlationDedupTracker
 
 	// onProcessingTime is an optional callback for reporting per-component
 	// processing time directly (gauge.Set) instead of constructing ObserverTelemetry
@@ -137,7 +135,21 @@ type engineConfig struct {
 
 	rawAnomalyWindow int64
 	maxRawAnomalies  int
+
+	// Reporter dedup configuration. Zero values use the defaults.
+	// correlationDedupTTLSec is the number of data-time seconds a pattern must
+	// be continuously inactive before its dedup entry expires and the pattern
+	// becomes eligible for re-emission. Default: 600 (10 minutes).
+	correlationDedupTTLSec int64
+	// correlationDedupMaxItems caps the number of patterns tracked in the dedup
+	// map. When exceeded, the oldest inactive entry is evicted. Default: 1000.
+	correlationDedupMaxItems int
 }
+
+const (
+	defaultCorrelationDedupTTLSec   = 600 // 10 minutes
+	defaultCorrelationDedupMaxItems = 1000
+)
 
 // newEngine creates an engine with the given configuration.
 func newEngine(cfg engineConfig) *engine {
@@ -146,6 +158,15 @@ func newEngine(cfg engineConfig) *engine {
 		sched = &currentBehaviorPolicy{}
 	}
 	validateUniqueExtractorNames(cfg.extractors)
+
+	dedupTTL := cfg.correlationDedupTTLSec
+	if dedupTTL == 0 {
+		dedupTTL = defaultCorrelationDedupTTLSec
+	}
+	dedupMax := cfg.correlationDedupMaxItems
+	if dedupMax == 0 {
+		dedupMax = defaultCorrelationDedupMaxItems
+	}
 
 	e := &engine{
 		storage:     cfg.storage,
@@ -157,6 +178,8 @@ func newEngine(cfg engineConfig) *engine {
 		rawAnomalyWindow: cfg.rawAnomalyWindow,
 		maxRawAnomalies:  cfg.maxRawAnomalies,
 		rawAnomalyIndex:  make(map[anomalyDedupKey]int),
+
+		dedupTracker: newCorrelationDedupTracker(dedupTTL, dedupMax),
 	}
 
 	// Cache log observers from detectors.
@@ -581,8 +604,12 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []obse
 
 	// Accumulate correlations before advancing — captures clusters formed from
 	// historical-timestamp anomalies before Advance(upTo) evicts them.
+	// Collect the pre-Advance active set alongside accumulation so it can be
+	// passed to newCorrelations as the cycle-eligible emit set.
+	var cycleActive []observerdef.ActiveCorrelation
 	for _, correlator := range correlators {
 		active := correlator.ActiveCorrelations()
+		cycleActive = append(cycleActive, active...)
 		e.accumulateCorrelations(active)
 		advanceStart := time.Now()
 		correlator.Advance(upTo)
@@ -598,10 +625,9 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []obse
 		})
 	}
 
-	// Collect the post-Advance active set for the activeBefore recurrence
-	// cleanup inside newCorrelations. Using pre-Advance activity would keep
-	// evicted patterns "armed" for one extra cycle and suppress a legitimate
-	// same-LastUpdated recurrence that immediately follows an eviction.
+	// Collect the post-Advance active set for TTL bookkeeping inside
+	// newCorrelations. Using post-Advance activity ensures patterns genuinely
+	// evicted by Advance are marked inactive in the dedup tracker.
 	var postActive []observerdef.ActiveCorrelation
 	for _, correlator := range correlators {
 		postActive = append(postActive, correlator.ActiveCorrelations()...)
@@ -610,7 +636,7 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []obse
 	return advanceResult{
 		anomalies:         allAnomalies,
 		telemetry:         allTelemetry,
-		newCorrelations:   e.newCorrelations(postActive),
+		newCorrelations:   e.newCorrelations(cycleActive, postActive, upTo),
 		totalCorrelations: e.accumulatedCorrelationCount(),
 	}
 }
@@ -771,51 +797,70 @@ func (e *engine) accumulateCorrelations(active []observerdef.ActiveCorrelation) 
 // It returns the subset of accumulatedCorrelations that reporters have not yet
 // seen (new patterns) or that have genuinely recurred (different LastUpdated).
 //
-// active is the full set of currently-active correlations from all correlators,
-// used exclusively for the activeBefore recurrence cleanup: when a pattern
-// leaves the active window its seenCorrelations entry is deleted so that a
-// genuine same-timestamp recurrence can re-fire in a future cycle.
+// cycleActive is the pre-Advance set of currently-active correlations that
+// were accumulated this cycle.  ScanMW/ScanWelch can emit changepoints with
+// timestamps hundreds of seconds behind upTo, so correlator.Advance(upTo) may
+// immediately evict clusters formed from those historical anomalies.  Keeping a
+// separate pre-Advance set ensures those patterns can still emit to reporters
+// even when absent from the post-Advance active set.
+//
+// postActive is the post-Advance set used solely for TTL bookkeeping: patterns
+// absent from postActive are marked inactive so the TTL heap can eventually
+// re-arm them after a period of continuous inactivity.
+//
+// upToSec is the data timestamp of the current advance, used as the reference
+// for TTL calculations.
 //
 // Must be called after accumulateCorrelations for the current cycle.
 // Acquires correlationMu for the duration.
-func (e *engine) newCorrelations(active []observerdef.ActiveCorrelation) []observerdef.ActiveCorrelation {
+func (e *engine) newCorrelations(cycleActive []observerdef.ActiveCorrelation, postActive []observerdef.ActiveCorrelation, upToSec int64) []observerdef.ActiveCorrelation {
 	e.correlationMu.Lock()
 	defer e.correlationMu.Unlock()
 
-	if e.seenCorrelations == nil {
-		e.seenCorrelations = make(map[string]int64)
+	tracker := e.dedupTracker
+
+	// Evict entries that have been inactive long enough to be re-armed.
+	tracker.evictExpired(upToSec)
+
+	// Patterns eligible to emit: accumulated this cycle (pre-Advance) OR still
+	// active after the advance.  This union lets historical-timestamp clusters
+	// (evicted by Advance but accumulated before it ran) still reach reporters,
+	// while the post-Advance set is used separately for TTL bookkeeping below.
+	eligibleToEmit := make(map[string]bool, len(cycleActive)+len(postActive))
+	for _, ac := range cycleActive {
+		eligibleToEmit[ac.Pattern] = true
 	}
-	if e.activeBefore == nil {
-		e.activeBefore = make(map[string]bool)
+	for _, ac := range postActive {
+		eligibleToEmit[ac.Pattern] = true
 	}
 
-	currentlyActive := make(map[string]bool, len(active))
-	for _, ac := range active {
-		currentlyActive[ac.Pattern] = true
-	}
-
-	// Emit from accumulated history: new patterns or patterns whose LastUpdated
-	// timestamp changed (genuine recurrence with a different contributing signal).
 	var result []observerdef.ActiveCorrelation
 	for _, ac := range e.accumulatedCorrelations {
-		if last, ok := e.seenCorrelations[ac.Pattern]; !ok || last != ac.LastUpdated {
+		if !eligibleToEmit[ac.Pattern] {
+			continue
+		}
+		if last, ok := tracker.seen(ac.Pattern); !ok || last != ac.LastUpdated {
 			result = append(result, ac)
-			e.seenCorrelations[ac.Pattern] = ac.LastUpdated
+			tracker.markSeen(ac.Pattern, ac.LastUpdated)
 		}
 	}
 
-	// Recurrence cleanup: delete seenCorrelations entries for patterns that
-	// were active before but are no longer active. This re-arms them so a
-	// genuine recurrence (possibly with the same LastUpdated) can fire again.
-	for pattern := range e.activeBefore {
-		if !currentlyActive[pattern] {
-			delete(e.seenCorrelations, pattern)
-			delete(e.activeBefore, pattern)
+	// Sync active/inactive state using the post-Advance set so the TTL heap
+	// reflects patterns that are genuinely gone from the correlators.
+	currentlyActive := make(map[string]bool, len(postActive))
+	for _, ac := range postActive {
+		currentlyActive[ac.Pattern] = true
+	}
+	for pattern, entry := range tracker.entries {
+		if currentlyActive[pattern] {
+			tracker.markActive(entry)
+		} else {
+			tracker.markInactive(entry, upToSec)
 		}
 	}
-	for pattern := range currentlyActive {
-		e.activeBefore[pattern] = true
-	}
+
+	// Evict the oldest inactive entries if over capacity.
+	tracker.evictOverLimit()
 
 	return result
 }
@@ -932,13 +977,12 @@ func (e *engine) resetCorrelations() {
 	e.accumulatedCorrelations = nil
 }
 
-// resetReporterDedup clears the reporter dedup maps. Called only from
+// resetReporterDedup clears the reporter dedup tracker. Called only from
 // resetFull so dedup state survives intra-session replay resets.
 func (e *engine) resetReporterDedup() {
 	e.correlationMu.Lock()
 	defer e.correlationMu.Unlock()
-	e.seenCorrelations = nil
-	e.activeBefore = nil
+	e.dedupTracker.reset()
 }
 
 // resetFull resets all engine state: analysis progress, raw anomalies, correlations,

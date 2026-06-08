@@ -26,11 +26,16 @@ go_test(
     srcs = [
         "notify_test.go",
         "payload_test.go",
+        "reporter_dedup_test.go",
     ],
     embed = [":impl"],
     gotags = ["test"],
     deps = [
         "//comp/anomalydetection/observer/def",
+        "//comp/anomalydetection/reporter/def",
+        "//comp/core/log/mock",
+        "//pkg/logs/message",
         "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )
