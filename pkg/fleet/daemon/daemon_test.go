@@ -362,11 +362,7 @@ func TestPromoteExperimentNoExperiment(t *testing.T) {
 	defer i.Stop()
 
 	pkg := "test-package"
-	// The exported PromoteExperiment is the explicit operator path (local API,
-	// triggered by `datadog-installer daemon promote-experiment`). When no
-	// experiment is staged the installer returns an error carrying the
-	// ErrNoExperiment code. On this path it is a genuine operator-facing error
-	// and must be surfaced to the caller (the RC path is what swallows it).
+	// Operator path: ErrNoExperiment is a genuine error and must be surfaced.
 	i.pm.On("PromoteExperiment", mock.Anything, pkg).Return(installerErrors.Wrap(installerErrors.ErrNoExperiment, errors.New("no experiment to promote"))).Once()
 
 	err := i.PromoteExperiment(context.Background(), pkg)
@@ -381,11 +377,8 @@ func TestPromoteExperimentNoExperimentRemoteConfig(t *testing.T) {
 	defer i.Stop()
 
 	pkg := "test-package"
-	// On the Remote Config path (swallowNoExperiment=true) a promote with no
-	// experiment staged is a benign no-op: RC promotes are state-reconciling and
-	// can be replayed after the experiment was already applied. The daemon must
-	// swallow ErrNoExperiment here so the span is not marked error=1 and Error
-	// Tracking is not polluted.
+	// RC path (swallowNoExperiment=true): ErrNoExperiment is a benign no-op and
+	// must be swallowed so the span is not marked error=1.
 	i.pm.On("PromoteExperiment", mock.Anything, pkg).Return(installerErrors.Wrap(installerErrors.ErrNoExperiment, errors.New("no experiment to promote"))).Once()
 
 	err := i.promoteExperiment(context.Background(), pkg, true)

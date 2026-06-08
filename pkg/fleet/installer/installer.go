@@ -501,14 +501,6 @@ func (i *installerImpl) PromoteExperiment(ctx context.Context, pkg string) error
 		return fmt.Errorf("could not get repository state: %w", err)
 	}
 	if !state.HasExperiment() {
-		// No experiment is staged (the experiment link equals stable), so the
-		// promote did nothing. Explicit callers still receive a non-nil error:
-		// the operator CLI runs this in-process and must be told the promote
-		// was a no-op. We only tag it with the ErrNoExperiment code so the
-		// out-of-process daemon, whose Remote-Config promotes are idempotent
-		// and re-delivered, can recognize this benign no-op across the
-		// subprocess JSON boundary and keep it out of Error Tracking. Genuine
-		// promotion failures carry other codes and stay errors everywhere.
 		return installerErrors.Wrap(installerErrors.ErrNoExperiment, errors.New("no experiment to promote"))
 	}
 

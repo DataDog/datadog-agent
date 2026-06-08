@@ -469,30 +469,17 @@ func (d *daemonImpl) startExperiment(ctx context.Context, url string) (err error
 	return nil
 }
 
-// PromoteExperiment promotes the experiment to stable.
-//
-// This is the explicit operator path (local API, triggered by
-// `datadog-installer daemon promote-experiment`). A promote with no experiment
-// staged is a genuine error here and is surfaced to the caller, unlike the
-// Remote Config path which treats it as a benign no-op.
+// PromoteExperiment promotes the experiment to stable. This is the explicit
+// operator path, where a promote with no experiment staged is a genuine error.
 func (d *daemonImpl) PromoteExperiment(ctx context.Context, pkg string) error {
 	d.m.Lock()
 	defer d.m.Unlock()
 	return d.promoteExperiment(ctx, pkg, false)
 }
 
-// promoteExperiment promotes the experiment to stable.
-//
-// swallowNoExperiment scopes the benign-no-op behavior to the Remote Config
-// path. RC promotes are state-reconciling and re-delivered: the per-process
-// dedup is cleared on any daemon/host restart, so an already-applied promote
-// gets replayed. By then the experiment link equals stable (a successful
-// promote keeps it there; a stop or a timed-out/failed experiment resets it),
-// so the installer reports no experiment via the ErrNoExperiment code (which
-// survives the installer subprocess boundary). For RC that is a benign
-// idempotent no-op, so we clear the error to keep this span out of Error
-// Tracking. Explicit operator promotes pass swallowNoExperiment=false and still
-// surface the error.
+// promoteExperiment promotes the experiment to stable. swallowNoExperiment turns
+// the benign no-op (nothing staged) into a success on the Remote Config path,
+// whose promotes are idempotent and re-delivered after restarts.
 func (d *daemonImpl) promoteExperiment(ctx context.Context, pkg string, swallowNoExperiment bool) (err error) {
 	span, ctx := telemetry.StartSpanFromContext(ctx, "promote_experiment")
 	defer func() { span.Finish(err) }()
@@ -503,6 +490,7 @@ func (d *daemonImpl) promoteExperiment(ctx context.Context, pkg string, swallowN
 	err = d.installer(d.env).PromoteExperiment(ctx, pkg)
 	if swallowNoExperiment && installerErrors.GetCode(err) == installerErrors.ErrNoExperiment {
 		log.Infof("Daemon: No experiment to promote for package %s, skipping", pkg)
+		err = nil
 		return nil
 	}
 	if err != nil {
