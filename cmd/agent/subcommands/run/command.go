@@ -139,7 +139,7 @@ import (
 	langDetectionClimpl "github.com/DataDog/datadog-agent/comp/languagedetection/client/fx"
 	"github.com/DataDog/datadog-agent/comp/logs"
 	adschedulerfx "github.com/DataDog/datadog-agent/comp/logs/adscheduler/fx"
-	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
+	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent/def"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/comp/metadata"
 	haagentmetadata "github.com/DataDog/datadog-agent/comp/metadata/haagent/def"

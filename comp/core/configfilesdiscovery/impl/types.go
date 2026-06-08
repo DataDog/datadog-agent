@@ -69,6 +69,9 @@ func (r targetResolver) Resolve(config integration.Config) (target, bool) {
 		return resolvedTarget, true
 	case "docker":
 		resolvedTarget.runtime = RuntimeDocker
+	case "kubernetes_pod":
+		resolvedTarget.runtime = RuntimeKubernetes
+		return resolvedTarget, true
 	}
 
 	if r.store == nil {

@@ -62,6 +62,21 @@ func TestResolveTargetDetectsRuntime(t *testing.T) {
 			wantOK: true,
 		},
 		{
+			name: "kubernetes pod service",
+			config: integration.Config{
+				Name:      "redis",
+				ServiceID: "kubernetes_pod://pod-uid",
+				Instances: []integration.Data{
+					[]byte("{}"),
+				},
+			},
+			wantTarget: target{
+				runtime:  RuntimeKubernetes,
+				entityID: "pod-uid",
+			},
+			wantOK: true,
+		},
+		{
 			name: "container with kubernetes pod owner",
 			setupStore: func(t *testing.T) workloadmeta.Component {
 				store := newWorkloadMetaMock(t)

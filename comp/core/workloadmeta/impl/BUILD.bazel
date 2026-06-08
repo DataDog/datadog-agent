@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "impl",
@@ -33,5 +33,32 @@ go_library(
         "//pkg/util/log",
         "//pkg/util/retry",
         "@com_github_cenkalti_backoff_v5//:backoff",
+    ],
+)
+
+go_test(
+    name = "impl_test",
+    srcs = [
+        "completeness_test.go",
+        "dump_test.go",
+        "filter_test.go",
+        "store_example_test.go",
+        "store_test.go",
+    ],
+    embed = [":impl"],
+    gotags = ["test"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/log/mock",
+        "//comp/core/workloadmeta/collectors/util",
+        "//comp/core/workloadmeta/def",
+        "//comp/def",
+        "//pkg/config/env",
+        "//pkg/config/mock",
+        "//pkg/errors",
+        "//pkg/languagedetection/languagemodels",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@io_k8s_apimachinery//pkg/runtime/schema",
     ],
 )

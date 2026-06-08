@@ -913,7 +913,7 @@ func TestResolve(t *testing.T) {
 		t.Run(fmt.Sprintf("case %d: %s", i, tc.testName), func(t *testing.T) {
 			config := mockconfig.New(t)
 			for configOption, configValue := range tc.configSettings {
-				config.SetWithoutSource(configOption, configValue)
+				config.SetInTest(configOption, configValue)
 			}
 
 			// Make sure we don't modify the template object
