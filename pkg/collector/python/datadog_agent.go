@@ -27,6 +27,7 @@ import (
 	hostnameUtil "github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/sds"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -531,6 +532,41 @@ var defaultMongoObfuscateSettings = obfuscate.JSONConfig{
 //export getProcessStartTime
 func getProcessStartTime() float64 {
 	return float64(pkgconfigsetup.StartTime.Unix())
+}
+
+// Scan scans the given event with the Sensitive Data Scanner and returns the
+// matches found, encoded as a JSON array.
+// Indirectly used by the C function `scan` that's mapped to `datadog_agent.scan`.
+//
+// The event is expected to be a JSON object (e.g. a database row); it is scanned
+// with the structured map scanner (sds.ScanMap), the same code path the Agent
+// uses to scan rows forwarded by integrations, so a single, process-wide scanner
+// is shared.
+//
+//export Scan
+func Scan(event *C.char, errResult **C.char) *C.char {
+	var row map[string]interface{}
+	if err := json.Unmarshal([]byte(C.GoString(event)), &row); err != nil {
+		// memory will be freed by caller
+		*errResult = TrackedCString(err.Error())
+		return nil
+	}
+
+	matches, err := sds.ScanMap(row)
+	if err != nil {
+		// memory will be freed by caller
+		*errResult = TrackedCString(err.Error())
+		return nil
+	}
+
+	payload, err := json.Marshal(matches)
+	if err != nil {
+		// memory will be freed by caller
+		*errResult = TrackedCString(err.Error())
+		return nil
+	}
+	// memory will be freed by caller
+	return TrackedCString(string(payload))
 }
 
 // ObfuscateMongoDBString obfuscates the MongoDB query

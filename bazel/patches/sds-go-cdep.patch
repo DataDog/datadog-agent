@@ -1,0 +1,24 @@
+Wire the cgo sds-go binding to the bazel-provided libdd_sds.
+
+Gazelle infers `clinkopts = ["-L../../sds/target/release -ldd_sds"]` from the
+`#cgo LDFLAGS` directive in build.go. That relative -L path is meaningless under
+bazel's sandbox and nothing provides libdd_sds, so GoCompilePkg fails with
+`cannot find -ldd_sds`. Replace the clinkopt with a cdeps edge onto
+//deps/sds:dd_sds, which wraps the prebuilt shared library. That cc_library is
+itself marked incompatible on Windows (where SDS is unsupported), and the
+incompatibility propagates back through this cdeps edge so the whole sds chain
+is skipped in `//...` on Windows.
+
+This patch is applied by go_deps.module_override *after* gazelle generates the
+BUILD file, so it edits the generated output directly.
+--- a/BUILD.bazel
++++ b/BUILD.bazel
+@@ -45,7 +45,7 @@
+         "validation.go",
+     ],
+     cgo = True,
+-    clinkopts = ["-L../../sds/target/release -ldd_sds"],
++    cdeps = ["@@//deps/sds:dd_sds"],
+     importpath = "github.com/DataDog/dd-sensitive-data-scanner/sds-go/go",
+     visibility = ["//visibility:public"],
+ )

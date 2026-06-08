@@ -1071,6 +1071,11 @@ void Three::setGetProcessStartTimeCb(cb_get_process_start_time_t cb)
     _set_get_process_start_time_cb(cb);
 }
 
+void Three::setScanCb(cb_scan_t cb)
+{
+    _set_scan_cb(cb);
+}
+
 void Three::setObfuscateMongoDBStringCb(cb_obfuscate_mongodb_string_t cb)
 {
     _set_obfuscate_mongodb_string_cb(cb);
