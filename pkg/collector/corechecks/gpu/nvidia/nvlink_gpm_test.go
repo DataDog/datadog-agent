@@ -26,12 +26,14 @@ func TestNVLinkGPMCollectorGetOrCreateGpmCollector(t *testing.T) {
 
 	expectedRxMetricID := nvml.GPM_METRIC_NVLINK_L1_RX_PER_SEC
 	expectedTxMetricID := nvml.GPM_METRIC_NVLINK_L1_TX_PER_SEC
+	requestedMetricIDs := make(map[uint32]struct{})
 
 	mockLib := &mockGpmNvml{
 		metricsGetFunc: func(metrics *nvml.GpmMetricsGetType) nvml.Return {
-			require.Equal(t, uint32(2), metrics.NumMetrics)
+			require.Equal(t, uint32(1), metrics.NumMetrics)
 			for i := range metrics.Metrics[:metrics.NumMetrics] {
 				require.Contains(t, []uint32{uint32(expectedRxMetricID), uint32(expectedTxMetricID)}, metrics.Metrics[i].MetricId)
+				requestedMetricIDs[metrics.Metrics[i].MetricId] = struct{}{}
 				metrics.Metrics[i].NvmlReturn = uint32(nvml.SUCCESS)
 			}
 			return nvml.SUCCESS
@@ -53,6 +55,8 @@ func TestNVLinkGPMCollectorGetOrCreateGpmCollector(t *testing.T) {
 	require.Len(t, gpmCollector.metricsToCollect, 2)
 	require.Equal(t, gpmMetric{name: "nvlink.throughput.data.rx", metricType: metrics.GaugeType}, gpmCollector.metricsToCollect[expectedRxMetricID])
 	require.Equal(t, gpmMetric{name: "nvlink.throughput.data.tx", metricType: metrics.GaugeType}, gpmCollector.metricsToCollect[expectedTxMetricID])
+	require.Contains(t, requestedMetricIDs, uint32(expectedRxMetricID))
+	require.Contains(t, requestedMetricIDs, uint32(expectedTxMetricID))
 
 	cachedCollector, err := collector.getOrCreateGpmCollector(2)
 	require.NoError(t, err)

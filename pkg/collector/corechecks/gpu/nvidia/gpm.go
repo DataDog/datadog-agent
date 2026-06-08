@@ -263,6 +263,8 @@ func (c *gpmCollector) Collect() ([]*Metric, error) {
 			continue
 		}
 
+		log.Infof("retrieved GPM metric %s (%d) on device %s: value=%f", metricData.name, metric.MetricId, c.device.GetDeviceInfo().UUID, metric.Value)
+
 		metrics = append(metrics, Metric{
 			Name:     metricData.name,
 			Value:    metric.Value,
