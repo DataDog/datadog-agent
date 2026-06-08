@@ -1,5 +1,3 @@
-#TMSH-VERSION: 17.3.8
-
 sys global-settings {
     hostname bigip1.example.net
 }

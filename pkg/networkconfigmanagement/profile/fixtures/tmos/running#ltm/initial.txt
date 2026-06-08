@@ -1,7 +1,3 @@
-sys global-settings {
-    hostname bigip1.example.net
-}
-
 ltm virtual /Common/web_vip {
     destination 10.10.20.30:https
     ip-protocol tcp
@@ -9,7 +5,7 @@ ltm virtual /Common/web_vip {
     profiles {
         /Common/http { }
         /Common/clientssl {
-            passphrase <secret hidden>
+            passphrase mySuperSecretPassphrase
         }
     }
 }
@@ -25,23 +21,23 @@ ltm pool /Common/web_pool {
 sys snmp {
     communities {
         public {
-            community <secret hidden>
+            community publicString
         }
         secure {
-            community-name <secret hidden>
+            community-name mySecretCommunity
         }
     }
 }
 
 auth user admin {
-    password <secret hidden>
-    encrypted <secret hidden>
+    password $1$kjsdf9234kjsdf9234
+    encrypted $M$YxZk9AABBBCCC112233445566
 }
 
 radius-server /Common/radius1 {
-    secret <secret hidden>
+    secret myRadiusSharedSecret
 }
 
 tacacs-server /Common/tac1 {
-    secret <secret hidden>
+    secret anotherTacacsSecret
 }

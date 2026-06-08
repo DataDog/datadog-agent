@@ -75,6 +75,18 @@ func Test_DefaultProfiles_Running(t *testing.T) {
 			expectedExtractedMetadata: &ExtractedMetadata{},
 		},
 		{
+			name:                      "TMOS ltm config checks",
+			profile:                   DefaultProfile(t, "tmos"),
+			fixture:                   loadFixture("tmos", "running#ltm"),
+			expectedExtractedMetadata: &ExtractedMetadata{},
+		},
+		{
+			name:                      "TMOS tmsh version checks",
+			profile:                   DefaultProfile(t, "tmos"),
+			fixture:                   loadFixture("tmos", "running#tmsh-version"),
+			expectedExtractedMetadata: &ExtractedMetadata{},
+		},
+		{
 			name:                      "AOSCX",
 			profile:                   DefaultProfile(t, "aoscx"),
 			fixture:                   loadFixture("aoscx", "running"),

@@ -1,7 +1,3 @@
-sys global-settings {
-    hostname bigip1.example.net
-}
-
 ltm virtual /Common/web_vip {
     destination 10.10.20.30:https
     ip-protocol tcp

@@ -1,0 +1,24 @@
+
+sys snmp {
+    communities {
+        public {
+            community <secret hidden>
+        }
+        secure {
+            community-name <secret hidden>
+        }
+    }
+}
+
+auth user admin {
+    password <secret hidden>
+    encrypted <secret hidden>
+}
+
+radius-server /Common/radius1 {
+    secret <secret hidden>
+}
+
+tacacs-server /Common/tac1 {
+    secret <secret hidden>
+}
