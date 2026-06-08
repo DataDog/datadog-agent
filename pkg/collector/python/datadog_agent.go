@@ -27,6 +27,7 @@ import (
 	hostnameUtil "github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/sds"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -531,6 +532,61 @@ var defaultMongoObfuscateSettings = obfuscate.JSONConfig{
 //export getProcessStartTime
 func getProcessStartTime() float64 {
 	return float64(pkgconfigsetup.StartTime.Unix())
+}
+
+// scanMatch is the per-match result returned to integrations by the `scan`
+// binding: the rule id that fired and the column (map key / path) it matched on.
+type scanMatch struct {
+	RuleID string `json:"rule_id"`
+	Column string `json:"column"`
+}
+
+// Scan scans the given event with the Sensitive Data Scanner and returns the
+// matches found, encoded as a JSON array of {rule_id, column} objects.
+// Indirectly used by the C function `scan` that's mapped to `datadog_agent.scan`.
+//
+// The event is expected to be a JSON object (e.g. a database row); it is scanned
+// with the structured map scanner (sds.ScanMap), the same code path the Agent
+// uses to scan rows forwarded by integrations, so a single, process-wide scanner
+// is shared. A non-object event is scanned as a plain string.
+//
+//export Scan
+func Scan(event *C.char, errResult **C.char) *C.char {
+	goEvent := C.GoString(event)
+
+	var matches []sds.Match
+	var row map[string]interface{}
+	if err := json.Unmarshal([]byte(goEvent), &row); err == nil {
+		var scanErr error
+		matches, scanErr = sds.ScanMap(row)
+		if scanErr != nil {
+			// memory will be freed by caller
+			*errResult = TrackedCString(scanErr.Error())
+			return nil
+		}
+	} else {
+		var scanErr error
+		matches, scanErr = sds.Scan([]byte(goEvent))
+		if scanErr != nil {
+			// memory will be freed by caller
+			*errResult = TrackedCString(scanErr.Error())
+			return nil
+		}
+	}
+
+	out := make([]scanMatch, 0, len(matches))
+	for _, m := range matches {
+		out = append(out, scanMatch{RuleID: sds.RuleID(m.RuleIdx), Column: m.Path})
+	}
+
+	payload, err := json.Marshal(out)
+	if err != nil {
+		// memory will be freed by caller
+		*errResult = TrackedCString(err.Error())
+		return nil
+	}
+	// memory will be freed by caller
+	return TrackedCString(string(payload))
 }
 
 // ObfuscateMongoDBString obfuscates the MongoDB query

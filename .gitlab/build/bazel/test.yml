@@ -3,6 +3,11 @@
   rules:
     - when: on_success
 
+# The SDS shared library (libdd_sds) is built by bazel from the
+# dd-sensitive-data-scanner crate via //deps/sds/rust and linked through
+# //deps/sds:dd_sds, so no out-of-band pre-step is needed. SDS is unsupported on
+# Windows, where the sds-go target is marked incompatible and skipped.
+
 bazel:test:linux-amd64:
   extends: [ .bazel:test, .bazel:runner:linux-amd64 ]
   script:

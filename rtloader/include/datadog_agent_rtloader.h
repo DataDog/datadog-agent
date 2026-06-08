@@ -426,6 +426,17 @@ DATADOG_AGENT_RTLOADER_API void set_submit_histogram_bucket_cb(rtloader_t *, cb_
 */
 DATADOG_AGENT_RTLOADER_API void set_submit_event_platform_event_cb(rtloader_t *, cb_submit_event_platform_event_t);
 
+/*! \fn void set_scan_and_submit_event_platform_event_cb(rtloader_t *, cb_submit_event_platform_event_t)
+    \brief Sets the callback used by rtloader to scan an event with the Sensitive Data Scanner then submit it as an
+   event-platform event.
+    \param cb A function pointer with cb_submit_event_platform_event_t prototype to the callback
+    function.
+
+    The callback is expected to be provided by the rtloader caller - in go-context: CGO.
+*/
+DATADOG_AGENT_RTLOADER_API void set_scan_and_submit_event_platform_event_cb(rtloader_t *,
+                                                                            cb_submit_event_platform_event_t);
+
 // DATADOG_AGENT API
 /*! \fn void set_get_version_cb(rtloader_t *, cb_get_version_t)
     \brief Sets a callback to be used by rtloader to collect the agent version.
@@ -663,6 +674,16 @@ DATADOG_AGENT_RTLOADER_API void set_obfuscate_sql_exec_plan_cb(rtloader_t *, cb_
     The callback is expected to be provided by the rtloader caller - in go-context: CGO.
 */
 DATADOG_AGENT_RTLOADER_API void set_get_process_start_time_cb(rtloader_t *, cb_get_process_start_time_t);
+
+/*! \fn void set_scan_cb(rtloader_t *, cb_scan_t)
+    \brief Sets a callback to be used by rtloader to back the `datadog_agent.scan` method.
+    \param rtloader_t A rtloader_t * pointer to the RtLoader instance.
+    \param object A function pointer with cb_scan_t prototype to the callback
+    function.
+
+    The callback is expected to be provided by the rtloader caller - in go-context: CGO.
+*/
+DATADOG_AGENT_RTLOADER_API void set_scan_cb(rtloader_t *, cb_scan_t);
 
 /*! \fn void init_pymem_stats(rtloader_t *)
     \brief Install python allocator hooks.

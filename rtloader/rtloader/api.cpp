@@ -498,6 +498,11 @@ void set_submit_event_platform_event_cb(rtloader_t *rtloader, cb_submit_event_pl
     AS_TYPE(RtLoader, rtloader)->setSubmitEventPlatformEventCb(cb);
 }
 
+void set_scan_and_submit_event_platform_event_cb(rtloader_t *rtloader, cb_submit_event_platform_event_t cb)
+{
+    AS_TYPE(RtLoader, rtloader)->setScanAndSubmitEventPlatformEventCb(cb);
+}
+
 /*
  * datadog_agent API
  */
@@ -590,6 +595,11 @@ void set_obfuscate_sql_exec_plan_cb(rtloader_t *rtloader, cb_obfuscate_sql_exec_
 void set_get_process_start_time_cb(rtloader_t *rtloader, cb_get_process_start_time_t cb)
 {
     AS_TYPE(RtLoader, rtloader)->setGetProcessStartTimeCb(cb);
+}
+
+void set_scan_cb(rtloader_t *rtloader, cb_scan_t cb)
+{
+    AS_TYPE(RtLoader, rtloader)->setScanCb(cb);
 }
 
 void set_obfuscate_mongodb_string_cb(rtloader_t *rtloader, cb_obfuscate_mongodb_string_t cb)

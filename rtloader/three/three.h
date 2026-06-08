@@ -92,6 +92,7 @@ public:
     void setSubmitEventCb(cb_submit_event_t);
     void setSubmitHistogramBucketCb(cb_submit_histogram_bucket_t);
     void setSubmitEventPlatformEventCb(cb_submit_event_platform_event_t);
+    void setScanAndSubmitEventPlatformEventCb(cb_submit_event_platform_event_t);
 
     // datadog_agent API
     void setGetVersionCb(cb_get_version_t);
@@ -112,6 +113,7 @@ public:
     void setGetProcessStartTimeCb(cb_get_process_start_time_t);
     void setObfuscateMongoDBStringCb(cb_obfuscate_mongodb_string_t);
     void setEmitAgentTelemetryCb(cb_emit_agent_telemetry_t);
+    void setScanCb(cb_scan_t);
 
     void initPymemStats();
     void getPymemStats(pymem_stats_t &);

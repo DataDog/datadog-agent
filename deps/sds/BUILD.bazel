@@ -1,0 +1,52 @@
+load("@rules_cc//cc:defs.bzl", "cc_library")
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup")
+load("//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
+
+_NON_WINDOWS = select({
+    "@platforms//os:windows": ["@platforms//:incompatible"],
+    "//conditions:default": [],
+})
+
+# Bazel-native link target for the cgo sds-go binding
+# (@com_github_datadog_dd_sensitive_data_scanner_sds_go_go//:go), consumed as a
+# `cdeps` dependency (see //bazel/patches:sds-go-cdep.patch). It wraps the
+# libdd_sds static archive that bazel builds from the crates.io
+# `dd-sensitive-data-scanner` crate via //deps/sds/rust. Static linking pulls the
+# referenced FFI symbols straight into the cgo binding, so there is no runtime
+# shared library to ship and no out-of-band build step.
+#
+# SDS is unsupported on Windows: //deps/sds/rust is marked incompatible there and
+# the incompatibility propagates back through this cdeps edge, so the whole sds
+# chain is skipped in `//...` on Windows instead of failing to link.
+cc_library(
+    name = "dd_sds",
+    target_compatible_with = _NON_WINDOWS,
+    visibility = ["//visibility:public"],
+    deps = ["//deps/sds/rust:dd_sds_static"],
+)
+
+# Packaging of the shared library (libdd_sds.so / .dylib) for the omnibus build.
+# This is the single source of truth for shipping libdd_sds: omnibus
+# (omnibus/config/software/sds.rb) runs `bazelisk run //deps/sds:install`, exactly
+# like //rtloader:install. dd_cc_packaged rpath-patches the library on Linux and
+# rewrites its install name on macOS so the agent can load it from embedded/lib.
+dd_cc_packaged(
+    name = "dd_sds_pkg",
+    input = "//deps/sds/rust:dd_sds_shared",
+    visibility = ["//visibility:public"],
+)
+
+pkg_filegroup(
+    name = "all_files",
+    srcs = [":dd_sds_pkg_packaged"],
+    prefix = "embedded",
+    target_compatible_with = _NON_WINDOWS,
+    visibility = ["//packages:__subpackages__"],
+)
+
+pkg_install(
+    name = "install",
+    srcs = [":all_files"],
+    target_compatible_with = _NON_WINDOWS,
+)

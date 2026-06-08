@@ -1004,6 +1004,11 @@ void Three::setSubmitEventPlatformEventCb(cb_submit_event_platform_event_t cb)
     _set_submit_event_platform_event_cb(cb);
 }
 
+void Three::setScanAndSubmitEventPlatformEventCb(cb_submit_event_platform_event_t cb)
+{
+    _set_scan_and_submit_event_platform_event_cb(cb);
+}
+
 void Three::setGetVersionCb(cb_get_version_t cb)
 {
     _set_get_version_cb(cb);
@@ -1107,6 +1112,11 @@ void Three::setObfuscateSqlExecPlanCb(cb_obfuscate_sql_exec_plan_t cb)
 void Three::setGetProcessStartTimeCb(cb_get_process_start_time_t cb)
 {
     _set_get_process_start_time_cb(cb);
+}
+
+void Three::setScanCb(cb_scan_t cb)
+{
+    _set_scan_cb(cb);
 }
 
 void Three::setObfuscateMongoDBStringCb(cb_obfuscate_mongodb_string_t cb)
