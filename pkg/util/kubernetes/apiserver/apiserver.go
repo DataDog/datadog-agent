@@ -171,7 +171,7 @@ func initAPIClient() {
 		defaultClientTimeout:        time.Duration(pkgconfigsetup.Datadog().GetInt64("kubernetes_apiserver_client_timeout")) * time.Second,
 		defaultInformerTimeout:      time.Duration(pkgconfigsetup.Datadog().GetInt64("kubernetes_apiserver_informer_client_timeout")) * time.Second,
 		defaultInformerResyncPeriod: time.Duration(pkgconfigsetup.Datadog().GetInt64("kubernetes_informers_resync_period")) * time.Second,
-		defaultClientQPS:            float32(pkgconfigsetup.Datadog().GetInt("kubernetes_apiserver_client_qps")),
+		defaultClientQPS:            float32(pkgconfigsetup.Datadog().GetFloat64("kubernetes_apiserver_client_qps")),
 		defaultClientBurst:          pkgconfigsetup.Datadog().GetInt("kubernetes_apiserver_client_burst"),
 	}
 	globalAPIClient.initRetry.SetupRetrier(&retry.Config{ //nolint:errcheck
