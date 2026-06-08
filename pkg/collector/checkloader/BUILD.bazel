@@ -1,32 +1,23 @@
 load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
-    name = "metriclookback",
-    srcs = [
-        "config.go",
-        "scheduler.go",
-    ],
-    importpath = "github.com/DataDog/datadog-agent/pkg/collector/metriclookback",
+    name = "checkloader",
+    srcs = ["loader.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/checkloader",
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/autodiscovery/integration",
-        "//comp/core/workloadfilter/def",
         "//pkg/aggregator/sender",
         "//pkg/collector/check",
-        "//pkg/collector/check/id",
-        "//pkg/collector/check/stats",
-        "//pkg/collector/checkloader",
+        "//pkg/util/log",
         "@in_yaml_go_yaml_v2//:yaml",
     ],
 )
 
 go_test(
-    name = "metriclookback_test",
-    srcs = [
-        "config_test.go",
-        "scheduler_test.go",
-    ],
-    embed = [":metriclookback"],
+    name = "checkloader_test",
+    srcs = ["loader_test.go"],
+    embed = [":checkloader"],
     gotags = ["test"],
     deps = [
         "//comp/core/autodiscovery/integration",

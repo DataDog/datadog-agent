@@ -15,6 +15,7 @@ import (
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	"github.com/DataDog/datadog-agent/pkg/collector/checkloader"
 )
 
 // ShadowIDSuffix is appended to the source check ID for lookback shadow checks.
@@ -44,10 +45,6 @@ type ShadowConfig struct {
 	ShadowCheckID checkid.ID
 }
 
-type loaderConfig struct {
-	LoaderName string `yaml:"loader"`
-}
-
 // DeriveShadowConfigs selects check instances that should run in the lookback
 // shadow path. The returned source configs preserve their original bytes so
 // scheduler integration can reuse the normal Go/core loader path with the
@@ -60,7 +57,10 @@ func DeriveShadowConfigs(configs []integration.Config, opts Options) []ShadowCon
 			continue
 		}
 
-		initLoader := selectedInitLoader(config.InitConfig)
+		initLoader, err := checkloader.InitConfigLoader(config.InitConfig)
+		if err != nil {
+			continue
+		}
 		for instanceIndex, instance := range config.Instances {
 			instanceEnabled, hasInstanceSetting := instanceLookbackEnabled(instance)
 			if !opts.ShadowChecksEnabled && !instanceEnabled {
@@ -101,20 +101,10 @@ func isSupportedCheckConfig(config integration.Config, opts Options) bool {
 	return true
 }
 
-func selectedInitLoader(initConfig integration.Data) string {
-	var cfg loaderConfig
-	if err := yaml.Unmarshal(initConfig, &cfg); err != nil {
-		return ""
-	}
-	return cfg.LoaderName
-}
-
 func isCoreLoaderSelected(initLoader string, instance integration.Data) bool {
-	selectedLoader := initLoader
-
-	var cfg loaderConfig
-	if err := yaml.Unmarshal(instance, &cfg); err == nil && cfg.LoaderName != "" {
-		selectedLoader = cfg.LoaderName
+	selectedLoader, err := checkloader.SelectedInstanceLoader(initLoader, instance)
+	if err != nil {
+		return false
 	}
 
 	// V1 only supports Go/core shadow checks. An empty loader means the normal

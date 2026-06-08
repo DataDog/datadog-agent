@@ -159,8 +159,8 @@ func TestShadowSchedulerSkipsOverlappingTicks(t *testing.T) {
 		return !shadowCheck.IsRunning()
 	}, time.Second, 10*time.Millisecond)
 
-	tickers.TickAndWait(t, 0)
 	require.Eventually(t, func() bool {
+		tickers.Tick(0)
 		return shadowCheck.RunCount() == 2
 	}, time.Second, 10*time.Millisecond)
 }
@@ -467,17 +467,15 @@ type testShadowLoader struct {
 	loadCount           int
 }
 
-func (l *testShadowLoader) Name() string { return goCheckLoaderName }
-
-func (l *testShadowLoader) Load(senderManager aggregatorsender.SenderManager, config integration.Config, instance integration.Data, instanceIndex int) (check.Check, error) {
+func (l *testShadowLoader) LoadInstance(senderManager aggregatorsender.SenderManager, config integration.Config, instance integration.Data, instanceIndex int) (check.Check, bool, error) {
 	l.loadedConfig = config
 	l.loadedInstance = instance
 	l.loadedInstanceIndex = instanceIndex
 	l.loadCount++
 	if _, err := senderManager.GetSender(l.check.ID()); err != nil {
-		return nil, err
+		return nil, false, err
 	}
-	return l.check, nil
+	return l.check, true, nil
 }
 
 func (l *testShadowLoader) LoadCount() int { return l.loadCount }
@@ -486,11 +484,9 @@ type failingShadowLoader struct {
 	sourceID checkid.ID
 }
 
-func (l *failingShadowLoader) Name() string { return goCheckLoaderName }
-
-func (l *failingShadowLoader) Load(senderManager aggregatorsender.SenderManager, _ integration.Config, _ integration.Data, _ int) (check.Check, error) {
+func (l *failingShadowLoader) LoadInstance(senderManager aggregatorsender.SenderManager, _ integration.Config, _ integration.Data, _ int) (check.Check, bool, error) {
 	_, _ = senderManager.GetSender(l.sourceID)
-	return nil, errors.New("load failed")
+	return nil, false, errors.New("load failed")
 }
 
 type sequencedShadowLoader struct {
@@ -498,18 +494,16 @@ type sequencedShadowLoader struct {
 	next   int
 }
 
-func (l *sequencedShadowLoader) Name() string { return goCheckLoaderName }
-
-func (l *sequencedShadowLoader) Load(senderManager aggregatorsender.SenderManager, _ integration.Config, _ integration.Data, _ int) (check.Check, error) {
+func (l *sequencedShadowLoader) LoadInstance(senderManager aggregatorsender.SenderManager, _ integration.Config, _ integration.Data, _ int) (check.Check, bool, error) {
 	if l.next >= len(l.checks) {
-		return nil, errors.New("unexpected load")
+		return nil, false, errors.New("unexpected load")
 	}
 	c := l.checks[l.next]
 	l.next++
 	if _, err := senderManager.GetSender(c.ID()); err != nil {
-		return nil, err
+		return nil, false, err
 	}
-	return c, nil
+	return c, true, nil
 }
 
 type blockingShadowLoader struct {
@@ -520,24 +514,22 @@ type blockingShadowLoader struct {
 	release chan struct{}
 }
 
-func (l *blockingShadowLoader) Name() string { return goCheckLoaderName }
-
-func (l *blockingShadowLoader) Load(senderManager aggregatorsender.SenderManager, _ integration.Config, _ integration.Data, _ int) (check.Check, error) {
+func (l *blockingShadowLoader) LoadInstance(senderManager aggregatorsender.SenderManager, _ integration.Config, _ integration.Data, _ int) (check.Check, bool, error) {
 	l.mu.Lock()
 	if l.next >= len(l.checks) {
 		l.mu.Unlock()
-		return nil, errors.New("unexpected load")
+		return nil, false, errors.New("unexpected load")
 	}
 	c := l.checks[l.next]
 	l.next++
 	l.mu.Unlock()
 
 	if _, err := senderManager.GetSender(c.ID()); err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	l.ready <- struct{}{}
 	<-l.release
-	return c, nil
+	return c, true, nil
 }
 
 type testShadowCheck struct {

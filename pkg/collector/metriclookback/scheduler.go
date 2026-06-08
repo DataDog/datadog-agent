@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -26,6 +27,12 @@ const (
 // SenderManagerFactory returns a sender manager scoped to one shadow check.
 type SenderManagerFactory func(context.Context) sender.SenderManager
 
+// CheckInstanceLoader loads a fresh check instance using the provided sender
+// manager and normal collector loader-selection semantics.
+type CheckInstanceLoader interface {
+	LoadInstance(sender.SenderManager, integration.Config, integration.Data, int) (check.Check, bool, error)
+}
+
 // RunStatsRecorder records completed shadow check runs.
 type RunStatsRecorder interface {
 	AddCheckStats(check.Check, time.Duration, error, []error, stats.SenderStats)
@@ -34,7 +41,7 @@ type RunStatsRecorder interface {
 
 // ShadowSchedulerOptions configures the shadow scheduler component.
 type ShadowSchedulerOptions struct {
-	Loader           check.Loader
+	Loader           CheckInstanceLoader
 	NewSenderManager SenderManagerFactory
 	Interval         time.Duration
 	StopTimeout      time.Duration
@@ -45,7 +52,7 @@ type ShadowSchedulerOptions struct {
 // ShadowScheduler runs lookback shadow checks outside the normal collector
 // scheduler and runner.
 type ShadowScheduler struct {
-	loader           check.Loader
+	loader           CheckInstanceLoader
 	newSenderManager SenderManagerFactory
 	interval         time.Duration
 	stopTimeout      time.Duration
@@ -136,11 +143,16 @@ func (s *ShadowScheduler) load(config ShadowConfig) (*shadowCheckHandle, error) 
 		shadowID: config.ShadowCheckID,
 	}
 
-	loadedCheck, err := s.loader.Load(shadowSenderManager, config.SourceConfig, config.Instance, config.InstanceIndex)
+	loadedCheck, loaded, err := s.loader.LoadInstance(shadowSenderManager, config.SourceConfig, config.Instance, config.InstanceIndex)
 	if err != nil {
 		shadowSenderManager.DestroySender(config.ShadowCheckID)
 		cancel()
 		return nil, fmt.Errorf("load shadow check %s: %w", config.ShadowCheckID, err)
+	}
+	if !loaded {
+		shadowSenderManager.DestroySender(config.ShadowCheckID)
+		cancel()
+		return nil, fmt.Errorf("load shadow check %s: no check loaded", config.ShadowCheckID)
 	}
 
 	return &shadowCheckHandle{
