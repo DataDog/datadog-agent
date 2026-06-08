@@ -3,15 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !jetson
-
 package run
 
 import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/snmptraps"
-	snmptrapsServer "github.com/DataDog/datadog-agent/comp/snmptraps/server"
+	snmptrapsServer "github.com/DataDog/datadog-agent/comp/snmptraps/server/def"
 )
 
 func getSnmptrapsOptions() fx.Option {

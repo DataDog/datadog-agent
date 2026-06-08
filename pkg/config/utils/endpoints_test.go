@@ -505,19 +505,9 @@ func TestAddAgentVersionToDomain(t *testing.T) {
 			".ddog-gov.com",
 			true,
 		},
-		{
-			"https://app.ddog-gov.mil",
-			".ddog-gov.mil",
-			true,
-		},
 		{ // Gov long-named
 			"https://app.xxxx99.ddog-gov.com",
 			".xxxx99.ddog-gov.com",
-			true,
-		},
-		{ // Gov long-named
-			"https://app.xxxx99.ddog-gov.mil",
-			".xxxx99.ddog-gov.mil",
 			true,
 		},
 		{ // Additional site

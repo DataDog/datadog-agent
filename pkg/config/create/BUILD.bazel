@@ -20,6 +20,7 @@ go_test(
     name = "create_test",
     srcs = ["new_test.go"],
     embed = [":create"],
+    gotags = ["test"],
     deps = [
         "//pkg/version",
         "@com_github_stretchr_testify//assert",

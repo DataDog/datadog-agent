@@ -1,0 +1,9 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "lib2",
+    srcs = ["lib2.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib2",
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/dyninst/testprogs/progs/sample/lib"],
+)

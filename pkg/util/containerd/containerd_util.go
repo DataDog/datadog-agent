@@ -17,7 +17,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hashicorp/go-multierror"
 	"github.com/opencontainers/image-spec/identity"
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
@@ -463,7 +462,7 @@ func (c *ContainerdUtil) Mounts(ctx context.Context, expiration time.Duration, n
 		for i := range mounts {
 			mounts[i].Source = image.SanitizeHostPath(mounts[i].Source)
 
-			var errs error
+			var errs []error
 			for j, opt := range mounts[i].Options {
 				for _, prefix := range []string{"upperdir=", "lowerdir=", "workdir="} {
 					if trimmedOpt, ok := strings.CutPrefix(opt, prefix); ok {
@@ -471,7 +470,7 @@ func (c *ContainerdUtil) Mounts(ctx context.Context, expiration time.Duration, n
 						for n, dir := range dirs {
 							dirs[n] = image.SanitizeHostPath(dir)
 							if _, err := os.Stat(dirs[n]); err != nil {
-								errs = multierror.Append(errs, fmt.Errorf("unreachable folder %s for overlayfs mount: %w", dir, err))
+								errs = append(errs, fmt.Errorf("unreachable folder %s for overlayfs mount: %w", dir, err))
 							}
 						}
 						mounts[i].Options[j] = prefix + strings.Join(dirs, ":")
@@ -481,8 +480,8 @@ func (c *ContainerdUtil) Mounts(ctx context.Context, expiration time.Duration, n
 				log.Debugf("Sanitized overlayfs mount options to %s", strings.Join(mounts[i].Options, ","))
 			}
 
-			if errs != nil {
-				log.Warnf("Unreachable path detected in mounts for image %s: %s", imageID, errs.Error())
+			if len(errs) > 0 {
+				log.Warnf("Unreachable path detected in mounts for image %s: %s", imageID, errors.Join(errs...))
 			}
 		}
 	}

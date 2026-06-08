@@ -9,7 +9,6 @@ import (
 	"context"
 	"encoding/hex"
 	"errors"
-	"fmt"
 	"math"
 	"net"
 	"net/http"
@@ -100,11 +99,16 @@ func NewOTLPReceiver(out chan<- *Payload, cfg *config.AgentConfig, statsd statsd
 		enableReceiveResourceSpansV2Val = 0.0
 	}
 	_ = statsd.Gauge("datadog.trace_agent.otlp.enable_receive_resource_spans_v2", enableReceiveResourceSpansV2Val, nil, 1)
+	enableContainerTagsV2Val := 1.0
+	if cfg.HasFeature("disable_otlp_container_tags_v2") {
+		enableContainerTagsV2Val = 0.0
+	}
+	_ = statsd.Gauge("datadog.trace_agent.otlp.enable_container_tags_v2", enableContainerTagsV2Val, nil, 1)
 	grpcMaxRecvMsgSize := 10 * 1024 * 1024
 	if cfg.OTLPReceiver.GrpcMaxRecvMsgSizeMib > 0 {
 		grpcMaxRecvMsgSize = cfg.OTLPReceiver.GrpcMaxRecvMsgSizeMib * 1024 * 1024
 	}
-	return &OTLPReceiver{out: out, conf: cfg, cidProvider: NewIDProvider(cfg.ContainerProcRoot, cfg.ContainerIDFromOriginInfo), statsd: statsd, timing: timing, grpcMaxRecvMsgSize: grpcMaxRecvMsgSize}
+	return &OTLPReceiver{out: out, conf: cfg, cidProvider: NewContainerIDProviderFromConfig(cfg), statsd: statsd, timing: timing, grpcMaxRecvMsgSize: grpcMaxRecvMsgSize}
 }
 
 // Start starts the OTLPReceiver, if any of the servers were configured as active.
@@ -125,7 +129,7 @@ func (o *OTLPReceiver) Start() {
 		}
 		if ln == nil {
 			// if the fd was not provided, or we failed to get a listener from it, listen on the given address
-			ln, err = loader.GetTCPListener(fmt.Sprintf("%s:%d", cfg.BindHost, cfg.GRPCPort))
+			ln, err = loader.GetTCPListener(net.JoinHostPort(cfg.BindHost, strconv.Itoa(cfg.GRPCPort)))
 		}
 
 		if err != nil {
@@ -298,7 +302,7 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 
 	// Get container ID from OTel semantic conventions
 	containerID := transform.LookupSemanticStringWithAccessor(resAccessor, semantics.ConceptContainerID, true)
-	if containerID == "" && !o.conf.HasFeature("enable_otlp_container_tags_v2") {
+	if containerID == "" && o.conf.HasFeature("disable_otlp_container_tags_v2") {
 		containerID = transform.LookupSemanticStringWithAccessor(resAccessor, semantics.ConceptK8sPodUID, true)
 	}
 
@@ -308,7 +312,7 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 	// Get container tags from OTel semantic conventions
 	var containerTags string
 	var builder *strings.Builder
-	if o.conf.HasFeature("enable_otlp_container_tags_v2") {
+	if !o.conf.HasFeature("disable_otlp_container_tags_v2") {
 		// As part of extracting container tags, we remove some of the corresponding resource attributes
 		// from otelres so that OtelSpanToDDSpan does not duplicate them as span attributes.
 		// Because otelres is immutable when this function is called from the Datadog exporter,
@@ -346,7 +350,7 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 			}
 			ddspan := transform.OtelSpanToDDSpan(otelspan, otelres, libspans.Scope(), o.conf)
 
-			if p, ok := ddspan.Metrics["_sampling_priority_v1"]; ok {
+			if p, ok := semantics.LookupFloat64(semantics.DefaultRegistry(), semantics.NewMetricsMapAccessor(ddspan.Metrics), semantics.ConceptSamplingPriority); ok {
 				priorityByID[traceID] = sampler.SamplingPriority(p)
 			}
 			tracesByID[traceID] = append(tracesByID[traceID], ddspan)

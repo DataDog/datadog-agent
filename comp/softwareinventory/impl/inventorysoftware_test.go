@@ -6,6 +6,7 @@
 package softwareinventoryimpl
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -15,7 +16,7 @@ import (
 	"time"
 
 	compdef "github.com/DataDog/datadog-agent/comp/def"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/stretchr/testify/require"
@@ -88,7 +89,7 @@ func newFixtureWithData(t *testing.T, enabled bool, mockData []software.Entry) *
 	hostnameComp := &mockHostname{}
 
 	configComp := config.NewMock(t)
-	configComp.SetWithoutSource("software_inventory.enabled", enabled)
+	configComp.SetInTest("software_inventory.enabled", enabled)
 
 	// Create a mock event platform forwarder
 	epMock := &mockEventPlatform{}
@@ -168,7 +169,7 @@ func TestFlareProviderOutputDisabled(t *testing.T) {
 
 	// Create a mock FlareBuilder to test the callback
 	mockBuilder := helpers.NewFlareBuilderMock(t, false)
-	err := flareProvider.FlareFiller.Callback(mockBuilder)
+	err := flareProvider.FlareFiller.Callback(context.Background(), mockBuilder)
 	assert.NoError(t, err)
 
 	// Verify that the file does not exist since the module is disabled.
@@ -190,7 +191,7 @@ func TestFlareProviderOutputFailed(t *testing.T) {
 
 	// Create a mock FlareBuilder to test the callback
 	mockBuilder := helpers.NewFlareBuilderMock(t, false)
-	err := flareProvider.FlareFiller.Callback(mockBuilder)
+	err := flareProvider.FlareFiller.Callback(context.Background(), mockBuilder)
 	assert.NoError(t, err)
 
 	// Verify that the file does not exist since the module is disabled.
@@ -209,7 +210,7 @@ func TestFlareProviderOutput(t *testing.T) {
 
 	// Create a mock FlareBuilder to test the callback
 	mockBuilder := helpers.NewFlareBuilderMock(t, false)
-	err := flareProvider.FlareFiller.Callback(mockBuilder)
+	err := flareProvider.FlareFiller.Callback(context.Background(), mockBuilder)
 	assert.NoError(t, err)
 
 	// Verify the mock builder was called with the expected file

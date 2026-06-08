@@ -12,7 +12,7 @@ import (
 
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
@@ -37,10 +37,6 @@ func (n *noopAutoConfig) AddConfigProvider(types.ConfigProvider, bool, time.Dura
 
 func (n *noopAutoConfig) LoadAndRun(context.Context) {}
 
-func (n *noopAutoConfig) GetAllConfigs() []integration.Config {
-	return []integration.Config{}
-}
-
 func (n *noopAutoConfig) GetUnresolvedConfigs() []integration.Config {
 	return []integration.Config{}
 }
@@ -59,8 +55,8 @@ func (n *noopAutoConfig) GetAutodiscoveryErrors() map[string]map[string]types.Er
 	return map[string]map[string]types.ErrorMsgSet{}
 }
 
-func (n *noopAutoConfig) GetProviderCatalog() map[string]types.ConfigProviderFactory {
-	return map[string]types.ConfigProviderFactory{}
+func (n *noopAutoConfig) AddConfigProviderFromCatalog(pkgconfigsetup.ConfigurationProviders) error {
+	return nil
 }
 
 func (n *noopAutoConfig) GetTelemetryStore() *telemetry.Store {

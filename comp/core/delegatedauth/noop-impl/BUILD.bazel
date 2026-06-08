@@ -15,6 +15,7 @@ go_test(
     name = "noop-impl_test",
     srcs = ["delegatedauth_noop_test.go"],
     embed = [":noop-impl"],
+    gotags = ["test"],
     deps = [
         "//comp/core/delegatedauth/def",
         "@com_github_stretchr_testify//assert",

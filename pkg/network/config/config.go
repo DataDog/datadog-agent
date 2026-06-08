@@ -22,6 +22,7 @@ const (
 	netNS = "network_config"
 	smNS  = "service_monitoring_config"
 	evNS  = "event_monitoring_config"
+	dscNS = "discovery"
 
 	defaultUDPTimeoutSeconds       = 30
 	defaultUDPStreamTimeoutSeconds = 120
@@ -205,6 +206,9 @@ type Config struct {
 	// EnableFentry enables the experimental fentry tracer (disabled by default)
 	EnableFentry bool
 
+	// EnableCORETracer enables the CO-RE version of the tracer
+	EnableCORETracer bool
+
 	// ExpectedTagsDuration is the duration for which we add host and container tags to our payloads, to handle the race
 	// in the backend for processing host/container tags and resolving them in our own pipelines.
 	ExpectedTagsDuration time.Duration
@@ -218,6 +222,9 @@ type Config struct {
 	// DirectSend controls whether we send payloads directly from system-probe or they are queried from process-agent.
 	// Not supported on Windows
 	DirectSend bool
+
+	// EnableSKTracer enables to experimental sk tracer
+	EnableSKTracer bool
 }
 
 // New creates a config for the network tracer
@@ -294,8 +301,10 @@ func New() *Config {
 
 		EnableNPMConnectionRollup: cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_connection_rollup")),
 
-		EnableEbpfless: cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_ebpfless")),
-		EnableFentry:   cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_fentry")),
+		EnableCORETracer: cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_co_re")),
+		EnableEbpfless:   cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_ebpfless")),
+		EnableFentry:     cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_fentry")),
+		EnableSKTracer:   cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_sk_tracer")),
 
 		ExpectedTagsDuration: cfg.GetDuration(sysconfig.FullKeyPath(spNS, "expected_tags_duration")),
 

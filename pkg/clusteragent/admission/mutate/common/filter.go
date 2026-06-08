@@ -13,9 +13,9 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadfilter/legacy"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -40,7 +40,7 @@ func DefaultDisabledNamespaces() []string {
 // DefaultFilter provides a default implementation of the MutationFilter interface that uses namespaces for filtering.
 type DefaultFilter struct {
 	enabled bool
-	filter  *containers.Filter
+	filter  *legacy.Filter
 }
 
 // NewDefaultFilter constructs the default mutation filter from the enabled flag and the list of enabled and disabled
@@ -94,12 +94,12 @@ func (f *DefaultFilter) IsNamespaceEligible(ns string) bool {
 //   - Disabled namespaces and no enabled namespaces: inject only in the
 //     namespaces that are not included in the list of disabled namespaces.
 //   - Enabled and disabled namespaces: return error.
-func makeNamespaceFilter(enabledNamespaces, disabledNamespaces []string) (*containers.Filter, error) {
+func makeNamespaceFilter(enabledNamespaces, disabledNamespaces []string) (*legacy.Filter, error) {
 	if len(enabledNamespaces) > 0 && len(disabledNamespaces) > 0 {
 		return nil, errors.New("enabled_namespaces and disabled_namespaces configuration cannot be set together")
 	}
 
-	prefix := containers.KubeNamespaceFilterPrefix
+	prefix := legacy.KubeNamespaceFilterPrefix
 	enabledNamespacesWithPrefix := make([]string, len(enabledNamespaces))
 	disabledNamespacesWithPrefix := make([]string, len(disabledNamespaces))
 
@@ -120,7 +120,7 @@ func makeNamespaceFilter(enabledNamespaces, disabledNamespaces []string) (*conta
 		filterExcludeList = disabledNamespacesWithPrefix
 	}
 
-	return containers.NewFilter(containers.GlobalFilter, enabledNamespacesWithPrefix, filterExcludeList)
+	return legacy.NewFilter(legacy.GlobalFilter, enabledNamespacesWithPrefix, filterExcludeList)
 }
 
 type podMutationLabelFlag int

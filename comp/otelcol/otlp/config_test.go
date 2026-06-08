@@ -203,9 +203,7 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 				TracesEnabled:                true,
 				LogsEnabled:                  false,
 				TracesInfraAttributesEnabled: true,
-				Logs: map[string]interface{}{
-					"enabled": false,
-				},
+				Logs:                         map[string]interface{}{},
 				Metrics: map[string]interface{}{
 					"enabled":                                true,
 					"tag_cardinality":                        "low",

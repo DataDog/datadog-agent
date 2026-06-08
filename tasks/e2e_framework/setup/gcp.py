@@ -1,55 +1,47 @@
+import getpass
 import json
-import os
 from pathlib import Path
 
+from invoke.context import Context
 from invoke.exceptions import Exit
 
 from tasks.e2e_framework.config import Config
-from tasks.e2e_framework.tool import ask, warn
+from tasks.e2e_framework.setup.ssh_keys import add_key_to_ssh_agent, default_key_paths, generate_keypair_with_passphrase
+from tasks.e2e_framework.tool import info
 
 
-def setup_gcp_config(config: Config):
-    if config.configParams is None:
-        config.configParams = Config.Params(aws=None, agent=None, pulumi=None, azure=None, gcp=None)
+def setup_gcp_config(ctx: Context, config: Config):
     if config.configParams.gcp is None:
         config.configParams.gcp = Config.Params.GCP(publicKeyPath=None)
 
-    # gcp public key path
-    if config.configParams.gcp.publicKeyPath is None:
-        config.configParams.gcp.publicKeyPath = str(Path.home().joinpath(".ssh", "id_ed25519.pub").absolute())
-    default_public_key_path = config.configParams.gcp.publicKeyPath
-    while True:
-        config.configParams.gcp.publicKeyPath = default_public_key_path
-        public_key_path = ask(
-            f"🔑 Path to your GCP public ssh key: (default: [{config.configParams.gcp.publicKeyPath}])"
-        )
-        if public_key_path:
-            config.configParams.gcp.publicKeyPath = public_key_path
+    gcp = config.configParams.gcp
+    user = getpass.getuser()
 
-        if os.path.isfile(config.configParams.gcp.publicKeyPath):
-            break
-        warn(f"{config.configParams.gcp.publicKeyPath} is not a valid ssh key")
+    if not gcp.account:
+        gcp.account = "agent-sandbox"
+    info(f"✓ GCP account: {gcp.account}")
 
-    default_account = ask(f"🔑 Default account to use, default [{config.configParams.gcp.account}]: ")
-    if default_account:
-        config.configParams.gcp.account = default_account
+    default_priv, default_pub = default_key_paths(gcp.account, user, provider="gcp", key_type="ed25519")
 
-    # openShift pull secret path
-    if config.configParams.gcp.pullSecretPath is None:
-        config.configParams.gcp.pullSecretPath = ""
-    default_pull_secret_path = config.configParams.gcp.pullSecretPath
-    while True:
-        config.configParams.gcp.pullSecretPath = default_pull_secret_path
-        pull_secret_path = ask("🔑 Path to your OpenShift pull secret file (optional, can be set later): ")
-        if not pull_secret_path:
-            # empty to skip
-            config.configParams.gcp.pullSecretPath = ""
-            break
+    if not gcp.privateKeyPath:
+        gcp.privateKeyPath = str(default_priv)
+    if not gcp.publicKeyPath:
+        gcp.publicKeyPath = str(default_pub)
 
-        config.configParams.gcp.pullSecretPath = pull_secret_path
-        if os.path.isfile(config.configParams.gcp.pullSecretPath):
-            break
-        warn(f"{config.configParams.gcp.pullSecretPath} is not a valid file")
+    private_path = Path(gcp.privateKeyPath).expanduser()
+    public_path = Path(gcp.publicKeyPath).expanduser()
+
+    if not private_path.is_file():
+        info(f"🔑 Generating GCP SSH keypair → {private_path}")
+        passphrase = generate_keypair_with_passphrase(ctx, str(private_path), str(public_path), key_type="ed25519")
+        gcp.privateKeyPassword = passphrase
+        info("✓ GCP SSH key encrypted with passphrase (stored in ~/.test_infra_config.yaml, chmod 0600)")
+        add_key_to_ssh_agent(ctx, str(private_path), passphrase)
+    else:
+        info(f"✓ GCP SSH keypair present: {private_path}")
+
+    if gcp.pullSecretPath is None:
+        gcp.pullSecretPath = ""
 
 
 # Check if gke-gcloud-auth-plugin is installed and install it if not

@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"net"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -174,7 +175,7 @@ func newSenderClientImpl(agentCfg config.Component) client {
 func buildURL(endpoint logconfig.Endpoint) string {
 	var address string
 	if endpoint.Port != 0 {
-		address = fmt.Sprintf("%v:%v", endpoint.Host, endpoint.Port)
+		address = net.JoinHostPort(endpoint.Host, strconv.Itoa(endpoint.Port))
 	} else {
 		address = endpoint.Host
 	}

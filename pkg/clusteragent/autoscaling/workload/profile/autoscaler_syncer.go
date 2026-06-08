@@ -158,10 +158,11 @@ func (s *AutoscalerSyncer) rebuildOwnership() {
 
 // desiredDPA holds the information needed to create or update a single DPA entry.
 type desiredDPA struct {
-	profileName  string
-	ref          model.NamespacedObjectReference
-	template     *datadoghq.DatadogPodAutoscalerTemplate
-	templateHash string
+	profileName       string
+	ref               model.NamespacedObjectReference
+	template          *datadoghq.DatadogPodAutoscalerTemplate
+	templateHash      string
+	previewAnnotation string
 }
 
 // reconcile performs a full sync between the profile store and the DPA store.
@@ -184,12 +185,15 @@ func (s *AutoscalerSyncer) buildDesiredState() map[string]desiredDPA {
 		if !profileInternal.Valid() || profileInternal.Template() == nil {
 			continue
 		}
+		// templateHash already covers the forwarded annotations (incl. preview features),
+		// so no need for a separate -burstable suffix.
 		for dpaKey, ref := range profileInternal.Workloads() {
 			desired[dpaKey] = desiredDPA{
-				profileName:  profileInternal.Name(),
-				ref:          ref,
-				template:     profileInternal.Template(),
-				templateHash: profileInternal.TemplateHash(),
+				profileName:       profileInternal.Name(),
+				ref:               ref,
+				template:          profileInternal.Template(),
+				templateHash:      profileInternal.TemplateHash(),
+				previewAnnotation: profileInternal.PreviewAnnotation(),
 			}
 		}
 	}
@@ -271,7 +275,7 @@ func (s *AutoscalerSyncer) ensureDPA(dpaKey string, d desiredDPA) {
 	if !found {
 		_, name, _ := cache.SplitMetaNamespaceKey(dpaKey)
 		log.Infof("Creating DPA %s for profile %s", dpaKey, d.profileName)
-		pai = model.NewPodAutoscalerFromProfile(d.ref.Namespace, name, d.profileName, d.template, targetRef, d.templateHash)
+		pai = model.NewPodAutoscalerFromProfile(d.ref.Namespace, name, d.profileName, d.template, targetRef, d.templateHash, d.previewAnnotation)
 		s.dpaStore.UnlockSet(dpaKey, pai, syncerStoreID)
 		return
 	}
@@ -286,7 +290,7 @@ func (s *AutoscalerSyncer) ensureDPA(dpaKey string, d desiredDPA) {
 		return
 	}
 
-	pai.UpdateFromProfile(d.profileName, d.template, targetRef, d.templateHash)
+	pai.UpdateFromProfile(d.profileName, d.template, targetRef, d.templateHash, d.previewAnnotation)
 	s.dpaStore.UnlockSet(dpaKey, pai, syncerStoreID)
 }
 

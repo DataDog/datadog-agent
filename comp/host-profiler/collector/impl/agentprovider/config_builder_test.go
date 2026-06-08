@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build test
+//go:build linux && test
 
 package agentprovider
 
@@ -33,7 +33,7 @@ func TestBuildExportersAdditionalHTTPHeaders(t *testing.T) {
 
 	exporters, ok := conf["exporters"].(confMap)
 	require.True(t, ok)
-	exporter, ok := exporters["otlphttp/datadoghq.com_0"].(confMap)
+	exporter, ok := exporters["otlp_http/datadoghq.com_0"].(confMap)
 	require.True(t, ok)
 	headers, ok := exporter["headers"].(confMap)
 	require.True(t, ok)
@@ -56,13 +56,128 @@ func TestBuildExportersNoAdditionalHTTPHeaders(t *testing.T) {
 
 	exporters, ok := conf["exporters"].(confMap)
 	require.True(t, ok)
-	exporter, ok := exporters["otlphttp/datadoghq.com_0"].(confMap)
+	exporter, ok := exporters["otlp_http/datadoghq.com_0"].(confMap)
 	require.True(t, ok)
 	headers, ok := exporter["headers"].(confMap)
 	require.True(t, ok)
 
 	assert.Equal(t, "test_key", headers["dd-api-key"])
 	assert.Len(t, headers, 3) // dd-api-key, dd-evp-origin, dd-evp-origin-version
+}
+
+func TestBuildConfigDDProfilingEnabled(t *testing.T) {
+	agent := configManager{
+		endpoints: []endpoint{{
+			site:    "datadoghq.com",
+			apiKeys: []string{"test_key"},
+		}},
+		endpointsTotalLength: 1,
+		hostProfilerConfig: hostProfilerConfig{
+			DDProfiling: ddProfilingConfig{Enabled: true},
+		},
+	}
+	conf := buildConfig(agent, testCollectorParams{})
+
+	extensions, ok := conf["extensions"].(confMap)
+	require.True(t, ok)
+	ddprofiling, ok := extensions[ddprofilingName].(confMap)
+	require.True(t, ok)
+	assert.Empty(t, ddprofiling, "ddprofiling config should be empty when period is not set")
+
+	service, ok := conf["service"].(confMap)
+	require.True(t, ok)
+	svcExtensions, ok := service["extensions"].([]any)
+	require.True(t, ok)
+	assert.Contains(t, svcExtensions, ddprofilingName)
+	assert.Contains(t, svcExtensions, hpflareName)
+}
+
+func TestBuildConfigDDProfilingEnabledWithPeriod(t *testing.T) {
+	agent := configManager{
+		endpoints: []endpoint{{
+			site:    "datadoghq.com",
+			apiKeys: []string{"test_key"},
+		}},
+		endpointsTotalLength: 1,
+		hostProfilerConfig: hostProfilerConfig{
+			DDProfiling: ddProfilingConfig{Enabled: true, Period: 30},
+		},
+	}
+	conf := buildConfig(agent, testCollectorParams{})
+
+	extensions, ok := conf["extensions"].(confMap)
+	require.True(t, ok)
+	ddprofiling, ok := extensions[ddprofilingName].(confMap)
+	require.True(t, ok)
+	profilerOptions, ok := ddprofiling["profiler_options"].(confMap)
+	require.True(t, ok)
+	assert.Equal(t, 30, profilerOptions["period"])
+
+	service, ok := conf["service"].(confMap)
+	require.True(t, ok)
+	svcExtensions, ok := service["extensions"].([]any)
+	require.True(t, ok)
+	assert.Contains(t, svcExtensions, ddprofilingName)
+}
+
+func TestBuildConfigDDProfilingDisabled(t *testing.T) {
+	agent := configManager{
+		endpoints: []endpoint{{
+			site:    "datadoghq.com",
+			apiKeys: []string{"test_key"},
+		}},
+		endpointsTotalLength: 1,
+	}
+	conf := buildConfig(agent, testCollectorParams{})
+
+	extensions, ok := conf["extensions"].(confMap)
+	require.True(t, ok)
+	_, ok = extensions[ddprofilingName]
+	assert.False(t, ok, "ddprofiling extension should not be present when disabled")
+
+	service, ok := conf["service"].(confMap)
+	require.True(t, ok)
+	svcExtensions, ok := service["extensions"].([]any)
+	require.True(t, ok)
+	assert.NotContains(t, svcExtensions, ddprofilingName)
+	assert.Contains(t, svcExtensions, hpflareName)
+}
+
+func TestBuildConfigHPFlareCustomPort(t *testing.T) {
+	agent := configManager{
+		endpoints: []endpoint{{
+			site:    "datadoghq.com",
+			apiKeys: []string{"test_key"},
+		}},
+		endpointsTotalLength: 1,
+		hostProfilerConfig: hostProfilerConfig{
+			HPFlare: hpFlareConfig{Port: 9999},
+		},
+	}
+	conf := buildConfig(agent, testCollectorParams{})
+
+	extensions, ok := conf["extensions"].(confMap)
+	require.True(t, ok)
+	hpflare, ok := extensions[hpflareName].(confMap)
+	require.True(t, ok)
+	assert.Equal(t, "localhost:9999", hpflare["endpoint"])
+}
+
+func TestBuildConfigHPFlareDefaultPort(t *testing.T) {
+	agent := configManager{
+		endpoints: []endpoint{{
+			site:    "datadoghq.com",
+			apiKeys: []string{"test_key"},
+		}},
+		endpointsTotalLength: 1,
+	}
+	conf := buildConfig(agent, testCollectorParams{})
+
+	extensions, ok := conf["extensions"].(confMap)
+	require.True(t, ok)
+	hpflare, ok := extensions[hpflareName].(confMap)
+	require.True(t, ok)
+	assert.Equal(t, "localhost:7778", hpflare["endpoint"])
 }
 
 func TestBuildExportersAdditionalHTTPHeadersDoNotOverrideRequired(t *testing.T) {
@@ -83,7 +198,7 @@ func TestBuildExportersAdditionalHTTPHeadersDoNotOverrideRequired(t *testing.T) 
 
 	exporters, ok := conf["exporters"].(confMap)
 	require.True(t, ok)
-	exporter, ok := exporters["otlphttp/datadoghq.com_0"].(confMap)
+	exporter, ok := exporters["otlp_http/datadoghq.com_0"].(confMap)
 	require.True(t, ok)
 	headers, ok := exporter["headers"].(confMap)
 	require.True(t, ok)

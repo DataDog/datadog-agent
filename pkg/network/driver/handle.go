@@ -9,15 +9,16 @@ package driver
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
 
-	telemetryComp "github.com/DataDog/datadog-agent/comp/core/telemetry"
-
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	telemetryComp "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
 const (
@@ -36,91 +37,91 @@ var (
 //
 //nolint:revive // TODO(WKIT) Fix revive linter
 var HandleTelemetry = struct {
-	numFlowCollisions     telemetry.Gauge
-	newFlowsSkippedMax    telemetry.Gauge
-	closedFlowsSkippedMax telemetry.Gauge
+	numFlowCollisions     telemetryComp.Gauge
+	newFlowsSkippedMax    telemetryComp.Gauge
+	closedFlowsSkippedMax telemetryComp.Gauge
 
-	numFlowStructs           telemetry.Gauge
-	peakNumFlowStructs       telemetry.Gauge
-	numFlowClosedStructs     telemetry.Gauge
-	peakNumFlowClosedStructs telemetry.Gauge
+	numFlowStructs           telemetryComp.Gauge
+	peakNumFlowStructs       telemetryComp.Gauge
+	numFlowClosedStructs     telemetryComp.Gauge
+	peakNumFlowClosedStructs telemetryComp.Gauge
 
-	openTableAdds      telemetry.Gauge
-	openTableRemoves   telemetry.Gauge
-	closedTableAdds    telemetry.Gauge
-	closedTableRemoves telemetry.Gauge
+	openTableAdds      telemetryComp.Gauge
+	openTableRemoves   telemetryComp.Gauge
+	closedTableAdds    telemetryComp.Gauge
+	closedTableRemoves telemetryComp.Gauge
 
-	noHandleFlows             telemetry.Gauge
-	noHandleFlowsPeak         telemetry.Gauge
-	numFlowsMissedMaxNoHandle telemetry.Gauge
-	numPacketsAfterClosed     telemetry.Gauge
+	noHandleFlows             telemetryComp.Gauge
+	noHandleFlowsPeak         telemetryComp.Gauge
+	numFlowsMissedMaxNoHandle telemetryComp.Gauge
+	numPacketsAfterClosed     telemetryComp.Gauge
 
-	classifyNoDirection       telemetry.Gauge
-	classifyMultipleRequest   telemetry.Gauge
-	classifyMultipleResponse  telemetry.Gauge
-	classifyResponseNoRequest telemetry.Gauge
+	classifyNoDirection       telemetryComp.Gauge
+	classifyMultipleRequest   telemetryComp.Gauge
+	classifyMultipleResponse  telemetryComp.Gauge
+	classifyResponseNoRequest telemetryComp.Gauge
 
-	noStateAtAleAuthConnect     telemetry.Gauge
-	noStateAtAleAuthRecv        telemetry.Gauge
-	noStateAtAleflowEstablished telemetry.Gauge
-	noStateAtAleEndpointClosure telemetry.Gauge
-	noStateAtInboundTransport   telemetry.Gauge
-	noStateAtOutboundTransport  telemetry.Gauge
+	noStateAtAleAuthConnect     telemetryComp.Gauge
+	noStateAtAleAuthRecv        telemetryComp.Gauge
+	noStateAtAleflowEstablished telemetryComp.Gauge
+	noStateAtAleEndpointClosure telemetryComp.Gauge
+	noStateAtInboundTransport   telemetryComp.Gauge
+	noStateAtOutboundTransport  telemetryComp.Gauge
 
-	httpTxnsCaptured      telemetry.Gauge
-	httpTxnsSkippedMax    telemetry.Gauge
-	httpNdisNonContiguous telemetry.Gauge
-	flowsIgnoredAsEtw     telemetry.Gauge
-	httpTxnNoLatency      telemetry.Gauge
-	httpTxnBatchedOnRead  telemetry.Gauge
+	httpTxnsCaptured      telemetryComp.Gauge
+	httpTxnsSkippedMax    telemetryComp.Gauge
+	httpNdisNonContiguous telemetryComp.Gauge
+	flowsIgnoredAsEtw     telemetryComp.Gauge
+	httpTxnNoLatency      telemetryComp.Gauge
+	httpTxnBatchedOnRead  telemetryComp.Gauge
 
-	ReadPacketsSkipped *telemetry.StatGaugeWrapper
-	readsRequested     telemetry.Gauge
-	readsCompleted     telemetry.Gauge
-	readsCancelled     telemetry.Gauge
+	ReadPacketsSkipped *telemetryComp.StatGaugeWrapper
+	readsRequested     telemetryComp.Gauge
+	readsCompleted     telemetryComp.Gauge
+	readsCancelled     telemetryComp.Gauge
 }{
-	telemetry.NewGauge(handleModuleName, "num_flow_collisions", []string{}, "Gauge measuring the number of flow collisions"),
-	telemetry.NewGauge(handleModuleName, "new_flows_skipped_max", []string{}, "Gauge measuring the maximum number of new flows skipped"),
-	telemetry.NewGauge(handleModuleName, "closed_flows_skipped_max", []string{}, "Gauge measuring the maximum number of closed flows skipped"),
+	telemetryimpl.GetCompatComponent().NewGauge(handleModuleName, "num_flow_collisions", []string{}, "Gauge measuring the number of flow collisions"),
+	telemetryimpl.GetCompatComponent().NewGauge(handleModuleName, "new_flows_skipped_max", []string{}, "Gauge measuring the maximum number of new flows skipped"),
+	telemetryimpl.GetCompatComponent().NewGauge(handleModuleName, "closed_flows_skipped_max", []string{}, "Gauge measuring the maximum number of closed flows skipped"),
 
-	telemetry.NewGauge(handleModuleName, "num_flow_structs", []string{}, "Gauge measuring the number of flow structs"),
-	telemetry.NewGauge(handleModuleName, "peak_num_flow_structs", []string{}, "Gauge measuring the peak number of flow structs"),
-	telemetry.NewGauge(handleModuleName, "num_flow_closed_structs", []string{}, "Gauge measuring the number of closed flow structs"),
-	telemetry.NewGauge(handleModuleName, "peak_num_flow_closed_structs", []string{}, "Gauge measuring the peak number of closed flow structs"),
+	telemetryimpl.GetCompatComponent().NewGauge(handleModuleName, "num_flow_structs", []string{}, "Gauge measuring the number of flow structs"),
+	telemetryimpl.GetCompatComponent().NewGauge(handleModuleName, "peak_num_flow_structs", []string{}, "Gauge measuring the peak number of flow structs"),
+	telemetryimpl.GetCompatComponent().NewGauge(handleModuleName, "num_flow_closed_structs", []string{}, "Gauge measuring the number of closed flow structs"),
+	telemetryimpl.GetCompatComponent().NewGauge(handleModuleName, "peak_num_flow_closed_structs", []string{}, "Gauge measuring the peak number of closed flow structs"),
 
-	telemetry.NewGauge(handleModuleName, "open_table_adds", []string{}, "Gauge measuring the number of additions to the open table"),
-	telemetry.NewGauge(handleModuleName, "open_table_removes", []string{}, "Gauge measuring the number of removals from the open table"),
-	telemetry.NewGauge(handleModuleName, "closed_table_adds", []string{}, "Gauge measuring the number of additions to the closed table"),
-	telemetry.NewGauge(handleModuleName, "closed_table_removes", []string{}, "Gauge measuring the number of removals from the closed table"),
+	telemetryimpl.GetCompatComponent().NewGauge(handleModuleName, "open_table_adds", []string{}, "Gauge measuring the number of additions to the open table"),
+	telemetryimpl.GetCompatComponent().NewGauge(handleModuleName, "open_table_removes", []string{}, "Gauge measuring the number of removals from the open table"),
+	telemetryimpl.GetCompatComponent().NewGauge(handleModuleName, "closed_table_adds", []string{}, "Gauge measuring the number of additions to the closed table"),
+	telemetryimpl.GetCompatComponent().NewGauge(handleModuleName, "closed_table_removes", []string{}, "Gauge measuring the number of removals from the closed table"),
 
-	telemetry.NewGauge(handleModuleName, "no_handle_flows", []string{}, "Gauge measuring the number of no handle flows"),
-	telemetry.NewGauge(handleModuleName, "no_handle_flows_peak", []string{}, "Gauge measuring the peak number of no handle flows"),
-	telemetry.NewGauge(handleModuleName, "num_flows_missed_max_no_handle", []string{}, "Gauge measuring the max number of no handle missed flows"),
-	telemetry.NewGauge(handleModuleName, "num_packets_after_closed", []string{}, "Gauge measuring the number of packets after close"),
+	telemetryimpl.GetCompatComponent().NewGauge(handleModuleName, "no_handle_flows", []string{}, "Gauge measuring the number of no handle flows"),
+	telemetryimpl.GetCompatComponent().NewGauge(handleModuleName, "no_handle_flows_peak", []string{}, "Gauge measuring the peak number of no handle flows"),
+	telemetryimpl.GetCompatComponent().NewGauge(handleModuleName, "num_flows_missed_max_no_handle", []string{}, "Gauge measuring the max number of no handle missed flows"),
+	telemetryimpl.GetCompatComponent().NewGauge(handleModuleName, "num_packets_after_closed", []string{}, "Gauge measuring the number of packets after close"),
 
-	telemetry.NewGauge(handleModuleName, "classify_no_direction", []string{}, "Gauge measuring the number of no direction flows"),
-	telemetry.NewGauge(handleModuleName, "classify_multiple_request", []string{}, "Gauge measuring the number of multiple request flows"),
-	telemetry.NewGauge(handleModuleName, "classify_multiple_response", []string{}, "Gauge measuring the number of multiple response flows"),
-	telemetry.NewGauge(handleModuleName, "classify_response_no_request", []string{}, "Gauge measuring the number of no request flows"),
+	telemetryimpl.GetCompatComponent().NewGauge(handleModuleName, "classify_no_direction", []string{}, "Gauge measuring the number of no direction flows"),
+	telemetryimpl.GetCompatComponent().NewGauge(handleModuleName, "classify_multiple_request", []string{}, "Gauge measuring the number of multiple request flows"),
+	telemetryimpl.GetCompatComponent().NewGauge(handleModuleName, "classify_multiple_response", []string{}, "Gauge measuring the number of multiple response flows"),
+	telemetryimpl.GetCompatComponent().NewGauge(handleModuleName, "classify_response_no_request", []string{}, "Gauge measuring the number of no request flows"),
 
-	telemetry.NewGauge(handleModuleName, "no_state_at_ale_auth_connect", []string{}, "Gauge measuring the number of no request flows"),
-	telemetry.NewGauge(handleModuleName, "no_state_at_ale_auth_recv", []string{}, "Gauge measuring the number of no request flows"),
-	telemetry.NewGauge(handleModuleName, "no_state_at_ale_flow_established", []string{}, "Gauge measuring the number of no request flows"),
-	telemetry.NewGauge(handleModuleName, "no_state_at_ale_endpoint_closure", []string{}, "Gauge measuring the number of no request flows"),
-	telemetry.NewGauge(handleModuleName, "no_state_at_inbound_transport", []string{}, "Gauge measuring the number of no request flows"),
-	telemetry.NewGauge(handleModuleName, "no_state_at_outbound_transport", []string{}, "Gauge measuring the number of no request flows"),
+	telemetryimpl.GetCompatComponent().NewGauge(handleModuleName, "no_state_at_ale_auth_connect", []string{}, "Gauge measuring the number of no request flows"),
+	telemetryimpl.GetCompatComponent().NewGauge(handleModuleName, "no_state_at_ale_auth_recv", []string{}, "Gauge measuring the number of no request flows"),
+	telemetryimpl.GetCompatComponent().NewGauge(handleModuleName, "no_state_at_ale_flow_established", []string{}, "Gauge measuring the number of no request flows"),
+	telemetryimpl.GetCompatComponent().NewGauge(handleModuleName, "no_state_at_ale_endpoint_closure", []string{}, "Gauge measuring the number of no request flows"),
+	telemetryimpl.GetCompatComponent().NewGauge(handleModuleName, "no_state_at_inbound_transport", []string{}, "Gauge measuring the number of no request flows"),
+	telemetryimpl.GetCompatComponent().NewGauge(handleModuleName, "no_state_at_outbound_transport", []string{}, "Gauge measuring the number of no request flows"),
 
-	telemetry.NewGauge(handleModuleName, "http_txns_captured", []string{}, "Gauge measuring the number of http transactions captured"),
-	telemetry.NewGauge(handleModuleName, "http_txns_skipped_max", []string{}, "Gauge measuring the max number of http transactions skipped"),
-	telemetry.NewGauge(handleModuleName, "http_ndis_non_contiguous", []string{}, "Gauge measuring the number of non contiguous http ndis"),
-	telemetry.NewGauge(handleModuleName, "flows_ignored_as_etw", []string{}, "Gauge measuring the number of flows ignored as etw"),
-	telemetry.NewGauge(handleModuleName, "txn_zero_latency", []string{}, "Gauge measuring number of http transactions computed zero latency"),
-	telemetry.NewGauge(handleModuleName, "txn_batched_on_read", []string{}, "Gauge measuring number of http transactions computed zero latency"),
+	telemetryimpl.GetCompatComponent().NewGauge(handleModuleName, "http_txns_captured", []string{}, "Gauge measuring the number of http transactions captured"),
+	telemetryimpl.GetCompatComponent().NewGauge(handleModuleName, "http_txns_skipped_max", []string{}, "Gauge measuring the max number of http transactions skipped"),
+	telemetryimpl.GetCompatComponent().NewGauge(handleModuleName, "http_ndis_non_contiguous", []string{}, "Gauge measuring the number of non contiguous http ndis"),
+	telemetryimpl.GetCompatComponent().NewGauge(handleModuleName, "flows_ignored_as_etw", []string{}, "Gauge measuring the number of flows ignored as etw"),
+	telemetryimpl.GetCompatComponent().NewGauge(handleModuleName, "txn_zero_latency", []string{}, "Gauge measuring number of http transactions computed zero latency"),
+	telemetryimpl.GetCompatComponent().NewGauge(handleModuleName, "txn_batched_on_read", []string{}, "Gauge measuring number of http transactions computed zero latency"),
 
-	telemetry.NewStatGaugeWrapper(handleModuleName, "read_packets_skipped", []string{}, "Gauge measuring the number of read packets skipped"),
-	telemetry.NewGauge(handleModuleName, "reads_requested", []string{}, "Gauge measuring the number of reads requested"),
-	telemetry.NewGauge(handleModuleName, "reads_completed", []string{}, "Gauge measuring the number of reads completed"),
-	telemetry.NewGauge(handleModuleName, "reads_cancelled", []string{}, "Gauge measuring the number of reads_cancelled"),
+	telemetryComp.NewStatGaugeWrapper(telemetryimpl.GetCompatComponent(), handleModuleName, "read_packets_skipped", []string{}, "Gauge measuring the number of read packets skipped"),
+	telemetryimpl.GetCompatComponent().NewGauge(handleModuleName, "reads_requested", []string{}, "Gauge measuring the number of reads requested"),
+	telemetryimpl.GetCompatComponent().NewGauge(handleModuleName, "reads_completed", []string{}, "Gauge measuring the number of reads completed"),
+	telemetryimpl.GetCompatComponent().NewGauge(handleModuleName, "reads_cancelled", []string{}, "Gauge measuring the number of reads_cancelled"),
 }
 
 // Creates a buffer that Driver will use to verify proper versions are communicating
@@ -156,7 +157,11 @@ var handleTypeToPathName = map[HandleType]string{
 //nolint:revive // TODO(WKIT) Fix revive linter
 type Handle interface {
 	ReadFile(p []byte, bytesRead *uint32, ol *windows.Overlapped) error
-	DeviceIoControl(ioControlCode uint32, inBuffer *byte, inBufferSize uint32, outBuffer *byte, outBufferSize uint32, bytesReturned *uint32, overlapped *windows.Overlapped) (err error)
+	SynchronousDeviceIoControl(ioControlCode uint32, inBuffer *byte, inBufferSize uint32, outBuffer *byte, outBufferSize uint32) (bytesReturned uint32, err error)
+	// Deprecated: use SynchronousDeviceIoControl. This shim is kept temporarily
+	// for external consumers (github.com/DataDog/datadog-traceroute) that have
+	// not yet migrated. Will be removed once those consumers update.
+	DeviceIoControl(ioControlCode uint32, inBuffer *byte, inBufferSize uint32, outBuffer *byte, outBufferSize uint32, bytesReturned *uint32, overlapped *windows.Overlapped) error
 	CancelIoEx(ol *windows.Overlapped) error
 	Close() error
 	GetWindowsHandle() windows.Handle
@@ -169,6 +174,12 @@ type Handle interface {
 type RealDriverHandle struct {
 	Handle     windows.Handle
 	handleType HandleType
+	// overlapped is true when Handle was opened with FILE_FLAG_OVERLAPPED.
+	// SynchronousDeviceIoControl branches on this to use the correct Win32
+	// invocation: synchronous handles take the simple sync path; overlapped
+	// handles need a synthesized OVERLAPPED + private event + GetOverlappedResult
+	// to avoid the IOCP-routing hang documented on SynchronousDeviceIoControl.
+	overlapped bool
 
 	// record the last value of number of flows missed due to max exceeded
 	lastNumFlowsMissed       uint64
@@ -185,9 +196,55 @@ func (dh *RealDriverHandle) ReadFile(p []byte, bytesRead *uint32, ol *windows.Ov
 	return windows.ReadFile(dh.Handle, p, bytesRead, ol)
 }
 
+// SynchronousDeviceIoControl issues a synchronous IOCTL on the underlying
+// handle, branching internally based on whether the handle was opened with
+// FILE_FLAG_OVERLAPPED.
+//
+// For synchronous handles, Win32's DeviceIoControl is naturally blocking;
+// per MSDN, lpBytesReturned must be non-NULL when lpOverlapped is NULL. For
+// IOCTLs that report partial output with ERROR_MORE_DATA, bytesReturned
+// carries the partial byte count.
+//
+// For overlapped handles, this delegates to
+// winutil.SynchronousOverlappedDeviceIoControl, which synthesizes a private
+// event with the HEvent low bit set so the IOCTL's completion bypasses any
+// IOCP the handle is associated with. See that function for the full
+// rationale and the WINA-2669 hang it exists to prevent.
+//
+// Some IOCTLs return ERROR_MORE_DATA after filling part of the output
+// buffer; in that case bytesReturned is meaningful alongside the error.
+//
 //nolint:revive // TODO(WKIT) Fix revive linter
-func (dh *RealDriverHandle) DeviceIoControl(ioControlCode uint32, inBuffer *byte, inBufferSize uint32, outBuffer *byte, outBufferSize uint32, bytesReturned *uint32, overlapped *windows.Overlapped) (err error) {
-	return windows.DeviceIoControl(dh.Handle, ioControlCode, inBuffer, inBufferSize, outBuffer, outBufferSize, bytesReturned, overlapped)
+func (dh *RealDriverHandle) SynchronousDeviceIoControl(ioControlCode uint32, inBuffer *byte, inBufferSize uint32, outBuffer *byte, outBufferSize uint32) (bytesReturned uint32, err error) {
+	if !dh.overlapped {
+		err = windows.DeviceIoControl(dh.Handle, ioControlCode, inBuffer, inBufferSize, outBuffer, outBufferSize, &bytesReturned, nil)
+		return bytesReturned, err
+	}
+	return winutil.SynchronousOverlappedDeviceIoControl(dh.Handle, ioControlCode, inBuffer, inBufferSize, outBuffer, outBufferSize)
+}
+
+// DeviceIoControl is a deprecated shim around SynchronousDeviceIoControl, kept
+// for external consumers (github.com/DataDog/datadog-traceroute) that have not
+// yet migrated to the new name. All current agent code should call
+// SynchronousDeviceIoControl directly.
+//
+// The shim only supports the safe usage that callers actually used: a nil
+// overlapped (synchronous semantics). A non-nil overlapped is rejected because
+// no existing caller threaded their own OVERLAPPED through this method, and
+// the new wrapper synthesizes one internally.
+//
+// Deprecated: use SynchronousDeviceIoControl.
+//
+//nolint:revive // TODO(WKIT) Fix revive linter
+func (dh *RealDriverHandle) DeviceIoControl(ioControlCode uint32, inBuffer *byte, inBufferSize uint32, outBuffer *byte, outBufferSize uint32, bytesReturned *uint32, overlapped *windows.Overlapped) error {
+	if overlapped != nil {
+		return errors.New("driver: deprecated DeviceIoControl does not support a caller-supplied OVERLAPPED; use SynchronousDeviceIoControl")
+	}
+	n, err := dh.SynchronousDeviceIoControl(ioControlCode, inBuffer, inBufferSize, outBuffer, outBufferSize)
+	if bytesReturned != nil {
+		*bytesReturned = n
+	}
+	return err
 }
 
 //nolint:revive // TODO(WKIT) Fix revive linter
@@ -218,7 +275,11 @@ func NewHandle(flags uint32, handleType HandleType, _ telemetryComp.Component) (
 		log.Errorf("Error creating file handle %v", err)
 		return nil, err
 	}
-	return &RealDriverHandle{Handle: h, handleType: handleType}, nil
+	return &RealDriverHandle{
+		Handle:     h,
+		handleType: handleType,
+		overlapped: flags&windows.FILE_FLAG_OVERLAPPED != 0,
+	}, nil
 }
 
 // Close closes the underlying windows handle
@@ -228,12 +289,9 @@ func (dh *RealDriverHandle) Close() error {
 
 // RefreshStats refreshes the relevant stats depending on the handle type
 func (dh *RealDriverHandle) RefreshStats() {
-	var (
-		bytesReturned uint32
-		statbuf       = make([]byte, StatsSize)
-	)
+	statbuf := make([]byte, StatsSize)
 
-	err := dh.DeviceIoControl(GetStatsIOCTL, &DdAPIVersionBuf[0], uint32(len(DdAPIVersionBuf)), &statbuf[0], uint32(len(statbuf)), &bytesReturned, nil)
+	_, err := dh.SynchronousDeviceIoControl(GetStatsIOCTL, &DdAPIVersionBuf[0], uint32(len(DdAPIVersionBuf)), &statbuf[0], uint32(len(statbuf)))
 	if err != nil {
 		log.Errorf("failed to read driver stats for filter type %v - returned error %v", dh.handleType, err)
 	}

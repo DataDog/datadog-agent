@@ -60,6 +60,7 @@ func (t *GoTypeAttributes) GetGoKind() (reflect.Kind, bool) {
 
 var (
 	_ Type = (*BaseType)(nil)
+	_ Type = (*DurationType)(nil)
 	_ Type = (*PointerType)(nil)
 	_ Type = (*UnresolvedPointeeType)(nil)
 	_ Type = (*StructureType)(nil)
@@ -75,12 +76,16 @@ var (
 	_ Type = (*GoHMapBucketType)(nil)
 	_ Type = (*GoSwissMapHeaderType)(nil)
 	_ Type = (*GoSwissMapGroupsType)(nil)
+	_ Type = (*GoTimeType)(nil)
 	_ Type = (*GoChannelType)(nil)
 	_ Type = (*GoEmptyInterfaceType)(nil)
 	_ Type = (*GoInterfaceType)(nil)
 	_ Type = (*GoSubroutineType)(nil)
 
 	_ Type = (*EventRootType)(nil)
+
+	_ Type = (*GoContextImplementationType)(nil)
+	_ Type = (*DDTraceSpanType)(nil)
 )
 
 // GetID returns the ID of the type.
@@ -131,6 +136,39 @@ type TypeCommon struct {
 	ByteSize uint32
 }
 
+// GoContextAttributes describes how a concrete context.Context implementation
+// links to its parent and, for context.valueCtx, where the key and value live.
+type GoContextAttributes struct {
+	ContextOffset int32
+	KeyOffset     int32
+	ValueOffset   int32
+}
+
+const (
+	// GoContextNoOffset means the type does not contain that context field.
+	GoContextNoOffset int32 = -1
+)
+
+// DDTraceSpanKind identifies the dd-trace-go span layout carried by a type.
+type DDTraceSpanKind uint8
+
+const (
+	DDTraceSpanNone DDTraceSpanKind = iota
+	DDTraceSpanV1
+	DDTraceSpanV2
+)
+
+// DDTraceAttributes describes a dd-trace-go span layout: where to find each
+// of its trace-id / span-id / parent-id / SpanContext fields.
+type DDTraceAttributes struct {
+	SpanKind                 DDTraceSpanKind
+	TraceIDOffset            int32
+	SpanIDOffset             int32
+	ParentIDOffset           int32
+	SpanContextOffset        int32
+	SpanContextTraceIDOffset int32
+}
+
 // BaseType is a basic type in the target program.
 type BaseType struct {
 	TypeCommon
@@ -138,6 +176,48 @@ type BaseType struct {
 }
 
 func (t *BaseType) irType() {}
+
+// DurationType is a synthetic 8-byte integer type used by the synthetic
+// @duration variable. Its underlying representation is a signed int64 of
+// nanoseconds, computed at BPF evaluation time as
+// (entry_to_return_duration_ns). It renders in templates and snapshots as
+// a float of milliseconds.
+type DurationType struct {
+	TypeCommon
+	syntheticType
+}
+
+func (t *DurationType) irType() {}
+
+// ErrDurationNotOnReturn is the user-facing message used when a
+// reference to @duration appears on a probe that does not have a paired
+// return event. Both irgen (at IR construction time) and decode (when
+// the BPF program reports an absent expression status at runtime) need
+// to produce the same text, so it lives here next to DurationType.
+const ErrDurationNotOnReturn = "@duration is only available at function return"
+
+// TraceContextByteSize is the serialized size of trace_context_t in
+// ebpf/types.h. It is the byte size of payload data items of
+// TraceContextType.
+const TraceContextByteSize uint32 = 40
+
+// TraceContextType is a synthetic 40-byte type used as the type of standalone
+// data items emitted by the BPF context-chain walk. The first 40 bytes of the
+// payload are interpreted as the trace_context_t layout from ebpf/types.h:
+// trace_id_lower, trace_id_upper, span_id, parent_id (8 bytes each),
+// followed by a single valid byte and 7 padding bytes. Data items of this
+// type are produced by SM_OP_GO_CONTEXT_CHAIN_INIT/HOP at chase time when a
+// concrete context.Context implementation is dequeued. The decoder uses them
+// (a) to populate the message's top-level dd.trace_id / dd.span_id /
+// dd.parent_id fields (first valid one wins) and (b) to render any captured
+// context.Context interface field whose data pointer matches the data item's
+// address.
+type TraceContextType struct {
+	TypeCommon
+	syntheticType
+}
+
+func (t *TraceContextType) irType() {}
 
 // VoidPointerType is a type that represents a pointer to a value of an unknown type.
 // unsafe.Pointer is such a type.
@@ -215,6 +295,32 @@ type Field struct {
 	// Type is the type of the field.
 	Type Type
 }
+
+// GoContextImplementationType wraps a StructureType that is a known concrete
+// implementation of context.Context (cancelCtx, valueCtx, timerCtx, …). It
+// carries the offsets the BPF chain walk needs to traverse a context chain
+// from this struct: the embedded parent Context interface, and (for
+// context.valueCtx) the key and value any-fields. The wrapper exists to
+// avoid bloating GoTypeAttributes for every IR type with metadata that's
+// only meaningful on a tiny number of struct types.
+type GoContextImplementationType struct {
+	*StructureType
+	GoContextAttributes
+}
+
+func (t *GoContextImplementationType) irType() {}
+
+// DDTraceSpanType wraps a StructureType that carries a dd-trace-go span
+// payload. The wrapper records the span's layout (where the trace ID,
+// span ID, parent ID and SpanContext fields sit), so the BPF chain walk
+// can extract them when it finds this struct as the value of a context's
+// active-span key.
+type DDTraceSpanType struct {
+	*StructureType
+	DDTraceAttributes
+}
+
+func (t *DDTraceSpanType) irType() {}
 
 // ArrayType is an array type in the target program.
 type ArrayType struct {
@@ -360,6 +466,68 @@ type GoSwissMapGroupsType struct {
 
 func (GoSwissMapGroupsType) irType() {}
 
+// GoTimeType is a specialized wrapper for the standard library's time.Time
+// structure. Decoding time.Time as a generic struct would either leak the
+// private wall/ext bit layout or render an opaque blob. By recognizing the
+// type during IR generation, the decoder can emit a real RFC3339 timestamp
+// and BPF can resolve the *Location pointer to a UTC offset via the
+// Location.cacheZone fast path, avoiding any further pointer chasing.
+//
+// We deliberately only consult the one-element cache (not the full
+// tx/zone tables or the extend POSIX string), which covers the common
+// case where the program has recently formatted or compared the instant
+// in that location; values whose Location has never been exercised
+// (e.g. a freshly LoadLocation'd zone, or time.Local before initLocal
+// runs) render in UTC instead of their true offset.
+//
+// All offset/size fields are byte offsets resolved from DWARF. When
+// CacheResolved is false the BPF runtime skips the cache lookup and the
+// decoder formats in UTC; the remaining cache offset fields are unset in
+// that case.
+type GoTimeType struct {
+	*StructureType
+
+	// WallFieldOffset and ExtFieldOffset are the offsets of the wall and
+	// ext fields within the time.Time structure.
+	WallFieldOffset uint32
+	ExtFieldOffset  uint32
+	// LocFieldOffset is the offset of the loc pointer field within the
+	// time.Time structure. At runtime BPF overwrites the 8 bytes at this
+	// offset with the resolved zone offset (in seconds east of UTC) or
+	// the sentinel value GoTimeUnresolvedOffset.
+	LocFieldOffset uint32
+
+	// CacheResolved is true when irgen successfully resolved the
+	// time.Location field offsets needed for the BPF cache lookup. When
+	// false, the BPF runtime writes the unresolved sentinel and the
+	// decoder renders in UTC.
+	CacheResolved bool
+	// CacheStartOffset, CacheEndOffset, CacheZoneOffset are byte offsets
+	// within time.Location for the cacheStart, cacheEnd, cacheZone fields.
+	CacheStartOffset uint32
+	CacheEndOffset   uint32
+	CacheZoneOffset  uint32
+	// ZoneOffsetFieldOffset is the byte offset of the offset field within
+	// the time.zone structure (pointed to by cacheZone).
+	ZoneOffsetFieldOffset uint32
+	// ZoneOffsetFieldSize is the byte size of the offset field. Go's int
+	// is 8 bytes on amd64/arm64 but we record the DWARF size to avoid
+	// assumptions.
+	ZoneOffsetFieldSize uint32
+}
+
+func (GoTimeType) irType() {}
+
+// GoTimeUnresolvedOffset is the sentinel value the BPF runtime writes into
+// the loc-pointer slot of a captured time.Time when the timezone offset
+// could not be resolved (loc was nil, the Location cache was uninitialized,
+// the captured instant fell outside the cache window, or the runtime
+// failed to read the cache fields). The decoder maps this value to UTC.
+//
+// The sentinel is INT64_MIN. Real UTC offsets are bounded by ±14 hours
+// (50,400 seconds), so collisions are impossible.
+const GoTimeUnresolvedOffset = int64(-1) << 63
+
 // GoSubroutineType is a type that represents a function type in the target
 // program.
 type GoSubroutineType struct {
@@ -379,6 +547,16 @@ func (syntheticType) GetGoKind() (reflect.Kind, bool) {
 	return reflect.Invalid, false
 }
 
+// DictEntry describes a runtime dictionary entry that will be resolved at
+// probe time for generic shape functions. The eBPF reads the dict pointer
+// from DictRegister, indexes into it at DictIndex, and writes the resolved
+// *runtime._type offset into the event output at Offset.
+type DictEntry struct {
+	DictIndex    int    // flat index into the dictionary array
+	DictRegister uint8  // DWARF register number for the dict pointer
+	Offset       uint32 // byte offset in the event output where the resolved type is written
+}
+
 // EventRootType is the type of the event output.
 type EventRootType struct {
 	TypeCommon
@@ -386,9 +564,14 @@ type EventRootType struct {
 
 	// EventKind is the kind of the event.
 	EventKind EventKind
-	// Bitset tracking successful expression evaluation (one bit per
-	// expression).
-	PresenceBitsetSize uint32
+	// ExprStatusArraySize is the size in bytes of the packed expression
+	// status array at the start of the event root data. Each expression
+	// occupies ExprStatusBits bits.
+	ExprStatusArraySize uint32
+	// DictEntries describes runtime dictionary entries to resolve at probe
+	// time. Each entry occupies 8 bytes in the event output (after the
+	// expression status array, before expressions). Empty for non-generic probes.
+	DictEntries []DictEntry
 	// Expressions is the list of expressions that are used to evaluate the
 	// value of the event.
 	Expressions []*RootExpression
@@ -411,6 +594,11 @@ type RootExpression struct {
 	// Expression is the logical operations to be evaluated to produce the
 	// value of the event.
 	Expression Expression
+	// DictIndex is the dictionary index for generic shape type resolution.
+	// -1 means no dict resolution needed. When >= 0, the decoder should
+	// read the resolved runtime type from the corresponding DictEntry
+	// in the EventRootType.
+	DictIndex int
 }
 
 // RootExpressionKind is the kind of a root expression.
@@ -422,6 +610,8 @@ const (
 	RootExpressionKindArgument
 	// RootExpressionKindLocal corresponds to a local variable of the event.
 	RootExpressionKindLocal
+	// RootExpressionKindReturn corresponds to a return value of the event.
+	RootExpressionKindReturn
 	// RootExpressionKindTemplateSegment means that this expression is part of a
 	// template segment.
 	RootExpressionKindTemplateSegment
@@ -436,6 +626,8 @@ func (k RootExpressionKind) String() string {
 		return "argument"
 	case RootExpressionKindLocal:
 		return "local"
+	case RootExpressionKindReturn:
+		return "return"
 	case RootExpressionKindTemplateSegment:
 		return "template_segment"
 	case RootExpressionKindCaptureExpression:

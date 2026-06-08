@@ -17,10 +17,11 @@ const _ConnectionType_name = "TCPUDP"
 var _ConnectionType_index = [...]uint8{0, 3, 6}
 
 func (i ConnectionType) String() string {
-	if i >= ConnectionType(len(_ConnectionType_index)-1) {
+	idx := int(i) - 0
+	if i < 0 || idx >= len(_ConnectionType_index)-1 {
 		return "ConnectionType(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _ConnectionType_name[_ConnectionType_index[i]:_ConnectionType_index[i+1]]
+	return _ConnectionType_name[_ConnectionType_index[idx]:_ConnectionType_index[idx+1]]
 }
 func _() {
 	// An "invalid array index" compiler error signifies that the constant values have changed.
@@ -35,31 +36,33 @@ const _ConnectionFamily_name = "v4v6"
 var _ConnectionFamily_index = [...]uint8{0, 2, 4}
 
 func (i ConnectionFamily) String() string {
-	if i >= ConnectionFamily(len(_ConnectionFamily_index)-1) {
+	idx := int(i) - 0
+	if i < 0 || idx >= len(_ConnectionFamily_index)-1 {
 		return "ConnectionFamily(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _ConnectionFamily_name[_ConnectionFamily_index[i]:_ConnectionFamily_index[i+1]]
+	return _ConnectionFamily_name[_ConnectionFamily_index[idx]:_ConnectionFamily_index[idx+1]]
 }
 func _() {
 	// An "invalid array index" compiler error signifies that the constant values have changed.
 	// Re-run the stringer command to generate them again.
 	var x [1]struct{}
+	_ = x[UNKNOWN-0]
 	_ = x[INCOMING-1]
 	_ = x[OUTGOING-2]
 	_ = x[LOCAL-3]
 	_ = x[NONE-4]
 }
 
-const _ConnectionDirection_name = "incomingoutgoinglocalnone"
+const _ConnectionDirection_name = "UNKNOWNincomingoutgoinglocalnone"
 
-var _ConnectionDirection_index = [...]uint8{0, 8, 16, 21, 25}
+var _ConnectionDirection_index = [...]uint8{0, 7, 15, 23, 28, 32}
 
 func (i ConnectionDirection) String() string {
-	i -= 1
-	if i >= ConnectionDirection(len(_ConnectionDirection_index)-1) {
-		return "ConnectionDirection(" + strconv.FormatInt(int64(i+1), 10) + ")"
+	idx := int(i) - 0
+	if i < 0 || idx >= len(_ConnectionDirection_index)-1 {
+		return "ConnectionDirection(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _ConnectionDirection_name[_ConnectionDirection_index[i]:_ConnectionDirection_index[i+1]]
+	return _ConnectionDirection_name[_ConnectionDirection_index[idx]:_ConnectionDirection_index[idx+1]]
 }
 func _() {
 	// An "invalid array index" compiler error signifies that the constant values have changed.
@@ -75,8 +78,9 @@ const _EphemeralPortType_name = "unspecifiedephemeralnot ephemeral"
 var _EphemeralPortType_index = [...]uint8{0, 11, 20, 33}
 
 func (i EphemeralPortType) String() string {
-	if i >= EphemeralPortType(len(_EphemeralPortType_index)-1) {
+	idx := int(i) - 0
+	if i < 0 || idx >= len(_EphemeralPortType_index)-1 {
 		return "EphemeralPortType(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _EphemeralPortType_name[_EphemeralPortType_index[i]:_EphemeralPortType_index[i+1]]
+	return _EphemeralPortType_name[_EphemeralPortType_index[idx]:_EphemeralPortType_index[idx+1]]
 }

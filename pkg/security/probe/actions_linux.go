@@ -27,9 +27,11 @@ const (
 	// HashTriggerProcessExit hash triggered on process exit
 	HashTriggerProcessExit = "process_exit"
 
-	// maxRetryForMsgWithHashAction is the maximum number of retries for a hash action
-	// the reports will be marked as resolved after MAX 5 sec (so it doesn't matter if this retry period lasts for longer)
-	maxRetryForMsgWithHashAction = 10
+	// maxRetryForMsgWithHashAction is the maximum number of retries for a hash action.
+	// Hash reports are resolved after at most defaultHashActionFlushDelay (5s). This value
+	// must be large enough that maxRetryForMsgWithHashAction * retryDelay (200ms) > 5s with
+	// a comfortable margin. 50 × 200ms = 10s.
+	maxRetryForMsgWithHashAction = 50
 )
 
 // HashActionReport defines a hash action reports

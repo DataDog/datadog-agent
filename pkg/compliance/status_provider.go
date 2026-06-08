@@ -6,6 +6,7 @@
 package compliance
 
 import (
+	"bytes"
 	"embed"
 	"encoding/json"
 	"expvar"
@@ -38,41 +39,104 @@ func (statusProvider) Section() string {
 	return "compliance"
 }
 
-func (s statusProvider) populateStatus(stats map[string]interface{}) {
-	complianceStats := map[string]interface{}{}
+// frameworkSummary holds aggregated check results for one framework.
+type frameworkSummary struct {
+	ID      string
+	Version string
+	Source  string
+	Total   int
+	Passed  int
+	Failed  int
+	Error   int
+	Skipped int
+	NotRun  int
+}
 
-	complianceStats["endpoints"] = s.agent.opts.Reporter.Endpoints().GetStatus()
-
-	complianceVar := expvar.Get("compliance")
-	runnerVar := expvar.Get("runner")
-	if complianceVar != nil {
-		complianceStatusJSON := []byte(complianceVar.String())
-		complianceStatus := make(map[string]interface{})
-		json.Unmarshal(complianceStatusJSON, &complianceStatus) //nolint:errcheck
-		complianceStats["complianceChecks"] = complianceStatus["Checks"]
-
-		// This is the information from collector provider
-		// Would be great to find a better pattern
-		if runnerVar != nil {
-			runnerStatsJSON := []byte(expvar.Get("runner").String())
-			runnerStats := make(map[string]interface{})
-			json.Unmarshal(runnerStatsJSON, &runnerStats) //nolint:errcheck
-			complianceStats["runnerStats"] = runnerStats
+// frameworkSummaries groups CheckStatus slices by framework and returns summaries sorted
+// by framework ID.
+func frameworkSummaries(checks []*CheckStatus) []frameworkSummary {
+	byID := map[string]*frameworkSummary{}
+	order := []string{}
+	for _, c := range checks {
+		s, ok := byID[c.Framework]
+		if !ok {
+			s = &frameworkSummary{ID: c.Framework, Version: c.Version, Source: c.Source}
+			byID[c.Framework] = s
+			order = append(order, c.Framework)
 		}
-	} else {
-		complianceStats["complianceChecks"] = map[string]interface{}{}
-		complianceStats["runnerStats"] = map[string]interface{}{}
+		s.Total++
+		if c.LastEvent == nil {
+			s.NotRun++
+			continue
+		}
+		switch c.LastEvent.Result {
+		case CheckPassed:
+			s.Passed++
+		case CheckFailed:
+			s.Failed++
+		case CheckError:
+			s.Error++
+		case CheckSkipped:
+			s.Skipped++
+		default:
+			s.NotRun++
+		}
+	}
+	result := make([]frameworkSummary, 0, len(order))
+	for _, id := range order {
+		result = append(result, *byID[id])
+	}
+	return result
+}
+
+// RenderStatusText renders the compliance status to text using the standard template.
+func (a *Agent) RenderStatusText() (string, error) {
+	var buf bytes.Buffer
+	if err := statusComp.RenderText(templatesFS, "compliance.tmpl", &buf, a.summaryStatusData()); err != nil {
+		return "", err
+	}
+	return buf.String(), nil
+}
+
+// summaryStatusData returns status data with per-framework summaries for the remote agent text view.
+func (a *Agent) summaryStatusData() map[string]interface{} {
+	complianceStats := map[string]interface{}{
+		"endpoints":          a.opts.Reporter.Endpoints().GetStatus(),
+		"frameworkSummaries": frameworkSummaries(a.getChecksStatus()),
+	}
+	return map[string]interface{}{
+		"complianceStatus": complianceStats,
+	}
+}
+
+// StatusData returns the compliance status as a map suitable for JSON serialization.
+func (a *Agent) StatusData() map[string]interface{} {
+	complianceStats := map[string]interface{}{
+		"endpoints":        a.opts.Reporter.Endpoints().GetStatus(),
+		"complianceChecks": a.getChecksStatus(),
+		"runnerStats":      map[string]interface{}{},
 	}
 
-	stats["complianceStatus"] = complianceStats
+	if runnerVar := expvar.Get("runner"); runnerVar != nil {
+		runnerStats := make(map[string]interface{})
+		if err := json.Unmarshal([]byte(runnerVar.String()), &runnerStats); err == nil {
+			complianceStats["runnerStats"] = runnerStats
+		}
+	}
+
+	return map[string]interface{}{
+		"complianceStatus": complianceStats,
+	}
+}
+
+func (s statusProvider) populateStatus(stats map[string]interface{}) {
+	for k, v := range s.agent.StatusData() {
+		stats[k] = v
+	}
 }
 
 func (s statusProvider) getStatus() map[string]interface{} {
-	stats := make(map[string]interface{})
-
-	s.populateStatus(stats)
-
-	return stats
+	return s.agent.StatusData()
 }
 
 // JSON populates the status map

@@ -8,13 +8,14 @@
 package appsec
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 )
 
 var (
 	// watchedChangesCounter tracks the number of changes detected by the appsec injector for watched resources
 	// Tags: proxy_type, operation, success
-	watchedChangesCounter = telemetry.NewCounterWithOpts(
+	watchedChangesCounter = telemetryimpl.GetCompatComponent().NewCounterWithOpts(
 		"appsec_injector",
 		"watched_changes",
 		[]string{"proxy_type", "operation", "success"},

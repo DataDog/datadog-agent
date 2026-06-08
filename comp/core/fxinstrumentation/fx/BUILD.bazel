@@ -1,0 +1,15 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "fx",
+    srcs = ["fx.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/fxinstrumentation/fx",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//pkg/util/fxutil",
+        "//pkg/util/fxutil/logging",
+        "@org_uber_go_fx//:fx",
+        "@org_uber_go_fx//fxevent",
+    ],
+)

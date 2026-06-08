@@ -13,7 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	filterlistdef "github.com/DataDog/datadog-agent/comp/filterlist/def"
 	rctypes "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
@@ -227,26 +227,7 @@ func (fl *FilterList) createHistogramsFilterList(metricNames []string) []string 
 // SetTagFilterList takes a map of metric names to tag configuration, hashes the
 // tags and stores the hashed configuration.
 func (fl *FilterList) SetTagFilterList(metricTags map[string]MetricTagList) {
-	hashedTags := make(map[string]hashedMetricTagList, len(metricTags))
-	for name, tags := range metricTags {
-		hashed := hashTags(tags.Tags)
-
-		var action action
-		if tags.Action == "exclude" {
-			action = exclude
-		} else {
-			action = include
-		}
-
-		hashedTags[name] = hashedMetricTagList{
-			action: action,
-			tags:   hashed,
-		}
-	}
-
-	fl.setTagFilterList(tagMatcher{
-		MetricTags: hashedTags,
-	})
+	fl.setTagFilterList(newTagMatcher(metricTags, fl.log))
 }
 
 func (fl *FilterList) setTagFilterList(metricTags tagMatcher) {

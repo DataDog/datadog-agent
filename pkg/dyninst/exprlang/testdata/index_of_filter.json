@@ -1,23 +1,29 @@
 {
-  "type": "unsupported",
-  "operation": "index",
-  "argument": [
-    {
-      "filter": [
-        {
-          "ref": "collection"
-        },
-        {
-          "gt": [
-            {
-              "ref": "@it"
-            },
-            2
-          ]
-        }
-      ]
-    },
-    0
-  ],
+  "type": "index",
+  "operation": "",
+  "left": {
+    "type": "unsupported",
+    "operation": "filter",
+    "argument": [
+      {
+        "ref": "collection"
+      },
+      {
+        "gt": [
+          {
+            "ref": "@it"
+          },
+          2
+        ]
+      }
+    ],
+    "error": ""
+  },
+  "right": {
+    "type": "literal",
+    "operation": "",
+    "value": 0,
+    "error": ""
+  },
   "error": ""
 }

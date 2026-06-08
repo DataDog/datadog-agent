@@ -20,7 +20,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
-	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
+	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/impl/utils"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -78,8 +78,8 @@ func TestGetStatus(t *testing.T) {
 	// when the datadog.yaml file is loaded
 	cfg := configmock.New(t)
 	env.SetFeatures(t)
-	cfg.SetWithoutSource("hostname", "test") // Prevents panic since feature detection has not run
-	cfg.SetWithoutSource("language_detection.enabled", true)
+	cfg.SetInTest("hostname", "test") // Prevents panic since feature detection has not run
+	cfg.SetInTest("language_detection.enabled", true)
 
 	expectedStatus := &Status{
 		Date: float64(testTime.UnixNano()),

@@ -14,7 +14,7 @@ import tempfile
 from invoke import task
 from invoke.exceptions import Exit
 
-from tasks import doc
+from tasks import core_checks, doc
 from tasks.build_tags import (
     compute_build_tags_for_flavor,
     get_default_build_tags,
@@ -31,8 +31,6 @@ from tasks.libs.common.utils import (
     REPO_PATH,
     bin_name,
     get_build_flags,
-    get_embedded_path,
-    get_goenv,
     get_version,
     gitlab_section,
 )
@@ -41,6 +39,8 @@ from tasks.rtloader import clean as rtloader_clean
 from tasks.rtloader import install as rtloader_install
 from tasks.rtloader import install_with_bazel as rtloader_install_with_bazel
 from tasks.rtloader import make as rtloader_make
+from tasks.schema.generate import compress as schema_compress
+from tasks.schema.template import CORE_SCHEMA_FILE, SYSPROBE_SCHEMA_FILE, generate_template
 from tasks.windows_resources import build_messagetable, build_rc, versioninfo_vars
 
 # constants
@@ -56,77 +56,13 @@ if sys.platform == "win32":
 else:
     AWS_CMD = "aws"
 
-AGENT_CORECHECKS = [
-    "container",
-    "containerd",
-    "container_image",
-    "container_lifecycle",
-    "cpu",
-    "cri",
-    "snmp",
-    "docker",
-    "file_handle",
-    "go_expvar",
-    "io",
-    "jmx",
-    "kubernetes_apiserver",
-    "load",
-    "memory",
-    "ntp",
-    "oom_kill",
-    "oracle",
-    "oracle-dbm",
-    "sbom",
-    "systemd",
-    "tcp_queue_length",
-    "uptime",
-    "jetson",
-    "telemetry",
-    "orchestrator_pod",
-    "orchestrator_kubelet_config",
-    "orchestrator_ecs",
-    "cisco_sdwan",
-    "network_path",
-    "gpu",
-    "wlan",
-    "discovery",
-    "versa",
-    "network_config_management",
-    "battery",
-    "cloud_hostinfo",
-]
-
-WINDOWS_CORECHECKS = [
-    "agentcrashdetect",
-    "sbom",
-    "windows_registry",
-    "winkmem",
-    "wincrashdetect",
-    "windows_certificate",
-    "winproc",
-    "win32_event_log",
-]
-
-IOT_AGENT_CORECHECKS = [
-    "cpu",
-    "disk",
-    "io",
-    "load",
-    "memory",
-    "network",
-    "ntp",
-    "uptime",
-    "systemd",
-    "jetson",
-]
-
 CACHED_WHEEL_FILENAME_PATTERN = "datadog_{integration}-*.whl"
 CACHED_WHEEL_DIRECTORY_PATTERN = "integration-wheels/{branch}/{hash}/{python_version}/"
 CACHED_WHEEL_FULL_PATH_PATTERN = CACHED_WHEEL_DIRECTORY_PATTERN + CACHED_WHEEL_FILENAME_PATTERN
 LAST_DIRECTORY_COMMIT_PATTERN = "git -C {integrations_dir} rev-list -1 HEAD {integration}"
 
 
-@task(iterable=['bundle'])
+@task
 @run_on_devcontainer
 def build(
     ctx,
@@ -145,8 +81,6 @@ def build(
     go_mod="readonly",
     windows_sysprobe=False,
     cmake_options='',
-    bundle=None,
-    bundle_ebpf=False,
     agent_bin=None,
     run_on=None,  # noqa: U100, F841. Used by the run_on_devcontainer decorator
     glibc=True,
@@ -161,7 +95,8 @@ def build(
     """
     flavor = AgentFlavor[flavor]
 
-    if not exclude_rtloader and not flavor.is_iot():
+    if not exclude_rtloader and not flavor.is_iot() and sys.platform != "aix":
+        # On AIX, rtloader is built natively in advance as a prerequisite.
         with gitlab_section("Install embedded rtloader", collapsed=True):
             if enable_bazel:
                 bazel_embedded = rtloader_install_with_bazel(ctx)
@@ -179,7 +114,6 @@ def build(
         python_home_3=python_home_3,
     )
 
-    bundled_agents = ["agent"]
     if sys.platform == 'win32' or os.getenv("GOOS") == "windows":
         # Important for x-compiling
         env["CGO_ENABLED"] = "1"
@@ -195,28 +129,17 @@ def build(
                 vars=vars,
                 out="cmd/agent/rsrc.syso",
             )
-    else:
-        bundled_agents += bundle or []
 
     if flavor.is_iot():
         # Iot mode overrides whatever passed through `--build-exclude` and `--build-include`
         build_tags = get_default_build_tags(build="agent", flavor=flavor)
     else:
-        all_tags = set()
-        if bundle_ebpf and "system-probe" in bundled_agents:
-            all_tags.add("ebpf_bindata")
-
-        for build in bundled_agents:
-            all_tags.add("bundle_" + build.replace("-", "_"))
-            build_tags = compute_build_tags_for_flavor(
-                build=build,
-                flavor=flavor,
-                build_include=build_include,
-                build_exclude=build_exclude,
-            )
-
-            all_tags |= set(build_tags)
-        build_tags = list(all_tags)
+        build_tags = compute_build_tags_for_flavor(
+            build="agent",
+            flavor=flavor,
+            build_include=build_include,
+            build_exclude=build_exclude,
+        )
 
     if not glibc:
         build_tags = list(set(build_tags).difference({"nvml"}))
@@ -225,6 +148,12 @@ def build(
         agent_bin = os.path.join(BIN_PATH, bin_name("agent"))
 
     flavor_cmd = "iot-agent" if flavor.is_iot() else "agent"
+
+    # AIX build hosts do not have bazel; the compressed schema files are
+    # committed to the repo and do not need regeneration there.
+    if sys.platform != "aix":
+        schema_compress(ctx)
+
     with gitlab_section("Build agent", collapsed=True):
         go_build(
             ctx,
@@ -241,27 +170,9 @@ def build(
             coverage=os.getenv("E2E_COVERAGE_PIPELINE") == "true",
         )
 
-    if embedded_path is None:
-        embedded_path = get_embedded_path(ctx)
-        assert embedded_path, "Failed to find embedded path"
-
-    for build in bundled_agents:
-        if build == "agent":
-            continue
-
-        bundled_agent_dir = os.path.join(BIN_DIR, build)
-        bundled_agent_bin = os.path.join(bundled_agent_dir, bin_name(build))
-        agent_fullpath = os.path.normpath(os.path.join(embedded_path, "..", "bin", "agent", bin_name("agent")))
-
-        if not os.path.exists(os.path.dirname(bundled_agent_bin)):
-            os.mkdir(os.path.dirname(bundled_agent_bin))
-
-        create_launcher(ctx, build, agent_fullpath, bundled_agent_bin)
-
     with gitlab_section("Generate configuration files", collapsed=True):
-        render_config(
+        generate_config_examples(
             ctx,
-            env=env,
             flavor=flavor,
             skip_assets=skip_assets,
             build_tags=build_tags,
@@ -270,36 +181,21 @@ def build(
         )
 
 
-def create_launcher(ctx, agent, src, dst):
-    cc = get_goenv(ctx, "CC")
-    if not cc:
-        print("Failed to find C compiler")
-        raise Exit(code=1)
-
-    cmd = "{cc} -DDD_AGENT_PATH='\"{agent_bin}\"' -DDD_AGENT='\"{agent}\"' -o {launcher_bin} ./cmd/agent/launcher/launcher.c"
-    args = {
-        "cc": cc,
-        "agent": agent,
-        "agent_bin": src,
-        "launcher_bin": dst,
-    }
-    ctx.run(cmd.format(**args))
+_PLATFORM_TO_OS_TARGET = {
+    "linux": "linux",
+    "win32": "windows",
+    "darwin": "darwin",
+}
 
 
-def render_config(ctx, env, flavor, skip_assets, build_tags, development, windows_sysprobe):
-    # Remove cross-compiling bits to render config
-    env.update({"GOOS": "", "GOARCH": ""})
+def generate_config_examples(ctx, flavor, skip_assets, build_tags, development, windows_sysprobe):
+    os_target = _PLATFORM_TO_OS_TARGET[sys.platform]
 
-    # Render the Agent configuration file template
-    build_type = "agent-py3"
-    if flavor.is_iot():
-        build_type = "iot-agent"
+    build_type = "iot-agent" if flavor.is_iot() else "agent-py3"
+    generate_template(CORE_SCHEMA_FILE, "./cmd/agent/dist/datadog.yaml", build_type, os_target)
 
-    generate_config(ctx, build_type=build_type, output_file="./cmd/agent/dist/datadog.yaml", env=env)
-
-    # On Linux and MacOS, render the system-probe configuration file template
     if sys.platform != 'win32' or windows_sysprobe:
-        generate_config(ctx, build_type="system-probe", output_file="./cmd/agent/dist/system-probe.yaml", env=env)
+        generate_template(SYSPROBE_SCHEMA_FILE, "./cmd/agent/dist/system-probe.yaml", "system-probe", os_target)
 
     if not skip_assets:
         refresh_assets(ctx, build_tags, development=development, flavor=flavor.name, windows_sysprobe=windows_sysprobe)
@@ -311,9 +207,8 @@ def refresh_assets(_, build_tags, development=True, flavor=AgentFlavor.base.name
     Clean up and refresh Collector's assets and config files
     """
     flavor = AgentFlavor[flavor]
-    # ensure BIN_PATH exists
-    if not os.path.exists(BIN_PATH):
-        os.mkdir(BIN_PATH)
+    # ensure BIN_PATH exists (makedirs handles missing parents, e.g. on AIX build hosts)
+    os.makedirs(BIN_PATH, exist_ok=True)
 
     dist_folder = os.path.join(BIN_PATH, "dist")
     if os.path.exists(dist_folder):
@@ -345,7 +240,13 @@ def refresh_assets(_, build_tags, development=True, flavor=AgentFlavor.base.name
         shutil.copy("./cmd/agent/dist/system-probe.yaml", os.path.join(dist_folder, "system-probe.yaml"))
     shutil.copy("./cmd/agent/dist/datadog.yaml", os.path.join(dist_folder, "datadog.yaml"))
 
-    for check in AGENT_CORECHECKS if not flavor.is_iot() else IOT_AGENT_CORECHECKS:
+    if sys.platform.startswith('aix'):
+        checks_to_copy = core_checks.AIX_CORECHECKS
+    elif flavor.is_iot():
+        checks_to_copy = core_checks.IOT_AGENT_CORECHECKS
+    else:
+        checks_to_copy = core_checks.AGENT_CORECHECKS
+    for check in checks_to_copy:
         check_dir = os.path.join(dist_folder, f"conf.d/{check}.d/")
         shutil.copytree(
             f"./cmd/agent/dist/conf.d/{check}.d/",
@@ -359,7 +260,7 @@ def refresh_assets(_, build_tags, development=True, flavor=AgentFlavor.base.name
     # add additional windows-only corechecks, only on windows. Otherwise the check loader
     # on linux will throw an error because the module is not found, but the config is.
     if sys.platform == 'win32':
-        for check in WINDOWS_CORECHECKS:
+        for check in core_checks.WINDOWS_CORECHECKS:
             check_dir = os.path.join(dist_folder, f"conf.d/{check}.d/")
             shutil.copytree(
                 f"./cmd/agent/dist/conf.d/{check}.d/",
@@ -376,7 +277,7 @@ def refresh_assets(_, build_tags, development=True, flavor=AgentFlavor.base.name
         )
 
     shutil.copytree(
-        "./comp/core/gui/guiimpl/views/private",
+        "./comp/core/gui/impl/views/private",
         os.path.join(dist_folder, "views"),
         ignore=shutil.ignore_patterns("BUILD.bazel"),
         dirs_exist_ok=True,
@@ -520,7 +421,7 @@ def hacky_dev_image_build(
 
         # Try to guess what is the latest release of the agent
         latest_release = semver.VersionInfo(0)
-        tags = requests.get("https://gcr.io/v2/datadoghq/agent/tags/list", timeout=10)
+        tags = requests.get("https://registry.datadoghq.com/v2/agent/tags/list", timeout=10)
         for tag in tags.json()['tags']:
             if not semver.VersionInfo.isvalid(tag):
                 continue
@@ -529,7 +430,7 @@ def hacky_dev_image_build(
                 continue
             if ver > latest_release:
                 latest_release = ver
-        base_image = f"gcr.io/datadoghq/agent:{latest_release}"
+        base_image = f"registry.datadoghq.com/agent:{latest_release}"
 
     # Extract the python library of the docker image
     with tempfile.TemporaryDirectory() as extracted_python_dir:
@@ -641,7 +542,7 @@ RUN patchelf --set-rpath /opt/datadog-agent/embedded/lib /opt/datadog-agent/embe
 
 FROM golang:latest AS dlv
 
-RUN go install github.com/go-delve/delve/cmd/dlv@latest
+RUN go install github.com/go-delve/delve/cmd/dlv@v1.26.0
 
 FROM {base_image} AS bash_completion
 
@@ -752,6 +653,24 @@ def check_supports_python_version(check_dir, python):
         return False
 
 
+def _load_manifest_platform_overrides(integrations_dir):
+    """
+    Read [overrides.manifest.platforms] from <integrations_dir>/.ddev/config.toml.
+
+    Returns a mapping of integration folder -> list of supported platform strings
+    (e.g. "linux", "windows", "mac_os"). Used as a fallback for integrations that
+    no longer ship a manifest.json.
+    """
+    import toml
+
+    config_path = os.path.join(integrations_dir, '.ddev', 'config.toml')
+    if not os.path.isfile(config_path):
+        return {}
+    with open(config_path) as f:
+        config = toml.load(f)
+    return config.get('overrides', {}).get('manifest', {}).get('platforms', {}) or {}
+
+
 @task
 def collect_integrations(_, integrations_dir, python_version, target_os, excluded):
     """
@@ -761,6 +680,7 @@ def collect_integrations(_, integrations_dir, python_version, target_os, exclude
     """
     import json
 
+    manifest_overrides = _load_manifest_platform_overrides(integrations_dir)
     integrations = []
 
     for entry in os.listdir(integrations_dir):
@@ -770,21 +690,24 @@ def collect_integrations(_, integrations_dir, python_version, target_os, exclude
 
         manifest_file_path = os.path.join(int_path, "manifest.json")
 
-        # If there is no manifest file, then we should assume the folder does not
-        # contain a working check and move onto the next
-        if not os.path.exists(manifest_file_path):
-            continue
+        if os.path.exists(manifest_file_path):
+            with open(manifest_file_path) as f:
+                manifest = json.load(f)
 
-        with open(manifest_file_path) as f:
-            manifest = json.load(f)
+            # Figure out whether the integration is supported on the target OS
+            if target_os == 'mac_os':
+                tag = 'Supported OS::macOS'
+            else:
+                tag = f'Supported OS::{target_os.capitalize()}'
 
-        # Figure out whether the integration is supported on the target OS
-        if target_os == 'mac_os':
-            tag = 'Supported OS::macOS'
+            if tag not in manifest['tile']['classifier_tags']:
+                continue
+        elif entry in manifest_overrides:
+            # No manifest.json; fall back to .ddev/config.toml [overrides.manifest.platforms]
+            if target_os not in manifest_overrides[entry]:
+                continue
         else:
-            tag = f'Supported OS::{target_os.capitalize()}'
-
-        if tag not in manifest['tile']['classifier_tags']:
+            # No manifest file and no override -> assume the folder is not a working check
             continue
 
         if not check_supports_python_version(int_path, python_version):
@@ -974,26 +897,6 @@ def upload_integration_to_cache(ctx, python, bucket, branch, integrations_dir, b
     ) + os.path.basename(wheel_path)
     print(f"Caching wheel {target_name}")
     ctx.run(f"{AWS_CMD} s3 cp {wheel_path} s3://{bucket}/{target_name} --acl public-read")
-
-
-@task()
-def generate_config(ctx, build_type, output_file, env=None):
-    """
-    Generates the datadog.yaml configuration file.
-    """
-    args = {
-        "go_file": "./pkg/config/render_config/render_config.go",
-        "build_type": build_type,
-        "template_file": "./pkg/config/config_template.yaml",
-        "output_file": output_file,
-    }
-    if build_type == "system-probe":
-        args["template_file"] = "./pkg/config/system-probe_template.yaml"
-    elif build_type == "security-agent":
-        args["template_file"] = "./pkg/config/security-agent_template.yaml"
-
-    cmd = "go run {go_file} {build_type} {template_file} {output_file}"
-    return ctx.run(cmd.format(**args), env=env or {})
 
 
 @task()

@@ -5,7 +5,7 @@
 
 //go:build ignore || generate
 
-//go:generate go run golang.org/x/tools/cmd/stringer@latest -output kprobe_types_string_linux.go -type=CudaEventType -linecomment
+//go:generate go run golang.org/x/tools/cmd/stringer -output kprobe_types_string_linux.go -type=CudaEventType -linecomment
 
 package ebpf
 

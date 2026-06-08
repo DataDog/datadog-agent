@@ -12,6 +12,7 @@ import (
 
 	"github.com/cilium/ebpf/rlimit"
 
+	"github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/prebuilt"
 	"github.com/DataDog/datadog-agent/pkg/util/funcs"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -59,6 +60,7 @@ func TestBuildMode(t *testing.T, mode BuildMode, name string, fn func(t *testing
 		for k, v := range mode.Env() {
 			t.Setenv(k, v)
 		}
+		_ = mock.NewSystemProbe(t)
 		if name != "" {
 			t.Run(name, fn)
 		} else {

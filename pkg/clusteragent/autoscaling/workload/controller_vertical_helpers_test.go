@@ -374,6 +374,110 @@ func TestShouldTriggerRollout_FirstTriggerNoLastAction(t *testing.T) {
 	assert.Equal(t, rolloutDecisionTrigger, decision)
 }
 
+// TestShouldTriggerRollout_BurstableTransitionBypassesOngoingRollout verifies that
+// switching from non-burstable to burstable mode triggers a new rollout even when
+// one is already in progress. applyVerticalConstraints stamps removeLimitSentinel (-1) on
+// the CPU limit when burstable=true, so hasLimitIncrease sees Sign() <= 0 ("no CPU limit")
+// in the recommendation while the pod still has one → limit increase → bypass fires.
+func TestShouldTriggerRollout_BurstableTransitionBypassesOngoingRollout(t *testing.T) {
+	baseHash := "abc123"
+	// After applyVerticalConstraints with burstable=true the hash changes; simulate
+	// a new recommendation ID distinct from the old one.
+	newRecommendationID := baseHash + "-new"
+	cpuLimit := float64(50) // 500m
+
+	// Pod is still on the non-burstable recommendation
+	pods := []*workloadmeta.KubernetesPod{
+		{
+			EntityMeta: workloadmeta.EntityMeta{
+				Name:        "pod-1",
+				Annotations: map[string]string{model.RecommendationIDAnnotation: baseHash},
+			},
+			Containers: []workloadmeta.OrchestratorContainer{
+				{
+					Name:      "app",
+					Resources: workloadmeta.ContainerResources{CPULimit: &cpuLimit},
+				},
+			},
+		},
+	}
+	podsPerRecommendationID := map[string]int32{baseHash: 1, newRecommendationID: 0}
+
+	// applyVerticalConstraints has already stamped removeLimitSentinel (-1) on the CPU limit,
+	// signalling "remove this limit from the pod" (burstable mode).
+	recommendation := &model.VerticalScalingValues{
+		ContainerResources: []datadoghqcommon.DatadogPodAutoscalerContainerResources{
+			{
+				Name:     "app",
+				Requests: corev1.ResourceList{"cpu": resource.MustParse("250m")},
+				Limits:   corev1.ResourceList{"cpu": resource.MustParse("-1")}, // removeLimitSentinel
+			},
+		},
+	}
+
+	lastAction := &datadoghqcommon.DatadogPodAutoscalerVerticalAction{
+		Time:    metav1.NewTime(time.Now().Add(-15 * time.Minute)),
+		Version: baseHash,
+		Type:    datadoghqcommon.DatadogPodAutoscalerRolloutTriggeredVerticalActionType,
+	}
+
+	decision := shouldTriggerRollout(
+		newRecommendationID,
+		pods,
+		podsPerRecommendationID,
+		lastAction,
+		true, // rollout in progress
+		recommendation,
+		time.Now(),
+		5*time.Minute,
+		"test-autoscaler",
+	)
+
+	// Must trigger: removeLimitSentinel (-1) means CPU limit is removed (unlimited > 500m = limit increase)
+	assert.Equal(t, rolloutDecisionTrigger, decision)
+}
+
+// TestHasLimitIncrease_BurstableRemovesCPULimit verifies that when applyVerticalConstraints
+// stamps removeLimitSentinel (-1) on the CPU limit (burstable mode), hasLimitIncrease correctly
+// detects a limit increase: the pod has a CPU limit but the recommendation removes it.
+func TestHasLimitIncrease_BurstableRemovesCPULimit(t *testing.T) {
+	cpuLimit := float64(50) // 500m
+	pods := []*workloadmeta.KubernetesPod{
+		{
+			EntityMeta: workloadmeta.EntityMeta{
+				Name: "pod-1", Namespace: "default",
+				Annotations: map[string]string{model.RecommendationIDAnnotation: "hash"},
+			},
+			Containers: []workloadmeta.OrchestratorContainer{
+				{Name: "app", Resources: workloadmeta.ContainerResources{CPULimit: &cpuLimit}},
+			},
+		},
+	}
+
+	// Without sentinel: same CPU limit as pod → no increase
+	notBurstable := &model.VerticalScalingValues{
+		ContainerResources: []datadoghqcommon.DatadogPodAutoscalerContainerResources{
+			{
+				Name:   "app",
+				Limits: corev1.ResourceList{"cpu": resource.MustParse("500m")},
+			},
+		},
+	}
+	assert.False(t, hasLimitIncrease(notBurstable, pods, "hash-v2"))
+
+	// With removeLimitSentinel (-1) (set by applyVerticalConstraints in burstable mode):
+	// CPU limit Sign() < 0 → treated as absent → pod has CPU limit → limit increase
+	burstable := &model.VerticalScalingValues{
+		ContainerResources: []datadoghqcommon.DatadogPodAutoscalerContainerResources{
+			{
+				Name:   "app",
+				Limits: corev1.ResourceList{"cpu": resource.MustParse("-1")}, // removeLimitSentinel
+			},
+		},
+	}
+	assert.True(t, hasLimitIncrease(burstable, pods, "hash-v3"))
+}
+
 // Tests for applyVerticalConstraints
 
 func TestApplyVerticalConstraints_NoModification(t *testing.T) {
@@ -389,12 +493,12 @@ func TestApplyVerticalConstraints_NoModification(t *testing.T) {
 	}
 
 	// Nil constraints
-	limitErr, err := applyVerticalConstraints(vertical, nil)
+	limitErr, err := applyVerticalConstraints(vertical, nil, false)
 	assert.NoError(t, err)
 	assert.NoError(t, limitErr)
 
 	// Empty container list
-	limitErr, err = applyVerticalConstraints(vertical, &datadoghqcommon.DatadogPodAutoscalerConstraints{})
+	limitErr, err = applyVerticalConstraints(vertical, &datadoghqcommon.DatadogPodAutoscalerConstraints{}, false)
 	assert.NoError(t, err)
 	assert.NoError(t, limitErr)
 
@@ -403,7 +507,7 @@ func TestApplyVerticalConstraints_NoModification(t *testing.T) {
 		Containers: []datadoghqcommon.DatadogPodAutoscalerContainerConstraints{
 			{Name: "other-container", MinAllowed: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("2")}},
 		},
-	})
+	}, false)
 	assert.NoError(t, err)
 	assert.NoError(t, limitErr)
 
@@ -416,7 +520,7 @@ func TestApplyVerticalConstraints_NoModification(t *testing.T) {
 				MaxAllowed: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("2"), corev1.ResourceMemory: resource.MustParse("1Gi")},
 			},
 		},
-	})
+	}, false)
 	assert.NoError(t, err)
 	assert.NoError(t, limitErr)
 
@@ -530,7 +634,7 @@ func TestApplyVerticalConstraints_AllFeatures(t *testing.T) {
 		},
 	}
 
-	limitErr, err := applyVerticalConstraints(vertical, constraints)
+	limitErr, err := applyVerticalConstraints(vertical, constraints, false)
 	require.NoError(t, err)
 
 	// "disabled" and "empty-controlled" should be removed -> 4 containers left
@@ -601,7 +705,7 @@ func TestApplyVerticalConstraints_ValidationErrors(t *testing.T) {
 			{Name: "app", MinAllowed: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("100m")}},
 			{Name: "app", MaxAllowed: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("2")}},
 		},
-	})
+	}, false)
 	require.Error(t, err)
 	var condErr autoscaling.ConditionReason
 	require.ErrorAs(t, err, &condErr)
@@ -614,7 +718,7 @@ func TestApplyVerticalConstraints_ValidationErrors(t *testing.T) {
 			{Name: "*", MinAllowed: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("50m")}},
 			{Name: "*", MaxAllowed: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("4")}},
 		},
-	})
+	}, false)
 	require.Error(t, err)
 	require.ErrorAs(t, err, &condErr)
 	assert.Equal(t, autoscaling.ConditionReasonInvalidSpec, condErr.Reason())
@@ -655,4 +759,55 @@ func TestFromAutoscalerToContainerResourcePatches_PreservesPodOrder(t *testing.T
 	assert.Equal(t, "c1", patches[0].Name, "patch order must follow pod container order")
 	assert.Equal(t, "c2", patches[1].Name)
 	assert.Equal(t, "c3", patches[2].Name)
+}
+
+func TestFromAutoscalerToContainerResourcePatches_Burstable(t *testing.T) {
+	sv := &model.VerticalScalingValues{
+		ResourcesHash: "r1",
+		ContainerResources: []datadoghqcommon.DatadogPodAutoscalerContainerResources{
+			{
+				Name:     "app",
+				Requests: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("250m")},
+				Limits:   corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("500m"), corev1.ResourceMemory: resource.MustParse("512Mi")},
+			},
+		},
+	}
+
+	pod := &workloadmeta.KubernetesPod{
+		EntityID:   workloadmeta.EntityID{ID: "pod1"},
+		Containers: []workloadmeta.OrchestratorContainer{{Name: "app"}},
+	}
+
+	t.Run("burstable: cpu removed from limits, LimitsToDelete set", func(t *testing.T) {
+		ai := (&model.FakePodAutoscalerInternal{
+			Namespace:            "default",
+			Name:                 "ai",
+			ScalingValues:        model.ScalingValues{Vertical: sv},
+			PreviewAnnotationKey: `{"burstable":true}`,
+		}).Build()
+
+		patches := fromAutoscalerToContainerResourcePatches(&ai, pod)
+
+		require.Len(t, patches, 1)
+		p := patches[0]
+		assert.Equal(t, "app", p.Name)
+		assert.NotContains(t, p.Limits, "cpu", "cpu must not be set in limits when burstable")
+		assert.Equal(t, "512Mi", p.Limits["memory"], "memory limit must be unchanged")
+		assert.Equal(t, []string{"cpu"}, p.LimitsToDelete, "cpu must be listed for deletion")
+	})
+
+	t.Run("non-burstable: cpu limit set normally, LimitsToDelete empty", func(t *testing.T) {
+		ai := (&model.FakePodAutoscalerInternal{
+			Namespace:     "default",
+			Name:          "ai",
+			ScalingValues: model.ScalingValues{Vertical: sv},
+		}).Build()
+
+		patches := fromAutoscalerToContainerResourcePatches(&ai, pod)
+
+		require.Len(t, patches, 1)
+		p := patches[0]
+		assert.Equal(t, "500m", p.Limits["cpu"], "cpu limit must be set when not burstable")
+		assert.Empty(t, p.LimitsToDelete, "LimitsToDelete must be empty when not burstable")
+	})
 }

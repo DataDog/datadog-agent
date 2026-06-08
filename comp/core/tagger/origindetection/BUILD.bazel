@@ -11,5 +11,6 @@ go_test(
     name = "origindetection_test",
     srcs = ["origindetection_test.go"],
     embed = [":origindetection"],
+    gotags = ["test"],
     deps = ["@com_github_stretchr_testify//assert"],
 )

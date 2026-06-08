@@ -9,6 +9,8 @@ package nvidia
 
 import (
 	"fmt"
+	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
@@ -17,6 +19,25 @@ import (
 // SetStatsForTest replaces the cached stats. Intended for testing only.
 func (c *SystemProbeCache) SetStatsForTest(stats *model.GPUStats) {
 	c.stats = stats
+}
+
+// SetCountersForTest replaces the cached PRM counters. Intended for testing only.
+func (c *PRMCache) SetCountersForTest(deviceUUID string, port int, counters map[string]uint64) {
+	if c.responses == nil {
+		c.responses = map[prmCacheKey]prmCacheEntry{}
+	}
+	c.responses[prmCacheKey{deviceUUID: deviceUUID, port: port}] = prmCacheEntry{counters: counters}
+}
+
+// WithDeviceEventsSetWaitTimeoutForTest temporarily overrides the event wait
+// timeout used by the async gatherer worker, restoring the previous value on cleanup.
+func WithDeviceEventsSetWaitTimeoutForTest(t testing.TB, timeout time.Duration) {
+	t.Helper()
+	prev := eventSetWaitTimeout
+	eventSetWaitTimeout = timeout
+	t.Cleanup(func() {
+		eventSetWaitTimeout = prev
+	})
 }
 
 // InjectEventsForTest pushes events directly into the pending queue for a registered device.
@@ -36,4 +57,10 @@ func (c *DeviceEventsGatherer) InjectEventsForTest(deviceUUID string, events []d
 	}
 
 	return nil
+}
+
+// NumCollectors returns the number of collectors that are present. Useful only in testing
+// for asserting that the collector creation process is correct.
+func NumCollectors() int {
+	return len(factory)
 }

@@ -1,0 +1,6 @@
+---
+enhancements:
+  - |
+    The Private Action Runner now retries self-enrollment and auto-connection
+    creation requests when the Datadog API returns a transient ``5xx``
+    response.

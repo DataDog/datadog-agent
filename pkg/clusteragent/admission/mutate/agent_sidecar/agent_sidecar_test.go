@@ -29,7 +29,7 @@ const commonRegistry = "gcr.io/datadoghq"
 
 func TestInjectAgentSidecar(t *testing.T) {
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("admission_controller.agent_sidecar.container_registry", commonRegistry)
+	mockConfig.SetInTest("admission_controller.agent_sidecar.container_registry", commonRegistry)
 	tests := []struct {
 		Name                      string
 		Pod                       *corev1.Pod
@@ -652,11 +652,11 @@ func TestInjectAgentSidecar(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.Name, func(tt *testing.T) {
 			mockConfig := configmock.New(t)
-			mockConfig.SetWithoutSource("admission_controller.agent_sidecar.provider", test.provider)
-			mockConfig.SetWithoutSource("admission_controller.agent_sidecar.kubelet_api_logging.enabled", test.KubernetesAPILogging)
-			mockConfig.SetWithoutSource("admission_controller.agent_sidecar.profiles", test.profilesJSON)
-			mockConfig.SetWithoutSource("admission_controller.agent_sidecar.cluster_agent.tls_verification.enabled", test.TLSEnabled)
-			mockConfig.SetWithoutSource("admission_controller.agent_sidecar.cluster_agent.tls_verification.copy_ca_configmap", test.TLSCopyCAConfigMap)
+			mockConfig.SetInTest("admission_controller.agent_sidecar.provider", test.provider)
+			mockConfig.SetInTest("admission_controller.agent_sidecar.kubelet_api_logging.enabled", test.KubernetesAPILogging)
+			mockConfig.SetInTest("admission_controller.agent_sidecar.profiles", test.profilesJSON)
+			mockConfig.SetInTest("admission_controller.agent_sidecar.cluster_agent.tls_verification.enabled", test.TLSEnabled)
+			mockConfig.SetInTest("admission_controller.agent_sidecar.cluster_agent.tls_verification.copy_ca_configmap", test.TLSCopyCAConfigMap)
 
 			webhook := NewWebhook(mockConfig)
 
@@ -705,9 +705,9 @@ func TestDefaultSidecarTemplateAgentImage(t *testing.T) {
 			containerRegistry: "my-registry",
 			setConfig: func() model.Config {
 				mockConfig := configmock.New(t)
-				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.container_registry", "my-registry")
-				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.image_name", "my-image")
-				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.image_tag", "my-tag")
+				mockConfig.SetInTest("admission_controller.agent_sidecar.container_registry", "my-registry")
+				mockConfig.SetInTest("admission_controller.agent_sidecar.image_name", "my-image")
+				mockConfig.SetInTest("admission_controller.agent_sidecar.image_tag", "my-tag")
 				return mockConfig
 			},
 			expectedImage: "my-registry/my-image:my-tag",
@@ -735,8 +735,8 @@ func TestDefaultSidecarTemplateClusterAgentEnvVars(t *testing.T) {
 			name: "cluster agent not enabled",
 			setConfig: func() model.Config {
 				mockConfig := configmock.New(t)
-				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.cluster_agent.enabled", false)
-				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.container_registry", commonRegistry)
+				mockConfig.SetInTest("admission_controller.agent_sidecar.cluster_agent.enabled", false)
+				mockConfig.SetInTest("admission_controller.agent_sidecar.container_registry", commonRegistry)
 				return mockConfig
 			},
 			expectedEnvVars: []corev1.EnvVar{
@@ -756,8 +756,8 @@ func TestDefaultSidecarTemplateClusterAgentEnvVars(t *testing.T) {
 			name: "cluster agent enabled with default values",
 			setConfig: func() model.Config {
 				mockConfig := configmock.New(t)
-				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.cluster_agent.enabled", true)
-				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.container_registry", commonRegistry)
+				mockConfig.SetInTest("admission_controller.agent_sidecar.cluster_agent.enabled", true)
+				mockConfig.SetInTest("admission_controller.agent_sidecar.container_registry", commonRegistry)
 				return mockConfig
 			},
 			expectedEnvVars: []corev1.EnvVar{
@@ -794,9 +794,9 @@ func TestDefaultSidecarTemplateClusterAgentEnvVars(t *testing.T) {
 			name: "cluster agent enabled with language derection enabled",
 			setConfig: func() model.Config {
 				mockConfig := configmock.New(t)
-				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.cluster_agent.enabled", true)
-				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.container_registry", commonRegistry)
-				mockConfig.SetWithoutSource("language_detection.enabled", true)
+				mockConfig.SetInTest("admission_controller.agent_sidecar.cluster_agent.enabled", true)
+				mockConfig.SetInTest("admission_controller.agent_sidecar.container_registry", commonRegistry)
+				mockConfig.SetInTest("language_detection.enabled", true)
 				return mockConfig
 			},
 			expectedEnvVars: []corev1.EnvVar{
@@ -833,11 +833,11 @@ func TestDefaultSidecarTemplateClusterAgentEnvVars(t *testing.T) {
 			name: "cluster agent enabled with custom values",
 			setConfig: func() model.Config {
 				mockConfig := configmock.New(t)
-				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.cluster_agent.enabled", true)
-				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.container_registry", commonRegistry)
-				mockConfig.SetWithoutSource("cluster_agent.cmd_port", 12345)
-				mockConfig.SetWithoutSource("cluster_agent.kubernetes_service_name", "test-service-name")
-				mockConfig.SetWithoutSource("language_detection.enabled", "false")
+				mockConfig.SetInTest("admission_controller.agent_sidecar.cluster_agent.enabled", true)
+				mockConfig.SetInTest("admission_controller.agent_sidecar.container_registry", commonRegistry)
+				mockConfig.SetInTest("cluster_agent.cmd_port", 12345)
+				mockConfig.SetInTest("cluster_agent.kubernetes_service_name", "test-service-name")
+				mockConfig.SetInTest("language_detection.enabled", "false")
 				return mockConfig
 			},
 			expectedEnvVars: []corev1.EnvVar{
@@ -950,7 +950,7 @@ func TestIsReadOnlyRootFilesystem(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(tt *testing.T) {
 			mockConfig := configmock.New(t)
-			mockConfig.SetWithoutSource("admission_controller.agent_sidecar.profiles", test.profile)
+			mockConfig.SetInTest("admission_controller.agent_sidecar.profiles", test.profile)
 			webhook := NewWebhook(mockConfig)
 			sidecar := webhook.getDefaultSidecarTemplate()
 

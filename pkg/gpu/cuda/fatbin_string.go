@@ -17,9 +17,9 @@ const _fatbinDataKind_name = "fatbinDataKindPtxfatbinDataKindSm"
 var _fatbinDataKind_index = [...]uint8{0, 17, 33}
 
 func (i fatbinDataKind) String() string {
-	i -= 1
-	if i >= fatbinDataKind(len(_fatbinDataKind_index)-1) {
-		return "fatbinDataKind(" + strconv.FormatInt(int64(i+1), 10) + ")"
+	idx := int(i) - 1
+	if i < 1 || idx >= len(_fatbinDataKind_index)-1 {
+		return "fatbinDataKind(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _fatbinDataKind_name[_fatbinDataKind_index[i]:_fatbinDataKind_index[i+1]]
+	return _fatbinDataKind_name[_fatbinDataKind_index[idx]:_fatbinDataKind_index[idx+1]]
 }

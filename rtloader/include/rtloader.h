@@ -114,6 +114,14 @@ public:
                           const char *provider, RtLoaderPyObject *&check)
         = 0;
 
+    //! Pure virtual discoverConfig member.
+    /*!
+      \param py_class The python check class we wish to run discovery against.
+      \param service_json A JSON C-string containing service metadata for discovery.
+      \return A C-string with the JSON serialized discovered configs, or NULL on error.
+    */
+    virtual char *discoverConfig(RtLoaderPyObject *py_class, const char *service_json) = 0;
+
     //! Pure virtual runCheck member.
     /*!
       \param check The python object pointer to the check we wish to run.

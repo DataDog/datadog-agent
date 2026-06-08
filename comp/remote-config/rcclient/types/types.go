@@ -12,6 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"go.uber.org/fx"
 )
 
@@ -59,6 +60,16 @@ type RCAgentTaskListener func(taskType TaskType, task AgentTaskConfig) (bool, er
 
 // RCListener is the generic type for components to register a callback for any product
 type RCListener map[data.Product]func(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus))
+
+// FilterListeners removes nil/zero values from an fx group of RCListener.
+func FilterListeners(group []RCListener) []RCListener {
+	return fxutil.GetAndFilterGroup(group)
+}
+
+// FilterTaskListeners removes nil/zero values from an fx group of RCAgentTaskListener.
+func FilterTaskListeners(group []RCAgentTaskListener) []RCAgentTaskListener {
+	return fxutil.GetAndFilterGroup(group)
+}
 
 // TaskListenerProvider defines component that can receive RC updates
 type TaskListenerProvider struct {

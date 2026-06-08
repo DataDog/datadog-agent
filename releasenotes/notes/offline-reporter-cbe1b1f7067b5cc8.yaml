@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    New gauge metric ``datadog.dogstatsd.offline_duration`` reports how long (in seconds)
+    the DogStatsD server was offline between the previous shutdown and the current startup.
+    Enable with ``telemetry.offlinereporter.enabled: true`` (disabled by default).

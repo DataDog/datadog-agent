@@ -21,6 +21,10 @@ type dockerStreamMatcher struct {
 	contentLenLimit int
 }
 
+// FlushFrame implements FrameMatcher. Partial docker stream data is not
+// emitted at end-of-stream.
+func (s *dockerStreamMatcher) FlushFrame([]byte) ([]byte, int) { return nil, 0 }
+
 // FindFrame implements FrameMatcher#FindFrame.
 func (s *dockerStreamMatcher) FindFrame(buf []byte, seen int) ([]byte, int, bool) {
 	for i := seen; i < len(buf); i++ {

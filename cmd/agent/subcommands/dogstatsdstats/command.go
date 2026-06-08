@@ -11,7 +11,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"os"
+	"strconv"
 
 	"go.uber.org/fx"
 
@@ -22,7 +24,7 @@ import (
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/serverdebugimpl"
+	serverdebugimpl "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/impl"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/input"
@@ -77,7 +79,7 @@ func requestDogstatsdStats(_ log.Component, config config.Component, cliParams *
 	if err != nil {
 		return err
 	}
-	urlstr := fmt.Sprintf("https://%v:%v/agent/dogstatsd-stats", ipcAddress, pkgconfigsetup.Datadog().GetInt("cmd_port"))
+	urlstr := fmt.Sprintf("https://%s/agent/dogstatsd-stats", net.JoinHostPort(ipcAddress, strconv.Itoa(pkgconfigsetup.Datadog().GetInt("cmd_port"))))
 
 	r, e := client.Get(urlstr, ipchttp.WithLeaveConnectionOpen)
 	if e != nil {

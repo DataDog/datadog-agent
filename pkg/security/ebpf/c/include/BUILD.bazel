@@ -14,3 +14,9 @@ filegroup(
     srcs = _SECURITY_HDRS,
     visibility = ["//visibility:public"],
 )
+
+# bpf_maps_generator (//bazel/rules/cws_codegen:defs.bzl) consumes maps.h directly.
+exports_files(
+    ["maps.h"],
+    visibility = ["//pkg/security/secl/model:__pkg__"],
+)

@@ -1,0 +1,28 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "pathteststore",
+    srcs = ["pathteststore.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/impl/pathteststore",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/log/def",
+        "//comp/networkpath/npcollector/impl/common",
+        "@com_github_datadog_datadog_go_v5//statsd",
+        "@org_golang_x_time//rate",
+    ],
+)
+
+go_test(
+    name = "pathteststore_test",
+    srcs = ["pathteststore_test.go"],
+    embed = [":pathteststore"],
+    gotags = ["test"],
+    deps = [
+        "//comp/core/log/mock",
+        "//comp/networkpath/npcollector/impl/common",
+        "//pkg/util/log",
+        "@com_github_datadog_datadog_go_v5//statsd",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

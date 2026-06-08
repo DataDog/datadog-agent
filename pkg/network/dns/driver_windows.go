@@ -20,7 +20,7 @@ import (
 
 	"golang.org/x/sys/windows"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"github.com/DataDog/datadog-agent/pkg/network/driver"
 	"github.com/DataDog/datadog-agent/pkg/network/filter"
 )
@@ -85,12 +85,12 @@ func (d *dnsDriver) setupDNSHandle(telemetrycomp telemetry.Component, dnsMonitor
 func (d *dnsDriver) SetDataFilters(filters []driver.FilterDefinition) error {
 	var id int64
 	for _, filter := range filters {
-		err := d.h.DeviceIoControl(
+		_, err := d.h.SynchronousDeviceIoControl(
 			driver.SetDataFilterIOCTL,
 			(*byte)(unsafe.Pointer(&filter)),
 			uint32(unsafe.Sizeof(filter)),
 			(*byte)(unsafe.Pointer(&id)),
-			uint32(unsafe.Sizeof(id)), nil, nil)
+			uint32(unsafe.Sizeof(id)))
 		if err != nil {
 			return fmt.Errorf("failed to set filter: %v", err)
 		}

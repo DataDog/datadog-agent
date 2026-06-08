@@ -10,30 +10,36 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	privateactionrunner "github.com/DataDog/datadog-agent/comp/privateactionrunner/def"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
+	rcclient "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/parversion"
 	pkgrcclient "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/rcclient"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/autoconnections"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/enrollment"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/observability"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/runners"
 	taskverifier "github.com/DataDog/datadog-agent/pkg/privateactionrunner/task-verifier"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 )
 
@@ -56,6 +62,7 @@ type Requires struct {
 	Tagger        tagger.Component
 	Traceroute    traceroute.Component
 	EventPlatform eventplatform.Component
+	IPC           ipc.Component
 }
 
 // Provides defines the output of the privateactionrunner component
@@ -71,9 +78,12 @@ type PrivateActionRunner struct {
 	tagger         tagger.Component
 	traceroute     traceroute.Component
 	eventPlatform  eventplatform.Component
+	ipc            ipc.Component
 
 	workflowRunner *runners.WorkflowRunner
 	commonRunner   *runners.CommonRunner
+
+	telemetry *telemetry.Telemetry
 
 	started     bool
 	startOnce   sync.Once
@@ -90,7 +100,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 		return Provides{}, privateactionrunner.ErrNotEnabled
 	}
 
-	runner, err := NewPrivateActionRunner(ctx, reqs.Config, reqs.Hostname, pkgrcclient.NewAdapter(reqs.RcClient), reqs.Log, reqs.Tagger, reqs.Traceroute, reqs.EventPlatform)
+	runner, err := NewPrivateActionRunner(ctx, reqs.Config, reqs.Hostname, pkgrcclient.NewAdapter(reqs.RcClient), reqs.Log, reqs.Tagger, reqs.Traceroute, reqs.EventPlatform, reqs.IPC)
 	if err != nil {
 		return Provides{}, err
 	}
@@ -110,6 +120,7 @@ func NewPrivateActionRunner(
 	taggerComp tagger.Component,
 	tracerouteComp traceroute.Component,
 	eventPlatform eventplatform.Component,
+	ipcComp ipc.Component,
 ) (*PrivateActionRunner, error) {
 	return &PrivateActionRunner{
 		coreConfig:     coreConfig,
@@ -119,14 +130,23 @@ func NewPrivateActionRunner(
 		tagger:         taggerComp,
 		traceroute:     tracerouteComp,
 		eventPlatform:  eventPlatform,
+		ipc:            ipcComp,
 		startChan:      make(chan struct{}),
 	}, nil
 }
 
 func (p *PrivateActionRunner) getRunnerConfig(ctx context.Context) (*parconfig.Config, error) {
+	agentIdentifier, err := enrollment.GetAgentIdentifier(ctx, p.hostnameGetter)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get agent identifier: %w", err)
+	}
+
 	persistedIdentity, err := enrollment.GetIdentityFromPreviousEnrollment(ctx, p.coreConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get identity: %w", err)
+	}
+	if enrollment.ShouldReenroll(agentIdentifier, persistedIdentity) {
+		persistedIdentity = nil
 	}
 	if persistedIdentity != nil {
 		p.coreConfig.Set(privateactionrunner.PARPrivateKey, persistedIdentity.PrivateKey, model.SourceAgentRuntime)
@@ -141,7 +161,7 @@ func (p *PrivateActionRunner) getRunnerConfig(ctx context.Context) (*parconfig.C
 	canSelfEnroll := p.coreConfig.GetBool(privateactionrunner.PARSelfEnroll)
 	if cfg.IdentityIsIncomplete() && canSelfEnroll {
 		p.logger.Info("Identity not found and self-enrollment enabled. Self-enrolling private action runner")
-		updatedCfg, err := p.performSelfEnrollment(ctx, cfg)
+		updatedCfg, err := p.performSelfEnrollment(ctx, cfg, agentIdentifier)
 		if err != nil {
 			p.logger.Errorf("Self-enrollment failed: %v", err)
 			return nil, fmt.Errorf("self-enrollment failed: %w", err)
@@ -184,16 +204,32 @@ func (p *PrivateActionRunner) start(ctx context.Context) error {
 		p.logger.Errorf("Private action runner failed to start: %v", err)
 		return err
 	}
+	commonTags := observability.CommonTags{
+		RunnerId:      cfg.RunnerId,
+		RunnerVersion: cfg.Version,
+		Modes:         cfg.Modes,
+		ExtraTags:     cfg.Tags,
+	}
+	ctx = observability.AddCommonTagsToLogs(ctx, commonTags)
+
+	p.telemetry = telemetry.NewTelemetry(
+		&http.Client{Transport: httputils.CreateHTTPTransport(p.coreConfig)},
+		configutils.SanitizeAPIKey(p.coreConfig.GetString("api_key")),
+		cfg.DatadogSite,
+		observability.ParService,
+	)
+
 	p.logger.Info("Private action runner starting")
 	p.logger.Info("==> Version : " + parversion.RunnerVersion)
 	p.logger.Info("==> Site : " + cfg.DatadogSite)
+	p.logger.Info("==> API Host : " + cfg.DDApiHost)
 	p.logger.Info("==> URN : " + cfg.Urn)
 
 	keysManager := taskverifier.NewKeyManager(p.rcClient)
 	taskVerifier := taskverifier.NewTaskVerifier(keysManager, cfg)
 	opmsClient := opms.NewClient(cfg)
 
-	p.workflowRunner, err = runners.NewWorkflowRunner(cfg, keysManager, taskVerifier, opmsClient, p.traceroute, p.eventPlatform)
+	p.workflowRunner, err = runners.NewWorkflowRunner(cfg, keysManager, taskVerifier, opmsClient, p.traceroute, p.eventPlatform, p.ipc.GetClient())
 	if err != nil {
 		return err
 	}
@@ -231,6 +267,9 @@ func (p *PrivateActionRunner) Stop(ctx context.Context) error {
 			return err
 		}
 	}
+	if p.telemetry != nil {
+		p.telemetry.Stop()
+	}
 	return nil
 }
 
@@ -244,11 +283,14 @@ func (p *PrivateActionRunner) waitForStartup(ctx context.Context) error {
 	return nil
 }
 
-// performSelfEnrollment handles the self-registration of a private action runner
-func (p *PrivateActionRunner) performSelfEnrollment(ctx context.Context, cfg *parconfig.Config) (*parconfig.Config, error) {
+// performSelfEnrollment handles the self-registration of a private action runner.
+// The enrollment mode is controlled by the api_key_only_enrollment flag:
+//   - true:  enroll with API key only (app key ignored, no auto-connections)
+//   - false: enroll with API key + app key (app key required, auto-connections created)
+func (p *PrivateActionRunner) performSelfEnrollment(ctx context.Context, cfg *parconfig.Config, agentIdentifier *enrollment.AgentIdentifier) (*parconfig.Config, error) {
 	ddSite := cfg.DatadogSite
 	apiKey := p.coreConfig.GetString("api_key")
-	appKey := p.coreConfig.GetString("app_key")
+	apiKeyOnlyEnrollment := p.coreConfig.GetBool(privateactionrunner.PARApiKeyOnlyEnrollment)
 
 	if apiKeyOK, err := util.ValidateAPIKey(apiKey); err != nil {
 		return nil, fmt.Errorf("invalid api_key: %w", err)
@@ -256,32 +298,41 @@ func (p *PrivateActionRunner) performSelfEnrollment(ctx context.Context, cfg *pa
 		p.logger.Warnf("api_key does not match the expected format; enrollment may fail")
 	}
 
-	if appKeyOK, err := util.ValidateAppKey(appKey); err != nil {
-		return nil, fmt.Errorf("invalid app_key: %w", err)
-	} else if !appKeyOK {
-		p.logger.Warnf("app_key does not match the expected format; enrollment may fail")
+	var appKey string
+	if apiKeyOnlyEnrollment {
+		p.logger.Info("API-key-only enrollment enabled")
+	} else {
+		appKey = p.coreConfig.GetString("app_key")
+		if appKey == "" {
+			return nil, errors.New("app_key is required when api_key_only_enrollment is disabled")
+		}
+		if appKeyOK, err := util.ValidateAppKey(appKey); err != nil {
+			return nil, fmt.Errorf("invalid app_key: %w", err)
+		} else if !appKeyOK {
+			p.logger.Warnf("app_key does not match the expected format; enrollment may fail")
+		}
 	}
 
-	runnerHostname, err := p.hostnameGetter.Get(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get hostname: %w", err)
-	}
-
-	runnerNamePrefix := runnerHostname
-	enrollmentHostname := runnerHostname
-	// For cluster agent, use cluster name instead of hostname for better identification
-	// and do not send the hostname in the enrollment request or connection tags as the cluster agent is a deployment so not tied to a specific host
+	// For cluster agent, use cluster name instead of hostname for better identification.
+	runnerNamePrefix := agentIdentifier.Hostname
 	if flavor.GetFlavor() == flavor.ClusterAgent {
-		clusterName := clustername.GetClusterName(ctx, runnerHostname)
+		clusterName := clustername.GetClusterName(ctx, agentIdentifier.Hostname)
 		if clusterName != "" {
 			runnerNamePrefix = clusterName
 		} else {
-			p.logger.Warnf("Cluster name not found, falling back to hostname '%s' for cluster agent enrollment", runnerHostname)
+			p.logger.Warnf("Cluster name not found, falling back to hostname '%s' for cluster agent enrollment", agentIdentifier.Hostname)
 		}
-		enrollmentHostname = ""
 	}
 
-	enrollmentResult, err := enrollment.SelfEnroll(ctx, ddSite, runnerNamePrefix, enrollmentHostname, apiKey, appKey)
+	var (
+		enrollmentResult *enrollment.Result
+		err              error
+	)
+	if apiKeyOnlyEnrollment {
+		enrollmentResult, err = enrollment.SelfEnrollApiKeyOnly(ctx, ddSite, runnerNamePrefix, apiKey, agentIdentifier, cfg.OpmsExtraHeaders)
+	} else {
+		enrollmentResult, err = enrollment.SelfEnroll(ctx, ddSite, runnerNamePrefix, apiKey, appKey, agentIdentifier, cfg.OpmsExtraHeaders)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("enrollment API call failed: %w", err)
 	}
@@ -301,22 +352,24 @@ func (p *PrivateActionRunner) performSelfEnrollment(ctx context.Context, cfg *pa
 	cfg.OrgId = urnParts.OrgID
 	cfg.RunnerId = urnParts.RunnerID
 
-	// Auto-create connections for enrolled runner
-	var actionsAllowlist = make([]string, 0, len(cfg.ActionsAllowlist))
-	for fqnPrefix := range cfg.ActionsAllowlist {
-		actionsAllowlist = append(actionsAllowlist, fqnPrefix)
-	}
+	// Auto-create connections when using app-key enrollment mode and skip_connection_creation is false.
+	if !apiKeyOnlyEnrollment && !p.coreConfig.GetBool(privateactionrunner.PARSkipConnectionCreation) {
+		var actionsAllowlist = make([]string, 0, len(cfg.ActionsAllowlist))
+		for fqnPrefix := range cfg.ActionsAllowlist {
+			actionsAllowlist = append(actionsAllowlist, fqnPrefix)
+		}
 
-	if len(actionsAllowlist) > 0 {
-		client, err := autoconnections.NewConnectionsAPIClient(p.coreConfig, ddSite, apiKey, appKey)
-		if err != nil {
-			p.logger.Warnf("Failed to create connections API client: %v", err)
-		} else {
-			tagsProvider := autoconnections.NewTagsProvider(p.tagger)
-			creator := autoconnections.NewConnectionsCreator(*client, tagsProvider)
+		if len(actionsAllowlist) > 0 {
+			client, err := autoconnections.NewConnectionsAPIClient(p.coreConfig, ddSite, apiKey, appKey)
+			if err != nil {
+				p.logger.Warnf("Failed to create connections API client: %v", err)
+			} else {
+				tagsProvider := autoconnections.NewTagsProvider(p.tagger)
+				creator := autoconnections.NewConnectionsCreator(*client, tagsProvider)
 
-			if err := creator.AutoCreateConnections(ctx, urnParts.RunnerID, enrollmentResult, actionsAllowlist); err != nil {
-				p.logger.Warnf("Failed to auto-create connections: %v", err)
+				if err := creator.AutoCreateConnections(ctx, urnParts.RunnerID, enrollmentResult, actionsAllowlist); err != nil {
+					p.logger.Warnf("Failed to auto-create connections: %v", err)
+				}
 			}
 		}
 	}

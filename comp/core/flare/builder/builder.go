@@ -8,7 +8,9 @@
 // is not built in the binary.
 package flarebuilder
 
-import "time"
+import (
+	"time"
+)
 
 // FlareBuilder contains all the helpers to add files to a flare archive.
 //

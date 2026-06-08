@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build test
+
 package test
 
 import (
@@ -318,6 +320,9 @@ func (s *agentRunner) createConfigFile(conf []byte) (string, error) {
 	v.Set("apm_config.apm_dd_url", "http://"+s.ddAddr)
 	if !v.IsSet("api_key") {
 		v.Set("api_key", "testing123")
+	}
+	if !v.IsSet("hostname") {
+		v.Set("hostname", "trace-agent-test")
 	}
 	if !v.IsSet("apm_config.trace_writer.flush_period_seconds") {
 		v.Set("apm_config.trace_writer.flush_period_seconds", 0.1)

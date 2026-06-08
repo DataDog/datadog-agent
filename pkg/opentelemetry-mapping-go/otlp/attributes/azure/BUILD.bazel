@@ -15,6 +15,7 @@ go_test(
     name = "azure_test",
     srcs = ["azure_test.go"],
     embed = [":azure"],
+    gotags = ["test"],
     deps = [
         "//pkg/opentelemetry-mapping-go/otlp/attributes/internal/testutils",
         "@com_github_stretchr_testify//assert",

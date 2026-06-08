@@ -6,9 +6,12 @@
 package flare
 
 import (
+	"context"
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -17,10 +20,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
-	"github.com/DataDog/datadog-agent/comp/collector/collector"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
+	demultiplexerimpl "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/impl"
+	collectornoopimpl "github.com/DataDog/datadog-agent/comp/collector/collector/noop-impl"
+	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
+	adcmock "github.com/DataDog/datadog-agent/comp/core/autodiscovery/mock"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flarebuilder "github.com/DataDog/datadog-agent/comp/core/flare/builder"
@@ -36,7 +39,7 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
-	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
+	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/fx-noop"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	rcclienttypes "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
 
@@ -70,11 +73,11 @@ func getFlareWithParams(t *testing.T, params Params, overrides map[string]interf
 			fx.Provide(func() secrets.Component { return secretsmock.New(t) }),
 			demultiplexerimpl.MockModule(),
 			fx.Provide(func() Params { return params }),
-			collector.NoneModule(),
+			collectornoopimpl.NoneModule(),
 			workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-			autodiscoveryimpl.MockModule(),
-			fx.Supply(autodiscoveryimpl.MockParams{Scheduler: scheduler.NewController()}),
-			fx.Provide(func(ac autodiscovery.Mock) autodiscovery.Component { return ac.(autodiscovery.Component) }),
+			adcmock.MockModule(),
+			fx.Supply(adcmock.MockParams{Scheduler: scheduler.NewController()}),
+			fx.Provide(func(ac adcmock.Mock) autodiscovery.Component { return ac.(autodiscovery.Component) }),
 			fx.Provide(func() taggermock.Mock { return fakeTagger }),
 			fx.Provide(func() tagger.Component { return fakeTagger }),
 			fillerModule,
@@ -98,11 +101,11 @@ func getFlareComponent(t *testing.T, params Params, overrides map[string]interfa
 			fx.Provide(func() secrets.Component { return secretsmock.New(t) }),
 			demultiplexerimpl.MockModule(),
 			fx.Provide(func() Params { return params }),
-			collector.NoneModule(),
+			collectornoopimpl.NoneModule(),
 			workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-			autodiscoveryimpl.MockModule(),
-			fx.Supply(autodiscoveryimpl.MockParams{Scheduler: scheduler.NewController()}),
-			fx.Provide(func(ac autodiscovery.Mock) autodiscovery.Component { return ac.(autodiscovery.Component) }),
+			adcmock.MockModule(),
+			fx.Supply(adcmock.MockParams{Scheduler: scheduler.NewController()}),
+			fx.Provide(func(ac adcmock.Mock) autodiscovery.Component { return ac.(autodiscovery.Component) }),
 			fx.Provide(func() taggermock.Mock { return fakeTagger }),
 			fx.Provide(func() tagger.Component { return fakeTagger }),
 			fillerModule,
@@ -123,7 +126,7 @@ func setupMockBuilder(t *testing.T) func() {
 	}
 }
 func TestFlareCreation(t *testing.T) {
-	realProvider := types.NewFiller(func(_ types.FlareBuilder) error { return nil })
+	realProvider := types.NewFiller(func(_ context.Context, _ types.FlareBuilder) error { return nil })
 
 	flare := getFlare(
 		t,
@@ -149,15 +152,16 @@ func TestRunProviders(t *testing.T) {
 	var secondDone atomic.Bool
 
 	flare := getFlare(t, nil)
-	// We overrides the providers list as the default implemementation add ExtraFlareProviders and more. Those
-	// providers continue to run after the timeout and will access the config after the current test cleanup. This
-	// will cause those providers to use the non-mocked config.
+	// We override the providers list as the default implementation adds ExtraFlareProviders and more. Those
+	// extra providers would continue after the timeout and could access config after test cleanup.
+	// Note: the callback goroutine may still run past the timeout (e.g. time.Sleep); subprocesses
+	// started with exec.CommandContext(providerCtx, ...) are cancelled when the provider context times out.
 	flare.providers = []*types.FlareFiller{
-		types.NewFiller(func(_ types.FlareBuilder) error {
+		types.NewFiller(func(_ context.Context, _ types.FlareBuilder) error {
 			firstStarted <- struct{}{}
 			return nil
 		}),
-		types.NewFiller(func(_ types.FlareBuilder) error {
+		types.NewFiller(func(_ context.Context, _ types.FlareBuilder) error {
 			time.Sleep(10 * time.Second)
 			secondDone.Store(true)
 			return nil
@@ -178,6 +182,43 @@ func TestRunProviders(t *testing.T) {
 	// ensure that we're not blocking for the slow provider
 	assert.Less(t, elapsed, 5*time.Second)
 	assert.False(t, secondDone.Load())
+}
+
+func TestRunProviders_CancelsSubprocessOnTimeout(t *testing.T) {
+	errCh := make(chan error, 1)
+	flare := getFlare(t, nil)
+	flare.providers = []*types.FlareFiller{
+		types.NewFiller(func(ctx context.Context, _ types.FlareBuilder) error {
+			var cmd *exec.Cmd
+			if runtime.GOOS == "windows" {
+				cmd = exec.CommandContext(ctx, "powershell", "-NoProfile", "-NonInteractive", "-Command", "Start-Sleep -Seconds 120")
+			} else {
+				cmd = exec.CommandContext(ctx, "sleep", "120")
+			}
+			errCh <- cmd.Run()
+			return nil
+		}),
+	}
+
+	fb, err := helpers.NewFlareBuilder(false, flarebuilder.FlareArgs{})
+	require.NoError(t, err)
+
+	flare.runProviders(fb, time.Nanosecond)
+
+	select {
+	case err := <-errCh:
+		require.Error(t, err)
+		ok := errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
+		if !ok {
+			var exit *exec.ExitError
+			if errors.As(err, &exit) && exit.ExitCode() != 0 {
+				ok = true
+			}
+		}
+		assert.True(t, ok, "subprocess should stop when provider ctx is canceled, got: %v", err)
+	case <-time.After(15 * time.Second):
+		t.Fatal("timed out waiting for subprocess to exit after provider context canceled")
+	}
 }
 
 func TestAgentTaskFlareProfilingArgs(t *testing.T) {
@@ -329,7 +370,7 @@ func runFlareTestScenarios(t *testing.T, testCfg map[string]interface{}, scenari
 			flare := getFlare(t, testCfg)
 
 			flare.providers = []*types.FlareFiller{
-				types.NewFiller(func(fb types.FlareBuilder) error {
+				types.NewFiller(func(_ context.Context, fb types.FlareBuilder) error {
 					assertFunc(fb, s.expSettings)
 					return nil
 				}),
@@ -352,6 +393,11 @@ func TestLocalFlareFileContent(t *testing.T) {
 
 	errIpc := errors.New("connection refused")
 	flareComp := getFlareWithParams(t, NewLocalParams("", "", "", "", "", ""), nil)
+	// Override providers to prevent them from running past the timeout and writing into
+	// t.TempDir()-backed flare directories during test cleanup.
+	// This also avoids side-effects caused by default providers.
+	// The "local" file under test is written before providers run, so this is safe to nil out.
+	flareComp.providers = nil
 	// Save() is a no-op in the mock and returns an error; the local file is still written.
 	_, _ = flareComp.Create(types.ProfileData{}, 0, errIpc, []byte{})
 

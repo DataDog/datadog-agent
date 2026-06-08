@@ -14,7 +14,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
+	"github.com/DataDog/dd-trace-go/v2/ddtrace/tracer"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -152,7 +152,7 @@ func (d *dispatcher) Stop() {
 func (d *dispatcher) Schedule(configs []integration.Config) {
 	var failedConfigs, excludedConfigs int
 	span := tracer.StartSpan("cluster_checks.dispatcher.schedule",
-		tracer.ResourceName("schedule_configs"),
+		tracer.ResourceName("scheduleConfigs"),
 		tracer.SpanType("worker"))
 	span.SetTag("config_count", len(configs))
 	checkNames := make([]string, 0, len(configs))
@@ -217,7 +217,7 @@ func (d *dispatcher) Schedule(configs []integration.Config) {
 func (d *dispatcher) Unschedule(configs []integration.Config) {
 	var failedConfigs int
 	span := tracer.StartSpan("cluster_checks.dispatcher.unschedule",
-		tracer.ResourceName("unschedule_configs"),
+		tracer.ResourceName("unscheduleConfigs"),
 		tracer.SpanType("worker"))
 	span.SetTag("config_count", len(configs))
 	defer func() {
@@ -292,6 +292,12 @@ func (d *dispatcher) remove(config integration.Config) {
 
 // reset empties the store and resets all states
 func (d *dispatcher) reset() {
+	// clean up shards because if this pod becomes a leader again
+	// it should reschedule the check
+	d.ksmShardingMutex.Lock()
+	d.ksmShardedConfigs = make(map[string][]string)
+	d.ksmShardingMutex.Unlock()
+
 	d.store.Lock()
 	defer d.store.Unlock()
 	d.store.reset()

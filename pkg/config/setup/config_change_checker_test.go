@@ -8,26 +8,28 @@ package setup
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
 func TestChangeChecker(t *testing.T) {
-	checker := NewChangeChecker()
+	cfg := Datadog()
+	checker := NewChangeChecker(cfg)
 	r := require.New(t)
 	r.False(checker.HasChanged())
 
-	assertConfigChangeDetected(r, checker, "api_key", "API_KEY")
-	assertConfigChangeDetected(r, checker, "tags", []string{"tag1", "tag2"})
+	assertConfigChangeDetected(r, cfg, checker, "api_key", "API_KEY")
+	assertConfigChangeDetected(r, cfg, checker, "tags", []string{"tag1", "tag2"})
 
 	m := make(map[string]string)
 	m["test"] = "test"
-	assertConfigChangeDetected(r, checker, "kubernetes_node_labels_as_tags", m)
+	assertConfigChangeDetected(r, cfg, checker, "kubernetes_node_labels_as_tags", m)
 }
 
-func assertConfigChangeDetected(r *require.Assertions, checker *ChangeChecker, key string, value interface{}) {
-	Datadog().SetWithoutSource(key, value)
+func assertConfigChangeDetected(r *require.Assertions, cfg model.Config, checker *ChangeChecker, key string, value interface{}) {
+	cfg.SetInTest(key, value)
 	r.True(checker.HasChanged())
-	Datadog().UnsetForSource(key, model.SourceUnknown)
+	cfg.UnsetForSource(key, model.SourceUnknown)
 	r.False(checker.HasChanged())
 }

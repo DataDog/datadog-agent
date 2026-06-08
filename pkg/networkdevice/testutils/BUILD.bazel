@@ -1,0 +1,11 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "testutils",
+    srcs = [
+        "doc.go",
+        "freeport.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/networkdevice/testutils",
+    visibility = ["//visibility:public"],
+)

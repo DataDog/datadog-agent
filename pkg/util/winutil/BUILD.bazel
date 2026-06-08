@@ -6,6 +6,7 @@ go_library(
         "doc.go",
         "elevated.go",
         "eventlog.go",
+        "ioctl.go",
         "msi.go",
         "pe_timestamp_windows.go",
         "process.go",
@@ -48,6 +49,7 @@ go_test(
         "users_test.go",
     ],
     embed = [":winutil"],
+    gotags = ["test"],
     target_compatible_with = ["@platforms//os:windows"],  # keep
     deps = select({
         "@rules_go//go/platform:windows": [

@@ -12,7 +12,7 @@
 use crate::procfs::Cmdline;
 use crate::service_name::{DetectionContext, ServiceNameMetadata, ServiceNameSource};
 use nom::{
-    IResult,
+    IResult, Parser,
     branch::alt,
     bytes::complete::{escaped_transform, tag, take_until, take_while, take_while1},
     character::complete::{anychar, char, multispace0, none_of},
@@ -226,14 +226,14 @@ fn parse_laravel_config_name(contents: &str) -> Option<String> {
 /// Parse the exact pattern: 'name' => value or "name" => value
 fn parse_name_pattern(input: &str) -> IResult<&str, String> {
     let (input, _) = multispace0(input)?;
-    let (input, quote) = alt((char('\''), char('"')))(input)?;
+    let (input, quote) = alt((char('\''), char('"'))).parse(input)?;
     let (input, _) = tag("name")(input)?;
     let (input, _) = char(quote)(input)?;
     let (input, _) = multispace0(input)?;
     let (input, _) = tag("=>")(input)?;
     let (input, _) = multispace0(input)?;
 
-    alt((parse_env_value, parse_quoted_string))(input)
+    alt((parse_env_value, parse_quoted_string)).parse(input)
 }
 
 /// Parse env('KEY', 'default-value')
@@ -251,18 +251,20 @@ fn parse_env_value(input: &str) -> IResult<&str, String> {
 
 /// Parse a quoted string with either single or double quotes, handling escape sequences
 fn parse_quoted_string(input: &str) -> IResult<&str, String> {
-    let (input, quote) = alt((char('\''), char('"')))(input)?;
+    let (input, quote) = alt((char('\''), char('"'))).parse(input)?;
 
     let (input, value) = if quote == '\'' {
         alt((
             escaped_transform(none_of("\\'"), '\\', anychar),
             value(String::new(), tag("")),
-        ))(input)?
+        ))
+        .parse(input)?
     } else {
         alt((
             escaped_transform(none_of("\\\""), '\\', anychar),
             value(String::new(), tag("")),
-        ))(input)?
+        ))
+        .parse(input)?
     };
 
     let (input, _) = char(quote)(input)?;
@@ -292,7 +294,7 @@ fn parse_env_line(input: &str) -> IResult<&str, (&str, String)> {
 /// Parse an .env value (quoted or unquoted)
 fn parse_env_value_string(input: &str) -> IResult<&str, String> {
     // Try quoted string first, then fall back to unquoted
-    alt((parse_quoted_string, parse_unquoted_env_value))(input)
+    alt((parse_quoted_string, parse_unquoted_env_value)).parse(input)
 }
 
 /// Parse an unquoted .env value (everything until end of line or comment)

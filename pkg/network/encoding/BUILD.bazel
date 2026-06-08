@@ -1,0 +1,8 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "encoding",
+    srcs = ["encoding.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/network/encoding",
+    visibility = ["//visibility:public"],
+)

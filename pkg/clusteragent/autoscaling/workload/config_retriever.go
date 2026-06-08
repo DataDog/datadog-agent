@@ -104,7 +104,7 @@ func (cr *ConfigRetriever) processorCallback(processor autoscalingProcessor, upd
 
 	processor.preProcess()
 	for configKey, rawConfig := range update {
-		log.Debugf("Processing config key: %s, product: %s, id: %s, name: %s, version: %d, leader: %v", configKey, rawConfig.Metadata.Product, rawConfig.Metadata.ID, rawConfig.Metadata.Name, rawConfig.Metadata.Version, cr.isLeader())
+		log.Debugf("Processing config key: %s, product: %s, id: %s, name: %s, version: %d, rawSize: %d, size: %d, leader: %v", configKey, rawConfig.Metadata.Product, rawConfig.Metadata.ID, rawConfig.Metadata.Name, rawConfig.Metadata.Version, rawConfig.Metadata.RawLength, len(rawConfig.Config), cr.isLeader())
 
 		err := processor.processItem(timestamp, configKey, rawConfig)
 		if err != nil {

@@ -150,8 +150,8 @@ func (s *testAgentConfigSuite) TestConfigUpgradeFailure() {
 	s.WaitForDaemonToStop(func() {
 		_, err := s.Installer().StopConfigExperiment(consts.AgentPackage)
 		s.Require().NoError(err, "daemon should stop cleanly")
-		s.AssertSuccessfulConfigStopExperiment()
 	}, backoff.WithBackOff(backoff.NewConstantBackOff(30*time.Second)), backoff.WithMaxTries(10))
+	s.AssertSuccessfulConfigStopExperiment()
 
 	// assert that the config dir permissions have not changed
 	perms, err = windowscommon.GetSecurityInfoForPath(s.Env().RemoteHost, configRoot)
@@ -264,8 +264,8 @@ func (s *testAgentConfigSuite) TestRevertsConfigExperimentWhenServiceDies() {
 	s.WaitForDaemonToStop(func() {
 		_, err := s.Installer().StopConfigExperiment(consts.AgentPackage)
 		s.Require().NoError(err, "daemon should respond to request")
-		s.AssertSuccessfulConfigStopExperiment()
 	}, backoff.WithBackOff(backoff.NewConstantBackOff(30*time.Second)), backoff.WithMaxTries(10))
+	s.AssertSuccessfulConfigStopExperiment()
 }
 
 // TestRevertsConfigExperimentWhenTimeout tests that the watchdog will revert
@@ -310,8 +310,8 @@ func (s *testAgentConfigSuite) TestRevertsConfigExperimentWhenTimeout() {
 	s.WaitForDaemonToStop(func() {
 		_, err := s.Installer().StopConfigExperiment(consts.AgentPackage)
 		s.Require().NoError(err, "daemon should respond to request")
-		s.AssertSuccessfulConfigStopExperiment()
 	}, backoff.WithBackOff(backoff.NewConstantBackOff(30*time.Second)), backoff.WithMaxTries(10))
+	s.AssertSuccessfulConfigStopExperiment()
 }
 
 // TestManagedConfigActiveAfterUpgrade tests that the Agent's config is preserved after a package update.

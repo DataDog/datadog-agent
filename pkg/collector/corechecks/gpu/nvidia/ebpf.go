@@ -117,11 +117,11 @@ func (c *ebpfCollector) DeviceUUID() string {
 // Collect returns system-probe process metrics for this device with high priority.
 // Returns empty slice if cache is invalid or no metrics found for this device.
 // core.usage and core.limit metrics get higher priority from eBPF collector than from the process collector,
-func (c *ebpfCollector) Collect() ([]Metric, error) {
+func (c *ebpfCollector) Collect() ([]*Metric, error) {
 	// Check cache validity
 	if !c.cache.IsValid() {
 		log.Debugf("ebpf collector: cache not valid")
-		return []Metric{}, nil
+		return []*Metric{}, nil
 	}
 
 	// Get device info for filtering and limit metrics
@@ -134,7 +134,7 @@ func (c *ebpfCollector) Collect() ([]Metric, error) {
 		c.activeMetrics[key] = false
 	}
 
-	var deviceMetrics []Metric
+	var deviceMetrics []*Metric
 	var allWorkloadIDs []workloadmeta.EntityID
 
 	stats := c.cache.GetStats()
@@ -157,19 +157,19 @@ func (c *ebpfCollector) Collect() ([]Metric, error) {
 
 		// Add per-process usage metrics
 		deviceMetrics = append(deviceMetrics,
-			Metric{
+			&Metric{
 				Name:                "process.core.usage",
 				Value:               metrics.UsedCores,
 				Type:                ddmetrics.GaugeType,
 				AssociatedWorkloads: workloads,
 			},
-			Metric{
+			&Metric{
 				Name:                "process.memory.usage",
 				Value:               float64(metrics.Memory.CurrentBytes),
 				Type:                ddmetrics.GaugeType,
 				AssociatedWorkloads: workloads,
 			},
-			Metric{
+			&Metric{
 				Name:                "process.sm_active",
 				Value:               metrics.ActiveTimePct,
 				Type:                ddmetrics.GaugeType,
@@ -194,19 +194,19 @@ func (c *ebpfCollector) Collect() ([]Metric, error) {
 
 			// Emit zero metrics for inactive processes
 			deviceMetrics = append(deviceMetrics,
-				Metric{
+				&Metric{
 					Name:                "process.core.usage",
 					Value:               0,
 					Type:                ddmetrics.GaugeType,
 					AssociatedWorkloads: workloads,
 				},
-				Metric{
+				&Metric{
 					Name:                "process.memory.usage",
 					Value:               0,
 					Type:                ddmetrics.GaugeType,
 					AssociatedWorkloads: workloads,
 				},
-				Metric{
+				&Metric{
 					Name:                "process.sm_active",
 					Value:               0,
 					Type:                ddmetrics.GaugeType,
@@ -222,14 +222,14 @@ func (c *ebpfCollector) Collect() ([]Metric, error) {
 
 	// Emit limit metrics with aggregated PID tags
 	deviceMetrics = append(deviceMetrics,
-		Metric{
+		&Metric{
 			Name:                "core.limit",
 			Value:               float64(devInfo.CoreCount),
 			Type:                ddmetrics.GaugeType,
 			Priority:            Medium,
 			AssociatedWorkloads: allWorkloadIDs,
 		},
-		Metric{
+		&Metric{
 			Name:                "memory.limit",
 			Value:               float64(devInfo.Memory),
 			Type:                ddmetrics.GaugeType,
@@ -248,14 +248,14 @@ func (c *ebpfCollector) Collect() ([]Metric, error) {
 	}
 
 	deviceMetrics = append(deviceMetrics,
-		Metric{
+		&Metric{
 			Name:     "sm_active",
 			Value:    activeTimePct,
 			Type:     ddmetrics.GaugeType,
 			Priority: Low,
 			// No AssociatedWorkloads - device-wide metric
 		},
-		Metric{
+		&Metric{
 			Name:     "gr_engine_active",
 			Value:    activeTimePct,
 			Type:     ddmetrics.GaugeType,

@@ -12,7 +12,7 @@
 package ndmtmp
 
 import (
-	"github.com/DataDog/datadog-agent/comp/ndmtmp/forwarder/forwarderimpl"
+	forwardermock "github.com/DataDog/datadog-agent/comp/ndmtmp/forwarder/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -21,5 +21,5 @@ import (
 // MockBundle defines the fx options for mock versions of everything in this bundle.
 func MockBundle() fxutil.BundleOptions {
 	return fxutil.Bundle(
-		forwarderimpl.MockModule())
+		forwardermock.MockModule())
 }

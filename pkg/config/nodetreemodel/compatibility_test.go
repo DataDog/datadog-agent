@@ -449,15 +449,15 @@ customKey2: unused
 		assert.NotContains(t, slices.Collect(maps.Keys(ntmConf.GetKnownKeysLowercased())), "customkey2")
 	})
 
-	t.Run("SetWithoutSource won't create known key", func(t *testing.T) {
+	t.Run("SetInTest won't create known key", func(t *testing.T) {
 		dataYaml := `
 port: 8080
 `
 		viperConf, ntmConf := constructBothConfigs(dataYaml, true, func(cfg model.Setup) {
 			cfg.SetKnown("port") //nolint:forbidigo // testing behavior
 		})
-		viperConf.SetWithoutSource("unknown_key.unknown_subkey", "true")
-		ntmConf.SetWithoutSource("unknown_key.unknown_subkey", "true")
+		viperConf.SetInTest("unknown_key.unknown_subkey", "true")
+		ntmConf.SetInTest("unknown_key.unknown_subkey", "true")
 
 		wantKeys := []string{"port"}
 		assert.ElementsMatch(t, wantKeys, slices.Collect(maps.Keys(viperConf.GetKnownKeysLowercased())))
@@ -530,15 +530,15 @@ customKey2: unused
 		assert.ElementsMatch(t, wantKeys, ntmConf.AllKeysLowercased())
 	})
 
-	t.Run("SetWithoutSource will create unknown key", func(t *testing.T) {
+	t.Run("SetInTest will create unknown key", func(t *testing.T) {
 		dataYaml := `
 port: 8080
 `
 		viperConf, ntmConf := constructBothConfigs(dataYaml, true, func(cfg model.Setup) {
 			cfg.SetKnown("port") //nolint:forbidigo // testing behavior
 		})
-		viperConf.SetWithoutSource("unknown_key.unknown_subkey", "true")
-		ntmConf.SetWithoutSource("unknown_key.unknown_subkey", "true")
+		viperConf.SetInTest("unknown_key.unknown_subkey", "true")
+		ntmConf.SetInTest("unknown_key.unknown_subkey", "true")
 
 		wantKeys := []string{"port", "unknown_key.unknown_subkey"}
 		assert.ElementsMatch(t, wantKeys, viperConf.AllKeysLowercased())
@@ -776,6 +776,41 @@ unknown_section:
 	// False because this is not defined (aside from default)
 	assert.False(t, viperConf.HasSection("additional_endpoints"))
 	assert.False(t, ntmConf.HasSection("aditional_endpoints"))
+}
+
+func TestCompareEmptyLeafSetting(t *testing.T) {
+	dataYaml := `
+otlp_config:
+  logs:
+    enabled:
+`
+	viperConf, ntmConf := constructBothConfigs(dataYaml, true, func(cfg model.Setup) {
+		cfg.BindEnvAndSetDefault("otlp_config.logs.enabled", true)
+	})
+
+	// not configured because the setting's value is nil
+	assert.False(t, viperConf.IsConfigured("otlp_config.logs.enabled"))
+	assert.False(t, ntmConf.IsConfigured("otlp_config.logs.enabled"))
+
+	// HasSection is always false for leaf settings
+	assert.False(t, viperConf.HasSection("otlp_config.logs.enabled"))
+	assert.False(t, ntmConf.HasSection("otlp_config.logs.enabled"))
+
+	// Viper and NTM behave differently when Get'ing the parent node
+	//   Viper doesn't merge layers, only returns data from the file
+	//   NTM does merge, replaces the missing file data using the default layer
+	expected1 := map[string]interface{}(map[string]interface{}{"enabled": interface{}(nil)})
+	expected2 := map[string]interface{}(map[string]interface{}{"enabled": true})
+	assert.Equal(t, expected1, viperConf.Get("otlp_config.logs"))
+	assert.Equal(t, expected2, ntmConf.Get("otlp_config.logs"))
+
+	// But both return true, because of the default value
+	assert.Equal(t, true, viperConf.GetBool("otlp_config.logs.enabled"))
+	assert.Equal(t, true, ntmConf.GetBool("otlp_config.logs.enabled"))
+
+	// Even without specifying the type, using Get instead of GetBool
+	assert.Equal(t, true, viperConf.Get("otlp_config.logs.enabled"))
+	assert.Equal(t, true, ntmConf.Get("otlp_config.logs.enabled"))
 }
 
 func TestCompareConflictDataType(t *testing.T) {
@@ -1089,12 +1124,12 @@ some:
 			assert.Equal(t, "RC_value", cfg.GetString("some.setting"))
 
 			cfg.UnsetForSource("some.setting", model.SourceRC)
-			assert.Equal(t, "process_value", cfg.GetString("some.setting"))
-
-			cfg.UnsetForSource("some.setting", model.SourceLocalConfigProcess)
 			assert.Equal(t, "runtime_value", cfg.GetString("some.setting"))
 
 			cfg.UnsetForSource("some.setting", model.SourceAgentRuntime)
+			assert.Equal(t, "process_value", cfg.GetString("some.setting"))
+
+			cfg.UnsetForSource("some.setting", model.SourceLocalConfigProcess)
 			assert.Equal(t, "file_value", cfg.GetString("some.setting"))
 
 			cfg.UnsetForSource("some.setting", model.SourceFile)

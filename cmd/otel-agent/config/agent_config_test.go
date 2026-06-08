@@ -7,14 +7,18 @@ package config
 
 import (
 	"context"
+	"fmt"
 	"io/fs"
 	"os"
+	"path/filepath"
+	"runtime"
 	"testing"
 
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/featuregate"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -786,6 +790,175 @@ func TestGetDogtelExtensionConfig_SingleNamedDogtelEntry(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, extcfg)
 	assert.Equal(t, "myhost", extcfg.Hostname)
+}
+
+// TestSecretsResolutionViaEnvVar verifies that ENC[] handles in DD_HOSTNAME (and
+// other DD_* env vars) are resolved by the real secrets backend in standalone mode.
+func (suite *ConfigTestSuite) TestSecretsResolutionViaEnvVar() {
+	if runtime.GOOS == "windows" {
+		suite.T().Skip("shell secret backend script not applicable on Windows")
+	}
+	t := suite.T()
+
+	// Write a minimal secret backend script: ignore stdin, return a fixed value.
+	scriptDir := t.TempDir()
+	scriptPath := filepath.Join(scriptDir, "secret_backend.sh")
+	script := "#!/bin/sh\necho '{\"hostname_secret\": {\"value\": \"resolved-hostname-from-secret\"}}'\n"
+	require.NoError(t, os.WriteFile(scriptPath, []byte(script), 0700)) //nolint:gosec
+
+	t.Setenv("DD_OTEL_STANDALONE", "true")
+	t.Setenv("DD_HOSTNAME", "ENC[hostname_secret]")
+	t.Setenv("DD_SECRET_BACKEND_COMMAND", scriptPath)
+
+	c, err := NewConfigComponent(context.Background(), "", []string{"testdata/config_default.yaml"})
+	require.NoError(t, err)
+
+	assert.Equal(t, "resolved-hostname-from-secret", c.GetString("hostname"),
+		"ENC[hostname_secret] should be resolved to the script's output value; "+
+			"raw value would indicate secrets resolution was skipped in NewConfigComponent")
+}
+
+// TestSecretsNotResolvedInConnectedMode verifies that ENC[] handles are NOT
+// resolved locally when otel_standalone is false (connected mode). In connected
+// mode the core agent owns secret resolution and the otel-agent must not attempt
+// to run a local backend — doing so would fail for backends that are only
+// accessible to the core agent and abort otel-agent startup.
+func (suite *ConfigTestSuite) TestSecretsNotResolvedInConnectedMode() {
+	if runtime.GOOS == "windows" {
+		suite.T().Skip("shell secret backend script not applicable on Windows")
+	}
+	t := suite.T()
+
+	// Provide a working script so the test would resolve if the gate opened.
+	scriptDir := t.TempDir()
+	scriptPath := filepath.Join(scriptDir, "secret_backend.sh")
+	script := "#!/bin/sh\necho '{\"hostname_secret\": {\"value\": \"resolved-hostname-from-secret\"}}'\n"
+	require.NoError(t, os.WriteFile(scriptPath, []byte(script), 0700)) //nolint:gosec
+
+	// Connected mode (DD_OTEL_STANDALONE not set / false).
+	t.Setenv("DD_HOSTNAME", "ENC[hostname_secret]")
+	t.Setenv("DD_SECRET_BACKEND_COMMAND", scriptPath)
+
+	c, err := NewConfigComponent(context.Background(), "", []string{"testdata/config_default.yaml"})
+	require.NoError(t, err, "NewConfigComponent must not error in connected mode even when a secret backend is configured")
+
+	assert.Equal(t, "ENC[hostname_secret]", c.GetString("hostname"),
+		"ENC[] handle must remain unresolved in connected mode; "+
+			"the core agent resolves secrets and the otel-agent must not run a local backend")
+}
+
+// TestSecretBackendTypeGate verifies that secret_backend_type alone (without
+// secret_backend_command) opens the resolution gate in NewConfigComponent.
+// When no ENC[] handles are present in the config, the resolver exits early
+// before invoking any subprocess, so this test runs without the embedded
+// secret-generic-connector binary.
+func (suite *ConfigTestSuite) TestSecretBackendTypeGate() {
+	t := suite.T()
+	t.Setenv("DD_OTEL_STANDALONE", "true")
+	t.Setenv("DD_SECRET_BACKEND_TYPE", "file.json")
+
+	c, err := NewConfigComponent(context.Background(), "", []string{"testdata/config_default.yaml"})
+	require.NoError(t, err)
+
+	assert.Equal(t, "file.json", c.GetString("secret_backend_type"),
+		"secret_backend_type should be propagated to the agent config")
+}
+
+// TestSecretsResolutionViaBackendType verifies end-to-end ENC[] resolution when
+// secret_backend_type is configured instead of secret_backend_command. The test
+// uses the file.json native backend (secret-generic-connector) and is skipped if
+// the embedded binary has not been built.
+//
+// DD_SECRET_BACKEND_CONFIG cannot be supplied as an env var because viper does not
+// expand map types from a single env string; instead, secret_backend_config is
+// written to a temporary datadog.yaml and passed as the ddCfg argument.
+func (suite *ConfigTestSuite) TestSecretsResolutionViaBackendType() {
+	if runtime.GOOS == "windows" {
+		suite.T().Skip("file.json backend test not applicable on Windows")
+	}
+	t := suite.T()
+
+	// Skip when the embedded secret-generic-connector binary has not been built.
+	binPath := filepath.Join(defaultpaths.GetEmbeddedBinPath(), "secret-generic-connector")
+	if _, statErr := os.Stat(binPath); statErr != nil {
+		t.Skipf("secret-generic-connector not found at %s; skipping native backend test", binPath)
+	}
+
+	// Create a flat JSON secrets file: handle → resolved value.
+	secretsDir := t.TempDir()
+	secretsFile := filepath.Join(secretsDir, "secrets.json")
+	require.NoError(t, os.WriteFile(secretsFile,
+		[]byte(`{"hostname_secret": "resolved-hostname-from-secret"}`), 0644))
+
+	t.Setenv("DD_OTEL_STANDALONE", "true")
+	t.Setenv("DD_HOSTNAME", "ENC[hostname_secret]")
+	t.Setenv("DD_SECRET_BACKEND_TYPE", "file.json")
+
+	// Write a minimal datadog.yaml that supplies secret_backend_config.file_path.
+	ddCfgDir := t.TempDir()
+	ddCfgPath := filepath.Join(ddCfgDir, "datadog.yaml")
+	ddCfg := fmt.Sprintf("secret_backend_config:\n  file_path: %q\n", secretsFile)
+	require.NoError(t, os.WriteFile(ddCfgPath, []byte(ddCfg), 0644))
+
+	c, err := NewConfigComponent(context.Background(), ddCfgPath, []string{"testdata/config_default.yaml"})
+	require.NoError(t, err)
+
+	assert.Equal(t, "resolved-hostname-from-secret", c.GetString("hostname"),
+		"ENC[hostname_secret] should be resolved via the file.json native backend; "+
+			"raw value would indicate the secret_backend_type gate was skipped")
+}
+
+// TestSecretsResolutionViaDogtelExtension verifies that ENC[] handles in DD_HOSTNAME
+// (and other DD_* env vars) are resolved when secret_backend_command is configured
+// via extensions.dogtel in the OTel config rather than via DD_SECRET_BACKEND_COMMAND.
+// This guards against the regression where the secret resolution block ran before the
+// dogtelextension config was applied, leaving ENC[] values unresolved because
+// secret_backend_command was still empty at resolution time.
+func (suite *ConfigTestSuite) TestSecretsResolutionViaDogtelExtension() {
+	if runtime.GOOS == "windows" {
+		suite.T().Skip("shell secret backend script not applicable on Windows")
+	}
+	t := suite.T()
+
+	scriptDir := t.TempDir()
+	scriptPath := filepath.Join(scriptDir, "secret_backend.sh")
+	script := "#!/bin/sh\necho '{\"hostname_secret\": {\"value\": \"resolved-hostname-from-secret\"}}'\n"
+	require.NoError(t, os.WriteFile(scriptPath, []byte(script), 0700)) //nolint:gosec
+
+	t.Setenv("DD_OTEL_STANDALONE", "true")
+	t.Setenv("DD_HOSTNAME", "ENC[hostname_secret]")
+
+	otelCfgDir := t.TempDir()
+	otelCfgPath := filepath.Join(otelCfgDir, "otel-config.yaml")
+	otelCfg := fmt.Sprintf(`extensions:
+  dogtel:
+    secret_backend_command: %q
+receivers:
+  otlp:
+    protocols:
+      grpc:
+exporters:
+  datadog:
+    api:
+      key: TESTKEY
+service:
+  extensions: [dogtel]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      exporters: [datadog]
+`, scriptPath)
+	require.NoError(t, os.WriteFile(otelCfgPath, []byte(otelCfg), 0644))
+
+	c, err := NewConfigComponent(context.Background(), "", []string{otelCfgPath})
+	require.NoError(t, err)
+
+	assert.Equal(t, scriptPath, c.GetString("secret_backend_command"),
+		"secret_backend_command should be set from dogtelextension config")
+
+	assert.Equal(t, "resolved-hostname-from-secret", c.GetString("hostname"),
+		"ENC[hostname_secret] in DD_HOSTNAME should be resolved via the secret backend "+
+			"configured in dogtelextension")
 }
 
 // TestSuite runs the CalculatorTestSuite

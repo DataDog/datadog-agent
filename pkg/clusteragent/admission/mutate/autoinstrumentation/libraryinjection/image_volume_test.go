@@ -143,3 +143,27 @@ func TestImageVolumeProvider_InjectInjector_UsesConfiguredInitSecurityContext(t 
 	require.Len(t, pod.Spec.InitContainers, 1)
 	require.Same(t, sc, pod.Spec.InitContainers[0].SecurityContext)
 }
+
+func TestImageVolumeProvider_InjectLibrary_TargetsSingleContainer(t *testing.T) {
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: "test-pod", Namespace: "default"},
+		Spec: corev1.PodSpec{
+			Containers: []corev1.Container{
+				{Name: "app", Image: "my-app:latest"},
+				{Name: "app2", Image: "my-app:latest"},
+			},
+		},
+	}
+
+	provider := libraryinjection.NewImageVolumeProvider(libraryinjection.LibraryInjectionConfig{})
+	result := provider.InjectLibrary(pod, libraryinjection.LibraryConfig{
+		Language:      "java",
+		Package:       libraryinjection.NewLibraryImageFromFullRef("gcr.io/datadoghq/dd-lib-java-init:1.2.3", "1.2.3"),
+		ContainerName: "app",
+	})
+
+	assert.Equal(t, libraryinjection.MutationStatusInjected, result.Status)
+	require.Len(t, pod.Spec.Containers[0].VolumeMounts, 1)
+	assert.Equal(t, "/opt/datadog/apm/library/java", pod.Spec.Containers[0].VolumeMounts[0].MountPath)
+	assert.Empty(t, pod.Spec.Containers[1].VolumeMounts)
+}

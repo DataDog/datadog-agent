@@ -8,6 +8,8 @@ package fetcher
 
 import (
 	"fmt"
+	"net"
+	"strconv"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -74,7 +76,7 @@ func ProcessAgentConfig(config config.Reader, client ipc.HTTPClient, getEntireCo
 		return "", fmt.Errorf("invalid process_config.cmd_port -- %d", port)
 	}
 
-	ipcAddressWithPort := fmt.Sprintf("https://%s:%d/config", ipcAddress, port)
+	ipcAddressWithPort := fmt.Sprintf("https://%s/config", net.JoinHostPort(ipcAddress, strconv.Itoa(port)))
 	if getEntireConfig {
 		ipcAddressWithPort += "/all"
 	}

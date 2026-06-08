@@ -6,6 +6,7 @@ for %%F in (%MSBUILD%) do set MSBUILD=%%~fF
 for %%F in (%PYTHON_FOR_BUILD%) do set PYTHON_FOR_BUILD=%%~fF
 
 set build_outdir=%sourcedir%\PCbuild\amd64
+set response_file=%sourcedir%\PCbuild\msbuild.rsp
 
 set script_errorlevel=0
 
@@ -34,7 +35,6 @@ set TCLTK_DIR=%cd%\%TCLTK_DIR%\\
 :: Note that the build.bat script only accepts 9 extra arguments that can be passed through to MSBuild,
 :: so we write the arguments to a .rsp file that will be added to msbuild calls instead to not have to worry
 :: about that
-set response_file=%sourcedir%\PCbuild\msbuild.rsp
 echo "" > %response_file%
 echo "/p:bz2Dir=%BZ2_DIR%" >> %response_file%
 echo "/p:mpdecimalDir=%MPDECIMAL_DIR%" >> %response_file%
@@ -48,6 +48,9 @@ echo "/p:TclVersion=%TCL_VERSION%" >> %response_file%
 :: We disable copying around of the OpenSSL libraries (as defined in openssl.props)
 :: This simplifies the requirements on the input files and their names and gives us more control
 echo "/p:SkipCopySSLDLL=1" >> %response_file%
+:: but _hashlib.pyd needs OPENSSL_DIR registered as a DLL search directory for PGO tests.
+echo import os; os.add_dll_directory(r'%OPENSSL_DIR%') >sitecustomize.py
+set "PYTHONPATH=%cd%;%PYTHONPATH%"
 
 :: -e flag would normally also fetch external dependencies, but we have a patch inhibiting that;
 :: the flag is still needed because otherwise modules depending on some of those external dependencies
@@ -97,6 +100,7 @@ rmdir /q /s %sourcedir%\PCbuild\obj
 rmdir /q /s %sourcedir%\PCbuild\win32
 del /q %response_file%
 del /q %sourcedir%\python.bat
+for /d /r %destdir%\Lib %%d in (__pycache__) do rmdir /q /s "%%d"
 
 if %script_errorlevel% neq 0 (
    exit /b %script_errorlevel%

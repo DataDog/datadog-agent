@@ -25,10 +25,14 @@ import (
 )
 
 const (
-	createPARPath = "/api/unstable/on_prem_runners"
+	createPARPath           = "/api/unstable/on_prem_runners"
+	createPARApiKeyOnlyPath = "/api/unstable/on_prem_runners/api_key_only"
+
+	enrollmentInitialBackoff = 1 * time.Second
+	enrollmentMaxBackoff     = 30 * time.Second
 )
 
-// PublicClient exposes endpoint that don't require JWT authentication
+// PublicClient exposes endpoints that don't require JWT authentication
 type PublicClient interface {
 	EnrollWithApiKey(
 		ctx context.Context,
@@ -41,25 +45,66 @@ type PublicClient interface {
 		orchClusterID string,
 		agentFlavor string,
 	) (*par.CreateRunnerResponse, error)
+
+	EnrollWithApiKeyOnly(
+		ctx context.Context,
+		apiKey string,
+		runnerName string,
+		runnerModes []modes.Mode,
+		publicJwk *jose.JSONWebKey,
+		agentHostname string,
+		orchClusterID string,
+		agentFlavor string,
+	) (*par.CreateRunnerResponse, error)
 }
 
 type publicClient struct {
-	ddApiHost  string
-	httpClient *http.Client
+	ddApiHost    string
+	httpClient   *http.Client
+	extraHeaders map[string]string
 }
 
-func NewPublicClient(ddBaseURL string) PublicClient {
+func NewPublicClient(ddBaseURL string, extraHeaders map[string]string) PublicClient {
 	apiHost := strings.Replace(ddBaseURL, "https://", "", 1)
 	return &publicClient{
 		ddApiHost: apiHost,
 		httpClient: &http.Client{
 			Timeout: time.Millisecond * time.Duration(30_000),
 		},
+		extraHeaders: extraHeaders,
 	}
 }
 
 func (p *publicClient) EnrollWithApiKey(
 	ctx context.Context,
+	apiKey string,
+	appKey string,
+	runnerName string,
+	runnerModes []modes.Mode,
+	publicJwk *jose.JSONWebKey,
+	agentHostname string,
+	orchClusterID string,
+	agentFlavor string,
+) (*par.CreateRunnerResponse, error) {
+	return p.enroll(ctx, createPARPath, apiKey, appKey, runnerName, runnerModes, publicJwk, agentHostname, orchClusterID, agentFlavor)
+}
+
+func (p *publicClient) EnrollWithApiKeyOnly(
+	ctx context.Context,
+	apiKey string,
+	runnerName string,
+	runnerModes []modes.Mode,
+	publicJwk *jose.JSONWebKey,
+	agentHostname string,
+	orchClusterID string,
+	agentFlavor string,
+) (*par.CreateRunnerResponse, error) {
+	return p.enroll(ctx, createPARApiKeyOnlyPath, apiKey, "", runnerName, runnerModes, publicJwk, agentHostname, orchClusterID, agentFlavor)
+}
+
+func (p *publicClient) enroll(
+	ctx context.Context,
+	path string,
 	apiKey string,
 	appKey string,
 	runnerName string,
@@ -77,7 +122,7 @@ func (p *publicClient) EnrollWithApiKey(
 	createRunnerUrl := url.URL{
 		Host:   p.ddApiHost,
 		Scheme: "https",
-		Path:   createPARPath,
+		Path:   path,
 	}
 
 	request := par.CreateRunnerRequest{
@@ -94,35 +139,9 @@ func (p *publicClient) EnrollWithApiKey(
 		return nil, fmt.Errorf("failed to marshal request body: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "POST", createRunnerUrl.String(), strings.NewReader(string(requestBodyJSON)))
+	respBody, err := p.doEnrollRequestWithRetry(ctx, createRunnerUrl.String(), requestBodyJSON, apiKey, appKey)
 	if err != nil {
-		return nil, fmt.Errorf("failed to build runner creation request: %w", err)
-	}
-
-	req.Header.Set("Content-Type", "application/vnd.api+json")
-	req.Header.Set("Accept", "application/json")
-	req.Header.Set("DD-API-KEY", apiKey)
-	req.Header.Set("DD-APPLICATION-KEY", appKey)
-	req.Header.Set(app.VersionHeaderName, parversion.RunnerVersion)
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to send runner creation request: %w", err)
-	}
-	defer func() {
-		err = resp.Body.Close()
-		if err != nil {
-			log.Error("error closing runner creation response body", log.ErrorField(err))
-		}
-	}()
-
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("runner creation failed with HTTP status code %d and failed to read HTTP response with error %w", resp.StatusCode, err)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("runner creation failed with HTTP status code %d and response %s", resp.StatusCode, string(respBody))
+		return nil, err
 	}
 
 	createRunnerResponse := new(par.CreateRunnerResponse)
@@ -131,4 +150,62 @@ func (p *publicClient) EnrollWithApiKey(
 		return nil, fmt.Errorf("failed to unmarshal runner creation response: %w", err)
 	}
 	return createRunnerResponse, nil
+}
+
+// doEnrollRequestWithRetry sends the enrollment POST and retries on transport
+// errors or HTTP 5xx responses with exponential backoff. 4xx responses are
+// returned immediately. Retries are unbounded; the caller's context
+// cancellation is the only exit other than success or a permanent (4xx)
+// failure. Enrollment is required for the runner to function, so we keep
+// trying rather than crashing the agent.
+func (p *publicClient) doEnrollRequestWithRetry(ctx context.Context, url string, body []byte, apiKey, appKey string) ([]byte, error) {
+	return util.RetryHTTPRequest(ctx, func() ([]byte, int, error) {
+		return p.doEnrollRequest(ctx, url, body, apiKey, appKey)
+	}, util.RetryHTTPOptions{
+		InitialInterval: enrollmentInitialBackoff,
+		MaxInterval:     enrollmentMaxBackoff,
+		// MaxElapsedTime: 0 — retry forever until ctx is cancelled.
+	})
+}
+
+// doEnrollRequest sends a single enrollment POST. Returns the response body on
+// success. On non-2xx responses, returns the status code so the caller can
+// decide whether to retry.
+func (p *publicClient) doEnrollRequest(ctx context.Context, url string, body []byte, apiKey, appKey string) ([]byte, int, error) {
+	req, err := http.NewRequestWithContext(ctx, "POST", url, strings.NewReader(string(body)))
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to build runner creation request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/vnd.api+json")
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("DD-API-KEY", apiKey)
+	if appKey != "" {
+		req.Header.Set("DD-APPLICATION-KEY", appKey)
+	}
+	req.Header.Set(app.VersionHeaderName, parversion.RunnerVersion)
+	for k, v := range p.extraHeaders {
+		req.Header.Set(k, v)
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to send runner creation request: %w", err)
+	}
+	defer func() {
+		if cerr := resp.Body.Close(); cerr != nil {
+			log.Error("error closing runner creation response body", log.ErrorField(cerr))
+		}
+	}()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, resp.StatusCode, fmt.Errorf("runner creation failed with HTTP status code %d and failed to read HTTP response with error %w", resp.StatusCode, err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, resp.StatusCode, fmt.Errorf("runner creation failed with HTTP status code %d and response %s", resp.StatusCode, string(respBody))
+	}
+
+	return respBody, resp.StatusCode, nil
 }

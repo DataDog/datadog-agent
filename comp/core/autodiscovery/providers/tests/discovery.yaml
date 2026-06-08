@@ -1,0 +1,9 @@
+ad_identifiers:
+  - foo_id
+
+discovery: {}
+
+init_config:
+
+instances:
+  - foo: bar

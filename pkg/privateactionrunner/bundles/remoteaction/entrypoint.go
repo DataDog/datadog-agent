@@ -6,6 +6,7 @@
 package com_datadoghq_remoteaction
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
@@ -13,10 +14,10 @@ type RemoteAction struct {
 	actions map[string]types.Action
 }
 
-func NewRemoteAction() *RemoteAction {
+func NewRemoteAction(cfg *config.Config) *RemoteAction {
 	return &RemoteAction{
 		actions: map[string]types.Action{
-			"testConnection": NewTestConnectionHandler(),
+			"testConnection": NewTestConnectionHandler(cfg),
 		},
 	}
 }

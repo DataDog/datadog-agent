@@ -1,0 +1,13 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "asmscan",
+    srcs = ["scan.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/network/go/asmscan",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/util/safeelf",
+        "@org_golang_x_arch//arm64/arm64asm",
+        "@org_golang_x_arch//x86/x86asm",
+    ],
+)

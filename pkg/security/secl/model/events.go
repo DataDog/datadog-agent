@@ -147,8 +147,12 @@ const (
 	PivotRootEventType
 	// SampleRefreshEventType is sent when a dedup map detects a duplicate and refreshes a cookie timestamp
 	SampleRefreshEventType
+	// SetSidEventType is sent when setsid completes successfully
+	SetSidEventType
 	// NopEventType nop event
 	NopEventType
+	// SocketEventType is sent when a socket is created
+	SocketEventType
 	// MaxKernelEventType is used internally to get the maximum number of kernel events.
 	MaxKernelEventType
 
@@ -156,7 +160,7 @@ const (
 	FirstEventType = FileOpenEventType
 
 	// LastEventType is the last valid event type
-	LastEventType = SyscallsEventType
+	LastEventType = PivotRootEventType
 
 	// FirstDiscarderEventType first event that accepts discarders
 	FirstDiscarderEventType = FileOpenEventType
@@ -165,7 +169,7 @@ const (
 	LastDiscarderEventType = FileChdirEventType
 
 	// LastApproverEventType is the last event that accepts approvers
-	LastApproverEventType = SetSockOptEventType
+	LastApproverEventType = SocketEventType
 
 	// CustomEventType represents a custom event type
 	CustomEventType EventType = iota
@@ -346,8 +350,12 @@ func (t EventType) String() string {
 		return "pivot_root"
 	case SampleRefreshEventType:
 		return "sample_refresh"
+	case SetSidEventType:
+		return "setsid"
 	case NopEventType:
 		return "nop"
+	case SocketEventType:
+		return "socket"
 	default:
 		return "unknown"
 	}

@@ -301,6 +301,13 @@ func (tkn *SQLTokenizer) Scan() (TokenKind, []byte) {
 				// example scenario: "autovacuum: VACUUM ANALYZE fake.table"
 				return TokenKind(ch), tkn.bytes()
 			}
+			// PostgreSQL array slice syntax uses ':' as a range separator inside
+			// subscripts (e.g. arr[$1:] or arr[$1:$2]).  ']' and '$' can never
+			// begin a named bind variable, so treat ':' as a plain token here
+			// rather than erroring inside scanBindVar.
+			if tkn.lastChar == ']' || tkn.lastChar == '$' {
+				return TokenKind(ch), tkn.bytes()
+			}
 			if tkn.lastChar != '=' {
 				return tkn.scanBindVar()
 			}

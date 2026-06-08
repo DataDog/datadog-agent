@@ -17,18 +17,10 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
+	cgutil "github.com/DataDog/datadog-agent/pkg/security/utils/cgroup"
 	"github.com/DataDog/datadog-agent/pkg/util/archive"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
-
-func TestCGroupvParseLine(t *testing.T) {
-	line := `5:cpu,cpuacct:/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-pod98005c3b_b650_4efe_8b91_2164d784397f.slice/cri-containerd-e8ac3efec3322d7f13cfa0cdee4344754d01bd4e50fea44e0753e83fdb74cab3.scope`
-	id, ctrl, path, err := parseCgroupLine(line)
-
-	assert.Nil(t, err)
-	assert.Equal(t, "5", id)
-	assert.Equal(t, "cpu,cpuacct", ctrl)
-	assert.Equal(t, "/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-pod98005c3b_b650_4efe_8b91_2164d784397f.slice/cri-containerd-e8ac3efec3322d7f13cfa0cdee4344754d01bd4e50fea44e0753e83fdb74cab3.scope", path)
-}
 
 type testCgroup struct {
 	name          string
@@ -277,13 +269,13 @@ func TestCGroup(t *testing.T) {
 				} else if ctrl != "" && !strings.HasPrefix(ctrl, "name=") {
 					return false, nil
 				}
-				cgroup, err := makeControlGroup(id, ctrl, path)
+				cgEntry, err := cgutil.MakeControlGroup(id, ctrl, path)
 				if err != nil {
 					return false, err
 				}
 
-				containerID = cgroup.GetContainerContext()
-				cgroupContext.CGroupID = containerutils.CGroupID(cgroup.Path)
+				containerID = cgEntry.GetContainerContext()
+				cgroupContext.CGroupID = containerutils.CGroupID(cgEntry.Path)
 				cgroupPath = path
 				return true, nil
 			})
@@ -313,14 +305,13 @@ func untar(t *testing.T, tarxzArchive string, destinationDir string) {
 }
 
 func TestCGroupFS(t *testing.T) {
-	tempDir := t.TempDir()
-
-	hostProc := filepath.Join(tempDir, "proc")
-
-	os.Setenv("HOST_PROC", hostProc)
-	os.Setenv("HOST_SYS", filepath.Join(tempDir, "sys"))
-
 	t.Run("cgroupv2", func(t *testing.T) {
+		tempDir := t.TempDir()
+		hostProc := filepath.Join(tempDir, "proc")
+		t.Setenv("HOST_PROC", hostProc)
+		t.Setenv("HOST_SYS", filepath.Join(tempDir, "sys"))
+		t.Cleanup(kernel.ResetProcSysRootCachesForTest)
+		kernel.ResetProcSysRootCachesForTest()
 		defer os.RemoveAll(tempDir)
 
 		untar(t, "testdata/cgroupv2.tar.xz", tempDir)
@@ -354,6 +345,12 @@ func TestCGroupFS(t *testing.T) {
 	})
 
 	t.Run("cgroupv1", func(t *testing.T) {
+		tempDir := t.TempDir()
+		hostProc := filepath.Join(tempDir, "proc")
+		t.Setenv("HOST_PROC", hostProc)
+		t.Setenv("HOST_SYS", filepath.Join(tempDir, "sys"))
+		t.Cleanup(kernel.ResetProcSysRootCachesForTest)
+		kernel.ResetProcSysRootCachesForTest()
 		defer os.RemoveAll(tempDir)
 
 		untar(t, "testdata/cgroupv1.tar.xz", tempDir)
@@ -362,7 +359,6 @@ func TestCGroupFS(t *testing.T) {
 		cfs.cGroupMountPoints = []string{
 			filepath.Join(tempDir, "sys/fs/cgroup"),
 		}
-
 		cfs.detectCurrentCgroupPath(GetpidFrom(hostProc), GetpidFrom(hostProc))
 
 		t.Run("find-cgroup-context-ko", func(t *testing.T) {

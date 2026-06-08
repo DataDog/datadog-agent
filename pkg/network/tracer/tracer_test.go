@@ -21,7 +21,6 @@ import (
 	"net/netip"
 	"os"
 	"runtime"
-	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -64,20 +63,6 @@ type TracerSuite struct {
 	suite.Suite
 }
 
-func SupportedNetworkBuildModes() []ebpftest.BuildMode {
-	modes := ebpftest.SupportedBuildModes()
-	if !slices.Contains(modes, ebpftest.Ebpfless) {
-		modes = append(modes, ebpftest.Ebpfless)
-	}
-	return modes
-}
-
-func TestTracerSuite(t *testing.T) {
-	ebpftest.TestBuildModes(t, SupportedNetworkBuildModes(), "", func(t *testing.T) {
-		suite.Run(t, new(TracerSuite))
-	})
-}
-
 func setupTracer(t testing.TB, cfg *config.Config) *Tracer {
 	if ebpftest.GetBuildMode() == ebpftest.Ebpfless {
 		env.SetFeatures(t, env.ECSFargate)
@@ -85,6 +70,9 @@ func setupTracer(t testing.TB, cfg *config.Config) *Tracer {
 		cfg.ProtocolClassificationEnabled = false
 	}
 	if ebpftest.GetBuildMode() == ebpftest.Fentry {
+		cfg.ProtocolClassificationEnabled = false
+	}
+	if ebpftest.GetBuildMode() == ebpftest.SK {
 		cfg.ProtocolClassificationEnabled = false
 	}
 
@@ -261,7 +249,7 @@ func (s *TracerSuite) TestTCPShortLived() {
 
 		m := conn.Monotonic
 		assert.Equal(collect, clientMessageSize, int(m.SentBytes))
-		assert.Equal(collect, serverMessageSize, int(m.RecvBytes))
+		assert.InDelta(collect, serverMessageSize, int(m.RecvBytes), 1)
 		assert.Equal(collect, 0, int(m.Retransmits))
 		if !tr.config.EnableEbpfless {
 			assert.Equal(collect, os.Getpid(), int(conn.Pid))

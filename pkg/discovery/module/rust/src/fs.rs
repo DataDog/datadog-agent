@@ -4,12 +4,14 @@
 // Copyright 2025-present Datadog, Inc.
 
 use cap_std::fs::Dir;
+#[cfg(feature = "java-archives")]
+use flate2::read::DeflateDecoder;
+#[cfg(feature = "java-archives")]
+use rawzip::{CompressionMethod, FileReader, ZipArchive};
 use std::io::{self, Read};
 use std::path::{Path, PathBuf};
 #[cfg(feature = "java-archives")]
 use walkdir::WalkDir;
-#[cfg(feature = "java-archives")]
-use zip::ZipArchive;
 
 /// SubDirFs is like a standard filesystem, except that it allows
 /// absolute paths to be passed in operations, and strips them to make
@@ -60,72 +62,166 @@ impl UnverifiedFile {
     }
 
     #[cfg(feature = "java-archives")]
-    pub fn verify_zip(
-        self,
-    ) -> Result<UnverifiedZipArchive<cap_std::fs::File>, zip::result::ZipError> {
+    pub fn verify_zip(self) -> io::Result<UnverifiedZipArchive> {
         verified_zip_archive(self)
     }
 }
 
 #[cfg(feature = "java-archives")]
-/// UnverifiedZipArchive is a wrapper around ZipArchive that prevents reading
-/// ZIP entry contents until size verification has been performed via the verify() method
-/// on individual entries. This ensures compile-time enforcement of size verification
-/// for all ZIP entry reads.
-///
-/// To read an entry, call .by_index() or .by_name() to get an UnverifiedZipFile,
-/// then call .verify(max_size) on it.
-pub struct UnverifiedZipArchive<R>(ZipArchive<R>);
+/// UnverifiedZipArchive is a wrapper around rawzip that prevents reading ZIP
+/// entry contents until size verification has been performed.
+pub struct UnverifiedZipArchive {
+    archive: ZipArchive<FileReader>,
+    buffer: Vec<u8>,
+}
 
 #[cfg(feature = "java-archives")]
-impl<R: Read + io::Seek> UnverifiedZipArchive<R> {
-    /// Gets a ZIP entry by index, returning an UnverifiedZipFile.
-    /// To read the entry contents, call .verify(max_size) on the returned file.
-    pub fn by_index(
+impl UnverifiedZipArchive {
+    fn new(archive: ZipArchive<FileReader>) -> Self {
+        Self {
+            archive,
+            buffer: vec![0; rawzip::RECOMMENDED_BUFFER_SIZE],
+        }
+    }
+
+    fn archive_entry_name(entry: &rawzip::ZipFileHeaderRecord<'_>) -> Option<String> {
+        let file_path = entry.file_path();
+        let raw_name = file_path.as_ref();
+        std::str::from_utf8(raw_name).ok().map(ToString::to_string)
+    }
+
+    fn open_unverified_zip_entry<'a>(
+        archive: &'a ZipArchive<FileReader>,
+        header: rawzip::ZipFileHeaderRecord<'_>,
+    ) -> io::Result<UnverifiedZipFile<'a>> {
+        let wayfinder = header.wayfinder();
+        let size_hint = header.uncompressed_size_hint();
+        let compression_method = header.compression_method();
+        let entry = archive
+            .get_entry(wayfinder)
+            .map_err(rawzip_error_to_io_error)?;
+        Ok(UnverifiedZipFile {
+            entry,
+            size_hint,
+            compression_method,
+        })
+    }
+
+    /// Returns whether any entry name matches the predicate, stopping at the
+    /// first match.
+    pub fn any_entry_name<F>(&mut self, mut predicate: F) -> io::Result<bool>
+    where
+        F: FnMut(&str) -> bool,
+    {
+        let mut entries = self.archive.entries(&mut self.buffer);
+        while let Some(entry) = entries.next_entry().map_err(rawzip_error_to_io_error)? {
+            if let Some(name) = Self::archive_entry_name(&entry)
+                && predicate(&name)
+            {
+                return Ok(true);
+            }
+        }
+
+        Ok(false)
+    }
+
+    /// Reads the contents of the first exact-name entry found in archive order.
+    pub fn read_file_to_vec(&mut self, name: &str, max_size: Option<u64>) -> io::Result<Vec<u8>> {
+        let UnverifiedZipArchive { archive, buffer } = self;
+        let mut entries = archive.entries(&mut *buffer);
+        while let Some(entry) = entries.next_entry().map_err(rawzip_error_to_io_error)? {
+            let Some(entry_name) = Self::archive_entry_name(&entry) else {
+                continue;
+            };
+            if entry_name != name {
+                continue;
+            }
+
+            let file = Self::open_unverified_zip_entry(archive, entry)?;
+            let mut reader = file.verify(max_size)?;
+            let mut contents = Vec::new();
+            reader.read_to_end(&mut contents)?;
+            return Ok(contents);
+        }
+
+        Err(io::Error::new(
+            io::ErrorKind::NotFound,
+            format!("missing ZIP entry: {name}"),
+        ))
+    }
+
+    /// Scans entries in archive order and returns the first mapped value
+    /// produced by a readable matching entry.
+    ///
+    /// Reuses the same central-directory scratch buffer as [`Self::read_file_to_vec`].
+    ///
+    /// [`Self::open_unverified_zip_entry`] takes `&ZipArchive` so it can run in the same
+    /// loop as `archive.entries(&mut buffer)` after splitting `&mut self` into the two
+    /// fields (idiomatic disjoint borrows; see `read_file_to_vec`).
+    pub fn find_map_file_contents<F, G, T>(
         &mut self,
-        index: usize,
-    ) -> Result<UnverifiedZipFile<'_>, zip::result::ZipError> {
-        Ok(UnverifiedZipFile(self.0.by_index(index)?))
-    }
+        mut predicate: F,
+        max_size: Option<u64>,
+        mut map: G,
+    ) -> io::Result<Option<T>>
+    where
+        F: FnMut(&str) -> bool,
+        G: FnMut(&str, Vec<u8>) -> Option<T>,
+    {
+        let UnverifiedZipArchive { archive, buffer } = self;
+        let mut entries = archive.entries(&mut *buffer);
+        while let Some(entry) = entries.next_entry().map_err(rawzip_error_to_io_error)? {
+            let Some(name) = Self::archive_entry_name(&entry) else {
+                continue;
+            };
+            if !predicate(&name) {
+                continue;
+            }
 
-    /// Gets a ZIP entry by name, returning an UnverifiedZipFile.
-    /// To read the entry contents, call .verify(max_size) on the returned file.
-    pub fn by_name(&mut self, name: &str) -> Result<UnverifiedZipFile<'_>, zip::result::ZipError> {
-        Ok(UnverifiedZipFile(self.0.by_name(name)?))
-    }
+            let file = match Self::open_unverified_zip_entry(archive, entry) {
+                Ok(file) => file,
+                Err(_) => continue,
+            };
+            let mut reader = match file.verify(max_size) {
+                Ok(reader) => reader,
+                Err(_) => continue,
+            };
+            let mut contents = Vec::new();
+            if reader.read_to_end(&mut contents).is_err() {
+                continue;
+            }
+            if let Some(value) = map(&name, contents) {
+                return Ok(Some(value));
+            }
+        }
 
-    /// Returns the number of files in the archive.
-    pub fn len(&self) -> usize {
-        self.0.len()
-    }
-
-    /// Creates an UnverifiedZipArchive from a ZipArchive.
-    /// This is only available in test builds to facilitate testing.
-    #[cfg(test)]
-    pub fn from_archive(archive: ZipArchive<R>) -> Self {
-        UnverifiedZipArchive(archive)
+        Ok(None)
     }
 }
 
 #[cfg(feature = "java-archives")]
-/// UnverifiedZipFile is a wrapper around zip::read::ZipFile that prevents reading
+/// UnverifiedZipFile is a wrapper around a rawzip entry that prevents reading
 /// the file contents until size verification has been performed via the verify() method.
 /// This ensures compile-time enforcement of size verification for ZIP entry reads.
 ///
 /// Metadata access (name, size) is allowed without verification.
-pub struct UnverifiedZipFile<'a>(zip::read::ZipFile<'a>);
+pub struct UnverifiedZipFile<'a> {
+    entry: rawzip::ZipEntry<'a, FileReader>,
+    size_hint: u64,
+    compression_method: CompressionMethod,
+}
 
 #[cfg(feature = "java-archives")]
 impl<'a> UnverifiedZipFile<'a> {
     /// Verifies the ZIP entry and returns a reader that can be used to read the contents.
-    pub fn verify(self, max_size: Option<u64>) -> io::Result<impl Read + 'a> {
+    pub fn verify(self, max_size: Option<u64>) -> io::Result<Box<dyn Read + 'a>> {
         let max_size = max_size.unwrap_or(MAX_PARSE_FILE_SIZE);
-        size_verified_zip_reader(self.0, max_size)
-    }
-
-    /// Returns the name of the file in the archive.
-    pub fn name(&self) -> &str {
-        self.0.name()
+        size_verified_zip_reader(
+            self.entry,
+            self.size_hint,
+            self.compression_method,
+            max_size,
+        )
     }
 }
 
@@ -227,40 +323,60 @@ impl SubDirFs {
 #[cfg(feature = "java-archives")]
 // We don't verify the size of the zip archive, the sizes of individual entries
 // are verified when we read them via the type system enforcement.
-fn verified_zip_archive(
-    file: UnverifiedFile,
-) -> Result<UnverifiedZipArchive<cap_std::fs::File>, zip::result::ZipError> {
+fn verified_zip_archive(file: UnverifiedFile) -> io::Result<UnverifiedZipArchive> {
     let metadata = file.0.metadata()?;
     if !metadata.is_file() {
-        return Err(zip::result::ZipError::Io(io::Error::new(
+        return Err(io::Error::new(
             io::ErrorKind::InvalidInput,
             "not a regular file",
-        )));
+        ));
     }
 
-    Ok(UnverifiedZipArchive(ZipArchive::new(file.0)?))
+    let std_file = file.0.into_std();
+    let mut buffer = vec![0; rawzip::RECOMMENDED_BUFFER_SIZE];
+    let archive = ZipArchive::from_file(std_file, &mut buffer).map_err(rawzip_error_to_io_error)?;
+    Ok(UnverifiedZipArchive::new(archive))
 }
 
 #[cfg(feature = "java-archives")]
 /// Returns a reader for a ZIP entry after verifying the size doesn't exceed max_size.
-fn size_verified_zip_reader<'a>(
-    zip_file: zip::read::ZipFile<'a>,
+fn size_verified_zip_reader(
+    zip_file: rawzip::ZipEntry<'_, FileReader>,
+    size_hint: u64,
+    compression_method: CompressionMethod,
     max_size: u64,
-) -> io::Result<impl Read + 'a> {
-    let size = zip_file.size();
-
-    if size > max_size {
+) -> io::Result<Box<dyn Read + '_>> {
+    if size_hint > max_size {
         return Err(io::Error::new(
             io::ErrorKind::InvalidInput,
             format!(
                 "ZIP file entry too large ({} bytes, max {} bytes)",
-                size, max_size
+                size_hint, max_size
             ),
         ));
     }
 
-    // Additional limit the reader to avoid surprises
-    Ok(zip_file.take(size.min(max_size)))
+    let compressed_reader = zip_file.reader();
+
+    let verified_reader: Box<dyn Read + '_> = match compression_method {
+        CompressionMethod::Store => Box::new(zip_file.verifying_reader(compressed_reader)),
+        CompressionMethod::Deflate => {
+            Box::new(zip_file.verifying_reader(DeflateDecoder::new(compressed_reader)))
+        }
+        unsupported => {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("unsupported ZIP compression method: {:?}", unsupported),
+            ));
+        }
+    };
+
+    Ok(Box::new(verified_reader.take(size_hint.min(max_size))))
+}
+
+#[cfg(feature = "java-archives")]
+fn rawzip_error_to_io_error(err: rawzip::Error) -> io::Error {
+    io::Error::new(io::ErrorKind::InvalidData, err)
 }
 
 /// Returns a reader for the file after ensuring that the file is a regular file
@@ -299,12 +415,14 @@ pub fn size_verified_reader(
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::expect_used)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::indexing_slicing)]
 mod tests {
     use super::*;
     use crate::test_utils::TestDataFs;
     #[cfg(feature = "java-archives")]
     use std::io::Write;
+    #[cfg(feature = "java-archives")]
+    use tempfile::TempDir;
 
     #[test]
     fn test_fix_path() {
@@ -570,12 +688,115 @@ mod tests {
     #[test]
     #[cfg(feature = "java-archives")]
     fn test_unverified_zip_archive_enforcement() {
-        // Create a test ZIP archive
+        let mut archive = create_test_archive(create_test_zip_data(zip::CompressionMethod::Stored));
+
+        assert!(archive.any_entry_name(|name| name == "small.txt").unwrap());
+
+        let small = archive.read_file_to_vec("small.txt", Some(100)).unwrap();
+        assert_eq!(small, b"small content");
+
+        let large = archive.read_file_to_vec("large.txt", Some(100));
+        assert!(large.is_err());
+        if let Err(err) = large {
+            assert_eq!(err.kind(), std::io::ErrorKind::InvalidInput);
+            assert!(err.to_string().contains("too large"));
+        }
+    }
+
+    #[test]
+    #[cfg(feature = "java-archives")]
+    fn test_unverified_zip_archive_deflate() {
+        let mut archive =
+            create_test_archive(create_test_zip_data(zip::CompressionMethod::Deflated));
+
+        let small = archive.read_file_to_vec("small.txt", Some(100)).unwrap();
+        assert_eq!(small, b"small content");
+    }
+
+    #[test]
+    #[cfg(feature = "java-archives")]
+    fn test_unverified_zip_archive_any_entry_name_stops_on_first_match() {
+        let mut archive = create_test_archive(create_zip_with_files(vec![
+            ("match.txt", "matched"),
+            ("later.txt", "later"),
+        ]));
+
+        assert!(archive.any_entry_name(|name| name == "match.txt").unwrap());
+    }
+
+    #[test]
+    #[cfg(feature = "java-archives")]
+    fn test_unverified_zip_archive_read_file_to_vec_returns_first_match() {
+        let mut archive = create_test_archive(create_zip_with_files(vec![
+            ("target.txt", "first"),
+            ("other.txt", "other"),
+        ]));
+
+        let contents = archive.read_file_to_vec("target.txt", Some(100)).unwrap();
+        assert_eq!(contents, b"first");
+    }
+
+    #[test]
+    #[cfg(feature = "java-archives")]
+    fn test_unverified_zip_archive_find_map_file_contents_returns_first_mapped_value() {
+        let mut archive = create_test_archive(create_zip_with_files(vec![
+            ("ignore.txt", "ignore"),
+            ("config-1.txt", "first"),
+            ("config-2.txt", "second"),
+        ]));
+
+        let value = archive
+            .find_map_file_contents(
+                |name| name.starts_with("config-"),
+                Some(100),
+                |name, contents| {
+                    if name == "config-1.txt" {
+                        return None;
+                    }
+
+                    Some(String::from_utf8(contents).unwrap())
+                },
+            )
+            .unwrap();
+
+        assert_eq!(value, Some("second".to_string()));
+    }
+
+    #[test]
+    #[cfg(feature = "java-archives")]
+    fn test_unverified_zip_archive_find_map_file_contents_skips_unreadable_match() {
+        let mut archive = create_test_archive(create_zip_with_files(vec![
+            ("config-too-large.txt", &"X".repeat(2000)),
+            ("config-ok.txt", "usable"),
+        ]));
+
+        let value = archive
+            .find_map_file_contents(
+                |name| name.starts_with("config-"),
+                Some(100),
+                |_, contents| Some(String::from_utf8(contents).unwrap()),
+            )
+            .unwrap();
+
+        assert_eq!(value, Some("usable".to_string()));
+    }
+
+    #[cfg(feature = "java-archives")]
+    fn create_test_archive(data: Vec<u8>) -> UnverifiedZipArchive {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("test.zip");
+        std::fs::write(&path, data).unwrap();
+        let fs = SubDirFs::new(dir.path()).unwrap();
+        fs.open("test.zip").unwrap().verify_zip().unwrap()
+    }
+
+    #[cfg(feature = "java-archives")]
+    fn create_test_zip_data(compression_method: zip::CompressionMethod) -> Vec<u8> {
         let mut buf = Vec::new();
         {
             let mut writer = zip::ZipWriter::new(std::io::Cursor::new(&mut buf));
-            let options: zip::write::FileOptions<()> = zip::write::FileOptions::default()
-                .compression_method(zip::CompressionMethod::Stored);
+            let options: zip::write::FileOptions<()> =
+                zip::write::FileOptions::default().compression_method(compression_method);
 
             writer.start_file("small.txt", options).unwrap();
             writer.write_all(b"small content").unwrap();
@@ -586,65 +807,21 @@ mod tests {
 
             writer.finish().unwrap();
         }
-
-        let cursor = std::io::Cursor::new(buf);
-        let archive = ZipArchive::new(cursor).unwrap();
-        let mut archive = UnverifiedZipArchive::from_archive(archive);
-
-        // Test 1: Can access metadata without verification
-        let file = archive.by_name("small.txt").unwrap();
-        assert_eq!(file.name(), "small.txt");
-        assert_eq!(file.0.size(), 13); // "small content" is 13 bytes
-
-        // Test 2: Can verify and read small file
-        let mut archive = UnverifiedZipArchive::from_archive(
-            ZipArchive::new(std::io::Cursor::new(create_test_zip_data())).unwrap(),
-        );
-        let file = archive.by_name("small.txt").unwrap();
-        let mut reader = file.verify(Some(100)).unwrap();
-        let mut contents = String::new();
-        reader.read_to_string(&mut contents).unwrap();
-        assert_eq!(contents, "small content");
-
-        // Test 3: Verification rejects files that exceed max_size
-        let mut archive = UnverifiedZipArchive::from_archive(
-            ZipArchive::new(std::io::Cursor::new(create_test_zip_data())).unwrap(),
-        );
-        let file = archive.by_name("large.txt").unwrap();
-        let result = file.verify(Some(100)); // 100 bytes max, but file is 2000 bytes
-        assert!(result.is_err());
-        if let Err(err) = result {
-            assert_eq!(err.kind(), std::io::ErrorKind::InvalidInput);
-            assert!(err.to_string().contains("too large"));
-        }
-
-        // Test 4: by_index also returns UnverifiedZipFile
-        let mut archive = UnverifiedZipArchive::from_archive(
-            ZipArchive::new(std::io::Cursor::new(create_test_zip_data())).unwrap(),
-        );
-        let file = archive.by_index(0).unwrap();
-        assert_eq!(file.name(), "small.txt");
-        let mut reader = file.verify(Some(100)).unwrap();
-        let mut contents = String::new();
-        reader.read_to_string(&mut contents).unwrap();
-        assert_eq!(contents, "small content");
+        buf
     }
 
-    // Helper function for test_unverified_zip_archive_enforcement
     #[cfg(feature = "java-archives")]
-    fn create_test_zip_data() -> Vec<u8> {
+    fn create_zip_with_files(files: Vec<(&str, &str)>) -> Vec<u8> {
         let mut buf = Vec::new();
         {
             let mut writer = zip::ZipWriter::new(std::io::Cursor::new(&mut buf));
             let options: zip::write::FileOptions<()> = zip::write::FileOptions::default()
                 .compression_method(zip::CompressionMethod::Stored);
 
-            writer.start_file("small.txt", options).unwrap();
-            writer.write_all(b"small content").unwrap();
-
-            writer.start_file("large.txt", options).unwrap();
-            let large_content = "X".repeat(2000);
-            writer.write_all(large_content.as_bytes()).unwrap();
+            for (name, content) in files {
+                writer.start_file(name, options).unwrap();
+                writer.write_all(content.as_bytes()).unwrap();
+            }
 
             writer.finish().unwrap();
         }

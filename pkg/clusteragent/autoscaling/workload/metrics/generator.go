@@ -120,7 +120,7 @@ func GeneratePodAutoscalerMetrics(internal *model.PodAutoscalerInternal) metrics
 	}
 
 	metrics = append(metrics, metricsstore.StructuredMetric{
-		Name:  metricPrefix + ".local_fallback_enabled",
+		Name:  metricPrefix + ".local.fallback_enabled",
 		Type:  metricsstore.MetricTypeGauge,
 		Value: localFallbackValue,
 		Tags:  baseTags,
@@ -210,7 +210,73 @@ func GeneratePodAutoscalerMetrics(internal *model.PodAutoscalerInternal) metrics
 		Tags:  append(baseWithVerticalSourceTags, "status:ok"),
 	})
 
-	// 7. Local recommender horizontal metrics
+	// 7. In-place vertical scaling action metrics
+	metrics = append(metrics, metricsstore.StructuredMetric{
+		Name:  metricPrefix + ".vertical_inplace.patch",
+		Type:  metricsstore.MetricTypeMonotonicCount,
+		Value: float64(internal.InPlacePatchSuccessCount()),
+		Tags:  append(baseWithVerticalSourceTags, "status:ok"),
+	})
+	metrics = append(metrics, metricsstore.StructuredMetric{
+		Name:  metricPrefix + ".vertical_inplace.patch",
+		Type:  metricsstore.MetricTypeMonotonicCount,
+		Value: float64(internal.InPlacePatchErrorCount()),
+		Tags:  append(baseWithVerticalSourceTags, "status:error"),
+	})
+
+	metrics = append(metrics, metricsstore.StructuredMetric{
+		Name:  metricPrefix + ".vertical_inplace.eviction",
+		Type:  metricsstore.MetricTypeMonotonicCount,
+		Value: float64(internal.InPlaceEvictionSuccessCount()),
+		Tags:  append(baseWithVerticalSourceTags, "status:ok"),
+	})
+	metrics = append(metrics, metricsstore.StructuredMetric{
+		Name:  metricPrefix + ".vertical_inplace.eviction",
+		Type:  metricsstore.MetricTypeMonotonicCount,
+		Value: float64(internal.InPlaceEvictionErrorCount()),
+		Tags:  append(baseWithVerticalSourceTags, "status:error"),
+	})
+
+	metrics = append(metrics, metricsstore.StructuredMetric{
+		Name:  metricPrefix + ".vertical_inplace.rollout_fallback",
+		Type:  metricsstore.MetricTypeMonotonicCount,
+		Value: float64(internal.InPlaceRolloutFallbackCount()),
+		Tags:  baseWithVerticalSourceTags,
+	})
+
+	metrics = append(metrics, metricsstore.StructuredMetric{
+		Name:  metricPrefix + ".vertical_inplace.pdb_blocked",
+		Type:  metricsstore.MetricTypeMonotonicCount,
+		Value: float64(internal.InPlacePDBBlockedCount()),
+		Tags:  baseWithVerticalSourceTags,
+	})
+
+	metrics = append(metrics, metricsstore.StructuredMetric{
+		Name:  metricPrefix + ".vertical_inplace.resize_completed",
+		Type:  metricsstore.MetricTypeMonotonicCount,
+		Value: float64(internal.InPlaceResizeCompletedCount()),
+		Tags:  baseWithVerticalSourceTags,
+	})
+
+	// 8. Vertical scaled/evicted replica gauges
+	if scaledReplicas := internal.ScaledReplicas(); scaledReplicas != nil {
+		metrics = append(metrics, metricsstore.StructuredMetric{
+			Name:  metricPrefix + ".status.vertical.scaled_replicas",
+			Type:  metricsstore.MetricTypeGauge,
+			Value: float64(*scaledReplicas),
+			Tags:  baseTags,
+		})
+	}
+	if evictedReplicas := internal.EvictedReplicas(); evictedReplicas != nil {
+		metrics = append(metrics, metricsstore.StructuredMetric{
+			Name:  metricPrefix + ".status.vertical.evicted_replicas",
+			Type:  metricsstore.MetricTypeGauge,
+			Value: float64(*evictedReplicas),
+			Tags:  baseTags,
+		})
+	}
+
+	// 9. Local recommender horizontal metrics
 	if fallbackHorizontal := internal.FallbackScalingValues().Horizontal; fallbackHorizontal != nil {
 		localSourceTags := append(baseTags, "source:"+string(fallbackHorizontal.Source))
 		metrics = append(metrics, metricsstore.StructuredMetric{
@@ -229,7 +295,7 @@ func GeneratePodAutoscalerMetrics(internal *model.PodAutoscalerInternal) metrics
 		}
 	}
 
-	// 8. Horizontal scaling constraints
+	// 10. Horizontal scaling constraints
 	if spec := internal.Spec(); spec != nil && spec.Constraints != nil {
 		if spec.Constraints.MaxReplicas != nil {
 			metrics = append(metrics, metricsstore.StructuredMetric{
@@ -248,7 +314,7 @@ func GeneratePodAutoscalerMetrics(internal *model.PodAutoscalerInternal) metrics
 			})
 		}
 
-		// 9. Vertical scaling container constraints (per container, CPU in millicores, memory in bytes)
+		// 11. Vertical scaling container constraints (per container, CPU in millicores, memory in bytes)
 		// Mirror the resolveMinMaxBounds fallback from controller_vertical_helpers.go:
 		// prefer top-level MinAllowed/MaxAllowed; fall back to deprecated Requests field.
 		for _, container := range spec.Constraints.Containers {
@@ -298,9 +364,9 @@ func GeneratePodAutoscalerMetrics(internal *model.PodAutoscalerInternal) metrics
 		}
 	}
 
-	// 10. Status metrics and autoscaler conditions (from upstream CR)
+	// 12. Status metrics and autoscaler conditions (from upstream CR)
 	if podAutoscaler := internal.UpstreamCR(); podAutoscaler != nil {
-		// 10a. Horizontal desired replicas from status
+		// 12a. Horizontal desired replicas from status
 		if horizontal := podAutoscaler.Status.Horizontal; horizontal != nil && horizontal.Target != nil {
 			metrics = append(metrics, metricsstore.StructuredMetric{
 				Name:  metricPrefix + ".status.desired.replicas",
@@ -310,7 +376,7 @@ func GeneratePodAutoscalerMetrics(internal *model.PodAutoscalerInternal) metrics
 			})
 		}
 
-		// 10b. Vertical desired resources from status (per container, CPU in millicores, memory in bytes)
+		// 12b. Vertical desired resources from status (per container, CPU in millicores, memory in bytes)
 		if vertical := podAutoscaler.Status.Vertical; vertical != nil && vertical.Target != nil {
 			for _, container := range vertical.Target.DesiredResources {
 				containerTags := append(baseTags, "kube_container_name:"+container.Name)
@@ -349,7 +415,7 @@ func GeneratePodAutoscalerMetrics(internal *model.PodAutoscalerInternal) metrics
 			}
 		}
 
-		// 10c. Autoscaler conditions
+		// 12c. Autoscaler conditions
 		for _, condition := range podAutoscaler.Status.Conditions {
 			value := 0.0
 			if condition.Status == corev1.ConditionTrue {

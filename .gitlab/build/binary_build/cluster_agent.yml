@@ -1,6 +1,7 @@
 ---
 .cluster_agent-build_common:
   stage: binary_build
+  timeout: 30m
   rules:
     - !reference [.except_mergequeue]
     - when: on_success

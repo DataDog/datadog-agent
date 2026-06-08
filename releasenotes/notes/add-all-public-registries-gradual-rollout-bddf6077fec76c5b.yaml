@@ -1,0 +1,14 @@
+---
+enhancements:
+  - |
+    Added support for all public registries to the K8s SSI gradual rollout feature.
+    - The default list of Datadog registries is now:
+      - gcr.io/datadoghq
+      - docker.io/datadog
+      - public.ecr.aws/datadog
+      - datadoghq.azurecr.io
+      - us-docker.pkg.dev/datadoghq/gcr.io
+      - europe-docker.pkg.dev/datadoghq/eu.gcr.io
+      - asia-docker.pkg.dev/datadoghq/asia.gcr.io
+      - registry.datad0g.com
+      - registry.datadoghq.com

@@ -1,0 +1,11 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "probes",
+    srcs = [
+        "probes.go",
+        "tls_cert_probes.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/network/ebpf/probes",
+    visibility = ["//visibility:public"],
+)

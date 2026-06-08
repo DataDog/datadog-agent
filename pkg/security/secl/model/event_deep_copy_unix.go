@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model/utils"
 	"github.com/google/gopacket"
+	"net"
 )
 
 // DeepCopy creates a deep copy of the Event where the copy shares nothing with the original
@@ -68,6 +69,7 @@ func (e *Event) DeepCopy() *Event {
 	copied.Setrlimit = deepCopySetrlimitEvent(e.Setrlimit)
 	copied.Signal = deepCopySignalEvent(e.Signal)
 	copied.Signature = e.Signature
+	copied.Socket = deepCopySocketEvent(e.Socket)
 	copied.SpanContext = deepCopySpanContext(e.SpanContext)
 	copied.Splice = deepCopySpliceEvent(e.Splice)
 	copied.SysCtl = deepCopySysCtlEvent(e.SysCtl)
@@ -192,6 +194,7 @@ func deepCopyPIDContext(fieldToCopy PIDContext) PIDContext {
 	copied.NetNS = fieldToCopy.NetNS
 	copied.PPid = fieldToCopy.PPid
 	copied.Pid = fieldToCopy.Pid
+	copied.SID = fieldToCopy.SID
 	copied.Tid = fieldToCopy.Tid
 	copied.UserSessionID = fieldToCopy.UserSessionID
 	return copied
@@ -294,7 +297,9 @@ func deepCopyCGroupContext(fieldToCopy CGroupContext) CGroupContext {
 	copied := CGroupContext{}
 	copied.CGroupID = fieldToCopy.CGroupID
 	copied.CGroupPathKey = deepCopyPathKey(fieldToCopy.CGroupPathKey)
+	copied.CGroupSource = fieldToCopy.CGroupSource
 	copied.CGroupVersion = fieldToCopy.CGroupVersion
+	copied.CreatedAt = fieldToCopy.CreatedAt
 	copied.Releasable = deepCopyReleasablePtr(fieldToCopy.Releasable)
 	return copied
 }
@@ -315,6 +320,7 @@ func deepCopyReleasablePtr(fieldToCopy *Releasable) *Releasable {
 func deepCopyContainerContext(fieldToCopy ContainerContext) ContainerContext {
 	copied := ContainerContext{}
 	copied.ContainerID = fieldToCopy.ContainerID
+	copied.ContainerSource = fieldToCopy.ContainerSource
 	copied.CreatedAt = fieldToCopy.CreatedAt
 	copied.Releasable = deepCopyReleasablePtr(fieldToCopy.Releasable)
 	copied.Tags = deepCopystringArr(fieldToCopy.Tags)
@@ -713,7 +719,21 @@ func deepCopyDNSResponsePtr(fieldToCopy *DNSResponse) *DNSResponse {
 		return nil
 	}
 	copied := &DNSResponse{}
+	copied.CNames = deepCopystringArr(fieldToCopy.CNames)
+	copied.IPs = deepCopyIPNetArr(fieldToCopy.IPs)
 	copied.ResponseCode = fieldToCopy.ResponseCode
+	return copied
+}
+func deepCopyIPNetArr(fieldToCopy []net.IPNet) []net.IPNet {
+	if fieldToCopy == nil {
+		return nil
+	}
+	copied := make([]net.IPNet, len(fieldToCopy))
+	for i := range fieldToCopy {
+		copied[i] = fieldToCopy[i]
+		copied[i].IP = append(net.IP(nil), fieldToCopy[i].IP...)
+		copied[i].Mask = append(net.IPMask(nil), fieldToCopy[i].Mask...)
+	}
 	return copied
 }
 func deepCopyExecEvent(fieldToCopy ExecEvent) ExecEvent {
@@ -1006,12 +1026,7 @@ func deepCopyRawPacketEvent(fieldToCopy RawPacketEvent) RawPacketEvent {
 	return copied
 }
 func deepCopyCaptureInfo(fieldToCopy gopacket.CaptureInfo) gopacket.CaptureInfo {
-	copied := gopacket.CaptureInfo{}
-	copied.CaptureLength = fieldToCopy.CaptureLength
-	copied.InterfaceIndex = fieldToCopy.InterfaceIndex
-	copied.Length = fieldToCopy.Length
-	copied.Timestamp = fieldToCopy.Timestamp
-	return copied
+	return fieldToCopy
 }
 func deepCopyTLSContext(fieldToCopy TLSContext) TLSContext {
 	copied := TLSContext{}
@@ -1117,6 +1132,14 @@ func deepCopySignalEvent(fieldToCopy SignalEvent) SignalEvent {
 	copied.PID = fieldToCopy.PID
 	copied.SyscallEvent = deepCopySyscallEvent(fieldToCopy.SyscallEvent)
 	copied.Target = deepCopyProcessContextPtr(fieldToCopy.Target)
+	copied.Type = fieldToCopy.Type
+	return copied
+}
+func deepCopySocketEvent(fieldToCopy SocketEvent) SocketEvent {
+	copied := SocketEvent{}
+	copied.Domain = fieldToCopy.Domain
+	copied.Protocol = fieldToCopy.Protocol
+	copied.SyscallEvent = deepCopySyscallEvent(fieldToCopy.SyscallEvent)
 	copied.Type = fieldToCopy.Type
 	return copied
 }

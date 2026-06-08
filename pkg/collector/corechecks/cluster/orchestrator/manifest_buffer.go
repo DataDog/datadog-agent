@@ -15,13 +15,13 @@ import (
 	"go.uber.org/atomic"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/common"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	pkgorchestratormodel "github.com/DataDog/datadog-agent/pkg/orchestrator/model"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -30,9 +30,9 @@ var (
 	bufferExpVars           = expvar.NewMap("orchestrator-manifest-buffer")
 	manifestFlushed         = &expvar.Int{}
 	bufferFlushedTotal      = &expvar.Int{}
-	tlmBufferedManifest     = telemetry.NewCounter("orchestrator", "manifest_buffered", []string{"orchestrator", "resource"}, "Number of manifest buffered")
-	tlmManifestFlushed      = telemetry.NewCounter("orchestrator", "manifest_flushed", nil, "Number of manifest flushed")
-	tlmManifestFlushedTotal = telemetry.NewCounter("orchestrator", "manifest_flushed_total", nil, "Number of times the buffer is flushed")
+	tlmBufferedManifest     = telemetryimpl.GetCompatComponent().NewCounter("orchestrator", "manifest_buffered", []string{"orchestrator", "resource"}, "Number of manifest buffered")
+	tlmManifestFlushed      = telemetryimpl.GetCompatComponent().NewCounter("orchestrator", "manifest_flushed", nil, "Number of manifest flushed")
+	tlmManifestFlushedTotal = telemetryimpl.GetCompatComponent().NewCounter("orchestrator", "manifest_flushed_total", nil, "Number of times the buffer is flushed")
 )
 
 func init() {

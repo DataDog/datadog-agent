@@ -20,9 +20,9 @@ import (
 	containerdevents "github.com/containerd/containerd/events"
 	"go.uber.org/fx"
 
+	config "github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	agentErrors "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/sbom/scanner"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -83,11 +83,13 @@ type exitInfo struct {
 type dependencies struct {
 	fx.In
 
+	Config      config.Component
 	FilterStore workloadfilter.Component
 }
 
 type collector struct {
 	id               string
+	cfg              config.Component
 	store            workloadmeta.Component
 	catalog          workloadmeta.AgentType
 	containerdClient cutil.ContainerdItf
@@ -119,6 +121,7 @@ func NewCollector(deps dependencies) (workloadmeta.CollectorProvider, error) {
 	return workloadmeta.CollectorProvider{
 		Collector: &collector{
 			id:                     collectorID,
+			cfg:                    deps.Config,
 			catalog:                workloadmeta.NodeAgent,
 			contToExitInfo:         make(map[string]*exitInfo),
 			knownImages:            newKnownImages(),
@@ -156,7 +159,7 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 	}
 
 	eventsCtx, cancelEvents := context.WithCancel(ctx)
-	c.eventsChan, c.errorsChan = c.containerdClient.GetEvents().Subscribe(eventsCtx, subscribeFilters()...)
+	c.eventsChan, c.errorsChan = c.containerdClient.GetEvents().Subscribe(eventsCtx, c.subscribeFilters()...)
 
 	err = c.notifyInitialEvents(ctx)
 	if err != nil {
@@ -230,7 +233,7 @@ func (c *collector) notifyInitialEvents(ctx context.Context) error {
 	}
 
 	for _, namespace := range namespaces {
-		if imageMetadataCollectionIsEnabled() {
+		if c.imageMetadataCollectionIsEnabled() {
 			if err := c.notifyInitialImageEvents(ctx, namespace); err != nil {
 				return err
 			}
@@ -412,11 +415,11 @@ func (c *collector) ignoreContainer(namespace string, container containerd.Conta
 	return excluded, nil
 }
 
-func subscribeFilters() []string {
+func (c *collector) subscribeFilters() []string {
 	var filters []string
 
 	for _, topic := range containerdTopics {
-		if isImageTopic(topic) && !imageMetadataCollectionIsEnabled() {
+		if isImageTopic(topic) && !c.imageMetadataCollectionIsEnabled() {
 			continue
 		}
 
@@ -441,6 +444,6 @@ func (c *collector) cacheExitInfo(id string, exitCode *int64, exitTS time.Time) 
 	}
 }
 
-func imageMetadataCollectionIsEnabled() bool {
-	return pkgconfigsetup.Datadog().GetBool("container_image.enabled")
+func (c *collector) imageMetadataCollectionIsEnabled() bool {
+	return c.cfg.GetBool("container_image.enabled")
 }

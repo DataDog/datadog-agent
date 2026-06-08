@@ -55,7 +55,11 @@ func FargateWindowsTaskDefinitionWithAgent(
 	image string,
 	opts ...pulumi.ResourceOption,
 ) (*ecs.FargateTaskDefinition, error) {
-	containers["datadog-agent"] = *agent.ECSFargateWindowsContainerDefinition(&e, image, apiKeySSMParamName, fakeintake)
+	windowsAgentDef, err := agent.ECSFargateWindowsContainerDefinition(&e, image, apiKeySSMParamName, fakeintake)
+	if err != nil {
+		return nil, err
+	}
+	containers["datadog-agent"] = *windowsAgentDef
 	// aws-for-fluent-bit:windowsservercore-latest can only be used with cloudwatch logs.
 	return ecs.NewFargateTaskDefinition(e.Ctx(), e.Namer.ResourceName(name), &ecs.FargateTaskDefinitionArgs{
 		Containers: containers,
@@ -85,7 +89,10 @@ func FargateTaskDefinitionWithAgent(
 	image string,
 	opts ...pulumi.ResourceOption,
 ) (*ecs.FargateTaskDefinition, error) {
-	initContainer, agentContainer := agent.ECSFargateLinuxContainerDefinition(&e, image, apiKeySSMParamName, fakeintake, GetFirelensLogConfiguration(pulumi.String("datadog-agent"), pulumi.String("datadog-agent"), apiKeySSMParamName))
+	initContainer, agentContainer, err := agent.ECSFargateLinuxContainerDefinition(&e, image, apiKeySSMParamName, fakeintake, GetFirelensLogConfiguration(pulumi.String("datadog-agent"), pulumi.String("datadog-agent"), apiKeySSMParamName))
+	if err != nil {
+		return nil, err
+	}
 	containers["init-copy-agent-config"] = *initContainer
 	containers["datadog-agent"] = *agentContainer
 
@@ -125,9 +132,10 @@ func FargateTaskDefinitionWithAgent(
 
 func FargateFirelensContainerDefinition() *ecs.TaskDefinitionContainerDefinitionArgs {
 	return &ecs.TaskDefinitionContainerDefinitionArgs{
-		Cpu:       pulumi.IntPtr(0),
-		User:      pulumi.StringPtr("0"),
-		Name:      pulumi.String("log_router"),
+		Cpu:  pulumi.IntPtr(0),
+		User: pulumi.StringPtr("0"),
+		Name: pulumi.String("log_router"),
+		// Can't use the pull-through cache for this because it gets pulled as part of the Fargate service def, and so no opportunity to docker login.
 		Image:     pulumi.String("public.ecr.aws/aws-observability/aws-for-fluent-bit:stable"),
 		Essential: pulumi.BoolPtr(true),
 		FirelensConfiguration: ecs.TaskDefinitionFirelensConfigurationArgs{

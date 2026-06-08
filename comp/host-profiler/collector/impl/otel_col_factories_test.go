@@ -10,6 +10,7 @@ package collectorimpl
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/comp/host-profiler/version"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/attributesprocessor"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/k8sattributesprocessor"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/filelogreceiver"
@@ -42,4 +43,14 @@ func TestExtraFactoriesWithoutAgentCore_GetReceivers(t *testing.T) {
 func TestExtraFactoriesWithAgentCore_GetReceivers(t *testing.T) {
 	extra := extraFactoriesWithAgentCore{}
 	assert.Nil(t, extra.GetReceivers(), "agent core mode should not add extra receivers")
+}
+
+func TestExtraFactoriesWithoutAgentCore_GetProfilerName(t *testing.T) {
+	extraFactories := NewExtraFactoriesWithoutAgentCore()
+	assert.Equal(t, version.StandaloneProfilerName, extraFactories.GetProfilerName())
+}
+
+func TestExtraFactoriesWithAgentCore_GetProfilerName(t *testing.T) {
+	extraFactories := extraFactoriesWithAgentCore{}
+	assert.Equal(t, version.BundledProfilerName, extraFactories.GetProfilerName())
 }

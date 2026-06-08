@@ -7,8 +7,11 @@
 
 package decode
 
+import "github.com/DataDog/datadog-agent/pkg/dyninst/ir"
+
 // bitset is a data structure to store a dense set of booleans corresponding to
-// indices.
+// indices. It is also used as the backing store for the per-expression status
+// array (ExprStatusArray), where each expression occupies ExprStatusBits bits.
 type bitset []byte
 
 // reset initializes the bitset to the required size and clears it.
@@ -34,4 +37,17 @@ func (b bitset) set(index int) {
 	if idx, bit := index/8, index%8; idx < len(b) {
 		b[idx] |= 1 << byte(bit)
 	}
+}
+
+// getExprStatus reads the ir.ExprStatusBits-wide status for expression
+// exprIdx from the packed bitset.
+func (b bitset) getExprStatus(exprIdx int) ir.ExprStatus {
+	bitOffset := exprIdx * ir.ExprStatusBits
+	var v uint8
+	for bit := range ir.ExprStatusBits {
+		if b.get(bitOffset + bit) {
+			v |= 1 << bit
+		}
+	}
+	return ir.ExprStatus(v)
 }

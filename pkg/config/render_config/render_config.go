@@ -8,11 +8,11 @@ package main
 import (
 	"bytes"
 	"fmt"
-	"html/template"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"text/template"
 
 	"github.com/pmezard/go-difflib/difflib"
 	"go.yaml.in/yaml/v3"
@@ -39,7 +39,6 @@ type context struct {
 	AdmissionController bool
 	CloudFoundry        bool
 	PrivateActionRunner bool
-	SecurityAgent       bool
 }
 
 func mkContext(buildType string, osName string) context {
@@ -114,20 +113,17 @@ func mkContext(buildType string, osName string) context {
 }
 
 func render(destFile string, tplFile string, component string, osName string) {
-	f, err := os.Create(destFile)
-	if err != nil {
-		panic(err)
-	}
-
 	tplFilename := filepath.Base(tplFile)
 
 	t := template.Must(template.New(tplFilename).ParseFiles(tplFile))
-	err = t.Execute(f, mkContext(component, osName))
-	if err != nil {
+	var buf bytes.Buffer
+	if err := t.Execute(&buf, mkContext(component, osName)); err != nil {
 		panic(err)
 	}
 
-	if err := f.Close(); err != nil {
+	rendered := append(bytes.TrimRight(buf.Bytes(), "\n\r \t"), '\n')
+
+	if err := os.WriteFile(destFile, rendered, 0644); err != nil {
 		panic(err)
 	}
 }

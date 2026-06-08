@@ -2,6 +2,7 @@
 #define __IP_H
 
 #include "ktypes.h"
+#include "defs.h"
 #include "bpf_builtins.h"
 #include "bpf_core_read.h"
 #include "bpf_endian.h"
@@ -232,6 +233,34 @@ __maybe_unused static __always_inline void print_ip(u64 ip_h, u64 ip_l, u16 port
     } else {
         log_debug("v4 %x:%u", bpf_ntohl((u32)ip_l), port);
     }
+#endif
+}
+
+static __maybe_unused __always_inline bool is_tcpv4_enabled() {
+#ifdef COMPILE_RUNTIME
+#ifdef FEATURE_TCPV4_ENABLED
+    return true;
+#else
+    return false;
+#endif
+#else
+    __u64 val = 0;
+    LOAD_CONSTANT("tcpv4_enabled", val);
+    return val == ENABLED;
+#endif
+}
+
+static __maybe_unused __always_inline bool is_udpv4_enabled() {
+#ifdef COMPILE_RUNTIME
+#ifdef FEATURE_UDPV4_ENABLED
+    return true;
+#else
+    return false;
+#endif
+#else
+    __u64 val = 0;
+    LOAD_CONSTANT("udpv4_enabled", val);
+    return val == ENABLED;
 #endif
 }
 

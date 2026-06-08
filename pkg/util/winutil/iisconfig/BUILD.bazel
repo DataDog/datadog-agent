@@ -29,6 +29,7 @@ go_test(
     ],
     data = glob(["testdata/**"]),
     embed = [":iisconfig"],
+    gotags = ["test"],
     target_compatible_with = ["@platforms//os:windows"],  # keep
     deps = select({
         "@rules_go//go/platform:windows": [

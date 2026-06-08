@@ -48,6 +48,13 @@ func (c *ddConverter) enhanceConfig(ctx context.Context, conf *confmap.Conf) {
 			if c.coreConfig == nil || c.coreConfig.GetString("api_key") == "" {
 				continue
 			}
+			// User already defined a datadog extension but forgot to wire it into
+			// service.extensions — reuse their definition instead of creating a
+			// second datadog/dd-autoconfigured.
+			if existingID := findExistingExtensionID(conf, datadogName); existingID != "" {
+				wireExtensionIDToPipeline(conf, existingID)
+				continue
+			}
 			site := defaultSite
 			if c.coreConfig.GetString("site") != "" {
 				site = c.coreConfig.GetString("site")
@@ -100,6 +107,28 @@ func (c *ddConverter) enhanceConfig(ctx context.Context, conf *confmap.Conf) {
 
 	// add datadog agent sourced config
 	addCoreAgentConfig(conf, c.coreConfig)
+
+	// warn about problematic receiver configurations
+	c.warnIfHostmetricsInConnectedMode(conf)
+}
+
+// warnIfHostmetricsInConnectedMode logs a warning when the hostmetrics receiver
+// is configured while the OTel Agent runs in connected mode (not standalone).
+// In connected mode the core Datadog Agent already collects host metrics, so the
+// hostmetrics receiver will produce duplicate or conflicting metric names once
+// the otel. prefix remapping is disabled.
+func (c *ddConverter) warnIfHostmetricsInConnectedMode(conf *confmap.Conf) {
+	if c.coreConfig == nil || c.coreConfig.GetBool("otel_standalone") {
+		return
+	}
+	if receivers := findComps(conf.ToStringMap(), "hostmetrics", "receivers"); len(receivers) > 0 {
+		if c.logger != nil {
+			c.logger.Warn("The hostmetrics receiver is enabled but the OTel Agent is running " +
+				"in connected mode (DD_OTEL_STANDALONE=false). In connected mode, the core " +
+				"Datadog Agent already collects host metrics. The hostmetrics receiver should " +
+				"only be used in standalone mode (DD_OTEL_STANDALONE=true) to avoid metric conflicts.")
+		}
+	}
 }
 
 func componentName(fullName string) string {

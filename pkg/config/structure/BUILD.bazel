@@ -20,6 +20,7 @@ go_test(
         "unmarshal_test.go",
     ],
     embed = [":structure"],
+    gotags = ["test"],
     deps = [
         "//pkg/config/create",
         "//pkg/config/model",

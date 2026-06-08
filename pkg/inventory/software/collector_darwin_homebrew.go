@@ -237,6 +237,9 @@ func (c *homebrewCollector) Collect() ([]*Entry, []*Warning, error) {
 						}
 
 						version := versionDir.Name()
+						if strings.HasPrefix(version, ".") {
+							continue
+						}
 						versionPath := filepath.Join(caskPath, version)
 
 						// Check if this cask installed an app to /Applications

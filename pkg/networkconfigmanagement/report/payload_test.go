@@ -3,27 +3,34 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build test && ncm
+//go:build test
 
 package report
 
 import (
 	"encoding/json"
+	"strconv"
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/profile"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/profile"
+	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/types"
 )
+
+func formatInt(v int64) string {
+	return strconv.FormatInt(v, 10)
+}
 
 func TestNetworkDeviceConfig_Creation(t *testing.T) {
 	now := time.Now().Unix()
 
 	deviceID := "default:10.0.0.1"
 	deviceIP := "10.0.0.1"
-	configType := RUNNING
-	configSource := CLI
+	configType := types.RUNNING
+	configSource := types.CLI
 
 	metadata := &profile.ExtractedMetadata{
 		Timestamp: now,
@@ -31,34 +38,52 @@ func TestNetworkDeviceConfig_Creation(t *testing.T) {
 	tags := []string{"device_type:router", "vendor:cisco"}
 	content := []byte("version 15.1\nhostname Router1")
 
-	config := ToNetworkDeviceConfig(deviceID, deviceIP, configType, metadata, tags, content)
+	configUUID := "test_uuid"
+	configHash := "test_hash"
+
+	config := ToNetworkDeviceConfig(deviceID, deviceIP, configType, metadata, tags, content, configUUID, configHash)
 
 	assert.Equal(t, deviceID, config.DeviceID)
 	assert.Equal(t, deviceIP, config.DeviceIP)
-	assert.Equal(t, string(configType), config.ConfigType)
-	assert.Equal(t, string(configSource), config.ConfigSource)
+	assert.Equal(t, configType, config.ConfigType)
+	assert.Equal(t, configSource, config.ConfigSource)
 	assert.Equal(t, now, config.Timestamp)
 	assert.Equal(t, tags, config.Tags)
 	assert.Equal(t, string(content), config.Content)
+	assert.Equal(t, configUUID, config.ID)
+	assert.Equal(t, configHash, config.ConfigHash)
+}
+
+func TestNetworkDeviceConfig_OmitsEmptyStoreFields(t *testing.T) {
+	metadata := &profile.ExtractedMetadata{Timestamp: time.Now().Unix()}
+	config := ToNetworkDeviceConfig("default:10.0.0.1", "10.0.0.1", types.RUNNING, metadata, nil, []byte("content"), "", "")
+
+	assert.Empty(t, config.ID)
+	assert.Empty(t, config.ConfigHash)
+
+	jsonData, err := json.Marshal(config)
+	require.NoError(t, err)
+	assert.NotContains(t, string(jsonData), "\"id\"")
+	assert.NotContains(t, string(jsonData), "config_hash")
 }
 
 func TestNetworkDeviceConfig_ConfigTypes(t *testing.T) {
 	tests := []struct {
 		name         string
-		configType   ConfigType
-		configSource ConfigSource
-		expected     string
+		configType   types.ConfigType
+		configSource types.ConfigSource
+		expected     types.ConfigType
 	}{
 		{
 			name:         "running config",
-			configType:   RUNNING,
-			configSource: CLI,
+			configType:   types.RUNNING,
+			configSource: types.CLI,
 			expected:     "running",
 		},
 		{
 			name:         "startup config",
-			configType:   STARTUP,
-			configSource: CLI,
+			configType:   types.STARTUP,
+			configSource: types.CLI,
 			expected:     "startup",
 		},
 	}
@@ -68,7 +93,7 @@ func TestNetworkDeviceConfig_ConfigTypes(t *testing.T) {
 			Timestamp: 0,
 		}
 		t.Run(tt.name, func(t *testing.T) {
-			config := ToNetworkDeviceConfig("default:10.0.0.1", "10.0.0.1", tt.configType, metadata, nil, []byte(""))
+			config := ToNetworkDeviceConfig("default:10.0.0.1", "10.0.0.1", tt.configType, metadata, nil, []byte(""), "", "")
 			assert.Equal(t, tt.expected, config.ConfigType)
 		})
 	}
@@ -82,8 +107,8 @@ func TestNetworkDevicesConfigPayload_Creation(t *testing.T) {
 		{
 			DeviceID:     "default:10.0.0.1",
 			DeviceIP:     "10.0.0.1",
-			ConfigType:   string(RUNNING),
-			ConfigSource: string(CLI),
+			ConfigType:   types.RUNNING,
+			ConfigSource: types.CLI,
 			Timestamp:    timestamp,
 			Tags:         []string{"device_type:router"},
 			Content:      "running config content",
@@ -91,32 +116,127 @@ func TestNetworkDevicesConfigPayload_Creation(t *testing.T) {
 		{
 			DeviceID:     "default:10.0.0.1",
 			DeviceIP:     "10.0.0.1",
-			ConfigType:   string(STARTUP),
-			ConfigSource: string(CLI),
+			ConfigType:   types.STARTUP,
+			ConfigSource: types.CLI,
 			Timestamp:    timestamp,
 			Tags:         []string{"device_type:router"},
 			Content:      "startup config content",
 		},
 	}
 
-	payload := ToNCMPayload(namespace, configs, timestamp)
+	payload := ToNCMPayload(namespace, "test-agent-host", configs, []InventoryEntry{}, timestamp)
 
 	assert.Equal(t, namespace, payload.Namespace)
+	assert.Equal(t, "test-agent-host", payload.AgentHostname)
 	assert.Equal(t, timestamp, payload.CollectTimestamp)
 	assert.Len(t, payload.Configs, 2)
 	assert.Equal(t, configs, payload.Configs)
 }
 
+func TestNCMPayload_JSONFormat(t *testing.T) {
+	timestamp := time.Now().Unix()
+
+	tests := []struct {
+		name     string
+		payload  NCMPayload
+		expected string
+	}{
+		{
+			name: "full payload with all fields",
+			payload: NCMPayload{
+				Namespace: "production",
+				Configs: []NetworkDeviceConfig{
+					{
+						DeviceID:     "default:10.0.0.1",
+						DeviceIP:     "10.0.0.1",
+						ConfigType:   types.RUNNING,
+						ConfigSource: types.CLI,
+						Timestamp:    timestamp,
+						Tags:         []string{"device_type:router"},
+						Content:      "running config content",
+						ID:           "test_uuid",
+						ConfigHash:   "test_hash",
+					},
+				},
+				CollectTimestamp: timestamp,
+			},
+			expected: `{
+				"namespace": "production",
+				"configs": [
+					{
+						"device_id": "default:10.0.0.1",
+						"device_ip": "10.0.0.1",
+						"config_type": "running",
+						"config_source": "cli",
+						"timestamp": ` + formatInt(timestamp) + `,
+						"tags": ["device_type:router"],
+						"content": "running config content",
+						"id": "test_uuid",
+						"config_hash": "test_hash"
+					}
+				],
+				"collect_timestamp": ` + formatInt(timestamp) + `,
+				"agent_hostname": ""
+			}`,
+		},
+		{
+			name: "omitempty fields absent when empty",
+			payload: NCMPayload{
+				Namespace: "production",
+				Configs: []NetworkDeviceConfig{
+					{
+						DeviceID:     "default:10.0.0.1",
+						DeviceIP:     "10.0.0.1",
+						ConfigType:   types.RUNNING,
+						ConfigSource: types.CLI,
+						Timestamp:    timestamp,
+						Tags:         []string{"device_type:router"},
+						Content:      "running config content",
+					},
+				},
+				CollectTimestamp: timestamp,
+			},
+			expected: `{
+				"namespace": "production",
+				"configs": [
+					{
+						"device_id": "default:10.0.0.1",
+						"device_ip": "10.0.0.1",
+						"config_type": "running",
+						"config_source": "cli",
+						"timestamp": ` + formatInt(timestamp) + `,
+						"tags": ["device_type:router"],
+						"content": "running config content"
+					}
+				],
+				"collect_timestamp": ` + formatInt(timestamp) + `,
+				"agent_hostname": ""
+			}`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			actualJSON, err := json.Marshal(tt.payload)
+			require.NoError(t, err)
+
+			var expectedCompact, actualParsed interface{}
+			require.NoError(t, json.Unmarshal([]byte(tt.expected), &expectedCompact))
+			require.NoError(t, json.Unmarshal(actualJSON, &actualParsed))
+			assert.Equal(t, expectedCompact, actualParsed)
+		})
+	}
+}
+
 func TestNetworkDevicesConfigPayload_EmptyConfigs(t *testing.T) {
-	payload := ToNCMPayload("test", []NetworkDeviceConfig{}, time.Now().Unix())
+	payload := ToNCMPayload("test", "test-agent-host", []NetworkDeviceConfig{}, []InventoryEntry{}, time.Now().Unix())
 
 	assert.Equal(t, "test", payload.Namespace)
 	assert.Empty(t, payload.Configs)
 
-	// Should still be valid JSON
 	jsonData, err := json.Marshal(payload)
 	require.NoError(t, err)
-	assert.Contains(t, string(jsonData), "\"configs\":[]")
+	assert.NotContains(t, string(jsonData), "\"configs\"")
 }
 
 func TestNetworkDevicesConfigPayload_EmptyTimestamps(t *testing.T) {
@@ -124,17 +244,17 @@ func TestNetworkDevicesConfigPayload_EmptyTimestamps(t *testing.T) {
 	ndc := NetworkDeviceConfig{
 		DeviceID:     "default:10.0.0.1",
 		DeviceIP:     "10.0.0.1",
-		ConfigType:   string(RUNNING),
-		ConfigSource: string(CLI),
+		ConfigType:   types.RUNNING,
+		ConfigSource: types.CLI,
 		Timestamp:    0,
 	}
-	payload := ToNCMPayload("test", []NetworkDeviceConfig{ndc}, agentTs)
+	payload := ToNCMPayload("test", "test-agent-host", []NetworkDeviceConfig{ndc}, []InventoryEntry{}, agentTs)
 
 	expected := NetworkDeviceConfig{
 		DeviceID:     "default:10.0.0.1",
 		DeviceIP:     "10.0.0.1",
-		ConfigType:   string(RUNNING),
-		ConfigSource: string(CLI),
+		ConfigType:   types.RUNNING,
+		ConfigSource: types.CLI,
 		Timestamp:    agentTs,
 	}
 

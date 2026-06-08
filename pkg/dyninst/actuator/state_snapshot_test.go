@@ -19,6 +19,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	"go.yaml.in/yaml/v3"
@@ -62,6 +63,19 @@ func TestSnapshot(t *testing.T) {
 }
 
 func runSnapshotTest(t *testing.T, file string, rewrite bool) {
+	// Deterministic wall clock for the snapshot. handleHeartbeatCheck
+	// uses nowFunc() to compute the interval since the previous
+	// heartbeat; without override, the interval would be a real
+	// nanosecond gap and trip messages would carry timing-dependent
+	// floating-point values.
+	originalNow := nowFunc
+	t.Cleanup(func() { nowFunc = originalNow })
+	fakeNow := time.Unix(0, 0)
+	nowFunc = func() time.Time {
+		fakeNow = fakeNow.Add(time.Second)
+		return fakeNow
+	}
+
 	content, err := os.ReadFile(file)
 	require.NoError(t, err, "failed to read snapshot file")
 
@@ -77,6 +91,11 @@ func runSnapshotTest(t *testing.T, file string, rewrite bool) {
 	// documents. This is a sanity check to ensure that the file is valid.
 	input := documentChunks[0]
 	decoder := yaml.NewDecoder(bytes.NewReader(input))
+	// Strict decoding: any unknown YAML field in the events doc is an
+	// error. This prevents stale snapshots from silently decoding
+	// missing or renamed fields to zero values when the schema
+	// changes (e.g. runtime_stats shape evolution).
+	decoder.KnownFields(true)
 	var eventsNode yaml.Node
 	err = decoder.Decode(&eventsNode)
 	require.NoError(t, err, "failed to decode events list node")
@@ -101,11 +120,14 @@ func runSnapshotTest(t *testing.T, file string, rewrite bool) {
 	discoveredTypesLimit := defaultDiscoveredTypesLimit
 	var recompilationRateLimit float64
 	var recompilationRateBurst int
+	var breakerCfg CircuitBreakerConfig
 	if len(events) > 0 {
 		if cfg, ok := events[0].event.(eventConfig); ok {
 			discoveredTypesLimit = cfg.discoveredTypesLimit
 			recompilationRateLimit = cfg.recompilationRateLimit
 			recompilationRateBurst = cfg.recompilationRateBurst
+			breakerCfg.PerProbeCPULimit = cfg.perProbeCPULimit
+			breakerCfg.AllProbesCPULimit = cfg.allProbesCPULimit
 			events = events[1:]
 			eventNodes = eventNodes[1:]
 		}
@@ -116,6 +138,7 @@ func runSnapshotTest(t *testing.T, file string, rewrite bool) {
 		DiscoveredTypesLimit:   discoveredTypesLimit,
 		RecompilationRateLimit: recompilationRateLimit,
 		RecompilationRateBurst: recompilationRateBurst,
+		CircuitBreakerConfig:   breakerCfg,
 	})
 	effects := effectRecorder{}
 	for i, ev := range events {
@@ -130,6 +153,14 @@ func runSnapshotTest(t *testing.T, file string, rewrite bool) {
 			err = handleEvent(s, &effects, ev.event)
 		}
 		require.NoError(t, err)
+		// Populate fake program metadata that the production loader
+		// would have computed for us (probe definitions in BPF probe_id
+		// order). The snapshot fake constructed in
+		// state_event_yaml_test.go starts empty; do this after the
+		// eventProgramLoaded handler so prog.config is populated.
+		if loadedEvent, ok := ev.event.(eventProgramLoaded); ok {
+			populateFakeLoadedProgramProbes(s, loadedEvent.programID)
+		}
 		output[i] = generateEventOutput(t, eventNodes[i], effects, before, s)
 		outputString := string(output[i])
 		validateState(s, func(err error) {
@@ -172,6 +203,31 @@ func runSnapshotTest(t *testing.T, file string, rewrite bool) {
 		require.NoError(t, err)
 		err = os.Rename(tmpFile.Name(), file)
 		require.NoError(t, err)
+	}
+}
+
+// populateFakeLoadedProgramProbes copies prog.config into the
+// fakeLoadedProgram's probes slice so that ProbeDefinition lookups
+// during checkCosts / tripProbe resolve correctly. Production code
+// derives this list from the IR program returned by the loader; in
+// the snapshot test there is no real loader, so we mirror the actuator
+// state. If the fake declared includeRecoveryProbe (modeling the
+// production behavior where irgen appends the synthetic runtime.
+// recovery probe to any function-probe program), a recovery stub is
+// appended to the tail — the same slot the actuator would see at
+// probeID = NumProbes()-1.
+func populateFakeLoadedProgramProbes(s *state, progID ir.ProgramID) {
+	prog, ok := s.programs[progID]
+	if !ok || prog.loaded == nil {
+		return
+	}
+	flp, ok := prog.loaded.loaded.(*fakeLoadedProgram)
+	if !ok {
+		return
+	}
+	flp.probes = append(flp.probes[:0], prog.config...)
+	if flp.includeRecoveryProbe {
+		flp.probes = append(flp.probes, recoveryProbeStub{})
 	}
 }
 
@@ -300,6 +356,28 @@ func computeStateUpdate(before, after *state) *stateUpdate {
 			allIDs[id] = true
 		}
 
+		renderProc := func(p *process) string {
+			var s string
+			if p.currentProgram != 0 {
+				s = fmt.Sprintf(
+					"%s (prog %d)",
+					p.state.String(), p.currentProgram,
+				)
+			} else {
+				s = p.state.String()
+			}
+			if len(p.circuitBrokenProbes) > 0 {
+				keys := slices.SortedFunc(
+					maps.Keys(p.circuitBrokenProbes), probeKey.cmp,
+				)
+				ids := make([]string, len(keys))
+				for i, k := range keys {
+					ids[i] = k.id
+				}
+				s += fmt.Sprintf(" circuitBroken=[%s]", strings.Join(ids, ","))
+			}
+			return s
+		}
 		for id := range allIDs {
 			beforeProc := before[id]
 			afterProc := after[id]
@@ -307,24 +385,10 @@ func computeStateUpdate(before, after *state) *stateUpdate {
 
 			var beforeState, afterState any
 			if beforeProc != nil {
-				if beforeProc.currentProgram != 0 {
-					beforeState = fmt.Sprintf(
-						"%s (prog %d)",
-						beforeProc.state.String(), beforeProc.currentProgram,
-					)
-				} else {
-					beforeState = beforeProc.state.String()
-				}
+				beforeState = renderProc(beforeProc)
 			}
 			if afterProc != nil {
-				if afterProc.currentProgram != 0 {
-					afterState = fmt.Sprintf(
-						"%s (prog %d)",
-						afterProc.state.String(), afterProc.currentProgram,
-					)
-				} else {
-					afterState = afterProc.state.String()
-				}
+				afterState = renderProc(afterProc)
 			}
 			if update.Processes == nil {
 				update.Processes = make(map[any]string)

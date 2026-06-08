@@ -1,0 +1,79 @@
+{
+  "kind": "PodList",
+  "apiVersion": "v1",
+  "metadata": {},
+  "items": [
+    {
+      "metadata": {
+        "name": "resized-pod",
+        "namespace": "default",
+        "uid": "resized-pod-uid-0001",
+        "resourceVersion": "100",
+        "creationTimestamp": "2026-04-21T09:00:00Z",
+        "labels": {
+          "app": "resized"
+        }
+      },
+      "spec": {
+        "nodeName": "test-node",
+        "containers": [
+          {
+            "name": "resized-container",
+            "image": "nginx:1.25.2",
+            "resources": {
+              "requests": {
+                "cpu": "500m",
+                "memory": "1Gi",
+                "nvidia.com/gpu": "1"
+              },
+              "limits": {
+                "cpu": "500m",
+                "memory": "1Gi"
+              }
+            }
+          }
+        ]
+      },
+      "status": {
+        "phase": "Running",
+        "hostIP": "10.0.0.1",
+        "podIP": "10.0.0.2",
+        "startTime": "2026-04-21T09:00:10Z",
+        "qosClass": "Guaranteed",
+        "conditions": [
+          {
+            "type": "Ready",
+            "status": "True",
+            "lastTransitionTime": "2026-04-21T09:00:15Z"
+          }
+        ],
+        "containerStatuses": [
+          {
+            "name": "resized-container",
+            "state": {
+              "running": {
+                "startedAt": "2026-04-21T09:00:15Z"
+              }
+            },
+            "lastState": {},
+            "ready": true,
+            "restartCount": 0,
+            "image": "nginx:1.25.2",
+            "imageID": "docker-pullable://nginx@sha256:deadbeef",
+            "containerID": "docker://resized-container-id",
+            "resources": {
+              "requests": {
+                "cpu": "200m",
+                "memory": "512Mi"
+              },
+              "limits": {
+                "cpu": "200m",
+                "memory": "512Mi"
+              }
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

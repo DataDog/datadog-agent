@@ -7,6 +7,7 @@ use anyhow::{Context, Result};
 use nix::sys::signal::{self, Signal};
 use nix::unistd::Pid;
 use std::os::unix::process::ExitStatusExt;
+use std::path::PathBuf;
 
 /// Place the child in its own process group so signals don't propagate
 /// to the daemon itself and SIGTERM can target all descendants.
@@ -39,6 +40,10 @@ pub fn send_force_kill(pid: u32) -> Result<()> {
 /// terminated by a signal.
 pub fn last_signal(status: &std::process::ExitStatus) -> Option<i32> {
     status.signal()
+}
+
+pub fn default_config_dir() -> PathBuf {
+    PathBuf::from("/opt/datadog-agent/processes.d")
 }
 
 /// Wait for a shutdown trigger (SIGTERM or SIGINT).

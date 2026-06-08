@@ -1,5 +1,10 @@
 load("@rules_go//go:def.bzl", "go_library")
 
+exports_files(
+    ["doc.go"],
+    visibility = ["//pkg/security/seclwin:__pkg__"],
+)
+
 go_library(
     name = "secl",
     srcs = ["doc.go"],

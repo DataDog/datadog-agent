@@ -200,7 +200,7 @@ func GetMultipleEndpoints(c pkgconfigmodel.Reader) (EndpointDescriptorSet, error
 // ddDomainPattern matches known Datadog domains (e.g., datadoghq.com,
 // datad0g.eu, ddog-gov.com). This is the shared building block for
 // wellKnownSitesRe, ddSitePattern, ddSiteFromHostnameRe, and ddURLRegexp.
-const ddDomainPattern = `datad(?:oghq|0g)\.(?:com|eu)|ddog-gov\.(?:com|mil)`
+const ddDomainPattern = `datad(?:oghq|0g)\.(?:com|eu)|ddog-gov\.com`
 
 var wellKnownSitesRe = regexp.MustCompile(`(?:` + ddDomainPattern + `)$`)
 
@@ -273,7 +273,7 @@ func GetMainEndpoint(c pkgconfigmodel.Reader, prefix string, ddURLKey string) st
 // lookup key in the configuration. If a valid is set at the given key, it is used as an override URL that takes
 // precedence over `multi_region_failover.site`.
 func GetMRFEndpoint(c pkgconfigmodel.Reader, prefix, ddMRFURLKey string) (string, error) {
-	if c.IsSet(ddMRFURLKey) && c.GetString(ddMRFURLKey) != "" {
+	if c.IsConfigured(ddMRFURLKey) && c.GetString(ddMRFURLKey) != "" {
 		return getResolvedMRFDDURL(c, ddMRFURLKey), nil
 	} else if c.GetString("multi_region_failover.site") != "" {
 		return BuildURLWithPrefix(prefix, c.GetString("multi_region_failover.site")), nil
@@ -300,7 +300,7 @@ func GetMRFLogsEndpoint(c pkgconfigmodel.Reader, prefix string) (string, error) 
 
 func getResolvedMRFDDURL(c pkgconfigmodel.Reader, mrfURLKey string) string {
 	resolvedMRFDDURL := c.GetString(mrfURLKey)
-	if c.IsSet("multi_region_failover.site") {
+	if c.IsConfigured("multi_region_failover.site") {
 		log.Infof("'multi_region_failover.site' and '%s' are both set in config: setting main endpoint to '%s': \"%s\"", mrfURLKey, mrfURLKey, resolvedMRFDDURL)
 	}
 	return resolvedMRFDDURL

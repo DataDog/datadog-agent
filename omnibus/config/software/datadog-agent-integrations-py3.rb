@@ -11,7 +11,8 @@ name 'datadog-agent-integrations-py3'
 license "BSD-3-Clause"
 license_file "./LICENSE"
 
-dependency 'datadog-agent-integrations-py3-dependencies'
+dependency 'python3'
+dependency 'setuptools3'
 
 python_version = "3.13"
 

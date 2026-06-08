@@ -55,6 +55,7 @@ type Serie struct {
 	MType          APIMetricType        `json:"type"`
 	Interval       int64                `json:"interval"`
 	SourceTypeName string               `json:"source_type_name,omitempty"`
+	Unit           string               `json:"unit,omitempty"`
 	ContextKey     ckey.ContextKey      `json:"-"`
 	NameSuffix     string               `json:"-"`
 	NoIndex        bool                 `json:"-"` // This is only used by api V2

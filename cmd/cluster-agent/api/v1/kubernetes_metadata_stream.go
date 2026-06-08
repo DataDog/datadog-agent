@@ -10,9 +10,11 @@ package v1
 import (
 	"context"
 	"maps"
+	"slices"
 	"sync"
 	"time"
 
+	"github.com/DataDog/dd-trace-go/v2/ddtrace/tracer"
 	"k8s.io/apimachinery/pkg/util/sets"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -48,9 +50,13 @@ type KubeMetadataStreamServer struct {
 	store *controllers.MetaBundleStore
 	wmeta workloadmeta.Component
 
-	namespacesMutex      sync.RWMutex
-	namespaces           map[string]namespaceEntry // keys are namespace names
-	namespaceSubscribers map[string]chan struct{}  // keys are node names
+	namespacesMutex sync.RWMutex
+	namespaces      map[string]namespaceEntry // keys are namespace names
+	// namespaceSubscribers holds notification channels per node name. A node
+	// can have multiple subscribers because more than one process (for example,
+	// the running agent plus "agent diagnose", "agent check", etc.) may stream
+	// metadata for the same node concurrently.
+	namespaceSubscribers map[string][]chan struct{}
 }
 
 // NewKubeMetadataStreamServer creates a new KubeMetadataStreamServer
@@ -59,7 +65,7 @@ func NewKubeMetadataStreamServer(store *controllers.MetaBundleStore, wmeta workl
 		store:                store,
 		wmeta:                wmeta,
 		namespaces:           make(map[string]namespaceEntry),
-		namespaceSubscribers: make(map[string]chan struct{}),
+		namespaceSubscribers: make(map[string][]chan struct{}),
 	}
 }
 
@@ -104,12 +110,18 @@ func (srv *KubeMetadataStreamServer) StreamKubeMetadata(req *pb.KubeMetadataStre
 	lastSentPodServicesState := srv.buildPodServiceMappingsSnapshot(nodeName)
 	lastSentNamespacesState := srv.buildNamespacesSnapshot()
 	initialResp := fullStateResponse(lastSentPodServicesState, lastSentNamespacesState)
+	initialSendSpan := tracer.StartSpan("cluster_agent.metadata_stream.send_full_state",
+		tracer.ResourceName("sendFullState"),
+		tracer.Tag("node_name", nodeName),
+	)
 	if err := grpc.DoWithTimeout(func() error {
 		return stream.Send(initialResp)
 	}, streamSendTimeout); err != nil {
 		log.Warnf("Error sending initial kube metadata state for node %s: %s", nodeName, err)
+		initialSendSpan.Finish(tracer.WithError(err))
 		return err
 	}
+	initialSendSpan.Finish()
 
 	ticker := time.NewTicker(keepAliveInterval)
 	defer ticker.Stop()
@@ -130,12 +142,19 @@ func (srv *KubeMetadataStreamServer) StreamKubeMetadata(req *pb.KubeMetadataStre
 				IsFullState: false,
 				Mappings:    podServiceMappingsDiff,
 			}
+			sendSpan := tracer.StartSpan("cluster_agent.metadata_stream.send_diff",
+				tracer.ResourceName("sendDiff"),
+				tracer.Tag("node_name", nodeName),
+				tracer.Tag("event_type", "pod_services"),
+			)
 			if err := grpc.DoWithTimeout(func() error {
 				return stream.Send(resp)
 			}, streamSendTimeout); err != nil {
 				log.Warnf("Error sending pod-service metadata diff for node %s: %s", nodeName, err)
+				sendSpan.Finish(tracer.WithError(err))
 				return err
 			}
+			sendSpan.Finish()
 			lastSentPodServicesState = currentPodServiceMappingsState
 			ticker.Reset(keepAliveInterval)
 
@@ -149,23 +168,36 @@ func (srv *KubeMetadataStreamServer) StreamKubeMetadata(req *pb.KubeMetadataStre
 				IsFullState:       false,
 				NamespaceMetadata: namespacesDiff,
 			}
+			sendSpan := tracer.StartSpan("cluster_agent.metadata_stream.send_diff",
+				tracer.ResourceName("sendDiff"),
+				tracer.Tag("node_name", nodeName),
+				tracer.Tag("event_type", "namespaces"),
+			)
 			if err := grpc.DoWithTimeout(func() error {
 				return stream.Send(resp)
 			}, streamSendTimeout); err != nil {
 				log.Warnf("Error sending namespace metadata diff for node %s: %s", nodeName, err)
+				sendSpan.Finish(tracer.WithError(err))
 				return err
 			}
+			sendSpan.Finish()
 			lastSentNamespacesState = currentNamespacesState
 			ticker.Reset(keepAliveInterval)
 
 		case <-ticker.C:
 			// Send empty keepalive
+			keepaliveSpan := tracer.StartSpan("cluster_agent.metadata_stream.send_keepalive",
+				tracer.ResourceName("sendKeepalive"),
+				tracer.Tag("node_name", nodeName),
+			)
 			if err := grpc.DoWithTimeout(func() error {
 				return stream.Send(&pb.KubeMetadataStreamResponse{})
 			}, streamSendTimeout); err != nil {
 				log.Warnf("Error sending kube metadata keepalive for node %s: %s", nodeName, err)
+				keepaliveSpan.Finish(tracer.WithError(err))
 				return err
 			}
+			keepaliveSpan.Finish()
 		}
 	}
 }
@@ -202,10 +234,15 @@ func (srv *KubeMetadataStreamServer) processNamespaceEvents(events []workloadmet
 }
 
 func (srv *KubeMetadataStreamServer) notifyNamespaceSubscribers() {
-	for _, ch := range srv.namespaceSubscribers {
-		select {
-		case ch <- struct{}{}:
-		default:
+	for _, channels := range srv.namespaceSubscribers {
+		for _, ch := range channels {
+			select {
+			// Non-blocking send: if a signal is already pending, we drop it.
+			// This is safe because the consumer re-reads the full state from
+			// the store on each signal.
+			case ch <- struct{}{}:
+			default:
+			}
 		}
 	}
 }
@@ -215,7 +252,12 @@ func (srv *KubeMetadataStreamServer) subscribeToNamespaceEvents(nodeName string)
 	defer srv.namespacesMutex.Unlock()
 
 	ch := make(chan struct{}, 1)
-	srv.namespaceSubscribers[nodeName] = ch
+	srv.namespaceSubscribers[nodeName] = append(srv.namespaceSubscribers[nodeName], ch)
+
+	log.Debugf("Subscribed to namespace metadata updates for node %s (subscribers=%d)",
+		nodeName,
+		len(srv.namespaceSubscribers[nodeName]))
+
 	return ch
 }
 
@@ -223,9 +265,20 @@ func (srv *KubeMetadataStreamServer) unsubscribeFromNamespaceEvents(nodeName str
 	srv.namespacesMutex.Lock()
 	defer srv.namespacesMutex.Unlock()
 
-	if srv.namespaceSubscribers[nodeName] == ch {
+	channels := srv.namespaceSubscribers[nodeName]
+	for i, c := range channels {
+		if c == ch {
+			srv.namespaceSubscribers[nodeName] = slices.Delete(channels, i, i+1)
+			break
+		}
+	}
+
+	remaining := len(srv.namespaceSubscribers[nodeName])
+	if remaining == 0 {
 		delete(srv.namespaceSubscribers, nodeName)
 	}
+
+	log.Debugf("Unsubscribed from namespace metadata updates for node %s (subscribers=%d)", nodeName, remaining)
 }
 
 func (srv *KubeMetadataStreamServer) buildNamespacesSnapshot() map[string]namespaceEntry {
@@ -235,8 +288,8 @@ func (srv *KubeMetadataStreamServer) buildNamespacesSnapshot() map[string]namesp
 	snapshot := make(map[string]namespaceEntry, len(srv.namespaces))
 	for ns, entry := range srv.namespaces {
 		snapshot[ns] = namespaceEntry{
-			labels:      maps.Clone(entry.labels),
-			annotations: maps.Clone(entry.annotations),
+			labels:      entry.labels,
+			annotations: entry.annotations,
 		}
 	}
 	return snapshot

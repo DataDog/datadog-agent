@@ -8,10 +8,17 @@ package secrets
 
 // team: agent-configuration
 
+// SecretBackendConfig holds the configuration for a single named backend in multi_secret_backends.
+type SecretBackendConfig struct {
+	Type   string                 `mapstructure:"type"`
+	Config map[string]interface{} `mapstructure:"config"`
+}
+
 // ConfigParams holds parameters for configuration
 type ConfigParams struct {
 	Type                         string
 	Config                       map[string]interface{}
+	MultiBackends                map[string]SecretBackendConfig
 	Command                      string
 	Arguments                    []string
 	Timeout                      int

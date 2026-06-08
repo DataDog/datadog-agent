@@ -1,0 +1,20 @@
+---
+enhancements:
+  - |
+    Upgrade OpenTelemetry Collector dependencies from v0.150.0 to v0.151.0
+    (core v1.56.0 to v1.57.0).
+
+    Notable upstream changes:
+
+    - Removed stable feature gates that are no longer needed:
+      ``connector.datadogconnector.NativeIngest``,
+      ``exporter.datadogexporter.UseLogsAgentExporter``, and
+      ``exporter.datadogexporter.metricexportnativeclient``.
+    - Several collector-contrib components have been renamed with deprecated
+      aliases (``spanmetrics`` to ``span_metrics``, ``hostmetrics`` to
+      ``host_metrics``, ``fluentforward`` to ``fluent_forward``). The old
+      names continue to work but will be removed in a future release.
+
+    See the full upstream changelogs:
+    `collector-contrib v0.151.0 <https://github.com/open-telemetry/opentelemetry-collector-contrib/releases/tag/v0.151.0>`_,
+    `collector core v0.151.0 <https://github.com/open-telemetry/opentelemetry-collector/releases/tag/v0.151.0>`_.

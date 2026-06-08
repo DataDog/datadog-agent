@@ -14,8 +14,9 @@ import (
 
 	"github.com/cilium/ebpf"
 
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/maps"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -28,10 +29,10 @@ var mapCleanerTelemetry = struct {
 	aborts   telemetry.Counter
 	elapsed  telemetry.Histogram
 }{
-	telemetry.NewCounter(ebpfMapsCleanerModule, "examined", []string{"map_name", "module", "api"}, "Counter measuring how many entries are examined"),
-	telemetry.NewCounter(ebpfMapsCleanerModule, "deleted", []string{"map_name", "module", "api"}, "Counter measuring how many entries are deleted"),
-	telemetry.NewCounter(ebpfMapsCleanerModule, "aborts", []string{"map_name", "module", "api"}, "Counter measuring how many iteration aborts occur"),
-	telemetry.NewHistogram(ebpfMapsCleanerModule, "elapsed", []string{"map_name", "module", "api"}, "Histogram of elapsed time for each Clean call", defaultBuckets),
+	telemetryimpl.GetCompatComponent().NewCounter(ebpfMapsCleanerModule, "examined", []string{"map_name", "module", "api"}, "Counter measuring how many entries are examined"),
+	telemetryimpl.GetCompatComponent().NewCounter(ebpfMapsCleanerModule, "deleted", []string{"map_name", "module", "api"}, "Counter measuring how many entries are deleted"),
+	telemetryimpl.GetCompatComponent().NewCounter(ebpfMapsCleanerModule, "aborts", []string{"map_name", "module", "api"}, "Counter measuring how many iteration aborts occur"),
+	telemetryimpl.GetCompatComponent().NewHistogram(ebpfMapsCleanerModule, "elapsed", []string{"map_name", "module", "api"}, "Histogram of elapsed time for each Clean call", defaultBuckets),
 }
 
 // MapCleaner is responsible for periodically sweeping an eBPF map

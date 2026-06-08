@@ -217,11 +217,15 @@ var defaultRedactors = []jsonRedactor{
 		replacerFunc(redactNonZeroDuration),
 	),
 	redactor(
+		matchRegexp(`/debugger/snapshot/captures/[^/]+/captureExpressions/[^/]+$`),
+		replacerFunc(redactDurationCaptureExpression),
+	),
+	redactor(
 		prefixSuffixMatcher{"/debugger/snapshot/captures/", "/address"},
 		replacerFunc(redactNonZeroAddress),
 	),
 	redactor(
-		exactMatcher(`/debugger/snapshot/captures/return/locals/~0r0/value`),
+		exactMatcher(`/debugger/snapshot/captures/return/locals/@return/value`),
 		regexpStringReplacer("0x[[:xdigit:]]+", "0x[addr]"),
 	),
 	redactor(
@@ -271,6 +275,32 @@ var defaultRedactors = []jsonRedactor{
 			`[duration]ms`,
 		),
 	),
+	redactor(
+		prefixSuffixMatcher{"/debugger/snapshot/captures/", "/value"},
+		func() replacer {
+			// Replace the long string with a string that tells us how long it was.
+			re := regexp.MustCompile(`(?P<longString>\d+)x{10,}x+`)
+			return replacerFunc(func(v jsontext.Value) jsontext.Value {
+				if v.Kind() != '"' {
+					return v
+				}
+				var s string
+				if err := json.Unmarshal(v, &s); err != nil {
+					return v
+				}
+				match := re.FindStringSubmatch(s)
+				if len(match) == 0 {
+					return v
+				}
+				s = fmt.Sprintf(`<%d byte string>`, len(s))
+				buf, err := json.Marshal(s)
+				if err != nil {
+					return v
+				}
+				return jsontext.Value(buf)
+			})
+		}(),
+	),
 }
 
 const mutexInternalsRegexp = `\{state: [[:digit:]]+, sema: [[:digit:]]+\}`
@@ -287,6 +317,31 @@ func redactGoID(v jsontext.Value) jsontext.Value {
 		return v
 	}
 	buf, err := json.Marshal("[goid]")
+	if err != nil {
+		return v
+	}
+	return jsontext.Value(buf)
+}
+
+// redactDurationCaptureExpression replaces the (non-deterministic)
+// numeric value of a captureExpression whose type is "@duration" so
+// snapshot tests are stable.
+func redactDurationCaptureExpression(v jsontext.Value) jsontext.Value {
+	if v.Kind() != '{' {
+		return v
+	}
+	var obj struct {
+		Type  string `json:"type"`
+		Value string `json:"value"`
+	}
+	if err := json.Unmarshal(v, &obj); err != nil {
+		return v
+	}
+	if obj.Type != "@duration" {
+		return v
+	}
+	obj.Value = "[duration]"
+	buf, err := json.Marshal(obj)
 	if err != nil {
 		return v
 	}

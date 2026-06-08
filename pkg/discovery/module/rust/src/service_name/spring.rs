@@ -15,7 +15,7 @@ use crate::service_name::context::DetectionContext;
 use config::extract_spring_boot_config;
 use pattern::{longest_path_prefix, match_start, matches};
 use properties::parse_properties;
-use std::io::{self, BufRead, BufReader, Read};
+use std::io::{BufRead, BufReader, Cursor, Read};
 use std::iter;
 use std::path::{Path, PathBuf};
 use yaml::parse_yaml;
@@ -95,31 +95,22 @@ fn parse_property_file_from_fs(
 }
 
 /// Scan archive for a specific property, returning early when found
-fn scan_property_from_archive<R: Read + io::Seek>(
-    archive: &mut UnverifiedZipArchive<R>,
+fn scan_property_from_archive(
+    archive: &mut UnverifiedZipArchive,
     patterns: &[String],
     property_key: &str,
 ) -> Option<String> {
-    for i in 0..archive.len() {
-        let Ok(file) = archive.by_index(i) else {
-            continue;
-        };
-
-        let name = file.name().to_string();
-        // Skip files not in BOOT-INF/classes
-        if !name.starts_with(BOOT_INF_JAR_PATH) {
-            continue;
-        }
-
-        if patterns.iter().any(|pattern| matches(pattern, &name))
-            && let Ok(verified_reader) = file.verify(None)
-            && let Some(value) = parse_property_file(verified_reader, &name, property_key)
-        {
-            return Some(value);
-        }
-    }
-
-    None
+    archive
+        .find_map_file_contents(
+            |name| {
+                name.starts_with(BOOT_INF_JAR_PATH)
+                    && patterns.iter().any(|pattern| matches(pattern, name))
+            },
+            None,
+            |name, contents| parse_property_file(Cursor::new(contents), name, property_key),
+        )
+        .ok()
+        .flatten()
 }
 
 /// Get Spring Boot application name with a callback for classpath sources
@@ -200,10 +191,10 @@ pub fn get_spring_boot_app_name(
     get_spring_boot_app_name_from_jar(ctx, cmdline.args(), &mut archive)
 }
 
-fn get_spring_boot_app_name_from_jar<R: Read + io::Seek>(
+fn get_spring_boot_app_name_from_jar(
     ctx: &DetectionContext,
     args: impl Iterator<Item = impl AsRef<str>>,
-    archive: &mut UnverifiedZipArchive<R>,
+    archive: &mut UnverifiedZipArchive,
 ) -> Option<String> {
     if !is_spring_boot_archive(archive) {
         return None;
@@ -282,15 +273,10 @@ pub fn get_spring_boot_launcher_app_name(
     None
 }
 
-fn is_spring_boot_archive<R: Read + io::Seek>(archive: &mut UnverifiedZipArchive<R>) -> bool {
-    for i in 0..archive.len() {
-        if let Ok(file) = archive.by_index(i)
-            && file.name().starts_with("BOOT-INF/")
-        {
-            return true;
-        }
-    }
-    false
+fn is_spring_boot_archive(archive: &mut UnverifiedZipArchive) -> bool {
+    archive
+        .any_entry_name(|name| name.starts_with("BOOT-INF/"))
+        .unwrap_or(false)
 }
 
 /// Get first class path from Java command line arguments
@@ -359,13 +345,9 @@ fn get_start_class_name_from_file(ctx: &DetectionContext, filename: PathBuf) -> 
     parse_start_class(reader)
 }
 
-fn get_start_class_name_from_jar<R: Read + io::Seek>(
-    archive: &mut UnverifiedZipArchive<R>,
-) -> Option<String> {
-    let file = archive.by_name(MANIFEST_FILE).ok()?;
-    let reader = file.verify(None).ok()?;
-
-    parse_start_class(reader)
+fn get_start_class_name_from_jar(archive: &mut UnverifiedZipArchive) -> Option<String> {
+    let contents = archive.read_file_to_vec(MANIFEST_FILE, None).ok()?;
+    parse_start_class(Cursor::new(contents))
 }
 
 #[cfg(test)]
@@ -379,15 +361,21 @@ mod tests {
     use std::collections::HashMap;
     use std::io::Write;
     use tempfile::TempDir;
-    use zip::ZipArchive;
 
     // Helper function to create a ZIP file with specific contents
     fn create_zip_with_files(files: Vec<(&str, &str)>) -> Vec<u8> {
+        create_zip_with_files_with_compression(files, zip::CompressionMethod::Stored)
+    }
+
+    fn create_zip_with_files_with_compression(
+        files: Vec<(&str, &str)>,
+        compression_method: zip::CompressionMethod,
+    ) -> Vec<u8> {
         let mut buf = Vec::new();
         {
             let mut writer = zip::ZipWriter::new(std::io::Cursor::new(&mut buf));
-            let options: zip::write::FileOptions<()> = zip::write::FileOptions::default()
-                .compression_method(zip::CompressionMethod::Stored);
+            let options: zip::write::FileOptions<()> =
+                zip::write::FileOptions::default().compression_method(compression_method);
 
             for (name, content) in files {
                 writer.start_file(name, options).unwrap();
@@ -401,30 +389,21 @@ mod tests {
     #[test]
     fn test_is_spring_boot_archive_with_boot_inf_directory() {
         let buf = create_zip_with_files(vec![("MANIFEST.MF", ""), ("BOOT-INF/", "")]);
-
-        let cursor = std::io::Cursor::new(buf);
-        let archive = ZipArchive::new(cursor).unwrap();
-        let mut archive = UnverifiedZipArchive::from_archive(archive);
+        let mut archive = test_archive_from_bytes(buf);
         assert!(is_spring_boot_archive(&mut archive));
     }
 
     #[test]
     fn test_is_spring_boot_archive_with_boot_inf_file() {
         let buf = create_zip_with_files(vec![("BOOT-INF", "")]);
-
-        let cursor = std::io::Cursor::new(buf);
-        let archive = ZipArchive::new(cursor).unwrap();
-        let mut archive = UnverifiedZipArchive::from_archive(archive);
+        let mut archive = test_archive_from_bytes(buf);
         assert!(!is_spring_boot_archive(&mut archive));
     }
 
     #[test]
     fn test_is_spring_boot_archive_with_nested_boot_inf() {
         let buf = create_zip_with_files(vec![("MANIFEST.MF", ""), ("META-INF/BOOT-INF/", "")]);
-
-        let cursor = std::io::Cursor::new(buf);
-        let archive = ZipArchive::new(cursor).unwrap();
-        let mut archive = UnverifiedZipArchive::from_archive(archive);
+        let mut archive = test_archive_from_bytes(buf);
         assert!(!is_spring_boot_archive(&mut archive));
     }
 
@@ -441,9 +420,7 @@ mod tests {
             ),
         ]);
 
-        let cursor = std::io::Cursor::new(buf);
-        let archive = ZipArchive::new(cursor).unwrap();
-        let mut archive = UnverifiedZipArchive::from_archive(archive);
+        let mut archive = test_archive_from_bytes(buf);
 
         // Test finding default application.properties
         let patterns_default = vec![
@@ -455,7 +432,7 @@ mod tests {
         assert_eq!(result, Some("default".to_string()));
 
         // Test finding prod application.properties
-        let cursor2 = std::io::Cursor::new(create_zip_with_files(vec![
+        let mut archive2 = test_archive_from_bytes(create_zip_with_files(vec![
             (
                 "BOOT-INF/classes/application.properties",
                 "spring.application.name=default",
@@ -465,8 +442,6 @@ mod tests {
                 "spring.application.name=prod",
             ),
         ]));
-        let archive2 = ZipArchive::new(cursor2).unwrap();
-        let mut archive2 = UnverifiedZipArchive::from_archive(archive2);
 
         let patterns_prod = vec![
             "BOOT-INF/classes/application-prod.properties".to_string(),
@@ -480,6 +455,80 @@ mod tests {
         let result3 =
             scan_property_from_archive(&mut archive2, &patterns_prod, "non.existent.property");
         assert_eq!(result3, None);
+    }
+
+    #[test]
+    fn test_scan_property_from_archive_keeps_scanning_matching_files() {
+        let buf = create_zip_with_files(vec![
+            (
+                "BOOT-INF/classes/application.properties",
+                "server.port=8080\nmanagement.port=8081",
+            ),
+            (
+                "BOOT-INF/classes/application.yaml",
+                "spring:\n  application:\n    name: yaml-app",
+            ),
+        ]);
+
+        let mut archive = test_archive_from_bytes(buf);
+        let patterns = vec![
+            "BOOT-INF/classes/application.properties".to_string(),
+            "BOOT-INF/classes/application.yaml".to_string(),
+        ];
+
+        let result = scan_property_from_archive(&mut archive, &patterns, "spring.application.name");
+        assert_eq!(result, Some("yaml-app".to_string()));
+    }
+
+    #[test]
+    fn test_scan_property_from_archive_with_deflated_entries() {
+        let buf = create_zip_with_files_with_compression(
+            vec![(
+                "BOOT-INF/classes/application.yaml",
+                "spring:\n  application:\n    name: deflated-app",
+            )],
+            zip::CompressionMethod::Deflated,
+        );
+
+        let mut archive = test_archive_from_bytes(buf);
+        let patterns = vec!["BOOT-INF/classes/application.yaml".to_string()];
+
+        let result = scan_property_from_archive(&mut archive, &patterns, "spring.application.name");
+        assert_eq!(result, Some("deflated-app".to_string()));
+    }
+
+    #[test]
+    fn test_scan_property_from_archive_skips_unreadable_matching_entry() {
+        let mut buf = Vec::new();
+        {
+            let mut writer = zip::ZipWriter::new(std::io::Cursor::new(&mut buf));
+            let options: zip::write::FileOptions<()> = zip::write::FileOptions::default()
+                .compression_method(zip::CompressionMethod::Deflated);
+
+            writer
+                .start_file("BOOT-INF/classes/application.properties", options)
+                .unwrap();
+            let oversized = format!("spring.application.name=ignored\n{}", "X".repeat(2_000_000));
+            writer.write_all(oversized.as_bytes()).unwrap();
+
+            writer
+                .start_file("BOOT-INF/classes/application.yaml", options)
+                .unwrap();
+            writer
+                .write_all(b"spring:\n  application:\n    name: yaml-after-error")
+                .unwrap();
+
+            writer.finish().unwrap();
+        }
+
+        let mut archive = test_archive_from_bytes(buf);
+        let patterns = vec![
+            "BOOT-INF/classes/application.properties".to_string(),
+            "BOOT-INF/classes/application.yaml".to_string(),
+        ];
+
+        let result = scan_property_from_archive(&mut archive, &patterns, "spring.application.name");
+        assert_eq!(result, Some("yaml-after-error".to_string()));
     }
 
     #[test]
@@ -664,6 +713,14 @@ mod tests {
 
         let result = get_spring_boot_app_name(&jar_path.to_string_lossy(), &ctx, &cmdline);
         assert_eq!(result, None);
+    }
+
+    fn test_archive_from_bytes(data: Vec<u8>) -> UnverifiedZipArchive {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("test.jar");
+        std::fs::write(&path, data).unwrap();
+        let fs = SubDirFs::new(dir.path()).unwrap();
+        fs.open("test.jar").unwrap().verify_zip().unwrap()
     }
 
     #[test]

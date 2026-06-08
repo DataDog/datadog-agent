@@ -3009,3 +3009,48 @@ func TestObfuscatorCacheKey(t *testing.T) {
 	assert.NotEqual(t, oq4.Query, oq.Query)
 	assert.Equal(t, obfuscator.queryCache.Metrics.Hits(), uint64(1))
 }
+
+// TestPostgresArraySliceObfuscation reproduces https://github.com/DataDog/datadog-agent/issues/49460.
+// PostgreSQL array slice syntax uses ':' as a range separator (e.g. arr[1:3], arr[$1:]).
+// The tokenizer mistakenly treats the ':' as the start of a bind variable (":name" form),
+// causing a LexError when the character after ':' is ']' or '$'.
+func TestPostgresArraySliceObfuscation(t *testing.T) {
+	o := NewObfuscator(Config{SQL: SQLConfig{DBMS: DBMSPostgres}})
+	for _, tt := range []struct {
+		in  string
+		out string
+	}{
+		// open upper bound: ':' followed by ']' — the minimal failing case
+		{
+			`SELECT arr[1:] FROM t`,
+			`SELECT arr [ ? : ] FROM t`,
+		},
+		// bind param as lower bound with open upper bound
+		{
+			`SELECT arr[$1:] FROM t`,
+			`SELECT arr [ ? : ] FROM t`,
+		},
+		// both bounds are bind params: ':' followed by '$'
+		{
+			`SELECT arr[$1:$2] FROM t`,
+			`SELECT arr [ ? : ? ] FROM t`,
+		},
+		// open lower bound: ':' followed by a digit still scans ':3' as a ValueArg
+		// (pre-existing quirk, not changed by this fix).
+		{
+			`SELECT arr[:3] FROM t`,
+			`SELECT arr [ :3 ] FROM t`,
+		},
+		// full query from the bug report (condensed to the problematic expression)
+		{
+			`SELECT river_job.attempted_by[$1:] FROM river_job`,
+			`SELECT river_job.attempted_by [ ? : ] FROM river_job`,
+		},
+	} {
+		t.Run(tt.in, func(t *testing.T) {
+			oq, err := o.ObfuscateSQLString(tt.in)
+			require.NoError(t, err)
+			assert.Equal(t, tt.out, oq.Query)
+		})
+	}
+}

@@ -79,3 +79,145 @@ site: datadoghq.com
 
 	assert.Empty(t, mgr.hostProfilerConfig.AdditionalHTTPHeaders)
 }
+
+func TestNewConfigManagerDDProfilingEnabledFromYAML(t *testing.T) {
+	cfg := config.NewMockFromYAML(t, `
+api_key: test-key
+site: datadoghq.com
+hostprofiler:
+  ddprofiling:
+    enabled: true
+`)
+	mgr := newConfigManager(cfg)
+
+	assert.True(t, mgr.hostProfilerConfig.DDProfiling.Enabled)
+}
+
+func TestNewConfigManagerDDProfilingEnabledFromEnvVar(t *testing.T) {
+	t.Setenv("DD_HOSTPROFILER_DDPROFILING_ENABLED", "true")
+
+	cfg := config.NewMockFromYAML(t, `
+api_key: test-key
+site: datadoghq.com
+`)
+	mgr := newConfigManager(cfg)
+
+	assert.True(t, mgr.hostProfilerConfig.DDProfiling.Enabled)
+}
+
+func TestNewConfigManagerDDProfilingEnabledDefault(t *testing.T) {
+	cfg := config.NewMockFromYAML(t, `
+api_key: test-key
+site: datadoghq.com
+`)
+	mgr := newConfigManager(cfg)
+
+	assert.False(t, mgr.hostProfilerConfig.DDProfiling.Enabled)
+}
+
+func TestNewConfigManagerDDProfilingPeriodFromYAML(t *testing.T) {
+	cfg := config.NewMockFromYAML(t, `
+api_key: test-key
+site: datadoghq.com
+hostprofiler:
+  ddprofiling:
+    period: 30
+`)
+	mgr := newConfigManager(cfg)
+
+	assert.Equal(t, 30, mgr.hostProfilerConfig.DDProfiling.Period)
+}
+
+func TestNewConfigManagerDDProfilingPeriodFromEnvVar(t *testing.T) {
+	t.Setenv("DD_HOSTPROFILER_DDPROFILING_PERIOD", "45")
+
+	cfg := config.NewMockFromYAML(t, `
+api_key: test-key
+site: datadoghq.com
+`)
+	mgr := newConfigManager(cfg)
+
+	assert.Equal(t, 45, mgr.hostProfilerConfig.DDProfiling.Period)
+}
+
+func TestNewConfigManagerDDProfilingPeriodDefault(t *testing.T) {
+	cfg := config.NewMockFromYAML(t, `
+api_key: test-key
+site: datadoghq.com
+`)
+	mgr := newConfigManager(cfg)
+
+	assert.Equal(t, 0, mgr.hostProfilerConfig.DDProfiling.Period)
+}
+
+func TestNewConfigManagerHPFlarePortFromYAML(t *testing.T) {
+	cfg := config.NewMockFromYAML(t, `
+api_key: test-key
+site: datadoghq.com
+hostprofiler:
+  hpflare:
+    port: 9999
+`)
+	mgr := newConfigManager(cfg)
+
+	assert.Equal(t, 9999, mgr.hostProfilerConfig.HPFlare.Port)
+}
+
+func TestNewConfigManagerHPFlarePortFromEnvVar(t *testing.T) {
+	t.Setenv("DD_HOSTPROFILER_HPFLARE_PORT", "9999")
+
+	cfg := config.NewMockFromYAML(t, `
+api_key: test-key
+site: datadoghq.com
+`)
+	mgr := newConfigManager(cfg)
+
+	assert.Equal(t, 9999, mgr.hostProfilerConfig.HPFlare.Port)
+}
+
+func TestNewConfigManagerHPFlarePortDefault(t *testing.T) {
+	cfg := config.NewMockFromYAML(t, `
+api_key: test-key
+site: datadoghq.com
+`)
+	mgr := newConfigManager(cfg)
+
+	assert.Equal(t, 7778, mgr.hostProfilerConfig.HPFlare.Port)
+}
+
+func TestNewConfigManagerProfilingSendToMainEndpointDefault(t *testing.T) {
+	cfg := config.NewMockFromYAML(t, `
+api_key: main-key
+site: datadoghq.com
+apm_config:
+  profiling_additional_endpoints:
+    https://intake.profile.datadoghq.eu/api/v2/profile:
+      - eu-key
+`)
+	mgr := newConfigManager(cfg)
+
+	assert.Equal(t, 2, mgr.endpointsTotalLength)
+	assert.ElementsMatch(t, []endpoint{
+		{site: "datadoghq.eu", apiKeys: []string{"eu-key"}},
+		{site: "datadoghq.com", apiKeys: []string{"main-key"}},
+	}, mgr.endpoints)
+}
+
+func TestNewConfigManagerProfilingSendToMainEndpointDisabled(t *testing.T) {
+	cfg := config.NewMockFromYAML(t, `
+api_key: main-key
+site: datadoghq.com
+apm_config:
+  profiling_dd_url: ://invalid-main-url
+  profiling_send_to_main_endpoint: false
+  profiling_additional_endpoints:
+    https://intake.profile.datadoghq.eu/api/v2/profile:
+      - eu-key
+`)
+	mgr := newConfigManager(cfg)
+
+	assert.Equal(t, 1, mgr.endpointsTotalLength)
+	assert.Equal(t, []endpoint{
+		{site: "datadoghq.eu", apiKeys: []string{"eu-key"}},
+	}, mgr.endpoints)
+}

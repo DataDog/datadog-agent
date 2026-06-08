@@ -1,13 +1,17 @@
 {
-  "type": "unsupported",
-  "operation": "and",
-  "argument": [
-    {
-      "ref": "bar"
-    },
-    {
-      "ref": "foo"
-    }
-  ],
+  "type": "and",
+  "operation": "",
+  "left": {
+    "type": "ref",
+    "ref": "bar",
+    "operation": "",
+    "error": ""
+  },
+  "right": {
+    "type": "ref",
+    "ref": "foo",
+    "operation": "",
+    "error": ""
+  },
   "error": ""
 }

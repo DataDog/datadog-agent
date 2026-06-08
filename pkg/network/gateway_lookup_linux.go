@@ -14,14 +14,15 @@ import (
 	"os"
 	"time"
 
-	"github.com/hashicorp/golang-lru/v2/simplelru"
+	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/vishvananda/netns"
 
-	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry"
+	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
+
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	netnsutil "github.com/DataDog/datadog-agent/pkg/util/kernel/netns"
@@ -36,17 +37,17 @@ const (
 
 // Telemetry
 var gatewayLookupTelemetry = struct {
-	subnetCacheSize    *telemetry.StatGaugeWrapper
-	subnetCacheMisses  *telemetry.StatCounterWrapper
-	subnetCacheLookups *telemetry.StatCounterWrapper
-	subnetLookups      *telemetry.StatCounterWrapper
-	subnetLookupErrors *telemetry.StatCounterWrapper
+	subnetCacheSize    *telemetryComponent.StatGaugeWrapper
+	subnetCacheMisses  *telemetryComponent.StatCounterWrapper
+	subnetCacheLookups *telemetryComponent.StatCounterWrapper
+	subnetLookups      *telemetryComponent.StatCounterWrapper
+	subnetLookupErrors *telemetryComponent.StatCounterWrapper
 }{
-	telemetry.NewStatGaugeWrapper(gatewayLookupModuleName, "subnet_cache_size", []string{}, "Counter measuring the size of the subnet cache"),
-	telemetry.NewStatCounterWrapper(gatewayLookupModuleName, "subnet_cache_misses", []string{}, "Counter measuring the number of subnet cache misses"),
-	telemetry.NewStatCounterWrapper(gatewayLookupModuleName, "subnet_cache_lookups", []string{}, "Counter measuring the number of subnet cache lookups"),
-	telemetry.NewStatCounterWrapper(gatewayLookupModuleName, "subnet_lookups", []string{}, "Counter measuring the number of subnet lookups"),
-	telemetry.NewStatCounterWrapper(gatewayLookupModuleName, "subnet_lookup_errors", []string{"reason"}, "Counter measuring the number of subnet lookup errors"),
+	telemetryComponent.NewStatGaugeWrapper(telemetryimpl.GetCompatComponent(), gatewayLookupModuleName, "subnet_cache_size", []string{}, "Counter measuring the size of the subnet cache"),
+	telemetryComponent.NewStatCounterWrapper(telemetryimpl.GetCompatComponent(), gatewayLookupModuleName, "subnet_cache_misses", []string{}, "Counter measuring the number of subnet cache misses"),
+	telemetryComponent.NewStatCounterWrapper(telemetryimpl.GetCompatComponent(), gatewayLookupModuleName, "subnet_cache_lookups", []string{}, "Counter measuring the number of subnet cache lookups"),
+	telemetryComponent.NewStatCounterWrapper(telemetryimpl.GetCompatComponent(), gatewayLookupModuleName, "subnet_lookups", []string{}, "Counter measuring the number of subnet lookups"),
+	telemetryComponent.NewStatCounterWrapper(telemetryimpl.GetCompatComponent(), gatewayLookupModuleName, "subnet_lookup_errors", []string{"reason"}, "Counter measuring the number of subnet lookup errors"),
 }
 
 // gatewayLookup implements a gateway lookup
@@ -54,7 +55,7 @@ var gatewayLookupTelemetry = struct {
 type gatewayLookup struct {
 	rootNetNs   netns.NsHandle
 	routeCache  RouteCache
-	subnetCache *simplelru.LRU[int, any] // interface index to subnet cache
+	subnetCache *lru.Cache[int, any] // interface index to subnet cache
 }
 
 type cloudProvider interface {
@@ -107,7 +108,7 @@ func NewGatewayLookup(rootNsLookup nsLookupFunc, maxRouteCacheSize uint32, telem
 		log.Warnf("using truncated route cache size of %d instead of %d", routeCacheSize, defaultMaxRouteCacheSize)
 	}
 
-	gl.subnetCache, _ = simplelru.NewLRU[int, any](int(routeCacheSize), nil)
+	gl.subnetCache, _ = lru.New[int, any](int(routeCacheSize))
 	gl.routeCache = NewRouteCache(telemetryComp, int(routeCacheSize), router)
 	return gl
 }

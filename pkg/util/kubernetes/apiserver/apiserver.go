@@ -107,8 +107,11 @@ type APIClient struct {
 	// InformerCl holds the main kubernetes client with long TO
 	InformerCl kubernetes.Interface
 
-	// DynamicCl holds a dynamic kubernetes client with long TO
+	// DynamicInformerCl holds a dynamic kubernetes client with long TO
 	DynamicInformerCl dynamic.Interface
+
+	// MetadataInformerCl holds a metadata-only kubernetes client with long TO
+	MetadataInformerCl metadata.Interface
 
 	// CRDInformerClient holds the extension kubernetes client with long TO
 	CRDInformerClient clientset.Interface
@@ -277,6 +280,15 @@ func getKubeDynamicClient(timeout time.Duration, qps float32, burst int) (dynami
 	return dynamic.NewForConfig(clientConfig)
 }
 
+func getKubeMetadataClient(timeout time.Duration, qps float32, burst int) (metadata.Interface, error) {
+	clientConfig, err := GetClientConfig(timeout, qps, burst)
+	if err != nil {
+		return nil, err
+	}
+
+	return metadata.NewForConfig(clientConfig)
+}
+
 func getCRDClient(timeout time.Duration, qps float32, burst int) (*clientset.Clientset, error) {
 	clientConfig, err := GetClientConfig(timeout, qps, burst)
 	if err != nil {
@@ -373,6 +385,12 @@ func (c *APIClient) connect() error {
 		return err
 	}
 
+	c.MetadataInformerCl, err = getKubeMetadataClient(c.defaultInformerTimeout, informerClientQPSLimit, informerClientQPSBurst)
+	if err != nil {
+		log.Infof("Could not get apiserver metadata client: %v", err)
+		return err
+	}
+
 	c.VPAInformerClient, err = getKubeVPAClient(c.defaultInformerTimeout, informerClientQPSLimit, informerClientQPSBurst)
 	if err != nil {
 		log.Infof("Could not get apiserver vpa client: %v", err)
@@ -400,9 +418,11 @@ func (c *APIClient) connect() error {
 		pkgconfigsetup.Datadog().GetBool("orchestrator_explorer.enabled") ||
 		pkgconfigsetup.Datadog().GetBool("external_metrics_provider.use_datadogmetric_crd") ||
 		pkgconfigsetup.Datadog().GetBool("external_metrics_provider.wpa_controller") ||
+		pkgconfigsetup.Datadog().GetBool("instrumentation_crd_controller.enabled") ||
 		pkgconfigsetup.Datadog().GetBool("cluster_checks.enabled") ||
 		pkgconfigsetup.Datadog().GetBool("autoscaling.workload.enabled") ||
-		pkgconfigsetup.Datadog().GetBool("autoscaling.cluster.enabled") {
+		pkgconfigsetup.Datadog().GetBool("autoscaling.cluster.enabled") ||
+		pkgconfigsetup.Datadog().GetBool("instrumentation_crd_controller.enabled") {
 		c.DynamicInformerFactory = dynamicinformer.NewDynamicSharedInformerFactory(c.DynamicInformerCl, c.defaultInformerResyncPeriod)
 	}
 

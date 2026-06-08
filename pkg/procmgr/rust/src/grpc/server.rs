@@ -12,10 +12,6 @@ use anyhow::{Context, Result};
 use tokio::sync::mpsc;
 use tonic::transport::Server;
 
-pub fn socket_path() -> std::path::PathBuf {
-    transport::ipc_path()
-}
-
 pub async fn run(
     mgr: ProcessManager,
     cmd_tx: mpsc::Sender<Command>,

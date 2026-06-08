@@ -15,7 +15,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -366,66 +365,6 @@ func getPublisherFromInfoPlist(bundlePath string) string {
 		return ""
 	}
 	return getPublisherFromPlistData(plistData)
-}
-
-// pkgInfo contains information about a package installation from pkgutil
-type pkgInfo struct {
-	// PkgID is the package identifier (e.g., "com.microsoft.Word")
-	PkgID string
-	// Volume is the install volume (e.g., "/")
-	Volume string
-	// InstallTime is the installation timestamp
-	InstallTime string
-}
-
-// getPkgInfo queries the macOS package receipt database to find which PKG installed
-// a specific file or directory. This uses `pkgutil --file-info` which is the official
-// way to link applications to their installer receipts.
-//
-// Parameters:
-//   - path: The path to query (e.g., "/Applications/Numbers.app")
-//
-// Returns:
-//   - *pkgInfo: Package information if the path was installed by a PKG, nil otherwise
-//
-// Note: Returns nil for apps installed via drag-and-drop (no PKG receipt) or
-// Mac App Store apps (receipt stored inside the app bundle, not in pkgutil database).
-func getPkgInfo(path string) *pkgInfo {
-	// Run pkgutil --file-info to query which package installed this path
-	cmd := exec.Command("pkgutil", "--file-info", path)
-	output, err := cmd.Output()
-	if err != nil {
-		// No package owns this path (drag-and-drop install or error)
-		return nil
-	}
-
-	// Parse the output which looks like:
-	// volume: /
-	// path: Applications/Numbers.app
-	// pkgid: com.apple.pkg.Numbers
-	// pkg-version: 14.0
-	// install-time: 1654432493
-	info := &pkgInfo{}
-	for _, line := range strings.Split(string(output), "\n") {
-		line = strings.TrimSpace(line)
-		if strings.HasPrefix(line, "pkgid: ") {
-			info.PkgID = strings.TrimPrefix(line, "pkgid: ")
-		} else if strings.HasPrefix(line, "volume: ") {
-			info.Volume = strings.TrimPrefix(line, "volume: ")
-		} else if strings.HasPrefix(line, "install-time: ") {
-			// Convert Unix timestamp to ISO 8601 format for cross-platform consistency
-			timestampStr := strings.TrimPrefix(line, "install-time: ")
-			if unixTime, err := strconv.ParseInt(timestampStr, 10, 64); err == nil {
-				info.InstallTime = time.Unix(unixTime, 0).Format(time.RFC3339)
-			}
-		}
-	}
-
-	// Only return if we found a package ID
-	if info.PkgID != "" {
-		return info
-	}
-	return nil
 }
 
 // entryWithPath pairs an Entry with its bundle path for parallel processing.
