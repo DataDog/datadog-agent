@@ -5,6 +5,10 @@ nodes:
   extraMounts:
   - hostPath: /proc
     containerPath: /host/proc
+{{- if .MountDockerSocket }}
+  - hostPath: /var/run/docker.sock
+    containerPath: /var/run/docker.sock
+{{- end }}
 {{- if .NewContainerdRegistryConfig }}
   - hostPath: ./certs.d
     containerPath: /etc/containerd/certs.d
@@ -14,6 +18,10 @@ nodes:
   extraMounts:
   - hostPath: /proc
     containerPath: /host/proc
+{{- if $.MountDockerSocket }}
+  - hostPath: /var/run/docker.sock
+    containerPath: /var/run/docker.sock
+{{- end }}
 {{- if $.NewContainerdRegistryConfig }}
   - hostPath: ./certs.d
     containerPath: /etc/containerd/certs.d
