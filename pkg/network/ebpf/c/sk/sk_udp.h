@@ -159,7 +159,7 @@ int BPF_PROG(udpv6_sendmsg_exit, struct sock *sk, struct msghdr *msg, size_t len
     return 0;
 }
 
-SEC("fentry/udp_send_skb") // JMW what tracer(s) use this? - just sk tracer? what does kprobe tracer use?
+SEC("fentry/udp_send_skb")
 int BPF_PROG(udp_send_skb_entry, struct sk_buff *skb, struct flowi4 *fl4) {
     struct sock *sk = skb->sk;
     sk_udp_stats_t *sk_stats = bpf_sk_storage_get_or_create(sk_udp_stats, sk, 0);;
