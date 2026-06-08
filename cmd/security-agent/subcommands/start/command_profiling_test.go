@@ -23,17 +23,17 @@ import (
 // setProfilingConfig populates every security_agent.internal_profiling.* key consumed by
 // buildProfilingSettings so the test asserts a fully-specified mapping rather than defaults.
 func setProfilingConfig(cfg configcomp.Component) {
-	cfg.SetWithoutSource("security_agent.internal_profiling.env", "ci")
-	cfg.SetWithoutSource("security_agent.internal_profiling.period", 90*time.Second)
-	cfg.SetWithoutSource("security_agent.internal_profiling.cpu_duration", 20*time.Second)
-	cfg.SetWithoutSource("security_agent.internal_profiling.mutex_profile_fraction", 5)
-	cfg.SetWithoutSource("security_agent.internal_profiling.block_profile_rate", 7)
-	cfg.SetWithoutSource("security_agent.internal_profiling.enable_goroutine_stacktraces", true)
-	cfg.SetWithoutSource("security_agent.internal_profiling.enable_block_profiling", true)
-	cfg.SetWithoutSource("security_agent.internal_profiling.enable_mutex_profiling", true)
-	cfg.SetWithoutSource("security_agent.internal_profiling.delta_profiles", true)
-	cfg.SetWithoutSource("security_agent.internal_profiling.unix_socket", "/tmp/profiling.sock")
-	cfg.SetWithoutSource("security_agent.internal_profiling.extra_tags", []string{"team:sec"})
+	cfg.SetInTest("security_agent.internal_profiling.env", "ci")
+	cfg.SetInTest("security_agent.internal_profiling.period", 90*time.Second)
+	cfg.SetInTest("security_agent.internal_profiling.cpu_duration", 20*time.Second)
+	cfg.SetInTest("security_agent.internal_profiling.mutex_profile_fraction", 5)
+	cfg.SetInTest("security_agent.internal_profiling.block_profile_rate", 7)
+	cfg.SetInTest("security_agent.internal_profiling.enable_goroutine_stacktraces", true)
+	cfg.SetInTest("security_agent.internal_profiling.enable_block_profiling", true)
+	cfg.SetInTest("security_agent.internal_profiling.enable_mutex_profiling", true)
+	cfg.SetInTest("security_agent.internal_profiling.delta_profiles", true)
+	cfg.SetInTest("security_agent.internal_profiling.unix_socket", "/tmp/profiling.sock")
+	cfg.SetInTest("security_agent.internal_profiling.extra_tags", []string{"team:sec"})
 }
 
 // TestBuildProfilingSettings locks in the field-by-field mapping that is the documented single
@@ -44,7 +44,7 @@ func TestBuildProfilingSettings(t *testing.T) {
 	setProfilingConfig(cfg)
 	// Ensure the default site branch is taken regardless of the host environment.
 	t.Setenv("TRACE_AGENT_URL", "")
-	cfg.SetWithoutSource("security_agent.internal_profiling.site", "datadoghq.com")
+	cfg.SetInTest("security_agent.internal_profiling.site", "datadoghq.com")
 
 	s := buildProfilingSettings(cfg)
 
@@ -71,8 +71,8 @@ func TestBuildProfilingSettingsURL(t *testing.T) {
 	t.Run("trace_agent_url takes precedence", func(t *testing.T) {
 		cfg := configcomp.NewMock(t)
 		setProfilingConfig(cfg)
-		cfg.SetWithoutSource("security_agent.internal_profiling.site", "datadoghq.com")
-		cfg.SetWithoutSource("security_agent.internal_profiling.profile_dd_url", "https://override.example")
+		cfg.SetInTest("security_agent.internal_profiling.site", "datadoghq.com")
+		cfg.SetInTest("security_agent.internal_profiling.profile_dd_url", "https://override.example")
 		t.Setenv("TRACE_AGENT_URL", "127.0.0.1:8126")
 
 		s := buildProfilingSettings(cfg)
@@ -83,8 +83,8 @@ func TestBuildProfilingSettingsURL(t *testing.T) {
 		cfg := configcomp.NewMock(t)
 		setProfilingConfig(cfg)
 		t.Setenv("TRACE_AGENT_URL", "")
-		cfg.SetWithoutSource("security_agent.internal_profiling.site", "datadoghq.com")
-		cfg.SetWithoutSource("security_agent.internal_profiling.profile_dd_url", "https://override.example")
+		cfg.SetInTest("security_agent.internal_profiling.site", "datadoghq.com")
+		cfg.SetInTest("security_agent.internal_profiling.profile_dd_url", "https://override.example")
 
 		s := buildProfilingSettings(cfg)
 		assert.Equal(t, "https://override.example", s.ProfilingURL)
@@ -94,8 +94,8 @@ func TestBuildProfilingSettingsURL(t *testing.T) {
 		cfg := configcomp.NewMock(t)
 		setProfilingConfig(cfg)
 		t.Setenv("TRACE_AGENT_URL", "")
-		cfg.SetWithoutSource("security_agent.internal_profiling.site", "datadoghq.eu")
-		cfg.SetWithoutSource("security_agent.internal_profiling.profile_dd_url", "")
+		cfg.SetInTest("security_agent.internal_profiling.site", "datadoghq.eu")
+		cfg.SetInTest("security_agent.internal_profiling.profile_dd_url", "")
 
 		s := buildProfilingSettings(cfg)
 		assert.Equal(t, fmt.Sprintf(profiling.ProfilingURLTemplate, "datadoghq.eu"), s.ProfilingURL)
@@ -106,12 +106,12 @@ func TestProfilingRuntimeSettingGet(t *testing.T) {
 	cfg := configcomp.NewMock(t)
 	s := profilingRuntimeSetting{}
 
-	cfg.SetWithoutSource("security_agent.internal_profiling.enabled", true)
+	cfg.SetInTest("security_agent.internal_profiling.enabled", true)
 	v, err := s.Get(cfg)
 	require.NoError(t, err)
 	assert.Equal(t, true, v)
 
-	cfg.SetWithoutSource("security_agent.internal_profiling.enabled", false)
+	cfg.SetInTest("security_agent.internal_profiling.enabled", false)
 	v, err = s.Get(cfg)
 	require.NoError(t, err)
 	assert.Equal(t, false, v)
@@ -122,7 +122,7 @@ func TestProfilingRuntimeSettingGet(t *testing.T) {
 func TestProfilingRuntimeSettingSetDisable(t *testing.T) {
 	for _, v := range []interface{}{false, "false"} {
 		cfg := configcomp.NewMock(t)
-		cfg.SetWithoutSource("security_agent.internal_profiling.enabled", true)
+		cfg.SetInTest("security_agent.internal_profiling.enabled", true)
 		s := profilingRuntimeSetting{}
 
 		err := s.Set(cfg, v, model.SourceCLI)
@@ -136,7 +136,7 @@ func TestProfilingRuntimeSettingSetDisable(t *testing.T) {
 // profiler side effect and leaves the enabled flag untouched.
 func TestProfilingRuntimeSettingSetUnsupported(t *testing.T) {
 	cfg := configcomp.NewMock(t)
-	cfg.SetWithoutSource("security_agent.internal_profiling.enabled", false)
+	cfg.SetInTest("security_agent.internal_profiling.enabled", false)
 	s := profilingRuntimeSetting{}
 
 	err := s.Set(cfg, 42, model.SourceCLI)

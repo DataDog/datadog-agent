@@ -18,7 +18,7 @@ import (
 
 func TestProfilingPeriodGet(t *testing.T) {
 	cfg := configcomp.NewMock(t)
-	cfg.SetWithoutSource("internal_profiling.period", 5*time.Minute)
+	cfg.SetInTest("internal_profiling.period", 5*time.Minute)
 
 	s := NewProfilingPeriod()
 	v, err := s.Get(cfg)
@@ -28,7 +28,7 @@ func TestProfilingPeriodGet(t *testing.T) {
 
 func TestProfilingPeriodGetWithConfigPrefix(t *testing.T) {
 	cfg := configcomp.NewMock(t)
-	cfg.SetWithoutSource("system_probe_config.internal_profiling.period", 3*time.Minute)
+	cfg.SetInTest("system_probe_config.internal_profiling.period", 3*time.Minute)
 
 	s := &ProfilingPeriod{ConfigKey: "internal_profiling_period", ConfigPrefix: "system_probe_config."}
 	v, err := s.Get(cfg)
@@ -38,7 +38,7 @@ func TestProfilingPeriodGetWithConfigPrefix(t *testing.T) {
 
 func TestProfilingPeriodSetDurationString(t *testing.T) {
 	cfg := configcomp.NewMock(t)
-	cfg.SetWithoutSource("internal_profiling.period", 5*time.Minute)
+	cfg.SetInTest("internal_profiling.period", 5*time.Minute)
 
 	s := NewProfilingPeriod()
 	err := s.Set(cfg, "2m", model.SourceCLI)
@@ -49,8 +49,8 @@ func TestProfilingPeriodSetDurationString(t *testing.T) {
 
 func TestProfilingPeriodSetDoesNotModifyCPUDuration(t *testing.T) {
 	cfg := configcomp.NewMock(t)
-	cfg.SetWithoutSource("internal_profiling.period", 5*time.Minute)
-	cfg.SetWithoutSource("internal_profiling.cpu_duration", 1*time.Minute)
+	cfg.SetInTest("internal_profiling.period", 5*time.Minute)
+	cfg.SetInTest("internal_profiling.cpu_duration", 1*time.Minute)
 
 	s := NewProfilingPeriod()
 	// Set must only ever write the period. dd-trace-go caps the CPU profile at the
@@ -65,7 +65,7 @@ func TestProfilingPeriodSetDoesNotModifyCPUDuration(t *testing.T) {
 
 func TestProfilingPeriodSetBareSeconds(t *testing.T) {
 	cfg := configcomp.NewMock(t)
-	cfg.SetWithoutSource("internal_profiling.period", 5*time.Minute)
+	cfg.SetInTest("internal_profiling.period", 5*time.Minute)
 
 	s := NewProfilingPeriod()
 	err := s.Set(cfg, "120", model.SourceCLI)
@@ -102,7 +102,7 @@ func TestProfilingPeriodSetRejectsBelowOneSecond(t *testing.T) {
 
 func TestProfilingPeriodSetAcceptsOneSecond(t *testing.T) {
 	cfg := configcomp.NewMock(t)
-	cfg.SetWithoutSource("internal_profiling.period", 5*time.Minute)
+	cfg.SetInTest("internal_profiling.period", 5*time.Minute)
 
 	s := NewProfilingPeriod()
 	// 1s is the inclusive lower bound (the clamp is strict: period < time.Second).
@@ -122,8 +122,8 @@ func TestProfilingPeriodSetRejectsInvalidString(t *testing.T) {
 
 func TestProfilingPeriodSetWithConfigPrefix(t *testing.T) {
 	cfg := configcomp.NewMock(t)
-	cfg.SetWithoutSource("system_probe_config.internal_profiling.period", 5*time.Minute)
-	cfg.SetWithoutSource("system_probe_config.internal_profiling.cpu_duration", 1*time.Minute)
+	cfg.SetInTest("system_probe_config.internal_profiling.period", 5*time.Minute)
+	cfg.SetInTest("system_probe_config.internal_profiling.cpu_duration", 1*time.Minute)
 
 	s := &ProfilingPeriod{ConfigKey: "internal_profiling_period", ConfigPrefix: "system_probe_config."}
 	err := s.Set(cfg, "30s", model.SourceCLI)
