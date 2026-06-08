@@ -254,9 +254,6 @@ func (fl *FilterList) setTagFilterList(metricTags tagMatcher) {
 func (fl *FilterList) SetMetricFilterList(metricNames []string, matchPrefix bool) {
 	fl.log.Debugf("SetMetricFilterList with %d metrics", len(metricNames))
 
-	fl.tlmMetricFilterListUpdates.Inc()
-	fl.tlmMetricFilterListSize.Set(float64(len(metricNames)))
-
 	// we will use two different filterlists:
 	// - one with all the metrics names, with all values from `metricNames`
 	// - one with only the metric names ending with histogram aggregates suffixes
@@ -265,6 +262,11 @@ func (fl *FilterList) SetMetricFilterList(metricNames []string, matchPrefix bool
 	histoMetricNames := fl.createHistogramsFilterList(metricNames)
 	filterList := utilstrings.NewMatcher(metricNames, matchPrefix)
 	histoFilterList := utilstrings.NewMatcher(histoMetricNames, matchPrefix)
+
+	// Report the compiled size: with prefix matching, NewMatcher compacts
+	// redundant sub-prefixes, so len(metricNames) can overcount.
+	fl.tlmMetricFilterListUpdates.Inc()
+	fl.tlmMetricFilterListSize.Set(float64(filterList.Len()))
 
 	fl.updateMetricMtx.Lock()
 	fl.filterList = filterList
