@@ -20,6 +20,14 @@ type Config struct {
 	// system-probe. Empty means transition is disabled. Passed as trailing
 	// arguments after a "--" separator.
 	ReexecArgs []string
+
+	// IPC connection parameters for the agent's remote-config gRPC endpoint.
+	// When all are set, system-probe-lite polls remote config itself to learn
+	// the Live Debugger toggle. Empty means remote-config polling is disabled.
+	IPCAddress    string // --ipc-address
+	IPCPort       string // --ipc-port
+	AuthTokenPath string // --auth-token-path
+	IPCCertPath   string // --ipc-cert-path
 }
 
 // Args returns the command-line arguments for the system-probe-lite binary.
@@ -33,6 +41,18 @@ func (c *Config) Args() []string {
 	}
 	if c.PIDFile != "" {
 		args = append(args, "--pid", c.PIDFile)
+	}
+	if c.IPCAddress != "" {
+		args = append(args, "--ipc-address", c.IPCAddress)
+	}
+	if c.IPCPort != "" {
+		args = append(args, "--ipc-port", c.IPCPort)
+	}
+	if c.AuthTokenPath != "" {
+		args = append(args, "--auth-token-path", c.AuthTokenPath)
+	}
+	if c.IPCCertPath != "" {
+		args = append(args, "--ipc-cert-path", c.IPCCertPath)
 	}
 	if len(c.ReexecArgs) > 0 {
 		args = append(args, "--")

@@ -13,6 +13,8 @@ import (
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
+	apisecurity "github.com/DataDog/datadog-agent/pkg/api/security"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/discovery/module/splite"
 	systemprobeconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
@@ -76,13 +78,29 @@ func maybeSPLite(sysprobeConfig sysprobeconfig.Component, pidFilePath string, lo
 	// Build args via splite package (source of truth for CLI format). ReexecArgs
 	// carries our own invocation so system-probe-lite can transition back into a
 	// full system-probe when a non-discovery module is enabled remotely.
-	args := (&splite.Config{
+	config := &splite.Config{
 		Socket:     sysprobeConfig.GetString("system_probe_config.sysprobe_socket"),
 		LogLevel:   sysprobeConfig.GetString("log_level"),
 		LogFile:    sysprobeConfig.GetString("log_file"),
 		PIDFile:    pidFilePath,
 		ReexecArgs: append([]string{execPath}, os.Args[1:]...),
-	}).Args()
+	}
+
+	// When remote enablement is opted into, pass the agent IPC connection
+	// parameters so system-probe-lite can poll remote config itself and
+	// transition into a full system-probe when Live Debugger is enabled.
+	if sysprobeConfig.GetBool("dynamic_instrumentation.remote_enable") {
+		if ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog()); err != nil {
+			log.Warnf("cannot resolve IPC address for remote enablement, remote config polling disabled: %s", err)
+		} else {
+			config.IPCAddress = ipcAddress
+			config.IPCPort = pkgconfigsetup.GetIPCPort()
+			config.AuthTokenPath = apisecurity.GetAuthTokenFilepath(pkgconfigsetup.Datadog())
+			config.IPCCertPath = pkgconfigsetup.Datadog().GetString("ipc_cert_file_path")
+		}
+	}
+
+	args := config.Args()
 
 	return &spLiteExecCmd{
 		Path: systemProbeLitePath,

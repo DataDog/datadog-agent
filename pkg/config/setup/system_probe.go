@@ -151,6 +151,10 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 
 	// Dynamic Instrumentation settings
 	cfg.BindEnvAndSetDefault("dynamic_instrumentation.enabled", false, "DD_DYNAMIC_INSTRUMENTATION_ENABLED")
+	// remote_enable lets system-probe-lite poll remote config so the Dynamic
+	// Instrumentation module can be turned on remotely without it being enabled
+	// at boot. Off by default so discovery-only hosts do not poll remote config.
+	cfg.BindEnvAndSetDefault("dynamic_instrumentation.remote_enable", false, "DD_DYNAMIC_INSTRUMENTATION_REMOTE_ENABLE")
 	cfg.BindEnvAndSetDefault("dynamic_instrumentation.offline_mode", false, "DD_DYNAMIC_INSTRUMENTATION_OFFLINE_MODE")
 	cfg.BindEnvAndSetDefault("dynamic_instrumentation.probes_file_path", false, "DD_DYNAMIC_INSTRUMENTATION_PROBES_FILE_PATH")
 	cfg.BindEnvAndSetDefault("dynamic_instrumentation.snapshot_output_file_path", false, "DD_DYNAMIC_INSTRUMENTATION_SNAPSHOT_FILE_PATH")
