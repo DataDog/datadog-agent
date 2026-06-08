@@ -52,7 +52,7 @@ Invoke-BuildScript `
     }
 
     # Lint Go
-    & dda inv -- -e linter.go --debug
+    & dda inv -- -e linter.go --debug --cpus 4
     $err = $LASTEXITCODE
     Write-Host Go linter result is $err
     if($err -ne 0){
@@ -61,7 +61,7 @@ Invoke-BuildScript `
     }
 
     # Lint system-probe Go
-    & dda inv -- -e linter.go --build system-probe-unit-tests --targets .\pkg
+    & dda inv -- -e linter.go --build system-probe-unit-tests --targets .\pkg --cpus 4
     $err = $LASTEXITCODE
     Write-Host system-probe Go linter result is $err
     if($err -ne 0){
