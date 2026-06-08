@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	defaultTelemetryReaderTarget = "localhost:8888"
+	defaultTelemetryReaderTarget = "127.0.0.1:8888"
 )
 
 func selectTelemetryPrometheusTargets(conf confMap) ([]string, bool) {

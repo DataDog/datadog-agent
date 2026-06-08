@@ -1,12 +1,18 @@
 exporters:
-    otlp_http:
+    otlp_http/no-ep:
         compression: zstd
         headers:
-            dd-api-key: test-api-key
+            dd-api-key: test-api-key-2
             dd-evp-origin: host-profiler-standalone
             dd-evp-origin-version: 7.0.0-test
-        metrics_endpoint: https://otlp.us3.datadoghq.com/v1/metrics
-        profiles_endpoint: https://intake.profile.us3.datadoghq.com/v1development/profiles
+    otlp_http/with-ep:
+        compression: zstd
+        headers:
+            dd-api-key: test-api-key-1
+            dd-evp-origin: host-profiler-standalone
+            dd-evp-origin-version: 7.0.0-test
+        metrics_endpoint: https://otlp.datadoghq.com/v1/metrics
+        profiles_endpoint: https://intake.profile.datadoghq.com/v1development/profiles
 processors:
     cumulativetodelta/dd-hp-internal: {}
     ddhostname/dd-autoconfigured: {}
@@ -53,12 +59,12 @@ receivers:
                     - PrometheusText0.0.4
                   static_configs:
                     - targets:
-                        - localhost:8888
+                        - 127.0.0.1:8888
 service:
     pipelines:
         metrics/profiler-internal-health:
             exporters:
-                - otlp_http
+                - otlp_http/with-ep
             processors:
                 - filter/dd-hp-drop-internal
                 - cumulativetodelta/dd-hp-internal
@@ -69,7 +75,8 @@ service:
                 - prometheus/dd-hp-internal
         profiles:
             exporters:
-                - otlp_http
+                - otlp_http/with-ep
+                - otlp_http/no-ep
             processors:
                 - resourcedetection/dd-autoconfigured
                 - ddhostname/dd-autoconfigured

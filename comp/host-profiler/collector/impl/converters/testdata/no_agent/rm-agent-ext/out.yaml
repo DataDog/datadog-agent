@@ -61,7 +61,7 @@ receivers:
                     - PrometheusText0.0.4
                   static_configs:
                     - targets:
-                        - localhost:8888
+                        - 127.0.0.1:8888
 service:
     extensions:
         - ddprofiling
