@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
 	otlpmetrics "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/otel"
 )
 
@@ -125,11 +126,13 @@ func newFactoryForAgentWithType(
 		options = append(options, otlpmetrics.WithInferDeltaInterval())
 	}
 
-	// TODO(OTAGENT-1079): Re-enable once v3 serialization of native histograms is implemented
-	// (Stages 2-4). Currently gated off to prevent silent data loss.
-	// if NativeHistogramFeatureGate.IsEnabled() {
-	//     options = append(options, otlpmetrics.WithNativeHistograms())
-	// }
+	if NativeHistogramFeatureGate.IsEnabled() {
+		// TODO(OTAGENT-1079): Wire WithNativeHistograms() once v3 serialization is implemented (Stages 2-4).
+		// Until then, the gate is accepted but has no effect -- histograms continue through DDSketch.
+		//options = append(options, otlpmetrics.WithNativeHistograms())
+		log.Warnf("Feature gate %q is enabled but native OTel histogram serialization is not yet implemented (OTAGENT-1079). "+
+			"Histograms will continue through the DDSketch conversion path.", NativeHistogramFeatureGate.ID())
+	}
 
 	f := &factory{
 		s:            s,
