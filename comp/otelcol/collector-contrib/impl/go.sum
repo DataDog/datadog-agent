@@ -634,6 +634,8 @@ github.com/open-telemetry/opentelemetry-collector-contrib/internal/k8sinventory 
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/k8sinventory v0.153.0/go.mod h1:AH/FnfV4xarSzsht54z+PBsqirS418zEwy5Kzg1xX84=
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/k8sleaderelectortest v0.153.0 h1:ZTq4AdsZL+Pke9/ZIpUFnNbTdxxsdtKlHV1ej+HZp2M=
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/k8sleaderelectortest v0.153.0/go.mod h1:Y86Guswry5oGoAEvRLg8wVrrpdUEB9H5vbfEwAGqQSc=
+github.com/open-telemetry/opentelemetry-collector-contrib/internal/kubelet v0.153.0 h1:CFLH0REEcd+geNBPFM+o08+whi/771QzY4xRUD8tf8s=
+github.com/open-telemetry/opentelemetry-collector-contrib/internal/kubelet v0.153.0/go.mod h1:RCvF4GyKVUHxzOSxiHzp/sN3mmhglrs8X8St3jFJg0s=
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/metadataproviders v0.153.0 h1:+ZxEYJfK0Rc555FSDB4VxQ0tcWeSVAdVY+0TdPfwCSg=
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/metadataproviders v0.153.0/go.mod h1:FFpvqXu0hBT//boL+SBezwK+mSBoKEJbpEKBCFvPT3o=
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/pdatautil v0.153.0 h1:pLc7CueD0Mmpg40RLJoeityYj44Azg/k9TU3UU7Tbds=
@@ -698,6 +700,8 @@ github.com/open-telemetry/opentelemetry-collector-contrib/processor/tailsampling
 github.com/open-telemetry/opentelemetry-collector-contrib/processor/tailsamplingprocessor v0.153.0/go.mod h1:oZszKat3EVYlmmp60EZm8o6Pu+8FCZfmFp/ZPT7HFG0=
 github.com/open-telemetry/opentelemetry-collector-contrib/processor/transformprocessor v0.153.0 h1:ID8lnfZpwz6JSjeKjUBajYSpbLwuZR3GAMjQjvNI+E0=
 github.com/open-telemetry/opentelemetry-collector-contrib/processor/transformprocessor v0.153.0/go.mod h1:fyI0bNMD/Enw6lXaWVXf4v9xJh2NtgCsMYYn9kffdp8=
+github.com/open-telemetry/opentelemetry-collector-contrib/receiver/dockerstatsreceiver v0.153.0 h1:71XeyvcXQWAivinFQcBa5WoJLCFQNcWt+u6PZORGGIM=
+github.com/open-telemetry/opentelemetry-collector-contrib/receiver/dockerstatsreceiver v0.153.0/go.mod h1:k02YkMzMYGPChvFdkAbRev8bwgaeSCPTGFdWoOw3maY=
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/filelogreceiver v0.153.0 h1:STYTeWwEpins/xnUta48J4vBwRQ2cEJQWzS4q3bp6Hc=
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/filelogreceiver v0.153.0/go.mod h1:qeLDE233hInZMtBR9wmsNgugeEcXf9PWjkM+0pBOCUA=
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/fluentforwardreceiver v0.153.0 h1:IVVexV0o/TAHx7JTk6rbhfa8rG1mAaNmHAFa8Yp/zL4=
@@ -708,6 +712,10 @@ github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceive
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver v0.153.0/go.mod h1:xYem/1ZCP1APB7kqs0XHZcnnWVBfg1GTiYO/eAh/ugg=
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/k8sobjectsreceiver v0.153.0 h1:eX04ttw/NIs6yzLWCoKiA94GYSvdEQzGJPRw5bpahc8=
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/k8sobjectsreceiver v0.153.0/go.mod h1:QtnlCKcnQbd+ZtcXWe0gDFeKvh3EoHxKT+Zl5xLdOZE=
+github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kubeletstatsreceiver v0.153.0 h1:1t2rGS4y7h46ApS7KoLmH3R5srHW7x5xYABYBioq25c=
+github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kubeletstatsreceiver v0.153.0/go.mod h1:6zeqNGh0PQvHMIfhuJFqFrIKVw8N43wUA03uWOiL7nk=
+github.com/open-telemetry/opentelemetry-collector-contrib/receiver/podmanreceiver v0.153.0 h1:1O0lo9U+ap5rYo8iQCNAAvyWhgJ6n1Pdw+oyDxSCsRQ=
+github.com/open-telemetry/opentelemetry-collector-contrib/receiver/podmanreceiver v0.153.0/go.mod h1:C2xEAuMkpAcgKaEyEdz2a4gb8UXIgIxkdCZb9LcLRo0=
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/prometheusreceiver v0.153.0 h1:xOSkH/2w5/pkf6oAaS4EmmxiFSwoWGOaRVimmLfPd+4=
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/prometheusreceiver v0.153.0/go.mod h1:BVC4+uUe07DTVYfirhR900RMyv96h9Im4w+Ve1H2Vc0=
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/receivercreator v0.153.0 h1:scxNSb5y2393aEtBSDEFm4pIi96E5GUV/pAaj46RT+U=
@@ -1369,6 +1377,8 @@ k8s.io/klog/v2 v2.140.0 h1:Tf+J3AH7xnUzZyVVXhTgGhEKnFqye14aadWv7bzXdzc=
 k8s.io/klog/v2 v2.140.0/go.mod h1:o+/RWfJ6PwpnFn7OyAG3QnO47BFsymfEfrz6XyYSSp0=
 k8s.io/kube-openapi v0.0.0-20260330154417-16be699c7b31 h1:V+sn9a/1fEYDGwnllCmqXBk8x7obZ+hl869Q3Abumkg=
 k8s.io/kube-openapi v0.0.0-20260330154417-16be699c7b31/go.mod h1:uGBT7iTA6c6MvqUvSXIaYZo9ukscABYi2btjhvgKGZ0=
+k8s.io/kubelet v0.35.4 h1:g/qX1F6PdJQYzAzje3BDRGGEAmeYiiRi9QlLuyliRyw=
+k8s.io/kubelet v0.35.4/go.mod h1:T3X1s+/TM23j8j3hjIem0PCBoSc7VNaKDyOkzAHUiDU=
 k8s.io/utils v0.0.0-20260319190234-28399d86e0b5 h1:kBawHLSnx/mYHmRnNUf9d4CpjREbeZuxoSGOX/J+aYM=
 k8s.io/utils v0.0.0-20260319190234-28399d86e0b5/go.mod h1:xDxuJ0whA3d0I4mf/C4ppKHxXynQ+fxnkmQH0vTHnuk=
 pgregory.net/rapid v1.2.0 h1:keKAYRcjm+e1F0oAuU5F5+YPAWcyxNNRK2wud503Gnk=
