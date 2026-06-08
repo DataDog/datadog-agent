@@ -18,6 +18,7 @@ go_library(
         "//conditions:default": [],
     }),
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/wincrashdetect/probe",
+    target_compatible_with = ["@platforms//os:windows"],  # keep
     visibility = ["//visibility:public"],
     deps = select({
         "@rules_go//go/platform:windows": [
@@ -36,6 +37,7 @@ go_test(
     data = glob(["testdata/**"]),
     embed = [":probe"],
     gotags = ["test"],
+    target_compatible_with = ["@platforms//os:windows"],  # keep
     deps = select({
         "@rules_go//go/platform:windows": [
             "@com_github_stretchr_testify//assert",
