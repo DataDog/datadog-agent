@@ -13,13 +13,16 @@ package tools
 import (
 	_ "github.com/aarzilli/whydeadcode"
 	_ "github.com/bazelbuild/bazelisk"
+	_ "github.com/favadi/protoc-go-inject-tag"
 	_ "github.com/frapposelli/wwhrd"
 	_ "github.com/go-enry/go-license-detector/v4/cmd/license-detector"
 	_ "github.com/golangci/golangci-lint/v2/cmd/golangci-lint"
 	_ "github.com/goware/modvendor"
+	_ "github.com/planetscale/vtprotobuf/cmd/protoc-gen-go-vtproto"
 	_ "github.com/uber-go/gopatch"
 	_ "github.com/vektra/mockery/v3"
 	_ "github.com/wadey/gocovmerge"
 	_ "golang.org/x/perf/cmd/benchstat"
+	_ "google.golang.org/grpc/cmd/protoc-gen-go-grpc"
 	_ "gotest.tools/gotestsum"
 )

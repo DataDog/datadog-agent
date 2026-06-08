@@ -68,7 +68,7 @@ func TestSingleDomainResolverUpdateAdditionalEndpointsNewKey(t *testing.T) {
 	endpoints := map[string][]string{
 		"example.com": {"key4", "key2", "key3"},
 	}
-	mockConfig.SetWithoutSource("additional_endpoints", endpoints)
+	mockConfig.SetInTest("additional_endpoints", endpoints)
 	updateAdditionalEndpoints(resolver, "additional_endpoints", mockConfig, log)
 
 	// The new key4 key is in the list and the main endpoint key1 is still there
@@ -78,7 +78,7 @@ func TestSingleDomainResolverUpdateAdditionalEndpointsNewKey(t *testing.T) {
 	endpoints = map[string][]string{
 		"example.com": {"key4", "key1", "key3"},
 	}
-	mockConfig.SetWithoutSource("additional_endpoints", endpoints)
+	mockConfig.SetInTest("additional_endpoints", endpoints)
 	updateAdditionalEndpoints(resolver, "additional_endpoints", mockConfig, log)
 
 	assertKeys(t, []string{"key1", "key4", "key3"}, resolver)
@@ -100,7 +100,7 @@ func TestMultiDomainResolverUpdateAdditionalEndpointsNewKey(t *testing.T) {
 	endpoints := map[string][]string{
 		"example.com": {"key4", "key2", "key3"},
 	}
-	mockConfig.SetWithoutSource("additional_endpoints", endpoints)
+	mockConfig.SetInTest("additional_endpoints", endpoints)
 	updateAdditionalEndpoints(resolver, "additional_endpoints", mockConfig, log)
 
 	// The new key4 key is in the list and the main endpoint key1 is still there
@@ -110,7 +110,7 @@ func TestMultiDomainResolverUpdateAdditionalEndpointsNewKey(t *testing.T) {
 	endpoints = map[string][]string{
 		"example.com": {"key4", "key1", "key3"},
 	}
-	mockConfig.SetWithoutSource("additional_endpoints", endpoints)
+	mockConfig.SetInTest("additional_endpoints", endpoints)
 	updateAdditionalEndpoints(resolver, "additional_endpoints", mockConfig, log)
 
 	assertKeys(t, []string{"key1", "key4", "key3"}, resolver)

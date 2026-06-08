@@ -116,6 +116,7 @@ require (
 	github.com/tidwall/pretty v1.2.1 // indirect
 	github.com/vultr/govultr/v3 v3.28.1 // indirect
 	github.com/zeebo/xxh3 v1.1.0 // indirect
+	go.uber.org/mock v0.6.0 // indirect
 	go.yaml.in/yaml/v4 v4.0.0-rc.4 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect

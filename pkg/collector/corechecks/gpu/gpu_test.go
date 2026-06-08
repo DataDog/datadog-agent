@@ -126,13 +126,13 @@ func TestConfigurePRMCacheRequiresPRMEndpoint(t *testing.T) {
 			require.True(t, ok)
 
 			WithGPUConfigEnabled(t)
-			pkgconfigsetup.SystemProbe().SetWithoutSource("gpu_monitoring.enabled", tt.gpuMonitoring)
-			pkgconfigsetup.SystemProbe().SetWithoutSource("gpu_monitoring.enable_ebpf_probes", tt.enableEBPFProbes)
-			pkgconfigsetup.SystemProbe().SetWithoutSource("gpu_monitoring.prm_endpoint_enabled", tt.prmEndpointEnabled)
+			pkgconfigsetup.SystemProbe().SetInTest("gpu_monitoring.enabled", tt.gpuMonitoring)
+			pkgconfigsetup.SystemProbe().SetInTest("gpu_monitoring.enable_ebpf_probes", tt.enableEBPFProbes)
+			pkgconfigsetup.SystemProbe().SetInTest("gpu_monitoring.prm_endpoint_enabled", tt.prmEndpointEnabled)
 			t.Cleanup(func() {
-				pkgconfigsetup.SystemProbe().SetWithoutSource("gpu_monitoring.enabled", false)
-				pkgconfigsetup.SystemProbe().SetWithoutSource("gpu_monitoring.enable_ebpf_probes", true)
-				pkgconfigsetup.SystemProbe().SetWithoutSource("gpu_monitoring.prm_endpoint_enabled", true)
+				pkgconfigsetup.SystemProbe().SetInTest("gpu_monitoring.enabled", false)
+				pkgconfigsetup.SystemProbe().SetInTest("gpu_monitoring.enable_ebpf_probes", true)
+				pkgconfigsetup.SystemProbe().SetInTest("gpu_monitoring.prm_endpoint_enabled", true)
 			})
 
 			check.containerProvider = newMockContainerProvider(t, nil)
@@ -879,9 +879,9 @@ func TestDisabledCollectorsConfiguration(t *testing.T) {
 			wmetaMock := testutil.GetWorkloadMetaMockWithDefaultGPUs(t)
 
 			WithGPUConfigEnabled(t)
-			pkgconfigsetup.Datadog().SetWithoutSource("gpu.disabled_collectors", tt.disabledCollectors)
+			pkgconfigsetup.Datadog().SetInTest("gpu.disabled_collectors", tt.disabledCollectors)
 			t.Cleanup(func() {
-				pkgconfigsetup.Datadog().SetWithoutSource("gpu.disabled_collectors", []string{})
+				pkgconfigsetup.Datadog().SetInTest("gpu.disabled_collectors", []string{})
 			})
 
 			check := newConfiguredGPUCheck(t, fakeTagger, wmetaMock, mocksender.CreateDefaultDemultiplexer(), nil)

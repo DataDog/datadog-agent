@@ -48,7 +48,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice"
 	enhancedmetrics "github.com/DataDog/datadog-agent/cmd/serverless-init/enhanced-metrics"
 	serverlessInitTag "github.com/DataDog/datadog-agent/cmd/serverless-init/tag"
-	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
+	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
