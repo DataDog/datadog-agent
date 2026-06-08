@@ -14,8 +14,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/executable"
 )
 
-// Exported default path constants for use in BindEnvAndSetDefault and similar config registration.
-// These are the raw, untransformed paths. Use getter functions for runtime transformed paths.
+// Private default path constants for reference. BindEnvAndSetDefault uses getter functions after init().
+// These are the raw, untransformed paths. Use getter functions for correct runtime transformed paths.
 const (
 	// defaultConfPath points to the folder containing datadog.yaml
 	defaultConfPath = "/etc/datadog-agent"

@@ -31,9 +31,9 @@ var (
 	distPath     string
 )
 
-// Exported default path constants for use in BindEnvAndSetDefault and similar config registration.
+// Private default path constants for reference. BindEnvAndSetDefault uses getter functions after init().
 // These are the static default values before init() may update them based on registry.
-// For runtime paths that reflect registry customization, use getter functions instead.
+// These are the raw, untransformed paths. Use getter functions for correct runtime transformed paths.
 const (
 	defaultConfPath                   = "c:\\programdata\\datadog"
 	defaultConfdPath                  = "c:\\programdata\\datadog\\conf.d"
