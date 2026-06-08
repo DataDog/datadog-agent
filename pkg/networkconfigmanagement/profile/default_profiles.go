@@ -330,7 +330,7 @@ var DefaultProfiles = Map{
 	"tmos": {
 		Name: "tmos",
 		Commands: CommandSet{
-			GetRunning: MkCommand("cat /config/partitions/*/bigip*.conf", `^sys global-settings\s*{`),
+			GetRunning: MkCommand("cat /config/partitions/*/bigip*.conf", `\A(#TMSH-VERSION:|sys global-settings\s*{)`),
 		},
 		Redactions: []RedactionRule{
 			MkRedaction(`^([\s\t]*)secret \S+`, WithReplacement("${1}secret <secret hidden>")),
