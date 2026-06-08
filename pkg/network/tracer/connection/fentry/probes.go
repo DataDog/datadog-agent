@@ -38,6 +38,10 @@ const (
 	tcpRecvMsgPre5190Return = "tcp_recvmsg_exit_pre_5_19_0"
 	// tcpClose traces the tcp_close() system call
 	tcpClose = "tcp_close"
+	// tcpCloseReturn traces the return of tcp_close(); it cleans protocol
+	// classification after the socket filter has seen the termination packets
+	// (mirrors kretprobe__tcp_close in the kprobe tracer)
+	tcpCloseReturn = "tcp_close_exit"
 
 	// tcpDone traces the tcp_done() kernel function for failed connection tracking
 	tcpDone = "tcp_done"
@@ -116,6 +120,7 @@ var programs = map[string]struct{}{
 	inetCskListenStop:         {},
 	tcpRecvMsgReturn:          {},
 	tcpClose:                  {},
+	tcpCloseReturn:            {},
 	tcpConnect:                {},
 	tcpFinishConnect:          {},
 	tcpRetransmit:             {},
@@ -211,6 +216,7 @@ func enabledPrograms(c *config.Config) (map[string]struct{}, error) {
 		enableProgram(enabled, tcpSendMsgReturn)
 		enableProgram(enabled, selectVersionBasedProbe(kv, tcpRecvMsgReturn, tcpRecvMsgPre5190Return, kv5190))
 		enableProgram(enabled, tcpClose)
+		enableProgram(enabled, tcpCloseReturn)
 		enableProgram(enabled, tcpConnect)
 		enableProgram(enabled, tcpFinishConnect)
 		enableProgram(enabled, selectVersionBasedProbe(kv, inetCskAcceptReturn610, inetCskAcceptReturn, kernel.VersionCode(6, 10, 0)))

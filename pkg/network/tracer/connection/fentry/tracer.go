@@ -120,8 +120,9 @@ func protocolClassificationTailCalls() []manager.TailCallRoute {
 		},
 	}
 	// Note: unlike kprobe, fentry does NOT use bpf_tail_call into tcp_close_progs.
-	// The fentry/tcp_close handler does inline cleanup; no return-side flush
-	// program is loaded. So no tcp_close_progs tail call route is added here.
+	// Protocol classification cleanup is handled directly by the fexit/tcp_close
+	// handler (which runs post-socket-filter, mirroring kretprobe__tcp_close), so
+	// no tcp_close_progs tail call route is added here.
 	return tcs
 }
 

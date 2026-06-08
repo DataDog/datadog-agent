@@ -196,7 +196,7 @@ int BPF_PROG(tcp_recvmsg_exit_pre_5_19_0, struct sock *sk, struct msghdr *msg, s
     return handle_tcp_recv(pid_tgid, sk, copied);
 }
 
-SEC("fentry/tcp_close") // JMW check all new fentry probes agains the kprobe veresions
+SEC("fentry/tcp_close")
 int BPF_PROG(tcp_close, struct sock *sk, long timeout) {
     conn_tuple_t t = {};
     u64 pid_tgid = bpf_get_current_pid_tgid();
@@ -214,11 +214,32 @@ int BPF_PROG(tcp_close, struct sock *sk, long timeout) {
     bpf_map_delete_elem(&tcp_ongoing_connect_pid, &skp_conn);
 
     handle_tcp_failure(sk, &t);
-    clean_protocol_classification(&t);
 
+    // Note: clean_protocol_classification is deliberately NOT called here.
+    // tcp_close entry runs before the socket filter sees the connection's
+    // termination packets; deleting the cached protocol here would make the
+    // socket filter re-classify the termination and drop the last request in
+    // the connection (USM impact). It is instead done in fexit/tcp_close below,
+    // which runs after the function returns (mirrors kretprobe__tcp_close in the
+    // kprobe tracer; see commit b100d09a5b1).
     if (cleanup_conn(ctx, &t, sk) == 0) {
         increment_telemetry_count(tcp_close_connection_flush);
     }
+    return 0;
+}
+
+SEC("fexit/tcp_close")
+int BPF_PROG(tcp_close_exit, struct sock *sk, long timeout) {
+    conn_tuple_t t = {};
+    if (!read_conn_tuple(&t, sk, bpf_get_current_pid_tgid(), CONN_TYPE_TCP)) {
+        return 0;
+    }
+
+    // Runs after tcp_close returns (post-socket-filter), so it is safe to delete
+    // the cached protocol classification. fexit has access to the input args, so
+    // unlike kretprobe__tcp_close we can rebuild the tuple from sk directly
+    // instead of stashing it in a map at entry.
+    clean_protocol_classification(&t);
     return 0;
 }
 
