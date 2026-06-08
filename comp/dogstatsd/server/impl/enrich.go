@@ -45,6 +45,15 @@ type enrichConfig struct {
 	ccmCfg                    model.Reader // optional: cloud_cost_only JMX DogStatsD tagging; nil skips
 }
 
+func tagsHaveJMXDogstatsdCheckName(tags []string) bool {
+	for _, t := range tags {
+		if strings.HasPrefix(t, jmxCheckNamePrefix) {
+			return true
+		}
+	}
+	return false
+}
+
 // extractTagsMetadata returns tags (client tags + host tag) and information needed to query tagger (origins, cardinality).
 func extractTagsMetadata(tags []string, originFromUDS string, processID uint32, localData origindetection.LocalData, externalData origindetection.ExternalData, cardinality string, conf enrichConfig) ([]string, string, taggertypes.OriginInfo, metrics.MetricSource) {
 	host := conf.defaultHostname
@@ -148,9 +157,9 @@ func tsToFloatForSamples(ts time.Time) float64 {
 func enrichMetricSample(dest []metrics.MetricSample, ddSample dogstatsdMetricSample, origin string, processID uint32, listenerID string, conf enrichConfig, filterList *utilstrings.Matcher) []metrics.MetricSample {
 	metricName := ddSample.name
 	// extractTagsMetadata compacts tags in-place and strips dd.internal.jmx_check_name.
-	// When CCM JMX tagging is enabled, pass a copy so ddSample.tags stays intact for AppendJMXDogstatsdCCMTags.
+	// When CCM may tag JMX samples, pass a copy so ddSample.tags stays intact for AppendJMXDogstatsdCCMTags.
 	tagsInput := ddSample.tags
-	if conf.ccmCfg != nil {
+	if conf.ccmCfg != nil && tagsHaveJMXDogstatsdCheckName(ddSample.tags) {
 		tagsInput = append([]string(nil), ddSample.tags...)
 	}
 	tags, hostnameFromTags, extractedOrigin, metricSource := extractTagsMetadata(tagsInput, origin, processID, ddSample.localData, ddSample.externalData, ddSample.cardinality, conf)
