@@ -49,8 +49,10 @@ type ShadowSchedulerOptions struct {
 	RunStatsRecorder RunStatsRecorder
 }
 
-// ShadowScheduler runs lookback shadow checks outside the normal collector
-// scheduler and runner.
+// ShadowScheduler reuses normal check-loading semantics through CheckInstanceLoader,
+// but owns the shadow execution policy. Keep this separate from the normal
+// scheduler/runner so :shadow identity, lookback sender isolation,
+// skip-overlap, and bounded stop/cancel behavior do not affect normal checks.
 type ShadowScheduler struct {
 	loader           CheckInstanceLoader
 	newSenderManager SenderManagerFactory
