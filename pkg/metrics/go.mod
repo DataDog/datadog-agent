@@ -14,7 +14,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/log v0.73.0-rc.5
 	github.com/DataDog/datadog-agent/pkg/util/quantile v0.71.0-rc.1
 	github.com/stretchr/testify v1.11.1
-	go.opentelemetry.io/collector/pdata v1.58.0
+	go.opentelemetry.io/collector/pdata v1.59.0
 	go.uber.org/atomic v1.11.0
 )
 
@@ -96,7 +96,7 @@ require (
 	github.com/tklauser/numcpus v0.11.0 // indirect
 	github.com/twmb/murmur3 v1.1.8 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
-	go.opentelemetry.io/collector/featuregate v1.58.0 // indirect
+	go.opentelemetry.io/collector/featuregate v1.59.0 // indirect
 	go.uber.org/dig v1.19.0 // indirect
 	go.uber.org/fx v1.24.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect

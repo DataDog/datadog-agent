@@ -22,6 +22,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/tagset v0.60.0
 	github.com/DataDog/datadog-agent/pkg/util/compression v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/json v0.59.0
+	github.com/DataDog/datadog-agent/pkg/util/log v0.73.0-rc.5
 	github.com/DataDog/datadog-agent/pkg/util/quantile v0.71.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/util/testutil v0.59.0
 	github.com/DataDog/datadog-agent/pkg/version v0.72.2
@@ -31,6 +32,7 @@ require (
 	github.com/richardartoul/molecule v1.0.1-0.20240531184615-7ca0df43c0b3
 	github.com/stretchr/testify v1.11.1
 	github.com/twmb/murmur3 v1.1.8
+	go.opentelemetry.io/collector/pdata v1.59.0
 	google.golang.org/protobuf v1.36.12-0.20260116114154-8c4c4ae446ca
 )
 
@@ -71,7 +73,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/flavor v0.70.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.73.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/http v0.61.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/log v0.73.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/option v0.64.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.73.0-rc.5 // indirect
@@ -127,8 +128,7 @@ require (
 	github.com/tklauser/go-sysconf v0.3.16 // indirect
 	github.com/tklauser/numcpus v0.11.0 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
-	go.opentelemetry.io/collector/featuregate v1.58.0 // indirect
-	go.opentelemetry.io/collector/pdata v1.58.0 // indirect
+	go.opentelemetry.io/collector/featuregate v1.59.0 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/dig v1.19.0 // indirect
 	go.uber.org/fx v1.24.0 // indirect
