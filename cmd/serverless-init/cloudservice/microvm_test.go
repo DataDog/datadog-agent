@@ -9,9 +9,9 @@ import (
 	"context"
 	"net/http"
 	"os"
-	"sync/atomic"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 

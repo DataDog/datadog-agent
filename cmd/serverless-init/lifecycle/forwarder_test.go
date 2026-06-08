@@ -314,3 +314,30 @@ func TestForwarder_PassThroughWaiting_ForwardsBodyAfterTCPWait(t *testing.T) {
 		t.Fatal("user app handler never invoked")
 	}
 }
+
+// errReader fails on Read, simulating a truncated/aborted inbound platform
+// request body (e.g. the platform disconnects mid-transfer).
+type errReader struct{}
+
+func (errReader) Read([]byte) (int, error) { return 0, io.ErrUnexpectedEOF }
+
+// A failed read of the inbound body must NOT forward a partial body to the
+// user app. PassThroughWaiting returns 500 (server-side read failure) and
+// short-circuits before the TCP wait so no partial body reaches the user app.
+func TestForwarder_PassThroughWaiting_BodyReadError_Returns500(t *testing.T) {
+	var reached atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		reached.Add(1)
+		w.WriteHeader(200)
+	}))
+	defer srv.Close()
+
+	f := newTestForwarder(srv.URL)
+	resp := f.PassThroughWaiting(200*time.Millisecond, "/validate", nil, errReader{})
+	require.NotNil(t, resp)
+	defer resp.Body.Close()
+	assert.Equal(t, http.StatusInternalServerError, resp.StatusCode,
+		"a failed inbound body read is a server-side error and must return 500")
+	assert.Equal(t, int32(0), reached.Load(),
+		"user app must not be contacted when the inbound body cannot be read")
+}
