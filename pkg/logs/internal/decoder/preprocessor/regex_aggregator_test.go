@@ -15,7 +15,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 )
@@ -285,8 +284,8 @@ func TestRegexAggregator_TruncationTagging(t *testing.T) {
 	run := func(t *testing.T, enabled bool) {
 		mockConfig := configmock.New(t)
 		prev := mockConfig.GetBool("logs_config.tag_truncated_logs")
-		mockConfig.Set("logs_config.tag_truncated_logs", enabled, pkgconfigmodel.SourceAgentRuntime)
-		defer mockConfig.Set("logs_config.tag_truncated_logs", prev, pkgconfigmodel.SourceAgentRuntime)
+		mockConfig.SetInTest("logs_config.tag_truncated_logs", enabled)
+		defer mockConfig.SetInTest("logs_config.tag_truncated_logs", prev)
 
 		ag := newRegexAggregator(t, `^START`, 10)
 		processMsg(ag, newMessage("START"), aggregate)
@@ -325,8 +324,8 @@ func TestRegexAggregator_MultiLineTagging(t *testing.T) {
 	t.Run("multi-line and enabled", func(t *testing.T) {
 		mockConfig := configmock.New(t)
 		prev := mockConfig.GetBool("logs_config.tag_multi_line_logs")
-		mockConfig.Set("logs_config.tag_multi_line_logs", true, pkgconfigmodel.SourceAgentRuntime)
-		defer mockConfig.Set("logs_config.tag_multi_line_logs", prev, pkgconfigmodel.SourceAgentRuntime)
+		mockConfig.SetInTest("logs_config.tag_multi_line_logs", true)
+		defer mockConfig.SetInTest("logs_config.tag_multi_line_logs", prev)
 
 		ag := newRegexAggregator(t, `^START`, 1000)
 		processMsg(ag, newMessage("START leader"), aggregate)
@@ -339,8 +338,8 @@ func TestRegexAggregator_MultiLineTagging(t *testing.T) {
 	t.Run("multi-line and disabled", func(t *testing.T) {
 		mockConfig := configmock.New(t)
 		prev := mockConfig.GetBool("logs_config.tag_multi_line_logs")
-		mockConfig.Set("logs_config.tag_multi_line_logs", false, pkgconfigmodel.SourceAgentRuntime)
-		defer mockConfig.Set("logs_config.tag_multi_line_logs", prev, pkgconfigmodel.SourceAgentRuntime)
+		mockConfig.SetInTest("logs_config.tag_multi_line_logs", false)
+		defer mockConfig.SetInTest("logs_config.tag_multi_line_logs", prev)
 
 		ag := newRegexAggregator(t, `^START`, 1000)
 		processMsg(ag, newMessage("START leader"), aggregate)
@@ -353,8 +352,8 @@ func TestRegexAggregator_MultiLineTagging(t *testing.T) {
 	t.Run("single-line aggregate is not tagged", func(t *testing.T) {
 		mockConfig := configmock.New(t)
 		prev := mockConfig.GetBool("logs_config.tag_multi_line_logs")
-		mockConfig.Set("logs_config.tag_multi_line_logs", true, pkgconfigmodel.SourceAgentRuntime)
-		defer mockConfig.Set("logs_config.tag_multi_line_logs", prev, pkgconfigmodel.SourceAgentRuntime)
+		mockConfig.SetInTest("logs_config.tag_multi_line_logs", true)
+		defer mockConfig.SetInTest("logs_config.tag_multi_line_logs", prev)
 
 		ag := newRegexAggregator(t, `^START`, 1000)
 		processMsg(ag, newMessage("START solo"), aggregate)
