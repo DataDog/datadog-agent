@@ -59,13 +59,14 @@ properties:
         - full: default server/host-monitoring behavior (all checks allowed).
         - basic: minimal host-level metrics only.
         - end_user_device: tuned for end-user-device (EUDM) laptops and desktops.
+        - cloud_cost_only: Cloud Cost Management lightweight collection posture (tagging; optional filtering elsewhere).
         - none: disables infrastructure checks.
     tags:
     - template_section:Common
     comment: |-
       Infrastructure mode
       The infrastructure mode is used to determine the features that are available to the agent.
-      The possible values are: full, basic, end_user_device, none.
+      The possible values are: full, basic, end_user_device, cloud_cost_only, none.
   dd_url:
     node_type: setting
     env_vars:
@@ -8466,6 +8467,19 @@ properties:
             comment: |-
               Infrastructure end_user_device mode section
               integration.end_user_device.allowed: empty means all checks are allowed
+      cloud_cost_only:
+        node_type: section
+        type: object
+        properties:
+          tagged:
+            node_type: setting
+            type: array
+            default: []
+            items:
+              type: string
+            comment: |-
+              When infrastructure_mode is cloud_cost_only, check names in this list receive the
+              infrastructure_mode:cloud_cost_only tag on integration metrics. An empty list means all checks.
       excluded:
         node_type: setting
         type: array

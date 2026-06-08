@@ -38,9 +38,19 @@ api_key:
 ##   - full: default server/host-monitoring behavior (all checks allowed).
 ##   - basic: minimal host-level metrics only.
 ##   - end_user_device: tuned for end-user-device (EUDM) laptops and desktops.
+##   - cloud_cost_only: Cloud Cost Management lightweight collection posture (integration metric tagging; optional filtering elsewhere).
 ##   - none: disables infrastructure checks.
 #
 # infrastructure_mode: "full"
+
+## @param integration.cloud_cost_only.tagged - list of strings - optional - default: []
+## When ``infrastructure_mode`` is ``cloud_cost_only``, check names in this list receive the
+## ``infrastructure_mode:cloud_cost_only`` tag on integration metrics. When the list is empty (the default),
+## all checks receive the tag.
+#
+# integration:
+#   cloud_cost_only:
+#     tagged: []
 
 ## @param dd_url - string - optional - default: "https://app.datadoghq.com"
 ## @env DD_DD_URL - string - optional - default: "https://app.datadoghq.com"
