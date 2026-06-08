@@ -175,6 +175,9 @@ func (a *logAgent) partialStop() error {
 		a.destinationsCtx.Stop()
 	})
 
+	// Clear snapshots only after the monitors stop, else an in-flight sample repopulates the map for the restarted pipeline.
+	logsmetrics.ClearComponentSnapshots()
+
 	// Flush auditor to write current positions to disk
 	a.log.Debug("Flushing auditor registry after pipeline stop")
 	a.auditor.Flush()

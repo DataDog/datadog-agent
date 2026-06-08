@@ -171,6 +171,7 @@ func (s *Sender) PipelineMonitor() metrics.PipelineMonitor {
 
 // Start starts all sender workers.
 func (s *Sender) Start() {
+	s.pipelineMonitor.Start()
 	for _, worker := range s.workers {
 		worker.start()
 	}
@@ -185,4 +186,5 @@ func (s *Sender) Stop() {
 	for _, q := range s.queues {
 		close(q)
 	}
+	s.pipelineMonitor.Stop()
 }

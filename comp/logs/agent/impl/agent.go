@@ -329,6 +329,9 @@ func (a *logAgent) stop(context.Context) error {
 		a.destinationsCtx.Stop()
 	})
 
+	// Clear snapshots only after the monitors stop, else an in-flight sample repopulates the map.
+	metrics.ClearComponentSnapshots()
+
 	return nil
 }
 
