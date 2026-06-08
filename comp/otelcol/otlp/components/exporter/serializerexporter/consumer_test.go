@@ -15,12 +15,14 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"unsafe"
 
 	"go.opentelemetry.io/collector/pdata/pmetric"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
+	otlpmetrics "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/serializer/types"
@@ -357,4 +359,124 @@ func TestSendHistograms_Multiple(t *testing.T) {
 	require.Len(t, exponential, 2)
 	assert.Equal(t, "exp1", exponential[0].Name)
 	assert.Equal(t, "exp2", exponential[1].Name)
+}
+
+// dimensionsMirror mirrors the memory layout of otlpmetrics.Dimensions.
+// The field types and order must match exactly; see dimensions.go comment:
+// "NOTE: Keep this in sync with the TestDimensions struct."
+type dimensionsMirror struct {
+	name                string
+	tags                []string
+	host                string
+	originID            string
+	originProduct       otlpmetrics.OriginProduct
+	originSubProduct    otlpmetrics.OriginSubProduct
+	originProductDetail otlpmetrics.OriginProductDetail
+}
+
+func makeTestDimensions(name, host string, tags []string) *otlpmetrics.Dimensions {
+	m := dimensionsMirror{name: name, tags: tags, host: host}
+	return (*otlpmetrics.Dimensions)(unsafe.Pointer(&m))
+}
+
+func TestConsumeExplicitBoundHistogram(t *testing.T) {
+	dp := pmetric.NewHistogramDataPoint()
+	dp.ExplicitBounds().FromRaw([]float64{1, 5, 10})
+	dp.BucketCounts().FromRaw([]uint64{1, 3, 5, 2})
+	dp.SetCount(11)
+	dp.SetSum(42.0)
+
+	dims := makeTestDimensions("http.request.duration", "web-1", []string{"env:prod", "service:api"})
+
+	sc := serializerConsumer{
+		extraTags: []string{"extra:tag"},
+	}
+	sc.ConsumeExplicitBoundHistogram(context.Background(), dims, 5_000_000_000, 10, dp, true)
+
+	require.Len(t, sc.sketches, 1)
+	s := sc.sketches[0]
+	assert.Equal(t, "http.request.duration", s.Name)
+	assert.Equal(t, "web-1", s.Host)
+	assert.Equal(t, int64(10), s.Interval)
+	assert.Equal(t, metrics.MetricSourceOpenTelemetryCollectorUnknown, s.Source)
+
+	var tags []string
+	s.Tags.ForEach(func(tag string) { tags = append(tags, tag) })
+	assert.Contains(t, tags, "extra:tag")
+	assert.Contains(t, tags, "env:prod")
+	assert.Contains(t, tags, "service:api")
+
+	require.Len(t, s.Points, 1)
+	assert.Equal(t, int64(5), s.Points[0].Ts)
+
+	ep, ok := s.Points[0].Sketch.(*metrics.ExplicitBoundHistogramPoint)
+	require.True(t, ok)
+	assert.Equal(t, uint64(11), ep.Count())
+	assert.Equal(t, 42.0, ep.Sum())
+	assert.Equal(t, []float64{1, 5, 10}, ep.ExplicitBounds())
+	assert.Equal(t, []uint64{1, 3, 5, 2}, ep.BucketCounts())
+}
+
+func TestConsumeExponentialHistogram(t *testing.T) {
+	dp := pmetric.NewExponentialHistogramDataPoint()
+	dp.SetScale(4)
+	dp.SetZeroCount(5)
+	dp.Positive().SetOffset(0)
+	dp.Positive().BucketCounts().FromRaw([]uint64{10, 20, 30})
+	dp.Negative().SetOffset(1)
+	dp.Negative().BucketCounts().FromRaw([]uint64{7, 8})
+	dp.SetCount(80)
+	dp.SetSum(200.0)
+
+	dims := makeTestDimensions("http.request.latency", "api-2", []string{"region:us-east"})
+
+	sc := serializerConsumer{
+		extraTags: []string{"team:backend"},
+	}
+	sc.ConsumeExponentialHistogram(context.Background(), dims, 10_000_000_000, 30, dp)
+
+	require.Len(t, sc.sketches, 1)
+	s := sc.sketches[0]
+	assert.Equal(t, "http.request.latency", s.Name)
+	assert.Equal(t, "api-2", s.Host)
+	assert.Equal(t, int64(30), s.Interval)
+	assert.Equal(t, metrics.MetricSourceOpenTelemetryCollectorUnknown, s.Source)
+
+	var tags []string
+	s.Tags.ForEach(func(tag string) { tags = append(tags, tag) })
+	assert.Contains(t, tags, "team:backend")
+	assert.Contains(t, tags, "region:us-east")
+
+	require.Len(t, s.Points, 1)
+	assert.Equal(t, int64(10), s.Points[0].Ts)
+
+	xp, ok := s.Points[0].Sketch.(*metrics.ExponentialHistogramPoint)
+	require.True(t, ok)
+	assert.Equal(t, int32(4), xp.Scale())
+	assert.Equal(t, uint64(5), xp.ZeroCount())
+	assert.Equal(t, uint64(80), xp.Count())
+	assert.Equal(t, 200.0, xp.Sum())
+	assert.Equal(t, []uint64{10, 20, 30}, xp.PositiveBucketCounts())
+	assert.Equal(t, []uint64{7, 8}, xp.NegativeBucketCounts())
+}
+
+func TestConsumeHistograms_Accumulates(t *testing.T) {
+	dp1 := pmetric.NewHistogramDataPoint()
+	dp1.SetCount(5)
+	dp2 := pmetric.NewExponentialHistogramDataPoint()
+	dp2.SetCount(10)
+	dp3 := pmetric.NewHistogramDataPoint()
+	dp3.SetCount(15)
+
+	dims := makeTestDimensions("metric", "host", nil)
+
+	sc := serializerConsumer{}
+	sc.ConsumeExplicitBoundHistogram(context.Background(), dims, 1_000_000_000, 10, dp1, false)
+	sc.ConsumeExponentialHistogram(context.Background(), dims, 2_000_000_000, 10, dp2)
+	sc.ConsumeExplicitBoundHistogram(context.Background(), dims, 3_000_000_000, 10, dp3, false)
+
+	require.Len(t, sc.sketches, 3)
+	assert.Equal(t, int64(1), sc.sketches[0].Points[0].Ts)
+	assert.Equal(t, int64(2), sc.sketches[1].Points[0].Ts)
+	assert.Equal(t, int64(3), sc.sketches[2].Points[0].Ts)
 }
