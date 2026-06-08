@@ -286,6 +286,41 @@ func TestAdaptiveSampler_RecordsOutcomeTelemetry(t *testing.T) {
 	assert.Equal(t, bytesDroppedBefore+float64(msg.RawDataLen), tlmAdaptiveSamplerBytesDropped.WithValues(source).Get())
 }
 
+func TestAdaptiveSampler_DetectionOnlyDoesNotRecordProtectedTelemetry(t *testing.T) {
+	source := strings.ReplaceAll(t.Name(), "/", "_")
+	s := NewAdaptiveSampler(AdaptiveSamplerConfig{
+		MaxPatterns:          10,
+		RateLimit:            0,
+		BurstSize:            1,
+		MatchThreshold:       0.9,
+		ProtectImportantLogs: true,
+		DetectionOnly:        true,
+	}, source)
+	importantTokens := tokenize("ERROR something went wrong")
+
+	protectedBefore := tlmAdaptiveSamplerProtected.WithValues(source).Get()
+	require.NotNil(t, s.Process(testMsg(), importantTokens), "important logs should still pass through")
+
+	assert.Equal(t, protectedBefore, tlmAdaptiveSamplerProtected.WithValues(source).Get())
+}
+
+func TestAdaptiveSampler_RecordsProtectedTelemetry(t *testing.T) {
+	source := strings.ReplaceAll(t.Name(), "/", "_")
+	s := NewAdaptiveSampler(AdaptiveSamplerConfig{
+		MaxPatterns:          10,
+		RateLimit:            0,
+		BurstSize:            1,
+		MatchThreshold:       0.9,
+		ProtectImportantLogs: true,
+	}, source)
+	importantTokens := tokenize("ERROR something went wrong")
+
+	protectedBefore := tlmAdaptiveSamplerProtected.WithValues(source).Get()
+	require.NotNil(t, s.Process(testMsg(), importantTokens), "important logs should pass through")
+
+	assert.Equal(t, protectedBefore+1, tlmAdaptiveSamplerProtected.WithValues(source).Get())
+}
+
 // Credits are capped at BurstSize even if a long time has passed.
 func TestAdaptiveSampler_CreditsCappedAtBurstSize(t *testing.T) {
 	const burst = 3.0

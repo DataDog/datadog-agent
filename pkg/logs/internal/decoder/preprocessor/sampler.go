@@ -213,6 +213,12 @@ func (s *AdaptiveSampler) recordKeptTlm() {
 	}
 }
 
+func (s *AdaptiveSampler) recordProtectedTlm() {
+	if !s.config.DetectionOnly {
+		tlmAdaptiveSamplerProtected.Inc(s.source)
+	}
+}
+
 // Process applies credit-based rate limiting to the message.
 // Returns the message if allowed, nil if dropped.
 func (s *AdaptiveSampler) Process(msg *message.Message, tokens []Token) *message.Message {
@@ -222,7 +228,7 @@ func (s *AdaptiveSampler) Process(msg *message.Message, tokens []Token) *message
 	}
 	if s.config.ProtectImportantLogs && isImportant(tokens) {
 		s.recordKeptTlm()
-		tlmAdaptiveSamplerProtected.Inc(s.source)
+		s.recordProtectedTlm()
 		return msg
 	}
 	now := s.now()
