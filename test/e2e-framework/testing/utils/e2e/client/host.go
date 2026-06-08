@@ -550,7 +550,8 @@ func (h *Host) appendWithSftp(path string, content []byte) (int64, error) {
 func (h *Host) getSFTPClient() *sftp.Client {
 	sftpClient, err := sftp.NewClient(h.client, sftp.UseConcurrentWrites(true))
 	if err != nil {
-		requireNoErr(h.Reconnect())
+		err = h.Reconnect()
+		requireNoErr(err)
 		sftpClient, err = sftp.NewClient(h.client, sftp.UseConcurrentWrites(true))
 		requireNoErr(err)
 	}
@@ -564,7 +565,8 @@ func (h *Host) getSFTPPrivilegedClient() *sftp.Client {
 	}
 	sftpClient, err := sftp.NewClient(h.privileged, sftp.UseConcurrentWrites(true))
 	if err != nil {
-		requireNoErr(h.Reconnect())
+		err = h.Reconnect()
+		requireNoErr(err)
 		sftpClient, err = sftp.NewClient(h.privileged, sftp.UseConcurrentWrites(true))
 		requireNoErr(err)
 	}
