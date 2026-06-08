@@ -64,6 +64,7 @@ public:
                   const char *check_id_str, const char *check_name, const char *agent_config_str,
                   const char *provider_str, RtLoaderPyObject *&check);
 
+    char *discoverConfig(RtLoaderPyObject *py_class, const char *service_json);
     char *runCheck(RtLoaderPyObject *check);
     void cancelCheck(RtLoaderPyObject *check);
     char **getCheckWarnings(RtLoaderPyObject *check);
