@@ -22,12 +22,12 @@ dda inv generate-licenses  # update license inventory
 
 If a **specific version** was requested instead of latest, skip `inv collector.update` and do a repo-wide search-and-replace of the old version string (find it in `tasks/collector.py` — the `OTEL_*_VERSION` constants). Then run `inv collector.generate`, `inv tidy`, `inv generate-licenses`.
 
-After the commands finish, do a repo-wide grep for the **old version string** to catch any files the task missed:
+After the commands finish, do a repo-wide search for the **old version string** to catch any files the task missed:
 
 ```bash
 git diff HEAD --stat             # review what changed
 OLD=$(git diff HEAD -- tasks/collector.py | grep '^-OTEL' | grep -oP 'v[\d.]+' | head -1)
-grep -r "$OLD" --include="*.go" --include="*.yml" --include="*.yaml" --include="*.mod" --include="*.sum" -l
+rg "$OLD" -g "*.go" -g "*.yml" -g "*.yaml" -g "*.mod" -g "*.sum" -l
 ```
 
 Manually update any remaining files that still reference the old version.
@@ -41,8 +41,7 @@ This is the **most common failure**. The DD flare extension tests compare OTel r
 Run the test locally to get the actual diff:
 
 ```bash
-cd comp/otelcol/ddflareextension/impl
-go test -tags otlp,test -run TestGetConfDump 2>&1
+dda inv test --targets=./comp/otelcol/ddflareextension/impl/... --build-include=otlp -- -run TestGetConfDump
 ```
 
 The failure output shows exactly which lines differ. Apply the diffs to the golden files in:
@@ -60,7 +59,7 @@ The CI job `datadog_otel_components_ocb_build` verifies OTel modules can be buil
 ```bash
 test/otel/testdata/ocb_build_script.sh   # if the script exists
 # or check the gitlab CI definition:
-grep -r "ocb_build" .gitlab/ --include="*.yml" -l
+rg "ocb_build" .gitlab/ -g "*.yml" -l
 ```
 
 Check logs under `/tmp/otel-ci/` for the exact error.
@@ -111,8 +110,8 @@ Then run `dda inv tidy` again. Use this only when upgrading the Agent code is no
 ## Step 6 — Validate and open a PR
 
 ```bash
-dda inv linter.go --targets=./comp/otelcol/...   # lint the changed OTel components
-cd comp/otelcol/ddflareextension/impl && go test -tags otlp,test ./...   # confirm tests pass
+dda inv linter.go --targets=./comp/otelcol/...                                        # lint the changed OTel components
+dda inv test --targets=./comp/otelcol/ddflareextension/impl/... --build-include=otlp  # confirm tests pass
 ```
 
 Open a draft PR to let CI catch any remaining failures. The PR title convention is:
