@@ -241,7 +241,7 @@ func (ra *remoteAgentRegistry) ReportRemoteAgentEvent(sessionID string, events [
 		if event.Details != nil {
 			eventType = event.Details.EventType()
 		}
-		log.Debug("Remote agent '%s' reported event (type: %s): %s", displayName, eventType, event.Message)
+		log.Debugf("Remote agent '%s' reported event (type: %s): %s", displayName, eventType, event.Message)
 	}
 
 	return nil
