@@ -137,8 +137,8 @@ func mapPbTaskToStruct(task *privateactionspb.PrivateActionTask) *types.Task {
 				Inputs:                task.Inputs.AsMap(),
 				OrgId:                 task.OrgId,
 				ConnectionInfo:        task.ConnectionInfo,
-				AllowedCommands:       task.GetAllowedCommands(),
-				AllowedPaths:          remoteActionAllowedPathsByEnv(task.GetAllowedPaths()),
+				TargetCommands:        task.GetTargetCommands(),
+				TargetPaths:           remoteActionAllowedPathsByEnv(task.GetTargetPaths()),
 			},
 		},
 	}

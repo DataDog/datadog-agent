@@ -26,8 +26,8 @@ import (
 func makeTask(command string, allowedCommands []string) *types.Task {
 	task := &types.Task{}
 	task.Data.Attributes = &types.Attributes{
-		Inputs:          map[string]any{"command": command},
-		AllowedCommands: allowedCommands,
+		Inputs:         map[string]any{"command": command},
+		TargetCommands: allowedCommands,
 	}
 	return task
 }
@@ -39,7 +39,7 @@ func makeTask(command string, allowedCommands []string) *types.Task {
 // to exercise the "backend did not send the field" branch — a nil map.
 func makeTaskWithPaths(command string, allowedCommands []string, allowedPaths map[string][]string) *types.Task {
 	task := makeTask(command, allowedCommands)
-	task.Data.Attributes.AllowedPaths = allowedPaths
+	task.Data.Attributes.TargetPaths = allowedPaths
 	return task
 }
 

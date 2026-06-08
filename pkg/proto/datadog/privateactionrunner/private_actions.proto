@@ -50,13 +50,13 @@ message PrivateActionTask {
   ConnectionInfo connection_info = 10;
   google.protobuf.Timestamp expiration_time = 11;
   actionsclient.Client client = 12;
-  // allowed_commands and allowed_paths carry the rshell allowlists resolved
+  // target_commands and target_paths carry the rshell allowlists resolved
   // from execution policies (intersected with Balto) for remote-action tasks.
-  // They are empty for non-remote-action tasks. allowed_commands is the flat,
-  // namespaced ("rshell:<command>") command allowlist; allowed_paths is keyed by
+  // They are empty for non-remote-action tasks. target_commands is the flat,
+  // namespaced ("rshell:<command>") command allowlist; target_paths is keyed by
   // runtime environment so the runner can select the rules matching its own.
-  repeated string allowed_commands = 13;
-  repeated RemoteActionPathRule allowed_paths = 14;
+  repeated string target_commands = 13;
+  repeated RemoteActionPathRule target_paths = 14;
 }
 
 // RemoteActionEnvironment identifies the runtime environment a set of allowed
