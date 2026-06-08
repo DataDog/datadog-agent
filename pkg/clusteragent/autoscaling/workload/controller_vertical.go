@@ -228,12 +228,12 @@ func (u *verticalController) syncInternal(
 			}
 		}
 
-		// Not-Ready pods consume budget. Sort by UID so the chosen subset is deterministic.
+		// Unavailable and in-flight resizes consume budget. Sort by UID so the subset is deterministic.
 		configured := len(pods)
 		if cr := autoscalerInternal.CurrentReplicas(); cr != nil && int(*cr) > configured {
 			configured = int(*cr)
 		}
-		allowed := allowedDisruptions(configured, countNotReadyPods(pods))
+		allowed := allowedDisruptions(configured, countDisruptedPods(podsByResizeStatus))
 		sort.Slice(disruptive, func(i, j int) bool { return disruptive[i].pod.EntityID.ID < disruptive[j].pod.EntityID.ID })
 		if len(disruptive) > allowed {
 			disruptionDeferred = len(disruptive) - allowed

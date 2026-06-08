@@ -923,11 +923,16 @@ func TestAllowedDisruptions(t *testing.T) {
 	}
 }
 
-func TestCountNotReadyPods(t *testing.T) {
-	pod := func(ready bool) *workloadmeta.KubernetesPod {
-		return &workloadmeta.KubernetesPod{Ready: ready}
+func TestCountDisruptedPods(t *testing.T) {
+	ready := &workloadmeta.KubernetesPod{Ready: true}
+	notReady := &workloadmeta.KubernetesPod{Ready: false}
+	m := map[PodResizeStatus][]classifiedPod{
+		PodResizeStatusNeedsPatch: {{pod: ready}, {pod: notReady}}, // NotReady counts, Ready does not
+		PodResizeStatusCompleted:  {{pod: ready}},                  // on target + Ready: not disrupted
+		PodResizeStatusInProgress: {{pod: ready}},                  // in-flight counts even while Ready
+		PodResizeStatusDeferred:   {{pod: ready}},                  // in-flight counts even while Ready
+		PodResizeStatusEvicting:   {{pod: notReady}},               // being evicted: counts
 	}
-	assert.Equal(t, 0, countNotReadyPods(nil))
-	assert.Equal(t, 0, countNotReadyPods([]*workloadmeta.KubernetesPod{pod(true), pod(true)}))
-	assert.Equal(t, 2, countNotReadyPods([]*workloadmeta.KubernetesPod{pod(true), pod(false), pod(false)}))
+	assert.Equal(t, 4, countDisruptedPods(m))
+	assert.Equal(t, 0, countDisruptedPods(nil))
 }

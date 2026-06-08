@@ -681,16 +681,19 @@ func memBytesChanged(currentBytes *uint64, recoBytes int64) bool {
 	return int64(*currentBytes) != recoBytes
 }
 
-// countNotReadyPods returns the number of pods not currently Ready, the budget's measure of
-// already-disrupted pods.
-func countNotReadyPods(pods []*workloadmeta.KubernetesPod) int {
-	n := 0
-	for _, pod := range pods {
-		if !pod.Ready {
-			n++
+// countDisruptedPods counts pods that are unavailable or mid-resize. In-flight resizes count even
+// while Ready, since a RestartContainer resize stays Ready while Deferred/InProgress.
+func countDisruptedPods(podsByResizeStatus map[PodResizeStatus][]classifiedPod) int {
+	disrupted := 0
+	for status, cps := range podsByResizeStatus {
+		for _, cp := range cps {
+			if (status == PodResizeStatusNeedsPatch || status == PodResizeStatusCompleted) && cp.pod.Ready {
+				continue
+			}
+			disrupted++
 		}
 	}
-	return n
+	return disrupted
 }
 
 // allowedDisruptions returns how many more pods may be disrupted this sync to stay within budget.
