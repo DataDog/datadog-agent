@@ -1293,7 +1293,7 @@ func TestGetMutatingWebhookSkeletonV1(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if tt.timeout != nil {
 				mockConfig.SetInTest("admission_controller.timeout_seconds", *tt.timeout)
-				defer mockConfig.(model.Setup).SetDefault("admission_controller.timeout_seconds", defaultTimeout)
+				defer mockConfig.SetInTest("admission_controller.timeout_seconds", defaultTimeout)
 			}
 
 			c := &ControllerV1{}

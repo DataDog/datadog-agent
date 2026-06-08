@@ -33,7 +33,6 @@ import (
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/cwsinstrumentation"
-	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/certificate"
 )
@@ -1181,7 +1180,7 @@ func TestGetValidatingWebhookSkeletonV1beta1(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if tt.timeout != nil {
 				mockConfig.SetInTest("admission_controller.timeout_seconds", *tt.timeout)
-				defer mockConfig.(model.Setup).SetDefault("admission_controller.timeout_seconds", defaultTimeout)
+				defer mockConfig.SetInTest("admission_controller.timeout_seconds", defaultTimeout)
 			}
 
 			c := &ControllerV1beta1{}
@@ -1287,7 +1286,7 @@ func TestGetMutatingWebhookSkeletonV1beta1(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if tt.timeout != nil {
 				mockConfig.SetInTest("admission_controller.timeout_seconds", *tt.timeout)
-				defer mockConfig.(model.Setup).SetDefault("admission_controller.timeout_seconds", defaultTimeout)
+				defer mockConfig.SetInTest("admission_controller.timeout_seconds", defaultTimeout)
 			}
 
 			c := &ControllerV1beta1{}
