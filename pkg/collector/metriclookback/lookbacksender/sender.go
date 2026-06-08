@@ -108,6 +108,8 @@ type Sender struct {
 	samples   []metrics.MetricSample
 	stats     stats.SenderStats
 	priorStat stats.SenderStats
+
+	unsupportedDrops map[string]int64
 }
 
 func newSender(ctx context.Context, id checkid.ID, defaultHostname string, writer Writer, now func() float64) *Sender {
@@ -125,17 +127,30 @@ func (s *Sender) Commit() {
 	s.mu.Lock()
 	samples := s.samples
 	s.samples = nil
+	unsupportedDrops := s.unsupportedDrops
+	s.unsupportedDrops = nil
 	s.priorStat = s.stats.Copy()
 	s.stats = stats.NewSenderStats()
 	s.mu.Unlock()
+
+	for method, count := range unsupportedDrops {
+		tlmUnsupportedDrops.Add(float64(count), method)
+	}
 
 	if len(samples) == 0 || s.writer == nil {
 		return
 	}
 
-	if err := s.writer.Append(s.ctx, s.CheckID(), samples); err != nil {
-		log.Warnf("failed to append %d lookback samples for check %s: %v", len(samples), s.CheckID(), err)
+	start := time.Now()
+	state := "ok"
+	checkID := s.CheckID()
+	if err := s.writer.Append(s.ctx, checkID, samples); err != nil {
+		state = "error"
+		log.Warnf("failed to append %d lookback samples for check %s: %v", len(samples), checkID, err)
 	}
+	checkName := checkid.IDToCheckName(checkID)
+	tlmWriterAppendSamples.Add(float64(len(samples)), checkName, state)
+	tlmWriterAppendDuration.Set(time.Since(start).Seconds(), checkName, state)
 }
 
 func (s *Sender) appendScalarSample(input aggregatorsender.ScalarSample) {
@@ -153,6 +168,15 @@ func cloneTags(tags []string) []string {
 		return nil
 	}
 	return append([]string(nil), tags...)
+}
+
+func (s *Sender) recordUnsupportedDrop(method string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.unsupportedDrops == nil {
+		s.unsupportedDrops = make(map[string]int64)
+	}
+	s.unsupportedDrops[method]++
 }
 
 // GetSenderStats returns sender stats from the previous committed run.
@@ -214,35 +238,45 @@ func (s *Sender) CountWithTimestamp(metric string, value float64, hostname strin
 	return nil
 }
 
-// TODO(PR5): add drop telemetry for unsupported V1 payload methods when
-// shadow status/telemetry lands.
-
 // Distribution is not captured by lookback V1.
-func (s *Sender) Distribution(_ string, _ float64, _ string, _ []string) {}
+func (s *Sender) Distribution(_ string, _ float64, _ string, _ []string) {
+	s.recordUnsupportedDrop("Distribution")
+}
 
 // ServiceCheck is not captured by lookback V1.
 func (s *Sender) ServiceCheck(_ string, _ servicecheck.ServiceCheckStatus, _ string, _ []string, _ string) {
+	s.recordUnsupportedDrop("ServiceCheck")
 }
 
 // OpenmetricsBucket is not captured by lookback V1.
 func (s *Sender) OpenmetricsBucket(_ string, _ int64, _, _ float64, _ bool, _ string, _ []string, _ bool) {
+	s.recordUnsupportedDrop("OpenmetricsBucket")
 }
 
 // HistogramBucket is not captured by lookback V1.
 func (s *Sender) HistogramBucket(_ string, _ int64, _, _ float64, _ bool, _ string, _ []string, _ bool) {
+	s.recordUnsupportedDrop("HistogramBucket")
 }
 
 // Event is not captured by lookback V1.
-func (s *Sender) Event(_ event.Event) {}
+func (s *Sender) Event(_ event.Event) {
+	s.recordUnsupportedDrop("Event")
+}
 
 // EventPlatformEvent is not captured by lookback V1.
-func (s *Sender) EventPlatformEvent(_ []byte, _ string) {}
+func (s *Sender) EventPlatformEvent(_ []byte, _ string) {
+	s.recordUnsupportedDrop("EventPlatformEvent")
+}
 
 // OrchestratorMetadata is not captured by lookback V1.
-func (s *Sender) OrchestratorMetadata(_ []types.ProcessMessageBody, _ string, _ int) {}
+func (s *Sender) OrchestratorMetadata(_ []types.ProcessMessageBody, _ string, _ int) {
+	s.recordUnsupportedDrop("OrchestratorMetadata")
+}
 
 // OrchestratorManifest is not captured by lookback V1.
-func (s *Sender) OrchestratorManifest(_ []types.ProcessMessageBody, _ string) {}
+func (s *Sender) OrchestratorManifest(_ []types.ProcessMessageBody, _ string) {
+	s.recordUnsupportedDrop("OrchestratorManifest")
+}
 
 type noopSender struct{}
 
