@@ -17,6 +17,7 @@ import (
 	"unsafe"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
+	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/atomic"
 
@@ -971,6 +972,99 @@ func TestActivityDumpManager_getOverweightDumps(t *testing.T) {
 			compareListOfDumps(t, adm.activeDumps, tt.activeDumps)
 		})
 	}
+}
+
+// ManagerV2 unit tests
+
+func TestManagerV2_HandleSampleRefresh(t *testing.T) {
+	t.Run("unknown_cookie", func(t *testing.T) {
+		cookieMap, _ := lru.New[uint32, sampleCookieEntry](128)
+		m := &ManagerV2{sampleCookieMap: cookieMap}
+
+		m.HandleSampleRefresh(42)
+	})
+
+	t.Run("valid_cookie_updates_process_and_event_node", func(t *testing.T) {
+		cookieMap, _ := lru.New[uint32, sampleCookieEntry](128)
+		prof := profile.New()
+		processNode := &activity_tree.ProcessNode{}
+		processNode.NodeBase = activity_tree.NewNodeBase()
+
+		eventNodeBase := activity_tree.NewNodeBase()
+
+		initialTime := time.Now().Add(-time.Hour)
+		processNode.AppendImageTag("v1", initialTime)
+		eventNodeBase.AppendImageTag("v1", initialTime)
+
+		cookieMap.Add(uint32(1), sampleCookieEntry{
+			profile:       prof,
+			processNode:   processNode,
+			eventNodeBase: &eventNodeBase,
+			imageTag:      "v1",
+		})
+
+		m := &ManagerV2{sampleCookieMap: cookieMap}
+		m.HandleSampleRefresh(1)
+
+		assert.True(t, processNode.Seen["v1"].LastSeen.After(initialTime))
+		assert.True(t, eventNodeBase.Seen["v1"].LastSeen.After(initialTime))
+	})
+
+	t.Run("valid_cookie_nil_event_node_updates_process_only", func(t *testing.T) {
+		cookieMap, _ := lru.New[uint32, sampleCookieEntry](128)
+		prof := profile.New()
+		processNode := &activity_tree.ProcessNode{}
+		processNode.NodeBase = activity_tree.NewNodeBase()
+
+		initialTime := time.Now().Add(-time.Hour)
+		processNode.AppendImageTag("v1", initialTime)
+
+		cookieMap.Add(uint32(1), sampleCookieEntry{
+			profile:       prof,
+			processNode:   processNode,
+			eventNodeBase: nil,
+			imageTag:      "v1",
+		})
+
+		m := &ManagerV2{sampleCookieMap: cookieMap}
+		m.HandleSampleRefresh(1)
+
+		assert.True(t, processNode.Seen["v1"].LastSeen.After(initialTime))
+	})
+
+	t.Run("nil_process_node_removes_cookie", func(t *testing.T) {
+		cookieMap, _ := lru.New[uint32, sampleCookieEntry](128)
+		prof := profile.New()
+
+		cookieMap.Add(uint32(2), sampleCookieEntry{
+			profile:     prof,
+			processNode: nil,
+			imageTag:    "v1",
+		})
+
+		m := &ManagerV2{sampleCookieMap: cookieMap}
+		m.HandleSampleRefresh(2)
+
+		assert.False(t, cookieMap.Contains(uint32(2)))
+	})
+
+	t.Run("empty_seen_map_removes_cookie", func(t *testing.T) {
+		cookieMap, _ := lru.New[uint32, sampleCookieEntry](128)
+		prof := profile.New()
+		processNode := &activity_tree.ProcessNode{}
+		processNode.NodeBase = activity_tree.NewNodeBase()
+
+		cookieMap.Add(uint32(3), sampleCookieEntry{
+			profile:     prof,
+			processNode: processNode,
+			imageTag:    "v1",
+		})
+
+		m := &ManagerV2{sampleCookieMap: cookieMap}
+		m.HandleSampleRefresh(3)
+
+		assert.False(t, cookieMap.Contains(uint32(3)))
+	})
 }
 
 // Old security profile manager unit tests

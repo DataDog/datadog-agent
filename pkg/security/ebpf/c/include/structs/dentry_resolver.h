@@ -38,6 +38,7 @@ struct bind_connect_sample_key_t {
 
 struct sample_entry_t {
     u32 cookie;
+    u32 padding;
     u64 last_refresh_ns;
 };
 

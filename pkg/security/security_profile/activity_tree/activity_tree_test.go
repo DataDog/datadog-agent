@@ -63,7 +63,7 @@ func TestInsertFileEvent(t *testing.T) {
 				},
 			},
 		}
-		pan.InsertFileEvent(&event.Open.File, event, "tag", Unknown, stats, false, nil, nil)
+		_, _ = pan.InsertFileEvent(&event.Open.File, event, "tag", Unknown, stats, false, nil, nil)
 	}
 
 	var builder strings.Builder

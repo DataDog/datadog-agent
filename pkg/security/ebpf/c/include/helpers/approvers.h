@@ -91,7 +91,7 @@ enum SYSCALL_STATE __attribute__((always_inline)) approve_bind_sample(struct bin
     u64 now = bpf_ktime_get_ns();
     struct sample_entry_t new_entry;
     __builtin_memset(&new_entry, 0, sizeof(new_entry));
-    new_entry.cookie = bpf_get_prandom_u32();
+    new_entry.cookie = bpf_get_prandom_u32() | 1;
     new_entry.last_refresh_ns = now;
 
     if (bpf_map_update_elem(&bind_samples, key, &new_entry, BPF_NOEXIST) < 0) {
@@ -178,7 +178,7 @@ enum SYSCALL_STATE __attribute__((always_inline)) approve_connect_sample(struct 
     u64 now = bpf_ktime_get_ns();
     struct sample_entry_t new_entry;
     __builtin_memset(&new_entry, 0, sizeof(new_entry));
-    new_entry.cookie = bpf_get_prandom_u32();
+    new_entry.cookie = bpf_get_prandom_u32() | 1;
     new_entry.last_refresh_ns = now;
 
     if (bpf_map_update_elem(&connect_samples, key, &new_entry, BPF_NOEXIST) < 0) {
@@ -491,7 +491,7 @@ enum SYSCALL_STATE __attribute__((always_inline)) approve_open_sample(struct den
     u64 now = bpf_ktime_get_ns();
     struct sample_entry_t new_entry;
     __builtin_memset(&new_entry, 0, sizeof(new_entry));
-    new_entry.cookie = bpf_get_prandom_u32();
+    new_entry.cookie = bpf_get_prandom_u32() | 1;
     new_entry.last_refresh_ns = now;
 
     if (bpf_map_update_elem(&open_samples, &key, &new_entry, BPF_NOEXIST) < 0) {

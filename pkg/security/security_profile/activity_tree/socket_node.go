@@ -57,8 +57,9 @@ func (sn *SocketNode) evictImageTag(imageTag string) bool {
 	return false
 }
 
-// InsertBindEvent inserts a bind even inside a socket node
-func (sn *SocketNode) InsertBindEvent(evt *model.BindEvent, event *model.Event, imageTag string, generationType NodeGenerationType, rules []*model.MatchedRule, dryRun bool) bool {
+// InsertBindEvent inserts a bind event inside a socket node. Returns whether a new entry was
+// added and the NodeBase of the matched or newly created BindNode.
+func (sn *SocketNode) InsertBindEvent(evt *model.BindEvent, event *model.Event, imageTag string, generationType NodeGenerationType, rules []*model.MatchedRule, dryRun bool) (bool, *NodeBase) {
 	evtIP := utils.GetIPStringFromIPNet(evt.Addr.IPNet)
 	for _, n := range sn.Bind {
 		if evt.Addr.Port == n.Port && evtIP == n.IP && evt.Protocol == n.Protocol {
@@ -66,15 +67,14 @@ func (sn *SocketNode) InsertBindEvent(evt *model.BindEvent, event *model.Event, 
 				n.MatchedRules = model.AppendMatchedRule(n.MatchedRules, rules)
 			}
 			if imageTag == "" || n.HasImageTag(imageTag) {
-				return false
+				return false, &n.NodeBase
 			}
 			n.AppendImageTag(imageTag, event.ResolveEventTime())
-			return false
+			return false, &n.NodeBase
 		}
 	}
 
 	if !dryRun {
-		// insert bind event now
 		node := &BindNode{
 			MatchedRules:   rules,
 			GenerationType: generationType,
@@ -86,8 +86,9 @@ func (sn *SocketNode) InsertBindEvent(evt *model.BindEvent, event *model.Event, 
 
 		node.AppendImageTag(imageTag, event.ResolveEventTime())
 		sn.Bind = append(sn.Bind, node)
+		return true, &node.NodeBase
 	}
-	return true
+	return true, nil
 }
 
 // NewSocketNode returns a new SocketNode instance

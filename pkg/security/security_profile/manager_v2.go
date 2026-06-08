@@ -48,11 +48,14 @@ type pendingProfile struct {
 }
 
 type sampleCookieEntry struct {
-	profile     *profile.Profile
-	processNode *activity_tree.ProcessNode
-	imageTag    string
+	profile       *profile.Profile
+	processNode   *activity_tree.ProcessNode
+	eventNodeBase *activity_tree.NodeBase
+	imageTag      string
 }
 
+// TODO: tie sampleCookieMapSize to the kernel dedup map sizes (open_samples + bind_samples + connect_samples)
+// so the cookie LRU can hold mappings for every possible dedup entry.
 const sampleCookieMapSize = 4096
 
 type ManagerV2 struct {
@@ -92,8 +95,11 @@ type ManagerV2 struct {
 	pendingProfileRemovals     map[cgroupModel.WorkloadSelector]time.Time
 	pendingProfileRemovalsLock sync.Mutex
 
-	// Sample refresh: maps kernel dedup cookie → (process node, imageTag)
-	sampleCookieMap *lru.Cache[uint32, sampleCookieEntry]
+	// Sample refresh: maps kernel dedup cookie → (process node, event node, imageTag)
+	sampleCookieMap       *lru.Cache[uint32, sampleCookieEntry]
+	sampleRefreshReceived *atomic.Uint64
+	sampleRefreshHits     *atomic.Uint64
+	sampleRefreshMisses   *atomic.Uint64
 }
 
 func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, resolvers *resolvers.EBPFResolvers, kernelVersion *kernel.Version, dumpHandler backend.ActivityDumpHandler, sendAnomalyDetection func(*model.Event), hostname string) (*ManagerV2, error) {
@@ -145,8 +151,11 @@ func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, resol
 		sendAnomalyDetection:      sendAnomalyDetection,
 		eventFiltering:            make(map[eventFilteringEntry]*atomic.Uint64),
 		resolvedCgroups:           make(map[containerutils.CGroupID]struct{}),
-		pendingProfileRemovals:    make(map[cgroupModel.WorkloadSelector]time.Time),
-		sampleCookieMap:           cookieMap,
+		pendingProfileRemovals: make(map[cgroupModel.WorkloadSelector]time.Time),
+		sampleCookieMap:        cookieMap,
+		sampleRefreshReceived:  atomic.NewUint64(0),
+		sampleRefreshHits:      atomic.NewUint64(0),
+		sampleRefreshMisses:    atomic.NewUint64(0),
 	}
 
 	m.initMetricsMap()
@@ -410,7 +419,7 @@ func (m *ManagerV2) ProcessEvent(event *model.Event) {
 
 	// Try to resolve tags for this workload
 	workloadTags, err := m.resolvers.TagsResolver.ResolveWithErr(workloadID)
-	tagsResolved := err == nil && len(workloadTags) != 0 && utils.GetTagValue("image_name", workloadTags) != ""
+	tagsResolved := err == nil && len(workloadTags) != 0 && utils.GetTagValue("image_tag", workloadTags) != ""
 
 	if tagsResolved {
 		// Set resolved tags on the event for downstream processing
@@ -588,6 +597,23 @@ func (m *ManagerV2) SendStats() error {
 		}
 	}
 
+	// Sample refresh metrics
+	if value := m.sampleRefreshReceived.Swap(0); value > 0 {
+		if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2SampleRefreshReceived, int64(value), []string{}, 1.0); err != nil {
+			return err
+		}
+	}
+	if value := m.sampleRefreshHits.Swap(0); value > 0 {
+		if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2SampleRefreshHits, int64(value), []string{}, 1.0); err != nil {
+			return err
+		}
+	}
+	if value := m.sampleRefreshMisses.Swap(0); value > 0 {
+		if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2SampleRefreshMisses, int64(value), []string{}, 1.0); err != nil {
+			return err
+		}
+	}
+
 	// Event filtering metrics
 	for entry, count := range m.eventFiltering {
 		tags := []string{
@@ -655,13 +681,13 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 	if imageTag == "" {
 		imageTag = "latest"
 	}
-	inserted, processNode, err := secprof.Insert(event, true, imageTag, activity_tree.Runtime, m.resolvers)
+	inserted, processNode, eventNodeBase, err := secprof.Insert(event, true, imageTag, activity_tree.Runtime, m.resolvers)
 	if err != nil {
 		seclog.Errorf("couldn't insert event into profile: %v", err)
 		return nil, false
 	}
 
-	// Register the sample cookie → process node mapping for sample refresh events
+	// Register the sample cookie → (process node, event node) mapping for sample refresh events
 	if processNode != nil {
 		var sampleCookie uint32
 		switch event.GetEventType() {
@@ -674,9 +700,10 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 		}
 		if sampleCookie != 0 {
 			m.sampleCookieMap.Add(sampleCookie, sampleCookieEntry{
-				profile:     secprof,
-				processNode: processNode,
-				imageTag:    imageTag,
+				profile:       secprof,
+				processNode:   processNode,
+				eventNodeBase: eventNodeBase,
+				imageTag:      imageTag,
 			})
 		}
 	}
@@ -1178,10 +1205,15 @@ func (m *ManagerV2) getNodesForAllWorkloads(containersOnly bool) map[activity_tr
 // HandleSampleRefresh handles a sample refresh event from the kernel.
 // It updates the LastSeen timestamp of the process node associated with the given cookie.
 func (m *ManagerV2) HandleSampleRefresh(cookie uint32) {
+	m.sampleRefreshReceived.Inc()
+
 	entry, ok := m.sampleCookieMap.Get(cookie)
 	if !ok {
+		m.sampleRefreshMisses.Inc()
 		return
 	}
+
+	m.sampleRefreshHits.Inc()
 
 	entry.profile.Lock()
 	defer entry.profile.Unlock()
@@ -1190,7 +1222,12 @@ func (m *ManagerV2) HandleSampleRefresh(cookie uint32) {
 		m.sampleCookieMap.Remove(cookie)
 		return
 	}
-	entry.processNode.AppendImageTag(entry.imageTag, time.Now())
+
+	now := time.Now()
+	entry.processNode.AppendImageTag(entry.imageTag, now)
+	if entry.eventNodeBase != nil {
+		entry.eventNodeBase.AppendImageTag(entry.imageTag, now)
+	}
 }
 
 // LookupEventInProfiles lookups event in profiles.
