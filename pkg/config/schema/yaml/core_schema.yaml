@@ -8311,9 +8311,9 @@ properties:
     - full-agent-only:true
   http_dial_fallback_delay:
     node_type: setting
-    tags:
-    - TODO:fix-no-default
-    - TODO:fix-missing-type
+    type: number
+    default: -1ns
+    format: duration
   ibm_metadata_timeout:
     node_type: setting
     type: integer
@@ -9456,8 +9456,10 @@ properties:
     node_type: setting
     type: integer
     default: 512000
-    tags:
-    - golang_type:int
+  serializer_max_series_points_per_payload:
+    node_type: setting
+    type: integer
+    default: 10000
   serializer_max_series_uncompressed_payload_size:
     node_type: setting
     type: integer
@@ -9854,9 +9856,9 @@ properties:
         default: true
   tls_handshake_timeout:
     node_type: setting
-    tags:
-    - TODO:fix-no-default
-    - TODO:fix-missing-type
+    type: number
+    default: 10s
+    format: duration
   trace_agent_host_socket_path:
     node_type: setting
     type: string

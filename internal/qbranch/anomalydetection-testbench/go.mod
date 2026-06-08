@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/internal/qbranch/anomalydetection-testbench
 
-go 1.25.9
+go 1.26.0
 
 replace github.com/DataDog/datadog-agent => ../../../
 
@@ -14,7 +14,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.78.1
 	github.com/DataDog/datadog-agent/pkg/util/log v0.78.1
 	github.com/DataDog/datadog-agent/pkg/util/option v0.78.1
-	github.com/DataDog/datadog-api-client-go/v2 v2.59.0
+	github.com/DataDog/datadog-api-client-go/v2 v2.60.0
 	github.com/apache/arrow-go/v18 v18.6.0
 	github.com/stretchr/testify v1.11.1
 	go.uber.org/fx v1.24.0
@@ -89,7 +89,7 @@ require (
 	github.com/DataDog/go-acl v1.0.1 // indirect
 	github.com/DataDog/go-tuf v1.1.1-0.5.2 // indirect
 	github.com/DataDog/viper v1.15.1 // indirect
-	github.com/DataDog/zstd v1.5.7 // indirect
+	github.com/DataDog/zstd v1.5.8-0.20260421145859-31a7e515a571 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/acobaugh/osrelease v0.1.0 // indirect
 	github.com/andybalholm/brotli v1.2.1 // indirect
@@ -254,7 +254,6 @@ replace (
 	github.com/DataDog/datadog-agent/internal/tools/independent-lint => ../../../internal/tools/independent-lint
 	github.com/DataDog/datadog-agent/internal/tools/modformatter => ../../../internal/tools/modformatter
 	github.com/DataDog/datadog-agent/internal/tools/modparser => ../../../internal/tools/modparser
-	github.com/DataDog/datadog-agent/internal/tools/proto => ../../../internal/tools/proto
 	github.com/DataDog/datadog-agent/internal/tools/worksynchronizer => ../../../internal/tools/worksynchronizer
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey => ../../../pkg/aggregator/ckey
 	github.com/DataDog/datadog-agent/pkg/api => ../../../pkg/api
