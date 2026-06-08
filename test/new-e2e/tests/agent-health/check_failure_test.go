@@ -22,7 +22,6 @@ import (
 )
 
 const healthPlatformAgentConfig = `health_platform:
-  enabled: true
   forwarder:
     interval: 30s
 `

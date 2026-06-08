@@ -1,0 +1,8 @@
+---
+features:
+  - |
+    The Agent Health platform is now enabled by default. The agent automatically
+    detects and reports self-health issues (such as check execution failures and
+    misconfigured integrations) to the Datadog platform without requiring any
+    configuration change. To opt out, set ``health_platform.enabled: false`` in
+    ``datadog.yaml``.

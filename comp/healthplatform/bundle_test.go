@@ -86,7 +86,7 @@ func TestBundleStartLifecycle(t *testing.T) {
 			cfg := config.NewMock(t)
 			cfg.SetInTest("api_key", "test-api-key")
 			cfg.SetInTest("dd_url", server.URL)
-			cfg.SetInTest("health_platform.enabled", true)
+			// health_platform.enabled defaults to true; no explicit set needed
 			cfg.SetInTest("health_platform.persist_on_kubernetes", true)
 			cfg.SetInTest("health_platform.forwarder.interval", tickInterval)
 			cfg.SetInTest("run_path", t.TempDir())
