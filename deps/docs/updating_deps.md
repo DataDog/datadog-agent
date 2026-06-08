@@ -57,7 +57,7 @@ Skip if Step 1 detected Renovate mode. Otherwise read **[bump-version.md](bump-v
 
 Runs in **both** modes — Renovate updates the pin but not the BUILD file's own version strings.
 
-- Upstream package version: top-level `VERSION = "..."` constants and `expand_template` substitutions (`@VERSION@`, `@VERSION_NUMBER@`).
+- Upstream package version: top-level `VERSION = "..."` constants and `expand_template` substitutions (`@VERSION@`, `@VERSION_NUMBER@`). If a top-level version constant exists, `expand_template` substitution values must reference it (`"@VERSION@": VERSION`) rather than duplicating the string.
 - SO version: the `version = "..."` argument on `dd_cc_packaged` / `cc_shared_library` (names `lib<name>.so.X.Y.Z`). For autotools deps, derive from `configure.ac`'s `LIB<NAME>_LT_CURRENT/_AGE/_REVISION` via Linux libtool's `(CURRENT - AGE).AGE.REVISION`. **Use `configure.ac`, not the bundled `configure`** — tarballs occasionally ship a stale `configure`. For CMake deps, read `SOVERSION` / `VERSION` from `CMakeLists.txt`.
 
 ---
