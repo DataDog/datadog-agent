@@ -126,10 +126,8 @@ func (c *cmd) stop(err error) {
 	c.stopSigHandler()
 }
 
-// stopWithError stops the command after a non-nil error. A canceled context means
-// the host/process was shutting down: this is a benign abort rather than a real
-// failure, so the span is finished without an error instead of being reported as a
-// span error / Error Tracking issue. Any other error is reported as usual.
+// stopWithError stops the command, treating a canceled context (benign shutdown)
+// as a clean finish rather than a span error.
 func (c *cmd) stopWithError(err error) {
 	if errors.Is(err, context.Canceled) {
 		c.stop(nil)
