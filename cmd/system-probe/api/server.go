@@ -53,6 +53,10 @@ func StartServer(cfg *sysconfigtypes.Config, settings settings.Component, rcclie
 	// Module-restart handler
 	mux.HandleFunc("POST /module-restart/{module_name}", func(w http.ResponseWriter, r *http.Request) { restartModuleHandler(w, r, deps) })
 
+	// Module enable/disable handlers, for turning a module on or off at runtime.
+	mux.HandleFunc("POST /module-enable/{module_name}", func(w http.ResponseWriter, r *http.Request) { enableModuleHandler(w, r, deps) })
+	mux.HandleFunc("POST /module-disable/{module_name}", func(w http.ResponseWriter, r *http.Request) { disableModuleHandler(w, r) })
+
 	mux.Handle("GET /debug/pprof/", http.DefaultServeMux)
 	mux.Handle("/debug/vars", http.DefaultServeMux)
 	mux.Handle("/telemetry", deps.Telemetry.Handler())
