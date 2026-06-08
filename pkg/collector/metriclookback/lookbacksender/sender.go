@@ -100,27 +100,23 @@ func (m *SenderManager) GetDefaultSender() (aggregatorsender.Sender, error) {
 
 // Sender implements sender.Sender for lookback shadow checks.
 type Sender struct {
-	ctx       context.Context
-	id        checkid.ID
-	writer    Writer
-	formatter *aggregatorsender.CheckMetricSampleFormatter
+	*aggregatorsender.BaseSender
+	ctx    context.Context
+	writer Writer
 
 	mu        sync.Mutex
 	samples   []metrics.MetricSample
 	stats     stats.SenderStats
 	priorStat stats.SenderStats
-	checkTags []string
-	service   string
 }
 
 func newSender(ctx context.Context, id checkid.ID, defaultHostname string, writer Writer, now func() float64) *Sender {
 	return &Sender{
-		ctx:       ctx,
-		id:        id,
-		writer:    writer,
-		formatter: aggregatorsender.NewCheckMetricSampleFormatter(id, defaultHostname, now),
-		stats:     stats.NewSenderStats(),
-		priorStat: stats.NewSenderStats(),
+		BaseSender: aggregatorsender.NewBaseSender(id, defaultHostname, now),
+		ctx:        ctx,
+		writer:     writer,
+		stats:      stats.NewSenderStats(),
+		priorStat:  stats.NewSenderStats(),
 	}
 }
 
@@ -137,13 +133,13 @@ func (s *Sender) Commit() {
 		return
 	}
 
-	if err := s.writer.Append(s.ctx, s.id, samples); err != nil {
-		log.Warnf("failed to append %d lookback samples for check %s: %v", len(samples), s.id, err)
+	if err := s.writer.Append(s.ctx, s.CheckID(), samples); err != nil {
+		log.Warnf("failed to append %d lookback samples for check %s: %v", len(samples), s.CheckID(), err)
 	}
 }
 
 func (s *Sender) appendScalarSample(input aggregatorsender.ScalarSample) {
-	sample := *s.formatter.Format(input)
+	sample := *s.BuildMetricSample(input)
 	sample.Tags = cloneTags(sample.Tags)
 
 	s.mu.Lock()
@@ -164,47 +160,6 @@ func (s *Sender) GetSenderStats() stats.SenderStats {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.priorStat.Copy()
-}
-
-// DisableDefaultHostname controls default hostname injection for scalar samples.
-func (s *Sender) DisableDefaultHostname(disable bool) {
-	s.formatter.DisableDefaultHostname(disable)
-}
-
-// SetCheckCustomTags stores tags from check configuration.
-func (s *Sender) SetCheckCustomTags(tags []string) {
-	s.mu.Lock()
-	s.checkTags = tags
-	s.mu.Unlock()
-
-	s.formatter.SetCheckCustomTags(tags)
-}
-
-// SetCheckService stores the service tag to apply at finalization time.
-func (s *Sender) SetCheckService(service string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.service = service
-}
-
-// SetNoIndex controls no-index behavior for scalar samples.
-func (s *Sender) SetNoIndex(noIndex bool) {
-	s.formatter.SetNoIndex(noIndex)
-}
-
-// FinalizeCheckServiceTag applies the configured service tag to scalar samples.
-func (s *Sender) FinalizeCheckServiceTag() {
-	s.mu.Lock()
-	if s.service == "" {
-		s.mu.Unlock()
-		return
-	}
-
-	s.checkTags = append(s.checkTags, "service:"+s.service)
-	checkTags := s.checkTags
-	s.mu.Unlock()
-
-	s.formatter.SetCheckCustomTags(checkTags)
 }
 
 func (s *Sender) Gauge(metric string, value float64, hostname string, tags []string) {

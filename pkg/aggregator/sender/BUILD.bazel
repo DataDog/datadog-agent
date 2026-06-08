@@ -3,7 +3,7 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 go_library(
     name = "sender",
     srcs = [
-        "metric_sample_formatter.go",
+        "base_sender.go",
         "sender.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/aggregator/sender",
@@ -20,7 +20,7 @@ go_library(
 
 go_test(
     name = "sender_test",
-    srcs = ["metric_sample_formatter_test.go"],
+    srcs = ["base_sender_test.go"],
     embed = [":sender"],
     gotags = ["test"],
     deps = [

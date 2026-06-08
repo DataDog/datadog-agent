@@ -14,12 +14,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
-func TestCheckMetricSampleFormatterFormatsSenderMetricSampleFields(t *testing.T) {
-	formatter := NewCheckMetricSampleFormatter(checkid.ID("cpu:instance"), "default-host", func() float64 { return 1234 })
-	formatter.SetCheckCustomTags([]string{"custom:tag"})
-	formatter.SetNoIndex(true)
+func TestBaseSenderBuildsMetricSampleFields(t *testing.T) {
+	baseSender := NewBaseSender(checkid.ID("cpu:instance"), "default-host", func() float64 { return 1234 })
+	baseSender.SetCheckCustomTags([]string{"custom:tag"})
+	baseSender.SetNoIndex(true)
 
-	sample := formatter.Format(ScalarSample{
+	sample := baseSender.BuildMetricSample(ScalarSample{
 		Name:            "system.cpu.user",
 		Value:           42,
 		Hostname:        "",
@@ -42,10 +42,10 @@ func TestCheckMetricSampleFormatterFormatsSenderMetricSampleFields(t *testing.T)
 	assert.Equal(t, metrics.MetricSourceCPU, sample.Source)
 }
 
-func TestCheckMetricSampleFormatterPreservesExplicitHostnameTimestampAndNoIndex(t *testing.T) {
-	formatter := NewCheckMetricSampleFormatter(checkid.ID("unknown:instance"), "default-host", func() float64 { return 1234 })
+func TestBaseSenderPreservesExplicitHostnameTimestampAndNoIndex(t *testing.T) {
+	baseSender := NewBaseSender(checkid.ID("unknown:instance"), "default-host", func() float64 { return 1234 })
 
-	sample := formatter.Format(ScalarSample{
+	sample := baseSender.BuildMetricSample(ScalarSample{
 		Name:      "custom.metric",
 		Value:     7,
 		Hostname:  "submitted-host",
@@ -60,15 +60,25 @@ func TestCheckMetricSampleFormatterPreservesExplicitHostnameTimestampAndNoIndex(
 	assert.Equal(t, metrics.MetricSourceUnknown, sample.Source)
 }
 
-func TestCheckMetricSampleFormatterCanDisableDefaultHostname(t *testing.T) {
-	formatter := NewCheckMetricSampleFormatter(checkid.ID("cpu:instance"), "default-host", func() float64 { return 1234 })
-	formatter.DisableDefaultHostname(true)
+func TestBaseSenderCanDisableDefaultHostname(t *testing.T) {
+	baseSender := NewBaseSender(checkid.ID("cpu:instance"), "default-host", func() float64 { return 1234 })
+	baseSender.DisableDefaultHostname(true)
 
-	sample := formatter.Format(ScalarSample{
+	sample := baseSender.BuildMetricSample(ScalarSample{
 		Name:  "system.cpu.user",
 		Value: 42,
 		Type:  metrics.GaugeType,
 	})
 
 	assert.Empty(t, sample.Host)
+}
+
+func TestBaseSenderFinalizesServiceTag(t *testing.T) {
+	baseSender := NewBaseSender(checkid.ID("cpu:instance"), "default-host", func() float64 { return 1234 })
+	baseSender.SetCheckCustomTags([]string{"custom:tag"})
+	baseSender.SetCheckService("api")
+
+	baseSender.FinalizeCheckServiceTag()
+
+	assert.Equal(t, []string{"custom:tag", "service:api"}, baseSender.CheckTags())
 }

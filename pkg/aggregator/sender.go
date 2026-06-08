@@ -29,10 +29,7 @@ type RawSender interface {
 
 // checkSender implements Sender
 type checkSender struct {
-	id                      checkid.ID
-	defaultHostname         string
-	defaultHostnameDisabled bool
-	sampleFormatter         *sender.CheckMetricSampleFormatter
+	*sender.BaseSender
 	metricStats             stats.SenderStats
 	priormetricStats        stats.SenderStats
 	statsLock               sync.RWMutex
@@ -42,9 +39,6 @@ type checkSender struct {
 	orchestratorMetadataOut chan<- senderOrchestratorMetadata
 	orchestratorManifestOut chan<- senderOrchestratorManifest
 	eventPlatformOut        chan<- senderEventPlatformEvent
-	checkTags               []string
-	service                 string
-	noIndex                 bool
 }
 
 // senderItem knows how the aggregator should handle it
@@ -105,9 +99,7 @@ func newCheckSender(
 	eventPlatformOut chan<- senderEventPlatformEvent,
 ) *checkSender {
 	return &checkSender{
-		id:                      id,
-		defaultHostname:         defaultHostname,
-		sampleFormatter:         sender.NewCheckMetricSampleFormatter(id, defaultHostname, timeNowNano),
+		BaseSender:              sender.NewBaseSender(id, defaultHostname, timeNowNano),
 		itemsOut:                itemsOut,
 		serviceCheckOut:         serviceCheckOut,
 		eventOut:                eventOut,
@@ -119,44 +111,11 @@ func newCheckSender(
 	}
 }
 
-// DisableDefaultHostname allows check to override the default hostname that will be injected
-// when no hostname is specified at submission (for metrics, events and service checks).
-func (s *checkSender) DisableDefaultHostname(disable bool) {
-	s.defaultHostnameDisabled = disable
-	s.sampleFormatter.DisableDefaultHostname(disable)
-}
-
-// SetCheckCustomTags stores the tags set in the check configuration file.
-// They will be appended to each send (metric, event and service)
-func (s *checkSender) SetCheckCustomTags(tags []string) {
-	s.checkTags = tags
-	s.sampleFormatter.SetCheckCustomTags(tags)
-}
-
-// SetCheckService appends the service as a tag for metrics, events, and service checks
-// This may be called any number of times, though the only the last call will have an effect
-func (s *checkSender) SetCheckService(service string) {
-	s.service = service
-}
-
-// FinalizeCheckServiceTag appends the service as a tag for metrics, events, and service checks
-func (s *checkSender) FinalizeCheckServiceTag() {
-	if s.service != "" {
-		s.checkTags = append(s.checkTags, "service:"+s.service)
-		s.sampleFormatter.SetCheckCustomTags(s.checkTags)
-	}
-}
-
-func (s *checkSender) SetNoIndex(noIndex bool) {
-	s.noIndex = noIndex
-	s.sampleFormatter.SetNoIndex(noIndex)
-}
-
 // Commit commits the metric samples & histogram buckets that were added during a check run
 // Should be called at the end of every check run
 func (s *checkSender) Commit() {
 	// we use a metric sample to commit both for metrics & sketches
-	s.itemsOut <- &senderMetricSample{s.id, &metrics.MetricSample{}, true}
+	s.itemsOut <- &senderMetricSample{s.CheckID(), &metrics.MetricSample{}, true}
 	s.cyclemetricStats()
 }
 
@@ -176,7 +135,7 @@ func (s *checkSender) cyclemetricStats() {
 // SendRawMetricSample sends the raw sample
 // Useful for testing - submitting precomputed samples.
 func (s *checkSender) SendRawMetricSample(sample *metrics.MetricSample) {
-	s.itemsOut <- &senderMetricSample{s.id, sample, false}
+	s.itemsOut <- &senderMetricSample{s.CheckID(), sample, false}
 }
 
 func (s *checkSender) sendMetricSample(
@@ -189,7 +148,7 @@ func (s *checkSender) sendMetricSample(
 	noIndex bool,
 	timestamp float64,
 ) {
-	metricSample := s.sampleFormatter.Format(sender.ScalarSample{
+	metricSample := s.BuildMetricSample(sender.ScalarSample{
 		Name:            metric,
 		Value:           value,
 		Hostname:        hostname,
@@ -204,7 +163,7 @@ func (s *checkSender) sendMetricSample(
 		log.Trace(mType.String(), " sample: ", metric, ": ", value, " for hostname: ", hostname, " tags: ", metricSample.Tags)
 	}
 
-	s.itemsOut <- &senderMetricSample{s.id, metricSample, false}
+	s.itemsOut <- &senderMetricSample{s.CheckID(), metricSample, false}
 
 	s.statsLock.Lock()
 	s.metricStats.MetricSamples++
@@ -282,7 +241,7 @@ func (s *checkSender) OpenmetricsBucket(metric string, value int64, lowerBound, 
 }
 
 func (s *checkSender) sendHistogramBucket(metric string, value int64, lowerBound, upperBound float64, monotonic bool, hostname string, tags []string, flushFirstValue, multipleBuckets bool) {
-	tags = append(tags, s.checkTags...)
+	tags = append(tags, s.CheckTags()...)
 
 	log.Tracef(
 		"Histogram Bucket %s submitted: %v [%f-%f] monotonic: %v for host %s tags: %v",
@@ -301,18 +260,14 @@ func (s *checkSender) sendHistogramBucket(metric string, value int64, lowerBound
 		LowerBound:      lowerBound,
 		UpperBound:      upperBound,
 		Monotonic:       monotonic,
-		Host:            hostname,
+		Host:            s.Hostname(hostname),
 		Tags:            tags,
 		Timestamp:       timeNowNano(),
 		FlushFirstValue: flushFirstValue,
 		MultipleBuckets: multipleBuckets,
 	}
 
-	if hostname == "" && !s.defaultHostnameDisabled {
-		histogramBucket.Host = s.defaultHostname
-	}
-
-	s.itemsOut <- &senderHistogramBucket{s.id, histogramBucket}
+	s.itemsOut <- &senderHistogramBucket{s.CheckID(), histogramBucket}
 
 	s.statsLock.Lock()
 	s.metricStats.HistogramBuckets++
@@ -365,14 +320,10 @@ func (s *checkSender) ServiceCheck(checkName string, status servicecheck.Service
 	serviceCheck := servicecheck.ServiceCheck{
 		CheckName: checkName,
 		Status:    status,
-		Host:      hostname,
+		Host:      s.Hostname(hostname),
 		Ts:        time.Now().Unix(),
-		Tags:      append(tags, s.checkTags...),
+		Tags:      append(tags, s.CheckTags()...),
 		Message:   message,
-	}
-
-	if hostname == "" && !s.defaultHostnameDisabled {
-		serviceCheck.Host = s.defaultHostname
 	}
 
 	s.serviceCheckOut <- serviceCheck
@@ -384,13 +335,11 @@ func (s *checkSender) ServiceCheck(checkName string, status servicecheck.Service
 
 // Event submits an event
 func (s *checkSender) Event(e event.Event) {
-	e.Tags = append(e.Tags, s.checkTags...)
+	e.Tags = append(e.Tags, s.CheckTags()...)
 
 	log.Trace("Event submitted: ", e.Title, " for hostname: ", e.Host, " tags: ", e.Tags)
 
-	if e.Host == "" && !s.defaultHostnameDisabled {
-		e.Host = s.defaultHostname
-	}
+	e.Host = s.Hostname(e.Host)
 
 	s.eventOut <- e
 
@@ -402,7 +351,7 @@ func (s *checkSender) Event(e event.Event) {
 // Event submits an event
 func (s *checkSender) EventPlatformEvent(rawEvent []byte, eventType string) {
 	s.eventPlatformOut <- senderEventPlatformEvent{
-		id:        s.id,
+		id:        s.CheckID(),
 		rawEvent:  rawEvent,
 		eventType: eventType,
 	}
