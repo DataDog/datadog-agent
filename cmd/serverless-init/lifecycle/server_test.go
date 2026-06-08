@@ -138,6 +138,14 @@ func TestHandleReady_NilChildHandle_Returns503(t *testing.T) {
 	assert.Equal(t, http.StatusServiceUnavailable, rec.Code)
 }
 
+func TestHandleValidateEmitsMetricAndReturns200(t *testing.T) {
+	srv, _, _, _, emitter, _ := newTestServer()
+	rec := httptest.NewRecorder()
+	srv.handleValidate(rec, httptest.NewRequest(http.MethodPost, pathValidate, nil))
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.Contains(t, emitter.getEmitted(), validateMetricName)
+}
+
 func TestHandleLaunchEmitsMetricAndReturns200(t *testing.T) {
 	srv, _, _, _, emitter, _ := newTestServer()
 	req := httptest.NewRequest(http.MethodPost, pathLaunch, nil)
@@ -311,12 +319,12 @@ func TestEmittedMetricsCarryCurrentTimestamp_ForwarderPath(t *testing.T) {
 
 func TestRoutes(t *testing.T) {
 	srv, _, _, _, _, _ := newTestServer()
-	// /ready needs an alive child handle to return 200; the other four hooks
+	// /ready needs an alive child handle to return 200; the other hooks
 	// ignore childHandle when no forwarder is configured.
 	h := newFakeChildHandle()
 	h.alive.Store(true)
 	srv.childHandle = h
-	routes := []string{pathReady, pathLaunch, pathSuspend, pathResume, pathTerminate}
+	routes := []string{pathReady, pathValidate, pathLaunch, pathSuspend, pathResume, pathTerminate}
 	handler := srv.handler()
 	for _, route := range routes {
 		req := httptest.NewRequest(http.MethodPost, route, nil)
@@ -980,7 +988,7 @@ func TestFlushAllDrainTimeoutDoesNotBlock(t *testing.T) {
 func withFakeHeartbeat(t *testing.T, srv *Server) (started func() bool, teardown func()) {
 	t.Helper()
 	emitter := &mockMetricEmitter{}
-	hb := NewHeartbeat(time.Hour /* never ticks during the test */, emitter, metrics.MetricSourceAWSMicroVMEnhanced, "")
+	hb := NewHeartbeat(time.Hour /* never ticks during the test */, emitter, metrics.MetricSourceAWSMicroVMEnhanced, nil)
 	srv.heartbeat = hb
 	started = func() bool {
 		hb.mu.Lock()
@@ -1046,7 +1054,7 @@ func TestHandleLaunch_ServerDoesNotDirectlyEmitTracedInvocations(t *testing.T) {
 
 	for _, m := range emitter.getEmittedMetrics() {
 		assert.NotEqual(t, activeInstancesMetricName, m.name,
-			"server must not directly emit traced_invocations; that is the heartbeat's responsibility")
+			"server must not directly emit active_instances; that is the heartbeat's responsibility")
 	}
 }
 
