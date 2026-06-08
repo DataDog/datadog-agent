@@ -16,10 +16,12 @@ import (
 
 // ConfigStatus is one config's entry in a distribution.
 // WorkersNeeded is summed across the config's instances.
+// Pinned configs are kept on their current runner during rebalancing.
 type ConfigStatus struct {
 	WorkersNeeded float64
 	Runner        string
 	CheckName     string
+	Pinned        bool
 }
 
 // RunnerStatus represents the status of a check runner
@@ -95,16 +97,17 @@ func (distribution *configsDistribution) leastBusyRunner(preferredRunner string,
 	return leastBusyRunner
 }
 
-func (distribution *configsDistribution) addToLeastBusy(digest, checkName string, workersNeeded float64, preferredRunner string, excludeRunner string) {
+func (distribution *configsDistribution) addToLeastBusy(digest, checkName string, workersNeeded float64, preferredRunner string, excludeRunner string, pinned bool) {
 	leastBusy := distribution.leastBusyRunner(preferredRunner, excludeRunner)
 	if leastBusy == "" {
 		return
 	}
 
-	distribution.addConfig(digest, checkName, workersNeeded, leastBusy)
+	distribution.addConfig(digest, checkName, workersNeeded, leastBusy, pinned)
 }
 
-func (distribution *configsDistribution) addConfig(digest, checkName string, workersNeeded float64, runner string) {
+// addConfig records a config instance in the distribution.
+func (distribution *configsDistribution) addConfig(digest, checkName string, workersNeeded float64, runner string, pinned bool) {
 	// Initialize the runner and attribute work
 	runnerInfo, runnerExists := distribution.Runners[runner]
 	if !runnerExists {
@@ -135,6 +138,9 @@ func (distribution *configsDistribution) addConfig(digest, checkName string, wor
 	}
 
 	configInfo.WorkersNeeded += workersNeeded
+
+	// Cumulate Pinned: Pin the entire config if any of its instances are pinned
+	configInfo.Pinned = configInfo.Pinned || pinned
 }
 
 func (distribution *configsDistribution) runnerWorkers() map[string]int {

@@ -444,11 +444,13 @@ func creatFakeStore(t *testing.T) workloadmetamock.Mock {
 			Name:      "long-running-init",
 			Namespace: "default",
 		},
-		Containers: []workloadmeta.OrchestratorContainer{
+		InitContainers: []workloadmeta.OrchestratorContainer{
 			{
 				ID:   "80bd9ebe296615341c68d571e843d800fb4a75bef696d858065572ab4e49920b",
 				Name: "init",
 			},
+		},
+		Containers: []workloadmeta.OrchestratorContainer{
 			{
 				ID:   "not-yet-running-so-empty",
 				Name: "main-app",
