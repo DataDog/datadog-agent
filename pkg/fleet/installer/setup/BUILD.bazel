@@ -29,6 +29,12 @@ go_test(
     name = "setup_test",
     srcs = ["setup_windows_test.go"],
     embed = [":setup"],
+    gotags = ["test"],
     target_compatible_with = ["@platforms//os:windows"],
-    deps = ["//pkg/fleet/installer/env"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "//pkg/fleet/installer/env",
+        ],
+        "//conditions:default": [],
+    }),
 )
