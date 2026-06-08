@@ -63,6 +63,8 @@ func (r targetResolver) Resolve(config integration.Config) (target, bool) {
 		entityID: id,
 	}
 
+	// The ServiceID prefix is an AD entity kind, not necessarily the config
+	// reader runtime this component needs.
 	switch runtime {
 	case "process":
 		resolvedTarget.runtime = RuntimeHost
@@ -74,16 +76,22 @@ func (r targetResolver) Resolve(config integration.Config) (target, bool) {
 		return resolvedTarget, true
 	}
 
+	// container:// IDs need workloadmeta to distinguish Kubernetes-owned
+	// containers from standalone Docker containers and unsupported runtimes.
 	if r.store == nil {
 		return resolvedTarget, resolvedTarget.runtime == RuntimeDocker
 	}
 
+	// AD schedules container services for Kubernetes pods as container://<id>;
+	// prefer the Kubernetes reader when workloadmeta links the container to a pod.
 	pod, err := r.store.GetKubernetesPodForContainer(id)
 	if err != nil || pod == nil {
 		if runtime != "container" {
 			return resolvedTarget, resolvedTarget.runtime == RuntimeDocker
 		}
 
+		// Standalone container:// services only map to the Docker reader today.
+		// Other container runtimes need their own readers before they can run.
 		container, err := r.store.GetContainer(id)
 		if err != nil || container == nil || container.Runtime != workloadmeta.ContainerRuntimeDocker {
 			return target{}, false
