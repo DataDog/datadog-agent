@@ -580,14 +580,18 @@ func (e *RuleEngine) RuleMatch(ctx *eval.Context, rule *rules.Rule, event eval.E
 		ev.Rules = append(ev.Rules, model.NewMatchedRule(rule.Def.ID, rule.Def.Version, rule.Def.Tags, rule.Policy.Name, rule.Policy.Version))
 	}
 
+	// best-effort: re-resolve the matched process's argv/envp from /proc
+	// before HandleActions so kill actions don't race the reaper on
+	// /proc/<pid>. Silent rules don't ship the event, so skip the work.
+	if !rule.Def.Silent {
+		e.probe.EnrichRuleEvent(ev)
+	}
+
 	e.probe.HandleActions(rule, event)
 
 	if rule.Def.Silent {
 		return false
 	}
-
-	// best-effort: re-resolve the matched process's argv/envp from /proc
-	e.probe.EnrichRuleEvent(ev)
 
 	// ensure that all the fields are resolved before sending
 	ev.FieldHandlers.ResolveContainerTags(ev, &ev.ProcessContext.Process.ContainerContext)

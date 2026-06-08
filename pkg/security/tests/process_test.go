@@ -2790,3 +2790,83 @@ func TestProcessEnrichLongArgsOnMatch(t *testing.T) {
 		assert.False(t, event.Exec.EnvsTruncated)
 	})
 }
+
+// TestProcessEnrichLongArgsOnKillRule verifies that argv enrichment runs
+// before HandleActions, so that a rule whose kill action SIGKILLs the
+// matched process still ships the full untruncated argv. With the previous
+// ordering (HandleActions before EnrichRuleEvent) the matched PID's /proc
+// entry was already gone by enrichment time and the alert kept the
+// kernel-truncated argv.
+func TestProcessEnrichLongArgsOnKillRule(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	if ebpfLessEnabled {
+		t.Skip("enrichment on rule match is only implemented for the eBPF probe")
+	}
+
+	checkKernelCompatibility(t, "agent is running in container mode", func(_ *kernel.Version) bool {
+		return env.IsContainerized()
+	})
+
+	bashExec, err := whichNonFatal("bash")
+	if err != nil {
+		t.Skipf("skipping: bash not available on this system (%v); enrichment requires an argv-preserving shell", err)
+	}
+
+	const argMarker = "DD_CWS_ENRICH_KILL_MARKER_v1"
+	const oversizeArgLen = sharedconsts.MaxArgEnvSize * 3
+	longArg := strings.Repeat("A", oversizeArgLen)
+
+	ruleDefs := []*rules.RuleDefinition{{
+		ID:         "test_rule_enrich_kill",
+		Expression: fmt.Sprintf(`exec.file.name == "bash" && exec.argv in ["%s"]`, argMarker),
+		Actions: []*rules.ActionDefinition{{
+			Kill: &rules.KillDefinition{
+				Signal: "SIGKILL",
+			},
+		}},
+	}}
+
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	// long sleep so the process is alive long enough for the agent to
+	// match, enrich and kill. If enrichment ran after HandleActions the
+	// SIGKILL would race ahead and /proc/<pid> would be gone.
+	const shScript = "sleep 30; :"
+	var cmd *exec.Cmd
+
+	err = test.GetEventSent(t, func() error {
+		cmd = exec.Command(bashExec, "-c", shScript, argMarker, longArg)
+		return cmd.Start()
+	}, func(rule *rules.Rule, event *model.Event) bool {
+		assertTriggeredRule(t, rule, "test_rule_enrich_kill")
+
+		argv, err := event.GetFieldValue("exec.argv")
+		require.NoError(t, err)
+		argvSlice, ok := argv.([]string)
+		require.True(t, ok, "exec.argv should be []string, got %T", argv)
+
+		require.GreaterOrEqual(t, len(argvSlice), 4, "argv too short: %v", argvSlice)
+		assert.Equal(t, "-c", argvSlice[0])
+		assert.Equal(t, shScript, argvSlice[1])
+		assert.Equal(t, argMarker, argvSlice[2])
+		assert.Equal(t, longArg, argvSlice[3], "long arg must be re-resolved from /proc before kill (got len=%d, want=%d)", len(argvSlice[3]), oversizeArgLen)
+
+		assert.False(t, event.Exec.ArgsTruncated)
+		return true
+	}, getEventTimeout, "test_rule_enrich_kill")
+	if err != nil {
+		t.Error(err)
+	}
+
+	// agent's SIGKILL should already have reaped the process; Wait
+	// returns the exit status (or error if already gone) - either is
+	// fine, we just need to avoid leaving a zombie.
+	if cmd != nil && cmd.Process != nil {
+		_ = cmd.Wait()
+	}
+}
