@@ -483,6 +483,7 @@ def hacky_dev_image_build(
         privateactionrunner_build(ctx)
         copy_extra_agents += (
             "COPY bin/privateactionrunner/privateactionrunner /opt/datadog-agent/embedded/bin/privateactionrunner\n"
+            "COPY bin/privateactionrunner/privateactionrunner-executor /opt/datadog-agent/embedded/bin/privateactionrunner-executor\n"
         )
 
     copy_ebpf_assets = ""

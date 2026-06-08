@@ -62,6 +62,14 @@ func FromDDConfig(config config.Component) (*Config, error) {
 	if v := config.GetInt32(setup.PARHttpTimeoutSeconds); v != 0 {
 		httpTimeout = time.Duration(v) * time.Second
 	}
+	executorIdleTimeout := defaultExecutorIdleTimeout
+	if v := config.GetString(setup.PARExecutorIdleTimeout); v != "" {
+		d, err := time.ParseDuration(v)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse %s: %w", setup.PARExecutorIdleTimeout, err)
+		}
+		executorIdleTimeout = d
+	}
 
 	return &Config{
 		MaxBackoff:                maxBackoff,
@@ -82,6 +90,7 @@ func FromDDConfig(config config.Component) (*Config, error) {
 		JWTRefreshInterval:        defaultJwtRefreshInterval,
 		HealthCheckEndpoint:       defaultHealthCheckEndpoint,
 		HeartbeatInterval:         heartbeatInterval,
+		ExecutorIdleTimeout:       executorIdleTimeout,
 		Version:                   version.AgentVersion,
 		MetricsClient:             &statsd.NoOpClient{},
 		ActionsAllowlist:          makeActionsAllowlist(config),

@@ -56,6 +56,7 @@ type Config struct {
 	JWTRefreshInterval         time.Duration
 	HealthCheckEndpoint        string
 	HeartbeatInterval          time.Duration
+	ExecutorIdleTimeout        time.Duration
 	EnableProfiling            bool
 	DisableCredentialTemplates bool
 

@@ -42,7 +42,7 @@ func (s *windowsService) Init() error {
 }
 
 func (s *windowsService) Run(ctx context.Context) error {
-	err := runPrivateActionRunner(ctx, defaultConfPath, nil)
+	err := RunPrivateActionRunner(ctx, defaultConfPath, nil)
 	if errors.Is(err, privateactionrunner.ErrNotEnabled) {
 		return servicemain.ErrCleanStopAfterInit
 	}

@@ -33,6 +33,7 @@ import (
 	pkgrcclient "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/rcclient"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/autoconnections"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/enrollment"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/executor"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/observability"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/runners"
@@ -41,6 +42,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
+	"go.uber.org/fx"
 )
 
 const (
@@ -63,6 +65,8 @@ type Requires struct {
 	Traceroute    traceroute.Component
 	EventPlatform eventplatform.Component
 	IPC           ipc.Component
+	Params        *privateactionrunner.Params `optional:"true"`
+	Shutdowner    fx.Shutdowner
 }
 
 // Provides defines the output of the privateactionrunner component
@@ -79,9 +83,12 @@ type PrivateActionRunner struct {
 	traceroute     traceroute.Component
 	eventPlatform  eventplatform.Component
 	ipc            ipc.Component
+	params         privateactionrunner.Params
+	shutdowner     fx.Shutdowner
 
 	workflowRunner *runners.WorkflowRunner
 	commonRunner   *runners.CommonRunner
+	executorServer *executor.Server
 
 	telemetry *telemetry.Telemetry
 
@@ -100,7 +107,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 		return Provides{}, privateactionrunner.ErrNotEnabled
 	}
 
-	runner, err := NewPrivateActionRunner(ctx, reqs.Config, reqs.Hostname, pkgrcclient.NewAdapter(reqs.RcClient), reqs.Log, reqs.Tagger, reqs.Traceroute, reqs.EventPlatform, reqs.IPC)
+	runner, err := NewPrivateActionRunner(ctx, reqs.Config, reqs.Hostname, pkgrcclient.NewAdapter(reqs.RcClient), reqs.Log, reqs.Tagger, reqs.Traceroute, reqs.EventPlatform, reqs.IPC, reqs.Params, reqs.Shutdowner)
 	if err != nil {
 		return Provides{}, err
 	}
@@ -121,7 +128,20 @@ func NewPrivateActionRunner(
 	tracerouteComp traceroute.Component,
 	eventPlatform eventplatform.Component,
 	ipcComp ipc.Component,
+	optionalParams ...any,
 ) (*PrivateActionRunner, error) {
+	params := privateactionrunner.Params{Mode: privateactionrunner.ModeOrchestrator}
+	var shutdowner fx.Shutdowner
+	for _, param := range optionalParams {
+		switch v := param.(type) {
+		case *privateactionrunner.Params:
+			if v != nil {
+				params = *v
+			}
+		case fx.Shutdowner:
+			shutdowner = v
+		}
+	}
 	return &PrivateActionRunner{
 		coreConfig:     coreConfig,
 		hostnameGetter: hostnameGetter,
@@ -131,6 +151,8 @@ func NewPrivateActionRunner(
 		traceroute:     tracerouteComp,
 		eventPlatform:  eventPlatform,
 		ipc:            ipcComp,
+		params:         params,
+		shutdowner:     shutdowner,
 		startChan:      make(chan struct{}),
 	}, nil
 }
@@ -228,10 +250,21 @@ func (p *PrivateActionRunner) start(ctx context.Context) error {
 	keysManager := taskverifier.NewKeyManager(p.rcClient)
 	taskVerifier := taskverifier.NewTaskVerifier(keysManager, cfg)
 	opmsClient := opms.NewClient(cfg)
+	socketPath := p.params.ExecutorSocketPath
+	if socketPath == "" {
+		socketPath = executor.SocketPath(p.coreConfig)
+	}
+	var executorSupervisor *executor.Supervisor
+	if p.params.Mode != privateactionrunner.ModeExecutor {
+		executorSupervisor = executor.NewSupervisor(socketPath, p.params.ConfPath, p.params.ExtraConfFiles, cfg.RunnerPoolSize)
+	}
 
-	p.workflowRunner, err = runners.NewWorkflowRunner(cfg, keysManager, taskVerifier, opmsClient, p.traceroute, p.eventPlatform, p.ipc.GetClient())
+	p.workflowRunner, err = runners.NewWorkflowRunner(cfg, keysManager, taskVerifier, opmsClient, p.traceroute, p.eventPlatform, p.ipc.GetClient(), executorSupervisor)
 	if err != nil {
 		return err
+	}
+	if p.params.Mode == privateactionrunner.ModeExecutor {
+		return p.startExecutor(ctx, cfg, socketPath)
 	}
 	p.commonRunner = runners.NewCommonRunner(cfg)
 	err = p.workflowRunner.Start(ctx)
@@ -239,6 +272,36 @@ func (p *PrivateActionRunner) start(ctx context.Context) error {
 		return err
 	}
 	return p.commonRunner.Start(ctx)
+}
+
+func (p *PrivateActionRunner) startExecutor(ctx context.Context, cfg *parconfig.Config, socketPath string) error {
+	p.logger.Infof("Starting Private Action Runner executor on %s", socketPath)
+	startTime := time.Now()
+	p.workflowRunner.StartKeysManager(ctx)
+	p.workflowRunner.WaitForKeysManagerReady(ctx, startTime)
+	listener, err := executor.Listen(socketPath)
+	if err != nil {
+		return fmt.Errorf("failed to listen on executor socket: %w", err)
+	}
+	p.executorServer = executor.NewServer(
+		p.workflowRunner,
+		cfg.Version,
+		cfg.ExecutorIdleTimeout,
+		executor.LogIdleShutdown(ctx, func() {
+			if p.shutdowner != nil {
+				_ = p.shutdowner.Shutdown()
+			}
+		}),
+	)
+	go func() {
+		if err := p.executorServer.Serve(ctx, listener); err != nil {
+			p.logger.Errorf("Private action runner executor server stopped with error: %v", err)
+			if p.shutdowner != nil {
+				_ = p.shutdowner.Shutdown()
+			}
+		}
+	}()
+	return nil
 }
 
 func (p *PrivateActionRunner) Stop(ctx context.Context) error {
@@ -257,6 +320,12 @@ func (p *PrivateActionRunner) Stop(ctx context.Context) error {
 
 	if p.workflowRunner != nil {
 		err := p.workflowRunner.Stop(ctx)
+		if err != nil {
+			return err
+		}
+	}
+	if p.executorServer != nil {
+		err := p.executorServer.Stop(ctx)
 		if err != nil {
 			return err
 		}

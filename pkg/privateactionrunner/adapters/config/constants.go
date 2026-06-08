@@ -25,6 +25,7 @@ const (
 	defaultJwtRefreshInterval     = 15 * time.Second
 	heartbeatInterval             = 20 * time.Second
 	defaultHTTPClientTimeout      = 30 * time.Second
+	defaultExecutorIdleTimeout    = 5 * time.Minute
 	// rshell commands belong to a namespace, currently only "rshell:" is supported.
 	RshellCommandNamespacePrefix = "rshell:"
 )

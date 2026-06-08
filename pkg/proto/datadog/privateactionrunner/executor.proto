@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+package datadog.privateactionrunner.executor;
+
+option go_package = "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/executor";
+
+message StatusRequest {}
+
+message StatusResponse {
+  uint32 protocol_version = 1;
+  bool ready = 2;
+  int32 active_tasks = 3;
+  string version = 4;
+}
+
+message SubmitTaskRequest {
+  bytes task_json = 1;
+}
+
+message SubmitTaskResponse {
+  bool accepted = 1;
+  string reason = 2;
+}

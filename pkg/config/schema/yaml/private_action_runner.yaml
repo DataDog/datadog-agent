@@ -49,6 +49,14 @@ properties:
       terminated. Must be > 1.
     tags:
     - template_section:PrivateActionRunner
+  executor_idle_timeout:
+    node_type: setting
+    type: string
+    default: 5m
+    visibility: public
+    description: Maximum time the executor process stays alive without active actions.
+    tags:
+    - template_section:PrivateActionRunner
   actions_allowlist:
     node_type: setting
     type: array

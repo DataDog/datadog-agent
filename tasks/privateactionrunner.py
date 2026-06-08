@@ -13,6 +13,7 @@ from tasks.windows_resources import build_messagetable, build_rc, versioninfo_va
 
 BIN_DIR = os.path.join(".", "bin", "privateactionrunner")
 BIN_PATH = os.path.join(BIN_DIR, bin_name("privateactionrunner"))
+EXECUTOR_BIN_PATH = os.path.join(BIN_DIR, bin_name("privateactionrunner-executor"))
 
 
 @task
@@ -46,6 +47,18 @@ def build(
         rebuild=rebuild,
         env=env,
         bin_path=BIN_PATH,
+        mod=go_mod,
+        check_deadcode=os.getenv("DEPLOY_AGENT") == "true",
+    )
+    go_build(
+        ctx,
+        f"{REPO_PATH}/cmd/privateactionrunnerexecutor",
+        build_tags=build_tags,
+        ldflags=ldflags,
+        gcflags=gcflags,
+        rebuild=rebuild,
+        env=env,
+        bin_path=EXECUTOR_BIN_PATH,
         mod=go_mod,
         check_deadcode=os.getenv("DEPLOY_AGENT") == "true",
     )

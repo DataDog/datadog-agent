@@ -41,6 +41,7 @@ pkg_filegroup(
         ":dda_built_trace_agent_binary",
         ":dda_built_process_agent_binary",
         ":dda_built_privateactionrunner_binary",
+        ":dda_built_privateactionrunner_executor_binary",
 
         # TODO: system-probe
         # TODO: system-probe - selinux policy
@@ -154,6 +155,15 @@ pkg_files(
     name = "dda_built_privateactionrunner_binary",
     srcs = [
         "@privateactionrunner_binary//:privateactionrunner",
+    ],
+    attributes = pkg_attributes(mode = "755"),
+    prefix = "embedded/bin",
+)
+
+pkg_files(
+    name = "dda_built_privateactionrunner_executor_binary",
+    srcs = [
+        "@privateactionrunner_executor_binary//:privateactionrunner_executor",
     ],
     attributes = pkg_attributes(mode = "755"),
     prefix = "embedded/bin",

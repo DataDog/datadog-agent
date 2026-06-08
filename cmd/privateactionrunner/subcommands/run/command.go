@@ -43,7 +43,25 @@ type cliParams struct {
 
 // runPrivateActionRunner runs the private action runner with the given configuration and context.
 // This function is shared between the CLI run command and the Windows service.
-func runPrivateActionRunner(ctx context.Context, confPath string, extraConfFiles []string) error {
+func RunPrivateActionRunner(ctx context.Context, confPath string, extraConfFiles []string) error {
+	return runPrivateActionRunner(ctx, privateactionrunner.Params{
+		Mode:           privateactionrunner.ModeOrchestrator,
+		ConfPath:       confPath,
+		ExtraConfFiles: extraConfFiles,
+	})
+}
+
+// RunPrivateActionExecutor runs only the local task executor helper process.
+func RunPrivateActionExecutor(ctx context.Context, confPath string, extraConfFiles []string, socketPath string) error {
+	return runPrivateActionRunner(ctx, privateactionrunner.Params{
+		Mode:               privateactionrunner.ModeExecutor,
+		ConfPath:           confPath,
+		ExtraConfFiles:     extraConfFiles,
+		ExecutorSocketPath: socketPath,
+	})
+}
+
+func runPrivateActionRunner(ctx context.Context, runnerParams privateactionrunner.Params) error {
 	fxOptions := []fx.Option{
 		// Provide context for cancellation (Windows service uses this for graceful shutdown)
 		fx.Provide(func() context.Context { return ctx }),
@@ -55,8 +73,9 @@ func runPrivateActionRunner(ctx context.Context, confPath string, extraConfFiles
 			}()
 		}),
 		fx.Supply(core.BundleParams{
-			ConfigParams: config.NewAgentParams(confPath, config.WithExtraConfFiles(extraConfFiles)),
+			ConfigParams: config.NewAgentParams(runnerParams.ConfPath, config.WithExtraConfFiles(runnerParams.ExtraConfFiles)),
 			LogParams:    log.ForDaemon(command.LoggerName, pkgconfigsetup.PARLogFile, pkgconfigsetup.DefaultPrivateActionRunnerLogFile)}),
+		fx.Supply(&runnerParams),
 		core.Bundle(core.WithSecrets()),
 		fx.Provide(func(c config.Component) settings.Params {
 			return settings.Params{
@@ -98,7 +117,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Short: "Run the Private Action Runner",
 		Long:  `Runs the private-action-runner in the foreground`,
 		RunE: func(_ *cobra.Command, _ []string) error {
-			return runPrivateActionRunner(context.Background(), globalParams.ConfFilePath, cliParams.ExtraConfFilePath)
+			return RunPrivateActionRunner(context.Background(), globalParams.ConfFilePath, cliParams.ExtraConfFilePath)
 		},
 	}
 
