@@ -125,14 +125,33 @@ func TestMaybeSPLite(t *testing.T) {
 			assert.Equal(t, fakeBinaryPath, cmd.Args[0])
 
 			// Verify args match what the splite package produces (source of truth)
+			execPath, err := os.Executable()
+			require.NoError(t, err)
 			expectedArgs := (&splite.Config{
-				Socket:   sysprobeConfig.GetString("system_probe_config.sysprobe_socket"),
-				LogLevel: sysprobeConfig.GetString("log_level"),
-				LogFile:  sysprobeConfig.GetString("log_file"),
-				PIDFile:  "/test/sp.pid",
+				Socket:     sysprobeConfig.GetString("system_probe_config.sysprobe_socket"),
+				LogLevel:   sysprobeConfig.GetString("log_level"),
+				LogFile:    sysprobeConfig.GetString("log_file"),
+				PIDFile:    "/test/sp.pid",
+				ReexecArgs: append([]string{execPath}, os.Args[1:]...),
 			}).Args()
 			assert.Equal(t, expectedArgs, cmd.Args[1:])
 			assert.NotEmpty(t, cmd.Env)
 		})
 	}
+}
+
+// TestMaybeSPLiteSkipsAfterReexec verifies that when system-probe-lite has
+// re-exec'd back into system-probe (signalled via the skip env var), we do not
+// hand off to system-probe-lite again, even when only discovery is enabled.
+func TestMaybeSPLiteSkipsAfterReexec(t *testing.T) {
+	createFakeSPLiteBinary(t)
+	t.Setenv(skipSpliteHandoffEnv, "1")
+
+	sysprobeConfig := newMockSysprobeConfig(t, map[string]interface{}{
+		"discovery.use_system_probe_lite": true,
+		"discovery.enabled":               true,
+	})
+
+	cmd := maybeSPLite(sysprobeConfig, "/test/sp.pid", logmock.New(t))
+	assert.Nil(t, cmd)
 }

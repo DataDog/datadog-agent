@@ -15,6 +15,11 @@ type Config struct {
 	LogLevel string // optional, maps to --log-level
 	LogFile  string // optional, maps to --log-file
 	PIDFile  string // optional, maps to --pid
+	// ReexecArgs is the full system-probe invocation that system-probe-lite
+	// re-execs into when it is asked to transition back to the full
+	// system-probe. Empty means transition is disabled. Passed as trailing
+	// arguments after a "--" separator.
+	ReexecArgs []string
 }
 
 // Args returns the command-line arguments for the system-probe-lite binary.
@@ -28,6 +33,10 @@ func (c *Config) Args() []string {
 	}
 	if c.PIDFile != "" {
 		args = append(args, "--pid", c.PIDFile)
+	}
+	if len(c.ReexecArgs) > 0 {
+		args = append(args, "--")
+		args = append(args, c.ReexecArgs...)
 	}
 	return args
 }

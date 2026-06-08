@@ -18,9 +18,21 @@ import (
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 )
 
+// skipSpliteHandoffEnv, when set in the environment, tells system-probe not to
+// hand off to system-probe-lite for this run. system-probe-lite sets it when it
+// re-execs back into system-probe so the process does not bounce straight back
+// before remote config has had a chance to enable the extra module. The Rust
+// binary hardcodes the same name; keep them in sync.
+const skipSpliteHandoffEnv = "DD_SYSTEM_PROBE_SKIP_SPLITE_HANDOFF"
+
 // shouldExecSPLite returns true if system-probe should exec into system-probe-lite.
 // This is the case when use_system_probe_lite is enabled and only the discovery module is active.
 func shouldExecSPLite(sysprobeConfig sysprobeconfig.Component, cfg *sysconfigtypes.Config) bool {
+	// If system-probe-lite re-exec'd into us, do not hand back to it this run.
+	if os.Getenv(skipSpliteHandoffEnv) != "" {
+		return false
+	}
+
 	if !sysprobeConfig.GetBool("discovery.use_system_probe_lite") {
 		return false
 	}
@@ -61,12 +73,15 @@ func maybeSPLite(sysprobeConfig sysprobeconfig.Component, pidFilePath string, lo
 		return nil
 	}
 
-	// Build args via splite package (source of truth for CLI format)
+	// Build args via splite package (source of truth for CLI format). ReexecArgs
+	// carries our own invocation so system-probe-lite can transition back into a
+	// full system-probe when a non-discovery module is enabled remotely.
 	args := (&splite.Config{
-		Socket:   sysprobeConfig.GetString("system_probe_config.sysprobe_socket"),
-		LogLevel: sysprobeConfig.GetString("log_level"),
-		LogFile:  sysprobeConfig.GetString("log_file"),
-		PIDFile:  pidFilePath,
+		Socket:     sysprobeConfig.GetString("system_probe_config.sysprobe_socket"),
+		LogLevel:   sysprobeConfig.GetString("log_level"),
+		LogFile:    sysprobeConfig.GetString("log_file"),
+		PIDFile:    pidFilePath,
+		ReexecArgs: append([]string{execPath}, os.Args[1:]...),
 	}).Args()
 
 	return &spLiteExecCmd{
