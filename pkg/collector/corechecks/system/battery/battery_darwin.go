@@ -46,7 +46,7 @@ func getBatteryInfo() (*batteryInfo, error) {
 // convertCBatteryInfo converts a C.BatteryInfo struct to a Go batteryInfo struct
 func convertCBatteryInfo(cInfo C.BatteryInfo) *batteryInfo {
 	info := &batteryInfo{
-		powerState: getPowerStateTags(cInfo.isCharging, cInfo.externalConnected),
+		powerState: getPowerStateTags(cInfo.isCharging, cInfo.externalConnected, cInfo.isCritical),
 	}
 
 	designCapacity := optionalInt(cInfo.designCapacity)
@@ -84,7 +84,7 @@ func convertCBatteryInfo(cInfo C.BatteryInfo) *batteryInfo {
 	return info
 }
 
-func getPowerStateTags(isCharging, externalConnected C.OptionalBool) []string {
+func getPowerStateTags(isCharging, externalConnected, isCritical C.OptionalBool) []string {
 	powerStateTags := []string{}
 
 	chargingOpt := optionalBool(isCharging)
@@ -99,6 +99,14 @@ func getPowerStateTags(isCharging, externalConnected C.OptionalBool) []string {
 	connectedOpt := optionalBool(externalConnected)
 	if connected, ok := connectedOpt.Get(); ok && connected {
 		powerStateTags = append(powerStateTags, "power_state:battery_power_on_line")
+	}
+
+	// On macOS this reflects a degraded battery *health* condition ("Service
+	// Recommended"), as opposed to the critically-low *charge* that the Windows
+	// check reports under the same tag. See battery_darwin.m for details.
+	criticalOpt := optionalBool(isCritical)
+	if critical, ok := criticalOpt.Get(); ok && critical {
+		powerStateTags = append(powerStateTags, "power_state:battery_critical")
 	}
 
 	return powerStateTags
