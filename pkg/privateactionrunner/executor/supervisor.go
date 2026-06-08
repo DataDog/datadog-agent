@@ -12,7 +12,6 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"runtime"
 	"sync"
 	"time"
@@ -32,11 +31,18 @@ type Supervisor struct {
 	confPath       string
 	extraConfFiles []string
 	capacity       int32
-	binaryPath     string
+	command        command
 	client         *http.Client
 
 	mu  sync.Mutex
 	cmd *exec.Cmd
+}
+
+type command struct {
+	path        string
+	baseArgs    []string
+	dir         string
+	description string
 }
 
 // NewSupervisor creates an executor supervisor.
@@ -49,7 +55,7 @@ func NewSupervisor(socketPath, confPath string, extraConfFiles []string, capacit
 		confPath:       confPath,
 		extraConfFiles: append([]string(nil), extraConfFiles...),
 		capacity:       capacity,
-		binaryPath:     defaultExecutorBinaryPath(),
+		command:        defaultExecutorCommand(),
 		client:         newHTTPClient(socketPath, 5*time.Second),
 	}
 }
@@ -58,7 +64,7 @@ func NewSupervisor(socketPath, confPath string, extraConfFiles []string, capacit
 func (s *Supervisor) SetBinaryPath(path string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.binaryPath = path
+	s.command = command{path: path, description: path}
 }
 
 // WaitForCapacity blocks until a running executor has free capacity. If the executor
@@ -148,11 +154,13 @@ func (s *Supervisor) ensureRunning(ctx context.Context) error {
 	for _, extra := range s.extraConfFiles {
 		args = append(args, "--extracfgpath", extra)
 	}
-	cmd := exec.CommandContext(ctx, s.binaryPath, args...)
+	commandArgs := append(append([]string(nil), s.command.baseArgs...), args...)
+	cmd := exec.CommandContext(ctx, s.command.path, commandArgs...)
+	cmd.Dir = s.command.dir
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("start executor %q: %w", s.binaryPath, err)
+		return fmt.Errorf("start executor %q: %w", s.command.description, err)
 	}
 	s.cmd = cmd
 	go func() {
@@ -190,12 +198,16 @@ func (s *Supervisor) isRunning() bool {
 	return s.cmd != nil && s.cmd.Process != nil && s.cmd.ProcessState == nil
 }
 
-func defaultExecutorBinaryPath() string {
+func defaultExecutorCommand() command {
 	exe, err := os.Executable()
-	if err != nil {
-		return executableName("privateactionrunner-executor")
+	if err == nil {
+		return command{path: exe, baseArgs: []string{"executor"}, description: exe + " executor"}
 	}
-	return filepath.Join(filepath.Dir(exe), executableName("privateactionrunner-executor"))
+	return command{
+		path:        executableName("privateactionrunner"),
+		baseArgs:    []string{"executor"},
+		description: executableName("privateactionrunner") + " executor",
+	}
 }
 
 func executableName(name string) string {

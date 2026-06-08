@@ -180,11 +180,9 @@ build do
 
     if windows_target?
       copy 'bin/privateactionrunner/privateactionrunner.exe', "#{install_dir}/bin/agent"
-      copy 'bin/privateactionrunner/privateactionrunner-executor.exe', "#{install_dir}/bin/agent"
       copy 'bin/privateactionrunner/privateactionrunner.exe.pdb', "#{install_dir}/bin/agent"
     elsif not heroku_target?
       copy 'bin/privateactionrunner/privateactionrunner', "#{install_dir}/embedded/bin"
-      copy 'bin/privateactionrunner/privateactionrunner-executor', "#{install_dir}/embedded/bin"
     end
   end
 

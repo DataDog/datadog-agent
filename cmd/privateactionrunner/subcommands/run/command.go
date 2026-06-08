@@ -121,5 +121,23 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		},
 	}
 
-	return []*cobra.Command{runCmd}
+	var socketPath string
+	executorRunCmd := &cobra.Command{
+		Use:   "run",
+		Short: "Run the Private Action Runner executor",
+		RunE: func(_ *cobra.Command, _ []string) error {
+			return RunPrivateActionExecutor(context.Background(), globalParams.ConfFilePath, globalParams.ExtraConfFilePath, socketPath)
+		},
+	}
+	executorRunCmd.Flags().StringVar(&socketPath, "socket", "", "local executor IPC socket or named pipe path")
+	_ = executorRunCmd.MarkFlagRequired("socket")
+
+	executorCmd := &cobra.Command{
+		Use:    "executor",
+		Short:  "Run the internal Private Action Runner executor",
+		Hidden: true,
+	}
+	executorCmd.AddCommand(executorRunCmd)
+
+	return []*cobra.Command{runCmd, executorCmd}
 }
