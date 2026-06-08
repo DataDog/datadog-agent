@@ -30,6 +30,8 @@ var detectorFixedLevel = map[string]int{
 var scoredDetectors = map[string]bool{
 	"holt_residual":  true,
 	"tukey_biweight": true,
+	"scanmw":         true,
+	"scanwelch":      true,
 }
 
 // DefaultScorerConfig returns calibrated defaults (see ANOMALY_SCORING.md §2.8).
@@ -54,6 +56,13 @@ func DefaultScorerConfig() observer.ScorerConfig {
 			// p25≈8, p50≈12, p75≈16, p90≈26, p95≈37 — current defaults [6,12,20,35]
 			// already land well; keep them explicit for documentation clarity.
 			"holt_residual": {6, 12, 20, 35},
+			// scanmw / scanwelch scores are -log10(p-value), floored at 8.0 (the
+			// detector only fires for p < 1e-8). The bulk of anomalies cluster at
+			// 8–10; the tail reaches ~60–100 for extreme outliers.
+			// Calibrated: p25≈8.5, p50≈8.5–9.7, p90≈10–16, p99≈19–35 across
+			// kafka-partition-saturation, postmark, dns-upstream-outage scenarios.
+			"scanmw":    {8, 10, 15, 25},
+			"scanwelch": {8, 10, 15, 25},
 		},
 	}
 }
