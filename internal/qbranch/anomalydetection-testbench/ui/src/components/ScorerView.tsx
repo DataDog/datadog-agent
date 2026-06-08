@@ -128,14 +128,20 @@ function LogAnomalyRow({ anomaly }: { anomaly: LogAnomaly }) {
   );
 }
 
-function EventRow({ window: w, defaultOpen }: { window: EventWindow; defaultOpen?: boolean }) {
-  const [expanded, setExpanded] = useState(defaultOpen ?? false);
+type AnomalyFilter = 'all' | 'metrics' | 'logs';
+
+function EventRow({ window: w, filter }: { window: EventWindow; filter: AnomalyFilter }) {
+  const [expanded, setExpanded] = useState(false);
   const { event, endSec, anomalies, logAnomalies } = w;
   const isUp = event.to_level > event.from_level;
   const duration = endSec - event.timestamp;
-  const totalAnomalies = anomalies.length + logAnomalies.length;
   const fromColor = SEVERITY_LEVEL_COLORS[event.from_level];
   const toColor = SEVERITY_LEVEL_COLORS[event.to_level];
+
+  const visibleMetrics = filter !== 'logs' ? anomalies : [];
+  const visibleLogs = filter !== 'metrics' ? logAnomalies : [];
+  const visibleCount = visibleMetrics.length + visibleLogs.length;
+  const totalCount = anomalies.length + logAnomalies.length;
 
   return (
     <div className="border-b border-slate-700/60 last:border-0">
@@ -166,21 +172,26 @@ function EventRow({ window: w, defaultOpen }: { window: EventWindow; defaultOpen
         <span className="text-[10px] text-slate-500 flex-shrink-0">for {formatDuration(duration)}</span>
 
         {/* Anomaly count */}
-        <span className="ml-auto text-[10px] text-slate-500 flex-shrink-0">
-          {totalAnomalies} anomal{totalAnomalies !== 1 ? 'ies' : 'y'}
+        <span className="ml-auto text-[10px] text-slate-500 flex-shrink-0 tabular-nums">
+          {visibleCount !== totalCount
+            ? `${visibleCount} / ${totalCount}`
+            : totalCount}{' '}
+          anomal{totalCount !== 1 ? 'ies' : 'y'}
         </span>
       </button>
 
       {expanded && (
         <div className="px-4 pb-3 ml-7">
-          {totalAnomalies === 0 ? (
-            <p className="text-xs text-slate-500 italic">No anomalies recorded in this window.</p>
+          {visibleCount === 0 ? (
+            <p className="text-xs text-slate-500 italic">
+              {totalCount === 0 ? 'No anomalies in this window.' : 'No anomalies match the current filter.'}
+            </p>
           ) : (
-            <div className="bg-slate-900/40 rounded p-2 space-y-0">
-              {anomalies.map((a, i) => (
+            <div className="bg-slate-900/40 rounded p-2">
+              {visibleMetrics.map((a, i) => (
                 <AnomalyRow key={`m-${i}`} anomaly={a} />
               ))}
-              {logAnomalies.map((a, i) => (
+              {visibleLogs.map((a, i) => (
                 <LogAnomalyRow key={`l-${i}`} anomaly={a} />
               ))}
             </div>
@@ -202,6 +213,7 @@ interface ScorerViewProps {
 
 export function ScorerView({ state, actions, sidebarWidth, phaseMarkers }: ScorerViewProps) {
   const [scoreState, setScoreState] = useState<ScoreState | null>(null);
+  const [anomalyFilter, setAnomalyFilter] = useState<AnomalyFilter>('all');
 
   const handleScoreState = useCallback((ss: ScoreState) => {
     setScoreState(ss);
@@ -303,9 +315,24 @@ export function ScorerView({ state, actions, sidebarWidth, phaseMarkers }: Score
                   {scoreState && (
                     <span className="text-xs text-slate-500">
                       · {scoreState.events.length} transition{scoreState.events.length !== 1 ? 's' : ''}
-                      · click row to expand anomalies
+                      · click to expand
                     </span>
                   )}
+                  <div className="ml-auto flex gap-1">
+                    {(['all', 'metrics', 'logs'] as const).map((f) => (
+                      <button
+                        key={f}
+                        onClick={() => setAnomalyFilter(f)}
+                        className={`px-2 py-0.5 rounded text-[10px] font-medium transition-colors ${
+                          anomalyFilter === f
+                            ? 'bg-purple-600 text-white'
+                            : 'text-slate-400 hover:bg-slate-700'
+                        }`}
+                      >
+                        {f === 'all' ? 'All' : f === 'metrics' ? 'Metrics' : 'Logs'}
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
                 {!scoreState || scoreState.events.length === 0 ? (
@@ -317,7 +344,7 @@ export function ScorerView({ state, actions, sidebarWidth, phaseMarkers }: Score
                 ) : (
                   <div>
                     {eventWindows.map((w, i) => (
-                      <EventRow key={i} window={w} />
+                      <EventRow key={i} window={w} filter={anomalyFilter} />
                     ))}
                   </div>
                 )}
