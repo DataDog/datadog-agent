@@ -183,31 +183,32 @@ pub fn last_signal(_status: &std::process::ExitStatus) -> Option<i32> {
     None
 }
 
-/// Root directory for agent program data on Windows.
-///
-/// Mirrors `pkg/util/winutil.GetProgramDataDir` in Go: read
-/// `HKLM\SOFTWARE\Datadog\Datadog Agent\ConfigRoot`, else `%ProgramData%\Datadog`.
-pub fn program_data_root() -> PathBuf {
-    program_data_root_from_registry().unwrap_or_else(default_program_data_dir)
-}
-
-fn program_data_root_from_registry() -> Option<PathBuf> {
+fn open_datadog_agent_key() -> Option<windows_registry::Key> {
     use windows_registry::LOCAL_MACHINE;
     use windows_sys::Win32::System::Registry::KEY_WOW64_64KEY;
 
-    let key = LOCAL_MACHINE
+    LOCAL_MACHINE
         .options()
         .read()
         .access(KEY_WOW64_64KEY)
         .open(r"SOFTWARE\Datadog\Datadog Agent")
-        .ok()?;
+        .ok()
+}
 
-    let value: String = key.get_string("ConfigRoot").ok()?;
-    if value.is_empty() {
-        None
-    } else {
-        Some(PathBuf::from(value))
-    }
+fn registry_nonempty_string(key: &windows_registry::Key, name: &str) -> Option<String> {
+    let value: String = key.get_string(name).ok()?;
+    if value.is_empty() { None } else { Some(value) }
+}
+
+/// Root directory for agent program data on Windows (logs, etc.).
+///
+/// Mirrors `pkg/util/winutil.GetProgramDataDir` in Go:
+/// `HKLM\SOFTWARE\Datadog\Datadog Agent\ConfigRoot`, else `%ProgramData%\Datadog`.
+pub fn program_data_root() -> PathBuf {
+    open_datadog_agent_key()
+        .and_then(|k| registry_nonempty_string(&k, "ConfigRoot"))
+        .map(PathBuf::from)
+        .unwrap_or_else(default_program_data_dir)
 }
 
 fn default_program_data_dir() -> PathBuf {
@@ -215,8 +216,30 @@ fn default_program_data_dir() -> PathBuf {
     PathBuf::from(base).join("Datadog")
 }
 
+fn install_root_from_registry() -> Option<PathBuf> {
+    open_datadog_agent_key()
+        .and_then(|k| registry_nonempty_string(&k, "InstallPath"))
+        .map(PathBuf::from)
+}
+
+fn default_install_root() -> PathBuf {
+    let program_files =
+        std::env::var("ProgramFiles").unwrap_or_else(|_| r"C:\Program Files".to_string());
+    PathBuf::from(program_files)
+        .join("Datadog")
+        .join("Datadog Agent")
+}
+
+fn install_root() -> PathBuf {
+    install_root_from_registry().unwrap_or_else(default_install_root)
+}
+
+/// Default directory for process-manager YAML (`*.yaml`), same layout as Linux
+/// (`/opt/datadog-agent/processes.d`) and omnibus. Resolves the install root like
+/// `pkg/util/winutil.GetProgramFilesDirForProduct` in Go (`InstallPath` registry value,
+/// else `%ProgramFiles%\Datadog\Datadog Agent`), then appends `processes.d`.
 pub fn default_config_dir() -> PathBuf {
-    program_data_root().join("dd-procmgr").join("processes.d")
+    install_root().join("processes.d")
 }
 
 /// Wait for a shutdown trigger: either Ctrl+C (console mode) or an SCM
