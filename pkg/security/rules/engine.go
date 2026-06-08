@@ -581,8 +581,6 @@ func (e *RuleEngine) RuleMatch(ctx *eval.Context, rule *rules.Rule, event eval.E
 	}
 
 	// best-effort: re-resolve the matched process's argv/envp from /proc
-	// before HandleActions so kill actions don't race the reaper on
-	// /proc/<pid>. Silent rules don't ship the event, so skip the work.
 	if !rule.Def.Silent {
 		e.probe.EnrichRuleEvent(ev)
 	}
