@@ -76,14 +76,15 @@ type engine struct {
 	correlationMu           sync.RWMutex
 
 	// Reporter dedup state — protected by correlationMu.
-	// seenCorrelations tracks which patterns have been offered to reporters.
-	// activeBefore records which patterns were in the active sliding window on
-	// the previous advance. Together they implement the delta in newCorrelations:
-	// a pattern is "new" the first time it appears; the activeBefore cleanup
-	// re-arms a pattern for re-emission after it goes inactive so a genuine
-	// recurrence can fire again.
-	seenCorrelations map[string]bool // pattern → seen by reporters
-	activeBefore     map[string]bool // patterns active on the previous advance
+	// seenCorrelations records the LastUpdated timestamp at the time each
+	// pattern was last offered to reporters. activeBefore records which
+	// patterns were in the active sliding window on the previous advance.
+	// Together they implement the delta computation in newCorrelations:
+	// a pattern is "new" the first time it appears or when its LastUpdated
+	// changes; the activeBefore cleanup re-arms a pattern for re-emission
+	// after it goes inactive so a genuine same-timestamp recurrence can fire.
+	seenCorrelations map[string]int64 // pattern → LastUpdated at last emission
+	activeBefore     map[string]bool  // patterns active on the previous advance
 
 	// onProcessingTime is an optional callback for reporting per-component
 	// processing time directly (gauge.Set) instead of constructing ObserverTelemetry
@@ -580,12 +581,8 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []obse
 
 	// Accumulate correlations before advancing — captures clusters formed from
 	// historical-timestamp anomalies before Advance(upTo) evicts them.
-	// Collect all active correlations in one pass so newCorrelations() can
-	// compute the per-advance reporter delta after all correlators have run.
-	var allActive []observerdef.ActiveCorrelation
 	for _, correlator := range correlators {
 		active := correlator.ActiveCorrelations()
-		allActive = append(allActive, active...)
 		e.accumulateCorrelations(active)
 		advanceStart := time.Now()
 		correlator.Advance(upTo)
@@ -601,10 +598,19 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []obse
 		})
 	}
 
+	// Collect the post-Advance active set for the activeBefore recurrence
+	// cleanup inside newCorrelations. Using pre-Advance activity would keep
+	// evicted patterns "armed" for one extra cycle and suppress a legitimate
+	// same-LastUpdated recurrence that immediately follows an eviction.
+	var postActive []observerdef.ActiveCorrelation
+	for _, correlator := range correlators {
+		postActive = append(postActive, correlator.ActiveCorrelations()...)
+	}
+
 	return advanceResult{
 		anomalies:         allAnomalies,
 		telemetry:         allTelemetry,
-		newCorrelations:   e.newCorrelations(allActive),
+		newCorrelations:   e.newCorrelations(postActive),
 		totalCorrelations: e.accumulatedCorrelationCount(),
 	}
 }
@@ -762,12 +768,13 @@ func (e *engine) accumulateCorrelations(active []observerdef.ActiveCorrelation) 
 }
 
 // newCorrelations computes the reporter delta for one advance cycle.
-// It returns accumulated correlations that reporters have not yet seen.
+// It returns the subset of accumulatedCorrelations that reporters have not yet
+// seen (new patterns) or that have genuinely recurred (different LastUpdated).
 //
 // active is the full set of currently-active correlations from all correlators,
 // used exclusively for the activeBefore recurrence cleanup: when a pattern
 // leaves the active window its seenCorrelations entry is deleted so that a
-// genuine recurrence can re-fire in a future cycle.
+// genuine same-timestamp recurrence can re-fire in a future cycle.
 //
 // Must be called after accumulateCorrelations for the current cycle.
 // Acquires correlationMu for the duration.
@@ -776,7 +783,7 @@ func (e *engine) newCorrelations(active []observerdef.ActiveCorrelation) []obser
 	defer e.correlationMu.Unlock()
 
 	if e.seenCorrelations == nil {
-		e.seenCorrelations = make(map[string]bool)
+		e.seenCorrelations = make(map[string]int64)
 	}
 	if e.activeBefore == nil {
 		e.activeBefore = make(map[string]bool)
@@ -787,12 +794,13 @@ func (e *engine) newCorrelations(active []observerdef.ActiveCorrelation) []obser
 		currentlyActive[ac.Pattern] = true
 	}
 
-	// Emit from accumulated history: patterns not yet seen by reporters.
+	// Emit from accumulated history: new patterns or patterns whose LastUpdated
+	// timestamp changed (genuine recurrence with a different contributing signal).
 	var result []observerdef.ActiveCorrelation
 	for _, ac := range e.accumulatedCorrelations {
-		if !e.seenCorrelations[ac.Pattern] {
+		if last, ok := e.seenCorrelations[ac.Pattern]; !ok || last != ac.LastUpdated {
 			result = append(result, ac)
-			e.seenCorrelations[ac.Pattern] = true
+			e.seenCorrelations[ac.Pattern] = ac.LastUpdated
 		}
 	}
 

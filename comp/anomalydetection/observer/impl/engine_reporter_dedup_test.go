@@ -73,6 +73,56 @@ func TestNewCorrelations_SilentOnSameTimestamp(t *testing.T) {
 		"same-timestamp pattern must not fire a second time")
 }
 
+// TestNewCorrelations_GenuineRecurrenceWithNewTimestamp verifies that after a
+// pattern goes inactive and re-fires spuriously, a genuine recurrence with a
+// different LastUpdated is still detected.
+func TestNewCorrelations_GenuineRecurrenceWithNewTimestamp(t *testing.T) {
+	e := makeEngineForDedup()
+	inject(e, ac("A", 100))
+
+	// Cycle 1: A active — fires.
+	e.newCorrelations([]observerdef.ActiveCorrelation{ac("A", 100)})
+
+	e.newCorrelations(nil) // A goes inactive
+	e.newCorrelations(nil) // spurious fire (seenCorrelations["A"] was deleted by cleanup)
+
+	// Now A genuinely recurs with a new LastUpdated.
+	inject(e, ac("A", 200))
+	result := e.newCorrelations([]observerdef.ActiveCorrelation{ac("A", 200)})
+
+	assert.Contains(t, patternNames(result), "A",
+		"genuine recurrence (new LastUpdated) must fire even after inactive+spurious-fire period")
+}
+
+// TestNewCorrelations_FiresWhenLastUpdatedAdvancesWhileActive verifies that a
+// pattern which remains continuously active but receives a new contributing
+// signal (LastUpdated changes) fires again without ever going inactive.
+func TestNewCorrelations_FiresWhenLastUpdatedAdvancesWhileActive(t *testing.T) {
+	e := makeEngineForDedup()
+	inject(e, ac("A", 100))
+	active := []observerdef.ActiveCorrelation{ac("A", 100)}
+
+	e.newCorrelations(active) // first fire, seenCorrelations["A"] = 100
+
+	result := e.newCorrelations(active) // same LastUpdated — silent
+	assert.NotContains(t, patternNames(result), "A")
+
+	// A new anomaly joins the cluster: accumulatedCorrelations["A"].LastUpdated advances.
+	inject(e, ac("A", 200))
+	active = []observerdef.ActiveCorrelation{ac("A", 200)}
+
+	result = e.newCorrelations(active)
+	assert.Contains(t, patternNames(result), "A",
+		"updated LastUpdated while still active must trigger a new emission")
+	assert.Equal(t, int64(200), e.seenCorrelations["A"],
+		"seenCorrelations must record the new timestamp")
+
+	// Confirm stable on the very next cycle with the same timestamp.
+	result = e.newCorrelations(active)
+	assert.NotContains(t, patternNames(result), "A",
+		"must be silent again after the new timestamp is recorded")
+}
+
 // TestNewCorrelations_StableAfterSpuriousFire verifies that once the spurious
 // fire stores LastUpdated=100, further inactive cycles with the same timestamp
 // are silent.
@@ -118,6 +168,14 @@ func TestNewCorrelations_IndependentPatterns(t *testing.T) {
 	for _, p := range patternNames(result) {
 		assert.NotEqual(t, "B", p, "B must never re-fire with same timestamp")
 	}
+
+	// A genuinely recurs with a new timestamp while B stays unchanged.
+	inject(e, ac("A", 200))
+	result = e.newCorrelations([]observerdef.ActiveCorrelation{ac("A", 200), ac("B", 100)})
+	assert.Contains(t, patternNames(result), "A",
+		"only A should fire on genuine recurrence")
+	assert.NotContains(t, patternNames(result), "B",
+		"B must not re-fire (same timestamp)")
 }
 
 // TestNewCorrelations_FullResetClearsDedup verifies that resetFull clears
