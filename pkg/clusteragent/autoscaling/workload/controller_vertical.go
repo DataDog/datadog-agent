@@ -10,6 +10,7 @@ package workload
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -43,6 +44,11 @@ const (
 	minDelayBetweenRollouts = 10 * time.Minute
 	// inplaceResizeRequeueDelay is the delay between in-place resize progress checks
 	inplaceResizeRequeueDelay = 30 * time.Second
+
+	// disruptionToleranceFraction is the max fraction of a workload's replicas the controller will
+	// restart at once for a disruptive in-place resize. The pods/resize subresource bypasses PDB
+	// enforcement, so we throttle ourselves. 0.5 matches VPA's default eviction tolerance.
+	disruptionToleranceFraction = 0.5
 )
 
 // verticalController is responsible for updating targetRef objects with the vertical recommendations
@@ -197,6 +203,7 @@ func (u *verticalController) syncInternal(
 	// below succeed) and reset the eviction counter for this cycle.
 	var toEvictOnPatchFailure []classifiedPod
 	var patchForbidden bool
+	var disruptionDeferred int
 	if needsPatch := podsByResizeStatus[PodResizeStatusNeedsPatch]; len(needsPatch) > 0 {
 		lastAction := autoscalerInternal.VerticalLastAction()
 		if lastAction == nil || lastAction.Version != recommendationID {
@@ -208,7 +215,33 @@ func (u *verticalController) syncInternal(
 			autoscalerInternal.SetEvictedReplicas(0)
 		}
 
+		// Disruptive resizes restart a container and bypass PDB enforcement, so throttle them to the
+		// disruption budget; non-disruptive resizes always patch.
+		recommendation := autoscalerInternal.ScalingValues().Vertical
+		toPatch := make([]classifiedPod, 0, len(needsPatch))
+		var disruptive []classifiedPod
 		for _, cp := range needsPatch {
+			if isDisruptiveResize(cp.pod, recommendation) {
+				disruptive = append(disruptive, cp)
+			} else {
+				toPatch = append(toPatch, cp)
+			}
+		}
+
+		// Not-Ready pods consume budget. Sort by UID so the chosen subset is deterministic.
+		configured := len(pods)
+		if cr := autoscalerInternal.CurrentReplicas(); cr != nil && int(*cr) > configured {
+			configured = int(*cr)
+		}
+		allowed := allowedDisruptions(configured, countNotReadyPods(pods))
+		sort.Slice(disruptive, func(i, j int) bool { return disruptive[i].pod.EntityID.ID < disruptive[j].pod.EntityID.ID })
+		if len(disruptive) > allowed {
+			disruptionDeferred = len(disruptive) - allowed
+			disruptive = disruptive[:allowed]
+		}
+		toPatch = append(toPatch, disruptive...)
+
+		for _, cp := range toPatch {
 			if err := u.patchInPlace(ctx, autoscalerInternal, cp.pod, recommendationID); err != nil {
 				if k8serrors.IsNotFound(err) {
 					// Pod is already gone; the pod watcher hasn't caught up yet. Skip eviction.
@@ -225,6 +258,14 @@ func (u *verticalController) syncInternal(
 				autoscalerInternal.InPlacePatchSuccessInc()
 			}
 		}
+	}
+
+	// Deferred resizes stay in NeedsPatch and retry on the next requeue.
+	if disruptionDeferred > 0 {
+		autoscalerInternal.InPlaceDisruptionThrottledAdd(uint(disruptionDeferred))
+		u.eventRecorder.Eventf(podAutoscaler, corev1.EventTypeNormal, model.DisruptionBudgetThrottledEventReason,
+			"Deferred %d disruptive in-place resize(s) to respect the disruption budget for autoscaler %s/%s",
+			disruptionDeferred, podAutoscaler.Namespace, podAutoscaler.Name)
 	}
 
 	// Build the list of pods to evict: pods with unresolvable conditions, plus any

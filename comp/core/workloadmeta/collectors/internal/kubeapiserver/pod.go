@@ -73,8 +73,9 @@ type MinimalPodSpec struct {
 
 // MinimalContainer contains only the container fields we need
 type MinimalContainer struct {
-	Name      string                      `json:"name"`
-	Resources corev1.ResourceRequirements `json:"resources,omitempty"`
+	Name         string                         `json:"name"`
+	Resources    corev1.ResourceRequirements    `json:"resources,omitempty"`
+	ResizePolicy []corev1.ContainerResizePolicy `json:"resizePolicy,omitempty"`
 }
 
 // MinimalVolume contains only the volume fields we need
@@ -134,6 +135,11 @@ func (p *MinimalPod) DeepCopyObject() runtime.Object {
 				for j := range resIn.Claims {
 					resIn.Claims[j].DeepCopyInto(&resOut.Claims[j])
 				}
+			}
+
+			if p.Spec.Containers[i].ResizePolicy != nil {
+				out.Spec.Containers[i].ResizePolicy = make([]corev1.ContainerResizePolicy, len(p.Spec.Containers[i].ResizePolicy))
+				copy(out.Spec.Containers[i].ResizePolicy, p.Spec.Containers[i].ResizePolicy)
 			}
 		}
 	}
@@ -319,6 +325,7 @@ func (p minimalPodParser) Parse(obj interface{}) workloadmeta.Entity {
 		if memoryLimit, found := container.Resources.Limits[corev1.ResourceMemory]; found {
 			c.Resources.MemoryLimit = kubeutil.FormatMemoryRequests(memoryLimit)
 		}
+		c.ResizePolicy = kubernetesresourceparsers.ResizePolicyFromContainerResizePolicy(container.ResizePolicy)
 		containersList = append(containersList, c)
 	}
 
