@@ -11,7 +11,7 @@ deploy_windows_testing-a7:
   tags: ["arch:amd64", "specific:true"]
   retry: 2
   needs:
-    ["lint_windows-x64", "windows_msi_and_bosh_zip_x64-a7"]
+    ["windows_msi_and_bosh_zip_x64-a7"]
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR/pipeline-$CI_PIPELINE_ID
   script:
