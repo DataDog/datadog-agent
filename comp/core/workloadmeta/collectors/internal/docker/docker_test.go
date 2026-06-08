@@ -108,7 +108,7 @@ func Test_LayersFromDockerHistoryAndInspect(t *testing.T) {
 			},
 			expected: []workloadmeta.ContainerImageLayer{
 				{
-					Digest:    layerID,
+					DiffID:    layerID,
 					SizeBytes: nonEmptySize,
 					History: &v1.History{
 						Created:    &baseTime,
@@ -133,7 +133,7 @@ func Test_LayersFromDockerHistoryAndInspect(t *testing.T) {
 			},
 			expected: []workloadmeta.ContainerImageLayer{
 				{
-					Digest:    layerID,
+					DiffID:    layerID,
 					SizeBytes: emptySize,
 					History: &v1.History{
 						Created:    &baseTime,
@@ -192,7 +192,7 @@ func Test_LayersFromDockerHistoryAndInspect(t *testing.T) {
 			},
 			expected: []workloadmeta.ContainerImageLayer{
 				{
-					Digest:    "1",
+					DiffID:    "1",
 					SizeBytes: emptySize,
 					History: &v1.History{
 						Created:    &baseTime,
@@ -208,7 +208,7 @@ func Test_LayersFromDockerHistoryAndInspect(t *testing.T) {
 					},
 				},
 				{
-					Digest:    "2",
+					DiffID:    "2",
 					SizeBytes: nonEmptySize,
 					History: &v1.History{
 						Created:    &baseTime,
@@ -240,7 +240,7 @@ func Test_LayersFromDockerHistoryAndInspect(t *testing.T) {
 			},
 			expected: []workloadmeta.ContainerImageLayer{
 				{
-					Digest:    "",
+					DiffID:    "",
 					SizeBytes: nonEmptySize,
 					History: &v1.History{
 						Created:    &baseTime,
@@ -249,7 +249,7 @@ func Test_LayersFromDockerHistoryAndInspect(t *testing.T) {
 					},
 				},
 				{
-					Digest:    "abc",
+					DiffID:    "abc",
 					SizeBytes: nonEmptySize,
 					History: &v1.History{
 						Created:    &baseTime,

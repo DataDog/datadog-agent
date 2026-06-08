@@ -1995,15 +1995,44 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "dns.response.cnames":
+		return &eval.StringArrayEvaluator{
+			OpOverrides: []*eval.OpOverrides{eval.CaseInsensitiveCmp},
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.DNS.HasResponse() {
+					return []string{}
+				}
+				return ev.DNS.Response.CNames
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "dns.response.code":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				if !ev.DNS.HasResponse() {
-					return 0
+					return -1
 				}
 				return int(ev.DNS.Response.ResponseCode)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "dns.response.ips":
+		return &eval.CIDRArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []net.IPNet {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.DNS.HasResponse() {
+					return []net.IPNet{}
+				}
+				return ev.DNS.Response.IPs
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -37357,7 +37386,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"dns.question.name.length",
 		"dns.question.name.root_domain",
 		"dns.question.type",
+		"dns.response.cnames",
 		"dns.response.code",
+		"dns.response.ips",
 		"event.async",
 		"event.hostname",
 		"event.origin",
@@ -39856,8 +39887,12 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "dns", reflect.String, "string", false, nil
 	case "dns.question.type":
 		return "dns", reflect.Int, "int", false, nil
+	case "dns.response.cnames":
+		return "dns", reflect.String, "string", true, nil
 	case "dns.response.code":
 		return "dns", reflect.Int, "int", false, nil
+	case "dns.response.ips":
+		return "dns", reflect.Struct, "net.IPNet", true, nil
 	case "event.async":
 		return "", reflect.Bool, "bool", false, nil
 	case "event.hostname":
@@ -44522,11 +44557,29 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return &eval.ErrFieldReadOnly{Field: "dns.question.name.root_domain"}
 	case "dns.question.type":
 		return ev.setUint16FieldValue("dns.question.type", &ev.DNS.Question.Type, value)
+	case "dns.response.cnames":
+		if ev.DNS.Response == nil {
+			ev.DNS.Response = &DNSResponse{}
+		}
+		return ev.setStringArrayFieldValue("dns.response.cnames", &ev.DNS.Response.CNames, value)
 	case "dns.response.code":
 		if ev.DNS.Response == nil {
 			ev.DNS.Response = &DNSResponse{}
 		}
 		return ev.setUint8FieldValue("dns.response.code", &ev.DNS.Response.ResponseCode, value)
+	case "dns.response.ips":
+		if ev.DNS.Response == nil {
+			ev.DNS.Response = &DNSResponse{}
+		}
+		switch rv := value.(type) {
+		case net.IPNet:
+			ev.DNS.Response.IPs = append(ev.DNS.Response.IPs, rv)
+		case []net.IPNet:
+			ev.DNS.Response.IPs = append(ev.DNS.Response.IPs, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "dns.response.ips"}
+		}
+		return nil
 	case "event.async":
 		return ev.setBoolFieldValue("event.async", &ev.Async, value)
 	case "event.hostname":

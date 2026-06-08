@@ -1,6 +1,9 @@
 go_sdk = use_extension("@rules_go//go:extensions.bzl", "go_sdk")
-go_sdk.from_file(go_work = "//:go.work")
-use_repo(go_sdk, "go_host_compatible_sdk_label")
+go_sdk.from_file(
+    name = "go_work_sdk",
+    go_work = "//:go.work",
+)
+use_repo(go_sdk, "go_work_sdk")
 # go_sdk.nogo(nogo = "//:nogo")  # TODO(agent-build): assess benefits of the `nogo` static code analyzer
 
 go_deps = use_extension("@gazelle//:extensions.bzl", "go_deps")
@@ -118,7 +121,7 @@ use_repo(
     "com_github_cespare_xxhash_v2",
     "com_github_charlievieth_strcase",
     "com_github_cilium_ebpf",
-    "com_github_clbanning_mxj",
+    "com_github_clbanning_mxj_v2",
     "com_github_cloudflare_cbpfc",
     "com_github_cloudfoundry_community_go_cfclient_v2",
     "com_github_containerd_cgroups_v3",
@@ -136,7 +139,6 @@ use_repo(
     "com_github_data_dog_go_sqlmock",
     "com_github_datadog_agent_payload_v5",
     "com_github_datadog_datadog_agent_comp_otelcol_collector_contrib_impl",
-    "com_github_datadog_datadog_api_client_go",
     "com_github_datadog_datadog_api_client_go_v2",
     "com_github_datadog_datadog_go_v5",
     "com_github_datadog_datadog_operator_api",
@@ -365,7 +367,6 @@ use_repo(
     "com_gitlab_gitlab_org_api_client_go",
     "com_google_cloud_go_compute",
     "com_google_cloud_go_compute_metadata",
-    "in_gopkg_evanphx_json_patch_v4",
     "in_gopkg_ini_v1",
     "in_gopkg_yaml_v3",
     "in_gopkg_zorkian_go_datadog_api_v2",
@@ -486,6 +487,7 @@ use_repo(
     "org_uber_go_dig",
     "org_uber_go_fx",
     "org_uber_go_goleak",
+    "org_uber_go_mock",
     "org_uber_go_multierr",
     "org_uber_go_zap",
     "org_uber_go_zap_exp",
@@ -497,6 +499,13 @@ go_deps.module_override(
     patch_strip = 1,
     patches = ["//bazel/rules/protoc_go_inject_tag:add-outputdir-flag.patch"],
     path = "github.com/favadi/protoc-go-inject-tag",
+)
+
+# Swap msgp's `imports.Process` for `format.Source` (equivalent on msgp's output), removing the need for executing `go`
+go_deps.module_override(
+    patch_strip = 1,
+    patches = ["//bazel/rules/go_msgp:use-go-format.patch"],
+    path = "github.com/tinylib/msgp",
 )
 
 use_repo_rule("//bazel/rules/go_fast:repo.bzl", "go_fast")(name = "go_fast")

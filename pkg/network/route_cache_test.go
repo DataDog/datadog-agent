@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	gomock "github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
+	gomock "go.uber.org/mock/gomock"
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )

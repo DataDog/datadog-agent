@@ -11,11 +11,11 @@ import (
 
 	grpc "github.com/DataDog/datadog-agent/comp/api/grpcserver/def"
 	collector "github.com/DataDog/datadog-agent/comp/collector/collector/def"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
+	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	configstream "github.com/DataDog/datadog-agent/comp/core/configstream/def"
 	configstreamServer "github.com/DataDog/datadog-agent/comp/core/configstream/server"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"

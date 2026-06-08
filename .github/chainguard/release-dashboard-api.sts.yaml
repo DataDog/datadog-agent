@@ -1,0 +1,9 @@
+# Issued to: rapid-agent-delivery/release-dashboard-api on us1 prod
+issuer: https://vault.us1.prod.dog/v1/identity/oidc
+
+# ddtool auth whois --datacenter us1.prod.dog rapid-agent-delivery-release-dashboard-api --format json | jq -r .id
+subject: ccd54910-9533-855e-e357-49e2d692b508
+
+permissions:
+  contents: read
+  pull_requests: read

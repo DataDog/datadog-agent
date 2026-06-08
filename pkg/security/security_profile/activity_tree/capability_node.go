@@ -8,7 +8,10 @@
 // Package activitytree holds activitytree related files
 package activitytree
 
-import "time"
+import (
+	"time"
+	"unsafe"
+)
 
 // CapabilityNode stores capabilities usage information for a process in the activity tree.
 type CapabilityNode struct {
@@ -17,6 +20,11 @@ type CapabilityNode struct {
 
 	Capability uint64 // The capability number
 	Capable    bool   // Whether the process was capable of using the capability
+}
+
+// size approximates this node's heap footprint
+func (cn *CapabilityNode) size() int64 {
+	return int64(unsafe.Sizeof(*cn)) + seenBytes(cn.NodeBase)
 }
 
 // NewCapabilityNode creates a new CapabilityNode

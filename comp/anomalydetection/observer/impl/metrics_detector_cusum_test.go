@@ -15,7 +15,7 @@ import (
 
 func TestCUSUMDetector_Name(t *testing.T) {
 	d := NewCUSUMDetector(DefaultCUSUMConfig())
-	assert.Equal(t, "cusum_detector", d.Name())
+	assert.Equal(t, "cusum", d.Name())
 }
 
 func TestCUSUMDetector_NotEnoughPoints(t *testing.T) {
