@@ -187,7 +187,9 @@ func NewHelmInstallation(e config.Env, args HelmInstallationArgs, opts ...pulumi
 		values = buildLinuxHelmValues(baseName, agentImagePath, agentImageTag, clusterAgentImagePath, clusterAgentImageTag, randomClusterAgentToken.Result, !args.DisableLogsContainerCollectAll, e.TestingWorkloadDeploy(), args.FIPS, true)
 	}
 	values.configureImagePullSecret(imgPullSecret)
-	values.configureFakeintake(e, args.Fakeintake, args.DualShipping)
+	if err := values.configureFakeintake(e, args.Fakeintake, args.DualShipping); err != nil {
+		return nil, err
+	}
 
 	defaultYAMLValues := values.ToYAMLPulumiAssetOutput()
 
@@ -239,7 +241,9 @@ func NewHelmInstallation(e config.Env, args HelmInstallationArgs, opts ...pulumi
 	if args.DeployWindows {
 		values := buildWindowsHelmValues(baseName, agentImagePath, agentImageTag, clusterAgentImagePath, clusterAgentImageTag)
 		values.configureImagePullSecret(imgPullSecret)
-		values.configureFakeintake(e, args.Fakeintake, args.DualShipping)
+		if err := values.configureFakeintake(e, args.Fakeintake, args.DualShipping); err != nil {
+			return nil, err
+		}
 		defaultYAMLValues := values.ToYAMLPulumiAssetOutput()
 
 		var windowsValuesYAML pulumi.AssetOrArchiveArray
@@ -884,14 +888,45 @@ func (values HelmValues) configureImagePullSecret(secret *corev1.Secret) {
 	}
 }
 
-func (values HelmValues) configureFakeintake(e config.Env, fakeintake *fakeintake.Fakeintake, dualShipping bool) {
-	if fakeintake == nil {
-		return
+func (values HelmValues) configureFakeintake(e config.Env, fi *fakeintake.Fakeintake, dualShipping bool) error {
+	if fi == nil {
+		return nil
+	}
+
+	rootJSON, err := fakeintake.RCRootJSON()
+	if err != nil {
+		return fmt.Errorf("fakeintake rc root json: %w", err)
+	}
+
+	// DD_REMOTE_CONFIGURATION_ENABLED is intentionally omitted here: the Helm chart already sets it
+	// based on its own configuration defaults, and adding it again creates a duplicate env var that
+	// breaks Kubernetes strategic merge patch ordering.
+	rcEnvVars := pulumi.StringMapArray{
+		pulumi.StringMap{
+			"name":  pulumi.String("DD_REMOTE_CONFIGURATION_RC_DD_URL"),
+			"value": fi.URL,
+		},
+		pulumi.StringMap{
+			"name":  pulumi.String("DD_REMOTE_CONFIGURATION_NO_TLS"),
+			"value": pulumi.String("true"),
+		},
+		pulumi.StringMap{
+			"name":  pulumi.String("DD_REMOTE_CONFIGURATION_CONFIG_ROOT"),
+			"value": pulumi.String(rootJSON),
+		},
+		pulumi.StringMap{
+			"name":  pulumi.String("DD_REMOTE_CONFIGURATION_DIRECTOR_ROOT"),
+			"value": pulumi.String(rootJSON),
+		},
+		pulumi.StringMap{
+			"name":  pulumi.String("DD_REMOTE_CONFIGURATION_REFRESH_INTERVAL"),
+			"value": pulumi.String("5s"),
+		},
 	}
 
 	var endpointsEnvVar pulumi.StringMapArray
 	if dualShipping {
-		useSSL := fakeintake.Scheme.ApplyT(func(scheme string) bool {
+		useSSL := fi.Scheme.ApplyT(func(scheme string) bool {
 			if scheme != "https" {
 				e.Ctx().Log.Warn("Fakeintake is used in HTTP with dual-shipping, some endpoints will not work", nil)
 			}
@@ -910,19 +945,19 @@ func (values HelmValues) configureFakeintake(e config.Env, fakeintake *fakeintak
 			},
 			pulumi.StringMap{
 				"name":  pulumi.String("DD_ADDITIONAL_ENDPOINTS"),
-				"value": pulumi.Sprintf(`{"%s": ["FAKEAPIKEY"]}`, fakeintake.URL),
+				"value": pulumi.Sprintf(`{"%s": ["FAKEAPIKEY"]}`, fi.URL),
 			},
 			pulumi.StringMap{
 				"name":  pulumi.String("DD_PROCESS_ADDITIONAL_ENDPOINTS"),
-				"value": pulumi.Sprintf(`{"%s": ["FAKEAPIKEY"]}`, fakeintake.URL),
+				"value": pulumi.Sprintf(`{"%s": ["FAKEAPIKEY"]}`, fi.URL),
 			},
 			pulumi.StringMap{
 				"name":  pulumi.String("DD_ORCHESTRATOR_EXPLORER_ORCHESTRATOR_ADDITIONAL_ENDPOINTS"),
-				"value": pulumi.Sprintf(`{"%s": ["FAKEAPIKEY"]}`, fakeintake.URL),
+				"value": pulumi.Sprintf(`{"%s": ["FAKEAPIKEY"]}`, fi.URL),
 			},
 			pulumi.StringMap{
 				"name":  pulumi.String("DD_LOGS_CONFIG_ADDITIONAL_ENDPOINTS"),
-				"value": pulumi.Sprintf(`[{"host": "%s", "port": %v, "use_ssl": %t}]`, fakeintake.Host, fakeintake.Port, useSSL),
+				"value": pulumi.Sprintf(`[{"host": "%s", "port": %v, "use_ssl": %t}]`, fi.Host, fi.Port, useSSL),
 			},
 			pulumi.StringMap{
 				"name":  pulumi.String("DD_LOGS_CONFIG_USE_HTTP"),
@@ -930,38 +965,38 @@ func (values HelmValues) configureFakeintake(e config.Env, fakeintake *fakeintak
 			},
 			pulumi.StringMap{
 				"name":  pulumi.String("DD_CONTAINER_IMAGE_ADDITIONAL_ENDPOINTS"),
-				"value": pulumi.Sprintf(`[{"host": "%s", "use_ssl": %t}]`, fakeintake.Host, useSSL),
+				"value": pulumi.Sprintf(`[{"host": "%s", "use_ssl": %t}]`, fi.Host, useSSL),
 			},
 			pulumi.StringMap{
 				"name":  pulumi.String("DD_CONTAINER_LIFECYCLE_ADDITIONAL_ENDPOINTS"),
-				"value": pulumi.Sprintf(`[{"host": "%s", "use_ssl": %t}]`, fakeintake.Host, useSSL),
+				"value": pulumi.Sprintf(`[{"host": "%s", "use_ssl": %t}]`, fi.Host, useSSL),
 			},
 			pulumi.StringMap{
 				"name":  pulumi.String("DD_SBOM_ADDITIONAL_ENDPOINTS"),
-				"value": pulumi.Sprintf(`[{"host": "%s", "use_ssl": %t}]`, fakeintake.Host, useSSL),
+				"value": pulumi.Sprintf(`[{"host": "%s", "use_ssl": %t}]`, fi.Host, useSSL),
 			},
 		}
 	} else {
 		endpointsEnvVar = pulumi.StringMapArray{
 			pulumi.StringMap{
 				"name":  pulumi.String("DD_DD_URL"),
-				"value": pulumi.Sprintf("%s", fakeintake.URL),
+				"value": pulumi.Sprintf("%s", fi.URL),
 			},
 			pulumi.StringMap{
 				"name":  pulumi.String("DD_PROCESS_CONFIG_PROCESS_DD_URL"),
-				"value": pulumi.Sprintf("%s", fakeintake.URL),
+				"value": pulumi.Sprintf("%s", fi.URL),
 			},
 			pulumi.StringMap{
 				"name":  pulumi.String("DD_APM_DD_URL"),
-				"value": pulumi.Sprintf("%s", fakeintake.URL),
+				"value": pulumi.Sprintf("%s", fi.URL),
 			},
 			pulumi.StringMap{
 				"name":  pulumi.String("DD_LOGS_CONFIG_LOGS_DD_URL"),
-				"value": pulumi.Sprintf("%s", fakeintake.URL),
+				"value": pulumi.Sprintf("%s", fi.URL),
 			},
 			pulumi.StringMap{
 				"name":  pulumi.String("DD_ORCHESTRATOR_EXPLORER_ORCHESTRATOR_DD_URL"),
-				"value": pulumi.Sprintf("%s", fakeintake.URL),
+				"value": pulumi.Sprintf("%s", fi.URL),
 			},
 			pulumi.StringMap{
 				"name":  pulumi.String("DD_SKIP_SSL_VALIDATION"),
@@ -978,15 +1013,17 @@ func (values HelmValues) configureFakeintake(e config.Env, fakeintake *fakeintak
 		}
 	}
 
+	allEnvVars := append(rcEnvVars, endpointsEnvVar...)
+
 	for _, section := range []string{"datadog", "clusterAgent", "clusterChecksRunner"} {
 		if _, ok := values[section].(pulumi.Map); !ok {
 			continue
 		}
 
 		if _, found := values[section].(pulumi.Map)["env"]; !found {
-			values[section].(pulumi.Map)["env"] = endpointsEnvVar
+			values[section].(pulumi.Map)["env"] = allEnvVars
 		} else {
-			values[section].(pulumi.Map)["env"] = append(values[section].(pulumi.Map)["env"].(pulumi.StringMapArray), endpointsEnvVar...)
+			values[section].(pulumi.Map)["env"] = append(values[section].(pulumi.Map)["env"].(pulumi.StringMapArray), allEnvVars...)
 		}
 	}
 
@@ -996,14 +1033,14 @@ func (values HelmValues) configureFakeintake(e config.Env, fakeintake *fakeintak
 				if _, ok := values["clusterAgent"].(pulumi.Map)["admissionController"].(pulumi.Map)["agentSidecarInjection"].(pulumi.Map)["profiles"]; !ok {
 					values["clusterAgent"].(pulumi.Map)["admissionController"].(pulumi.Map)["agentSidecarInjection"].(pulumi.Map)["profiles"] = pulumi.Array{
 						pulumi.Map{
-							"env": endpointsEnvVar,
+							"env": allEnvVars,
 						},
 					}
 				} else {
 					values["clusterAgent"].(pulumi.Map)["admissionController"].(pulumi.Map)["agentSidecarInjection"].(pulumi.Map)["profiles"] =
 						append(values["clusterAgent"].(pulumi.Map)["admissionController"].(pulumi.Map)["agentSidecarInjection"].(pulumi.Map)["profiles"].(pulumi.Array),
 							pulumi.Map{
-								"env": endpointsEnvVar,
+								"env": allEnvVars,
 							},
 						)
 				}
@@ -1031,9 +1068,11 @@ func (values HelmValues) configureFakeintake(e config.Env, fakeintake *fakeintak
 			parEnvDict = pulumi.StringMap{}
 			par["envDict"] = parEnvDict
 		}
-		parEnvDict["DD_DD_URL"] = pulumi.Sprintf("%s", fakeintake.URL)
+		parEnvDict["DD_DD_URL"] = pulumi.Sprintf("%s", fi.URL)
 		parEnvDict["DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION"] = pulumi.String("true")
 	}
+
+	return nil
 }
 
 func (values HelmValues) ToYAMLPulumiAssetOutput() pulumi.AssetOutput {

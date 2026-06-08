@@ -5,6 +5,7 @@
 
 //go:build !windows
 
+// Main package for the dogstatsd binary
 package main
 
 import (

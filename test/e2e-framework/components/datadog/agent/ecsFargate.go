@@ -14,9 +14,14 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/fakeintake"
 )
 
-func ECSFargateLinuxContainerDefinition(e config.Env, image string, apiKeySSMParamName pulumi.StringInput, fakeintake *fakeintake.Fakeintake, logConfig ecs.TaskDefinitionLogConfigurationPtrInput) (*ecs.TaskDefinitionContainerDefinitionArgs, *ecs.TaskDefinitionContainerDefinitionArgs) {
+func ECSFargateLinuxContainerDefinition(e config.Env, image string, apiKeySSMParamName pulumi.StringInput, fi *fakeintake.Fakeintake, logConfig ecs.TaskDefinitionLogConfigurationPtrInput) (*ecs.TaskDefinitionContainerDefinitionArgs, *ecs.TaskDefinitionContainerDefinitionArgs, error) {
 	if image == "" {
 		image = dockerAgentFullImagePath(e, "public.ecr.aws/datadog/agent", "", false, false, false, false)
+	}
+
+	fiEnv, err := ecsFakeintakeAdditionalEndpointsEnv(fi)
+	if err != nil {
+		return nil, nil, err
 	}
 
 	// Init container copies files to a writeable volume
@@ -77,7 +82,7 @@ func ECSFargateLinuxContainerDefinition(e config.Env, image string, apiKeySSMPar
 				Name:  pulumi.StringPtr("DD_PROCESS_CONFIG_PROCESS_COLLECTION_ENABLED"),
 				Value: pulumi.StringPtr("true"),
 			},
-		}, ecsFakeintakeAdditionalEndpointsEnv(fakeintake)...), ecsAgentAdditionalEnvFromConfig(e)...),
+		}, fiEnv...), ecsAgentAdditionalEnvFromConfig(e)...),
 		Secrets: ecs.TaskDefinitionSecretArray{
 			ecs.TaskDefinitionSecretArgs{
 				Name:      pulumi.String("DD_API_KEY"),
@@ -136,15 +141,19 @@ func ECSFargateLinuxContainerDefinition(e config.Env, image string, apiKeySSMPar
 		},
 	}
 
-	return initContainer, agentContainer
+	return initContainer, agentContainer, nil
 }
 
 // ECSFargateWindowsContainerDefinition returns the container definition for the Windows agent running on ECS Fargate.
 // Firelens is not supported. Logs could be collected if sent to cloudwatch using the `awslogs` driver. See:
 // https://docs.aws.amazon.com/AmazonECS/latest/developerguide/tutorial-deploy-fluentbit-on-windows.html
-func ECSFargateWindowsContainerDefinition(e config.Env, image string, apiKeySSMParamName pulumi.StringInput, fakeintake *fakeintake.Fakeintake) *ecs.TaskDefinitionContainerDefinitionArgs {
+func ECSFargateWindowsContainerDefinition(e config.Env, image string, apiKeySSMParamName pulumi.StringInput, fi *fakeintake.Fakeintake) (*ecs.TaskDefinitionContainerDefinitionArgs, error) {
 	if image == "" {
 		image = dockerAgentFullImagePath(e, "public.ecr.aws/datadog/agent", "", false, false, false, true)
+	}
+	fiEnv, err := ecsFakeintakeAdditionalEndpointsEnv(fi)
+	if err != nil {
+		return nil, err
 	}
 	return &ecs.TaskDefinitionContainerDefinitionArgs{
 		Cpu:       pulumi.IntPtr(0),
@@ -160,7 +169,7 @@ func ECSFargateWindowsContainerDefinition(e config.Env, image string, apiKeySSMP
 				Name:  pulumi.StringPtr("DD_CHECKS_TAG_CARDINALITY"),
 				Value: pulumi.StringPtr("high"),
 			},
-		}, ecsFakeintakeAdditionalEndpointsEnv(fakeintake)...),
+		}, fiEnv...),
 		Secrets: ecs.TaskDefinitionSecretArray{
 			ecs.TaskDefinitionSecretArgs{
 				Name:      pulumi.String("DD_API_KEY"),
@@ -178,5 +187,5 @@ func ECSFargateWindowsContainerDefinition(e config.Env, image string, apiKeySSMP
 		PortMappings:     ecs.TaskDefinitionPortMappingArray{},
 		VolumesFrom:      ecs.TaskDefinitionVolumeFromArray{},
 		WorkingDirectory: pulumi.String(`C:\`),
-	}
+	}, nil
 }

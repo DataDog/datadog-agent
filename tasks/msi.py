@@ -502,7 +502,11 @@ def test(ctx, vstudio_root=None, arch="x64", debug=False):
 
     # Generate the config file
     if not ctx.run(
-        f'dda inv -- -e agent.generate-config --build-type="agent-py3" --output-file="{build_outdir}\\datadog.yaml"',
+        'dda inv -- -e schema.template '
+        '--schema=./pkg/config/schema/yaml/core_schema.yaml '
+        '--build-type=agent-py3 '
+        '--os-target=windows '
+        f'--output="{build_outdir}\\datadog.yaml"',
         warn=True,
         env=env,
     ):

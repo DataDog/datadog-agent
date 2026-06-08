@@ -11,6 +11,7 @@ go_library(
     deps = [
         "//test/e2e-framework/common/config",
         "//test/e2e-framework/components",
+        "//test/fakeintake/server/rcstore",
         "@com_github_pulumi_pulumi_docker_sdk_v4//go/docker",
         "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
     ],

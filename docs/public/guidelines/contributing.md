@@ -33,7 +33,7 @@ In order to ease/speed up our review, here are some items you can check/improve 
 - [X] The added code comes with tests.
 - [X] The CI is green, all tests are passing (required or not).
 - [X] All applicable labels are set on the PR (see [PR labels list](#pr-labels)).
-- [X] If applicable, the [config template](https://github.com/DataDog/datadog-agent/blob/main/pkg/config/config_template.yaml) has been updated.
+- [X] If applicable, the [config schema](https://github.com/DataDog/datadog-agent/tree/main/pkg/config/schema/yaml) has been regenerated (`dda inv schema.generate --agent-bin=./bin/agent/agent`).
 ///
 
 /// note

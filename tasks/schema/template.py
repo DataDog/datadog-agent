@@ -3,6 +3,7 @@ Config template generation tasks.
 """
 
 import os
+import sys
 import textwrap
 
 from invoke import task
@@ -147,6 +148,12 @@ build_type_to_section = {
 
 VALID_BUILD_TYPES = list(build_type_to_section.keys())
 VALID_OS_TARGETS = list(default_path.keys())
+
+# Canonical paths to the enriched schema files. Callers (tasks/agent.py,
+# tasks/cluster_agent_helpers.py, tasks/dogstatsd.py) import these so the
+# schema location is defined in exactly one place.
+CORE_SCHEMA_FILE = "./pkg/config/schema/yaml/core_schema.yaml"
+SYSPROBE_SCHEMA_FILE = "./pkg/config/schema/yaml/system-probe_schema.yaml"
 
 # build_types that use the core schema vs the system-probe schema
 _SYSPROBE_BUILD_TYPES = {"system-probe"}
@@ -454,3 +461,40 @@ def template_all(ctx, core_schema, sysprobe_schema, output_dir):
             dest = os.path.join(output_dir, f"{build_type}_{os_target}.yaml")
             generate_template(schema, dest, build_type, os_target)
             print(f"  {dest}")
+
+
+def main(argv):
+    """CLI entry point for `bazel run //tasks/schema:schema_template` and direct
+    `python -m` invocation. Mirrors the `template` invoke task, minus the
+    Context dependency, so it can be called from a Bazel py_binary
+    without going through the full invoke task collection."""
+    if len(argv) != 5:
+        print(
+            f"usage: {argv[0]} <schema.yaml> <build_type> <os_target> <output.yaml>",
+            file=sys.stderr,
+        )
+        return 2
+    _, schema, build_type, os_target, output = argv
+
+    if build_type not in VALID_BUILD_TYPES:
+        print(
+            f"Invalid build_type '{build_type}'. Must be one of: {', '.join(VALID_BUILD_TYPES)}",
+            file=sys.stderr,
+        )
+        return 1
+    if os_target not in VALID_OS_TARGETS:
+        print(
+            f"Invalid os_target '{os_target}'. Must be one of: {', '.join(VALID_OS_TARGETS)}",
+            file=sys.stderr,
+        )
+        return 1
+    if not os.path.isfile(schema):
+        print(f"Schema file not found: {schema}", file=sys.stderr)
+        return 1
+
+    generate_template(schema, output, build_type, os_target)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))
