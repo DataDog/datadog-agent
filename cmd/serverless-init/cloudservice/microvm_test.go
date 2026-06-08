@@ -59,6 +59,9 @@ func TestMicroVMGetTags(t *testing.T) {
 	assert.Equal(t, "my-image", tags["image_name"])
 	assert.Equal(t, MicroVMOrigin, tags["origin"])
 	assert.Equal(t, MicroVMOrigin, tags["_dd.origin"])
+	assert.Equal(t, "lambda_microvm", tags["resource_type"])
+	assert.Equal(t, "aws", tags["resource_provider"])
+	assert.Equal(t, testImageARN, tags["resource_id"])
 	assert.NotContains(t, tags, "microvm_image_arn")
 }
 
@@ -68,6 +71,9 @@ func TestMicroVMGetTagsMissingARN(t *testing.T) {
 	assert.Equal(t, "unknown", tags["region"])
 	assert.Equal(t, "unknown", tags["account_id"])
 	assert.Equal(t, "unknown", tags["image_name"])
+	assert.Equal(t, "unknown", tags["resource_id"])
+	assert.Equal(t, "lambda_microvm", tags["resource_type"])
+	assert.Equal(t, "aws", tags["resource_provider"])
 }
 
 func TestMicroVMGetEnhancedMetricTags(t *testing.T) {
@@ -79,11 +85,30 @@ func TestMicroVMGetEnhancedMetricTags(t *testing.T) {
 	assert.Equal(t, "us-east-1", result.Base["region"])
 	assert.Equal(t, "123456789012", result.Base["account_id"])
 	assert.Equal(t, "my-image", result.Base["image_name"])
+	assert.Equal(t, "lambda_microvm", result.Base["resource_type"])
+	assert.Equal(t, "aws", result.Base["resource_provider"])
+	assert.Equal(t, testImageARN, result.Base["resource_id"])
 	assert.NotContains(t, result.Base, "instance_id", "Base must not carry the high-cardinality instance_id")
 
 	assert.Equal(t, result.Base["region"], result.Usage["region"])
 	assert.Equal(t, result.Base["account_id"], result.Usage["account_id"])
+	assert.Equal(t, result.Base["resource_type"], result.Usage["resource_type"])
+	assert.Equal(t, result.Base["resource_provider"], result.Usage["resource_provider"])
+	assert.Equal(t, result.Base["resource_id"], result.Usage["resource_id"])
 	assert.NotContains(t, result.Usage, "instance_id", "instance_id is absent until SetInstanceID is called from /launch")
+}
+
+func TestMicroVMGetEnhancedMetricTagsMissingARN(t *testing.T) {
+	m := &MicroVM{}
+	cloudTags := m.GetTags() // ARN not set → all "unknown"
+	result := m.GetEnhancedMetricTags(cloudTags)
+
+	assert.Equal(t, "unknown", result.Base["region"])
+	assert.Equal(t, "unknown", result.Base["account_id"])
+	assert.Equal(t, "unknown", result.Base["resource_id"])
+	assert.Equal(t, "lambda_microvm", result.Base["resource_type"])
+	assert.Equal(t, "aws", result.Base["resource_provider"])
+	assert.Equal(t, result.Base["resource_id"], result.Usage["resource_id"])
 }
 
 func TestParseMicroVMARNWithColonInName(t *testing.T) {
@@ -98,7 +123,7 @@ func TestMicroVMOrigin(t *testing.T) {
 }
 
 func TestMicroVMMetricPrefix(t *testing.T) {
-	assert.Equal(t, microVMPrefix, (&MicroVM{}).GetMetricPrefix())
+	assert.Equal(t, MicroVMPrefix, (&MicroVM{}).GetMetricPrefix())
 }
 
 // TestLifecycleContext_NilLogsTagSetter_IsAccepted verifies that

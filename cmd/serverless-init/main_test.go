@@ -185,7 +185,6 @@ func TestBaseTraceTagsComputedFromTagConfigTags(t *testing.T) {
 	assert.NotEmpty(t, baseTraceTags)
 }
 
-
 // TestSetupOtlpAgentNoPanic ensures setupOtlpAgent does not panic when OTLP is enabled.
 func TestSetupOtlpAgentNoPanic(t *testing.T) {
 	t.Setenv("DD_OTLP_CONFIG_LOGS_ENABLED", "true")

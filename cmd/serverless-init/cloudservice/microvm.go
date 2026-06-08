@@ -20,28 +20,34 @@ import (
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 )
 
-// MicroVMOrigin origin tag value
-const MicroVMOrigin = "lambda-microvm"
-
-// MicroVMImageARNEnvVar re-exports the env var name for use by callers in this package tree.
-const MicroVMImageARNEnvVar = serverlessenv.MicroVMImageARNEnvVar
-
 const (
-	microVMPrefix = "aws.lambda.microvm."
+	// MicroVM's resource_type tag value. Its naming convention follows
+	// https://datadoghq.atlassian.net/wiki/spaces/SLS/pages/4784095253/How+we+bill+for+Azure+Google+Serverless
+	MicroVMResourceType = "lambdamicrovm"
 
-	microVMUsageMetricSuffix = "instance"
+	// MicroVMOrigin origin tag value
+	MicroVMOrigin = MicroVMResourceType
+
+	// MicroVM resource_provider tag value
+	MicroVMResourceProvider = "aws"
+
+	// Microvm metric prefix
+	MicroVMPrefix = "aws.lambda.microvm."
+
+	// MicroVm usage metric name suffix
+	MicroVMUsageMetricSuffix = "instance"
 )
 
 // LifecycleContext carries the telemetry dependencies needed by MicroVM.Init to
 // construct and start the lifecycle hook server. Populated by main.go before
 // calling CloudService.Init; nil (and ignored) for all non-MicroVM services.
 type LifecycleContext struct {
-	MetricFlusher lifecycle.Flusher
-	LogsFlusher   lifecycle.LogsFlusher
-	MetricEmitter lifecycle.MetricEmitter
-	SampleDrainer lifecycle.SampleDrainer
-	FlushTimeout  time.Duration
-	SidecarMode   bool
+	MetricFlusher  lifecycle.Flusher
+	LogsFlusher    lifecycle.LogsFlusher
+	MetricEmitter  lifecycle.MetricEmitter
+	SampleDrainer  lifecycle.SampleDrainer
+	FlushTimeout   time.Duration
+	SidecarMode    bool
 	LogsTagSetter  lifecycle.LogsTagSetter  // nil-safe; applied via server.SetLogsTagSetter after /launch
 	BaseTags       []string                 // startup log tag snapshot passed alongside LogsTagSetter
 	TraceTagSetter lifecycle.TraceTagSetter // nil-safe; applied via server.SetTraceTagSetter after /launch
@@ -58,8 +64,10 @@ type MicroVM struct {
 // GetTags returns MicroVM-specific tags parsed from the image ARN env var.
 func (m *MicroVM) GetTags() map[string]string {
 	tags := map[string]string{
-		"origin":     MicroVMOrigin,
-		"_dd.origin": MicroVMOrigin,
+		"origin":            MicroVMOrigin,
+		"_dd.origin":        MicroVMOrigin,
+		"resource_type":     MicroVMResourceType,
+		"resource_provider": MicroVMResourceProvider,
 	}
 
 	arn := os.Getenv(serverlessenv.MicroVMImageARNEnvVar)
@@ -67,6 +75,7 @@ func (m *MicroVM) GetTags() map[string]string {
 		tags["region"] = "unknown"
 		tags["account_id"] = "unknown"
 		tags["image_name"] = "unknown"
+		tags["resource_id"] = "unknown"
 		return tags
 	}
 
@@ -74,6 +83,7 @@ func (m *MicroVM) GetTags() map[string]string {
 	tags["region"] = region
 	tags["account_id"] = accountID
 	tags["image_name"] = imageName
+	tags["resource_id"] = arn
 
 	return tags
 }
@@ -83,10 +93,13 @@ func (m *MicroVM) GetTags() map[string]string {
 // not known until the /launch lifecycle hook fires.
 func (m *MicroVM) GetEnhancedMetricTags(tags map[string]string) EnhancedMetricTags {
 	baseTags := map[string]string{
-		"account_id": tagValueOrUnknown(tags["account_id"]),
-		"image_name": tagValueOrUnknown(tags["image_name"]),
-		"origin":     tagValueOrUnknown(tags["origin"]),
-		"region":     tagValueOrUnknown(tags["region"]),
+		"account_id":        tagValueOrUnknown(tags["account_id"]),
+		"image_name":        tagValueOrUnknown(tags["image_name"]),
+		"origin":            tagValueOrUnknown(tags["origin"]),
+		"region":            tagValueOrUnknown(tags["region"]),
+		"resource_type":     tagValueOrUnknown(tags["resource_type"]),
+		"resource_provider": tagValueOrUnknown(tags["resource_provider"]),
+		"resource_id":       tagValueOrUnknown(tags["resource_id"]),
 	}
 	return EnhancedMetricTags{Base: baseTags, Usage: maps.Clone(baseTags)}
 }
@@ -95,10 +108,10 @@ func (m *MicroVM) GetEnhancedMetricTags(tags map[string]string) EnhancedMetricTa
 func (m *MicroVM) GetDefaultLogsSource() string { return MicroVMOrigin }
 
 // GetMetricPrefix returns the AWS MicroVM metric prefix.
-func (m *MicroVM) GetMetricPrefix() string { return microVMPrefix }
+func (m *MicroVM) GetMetricPrefix() string { return MicroVMPrefix }
 
 // GetUsageMetricSuffix returns the usage metric suffix.
-func (m *MicroVM) GetUsageMetricSuffix() string { return microVMUsageMetricSuffix }
+func (m *MicroVM) GetUsageMetricSuffix() string { return MicroVMUsageMetricSuffix }
 
 // GetOrigin returns the origin tag value.
 func (m *MicroVM) GetOrigin() string { return MicroVMOrigin }
