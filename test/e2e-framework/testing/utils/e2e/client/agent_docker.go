@@ -12,7 +12,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"
 
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/common"
 )
 
 type agentDockerExecutor struct {
@@ -22,8 +21,8 @@ type agentDockerExecutor struct {
 
 var _ agentCommandExecutor = &agentDockerExecutor{}
 
-func newAgentDockerExecutor(context common.Context, dockerAgentOutput agent.DockerAgentOutput) *agentDockerExecutor {
-	dockerClient, err := NewDocker(context.T(), dockerAgentOutput.DockerManager)
+func newAgentDockerExecutor(context clientContext, dockerAgentOutput agent.DockerAgentOutput) *agentDockerExecutor {
+	dockerClient, err := NewDocker(context, dockerAgentOutput.DockerManager)
 	if err != nil {
 		panic(err)
 	}

@@ -233,12 +233,18 @@ func (bs *BaseSuite[Env]) Env() *Env {
 	return bs.env
 }
 
+// Logf satisfies the common.Context interface by delegating to the underlying *testing.T
+func (bs *BaseSuite[Env]) Logf(format string, args ...any) {
+	bs.T().Helper()
+	bs.T().Logf(format, args...)
+}
+
 // EventuallyWithT is a wrapper around testify.Suite.EventuallyWithT that catches panics to fail test without skipping TeardownSuite
 func (bs *BaseSuite[Env]) EventuallyWithT(condition func(*assert.CollectT), timeout time.Duration, interval time.Duration, msgAndArgs ...interface{}) bool {
 	return bs.Suite.EventuallyWithT(func(c *assert.CollectT) {
 		defer func() {
 			if r := recover(); r != nil {
-				utils.Errorf(bs.T(), "EventuallyWithT, panic: %v", r)
+				bs.T().Errorf("EventuallyWithT, panic: %v", r)
 			}
 		}()
 		condition(c)
@@ -268,7 +274,7 @@ func (bs *BaseSuite[Env]) EventuallyWithTf(condition func(*assert.CollectT), wai
 	return bs.Suite.EventuallyWithTf(func(c *assert.CollectT) {
 		defer func() {
 			if r := recover(); r != nil {
-				utils.Errorf(bs.T(), "EventuallyWithTf, panic: %v", r)
+				bs.T().Errorf("EventuallyWithTf, panic: %v", r)
 			}
 		}()
 		condition(c)

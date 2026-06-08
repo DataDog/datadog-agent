@@ -10,6 +10,7 @@ import "testing"
 // Context defines an interface that allows to get information about current test context
 type Context interface {
 	T() *testing.T
+	Logf(format string, args ...any)
 	SessionOutputDir() string
 }
 

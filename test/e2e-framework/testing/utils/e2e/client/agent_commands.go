@@ -9,7 +9,6 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"testing"
 	"time"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
@@ -17,7 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/optional"
 
 	"github.com/cenkalti/backoff/v5"
-	"github.com/stretchr/testify/require"
 )
 
 type agentCommandExecutor interface {
@@ -28,15 +26,15 @@ type agentCommandExecutor interface {
 // agentCommandRunner is an internal type that provides methods to run Agent commands.
 // It is used by both [VMClient] and [Docker]
 type agentCommandRunner struct {
-	t        *testing.T
+	ctx      clientContext
 	executor agentCommandExecutor
 	isReady  bool
 }
 
 // Create a new instance of agentCommandRunner
-func newAgentCommandRunner(t *testing.T, executor agentCommandExecutor) *agentCommandRunner {
+func newAgentCommandRunner(ctx clientContext, executor agentCommandExecutor) *agentCommandRunner {
 	agent := &agentCommandRunner{
-		t:        t,
+		ctx:      ctx,
 		executor: executor,
 		isReady:  false,
 	}
@@ -45,7 +43,7 @@ func newAgentCommandRunner(t *testing.T, executor agentCommandExecutor) *agentCo
 
 func (agent *agentCommandRunner) executeCommand(command string, commandArgs ...agentclient.AgentArgsOption) string {
 	output, err := agent.executeCommandWithError(command, commandArgs...)
-	require.NoError(agent.t, err)
+	requireNoErr(err)
 	return output
 }
 
@@ -88,8 +86,7 @@ func (agent *agentCommandRunner) Check(commandArgs ...agentclient.AgentArgsOptio
 // Check runs check command and returns the runtime Agent check or an error
 func (agent *agentCommandRunner) CheckWithError(commandArgs ...agentclient.AgentArgsOption) (string, error) {
 	args, err := optional.MakeParams(commandArgs...)
-	require.NoError(agent.t, err)
-
+	requireNoErr(err)
 	arguments := append([]string{"check"}, args.Args...)
 	return agent.executor.execute(arguments)
 }
@@ -102,8 +99,7 @@ func (agent *agentCommandRunner) Config(commandArgs ...agentclient.AgentArgsOpti
 // ConfigWithError runs config command and returns the runtime agent config or an error
 func (agent *agentCommandRunner) ConfigWithError(commandArgs ...agentclient.AgentArgsOption) (string, error) {
 	args, err := optional.MakeParams(commandArgs...)
-	require.NoError(agent.t, err)
-
+	requireNoErr(err)
 	arguments := append([]string{"config"}, args.Args...)
 	return agent.executor.execute(arguments)
 }
@@ -208,7 +204,7 @@ func (agent *agentCommandRunner) WorkloadList() (*agentclient.Status, error) {
 func (agent *agentCommandRunner) waitForReadyTimeout(timeout time.Duration) error {
 	interval := 100 * time.Millisecond
 	maxRetries := timeout.Milliseconds() / interval.Milliseconds()
-	utils.Logf(agent.t, "Waiting for the agent to be ready")
+	utils.Logf(agent.ctx, "Waiting for the agent to be ready")
 	_, err := backoff.Retry(context.Background(), func() (any, error) {
 		_, err := agent.executor.execute([]string{"status"})
 		if err != nil {
