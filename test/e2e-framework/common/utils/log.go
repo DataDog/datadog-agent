@@ -5,14 +5,21 @@
 
 package utils
 
-import "time"
+import (
+	"testing"
+	"time"
+)
 
-type logger interface {
-	Logf(format string, args ...any)
+// Logf logs a message prepended with the current timestamp + test name, along with the given format and args
+func Logf(t *testing.T, format string, args ...any) {
+	t.Helper()
+	args = append([]any{time.Now().Format("02-01-2006 15:04:05"), t.Name()}, args...)
+	t.Logf("%s - %s - "+format, args...)
 }
 
-// Logf logs a message prepended with the current timestamp, along with the given format and args
-func Logf(l logger, format string, args ...any) {
-	args = append([]any{time.Now().Format("02-01-2006 15:04:05")}, args...)
-	l.Logf("%s - "+format, args...)
+// Errorf logs an error message prepended with the current timestamp + test name, along with the given format and args
+func Errorf(t *testing.T, format string, args ...any) {
+	t.Helper()
+	args = append([]any{time.Now().Format("02-01-2006 15:04:05"), t.Name()}, args...)
+	t.Errorf("%s - %s - "+format, args...)
 }
