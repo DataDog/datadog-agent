@@ -16,6 +16,7 @@ go_library(
         "//pkg/collector/check/id",
         "//pkg/collector/checkloader",
         "//pkg/collector/runner/expvars",
+        "@//pkg/collector/runner",
         "@in_yaml_go_yaml_v2//:yaml",
     ],
 )

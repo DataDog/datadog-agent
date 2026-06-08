@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	"github.com/DataDog/datadog-agent/pkg/collector/runner"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
 )
 
@@ -37,16 +38,12 @@ type CheckInstanceLoader interface {
 type ShadowRunner interface {
 	GetChan() chan<- check.Check
 	Stop()
-	StopCheck(checkid.ID) error
 }
 
-// ShadowRunnerFactory creates a runner scoped to shadow check execution.
-type ShadowRunnerFactory func(sender.SenderManager, ScheduledChecks) ShadowRunner
-
-// ScheduledChecks checks whether a check is still scheduled.
-type ScheduledChecks interface {
-	IsCheckScheduled(checkid.ID) bool
-}
+// ShadowRunnerFactory creates one runner scoped to all shadow check execution.
+// The runner must suppress normal integration status emission; shadow checks
+// must not emit datadog.agent.check_status service checks to the backend.
+type ShadowRunnerFactory func(runner.ScheduledChecks) ShadowRunner
 
 // ShadowSchedulerOptions configures the shadow scheduler component.
 type ShadowSchedulerOptions struct {
@@ -74,6 +71,7 @@ type ShadowScheduler struct {
 	mu         sync.Mutex
 	checks     map[shadowKey]*shadowCheckHandle
 	checksByID map[checkid.ID]shadowKey
+	runner     ShadowRunner
 }
 
 // NewShadowScheduler creates an isolated scheduler for lookback shadow checks.
@@ -141,11 +139,19 @@ func (s *ShadowScheduler) Schedule(configs []ShadowConfig) error {
 		}
 		s.checks[key] = handle
 		s.checksByID[config.ShadowCheckID] = key
+		handle.runner = s.getOrCreateRunnerLocked()
 		handle.start()
 		s.mu.Unlock()
 	}
 
 	return firstErr
+}
+
+func (s *ShadowScheduler) getOrCreateRunnerLocked() ShadowRunner {
+	if s.runner == nil {
+		s.runner = s.newRunner(s)
+	}
+	return s.runner
 }
 
 func (s *ShadowScheduler) load(config ShadowConfig) (*shadowCheckHandle, error) {
@@ -176,7 +182,6 @@ func (s *ShadowScheduler) load(config ShadowConfig) (*shadowCheckHandle, error) 
 		stopCh:        make(chan struct{}),
 		stoppedCh:     make(chan struct{}),
 	}
-	handle.runner = s.newRunner(shadowSenderManager, s)
 	return handle, nil
 }
 
@@ -216,12 +221,19 @@ func (s *ShadowScheduler) Stop() error {
 		delete(s.checks, key)
 		delete(s.checksByID, handle.check.ID())
 	}
+	shadowRunner := s.runner
+	s.runner = nil
 	s.mu.Unlock()
 
 	var firstErr error
 	for _, handle := range handles {
 		if err := handle.stop(s.stopTimeout); err != nil && firstErr == nil {
 			firstErr = err
+		}
+	}
+	if shadowRunner != nil {
+		if err := callWithTimeout(shadowRunner.Stop, s.stopTimeout); err != nil && firstErr == nil {
+			firstErr = fmt.Errorf("timeout while stopping shadow runner: %w", err)
 		}
 	}
 	return firstErr
@@ -259,7 +271,6 @@ type shadowCheckHandle struct {
 
 	mu      sync.Mutex
 	started bool
-	stopped bool
 }
 
 func (h *shadowCheckHandle) start() {
@@ -289,7 +300,6 @@ func (h *shadowCheckHandle) stop(timeout time.Duration) error {
 	h.stopOnce.Do(func() {
 		h.mu.Lock()
 		started = h.started
-		h.stopped = true
 		h.mu.Unlock()
 		close(h.stopCh)
 		h.ticker.Stop()
@@ -311,10 +321,6 @@ func (h *shadowCheckHandle) stop(timeout time.Duration) error {
 			firstErr = fmt.Errorf("timeout while waiting for shadow check %s loop to stop: %w", h.check.ID(), err)
 		}
 	}
-	if err := callWithTimeout(h.runner.Stop, timeout); err != nil && firstErr == nil {
-		firstErr = fmt.Errorf("timeout while stopping shadow runner for check %s: %w", h.check.ID(), err)
-	}
-
 	h.senderManager.DestroySender(h.check.ID())
 	// Shadow runs reuse the runner expvar stats source under the :shadow ID.
 	// Remove those stats on unschedule/stop so status does not show stale
@@ -323,12 +329,6 @@ func (h *shadowCheckHandle) stop(timeout time.Duration) error {
 		expvars.RemoveCheckStats(h.check.ID())
 	}
 	return firstErr
-}
-
-func (h *shadowCheckHandle) isStopped() bool {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	return h.stopped
 }
 
 func callWithTimeout(fn func(), timeout time.Duration) error {

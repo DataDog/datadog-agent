@@ -84,6 +84,39 @@ func TestShadowSchedulerDoesNotRescheduleExistingShadowCheck(t *testing.T) {
 	assert.Len(t, tickers.Tickers(), 1)
 }
 
+func TestShadowSchedulerSharesOneRunnerAcrossShadowChecks(t *testing.T) {
+	first := newTestShadowConfig()
+	second := newTestShadowConfig()
+	second.InstanceIndex = 1
+	second.Instance = integration.Data("name: second\n")
+	second.SourceCheckID = checkid.ID("cpu:second")
+	second.ShadowCheckID = checkid.ID("cpu:second:shadow")
+
+	loader := &sequencedShadowLoader{checks: []*testShadowCheck{
+		newTestShadowCheck(first.SourceCheckID),
+		newTestShadowCheck(second.SourceCheckID),
+	}}
+	tickers := &manualTickerFactory{}
+	newRunner := newTestShadowRunnerFactory(t)
+	runnerCalls := 0
+	scheduler := NewShadowScheduler(ShadowSchedulerOptions{
+		Loader:           loader,
+		NewSenderManager: func(context.Context) aggregatorsender.SenderManager { return &recordingSenderManager{} },
+		NewRunner: func(scheduled runner.ScheduledChecks) ShadowRunner {
+			runnerCalls++
+			return newRunner(scheduled)
+		},
+		Interval:    time.Second,
+		StopTimeout: time.Second,
+		NewTicker:   tickers.NewTicker,
+	})
+	t.Cleanup(func() { assert.NoError(t, scheduler.Stop()) })
+
+	require.NoError(t, scheduler.Schedule([]ShadowConfig{first, second}))
+
+	assert.Equal(t, 1, runnerCalls)
+}
+
 func TestShadowSchedulerConcurrentScheduleKeepsOneShadowCheck(t *testing.T) {
 	sourceConfig := newTestShadowConfig()
 	loader := &blockingShadowLoader{
@@ -734,9 +767,9 @@ func newTestShadowRunnerFactory(t *testing.T) ShadowRunnerFactory {
 	mockConfig.SetWithoutSource("check_runners", 1)
 	mockConfig.SetWithoutSource("hostname", "myhost")
 
-	return func(senderManager aggregatorsender.SenderManager, scheduled ScheduledChecks) ShadowRunner {
+	return func(scheduled runner.ScheduledChecks) ShadowRunner {
 		r := runner.NewRunnerWithOptions(
-			senderManager,
+			&recordingSenderManager{},
 			haagentmock.NewMockHaAgent(),
 			healthplatformmock.Mock(t),
 			runner.Options{
