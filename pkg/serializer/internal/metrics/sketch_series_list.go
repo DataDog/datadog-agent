@@ -185,6 +185,8 @@ func (pb *payloadsBuilder) startPayload() error {
 func (pb *payloadsBuilder) writeSketch(ss *metrics.SketchSeries) error {
 	if len(ss.Points) > 0 {
 		if _, ok := ss.Points[0].Sketch.(metrics.DDSketchProvider); !ok {
+			// TODO(OTAGENT-1079): Implement native OTel histogram encoding with sketchFlags once AMP team delivers Stage 3.
+			pb.logger.Warnf("Native OTel histograms are not yet serialized in the sketch payload path and will be dropped (metric: %s)", ss.Name)
 			return nil
 		}
 	}

@@ -77,7 +77,15 @@ func TestNewLogsExporter(t *testing.T) {
 	assert.Error(t, err)
 }
 
+// TestNativeHistogramFeatureGateWiring verifies that when the NativeOTelHistograms feature gate
+// is enabled AND wired into the factory, delta explicit-bound histograms flow through SendSketch
+// as ExplicitBoundProvider instead of being converted to DDSketches.
+//
+// TODO(OTAGENT-1079): Un-skip once v3 serialization is implemented and the gate is re-enabled
+// in newFactoryForAgentWithType.
 func TestNativeHistogramFeatureGateWiring(t *testing.T) {
+	t.Skip("OTAGENT-1079: NativeHistogramFeatureGate is temporarily disabled to prevent silent data loss until v3 serialization is implemented")
+
 	require.NoError(t, featuregate.GlobalRegistry().Set(NativeHistogramFeatureGate.ID(), true))
 	t.Cleanup(func() {
 		require.NoError(t, featuregate.GlobalRegistry().Set(NativeHistogramFeatureGate.ID(), false))

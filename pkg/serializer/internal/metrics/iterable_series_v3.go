@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer/internal/stream"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/compression/selector"
+	log "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
@@ -495,7 +496,8 @@ func (pb *payloadsBuilderV3) writeSerieToTxn(serie *metrics.Serie) {
 func (pb *payloadsBuilderV3) writeSketch(sketch *metrics.SketchSeries) error {
 	if len(sketch.Points) > 0 {
 		if _, ok := sketch.Points[0].Sketch.(metrics.DDSketchProvider); !ok {
-			// Native OTel histograms: AMP team will implement encoding with sketchFlags.
+			// TODO(OTAGENT-1079): Implement native OTel histogram encoding with sketchFlags once AMP team delivers Stage 3.
+			//
 			// Access the data via ExplicitBoundProvider / ExponentialProvider type switches:
 			//
 			//   for _, pnt := range sketch.Points {
@@ -517,6 +519,7 @@ func (pb *payloadsBuilderV3) writeSketch(sketch *metrics.SketchSeries) error {
 			//           sum       := sd.Sum()                    // float64
 			//       }
 			//   }
+			log.Warnf("Native OTel histograms are not yet serialized in the v3 payload path and will be dropped (metric: %s)", sketch.Name)
 			return nil
 		}
 	}

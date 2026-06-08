@@ -37,6 +37,10 @@ import (
 // cumulative points are silently skipped.
 //
 // Enable with: --feature-gates=exporter.datadogexporter.NativeOTelHistograms
+//
+// Note: This gate is only effective in the DDOT (Agent embedded collector) path
+// (newFactoryForAgentWithType). The OSS Collector path (NewFactoryForOSSExporter) does not
+// check this gate. See OTAGENT-1079.
 var NativeHistogramFeatureGate = featuregate.GlobalRegistry().MustRegister(
 	"exporter.datadogexporter.NativeOTelHistograms",
 	featuregate.StageAlpha,
@@ -121,9 +125,11 @@ func newFactoryForAgentWithType(
 		options = append(options, otlpmetrics.WithInferDeltaInterval())
 	}
 
-	if NativeHistogramFeatureGate.IsEnabled() {
-		options = append(options, otlpmetrics.WithNativeHistograms())
-	}
+	// TODO(OTAGENT-1079): Re-enable once v3 serialization of native histograms is implemented
+	// (Stages 2-4). Currently gated off to prevent silent data loss.
+	// if NativeHistogramFeatureGate.IsEnabled() {
+	//     options = append(options, otlpmetrics.WithNativeHistograms())
+	// }
 
 	f := &factory{
 		s:            s,
@@ -161,6 +167,10 @@ func newFactoryForAgentWithType(
 // NewFactoryForOSSExporter creates a new serializer exporter factory for the OSS Datadog exporter.
 // This function is part of the public API consumed by opentelemetry-collector-contrib's datadogexporter.
 // Do not remove or change its signature without coordinating with the upstream repository.
+//
+// Note: NativeOTelHistograms feature gate is NOT wired into the OSS path.
+// Native histogram support is currently limited to the DDOT (Agent embedded collector) path.
+// See OTAGENT-1079 for the roadmap to enable it in the standalone Collector.
 func NewFactoryForOSSExporter(typ component.Type, statsIn chan []byte) exp.Factory {
 	var options []otlpmetrics.TranslatorOption
 	if featuregates.DisableMetricRemappingFeatureGate.IsEnabled() {
