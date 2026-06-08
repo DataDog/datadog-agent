@@ -475,6 +475,10 @@ int rethook_clone_mnt(ctx_t *ctx) {
     return 0;
 }
 
+// This function was refactored between 6.17 and 6.18.
+// In 6.18:
+// - the prototype changed from to (struct mount *source_mnt, const struct pinned_mountpoint *dest).
+// - we observed that this function is often inlined starting from 6.18 and should not be used starting from 6.18
 HOOK_ENTRY("attach_recursive_mnt")
 int hook_attach_recursive_mnt(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall_with(mount_or_move_mount);
