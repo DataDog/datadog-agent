@@ -235,6 +235,7 @@
             pkgs.cacert
             pkgs.coreutils
             pkgs.which
+            pkgs.gotestsum
 
             # --- Nix builds may need bzip2 + xz for Go toolchain download ---
             pkgs.bzip2
@@ -274,7 +275,7 @@
             pkgs.openssl pkgs.openssl.dev pkgs.zlib pkgs.zlib.dev
             pkgs.libffi pkgs.libffi.dev pkgs.libpcap
             pkgs.uv pkgs.git pkgs.curl pkgs.cacert pkgs.coreutils
-            pkgs.which pkgs.bzip2 pkgs.xz
+            pkgs.which pkgs.bzip2 pkgs.xz pkgs.gotestsum
           ] ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
             pkgs.systemd.dev
             pkgs.patchelf
