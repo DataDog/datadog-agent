@@ -8,6 +8,7 @@ package eventplatformimpl
 import (
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	logshttp "github.com/DataDog/datadog-agent/comp/logs-library/client/http"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -21,9 +22,9 @@ func getContainerPipelines() []passthroughPipelineDesc {
 			hostnameEndpointPrefix:        "contlcycle-intake.",
 			intakeTrackType:               "contlcycle",
 			defaultBatchMaxConcurrentSend: 10,
-			defaultBatchMaxContentSize:    epfDefaultBatchMaxContentSize,
-			defaultBatchMaxSize:           epfDefaultBatchMaxSize,
-			defaultInputChanSize:          epfDefaultInputChanSize,
+			defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
+			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
+			defaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
 		},
 		{
 			eventType:                     eventplatform.EventTypeContainerImages,
@@ -33,13 +34,13 @@ func getContainerPipelines() []passthroughPipelineDesc {
 			hostnameEndpointPrefix:        "contimage-intake.",
 			intakeTrackType:               "contimage",
 			defaultBatchMaxConcurrentSend: 10,
-			defaultBatchMaxContentSize:    epfDefaultBatchMaxContentSize,
-			defaultBatchMaxSize:           epfDefaultBatchMaxSize,
-			defaultInputChanSize:          epfDefaultInputChanSize,
+			defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
+			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
+			defaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
 		},
 	}
 
-	if isKubeActionsEnabled() {
+	if pkgconfigsetup.Datadog().GetBool("kubeactions.enabled") {
 		kubeactionsPipeline := passthroughPipelineDesc{
 			eventType:                     eventplatform.EventTypeKubeActions,
 			category:                      "Kubernetes Actions",
@@ -48,16 +49,16 @@ func getContainerPipelines() []passthroughPipelineDesc {
 			hostnameEndpointPrefix:        "kubeops-intake.",
 			intakeTrackType:               "kubeactions",
 			defaultBatchMaxConcurrentSend: 10,
-			defaultBatchMaxContentSize:    epfDefaultBatchMaxContentSize,
-			defaultBatchMaxSize:           epfDefaultBatchMaxSize,
-			defaultInputChanSize:          epfDefaultInputChanSize,
+			defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
+			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
+			defaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
 		}
 		descs = append(descs, kubeactionsPipeline)
 		// TODO(kubeactions): Remove this log once EVP intake is stable
 		log.Infof("[KubeActions] EVP pipeline registered: host_prefix=%s, track_type=%s, v2_api=%v",
 			kubeactionsPipeline.hostnameEndpointPrefix,
 			kubeactionsPipeline.intakeTrackType,
-			kubeActionsForwarderUseV2API())
+			pkgconfigsetup.Datadog().GetBool("kubeactions.forwarder.use_v2_api"))
 	}
 
 	return descs
