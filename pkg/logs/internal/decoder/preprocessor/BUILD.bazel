@@ -88,7 +88,6 @@ go_test(
         "tokenizer_test.go",
         "user_samples_test.go",
     ],
-    data = glob(["testdata/**"]),
     embed = [":preprocessor"],
     gotags = ["test"],
     deps = [
