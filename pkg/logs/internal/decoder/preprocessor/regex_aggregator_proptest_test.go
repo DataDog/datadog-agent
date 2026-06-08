@@ -13,7 +13,6 @@ import (
 	"pgregory.net/rapid"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 )
@@ -495,7 +494,7 @@ func TestRegexAggregator_UpstreamFlagIgnored_Property(t *testing.T) {
 // aggregators). Emissions with IsTruncated=false do not carry it.
 func TestRegexAggregator_TruncationTagging_Property(t *testing.T) {
 	mockConfig := configmock.New(t)
-	mockConfig.Set("logs_config.tag_truncated_logs", true, pkgconfigmodel.SourceAgentRuntime)
+	mockConfig.SetInTest("logs_config.tag_truncated_logs", true)
 	expectedTag := message.TruncatedReasonTag("multiline_regex")
 	re := regexp.MustCompile(`^START`)
 
@@ -544,7 +543,7 @@ func TestRegexAggregator_TruncationTagging_Property(t *testing.T) {
 // IsTruncated=true.
 func TestRegexAggregator_TagDisabledNoTag_Property(t *testing.T) {
 	mockConfig := configmock.New(t)
-	mockConfig.Set("logs_config.tag_truncated_logs", false, pkgconfigmodel.SourceAgentRuntime)
+	mockConfig.SetInTest("logs_config.tag_truncated_logs", false)
 	suppressedTag := message.TruncatedReasonTag("multiline_regex")
 	re := regexp.MustCompile(`^START`)
 
@@ -581,7 +580,7 @@ func TestRegexAggregator_TagDisabledNoTag_Property(t *testing.T) {
 // constructor argument).
 func TestRegexAggregator_MultiLineTagging_Property(t *testing.T) {
 	mockConfig := configmock.New(t)
-	mockConfig.Set("logs_config.tag_multi_line_logs", true, pkgconfigmodel.SourceAgentRuntime)
+	mockConfig.SetInTest("logs_config.tag_multi_line_logs", true)
 	multiLineTag := message.MultiLineSourceTag("multi_line")
 	re := regexp.MustCompile(`^START`)
 

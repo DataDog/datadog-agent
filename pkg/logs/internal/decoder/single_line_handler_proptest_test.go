@@ -14,7 +14,6 @@ import (
 	"pgregory.net/rapid"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
@@ -479,7 +478,7 @@ func TestSingleLineHandler_StatelessFlush_Property(t *testing.T) {
 // IsTruncated=false carry no tag.
 func TestSingleLineHandler_TagOnTruncation_Property(t *testing.T) {
 	mockConfig := configmock.New(t)
-	mockConfig.Set("logs_config.tag_truncated_logs", true, pkgconfigmodel.SourceAgentRuntime)
+	mockConfig.SetInTest("logs_config.tag_truncated_logs", true)
 	expectedTag := message.TruncatedReasonTag("single_line")
 
 	rapid.Check(t, func(t *rapid.T) {
@@ -554,7 +553,7 @@ func TestSingleLineHandler_InputMessageMutated_Property(t *testing.T) {
 // IsTruncated is set.
 func TestSingleLineHandler_TagDisabledNoTag_Property(t *testing.T) {
 	mockConfig := configmock.New(t)
-	mockConfig.Set("logs_config.tag_truncated_logs", false, pkgconfigmodel.SourceAgentRuntime)
+	mockConfig.SetInTest("logs_config.tag_truncated_logs", false)
 
 	rapid.Check(t, func(t *rapid.T) {
 		lineLimit := rapid.IntRange(1, 200).Draw(t, "lineLimit")
