@@ -23,7 +23,7 @@
 #include "protocols/classification/protocol-classification.h"
 #include "protocols/tls/tls-certs.h"
 
-BPF_PERCPU_HASH_MAP(udp6_send_skb_args, u64, u64, 1024)
+BPF_PERCPU_HASH_MAP(udp6_send_skb_args, u64, u64, 1024) // JMW unused?
 BPF_PERCPU_HASH_MAP(udp_send_skb_args, u64, conn_tuple_t, 1024)
 
 static __always_inline int read_conn_tuple_partial_from_flowi4(conn_tuple_t *t, struct flowi4 *fl4, u64 pid_tgid, metadata_mask_t type) {
