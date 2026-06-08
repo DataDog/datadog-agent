@@ -2591,8 +2591,8 @@ github.com/DataDog/netlink v1.0.1-0.20240223195320-c7a4f832a3d1 h1:HnvrdC79xJ+RP
 github.com/DataDog/netlink v1.0.1-0.20240223195320-c7a4f832a3d1/go.mod h1:whJevzBpTrid75eZy99s3DqCmy05NfibNaF2Ol5Ox5A=
 github.com/DataDog/opa v0.0.0-20251126100856-d2e1e78e0816 h1:8diKw2aLYE6LsjWfYxDEqx0ZmcyMMmqB+qapRJrGtys=
 github.com/DataDog/opa v0.0.0-20251126100856-d2e1e78e0816/go.mod h1:7cPuErOAt7k/oVWAVJnxqAC6mwArrAazkvk0RXiih2A=
-github.com/DataDog/opentelemetry-ebpf-profiler v0.0.0-20260608081523-c4096350600d h1:B6D97tHaRftxlZJxIo32Vom2E0yyjN035Kd6ISBJaG8=
-github.com/DataDog/opentelemetry-ebpf-profiler v0.0.0-20260608081523-c4096350600d/go.mod h1:0vRFNCa/57hLNW0YAlluN0bLrGZnsQ0TrLHS/O86GMk=
+github.com/DataDog/opentelemetry-ebpf-profiler v0.0.0-20260608101306-804608cd020c h1:sOBSTc0N7xWgyHZDpEozjv87TFVmOukv7NVYjnmHt1w=
+github.com/DataDog/opentelemetry-ebpf-profiler v0.0.0-20260608101306-804608cd020c/go.mod h1:0vRFNCa/57hLNW0YAlluN0bLrGZnsQ0TrLHS/O86GMk=
 github.com/DataDog/rshell v0.0.20 h1:WO/GUY/SPplBBRU2wPVMLE8SCP4lZpFhVXu/h6KBzb0=
 github.com/DataDog/rshell v0.0.20/go.mod h1:jZm0YIxCKYEyHJeSSH5rxqmlI1oUi+mXQF6Zf102q+k=
 github.com/DataDog/sketches-go v1.4.8 h1:pFk9BNn+Rzv8IMIoPUttoOpOr3bJOqU3P6EP5wK+Lv8=
