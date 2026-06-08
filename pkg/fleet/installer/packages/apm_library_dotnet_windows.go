@@ -158,6 +158,10 @@ func uninstrumentDotnetLibrary(ctx context.Context, target string) (err error) {
 	var installDir string
 	installDir, err = filepath.EvalSymlinks(getTargetPath(target))
 	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			log.Warnf(".NET library target %q does not exist, assuming the package is not installed and skipping IIS uninstrumentation", target)
+			return nil
+		}
 		return err
 	}
 	dotnetExec := exec.NewDotnetLibraryExec(getExecutablePath(installDir))
