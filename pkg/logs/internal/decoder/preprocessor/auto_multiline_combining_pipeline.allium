@@ -232,15 +232,29 @@ surface AutoMultilineCombiningPreprocessing {
         --
         -- - At step 2b (Labeler), the AutoMultilineLabeler's
         --   labelling chain runs in this order:
-        --     1. JSONDetector — detects JSON-shape content and
-        --        labels no_aggregate (terminates chain on match).
-        --     2. TimestampDetector — detects timestamp-shape
-        --        content and labels start_group (does NOT
-        --        terminate; advisory).
-        --   When no detector claims, the line keeps the default
-        --   label (aggregate). The analytics chain runs after
-        --   the labelling chain and does not influence the
-        --   chosen label.
+        --     1. UserSamples — UNCONDITIONALLY prepended as the
+        --        first heuristic. On a regex or token match
+        --        against any configured sample, sets the label
+        --        from that sample, marks labelAssignedBy =
+        --        "user_sample", and TERMINATES the chain (returns
+        --        false). The "user_sample" assigned-by marker is
+        --        what downstream detectors check via
+        --        labelAssignedBy != defaultLabelSource to defer
+        --        (see json_detector.allium, timestamp_detector.allium).
+        --     2. JSONDetector — present iff
+        --        logs_config.auto_multi_line.enable_json_detection
+        --        is true (per-source override available). Detects
+        --        JSON-shape content and labels no_aggregate
+        --        (terminates chain on match).
+        --     3. TimestampDetector — present iff
+        --        logs_config.auto_multi_line.enable_datetime_detection
+        --        is true (per-source override available). Detects
+        --        timestamp-shape content and labels start_group
+        --        (does NOT terminate; advisory).
+        --   When no heuristic claims, the line keeps the default
+        --   label (aggregate). The analytics chain (PatternTable)
+        --   runs after the labelling chain and does not influence
+        --   the chosen label.
         --
         -- - At step 2c (Aggregator), the CombiningAggregator
         --   uses the label to drive its 5 dispatch cases (see

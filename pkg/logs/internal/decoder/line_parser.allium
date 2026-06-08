@@ -230,13 +230,18 @@ surface MultiLineParserTruncation {
         -- the accumulator state is reset. Flush on an
         -- empty buffer is a no-op (per EmptyEmissionNoop).
 
-    @guarantee LimitImmutableAfterConstruction
-        -- line_limit is set during NewMultiLineParser and
-        -- not modified subsequently. The MultiLineParser
-        -- holds no other truncation-relevant
-        -- configuration that changes after construction.
-
     @guidance
+        -- Configuration immutability: line_limit is set
+        -- during NewMultiLineParser and not modified
+        -- subsequently. The MultiLineParser holds no other
+        -- truncation-relevant configuration that changes
+        -- after construction. This is a structural property
+        -- enforced by Go-level package privacy (the field
+        -- has no exported setter) rather than a runtime
+        -- invariant; it appears here as a non-normative
+        -- note so the surface's reading of its own
+        -- configuration is unambiguous.
+        --
         -- The MultiLineParser sits between the framer
         -- (which produces parser-tagged frames) and the
         -- LineHandler (typically SingleLineHandler at

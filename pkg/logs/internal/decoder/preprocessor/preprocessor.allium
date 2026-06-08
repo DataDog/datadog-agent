@@ -201,18 +201,35 @@ contract Preprocessor {
         --    a. Tokenization.tokenize(content) — yields tokens
         --       and token_indices. Tokenization is stateless;
         --       this is a pure function of the content bytes.
-        --    b. Labeler.label(content, tokens, indices) — yields
-        --       one of {start_group, aggregate, no_aggregate}.
-        --       Labeler is stateless across calls (its own
-        --       heuristic context resets per call).
+        --       The tokenizer is configured with a single
+        --       max_input_bytes; the full produced (tokens,
+        --       indices) pair flows to the aggregator and
+        --       sampler (step c, d) unchanged.
+        --    b. Labeler.label(content, label_tokens,
+        --       label_indices) — yields one of {start_group,
+        --       aggregate, no_aggregate}. label_tokens /
+        --       label_indices are the PREFIX of the step-2a
+        --       tokens whose start byte offset is less than
+        --       labeler_max_bytes (a Preprocessor construction
+        --       parameter; 0 means no limit). This allows the
+        --       tokenizer to produce a wider token window for
+        --       the sampler while keeping the labeler focused
+        --       on the log header it actually needs (e.g.
+        --       timestamp detection). Labeler is stateless
+        --       across calls (its own heuristic context
+        --       resets per call).
         --    c. Aggregator.process(msg, label, tokens) — yields
-        --       zero or more AggregatedMessageWithTokens. Most
-        --       calls yield 0 or 1; the explosion path (when
-        --       supported) can yield many.
+        --       zero or more AggregatedMessageWithTokens. The
+        --       full step-2a tokens are passed (NOT the
+        --       labeler-trimmed prefix). Most calls yield 0 or
+        --       1; the explosion path (when supported) can
+        --       yield many.
         --    d. For each AggregatedMessageWithTokens yielded by
         --       step 2c: Sampler.process(msg, tokens) — yields
-        --       the message or null. Each non-null becomes a
-        --       PreprocessorOutput.
+        --       the message or null. tokens here are the full
+        --       step-2a tokens carried through by the aggregator
+        --       (not the labeler-trimmed prefix). Each non-null
+        --       becomes a PreprocessorOutput.
         --
         -- 3. Return the accumulated PreprocessorOutputs.
         --

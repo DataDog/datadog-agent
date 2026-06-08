@@ -80,14 +80,21 @@ surface AutoMultilineLabeling {
         -- the chains terminates in bounded time (the chains are
         -- finite ordered lists).
 
-    @guarantee IndicesAlignment
-        -- The Labeler contract's IndicesAlignment invariant is
-        -- honoured: AutoMultilineLabeler does not validate the
-        -- alignment of tokens and token_indices on input and
-        -- assumes the caller passes them aligned. Behaviour is
-        -- undefined if the caller violates the alignment.
-
     @guidance
+        -- Caller precondition (Labeler contract's
+        -- IndicesAlignment invariant): the caller must pass
+        -- tokens and token_indices aligned by index (each
+        -- token_indices[i] is the start byte offset of
+        -- tokens[i] in content). AutoMultilineLabeler does NOT
+        -- validate alignment on input; behaviour is undefined
+        -- if the caller violates it. This appears here as a
+        -- precondition rather than a positive @guarantee
+        -- because there is no defined observable behaviour on
+        -- violation. The Preprocessor's tokenize step is the
+        -- caller in practice; see preprocessor.allium step 2a
+        -- (which produces aligned (tokens, indices) by
+        -- construction).
+        --
         -- Chain evaluation procedure when label() is invoked on an
         -- AutoMultilineLabeler instance with arguments (content,
         -- tokens, token_indices):

@@ -286,17 +286,20 @@ surface FramerTruncation {
         -- prior_carryover; the framer holds no truncation-
         -- specific state across emissions.
 
-    @guarantee LimitImmutableAfterConstruction
-        -- content_len_limit is set during NewFramer and is
-        -- not modified subsequently. The Framer holds no
-        -- other truncation-relevant configuration that
-        -- changes after construction. UTF-16 framings have
-        -- their content_len_limit rounded down to a 2-byte
+    @guidance
+        -- Configuration immutability: content_len_limit is
+        -- set during NewFramer and is not modified
+        -- subsequently. The Framer holds no other
+        -- truncation-relevant configuration that changes
+        -- after construction. UTF-16 framings have their
+        -- content_len_limit rounded down to a 2-byte
         -- alignment (and clamped to a minimum of 2) at
         -- construction time, but this normalisation is
         -- complete by the time the surface is observable.
-
-    @guidance
+        -- This is a structural property enforced by Go-level
+        -- package privacy (the field has no exported setter)
+        -- rather than a runtime invariant.
+        --
         -- The framer is the upstream signal source for
         -- truncation in the logs pipeline. Its emitted
         -- frame's ParsingExtra.IsTruncated is later

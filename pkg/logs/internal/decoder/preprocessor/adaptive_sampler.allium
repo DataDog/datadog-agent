@@ -2,33 +2,36 @@
 -- adaptive_sampler.allium
 
 -- Scope: Adaptive sampling behaviour for one log source in the
---   Datadog Agent's logs preprocessor pipeline.
--- Includes: Tokenization (byte-to-token classification, run-length
---   encoding, special token promotion), pattern matching contract,
---   credit-based rate limiting, pattern table management (creation,
---   eviction, ordering), sampled-count metadata tagging, detection-only
---   noisy-log tagging, optional pattern hash tagging.
--- Scope: A Sampler implementation that applies credit-based rate
---   limiting per discovered log pattern. Pattern identity is
---   defined by token-sequence similarity (the PatternMatching
---   sub-contract). Each pattern carries a token bucket; messages
---   matching a pattern are emitted while the bucket has credit,
---   dropped otherwise. New patterns are discovered and added to a
---   bounded table; when the table is full, the least-frequently-
---   matched pattern is evicted. When the protect_important_logs
---   option is enabled, messages whose token sequence contains a
---   critical-severity keyword bypass rate limiting entirely.
---   Used by log sources that opt into adaptive sampling to bound
---   per-pattern throughput while preserving signal from low-
---   frequency patterns and from severity-critical events.
+--   Datadog Agent's logs preprocessor pipeline. A Sampler
+--   implementation that applies credit-based rate limiting per
+--   discovered log pattern. Pattern identity is defined by
+--   token-sequence similarity (the PatternMatching sub-contract).
+--   Each pattern carries a token bucket; messages matching a
+--   pattern are emitted while the bucket has credit, dropped
+--   otherwise. New patterns are discovered and added to a bounded
+--   table; when the table is full, the least-frequently-matched
+--   pattern is evicted. When the protect_important_logs option
+--   is enabled, messages whose token sequence contains a
+--   critical-severity keyword bypass rate limiting entirely. When
+--   the detection_only option is enabled, messages that would be
+--   dropped are emitted with a noisy_log tag instead; combined
+--   with tag_pattern_hash, those emissions also carry a pattern
+--   identity hash. Used by log sources that opt into adaptive
+--   sampling to bound per-pattern throughput while preserving
+--   signal from low-frequency patterns and from severity-critical
+--   events.
 -- Includes: The PatternMatching sub-contract (specific to
 --   pattern-based samplers; not lifted to a shared module yet),
 --   the AdaptiveSampler entity, the PatternEntry per-pattern
---   state entity, config, the 5 rules driving the
+--   state entity, config (rate, burst, table size, match
+--   threshold, detection_only, tag_pattern_hash,
+--   protect_important_logs), the 5 rules driving the
 --   important-bypass / emit / drop / register / evict per-message
---   lifecycle, the 5 expression invariants on PatternEntries
---   state, fulfilment of the Sampler contract at the
---   AdaptiveSampling surface.
+--   lifecycle, sampled-count metadata tagging on re-emission,
+--   detection-only noisy-log tagging, optional pattern hash
+--   tagging on detection-only emissions, the 5 expression
+--   invariants on PatternEntries state, fulfilment of the Sampler
+--   contract at the AdaptiveSampling surface.
 -- Excludes:
 --   - The Sampler contract itself. It lives in sampler.allium and
 --     is imported here to declare fulfilment.
@@ -47,6 +50,12 @@
 --   - Telemetry counter emissions (dropped, kept, new_patterns,
 --     evictions, protected). Observability only, no behavioural
 --     effect.
+--   - Include/exclude per-source filtering (the Include, Exclude
+--     and IncludeConfigured options on AdaptiveSamplerConfig).
+--     These gate whether a log enters the sampler's rule
+--     machinery at all and are orthogonal to the rule set in this
+--     module. Spec coverage of the filter machinery is a known
+--     gap, tracked for a follow-up.
 
 use "./tokenizer.allium" as tokenizer
 use "./sampler.allium" as sampler
@@ -144,6 +153,7 @@ config {
     -- It does not tag bypassed, new-pattern, protected, under-burst,
     -- or adaptive_sampler_sampled_count:<n> logs.
     tag_pattern_hash: Boolean = false
+
     -- When true, messages whose token sequence contains a
     -- critical-severity keyword (FATAL, ERROR, PANIC, etc.)
     -- bypass rate limiting entirely. See is_important in the
@@ -264,17 +274,30 @@ rule DropMatchingLog {
     ensures: entry.last_seen = now
     ensures: entry.match_count = entry.match_count + 1
     ensures: if config.detection_only:
-        entry.sampled_count = prior_sampled_count
+        entry.sampled_count = 0
     ensures: if not config.detection_only:
         entry.sampled_count = prior_sampled_count + 1
-    ensures: if config.detection_only:
-        LogEmitted(message, noisy_log: true, pattern_hash: entry.signature if config.tag_pattern_hash)
+    ensures: if config.detection_only and config.tag_pattern_hash:
+        LogEmitted(message, noisy_log: true, pattern_hash: entry.signature)
+    ensures: if config.detection_only and not config.tag_pattern_hash:
+        LogEmitted(message, noisy_log: true)
     ensures: if not config.detection_only:
         LogDropped(message)
 
     @guidance
         -- After updating, the entry is bubbled toward the front of
         -- the sorted table (same as EmitMatchingLog).
+        --
+        -- Under detection_only, entry.sampled_count is reset to 0
+        -- on every match — the same as EmitMatchingLog's
+        -- detection_only branch — because detection_only never
+        -- actually suppresses any matching log and therefore has
+        -- nothing to count. No adaptive_sampler_sampled_count tag
+        -- is ever emitted under detection_only (see
+        -- DetectionOnlyDoesNotEmitSampledCountAfterRefill test).
+        -- Under normal (non-detection) mode the suppressed-count
+        -- accumulates on this rule's exit so the next emitting
+        -- call can tag the prior-suppressed count.
 }
 
 -- No existing pattern matches the incoming tokens and the table
@@ -375,24 +398,11 @@ invariant SampledCountNonNegative {
 }
 
 -- Behavioural properties not expressible as state predicates
--- but guaranteed by the rules above:
---
--- NewPatternsAlwaysEmitted: the first log of a never-before-seen
---   pattern is always emitted. Guaranteed by RegisterNewPattern and
---   EvictAndRegisterPattern which emit unconditionally. Follows from
---   burst_size >= 1 (validated at construction).
---
--- MessageContentIntegrity: the sampler never modifies log content
---   bytes. Emitted messages are byte-identical to their input.
---   Only metadata tags (adaptive_sampler_sampled_count, noisy_log,
---   log_hash) may be added. log_hash is limited to emitted
---   noisy_log:true logs.
---
--- SteadyStateRateBound: after burst exhaustion, a pattern emits
---   at most rate_limit logs per second. Over interval T seconds,
---   at most burst_size + rate_limit * T logs of one pattern are
---   emitted (burst_size for the initial allowance, then rate_limit
---   per second in steady state).
+-- (NewPatternsAlwaysEmitted / FirstLogAlwaysEmitted, content
+-- byte passthrough, steady-state rate bound, important-log
+-- protection) are stated as @guarantees on the AdaptiveSampling
+-- surface below, where they have a named binding the rules
+-- reference back to.
 
 ------------------------------------------------------------
 -- Surfaces
@@ -429,11 +439,12 @@ surface AdaptiveSampling {
 
     @guarantee Totality
         -- The Sampler contract's Totality invariant holds: every
-        -- (incoming, state, config) input matches the preconditions
-        -- of exactly one rule, so process always terminates with a
-        -- defined verdict — either LogEmitted (returning the
-        -- input message, possibly tagged) or LogDropped
-        -- (returning null). The 5 rules cover the cases:
+        -- (incoming, state, config) input THAT REACHES THE RULE
+        -- MACHINERY matches the preconditions of exactly one
+        -- rule, so process always terminates with a defined
+        -- verdict — either LogEmitted (returning the input
+        -- message, possibly tagged) or LogDropped (returning
+        -- null). The 5 rules cover the cases:
         --   (protect_important_logs AND is_important)           → ImportantLogBypass
         --   (matches existing pattern AND credits sufficient)   → EmitMatchingLog
         --   (matches existing pattern AND credits insufficient) → DropMatchingLog
@@ -444,6 +455,17 @@ surface AdaptiveSampling {
         -- `not (config.protect_important_logs and is_important(incoming))`
         -- guard, making them mutually exclusive with
         -- ImportantLogBypass.
+        --
+        -- Scope caveat: per Excludes, the include / exclude /
+        -- include_configured filter machinery on
+        -- AdaptiveSamplerConfig gates whether a message enters
+        -- the rule machinery at all. A message that the filter
+        -- rejects is emitted without firing any rule (a
+        -- short-circuit ahead of the 5 rules). Totality
+        -- describes the rule-machinery branch only; once the
+        -- filter feature is specified, FilterBypass will be a
+        -- 6th rule firing before the existing 5 and Totality
+        -- will be updated to enumerate it.
 
     @guarantee ContentBytePassthrough
         -- The Sampler contract's ContentBytePassthrough invariant
