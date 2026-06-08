@@ -244,7 +244,7 @@ func (bs *BaseSuite[Env]) EventuallyWithT(condition func(*assert.CollectT), time
 	return bs.Suite.EventuallyWithT(func(c *assert.CollectT) {
 		defer func() {
 			if r := recover(); r != nil {
-				bs.T().Errorf("EventuallyWithT, panic: %v", r)
+				utils.Errorf(bs.T(), "EventuallyWithT, panic: %v", r)
 			}
 		}()
 		condition(c)
@@ -274,7 +274,7 @@ func (bs *BaseSuite[Env]) EventuallyWithTf(condition func(*assert.CollectT), wai
 	return bs.Suite.EventuallyWithTf(func(c *assert.CollectT) {
 		defer func() {
 			if r := recover(); r != nil {
-				bs.T().Errorf("EventuallyWithTf, panic: %v", r)
+				utils.Errorf(bs.T(), "EventuallyWithTf, panic: %v", r)
 			}
 		}()
 		condition(c)
@@ -659,7 +659,7 @@ func (bs *BaseSuite[Env]) SetupSuite() {
 		if _, isNonFatalError := err.(runner.NonFatalError); isNonFatalError {
 			utils.Logf(bs.T(), "Non-fatal error encountered creating the session output directory: %v", err)
 		} else {
-			bs.T().Errorf("unable to create session output directory: %v", err)
+			utils.Errorf(bs.T(), "unable to create session output directory: %v", err)
 		}
 	}
 	bs.outputDir = sessionDirectory
@@ -781,7 +781,7 @@ func (bs *BaseSuite[Env]) TearDownSuite() {
 	if bs.coverage && !bs.params.disableCoverage {
 		err := bs.SaveCoverage(bs.coverageOutDir)
 		if err != nil {
-			bs.T().Errorf("fatal errors were encounterned while computing coverage: %v", err)
+			utils.Errorf(bs.T(), "fatal errors were encounterned while computing coverage: %v", err)
 		}
 
 		bs.attachMetadataToCoverage(bs.coverageOutDir)
@@ -850,7 +850,7 @@ func (bs *BaseSuite[Env]) TearDownSuite() {
 		} else {
 			utils.Logf(bs.T(), "Destroying stack %s with provisioner %s", bs.params.stackName, id)
 			if err := provisioner.Destroy(ctx, bs.params.stackName, newTestLogger(bs.T())); err != nil {
-				bs.T().Errorf("unable to delete stack: %s, provisioner %s, err: %v", bs.params.stackName, id, err)
+				utils.Errorf(bs.T(), "unable to delete stack: %s, provisioner %s, err: %v", bs.params.stackName, id, err)
 			}
 		}
 	}
