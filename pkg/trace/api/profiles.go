@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"os"
 	"sort"
 	"strings"
 	"sync/atomic"
@@ -101,9 +102,23 @@ func mainProfilingURL(conf *config.AgentConfig) string {
 // If the main intake URL can not be computed because of config, the returned handler will always
 // return http.StatusInternalServerError along with a clarification.
 func (r *HTTPReceiver) profileProxyHandler() http.Handler {
+	fmt.Fprintf(os.Stderr, "[DDPROF-DEBUG] profileProxyHandler: building (MainEndpointMode=%v, profiling_dd_url=%q, site=%q)\n", r.conf.ProfilingProxy.MainEndpointMode, r.conf.ProfilingProxy.DDURL, r.conf.Site)
 	targets, keys, err := profilingEndpoints(r.conf)
 	if err != nil {
+		fmt.Fprintf(os.Stderr, "[DDPROF-DEBUG] profileProxyHandler: profilingEndpoints ERROR (proxy OFF): %v\n", err)
 		return errorHandler(err)
+	}
+	fmt.Fprintf(os.Stderr, "[DDPROF-DEBUG] profileProxyHandler: resolved %d target(s)\n", len(targets))
+	// DEBUG: print the actual profiling intake endpoints this proxy will
+	// forward to. The first target is the "main" endpoint (its response is
+	// returned to the client); any others are additional fire-and-forget
+	// endpoints. Only the api key length is logged, never the key itself.
+	for i, t := range targets {
+		role := "additional"
+		if i == 0 && r.conf.ProfilingProxy.MainEndpointMode == config.ProfilingMainEndpointSend {
+			role = "main"
+		}
+		log.Infof("ddprofiling proxy endpoint[%d] (%s): %s (api_key_len=%d)", i, role, t.String(), len(keys[i]))
 	}
 	var tags strings.Builder
 	tags.WriteString(fmt.Sprintf("host:%s,default_env:%s,agent_version:%s", r.conf.Hostname, r.conf.DefaultEnv, r.conf.AgentVersion))
@@ -276,6 +291,9 @@ func (m *multiTransport) RoundTrip(req *http.Request) (rresp *http.Response, rer
 		r.Host = u.Host
 		r.URL = u
 		r.Header.Set("DD-API-KEY", apiKey)
+		// DEBUG: log the exact upstream URL each profiling upload is forwarded to.
+		log.Infof("ddprofiling proxy forwarding upload to %s (host=%s, api_key_len=%d)", u.String(), u.Host, len(apiKey))
+		fmt.Fprintf(os.Stderr, "[DDPROF-DEBUG] proxy forwarding upload to %s (host=%s, api_key_len=%d)\n", u.String(), u.Host, len(apiKey))
 	}
 	defer func() {
 		// Hack for backwards-compatibility

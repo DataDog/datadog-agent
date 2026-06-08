@@ -45,9 +45,11 @@ import (
 	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
+	tracelog "github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil/logging"
+	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type cliParams struct {
@@ -107,6 +109,15 @@ func runHostProfilerCommand(ctx context.Context, cliParams *cliParams) error {
 				if warnBothConfigs {
 					l.Warn("Both OTel and Core Agent configuration paths were provided. The OTel configuration will be ignored and the Core Agent configuration will be used.")
 				}
+			}),
+			// Bridge the trace-agent logger (pkg/trace/log) to the core logger.
+			// core.Bundle wires the plain logfx, which (unlike fx-trace) never
+			// calls tracelog.SetLogger, so the trace-agent logger would otherwise
+			// stay a NoopLogger and all pkg/trace/log output (including the
+			// embedded profiling proxy's logs) would be silently dropped.
+			// Depending on log.Component ensures the core logger is set up first.
+			fx.Invoke(func(_ log.Component) {
+				tracelog.SetLogger(pkglog.NewWrapper(3))
 			}),
 		)
 		opts = append(opts, getRemoteTaggerOptions()...)

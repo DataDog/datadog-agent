@@ -239,6 +239,9 @@ func (r *HTTPReceiver) buildMux() *http.ServeMux {
 		if e.TimeoutOverride != nil {
 			timeout = e.TimeoutOverride(r.conf)
 		}
+		if e.Pattern == "/profiling/v1/input" {
+			fmt.Fprintf(os.Stderr, "[DDPROF-DEBUG] buildMux: building handler for %s\n", e.Pattern)
+		}
 		h := replyWithVersion(r.agentState.Load, r.conf.AgentVersion, timeoutMiddleware(timeout, e.Handler(r)))
 		r.Handlers[e.Pattern] = h
 		mux.Handle(e.Pattern, h)

@@ -87,8 +87,11 @@ func (c component) SendStatsPayload(p *pb.StatsPayload) {
 }
 
 func (c component) GetHTTPHandler(endpoint string) http.Handler {
+	fmt.Fprintf(os.Stderr, "[DDPROF-DEBUG] component.GetHTTPHandler: endpoint=%q, calling BuildHandlers\n", endpoint)
 	c.Agent.Receiver.BuildHandlers()
-	if v, ok := c.Agent.Receiver.Handlers[endpoint]; ok {
+	v, ok := c.Agent.Receiver.Handlers[endpoint]
+	fmt.Fprintf(os.Stderr, "[DDPROF-DEBUG] component.GetHTTPHandler: endpoint=%q found=%t (total handlers=%d)\n", endpoint, ok, len(c.Agent.Receiver.Handlers))
+	if ok {
 		return v
 	}
 	return nil

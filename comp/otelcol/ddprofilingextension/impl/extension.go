@@ -8,6 +8,7 @@ package ddprofilingextensionimpl
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"os"
 	"strings"
@@ -58,6 +59,7 @@ func NewExtension(cfg *Config, info component.BuildInfo, traceAgent traceagent.C
 }
 
 func (e *ddExtension) Start(_ context.Context, host component.Host) error {
+	fmt.Fprintf(os.Stderr, "[DDPROF-DEBUG] ddExtension.Start: agentMode=%t traceAgent_nil=%t\n", e.agentMode, e.traceAgent == nil)
 	if e.agentMode {
 		return e.startForAgent(host)
 	}
@@ -65,11 +67,14 @@ func (e *ddExtension) Start(_ context.Context, host component.Host) error {
 }
 
 func (e *ddExtension) startForAgent(host component.Host) error {
+	fmt.Fprintf(os.Stderr, "[DDPROF-DEBUG] startForAgent: entered, endpoint=localhost:%s\n", e.endpoint())
 	// start server that handles profiles
 	err := e.newServer()
 	if err != nil {
+		fmt.Fprintf(os.Stderr, "[DDPROF-DEBUG] startForAgent: newServer FAILED: %v\n", err)
 		return err
 	}
+	fmt.Fprintf(os.Stderr, "[DDPROF-DEBUG] startForAgent: newServer OK, starting server goroutine\n")
 	go e.startServer(host)
 
 	profilerOptions := e.buildProfilerOptions()
@@ -77,9 +82,12 @@ func (e *ddExtension) startForAgent(host component.Host) error {
 	// agent
 	profilerOptions = append(profilerOptions, profiler.WithAgentAddr("localhost:"+e.endpoint()))
 
-	return profiler.Start(
+	fmt.Fprintf(os.Stderr, "[DDPROF-DEBUG] startForAgent: calling profiler.Start with agentAddr=localhost:%s\n", e.endpoint())
+	err = profiler.Start(
 		profilerOptions...,
 	)
+	fmt.Fprintf(os.Stderr, "[DDPROF-DEBUG] startForAgent: profiler.Start returned err=%v\n", err)
+	return err
 }
 
 func (e *ddExtension) startForStandalone() error {
