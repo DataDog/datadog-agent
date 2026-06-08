@@ -13,6 +13,7 @@ import (
 	"pgregory.net/rapid"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
@@ -63,10 +64,24 @@ func genPassThroughInput() *rapid.Generator[passThroughInput] {
 }
 
 // runOne builds a fresh message from the generated input and calls
-// process once. Returned values are copied so subsequent calls to
-// process (which reuse the internal buffer) do not invalidate them
-// — this is part of how the test honours the ResultLifetime
-// invariant.
+// process once. runOne anchors:
+//
+//	surface PassThroughAggregation (pass_through_aggregator.allium)
+//	    @guarantee ResultLifetime — (inherited from Aggregator)
+//	                                 PassThroughAggregator reuses
+//	                                 a single one-element backing
+//	                                 storage for the sequence
+//	                                 returned by process; the next
+//	                                 call invalidates the previous
+//	                                 return value.
+//
+// Returned values are copied here so subsequent calls to process
+// (which reuse the internal buffer) do not invalidate them — this
+// is part of how the test honours the ResultLifetime invariant.
+// Every property test in this file routes its calls through
+// runOne and therefore inherits the anchor: each one would
+// observe undefined contents if ResultLifetime were broken in
+// the implementation.
 func runOne(ag *PassThroughAggregator, in passThroughInput) (content []byte, isTruncated bool, tokens []Token) {
 	msg := message.NewMessage(append([]byte(nil), in.content...), nil, message.StatusInfo, 0)
 	msg.RawDataLen = len(in.content)
@@ -275,6 +290,15 @@ func TestPassThroughAggregator_ByteConservation_Property(t *testing.T) {
 //	                                            + no upstream flag ⇒
 //	                                            no markers, IsTruncated
 //	                                            false.
+//	    @guarantee Determinism — (inherited from Aggregator) process
+//	                              is a pure function of (line_limit,
+//	                              should_truncate, msg, tokens). The
+//	                              property runs many random
+//	                              under-threshold inputs and asserts
+//	                              the same observable output on each;
+//	                              rapid would shrink to a
+//	                              counter-example if any clock /
+//	                              randomness leaked into the decision.
 //
 // A single process call on a fresh aggregator whose content is
 // strictly under line_limit and whose ParsingExtra.IsTruncated
@@ -318,6 +342,16 @@ func TestPassThroughAggregator_PassThroughUnderThreshold_Property(t *testing.T) 
 //	                                            over threshold ⇒
 //	                                            tail marker,
 //	                                            IsTruncated true.
+//	    @guarantee MarkerLiteral — (inherited from Truncatable) the
+//	                                appended marker bytes are the
+//	                                literal byte sequence
+//	                                `...TRUNCATED...`
+//	                                (message.TruncatedFlag). The
+//	                                property asserts a HasSuffix
+//	                                check against that exact byte
+//	                                value on every emission, so any
+//	                                drift in the marker constant
+//	                                would shrink to a failing case.
 //
 // A single process call on a fresh aggregator whose content has
 // byte length strictly greater than line_limit emits content
@@ -520,7 +554,7 @@ func TestPassThroughAggregator_UpstreamFlagPropagation_Property(t *testing.T) {
 // Emissions with IsTruncated=false carry no tag.
 func TestPassThroughAggregator_TagOnTruncation_Property(t *testing.T) {
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("logs_config.tag_truncated_logs", true)
+	mockConfig.Set("logs_config.tag_truncated_logs", true, pkgconfigmodel.SourceAgentRuntime)
 	expectedTag := message.TruncatedReasonTag("single_line")
 
 	rapid.Check(t, func(t *rapid.T) {
@@ -565,7 +599,7 @@ func TestPassThroughAggregator_TagOnTruncation_Property(t *testing.T) {
 // IsTruncated is set.
 func TestPassThroughAggregator_TagDisabledNoTag_Property(t *testing.T) {
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("logs_config.tag_truncated_logs", false)
+	mockConfig.Set("logs_config.tag_truncated_logs", false, pkgconfigmodel.SourceAgentRuntime)
 
 	rapid.Check(t, func(t *rapid.T) {
 		lineLimit := rapid.IntRange(1, 200).Draw(t, "lineLimit")

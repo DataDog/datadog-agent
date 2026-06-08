@@ -83,9 +83,10 @@ contract Tokenization {
         -- 15 consecutive digits produce D10, identical to 10 digits.
 
     @invariant SpecialTokenPromotion
-        -- Before emitting a character run of length 1-4, the run's
+        -- Before emitting a character run of length 1-9, the run's
         -- bytes are uppercased and checked against a fixed table.
-        -- If matched, the special token replaces the regular C1-C4:
+        -- If matched, the special token replaces the regular C1-C4
+        -- (or C10 for length 9):
         --   Length 1: T → time_separator, Z → zone
         --   Length 2: AM, PM → apm
         --   Length 3:
@@ -96,10 +97,32 @@ contract Tokenization {
         --   Length 4:
         --     CEST NZST NZDT ACST ACDT AEST AEDT AWST AWDT
         --       AKST AKDT CHST CHDT → zone
-        -- Character runs of length 5+ are never promoted. Runs of
-        -- length 1-4 that match no pattern emit the regular token.
+        --     WARN → warn (severity)
+        --     CRIT → critical (severity)
+        --   Length 5:
+        --     FATAL → fatal, ERROR → error, PANIC → panic,
+        --     ALERT → alert, EMERG → emergency, CRASH → crash
+        --   Length 6:
+        --     SEVERE → severe, FAILED → failure
+        --   Length 7:
+        --     WARNING → warn, CRASHED → crash,
+        --     FAILURE → failure, TIMEOUT → timeout
+        --   Length 8:
+        --     CRITICAL → critical, DEADLOCK → deadlock
+        --   Length 9:
+        --     EMERGENCY → emergency, EXCEPTION → exception
+        -- Character runs of length 10+ are never promoted. Runs
+        -- of length 1-9 that match no pattern emit the regular
+        -- token (C1-C4 for lengths 1-4; C10 for lengths 5-9, since
+        -- C5-C9 do not exist in the token enum).
         -- Matching is case-insensitive: "jan", "JAN", "Jan" all
         -- match month.
+        --
+        -- The severity-keyword promotions (length 4-9) are
+        -- load-bearing for is_important in the AdaptiveSampler's
+        -- ImportantLogBypass rule (adaptive_sampler.allium):
+        -- is_important is a scan over the promoted severity
+        -- tokens, not a regex over content bytes.
 
     @invariant InputTruncation
         -- Only the first max_bytes of the input are tokenized.

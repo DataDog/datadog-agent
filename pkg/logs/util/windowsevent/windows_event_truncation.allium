@@ -75,15 +75,6 @@ surface WindowsEventTruncation {
     exposes:
         op.max_message_bytes
 
-    @guarantee LimitFixed
-        -- The op.max_message_bytes threshold is the literal value
-        -- 131,072 (128 * 1024). It is a Go-side constant
-        -- (maxMessageBytes in transform.go) and not configurable
-        -- per log source. Other truncation pathways in the agent
-        -- (preprocessor aggregators, legacy decoder handlers,
-        -- framer) take their limit as a per-instance parameter;
-        -- this one does not.
-
     @guarantee PassThroughUnderLimit
         -- When the input message's byte length is at or under
         -- op.max_message_bytes, the message field is stored
@@ -146,16 +137,6 @@ surface WindowsEventTruncation {
         -- IsTruncated=false (no string to scan, or the empty
         -- string fails the length check in hasTruncatedFlag).
 
-    @guarantee NoComposition
-        -- The Windows event truncation pathway does NOT compose
-        -- with the rest of the logs pipeline. Windows event
-        -- messages are constructed via MapToMessage and do not
-        -- pass through the decoder's framer, line_parser,
-        -- legacy decoder handlers, or preprocessor aggregators.
-        -- The IsTruncated flag set here is the message's only
-        -- truncation signal; no further marker decoration or
-        -- carry-over occurs downstream.
-
     @guarantee Determinism
         -- Given identical input message content and identical
         -- max_message_bytes, SetMessage and the subsequent
@@ -164,6 +145,26 @@ surface WindowsEventTruncation {
         -- flag value. The pathway holds no state between calls.
 
     @guidance
+        -- Structural properties of this pathway (not runtime
+        -- invariants, so stated as guidance):
+        --
+        -- - Fixed limit: op.max_message_bytes is the literal
+        --   value 131,072 (128 * 1024), a Go-side constant
+        --   (maxMessageBytes in transform.go), not configurable
+        --   per log source. Other truncation pathways in the
+        --   agent (preprocessor aggregators, legacy decoder
+        --   handlers, framer) take their limit as a per-instance
+        --   parameter; this one does not.
+        --
+        -- - No composition with the logs pipeline: Windows event
+        --   messages are constructed via MapToMessage and do NOT
+        --   pass through the decoder's framer, line_parser,
+        --   legacy decoder handlers, or preprocessor aggregators.
+        --   The IsTruncated flag set here is the message's only
+        --   truncation signal; no further marker decoration or
+        --   carry-over occurs downstream. This is enforced at the
+        --   wiring level (call graph), not at runtime.
+        --
         -- The write-side / read-side asymmetry is a current
         -- design choice that should be preserved across any
         -- future refactor. The read side's both-boundaries scan

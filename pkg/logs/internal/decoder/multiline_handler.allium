@@ -229,17 +229,22 @@ surface MultiLineHandling {
         -- marker.
 
     @guarantee CarryoverConsumed
-        -- At the start of each process call, the
-        -- should_truncate field's value is captured
-        -- locally as isTruncated and then should_truncate
-        -- is reset to false. The reset happens BEFORE
-        -- the buffer-overflow check; if this call's
-        -- accumulation causes overflow, should_truncate
-        -- is re-set to true at that point. A process call
-        -- that consumes carry=true but does NOT itself
-        -- overflow the buffer leaves should_truncate=false
-        -- at call exit — the carry is consumed and not
-        -- propagated.
+        -- After any pattern-boundary sendBuffer (the
+        -- newContentRe match path or the
+        -- not-yet-pattern-matched fallback path) but
+        -- BEFORE the current line is appended to the
+        -- buffer, the should_truncate field's value is
+        -- captured locally as isTruncated and then
+        -- should_truncate is reset to false. The reset
+        -- happens BEFORE the buffer-overflow check; if
+        -- this call's accumulation causes overflow,
+        -- should_truncate is re-set to true at that
+        -- point. A process call that consumes carry=true
+        -- but does NOT itself overflow the buffer leaves
+        -- should_truncate=false at call exit — the carry
+        -- is consumed and not propagated. See the
+        -- @guidance step ordering below for the full
+        -- per-call sequence.
 
     @guarantee UpstreamFlagIgnored
         -- The input message's ParsingExtra.IsTruncated
@@ -333,13 +338,18 @@ surface MultiLineHandling {
         -- before emitting: SetContent replaces its
         -- content bytes with the trimmed buffer,
         -- RawDataLen is set to the accumulated lines'
-        -- raw byte total, ParsingExtra.IsTruncated may
-        -- be set to true, and ParsingExtra.Tags may be
-        -- appended to. Each emission's outputFn
-        -- receives this mutated pointer. The h.msg
-        -- field is overwritten on every process call,
-        -- so emissions always carry the metadata of the
-        -- LAST input that contributed to the buffer.
+        -- raw byte total, ParsingExtra.IsTruncated is
+        -- OVERWRITTEN (unconditional assignment, not a
+        -- set-to-true) with the value of
+        -- h.is_buffer_truncated — so an input that was
+        -- marked truncated upstream but did not cause
+        -- buffer overflow has its flag dropped to false
+        -- here (see UpstreamFlagIgnored). ParsingExtra.Tags
+        -- may be appended to. Each emission's outputFn
+        -- receives this mutated pointer. The h.msg field
+        -- is overwritten on every process call, so
+        -- emissions always carry the metadata of the LAST
+        -- input that contributed to the buffer.
 
     @guarantee NoEmissionOnEmptyBuffer
         -- A sendBuffer call invoked when the buffer is
@@ -360,12 +370,17 @@ surface MultiLineHandling {
         -- an empty buffer is a no-op
         -- (NoEmissionOnEmptyBuffer).
 
-    @guarantee LimitImmutableAfterConstruction
-        -- h.line_limit and h.multi_line_tag_value are
-        -- set during NewMultiLineHandler and not
-        -- modified subsequently.
-
     @guidance
+        -- Configuration immutability: h.line_limit and
+        -- h.multi_line_tag_value are set during
+        -- NewMultiLineHandler and not modified subsequently.
+        -- This is a structural property enforced by Go-level
+        -- package privacy (the fields have no exported
+        -- setters) rather than a runtime invariant; it
+        -- appears here as a non-normative note so the
+        -- surface's reading of its own configuration is
+        -- unambiguous.
+        --
         -- The MultiLineHandler is the regex-driven
         -- aggregator of the legacy decoder pipeline's
         -- path B. Its per-call flow is:

@@ -228,11 +228,16 @@ surface SingleLineHandling {
         -- considered "pending emission" and is not
         -- drained by flush.
 
-    @guarantee LimitImmutableAfterConstruction
-        -- h.line_limit is set during NewSingleLineHandler
-        -- and not modified subsequently.
-
     @guidance
+        -- Configuration immutability: h.line_limit is set
+        -- during NewSingleLineHandler and not modified
+        -- subsequently. This is a structural property
+        -- enforced by Go-level package privacy (the field
+        -- has no exported setter) rather than a runtime
+        -- invariant; it appears here as a non-normative note
+        -- so the surface's reading of its own configuration
+        -- is unambiguous.
+        --
         -- The SingleLineHandler is the truncation
         -- workhorse of the legacy decoder's path A. Its
         -- per-call flow is:
