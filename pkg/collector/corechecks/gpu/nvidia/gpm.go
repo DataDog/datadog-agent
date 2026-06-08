@@ -206,7 +206,11 @@ func (c *gpmCollector) calculateGpmMetrics() (*nvml.GpmMetricsGetType, error) {
 	}
 
 	metricIndex := 0
+	var errs []error
 	for metricID := range c.metricsToCollect {
+		// WORKAROUND: go-nvml's GpmMetricsGetType.Metrics array has a memory-layout
+		// mismatch that corrupts elements past index 0 when NumMetrics > 1. Query each
+		// metric in its own call via Metrics[0] until the upstream fix lands.
 		singleMetricGet := &nvml.GpmMetricsGetType{
 			NumMetrics: 1,
 			Version:    nvml.GPM_METRICS_GET_VERSION,
@@ -219,14 +223,15 @@ func (c *gpmCollector) calculateGpmMetrics() (*nvml.GpmMetricsGetType, error) {
 
 		err := c.lib.GpmMetricsGet(singleMetricGet)
 		if err != nil {
-			return nil, fmt.Errorf("failed to get GPM metric %d: %w", metricID, err)
+			errs = append(errs, fmt.Errorf("failed to get GPM metric %d: %w", metricID, err))
+			continue
 		}
 
 		metricsGet.Metrics[metricIndex] = singleMetricGet.Metrics[0]
 		metricIndex++
 	}
 
-	return metricsGet, nil
+	return metricsGet, errors.Join(errs...)
 }
 
 func (c *gpmCollector) DeviceUUID() string {
