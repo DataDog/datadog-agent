@@ -203,7 +203,7 @@ type Config struct {
 	// EnableEbpfless enables the use of network tracing without eBPF using packet capture.
 	EnableEbpfless bool
 
-	// EnableFentry enables the experimental fentry tracer
+	// EnableFentry enables the experimental fentry tracer (disabled by default)
 	EnableFentry bool
 
 	// EnableCORETracer enables the CO-RE version of the tracer
