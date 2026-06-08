@@ -58,7 +58,7 @@ expand_template(
     name = "gcrypt_h",
     out = "src/gcrypt.h",
     substitutions = {
-        "@VERSION@": "1.12.2",
+        "@VERSION@": VERSION,
         "@VERSION_NUMBER@": "0x010c02",
     },
     template = ":src/gcrypt.h.in",
