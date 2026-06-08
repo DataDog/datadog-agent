@@ -60,7 +60,12 @@ func selectTelemetryPrometheusTargets(conf confMap) ([]string, bool) {
 	return targets, true
 }
 
-func exportersInMetricsPipelinesWithReceiver(conf confMap, scrapeTargets []string, exporterFilter func(string) bool) (map[string]bool, bool) {
+// getCoveredExportersInMetricsPipelines identifies profile exporters that already
+// receive the Collector's internal telemetry through a user-defined metrics pipeline.
+//
+// telemetry reader targets -> matching prometheus receivers -> metrics pipelines
+// using those receivers -> exporters from those pipelines that pass exporterFilter.
+func getCoveredExportersInMetricsPipelines(conf confMap, scrapeTargets []string, exporterFilter func(string) bool) (map[string]bool, bool) {
 	coveredExporters := make(map[string]bool)
 	targetSet := make(map[string]struct{}, len(scrapeTargets))
 	for _, scrapeTarget := range scrapeTargets {

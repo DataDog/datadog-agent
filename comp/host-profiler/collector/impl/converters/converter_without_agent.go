@@ -485,7 +485,7 @@ func (c *converterWithoutAgent) addInternalHealthMetricsPipeline(conf confMap, p
 	// always use the first scrape target if we need to inject our own prometheus receiver
 	defaultTarget := targets[0]
 
-	coveredExporters, ok := exportersInMetricsPipelinesWithReceiver(conf, targets, isComponentTypeOtlpHTTP)
+	coveredExporters, ok := getCoveredExportersInMetricsPipelines(conf, targets, isComponentTypeOtlpHTTP)
 	if !ok {
 		slog.Info("skipping internal health metrics pipeline",
 			slog.String("reason", "malformed prometheus receiver config"))
