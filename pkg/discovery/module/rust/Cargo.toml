@@ -45,6 +45,7 @@ memchr.workspace = true
 nom.workspace = true
 normalize-path.workspace = true
 phf.workspace = true
+prost.workspace = true
 rawzip = { workspace = true, optional = true }
 xml-rs = { workspace = true, optional = true }
 rmp-serde.workspace = true
@@ -53,9 +54,14 @@ serde_json.workspace = true
 dd-agent-log.workspace = true
 thiserror.workspace = true
 tokio = { workspace = true, features = ["macros", "net", "rt-multi-thread", "signal"] }
+tonic = { workspace = true, features = ["transport"] }
+tonic-prost.workspace = true
 uzers.workspace = true
 saphyr-parser = { workspace = true, optional = true }
 walkdir = { workspace = true, optional = true }
+
+[build-dependencies]
+tonic-prost-build.workspace = true
 
 [dev-dependencies]
 dircpy.workspace = true

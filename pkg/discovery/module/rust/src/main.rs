@@ -46,6 +46,7 @@ use tokio::signal::unix::{SignalKind, signal};
 use tokio::sync::Semaphore;
 
 mod cli;
+mod rc;
 
 use cli::Args;
 
