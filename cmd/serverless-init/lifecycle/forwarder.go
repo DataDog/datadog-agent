@@ -72,7 +72,15 @@ func NewForwarder(port int, forwardTimeout, readyTimeout, validateTimeout time.D
 func (f *Forwarder) PassThroughWaiting(timeout time.Duration, path string, headers http.Header, body io.Reader) *http.Response {
 	var bodyBytes []byte
 	if body != nil {
-		bodyBytes, _ = io.ReadAll(body)
+		var err error
+		// Read the full inbound body before the TCP wait. A read error is a
+		// server-side failure (network, OS, memory) — not a client mistake —
+		// so return 500 rather than 400. We still forward nothing to the user
+		// app to avoid passing a partial body (which could make it answer
+		// /validate "healthy" off incomplete data).
+		if bodyBytes, err = io.ReadAll(body); err != nil {
+			return statusOnlyResponse(http.StatusInternalServerError)
+		}
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	if err := f.waitForUserApp(ctx); err != nil {

@@ -23,6 +23,7 @@ import (
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 )
 
+
 const (
 	// MicroVM's resource_type tag value. Its naming convention follows
 	// https://datadoghq.atlassian.net/wiki/spaces/SLS/pages/4784095253/How+we+bill+for+Azure+Google+Serverless
