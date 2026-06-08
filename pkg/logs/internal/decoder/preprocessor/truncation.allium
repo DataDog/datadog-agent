@@ -6,10 +6,19 @@
 --   content exceeds a size threshold, decorate it with `...TRUNCATED...`
 --   marker bytes and propagate a carry-over signal so the next
 --   emission can decorate its head accordingly" pattern. Fulfilled
---   by: SingleLineHandler and MultiLineHandler (legacy decoder
---   handlers, paths A and B), PassThroughAggregator, RegexAggregator,
---   DetectingAggregator, and CombiningAggregator (preprocessor
---   aggregators, paths C / D / E).
+--   by: SingleLineHandler (legacy decoder path A),
+--   PassThroughAggregator (preprocessor), and DetectingAggregator
+--   (preprocessor).
+--
+--   MultiLineHandler (legacy decoder path B), RegexAggregator
+--   (preprocessor) and CombiningAggregator (preprocessor) share
+--   the marker/carry shape but DO NOT declare fulfils Truncatable:
+--   each deviates from the UpstreamFlagPropagation invariant. See
+--   @guarantee UpstreamFlagIgnored on multiline_handler.allium and
+--   regex_aggregator.allium, and @guarantee
+--   BucketFlushIgnoresUpstreamFlag on combining_aggregator.allium
+--   (the bucket-flush path's deviation is a known bug, not
+--   intentional behaviour to preserve).
 -- Includes: The Truncatable contract (the abstract truncation
 --   operation), marker semantics, carry-over state across consecutive
 --   calls, upstream-truncation-flag propagation, tag-on-truncation

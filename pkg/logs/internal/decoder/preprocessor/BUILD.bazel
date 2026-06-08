@@ -95,6 +95,7 @@ dd_agent_go_test(
         "//comp/logs-library/metrics",
         "//comp/logs/agent/config",
         "//pkg/config/mock",
+        "//pkg/config/model",
         "//pkg/logs/message",
         "//pkg/logs/status/utils",
         "@com_github_stretchr_testify//assert",

@@ -15,6 +15,7 @@ import (
 	"pgregory.net/rapid"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 )
@@ -405,7 +406,7 @@ func TestMultiLineHandler_UpstreamFlagIgnored_Property(t *testing.T) {
 // Emissions with IsTruncated=false do not carry it.
 func TestMultiLineHandler_TagOnTruncation_Property(t *testing.T) {
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("logs_config.tag_truncated_logs", true)
+	mockConfig.Set("logs_config.tag_truncated_logs", true, pkgconfigmodel.SourceAgentRuntime)
 	expectedTag := message.TruncatedReasonTag("multiline_regex")
 	re := regexp.MustCompile("^START")
 
@@ -454,7 +455,7 @@ func TestMultiLineHandler_TagOnTruncation_Property(t *testing.T) {
 // overflow has applied markers and IsTruncated=true.
 func TestMultiLineHandler_TagDisabledNoTag_Property(t *testing.T) {
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("logs_config.tag_truncated_logs", false)
+	mockConfig.Set("logs_config.tag_truncated_logs", false, pkgconfigmodel.SourceAgentRuntime)
 	suppressedTag := message.TruncatedReasonTag("multiline_regex")
 	re := regexp.MustCompile("^START")
 
@@ -545,7 +546,7 @@ func TestMultiLineHandler_LineSeparator_Property(t *testing.T) {
 // receive the tag.
 func TestMultiLineHandler_MultiLineSourceTag_Property(t *testing.T) {
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("logs_config.tag_multi_line_logs", true)
+	mockConfig.Set("logs_config.tag_multi_line_logs", true, pkgconfigmodel.SourceAgentRuntime)
 	multiLineTag := message.MultiLineSourceTag("auto_multiline")
 	re := regexp.MustCompile("^START")
 

@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
@@ -314,8 +315,8 @@ func TestPassThroughAggregator_TruncationCarryClearedAfterNormalLine(t *testing.
 func TestPassThroughAggregator_TruncationTagsWhenEnabled(t *testing.T) {
 	mockConfig := configmock.New(t)
 	prev := mockConfig.GetBool("logs_config.tag_truncated_logs")
-	mockConfig.SetWithoutSource("logs_config.tag_truncated_logs", true)
-	defer mockConfig.SetWithoutSource("logs_config.tag_truncated_logs", prev)
+	mockConfig.Set("logs_config.tag_truncated_logs", true, pkgconfigmodel.SourceAgentRuntime)
+	defer mockConfig.Set("logs_config.tag_truncated_logs", prev, pkgconfigmodel.SourceAgentRuntime)
 
 	ag := NewPassThroughAggregator(10)
 	msgs := processMsg(ag, newMessage("12345678901234567890"), aggregate)
@@ -336,8 +337,8 @@ func TestPassThroughAggregator_TruncationTagsWhenEnabled(t *testing.T) {
 func TestPassThroughAggregator_TruncationDoesNotTagWhenDisabled(t *testing.T) {
 	mockConfig := configmock.New(t)
 	prev := mockConfig.GetBool("logs_config.tag_truncated_logs")
-	mockConfig.SetWithoutSource("logs_config.tag_truncated_logs", false)
-	defer mockConfig.SetWithoutSource("logs_config.tag_truncated_logs", prev)
+	mockConfig.Set("logs_config.tag_truncated_logs", false, pkgconfigmodel.SourceAgentRuntime)
+	defer mockConfig.Set("logs_config.tag_truncated_logs", prev, pkgconfigmodel.SourceAgentRuntime)
 
 	ag := NewPassThroughAggregator(10)
 	msgs := processMsg(ag, newMessage("12345678901234567890"), aggregate)

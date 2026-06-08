@@ -327,10 +327,21 @@ func TestMultiLineParser_NoContentCutting_Property(t *testing.T) {
 //	                                    forced sendLine: any
 //	                                    buffered emission is
 //	                                    produced.
+//	    @guarantee EmptyEmissionNoop — a sendLine call (including
+//	                                    a flush-triggered one)
+//	                                    invoked when bufferedMsg
+//	                                    is nil OR
+//	                                    buffered_content_len is
+//	                                    zero produces no emission
+//	                                    and changes no externally
+//	                                    observable state.
 //
 // After IsPartial=true inputs accumulate (no emission yet),
 // calling flush() produces exactly one emission containing the
-// accumulated content. A second flush is a no-op.
+// accumulated content. A second flush is a no-op (this second
+// flush is the EmptyEmissionNoop case — the buffer is already
+// drained, so the forced sendLine sees an empty buffer and
+// produces nothing).
 func TestMultiLineParser_FlushDrainsBuffer_Property(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
 		lineLimit := 200 // large, no overflow

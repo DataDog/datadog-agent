@@ -256,6 +256,23 @@ func TestAdaptiveSampler_TagsSuppressedMatchesAfterLongDelay(t *testing.T) {
 	assert.Equal(t, int64(0), s.entries[0].sampled, "emitting should reset the suppressed count")
 }
 
+// TestAdaptiveSampler_DetectionOnlyTagsWouldDrop anchors:
+//
+//	rule DropMatchingLog (adaptive_sampler.allium)
+//	    ensures: if config.detection_only:
+//	        LogEmitted(message, noisy_log: true, pattern_hash: ...)
+//	    ensures: if not config.detection_only: LogDropped(message)
+//	    ensures: if config.detection_only:
+//	        entry.sampled_count = prior_sampled_count
+//	config.detection_only (adaptive_sampler.allium) — "When true,
+//	    logs that would be dropped are emitted with noisy_log:true
+//	    instead of being dropped."
+//
+// In detection-only mode the would-be-drop branch of DropMatchingLog
+// flips: the message is emitted with the noisy_log tag, the sampled
+// count is NOT incremented (sampled_count stays at prior value), and
+// no adaptive_sampler_sampled_count tag is added since the rule never
+// actually suppressed prior matches.
 func TestAdaptiveSampler_DetectionOnlyTagsWouldDrop(t *testing.T) {
 	s := NewAdaptiveSampler(AdaptiveSamplerConfig{
 		MaxPatterns:    10,
@@ -278,6 +295,21 @@ func TestAdaptiveSampler_DetectionOnlyTagsWouldDrop(t *testing.T) {
 	assert.Equal(t, int64(0), s.entries[0].sampled, "detection-only should not count kept messages as suppressed")
 }
 
+// TestAdaptiveSampler_DetectionOnlyDoesNotEmitSampledCountAfterRefill anchors:
+//
+//	rule EmitMatchingLog (adaptive_sampler.allium)
+//	    ensures: if config.detection_only:
+//	        LogEmitted(message, sampled_count: 0)
+//	rule EmitMatchingLog @guidance — "Detection-only mode never emits
+//	    adaptive_sampler_sampled_count on allowed logs because it does
+//	    not actually drop matching logs."
+//
+// After a noisy_log:true emission under detection-only, the next
+// credit-refilled match goes through EmitMatchingLog. Even though
+// the prior emission carried noisy_log, detection-only also
+// suppresses the adaptive_sampler_sampled_count tag on the refilled
+// emission — the sampled_count never increments under detection
+// because the message wasn't actually dropped.
 func TestAdaptiveSampler_DetectionOnlyDoesNotEmitSampledCountAfterRefill(t *testing.T) {
 	s := NewAdaptiveSampler(AdaptiveSamplerConfig{
 		MaxPatterns:    10,
@@ -486,6 +518,27 @@ func TestAdaptiveSampler_BubblingAliasesSampledCount(t *testing.T) {
 	requireSampledCountTag(t, out, 1)
 }
 
+// TestAdaptiveSampler_DetectionOnlyHashUsesMatchedPatternAfterBubbling anchors:
+//
+//	rule DropMatchingLog (adaptive_sampler.allium)
+//	    ensures: if config.detection_only:
+//	        LogEmitted(message, noisy_log: true,
+//	                   pattern_hash: entry.signature
+//	                                  if config.tag_pattern_hash)
+//	rule EmitMatchingLog @guidance — "All entry mutations complete
+//	    before bubbling to avoid pointer aliasing."
+//	config.tag_pattern_hash (adaptive_sampler.allium) — "When true,
+//	    noisy_log:true detection-only logs are tagged with
+//	    log_hash:<hash>, where the hash is computed from the
+//	    canonical structural token sequence for the matched sampler
+//	    pattern."
+//
+// Regression test that the pattern_hash on a detection-only emission
+// is computed from the MATCHED entry's signature, not whichever
+// entry the bubble-sort swap chain happens to leave at the matched
+// index after the match_count bump. Mirrors the
+// BubblingAliasesSampledCount aliasing bug, but for the log_hash
+// tag path.
 func TestAdaptiveSampler_DetectionOnlyHashUsesMatchedPatternAfterBubbling(t *testing.T) {
 	s := NewAdaptiveSampler(AdaptiveSamplerConfig{
 		MaxPatterns:    10,
@@ -573,6 +626,13 @@ func TestAdaptiveSampler_EmptyTokensNewPattern(t *testing.T) {
 	require.Len(t, s.entries, 1)
 }
 
+// TestAdaptiveSampler_DoesNotTagPatternHashByDefault anchors:
+//
+//	config.tag_pattern_hash (adaptive_sampler.allium) —
+//	    "tag_pattern_hash: Boolean = false"
+//
+// The pattern-hash tag is opt-in: with the default config (which
+// also leaves detection_only off), no emission carries log_hash.
 func TestAdaptiveSampler_DoesNotTagPatternHashByDefault(t *testing.T) {
 	s := newSampler(10, 5.0, 0)
 	out := s.Process(testMsg(), patternA)
@@ -580,6 +640,17 @@ func TestAdaptiveSampler_DoesNotTagPatternHashByDefault(t *testing.T) {
 	requireNoTagWithPrefix(t, out, "log_hash:")
 }
 
+// TestAdaptiveSampler_TagPatternHashSkipsUnimpactedLogs anchors:
+//
+//	config.tag_pattern_hash (adaptive_sampler.allium) — "It does
+//	    not tag bypassed, new-pattern, protected, under-burst, or
+//	    adaptive_sampler_sampled_count:<n> logs."
+//
+// log_hash only attaches to noisy_log:true detection-only
+// emissions (and to filter-bypassed paths is NOT one of them).
+// Verifies that new-pattern emissions, under-burst matched
+// emissions and filter-bypassed emissions all flow through
+// untagged.
 func TestAdaptiveSampler_TagPatternHashSkipsUnimpactedLogs(t *testing.T) {
 	s := NewAdaptiveSampler(AdaptiveSamplerConfig{
 		MaxPatterns:    10,
@@ -603,6 +674,17 @@ func TestAdaptiveSampler_TagPatternHashSkipsUnimpactedLogs(t *testing.T) {
 	requireNoTagWithPrefix(t, out3, "log_hash:")
 }
 
+// TestAdaptiveSampler_TagPatternHashSkipsSampledCountLogs anchors:
+//
+//	config.tag_pattern_hash (adaptive_sampler.allium) — "It does
+//	    not tag bypassed, new-pattern, protected, under-burst, or
+//	    adaptive_sampler_sampled_count:<n> logs."
+//
+// The credit-refill-after-suppression emission carries an
+// adaptive_sampler_sampled_count tag (via EmitMatchingLog's
+// prior_sampled_count branch). tag_pattern_hash explicitly
+// excludes this emission class — the log_hash tag and the
+// sampled_count tag never co-occur on the same message.
 func TestAdaptiveSampler_TagPatternHashSkipsSampledCountLogs(t *testing.T) {
 	s := NewAdaptiveSampler(AdaptiveSamplerConfig{
 		MaxPatterns:    10,

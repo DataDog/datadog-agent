@@ -7,7 +7,16 @@
 --   Truncatable (which decorates content with marker bytes and
 --   maintains carry-over state); the detector is the upstream signal
 --   source that Truncatable consumes via its upstream_truncated
---   input. Fulfilled by: the framer at pkg/logs/internal/framer.
+--   input. NOT fulfilled by any whole module today: the framer at
+--   pkg/logs/internal/framer is the canonical upstream signal
+--   source and its limit-enforcing matchers conform per-emission,
+--   but the framer as a whole DECLINES fulfils TruncationDetector
+--   because its non-enforcing matchers (dockerStreamMatcher,
+--   noFramingMatcher) emit found frames regardless of size with
+--   wasTruncated = false. See framer.allium for the per-framing
+--   @guarantees that capture actual observable behaviour. The
+--   contract is kept strict so a shared utility can fulfil it
+--   cleanly once one is extracted.
 -- Includes: The TruncationDetector contract, the DetectionResult
 --   value type, the byte-boundary cut semantics, the flag-only
 --   guarantee.
