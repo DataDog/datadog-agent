@@ -55,7 +55,7 @@ func TestAnomalyLevel(t *testing.T) {
 	}
 	for _, tc := range cases {
 		a := makeAnomaly(tc.detector, 1000, tc.score)
-		got := anomalyLevel(a)
+		got := anomalyLevel(a, DefaultScorerConfig())
 		if got != tc.want {
 			t.Errorf("anomalyLevel(%s, score=%v): got %d, want %d", tc.detector, tc.score, got, tc.want)
 		}

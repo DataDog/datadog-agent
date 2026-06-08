@@ -33,6 +33,8 @@ var scoredDetectors = map[string]bool{
 }
 
 // DefaultScorerConfig returns calibrated defaults (see ANOMALY_SCORING.md §2.8).
+// Per-detector thresholds are set based on empirical score distributions across
+// kafka-partition-saturation, postmark, and dns-upstream-outage scenarios.
 func DefaultScorerConfig() observer.ScorerConfig {
 	return observer.ScorerConfig{
 		Alpha:         0.014,
@@ -41,6 +43,18 @@ func DefaultScorerConfig() observer.ScorerConfig {
 		HighThreshold: 0.060,
 		MarginPct:     0.20,
 		CooldownSecs:  300,
+		DetectorThresholds: map[string][4]float64{
+			// tukey_biweight scores cap hard at ~50 across all scenarios (natural
+			// range is roughly half of holt_residual). Shift thresholds down so
+			// the full [0,50] scale is used rather than compressing everything
+			// into the bottom half of a [0,35] default range.
+			// Calibrated: p25≈6, p50≈9, p75≈15, p90≈27, p99≈45 (3-scenario avg).
+			"tukey_biweight": {5, 8, 15, 30},
+			// holt_residual can reach 400+ (dns outliers) but 99% stay below ~75.
+			// p25≈8, p50≈12, p75≈16, p90≈26, p95≈37 — current defaults [6,12,20,35]
+			// already land well; keep them explicit for documentation clarity.
+			"holt_residual": {6, 12, 20, 35},
+		},
 	}
 }
 
@@ -68,15 +82,20 @@ func readScorerConfig(r ConfigReader, prefix string) any {
 	return cfg
 }
 
-// anomalyLevel assigns a 0–4 level to an anomaly based on its detector name
-// and raw score.
-func anomalyLevel(a observer.Anomaly) int {
+// anomalyLevel assigns a 0–4 level to an anomaly.
+// For scored detectors it applies per-detector thresholds from cfg when
+// available, falling back to the global defaults scoreThresholds.
+func anomalyLevel(a observer.Anomaly, cfg observer.ScorerConfig) int {
 	if scoredDetectors[a.DetectorName] {
 		if a.Score == nil {
 			return 0 // treat nil score from a scored detector as VeryLow
 		}
 		s := *a.Score
-		for i, t := range scoreThresholds {
+		thresholds := scoreThresholds
+		if dt, ok := cfg.DetectorThresholds[a.DetectorName]; ok {
+			thresholds = dt
+		}
+		for i, t := range thresholds {
 			if s < t {
 				return i
 			}
@@ -196,7 +215,7 @@ func (s *anomalyScorer) advanceSecond(sec int64) {
 			continue
 		}
 		k := dedupKey{second: sec, seriesID: sid}
-		l := anomalyLevel(a)
+		l := anomalyLevel(a, s.config)
 		if existing, ok := bestLevel[k]; !ok || l > existing {
 			bestLevel[k] = l
 		}
@@ -213,7 +232,7 @@ func (s *anomalyScorer) advanceSecond(sec int64) {
 		weightSum += levelWeights[l]
 	}
 	for _, a := range unkeyed {
-		l := anomalyLevel(a)
+		l := anomalyLevel(a, s.config)
 		bins[l]++
 		count++
 		weightSum += levelWeights[l]

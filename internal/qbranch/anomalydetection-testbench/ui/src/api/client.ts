@@ -273,6 +273,8 @@ export interface ScorerConfig {
   high_threshold: number;
   margin_pct: number;
   cooldown_secs: number;
+  /** Per-detector score-to-level thresholds: [low, medium, high, xhigh]. */
+  detector_thresholds?: Record<string, [number, number, number, number]>;
 }
 
 /** Per-second telemetry bucket from the Go scorer. */

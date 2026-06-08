@@ -326,6 +326,16 @@ type ScorerConfig struct {
 	// CooldownSecs is the minimum seconds to remain in any elevated state
 	// before a decrease transition is allowed.
 	CooldownSecs int64 `json:"cooldown_secs"`
+	// DetectorThresholds overrides the default score-to-level boundaries for
+	// specific detector names. Each entry is [low, medium, high, xhigh] thresholds:
+	//   score < low              → VeryLow (0)
+	//   low  ≤ score < medium    → Low     (1)
+	//   medium ≤ score < high    → Medium  (2)
+	//   high  ≤ score < xhigh   → High    (3)
+	//   score ≥ xhigh            → XHigh  (4)
+	// Detectors not in this map fall back to the global defaults [6, 12, 20, 35].
+	// Detectors that emit no numeric score (e.g. bocpd) ignore this map.
+	DetectorThresholds map[string][4]float64 `json:"detector_thresholds,omitempty"`
 }
 
 // ScoreBucket is the per-second telemetry unit emitted by the scorer.
