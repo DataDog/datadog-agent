@@ -216,30 +216,12 @@ fn default_program_data_dir() -> PathBuf {
     PathBuf::from(base).join("Datadog")
 }
 
-fn install_root_from_registry() -> Option<PathBuf> {
-    open_datadog_agent_key()
-        .and_then(|k| registry_nonempty_string(&k, "InstallPath"))
-        .map(PathBuf::from)
-}
-
-fn default_install_root() -> PathBuf {
-    let program_files =
-        std::env::var("ProgramFiles").unwrap_or_else(|_| r"C:\Program Files".to_string());
-    PathBuf::from(program_files)
-        .join("Datadog")
-        .join("Datadog Agent")
-}
-
-fn install_root() -> PathBuf {
-    install_root_from_registry().unwrap_or_else(default_install_root)
-}
-
-/// Default directory for process-manager YAML (`*.yaml`), same layout as Linux
-/// (`/opt/datadog-agent/processes.d`) and omnibus. Resolves the install root like
-/// `pkg/util/winutil.GetProgramFilesDirForProduct` in Go (`InstallPath` registry value,
-/// else `%ProgramFiles%\Datadog\Datadog Agent`), then appends `processes.d`.
+/// Default directory for process-manager YAML (`*.yaml`) on Windows.
+///
+/// Resolved under [`program_data_root`] (registry `ConfigRoot` or `%ProgramData%\Datadog`),
+/// in `dd-procmgr\processes.d`.
 pub fn default_config_dir() -> PathBuf {
-    install_root().join("processes.d")
+    program_data_root().join("dd-procmgr").join("processes.d")
 }
 
 /// Wait for a shutdown trigger: either Ctrl+C (console mode) or an SCM
