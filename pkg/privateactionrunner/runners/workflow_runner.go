@@ -19,6 +19,7 @@ import (
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
 	privatebundles "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/credentials/resolver"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/executor"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/observability"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms"
@@ -35,6 +36,7 @@ type WorkflowRunner struct {
 	config       *config.Config
 	keysManager  taskverifier.KeysManager
 	taskVerifier taskverifier.TaskVerifier
+	executor     *executor.Supervisor
 	taskLoop     *Loop
 }
 
@@ -46,6 +48,7 @@ func NewWorkflowRunner(
 	traceroute traceroute.Component,
 	eventPlatform eventplatform.Component,
 	ipcClient ipc.HTTPClient,
+	executorSupervisor *executor.Supervisor,
 ) (*WorkflowRunner, error) {
 	return &WorkflowRunner{
 		registry:     privatebundles.NewRegistry(configuration, traceroute, eventPlatform, ipcClient),
@@ -54,6 +57,7 @@ func NewWorkflowRunner(
 		config:       configuration,
 		keysManager:  keysManager,
 		taskVerifier: verifier,
+		executor:     executorSupervisor,
 	}, nil
 }
 
@@ -67,12 +71,91 @@ func (n *WorkflowRunner) Start(ctx context.Context) error {
 	n.keysManager.Start(ctx)
 	n.taskLoop = NewLoop(n)
 	go func() {
-		log.FromContext(ctx).Info("Waiting for KeysManager to be ready")
-		n.keysManager.WaitForReady()
-		observability.ReportKeysManagerReady(n.config.MetricsClient, log.FromContext(ctx), startTime)
+		n.WaitForKeysManagerReady(ctx, startTime)
 		n.taskLoop.Run(ctx)
 	}()
 	return nil
+}
+
+// StartKeysManager starts remote-config key management.
+func (n *WorkflowRunner) StartKeysManager(ctx context.Context) {
+	n.keysManager.Start(ctx)
+}
+
+// WaitForKeysManagerReady waits until task verification keys are ready.
+func (n *WorkflowRunner) WaitForKeysManagerReady(ctx context.Context, startTime time.Time) {
+	log.FromContext(ctx).Info("Waiting for KeysManager to be ready")
+	n.keysManager.WaitForReady()
+	observability.ReportKeysManagerReady(n.config.MetricsClient, log.FromContext(ctx), startTime)
+}
+
+// HandleTask owns a dequeued task through validation, execution, and final
+// result publication.
+func (n *WorkflowRunner) HandleTask(ctx context.Context, task *types.Task) {
+	logger := log.FromContext(ctx)
+	if err := task.Validate(); err != nil {
+		logger.Error("could not validate workflow task", log.ErrorField(err))
+		n.publishFailure(ctx, task, err)
+		return
+	}
+	unwrappedTask, err := n.taskVerifier.UnwrapTask(task)
+	if err != nil {
+		logger.Error("could not verify workflow task", log.ErrorField(err))
+		n.publishFailure(ctx, task, err)
+		return
+	}
+	logger.Info("task verified successfully", log.String(observability.TaskIDTagName, unwrappedTask.Data.ID))
+
+	// JobId is generated on dequeue so it is not part of the signature; it will
+	// be checked by the backend when publishing the result.
+	unwrappedTask.Data.Attributes.JobId = task.Data.Attributes.JobId
+	// TraceId/SpanId are dequeue-time observability metadata, not part of the signed task.
+	unwrappedTask.Data.Attributes.TraceId = task.Data.Attributes.TraceId
+	unwrappedTask.Data.Attributes.SpanId = task.Data.Attributes.SpanId
+	task = unwrappedTask
+
+	credential, err := n.resolver.ResolveConnectionInfoToCredential(ctx, task.Data.Attributes.ConnectionInfo, nil)
+	if err != nil {
+		logger.Error("could not resolve connection", log.String(observability.TaskIDTagName, task.Data.ID), log.ErrorField(err))
+		n.publishFailure(ctx, task, err)
+		return
+	}
+
+	n.handleTask(ctx, task, credential)
+}
+
+func (n *WorkflowRunner) handleTask(
+	ctx context.Context,
+	task *types.Task,
+	credential *privateconnection.PrivateCredentials,
+) {
+	logger := log.FromContext(ctx).With(
+		log.String(observability.TaskIDTagName, task.Data.ID),
+		log.String(observability.ActionFqnTagName, task.GetFQN()),
+	)
+	taskCtx, taskCtxCancel := context.WithCancel(ctx)
+	defer taskCtxCancel()
+
+	timeoutSeconds := task.TimeoutSeconds()
+	if timeoutSeconds == nil {
+		timeoutSeconds = n.config.TaskTimeoutSeconds
+	}
+	timeoutCtx, timeoutCancel := util.CreateTimeoutContext(taskCtx, timeoutSeconds)
+	defer timeoutCancel()
+
+	output, err := n.RunTask(timeoutCtx, task, credential)
+
+	if isTimeout, timeoutErr := util.HandleTimeoutError(timeoutCtx, err, timeoutSeconds, logger); isTimeout {
+		n.publishFailure(ctx, task, timeoutErr)
+		return
+	}
+
+	if err == nil {
+		n.publishSuccess(ctx, task, output)
+	} else {
+		logger.Warn("task execution failed", log.ErrorField(err))
+		n.publishFailure(ctx, task, err)
+	}
 }
 
 func (n *WorkflowRunner) Stop(ctx context.Context) error {
@@ -155,5 +238,47 @@ func (n *WorkflowRunner) startHeartbeat(ctx context.Context, task *types.Task, l
 				logger.Info("Heartbeat sent successfully")
 			}
 		}
+	}
+}
+
+func (n *WorkflowRunner) publishFailure(ctx context.Context, task *types.Task, e error) {
+	logger := log.FromContext(ctx)
+	if task == nil || task.Data.Attributes == nil || task.Data.Attributes.JobId == "" {
+		logger.Error("publish failure error: no job id was provided")
+		return
+	}
+	inputError := util.DefaultPARError(e)
+	err := n.opmsClient.PublishFailure(
+		ctx,
+		task.Data.Attributes.Client,
+		task.Data.ID,
+		task.Data.Attributes.JobId,
+		task.GetFQN(),
+		inputError.ErrorCode,
+		inputError.Message,
+		inputError.ExternalMessage,
+	)
+	if err != nil {
+		logger.Error("publish failure error: unable to publish workflow task failure", log.ErrorField(err))
+	}
+}
+
+func (n *WorkflowRunner) publishSuccess(ctx context.Context, task *types.Task, output interface{}) {
+	logger := log.FromContext(ctx)
+	if task.Data.Attributes.JobId == "" {
+		logger.Error("publish success error: no job id was provided")
+		return
+	}
+	err := n.opmsClient.PublishSuccess(
+		ctx,
+		task.Data.Attributes.Client,
+		task.Data.ID,
+		task.Data.Attributes.JobId,
+		task.GetFQN(),
+		output,
+		"",
+	)
+	if err != nil {
+		logger.Error("publish success error: unable to publish workflow task success", log.ErrorField(err))
 	}
 }

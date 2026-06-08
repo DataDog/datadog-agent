@@ -5135,6 +5135,12 @@ api_key:
 #
 #   task_timeout_seconds: 60
 
+#   # @param executor_idle_timeout - string - optional - default: 5m
+#   # @env DD_PRIVATE_ACTION_RUNNER_EXECUTOR_IDLE_TIMEOUT - string - optional - default: 5m
+#   # Maximum time the executor process stays alive without active actions.
+#
+#   executor_idle_timeout: 5m
+
 #   # @param actions_allowlist - list of strings - optional - default: []
 #   # @env DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST - comma-separated list of strings - optional - default: []
 #   # List of actions that the Private Action Runner is allowed to execute.

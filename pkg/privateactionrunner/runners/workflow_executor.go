@@ -11,7 +11,6 @@ import (
 	"time"
 
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
-	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/observability"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
@@ -60,6 +59,13 @@ func (l *Loop) Run(parentCtx context.Context) {
 		default:
 		}
 
+		if l.runner.executor != nil {
+			if err := l.runner.executor.WaitForCapacity(ctx); err != nil {
+				logger.Error("executor capacity wait failed", log.ErrorField(err))
+				continue
+			}
+		}
+
 		var task *types.Task
 		var retryAfterDuration time.Duration
 		breaker.Do(
@@ -91,15 +97,23 @@ func (l *Loop) Run(parentCtx context.Context) {
 			continue
 		}
 
+		if l.runner.executor != nil {
+			if err := l.runner.executor.SubmitTask(ctx, task); err != nil {
+				logger.Error("failed to submit task to executor", log.String(observability.TaskIDTagName, task.Data.ID), log.ErrorField(err))
+				l.runner.publishFailure(ctx, task, err)
+			}
+			continue
+		}
+
 		if err := task.Validate(); err != nil {
 			logger.Error("could not validate workflow task", log.ErrorField(err))
-			l.publishFailure(ctx, task, err)
+			l.runner.publishFailure(ctx, task, err)
 			continue
 		}
 		unwrappedTask, err := l.runner.taskVerifier.UnwrapTask(task)
 		if err != nil {
 			logger.Error("could not verify workflow task", log.ErrorField(err))
-			l.publishFailure(ctx, task, err)
+			l.runner.publishFailure(ctx, task, err)
 			continue
 		}
 		logger.Info("task verified successfully", log.String(observability.TaskIDTagName, unwrappedTask.Data.ID))
@@ -114,48 +128,14 @@ func (l *Loop) Run(parentCtx context.Context) {
 		credential, err := l.runner.resolver.ResolveConnectionInfoToCredential(ctx, task.Data.Attributes.ConnectionInfo, nil)
 		if err != nil {
 			logger.Error("could not resolve connection", log.String(observability.TaskIDTagName, task.Data.ID), log.ErrorField(err))
-			l.publishFailure(ctx, task, err)
+			l.runner.publishFailure(ctx, task, err)
 			continue
 		}
 		l.sem <- struct{}{}
 		go func() {
-			l.handleTask(ctx, task, credential)
+			l.runner.handleTask(ctx, task, credential)
 			<-l.sem
 		}()
-	}
-}
-
-func (l *Loop) handleTask(
-	ctx context.Context,
-	task *types.Task,
-	credential *privateconnection.PrivateCredentials,
-) {
-	logger := log.FromContext(ctx).With(
-		log.String(observability.TaskIDTagName, task.Data.ID),
-		log.String(observability.ActionFqnTagName, task.GetFQN()),
-	)
-	taskCtx, taskCtxCancel := context.WithCancel(ctx)
-	defer taskCtxCancel()
-
-	timeoutSeconds := task.TimeoutSeconds()
-	if timeoutSeconds == nil {
-		timeoutSeconds = l.runner.config.TaskTimeoutSeconds
-	}
-	timeoutCtx, timeoutCancel := util.CreateTimeoutContext(taskCtx, timeoutSeconds)
-	defer timeoutCancel()
-
-	output, err := l.runner.RunTask(timeoutCtx, task, credential)
-
-	if isTimeout, timeoutErr := util.HandleTimeoutError(timeoutCtx, err, timeoutSeconds, logger); isTimeout {
-		l.publishFailure(ctx, task, timeoutErr)
-		return
-	}
-
-	if err == nil {
-		l.publishSuccess(ctx, task, output)
-	} else {
-		logger.Warn("task execution failed", log.ErrorField(err))
-		l.publishFailure(ctx, task, err)
 	}
 }
 
@@ -172,47 +152,5 @@ func (l *Loop) Close(ctx context.Context) {
 		log.FromContext(ctx).Info("Worker stopped gracefully.")
 	case <-ctx.Done():
 		log.FromContext(ctx).Warn("Workflow loop timeout reached. Forcing shutdown.")
-	}
-}
-
-func (l *Loop) publishFailure(ctx context.Context, task *types.Task, e error) {
-	logger := log.FromContext(ctx)
-	if task == nil || task.Data.Attributes == nil || task.Data.Attributes.JobId == "" {
-		logger.Error("publish failure error: no job id was provided")
-		return
-	}
-	inputError := util.DefaultPARError(e)
-	err := l.runner.opmsClient.PublishFailure(
-		ctx,
-		task.Data.Attributes.Client,
-		task.Data.ID,
-		task.Data.Attributes.JobId,
-		task.GetFQN(),
-		inputError.ErrorCode,
-		inputError.Message,
-		inputError.ExternalMessage,
-	)
-	if err != nil {
-		logger.Error("publish failure error: unable to publish workflow task failure", log.ErrorField(err))
-	}
-}
-
-func (l *Loop) publishSuccess(ctx context.Context, task *types.Task, output interface{}) {
-	logger := log.FromContext(ctx)
-	if task.Data.Attributes.JobId == "" {
-		logger.Error("publish success error: no job id was provided")
-		return
-	}
-	err := l.runner.opmsClient.PublishSuccess(
-		ctx,
-		task.Data.Attributes.Client,
-		task.Data.ID,
-		task.Data.Attributes.JobId,
-		task.GetFQN(),
-		output,
-		"",
-	)
-	if err != nil {
-		logger.Error("publish success error: unable to publish workflow task success", log.ErrorField(err))
 	}
 }

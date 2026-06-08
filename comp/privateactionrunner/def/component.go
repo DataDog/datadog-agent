@@ -14,6 +14,24 @@ import "errors"
 type Component interface {
 }
 
+// Mode controls which part of the private action runner a process runs.
+type Mode string
+
+const (
+	// ModeOrchestrator runs OPMS polling, health checks, and executor supervision.
+	ModeOrchestrator Mode = "orchestrator"
+	// ModeExecutor runs only the local task executor IPC server.
+	ModeExecutor Mode = "executor"
+)
+
+// Params contains process-level runtime parameters for the private action runner.
+type Params struct {
+	Mode               Mode
+	ConfPath           string
+	ExtraConfFiles     []string
+	ExecutorSocketPath string
+}
+
 // ErrNotEnabled is returned when the private action runner is not enabled
 var ErrNotEnabled = errors.New("private action runner is not enabled")
 
@@ -29,4 +47,5 @@ const (
 	PARUrn                    = "private_action_runner.urn"
 	PARActionsAllowlist       = "private_action_runner.actions_allowlist"
 	PARDefaultActionsEnabled  = "private_action_runner.default_actions_enabled"
+	PARExecutorIdleTimeout    = "private_action_runner.executor_idle_timeout"
 )
