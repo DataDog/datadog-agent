@@ -60,17 +60,24 @@ import (
 const DefaultPort = 9000
 
 const (
-	pathReady     = "/aws/lambda-microvms/runtime/beta/v1/ready"
-	pathValidate  = "/aws/lambda-microvms/runtime/beta/v1/validate"
-	pathLaunch    = "/aws/lambda-microvms/runtime/beta/v1/launch"
-	pathSuspend   = "/aws/lambda-microvms/runtime/beta/v1/suspend"
-	pathResume    = "/aws/lambda-microvms/runtime/beta/v1/resume"
-	pathTerminate = "/aws/lambda-microvms/runtime/beta/v1/terminate"
+	basePath      = "/aws/lambda-microvms/runtime/beta/v1/"
+	pathReady     = basePath + "ready"
+	pathValidate  = basePath + "validate"
+	pathLaunch    = basePath + "launch"
+	pathSuspend   = basePath + "suspend"
+	pathResume    = basePath + "resume"
+	pathTerminate = basePath + "terminate"
 
-	launchMetricName    = "aws.lambda.microvm.enhanced.launch"
-	suspendMetricName   = "aws.lambda.microvm.enhanced.suspend"
-	resumeMetricName    = "aws.lambda.microvm.enhanced.resume"
-	terminateMetricName = "aws.lambda.microvm.enhanced.terminate"
+	// flushWorkerCount is the number of goroutines launched by flushAll:
+	// one each for the metric, trace, and logs flushers.
+	flushWorkerCount = 3
+
+	baseMetricPrefix    = "aws.lambda.enhanced.microvm."
+	launchMetricName    = baseMetricPrefix + "launch"
+	suspendMetricName   = baseMetricPrefix + "suspend"
+	resumeMetricName    = baseMetricPrefix + "resume"
+	terminateMetricName = baseMetricPrefix + "terminate"
+	validateMetricName  = baseMetricPrefix + "validate"
 
 	lambdaMicroVMIDKey = "lambda_microvm_id"      // for map[string]string trace tags: key only
 	lambdaMicroVMID    = lambdaMicroVMIDKey + ":" // for []string log/metric tags: key:value concatenated
@@ -316,6 +323,7 @@ func (s *Server) passThroughReady(w http.ResponseWriter, r *http.Request) {
 // not required to implement /validate in that mode.
 func (s *Server) handleValidate(w http.ResponseWriter, r *http.Request) {
 	log.Info("MicroVM lifecycle: validate")
+	s.emitLifecycleMetric(validateMetricName)
 	if s.fwd != nil {
 		s.passThroughValidate(w, r)
 		return
@@ -369,7 +377,7 @@ func (s *Server) flushAll(flushCtx context.Context) {
 			log.Warnf("MicroVM lifecycle: timed out waiting for pending samples to drain")
 		}
 	}
-	flushDone := make(chan struct{}, 3)
+	flushDone := make(chan struct{}, flushWorkerCount)
 	go func() { s.metricFlusher.Flush(); flushDone <- struct{}{} }()
 	go func() { s.traceFlusher.Flush(); flushDone <- struct{}{} }()
 	go func() { s.logsFlusher.Flush(flushCtx); flushDone <- struct{}{} }()
@@ -547,8 +555,15 @@ func emitMetric(emitter MetricEmitter, source metrics.MetricSource, name string,
 	emitter.AddEnhancedMetric(name, 1.0, source, timestamp, tags...)
 }
 
+// waitForFlushes collects exactly 3 completion signals from flushDone — one
+// per goroutine launched by flushAll (metric, trace, logs). The select inside
+// the loop applies a single shared deadline across all three: if flushCtx
+// expires at any iteration the remaining flushes are abandoned and the handler
+// can return to the platform promptly. The caller allocates flushDone with
+// cap=3 so the three goroutines can send without blocking even after an early
+// return here, preventing goroutine leaks.
 func (s *Server) waitForFlushes(flushCtx context.Context, flushDone <-chan struct{}) {
-	for i := 0; i < 3; i++ {
+	for i := 0; i < flushWorkerCount; i++ {
 		select {
 		case <-flushDone:
 		case <-flushCtx.Done():
