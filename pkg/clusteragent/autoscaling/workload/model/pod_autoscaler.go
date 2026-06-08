@@ -101,17 +101,6 @@ type PodAutoscalerInternal struct {
 	// equality check captures both spec changes and out-of-spec edits.
 	metadataHash uint64
 
-	// clusterBurstableDefault is the cluster-level default for burstable mode, read once
-	// from config at controller startup and injected via PodAutoscalerInternalBuilder.
-	// It is the lowest-priority fallback: spec.options.burstable > preview annotation > this.
-	clusterBurstableDefault bool
-
-	// podsGuaranteedQOS is true when all observed pods are in Guaranteed QOS class.
-	// Set by the vertical controller each sync via SetPodsGuaranteedQOS.
-	// When true and burstable is not explicitly configured, IsBurstable returns false to avoid
-	// silently changing the pod's QOS class by removing CPU limits.
-	podsGuaranteedQOS bool
-
 	// scalingValues represents the active scaling values that should be used
 	scalingValues ScalingValues
 
@@ -219,44 +208,31 @@ type PodAutoscalerInternal struct {
 	submittedPodOps map[string]string
 }
 
-// PodAutoscalerInternalBuilder creates PodAutoscalerInternal instances with a cluster-level
-// burstable default read once at controller startup. Create one instance per process via
-// NewPodAutoscalerInternalBuilder and reuse it for all autoscaler construction calls.
-type PodAutoscalerInternalBuilder struct {
-	clusterBurstableDefault bool
-}
-
-// NewPodAutoscalerInternalBuilder creates a builder. clusterBurstableDefault is the
-// lowest-priority fallback for IsBurstable() and should be read from config once at startup.
-func NewPodAutoscalerInternalBuilder(clusterBurstableDefault bool) *PodAutoscalerInternalBuilder {
-	return &PodAutoscalerInternalBuilder{clusterBurstableDefault: clusterBurstableDefault}
-}
-
-// NewFromKubernetes creates a PodAutoscalerInternal from a Kubernetes CR.
-func (b *PodAutoscalerInternalBuilder) NewFromKubernetes(podAutoscaler *datadoghq.DatadogPodAutoscaler) PodAutoscalerInternal {
+// NewPodAutoscalerInternal creates a new PodAutoscalerInternal from a Kubernetes CR
+func NewPodAutoscalerInternal(podAutoscaler *datadoghq.DatadogPodAutoscaler) PodAutoscalerInternal {
 	pai := PodAutoscalerInternal{
-		namespace:               podAutoscaler.Namespace,
-		name:                    podAutoscaler.Name,
-		clusterBurstableDefault: b.clusterBurstableDefault,
+		namespace: podAutoscaler.Namespace,
+		name:      podAutoscaler.Name,
 	}
 	pai.UpdateFromPodAutoscaler(podAutoscaler)
 	pai.UpdateFromStatus(&podAutoscaler.Status)
+
 	return pai
 }
 
-// NewFromSettings creates a PodAutoscalerInternal from settings received through remote configuration.
-func (b *PodAutoscalerInternalBuilder) NewFromSettings(ns, name string, podAutoscalerSpec *datadoghq.DatadogPodAutoscalerSpec, settingsTimestamp time.Time) PodAutoscalerInternal {
+// NewPodAutoscalerFromSettings creates a new PodAutoscalerInternal from settings received through remote configuration
+func NewPodAutoscalerFromSettings(ns, name string, podAutoscalerSpec *datadoghq.DatadogPodAutoscalerSpec, settingsTimestamp time.Time) PodAutoscalerInternal {
 	pda := PodAutoscalerInternal{
-		namespace:               ns,
-		name:                    name,
-		clusterBurstableDefault: b.clusterBurstableDefault,
+		namespace: ns,
+		name:      name,
 	}
 	pda.UpdateFromSettings(podAutoscalerSpec, settingsTimestamp)
+
 	return pda
 }
 
-// NewFromProfile creates a PodAutoscalerInternal for a profile-managed workload.
-func (b *PodAutoscalerInternalBuilder) NewFromProfile(
+// NewPodAutoscalerFromProfile creates a PodAutoscalerInternal for a profile-managed workload.
+func NewPodAutoscalerFromProfile(
 	ns, name, profileName string,
 	template *datadoghq.DatadogPodAutoscalerTemplate,
 	targetRef autoscalingv2.CrossVersionObjectReference,
@@ -264,9 +240,8 @@ func (b *PodAutoscalerInternalBuilder) NewFromProfile(
 	previewAnnotation string,
 ) PodAutoscalerInternal {
 	pai := PodAutoscalerInternal{
-		namespace:               ns,
-		name:                    name,
-		clusterBurstableDefault: b.clusterBurstableDefault,
+		namespace: ns,
+		name:      name,
 		upstreamCR: &datadoghq.DatadogPodAutoscaler{
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: ns,
@@ -275,6 +250,7 @@ func (b *PodAutoscalerInternalBuilder) NewFromProfile(
 		},
 	}
 	pai.UpdateFromProfile(profileName, template, targetRef, templateHash, previewAnnotation)
+
 	return pai
 }
 
@@ -413,10 +389,11 @@ func (p *PodAutoscalerInternal) SetActiveScalingValues(currentTime time.Time, ho
 	// Update scaling values
 	p.scalingValues.Horizontal = selectScalingValues(horizontalActiveSource).Horizontal
 
-	// Nil source means no backend recommendation yet (e.g. first window after restart).
-	// Setting vertical to nil lets sync() exit early rather than self-assigning the
-	// already-constrained value, which would propagate the burstable sentinel and prevent
-	// a rollout when burstable is toggled off.
+	// selectScalingValues(nil) returns p.scalingValues — a self-assignment that would
+	// keep any previously-constrained vertical value (including a burstable sentinel)
+	// alive across cycles. When the backend stops emitting a vertical recommendation,
+	// reset Vertical to nil so the next sync sees "no recommendation" and clears live
+	// state instead of re-applying the stale sentinel.
 	if verticalActiveSource == nil {
 		p.scalingValues.Vertical = nil
 	} else {
@@ -742,31 +719,15 @@ func (p *PodAutoscalerInternal) IsHorizontalScalingEnabled() bool {
 	return !(scaleUpDisabled && scaleDownDisabled)
 }
 
-// SetPodsGuaranteedQOS records whether all currently observed pods are in Guaranteed QOS class.
-// Must be called by the vertical controller before IsBurstable() is consulted in each sync cycle.
-func (p *PodAutoscalerInternal) SetPodsGuaranteedQOS(guaranteed bool) {
-	p.podsGuaranteedQOS = guaranteed
-}
-
 // IsBurstable returns true if burstable mode is enabled for this autoscaler.
-//
-// Priority:
-//  1. spec.options.burstable (explicit, highest)
-//  2. preview annotation (explicit via profile)
-//  3. podsGuaranteedQOS=true → false (avoid silently changing pod QOS class by removing CPU limits)
-//  4. cluster-level default (from builder)
+// Burstable mode requires an explicit opt-in via spec.options.burstable or the
+// preview annotation; there is no cluster-level default.
 func (p *PodAutoscalerInternal) IsBurstable() bool {
 	spec := p.Spec()
 	if spec != nil && spec.Options != nil && spec.Options.Burstable != nil {
 		return *spec.Options.Burstable
 	}
-	if p.previewOptions.Burstable {
-		return true
-	}
-	if p.podsGuaranteedQOS {
-		return false
-	}
-	return p.clusterBurstableDefault
+	return p.previewOptions.Burstable
 }
 
 // PreviewAnnotation returns the JSON-encoded preview annotation forwarded from the cluster
@@ -1211,7 +1172,6 @@ func (p *PodAutoscalerInternal) BuildStatus(currentTime metav1.Time, currentStat
 	}
 	status.Conditions = append(status.Conditions, newCondition(rolloutStatus, verticalReason, verticalMessage, currentTime, datadoghqcommon.DatadogPodAutoscalerVerticalAbleToApply, existingConditions))
 
-	// Populate effective options status.
 	// spec.options.burstable is reported when explicitly set; the annotation fallback is
 	// reported only when true (it has no explicit false — absence means default).
 	spec := p.Spec()
@@ -1226,43 +1186,6 @@ func (p *PodAutoscalerInternal) BuildStatus(currentTime metav1.Time, currentStat
 	}
 
 	return status
-}
-
-// containerResourcesForStatus returns a copy of the container resources with internal sentinel
-// values removed from Limits and Requests so they are not surfaced in the DPA status.
-//
-// For Limits: applyVerticalConstraints (burstable mode) stores removeLimitSentinel (-1) in
-// Limits[cpu] to signal "delete this CPU limit from the pod". A negative quantity is never a
-// valid Kubernetes resource value, so only strictly positive quantities are kept in Limits.
-func containerResourcesForStatus(in []datadoghqcommon.DatadogPodAutoscalerContainerResources) []datadoghqcommon.DatadogPodAutoscalerContainerResources {
-	if len(in) == 0 {
-		return in
-	}
-	out := make([]datadoghqcommon.DatadogPodAutoscalerContainerResources, len(in))
-	for i, cr := range in {
-		out[i].Name = cr.Name
-		if len(cr.Limits) > 0 {
-			for k, v := range cr.Limits {
-				if v.Sign() > 0 {
-					if out[i].Limits == nil {
-						out[i].Limits = make(corev1.ResourceList, len(cr.Limits))
-					}
-					out[i].Limits[k] = v
-				}
-			}
-		}
-		if len(cr.Requests) > 0 {
-			for k, v := range cr.Requests {
-				if v.Sign() >= 0 {
-					if out[i].Requests == nil {
-						out[i].Requests = make(corev1.ResourceList, len(cr.Requests))
-					}
-					out[i].Requests[k] = v
-				}
-			}
-		}
-	}
-	return out
 }
 
 // Private helpers

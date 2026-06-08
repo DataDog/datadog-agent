@@ -71,8 +71,6 @@ type FakePodAutoscalerInternal struct {
 	AppliedProfileHash                 string
 	TargetGVK                          schema.GroupVersionKind
 	CustomRecommenderConfiguration     *RecommenderConfiguration
-	ClusterBurstableDefault            bool
-	PodsGuaranteedQOS                  bool
 }
 
 // Build creates a PodAutoscalerInternal object from the FakePodAutoscalerInternal.
@@ -118,8 +116,6 @@ func (f FakePodAutoscalerInternal) Build() PodAutoscalerInternal {
 		namespace:                          f.Namespace,
 		name:                               f.Name,
 		generation:                         f.Generation,
-		clusterBurstableDefault:            f.ClusterBurstableDefault,
-		podsGuaranteedQOS:                  f.PodsGuaranteedQOS,
 		upstreamCR:                         upstreamCR,
 		metadataHash:                       metadataHash,
 		settingsTimestamp:                  f.SettingsTimestamp,

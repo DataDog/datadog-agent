@@ -822,7 +822,7 @@ func TestFromAutoscalerToContainerResourcePatches_Burstable(t *testing.T) {
 		Containers: []workloadmeta.OrchestratorContainer{{Name: "app"}},
 	}
 
-	t.Run("burstable: cpu removed from limits, LimitsToDelete set", func(t *testing.T) {
+	t.Run("burstable=true: cpu removed from limits, LimitsToDelete set", func(t *testing.T) {
 		ai := (&model.FakePodAutoscalerInternal{
 			Namespace:            "default",
 			Name:                 "ai",
@@ -840,7 +840,7 @@ func TestFromAutoscalerToContainerResourcePatches_Burstable(t *testing.T) {
 		assert.Equal(t, []string{"cpu"}, p.LimitsToDelete, "cpu must be listed for deletion")
 	})
 
-	t.Run("non-burstable: cpu limit set normally, LimitsToDelete empty", func(t *testing.T) {
+	t.Run("burstable=false: cpu limit set normally, LimitsToDelete empty", func(t *testing.T) {
 		ai := (&model.FakePodAutoscalerInternal{
 			Namespace:     "default",
 			Name:          "ai",
@@ -853,56 +853,6 @@ func TestFromAutoscalerToContainerResourcePatches_Burstable(t *testing.T) {
 		p := patches[0]
 		assert.Equal(t, "500m", p.Limits["cpu"], "cpu limit must be set when not burstable")
 		assert.Empty(t, p.LimitsToDelete, "LimitsToDelete must be empty when not burstable")
-	})
-
-	t.Run("Guaranteed QOS suppresses cluster-default burstable: cpu limit preserved", func(t *testing.T) {
-		ai := (&model.FakePodAutoscalerInternal{
-			Namespace:               "default",
-			Name:                    "ai",
-			ScalingValues:           model.ScalingValues{Vertical: sv},
-			ClusterBurstableDefault: true,
-			PodsGuaranteedQOS:       true,
-		}).Build()
-
-		patches := fromAutoscalerToContainerResourcePatches(&ai, pod)
-
-		require.Len(t, patches, 1)
-		p := patches[0]
-		assert.Equal(t, "500m", p.Limits["cpu"], "cpu limit must be preserved for Guaranteed QOS pods")
-		assert.Empty(t, p.LimitsToDelete, "LimitsToDelete must be empty for Guaranteed QOS pods")
-	})
-}
-
-func TestIsPodsGuaranteedQOS(t *testing.T) {
-	guaranteed := string(corev1.PodQOSGuaranteed)
-	burstable := string(corev1.PodQOSBurstable)
-
-	t.Run("empty slice returns false", func(t *testing.T) {
-		assert.False(t, isPodsGuaranteedQOS(nil))
-		assert.False(t, isPodsGuaranteedQOS([]*workloadmeta.KubernetesPod{}))
-	})
-
-	t.Run("all Guaranteed returns true", func(t *testing.T) {
-		pods := []*workloadmeta.KubernetesPod{
-			{EntityID: workloadmeta.EntityID{ID: "p1"}, QOSClass: guaranteed},
-			{EntityID: workloadmeta.EntityID{ID: "p2"}, QOSClass: guaranteed},
-		}
-		assert.True(t, isPodsGuaranteedQOS(pods))
-	})
-
-	t.Run("mixed QOS returns false", func(t *testing.T) {
-		pods := []*workloadmeta.KubernetesPod{
-			{EntityID: workloadmeta.EntityID{ID: "p1"}, QOSClass: guaranteed},
-			{EntityID: workloadmeta.EntityID{ID: "p2"}, QOSClass: burstable},
-		}
-		assert.False(t, isPodsGuaranteedQOS(pods))
-	})
-
-	t.Run("single Burstable pod returns false", func(t *testing.T) {
-		pods := []*workloadmeta.KubernetesPod{
-			{EntityID: workloadmeta.EntityID{ID: "p1"}, QOSClass: burstable},
-		}
-		assert.False(t, isPodsGuaranteedQOS(pods))
 	})
 }
 

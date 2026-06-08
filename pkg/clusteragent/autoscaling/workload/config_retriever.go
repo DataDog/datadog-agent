@@ -14,7 +14,6 @@ import (
 	"k8s.io/utils/clock"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -48,12 +47,12 @@ type autoscalingProcessor interface {
 }
 
 // NewConfigRetriever creates a new ConfigRetriever
-func NewConfigRetriever(ctx context.Context, clock clock.WithTicker, store *store, isLeader func() bool, rcClient RcClient, builder *model.PodAutoscalerInternalBuilder) (*ConfigRetriever, error) {
+func NewConfigRetriever(ctx context.Context, clock clock.WithTicker, store *store, isLeader func() bool, rcClient RcClient) (*ConfigRetriever, error) {
 	cr := &ConfigRetriever{
 		isLeader: isLeader,
 		clock:    clock,
 
-		settingsProcessor: newAutoscalingSettingsProcessor(store, builder),
+		settingsProcessor: newAutoscalingSettingsProcessor(store),
 		valuesProcessor:   newAutoscalingValuesProcessor(store),
 	}
 

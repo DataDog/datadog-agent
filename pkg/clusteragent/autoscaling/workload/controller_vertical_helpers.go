@@ -42,11 +42,9 @@ const (
 
 const inPlaceResizeSupportedCacheTTL = 15 * time.Minute
 
-// removeLimitSentinel is placed in ContainerResources.Limits by applyVerticalConstraints
-// to signal that an existing limit must be actively deleted from the live pod, rather
-// than set to a new value. Negative quantities are never valid Kubernetes resource values,
-// making this unambiguous. The sentinel must be inserted AFTER the limits >= requests
-// invariant check to prevent it from being overwritten.
+// removeLimitSentinel is a sentinel quantity stored in ContainerResources.Limits to
+// signal that an existing limit must be actively deleted from the live pod. Negative
+// quantities are never valid Kubernetes resource values, making the intent unambiguous.
 var removeLimitSentinel = resource.MustParse("-1")
 
 // isInPlaceResizeSupported checks whether the API server exposes the pods/resize
@@ -425,16 +423,18 @@ func applyVerticalConstraints(verticalRecs *model.VerticalScalingValues, constra
 			}
 		}
 
-		// ControlledValues=CPURequestsRemoveLimitsMemoryRequestsAndLimits (phase 1 of 2):
-		// Remove CPU from limits before clamping and the invariant check so neither
-		// touches the CPU limit. The sentinel is inserted in phase 2, after the invariant.
-		isCPURemoveLimits := constraint.ControlledValues != nil &&
-			*constraint.ControlledValues == datadoghqcommon.DatadogPodAutoscalerContainerControlledValuesCPURequestsRemoveLimitsMemoryRequestsAndLimits
-		if isCPURemoveLimits {
-			if _, hasCPULimit := cr.Limits[corev1.ResourceCPU]; hasCPULimit {
-				delete(cr.Limits, corev1.ResourceCPU)
-				modified = true
+		// ControlledValues=CPURequestsRemoveLimitsMemoryRequestsAndLimits: stamp the CPU
+		// limit with removeLimitSentinel so the pod patcher actively deletes any
+		// pre-existing CPU limit from the live pod (an absent entry would mean
+		// "leave untouched"). The sentinel survives the clamping and invariant
+		// steps below because both skip negative-quantity values.
+		if constraint.ControlledValues != nil &&
+			*constraint.ControlledValues == datadoghqcommon.DatadogPodAutoscalerContainerControlledValuesCPURequestsRemoveLimitsMemoryRequestsAndLimits {
+			if cr.Limits == nil {
+				cr.Limits = corev1.ResourceList{}
 			}
+			cr.Limits[corev1.ResourceCPU] = removeLimitSentinel
+			modified = true
 		}
 
 		// Resolve min/max bounds for clamping.
@@ -451,24 +451,13 @@ func applyVerticalConstraints(verticalRecs *model.VerticalScalingValues, constra
 			modified = true
 		}
 
-		// Maintain invariant: limits >= requests for all resources where both exist
+		// Maintain invariant: limits >= requests for all resources where both exist.
+		// Skip sentinel limits (negative) — they are internal markers, not values.
 		for resourceName, reqQty := range cr.Requests {
-			if limQty, hasLimit := cr.Limits[resourceName]; hasLimit && limQty.Cmp(reqQty) < 0 {
+			if limQty, hasLimit := cr.Limits[resourceName]; hasLimit && limQty.Sign() >= 0 && limQty.Cmp(reqQty) < 0 {
 				cr.Limits[resourceName] = reqQty.DeepCopy()
 				modified = true
 			}
-		}
-
-		// ControlledValues=CPURequestsRemoveLimitsMemoryRequestsAndLimits (phase 2 of 2):
-		// Insert sentinel AFTER the invariant check to prevent it from being overwritten.
-		// The sentinel signals to the pod patcher that any pre-existing CPU limit must be
-		// actively deleted from the live pod, even if the backend never included a CPU limit.
-		if isCPURemoveLimits {
-			if cr.Limits == nil {
-				cr.Limits = corev1.ResourceList{}
-			}
-			cr.Limits[corev1.ResourceCPU] = removeLimitSentinel
-			modified = true
 		}
 
 		kept = append(kept, cr)
@@ -532,12 +521,17 @@ func resolveMinMaxBounds(c *datadoghqcommon.DatadogPodAutoscalerContainerConstra
 
 // clampResourceList clamps each resource quantity in the list to [min, max].
 // Returns true if any values were modified.
+// Negative-quantity entries (sentinels such as removeLimitSentinel) are skipped:
+// they are internal markers for downstream consumers and must survive clamping.
 func clampResourceList(rl corev1.ResourceList, minAllowed, maxAllowed corev1.ResourceList) bool {
 	if rl == nil {
 		return false
 	}
 	modified := false
 	for name, qty := range rl {
+		if qty.Sign() < 0 { // this use case is to support removeLimitSentinel
+			continue
+		}
 		clamped := false
 		if minQty, ok := minAllowed[name]; ok && qty.Cmp(minQty) < 0 {
 			qty = minQty.DeepCopy()
@@ -640,20 +634,6 @@ func getPodResizeStatus(pod *workloadmeta.KubernetesPod, recommendationID string
 	return PodResizeStatusCompleted, time.Time{}
 }
 
-// isPodsGuaranteedQOS returns true if all pods have Guaranteed QOS class.
-// Returns false when the slice is empty (unknown QOS → no override applied).
-func isPodsGuaranteedQOS(pods []*workloadmeta.KubernetesPod) bool {
-	if len(pods) == 0 {
-		return false
-	}
-	for _, pod := range pods {
-		if pod.QOSClass != string(corev1.PodQOSGuaranteed) {
-			return false
-		}
-	}
-	return true
-}
-
 func fromAutoscalerToContainerResourcePatches(autoscalerInternal *model.PodAutoscalerInternal, pod *workloadmeta.KubernetesPod) []workloadpatcher.ContainerResourcePatch {
 	containersResources := autoscalerInternal.ScalingValues().Vertical.ContainerResources
 
@@ -663,8 +643,6 @@ func fromAutoscalerToContainerResourcePatches(autoscalerInternal *model.PodAutos
 		recoByName[cr.Name] = cr
 	}
 
-	// IsBurstable() is safe to call here: SetPodsGuaranteedQOS was called at the top of sync(),
-	// so the Guaranteed-QOS override is already reflected in the returned value.
 	burstable := autoscalerInternal.IsBurstable()
 
 	// Build the list of patches ordered to API server pod container order.

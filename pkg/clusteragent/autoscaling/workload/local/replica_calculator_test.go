@@ -1660,7 +1660,7 @@ func TestCalculateHorizontalRecommendations(t *testing.T) {
 					Conditions: []datadoghqcommon.DatadogPodAutoscalerCondition{},
 				},
 			}
-			dpai := model.NewPodAutoscalerInternalBuilder(false).NewFromKubernetes(dpa)
+			dpai := model.NewPodAutoscalerInternal(dpa)
 
 			r := newReplicaCalculator(clock.RealClock{}, pw)
 			res, err := r.calculateHorizontalRecommendations(dpai, lStore)

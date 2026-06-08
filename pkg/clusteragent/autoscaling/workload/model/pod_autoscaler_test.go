@@ -515,7 +515,7 @@ func TestProfileManagedPodAutoscaler(t *testing.T) {
 	}
 
 	t.Run("NewPodAutoscalerFromProfile", func(t *testing.T) {
-		pai := NewPodAutoscalerInternalBuilder(false).NewFromProfile("prod", "web-app-a1b2c3d4", "high-cpu", template, targetRef, "hash1", "")
+		pai := NewPodAutoscalerFromProfile("prod", "web-app-a1b2c3d4", "high-cpu", template, targetRef, "hash1", "")
 
 		assert.Equal(t, "prod", pai.Namespace())
 		assert.Equal(t, "web-app-a1b2c3d4", pai.Name())
@@ -531,7 +531,7 @@ func TestProfileManagedPodAutoscaler(t *testing.T) {
 	})
 
 	t.Run("UpdateFromProfile same profile", func(t *testing.T) {
-		pai := NewPodAutoscalerInternalBuilder(false).NewFromProfile("prod", "web-app-a1b2c3d4", "high-cpu", template, targetRef, "hash1", "")
+		pai := NewPodAutoscalerFromProfile("prod", "web-app-a1b2c3d4", "high-cpu", template, targetRef, "hash1", "")
 
 		// Simulate some scaling state
 		pai.SetCurrentReplicas(5)
@@ -556,7 +556,7 @@ func TestProfileManagedPodAutoscaler(t *testing.T) {
 	})
 
 	t.Run("UpdateFromProfile different profile", func(t *testing.T) {
-		pai := NewPodAutoscalerInternalBuilder(false).NewFromProfile("prod", "web-app-a1b2c3d4", "low-cpu", template, targetRef, "hash1", "")
+		pai := NewPodAutoscalerFromProfile("prod", "web-app-a1b2c3d4", "low-cpu", template, targetRef, "hash1", "")
 
 		newTemplate := &datadoghq.DatadogPodAutoscalerTemplate{
 			Objectives: []datadoghqcommon.DatadogPodAutoscalerObjective{
@@ -572,7 +572,7 @@ func TestProfileManagedPodAutoscaler(t *testing.T) {
 
 	t.Run("IsProfileManaged true/false", func(t *testing.T) {
 		// Profile-managed
-		pai := NewPodAutoscalerInternalBuilder(false).NewFromProfile("ns", "name", "prof", template, targetRef, "", "")
+		pai := NewPodAutoscalerFromProfile("ns", "name", "prof", template, targetRef, "", "")
 		assert.True(t, pai.IsProfileManaged())
 		assert.Equal(t, "prof", pai.ProfileName())
 
@@ -621,17 +621,17 @@ func TestProfileManagedPodAutoscaler(t *testing.T) {
 	})
 
 	t.Run("NewPodAutoscalerFromProfile with burstable annotation sets IsBurstable", func(t *testing.T) {
-		pai := NewPodAutoscalerInternalBuilder(false).NewFromProfile("prod", "web-app-a1b2c3d4", "high-cpu", template, targetRef, "hash1", `{"burstable":true}`)
+		pai := NewPodAutoscalerFromProfile("prod", "web-app-a1b2c3d4", "high-cpu", template, targetRef, "hash1", `{"burstable":true}`)
 		assert.True(t, pai.IsBurstable())
 	})
 
 	t.Run("NewPodAutoscalerFromProfile without burstable annotation does not set IsBurstable", func(t *testing.T) {
-		pai := NewPodAutoscalerInternalBuilder(false).NewFromProfile("prod", "web-app-a1b2c3d4", "high-cpu", template, targetRef, "hash1", "")
+		pai := NewPodAutoscalerFromProfile("prod", "web-app-a1b2c3d4", "high-cpu", template, targetRef, "hash1", "")
 		assert.False(t, pai.IsBurstable())
 	})
 
 	t.Run("UpdateFromProfile burstable annotation toggling", func(t *testing.T) {
-		pai := NewPodAutoscalerInternalBuilder(false).NewFromProfile("prod", "web-app-a1b2c3d4", "high-cpu", template, targetRef, "hash1", "")
+		pai := NewPodAutoscalerFromProfile("prod", "web-app-a1b2c3d4", "high-cpu", template, targetRef, "hash1", "")
 		assert.False(t, pai.IsBurstable())
 
 		// Enable burstable via annotation
@@ -643,118 +643,36 @@ func TestProfileManagedPodAutoscaler(t *testing.T) {
 		assert.False(t, pai.IsBurstable())
 	})
 
-	t.Run("IsBurstable spec.options.burstable=true with no annotation", func(t *testing.T) {
-		burstable := true
-		pai := FakePodAutoscalerInternal{
-			Namespace: "ns",
-			Name:      "name",
-			Spec: &datadoghq.DatadogPodAutoscalerSpec{
-				Options: &datadoghqcommon.DatadogPodAutoscalerOptions{
-					Burstable: &burstable,
-				},
-			},
-		}.Build()
-		assert.True(t, pai.IsBurstable())
-	})
-
-	t.Run("IsBurstable spec.options.burstable=false overrides annotation", func(t *testing.T) {
-		burstable := false
-		pai := FakePodAutoscalerInternal{
-			Namespace:            "ns",
-			Name:                 "name",
-			PreviewAnnotationKey: `{"burstable":true}`,
-			Spec: &datadoghq.DatadogPodAutoscalerSpec{
-				Options: &datadoghqcommon.DatadogPodAutoscalerOptions{
-					Burstable: &burstable,
-				},
-			},
-		}.Build()
-		assert.False(t, pai.IsBurstable())
-	})
-
-	t.Run("IsBurstable spec.options.burstable=nil falls back to annotation", func(t *testing.T) {
-		pai := FakePodAutoscalerInternal{
-			Namespace:            "ns",
-			Name:                 "name",
-			PreviewAnnotationKey: `{"burstable":true}`,
-			Spec: &datadoghq.DatadogPodAutoscalerSpec{
-				Options: &datadoghqcommon.DatadogPodAutoscalerOptions{},
-			},
-		}.Build()
-		assert.True(t, pai.IsBurstable())
-	})
-
-	t.Run("IsBurstable uses ClusterBurstableDefault when no spec or annotation", func(t *testing.T) {
-		paiOff := FakePodAutoscalerInternal{Namespace: "ns", Name: "name", ClusterBurstableDefault: false}.Build()
-		assert.False(t, paiOff.IsBurstable())
-		paiOn := FakePodAutoscalerInternal{Namespace: "ns", Name: "name", ClusterBurstableDefault: true}.Build()
-		assert.True(t, paiOn.IsBurstable())
-	})
-
-	t.Run("IsBurstable annotation overrides ClusterBurstableDefault", func(t *testing.T) {
-		pai := FakePodAutoscalerInternal{
-			Namespace:               "ns",
-			Name:                    "name",
-			PreviewAnnotationKey:    `{"burstable":true}`,
-			ClusterBurstableDefault: false,
-		}.Build()
-		assert.True(t, pai.IsBurstable())
-	})
-
-	t.Run("IsBurstable spec overrides ClusterBurstableDefault and annotation", func(t *testing.T) {
-		burstable := false
-		pai := FakePodAutoscalerInternal{
-			Namespace:               "ns",
-			Name:                    "name",
-			PreviewAnnotationKey:    `{"burstable":true}`,
-			ClusterBurstableDefault: true,
-			Spec: &datadoghq.DatadogPodAutoscalerSpec{
-				Options: &datadoghqcommon.DatadogPodAutoscalerOptions{
-					Burstable: &burstable,
-				},
-			},
-		}.Build()
-		assert.False(t, pai.IsBurstable())
-	})
-
-	t.Run("IsBurstable: Guaranteed QOS overrides cluster default", func(t *testing.T) {
-		pai := FakePodAutoscalerInternal{Namespace: "ns", Name: "name", ClusterBurstableDefault: true, PodsGuaranteedQOS: true}.Build()
-		assert.False(t, pai.IsBurstable(), "Guaranteed QOS must suppress cluster default burstable=true")
-
-		paiNonGuaranteed := FakePodAutoscalerInternal{Namespace: "ns", Name: "name", ClusterBurstableDefault: true, PodsGuaranteedQOS: false}.Build()
-		assert.True(t, paiNonGuaranteed.IsBurstable(), "non-Guaranteed pods must fall back to cluster default")
-	})
-
-	t.Run("IsBurstable: spec.options.burstable=true wins over Guaranteed QOS", func(t *testing.T) {
-		burstable := true
-		pai := FakePodAutoscalerInternal{
-			Namespace:         "ns",
-			Name:              "name",
-			PodsGuaranteedQOS: true,
-			Spec: &datadoghq.DatadogPodAutoscalerSpec{
-				Options: &datadoghqcommon.DatadogPodAutoscalerOptions{
-					Burstable: &burstable,
-				},
-			},
-		}.Build()
-		assert.True(t, pai.IsBurstable(), "explicit spec.options.burstable=true must win even for Guaranteed pods")
-	})
-
-	t.Run("IsBurstable: preview annotation wins over Guaranteed QOS", func(t *testing.T) {
-		pai := FakePodAutoscalerInternal{
-			Namespace:            "ns",
-			Name:                 "name",
-			PreviewAnnotationKey: `{"burstable":true}`,
-			PodsGuaranteedQOS:    true,
-		}.Build()
-		assert.True(t, pai.IsBurstable(), "explicit preview annotation must win even for Guaranteed pods")
-	})
-
-	t.Run("IsBurstable: no explicit config and non-Guaranteed pods use cluster default", func(t *testing.T) {
-		paiOff := FakePodAutoscalerInternal{Namespace: "ns", Name: "name", ClusterBurstableDefault: false}.Build()
-		assert.False(t, paiOff.IsBurstable())
-		paiOn := FakePodAutoscalerInternal{Namespace: "ns", Name: "name", ClusterBurstableDefault: true}.Build()
-		assert.True(t, paiOn.IsBurstable())
+	t.Run("IsBurstable priority matrix", func(t *testing.T) {
+		specBurstable := func(v bool) *datadoghq.DatadogPodAutoscalerSpec {
+			return &datadoghq.DatadogPodAutoscalerSpec{
+				Options: &datadoghqcommon.DatadogPodAutoscalerOptions{Burstable: &v},
+			}
+		}
+		const burstableAnnot = `{"burstable":true}`
+		tests := []struct {
+			name  string
+			spec  *datadoghq.DatadogPodAutoscalerSpec
+			annot string
+			want  bool
+		}{
+			{"spec=true wins over annotation", specBurstable(true), burstableAnnot, true},
+			{"spec=false wins over annotation", specBurstable(false), burstableAnnot, false},
+			{"annotation enables when no spec", nil, burstableAnnot, true},
+			{"no spec, no annotation defaults to false", nil, "", false},
+			{"spec.Options without Burstable falls back to annotation", &datadoghq.DatadogPodAutoscalerSpec{Options: &datadoghqcommon.DatadogPodAutoscalerOptions{}}, burstableAnnot, true},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				pai := FakePodAutoscalerInternal{
+					Namespace:            "ns",
+					Name:                 "name",
+					Spec:                 tt.spec,
+					PreviewAnnotationKey: tt.annot,
+				}.Build()
+				assert.Equal(t, tt.want, pai.IsBurstable())
+			})
+		}
 	})
 
 	t.Run("BuildStatus options.burstable from spec", func(t *testing.T) {
@@ -1011,7 +929,8 @@ func TestContainerResourcesForStatus(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := containerResourcesForStatus(tt.input)
+			v := &VerticalScalingValues{ContainerResources: tt.input}
+			got := v.ContainerResourcesForStatus()
 			assert.Equal(t, tt.expected, got)
 		})
 	}
@@ -1026,7 +945,7 @@ func TestUpdateFromPodAutoscalerResyncsOnWatchedMetadata(t *testing.T) {
 		Spec:       datadoghq.DatadogPodAutoscalerSpec{Owner: datadoghqcommon.DatadogPodAutoscalerLocalOwner},
 	}
 
-	pai := NewPodAutoscalerInternalBuilder(false).NewFromKubernetes(dpa)
+	pai := NewPodAutoscalerInternal(dpa)
 	assert.False(t, pai.IsBurstable())
 
 	// Annotation-only edit: same generation, new preview annotation.
