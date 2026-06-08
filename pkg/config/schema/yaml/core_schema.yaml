@@ -7,17 +7,15 @@ properties:
   api_key:
     node_type: setting
     title: Basic Configuration
+    type: string
+    default: ''
     visibility: public
     description: |-
       The Datadog API key used by your Agent to submit metrics and events to Datadog.
       Create a new API key here: https://app.datadoghq.com/organization-settings/api-keys .
       Read more about API keys here: https://docs.datadoghq.com/account_management/api-app-keys/#api-keys .
     tags:
-    - TODO:fix-no-default
-    - TODO:fix-missing-type
     - template_section:Common
-    default: ''
-    type: string
   app_key:
     node_type: setting
     type: string
@@ -31,6 +29,8 @@ properties:
     - template_section:Common
   site:
     node_type: setting
+    type: string
+    default: datadoghq.com
     visibility: public
     description: |-
       The site of the Datadog intake to send Agent data to.
@@ -40,14 +40,9 @@ properties:
       Set to 'us5.datadoghq.com' to send data to the US5 site.
       Set to 'ap1.datadoghq.com' to send data to the AP1 site.
       Set to 'ddog-gov.com' to send data to the US1-FED site.
-    example: datadoghq.com
     tags:
-    - TODO:fix-no-default
-    - TODO:fix-missing-type
     - template_section:Common
-    comment: |-
-      Agent
-      Don't set a default on 'site' to allow detecting with viper whether it's set in config
+    comment: Agent
   infrastructure_mode:
     node_type: setting
     type: string
@@ -68,6 +63,8 @@ properties:
       The possible values are: full, basic, end_user_device, none.
   dd_url:
     node_type: setting
+    type: string
+    default: https://app.datadoghq.com
     env_vars:
     - DD_DD_URL
     - DD_URL
@@ -78,10 +75,7 @@ properties:
       setting defined in "site". It does not affect APM, Logs, Remote Configuration, or Live Process intake which have their
       own "*_dd_url" settings.
       If DD_DD_URL and DD_URL are both set, DD_DD_URL is used in priority.
-    example: https://app.datadoghq.com
     tags:
-    - TODO:fix-no-default
-    - TODO:fix-missing-type
     - template_section:Common
   proxy:
     node_type: section
@@ -2174,6 +2168,8 @@ properties:
     comment: 'Notice: 0 means UDP port closed'
   bind_host:
     node_type: setting
+    type: string
+    default: ''
     visibility: public
     description: |-
       The host to listen on for Dogstatsd and traces. This is ignored by APM when
@@ -2183,8 +2179,6 @@ properties:
       To solve this problem, ensure Dogstatsd is listening on IPv4 by setting this value to "127.0.0.1".
     example: localhost
     tags:
-    - TODO:fix-no-default
-    - TODO:fix-missing-type
     - template_section:Dogstatsd
   dogstatsd_socket:
     node_type: setting
@@ -2342,6 +2336,8 @@ properties:
     - template_section:Dogstatsd
   dogstatsd_mapper_profiles:
     node_type: setting
+    type: array
+    default: []
     env_parser: json
     visibility: public
     description: |-
@@ -2382,8 +2378,6 @@ properties:
                 task_type: '$1'
                 task_name: '$2'
     tags:
-    - TODO:fix-no-default
-    - TODO:fix-missing-type
     - template_section:Dogstatsd
   dogstatsd_mapper_cache_size:
     node_type: setting
@@ -5304,9 +5298,8 @@ properties:
         comment: HA Agent
       group:
         node_type: setting
-        tags:
-        - TODO:fix-no-default
-        - TODO:fix-missing-type
+        type: string
+        default: ''
   config_id:
     node_type: setting
     type: string
@@ -8067,9 +8060,8 @@ properties:
     - no-env
   fleet_policies_dir:
     node_type: setting
-    tags:
-    - TODO:fix-no-default
-    - TODO:fix-missing-type
+    type: string
+    default: ''
     comment: Directory to store fleet policies
   forwarder_apikey_validation_interval:
     node_type: setting
@@ -8351,6 +8343,8 @@ properties:
     type: number
     default: -1ns
     format: duration
+    tags:
+    - golang_type:duration
   ibm_metadata_timeout:
     node_type: setting
     type: integer
@@ -8637,9 +8631,9 @@ properties:
     comment: overridden in IoT Agent main
   ipc_address:
     node_type: setting
-    tags:
-    - TODO:fix-no-default
-    - TODO:fix-missing-type
+    type: string
+    default: localhost
+    comment: 'deprecated: use `cmd_host` instead'
   ipc_cert_file_path:
     node_type: setting
     type: string
@@ -9054,9 +9048,8 @@ properties:
     properties:
       id:
         node_type: setting
-        tags:
-        - TODO:fix-no-default
-        - TODO:fix-missing-type
+        type: string
+        default: ''
         comment: Network
   network_check:
     node_type: section
@@ -9194,9 +9187,8 @@ properties:
     - full-agent-only:true
   provider_kind:
     node_type: setting
-    tags:
-    - TODO:fix-no-default
-    - TODO:fix-missing-type
+    type: string
+    default: ''
   python_lazy_loading:
     node_type: setting
     type: boolean
@@ -9830,9 +9822,10 @@ properties:
     properties:
       checks:
         node_type: setting
-        tags:
-        - TODO:fix-no-default
-        - TODO:fix-missing-type
+        type: array
+        default: []
+        items:
+          type: string
       dogstatsd:
         node_type: section
         type: object
@@ -9896,6 +9889,8 @@ properties:
     type: number
     default: 10s
     format: duration
+    tags:
+    - golang_type:duration
   trace_agent_host_socket_path:
     node_type: setting
     type: string
