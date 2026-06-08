@@ -231,6 +231,7 @@ func (p *PrivateActionRunner) start(ctx context.Context) error {
 		RunnerVersion: cfg.Version,
 		Modes:         cfg.Modes,
 		ExtraTags:     cfg.Tags,
+		Component:     string(p.params.Mode),
 	}
 	ctx = observability.AddCommonTagsToLogs(ctx, commonTags)
 

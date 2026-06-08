@@ -23,6 +23,7 @@ const (
 	ExecutionResultTagName     = "execution_result"
 	TaskIDTagName              = "task_id"
 	JobIDTagName               = "job_id"
+	ComponentTagName           = "component"
 
 	Duration = "duration"
 )
@@ -32,6 +33,7 @@ type CommonTags struct {
 	RunnerVersion string
 	Modes         []modes.Mode
 	ExtraTags     []Tag
+	Component     string
 }
 
 type Tag struct {
@@ -64,6 +66,7 @@ func (t *CommonTags) AsLogFields() []log.Field {
 		log.String(RunnerIdTagName, t.RunnerId),
 		log.String(RunnerVersionTagName, t.RunnerVersion),
 		log.Strings(ModesTagName, modes.ToStrings(t.Modes)),
+		log.String(ComponentTagName, t.Component),
 	}
 	for _, tag := range t.ExtraTags {
 		fields = append(fields, log.String(tag.Key, tag.Value))
