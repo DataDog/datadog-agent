@@ -183,9 +183,40 @@ pub fn last_signal(_status: &std::process::ExitStatus) -> Option<i32> {
     None
 }
 
-pub fn default_config_dir() -> PathBuf {
+/// Root directory for agent program data on Windows.
+///
+/// Mirrors `pkg/util/winutil.GetProgramDataDir` in Go: read
+/// `HKLM\SOFTWARE\Datadog\Datadog Agent\ConfigRoot`, else `%ProgramData%\Datadog`.
+pub fn program_data_root() -> PathBuf {
+    program_data_root_from_registry().unwrap_or_else(default_program_data_dir)
+}
+
+fn program_data_root_from_registry() -> Option<PathBuf> {
+    use windows_registry::LOCAL_MACHINE;
+    use windows_sys::Win32::System::Registry::KEY_WOW64_64KEY;
+
+    let key = LOCAL_MACHINE
+        .options()
+        .read()
+        .access(KEY_WOW64_64KEY)
+        .open(r"SOFTWARE\Datadog\Datadog Agent")
+        .ok()?;
+
+    let value: String = key.get_string("ConfigRoot").ok()?;
+    if value.is_empty() {
+        None
+    } else {
+        Some(PathBuf::from(value))
+    }
+}
+
+fn default_program_data_dir() -> PathBuf {
     let base = std::env::var("ProgramData").unwrap_or_else(|_| r"C:\ProgramData".to_string());
-    PathBuf::from(base).join(r"Datadog\dd-procmgr\processes.d")
+    PathBuf::from(base).join("Datadog")
+}
+
+pub fn default_config_dir() -> PathBuf {
+    program_data_root().join("dd-procmgr").join("processes.d")
 }
 
 /// Wait for a shutdown trigger: either Ctrl+C (console mode) or an SCM
