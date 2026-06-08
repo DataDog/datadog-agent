@@ -10,6 +10,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"path/filepath"
 	"runtime"
 	"sync"
@@ -27,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -162,6 +164,43 @@ func (m *testPackageManager) Close() error {
 	return args.Error(0)
 }
 
+type blockingGarbageCollectPackageManager struct {
+	*testPackageManager
+	started     chan struct{}
+	startedOnce sync.Once
+}
+
+func (m *blockingGarbageCollectPackageManager) GarbageCollect(ctx context.Context) error {
+	m.startedOnce.Do(func() { close(m.started) })
+	<-ctx.Done()
+	// This mirrors installerCmd.Run, which preserves context cancellation from the
+	// parent command context before falling back to stderr JSON error parsing.
+	return fmt.Errorf("run canceled: %w", ctx.Err())
+}
+
+type gcLogCapture struct {
+	log.LoggerInterface
+	debugMessages chan string
+	errorMessages chan string
+}
+
+func newGCLogCapture() *gcLogCapture {
+	return &gcLogCapture{
+		LoggerInterface: log.Disabled(),
+		debugMessages:   make(chan string, 10),
+		errorMessages:   make(chan string, 10),
+	}
+}
+
+func (l *gcLogCapture) Debug(v ...interface{}) {
+	l.debugMessages <- fmt.Sprint(v...)
+}
+
+func (l *gcLogCapture) Error(v ...interface{}) error {
+	l.errorMessages <- fmt.Sprint(v...)
+	return nil
+}
+
 type testRemoteConfigClient struct {
 	sync.Mutex
 	t              *testing.T
@@ -293,6 +332,93 @@ func newTestInstaller(t *testing.T) *testInstaller {
 
 func (i *testInstaller) Stop() {
 	i.daemonImpl.Stop(context.Background())
+}
+
+func TestGarbageCollectContextCanceledOnShutdownIsDiscarded(t *testing.T) {
+	logger := newGCLogCapture()
+	log.SetupLogger(logger, log.DebugStr)
+	t.Cleanup(func() {
+		log.SetupLogger(log.Disabled(), log.OffStr)
+	})
+
+	basePM := &testPackageManager{}
+	basePM.On("AvailableDiskSpace").Return(uint64(1000000000), nil)
+	basePM.On("ConfigAndPackageStates", mock.Anything).Return(&repository.PackageStates{
+		States:       map[string]repository.State{},
+		ConfigStates: map[string]repository.State{},
+	}, nil)
+	pm := &blockingGarbageCollectPackageManager{
+		testPackageManager: basePM,
+		started:            make(chan struct{}),
+	}
+	rcc := newTestRemoteConfigClient(t)
+	rc := &remoteConfig{client: rcc}
+	taskDB, err := newTaskDB(filepath.Join(t.TempDir(), "tasks.db"))
+	require.NoError(t, err)
+	secretsPubKey, secretsPrivKey, err := box.GenerateKey(rand.Reader)
+	require.NoError(t, err)
+
+	daemon := newDaemon(
+		rc,
+		func(_ *env.Env) installer.Installer { return pm },
+		&env.Env{RemoteUpdates: true},
+		taskDB,
+		1*time.Hour,
+		1*time.Millisecond,
+		secretsPubKey,
+		secretsPrivKey,
+	)
+
+	var stopOnce sync.Once
+	stopDaemon := func() error {
+		var stopErr error
+		stopOnce.Do(func() {
+			stopErr = daemon.Stop(context.Background())
+		})
+		return stopErr
+	}
+	t.Cleanup(func() { _ = stopDaemon() })
+
+	require.NoError(t, daemon.Start(context.Background()))
+
+	select {
+	case <-pm.started:
+	case <-time.After(time.Second):
+		t.Fatal("garbage collector did not start")
+	}
+
+	stopErrCh := make(chan error, 1)
+	go func() {
+		stopErrCh <- stopDaemon()
+	}()
+
+	expectedDebug := "Daemon: GC interrupted by shutdown: run canceled: context canceled"
+	deadline := time.After(time.Second)
+	for found := false; !found; {
+		select {
+		case msg := <-logger.debugMessages:
+			found = msg == expectedDebug
+		case msg := <-logger.errorMessages:
+			t.Fatalf("expected GC cancellation to be discarded, got error log: %s", msg)
+		case <-deadline:
+			t.Fatal("timed out waiting for GC cancellation handling")
+		}
+	}
+
+	select {
+	case msg := <-logger.errorMessages:
+		t.Fatalf("expected no error log for GC cancellation, got: %s", msg)
+	default:
+	}
+
+	select {
+	case err := <-stopErrCh:
+		require.NoError(t, err)
+	case <-time.After(time.Second):
+		t.Fatal("daemon did not stop")
+	}
+
+	basePM.AssertExpectations(t)
 }
 
 func TestInstall(t *testing.T) {
