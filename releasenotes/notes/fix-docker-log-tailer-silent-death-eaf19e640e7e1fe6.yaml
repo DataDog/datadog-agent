@@ -1,0 +1,14 @@
+---
+fixes:
+  - |
+    Fix a regression introduced in 7.79.0 where the Docker container log
+    tailer could silently stop tailing low-traffic containers (those
+    writing less often than ``docker_client_read_timeout``, default 30s)
+    after several hours of healthy operation. The Docker SDK upgrade in
+    7.79.0 changed how request-context cancellation surfaces in the
+    response body, causing the tailer's self-initiated read timeout to be
+    misclassified as a shutdown signal and exit the read loop without
+    notifying the supervisor. The tailer now restarts the reader on every
+    timeout regardless of which error surface the SDK reports, and any
+    unexpected reader-close signals the supervisor so the tailer can be
+    re-created.

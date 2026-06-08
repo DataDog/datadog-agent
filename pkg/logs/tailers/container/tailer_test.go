@@ -15,6 +15,7 @@ import (
 	"io"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -75,6 +76,27 @@ func (m *mockReaderSleep) Read(p []byte) (int, error) {
 }
 
 func (m *mockReaderSleep) Close() error {
+	return nil
+}
+
+// mockMobyReader simulates the cancelReadCloser wrapper used by
+// moby/moby/client v0.4.0+: when the context is cancelled, the body is
+// closed asynchronously and the blocked Read() returns
+// "http: read on closed response body" rather than context.Canceled.
+type mockMobyReader struct {
+	ctx context.Context
+}
+
+func newMockMobyReader(ctx context.Context) *mockMobyReader {
+	return &mockMobyReader{ctx: ctx}
+}
+
+func (m *mockMobyReader) Read(_ []byte) (int, error) {
+	<-m.ctx.Done()
+	return 0, errors.New("http: read on closed response body")
+}
+
+func (m *mockMobyReader) Close() error {
 	return nil
 }
 
@@ -177,6 +199,28 @@ func TestReadTimeout(t *testing.T) {
 	assert.Equal(t, 0, n)
 }
 
+// TestReadReturnsCanceledOnTimeout verifies that read() synthesizes
+// context.Canceled on a self-initiated timeout regardless of which error
+// the underlying SDK surfaces.
+//
+// moby/moby/client v0.4.0+ wraps ContainerLogs' response body so that a
+// context cancellation closes the body asynchronously and the blocked
+// Read() returns "http: read on closed response body". Without this
+// guarantee, readForever's isReaderClosed branch would match and the
+// tailer would die silently after every read timeout (AGENT-16325).
+func TestReadReturnsCanceledOnTimeout(t *testing.T) {
+	ctx, cancelFunc := context.WithCancel(context.Background())
+	reader := newMockMobyReader(ctx)
+
+	tailer := NewTestTailer(reader, nil, cancelFunc)
+	inBuf := make([]byte, 4096)
+
+	n, err := tailer.read(inBuf, testReadTimeout)
+
+	assert.Equal(t, 0, n)
+	assert.Equal(t, context.Canceled, err)
+}
+
 func TestTailerCanStopWithNilReader(t *testing.T) {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	tailer := NewTestTailer(newMockReaderSleep(ctx), nil, cancelFunc)
@@ -202,11 +246,34 @@ func TestTailer_readForever(t *testing.T) {
 				_, cancelFunc := context.WithCancel(context.Background())
 				reader := NewTestReader("", errors.New("http: read on closed response body"), nil)
 				tailer := NewTestTailer(reader, reader, cancelFunc)
+				// Stop() would have set this before closing the reader.
+				tailer.shutdownRequested.Store(true)
 				return tailer
 			},
 			wantFunc: func(tailer *Tailer) error {
 				if len(tailer.erroredContainerID) != 0 {
-					return fmt.Errorf("tailer.erroredContainerID should be empty, current len: %d", len(tailer.erroredContainerID))
+					return fmt.Errorf("tailer.erroredContainerID should be empty during shutdown, current len: %d", len(tailer.erroredContainerID))
+				}
+				return nil
+			},
+		},
+		{
+			name: "The reader closes unexpectedly (no shutdown requested)",
+			newTailer: func() *Tailer {
+				_, cancelFunc := context.WithCancel(context.Background())
+				reader := NewTestReader("", errors.New("http: read on closed response body"), nil)
+				tailer := NewTestTailer(reader, reader, cancelFunc)
+				// shutdownRequested defaults to false; this is the AGENT-16325
+				// silent-death path that must now signal the supervisor.
+				return tailer
+			},
+			wantFunc: func(tailer *Tailer) error {
+				if len(tailer.erroredContainerID) != 1 {
+					return fmt.Errorf("tailer.erroredContainerID should contain 1 ID, got len=%d", len(tailer.erroredContainerID))
+				}
+				containerID := <-tailer.erroredContainerID
+				if containerID != "1234567890abcdef" {
+					return fmt.Errorf("wrong containerID: %s", containerID)
 				}
 				return nil
 			},
@@ -217,11 +284,31 @@ func TestTailer_readForever(t *testing.T) {
 				_, cancelFunc := context.WithCancel(context.Background())
 				reader := NewTestReader("", errors.New("use of closed network connection"), nil)
 				tailer := NewTestTailer(reader, reader, cancelFunc)
+				tailer.shutdownRequested.Store(true)
 				return tailer
 			},
 			wantFunc: func(tailer *Tailer) error {
 				if len(tailer.erroredContainerID) != 0 {
-					return fmt.Errorf("tailer.erroredContainerID should be empty, current len: %d", len(tailer.erroredContainerID))
+					return fmt.Errorf("tailer.erroredContainerID should be empty during shutdown, current len: %d", len(tailer.erroredContainerID))
+				}
+				return nil
+			},
+		},
+		{
+			name: "The connection closes unexpectedly (no shutdown requested)",
+			newTailer: func() *Tailer {
+				_, cancelFunc := context.WithCancel(context.Background())
+				reader := NewTestReader("", errors.New("use of closed network connection"), nil)
+				tailer := NewTestTailer(reader, reader, cancelFunc)
+				return tailer
+			},
+			wantFunc: func(tailer *Tailer) error {
+				if len(tailer.erroredContainerID) != 1 {
+					return fmt.Errorf("tailer.erroredContainerID should contain 1 ID, got len=%d", len(tailer.erroredContainerID))
+				}
+				containerID := <-tailer.erroredContainerID
+				if containerID != "1234567890abcdef" {
+					return fmt.Errorf("wrong containerID: %s", containerID)
 				}
 				return nil
 			},
@@ -235,6 +322,9 @@ func TestTailer_readForever(t *testing.T) {
 				// then the new reader return by the unsafeReader client will return close network connection to simulate stop agent
 				connectionCloseReader := NewTestReader("", errors.New("use of closed network connection"), nil)
 				tailer := NewTestTailer(initialReader, connectionCloseReader, cancelFunc)
+				// Model the "agent stopping after EOF restart" path: by the time
+				// the connection-close error surfaces, Stop() has set the flag.
+				tailer.shutdownRequested.Store(true)
 				return tailer
 			},
 			wantFunc: func(tailer *Tailer) error {
@@ -273,6 +363,58 @@ func TestTailer_readForever(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestReadForeverRestartsAfterTimeout verifies that a moby v0.4.0-style
+// timeout cycle does not silently kill the tailer: each cycle synthesizes
+// context.Canceled and feeds the reader-timeout branch, which calls
+// tryRestartReader. The tailer keeps running across multiple cycles and
+// no error is signaled to the supervisor.
+func TestReadForeverRestartsAfterTimeout(t *testing.T) {
+	ctx, cancelFunc := context.WithCancel(context.Background())
+	initial := newMockMobyReader(ctx)
+	tailer := NewTestTailer(initial, nil, cancelFunc)
+	tailer.readTimeout = 5 * time.Millisecond
+	tailer.sleepDuration = 1 * time.Millisecond
+
+	var setupCount atomic.Int32
+	tailer.unsafeLogReader = func(ctx context.Context, _ time.Time) (io.ReadCloser, error) {
+		setupCount.Add(1)
+		return newMockMobyReader(ctx), nil
+	}
+
+	done := make(chan struct{})
+	go func() {
+		tailer.readForever()
+		close(done)
+	}()
+
+	// Wait for the loop to complete at least two restart cycles.
+	assert.Eventually(t, func() bool {
+		return setupCount.Load() >= 2
+	}, 2*time.Second, 5*time.Millisecond, "expected unsafeLogReader to be called at least twice")
+
+	// Confirm the goroutine is still alive — the bug under fix would have
+	// caused it to return after the first cycle.
+	select {
+	case <-done:
+		t.Fatal("readForever exited unexpectedly during restart cycles")
+	default:
+	}
+
+	// Shut down cleanly.
+	tailer.shutdownRequested.Store(true)
+	tailer.stop <- struct{}{}
+	tailer.readerCancelFunc()
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("readForever did not exit after stop")
+	}
+
+	assert.Equal(t, 0, len(tailer.erroredContainerID),
+		"erroredContainerID should be empty during normal restart cycles")
 }
 
 func NewTestReader(data string, err, closeErr error) *testIOReadCloser { //nolint:revive

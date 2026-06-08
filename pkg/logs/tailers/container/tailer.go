@@ -14,6 +14,7 @@ import (
 	"io"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	dockerclient "github.com/moby/moby/client"
@@ -112,6 +113,14 @@ type Tailer struct {
 	mutex     sync.Mutex
 
 	messageForwarder messageForwarder
+
+	// shutdownRequested is set by Stop() before cancelling the reader, so that
+	// readForever can distinguish a self-initiated shutdown close from an
+	// unexpected reader close (daemon disconnect, SDK regression, etc.).
+	// Without this, an unexpected close that surfaces as
+	// "http: read on closed response body" or "use of closed network connection"
+	// would silently kill the tailer without notifying the supervisor.
+	shutdownRequested atomic.Bool
 }
 
 type messageForwarder interface {
@@ -197,6 +206,11 @@ func (t *Tailer) Identifier() string {
 // this call blocks until the decoder is completely flushed
 func (t *Tailer) Stop() {
 	log.Infof("Stop tailing container: %v", t.ContainerID)
+
+	// Mark shutdown before any cancellation so that readForever distinguishes
+	// the upcoming reader-close from an unexpected one and does not signal the
+	// supervisor.
+	t.shutdownRequested.Store(true)
 
 	t.registry.SetTailed(t.Identifier(), false)
 
@@ -314,8 +328,16 @@ func (t *Tailer) readForever() {
 			if err != nil { // an error occurred, stop from reading new logs
 				switch {
 				case isReaderClosed(err):
-					// The reader has been closed during the shut down process
-					// of the tailer, stop reading
+					// Normally the reader is only closed during the tailer's
+					// shutdown process. If we got here without a shutdown being
+					// requested, the reader closed unexpectedly (e.g. daemon
+					// disconnect, SDK-side body close). Notify the supervisor
+					// so it can re-create the tailer instead of silently
+					// dropping log collection for this container.
+					if !t.shutdownRequested.Load() {
+						log.Warnf("Docker reader closed unexpectedly for container %v: %v", t.ContainerID, err)
+						t.erroredContainerID <- t.ContainerID
+					}
 					return
 				case isContextCanceled(err):
 					// Note that it could happen that the docker daemon takes a lot of time gathering timestamps
@@ -326,7 +348,14 @@ func (t *Tailer) readForever() {
 					}
 					continue
 				case isClosedConnError(err):
-					// This error is raised when the agent is stopping
+					// This error is normally raised when the agent is stopping.
+					// If shutdown was not requested, the underlying connection
+					// closed unexpectedly; surface it to the supervisor so the
+					// tailer is re-created.
+					if !t.shutdownRequested.Load() {
+						log.Warnf("Docker connection closed unexpectedly for container %v: %v", t.ContainerID, err)
+						t.erroredContainerID <- t.ContainerID
+					}
 					return
 				case isFileAlreadyClosed(err):
 					// This error seems to be returned by Docker for Windows
@@ -375,15 +404,24 @@ func (t *Tailer) read(buffer []byte, timeout time.Duration) (int, error) {
 
 	select {
 	case <-doneReading:
+		return n, err
 	case <-time.After(timeout):
-		// Cancel the docker socket reader context
+		// Cancel the in-flight Docker reader context.
+		//
+		// moby/moby/client v0.4.0+ wraps ContainerLogs' response body in a
+		// cancelReadCloser (utils.go:132-141) that registers
+		// context.AfterFunc(ctx, body.Close). Cancelling the context closes
+		// the body asynchronously, and the blocked Read() returns
+		// "http: read on closed response body" instead of context.Canceled.
+		// readForever would then match isReaderClosed and exit permanently,
+		// killing the tailer without notifying the supervisor.
+		//
+		// Synthesize context.Canceled to preserve the documented contract
+		// regardless of the underlying SDK's cancellation surface.
 		t.readerCancelFunc()
-		// wait for the Read call to return, likely with
-		// context.Canceled
 		<-doneReading
+		return n, context.Canceled
 	}
-
-	return n, err
 }
 
 // buildMessage builds a new log message.Message, enriching it with tags and metadata
