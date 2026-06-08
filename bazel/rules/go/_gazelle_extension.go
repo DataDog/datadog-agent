@@ -114,6 +114,15 @@ func (l *lang) Configure(c *config.Config, rel string, f *rule.File) {
 func (l *lang) GenerateRules(args language.GenerateArgs) language.GenerateResult {
 	result := l.Language.GenerateRules(args)
 	if !shouldReplace(args.Config) {
+		// Preserve the go_build_tags extension's behaviour for non-opted packages:
+		// every go_test still needs gotags = ["test"] so that rules_go's
+		// configuration transition propagates the "test" build tag to transitive
+		// library deps that use //go:build test.
+		for _, r := range result.Gen {
+			if r.Kind() == "go_test" {
+				addStringToListIfMissing(r, "gotags", "test")
+			}
+		}
 		return result
 	}
 	return l.replaceGoTests(result, args.File, args.Dir)
@@ -251,6 +260,15 @@ func copyAttr(src, dst *rule.Rule, attr string) {
 	if v := src.Attr(attr); v != nil {
 		dst.SetAttr(attr, v)
 	}
+}
+
+func addStringToListIfMissing(r *rule.Rule, attr, value string) {
+	for _, s := range r.AttrStrings(attr) {
+		if s == value {
+			return
+		}
+	}
+	r.SetAttr(attr, append(r.AttrStrings(attr), value))
 }
 
 // findRule locates a rule of the given kind and name in file, if any.
