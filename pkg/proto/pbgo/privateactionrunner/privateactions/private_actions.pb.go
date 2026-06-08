@@ -362,15 +362,15 @@ type PrivateActionTask struct {
 	ConnectionInfo        *ConnectionInfo        `protobuf:"bytes,10,opt,name=connection_info,json=connectionInfo,proto3" json:"connection_info,omitempty"`
 	ExpirationTime        *timestamppb.Timestamp `protobuf:"bytes,11,opt,name=expiration_time,json=expirationTime,proto3" json:"expiration_time,omitempty"`
 	Client                actionsclient.Client   `protobuf:"varint,12,opt,name=client,proto3,enum=datadog.privateactionrunner.actionsclient.Client" json:"client,omitempty"`
-	// allowed_commands and allowed_paths carry the rshell allowlists resolved
+	// target_commands and target_paths carry the rshell allowlists resolved
 	// from execution policies (intersected with Balto) for remote-action tasks.
-	// They are empty for non-remote-action tasks. allowed_commands is the flat,
-	// namespaced ("rshell:<command>") command allowlist; allowed_paths is keyed by
+	// They are empty for non-remote-action tasks. target_commands is the flat,
+	// namespaced ("rshell:<command>") command allowlist; target_paths is keyed by
 	// runtime environment so the runner can select the rules matching its own.
-	AllowedCommands []string                `protobuf:"bytes,13,rep,name=allowed_commands,json=allowedCommands,proto3" json:"allowed_commands,omitempty"`
-	AllowedPaths    []*RemoteActionPathRule `protobuf:"bytes,14,rep,name=allowed_paths,json=allowedPaths,proto3" json:"allowed_paths,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	TargetCommands []string                `protobuf:"bytes,13,rep,name=target_commands,json=targetCommands,proto3" json:"target_commands,omitempty"`
+	TargetPaths    []*RemoteActionPathRule `protobuf:"bytes,14,rep,name=target_paths,json=targetPaths,proto3" json:"target_paths,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *PrivateActionTask) Reset() {
@@ -466,16 +466,16 @@ func (x *PrivateActionTask) GetClient() actionsclient.Client {
 	return actionsclient.Client(0)
 }
 
-func (x *PrivateActionTask) GetAllowedCommands() []string {
+func (x *PrivateActionTask) GetTargetCommands() []string {
 	if x != nil {
-		return x.AllowedCommands
+		return x.TargetCommands
 	}
 	return nil
 }
 
-func (x *PrivateActionTask) GetAllowedPaths() []*RemoteActionPathRule {
+func (x *PrivateActionTask) GetTargetPaths() []*RemoteActionPathRule {
 	if x != nil {
-		return x.AllowedPaths
+		return x.TargetPaths
 	}
 	return nil
 }
@@ -861,7 +861,7 @@ const file_datadog_privateactionrunner_private_actions_proto_rawDesc = "" +
 	"\tSignature\x12N\n" +
 	"\bkey_type\x18\x01 \x01(\x0e23.datadog.privateactionrunner.privateactions.KeyTypeR\akeyType\x12\x15\n" +
 	"\x06key_id\x18\x02 \x01(\tR\x05keyId\x12\x1c\n" +
-	"\tsignature\x18\x03 \x01(\fR\tsignature\"\x84\x05\n" +
+	"\tsignature\x18\x03 \x01(\fR\tsignature\"\x80\x05\n" +
 	"\x11PrivateActionTask\x12\x1f\n" +
 	"\vaction_name\x18\x01 \x01(\tR\n" +
 	"actionName\x12\x1b\n" +
@@ -873,9 +873,9 @@ const file_datadog_privateactionrunner_private_actions_proto_rawDesc = "" +
 	"\x0fconnection_info\x18\n" +
 	" \x01(\v2:.datadog.privateactionrunner.privateactions.ConnectionInfoR\x0econnectionInfo\x12C\n" +
 	"\x0fexpiration_time\x18\v \x01(\v2\x1a.google.protobuf.TimestampR\x0eexpirationTime\x12I\n" +
-	"\x06client\x18\f \x01(\x0e21.datadog.privateactionrunner.actionsclient.ClientR\x06client\x12)\n" +
-	"\x10allowed_commands\x18\r \x03(\tR\x0fallowedCommands\x12e\n" +
-	"\rallowed_paths\x18\x0e \x03(\v2@.datadog.privateactionrunner.privateactions.RemoteActionPathRuleR\fallowedPathsJ\x04\b\a\x10\bJ\x04\b\b\x10\tJ\x04\b\t\x10\n" +
+	"\x06client\x18\f \x01(\x0e21.datadog.privateactionrunner.actionsclient.ClientR\x06client\x12'\n" +
+	"\x0ftarget_commands\x18\r \x03(\tR\x0etargetCommands\x12c\n" +
+	"\ftarget_paths\x18\x0e \x03(\v2@.datadog.privateactionrunner.privateactions.RemoteActionPathRuleR\vtargetPathsJ\x04\b\a\x10\bJ\x04\b\b\x10\tJ\x04\b\t\x10\n" +
 	"\"\x93\x01\n" +
 	"\x14RemoteActionPathRule\x12e\n" +
 	"\venvironment\x18\x01 \x01(\x0e2C.datadog.privateactionrunner.privateactions.RemoteActionEnvironmentR\venvironment\x12\x14\n" +
@@ -962,7 +962,7 @@ var file_datadog_privateactionrunner_private_actions_proto_depIdxs = []int32{
 	8,  // 5: datadog.privateactionrunner.privateactions.PrivateActionTask.connection_info:type_name -> datadog.privateactionrunner.privateactions.ConnectionInfo
 	13, // 6: datadog.privateactionrunner.privateactions.PrivateActionTask.expiration_time:type_name -> google.protobuf.Timestamp
 	15, // 7: datadog.privateactionrunner.privateactions.PrivateActionTask.client:type_name -> datadog.privateactionrunner.actionsclient.Client
-	7,  // 8: datadog.privateactionrunner.privateactions.PrivateActionTask.allowed_paths:type_name -> datadog.privateactionrunner.privateactions.RemoteActionPathRule
+	7,  // 8: datadog.privateactionrunner.privateactions.PrivateActionTask.target_paths:type_name -> datadog.privateactionrunner.privateactions.RemoteActionPathRule
 	2,  // 9: datadog.privateactionrunner.privateactions.RemoteActionPathRule.environment:type_name -> datadog.privateactionrunner.privateactions.RemoteActionEnvironment
 	9,  // 10: datadog.privateactionrunner.privateactions.ConnectionInfo.tokens:type_name -> datadog.privateactionrunner.privateactions.ConnectionToken
 	3,  // 11: datadog.privateactionrunner.privateactions.ConnectionInfo.credentials_type:type_name -> datadog.privateactionrunner.privateactions.CredentialsType
