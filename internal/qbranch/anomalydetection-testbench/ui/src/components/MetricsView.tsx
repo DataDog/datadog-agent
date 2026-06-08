@@ -680,7 +680,7 @@ export function MetricsView({
 
         {state.connectionState === 'ready' && (
           <div className="space-y-6">
-            <AnomalyScoreTimeline scenarioDataVersion={state.scenarioDataVersion} />
+            <AnomalyScoreTimeline scenarioDataVersion={state.scenarioDataVersion} phaseMarkers={phaseMarkers} />
             {selectedGroups.size === 0 ? (
               <div className="text-center py-10 text-slate-500">
                 Select metric groups from the sidebar to view charts

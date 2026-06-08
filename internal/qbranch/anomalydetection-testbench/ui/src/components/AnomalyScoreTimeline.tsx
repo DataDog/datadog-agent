@@ -13,6 +13,7 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { api } from '../api/client';
 import type { ScoreState, ScoreBucket, ScorerConfig } from '../api/client';
+import type { PhaseMarker } from './ChartWithAnomalyDetails';
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
@@ -107,7 +108,13 @@ const SEVERITY_LABELS: Record<number, string> = { 0: 'Low', 1: 'Medium', 2: 'Hig
 
 // ── Main component ──────────────────────────────────────────────────────────
 
-export function AnomalyScoreTimeline({ scenarioDataVersion }: { scenarioDataVersion: number }) {
+export function AnomalyScoreTimeline({
+  scenarioDataVersion,
+  phaseMarkers = [],
+}: {
+  scenarioDataVersion: number;
+  phaseMarkers?: PhaseMarker[];
+}) {
   // Scorer config sliders (persisted)
   const [ewmaAlpha, setEwmaAlpha] = usePersistedState('ewmaAlpha', DEFAULT_EWMA_ALPHA);
   const [saturationK, setSaturationK] = usePersistedState('saturationK', DEFAULT_SATURATION_K);
@@ -302,6 +309,22 @@ export function AnomalyScoreTimeline({ scenarioDataVersion }: { scenarioDataVers
               <rect key={i} x={seg.x1} y={0} width={seg.x2 - seg.x1} height={CHART_H}
                 fill={SEVERITY_COLORS[seg.level]} fillOpacity={0.08} />
             ))}
+
+            {/* Phase marker lines */}
+            {phaseMarkers.map((marker) => {
+              const x = tsToX(marker.timestamp);
+              if (x < -20 || x > CHART_W + 20) return null;
+              return (
+                <g key={marker.key}>
+                  <line x1={x} y1={0} x2={x} y2={CHART_H}
+                    stroke={marker.color} strokeWidth={1} strokeDasharray="4,3" opacity={0.75} />
+                  <text x={x + 3} y={10} fontSize={9} fill={marker.color}
+                    fontFamily="monospace" opacity={0.9} style={{ pointerEvents: 'none' }}>
+                    {marker.label}
+                  </text>
+                </g>
+              );
+            })}
 
             {/* Stacked anomaly bars */}
             {displayBuckets.map((b, i) => {
