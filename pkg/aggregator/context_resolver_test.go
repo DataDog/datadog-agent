@@ -322,7 +322,7 @@ func setupTagger(t *testing.T) tagger.Component {
 // testStrippingOriginTagsSameKey checks that two samples whose only difference is
 // in origin tags covered by the strip list resolve to the same context key.
 func testStrippingOriginTagsSameKey(t *testing.T, store *tags.Store) {
-	configmock.New(t).SetWithoutSource("metric_tag_filterlist_adp_only", false)
+	configmock.New(t).SetInTest("metric_tag_filterlist_adp_only", false)
 	cases := []struct {
 		metricName string
 		mtype      metrics.MetricType
@@ -372,7 +372,7 @@ func TestStrippingOriginTagsSameKey(t *testing.T) {
 // testStrippingOriginTagsDiffersKey checks that when the strip list does not cover
 // all differing origin tags, contexts remain distinct.
 func testStrippingOriginTagsDiffersKey(t *testing.T, store *tags.Store) {
-	configmock.New(t).SetWithoutSource("metric_tag_filterlist_adp_only", false)
+	configmock.New(t).SetInTest("metric_tag_filterlist_adp_only", false)
 	cases := []struct {
 		metricName string
 		mtype      metrics.MetricType
@@ -420,7 +420,7 @@ func TestStrippingOriginTagsDiffersKey(t *testing.T) {
 // are stripped together for Distribution. Samples differ on a metric tag ("thing")
 // AND on origin container; both are in the strip list, so they collapse to one key.
 func testTrackContextStrippingMetricTags(t *testing.T, store *tags.Store) {
-	configmock.New(t).SetWithoutSource("metric_tag_filterlist_adp_only", false)
+	configmock.New(t).SetInTest("metric_tag_filterlist_adp_only", false)
 	matcher := filterlistimpl.NewTagMatcher(map[string]filterlistimpl.MetricTagList{
 		"distribution.metric": {
 			Tags:   []string{"env", "pod_name", "thing"},
@@ -470,7 +470,7 @@ func TestTrackContextStrippingMetricTags(t *testing.T) {
 // testStrippingMetricTagsSameKey checks that two samples whose only difference is
 // in metric tags covered by the strip list resolve to the same context key.
 func testStrippingMetricTagsSameKey(t *testing.T, store *tags.Store) {
-	configmock.New(t).SetWithoutSource("metric_tag_filterlist_adp_only", false)
+	configmock.New(t).SetInTest("metric_tag_filterlist_adp_only", false)
 	cases := []struct {
 		metricName string
 		mtype      metrics.MetricType
@@ -522,7 +522,7 @@ func TestStrippingMetricTagsSameKey(t *testing.T) {
 // strip list, samples remain in separate contexts even when other tags differ and
 // are stripped.
 func testStrippingMetricTagsDiffersKey(t *testing.T, store *tags.Store) {
-	configmock.New(t).SetWithoutSource("metric_tag_filterlist_adp_only", false)
+	configmock.New(t).SetInTest("metric_tag_filterlist_adp_only", false)
 	cases := []struct {
 		metricName string
 		mtype      metrics.MetricType
@@ -705,8 +705,8 @@ func testTagFilterADPGate(t *testing.T, store *tags.Store) {
 	for _, tc := range tagFilterEnabledCases {
 		t.Run(tc.name, func(t *testing.T) {
 			mockCfg := configmock.New(t)
-			mockCfg.SetWithoutSource("data_plane.enabled", tc.adpEnabled)
-			mockCfg.SetWithoutSource("metric_tag_filterlist_adp_only", tc.adpOnly)
+			mockCfg.SetInTest("data_plane.enabled", tc.adpEnabled)
+			mockCfg.SetInTest("metric_tag_filterlist_adp_only", tc.adpOnly)
 
 			matcher := filterlistimpl.NewTagMatcher(map[string]filterlistimpl.MetricTagList{
 				"dist.metric": {Tags: []string{"env"}, Action: "exclude"},
