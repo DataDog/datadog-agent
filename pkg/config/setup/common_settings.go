@@ -2047,6 +2047,8 @@ func kubernetes(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("kubernetes_metadata_streaming", true)
 	config.BindEnvAndSetDefault("kubernetes_apiserver_client_timeout", 10)
 	config.BindEnvAndSetDefault("kubernetes_apiserver_informer_client_timeout", 0)
+	config.BindEnvAndSetDefault("kubernetes_apiserver_client_qps", 100)
+	config.BindEnvAndSetDefault("kubernetes_apiserver_client_burst", 200)
 	config.BindEnvAndSetDefault("kubernetes_map_services_on_ip", false) // temporary opt-out of the new mapping logic
 	config.BindEnvAndSetDefault("kubernetes_apiserver_use_protobuf", false)
 	config.BindEnvAndSetDefault("kubernetes_ad_tags_disabled", []string{})
