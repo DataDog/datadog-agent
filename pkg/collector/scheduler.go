@@ -16,10 +16,7 @@ import (
 
 	collectorcomp "github.com/DataDog/datadog-agent/comp/collector/collector/def"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	filter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
-	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -51,11 +48,14 @@ type CheckScheduler struct {
 	m              sync.RWMutex
 }
 
-// InitCheckScheduler creates and returns a check scheduler
-func InitCheckScheduler(collector option.Option[collectorcomp.Component], senderManager sender.SenderManager, logReceiver option.Option[integrations.Component], taggerComp tagger.Component, filterStore filter.Component) *CheckScheduler {
+// InitCheckScheduler creates and returns a check scheduler.
+// The checkLoader must be created via NewCheckLoader; passing the same instance
+// to collectorimpl (as an optional fx dep) allows collectorimpl.start() to call
+// ConfigureShadow on it before any checks are scheduled.
+func InitCheckScheduler(collector option.Option[collectorcomp.Component], checkLoader *CheckLoader) *CheckScheduler {
 	checkScheduler = &CheckScheduler{
 		collector:      collector,
-		loader:         newCheckLoader(senderManager, logReceiver, taggerComp, filterStore),
+		loader:         checkLoader,
 		configToChecks: make(map[string][]checkid.ID),
 	}
 	return checkScheduler
@@ -80,6 +80,30 @@ func (s *CheckScheduler) Schedule(configs []integration.Config) {
 		}
 	} else {
 		log.Errorf("Collector not available, unable to schedule checks")
+	}
+
+	// Shadow scheduling: load separate check instances with the shadow SenderManager
+	// and enter them into the shadow scheduler at the configured higher frequency.
+	if s.loader.shadowScheduler != nil {
+		for _, config := range configs {
+			if !config.IsCheckConfig() {
+				continue
+			}
+			if !s.loader.isShadowed(config.Name) {
+				continue
+			}
+			shadowChecks, err := s.loader.LoadChecks(config, s.loader.shadowSenderMgr)
+			if err != nil {
+				log.Errorf("Shadow pipeline: unable to load checks for '%s': %v", config.Name, err)
+				continue
+			}
+			for _, c := range shadowChecks {
+				sc := newShadowCheck(c)
+				if err := s.loader.shadowScheduler.EnterWithInterval(sc, s.loader.shadowInterval); err != nil {
+					log.Errorf("Shadow pipeline: unable to schedule check '%s': %v", sc.ID(), err)
+				}
+			}
+		}
 	}
 }
 
@@ -110,6 +134,14 @@ func (s *CheckScheduler) Unschedule(configs []integration.Config) {
 				}
 			} else {
 				log.Errorf("Collector not available, unable to stop check %s", id)
+			}
+
+			// Cancel the corresponding shadow check from the shadow scheduler.
+			if s.loader.shadowScheduler != nil {
+				shadowID := checkid.ID(string(id) + ":shadow")
+				if err := s.loader.shadowScheduler.Cancel(shadowID); err != nil {
+					log.Errorf("Shadow pipeline: error cancelling check %s: %s", shadowID, err)
+				}
 			}
 		}
 
@@ -183,6 +215,12 @@ func (s *CheckScheduler) GetChecksFromConfigs(configs []integration.Config, popu
 	}
 
 	return allChecks
+}
+
+// GetCheckScheduler returns the global CheckScheduler instance created by InitCheckScheduler.
+// Returns nil if InitCheckScheduler has not been called yet.
+func GetCheckScheduler() *CheckScheduler {
+	return checkScheduler
 }
 
 // GetLoaderErrors returns the check loader errors

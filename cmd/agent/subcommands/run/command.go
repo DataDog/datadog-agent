@@ -71,6 +71,7 @@ import (
 	grpcAgentfx "github.com/DataDog/datadog-agent/comp/api/grpcserver/fx-agent"
 	collector "github.com/DataDog/datadog-agent/comp/collector/collector/def"
 	collectorimpl "github.com/DataDog/datadog-agent/comp/collector/collector/impl"
+	lookbackfx "github.com/DataDog/datadog-agent/comp/lookback/fx"
 	connectivitycheckerfx "github.com/DataDog/datadog-agent/comp/connectivitychecker/fx"
 	"github.com/DataDog/datadog-agent/comp/core"
 	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
@@ -539,6 +540,15 @@ func getSharedFxOption() fx.Option {
 		snmpscanmanagerfx.Module(),
 		networkconfigmanagementfx.Module(),
 		collectorimpl.Module(),
+		lookbackfx.Module(),
+		fx.Provide(func(
+			demux demultiplexer.Component,
+			logReceiver option.Option[integrations.Component],
+			taggerComp tagger.Component,
+			filterStore workloadfilter.Component,
+		) *pkgcollector.CheckLoader {
+			return pkgcollector.NewCheckLoader(demux, logReceiver, taggerComp, filterStore)
+		}),
 		fx.Provide(func(demux demultiplexer.Component, hostname hostnameinterface.Component) (ddgostatsd.ClientInterface, error) {
 			return aggregator.NewStatsdDirect(demux, hostname)
 		}),
@@ -621,6 +631,7 @@ func startAgent(
 	traceroute traceroute.Component,
 	healthplatformComp healthplatformdef.Component,
 	ncmComp option.Option[networkconfigmanagement.Component],
+	checkLoader *pkgcollector.CheckLoader,
 ) error {
 	var err error
 
@@ -709,7 +720,7 @@ func startAgent(
 
 	// Set up check collector
 	commonchecks.RegisterChecks(wmeta, filterStore, tagger, cfg, tlm, rcclient, flare, snmpScanManager, traceroute, ncmComp)
-	ac.AddScheduler("check", pkgcollector.InitCheckScheduler(option.New(collectorComponent), demultiplexer, logReceiver, tagger, filterStore), true)
+	ac.AddScheduler("check", pkgcollector.InitCheckScheduler(option.New(collectorComponent), checkLoader), true)
 
 	demultiplexer.AddAgentStartupTelemetry(version.AgentVersion)
 

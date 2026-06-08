@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"time"
 
 	yaml "go.yaml.in/yaml/v2"
 
@@ -19,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
+	schedulerpkg "github.com/DataDog/datadog-agent/pkg/collector/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -39,10 +41,16 @@ type commonInstanceConfig struct {
 type CheckLoader struct {
 	loaders       []check.Loader
 	senderManager sender.SenderManager
+
+	// Shadow pipeline — all zero/nil when disabled. Set once by ConfigureShadow.
+	shadowScheduler  *schedulerpkg.Scheduler
+	shadowSenderMgr  sender.SenderManager
+	shadowInterval   time.Duration
+	shadowCheckNames map[string]struct{}
 }
 
-// newCheckLoader creates a CheckLoader populated with all registered loaders.
-func newCheckLoader(senderManager sender.SenderManager, logReceiver option.Option[integrations.Component], taggerComp tagger.Component, filterStore workloadfilter.Component) *CheckLoader {
+// NewCheckLoader creates a CheckLoader populated with all registered loaders.
+func NewCheckLoader(senderManager sender.SenderManager, logReceiver option.Option[integrations.Component], taggerComp tagger.Component, filterStore workloadfilter.Component) *CheckLoader {
 	cl := &CheckLoader{
 		senderManager: senderManager,
 		loaders:       make([]check.Loader, 0),
@@ -134,4 +142,29 @@ func (cl *CheckLoader) LoadChecks(config integration.Config, sm sender.SenderMan
 	}
 
 	return checks, nil
+}
+
+// ConfigureShadow wires the shadow check pipeline into this loader.
+// Called once by collectorimpl.start() after the shadow runner is started,
+// guaranteed to happen before the first Schedule() call.
+func (cl *CheckLoader) ConfigureShadow(sched *schedulerpkg.Scheduler, sm sender.SenderManager, interval time.Duration, names []string) {
+	cl.shadowScheduler = sched
+	cl.shadowSenderMgr = sm
+	cl.shadowInterval = interval
+	if len(names) > 0 {
+		cl.shadowCheckNames = make(map[string]struct{}, len(names))
+		for _, n := range names {
+			cl.shadowCheckNames[n] = struct{}{}
+		}
+	}
+}
+
+// isShadowed reports whether the named check should run in the shadow pipeline.
+// Returns false when no check names are configured (opt-in: shadow nothing by default).
+func (cl *CheckLoader) isShadowed(checkName string) bool {
+	if cl.shadowCheckNames == nil {
+		return false
+	}
+	_, ok := cl.shadowCheckNames[checkName]
+	return ok
 }

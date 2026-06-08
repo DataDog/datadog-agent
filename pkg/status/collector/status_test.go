@@ -34,7 +34,8 @@ func (m *mockCollector) GetChecks() []check.Check                   { return nil
 func (m *mockCollector) ReloadAllCheckInstances(_ string, _ []check.Check) ([]checkid.ID, error) {
 	return nil, nil
 }
-func (m *mockCollector) AddEventReceiver(_ collectorcomp.EventReceiver) {}
+func (m *mockCollector) AddEventReceiver(_ collectorcomp.EventReceiver)                    {}
+func (m *mockCollector) GetShadowPipelineConfig() *collectorcomp.ShadowPipelineConfig { return nil }
 
 var (
 	testInventoriesMu   sync.RWMutex

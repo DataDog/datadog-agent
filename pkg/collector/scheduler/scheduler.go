@@ -77,38 +77,46 @@ func NewScheduler(checksPipe chan<- check.Check) *Scheduler {
 	}
 }
 
-// Enter schedules a `Check`s for execution accordingly to the `Check.Interval()` value.
+// Enter schedules a `Check` for execution accordingly to the `Check.Interval()` value.
 // If the interval is 0, the check is supposed to run only once.
 func (s *Scheduler) Enter(check check.Check) error {
+	return s.EnterWithInterval(check, check.Interval())
+}
+
+// EnterWithInterval schedules a `Check` using the provided interval instead of
+// the value returned by `Check.Interval()`.  This allows a caller (e.g. the
+// shadow check pipeline) to impose a different frequency without modifying the
+// check itself.  If interval is 0, the check runs only once.
+func (s *Scheduler) EnterWithInterval(check check.Check, interval time.Duration) error {
 	// enqueue immediately if this is a one-time schedule
-	if check.Interval() == 0 {
+	if interval == 0 {
 		s.enqueueOnce(check)
 		return nil
 	}
 
-	if check.Interval() < minAllowedInterval {
+	if interval < minAllowedInterval {
 		return fmt.Errorf("schedule interval must be greater than %v or 0", minAllowedInterval)
 	}
 
-	log.Infof("Scheduling check %s with an interval of %v", check.ID(), check.Interval())
+	log.Infof("Scheduling check %s with an interval of %v", check.ID(), interval)
 
 	// sync when accessing `jobQueues` and `check2queue`
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if _, ok := s.jobQueues[check.Interval()]; !ok {
-		s.jobQueues[check.Interval()] = newJobQueue(check.Interval())
-		s.startQueue(s.jobQueues[check.Interval()])
+	if _, ok := s.jobQueues[interval]; !ok {
+		s.jobQueues[interval] = newJobQueue(interval)
+		s.startQueue(s.jobQueues[interval])
 		if check.IsTelemetryEnabled() {
 			tlmQueuesCount.Inc()
 		}
 		schedulerQueuesCount.Add(1)
 	}
-	s.jobQueues[check.Interval()].addJob(check)
+	s.jobQueues[interval].addJob(check)
 
 	// map each check to the Job Queue it was assigned to
 	s.checkToQueueMutex.Lock()
-	s.checkToQueue[check.ID()] = s.jobQueues[check.Interval()]
+	s.checkToQueue[check.ID()] = s.jobQueues[interval]
 	s.checkToQueueMutex.Unlock()
 
 	schedulerChecksEntered.Add(1)
