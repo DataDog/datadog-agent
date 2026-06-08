@@ -207,15 +207,23 @@ func (c *gpmCollector) calculateGpmMetrics() (*nvml.GpmMetricsGetType, error) {
 
 	metricIndex := 0
 	for metricID := range c.metricsToCollect {
-		metricsGet.Metrics[metricIndex] = nvml.GpmMetric{
+		singleMetricGet := &nvml.GpmMetricsGetType{
+			NumMetrics: 1,
+			Version:    nvml.GPM_METRICS_GET_VERSION,
+			Sample1:    secondToLastSample,
+			Sample2:    lastSample,
+		}
+		singleMetricGet.Metrics[0] = nvml.GpmMetric{
 			MetricId: uint32(metricID),
 		}
-		metricIndex++
-	}
 
-	err := c.lib.GpmMetricsGet(metricsGet)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get GPM metrics: %w", err)
+		err := c.lib.GpmMetricsGet(singleMetricGet)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get GPM metric %d: %w", metricID, err)
+		}
+
+		metricsGet.Metrics[metricIndex] = singleMetricGet.Metrics[0]
+		metricIndex++
 	}
 
 	return metricsGet, nil
