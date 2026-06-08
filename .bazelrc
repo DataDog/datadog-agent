@@ -30,6 +30,9 @@ common --repo_env=GOMODCACHE # https://wiki.archlinux.org/title/XDG_Base_Directo
 common --repo_env=PACKAGE_VERSION # Keep in sync with env_vars in MODULE.bazel
 common --repo_env=SIGN_MAC # Keep in sync with env_vars in MODULE.bazel
 common --repo_env=XDG_CACHE_HOME # https://wiki.archlinux.org/title/XDG_Base_Directory
+# Variables to override release.json values
+common --repo_env=INTEGRATIONS_CORE_VERSION
+common --repo_env=INTEGRATIONS_WHEELS_STORAGE
 common --skip_incompatible_explicit_targets # Let target_compatible_with skip rather than fail
 common --test_output=errors # Print test errors to console output instead of only capturing them in buried test.log
 common --verbose_failures

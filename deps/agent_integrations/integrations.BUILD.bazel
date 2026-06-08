@@ -1,0 +1,8 @@
+filegroup(
+    name = "dependency_wheels",
+    srcs = [{wheel_srcs}],
+    visibility = ["//visibility:public"],
+    # TODO(agent-build): this currently depends INTEGRATIONS_CORE_VERSION being a commit hash,
+    # which is not guaranteed unless running under omnibus-wrapping code.
+    tags = ["manual"],
+)
