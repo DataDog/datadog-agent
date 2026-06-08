@@ -80,7 +80,17 @@ func (r targetResolver) Resolve(config integration.Config) (target, bool) {
 
 	pod, err := r.store.GetKubernetesPodForContainer(id)
 	if err != nil || pod == nil {
-		return resolvedTarget, resolvedTarget.runtime == RuntimeDocker
+		if runtime != "container" {
+			return resolvedTarget, resolvedTarget.runtime == RuntimeDocker
+		}
+
+		container, err := r.store.GetContainer(id)
+		if err != nil || container == nil || container.Runtime != workloadmeta.ContainerRuntimeDocker {
+			return target{}, false
+		}
+
+		resolvedTarget.runtime = RuntimeDocker
+		return resolvedTarget, true
 	}
 
 	resolvedTarget.runtime = RuntimeKubernetes

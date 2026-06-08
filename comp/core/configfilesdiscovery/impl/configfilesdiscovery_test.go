@@ -62,6 +62,29 @@ func TestResolveTargetDetectsRuntime(t *testing.T) {
 			wantOK: true,
 		},
 		{
+			name: "standalone container service with docker runtime",
+			setupStore: func(t *testing.T) workloadmeta.Component {
+				store := newWorkloadMetaMock(t)
+				store.Set(&workloadmeta.Container{
+					EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: "abc123"},
+					Runtime:  workloadmeta.ContainerRuntimeDocker,
+				})
+				return store
+			},
+			config: integration.Config{
+				Name:      "redis",
+				ServiceID: "container://abc123",
+				Instances: []integration.Data{
+					[]byte("{}"),
+				},
+			},
+			wantTarget: target{
+				runtime:  RuntimeDocker,
+				entityID: "abc123",
+			},
+			wantOK: true,
+		},
+		{
 			name: "kubernetes pod service",
 			config: integration.Config{
 				Name:      "redis",
@@ -77,7 +100,7 @@ func TestResolveTargetDetectsRuntime(t *testing.T) {
 			wantOK: true,
 		},
 		{
-			name: "container with kubernetes pod owner",
+			name: "container service with kubernetes pod owner",
 			setupStore: func(t *testing.T) workloadmeta.Component {
 				store := newWorkloadMetaMock(t)
 				store.Set(&workloadmeta.Container{
@@ -96,7 +119,7 @@ func TestResolveTargetDetectsRuntime(t *testing.T) {
 			},
 			config: integration.Config{
 				Name:      "redis",
-				ServiceID: "containerd://abc123",
+				ServiceID: "container://abc123",
 				Instances: []integration.Data{
 					[]byte("{}"),
 				},
@@ -106,6 +129,25 @@ func TestResolveTargetDetectsRuntime(t *testing.T) {
 				entityID: "abc123",
 			},
 			wantOK: true,
+		},
+		{
+			name: "unsupported standalone container service runtime",
+			setupStore: func(t *testing.T) workloadmeta.Component {
+				store := newWorkloadMetaMock(t)
+				store.Set(&workloadmeta.Container{
+					EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: "abc123"},
+					Runtime:  workloadmeta.ContainerRuntimeContainerd,
+				})
+				return store
+			},
+			config: integration.Config{
+				Name:      "redis",
+				ServiceID: "container://abc123",
+				Instances: []integration.Data{
+					[]byte("{}"),
+				},
+			},
+			wantOK: false,
 		},
 		{
 			name: "unsupported standalone container runtime",
