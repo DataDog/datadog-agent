@@ -66,9 +66,6 @@ func TestTelemetryPipelineMonitor_StartStopLifecycle(_ *testing.T) {
 
 // TestTelemetryPipelineMonitor_TickerSamplesRegisteredMonitor checks the running ticker samples its registered monitors.
 func TestTelemetryPipelineMonitor_TickerSamplesRegisteredMonitor(t *testing.T) {
-	ClearComponentSnapshots()
-	defer ClearComponentSnapshots()
-
 	clk := clock.NewMock()
 	pm := newTelemetryPipelineMonitorWithClock(clk, time.Second)
 	um := pm.MakeUtilizationMonitor("processor", "0").(*TelemetryUtilizationMonitor)
@@ -98,11 +95,8 @@ func findSnapshot(t *testing.T, snaps []ComponentSnapshot, name, instance string
 	return ComponentSnapshot{}
 }
 
-// TestGlobalSnapshots_SaturationHoldsThenDecaysToWarning checks CurrentlySaturated holds while blocked, then decays to WARNING once idle.
-func TestGlobalSnapshots_SaturationHoldsThenDecaysToWarning(t *testing.T) {
-	ClearComponentSnapshots()
-	defer ClearComponentSnapshots()
-
+// TestSnapshots_SaturationHoldsThenDecaysToWarning checks CurrentlySaturated holds while blocked, then decays to WARNING once idle.
+func TestSnapshots_SaturationHoldsThenDecaysToWarning(t *testing.T) {
 	clk := clock.NewMock()
 	pm := newTelemetryPipelineMonitorWithClock(clk, time.Second)
 	um := pm.MakeUtilizationMonitor("processor", "0").(*TelemetryUtilizationMonitor)
@@ -114,14 +108,14 @@ func TestGlobalSnapshots_SaturationHoldsThenDecaysToWarning(t *testing.T) {
 		clk.Add(time.Second)
 		um.sample(clk.Now())
 	}
-	require.True(t, findSnapshot(t, globalComponentSnapshotsAt(clk.Now()), "processor", "0").Windows.CurrentlySaturated,
+	require.True(t, findSnapshot(t, pm.registry.at(clk.Now()), "processor", "0").Windows.CurrentlySaturated,
 		"a component blocked in-use must read as currently saturated")
 
 	// While still blocked, repeated reads (each a status-page render) must stay saturated.
 	for i := 0; i < 10; i++ {
 		clk.Add(time.Second)
 		um.sample(clk.Now())
-		assert.True(t, findSnapshot(t, globalComponentSnapshotsAt(clk.Now()), "processor", "0").Windows.CurrentlySaturated,
+		assert.True(t, findSnapshot(t, pm.registry.at(clk.Now()), "processor", "0").Windows.CurrentlySaturated,
 			"CurrentlySaturated must not flap while the component remains saturated (read %d)", i)
 	}
 
@@ -132,34 +126,56 @@ func TestGlobalSnapshots_SaturationHoldsThenDecaysToWarning(t *testing.T) {
 		um.sample(clk.Now())
 	}
 
-	final := findSnapshot(t, globalComponentSnapshotsAt(clk.Now()), "processor", "0")
+	final := findSnapshot(t, pm.registry.at(clk.Now()), "processor", "0")
 	assert.False(t, final.Windows.CurrentlySaturated,
 		"once recovered and idle, CurrentlySaturated must decay to false")
 	assert.Greater(t, final.Windows.Saturated30m, time.Duration(0),
 		"the past saturation must persist as Saturated30m so the state holds at WARNING, not HEALTHY")
 }
 
-// TestGlobalComponentSnapshotsAt_IdleDecay checks that reading against a later clock decays an idle component's CurrentlySaturated.
-func TestGlobalComponentSnapshotsAt_IdleDecay(t *testing.T) {
-	ClearComponentSnapshots()
-	defer ClearComponentSnapshots()
-
+// TestRegistryAt_IdleDecay checks that reading against a later clock decays an idle component's CurrentlySaturated.
+func TestRegistryAt_IdleDecay(t *testing.T) {
 	at := time.Unix(7200, 0)
 	h := newRollingHistory()
 	h.add(at, 0.95) // saturated sample
-	setComponentUtilization("processor", "0", 0.95, 0.95, h)
+	reg := newSnapshotRegistry()
+	reg.setUtilization("processor", "0", 0.95, 0.95, h)
 
 	// Read at the sample time: still saturated.
-	fresh := globalComponentSnapshotsAt(at)
+	fresh := reg.at(at)
 	require.Len(t, fresh, 1)
 	assert.True(t, fresh[0].Windows.CurrentlySaturated, "fresh read must report saturation")
 	assert.Nil(t, fresh[0].history, "history pointer must not escape to callers")
 
 	// Read long after, with no new samples: window stats recompute against the live clock.
-	stale := globalComponentSnapshotsAt(at.Add(time.Hour))
+	stale := reg.at(at.Add(time.Hour))
 	require.Len(t, stale, 1)
 	assert.False(t, stale[0].Windows.CurrentlySaturated,
 		"an idle component's saturation must decay when read against a later clock")
 	assert.InDelta(t, 0.95, stale[0].AvgRatio, 0.0001,
 		"AvgRatio is the last-known EWMA and is expected to stay frozen; only window stats decay")
+}
+
+// TestSnapshots_PipelineMonitorsAreIsolated is the regression guard for the old global registry:
+// two independent monitors that share component keys must not see each other's snapshots.
+func TestSnapshots_PipelineMonitorsAreIsolated(t *testing.T) {
+	clk := clock.NewMock()
+
+	saturated := newTelemetryPipelineMonitorWithClock(clk, time.Second)
+	um := saturated.MakeUtilizationMonitor("processor", "0").(*TelemetryUtilizationMonitor)
+	um.Start() // blocked in-use, drives EWMA to saturation
+	for i := 0; i < 40; i++ {
+		clk.Add(time.Second)
+		um.sample(clk.Now())
+	}
+
+	// A second monitor with the SAME component key but no activity. Under the old global map its
+	// keys would have collided with the saturated monitor; with per-instance registries it stays empty.
+	idle := newTelemetryPipelineMonitorWithClock(clk, time.Second)
+	idle.MakeUtilizationMonitor("processor", "0")
+
+	require.True(t, findSnapshot(t, saturated.registry.at(clk.Now()), "processor", "0").Windows.CurrentlySaturated,
+		"the active monitor must report its own saturation")
+	assert.Empty(t, idle.registry.at(clk.Now()),
+		"a separate monitor must not observe another monitor's snapshots (no global collision)")
 }

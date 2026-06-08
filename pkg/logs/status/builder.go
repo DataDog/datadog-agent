@@ -27,25 +27,28 @@ import (
 
 // Builder is used to build the status.
 type Builder struct {
-	isRunning   *atomic.Uint32
-	endpoints   *config.Endpoints
-	sources     *sourcesPkg.LogSources
-	tailers     *tailers.TailerTracker
-	warnings    *config.Messages
-	errors      *config.Messages
-	logsExpVars *expvar.Map
+	isRunning       *atomic.Uint32
+	endpoints       *config.Endpoints
+	sources         *sourcesPkg.LogSources
+	tailers         *tailers.TailerTracker
+	warnings        *config.Messages
+	errors          *config.Messages
+	logsExpVars     *expvar.Map
+	pipelineMonitor logsMetrics.PipelineMonitor
 }
 
-// NewBuilder returns a new builder.
-func NewBuilder(isRunning *atomic.Uint32, endpoints *config.Endpoints, sources *sourcesPkg.LogSources, tracker *tailers.TailerTracker, warnings *config.Messages, errors *config.Messages, logExpVars *expvar.Map) *Builder {
+// NewBuilder returns a new builder. pipelineMonitor owns the per-component backpressure snapshots
+// (may be nil, e.g. in tests, in which case the backpressure section is empty).
+func NewBuilder(isRunning *atomic.Uint32, endpoints *config.Endpoints, sources *sourcesPkg.LogSources, tracker *tailers.TailerTracker, warnings *config.Messages, errors *config.Messages, logExpVars *expvar.Map, pipelineMonitor logsMetrics.PipelineMonitor) *Builder {
 	return &Builder{
-		isRunning:   isRunning,
-		endpoints:   endpoints,
-		sources:     sources,
-		tailers:     tracker,
-		warnings:    warnings,
-		errors:      errors,
-		logsExpVars: logExpVars,
+		isRunning:       isRunning,
+		endpoints:       endpoints,
+		sources:         sources,
+		tailers:         tracker,
+		warnings:        warnings,
+		errors:          errors,
+		logsExpVars:     logExpVars,
+		pipelineMonitor: pipelineMonitor,
 	}
 }
 
@@ -90,7 +93,10 @@ func componentRank(name string) int {
 
 // getComponentUtilization returns per-component snapshots sorted in pipeline order.
 func (b *Builder) getComponentUtilization() []ComponentUtilization {
-	snaps := logsMetrics.GlobalComponentSnapshots()
+	if b.pipelineMonitor == nil {
+		return nil
+	}
+	snaps := b.pipelineMonitor.Snapshots()
 	result := make([]ComponentUtilization, 0, len(snaps))
 	for _, s := range snaps {
 		lastSat := ""

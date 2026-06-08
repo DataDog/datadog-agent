@@ -655,7 +655,8 @@ func newHTTPPassthroughPipeline(
 		endpoints.BatchMaxConcurrentSend,
 		endpoints.BatchMaxConcurrentSend,
 		secretsComp,
-		// Noop: passthrough pipelines must not write to the logs backpressure registry (their keys would collide).
+		// Noop: passthrough pipelines don't surface on the logs status page, so they skip
+		// utilization sampling and own no snapshot registry.
 		pipelineMonitor,
 	)
 

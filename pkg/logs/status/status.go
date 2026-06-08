@@ -136,13 +136,13 @@ func GetCurrentTransport() Transport {
 }
 
 // Init instantiates the builder that builds the status on the fly.
-func Init(isRunning *atomic.Uint32, endpoints *config.Endpoints, sources *sources.LogSources, tracker *tailers.TailerTracker, logExpVars *expvar.Map) {
+func Init(isRunning *atomic.Uint32, endpoints *config.Endpoints, sources *sources.LogSources, tracker *tailers.TailerTracker, logExpVars *expvar.Map, pipelineMonitor metrics.PipelineMonitor) {
 	globalsLock.Lock()
 	defer globalsLock.Unlock()
 
 	warnings = config.NewMessages()
 	errors = config.NewMessages()
-	builder = NewBuilder(isRunning, endpoints, sources, tracker, warnings, errors, logExpVars)
+	builder = NewBuilder(isRunning, endpoints, sources, tracker, warnings, errors, logExpVars, pipelineMonitor)
 }
 
 // Clear clears the status which means it needs to be initialized again to be used.
@@ -153,7 +153,6 @@ func Clear() {
 	builder = nil
 	warnings = nil
 	errors = nil
-	// Snapshots are cleared by the agent after stopComponents() (not here, where the still-running monitors would repopulate them).
 }
 
 // Get returns the status of the logs-agent computed on the fly.

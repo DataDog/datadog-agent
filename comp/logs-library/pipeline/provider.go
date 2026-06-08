@@ -51,6 +51,8 @@ type Provider interface {
 	NextPipelineChan() chan *message.Message
 	GetOutputChan() chan *message.Message
 	NextPipelineChanWithMonitor() (chan *message.Message, *metrics.CapacityMonitor)
+	// GetPipelineMonitor returns the pipeline monitor owning this provider's component snapshots.
+	GetPipelineMonitor() metrics.PipelineMonitor
 	// Flush flushes all pipeline contained in this Provider
 	Flush(ctx context.Context)
 }
@@ -153,7 +155,7 @@ func tcpSender(
 		componentName,
 		queueCount,
 		workersPerQueue,
-		// The logs-agent pipeline is the sole owner of the backpressure snapshot registry.
+		// A real monitor: this sender owns the snapshot registry surfaced on the status page.
 		metrics.NewTelemetryPipelineMonitor(),
 	)
 }
@@ -212,7 +214,7 @@ func httpSender(
 		minSenderConcurrency,
 		maxSenderConcurrency,
 		secretsComp,
-		// The logs-agent pipeline is the sole owner of the backpressure snapshot registry.
+		// A real monitor: this sender owns the snapshot registry surfaced on the status page.
 		metrics.NewTelemetryPipelineMonitor(),
 	)
 }
@@ -348,6 +350,15 @@ func (p *provider) NextPipelineChanWithMonitor() (chan *message.Message, *metric
 
 	index := p.currentRouterIndex.Inc() % uint32(len(p.routerChannels))
 	return p.routerChannels[index], nil
+}
+
+// GetPipelineMonitor returns the shared pipeline monitor that owns this provider's component
+// snapshots. Returns a no-op monitor when the provider has no sender (e.g. mock providers).
+func (p *provider) GetPipelineMonitor() metrics.PipelineMonitor {
+	if p.sender == nil {
+		return metrics.NewNoopPipelineMonitor("")
+	}
+	return p.sender.PipelineMonitor()
 }
 
 // forwardWithFailover reads messages from routerChannels[routerIndex] and routes

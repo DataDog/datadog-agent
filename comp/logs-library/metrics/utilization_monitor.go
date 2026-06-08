@@ -52,6 +52,9 @@ type TelemetryUtilizationMonitor struct {
 	instance   string
 	started    bool
 	clock      clock.Clock
+	// registry, when non-nil, receives utilization snapshots and supplies the capacity figures
+	// used in saturation logs. It is owned by the pipeline monitor; standalone monitors leave it nil.
+	registry *snapshotRegistry
 
 	// Saturation episode tracking for log emission.
 	isSaturated          bool
@@ -63,12 +66,12 @@ type TelemetryUtilizationMonitor struct {
 	pendingRecoverySince time.Time // non-zero while EWMA is below threshold but debounce not yet met
 }
 
-// NewTelemetryUtilizationMonitor creates a new TelemetryUtilizationMonitor.
+// NewTelemetryUtilizationMonitor creates a new TelemetryUtilizationMonitor that reports to telemetry only.
 func NewTelemetryUtilizationMonitor(name, instance string) *TelemetryUtilizationMonitor {
-	return newTelemetryUtilizationMonitorWithSampleRateAndClock(name, instance, 1*time.Second, clock.New())
+	return newTelemetryUtilizationMonitorWithSampleRateAndClock(name, instance, 1*time.Second, clock.New(), nil)
 }
 
-func newTelemetryUtilizationMonitorWithSampleRateAndClock(name, instance string, sampleRate time.Duration, clock clock.Clock) *TelemetryUtilizationMonitor {
+func newTelemetryUtilizationMonitorWithSampleRateAndClock(name, instance string, sampleRate time.Duration, clock clock.Clock, registry *snapshotRegistry) *TelemetryUtilizationMonitor {
 	return &TelemetryUtilizationMonitor{
 		name:       name,
 		instance:   instance,
@@ -80,6 +83,7 @@ func newTelemetryUtilizationMonitorWithSampleRateAndClock(name, instance string,
 		history:    newRollingHistory(),
 		started:    false,
 		clock:      clock,
+		registry:   registry,
 	}
 }
 
@@ -144,7 +148,9 @@ func (u *TelemetryUtilizationMonitor) reportIfNeededLocked(now time.Time) {
 	u.history.add(now, u.avg)
 
 	TlmUtilizationRatio.Set(u.avg, u.name, u.instance)
-	setComponentUtilization(u.name, u.instance, u.avg, rawRatio, u.history)
+	if u.registry != nil {
+		u.registry.setUtilization(u.name, u.instance, u.avg, rawRatio, u.history)
+	}
 	u.idle = 0
 	u.inUse = 0
 	u.lastSample = now
@@ -159,7 +165,10 @@ func (u *TelemetryUtilizationMonitor) updateSaturationState(now time.Time) {
 	if currentlySaturated {
 		u.pendingRecoverySince = time.Time{}
 
-		snap, _ := lookupComponentSnapshot(u.name, u.instance)
+		var snap ComponentSnapshot
+		if u.registry != nil {
+			snap, _ = u.registry.lookup(u.name, u.instance)
+		}
 
 		if !u.isSaturated {
 			u.isSaturated = true

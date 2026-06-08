@@ -279,7 +279,7 @@ func (a *logAgent) configureAgent() ([]*config.ProcessingRule, *types.Fingerprin
 func (a *logAgent) startPipeline() {
 
 	// setup the status
-	status.Init(a.started, a.endpoints, a.sources, a.tracker, metrics.LogsExpvars)
+	status.Init(a.started, a.endpoints, a.sources, a.tracker, metrics.LogsExpvars, a.pipelineProvider.GetPipelineMonitor())
 
 	starter := startstop.NewStarter(
 		a.destinationsCtx,
@@ -328,9 +328,6 @@ func (a *logAgent) stop(context.Context) error {
 	a.stopComponents(toStop, func() {
 		a.destinationsCtx.Stop()
 	})
-
-	// Clear snapshots only after the monitors stop, else an in-flight sample repopulates the map.
-	metrics.ClearComponentSnapshots()
 
 	return nil
 }

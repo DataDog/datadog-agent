@@ -16,7 +16,7 @@ import (
 
 func TestUtilizationMonitorLifecycle(t *testing.T) {
 	clock := clock.NewMock()
-	um := newTelemetryUtilizationMonitorWithSampleRateAndClock("name", "instance", 2*time.Second, clock)
+	um := newTelemetryUtilizationMonitorWithSampleRateAndClock("name", "instance", 2*time.Second, clock, nil)
 
 	// Converge on 50% utilization
 	for i := 0; i < 100; i++ {
@@ -76,7 +76,7 @@ func runIdleIterations(um *TelemetryUtilizationMonitor, clk interface{ Add(time.
 // TestSample_BlockedComponentObserved checks a component blocked in-use still climbs to saturation via periodic sampling.
 func TestSample_BlockedComponentObserved(t *testing.T) {
 	clk := clock.NewMock()
-	um := newTelemetryUtilizationMonitorWithSampleRateAndClock("comp", "0", time.Second, clk)
+	um := newTelemetryUtilizationMonitorWithSampleRateAndClock("comp", "0", time.Second, clk, nil)
 
 	um.Start() // never Stop
 
@@ -93,7 +93,7 @@ func TestSample_BlockedComponentObserved(t *testing.T) {
 // TestSample_IdleComponentStaysLow checks periodic sampling of a never-in-use component keeps the EWMA at 0.
 func TestSample_IdleComponentStaysLow(t *testing.T) {
 	clk := clock.NewMock()
-	um := newTelemetryUtilizationMonitorWithSampleRateAndClock("comp", "0", time.Second, clk)
+	um := newTelemetryUtilizationMonitorWithSampleRateAndClock("comp", "0", time.Second, clk, nil)
 
 	for i := 0; i < 40; i++ {
 		clk.Add(time.Second)
@@ -107,7 +107,7 @@ func TestSample_IdleComponentStaysLow(t *testing.T) {
 // TestSaturationStateOnset checks that the state machine flips to saturated at the threshold.
 func TestSaturationStateOnset(t *testing.T) {
 	clk := clock.NewMock()
-	um := newTelemetryUtilizationMonitorWithSampleRateAndClock("comp", "0", time.Second, clk)
+	um := newTelemetryUtilizationMonitorWithSampleRateAndClock("comp", "0", time.Second, clk, nil)
 
 	require.False(t, um.isSaturated, "should start healthy")
 
@@ -121,7 +121,7 @@ func TestSaturationStateOnset(t *testing.T) {
 // TestRecoveryDebounce_StaysInSaturatedState checks a dip below threshold doesn't recover until recoveryDebounce elapses.
 func TestRecoveryDebounce_StaysInSaturatedState(t *testing.T) {
 	clk := clock.NewMock()
-	um := newTelemetryUtilizationMonitorWithSampleRateAndClock("comp", "0", time.Second, clk)
+	um := newTelemetryUtilizationMonitorWithSampleRateAndClock("comp", "0", time.Second, clk, nil)
 
 	runBusyIterations(um, clk, 40)
 	require.True(t, um.isSaturated)
@@ -136,7 +136,7 @@ func TestRecoveryDebounce_StaysInSaturatedState(t *testing.T) {
 // TestRecoveryDebounce_FiresAfterWindow checks recovery fires only after the EWMA stays low for recoveryDebounce.
 func TestRecoveryDebounce_FiresAfterWindow(t *testing.T) {
 	clk := clock.NewMock()
-	um := newTelemetryUtilizationMonitorWithSampleRateAndClock("comp", "0", time.Second, clk)
+	um := newTelemetryUtilizationMonitorWithSampleRateAndClock("comp", "0", time.Second, clk, nil)
 
 	runBusyIterations(um, clk, 40)
 	require.True(t, um.isSaturated)
@@ -150,7 +150,7 @@ func TestRecoveryDebounce_FiresAfterWindow(t *testing.T) {
 // TestRecoveryDebounce_ResetByReSaturation checks re-saturating before the debounce fires cancels the pending recovery.
 func TestRecoveryDebounce_ResetByReSaturation(t *testing.T) {
 	clk := clock.NewMock()
-	um := newTelemetryUtilizationMonitorWithSampleRateAndClock("comp", "0", time.Second, clk)
+	um := newTelemetryUtilizationMonitorWithSampleRateAndClock("comp", "0", time.Second, clk, nil)
 
 	runBusyIterations(um, clk, 40)
 	require.True(t, um.isSaturated)

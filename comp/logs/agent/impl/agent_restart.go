@@ -143,7 +143,7 @@ func (a *logAgent) setupAgentForRestart() error {
 // Unlike startPipeline, this only starts the transient components (destinations, pipeline, launchers)
 // since persistent components (auditor, schedulers, diagnosticMessageReceiver) remain running.
 func (a *logAgent) restartPipeline() {
-	status.Init(a.started, a.endpoints, a.sources, a.tracker, logsmetrics.LogsExpvars)
+	status.Init(a.started, a.endpoints, a.sources, a.tracker, logsmetrics.LogsExpvars, a.pipelineProvider.GetPipelineMonitor())
 
 	starter := startstop.NewStarter(a.destinationsCtx, a.pipelineProvider, a.launchers)
 	starter.Start()
@@ -174,9 +174,6 @@ func (a *logAgent) partialStop() error {
 	a.stopComponents(toStop, func() {
 		a.destinationsCtx.Stop()
 	})
-
-	// Clear snapshots only after the monitors stop, else an in-flight sample repopulates the map for the restarted pipeline.
-	logsmetrics.ClearComponentSnapshots()
 
 	// Flush auditor to write current positions to disk
 	a.log.Debug("Flushing auditor registry after pipeline stop")

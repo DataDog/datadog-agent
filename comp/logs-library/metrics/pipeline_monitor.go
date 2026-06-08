@@ -31,37 +31,44 @@ type ComponentSnapshot struct {
 	history *rollingHistory
 }
 
-// globalSnapshots keys (name:instance) are unique only per pipeline monitor, so only the logs
-// pipeline owns one; other senders pass a NoopPipelineMonitor to avoid colliding here.
-var (
-	globalSnapshotsMu sync.RWMutex
-	globalSnapshots   = map[string]*ComponentSnapshot{}
-)
+// snapshotRegistry holds the latest per-component snapshots for a single pipeline monitor.
+// Each TelemetryPipelineMonitor owns one, so component keys (name:instance) from different
+// pipelines can never collide, and the snapshots live and die with their owning monitor (no
+// global clear step is needed). Pipelines whose telemetry shouldn't surface on the status page
+// simply use a NoopPipelineMonitor, which owns no registry.
+type snapshotRegistry struct {
+	mu        sync.RWMutex
+	snapshots map[string]*ComponentSnapshot
+}
 
-// setComponentUtilization stores the utilization fields and live history for name:instance.
-func setComponentUtilization(name, instance string, avgRatio, rawRatio float64, history *rollingHistory) {
+func newSnapshotRegistry() *snapshotRegistry {
+	return &snapshotRegistry{snapshots: map[string]*ComponentSnapshot{}}
+}
+
+// setUtilization stores the utilization fields and live history for name:instance.
+func (r *snapshotRegistry) setUtilization(name, instance string, avgRatio, rawRatio float64, history *rollingHistory) {
 	key := name + ":" + instance
-	globalSnapshotsMu.Lock()
-	defer globalSnapshotsMu.Unlock()
-	s := globalSnapshots[key]
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	s := r.snapshots[key]
 	if s == nil {
 		s = &ComponentSnapshot{Name: name, Instance: instance}
-		globalSnapshots[key] = s
+		r.snapshots[key] = s
 	}
 	s.AvgRatio = avgRatio
 	s.RawRatio = rawRatio
 	s.history = history
 }
 
-// setComponentCapacity stores the capacity fields for name:instance.
-func setComponentCapacity(name, instance string, avgItems, avgBytes float64, rawItems, rawBytes int64) {
+// setCapacity stores the capacity fields for name:instance.
+func (r *snapshotRegistry) setCapacity(name, instance string, avgItems, avgBytes float64, rawItems, rawBytes int64) {
 	key := name + ":" + instance
-	globalSnapshotsMu.Lock()
-	defer globalSnapshotsMu.Unlock()
-	s := globalSnapshots[key]
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	s := r.snapshots[key]
 	if s == nil {
 		s = &ComponentSnapshot{Name: name, Instance: instance}
-		globalSnapshots[key] = s
+		r.snapshots[key] = s
 	}
 	s.AvgItems = avgItems
 	s.AvgBytes = avgBytes
@@ -69,17 +76,12 @@ func setComponentCapacity(name, instance string, avgItems, avgBytes float64, raw
 	s.RawBytes = rawBytes
 }
 
-// GlobalComponentSnapshots returns a copy of all snapshots, window stats recomputed against now.
-func GlobalComponentSnapshots() []ComponentSnapshot {
-	return globalComponentSnapshotsAt(time.Now())
-}
-
-// globalComponentSnapshotsAt copies all snapshots, recomputing window stats against now (so idle components decay).
-func globalComponentSnapshotsAt(now time.Time) []ComponentSnapshot {
-	globalSnapshotsMu.RLock()
-	defer globalSnapshotsMu.RUnlock()
-	result := make([]ComponentSnapshot, 0, len(globalSnapshots))
-	for _, s := range globalSnapshots {
+// at copies all snapshots, recomputing window stats against now (so idle components decay).
+func (r *snapshotRegistry) at(now time.Time) []ComponentSnapshot {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	result := make([]ComponentSnapshot, 0, len(r.snapshots))
+	for _, s := range r.snapshots {
 		snap := *s
 		if s.history != nil {
 			snap.Windows = s.history.allStats(now)
@@ -90,22 +92,15 @@ func globalComponentSnapshotsAt(now time.Time) []ComponentSnapshot {
 	return result
 }
 
-// lookupComponentSnapshot returns the snapshot for name:instance, or false if none exists.
-func lookupComponentSnapshot(name, instance string) (ComponentSnapshot, bool) {
-	globalSnapshotsMu.RLock()
-	defer globalSnapshotsMu.RUnlock()
-	s := globalSnapshots[name+":"+instance]
+// lookup returns the snapshot for name:instance, or false if none exists.
+func (r *snapshotRegistry) lookup(name, instance string) (ComponentSnapshot, bool) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	s := r.snapshots[name+":"+instance]
 	if s == nil {
 		return ComponentSnapshot{}, false
 	}
 	return *s, true
-}
-
-// ClearComponentSnapshots removes all stored snapshots; called when the logs pipeline stops.
-func ClearComponentSnapshots() {
-	globalSnapshotsMu.Lock()
-	defer globalSnapshotsMu.Unlock()
-	globalSnapshots = map[string]*ComponentSnapshot{}
 }
 
 const (
@@ -138,6 +133,10 @@ type PipelineMonitor interface {
 	// Start/Stop bracket periodic sampling of this monitor's utilization monitors.
 	Start()
 	Stop()
+	// Snapshots returns the current per-component utilization/capacity snapshots owned by
+	// this monitor. NoopPipelineMonitor returns nil, so pipelines that should not surface on
+	// the status page contribute nothing.
+	Snapshots() []ComponentSnapshot
 }
 
 // NoopPipelineMonitor is a no-op implementation of PipelineMonitor.
@@ -177,6 +176,9 @@ func (n *NoopPipelineMonitor) Start() {}
 // Stop does nothing.
 func (n *NoopPipelineMonitor) Stop() {}
 
+// Snapshots returns nil; a no-op monitor owns no registry.
+func (n *NoopPipelineMonitor) Snapshots() []ComponentSnapshot { return nil }
+
 // utilizationSampleInterval is how often the ticker samples each monitor, so mid-operation blocks are observed.
 const utilizationSampleInterval = 1 * time.Second
 
@@ -184,6 +186,10 @@ const utilizationSampleInterval = 1 * time.Second
 type TelemetryPipelineMonitor struct {
 	monitors map[string]*CapacityMonitor
 	lock     sync.RWMutex
+
+	// registry holds the snapshots for the components created by this monitor. It is owned here
+	// so its keys never collide with another pipeline's, and it is read back via Snapshots().
+	registry *snapshotRegistry
 
 	// utilizationMonitors are ticked by sampleLoop so a component blocked between Start and Stop is still sampled.
 	utilizationMonitors []*TelemetryUtilizationMonitor
@@ -203,9 +209,16 @@ func newTelemetryPipelineMonitorWithClock(clk clock.Clock, sampleInterval time.D
 	return &TelemetryPipelineMonitor{
 		monitors:       make(map[string]*CapacityMonitor),
 		lock:           sync.RWMutex{},
+		registry:       newSnapshotRegistry(),
 		clock:          clk,
 		sampleInterval: sampleInterval,
 	}
+}
+
+// Snapshots returns a copy of this monitor's current component snapshots, window stats
+// recomputed against the current time so idle components decay.
+func (c *TelemetryPipelineMonitor) Snapshots() []ComponentSnapshot {
+	return c.registry.at(time.Now())
 }
 
 func (c *TelemetryPipelineMonitor) getMonitor(name string, instanceID string) *CapacityMonitor {
@@ -218,7 +231,7 @@ func (c *TelemetryPipelineMonitor) getMonitor(name string, instanceID string) *C
 	if !exists {
 		c.lock.Lock()
 		if c.monitors[key] == nil {
-			c.monitors[key] = NewCapacityMonitor(name, instanceID)
+			c.monitors[key] = newCapacityMonitor(name, instanceID, c.registry)
 		}
 		monitor = c.monitors[key]
 		c.lock.Unlock()
@@ -229,7 +242,7 @@ func (c *TelemetryPipelineMonitor) getMonitor(name string, instanceID string) *C
 
 // MakeUtilizationMonitor creates a utilization monitor and registers it for periodic sampling.
 func (c *TelemetryPipelineMonitor) MakeUtilizationMonitor(name string, instanceID string) UtilizationMonitor {
-	m := newTelemetryUtilizationMonitorWithSampleRateAndClock(name, instanceID, c.sampleInterval, c.clock)
+	m := newTelemetryUtilizationMonitorWithSampleRateAndClock(name, instanceID, c.sampleInterval, c.clock, c.registry)
 	c.lock.Lock()
 	c.utilizationMonitors = append(c.utilizationMonitors, m)
 	c.lock.Unlock()

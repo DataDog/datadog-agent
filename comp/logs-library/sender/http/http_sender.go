@@ -20,7 +20,7 @@ import (
 )
 
 // NewHTTPSender returns a new http sender. pipelineMonitor is caller-supplied so pipelines that
-// shouldn't report component telemetry can pass a NoopPipelineMonitor (see globalSnapshots).
+// shouldn't surface on the status page can pass a NoopPipelineMonitor (which owns no snapshot registry).
 func NewHTTPSender(
 	config pkgconfigmodel.Reader,
 	sink sender.Sink,
