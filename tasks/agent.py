@@ -31,8 +31,6 @@ from tasks.libs.common.utils import (
     REPO_PATH,
     bin_name,
     get_build_flags,
-    get_embedded_path,
-    get_goenv,
     get_version,
     gitlab_section,
 )
@@ -42,6 +40,7 @@ from tasks.rtloader import install as rtloader_install
 from tasks.rtloader import install_with_bazel as rtloader_install_with_bazel
 from tasks.rtloader import make as rtloader_make
 from tasks.schema.generate import compress as schema_compress
+from tasks.schema.template import CORE_SCHEMA_FILE, SYSPROBE_SCHEMA_FILE, generate_template
 from tasks.windows_resources import build_messagetable, build_rc, versioninfo_vars
 
 # constants
@@ -63,7 +62,7 @@ CACHED_WHEEL_FULL_PATH_PATTERN = CACHED_WHEEL_DIRECTORY_PATTERN + CACHED_WHEEL_F
 LAST_DIRECTORY_COMMIT_PATTERN = "git -C {integrations_dir} rev-list -1 HEAD {integration}"
 
 
-@task(iterable=['bundle'])
+@task
 @run_on_devcontainer
 def build(
     ctx,
@@ -82,8 +81,6 @@ def build(
     go_mod="readonly",
     windows_sysprobe=False,
     cmake_options='',
-    bundle=None,
-    bundle_ebpf=False,
     agent_bin=None,
     run_on=None,  # noqa: U100, F841. Used by the run_on_devcontainer decorator
     glibc=True,
@@ -117,7 +114,6 @@ def build(
         python_home_3=python_home_3,
     )
 
-    bundled_agents = ["agent"]
     if sys.platform == 'win32' or os.getenv("GOOS") == "windows":
         # Important for x-compiling
         env["CGO_ENABLED"] = "1"
@@ -133,28 +129,17 @@ def build(
                 vars=vars,
                 out="cmd/agent/rsrc.syso",
             )
-    else:
-        bundled_agents += bundle or []
 
     if flavor.is_iot():
         # Iot mode overrides whatever passed through `--build-exclude` and `--build-include`
         build_tags = get_default_build_tags(build="agent", flavor=flavor)
     else:
-        all_tags = set()
-        if bundle_ebpf and "system-probe" in bundled_agents:
-            all_tags.add("ebpf_bindata")
-
-        for build in bundled_agents:
-            all_tags.add("bundle_" + build.replace("-", "_"))
-            build_tags = compute_build_tags_for_flavor(
-                build=build,
-                flavor=flavor,
-                build_include=build_include,
-                build_exclude=build_exclude,
-            )
-
-            all_tags |= set(build_tags)
-        build_tags = list(all_tags)
+        build_tags = compute_build_tags_for_flavor(
+            build="agent",
+            flavor=flavor,
+            build_include=build_include,
+            build_exclude=build_exclude,
+        )
 
     if not glibc:
         build_tags = list(set(build_tags).difference({"nvml"}))
@@ -185,27 +170,9 @@ def build(
             coverage=os.getenv("E2E_COVERAGE_PIPELINE") == "true",
         )
 
-    if embedded_path is None:
-        embedded_path = get_embedded_path(ctx)
-        assert embedded_path, "Failed to find embedded path"
-
-    for build in bundled_agents:
-        if build == "agent":
-            continue
-
-        bundled_agent_dir = os.path.join(BIN_DIR, build)
-        bundled_agent_bin = os.path.join(bundled_agent_dir, bin_name(build))
-        agent_fullpath = os.path.normpath(os.path.join(embedded_path, "..", "bin", "agent", bin_name("agent")))
-
-        if not os.path.exists(os.path.dirname(bundled_agent_bin)):
-            os.mkdir(os.path.dirname(bundled_agent_bin))
-
-        create_launcher(ctx, build, agent_fullpath, bundled_agent_bin)
-
     with gitlab_section("Generate configuration files", collapsed=True):
-        render_config(
+        generate_config_examples(
             ctx,
-            env=env,
             flavor=flavor,
             skip_assets=skip_assets,
             build_tags=build_tags,
@@ -214,36 +181,21 @@ def build(
         )
 
 
-def create_launcher(ctx, agent, src, dst):
-    cc = get_goenv(ctx, "CC")
-    if not cc:
-        print("Failed to find C compiler")
-        raise Exit(code=1)
-
-    cmd = "{cc} -DDD_AGENT_PATH='\"{agent_bin}\"' -DDD_AGENT='\"{agent}\"' -o {launcher_bin} ./cmd/agent/launcher/launcher.c"
-    args = {
-        "cc": cc,
-        "agent": agent,
-        "agent_bin": src,
-        "launcher_bin": dst,
-    }
-    ctx.run(cmd.format(**args))
+_PLATFORM_TO_OS_TARGET = {
+    "linux": "linux",
+    "win32": "windows",
+    "darwin": "darwin",
+}
 
 
-def render_config(ctx, env, flavor, skip_assets, build_tags, development, windows_sysprobe):
-    # Remove cross-compiling bits to render config
-    env.update({"GOOS": "", "GOARCH": ""})
+def generate_config_examples(ctx, flavor, skip_assets, build_tags, development, windows_sysprobe):
+    os_target = _PLATFORM_TO_OS_TARGET[sys.platform]
 
-    # Render the Agent configuration file template
-    build_type = "agent-py3"
-    if flavor.is_iot():
-        build_type = "iot-agent"
+    build_type = "iot-agent" if flavor.is_iot() else "agent-py3"
+    generate_template(CORE_SCHEMA_FILE, "./cmd/agent/dist/datadog.yaml", build_type, os_target)
 
-    generate_config(ctx, build_type=build_type, output_file="./cmd/agent/dist/datadog.yaml", env=env)
-
-    # On Linux and MacOS, render the system-probe configuration file template
     if sys.platform != 'win32' or windows_sysprobe:
-        generate_config(ctx, build_type="system-probe", output_file="./cmd/agent/dist/system-probe.yaml", env=env)
+        generate_template(SYSPROBE_SCHEMA_FILE, "./cmd/agent/dist/system-probe.yaml", "system-probe", os_target)
 
     if not skip_assets:
         refresh_assets(ctx, build_tags, development=development, flavor=flavor.name, windows_sysprobe=windows_sysprobe)
@@ -945,26 +897,6 @@ def upload_integration_to_cache(ctx, python, bucket, branch, integrations_dir, b
     ) + os.path.basename(wheel_path)
     print(f"Caching wheel {target_name}")
     ctx.run(f"{AWS_CMD} s3 cp {wheel_path} s3://{bucket}/{target_name} --acl public-read")
-
-
-@task()
-def generate_config(ctx, build_type, output_file, env=None):
-    """
-    Generates the datadog.yaml configuration file.
-    """
-    args = {
-        "go_file": "./pkg/config/render_config/render_config.go",
-        "build_type": build_type,
-        "template_file": "./pkg/config/config_template.yaml",
-        "output_file": output_file,
-    }
-    if build_type == "system-probe":
-        args["template_file"] = "./pkg/config/system-probe_template.yaml"
-    elif build_type == "security-agent":
-        args["template_file"] = "./pkg/config/security-agent_template.yaml"
-
-    cmd = "go run {go_file} {build_type} {template_file} {output_file}"
-    return ctx.run(cmd.format(**args), env=env or {})
 
 
 @task()

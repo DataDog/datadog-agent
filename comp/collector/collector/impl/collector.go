@@ -16,12 +16,11 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
-	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	collector "github.com/DataDog/datadog-agent/comp/collector/collector/def"
 	"github.com/DataDog/datadog-agent/comp/collector/collector/impl/internal/middleware"
 	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
@@ -95,7 +94,6 @@ type provides struct {
 	Comp             collector.Component
 	StatusProvider   status.InformationProvider
 	MetadataProvider metadata.Provider
-	APIGetPyStatus   api.AgentEndpointProvider
 }
 
 // Module defines the fx options for this component.
@@ -118,7 +116,6 @@ func newProvides(deps dependencies) provides {
 		Comp:             c,
 		StatusProvider:   status.NewInformationProvider(collectorStatus.NewProvider(c)),
 		MetadataProvider: agentCheckMetadata,
-		APIGetPyStatus:   api.NewAgentEndpointProvider(getPythonStatus, "/py/status", "GET"),
 	}
 }
 

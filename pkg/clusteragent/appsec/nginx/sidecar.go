@@ -9,11 +9,14 @@ package nginx
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"maps"
 	"slices"
 	"strings"
 	"time"
+
+	"github.com/distribution/reference"
 
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	appsecconfig "github.com/DataDog/datadog-agent/pkg/clusteragent/appsec/config"
@@ -24,6 +27,17 @@ import (
 	"k8s.io/client-go/dynamic"
 	"k8s.io/utils/ptr"
 )
+
+// errCrossNamespaceConfigMap signals that the pod's --configmap arg references
+// a namespace different from the pod's own. We must not act on this because
+// the DCA service account holds cluster-wide ConfigMap permissions and the pod
+// creator may be a low-privileged tenant.
+var errCrossNamespaceConfigMap = errors.New("--configmap references a namespace different from the pod's namespace; refusing to mutate to avoid confused-deputy ConfigMap writes")
+
+// errEmptyConfigMapName signals that the pod's --configmap arg has an empty
+// name after the slash (e.g. "--configmap=foo/"). This is a malformed arg
+// and we refuse to act on it.
+var errEmptyConfigMapName = errors.New("--configmap has empty name after namespace separator")
 
 const (
 	// mutateTimeout bounds ConfigMap operations during pod mutation to prevent
@@ -84,19 +98,32 @@ func (n *nginxSidecarPattern) MutatePod(pod *corev1.Pod, ns string, client dynam
 		return false, fmt.Errorf("pod %s has no containers", mutatecommon.PodString(pod))
 	}
 
-	// Find the controller container with --configmap arg (or note it's absent)
-	containerIdx, argIdx, cmNamespace, cmName, found := findControllerConfigMapArg(pod, ns)
+	containerIdx, argIdx, cmNamespace, cmName, found, err := findControllerConfigMapArg(pod, ns)
+	if err != nil {
+		// Refusing to mutate on cross-namespace or malformed --configmap args is
+		// a security policy decision, not a failure. Return (false, nil) so the
+		// pod is admitted unmodified (fail-open) without polluting the error
+		// path used by genuine mutation failures. The warning event lands on
+		// the pod itself so the owning namespace operator can see the diagnostic.
+		n.eventRecorder.recordCrossNamespaceConfigMapRefused(pod, err)
+		n.logger.Warnf("nginx AppSec mutation skipped for pod %s: %v", mutatecommon.PodString(pod), err)
+		return false, nil
+	}
 	if !found {
 		cmName = "ingress-nginx-controller"
 		cmNamespace = ns
 	}
 
-	// Parse version from controller image
 	container := &pod.Spec.Containers[containerIdx]
-	version, err := parseControllerVersion(container.Image)
-	if err != nil {
-		n.eventRecorder.recordVersionParseFailed(pod.Name, container.Image)
-		return false, fmt.Errorf("failed to parse ingress-nginx version from image %q: %w. Follow the manual extraModules process to enable AppSec", container.Image, err)
+
+	initImageRef := n.config.Nginx.InitImage
+	if !imageIsFullyQualified(initImageRef) {
+		version, err := parseControllerVersion(container.Image)
+		if err != nil {
+			n.eventRecorder.recordVersionParseFailed(pod.Name, container.Image)
+			return false, fmt.Errorf("failed to parse ingress-nginx version from image %q: %w. Follow the manual extraModules process to enable AppSec", container.Image, err)
+		}
+		initImageRef = initImageRef + ":" + version
 	}
 
 	moduleMountPath := n.config.Nginx.ModuleMountPath
@@ -130,8 +157,7 @@ func (n *nginxSidecarPattern) MutatePod(pod *corev1.Pod, ns string, client dynam
 		},
 	})
 
-	// Add init container that copies the .so module
-	pod.Spec.InitContainers = append(pod.Spec.InitContainers, buildInitContainer(n.config.Nginx.InitImage, version, moduleMountPath))
+	pod.Spec.InitContainers = append(pod.Spec.InitContainers, buildInitContainer(initImageRef, moduleMountPath, n.config.Nginx.InitRunAsUser, n.config.Nginx.InitRunAsGroup))
 
 	// Add volume mount to controller container
 	container.VolumeMounts = append(container.VolumeMounts, corev1.VolumeMount{
@@ -146,7 +172,7 @@ func (n *nginxSidecarPattern) MutatePod(pod *corev1.Pod, ns string, client dynam
 		container.Args = append(container.Args, fmt.Sprintf("%s%s/%s", configmapArgPrefix, cmNamespace, ddCMName))
 	}
 
-	n.logger.Infof("Injected nginx-datadog module into pod %s (version %s)", mutatecommon.PodString(pod), version)
+	n.logger.Infof("Injected nginx-datadog module into pod %s (image %s)", mutatecommon.PodString(pod), initImageRef)
 
 	return true, nil
 }
@@ -171,11 +197,21 @@ func (n *nginxSidecarPattern) MatchCondition() admissionregistrationv1.MatchCond
 	}
 }
 
-// findControllerConfigMapArg finds the controller container and its --configmap arg,
-// resolving $(POD_NAMESPACE) to the actual pod namespace.
-// If the arg is not found, found is false and containerIdx 0 / argIdx -1 are returned
-// so the caller can append the arg to the first container instead.
-func findControllerConfigMapArg(pod *corev1.Pod, podNamespace string) (containerIdx, argIdx int, cmNamespace, cmName string, found bool) {
+// findControllerConfigMapArg finds the controller container and its --configmap arg.
+// It resolves $(POD_NAMESPACE) to the pod's namespace and rejects any other
+// namespace value, because the pod arg is attacker-controlled and the DCA holds
+// cluster-wide ConfigMap permissions (confused-deputy primitive). It also
+// rejects empty names (after the slash separator).
+//
+// Return contract:
+//   - arg absent: found=false, err=nil — caller defaults to (podNamespace, "ingress-nginx-controller").
+//   - arg present and valid: found=true, err=nil.
+//   - arg present but malformed/cross-namespace: err!=nil — caller must skip mutation.
+//
+// The webhook runs before kubelet substitution, so "$(POD_NAMESPACE)" arrives
+// as a literal string and we resolve it ourselves. Upstream ingress-nginx only
+// supports this single syntax, so variants like ${POD_NAMESPACE} are not recognized.
+func findControllerConfigMapArg(pod *corev1.Pod, podNamespace string) (containerIdx, argIdx int, cmNamespace, cmName string, found bool, err error) {
 	for ci, c := range pod.Spec.Containers {
 		for ai, arg := range c.Args {
 			value, ok := strings.CutPrefix(arg, configmapArgPrefix)
@@ -186,14 +222,21 @@ func findControllerConfigMapArg(pod *corev1.Pod, podNamespace string) (container
 			if !ok {
 				continue
 			}
-			// Resolve $(POD_NAMESPACE) to the actual namespace
 			if ns == "$(POD_NAMESPACE)" {
 				ns = podNamespace
 			}
-			return ci, ai, ns, name, true
+			if ns != podNamespace {
+				return ci, ai, "", "", false, fmt.Errorf("%w: pod %s, arg %q",
+					errCrossNamespaceConfigMap, mutatecommon.PodString(pod), arg)
+			}
+			if name == "" {
+				return ci, ai, "", "", false, fmt.Errorf("%w: pod %s, arg %q",
+					errEmptyConfigMapName, mutatecommon.PodString(pod), arg)
+			}
+			return ci, ai, ns, name, true, nil
 		}
 	}
-	return 0, -1, podNamespace, "", false
+	return 0, -1, podNamespace, "", false, nil
 }
 
 // parseControllerVersion extracts the version tag from an ingress-nginx controller image reference.
@@ -242,11 +285,44 @@ func hasIngressNginxControllerClassArg(pod *corev1.Pod) bool {
 	return false
 }
 
-// buildInitContainer creates the init container spec that copies the nginx-datadog module
-func buildInitContainer(initImage, version, moduleMountPath string) corev1.Container {
+// imageIsFullyQualified reports whether image already carries a tag or digest,
+// meaning it should be used as-is without appending a runtime-derived tag.
+func imageIsFullyQualified(image string) bool {
+	ref, err := reference.Parse(image)
+	if err != nil {
+		return false
+	}
+	_, hasTag := ref.(reference.Tagged)
+	_, hasDigest := ref.(reference.Digested)
+	return hasTag || hasDigest
+}
+
+// buildInitContainer creates the init container spec that copies the nginx-datadog module.
+// image must be a fully-qualified image reference including the tag (e.g. "repo/image:tag").
+//
+// runAsUser/runAsGroup set the container's non-root identity. The stock init
+// image declares no USER (runs as root), which the kubelet rejects under
+// RunAsNonRoot ("container has runAsNonRoot and image will run as root"), so a
+// non-root UID/GID is required for it. A negative value leaves the respective
+// field unset so a custom image's own USER is honored.
+func buildInitContainer(image, moduleMountPath string, runAsUser, runAsGroup int64) corev1.Container {
+	sc := &corev1.SecurityContext{
+		RunAsNonRoot:             ptr.To(true),
+		AllowPrivilegeEscalation: ptr.To(false),
+		ReadOnlyRootFilesystem:   ptr.To(true),
+		Capabilities: &corev1.Capabilities{
+			Drop: []corev1.Capability{"ALL"},
+		},
+	}
+	if runAsUser >= 0 {
+		sc.RunAsUser = ptr.To(runAsUser)
+	}
+	if runAsGroup >= 0 {
+		sc.RunAsGroup = ptr.To(runAsGroup)
+	}
 	return corev1.Container{
 		Name:    initContainerName,
-		Image:   initImage + ":" + version,
+		Image:   image,
 		Command: []string{"/bin/sh", "/datadog/init_module.sh", moduleMountPath},
 		VolumeMounts: []corev1.VolumeMount{
 			{
@@ -254,13 +330,6 @@ func buildInitContainer(initImage, version, moduleMountPath string) corev1.Conta
 				MountPath: moduleMountPath,
 			},
 		},
-		SecurityContext: &corev1.SecurityContext{
-			RunAsNonRoot:             ptr.To(true),
-			AllowPrivilegeEscalation: ptr.To(false),
-			ReadOnlyRootFilesystem:   ptr.To(true),
-			Capabilities: &corev1.Capabilities{
-				Drop: []corev1.Capability{"ALL"},
-			},
-		},
+		SecurityContext: sc,
 	}
 }

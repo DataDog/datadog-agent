@@ -17,7 +17,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-api-client-go/api/v1/datadog"
+	"github.com/DataDog/datadog-api-client-go/v2/api/datadog"
 	"github.com/DataDog/datadog-api-client-go/v2/api/datadogV2"
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
 
