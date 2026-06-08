@@ -486,6 +486,32 @@ func TestShadowSchedulerStopStopsAllShadowChecks(t *testing.T) {
 	}
 }
 
+func TestShadowSchedulerScheduleAfterStopDoesNotCreateRunner(t *testing.T) {
+	sourceConfig := newTestShadowConfig()
+	loader := &testShadowLoader{check: newTestShadowCheck(sourceConfig.SourceCheckID)}
+	runnerCalls := 0
+	scheduler := NewShadowScheduler(ShadowSchedulerOptions{
+		Loader:           loader,
+		NewSenderManager: func(context.Context) aggregatorsender.SenderManager { return &recordingSenderManager{} },
+		NewRunner: func(scheduled runner.ScheduledChecks) ShadowRunner {
+			runnerCalls++
+			return newTestShadowRunnerFactory(t)(scheduled)
+		},
+		Interval:    time.Second,
+		StopTimeout: time.Second,
+		NewTicker:   (&manualTickerFactory{}).NewTicker,
+	})
+
+	require.NoError(t, scheduler.Stop())
+
+	err := scheduler.Schedule([]ShadowConfig{sourceConfig})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "shadow scheduler is stopped")
+	assert.Equal(t, 0, loader.LoadCount())
+	assert.Equal(t, 0, runnerCalls)
+}
+
 func newTestShadowConfig() ShadowConfig {
 	source := integration.Config{
 		Name:       "cpu",

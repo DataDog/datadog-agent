@@ -72,6 +72,7 @@ type ShadowScheduler struct {
 	checks     map[shadowKey]*shadowCheckHandle
 	checksByID map[checkid.ID]shadowKey
 	runner     ShadowRunner
+	stopped    bool
 }
 
 // NewShadowScheduler creates an isolated scheduler for lookback shadow checks.
@@ -117,6 +118,10 @@ func (s *ShadowScheduler) Schedule(configs []ShadowConfig) error {
 		key := newShadowKey(config)
 
 		s.mu.Lock()
+		if s.stopped {
+			s.mu.Unlock()
+			return errors.New("shadow scheduler is stopped")
+		}
 		if _, exists := s.checks[key]; exists {
 			s.mu.Unlock()
 			continue
@@ -132,6 +137,11 @@ func (s *ShadowScheduler) Schedule(configs []ShadowConfig) error {
 		}
 
 		s.mu.Lock()
+		if s.stopped {
+			s.mu.Unlock()
+			_ = handle.stop(s.stopTimeout)
+			return errors.New("shadow scheduler is stopped")
+		}
 		if _, exists := s.checks[key]; exists {
 			s.mu.Unlock()
 			_ = handle.stop(s.stopTimeout)
@@ -223,6 +233,7 @@ func (s *ShadowScheduler) Stop() error {
 	}
 	shadowRunner := s.runner
 	s.runner = nil
+	s.stopped = true
 	s.mu.Unlock()
 
 	var firstErr error
