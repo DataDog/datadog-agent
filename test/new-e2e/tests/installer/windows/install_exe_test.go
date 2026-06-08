@@ -112,18 +112,10 @@ func (s *testInstallExeSuite) TestInstallAgentPackage() {
 	s.Assert().Contains(string(systemProbeContent), "## System Probe Configuration ##", "system-probe.yaml should contain template section banners from system-probe.yaml.example")
 }
 
-// TestSetupHandoffToStableVersion exercises the version-handoff path in
-// `setup`: the locally-uploaded (current-pipeline) installer.exe sees a
-// version pinned via DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_AGENT,
-// downloads the matching `datadog-installer.exe` from the configured
-// registry, and re-execs setup from it. The framework sets
-// DD_INSTALLER_SETUP_REEXEC=true by default (so other tests focus on the
-// local exe); this test clears it.
-//
-// Version and registry come from s.StableAgentVersion().OCIPackage() so the
-// test runs against whatever the framework configures as "stable" — a
-// public GA release by default, but overridable via STABLE_AGENT_* env vars
-// to point at an RC or pipeline build for pre-release validation.
+// TestSetupHandoffToStableVersion verifies the current installer hands off
+// to a different version when one is requested: it downloads the matching
+// datadog-installer.exe from the OCI registry and re-execs setup from it.
+// Version + registry come from s.StableAgentVersion().OCIPackage().
 func (s *testInstallExeSuite) TestSetupHandoffToStableVersion() {
 	// Arrange — read framework-configured stable package + version.
 	stable := s.StableAgentVersion().OCIPackage()
