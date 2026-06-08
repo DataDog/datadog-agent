@@ -1136,8 +1136,8 @@ func agent(config pkgconfigmodel.Setup) {
 
 	config.BindEnvAndSetDefault("skip_ssl_validation", false)
 	config.BindEnvAndSetDefault("sslkeylogfile", "")
-	config.BindEnv("tls_handshake_timeout")    //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("http_dial_fallback_delay") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnvAndSetDefault("tls_handshake_timeout", 10*time.Second)
+	config.BindEnvAndSetDefault("http_dial_fallback_delay", -1*time.Nanosecond)
 	config.BindEnvAndSetDefault("hostname", "")
 	config.BindEnvAndSetDefault("hostname_file", "")
 	config.BindEnvAndSetDefault("tags", []string{})
@@ -1296,6 +1296,9 @@ func agent(config pkgconfigmodel.Setup) {
 
 	// Core agent (disabled for Error Tracking Standalone, Logs Collection Only)
 	config.BindEnvAndSetDefault("core_agent.enabled", true)
+
+	// Config files discovery
+	config.BindEnvAndSetDefault("config_files_discovery.enabled", false)
 
 	// Software Inventory
 	config.BindEnvAndSetDefault("software_inventory.enabled", false)
@@ -1914,7 +1917,7 @@ func logsagent(config pkgconfigmodel.Setup) {
 	// Controls how wildcard file log source are prioritized when there are more files
 	// that match wildcard log configurations than the `logs_config.open_files_limit`
 	//
-	// Choices are 'by_name' and 'by_modification_time'. See config_template.yaml for full details.
+	// Choices are 'by_name' and 'by_modification_time'. See pkg/config/schema/yaml/ for full details.
 	//
 	// WARNING: 'by_modification_time' is less performant than 'by_name' and will trigger
 	// more disk I/O at the wildcard log paths
