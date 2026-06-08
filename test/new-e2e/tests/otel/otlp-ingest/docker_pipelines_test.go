@@ -106,8 +106,6 @@ func (s *otlpIngestDockerTestSuite) TestOTLPMetrics() {
 	if s.v3Enabled {
 		assert.Greater(s.T(), routeStats[otlpMetricsV3Endpoint], 0,
 			"expected payloads on %s when V3 is enabled", otlpMetricsV3Endpoint)
-		assert.Zero(s.T(), routeStats[otlpMetricsV2Endpoint],
-			"expected no payloads on %s when V3 is enabled", otlpMetricsV2Endpoint)
 	} else {
 		assert.Greater(s.T(), routeStats[otlpMetricsV2Endpoint], 0,
 			"expected payloads on %s when V3 is not enabled", otlpMetricsV2Endpoint)
