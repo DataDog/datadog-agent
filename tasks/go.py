@@ -291,9 +291,11 @@ def raise_if_errors(errors_found, suggestion_msg=None):
         raise Exit(message=message)
 
 
-def check_valid_mods(ctx):
+def _check_valid_mods():
     errors_found = []
     for mod in get_default_modules().values():
+        if mod.path == ".":
+            continue
         pattern = os.path.join(mod.full_path(), '*.go')
         if not glob.glob(pattern):
             errors_found.append(f"module {mod.import_path} does not contain *.go source files, so it is not a package")
@@ -303,7 +305,7 @@ def check_valid_mods(ctx):
 
 @task
 def check_mod_tidy(ctx, test_folder="testmodule"):
-    check_valid_mods(ctx)
+    _check_valid_mods()
     with generate_dummy_package(ctx, test_folder) as dummy_folder:
         errors_found = []
         ctx.run("go work sync")
@@ -349,7 +351,7 @@ def tidy_all(ctx):
 
 @task
 def tidy(ctx, verbose: bool = False):
-    check_valid_mods(ctx)
+    _check_valid_mods()
     (_bazel_tidy if shutil.which("bazel") else _go_only_tidy)(ctx, verbose)
 
 
@@ -401,7 +403,7 @@ def version(_):
 @task
 def check_go_version(ctx):
     go_version_output = ctx.run('go version')
-    # result is like "go version go1.25.10 linux/amd64"
+    # result is like "go version go1.26.4 linux/amd64"
     running_go_version = go_version_output.stdout.split(' ')[2]
 
     with open(".go-version") as f:

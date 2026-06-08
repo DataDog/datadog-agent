@@ -1542,7 +1542,7 @@ type ContainerImageMetadata struct {
 // ContainerImageLayer represents a layer of a container image
 type ContainerImageLayer struct {
 	MediaType string
-	Digest    string
+	DiffID    string
 	SizeBytes int64
 	URLs      []string
 	History   *v1.History `proto:"ignore"`
@@ -1663,7 +1663,7 @@ func (layer ContainerImageLayer) String() string {
 	var sb strings.Builder
 
 	_, _ = fmt.Fprintln(&sb, "Media Type:", layer.MediaType)
-	_, _ = fmt.Fprintln(&sb, "Digest:", layer.Digest)
+	_, _ = fmt.Fprintln(&sb, "Diff ID:", layer.DiffID)
 	_, _ = fmt.Fprintln(&sb, "Size in bytes:", layer.SizeBytes)
 	_, _ = fmt.Fprintln(&sb, "URLs:", layer.URLs)
 
