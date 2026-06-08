@@ -96,20 +96,28 @@ func (docker *Docker) ExecuteCommandStdoutStdErr(containerName string, commands 
 
 	ctx := context.Background()
 	execCreateResp, err := docker.client.ExecCreate(ctx, containerName, client.ExecCreateOptions{Cmd: commands, AttachStderr: true, AttachStdout: true})
-	requireNoErr(err)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to create exec on container %s: %w", containerName, err)
+	}
 
 	execAttachResp, err := docker.client.ExecAttach(ctx, execCreateResp.ID, client.ExecAttachOptions{})
-	requireNoErr(err)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to attach to exec on container %s: %w", containerName, err)
+	}
 	defer execAttachResp.Close()
 
 	var outBuf, errBuf bytes.Buffer
 	// Use stdcopy.StdCopy to remove prefix for stdout and stderr
 	// See https://stackoverflow.com/questions/52774830/docker-exec-command-from-golang-api for additional context
 	_, err = stdcopy.StdCopy(&outBuf, &errBuf, execAttachResp.Reader)
-	requireNoErr(err)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to read exec output on container %s: %w", containerName, err)
+	}
 
 	execInspectResp, err := docker.client.ExecInspect(ctx, execCreateResp.ID, client.ExecInspectOptions{})
-	requireNoErr(err)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to inspect exec on container %s: %w", containerName, err)
+	}
 
 	stdout = outBuf.String()
 	stderr = errBuf.String()
