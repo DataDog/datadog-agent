@@ -7,7 +7,9 @@ package configfilesdiscoveryimpl
 
 import (
 	"context"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -197,6 +199,7 @@ func TestSchedulerDispatchesRegisteredIntegrationsOnly(t *testing.T) {
 	withConfigCollectors(t, map[string]configCollector{"redis": collector})
 	withConfigReaders(t, map[RuntimeType]configReaderFactory{RuntimeHost: readerFactory.Build})
 	s := newADScheduler(targetResolver{})
+	defer s.Stop()
 
 	s.Schedule([]integration.Config{
 		checkConfig("redis", "process://1234"),
@@ -206,10 +209,11 @@ func TestSchedulerDispatchesRegisteredIntegrationsOnly(t *testing.T) {
 		{Name: "redis", ServiceID: "process://9999", ClusterCheck: true, Instances: []integration.Data{[]byte("{}")}},
 	})
 
-	require.Len(t, collector.runs, 1)
-	assert.Equal(t, RuntimeHost, collector.runs[0].reader.Runtime())
-	require.Len(t, readerFactory.targets, 1)
-	assert.Equal(t, target{runtime: RuntimeHost, entityID: "1234"}, readerFactory.targets[0])
+	runs := collector.waitForRuns(t, 1)
+	assert.Equal(t, RuntimeHost, runs[0].reader.Runtime())
+	targets := readerFactory.recordedTargets()
+	require.Len(t, targets, 1)
+	assert.Equal(t, target{runtime: RuntimeHost, entityID: "1234"}, targets[0])
 }
 
 func TestSchedulerContinuesAfterInvalidConfigInBatch(t *testing.T) {
@@ -217,14 +221,44 @@ func TestSchedulerContinuesAfterInvalidConfigInBatch(t *testing.T) {
 	withConfigCollectors(t, map[string]configCollector{"redis": collector})
 	withConfigReaders(t, map[RuntimeType]configReaderFactory{RuntimeDocker: fakeConfigReaderFactory(fakeConfigReader{runtime: RuntimeDocker})})
 	s := newADScheduler(targetResolver{})
+	defer s.Stop()
 
 	s.Schedule([]integration.Config{
 		checkConfig("redis", "not-an-ad-service-id"),
 		checkConfig("redis", "docker://abc123"),
 	})
 
-	require.Len(t, collector.runs, 1)
-	assert.Equal(t, RuntimeDocker, collector.runs[0].reader.Runtime())
+	runs := collector.waitForRuns(t, 1)
+	assert.Equal(t, RuntimeDocker, runs[0].reader.Runtime())
+}
+
+func TestSchedulerRunsCollectorOutsideScheduleCallback(t *testing.T) {
+	collector := &recordingConfigCollector{
+		unblock: make(chan struct{}),
+	}
+	readerFactory := &recordingConfigReaderFactory{reader: fakeConfigReader{runtime: RuntimeHost}}
+	withConfigCollectors(t, map[string]configCollector{"redis": collector})
+	withConfigReaders(t, map[RuntimeType]configReaderFactory{RuntimeHost: readerFactory.Build})
+	s := newADScheduler(targetResolver{})
+	defer s.Stop()
+
+	returned := make(chan struct{})
+	go func() {
+		s.Schedule([]integration.Config{
+			checkConfig("redis", "process://1234"),
+		})
+		close(returned)
+	}()
+
+	select {
+	case <-returned:
+	case <-time.After(time.Second):
+		close(collector.unblock)
+		t.Fatal("Schedule blocked while collector was running")
+	}
+
+	close(collector.unblock)
+	collector.waitForRuns(t, 1)
 }
 
 func TestComponentRegistersAutodiscoverySchedulerOnStart(t *testing.T) {
@@ -266,18 +300,46 @@ func (l *recordingLifecycle) Append(hook compdef.Hook) {
 }
 
 type recordingConfigCollector struct {
-	runs []runCall
+	mu      sync.Mutex
+	runs    []runCall
+	unblock chan struct{}
 }
 
 type runCall struct {
 	reader ConfigReader
 }
 
-func (c *recordingConfigCollector) Run(_ context.Context, reader ConfigReader) error {
+func (c *recordingConfigCollector) Run(ctx context.Context, reader ConfigReader) error {
+	if c.unblock != nil {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-c.unblock:
+		}
+	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.runs = append(c.runs, runCall{
 		reader: reader,
 	})
 	return nil
+}
+
+func (c *recordingConfigCollector) waitForRuns(t *testing.T, count int) []runCall {
+	t.Helper()
+
+	require.Eventually(t, func() bool {
+		c.mu.Lock()
+		defer c.mu.Unlock()
+		return len(c.runs) >= count
+	}, time.Second, 10*time.Millisecond)
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	runs := make([]runCall, len(c.runs))
+	copy(runs, c.runs)
+	return runs
 }
 
 type fakeConfigReader struct {
@@ -295,13 +357,24 @@ func fakeConfigReaderFactory(reader ConfigReader) configReaderFactory {
 }
 
 type recordingConfigReaderFactory struct {
+	mu      sync.Mutex
 	reader  ConfigReader
 	targets []target
 }
 
 func (f *recordingConfigReaderFactory) Build(target target) (ConfigReader, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.targets = append(f.targets, target)
 	return f.reader, nil
+}
+
+func (f *recordingConfigReaderFactory) recordedTargets() []target {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	targets := make([]target, len(f.targets))
+	copy(targets, f.targets)
+	return targets
 }
 
 func withConfigCollectors(t *testing.T, collectors map[string]configCollector) {
