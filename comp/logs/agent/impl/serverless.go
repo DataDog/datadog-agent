@@ -10,7 +10,7 @@ import (
 
 	"go.uber.org/atomic"
 
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log/impl"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	agent "github.com/DataDog/datadog-agent/comp/logs/agent/def"
@@ -54,7 +54,5 @@ func (a *logAgent) Stop() {
 // Flush flushes synchronously the running instance of the Logs Agent.
 // Use a WithTimeout context in order to have a flush that can be cancelled.
 func (a *logAgent) Flush(ctx context.Context) {
-	a.log.Info("Triggering a flush in the logs-agent")
 	a.pipelineProvider.Flush(ctx)
-	a.log.Debug("Flush in the logs-agent done.")
 }

@@ -12,7 +12,7 @@ import (
 
 	"go.uber.org/atomic"
 
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/comp/logs-library/client"
 	"github.com/DataDog/datadog-agent/comp/logs-library/client/http"
@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
 
@@ -400,9 +401,7 @@ func (p *provider) Flush(ctx context.Context) {
 	if p.serverlessMeta.IsEnabled() {
 		p.serverlessMeta.Lock()
 		defer p.serverlessMeta.Unlock()
-		// Wait for the logs sender to finish sending payloads to all destinations,
-		// but respect the caller's deadline so a hung send doesn't block past the
-		// graceful shutdown window (e.g. Cloud Run's 10 s SIGTERM → SIGKILL budget).
+		// Respect serverless timeouts -- don't block past the shutdown window
 		waitDone := make(chan struct{})
 		go func() {
 			p.serverlessMeta.WaitGroup().Wait()
@@ -410,7 +409,9 @@ func (p *provider) Flush(ctx context.Context) {
 		}()
 		select {
 		case <-waitDone:
+			log.Debug("serverless pipeline flush: finished — all in-flight sends completed before deadline")
 		case <-ctx.Done():
+			log.Debugf("serverless pipeline flush: deadline exceeded (%v) — some in-flight sends may not have completed", ctx.Err())
 		}
 	}
 }

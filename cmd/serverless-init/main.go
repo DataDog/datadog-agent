@@ -25,7 +25,7 @@ import (
 	healthprobeDef "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
 	healthprobeFx "github.com/DataDog/datadog-agent/comp/core/healthprobe/fx"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	logdef "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logfx "github.com/DataDog/datadog-agent/comp/core/log/fx"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
@@ -346,6 +346,7 @@ func lastFlush(flushTimeout time.Duration, metricAgent serverless.FlushableAgent
 	defer cancel()
 	go func(wg *sync.WaitGroup, ctx context.Context) {
 		if logsAgent != nil {
+			log.Debug("Triggering the last flush in the logs-agent")
 			logsAgent.Flush(ctx)
 		}
 		wg.Done()
