@@ -31,8 +31,8 @@ type fakeDiscoverer struct {
 
 func (f *fakeDiscoverer) DiscoverConfig(integrationName, serviceJSON string) (string, error) {
 	f.mu.Lock()
-	defer f.mu.Unlock()
 	f.calls++
+	f.mu.Unlock()
 	return f.fn(integrationName, serviceJSON)
 }
 

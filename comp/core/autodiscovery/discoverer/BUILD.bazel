@@ -4,8 +4,8 @@ go_library(
     name = "discoverer",
     srcs = [
         "discovery_json.go",
-        "python_bridge.go",          # //go:build python
-        "python_bridge_nopython.go", # //go:build !python
+        "python_bridge.go",  # //go:build python
+        "python_bridge_nopython.go",  # //go:build !python
         "types.go",
         "worker.go",
     ],
@@ -14,10 +14,10 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/autodiscovery/integration",
-        "//pkg/collector/python",  # only compiled under //go:build python
         "//pkg/util/log",
         "//pkg/util/tmplvar",
         "@//comp/core/autodiscovery/listeners",
+        "@//pkg/collector/python",
         "@io_k8s_apimachinery//pkg/util/wait",
         "@io_k8s_client_go//util/workqueue",
     ],
