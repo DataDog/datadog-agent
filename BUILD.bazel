@@ -17,7 +17,42 @@ exports_files(glob(
 ))
 
 # TODO(agent-build): remove below `gazelle:exclude` directives (automatically updates @bazelify_go_work//:go.work)
-# gazelle:exclude cmd/agent/subcommands
+# gazelle:exclude cmd/agent/subcommands/*.go
+# gazelle:exclude cmd/agent/subcommands/analyzelogs
+# gazelle:exclude cmd/agent/subcommands/check
+# gazelle:exclude cmd/agent/subcommands/config
+# gazelle:exclude cmd/agent/subcommands/configcheck
+# gazelle:exclude cmd/agent/subcommands/controlsvc
+# gazelle:exclude cmd/agent/subcommands/coverage
+# gazelle:exclude cmd/agent/subcommands/createschema
+# gazelle:exclude cmd/agent/subcommands/diagnose
+# gazelle:exclude cmd/agent/subcommands/dogstatsd
+# gazelle:exclude cmd/agent/subcommands/dogstatsdcapture
+# gazelle:exclude cmd/agent/subcommands/dogstatsdreplay
+# gazelle:exclude cmd/agent/subcommands/dogstatsdstats
+# gazelle:exclude cmd/agent/subcommands/experimental
+# gazelle:exclude cmd/agent/subcommands/flare
+# gazelle:exclude cmd/agent/subcommands/health
+# gazelle:exclude cmd/agent/subcommands/hostname
+# gazelle:exclude cmd/agent/subcommands/import
+# gazelle:exclude cmd/agent/subcommands/integrations
+# gazelle:exclude cmd/agent/subcommands/jmx
+# gazelle:exclude cmd/agent/subcommands/launchgui
+# gazelle:exclude cmd/agent/subcommands/otel
+# gazelle:exclude cmd/agent/subcommands/processchecks
+# gazelle:exclude cmd/agent/subcommands/run
+# gazelle:exclude cmd/agent/subcommands/secret
+# gazelle:exclude cmd/agent/subcommands/secrethelper
+# gazelle:exclude cmd/agent/subcommands/snmp
+# gazelle:exclude cmd/agent/subcommands/status
+# gazelle:exclude cmd/agent/subcommands/stop
+# gazelle:exclude cmd/agent/subcommands/streamep
+# gazelle:exclude cmd/agent/subcommands/streamlogs
+# gazelle:exclude cmd/agent/subcommands/taggerlist
+# gazelle:exclude cmd/agent/subcommands/validatepodannotation
+# gazelle:exclude cmd/agent/subcommands/version
+# gazelle:exclude cmd/agent/subcommands/workloadfilterlist
+# gazelle:exclude cmd/agent/subcommands/workloadlist
 # gazelle:exclude cmd/agent/windows
 # gazelle:exclude cmd/cluster-agent
 # gazelle:exclude cmd/cluster-agent-cloudfoundry
@@ -170,7 +205,6 @@ exports_files(glob(
 # gazelle:exclude comp/metadata/haagent/impl
 # gazelle:exclude comp/metadata/host/fx
 # gazelle:exclude comp/metadata/host/impl/*.go
-# gazelle:exclude comp/metadata/host/impl/status_templates
 # gazelle:exclude comp/metadata/host/impl/utils
 # gazelle:exclude comp/metadata/hostgpu/fx
 # gazelle:exclude comp/metadata/hostgpu/impl
@@ -234,8 +268,6 @@ exports_files(glob(
 # gazelle:exclude comp/process/status/impl
 # gazelle:exclude comp/process/submitter
 # gazelle:exclude comp/process/types
-# gazelle:exclude comp/remote-config/rcservice/fx
-# gazelle:exclude comp/remote-config/rcservice/impl
 # gazelle:exclude comp/remote-config/rcservicemrf/fx
 # gazelle:exclude comp/remote-config/rcservicemrf/impl
 # gazelle:exclude comp/snmpscan/fx
