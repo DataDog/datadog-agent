@@ -48,7 +48,13 @@ type Heartbeat struct {
 	interval      time.Duration
 	metricEmitter MetricEmitter
 	metricSource  metrics.MetricSource
-	baseTags      []string // immutable after construction (e.g., microvm_image_arn)
+
+	// baseTags are Datadog "key:value" tag strings, immutable after
+	// construction. Supplied by cloudservice.MicroVM.Init, which currently
+	// passes a single entry: "microvm_image_arn:<arn>" (the raw image ARN from
+	// AWS_LAMBDA_MICROVM_IMAGE_ARN, or "unknown" when the env var is unset). The
+	// per-emit "microvm_id:<id>" tag is appended separately in tagsForEmit.
+	baseTags []string
 
 	mu        sync.Mutex
 	cancel    context.CancelFunc
