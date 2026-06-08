@@ -25,19 +25,11 @@ int socket__dns_filter(struct __sk_buff* skb) {
     if (!read_conn_tuple_skb(skb, &skb_info, &tup)) {
         return 0;
     }
-
-    __u16 sport = tup.sport;
-    __u16 dport = tup.dport;
-
-    if (bpf_map_lookup_elem(&dns_ports, &sport) != NULL) {
-        return -1;
+    if (tup.sport != 53 && (!dns_stats_enabled() || tup.dport != 53)) {
+        return 0;
     }
 
-    if (dns_stats_enabled() && bpf_map_lookup_elem(&dns_ports, &dport) != NULL) {
-        return -1;
-    }
-
-    return 0;
+    return -1;
 }
 
 char _license[] SEC("license") = "GPL";
