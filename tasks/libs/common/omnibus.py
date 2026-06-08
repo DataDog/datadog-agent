@@ -3,6 +3,7 @@ import json
 import os
 import sys
 from datetime import datetime
+from pathlib import Path
 
 import requests
 
@@ -170,17 +171,54 @@ def _get_environment_for_cache(env: dict[str, str]) -> dict:
     return {k: v for k, v in env.items() if k not in excluded_variables}
 
 
-def _hash_paths(hasher, paths: list[str]):
+def omnibus_debug_dir() -> Path:
+    if ci_project_dir := os.environ.get('CI_PROJECT_DIR'):
+        return Path(ci_project_dir) / 'omnibus' / 'pkg'
+    return Path('omnibus') / 'pkg'
+
+
+def write_omnibus_debug_json(filename: str, data: dict):
+    try:
+        debug_dir = omnibus_debug_dir()
+        debug_dir.mkdir(parents=True, exist_ok=True)
+        path = debug_dir / filename
+        with path.open('w') as f:
+            json.dump(data, f, indent=2, sort_keys=True)
+            f.write('\n')
+        print(f'Wrote Omnibus debug info to {path}')
+    except Exception as e:
+        print(f'Failed to write Omnibus debug info {filename}: {e}')
+
+
+def _hash_paths(hasher, paths: list[str], debug_paths: list[dict] | None = None):
     """Update hashlib.hash object `hasher` by recursive hashing of the contents provided in `paths`."""
 
-    def hash_file(filepath):
+    def hash_file(filepath, path_debug=None):
         # Include the path to the file in the hash to account for file moves
         hasher.update(filepath.encode())
+        file_debug = None
+        if path_debug is not None:
+            file_debug = {'path': filepath, 'bytes': 0, 'content_hash': hashlib.sha1()}
+            path_debug['files'] += 1
+            path_debug['path_hash'].update(filepath.encode())
 
         # Hash the file contents
         with open(filepath, 'rb') as f:
             while chunk := f.read(4096):
                 hasher.update(chunk)
+                if path_debug is not None:
+                    path_debug['bytes'] += len(chunk)
+                    path_debug['content_hash'].update(chunk)
+                    file_debug['bytes'] += len(chunk)
+                    file_debug['content_hash'].update(chunk)
+        if file_debug is not None:
+            path_debug['file_details'].append(
+                {
+                    'path': file_debug['path'],
+                    'bytes': file_debug['bytes'],
+                    'content_sha1': file_debug['content_hash'].hexdigest(),
+                }
+            )
 
     def all_files_under(path):
         for root, _, filenames in os.walk(path):
@@ -188,13 +226,36 @@ def _hash_paths(hasher, paths: list[str]):
                 yield os.path.join(root, filename)
 
     for path in sorted(paths):
+        path_debug = None
+        if debug_paths is not None:
+            path_debug = {
+                'path': path,
+                'exists': os.path.exists(path),
+                'files': 0,
+                'bytes': 0,
+                'path_hash': hashlib.sha1(),
+                'content_hash': hashlib.sha1(),
+                'file_details': [],
+            }
         if os.path.isfile(path):
-            hash_file(path)
+            hash_file(path, path_debug)
         elif os.path.isdir(path):
             for filepath in sorted(all_files_under(path)):
-                hash_file(filepath)
+                hash_file(filepath, path_debug)
         else:
             raise ValueError("provided paths must exist and be either a folder or a regular file")
+        if path_debug is not None:
+            debug_paths.append(
+                {
+                    'path': path_debug['path'],
+                    'exists': path_debug['exists'],
+                    'files': path_debug['files'],
+                    'bytes': path_debug['bytes'],
+                    'path_sha1': path_debug['path_hash'].hexdigest(),
+                    'content_sha1': path_debug['content_hash'].hexdigest(),
+                    'file_details': path_debug['file_details'],
+                }
+            )
 
 
 def get_dd_api_key(ctx):
@@ -210,31 +271,50 @@ def get_dd_api_key(ctx):
 def omnibus_compute_cache_key(ctx, env: dict[str, str]) -> str:
     print('Computing cache key')
     h = hashlib.sha1()
-    _hash_paths(
-        h,
-        [
-            'omnibus/config',
-            'omnibus/lib',
-            'omnibus/package-scripts',
-            'omnibus/python-scripts',
-            'omnibus/resources',
-            'omnibus/omnibus.rb',
-            'tasks/agent.py',
-            'deps',
-            'bazel',
-            'packages',
-        ],
-    )
+    hash_inputs = [
+        'omnibus/config',
+        'omnibus/lib',
+        'omnibus/package-scripts',
+        'omnibus/python-scripts',
+        'omnibus/resources',
+        'omnibus/omnibus.rb',
+        'tasks/agent.py',
+        'deps',
+        'bazel',
+        'packages',
+    ]
+    debug_paths = []
+    _hash_paths(h, hash_inputs, debug_paths=debug_paths)
     print(f'Current hash value: {h.hexdigest()}')
-    h.update(str.encode(os.getenv('CI_JOB_IMAGE', 'local_build')))
+    ci_job_image = os.getenv('CI_JOB_IMAGE', 'local_build')
+    h.update(str.encode(ci_job_image))
     environment = _get_environment_for_cache(env)
+    debug_environment = []
     for k, v in sorted(environment.items()):
         print(f'\tUsing environment variable {k} to compute cache key')
         h.update(str.encode(f'{k}={v}'))
+        debug_environment.append(
+            {
+                'name': k,
+                'value': v,
+                'value_length': len(v),
+                'value_sha1': hashlib.sha1(v.encode()).hexdigest(),
+            }
+        )
         print(f'Current hash value: {h.hexdigest()}')
     cache_key = h.hexdigest()
     cache_key += f'_{CACHE_VERSION}'
     print(f'Cache key: {cache_key}')
+    write_omnibus_debug_json(
+        'omnibus-cache-key-debug.json',
+        {
+            'cache_key': cache_key,
+            'cache_version': CACHE_VERSION,
+            'ci_job_image': ci_job_image,
+            'hashed_paths': debug_paths,
+            'environment': debug_environment,
+        },
+    )
     return cache_key
 
 

@@ -1,3 +1,4 @@
+require "fileutils"
 require "find"
 require "set"
 
@@ -337,6 +338,39 @@ module Omnibus
       command *args, **kwargs, cwd: File.join(Omnibus::Config.project_root, "..")
     end
     expose :command_on_repo_root
+
+    def python_bazel_debug_dir
+      Omnibus::Config.package_dir
+    end
+    expose :python_bazel_debug_dir
+
+    def python_bazel_debug_flags(name)
+      debug_dir = python_bazel_debug_dir
+      FileUtils.mkdir_p(debug_dir)
+      [
+        "--profile='#{debug_dir}/bazel-python-#{name}.profile.gz'",
+        "--execution_log_json_file='#{debug_dir}/bazel-python-#{name}-execution-log.json'",
+        "--explain='#{debug_dir}/bazel-python-#{name}.explain.log'",
+        "--verbose_explanations",
+        "--announce_rc",
+        "--subcommands",
+        "--experimental_collect_skyframe_counts_in_profiler",
+        "--experimental_profile_include_primary_output",
+        "--experimental_profile_include_target_label",
+        "--experimental_profile_additional_tasks=remote_cache_check",
+        "--experimental_profile_additional_tasks=remote_download",
+        "--experimental_profile_additional_tasks=repository_fetch",
+        "--experimental_profile_additional_tasks=vfs_stat",
+        "--experimental_profile_additional_tasks=vfs_dir",
+      ].join(' ')
+    end
+    expose :python_bazel_debug_flags
+
+    def analyze_python_bazel_profile(name)
+      debug_dir = python_bazel_debug_dir
+      command_on_repo_root "bazelisk analyze-profile '#{debug_dir}/bazel-python-#{name}.profile.gz' > '#{debug_dir}/bazel-python-#{name}-profile.txt' || true"
+    end
+    expose :analyze_python_bazel_profile
 
   end
 end

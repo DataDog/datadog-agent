@@ -44,6 +44,11 @@
     paths:
       - omnibus/pkg/*.dmg
       - omnibus/pkg/version-manifest.json
+      - omnibus/pkg/*debug*.json
+      - omnibus/pkg/bazel-python-*.profile.gz
+      - omnibus/pkg/bazel-python-*-profile.txt
+      - omnibus/pkg/bazel-python-*-execution-log.json
+      - omnibus/pkg/bazel-python-*.explain.log
   id_tokens:
     CI_IDENTITIES_GITLAB_ID_TOKEN:
       aud: ci-identities

@@ -41,6 +41,7 @@
       exit 1
     fi
   - export DDA_DIR="$TMPDIR/dda-${CI_JOB_ID}"
+  - du -hd1 $TMPDIR/dda-*
   - export PATH="$DDA_DIR:$PATH"
   - export DDA_NO_DYNAMIC_DEPS=1
   - |

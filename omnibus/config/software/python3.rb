@@ -2,7 +2,6 @@ name "python3"
 
 default_version "3.13.13"
 
-
 relative_path "Python-#{version}"
 
 build do
@@ -13,14 +12,17 @@ build do
 
   if !windows_target?
     env = with_standard_compiler_flags(with_embedded_path)
-    command_on_repo_root "bazelisk run --//:install_dir=#{install_dir} -- @cpython//:install --destdir='#{install_dir}'"
+    command_on_repo_root "bazelisk run #{python_bazel_debug_flags('cpython-install')} --//:install_dir=#{install_dir} -- @cpython//:install --destdir='#{install_dir}'"
+    analyze_python_bazel_profile('cpython-install')
     # Libraries and binaries are rpath-patched by dd_cc_packaged in cpython.BUILD.bazel;
     # this call is now only for the ##PREFIX## text substitution in _sysconfigdata.
-    command_on_repo_root "bazelisk run --//:install_dir=#{install_dir} -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
+    command_on_repo_root "bazelisk run #{python_bazel_debug_flags('replace-prefix')} --//:install_dir=#{install_dir} -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
       " #{install_dir}/embedded/lib/python3.*/_sysconfigdata__*.py"
+    analyze_python_bazel_profile('replace-prefix')
     python = "#{install_dir}/embedded/bin/python3"
   else
-    command_on_repo_root "bazelisk run #{flavor_flag} --//:install_dir=#{install_dir} -- @cpython//:install --destdir=#{install_dir}"
+    command_on_repo_root "bazelisk run #{python_bazel_debug_flags('cpython-install')} #{flavor_flag} --//:install_dir=#{install_dir} -- @cpython//:install --destdir=#{install_dir}"
+    analyze_python_bazel_profile('cpython-install')
     python = "#{windows_safe_path(python_3_embedded)}\\python.exe"
   end
 

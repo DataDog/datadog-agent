@@ -25,6 +25,7 @@ from tasks.libs.common.omnibus import (
     send_cache_miss_event,
     send_cache_mutation_event,
     should_retry_bundle_install,
+    write_omnibus_debug_json,
 )
 from tasks.libs.common.user_interactions import yes_no_question
 from tasks.libs.common.utils import gitlab_section, timed
@@ -294,6 +295,26 @@ def build(
     remote_cache_name = os.environ.get('CI_JOB_NAME_SLUG')
     use_remote_cache = use_omnibus_git_cache and remote_cache_name is not None
     cache_state = None
+    cache_debug = {
+        'enabled': use_omnibus_git_cache,
+        'remote_cache_enabled': use_remote_cache,
+        'remote_cache_name': remote_cache_name,
+        'target_project': target_project,
+        'host_distribution': host_distribution,
+        'install_directory_arg': install_directory,
+        'omnibus_git_cache_dir_arg': omnibus_cache_dir,
+        'cache_disabled_reasons': [],
+    }
+    if omnibus_cache_dir is None:
+        cache_debug['cache_disabled_reasons'].append('OMNIBUS_GIT_CACHE_DIR is not set')
+    if target_project != "agent":
+        cache_debug['cache_disabled_reasons'].append(f'target_project is {target_project!r}, not "agent"')
+    if host_distribution == "ociru":
+        cache_debug['cache_disabled_reasons'].append('host_distribution is "ociru"')
+    if "OMNIBUS_PACKAGE_ARTIFACT_DIR" in os.environ:
+        cache_debug['cache_disabled_reasons'].append('OMNIBUS_PACKAGE_ARTIFACT_DIR is set')
+    if use_omnibus_git_cache and remote_cache_name is None:
+        cache_debug['cache_disabled_reasons'].append('CI_JOB_NAME_SLUG is not set; remote cache disabled')
     aws_cmd = "aws.exe" if sys.platform == 'win32' else "aws"
     if use_omnibus_git_cache:
         # The cache will be written in the provided cache dir (see omnibus.rb) but
@@ -308,6 +329,8 @@ def build(
         # which effectively drops whatever was in omnibus_cache_dir
         install_directory = install_directory.lstrip('/')
         omnibus_cache_dir = os.path.join(omnibus_cache_dir, install_directory)
+        cache_debug['install_directory'] = install_directory
+        cache_debug['omnibus_git_cache_dir'] = omnibus_cache_dir
         # We don't want to update the cache when not running on a CI
         # Individual developers are still able to leverage the cache by providing
         # the OMNIBUS_GIT_CACHE_DIR env variable, but they won't pull from the CI
@@ -316,18 +339,29 @@ def build(
             if use_remote_cache:
                 cache_key = omnibus_compute_cache_key(ctx, env)
                 git_cache_url = f"s3://{os.environ['S3_OMNIBUS_GIT_CACHE_BUCKET']}/{cache_key}/{remote_cache_name}"
+                cache_debug['cache_key'] = cache_key
+                cache_debug['git_cache_url'] = git_cache_url
+                cache_debug['s3_bucket'] = os.environ.get('S3_OMNIBUS_GIT_CACHE_BUCKET')
                 bundle_dir = tempfile.TemporaryDirectory()
                 bundle_path = os.path.join(bundle_dir.name, 'omnibus-git-cache-bundle')
                 with timed(quiet=True) as durations['Restoring omnibus cache']:
                     # Allow failure in case the cache was evicted
-                    if ctx.run(f"{aws_cmd} s3 cp --only-show-errors {git_cache_url} {bundle_path}", warn=True):
+                    restore_result = ctx.run(f"{aws_cmd} s3 cp --only-show-errors {git_cache_url} {bundle_path}", warn=True)
+                    cache_debug['restore_exit_code'] = restore_result.exited
+                    cache_debug['restore_succeeded'] = restore_result.ok
+                    if restore_result:
                         print(f'Successfully retrieved cache {cache_key}')
                         try:
                             ctx.run(f"git clone --mirror {bundle_path} {omnibus_cache_dir}")
                         except UnexpectedExit as exc:
+                            cache_debug['clone_succeeded'] = False
+                            cache_debug['clone_error'] = str(exc)
                             print(f"An error occurring while cloning the cache repo: {exc}")
                         else:
+                            cache_debug['clone_succeeded'] = True
                             cache_state = ctx.run(f"git -C {omnibus_cache_dir} tag -l").stdout
+                            cache_debug['restored_tag_count'] = len(cache_state.splitlines())
+                            cache_debug['restored_tags_sample'] = cache_state.splitlines()[:20]
                     else:
                         print(f'Failed to restore cache from key {cache_key}')
                         send_cache_miss_event(
@@ -353,25 +387,44 @@ def build(
 
     if use_omnibus_git_cache:
         stale_tags = ctx.run(f'git -C {omnibus_cache_dir} tag --no-merged', warn=True).stdout
+        stale_tag_list = [tag for tag in stale_tags.split(os.linesep) if tag]
+        cache_debug['stale_tag_count'] = len(stale_tag_list)
+        cache_debug['stale_tags_sample'] = stale_tag_list[:20]
         # Purge the cache manually as omnibus will stick to not restoring a tag when
         # a mismatch is detected, but will keep the old cached tags.
         # Do this before checking for tag differences, in order to remove stale tags
         # in case they were included in the bundle in a previous build
-        for _, tag in enumerate(stale_tags.split(os.linesep)):
+        for tag in stale_tag_list:
             ctx.run(f'git -C {omnibus_cache_dir} tag -d {tag}')
         if use_remote_cache:
+            final_tags = ctx.run(f"git -C {omnibus_cache_dir} tag -l").stdout
+            cache_debug['final_tag_count'] = len(final_tags.splitlines())
+            cache_debug['final_tags_sample'] = final_tags.splitlines()[:20]
             if cache_state is None:
+                cache_debug['cache_state_available'] = False
+                cache_debug['cache_mutated'] = None
+                cache_debug['uploaded_cache'] = True
+                cache_debug['upload_reason'] = 'cache_miss_or_clone_failure'
                 with timed(quiet=True) as durations['Updating omnibus cache']:
                     ctx.run(f"git -C {omnibus_cache_dir} bundle create {bundle_path} --tags")
                     ctx.run(f"{aws_cmd} s3 cp --only-show-errors {bundle_path} {git_cache_url}")
                     bundle_dir.cleanup()
-            elif ctx.run(f"git -C {omnibus_cache_dir} tag -l").stdout != cache_state:
+            elif final_tags != cache_state:
+                cache_debug['cache_state_available'] = True
+                cache_debug['cache_mutated'] = True
+                cache_debug['uploaded_cache'] = False
                 try:
                     send_cache_mutation_event(
                         ctx, os.environ.get('CI_PIPELINE_ID'), remote_cache_name, os.environ.get('CI_JOB_ID')
                     )
                 except Exception as e:
                     print("Failed to send cache mutation event:", e)
+            else:
+                cache_debug['cache_state_available'] = True
+                cache_debug['cache_mutated'] = False
+                cache_debug['uploaded_cache'] = False
+
+    write_omnibus_debug_json('omnibus-cache-restore-debug.json', cache_debug)
 
     # Output duration information for different steps
     print("Build component timing:")
