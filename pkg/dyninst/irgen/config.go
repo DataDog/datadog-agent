@@ -10,10 +10,11 @@ package irgen
 import "github.com/DataDog/datadog-agent/pkg/dyninst/object"
 
 type config struct {
-	objectLoader     object.Loader
-	typeIndexFactory goTypeIndexFactory
-	skipReturnEvents bool
-	additionalTypes  []string
+	objectLoader             object.Loader
+	typeIndexFactory         goTypeIndexFactory
+	skipReturnEvents         bool
+	additionalTypes          []string
+	skipRuntimeRecoveryProbe bool
 }
 
 var defaultConfig = config{
@@ -49,6 +50,17 @@ func WithSkipReturnEvents(skip bool) Option {
 // discovered at runtime through interface decoding.
 func WithAdditionalTypes(typeNames []string) Option {
 	return optionFunc(func(c *config) { c.additionalTypes = typeNames })
+}
+
+// WithSkipRuntimeRecoveryProbe suppresses the synthetic runtime.recovery
+// probe that otherwise gets spliced into any program containing a
+// function-targeted user probe. Used to honor a circuit-breaker trip on
+// the recovery probe: the program then drops back to the pre-recovery
+// behavior (probed frames unwound by panic+recover leak their
+// in_progress_calls slot until the goid is reused) until the user
+// probes change.
+func WithSkipRuntimeRecoveryProbe(skip bool) Option {
+	return optionFunc(func(c *config) { c.skipRuntimeRecoveryProbe = skip })
 }
 
 type optionFunc func(c *config)
