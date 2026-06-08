@@ -19,10 +19,10 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
+	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance/metrics"
 	"github.com/DataDog/datadog-agent/pkg/compliance/scap"
@@ -64,7 +64,7 @@ var (
 )
 
 type oscapIO struct {
-	cmd      atomic.Pointer[exec.Cmd]
+	cmd      *atomic.Pointer[exec.Cmd]
 	File     string
 	RuleCh   chan *oscapIORule
 	ResultCh chan *oscapIOResult
@@ -74,6 +74,7 @@ type oscapIO struct {
 
 func newOSCAPIO(file string) *oscapIO {
 	return &oscapIO{
+		cmd:      atomic.NewPointer[exec.Cmd](nil),
 		File:     file,
 		RuleCh:   make(chan *oscapIORule),
 		ResultCh: make(chan *oscapIOResult),
