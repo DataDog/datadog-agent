@@ -9,7 +9,6 @@ import (
 	"bytes"
 	"encoding/json"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
@@ -18,14 +17,13 @@ import (
 // use a Go type switch to discriminate (DDSketchProvider, ExplicitBoundProvider,
 // ExponentialProvider).
 type SketchSeries struct {
-	Name       string               `json:"metric"`
-	Tags       tagset.CompositeTags `json:"tags"`
-	Host       string               `json:"host"`
-	Interval   int64                `json:"interval"`
-	Points     []SketchPoint        `json:"points"`
-	ContextKey ckey.ContextKey      `json:"-"`
-	NoIndex    bool                 `json:"-"` // This is only used by api V2
-	Source     MetricSource         `json:"-"` // This is only used by api V2
+	Name     string               `json:"metric"`
+	Tags     tagset.CompositeTags `json:"tags"`
+	Host     string               `json:"host"`
+	Interval int64                `json:"interval"`
+	Points   []SketchPoint        `json:"points"`
+	NoIndex  bool                 `json:"-"` // This is only used by api V2
+	Source   MetricSource         `json:"-"` // This is only used by api V2
 }
 
 // NumPoints returns the number of data points.
