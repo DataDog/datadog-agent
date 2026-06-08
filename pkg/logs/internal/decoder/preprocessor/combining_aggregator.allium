@@ -394,10 +394,21 @@ surface CombiningAggregation {
         -- line_limit during accumulation.
         --
         -- This is a DEVIATION from the Truncatable contract's
-        -- UpstreamFlagPropagation invariant. A refactor
-        -- preserving observable behaviour must preserve this
-        -- ignore-upstream semantics across all bucket.flush()
-        -- code paths.
+        -- UpstreamFlagPropagation invariant.
+        --
+        -- KNOWN BUG, fix pending. The ignore-upstream semantics
+        -- of bucket.flush() is NOT desired behaviour — it is the
+        -- behaviour the current implementation happens to have,
+        -- and a fix that brings bucket.flush() into compliance
+        -- with UpstreamFlagPropagation (matching the
+        -- emitSingle() path) is wanted. This @guarantee
+        -- documents the current behaviour so that a structural
+        -- refactor doesn't silently change it AND so that the
+        -- fix can be made explicitly with a follow-up commit
+        -- that updates both code and spec together; it is NOT
+        -- a contract that future code must preserve. See
+        -- truncation.allium's Scope header for the cross-spec
+        -- reference.
 
     @guarantee EmitSingleHonorsUpstreamFlag
         -- The bucket.emitSingle() emission path DOES honour
@@ -418,21 +429,29 @@ surface CombiningAggregation {
         --     bucket.emitSingle() after the prior bucket
         --     is exploded.
         --
-        -- This is the only code path through which a
-        -- contributor's upstream IsTruncated flag results
-        -- in marker decoration on its emission. The
-        -- asymmetry between bucket.flush() and
-        -- bucket.emitSingle() is intentional and reflects
-        -- how the bucket accumulation is currently
-        -- implemented; a refactor preserving observable
-        -- behaviour must preserve this asymmetry.
+        -- This is currently the only code path through which a
+        -- contributor's upstream IsTruncated flag results in
+        -- marker decoration on its emission. The asymmetry
+        -- between bucket.flush() and bucket.emitSingle()
+        -- reflects how the bucket accumulation is currently
+        -- implemented; it is NOT intentional design. Per
+        -- BucketFlushIgnoresUpstreamFlag, bucket.flush() has a
+        -- known upstream-flag-propagation bug; the desired
+        -- end-state is for bucket.flush() to honour the
+        -- upstream flag the same way bucket.emitSingle() does,
+        -- at which point this asymmetry disappears.
         --
         -- Consequence for Truncatable conformance:
         -- CombiningAggregator does NOT declare fulfils
         -- Truncatable. The bucket.emitSingle() path
         -- structurally conforms to the contract; the
         -- bucket.flush() path (per BucketFlushIgnoresUpstreamFlag)
-        -- does not (UpstreamFlagPropagation violated).
+        -- does not (UpstreamFlagPropagation violated). Once
+        -- bucket.flush() is fixed, the surface should be
+        -- updated to declare fulfils Truncatable and these two
+        -- @guarantees should be reduced to one @guarantee
+        -- UpstreamFlagPropagation that points back at the
+        -- contract.
 
     @guidance
         -- Per-call dispatch when process is invoked with
