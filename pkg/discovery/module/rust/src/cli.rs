@@ -35,6 +35,10 @@ pub struct Args {
 
     /// Unknown arguments encountered during parsing (logged after logger init).
     pub unknown_args: Vec<String>,
+
+    /// Full system-probe invocation to re-exec into on transition. Everything
+    /// after a "--" separator. Empty means transition is disabled.
+    pub reexec_command: Vec<String>,
 }
 
 impl Args {
@@ -56,6 +60,7 @@ impl Args {
         let mut log_file = None;
         let mut pid_path = None;
         let mut unknown_args = Vec::new();
+        let mut reexec_command = Vec::new();
 
         while let Some(arg) = iter.next() {
             if arg == "--socket" {
@@ -82,6 +87,12 @@ impl Args {
                 }
                 continue;
             }
+            if arg == "--" {
+                // Everything after "--" is the full system-probe invocation to
+                // re-exec into when transitioning back to a full system-probe.
+                reexec_command.extend(iter.by_ref());
+                break;
+            }
             // Collect rather than error so that newer helm charts that pass
             // newly-added flags don't break older agents on upgrade.
             // Warnings are logged after the logger is initialized.
@@ -99,6 +110,7 @@ impl Args {
             log_file,
             pid_path,
             unknown_args,
+            reexec_command,
         })
     }
 }
@@ -121,6 +133,33 @@ mod tests {
         assert_eq!(a.log_level, log::Level::Info);
         assert!(a.log_file.is_none());
         assert!(a.pid_path.is_none());
+    }
+
+    #[test]
+    fn test_parse_reexec_command() {
+        let a = Args::parse(
+            args(&[
+                "system-probe-lite",
+                "run",
+                "--socket",
+                "/s.sock",
+                "--",
+                "/opt/system-probe",
+                "run",
+                "--config=/etc/sp.yaml",
+            ])
+            .into_iter(),
+        )
+        .unwrap_or_else(|e| panic!("{e}"));
+        assert_eq!(
+            a.reexec_command,
+            vec![
+                "/opt/system-probe".to_string(),
+                "run".to_string(),
+                "--config=/etc/sp.yaml".to_string(),
+            ]
+        );
+        assert!(a.unknown_args.is_empty());
     }
 
     #[test]

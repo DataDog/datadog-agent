@@ -23,7 +23,10 @@ use std::env;
 use std::fs::Permissions;
 use std::io::ErrorKind;
 use std::os::unix::fs::{PermissionsExt, chown};
+use std::os::unix::process::CommandExt;
 use std::path::Path;
+use std::process::Command;
+use std::sync::OnceLock;
 
 use anyhow::{Context, Result, anyhow};
 use dd_discovery::{Params, get_services};
@@ -52,6 +55,13 @@ static SERVICES_SEMAPHORE: Semaphore = Semaphore::const_new(2);
 
 static BADREQUEST: &[u8] = b"Bad request";
 static NOTFOUND: &[u8] = b"Not found";
+
+/// Environment sentinel set on the system-probe we re-exec into so it does not
+/// hand straight back to us. Kept in sync with the Go side (see splite.go).
+const SKIP_SPLITE_HANDOFF_ENV: &str = "DD_SYSTEM_PROBE_SKIP_SPLITE_HANDOFF";
+
+/// Full system-probe invocation to re-exec into on transition, set once at startup.
+static REEXEC_COMMAND: OnceLock<Vec<String>> = OnceLock::new();
 
 fn remove_pid_file(path: &Path) {
     if let Err(e) = std::fs::remove_file(path) {
@@ -342,6 +352,7 @@ where
         (&Method::GET, "/config") => handle_config().await,
         (&Method::GET, "/config/by-source") => handle_config_by_source().await,
         (&Method::GET, "/debug/stats") => handle_debug_stats().await,
+        (&Method::POST, "/transition") => handle_transition().await,
         _ => {
             debug!(
                 "{} Request to unknown endpoint: {}",
@@ -351,6 +362,32 @@ where
             not_found()
         }
     }
+}
+
+// handle_transition re-execs system-probe-lite back into the full system-probe.
+// On success exec replaces this process image and never returns, so the HTTP
+// response is intentionally not sent; the caller treats the dropped connection
+// as "transition started".
+async fn handle_transition() -> Result<Response<BoxBody<Bytes, std::io::Error>>> {
+    let command = match REEXEC_COMMAND.get() {
+        Some(c) if !c.is_empty() => c,
+        _ => {
+            warn!("transition requested but no re-exec target was configured");
+            return bad_request();
+        }
+    };
+    let Some((program, args)) = command.split_first() else {
+        return bad_request();
+    };
+
+    info!("transition requested: re-execing into {program}");
+    let err = Command::new(program)
+        .args(args)
+        .env(SKIP_SPLITE_HANDOFF_ENV, "1")
+        .exec();
+
+    error!("transition failed, could not re-exec into {program}: {err}");
+    Err(anyhow!("transition failed: {err}"))
 }
 
 async fn run_system_probe_lite(socket_path: &str) -> Result<()> {
@@ -433,6 +470,7 @@ async fn main() -> Result<()> {
     for arg in &args.unknown_args {
         warn!("unknown argument: {arg}");
     }
+    let _ = REEXEC_COMMAND.set(args.reexec_command.clone());
 
     let result = run_system_probe_lite(&args.socket_path).await;
 
