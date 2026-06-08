@@ -118,7 +118,7 @@
               },
               "tag": {
                 "type": "string",
-                "value": "match"
+                "notCapturedReason": "unavailable"
               }
             }
           }
@@ -249,7 +249,7 @@
               },
               "tag": {
                 "type": "string",
-                "value": "miss"
+                "notCapturedReason": "unavailable"
               }
             }
           }

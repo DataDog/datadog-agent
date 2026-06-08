@@ -47,7 +47,7 @@
             "arguments": {
               "ptr": {
                 "type": "*****int",
-                "notCapturedReason": "depth"
+                "notCapturedReason": "unavailable"
               }
             }
           }

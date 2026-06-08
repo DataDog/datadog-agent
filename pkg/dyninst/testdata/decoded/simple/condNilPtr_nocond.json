@@ -119,7 +119,7 @@
               },
               "tag": {
                 "type": "string",
-                "value": "match"
+                "notCapturedReason": "unavailable"
               }
             }
           }
@@ -183,7 +183,7 @@
               },
               "tag": {
                 "type": "string",
-                "value": "nilptr"
+                "notCapturedReason": "unavailable"
               }
             }
           }

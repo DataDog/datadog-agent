@@ -24,7 +24,7 @@
       "type": "snapshot"
     },
     "timestamp": "[ts]",
-    "message": "tag == \"match\" || !isEmpty(s) [s=hello, tag=match]",
+    "message": "tag == \"match\" || !isEmpty(s) [s=hello, tag={unavailable}]",
     "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]

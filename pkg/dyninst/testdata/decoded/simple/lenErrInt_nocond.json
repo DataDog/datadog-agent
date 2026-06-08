@@ -51,7 +51,7 @@
               },
               "tag": {
                 "type": "string",
-                "value": "err"
+                "notCapturedReason": "unavailable"
               }
             }
           }

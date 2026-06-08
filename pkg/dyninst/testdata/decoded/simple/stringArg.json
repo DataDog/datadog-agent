@@ -47,7 +47,7 @@
             "arguments": {
               "s": {
                 "type": "string",
-                "value": "d"
+                "notCapturedReason": "unavailable"
               }
             }
           }

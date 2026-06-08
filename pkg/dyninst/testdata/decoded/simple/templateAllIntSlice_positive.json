@@ -25,7 +25,7 @@
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "allpos=true tag=match",
+    "message": "allpos=true tag={unavailable}",
     "process_tags": "entrypoint.name:sample,svc.user:sample"
   },
   {
@@ -54,7 +54,7 @@
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "allpos=true tag=anymiss_allmatch",
+    "message": "allpos=true tag={unavailable}",
     "process_tags": "entrypoint.name:sample,svc.user:sample"
   },
   {
@@ -83,7 +83,7 @@
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "allpos=false tag=allmiss",
+    "message": "allpos=false tag={unavailable}",
     "process_tags": "entrypoint.name:sample,svc.user:sample"
   },
   {
@@ -112,7 +112,7 @@
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "allpos=true tag=empty",
+    "message": "allpos=true tag={unavailable}",
     "process_tags": "entrypoint.name:sample,svc.user:sample"
   },
   {
@@ -141,7 +141,7 @@
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "allpos=true tag=cap",
+    "message": "allpos=true tag={unavailable}",
     "process_tags": "entrypoint.name:sample,svc.user:sample"
   },
   {
@@ -170,7 +170,7 @@
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "allpos={unavailable} tag=capplus",
+    "message": "allpos={unavailable} tag={unavailable}",
     "process_tags": "entrypoint.name:sample,svc.user:sample"
   },
   {
@@ -199,7 +199,7 @@
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "allpos={unavailable} tag=toolarge",
+    "message": "allpos={unavailable} tag={unavailable}",
     "process_tags": "entrypoint.name:sample,svc.user:sample"
   },
   {
@@ -228,7 +228,7 @@
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "allpos={unavailable} tag=scany",
+    "message": "allpos={unavailable} tag={unavailable}",
     "process_tags": "entrypoint.name:sample,svc.user:sample"
   },
   {
@@ -257,7 +257,7 @@
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "allpos=false tag=scall",
+    "message": "allpos=false tag={unavailable}",
     "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]

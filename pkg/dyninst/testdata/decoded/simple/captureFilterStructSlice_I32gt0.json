@@ -4,7 +4,7 @@
     "ddsource": "dd_debugger",
     "logger": {
       "name": "",
-      "method": "main.condUint16",
+      "method": "main.anyAllStructSlice",
       "version": 0,
       "thread_id": "[goid]",
       "thread_name": ""
@@ -16,14 +16,14 @@
         "language": "go",
         "stack": [
           {
-            "function": "main.condUint16",
+            "function": "main.anyAllStructSlice",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 651
+            "lineNumber": 1279
           },
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 66
+            "lineNumber": 369
           },
           {
             "function": "runtime.main",
@@ -37,27 +37,22 @@
           }
         ],
         "probe": {
-          "id": "condUint16_nocond",
+          "id": "captureFilterStructSlice_I32gt0",
           "location": {
-            "method": "main.condUint16"
+            "method": "main.anyAllStructSlice"
           }
         },
         "captures": {
           "entry": {
-            "arguments": {
-              "x": {
-                "type": "uint16",
-                "value": "42"
-              },
+            "captureExpressions": {
               "tag": {
                 "type": "string",
-                "notCapturedReason": "unavailable"
+                "value": "match"
               }
             }
           }
         }
-      },
-      "type": "snapshot"
+      }
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
@@ -68,7 +63,7 @@
     "ddsource": "dd_debugger",
     "logger": {
       "name": "",
-      "method": "main.condUint16",
+      "method": "main.anyAllStructSlice",
       "version": 0,
       "thread_id": "[goid]",
       "thread_name": ""
@@ -80,14 +75,14 @@
         "language": "go",
         "stack": [
           {
-            "function": "main.condUint16",
+            "function": "main.anyAllStructSlice",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 651
+            "lineNumber": 1279
           },
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 67
+            "lineNumber": 373
           },
           {
             "function": "runtime.main",
@@ -101,27 +96,81 @@
           }
         ],
         "probe": {
-          "id": "condUint16_nocond",
+          "id": "captureFilterStructSlice_I32gt0",
           "location": {
-            "method": "main.condUint16"
+            "method": "main.anyAllStructSlice"
           }
         },
         "captures": {
           "entry": {
-            "arguments": {
-              "x": {
-                "type": "uint16",
-                "value": "7"
-              },
+            "captureExpressions": {
               "tag": {
                 "type": "string",
-                "notCapturedReason": "unavailable"
+                "value": "miss"
               }
             }
           }
         }
-      },
-      "type": "snapshot"
+      }
+    },
+    "timestamp": "[ts]",
+    "duration": "[duration]",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
+  },
+  {
+    "service": "simple",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.anyAllStructSlice",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": [
+          {
+            "function": "main.anyAllStructSlice",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
+            "lineNumber": 1279
+          },
+          {
+            "function": "main.main",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
+            "lineNumber": 377
+          },
+          {
+            "function": "runtime.main",
+            "fileName": "runtime/proc.go",
+            "lineNumber": "[lineNumber]"
+          },
+          {
+            "function": "runtime.goexit",
+            "fileName": "runtime/asm_[arch].s",
+            "lineNumber": "[lineNumber]"
+          }
+        ],
+        "probe": {
+          "id": "captureFilterStructSlice_I32gt0",
+          "location": {
+            "method": "main.anyAllStructSlice"
+          }
+        },
+        "captures": {
+          "entry": {
+            "captureExpressions": {
+              "tag": {
+                "type": "string",
+                "value": "empty"
+              }
+            }
+          }
+        }
+      }
     },
     "timestamp": "[ts]",
     "duration": "[duration]",

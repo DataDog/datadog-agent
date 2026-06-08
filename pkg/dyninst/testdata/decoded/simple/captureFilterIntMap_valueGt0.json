@@ -4,7 +4,7 @@
     "ddsource": "dd_debugger",
     "logger": {
       "name": "",
-      "method": "main.condString",
+      "method": "main.anyAllIntMap",
       "version": 0,
       "thread_id": "[goid]",
       "thread_name": ""
@@ -16,14 +16,14 @@
         "language": "go",
         "stack": [
           {
-            "function": "main.condString",
+            "function": "main.anyAllIntMap",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 681
+            "lineNumber": 1304
           },
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 78
+            "lineNumber": 394
           },
           {
             "function": "runtime.main",
@@ -37,27 +37,22 @@
           }
         ],
         "probe": {
-          "id": "condString_nocond",
+          "id": "captureFilterIntMap_valueGt0",
           "location": {
-            "method": "main.condString"
+            "method": "main.anyAllIntMap"
           }
         },
         "captures": {
           "entry": {
-            "arguments": {
-              "x": {
-                "type": "string",
-                "value": "hello"
-              },
+            "captureExpressions": {
               "tag": {
                 "type": "string",
-                "notCapturedReason": "unavailable"
+                "value": "match"
               }
             }
           }
         }
-      },
-      "type": "snapshot"
+      }
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
@@ -68,7 +63,7 @@
     "ddsource": "dd_debugger",
     "logger": {
       "name": "",
-      "method": "main.condString",
+      "method": "main.anyAllIntMap",
       "version": 0,
       "thread_id": "[goid]",
       "thread_name": ""
@@ -80,14 +75,14 @@
         "language": "go",
         "stack": [
           {
-            "function": "main.condString",
+            "function": "main.anyAllIntMap",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 681
+            "lineNumber": 1304
           },
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 79
+            "lineNumber": 395
           },
           {
             "function": "runtime.main",
@@ -101,27 +96,22 @@
           }
         ],
         "probe": {
-          "id": "condString_nocond",
+          "id": "captureFilterIntMap_valueGt0",
           "location": {
-            "method": "main.condString"
+            "method": "main.anyAllIntMap"
           }
         },
         "captures": {
           "entry": {
-            "arguments": {
-              "x": {
-                "type": "string",
-                "value": "other"
-              },
+            "captureExpressions": {
               "tag": {
                 "type": "string",
-                "notCapturedReason": "unavailable"
+                "value": "miss"
               }
             }
           }
         }
-      },
-      "type": "snapshot"
+      }
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
@@ -132,7 +122,7 @@
     "ddsource": "dd_debugger",
     "logger": {
       "name": "",
-      "method": "main.condString",
+      "method": "main.anyAllIntMap",
       "version": 0,
       "thread_id": "[goid]",
       "thread_name": ""
@@ -144,14 +134,14 @@
         "language": "go",
         "stack": [
           {
-            "function": "main.condString",
+            "function": "main.anyAllIntMap",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 681
+            "lineNumber": 1304
           },
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 87
+            "lineNumber": 396
           },
           {
             "function": "runtime.main",
@@ -165,27 +155,22 @@
           }
         ],
         "probe": {
-          "id": "condString_nocond",
+          "id": "captureFilterIntMap_valueGt0",
           "location": {
-            "method": "main.condString"
+            "method": "main.anyAllIntMap"
           }
         },
         "captures": {
           "entry": {
-            "arguments": {
-              "x": {
-                "type": "string",
-                "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
-              },
+            "captureExpressions": {
               "tag": {
                 "type": "string",
-                "notCapturedReason": "unavailable"
+                "value": "empty"
               }
             }
           }
         }
-      },
-      "type": "snapshot"
+      }
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
@@ -196,7 +181,7 @@
     "ddsource": "dd_debugger",
     "logger": {
       "name": "",
-      "method": "main.condString",
+      "method": "main.anyAllIntMap",
       "version": 0,
       "thread_id": "[goid]",
       "thread_name": ""
@@ -208,14 +193,14 @@
         "language": "go",
         "stack": [
           {
-            "function": "main.condString",
+            "function": "main.anyAllIntMap",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 681
+            "lineNumber": 1304
           },
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 88
+            "lineNumber": 400
           },
           {
             "function": "runtime.main",
@@ -229,27 +214,81 @@
           }
         ],
         "probe": {
-          "id": "condString_nocond",
+          "id": "captureFilterIntMap_valueGt0",
           "location": {
-            "method": "main.condString"
+            "method": "main.anyAllIntMap"
           }
         },
         "captures": {
           "entry": {
-            "arguments": {
-              "x": {
-                "type": "string",
-                "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-              },
+            "captureExpressions": {
               "tag": {
                 "type": "string",
-                "notCapturedReason": "unavailable"
+                "value": "toolarge"
               }
             }
           }
         }
-      },
-      "type": "snapshot"
+      }
+    },
+    "timestamp": "[ts]",
+    "duration": "[duration]",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
+  },
+  {
+    "service": "simple",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.anyAllIntMap",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": [
+          {
+            "function": "main.anyAllIntMap",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
+            "lineNumber": 1304
+          },
+          {
+            "function": "main.main",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
+            "lineNumber": 409
+          },
+          {
+            "function": "runtime.main",
+            "fileName": "runtime/proc.go",
+            "lineNumber": "[lineNumber]"
+          },
+          {
+            "function": "runtime.goexit",
+            "fileName": "runtime/asm_[arch].s",
+            "lineNumber": "[lineNumber]"
+          }
+        ],
+        "probe": {
+          "id": "captureFilterIntMap_valueGt0",
+          "location": {
+            "method": "main.anyAllIntMap"
+          }
+        },
+        "captures": {
+          "entry": {
+            "captureExpressions": {
+              "tag": {
+                "type": "string",
+                "value": "sc100"
+              }
+            }
+          }
+        }
+      }
     },
     "timestamp": "[ts]",
     "duration": "[duration]",

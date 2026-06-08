@@ -25,7 +25,7 @@
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "containsInt42=true tag=match",
+    "message": "containsInt42=true tag={unavailable}",
     "process_tags": "entrypoint.name:sample,svc.user:sample"
   },
   {
@@ -54,7 +54,7 @@
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "containsInt42=false tag=anymiss_allmatch",
+    "message": "containsInt42=false tag={unavailable}",
     "process_tags": "entrypoint.name:sample,svc.user:sample"
   },
   {
@@ -83,7 +83,7 @@
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "containsInt42=false tag=allmiss",
+    "message": "containsInt42=false tag={unavailable}",
     "process_tags": "entrypoint.name:sample,svc.user:sample"
   },
   {
@@ -112,7 +112,7 @@
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "containsInt42=false tag=empty",
+    "message": "containsInt42=false tag={unavailable}",
     "process_tags": "entrypoint.name:sample,svc.user:sample"
   },
   {
@@ -141,7 +141,7 @@
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "containsInt42=true tag=cap",
+    "message": "containsInt42=true tag={unavailable}",
     "process_tags": "entrypoint.name:sample,svc.user:sample"
   },
   {
@@ -170,7 +170,7 @@
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "containsInt42=true tag=capplus",
+    "message": "containsInt42=true tag={unavailable}",
     "process_tags": "entrypoint.name:sample,svc.user:sample"
   },
   {
@@ -199,7 +199,7 @@
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "containsInt42={unavailable} tag=toolarge",
+    "message": "containsInt42={unavailable} tag={unavailable}",
     "process_tags": "entrypoint.name:sample,svc.user:sample"
   },
   {
@@ -228,7 +228,7 @@
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "containsInt42=true tag=scany",
+    "message": "containsInt42=true tag={unavailable}",
     "process_tags": "entrypoint.name:sample,svc.user:sample"
   },
   {
@@ -257,7 +257,7 @@
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "containsInt42={unavailable} tag=scall",
+    "message": "containsInt42={unavailable} tag={unavailable}",
     "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]

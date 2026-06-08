@@ -37,19 +37,9 @@
           }
         ],
         "probe": {
-          "id": "captureContainsIntSlice_42",
+          "id": "captureFilterIntSlice_positive",
           "location": {
             "method": "main.anyAllIntSlice"
-          }
-        },
-        "captures": {
-          "entry": {
-            "captureExpressions": {
-              "containsInt42": {
-                "type": "bool",
-                "value": "true"
-              }
-            }
           }
         }
       }
@@ -96,19 +86,9 @@
           }
         ],
         "probe": {
-          "id": "captureContainsIntSlice_42",
+          "id": "captureFilterIntSlice_positive",
           "location": {
             "method": "main.anyAllIntSlice"
-          }
-        },
-        "captures": {
-          "entry": {
-            "captureExpressions": {
-              "containsInt42": {
-                "type": "bool",
-                "value": "false"
-              }
-            }
           }
         }
       }
@@ -155,19 +135,9 @@
           }
         ],
         "probe": {
-          "id": "captureContainsIntSlice_42",
+          "id": "captureFilterIntSlice_positive",
           "location": {
             "method": "main.anyAllIntSlice"
-          }
-        },
-        "captures": {
-          "entry": {
-            "captureExpressions": {
-              "containsInt42": {
-                "type": "bool",
-                "value": "false"
-              }
-            }
           }
         }
       }
@@ -214,19 +184,9 @@
           }
         ],
         "probe": {
-          "id": "captureContainsIntSlice_42",
+          "id": "captureFilterIntSlice_positive",
           "location": {
             "method": "main.anyAllIntSlice"
-          }
-        },
-        "captures": {
-          "entry": {
-            "captureExpressions": {
-              "containsInt42": {
-                "type": "bool",
-                "value": "false"
-              }
-            }
           }
         }
       }
@@ -273,19 +233,9 @@
           }
         ],
         "probe": {
-          "id": "captureContainsIntSlice_42",
+          "id": "captureFilterIntSlice_positive",
           "location": {
             "method": "main.anyAllIntSlice"
-          }
-        },
-        "captures": {
-          "entry": {
-            "captureExpressions": {
-              "containsInt42": {
-                "type": "bool",
-                "value": "true"
-              }
-            }
           }
         }
       }
@@ -332,19 +282,9 @@
           }
         ],
         "probe": {
-          "id": "captureContainsIntSlice_42",
+          "id": "captureFilterIntSlice_positive",
           "location": {
             "method": "main.anyAllIntSlice"
-          }
-        },
-        "captures": {
-          "entry": {
-            "captureExpressions": {
-              "containsInt42": {
-                "type": "bool",
-                "value": "true"
-              }
-            }
           }
         }
       }
@@ -372,7 +312,7 @@
           {
             "function": "main.anyAllIntSlice",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 1269
+            "lineNumber": 1271
           },
           {
             "function": "main.main",
@@ -391,30 +331,15 @@
           }
         ],
         "probe": {
-          "id": "captureContainsIntSlice_42",
+          "id": "captureFilterIntSlice_positive",
           "location": {
             "method": "main.anyAllIntSlice"
           }
-        },
-        "captures": {
-          "entry": {
-            "captureExpressions": {
-              "containsInt42": {
-                "type": "bool",
-                "notCapturedReason": "unavailable"
-              }
-            }
-          }
-        },
-        "evaluationErrors": [
-          {
-            "expr": "@when",
-            "message": "error evaluating condition"
-          }
-        ]
+        }
       }
     },
     "timestamp": "[ts]",
+    "duration": "[duration]",
     "process_tags": "entrypoint.name:sample,svc.user:sample"
   },
   {
@@ -455,19 +380,9 @@
           }
         ],
         "probe": {
-          "id": "captureContainsIntSlice_42",
+          "id": "captureFilterIntSlice_positive",
           "location": {
             "method": "main.anyAllIntSlice"
-          }
-        },
-        "captures": {
-          "entry": {
-            "captureExpressions": {
-              "containsInt42": {
-                "type": "bool",
-                "value": "true"
-              }
-            }
           }
         }
       }
@@ -514,27 +429,11 @@
           }
         ],
         "probe": {
-          "id": "captureContainsIntSlice_42",
+          "id": "captureFilterIntSlice_positive",
           "location": {
             "method": "main.anyAllIntSlice"
           }
-        },
-        "captures": {
-          "entry": {
-            "captureExpressions": {
-              "containsInt42": {
-                "type": "bool",
-                "notCapturedReason": "unavailable"
-              }
-            }
-          }
-        },
-        "evaluationErrors": [
-          {
-            "expr": "@when",
-            "message": "error evaluating condition"
-          }
-        ]
+        }
       }
     },
     "timestamp": "[ts]",
