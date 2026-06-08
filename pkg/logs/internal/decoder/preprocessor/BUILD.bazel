@@ -89,7 +89,6 @@ dd_agent_go_test(
         "tokenizer_test.go",
         "user_samples_test.go",
     ],
-    data = glob(["testdata/**"]),
     embed = [":preprocessor"],
     deps = [
         "//comp/logs-library/metrics",
