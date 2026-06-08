@@ -114,7 +114,9 @@ func NewFilterList(log log.Component, config config.Component, telemetryComp tel
 		tlmTagFilterListUpdates:    tlmTagFilterListUpdates,
 		tlmTagFilterListSize:       tlmTagFilterListSize,
 	}
-	fl.SetTagFilterListFromEntries(localFilterListConfig.tagFilterList)
+	compiledTag := loadTagFilterList(localFilterListConfig.tagFilterList, log)
+	fl.setTagFilterList(compiledTag)
+
 	fl.SetMetricFilterList(localFilterListConfig.metricNames, localFilterListConfig.matchPrefix)
 
 	return fl
@@ -233,6 +235,9 @@ func (fl *FilterList) SetTagFilterList(metricTags map[string]MetricTagList) {
 func (fl *FilterList) setTagFilterList(metricTags tagMatcher) {
 	fl.log.Debugf("SetTagFilterList with %d metrics", len(metricTags.MetricTags))
 
+	fl.tlmTagFilterListUpdates.Inc()
+	fl.tlmTagFilterListSize.Set(float64(len(metricTags.MetricTags)))
+
 	fl.updateTagMtx.Lock()
 	fl.tagFilterList = metricTags
 	fl.updateTagMtx.Unlock()
@@ -245,16 +250,12 @@ func (fl *FilterList) setTagFilterList(metricTags tagMatcher) {
 	}
 }
 
-// SetTagFilterListFromEntries takes a list of tag filter list objects that
-// were loaded from the config file, converts and hashes the tags in a format
-// used internally. Any registered callbacks are informed of the update.
-func (fl *FilterList) SetTagFilterListFromEntries(entries []MetricTagListEntry) {
-	fl.setTagFilterList(loadTagFilterList(entries, fl.log))
-}
-
 // SetMetricFilterList updates the metric names filter on all running worker.
 func (fl *FilterList) SetMetricFilterList(metricNames []string, matchPrefix bool) {
 	fl.log.Debugf("SetMetricFilterList with %d metrics", len(metricNames))
+
+	fl.tlmMetricFilterListUpdates.Inc()
+	fl.tlmMetricFilterListSize.Set(float64(len(metricNames)))
 
 	// we will use two different filterlists:
 	// - one with all the metrics names, with all values from `metricNames`
@@ -281,9 +282,6 @@ func (fl *FilterList) SetMetricFilterList(metricNames []string, matchPrefix bool
 func (fl *FilterList) restoreMetricFilterListFromLocalConfig() {
 	fl.log.Debug("Restoring metric filterlist with local config.")
 
-	fl.tlmMetricFilterListUpdates.Inc()
-	fl.tlmMetricFilterListSize.Set(float64(len(fl.localFilterListConfig.metricNames)))
-
 	fl.SetMetricFilterList(
 		fl.localFilterListConfig.metricNames,
 		fl.localFilterListConfig.matchPrefix,
@@ -293,10 +291,8 @@ func (fl *FilterList) restoreMetricFilterListFromLocalConfig() {
 func (fl *FilterList) restoreTagFilterListFromLocalConfig() {
 	fl.log.Debug("Restoring tag metric filterlist with local config.")
 
-	fl.tlmTagFilterListUpdates.Inc()
-	fl.tlmTagFilterListSize.Set(float64(len(fl.localFilterListConfig.tagFilterList)))
-
-	fl.SetTagFilterListFromEntries(fl.localFilterListConfig.tagFilterList)
+	compiled := loadTagFilterList(fl.localFilterListConfig.tagFilterList, fl.log)
+	fl.setTagFilterList(compiled)
 }
 
 // OnUpdateMetricFilterList is called to register a callback to be called when the
