@@ -321,6 +321,7 @@ func run(log log.Component,
 	snmpScanManager snmpscanmanager.Component,
 	traceroute traceroute.Component,
 	ncmComp option.Option[networkconfigmanagement.Component],
+	checkLoader *pkgcollector.CheckLoader,
 ) error {
 	defer func() {
 		stopAgent(cfg, sysprobeConf)
@@ -385,6 +386,7 @@ func run(log log.Component,
 		traceroute,
 		healthplatformComp,
 		ncmComp,
+		checkLoader,
 	); err != nil {
 		return err
 	}
