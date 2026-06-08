@@ -114,8 +114,6 @@ exports_files(glob(
 # gazelle:exclude comp/api/commonendpoints
 # gazelle:exclude comp/api/grpcserver/fx-agent
 # gazelle:exclude comp/api/grpcserver/impl-agent
-# gazelle:exclude comp/checks/agentcrashdetect/fx
-# gazelle:exclude comp/checks/agentcrashdetect/impl
 # gazelle:exclude comp/checks/windowseventlog/fx
 # gazelle:exclude comp/checks/windowseventlog/impl/*.go
 # gazelle:exclude comp/checks/windowseventlog/impl/check/*.go
@@ -138,8 +136,6 @@ exports_files(glob(
 # gazelle:exclude comp/core/flare/helpers
 # gazelle:exclude comp/core/gui/fx
 # gazelle:exclude comp/core/gui/impl
-# gazelle:exclude comp/core/profiler/fx
-# gazelle:exclude comp/core/profiler/impl
 # gazelle:exclude comp/core/remoteagentregistry/fx
 # gazelle:exclude comp/core/remoteagentregistry/impl
 # gazelle:exclude comp/core/sysprobeconfig/sysprobeconfigimpl
@@ -181,9 +177,6 @@ exports_files(glob(
 # gazelle:exclude comp/host-profiler/collector/fx
 # gazelle:exclude comp/host-profiler/collector/impl/processor
 # gazelle:exclude comp/host-profiler/flare
-# gazelle:exclude comp/languagedetection/client/fx
-# gazelle:exclude comp/languagedetection/client/impl
-# gazelle:exclude comp/logonduration/fx
 # gazelle:exclude comp/anomalydetection/logssource/impl
 # gazelle:exclude comp/logs/adscheduler/fx
 # gazelle:exclude comp/logs/adscheduler/impl
@@ -231,9 +224,6 @@ exports_files(glob(
 # gazelle:exclude comp/networkpath/npcollector/mock
 # gazelle:exclude comp/networkpath/traceroute/fx-local
 # gazelle:exclude comp/networkpath/traceroute/impl-local
-# gazelle:exclude comp/notableevents/fx
-# gazelle:exclude comp/offlinereporter/fx
-# gazelle:exclude comp/offlinereporter/impl
 # gazelle:exclude comp/otelcol/collector/fx-pipeline
 # gazelle:exclude comp/otelcol/collector/impl-pipeline
 # gazelle:exclude comp/otelcol/converter/examples
