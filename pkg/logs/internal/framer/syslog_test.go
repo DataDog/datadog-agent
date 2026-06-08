@@ -894,19 +894,45 @@ func TestSyslogMalformedOctetCount(t *testing.T) {
 		}
 	})
 
-	t.Run("non-numeric after digit discards and resyncs", func(t *testing.T) {
-		// "3X " — findOctetCounted sees '3' then 'X' (not digit/space),
-		// discards 1 byte, then scanMalformed resyncs at <134>.
+	t.Run("non-numeric after digit emits whole run as malformed and resyncs", func(t *testing.T) {
+		// "3X " — findOctetCounted sees '3' then 'X' (not a digit or SP), which
+		// proves these bytes are not an octet-counting header. The whole run is
+		// handed to scanMalformed and emitted as one coherent malformed frame
+		// ("3X "); the leading digit is NOT silently dropped. Then scanMalformed
+		// resyncs at <134> and the real message parses.
 		msg := "<134>1 2024-01-01T00:00:00Z host app - - - hello"
 		input := []byte("3X " + msg + "\n")
-		got, _ := processSyslog(t, 4096, [][]byte{input})
-		found := false
-		for _, g := range got {
-			if g == msg {
-				found = true
+
+		tailerInfo := status.NewInfoRegistry()
+		var contents []string
+		outputFn := func(msg *message.Message, _ int) {
+			if len(msg.GetContent()) > 0 {
+				contents = append(contents, string(msg.GetContent()))
 			}
 		}
-		assert.True(t, found, "valid frame should be recovered after discarding invalid octet-count prefix")
+		fr := NewSyslogFramer(outputFn, 4096, tailerInfo)
+		fr.Process(message.NewMessage(input, nil, "", 0))
+
+		require.Equal(t, []string{"3X ", msg}, contents,
+			"the digit-prefixed garbage must be emitted as a single malformed frame, not have its prefix dropped")
+
+		rendered := tailerInfo.Rendered()
+		discarded := rendered["Syslog Discarded Bytes"]
+		require.NotEmpty(t, discarded)
+		assert.Equal(t, "3", discarded[0], "all 3 garbage bytes counted once")
+	})
+
+	t.Run("over-long digit run is malformed, not octet length", func(t *testing.T) {
+		// A prefix longer than 10 digits cannot be a plausible MSG-LEN. It is
+		// treated as malformed rather than silently dropping the digit run.
+		digits := "123456789012" // 12 digits, no SP
+		msg := "<134>1 host app - - - hi"
+		input := []byte(digits + " junk" + msg + "\n")
+		got, _ := processSyslog(t, 4096, [][]byte{input})
+		require.NotEmpty(t, got)
+		assert.Equal(t, msg, got[len(got)-1], "valid frame recovered after the over-long digit run")
+		assert.Contains(t, strings.Join(got[:len(got)-1], ""), digits,
+			"the over-long digit run must be emitted as malformed, not dropped")
 	})
 }
 

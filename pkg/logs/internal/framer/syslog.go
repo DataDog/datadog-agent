@@ -213,14 +213,19 @@ func (m *syslogFrameMatcher) findOctetCounted(buf []byte) ([]byte, int, bool) {
 			i++ // consume the space
 			break
 		}
+		// A non-digit before the SP terminator, or a prefix longer than any
+		// plausible length (>10 digits), means these leading bytes are not an
+		// octet-counting header after all — buf[0] was a digit, which is the
+		// only reason we are here. Hand the whole run to scanMalformed so it is
+		// emitted as one coherent malformed frame and counted once, rather than
+		// silently dropping the digit prefix byte-by-byte while the remainder
+		// is later emitted as malformed.
 		if b < '0' || b > '9' {
-			m.recordDiscarded(1)
-			return nil, 1, false
+			return m.scanMalformed(buf, false /* continuation */)
 		}
 		i++
 		if i > 10 {
-			m.recordDiscarded(1)
-			return nil, 1, false
+			return m.scanMalformed(buf, false /* continuation */)
 		}
 		msgLen = msgLen*10 + int(b-'0')
 	}
