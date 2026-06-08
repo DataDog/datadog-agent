@@ -695,6 +695,16 @@ workflow:
     allow_failure: true
 
 
+# Rule for native OS linters (macOS, Windows): restrict to release/tag/nightly
+# deploys where the cross-platform lint job is insufficient (e.g. cgo, platform
+# runtime behavior). For normal branch and main pipelines the cross lint job
+# already provides coverage at a fraction of the resource cost.
+.on_native_os_linters:
+  - <<: *if_tagged_commit
+  - <<: *if_release_branch
+  - if: ($DEPLOY_AGENT == "true" || $DDR_WORKFLOW_ID != null) && $BUCKET_BRANCH =~ /^(nightly|oldnightly|beta|stable)$/
+  - when: never
+
 .on_main_or_release_branch_or_deploy_always:
   - <<: *if_deploy
     when: always

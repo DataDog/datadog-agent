@@ -27,12 +27,16 @@ lint_cross_windows-x64:
 
 lint_cross_macos-x64:
   extends: .cross_lint
+  rules:
+    - when: on_success
   script:
     - export GOOS=darwin GOARCH=amd64
     - !reference [.lint_script]
 
 lint_cross_macos-arm64:
   extends: .cross_lint
+  rules:
+    - when: on_success
   script:
     - export GOOS=darwin GOARCH=arm64
     - !reference [.lint_script]
