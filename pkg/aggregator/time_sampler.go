@@ -128,7 +128,6 @@ func (s *TimeSampler) newSketchSeries(ck ckey.ContextKey, points []metrics.Sketc
 		Host:       ctx.Host,
 		Interval:   s.interval,
 		Points:     points,
-		ContextKey: ck,
 		Source:     ctx.source,
 		NoIndex:    ctx.noIndex,
 	}

@@ -9,7 +9,6 @@ import (
 	"bytes"
 	"encoding/json"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
@@ -20,7 +19,6 @@ type SketchSeries struct {
 	Host       string               `json:"host"`
 	Interval   int64                `json:"interval"`
 	Points     []SketchPoint        `json:"points"`
-	ContextKey ckey.ContextKey      `json:"-"`
 	NoIndex    bool                 `json:"-"` // This is only used by api V2
 	Source     MetricSource         `json:"-"` // This is only used by api V2
 }
