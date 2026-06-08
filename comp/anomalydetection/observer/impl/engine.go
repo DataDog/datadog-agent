@@ -75,6 +75,16 @@ type engine struct {
 	accumulatedCorrelations map[string]observerdef.ActiveCorrelation
 	correlationMu           sync.RWMutex
 
+	// Reporter dedup state — protected by correlationMu.
+	// seenCorrelations tracks which patterns have been offered to reporters.
+	// activeBefore records which patterns were in the active sliding window on
+	// the previous advance. Together they implement the delta in newCorrelations:
+	// a pattern is "new" the first time it appears; the activeBefore cleanup
+	// re-arms a pattern for re-emission after it goes inactive so a genuine
+	// recurrence can fire again.
+	seenCorrelations map[string]bool // pattern → seen by reporters
+	activeBefore     map[string]bool // patterns active on the previous advance
+
 	// onProcessingTime is an optional callback for reporting per-component
 	// processing time directly (gauge.Set) instead of constructing ObserverTelemetry
 	// objects. Live mode sets this; nil means skip timing telemetry entirely.
@@ -416,8 +426,10 @@ func (e *engine) schedulerState() schedulerState {
 
 // advanceResult holds the outputs from an Advance call.
 type advanceResult struct {
-	anomalies []observerdef.Anomaly
-	telemetry []observerdef.ObserverTelemetry
+	anomalies         []observerdef.Anomaly
+	telemetry         []observerdef.ObserverTelemetry
+	newCorrelations   []observerdef.ActiveCorrelation // engine-computed delta for reporters
+	totalCorrelations int                             // total accumulated correlations ever seen
 }
 
 // Advance runs detectors and correlators up to the given event time.
@@ -484,11 +496,13 @@ func (e *engine) advanceWithReason(upToSec int64, reason advanceReason) advanceR
 		kind:      eventAdvanceCompleted,
 		timestamp: upToSec,
 		advanceCompleted: &advanceCompletedEvent{
-			advancedToSec:  upToSec,
-			reason:         reason,
-			anomalyCount:   len(result.anomalies),
-			telemetryCount: len(result.telemetry),
-			anomalies:      result.anomalies,
+			advancedToSec:     upToSec,
+			reason:            reason,
+			anomalyCount:      len(result.anomalies),
+			telemetryCount:    len(result.telemetry),
+			anomalies:         result.anomalies,
+			newCorrelations:   result.newCorrelations,
+			totalCorrelations: result.totalCorrelations,
 		},
 	})
 
@@ -566,8 +580,13 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []obse
 
 	// Accumulate correlations before advancing — captures clusters formed from
 	// historical-timestamp anomalies before Advance(upTo) evicts them.
+	// Collect all active correlations in one pass so newCorrelations() can
+	// compute the per-advance reporter delta after all correlators have run.
+	var allActive []observerdef.ActiveCorrelation
 	for _, correlator := range correlators {
-		e.accumulateCorrelations(correlator.ActiveCorrelations())
+		active := correlator.ActiveCorrelations()
+		allActive = append(allActive, active...)
+		e.accumulateCorrelations(active)
 		advanceStart := time.Now()
 		correlator.Advance(upTo)
 		if e.onProcessingTime != nil {
@@ -583,8 +602,10 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []obse
 	}
 
 	return advanceResult{
-		anomalies: allAnomalies,
-		telemetry: allTelemetry,
+		anomalies:         allAnomalies,
+		telemetry:         allTelemetry,
+		newCorrelations:   e.newCorrelations(allActive),
+		totalCorrelations: e.accumulatedCorrelationCount(),
 	}
 }
 
@@ -740,6 +761,65 @@ func (e *engine) accumulateCorrelations(active []observerdef.ActiveCorrelation) 
 	}
 }
 
+// newCorrelations computes the reporter delta for one advance cycle.
+// It returns accumulated correlations that reporters have not yet seen.
+//
+// active is the full set of currently-active correlations from all correlators,
+// used exclusively for the activeBefore recurrence cleanup: when a pattern
+// leaves the active window its seenCorrelations entry is deleted so that a
+// genuine recurrence can re-fire in a future cycle.
+//
+// Must be called after accumulateCorrelations for the current cycle.
+// Acquires correlationMu for the duration.
+func (e *engine) newCorrelations(active []observerdef.ActiveCorrelation) []observerdef.ActiveCorrelation {
+	e.correlationMu.Lock()
+	defer e.correlationMu.Unlock()
+
+	if e.seenCorrelations == nil {
+		e.seenCorrelations = make(map[string]bool)
+	}
+	if e.activeBefore == nil {
+		e.activeBefore = make(map[string]bool)
+	}
+
+	currentlyActive := make(map[string]bool, len(active))
+	for _, ac := range active {
+		currentlyActive[ac.Pattern] = true
+	}
+
+	// Emit from accumulated history: patterns not yet seen by reporters.
+	var result []observerdef.ActiveCorrelation
+	for _, ac := range e.accumulatedCorrelations {
+		if !e.seenCorrelations[ac.Pattern] {
+			result = append(result, ac)
+			e.seenCorrelations[ac.Pattern] = true
+		}
+	}
+
+	// Recurrence cleanup: delete seenCorrelations entries for patterns that
+	// were active before but are no longer active. This re-arms them so a
+	// genuine recurrence (possibly with the same LastUpdated) can fire again.
+	for pattern := range e.activeBefore {
+		if !currentlyActive[pattern] {
+			delete(e.seenCorrelations, pattern)
+			delete(e.activeBefore, pattern)
+		}
+	}
+	for pattern := range currentlyActive {
+		e.activeBefore[pattern] = true
+	}
+
+	return result
+}
+
+// accumulatedCorrelationCount returns the number of unique correlation patterns
+// ever accumulated. Safe to call from any goroutine.
+func (e *engine) accumulatedCorrelationCount() int {
+	e.correlationMu.RLock()
+	defer e.correlationMu.RUnlock()
+	return len(e.accumulatedCorrelations)
+}
+
 // AccumulatedCorrelations returns all correlations ever detected across the run.
 func (e *engine) AccumulatedCorrelations() []observerdef.ActiveCorrelation {
 	e.correlationMu.RLock()
@@ -834,18 +914,32 @@ func (e *engine) resetRawAnomalies() {
 }
 
 // resetCorrelations clears accumulated correlation history.
+// Reporter dedup state (seenCorrelations, activeBefore) is intentionally
+// preserved here so that reporters do not re-fire during analysis resets
+// triggered by replay (resetAnalysisState). Only a full teardown via
+// resetFull clears the dedup state.
 func (e *engine) resetCorrelations() {
 	e.correlationMu.Lock()
 	defer e.correlationMu.Unlock()
 	e.accumulatedCorrelations = nil
 }
 
-// resetFull resets all engine state: analysis progress, raw anomalies, and correlations.
-// Storage is NOT cleared — the caller manages storage lifecycle.
+// resetReporterDedup clears the reporter dedup maps. Called only from
+// resetFull so dedup state survives intra-session replay resets.
+func (e *engine) resetReporterDedup() {
+	e.correlationMu.Lock()
+	defer e.correlationMu.Unlock()
+	e.seenCorrelations = nil
+	e.activeBefore = nil
+}
+
+// resetFull resets all engine state: analysis progress, raw anomalies, correlations,
+// and reporter dedup state. Storage is NOT cleared — the caller manages storage lifecycle.
 func (e *engine) resetFull() {
 	e.Reset()
 	e.resetRawAnomalies()
 	e.resetCorrelations()
+	e.resetReporterDedup()
 }
 
 // resetAnalysisState resets detector and correlator state, anomaly tracking,

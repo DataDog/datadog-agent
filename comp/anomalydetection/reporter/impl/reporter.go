@@ -59,15 +59,16 @@ func NewComponent(req Requires) (Provides, error) {
 	return Provides{Reporters: reporters}, nil
 }
 
+// stdoutReporter is a stateless reporter that logs new/recurred correlations
+// and new anomalies to stdout. Dedup is handled by the engine; this reporter
+// fires on every entry in output.NewCorrelations without maintaining its own
+// seenCorrelations or activeBefore state.
 type stdoutReporter struct{}
 
 func (r *stdoutReporter) Name() string { return "stdout_reporter" }
 
 func (r *stdoutReporter) Report(output reporterdef.ReportOutput) {
-	if len(output.ActiveCorrelations) == 0 {
-		return
-	}
-	for _, ac := range output.ActiveCorrelations {
+	for _, ac := range output.NewCorrelations {
 		fmt.Printf("[observer] report: pattern=%s — %s (%d series)\n",
 			ac.Pattern, ac.Title, len(ac.Members))
 		for _, a := range ac.Anomalies {

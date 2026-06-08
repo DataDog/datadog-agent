@@ -41,6 +41,13 @@ type advanceCompletedEvent struct {
 	// anomalies are the anomalies detected in this advance cycle.
 	// Included so event sinks can forward them without querying engine state.
 	anomalies []observerdef.Anomaly
+	// newCorrelations is the engine-computed reporter delta: patterns that are
+	// new or genuinely recurred this cycle. Reporters fire on this set directly
+	// with no dedup state of their own.
+	newCorrelations []observerdef.ActiveCorrelation
+	// totalCorrelations is the total number of unique correlation patterns ever
+	// accumulated across all advance cycles, for dashboard/monitoring purposes.
+	totalCorrelations int
 }
 
 // anomalyCreatedEvent is emitted for each anomaly detected during Advance.
@@ -60,30 +67,21 @@ type eventSink interface {
 }
 
 // reporterEventSink bridges engine events to the reporter group.
-// When an advance completes, it populates ReportOutput with anomalies from
-// the event and active correlations from the stateView, then calls Report
-// on all registered reporters.
+// When an advance completes, it forwards the engine-computed NewCorrelations
+// delta and the new anomalies to all registered reporters. Reporters are
+// stateless: dedup is handled entirely by the engine's newCorrelations logic.
 type reporterEventSink struct {
 	reporters []reporterdef.Reporter
-	state     *stateView // for querying current correlations on advance
 }
 
 func (s *reporterEventSink) onEngineEvent(evt engineEvent) {
 	if evt.kind == eventAdvanceCompleted {
 		ac := evt.advanceCompleted
 		output := reporterdef.ReportOutput{
-			AdvancedToSec: ac.advancedToSec,
-			NewAnomalies:  ac.anomalies,
-		}
-		if s.state != nil {
-			// ActiveCorrelations is the live sliding-window set; reporters
-			// use it to detect when a pattern has gone inactive (so it can
-			// fire again on recurrence). CorrelationHistory is the accumulated
-			// set including batch-detector clusters whose changepoint
-			// timestamps may already be evicted from the sliding window;
-			// reporters drive one-shot emission from this set.
-			output.ActiveCorrelations = s.state.ActiveCorrelations()
-			output.CorrelationHistory = s.state.CorrelationHistory()
+			AdvancedToSec:     ac.advancedToSec,
+			NewAnomalies:      ac.anomalies,
+			NewCorrelations:   ac.newCorrelations,
+			TotalCorrelations: ac.totalCorrelations,
 		}
 		for _, r := range s.reporters {
 			r.Report(output)

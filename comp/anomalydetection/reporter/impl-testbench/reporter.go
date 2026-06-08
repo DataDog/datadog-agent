@@ -54,7 +54,7 @@ func (r *TestbenchReporter) Report(output reporter.ReportOutput) {
 	data, _ := json.Marshal(advancePayload{
 		AdvancedToSec: output.AdvancedToSec,
 		NewAnomalies:  len(output.NewAnomalies),
-		Correlations:  len(output.ActiveCorrelations),
+		Correlations:  output.TotalCorrelations,
 	})
 	r.hub.Broadcast(SSEEvent{Event: "advance", Data: data})
 }

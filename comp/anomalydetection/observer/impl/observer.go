@@ -204,7 +204,6 @@ func NewComponent(deps Requires) Provides {
 		}
 		eng.Subscribe(&reporterEventSink{
 			reporters: []reporterdef.Reporter{r},
-			state:     eng.StateView(),
 		})
 	}
 
