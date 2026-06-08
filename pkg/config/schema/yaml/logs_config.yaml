@@ -355,6 +355,12 @@ properties:
         node_type: setting
         type: integer
         default: 20
+      stack_trace_parsers:
+        node_type: setting
+        type: array
+        default: [go]
+        items:
+          type: string
       tag_aggregated_json:
         node_type: setting
         type: boolean
