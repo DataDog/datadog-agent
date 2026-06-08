@@ -86,14 +86,14 @@ func (m *syslogFrameMatcher) FindFrame(buf []byte, seen int) ([]byte, int, bool)
 		if isSyslogFrameStart(buf, 0) || buf[0] == '\n' || buf[0] == '\r' || buf[0] == 0 {
 			m.overflow = overflowNone
 		} else {
-			return m.scanMalformed(buf, true /* continuation */)
+			return m.scanMalformed(buf, seen, true /* continuation */)
 		}
 	}
 
 	b := buf[0]
 	switch {
 	case b >= '1' && b <= '9':
-		return m.findOctetCounted(buf)
+		return m.findOctetCounted(buf, seen)
 
 	case b == '<':
 		return m.findNonTransparent(buf, seen)
@@ -103,9 +103,19 @@ func (m *syslogFrameMatcher) FindFrame(buf []byte, seen int) ([]byte, int, bool)
 		return nil, 1, false
 
 	default:
-		return m.scanMalformed(buf, false /* continuation */)
+		return m.scanMalformed(buf, seen, false /* continuation */)
 	}
 }
+
+// maxFrameStartLookbehind bounds how far scanMalformed rewinds behind the
+// already-scanned prefix (seen) before resuming its search for the next frame
+// start. It must cover the longest frame-start signature isSyslogFrameStart can
+// match across a read boundary so a signature whose tail only arrives in the
+// current read is still detected: up to 10 length digits (the cap enforced by
+// findOctetCounted) + SP + "<" + digit, i.e. ~13 bytes. 16 adds margin. Any
+// "octet header" longer than this is rejected as malformed anyway, so there is
+// no valid frame start beyond the look-behind to miss.
+const maxFrameStartLookbehind = 16
 
 // scanMalformed consumes bytes that do not start a valid syslog frame. buf[0]
 // is known malformed (the FindFrame dispatch handles frame starts and stray
@@ -124,8 +134,20 @@ func (m *syslogFrameMatcher) FindFrame(buf []byte, seen int) ([]byte, int, bool)
 // continuation chunk (already counted). Truncation follows "never the last": a
 // bounded chunk emitted before the sync point is truncated, while the chunk
 // that reaches the sync point (the final segment of the run) is not.
-func (m *syslogFrameMatcher) scanMalformed(buf []byte, continuation bool) ([]byte, int, bool) {
-	for i := 1; i < len(buf); i++ {
+//
+// seen is how many bytes of buf were already present (and scanned) on the
+// previous call. The scan resumes at seen minus a bounded look-behind rather
+// than restarting at index 1, so a delimiter-less malformed run delivered in
+// many small reads is not re-scanned from the start every call (which would be
+// quadratic in the run length). The look-behind re-examines the few bytes
+// adjacent to the previous boundary so a frame-start signature split across
+// reads is still found.
+func (m *syslogFrameMatcher) scanMalformed(buf []byte, seen int, continuation bool) ([]byte, int, bool) {
+	start := seen - maxFrameStartLookbehind
+	if start < 1 {
+		start = 1
+	}
+	for i := start; i < len(buf); i++ {
 		if isSyslogFrameStart(buf, i) || buf[i] == '\n' || buf[i] == 0 {
 			content := buf[:i]
 			rawDataLen := i
@@ -203,7 +225,7 @@ func isSyslogFrameStart(buf []byte, i int) bool {
 // remainder in octetRemaining, and enters overflowOctet. MSG-LEN stays the
 // authoritative boundary (RFC 6587 §3.4.1): the remaining declared bytes are
 // emitted as raw continuation, never re-detected.
-func (m *syslogFrameMatcher) findOctetCounted(buf []byte) ([]byte, int, bool) {
+func (m *syslogFrameMatcher) findOctetCounted(buf []byte, seen int) ([]byte, int, bool) {
 	// Parse the decimal length prefix.
 	msgLen := 0
 	i := 0
@@ -221,11 +243,11 @@ func (m *syslogFrameMatcher) findOctetCounted(buf []byte) ([]byte, int, bool) {
 		// silently dropping the digit prefix byte-by-byte while the remainder
 		// is later emitted as malformed.
 		if b < '0' || b > '9' {
-			return m.scanMalformed(buf, false /* continuation */)
+			return m.scanMalformed(buf, seen, false /* continuation */)
 		}
 		i++
 		if i > 10 {
-			return m.scanMalformed(buf, false /* continuation */)
+			return m.scanMalformed(buf, seen, false /* continuation */)
 		}
 		msgLen = msgLen*10 + int(b-'0')
 	}
