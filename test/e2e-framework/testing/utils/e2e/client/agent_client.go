@@ -16,7 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/remote"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/common"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclientparams"
 )
@@ -26,7 +25,7 @@ const (
 )
 
 // NewHostAgentClient creates an Agent client for host install
-func NewHostAgentClient(context common.Context, hostOutput remote.HostOutput, waitForAgentReady bool) (agentclient.Agent, error) {
+func NewHostAgentClient(context Context, hostOutput remote.HostOutput, waitForAgentReady bool) (agentclient.Agent, error) {
 	params := agentclientparams.NewParams(hostOutput.OSFamily)
 	params.ShouldWaitForReady = waitForAgentReady
 
@@ -49,7 +48,7 @@ func NewHostAgentClient(context common.Context, hostOutput remote.HostOutput, wa
 }
 
 // NewHostAgentClientWithParams creates an Agent client for host install with custom parameters
-func NewHostAgentClientWithParams(context common.Context, hostOutput remote.HostOutput, options ...agentclientparams.Option) (agentclient.Agent, error) {
+func NewHostAgentClientWithParams(context Context, hostOutput remote.HostOutput, options ...agentclientparams.Option) (agentclient.Agent, error) {
 	params := agentclientparams.NewParams(hostOutput.OSFamily, options...)
 
 	host, err := NewHost(context, hostOutput)
@@ -74,7 +73,7 @@ func NewHostAgentClientWithParams(context common.Context, hostOutput remote.Host
 }
 
 // NewDockerAgentClient creates an Agent client for a Docker install
-func NewDockerAgentClient(context common.Context, dockerAgentOutput agent.DockerAgentOutput, options ...agentclientparams.Option) (agentclient.Agent, error) {
+func NewDockerAgentClient(context Context, dockerAgentOutput agent.DockerAgentOutput, options ...agentclientparams.Option) (agentclient.Agent, error) {
 	params := agentclientparams.NewParams(dockerAgentOutput.DockerManager.Host.OSFamily, options...)
 	ae := newAgentDockerExecutor(context, dockerAgentOutput)
 	commandRunner := newAgentCommandRunner(context, ae)
@@ -91,7 +90,7 @@ func NewDockerAgentClient(context common.Context, dockerAgentOutput agent.Docker
 // NewK8sAgentClient creates an Agent client for a Kubernetes install, passing the ListOptions
 // to select the pod that runs the agent. There are some helper functions to create common selectors,
 // such as AgentSelectorAnyPod that will select any pod that runs the agent.
-func NewK8sAgentClient(context common.Context, podSelector metav1.ListOptions, clusterClient *KubernetesClient, options ...agentclientparams.Option) (agentclient.Agent, error) {
+func NewK8sAgentClient(context Context, podSelector metav1.ListOptions, clusterClient *KubernetesClient, options ...agentclientparams.Option) (agentclient.Agent, error) {
 	params := agentclientparams.NewParams(osComp.LinuxFamily, options...)
 	ae, err := newAgentK8sExecutor(podSelector, clusterClient)
 	if err != nil {
@@ -117,7 +116,7 @@ func NewK8sAgentClient(context common.Context, podSelector metav1.ListOptions, c
 // If the timeout is reached, an error is returned.
 //
 // As of now this is only implemented for Linux.
-func waitForAgentsReady(ctx clientContext, host *Host, params *agentclientparams.Params) error {
+func waitForAgentsReady(ctx Context, host *Host, params *agentclientparams.Params) error {
 	agentReadyCmds := map[string]func(*agentclientparams.Params, *Host) (*http.Request, bool, error){
 		"process-agent":  processAgentRequest,
 		"trace-agent":    traceAgentRequest,

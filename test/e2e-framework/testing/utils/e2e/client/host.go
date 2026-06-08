@@ -51,7 +51,7 @@ type HostArtifactClient interface {
 type sshExecutor struct {
 	client     *ssh.Client
 	privileged *ssh.Client
-	context    clientContext
+	context    Context
 
 	username             string
 	privilegedUsername   string
@@ -75,7 +75,7 @@ type Host struct {
 
 // NewHost creates a new ssh client to connect to a remote host with
 // reconnect retry logic
-func NewHost(context clientContext, hostOutput remote.HostOutput) (*Host, error) {
+func NewHost(context Context, hostOutput remote.HostOutput) (*Host, error) {
 	var privateSSHKey []byte
 
 	privateKeyPath, err := runner.GetProfile().ParamStore().GetWithDefault(parameters.StoreKey(hostOutput.CloudProvider+parameters.PrivateKeyPathSuffix), "")

@@ -25,13 +25,13 @@ type agentCommandExecutor interface {
 // agentCommandRunner is an internal type that provides methods to run Agent commands.
 // It is used by both [VMClient] and [Docker]
 type agentCommandRunner struct {
-	ctx      clientContext
+	ctx      Context
 	executor agentCommandExecutor
 	isReady  bool
 }
 
 // Create a new instance of agentCommandRunner
-func newAgentCommandRunner(ctx clientContext, executor agentCommandExecutor) *agentCommandRunner {
+func newAgentCommandRunner(ctx Context, executor agentCommandExecutor) *agentCommandRunner {
 	agent := &agentCommandRunner{
 		ctx:      ctx,
 		executor: executor,
@@ -85,7 +85,9 @@ func (agent *agentCommandRunner) Check(commandArgs ...agentclient.AgentArgsOptio
 // Check runs check command and returns the runtime Agent check or an error
 func (agent *agentCommandRunner) CheckWithError(commandArgs ...agentclient.AgentArgsOption) (string, error) {
 	args, err := optional.MakeParams(commandArgs...)
-	requireNoErr(err)
+	if err != nil {
+		return "", err
+	}
 	arguments := append([]string{"check"}, args.Args...)
 	return agent.executor.execute(arguments)
 }
@@ -98,7 +100,9 @@ func (agent *agentCommandRunner) Config(commandArgs ...agentclient.AgentArgsOpti
 // ConfigWithError runs config command and returns the runtime agent config or an error
 func (agent *agentCommandRunner) ConfigWithError(commandArgs ...agentclient.AgentArgsOption) (string, error) {
 	args, err := optional.MakeParams(commandArgs...)
-	requireNoErr(err)
+	if err != nil {
+		return "", err
+	}
 	arguments := append([]string{"config"}, args.Args...)
 	return agent.executor.execute(arguments)
 }

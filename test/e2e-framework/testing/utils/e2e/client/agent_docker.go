@@ -21,7 +21,7 @@ type agentDockerExecutor struct {
 
 var _ agentCommandExecutor = &agentDockerExecutor{}
 
-func newAgentDockerExecutor(context clientContext, dockerAgentOutput agent.DockerAgentOutput) *agentDockerExecutor {
+func newAgentDockerExecutor(context Context, dockerAgentOutput agent.DockerAgentOutput) *agentDockerExecutor {
 	dockerClient, err := NewDocker(context, dockerAgentOutput.DockerManager)
 	if err != nil {
 		panic(err)

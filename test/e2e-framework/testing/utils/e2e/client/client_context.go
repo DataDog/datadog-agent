@@ -5,9 +5,9 @@
 
 package client
 
-// clientContext is the subset of common.Context needed by the client layer.
+// Context is the subset of common.Context needed by the client layer.
 // It has no dependency on *testing.T, so non-test callers can implement it.
-type clientContext interface {
+type Context interface {
 	Logf(format string, args ...any)
 	SessionOutputDir() string
 }
