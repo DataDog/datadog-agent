@@ -404,6 +404,19 @@ func (rc *rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig
 		}
 	}
 
+	// Live Debugger (dynamic instrumentation) module enablement. Only the
+	// system-probe config carries this key, so apply it only there. Source
+	// precedence means a local file or CLI value still wins over remote config.
+	if rc.isSystemProbe {
+		const diKey = "dynamic_instrumentation.enabled"
+		switch {
+		case mergedConfig.DynamicInstrumentationEnabled != nil:
+			targetCmp.Set(diKey, *mergedConfig.DynamicInstrumentationEnabled, model.SourceRC)
+		case targetCmp.GetSource(diKey) == model.SourceRC:
+			targetCmp.UnsetForSource(diKey, model.SourceRC)
+		}
+	}
+
 	errs := errors.Join(errList...)
 
 	// Apply the new status to all configs

@@ -25,6 +25,10 @@ type AgentConfig struct {
 // ConfigContent contains the configurations set by remote-config
 type ConfigContent struct {
 	LogLevel string `json:"log_level"`
+	// DynamicInstrumentationEnabled toggles the system-probe Live Debugger module.
+	// A nil pointer means the layer has no opinion, which the merge below must
+	// respect; a non-nil value sets the desired state.
+	DynamicInstrumentationEnabled *bool `json:"dynamic_instrumentation_enabled,omitempty"`
 }
 
 type agentConfigData struct {
@@ -154,6 +158,9 @@ func MergeRCAgentConfig(applyStatus func(cfgPath string, status ApplyStatus), up
 			if layer.Config.Config.LogLevel != "" {
 				mergedConfig.LogLevel = layer.Config.Config.LogLevel
 			}
+			if layer.Config.Config.DynamicInstrumentationEnabled != nil {
+				mergedConfig.DynamicInstrumentationEnabled = layer.Config.Config.DynamicInstrumentationEnabled
+			}
 		}
 	}
 	// Same for internal config
@@ -161,6 +168,9 @@ func MergeRCAgentConfig(applyStatus func(cfgPath string, status ApplyStatus), up
 		if layer, found := parsedLayers[orderFile.Config.InternalOrder[i]]; found {
 			if layer.Config.Config.LogLevel != "" {
 				mergedConfig.LogLevel = layer.Config.Config.LogLevel
+			}
+			if layer.Config.Config.DynamicInstrumentationEnabled != nil {
+				mergedConfig.DynamicInstrumentationEnabled = layer.Config.Config.DynamicInstrumentationEnabled
 			}
 		}
 	}
