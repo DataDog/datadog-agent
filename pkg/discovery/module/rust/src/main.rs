@@ -47,6 +47,7 @@ use tokio::sync::Semaphore;
 
 mod cli;
 mod rc;
+mod rc_client;
 
 use cli::Args;
 
@@ -365,30 +366,37 @@ where
     }
 }
 
-// handle_transition re-execs system-probe-lite back into the full system-probe.
-// On success exec replaces this process image and never returns, so the HTTP
-// response is intentionally not sent; the caller treats the dropped connection
-// as "transition started".
-async fn handle_transition() -> Result<Response<BoxBody<Bytes, std::io::Error>>> {
-    let command = match REEXEC_COMMAND.get() {
-        Some(c) if !c.is_empty() => c,
-        _ => {
-            warn!("transition requested but no re-exec target was configured");
-            return bad_request();
-        }
+// transition_to_system_probe re-execs into the full system-probe with the
+// skip-handoff sentinel set. On success exec replaces this process image and
+// never returns; it only returns (an error) on failure or when no target is set.
+fn transition_to_system_probe() -> anyhow::Error {
+    let Some(command) = REEXEC_COMMAND.get().filter(|c| !c.is_empty()) else {
+        return anyhow!("no re-exec target was configured");
     };
     let Some((program, args)) = command.split_first() else {
-        return bad_request();
+        return anyhow!("empty re-exec command");
     };
 
-    info!("transition requested: re-execing into {program}");
+    info!("transitioning: re-execing into {program}");
     let err = Command::new(program)
         .args(args)
         .env(SKIP_SPLITE_HANDOFF_ENV, "1")
         .exec();
+    anyhow!("could not re-exec into {program}: {err}")
+}
 
-    error!("transition failed, could not re-exec into {program}: {err}");
-    Err(anyhow!("transition failed: {err}"))
+// handle_transition is the manual trigger for the transition over the socket.
+// On success exec replaces this process image and never returns, so the HTTP
+// response is intentionally not sent; the caller treats the dropped connection
+// as "transition started".
+async fn handle_transition() -> Result<Response<BoxBody<Bytes, std::io::Error>>> {
+    if REEXEC_COMMAND.get().is_none_or(|c| c.is_empty()) {
+        warn!("transition requested but no re-exec target was configured");
+        return bad_request();
+    }
+    let err = transition_to_system_probe();
+    error!("transition failed: {err}");
+    Err(err)
 }
 
 async fn run_system_probe_lite(socket_path: &str) -> Result<()> {
@@ -472,6 +480,27 @@ async fn main() -> Result<()> {
         warn!("unknown argument: {arg}");
     }
     let _ = REEXEC_COMMAND.set(args.reexec_command.clone());
+
+    // Poll remote config for the Live Debugger toggle, transitioning into a full
+    // system-probe when it is enabled. Disabled if the agent IPC connection
+    // parameters were not passed in.
+    let rc_cfg = rc_client::RcConfig {
+        ipc_address: args.ipc_address.clone(),
+        ipc_port: args.ipc_port.clone(),
+        auth_token_path: args.auth_token_path.clone(),
+        ipc_cert_path: args.ipc_cert_path.clone(),
+    };
+    if rc_cfg.is_complete() {
+        tokio::spawn(async move {
+            rc_client::run(rc_cfg, || {
+                let err = transition_to_system_probe();
+                error!("remote-config-triggered transition failed: {err}");
+            })
+            .await;
+        });
+    } else {
+        debug!("remote-config polling disabled: IPC connection parameters not provided");
+    }
 
     let result = run_system_probe_lite(&args.socket_path).await;
 

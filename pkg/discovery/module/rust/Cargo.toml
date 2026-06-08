@@ -54,7 +54,7 @@ serde_json.workspace = true
 dd-agent-log.workspace = true
 thiserror.workspace = true
 tokio = { workspace = true, features = ["macros", "net", "rt-multi-thread", "signal"] }
-tonic = { workspace = true, features = ["transport"] }
+tonic = { workspace = true, features = ["transport", "tls-ring"] }
 tonic-prost.workspace = true
 uzers.workspace = true
 saphyr-parser = { workspace = true, optional = true }

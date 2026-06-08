@@ -39,6 +39,18 @@ pub struct Args {
     /// Full system-probe invocation to re-exec into on transition. Everything
     /// after a "--" separator. Empty means transition is disabled.
     pub reexec_command: Vec<String>,
+
+    /// Agent IPC address for the remote-config gRPC endpoint (--ipc-address).
+    pub ipc_address: String,
+
+    /// Agent IPC port for the remote-config gRPC endpoint (--ipc-port).
+    pub ipc_port: String,
+
+    /// Path to the IPC auth-token file (--auth-token-path).
+    pub auth_token_path: String,
+
+    /// Path to the IPC certificate file used as the TLS root (--ipc-cert-path).
+    pub ipc_cert_path: String,
 }
 
 impl Args {
@@ -61,6 +73,10 @@ impl Args {
         let mut pid_path = None;
         let mut unknown_args = Vec::new();
         let mut reexec_command = Vec::new();
+        let mut ipc_address = String::new();
+        let mut ipc_port = String::new();
+        let mut auth_token_path = String::new();
+        let mut ipc_cert_path = String::new();
 
         while let Some(arg) = iter.next() {
             if arg == "--socket" {
@@ -84,6 +100,30 @@ impl Args {
             if arg == "--pid" {
                 if let Some(next) = iter.next() {
                     pid_path = Some(PathBuf::from(next));
+                }
+                continue;
+            }
+            if arg == "--ipc-address" {
+                if let Some(next) = iter.next() {
+                    ipc_address = next;
+                }
+                continue;
+            }
+            if arg == "--ipc-port" {
+                if let Some(next) = iter.next() {
+                    ipc_port = next;
+                }
+                continue;
+            }
+            if arg == "--auth-token-path" {
+                if let Some(next) = iter.next() {
+                    auth_token_path = next;
+                }
+                continue;
+            }
+            if arg == "--ipc-cert-path" {
+                if let Some(next) = iter.next() {
+                    ipc_cert_path = next;
                 }
                 continue;
             }
@@ -111,6 +151,10 @@ impl Args {
             pid_path,
             unknown_args,
             reexec_command,
+            ipc_address,
+            ipc_port,
+            auth_token_path,
+            ipc_cert_path,
         })
     }
 }
