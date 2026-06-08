@@ -100,6 +100,7 @@ func (l *Loop) Run(parentCtx context.Context) {
 		if l.runner.executor != nil {
 			if err := l.runner.executor.SubmitTask(ctx, task); err != nil {
 				logger.Error("failed to submit task to executor", log.String(observability.TaskIDTagName, task.Data.ID), log.ErrorField(err))
+				l.runner.publishFailure(ctx, task, err)
 			}
 			continue
 		}
