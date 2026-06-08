@@ -144,31 +144,34 @@ __attribute__((always_inline)) void resolve_pid(struct __sk_buff *skb, struct pa
         pkt->pid = *pid;
     }
 
-    // pid from socket lookup: namespace-correct resolution, preferred when available
-    if (pkt->pid == 0 && is_sk_lookup_pid_enabled()) {
-        resolve_pid_from_sk_lookup(skb, pkt);
+    if (pkt->pid != 0) {
+        return;
     }
 
-    // pid from sched_cls
-    if (pkt->pid == 0) {
+    if (pkt->network_direction == EGRESS) {
         u64 sched_cls_has_current_pid_tgid_helper = 0;
         LOAD_CONSTANT("sched_cls_has_current_pid_tgid_helper", sched_cls_has_current_pid_tgid_helper);
         if (sched_cls_has_current_pid_tgid_helper) {
             u64 pid_tgid = bpf_get_current_pid_tgid();
             pkt->pid = pid_tgid >> 32;
         }
+    } else if (pkt->network_direction == INGRESS) {
+        if (is_sk_lookup_pid_enabled()) {
+            // pid from socket lookup: namespace-correct resolution, preferred when available
+            resolve_pid_from_sk_lookup(skb, pkt);
+        } else {
+            // pid from flow pid: fallback used only when the socket-lookup path is unavailable (older
+            // kernels without bpf_sk_lookup, sk-local storage, or the cgroup socket hook)
+            resolve_pid_from_flow_pid(pkt);
+        }
     }
 
-    // check if the pid is a kworker pid, if so let the flow_pid fallback do the job
-    u32 pid_val = (u32)pkt->pid;
-    if (IS_KERNEL_THREAD(pid_val)) {
-        pkt->pid = 0;
-    }
-
-    // pid from flow pid: fallback used only when the socket-lookup path is unavailable (older
-    // kernels without bpf_sk_lookup, sk-local storage, or the cgroup socket hook)
-    if (pkt->pid == 0 && !is_sk_lookup_pid_enabled()) {
-        resolve_pid_from_flow_pid(pkt);
+    if (pkt->pid != 0) {
+        // check if the pid is a kworker pid, if so we won't associate a process which is expected
+        u32 pid_val = (u32)pkt->pid;
+        if (IS_KERNEL_THREAD(pid_val)) {
+            pkt->pid = 0;
+        }
     }
 }
 
