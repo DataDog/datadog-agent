@@ -14,13 +14,13 @@ import (
 
 // A SketchSeries is a timeseries of quantile sketches.
 type SketchSeries struct {
-	Name       string               `json:"metric"`
-	Tags       tagset.CompositeTags `json:"tags"`
-	Host       string               `json:"host"`
-	Interval   int64                `json:"interval"`
-	Points     []SketchPoint        `json:"points"`
-	NoIndex    bool                 `json:"-"` // This is only used by api V2
-	Source     MetricSource         `json:"-"` // This is only used by api V2
+	Name     string               `json:"metric"`
+	Tags     tagset.CompositeTags `json:"tags"`
+	Host     string               `json:"host"`
+	Interval int64                `json:"interval"`
+	Points   []SketchPoint        `json:"points"`
+	NoIndex  bool                 `json:"-"` // This is only used by api V2
+	Source   MetricSource         `json:"-"` // This is only used by api V2
 }
 
 // GetName returns the name of the SketchSeries
