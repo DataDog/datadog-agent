@@ -64,6 +64,7 @@ go_test(
         "monotonic_count_test.go",
         "rate_test.go",
         "set_test.go",
+        "sketch_data_otel_test.go",
         "sketch_series_test.go",
         "test_helper_test.go",
     ],
@@ -77,5 +78,6 @@ go_test(
         "//pkg/util/quantile",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
+        "@io_opentelemetry_go_collector_pdata//pmetric",
     ],
 )
