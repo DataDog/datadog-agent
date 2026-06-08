@@ -109,10 +109,10 @@ var (
 	TlmLogLineSizes = telemetryimpl.GetCompatComponent().NewHistogram("logs", "log_line_sizes",
 		nil, "Distribution of post-framer log line sizes before line parsers/handlers are applied", []float64{32, 128, 512, 2048, 8192, 32768, 131072, 524288, 2097152})
 
-	// TlmSyslogDiscardedBytes is the total number of bytes discarded by the syslog framer
-	// as malformed (bytes that do not form a valid RFC 6587 frame).
-	TlmSyslogDiscardedBytes = telemetryimpl.GetCompatComponent().NewCounter("logs", "syslog_discarded_bytes",
-		nil, "Total number of bytes discarded by the syslog framer as malformed")
+	// TlmSyslogMalformedBytes is the total number of malformed bytes seen by the syslog
+	// framer (bytes that do not form a valid RFC 6587 frame).
+	TlmSyslogMalformedBytes = telemetryimpl.GetCompatComponent().NewCounter("logs", "syslog_malformed_bytes",
+		nil, "Total number of malformed bytes seen by the syslog framer")
 
 	// TlmSyslogOversizedFrames counts syslog frames split because they exceeded the
 	// content length limit. Syslog lines are conventionally far below the limit, so a

@@ -515,9 +515,9 @@ func TestSyslogMalformedFrameEmission(t *testing.T) {
 		require.Equal(t, []string{"hello world"}, contents)
 
 		rendered := tailerInfo.Rendered()
-		discarded := rendered["Syslog Discarded Bytes"]
-		require.NotEmpty(t, discarded)
-		assert.Equal(t, "11", discarded[0])
+		malformed := rendered["Syslog Malformed Bytes"]
+		require.NotEmpty(t, malformed)
+		assert.Equal(t, "11", malformed[0])
 	})
 
 	t.Run("junk followed by valid frame resyncs at PRI", func(t *testing.T) {
@@ -537,9 +537,9 @@ func TestSyslogMalformedFrameEmission(t *testing.T) {
 		require.Equal(t, []string{"JUNK", validMsg}, contents)
 
 		rendered := tailerInfo.Rendered()
-		discarded := rendered["Syslog Discarded Bytes"]
-		require.NotEmpty(t, discarded)
-		assert.Equal(t, "4", discarded[0])
+		malformed := rendered["Syslog Malformed Bytes"]
+		require.NotEmpty(t, malformed)
+		assert.Equal(t, "4", malformed[0])
 	})
 
 	t.Run("stray delimiters are not counted as malformed", func(t *testing.T) {
@@ -559,9 +559,9 @@ func TestSyslogMalformedFrameEmission(t *testing.T) {
 		require.Equal(t, []string{msg}, contents)
 
 		rendered := tailerInfo.Rendered()
-		discarded := rendered["Syslog Discarded Bytes"]
-		require.NotEmpty(t, discarded)
-		assert.Equal(t, "0", discarded[0])
+		malformed := rendered["Syslog Malformed Bytes"]
+		require.NotEmpty(t, malformed)
+		assert.Equal(t, "0", malformed[0])
 	})
 
 	t.Run("junk before octet-counted frame resyncs at digit+SP+PRI", func(t *testing.T) {
@@ -582,9 +582,9 @@ func TestSyslogMalformedFrameEmission(t *testing.T) {
 		require.Equal(t, []string{"XX", syslogMsg}, contents)
 
 		rendered := tailerInfo.Rendered()
-		discarded := rendered["Syslog Discarded Bytes"]
-		require.NotEmpty(t, discarded)
-		assert.Equal(t, "2", discarded[0])
+		malformed := rendered["Syslog Malformed Bytes"]
+		require.NotEmpty(t, malformed)
+		assert.Equal(t, "2", malformed[0])
 	})
 }
 
@@ -917,9 +917,9 @@ func TestSyslogMalformedOctetCount(t *testing.T) {
 			"the digit-prefixed garbage must be emitted as a single malformed frame, not have its prefix dropped")
 
 		rendered := tailerInfo.Rendered()
-		discarded := rendered["Syslog Discarded Bytes"]
-		require.NotEmpty(t, discarded)
-		assert.Equal(t, "3", discarded[0], "all 3 garbage bytes counted once")
+		malformed := rendered["Syslog Malformed Bytes"]
+		require.NotEmpty(t, malformed)
+		assert.Equal(t, "3", malformed[0], "all 3 garbage bytes counted once")
 	})
 
 	t.Run("over-long digit run is malformed, not octet length", func(t *testing.T) {
@@ -1045,9 +1045,9 @@ func TestSyslogOversizedSelfBounding(t *testing.T) {
 		assert.Equal(t, "1", oversized[0], "an oversized frame must be counted once, not once per chunk")
 	})
 
-	t.Run("malformed discarded bytes counted exactly once", func(t *testing.T) {
+	t.Run("malformed bytes counted exactly once", func(t *testing.T) {
 		// A 25-byte malformed run split across multiple bounded chunks must
-		// report exactly 25 discarded bytes. The previous re-dispatch path
+		// report exactly 25 malformed bytes. The previous re-dispatch path
 		// re-counted the (shrinking) remainder on every chunk, over-counting.
 		limit := 10
 		junk := strings.Repeat("Z", 25)
@@ -1058,9 +1058,9 @@ func TestSyslogOversizedSelfBounding(t *testing.T) {
 		assert.Equal(t, validMsg, got[len(got)-1], "valid frame recovered after the malformed run")
 
 		rendered := info.Rendered()
-		discarded := rendered["Syslog Discarded Bytes"]
-		require.NotEmpty(t, discarded)
-		assert.Equal(t, "25", discarded[0], "discarded bytes must equal the malformed run length exactly")
+		malformed := rendered["Syslog Malformed Bytes"]
+		require.NotEmpty(t, malformed)
+		assert.Equal(t, "25", malformed[0], "malformed bytes must equal the malformed run length exactly")
 	})
 }
 
