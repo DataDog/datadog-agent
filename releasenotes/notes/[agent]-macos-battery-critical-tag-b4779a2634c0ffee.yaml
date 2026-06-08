@@ -1,9 +1,6 @@
 ---
 enhancements:
   - |
-    On macOS, the ``battery`` check now adds a ``power_state:battery_critical``
+    The macOS battery check now adds a ``power_state:battery_critical``
     tag to the ``system.battery.power_state`` metric when the operating system
-    reports a degraded battery (a permanent hardware failure or a
-    "Service Recommended" health condition). This mirrors the existing Windows
-    behavior and lets End User Devices Monitoring surface failing batteries that
-    previously appeared healthy.
+    reports a degraded battery.
