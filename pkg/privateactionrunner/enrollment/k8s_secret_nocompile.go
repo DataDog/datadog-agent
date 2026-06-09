@@ -21,7 +21,3 @@ func getIdentityFromK8sSecret(_ context.Context, _ configModel.Reader) (*Persist
 func persistIdentityToK8sSecret(_ context.Context, _ configModel.Reader, _ *Result) error {
 	return errors.New("Kubernetes secret storage is not available in this build")
 }
-
-func rotateIdentityInK8sSecret(_ context.Context, _ configModel.Reader, _ *Result) error {
-	return errors.New("Kubernetes secret storage is not available in this build")
-}
