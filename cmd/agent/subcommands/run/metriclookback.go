@@ -60,7 +60,7 @@ func registerMetricLookbackScheduler(
 
 	ac.AddScheduler("metric_lookback", metriclookback.NewAutoConfigShadowAdapter(metriclookback.Options{
 		ShadowChecksEnabled: cfg.GetBool("metric_lookback.enabled"),
-		ChecksToShadow:      cfg.GetStringSlice("metric_lookback.checks"),
+		ChecksToShadow:      cfg.GetStringSlice("metric_lookback.enabled_checks"),
 	}, shadowScheduler), true)
 }
 

@@ -82,6 +82,18 @@ func TestProcessManagerEnabledEnvOverride(t *testing.T) {
 	assert.False(t, cfg.GetBool("process_manager.enabled"))
 }
 
+func TestMetricLookbackGlobalConfigDefaultsAndEnvOverrides(t *testing.T) {
+	cfg := newTestConf(t)
+	assert.False(t, cfg.GetBool("metric_lookback.enabled"))
+	assert.Empty(t, cfg.GetStringSlice("metric_lookback.enabled_checks"))
+
+	t.Setenv("DD_METRIC_LOOKBACK_ENABLED", "true")
+	t.Setenv("DD_METRIC_LOOKBACK_ENABLED_CHECKS", `["cpu","ntp"]`)
+	cfg = newTestConf(t)
+	assert.True(t, cfg.GetBool("metric_lookback.enabled"))
+	assert.Equal(t, []string{"cpu", "ntp"}, cfg.GetStringSlice("metric_lookback.enabled_checks"))
+}
+
 func TestProcessManagerEnabledYAML(t *testing.T) {
 	cfg := confFromYAML(t, "process_manager:\n  enabled: false\n")
 	assert.False(t, cfg.GetBool("process_manager.enabled"))
