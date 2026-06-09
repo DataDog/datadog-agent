@@ -346,7 +346,6 @@ exports_files(glob(
 # gazelle:exclude pkg/collector/corechecks/system/winproc
 # gazelle:exclude pkg/collector/corechecks/systemd
 # gazelle:exclude pkg/collector/corechecks/telemetry
-# gazelle:exclude pkg/collector/loaders
 # gazelle:exclude pkg/collector/python
 # gazelle:exclude pkg/collector/runner/*.go
 # gazelle:exclude pkg/collector/sharedlibrary/ffi
@@ -520,7 +519,6 @@ exports_files(glob(
 # gazelle:exclude pkg/status/clusteragent
 # gazelle:exclude pkg/system-probe/api/client/check_test.go
 # gazelle:exclude pkg/system-probe/api/module
-# gazelle:exclude pkg/util/crashreport
 # gazelle:exclude pkg/util/kubernetes/apiserver/controllers
 # gazelle:exclude pkg/util/kubernetes/apiserver/leaderelection/status_templates
 # TODO(agent-build): re-include the following files once their unmigrated deps are
