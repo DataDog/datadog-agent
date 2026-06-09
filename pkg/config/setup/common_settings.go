@@ -2105,6 +2105,9 @@ func anomalyDetection(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("anomaly_detection.detectors.time_cluster.enabled", true)
 	config.BindEnvAndSetDefault("anomaly_detection.detectors.time_cluster.min_cluster_size", 0)
 	config.BindEnvAndSetDefault("anomaly_detection.detectors.passthrough.enabled", false)
+	config.BindEnvAndSetDefault("anomaly_detection.detectors.anomaly_scorer.enabled", false)
+	config.BindEnvAndSetDefault("anomaly_detection.detectors.anomaly_scorer.alpha", 0.014)
+	config.BindEnvAndSetDefault("anomaly_detection.detectors.anomaly_scorer.saturation_k", 5.0)
 
 	// Storage tuning. See storageConfig in the observer component.
 	config.BindEnvAndSetDefault("anomaly_detection.storage.max_series", 50000)
