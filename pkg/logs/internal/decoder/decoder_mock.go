@@ -7,7 +7,6 @@ package decoder
 
 import (
 	"regexp"
-	"sync/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
@@ -16,7 +15,6 @@ import (
 type MockDecoder struct {
 	inputChan  chan *message.Message
 	outputChan chan *message.Message
-	tagBytes   atomic.Int64
 }
 
 // InputChan returns the input channel
@@ -53,16 +51,6 @@ func (d *MockDecoder) GetDetectedPattern() *regexp.Regexp {
 // GetLineCount returns the number of decoded lines
 func (d *MockDecoder) GetLineCount() int64 {
 	return 0
-}
-
-// SetTagBytes stores the latest estimated tag byte count.
-func (d *MockDecoder) SetTagBytes(n int) {
-	d.tagBytes.Store(int64(n))
-}
-
-// TagBytes returns the latest estimated tag byte count.
-func (d *MockDecoder) TagBytes() int {
-	return int(d.tagBytes.Load())
 }
 
 // MockDecoderOptions are the options for creating a mock decoder

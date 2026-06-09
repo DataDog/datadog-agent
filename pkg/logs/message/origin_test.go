@@ -87,11 +87,6 @@ func TestTagMetadataBytes(t *testing.T) {
 	assert.Equal(t, 0, TagMetadataBytes())
 }
 
-func TestSourceCategoryTag(t *testing.T) {
-	assert.Equal(t, []string{"sourcecategory:app"}, SourceCategoryTag("app"))
-	assert.Nil(t, SourceCategoryTag(""))
-}
-
 func TestAppendTagMetadataBytes(t *testing.T) {
 	base := TagMetadataBytes([]string{"c:d", "e"})
 

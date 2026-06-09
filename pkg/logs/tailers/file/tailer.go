@@ -274,10 +274,6 @@ func (t *Tailer) Start(offset int64, whence int) error {
 		t.file.Source.Status().Error(err)
 		return err
 	}
-	// Seed the tag-byte estimate with config tags and static file tags (no
-	// provider tags yet — tagger may not have them at setup time). The estimate
-	// is refreshed per-message in forwardMessages once provider tags arrive.
-	t.decoder.SetTagBytes(t.estimateTagBytes(nil))
 	t.file.Source.Status().Success()
 	t.file.Source.AddInput(t.file.Path)
 	t.registry.SetTailed(t.Identifier(), true)
@@ -385,23 +381,6 @@ func (t *Tailer) buildTailerTags() []string {
 	return tags
 }
 
-// estimateTagBytes returns the estimated byte count of tag metadata for logs
-// from this tailer. It covers config tags, sourcecategory, file tailer tags,
-// and the latest known tag-provider tags. Per-message ParsingExtra.Tags are
-// counted by the adaptive sampler when a message is dropped.
-func (t *Tailer) estimateTagBytes(providerTags []string) int {
-	src := t.file.Source.UnderlyingSource()
-	if src != nil && src.Config != nil {
-		return message.TagMetadataBytes(
-			src.Config.Tags,
-			message.SourceCategoryTag(src.Config.SourceCategory),
-			t.tags,
-			providerTags,
-		)
-	}
-	return message.TagMetadataBytes(t.tags, providerTags)
-}
-
 // IsFinished returns true if the tailer has flushed all messages to the output
 // channel, either because it has been stopped or because of an error reading from
 // the input file.
@@ -433,7 +412,6 @@ func (t *Tailer) forwardMessages() {
 		origin.Fingerprint = t.fingerprint
 
 		providerTags := t.tagProvider.GetTags()
-		t.decoder.SetTagBytes(t.estimateTagBytes(providerTags))
 
 		tags := make([]string, len(t.tags))
 		copy(tags, t.tags)

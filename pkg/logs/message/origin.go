@@ -73,9 +73,8 @@ func (o *Origin) TagsPayload(processingTags []string) []byte {
 	return tagsPayload
 }
 
-// TagMetadataBytes returns the byte length of comma-joined tag-like metadata
-// produced from the provided tag groups. It counts sourcecategory as
-// sourcecategory:<value>, matching Origin.Tags and TagsToString.
+// TagMetadataBytes returns the byte length of comma-joined tag strings produced
+// from the provided tag groups.
 func TagMetadataBytes(tagGroups ...[]string) int {
 	totalBytes := 0
 	tagCount := 0
@@ -89,15 +88,6 @@ func TagMetadataBytes(tagGroups ...[]string) int {
 		totalBytes += tagCount - 1
 	}
 	return totalBytes
-}
-
-// SourceCategoryTag returns the source category tag as it appears in
-// Origin.Tags and TagsToString.
-func SourceCategoryTag(sourceCategory string) []string {
-	if sourceCategory == "" {
-		return nil
-	}
-	return []string{"sourcecategory:" + sourceCategory}
 }
 
 // AppendTagMetadataBytes returns the tag metadata byte length after appending
