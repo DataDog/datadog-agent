@@ -23,9 +23,7 @@ def get_payload_version(go_mod_path="go.mod"):
             # or   "github.com/DataDog/agent-payload/v5 v5.0.1-0.20200826134834-1ddcfb686e3f"
             version_split = re.split(r'[ +]', line)
             if len(version_split) < 2:
-                raise Exception(
-                    "Versioning of agent-payload in go.mod has changed; update the version logic"
-                )
+                raise Exception("Versioning of agent-payload in go.mod has changed; update the version logic")
             version = version_split[1].split("-")[0].strip()
             if not re.search(r"^v\d+(\.\d+){2}$", version):
                 raise Exception(f"Version of agent-payload in go.mod is invalid: '{version}'")
