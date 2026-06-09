@@ -26,6 +26,8 @@ type SpanConcentratorConfig struct {
 	// BucketInterval the size of our pre-aggregation per bucket
 	BucketInterval int64
 	// AdditionalMetricTagsCardinalityLimit is the maximum number of distinct additional metric tag stats entries per bucket. 0 disables the cap.
+	// This is a tracer-only control (dd-trace-go imports this package and sets it) — the
+	// Agent intentionally leaves it unset, so the cardinality cap is a no-op in the Agent.
 	AdditionalMetricTagsCardinalityLimit int
 }
 
@@ -55,9 +57,14 @@ type StatSpan struct {
 }
 
 const (
+	// additionalMetricTagValueMaxLength bounds an individual tag value; longer values are
+	// masked. This length cap is unconditional and runs in BOTH the Agent and the tracer.
 	additionalMetricTagValueMaxLength = 200
-	blockedByTracerSentinel           = "blocked_by_tracer"
-	blockedByAgentSentinel            = "blocked_by_agent"
+	// Masked values carry a sentinel naming the component that masked them. The sentinel is
+	// propagated into each RawBucket so the same masking code attributes correctly in either
+	// context: tracer-side masking reports blocked_by_tracer, Agent-side reports blocked_by_agent.
+	blockedByTracerSentinel = "blocked_by_tracer"
+	blockedByAgentSentinel  = "blocked_by_agent"
 )
 
 func maskAdditionalMetricTagValues(tags []string, sentinel string) []string {

@@ -181,12 +181,17 @@ func (sb *RawBucket) HandleSpan(s *StatSpan, weight float64, origin string, aggK
 	aggr := NewAggregationFromSpan(s, origin, aggKey)
 	capBlocked := 0
 	if len(s.matchingAdditionalMetricTags) > 0 && sb.additionalTagsCardinalityLimit > 0 {
+		// Only new tag-bearing aggregations are counted, before they are added below.
 		if _, exists := sb.data[aggr]; !exists {
 			if sb.additionalTagsEntries >= sb.additionalTagsCardinalityLimit {
 				if !sb.warnedThisBucket {
 					log.Warnf("additional_metric_tags cardinality limit (%d) reached for this bucket; masking values (e.g. %v)", sb.additionalTagsCardinalityLimit, s.matchingAdditionalMetricTags)
 					sb.warnedThisBucket = true
 				}
+				// Cap reached: collapse this span's tag values onto the shared masked
+				// aggregation. The masked entry is deliberately NOT counted toward the
+				// limit — all over-cap spans fold into it, so it stays a single overflow
+				// bucket rather than consuming a slot.
 				s.matchingAdditionalMetricTags = maskAdditionalMetricTagValues(s.matchingAdditionalMetricTags, sb.getAdditionalMetricTagValueBlockSentinel())
 				aggr = NewAggregationFromSpan(s, origin, aggKey)
 				capBlocked = 1
