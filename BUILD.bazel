@@ -439,7 +439,6 @@ exports_files(glob(
 # gazelle:exclude pkg/gpu/safenvml
 # gazelle:exclude pkg/gpu/testutil
 # gazelle:exclude pkg/kubestatemetrics/builder
-# gazelle:exclude pkg/languagedetection/internal/detectors/privileged
 # gazelle:exclude pkg/languagedetection/privileged
 # gazelle:exclude pkg/logs/client/http
 # gazelle:exclude pkg/logs/client/tcp
@@ -863,6 +862,7 @@ write_source_files(
         "//pkg/proto/pbgo/privateactionrunner/errorcode:write_pb_go",
         "//pkg/proto/pbgo/privateactionrunner/privateactions:write_pb_go",
         "//pkg/proto/pbgo/process:write_pb_go",
+        "//pkg/proto/pbgo/procmgr:write_pb_go",
         "//pkg/proto/pbgo/sbom:write_pb_go",
         "//pkg/proto/pbgo/trace:agent_payload_gen",
         "//pkg/proto/pbgo/trace:span_gen",
