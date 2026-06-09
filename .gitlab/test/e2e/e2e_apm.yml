@@ -1,0 +1,36 @@
+---
+# e2e stage - apm-agent owned jobs
+# Owned by: apm-agent, agent-devx
+
+.on_apm_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        - pkg/trace/**/*
+        - cmd/trace-agent/**/*
+        - comp/trace/**/*
+        - test/new-e2e/tests/apm/**/*
+        - test/new-e2e/go.mod
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
+
+new-e2e-apm:
+  extends: .new_e2e_template
+  rules:
+    - !reference [.on_apm_or_e2e_changes]
+    - !reference [.manual]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - qa_agent_linux
+    - agent_deb-x64-a7
+  variables:
+    TARGETS: ./tests/apm
+    TEAM: apm-agent
+    # Temporarily disable the test on FIPS pipeline, as remote-configuration is not available with FIPS Agent yet
+    # ON_NIGHTLY_FIPS: "true"
+  parallel:
+    matrix:
+      - EXTRA_PARAMS: --run TestDockerFakeintakeSuiteUDS
+      - EXTRA_PARAMS: --run TestDockerFakeintakeSuiteTCP
+      - EXTRA_PARAMS: --run TestVMFakeintakeSuiteUDS
+      - EXTRA_PARAMS: --run TestVMFakeintakeSuiteTCP

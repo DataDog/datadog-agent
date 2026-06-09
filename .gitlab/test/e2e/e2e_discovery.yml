@@ -1,0 +1,28 @@
+---
+# e2e stage - agent-discovery owned jobs
+# Owned by: agent-discovery, agent-devx
+
+.on_discovery_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        - cmd/agent/dist/conf.d/discovery.d/*
+        - comp/core/autodiscovery/providers/process_log.go
+        - test/new-e2e/tests/discovery/**/*
+        - pkg/collector/corechecks/discovery/**/*
+        - pkg/discovery/**/*
+      compare_to: $COMPARE_TO_BRANCH
+
+new-e2e-discovery:
+  extends: .new_e2e_template
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - agent_deb-x64-a7
+    - qa_agent_linux
+  rules:
+    - !reference [.on_discovery_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/discovery
+    TEAM: agent-discovery
+    ON_NIGHTLY_FIPS: "true"
