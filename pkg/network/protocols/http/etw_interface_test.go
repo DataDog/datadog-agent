@@ -264,6 +264,55 @@ func executeRequestForTest(t *testing.T, etw *EtwInterface, test testDef) ([]Win
 
 }
 
+// waitForETWReady drives warmup HTTP traffic to the local IIS site until the
+// ETW provider delivers its first event (signaled via etw.ETWReady), then
+// drains any warmup transactions so they don't bleed into the first subtest.
+//
+// We can't assume this host has any incidental HTTP traffic, so we generate our
+// own to confirm the provider is live before firing the real test requests
+// (WINA-2079). This replaces the previous unreliable fixed time.Sleep().
+func waitForETWReady(t *testing.T, etw *EtwInterface) {
+	stopWarmup := make(chan struct{})
+	var warmupWG sync.WaitGroup
+	warmupWG.Add(1)
+	go func() {
+		defer warmupWG.Done()
+		for {
+			// Hit the default site; ignore errors (the provider being up is what
+			// matters, not the response).
+			if resp, err := nethttp.Get("http://127.0.0.1:80/"); err == nil {
+				_ = resp.Body.Close()
+			}
+			select {
+			case <-stopWarmup:
+				return
+			case <-time.After(500 * time.Millisecond):
+			}
+		}
+	}()
+
+	select {
+	case <-etw.ETWReady():
+		t.Log("ETW provider is ready (first event received)")
+	case <-time.After(30 * time.Second):
+		t.Log("timed out waiting for ETW readiness signal; proceeding anyway")
+	}
+
+	close(stopWarmup)
+	warmupWG.Wait()
+
+	// Drain the warmup transactions so they aren't counted toward the first
+	// subtest. No new traffic is generated once warmup stops, so an idle gap
+	// longer than the poller's interval (3s) means the channel is clear.
+	for {
+		select {
+		case <-etw.DataChannel:
+		case <-time.After(5 * time.Second):
+			return
+		}
+	}
+}
+
 func TestEtwTransactions(t *testing.T) {
 	ebpftest.LogLevel(t, "info")
 	cfg := config.New()
@@ -276,23 +325,11 @@ func TestEtwTransactions(t *testing.T) {
 
 	etw.StartReadingHttpFlows()
 
-	/*
-	 * We need to wait for the ETW provider to start before firing test requests.
-	 * Empirically it takes "some time" for the provider to start sending messages,
-	 * and issuing requests before then causes their events to be missed, which
-	 * previously hung the whole suite (WINA-2079). Wait for the first event
-	 * (signaled via ETWReady) instead of a fixed sleep. The test environment has
-	 * spurious background HTTP traffic, so the first event normally arrives
-	 * quickly; fall back to proceeding after a timeout so a genuinely quiet host
-	 * doesn't block the suite (the per-request receive timeout in
-	 * executeRequestForTest surfaces any real missing-event failure).
-	 */
-	select {
-	case <-etw.ETWReady():
-		t.Log("ETW provider is ready (first event received)")
-	case <-time.After(30 * time.Second):
-		t.Log("timed out waiting for ETW readiness signal; proceeding anyway")
-	}
+	// Wait for the ETW provider to start producing events before firing the real
+	// test requests. Issuing requests before the provider is live causes their
+	// events to be missed, which previously hung the whole suite (WINA-2079).
+	waitForETWReady(t, etw)
+
 	for _, test := range setupTests() {
 
 		t.Run(test.name, func(t *testing.T) {
