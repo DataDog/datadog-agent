@@ -15,7 +15,7 @@ go_library(
         "//comp/core/delegatedauth/api/cloudauth/config",
         "//comp/core/delegatedauth/common",
         "//comp/core/delegatedauth/def",
-        "//comp/core/status",
+        "//comp/core/status/def",
         "//pkg/config/model",
         "//pkg/util/aws/creds",
         "//pkg/util/log",

@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	coreStatus "github.com/DataDog/datadog-agent/comp/core/status"
+	coreStatus "github.com/DataDog/datadog-agent/comp/core/status/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	server "github.com/DataDog/datadog-agent/comp/snmptraps/server/def"
 

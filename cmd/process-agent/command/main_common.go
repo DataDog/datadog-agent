@@ -31,8 +31,8 @@ import (
 	remoteagentfx "github.com/DataDog/datadog-agent/comp/core/remoteagent/fx-process"
 	settings "github.com/DataDog/datadog-agent/comp/core/settings/def"
 	settingsfx "github.com/DataDog/datadog-agent/comp/core/settings/fx"
-	"github.com/DataDog/datadog-agent/comp/core/status"
-	coreStatusImpl "github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
+	status "github.com/DataDog/datadog-agent/comp/core/status/def"
+	coreStatusFx "github.com/DataDog/datadog-agent/comp/core/status/fx"
 	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	sysprobeconfigimpl "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/impl"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -154,7 +154,7 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 
 		// Provide status modules
 		processstatusfx.Module(),
-		coreStatusImpl.Module(),
+		coreStatusFx.Module(),
 
 		// Provide statsd client module
 		compstatsdFx.Module(),

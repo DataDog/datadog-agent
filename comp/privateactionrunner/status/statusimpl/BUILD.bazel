@@ -11,7 +11,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",
-        "//comp/core/status",
+        "//comp/core/status/def",
         "//comp/privateactionrunner/def",
         "//pkg/privateactionrunner/adapters/config",
         "//pkg/util/flavor",

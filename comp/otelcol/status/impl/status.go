@@ -20,7 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
-	statusComponent "github.com/DataDog/datadog-agent/comp/core/status"
+	statusComponent "github.com/DataDog/datadog-agent/comp/core/status/def"
 	ddflareextensiontypes "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/types"
 	status "github.com/DataDog/datadog-agent/comp/otelcol/status/def"
 	"github.com/DataDog/datadog-agent/pkg/util/hostport"

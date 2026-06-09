@@ -12,7 +12,7 @@ import (
 	"expvar"
 	"io"
 
-	"github.com/DataDog/datadog-agent/comp/core/status"
+	status "github.com/DataDog/datadog-agent/comp/core/status/def"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	trapsStatus "github.com/DataDog/datadog-agent/comp/snmptraps/status/def"
 )

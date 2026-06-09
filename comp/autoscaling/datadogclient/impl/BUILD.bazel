@@ -16,7 +16,7 @@ go_library(
         "//comp/autoscaling/datadogclient/def",
         "//comp/core/config",
         "//comp/core/log/def",
-        "//comp/core/status",
+        "//comp/core/status/def",
         "//pkg/config/model",
         "//pkg/config/structure",
         "//pkg/config/utils",

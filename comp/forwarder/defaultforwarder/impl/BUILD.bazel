@@ -26,7 +26,7 @@ go_library(
         "//comp/core/log/def",
         "//comp/core/secrets/def",
         "//comp/core/secrets/noop-impl/types",
-        "//comp/core/status",
+        "//comp/core/status/def",
         "//comp/core/telemetry/def",
         "//comp/core/telemetry/impl",
         "//comp/def",

@@ -15,7 +15,7 @@ import (
 	checkstats "github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/core/status"
+	status "github.com/DataDog/datadog-agent/comp/core/status/def"
 )
 
 //go:embed status_templates

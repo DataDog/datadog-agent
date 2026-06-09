@@ -12,7 +12,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/core/status",
+        "//comp/core/status/def",
         "//comp/core/telemetry/def",
         "//comp/core/telemetry/impl",
         "//internal/third_party/client-go/tools/leaderelection/resourcelock",

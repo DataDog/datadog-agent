@@ -80,7 +80,7 @@ func TextFmap() pkgtexttemplate.FuncMap {
 			"toUnsortedList":      toUnsortedList,
 			"formatTitle":         formatTitle,
 			"add":                 add,
-			"status":              status,
+			"status":              statusText,
 			"redText":             redText,
 			"yellowText":          yellowText,
 			"greenText":           greenText,
@@ -313,7 +313,7 @@ func formatTitle(title string) string {
 	return strings.ToUpper(string(title[0])) + title[1:]
 }
 
-func status(check map[string]interface{}) string {
+func statusText(check map[string]interface{}) string {
 	if check["LastError"].(string) != "" {
 		return fmt.Sprintf("[%s]", color.RedString("ERROR"))
 	}
@@ -336,22 +336,22 @@ func complianceResult(result string) string {
 	}
 }
 
-// Renders the message in a red color
+// redText renders the message in a red color
 func redText(message string) string {
 	return color.RedString(message)
 }
 
-// Renders the message in a yellow color
+// yellowText renders the message in a yellow color
 func yellowText(message string) string {
 	return color.YellowString(message)
 }
 
-// Renders the message in a green color
+// greenText renders the message in a green color
 func greenText(message string) string {
 	return color.GreenString(message)
 }
 
-// Tells if the ntp offset may be too large, resulting in metrics
+// ntpWarning tells if the ntp offset may be too large, resulting in metrics
 // from the agent being dropped by metrics-intake
 func ntpWarning(ntpOffset float64) bool {
 	// Negative offset => clock is in the future, 10 minutes (600s) allowed

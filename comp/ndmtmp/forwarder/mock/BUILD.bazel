@@ -6,9 +6,9 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/ndmtmp/forwarder/mock",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/forwarder/eventplatform/impl",
         "//comp/ndmtmp/forwarder/def",
         "//pkg/util/fxutil",
+        "@//comp/forwarder/eventplatform/impl",
         "@org_uber_go_fx//:fx",
         "@org_uber_go_mock//gomock",
     ],

@@ -143,6 +143,9 @@ exports_files(glob(
 # gazelle:exclude comp/core/profiler/impl
 # gazelle:exclude comp/core/remoteagentregistry/fx
 # gazelle:exclude comp/core/remoteagentregistry/impl
+# gazelle:exclude comp/core/status/fx
+# gazelle:exclude comp/core/status/impl
+# gazelle:exclude comp/core/status/mock
 # gazelle:exclude comp/core/sysprobeconfig/sysprobeconfigimpl
 # gazelle:exclude comp/core/tagger/fx
 # gazelle:exclude comp/core/tagger/fx-dual
@@ -178,6 +181,10 @@ exports_files(glob(
 # gazelle:exclude comp/dogstatsd/server/mock
 # gazelle:exclude comp/dogstatsd/status/fx
 # gazelle:exclude comp/dogstatsd/status/impl
+# gazelle:exclude comp/fleetstatus
+# gazelle:exclude comp/forwarder/eventplatform/fx
+# gazelle:exclude comp/forwarder/eventplatform/impl
+# gazelle:exclude comp/forwarder/eventplatform/mock
 # gazelle:exclude comp/forwarder/orchestrator/orchestratorimpl
 # gazelle:exclude comp/haagent/fx
 # gazelle:exclude comp/haagent/impl
@@ -246,6 +253,9 @@ exports_files(glob(
 # gazelle:exclude comp/otelcol/converter/examples
 # gazelle:exclude comp/otelcol/ddflareextension/image
 # gazelle:exclude comp/otelcol/otlp/integrationtest
+# gazelle:exclude comp/otelcol/otlp/internal
+# gazelle:exclude comp/otelcol/status/fx
+# gazelle:exclude comp/otelcol/status/impl
 # gazelle:exclude comp/privateactionrunner/fx
 # gazelle:exclude comp/privateactionrunner/impl
 # gazelle:exclude comp/process/agent/*.go
@@ -292,6 +302,8 @@ exports_files(glob(
 # gazelle:exclude comp/trace/config/fx
 # gazelle:exclude comp/trace/config/impl
 # gazelle:exclude comp/trace/config/mock
+# gazelle:exclude comp/trace/status
+# gazelle:exclude pkg/aggregator/mocksender
 # gazelle:exclude pkg/cli/subcommands/autoscalerlist
 # gazelle:exclude pkg/cli/subcommands/check
 # gazelle:exclude pkg/cli/subcommands/clusterchecks
@@ -549,6 +561,12 @@ exports_files(glob(
 # gazelle:exclude pkg/serverless/trace/trace_test.go
 # gazelle:exclude pkg/serverless/trace/trace.go
 # gazelle:exclude pkg/status/clusteragent
+# gazelle:exclude pkg/status/collector
+# gazelle:exclude pkg/status/endpoints
+# gazelle:exclude pkg/status/httpproxy
+# gazelle:exclude pkg/status/jmx
+# gazelle:exclude pkg/status/render
+# gazelle:exclude pkg/status/systemprobe
 # gazelle:exclude pkg/system-probe/api/client/check_test.go
 # gazelle:exclude pkg/system-probe/api/module
 # gazelle:exclude pkg/util/crashreport

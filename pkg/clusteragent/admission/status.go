@@ -17,7 +17,7 @@ import (
 	"strconv"
 	"sync/atomic"
 
-	"github.com/DataDog/datadog-agent/comp/core/status"
+	status "github.com/DataDog/datadog-agent/comp/core/status/def"
 	admprobe "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/probe"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"

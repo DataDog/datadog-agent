@@ -27,11 +27,11 @@ go_library(
         "//pkg/config/setup",
         "//pkg/config/utils",
         "//pkg/status/health",
-        "//pkg/status/jmx",
         "//pkg/util/cache",
         "//pkg/util/defaultpaths",
         "//pkg/util/log",
         "//pkg/util/net",
+        "@//pkg/status/jmx",
         "@in_yaml_go_yaml_v2//:yaml",
     ],
 )

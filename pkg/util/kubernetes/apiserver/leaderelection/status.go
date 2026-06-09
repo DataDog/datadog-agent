@@ -13,7 +13,7 @@ import (
 	"io"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/status"
+	status "github.com/DataDog/datadog-agent/comp/core/status/def"
 )
 
 // Provider provides the functionality to populate the status output

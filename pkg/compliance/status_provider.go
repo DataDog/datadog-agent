@@ -12,7 +12,7 @@ import (
 	"expvar"
 	"io"
 
-	statusComp "github.com/DataDog/datadog-agent/comp/core/status"
+	statusComp "github.com/DataDog/datadog-agent/comp/core/status/def"
 )
 
 //go:embed status_templates
