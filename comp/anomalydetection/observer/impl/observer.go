@@ -163,6 +163,9 @@ type disabledObserver struct{}
 
 func (*disabledObserver) GetHandle(_ string) observerdef.Handle { return &noopObserveHandle{} }
 func (*disabledObserver) DumpMetrics(_ string) error            { return nil }
+func (*disabledObserver) SubscribeScorer(_ observerdef.AnomalyScorerConfiguration) func() {
+	return func() {}
+}
 
 // NewComponent creates an observer.Component.
 func NewComponent(deps Requires) Provides {
@@ -221,6 +224,17 @@ func NewComponent(deps Requires) Provides {
 	processingTimeGauge := th.telemetryGauges[telemetryDetectorProcessingTimeNs]
 	eng.onProcessingTime = func(detectorTag string, nanos float64) {
 		processingTimeGauge.Set(nanos, detectorTag)
+	}
+
+	// Register the built-in severity logger so every state transition is
+	// visible in the agent log and emitted as a telemetry gauge. Subscribes
+	// with a zero-value filter to receive all transitions.
+	if len(scorers) > 0 {
+		pkglog.Infof("[observer] subscribing anomaly severity logger to scorer %q", scorers[0].Name())
+		stateGauge := th.telemetryGauges[telemetryScorerState]
+		scorers[0].Subscribe(observerdef.AnomalyScorerConfiguration{
+			Listener: newAnomalySeverityLogger(stateGauge),
+		})
 	}
 
 	obs := &observerImpl{
@@ -595,6 +609,18 @@ func (o *observerImpl) DumpMetrics(path string) error {
 	// For simplicity, just dump directly (storage access is single-threaded from run loop,
 	// but this is a debug tool so approximate snapshot is fine)
 	return o.engine.Storage().DumpToFile(path)
+}
+
+// SubscribeScorer registers a scorer event listener described by cfg.
+// Delegates to the first (and currently only) engine scorer.
+func (o *observerImpl) SubscribeScorer(cfg observerdef.AnomalyScorerConfiguration) func() {
+	o.engine.mu.RLock()
+	scorers := o.engine.scorers
+	o.engine.mu.RUnlock()
+	if len(scorers) == 0 {
+		return func() {}
+	}
+	return scorers[0].Subscribe(cfg)
 }
 
 // --- DebugView implementation ---

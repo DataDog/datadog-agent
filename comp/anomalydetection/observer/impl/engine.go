@@ -596,6 +596,12 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []obse
 		if e.onProcessingTime != nil {
 			e.onProcessingTime(e.detectorTag(scorer.Name()), float64(time.Since(advanceStart).Nanoseconds()))
 		}
+		allTelemetry = append(allTelemetry, newTelemetryGauge(
+			[]string{"scorer:" + scorer.Name()},
+			telemetryScorerEWMA,
+			scorer.LastEWMA(),
+			upTo,
+		))
 	}
 
 	return advanceResult{

@@ -254,3 +254,138 @@ func TestEmptySeconds(t *testing.T) {
 		t.Errorf("expected empty gap buckets, got %v %v", st.Buckets[1], st.Buckets[2])
 	}
 }
+
+// TestScorerEventFilterMatches verifies ScorerEventFilter.Matches.
+func TestScorerEventFilterMatches(t *testing.T) {
+	lowToMedium := observer.SeverityEvent{FromLevel: observer.SeverityLow, ToLevel: observer.SeverityMedium}
+	mediumToLow := observer.SeverityEvent{FromLevel: observer.SeverityMedium, ToLevel: observer.SeverityLow}
+	lowToHigh := observer.SeverityEvent{FromLevel: observer.SeverityLow, ToLevel: observer.SeverityHigh}
+
+	cases := []struct {
+		name   string
+		filter observer.ScorerEventFilter
+		evt    observer.SeverityEvent
+		want   bool
+	}{
+		{"zero filter matches all", observer.ScorerEventFilter{}, lowToMedium, true},
+		{"ToLevels match", observer.ScorerEventFilter{ToLevels: []observer.SeverityLevel{observer.SeverityMedium}}, lowToMedium, true},
+		{"ToLevels no match", observer.ScorerEventFilter{ToLevels: []observer.SeverityLevel{observer.SeverityHigh}}, lowToMedium, false},
+		{"FromLevels match", observer.ScorerEventFilter{FromLevels: []observer.SeverityLevel{observer.SeverityLow}}, lowToMedium, true},
+		{"FromLevels no match", observer.ScorerEventFilter{FromLevels: []observer.SeverityLevel{observer.SeverityHigh}}, lowToMedium, false},
+		{"escalation passes up", observer.ScorerEventFilter{Direction: observer.ScorerEventEscalation}, lowToMedium, true},
+		{"escalation blocks down", observer.ScorerEventFilter{Direction: observer.ScorerEventEscalation}, mediumToLow, false},
+		{"deescalation passes down", observer.ScorerEventFilter{Direction: observer.ScorerEventDeescalation}, mediumToLow, true},
+		{"deescalation blocks up", observer.ScorerEventFilter{Direction: observer.ScorerEventDeescalation}, lowToMedium, false},
+		{"combined: ToLevel+escalation passes", observer.ScorerEventFilter{
+			ToLevels:  []observer.SeverityLevel{observer.SeverityHigh},
+			Direction: observer.ScorerEventEscalation,
+		}, lowToHigh, true},
+		{"combined: ToLevel+escalation blocks wrong to", observer.ScorerEventFilter{
+			ToLevels:  []observer.SeverityLevel{observer.SeverityMedium},
+			Direction: observer.ScorerEventEscalation,
+		}, lowToHigh, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := scorerEventFilterMatches(tc.filter, tc.evt)
+			if got != tc.want {
+				t.Errorf("Matches(%+v, %+v) = %v, want %v", tc.filter, tc.evt, got, tc.want)
+			}
+		})
+	}
+}
+
+// TestScorerSubscribeDelivers verifies that Subscribe dispatches transitions to listeners.
+func TestScorerSubscribeDelivers(t *testing.T) {
+	cfg := DefaultScorerConfig()
+	cfg.Alpha = 1.0 // instant EWMA for predictable transitions
+	s := NewScorer(cfg)
+
+	var received []observer.SeverityEvent
+	unsub := s.Subscribe(observer.AnomalyScorerConfiguration{
+		Listener: &collectingListener{events: &received},
+	})
+	defer unsub()
+
+	// First advance (no anomalies) seeds the state machine at Low — no event.
+	s.Advance(1000)
+	// Second advance with a high-weight anomaly drives EWMA above HighThreshold,
+	// triggering a Low→High escalation event.
+	s.ProcessAnomaly(makeAnomaly("holt_residual", 1001, scorePtr(50.0)))
+	s.Advance(1001)
+
+	if len(received) == 0 {
+		t.Fatal("expected at least one transition event, got none")
+	}
+}
+
+// TestScorerSubscribeFilter verifies that filtered subscriptions only receive matching events.
+func TestScorerSubscribeFilter(t *testing.T) {
+	cfg := DefaultScorerConfig()
+	cfg.Alpha = 1.0
+	s := NewScorer(cfg)
+
+	var allEvents []observer.SeverityEvent
+	var escalationsOnly []observer.SeverityEvent
+
+	s.Subscribe(observer.AnomalyScorerConfiguration{
+		Listener: &collectingListener{events: &allEvents},
+	})
+	s.Subscribe(observer.AnomalyScorerConfiguration{
+		Listener: &collectingListener{events: &escalationsOnly},
+		Filter:   observer.ScorerEventFilter{Direction: observer.ScorerEventEscalation},
+	})
+
+	// Seed state at Low, then trigger an escalation.
+	s.Advance(1000)
+	s.ProcessAnomaly(makeAnomaly("holt_residual", 1001, scorePtr(50.0)))
+	s.Advance(1001)
+
+	if len(allEvents) == 0 {
+		t.Fatal("all-events listener received nothing")
+	}
+	for _, evt := range escalationsOnly {
+		if evt.ToLevel <= evt.FromLevel {
+			t.Errorf("escalation-only listener received non-escalation: %+v", evt)
+		}
+	}
+}
+
+// TestScorerUnsubscribe verifies that calling the unsubscribe function stops delivery.
+func TestScorerUnsubscribe(t *testing.T) {
+	cfg := DefaultScorerConfig()
+	cfg.Alpha = 1.0
+	s := NewScorer(cfg)
+
+	var received []observer.SeverityEvent
+	unsub := s.Subscribe(observer.AnomalyScorerConfiguration{
+		Listener: &collectingListener{events: &received},
+	})
+
+	// Seed state at Low, then trigger a transition.
+	s.Advance(1000)
+	s.ProcessAnomaly(makeAnomaly("holt_residual", 1001, scorePtr(50.0)))
+	s.Advance(1001)
+	countAfterFirst := len(received)
+
+	unsub()
+
+	// Reset and trigger again — nothing should be delivered after unsubscribe.
+	s.Reset()
+	s.Advance(1002)
+	s.ProcessAnomaly(makeAnomaly("holt_residual", 1003, scorePtr(50.0)))
+	s.Advance(1003)
+
+	if len(received) != countAfterFirst {
+		t.Errorf("received events after unsubscribe: got %d, want %d", len(received), countAfterFirst)
+	}
+}
+
+// collectingListener is a test ScorerListener that appends received events.
+type collectingListener struct {
+	events *[]observer.SeverityEvent
+}
+
+func (l *collectingListener) OnSeverityTransition(evt observer.SeverityEvent) {
+	*l.events = append(*l.events, evt)
+}

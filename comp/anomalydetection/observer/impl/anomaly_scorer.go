@@ -132,6 +132,62 @@ type dedupKey struct {
 	seriesID string
 }
 
+// scorerEventFilterMatches reports whether evt satisfies all conditions of f.
+// A nil or empty slice in FromLevels / ToLevels means "any value".
+// The zero-value ScorerEventFilter matches every transition.
+func scorerEventFilterMatches(f observer.ScorerEventFilter, evt observer.SeverityEvent) bool {
+	if len(f.FromLevels) > 0 {
+		found := false
+		for _, l := range f.FromLevels {
+			if evt.FromLevel == l {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+	if len(f.ToLevels) > 0 {
+		found := false
+		for _, l := range f.ToLevels {
+			if evt.ToLevel == l {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+	switch f.Direction {
+	case observer.ScorerEventEscalation:
+		if evt.ToLevel <= evt.FromLevel {
+			return false
+		}
+	case observer.ScorerEventDeescalation:
+		if evt.ToLevel >= evt.FromLevel {
+			return false
+		}
+	}
+	return true
+}
+
+// scorerSubscription is a registered listener with its own per-subscription
+// state machine. Stored as a pointer so state mutations persist across the
+// snapshot copy taken inside Advance without holding subsMu during callbacks.
+type scorerSubscription struct {
+	cfg observer.AnomalyScorerConfiguration
+
+	// Per-subscription severity state machine — mirrors the global scorer's
+	// state machine but uses cfg.CooldownSecs as its cooldown parameter.
+	// This allows two subscriptions with different cooldowns to be in
+	// different severity states at the same time.
+	state            observer.SeverityLevel
+	lastStateEntryTs int64
+	stateInitialized bool
+}
+
 // anomalyScorer is the streaming implementation of observer.Scorer.
 //
 // Lifecycle:
@@ -161,6 +217,13 @@ type anomalyScorer struct {
 	// Accumulated telemetry
 	buckets []observer.ScoreBucket
 	events  []observer.SeverityEvent
+
+	// Subscriptions — guarded by subsMu, independent of mu so that listeners
+	// can be registered or removed while Advance is running.
+	// The slice holds pointers so per-subscription state (lastStateEntryTs)
+	// survives the snapshot copy taken inside Advance.
+	subsMu sync.RWMutex
+	subs   []*scorerSubscription
 }
 
 // NewScorer creates a new anomalyScorer with the given config.
@@ -177,6 +240,13 @@ func NewScorer(cfg observer.ScorerConfig) *anomalyScorer {
 
 func (s *anomalyScorer) Name() string { return "anomaly_scorer" }
 
+// LastEWMA returns the most recently computed EWMA score. Thread-safe.
+func (s *anomalyScorer) LastEWMA() float64 {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.ewma
+}
+
 // ProcessAnomaly buffers the anomaly into the pending map keyed by its second.
 func (s *anomalyScorer) ProcessAnomaly(a observer.Anomaly) {
 	s.mu.Lock()
@@ -185,11 +255,19 @@ func (s *anomalyScorer) ProcessAnomaly(a observer.Anomaly) {
 	s.pending[sec] = append(s.pending[sec], a)
 }
 
+// secEWMA is a (timestamp, ewma) pair produced by advanceSecond and used to
+// drive per-subscription state machines outside the scorer's mu lock.
+type secEWMA struct {
+	sec  int64
+	ewma float64
+}
+
 // Advance finalises all 1-second buckets from lastAdvancedSec+1 up to dataTime
-// (inclusive), running dedup → bucketing → EWMA → state machine for each.
+// (inclusive), running dedup → bucketing → EWMA → global state machine for each.
+// After releasing mu, each subscription's own state machine is advanced with
+// the same EWMA values and calls its listener on any resulting transition.
 func (s *anomalyScorer) Advance(dataTime int64) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 
 	start := s.lastAdvancedSec + 1
 	if s.lastAdvancedSec == 0 {
@@ -203,14 +281,93 @@ func (s *anomalyScorer) Advance(dataTime int64) {
 		}
 	}
 
+	// Collect per-second EWMA values to feed subscription state machines later.
+	ewmas := make([]secEWMA, 0, int(dataTime-start+1))
 	for sec := start; sec <= dataTime; sec++ {
-		s.advanceSecond(sec)
+		ewma := s.advanceSecond(sec)
+		ewmas = append(ewmas, secEWMA{sec: sec, ewma: ewma})
 	}
 	s.lastAdvancedSec = dataTime
+	cfg := s.config // snapshot for subscription state machines
+
+	s.mu.Unlock()
+
+	// Drive each subscription's independent state machine outside the lock so
+	// listeners can safely call back into the scorer without deadlocking.
+	s.subsMu.RLock()
+	subs := make([]*scorerSubscription, len(s.subs))
+	copy(subs, s.subs)
+	s.subsMu.RUnlock()
+
+	for _, sub := range subs {
+		for _, se := range ewmas {
+			if evt, ok := sub.advance(se.sec, se.ewma, cfg); ok {
+				if scorerEventFilterMatches(sub.cfg.Filter, evt) {
+					sub.cfg.Listener.OnSeverityTransition(evt)
+				}
+			}
+		}
+	}
 }
 
-// advanceSecond processes a single second, updating all state. Must be called with mu held.
-func (s *anomalyScorer) advanceSecond(sec int64) {
+// advance runs the subscription's own severity state machine for one second.
+// Returns the transition event and true if a qualifying transition occurred.
+func (sub *scorerSubscription) advance(sec int64, ewma float64, cfg observer.ScorerConfig) (observer.SeverityEvent, bool) {
+	margin := cfg.HighThreshold * cfg.MarginPct
+
+	if !sub.stateInitialized {
+		sub.state = rawSeverityLevel(ewma, cfg.LowThreshold, cfg.HighThreshold)
+		sub.stateInitialized = true
+		return observer.SeverityEvent{}, false
+	}
+
+	next := nextSeverityLevel(ewma, sub.state, cfg.LowThreshold, cfg.HighThreshold, margin)
+	if next == sub.state {
+		return observer.SeverityEvent{}, false
+	}
+
+	// Apply per-subscription cooldown on de-escalations.
+	cooldown := sub.cfg.CooldownSecs
+	if next < sub.state && sec-sub.lastStateEntryTs < cooldown {
+		return observer.SeverityEvent{}, false
+	}
+
+	evt := observer.SeverityEvent{
+		Timestamp: sec,
+		FromLevel: sub.state,
+		ToLevel:   next,
+		Direction: severityDirection(sub.state, next),
+	}
+	sub.state = next
+	sub.lastStateEntryTs = sec
+	return evt, true
+}
+
+// Subscribe registers cfg.Listener to receive severity transitions matching
+// cfg.Filter. Each subscription runs its own state machine using cfg.CooldownSecs.
+// Returns an unsubscribe function. Safe to call concurrently.
+func (s *anomalyScorer) Subscribe(cfg observer.AnomalyScorerConfiguration) func() {
+	sub := &scorerSubscription{cfg: cfg}
+
+	s.subsMu.Lock()
+	s.subs = append(s.subs, sub)
+	s.subsMu.Unlock()
+
+	return func() {
+		s.subsMu.Lock()
+		defer s.subsMu.Unlock()
+		for i, existing := range s.subs {
+			if existing == sub {
+				s.subs = append(s.subs[:i], s.subs[i+1:]...)
+				return
+			}
+		}
+	}
+}
+
+// advanceSecond processes a single second, updating all state. Must be called
+// with mu held. Returns the resulting EWMA value for the second.
+func (s *anomalyScorer) advanceSecond(sec int64) float64 {
 	anomalies := s.pending[sec]
 	delete(s.pending, sec)
 
@@ -277,26 +434,36 @@ func (s *anomalyScorer) advanceSecond(sec int64) {
 		// Seed the initial state from the raw EWMA value (no hysteresis).
 		s.state = rawSeverityLevel(v, s.config.LowThreshold, s.config.HighThreshold)
 		s.stateInitialized = true
-		return
+		return s.ewma
 	}
 
 	next := nextSeverityLevel(v, s.state, s.config.LowThreshold, s.config.HighThreshold, margin)
 	if next == s.state {
-		return
+		return s.ewma
 	}
 
 	// Suppress decrease transitions during cooldown.
 	if next < s.state && sec-s.lastStateEntryTs < s.config.CooldownSecs {
-		return
+		return s.ewma
 	}
 
 	s.events = append(s.events, observer.SeverityEvent{
 		Timestamp: sec,
 		FromLevel: s.state,
 		ToLevel:   next,
+		Direction: severityDirection(s.state, next),
 	})
 	s.state = next
 	s.lastStateEntryTs = sec
+	return s.ewma
+}
+
+// severityDirection returns the direction of a state-machine transition.
+func severityDirection(from, to observer.SeverityLevel) observer.ScorerEventDirection {
+	if to > from {
+		return observer.ScorerEventEscalation
+	}
+	return observer.ScorerEventDeescalation
 }
 
 // rawSeverityLevel returns the initial severity level using bare thresholds (no hysteresis).

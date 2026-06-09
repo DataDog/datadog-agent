@@ -370,6 +370,9 @@ type SeverityEvent struct {
 	FromLevel SeverityLevel `json:"from_level"`
 	// ToLevel is the state after the transition.
 	ToLevel SeverityLevel `json:"to_level"`
+	// Direction is ScorerEventEscalation when ToLevel > FromLevel, and
+	// ScorerEventDeescalation when ToLevel < FromLevel.
+	Direction ScorerEventDirection `json:"direction"`
 }
 
 // ScoreState is the full snapshot of the scorer's current state.
@@ -378,6 +381,53 @@ type ScoreState struct {
 	Buckets []ScoreBucket   `json:"buckets"`
 	Events  []SeverityEvent `json:"events"`
 	Config  ScorerConfig    `json:"config"`
+}
+
+// ScorerListener receives severity state-machine transitions from the scorer.
+type ScorerListener interface {
+	OnSeverityTransition(event SeverityEvent)
+}
+
+// ScorerEventDirection restricts a subscription to escalations, de-escalations,
+// or both directions.
+type ScorerEventDirection int
+
+const (
+	// ScorerEventBoth delivers transitions in either direction (default).
+	ScorerEventBoth ScorerEventDirection = 0
+	// ScorerEventEscalation delivers only transitions where ToLevel > FromLevel.
+	ScorerEventEscalation ScorerEventDirection = 1
+	// ScorerEventDeescalation delivers only transitions where ToLevel < FromLevel.
+	ScorerEventDeescalation ScorerEventDirection = 2
+)
+
+// ScorerEventFilter selects which SeverityEvents are delivered to a listener.
+// All conditions are ANDed; a nil or empty slice means "any value".
+// The zero value ScorerEventFilter{} matches every transition.
+type ScorerEventFilter struct {
+	// FromLevels restricts to events whose FromLevel is in the set.
+	FromLevels []SeverityLevel
+	// ToLevels restricts to events whose ToLevel is in the set.
+	ToLevels []SeverityLevel
+	// Direction restricts by escalation or de-escalation.
+	Direction ScorerEventDirection
+}
+
+// AnomalyScorerConfiguration is the single object passed to SubscribeScorer
+// when registering a listener. It bundles who to call (Listener), which
+// transitions to deliver (Filter), and per-subscription state-machine tuning.
+type AnomalyScorerConfiguration struct {
+	// Listener is called for each matching severity transition. Required.
+	Listener ScorerListener
+	// Filter controls which transitions are delivered.
+	// Zero value ScorerEventFilter{} delivers all transitions.
+	Filter ScorerEventFilter
+	// CooldownSecs is the minimum number of seconds that must elapse after a
+	// delivered transition before a downward transition (de-escalation) can be
+	// delivered again. This gives each subscription its own state-machine
+	// cooldown, independent of the global scorer cooldown.
+	// Zero means no cooldown (every matching transition is delivered).
+	CooldownSecs int64
 }
 
 // Scorer computes a smoothed anomaly intensity signal and derives severity
@@ -392,10 +442,16 @@ type Scorer interface {
 	// EWMA + state-machine update for that second. Callers must invoke this
 	// after each 1-second detection cycle.
 	Advance(dataTime int64)
+	// LastEWMA returns the most recently computed EWMA score. Returns 0
+	// before the first Advance call.
+	LastEWMA() float64
 	// ScoreState returns the accumulated telemetry (all buckets + events so far).
 	ScoreState() ScoreState
 	// Reset clears all internal state for reanalysis.
 	Reset()
+	// Subscribe registers a listener to receive severity transitions matching cfg.Filter.
+	// Returns an unsubscribe function. Safe to call concurrently with Advance.
+	Subscribe(cfg AnomalyScorerConfiguration) func()
 }
 
 // Reporter receives reports and displays or delivers them.
