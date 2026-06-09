@@ -114,8 +114,10 @@ func newTestStore(t *testing.T) *healthPlatformImpl {
 		hostnameProvider: &mockHostname{name: "test-host"},
 		agentFlavor:      "agent",
 		issues:           make(map[string]*healthplatformpayload.Issue),
-		issuesByName:     make(map[string]map[string]struct{}),
+		issuesByName:     make(map[string][]string),
 		persistedIssues:  make(map[string]*PersistedIssue),
+		extraJSON:        make(map[string]json.RawMessage),
+		remediationJSON:  make(map[string]json.RawMessage),
 		persistence:      &memPersistence{},
 		metrics: telemetryMetrics{
 			issuesCounter: tel.NewCounter(
@@ -391,8 +393,10 @@ func TestTelemetryCounterIncrements(t *testing.T) {
 		hostnameProvider: &mockHostname{name: "test-host"},
 		agentFlavor:      "agent",
 		issues:           make(map[string]*healthplatformpayload.Issue),
-		issuesByName:     make(map[string]map[string]struct{}),
+		issuesByName:     make(map[string][]string),
 		persistedIssues:  make(map[string]*PersistedIssue),
+		extraJSON:        make(map[string]json.RawMessage),
+		remediationJSON:  make(map[string]json.RawMessage),
 		persistence:      &memPersistence{},
 		metrics:          telemetryMetrics{issuesCounter: counter},
 	}

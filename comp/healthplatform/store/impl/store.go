@@ -51,28 +51,28 @@ type Provides struct {
 	FlareProvider flaretypes.Provider
 }
 
-// healthPlatformImpl implements the health platform component
-// It aggregates health issues reported by various agent components and integrations.
-// The component provides methods to report issues, retrieve them, and manage the health monitoring lifecycle.
+// healthPlatformImpl implements the health platform component.
 type healthPlatformImpl struct {
 	// Core dependencies
-	config           config.Component            // Config component for accessing configuration
-	log              log.Component               // Logger for health platform operations
-	telemetry        telemetry.Component         // Telemetry component for metrics collection
-	hostnameProvider hostnameinterface.Component // Hostname provider for runtime resolution
-	agentFlavor      string                      // Agent flavor captured at construction time
+	config           config.Component
+	log              log.Component
+	telemetry        telemetry.Component
+	hostnameProvider hostnameinterface.Component
+	agentFlavor      string
 
-	// Issue tracking
+	// Issue tracking: lean proto (no Extra/Remediation in hot path)
 	issues       map[string]*healthplatform.Issue // IssueID → active Issue
-	issuesByName map[string]map[string]struct{}   // IssueName → set of active IssueIDs
-	issuesMux    sync.RWMutex                     // Mutex for thread-safe access to issues
+	issuesByName map[string][]string              // IssueName → active IssueIDs
+	issuesMux    sync.RWMutex
 
-	// Persistence
-	persistedIssues map[string]*PersistedIssue // Persisted issues with status tracking
-	persistence     issuesPersistence          // Persistence strategy (disk or noop)
+	// Persistence: slim state metadata + separate JSON maps for lazy hydration
+	persistedIssues map[string]*PersistedIssue  // IssueID → lifecycle state
+	extraJSON       map[string]json.RawMessage   // IssueID → Extra as raw JSON
+	remediationJSON map[string]json.RawMessage   // IssueID → Remediation as raw JSON
+	persistence     issuesPersistence
 
 	// Metrics
-	metrics telemetryMetrics // Telemetry metrics for health platform
+	metrics telemetryMetrics
 }
 
 type telemetryMetrics struct {
@@ -110,36 +110,30 @@ func issueStateFromString(s string) IssueState {
 	return 0
 }
 
-// pruneOldResolvedIssues removes resolved issues older than resolvedIssueTTL from the given map.
-// It modifies the map in place.
-func pruneOldResolvedIssues(issues map[string]*PersistedIssue) {
-	now := time.Now()
-	for checkID, persisted := range issues {
-		if persisted == nil || persisted.State != IssueStateResolved || persisted.ResolvedAt == "" {
-			continue
-		}
-		resolvedAt, err := time.Parse(time.RFC3339, persisted.ResolvedAt)
-		if err != nil {
-			continue
-		}
-		if now.Sub(resolvedAt) > resolvedIssueTTL {
-			delete(issues, checkID)
-		}
-	}
+// PersistedIssue tracks the lifecycle state of an issue in memory.
+// Proto payload fields (Title, Description, Extra, Remediation, etc.) are not stored here;
+// active issues carry them in h.issues, and Extra/Remediation live in h.extraJSON /
+// h.remediationJSON for lazy hydration at read time.
+type PersistedIssue struct {
+	IssueType  string
+	State      IssueState
+	FirstSeen  string
+	LastSeen   string
+	ResolvedAt string
 }
 
-// PersistedIssue tracks issue state for disk persistence.
-// Custom JSON marshaling keeps the on-disk state field as a string.
-// The proto fields (Title through Remediation) are populated on every write so
-// that issues can be fully restored on restart without re-running the template.
-type PersistedIssue struct {
-	IssueType  string     `json:"issue_type"`
-	State      IssueState `json:"state"`
-	FirstSeen  string     `json:"first_seen"`
-	LastSeen   string     `json:"last_seen"`
-	ResolvedAt string     `json:"resolved_at,omitempty"`
-
-	// Proto fields — mirror of healthplatform.Issue, written on every ReportIssue.
+// diskIssue is the on-disk representation of a single issue. It is a superset of
+// PersistedIssue: proto payload fields are included so that active issues can be fully
+// restored after an agent restart without re-running health checks.
+// Custom JSON marshaling keeps the state field as a human-readable string.
+// The on-disk JSON schema is identical to the former PersistedIssue, so no version bump
+// is needed.
+type diskIssue struct {
+	IssueType   string          `json:"issue_type"`
+	State       IssueState      `json:"state"`
+	FirstSeen   string          `json:"first_seen"`
+	LastSeen    string          `json:"last_seen"`
+	ResolvedAt  string          `json:"resolved_at,omitempty"`
 	IssueName   string          `json:"issue_name,omitempty"`
 	Title       string          `json:"title,omitempty"`
 	Description string          `json:"description,omitempty"`
@@ -152,36 +146,34 @@ type PersistedIssue struct {
 	Remediation json.RawMessage `json:"remediation,omitempty"`
 }
 
-// MarshalJSON converts the proto IssueState enum to its string representation for disk.
-func (p *PersistedIssue) MarshalJSON() ([]byte, error) {
-	type Alias PersistedIssue
+func (d *diskIssue) MarshalJSON() ([]byte, error) {
+	type Alias diskIssue
 	return json.Marshal(&struct {
 		*Alias
 		State string `json:"state"`
 	}{
-		Alias: (*Alias)(p),
-		State: issueStateToString[p.State],
+		Alias: (*Alias)(d),
+		State: issueStateToString[d.State],
 	})
 }
 
-// UnmarshalJSON parses the string state from disk back to the proto enum.
-func (p *PersistedIssue) UnmarshalJSON(data []byte) error {
-	type Alias PersistedIssue
+func (d *diskIssue) UnmarshalJSON(data []byte) error {
+	type Alias diskIssue
 	aux := &struct {
 		*Alias
 		State string `json:"state"`
 	}{
-		Alias: (*Alias)(p),
+		Alias: (*Alias)(d),
 	}
 	if err := json.Unmarshal(data, aux); err != nil {
 		return err
 	}
-	p.State = issueStateFromString(aux.State)
+	d.State = issueStateFromString(aux.State)
 	return nil
 }
 
-// persistedIssueToProto converts a local PersistedIssue to the proto PersistedIssue
-// used in the Issue payload. The proto type uses *string for ResolvedAt.
+// persistedIssueToProto converts a PersistedIssue to the proto PersistedIssue embedded
+// in Issue payloads. The proto type uses *string for ResolvedAt.
 func persistedIssueToProto(p *PersistedIssue) *healthplatform.PersistedIssue {
 	pi := &healthplatform.PersistedIssue{
 		State:     p.State,
@@ -195,22 +187,56 @@ func persistedIssueToProto(p *PersistedIssue) *healthplatform.PersistedIssue {
 }
 
 // PersistedState is the full state written to disk.
-// Version must equal persistedStateVersion; files with a different version
-// are logged and ignored on load (no migration).
+// Version must equal persistedStateVersion; files with a different version are ignored on load.
 type PersistedState struct {
-	Version   int                        `json:"version"`
-	UpdatedAt string                     `json:"updated_at"`
-	Issues    map[string]*PersistedIssue `json:"issues"`
+	Version   int                   `json:"version"`
+	UpdatedAt string                `json:"updated_at"`
+	Issues    map[string]*diskIssue `json:"issues"`
+}
+
+// pruneOldResolvedIssues removes resolved issues older than resolvedIssueTTL from the map.
+func pruneOldResolvedIssues(issues map[string]*diskIssue) {
+	now := time.Now()
+	for id, d := range issues {
+		if d == nil || d.State != IssueStateResolved || d.ResolvedAt == "" {
+			continue
+		}
+		resolvedAt, err := time.Parse(time.RFC3339, d.ResolvedAt)
+		if err != nil {
+			continue
+		}
+		if now.Sub(resolvedAt) > resolvedIssueTTL {
+			delete(issues, id)
+		}
+	}
+}
+
+// appendUnique appends id to ids only if not already present.
+func appendUnique(ids []string, id string) []string {
+	for _, existing := range ids {
+		if existing == id {
+			return ids
+		}
+	}
+	return append(ids, id)
+}
+
+// removeID removes the first occurrence of id from ids.
+func removeID(ids []string, id string) []string {
+	for i, existing := range ids {
+		if existing == id {
+			return append(ids[:i], ids[i+1:]...)
+		}
+	}
+	return ids
 }
 
 // ============================================================================
 // Constructor
 // ============================================================================
 
-// NewComponent creates a new health-platform component
-// It initializes the component with its dependencies and configures telemetry metrics.
+// NewComponent creates a new health-platform component.
 func NewComponent(reqs Requires) (Provides, error) {
-	// Check if health platform is enabled
 	if !reqs.Config.GetBool("health_platform.enabled") {
 		reqs.Log.Info("Health platform component is disabled")
 		noop := noopimpl.NewNoopHealthPlatform()
@@ -229,8 +255,6 @@ func NewComponent(reqs Requires) (Provides, error) {
 
 	// Select persistence strategy: noop on Kubernetes (emptyDir makes disk persistence meaningless),
 	// disk-based elsewhere so issues survive agent restarts.
-	// Operators who mount run_path as a durable volume (hostPath, PVC) can opt in to disk
-	// persistence on Kubernetes by setting health_platform.persist_on_kubernetes: true.
 	var persistence issuesPersistence
 	persistOnKubernetes := reqs.Config.GetBool("health_platform.persist_on_kubernetes")
 	if configenv.IsKubernetes() && !persistOnKubernetes {
@@ -242,32 +266,28 @@ func NewComponent(reqs Requires) (Provides, error) {
 		persistence = newDiskPersistence(persistencePath, reqs.Log)
 	}
 
-	// Initialize the health platform implementation
 	comp := &healthPlatformImpl{
-		// Core dependencies
 		config:           reqs.Config,
 		log:              reqs.Log,
 		telemetry:        reqs.Telemetry,
 		hostnameProvider: reqs.Hostname,
 		agentFlavor:      flavor.GetFlavor(),
 
-		// Issue tracking
 		issues:       make(map[string]*healthplatform.Issue),
-		issuesByName: make(map[string]map[string]struct{}),
+		issuesByName: make(map[string][]string),
 		issuesMux:    sync.RWMutex{},
 
-		// Persistence
 		persistedIssues: make(map[string]*PersistedIssue),
+		extraJSON:       make(map[string]json.RawMessage),
+		remediationJSON: make(map[string]json.RawMessage),
 		persistence:     persistence,
 	}
 
-	// Register lifecycle hooks for component start/stop
 	reqs.Lifecycle.Append(compdef.Hook{
 		OnStart: comp.start,
 		OnStop:  comp.stop,
 	})
 
-	// Initialize telemetry metrics
 	comp.metrics = telemetryMetrics{
 		issuesCounter: reqs.Telemetry.NewCounter(
 			"health_platform",
@@ -277,7 +297,6 @@ func NewComponent(reqs Requires) (Provides, error) {
 		),
 	}
 
-	// Return the component wrapped in Provides with API endpoints.
 	return Provides{
 		Comp: comp,
 		APIGetIssues: api.NewAgentEndpointProvider(
@@ -293,19 +312,14 @@ func NewComponent(reqs Requires) (Provides, error) {
 // Lifecycle Methods
 // ============================================================================
 
-// start starts the health platform component
 func (h *healthPlatformImpl) start(_ context.Context) error {
 	h.log.Info("Starting health platform component")
-
-	// Load persisted issues from disk
 	if err := h.loadFromDisk(); err != nil {
 		h.log.Warn("Failed to load persisted issues: " + err.Error())
 	}
-
 	return nil
 }
 
-// stop stops the health platform component
 func (h *healthPlatformImpl) stop(_ context.Context) error {
 	h.log.Info("Stopping health platform component")
 	return nil
@@ -315,10 +329,7 @@ func (h *healthPlatformImpl) stop(_ context.Context) error {
 // Core Public API
 // ============================================================================
 
-// ReportIssue records a new or ongoing issue keyed by issue.Id. The caller is
-// responsible for building the complete proto Issue (template lookup, field
-// population). issue.IssueName is used as the issue-type key for telemetry and
-// persistence.
+// ReportIssue records a new or ongoing issue keyed by issue.Id.
 func (h *healthPlatformImpl) ReportIssue(issue *healthplatform.Issue) error {
 	if issue == nil {
 		return errors.New("issue cannot be nil")
@@ -343,20 +354,17 @@ func (h *healthPlatformImpl) ReportIssue(issue *healthplatform.Issue) error {
 // Query Methods
 // ============================================================================
 
-// GetAllIssues returns the count and all issues from all checks (indexed by check ID)
+// GetAllIssues returns the count and all issues from all checks (indexed by check ID).
 func (h *healthPlatformImpl) GetAllIssues() (int, map[string]*healthplatform.Issue) {
 	h.issuesMux.RLock()
 	defer h.issuesMux.RUnlock()
 
-	// Create a copy to avoid external modifications and count issues
 	count := 0
 	result := make(map[string]*healthplatform.Issue)
 	for checkID, issue := range h.issues {
 		if issue != nil {
 			clone := proto.Clone(issue).(*healthplatform.Issue)
-			if persisted := h.persistedIssues[checkID]; persisted != nil {
-				h.hydrateIssue(clone, persisted)
-			}
+			h.hydrateIssue(clone)
 			result[checkID] = clone
 			count++
 		} else {
@@ -366,7 +374,7 @@ func (h *healthPlatformImpl) GetAllIssues() (int, map[string]*healthplatform.Iss
 	return count, result
 }
 
-// GetIssue returns the issue for a specific check (nil if no issue)
+// GetIssue returns the issue for a specific check (nil if no issue).
 func (h *healthPlatformImpl) GetIssue(checkID string) *healthplatform.Issue {
 	h.issuesMux.RLock()
 	defer h.issuesMux.RUnlock()
@@ -375,28 +383,24 @@ func (h *healthPlatformImpl) GetIssue(checkID string) *healthplatform.Issue {
 	if issue == nil {
 		return nil
 	}
-
 	clone := proto.Clone(issue).(*healthplatform.Issue)
-	if persisted := h.persistedIssues[checkID]; persisted != nil {
-		h.hydrateIssue(clone, persisted)
-	}
+	h.hydrateIssue(clone)
 	return clone
 }
 
-// hydrateIssue populates issue.Extra and issue.Remediation from the raw JSON in persisted.
-// The hot store keeps issues without these fields to avoid retaining structpb heap boxes;
-// they are reconstructed on demand at read time (egress, HTTP API).
-func (h *healthPlatformImpl) hydrateIssue(issue *healthplatform.Issue, persisted *PersistedIssue) {
-	if len(persisted.Extra) > 0 {
+// hydrateIssue populates Extra and Remediation on a cloned issue from the JSON maps.
+// The hot store keeps issues without these fields; they are reconstructed on demand at read time.
+func (h *healthPlatformImpl) hydrateIssue(issue *healthplatform.Issue) {
+	if raw := h.extraJSON[issue.Id]; len(raw) > 0 {
 		issue.Extra = &structpb.Struct{}
-		if err := json.Unmarshal(persisted.Extra, issue.Extra); err != nil {
+		if err := json.Unmarshal(raw, issue.Extra); err != nil {
 			h.log.Warnf("health platform: failed to hydrate Extra for issue %s: %v", issue.Id, err)
 			issue.Extra = nil
 		}
 	}
-	if len(persisted.Remediation) > 0 {
+	if raw := h.remediationJSON[issue.Id]; len(raw) > 0 {
 		issue.Remediation = &healthplatform.Remediation{}
-		if err := json.Unmarshal(persisted.Remediation, issue.Remediation); err != nil {
+		if err := json.Unmarshal(raw, issue.Remediation); err != nil {
 			h.log.Warnf("health platform: failed to hydrate Remediation for issue %s: %v", issue.Id, err)
 			issue.Remediation = nil
 		}
@@ -407,32 +411,27 @@ func (h *healthPlatformImpl) hydrateIssue(issue *healthplatform.Issue, persisted
 // Clear Methods
 // ============================================================================
 
-// ResolveIssue clears the issue for a specific check (useful when issue is resolved)
+// ResolveIssue marks an issue as resolved and removes it from the active set.
 func (h *healthPlatformImpl) ResolveIssue(issueID string) {
 	h.issuesMux.Lock()
 
-	// Only log and update persistence if there was actually an issue to clear
 	existed := false
 	if _, ok := h.issues[issueID]; ok {
 		existed = true
 		h.log.Info("Cleared issue: " + issueID)
 	}
 	delete(h.issues, issueID)
+	delete(h.extraJSON, issueID)
+	delete(h.remediationJSON, issueID)
 
-	// Remove from name index
 	if persisted := h.persistedIssues[issueID]; persisted != nil {
-		delete(h.issuesByName[persisted.IssueType], issueID)
-	}
-
-	// Update persisted issue status to resolved
-	if persisted := h.persistedIssues[issueID]; persisted != nil {
+		h.issuesByName[persisted.IssueType] = removeID(h.issuesByName[persisted.IssueType], issueID)
 		persisted.State = IssueStateResolved
 		persisted.ResolvedAt = time.Now().Format(time.RFC3339)
 	}
 
 	h.issuesMux.Unlock()
 
-	// Persist to disk if there was a change
 	if existed {
 		if err := h.saveToDisk(); err != nil {
 			h.log.Warn("Failed to persist issues to disk: " + err.Error())
@@ -440,13 +439,11 @@ func (h *healthPlatformImpl) ResolveIssue(issueID string) {
 	}
 }
 
-// ResolveAllIssues clears all issues (useful for testing or when all issues are resolved)
+// ResolveAllIssues clears all active issues.
 func (h *healthPlatformImpl) ResolveAllIssues() {
 	h.issuesMux.Lock()
 
 	now := time.Now().Format(time.RFC3339)
-
-	// Mark all persisted issues as resolved
 	for _, persisted := range h.persistedIssues {
 		if persisted != nil && persisted.State != IssueStateResolved {
 			persisted.State = IssueStateResolved
@@ -455,28 +452,25 @@ func (h *healthPlatformImpl) ResolveAllIssues() {
 	}
 
 	h.issues = make(map[string]*healthplatform.Issue)
-	h.issuesByName = make(map[string]map[string]struct{})
+	h.issuesByName = make(map[string][]string)
+	h.extraJSON = make(map[string]json.RawMessage)
+	h.remediationJSON = make(map[string]json.RawMessage)
 	h.log.Info("Cleared all issues")
 
 	h.issuesMux.Unlock()
 
-	// Persist to disk
 	if err := h.saveToDisk(); err != nil {
 		h.log.Warn("Failed to persist issues to disk: " + err.Error())
 	}
 }
 
-// GetActiveIssueIDsByIssueName returns the IDs of all currently active issues
-// with the given IssueName. Used by bundle.go to compute the initial set of
-// issue IDs for the scheduler after an agent restart.
+// GetActiveIssueIDsByIssueName returns the IDs of all currently active issues with the given IssueName.
 func (h *healthPlatformImpl) GetActiveIssueIDsByIssueName(issueName string) []string {
 	h.issuesMux.RLock()
 	defer h.issuesMux.RUnlock()
 	ids := h.issuesByName[issueName]
-	result := make([]string, 0, len(ids))
-	for id := range ids {
-		result = append(result, id)
-	}
+	result := make([]string, len(ids))
+	copy(result, ids)
 	return result
 }
 
@@ -484,23 +478,18 @@ func (h *healthPlatformImpl) GetActiveIssueIDsByIssueName(issueName string) []st
 // Internal Helper Methods
 // ============================================================================
 
-// handleIssueStateChange detects state changes and logs appropriately.
-// source is the reporting integration/component name, used for log context.
 func (h *healthPlatformImpl) handleIssueStateChange(source string, oldIssue, newIssue *healthplatform.Issue) {
 	if oldIssue == nil && newIssue == nil {
 		return
 	}
-
 	if newIssue != nil && oldIssue == nil {
 		h.log.Info("Health platform: NEW issue from " + source + ": " + newIssue.Title + " (" + newIssue.Severity.String() + ")")
 		return
 	}
-
 	if newIssue == nil && oldIssue != nil {
 		h.log.Info("Health platform: issue RESOLVED from " + source)
 		return
 	}
-
 	if oldIssue.Title != newIssue.Title ||
 		oldIssue.Severity != newIssue.Severity ||
 		oldIssue.Description != newIssue.Description {
@@ -508,8 +497,7 @@ func (h *healthPlatformImpl) handleIssueStateChange(source string, oldIssue, new
 	}
 }
 
-// storeIssue stores an issue keyed by issue.Id (the unique instance key set by ReportIssue).
-// issueType is the template identifier, used for telemetry tagging and persistence.
+// storeIssue stores an issue keyed by issue.Id.
 func (h *healthPlatformImpl) storeIssue(issueType string, issue *healthplatform.Issue) {
 	h.issuesMux.Lock()
 
@@ -518,14 +506,11 @@ func (h *healthPlatformImpl) storeIssue(issueType string, issue *healthplatform.
 	issue.DetectedAt = now
 	h.metrics.issuesCounter.Add(1, issueType)
 
-	// Clone before storing so we can nil Extra/Remediation on the stored copy
-	// without mutating the caller's proto (reporters may reuse the same *Issue).
+	// Clone before storing so nilling Extra/Remediation on the stored copy doesn't
+	// mutate the caller's proto (reporters may reuse the same *Issue across calls).
 	stored := proto.Clone(issue).(*healthplatform.Issue)
 	h.issues[issueID] = stored
-	if h.issuesByName[issueType] == nil {
-		h.issuesByName[issueType] = make(map[string]struct{})
-	}
-	h.issuesByName[issueType][issueID] = struct{}{}
+	h.issuesByName[issueType] = appendUnique(h.issuesByName[issueType], issueID)
 
 	existing := h.persistedIssues[issueID]
 	if existing == nil {
@@ -553,42 +538,31 @@ func (h *healthPlatformImpl) storeIssue(issueType string, issue *healthplatform.
 		existing.LastSeen = now
 	}
 
-	if persisted := h.persistedIssues[issueID]; persisted != nil {
-		stored.PersistedIssue = persistedIssueToProto(persisted)
-		persisted.IssueName = issue.IssueName
-		persisted.Title = issue.Title
-		persisted.Description = issue.Description
-		persisted.Category = issue.Category
-		persisted.Location = issue.Location
-		persisted.Severity = issue.Severity.String()
-		persisted.Source = issue.Source
-		persisted.Tags = issue.Tags
-		if issue.Extra != nil {
-			if raw, err := json.Marshal(issue.Extra); err == nil {
-				persisted.Extra = raw
-			} else {
-				h.log.Warnf("health platform: failed to serialize Extra for issue %s: %v", issueID, err)
-				persisted.Extra = nil
-			}
-		} else {
-			persisted.Extra = nil
-		}
-		if issue.Remediation != nil {
-			if raw, err := json.Marshal(issue.Remediation); err == nil {
-				persisted.Remediation = raw
-			} else {
-				h.log.Warnf("health platform: failed to serialize Remediation for issue %s: %v", issueID, err)
-				persisted.Remediation = nil
-			}
-		} else {
-			persisted.Remediation = nil
-		}
+	stored.PersistedIssue = persistedIssueToProto(h.persistedIssues[issueID])
 
-		// Drop structpb/Remediation from the stored copy; they are kept as raw JSON in
-		// persistedIssues and reconstructed on demand in GetAllIssues/GetIssue.
-		stored.Extra = nil
-		stored.Remediation = nil
+	// Keep Extra and Remediation as raw JSON; strip from the stored lean proto.
+	if issue.Extra != nil {
+		if raw, err := json.Marshal(issue.Extra); err == nil {
+			h.extraJSON[issueID] = raw
+		} else {
+			h.log.Warnf("health platform: failed to serialize Extra for issue %s: %v", issueID, err)
+			delete(h.extraJSON, issueID)
+		}
+	} else {
+		delete(h.extraJSON, issueID)
 	}
+	if issue.Remediation != nil {
+		if raw, err := json.Marshal(issue.Remediation); err == nil {
+			h.remediationJSON[issueID] = raw
+		} else {
+			h.log.Warnf("health platform: failed to serialize Remediation for issue %s: %v", issueID, err)
+			delete(h.remediationJSON, issueID)
+		}
+	} else {
+		delete(h.remediationJSON, issueID)
+	}
+	stored.Extra = nil
+	stored.Remediation = nil
 
 	h.issuesMux.Unlock()
 
@@ -601,8 +575,7 @@ func (h *healthPlatformImpl) storeIssue(issueType string, issue *healthplatform.
 // Persistence Methods
 // ============================================================================
 
-// loadFromDisk loads persisted issues via the persistence layer.
-// Files whose version field differs from persistedStateVersion are ignored.
+// loadFromDisk restores issue state from the persistence layer.
 func (h *healthPlatformImpl) loadFromDisk() error {
 	state, err := h.persistence.load()
 	if err != nil {
@@ -618,52 +591,65 @@ func (h *healthPlatformImpl) loadFromDisk() error {
 		return nil
 	}
 
+	pruneOldResolvedIssues(state.Issues)
+
 	h.issuesMux.Lock()
 	defer h.issuesMux.Unlock()
 
-	h.persistedIssues = state.Issues
-	pruneOldResolvedIssues(h.persistedIssues)
 	activeCount := 0
-	for issueID, persisted := range state.Issues {
-		if persisted.State == IssueStateResolved || persisted.IssueType == "" {
+	for issueID, entry := range state.Issues {
+		if entry == nil {
 			continue
 		}
+
+		h.persistedIssues[issueID] = &PersistedIssue{
+			IssueType:  entry.IssueType,
+			State:      entry.State,
+			FirstSeen:  entry.FirstSeen,
+			LastSeen:   entry.LastSeen,
+			ResolvedAt: entry.ResolvedAt,
+		}
+
+		if entry.State == IssueStateResolved || entry.IssueType == "" {
+			continue
+		}
+
 		var issue *healthplatform.Issue
-		if persisted.Title != "" || persisted.Source != "" {
-			// Extra and Remediation are intentionally omitted here; the hot store keeps
-			// issues without them and hydrates from persistedIssues.Extra/Remediation on demand.
+		if entry.Title != "" || entry.Source != "" {
 			issue = &healthplatform.Issue{
 				Id:          issueID,
-				IssueName:   persisted.IssueName,
-				Title:       persisted.Title,
-				Description: persisted.Description,
-				Category:    persisted.Category,
-				Location:    persisted.Location,
-				Severity:    healthplatform.IssueSeverity(healthplatform.IssueSeverity_value[persisted.Severity]),
-				Source:      persisted.Source,
-				Tags:        persisted.Tags,
+				IssueName:   entry.IssueName,
+				Title:       entry.Title,
+				Description: entry.Description,
+				Category:    entry.Category,
+				Location:    entry.Location,
+				Severity:    healthplatform.IssueSeverity(healthplatform.IssueSeverity_value[entry.Severity]),
+				Source:      entry.Source,
+				Tags:        entry.Tags,
 			}
 		} else {
-			// Version-2 files always cache proto fields; this handles the edge
-			// case of a file written before caching was introduced.
+			// Fallback for files written before proto fields were cached (pre-v2).
 			issue = &healthplatform.Issue{
 				Id:        issueID,
-				IssueName: persisted.IssueType,
-				Source:    persisted.Source,
+				IssueName: entry.IssueType,
+				Source:    entry.Source,
 			}
 		}
-		issue.Id = issueID
-		issue.PersistedIssue = persistedIssueToProto(persisted)
+		issue.PersistedIssue = persistedIssueToProto(h.persistedIssues[issueID])
 		h.issues[issueID] = issue
-		// Prefer IssueName (written by current code); fall back to IssueType for old JSON files.
-		nameKey := persisted.IssueName
+
+		if len(entry.Extra) > 0 {
+			h.extraJSON[issueID] = entry.Extra
+		}
+		if len(entry.Remediation) > 0 {
+			h.remediationJSON[issueID] = entry.Remediation
+		}
+
+		nameKey := entry.IssueName
 		if nameKey == "" {
-			nameKey = persisted.IssueType
+			nameKey = entry.IssueType
 		}
-		if h.issuesByName[nameKey] == nil {
-			h.issuesByName[nameKey] = make(map[string]struct{})
-		}
-		h.issuesByName[nameKey][issueID] = struct{}{}
+		h.issuesByName[nameKey] = append(h.issuesByName[nameKey], issueID)
 		activeCount++
 	}
 
@@ -671,28 +657,46 @@ func (h *healthPlatformImpl) loadFromDisk() error {
 	return nil
 }
 
-// saveToDisk persists the current issue state via the persistence layer
+// saveToDisk persists the current issue state via the persistence layer.
+// For each active issue, proto payload fields are pulled from h.issues and the JSON maps
+// so that the on-disk format remains complete for restart recovery.
 func (h *healthPlatformImpl) saveToDisk() error {
 	h.issuesMux.RLock()
-	// Make a deep copy to avoid race conditions during marshaling
-	issuesCopy := make(map[string]*PersistedIssue, len(h.persistedIssues))
-	for k, v := range h.persistedIssues {
-		if v != nil {
-			copied := *v
-			issuesCopy[k] = &copied
+	entries := make(map[string]*diskIssue, len(h.persistedIssues))
+	for id, p := range h.persistedIssues {
+		if p == nil {
+			continue
 		}
+		entry := &diskIssue{
+			IssueType:  p.IssueType,
+			State:      p.State,
+			FirstSeen:  p.FirstSeen,
+			LastSeen:   p.LastSeen,
+			ResolvedAt: p.ResolvedAt,
+		}
+		if issue := h.issues[id]; issue != nil {
+			entry.IssueName = issue.IssueName
+			entry.Title = issue.Title
+			entry.Description = issue.Description
+			entry.Category = issue.Category
+			entry.Location = issue.Location
+			entry.Severity = issue.Severity.String()
+			entry.Source = issue.Source
+			entry.Tags = issue.Tags
+			entry.Extra = h.extraJSON[id]
+			entry.Remediation = h.remediationJSON[id]
+		}
+		entries[id] = entry
 	}
 	h.issuesMux.RUnlock()
 
-	// Prune resolved issues older than the TTL before saving
-	pruneOldResolvedIssues(issuesCopy)
+	pruneOldResolvedIssues(entries)
 
 	state := PersistedState{
 		Version:   persistedStateVersion,
 		UpdatedAt: time.Now().Format(time.RFC3339),
-		Issues:    issuesCopy,
+		Issues:    entries,
 	}
-
 	return h.persistence.save(&state)
 }
 
@@ -700,7 +704,6 @@ func (h *healthPlatformImpl) saveToDisk() error {
 // HTTP API Handlers
 // ============================================================================
 
-// getIssuesHandler handles GET /health-platform/issues
 func (h *healthPlatformImpl) getIssuesHandler(w http.ResponseWriter, _ *http.Request) {
 	count, issues := h.GetAllIssues()
 
@@ -715,7 +718,6 @@ func (h *healthPlatformImpl) getIssuesHandler(w http.ResponseWriter, _ *http.Req
 	h.writeJSONResponse(w, http.StatusOK, response)
 }
 
-// writeJSONResponse writes a JSON response with the given status code
 func (h *healthPlatformImpl) writeJSONResponse(w http.ResponseWriter, statusCode int, data interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
@@ -728,11 +730,8 @@ func (h *healthPlatformImpl) writeJSONResponse(w http.ResponseWriter, statusCode
 // Flare Provider
 // ============================================================================
 
-// fillFlare adds health platform issues to the flare archive
 func (h *healthPlatformImpl) fillFlare(_ context.Context, fb flaretypes.FlareBuilder) error {
 	count, issues := h.GetAllIssues()
-
-	// Only create the file if there are issues
 	if count == 0 {
 		return nil
 	}
