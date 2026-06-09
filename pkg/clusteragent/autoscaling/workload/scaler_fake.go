@@ -22,7 +22,14 @@ type fakeScaler struct {
 }
 
 func newFakeScaler() *fakeScaler {
-	return &fakeScaler{}
+	fs := &fakeScaler{}
+	// Default Maybe-expectation: most existing tests don't care about the
+	// best-effort release-ownership cleanup path. Tests that need to assert
+	// on releaseReplicasOwnership can register a stricter expectation via
+	// mockReleaseReplicasOwnership and it will take precedence.
+	fs.On("releaseReplicasOwnership", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+		Return(nil).Maybe()
+	return fs
 }
 
 func (fs *fakeScaler) get(ctx context.Context, namespace, name string, gvk schema.GroupVersionKind) (*autoscalingv1.Scale, schema.GroupResource, error) {
@@ -33,6 +40,16 @@ func (fs *fakeScaler) get(ctx context.Context, namespace, name string, gvk schem
 func (fs *fakeScaler) update(ctx context.Context, gr schema.GroupResource, scale *autoscalingv1.Scale) (*autoscalingv1.Scale, error) {
 	args := fs.Called(ctx, gr, scale)
 	return args.Get(0).(*autoscalingv1.Scale), args.Error(1)
+}
+
+func (fs *fakeScaler) releaseReplicasOwnership(ctx context.Context, namespace, name string, gvk schema.GroupVersionKind) error {
+	args := fs.Called(ctx, namespace, name, gvk)
+	return args.Error(0)
+}
+
+func (fs *fakeScaler) mockReleaseReplicasOwnership(pai model.FakePodAutoscalerInternal, err error) {
+	fs.On("releaseReplicasOwnership", mock.Anything, pai.Namespace, pai.Spec.TargetRef.Name, pai.TargetGVK).
+		Return(err)
 }
 
 func (fs *fakeScaler) mockGet(pai model.FakePodAutoscalerInternal, specReplicas, statusReplicas int32, err error) {

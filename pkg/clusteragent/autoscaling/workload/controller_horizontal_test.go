@@ -79,14 +79,16 @@ func (f *horizontalControllerFixture) runSync(fakePai *model.FakePodAutoscalerIn
 	// Pre-fetch scale subresource, mirroring what handleScaling does in the parent controller.
 	var scale *autoscalingv1.Scale
 	var gr schema.GroupResource
+	var targetGVK schema.GroupVersionKind
 	var scaleErr error
 	if autoscalerInternal.Spec() != nil {
 		if gvk, err := autoscalerInternal.TargetGVK(); err == nil {
+			targetGVK = gvk
 			scale, gr, scaleErr = f.scaler.get(context.Background(), fakePai.Namespace, autoscalerInternal.Spec().TargetRef.Name, gvk)
 		}
 	}
 
-	res, err := f.controller.sync(context.Background(), fakeAutoscaler, &autoscalerInternal, scale, gr, scaleErr)
+	res, err := f.controller.sync(context.Background(), fakeAutoscaler, &autoscalerInternal, targetGVK, scale, gr, scaleErr)
 	return autoscalerInternal, res, err
 }
 
@@ -350,6 +352,58 @@ func TestHorizontalControllerSyncPrerequisites(t *testing.T) {
 	// })
 	// assert.Equal(t, autoscaling.NoRequeue, result)
 	// assert.NoError(t, err)
+}
+
+func TestHorizontalControllerReleaseOwnershipOnDisable(t *testing.T) {
+	f := newHorizontalControllerFixture(t, time.Now())
+	autoscalerNamespace := "default"
+	autoscalerName := "test"
+
+	targetGVK := schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: "Deployment"}
+	disabledStrategy := datadoghqcommon.DatadogPodAutoscalerDisabledStrategySelect
+	disabledPolicy := &datadoghq.DatadogPodAutoscalerApplyPolicy{
+		ScaleUp:   &datadoghqcommon.DatadogPodAutoscalerScalingPolicy{Strategy: &disabledStrategy},
+		ScaleDown: &datadoghqcommon.DatadogPodAutoscalerScalingPolicy{Strategy: &disabledStrategy},
+	}
+	spec := &datadoghq.DatadogPodAutoscalerSpec{
+		TargetRef: v2.CrossVersionObjectReference{
+			Name:       autoscalerName,
+			Kind:       targetGVK.Kind,
+			APIVersion: targetGVK.Group + "/" + targetGVK.Version,
+		},
+		ApplyPolicy: disabledPolicy,
+	}
+
+	// Case 1: horizontal disabled with prior actions → release exactly once.
+	fakePai := &model.FakePodAutoscalerInternal{
+		Namespace: autoscalerNamespace,
+		Name:      autoscalerName,
+		Spec:      spec,
+		TargetGVK: targetGVK,
+		HorizontalLastActions: []datadoghqcommon.DatadogPodAutoscalerHorizontalAction{
+			{Time: metav1.NewTime(f.clock.Now()), FromReplicas: 3, ToReplicas: 5},
+		},
+	}
+	f.scaler.mockGet(*fakePai, 5, 5, nil)
+	_, result, err := f.runSync(fakePai)
+	assert.Equal(t, autoscaling.NoRequeue, result)
+	assert.NoError(t, err)
+	f.scaler.AssertNumberOfCalls(t, "releaseReplicasOwnership", 1)
+	f.scaler.AssertCalled(t, "releaseReplicasOwnership", mock.Anything, autoscalerNamespace, autoscalerName, targetGVK)
+
+	// Case 2: horizontal disabled with no prior actions → no release.
+	f.resetFakeScaler()
+	fakePaiNoActions := &model.FakePodAutoscalerInternal{
+		Namespace: autoscalerNamespace,
+		Name:      autoscalerName,
+		Spec:      spec,
+		TargetGVK: targetGVK,
+	}
+	f.scaler.mockGet(*fakePaiNoActions, 5, 5, nil)
+	_, result, err = f.runSync(fakePaiNoActions)
+	assert.Equal(t, autoscaling.NoRequeue, result)
+	assert.NoError(t, err)
+	f.scaler.AssertNumberOfCalls(t, "releaseReplicasOwnership", 0)
 }
 
 func TestHorizontalControllerSyncScaleDecisions(t *testing.T) {

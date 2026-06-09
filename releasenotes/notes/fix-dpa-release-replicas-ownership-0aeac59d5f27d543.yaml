@@ -1,0 +1,13 @@
+---
+fixes:
+  - |
+    Fix a bug in the workload autoscaling controller where the
+    ``datadog-cluster-agent`` field-manager entry for ``.spec.replicas`` on
+    the target workload (recorded on the ``scale`` subresource) was never
+    cleaned up after horizontal scaling was disabled or the
+    ``DatadogPodAutoscaler`` was deleted. The stale entry caused
+    server-side-apply writers such as Helm to fail with
+    ``Apply failed with 1 conflict: conflict with "datadog-cluster-agent"``
+    unless the user passed ``--force-conflicts`` indefinitely. The cluster
+    agent now best-effort releases ``.spec.replicas`` ownership on both
+    transitions.

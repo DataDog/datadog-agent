@@ -50,7 +50,7 @@ func newHorizontalReconciler(clock clock.Clock, eventRecorder record.EventRecord
 	}
 }
 
-func (hr *horizontalController) sync(ctx context.Context, podAutoscaler *datadoghq.DatadogPodAutoscaler, autoscalerInternal *model.PodAutoscalerInternal, scale *autoscalingv1.Scale, gr schema.GroupResource, scaleErr error) (autoscaling.ProcessResult, error) {
+func (hr *horizontalController) sync(ctx context.Context, podAutoscaler *datadoghq.DatadogPodAutoscaler, autoscalerInternal *model.PodAutoscalerInternal, targetGVK schema.GroupVersionKind, scale *autoscalingv1.Scale, gr schema.GroupResource, scaleErr error) (autoscaling.ProcessResult, error) {
 	// If we have no Spec, nothing to do
 	if autoscalerInternal.Spec() == nil {
 		return autoscaling.NoRequeue, nil
@@ -58,6 +58,17 @@ func (hr *horizontalController) sync(ctx context.Context, podAutoscaler *datadog
 
 	// If horizontal scaling is disabled, clear horizontal state and exit.
 	if !autoscalerInternal.IsHorizontalScalingEnabled() {
+		// If we previously scaled this target, release ownership of
+		// `.spec.replicas` so SSA writers (e.g. Helm) do not conflict with
+		// a stale field manager once horizontal scaling is off. Gated on
+		// HorizontalLastActions to avoid issuing a GET on every reconcile
+		// while horizontal stays disabled — ClearHorizontalState below
+		// nils out actions so subsequent ticks skip this branch.
+		if len(autoscalerInternal.HorizontalLastActions()) > 0 && autoscalerInternal.Spec().TargetRef.Name != "" {
+			if err := hr.scaler.releaseReplicasOwnership(ctx, autoscalerInternal.Namespace(), autoscalerInternal.Spec().TargetRef.Name, targetGVK); err != nil {
+				log.Warnf("Failed to release replicas ownership for %s %s/%s after disabling horizontal scaling: %v", targetGVK.Kind, autoscalerInternal.Namespace(), autoscalerInternal.Spec().TargetRef.Name, err)
+			}
+		}
 		autoscalerInternal.ClearHorizontalState()
 		return autoscaling.NoRequeue, nil
 	}
