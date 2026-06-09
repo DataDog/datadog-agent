@@ -49,6 +49,7 @@ type MockedContainerdClient struct {
 	MockIsSandbox             func(namespace string, ctn containerd.Container) (bool, error)
 	MockMountImage            func(ctx context.Context, expiration time.Duration, namespace string, img containerd.Image, targetDir string) (func(context.Context) error, error)
 	MockMounts                func(ctx context.Context, expiration time.Duration, namespace string, img containerd.Image) ([]mount.Mount, func(context.Context) error, error)
+	MockMountsWithSnapshotter func(ctx context.Context, expiration time.Duration, namespace string, img containerd.Image) ([]mount.Mount, string, func(context.Context) error, error)
 }
 
 // Close is a mock method
@@ -174,4 +175,9 @@ func (client *MockedContainerdClient) MountImage(ctx context.Context, expiration
 // Mounts is a mock method
 func (client *MockedContainerdClient) Mounts(ctx context.Context, expiration time.Duration, namespace string, img containerd.Image) ([]mount.Mount, func(context.Context) error, error) {
 	return client.MockMounts(ctx, expiration, namespace, img)
+}
+
+// MountsWithSnapshotter is a mock method
+func (client *MockedContainerdClient) MountsWithSnapshotter(ctx context.Context, expiration time.Duration, namespace string, img containerd.Image) ([]mount.Mount, string, func(context.Context) error, error) {
+	return client.MockMountsWithSnapshotter(ctx, expiration, namespace, img)
 }
