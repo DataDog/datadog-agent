@@ -35,8 +35,9 @@ type ServiceCheckTemplateStore struct {
 	// trackedServices maps "namespace/name" service keys to the number of DDI CRs
 	// targeting that service, enabling lookups for HasService calls.
 	trackedServices map[string]int
-	// onChange is called when templates are added or removed.
-	onChange func()
+	// subscribers are called with the namespace and name of a service whose templates
+	// or tracked-state change.
+	subscribers []func(namespace, name string)
 }
 
 // NewServiceCheckTemplateStore creates a new ServiceCheckTemplateStore.
@@ -47,20 +48,23 @@ func NewServiceCheckTemplateStore() *ServiceCheckTemplateStore {
 	}
 }
 
-// SetOnChange registers a callback invoked when the template set changes.
-func (s *ServiceCheckTemplateStore) SetOnChange(fn func()) {
+// NotifyOnChange registers a callback invoked with the namespace and name of a
+// service whose templates or tracked-state change. Multiple subscribers are supported.
+func (s *ServiceCheckTemplateStore) NotifyOnChange(fn func(namespace, name string)) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.onChange = fn
+	s.subscribers = append(s.subscribers, fn)
 }
 
 // writeTemplates stores templates keyed by DDI CR,
 // associating them with the target service from the CR's TargetRef.
 func (s *ServiceCheckTemplateStore) writeTemplates(crKey string, cr *datadoghq.DatadogInstrumentation, configs []integration.Config) {
+	// A CR's target is immutable, so a single service is ever affected by a write.
+	svcKey := cr.Namespace + "/" + cr.Spec.TargetRef.Name
+
 	s.mu.Lock()
-	// Remove old entry from the service index if it exists.
-	if old, exists := s.entries[crKey]; exists {
-		svcKey := old.serviceNamespace + "/" + old.serviceName
+	_, existed := s.entries[crKey]
+	if existed {
 		if s.trackedServices[svcKey]--; s.trackedServices[svcKey] <= 0 {
 			delete(s.trackedServices, svcKey)
 		}
@@ -73,30 +77,42 @@ func (s *ServiceCheckTemplateStore) writeTemplates(crKey string, cr *datadoghq.D
 			serviceName:      cr.Spec.TargetRef.Name,
 			templates:        configs,
 		}
-		svcKey := cr.Namespace + "/" + cr.Spec.TargetRef.Name
 		s.trackedServices[svcKey]++
 	}
-	onChange := s.onChange
 	s.mu.Unlock()
-	if onChange != nil {
-		onChange()
+
+	// Nothing changed if there was neither a prior entry nor new templates.
+	if existed || len(configs) > 0 {
+		s.notify(cr.Namespace, cr.Spec.TargetRef.Name)
 	}
 }
 
 // deleteTemplates removes templates keyed by DDI CR.
 func (s *ServiceCheckTemplateStore) deleteTemplates(crKey string) {
 	s.mu.Lock()
-	if old, exists := s.entries[crKey]; exists {
+	old, exists := s.entries[crKey]
+	if exists {
 		svcKey := old.serviceNamespace + "/" + old.serviceName
 		if s.trackedServices[svcKey]--; s.trackedServices[svcKey] <= 0 {
 			delete(s.trackedServices, svcKey)
 		}
 		delete(s.entries, crKey)
 	}
-	onChange := s.onChange
 	s.mu.Unlock()
-	if onChange != nil {
-		onChange()
+
+	if exists {
+		s.notify(old.serviceNamespace, old.serviceName)
+	}
+}
+
+// notify fans out the affected service to all registered subscribers. It must be
+// called without holding s.mu so subscribers can safely call back into the store.
+func (s *ServiceCheckTemplateStore) notify(namespace, name string) {
+	s.mu.RLock()
+	subscribers := append([]func(namespace, name string){}, s.subscribers...)
+	s.mu.RUnlock()
+	for _, fn := range subscribers {
+		fn(namespace, name)
 	}
 }
 

@@ -27,7 +27,7 @@ import (
 )
 
 type serviceTemplateStore interface {
-	SetOnChange(fn func())
+	NotifyOnChange(fn func(namespace, name string))
 	HasService(namespace string, name string) bool
 	AllTemplatesByService() map[string][]integration.Config
 }
@@ -58,7 +58,7 @@ func NewKubeEndpointSlicesCRConfigProvider(templateStore serviceTemplateStore) (
 	}
 
 	// Mark dirty when templates change (DDI CR created/updated/deleted).
-	templateStore.SetOnChange(func() {
+	templateStore.NotifyOnChange(func(string, string) {
 		p.setUpToDate(false)
 	})
 

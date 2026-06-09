@@ -27,7 +27,7 @@ import (
 type mockTemplateStore struct {
 	mu        sync.RWMutex
 	templates map[string][]integration.Config
-	onChange  func()
+	onChange  func(namespace, name string)
 }
 
 func newMockTemplateStore(templates map[string][]integration.Config) *mockTemplateStore {
@@ -37,7 +37,7 @@ func newMockTemplateStore(templates map[string][]integration.Config) *mockTempla
 	return &mockTemplateStore{templates: templates}
 }
 
-func (m *mockTemplateStore) SetOnChange(fn func()) {
+func (m *mockTemplateStore) NotifyOnChange(fn func(namespace, name string)) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.onChange = fn

@@ -9,6 +9,9 @@ package types
 // by an external source (e.g., DatadogInstrumentation CRs).
 type ServiceTracker interface {
 	HasService(namespace, name string) bool
+	// NotifyOnChange registers a callback invoked with the namespace and name of a
+	// service whose templates or tracked-state change. Multiple subscribers are supported.
+	NotifyOnChange(func(namespace, name string))
 }
 
 const (

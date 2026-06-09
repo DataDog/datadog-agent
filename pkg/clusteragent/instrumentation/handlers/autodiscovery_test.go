@@ -375,23 +375,39 @@ func TestHandle_MultipleCRs(t *testing.T) {
 	}
 }
 
-func TestServiceCheckTemplateStore_OnChange(t *testing.T) {
+func TestServiceCheckTemplateStore_NotifyOnChange(t *testing.T) {
 	store := NewServiceCheckTemplateStore()
-	cr := newCR("test", "default", "Service", "svc", nil)
 
-	changeCount := 0
-	store.SetOnChange(func() {
-		changeCount++
+	var notified []string
+	store.NotifyOnChange(func(namespace, name string) {
+		notified = append(notified, namespace+"/"+name)
+	})
+	// A second subscriber must also be invoked.
+	secondCount := 0
+	store.NotifyOnChange(func(string, string) {
+		secondCount++
 	})
 
-	store.writeTemplates("default/test", cr, nil)
-	assert.Equal(t, 1, changeCount)
+	cr := newCR("test", "default", "Service", "svc", nil)
 
+	// Create: service is notified.
 	store.writeTemplates("default/test", cr, []integration.Config{{Name: "check"}})
-	assert.Equal(t, 2, changeCount)
+	require.Equal(t, []string{"default/svc"}, notified)
+	assert.Equal(t, 1, secondCount)
 
+	// Config-only update on the same service: single notification (deduplicated).
+	store.writeTemplates("default/test", cr, []integration.Config{{Name: "check2"}})
+	require.Equal(t, []string{"default/svc", "default/svc"}, notified)
+	assert.Equal(t, 2, secondCount)
+
+	// Delete: service is notified.
 	store.deleteTemplates("default/test")
-	assert.Equal(t, 3, changeCount)
+	require.Equal(t, []string{"default/svc", "default/svc", "default/svc"}, notified)
+	assert.Equal(t, 3, secondCount)
+
+	// No-op write (no prior entry, no configs) notifies nothing.
+	store.writeTemplates("default/missing", cr, nil)
+	assert.Len(t, notified, 3)
 }
 
 func TestTranslateCheck(t *testing.T) {

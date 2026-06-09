@@ -9,6 +9,7 @@ package listeners
 
 import (
 	"sort"
+	"sync"
 	"testing"
 
 	adtypes "github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
@@ -475,16 +476,115 @@ cel_workload_exclude:
 	}
 }
 
-func TestEndpointSliceShouldIgnore(t *testing.T) {
+// fakeServiceTracker is a controllable types.ServiceTracker for tests. Flipping a
+// service's tracked state via set() synchronously invokes the registered callback,
+// mimicking the ServiceCheckTemplateStore notifying subscribers.
+type fakeServiceTracker struct {
+	mu       sync.RWMutex
+	tracked  map[string]bool
+	callback func(namespace, name string)
+}
+
+func (f *fakeServiceTracker) HasService(namespace, name string) bool {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	return f.tracked[namespace+"/"+name]
+}
+
+func (f *fakeServiceTracker) NotifyOnChange(fn func(namespace, name string)) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.callback = fn
+}
+
+func (f *fakeServiceTracker) set(namespace, name string, tracked bool) {
+	f.mu.Lock()
+	f.tracked[namespace+"/"+name] = tracked
+	cb := f.callback
+	f.mu.Unlock()
+	if cb != nil {
+		cb(namespace, name)
+	}
+}
+
+// newReconcileListener builds a listener wired with real listers (backed by a fake
+// client seeded with objs), a service tracker, and buffered new/del channels.
+func newReconcileListener(t *testing.T, tracker adtypes.ServiceTracker, objs ...runtime.Object) (*KubeEndpointSlicesListener, chan Service, chan Service) {
+	client := fake.NewClientset(objs...)
+	f := informers.NewSharedInformerFactory(client, 0)
+
+	newCh := make(chan Service, 10)
+	delCh := make(chan Service, 10)
+
+	l := &KubeEndpointSlicesListener{
+		endpointsBySlice:    make(map[types.UID][]*KubeEndpointService),
+		sliceToService:      make(map[types.UID]string),
+		serviceLister:       f.Core().V1().Services().Lister(),
+		endpointSliceLister: f.Discovery().V1().EndpointSlices().Lister(),
+		filterStore:         workloadfilterfxmock.SetupMockFilter(t),
+		serviceTracker:      tracker,
+		newService:          newCh,
+		delService:          delCh,
+	}
+	l.promInclAnnot = getPrometheusIncludeAnnotations()
+
+	stop := make(chan struct{})
+	f.Start(stop)
+	f.WaitForCacheSync(stop)
+	close(stop)
+
+	return l, newCh, delCh
+}
+
+// TestReconcileServiceOnTrackerChange verifies that when a Service's tracked-state
+// flips, the listener emits/removes the Service's endpoints without relying on EndpointSlice events.
+func TestReconcileServiceOnTrackerChange(t *testing.T) {
+	svc := &v1.Service{
+		ObjectMeta: metav1.ObjectMeta{Name: "mysvc", Namespace: "default"}, // unannotated
+	}
+	slice := &discv1.EndpointSlice{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "mysvc-abc",
+			Namespace: "default",
+			UID:       types.UID("slice-1"),
+			Labels:    map[string]string{"kubernetes.io/service-name": "mysvc"},
+		},
+		Endpoints: []discv1.Endpoint{
+			{Addresses: []string{"10.0.0.1"}},
+			{Addresses: []string{"10.0.0.2"}},
+		},
+	}
+
+	tracker := &fakeServiceTracker{tracked: map[string]bool{}}
+	l, newCh, delCh := newReconcileListener(t, tracker, svc, slice)
+
+	// Wire the subscription as Listen() would.
+	l.serviceTracker.NotifyOnChange(l.processServiceUpdate)
+
+	// Unannotated + untracked: reconciling emits nothing.
+	l.processServiceUpdate("default", "mysvc")
+	assert.Empty(t, newCh, "no endpoints should be emitted for an untracked, unannotated service")
+
+	// A DDI CR now targets the service: the tracker flips and notifies the listener.
+	tracker.set("default", "mysvc", true)
+	assert.Len(t, newCh, 2, "both endpoints should be emitted once the service is tracked")
+	assert.Empty(t, delCh)
+
+	// The DDI CR is removed: the service is no longer tracked, endpoints are removed.
+	tracker.set("default", "mysvc", false)
+	assert.Len(t, delCh, 2, "both endpoints should be removed once the service is no longer tracked")
+}
+
+func TestEndpointSliceShouldEmit(t *testing.T) {
 	tests := []struct {
 		name               string
 		service            *v1.Service
 		slice              *discv1.EndpointSlice
 		targetAllEndpoints bool
-		shouldIgnore       bool
+		shouldEmit         bool
 	}{
 		{
-			name: "targetAllEndpoints=true: never ignore",
+			name: "targetAllEndpoints=true: always emit",
 			service: &v1.Service{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "no-annotations",
@@ -501,10 +601,10 @@ func TestEndpointSliceShouldIgnore(t *testing.T) {
 				},
 			},
 			targetAllEndpoints: true,
-			shouldIgnore:       false,
+			shouldEmit:         true,
 		},
 		{
-			name: "targetAllEndpoints=false, no annotations: ignore",
+			name: "targetAllEndpoints=false, no annotations: don't emit",
 			service: &v1.Service{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "no-annotations",
@@ -521,10 +621,10 @@ func TestEndpointSliceShouldIgnore(t *testing.T) {
 				},
 			},
 			targetAllEndpoints: false,
-			shouldIgnore:       true, // Ignore without annotations
+			shouldEmit:         false, // Skip without annotations
 		},
 		{
-			name: "targetAllEndpoints=false, has checks annotation: don't ignore",
+			name: "targetAllEndpoints=false, has checks annotation: emit",
 			service: &v1.Service{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "with-checks",
@@ -544,10 +644,10 @@ func TestEndpointSliceShouldIgnore(t *testing.T) {
 				},
 			},
 			targetAllEndpoints: false,
-			shouldIgnore:       false,
+			shouldEmit:         true,
 		},
 		{
-			name: "targetAllEndpoints=false, has instances annotation: don't ignore",
+			name: "targetAllEndpoints=false, has instances annotation: emit",
 			service: &v1.Service{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "with-instances",
@@ -567,10 +667,10 @@ func TestEndpointSliceShouldIgnore(t *testing.T) {
 				},
 			},
 			targetAllEndpoints: false,
-			shouldIgnore:       false,
+			shouldEmit:         true,
 		},
 		{
-			name: "targetAllEndpoints=false, has prometheus annotations: don't ignore",
+			name: "targetAllEndpoints=false, has prometheus annotations: emit",
 			service: &v1.Service{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "with-check-names",
@@ -590,7 +690,7 @@ func TestEndpointSliceShouldIgnore(t *testing.T) {
 				},
 			},
 			targetAllEndpoints: false,
-			shouldIgnore:       false,
+			shouldEmit:         true,
 		},
 	}
 
@@ -600,8 +700,8 @@ func TestEndpointSliceShouldIgnore(t *testing.T) {
 			listener.targetAllEndpoints = tc.targetAllEndpoints
 			listener.promInclAnnot = getPrometheusIncludeAnnotations()
 
-			result := listener.shouldIgnore(tc.slice)
-			assert.Equal(t, tc.shouldIgnore, result)
+			result := listener.shouldEmitSlice(tc.slice)
+			assert.Equal(t, tc.shouldEmit, result)
 		})
 	}
 }
