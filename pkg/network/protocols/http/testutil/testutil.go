@@ -204,6 +204,14 @@ func CurDir() (string, error) {
 		return "", err
 	}
 
+	// Under Bazel, the test runs from the sandbox execroot and its data
+	// dependencies live in the runfiles tree, not next to the package sources.
+	// Resolve the package directory relative to the runfiles root so that
+	// `data`-declared testdata is found.
+	if srcDir := os.Getenv("TEST_SRCDIR"); srcDir != "" {
+		return filepath.Join(srcDir, os.Getenv("TEST_WORKSPACE"), relPath), nil
+	}
+
 	cwd, err := os.Getwd()
 	if err != nil {
 		return "", err

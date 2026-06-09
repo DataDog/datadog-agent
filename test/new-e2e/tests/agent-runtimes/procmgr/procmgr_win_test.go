@@ -24,7 +24,9 @@ import (
 const (
 	winDaemonBin = `C:\Program Files\Datadog\Datadog Agent\bin\agent\dd-procmgrd.exe`
 	winCLIBin    = `C:\Program Files\Datadog\Datadog Agent\bin\agent\dd-procmgr.exe`
-	winConfigDir = `C:/ProgramData/Datadog/dd-procmgr/processes.d`
+	// Must match dd-procmgrd default on Windows: install root + processes.d
+	// (see pkg/procmgr/rust/src/platform/windows.rs default_config_dir).
+	winConfigDir = `C:/Program Files/Datadog/Datadog Agent/processes.d`
 
 	winSleepCommand = `C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe`
 
