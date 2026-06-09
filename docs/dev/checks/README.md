@@ -285,10 +285,10 @@ Linux when trying to run the resulting `agent` binary:
 
 `Could not initialize Python: could not load runtime python for version 3: Unable to open three library: libdatadog-agent-three.so: cannot open shared object file: No such file or directory`
 
-**Solution**: Clean and rebuild rtloader to set the correct RPATH:
+**Solution**: Clean the Bazel cache and rebuild:
 
 ```bash
-dda inv rtloader.clean
+bazel clean
 dda inv agent.build
 ```
 

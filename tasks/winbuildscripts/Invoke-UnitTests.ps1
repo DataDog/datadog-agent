@@ -106,7 +106,8 @@ Invoke-BuildScript `
         exit $err
     }
 
-    # rtloader unit tests
+    # rtloader unit tests (using Bazel via invoke task)
+    Write-Host "Running rtloader tests with Bazel..."
     & dda inv -- -e rtloader.test
     $err = $LASTEXITCODE
     Write-Host rtloader test result is $err

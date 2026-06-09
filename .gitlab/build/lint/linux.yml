@@ -1,7 +1,7 @@
 ---
 .lint_script:
-  - dda inv -- -e rtloader.make --install-prefix=$CI_PROJECT_DIR/dev
-  - dda inv -- -e rtloader.install
+  # Build and install rtloader using Bazel (needed for Go code that imports rtloader)
+  - bazel run //rtloader:install -- --destdir=$CI_PROJECT_DIR/dev
   - dda inv -- -e linter.go --cpus $KUBERNETES_CPU_REQUEST --debug $FLAVORS $EXTRA_OPTS
 
 .linux_lint:

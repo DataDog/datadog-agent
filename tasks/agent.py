@@ -36,9 +36,7 @@ from tasks.libs.common.utils import (
 )
 from tasks.libs.releasing.version import create_version_json
 from tasks.rtloader import clean as rtloader_clean
-from tasks.rtloader import install as rtloader_install
 from tasks.rtloader import install_with_bazel as rtloader_install_with_bazel
-from tasks.rtloader import make as rtloader_make
 from tasks.schema.generate import compress as schema_compress
 from tasks.schema.template import CORE_SCHEMA_FILE, SYSPROBE_SCHEMA_FILE, generate_template
 from tasks.windows_resources import build_messagetable, build_rc, versioninfo_vars
@@ -80,15 +78,15 @@ def build(
     exclude_rtloader=False,
     go_mod="readonly",
     windows_sysprobe=False,
-    cmake_options='',
     agent_bin=None,
     run_on=None,  # noqa: U100, F841. Used by the run_on_devcontainer decorator
     glibc=True,
-    enable_bazel=False,
 ):
     """
     Build the agent. If the bits to include in the build are not specified,
     the values from `invoke.yaml` will be used.
+
+    rtloader and Python dependencies are built using Bazel.
 
     Example invokation:
         dda inv agent.build --build-exclude=systemd
@@ -98,13 +96,9 @@ def build(
     if not exclude_rtloader and not flavor.is_iot() and sys.platform != "aix":
         # On AIX, rtloader is built natively in advance as a prerequisite.
         with gitlab_section("Install embedded rtloader", collapsed=True):
-            if enable_bazel:
-                bazel_embedded = rtloader_install_with_bazel(ctx)
-                embedded_path = bazel_embedded
-                python_home_3 = bazel_embedded
-            else:
-                rtloader_make(ctx, install_prefix=embedded_path, cmake_options=cmake_options)
-                rtloader_install(ctx)
+            bazel_embedded = rtloader_install_with_bazel(ctx)
+            embedded_path = bazel_embedded
+            python_home_3 = bazel_embedded
 
     ldflags, gcflags, env = get_build_flags(
         ctx,
@@ -443,11 +437,12 @@ def hacky_dev_image_build(
         os.environ["LD_LIBRARY_PATH"] = (
             os.environ.get("LD_LIBRARY_PATH", "") + f":{extracted_python_dir}/opt/datadog-agent/embedded/lib"
         )
+        # Note: With Bazel, we use the Bazel-built Python instead of extracting from Docker image
+        # The extracted Python setup below may no longer be necessary
         build(
             ctx,
             race=race,
             development=development,
-            cmake_options=f'-DPython3_ROOT_DIR={extracted_python_dir}/opt/datadog-agent/embedded -DPython3_FIND_STRATEGY=LOCATION',
         )
         ctx.run(
             f'perl -0777 -pe \'s|{extracted_python_dir}(/opt/datadog-agent/embedded/lib/python\\d+\\.\\d+/../..)|substr $1."\\0"x length$&,0,length$&|e or die "pattern not found"\' -i dev/lib/libdatadog-agent-three.so'

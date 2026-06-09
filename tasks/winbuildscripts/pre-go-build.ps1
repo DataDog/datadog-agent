@@ -13,22 +13,13 @@ Default: 3
 
 $ErrorActionPreference = "Stop"
 
-# Run clean to avoid issues with CMakeCache.txt due to moving build roots
-& dda inv -- -e rtloader.clean
-
-& dda inv -- -e rtloader.make --install-prefix="$(Get-Location)\dev" --cmake-options='-G \"Unix Makefiles\"'
+# Build and install rtloader using Bazel
+Write-Host "Building rtloader with Bazel..."
+& bazel run //rtloader:install -- --destdir="$(Get-Location)"
 $err = $LASTEXITCODE
-Write-Host Build result is $err
+Write-Host "Bazel rtloader install result is $err"
 if($err -ne 0){
-    Write-Host -ForegroundColor Red "rtloader make failed $err"
-    [Environment]::Exit($err)
-}
-
-& dda inv -- -e rtloader.install
-$err = $LASTEXITCODE
-Write-Host rtloader install result is $err
-if($err -ne 0){
-    Write-Host -ForegroundColor Red "rtloader install failed $err"
+    Write-Host -ForegroundColor Red "Bazel rtloader install failed $err"
     [Environment]::Exit($err)
 }
 

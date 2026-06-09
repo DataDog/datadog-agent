@@ -34,6 +34,17 @@ def run_make_command(ctx, command=""):
 
 @task
 def make(ctx, install_prefix=None, cmake_options=''):
+    """
+    DEPRECATED: Use Bazel to build rtloader instead.
+    CMake-based rtloader builds are deprecated and will be removed.
+    Use `agent.build` which automatically uses Bazel, or call Bazel directly.
+    """
+    print("=" * 80)
+    print("WARNING: rtloader.make is DEPRECATED")
+    print("CMake-based rtloader builds are being phased out.")
+    print("Please use Bazel instead (automatically used by agent.build)")
+    print("=" * 80)
+
     dev_path = get_dev_path()
     prefix = install_prefix or dev_path
 
@@ -91,6 +102,17 @@ def clean(_):
 
 @task
 def install(ctx):
+    """
+    DEPRECATED: Use Bazel to install rtloader instead.
+    CMake-based rtloader installation is deprecated and will be removed.
+    Use `agent.build` which automatically uses Bazel, or call Bazel directly.
+    """
+    print("=" * 80)
+    print("WARNING: rtloader.install is DEPRECATED")
+    print("CMake-based rtloader installation is being phased out.")
+    print("Please use Bazel instead (automatically used by agent.build)")
+    print("=" * 80)
+
     with gitlab_section("Install rtloader", collapsed=True):
         run_make_command(ctx, "install")
 
@@ -152,14 +174,35 @@ def install_with_bazel(ctx):
 
 @task
 def test(ctx):
+    """
+    Run rtloader C++ unit tests using Bazel.
+    This replaces the CMake-based test runner.
+    """
     with gitlab_section("Run rtloader tests", collapsed=True):
-        ctx.run(f"make -C {get_rtloader_build_path()}/test run", err_stream=sys.stdout)
+        from tasks.libs.build.bazel import bazel
+
+        bazel(ctx, "test", "//rtloader/test/...")
 
 
 @task
 def format(ctx, raise_if_changed=False):
+    """
+    Run clang-format on rtloader source files.
+    This replaces the CMake-based clang-format runner.
+    """
     with gitlab_section("Run clang-format on rtloader", collapsed=True):
-        run_make_command(ctx, "clang-format")
+        rtloader_path = get_rtloader_path()
+        # Find all C/C++ source files in rtloader
+        result = ctx.run(
+            f"find {rtloader_path} -type f \\( -name '*.cpp' -o -name '*.cxx' -o -name '*.cc' -o -name '*.h' \\) "
+            f"! -path '*/CMakeFiles/*' ! -path '*/build/*'",
+            hide="out",
+        )
+        source_files = [f for f in result.stdout.strip().split("\n") if f]
+
+        if source_files:
+            # Run clang-format on all source files
+            ctx.run(f"clang-format -i -style=file {' '.join(source_files)}", err_stream=sys.stdout)
 
     if raise_if_changed:
         changed_files = [line for line in ctx.run("git ls-files -m rtloader").stdout.strip().split("\n") if line]

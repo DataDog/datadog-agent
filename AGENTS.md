@@ -181,7 +181,7 @@ Ships on Linux (amd64, arm64), Windows (amd64), and macOS (amd64, arm64), plus c
 
 ### Common Build Issues
 - **Missing tools**: Run `dda inv install-tools`
-- **CMake errors**: Remove `dda inv rtloader.clean`
+- **Bazel cache issues**: Run `bazel clean` then rebuild
 
 ### Testing Issues
 - **Flaky tests**: Check `flakes.yaml` for known issues

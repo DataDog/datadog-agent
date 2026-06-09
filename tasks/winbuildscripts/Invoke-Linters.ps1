@@ -42,7 +42,8 @@ Invoke-BuildScript `
 
     & .\tasks\winbuildscripts\pre-go-build.ps1
 
-    # Lint rtloader
+    # Lint rtloader (using clang-format directly via invoke task)
+    Write-Host "Running clang-format on rtloader..."
     & dda inv -- -e rtloader.format --raise-if-changed
     $err = $LASTEXITCODE
     Write-Host Format result is $err
