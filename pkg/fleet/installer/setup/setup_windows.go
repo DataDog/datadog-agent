@@ -100,23 +100,13 @@ func runAgentInstaller(ctx context.Context, e *env.Env, flavor, tag string) erro
 	if err != nil {
 		return formatDownloadError(tag, err)
 	}
-	// Manifest is already fetched by Download — read the package.version
-	// annotation to print the fully-qualified version (e.g. "7.79.2-1")
-	// alongside the user's request (e.g. "7.79" or "7"). Fall back to the
-	// tag if the annotation is missing for any reason.
-	resolved := tag
-	if manifest, mErr := pkg.Image.Manifest(); mErr == nil {
-		if v := manifest.Annotations[oci.AnnotationVersion]; v != "" {
-			resolved = v
-		}
-	}
 	exePath := filepath.Join(tmpDir, "datadog-installer.exe")
-	fmt.Fprintf(os.Stdout, "Downloading installer for Datadog Agent %s (requested %s) ...\n", resolved, tag)
+	fmt.Fprintf(os.Stdout, "Downloading installer for Datadog Agent %s (requested %s) ...\n", pkg.Version, tag)
 	if err := pkg.ExtractLayers(oci.DatadogPackageInstallerLayerMediaType, exePath); err != nil {
-		return fmt.Errorf("could not download Datadog Agent %s: %w", resolved, err)
+		return fmt.Errorf("could not download Datadog Agent %s: %w", pkg.Version, err)
 	}
 	if _, err := os.Stat(exePath); err != nil {
-		return fmt.Errorf("cannot install Datadog Agent %s: this command requires Agent 7.79 or newer", resolved)
+		return fmt.Errorf("cannot install Datadog Agent %s: this command requires Agent 7.79 or newer", pkg.Version)
 	}
 
 	// Re-exec the downloaded installer with the parent's os.Environ()
