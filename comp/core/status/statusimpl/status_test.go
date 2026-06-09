@@ -637,7 +637,7 @@ Status render errors
 
 func TestGetStatusBySection(t *testing.T) {
 	deps := fxutil.Test[dependencies](t, fx.Options(
-		fx.Provide(func() config.Component { return configmock.New(t) }),
+		configmock.MockModule(),
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Supply(
 			agentParams,
@@ -943,7 +943,7 @@ func TestGetStatusByMultipleSections(t *testing.T) {
 	}()
 
 	deps := fxutil.Test[dependencies](t, fx.Options(
-		fx.Provide(func() config.Component { return configmock.New(t) }),
+		configmock.MockModule(),
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Supply(
 			agentParams,
@@ -1071,7 +1071,7 @@ func TestFlareProvider(t *testing.T) {
 	}()
 
 	deps := fxutil.Test[dependencies](t, fx.Options(
-		fx.Provide(func() config.Component { return configmock.New(t) }),
+		configmock.MockModule(),
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Supply(agentParams),
 	))
@@ -1084,7 +1084,7 @@ func TestFlareProvider(t *testing.T) {
 
 func TestGetStatusBySectionIncorrect(t *testing.T) {
 	deps := fxutil.Test[dependencies](t, fx.Options(
-		fx.Provide(func() config.Component { return configmock.New(t) }),
+		configmock.MockModule(),
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Supply(
 			agentParams,

@@ -124,7 +124,7 @@ func TestCollect(t *testing.T) {
 		makeRequires(fxutil.Test[testDeps](
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
-			fx.Provide(func() config.Component { return configmock.New(t) }),
+			configmock.MockModule(),
 			fx.Provide(func() serializer.MetricSerializer { return s }),
 			hostnameimpl.MockModule(),
 		)),
@@ -149,7 +149,7 @@ func TestCollectError(t *testing.T) {
 		makeRequires(fxutil.Test[testDeps](
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
-			fx.Provide(func() config.Component { return configmock.New(t) }),
+			configmock.MockModule(),
 			fx.Provide(func() serializer.MetricSerializer { return s }),
 			hostnameimpl.MockModule(),
 		)),

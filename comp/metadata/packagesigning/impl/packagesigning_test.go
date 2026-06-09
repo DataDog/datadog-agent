@@ -113,7 +113,7 @@ func getTestPackageSigning(t *testing.T) *pkgSigning {
 		makeRequires(fxutil.Test[testDeps](
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
-			fx.Provide(func() config.Component { return configmock.New(t) }),
+			configmock.MockModule(),
 			fx.Provide(func() serializer.MetricSerializer { return serializermock.NewMetricSerializer(t) }),
 			hostnameimpl.MockModule(),
 		)),

@@ -75,7 +75,7 @@ func TestHandleKubePod(t *testing.T) {
 
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
-		fx.Provide(func() config.Component { return configmock.New(t) }),
+		configmock.MockModule(),
 		fx.Supply(context.Background()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
@@ -1265,7 +1265,7 @@ func TestHandleKubePodNoContainerName(t *testing.T) {
 
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
-		fx.Provide(func() config.Component { return configmock.New(t) }),
+		configmock.MockModule(),
 		fx.Supply(context.Background()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
@@ -1384,7 +1384,7 @@ func TestHandleKubeMetadata(t *testing.T) {
 
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
-		fx.Provide(func() config.Component { return configmock.New(t) }),
+		configmock.MockModule(),
 		fx.Supply(context.Background()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
@@ -1479,7 +1479,7 @@ func TestHandleKubeCRD(t *testing.T) {
 
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
-		fx.Provide(func() config.Component { return configmock.New(t) }),
+		configmock.MockModule(),
 		fx.Supply(context.Background()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
@@ -1560,7 +1560,7 @@ func TestHandleKubeDeployment(t *testing.T) {
 
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
-		fx.Provide(func() config.Component { return configmock.New(t) }),
+		configmock.MockModule(),
 		fx.Supply(context.Background()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
@@ -3123,7 +3123,7 @@ func TestHandleDelete(t *testing.T) {
 
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
-		fx.Provide(func() config.Component { return configmock.New(t) }),
+		configmock.MockModule(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
@@ -3199,7 +3199,7 @@ func TestHandlePodWithDeletedContainer(t *testing.T) {
 
 	fakeStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
-		fx.Provide(func() config.Component { return configmock.New(t) }),
+		configmock.MockModule(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 	collector := NewWorkloadMetaCollector(context.Background(), configmock.New(t), fakeStore, &fakeProcessor{collectorCh})
@@ -3451,7 +3451,7 @@ func TestHandleProcess(t *testing.T) {
 
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
-		fx.Provide(func() config.Component { return configmock.New(t) }),
+		configmock.MockModule(),
 		fx.Supply(context.Background()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))

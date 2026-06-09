@@ -93,7 +93,7 @@ func setupIPCAddress(t *testing.T, confMock config.Component, URL string) {
 func setupProcessAPIServer(t *testing.T) {
 	_ = fxutil.Test[processapiserver.Component](t, fx.Options(
 		processapiserverimpl.Module(),
-		fx.Provide(func() config.Component { return configmock.New(t) }),
+		configmock.MockModule(),
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		mocktelemetry.Module(),
 		workloadmetafx.Module(workloadmeta.NewParams()),

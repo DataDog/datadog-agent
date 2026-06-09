@@ -30,7 +30,7 @@ import (
 
 func TestProcessEvents(t *testing.T) {
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
-		fx.Provide(func() config.Component { return configmock.New(t) }),
+		configmock.MockModule(),
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))

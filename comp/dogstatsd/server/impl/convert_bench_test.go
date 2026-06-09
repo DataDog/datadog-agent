@@ -92,7 +92,7 @@ type ServerDeps struct {
 func newServerDeps(t testing.TB) ServerDeps {
 	return fxutil.Test[ServerDeps](t,
 		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
-		fx.Provide(func(t testing.TB) config.Component { return configmock.New(t) }),
+		configmock.MockModule(),
 		mocktelemetry.Module(),
 		hostnameimpl.MockModule(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),

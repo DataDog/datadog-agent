@@ -56,7 +56,7 @@ func TestNewHostProviderDefaultIntervals(t *testing.T) {
 		makeRequires(fxutil.Test[testDeps](
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
-			fx.Provide(func() config.Component { return configmock.New(t) }),
+			configmock.MockModule(),
 			resourcesmock.MockModule(),
 			fx.Replace(resourcesmock.MockParams{Data: nil}),
 			fx.Provide(func() serializer.MetricSerializer { return nil }),
@@ -189,7 +189,7 @@ func TestFlareProvider(t *testing.T) {
 		makeRequires(fxutil.Test[testDeps](
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
-			fx.Provide(func() config.Component { return configmock.New(t) }),
+			configmock.MockModule(),
 			resourcesmock.MockModule(),
 			fx.Replace(resourcesmock.MockParams{Data: nil}),
 			fx.Provide(func() serializer.MetricSerializer { return nil }),
@@ -209,7 +209,7 @@ func TestStatusHeaderProvider(t *testing.T) {
 		makeRequires(fxutil.Test[testDeps](
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
-			fx.Provide(func() config.Component { return configmock.New(t) }),
+			configmock.MockModule(),
 			resourcesmock.MockModule(),
 			fx.Replace(resourcesmock.MockParams{Data: nil}),
 			fx.Provide(func() serializer.MetricSerializer { return nil }),

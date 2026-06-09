@@ -16,7 +16,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
 
-	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
@@ -87,7 +86,7 @@ func TestConvertNetworkStats(t *testing.T) {
 func TestGetContainerIDForPID(t *testing.T) {
 	// TODO(components): this test needs to rely on a workloadmeta.Component mock
 	mockStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
-		fx.Provide(func() config.Component { return configmock.New(t) }),
+		configmock.MockModule(),
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))

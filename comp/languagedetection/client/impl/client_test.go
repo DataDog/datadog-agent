@@ -94,7 +94,7 @@ func TestClientEnabled(t *testing.T) {
 
 	tel := fxutil.Test[telemetry.Component](t, mocktelemetry.Module())
 	wm := fxutil.Test[workloadmeta.Component](t, workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-		fx.Provide(func() config.Component { return configmock.New(t) }),
+		configmock.MockModule(),
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 	)
 

@@ -21,7 +21,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
-	compConfig "github.com/DataDog/datadog-agent/comp/core/config/def"
 	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
@@ -124,7 +123,7 @@ func newWorkloadmetaMock(t *testing.T) workloadmetamock.Mock {
 
 	return fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
-		fx.Provide(func() compConfig.Component { return configmock.New(t) }),
+		configmock.MockModule(),
 		fx.Supply(context.Background()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
@@ -504,7 +503,7 @@ func TestMakeK8sSource(t *testing.T) {
 
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
-		fx.Provide(func() compConfig.Component { return configmock.New(t) }),
+		configmock.MockModule(),
 		fx.Supply(context.Background()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
@@ -594,7 +593,7 @@ func TestGetPodAndContainer_wmeta_not_initialize(t *testing.T) {
 func TestGetPodAndContainer_pod_not_found(t *testing.T) {
 	workloadmetaStore := fxutil.Test[option.Option[workloadmeta.Component]](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
-		fx.Provide(func() compConfig.Component { return configmock.New(t) }),
+		configmock.MockModule(),
 		fx.Supply(context.Background()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
@@ -742,7 +741,7 @@ func TestLogsConfigFieldCoverage(t *testing.T) {
 	// Set up K8s workloadmeta so makeK8sFileSource can resolve the pod
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
-		fx.Provide(func() compConfig.Component { return configmock.New(t) }),
+		configmock.MockModule(),
 		fx.Supply(context.Background()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))

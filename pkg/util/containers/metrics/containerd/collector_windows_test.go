@@ -13,7 +13,6 @@ import (
 
 	"github.com/opencontainers/runtime-spec/specs-go"
 
-	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
@@ -109,7 +108,7 @@ func TestGetContainerStats_Containerd(t *testing.T) {
 			// namespace.
 			workloadmetaStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 				fx.Provide(func() log.Component { return logmock.New(t) }),
-				fx.Provide(func() config.Component { return configmock.New(t) }),
+				configmock.MockModule(),
 				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 			))
 
@@ -174,7 +173,7 @@ func TestGetContainerNetworkStats_Containerd(t *testing.T) {
 			// namespace.
 			workloadmetaStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 				fx.Provide(func() log.Component { return logmock.New(t) }),
-				fx.Provide(func() config.Component { return configmock.New(t) }),
+				configmock.MockModule(),
 				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 			))
 

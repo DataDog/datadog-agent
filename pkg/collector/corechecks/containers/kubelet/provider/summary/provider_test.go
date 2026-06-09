@@ -392,7 +392,7 @@ func TestProvider_Provide(t *testing.T) {
 func creatFakeStore(t *testing.T) workloadmetamock.Mock {
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
-		fx.Provide(func() configcomp.Component { return configmock.New(t) }),
+		configmock.MockModule(),
 		fx.Supply(context.Background()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
@@ -759,7 +759,7 @@ func TestStaticPodUIDMismatchFallback(t *testing.T) {
 	// Setup workloadmeta store with pod using canonical UUID
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
-		fx.Provide(func() configcomp.Component { return configmock.New(t) }),
+		configmock.MockModule(),
 		fx.Supply(context.Background()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))

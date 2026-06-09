@@ -24,7 +24,6 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/DataDog/datadog-agent/comp/core"
-	configcomp "github.com/DataDog/datadog-agent/comp/core/config/def"
 	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
@@ -692,7 +691,7 @@ func TestProcessEvents(t *testing.T) {
 
 			workloadmetaStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 				fx.Provide(func() log.Component { return logmock.New(t) }),
-				fx.Provide(func() configcomp.Component { return configmock.New(t) }),
+				configmock.MockModule(),
 				fx.Supply(context.Background()),
 				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 			))
@@ -836,7 +835,7 @@ func TestInUseFlagAccuracy(t *testing.T) {
 		t.Helper()
 		store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 			fx.Provide(func() log.Component { return logmock.New(t) }),
-			fx.Provide(func() configcomp.Component { return configmock.New(t) }),
+			configmock.MockModule(),
 			fx.Supply(context.Background()),
 			workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 		))

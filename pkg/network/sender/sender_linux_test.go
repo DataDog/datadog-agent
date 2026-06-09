@@ -74,7 +74,7 @@ func mockDirectSender(t *testing.T) *directSender {
 	wmeta := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Supply(config.Params{}),
 		fx.Provide(func() log.Component { return logmock.New(t) }),
-		fx.Provide(func() config.Component { return configmock.New(t) }),
+		configmock.MockModule(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 	d, err := New(t.Context(), &fakeConnectionSource{}, Dependencies{

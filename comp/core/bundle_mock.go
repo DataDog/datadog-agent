@@ -20,7 +20,6 @@ import (
 
 	"go.uber.org/fx"
 
-	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	delegatedauthmock "github.com/DataDog/datadog-agent/comp/core/delegatedauth/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -36,7 +35,7 @@ import (
 // makeMockBundle returns a core bundle with a customized set of fx.Option including sane defaults.
 func makeMockBundle(logParams, logger fx.Option) fxutil.BundleOptions {
 	return fxutil.Bundle(
-		fx.Provide(func(t testing.TB) config.Component { return configmock.New(t) }),
+		configmock.MockModule(),
 		logParams,
 		logger,
 		fx.Provide(func(tb testing.TB) sysprobeconfig.Component { return sysprobeconfigmock.NewMock(tb) }),

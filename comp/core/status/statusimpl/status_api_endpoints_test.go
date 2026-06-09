@@ -19,7 +19,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
@@ -30,7 +29,7 @@ import (
 
 func getTestComp(t *testing.T, withError bool) provides {
 	deps := fxutil.Test[dependencies](t, fx.Options(
-		fx.Provide(func() config.Component { return configmock.New(t) }),
+		configmock.MockModule(),
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Supply(
 			agentParams,

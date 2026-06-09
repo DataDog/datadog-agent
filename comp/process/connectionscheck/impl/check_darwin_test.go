@@ -10,7 +10,6 @@ package connectionscheckimpl
 import (
 	"testing"
 
-	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
@@ -31,7 +30,7 @@ func TestConnectionsCheckDisabledOnDarwin(t *testing.T) {
 	sysprobeConf := sysprobeconfigmock.NewMockWithOverrides(t, map[string]interface{}{"network_config.enabled": true})
 
 	c := fxutil.Test[connectionscheck.Component](t, fx.Options(
-		fx.Provide(func(t testing.TB) config.Component { return configmock.New(t) }),
+		configmock.MockModule(),
 		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
 		fx.Provide(func() sysprobeconfigdef.Component { return sysprobeConf }),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),

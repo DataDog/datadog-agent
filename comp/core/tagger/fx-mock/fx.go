@@ -13,7 +13,6 @@ import (
 
 	"go.uber.org/fx"
 
-	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
@@ -37,7 +36,7 @@ func MockModule() fxutil.Module {
 // SetupFakeTagger calls fxutil.Test to create a mock tagger for testing
 func SetupFakeTagger(t testing.TB) taggermock.Mock {
 	return fxutil.Test[taggermock.Mock](t, fx.Options(
-		fx.Provide(func() config.Component { return configmock.New(t) }),
+		configmock.MockModule(),
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 		noopTelemetry.Module(),

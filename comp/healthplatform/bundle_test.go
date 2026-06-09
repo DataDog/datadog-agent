@@ -40,7 +40,7 @@ import (
 func TestBundleDependencies(t *testing.T) {
 	fxutil.TestBundle(t, Bundle(),
 		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
-		fx.Provide(func(t testing.TB) config.Component { return configmock.New(t) }),
+		configmock.MockModule(),
 		telemetrymock.Module(),
 		hostnameinterface.MockModule(),
 	)
