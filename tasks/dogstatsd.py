@@ -15,6 +15,7 @@ from tasks.build_tags import (
 from tasks.flavor import AgentFlavor
 from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import REPO_PATH, bin_name, get_build_flags
+from tasks.schema.template import CORE_SCHEMA_FILE, generate_template
 from tasks.windows_resources import build_messagetable, build_rc, versioninfo_vars
 
 # constants
@@ -22,6 +23,7 @@ DOGSTATSD_BIN_PATH = os.path.join(".", "bin", "dogstatsd")
 STATIC_BIN_PATH = os.path.join(".", "bin", "static")
 MAX_BINARY_SIZE = 44 * 1024
 DOGSTATSD_TAG = "datadog/dogstatsd:master"
+DOGSTATSD_CONFIG_OUTPUT = "./cmd/dogstatsd/dist/dogstatsd.yaml"
 
 
 @task
@@ -71,16 +73,10 @@ def build(
         check_deadcode=os.getenv("DEPLOY_AGENT") == "true",
     )
 
-    # Render the configuration file template
-    #
-    # We need to remove cross compiling bits if any because go generate must
-    # build and execute in the native platform
-    env = {
-        "GOOS": "",
-        "GOARCH": "",
-    }
-    cmd = "go generate -mod={} {}/cmd/dogstatsd"
-    ctx.run(cmd.format(go_mod, REPO_PATH), env=env)
+    # Render the configuration file template. The dogstatsd binary ships
+    # on linux containers, so we always target linux (matches the legacy
+    # `go generate` behavior on the native build host).
+    generate_template(CORE_SCHEMA_FILE, DOGSTATSD_CONFIG_OUTPUT, "dogstatsd", "linux")
 
     if static and sys.platform.startswith("linux"):
         cmd = "file {bin_name} "
