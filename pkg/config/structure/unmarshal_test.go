@@ -1532,8 +1532,6 @@ some_config:
 	assert.Equal(t, map[ResourceType]string{"memory": "5g"}, res.Resources)
 }
 
-// TestUnmarshalKeyIntSliceFromEnv covers populating an []int setting from an env
-// var on both NTM and viper
 func TestUnmarshalKeyIntSliceFromEnv(t *testing.T) {
 	const key = "my_feature.ports"
 	const envVar = "DD_MY_FEATURE_PORTS"
@@ -1550,35 +1548,22 @@ func TestUnmarshalKeyIntSliceFromEnv(t *testing.T) {
 	}
 
 	for _, tc := range []struct {
-		name            string
-		backend         string
-		env             string
-		stringUnmarshal bool
-		want            []int
-		wantErr         bool
+		name    string
+		backend string
+		env     string
+		want    []int
 	}{
-		{"ntm/space-separated", "ntm", "53 5353", false, []int{53, 5353}, false},
-		{"ntm/json+stringunmarshal", "ntm", "[53,5353]", true, []int{53, 5353}, false},
-		{"ntm/single+stringunmarshal", "ntm", "5353", true, []int{5353}, false},
-		{"viper/json+stringunmarshal", "viper", "[53,5353]", true, []int{53, 5353}, false},
-		{"viper/single+stringunmarshal", "viper", "5353", true, []int{5353}, false},
-		// viper has no env-layer type conversion (unlike nodetreemodel's
-		// ConvertToDefaultType), so a space-separated list is not supported
-		{"viper/space-separated unsupported", "viper", "53 5353", true, nil, true},
+		{"ntm/space-separated", "ntm", "53 5353", []int{53, 5353}},
+		{"ntm/single", "ntm", "5353", []int{5353}},
+		{"ntm/json", "ntm", "[53,5353]", []int{53, 5353}},
+		{"viper/space-separated", "viper", "53 5353", []int{53, 5353}},
+		{"viper/single", "viper", "5353", []int{5353}},
+		{"viper/json", "viper", "[53,5353]", []int{53, 5353}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			cfg := build(t, tc.backend, tc.env)
 			var got []int
-			var err error
-			if tc.stringUnmarshal {
-				err = UnmarshalKey(cfg, key, &got, EnableStringUnmarshal)
-			} else {
-				err = UnmarshalKey(cfg, key, &got)
-			}
-			if tc.wantErr {
-				require.Error(t, err)
-				return
-			}
+			err := UnmarshalKey(cfg, key, &got)
 			require.NoError(t, err)
 			assert.Equal(t, tc.want, got)
 		})
