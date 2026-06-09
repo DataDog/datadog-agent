@@ -24,10 +24,10 @@ go_test(
     embed = [":impl-remote"],
     gotags = ["test"],
     deps = [
-        "//comp/core/hostname/hostnameinterface/mock",
         "//comp/core/log/mock",
         "//pkg/networkpath/payload",
         "//pkg/networkpath/traceroute/config",
+        "@//comp/core/hostname/hostname/mock",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],

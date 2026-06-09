@@ -11,7 +11,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/def"
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/modes"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/regions"
@@ -46,7 +46,7 @@ type PersistedIdentity struct {
 
 // GetAgentIdentifier returns the identifier for the current agent.
 // Hostname is always populated. For the cluster agent, OrchClusterID is also populated (required).
-func GetAgentIdentifier(ctx context.Context, hostnameGetter hostnameinterface.Component) (*AgentIdentifier, error) {
+func GetAgentIdentifier(ctx context.Context, hostnameGetter hostname.Component) (*AgentIdentifier, error) {
 	hostname, err := hostnameGetter.Get(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get hostname: %w", err)

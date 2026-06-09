@@ -8,7 +8,7 @@ go_library(
     deps = [
         "//comp/core/config",
         "//comp/core/flare/types",
-        "//comp/core/hostname",
+        "//comp/core/hostname/def",
         "//comp/core/log/def",
         "//comp/core/tagger/def",
         "//comp/core/tagger/tags",

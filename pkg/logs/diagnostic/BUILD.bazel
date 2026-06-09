@@ -10,9 +10,9 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/logs/diagnostic",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/core/hostname/hostnameinterface/def",
         "//pkg/config/model",
         "//pkg/logs/message",
+        "@com_github_datadog_datadog_agent_comp_core_hostname_hostnameinterface_def//:def",
     ],
 )
 
@@ -21,13 +21,4 @@ go_test(
     srcs = ["message_receiver_test.go"],
     embed = [":diagnostic"],
     gotags = ["test"],
-    deps = [
-        "//comp/core/hostname/hostnameinterface/mock",
-        "//comp/logs/agent/config",
-        "//pkg/config/mock",
-        "//pkg/config/model",
-        "//pkg/logs/message",
-        "//pkg/logs/sources",
-        "@com_github_stretchr_testify//assert",
-    ],
 )

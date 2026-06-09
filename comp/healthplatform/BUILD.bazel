@@ -42,7 +42,6 @@ go_test(
     gotags = ["test"],
     deps = [
         "//comp/core/config",
-        "//comp/core/hostname/hostnameinterface/mock",
         "//comp/core/log/def",
         "//comp/core/log/mock",
         "//comp/core/telemetry/mock",
@@ -51,6 +50,7 @@ go_test(
         "//comp/healthplatform/scheduler/def",
         "//comp/healthplatform/store/def",
         "//pkg/util/fxutil",
+        "@//comp/core/hostname/hostname/mock",
         "@com_github_datadog_agent_payload_v5//healthplatform",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

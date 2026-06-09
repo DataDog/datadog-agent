@@ -14,7 +14,7 @@ import (
 	"go.opentelemetry.io/collector/confmap"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/def"
 	corelog "github.com/DataDog/datadog-agent/comp/core/log/def"
 	converter "github.com/DataDog/datadog-agent/comp/otelcol/converter/def"
 	zapAgent "github.com/DataDog/datadog-agent/pkg/util/log/zap"
@@ -22,7 +22,7 @@ import (
 
 type ddConverter struct {
 	coreConfig config.Component
-	hostname   hostnameinterface.Component
+	hostname   hostname.Component
 	logger     *zap.Logger
 }
 
@@ -41,7 +41,7 @@ var (
 // attempt to enhance the configuration using agent data.
 type Requires struct {
 	Conf     config.Component
-	Hostname hostnameinterface.Component
+	Hostname hostname.Component
 	Log      corelog.Component // ensures the agent logger is initialized before this component
 }
 

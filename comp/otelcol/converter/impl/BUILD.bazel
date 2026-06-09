@@ -14,11 +14,11 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",
-        "//comp/core/hostname/hostnameinterface/def",
         "//comp/core/log/def",
         "//comp/otelcol/converter/def",
         "//pkg/util/hostport",
         "//pkg/util/log/zap",
+        "@com_github_datadog_datadog_agent_comp_core_hostname_hostnameinterface_def//:def",
         "@io_opentelemetry_go_collector_confmap//:confmap",
         "@org_uber_go_zap//:zap",
     ],
@@ -32,7 +32,7 @@ go_test(
     gotags = ["test"],
     deps = [
         "//comp/core/config",
-        "//comp/core/hostname/hostnameinterface/def",
+        "//comp/core/hostname/def",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@io_opentelemetry_go_collector_confmap//:confmap",

@@ -15,7 +15,7 @@ import (
 	"strconv"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	processStatus "github.com/DataDog/datadog-agent/pkg/process/util/status"
@@ -25,11 +25,11 @@ import (
 type StatusProvider struct {
 	testServerURL string
 	config        config.Component
-	hostname      hostnameinterface.Component
+	hostname      hostname.Component
 }
 
 // NewStatusProvider fetches the status
-func NewStatusProvider(Config config.Component, hostname hostnameinterface.Component) *StatusProvider {
+func NewStatusProvider(Config config.Component, hostname hostname.Component) *StatusProvider {
 	return &StatusProvider{
 		config:   Config,
 		hostname: hostname,

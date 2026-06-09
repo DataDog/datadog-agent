@@ -10,7 +10,7 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
@@ -22,7 +22,7 @@ type dependencies struct {
 	compdef.In
 
 	Config   config.Component
-	Hostname hostnameinterface.Component
+	Hostname hostname.Component
 	Logger   log.Component
 	IPC      ipc.Component
 }

@@ -14,7 +14,7 @@ import (
 	"go.opentelemetry.io/collector/extension"
 
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
@@ -39,7 +39,7 @@ type componentHolder struct {
 	config       coreconfig.Component
 	log          log.Component
 	serializer   serializer.MetricSerializer
-	hostname     hostnameinterface.Component
+	hostname     hostname.Component
 	workloadmeta workloadmeta.Component
 	tagger       tagger.Component
 	ipc          ipc.Component
@@ -65,7 +65,7 @@ func NewFactoryForAgent(
 	config coreconfig.Component,
 	log log.Component,
 	serializer serializer.MetricSerializer,
-	hostname hostnameinterface.Component,
+	hostname hostname.Component,
 	workloadmeta workloadmeta.Component,
 	tagger tagger.Component,
 	ipc ipc.Component,
@@ -99,7 +99,7 @@ type Requires struct {
 	Config       coreconfig.Component
 	Log          log.Component
 	Serializer   serializer.MetricSerializer
-	Hostname     hostnameinterface.Component
+	Hostname     hostname.Component
 	Workloadmeta workloadmeta.Component
 	Tagger       tagger.Component
 	IPC          ipc.Component

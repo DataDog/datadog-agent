@@ -10,7 +10,6 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/logs-library/pipeline",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/core/hostname/hostnameinterface/def",
         "//comp/core/secrets/def",
         "//comp/logs-library/client",
         "//comp/logs-library/client/http",
@@ -28,6 +27,7 @@ go_library(
         "//pkg/logs/status/statusinterface",
         "//pkg/util/compression",
         "//pkg/util/startstop",
+        "@com_github_datadog_datadog_agent_comp_core_hostname_hostnameinterface_def//:def",
         "@org_uber_go_atomic//:atomic",
     ],
 )

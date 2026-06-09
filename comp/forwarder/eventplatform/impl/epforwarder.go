@@ -16,7 +16,7 @@ import (
 
 	configcomp "github.com/DataDog/datadog-agent/comp/core/config"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	secretsnoopimpl "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
@@ -50,7 +50,7 @@ type Requires struct {
 	Config                configcomp.Component
 	Lc                    compdef.Lifecycle
 	EventPlatformReceiver eventplatformreceiver.Component
-	Hostname              hostnameinterface.Component
+	Hostname              hostname.Component
 	Compression           logscompression.Component
 	Secrets               secrets.Component
 }
@@ -786,11 +786,11 @@ func newEventPlatformForwarder(reqs Requires) eventplatform.Component {
 
 // NewNoopEventPlatformForwarder returns the standard event platform forwarder with sending disabled, meaning events
 // will build up in each pipeline channel without being forwarded to the intake
-func NewNoopEventPlatformForwarder(hostname hostnameinterface.Component, compression logscompression.Component) eventplatform.Forwarder {
+func NewNoopEventPlatformForwarder(hostname hostname.Component, compression logscompression.Component) eventplatform.Forwarder {
 	return newNoopEventPlatformForwarder(hostname, compression)
 }
 
-func newNoopEventPlatformForwarder(hostname hostnameinterface.Component, compression logscompression.Component) *defaultEventPlatformForwarder {
+func newNoopEventPlatformForwarder(hostname hostname.Component, compression logscompression.Component) *defaultEventPlatformForwarder {
 	hostnameStr := hostname.GetSafe(context.Background())
 	f := newDefaultEventPlatformForwarder(pkgconfigsetup.Datadog(), eventplatformreceiverimpl.NewReceiver(hostname, pkgconfigsetup.Datadog()).Comp, compression, hostnameStr, secretsnoopimpl.NewComponent().Comp)
 	// remove the senders

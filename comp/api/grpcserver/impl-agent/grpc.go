@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	configstream "github.com/DataDog/datadog-agent/comp/core/configstream/def"
 	configstreamServer "github.com/DataDog/datadog-agent/comp/core/configstream/server"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
@@ -60,7 +60,7 @@ type Requires struct {
 	Collector           option.Option[collector.Component]
 	RemoteAgentRegistry remoteagentregistry.Component
 	Telemetry           telemetry.Component
-	Hostname            hostnameinterface.Component
+	Hostname            hostname.Component
 	ConfigStream        configstream.Component
 }
 
@@ -79,7 +79,7 @@ type server struct {
 	autodiscovery       autodiscovery.Component
 	configComp          config.Component
 	telemetry           telemetry.Component
-	hostname            hostnameinterface.Component
+	hostname            hostname.Component
 	configStream        configstream.Component
 }
 

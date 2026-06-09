@@ -15,7 +15,7 @@ import (
 	"strconv"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	processStatus "github.com/DataDog/datadog-agent/pkg/process/util/status"
@@ -27,7 +27,7 @@ type dependencies struct {
 	compdef.In
 
 	Config   config.Component
-	Hostname hostnameinterface.Component
+	Hostname hostname.Component
 }
 
 // Provides defines the output dependencies of the status component.
@@ -50,7 +50,7 @@ func NewComponent(deps dependencies) Provides {
 type statusProvider struct {
 	testServerURL string
 	config        config.Component
-	hostname      hostnameinterface.Component
+	hostname      hostname.Component
 }
 
 //go:embed status_templates

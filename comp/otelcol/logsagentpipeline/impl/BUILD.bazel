@@ -10,7 +10,6 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",
-        "//comp/core/hostname/hostnameinterface/def",
         "//comp/core/log/def",
         "//comp/core/secrets/noop-impl",
         "//comp/logs-library/client",
@@ -25,6 +24,7 @@ go_library(
         "//pkg/logs/status/statusinterface",
         "//pkg/util/option",
         "//pkg/util/startstop",
+        "@com_github_datadog_datadog_agent_comp_core_hostname_hostnameinterface_def//:def",
         "@org_uber_go_fx//:fx",
         "@org_uber_go_zap//:zap",
     ],

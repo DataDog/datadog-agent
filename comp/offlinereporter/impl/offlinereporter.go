@@ -19,7 +19,7 @@ import (
 
 	demultiplexer "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	offlinereporter "github.com/DataDog/datadog-agent/comp/offlinereporter/def"
@@ -44,7 +44,7 @@ type Requires struct {
 	Config        config.Component
 	Log           log.Component
 	Demultiplexer demultiplexer.Component
-	Hostname      hostnameinterface.Component
+	Hostname      hostname.Component
 	Params        Params
 }
 

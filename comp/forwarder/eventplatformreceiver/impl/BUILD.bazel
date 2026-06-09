@@ -12,7 +12,6 @@ go_library(
         "//comp/api/api/def",
         "//comp/api/api/utils/stream",
         "//comp/core/config",
-        "//comp/core/hostname/hostnameinterface/def",
         "//comp/def",
         "//comp/forwarder/eventplatform/def",
         "//comp/forwarder/eventplatformreceiver/def",
@@ -22,6 +21,7 @@ go_library(
         "@com_github_datadog_agent_payload_v5//contimage",
         "@com_github_datadog_agent_payload_v5//contlcycle",
         "@com_github_datadog_agent_payload_v5//sbom",
+        "@com_github_datadog_datadog_agent_comp_core_hostname_hostnameinterface_def//:def",
         "@org_golang_google_protobuf//proto",
     ],
 )

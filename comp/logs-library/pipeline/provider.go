@@ -12,7 +12,7 @@ import (
 
 	"go.uber.org/atomic"
 
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/comp/logs-library/client"
 	"github.com/DataDog/datadog-agent/comp/logs-library/client/http"
@@ -67,7 +67,7 @@ type provider struct {
 	currentPipelineIndex *atomic.Uint32
 	serverlessMeta       sender.ServerlessMeta
 
-	hostname    hostnameinterface.Component
+	hostname    hostname.Component
 	cfg         pkgconfigmodel.Reader
 	compression logscompression.Component
 
@@ -88,7 +88,7 @@ func NewProvider(
 	endpoints *config.Endpoints,
 	destinationsContext *client.DestinationsContext,
 	status statusinterface.Status,
-	hostname hostnameinterface.Component,
+	hostname hostname.Component,
 	cfg pkgconfigmodel.Reader,
 	compression logscompression.Component,
 	legacyMode bool,
@@ -218,7 +218,7 @@ func newProvider(
 	diagnosticMessageReceiver diagnostic.MessageReceiver,
 	processingRules []*config.ProcessingRule,
 	endpoints *config.Endpoints,
-	hostname hostnameinterface.Component,
+	hostname hostname.Component,
 	cfg pkgconfigmodel.Reader,
 	compression logscompression.Component,
 	serverlessMeta sender.ServerlessMeta,

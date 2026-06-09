@@ -10,7 +10,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/aggregator/mocksender",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/core/hostname/hostnameimpl",
+        "//comp/core/hostname/impl",
         "//comp/core/log/impl",
         "//comp/core/tagger/impl-noop",
         "//comp/filterlist/impl",

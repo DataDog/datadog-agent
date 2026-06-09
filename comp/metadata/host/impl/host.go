@@ -18,7 +18,7 @@ import (
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
@@ -49,7 +49,7 @@ type host struct {
 	log          log.Component
 	config       config.Component
 	resources    resources.Component
-	hostnameComp hostnameinterface.Component
+	hostnameComp hostname.Component
 
 	hostname      string
 	serializer    serializer.MetricSerializer
@@ -64,7 +64,7 @@ type Requires struct {
 	Config     config.Component
 	Resources  resources.Component
 	Serializer serializer.MetricSerializer
-	Hostname   hostnameinterface.Component
+	Hostname   hostname.Component
 }
 
 // Provides defines the output of the host metadata component

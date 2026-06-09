@@ -13,11 +13,11 @@ go_library(
         "//comp/anomalydetection/observer/def",
         "//comp/anomalydetection/reporter/def",
         "//comp/core/config",
-        "//comp/core/hostname/hostnameinterface/def",
         "//comp/core/log/def",
         "//comp/forwarder/eventplatform/def",
         "//pkg/logs/message",
         "//pkg/util/strings",
+        "@com_github_datadog_datadog_agent_comp_core_hostname_hostnameinterface_def//:def",
     ],
 )
 

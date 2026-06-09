@@ -28,7 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	guidef "github.com/DataDog/datadog-agent/comp/core/gui/def"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
@@ -73,7 +73,7 @@ type Requires struct {
 	Flare    flare.Component
 	Status   status.Component
 	Lc       compdef.Lifecycle
-	Hostname hostnameinterface.Component
+	Hostname hostname.Component
 }
 
 // Provides defines the output of the gui component.

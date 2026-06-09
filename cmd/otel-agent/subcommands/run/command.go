@@ -24,8 +24,8 @@ import (
 	configsyncfx "github.com/DataDog/datadog-agent/comp/core/configsync/fx"
 	delegatedauthnoopfx "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx-noop"
 	fxinstrumentation "github.com/DataDog/datadog-agent/comp/core/fxinstrumentation/fx"
+	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/def"
 	hostnamefx "github.com/DataDog/datadog-agent/comp/core/hostname/fx"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/remotehostnameimpl"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
@@ -148,7 +148,7 @@ func runOTelAgentCommand(ctx context.Context, params *cliParams, opts ...fx.Opti
 				return cp
 			}),
 			remoteTaggerFx.Module(tagger.OptionalRemoteParams{Disable: isCmdPortNegative}, tagger.NewRemoteParams()),
-			fx.Provide(func(h hostnameinterface.Component) (serializerexporter.SourceProviderFunc, error) {
+			fx.Provide(func(h hostname.Component) (serializerexporter.SourceProviderFunc, error) {
 				return h.Get, nil
 			}),
 			telemetryfx.Module(),
@@ -204,7 +204,7 @@ func commonAgentFxOptions(ctx context.Context, params *cliParams, acfg coreconfi
 		wmcatalog.GetCatalog(),
 		workloadfilterfx.Module(),
 		fx.Supply(uris),
-		fx.Provide(func(h hostnameinterface.Component) (serializerexporter.SourceProviderFunc, error) {
+		fx.Provide(func(h hostname.Component) (serializerexporter.SourceProviderFunc, error) {
 			return h.Get, nil
 		}),
 		fx.Provide(func(_ coreconfig.Component) log.Params {

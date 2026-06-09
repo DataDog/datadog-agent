@@ -23,6 +23,8 @@ use (
 	comp/core/ipc/httphelpers
 	comp/core/ipc/impl
 	comp/core/ipc/mock
+	comp/core/hostname/def
+	comp/core/hostname/mock
 	comp/core/log/def
 	comp/core/log/fx
 	comp/core/log/impl

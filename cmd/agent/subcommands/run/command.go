@@ -87,8 +87,8 @@ import (
 	guifx "github.com/DataDog/datadog-agent/comp/core/gui/fx"
 	healthprobe "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
 	healthprobefx "github.com/DataDog/datadog-agent/comp/core/healthprobe/fx"
+	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/def"
 	hostnamefx "github.com/DataDog/datadog-agent/comp/core/hostname/fx"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -317,7 +317,7 @@ func run(log log.Component,
 	agenttelemetryComponent agenttelemetry.Component,
 	_ diagnose.Component,
 	healthplatformComp healthplatformdef.Component,
-	hostname hostnameinterface.Component,
+	hostname hostname.Component,
 	ipc ipc.Component,
 	snmpScanManager snmpscanmanager.Component,
 	traceroute traceroute.Component,
@@ -542,7 +542,7 @@ func getSharedFxOption() fx.Option {
 		snmpscanmanagerfx.Module(),
 		networkconfigmanagementfx.Module(),
 		collectorimpl.Module(),
-		fx.Provide(func(demux demultiplexer.Component, hostname hostnameinterface.Component) (ddgostatsd.ClientInterface, error) {
+		fx.Provide(func(demux demultiplexer.Component, hostname hostname.Component) (ddgostatsd.ClientInterface, error) {
 			return aggregator.NewStatsdDirect(demux, hostname)
 		}),
 		process.Bundle(),
@@ -618,7 +618,7 @@ func startAgent(
 	jmxLogger jmxlogger.Component,
 	settings settings.Component,
 	agenttelemetryComponent agenttelemetry.Component,
-	hostname hostnameinterface.Component,
+	hostname hostname.Component,
 	ipc ipc.Component,
 	snmpScanManager snmpscanmanager.Component,
 	traceroute traceroute.Component,

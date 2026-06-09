@@ -11,7 +11,6 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/core/hostname/hostnameinterface/def",
         "//comp/core/telemetry/def",
         "//comp/core/telemetry/impl/noops",
         "//comp/logs/agent/config",
@@ -24,6 +23,7 @@ go_library(
         "//pkg/util/scrubber",
         "//pkg/version",
         "@com_github_datadog_agent_payload_v5//process",
+        "@com_github_datadog_datadog_agent_comp_core_hostname_hostnameinterface_def//:def",
         "@com_github_open_telemetry_opentelemetry_collector_contrib_pkg_datadog//config",
         "@com_github_patrickmn_go_cache//:go-cache",
         "@io_opentelemetry_go_collector_component//:component",
