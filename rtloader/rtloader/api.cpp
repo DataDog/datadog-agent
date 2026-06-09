@@ -273,6 +273,11 @@ int get_check_deprecated(rtloader_t *rtloader, rtloader_pyobject_t *py_class, co
         : 0;
 }
 
+char *discover_config(rtloader_t *rtloader, rtloader_pyobject_t *py_class, const char *service_json)
+{
+    return AS_TYPE(RtLoader, rtloader)->discoverConfig(AS_TYPE(RtLoaderPyObject, py_class), service_json);
+}
+
 char *run_check(rtloader_t *rtloader, rtloader_pyobject_t *check)
 {
     return AS_TYPE(RtLoader, rtloader)->runCheck(AS_TYPE(RtLoaderPyObject, check));
@@ -555,11 +560,6 @@ void set_set_external_tags_cb(rtloader_t *rtloader, cb_set_external_tags_t cb)
 char *get_integration_list(rtloader_t *rtloader)
 {
     return AS_TYPE(RtLoader, rtloader)->getIntegrationList();
-}
-
-char *get_interpreter_memory_usage(rtloader_t *rtloader)
-{
-    return AS_TYPE(RtLoader, rtloader)->getInterpreterMemoryUsage();
 }
 
 void set_write_persistent_cache_cb(rtloader_t *rtloader, cb_write_persistent_cache_t cb)
