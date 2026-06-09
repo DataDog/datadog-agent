@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Cluster Agent: Prevent disabled AppSec proxy injection cleanup from enabling
+    the AppSec sidecar admission webhook.

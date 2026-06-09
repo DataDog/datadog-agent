@@ -3,7 +3,7 @@ module github.com/DataDog/datadog-agent/comp/core/flare/types
 go 1.25.0
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.79.0-rc.8
+	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.79.2
 	go.uber.org/fx v1.24.0
 )
 
@@ -13,8 +13,8 @@ require (
 	github.com/stretchr/testify v1.11.1 // indirect
 	go.uber.org/dig v1.19.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
-	go.uber.org/zap v1.27.1 // indirect
-	golang.org/x/sys v0.43.0 // indirect
+	go.uber.org/zap v1.28.0 // indirect
+	golang.org/x/sys v0.45.0 // indirect
 )
 
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually

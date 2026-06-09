@@ -3,53 +3,53 @@ module github.com/DataDog/datadog-agent/comp/core/secrets/impl
 go 1.25.0
 
 require (
-	github.com/DataDog/datadog-agent/comp/api/api/def v0.79.0-rc.8
-	github.com/DataDog/datadog-agent/comp/core/flare/types v0.79.0-rc.8
-	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.79.0-rc.8
-	github.com/DataDog/datadog-agent/comp/core/secrets/utils v0.79.0-rc.8
-	github.com/DataDog/datadog-agent/comp/core/status v0.79.0-rc.8
-	github.com/DataDog/datadog-agent/comp/core/telemetry v0.79.0-rc.8
-	github.com/DataDog/datadog-agent/pkg/config/env v0.79.0-rc.8
-	github.com/DataDog/datadog-agent/pkg/template v0.79.0-rc.8
-	github.com/DataDog/datadog-agent/pkg/util/defaultpaths v0.79.0-rc.8
-	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.79.0-rc.8
-	github.com/DataDog/datadog-agent/pkg/util/log v0.79.0-rc.8
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.79.0-rc.8
-	github.com/DataDog/datadog-agent/pkg/util/testutil v0.79.0-rc.8
-	github.com/DataDog/datadog-agent/pkg/util/winutil v0.79.0-rc.8
+	github.com/DataDog/datadog-agent/comp/api/api/def v0.79.2
+	github.com/DataDog/datadog-agent/comp/core/flare/types v0.79.2
+	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.79.2
+	github.com/DataDog/datadog-agent/comp/core/secrets/utils v0.79.2
+	github.com/DataDog/datadog-agent/comp/core/status v0.79.2
+	github.com/DataDog/datadog-agent/comp/core/telemetry v0.79.2
+	github.com/DataDog/datadog-agent/pkg/config/env v0.79.2
+	github.com/DataDog/datadog-agent/pkg/template v0.79.2
+	github.com/DataDog/datadog-agent/pkg/util/defaultpaths v0.79.2
+	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.79.2
+	github.com/DataDog/datadog-agent/pkg/util/log v0.79.2
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.79.2
+	github.com/DataDog/datadog-agent/pkg/util/testutil v0.79.2
+	github.com/DataDog/datadog-agent/pkg/util/winutil v0.79.2
 	github.com/benbjohnson/clock v1.3.5
 	github.com/json-iterator/go v1.1.12
 	github.com/stretchr/testify v1.11.1
 	go.yaml.in/yaml/v2 v2.4.4
-	golang.org/x/exp v0.0.0-20260312153236-7ab1446f8b90
-	golang.org/x/sys v0.43.0
+	golang.org/x/exp v0.0.0-20260508232706-74f9aab9d74a
+	golang.org/x/sys v0.45.0
 )
 
 require gopkg.in/yaml.v3 v3.0.1 // indirect
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/delegatedauth v0.79.0-rc.8 // indirect
-	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.79.0-rc.8 // indirect
-	github.com/DataDog/datadog-agent/comp/def v0.79.0-rc.8 // indirect
-	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.79.0-rc.8 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/basic v0.79.0-rc.8 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/buildschema v0.79.0-rc.8 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/create v0.79.0-rc.8 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/helper v0.79.0-rc.8 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/model v0.79.0-rc.8 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.79.0-rc.8 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/setup v0.79.0-rc.8 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/structure v0.79.0-rc.8 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.79.0-rc.8 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.79.0-rc.8 // indirect
-	github.com/DataDog/datadog-agent/pkg/fips v0.79.0-rc.8 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/executable v0.79.0-rc.8 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/flavor v0.79.0-rc.8 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.79.0-rc.8 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/option v0.79.0-rc.8 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/pointer v0.79.0-rc.8 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/system v0.79.0-rc.8 // indirect
-	github.com/DataDog/datadog-agent/pkg/version v0.79.0-rc.8 // indirect
+	github.com/DataDog/datadog-agent/comp/core/delegatedauth v0.79.2 // indirect
+	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.79.2 // indirect
+	github.com/DataDog/datadog-agent/comp/def v0.79.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.79.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/basic v0.79.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/buildschema v0.79.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/create v0.79.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/helper v0.79.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/model v0.79.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.79.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/setup v0.79.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/structure v0.79.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.79.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.79.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/fips v0.79.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/executable v0.79.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/flavor v0.79.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.79.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/option v0.79.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/pointer v0.79.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/system v0.79.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/version v0.79.2 // indirect
 	github.com/DataDog/viper v1.15.1 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
@@ -81,7 +81,7 @@ require (
 	github.com/prometheus/client_model v0.6.2 // indirect
 	github.com/prometheus/common v0.67.5 // indirect
 	github.com/prometheus/procfs v0.20.1 // indirect
-	github.com/shirou/gopsutil/v4 v4.26.3 // indirect
+	github.com/shirou/gopsutil/v4 v4.26.4 // indirect
 	github.com/spf13/cast v1.10.0 // indirect
 	github.com/spf13/cobra v1.10.2 // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
@@ -93,11 +93,11 @@ require (
 	go.uber.org/dig v1.19.0 // indirect
 	go.uber.org/fx v1.24.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
-	go.uber.org/zap v1.27.1 // indirect
+	go.uber.org/zap v1.28.0 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
-	golang.org/x/net v0.53.0 // indirect
+	golang.org/x/net v0.55.0 // indirect
 	golang.org/x/sync v0.20.0 // indirect
-	golang.org/x/text v0.36.0 // indirect
+	golang.org/x/text v0.37.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 )

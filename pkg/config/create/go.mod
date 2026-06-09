@@ -3,22 +3,22 @@ module github.com/DataDog/datadog-agent/pkg/config/create
 go 1.25.0
 
 require (
-	github.com/DataDog/datadog-agent/pkg/config/buildschema v0.79.0-rc.8
-	github.com/DataDog/datadog-agent/pkg/config/model v0.79.0-rc.8
-	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.79.0-rc.8
-	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.79.0-rc.8
-	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.79.0-rc.8
-	github.com/DataDog/datadog-agent/pkg/util/log v0.79.0-rc.8
-	github.com/DataDog/datadog-agent/pkg/version v0.79.0-rc.8
+	github.com/DataDog/datadog-agent/pkg/config/buildschema v0.79.2
+	github.com/DataDog/datadog-agent/pkg/config/model v0.79.2
+	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.79.2
+	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.79.2
+	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.79.2
+	github.com/DataDog/datadog-agent/pkg/util/log v0.79.2
+	github.com/DataDog/datadog-agent/pkg/version v0.79.2
 	github.com/stretchr/testify v1.11.1
 )
 
 require gopkg.in/yaml.v3 v3.0.1 // indirect
 
 require (
-	github.com/DataDog/datadog-agent/pkg/config/basic v0.79.0-rc.8 // indirect
-	github.com/DataDog/datadog-agent/pkg/template v0.79.0-rc.8 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.79.0-rc.8 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/basic v0.79.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/template v0.79.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.79.2 // indirect
 	github.com/DataDog/viper v1.15.1 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
@@ -33,7 +33,7 @@ require (
 	go.uber.org/atomic v1.11.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
-	golang.org/x/sys v0.43.0 // indirect
+	golang.org/x/sys v0.45.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
 )
 

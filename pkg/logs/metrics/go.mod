@@ -3,7 +3,7 @@ module github.com/DataDog/datadog-agent/pkg/logs/metrics
 go 1.25.0
 
 require (
-	github.com/DataDog/datadog-agent/pkg/telemetry v0.79.0-rc.8
+	github.com/DataDog/datadog-agent/pkg/telemetry v0.79.2
 	github.com/benbjohnson/clock v1.3.5
 	github.com/stretchr/testify v1.11.1
 )
@@ -11,10 +11,10 @@ require (
 require gopkg.in/yaml.v3 v3.0.1 // indirect
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/telemetry v0.79.0-rc.8 // indirect
-	github.com/DataDog/datadog-agent/comp/def v0.79.0-rc.8 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.79.0-rc.8 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/option v0.79.0-rc.8 // indirect
+	github.com/DataDog/datadog-agent/comp/core/telemetry v0.79.2 // indirect
+	github.com/DataDog/datadog-agent/comp/def v0.79.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.79.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/option v0.79.2 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
@@ -31,9 +31,9 @@ require (
 	go.uber.org/dig v1.19.0 // indirect
 	go.uber.org/fx v1.24.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
-	go.uber.org/zap v1.27.1 // indirect
+	go.uber.org/zap v1.28.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
-	golang.org/x/sys v0.43.0 // indirect
+	golang.org/x/sys v0.45.0 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 )
 

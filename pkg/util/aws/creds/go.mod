@@ -3,36 +3,36 @@ module github.com/DataDog/datadog-agent/pkg/util/aws/creds
 go 1.25.0
 
 require (
-	github.com/DataDog/datadog-agent/pkg/config/setup v0.79.0-rc.8
-	github.com/DataDog/datadog-agent/pkg/config/utils v0.79.0-rc.8
-	github.com/DataDog/datadog-agent/pkg/util/http v0.79.0-rc.8
-	github.com/DataDog/datadog-agent/pkg/util/log v0.79.0-rc.8
+	github.com/DataDog/datadog-agent/pkg/config/setup v0.79.2
+	github.com/DataDog/datadog-agent/pkg/config/utils v0.79.2
+	github.com/DataDog/datadog-agent/pkg/util/http v0.79.2
+	github.com/DataDog/datadog-agent/pkg/util/log v0.79.2
 	github.com/stretchr/testify v1.11.1
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/delegatedauth v0.79.0-rc.8 // indirect
-	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.79.0-rc.8 // indirect
-	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.79.0-rc.8 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/basic v0.79.0-rc.8 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/buildschema v0.79.0-rc.8 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/create v0.79.0-rc.8 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/env v0.79.0-rc.8 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/helper v0.79.0-rc.8 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/model v0.79.0-rc.8 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.79.0-rc.8 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/structure v0.79.0-rc.8 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.79.0-rc.8 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.79.0-rc.8 // indirect
-	github.com/DataDog/datadog-agent/pkg/fips v0.79.0-rc.8 // indirect
-	github.com/DataDog/datadog-agent/pkg/template v0.79.0-rc.8 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/executable v0.79.0-rc.8 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.79.0-rc.8 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/pointer v0.79.0-rc.8 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.79.0-rc.8 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/system v0.79.0-rc.8 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/winutil v0.79.0-rc.8 // indirect
-	github.com/DataDog/datadog-agent/pkg/version v0.79.0-rc.8 // indirect
+	github.com/DataDog/datadog-agent/comp/core/delegatedauth v0.79.2 // indirect
+	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.79.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.79.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/basic v0.79.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/buildschema v0.79.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/create v0.79.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/env v0.79.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/helper v0.79.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/model v0.79.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.79.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/structure v0.79.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.79.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.79.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/fips v0.79.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/template v0.79.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/executable v0.79.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.79.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/pointer v0.79.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.79.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/system v0.79.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/winutil v0.79.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/version v0.79.2 // indirect
 	github.com/DataDog/viper v1.15.1 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
@@ -50,7 +50,7 @@ require (
 	github.com/pelletier/go-toml v1.9.5 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55 // indirect
-	github.com/shirou/gopsutil/v4 v4.26.3 // indirect
+	github.com/shirou/gopsutil/v4 v4.26.4 // indirect
 	github.com/spf13/cast v1.10.0 // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
@@ -60,10 +60,10 @@ require (
 	go.uber.org/atomic v1.11.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
-	golang.org/x/net v0.53.0 // indirect
+	golang.org/x/net v0.55.0 // indirect
 	golang.org/x/sync v0.20.0 // indirect
-	golang.org/x/sys v0.43.0 // indirect
-	golang.org/x/text v0.36.0 // indirect
+	golang.org/x/sys v0.45.0 // indirect
+	golang.org/x/text v0.37.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

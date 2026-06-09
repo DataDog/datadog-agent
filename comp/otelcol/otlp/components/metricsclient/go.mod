@@ -3,7 +3,7 @@ module github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclie
 go 1.25.0
 
 require (
-	github.com/DataDog/datadog-agent/pkg/trace v0.79.0-rc.8
+	github.com/DataDog/datadog-agent/pkg/trace v0.79.2
 	github.com/DataDog/datadog-go/v5 v5.8.3
 	github.com/stretchr/testify v1.11.1
 	go.opentelemetry.io/otel v1.43.0
@@ -26,7 +26,7 @@ require (
 	go.opentelemetry.io/otel/sdk v1.43.0 // indirect
 	go.opentelemetry.io/otel/trace v1.43.0 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
-	golang.org/x/sys v0.43.0 // indirect
+	golang.org/x/sys v0.45.0 // indirect
 )
 
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
