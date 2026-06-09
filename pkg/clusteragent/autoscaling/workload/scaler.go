@@ -137,12 +137,31 @@ func (sg *scalerImpl) releaseReplicasOwnershipForGVR(ctx context.Context, namesp
 		return nil
 	}
 
-	patch := make([]map[string]string, 0, len(indices))
+	// Guard each remove with `test` ops asserting the manager+subresource
+	// at that index still match what we observed in the GET. If a concurrent
+	// writer (Helm SSA, kubectl, another controller) shifted managedFields
+	// between our GET and this PATCH, the test fails, the whole patch is
+	// rejected (422 Invalid) atomically, and no foreign ownership entry is
+	// dropped. We just retry on the next reconcile with a fresh snapshot.
+	patch := make([]map[string]string, 0, 3*len(indices))
 	for j := len(indices) - 1; j >= 0; j-- {
-		patch = append(patch, map[string]string{
-			"op":   "remove",
-			"path": fmt.Sprintf("/metadata/managedFields/%d", indices[j]),
-		})
+		idx := indices[j]
+		patch = append(patch,
+			map[string]string{
+				"op":    "test",
+				"path":  fmt.Sprintf("/metadata/managedFields/%d/manager", idx),
+				"value": datadogClusterAgentFieldManager,
+			},
+			map[string]string{
+				"op":    "test",
+				"path":  fmt.Sprintf("/metadata/managedFields/%d/subresource", idx),
+				"value": "scale",
+			},
+			map[string]string{
+				"op":   "remove",
+				"path": fmt.Sprintf("/metadata/managedFields/%d", idx),
+			},
+		)
 	}
 	body, err := json.Marshal(patch)
 	if err != nil {
