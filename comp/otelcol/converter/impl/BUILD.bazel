@@ -14,11 +14,11 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",
+        "//comp/core/hostname/def",
         "//comp/core/log/def",
         "//comp/otelcol/converter/def",
         "//pkg/util/hostport",
         "//pkg/util/log/zap",
-        "@com_github_datadog_datadog_agent_comp_core_hostname_hostnameinterface_def//:def",
         "@io_opentelemetry_go_collector_confmap//:confmap",
         "@org_uber_go_zap//:zap",
     ],

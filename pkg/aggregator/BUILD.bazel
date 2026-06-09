@@ -83,7 +83,6 @@ go_library(
         "//pkg/util/sort",
         "//pkg/util/strings",
         "//pkg/version",
-        "@com_github_datadog_datadog_agent_comp_core_hostname_hostnameinterface_def//:def",
         "@com_github_datadog_datadog_go_v5//statsd",
         "@com_github_fatih_color//:color",
         "@org_uber_go_atomic//:atomic",

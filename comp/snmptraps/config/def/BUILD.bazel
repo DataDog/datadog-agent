@@ -26,10 +26,10 @@ go_test(
     gotags = ["test"],
     deps = [
         "//comp/core/config",
+        "//comp/core/hostname/mock",
         "//comp/core/log/mock",
         "//pkg/config/basic",
         "//pkg/config/mock",
-        "@com_github_datadog_datadog_agent_comp_core_hostname_hostnameinterface_mock//:mock",
         "@com_github_gosnmp_gosnmp//:gosnmp",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

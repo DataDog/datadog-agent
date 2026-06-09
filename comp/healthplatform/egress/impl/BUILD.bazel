@@ -7,6 +7,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",
+        "//comp/core/hostname/def",
         "//comp/core/log/def",
         "//comp/def",
         "//comp/healthplatform/egress/def",
@@ -16,7 +17,6 @@ go_library(
         "//pkg/util/pointer",
         "//pkg/version",
         "@com_github_datadog_agent_payload_v5//healthplatform",
-        "@com_github_datadog_datadog_agent_comp_core_hostname_hostnameinterface_def//:def",
     ],
 )
 

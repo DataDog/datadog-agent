@@ -13,6 +13,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/security/common",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/core/hostname/def",
         "//comp/logs-library/client",
         "//comp/logs/agent/config",
         "//pkg/config/setup",
@@ -20,6 +21,5 @@ go_library(
         "//pkg/util/cloudproviders/gce",
         "//pkg/util/ec2",
         "//pkg/util/log",
-        "@com_github_datadog_datadog_agent_comp_core_hostname_hostnameinterface_def//:def",
     ],
 )

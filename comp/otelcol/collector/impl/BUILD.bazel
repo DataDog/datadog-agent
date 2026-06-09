@@ -13,6 +13,7 @@ go_library(
     deps = [
         "//comp/core/agenttelemetry/def",
         "//comp/core/config",
+        "//comp/core/hostname/def",
         "//comp/core/ipc/def",
         "//comp/core/log/def",
         "//comp/core/secrets/def",
@@ -37,7 +38,6 @@ go_library(
         "//pkg/util/log/zap",
         "//pkg/util/option",
         "//pkg/util/otel",
-        "@com_github_datadog_datadog_agent_comp_core_hostname_hostnameinterface_def//:def",
         "@com_github_open_telemetry_opentelemetry_collector_contrib_pkg_datadog//apmstats",
         "@io_opentelemetry_go_collector_component//:component",
         "@io_opentelemetry_go_collector_confmap//:confmap",

@@ -11,6 +11,7 @@ go_library(
     deps = [
         "//comp/core/config",
         "//comp/core/diagnose/def",
+        "//comp/core/hostname/def",
         "//comp/core/secrets/def",
         "//comp/core/secrets/noop-impl",
         "//comp/def",
@@ -34,7 +35,6 @@ go_library(
         "//pkg/util/option",
         "//pkg/util/startstop",
         "//pkg/version",
-        "@com_github_datadog_datadog_agent_comp_core_hostname_hostnameinterface_def//:def",
         "@org_uber_go_mock//gomock",
     ],
 )
