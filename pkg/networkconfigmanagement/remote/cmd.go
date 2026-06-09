@@ -42,6 +42,9 @@ func ExecuteCommand(ctx context.Context, client sshClient, cmd *profile.PlainCom
 	select {
 	case r := <-ch:
 		if r.err != nil {
+			if r.message != "" {
+				return "", fmt.Errorf("%w: %q", r.err, r.message)
+			}
 			return "", r.err
 		}
 		return r.message, cmd.Validator.Validate(r.message)
