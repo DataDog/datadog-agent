@@ -27,5 +27,7 @@ func SetHealthPlatform(h healthplatformdef.Component) {
 }
 
 func getHealthPlatform() healthplatformdef.Component {
+	healthPlatformMu.Lock()
+	defer healthPlatformMu.Unlock()
 	return healthPlatform
 }
