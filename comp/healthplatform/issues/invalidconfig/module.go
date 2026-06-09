@@ -49,10 +49,9 @@ func (m *invalidConfigModule) BuiltInPeriodicHealthCheck() *runnerdef.BuiltInPer
 // the flag is disabled — returning nil/empty resolves any previously-stored
 // issues rather than leaving them orphaned.
 //
-// The gate exists because schema.ValidateCoreConfig decompresses, parses, and
-// compiles the full core_schema.yaml (~8000 lines) into a *jsonschema.Schema
-// stored in a process-lifetime global — adding ~8 MiB of permanent heap even
-// when the agent config is valid.
+// The gate exists to allow skipping the ~8 MiB startup compilation spike.
+// The check uses schema.ValidateCoreConfigNoCache so the compiled schema is
+// transient and GC-eligible once this goroutine exits — it is not retained globally.
 func (m *invalidConfigModule) BuiltInStartupHealthCheck() *runnerdef.BuiltInHealthCheck {
 	return &runnerdef.BuiltInHealthCheck{
 		Source: "agent",

@@ -124,6 +124,20 @@ func ValidateCoreConfig(config interface{}) ([]string, error) {
 	return validateData(sch, config)
 }
 
+// ValidateCoreConfigNoCache compiles the core schema, validates config against it, then
+// discards the compiled schema so the ~8 MiB of heap it occupies can be reclaimed by the
+// GC. Use this for one-shot validation (e.g. a startup health check) where retaining the
+// compiled schema for the process lifetime is not acceptable.
+// Unlike ValidateCoreConfig, concurrent callers each compile their own copy; prefer
+// ValidateCoreConfig in hot paths.
+func ValidateCoreConfigNoCache(config interface{}) ([]string, error) {
+	sch, err := loadSchema("core_schema")
+	if err != nil {
+		return nil, err
+	}
+	return validateData(sch, config)
+}
+
 // ValidateSystemProbeConfig validates a unmarshal YAML/JSON contents against the system-probe agent schema
 func ValidateSystemProbeConfig(config interface{}) ([]string, error) {
 	sch, err := sysprobeSchemaGetter()

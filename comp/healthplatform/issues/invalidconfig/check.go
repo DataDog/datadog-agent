@@ -43,7 +43,7 @@ func (c *checker) validate() ([]runnerdef.IssueReport, error) {
 	if err != nil {
 		return nil, fmt.Errorf("invalidconfig: normalize config: %w", err)
 	}
-	errs, schemaErr := schema.ValidateCoreConfig(normalized)
+	errs, schemaErr := schema.ValidateCoreConfigNoCache(normalized)
 	if schemaErr != nil {
 		pkglog.Warnf("invalidconfig: schema validator unavailable; skipping check: %v", schemaErr)
 		return nil, schemaErr

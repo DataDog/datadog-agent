@@ -8238,9 +8238,10 @@ properties:
           enabled:
             node_type: setting
             type: boolean
-            # Disabled by default: loading the compiled core_schema.yaml retains ~8 MiB of heap
-            # permanently (sync.Once global). Enable only if startup schema validation is needed.
-            default: false
+            # The check uses ValidateCoreConfigNoCache so the compiled schema (~8 MiB) is
+            # transient and GC-eligible after the startup goroutine exits. Set to false to
+            # skip the compilation spike entirely.
+            default: true
   heroku_dyno:
     node_type: setting
     type: boolean
