@@ -829,8 +829,8 @@ func GetBasicNvmlMockWithOptions(options ...NvmlMockOption) *nvmlmock.Interface 
 			return nvml.SUCCESS
 		},
 		GpmMetricsGetFunc: func(metricsGet *nvml.GpmMetricsGetType) nvml.Return {
-			for _, metric := range metricsGet.Metrics[:metricsGet.NumMetrics] {
-				metric.NvmlReturn = uint32(nvml.SUCCESS)
+			for i := range metricsGet.Metrics[:metricsGet.NumMetrics] {
+				metricsGet.Metrics[i].NvmlReturn = uint32(nvml.SUCCESS)
 			}
 
 			return nvml.SUCCESS
