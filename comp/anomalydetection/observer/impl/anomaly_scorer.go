@@ -131,10 +131,10 @@ type anomalyScorer struct {
 
 	lastAdvancedSec int64
 
-	// buckets accumulates ScoreBucket entries for test-bench and replay
-	// inspection via ScoreState(). It is NOT used by the live observer path,
-	// which only calls LastScore(). Left unbounded for now — see reviewer note
-	// about capping to WindowSecs to avoid unbounded growth in long-running agents.
+	// buckets retains the most recent WindowSecs ScoreBucket entries for debug
+	// and replay inspection via ScoreState(). Capped at WindowSecs to prevent
+	// unbounded growth in long-running agents; older entries are discarded.
+	// Not used by the live observer path, which only calls LastScore().
 	buckets []observer.ScoreBucket
 }
 
@@ -289,6 +289,11 @@ func (s *anomalyScorer) advanceSecond(sec int64) {
 		WeightSum: weightSum,
 		Ewma:      s.ewma,
 	})
+	if int64(len(s.buckets)) > s.config.WindowSecs {
+		trimmed := make([]observer.ScoreBucket, s.config.WindowSecs)
+		copy(trimmed, s.buckets[int64(len(s.buckets))-s.config.WindowSecs:])
+		s.buckets = trimmed
+	}
 }
 
 // ScoreState returns a snapshot of accumulated telemetry. Thread-safe.

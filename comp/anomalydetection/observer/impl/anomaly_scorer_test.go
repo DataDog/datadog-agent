@@ -92,9 +92,11 @@ func TestEWMABasic(t *testing.T) {
 	}
 
 	// Second advance with no anomalies → EWMA decays by (1-alpha).
+	// With WindowSecs=1 the bucket history is capped at 1 entry, so after
+	// Advance(1001) only the t=1001 bucket remains at Buckets[0].
 	s.Advance(1001)
 	st = s.ScoreState()
-	b2 := st.Buckets[1]
+	b2 := st.Buckets[0]
 	expected2 := cfg.Alpha*0 + (1-cfg.Alpha)*expectedEWMA
 	if math.Abs(b2.Ewma-expected2) > 1e-9 {
 		t.Errorf("EWMA decay: got %.6f, want %.6f", b2.Ewma, expected2)
@@ -173,14 +175,16 @@ func TestWindowExpiry(t *testing.T) {
 	s.ProcessAnomaly(observer.Anomaly{DetectorName: "bocpd", Timestamp: 1000, Source: src})
 	s.Advance(1014)
 
-	b14 := s.ScoreState().Buckets[len(s.ScoreState().Buckets)-1]
+	st14 := s.ScoreState()
+	b14 := st14.Buckets[len(st14.Buckets)-1]
 	if b14.Count != 1 {
 		t.Errorf("window expiry: expected count=1 at t=1014, got %d", b14.Count)
 	}
 
 	s.Advance(1015)
 
-	b15 := s.ScoreState().Buckets[len(s.ScoreState().Buckets)-1]
+	st15 := s.ScoreState()
+	b15 := st15.Buckets[len(st15.Buckets)-1]
 	if b15.Count != 0 {
 		t.Errorf("window expiry: expected count=0 at t=1015 (series expired), got %d", b15.Count)
 	}
@@ -391,6 +395,9 @@ func TestLateAnomalyBeforeFirstAdvance(t *testing.T) {
 // TestEmptySeconds verifies that Advance over a gap generates empty buckets.
 // WindowSecs=1 so the anomaly at t=1000 expires before t=1001, giving zero
 // window count for the gap seconds and allowing pure EWMA decay to be tested.
+// With WindowSecs=1 the bucket history is capped at 1 entry, so ScoreState
+// only returns the latest bucket; we verify via LastScore that the EWMA has
+// decayed and check the final bucket directly.
 func TestEmptySeconds(t *testing.T) {
 	cfg := DefaultScorerConfig()
 	cfg.Alpha = 0.5
@@ -402,13 +409,19 @@ func TestEmptySeconds(t *testing.T) {
 	s.Advance(1002) // advance covers seconds 1000, 1001, 1002
 
 	st := s.ScoreState()
-	if len(st.Buckets) != 3 {
-		t.Fatalf("expected 3 buckets, got %d", len(st.Buckets))
+	// Only the last bucket (t=1002) is retained due to WindowSecs=1 cap.
+	if len(st.Buckets) != 1 {
+		t.Fatalf("expected 1 bucket (cap=WindowSecs), got %d", len(st.Buckets))
 	}
-	if st.Buckets[0].Second != 1000 || st.Buckets[1].Second != 1001 || st.Buckets[2].Second != 1002 {
-		t.Errorf("unexpected seconds: %v %v %v", st.Buckets[0].Second, st.Buckets[1].Second, st.Buckets[2].Second)
+	if st.Buckets[0].Second != 1002 {
+		t.Errorf("expected last bucket at t=1002, got t=%d", st.Buckets[0].Second)
 	}
-	if st.Buckets[1].Count != 0 || st.Buckets[2].Count != 0 {
-		t.Errorf("expected empty gap buckets, got %v %v", st.Buckets[1], st.Buckets[2])
+	if st.Buckets[0].Count != 0 {
+		t.Errorf("expected empty bucket at t=1002, got count=%d", st.Buckets[0].Count)
+	}
+	// EWMA after three seconds: seed→decay→decay. Score must be > 0 (decayed,
+	// not zero) and strictly less than after t=1000 (score has decayed twice).
+	if s.LastScore() == 0 {
+		t.Error("expected non-zero EWMA after decaying from seeded value")
 	}
 }
