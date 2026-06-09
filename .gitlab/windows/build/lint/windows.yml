@@ -1,5 +1,3 @@
-
-
 .lint_windows_base:
   stage: lint
   needs: ["go_deps", "go_tools_deps"]
@@ -34,10 +32,7 @@
 lint_windows-x64:
   extends: .lint_windows_base
   rules:
-    - if: $CI_COMMIT_TAG != null
-    - if: $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+\.x$/
-    - if: ($DEPLOY_AGENT == "true" || $DDR_WORKFLOW_ID != null) && $BUCKET_BRANCH =~ /^(nightly|oldnightly|beta|stable)$/
-    - when: never
+    - !reference [.on_native_os_linters]
   variables:
     ARCH: "x64"
   timeout: 1h30m
