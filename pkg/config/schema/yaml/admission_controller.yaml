@@ -618,6 +618,19 @@ properties:
             type: string
             default: datadog/ingress-nginx-injection
             comment: ingress-nginx injection configuration
+          init_run_as_group:
+            node_type: setting
+            type: integer
+            default: 82
+          init_run_as_user:
+            node_type: setting
+            type: integer
+            default: 101
+            comment: |-
+              Non-root UID/GID for the injected init container. Defaults match the
+              stock datadog/ingress-nginx-injection image, which declares no USER and
+              would otherwise be rejected under runAsNonRoot. Set to a negative value
+              to leave the security context unset and honor a custom init_image's own USER.
           module_mount_path:
             node_type: setting
             type: string

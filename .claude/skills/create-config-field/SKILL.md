@@ -51,7 +51,7 @@ Use `AskUserQuestion` to collect the following. If `$ARGUMENTS` provides the con
 5. **Default value**: What should the default be?
 6. **Description**: Human-readable description of what this field controls.
 7. **Scope**: Add inline in the subsystem function, or create a dedicated setup file (`pkg/config/setup/<feature>.go`) for a group of related fields?
-8. **User-facing?**: Should it be documented in `pkg/config/config_template.yaml`?
+8. **User-facing?**: Should the rendered example yaml (`datadog.yaml`, `system-probe.yaml`, ...) show this setting?
 
 ### Step 2: Register the config key
 
@@ -65,16 +65,21 @@ For a **group of related fields**, create `pkg/config/setup/<feature>.go` with a
 
 For **serverless-compatible** core agent fields, register via the `serverlessConfigComponents` slice in `config.go` instead of directly in `InitConfig`.
 
-### Step 3: (Optional) Document in the config template
+### Step 3: Regenerate the schema
 
-If user-facing, add documentation to `pkg/config/config_template.yaml` inside the appropriate conditional block (see Template conditional column in tables above). Read existing entries nearby for the exact format (`@param`, `@env` annotations).
+The example yaml configs (`datadog.yaml`, `system-probe.yaml`, etc.) are rendered from the enriched schema under `pkg/config/schema/yaml/`. The schema is derived from the running agent, so build first, then regenerate:
+
+```bash
+dda inv agent.build --build-exclude=systemd
+dda inv schema.generate --agent-bin=./bin/agent/agent
+```
+
+Commit the resulting changes under `pkg/config/schema/yaml/` alongside your Go code.
 
 ### Step 4: Verify
 
-1. Build: `dda inv agent.build --build-exclude=systemd` (or `dda inv system-probe.build`)
-2. Lint: `dda inv linter.go`
-3. If the template was modified: `dda inv generate-config`
-4. Report the results to the user.
+1. Lint: `dda inv linter.go`
+2. Report the results to the user.
 
 ## Key Methods Reference
 
