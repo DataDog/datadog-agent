@@ -24,6 +24,8 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/enrollment"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 )
 
 // Commands returns a slice of subcommands for the 'cluster-agent' command.
@@ -56,10 +58,24 @@ func run(_ log.Component, cfg config.Component, hostnameComp hostname.Component)
 
 	// Use the same hostname resolution as the running agent (honors DD_HOSTNAME / configured
 	// overrides) so ShouldReenroll does not discard the rotated identity on next startup.
-	agentIdentifier, err := enrollment.GetAgentIdentifier(ctx, hostnameComp)
+	hostnameVal, err := hostnameComp.Get(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to get agent identifier: %w", err)
+		return fmt.Errorf("failed to get hostname: %w", err)
 	}
+
+	// clustername.GetClusterID is a node-agent function that falls back to the DCA HTTP
+	// client (needs cross-node TLS not available in a one-shot CLI). Use
+	// GetOrCreateClusterID instead, which reads the datadog-cluster-id ConfigMap directly.
+	apiClient, err := apiserver.GetAPIClient()
+	if err != nil {
+		return fmt.Errorf("failed to get Kubernetes client: %w", err)
+	}
+	orchClusterID, err := common.GetOrCreateClusterID(apiClient.Cl.CoreV1())
+	if err != nil {
+		return fmt.Errorf("failed to get cluster ID: %w", err)
+	}
+
+	agentIdentifier := &enrollment.AgentIdentifier{Hostname: hostnameVal, OrchClusterID: orchClusterID}
 
 	result, err := enrollment.Enroll(ctx, cfg, agentIdentifier)
 	if err != nil {
