@@ -2947,6 +2947,7 @@ api_key:
 #   - kubernetes
 #   - orchestratorexplorer
 #   - podman
+#   - process
 
 ## @param autoconfig_include_features - list of strings - optional - default: []
 ## @env DD_AUTOCONFIG_INCLUDE_FEATURES - space-separated list of strings - optional - default: []
@@ -2963,6 +2964,7 @@ api_key:
 #   - kubernetes
 #   - orchestratorexplorer
 #   - podman
+#   - process
 
 ###########################################
 ## Container Autodiscovery Configuration ##
