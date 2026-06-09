@@ -72,7 +72,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 	var getConfigHandler http.HandlerFunc
 	if store == nil {
 		getConfigHandler = func(w http.ResponseWriter, _ *http.Request) {
-			http.Error(w, `{"error": "ncm not enabled for agent"}`, http.StatusBadRequest)
+			http.Error(w, `{"error": "ncm rollbacks not available for agent"}`, http.StatusBadRequest)
 		}
 	} else {
 		getConfigHandler = newConfigEndpointHandler(store)
