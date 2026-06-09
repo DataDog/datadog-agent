@@ -45,12 +45,14 @@ def _parse_bep_file(path: Path) -> dict:
                     start_time_ms = _parse_bep_timestamp(event['started'].get('startTime', ''))
                 elif 'finished' in event:
                     finish_time_ms = _parse_bep_timestamp(event['finished'].get('finishTime', ''))
-                elif 'action' in event:
-                    action = event['action']
-                    if action.get('success', False):
-                        total_actions += 1
-                        if action.get('cachedRemotely', False):
-                            remote_cache_hits += 1
+                elif 'buildMetrics' in event:
+                    # buildMetrics is always present; per-action events require
+                    # --build_event_publish_all_actions which we don't set.
+                    action_summary = event['buildMetrics'].get('actionSummary', {})
+                    executed = int(action_summary.get('actionsExecuted', 0))
+                    hits = int(action_summary.get('remoteCacheHits', 0))
+                    total_actions = executed + hits
+                    remote_cache_hits = hits
     except OSError as e:
         print(f"Warning: could not read BEP file {path}: {e}", file=sys.stderr)
         return {}
