@@ -6,10 +6,10 @@
 package metrics
 
 import (
-	"sync"
 	"time"
 
 	"github.com/benbjohnson/clock"
+	"go.uber.org/atomic"
 
 	log "github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -36,22 +36,29 @@ func (n *NoopUtilizationMonitor) Start() {}
 func (n *NoopUtilizationMonitor) Stop() {}
 
 // TelemetryUtilizationMonitor is a UtilizationMonitor that reports utilization metrics as telemetry.
+//
+// Start/Stop run on the component goroutine (a hot path); sample() runs on the pipeline sampler
+// goroutine. They share state only through atomics, so the hot path takes no lock: Start/Stop
+// publish raw accumulators and the sampler owns all derived state.
 type TelemetryUtilizationMonitor struct {
-	// mu guards all mutable state: Start/Stop run on the component goroutine, sample on the ticker.
-	mu sync.Mutex
+	// Accumulators written by the hot path and read by the sampler. cumulativeBusyNanos plus the
+	// open interval (now - startInUseNanos, while started) is the effective busy time at any instant.
+	cumulativeBusyNanos atomic.Int64
+	startInUseNanos     atomic.Int64
+	started             atomic.Bool
 
-	inUse      time.Duration
-	idle       time.Duration
-	startIdle  time.Time
-	startInUse time.Time
-	lastSample time.Time
-	sampleRate time.Duration
-	avg        float64 // EWMA utilization (N=15, α≈0.125)
-	history    *rollingHistory
-	name       string
-	instance   string
-	started    bool
-	clock      clock.Clock
+	// avg is the EWMA utilization (N=15, α≈0.125), written by the sampler and read atomically so
+	// subscribers can poll it without blocking the hot path.
+	avg atomic.Float64
+
+	// Sampler-owned state.
+	name              string
+	instance          string
+	sampleRate        time.Duration
+	clock             clock.Clock
+	history           *rollingHistory
+	lastSample        time.Time
+	lastEffectiveBusy int64
 	// registry, when non-nil, receives utilization snapshots and supplies the capacity figures
 	// used in saturation logs. It is owned by the pipeline monitor; standalone monitors leave it nil.
 	registry *snapshotRegistry
@@ -75,92 +82,84 @@ func newTelemetryUtilizationMonitorWithSampleRateAndClock(name, instance string,
 	return &TelemetryUtilizationMonitor{
 		name:       name,
 		instance:   instance,
-		startIdle:  clock.Now(),
-		startInUse: clock.Now(),
-		lastSample: clock.Now(),
 		sampleRate: sampleRate,
-		avg:        0,
-		history:    newRollingHistory(),
-		started:    false,
 		clock:      clock,
+		history:    newRollingHistory(),
+		lastSample: clock.Now(),
 		registry:   registry,
 	}
 }
 
-// Start tracks a start event in the utilization tracker.
+// Start tracks a start event in the utilization tracker. startInUseNanos is stored before
+// flipping started so the sampler never observes started with a stale start timestamp.
 func (u *TelemetryUtilizationMonitor) Start() {
-	u.mu.Lock()
-	defer u.mu.Unlock()
-	if u.started {
+	if u.started.Load() {
 		return
 	}
-	u.started = true
-	now := u.clock.Now()
-	u.idle += now.Sub(u.startIdle)
-	u.startInUse = now
-	u.reportIfNeededLocked(now)
+	u.startInUseNanos.Store(u.clock.Now().UnixNano())
+	u.started.Store(true)
 }
 
-// Stop tracks a finish event in the utilization tracker.
+// Stop tracks a finish event in the utilization tracker. The closed interval is credited to the
+// cumulative counter before clearing started, so a sampler that observes started=false also
+// observes the credited time.
 func (u *TelemetryUtilizationMonitor) Stop() {
-	u.mu.Lock()
-	defer u.mu.Unlock()
-	if !u.started {
+	if !u.started.Load() {
 		return
 	}
-	u.started = false
-	now := u.clock.Now()
-	u.inUse += now.Sub(u.startInUse)
-	u.startIdle = now
-	u.reportIfNeededLocked(now)
-}
-
-// sample is driven by the ticker so a component blocked mid-operation is observed, not frozen at its last EWMA.
-func (u *TelemetryUtilizationMonitor) sample(now time.Time) {
-	u.mu.Lock()
-	defer u.mu.Unlock()
-	u.settleLocked(now)
-	u.reportIfNeededLocked(now)
-}
-
-// settleLocked credits the open interval up to now and advances its start so Start/Stop won't double-count it. Caller holds u.mu.
-func (u *TelemetryUtilizationMonitor) settleLocked(now time.Time) {
-	if u.started {
-		u.inUse += now.Sub(u.startInUse)
-		u.startInUse = now
-	} else {
-		u.idle += now.Sub(u.startIdle)
-		u.startIdle = now
+	if busy := u.clock.Now().UnixNano() - u.startInUseNanos.Load(); busy > 0 {
+		u.cumulativeBusyNanos.Add(busy)
 	}
+	u.started.Store(false)
 }
 
-// reportIfNeededLocked publishes a sample if sampleRate has elapsed; now is passed for a consistent instant. Caller holds u.mu.
-func (u *TelemetryUtilizationMonitor) reportIfNeededLocked(now time.Time) {
+// sample is driven by the ticker so a component blocked mid-operation is observed, not frozen at
+// its last EWMA.
+func (u *TelemetryUtilizationMonitor) sample(now time.Time) {
 	if now.Sub(u.lastSample) < u.sampleRate {
 		return
 	}
+
+	// Differencing the monotonic effective-busy across the window credits the open interval once;
+	// a torn read against the hot path only shifts time between adjacent windows and self-corrects.
+	effBusy := u.effectiveBusyNanos(now)
+	windowBusy := effBusy - u.lastEffectiveBusy
+	windowElapsed := now.UnixNano() - u.lastSample.UnixNano()
+
 	rawRatio := 0.0
-	if total := u.idle + u.inUse; total > 0 {
-		rawRatio = float64(u.inUse) / float64(total)
+	if windowElapsed > 0 {
+		rawRatio = clamp01(float64(windowBusy) / float64(windowElapsed))
 	}
-	u.avg = ewma(rawRatio, u.avg)
 
-	u.history.add(now, u.avg)
+	avg := ewma(rawRatio, u.avg.Load())
+	u.avg.Store(avg)
+	u.history.add(now, avg)
 
-	TlmUtilizationRatio.Set(u.avg, u.name, u.instance)
+	TlmUtilizationRatio.Set(avg, u.name, u.instance)
 	if u.registry != nil {
-		u.registry.setUtilization(u.name, u.instance, u.avg, rawRatio, u.history)
+		u.registry.setUtilization(u.name, u.instance, avg, rawRatio, u.history)
 	}
-	u.idle = 0
-	u.inUse = 0
+
+	u.lastEffectiveBusy = effBusy
 	u.lastSample = now
 
-	u.updateSaturationState(now)
+	u.updateSaturationState(now, avg)
 }
 
-// updateSaturationState drives the saturation state machine, emitting transition and throttled logs. Caller holds u.mu.
-func (u *TelemetryUtilizationMonitor) updateSaturationState(now time.Time) {
-	currentlySaturated := u.avg >= SaturationThreshold
+// effectiveBusyNanos returns total in-use time as of now: completed intervals plus any open one.
+func (u *TelemetryUtilizationMonitor) effectiveBusyNanos(now time.Time) int64 {
+	busy := u.cumulativeBusyNanos.Load()
+	if u.started.Load() {
+		if open := now.UnixNano() - u.startInUseNanos.Load(); open > 0 {
+			busy += open
+		}
+	}
+	return busy
+}
+
+// updateSaturationState drives the saturation state machine, emitting transition and throttled logs.
+func (u *TelemetryUtilizationMonitor) updateSaturationState(now time.Time, avg float64) {
+	currentlySaturated := avg >= SaturationThreshold
 
 	if currentlySaturated {
 		u.pendingRecoverySince = time.Time{}
@@ -174,15 +173,15 @@ func (u *TelemetryUtilizationMonitor) updateSaturationState(now time.Time) {
 			u.isSaturated = true
 			u.saturatedSince = now
 			u.lastThrottleLog = now
-			u.episodeMaxUtil = u.avg
+			u.episodeMaxUtil = avg
 			u.episodeMaxItems = snap.RawItems
 			u.episodeMaxBytes = snap.RawBytes
 			// max_items/max_bytes are omitted at onset (capacity snapshot may not have ticked yet).
 			log.Warnf("Logs Agent pipeline component saturated component=%s instance=%s utilization=%.0f%%",
-				u.name, u.instance, u.avg*100)
+				u.name, u.instance, avg*100)
 		} else {
-			if u.avg > u.episodeMaxUtil {
-				u.episodeMaxUtil = u.avg
+			if avg > u.episodeMaxUtil {
+				u.episodeMaxUtil = avg
 			}
 			if snap.RawItems > u.episodeMaxItems {
 				u.episodeMaxItems = snap.RawItems
@@ -193,7 +192,7 @@ func (u *TelemetryUtilizationMonitor) updateSaturationState(now time.Time) {
 
 			if now.Sub(u.lastThrottleLog) >= saturationThrottleDuration {
 				log.Warnf("Logs Agent pipeline component saturated component=%s instance=%s utilization=%.0f%% duration=%s max_utilization=%.0f%% max_items=%d max_bytes=%d",
-					u.name, u.instance, u.avg*100, now.Sub(u.saturatedSince), u.episodeMaxUtil*100, u.episodeMaxItems, u.episodeMaxBytes)
+					u.name, u.instance, avg*100, now.Sub(u.saturatedSince), u.episodeMaxUtil*100, u.episodeMaxItems, u.episodeMaxBytes)
 				u.lastThrottleLog = now
 			}
 		}
@@ -211,4 +210,15 @@ func (u *TelemetryUtilizationMonitor) updateSaturationState(now time.Time) {
 			u.episodeMaxBytes = 0
 		}
 	}
+}
+
+// clamp01 bounds a ratio to [0, 1]; timing skew can push the raw ratio slightly outside it.
+func clamp01(v float64) float64 {
+	if v < 0 {
+		return 0
+	}
+	if v > 1 {
+		return 1
+	}
+	return v
 }
