@@ -56,11 +56,11 @@ func unsetProxyEnvForTest(t *testing.T) {
 func TestDefaults(t *testing.T) {
 	config := newTestConf(t)
 
-	// Testing viper's handling of defaults
-	assert.False(t, config.IsSet("site"))
-	assert.False(t, config.IsSet("dd_url"))
-	assert.Equal(t, "", config.GetString("site"))
-	assert.Equal(t, "", config.GetString("dd_url"))
+	// site and dd_url now have defaults; IsConfigured stays false until the user sets them
+	assert.False(t, config.IsConfigured("site"))
+	assert.False(t, config.IsConfigured("dd_url"))
+	assert.Equal(t, DefaultSite, config.GetString("site"))
+	assert.Equal(t, "https://app.datadoghq.com", config.GetString("dd_url"))
 	assert.Equal(t, []string{"aws", "gcp", "azure", "alibaba", "oracle", "ibm"}, config.GetStringSlice("cloud_provider_metadata"))
 
 	// Testing process-agent defaults
@@ -217,7 +217,7 @@ func TestDDHostnameFileEnvVar(t *testing.T) {
 
 func TestEnvNestedConfig(t *testing.T) {
 	config := newTestConf(t)
-	config.BindEnv("foo.bar.nested") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnvAndSetDefault("foo.bar.nested", "")
 	t.Setenv("DD_FOO_BAR_NESTED", "baz")
 
 	assert.Equal(t, "baz", config.GetString("foo.bar.nested"))

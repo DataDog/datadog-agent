@@ -571,7 +571,7 @@ type mockCoreAgentServer struct {
 	address      string
 	registerFunc func(context.Context, *pbcore.RegisterRemoteAgentRequest) (*pbcore.RegisterRemoteAgentResponse, error)
 	refreshFunc  func(context.Context, *pbcore.RefreshRemoteAgentRequest) (*pbcore.RefreshRemoteAgentResponse, error)
-	pbcore.UnimplementedAgentSecureServer
+	pbcore.UnimplementedRemoteAgentServer
 	echo.UnimplementedEchoServer
 }
 
@@ -625,7 +625,7 @@ func newMockCoreAgentServer(
 	}
 
 	mock.server = grpc.NewServer(serverOpts...)
-	pbcore.RegisterAgentSecureServer(mock.server, mock)
+	pbcore.RegisterRemoteAgentServer(mock.server, mock)
 
 	// register echo service
 	echo.RegisterEchoServer(mock.server, mock)
