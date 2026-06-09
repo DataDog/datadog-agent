@@ -41,6 +41,14 @@ if defined XDG_CACHE_HOME (
   :: https://github.com/bazelbuild/bazel/issues/26384
   for %%i in ("%~dp0..\.cache") do if "!XDG_CACHE_HOME!" == "%%~fi" set "extra_args=!extra_args! --repo_contents_cache="
   if defined CI if not defined GITHUB_ACTIONS set "extra_args=!extra_args! --config=ci"
+  :: Collect build events and profile for CI build monitoring.
+  :: CI_PROJECT_DIR is per-job and cleaned between runs; XDG_CACHE_HOME can persist across jobs.
+  if defined CI if not defined GITHUB_ACTIONS if defined CI_PROJECT_DIR (
+    set "metrics_dir=!CI_PROJECT_DIR!\.bazel-metrics"
+    if not exist "!metrics_dir!" md "!metrics_dir!"
+    set "_rid=%RANDOM%"
+    set "extra_args=!extra_args! --build_event_json_file=!metrics_dir!\bep-!_rid!.json --profile=!metrics_dir!\profile-!_rid!.json"
+  )
 ) else (
   :: Without XDG_CACHE_HOME, fall back Go caches to official defaults so Go repo rules work under strict repo_env
   if not defined GOCACHE set "GOCACHE=%LOCALAPPDATA%\go-build"

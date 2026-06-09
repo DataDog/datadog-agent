@@ -35,6 +35,16 @@ if [ -n "${XDG_CACHE_HOME-}" ]; then
   [ -n "${CI-}" ] && [ -z "${GITHUB_ACTIONS-}" ] && extra_args+=(--config=ci)
   # Edge cache is only reachable from inside the k8s cluster (Linux CI runners).
   [ -n "${CI-}" ] && [ -z "${GITHUB_ACTIONS-}" ] && [ "$(uname -s)" = Linux ] && extra_args+=(--config=ci-edge-cache)
+  # Collect build events and profile for CI build monitoring.
+  # CI_PROJECT_DIR is per-job and cleaned between runs; XDG_CACHE_HOME can persist across jobs on some runners.
+  if [ -n "${CI-}" ] && [ -z "${GITHUB_ACTIONS-}" ] && [ -n "${CI_PROJECT_DIR-}" ]; then
+    _metrics_dir="${CI_PROJECT_DIR}/.bazel-metrics"
+    mkdir -p "$_metrics_dir"
+    extra_args+=(
+      "--build_event_json_file=${_metrics_dir}/bep-$$.json"
+      "--profile=${_metrics_dir}/profile-$$.json"
+    )
+  fi
 else
   # Without `XDG_CACHE_HOME`, fall back Go caches to official defaults so Go repo rules work under strict repo_env
   [ -z "${GOCACHE-}" ] && export GOCACHE=~/.cache/go-build
