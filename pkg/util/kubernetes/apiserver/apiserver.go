@@ -451,13 +451,10 @@ func (c *APIClient) connect() error {
 		)
 	}
 
-	if pkgconfigsetup.Datadog().GetBool("private_action_runner.enabled") &&
-		pkgconfigsetup.Datadog().GetBool("private_action_runner.identity_use_k8s_secret") {
+	if pkgconfigsetup.Datadog().GetBool(pkgconfigsetup.PAREnabled) &&
+		pkgconfigsetup.Datadog().GetBool(pkgconfigsetup.PARIdentityUseK8sSecret) {
 		nameFieldKey := "metadata.name"
-		parSecretName := pkgconfigsetup.Datadog().GetString("private_action_runner.identity_secret_name")
-		if parSecretName == "" {
-			parSecretName = "private-action-runner-identity"
-		}
+		parSecretName := pkgconfigsetup.Datadog().GetString(pkgconfigsetup.PARIdentitySecretName)
 		optionsForPARSecret := func(options *metav1.ListOptions) {
 			options.FieldSelector = fields.OneTermEqualSelector(nameFieldKey, parSecretName).String()
 		}
