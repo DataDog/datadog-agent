@@ -1,7 +1,7 @@
 """
 Schema linter for the Datadog Agent configuration schemas.
 
-Validates generated YAML schema files (pkg/config/schema/*.yaml) against
+Validates generated YAML schema files (pkg/config/schema/yaml/*.yaml) against
 a set of quality rules. Run with:
 
     dda inv schema.lint
@@ -15,10 +15,12 @@ import yaml
 from invoke import task
 from invoke.exceptions import Exit
 
-SCHEMA_DIR = os.path.join("pkg", "config", "schema")
+from tasks.schema.merge_schema import resolve_schema
+
+SCHEMA_DIR = os.path.join("pkg", "config", "schema", "yaml")
 EXCEPTIONS_FILE = os.path.join(os.path.dirname(__file__), "lint_exceptions.yaml")
 
-VALID_TYPES = {"string", "number", "boolean", "array", "object"}
+VALID_TYPES = {"string", "number", "integer", "boolean", "array", "object"}
 VALID_NODE_TYPES = {"section", "setting"}
 VALID_PLATFORM_KEYS = {"darwin", "windows", "linux", "container", "other"}
 REQUIRED_PLATFORM_KEYS_WITHOUT_OTHER = {"darwin", "windows", "linux"}
@@ -627,8 +629,10 @@ def lint(ctx, schema_dir=SCHEMA_DIR, exceptions_file=EXCEPTIONS_FILE):
             # Cannot continue linting an unparseable file
             continue
 
-        with open(schema_path) as f:
-            schema = yaml.safe_load(f)
+        # Use resolve_schema so that lint checks see the fully merged content
+        # (split sub-files inlined). Linting operates on the logical schema,
+        # not on the on-disk fragments.
+        schema = resolve_schema(schema_path)
 
         all_errors.extend(check_json_schema_structure(schema_path, schema, exc["array_no_items"]))
         all_errors.extend(check_public_descriptions(schema_path, schema))

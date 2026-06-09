@@ -125,7 +125,7 @@ type ntmConfig struct {
 	// the map value represents `isLeaf` for each key
 	knownKeys map[string]bool
 
-	// keys that are unknown, but are used by either the file or SetWithoutSource
+	// keys that are unknown, but are used by either the file or SetInTest
 	// used to warn (a single time) on use.
 	// sync.Map is used because checkKnownKey writes to this map while callers
 	// only hold an RLock, so a plain map would cause concurrent map writes.
@@ -233,7 +233,7 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 
 	// convert the value to the type of the default
 	if declaredNode.IsLeafNode() {
-		if converted, err := convertToDefaultType(newValue, declaredNode.Get()); err == nil {
+		if converted, err := basic.ConvertToDefaultType(newValue, declaredNode.Get(), false); err == nil {
 			if ok := c.setWarnings[key]; !ok {
 				if reflect.TypeOf(converted) != reflect.TypeOf(newValue) {
 					log.Warnf("Set('%s'): converting value from %T to %T to match default type", key, newValue, converted)
@@ -290,11 +290,11 @@ func (c *ntmConfig) insertValueIntoTree(key string, value interface{}, source mo
 	return tree, err
 }
 
-// SetWithoutSource assigns the value to the given key using source Unknown, may only be called from tests
-func (c *ntmConfig) SetWithoutSource(key string, value interface{}) {
-	c.assertIsTest("SetWithoutSource")
+// SetInTest assigns the value to the given key using source Unknown, may only be called from tests
+func (c *ntmConfig) SetInTest(key string, value interface{}) {
+	c.assertIsTest("SetInTest")
 	if !basic.ValidateBasicTypes(value) {
-		panic(fmt.Errorf("SetWithoutSource can only be called with basic types (int, string, slice, map, etc), got %v", value))
+		panic(fmt.Errorf("SetInTest can only be called with basic types (int, string, slice, map, etc), got %v", value))
 	}
 	c.Set(key, value, model.SourceUnknown)
 	c.Lock()
@@ -637,10 +637,8 @@ func (c *ntmConfig) insertNodeFromString(curr *nodeImpl, key string, envval stri
 	var actualValue interface{} = envval
 	if transformer, found := c.envTransform[key]; found {
 		actualValue = transformer(envval)
-	}
-
-	if defaultNode := c.leafAtPathFromNode(key, c.defaults); defaultNode != missingLeaf {
-		if converted, err := convertToDefaultType(actualValue, defaultNode.Get()); err == nil {
+	} else if defaultNode := c.leafAtPathFromNode(key, c.defaults); defaultNode != missingLeaf {
+		if converted, err := basic.ConvertToDefaultType(actualValue, defaultNode.Get(), false); err == nil {
 			actualValue = converted
 		}
 	}

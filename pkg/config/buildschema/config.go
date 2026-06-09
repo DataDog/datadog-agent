@@ -304,10 +304,10 @@ func (b *builder) Stringify(_ model.Source, _ ...model.StringifyOption) string {
 }
 
 func (b *builder) Set(_ string, _ interface{}, _ model.Source) {
-	b.notImplemented()
+	// pass
 }
 
-func (b *builder) SetWithoutSource(_ string, _ interface{}) {
+func (b *builder) SetInTest(_ string, _ interface{}) {
 	b.notImplemented()
 }
 

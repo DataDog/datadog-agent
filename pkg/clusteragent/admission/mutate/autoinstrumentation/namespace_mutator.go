@@ -30,18 +30,20 @@ import (
 )
 
 type mutatorCore struct {
-	config        *Config
-	wmeta         workloadmeta.Component
-	filter        mutatecommon.MutationFilter
-	imageResolver imageresolver.Resolver
+	config           *Config
+	wmeta            workloadmeta.Component
+	filter           mutatecommon.MutationFilter
+	imageResolver    imageresolver.Resolver
+	csiDriverWatcher libraryinjection.CSIDriverWatcher
 }
 
-func newMutatorCore(config *Config, wmeta workloadmeta.Component, filter mutatecommon.MutationFilter, imageResolver imageresolver.Resolver) *mutatorCore {
+func newMutatorCore(config *Config, wmeta workloadmeta.Component, filter mutatecommon.MutationFilter, imageResolver imageresolver.Resolver, csiDriverWatcher libraryinjection.CSIDriverWatcher) *mutatorCore {
 	return &mutatorCore{
-		config:        config,
-		wmeta:         wmeta,
-		filter:        filter,
-		imageResolver: imageResolver,
+		config:           config,
+		wmeta:            wmeta,
+		filter:           filter,
+		imageResolver:    imageResolver,
+		csiDriverWatcher: csiDriverWatcher,
 	}
 }
 
@@ -135,6 +137,7 @@ func (m *mutatorCore) buildLibraryInjectionConfig(pod *corev1.Pod, config extrac
 		Debug:                       m.isDebugEnabled(pod),
 		AutoDetected:                autoDetected,
 		InjectionType:               injectionType,
+		CSIDriverWatcher:            m.csiDriverWatcher,
 		Injector: libraryinjection.InjectorConfig{
 			Package: injectorImage,
 		},

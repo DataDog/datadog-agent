@@ -49,7 +49,7 @@ func TestDaemonSetHandlers_BeforeCacheCheck(t *testing.T) {
 	tagger := processorstest.NewFakeTagger(map[taggertypes.EntityID][]string{entityID: {"tagger-tag:value"}})
 	handlers := NewDaemonSetHandlers(tagger)
 
-	skip := handlers.BeforeCacheCheck(ctx, resource, resourceModel)
+	skip := handlers.EnrichModel(ctx, resource, resourceModel)
 	assert.False(t, skip)
 	assert.Equal(t, []string{"tagger-tag:value"}, resourceModel.Tags)
 }
@@ -117,16 +117,16 @@ func TestDaemonSetHandlers_ResourceList(t *testing.T) {
 	// Validate conversion
 	assert.Len(t, resources, 2)
 
-	// Verify deep copy was made
+	// Verify raw informer references are returned
 	resource1, ok := resources[0].(*appsv1.DaemonSet)
 	assert.True(t, ok)
 	assert.Equal(t, "daemonset-1", resource1.Name)
-	assert.NotSame(t, daemonSet1, resource1) // Should be a copy
+	assert.Same(t, daemonSet1, resource1) // ResourceList returns raw informer references
 
 	resource2, ok := resources[1].(*appsv1.DaemonSet)
 	assert.True(t, ok)
 	assert.Equal(t, "daemonset-2", resource2.Name)
-	assert.NotSame(t, daemonSet2, resource2) // Should be a copy
+	assert.Same(t, daemonSet2, resource2) // ResourceList returns raw informer references
 }
 
 func TestDaemonSetHandlers_ResourceUID(t *testing.T) {
@@ -442,4 +442,14 @@ func createTestDaemonSet(name, namespace string) *appsv1.DaemonSet {
 			},
 		},
 	}
+}
+
+func TestDaemonSetHandlers_CloneResource(t *testing.T) {
+	handlers := &DaemonSetHandlers{}
+	original := createTestDaemonSet("test", "ns")
+	cloned := handlers.CloneResource(original)
+	clonedTyped, ok := cloned.(*appsv1.DaemonSet)
+	assert.True(t, ok)
+	assert.NotSame(t, original, clonedTyped)
+	assert.Equal(t, original, clonedTyped)
 }

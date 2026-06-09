@@ -104,7 +104,7 @@ func TestGetHostTagsWithProjectID(t *testing.T) {
 	server := mockMetadataRequest(t)
 	defer server.Close()
 	defer cache.Cache.Delete(tagsCacheKey)
-	mockConfig.SetWithoutSource("gce_send_project_id_tag", true)
+	mockConfig.SetInTest("gce_send_project_id_tag", true)
 	tags, err := GetTags(ctx)
 	require.NoError(t, err)
 	testTags(t, tags, expectedTagsWithProjectID)
@@ -131,7 +131,7 @@ func TestGetHostTagsWithNonDefaultTagFilters(t *testing.T) {
 	mockConfig := configmock.New(t)
 	defaultExclude := mockConfig.GetStringSlice("exclude_gce_tags")
 
-	mockConfig.SetWithoutSource("exclude_gce_tags", append([]string{"cluster-name"}, defaultExclude...))
+	mockConfig.SetInTest("exclude_gce_tags", append([]string{"cluster-name"}, defaultExclude...))
 
 	server := mockMetadataRequest(t)
 	defer server.Close()

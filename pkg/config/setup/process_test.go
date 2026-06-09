@@ -332,7 +332,7 @@ func TestEnvVarOverride(t *testing.T) {
 			key:      "process_config.strip_proc_arguments",
 			env:      "DD_STRIP_PROCESS_ARGS",
 			value:    "false",
-			expType:  "boolean", // process_config.strip_proc_arguments has no default value so Get returns a string
+			expType:  "boolean",
 			expected: false,
 		},
 		{
@@ -489,7 +489,7 @@ func TestProcConfigEnabledTransform(t *testing.T) {
 	} {
 		t.Run("process_config.enabled="+tc.procConfigEnabled, func(t *testing.T) {
 			cfg := newTestConf(t)
-			cfg.SetWithoutSource("process_config.enabled", tc.procConfigEnabled)
+			cfg.SetInTest("process_config.enabled", tc.procConfigEnabled)
 			loadProcessTransforms(cfg)
 
 			assert.Equal(t, tc.expectedContainerCollection, cfg.GetBool("process_config.container_collection.enabled"))

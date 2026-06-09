@@ -71,7 +71,10 @@ def ask_reviews(_, pr_id, action, team_slugs):
         channels[channel].append(slug)
 
     for channel, slugs in channels.items():
-        if channel == DEFAULT_SLACK_CHANNEL:
+        if not channel:
+            print(f"No channel for {', '.join(slugs)}, ignore.")
+            continue
+        elif channel == DEFAULT_SLACK_CHANNEL:
             missing_teams = ", ".join(f"@datadog/{s}" for s in slugs)
             message = (
                 f'Hello :{random.choice(waves)}:!\n'

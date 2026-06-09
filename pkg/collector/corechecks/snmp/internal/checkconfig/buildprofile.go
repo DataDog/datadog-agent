@@ -7,10 +7,11 @@ package checkconfig
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"maps"
 	"slices"
+
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // BuildProfile builds the fetchable profile for this config.
@@ -59,6 +60,7 @@ func (c *CheckConfig) BuildProfile(sysObjectID string) (profiledefinition.Profil
 	if rootProfile != nil {
 		profile.Name = rootProfile.Name
 		profile.Version = rootProfile.Version
+		profile.Extends = slices.Clone(rootProfile.Extends)
 		profile.StaticTags = append(profile.StaticTags, "snmp_profile:"+rootProfile.Name)
 		vendor := rootProfile.Device.Vendor
 		if vendor != "" {

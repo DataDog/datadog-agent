@@ -73,20 +73,15 @@ def _cgo_godefs_impl(ctx):
         package_name = ctx.label.package.split("/")[-1]
         genpost_args = "$ROOT/{test} {pkg}".format(test = test_path_no_ext, pkg = package_name)
 
-    # TODO(ABLD-410): uses the system clang rather than a hermetic toolchain.
-    # On Windows, Go defaults to gcc (MinGW) — no CC override needed, matching
-    # the old ninja behavior.
-    cc_prefix = "CC=clang " if platform == "linux" else ""
-
     cmd = (
         "set -euo pipefail && ROOT=$PWD && cd {src_dir} && " +
-        "GOROOT=$ROOT/{goroot} {cc_prefix}$ROOT/{go} tool cgo -godefs -- {includes} -fsigned-char {src_file} | " +
+        "GOROOT=$ROOT/{goroot} CC=$ROOT/{cc} $ROOT/{go} tool cgo -godefs -- {includes} -fsigned-char {src_file} | " +
         "$ROOT/{genpost} {genpost_args} > $ROOT/{out}"
     ).format(
-        cc_prefix = cc_prefix,
+        cc = ctx.file.c_compiler.path,
         goroot = go.sdk.root_file.dirname,
         src_dir = src.dirname,
-        go = go.go.path,
+        go = go.sdk.go.path,
         includes = include_flags,
         src_file = src.basename,
         genpost = genpost.path,
@@ -102,8 +97,8 @@ def _cgo_godefs_impl(ctx):
     ctx.actions.run_shell(
         outputs = outputs,
         inputs = depset(
-            [src, go.go],
-            transitive = [headers, go.sdk.tools, go.sdk.srcs, go.sdk.libs, go.cc_toolchain_files],
+            [src, go.sdk.go, ctx.file.c_compiler],
+            transitive = [headers, go.sdk.tools, go.sdk.srcs, go.sdk.libs],
         ),
         tools = [genpost],
         command = cmd,
@@ -136,6 +131,10 @@ _cgo_godefs = rule(
         "hdrs": attr.label_list(
             providers = [CcInfo],
             doc = "cc_library targets whose headers are needed in the sandbox but whose include dirs should not appear as -I flags.",
+        ),
+        "c_compiler": attr.label(
+            allow_single_file = True,
+            cfg = "exec",
         ),
         "_genpost": attr.label(
             default = "//pkg/ebpf/cgo:genpost",
@@ -171,6 +170,10 @@ def _cgo_godefs_macro_impl(name, visibility, src, deps, hdrs, platform):
         src = src,
         deps = all_deps,
         hdrs = hdrs,
+        c_compiler = select({
+            "@platforms//os:windows": "@winlibs_mingw64//:gcc",
+            "//conditions:default": "@llvm_toolchain_llvm//:bin/clang",
+        }),
         target_compatible_with = compat,
     )
 
