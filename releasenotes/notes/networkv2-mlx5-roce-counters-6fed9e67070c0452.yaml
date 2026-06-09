@@ -1,0 +1,3 @@
+---
+enhancements:
+  - Add mlx5_core RoCE/PFC per-priority and Layer 1 ethtool counters.

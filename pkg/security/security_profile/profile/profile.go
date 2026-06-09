@@ -279,11 +279,22 @@ func (p *Profile) Insert(event *model.Event, insertMissingProcesses bool, imageT
 	return p.ActivityTree.Insert(event, insertMissingProcesses, imageTag, generationType, resolvers)
 }
 
-// ComputeInMemorySize returns the size of a dump in memory
+// ComputeInMemorySize returns the legacy shallow size estimate of the profile in memory
+// (node counts × struct header sizes). Kept for V1 (legacy Manager / ActivityDump) which
+// has tuned its thresholds against this number — do not change its semantics.
 func (p *Profile) ComputeInMemorySize() int64 {
 	p.Lock()
 	defer p.Unlock()
 	return p.ActivityTree.Stats.ApproximateSize()
+}
+
+// ComputeHeapSize returns the profile's incrementally-tracked real heap footprint in
+// bytes (strings, slice backings, map buckets, struct headers). V2 uses this for its
+// max-size check and the profile_size metric.
+func (p *Profile) ComputeHeapSize() int64 {
+	p.Lock()
+	defer p.Unlock()
+	return p.ActivityTree.Stats.HeapSize()
 }
 
 // FakeOverweight fakes an overweight profile

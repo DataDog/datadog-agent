@@ -9,6 +9,13 @@
 ## Unreleased
 
 <!-- Add entries here for changes not yet in a release. -->
+- Remove `sharedlibrarycheck` from the AIX agent build (the shared-library check loader was included but not validated on AIX)
+
+- The embedded `python3.13` binary and all Python extension modules now have the correct install-time library search path baked into their XCOFF loader section. Previously, the staging path was baked in, causing `libpython3.13.so could not be loaded` when running pip or python directly (without `LIBPATH` set). Operators can now run `pip install` without setting `LIBPATH` first.
+
+---
+
+## 7.81.0-devel.git.349.9b5ddbe-1 (2026-06-01)
 
 - Remove static libraries (`libz.a`, `libbz2.a`) from the installed package to avoid conflicts when installing Python C extensions with pip
 - Agent and trace-agent wrappers now append the caller's `LIBPATH` to the agent's own library search path, so operator-set paths (e.g. custom driver directories) are visible to the agent at runtime

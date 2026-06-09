@@ -77,13 +77,16 @@ build do
     if ENV['WINDOWS_DDNPM_DRIVER'] and not ENV['WINDOWS_DDNPM_DRIVER'].empty?
       do_windows_sysprobe = "--windows-sysprobe"
     end
-    command_on_repo_root "bazelisk run #{bazel_flags} -- //rtloader:install --destdir=\"#{install_dir}"
+    command_on_repo_root "bazelisk run #{bazel_flags} -- //rtloader:install --destdir=\"#{install_dir}",
+      :live_stream => Omnibus.logger.live_stream(:info)
     # Put the static rtloader library where it gets picked up by the go build linking to it
-    command_on_repo_root "bazelisk run #{bazel_flags} -- //rtloader:install_static --destdir=\"#{project_dir}/rtloader/build/rtloader\""
+    command_on_repo_root "bazelisk run #{bazel_flags} -- //rtloader:install_static --destdir=\"#{project_dir}/rtloader/build/rtloader\"",
+      :live_stream => Omnibus.logger.live_stream(:info)
     command "dda inv -- -e agent.build --exclude-rtloader --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded #{do_windows_sysprobe} --flavor #{flavor_arg}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
     command "dda inv -- -e systray.build", env: env, :live_stream => Omnibus.logger.live_stream(:info)
   else
-    command_on_repo_root "bazelisk run #{bazel_flags} -- //rtloader:install --destdir='#{install_dir}'"
+    command_on_repo_root "bazelisk run #{bazel_flags} -- //rtloader:install --destdir='#{install_dir}'",
+      :live_stream => Omnibus.logger.live_stream(:info)
     command "dda inv -- -e agent.build --exclude-rtloader --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded --flavor #{flavor_arg}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
   end
 
@@ -122,6 +125,7 @@ build do
   else
     copy 'bin/agent/ddtray.exe', "#{install_dir}/bin/agent"
     copy 'bin/agent/agent.exe', "#{install_dir}/bin/agent"
+    copy 'bin/agent/agent.exe.pdb', "#{install_dir}/bin/agent"
     copy 'bin/agent/dist', "#{install_dir}/bin/agent"
     mkdir "#{install_dir}/bin/scripts/"
     copy "#{project_dir}/omnibus/windows-scripts/iis-instrumentation.bat", "#{install_dir}/bin/scripts/"
@@ -139,6 +143,7 @@ build do
   elsif windows_target?
     command "dda inv -- -e installer.build #{fips_args} --install-path=#{install_dir}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
     move 'bin/installer/installer.exe', "#{install_dir}/datadog-installer.exe"
+    move 'bin/installer/installer.exe.pdb', "#{install_dir}/datadog-installer.exe.pdb"
   end
 
   if linux_target?
@@ -155,6 +160,7 @@ build do
 
   if windows_target?
     copy 'bin/trace-agent/trace-agent.exe', "#{install_dir}/bin/agent"
+    copy 'bin/trace-agent/trace-agent.exe.pdb', "#{install_dir}/bin/agent"
   else
     copy 'bin/trace-agent/trace-agent', "#{install_dir}/embedded/bin"
   end
@@ -166,6 +172,7 @@ build do
 
   if windows_target?
     copy 'bin/process-agent/process-agent.exe', "#{install_dir}/bin/agent"
+    copy 'bin/process-agent/process-agent.exe.pdb', "#{install_dir}/bin/agent"
   elsif not heroku_target?
     copy 'bin/process-agent/process-agent', "#{install_dir}/embedded/bin"
   end
@@ -176,6 +183,7 @@ build do
 
     if windows_target?
       copy 'bin/privateactionrunner/privateactionrunner.exe', "#{install_dir}/bin/agent"
+      copy 'bin/privateactionrunner/privateactionrunner.exe.pdb', "#{install_dir}/bin/agent"
     elsif not heroku_target?
       copy 'bin/privateactionrunner/privateactionrunner', "#{install_dir}/embedded/bin"
     end
@@ -192,6 +200,7 @@ build do
 
     if windows_target?
       copy 'bin/system-probe/system-probe.exe', "#{install_dir}/bin/agent"
+      copy 'bin/system-probe/system-probe.exe.pdb', "#{install_dir}/bin/agent"
     else
       copy "bin/system-probe/system-probe", "#{install_dir}/embedded/bin"
     end
@@ -243,6 +252,7 @@ build do
     command "dda inv -- -e security-agent.build #{fips_args} --install-path=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
     if windows_target?
       copy 'bin/security-agent/security-agent.exe', "#{install_dir}/bin/agent"
+      copy 'bin/security-agent/security-agent.exe.pdb', "#{install_dir}/bin/agent"
     else
       copy 'bin/security-agent/security-agent', "#{install_dir}/embedded/bin"
     end

@@ -34,6 +34,7 @@ import (
 //	 - [WithFakeintake]
 //	 - [WithLogs]
 //   - [WithExtraComposeManifest]
+//   - [WithV3MetricsEnabled]
 //
 // [Functional options pattern]: https://dave.cheney.net/2014/10/17/functional-options-for-friendly-apis
 
@@ -59,6 +60,10 @@ type Params struct {
 	PulumiDependsOn []pulumi.ResourceOption
 	// FIPS is true if FIPS image is needed.
 	FIPS bool
+
+	// intakeURL is stored by withIntakeHostname so that WithV3MetricsEnabled
+	// can inject V3 endpoint config after fakeintake wiring.
+	intakeURL pulumi.StringInput
 }
 
 type Option = func(*Params) error
@@ -158,19 +163,43 @@ func WithIntake(url string) func(*Params) error {
 	return withIntakeHostname(pulumi.String(url), pulumi.Bool(false))
 }
 
-// WithFakeintake installs the fake intake and configures the Agent to use it.
+// WithFakeintake installs the fake intake and configures the Agent to use it,
+// including Remote Config. The agent is pointed at fakeintake's RC endpoint and
+// given the TUF root JSON derived from fakeintake's global signing key so it can
+// verify signed payloads without any extra provisioner options.
 //
 // This option is overwritten by `WithIntakeHostname`.
-func WithFakeintake(fakeintake *fakeintake.Fakeintake) func(*Params) error {
-	shouldSkipSSLValidation := fakeintake.Scheme.ApplyT(func(scheme string) bool { return scheme == "http" }).(pulumi.BoolInput)
+func WithFakeintake(fi *fakeintake.Fakeintake) func(*Params) error {
+	shouldSkipSSLValidation := fi.Scheme.ApplyT(func(scheme string) bool { return scheme == "http" }).(pulumi.BoolInput)
 	return func(p *Params) error {
-		p.PulumiDependsOn = append(p.PulumiDependsOn, utils.PulumiDependsOn(fakeintake))
-		return withIntakeHostname(fakeintake.URL, shouldSkipSSLValidation)(p)
+		p.PulumiDependsOn = append(p.PulumiDependsOn, utils.PulumiDependsOn(fi))
+		if err := withIntakeHostname(fi.URL, shouldSkipSSLValidation)(p); err != nil {
+			return err
+		}
+		rootJSON, err := fakeintake.RCRootJSON()
+		if err != nil {
+			return fmt.Errorf("build fakeintake rc root json: %w", err)
+		}
+		rcEnvVars := pulumi.Map{
+			"DD_REMOTE_CONFIGURATION_ENABLED":          pulumi.String("true"),
+			"DD_REMOTE_CONFIGURATION_RC_DD_URL":        pulumi.Sprintf("%s", fi.URL),
+			"DD_REMOTE_CONFIGURATION_NO_TLS":           pulumi.String("true"),
+			"DD_REMOTE_CONFIGURATION_CONFIG_ROOT":      pulumi.String(rootJSON),
+			"DD_REMOTE_CONFIGURATION_DIRECTOR_ROOT":    pulumi.String(rootJSON),
+			"DD_REMOTE_CONFIGURATION_REFRESH_INTERVAL": pulumi.String("5s"),
+		}
+		for key, value := range rcEnvVars {
+			if err := WithAgentServiceEnvVariable(key, value)(p); err != nil {
+				return err
+			}
+		}
+		return nil
 	}
 }
 
 func withIntakeHostname(url pulumi.StringInput, shouldSkipSSLValidation pulumi.BoolInput) func(*Params) error {
 	return func(p *Params) error {
+		p.intakeURL = url
 		envVars := pulumi.Map{
 			"DD_DD_URL":                                  pulumi.Sprintf("%s", url),
 			"DD_PROCESS_CONFIG_PROCESS_DD_URL":           pulumi.Sprintf("%s", url),
@@ -188,6 +217,26 @@ func withIntakeHostname(url pulumi.StringInput, shouldSkipSSLValidation pulumi.B
 			}
 		}
 		return nil
+	}
+}
+
+// WithV3MetricsEnabled opts the Agent into the V3 metrics intake API for its primary
+// fakeintake endpoint. It adds serializer_experimental_use_v3_api series endpoints pointing
+// at the same URL used for DD_DD_URL, so the serializer sends to /api/intake/metrics/v3/series
+// instead of /api/v2/series.
+//
+// Only series are redirected; sketches V3 support is not yet implemented in fakeintake.
+//
+// Must be called after WithFakeintake or WithIntake so the intake URL is known.
+func WithV3MetricsEnabled() func(*Params) error {
+	return func(p *Params) error {
+		if p.intakeURL == nil {
+			return fmt.Errorf("WithV3MetricsEnabled must be called after WithFakeintake or WithIntake")
+		}
+		return WithAgentServiceEnvVariable(
+			"DD_SERIALIZER_EXPERIMENTAL_USE_V3_API_SERIES_ENDPOINTS",
+			pulumi.Sprintf("%s", p.intakeURL),
+		)(p)
 	}
 }
 

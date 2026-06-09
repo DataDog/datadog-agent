@@ -62,10 +62,12 @@ build do
       omnibus_package_dir = "#{ci_project_dir}/omnibus/pkg"
     end
     if omnibus_package_dir
-      command_on_repo_root "bazelisk run #{bazel_flags} -- //packages/installer/linux:copy_out --destdir=#{omnibus_package_dir}"
+      command_on_repo_root "bazelisk run #{bazel_flags} -- //packages/installer/linux:copy_out --destdir=#{omnibus_package_dir}",
+        :live_stream => Omnibus.logger.live_stream(:info)
     end
   elsif windows_target?
     command "dda inv -- -e installer.build --install-path=#{install_dir}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
     copy 'bin/installer/installer.exe', "#{install_dir}/datadog-installer.exe"
+    copy 'bin/installer/installer.exe.pdb', "#{install_dir}/datadog-installer.exe.pdb"
   end
 end

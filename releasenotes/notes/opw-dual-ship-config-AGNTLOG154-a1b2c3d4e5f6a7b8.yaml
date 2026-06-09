@@ -1,0 +1,23 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    Logs: Add ``observability_pipelines_worker.logs.dual_ship`` configuration option.
+    When set to ``true``, the Agent sends logs simultaneously to both the primary
+    Datadog intake **and** the configured Observability Pipelines Worker (OPW) URL,
+    without requiring users to manually compose ``logs_config.additional_endpoints``.
+    The default value is ``false``, which preserves the existing behaviour where OPW
+    replaces the primary Datadog endpoint.
+
+    By default the OPW destination is treated as a best-effort (unreliable) additional
+    endpoint, so an unhealthy OPW cannot apply backpressure to the main pipeline and
+    stall delivery to Datadog. Set
+    ``observability_pipelines_worker.logs.dual_ship_reliable`` to ``true`` to opt OPW
+    into reliable mode, where failures to OPW participate in flow control just like
+    the primary Datadog endpoint.

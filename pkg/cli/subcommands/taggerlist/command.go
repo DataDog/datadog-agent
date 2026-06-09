@@ -71,7 +71,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 						config.WithExtraConfFiles(globalParams.ExtraConfFilePaths),
 						config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath),
 					),
-					LogParams: log.ForOneShot(globalParams.LoggerName, "off", true)}),
+					LogParams: log.ForOneShot(globalParams.LoggerName, "off", !cliParams.json && !cliParams.prettyJSON)}),
 				core.Bundle(),
 				ipcfx.ModuleReadOnly(),
 			)
