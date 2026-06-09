@@ -88,8 +88,8 @@ type PrivateActionRunner struct {
 	startOnce       sync.Once
 	startChan       chan struct{}
 	cancelStart     context.CancelFunc
-	cancelLifecycle context.CancelFunc  // canceled by Stop; governs watcher and restart loop
-	restartCh       chan struct{}        // receives a signal when the PAR identity has been rotated
+	cancelLifecycle context.CancelFunc // canceled by Stop; governs watcher and restart loop
+	restartCh       chan struct{}      // receives a signal when the PAR identity has been rotated
 }
 
 // NewComponent creates a new privateactionrunner component
