@@ -160,7 +160,7 @@ func (c *CheckStore) ListConfigs() ([]integration.Config, uint64) {
 	return out, c.configHash
 }
 
-// Hash returns a deterministic hash of the current set of (key, generation) pairs,
+// Hash returns a deterministic hash of the current set of "key:uid:generation" entries,
 // consistent across all cluster agent replicas for the same CR state.
 func (c *CheckStore) Hash() uint64 {
 	c.mu.RLock()
