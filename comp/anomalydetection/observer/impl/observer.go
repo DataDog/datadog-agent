@@ -720,11 +720,12 @@ func (o *observerImpl) IngestLogNoAdvance(source string, msg observerdef.LogView
 		timestampMs: timestampMs,
 	}
 	o.replayMu.Lock()
-	_, logTelemetry := o.engine.IngestLog(source, lo)
-	if len(logTelemetry) > 0 {
-		o.telemetryHandler.handleTelemetry(logTelemetry)
-	}
 	// Advance requests are intentionally discarded.
+	_ = o.engine.IngestLog(source, lo)
+	if o.telemetry != nil {
+		o.telemetry.recordLogIngested(classifyLogSource(source, lo.tags), len(lo.content))
+		o.telemetry.setSeriesCount(o.engine.Storage().TotalSeriesCount(observerdef.TelemetryNamespace))
+	}
 	o.replayMu.Unlock()
 }
 
