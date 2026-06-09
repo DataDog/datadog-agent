@@ -163,7 +163,8 @@ func DiscoverComponentsFromEnv() ([]pkgconfigsetup.ConfigurationProviders, []pkg
 		log.Info("Adding Kubelet listener from environment")
 	}
 
-	if env.IsFeaturePresent(env.Process) {
+	isProcessEnv := env.IsFeaturePresent(env.Process)
+	if isProcessEnv {
 		detectedListeners = append(detectedListeners, pkgconfigsetup.Listeners{Name: "process"})
 		log.Info("Adding Process listener from environment")
 	}
