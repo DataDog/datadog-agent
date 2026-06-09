@@ -23,7 +23,10 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/autoconnections"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/enrollment"
+	parutil "github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
@@ -86,6 +89,25 @@ func run(_ log.Component, cfg config.Component, hostnameComp hostname.Component)
 
 	if err := enrollment.RotateIdentity(ctx, cfg, result); err != nil {
 		return fmt.Errorf("failed to persist new identity: %w", err)
+	}
+
+	// Mirror the component startup flow: register auto-connections for the new
+	// runner ID against the actions allowlist. No-op for api_key_only_enrollment
+	// or when skip_connection_creation is set.
+	parCfg, err := parconfig.FromDDConfig(cfg)
+	if err != nil {
+		fmt.Printf("Identity rotated, but failed to load runner config for auto-connection: %v\n", err)
+	} else {
+		urnParts, err := parutil.ParseRunnerURN(result.URN)
+		if err != nil {
+			fmt.Printf("Identity rotated, but failed to parse URN for auto-connection: %v\n", err)
+		} else {
+			autoconnections.CreateConnectionsIfEnabled(
+				ctx, cfg, parCfg,
+				cfg.GetString("api_key"), cfg.GetString("app_key"), urnParts.RunnerID,
+				result, autoconnections.NewBasicTagsProvider(),
+			)
+		}
 	}
 
 	fmt.Printf("Identity successfully rotated. New URN: %s\n", result.URN)

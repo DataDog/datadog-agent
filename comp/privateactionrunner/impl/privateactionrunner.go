@@ -82,6 +82,12 @@ type PrivateActionRunner struct {
 	commonRunner   *runners.CommonRunner
 	runnersMu      sync.Mutex // protects workflowRunner and commonRunner during hot-reload
 
+	// keysManager is shared across hot-reloads: its RC subscription is registered
+	// once on first Start() and remains active for the lifetime of the component.
+	// A fresh keysManager would block on WaitForReady() forever because RC does not
+	// re-deliver existing key state to a new subscriber.
+	keysManager taskverifier.KeysManager
+
 	telemetry *telemetry.Telemetry
 
 	started         bool
@@ -214,6 +220,10 @@ func (p *PrivateActionRunner) start(ctx context.Context) error {
 		return err
 	}
 
+	// Created once and shared across hot-reloads so the RC key-update subscription
+	// (made the first time the workflow runner starts) survives identity rotations.
+	p.keysManager = taskverifier.NewKeyManager(p.rcClient)
+
 	p.telemetry = telemetry.NewTelemetry(
 		&http.Client{Transport: httputils.CreateHTTPTransport(p.coreConfig)},
 		configutils.SanitizeAPIKey(p.coreConfig.GetString("api_key")),
@@ -251,11 +261,10 @@ func (p *PrivateActionRunner) startRunners(ctx context.Context, cfg *parconfig.C
 	p.logger.Info("==> API Host : " + cfg.DDApiHost)
 	p.logger.Info("==> URN : " + cfg.Urn)
 
-	keysManager := taskverifier.NewKeyManager(p.rcClient)
-	taskVerifier := taskverifier.NewTaskVerifier(keysManager, cfg)
+	taskVerifier := taskverifier.NewTaskVerifier(p.keysManager, cfg)
 	opmsClient := opms.NewClient(cfg)
 
-	workflowRunner, err := runners.NewWorkflowRunner(cfg, keysManager, taskVerifier, opmsClient, p.traceroute, p.eventPlatform, p.ipc.GetClient())
+	workflowRunner, err := runners.NewWorkflowRunner(cfg, p.keysManager, taskVerifier, opmsClient, p.traceroute, p.eventPlatform, p.ipc.GetClient())
 	if err != nil {
 		return err
 	}
@@ -421,27 +430,10 @@ func (p *PrivateActionRunner) performSelfEnrollment(ctx context.Context, cfg *pa
 	cfg.OrgId = urnParts.OrgID
 	cfg.RunnerId = urnParts.RunnerID
 
-	// Auto-create connections when using app-key enrollment mode and skip_connection_creation is false.
-	if !apiKeyOnlyEnrollment && !p.coreConfig.GetBool(privateactionrunner.PARSkipConnectionCreation) {
-		var actionsAllowlist = make([]string, 0, len(cfg.ActionsAllowlist))
-		for fqnPrefix := range cfg.ActionsAllowlist {
-			actionsAllowlist = append(actionsAllowlist, fqnPrefix)
-		}
-
-		if len(actionsAllowlist) > 0 {
-			client, err := autoconnections.NewConnectionsAPIClient(p.coreConfig, cfg.DatadogSite, apiKey, appKey)
-			if err != nil {
-				p.logger.Warnf("Failed to create connections API client: %v", err)
-			} else {
-				tagsProvider := autoconnections.NewTagsProvider(p.tagger)
-				creator := autoconnections.NewConnectionsCreator(*client, tagsProvider)
-
-				if err := creator.AutoCreateConnections(ctx, urnParts.RunnerID, enrollmentResult, actionsAllowlist); err != nil {
-					p.logger.Warnf("Failed to auto-create connections: %v", err)
-				}
-			}
-		}
-	}
+	autoconnections.CreateConnectionsIfEnabled(
+		ctx, p.coreConfig, cfg, apiKey, appKey, urnParts.RunnerID,
+		enrollmentResult, autoconnections.NewTagsProvider(p.tagger),
+	)
 
 	return cfg, nil
 }
