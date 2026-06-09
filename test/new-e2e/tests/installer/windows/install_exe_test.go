@@ -125,7 +125,7 @@ func (s *testInstallExeSuite) TestSetupHandoffToStableVersion() {
 		// Allow the parent installer.exe to perform the version handoff.
 		"DD_INSTALLER_FROM_VERSION_HANDOFF": "",
 		// Pin the version to the framework's configured stable. The override
-		// is passed verbatim to the OCI tag by resolveAgentOCITag.
+		// is passed verbatim to the OCI tag by requestedAgentVersion.
 		"DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_AGENT": stable.Version,
 		"DD_INSTALLER_REGISTRY_URL_AGENT_PACKAGE":        stable.Registry,
 	}))
