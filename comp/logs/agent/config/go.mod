@@ -77,6 +77,10 @@ require (
 	golang.org/x/sys v0.46.0 // indirect
 	golang.org/x/text v0.38.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
+
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl v0.153.0  // indirect
+	go.opentelemetry.io/collector/component v1.59.0  // indirect
+	
 )
 
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
