@@ -17,7 +17,7 @@ import (
 	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetaimpl "github.com/DataDog/datadog-agent/comp/core/workloadmeta/impl"
@@ -403,7 +403,7 @@ func newWorkloadMetaMock(t *testing.T) workloadmetamock.Mock {
 	return workloadmetaimpl.NewWorkloadMetaMock(workloadmetaimpl.Dependencies{
 		Lc:     compdef.NewTestLifecycle(t),
 		Log:    logmock.New(t),
-		Config: config.NewMock(t),
+		Config: configmock.New(t),
 		Params: workloadmeta.NewParams(),
 	})
 }
