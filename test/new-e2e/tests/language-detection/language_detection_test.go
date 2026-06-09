@@ -17,7 +17,6 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
@@ -45,7 +44,6 @@ func getProvisionerOptions(agentParams []func(*agentparams.Params) error) []awsh
 	return []awshost.ProvisionerOption{
 		awshost.WithRunOptions(
 			ec2.WithAgentOptions(agentParams...),
-			ec2.WithEC2InstanceOptions(ec2.WithOS(os.Ubuntu2204E2E)),
 		),
 	}
 }

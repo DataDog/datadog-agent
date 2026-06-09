@@ -18,7 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/docker"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 )
@@ -51,7 +50,7 @@ func hostDockerHttpbinEnvProvisioner(opt ...ec2.Option) provisioners.PulumiEnvRu
 
 		vmName := "httpbinvm"
 
-		nginxHost, err := ec2.NewVM(awsEnv, vmName, ec2.WithOS(os.Ubuntu2204E2E))
+		nginxHost, err := ec2.NewVM(awsEnv, vmName)
 		if err != nil {
 			return err
 		}
@@ -80,7 +79,7 @@ func TestEC2VMSuite(t *testing.T) {
 	t.Parallel()
 	s := &ec2VMSuite{}
 
-	e2eParams := []e2e.SuiteOption{e2e.WithProvisioner(provisioners.NewTypedPulumiProvisioner("hostHttpbin", hostDockerHttpbinEnvProvisioner(ec2.WithEC2InstanceOptions(ec2.WithOS(os.Ubuntu2204E2E))), nil))}
+	e2eParams := []e2e.SuiteOption{e2e.WithProvisioner(provisioners.NewTypedPulumiProvisioner("hostHttpbin", hostDockerHttpbinEnvProvisioner(), nil))}
 
 	// Source of our E2E CI images test/new-e2e/tests/agent-platform/platforms.json
 	// Other VM image can be used, our E2E CI images test/new-e2e/tests/agent-platform/platforms.json

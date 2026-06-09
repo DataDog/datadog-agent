@@ -10,7 +10,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/docker"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
@@ -62,7 +61,7 @@ func hostDockerHttpbinEnvProvisionerWindows(opt ...ec2windows.RunOption) provisi
 
 		vmName := "httpbinvm"
 
-		nginxHost, err := ec2.NewVM(awsEnv, vmName, ec2.WithOS(os.Ubuntu2204E2E))
+		nginxHost, err := ec2.NewVM(awsEnv, vmName)
 		if err != nil {
 			return err
 		}

@@ -17,7 +17,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/docker"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2docker"
@@ -42,14 +41,13 @@ func dockerHostHttpbinEnvProvisioner() provisioners.PulumiEnvRunFunc[dockerHostN
 
 		opts := []ec2docker.Option{
 			ec2docker.WithAgentOptions(systemProbeConfigNPMEnv()...),
-			ec2docker.WithEC2VMOptions(ec2.WithOS(os.Ubuntu2204E2E)),
 		}
 		params := ec2docker.GetParams(opts...)
 		ec2docker.Run(ctx, awsEnv, &env.DockerHost, params)
 
 		vmName := "httpbinvm"
 
-		nginxHost, err := ec2.NewVM(awsEnv, vmName, ec2.WithOS(os.Ubuntu2204E2E))
+		nginxHost, err := ec2.NewVM(awsEnv, vmName)
 		if err != nil {
 			return err
 		}

@@ -8,7 +8,7 @@ package os
 // Implements commonly used descriptors for easier usage
 // See platforms.go for the AMIs used for each OS
 var (
-	UbuntuDefault    = Ubuntu2204
+	UbuntuDefault    = Ubuntu2204E2E
 	Ubuntu2404       = NewDescriptor(Ubuntu, "24-04")
 	Ubuntu2204       = NewDescriptor(Ubuntu, "22-04")
 	Ubuntu2004       = NewDescriptor(Ubuntu, "20-04")

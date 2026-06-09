@@ -19,7 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/docker"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
@@ -56,7 +55,7 @@ func vmPlusDockerEnvProvisioner() provisioners.PulumiEnvRunFunc[vmPlusDockerEnv]
 			return err
 		}
 
-		remoteHost, err := ec2.NewVM(awsEnv, "main", ec2.WithOS(os.Ubuntu2204E2E))
+		remoteHost, err := ec2.NewVM(awsEnv, "main")
 		if err != nil {
 			return err
 		}
