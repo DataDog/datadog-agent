@@ -95,9 +95,7 @@ func (s *baseProcmgrSuite) TestCLIStatus() {
 	s.requireCLI()
 	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
 		out, err := s.Env().RemoteHost.Execute(s.platform.cliCmd("status"))
-		if !assert.NoError(ct, err) {
-			return
-		}
+		require.NoError(ct, err)
 		assertHasField(ct, out, "Version")
 		assertHasField(ct, out, "Uptime")
 	}, 30*time.Second, 2*time.Second)
@@ -107,9 +105,7 @@ func (s *baseProcmgrSuite) TestCLIListShowsConfiguredProcess() {
 	s.requireCLI()
 	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
 		out, err := s.Env().RemoteHost.Execute(s.platform.cliCmd("list"))
-		if !assert.NoError(ct, err) {
-			return
-		}
+		require.NoError(ct, err)
 		assertTableRow(ct, out, "test-sleep", map[string]string{
 			"STATE":   "Running",
 			"COMMAND": s.platform.sleepCommand,
@@ -121,9 +117,7 @@ func (s *baseProcmgrSuite) TestCLIDescribe() {
 	s.requireCLI()
 	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
 		out, err := s.Env().RemoteHost.Execute(s.platform.cliCmd("describe test-sleep"))
-		if !assert.NoError(ct, err) {
-			return
-		}
+		require.NoError(ct, err)
 		assertField(ct, out, "Name", "test-sleep")
 		assertField(ct, out, "State", "Running")
 		assertField(ct, out, "Command", s.platform.sleepCommand)
@@ -134,9 +128,7 @@ func (s *baseProcmgrSuite) TestConditionPathExistsSkipsMissingBinary() {
 	s.requireCLI()
 	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
 		out, err := s.Env().RemoteHost.Execute(s.platform.cliCmd("list"))
-		if !assert.NoError(ct, err) {
-			return
-		}
+		require.NoError(ct, err)
 		assertTableRow(ct, out, "missing-binary", map[string]string{
 			"STATE": "Created",
 			"PID":   "-",
