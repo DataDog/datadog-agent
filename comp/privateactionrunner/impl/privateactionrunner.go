@@ -38,9 +38,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/runners"
 	taskverifier "github.com/DataDog/datadog-agent/pkg/privateactionrunner/task-verifier"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
-	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 )
 
 const (
@@ -359,7 +357,6 @@ func (p *PrivateActionRunner) waitForStartup(ctx context.Context) error {
 //   - true:  enroll with API key only (app key ignored, no auto-connections)
 //   - false: enroll with API key + app key (app key required, auto-connections created)
 func (p *PrivateActionRunner) performSelfEnrollment(ctx context.Context, cfg *parconfig.Config, agentIdentifier *enrollment.AgentIdentifier) (*parconfig.Config, error) {
-	ddSite := cfg.DatadogSite
 	apiKey := p.coreConfig.GetString("api_key")
 	apiKeyOnlyEnrollment := p.coreConfig.GetBool(privateactionrunner.PARApiKeyOnlyEnrollment)
 
@@ -384,26 +381,7 @@ func (p *PrivateActionRunner) performSelfEnrollment(ctx context.Context, cfg *pa
 		}
 	}
 
-	// For cluster agent, use cluster name instead of hostname for better identification.
-	runnerNamePrefix := agentIdentifier.Hostname
-	if flavor.GetFlavor() == flavor.ClusterAgent {
-		clusterName := clustername.GetClusterName(ctx, agentIdentifier.Hostname)
-		if clusterName != "" {
-			runnerNamePrefix = clusterName
-		} else {
-			p.logger.Warnf("Cluster name not found, falling back to hostname '%s' for cluster agent enrollment", agentIdentifier.Hostname)
-		}
-	}
-
-	var (
-		enrollmentResult *enrollment.Result
-		err              error
-	)
-	if apiKeyOnlyEnrollment {
-		enrollmentResult, err = enrollment.SelfEnrollApiKeyOnly(ctx, ddSite, runnerNamePrefix, apiKey, agentIdentifier, cfg.OpmsExtraHeaders)
-	} else {
-		enrollmentResult, err = enrollment.SelfEnroll(ctx, ddSite, runnerNamePrefix, apiKey, appKey, agentIdentifier, cfg.OpmsExtraHeaders)
-	}
+	enrollmentResult, err := enrollment.Enroll(ctx, p.coreConfig, agentIdentifier)
 	if err != nil {
 		return nil, fmt.Errorf("enrollment API call failed: %w", err)
 	}
@@ -431,7 +409,7 @@ func (p *PrivateActionRunner) performSelfEnrollment(ctx context.Context, cfg *pa
 		}
 
 		if len(actionsAllowlist) > 0 {
-			client, err := autoconnections.NewConnectionsAPIClient(p.coreConfig, ddSite, apiKey, appKey)
+			client, err := autoconnections.NewConnectionsAPIClient(p.coreConfig, cfg.DatadogSite, apiKey, appKey)
 			if err != nil {
 				p.logger.Warnf("Failed to create connections API client: %v", err)
 			} else {

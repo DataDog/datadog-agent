@@ -11,6 +11,7 @@ package rotateparidentity
 import (
 	"context"
 	"fmt"
+	"os"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
@@ -22,6 +23,7 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/enrollment"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 )
 
 // Commands returns a slice of subcommands for the 'cluster-agent' command.
@@ -52,7 +54,17 @@ func run(_ log.Component, cfg config.Component) error {
 		return fmt.Errorf("private_action_runner.enabled is false — set it to true before rotating the identity")
 	}
 
-	result, err := enrollment.EnrollFromConfig(ctx, cfg)
+	hostname, err := os.Hostname()
+	if err != nil {
+		return fmt.Errorf("failed to get hostname: %w", err)
+	}
+	orchClusterID, err := clustername.GetClusterID()
+	if err != nil || orchClusterID == "" {
+		return fmt.Errorf("failed to get cluster ID: %w", err)
+	}
+	agentIdentifier := &enrollment.AgentIdentifier{Hostname: hostname, OrchClusterID: orchClusterID}
+
+	result, err := enrollment.Enroll(ctx, cfg, agentIdentifier)
 	if err != nil {
 		return fmt.Errorf("enrollment failed: %w", err)
 	}

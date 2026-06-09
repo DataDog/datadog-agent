@@ -9,6 +9,7 @@ package rotateidentity
 import (
 	"context"
 	"fmt"
+	"os"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
@@ -50,7 +51,13 @@ func run(_ log.Component, cfg config.Component) error {
 		return fmt.Errorf("private_action_runner.enabled is false — set it to true before rotating the identity")
 	}
 
-	result, err := enrollment.EnrollFromConfig(ctx, cfg)
+	hostname, err := os.Hostname()
+	if err != nil {
+		return fmt.Errorf("failed to get hostname: %w", err)
+	}
+	agentIdentifier := &enrollment.AgentIdentifier{Hostname: hostname}
+
+	result, err := enrollment.Enroll(ctx, cfg, agentIdentifier)
 	if err != nil {
 		return fmt.Errorf("enrollment failed: %w", err)
 	}

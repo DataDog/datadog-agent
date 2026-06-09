@@ -9,7 +9,6 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"fmt"
-	"os"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
@@ -137,24 +136,11 @@ func SelfEnroll(
 	}, nil
 }
 
-// EnrollFromConfig performs self-enrollment using configuration directly, without a hostname component.
-// Intended for CLI one-shot commands (e.g. rotate-identity) that run outside the full component tree.
-// The hostname is resolved via os.Hostname and is only used as a runner name prefix.
-func EnrollFromConfig(ctx context.Context, cfg configModel.Reader) (*Result, error) {
-	hostname, err := os.Hostname()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get hostname: %w", err)
-	}
-
-	agentIdentifier := &AgentIdentifier{Hostname: hostname}
-	if flavor.GetFlavor() == flavor.ClusterAgent {
-		orchClusterID, err := clustername.GetClusterID()
-		if err != nil || orchClusterID == "" {
-			return nil, fmt.Errorf("failed to get orchestrator cluster ID: %w", err)
-		}
-		agentIdentifier.OrchClusterID = orchClusterID
-	}
-
+// Enroll performs self-enrollment using config and a pre-built agent identifier.
+// It selects API-key-only or API-key+app-key flow from config and derives the
+// runner name prefix from the agent identifier. Used by both the PAR component
+// (via performSelfEnrollment) and CLI rotate commands.
+func Enroll(ctx context.Context, cfg configModel.Reader, agentIdentifier *AgentIdentifier) (*Result, error) {
 	ddSite := cfg.GetString("site")
 	if ddSite == "" {
 		ddSite = "datadoghq.com"
@@ -162,10 +148,12 @@ func EnrollFromConfig(ctx context.Context, cfg configModel.Reader) (*Result, err
 	apiKey := cfg.GetString("api_key")
 	extraHeaders := cfg.GetStringMapString(setup.PAROpmsExtraHeaders)
 
-	runnerNamePrefix := hostname
+	runnerNamePrefix := agentIdentifier.Hostname
 	if flavor.GetFlavor() == flavor.ClusterAgent {
-		if clusterName := clustername.GetClusterName(ctx, hostname); clusterName != "" {
+		if clusterName := clustername.GetClusterName(ctx, agentIdentifier.Hostname); clusterName != "" {
 			runnerNamePrefix = clusterName
+		} else {
+			log.Warnf("Cluster name not found, falling back to hostname '%s' for cluster agent enrollment", agentIdentifier.Hostname)
 		}
 	}
 
