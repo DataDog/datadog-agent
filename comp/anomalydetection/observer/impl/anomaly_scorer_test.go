@@ -181,6 +181,55 @@ func TestWindowExpiry(t *testing.T) {
 	}
 }
 
+// TestWindowLevelExpiry reproduces the bug where a high-severity peak updates
+// lastSeenSec via a later lower-severity event, causing the expired peak to
+// continue inflating the score beyond its true window lifetime.
+//
+// Timeline (WindowSecs=15):
+//
+//	t=1000: High (level 3) fires → entry {level:3, lastSeen:1000}
+//	t=1010: Low  (level 1) fires → entry {level:3, lastSeen:1010}  ← lastSeen bumped
+//	t=1015: windowStart = 1001; High at t=1000 is now OUTSIDE the window.
+//	        The entry must be counted at level 1 (the only active level),
+//	        NOT level 3 (the expired peak).
+func TestWindowLevelExpiry(t *testing.T) {
+	cfg := DefaultScorerConfig()
+	cfg.WindowSecs = 15
+	s := NewScorer(cfg)
+
+	src := observer.SeriesDescriptor{Namespace: "ns", Name: "m", Tags: []string{"host:h"}}
+
+	// High anomaly at t=1000
+	s.ProcessAnomaly(observer.Anomaly{
+		DetectorName: "holt_residual", Timestamp: 1000, Score: scorePtr(20), Source: src,
+	})
+	s.Advance(1000)
+
+	// Low anomaly at t=1010 (same series, lower severity)
+	s.ProcessAnomaly(observer.Anomaly{
+		DetectorName: "holt_residual", Timestamp: 1010, Score: scorePtr(7), Source: src,
+	})
+	s.Advance(1010)
+
+	// Advance to t=1015: windowStart = 1015-15+1 = 1001.
+	// High anomaly (t=1000) is now outside the window; Low (t=1010) is still inside.
+	s.Advance(1015)
+
+	st := s.ScoreState()
+	b := st.Buckets[len(st.Buckets)-1]
+
+	if b.Count != 1 {
+		t.Fatalf("expected series still active at t=1015 (low anomaly in window), got count=%d", b.Count)
+	}
+	// The series must be counted at level 1 (Low), not the expired level 3 (High).
+	if b.Bins[3] != 0 {
+		t.Errorf("BUG: expired High peak still inflating level 3 at t=1015, bins=%v", b.Bins)
+	}
+	if b.Bins[1] != 1 {
+		t.Errorf("expected series at level 1 (Low) at t=1015, bins=%v", b.Bins)
+	}
+}
+
 // TestDeduplicationDifferentSeries verifies that anomalies on different series
 // are never merged (each counts independently even at the same second).
 func TestDeduplicationDifferentSeries(t *testing.T) {

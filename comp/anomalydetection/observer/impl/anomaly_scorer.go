@@ -98,12 +98,14 @@ func seriesID(a observer.Anomaly) string {
 	return a.Source.Key()
 }
 
-// windowEntry tracks the highest anomaly level seen for a series within the
-// active window, and when it was last observed.
-type windowEntry struct {
-	level       int
-	lastSeenSec int64
-}
+// windowEntry tracks the last second at which each anomaly level (0–4) was
+// observed for a series within the active window. Index = level, value = last
+// second observed (0 = never seen or already evicted). Storing per-level
+// timestamps (rather than a single max-level + lastSeenSec) ensures that when
+// a high-severity peak expires from the window, the series is re-scored at the
+// highest level that still has an active timestamp, rather than carrying the
+// stale peak forward.
+type windowEntry [5]int64
 
 // anomalyScorer is the streaming implementation of observer.AnomalyScorer.
 //
@@ -206,7 +208,7 @@ func (s *anomalyScorer) advanceSecond(sec int64) {
 	delete(s.pending, sec)
 
 	// Step 1: merge new anomalies into the window.
-	// Keyed anomalies update windowMap; unkeyed are counted separately.
+	// Keyed anomalies record the latest second per level; unkeyed are counted separately.
 	var unkeyedCount int
 	var unkeyedWeightSum float64
 
@@ -218,32 +220,52 @@ func (s *anomalyScorer) advanceSecond(sec int64) {
 			unkeyedWeightSum += levelWeights[l]
 			continue
 		}
-		if e, ok := s.windowMap[sid]; !ok || l > e.level || sec > e.lastSeenSec {
-			newLevel := l
-			if ok && e.level > l {
-				newLevel = e.level
-			}
-			s.windowMap[sid] = windowEntry{level: newLevel, lastSeenSec: sec}
+		e := s.windowMap[sid]
+		if sec > e[l] {
+			e[l] = sec
 		}
+		s.windowMap[sid] = e
 	}
 
-	// Step 2: evict series that have fallen out of the window.
+	// Step 2: evict per-level timestamps that have fallen out of the window,
+	// and remove the series entirely when no level remains active.
 	windowStart := sec - s.config.WindowSecs + 1
 	for sid, e := range s.windowMap {
-		if e.lastSeenSec < windowStart {
+		alive := false
+		for lvl := 0; lvl < 5; lvl++ {
+			if e[lvl] > 0 && e[lvl] < windowStart {
+				e[lvl] = 0
+			}
+			if e[lvl] > 0 {
+				alive = true
+			}
+		}
+		if !alive {
 			delete(s.windowMap, sid)
+		} else {
+			s.windowMap[sid] = e
 		}
 	}
 
 	// Step 3: bucket from the live window.
+	// Each series contributes at the highest level that still has an active timestamp.
 	var bins [5]int
 	var count int
 	var weightSum float64
 
 	for _, e := range s.windowMap {
-		bins[e.level]++
-		count++
-		weightSum += levelWeights[e.level]
+		maxLevel := -1
+		for lvl := 4; lvl >= 0; lvl-- {
+			if e[lvl] > 0 {
+				maxLevel = lvl
+				break
+			}
+		}
+		if maxLevel >= 0 {
+			bins[maxLevel]++
+			count++
+			weightSum += levelWeights[maxLevel]
+		}
 	}
 	// Add unkeyed anomalies from this second on top.
 	count += unkeyedCount
