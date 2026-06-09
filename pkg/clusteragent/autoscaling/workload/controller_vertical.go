@@ -358,7 +358,7 @@ func (u *verticalController) syncInternal(
 			eventType = corev1.EventTypeWarning
 			reason = model.FailedToEvictEventReason
 		}
-		msg := fmt.Sprintf("In-place resize: %s", strings.Join(parts, ", "))
+		msg := "In-place resize: " + strings.Join(parts, ", ")
 		if len(toEvict) > 0 {
 			inFlight := len(podsByResizeStatus[PodResizeStatusEvicting])
 			remaining := int(int32(len(toEvict)) - evictedThisSync - failedEvictions)
