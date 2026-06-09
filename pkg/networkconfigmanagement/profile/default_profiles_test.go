@@ -77,13 +77,13 @@ func Test_DefaultProfiles_Running(t *testing.T) {
 		{
 			name:                      "TMOS ltm config checks",
 			profile:                   DefaultProfile(t, "tmos"),
-			fixture:                   loadFixture("tmos", "running#ltm"),
+			fixture:                   loadFixture("tmos", "running/ltm"),
 			expectedExtractedMetadata: &ExtractedMetadata{},
 		},
 		{
 			name:                      "TMOS tmsh version checks",
 			profile:                   DefaultProfile(t, "tmos"),
-			fixture:                   loadFixture("tmos", "running#tmsh"),
+			fixture:                   loadFixture("tmos", "running/tmsh"),
 			expectedExtractedMetadata: &ExtractedMetadata{},
 		},
 		{
