@@ -949,8 +949,8 @@ func setupFipsEndpoints(config pkgconfigmodel.Config) error {
 		config.Set("skip_ssl_validation", !config.GetBool("fips.tls_verify"), pkgconfigmodel.SourceAgentRuntime)
 	}
 
-	// The following overwrites should be sync with the documentation for the fips.enabled config setting in the
-	// config_template.yaml
+	// The following overwrites should be kept in sync with the documentation for the fips.enabled config
+	// setting in pkg/config/schema/yaml/.
 
 	// Metrics
 	config.Set("dd_url", protocol+urlFor(metrics), pkgconfigmodel.SourceAgentRuntime)

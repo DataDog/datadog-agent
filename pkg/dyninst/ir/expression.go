@@ -226,6 +226,34 @@ type SwissMapLookupOp struct {
 
 func (*SwissMapLookupOp) irOp() {}
 
+// PanicUnwindPrepareOp validates that the goroutine has a recovered
+// panic and computes the stack-byte-depth bounds of the unwound region
+// from gp._panic.{startSP, sp} and gp.stack.hi. On success it writes
+// (panic_lo_depth, panic_hi_depth) to the event header. On any
+// validation failure (no panic, goexit, sp out of bounds, etc.) it
+// sets condition_failed so probe_run aborts the event.
+//
+// Emitted as the first expression-time op of the synthesised
+// runtime.recovery probe — before any LocationOp / DereferenceOp on
+// the panic value, so the unwound-region bounds are available to a
+// trailing PanicUnwindEvictSlotsOp.
+type PanicUnwindPrepareOp struct{}
+
+func (*PanicUnwindPrepareOp) irOp() {}
+
+// PanicUnwindEvictSlotsOp walks in_progress_calls for the goroutine
+// (via header.goid) and zeroes every call_depths_entry_t whose depth
+// lies in (panic_lo_depth, panic_hi_depth]. If all slots end up empty
+// the per-goroutine map entry is deleted.
+//
+// Emitted as the trailing op of the runtime.recovery probe's
+// expression sequence, after the standard chase pointers op, so the
+// BPF state cleanup happens only when the synthetic event has been
+// fully assembled.
+type PanicUnwindEvictSlotsOp struct{}
+
+func (*PanicUnwindEvictSlotsOp) irOp() {}
+
 // ConditionCheckOp reads a uint8 bool result at the current offset. If false
 // (0), it sets the condition_failed flag and aborts the stack machine.
 type ConditionCheckOp struct{}

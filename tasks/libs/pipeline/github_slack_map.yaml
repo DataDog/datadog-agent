@@ -11,7 +11,7 @@
   review:
     name: '#action-platform-reviews'
     id: 'C0AG2UCHUKZ'
-'@datadog/agent-all':
+'@datadog/agent-community-eng':
   notification:
     name: '#datadog-agent-pipelines'
     id: 'CR5TV8QBY'

@@ -90,7 +90,7 @@ function Expand-ModCache() {
 
     $MODCACHE_ROOT = $root
     $MODCACHE_FILE_ROOT = $modcache
-    $MODCACHE_XZ_FILE = Join-Path $MODCACHE_ROOT "$MODCACHE_FILE_ROOT.tar.xz"
+    $MODCACHE_ZST_FILE = Join-Path $MODCACHE_ROOT "$MODCACHE_FILE_ROOT.tar.zst"
     $MODCACHE_TAR_FILE = Join-Path $MODCACHE_ROOT "$MODCACHE_FILE_ROOT.tar"
 
     if (-not $env:GOMODCACHE) {
@@ -98,12 +98,12 @@ function Expand-ModCache() {
         return
     }
 
-    Write-Host "MODCACHE_XZ_FILE $MODCACHE_XZ_FILE MODCACHE_TAR_FILE $MODCACHE_TAR_FILE GOMODCACHE $env:GOMODCACHE"
-    if (Test-Path $MODCACHE_XZ_FILE) {
-        Write-Host "Extracting modcache file $MODCACHE_XZ_FILE"
-        & 7z.exe x $MODCACHE_XZ_FILE -o"$MODCACHE_ROOT" -bt
+    Write-Host "MODCACHE_ZST_FILE $MODCACHE_ZST_FILE MODCACHE_TAR_FILE $MODCACHE_TAR_FILE GOMODCACHE $env:GOMODCACHE"
+    if (Test-Path $MODCACHE_ZST_FILE) {
+        Write-Host "Extracting modcache file $MODCACHE_ZST_FILE"
+        & 7z.exe x $MODCACHE_ZST_FILE -o"$MODCACHE_ROOT" -bt
         if ($LASTEXITCODE -ne 0) {
-            Write-Error "Failed to extract $MODCACHE_XZ_FILE"
+            Write-Error "Failed to extract $MODCACHE_ZST_FILE"
             exit 1
         }
         Get-ChildItem $MODCACHE_TAR_FILE
@@ -113,17 +113,21 @@ function Expand-ModCache() {
         # get replaced by the same files
         & 7z.exe x $MODCACHE_TAR_FILE -o"$env:GOMODCACHE\cache" -aoa -bt
         if ($LASTEXITCODE -ne 0) {
-            Write-Error "Failed to extract $MODCACHE_XZ_FILE"
+            Write-Error "Failed to extract $MODCACHE_ZST_FILE"
             exit 1
         }
         Write-Host "Modcache extracted"
     } else {
-        Write-Host "Modcache XZ file $MODCACHE_XZ_FILE not found, dependencies will be downloaded"
+        if ($env:CI) {
+            Write-Error "Modcache zst file $MODCACHE_ZST_FILE not found in CI"
+            exit 1
+        }
+        Write-Host "Modcache zst file $MODCACHE_ZST_FILE not found, dependencies will be downloaded"
     }
 
-    if (Test-Path $MODCACHE_XZ_FILE) {
-        Write-Host "Deleting modcache tar.xz $MODCACHE_XZ_FILE"
-        Remove-Item -Force $MODCACHE_XZ_FILE
+    if (Test-Path $MODCACHE_ZST_FILE) {
+        Write-Host "Deleting modcache tar.zst $MODCACHE_ZST_FILE"
+        Remove-Item -Force $MODCACHE_ZST_FILE
     }
     if (Test-Path $MODCACHE_TAR_FILE) {
         Write-Host "Deleting modcache tar $MODCACHE_TAR_FILE"

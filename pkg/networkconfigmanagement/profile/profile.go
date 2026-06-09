@@ -22,15 +22,12 @@ type NCMProfile struct {
 }
 
 type CommandSet struct {
-	GetVersion *Command `json:"get_version,omitempty"`
+	GetVersion *PlainCommand `json:"get_version,omitempty"`
 	// Config fetching
-	GetRunning *Command `json:"get_running,omitempty"`
-	GetStartup *Command `json:"get_startup,omitempty"`
+	GetRunning *PlainCommand `json:"get_running,omitempty"`
+	GetStartup *PlainCommand `json:"get_startup,omitempty"`
 	// Config pushing
-	// CopyConfigFile takes the config and copies it to the deviced
-	CopyConfigFile *SCPCommand `json:"copy_config_file,omitempty"`
-	// ReplaceConfig assumes CopyConfigFile has already happened, and replaces the config
-	ReplaceConfig *Command `json:"replace_config,omitempty"`
+	PushConfig []Command
 }
 
 // GetProfile retrieves the profile from the profile map (by name)
