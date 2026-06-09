@@ -9,21 +9,69 @@
 package mock
 
 import (
-	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
+	"context"
 
+	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+
+	"go.uber.org/fx"
 )
 
 // Mock implements mock-specific methods.
-type Mock = hostnamemock.Mock
+type Mock interface {
+	// Component methods are included in Mock.
+	hostname.Component
+}
 
 // MockModule defines the fx options for the mock component.
 // Injecting MockModule will provide the hostname 'my-hostname';
 // override this with fx.Replace(hostname.MockHostname("whatever")).
 func MockModule() fxutil.Module {
-	return hostnamemock.MockModule()
+	return fxutil.Component(
+		fx.Provide(
+			NewMock,
+		),
+		fx.Supply(MockHostname("my-hostname")))
+}
+
+type mockService struct {
+	name string
+}
+
+var _ Mock = (*mockService)(nil)
+
+func (m *mockService) Get(_ context.Context) (string, error) {
+	return m.name, nil
+}
+
+func (m *mockService) GetSafe(_ context.Context) string {
+	return m.name
+}
+
+func (m *mockService) Set(name string) {
+	m.name = name
+}
+
+// GetWithProvider returns the hostname for the Agent and the provider that was use to retrieve it.
+func (m *mockService) GetWithProvider(_ context.Context) (hostname.Data, error) {
+	return hostname.Data{
+		Hostname: m.name,
+		Provider: "mockService",
+	}, nil
 }
 
 // MockHostname is an alias for injecting a mock hostname.
 // Usage: fx.Replace(hostname.MockHostname("whatever"))
-type MockHostname = hostnamemock.MockHostname
+type MockHostname string
+
+// NewMock returns a new instance of the mock for the component hostname
+func NewMock(name MockHostname) (hostname.Component, Mock) {
+	mock := &mockService{string(name)}
+	return mock, mock
+}
+
+// New returns a Component mock with the given hostname string, for use in tests
+// that don't need the full fx wiring.
+func New(name string) (hostname.Component, Mock) {
+	return NewMock(MockHostname(name))
+}

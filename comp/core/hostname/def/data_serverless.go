@@ -5,7 +5,7 @@
 
 //go:build serverless
 
-package hostnameinterface
+package hostname
 
 // FromConfiguration returns false for serverless
 func (h Data) FromConfiguration() bool {

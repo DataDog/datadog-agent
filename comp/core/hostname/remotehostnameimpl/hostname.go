@@ -24,7 +24,7 @@ import (
 	cache "github.com/patrickmn/go-cache"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 )
 
@@ -83,7 +83,7 @@ type dependencies struct {
 	Opts options
 }
 
-func newRemoteHostImpl(deps dependencies) hostnameinterface.Component {
+func newRemoteHostImpl(deps dependencies) hostname.Component {
 	r := &remotehostimpl{
 		cache:       cache.New(defaultExpire, defaultPurge),
 		ipc:         deps.IPC,
@@ -115,12 +115,12 @@ func (r *remotehostimpl) GetSafe(ctx context.Context) string {
 	return h
 }
 
-func (r *remotehostimpl) GetWithProvider(ctx context.Context) (hostnameinterface.Data, error) {
+func (r *remotehostimpl) GetWithProvider(ctx context.Context) (hostname.Data, error) {
 	h, err := r.Get(ctx)
 	if err != nil {
-		return hostnameinterface.Data{}, err
+		return hostname.Data{}, err
 	}
-	return hostnameinterface.Data{
+	return hostname.Data{
 		Hostname: h,
 		Provider: "remote",
 	}, nil
