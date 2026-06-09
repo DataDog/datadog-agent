@@ -33,11 +33,11 @@ func (fs windowsOSCommand) CreateDirectory(
 ) (Command, error) {
 	useSudo := false
 	opts = append(opts, pulumi.DeleteBeforeReplace(true))
-	// Quote for PowerShell: paths under "Program Files" contain spaces and break
-	// unquoted -Path (see PR #51990).
-	createCmd := pulumi.Sprintf("New-Item -Force -LiteralPath '%v' -ItemType Directory", remotePath)
+	// Single-quote the path so spaces (e.g. under Program Files) are one argument.
+	// Use -Path not -LiteralPath: older Windows PowerShell on some AMIs rejects -LiteralPath on New-Item (PR #51990).
+	createCmd := pulumi.Sprintf("New-Item -Force -Path '%v' -ItemType Directory", remotePath)
 	deleteCmd := pulumi.Sprintf(
-		"if ((Get-ChildItem -LiteralPath '%v' -Force -ErrorAction SilentlyContinue | Measure-Object).Count -eq 0) { Remove-Item -LiteralPath '%v' -ErrorAction SilentlyContinue }",
+		"if ((Get-ChildItem -Path '%v' -Force -ErrorAction SilentlyContinue | Measure-Object).Count -eq 0) { Remove-Item -Path '%v' -ErrorAction SilentlyContinue }",
 		remotePath, remotePath,
 	)
 	return runner.Command(name,
