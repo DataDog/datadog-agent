@@ -817,7 +817,7 @@ func BenchmarkJSONPatch(b *testing.B) {
 		b.Fatal(err)
 	}
 
-	datadogConfig := configmock.New(b)
+	datadogConfig := configmock.NewWithTB(b)
 	filter, err := NewFilter(datadogConfig)
 	require.NoError(b, err)
 	mutator := NewMutator(NewMutatorConfig(datadogConfig), filter)

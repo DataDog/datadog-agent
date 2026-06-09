@@ -61,7 +61,7 @@ K8v8KAngdgbh8ihjagt1zyqQbSOhRANCAAS2/cnezdb31wqnEzlsqCIYywWiDOoY
 `)
 )
 
-func getMockServerAndConfig(t testing.TB, handler http.Handler, token string) (ipc.HTTPClient, *httptest.Server) {
+func getMockServerAndConfig(t *testing.T, handler http.Handler, token string) (ipc.HTTPClient, *httptest.Server) {
 	conf := configmock.New(t)
 
 	ts := httptest.NewTLSServer(handler)

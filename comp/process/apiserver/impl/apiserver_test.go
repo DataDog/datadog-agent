@@ -50,7 +50,7 @@ func TestLifecycle(t *testing.T) {
 	_ = fxutil.Test[apiserver.Component](t, fx.Options(
 		apiserverfx.Module(),
 		fx.Provide(func(t testing.TB) logcomp.Component { return logmock.New(t) }),
-		fx.Provide(func(t testing.TB) config.Component {
+		fx.Provide(func() config.Component {
 			return configmock.NewWithOverrides(t, map[string]interface{}{
 				"process_config.cmd_port": port,
 			})
@@ -86,7 +86,7 @@ func TestPostAuthentication(t *testing.T) {
 	_ = fxutil.Test[apiserver.Component](t, fx.Options(
 		apiserverfx.Module(),
 		fx.Provide(func(t testing.TB) logcomp.Component { return logmock.New(t) }),
-		fx.Provide(func(t testing.TB) config.Component {
+		fx.Provide(func() config.Component {
 			return configmock.NewWithOverrides(t, map[string]interface{}{
 				"process_config.cmd_port": port,
 			})

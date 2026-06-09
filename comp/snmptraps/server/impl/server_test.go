@@ -37,7 +37,7 @@ func TestServer(t *testing.T) {
 	port := ndmtestutils.UniqueTestPort(t.Name(), confdPath)
 	srv := fxutil.Test[server.Component](t,
 		senderhelper.Opts,
-		fx.Provide(func(t testing.TB) config.Component {
+		fx.Provide(func() config.Component {
 			return configmock.NewWithOverrides(t, map[string]interface{}{
 				"confd_path":                                   confdPath,
 				"network_devices.snmp_traps.enabled":           true,
@@ -60,7 +60,7 @@ func TestNonBlockingFailure(t *testing.T) {
 	port := ndmtestutils.UniqueTestPort(t.Name(), confdPath)
 	srv := fxutil.Test[server.Component](t,
 		senderhelper.Opts,
-		fx.Provide(func(t testing.TB) config.Component {
+		fx.Provide(func() config.Component {
 			return configmock.NewWithOverrides(t, map[string]interface{}{
 				"confd_path":                                   confdPath,
 				"network_devices.snmp_traps.enabled":           true,
@@ -79,7 +79,7 @@ func TestNonBlockingFailure(t *testing.T) {
 func TestDisabled(t *testing.T) {
 	srv := fxutil.Test[server.Component](t,
 		senderhelper.Opts,
-		fx.Provide(func(t testing.TB) config.Component {
+		fx.Provide(func() config.Component {
 			return configmock.NewWithOverrides(t, map[string]interface{}{
 				"network_devices.snmp_traps.enabled": false,
 			})

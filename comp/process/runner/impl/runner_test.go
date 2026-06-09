@@ -123,10 +123,10 @@ func createDeps(t *testing.T, confOverrides map[string]interface{}, options ...f
 		fx.Provide(processcheckimpl.NewMock),
 		fx.Provide(containercheckimpl.NewMock),
 
-		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
-		fx.Provide(func(t testing.TB) config.Component { return configmock.NewWithOverrides(t, confOverrides) }),
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() config.Component { return configmock.NewWithOverrides(t, confOverrides) }),
 		workloadmetafx.Module(workloadmeta.NewParams()),
-		fx.Provide(func(t testing.TB) tagger.Component { return taggerfxmock.SetupFakeTagger(t) }),
+		fx.Provide(func() tagger.Component { return taggerfxmock.SetupFakeTagger(t) }),
 		fx.Options(options...),
 		fx.Provide(func(tb testing.TB) sysprobeconfig.Component { return sysprobeconfigmock.NewMock(tb) }),
 	))

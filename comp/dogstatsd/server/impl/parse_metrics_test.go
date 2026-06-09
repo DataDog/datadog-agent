@@ -27,7 +27,7 @@ func parseMetricSample(t *testing.T, overrides map[string]any, rawSample []byte)
 	deps := fxutil.Test[ServerDeps](t,
 		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
 		fx.Provide(func(t testing.TB) configComponent.Component {
-			return configmock.NewWithOverrides(t, overrides)
+			return configmock.NewWithOverridesTB(t, overrides)
 		}),
 		mocktelemetry.Module(),
 		hostnameimpl.MockModule(),

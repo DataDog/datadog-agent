@@ -35,7 +35,7 @@ type listenerDeps struct {
 	Telemetry telemetry.Component
 }
 
-func fulfillDepsWithConfig(t testing.TB, overrides map[string]interface{}) listenerDeps {
+func fulfillDepsWithConfig(t *testing.T, overrides map[string]interface{}) listenerDeps {
 	return fxutil.Test[listenerDeps](t, fx.Options(
 		mocktelemetry.Module(),
 		fx.Provide(func() config.Component { return configmock.NewWithOverrides(t, overrides) }),

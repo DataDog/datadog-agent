@@ -36,7 +36,7 @@ func TestExpvarServer(t *testing.T) {
 
 	_ = fxutil.Test[expvars.Component](t, fx.Options(
 		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
-		fx.Provide(func(t testing.TB) config.Component {
+		fx.Provide(func() config.Component {
 			return configmock.NewWithOverrides(t, map[string]interface{}{
 				"process_config.expvar_port": 43423,
 			})
@@ -65,7 +65,7 @@ func TestTelemetry(t *testing.T) {
 
 	_ = fxutil.Test[expvars.Component](t, fx.Options(
 		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
-		fx.Provide(func(t testing.TB) config.Component {
+		fx.Provide(func() config.Component {
 			return configmock.NewWithOverrides(t, map[string]interface{}{
 				"telemetry.enabled":          true,
 				"process_config.expvar_port": 43423,

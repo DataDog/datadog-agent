@@ -10,53 +10,88 @@ package configmock
 
 import (
 	"testing"
+	"time"
 
 	configdef "github.com/DataDog/datadog-agent/comp/core/config/def"
-	configimpl "github.com/DataDog/datadog-agent/comp/core/config/impl"
-	"github.com/DataDog/datadog-agent/pkg/config/mock"
+	pkgmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
+// mockCfg wraps pkg/config/mock to implement config.Component without
+// depending on the impl package.
+type mockCfg struct {
+	pkgconfigmodel.Config
+}
+
+func (m *mockCfg) Warnings() *pkgconfigmodel.Warnings { return &pkgconfigmodel.Warnings{} }
+func (m *mockCfg) StartTime() time.Time               { return time.Time{} }
+
 // MockModule provides a mock config component via fx.
 // Works with both fxutil.Test and fxutil.TestApp.
-// If testing.TB is available in the fx container (fxutil.Test), it is used for
-// proper test cleanup; otherwise a no-op is used.
 func MockModule() fxutil.Module {
 	return fxutil.Component(
 		fxutil.ProvideComponentConstructor(
 			func() configdef.Component {
-				return New(noopTB{})
+				return &mockCfg{pkgmock.New(noopT{})}
 			},
 		),
 	)
 }
 
-// noopTB is a minimal testing.TB that ignores Cleanup calls.
-// Used by MockModule so the mock works without a real test context.
-type noopTB struct{ testing.TB }
+// noopT satisfies testing.TB but ignores Cleanup calls.
+// Used by MockModule when no real test context is available (e.g. fxutil.TestApp).
+// Only Cleanup is called by pkg/config/mock.New; other methods are not needed.
+type noopT struct{ testing.TB }
 
-func (noopTB) Cleanup(func()) {}
+func (noopT) Cleanup(func()) {}
 
 // New returns a mock for the config component.
-func New(t testing.TB) configdef.Component {
-	return configimpl.NewCfgFromPkgConfig(mock.New(t))
+func New(t *testing.T) configdef.Component {
+	return &mockCfg{pkgmock.New(t)}
 }
 
-// NewWithOverrides creates a mock config and calls SetInTest on every item in overrides.
-func NewWithOverrides(t testing.TB, overrides map[string]interface{}) configdef.Component {
-	conf := mock.New(t)
+// NewWithTB returns a mock for the config component, accepting testing.TB for
+// use in benchmarks and other contexts where *testing.T is not available.
+func NewWithTB(t testing.TB) configdef.Component {
+	return &mockCfg{pkgmock.New(t)}
+}
+
+// NewWithOverridesTB creates a mock config accepting testing.TB, for use in
+// benchmarks and helpers that receive testing.TB.
+func NewWithOverridesTB(t testing.TB, overrides map[string]interface{}) configdef.Component {
+	conf := pkgmock.New(t)
 	for k, v := range overrides {
 		conf.SetInTest(k, v)
 	}
-	return configimpl.NewCfgFromPkgConfig(conf)
+	return &mockCfg{conf}
+}
+
+// NewWithOverrides creates a mock config and calls SetInTest on every item in overrides.
+func NewWithOverrides(t *testing.T, overrides map[string]interface{}) configdef.Component {
+	conf := pkgmock.New(t)
+	for k, v := range overrides {
+		conf.SetInTest(k, v)
+	}
+	return &mockCfg{conf}
 }
 
 // NewFromYAML returns a mock for the config component with the given YAML content loaded into it.
-func NewFromYAML(t testing.TB, yaml string) configdef.Component {
-	return configimpl.NewCfgFromPkgConfig(mock.NewFromYAML(t, yaml))
+func NewFromYAML(t *testing.T, yaml string) configdef.Component {
+	return &mockCfg{pkgmock.NewFromYAML(t, yaml)}
+}
+
+// NewFromYAMLTB returns a mock accepting testing.TB, for benchmarks and helpers.
+func NewFromYAMLTB(t testing.TB, yaml string) configdef.Component {
+	return &mockCfg{pkgmock.NewFromYAML(t, yaml)}
 }
 
 // NewFromYAMLFile returns a mock for the config component with the given YAML file loaded into it.
-func NewFromYAMLFile(t testing.TB, yamlFilePath string) configdef.Component {
-	return configimpl.NewCfgFromPkgConfig(mock.NewFromFile(t, yamlFilePath))
+func NewFromYAMLFile(t *testing.T, yamlFilePath string) configdef.Component {
+	return &mockCfg{pkgmock.NewFromFile(t, yamlFilePath)}
+}
+
+// NewFromYAMLFileTB returns a mock accepting testing.TB, for benchmarks and helpers.
+func NewFromYAMLFileTB(t testing.TB, yamlFilePath string) configdef.Component {
+	return &mockCfg{pkgmock.NewFromFile(t, yamlFilePath)}
 }

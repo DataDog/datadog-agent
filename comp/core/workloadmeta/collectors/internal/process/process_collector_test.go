@@ -909,7 +909,7 @@ func setUpCollectorTest(t *testing.T, cfg config.Component, sysProbeConfigOverri
 	// mock workloadmeta store
 	mockStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
-		fx.Provide(func(t testing.TB) config.Component { return configmock.NewWithOverrides(t, wlmConfigOverrides) }),
+		fx.Provide(func(t *testing.T) config.Component { return configmock.NewWithOverrides(t, wlmConfigOverrides) }),
 		workloadmetafxmock.MockModule(workloadmeta.Params{
 			AgentType: workloadmeta.NodeAgent,
 		}),

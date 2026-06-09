@@ -85,7 +85,7 @@ func fulfillDeps(t testing.TB) serverDeps {
 func fulfillDepsWithConfigOverride(t testing.TB, overrides map[string]interface{}) serverDeps {
 	return fxutil.Test[serverDeps](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
-		fx.Provide(func() configComponent.Component { return configmock.NewWithOverrides(t, overrides) }),
+		fx.Provide(func() configComponent.Component { return configmock.NewWithOverridesTB(t, overrides) }),
 		mocktelemetry.Module(),
 		hostnameimpl.MockModule(),
 		serverdebugmock.MockModule(),
@@ -106,7 +106,7 @@ func fulfillDepsWithConfigOverride(t testing.TB, overrides map[string]interface{
 func fulfillDepsWithConfigYaml(t testing.TB, yaml string) serverDeps {
 	return fxutil.Test[serverDeps](t, fx.Options(
 		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
-		fx.Provide(func(t testing.TB) configComponent.Component { return configmock.NewFromYAML(t, yaml) }),
+		fx.Provide(func() configComponent.Component { return configmock.NewFromYAMLTB(t, yaml) }),
 		mocktelemetry.Module(),
 		hostnameimpl.MockModule(),
 		serverdebugmock.MockModule(),
@@ -129,7 +129,7 @@ func fulfillDepsWithConfigYaml(t testing.TB, yaml string) serverDeps {
 func fulfillDepsWithInactiveServer(t *testing.T, cfg map[string]interface{}) (depsWithoutServer, *dsdServer) {
 	deps := fxutil.Test[depsWithoutServer](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
-		fx.Provide(func() configComponent.Component { return configmock.NewWithOverrides(t, cfg) }),
+		fx.Provide(func() configComponent.Component { return configmock.NewWithOverridesTB(t, cfg) }),
 		mocktelemetry.Module(),
 		hostnameimpl.MockModule(),
 		serverdebugmock.MockModule(),

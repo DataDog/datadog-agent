@@ -70,7 +70,7 @@ func newTestNpCollector(t testing.TB, agentConfigs map[string]any, statsdClient 
 	app := fxtest.New(t, fx.Options(
 		testOptions,
 		fx.Supply(fx.Annotate(t, fx.As(new(testing.TB)))),
-		fx.Provide(func() config.Component { return configmock.NewWithOverrides(t, agentConfigs) }),
+		fx.Provide(func() config.Component { return configmock.NewWithOverridesTB(t, agentConfigs) }),
 		fx.Populate(&component),
 		fx.Provide(func() statsd.ClientInterface {
 			return statsdClient

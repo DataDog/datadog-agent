@@ -83,7 +83,7 @@ func TestBundleStartLifecycle(t *testing.T) {
 	deps := fxutil.Test[appDeps](t,
 		Bundle(),
 		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
-		fx.Provide(func(t testing.TB) config.Component {
+		fx.Provide(func(t *testing.T) config.Component {
 			cfg := configmock.New(t)
 			cfg.SetInTest("api_key", "test-api-key")
 			cfg.SetInTest("dd_url", server.URL)

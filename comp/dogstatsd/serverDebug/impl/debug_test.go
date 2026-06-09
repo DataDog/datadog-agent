@@ -29,7 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-func fulfillDeps(t testing.TB, overrides map[string]interface{}) serverdebug.Component {
+func fulfillDeps(t *testing.T, overrides map[string]interface{}) serverdebug.Component {
 	return fxutil.Test[serverdebug.Component](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Provide(func() config.Component {

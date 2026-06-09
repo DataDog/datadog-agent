@@ -72,7 +72,7 @@ func TestProcessDiscoveryIsEnabled(t *testing.T) {
 				sysprobeConf.SetInTest(k, v)
 			}
 			c := fxutil.Test[processdiscoverycheck.Component](t, fx.Options(
-				fx.Provide(func(t testing.TB) config.Component { return configmock.NewWithOverrides(t, tc.configs) }),
+				fx.Provide(func() config.Component { return configmock.NewWithOverrides(t, tc.configs) }),
 				fx.Provide(func() sysprobeconfigdef.Component { return sysprobeConf }),
 				fxutil.ProvideComponentConstructor(NewCheck),
 			))

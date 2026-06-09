@@ -70,7 +70,7 @@ type reqs struct {
 	Comp profilerdef.Component
 }
 
-func getProfiler(t testing.TB, overrideSysProbe map[string]interface{}) profiler {
+func getProfiler(t *testing.T, overrideSysProbe map[string]interface{}) profiler {
 	sysprobeConf := sysprobeconfigmock.NewMockWithOverrides(t, overrideSysProbe)
 	deps := fxutil.Test[reqs](
 		t,
