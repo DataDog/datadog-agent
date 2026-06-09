@@ -406,6 +406,65 @@ func TestHorizontalControllerReleaseOwnershipOnDisable(t *testing.T) {
 	f.scaler.AssertNumberOfCalls(t, "releaseReplicasOwnership", 0)
 }
 
+func TestHorizontalControllerReleaseOwnershipOnDisable_FailureRetainsState(t *testing.T) {
+	// When releaseReplicasOwnership fails (e.g. RBAC not yet granted, or
+	// JSON-patch test op detected a managedFields race), the controller
+	// must NOT clear HorizontalLastActions — otherwise the gate
+	// (`len(HorizontalLastActions) > 0`) would never fire again and the
+	// stale managedFields entry would leak permanently. The controller
+	// should also return Requeue so the workqueue retries.
+	f := newHorizontalControllerFixture(t, time.Now())
+	autoscalerNamespace := "default"
+	autoscalerName := "test"
+
+	targetGVK := schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: "Deployment"}
+	disabledStrategy := datadoghqcommon.DatadogPodAutoscalerDisabledStrategySelect
+	disabledPolicy := &datadoghq.DatadogPodAutoscalerApplyPolicy{
+		ScaleUp:   &datadoghqcommon.DatadogPodAutoscalerScalingPolicy{Strategy: &disabledStrategy},
+		ScaleDown: &datadoghqcommon.DatadogPodAutoscalerScalingPolicy{Strategy: &disabledStrategy},
+	}
+	spec := &datadoghq.DatadogPodAutoscalerSpec{
+		TargetRef: v2.CrossVersionObjectReference{
+			Name:       autoscalerName,
+			Kind:       targetGVK.Kind,
+			APIVersion: targetGVK.Group + "/" + targetGVK.Version,
+		},
+		ApplyPolicy: disabledPolicy,
+	}
+
+	priorActions := []datadoghqcommon.DatadogPodAutoscalerHorizontalAction{
+		{Time: metav1.NewTime(f.clock.Now()), FromReplicas: 3, ToReplicas: 5},
+	}
+	fakePai := &model.FakePodAutoscalerInternal{
+		Namespace:             autoscalerNamespace,
+		Name:                  autoscalerName,
+		Spec:                  spec,
+		TargetGVK:             targetGVK,
+		HorizontalLastActions: priorActions,
+	}
+
+	// Bypass the Maybe-equipped fakeScaler: install a fresh one with a
+	// strict failing expectation so the controller sees an error from
+	// releaseReplicasOwnership.
+	strictScaler := &fakeScaler{}
+	f.controller.scaler = strictScaler
+	f.scaler = strictScaler
+	f.scaler.mockGet(*fakePai, 5, 5, nil)
+	strictScaler.On("releaseReplicasOwnership", mock.Anything, autoscalerNamespace, autoscalerName, targetGVK).
+		Return(fmt.Errorf("forbidden: missing patch permission"))
+
+	autoscaler, result, err := f.runSync(fakePai)
+	assert.Equal(t, autoscaling.Requeue, result, "must requeue so the workqueue retries the release")
+	assert.NoError(t, err, "best-effort cleanup must not surface an error to the workqueue retry counter")
+	strictScaler.AssertNumberOfCalls(t, "releaseReplicasOwnership", 1)
+
+	// HorizontalLastActions must NOT be cleared — otherwise the gate above
+	// would never fire on the next reconcile and the stale managedFields
+	// entry would leak permanently.
+	assert.Equal(t, priorActions, autoscaler.HorizontalLastActions(),
+		"HorizontalLastActions must be retained on release failure to allow retry")
+}
+
 func TestHorizontalControllerSyncScaleDecisions(t *testing.T) {
 	testTime := time.Now()
 	startTime := testTime.Add(-time.Hour)

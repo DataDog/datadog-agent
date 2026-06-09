@@ -64,9 +64,16 @@ func (hr *horizontalController) sync(ctx context.Context, podAutoscaler *datadog
 		// HorizontalLastActions to avoid issuing a GET on every reconcile
 		// while horizontal stays disabled — ClearHorizontalState below
 		// nils out actions so subsequent ticks skip this branch.
+		//
+		// IMPORTANT: only clear horizontal state once the release actually
+		// succeeds. If we cleared on failure (RBAC missing, JSON-patch test
+		// op race, transient API error), the gate above would never fire
+		// again and the stale managedFields entry would leak permanently.
+		// On failure we requeue and retry with a fresh snapshot.
 		if len(autoscalerInternal.HorizontalLastActions()) > 0 && autoscalerInternal.Spec().TargetRef.Name != "" {
 			if err := hr.scaler.releaseReplicasOwnership(ctx, autoscalerInternal.Namespace(), autoscalerInternal.Spec().TargetRef.Name, targetGVK); err != nil {
-				log.Warnf("Failed to release replicas ownership for %s %s/%s after disabling horizontal scaling: %v", targetGVK.Kind, autoscalerInternal.Namespace(), autoscalerInternal.Spec().TargetRef.Name, err)
+				log.Warnf("Failed to release replicas ownership for %s %s/%s after disabling horizontal scaling, will retry: %v", targetGVK.Kind, autoscalerInternal.Namespace(), autoscalerInternal.Spec().TargetRef.Name, err)
+				return autoscaling.Requeue, nil
 			}
 		}
 		autoscalerInternal.ClearHorizontalState()
