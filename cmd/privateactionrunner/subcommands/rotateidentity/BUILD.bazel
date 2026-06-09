@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "rotateidentity",
@@ -9,11 +9,23 @@ go_library(
         "//cmd/privateactionrunner/command",
         "//comp/core",
         "//comp/core/config",
+        "//comp/core/hostname",
         "//comp/core/log/def",
         "//pkg/config/setup",
         "//pkg/privateactionrunner/enrollment",
         "//pkg/util/fxutil",
         "@com_github_spf13_cobra//:cobra",
         "@org_uber_go_fx//:fx",
+    ],
+)
+
+go_test(
+    name = "rotateidentity_test",
+    srcs = ["command_test.go"],
+    embed = [":rotateidentity"],
+    gotags = ["test"],
+    deps = [
+        "//cmd/privateactionrunner/command",
+        "//pkg/util/fxutil",
     ],
 )
