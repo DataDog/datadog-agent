@@ -313,7 +313,7 @@ func start(log log.Component,
 	// Setup Internal Profiling
 	common.SetupInternalProfiling(settings, config, "")
 
-	if !config.IsSet("api_key") {
+	if !config.IsConfigured("api_key") {
 		return errors.New("no API key configured, exiting")
 	}
 
