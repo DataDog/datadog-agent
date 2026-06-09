@@ -69,9 +69,17 @@ func TestSend(t *testing.T) {
 	assert.Equal(t, version.AgentVersion, receivedRequest.Header.Get("DD-Agent-Version"))
 	assert.Contains(t, receivedRequest.Header.Get("User-Agent"), "datadog-agent/")
 
-	var decoded healthplatform.HealthReport
+	// Decode into a plain map to verify the JSON shape without proto type constraints.
+	var decoded map[string]any
 	require.NoError(t, json.Unmarshal(receivedBody, &decoded))
-	assert.Equal(t, "test-host", decoded.Host.Hostname)
+	assert.Equal(t, "test-host", decoded["host"].(map[string]any)["hostname"])
+
+	// Severity must be serialized as the lowercase string, not an integer.
+	// The agenthealth-remediation EVP worker maps this JSON field directly onto
+	// recommendations.Issue.Severity (a proto string field); an integer would be
+	// silently dropped, leaving severity empty and breaking all severity-filtered queries.
+	issue := decoded["issues"].(map[string]any)["issue-1"].(map[string]any)
+	assert.Equal(t, "high", issue["severity"])
 }
 
 func TestSendHTTPError(t *testing.T) {

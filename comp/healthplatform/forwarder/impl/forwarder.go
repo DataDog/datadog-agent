@@ -9,7 +9,6 @@ package forwarderimpl
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -65,7 +64,7 @@ func (f *forwarder) Send(ctx context.Context, report *healthplatform.HealthRepor
 		return errors.New("API key not configured")
 	}
 
-	payload, err := json.Marshal(report)
+	payload, err := marshalHealthReport(report)
 	if err != nil {
 		return fmt.Errorf("marshal report: %w", err)
 	}

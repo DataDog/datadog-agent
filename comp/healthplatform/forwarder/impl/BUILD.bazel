@@ -2,7 +2,10 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "impl",
-    srcs = ["forwarder.go"],
+    srcs = [
+        "forwarder.go",
+        "marshal.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/comp/healthplatform/forwarder/impl",
     visibility = ["//visibility:public"],
     deps = [
@@ -14,12 +17,16 @@ go_library(
         "//pkg/util/http",
         "//pkg/version",
         "@com_github_datadog_agent_payload_v5//healthplatform",
+        "@org_golang_google_protobuf//types/known/structpb",
     ],
 )
 
 go_test(
     name = "impl_test",
-    srcs = ["forwarder_test.go"],
+    srcs = [
+        "forwarder_test.go",
+        "marshal_test.go",
+    ],
     embed = [":impl"],
     gotags = ["test"],
     deps = [
@@ -29,5 +36,6 @@ go_test(
         "@com_github_datadog_agent_payload_v5//healthplatform",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
+        "@org_golang_google_protobuf//types/known/structpb",
     ],
 )
