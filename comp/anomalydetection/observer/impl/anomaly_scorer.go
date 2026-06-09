@@ -16,19 +16,6 @@ import (
 // Level 0=VeryLow, 1=Low, 2=Medium, 3=High, 4=XHigh.
 var levelWeights = [5]float64{0.2, 0.5, 1.0, 2.0, 3.0}
 
-// scoreThresholds are the boundaries that map a raw detector score to a level.
-// score < 6 → 0, 6 ≤ score < 12 → 1, 12 ≤ score < 20 → 2,
-// 20 ≤ score < 35 → 3, score ≥ 35 → 4.
-var scoreThresholds = [4]float64{6, 12, 20, 35}
-
-// scoredDetectors are the detectors that emit a numeric score to threshold against.
-var scoredDetectors = map[string]bool{
-	"holt_residual":  true,
-	"tukey_biweight": true,
-	"scanmw":         true,
-	"scanwelch":      true,
-}
-
 // DefaultScorerConfig returns calibrated defaults.
 // Per-detector thresholds are set based on empirical score distributions across
 // kafka-partition-saturation, postmark, and dns-upstream-outage scenarios.
@@ -67,18 +54,15 @@ func readScorerConfig(r ConfigReader, prefix string) any {
 }
 
 // anomalyLevel assigns a 0–4 level to an anomaly.
-// For scored detectors it applies per-detector thresholds from cfg when
-// available, falling back to the global defaults scoreThresholds.
+// If the detector has an entry in cfg.DetectorThresholds, the numeric Score is
+// compared against its four boundaries. Detectors without an entry (including
+// unscored detectors such as bocpd) default to Medium (level 2).
 func anomalyLevel(a observer.Anomaly, cfg observer.ScorerConfig) int {
-	if scoredDetectors[a.DetectorName] {
+	if thresholds, ok := cfg.DetectorThresholds[a.DetectorName]; ok {
 		if a.Score == nil {
 			return 0 // treat nil score from a scored detector as VeryLow
 		}
 		s := *a.Score
-		thresholds := scoreThresholds
-		if dt, ok := cfg.DetectorThresholds[a.DetectorName]; ok {
-			thresholds = dt
-		}
 		for i, t := range thresholds {
 			if s < t {
 				return i
@@ -86,7 +70,7 @@ func anomalyLevel(a observer.Anomaly, cfg observer.ScorerConfig) int {
 		}
 		return 4
 	}
-	return 2 // non-scored detectors (e.g. bocpd) default to Medium
+	return 2 // detectors without explicit thresholds default to Medium
 }
 
 // seriesID returns a stable string key for deduplication.
