@@ -10,6 +10,5 @@ go_library(
         "//comp/core/config/impl",
         "//pkg/config/mock",
         "//pkg/util/fxutil",
-        "@org_uber_go_fx//:fx",
     ],
 )

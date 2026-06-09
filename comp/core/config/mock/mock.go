@@ -11,23 +11,31 @@ package configmock
 import (
 	"testing"
 
-	"go.uber.org/fx"
-
 	configdef "github.com/DataDog/datadog-agent/comp/core/config/def"
 	configimpl "github.com/DataDog/datadog-agent/comp/core/config/impl"
 	"github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// MockModule provides a mock config component via fx, for use in fxutil.Test.
-// It injects testing.TB (automatically available in fxutil.Test) to construct the mock.
+// MockModule provides a mock config component via fx.
+// Works with both fxutil.Test and fxutil.TestApp.
+// If testing.TB is available in the fx container (fxutil.Test), it is used for
+// proper test cleanup; otherwise a no-op is used.
 func MockModule() fxutil.Module {
 	return fxutil.Component(
-		fx.Provide(func(t testing.TB) configdef.Component {
-			return New(t)
-		}),
+		fxutil.ProvideComponentConstructor(
+			func() configdef.Component {
+				return New(noopTB{})
+			},
+		),
 	)
 }
+
+// noopTB is a minimal testing.TB that ignores Cleanup calls.
+// Used by MockModule so the mock works without a real test context.
+type noopTB struct{ testing.TB }
+
+func (noopTB) Cleanup(func()) {}
 
 // New returns a mock for the config component.
 func New(t testing.TB) configdef.Component {
