@@ -139,7 +139,9 @@ func (p *MinimalPod) DeepCopyObject() runtime.Object {
 
 			if p.Spec.Containers[i].ResizePolicy != nil {
 				out.Spec.Containers[i].ResizePolicy = make([]corev1.ContainerResizePolicy, len(p.Spec.Containers[i].ResizePolicy))
-				copy(out.Spec.Containers[i].ResizePolicy, p.Spec.Containers[i].ResizePolicy)
+				for j := range p.Spec.Containers[i].ResizePolicy {
+					p.Spec.Containers[i].ResizePolicy[j].DeepCopyInto(&out.Spec.Containers[i].ResizePolicy[j])
+				}
 			}
 		}
 	}
