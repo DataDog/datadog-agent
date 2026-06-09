@@ -32,9 +32,9 @@ type ServiceCheckTemplateStore struct {
 	mu sync.RWMutex
 	// entries maps DDI CR key (namespace/name) to the target service and templates.
 	entries map[string]serviceTemplateEntry
-	// trackedServices maps "namespace/name" service keys to the number of DDI CRs
-	// targeting that service, enabling lookups for HasService calls.
-	trackedServices map[string]int
+	// trackedServices is the set of "namespace/name" service keys currently targeted by a
+	// DDI CR, enabling O(1) HasService lookups. A service is targeted by at most one CR.
+	trackedServices map[string]bool
 	// subscribers are called with the namespace and name of a service whose templates
 	// or tracked-state change.
 	subscribers []func(namespace, name string)
@@ -44,7 +44,7 @@ type ServiceCheckTemplateStore struct {
 func NewServiceCheckTemplateStore() *ServiceCheckTemplateStore {
 	return &ServiceCheckTemplateStore{
 		entries:         make(map[string]serviceTemplateEntry),
-		trackedServices: make(map[string]int),
+		trackedServices: make(map[string]bool),
 	}
 }
 
@@ -59,25 +59,20 @@ func (s *ServiceCheckTemplateStore) NotifyOnChange(fn func(namespace, name strin
 // writeTemplates stores templates keyed by DDI CR,
 // associating them with the target service from the CR's TargetRef.
 func (s *ServiceCheckTemplateStore) writeTemplates(crKey string, cr *datadoghq.DatadogInstrumentation, configs []integration.Config) {
-	// A CR's target is immutable, so a single service is ever affected by a write.
 	svcKey := cr.Namespace + "/" + cr.Spec.TargetRef.Name
 
 	s.mu.Lock()
 	_, existed := s.entries[crKey]
-	if existed {
-		if s.trackedServices[svcKey]--; s.trackedServices[svcKey] <= 0 {
-			delete(s.trackedServices, svcKey)
-		}
-	}
 	if len(configs) == 0 {
 		delete(s.entries, crKey)
+		delete(s.trackedServices, svcKey)
 	} else {
 		s.entries[crKey] = serviceTemplateEntry{
 			serviceNamespace: cr.Namespace,
 			serviceName:      cr.Spec.TargetRef.Name,
 			templates:        configs,
 		}
-		s.trackedServices[svcKey]++
+		s.trackedServices[svcKey] = true
 	}
 	s.mu.Unlock()
 
@@ -92,11 +87,8 @@ func (s *ServiceCheckTemplateStore) deleteTemplates(crKey string) {
 	s.mu.Lock()
 	old, exists := s.entries[crKey]
 	if exists {
-		svcKey := old.serviceNamespace + "/" + old.serviceName
-		if s.trackedServices[svcKey]--; s.trackedServices[svcKey] <= 0 {
-			delete(s.trackedServices, svcKey)
-		}
 		delete(s.entries, crKey)
+		delete(s.trackedServices, old.serviceNamespace+"/"+old.serviceName)
 	}
 	s.mu.Unlock()
 
@@ -116,11 +108,11 @@ func (s *ServiceCheckTemplateStore) notify(namespace, name string) {
 	}
 }
 
-// HasService reports whether any templates target the given service.
+// HasService reports whether a DDI CR's templates target the given service.
 func (s *ServiceCheckTemplateStore) HasService(namespace, name string) bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.trackedServices[namespace+"/"+name] > 0
+	return s.trackedServices[namespace+"/"+name]
 }
 
 // AllTemplatesByService returns all templates grouped by "namespace/name" service key

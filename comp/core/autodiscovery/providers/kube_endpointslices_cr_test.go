@@ -70,10 +70,10 @@ func newTestLister(slices ...*discv1.EndpointSlice) discv1listers.EndpointSliceL
 	return discv1listers.NewEndpointSliceLister(indexer)
 }
 
-func newTestProvider(store serviceTemplateStore, slices ...*discv1.EndpointSlice) *KubeEndpointSlicesCRConfigProvider {
+func newTestProvider(store serviceTracker, slices ...*discv1.EndpointSlice) *KubeEndpointSlicesCRConfigProvider {
 	return &KubeEndpointSlicesCRConfigProvider{
-		templateStore: store,
-		epSliceLister: newTestLister(slices...),
+		serviceTracker: store,
+		epSliceLister:  newTestLister(slices...),
 	}
 }
 

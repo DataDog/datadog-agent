@@ -26,7 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-type serviceTemplateStore interface {
+type serviceTracker interface {
 	NotifyOnChange(fn func(namespace, name string))
 	HasService(namespace string, name string) bool
 	AllTemplatesByService() map[string][]integration.Config
@@ -37,14 +37,14 @@ type serviceTemplateStore interface {
 // a ServiceCheckTemplateStore (populated by the DDI handler), watches
 // EndpointSlice informer events, and produces per-endpoint integration.Config
 type KubeEndpointSlicesCRConfigProvider struct {
-	mu            sync.RWMutex
-	upToDate      bool
-	templateStore serviceTemplateStore
-	epSliceLister discv1listers.EndpointSliceLister
+	mu             sync.RWMutex
+	upToDate       bool
+	serviceTracker serviceTracker
+	epSliceLister  discv1listers.EndpointSliceLister
 }
 
 // NewKubeEndpointSlicesCRConfigProvider returns a new KubeEndpointSlicesCRConfigProvider.
-func NewKubeEndpointSlicesCRConfigProvider(templateStore serviceTemplateStore) (types.ConfigProvider, error) {
+func NewKubeEndpointSlicesCRConfigProvider(serviceTracker serviceTracker) (types.ConfigProvider, error) {
 	ac, err := apiserver.GetAPIClient()
 	if err != nil {
 		return nil, fmt.Errorf("cannot connect to apiserver for endpoint slices CR provider: %w", err)
@@ -53,12 +53,12 @@ func NewKubeEndpointSlicesCRConfigProvider(templateStore serviceTemplateStore) (
 	epSliceInformer := ac.InformerFactory.Discovery().V1().EndpointSlices()
 
 	p := &KubeEndpointSlicesCRConfigProvider{
-		templateStore: templateStore,
-		epSliceLister: epSliceInformer.Lister(),
+		serviceTracker: serviceTracker,
+		epSliceLister:  epSliceInformer.Lister(),
 	}
 
 	// Mark dirty when templates change (DDI CR created/updated/deleted).
-	templateStore.NotifyOnChange(func(string, string) {
+	serviceTracker.NotifyOnChange(func(string, string) {
 		p.setUpToDate(false)
 	})
 
@@ -106,7 +106,7 @@ func (p *KubeEndpointSlicesCRConfigProvider) setUpToDate(v bool) {
 
 func (p *KubeEndpointSlicesCRConfigProvider) isTracked(slice *discv1.EndpointSlice) bool {
 	svcName := slice.Labels[kubernetesServiceNameLabelProvider]
-	return svcName != "" && p.templateStore.HasService(slice.Namespace, svcName)
+	return svcName != "" && p.serviceTracker.HasService(slice.Namespace, svcName)
 }
 
 func (p *KubeEndpointSlicesCRConfigProvider) addHandler(obj interface{}) {
@@ -146,7 +146,7 @@ func (p *KubeEndpointSlicesCRConfigProvider) deleteHandler(obj interface{}) {
 // generateConfigs queries the lister for EndpointSlices matching each tracked
 // service and combines them with the corresponding check templates.
 func (p *KubeEndpointSlicesCRConfigProvider) generateConfigs() []integration.Config {
-	templatesByService := p.templateStore.AllTemplatesByService()
+	templatesByService := p.serviceTracker.AllTemplatesByService()
 	if len(templatesByService) == 0 {
 		return nil
 	}
