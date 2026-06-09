@@ -518,7 +518,10 @@ func (h *healthPlatformImpl) storeIssue(issueType string, issue *healthplatform.
 	issue.DetectedAt = now
 	h.metrics.issuesCounter.Add(1, issueType)
 
-	h.issues[issueID] = issue
+	// Clone before storing so we can nil Extra/Remediation on the stored copy
+	// without mutating the caller's proto (reporters may reuse the same *Issue).
+	stored := proto.Clone(issue).(*healthplatform.Issue)
+	h.issues[issueID] = stored
 	if h.issuesByName[issueType] == nil {
 		h.issuesByName[issueType] = make(map[string]struct{})
 	}
@@ -551,7 +554,7 @@ func (h *healthPlatformImpl) storeIssue(issueType string, issue *healthplatform.
 	}
 
 	if persisted := h.persistedIssues[issueID]; persisted != nil {
-		issue.PersistedIssue = persistedIssueToProto(persisted)
+		stored.PersistedIssue = persistedIssueToProto(persisted)
 		persisted.IssueName = issue.IssueName
 		persisted.Title = issue.Title
 		persisted.Description = issue.Description
@@ -581,10 +584,10 @@ func (h *healthPlatformImpl) storeIssue(issueType string, issue *healthplatform.
 			persisted.Remediation = nil
 		}
 
-		// Drop structpb/Remediation from the hot store; they are kept as raw JSON in
+		// Drop structpb/Remediation from the stored copy; they are kept as raw JSON in
 		// persistedIssues and reconstructed on demand in GetAllIssues/GetIssue.
-		issue.Extra = nil
-		issue.Remediation = nil
+		stored.Extra = nil
+		stored.Remediation = nil
 	}
 
 	h.issuesMux.Unlock()
