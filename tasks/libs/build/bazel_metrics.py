@@ -67,11 +67,14 @@ def _parse_bep_file(path: Path) -> dict:
 
 
 def _parse_profile_file(path: Path) -> dict:
-    """Parse a Bazel profile JSON (Chrome tracing format) and return file-change scan duration.
+    """Parse a Bazel profile JSON (Chrome tracing format) and return phase durations.
 
-    The file-change scan duration is approximated as the elapsed time from build start
-    (ts=0 in the profile) to when the Loading phase begins. This phase is dominated by
-    Bazel walking the workspace to detect changed files, and grows as output files accumulate.
+    Returns:
+        file_change_scan_duration_s: elapsed time from build start to loading phase start.
+            Dominated by Bazel walking the workspace for changed files; grows with output
+            file accumulation.
+        analysis_phase_duration_s: duration of the analysis phase (reading BUILD files,
+            evaluating Starlark, constructing the action graph).
     """
     try:
         with open(path) as f:
@@ -82,26 +85,31 @@ def _parse_profile_file(path: Path) -> dict:
 
     trace_events = data.get('traceEvents', [])
 
-    # The loading phase starts after file-change scanning completes.
-    # In Bazel profiles it appears as complete events (ph='X') in the 'build phase' category,
-    # or with names containing 'Loading'. Take the minimum ts among those events.
+    result = {}
     loading_start_us: float | None = None
+
     for event in trace_events:
         if event.get('ph') != 'X':
             continue
         ts = event.get('ts')
-        if not ts:
+        if ts is None:
             continue
         name = event.get('name', '')
         cat = event.get('cat', '')
+
         if cat == 'build phase' or 'Loading' in name or 'LOADING' in name:
             if loading_start_us is None or ts < loading_start_us:
                 loading_start_us = ts
 
-    if loading_start_us is not None:
-        return {'file_change_scan_duration_s': loading_start_us / 1_000_000.0}
+        if cat == 'build phase' and ('Analysis' in name or 'ANALYSIS' in name):
+            dur = event.get('dur')
+            if dur:
+                result['analysis_phase_duration_s'] = dur / 1_000_000.0
 
-    return {}
+    if loading_start_us is not None:
+        result['file_change_scan_duration_s'] = loading_start_us / 1_000_000.0
+
+    return result
 
 
 def collect_bazel_metrics(metrics_dir: str | Path, tags: list[str]) -> None:
@@ -124,6 +132,7 @@ def collect_bazel_metrics(metrics_dir: str | Path, tags: list[str]) -> None:
     total_remote_cache_hits = 0
     total_build_duration_s = 0.0
     total_file_change_scan_s = 0.0
+    total_analysis_phase_s = 0.0
     invocation_count = len(bep_files)
 
     for bep_file in bep_files:
@@ -137,6 +146,8 @@ def collect_bazel_metrics(metrics_dir: str | Path, tags: list[str]) -> None:
         stats = _parse_profile_file(profile_file)
         if stats.get('file_change_scan_duration_s') is not None:
             total_file_change_scan_s += stats['file_change_scan_duration_s']
+        if stats.get('analysis_phase_duration_s') is not None:
+            total_analysis_phase_s += stats['analysis_phase_duration_s']
 
     timestamp = int(datetime.now(tz=timezone.utc).timestamp())
     series = []
@@ -161,6 +172,15 @@ def collect_bazel_metrics(metrics_dir: str | Path, tags: list[str]) -> None:
                 'datadog.ci.bazel.file_change_scan_duration_s',
                 timestamp,
                 total_file_change_scan_s,
+                tags,
+            )
+        )
+    if total_analysis_phase_s > 0:
+        series.append(
+            create_gauge(
+                'datadog.ci.bazel.analysis_phase_duration_s',
+                timestamp,
+                total_analysis_phase_s,
                 tags,
             )
         )
