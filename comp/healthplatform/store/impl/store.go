@@ -18,6 +18,7 @@ import (
 
 	"github.com/DataDog/agent-payload/v5/healthplatform"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/structpb"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -61,10 +62,14 @@ type healthPlatformImpl struct {
 	hostnameProvider hostnameinterface.Component // Hostname provider for runtime resolution
 	agentFlavor      string                      // Agent flavor captured at construction time
 
-	// Issue tracking: lean proto (no Extra/Remediation in hot path)
-	issues       map[string]*healthplatform.Issue // IssueID → active Issue
-	issuesByName map[string][]string              // IssueName → active IssueIDs
-	issuesMux    sync.RWMutex
+	// Issue tracking: lean protos — Extra and Remediation are stripped before storing
+	// and kept in extraJSON/remediationJSON to avoid retaining structpb heap allocations
+	// for the process lifetime. They are hydrated on demand at read time (egress, HTTP API).
+	issues          map[string]*healthplatform.Issue // IssueID → active Issue (no Extra/Remediation)
+	issuesByName    map[string][]string              // IssueName → active IssueIDs
+	extraJSON       map[string]json.RawMessage       // IssueID → Extra as raw JSON
+	remediationJSON map[string]json.RawMessage       // IssueID → Remediation as raw JSON
+	issuesMux       sync.RWMutex
 
 	// Persistence: lifecycle state only — proto payload is not stored here.
 	persistedIssues map[string]*PersistedIssue // IssueID → lifecycle state
@@ -257,9 +262,11 @@ func NewComponent(reqs Requires) (Provides, error) {
 		hostnameProvider: reqs.Hostname,
 		agentFlavor:      flavor.GetFlavor(),
 
-		issues:       make(map[string]*healthplatform.Issue),
-		issuesByName: make(map[string][]string),
-		issuesMux:    sync.RWMutex{},
+		issues:          make(map[string]*healthplatform.Issue),
+		issuesByName:    make(map[string][]string),
+		extraJSON:       make(map[string]json.RawMessage),
+		remediationJSON: make(map[string]json.RawMessage),
+		issuesMux:       sync.RWMutex{},
 
 		persistedIssues: make(map[string]*PersistedIssue),
 		persistence:     persistence,
@@ -356,7 +363,9 @@ func (h *healthPlatformImpl) GetAllIssues() (int, map[string]*healthplatform.Iss
 	result := make(map[string]*healthplatform.Issue)
 	for checkID, issue := range h.issues {
 		if issue != nil {
-			result[checkID] = proto.Clone(issue).(*healthplatform.Issue)
+			clone := proto.Clone(issue).(*healthplatform.Issue)
+			h.hydrateIssue(clone)
+			result[checkID] = clone
 			count++
 		} else {
 			result[checkID] = nil
@@ -375,7 +384,28 @@ func (h *healthPlatformImpl) GetIssue(checkID string) *healthplatform.Issue {
 		return nil
 	}
 	// Return a copy to avoid external modifications
-	return proto.Clone(issue).(*healthplatform.Issue)
+	clone := proto.Clone(issue).(*healthplatform.Issue)
+	h.hydrateIssue(clone)
+	return clone
+}
+
+// hydrateIssue populates Extra and Remediation on a cloned issue from the JSON maps.
+// The hot store keeps issues without these fields; they are reconstructed on demand at read time.
+func (h *healthPlatformImpl) hydrateIssue(issue *healthplatform.Issue) {
+	if raw := h.extraJSON[issue.Id]; len(raw) > 0 {
+		issue.Extra = &structpb.Struct{}
+		if err := json.Unmarshal(raw, issue.Extra); err != nil {
+			h.log.Warnf("health platform: failed to hydrate Extra for issue %s: %v", issue.Id, err)
+			issue.Extra = nil
+		}
+	}
+	if raw := h.remediationJSON[issue.Id]; len(raw) > 0 {
+		issue.Remediation = &healthplatform.Remediation{}
+		if err := json.Unmarshal(raw, issue.Remediation); err != nil {
+			h.log.Warnf("health platform: failed to hydrate Remediation for issue %s: %v", issue.Id, err)
+			issue.Remediation = nil
+		}
+	}
 }
 
 // ============================================================================
@@ -392,6 +422,8 @@ func (h *healthPlatformImpl) ResolveIssue(issueID string) {
 		stateChanged = true
 	}
 	delete(h.issues, issueID)
+	delete(h.extraJSON, issueID)
+	delete(h.remediationJSON, issueID)
 
 	if persisted := h.persistedIssues[issueID]; persisted != nil {
 		h.issuesByName[persisted.IssueType] = removeID(h.issuesByName[persisted.IssueType], issueID)
@@ -425,6 +457,8 @@ func (h *healthPlatformImpl) ResolveAllIssues() {
 
 	h.issues = make(map[string]*healthplatform.Issue)
 	h.issuesByName = make(map[string][]string)
+	h.extraJSON = make(map[string]json.RawMessage)
+	h.remediationJSON = make(map[string]json.RawMessage)
 	h.log.Info("Cleared all issues")
 
 	h.issuesMux.Unlock()
@@ -516,6 +550,32 @@ func (h *healthPlatformImpl) storeIssue(issueType string, issue *healthplatform.
 	}
 
 	stored.PersistedIssue = persistedIssueToProto(h.persistedIssues[issueID])
+
+	// Serialize Extra/Remediation to raw JSON and strip from the stored clone.
+	// This avoids retaining structpb heap allocations (one boxed *Value per field)
+	// for the process lifetime; they are reconstructed on demand in hydrateIssue.
+	if issue.Extra != nil {
+		if raw, err := json.Marshal(issue.Extra); err == nil {
+			h.extraJSON[issueID] = raw
+		} else {
+			h.log.Warnf("health platform: failed to serialize Extra for issue %s: %v", issueID, err)
+			delete(h.extraJSON, issueID)
+		}
+	} else {
+		delete(h.extraJSON, issueID)
+	}
+	if issue.Remediation != nil {
+		if raw, err := json.Marshal(issue.Remediation); err == nil {
+			h.remediationJSON[issueID] = raw
+		} else {
+			h.log.Warnf("health platform: failed to serialize Remediation for issue %s: %v", issueID, err)
+			delete(h.remediationJSON, issueID)
+		}
+	} else {
+		delete(h.remediationJSON, issueID)
+	}
+	stored.Extra = nil
+	stored.Remediation = nil
 
 	h.issuesMux.Unlock()
 

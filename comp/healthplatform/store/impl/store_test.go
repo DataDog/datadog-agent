@@ -115,6 +115,8 @@ func newTestStore(t *testing.T) *healthPlatformImpl {
 		agentFlavor:      "agent",
 		issues:           make(map[string]*healthplatformpayload.Issue),
 		issuesByName:     make(map[string][]string),
+		extraJSON:        make(map[string]json.RawMessage),
+		remediationJSON:  make(map[string]json.RawMessage),
 		persistedIssues:  make(map[string]*PersistedIssue),
 
 		persistence:      &memPersistence{},
@@ -406,6 +408,8 @@ func TestTelemetryCounterIncrements(t *testing.T) {
 		agentFlavor:      "agent",
 		issues:           make(map[string]*healthplatformpayload.Issue),
 		issuesByName:     make(map[string][]string),
+		extraJSON:        make(map[string]json.RawMessage),
+		remediationJSON:  make(map[string]json.RawMessage),
 		persistedIssues:  make(map[string]*PersistedIssue),
 
 		persistence:      &memPersistence{},
