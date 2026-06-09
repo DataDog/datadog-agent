@@ -107,9 +107,8 @@ build do
             # cleanup clutter
             delete "#{install_dir}/etc"
 
-            # The prerm script of the package should use this list to remove the pyc/pyo files
-            command "echo '# DO NOT REMOVE/MODIFY - used by package removal tasks' > #{install_dir}/embedded/.py_compiled_files.txt"
-            command "find #{install_dir}/embedded '(' -name '*.pyc' -o -name '*.pyo' ')' -type f -delete -print | sort >> #{install_dir}/embedded/.py_compiled_files.txt"
+            # Python bytecode caches (pyc files) are generated at runtime and should not be shipped.
+            command "find #{install_dir}/embedded -type d -name __pycache__ -prune -exec rm -rf {} +"
 
             # The prerm and preinst scripts of the package will use this list to detect which files
             # have been setup by the installer, this way, on removal, we'll be able to delete only files

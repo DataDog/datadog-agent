@@ -122,22 +122,13 @@ func (w *noAggregationStreamWorker) addSamples(samples metrics.MetricSampleBatch
 	w.samplesChan <- samples
 }
 
-func (w *noAggregationStreamWorker) stop(wait bool) {
-	var blockChan chan struct{}
-	if wait {
-		blockChan = make(chan struct{})
-	}
-
-	trigger := trigger{
+func (w *noAggregationStreamWorker) stop() {
+	blockChan := make(chan struct{})
+	w.stopChan <- trigger{
 		time:      time.Now(),
 		blockChan: blockChan,
 	}
-
-	w.stopChan <- trigger
-
-	if wait {
-		<-blockChan
-	}
+	<-blockChan
 }
 
 // mainloop of the no aggregation stream worker:

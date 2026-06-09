@@ -52,11 +52,31 @@ func RemovePackage(ctx context.Context, pkg string) (err error) {
 	var removeCmd *telemetry.TracedCmd
 	if dpkgInstalled {
 		removeCmd = telemetry.CommandContext(ctx, "dpkg", "-r", pkg)
-		packageInstalled = telemetry.CommandContext(ctx, "dpkg", "-s", pkg).Run() == nil
+		checkErr := telemetry.CommandContext(ctx, "dpkg", "-s", pkg).
+			WithExpectedExitCodes(
+				1, // package not installed — https://man7.org/linux/man-pages/man1/dpkg.1.html
+			).Run()
+		if checkErr != nil {
+			exitErr := &exec.ExitError{}
+			if !errors.As(checkErr, &exitErr) || exitErr.ExitCode() != 1 {
+				return fmt.Errorf("failed to check if package %s is installed: %w", pkg, checkErr)
+			}
+		}
+		packageInstalled = checkErr == nil
 	}
 	if rpmInstalled {
 		removeCmd = telemetry.CommandContext(ctx, "rpm", "-e", pkg)
-		packageInstalled = telemetry.CommandContext(ctx, "rpm", "-q", pkg).Run() == nil
+		checkErr := telemetry.CommandContext(ctx, "rpm", "-q", pkg).
+			WithExpectedExitCodes(
+				1, // package not installed — https://man7.org/linux/man-pages/man8/rpm.8.html
+			).Run()
+		if checkErr != nil {
+			exitErr := &exec.ExitError{}
+			if !errors.As(checkErr, &exitErr) || exitErr.ExitCode() != 1 {
+				return fmt.Errorf("failed to check if package %s is installed: %w", pkg, checkErr)
+			}
+		}
+		packageInstalled = checkErr == nil
 	}
 	if !packageInstalled {
 		return nil

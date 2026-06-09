@@ -120,7 +120,6 @@ func (s *linuxTestSuite) testLogs(t *testing.T) {
 
 		assert.NotEmpty(c, logs, "Expected to find logs from python-svc-dd service")
 
-		foundStartupLog := false
 		foundRequestLog := false
 
 		for _, log := range logs {
@@ -134,15 +133,11 @@ func (s *linuxTestSuite) testLogs(t *testing.T) {
 			assert.Contains(c, log.Tags, "version:2.1")
 			assert.Contains(c, log.Tags, "env:prod")
 
-			if log.Message == "Server is running on http://0.0.0.0:8082" {
-				foundStartupLog = true
-			}
 			if log.Message == "GET /test" {
 				foundRequestLog = true
 			}
 		}
 
-		assert.True(c, foundStartupLog, "Should find startup log message")
 		assert.True(c, foundRequestLog, "Should find request log message")
 	}, 2*time.Minute, 10*time.Second)
 

@@ -662,6 +662,70 @@ func (g *generator) addExpressionHandler(injectionPC uint64, rootType *ir.EventR
 			// The lookup writes the value element at sm->offset on success.
 			lastOpSize = op.ValByteSize
 			ops = append(ops, swissMapOps(op, exprIdx)...)
+		case *ir.PanicUnwindPrepareOp:
+			ops = append(ops, PanicUnwindPrepareOp{})
+		case *ir.PanicUnwindEvictSlotsOp:
+			ops = append(ops, PanicUnwindEvictSlotsOp{})
+		// any/all loop and conditional-control ops. These are emitted by
+		// emitAnyAllLoop and the predicate-body lowering when an any/all
+		// (or its desugared contains form) appears in template-segment or
+		// capture-expression position. Encoding mirrors appendConditionOps;
+		// the loop / control flow leaves a single boolean byte at sm->offset
+		// when it completes, which ExprSaveOp then records as the bool
+		// expression result. lastOpSize is left untouched: none of these ops
+		// is followed by an ir.DereferenceOp in the IR sequences emitAnyAllLoop
+		// produces.
+		case *ir.CondNotOp:
+			ops = append(ops, CondNotOp{})
+		case *ir.CondJumpOp:
+			ops = append(ops, CondJumpOp{Cond: op.Cond, Label: op.Target})
+		case *ir.CondLabelOp:
+			ops = append(ops, CondLabelOp{ID: op.ID})
+		case *ir.ExprLoadAddressOp:
+			ops = appendExprLoadAddress(ops, injectionPC, op)
+		case *ir.ArrayLoopBeginOp:
+			ops = append(ops, ArrayLoopBeginOp{
+				Quantifier:     op.Quantifier,
+				ElemByteSize:   op.ElemByteSize,
+				CompileTimeLen: op.CompileTimeLen,
+				EndLabel:       op.EndLabel,
+			})
+		case *ir.ArrayLoopEndOp:
+			ops = append(ops, ArrayLoopEndOp{
+				BodyLabel: op.BodyLabel,
+			})
+		case *ir.SliceLoopBeginOp:
+			ops = append(ops, SliceLoopBeginOp{
+				Quantifier:   op.Quantifier,
+				ElemByteSize: op.ElemByteSize,
+				EndLabel:     op.EndLabel,
+			})
+		case *ir.SliceLoopEndOp:
+			ops = append(ops, SliceLoopEndOp{
+				BodyLabel: op.BodyLabel,
+			})
+		case *ir.SwissMapLoopBeginOp:
+			ops = append(ops, SwissMapLoopBeginOp{
+				Quantifier:               op.Quantifier,
+				KeyByteSize:              op.KeyByteSize,
+				ValByteSize:              op.ValByteSize,
+				EndLabel:                 op.EndLabel,
+				DirPtrOffset:             op.DirPtrOffset,
+				DirLenOffset:             op.DirLenOffset,
+				CtrlOffset:               op.CtrlOffset,
+				SlotsOffset:              op.SlotsOffset,
+				KeyInSlotOffset:          op.KeyInSlotOffset,
+				ValInSlotOffset:          op.ValInSlotOffset,
+				SlotSize:                 op.SlotSize,
+				GroupByteSize:            op.GroupByteSize,
+				TableGroupsFieldOffset:   op.TableGroupsFieldOffset,
+				GroupsDataFieldOffset:    op.GroupsDataFieldOffset,
+				GroupsLenMaskFieldOffset: op.GroupsLenMaskFieldOffset,
+			})
+		case *ir.SwissMapLoopEndOp:
+			ops = append(ops, SwissMapLoopEndOp{
+				BodyLabel: op.BodyLabel,
+			})
 		default:
 			panic(fmt.Sprintf("unexpected ir.Operation: %#v", op))
 		}
