@@ -235,9 +235,6 @@ func TestWriteIdentitySecret_UpdatesExistingSecret(t *testing.T) {
 	client := fake.NewSimpleClientset(existing)
 	result := makeTestResult(t)
 
-	// Reject any Update that does not carry the existing ResourceVersion to mimic
-	// what a real Kubernetes apiserver does — proves writeIdentitySecret fetches
-	// the live object before issuing the Update.
 	client.PrependReactor("update", "secrets", func(action k8stesting.Action) (bool, runtime.Object, error) {
 		ua := action.(k8stesting.UpdateAction)
 		s := ua.GetObject().(*corev1.Secret)
@@ -258,9 +255,6 @@ func TestWriteIdentitySecret_UpdatesExistingSecret(t *testing.T) {
 	assert.Equal(t, result.OrchClusterID, string(secret.Data[orchClusterIDField]))
 }
 
-// Verify that a transient 409 Conflict during update is retried (RetryOnConflict)
-// rather than surfaced as an error: a concurrent writer between our Get and Update
-// is a realistic scenario for the multi-replica cluster agent.
 func TestWriteIdentitySecret_RetriesOnConflict(t *testing.T) {
 	existing := makeTestSecret("default", "par-identity")
 	client := fake.NewSimpleClientset(existing)

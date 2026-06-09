@@ -41,12 +41,9 @@ func NewTagsProvider(tagger tagger.Component) TagsProvider {
 	}
 }
 
-// basicTagsProvider emits only the per-runner tags (runner-id, agent_flavor, hostname)
-// without any cluster-scoped tags. Used by one-shot CLI rotation commands where the
-// tagger component is not available / not populated with workloadmeta data.
 type basicTagsProvider struct{}
 
-// NewBasicTagsProvider returns a TagsProvider that emits only the basic runner tags.
+// NewBasicTagsProvider returns a TagsProvider without tagger-backed tags.
 func NewBasicTagsProvider() TagsProvider {
 	return &basicTagsProvider{}
 }

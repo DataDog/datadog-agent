@@ -37,8 +37,7 @@ func PersistIdentity(ctx context.Context, cfg configModel.Reader, result *Result
 	return persistIdentityToFile(cfg, result)
 }
 
-// RotateIdentity persists a new identity for explicit rotation, bypassing the leader election
-// check so CLI one-shot commands can write directly regardless of which replica they run on.
+// RotateIdentity persists a new identity for explicit rotation.
 func RotateIdentity(ctx context.Context, cfg configModel.Reader, result *Result) error {
 	if cfg.GetBool(setup.PARIdentityUseK8sSecret) && flavor.GetFlavor() == flavor.ClusterAgent {
 		return rotateIdentityInK8sSecret(ctx, cfg, result)

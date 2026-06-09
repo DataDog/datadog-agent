@@ -150,8 +150,7 @@ func parseSecretData(secret *corev1.Secret, ns, secretName string) (*PersistedId
 	}, nil
 }
 
-// writeIdentitySecret builds and creates-or-updates the PAR identity K8s secret.
-// Shared by the leader-gated and force-rotate write paths.
+// writeIdentitySecret creates or updates the PAR identity K8s secret.
 func writeIdentitySecret(ctx context.Context, client kubernetes.Interface, ns, secretName string, result *Result) error {
 	privateKeyJWK, err := util.EcdsaToJWK(result.PrivateKey)
 	if err != nil {
@@ -193,9 +192,7 @@ func writeIdentitySecret(ctx context.Context, client kubernetes.Interface, ns, s
 		return fmt.Errorf("failed to create secret: %w", err)
 	}
 
-	// Secret already exists — fetch live ResourceVersion and merge updates onto it.
-	// RetryOnConflict handles the case where another writer updates the secret between
-	// our Get and Update calls (a real apiserver returns 409 Conflict in that case).
+	// Fetch the live object so Update carries its ResourceVersion.
 	err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		existing, getErr := client.CoreV1().Secrets(ns).Get(ctx, secretName, metav1.GetOptions{})
 		if getErr != nil {
@@ -220,7 +217,6 @@ func writeIdentitySecret(ctx context.Context, client kubernetes.Interface, ns, s
 }
 
 // persistIdentityToK8sSecret saves the enrollment result to a Kubernetes secret.
-// Only runs on the leader replica.
 func persistIdentityToK8sSecret(ctx context.Context, cfg configModel.Reader, result *Result) error {
 	le, err := leaderelection.GetLeaderEngine()
 	if err != nil {
@@ -240,7 +236,6 @@ func persistIdentityToK8sSecret(ctx context.Context, cfg configModel.Reader, res
 }
 
 // rotateIdentityInK8sSecret persists identity to K8s secret without requiring leadership.
-// Used by CLI rotation commands that run as one-shots outside the normal replica lifecycle.
 func rotateIdentityInK8sSecret(ctx context.Context, cfg configModel.Reader, result *Result) error {
 	client, err := getKubeClient()
 	if err != nil {

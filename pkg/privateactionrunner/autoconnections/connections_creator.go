@@ -27,15 +27,7 @@ func NewConnectionsCreator(client ConnectionsClient, provider TagsProvider) Conn
 	}
 }
 
-// CreateConnectionsIfEnabled runs the connection auto-creation flow when configuration allows it.
-// Pre-conditions:
-//   - private_action_runner.api_key_only_enrollment is false (auto-connection needs an app key)
-//   - private_action_runner.skip_connection_creation is false
-//   - parCfg.ActionsAllowlist has at least one entry
-//
-// Auto-connection is best-effort: failures (client construction, individual CreateConnection
-// calls) are logged via the package logger but never returned, so enrollment/rotation
-// surrounding this call is not blocked by a transient connections-API issue.
+// CreateConnectionsIfEnabled runs the best-effort connection auto-creation flow.
 func CreateConnectionsIfEnabled(
 	ctx context.Context,
 	cfg model.Reader,

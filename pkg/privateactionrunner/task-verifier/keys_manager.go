@@ -56,10 +56,7 @@ func NewKeyManager(rcClient rcclient.Client) KeysManager {
 	}
 }
 
-// Start subscribes the manager to Remote Config key updates. Safe to call multiple
-// times: a single sync.Once gates the underlying Subscribe, so callers that re-create
-// downstream consumers (e.g. WorkflowRunner during a hot identity rotation) can pass
-// the same keysManager without registering duplicate RC subscriptions.
+// Start subscribes the manager to Remote Config key updates.
 func (k *keysManager) Start(ctx context.Context) {
 	k.startOnce.Do(func() {
 		log.FromContext(ctx).Info("Subscribing to remote config updates")

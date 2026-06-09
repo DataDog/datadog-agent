@@ -137,14 +137,8 @@ func SelfEnroll(
 	}, nil
 }
 
-// Enroll performs self-enrollment using config and a pre-built agent identifier.
-// It selects API-key-only or API-key+app-key flow from config and derives the
-// runner name prefix from the agent identifier. Used by both the PAR component
-// (via performSelfEnrollment) and CLI rotate commands.
+// Enroll performs self-enrollment using config and an agent identifier.
 func Enroll(ctx context.Context, cfg configModel.Reader, agentIdentifier *AgentIdentifier) (*Result, error) {
-	// Honor dd_url overriding site (matches what parconfig.FromDDConfig does, so
-	// startup self-enrollment and rotate commands target the same endpoint as the
-	// running PAR component when a custom dd_url is configured).
 	mainEndpoint := configutils.GetMainEndpoint(cfg, "https://api.", "dd_url")
 	ddSite := configutils.ExtractSiteFromURL(mainEndpoint)
 	if ddSite == "" {
