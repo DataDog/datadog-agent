@@ -42,10 +42,9 @@ func (m *invalidConfigModule) BuiltInPeriodicHealthCheck() *runnerdef.BuiltInPer
 	return nil
 }
 
-// BuiltInStartupHealthCheck runs the schema validation once at agent startup.
+// BuiltInStartupHealthCheck is temporarily disabled to confirm it is the source
+// of the ~8 MiB idle memory regression (it loads and permanently retains the
+// compiled core_schema.yaml via schema.ValidateCoreConfig).
 func (m *invalidConfigModule) BuiltInStartupHealthCheck() *runnerdef.BuiltInHealthCheck {
-	return &runnerdef.BuiltInHealthCheck{
-		Source: "agent",
-		Fn:     m.checker.Run,
-	}
+	return nil
 }
