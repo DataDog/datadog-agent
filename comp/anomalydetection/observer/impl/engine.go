@@ -430,6 +430,13 @@ func (e *engine) Advance(upToSec int64) advanceResult {
 // advanceWithReason runs detectors and correlators up to the given event time,
 // recording the reason for the advance in the emitted event.
 func (e *engine) advanceWithReason(upToSec int64, reason advanceReason) advanceResult {
+	// Cap upToSec to wall-clock now to prevent future-timestamped data from
+	// advancing the analysis clock past real time. This keeps idle-ticker
+	// advances safe when data timestamps briefly lead the wall clock.
+	if now := time.Now().Unix(); upToSec > now {
+		upToSec = now
+	}
+
 	// Snapshot mutable fields under the lock. We cannot hold mu during
 	// runDetectorsAndCorrelators because emit() callbacks may re-enter
 	// stateView methods that take mu.RLock, causing a deadlock.

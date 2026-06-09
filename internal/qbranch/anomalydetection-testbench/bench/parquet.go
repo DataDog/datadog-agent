@@ -45,7 +45,6 @@ func detectParquetFormat(dir string) ParquetFormat {
 	return FormatV1
 }
 
-
 // ---- Metric reader ----
 
 type fgmMetric struct {
@@ -303,6 +302,204 @@ func findCol(schema *arrow.Schema, name string) int {
 	n := normalizeCol(name)
 	for i, f := range schema.Fields() {
 		if normalizeCol(f.Name) == n {
+			return i
+		}
+	}
+	return -1
+}
+
+// StreamMetrics streams all FGM parquet files from dir, calling fn for each
+// metric without buffering all records in memory. Files are processed in sorted
+// (chronological) name order. Prefer this over readAllMetrics for large episodes
+// to avoid OOM — the caller typically feeds metrics directly into the engine.
+func StreamMetrics(dir string, fn func(recorderdef.MetricData)) error {
+	files, err := findMetricParquetFiles(dir)
+	if err != nil {
+		return fmt.Errorf("finding parquet files: %w", err)
+	}
+	for _, filePath := range files {
+		if err := streamParquetFileTo(filePath, fn); err != nil {
+			fmt.Printf("[parquet-reader] Skipping %s: %v\n", filePath, err)
+		}
+	}
+	return nil
+}
+
+// streamParquetFileTo reads a single parquet file and calls fn for each metric
+// without buffering the whole file. Converts arrow records directly to MetricData.
+func streamParquetFileTo(filePath string, fn func(recorderdef.MetricData)) error {
+	info, err := os.Stat(filePath)
+	if err != nil {
+		return fmt.Errorf("stat: %w", err)
+	}
+	if info.Size() < minParquetFileSize {
+		return nil
+	}
+
+	f, err := os.Open(filePath)
+	if err != nil {
+		return fmt.Errorf("open: %w", err)
+	}
+	defer f.Close()
+
+	pf, err := file.NewParquetReader(f)
+	if err != nil {
+		return fmt.Errorf("creating parquet reader: %w", err)
+	}
+	defer pf.Close()
+
+	arrowReader, err := pqarrow.NewFileReader(pf, pqarrow.ArrowReadProperties{BatchSize: 1024}, memory.DefaultAllocator)
+	if err != nil {
+		return fmt.Errorf("creating arrow reader: %w", err)
+	}
+
+	ctx := context.Background()
+	rr, err := arrowReader.GetRecordReader(ctx, nil, nil)
+	if err != nil {
+		return fmt.Errorf("getting record reader: %w", err)
+	}
+	defer rr.Release()
+
+	for rr.Next() {
+		rec := rr.Record()
+		streamMetricsFromRecord(rec, fn)
+		rec.Release()
+	}
+	if err := rr.Err(); err != nil && err.Error() != "EOF" {
+		return fmt.Errorf("reading records: %w", err)
+	}
+	return nil
+}
+
+// streamMetricsFromRecord converts arrow record rows directly to MetricData
+// and calls fn for each row without allocating intermediate structs.
+func streamMetricsFromRecord(record arrow.Record, fn func(recorderdef.MetricData)) {
+	numRows := int(record.NumRows())
+	if numRows == 0 {
+		return
+	}
+	schema := record.Schema()
+
+	runIDIdx := findColIdx(schema, "runid")
+	timeIdx := findColIdx(schema, "time")
+	metricNameIdx := findColIdx(schema, "metricname")
+	valueFloatIdx := findColIdx(schema, "valuefloat")
+	tagsIdx := findColIdx(schema, "tags")
+	droppedIdx := findColIdx(schema, "dropped")
+
+	readTS := func(col arrow.Array, i int) int64 {
+		if col == nil || col.IsNull(i) {
+			return 0
+		}
+		switch c := col.(type) {
+		case *array.Int64:
+			return c.Value(i)
+		case *array.Timestamp:
+			return int64(c.Value(i))
+		}
+		return 0
+	}
+
+	var runIDCol, metricNameCol *array.String
+	var valueFloatCol *array.Float64
+	var tagsCol *array.List
+	var droppedCol *array.Boolean
+	var timeCol arrow.Array
+
+	if runIDIdx >= 0 {
+		runIDCol, _ = record.Column(runIDIdx).(*array.String)
+	}
+	if timeIdx >= 0 {
+		timeCol = record.Column(timeIdx)
+	}
+	if metricNameIdx >= 0 {
+		metricNameCol, _ = record.Column(metricNameIdx).(*array.String)
+	}
+	if valueFloatIdx >= 0 {
+		valueFloatCol, _ = record.Column(valueFloatIdx).(*array.Float64)
+	}
+	if tagsIdx >= 0 {
+		tagsCol, _ = record.Column(tagsIdx).(*array.List)
+	}
+	if droppedIdx >= 0 {
+		droppedCol, _ = record.Column(droppedIdx).(*array.Boolean)
+	}
+
+	type labelColEntry struct {
+		key string
+		col *array.String
+	}
+	var labelCols []labelColEntry
+	for i, field := range schema.Fields() {
+		if strings.HasPrefix(field.Name, "l_") {
+			if c, ok := record.Column(i).(*array.String); ok {
+				labelCols = append(labelCols, labelColEntry{key: strings.TrimPrefix(field.Name, "l_"), col: c})
+			}
+		}
+	}
+
+	for i := 0; i < numRows; i++ {
+		var source, name string
+		var ts int64
+		var value float64
+		var dropped bool
+
+		if runIDCol != nil && !runIDCol.IsNull(i) {
+			source = runIDCol.Value(i)
+		}
+		ts = readTS(timeCol, i) / 1000 // ms → s
+		if metricNameCol != nil && !metricNameCol.IsNull(i) {
+			name = metricNameCol.Value(i)
+		}
+		if valueFloatCol != nil && !valueFloatCol.IsNull(i) {
+			value = valueFloatCol.Value(i)
+		}
+		if droppedCol != nil && !droppedCol.IsNull(i) {
+			dropped = droppedCol.Value(i)
+		}
+
+		var tags []string
+		if tagsCol != nil && !tagsCol.IsNull(i) {
+			start, end := tagsCol.ValueOffsets(i)
+			tagVals := tagsCol.ListValues().(*array.String)
+			tags = make([]string, 0, int(end-start)+len(labelCols))
+			for j := start; j < end; j++ {
+				if !tagVals.IsNull(int(j)) {
+					if t := tagVals.Value(int(j)); t != "" {
+						tags = append(tags, t)
+					}
+				}
+			}
+		} else if len(labelCols) > 0 {
+			tags = make([]string, 0, len(labelCols))
+		}
+		for _, lc := range labelCols {
+			if !lc.col.IsNull(i) {
+				if v := lc.col.Value(i); v != "" {
+					tags = append(tags, lc.key+":"+v)
+				}
+			}
+		}
+		if len(tags) > 1 {
+			sort.Strings(tags)
+		}
+
+		fn(recorderdef.MetricData{
+			Source:    source,
+			Name:      name,
+			Value:     value,
+			Timestamp: ts,
+			Tags:      tags,
+			Dropped:   dropped,
+		})
+	}
+}
+
+// findColIdx finds a column index by normalized name.
+func findColIdx(schema *arrow.Schema, name string) int {
+	norm := normalizeCol(name)
+	for i, f := range schema.Fields() {
+		if normalizeCol(f.Name) == norm {
 			return i
 		}
 	}

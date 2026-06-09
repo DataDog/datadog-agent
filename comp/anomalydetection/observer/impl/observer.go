@@ -352,28 +352,46 @@ type observerImpl struct {
 
 // run is the main dispatch loop, processing all observations sequentially.
 func (o *observerImpl) run() {
-	for obs := range o.obsCh {
-		if obs.flush != nil {
-			close(obs.flush)
-			continue
-		}
-		o.replayMu.Lock()
-		var requests []advanceRequest
-		if obs.metric != nil {
-			requests = o.engine.IngestMetric(obs.source, obs.metric)
-		}
-		if obs.log != nil {
-			logRequests, logTelemetry := o.engine.IngestLog(obs.source, obs.log)
-			requests = append(requests, logRequests...)
-			if len(logTelemetry) > 0 {
-				o.telemetryHandler.handleTelemetry(logTelemetry)
+	idleTicker := time.NewTicker(time.Second)
+	defer idleTicker.Stop()
+
+	for {
+		select {
+		case obs, ok := <-o.obsCh:
+			if !ok {
+				return
 			}
+			if obs.flush != nil {
+				close(obs.flush)
+				continue
+			}
+			o.replayMu.Lock()
+			var requests []advanceRequest
+			if obs.metric != nil {
+				requests = o.engine.IngestMetric(obs.source, obs.metric)
+			}
+			if obs.log != nil {
+				logRequests, logTelemetry := o.engine.IngestLog(obs.source, obs.log)
+				requests = append(requests, logRequests...)
+				if len(logTelemetry) > 0 {
+					o.telemetryHandler.handleTelemetry(logTelemetry)
+				}
+			}
+			for _, req := range requests {
+				result := o.engine.advanceWithReason(req.upToSec, req.reason)
+				o.telemetryHandler.handleTelemetry(result.telemetry)
+			}
+			o.replayMu.Unlock()
+
+		case now := <-idleTicker.C:
+			o.replayMu.Lock()
+			requests := o.engine.scheduler.onIdle(now.Unix(), o.engine.schedulerState())
+			for _, req := range requests {
+				result := o.engine.advanceWithReason(req.upToSec, req.reason)
+				o.telemetryHandler.handleTelemetry(result.telemetry)
+			}
+			o.replayMu.Unlock()
 		}
-		for _, req := range requests {
-			result := o.engine.advanceWithReason(req.upToSec, req.reason)
-			o.telemetryHandler.handleTelemetry(result.telemetry)
-		}
-		o.replayMu.Unlock()
 	}
 }
 

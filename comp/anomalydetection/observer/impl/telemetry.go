@@ -29,6 +29,14 @@ const (
 
 	// Log pattern extractor — counter: delta (new clusters) per processed log
 	telemetryLogPatternExtractorPatternCount = "observer.log_pattern_extractor.pattern_count"
+
+	// Scrappy detector
+	telemetryScrappyTickTokens    = "observer.scrappy.tick_tokens"
+	telemetryScrappyContextTokens = "observer.scrappy.context_tokens"
+	telemetryScrappySeriesCount   = "observer.scrappy.series_count"
+	telemetryScrappyPAlert        = "observer.scrappy.p_alert"
+	telemetryScrappyPNormal       = "observer.scrappy.p_normal"
+	telemetryScrappyPrediction    = "observer.scrappy.prediction"
 )
 
 // This is used to:
@@ -61,6 +69,42 @@ func newTelemetryHandler(telemetryComp telemetry.Component) *telemetryHandler {
 		telemetryRRCFThreshold,
 		[]string{"detector"},
 		"RRCF dynamic anomaly detection threshold (post-warmup)",
+	)
+	gauges[telemetryScrappyTickTokens] = telemetryComp.NewGauge(
+		"observer",
+		telemetryScrappyTickTokens,
+		[]string{"detector"},
+		"Number of tokens in the current scrappy tick",
+	)
+	gauges[telemetryScrappyContextTokens] = telemetryComp.NewGauge(
+		"observer",
+		telemetryScrappyContextTokens,
+		[]string{"detector"},
+		"Cumulative scrappy context tokens processed",
+	)
+	gauges[telemetryScrappySeriesCount] = telemetryComp.NewGauge(
+		"observer",
+		telemetryScrappySeriesCount,
+		[]string{"detector"},
+		"Number of series in the current scrappy tick",
+	)
+	gauges[telemetryScrappyPAlert] = telemetryComp.NewGauge(
+		"observer",
+		telemetryScrappyPAlert,
+		[]string{"detector"},
+		"Scrappy model P(alert) for the current tick",
+	)
+	gauges[telemetryScrappyPNormal] = telemetryComp.NewGauge(
+		"observer",
+		telemetryScrappyPNormal,
+		[]string{"detector"},
+		"Scrappy model P(normal) for the current tick",
+	)
+	gauges[telemetryScrappyPrediction] = telemetryComp.NewGauge(
+		"observer",
+		telemetryScrappyPrediction,
+		[]string{"detector"},
+		"Scrappy model binary prediction (1=alert, 0=normal) for the current tick",
 	)
 
 	// Counters

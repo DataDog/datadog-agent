@@ -18,6 +18,10 @@ import (
 type ObserverOutput struct {
 	Metadata       ObserverMetadata      `json:"metadata"`
 	AnomalyPeriods []ObserverCorrelation `json:"anomaly_periods"`
+	// RawDetectorAnomalies maps detector name → sorted list of anomaly timestamps
+	// (unix seconds). Populated when verbose is true, from raw engine anomalies
+	// before correlation. Useful for scoring detectors that bypass the correlator.
+	RawDetectorAnomalies map[string][]int64 `json:"raw_detector_anomalies,omitempty"`
 }
 
 // ObserverMetadata describes the scenario and pipeline configuration.
@@ -147,6 +151,22 @@ func (tb *Bench) WriteObserverOutput(path string, verbose bool) error {
 			Stats:               replayStats,
 		},
 		AnomalyPeriods: outCorrelations,
+	}
+
+	if verbose {
+		byDetector := sv.AnomaliesByDetector()
+		if len(byDetector) > 0 {
+			rawMap := make(map[string][]int64, len(byDetector))
+			for detName, anomalies := range byDetector {
+				timestamps := make([]int64, len(anomalies))
+				for i, a := range anomalies {
+					timestamps[i] = a.Timestamp
+				}
+				sort.Slice(timestamps, func(i, j int) bool { return timestamps[i] < timestamps[j] })
+				rawMap[detName] = timestamps
+			}
+			output.RawDetectorAnomalies = rawMap
+		}
 	}
 
 	data, err := json.MarshalIndent(output, "", "  ")

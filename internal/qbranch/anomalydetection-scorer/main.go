@@ -32,10 +32,11 @@ func main() {
 	sigma := flag.Float64("sigma", 30.0, "Gaussian width in seconds")
 	jsonOutput := flag.Bool("json", false, "Output result as JSON")
 	scoreTP := flag.Bool("score-tp", false, "Score true positive detection using metric ground truth from ground_truth.json. Requires passthrough correlator output.")
+	rawDetector := flag.String("raw-detector", "", "Score raw anomalies from a specific detector (bypasses correlator). Requires verbose output with raw_detector_anomalies field.")
 	flag.Parse()
 
 	if *outputPath == "" {
-		fmt.Fprintf(os.Stderr, "Usage: anomalydetection-scorer --input <path> [--scenarios-dir <dir>] [--ground-truth-ts <unix>] [--sigma <seconds>] [--score-tp] [--json]\n")
+		fmt.Fprintf(os.Stderr, "Usage: anomalydetection-scorer --input <path> [--scenarios-dir <dir>] [--ground-truth-ts <unix>] [--sigma <seconds>] [--score-tp] [--raw-detector <name>] [--json]\n")
 		os.Exit(1)
 	}
 
@@ -64,7 +65,13 @@ func main() {
 		return
 	}
 
-	result, err := ScoreOutputFile(*outputPath, gtTimestamps, *scenariosDir, *sigma)
+	var result *ScoreResult
+	var err error
+	if *rawDetector != "" {
+		result, err = ScoreRawDetector(*outputPath, *rawDetector, gtTimestamps, *scenariosDir, *sigma)
+	} else {
+		result, err = ScoreOutputFile(*outputPath, gtTimestamps, *scenariosDir, *sigma)
+	}
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Scoring failed: %v\n", err)
 		os.Exit(1)

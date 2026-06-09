@@ -74,6 +74,32 @@ agents:
       event_reporter:
         sending_enabled: true
 {{- end}}
+{{- if eq .Mode "scrappy-collect"}}
+      recording:
+        enabled: true
+        parquet_output_dir: /tmp/observer-parquet
+        parquet_flush_interval: 30s
+      components:
+        scrappy_collector:
+          enabled: true
+          output_path: /tmp/scrappy-collect.jsonl
+        bocpd:
+          enabled: false
+        rrcf:
+          enabled: false
+        cusum:
+          enabled: false
+        scanmw:
+          enabled: false
+        scanwelch:
+          enabled: false
+        cross_signal:
+          enabled: false
+        time_cluster:
+          enabled: false
+        passthrough:
+          enabled: false
+{{- end}}
   containers:
     agent:
       resources:

@@ -1,0 +1,19 @@
+{
+  "components": {
+    "scrappy_detector": {
+      "enabled": true,
+      "vocab_path": "/Users/loren.arthur/dd/scrappy/vocab.json",
+      "model_path": "/Users/loren.arthur/dd/scrappy/checkpoints/v0.3-run-001/epoch_005.pt",
+      "threshold": 0.1,
+      "context_window": 4096,
+      "scores_output": "/tmp/scrappy-v03-eval-scores.csv"
+    },
+    "time_cluster": { "enabled": true },
+    "bocpd": { "enabled": false },
+    "rrcf": { "enabled": false },
+    "cusum": { "enabled": false },
+    "scanmw": { "enabled": false },
+    "scanwelch": { "enabled": false },
+    "cross_signal": { "enabled": false }
+  }
+}

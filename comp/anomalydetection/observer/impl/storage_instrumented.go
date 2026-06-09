@@ -276,3 +276,7 @@ func (s *instrumentedStorage) SeriesGeneration() uint64 {
 	s.callHashes = append(s.callHashes, ch.sum())
 	return result
 }
+
+func (s *instrumentedStorage) GetContext(ref observerdef.SeriesRef) *observerdef.MetricContext {
+	return s.inner.GetContext(ref)
+}

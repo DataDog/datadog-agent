@@ -397,20 +397,12 @@ func (tb *Bench) loadParquetDir(dir string) error {
 
 	if tb.config.LogsOnly {
 		fmt.Printf("  Logs-only mode: skipping parquet metrics and trace stats\n")
-	} else {
-		var metrics []recorderdef.MetricData
-		var err error
-		if format == FormatV2 {
-			metrics, err = readAllMetricsV2(dir)
-		} else {
-			metrics, err = readAllMetrics(dir)
-		}
+	} else if format == FormatV2 {
+		metrics, err := readAllMetricsV2(dir)
 		if err != nil {
 			return fmt.Errorf("reading parquet metrics: %w", err)
 		}
-
 		fmt.Printf("  Loading %d samples from parquet files\n", len(metrics))
-
 		var droppedCount int
 		for _, m := range metrics {
 			if strings.HasPrefix(m.Name, "datadog.") {
@@ -430,7 +422,33 @@ func (tb *Bench) loadParquetDir(dir string) error {
 		if droppedCount > 0 {
 			fmt.Printf("  Skipped %d dropped observations from parquet\n", droppedCount)
 		}
-
+		tb.feedRawMetrics()
+	} else {
+		// V1 format: stream metrics to avoid OOM on large episodes.
+		var count, droppedCount int
+		err := StreamMetrics(dir, func(m recorderdef.MetricData) {
+			if strings.HasPrefix(m.Name, "datadog.") {
+				return
+			}
+			if tb.config.SkipDroppedMetrics && m.Dropped {
+				droppedCount++
+				return
+			}
+			tb.rawMetrics = append(tb.rawMetrics, &parquetMetricView{
+				name:      m.Name,
+				value:     m.Value,
+				tags:      m.Tags,
+				timestamp: m.Timestamp,
+			})
+			count++
+		})
+		if err != nil {
+			return fmt.Errorf("streaming parquet metrics: %w", err)
+		}
+		fmt.Printf("  Loaded %d samples from parquet files (streaming)\n", count)
+		if droppedCount > 0 {
+			fmt.Printf("  Skipped %d dropped observations from parquet\n", droppedCount)
+		}
 		tb.feedRawMetrics()
 	}
 

@@ -471,6 +471,12 @@ type StorageReader interface {
 	// set of known series changes. Use this to cache ListSeries results and
 	// refresh them only when new series keys appear.
 	SeriesGeneration() uint64
+
+	// GetContext returns the MetricContext stored on the series, if any.
+	// Returns nil if the series has no context or was not found.
+	// Context is set by log extractors (e.g. LogPatternExtractor) to carry the
+	// originating log pattern and example for anomaly enrichment.
+	GetContext(ref SeriesRef) *MetricContext
 }
 
 // Detector is the flexible detection interface where detectors pull data from storage.

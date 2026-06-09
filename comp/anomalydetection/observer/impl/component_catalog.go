@@ -234,6 +234,38 @@ func defaultCatalog() *componentCatalog {
 					return cfg, nil
 				},
 			},
+			{
+				name:           "scrappy_collector",
+				displayName:    "Scrappy Collector",
+				kind:           componentDetector,
+				defaultConfig:  DefaultScrappyCollectorConfig(),
+				factory:        func(cfg any) any { return NewScrappyCollector(cfg.(ScrappyCollectorConfig)) },
+				defaultEnabled: false,
+				readConfig:     readScrappyCollectorConfig,
+				parseJSON: func(defaults any, raw []byte) (any, error) {
+					cfg := defaults.(ScrappyCollectorConfig)
+					if err := json.Unmarshal(raw, &cfg); err != nil {
+						return nil, err
+					}
+					return cfg, nil
+				},
+			},
+			{
+				name:           "scrappy_detector",
+				displayName:    "Scrappy Detector",
+				kind:           componentDetector,
+				defaultConfig:  DefaultScrappyDetectorConfig(),
+				factory:        func(cfg any) any { return NewScrappyDetector(cfg.(ScrappyDetectorConfig)) },
+				defaultEnabled: false,
+				readConfig:     readScrappyDetectorConfig,
+				parseJSON: func(defaults any, raw []byte) (any, error) {
+					cfg := defaults.(ScrappyDetectorConfig)
+					if err := json.Unmarshal(raw, &cfg); err != nil {
+						return nil, err
+					}
+					return cfg, nil
+				},
+			},
 			// ---- Correlators ----
 			{
 				name:           "cross_signal",
@@ -272,6 +304,21 @@ func defaultCatalog() *componentCatalog {
 				kind:           componentCorrelator,
 				factory:        func(any) any { return NewDetectorPassthroughCorrelator() },
 				defaultEnabled: false,
+			},
+			{
+				name:           "scrappy",
+				displayName:    "Scrappy",
+				kind:           componentCorrelator,
+				defaultConfig:  DefaultScrappyCorrelatorConfig(),
+				factory:        func(cfg any) any { return NewScrappyCorrelator(cfg.(ScrappyCorrelatorConfig)) },
+				defaultEnabled: false,
+				parseJSON: func(defaults any, raw []byte) (any, error) {
+					cfg := defaults.(ScrappyCorrelatorConfig)
+					if err := json.Unmarshal(raw, &cfg); err != nil {
+						return nil, err
+					}
+					return cfg, nil
+				},
 			},
 		},
 	}
@@ -447,6 +494,13 @@ var statelessDetectorAllowlist = map[string]struct{}{
 	// SeriesRef, this entry must be removed and RRCF must implement
 	// SeriesRemover.
 	"rrcf": {},
+
+	// ScrappyDetector and ScrappyCollector maintain state keyed by identity
+	// strings (metric name / pattern) and slot-index integers — not by
+	// SeriesRef. Evicting a SeriesRef from storage does not require any
+	// cleanup in scrappy's tokenizer or tokenizer state maps.
+	"scrappy_detector":  {},
+	"scrappy_collector": {},
 }
 
 // validateDetectorTeardownContract checks that every detector entry in the

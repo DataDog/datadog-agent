@@ -69,3 +69,7 @@ func (s *seriesListOnlyStorage) WriteGeneration(observer.SeriesRef) int64 {
 func (s *seriesListOnlyStorage) SeriesGeneration() uint64 {
 	return 0
 }
+
+func (s *seriesListOnlyStorage) GetContext(observer.SeriesRef) *observer.MetricContext {
+	return nil
+}

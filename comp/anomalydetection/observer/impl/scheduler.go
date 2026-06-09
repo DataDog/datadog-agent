@@ -13,9 +13,9 @@ type schedulerPolicy interface {
 	// access to scheduler-relevant engine state.
 	onObservation(dataTimeSec int64, st schedulerState) []advanceRequest
 
-	// onIdle is called when wall-clock time passes without new observations.
-	// Not used in current behavior, but the interface supports future periodic flushes.
-	onIdle(nowUnixNano int64, st schedulerState) []advanceRequest
+	// onIdle is called periodically when wall-clock time passes without new
+	// observations. nowUnixSec is the current wall-clock time in unix seconds.
+	onIdle(nowUnixSec int64, st schedulerState) []advanceRequest
 
 	// onReplayEnd is called when replay finishes. Returns final advance requests
 	// to flush any remaining data.
@@ -58,8 +58,12 @@ func (p *currentBehaviorPolicy) onObservation(dataTimeSec int64, st schedulerSta
 	return []advanceRequest{{upToSec: analyzeUpTo, reason: advanceReasonInputDriven}}
 }
 
-func (p *currentBehaviorPolicy) onIdle(_ int64, _ schedulerState) []advanceRequest {
-	return nil
+func (p *currentBehaviorPolicy) onIdle(nowUnixSec int64, st schedulerState) []advanceRequest {
+	analyzeUpTo := nowUnixSec - 1
+	if analyzeUpTo <= st.lastAnalyzedDataTime {
+		return nil
+	}
+	return []advanceRequest{{upToSec: analyzeUpTo, reason: advanceReasonPeriodicFlush}}
 }
 
 func (p *currentBehaviorPolicy) onReplayEnd(st schedulerState) []advanceRequest {

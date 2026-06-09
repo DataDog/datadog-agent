@@ -337,3 +337,90 @@ func ScoreOutputFile(outputPath string, groundTruthTimestamps []int64, scenarios
 
 	return &result, nil
 }
+
+// ScoreRawDetector scores a specific detector's raw anomalies from a headless
+// output file. This bypasses the correlator — useful for detectors like scrappy
+// that produce anomalies not suited to time-cluster correlation.
+func ScoreRawDetector(outputPath, detectorName string, groundTruthTimestamps []int64, scenariosDir string, sigma float64) (*ScoreResult, error) {
+	if sigma <= 0 {
+		return nil, fmt.Errorf("sigma must be positive, got %f", sigma)
+	}
+	data, err := os.ReadFile(outputPath)
+	if err != nil {
+		return nil, fmt.Errorf("reading output file: %w", err)
+	}
+
+	var output ObserverOutput
+	if err := json.Unmarshal(data, &output); err != nil {
+		return nil, fmt.Errorf("parsing output JSON: %w", err)
+	}
+
+	rawTimestamps, ok := output.RawDetectorAnomalies[detectorName]
+	if !ok {
+		keys := make([]string, 0, len(output.RawDetectorAnomalies))
+		for k := range output.RawDetectorAnomalies {
+			keys = append(keys, k)
+		}
+		return nil, fmt.Errorf("no raw anomalies for detector %q (have: %v)", detectorName, keys)
+	}
+
+	var baselineStart, baselineEnd int64
+	if scenariosDir != "" && output.Metadata.Scenario != "" {
+		sm, err := loadScoringMetadata(scenariosDir, output.Metadata.Scenario)
+		if err != nil {
+			if len(groundTruthTimestamps) == 0 {
+				return nil, fmt.Errorf("inferring ground truth: %w", err)
+			}
+		} else {
+			if len(groundTruthTimestamps) == 0 {
+				groundTruthTimestamps = sm.groundTruthTimestamps
+			}
+			baselineStart = sm.baselineStart
+			baselineEnd = sm.baselineEnd
+		}
+	}
+
+	if len(groundTruthTimestamps) == 0 {
+		return nil, errors.New("no ground truth: provide --ground-truth-ts or --scenarios-dir with episode.json")
+	}
+
+	var predictions []int64
+	var numFilteredWarmup int
+	for _, ts := range rawTimestamps {
+		if baselineStart > 0 && ts < baselineStart {
+			numFilteredWarmup++
+			continue
+		}
+		predictions = append(predictions, ts)
+	}
+
+	minGT := groundTruthTimestamps[0]
+	for _, gt := range groundTruthTimestamps[1:] {
+		if gt < minGT {
+			minGT = gt
+		}
+	}
+	var numBaselineFPs int
+	for _, p := range predictions {
+		if p < minGT {
+			numBaselineFPs++
+		}
+	}
+
+	result := ComputeGaussianF1(ScoreInput{
+		PredictionTimestamps:  predictions,
+		GroundTruthTimestamps: groundTruthTimestamps,
+		Sigma:                 sigma,
+	})
+	result.NumFilteredWarmup = numFilteredWarmup
+	result.NumBaselineFPs = numBaselineFPs
+
+	if baselineStart > 0 && baselineEnd > baselineStart {
+		result.BaselineDurationSeconds = baselineEnd - baselineStart
+		result.Alpha = float64(numBaselineFPs) / float64(result.BaselineDurationSeconds)
+	} else {
+		result.Alpha = -1
+	}
+
+	return &result, nil
+}

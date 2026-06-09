@@ -17,6 +17,10 @@ import (
 type ObserverOutput struct {
 	Metadata       ObserverMetadata      `json:"metadata"`
 	AnomalyPeriods []ObserverCorrelation `json:"anomaly_periods"`
+	// RawDetectorAnomalies maps detector name → sorted list of anomaly timestamps
+	// (unix seconds). Populated by the testbench when --verbose is set and
+	// detectors such as scrappy emit raw anomalies outside the correlator pipeline.
+	RawDetectorAnomalies map[string][]int64 `json:"raw_detector_anomalies,omitempty"`
 }
 
 // ObserverMetadata describes the scenario and pipeline configuration.

@@ -2103,6 +2103,19 @@ func anomalyDetection(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("anomaly_detection.detectors.time_cluster.min_cluster_size", 0)
 	config.BindEnvAndSetDefault("anomaly_detection.detectors.passthrough.enabled", false)
 
+	// Scrappy live-inference detector
+	config.BindEnvAndSetDefault("anomaly_detection.detectors.scrappy_collector.enabled", false)
+	config.BindEnvAndSetDefault("anomaly_detection.detectors.scrappy_collector.output_path", "/tmp/scrappy-collect.jsonl")
+	config.BindEnvAndSetDefault("anomaly_detection.detectors.scrappy_collector.tick_window", 1)
+	config.BindEnvAndSetDefault("anomaly_detection.detectors.scrappy_detector.enabled", false)
+	config.BindEnvAndSetDefault("anomaly_detection.detectors.scrappy_detector.vocab_path", "")
+	config.BindEnvAndSetDefault("anomaly_detection.detectors.scrappy_detector.model_path", "")
+	config.BindEnvAndSetDefault("anomaly_detection.detectors.scrappy_detector.threshold", 0.5)
+	config.BindEnvAndSetDefault("anomaly_detection.detectors.scrappy_detector.context_window", 4096)
+	config.BindEnvAndSetDefault("anomaly_detection.detectors.scrappy_detector.scores_output", "")
+	config.BindEnvAndSetDefault("anomaly_detection.detectors.scrappy_detector.tick_window", 1)
+	config.BindEnvAndSetDefault("anomaly_detection.detectors.scrappy.enabled", false)
+
 	// Storage tuning. See storageConfig in the observer component.
 	config.BindEnvAndSetDefault("anomaly_detection.storage.max_series", 50000)
 	config.BindEnvAndSetDefault("anomaly_detection.storage.eviction_floor_ratio", 0.5)

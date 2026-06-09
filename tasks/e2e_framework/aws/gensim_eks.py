@@ -36,7 +36,7 @@ def _get_app_key(cfg):
 #   record-parquet          - Record observer data to parquet files for offline testbench replay
 #   live-anomaly-detection  - Run live edge anomaly detection, send events to Datadog
 #   live-and-record         - Both simultaneously (for A/B comparison of testbench vs live)
-_VALID_MODES = ("record-parquet", "live-anomaly-detection", "live-and-record")
+_VALID_MODES = ("record-parquet", "live-anomaly-detection", "live-and-record", "scrappy-collect")
 
 
 @task(
