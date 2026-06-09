@@ -160,6 +160,9 @@ func uninstrumentDotnetLibrary(ctx context.Context, target string) (err error) {
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
 			log.Warnf(".NET library target %q does not exist, assuming the package is not installed and skipping IIS uninstrumentation", target)
+			if markerErr := ssi.SetIISInstrumentedMarker(false); markerErr != nil {
+				log.Warnf("Failed to clear IIS instrumentation registry marker: %v", markerErr)
+			}
 			return nil
 		}
 		return err
