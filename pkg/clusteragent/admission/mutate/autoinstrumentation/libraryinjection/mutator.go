@@ -97,10 +97,8 @@ func InjectAPMLibraries(pod *corev1.Pod, cfg LibraryInjectionConfig) error {
 
 	// Inject language-specific libraries and collect entries for the annotation.
 	// All attempted libraries are recorded, regardless of outcome.
-	// partial is set to true as soon as any library ends up with a non-injected status.
+	// injectionErr is non-nil as soon as any library ends up with a non-injected status.
 	injectedEntries := []injectedLibraryEntry{{Name: "injector", Image: cfg.Injector.Package.FullRef(), Status: string(MutationStatusInjected)}}
-	var lastError error
-	var partial bool
 	for _, lib := range cfg.Libraries {
 		injectedEntries = append(injectedEntries, injectedLibraryEntry{Name: lib.Language, Image: lib.Package.FullRef()})
 		entry := &injectedEntries[len(injectedEntries)-1]
@@ -108,9 +106,8 @@ func InjectAPMLibraries(pod *corev1.Pod, cfg LibraryInjectionConfig) error {
 		// Validate language before injection
 		if !IsLanguageSupported(lib.Language) {
 			metrics.LibInjectionErrors.Inc(lib.Language, strconv.FormatBool(cfg.AutoDetected), cfg.InjectionType)
-			lastError = fmt.Errorf("language %s is not supported", lib.Language)
+			injectionErr = fmt.Errorf("language %s is not supported", lib.Language)
 			entry.Status = string(MutationStatusSkipped)
-			partial = true
 			continue
 		}
 
@@ -129,8 +126,7 @@ func InjectAPMLibraries(pod *corev1.Pod, cfg LibraryInjectionConfig) error {
 
 		if libResult.Status == MutationStatusError {
 			metrics.LibInjectionErrors.Inc(lib.Language, strconv.FormatBool(cfg.AutoDetected), cfg.InjectionType)
-			lastError = fmt.Errorf("library injection failed for %s: %w", lib.Language, libResult.Err)
-			partial = true
+			injectionErr = fmt.Errorf("library injection failed for %s: %w", lib.Language, libResult.Err)
 		}
 	}
 
@@ -140,13 +136,13 @@ func InjectAPMLibraries(pod *corev1.Pod, cfg LibraryInjectionConfig) error {
 		log.Errorf("Failed to marshal injected libraries annotation for pod %s: %v", mutatecommon.PodString(pod), err)
 	}
 
-	if partial {
+	if injectionErr != nil {
 		injectionStatus = annotation.InjectionStatusPartial
 	} else {
 		injectionStatus = annotation.InjectionStatusInjected
 	}
 
-	return lastError
+	return injectionErr
 }
 
 // injectAPMEnvVars injects APM environment variables (LD_PRELOAD, etc.) into application containers.

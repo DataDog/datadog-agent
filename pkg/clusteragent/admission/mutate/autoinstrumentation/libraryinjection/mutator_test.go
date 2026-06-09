@@ -263,6 +263,11 @@ func TestInjectAPMLibraries_InjectedLibraries_UnsupportedLanguage(t *testing.T) 
 	require.True(t, ok)
 	assert.Equal(t, annotation.InjectionStatusPartial, status)
 
+	// The injection-error annotation must carry the human-readable reason.
+	injErr, ok := annotation.Get(pod, annotation.InjectionError)
+	require.True(t, ok, "InjectionError annotation should be set for partial injection")
+	assert.Contains(t, injErr, "cobol")
+
 	entries := parseInjectedLibraries(t, pod)
 	require.Len(t, entries, 3)
 	assert.Equal(t, libraryAnnotationEntry{Name: "injector", Image: "gcr.io/datadoghq/apm-inject:0.52.0", Status: "injected"}, entries[0])
