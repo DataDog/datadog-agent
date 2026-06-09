@@ -1,3 +1,0 @@
-features:
-  - |
-    In-place vertical scaling is enabled as the default strategy for workload autoscaling. 
