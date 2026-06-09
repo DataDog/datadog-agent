@@ -13,6 +13,7 @@ import (
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 )
 
+
 // IssueID is the stable Agent Health identifier for configuration-schema violations
 const IssueID = "invalid-config"
 
@@ -21,13 +22,12 @@ func init() {
 }
 
 type invalidConfigModule struct {
-	cfg     config.Component
 	checker *checker
 }
 
 // NewModule captures the config so the once-only startup check can read it.
 func NewModule(cfg config.Component) issues.Module {
-	return &invalidConfigModule{cfg: cfg, checker: newChecker(cfg)}
+	return &invalidConfigModule{checker: newChecker(cfg)}
 }
 
 func (m *invalidConfigModule) IssueName() string {
@@ -44,22 +44,11 @@ func (m *invalidConfigModule) BuiltInPeriodicHealthCheck() *runnerdef.BuiltInPer
 }
 
 // BuiltInStartupHealthCheck runs schema validation once at agent startup.
-// The check is gated inside Fn rather than at registration time so that
-// IssueNames-based stale-issue resolution still fires on restart even when
-// the flag is disabled — returning nil/empty resolves any previously-stored
-// issues rather than leaving them orphaned.
-//
-// The gate exists to allow skipping the ~8 MiB startup compilation spike.
-// The check uses schema.ValidateCoreConfigNoCache so the compiled schema is
-// transient and GC-eligible once this goroutine exits — it is not retained globally.
+// schema.ValidateCoreConfigNoCache is used so the compiled schema (~8 MiB) is
+// transient and GC-eligible once this goroutine exits — not retained globally.
 func (m *invalidConfigModule) BuiltInStartupHealthCheck() *runnerdef.BuiltInHealthCheck {
 	return &runnerdef.BuiltInHealthCheck{
 		Source: "agent",
-		Fn: func() ([]runnerdef.IssueReport, error) {
-			if !m.cfg.GetBool("health_platform.invalidconfig_check.enabled") {
-				return nil, nil
-			}
-			return m.checker.Run()
-		},
+		Fn:     m.checker.Run,
 	}
 }

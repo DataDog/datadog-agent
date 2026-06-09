@@ -1203,11 +1203,6 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("health_platform.enabled", true)
 	config.BindEnvAndSetDefault("health_platform.persist_on_kubernetes", false)
 	config.BindEnvAndSetDefault("health_platform.forwarder.interval", "0s")
-	// health_platform.invalidconfig_check.enabled gates the startup schema-validation check.
-	// The check uses schema.ValidateCoreConfigNoCache which compiles core_schema.yaml (~8000 lines)
-	// without retaining the result globally, so the ~8 MiB compilation is transient and GC-eligible
-	// once the check goroutine completes. Disable it to skip the startup spike entirely.
-	config.BindEnvAndSetDefault("health_platform.invalidconfig_check.enabled", true)
 	config.BindEnvAndSetDefault("disable_py3_validation", false)
 	config.BindEnvAndSetDefault("win_skip_com_init", false)
 	config.BindEnvAndSetDefault("allow_arbitrary_tags", false)

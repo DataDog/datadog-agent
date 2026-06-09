@@ -8231,17 +8231,6 @@ properties:
         node_type: setting
         type: boolean
         default: false
-      invalidconfig_check:
-        node_type: section
-        type: object
-        properties:
-          enabled:
-            node_type: setting
-            type: boolean
-            # The check uses ValidateCoreConfigNoCache so the compiled schema (~8 MiB) is
-            # transient and GC-eligible after the startup goroutine exits. Set to false to
-            # skip the compilation spike entirely.
-            default: true
   heroku_dyno:
     node_type: setting
     type: boolean
