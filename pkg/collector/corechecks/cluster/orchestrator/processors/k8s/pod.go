@@ -15,7 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/util"
 
-	"github.com/DataDog/datadog-agent/comp/core/config/def"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"

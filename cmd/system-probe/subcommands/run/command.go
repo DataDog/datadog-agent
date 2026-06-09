@@ -33,7 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/common"
 	autoexit "github.com/DataDog/datadog-agent/comp/agent/autoexit/def"
 	autoexitfx "github.com/DataDog/datadog-agent/comp/agent/autoexit/fx"
-	"github.com/DataDog/datadog-agent/comp/core/config/def"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 	configfx "github.com/DataDog/datadog-agent/comp/core/config/fx"
 	configstreamconsumer "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/def"
 	configstreamconsumerfx "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/fx"

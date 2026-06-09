@@ -13,7 +13,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/config/def"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	logger "github.com/DataDog/datadog-agent/comp/core/log/def"
 	settings "github.com/DataDog/datadog-agent/comp/core/settings/def"

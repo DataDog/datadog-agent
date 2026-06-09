@@ -11,7 +11,7 @@ import (
 	"context"
 	stdErrors "errors"
 
-	"github.com/DataDog/datadog-agent/comp/core/config/def"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	appsecconfig "github.com/DataDog/datadog-agent/pkg/clusteragent/appsec/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"

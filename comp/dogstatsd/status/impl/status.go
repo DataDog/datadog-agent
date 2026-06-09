@@ -12,7 +12,7 @@ import (
 	"expvar"
 	"io"
 
-	"github.com/DataDog/datadog-agent/comp/core/config/def"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 	corestatus "github.com/DataDog/datadog-agent/comp/core/status"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	dsdconfig "github.com/DataDog/datadog-agent/comp/dogstatsd/config"

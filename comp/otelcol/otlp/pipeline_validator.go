@@ -10,7 +10,7 @@ package otlp
 import (
 	"errors"
 
-	"github.com/DataDog/datadog-agent/comp/core/config/def"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 

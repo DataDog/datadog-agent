@@ -13,7 +13,7 @@ import (
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 
 	jmxlogger "github.com/DataDog/datadog-agent/comp/agent/jmxlogger/def"
-	"github.com/DataDog/datadog-agent/comp/core/config/def"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
 )

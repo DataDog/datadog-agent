@@ -18,7 +18,7 @@ import (
 
 	"go.yaml.in/yaml/v3"
 
-	"github.com/DataDog/datadog-agent/comp/core/config/def"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	configschema "github.com/DataDog/datadog-agent/pkg/config/schema"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"

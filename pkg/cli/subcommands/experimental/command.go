@@ -13,7 +13,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/comp/core/config/def"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	configcmd "github.com/DataDog/datadog-agent/pkg/cli/subcommands/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"

@@ -21,7 +21,7 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 	mockStatsd "github.com/DataDog/datadog-go/v5/statsd/mocks"
 
-	"github.com/DataDog/datadog-agent/comp/core/config/def"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"

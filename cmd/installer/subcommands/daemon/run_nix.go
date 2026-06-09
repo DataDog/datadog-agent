@@ -11,7 +11,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/installer/command"
-	"github.com/DataDog/datadog-agent/comp/core/config/def"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 	pid "github.com/DataDog/datadog-agent/comp/core/pid/def"
 	localapi "github.com/DataDog/datadog-agent/comp/updater/localapi/def"
 	telemetry "github.com/DataDog/datadog-agent/comp/updater/telemetry/def"

@@ -8,7 +8,7 @@ package autoexitimpl
 
 import (
 	autoexit "github.com/DataDog/datadog-agent/comp/agent/autoexit/def"
-	"github.com/DataDog/datadog-agent/comp/core/config/def"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	pkgcommon "github.com/DataDog/datadog-agent/pkg/util/common"
 )

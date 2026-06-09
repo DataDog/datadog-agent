@@ -11,7 +11,7 @@ package agent
 import (
 	"errors"
 
-	"github.com/DataDog/datadog-agent/comp/core/config/def"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"

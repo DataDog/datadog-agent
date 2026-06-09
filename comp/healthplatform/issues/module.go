@@ -18,7 +18,7 @@ import (
 	"sync"
 
 	"github.com/DataDog/agent-payload/v5/healthplatform"
-	"github.com/DataDog/datadog-agent/comp/core/config/def"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 )
 

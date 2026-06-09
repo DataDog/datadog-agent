@@ -22,7 +22,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 
 	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
-	"github.com/DataDog/datadog-agent/comp/core/config/def"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issues/admissionprobe"
 	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	admcommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"

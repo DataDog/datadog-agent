@@ -9,7 +9,7 @@ package config
 import (
 	"os"
 
-	"github.com/DataDog/datadog-agent/comp/core/config/def"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 )
 
 // team: agent-metric-pipelines

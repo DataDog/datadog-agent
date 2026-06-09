@@ -19,7 +19,7 @@ import (
 
 	"go.yaml.in/yaml/v2"
 
-	"github.com/DataDog/datadog-agent/comp/core/config/def"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	oidresolver "github.com/DataDog/datadog-agent/comp/snmptraps/oidresolver/def"

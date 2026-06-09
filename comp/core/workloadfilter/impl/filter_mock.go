@@ -8,7 +8,7 @@
 package workloadfilterimpl
 
 import (
-	"github.com/DataDog/datadog-agent/comp/core/config/def"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 	logdef "github.com/DataDog/datadog-agent/comp/core/log/def"
 	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	workloadfiltermock "github.com/DataDog/datadog-agent/comp/core/workloadfilter/mock"

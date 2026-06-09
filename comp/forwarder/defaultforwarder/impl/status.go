@@ -12,7 +12,7 @@ import (
 	"io"
 	"strconv"
 
-	"github.com/DataDog/datadog-agent/comp/core/config/def"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 )
 

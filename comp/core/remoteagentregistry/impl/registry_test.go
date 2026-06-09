@@ -23,7 +23,7 @@ import (
 	"google.golang.org/grpc/examples/features/proto/echo"
 	"google.golang.org/grpc/metadata"
 
-	"github.com/DataDog/datadog-agent/comp/core/config/def"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	remoteagent "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"

@@ -11,7 +11,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/DataDog/datadog-agent/comp/core/config/def"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	filterlistdef "github.com/DataDog/datadog-agent/comp/filterlist/def"
