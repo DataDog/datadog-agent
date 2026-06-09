@@ -40,6 +40,7 @@ from tasks.rtloader import install as rtloader_install
 from tasks.rtloader import install_with_bazel as rtloader_install_with_bazel
 from tasks.rtloader import make as rtloader_make
 from tasks.schema.generate import compress as schema_compress
+from tasks.schema.template import CORE_SCHEMA_FILE, SYSPROBE_SCHEMA_FILE, generate_template
 from tasks.windows_resources import build_messagetable, build_rc, versioninfo_vars
 
 # constants
@@ -170,9 +171,8 @@ def build(
         )
 
     with gitlab_section("Generate configuration files", collapsed=True):
-        render_config(
+        generate_config_examples(
             ctx,
-            env=env,
             flavor=flavor,
             skip_assets=skip_assets,
             build_tags=build_tags,
@@ -181,20 +181,21 @@ def build(
         )
 
 
-def render_config(ctx, env, flavor, skip_assets, build_tags, development, windows_sysprobe):
-    # Remove cross-compiling bits to render config
-    env.update({"GOOS": "", "GOARCH": ""})
+_PLATFORM_TO_OS_TARGET = {
+    "linux": "linux",
+    "win32": "windows",
+    "darwin": "darwin",
+}
 
-    # Render the Agent configuration file template
-    build_type = "agent-py3"
-    if flavor.is_iot():
-        build_type = "iot-agent"
 
-    generate_config(ctx, build_type=build_type, output_file="./cmd/agent/dist/datadog.yaml", env=env)
+def generate_config_examples(ctx, flavor, skip_assets, build_tags, development, windows_sysprobe):
+    os_target = _PLATFORM_TO_OS_TARGET[sys.platform]
 
-    # On Linux and MacOS, render the system-probe configuration file template
+    build_type = "iot-agent" if flavor.is_iot() else "agent-py3"
+    generate_template(CORE_SCHEMA_FILE, "./cmd/agent/dist/datadog.yaml", build_type, os_target)
+
     if sys.platform != 'win32' or windows_sysprobe:
-        generate_config(ctx, build_type="system-probe", output_file="./cmd/agent/dist/system-probe.yaml", env=env)
+        generate_template(SYSPROBE_SCHEMA_FILE, "./cmd/agent/dist/system-probe.yaml", "system-probe", os_target)
 
     if not skip_assets:
         refresh_assets(ctx, build_tags, development=development, flavor=flavor.name, windows_sysprobe=windows_sysprobe)
@@ -896,26 +897,6 @@ def upload_integration_to_cache(ctx, python, bucket, branch, integrations_dir, b
     ) + os.path.basename(wheel_path)
     print(f"Caching wheel {target_name}")
     ctx.run(f"{AWS_CMD} s3 cp {wheel_path} s3://{bucket}/{target_name} --acl public-read")
-
-
-@task()
-def generate_config(ctx, build_type, output_file, env=None):
-    """
-    Generates the datadog.yaml configuration file.
-    """
-    args = {
-        "go_file": "./pkg/config/render_config/render_config.go",
-        "build_type": build_type,
-        "template_file": "./pkg/config/config_template.yaml",
-        "output_file": output_file,
-    }
-    if build_type == "system-probe":
-        args["template_file"] = "./pkg/config/system-probe_template.yaml"
-    elif build_type == "security-agent":
-        args["template_file"] = "./pkg/config/security-agent_template.yaml"
-
-    cmd = "go run {go_file} {build_type} {template_file} {output_file}"
-    return ctx.run(cmd.format(**args), env=env or {})
 
 
 @task()
