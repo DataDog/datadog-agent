@@ -156,11 +156,12 @@ func handoffToRequestedAgentInstallerVersion(ctx context.Context, e *env.Env, fl
 		return false, formatDownloadError(tag, err)
 	}
 	exePath := filepath.Join(tmpDir, "datadog-installer.exe")
+	fmt.Fprintf(os.Stdout, "Downloading Datadog Agent %s ...\n", tag)
 	if err := pkg.ExtractLayers(oci.DatadogPackageInstallerLayerMediaType, exePath); err != nil {
-		return false, fmt.Errorf("could not extract installer.exe layer: %w", err)
+		return false, fmt.Errorf("could not download Datadog Agent %s: %w", tag, err)
 	}
 	if _, err := os.Stat(exePath); err != nil {
-		return false, fmt.Errorf("agent version %s does not publish a datadog-installer.exe layer (Agent 7.70+ required for Windows setup re-exec)", tag)
+		return false, fmt.Errorf("cannot install Datadog Agent %s: this command requires Agent 7.79 or newer", tag)
 	}
 
 	// Re-exec the downloaded installer with the parent's os.Environ()
