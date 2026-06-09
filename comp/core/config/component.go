@@ -7,6 +7,7 @@ package config
 
 import configdef "github.com/DataDog/datadog-agent/comp/core/config/def"
 
-// Component is a type alias for the config component interface.
-// Callers should prefer importing comp/core/config/def directly.
+// Component is a type alias kept for backward compatibility with external packages
+// that import this root package (e.g. opentelemetry-collector-contrib/pkg/datadog).
+// TODO: remove this file once all external callers have migrated to comp/core/config/def.
 type Component = configdef.Component
