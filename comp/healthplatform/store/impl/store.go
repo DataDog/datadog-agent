@@ -353,7 +353,11 @@ func (h *healthPlatformImpl) GetAllIssues() (int, map[string]*healthplatform.Iss
 	result := make(map[string]*healthplatform.Issue)
 	for checkID, issue := range h.issues {
 		if issue != nil {
-			result[checkID] = proto.Clone(issue).(*healthplatform.Issue)
+			clone := proto.Clone(issue).(*healthplatform.Issue)
+			if persisted := h.persistedIssues[checkID]; persisted != nil {
+				h.hydrateIssue(clone, persisted)
+			}
+			result[checkID] = clone
 			count++
 		} else {
 			result[checkID] = nil
@@ -372,8 +376,31 @@ func (h *healthPlatformImpl) GetIssue(checkID string) *healthplatform.Issue {
 		return nil
 	}
 
-	// Return a copy to avoid external modifications
-	return proto.Clone(issue).(*healthplatform.Issue)
+	clone := proto.Clone(issue).(*healthplatform.Issue)
+	if persisted := h.persistedIssues[checkID]; persisted != nil {
+		h.hydrateIssue(clone, persisted)
+	}
+	return clone
+}
+
+// hydrateIssue populates issue.Extra and issue.Remediation from the raw JSON in persisted.
+// The hot store keeps issues without these fields to avoid retaining structpb heap boxes;
+// they are reconstructed on demand at read time (egress, HTTP API).
+func (h *healthPlatformImpl) hydrateIssue(issue *healthplatform.Issue, persisted *PersistedIssue) {
+	if len(persisted.Extra) > 0 {
+		issue.Extra = &structpb.Struct{}
+		if err := json.Unmarshal(persisted.Extra, issue.Extra); err != nil {
+			h.log.Warnf("health platform: failed to hydrate Extra for issue %s: %v", issue.Id, err)
+			issue.Extra = nil
+		}
+	}
+	if len(persisted.Remediation) > 0 {
+		issue.Remediation = &healthplatform.Remediation{}
+		if err := json.Unmarshal(persisted.Remediation, issue.Remediation); err != nil {
+			h.log.Warnf("health platform: failed to hydrate Remediation for issue %s: %v", issue.Id, err)
+			issue.Remediation = nil
+		}
+	}
 }
 
 // ============================================================================
@@ -547,6 +574,11 @@ func (h *healthPlatformImpl) storeIssue(issueType string, issue *healthplatform.
 				h.log.Warnf("health platform: failed to serialize Remediation for issue %s: %v", issueID, err)
 			}
 		}
+
+		// Drop structpb/Remediation from the hot store; they are kept as raw JSON in
+		// persistedIssues and reconstructed on demand in GetAllIssues/GetIssue.
+		issue.Extra = nil
+		issue.Remediation = nil
 	}
 
 	h.issuesMux.Unlock()
@@ -589,6 +621,8 @@ func (h *healthPlatformImpl) loadFromDisk() error {
 		}
 		var issue *healthplatform.Issue
 		if persisted.Title != "" || persisted.Source != "" {
+			// Extra and Remediation are intentionally omitted here; the hot store keeps
+			// issues without them and hydrates from persistedIssues.Extra/Remediation on demand.
 			issue = &healthplatform.Issue{
 				Id:          issueID,
 				IssueName:   persisted.IssueName,
@@ -599,20 +633,6 @@ func (h *healthPlatformImpl) loadFromDisk() error {
 				Severity:    healthplatform.IssueSeverity(healthplatform.IssueSeverity_value[persisted.Severity]),
 				Source:      persisted.Source,
 				Tags:        persisted.Tags,
-			}
-			if len(persisted.Extra) > 0 {
-				issue.Extra = &structpb.Struct{}
-				if err := json.Unmarshal(persisted.Extra, issue.Extra); err != nil {
-					h.log.Warnf("health platform: failed to restore Extra for issue %s: %v", issueID, err)
-					issue.Extra = nil
-				}
-			}
-			if len(persisted.Remediation) > 0 {
-				issue.Remediation = &healthplatform.Remediation{}
-				if err := json.Unmarshal(persisted.Remediation, issue.Remediation); err != nil {
-					h.log.Warnf("health platform: failed to restore Remediation for issue %s: %v", issueID, err)
-					issue.Remediation = nil
-				}
 			}
 		} else {
 			// Version-2 files always cache proto fields; this handles the edge
