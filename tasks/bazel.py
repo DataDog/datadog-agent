@@ -56,4 +56,5 @@ def collect_build_metrics(_ctx):
     ]
 
     metrics_dir = os.path.join(project_dir, '.bazel-metrics')
-    collect_bazel_metrics(metrics_dir, tags)
+    collect_invocations = os.environ.get('BAZEL_COLLECT_INVOCATIONS') == 'true'
+    collect_bazel_metrics(metrics_dir, tags, collect_invocations=collect_invocations)

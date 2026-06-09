@@ -46,6 +46,7 @@
     - *bazel_cache
   variables:
     XDG_CACHE_HOME: "$CI_PROJECT_DIR/.cache"
+    BAZEL_COLLECT_INVOCATIONS: "true"
 
 .bazel:defs:cache:macos:
   extends: .bazel:defs

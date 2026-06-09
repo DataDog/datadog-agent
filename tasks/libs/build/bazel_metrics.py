@@ -114,11 +114,13 @@ def _parse_profile_file(path: Path) -> dict:
     return result
 
 
-def collect_bazel_metrics(metrics_dir: str | Path, tags: list[str]) -> None:
+def collect_bazel_metrics(metrics_dir: str | Path, tags: list[str], *, collect_invocations: bool = False) -> None:
     """Aggregate BEP and profile files in metrics_dir and emit one data point per metric to Datadog.
 
     Aggregates across all invocations in the job before emitting, so dashboard queries need
     no extra formulas — one point per job per metric.
+
+    collect_invocations: emit invocation_count (only meaningful for build jobs, not test/lint).
     """
     from tasks.libs.common.datadog_api import create_count, create_gauge, send_metrics
 
@@ -154,7 +156,7 @@ def collect_bazel_metrics(metrics_dir: str | Path, tags: list[str]) -> None:
     timestamp = int(datetime.now(tz=timezone.utc).timestamp())
     series = []
 
-    if invocation_count > 0:
+    if collect_invocations and invocation_count > 0:
         series.append(create_count('datadog.ci.bazel.invocation_count', timestamp, invocation_count, tags))
     if total_actions > 0:
         series.append(create_count('datadog.ci.bazel.total_actions', timestamp, total_actions, tags))
