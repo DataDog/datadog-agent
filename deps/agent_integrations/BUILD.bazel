@@ -11,16 +11,17 @@ py_binary(
     deps = [requirement("installer")],
 )
 
+embedded_dir = select({
+    "@platforms//os:windows": "embedded3",
+    "//conditions:default": "embedded",
+})
+
 install_wheels(
     name = "integrations_dependencies",
     srcs = ["@integrations_core//:dependency_wheels"],
-    script_interpreter_relative_path = select({
-        "@platforms//os:windows": "embedded3/python3.exe",
-        "//conditions:default": "embedded/bin/python3",
-    }),
-    script_kind = select({
-        "@platforms//os:windows": "win-amd64",
-        "//conditions:default": "posix",
+    script_interpreter_relative_path = embedded_dir + select({
+        "@platforms//os:windows": "/python.exe",
+        "//conditions:default": "/bin/python3",
     }),
     # TODO(agent-build): this currently depends INTEGRATIONS_CORE_VERSION being a commit hash,
     # which is not guaranteed unless running under omnibus-wrapping code.
@@ -45,7 +46,7 @@ pkg_files(
     name = "integrations_dependency_runtime_files",
     srcs = [":integrations_dependencies_runtime"],
     attributes = pkg_attributes(mode = "0644"),
-    prefix = "embedded",
+    prefix = embedded_dir,
     renames = {
         ":integrations_dependencies_runtime": REMOVE_BASE_DIRECTORY,
     },
@@ -56,7 +57,10 @@ pkg_files(
     name = "integrations_dependency_bin_files",
     srcs = [":integrations_dependencies_bin"],
     attributes = pkg_attributes(mode = "0755"),
-    prefix = "embedded/bin",
+    prefix = embedded_dir + select({
+        "@platforms//os:windows": "/Scripts",
+        "//conditions:default": "/bin",
+    }),
     renames = {
         ":integrations_dependencies_bin": REMOVE_BASE_DIRECTORY,
     },

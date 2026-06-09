@@ -20,9 +20,8 @@ def parse_args() -> argparse.Namespace:
         help="Interpreter path to write into generated console script shebangs.",
     )
     parser.add_argument(
-        "--script-kind",
-        default="posix",
-        choices=("posix", "win-amd64"),
+        "--platform",
+        choices=("posix", "windows"),
     )
     parser.add_argument("wheels", nargs="+", type=Path)
     return parser.parse_args()
@@ -33,12 +32,19 @@ def main():
     args.runtime_output.mkdir(parents=True, exist_ok=True)
     args.bin_output.mkdir(parents=True, exist_ok=True)
 
-    site_packages = args.runtime_output / "lib" / f"python{args.python_version}" / "site-packages"
+    if args.platform == "posix":
+        site_packages = args.runtime_output / "lib" / f"python{args.python_version}" / "site-packages"
+        headers_path = args.runtime_output / "include" / f"python{args.python_version}"
+        script_kind = "posix"
+    else:
+        site_packages = args.runtime_output / "Lib" / "site-packages"
+        headers_path = args.runtime_output / "include"
+        script_kind = "win-amd64"
 
     scheme = {
         "purelib": str(site_packages),
         "platlib": str(site_packages),
-        "headers": str(args.runtime_output / "include" / f"python{args.python_version}"),
+        "headers": str(headers_path),
         "scripts": str(args.bin_output),
         "data": str(args.runtime_output),
     }
@@ -46,7 +52,7 @@ def main():
     destination = SchemeDictionaryDestination(
         scheme_dict=scheme,
         interpreter=args.interpreter,
-        script_kind=args.script_kind,
+        script_kind=script_kind,
         bytecode_optimization_levels=[],
     )
 

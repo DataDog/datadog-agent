@@ -11,12 +11,13 @@ def _install_wheels_impl(ctx):
     args = ctx.actions.args()
     install_dir = ctx.attr.install_dir[BuildSettingInfo].value.rstrip("/")
     script_interpreter = install_dir + "/" + ctx.attr.script_interpreter_relative_path.lstrip("/")
+    platform = "windows" if _is_windows_target(ctx) else "posix"
 
     args.add("--runtime-output", runtime_dir.path)
     args.add("--bin-output", bin_dir.path)
     args.add("--python-version", ctx.attr.python_version)
     args.add("--interpreter", script_interpreter)
-    args.add("--script-kind", ctx.attr.script_kind)
+    args.add("--platform", platform)
     args.add_all(ctx.files.srcs)
 
     ctx.actions.run(
@@ -38,6 +39,9 @@ def _install_wheels_impl(ctx):
         ),
     ]
 
+def _is_windows_target(ctx):
+    return ctx.target_platform_has_constraint(ctx.attr._windows_constraint[platform_common.ConstraintValueInfo])
+
 install_wheels = rule(
     implementation = _install_wheels_impl,
     attrs = {
@@ -56,16 +60,13 @@ install_wheels = rule(
             mandatory = True,
             doc = "Interpreter path relative to `install_dir`.",
         ),
-        "script_kind": attr.string(
-            default = "posix",
-            doc = "Script kind passed to PyPA installer for generated entry-point scripts.",
-        ),
         "_installer": attr.label(
             default = ":install_wheels_tool",
             executable = True,
             cfg = "exec",
             doc = "Executable target for the wheel installation tool.",
         ),
+        "_windows_constraint": attr.label(default = "@platforms//os:windows"),
     },
     doc = "Installs the wheels given in `srcs` into the Agent embedded Python layout.",
 )
