@@ -55,7 +55,6 @@ func NewKeyManager(rcClient rcclient.Client) KeysManager {
 	}
 }
 
-// Start subscribes the manager to Remote Config key updates.
 func (k *keysManager) Start(ctx context.Context) {
 	log.FromContext(ctx).Info("Subscribing to remote config updates")
 	k.rcClient.Subscribe(state.ProductActionPlatformRunnerKeys, k.AgentConfigUpdateCallback)
