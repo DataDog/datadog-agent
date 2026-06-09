@@ -314,7 +314,13 @@ type ScorerConfig struct {
 	// Alpha is the EWMA smoothing factor (0 < α ≤ 1). Lower = smoother.
 	Alpha float64 `json:"alpha"`
 	// SaturationK is the saturation constant k: saturation = 1−exp(−n/k).
+	// Calibrated against the window count (unique anomalous series), not per-second count.
 	SaturationK float64 `json:"saturation_k"`
+	// WindowSecs is the number of seconds a series stays in the active deduplication
+	// window. A series seen at time t expires after t+WindowSecs. The saturation
+	// function is applied to the number of unique series in the window, not to the
+	// per-second event count.
+	WindowSecs int64 `json:"window_secs"`
 	// DetectorThresholds overrides the default score-to-level boundaries for
 	// specific detector names. Each entry is [low, medium, high, xhigh] thresholds.
 	// Detectors not in this map fall back to the global defaults [6, 12, 20, 35].

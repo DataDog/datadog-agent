@@ -36,6 +36,7 @@ func DefaultScorerConfig() observer.ScorerConfig {
 	return observer.ScorerConfig{
 		Alpha:       0.014,
 		SaturationK: 5.0,
+		WindowSecs:  15,
 		DetectorThresholds: map[string][4]float64{
 			// tukey_biweight scores cap hard at ~50 across all scenarios.
 			// Calibrated: p25≈6, p50≈9, p75≈15, p90≈27, p99≈45 (3-scenario avg).
@@ -58,6 +59,9 @@ func readScorerConfig(r ConfigReader, prefix string) any {
 	}
 	if key := prefix + "saturation_k"; r.IsConfigured(key) {
 		cfg.SaturationK = r.GetFloat64(key)
+	}
+	if key := prefix + "window_secs"; r.IsConfigured(key) {
+		cfg.WindowSecs = int64(r.GetInt(key))
 	}
 	return cfg
 }
@@ -94,10 +98,11 @@ func seriesID(a observer.Anomaly) string {
 	return a.Source.Key()
 }
 
-// dedupKey is the per-second deduplication key.
-type dedupKey struct {
-	second   int64
-	seriesID string
+// windowEntry tracks the highest anomaly level seen for a series within the
+// active window, and when it was last observed.
+type windowEntry struct {
+	level       int
+	lastSeenSec int64
 }
 
 // anomalyScorer is the streaming implementation of observer.AnomalyScorer.
@@ -105,10 +110,18 @@ type dedupKey struct {
 // Lifecycle:
 //
 //	ProcessAnomaly → buffers raw anomaly keyed by its second.
-//	Advance(t)     → finalises every second in [lastAdvancedSec+1, t],
-//	                  computing dedup → bucketing → EWMA.
+//	Advance(t)     → finalises every second in [lastAdvancedSec+1, t]:
+//	                   merge pending anomalies into windowMap,
+//	                   evict stale series (older than WindowSecs),
+//	                   compute saturation + EWMA from window.
 //	ScoreState()   → returns accumulated telemetry snapshot.
 //	Reset()        → clears all internal state.
+//
+// The saturation input is the count of *unique anomalous series* currently
+// in the window, not the per-second event count. This means a single noisy
+// series caps at 1 regardless of how often it fires, and the score reflects
+// "how many distinct series are currently misbehaving" rather than "how many
+// anomaly events occurred".
 type anomalyScorer struct {
 	mu sync.Mutex
 
@@ -116,6 +129,11 @@ type anomalyScorer struct {
 
 	// pending holds anomalies received since the last Advance, grouped by second.
 	pending map[int64][]observer.Anomaly
+
+	// windowMap tracks the highest anomaly level seen per series within the
+	// active window [lastAdvancedSec-WindowSecs+1, lastAdvancedSec].
+	// Entries are evicted once lastSeenSec falls outside the window.
+	windowMap map[string]windowEntry
 
 	// EWMA state
 	ewma float64
@@ -129,8 +147,9 @@ type anomalyScorer struct {
 // NewScorer creates a new anomalyScorer with the given config.
 func NewScorer(cfg observer.ScorerConfig) *anomalyScorer {
 	return &anomalyScorer{
-		config:  cfg,
-		pending: make(map[int64][]observer.Anomaly),
+		config:    cfg,
+		pending:   make(map[int64][]observer.Anomaly),
+		windowMap: make(map[string]windowEntry),
 	}
 }
 
@@ -152,7 +171,7 @@ func (s *anomalyScorer) ProcessAnomaly(a observer.Anomaly) {
 }
 
 // Advance finalises all 1-second buckets from lastAdvancedSec+1 up to dataTime
-// (inclusive), running dedup → bucketing → EWMA for each.
+// (inclusive), running merge → evict → saturate → EWMA for each.
 func (s *anomalyScorer) Advance(dataTime int64) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -175,46 +194,62 @@ func (s *anomalyScorer) Advance(dataTime int64) {
 	s.lastAdvancedSec = dataTime
 }
 
-// advanceSecond processes a single second, updating EWMA state. Must be called
-// with mu held.
+// advanceSecond processes a single second. Must be called with mu held.
+//
+// Steps:
+//  1. Merge: update windowMap with anomalies for this second (max level per series).
+//  2. Evict: remove series last seen before the window start.
+//  3. Bucket: count unique series in the window by level.
+//  4. Saturate + EWMA: compute the smoothed score from the window count.
 func (s *anomalyScorer) advanceSecond(sec int64) {
 	anomalies := s.pending[sec]
 	delete(s.pending, sec)
 
-	// Deduplication — per (second, seriesID) keep the highest level.
-	bestLevel := map[dedupKey]int{}
-	var unkeyed []observer.Anomaly
+	// Step 1: merge new anomalies into the window.
+	// Keyed anomalies update windowMap; unkeyed are counted separately.
+	var unkeyedCount int
+	var unkeyedWeightSum float64
+
 	for _, a := range anomalies {
 		sid := seriesID(a)
+		l := anomalyLevel(a, s.config)
 		if sid == "" {
-			unkeyed = append(unkeyed, a)
+			unkeyedCount++
+			unkeyedWeightSum += levelWeights[l]
 			continue
 		}
-		k := dedupKey{second: sec, seriesID: sid}
-		l := anomalyLevel(a, s.config)
-		if existing, ok := bestLevel[k]; !ok || l > existing {
-			bestLevel[k] = l
+		if e, ok := s.windowMap[sid]; !ok || l > e.level || sec > e.lastSeenSec {
+			newLevel := l
+			if ok && e.level > l {
+				newLevel = e.level
+			}
+			s.windowMap[sid] = windowEntry{level: newLevel, lastSeenSec: sec}
 		}
 	}
 
-	// Bucketing.
+	// Step 2: evict series that have fallen out of the window.
+	windowStart := sec - s.config.WindowSecs + 1
+	for sid, e := range s.windowMap {
+		if e.lastSeenSec < windowStart {
+			delete(s.windowMap, sid)
+		}
+	}
+
+	// Step 3: bucket from the live window.
 	var bins [5]int
 	var count int
 	var weightSum float64
 
-	for _, l := range bestLevel {
-		bins[l]++
+	for _, e := range s.windowMap {
+		bins[e.level]++
 		count++
-		weightSum += levelWeights[l]
+		weightSum += levelWeights[e.level]
 	}
-	for _, a := range unkeyed {
-		l := anomalyLevel(a, s.config)
-		bins[l]++
-		count++
-		weightSum += levelWeights[l]
-	}
+	// Add unkeyed anomalies from this second on top.
+	count += unkeyedCount
+	weightSum += unkeyedWeightSum
 
-	// Saturated input → EWMA.
+	// Step 4: saturated input → EWMA.
 	var input float64
 	if count > 0 {
 		meanWeight := weightSum / float64(count)
@@ -252,6 +287,7 @@ func (s *anomalyScorer) Reset() {
 	defer s.mu.Unlock()
 
 	s.pending = make(map[int64][]observer.Anomaly)
+	s.windowMap = make(map[string]windowEntry)
 	s.ewma = 0
 	s.lastAdvancedSec = 0
 	s.buckets = nil

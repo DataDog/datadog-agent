@@ -68,6 +68,9 @@ func TestEWMABasic(t *testing.T) {
 	cfg.Alpha = 0.5
 	// With k=1: saturation(count=1) = 1−exp(−1/1) ≈ 0.632.
 	cfg.SaturationK = 1.0
+	// WindowSecs=1 so each second is independent: the series from t=1000 expires
+	// at t=1001, allowing the EWMA decay test to see zero input.
+	cfg.WindowSecs = 1
 
 	s := NewScorer(cfg)
 	f := scorePtr(20.0) // holt_residual level 3 → weight 2.0
@@ -105,7 +108,7 @@ func TestDeduplication(t *testing.T) {
 	s := NewScorer(cfg)
 
 	// Two anomalies on the same series: levels 1 (Low) and 3 (High).
-	// Only the High one (weight=2.0) should survive.
+	// Only the High one (weight=2.0) should survive in the window.
 	src := observer.SeriesDescriptor{Namespace: "ns", Name: "m", Tags: []string{"host:h"}}
 	a1 := observer.Anomaly{
 		DetectorName: "holt_residual", Timestamp: 1000, Score: scorePtr(8), Source: src,
@@ -124,6 +127,57 @@ func TestDeduplication(t *testing.T) {
 	}
 	if b.Bins[3] != 1 { // level 3 (High) survived
 		t.Errorf("dedup: expected bins[3]=1, got %v", b.Bins)
+	}
+}
+
+// TestWindowDedup verifies that the same series firing at different seconds
+// within the window still counts as a single entry.
+func TestWindowDedup(t *testing.T) {
+	cfg := DefaultScorerConfig()
+	cfg.WindowSecs = 15
+	s := NewScorer(cfg)
+
+	src := observer.SeriesDescriptor{Namespace: "ns", Name: "m", Tags: []string{"host:h"}}
+	// Series fires at t=1000 (Medium, level 2) and again at t=1005 (Low, level 1).
+	// The window should keep max level = 2 and count = 1 at t=1005.
+	s.ProcessAnomaly(observer.Anomaly{DetectorName: "bocpd", Timestamp: 1000, Source: src})
+	s.Advance(1000)
+
+	s.ProcessAnomaly(observer.Anomaly{DetectorName: "bocpd", Timestamp: 1005, Source: src})
+	s.Advance(1005)
+
+	b := s.ScoreState().Buckets[1] // bucket for t=1005
+	if b.Count != 1 {
+		t.Errorf("window dedup: expected count=1 at t=1005, got %d", b.Count)
+	}
+	if b.Bins[2] != 1 { // level 2 (Medium) — max of (2,2) = 2
+		t.Errorf("window dedup: expected bins[2]=1 at t=1005, got %v", b.Bins)
+	}
+}
+
+// TestWindowExpiry verifies that a series is evicted once it falls outside the window.
+func TestWindowExpiry(t *testing.T) {
+	cfg := DefaultScorerConfig()
+	cfg.WindowSecs = 15
+	s := NewScorer(cfg)
+
+	src := observer.SeriesDescriptor{Namespace: "ns", Name: "m", Tags: []string{"host:h"}}
+	// Series fires once at t=1000; last seen = 1000.
+	// Window at t=1014: windowStart = 1014-15+1 = 1000 → series still alive (lastSeen >= windowStart).
+	// Window at t=1015: windowStart = 1015-15+1 = 1001 → series expired (lastSeen=1000 < 1001).
+	s.ProcessAnomaly(observer.Anomaly{DetectorName: "bocpd", Timestamp: 1000, Source: src})
+	s.Advance(1014)
+
+	b14 := s.ScoreState().Buckets[len(s.ScoreState().Buckets)-1]
+	if b14.Count != 1 {
+		t.Errorf("window expiry: expected count=1 at t=1014, got %d", b14.Count)
+	}
+
+	s.Advance(1015)
+
+	b15 := s.ScoreState().Buckets[len(s.ScoreState().Buckets)-1]
+	if b15.Count != 0 {
+		t.Errorf("window expiry: expected count=0 at t=1015 (series expired), got %d", b15.Count)
 	}
 }
 
@@ -170,9 +224,12 @@ func TestReset(t *testing.T) {
 }
 
 // TestEmptySeconds verifies that Advance over a gap generates empty buckets.
+// WindowSecs=1 so the anomaly at t=1000 expires before t=1001, giving zero
+// window count for the gap seconds and allowing pure EWMA decay to be tested.
 func TestEmptySeconds(t *testing.T) {
 	cfg := DefaultScorerConfig()
 	cfg.Alpha = 0.5
+	cfg.WindowSecs = 1
 	s := NewScorer(cfg)
 
 	f := scorePtr(25.0) // level 3
