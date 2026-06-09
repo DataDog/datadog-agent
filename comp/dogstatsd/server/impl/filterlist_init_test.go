@@ -18,7 +18,7 @@ import (
 	demultiplexer "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/def"
 	demultiplexerimpl "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/impl"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/def"
 	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
@@ -53,7 +53,7 @@ type depsWithoutFilterList struct {
 	Debug         serverdebug.Component
 	WMeta         option.Option[workloadmeta.Component]
 	Telemetry     telemetry.Component
-	Hostname      hostnameinterface.Component
+	Hostname      hostname.Component
 }
 
 func TestWorkerFilterListInitializedFromLocalConfig(t *testing.T) {

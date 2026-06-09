@@ -17,7 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
+	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/hostname/mock"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
@@ -47,7 +47,7 @@ func (m *mockTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 }
 
 func TestGetTraceroute(t *testing.T) {
-	hostnameComponent, _ := hostnameinterface.NewMock("test-agent-hostname")
+	hostnameComponent, _ := hostnamemock.New("test-agent-hostname")
 
 	expectedDest := payload.NetworkPathDestination{
 		Hostname: "example.com",
@@ -98,7 +98,7 @@ func TestGetTraceroute(t *testing.T) {
 }
 
 func TestGetTracerouteError(t *testing.T) {
-	hostnameComponent, _ := hostnameinterface.NewMock("test-agent-hostname")
+	hostnameComponent, _ := hostnamemock.New("test-agent-hostname")
 
 	client := &http.Client{
 		Transport: &mockTransport{
@@ -125,7 +125,7 @@ func TestGetTracerouteError(t *testing.T) {
 }
 
 func TestGetTracerouteInvalidJSON(t *testing.T) {
-	hostnameComponent, _ := hostnameinterface.NewMock("test-agent-hostname")
+	hostnameComponent, _ := hostnamemock.New("test-agent-hostname")
 
 	client := &http.Client{
 		Transport: &mockTransport{
@@ -168,7 +168,7 @@ func TestGetTracerouteStructuredError(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			hostnameComponent, _ := hostnameinterface.NewMock("test-agent-hostname")
+			hostnameComponent, _ := hostnamemock.New("test-agent-hostname")
 
 			errResp := payload.TracerouteErrorResponse{Code: tt.errorCode, Message: tt.errorMessage}
 			jsonBytes, err := json.Marshal(errResp)
@@ -205,7 +205,7 @@ func TestGetTracerouteStructuredError(t *testing.T) {
 }
 
 func TestGetTraceroutePlainTextErrorFallback(t *testing.T) {
-	hostnameComponent, _ := hostnameinterface.NewMock("test-agent-hostname")
+	hostnameComponent, _ := hostnamemock.New("test-agent-hostname")
 
 	client := &http.Client{
 		Transport: &mockTransport{
@@ -289,7 +289,7 @@ func TestGetTracerouteURL(t *testing.T) {
 				Transport: mockTransport,
 			}
 
-			hostnameComponent, _ := hostnameinterface.NewMock("test-agent-hostname")
+			hostnameComponent, _ := hostnamemock.New("test-agent-hostname")
 			rt := &remoteTraceroute{sysprobeClient: mockClient, log: logmock.New(t), hostname: hostnameComponent}
 			_, err := rt.getTracerouteFromSysProbe(
 				context.TODO(),

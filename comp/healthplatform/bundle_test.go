@@ -23,7 +23,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
+	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/hostname/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	telemetrymock "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
@@ -41,7 +41,7 @@ func TestBundleDependencies(t *testing.T) {
 		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
 		fx.Provide(func(t testing.TB) config.Component { return config.NewMock(t) }),
 		telemetrymock.Module(),
-		hostnameinterface.MockModule(),
+		hostnamemock.MockModule(),
 	)
 }
 
@@ -93,7 +93,7 @@ func TestBundleStartLifecycle(t *testing.T) {
 			return cfg
 		}),
 		telemetrymock.Module(),
-		hostnameinterface.MockModule(),
+		hostnamemock.MockModule(),
 	)
 
 	var checkRunCount atomic.Int32

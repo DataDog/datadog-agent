@@ -21,7 +21,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/def"
 	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
@@ -39,7 +39,7 @@ type testDeps struct {
 	Log        log.Component
 	Config     config.Component
 	Serializer serializer.MetricSerializer
-	Hostname   hostnameinterface.Component
+	Hostname   hostname.Component
 }
 
 func makeRequires(deps testDeps) Requires {

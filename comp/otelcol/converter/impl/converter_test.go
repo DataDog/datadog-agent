@@ -16,7 +16,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/def"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/confmap"
@@ -39,8 +39,8 @@ func (m *mockHostname) Get(_ context.Context) (string, error) {
 	return m.hostname, m.err
 }
 
-func (m *mockHostname) GetWithProvider(_ context.Context) (hostnameinterface.Data, error) {
-	return hostnameinterface.Data{Hostname: m.hostname, Provider: "mock"}, m.err
+func (m *mockHostname) GetWithProvider(_ context.Context) (hostname.Data, error) {
+	return hostname.Data{Hostname: m.hostname, Provider: "mock"}, m.err
 }
 
 func (m *mockHostname) GetSafe(_ context.Context) string {

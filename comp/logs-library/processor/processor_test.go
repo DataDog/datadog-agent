@@ -11,7 +11,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
+	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/hostname/mock"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
@@ -338,7 +338,7 @@ func TestTruncate(t *testing.T) {
 }
 
 func TestGetHostname(t *testing.T) {
-	hostnameComponent, _ := hostnameinterface.NewMock("testHostnameFromEnvVar")
+	hostnameComponent, _ := hostnamemock.New("testHostnameFromEnvVar")
 	p := &Processor{
 		hostname: hostnameComponent,
 	}

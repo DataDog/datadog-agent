@@ -19,7 +19,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/def"
 	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/mock"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
@@ -54,7 +54,7 @@ type testDeps struct {
 	SysProbeConfig option.Option[sysprobeconfig.Component]
 	Serializer     serializer.MetricSerializer
 	IPCClient      ipc.HTTPClient
-	Hostname       hostnameinterface.Component
+	Hostname       hostname.Component
 }
 
 func makeRequires(deps testDeps) Requires {

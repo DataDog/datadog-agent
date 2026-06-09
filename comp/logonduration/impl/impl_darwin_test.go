@@ -20,7 +20,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/def"
 	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/mock"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	sysprobeconfigmock "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/mock"
@@ -276,7 +276,7 @@ func TestBuildCustomPayload(t *testing.T) {
 }
 
 func TestSubmitEvent_PayloadFormat(t *testing.T) {
-	hostname := fxutil.Test[hostnameinterface.Component](t, hostnamemock.MockModule())
+	hostname := fxutil.Test[hostname.Component](t, hostnamemock.MockModule())
 	compression := fxutil.Test[logscompression.Component](t, logscompressionmock.MockModule())
 	forwarder := eventplatformimpl.NewNoopEventPlatformForwarder(hostname, compression)
 
@@ -332,7 +332,7 @@ func TestSubmitEvent_PayloadFormat(t *testing.T) {
 }
 
 func TestSubmitEvent_MessageIncludesLogonDuration(t *testing.T) {
-	hostname := fxutil.Test[hostnameinterface.Component](t, hostnamemock.MockModule())
+	hostname := fxutil.Test[hostname.Component](t, hostnamemock.MockModule())
 	compression := fxutil.Test[logscompression.Component](t, logscompressionmock.MockModule())
 	forwarder := eventplatformimpl.NewNoopEventPlatformForwarder(hostname, compression)
 
@@ -365,7 +365,7 @@ func TestSubmitEvent_MessageIncludesLogonDuration(t *testing.T) {
 }
 
 func TestSubmitEvent_IncludesSystemNotableEventsMetadata(t *testing.T) {
-	hostname := fxutil.Test[hostnameinterface.Component](t, hostnamemock.MockModule())
+	hostname := fxutil.Test[hostname.Component](t, hostnamemock.MockModule())
 	compression := fxutil.Test[logscompression.Component](t, logscompressionmock.MockModule())
 	forwarder := eventplatformimpl.NewNoopEventPlatformForwarder(hostname, compression)
 
@@ -401,7 +401,7 @@ func TestSubmitEvent_IncludesSystemNotableEventsMetadata(t *testing.T) {
 }
 
 func TestSubmitEvent_TimestampFormat(t *testing.T) {
-	hostname := fxutil.Test[hostnameinterface.Component](t, hostnamemock.MockModule())
+	hostname := fxutil.Test[hostname.Component](t, hostnamemock.MockModule())
 	compression := fxutil.Test[logscompression.Component](t, logscompressionmock.MockModule())
 	forwarder := eventplatformimpl.NewNoopEventPlatformForwarder(hostname, compression)
 
@@ -434,7 +434,7 @@ func TestSubmitEvent_TimestampFormat(t *testing.T) {
 }
 
 func TestSubmitEvent_CustomPayloadIncludesFileVault(t *testing.T) {
-	hostname := fxutil.Test[hostnameinterface.Component](t, hostnamemock.MockModule())
+	hostname := fxutil.Test[hostname.Component](t, hostnamemock.MockModule())
 	compression := fxutil.Test[logscompression.Component](t, logscompressionmock.MockModule())
 	forwarder := eventplatformimpl.NewNoopEventPlatformForwarder(hostname, compression)
 
@@ -471,7 +471,7 @@ func TestSubmitEvent_CustomPayloadIncludesFileVault(t *testing.T) {
 }
 
 func TestSubmitEvent_DurationsInPayload(t *testing.T) {
-	hostname := fxutil.Test[hostnameinterface.Component](t, hostnamemock.MockModule())
+	hostname := fxutil.Test[hostname.Component](t, hostnamemock.MockModule())
 	compression := fxutil.Test[logscompression.Component](t, logscompressionmock.MockModule())
 	forwarder := eventplatformimpl.NewNoopEventPlatformForwarder(hostname, compression)
 
@@ -526,7 +526,7 @@ func newFixture(t *testing.T, enabled bool) *testFixture {
 
 	sysprobeConfigComp := sysprobeconfigmock.NewMock(t)
 
-	hostnameComp := fxutil.Test[hostnameinterface.Component](t, hostnamemock.MockModule())
+	hostnameComp := fxutil.Test[hostname.Component](t, hostnamemock.MockModule())
 	compressionComp := fxutil.Test[logscompression.Component](t, logscompressionmock.MockModule())
 	forwarder := eventplatformimpl.NewNoopEventPlatformForwarder(hostnameComp, compressionComp)
 	eventPlatformComp := option.NewPtr(forwarder)

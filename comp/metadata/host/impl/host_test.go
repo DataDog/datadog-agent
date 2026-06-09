@@ -19,7 +19,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
-	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	hostname hostname "github.com/DataDog/datadog-agent/comp/core/hostname/def"
 	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
@@ -37,7 +37,7 @@ type testDeps struct {
 	Config     config.Component
 	Resources  resources.Component
 	Serializer serializer.MetricSerializer
-	Hostname   hostnameinterface.Component
+	Hostname   hostname.Component
 }
 
 func makeRequires(deps testDeps) Requires {
