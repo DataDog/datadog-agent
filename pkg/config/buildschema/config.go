@@ -41,14 +41,14 @@ func (b *builder) GetSchema() map[string]interface{} {
 }
 
 func (b *builder) SetDefault(key string, value interface{}) {
-	b.addToSchema(key, value, nil, true, false)
+	b.addToSchema(key, value, nil, true)
 }
 
 func (b *builder) SetEnvPrefix(_ string) {
 }
 
 func (b *builder) BindEnv(key string, envvars ...string) {
-	b.addToSchema(key, nil, envvars, false, true)
+	b.addToSchema(key, nil, envvars, false)
 }
 
 func (b *builder) ParseEnvAsStringSlice(_ string, _ func(string) []string) {
@@ -75,11 +75,11 @@ func (b *builder) ParseEnvJSON(key string, _ any) {
 }
 
 func (b *builder) SetKnown(key string) {
-	b.addToSchema(key, nil, nil, true, true)
+	b.addToSchema(key, nil, nil, true)
 }
 
 func (b *builder) BindEnvAndSetDefault(key string, val interface{}, env ...string) {
-	b.addToSchema(key, val, env, false, false)
+	b.addToSchema(key, val, env, false)
 }
 
 func (b *builder) BuildSchema() {

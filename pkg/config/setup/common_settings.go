@@ -1747,7 +1747,7 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("logs_config.fingerprint_config.count_to_skip", DefaultLinesOrBytesToSkip)
 	config.BindEnvAndSetDefault("logs_config.fingerprint_config.fingerprint_strategy", DefaultFingerprintStrategy)
 	// specific logs-agent api-key
-	config.BindEnv("logs_config.api_key") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnvAndSetDefault("logs_config.api_key", "")
 	// use the `time` field from container log files instead of ingestion time
 	config.BindEnvAndSetDefault("logs_config.use_container_timestamp", false)
 	// Delegated authentication for logs
