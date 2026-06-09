@@ -27,6 +27,10 @@ const (
 	telemetryRRCFScore     = "observer.rrcf.score"
 	telemetryRRCFThreshold = "observer.rrcf.threshold"
 
+	// Anomaly scorer — telemetryScorerEWMA is the smoothed anomaly intensity
+	// signal, emitted every second after Advance. Tagged by scorer name ("scorer:<name>").
+	telemetryScorerEWMA = "observer.scorer.ewma"
+
 	// Log pattern extractor — counter: delta (new clusters) per processed log
 	telemetryLogPatternExtractorPatternCount = "observer.log_pattern_extractor.pattern_count"
 )
@@ -61,6 +65,12 @@ func newTelemetryHandler(telemetryComp telemetry.Component) *telemetryHandler {
 		telemetryRRCFThreshold,
 		[]string{"detector"},
 		"RRCF dynamic anomaly detection threshold (post-warmup)",
+	)
+	gauges[telemetryScorerEWMA] = telemetryComp.NewGauge(
+		"observer",
+		telemetryScorerEWMA,
+		[]string{"scorer"},
+		"Anomaly scorer EWMA signal, updated every second",
 	)
 
 	// Counters
