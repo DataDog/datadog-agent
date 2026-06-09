@@ -9,9 +9,12 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	configModel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/modes"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/regions"
@@ -132,6 +135,45 @@ func SelfEnroll(
 		RunnerName:    runnerName,
 		OrchClusterID: agentIdentifier.OrchClusterID,
 	}, nil
+}
+
+// EnrollFromConfig performs self-enrollment using configuration directly, without a hostname component.
+// Intended for CLI one-shot commands (e.g. rotate-identity) that run outside the full component tree.
+// The hostname is resolved via os.Hostname and is only used as a runner name prefix.
+func EnrollFromConfig(ctx context.Context, cfg configModel.Reader) (*Result, error) {
+	hostname, err := os.Hostname()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get hostname: %w", err)
+	}
+
+	agentIdentifier := &AgentIdentifier{Hostname: hostname}
+	if flavor.GetFlavor() == flavor.ClusterAgent {
+		orchClusterID, err := clustername.GetClusterID()
+		if err != nil || orchClusterID == "" {
+			return nil, fmt.Errorf("failed to get orchestrator cluster ID: %w", err)
+		}
+		agentIdentifier.OrchClusterID = orchClusterID
+	}
+
+	ddSite := cfg.GetString("site")
+	if ddSite == "" {
+		ddSite = "datadoghq.com"
+	}
+	apiKey := cfg.GetString("api_key")
+	extraHeaders := cfg.GetStringMapString(setup.PAROpmsExtraHeaders)
+
+	runnerNamePrefix := hostname
+	if flavor.GetFlavor() == flavor.ClusterAgent {
+		if clusterName := clustername.GetClusterName(ctx, hostname); clusterName != "" {
+			runnerNamePrefix = clusterName
+		}
+	}
+
+	if cfg.GetBool(setup.PARApiKeyOnlyEnrollment) {
+		return SelfEnrollApiKeyOnly(ctx, ddSite, runnerNamePrefix, apiKey, agentIdentifier, extraHeaders)
+	}
+	appKey := cfg.GetString("app_key")
+	return SelfEnroll(ctx, ddSite, runnerNamePrefix, apiKey, appKey, agentIdentifier, extraHeaders)
 }
 
 // SelfEnrollApiKeyOnly performs self-registration using only an API key (no application key).

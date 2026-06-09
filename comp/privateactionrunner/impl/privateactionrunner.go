@@ -82,6 +82,7 @@ type PrivateActionRunner struct {
 
 	workflowRunner *runners.WorkflowRunner
 	commonRunner   *runners.CommonRunner
+	runnersMu      sync.Mutex // protects workflowRunner and commonRunner during hot-reload
 
 	telemetry *telemetry.Telemetry
 
@@ -89,6 +90,7 @@ type PrivateActionRunner struct {
 	startOnce   sync.Once
 	startChan   chan struct{}
 	cancelStart context.CancelFunc
+	restartCh   chan struct{} // receives a signal when the PAR identity has been rotated
 }
 
 // NewComponent creates a new privateactionrunner component
@@ -132,6 +134,7 @@ func NewPrivateActionRunner(
 		eventPlatform:  eventPlatform,
 		ipc:            ipcComp,
 		startChan:      make(chan struct{}),
+		restartCh:      make(chan struct{}, 1),
 	}, nil
 }
 
@@ -204,13 +207,6 @@ func (p *PrivateActionRunner) start(ctx context.Context) error {
 		p.logger.Errorf("Private action runner failed to start: %v", err)
 		return err
 	}
-	commonTags := observability.CommonTags{
-		RunnerId:      cfg.RunnerId,
-		RunnerVersion: cfg.Version,
-		Modes:         cfg.Modes,
-		ExtraTags:     cfg.Tags,
-	}
-	ctx = observability.AddCommonTagsToLogs(ctx, commonTags)
 
 	p.telemetry = telemetry.NewTelemetry(
 		&http.Client{Transport: httputils.CreateHTTPTransport(p.coreConfig)},
@@ -218,6 +214,29 @@ func (p *PrivateActionRunner) start(ctx context.Context) error {
 		cfg.DatadogSite,
 		observability.ParService,
 	)
+
+	if err := p.startRunners(ctx, cfg); err != nil {
+		return err
+	}
+
+	// Watch for identity rotation and hot-reload runners when the secret changes.
+	// No-op in non-kubeapiserver builds.
+	p.startIdentityWatcher(ctx)
+	go p.restartLoop(ctx)
+
+	return nil
+}
+
+// startRunners creates and starts the workflow and common runners for the given config.
+// Must be called with p.runnersMu held or before the restart loop is running.
+func (p *PrivateActionRunner) startRunners(ctx context.Context, cfg *parconfig.Config) error {
+	commonTags := observability.CommonTags{
+		RunnerId:      cfg.RunnerId,
+		RunnerVersion: cfg.Version,
+		Modes:         cfg.Modes,
+		ExtraTags:     cfg.Tags,
+	}
+	ctx = observability.AddCommonTagsToLogs(ctx, commonTags)
 
 	p.logger.Info("Private action runner starting")
 	p.logger.Info("==> Version : " + parversion.RunnerVersion)
@@ -229,16 +248,65 @@ func (p *PrivateActionRunner) start(ctx context.Context) error {
 	taskVerifier := taskverifier.NewTaskVerifier(keysManager, cfg)
 	opmsClient := opms.NewClient(cfg)
 
-	p.workflowRunner, err = runners.NewWorkflowRunner(cfg, keysManager, taskVerifier, opmsClient, p.traceroute, p.eventPlatform, p.ipc.GetClient())
+	workflowRunner, err := runners.NewWorkflowRunner(cfg, keysManager, taskVerifier, opmsClient, p.traceroute, p.eventPlatform, p.ipc.GetClient())
 	if err != nil {
 		return err
 	}
-	p.commonRunner = runners.NewCommonRunner(cfg)
-	err = p.workflowRunner.Start(ctx)
-	if err != nil {
+
+	commonRunner := runners.NewCommonRunner(cfg)
+	if err := workflowRunner.Start(ctx); err != nil {
 		return err
 	}
-	return p.commonRunner.Start(ctx)
+	if err := commonRunner.Start(ctx); err != nil {
+		return err
+	}
+
+	p.runnersMu.Lock()
+	p.workflowRunner = workflowRunner
+	p.commonRunner = commonRunner
+	p.runnersMu.Unlock()
+	return nil
+}
+
+// restartLoop listens for identity rotation signals and hot-reloads the PAR runners.
+func (p *PrivateActionRunner) restartLoop(ctx context.Context) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-p.restartCh:
+			p.logger.Info("PAR identity rotated, reloading runners with new credentials...")
+
+			p.runnersMu.Lock()
+			oldWorkflow := p.workflowRunner
+			oldCommon := p.commonRunner
+			p.runnersMu.Unlock()
+
+			stopCtx, cancel := context.WithTimeout(context.Background(), maxStartupWaitTimeout)
+			if oldWorkflow != nil {
+				if err := oldWorkflow.Stop(stopCtx); err != nil {
+					p.logger.Warnf("Error stopping workflow runner during reload: %v", err)
+				}
+			}
+			if oldCommon != nil {
+				if err := oldCommon.Stop(stopCtx); err != nil {
+					p.logger.Warnf("Error stopping common runner during reload: %v", err)
+				}
+			}
+			cancel()
+
+			cfg, err := p.getRunnerConfig(ctx)
+			if err != nil {
+				p.logger.Errorf("PAR identity reload: failed to load new config: %v", err)
+				continue
+			}
+			if err := p.startRunners(ctx, cfg); err != nil {
+				p.logger.Errorf("PAR identity reload: failed to restart runners: %v", err)
+			} else {
+				p.logger.Infof("PAR identity reload complete. New URN: %s", cfg.Urn)
+			}
+		}
+	}
 }
 
 func (p *PrivateActionRunner) Stop(ctx context.Context) error {
@@ -255,15 +323,18 @@ func (p *PrivateActionRunner) Stop(ctx context.Context) error {
 		// Don't return - continue to cleanup what we can
 	}
 
-	if p.workflowRunner != nil {
-		err := p.workflowRunner.Stop(ctx)
-		if err != nil {
+	p.runnersMu.Lock()
+	workflowRunner := p.workflowRunner
+	commonRunner := p.commonRunner
+	p.runnersMu.Unlock()
+
+	if workflowRunner != nil {
+		if err := workflowRunner.Stop(ctx); err != nil {
 			return err
 		}
 	}
-	if p.commonRunner != nil {
-		err := p.commonRunner.Stop(ctx)
-		if err != nil {
+	if commonRunner != nil {
+		if err := commonRunner.Stop(ctx); err != nil {
 			return err
 		}
 	}

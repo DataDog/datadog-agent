@@ -145,6 +145,11 @@ type APIClient struct {
 	// the corresponding MutatingWebhookConfiguration object.
 	WebhookConfigInformerFactory informers.SharedInformerFactory
 
+	// PARIdentitySecretInformerFactory gives access to a filtered informer scoped to the
+	// single Kubernetes secret that holds the Private Action Runner identity. Used by the
+	// PAR component to hot-reload credentials when the secret is rotated.
+	PARIdentitySecretInformerFactory informers.SharedInformerFactory
+
 	// DynamicInformerFactory gives access to dynamic informers
 	DynamicInformerFactory dynamicinformer.DynamicSharedInformerFactory
 
@@ -443,6 +448,23 @@ func (c *APIClient) connect() error {
 		c.WebhookConfigInformerFactory = c.GetInformerWithOptions(
 			nil,
 			informers.WithTweakListOptions(optionsForWebhook),
+		)
+	}
+
+	if pkgconfigsetup.Datadog().GetBool("private_action_runner.enabled") &&
+		pkgconfigsetup.Datadog().GetBool("private_action_runner.identity_use_k8s_secret") {
+		nameFieldKey := "metadata.name"
+		parSecretName := pkgconfigsetup.Datadog().GetString("private_action_runner.identity_secret_name")
+		if parSecretName == "" {
+			parSecretName = "private-action-runner-identity"
+		}
+		optionsForPARSecret := func(options *metav1.ListOptions) {
+			options.FieldSelector = fields.OneTermEqualSelector(nameFieldKey, parSecretName).String()
+		}
+		c.PARIdentitySecretInformerFactory = c.GetInformerWithOptions(
+			nil,
+			informers.WithTweakListOptions(optionsForPARSecret),
+			informers.WithNamespace(namespace.GetResourcesNamespace()),
 		)
 	}
 

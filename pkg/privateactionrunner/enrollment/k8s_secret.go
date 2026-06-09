@@ -218,6 +218,62 @@ func persistIdentityToK8sSecret(ctx context.Context, cfg configModel.Reader, res
 	return nil
 }
 
+// rotateIdentityInK8sSecret persists identity to K8s secret without requiring leadership.
+// Used by CLI rotation commands that run as one-shots outside the normal replica lifecycle.
+func rotateIdentityInK8sSecret(ctx context.Context, cfg configModel.Reader, result *Result) error {
+	client, err := getKubeClient()
+	if err != nil {
+		return err
+	}
+
+	privateKeyJWK, err := util.EcdsaToJWK(result.PrivateKey)
+	if err != nil {
+		return fmt.Errorf("failed to convert private key to JWK: %w", err)
+	}
+	marshalledPrivateKey, err := privateKeyJWK.MarshalJSON()
+	if err != nil {
+		return fmt.Errorf("failed to marshal private key to JSON: %w", err)
+	}
+	encodedPrivateKey := base64.RawURLEncoding.EncodeToString(marshalledPrivateKey)
+
+	ns := namespace.GetResourcesNamespace()
+	secretName := getSecretName(cfg)
+
+	secret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: ns,
+			Name:      secretName,
+			Labels: map[string]string{
+				"app.kubernetes.io/name":       "datadog-cluster-agent",
+				"app.kubernetes.io/component":  "private-action-runner",
+				"app.kubernetes.io/managed-by": "datadog-cluster-agent",
+			},
+		},
+		Type: corev1.SecretTypeOpaque,
+		Data: map[string][]byte{
+			privateKeyField:    []byte(encodedPrivateKey),
+			urnField:           []byte(result.URN),
+			orchClusterIDField: []byte(result.OrchClusterID),
+		},
+	}
+
+	_, err = client.CoreV1().Secrets(ns).Create(ctx, secret, metav1.CreateOptions{})
+	if err != nil {
+		if !k8serrors.IsAlreadyExists(err) {
+			return fmt.Errorf("failed to create secret: %w", err)
+		}
+		_, err = client.CoreV1().Secrets(ns).Update(ctx, secret, metav1.UpdateOptions{})
+		if err != nil {
+			return fmt.Errorf("failed to update existing secret: %w", err)
+		}
+		log.Infof("Rotated PAR identity in K8s secret: %s/%s", ns, secretName)
+		return nil
+	}
+
+	log.Infof("Created PAR identity in K8s secret: %s/%s", ns, secretName)
+	return nil
+}
+
 // isNonTransientK8sError returns true for errors that indicate a permanent
 // problem (e.g. RBAC misconfiguration) that will not resolve by retrying.
 // Unknown errors and network-level errors are assumed transient.
