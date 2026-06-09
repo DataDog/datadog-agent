@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/enrollment"
@@ -39,6 +40,7 @@ Restart the Private Action Runner process to apply the new identity.`,
 					LogParams:    log.ForOneShot(command.LoggerName, "info", true),
 				}),
 				core.Bundle(core.WithSecrets()),
+				hostnameimpl.Module(),
 			)
 		},
 	}
