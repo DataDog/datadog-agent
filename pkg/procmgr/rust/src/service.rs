@@ -138,12 +138,11 @@ unsafe extern "system" fn service_main(_argc: u32, _argv: *mut *mut u16) {
     set_service_status(SERVICE_STOPPED, 0, NO_ERROR, 0);
 }
 
-/// Default log file path under the Windows program data root (registry `ConfigRoot` when set,
-/// else `%ProgramData%\Datadog`), matching other agent services.
+/// Default log file path, following the agent convention
+/// (`C:\ProgramData\Datadog\logs\<service>.log`).
 fn default_log_file() -> PathBuf {
-    crate::platform::program_data_root()
-        .join("logs")
-        .join("dd-procmgr.log")
+    let base = std::env::var("ProgramData").unwrap_or_else(|_| r"C:\ProgramData".to_string());
+    PathBuf::from(base).join(r"Datadog\logs\dd-procmgr.log")
 }
 
 /// Core service logic: creates the tokio runtime, runs ProcessManager, then
