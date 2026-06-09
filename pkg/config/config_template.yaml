@@ -29,7 +29,7 @@ api_key:
 ## Set to 'ap1.datadoghq.com' to send data to the AP1 site.
 ## Set to 'ddog-gov.com' to send data to the US1-FED site.
 #
-# site: datadoghq.com
+# site: "datadoghq.com"
 
 ## @param infrastructure_mode - string - optional - default: "full"
 ## @env DD_INFRASTRUCTURE_MODE - string - optional - default: "full"
@@ -51,7 +51,7 @@ api_key:
 ## own "*_dd_url" settings.
 ## If DD_DD_URL and DD_URL are both set, DD_DD_URL is used in priority.
 #
-# dd_url: https://app.datadoghq.com
+# dd_url: "https://app.datadoghq.com"
 
 ## @param proxy - custom object - optional
 ## If you need a proxy to connect to the Internet, provide it here (default:
@@ -1210,8 +1210,8 @@ api_key:
 #
 #   logs_no_ssl: false
 
-#   # @param processing_rules - list of custom objects - optional - default: []
-#   # @env DD_LOGS_CONFIG_PROCESSING_RULES - list of custom objects - optional - default: []
+#   # @param processing_rules - list - optional - default: []
+#   # @env DD_LOGS_CONFIG_PROCESSING_RULES - JSON list - optional - default: []
 #   # Global processing rules that are applied to all logs. The available rules are
 #   # "exclude_at_match", "include_at_match" and "mask_sequences". More information in Datadog documentation:
 #   # https://docs.datadoghq.com/agent/logs/advanced_log_collection/#global-processing-rules
@@ -2434,8 +2434,8 @@ api_key:
 #
 # dogstatsd_port: 8125
 
-## @param bind_host - string - optional - default: "localhost"
-## @env DD_BIND_HOST - string - optional - default: "localhost"
+## @param bind_host - string - optional - default: ""
+## @env DD_BIND_HOST - string - optional - default: ""
 ## The host to listen on for Dogstatsd and traces. This is ignored by APM when
 ## `apm_config.apm_non_local_traffic` is enabled and ignored by DogStatsD when `dogstatsd_non_local_traffic`
 ## is enabled. The trace-agent uses this host to send metrics to.
@@ -2546,8 +2546,8 @@ api_key:
 # dogstatsd_tags:
 #   - <TAG_KEY>:<TAG_VALUE>
 
-## @param dogstatsd_mapper_profiles - list of custom object - optional
-## @env DD_DOGSTATSD_MAPPER_PROFILES - list of custom object - optional
+## @param dogstatsd_mapper_profiles - list - optional - default: []
+## @env DD_DOGSTATSD_MAPPER_PROFILES - JSON list of objects - optional - default: []
 ## The profiles will be used to convert parts of metrics names into tags.
 ## If a profile prefix is matched, other profiles won't be tried even if that profile matching rules doesn't match.
 ## The profiles and matching rules are processed in the order defined in this configuration.
@@ -4602,6 +4602,14 @@ api_key:
 #     # The maximum number of seconds to wait for the trap server to stop when the Agent shuts down.
 #
 #     stop_timeout: 5
+
+#     # @param tags - list of strings - optional - default: []
+#     # @env DD_NETWORK_DEVICES_SNMP_TRAPS_TAGS - space-separated list of strings - optional - default: []
+#     # A list of low-cardinality tags (e.g. application, team, environment) attached to every trap forwarded to Datadog and to every SNMP traps telemetry metric emitted by the Agent.
+#
+#     tags:
+#       - "application:<APPLICATION_ID>"
+#       - "team:<TEAM_NAME>"
 
 #   # @param netflow - custom object - optional
 #   # This section configures NDM NetFlow (and sFlow, IPFIX) collection.
