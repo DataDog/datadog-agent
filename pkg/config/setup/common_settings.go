@@ -1200,7 +1200,7 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("auth_init_timeout", 30*time.Second)
 	config.BindEnvAndSetDefault("bind_host", "")
 	config.BindEnvAndSetDefault("health_port", int64(0))
-	config.BindEnvAndSetDefault("health_platform.enabled", false)
+	config.BindEnvAndSetDefault("health_platform.enabled", true)
 	config.BindEnvAndSetDefault("health_platform.persist_on_kubernetes", false)
 	config.BindEnvAndSetDefault("health_platform.forwarder.interval", "0s")
 	config.BindEnvAndSetDefault("disable_py3_validation", false)
