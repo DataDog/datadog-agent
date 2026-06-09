@@ -1,0 +1,22 @@
+---
+name: "Issue Triage"
+
+on:
+  issues:
+    types: [opened, reopened]
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: 'Issue number to triage manually'
+        required: true
+        type: number
+
+jobs:
+  triage:
+    uses: DataDog/issue-triage-action/.github/workflows/issue-triage.yml@main
+    with:
+      slack_map_path: tasks/libs/pipeline/github_slack_map.yaml
+      issue_number: ${{ github.event_name == 'workflow_dispatch' && fromJSON(github.event.inputs.issue_number) || 0 }}
+    secrets:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      SLACK_BOT_TOKEN:   ${{ secrets.SLACK_DATADOG_AGENT_BOT_TOKEN }}
