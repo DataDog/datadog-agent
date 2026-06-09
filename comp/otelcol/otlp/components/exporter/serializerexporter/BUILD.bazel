@@ -6,6 +6,7 @@ go_library(
         "config.go",
         "consumer.go",
         "consumer_collector.go",
+        "consumer_no_otlp.go",
         "consumer_otlp.go",
         "exporter.go",
         "factory.go",
