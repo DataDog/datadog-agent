@@ -243,6 +243,12 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 		// Also if object was not owned by remote config, we also need to delete it (deleted by user)
 		if podAutoscalerInternal.Deleted() || (!podAutoscalerInternal.IsProfileManaged() && podAutoscalerInternal.Spec().Owner != datadoghqcommon.DatadogPodAutoscalerRemoteOwner) {
 			log.Infof("Object %s not present in Kubernetes and flagged for deletion (remote) or owner == local, clearing internal store", key)
+			// Local-owned DPAs reach this branch when the user deletes the K8s
+			// object directly (the remote-owned and profile-managed paths above
+			// already released ownership before calling deletePodAutoscaler).
+			// Release here too so that a deleted local-owned DPA doesn't leak
+			// a stale `datadog-cluster-agent` scale managedFields entry.
+			c.releaseTargetReplicasOwnership(ctx, podAutoscalerInternal)
 			c.store.UnlockDelete(key, c.ID)
 			return autoscaling.NoRequeue, nil
 		}

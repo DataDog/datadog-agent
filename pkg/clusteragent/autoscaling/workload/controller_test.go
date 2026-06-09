@@ -156,6 +156,12 @@ func TestLeaderCreateDeleteLocal(t *testing.T) {
 
 	f.RunControllerSync(true, "default/dpa-0")
 	assert.Len(t, f.store.GetAll(), 0)
+	// Even for local-owned DPAs (deleted directly via kubectl), the
+	// controller must release `.spec.replicas` ownership on the target
+	// workload before clearing the internal store, so SSA writers do not
+	// conflict with a stale `datadog-cluster-agent` field manager.
+	f.scaler.AssertCalled(t, "releaseReplicasOwnership", mock.Anything, "default", "app-0",
+		schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: "Deployment"})
 
 	// Re-create object
 	f.InformerObjects = append(f.InformerObjects, dpa)
