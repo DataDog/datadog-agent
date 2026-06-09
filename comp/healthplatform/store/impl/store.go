@@ -52,13 +52,15 @@ type Provides struct {
 }
 
 // healthPlatformImpl implements the health platform component.
+// It aggregates health issues reported by various agent components and integrations.
+// The component provides methods to report issues, retrieve them, and manage the health monitoring lifecycle.
 type healthPlatformImpl struct {
 	// Core dependencies
-	config           config.Component
-	log              log.Component
-	telemetry        telemetry.Component
-	hostnameProvider hostnameinterface.Component
-	agentFlavor      string
+	config           config.Component            // Config component for accessing configuration
+	log              log.Component               // Logger for health platform operations
+	telemetry        telemetry.Component         // Telemetry component for metrics collection
+	hostnameProvider hostnameinterface.Component // Hostname provider for runtime resolution
+	agentFlavor      string                      // Agent flavor captured at construction time
 
 	// Issue tracking: lean proto (no Extra/Remediation in hot path)
 	issues       map[string]*healthplatform.Issue // IssueID → active Issue
@@ -176,7 +178,8 @@ type PersistedState struct {
 	Issues    map[string]*PersistedIssue `json:"issues"`
 }
 
-// pruneOldResolvedIssues removes resolved issues older than resolvedIssueTTL from the map.
+// pruneOldResolvedIssues removes resolved issues older than resolvedIssueTTL from the given map.
+// It modifies the map in place.
 func pruneOldResolvedIssues(issues map[string]*PersistedIssue) {
 	now := time.Now()
 	for id, p := range issues {
@@ -218,6 +221,7 @@ func removeID(ids []string, id string) []string {
 // ============================================================================
 
 // NewComponent creates a new health-platform component.
+// It initializes the component with its dependencies and configures telemetry metrics.
 func NewComponent(reqs Requires) (Provides, error) {
 	if !reqs.Config.GetBool("health_platform.enabled") {
 		reqs.Log.Info("Health platform component is disabled")
@@ -236,7 +240,9 @@ func NewComponent(reqs Requires) (Provides, error) {
 	reqs.Log.Info("Creating health platform component")
 
 	// Select persistence strategy: noop on Kubernetes (emptyDir makes disk persistence meaningless),
-	// disk-based elsewhere so issue state survives agent restarts.
+	// disk-based elsewhere so issues survive agent restarts.
+	// Operators who mount run_path as a durable volume (hostPath, PVC) can opt in to disk
+	// persistence on Kubernetes by setting health_platform.persist_on_kubernetes: true.
 	var persistence issuesPersistence
 	persistOnKubernetes := reqs.Config.GetBool("health_platform.persist_on_kubernetes")
 	if configenv.IsKubernetes() && !persistOnKubernetes {
@@ -248,6 +254,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 		persistence = newDiskPersistence(persistencePath, reqs.Log)
 	}
 
+	// Initialize the health platform implementation
 	comp := &healthPlatformImpl{
 		config:           reqs.Config,
 		log:              reqs.Log,
@@ -265,11 +272,13 @@ func NewComponent(reqs Requires) (Provides, error) {
 		persistence:     persistence,
 	}
 
+	// Register lifecycle hooks for component start/stop
 	reqs.Lifecycle.Append(compdef.Hook{
 		OnStart: comp.start,
 		OnStop:  comp.stop,
 	})
 
+	// Initialize telemetry metrics
 	comp.metrics = telemetryMetrics{
 		issuesCounter: reqs.Telemetry.NewCounter(
 			"health_platform",
@@ -279,6 +288,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 		),
 	}
 
+	// Return the component wrapped in Provides with API endpoints.
 	return Provides{
 		Comp: comp,
 		APIGetIssues: api.NewAgentEndpointProvider(
@@ -294,14 +304,18 @@ func NewComponent(reqs Requires) (Provides, error) {
 // Lifecycle Methods
 // ============================================================================
 
+// start starts the health platform component
 func (h *healthPlatformImpl) start(_ context.Context) error {
 	h.log.Info("Starting health platform component")
+
+	// Load persisted issues from disk
 	if err := h.loadFromDisk(); err != nil {
 		h.log.Warn("Failed to load persisted issues: " + err.Error())
 	}
 	return nil
 }
 
+// stop stops the health platform component
 func (h *healthPlatformImpl) stop(_ context.Context) error {
 	h.log.Info("Stopping health platform component")
 	return nil
@@ -311,7 +325,10 @@ func (h *healthPlatformImpl) stop(_ context.Context) error {
 // Core Public API
 // ============================================================================
 
-// ReportIssue records a new or ongoing issue keyed by issue.Id.
+// ReportIssue records a new or ongoing issue keyed by issue.Id. The caller is
+// responsible for building the complete proto Issue (template lookup, field
+// population). issue.IssueName is used as the issue-type key for telemetry and
+// persistence.
 func (h *healthPlatformImpl) ReportIssue(issue *healthplatform.Issue) error {
 	if issue == nil {
 		return errors.New("issue cannot be nil")
@@ -341,6 +358,7 @@ func (h *healthPlatformImpl) GetAllIssues() (int, map[string]*healthplatform.Iss
 	h.issuesMux.RLock()
 	defer h.issuesMux.RUnlock()
 
+	// Create a copy to avoid external modifications and count issues
 	count := 0
 	result := make(map[string]*healthplatform.Issue)
 	for checkID, issue := range h.issues {
@@ -449,7 +467,9 @@ func (h *healthPlatformImpl) ResolveAllIssues() {
 	}
 }
 
-// GetActiveIssueIDsByIssueName returns the IDs of all currently active issues with the given IssueName.
+// GetActiveIssueIDsByIssueName returns the IDs of all currently active issues
+// with the given IssueName. Used by bundle.go to compute the initial set of
+// issue IDs for the scheduler after an agent restart.
 func (h *healthPlatformImpl) GetActiveIssueIDsByIssueName(issueName string) []string {
 	h.issuesMux.RLock()
 	defer h.issuesMux.RUnlock()
@@ -463,6 +483,8 @@ func (h *healthPlatformImpl) GetActiveIssueIDsByIssueName(issueName string) []st
 // Internal Helper Methods
 // ============================================================================
 
+// handleIssueStateChange detects state changes and logs appropriately.
+// source is the reporting integration/component name, used for log context.
 func (h *healthPlatformImpl) handleIssueStateChange(source string, oldIssue, newIssue *healthplatform.Issue) {
 	if oldIssue == nil && newIssue == nil {
 		return
@@ -482,7 +504,8 @@ func (h *healthPlatformImpl) handleIssueStateChange(source string, oldIssue, new
 	}
 }
 
-// storeIssue stores an issue keyed by issue.Id.
+// storeIssue stores an issue keyed by issue.Id (the unique instance key set by ReportIssue).
+// issueType is the template identifier, used for telemetry tagging and persistence.
 func (h *healthPlatformImpl) storeIssue(issueType string, issue *healthplatform.Issue) {
 	h.issuesMux.Lock()
 
@@ -613,6 +636,7 @@ func (h *healthPlatformImpl) loadFromDisk() error {
 // repopulated by health checks on the next agent start.
 func (h *healthPlatformImpl) saveToDisk() error {
 	h.issuesMux.RLock()
+	// Make a deep copy to avoid race conditions during marshaling
 	issuesCopy := make(map[string]*PersistedIssue, len(h.persistedIssues))
 	for k, v := range h.persistedIssues {
 		if v != nil {
@@ -636,6 +660,7 @@ func (h *healthPlatformImpl) saveToDisk() error {
 // HTTP API Handlers
 // ============================================================================
 
+// getIssuesHandler handles GET /health-platform/issues
 func (h *healthPlatformImpl) getIssuesHandler(w http.ResponseWriter, _ *http.Request) {
 	count, issues := h.GetAllIssues()
 
@@ -650,6 +675,7 @@ func (h *healthPlatformImpl) getIssuesHandler(w http.ResponseWriter, _ *http.Req
 	h.writeJSONResponse(w, http.StatusOK, response)
 }
 
+// writeJSONResponse writes a JSON response with the given status code
 func (h *healthPlatformImpl) writeJSONResponse(w http.ResponseWriter, statusCode int, data interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
@@ -662,8 +688,11 @@ func (h *healthPlatformImpl) writeJSONResponse(w http.ResponseWriter, statusCode
 // Flare Provider
 // ============================================================================
 
+// fillFlare adds health platform issues to the flare archive
 func (h *healthPlatformImpl) fillFlare(_ context.Context, fb flaretypes.FlareBuilder) error {
 	count, issues := h.GetAllIssues()
+
+	// Only create the file if there are issues
 	if count == 0 {
 		return nil
 	}
