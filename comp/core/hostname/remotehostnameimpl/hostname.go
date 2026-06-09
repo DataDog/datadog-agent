@@ -83,7 +83,7 @@ type dependencies struct {
 	Opts options
 }
 
-func newRemoteHostImpl(deps dependencies) hostname.Component {
+func newRemoteHostImpl(deps dependencies) hostnameinterface.Component {
 	r := &remotehostimpl{
 		cache:       cache.New(defaultExpire, defaultPurge),
 		ipc:         deps.IPC,
@@ -115,12 +115,12 @@ func (r *remotehostimpl) GetSafe(ctx context.Context) string {
 	return h
 }
 
-func (r *remotehostimpl) GetWithProvider(ctx context.Context) (hostname.Data, error) {
+func (r *remotehostimpl) GetWithProvider(ctx context.Context) (hostnameinterface.Data, error) {
 	h, err := r.Get(ctx)
 	if err != nil {
-		return hostname.Data{}, err
+		return hostnameinterface.Data{}, err
 	}
-	return hostname.Data{
+	return hostnameinterface.Data{
 		Hostname: h,
 		Provider: "remote",
 	}, nil
