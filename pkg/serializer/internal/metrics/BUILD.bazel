@@ -46,11 +46,13 @@ go_test(
     srcs = [
         "events_test.go",
         "iterable_series_test.go",
+        "iterable_series_v3_otlp_test.go",
         "iterable_series_v3_test.go",
         "pipeline_test.go",
         "series_benchmark_test.go",
         "service_checks_test.go",
         "sketch_benchmark_test.go",
+        "sketch_series_otlp_test.go",
         "sketch_series_test.go",
     ],
     embed = [":metrics"],
