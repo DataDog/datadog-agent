@@ -11,6 +11,25 @@ def _winlibs_mingw_repository_impl(ctx):
         sha256 = ctx.attr.sha256,
         stripPrefix = ctx.attr.strip_prefix,
     )
+    ctx.file(
+        "x86_64-w64-mingw32/lib/dbgeng.def",
+        ctx.read(ctx.attr._dbgeng_def),
+        executable = False,
+    )
+    if "windows" in ctx.os.name.lower():
+        result = ctx.execute([
+            str(ctx.path("bin/dlltool.exe")),
+            "--machine",
+            "i386:x86-64",
+            "--dllname",
+            "dbgeng.dll",
+            "--input-def",
+            str(ctx.path("x86_64-w64-mingw32/lib/dbgeng.def")),
+            "--output-lib",
+            str(ctx.path("x86_64-w64-mingw32/lib/libdbgeng.a")),
+        ])
+        if result.return_code != 0:
+            fail("failed to generate libdbgeng.a:\nstdout:\n{}\nstderr:\n{}".format(result.stdout, result.stderr))
     ctx.template(
         "BUILD.bazel",
         ctx.attr._build_file_template,
@@ -42,6 +61,10 @@ winlibs_mingw_repository = repository_rule(
         ),
         "_build_file_template": attr.label(
             default = "//bazel/toolchains/mingw:winlibs.BUILD.bazel",
+            allow_single_file = True,
+        ),
+        "_dbgeng_def": attr.label(
+            default = "//bazel/toolchains/mingw:dbgeng.def",
             allow_single_file = True,
         ),
     },
