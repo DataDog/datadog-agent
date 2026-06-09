@@ -10,7 +10,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
@@ -18,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/privateactionrunner/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/enrollment"
@@ -45,18 +45,19 @@ Restart the Private Action Runner process to apply the new identity.`,
 	return []*cobra.Command{cmd}
 }
 
-func run(_ log.Component, cfg config.Component) error {
+func run(_ log.Component, cfg config.Component, hostnameComp hostname.Component) error {
 	ctx := context.Background()
 
 	if !cfg.GetBool(pkgconfigsetup.PAREnabled) {
 		return errors.New("private_action_runner.enabled is false — set it to true before rotating the identity")
 	}
 
-	hostname, err := os.Hostname()
+	// Use the same hostname resolution as the running agent (honors DD_HOSTNAME / configured
+	// overrides) so ShouldReenroll does not discard the rotated identity on next startup.
+	agentIdentifier, err := enrollment.GetAgentIdentifier(ctx, hostnameComp)
 	if err != nil {
-		return fmt.Errorf("failed to get hostname: %w", err)
+		return fmt.Errorf("failed to get agent identifier: %w", err)
 	}
-	agentIdentifier := &enrollment.AgentIdentifier{Hostname: hostname}
 
 	result, err := enrollment.Enroll(ctx, cfg, agentIdentifier)
 	if err != nil {

@@ -84,11 +84,12 @@ type PrivateActionRunner struct {
 
 	telemetry *telemetry.Telemetry
 
-	started     bool
-	startOnce   sync.Once
-	startChan   chan struct{}
-	cancelStart context.CancelFunc
-	restartCh   chan struct{} // receives a signal when the PAR identity has been rotated
+	started         bool
+	startOnce       sync.Once
+	startChan       chan struct{}
+	cancelStart     context.CancelFunc
+	cancelLifecycle context.CancelFunc  // canceled by Stop; governs watcher and restart loop
+	restartCh       chan struct{}        // receives a signal when the PAR identity has been rotated
 }
 
 // NewComponent creates a new privateactionrunner component
@@ -196,12 +197,19 @@ func (p *PrivateActionRunner) StartAsync(ctx context.Context) <-chan error {
 }
 
 func (p *PrivateActionRunner) start(ctx context.Context) error {
-	// Keep the parent context's deadline for the startup phase (config, enrollment, etc.)
-	// but allow Stop() to cancel as well.
-	ctx, p.cancelStart = context.WithCancel(ctx)
+	// startupCtx: inherits the Fx app.StartTimeout deadline; allows Stop() to abort enrollment.
+	startupCtx, cancelStart := context.WithCancel(ctx)
+	p.cancelStart = cancelStart
+
+	// lifecycleCtx: independent of the startup deadline; canceled only when Stop() is called.
+	// The identity watcher and restart loop must outlive app.StartTimeout.
+	lifecycleCtx, cancelLifecycle := context.WithCancel(context.Background())
+	p.cancelLifecycle = cancelLifecycle
+
 	defer p.logger.Flush()
-	cfg, err := p.getRunnerConfig(ctx)
+	cfg, err := p.getRunnerConfig(startupCtx)
 	if err != nil {
+		cancelLifecycle()
 		p.logger.Errorf("Private action runner failed to start: %v", err)
 		return err
 	}
@@ -213,14 +221,15 @@ func (p *PrivateActionRunner) start(ctx context.Context) error {
 		observability.ParService,
 	)
 
-	if err := p.startRunners(ctx, cfg); err != nil {
+	if err := p.startRunners(lifecycleCtx, cfg); err != nil {
+		cancelLifecycle()
 		return err
 	}
 
 	// Watch for identity rotation and hot-reload runners when the secret changes.
 	// No-op in non-kubeapiserver builds.
-	p.startIdentityWatcher(ctx)
-	go p.restartLoop(ctx)
+	p.startIdentityWatcher(lifecycleCtx)
+	go p.restartLoop(lifecycleCtx)
 
 	return nil
 }
@@ -319,6 +328,12 @@ func (p *PrivateActionRunner) Stop(ctx context.Context) error {
 	if err != nil {
 		p.logger.Warn("PAR startup did not complete in time, forcing cleanup")
 		// Don't return - continue to cleanup what we can
+	}
+
+	// Stop the identity watcher and restart loop (lifecycle context is independent of
+	// the Fx startup deadline so it must be canceled explicitly here).
+	if p.cancelLifecycle != nil {
+		p.cancelLifecycle()
 	}
 
 	p.runnersMu.Lock()

@@ -12,7 +12,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
@@ -20,11 +19,11 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/enrollment"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 )
 
 // Commands returns a slice of subcommands for the 'cluster-agent' command.
@@ -38,7 +37,7 @@ replicas will detect the change and reload their PAR connection automatically.`,
 		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(run,
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewClusterAgentParams(globalParams.ConfFilePath),
+					ConfigParams: config.NewClusterAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(globalParams.ExtraConfFilePath)),
 					LogParams:    log.ForOneShot(command.LoggerName, command.DefaultLogLevel, true),
 				}),
 				core.Bundle(core.WithSecrets()),
@@ -48,22 +47,19 @@ replicas will detect the change and reload their PAR connection automatically.`,
 	return []*cobra.Command{cmd}
 }
 
-func run(_ log.Component, cfg config.Component) error {
+func run(_ log.Component, cfg config.Component, hostnameComp hostname.Component) error {
 	ctx := context.Background()
 
 	if !cfg.GetBool(pkgconfigsetup.PAREnabled) {
 		return errors.New("private_action_runner.enabled is false — set it to true before rotating the identity")
 	}
 
-	hostname, err := os.Hostname()
+	// Use the same hostname resolution as the running agent (honors DD_HOSTNAME / configured
+	// overrides) so ShouldReenroll does not discard the rotated identity on next startup.
+	agentIdentifier, err := enrollment.GetAgentIdentifier(ctx, hostnameComp)
 	if err != nil {
-		return fmt.Errorf("failed to get hostname: %w", err)
+		return fmt.Errorf("failed to get agent identifier: %w", err)
 	}
-	orchClusterID, err := clustername.GetClusterID()
-	if err != nil || orchClusterID == "" {
-		return fmt.Errorf("failed to get cluster ID: %w", err)
-	}
-	agentIdentifier := &enrollment.AgentIdentifier{Hostname: hostname, OrchClusterID: orchClusterID}
 
 	result, err := enrollment.Enroll(ctx, cfg, agentIdentifier)
 	if err != nil {
