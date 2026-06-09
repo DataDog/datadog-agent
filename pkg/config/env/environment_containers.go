@@ -53,6 +53,7 @@ func init() {
 	registerFeature(PodResources)
 	registerFeature(KubernetesDevicePlugins)
 	registerFeature(NVML)
+	registerFeature(Process)
 	registerFeature(NonstandardCRIRuntime)
 }
 
@@ -82,6 +83,13 @@ func detectContainerFeatures(features FeatureMap, cfg model.ReaderWriter) {
 	detectPodResources(features, cfg)
 	detectDevicePlugins(features, cfg)
 	detectNVML(features, cfg)
+	detectProcess(features)
+}
+
+func detectProcess(features FeatureMap) {
+	if runtime.GOOS == "linux" {
+		features[Process] = struct{}{}
+	}
 }
 
 func detectKubernetes(features FeatureMap, cfg model.Reader) {
