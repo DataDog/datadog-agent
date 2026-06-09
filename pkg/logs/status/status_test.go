@@ -239,3 +239,31 @@ func TestGetBackpressureStatus_WarningPicksHighestSat1m(t *testing.T) {
 	assert.Equal(t, "WARNING", bp.State)
 	assert.Contains(t, bp.Reason, "sender", "component with highest Saturated1mSeconds must appear in reason")
 }
+
+// TestGetBackpressureStatus_SuggestionByComponent checks the corrective suggestion names the
+// logs_config setting relevant to the saturated stage.
+func TestGetBackpressureStatus_SuggestionByComponent(t *testing.T) {
+	b := &Builder{}
+	wantSetting := map[string]string{
+		"processor":        "logs_config.processing_rules",
+		"strategy":         "logs_config.compression_level",
+		"worker":           "logs_config.batch_max_concurrent_send",
+		"destination_http": "logs_config.batch_max_concurrent_send",
+	}
+	for name, want := range wantSetting {
+		utils := []ComponentUtilization{
+			{Name: name, Instance: "0", AvgRatio: 0.95, CurrentlySaturated: true, Saturated30mSeconds: 30},
+		}
+		bp := b.getBackpressureStatus(utils)
+		assert.Equal(t, "SATURATED", bp.State)
+		assert.Contains(t, bp.Suggestion, want, "suggestion must name the setting relevant to the %s stage", name)
+	}
+}
+
+// TestGetBackpressureStatus_HealthyNoSuggestion checks HEALTHY carries no suggestion.
+func TestGetBackpressureStatus_HealthyNoSuggestion(t *testing.T) {
+	b := &Builder{}
+	bp := b.getBackpressureStatus([]ComponentUtilization{{Name: "processor", Instance: "0", AvgRatio: 0.2}})
+	assert.Equal(t, "HEALTHY", bp.State)
+	assert.Empty(t, bp.Suggestion)
+}

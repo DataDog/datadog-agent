@@ -144,6 +144,21 @@ func (b *Builder) getComponentUtilization() []ComponentUtilization {
 	return result
 }
 
+// backpressureSuggestion returns a brief corrective hint naming the logs_config settings
+// most relevant to the saturated stage.
+func backpressureSuggestion(component string) string {
+	switch {
+	case component == logsMetrics.ProcessorTlmName:
+		return "Processing is the bottleneck: drop noisy logs with logs_config.processing_rules (exclude_at_match), or raise logs_config.pipelines to parallelize processing."
+	case component == logsMetrics.StrategyTlmName:
+		return "Batching/compression is the bottleneck: lower logs_config.compression_level, or raise logs_config.pipelines."
+	case component == logsMetrics.WorkerTlmName || strings.HasPrefix(component, "destination"):
+		return "Sending is the bottleneck: raise logs_config.batch_max_concurrent_send, and verify endpoint reachability (logs_config.logs_dd_url)."
+	default:
+		return "Pipeline is saturated: raise logs_config.pipelines to add throughput."
+	}
+}
+
 // getBackpressureStatus returns SATURATED (saturated in last 1m), WARNING (last 30m only), or HEALTHY.
 func (b *Builder) getBackpressureStatus(utils []ComponentUtilization) BackpressureStatus {
 	// SATURATED signal: among currently-saturated components, surface the one with the highest EWMA.
@@ -183,23 +198,26 @@ func (b *Builder) getBackpressureStatus(utils []ComponentUtilization) Backpressu
 	if hasCurrSat {
 		dur30m := time.Duration(currSat30m) * time.Second
 		return BackpressureStatus{
-			State:  "SATURATED",
-			Reason: fmt.Sprintf("%s pipeline %s is currently saturated (saturated for %s in the last 30m)", currSatName, currSatInst, fmtDuration(dur30m)),
+			State:      "SATURATED",
+			Reason:     fmt.Sprintf("%s pipeline %s is currently saturated (saturated for %s in the last 30m)", currSatName, currSatInst, fmtDuration(dur30m)),
+			Suggestion: backpressureSuggestion(currSatName),
 		}
 	}
 	// WARNING: saturation occurred in the last 1m or 30m but no component is currently at threshold.
 	if maxSat1m > 0 {
 		dur30m := time.Duration(sat30mForMaxSat1m) * time.Second
 		return BackpressureStatus{
-			State:  "WARNING",
-			Reason: fmt.Sprintf("%s pipeline %s is not currently saturated but was saturated for %s in the last 30m", satName1m, satInst1m, fmtDuration(dur30m)),
+			State:      "WARNING",
+			Reason:     fmt.Sprintf("%s pipeline %s is not currently saturated but was saturated for %s in the last 30m", satName1m, satInst1m, fmtDuration(dur30m)),
+			Suggestion: backpressureSuggestion(satName1m),
 		}
 	}
 	if maxSat30m > 0 {
 		dur30m := time.Duration(maxSat30m) * time.Second
 		return BackpressureStatus{
-			State:  "WARNING",
-			Reason: fmt.Sprintf("%s pipeline %s is not currently saturated but was saturated for %s in the last 30m", satName30m, satInst30m, fmtDuration(dur30m)),
+			State:      "WARNING",
+			Reason:     fmt.Sprintf("%s pipeline %s is not currently saturated but was saturated for %s in the last 30m", satName30m, satInst30m, fmtDuration(dur30m)),
+			Suggestion: backpressureSuggestion(satName30m),
 		}
 	}
 	return BackpressureStatus{State: "HEALTHY"}
@@ -217,6 +235,9 @@ func (b *Builder) formatBackpressureSection(utils []ComponentUtilization, bp Bac
 	sb.WriteString(fmt.Sprintf("  Overall state: %s\n", bp.State))
 	if bp.Reason != "" {
 		sb.WriteString(fmt.Sprintf("  Reason: %s\n", bp.Reason))
+	}
+	if bp.Suggestion != "" {
+		sb.WriteString(fmt.Sprintf("  Suggestion: %s\n", bp.Suggestion))
 	}
 	sb.WriteString("\n")
 
