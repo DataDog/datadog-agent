@@ -305,7 +305,7 @@ export function AnomalyScoreTimeline({
         </div>
       ) : (
         <div className="overflow-x-auto">
-          <svg width={CHART_W} height={CHART_H + 20} className="block">
+          <svg width={CHART_W} height={CHART_H + 26} className="block">
             {/* Severity background */}
             {stateSegments.map((seg, i) => (
               <rect key={i} x={seg.x1} y={0} width={seg.x2 - seg.x1} height={CHART_H}
@@ -362,15 +362,18 @@ export function AnomalyScoreTimeline({
               <polyline points={ewmaPoints} fill="none" stroke="#67e8f9" strokeWidth={1.5} opacity={0.9} />
             )}
 
-            {/* Severity event triangles */}
+            {/* Severity event markers — all share baseline y=CHART_H+10 */}
             {events.map((ev, i) => {
               const x = tsToX(ev.timestamp);
               const isUp = ev.to_level > ev.from_level;
               const color = SEVERITY_COLORS[ev.to_level] ?? '#94a3b8';
-              const y = isUp ? CHART_H + 2 : CHART_H + 12;
+              // Shared baseline: base of every triangle sits at CHART_H+10.
+              // Up (escalation)  → tip above baseline at CHART_H+3.
+              // Down (de-escal.) → tip below baseline at CHART_H+17.
+              const BASE_Y = CHART_H + 10;
               const pts = isUp
-                ? `${x},${y - 8} ${x - 5},${y} ${x + 5},${y}`
-                : `${x},${y + 8} ${x - 5},${y} ${x + 5},${y}`;
+                ? `${x},${CHART_H + 3} ${x - 5},${BASE_Y} ${x + 5},${BASE_Y}`
+                : `${x},${CHART_H + 17} ${x - 5},${BASE_Y} ${x + 5},${BASE_Y}`;
               return <polygon key={i} points={pts} fill={color} opacity={0.9} />;
             })}
 
@@ -385,8 +388,8 @@ export function AnomalyScoreTimeline({
             {/* Time axis labels */}
             {buckets.length > 0 && (
               <>
-                <text x={2} y={CHART_H + 15} fontSize={9} fill="#64748b">{formatTs(bucketStart)}</text>
-                <text x={CHART_W - 2} y={CHART_H + 15} fontSize={9} fill="#64748b" textAnchor="end">
+                <text x={2} y={CHART_H + 24} fontSize={9} fill="#64748b">{formatTs(bucketStart)}</text>
+                <text x={CHART_W - 2} y={CHART_H + 24} fontSize={9} fill="#64748b" textAnchor="end">
                   {formatTs(bucketEnd)}
                 </text>
               </>
