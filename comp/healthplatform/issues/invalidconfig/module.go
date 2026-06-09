@@ -21,12 +21,13 @@ func init() {
 }
 
 type invalidConfigModule struct {
+	cfg     config.Component
 	checker *checker
 }
 
 // NewModule captures the config so the once-only startup check can read it.
 func NewModule(cfg config.Component) issues.Module {
-	return &invalidConfigModule{checker: newChecker(cfg)}
+	return &invalidConfigModule{cfg: cfg, checker: newChecker(cfg)}
 }
 
 func (m *invalidConfigModule) IssueName() string {
@@ -42,9 +43,18 @@ func (m *invalidConfigModule) BuiltInPeriodicHealthCheck() *runnerdef.BuiltInPer
 	return nil
 }
 
-// BuiltInStartupHealthCheck is temporarily disabled to confirm it is the source
-// of the ~8 MiB idle memory regression (it loads and permanently retains the
-// compiled core_schema.yaml via schema.ValidateCoreConfig).
+// BuiltInStartupHealthCheck registers the schema-validation check only when
+// health_platform.invalidconfig_check.enabled is true.
+// The check is gated because schema.ValidateCoreConfig decompresses, parses, and
+// compiles the full core_schema.yaml (~8000 lines) into a *jsonschema.Schema stored
+// in a process-lifetime global — adding ~8 MiB of permanent heap even when the
+// agent config is valid.
 func (m *invalidConfigModule) BuiltInStartupHealthCheck() *runnerdef.BuiltInHealthCheck {
-	return nil
+	if !m.cfg.GetBool("health_platform.invalidconfig_check.enabled") {
+		return nil
+	}
+	return &runnerdef.BuiltInHealthCheck{
+		Source: "agent",
+		Fn:     m.checker.Run,
+	}
 }
