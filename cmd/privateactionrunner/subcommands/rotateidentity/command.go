@@ -8,6 +8,7 @@ package rotateidentity
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 
@@ -48,7 +49,7 @@ func run(_ log.Component, cfg config.Component) error {
 	ctx := context.Background()
 
 	if !cfg.GetBool(pkgconfigsetup.PAREnabled) {
-		return fmt.Errorf("private_action_runner.enabled is false — set it to true before rotating the identity")
+		return errors.New("private_action_runner.enabled is false — set it to true before rotating the identity")
 	}
 
 	hostname, err := os.Hostname()

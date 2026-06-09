@@ -13,14 +13,13 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/tools/cache"
 
-	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 )
 
 // startIdentityWatcher watches the PAR identity Kubernetes secret and sends to p.restartCh
 // whenever the stored URN changes, triggering a hot-reload of the PAR runners.
 func (p *PrivateActionRunner) startIdentityWatcher(ctx context.Context) {
-	if !p.coreConfig.GetBool(setup.PARIdentityUseK8sSecret) {
+	if !p.coreConfig.GetBool("private_action_runner.identity_use_k8s_secret") {
 		return
 	}
 
