@@ -130,6 +130,11 @@ type anomalyScorer struct {
 	config observer.ScorerConfig
 
 	// pending holds anomalies received since the last Advance, grouped by second.
+	// Past-timestamped anomalies are clamped to lastAdvancedSec+1 in ProcessAnomaly,
+	// so the past side is always drained on the next Advance. Future-timestamped
+	// anomalies (sec > upcoming dataTime) accumulate until Advance reaches that
+	// second; no current detector produces future timestamps, but there is no hard
+	// cap if one ever does.
 	pending map[int64][]observer.Anomaly
 
 	// windowMap tracks the highest anomaly level seen per series within the
@@ -142,7 +147,10 @@ type anomalyScorer struct {
 
 	lastAdvancedSec int64
 
-	// Accumulated telemetry
+	// buckets accumulates ScoreBucket entries for test-bench and replay
+	// inspection via ScoreState(). It is NOT used by the live observer path,
+	// which only calls LastScore(). Left unbounded for now — see reviewer note
+	// about capping to WindowSecs to avoid unbounded growth in long-running agents.
 	buckets []observer.ScoreBucket
 }
 
@@ -165,10 +173,20 @@ func (s *anomalyScorer) LastScore() float64 {
 }
 
 // ProcessAnomaly buffers the anomaly into the pending map keyed by its second.
+// If the anomaly's timestamp is in the past (already advanced past), it is
+// clamped to lastAdvancedSec so it participates in the next Advance call
+// rather than leaking into a pending bucket that will never be processed.
+// This handles scan detectors (scanmw/scanwelch) that emit changepoints with
+// historical timestamps after the scorer has already moved forward.
 func (s *anomalyScorer) ProcessAnomaly(a observer.Anomaly) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	sec := a.Timestamp
+	if s.lastAdvancedSec > 0 && sec <= s.lastAdvancedSec {
+		// The bucket for sec has already been finalized. Clamp to the next
+		// unprocessed second so the anomaly is picked up by the next Advance.
+		sec = s.lastAdvancedSec + 1
+	}
 	s.pending[sec] = append(s.pending[sec], a)
 }
 

@@ -272,6 +272,117 @@ func TestReset(t *testing.T) {
 	}
 }
 
+// TestLateAnomalyClamp verifies that an anomaly with a historical timestamp
+// (already advanced past) is clamped to lastAdvancedSec so it participates in
+// the next Advance call rather than leaking into a pending bucket that is
+// never processed.
+//
+// This reproduces the scanmw/scanwelch pattern: a scan detector emits a
+// changepoint with a historical timestamp after the scorer has moved forward.
+func TestLateAnomalyClamp(t *testing.T) {
+	cfg := DefaultScorerConfig()
+	cfg.WindowSecs = 15
+	s := NewScorer(cfg)
+
+	src := observer.SeriesDescriptor{Namespace: "ns", Name: "m", Tags: []string{"host:h"}}
+
+	// Advance to t=1010 with no anomalies.
+	s.Advance(1010)
+
+	// Now receive a scanmw anomaly with a historical timestamp (t=1000),
+	// which is already behind lastAdvancedSec=1010.
+	s.ProcessAnomaly(observer.Anomaly{
+		DetectorName: "scanmw",
+		Timestamp:    1000,
+		Score:        scorePtr(20),
+		Source:       src,
+	})
+
+	// Advance to t=1011 — the anomaly is clamped to lastAdvancedSec+1=1011
+	// and must appear in that bucket.
+	s.Advance(1011)
+
+	st := s.ScoreState()
+	var b1011 *observer.ScoreBucket
+	for i := range st.Buckets {
+		if st.Buckets[i].Second == 1011 {
+			b1011 = &st.Buckets[i]
+			break
+		}
+	}
+	if b1011 == nil {
+		t.Fatal("no bucket for t=1011")
+	}
+	if b1011.Count != 1 {
+		t.Errorf("clamped anomaly not in t=1011 bucket: count=%d, bins=%v", b1011.Count, b1011.Bins)
+	}
+}
+
+// TestLateAnomalyNoLeakInPending verifies that after clamping, the original
+// historical second (t=1000) has no pending entry — i.e. nothing leaks.
+func TestLateAnomalyNoLeakInPending(t *testing.T) {
+	cfg := DefaultScorerConfig()
+	cfg.WindowSecs = 15
+	s := NewScorer(cfg)
+
+	src := observer.SeriesDescriptor{Namespace: "ns", Name: "m", Tags: []string{"host:h"}}
+
+	s.Advance(1010)
+
+	// Late anomaly with historical timestamp.
+	s.ProcessAnomaly(observer.Anomaly{
+		DetectorName: "scanmw",
+		Timestamp:    1000,
+		Score:        scorePtr(20),
+		Source:       src,
+	})
+
+	// Cast to concrete type to inspect internal state directly.
+	sc := s.(*anomalyScorer)
+	sc.mu.Lock()
+	_, hasOldSec := sc.pending[1000]
+	_, hasNextSec := sc.pending[1011] // clamped to lastAdvancedSec+1
+	sc.mu.Unlock()
+
+	if hasOldSec {
+		t.Error("BUG: pending still has entry for historical second 1000 (memory leak)")
+	}
+	if !hasNextSec {
+		t.Error("clamped anomaly not found in pending[1011]")
+	}
+}
+
+// TestLateAnomalyBeforeFirstAdvance verifies that anomalies received before
+// the first Advance are NOT clamped — their original timestamp is preserved.
+func TestLateAnomalyBeforeFirstAdvance(t *testing.T) {
+	cfg := DefaultScorerConfig()
+	s := NewScorer(cfg)
+
+	src := observer.SeriesDescriptor{Namespace: "ns", Name: "m", Tags: []string{"host:h"}}
+
+	// No advance yet; lastAdvancedSec == 0.
+	s.ProcessAnomaly(observer.Anomaly{
+		DetectorName: "scanmw",
+		Timestamp:    1000,
+		Score:        scorePtr(20),
+		Source:       src,
+	})
+
+	s.Advance(1005)
+
+	st := s.ScoreState()
+	// The anomaly at t=1000 must appear in a real bucket, not be dropped.
+	found := false
+	for _, b := range st.Buckets {
+		if b.Second == 1000 && b.Count == 1 {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("pre-first-advance anomaly was clamped or dropped; buckets=%v", st.Buckets)
+	}
+}
+
 // TestEmptySeconds verifies that Advance over a gap generates empty buckets.
 // WindowSecs=1 so the anomaly at t=1000 expires before t=1001, giving zero
 // window count for the gap seconds and allowing pure EWMA decay to be tested.
