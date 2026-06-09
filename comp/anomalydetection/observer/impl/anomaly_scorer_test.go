@@ -146,7 +146,12 @@ func TestWindowDedup(t *testing.T) {
 	s.ProcessAnomaly(observer.Anomaly{DetectorName: "bocpd", Timestamp: 1005, Source: src})
 	s.Advance(1005)
 
-	b := s.ScoreState().Buckets[1] // bucket for t=1005
+	// Advance(1005) appends buckets for t=1001..1005; the last one is t=1005.
+	st := s.ScoreState()
+	b := st.Buckets[len(st.Buckets)-1]
+	if b.Second != 1005 {
+		t.Fatalf("window dedup: expected last bucket at t=1005, got t=%d", b.Second)
+	}
 	if b.Count != 1 {
 		t.Errorf("window dedup: expected count=1 at t=1005, got %d", b.Count)
 	}

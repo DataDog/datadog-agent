@@ -174,7 +174,7 @@ func (s *anomalyScorer) LastScore() float64 {
 
 // ProcessAnomaly buffers the anomaly into the pending map keyed by its second.
 // If the anomaly's timestamp is in the past (already advanced past), it is
-// clamped to lastAdvancedSec so it participates in the next Advance call
+// clamped to lastAdvancedSec+1 so it participates in the next Advance call
 // rather than leaking into a pending bucket that will never be processed.
 // This handles scan detectors (scanmw/scanwelch) that emit changepoints with
 // historical timestamps after the scorer has already moved forward.
