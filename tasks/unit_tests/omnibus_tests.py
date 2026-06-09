@@ -1,6 +1,7 @@
 import functools
 import os
 import re
+import sys
 import unittest
 from pprint import pformat
 from unittest import mock
@@ -105,6 +106,8 @@ class TestOmnibusCache(unittest.TestCase):
 
     @_for_each_platform
     def test_successful_cache_hit(self):
+        if sys.platform == 'darwin':
+            return  # cache is disabled on macOS
         self.mock_ctx.set_result_for(
             'run',
             re.compile(r'git (.* )?tag -l'),
@@ -137,6 +140,8 @@ class TestOmnibusCache(unittest.TestCase):
 
     @_for_each_platform
     def test_cache_miss(self):
+        if sys.platform == 'darwin':
+            return  # cache is disabled on macOS
         self.mock_ctx.set_result_for(
             'run',
             re.compile(r'aws(\.exe)? s3 cp (\S* )?s3://omnibus-cache/\S* /\S+/omnibus-git-cache-bundle'),
@@ -176,6 +181,8 @@ class TestOmnibusCache(unittest.TestCase):
 
     @_for_each_platform
     def test_cache_hit_with_corruption(self):
+        if sys.platform == 'darwin':
+            return  # cache is disabled on macOS
         # Case where we get a bundle from S3 but git finds it to be corrupted
 
         # Fail to clone
@@ -206,6 +213,8 @@ class TestOmnibusCache(unittest.TestCase):
 
     @_for_each_platform
     def test_mutated_cache(self):
+        if sys.platform == 'darwin':
+            return  # cache is disabled on macOS
         self.mock_ctx.set_result_for(
             'run',
             re.compile(r'git (.* )?tag -l'),
