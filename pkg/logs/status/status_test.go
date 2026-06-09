@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
@@ -238,4 +239,32 @@ func TestGetBackpressureStatus_WarningPicksHighestSat1m(t *testing.T) {
 	bp := b.getBackpressureStatus(utils)
 	assert.Equal(t, "WARNING", bp.State)
 	assert.Contains(t, bp.Reason, "sender", "component with highest Saturated1mSeconds must appear in reason")
+}
+
+// fakePipelineMonitor returns canned snapshots; all other behavior is the no-op monitor's.
+type fakePipelineMonitor struct {
+	*metrics.NoopPipelineMonitor
+	snaps []metrics.ComponentSnapshot
+}
+
+func (f *fakePipelineMonitor) Snapshots() []metrics.ComponentSnapshot { return f.snaps }
+
+// TestGetComponentUtilization_OmitsSender checks the sender (capacity-only, always 0% utilization)
+// is excluded from the backpressure table while real components are kept.
+func TestGetComponentUtilization_OmitsSender(t *testing.T) {
+	b := &Builder{pipelineMonitor: &fakePipelineMonitor{
+		NoopPipelineMonitor: metrics.NewNoopPipelineMonitor(""),
+		snaps: []metrics.ComponentSnapshot{
+			{Name: metrics.SenderTlmName, Instance: "0", RawItems: 5},
+			{Name: metrics.ProcessorTlmName, Instance: "0", AvgRatio: 0.5},
+		},
+	}}
+
+	utils := b.getComponentUtilization()
+
+	for _, u := range utils {
+		assert.NotEqual(t, metrics.SenderTlmName, u.Name, "sender must be omitted from the utilization table")
+	}
+	require.Len(t, utils, 1, "only the processor must remain")
+	assert.Equal(t, metrics.ProcessorTlmName, utils[0].Name)
 }

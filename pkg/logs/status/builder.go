@@ -80,8 +80,7 @@ func (b *Builder) BuildStatus(verbose bool) Status {
 var componentSortOrder = map[string]int{
 	"processor": 0,
 	"strategy":  1,
-	"sender":    2,
-	"worker":    3,
+	"worker":    2,
 }
 
 func componentRank(name string) int {
@@ -99,6 +98,12 @@ func (b *Builder) getComponentUtilization() []ComponentUtilization {
 	snaps := b.pipelineMonitor.Snapshots()
 	result := make([]ComponentUtilization, 0, len(snaps))
 	for _, s := range snaps {
+		// "sender" is a capacity-only aggregation point (items/bytes between the strategy and the
+		// workers) with no utilization monitor, so its ratio/saturation is always 0. It carries no
+		// signal for the backpressure table, so omit it.
+		if s.Name == logsMetrics.SenderTlmName {
+			continue
+		}
 		lastSat := ""
 		if s.Windows.HasLastSaturated {
 			lastSat = s.Windows.LastSaturatedAt.Local().Format("15:04:05")
