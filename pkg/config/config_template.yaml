@@ -4603,6 +4603,14 @@ api_key:
 #
 #     stop_timeout: 5
 
+#     # @param tags - list of strings - optional - default: []
+#     # @env DD_NETWORK_DEVICES_SNMP_TRAPS_TAGS - space-separated list of strings - optional - default: []
+#     # A list of low-cardinality tags (e.g. application, team, environment) attached to every trap forwarded to Datadog and to every SNMP traps telemetry metric emitted by the Agent.
+#
+#     tags:
+#       - "application:<APPLICATION_ID>"
+#       - "team:<TEAM_NAME>"
+
 #   # @param netflow - custom object - optional
 #   # This section configures NDM NetFlow (and sFlow, IPFIX) collection.
 #

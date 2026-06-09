@@ -215,11 +215,13 @@ func (s *extensionsSuite) TestExtensionSurvivesExperimentManagedByProcmgr() {
 	s.Require().NoError(err)
 	// Pipeline OCI experiment includes dd-procmgr and processes.d DDOT config.
 	ddot.AssertDDOTManagedByProcmgr(s.T(), s.Env().RemoteHost)
+	ddot.AssertProcmgrDDOTTelemetry(s.T(), s.Env().RemoteHost)
 	s.Require().NotEqual(initialDDOTVersion, s.getDDOTAgentVersion(), "DDOT should be running on experiment version after start experiment")
 
 	err = s.Backend.PromoteExperiment("datadog-agent")
 	s.Require().NoError(err)
 	ddot.AssertDDOTManagedByProcmgr(s.T(), s.Env().RemoteHost)
+	ddot.AssertProcmgrDDOTTelemetry(s.T(), s.Env().RemoteHost)
 	s.Require().NotEqual(initialDDOTVersion, s.getDDOTAgentVersion(), "DDOT should remain on promoted version after promote experiment")
 }
 

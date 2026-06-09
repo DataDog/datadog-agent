@@ -86,7 +86,7 @@ extensions:
     gateway_destination: ""
     gateway_service: ""
     hostname: ""
-    installation_method: kubernetes
+    installation_method: "" # TODO: change to "helm" after helm chart version bump
     http:
       cors: null
       endpoint: localhost:9875

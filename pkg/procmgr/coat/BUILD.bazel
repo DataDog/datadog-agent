@@ -1,0 +1,49 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "coat",
+    srcs = [
+        "client.go",
+        "client_grpc.go",
+        "client_grpc_unix.go",
+        "client_grpc_windows.go",
+        "collector.go",
+        "collector_linux.go",
+        "collector_other.go",
+        "collector_windows.go",
+        "paths_notwindows.go",
+        "paths_windows.go",
+        "reporter.go",
+        "services.go",
+        "snapshot.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/procmgr/coat",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/telemetry/def",
+        "//pkg/proto/pbgo/procmgr",
+        "//pkg/util/defaultpaths",
+        "//pkg/util/log",
+        "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//codes",
+        "@org_golang_google_grpc//credentials/insecure",
+        "@org_golang_google_grpc//status",
+    ] + select({
+        "@rules_go//go/platform:windows": [
+            "//pkg/util/winutil",
+            "@com_github_microsoft_go_winio//:go-winio",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "coat_test",
+    srcs = ["collector_test.go"],
+    embed = [":coat"],
+    deps = [
+        "//pkg/proto/pbgo/procmgr",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

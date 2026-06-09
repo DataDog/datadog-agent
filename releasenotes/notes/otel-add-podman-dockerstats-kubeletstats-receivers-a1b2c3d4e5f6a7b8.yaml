@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    Added ``dockerstatsreceiver``, ``kubeletstatsreceiver``, and ``podmanreceiver`` to the
+    Datadog Distribution of OpenTelemetry (DDOT) Collector default component set.

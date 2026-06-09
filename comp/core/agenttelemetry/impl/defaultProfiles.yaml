@@ -262,6 +262,30 @@ profiles:
     start_after: 30
     iterations: 0
     period: 900
+- name: procmgr
+  metric:
+    exclude:
+      zero_metric: true
+    metrics:
+      - name: runtime.procmgr_daemon_reachable
+      - name: runtime.procmgr_daemon_ready
+      - name: runtime.procmgr_process_running
+        preserve_tags:
+          - process
+      - name: runtime.agent_service_installed
+        preserve_tags:
+          - service
+      - name: runtime.agent_service_procmgr_configured
+        preserve_tags:
+          - service
+      - name: runtime.agent_service_management_mode
+        preserve_tags:
+          - service
+          - mode
+  schedule:
+    start_after: 30
+    iterations: 0
+    period: 900
 - name: trace-agent
   metric:
     exclude:
