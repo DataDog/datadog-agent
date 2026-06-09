@@ -14,7 +14,7 @@ import (
 	"net/http"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
+	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	settings "github.com/DataDog/datadog-agent/comp/core/settings/def"

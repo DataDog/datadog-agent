@@ -19,10 +19,10 @@ import (
 // TestBuildChangeEventPayload_WireShape asserts the JSON envelope produced for
 // the event-management intake matches the v2 Events API ChangeEvent schema we
 // used to obtain via datadog-api-client-go, including the edge-intelligence
-// routing metadata (integration_id, source_type_id) and the anomaly resource
-// type. The contract here is the wire format, not the helper functions: if the
-// intake changes field names or the SME-agreed values shift, we want this test
-// to fail loudly.
+// routing metadata (integration_id) and the anomaly resource type. The
+// contract here is the wire format, not the helper functions: if the intake
+// changes field names or the SME-agreed values shift, we want this test to
+// fail loudly.
 func TestBuildChangeEventPayload_WireShape(t *testing.T) {
 	c := observerdef.ActiveCorrelation{
 		Pattern: "kernel_bottleneck",
@@ -64,9 +64,9 @@ func TestBuildChangeEventPayload_WireShape(t *testing.T) {
 	assert.Equal(t, "my-test-host", attrs["host"])
 
 	// edge-intelligence routing: must be present and locked to the registered
-	// values from integrations-internal-core#3240.
+	// value from integrations-internal-core#3240.
 	assert.Equal(t, "edge-intelligence", attrs["integration_id"])
-	assert.EqualValues(t, 78252213, attrs["source_type_id"])
+	assert.NotContains(t, attrs, "source_type_id", "source_type_id must not be sent; routing relies on integration_id alone")
 
 	tags, ok := attrs["tags"].([]any)
 	assert.True(t, ok, "tags must be a JSON array")

@@ -228,7 +228,8 @@ metrics:
   clock.throttle_reasons.sync_boost:
     metadata:
       metric_type: gauge
-      description: GPU clocks that are throttled to match clock speed of another GPU
+      description:
+        GPU clocks that are throttled to match clock speed of another GPU
         in the current sync boost group
       aggregation: sensor_data
     tagsets:
@@ -491,7 +492,8 @@ metrics:
     metadata:
       metric_type: gauge
       unit: percent
-      description: Percentage of the time that the 16-bit floating point calculation
+      description:
+        Percentage of the time that the 16-bit floating point calculation
         engine was active. Only for Hopper and newer GPUs
       aggregation: relative_activity
     tagsets:
@@ -514,7 +516,8 @@ metrics:
     metadata:
       metric_type: gauge
       unit: percent
-      description: Percentage of the time that the 32-bit floating point calculation
+      description:
+        Percentage of the time that the 32-bit floating point calculation
         engine was active. Only for Hopper and newer GPUs
       aggregation: relative_activity
     tagsets:
@@ -537,7 +540,8 @@ metrics:
     metadata:
       metric_type: gauge
       unit: percent
-      description: Percentage of the time that the 64-bit floating point calculation
+      description:
+        Percentage of the time that the 64-bit floating point calculation
         engine was active. Only for Hopper and newer GPUs
       aggregation: relative_activity
     tagsets:
@@ -576,7 +580,8 @@ metrics:
     metadata:
       metric_type: gauge
       unit: percent
-      description: Percentage of the time that the integer calculation engine was
+      description:
+        Percentage of the time that the integer calculation engine was
         active. Only for Hopper and newer GPUs
       aggregation: relative_activity
     tagsets:
@@ -695,6 +700,26 @@ metrics:
         mig: true
         physical: true
         vgpu: true
+  memory.utilization:
+    metadata:
+      metric_type: gauge
+      unit: fraction
+      description: Ratio of used memory compared to total memory
+    tagsets:
+      - device
+    validator:
+      range:
+        min: 0
+        max: 1
+    support:
+      unsupported_architectures:
+        - fermi
+        - kepler
+        - maxwell
+      device_modes:
+        mig: true
+        physical: true
+        vgpu: true
   memory.temperature:
     metadata:
       metric_type: gauge
@@ -764,10 +789,11 @@ metrics:
   nvlink.ber.effective:
     metadata:
       metric_type: gauge
-      description: Effective bit error rate for all NVLINK links
+      description: Per-link effective bit error rate for the NVLink port
       aggregation: lifetime_error
     tagsets:
       - device
+      - nvlink
     support:
       unsupported_architectures: []
       device_modes:
@@ -779,9 +805,10 @@ metrics:
   nvlink.ber.symbol:
     metadata:
       metric_type: gauge
-      description: Symbol bit error rate for all NVLINK links
+      description: Per-link symbol bit error rate for the NVLink port
     tagsets:
       - device
+      - nvlink
     support:
       unsupported_architectures: []
       device_modes:
@@ -794,10 +821,11 @@ metrics:
     metadata:
       metric_type: gauge
       description: >-
-        NVLink data CRC error counter total for all links. The counter reports
-        the device lifetime total reported by NVML.
+        Per-link NVLink data CRC error counter for the NVLink port. The counter
+        reports the device lifetime total reported by NVML.
     tagsets:
       - device
+      - nvlink
     validator:
       range:
         min: 0
@@ -814,10 +842,11 @@ metrics:
     metadata:
       metric_type: gauge
       description: >-
-        NVLink flow control CRC error counter total for all links. The counter
-        reports the device lifetime total reported by NVML.
+        Per-link NVLink flow control CRC error counter for the NVLink port. The
+        counter reports the device lifetime total reported by NVML.
     tagsets:
       - device
+      - nvlink
     validator:
       range:
         min: 0
@@ -834,11 +863,12 @@ metrics:
     metadata:
       metric_type: gauge
       description: >-
-        NVLink buffer overrun error counter total for all links. The counter
-        reports the device lifetime total reported by NVML.
+        Per-link NVLink buffer overrun error counter for the NVLink port. The
+        counter reports the device lifetime total reported by NVML.
       aggregation: lifetime_error
     tagsets:
       - device
+      - nvlink
     support:
       unsupported_architectures: []
       device_modes:
@@ -851,11 +881,12 @@ metrics:
     metadata:
       metric_type: gauge
       description: >-
-        NVLink ECC error counter total for all links. The counter reports the
-        device lifetime total reported by NVML.
+        Per-link NVLink ECC error counter for the NVLink port. The counter
+        reports the device lifetime total reported by NVML.
       aggregation: lifetime_error
     tagsets:
       - device
+      - nvlink
     validator:
       range:
         min: 0
@@ -872,11 +903,12 @@ metrics:
     metadata:
       metric_type: gauge
       description: >-
-        NVLink effective error counter total for all links. The counter reports
-        the device lifetime total reported by NVML.
+        Per-link NVLink effective error counter for the NVLink port. The counter
+        reports the device lifetime total reported by NVML.
       aggregation: lifetime_error
     tagsets:
       - device
+      - nvlink
     support:
       unsupported_architectures: []
       device_modes:
@@ -889,10 +921,11 @@ metrics:
     metadata:
       metric_type: gauge
       description: >-
-        NVLink local link integrity error counter total for all links. The
-        counter reports the device lifetime total reported by NVML.
+        Per-link NVLink local link integrity error counter for the NVLink port.
+        The counter reports the device lifetime total reported by NVML.
     tagsets:
       - device
+      - nvlink
     support:
       unsupported_architectures: []
       device_modes:
@@ -905,10 +938,11 @@ metrics:
     metadata:
       metric_type: gauge
       description: >-
-        NVLink malformed packet error counter total for all links. The counter
-        reports the device lifetime total reported by NVML.
+        Per-link NVLink malformed packet error counter for the NVLink port. The
+        counter reports the device lifetime total reported by NVML.
     tagsets:
       - device
+      - nvlink
     support:
       unsupported_architectures: []
       device_modes:
@@ -921,10 +955,11 @@ metrics:
     metadata:
       metric_type: gauge
       description: >-
-        NVLink recovery error counter total for all links. The counter reports
-        the device lifetime total reported by NVML.
+        Per-link NVLink recovery error counter for the NVLink port. The counter
+        reports the device lifetime total reported by NVML.
     tagsets:
       - device
+      - nvlink
     validator:
       range:
         min: 0
@@ -941,11 +976,12 @@ metrics:
     metadata:
       metric_type: gauge
       description: >-
-        NVLink replay error counter total for all links. The counter reports the
-        device lifetime total reported by NVML.
+        Per-link NVLink replay error counter for the NVLink port. The counter
+        reports the device lifetime total reported by NVML.
       aggregation: lifetime_error
     tagsets:
       - device
+      - nvlink
     validator:
       range:
         min: 0
@@ -962,10 +998,11 @@ metrics:
     metadata:
       metric_type: gauge
       description: >-
-        NVLink receive error counter total for all links. The counter reports
-        the device lifetime total reported by NVML.
+        Per-link NVLink receive error counter for the NVLink port. The counter
+        reports the device lifetime total reported by NVML.
     tagsets:
       - device
+      - nvlink
     support:
       unsupported_architectures: []
       device_modes:
@@ -978,10 +1015,11 @@ metrics:
     metadata:
       metric_type: gauge
       description: >-
-        NVLink general receive error counter total for all links. The counter
-        reports the device lifetime total reported by NVML.
+        Per-link NVLink general receive error counter for the NVLink port. The
+        counter reports the device lifetime total reported by NVML.
     tagsets:
       - device
+      - nvlink
     support:
       unsupported_architectures: []
       device_modes:
@@ -994,10 +1032,11 @@ metrics:
     metadata:
       metric_type: gauge
       description: >-
-        NVLink remote receive error counter total for all links. The counter
-        reports the device lifetime total reported by NVML.
+        Per-link NVLink remote receive error counter for the NVLink port. The
+        counter reports the device lifetime total reported by NVML.
     tagsets:
       - device
+      - nvlink
     support:
       unsupported_architectures: []
       device_modes:
@@ -1010,10 +1049,11 @@ metrics:
     metadata:
       metric_type: gauge
       description: >-
-        NVLink symbol error counter total for all links. The counter reports the
-        device lifetime total reported by NVML.
+        Per-link NVLink symbol error counter for the NVLink port. The counter
+        reports the device lifetime total reported by NVML.
     tagsets:
       - device
+      - nvlink
     support:
       unsupported_architectures: []
       device_modes:
@@ -1025,7 +1065,7 @@ metrics:
   nvlink.nvswitch_connected:
     metadata:
       metric_type: gauge
-      description: Number of NVLinks connected to the NVSwitch
+      description: NVSwitch connection count for the GPU.
       aggregation: absolute_usage
     tagsets:
       - device
@@ -1044,12 +1084,11 @@ metrics:
   nvlink.plr.codes_loss:
     metadata:
       metric_type: gauge
-      description: NVLink PLR codes loss counter for the port
+      description: Per-link NVLink PLR codes loss counter for the NVLink port
       aggregation: sensor_data
     tagsets:
       - device
-    custom_tags:
-      - nvlink_port
+      - nvlink
     support:
       unsupported_architectures: []
       device_modes:
@@ -1061,11 +1100,10 @@ metrics:
   nvlink.plr.rx.code_err:
     metadata:
       metric_type: gauge
-      description: NVLink PLR RX code error counter for the port
+      description: Per-link NVLink PLR RX code error counter for the NVLink port
     tagsets:
       - device
-    custom_tags:
-      - nvlink_port
+      - nvlink
     support:
       unsupported_architectures: []
       device_modes:
@@ -1077,11 +1115,10 @@ metrics:
   nvlink.plr.rx.codes:
     metadata:
       metric_type: gauge
-      description: NVLink PLR RX codes counter for the port
+      description: Per-link NVLink PLR RX codes counter for the NVLink port
     tagsets:
       - device
-    custom_tags:
-      - nvlink_port
+      - nvlink
     support:
       unsupported_architectures: []
       device_modes:
@@ -1093,11 +1130,10 @@ metrics:
   nvlink.plr.rx.uncorrectable_code:
     metadata:
       metric_type: gauge
-      description: NVLink PLR RX uncorrectable code counter for the port
+      description: Per-link NVLink PLR RX uncorrectable code counter for the NVLink port
     tagsets:
       - device
-    custom_tags:
-      - nvlink_port
+      - nvlink
     support:
       unsupported_architectures: []
       device_modes:
@@ -1109,11 +1145,10 @@ metrics:
   nvlink.plr.tx.sync_events:
     metadata:
       metric_type: gauge
-      description: NVLink PLR TX sync events counter for the port
+      description: Per-link NVLink PLR TX sync events counter for the NVLink port
     tagsets:
       - device
-    custom_tags:
-      - nvlink_port
+      - nvlink
     support:
       unsupported_architectures: []
       device_modes:
@@ -1125,11 +1160,10 @@ metrics:
   nvlink.plr.tx.codes:
     metadata:
       metric_type: gauge
-      description: NVLink PLR TX codes counter for the port
+      description: Per-link NVLink PLR TX codes counter for the NVLink port
     tagsets:
       - device
-    custom_tags:
-      - nvlink_port
+      - nvlink
     support:
       unsupported_architectures: []
       device_modes:
@@ -1141,11 +1175,10 @@ metrics:
   nvlink.plr.tx.retry_codes:
     metadata:
       metric_type: gauge
-      description: NVLink PLR TX retry codes counter for the port
+      description: Per-link NVLink PLR TX retry codes counter for the NVLink port
     tagsets:
       - device
-    custom_tags:
-      - nvlink_port
+      - nvlink
     support:
       unsupported_architectures: []
       device_modes:
@@ -1157,11 +1190,10 @@ metrics:
   nvlink.plr.tx.retry_events:
     metadata:
       metric_type: gauge
-      description: NVLink PLR TX retry events counter for the port
+      description: Per-link NVLink PLR TX retry events counter for the NVLink port
     tagsets:
       - device
-    custom_tags:
-      - nvlink_port
+      - nvlink
     support:
       unsupported_architectures: []
       device_modes:
@@ -1173,12 +1205,11 @@ metrics:
   nvlink.plr.tx.retry_events_within_t_sec_max:
     metadata:
       metric_type: gauge
-      description: Maximum NVLink PLR TX retry events within the configured time
-        window for the port
+      description: Per-link maximum NVLink PLR TX retry events within the
+        configured time window for the NVLink port
     tagsets:
       - device
-    custom_tags:
-      - nvlink_port
+      - nvlink
     support:
       unsupported_architectures: []
       device_modes:
@@ -1191,12 +1222,12 @@ metrics:
     metadata:
       metric_type: histogram
       description: >-
-        NVLink FEC history histogram for the port. Each emitted histogram bucket
-        represents the count of messages with exactly N FEC errors in the last interval.
+        Per-link NVLink FEC history histogram for the NVLink port. Each emitted
+        histogram bucket represents the count of messages with exactly N FEC
+        errors in the last interval.
     tagsets:
       - device
-    custom_tags:
-      - nvlink_port
+      - nvlink
     support:
       unsupported_architectures: []
       device_modes:
@@ -1209,10 +1240,11 @@ metrics:
     metadata:
       metric_type: gauge
       unit: megabit/second
-      description: common speed of all NVLINK links
+      description: Per-link speed of the NVLink port
       aggregation: sensor_data
     tagsets:
       - device
+      - nvlink
     validator:
       range:
         min: 0
@@ -1229,11 +1261,12 @@ metrics:
     metadata:
       metric_type: gauge
       description: >-
-        Failed NVLink recovery events total for all links. The counter reports
-        the device lifetime total reported by NVML.
+        Per-link failed NVLink recovery events for the NVLink port. The counter
+        reports the device lifetime total reported by NVML.
       aggregation: lifetime_error
     tagsets:
       - device
+      - nvlink
     support:
       unsupported_architectures: []
       device_modes:
@@ -1246,11 +1279,12 @@ metrics:
     metadata:
       metric_type: gauge
       description: >-
-        Successful NVLink recovery events total for all links. The counter
-        reports the device lifetime total reported by NVML.
+        Per-link successful NVLink recovery events for the NVLink port. The
+        counter reports the device lifetime total reported by NVML.
       aggregation: lifetime_error
     tagsets:
       - device
+      - nvlink
     support:
       unsupported_architectures: []
       device_modes:
@@ -1262,9 +1296,10 @@ metrics:
   nvlink.rx.packets:
     metadata:
       metric_type: gauge
-      description: NVLink received packet counter total for all links
+      description: Per-link NVLink received packet counter for the NVLink port
     tagsets:
       - device
+      - nvlink
     support:
       unsupported_architectures: []
       device_modes:
@@ -1277,7 +1312,29 @@ metrics:
     metadata:
       metric_type: gauge
       unit: kilobyte/second
+      description: Per-link RX data throughput for the NVLink port
+      aggregation: absolute_usage
+    tagsets:
+      - device
+      - nvlink
+    validator:
+      range:
+        min: 0
+        max: 3000000000000 # 3 TB/s (bytes/second)
+    support:
+      unsupported_architectures: []
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
+      capabilities_required:
+        nvlink: 1
+  nvlink.throughput.data.rx.total:
+    metadata:
+      metric_type: gauge
+      unit: kilobyte/second
       description: Total RX data throughput of all NVLINK links
+      aggregation: absolute_usage
     tagsets:
       - device
     validator:
@@ -1293,6 +1350,27 @@ metrics:
       capabilities_required:
         nvlink: 1
   nvlink.throughput.data.tx:
+    metadata:
+      metric_type: gauge
+      unit: kilobyte/second
+      description: Per-link TX data throughput for the NVLink port
+      aggregation: absolute_usage
+    tagsets:
+      - device
+      - nvlink
+    validator:
+      range:
+        min: 0
+        max: 3000000000000 # 3 TB/s (bytes/second)
+    support:
+      unsupported_architectures: []
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
+      capabilities_required:
+        nvlink: 1
+  nvlink.throughput.data.tx.total:
     metadata:
       metric_type: gauge
       unit: kilobyte/second
@@ -1313,6 +1391,28 @@ metrics:
       capabilities_required:
         nvlink: 1
   nvlink.throughput.raw.rx:
+    metadata:
+      metric_type: gauge
+      unit: kilobyte/second
+      description: Per-link raw RX throughput for the NVLink port
+      used_in_dd_ui: true
+      aggregation: absolute_usage
+    tagsets:
+      - device
+      - nvlink
+    validator:
+      range:
+        min: 0
+        max: 3000000000000 # 3 TB/s (bytes/second)
+    support:
+      unsupported_architectures: []
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
+      capabilities_required:
+        nvlink: 1
+  nvlink.throughput.raw.rx.total:
     metadata:
       metric_type: gauge
       unit: kilobyte/second
@@ -1337,6 +1437,28 @@ metrics:
     metadata:
       metric_type: gauge
       unit: kilobyte/second
+      description: Per-link raw TX throughput for the NVLink port
+      used_in_dd_ui: true
+      aggregation: absolute_usage
+    tagsets:
+      - device
+      - nvlink
+    validator:
+      range:
+        min: 0
+        max: 3000000000000 # 3 TB/s (bytes/second)
+    support:
+      unsupported_architectures: []
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
+      capabilities_required:
+        nvlink: 1
+  nvlink.throughput.raw.tx.total:
+    metadata:
+      metric_type: gauge
+      unit: kilobyte/second
       description: Total TX of all NVLINK links
       used_in_dd_ui: true
       aggregation: absolute_usage
@@ -1357,10 +1479,11 @@ metrics:
   nvlink.tx.discards:
     metadata:
       metric_type: gauge
-      description: NVLink transmitted discard counter total for all links
+      description: Per-link NVLink transmitted discard counter for the NVLink port
       aggregation: lifetime_error
     tagsets:
       - device
+      - nvlink
     support:
       unsupported_architectures: []
       device_modes:
@@ -1372,9 +1495,10 @@ metrics:
   nvlink.tx.packets:
     metadata:
       metric_type: gauge
-      description: NVLink transmitted packet counter total for all links
+      description: Per-link NVLink transmitted packet counter for the NVLink port
     tagsets:
       - device
+      - nvlink
     support:
       unsupported_architectures: []
       device_modes:
@@ -1646,7 +1770,8 @@ metrics:
     metadata:
       metric_type: gauge
       unit: byte
-      description: The memory used by this process at the point the metric was given.
+      description:
+        The memory used by this process at the point the metric was given.
         Only emitted when processes are active.
       used_in_dd_ui: true
       aggregation: absolute_usage
@@ -1669,7 +1794,8 @@ metrics:
     metadata:
       metric_type: gauge
       unit: percent
-      description: Percentage of time the streaming multiprocessor was active for a
+      description:
+        Percentage of time the streaming multiprocessor was active for a
         specific process
       aggregation: relative_activity
     workload_only: true
@@ -1821,7 +1947,8 @@ metrics:
     metadata:
       metric_type: gauge
       unit: percent
-      description: Percentage of the Streaming Multiprocessors that were active in the
+      description:
+        Percentage of the Streaming Multiprocessors that were active in the
         interval
       used_in_dd_ui: true
       aggregation: relative_activity
@@ -1845,7 +1972,8 @@ metrics:
     metadata:
       metric_type: gauge
       unit: percent
-      description: Percentage of the Streaming Multiprocessors that were in use in the
+      description:
+        Percentage of the Streaming Multiprocessors that were in use in the
         interval
       aggregation: relative_activity
     tagsets:

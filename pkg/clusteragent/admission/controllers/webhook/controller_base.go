@@ -34,6 +34,7 @@ import (
 	agentsidecar "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/agent_sidecar"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/appsec"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/libraryinjection"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoscaling"
 	configWebhook "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/config"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/cwsinstrumentation"
@@ -56,11 +57,11 @@ type Controller interface {
 }
 
 // NewController returns the adequate implementation of the Controller interface.
-func NewController(client kubernetes.Interface, secretInformer coreinformers.SecretInformer, validatingInformers admissionregistration.Interface, mutatingInformers admissionregistration.Interface, isLeaderFunc func() bool, leadershipStateNotif <-chan struct{}, config Config, wmeta workloadmeta.Component, pp workload.PodPatcher, sh clusterspot.PodHandler, datadogConfig config.Component, demultiplexer demultiplexer.Component, filterStore workloadfilter.Component, handlers []instrumentation.Handler, informerFactory dynamicinformer.DynamicSharedInformerFactory) Controller {
+func NewController(client kubernetes.Interface, secretInformer coreinformers.SecretInformer, validatingInformers admissionregistration.Interface, mutatingInformers admissionregistration.Interface, isLeaderFunc func() bool, leadershipStateNotif <-chan struct{}, config Config, wmeta workloadmeta.Component, pp workload.PodPatcher, sh clusterspot.PodHandler, datadogConfig config.Component, demultiplexer demultiplexer.Component, filterStore workloadfilter.Component, handlers []instrumentation.Handler, informerFactory dynamicinformer.DynamicSharedInformerFactory, csiDriverWatcher libraryinjection.CSIDriverWatcher) Controller {
 	if config.useAdmissionV1() {
-		return NewControllerV1(client, secretInformer, validatingInformers.V1().ValidatingWebhookConfigurations(), mutatingInformers.V1().MutatingWebhookConfigurations(), isLeaderFunc, leadershipStateNotif, config, wmeta, pp, sh, datadogConfig, demultiplexer, filterStore, handlers, informerFactory)
+		return NewControllerV1(client, secretInformer, validatingInformers.V1().ValidatingWebhookConfigurations(), mutatingInformers.V1().MutatingWebhookConfigurations(), isLeaderFunc, leadershipStateNotif, config, wmeta, pp, sh, datadogConfig, demultiplexer, filterStore, handlers, informerFactory, csiDriverWatcher)
 	}
-	return NewControllerV1beta1(client, secretInformer, validatingInformers.V1beta1().ValidatingWebhookConfigurations(), mutatingInformers.V1beta1().MutatingWebhookConfigurations(), isLeaderFunc, leadershipStateNotif, config, wmeta, pp, sh, datadogConfig, demultiplexer, filterStore, handlers, informerFactory)
+	return NewControllerV1beta1(client, secretInformer, validatingInformers.V1beta1().ValidatingWebhookConfigurations(), mutatingInformers.V1beta1().MutatingWebhookConfigurations(), isLeaderFunc, leadershipStateNotif, config, wmeta, pp, sh, datadogConfig, demultiplexer, filterStore, handlers, informerFactory, csiDriverWatcher)
 }
 
 // Webhook represents an admission webhook
@@ -96,7 +97,7 @@ type Webhook interface {
 // The reason is that the volume mount for the APM socket added by the configWebhook webhook
 // doesn't always work on Fargate (one of the envs where we use an agent sidecar), and
 // the agent sidecar webhook needs to remove it.
-func (c *controllerBase) generateWebhooks(datadogConfig config.Component, wmeta workloadmeta.Component, demultiplexer demultiplexer.Component, pp workload.PodPatcher, sh clusterspot.PodHandler, filterStore workloadfilter.Component, handlers []instrumentation.Handler, informerFactory dynamicinformer.DynamicSharedInformerFactory) []Webhook {
+func (c *controllerBase) generateWebhooks(datadogConfig config.Component, wmeta workloadmeta.Component, demultiplexer demultiplexer.Component, pp workload.PodPatcher, sh clusterspot.PodHandler, filterStore workloadfilter.Component, handlers []instrumentation.Handler, informerFactory dynamicinformer.DynamicSharedInformerFactory, csiDriverWatcher libraryinjection.CSIDriverWatcher) []Webhook {
 	var webhooks []Webhook
 	var validatingWebhooks []Webhook
 
@@ -157,7 +158,7 @@ func (c *controllerBase) generateWebhooks(datadogConfig config.Component, wmeta 
 	}
 
 	// Setup APM Instrumentation webhook. APM Instrumentation webhook needs to be registered after the config webhook.
-	apmWebhook, err := autoinstrumentation.NewAutoInstrumentation(datadogConfig, wmeta, serverVersion)
+	apmWebhook, err := autoinstrumentation.NewAutoInstrumentation(datadogConfig, wmeta, serverVersion, csiDriverWatcher)
 	if err != nil {
 		log.Errorf("failed to register APM Instrumentation webhook: %v", err)
 	} else {
@@ -250,6 +251,22 @@ func (c *controllerBase) enqueueOnLeaderNotif(stop <-chan struct{}) {
 // triggerReconciliation forces a reconciliation loop by enqueuing the webhook object name.
 func (c *controllerBase) triggerReconciliation() {
 	c.queue.Add(c.config.getWebhookName())
+}
+
+func (c *controllerBase) getProbeNamespaceSelector() *metav1.LabelSelector {
+	selector := &metav1.LabelSelector{
+		MatchExpressions: []metav1.LabelSelectorRequirement{
+			{
+				Key:      common.NamespaceLabelKey,
+				Operator: metav1.LabelSelectorOpIn,
+				Values:   []string{c.config.getServiceNs()},
+			},
+		},
+	}
+	if c.config.addAKSSelectors {
+		selector.MatchExpressions = append(selector.MatchExpressions, common.AzureAKSLabelSelectorRequirement()...)
+	}
+	return selector
 }
 
 func (c *controllerBase) getSecret() (*corev1.Secret, error) {

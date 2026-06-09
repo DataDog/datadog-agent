@@ -126,7 +126,7 @@ func NewDecoderWithFraming(source *sources.ReplaceableSource, parser parsers.Par
 	outputChan := make(chan *message.Message)
 	detectedPattern := &DetectedPattern{}
 
-	tokenizerMaxInputBytes, labelerMaxBytes := resolveTokenizerAndLabelerMaxInputBytes(source.Config().AutoMultiLineOptions, source.Config().ExperimentalAdaptiveSampling)
+	tokenizerMaxInputBytes, labelerMaxBytes := resolveTokenizerAndLabelerMaxInputBytes(source.Config().AutoMultiLineOptions, source.Config().ExperimentalAdaptiveSampling, source.Config().ExperimentalNoisyLogDetection)
 	tok := preprocessor.NewTokenizer(tokenizerMaxInputBytes)
 	lineHandler := buildLineHandler(source, multiLinePattern, tailerInfo, outputChan, detectedPattern, tok, labelerMaxBytes)
 
@@ -144,16 +144,16 @@ func NewDecoderWithFraming(source *sources.ReplaceableSource, parser parsers.Par
 
 // resolveTokenizerAndLabelerMaxInputBytes computes the tokenizer and labeler byte windows.
 // The labeler uses the effective auto-multiline tokenizer window (global, optionally overridden per source).
-// The tokenizer can be widened beyond that when adaptive sampling is enabled, so the sampler
-// can observe more context without changing labeler behavior.
-func resolveTokenizerAndLabelerMaxInputBytes(sourceAutoMLSettings *config.SourceAutoMultiLineOptions, sourceAdaptiveSampling *config.SourceAdaptiveSamplingOptions) (tokenizerMaxInputBytes int, labelerMaxBytes int) {
+// The tokenizer can be widened beyond that when adaptive sampling or noisy log detection is enabled,
+// so the sampler can observe more context without changing labeler behavior.
+func resolveTokenizerAndLabelerMaxInputBytes(sourceAutoMLSettings *config.SourceAutoMultiLineOptions, sourceAdaptiveSampling *config.SourceAdaptiveSamplingOptions, sourceNoisyLogDetection *bool) (tokenizerMaxInputBytes int, labelerMaxBytes int) {
 	labelerMaxBytes = pkgconfigsetup.Datadog().GetInt("logs_config.auto_multi_line.tokenizer_max_input_bytes")
 	if sourceAutoMLSettings != nil && sourceAutoMLSettings.TokenizerMaxInputBytes != nil {
 		labelerMaxBytes = *sourceAutoMLSettings.TokenizerMaxInputBytes
 	}
 
 	tokenizerMaxInputBytes = labelerMaxBytes
-	if resolveAdaptiveSamplerEnabled(sourceAdaptiveSampling) {
+	if resolveAdaptiveSamplerEnabled(sourceAdaptiveSampling) || resolveNoisyLogDetectionEnabled(sourceNoisyLogDetection) {
 		samplerMin := pkgconfigsetup.Datadog().GetInt("logs_config.experimental_adaptive_sampling.tokenizer_max_input_bytes")
 		if sourceAdaptiveSampling != nil && sourceAdaptiveSampling.TokenizerMaxInputBytes != nil {
 			samplerMin = *sourceAdaptiveSampling.TokenizerMaxInputBytes
@@ -174,6 +174,32 @@ func resolveAdaptiveSamplerEnabled(sourceAdaptiveSampling *config.SourceAdaptive
 	return pkgconfigsetup.Datadog().GetBool("logs_config.experimental_adaptive_sampling.enabled")
 }
 
+func resolveNoisyLogDetectionEnabled(sourceNoisyLogDetection *bool) bool {
+	if sourceNoisyLogDetection != nil {
+		return *sourceNoisyLogDetection
+	}
+
+	return pkgconfigsetup.Datadog().GetBool("logs_config.experimental_noisy_log_detection")
+}
+
+type samplerMode int
+
+const (
+	samplerDisabled samplerMode = iota
+	samplerAdaptiveSampling
+	samplerNoisyLogDetection
+)
+
+func resolveSamplerMode(sourceAdaptiveSampling *config.SourceAdaptiveSamplingOptions, sourceNoisyLogDetection *bool) samplerMode {
+	if resolveAdaptiveSamplerEnabled(sourceAdaptiveSampling) {
+		return samplerAdaptiveSampling
+	}
+	if resolveNoisyLogDetectionEnabled(sourceNoisyLogDetection) {
+		return samplerNoisyLogDetection
+	}
+	return samplerDisabled
+}
+
 func resolveAdaptiveSamplerConfig(sourceAdaptiveSampling *config.SourceAdaptiveSamplingOptions, tok *preprocessor.Tokenizer) preprocessor.AdaptiveSamplerConfig {
 	includeFilters, includeConfigured := resolveGlobalAdaptiveSamplerFilters("logs_config.experimental_adaptive_sampling.include", tok)
 	excludeFilters, _ := resolveGlobalAdaptiveSamplerFilters("logs_config.experimental_adaptive_sampling.exclude", tok)
@@ -184,6 +210,7 @@ func resolveAdaptiveSamplerConfig(sourceAdaptiveSampling *config.SourceAdaptiveS
 		BurstSize:            pkgconfigsetup.Datadog().GetFloat64("logs_config.experimental_adaptive_sampling.burst_size"),
 		MatchThreshold:       pkgconfigsetup.Datadog().GetFloat64("logs_config.experimental_adaptive_sampling.match_threshold"),
 		ProtectImportantLogs: pkgconfigsetup.Datadog().GetBool("logs_config.experimental_adaptive_sampling.protect_important_logs"),
+		TagPatternHash:       pkgconfigsetup.Datadog().GetBool("logs_config.experimental_adaptive_sampling.tag_pattern_hash"),
 		Include:              includeFilters,
 		IncludeConfigured:    includeConfigured,
 		Exclude:              excludeFilters,
@@ -205,6 +232,9 @@ func resolveAdaptiveSamplerConfig(sourceAdaptiveSampling *config.SourceAdaptiveS
 		if sourceAdaptiveSampling.ProtectImportantLogs != nil {
 			c.ProtectImportantLogs = *sourceAdaptiveSampling.ProtectImportantLogs
 		}
+		if sourceAdaptiveSampling.TagPatternHash != nil {
+			c.TagPatternHash = *sourceAdaptiveSampling.TagPatternHash
+		}
 		if sourceAdaptiveSampling.Include != nil {
 			c.Include = resolveAdaptiveSamplerFilters(sourceAdaptiveSampling.Include, tok)
 			c.IncludeConfigured = true
@@ -215,6 +245,12 @@ func resolveAdaptiveSamplerConfig(sourceAdaptiveSampling *config.SourceAdaptiveS
 	}
 
 	return validateAdaptiveSamplerConfig(c)
+}
+
+func resolveNoisyLogDetectionConfig(sourceAdaptiveSampling *config.SourceAdaptiveSamplingOptions, tok *preprocessor.Tokenizer) preprocessor.AdaptiveSamplerConfig {
+	c := resolveAdaptiveSamplerConfig(sourceAdaptiveSampling, tok)
+	c.DetectionOnly = true
+	return c
 }
 
 func resolveGlobalAdaptiveSamplerFilters(key string, tok *preprocessor.Tokenizer) ([]preprocessor.AdaptiveSamplerFilter, bool) {
@@ -273,9 +309,13 @@ func buildLineHandler(source *sources.ReplaceableSource, multiLinePattern *regex
 	flushTimeout := config.AggregationTimeout(pkgconfigsetup.Datadog())
 
 	var sampler preprocessor.Sampler
-	if resolveAdaptiveSamplerEnabled(source.Config().ExperimentalAdaptiveSampling) {
-		sampler = preprocessor.NewAdaptiveSampler(resolveAdaptiveSamplerConfig(source.Config().ExperimentalAdaptiveSampling, tok), source.UnderlyingSource().Name)
-	} else {
+	sourceConfig := source.Config()
+	switch resolveSamplerMode(sourceConfig.ExperimentalAdaptiveSampling, sourceConfig.ExperimentalNoisyLogDetection) {
+	case samplerAdaptiveSampling:
+		sampler = preprocessor.NewAdaptiveSampler(resolveAdaptiveSamplerConfig(sourceConfig.ExperimentalAdaptiveSampling, tok), source.UnderlyingSource().Name)
+	case samplerNoisyLogDetection:
+		sampler = preprocessor.NewAdaptiveSampler(resolveNoisyLogDetectionConfig(sourceConfig.ExperimentalAdaptiveSampling, tok), source.UnderlyingSource().Name)
+	default:
 		sampler = preprocessor.NewNoopSampler()
 	}
 

@@ -1,5 +1,5 @@
 exporters:
-  otlphttp:
+  otlp_http:
     headers:
       dd-api-key: test-api-key
 service:
@@ -8,4 +8,4 @@ service:
       processors: []
       receivers: []
       exporters:
-      - otlphttp
+      - otlp_http

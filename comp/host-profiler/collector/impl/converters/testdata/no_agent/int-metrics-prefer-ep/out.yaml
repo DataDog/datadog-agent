@@ -9,7 +9,7 @@ exporters:
         profiles_endpoint: https://otlp.datadoghq.com/v1development/profiles
 processors:
     cumulativetodelta/dd-hp-internal: {}
-    ddhostname/default: {}
+    ddhostname/dd-autoconfigured: {}
     filter/dd-hp-drop-internal:
         metrics:
             exclude:
@@ -26,7 +26,7 @@ processors:
             - action: upsert
               key: telemetry.distro.version
               value: 7.0.0-test
-    resourcedetection/default:
+    resourcedetection/dd-autoconfigured:
         detectors:
             - system
         system:
@@ -56,16 +56,14 @@ receivers:
                         - 127.0.0.1:8889
 service:
     pipelines:
-        metrics:
-            processors: []
         metrics/profiler-internal-health:
             exporters:
                 - otlphttp
             processors:
                 - filter/dd-hp-drop-internal
                 - cumulativetodelta/dd-hp-internal
-                - resourcedetection/default
-                - ddhostname/default
+                - resourcedetection/dd-autoconfigured
+                - ddhostname/dd-autoconfigured
                 - resource/dd-profiler-internal-metadata
             receivers:
                 - prometheus/dd-hp-internal
@@ -73,8 +71,8 @@ service:
             exporters:
                 - otlphttp
             processors:
-                - resourcedetection/default
-                - ddhostname/default
+                - resourcedetection/dd-autoconfigured
+                - ddhostname/dd-autoconfigured
                 - resource/dd-profiler-internal-metadata
             receivers:
                 - profiling
