@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"go.opentelemetry.io/collector/exporter"
-	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.uber.org/multierr"
 	"go.uber.org/zap"
 
@@ -108,42 +107,6 @@ const (
 	ddot
 	agentOTLPIngest
 )
-
-func (c *serializerConsumer) ConsumeExplicitBoundHistogram(_ context.Context, dimensions *otlpmetrics.Dimensions, ts uint64, interval int64, point pmetric.HistogramDataPoint, _ bool) {
-	msrc, ok := metricOriginsMappings[dimensions.OriginProductDetail()]
-	if !ok {
-		msrc = metrics.MetricSourceOpenTelemetryCollectorUnknown
-	}
-	c.sketches = append(c.sketches, &metrics.SketchSeries{
-		Name:     dimensions.Name(),
-		Tags:     tagset.CompositeTagsFromSlice(enrichTags(c.extraTags, dimensions)),
-		Host:     dimensions.Host(),
-		Interval: interval,
-		Points: []metrics.SketchPoint{{
-			Ts:     int64(ts / 1e9),
-			Sketch: &metrics.ExplicitBoundHistogramPoint{Point: point},
-		}},
-		Source: msrc,
-	})
-}
-
-func (c *serializerConsumer) ConsumeExponentialHistogram(_ context.Context, dimensions *otlpmetrics.Dimensions, ts uint64, interval int64, point pmetric.ExponentialHistogramDataPoint) {
-	msrc, ok := metricOriginsMappings[dimensions.OriginProductDetail()]
-	if !ok {
-		msrc = metrics.MetricSourceOpenTelemetryCollectorUnknown
-	}
-	c.sketches = append(c.sketches, &metrics.SketchSeries{
-		Name:     dimensions.Name(),
-		Tags:     tagset.CompositeTagsFromSlice(enrichTags(c.extraTags, dimensions)),
-		Host:     dimensions.Host(),
-		Interval: interval,
-		Points: []metrics.SketchPoint{{
-			Ts:     int64(ts / 1e9),
-			Sketch: &metrics.ExponentialHistogramPoint{Point: point},
-		}},
-		Source: msrc,
-	})
-}
 
 func (c *serializerConsumer) ConsumeAPMStats(ss *pb.ClientStatsPayload) {
 	log.Tracef("Serializing %d client stats buckets.", len(ss.Stats))

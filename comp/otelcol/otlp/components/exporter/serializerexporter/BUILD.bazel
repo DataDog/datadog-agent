@@ -6,6 +6,7 @@ go_library(
         "config.go",
         "consumer.go",
         "consumer_collector.go",
+        "consumer_otlp.go",
         "exporter.go",
         "factory.go",
         "host_metadata_pusher.go",
@@ -75,6 +76,7 @@ go_test(
     srcs = [
         "apm_stats_test.go",
         "config_test.go",
+        "consumer_otlp_test.go",
         "consumer_test.go",
         "exporter_test.go",
         "factory_test.go",
