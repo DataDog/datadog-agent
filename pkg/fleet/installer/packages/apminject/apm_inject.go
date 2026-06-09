@@ -151,18 +151,37 @@ func (a *InjectorInstaller) Instrument(ctx context.Context) (retErr error) {
 		}
 		if systemdRunning {
 			// The service manages /etc/ld.so.preload via ExecStart/ExecStop on
-			// every boot. We also call InstrumentLDPreload directly here so the
-			// current boot is covered: if the service started successfully its
-			// ExecStart already wrote the entry and this becomes a no-op; if the
-			// service failed to start (non-fatal, e.g. during initial install
-			// before the agent is running), this writes the entry directly.
-			mgr := NewSystemdServiceManager()
-			if err := mgr.Setup(ctx); err != nil {
-				return err
+			// every boot, re-asserting the entry written below. It is a
+			// reliability enhancement, not a requirement: /etc/ld.so.preload is
+			// persistent, so the direct instrumentation below already survives
+			// reboots on its own.
+			//
+			// We also call InstrumentLDPreload directly here so the current boot
+			// is covered: if the service started successfully its ExecStart
+			// already wrote the entry and this becomes a no-op; if the service
+			// failed to start (non-fatal, e.g. during initial install before the
+			// agent is running), this writes the entry directly.
+			if installerPath, ok := resolveSupportedInstaller(); ok {
+				mgr := NewSystemdServiceManager(installerPath)
+				if err := mgr.Setup(ctx); err != nil {
+					return err
+				}
+				a.rollbacks = append(a.rollbacks, func() error {
+					return mgr.Uninstall(ctx)
+				})
+			} else {
+				// No datadog-installer on disk supports `apm instrument-start`
+				// (e.g. a flow that pins an older agent whose embedded installer
+				// predates the feature, as in DJM/Databricks). Pointing the unit
+				// at such a binary would make ExecStart fail on every boot and
+				// silently break host injection. Skip the service and rely on the
+				// direct /etc/ld.so.preload management below, removing any stale
+				// unit a previous install may have left so a doomed ExecStart is
+				// not left enabled.
+				if err := NewSystemdServiceManager("").Uninstall(ctx); err != nil {
+					log.Warnf("failed to remove stale apm-inject systemd service: %v", err)
+				}
 			}
-			a.rollbacks = append(a.rollbacks, func() error {
-				return mgr.Uninstall(ctx)
-			})
 			if err := a.InstrumentLDPreload(ctx); err != nil {
 				return err
 			}
@@ -207,7 +226,7 @@ func (a *InjectorInstaller) Uninstrument(ctx context.Context) error {
 		if err != nil {
 			errs = append(errs, err)
 		} else if systemdRunning {
-			errs = append(errs, NewSystemdServiceManager().Uninstall(ctx))
+			errs = append(errs, NewSystemdServiceManager("").Uninstall(ctx))
 			// Safety net: explicitly remove the ld.so.preload entry even if the
 			// service's ExecStop did not run (e.g. service was in a failed state
 			// when stopped). UninstrumentLDPreload is pure file I/O and idempotent.

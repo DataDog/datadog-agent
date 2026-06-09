@@ -21,7 +21,7 @@ import (
 )
 
 func TestNewSystemdServiceManager(t *testing.T) {
-	mgr := NewSystemdServiceManager()
+	mgr := NewSystemdServiceManager("")
 
 	assert.NotNil(t, mgr)
 	assert.Equal(t, filepath.Join(systemd.UserUnitsPath, systemdServiceName), mgr.servicePath)
@@ -126,7 +126,7 @@ func TestResolveInstallerPath(t *testing.T) {
 	executable := filepath.Join(tmpDir, "executable")
 	require.NoError(t, os.WriteFile(executable, []byte("#!/bin/sh\n"), 0755))
 
-	got, err := resolveInstallerPath([]string{missing, nonExec, executable})
+	got, err := resolveInstallerPath([]string{missing, nonExec, executable}, alwaysSupported)
 	require.NoError(t, err)
 	assert.Equal(t, executable, got)
 }
@@ -136,7 +136,7 @@ func TestResolveInstallerPath_AllMissing(t *testing.T) {
 	_, err := resolveInstallerPath([]string{
 		filepath.Join(tmpDir, "a"),
 		filepath.Join(tmpDir, "b"),
-	})
+	}, alwaysSupported)
 	assert.Error(t, err)
 }
 
@@ -147,10 +147,40 @@ func TestResolveInstallerPath_SkipsDirectory(t *testing.T) {
 	exe := filepath.Join(tmpDir, "candidate-exe")
 	require.NoError(t, os.WriteFile(exe, []byte{}, 0755))
 
-	got, err := resolveInstallerPath([]string{dir, exe})
+	got, err := resolveInstallerPath([]string{dir, exe}, alwaysSupported)
 	require.NoError(t, err)
 	assert.Equal(t, exe, got)
 }
+
+// TestResolveInstallerPath_SkipsUnsupportedInstaller guards the upgrade case:
+// a higher-priority candidate that is on disk and executable but too old to
+// support `apm instrument-start` must be skipped in favor of a newer candidate.
+func TestResolveInstallerPath_SkipsUnsupportedInstaller(t *testing.T) {
+	tmpDir := t.TempDir()
+	stale := filepath.Join(tmpDir, "stale-installer")
+	require.NoError(t, os.WriteFile(stale, []byte{}, 0755))
+	fresh := filepath.Join(tmpDir, "fresh-installer")
+	require.NoError(t, os.WriteFile(fresh, []byte{}, 0755))
+
+	verify := func(p string) bool { return p == fresh }
+
+	got, err := resolveInstallerPath([]string{stale, fresh}, verify)
+	require.NoError(t, err)
+	assert.Equal(t, fresh, got, "stale installer (no instrument-start) must be skipped")
+}
+
+// TestResolveInstallerPath_AllUnsupported asserts we fail loudly rather than
+// return a stale installer that would produce a unit doomed to fail on boot.
+func TestResolveInstallerPath_AllUnsupported(t *testing.T) {
+	tmpDir := t.TempDir()
+	exe := filepath.Join(tmpDir, "old-installer")
+	require.NoError(t, os.WriteFile(exe, []byte{}, 0755))
+
+	_, err := resolveInstallerPath([]string{exe}, func(string) bool { return false })
+	assert.ErrorContains(t, err, "too old")
+}
+
+func alwaysSupported(string) bool { return true }
 
 func TestSystemdServiceManager_Uninstall(t *testing.T) {
 	tmpDir := t.TempDir()

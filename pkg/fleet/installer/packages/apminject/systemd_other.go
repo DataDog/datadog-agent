@@ -13,9 +13,12 @@ import "context"
 type SystemdServiceManager struct{}
 
 // NewSystemdServiceManager returns a no-op SystemdServiceManager on non-Linux platforms.
-func NewSystemdServiceManager() *SystemdServiceManager {
+func NewSystemdServiceManager(_ string) *SystemdServiceManager {
 	return &SystemdServiceManager{}
 }
+
+// resolveSupportedInstaller is a no-op stub on non-Linux platforms.
+func resolveSupportedInstaller() (string, bool) { return "", false }
 
 // Setup is a no-op on non-Linux platforms.
 func (s *SystemdServiceManager) Setup(_ context.Context) error { return nil }

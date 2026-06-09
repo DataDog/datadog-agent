@@ -13,7 +13,9 @@ import (
 	_ "embed"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service/systemd"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
@@ -46,26 +48,40 @@ type SystemdServiceManager struct {
 	installerPath string
 }
 
-// NewSystemdServiceManager builds a manager pointing at whichever
-// datadog-installer binary is on disk at call time. Every supported install
-// flow leaves at least one candidate present before apm-inject's post-install
-// runs:
-//   - SSI / DD_NO_AGENT_INSTALL: copyInstallerSSI is invoked before the
-//     package install loop in pkg/fleet/installer/setup/common/setup.go,
-//     so /opt/datadog-packages/run/datadog-installer-ssi is in place.
-//   - Regular OCI agent install: datadog-agent is installed before
-//     datadog-apm-inject, so the agent's embedded installer is in place.
-//   - Legacy deb/rpm: /usr/bin/datadog-installer ships with the package.
-func NewSystemdServiceManager() *SystemdServiceManager {
-	installerPath, err := resolveInstallerPath(installerPathCandidates)
-	if err != nil {
-		log.Warnf("could not resolve datadog-installer path for APM inject service: %v; writeServiceFile will refuse to render the unit", err)
-	}
+// NewSystemdServiceManager builds a manager for the apm-inject unit.
+//
+// installerPath is baked into the unit's ExecStart/ExecStop and must be an
+// installer that supports the `apm instrument-start`/`instrument-stop`
+// subcommands (use resolveSupportedInstaller to obtain one). Pass "" only when
+// the manager is used purely for lifecycle operations that do not render the
+// unit, e.g. Uninstall.
+func NewSystemdServiceManager(installerPath string) *SystemdServiceManager {
 	return &SystemdServiceManager{
 		servicePath:   filepath.Join(systemd.UserUnitsPath, systemdServiceName),
 		serviceName:   systemdServiceName,
 		installerPath: installerPath,
 	}
+}
+
+// resolveSupportedInstaller returns the path to an on-disk datadog-installer
+// that supports the `apm instrument-start`/`instrument-stop` subcommands the
+// unit invokes. ok is false when none is available, in which case the caller
+// must fall back to direct /etc/ld.so.preload management rather than rendering
+// a unit doomed to fail on every boot.
+//
+// Verification matters on upgrade from an older agent: a stale installer (e.g.
+// the previous version's embedded binary still pointed to by a `stable` symlink,
+// or an old standalone installer at a higher-priority candidate path, or the
+// pinned older agent in the DJM/Databricks flow) would otherwise be baked into
+// ExecStart and silently break host injection. resolveInstallerPath skips such
+// binaries and falls through to one that actually supports the subcommands.
+func resolveSupportedInstaller() (path string, ok bool) {
+	path, err := resolveInstallerPath(installerPathCandidates, supportsInstrumentSubcommands)
+	if err != nil {
+		log.Warnf("no datadog-installer supporting `apm instrument-start` found on disk: %v", err)
+		return "", false
+	}
+	return path, true
 }
 
 // Setup writes the embedded service file and enables it for future boots.
@@ -144,7 +160,35 @@ func (s *SystemdServiceManager) writeServiceFile() error {
 	return nil
 }
 
-func resolveInstallerPath(candidates []string) (string, error) {
+// installerVerifier reports whether the datadog-installer binary at path
+// supports the subcommands the apm-inject unit invokes. It is a parameter of
+// resolveInstallerPath so tests can exercise pure path resolution without an
+// executable installer on disk.
+type installerVerifier func(path string) bool
+
+// supportsInstrumentSubcommands reports whether the installer at path exposes
+// the `apm instrument-start` and `apm instrument-stop` subcommands. Installers
+// shipped before the systemd-managed preload feature have an `apm` command
+// without them, so `apm --help` lists neither. Inspecting the help output is
+// side-effect free, unlike actually running instrument-start.
+func supportsInstrumentSubcommands(path string) bool {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	// Inspect the help/usage text rather than the exit status: an installer's
+	// `apm --help` may exit non-zero depending on its command tree (e.g. a
+	// PersistentPreRunE), but the usage text still lists the available
+	// subcommands, which is the actual signal we need. The subcommands are not
+	// Hidden, so a supporting installer lists both.
+	out, err := exec.CommandContext(ctx, path, "apm", "--help").CombinedOutput()
+	supported := bytes.Contains(out, []byte("instrument-start")) && bytes.Contains(out, []byte("instrument-stop"))
+	if !supported {
+		log.Debugf("installer candidate %s does not expose apm instrument-start/stop (err: %v)", path, err)
+	}
+	return supported
+}
+
+func resolveInstallerPath(candidates []string, verify installerVerifier) (string, error) {
+	var skippedUnsupported []string
 	for _, p := range candidates {
 		info, err := os.Stat(p)
 		// Skip if doesn't exist.
@@ -155,7 +199,16 @@ func resolveInstallerPath(candidates []string) (string, error) {
 		if info.IsDir() || info.Mode()&0111 == 0 {
 			continue
 		}
+		// Skip binaries too old to support the subcommands the unit invokes,
+		// so we never bake a doomed ExecStart into the service file.
+		if verify != nil && !verify(p) {
+			skippedUnsupported = append(skippedUnsupported, p)
+			continue
+		}
 		return p, nil
+	}
+	if len(skippedUnsupported) > 0 {
+		return "", fmt.Errorf("found datadog-installer binaries but none support `apm instrument-start` (too old): %v", skippedUnsupported)
 	}
 	return "", fmt.Errorf("no datadog-installer binary found among %v", candidates)
 }
