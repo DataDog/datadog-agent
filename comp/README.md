@@ -170,10 +170,6 @@ Package healthprobe implements the health check server
 
 Package hostname exposes the hostname component interface.
 
-### [comp/core/hostname/hostnameinterface](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface)
-
-Package hostnameinterface describes the interface for hostname methods
-
 ### [comp/core/ipc](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/ipc)
 
 Package ipc takes care of the IPC artifacts lifecycle (creation, loading, deletion of auth_token, IPC certificate, IPC key).
