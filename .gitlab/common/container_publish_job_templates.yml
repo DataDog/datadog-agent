@@ -6,7 +6,7 @@
   SRC_CWS_INSTRUMENTATION: registry.ddbuild.io/ci/datadog-agent/cws-instrumentation
 
 .docker_publish_job_definition:
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$DATADOG_AGENT_PUBLIC_IMAGES_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_PUBLIC_IMAGES_BUILDIMAGES
   tags: ["arch:amd64"]
   variables:
     <<: *docker_variables
@@ -27,9 +27,17 @@
       IMG_SOURCES="$(sed -E "s#(${SRC_AGENT}|${SRC_DSD}|${SRC_DCA}|${SRC_CWS_INSTRUMENTATION})#\1${ECR_RELEASE_SUFFIX}#g" <<<"${IMG_SOURCES:-}")"
 
       publish_with_legacy_trigger() {
-        # Use inv instead of GitLab trigger because manual trigger jobs cannot be run after a failed pipeline is retried.
+        run_inv() {
+          if command -v dda >/dev/null 2>&1; then
+            dda inv "$@"
+          else
+            inv "$@"
+          fi
+        }
+
+        # Use invoke instead of GitLab trigger because manual trigger jobs cannot be run after a failed pipeline is retried.
         export GITLAB_TOKEN="$("$CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh" "$GITLAB_SCHEDULER_TOKEN_SSM_NAME")"
-        inv pipeline.trigger-child-pipeline --project-name DataDog/public-images --git-ref main \
+        run_inv pipeline.trigger-child-pipeline --project-name DataDog/public-images --git-ref main \
           --variable IMG_VARIABLES \
           --variable IMG_REGISTRIES \
           --variable IMG_SOURCES \
