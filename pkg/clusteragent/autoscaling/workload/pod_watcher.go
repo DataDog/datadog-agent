@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 	"sync"
+	"sync/atomic"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
@@ -43,6 +44,9 @@ type PodWatcher interface {
 	GetPodsForOwner(NamespacedPodOwner) []*workloadmeta.KubernetesPod
 	// GetReadyPodsForOwner returns the number of ready pods for the given owner.
 	GetReadyPodsForOwner(NamespacedPodOwner) int32
+	// HasSynced returns true once the PodWatcher has processed its initial
+	// workloadmeta bundle with pods
+	HasSynced() bool
 }
 
 // PodWatcherImpl is the implementation of the autoscaling PodWatcher
@@ -54,6 +58,7 @@ type PodWatcherImpl struct {
 	patcherChan          chan *workloadmeta.KubernetesPod
 	podsPerPodOwner      map[NamespacedPodOwner]map[string]*workloadmeta.KubernetesPod
 	readyPodsPerPodOwner map[NamespacedPodOwner]int32
+	synced               atomic.Bool
 }
 
 // NewPodWatcher creates a new PodWatcher
@@ -90,7 +95,7 @@ func (pw *PodWatcherImpl) GetReadyPodsForOwner(owner NamespacedPodOwner) int32 {
 
 // Run subscribes to workloadmeta events and indexes pods by their owner.
 func (pw *PodWatcherImpl) Run(ctx context.Context) {
-	log.Debug("Starting PodWatcher")
+	log.Info("Starting autoscaling PodWatcher, waiting for initial pod sync")
 
 	filter := workloadmeta.NewFilterBuilder().AddKind(workloadmeta.KindKubernetesPod).Build()
 	ch := pw.wlm.Subscribe(
@@ -119,8 +124,17 @@ func (pw *PodWatcherImpl) Run(ctx context.Context) {
 			for _, event := range eventBundle.Events {
 				pw.HandleEvent(event)
 			}
+			if pw.synced.CompareAndSwap(false, true) {
+				log.Info("Autoscaling PodWatcher synced")
+			}
 		}
 	}
+}
+
+// HasSynced returns true once the PodWatcher has processed its initial
+// workloadmeta bundle.
+func (pw *PodWatcherImpl) HasSynced() bool {
+	return pw.synced.Load()
 }
 
 // HandleEvent handles a workloadmeta event and updates the podwatcher state

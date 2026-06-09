@@ -27,6 +27,9 @@ jobs:
       - name: Update go.mod replace directive to datadog branch
         run: sed -i "s|go.opentelemetry.io/ebpf-profiler => github.com/DataDog/opentelemetry-ebpf-profiler v[^ ]*|go.opentelemetry.io/ebpf-profiler => github.com/DataDog/opentelemetry-ebpf-profiler datadog|" go.mod
 
+      - name: Set up Bazel cache
+        uses: ./.github/actions/bazel-cache
+
       - name: Tidy and generate licenses
         run: |
           go mod tidy

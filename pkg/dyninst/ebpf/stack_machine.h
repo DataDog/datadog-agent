@@ -2892,6 +2892,174 @@ sm_swissmap_loop_short_circuit_check(scratch_buf_t* buf, stack_machine_t* sm) {
   #undef ST
 }
 
+// sm_panic_unwind_prepare reads gp from DWARF reg 0, validates the
+// goroutine has a recovered (non-goexit) panic with an open
+// in_progress_calls entry, and writes panic_lo_depth / panic_hi_depth
+// / goid into the event header. Returns true on success; on failure
+// the caller sets sm->condition_failed to abort the event. Factored
+// out as a noinline helper to keep sm_loop's own stack frame small —
+// the verifier sums local stack across the worst-case call chain and
+// would otherwise reject sm_loop combined with its other handlers.
+__attribute__((noinline)) bool
+sm_panic_unwind_prepare(uint64_t gp, scratch_buf_t* buf) {
+  if (!buf) {
+    return false;
+  }
+  stats_t* stats = bpf_map_lookup_elem(&stats_buf, &zero_uint32);
+  if (stats) {
+    __sync_fetch_and_add(&stats->recovery_fires, 1);
+  }
+  if (OFFSET_runtime_dot_g___panic == 0) {
+    if (stats) __sync_fetch_and_add(&stats->recovery_invalid_state, 1);
+    return false;
+  }
+  // Defense in depth: irgen drops the recovery probe when these offsets
+  // are absent from DWARF (see synthesizeRecoveryProbeEventRoot), so we
+  // should never see them as 0 here. Bail explicitly anyway rather than
+  // letting the (lo, hi] computation below silently degenerate to
+  // start_sp == sp == 0 → sp <= start_sp → return false.
+  if (OFFSET_runtime_dot__panic__startSP == 0 ||
+      OFFSET_runtime_dot__panic__sp == 0) {
+    if (stats) __sync_fetch_and_add(&stats->recovery_invalid_state, 1);
+    return false;
+  }
+  if (gp == 0) {
+    if (stats) __sync_fetch_and_add(&stats->recovery_invalid_state, 1);
+    return false;
+  }
+  di_event_header_t* hdr = (di_event_header_t*)buf;
+  uint64_t goid = 0;
+  if (bpf_probe_read_user(&goid, sizeof(goid),
+                          (void*)(gp + OFFSET_runtime_dot_g__goid))) {
+    if (stats) __sync_fetch_and_add(&stats->recovery_invalid_state, 1);
+    return false;
+  }
+  if (goid == 0) {
+    uint64_t m_ptr = 0;
+    if (bpf_probe_read_user(&m_ptr, sizeof(m_ptr),
+                            (void*)(gp + OFFSET_runtime_dot_g__m)) ||
+        bpf_probe_read_user(&gp, sizeof(gp),
+                            (void*)(m_ptr + OFFSET_runtime_dot_m__curg)) ||
+        bpf_probe_read_user(&goid, sizeof(goid),
+                            (void*)(gp + OFFSET_runtime_dot_g__goid))) {
+      if (stats) __sync_fetch_and_add(&stats->recovery_invalid_state, 1);
+      return false;
+    }
+  }
+  if (!bpf_map_lookup_elem(&in_progress_calls, &goid)) {
+    if (stats) __sync_fetch_and_add(&stats->recovery_no_open_calls, 1);
+    return false;
+  }
+  uint64_t panic_ptr = 0;
+  if (bpf_probe_read_user(&panic_ptr, sizeof(panic_ptr),
+                          (void*)(gp + OFFSET_runtime_dot_g___panic))) {
+    if (stats) __sync_fetch_and_add(&stats->recovery_invalid_state, 1);
+    return false;
+  }
+  if (panic_ptr == 0) {
+    if (stats) __sync_fetch_and_add(&stats->recovery_invalid_state, 1);
+    return false;
+  }
+  if (OFFSET_runtime_dot__panic__recovered != 0) {
+    uint8_t recovered = 0;
+    if (bpf_probe_read_user(&recovered, sizeof(recovered),
+                            (void*)(panic_ptr +
+                                    OFFSET_runtime_dot__panic__recovered)) ||
+        recovered == 0) {
+      if (stats) __sync_fetch_and_add(&stats->recovery_invalid_state, 1);
+      return false;
+    }
+  }
+  if (OFFSET_runtime_dot__panic__goexit != 0) {
+    uint8_t goexit = 0;
+    if (bpf_probe_read_user(&goexit, sizeof(goexit),
+                            (void*)(panic_ptr +
+                                    OFFSET_runtime_dot__panic__goexit))) {
+      if (stats) __sync_fetch_and_add(&stats->recovery_invalid_state, 1);
+      return false;
+    }
+    if (goexit != 0) {
+      if (stats) __sync_fetch_and_add(&stats->recovery_filtered_goexit, 1);
+      return false;
+    }
+  }
+  uint64_t stack_hi = 0, start_sp = 0, sp = 0;
+  if (bpf_probe_read_user(&stack_hi, sizeof(stack_hi),
+                          (void*)(gp + OFFSET_runtime_dot_g__stack +
+                                  OFFSET_runtime_dot_stack__hi)) ||
+      bpf_probe_read_user(&start_sp, sizeof(start_sp),
+                          (void*)(panic_ptr +
+                                  OFFSET_runtime_dot__panic__startSP)) ||
+      bpf_probe_read_user(&sp, sizeof(sp),
+                          (void*)(panic_ptr +
+                                  OFFSET_runtime_dot__panic__sp))) {
+    if (stats) __sync_fetch_and_add(&stats->recovery_invalid_state, 1);
+    return false;
+  }
+  if (start_sp == 0 || sp == 0 || start_sp >= stack_hi ||
+      sp >= stack_hi || sp <= start_sp) {
+    if (stats) __sync_fetch_and_add(&stats->recovery_invalid_state, 1);
+    return false;
+  }
+  hdr->panic_lo_depth = (uint32_t)(stack_hi - sp);
+  hdr->panic_hi_depth = (uint32_t)(stack_hi - start_sp);
+  hdr->goid = goid;
+  // Stamp the pairing expectation so the sink routes this event
+  // through NotePanicUnwoundRange rather than treating it as a
+  // normal probe entry.
+  hdr->event_pairing_expectation = EVENT_PAIRING_RETURN_PANIC_UNWOUND;
+  return true;
+}
+
+// sm_panic_unwind_evict_slots clears in_progress_calls slots in
+// (lo, hi]. Reads (goid, lo, hi) from the event header populated by
+// sm_panic_unwind_prepare. Deletes the map entry if all slots become
+// empty. Factored out for the same verifier-budget reason as
+// sm_panic_unwind_prepare. Returns 0 — the BPF verifier requires
+// noinline "global functions" to return a scalar.
+__attribute__((noinline)) int
+sm_panic_unwind_evict_slots(scratch_buf_t* buf) {
+  if (!buf) {
+    return 0;
+  }
+  di_event_header_t* hdr = (di_event_header_t*)buf;
+  uint64_t goid = hdr->goid;
+  uint32_t lo = hdr->panic_lo_depth;
+  uint32_t hi = hdr->panic_hi_depth;
+  if (lo >= hi || goid == 0) {
+    return 0;
+  }
+  call_depths_t* depths =
+      bpf_map_lookup_elem(&in_progress_calls, &goid);
+  if (!depths) {
+    return 0;
+  }
+  stats_t* stats = bpf_map_lookup_elem(&stats_buf, &zero_uint32);
+  int remaining = 0;
+  for (int s = 0; s < CALL_DEPTHS_SIZE; s++) {
+    if (depths->depths[s].depth == 0 && depths->depths[s].probe_id == 0) {
+      continue;
+    }
+    if (depths->depths[s].depth <= lo || depths->depths[s].depth > hi) {
+      remaining++;
+      continue;
+    }
+    depths->depths[s].depth = 0;
+    depths->depths[s].probe_id = 0;
+    depths->depths[s].condition_state = 0;
+    depths->depths[s].dict_ptr = 0;
+    depths->depths[s].entry_ktime_ns = 0;
+    if (stats) {
+      __sync_fetch_and_add(&stats->recovery_evicted_frames, 1);
+    }
+  }
+  if (remaining == 0) {
+    bpf_map_delete_elem(&in_progress_calls, &goid);
+  }
+  return 0;
+}
+
+
 static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
   global_ctx_t* ctx = (global_ctx_t*)_ctx;
   scratch_buf_t* buf = ctx->buf;
@@ -2941,6 +3109,12 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
   } break;
 
   case SM_OP_EXPR_PREPARE: {
+    // Start each expression with the condition error flags cleared so that
+    // a faulting any/all loop body in a template segment or capture
+    // expression cannot leak into the next condition's ConditionCheck.
+    // Mirrors the ConditionBegin / ConditionCheck lifecycle for conditions.
+    sm->condition_eval_error = false;
+    sm->condition_nil_deref = false;
     sm->expr_results_end_offset = scratch_buf_len(buf);
     sm->offset = sm->expr_results_end_offset;
     if (sm->expr_type == POINTER) {
@@ -4780,6 +4954,24 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
     // opcode and parameters on the next iteration.
     sm->pc = op_start;
   } break;
+
+  case SM_OP_PANIC_UNWIND_PREPARE: {
+    // All the panic-chain reads and validation happens in a noinline
+    // helper so sm_loop's stack frame stays small enough that the
+    // verifier accepts sm_loop -> sm_run -> probe_run's worst-case
+    // call chain. The helper takes gp by value (rather than the full
+    // pt_regs*) so its signature uses verifier-friendly scalar types.
+    struct pt_regs* regs = ctx->regs;
+    uint64_t gp = regs ? regs->DWARF_REGISTER(0) : 0;
+    if (!sm_panic_unwind_prepare(gp, buf)) {
+      sm->condition_failed = true;
+      return 1;
+    }
+  } break;
+
+  case SM_OP_PANIC_UNWIND_EVICT_SLOTS:
+    (void)sm_panic_unwind_evict_slots(buf);
+    break;
 
   default:
     LOG(1, "enqueue: @0x%x unknown instruction %d\n", sm->pc - 1, op);

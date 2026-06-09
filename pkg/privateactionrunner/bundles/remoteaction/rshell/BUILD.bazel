@@ -1,0 +1,42 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "rshell",
+    srcs = [
+        "entrypoint.go",
+        "helper.go",
+        "run_command.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/remoteaction/rshell",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/config/env",
+        "//pkg/config/setup",
+        "//pkg/fleet/installer/telemetry",
+        "//pkg/privateactionrunner/adapters/config",
+        "//pkg/privateactionrunner/libs/privateconnection",
+        "//pkg/privateactionrunner/observability",
+        "//pkg/privateactionrunner/types",
+        "//pkg/util/log",
+        "@cc_mvdan_sh_v3//syntax",
+        "@com_github_datadog_rshell//interp",
+    ],
+)
+
+go_test(
+    name = "rshell_test",
+    srcs = [
+        "helper_test.go",
+        "run_command_test.go",
+    ],
+    embed = [":rshell"],
+    gotags = ["test"],
+    deps = [
+        "//pkg/config/setup",
+        "//pkg/privateactionrunner/adapters/config",
+        "//pkg/privateactionrunner/types",
+        "@com_github_datadog_rshell//interp",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

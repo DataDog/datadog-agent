@@ -247,11 +247,11 @@ func (suite *KubeletTestSuite) TestLocateKubeletHTTP() {
 	require.Nil(suite.T(), err)
 	defer ts.Close()
 
-	mockConfig.SetWithoutSource("kubernetes_kubelet_host", "127.0.0.1")
-	mockConfig.SetWithoutSource("kubernetes_http_kubelet_port", kubeletPort)
-	mockConfig.SetWithoutSource("kubernetes_https_kubelet_port", kubeletPort)
-	mockConfig.SetWithoutSource("kubelet_tls_verify", false)
-	mockConfig.SetWithoutSource("kubelet_auth_token_path", "")
+	mockConfig.SetInTest("kubernetes_kubelet_host", "127.0.0.1")
+	mockConfig.SetInTest("kubernetes_http_kubelet_port", kubeletPort)
+	mockConfig.SetInTest("kubernetes_https_kubelet_port", kubeletPort)
+	mockConfig.SetInTest("kubelet_tls_verify", false)
+	mockConfig.SetInTest("kubelet_auth_token_path", "")
 
 	ku := NewKubeUtil()
 	err = ku.init()
@@ -282,11 +282,11 @@ func (suite *KubeletTestSuite) TestGetLocalPodList() {
 	require.Nil(suite.T(), err)
 	defer ts.Close()
 
-	mockConfig.SetWithoutSource("kubernetes_kubelet_host", "localhost")
-	mockConfig.SetWithoutSource("kubernetes_http_kubelet_port", kubeletPort)
-	mockConfig.SetWithoutSource("kubernetes_https_kubelet_port", -1)
-	mockConfig.SetWithoutSource("kubelet_tls_verify", false)
-	mockConfig.SetWithoutSource("kubelet_auth_token_path", "")
+	mockConfig.SetInTest("kubernetes_kubelet_host", "localhost")
+	mockConfig.SetInTest("kubernetes_http_kubelet_port", kubeletPort)
+	mockConfig.SetInTest("kubernetes_https_kubelet_port", -1)
+	mockConfig.SetInTest("kubelet_tls_verify", false)
+	mockConfig.SetInTest("kubelet_auth_token_path", "")
 
 	kubeutil := suite.getCustomKubeUtil()
 	kubelet.dropRequests() // Throwing away first GETs
@@ -315,11 +315,11 @@ func (suite *KubeletTestSuite) TestGetLocalPodListWithBrokenKubelet() {
 	require.Nil(suite.T(), err)
 	defer ts.Close()
 
-	mockConfig.SetWithoutSource("kubernetes_kubelet_host", "localhost")
-	mockConfig.SetWithoutSource("kubernetes_http_kubelet_port", kubeletPort)
-	mockConfig.SetWithoutSource("kubernetes_https_kubelet_port", -1)
-	mockConfig.SetWithoutSource("kubelet_tls_verify", false)
-	mockConfig.SetWithoutSource("kubelet_auth_token_path", "")
+	mockConfig.SetInTest("kubernetes_kubelet_host", "localhost")
+	mockConfig.SetInTest("kubernetes_http_kubelet_port", kubeletPort)
+	mockConfig.SetInTest("kubernetes_https_kubelet_port", -1)
+	mockConfig.SetInTest("kubelet_tls_verify", false)
+	mockConfig.SetInTest("kubelet_auth_token_path", "")
 
 	kubeutil := suite.getCustomKubeUtil()
 	kubelet.dropRequests() // Throwing away first GETs
@@ -340,12 +340,12 @@ func (suite *KubeletTestSuite) TestGetNodenameStatsSummary() {
 	require.Nil(suite.T(), err)
 	defer ts.Close()
 
-	mockConfig.SetWithoutSource("kubernetes_kubelet_host", "localhost")
-	mockConfig.SetWithoutSource("kubernetes_http_kubelet_port", kubeletPort)
-	mockConfig.SetWithoutSource("kubernetes_https_kubelet_port", -1)
-	mockConfig.SetWithoutSource("kubelet_tls_verify", false)
-	mockConfig.SetWithoutSource("kubelet_auth_token_path", "")
-	mockConfig.SetWithoutSource("kubelet_use_api_server", true)
+	mockConfig.SetInTest("kubernetes_kubelet_host", "localhost")
+	mockConfig.SetInTest("kubernetes_http_kubelet_port", kubeletPort)
+	mockConfig.SetInTest("kubernetes_https_kubelet_port", -1)
+	mockConfig.SetInTest("kubelet_tls_verify", false)
+	mockConfig.SetInTest("kubelet_auth_token_path", "")
+	mockConfig.SetInTest("kubelet_use_api_server", true)
 
 	os.Setenv("KUBERNETES_SERVICE_HOST", "10.0.0.1")
 	os.Setenv("KUBERNETES_SERVICE_PORT_HTTPS", "443")
@@ -380,11 +380,11 @@ func (suite *KubeletTestSuite) TestGetNodename() {
 	require.Nil(suite.T(), err)
 	defer ts.Close()
 
-	mockConfig.SetWithoutSource("kubernetes_kubelet_host", "localhost")
-	mockConfig.SetWithoutSource("kubernetes_http_kubelet_port", kubeletPort)
-	mockConfig.SetWithoutSource("kubernetes_https_kubelet_port", -1)
-	mockConfig.SetWithoutSource("kubelet_tls_verify", false)
-	mockConfig.SetWithoutSource("kubelet_auth_token_path", "")
+	mockConfig.SetInTest("kubernetes_kubelet_host", "localhost")
+	mockConfig.SetInTest("kubernetes_http_kubelet_port", kubeletPort)
+	mockConfig.SetInTest("kubernetes_https_kubelet_port", -1)
+	mockConfig.SetInTest("kubelet_tls_verify", false)
+	mockConfig.SetInTest("kubelet_auth_token_path", "")
 
 	kubeutil := suite.getCustomKubeUtil()
 	kubelet.dropRequests() // Throwing away first GETs
@@ -412,10 +412,10 @@ func (suite *KubeletTestSuite) TestPodlistCache() {
 	require.Nil(suite.T(), err)
 	defer ts.Close()
 
-	mockConfig.SetWithoutSource("kubernetes_kubelet_host", "localhost")
-	mockConfig.SetWithoutSource("kubernetes_http_kubelet_port", kubeletPort)
-	mockConfig.SetWithoutSource("kubernetes_https_kubelet_port", -1)
-	mockConfig.SetWithoutSource("kubelet_cache_pods_duration", 5) // Default is 0. Need to set to > 0 to test cache
+	mockConfig.SetInTest("kubernetes_kubelet_host", "localhost")
+	mockConfig.SetInTest("kubernetes_http_kubelet_port", kubeletPort)
+	mockConfig.SetInTest("kubernetes_https_kubelet_port", -1)
+	mockConfig.SetInTest("kubelet_cache_pods_duration", 5) // Default is 0. Need to set to > 0 to test cache
 
 	kubeutil := suite.getCustomKubeUtil()
 	kubelet.dropRequests() // Throwing away first GETs
@@ -456,11 +456,11 @@ func (suite *KubeletTestSuite) TestKubeletInitFailOnToken() {
 	require.Nil(suite.T(), err)
 	defer s.Close()
 
-	mockConfig.SetWithoutSource("kubernetes_https_kubelet_port", kubeletPort)
-	mockConfig.SetWithoutSource("kubernetes_http_kubelet_port", -1)
-	mockConfig.SetWithoutSource("kubelet_auth_token_path", fakePath)
-	mockConfig.SetWithoutSource("kubelet_tls_verify", false)
-	mockConfig.SetWithoutSource("kubernetes_kubelet_host", "127.0.0.1")
+	mockConfig.SetInTest("kubernetes_https_kubelet_port", kubeletPort)
+	mockConfig.SetInTest("kubernetes_http_kubelet_port", -1)
+	mockConfig.SetInTest("kubelet_auth_token_path", fakePath)
+	mockConfig.SetInTest("kubelet_tls_verify", false)
+	mockConfig.SetInTest("kubernetes_kubelet_host", "127.0.0.1")
 
 	ku := NewKubeUtil()
 	err = ku.init()
@@ -487,12 +487,12 @@ func (suite *KubeletTestSuite) TestKubeletInitTokenHttps() {
 	require.Nil(suite.T(), err)
 	defer s.Close()
 
-	mockConfig.SetWithoutSource("kubernetes_https_kubelet_port", kubeletPort)
-	mockConfig.SetWithoutSource("kubernetes_http_kubelet_port", -1)
-	mockConfig.SetWithoutSource("kubelet_auth_token_path", "./testdata/fakeBearerToken")
-	mockConfig.SetWithoutSource("kubelet_tls_verify", false)
-	mockConfig.SetWithoutSource("kubernetes_kubelet_host", "127.0.0.1")
-	mockConfig.SetWithoutSource("kubelet_client_ca", "./testdata/ca.crt")
+	mockConfig.SetInTest("kubernetes_https_kubelet_port", kubeletPort)
+	mockConfig.SetInTest("kubernetes_http_kubelet_port", -1)
+	mockConfig.SetInTest("kubelet_auth_token_path", "./testdata/fakeBearerToken")
+	mockConfig.SetInTest("kubelet_tls_verify", false)
+	mockConfig.SetInTest("kubernetes_kubelet_host", "127.0.0.1")
+	mockConfig.SetInTest("kubelet_client_ca", "./testdata/ca.crt")
 
 	ku := NewKubeUtil()
 	err = ku.init()
@@ -530,14 +530,14 @@ func (suite *KubeletTestSuite) TestKubeletInitHttpsCerts() {
 	require.Nil(suite.T(), err)
 	defer s.Close()
 
-	mockConfig.SetWithoutSource("kubernetes_https_kubelet_port", kubeletPort)
-	mockConfig.SetWithoutSource("kubernetes_http_kubelet_port", -1)
-	mockConfig.SetWithoutSource("kubelet_auth_token_path", "./testdata/fakeBearerToken")
-	mockConfig.SetWithoutSource("kubelet_tls_verify", true)
-	mockConfig.SetWithoutSource("kubelet_client_crt", k.testingCertificate)
-	mockConfig.SetWithoutSource("kubelet_client_key", k.testingPrivateKey)
-	mockConfig.SetWithoutSource("kubelet_client_ca", k.testingCertificate)
-	mockConfig.SetWithoutSource("kubernetes_kubelet_host", "127.0.0.1")
+	mockConfig.SetInTest("kubernetes_https_kubelet_port", kubeletPort)
+	mockConfig.SetInTest("kubernetes_http_kubelet_port", -1)
+	mockConfig.SetInTest("kubelet_auth_token_path", "./testdata/fakeBearerToken")
+	mockConfig.SetInTest("kubelet_tls_verify", true)
+	mockConfig.SetInTest("kubelet_client_crt", k.testingCertificate)
+	mockConfig.SetInTest("kubelet_client_key", k.testingPrivateKey)
+	mockConfig.SetInTest("kubelet_client_ca", k.testingCertificate)
+	mockConfig.SetInTest("kubernetes_kubelet_host", "127.0.0.1")
 
 	ku := NewKubeUtil()
 	err = ku.init()
@@ -583,11 +583,11 @@ func (suite *KubeletTestSuite) TestKubeletInitTokenHttp() {
 	require.Nil(suite.T(), err)
 	defer s.Close()
 
-	mockConfig.SetWithoutSource("kubernetes_http_kubelet_port", kubeletPort)
-	mockConfig.SetWithoutSource("kubernetes_https_kubelet_port", -1)
-	mockConfig.SetWithoutSource("kubelet_auth_token_path", "./testdata/unusedBearerToken")
-	mockConfig.SetWithoutSource("kubelet_tls_verify", false)
-	mockConfig.SetWithoutSource("kubernetes_kubelet_host", "127.0.0.1")
+	mockConfig.SetInTest("kubernetes_http_kubelet_port", kubeletPort)
+	mockConfig.SetInTest("kubernetes_https_kubelet_port", -1)
+	mockConfig.SetInTest("kubelet_auth_token_path", "./testdata/unusedBearerToken")
+	mockConfig.SetInTest("kubelet_tls_verify", false)
+	mockConfig.SetInTest("kubernetes_kubelet_host", "127.0.0.1")
 
 	ku := NewKubeUtil()
 	err = ku.init()
@@ -619,11 +619,11 @@ func (suite *KubeletTestSuite) TestKubeletInitHttp() {
 	require.Nil(suite.T(), err)
 	defer s.Close()
 
-	mockConfig.SetWithoutSource("kubernetes_http_kubelet_port", kubeletPort)
-	mockConfig.SetWithoutSource("kubernetes_https_kubelet_port", -1)
-	mockConfig.SetWithoutSource("kubelet_auth_token_path", "")
-	mockConfig.SetWithoutSource("kubelet_tls_verify", false)
-	mockConfig.SetWithoutSource("kubernetes_kubelet_host", "127.0.0.1")
+	mockConfig.SetInTest("kubernetes_http_kubelet_port", kubeletPort)
+	mockConfig.SetInTest("kubernetes_https_kubelet_port", -1)
+	mockConfig.SetInTest("kubelet_auth_token_path", "")
+	mockConfig.SetInTest("kubelet_tls_verify", false)
+	mockConfig.SetInTest("kubernetes_kubelet_host", "127.0.0.1")
 
 	ku := NewKubeUtil()
 	err = ku.init()
@@ -653,11 +653,11 @@ func (suite *KubeletTestSuite) TestGetKubeletHostFromConfig() {
 	require.Nil(suite.T(), err)
 	defer s.Close()
 
-	mockConfig.SetWithoutSource("kubernetes_http_kubelet_port", kubeletPort)
-	mockConfig.SetWithoutSource("kubernetes_https_kubelet_port", -1)
-	mockConfig.SetWithoutSource("kubelet_auth_token_path", "")
-	mockConfig.SetWithoutSource("kubelet_tls_verify", false)
-	mockConfig.SetWithoutSource("kubernetes_kubelet_host", "127.0.0.1")
+	mockConfig.SetInTest("kubernetes_http_kubelet_port", kubeletPort)
+	mockConfig.SetInTest("kubernetes_https_kubelet_port", -1)
+	mockConfig.SetInTest("kubelet_auth_token_path", "")
+	mockConfig.SetInTest("kubelet_tls_verify", false)
+	mockConfig.SetInTest("kubernetes_kubelet_host", "127.0.0.1")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
@@ -676,7 +676,7 @@ func (suite *KubeletTestSuite) TestGetKubeletHostFromConfig() {
 	})
 
 	// when kubernetes_kubelet_host is not set
-	mockConfig.SetWithoutSource("kubernetes_kubelet_host", "")
+	mockConfig.SetInTest("kubernetes_kubelet_host", "")
 	ips, hostnames = getKubeletHostFromConfig(ctx, mockConfig.GetString("kubernetes_kubelet_host"))
 	assert.Equal(suite.T(), ips, []string(nil))
 	assert.Equal(suite.T(), hostnames, []string(nil))
@@ -685,7 +685,7 @@ func (suite *KubeletTestSuite) TestGetKubeletHostFromConfig() {
 func (suite *KubeletTestSuite) TestPodListNoExpire() {
 	ctx := context.Background()
 	mockConfig := configmock.New(suite.T())
-	mockConfig.SetWithoutSource("kubernetes_pod_expiration_duration", 0)
+	mockConfig.SetInTest("kubernetes_pod_expiration_duration", 0)
 
 	kubelet, err := newDummyKubelet("./testdata/podlist_expired.json", "", "")
 	require.Nil(suite.T(), err)
@@ -693,11 +693,11 @@ func (suite *KubeletTestSuite) TestPodListNoExpire() {
 	require.Nil(suite.T(), err)
 	defer ts.Close()
 
-	mockConfig.SetWithoutSource("kubernetes_kubelet_host", "localhost")
-	mockConfig.SetWithoutSource("kubernetes_http_kubelet_port", kubeletPort)
-	mockConfig.SetWithoutSource("kubernetes_https_kubelet_port", -1)
-	mockConfig.SetWithoutSource("kubelet_tls_verify", false)
-	mockConfig.SetWithoutSource("kubelet_auth_token_path", "")
+	mockConfig.SetInTest("kubernetes_kubelet_host", "localhost")
+	mockConfig.SetInTest("kubernetes_http_kubelet_port", kubeletPort)
+	mockConfig.SetInTest("kubernetes_https_kubelet_port", -1)
+	mockConfig.SetInTest("kubelet_tls_verify", false)
+	mockConfig.SetInTest("kubelet_auth_token_path", "")
 
 	kubeutil, err := GetKubeUtil()
 	require.Nil(suite.T(), err)
@@ -721,7 +721,7 @@ func (suite *KubeletTestSuite) TestPodListExpire() {
 
 	ctx := context.Background()
 	mockConfig := configmock.New(suite.T())
-	mockConfig.SetWithoutSource("kubernetes_pod_expiration_duration", 15*60)
+	mockConfig.SetInTest("kubernetes_pod_expiration_duration", 15*60)
 
 	kubelet, err := newDummyKubelet("./testdata/podlist_expired.json", "", "")
 	require.Nil(suite.T(), err)
@@ -729,11 +729,11 @@ func (suite *KubeletTestSuite) TestPodListExpire() {
 	require.Nil(suite.T(), err)
 	defer ts.Close()
 
-	mockConfig.SetWithoutSource("kubernetes_kubelet_host", "localhost")
-	mockConfig.SetWithoutSource("kubernetes_http_kubelet_port", kubeletPort)
-	mockConfig.SetWithoutSource("kubernetes_https_kubelet_port", -1)
-	mockConfig.SetWithoutSource("kubelet_tls_verify", false)
-	mockConfig.SetWithoutSource("kubelet_auth_token_path", "")
+	mockConfig.SetInTest("kubernetes_kubelet_host", "localhost")
+	mockConfig.SetInTest("kubernetes_http_kubelet_port", kubeletPort)
+	mockConfig.SetInTest("kubernetes_https_kubelet_port", -1)
+	mockConfig.SetInTest("kubelet_tls_verify", false)
+	mockConfig.SetInTest("kubelet_auth_token_path", "")
 
 	kubeutil := suite.getCustomKubeUtil()
 	kubelet.dropRequests() // Throwing away first GETs
@@ -786,9 +786,9 @@ func (suite *KubeletTestSuite) TestContainerEnvVars() {
 	require.Nil(suite.T(), err)
 	defer ts.Close()
 
-	mockConfig.SetWithoutSource("kubernetes_kubelet_host", "localhost")
-	mockConfig.SetWithoutSource("kubernetes_http_kubelet_port", kubeletPort)
-	mockConfig.SetWithoutSource("kubernetes_https_kubelet_port", -1)
+	mockConfig.SetInTest("kubernetes_kubelet_host", "localhost")
+	mockConfig.SetInTest("kubernetes_http_kubelet_port", kubeletPort)
+	mockConfig.SetInTest("kubernetes_https_kubelet_port", -1)
 
 	kubeutil := suite.getCustomKubeUtil()
 	kubelet.dropRequests() // Throwing away first GETs
@@ -834,11 +834,11 @@ func (suite *KubeletTestSuite) TestPodListWithNullPod() {
 	require.Nil(suite.T(), err)
 	defer ts.Close()
 
-	mockConfig.SetWithoutSource("kubernetes_kubelet_host", "localhost")
-	mockConfig.SetWithoutSource("kubernetes_http_kubelet_port", kubeletPort)
-	mockConfig.SetWithoutSource("kubernetes_https_kubelet_port", -1)
-	mockConfig.SetWithoutSource("kubelet_tls_verify", false)
-	mockConfig.SetWithoutSource("kubelet_auth_token_path", "")
+	mockConfig.SetInTest("kubernetes_kubelet_host", "localhost")
+	mockConfig.SetInTest("kubernetes_http_kubelet_port", kubeletPort)
+	mockConfig.SetInTest("kubernetes_https_kubelet_port", -1)
+	mockConfig.SetInTest("kubelet_tls_verify", false)
+	mockConfig.SetInTest("kubelet_auth_token_path", "")
 
 	kubeutil := suite.getCustomKubeUtil()
 	kubelet.dropRequests() // Throwing away first GETs
@@ -863,11 +863,11 @@ func (suite *KubeletTestSuite) TestPodListOnKubeletInit() {
 	require.Nil(suite.T(), err)
 	defer ts.Close()
 
-	mockConfig.SetWithoutSource("kubernetes_kubelet_host", "localhost")
-	mockConfig.SetWithoutSource("kubernetes_http_kubelet_port", kubeletPort)
-	mockConfig.SetWithoutSource("kubernetes_https_kubelet_port", -1)
-	mockConfig.SetWithoutSource("kubelet_tls_verify", false)
-	mockConfig.SetWithoutSource("kubelet_auth_token_path", "")
+	mockConfig.SetInTest("kubernetes_kubelet_host", "localhost")
+	mockConfig.SetInTest("kubernetes_http_kubelet_port", kubeletPort)
+	mockConfig.SetInTest("kubernetes_https_kubelet_port", -1)
+	mockConfig.SetInTest("kubelet_tls_verify", false)
+	mockConfig.SetInTest("kubelet_auth_token_path", "")
 
 	kubeutil := suite.getCustomKubeUtil()
 	kubelet.dropRequests() // Throwing away first GETs
@@ -887,11 +887,11 @@ func (suite *KubeletTestSuite) TestPodListWithPersistentVolumeClaim() {
 	require.Nil(suite.T(), err)
 	defer ts.Close()
 
-	mockConfig.SetWithoutSource("kubernetes_kubelet_host", "localhost")
-	mockConfig.SetWithoutSource("kubernetes_http_kubelet_port", kubeletPort)
-	mockConfig.SetWithoutSource("kubernetes_https_kubelet_port", -1)
-	mockConfig.SetWithoutSource("kubelet_tls_verify", false)
-	mockConfig.SetWithoutSource("kubelet_auth_token_path", "")
+	mockConfig.SetInTest("kubernetes_kubelet_host", "localhost")
+	mockConfig.SetInTest("kubernetes_http_kubelet_port", kubeletPort)
+	mockConfig.SetInTest("kubernetes_https_kubelet_port", -1)
+	mockConfig.SetInTest("kubelet_tls_verify", false)
+	mockConfig.SetInTest("kubelet_auth_token_path", "")
 
 	kubeutil := suite.getCustomKubeUtil()
 	kubelet.dropRequests() // Throwing away first GETs
@@ -922,11 +922,11 @@ func (suite *KubeletTestSuite) TestGetConfig() {
 	require.Nil(suite.T(), err)
 	defer ts.Close()
 
-	mockConfig.SetWithoutSource("kubernetes_kubelet_host", "localhost")
-	mockConfig.SetWithoutSource("kubernetes_http_kubelet_port", kubeletPort)
-	mockConfig.SetWithoutSource("kubernetes_https_kubelet_port", -1)
-	mockConfig.SetWithoutSource("kubelet_tls_verify", false)
-	mockConfig.SetWithoutSource("kubelet_auth_token_path", "")
+	mockConfig.SetInTest("kubernetes_kubelet_host", "localhost")
+	mockConfig.SetInTest("kubernetes_http_kubelet_port", kubeletPort)
+	mockConfig.SetInTest("kubernetes_https_kubelet_port", -1)
+	mockConfig.SetInTest("kubelet_tls_verify", false)
+	mockConfig.SetInTest("kubelet_auth_token_path", "")
 
 	kubeutil := suite.getCustomKubeUtil()
 
@@ -945,11 +945,11 @@ func (suite *KubeletTestSuite) TestGetConfigWithBrokenKubelet() {
 	require.Nil(suite.T(), err)
 	defer ts.Close()
 
-	mockConfig.SetWithoutSource("kubernetes_kubelet_host", "localhost")
-	mockConfig.SetWithoutSource("kubernetes_http_kubelet_port", kubeletPort)
-	mockConfig.SetWithoutSource("kubernetes_https_kubelet_port", -1)
-	mockConfig.SetWithoutSource("kubelet_tls_verify", false)
-	mockConfig.SetWithoutSource("kubelet_auth_token_path", "")
+	mockConfig.SetInTest("kubernetes_kubelet_host", "localhost")
+	mockConfig.SetInTest("kubernetes_http_kubelet_port", kubeletPort)
+	mockConfig.SetInTest("kubernetes_https_kubelet_port", -1)
+	mockConfig.SetInTest("kubelet_tls_verify", false)
+	mockConfig.SetInTest("kubelet_auth_token_path", "")
 
 	kubeutil := suite.getCustomKubeUtil()
 
