@@ -274,12 +274,12 @@ func TestInjectAPMLibraries_InjectedLibraries_UnsupportedLanguage(t *testing.T) 
 // across the full range of outcomes.
 func TestInjectAPMLibraries_InjectionStatus(t *testing.T) {
 	tests := []struct {
-		name           string
-		cfg            libraryinjection.LibraryInjectionConfig
-		pod            *corev1.Pod
-		wantErr        bool
-		wantStatus     string
-		wantStatusSet  bool
+		name          string
+		cfg           libraryinjection.LibraryInjectionConfig
+		pod           *corev1.Pod
+		wantErr       bool
+		wantStatus    string
+		wantStatusSet bool
 	}{
 		{
 			name: "all libraries injected → injected",
