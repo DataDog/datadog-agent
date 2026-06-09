@@ -145,7 +145,7 @@ type anomalyScorer struct {
 }
 
 // NewScorer creates a new anomalyScorer with the given config.
-func NewScorer(cfg observer.ScorerConfig) *anomalyScorer {
+func NewScorer(cfg observer.ScorerConfig) observer.AnomalyScorer {
 	return &anomalyScorer{
 		config:    cfg,
 		pending:   make(map[int64][]observer.Anomaly),
