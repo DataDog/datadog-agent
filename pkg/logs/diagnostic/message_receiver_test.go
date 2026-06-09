@@ -24,7 +24,7 @@ func getNewHostname(name hostnameinterface.MockHostname) hostnameinterface.Mock 
 
 func getTestConfig(t *testing.T) pkgconfigmodel.Reader {
 	cfg := configmock.New(t)
-	cfg.SetWithoutSource("logs_config.message_channel_size", 100)
+	cfg.SetInTest("logs_config.message_channel_size", 100)
 	return cfg
 }
 

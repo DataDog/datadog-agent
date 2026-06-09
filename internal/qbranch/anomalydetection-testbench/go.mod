@@ -276,7 +276,6 @@ replace (
 	github.com/DataDog/datadog-agent/internal/tools/independent-lint => ../../../internal/tools/independent-lint
 	github.com/DataDog/datadog-agent/internal/tools/modformatter => ../../../internal/tools/modformatter
 	github.com/DataDog/datadog-agent/internal/tools/modparser => ../../../internal/tools/modparser
-	github.com/DataDog/datadog-agent/internal/tools/proto => ../../../internal/tools/proto
 	github.com/DataDog/datadog-agent/internal/tools/worksynchronizer => ../../../internal/tools/worksynchronizer
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey => ../../../pkg/aggregator/ckey
 	github.com/DataDog/datadog-agent/pkg/api => ../../../pkg/api
