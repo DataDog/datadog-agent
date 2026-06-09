@@ -43,18 +43,24 @@ func (m *invalidConfigModule) BuiltInPeriodicHealthCheck() *runnerdef.BuiltInPer
 	return nil
 }
 
-// BuiltInStartupHealthCheck registers the schema-validation check only when
-// health_platform.invalidconfig_check.enabled is true.
-// The check is gated because schema.ValidateCoreConfig decompresses, parses, and
-// compiles the full core_schema.yaml (~8000 lines) into a *jsonschema.Schema stored
-// in a process-lifetime global — adding ~8 MiB of permanent heap even when the
-// agent config is valid.
+// BuiltInStartupHealthCheck runs schema validation once at agent startup.
+// The check is gated inside Fn rather than at registration time so that
+// IssueNames-based stale-issue resolution still fires on restart even when
+// the flag is disabled — returning nil/empty resolves any previously-stored
+// issues rather than leaving them orphaned.
+//
+// The gate exists because schema.ValidateCoreConfig decompresses, parses, and
+// compiles the full core_schema.yaml (~8000 lines) into a *jsonschema.Schema
+// stored in a process-lifetime global — adding ~8 MiB of permanent heap even
+// when the agent config is valid.
 func (m *invalidConfigModule) BuiltInStartupHealthCheck() *runnerdef.BuiltInHealthCheck {
-	if !m.cfg.GetBool("health_platform.invalidconfig_check.enabled") {
-		return nil
-	}
 	return &runnerdef.BuiltInHealthCheck{
 		Source: "agent",
-		Fn:     m.checker.Run,
+		Fn: func() ([]runnerdef.IssueReport, error) {
+			if !m.cfg.GetBool("health_platform.invalidconfig_check.enabled") {
+				return nil, nil
+			}
+			return m.checker.Run()
+		},
 	}
 }
