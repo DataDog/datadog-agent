@@ -31,10 +31,20 @@ def collect_build_metrics(_ctx):
         return
 
     # Derive platform and arch from the job name slug.
-    # Expected format: 'bazel-test-linux-amd64', 'bazel-test-macos-arm64', etc.
+    # Pure Bazel jobs: 'bazel-test-linux-amd64', 'bazel-test-macos-arm64', etc.
+    # Omnibus-transition jobs: 'datadog-agent-7-x64', 'datadog-agent-7-arm64', etc.
+    # Normalize arch aliases and detect platform from known tokens in the slug.
+    _ARCH_ALIASES = {'x64': 'amd64', 'aarch64': 'arm64', 'x86-64': 'amd64'}
     parts = job_name_slug.split('-')
-    arch = parts[-1] if len(parts) >= 2 else 'unknown'
-    platform = parts[-2] if len(parts) >= 3 else 'unknown'
+    raw_arch = parts[-1] if parts else 'unknown'
+    arch = _ARCH_ALIASES.get(raw_arch, raw_arch)
+    slug_lower = job_name_slug.lower()
+    if 'macos' in slug_lower or 'darwin' in slug_lower:
+        platform = 'macos'
+    elif 'windows' in slug_lower or 'win' in slug_lower:
+        platform = 'windows'
+    else:
+        platform = 'linux'
 
     tags = [
         f'job:{job_name_slug}',

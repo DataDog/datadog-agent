@@ -6,6 +6,7 @@
   variables:
     BAZELISK_HOME: "$XDG_CACHE_HOME/bazelisk" # not all bazelisk versions may honor $XDG_CACHE_HOME
   after_script:
+    - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
     - dda inv bazel.collect-build-metrics
 
 .bazel:defs:cache:progressive:
