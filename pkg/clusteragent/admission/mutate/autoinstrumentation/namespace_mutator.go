@@ -98,6 +98,7 @@ func (m *mutatorCore) apmInjectionMutator(config extractedPodLibInfo, autoDetect
 		if err != nil {
 			log.Warnf("Skipping APM library injection for pod %s: %s", mutatecommon.PodString(pod), err)
 			annotation.Set(pod, annotation.InjectionError, err.Error())
+			annotation.Set(pod, annotation.InjectionStatus, annotation.InjectionStatusSkipped)
 			return nil
 		}
 
