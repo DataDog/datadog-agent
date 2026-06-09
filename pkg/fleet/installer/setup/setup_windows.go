@@ -105,6 +105,10 @@ func runAgentInstaller(ctx context.Context, e *env.Env, flavor, tag string) erro
 	if err := pkg.ExtractLayers(oci.DatadogPackageInstallerLayerMediaType, exePath); err != nil {
 		return fmt.Errorf("could not download Datadog Agent %s: %w", pkg.Version, err)
 	}
+	// ExtractLayers returns nil even when no matching layer exists (the
+	// "no match" error only fires when annotation filters are passed); the
+	// file's absence is how we detect a package with no installer layer
+	// (pre-7.79).
 	if _, err := os.Stat(exePath); err != nil {
 		return fmt.Errorf("cannot install Datadog Agent %s: this command requires Agent 7.79 or newer", pkg.Version)
 	}
