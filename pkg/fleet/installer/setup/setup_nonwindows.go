@@ -13,9 +13,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 )
 
-// handoffToRequestedAgentInstallerVersion is a no-op on non-Windows platforms. The Linux and
-// macOS install scripts resolve DD_AGENT_MAJOR_VERSION/DD_AGENT_MINOR_VERSION
-// upstream of the installer.
-func handoffToRequestedAgentInstallerVersion(_ context.Context, _ *env.Env, _ string) (bool, error) {
-	return false, nil
+// requestedAgentVersion is a no-op on non-Windows. The Linux and macOS
+// install scripts resolve DD_AGENT_MAJOR/MINOR_VERSION upstream of the
+// installer, so the in-process setup is always the right path here.
+func requestedAgentVersion(_ *env.Env) (string, error) { return "", nil }
+
+// runAgentInstaller is unreachable on non-Windows (callers gate on
+// requestedAgentVersion != ""). Provided so setup.go compiles cross-platform.
+func runAgentInstaller(_ context.Context, _ *env.Env, _, _ string) error {
+	return nil
 }

@@ -26,21 +26,122 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 )
 
-// envSetupReexec marks a child process spawned by handoffToRequestedAgentInstallerVersion so
-// it unconditionally skips the version check and runs setup in-process —
-// hard recursion guard.
-const envSetupReexec = "DD_INSTALLER_SETUP_REEXEC"
-
 // agentPackage is the OCI package name for the Datadog Agent.
 const agentPackage = "datadog-agent"
 
 // releaseSuffixRe matches a trailing `-N` release suffix (e.g. `-1`).
 var releaseSuffixRe = regexp.MustCompile(`-\d+$`)
 
+// requestedAgentVersion returns the OCI tag the user has asked the running
+// installer to install — or "" if they have not asked for a specific version,
+// in which case setup should run in-process and install the version baked
+// into this binary.
+//
+// Supported inputs:
+//   - DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_AGENT — returned verbatim
+//     (matches bootstrap.getInstallerOCI; lets CI pin an exact OCI tag).
+//   - DD_AGENT_MAJOR_VERSION only — returns the moving major tag (e.g. "7").
+//   - DD_AGENT_MAJOR_VERSION + DD_AGENT_MINOR_VERSION — joined and normalized
+//     (`~` → `-`, append `-N` release suffix when missing). Major defaults to
+//     "7" if only minor is set.
+//   - Neither — returns "".
+func requestedAgentVersion(e *env.Env) (string, error) {
+	if override := e.DefaultPackagesVersionOverride[agentPackage]; override != "" {
+		return override, nil
+	}
+	major, minor := e.AgentMajorVersion, e.AgentMinorVersion
+	if major == "" && minor == "" {
+		return "", nil
+	}
+	// Fleet automation only supports Agent 7 (Linux install script
+	// validates similarly — it accepts 6 or 7). Reject anything else
+	// loudly rather than composing a garbage tag.
+	if major != "" && major != "7" {
+		return "", fmt.Errorf("DD_AGENT_MAJOR_VERSION must be 7. Current value: %s", major)
+	}
+	if major == "" {
+		major = "7"
+	}
+	if minor == "" {
+		return major, nil
+	}
+	minor = strings.ReplaceAll(minor, "~", "-")
+	v := major + "." + minor
+	if strings.Count(v, ".") >= 2 && !releaseSuffixRe.MatchString(v) {
+		v += "-1"
+	}
+	return v, nil
+}
+
+// runAgentInstaller downloads the Agent OCI package at the given tag,
+// extracts its datadog-installer.exe layer, and re-execs setup from that
+// downloaded binary so the installer matches the Agent version being
+// installed. The child inherits the parent's os.Environ() plus the
+// recursion-guard marker (DD_INSTALLER_SETUP_REEXEC=true) so it does not
+// re-handoff.
+//
+// Caller is responsible for gating this on the recursion-guard marker and
+// requestedAgentVersion != "" before calling.
+func runAgentInstaller(ctx context.Context, e *env.Env, flavor, tag string) error {
+	if err := paths.SetupInstallerDataDir(); err != nil {
+		return fmt.Errorf("could not ensure installer data dir: %w", err)
+	}
+	if err := os.MkdirAll(paths.RootTmpDir, 0755); err != nil {
+		return fmt.Errorf("could not create tmp dir: %w", err)
+	}
+	tmpDir, err := os.MkdirTemp(paths.RootTmpDir, "setup-reexec")
+	if err != nil {
+		return fmt.Errorf("could not create temporary directory: %w", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	url := oci.PackageURL(e, agentPackage, tag)
+	pkg, err := oci.NewDownloader(e, e.HTTPClient()).Download(ctx, url)
+	if err != nil {
+		return formatDownloadError(tag, err)
+	}
+	// Manifest is already fetched by Download — read the package.version
+	// annotation to print the fully-qualified version (e.g. "7.79.2-1")
+	// alongside the user's request (e.g. "7.79" or "7"). Fall back to the
+	// tag if the annotation is missing for any reason.
+	resolved := tag
+	if manifest, mErr := pkg.Image.Manifest(); mErr == nil {
+		if v := manifest.Annotations[oci.AnnotationVersion]; v != "" {
+			resolved = v
+		}
+	}
+	exePath := filepath.Join(tmpDir, "datadog-installer.exe")
+	fmt.Fprintf(os.Stdout, "Downloading installer for Datadog Agent %s (requested %s) ...\n", resolved, tag)
+	if err := pkg.ExtractLayers(oci.DatadogPackageInstallerLayerMediaType, exePath); err != nil {
+		return fmt.Errorf("could not download Datadog Agent %s: %w", resolved, err)
+	}
+	if _, err := os.Stat(exePath); err != nil {
+		return fmt.Errorf("cannot install Datadog Agent %s: this command requires Agent 7.79 or newer", resolved)
+	}
+
+	// Re-exec the downloaded installer with the parent's os.Environ()
+	// inherited as-is, plus the recursion-guard marker. We deliberately do
+	// not go through InstallerExec / env.ToEnv: this is the user-invoked
+	// setup path, so the child should see only what the user originally set.
+	// The child re-derives APIKey / Site / registry config from the same
+	// datadog.yaml the parent reads.
+	args := []string{"setup"}
+	if flavor != "" {
+		args = append(args, "--flavor", flavor)
+	}
+	cmd := exec.CommandContext(ctx, exePath, args...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	cmd.Env = append(os.Environ(), envSetupReexec+"=true")
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("re-exec'd setup failed: %w", err)
+	}
+	return nil
+}
+
 // formatDownloadError turns the oci Downloader's multi-registry error into a
 // user-friendly summary: one line per registry attempted, each categorized
-// (tag not found / auth failed / DNS / unreachable / timeout / other) so the
-// user knows which knob to turn — version, credentials, proxy, network.
+// (tag not found / auth failed / DNS / unreachable / timeout / other).
 func formatDownloadError(tag string, err error) error {
 	regErrs := oci.RegistryErrors(err)
 	if len(regErrs) == 0 {
@@ -91,110 +192,4 @@ func categorizeDownloadError(err error) string {
 	}
 	// Fall through — keep the raw text so we don't hide anything.
 	return err.Error()
-}
-
-// resolveAgentOCITag translates DD_AGENT_MAJOR/MINOR_VERSION into the OCI tag
-// the Datadog Agent package publishes. Built on env.GetAgentVersion plus two
-// small fixups:
-//   - `~` → `-` (the Linux/macOS scripts accept `~rc.N`, OCI tags use `-rc.N`)
-//   - append `-N` release suffix if the input has a patch component but lacks
-//     one (so `7.78.0` → `7.78.0-1`)
-//
-// `DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_AGENT` (via
-// env.DefaultPackagesVersionOverride) takes precedence — its value is
-// returned unmodified so CI pipelines can pin an exact OCI tag without it
-// being rewritten by the normalization above. Matches bootstrap.getInstallerOCI.
-//
-// Returns `"latest"` when no version is requested. Bare minor (e.g.
-// `MINOR=78`) maps to `7.78`, which the registry serves as a moving tag
-// pointing to the latest patch.
-func resolveAgentOCITag(e *env.Env) string {
-	if override := e.DefaultPackagesVersionOverride[agentPackage]; override != "" {
-		return override
-	}
-	// env.GetAgentVersion only joins major + minor when both are set; with
-	// only MAJOR it returns "latest". Handle the major-only case here so
-	// MAJOR=7 maps to the registry's moving "7" tag.
-	if e.AgentMajorVersion != "" && e.AgentMinorVersion == "" {
-		return e.AgentMajorVersion
-	}
-	v := strings.ReplaceAll(e.GetAgentVersion(), "~", "-")
-	if v == "latest" {
-		return v
-	}
-	if strings.Count(v, ".") >= 2 && !releaseSuffixRe.MatchString(v) {
-		v += "-1"
-	}
-	return v
-}
-
-// handoffToRequestedAgentInstallerVersion downloads the version-specific
-// `datadog-installer.exe` matching DD_AGENT_MAJOR/MINOR_VERSION and re-execs
-// setup from it. Returns (true, err) when re-exec was attempted (caller should
-// return without running setup in-process); (false, nil) when no version was
-// requested or the recursion guard is active and setup should proceed
-// in-process.
-func handoffToRequestedAgentInstallerVersion(ctx context.Context, e *env.Env, flavor string) (bool, error) {
-	if os.Getenv(envSetupReexec) == "true" {
-		return false, nil
-	}
-	tag := resolveAgentOCITag(e)
-	if tag == "latest" {
-		return false, nil
-	}
-
-	if err := paths.SetupInstallerDataDir(); err != nil {
-		return false, fmt.Errorf("could not ensure installer data dir: %w", err)
-	}
-	if err := os.MkdirAll(paths.RootTmpDir, 0755); err != nil {
-		return false, fmt.Errorf("could not create tmp dir: %w", err)
-	}
-	tmpDir, err := os.MkdirTemp(paths.RootTmpDir, "setup-reexec")
-	if err != nil {
-		return false, fmt.Errorf("could not create temporary directory: %w", err)
-	}
-	defer os.RemoveAll(tmpDir)
-
-	url := oci.PackageURL(e, agentPackage, tag)
-	pkg, err := oci.NewDownloader(e, e.HTTPClient()).Download(ctx, url)
-	if err != nil {
-		return false, formatDownloadError(tag, err)
-	}
-	// Manifest is already fetched by Download — read the package.version
-	// annotation to print the fully-qualified version (e.g. "7.79.2-1")
-	// alongside the user's request (e.g. "7.79" or "7"). Fall back to the
-	// tag if the annotation is missing for any reason.
-	resolved := tag
-	if manifest, mErr := pkg.Image.Manifest(); mErr == nil {
-		if v := manifest.Annotations[oci.AnnotationVersion]; v != "" {
-			resolved = v
-		}
-	}
-	exePath := filepath.Join(tmpDir, "datadog-installer.exe")
-	fmt.Fprintf(os.Stdout, "Downloading installer for Datadog Agent %s (requested %s) ...\n", resolved, tag)
-	if err := pkg.ExtractLayers(oci.DatadogPackageInstallerLayerMediaType, exePath); err != nil {
-		return false, fmt.Errorf("could not download Datadog Agent %s: %w", resolved, err)
-	}
-	if _, err := os.Stat(exePath); err != nil {
-		return false, fmt.Errorf("cannot install Datadog Agent %s: this command requires Agent 7.79 or newer", resolved)
-	}
-
-	// Re-exec the downloaded installer with the parent's os.Environ()
-	// inherited as-is, plus a recursion-guard marker. We deliberately do not
-	// go through InstallerExec / env.ToEnv: this is the user-invoked setup
-	// path, so the child should see only what the user originally set. The
-	// child re-derives APIKey / Site / registry config from the same
-	// datadog.yaml the parent reads.
-	args := []string{"setup"}
-	if flavor != "" {
-		args = append(args, "--flavor", flavor)
-	}
-	cmd := exec.CommandContext(ctx, exePath, args...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	cmd.Env = append(os.Environ(), envSetupReexec+"=true")
-	if err := cmd.Run(); err != nil {
-		return true, fmt.Errorf("re-exec'd setup failed: %w", err)
-	}
-	return true, nil
 }

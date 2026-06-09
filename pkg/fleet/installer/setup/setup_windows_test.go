@@ -13,15 +13,18 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 )
 
-func TestResolveAgentOCITag(t *testing.T) {
+func TestRequestedAgentVersion(t *testing.T) {
 	cases := []struct {
 		name     string
 		major    string
 		minor    string
 		override string // DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_AGENT
 		want     string
+		wantErr  bool
 	}{
-		{name: "unset", want: "latest"},
+		// "unset" returns "" (no error) — caller falls through to in-process setup.
+		{name: "unset returns empty string", want: ""},
+
 		{name: "bare minor", minor: "78", want: "7.78"},
 		{name: "explicit patch", minor: "78.0", want: "7.78.0-1"},
 		{name: "explicit patch with release suffix", minor: "78.0-1", want: "7.78.0-1"},
@@ -33,20 +36,39 @@ func TestResolveAgentOCITag(t *testing.T) {
 		{name: "custom beta tag", minor: "78.0-beta-extensions", want: "7.78.0-beta-extensions-1"},
 		{name: "custom beta tag idempotent", minor: "78.0-beta-extensions-1", want: "7.78.0-beta-extensions-1"},
 		{name: "long custom tag", minor: "78.0-beta-byoc-integration-test", want: "7.78.0-beta-byoc-integration-test-1"},
+
 		// DefaultPackagesVersionOverride wins and is returned unmodified.
 		{name: "override wins over user version", minor: "78.0", override: "7.79.0-rc.2-1", want: "7.79.0-rc.2-1"},
 		{name: "override wins when user version unset", override: "7.79.0-rc.2-1", want: "7.79.0-rc.2-1"},
 		{name: "override returned unmodified with tilde", override: "7.79.0~rc.2", want: "7.79.0~rc.2"},
 		{name: "override returned unmodified without release suffix", override: "7.79.0", want: "7.79.0"},
+		{name: "override=latest hands off to the latest tag", override: "latest", want: "latest"},
+
+		// Major must be empty or "7" — anything else is a user error.
+		{name: "MAJOR=latest is an error", major: "latest", wantErr: true},
+		{name: "MAJOR=latest with MINOR is an error (no garbage tag)", major: "latest", minor: "79", wantErr: true},
+		{name: "MAJOR=6 is an error (unsupported on Windows fleet)", major: "6", wantErr: true},
+		{name: "MAJOR=8 is an error (future major not yet supported)", major: "8", wantErr: true},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			t.Setenv("DD_AGENT_MAJOR_VERSION", c.major)
 			t.Setenv("DD_AGENT_MINOR_VERSION", c.minor)
 			t.Setenv("DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_AGENT", c.override)
-			got := resolveAgentOCITag(env.FromEnv())
+			got, err := requestedAgentVersion(env.FromEnv())
+			if c.wantErr {
+				if err == nil {
+					t.Fatalf("requestedAgentVersion(MAJOR=%q MINOR=%q OVERRIDE=%q) = %q, nil; want error",
+						c.major, c.minor, c.override, got)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("requestedAgentVersion(MAJOR=%q MINOR=%q OVERRIDE=%q) returned unexpected error: %v",
+					c.major, c.minor, c.override, err)
+			}
 			if got != c.want {
-				t.Errorf("resolveAgentOCITag(MAJOR=%q MINOR=%q OVERRIDE=%q) = %q, want %q",
+				t.Errorf("requestedAgentVersion(MAJOR=%q MINOR=%q OVERRIDE=%q) = %q, want %q",
 					c.major, c.minor, c.override, got, c.want)
 			}
 		})
