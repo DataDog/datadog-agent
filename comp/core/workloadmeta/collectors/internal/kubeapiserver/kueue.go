@@ -33,7 +33,7 @@ func kueueQueueGVRStrings() []string {
 }
 
 func shouldHaveKueueQueueStores(cfg config.Reader) bool {
-	return cfg.GetBool("cluster_agent.collect_kubernetes_tags") &&
+	return cfg.GetBool("cluster_agent.kube_metadata_collection.enabled") &&
 		cfg.GetBool("cluster_agent.kube_metadata_collection.kueue.enabled")
 }
 

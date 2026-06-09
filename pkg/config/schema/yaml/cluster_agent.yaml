@@ -249,6 +249,14 @@ properties:
         node_type: setting
         type: boolean
         default: false
+      kueue:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: true
       resource_annotations_exclude:
         node_type: setting
         type: array
