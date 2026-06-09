@@ -32,13 +32,21 @@ func (fs windowsOSCommand) CreateDirectory(
 	opts ...pulumi.ResourceOption,
 ) (Command, error) {
 	useSudo := false
-	return createDirectory(
-		runner,
-		name,
-		fmt.Sprintf("New-Item -Force -Path %v -ItemType Directory", remotePath),
-		fmt.Sprintf("if (-not (Test-Path -Path %v/*)) { Remove-Item -Path %v -ErrorAction SilentlyContinue }", remotePath, remotePath),
-		useSudo,
-		opts...)
+	opts = append(opts, pulumi.DeleteBeforeReplace(true))
+	// Quote for PowerShell: paths under "Program Files" contain spaces and break
+	// unquoted -Path (see PR #51990).
+	createCmd := pulumi.Sprintf("New-Item -Force -LiteralPath '%v' -ItemType Directory", remotePath)
+	deleteCmd := pulumi.Sprintf(
+		"if ((Get-ChildItem -LiteralPath '%v' -Force -ErrorAction SilentlyContinue | Measure-Object).Count -eq 0) { Remove-Item -LiteralPath '%v' -ErrorAction SilentlyContinue }",
+		remotePath, remotePath,
+	)
+	return runner.Command(name,
+		&Args{
+			Create:   createCmd,
+			Delete:   deleteCmd,
+			Sudo:     useSudo,
+			Triggers: pulumi.Array{createCmd, pulumi.BoolPtr(useSudo)},
+		}, opts...)
 }
 
 func (fs windowsOSCommand) GetTemporaryDirectory() string {
