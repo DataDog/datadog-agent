@@ -254,7 +254,9 @@ func TestInjectAPMLibraries_InjectedLibraries_UnsupportedLanguage(t *testing.T) 
 			},
 		},
 	})
-	// InjectAPMLibraries returns a non-nil error for unsupported languages.
+	// InjectAPMLibraries still reports per-library failures via the returned error.
+	// It is the caller's responsibility (apmInjectionMutator) to absorb it so the
+	// patch is applied. Here we verify the error is present and the annotations are set.
 	require.Error(t, err)
 
 	status, ok := annotation.Get(pod, annotation.InjectionStatus)
@@ -314,6 +316,8 @@ func TestInjectAPMLibraries_InjectionStatus(t *testing.T) {
 					},
 				},
 			},
+			// InjectAPMLibraries reports the per-library failure via the error return.
+			// The caller (apmInjectionMutator) absorbs it so the patch is still applied.
 			wantErr:       true,
 			wantStatus:    annotation.InjectionStatusPartial,
 			wantStatusSet: true,
