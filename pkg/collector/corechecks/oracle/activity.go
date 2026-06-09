@@ -122,6 +122,19 @@ func sendRows(c *Check, sessionRows []OracleActivityRow) error {
 	return nil
 }
 
+// getBlockerFromLock fetches the blocking session's instance id and sid from v$lock/gv$lock
+// for the given blocked session id. This is a fallback for deployments where Oracle does not
+// populate blocking_session in v$session even when the session is waiting on an enqueue lock.
+// Returns (0, 0, nil) when no blocker is found.
+func (c *Check) getBlockerFromLock(blockedSID uint64) (blockerInstance uint64, blockerSession uint64, err error) {
+	var row blockerFallbackRow
+	err = getWrapper(c, &row, activityQueryBlockerFromLock, blockedSID)
+	if err != nil {
+		return 0, 0, err
+	}
+	return row.BlockingInstance, row.BlockingSession, nil
+}
+
 //nolint:revive // TODO(DBM) Fix revive linter
 func (c *Check) SampleSession() error {
 	activeSessionHistory := c.config.QuerySamples.ActiveSessionHistory
@@ -183,6 +196,7 @@ AND status = 'ACTIVE'`)
 
 	o := c.LazyInitObfuscator()
 	var payloadSent bool
+	var blockerFallbackErrLogged bool
 	for _, sample := range sessionSamples {
 		var sessionRow OracleActivityRow
 
@@ -289,6 +303,24 @@ AND status = 'ACTIVE'`)
 		if sample.WaitTimeMicro != nil {
 			sessionRow.WaitTimeMicro = *sample.WaitTimeMicro
 		}
+
+		// Fallback: some Oracle releases/deployments do not populate blocking_session in v$session
+		// for sessions waiting on an enqueue lock. When that happens, query v$lock/gv$lock directly.
+		// Restricted to CDB (multitenant) databases: the CON_ID column used in the join does not
+		// exist on pre-12c / non-CDB v$lock, and the bug only manifests on newer CDB deployments.
+		if !activeSessionHistory && c.multitenant && c.config.QuerySamples.BlockingSessionFallbackEnabled && sessionRow.BlockingSession == 0 && strings.HasPrefix(sessionRow.WaitEvent, "enq") {
+			blockerInst, blockerSID, errBlk := c.getBlockerFromLock(sessionRow.SessionID)
+			if errBlk != nil {
+				if !blockerFallbackErrLogged {
+					log.Warnf("%s failed to fetch blocker from v$lock for sid %d: %s", c.logPrompt, sessionRow.SessionID, errBlk)
+					blockerFallbackErrLogged = true
+				}
+			} else if blockerSID != 0 {
+				sessionRow.BlockingInstance = blockerInst
+				sessionRow.BlockingSession = blockerSID
+			}
+		}
+
 		sessionRow.OpFlags = sample.OpFlags
 
 		statement := ""

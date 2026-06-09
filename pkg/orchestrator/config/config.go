@@ -165,7 +165,7 @@ func extractOrchestratorDDUrl() (*url.URL, error) {
 }
 
 func setBoundedConfigIntValue(configKey string, upperBound int, setter func(v int)) {
-	if !pkgconfigsetup.Datadog().IsSet(configKey) {
+	if !pkgconfigsetup.Datadog().IsConfigured(configKey) {
 		return
 	}
 

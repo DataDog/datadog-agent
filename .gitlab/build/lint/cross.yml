@@ -18,6 +18,8 @@
 
 lint_cross_windows-x64:
   extends: .cross_lint
+  rules:
+    - when: on_success
   script:
     - dda inv -- -e build-messagetable
     - export GOOS=windows GOARCH=amd64

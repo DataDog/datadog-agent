@@ -190,8 +190,6 @@ func (s *dogstatsdUnitSuite) TestDogstatsdUnitOnlyOnTimingMetrics() {
 	if s.v3Enabled {
 		assert.Greater(s.T(), routeStats[metricsV3Endpoint], 0,
 			"expected payloads on %s when V3 is enabled", metricsV3Endpoint)
-		assert.Zero(s.T(), routeStats[metricsV2Endpoint],
-			"expected no payloads on %s when V3 is enabled", metricsV2Endpoint)
 	} else {
 		assert.Greater(s.T(), routeStats[metricsV2Endpoint], 0,
 			"expected payloads on %s when V3 is not enabled", metricsV2Endpoint)

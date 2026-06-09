@@ -51,7 +51,7 @@ type UnimplementedRemoteAgentServer struct {
 
 	// communication components
 	ipcComp         ipc.Component
-	agentClient     pbcore.AgentSecureClient
+	agentClient     pbcore.RemoteAgentClient
 	sessionID       string
 	sessionIDMutex  sync.RWMutex
 	agentIpcAddress string
@@ -82,7 +82,7 @@ func NewUnimplementedRemoteAgentServer(ipcComp ipc.Component, log log.Component,
 		return nil, err
 	}
 
-	agentClient, err := newAgentSecureClient(ipcComp, agentIpcAddress, config, log)
+	agentClient, err := newRemoteAgentClient(ipcComp, agentIpcAddress, config, log)
 	if err != nil {
 		log.Errorf("failed to create agent client: %v", err)
 		if ral.cleanupSocketPath != "" {
@@ -345,7 +345,7 @@ func removeStaleSocket(socketPath string) error {
 	return nil
 }
 
-func newAgentSecureClient(ipcComp ipc.Component, agentIpcAddress string, cfg config.Component, log log.Component) (pbcore.AgentSecureClient, error) {
+func newRemoteAgentClient(ipcComp ipc.Component, agentIpcAddress string, cfg config.Component, log log.Component) (pbcore.RemoteAgentClient, error) {
 	opts := []grpc.DialOption{
 		grpc.WithTransportCredentials(credentials.NewTLS(ipcComp.GetTLSClientConfig())),
 		grpc.WithPerRPCCredentials(grpcutil.NewBearerTokenAuth(ipcComp.GetAuthToken())),
@@ -382,7 +382,7 @@ func newAgentSecureClient(ipcComp ipc.Component, agentIpcAddress string, cfg con
 		return nil, err
 	}
 
-	return pbcore.NewAgentSecureClient(conn), nil
+	return pbcore.NewRemoteAgentClient(conn), nil
 }
 
 // registerWithAgent handles the registration logic with the Core Agent

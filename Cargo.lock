@@ -457,6 +457,7 @@ dependencies = [
  "tonic-reflection",
  "tower",
  "uuid",
+ "windows-registry",
  "windows-sys 0.61.2",
 ]
 

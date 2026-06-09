@@ -84,7 +84,6 @@ public:
 
     // Python Helpers
     char *getIntegrationList();
-    char *getInterpreterMemoryUsage();
 
     // aggregator API
     void setSubmitMetricCb(cb_submit_metric_t);

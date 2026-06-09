@@ -34,8 +34,10 @@
 lint_windows-x64:
   extends: .lint_windows_base
   rules:
-    - !reference [.except_mergequeue]
-    - when: on_success
+    - if: $CI_COMMIT_TAG != null
+    - if: $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+\.x$/
+    - if: ($DEPLOY_AGENT == "true" || $DDR_WORKFLOW_ID != null) && $BUCKET_BRANCH =~ /^(nightly|oldnightly|beta|stable)$/
+    - when: never
   variables:
     ARCH: "x64"
   timeout: 1h30m

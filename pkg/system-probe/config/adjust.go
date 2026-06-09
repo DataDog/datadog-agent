@@ -30,7 +30,7 @@ func Adjust(cfg model.Config) {
 
 	// this check must come first, so we can accurately tell if system_probe was explicitly enabled
 	if cfg.GetBool(spNS("enabled")) &&
-		!cfg.IsSet(netNS("enabled")) &&
+		!cfg.IsConfigured(netNS("enabled")) &&
 		!cfg.GetBool(smNS("enabled")) {
 		// This case exists to preserve backwards compatibility. If system_probe_config.enabled is explicitly set to true, and there is no network_config block,
 		// enable the connections/network check.

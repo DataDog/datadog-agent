@@ -16,8 +16,6 @@ pkg_filegroup(
     srcs = [
         "//deps/cacerts:all_files",
         "//deps/jmxfetch:all_files",
-        # Used for memory profiling with the `status py` agent subcommand
-        # dependency 'pympler'
         "//deps/snmp_traps:all_files",
         # dependency 'datadog-agent-integrations-py3'
     ] + select({

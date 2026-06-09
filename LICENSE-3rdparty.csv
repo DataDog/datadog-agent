@@ -1554,13 +1554,9 @@ core,github.com/magefile/mage/mg,Apache-2.0,Copyright 2017 the Mage authors
 core,github.com/magefile/mage/sh,Apache-2.0,Copyright 2017 the Mage authors
 core,github.com/magiconair/properties,BSD-2-Clause,"Copyright (c) 2013-2020, Frank Schroeder"
 core,github.com/mailru/easyjson,MIT,Copyright (c) 2016 Mail.Ru Group
-core,github.com/mailru/easyjson/bootstrap,MIT,Copyright (c) 2016 Mail.Ru Group
 core,github.com/mailru/easyjson/buffer,MIT,Copyright (c) 2016 Mail.Ru Group
-core,github.com/mailru/easyjson/easyjson,MIT,Copyright (c) 2016 Mail.Ru Group
-core,github.com/mailru/easyjson/gen,MIT,Copyright (c) 2016 Mail.Ru Group
 core,github.com/mailru/easyjson/jlexer,MIT,Copyright (c) 2016 Mail.Ru Group
 core,github.com/mailru/easyjson/jwriter,MIT,Copyright (c) 2016 Mail.Ru Group
-core,github.com/mailru/easyjson/parser,MIT,Copyright (c) 2016 Mail.Ru Group
 core,github.com/masahiro331/go-disk,MIT,Copyright (c) 2022 Masahiro331
 core,github.com/masahiro331/go-disk/fs,MIT,Copyright (c) 2022 Masahiro331
 core,github.com/masahiro331/go-disk/gpt,MIT,Copyright (c) 2022 Masahiro331

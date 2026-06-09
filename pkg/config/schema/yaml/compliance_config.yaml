@@ -216,9 +216,8 @@ properties:
     - full-agent-only:true
   run_commands_as:
     node_type: setting
-    tags:
-    - TODO:fix-no-default
-    - TODO:fix-missing-type
+    type: string
+    default: ''
   run_in_system_probe:
     node_type: setting
     type: boolean

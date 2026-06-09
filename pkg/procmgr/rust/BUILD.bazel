@@ -70,6 +70,7 @@ _LIB_DEPS = [
     ],
     "@platforms//os:windows": [
         "//comp/core/log/rust:dd-agent-log",
+        "@crates//:windows-registry",
         "@crates//:windows-sys",
     ],
     "//conditions:default": [],

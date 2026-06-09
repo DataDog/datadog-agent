@@ -100,11 +100,12 @@ func IsCloudProviderEnabled(cloudProviderName string, config pkgconfigmodel.Read
 	return false
 }
 
-// GetBindHost returns `bind_host` variable or default value
-// Not using `config.BindEnvAndSetDefault` as some processes need to know
-// if value was default one or not (e.g. trace-agent)
+// GetBindHost returns the `bind_host` value. Callers that need to distinguish
+// "user explicitly set bind_host" from "default applied" must check
+// `cfg.IsConfigured("bind_host")` directly (see trace-agent's containerized
+// auto-`0.0.0.0` logic).
 func GetBindHost(cfg pkgconfigmodel.Reader) string {
-	if cfg.IsSet("bind_host") {
+	if cfg.IsConfigured("bind_host") {
 		return cfg.GetString("bind_host")
 	}
 	return "localhost"

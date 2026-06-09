@@ -87,7 +87,7 @@ func (s statusProvider) populateStatus() map[string]interface{} {
 		// Get expVar server address
 		// ipc_address is deprecated in favor of cmd_host, but we still need to support it
 		ipcKey := "cmd_host"
-		if s.config.IsSet("ipc_address") {
+		if s.config.IsConfigured("ipc_address") {
 			log.Warn("ipc_address is deprecated, use cmd_host instead")
 			ipcKey = "ipc_address"
 		}

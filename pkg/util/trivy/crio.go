@@ -18,7 +18,34 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/crio"
 	ftypes "github.com/aquasecurity/trivy/pkg/fanal/types"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
+	"github.com/samber/lo"
 )
+
+// buildCRIOLayerPaths pairs each CRI-O lowerDir with its non-empty
+// imgMeta.Layers entry. GetCRIOImageLayers builds the paths by
+// prepending as it walks imgMeta.Layers in image-config order, so
+// lowerDirs comes out top-to-base while the filtered layers stay
+// base-to-top; walk lowerDirs in reverse to realign them.
+func buildCRIOLayerPaths(imgMeta *workloadmeta.ContainerImageMetadata, lowerDirs []string) ([]ftypes.LayerPath, error) {
+	nonEmpty := lo.Filter(imgMeta.Layers, func(layer workloadmeta.ContainerImageLayer, _ int) bool {
+		return layer.DiffID != ""
+	})
+	if len(nonEmpty) != len(lowerDirs) {
+		return nil, fmt.Errorf("%w: %d lowerDirs vs %d non-empty imgMeta layers",
+			errLayerCountMismatch, len(lowerDirs), len(nonEmpty))
+	}
+	n := len(lowerDirs)
+	out := make([]ftypes.LayerPath, n)
+	for i := 0; i < n; i++ {
+		dir := lowerDirs[n-1-i]
+		out[i] = ftypes.LayerPath{
+			DiffID: "sha256:" + filepath.Base(filepath.Dir(dir)),
+			Digest: nonEmpty[i].DiffID,
+			Path:   dir,
+		}
+	}
+	return out, nil
+}
 
 type fakeCRIOContainer struct {
 	*fakeContainer
@@ -33,9 +60,10 @@ func (c *fakeCRIOContainer) ConfigFile() (*v1.ConfigFile, error) {
 		Architecture: c.imgMeta.Architecture,
 		OS:           c.imgMeta.OS,
 	}
-	configFile.RootFS.DiffIDs = make([]v1.Hash, len(c.layerIDs))
-	for i, diffID := range c.layerIDs {
-		configFile.RootFS.DiffIDs[i], _ = v1.NewHash(diffID)
+	diffIDs := c.diffIDs()
+	configFile.RootFS.DiffIDs = make([]v1.Hash, len(diffIDs))
+	for i, d := range diffIDs {
+		configFile.RootFS.DiffIDs[i], _ = v1.NewHash(d)
 	}
 
 	for _, layer := range c.imgMeta.Layers {
@@ -82,17 +110,12 @@ func (c *Collector) ScanCRIOImageFromOverlayFS(ctx context.Context, imgMeta *wor
 		return nil, fmt.Errorf("failed to retrieve layer directories: %w", err)
 	}
 
-	diffIDs := make([]string, 0, len(lowerDirs))
-	for _, dir := range lowerDirs {
-		diffIDs = append(diffIDs, "sha256:"+filepath.Base(filepath.Dir(dir)))
-	}
-
-	fc, err := newFakeContainer(lowerDirs, imgMeta, diffIDs)
+	layers, err := buildCRIOLayerPaths(imgMeta, lowerDirs)
 	if err != nil {
 		return nil, err
 	}
 	report, err := c.scanOverlayFS(ctx, lowerDirs, &fakeCRIOContainer{
-		fakeContainer: fc,
+		fakeContainer: newFakeContainer(layers, imgMeta),
 	}, imgMeta, scanOptions)
 	if err != nil {
 		return nil, err
