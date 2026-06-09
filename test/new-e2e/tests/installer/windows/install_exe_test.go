@@ -123,7 +123,7 @@ func (s *testInstallExeSuite) TestSetupHandoffToStableVersion() {
 	// Act
 	output, err := s.InstallScript().Run(WithExtraEnvVars(map[string]string{
 		// Allow the parent installer.exe to perform the version handoff.
-		"DD_INSTALLER_SETUP_REEXEC": "",
+		"DD_INSTALLER_FROM_VERSION_HANDOFF": "",
 		// Pin the version to the framework's configured stable. The override
 		// is passed verbatim to the OCI tag by resolveAgentOCITag.
 		"DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_AGENT": stable.Version,

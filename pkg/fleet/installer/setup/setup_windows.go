@@ -77,8 +77,8 @@ func requestedAgentVersion(e *env.Env) (string, error) {
 // extracts its datadog-installer.exe layer, and re-execs setup from that
 // downloaded binary so the installer matches the Agent version being
 // installed. The child inherits the parent's os.Environ() plus the
-// recursion-guard marker (DD_INSTALLER_SETUP_REEXEC=true) so it does not
-// re-handoff.
+// recursion-guard marker (DD_INSTALLER_FROM_VERSION_HANDOFF=true) so it
+// does not re-handoff.
 //
 // Caller is responsible for gating this on the recursion-guard marker and
 // requestedAgentVersion != "" before calling.
@@ -132,7 +132,7 @@ func runAgentInstaller(ctx context.Context, e *env.Env, flavor, tag string) erro
 	cmd := exec.CommandContext(ctx, exePath, args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	cmd.Env = append(os.Environ(), envSetupReexec+"=true")
+	cmd.Env = append(os.Environ(), envFromVersionHandoff+"=true")
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("re-exec'd setup failed: %w", err)
 	}

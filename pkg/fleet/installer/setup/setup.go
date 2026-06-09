@@ -32,10 +32,9 @@ var flavors = map[string]flavor{
 	"dataproc":   {path: "djm/dataproc.go", run: djm.SetupDataproc},
 }
 
-// envSetupReexec is set on a child installer spawned by runAgentInstaller so
-// the child skips its own version handoff (hard recursion guard). Declared
-// here at the cross-platform call site; only used on Windows.
-const envSetupReexec = "DD_INSTALLER_SETUP_REEXEC"
+// envFromVersionHandoff is the recursion guard: set on a child installer
+// spawned by runAgentInstaller so the child skips its own version handoff.
+const envFromVersionHandoff = "DD_INSTALLER_FROM_VERSION_HANDOFF"
 
 // Setup installs Datadog.
 func Setup(ctx context.Context, env *env.Env, flavor string) error {
@@ -46,7 +45,7 @@ func Setup(ctx context.Context, env *env.Env, flavor string) error {
 	// If the user has requested a specific Agent version and we are not
 	// ourselves the result of a prior handoff, fetch the matching
 	// installer.exe and re-exec from it.
-	if os.Getenv(envSetupReexec) != "true" {
+	if os.Getenv(envFromVersionHandoff) != "true" {
 		tag, err := requestedAgentVersion(env)
 		if err != nil {
 			return err
