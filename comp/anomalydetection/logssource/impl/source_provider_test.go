@@ -14,7 +14,7 @@ import (
 	"go.uber.org/fx"
 	"go.uber.org/goleak"
 
-	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/fx-mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"

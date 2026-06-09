@@ -32,7 +32,7 @@ import (
 	dynamicfake "k8s.io/client-go/dynamic/fake"
 	k8sscheme "k8s.io/client-go/kubernetes/scheme"
 
-	coreconfigmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
+	coreconfigmock "github.com/DataDog/datadog-agent/comp/core/config/fx-mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"

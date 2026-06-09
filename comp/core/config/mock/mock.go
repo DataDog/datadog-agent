@@ -15,7 +15,6 @@ import (
 	configdef "github.com/DataDog/datadog-agent/comp/core/config/def"
 	pkgmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // mockCfg wraps pkg/config/mock to implement config.Component without
@@ -26,25 +25,6 @@ type mockCfg struct {
 
 func (m *mockCfg) Warnings() *pkgconfigmodel.Warnings { return &pkgconfigmodel.Warnings{} }
 func (m *mockCfg) StartTime() time.Time               { return time.Time{} }
-
-// MockModule provides a mock config component via fx.
-// Works with both fxutil.Test and fxutil.TestApp.
-func MockModule() fxutil.Module {
-	return fxutil.Component(
-		fxutil.ProvideComponentConstructor(
-			func() configdef.Component {
-				return &mockCfg{pkgmock.New(noopT{})}
-			},
-		),
-	)
-}
-
-// noopT satisfies testing.TB but ignores Cleanup calls.
-// Used by MockModule when no real test context is available (e.g. fxutil.TestApp).
-// Only Cleanup is called by pkg/config/mock.New; other methods are not needed.
-type noopT struct{ testing.TB }
-
-func (noopT) Cleanup(func()) {}
 
 // New returns a mock for the config component.
 func New(t *testing.T) configdef.Component {
@@ -57,9 +37,8 @@ func NewWithTB(t testing.TB) configdef.Component {
 	return &mockCfg{pkgmock.New(t)}
 }
 
-// NewWithOverridesTB creates a mock config accepting testing.TB, for use in
-// benchmarks and helpers that receive testing.TB.
-func NewWithOverridesTB(t testing.TB, overrides map[string]interface{}) configdef.Component {
+// NewWithOverrides creates a mock config and calls SetInTest on every item in overrides.
+func NewWithOverrides(t *testing.T, overrides map[string]interface{}) configdef.Component {
 	conf := pkgmock.New(t)
 	for k, v := range overrides {
 		conf.SetInTest(k, v)
@@ -67,8 +46,9 @@ func NewWithOverridesTB(t testing.TB, overrides map[string]interface{}) configde
 	return &mockCfg{conf}
 }
 
-// NewWithOverrides creates a mock config and calls SetInTest on every item in overrides.
-func NewWithOverrides(t *testing.T, overrides map[string]interface{}) configdef.Component {
+// NewWithOverridesTB creates a mock config accepting testing.TB, for use in
+// benchmarks and helpers that receive testing.TB.
+func NewWithOverridesTB(t testing.TB, overrides map[string]interface{}) configdef.Component {
 	conf := pkgmock.New(t)
 	for k, v := range overrides {
 		conf.SetInTest(k, v)

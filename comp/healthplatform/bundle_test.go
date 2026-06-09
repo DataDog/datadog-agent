@@ -23,7 +23,8 @@ import (
 	"go.uber.org/fx"
 
 	config "github.com/DataDog/datadog-agent/comp/core/config/def"
-	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/fx-mock"
+	configmockdirect "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
@@ -84,7 +85,7 @@ func TestBundleStartLifecycle(t *testing.T) {
 		Bundle(),
 		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
 		fx.Provide(func(t *testing.T) config.Component {
-			cfg := configmock.New(t)
+			cfg := configmockdirect.New(t)
 			cfg.SetInTest("api_key", "test-api-key")
 			cfg.SetInTest("dd_url", server.URL)
 			cfg.SetInTest("health_platform.enabled", true)
@@ -151,7 +152,7 @@ func TestBundleStartLifecycle(t *testing.T) {
 // GetActiveIssueIDsByIssueName is called with module.IssueName(). They must
 // match or restart-based issue resolution silently breaks.
 func TestAllModulesIssueNameMatchesBuiltIssueName(t *testing.T) {
-	cfg := configmock.New(t)
+	cfg := configmockdirect.New(t)
 	mods := issues.GetAllModules(cfg)
 	require.NotEmpty(t, mods, "no modules registered")
 	for _, mod := range mods {

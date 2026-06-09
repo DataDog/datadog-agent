@@ -20,7 +20,8 @@ import (
 	"go4.org/intern"
 
 	config "github.com/DataDog/datadog-agent/comp/core/config/def"
-	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/fx-mock"
+	configmockdirect "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
@@ -78,7 +79,7 @@ func mockDirectSender(t *testing.T) *directSender {
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 	d, err := New(t.Context(), &fakeConnectionSource{}, Dependencies{
-		Config:         configmock.New(t),
+		Config:         configmockdirect.New(t),
 		Logger:         logmock.New(t),
 		Sysprobeconfig: sysprobeconfigmock.NewMock(t),
 		Tagger:         taggernoop.NewComponent(),

@@ -21,7 +21,8 @@ import (
 	"go.uber.org/fx"
 
 	config "github.com/DataDog/datadog-agent/comp/core/config/def"
-	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/fx-mock"
+	configmockdirect "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/status"
@@ -190,7 +191,7 @@ func TestGetStatus(t *testing.T) {
 		os.Setenv("TZ", originalTZ)
 	}()
 
-	conf := configmock.New(t)
+	conf := configmockdirect.New(t)
 	deps := fxutil.Test[dependencies](t, fx.Options(
 		fx.Provide(func() config.Component { return conf }),
 		fx.Provide(func() log.Component { return logmock.New(t) }),
@@ -500,7 +501,7 @@ func TestGetStatusDoNotRenderHeaderIfNoProviders(t *testing.T) {
 		os.Setenv("TZ", originalTZ)
 	}()
 
-	conf := configmock.New(t)
+	conf := configmockdirect.New(t)
 	deps := fxutil.Test[dependencies](t, fx.Options(
 		fx.Provide(func() config.Component { return conf }),
 		fx.Provide(func() log.Component { return logmock.New(t) }),
@@ -553,7 +554,7 @@ func TestGetStatusWithErrors(t *testing.T) {
 		os.Setenv("TZ", originalTZ)
 	}()
 
-	conf := configmock.New(t)
+	conf := configmockdirect.New(t)
 	deps := fxutil.Test[dependencies](t, fx.Options(
 		fx.Provide(func() config.Component { return conf }),
 		fx.Provide(func() log.Component { return logmock.New(t) }),
@@ -812,7 +813,7 @@ func TestGetStatusBySectionsWithErrors(t *testing.T) {
 		os.Setenv("TZ", originalTZ)
 	}()
 
-	conf := configmock.New(t)
+	conf := configmockdirect.New(t)
 	deps := fxutil.Test[dependencies](t, fx.Options(
 		fx.Provide(func() config.Component { return conf }),
 		fx.Provide(func() log.Component { return logmock.New(t) }),

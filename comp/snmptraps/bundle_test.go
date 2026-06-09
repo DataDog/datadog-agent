@@ -11,7 +11,7 @@ import (
 	"testing"
 
 	demultiplexerimpl "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/impl"
-	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"

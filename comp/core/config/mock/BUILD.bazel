@@ -9,6 +9,5 @@ go_library(
         "//comp/core/config/def",
         "//pkg/config/mock",
         "//pkg/config/model",
-        "//pkg/util/fxutil",
     ],
 )

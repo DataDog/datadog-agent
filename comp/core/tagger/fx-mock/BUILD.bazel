@@ -6,7 +6,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/core/config/mock",
+        "//comp/core/config/fx-mock",
         "//comp/core/ipc/def",
         "//comp/core/ipc/mock",
         "//comp/core/log/def",

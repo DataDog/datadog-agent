@@ -19,7 +19,8 @@ import (
 	"go.uber.org/fx"
 
 	config "github.com/DataDog/datadog-agent/comp/core/config/def"
-	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/fx-mock"
+	configmockdirect "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
@@ -74,7 +75,7 @@ func getProvides(t *testing.T, confOverrides map[string]any, sysprobeConfOverrid
 		makeRequires(fxutil.Test[testDeps](
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
-			fx.Provide(func() config.Component { return configmock.NewWithOverrides(t, confOverrides) }),
+			fx.Provide(func() config.Component { return configmockdirect.NewWithOverrides(t, confOverrides) }),
 			fx.Provide(func() sysprobeconfig.Component { return sysprobeConf }),
 			fxutil.ProvideOptional[sysprobeconfig.Component](),
 			fx.Provide(func() serializer.MetricSerializer { return serializermock.NewMetricSerializer(t) }),
@@ -320,7 +321,7 @@ func TestFlareProviderFilename(t *testing.T) {
 }
 
 func TestConfigRefresh(t *testing.T) {
-	cfg := configmock.New(t)
+	cfg := configmockdirect.New(t)
 	ia := getTestInventoryPayload(t, nil, nil)
 
 	assert.False(t, ia.RefreshTriggered())

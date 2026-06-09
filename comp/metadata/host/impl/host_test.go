@@ -18,7 +18,8 @@ import (
 	"go.uber.org/fx"
 
 	config "github.com/DataDog/datadog-agent/comp/core/config/def"
-	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/fx-mock"
+	configmockdirect "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
@@ -143,7 +144,7 @@ func TestNewHostProviderIntervalValidation(t *testing.T) {
 				makeRequires(fxutil.Test[testDeps](
 					t,
 					fx.Provide(func() log.Component { return logmock.New(t) }),
-					fx.Provide(func() config.Component { return configmock.NewWithOverrides(t, overrides) }),
+					fx.Provide(func() config.Component { return configmockdirect.NewWithOverrides(t, overrides) }),
 					resourcesmock.MockModule(),
 					fx.Replace(resourcesmock.MockParams{Data: nil}),
 					fx.Provide(func() serializer.MetricSerializer { return nil }),
@@ -170,7 +171,7 @@ func TestBackoffWhenEarlyIntervalEqualsCollectionInterval(t *testing.T) {
 	}
 	ret := NewComponent(makeRequires(fxutil.Test[testDeps](t,
 		fx.Provide(func() log.Component { return logmock.New(t) }),
-		fx.Provide(func() config.Component { return configmock.NewWithOverrides(t, overrides) }),
+		fx.Provide(func() config.Component { return configmockdirect.NewWithOverrides(t, overrides) }),
 		resourcesmock.MockModule(),
 		fx.Replace(resourcesmock.MockParams{Data: nil}),
 		fx.Provide(func() serializer.MetricSerializer { return nil }),

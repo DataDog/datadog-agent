@@ -17,7 +17,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config/def"
-	coreconfigmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
+	coreconfigmock "github.com/DataDog/datadog-agent/comp/core/config/fx-mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"

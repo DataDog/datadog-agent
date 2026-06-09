@@ -19,7 +19,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	config "github.com/DataDog/datadog-agent/comp/core/config/def"
-	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/fx-mock"
+	configmockdirect "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taglist"
@@ -1080,7 +1081,7 @@ func TestHandleKubePod(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := configmock.New(t)
+			cfg := configmockdirect.New(t)
 			collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
 			collector.staticTags = tt.staticTags
 			collector.initK8sResourcesMetaAsTags(tt.k8sResourcesLabelsAsTags, tt.k8sResourcesAnnotationsAsTags)
@@ -1122,7 +1123,7 @@ func TestHandleKubePodWithoutPvcAsTags(t *testing.T) {
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Provide(func() config.Component {
-			return configmock.NewWithOverrides(t, map[string]any{
+			return configmockdirect.NewWithOverrides(t, map[string]any{
 				"kubernetes_persistent_volume_claims_as_tags": false,
 			})
 		}),
@@ -1213,7 +1214,7 @@ func TestHandleKubePodWithoutPvcAsTags(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := configmock.New(t)
+			cfg := configmockdirect.New(t)
 			cfg.SetInTest("kubernetes_persistent_volume_claims_as_tags", false)
 			collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
 			collector.staticTags = tt.staticTags
@@ -1360,7 +1361,7 @@ func TestHandleKubePodNoContainerName(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := configmock.New(t)
+			cfg := configmockdirect.New(t)
 			collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
 			collector.staticTags = tt.staticTags
 
@@ -1444,7 +1445,7 @@ func TestHandleKubeMetadata(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(tt *testing.T) {
-			cfg := configmock.New(t)
+			cfg := configmockdirect.New(t)
 			collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
 
 			collector.initK8sResourcesMetaAsTags(test.k8sResourcesLabelsAsTags, test.k8sResourcesAnnotationsAsTags)
@@ -1533,7 +1534,7 @@ func TestHandleKubeCRD(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(tt *testing.T) {
-			cfg := configmock.New(t)
+			cfg := configmockdirect.New(t)
 			collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
 
 			actual := collector.handleCRD(workloadmeta.Event{
@@ -1672,7 +1673,7 @@ func TestHandleKubeDeployment(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(tt *testing.T) {
-			cfg := configmock.New(t)
+			cfg := configmockdirect.New(t)
 			collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
 
 			collector.initK8sResourcesMetaAsTags(test.k8sResourcesLabelsAsTags, test.k8sResourcesAnnotationsAsTags)
@@ -1703,7 +1704,7 @@ func TestHandleECSTask(t *testing.T) {
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Provide(func() config.Component {
-			return configmock.NewWithOverrides(t, map[string]any{
+			return configmockdirect.NewWithOverrides(t, map[string]any{
 				"ecs_collect_resource_tags_ec2": true,
 			})
 		}),
@@ -1963,7 +1964,7 @@ func TestHandleECSTask(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := configmock.New(t)
+			cfg := configmockdirect.New(t)
 			cfg.SetInTest("ecs_collect_resource_tags_ec2", true)
 			collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
 
@@ -2605,7 +2606,7 @@ func TestHandleContainer(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := configmock.New(t)
+			cfg := configmockdirect.New(t)
 			collector := NewWorkloadMetaCollector(context.Background(), cfg, nil, nil)
 			collector.staticTags = tt.staticTags
 
@@ -2793,7 +2794,7 @@ func TestHandleContainer_IsComplete(t *testing.T) {
 				env.SetFeatures(t, test.features...)
 			}
 
-			cfg := configmock.New(t)
+			cfg := configmockdirect.New(t)
 
 			wmeta := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 				fx.Provide(func() log.Component { return logmock.New(t) }),
@@ -2907,7 +2908,7 @@ func TestHandleContainerImage(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := configmock.New(t)
+			cfg := configmockdirect.New(t)
 			collector := NewWorkloadMetaCollector(context.Background(), cfg, nil, nil)
 
 			actual := collector.handleContainerImage(workloadmeta.Event{
@@ -3079,7 +3080,7 @@ func TestHandleGPU(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := configmock.New(t)
+			cfg := configmockdirect.New(t)
 			collector := NewWorkloadMetaCollector(context.Background(), cfg, nil, nil)
 
 			actual := collector.handleGPU(workloadmeta.Event{
@@ -3137,7 +3138,7 @@ func TestHandleDelete(t *testing.T) {
 		},
 	})
 
-	cfg := configmock.New(t)
+	cfg := configmockdirect.New(t)
 	collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
 
 	collector.handleKubePod(workloadmeta.Event{
@@ -3202,7 +3203,7 @@ func TestHandlePodWithDeletedContainer(t *testing.T) {
 		configmock.MockModule(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
-	collector := NewWorkloadMetaCollector(context.Background(), configmock.New(t), fakeStore, &fakeProcessor{collectorCh})
+	collector := NewWorkloadMetaCollector(context.Background(), configmockdirect.New(t), fakeStore, &fakeProcessor{collectorCh})
 	collector.children = map[types.EntityID]map[types.EntityID]struct{}{
 		// Notice that here we set the container that belonged to the pod
 		// but that no longer exists
@@ -3247,7 +3248,7 @@ func TestHandlePodWithDeletedContainer(t *testing.T) {
 func TestNoGlobalTags(t *testing.T) {
 	// This test checks that the tagger doesn't set any global entity tags on node agent
 
-	mockConfig := configmock.New(t)
+	mockConfig := configmockdirect.New(t)
 	collectorCh := make(chan []*types.TagInfo, 10)
 	fakeProcessor := &fakeProcessor{ch: collectorCh}
 
@@ -3288,7 +3289,7 @@ func TestNoGlobalTags(t *testing.T) {
 }
 
 func TestCollectStaticGlobalTags_SetsIsComplete(t *testing.T) {
-	mockConfig := configmock.New(t)
+	mockConfig := configmockdirect.New(t)
 	tagInfosCh := make(chan []*types.TagInfo, 10)
 
 	wmetaCollector := NewWorkloadMetaCollector(context.TODO(), mockConfig, nil, &fakeProcessor{tagInfosCh})
@@ -3468,7 +3469,7 @@ func TestHandleProcess(t *testing.T) {
 		VirtualizationMode: gpuVirtMode,
 	})
 
-	cfg := configmock.New(t)
+	cfg := configmockdirect.New(t)
 	collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
 
 	tests := []struct {

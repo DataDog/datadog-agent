@@ -51,6 +51,7 @@ go_test(
     gotags = ["test"],
     deps = [
         "//comp/core/config/def",
+        "//comp/core/config/fx-mock",
         "//comp/core/config/mock",
         "//comp/core/log/def",
         "//comp/core/log/mock",

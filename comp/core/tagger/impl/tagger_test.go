@@ -14,7 +14,8 @@ import (
 	"go.uber.org/fx"
 
 	config "github.com/DataDog/datadog-agent/comp/core/config/def"
-	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/fx-mock"
+	configmockdirect "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
@@ -58,7 +59,7 @@ func TestTag(t *testing.T) {
 	entityID := types.NewEntityID(types.ContainerID, "123")
 
 	mockReq := MockRequires{
-		Config:    configmock.New(t),
+		Config:    configmockdirect.New(t),
 		Log:       logmock.New(t),
 		Telemetry: noopTelemetry.GetCompatComponent(),
 	}
@@ -114,7 +115,7 @@ func TestTagWithCompleteness(t *testing.T) {
 	missingEntityID := types.NewEntityID(types.ContainerID, "missing")
 
 	mockReq := MockRequires{
-		Config:    configmock.New(t),
+		Config:    configmockdirect.New(t),
 		Log:       logmock.New(t),
 		Telemetry: noopTelemetry.GetCompatComponent(),
 	}
@@ -177,7 +178,7 @@ func TestTagWithCompleteness(t *testing.T) {
 
 func TestGenerateContainerIDFromOriginInfo(t *testing.T) {
 	mockReq := MockRequires{
-		Config:    configmock.New(t),
+		Config:    configmockdirect.New(t),
 		Log:       logmock.New(t),
 		Telemetry: noopTelemetry.GetCompatComponent(),
 	}
@@ -292,7 +293,7 @@ func TestGenerateContainerIDFromExternalData(t *testing.T) {
 
 	telemetryComponent := fxutil.Test[telemetry.Component](t, mocktelemetry.Module())
 	logComponent := logmock.New(t)
-	cfg := configmock.New(t)
+	cfg := configmockdirect.New(t)
 	tagger, taggerErr := newLocalTagger(cfg, store, logComponent, telemetryComponent, nil)
 	assert.NoError(t, taggerErr)
 
@@ -373,7 +374,7 @@ func TestGenerateContainerIDFromInode(t *testing.T) {
 
 	telemetryComponent := fxutil.Test[telemetry.Component](t, mocktelemetry.Module())
 	logComponent := logmock.New(t)
-	cfg := configmock.New(t)
+	cfg := configmockdirect.New(t)
 	tagger, taggerErr := newLocalTagger(cfg, store, logComponent, telemetryComponent, nil)
 	assert.NoError(t, taggerErr)
 
@@ -436,7 +437,7 @@ func TestDefaultCardinality(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := configmock.New(t)
+			cfg := configmockdirect.New(t)
 			tt.setup(cfg)
 
 			logComponent := logmock.New(t)
@@ -501,7 +502,7 @@ func TestTaggerCardinality(t *testing.T) {
 
 func TestGlobalTags(t *testing.T) {
 	mockReq := MockRequires{
-		Config:    configmock.New(t),
+		Config:    configmockdirect.New(t),
 		Log:       logmock.New(t),
 		Telemetry: noopTelemetry.GetCompatComponent(),
 	}
@@ -526,7 +527,7 @@ func TestGlobalTags(t *testing.T) {
 
 func TestAgentTags(t *testing.T) {
 	mockReq := MockRequires{
-		Config:    configmock.New(t),
+		Config:    configmockdirect.New(t),
 		Log:       logmock.New(t),
 		Telemetry: noopTelemetry.GetCompatComponent(),
 	}
@@ -562,7 +563,7 @@ func TestAgentTags(t *testing.T) {
 
 func TestEnrichTagsOptOut(t *testing.T) {
 	mockReq := MockRequires{
-		Config:    configmock.New(t),
+		Config:    configmockdirect.New(t),
 		Log:       logmock.New(t),
 		Telemetry: noopTelemetry.GetCompatComponent(),
 	}
@@ -602,7 +603,7 @@ func TestEnrichTagsOptOut(t *testing.T) {
 
 func TestEnrichTagsOrchestrator(t *testing.T) {
 	mockReq := MockRequires{
-		Config:    configmock.New(t),
+		Config:    configmockdirect.New(t),
 		Log:       logmock.New(t),
 		Telemetry: noopTelemetry.GetCompatComponent(),
 	}
@@ -621,7 +622,7 @@ func TestEnrichTagsOrchestrator(t *testing.T) {
 
 func TestEnrichTags(t *testing.T) {
 	mockReq := MockRequires{
-		Config:    configmock.New(t),
+		Config:    configmockdirect.New(t),
 		Log:       logmock.New(t),
 		Telemetry: noopTelemetry.GetCompatComponent(),
 	}
@@ -809,7 +810,7 @@ func TestEnrichTags(t *testing.T) {
 
 func TestEnrichTagsContainerIDMismatch(t *testing.T) {
 	mockReq := MockRequires{
-		Config:    configmock.New(t),
+		Config:    configmockdirect.New(t),
 		Log:       logmock.New(t),
 		Telemetry: fxutil.Test[telemetry.Component](t, mocktelemetry.Module()),
 	}

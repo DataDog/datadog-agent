@@ -13,7 +13,7 @@ import (
 	"time"
 
 	config "github.com/DataDog/datadog-agent/comp/core/config/def"
-	coreconfigmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
+	coreconfigmock "github.com/DataDog/datadog-agent/comp/core/config/fx-mock"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"

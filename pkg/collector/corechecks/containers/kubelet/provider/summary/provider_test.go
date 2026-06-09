@@ -20,7 +20,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
 	configcomp "github.com/DataDog/datadog-agent/comp/core/config/def"
-	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/fx-mock"
+	configmockdirect "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
@@ -492,7 +493,7 @@ type FilteringTestSuite struct {
 func (suite *FilteringTestSuite) SetupTest() {
 	store := fxutil.Test[workloadmetamock.Mock](suite.T(), fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(suite.T()) }),
-		fx.Provide(func() configcomp.Component { return configmock.New(suite.T()) }),
+		fx.Provide(func() configcomp.Component { return configmockdirect.New(suite.T()) }),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
@@ -504,7 +505,7 @@ func (suite *FilteringTestSuite) SetupTest() {
 	suite.mockKubelet = kubeletmock.NewKubeletMock()
 
 	// Create mock config for filter configuration
-	suite.mockConfig = configmock.New(suite.T())
+	suite.mockConfig = configmockdirect.New(suite.T())
 	suite.workloadFilter = workloadfilterfxmock.SetupMockFilter(suite.T())
 }
 
@@ -748,7 +749,7 @@ func TestStaticPodUIDMismatchFallback(t *testing.T) {
 	canonicalUID := "85a6cc02-4460-4f8a-b5f0-123456789abc"
 
 	// Setup mock config with kubelet_use_api_server=true
-	mockConfig := configmock.New(t)
+	mockConfig := configmockdirect.New(t)
 	mockConfig.SetInTest("kubelet_use_api_server", true)
 
 	// Setup tagger with canonical UUID

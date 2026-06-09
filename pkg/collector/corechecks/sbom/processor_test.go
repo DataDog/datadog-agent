@@ -24,7 +24,8 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/DataDog/datadog-agent/comp/core"
-	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/fx-mock"
+	configmockdirect "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
@@ -673,7 +674,7 @@ func TestProcessEvents(t *testing.T) {
 
 	cacheDir := t.TempDir()
 
-	cfg := configmock.NewWithOverrides(t, map[string]interface{}{
+	cfg := configmockdirect.NewWithOverrides(t, map[string]interface{}{
 		"sbom.cache_directory":                          cacheDir,
 		"sbom.container_image.enabled":                  true,
 		"sbom.container_image.allow_missing_repodigest": true,
@@ -813,7 +814,7 @@ func TestInUseFlagAccuracy(t *testing.T) {
 	}
 
 	cacheDir := t.TempDir()
-	cfg := configmock.NewWithOverrides(t, map[string]interface{}{
+	cfg := configmockdirect.NewWithOverrides(t, map[string]interface{}{
 		"sbom.cache_directory":                          cacheDir,
 		"sbom.container_image.enabled":                  true,
 		"sbom.container_image.allow_missing_repodigest": true,

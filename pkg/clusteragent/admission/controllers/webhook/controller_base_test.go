@@ -22,7 +22,8 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
 	"github.com/DataDog/datadog-agent/comp/core"
 	config "github.com/DataDog/datadog-agent/comp/core/config/def"
-	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/fx-mock"
+	configmockdirect "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	noopTelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/fx-noop"
@@ -49,7 +50,7 @@ func newFilterStoreFromConfig(t testing.TB, cfg config.Component) workloadfilter
 func TestNewController(t *testing.T) {
 	client := fake.NewSimpleClientset()
 	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
-	datadogConfig := configmock.New(t)
+	datadogConfig := configmockdirect.New(t)
 	factory := informers.NewSharedInformerFactory(client, time.Duration(0))
 
 	// V1
@@ -152,7 +153,7 @@ func TestAutoInstrumentation(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Create a mock config.
-			mockConfig := configmock.NewFromYAMLFile(t, tt.config)
+			mockConfig := configmockdirect.NewFromYAMLFile(t, tt.config)
 
 			// Create a mock meta.
 			wmeta := fxutil.Test[workloadmetamock.Mock](t, fx.Options(

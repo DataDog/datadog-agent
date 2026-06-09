@@ -15,7 +15,8 @@ import (
 	"time"
 
 	"github.com/DataDog/agent-payload/v5/cyclonedx_v1_4"
-	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/fx-mock"
+	configmockdirect "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -110,7 +111,7 @@ func TestRetryLogic_Error(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := configmock.New(t)
+			cfg := configmockdirect.New(t)
 
 			// Create a mock collector
 			collName := "mock"
@@ -161,7 +162,7 @@ func TestRetryLogic_Error(t *testing.T) {
 }
 
 func TestRetryLogic_ImageDeleted(t *testing.T) {
-	cfg := configmock.New(t)
+	cfg := configmockdirect.New(t)
 
 	// Create a workload meta global store
 	workloadmetaStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
@@ -228,7 +229,7 @@ func TestRetryLogic_ImageDeleted(t *testing.T) {
 
 // Test retry handling in case of an error when sending the result to a full channel
 func TestRetryChannelFull(t *testing.T) {
-	cfg := configmock.New(t)
+	cfg := configmockdirect.New(t)
 	// Create a workload meta global store
 	workloadmetaStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),

@@ -12,7 +12,7 @@ go_library(
     deps = [
         "//comp/core/config/def",
         "//comp/core/config/fx",
-        "//comp/core/config/mock",
+        "//comp/core/config/fx-mock",
         "//comp/core/delegatedauth/fx",
         "//comp/core/delegatedauth/fx-noop",
         "//comp/core/delegatedauth/mock",
