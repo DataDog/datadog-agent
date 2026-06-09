@@ -3,10 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-// Package fxnoop provides a print-only integrations component for use with
+// Package fx provides a print-only integrations component for use with
 // the `agent check` subcommand. Logs submitted via send_log are printed to
 // stderr instead of being forwarded to the backend.
-package fxnoop
+package fx
 
 import (
 	"fmt"
@@ -14,7 +14,27 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
+
+// team: agent-log-pipelines
+
+// Module defines the fx options for this component. It supplies an
+// option.Option[integrations.Component] wrapping a print-only receiver,
+// so subcommands like `agent check` that don't run the full logs agent can
+// still satisfy `send_log` calls from Python checks.
+func Module() fxutil.Module {
+	return fxutil.Component(
+		fxutil.ProvideComponentConstructor(newComponent),
+	)
+}
+
+// newComponent constructs the print-only integrations receiver as an Option
+// so it slots into the same dependency slot as the real logs receiver.
+func newComponent() option.Option[integrations.Component] {
+	return option.New[integrations.Component](NewNoopComponent())
+}
 
 // noopIntegrations is a print-only implementation of integrations.Component.
 // It satisfies the interface so that Python checks can call send_log without

@@ -216,7 +216,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams, wmCatalog fx.Option) *c
 				fx.Supply(option.None[logagent.Component]()),
 				// Provide a print-only integrations receiver so that Python checks
 				// calling send_log() display the log instead of returning a "no receiver" error.
-				fx.Supply(option.New[integrations.Component](integrationsfxnoop.NewNoopComponent())),
+				integrationsfxnoop.Module(),
 
 				getPlatformModules(),
 				jmxloggerfx.Module(),
