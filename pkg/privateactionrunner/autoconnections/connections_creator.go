@@ -8,6 +8,9 @@ package autoconnections
 import (
 	"context"
 
+	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/config/setup"
+	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/enrollment"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -21,6 +24,49 @@ func NewConnectionsCreator(client ConnectionsClient, provider TagsProvider) Conn
 	return ConnectionsCreator{
 		client:   client,
 		provider: provider,
+	}
+}
+
+// CreateConnectionsIfEnabled runs the connection auto-creation flow when configuration allows it.
+// Pre-conditions:
+//   - private_action_runner.api_key_only_enrollment is false (auto-connection needs an app key)
+//   - private_action_runner.skip_connection_creation is false
+//   - parCfg.ActionsAllowlist has at least one entry
+//
+// Auto-connection is best-effort: failures (client construction, individual CreateConnection
+// calls) are logged via the package logger but never returned, so enrollment/rotation
+// surrounding this call is not blocked by a transient connections-API issue.
+func CreateConnectionsIfEnabled(
+	ctx context.Context,
+	cfg model.Reader,
+	parCfg *parconfig.Config,
+	apiKey, appKey, runnerID string,
+	enrollmentResult *enrollment.Result,
+	tagsProvider TagsProvider,
+) {
+	if cfg.GetBool(setup.PARApiKeyOnlyEnrollment) {
+		return
+	}
+	if cfg.GetBool(setup.PARSkipConnectionCreation) {
+		return
+	}
+
+	actionsAllowlist := make([]string, 0, len(parCfg.ActionsAllowlist))
+	for fqnPrefix := range parCfg.ActionsAllowlist {
+		actionsAllowlist = append(actionsAllowlist, fqnPrefix)
+	}
+	if len(actionsAllowlist) == 0 {
+		return
+	}
+
+	client, err := NewConnectionsAPIClient(cfg, parCfg.DatadogSite, apiKey, appKey)
+	if err != nil {
+		log.Warnf("Failed to create connections API client: %v", err)
+		return
+	}
+	creator := NewConnectionsCreator(*client, tagsProvider)
+	if err := creator.AutoCreateConnections(ctx, runnerID, enrollmentResult, actionsAllowlist); err != nil {
+		log.Warnf("Failed to auto-create connections: %v", err)
 	}
 }
 

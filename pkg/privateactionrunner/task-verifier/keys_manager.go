@@ -31,6 +31,7 @@ type keysManager struct {
 	mu                     sync.RWMutex
 	ready                  chan struct{}
 	firstCallbackCompleted bool
+	startOnce              sync.Once
 }
 
 // noOpKeysManager satisfies KeysManager without requiring Remote Config.
@@ -55,9 +56,15 @@ func NewKeyManager(rcClient rcclient.Client) KeysManager {
 	}
 }
 
+// Start subscribes the manager to Remote Config key updates. Safe to call multiple
+// times: a single sync.Once gates the underlying Subscribe, so callers that re-create
+// downstream consumers (e.g. WorkflowRunner during a hot identity rotation) can pass
+// the same keysManager without registering duplicate RC subscriptions.
 func (k *keysManager) Start(ctx context.Context) {
-	log.FromContext(ctx).Info("Subscribing to remote config updates")
-	k.rcClient.Subscribe(state.ProductActionPlatformRunnerKeys, k.AgentConfigUpdateCallback)
+	k.startOnce.Do(func() {
+		log.FromContext(ctx).Info("Subscribing to remote config updates")
+		k.rcClient.Subscribe(state.ProductActionPlatformRunnerKeys, k.AgentConfigUpdateCallback)
+	})
 }
 
 func (k *keysManager) GetKey(keyId string) types.DecodedKey {

@@ -26,6 +26,7 @@ import (
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/util/retry"
 )
 
 const (
@@ -149,7 +150,77 @@ func parseSecretData(secret *corev1.Secret, ns, secretName string) (*PersistedId
 	}, nil
 }
 
-// persistIdentityToK8sSecret saves the enrollment result to a Kubernetes secret
+// writeIdentitySecret builds and creates-or-updates the PAR identity K8s secret.
+// Shared by the leader-gated and force-rotate write paths.
+func writeIdentitySecret(ctx context.Context, client kubernetes.Interface, ns, secretName string, result *Result) error {
+	privateKeyJWK, err := util.EcdsaToJWK(result.PrivateKey)
+	if err != nil {
+		return fmt.Errorf("failed to convert private key to JWK: %w", err)
+	}
+	marshalledPrivateKey, err := privateKeyJWK.MarshalJSON()
+	if err != nil {
+		return fmt.Errorf("failed to marshal private key to JSON: %w", err)
+	}
+	encodedPrivateKey := base64.RawURLEncoding.EncodeToString(marshalledPrivateKey)
+
+	labels := map[string]string{
+		"app.kubernetes.io/name":       "datadog-cluster-agent",
+		"app.kubernetes.io/component":  "private-action-runner",
+		"app.kubernetes.io/managed-by": "datadog-cluster-agent",
+	}
+	data := map[string][]byte{
+		privateKeyField:    []byte(encodedPrivateKey),
+		urnField:           []byte(result.URN),
+		orchClusterIDField: []byte(result.OrchClusterID),
+	}
+
+	newSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: ns,
+			Name:      secretName,
+			Labels:    labels,
+		},
+		Type: corev1.SecretTypeOpaque,
+		Data: data,
+	}
+
+	_, err = client.CoreV1().Secrets(ns).Create(ctx, newSecret, metav1.CreateOptions{})
+	if err == nil {
+		log.Infof("Created PAR identity in K8s secret: %s/%s", ns, secretName)
+		return nil
+	}
+	if !k8serrors.IsAlreadyExists(err) {
+		return fmt.Errorf("failed to create secret: %w", err)
+	}
+
+	// Secret already exists — fetch live ResourceVersion and merge updates onto it.
+	// RetryOnConflict handles the case where another writer updates the secret between
+	// our Get and Update calls (a real apiserver returns 409 Conflict in that case).
+	err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		existing, getErr := client.CoreV1().Secrets(ns).Get(ctx, secretName, metav1.GetOptions{})
+		if getErr != nil {
+			return getErr
+		}
+		existing.Type = corev1.SecretTypeOpaque
+		existing.Data = data
+		if existing.Labels == nil {
+			existing.Labels = map[string]string{}
+		}
+		for k, v := range labels {
+			existing.Labels[k] = v
+		}
+		_, updateErr := client.CoreV1().Secrets(ns).Update(ctx, existing, metav1.UpdateOptions{})
+		return updateErr
+	})
+	if err != nil {
+		return fmt.Errorf("failed to update existing secret: %w", err)
+	}
+	log.Infof("Updated PAR identity in K8s secret: %s/%s", ns, secretName)
+	return nil
+}
+
+// persistIdentityToK8sSecret saves the enrollment result to a Kubernetes secret.
+// Only runs on the leader replica.
 func persistIdentityToK8sSecret(ctx context.Context, cfg configModel.Reader, result *Result) error {
 	le, err := leaderelection.GetLeaderEngine()
 	if err != nil {
@@ -159,63 +230,24 @@ func persistIdentityToK8sSecret(ctx context.Context, cfg configModel.Reader, res
 		log.Info("Not leader, skipping PAR identity secret persistence")
 		return nil
 	}
-
 	log.Info("Leader replica: persisting PAR identity to K8s secret")
-
 	client, err := getKubeClient()
 	if err != nil {
 		return err
 	}
-
-	privateKeyJWK, err := util.EcdsaToJWK(result.PrivateKey)
-	if err != nil {
-		return fmt.Errorf("failed to convert private key to JWK: %w", err)
-	}
-
-	marshalledPrivateKey, err := privateKeyJWK.MarshalJSON()
-	if err != nil {
-		return fmt.Errorf("failed to marshal private key to JSON: %w", err)
-	}
-
-	encodedPrivateKey := base64.RawURLEncoding.EncodeToString(marshalledPrivateKey)
-
 	ns := namespace.GetResourcesNamespace()
-	secretName := getSecretName(cfg)
+	return writeIdentitySecret(ctx, client, ns, getSecretName(cfg), result)
+}
 
-	secret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: ns,
-			Name:      secretName,
-			Labels: map[string]string{
-				"app.kubernetes.io/name":       "datadog-cluster-agent",
-				"app.kubernetes.io/component":  "private-action-runner",
-				"app.kubernetes.io/managed-by": "datadog-cluster-agent",
-			},
-		},
-		Type: corev1.SecretTypeOpaque,
-		Data: map[string][]byte{
-			privateKeyField:    []byte(encodedPrivateKey),
-			urnField:           []byte(result.URN),
-			orchClusterIDField: []byte(result.OrchClusterID),
-		},
-	}
-
-	_, err = client.CoreV1().Secrets(ns).Create(ctx, secret, metav1.CreateOptions{})
+// rotateIdentityInK8sSecret persists identity to K8s secret without requiring leadership.
+// Used by CLI rotation commands that run as one-shots outside the normal replica lifecycle.
+func rotateIdentityInK8sSecret(ctx context.Context, cfg configModel.Reader, result *Result) error {
+	client, err := getKubeClient()
 	if err != nil {
-		if !k8serrors.IsAlreadyExists(err) {
-			return fmt.Errorf("failed to create secret: %w", err)
-		}
-		// Secret already exists, update it
-		_, err = client.CoreV1().Secrets(ns).Update(ctx, secret, metav1.UpdateOptions{})
-		if err != nil {
-			return fmt.Errorf("failed to update existing secret: %w", err)
-		}
-		log.Infof("Updated PAR identity in K8s secret: %s/%s", ns, secretName)
-		return nil
+		return err
 	}
-
-	log.Infof("Created PAR identity in K8s secret: %s/%s", ns, secretName)
-	return nil
+	ns := namespace.GetResourcesNamespace()
+	return writeIdentitySecret(ctx, client, ns, getSecretName(cfg), result)
 }
 
 // isNonTransientK8sError returns true for errors that indicate a permanent

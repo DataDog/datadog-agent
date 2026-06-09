@@ -12,6 +12,9 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	configModel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/config/setup"
+	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/modes"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/regions"
@@ -132,6 +135,38 @@ func SelfEnroll(
 		RunnerName:    runnerName,
 		OrchClusterID: agentIdentifier.OrchClusterID,
 	}, nil
+}
+
+// Enroll performs self-enrollment using config and a pre-built agent identifier.
+// It selects API-key-only or API-key+app-key flow from config and derives the
+// runner name prefix from the agent identifier. Used by both the PAR component
+// (via performSelfEnrollment) and CLI rotate commands.
+func Enroll(ctx context.Context, cfg configModel.Reader, agentIdentifier *AgentIdentifier) (*Result, error) {
+	// Honor dd_url overriding site (matches what parconfig.FromDDConfig does, so
+	// startup self-enrollment and rotate commands target the same endpoint as the
+	// running PAR component when a custom dd_url is configured).
+	mainEndpoint := configutils.GetMainEndpoint(cfg, "https://api.", "dd_url")
+	ddSite := configutils.ExtractSiteFromURL(mainEndpoint)
+	if ddSite == "" {
+		ddSite = "datadoghq.com"
+	}
+	apiKey := cfg.GetString("api_key")
+	extraHeaders := cfg.GetStringMapString(setup.PAROpmsExtraHeaders)
+
+	runnerNamePrefix := agentIdentifier.Hostname
+	if flavor.GetFlavor() == flavor.ClusterAgent {
+		if clusterName := clustername.GetClusterName(ctx, agentIdentifier.Hostname); clusterName != "" {
+			runnerNamePrefix = clusterName
+		} else {
+			log.Warnf("Cluster name not found, falling back to hostname '%s' for cluster agent enrollment", agentIdentifier.Hostname)
+		}
+	}
+
+	if cfg.GetBool(setup.PARApiKeyOnlyEnrollment) {
+		return SelfEnrollApiKeyOnly(ctx, ddSite, runnerNamePrefix, apiKey, agentIdentifier, extraHeaders)
+	}
+	appKey := cfg.GetString("app_key")
+	return SelfEnroll(ctx, ddSite, runnerNamePrefix, apiKey, appKey, agentIdentifier, extraHeaders)
 }
 
 // SelfEnrollApiKeyOnly performs self-registration using only an API key (no application key).
