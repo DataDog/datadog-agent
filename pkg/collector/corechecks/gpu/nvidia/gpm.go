@@ -218,7 +218,7 @@ func (c *gpmCollector) calculateGpmMetrics() (*nvml.GpmMetricsGetType, error) {
 			Sample2:    lastSample,
 		}
 		singleMetricGet.Metrics[0] = nvml.GpmMetric{
-			MetricId: uint32(metricID),
+			MetricId:   uint32(metricID),
 			NvmlReturn: uint32(nvml.ERROR_UNKNOWN), // initialize to a sentinel value to ensure NVML has actually modified the value
 		}
 
