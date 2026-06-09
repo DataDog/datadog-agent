@@ -42,6 +42,7 @@
 /CHANGELOG-INSTALLSCRIPT.rst            @DataDog/agent-delivery
 
 /*.md                                   @DataDog/agent-devx
+/worktickets/                           # do not notify anyone
 /CHANGELOG-AIX.md                       @DataDog/agent-runtimes
 /NOTICE                                 @DataDog/agent-delivery
 

@@ -1,0 +1,21 @@
+Work tickets
+============
+
+This directory contains repository-local work tickets. `taskmd` is an optional convenience wrapper for creating, listing, validating, and renaming tickets while preserving the filename conventions for status and priority. Install it with `uv tool install taskmd`, or run it without installing via `uvx taskmd`.
+
+Each ticket is a Markdown file. The filename encodes the task metadata:
+
+    DDNNN-pX-status--short-slug.md
+
+`DD` is a two-digit stem derived from the hostname and worktree path. Its goal is to avoid ID conflicts by splitting ticket IDs across 100 possible stems. `NNN` is the incrementing sequence number within that stem.
+
+Common commands:
+
+    taskmd --help
+    taskmd list
+    taskmd validate
+    echo 'Describe the work to do.' | taskmd new --slug describe-work --priority p2
+    taskmd status 12345 in-progress
+
+Use worktickets/_TEMPLATE.md as the starting point for new ticket bodies.
+The `_TEMPLATE.md` marker allows taskmd to auto-discover this directory.
