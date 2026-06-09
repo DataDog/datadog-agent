@@ -116,6 +116,27 @@ func TestMultiDomainResolverUpdateAdditionalEndpointsNewKey(t *testing.T) {
 	assertKeys(t, []string{"key1", "key4", "key3"}, resolver)
 }
 
+func TestIsMetricToVector(t *testing.T) {
+	apiKeys := []utils.APIKeys{utils.NewAPIKeys("api_key", "key1")}
+
+	plain, err := NewSingleDomainResolver("https://app.datadoghq.com", apiKeys)
+	require.NoError(t, err)
+	assert.False(t, plain.IsMetricToVector(), "plain resolver must report no vector override")
+
+	multi, err := NewMultiDomainResolver("https://app.datadoghq.com", apiKeys)
+	require.NoError(t, err)
+	assert.False(t, multi.IsMetricToVector(), "multi-domain resolver without vector divert must report false")
+
+	vec, err := NewDomainResolverWithMetricToVector(
+		"https://app.datadoghq.com",
+		apiKeys,
+		"http://vector.example.test:8080",
+	)
+	require.NoError(t, err)
+	assert.True(t, vec.IsMetricToVector(), "vector-diverted resolver must report true")
+	assert.Equal(t, "https://app.datadoghq.com", vec.GetConfigName())
+}
+
 func TestScrubKeys(t *testing.T) {
 	keys := []string{
 		"abcdefghijklmnopqrstuvwxyzkey001",

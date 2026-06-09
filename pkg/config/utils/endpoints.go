@@ -325,6 +325,19 @@ func GetMRFInfraEndpoint(c pkgconfigmodel.Reader) (string, error) {
 // version (see AddAgentVersionToDomain).
 var ddURLRegexp = regexp.MustCompile(`^app(\.mrf)?\.` + ddSitePattern + `\.?$`)
 
+// IsDatadogURL reports whether the given URL is a well-known Datadog destination.
+func IsDatadogURL(rawURL string) bool {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return false
+	}
+	host := strings.ToLower(strings.TrimRight(u.Hostname(), "."))
+	if host == "" {
+		return false
+	}
+	return ddURLRegexp.MatchString(host)
+}
+
 // getDomainPrefix provides the right prefix for agent X.Y.Z
 func getDomainPrefix(app string) string {
 	v, _ := version.Agent()

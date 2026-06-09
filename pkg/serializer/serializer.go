@@ -164,6 +164,12 @@ func NewSerializer(forwarder forwarder.Forwarder, orchestratorForwarder orchestr
 	if !s.enableJSONToV1Intake {
 		logger.Warn("JSON to V1 intake is disabled: all payloads to that endpoint will be dropped")
 	}
+	if s.zlibForcesV2() {
+		logger.Info(
+			"the active metrics compressor is zlib (deflate); disabling v3 metrics intake " +
+				"(use_v3_api.* and serializer_experimental_use_v3_api.*.endpoints are ignored). " +
+				"Switch to zstd to use the v3 endpoint.")
+	}
 
 	return s
 }
