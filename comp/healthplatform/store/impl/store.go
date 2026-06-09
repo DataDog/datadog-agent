@@ -565,14 +565,20 @@ func (h *healthPlatformImpl) storeIssue(issueType string, issue *healthplatform.
 				persisted.Extra = raw
 			} else {
 				h.log.Warnf("health platform: failed to serialize Extra for issue %s: %v", issueID, err)
+				persisted.Extra = nil
 			}
+		} else {
+			persisted.Extra = nil
 		}
 		if issue.Remediation != nil {
 			if raw, err := json.Marshal(issue.Remediation); err == nil {
 				persisted.Remediation = raw
 			} else {
 				h.log.Warnf("health platform: failed to serialize Remediation for issue %s: %v", issueID, err)
+				persisted.Remediation = nil
 			}
+		} else {
+			persisted.Remediation = nil
 		}
 
 		// Drop structpb/Remediation from the hot store; they are kept as raw JSON in
