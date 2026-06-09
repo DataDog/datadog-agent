@@ -24,7 +24,8 @@ var _ agentCommandExecutor = &agentDockerExecutor{}
 func newAgentDockerExecutor(context Context, dockerAgentOutput agent.DockerAgentOutput) *agentDockerExecutor {
 	dockerClient, err := NewDocker(context, dockerAgentOutput.DockerManager)
 	if err != nil {
-		panic(err)
+		context.FailNow("%v", err)
+		return nil
 	}
 	return &agentDockerExecutor{
 		dockerClient:       dockerClient,

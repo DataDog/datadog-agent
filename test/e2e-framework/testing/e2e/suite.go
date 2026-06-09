@@ -239,6 +239,13 @@ func (bs *BaseSuite[Env]) Logf(format string, args ...any) {
 	bs.T().Logf(format, args...)
 }
 
+// FailNow satisfies the common.Context interface by logging the message and stopping the test.
+func (bs *BaseSuite[Env]) FailNow(format string, args ...any) {
+	bs.T().Helper()
+	bs.T().Logf(format, args...)
+	bs.T().FailNow()
+}
+
 // EventuallyWithT is a wrapper around testify.Suite.EventuallyWithT that catches panics to fail test without skipping TeardownSuite
 func (bs *BaseSuite[Env]) EventuallyWithT(condition func(*assert.CollectT), timeout time.Duration, interval time.Duration, msgAndArgs ...interface{}) bool {
 	return bs.Suite.EventuallyWithT(func(c *assert.CollectT) {

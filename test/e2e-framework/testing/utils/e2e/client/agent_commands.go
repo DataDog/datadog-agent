@@ -42,7 +42,9 @@ func newAgentCommandRunner(ctx Context, executor agentCommandExecutor) *agentCom
 
 func (agent *agentCommandRunner) executeCommand(command string, commandArgs ...agentclient.AgentArgsOption) string {
 	output, err := agent.executeCommandWithError(command, commandArgs...)
-	requireNoErr(err)
+	if err != nil {
+		agent.ctx.FailNow("%v", err)
+	}
 	return output
 }
 

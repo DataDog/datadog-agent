@@ -74,7 +74,7 @@ func NewDocker(ctx Context, dockerOutput docker.ManagerOutput) (*Docker, error) 
 func (docker *Docker) ExecuteCommand(containerName string, commands ...string) string {
 	output, err := docker.ExecuteCommandWithErr(containerName, commands...)
 	if err != nil {
-		panic(fmt.Errorf("%v: %w", output, err))
+		docker.ctx.FailNow("%v: %v", output, err)
 	}
 	return output
 }

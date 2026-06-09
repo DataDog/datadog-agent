@@ -9,13 +9,8 @@ package client
 // It has no dependency on *testing.T, so non-test callers can implement it.
 type Context interface {
 	Logf(format string, args ...any)
+	// FailNow logs the formatted message and immediately stops the current goroutine.
+	// In test contexts this calls t.Logf + t.FailNow(); in other contexts it panics.
+	FailNow(format string, args ...any)
 	SessionOutputDir() string
-}
-
-// requireNoErr panics if err is non-nil. Used in must-style helpers where
-// returning an error would change public API signatures.
-func requireNoErr(err error) {
-	if err != nil {
-		panic(err)
-	}
 }

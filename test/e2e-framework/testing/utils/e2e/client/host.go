@@ -208,7 +208,9 @@ func (h *sshExecutor) startAndReconnectOnError(command string) (*ssh.Session, io
 // MustExecute executes a command and requires no error.
 func (h *sshExecutor) MustExecute(command string, options ...ExecuteOption) string {
 	stdout, err := h.Execute(command, options...)
-	requireNoErr(err)
+	if err != nil {
+		h.context.FailNow("%v", err)
+	}
 	return stdout
 }
 
@@ -219,10 +221,13 @@ func (h *Host) CopyFileFromFS(fs fs.FS, src, dst string) {
 	sftpClient := h.getSFTPClient()
 	defer sftpClient.Close()
 	file, err := fs.Open(src)
-	requireNoErr(err)
+	if err != nil {
+		h.context.FailNow("%v", err)
+	}
 	defer file.Close()
-	err = copyFileFromIoReader(sftpClient, file, dst)
-	requireNoErr(err)
+	if err = copyFileFromIoReader(sftpClient, file, dst); err != nil {
+		h.context.FailNow("%v", err)
+	}
 }
 
 // CopyFile creates a sftp session and copy a single file to the remote host through SSH
@@ -231,8 +236,9 @@ func (h *Host) CopyFile(src string, dst string) {
 	dst = h.convertPathSeparator(dst)
 	sftpClient := h.getSFTPClient()
 	defer sftpClient.Close()
-	err := copyFile(sftpClient, src, dst)
-	requireNoErr(err)
+	if err := copyFile(sftpClient, src, dst); err != nil {
+		h.context.FailNow("%v", err)
+	}
 }
 
 // CopyFolder create a sftp session and copy a folder to remote host through SSH
@@ -549,10 +555,15 @@ func (h *Host) appendWithSftp(path string, content []byte) (int64, error) {
 func (h *Host) getSFTPClient() *sftp.Client {
 	sftpClient, err := sftp.NewClient(h.client, sftp.UseConcurrentWrites(true))
 	if err != nil {
-		err = h.Reconnect()
-		requireNoErr(err)
+		if err = h.Reconnect(); err != nil {
+			h.context.FailNow("%v", err)
+			return nil
+		}
 		sftpClient, err = sftp.NewClient(h.client, sftp.UseConcurrentWrites(true))
-		requireNoErr(err)
+		if err != nil {
+			h.context.FailNow("%v", err)
+			return nil
+		}
 	}
 	return sftpClient
 }
@@ -560,14 +571,20 @@ func (h *Host) getSFTPClient() *sftp.Client {
 func (h *Host) getSFTPPrivilegedClient() *sftp.Client {
 	if h.privileged == nil {
 		// Some cloud provider don't provide SSH connection as root (GCP) required for these file operations
-		panic("can't SFTP files without a privileged SSH connection")
+		h.context.FailNow("can't SFTP files without a privileged SSH connection")
+		return nil
 	}
 	sftpClient, err := sftp.NewClient(h.privileged, sftp.UseConcurrentWrites(true))
 	if err != nil {
-		err = h.Reconnect()
-		requireNoErr(err)
+		if err = h.Reconnect(); err != nil {
+			h.context.FailNow("%v", err)
+			return nil
+		}
 		sftpClient, err = sftp.NewClient(h.privileged, sftp.UseConcurrentWrites(true))
-		requireNoErr(err)
+		if err != nil {
+			h.context.FailNow("%v", err)
+			return nil
+		}
 	}
 	return sftpClient
 }
