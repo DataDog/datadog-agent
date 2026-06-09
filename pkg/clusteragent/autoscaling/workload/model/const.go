@@ -44,6 +44,4 @@ const (
 	InPlaceEvictedEventReason = "InPlaceEvicted"
 	// FailedToEvictEventReason is the event reason when a pod could not be evicted
 	FailedToEvictEventReason = "FailedToEvict"
-	// DisruptionBudgetThrottledEventReason is the event reason when disruptive in-place resizes are deferred to stay within the disruption budget.
-	DisruptionBudgetThrottledEventReason = "DisruptionBudgetThrottled"
 )

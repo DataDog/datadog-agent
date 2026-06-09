@@ -216,7 +216,7 @@ func (u *verticalController) syncInternal(
 		}
 
 		// Disruptive resizes restart a container and bypass PDB enforcement, so throttle them to the
-		// disruption budget; non-disruptive resizes always patch.
+		// disruption tolerance; non-disruptive resizes always patch.
 		recommendation := autoscalerInternal.ScalingValues().Vertical
 		toPatch := make([]classifiedPod, 0, len(needsPatch))
 		var disruptive []classifiedPod
@@ -228,7 +228,7 @@ func (u *verticalController) syncInternal(
 			}
 		}
 
-		// Unavailable and in-flight resizes consume budget. Sort by UID so the subset is deterministic.
+		// Unavailable and in-flight resizes count as disrupted. Sort by UID so the subset is deterministic.
 		configured := len(pods)
 		if cr := autoscalerInternal.CurrentReplicas(); cr != nil && int(*cr) > configured {
 			configured = int(*cr)
@@ -260,12 +260,10 @@ func (u *verticalController) syncInternal(
 		}
 	}
 
-	// Deferred resizes stay in NeedsPatch and retry on the next requeue.
+	// Deferred resizes stay in NeedsPatch and retry on the next requeue; the count is surfaced in
+	// the in-place summary event below and tracked for telemetry.
 	if disruptionDeferred > 0 {
 		autoscalerInternal.InPlaceDisruptionThrottledAdd(uint(disruptionDeferred))
-		u.eventRecorder.Eventf(podAutoscaler, corev1.EventTypeNormal, model.DisruptionBudgetThrottledEventReason,
-			"Deferred %d disruptive in-place resize(s) to respect the disruption budget for autoscaler %s/%s",
-			disruptionDeferred, podAutoscaler.Namespace, podAutoscaler.Name)
 	}
 
 	// Build the list of pods to evict: pods with unresolvable conditions, plus any
@@ -338,9 +336,10 @@ func (u *verticalController) syncInternal(
 	}
 	autoscalerInternal.AddEvictedReplicas(evictedThisSync)
 
-	// Emit a summary event
+	// Emit a summary of this sync's in-place resize activity: pods evicted as a fallback, plus any
+	// disruptive resizes deferred to stay within the disruption tolerance.
 	if evictedThisSync > 0 || failedEvictions > 0 || pdbBlocked {
-		parts := make([]string, 0, 3)
+		parts := make([]string, 0, 4)
 		if evictedThisSync > 0 {
 			parts = append(parts, fmt.Sprintf("%d evicted", evictedThisSync))
 		}
@@ -350,20 +349,26 @@ func (u *verticalController) syncInternal(
 		if pdbBlocked {
 			parts = append(parts, "PDB blocked further evictions")
 		}
+		if disruptionDeferred > 0 {
+			parts = append(parts, fmt.Sprintf("%d deferred to respect the disruption tolerance", disruptionDeferred))
+		}
 		eventType := corev1.EventTypeNormal
 		reason := model.InPlaceEvictedEventReason
 		if failedEvictions > 0 || pdbBlocked {
 			eventType = corev1.EventTypeWarning
 			reason = model.FailedToEvictEventReason
 		}
-		inFlight := len(podsByResizeStatus[PodResizeStatusEvicting])
-		remaining := int(int32(len(toEvict)) - evictedThisSync - failedEvictions)
-		suffix := fmt.Sprintf("%d remaining", remaining)
-		if inFlight > 0 {
-			suffix += fmt.Sprintf(", %d in-flight", inFlight)
+		msg := fmt.Sprintf("In-place resize: %s", strings.Join(parts, ", "))
+		if len(toEvict) > 0 {
+			inFlight := len(podsByResizeStatus[PodResizeStatusEvicting])
+			remaining := int(int32(len(toEvict)) - evictedThisSync - failedEvictions)
+			msg += fmt.Sprintf(" (%d remaining", remaining)
+			if inFlight > 0 {
+				msg += fmt.Sprintf(", %d in-flight", inFlight)
+			}
+			msg += ")"
 		}
-		u.eventRecorder.Eventf(podAutoscaler, eventType, reason,
-			"In-place resize eviction: %s (%s)", strings.Join(parts, ", "), suffix)
+		u.eventRecorder.Eventf(podAutoscaler, eventType, reason, "%s", msg)
 	}
 
 	// Terminating pods are excluded from podsByResizeStatus, so summing all bucket lengths
