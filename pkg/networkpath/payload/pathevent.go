@@ -128,6 +128,8 @@ const (
 	SourceProductSynthetics SourceProduct = "synthetics"
 	// SourceProductEndUserDevice is the end user device monitoring product.
 	SourceProductEndUserDevice SourceProduct = "end_user_device"
+	// SourceProductNetworkDevice is the network device monitoring product.
+	SourceProductNetworkDevice SourceProduct = "network_device"
 )
 
 // GetSourceProduct returns the appropriate SourceProduct based on infrastructure mode.

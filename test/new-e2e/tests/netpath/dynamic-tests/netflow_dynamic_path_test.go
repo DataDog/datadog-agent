@@ -151,6 +151,7 @@ func (s *netflowDynamicPathSuite) TestNetflowDynamicNetworkPath() {
 		require.NotNil(c, match, "no netflow-origin TCP network path matched an observed NDM flow destination")
 
 		assert.Equal(c, payload.PathOriginNetflow, match.path.Origin)
+		assert.Equal(c, payload.SourceProductNetworkDevice, match.path.SourceProduct)
 		assert.Equal(c, payload.ProtocolTCP, match.path.Protocol)
 		assert.Equal(c, payload.TestRunTypeDynamic, match.path.TestRunType)
 		assert.Equal(c, payload.CollectorTypeAgent, match.path.CollectorType)

@@ -33,6 +33,7 @@ import (
 	eventplatformimpl "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/impl"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/impl/common"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/impl/connfilter"
+	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/impl/pathteststore"
 	npmodel "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/model"
 	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
@@ -440,6 +441,68 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
 	assert.Equal(t, uint64(2), npCollector.receivedPathtestCount.Load())
 
 	app.RequireStop()
+}
+
+func Test_NpCollector_runTracerouteForPath_NetflowSourceProduct(t *testing.T) {
+	agentConfigs := map[string]any{
+		"network_path.netflow_monitoring.enabled":          true,
+		"network_path.collector.monitor_ip_without_domain": true,
+		"network_devices.namespace":                        "default-ns",
+		"network_path.collector.filters":                   []map[string]any{},
+	}
+	tr := &tracerouteRunner{func(_ctx context.Context, cfg config.Config) (payload.NetworkPath, error) {
+		return payload.NetworkPath{
+			AgentVersion: "1.0.42",
+			Protocol:     cfg.Protocol,
+			Source: payload.NetworkPathSource{
+				Hostname:    "test-hostname",
+				Name:        "test-hostname",
+				DisplayName: "test-hostname",
+			},
+			Destination: payload.NetworkPathDestination{
+				Hostname: cfg.DestHostname,
+				Port:     cfg.DestPort,
+			},
+			Traceroute: payload.Traceroute{
+				Runs: []payload.TracerouteRun{
+					{
+						RunID: "aa-bb-cc",
+						Destination: payload.TracerouteDestination{
+							IPAddress: net.ParseIP("10.0.0.2"),
+							Port:      cfg.DestPort,
+						},
+					},
+				},
+			},
+		}, nil
+	}}
+	_, npCollector := newTestNpCollector(t, agentConfigs, &teststatsd.Client{}, tr)
+
+	mockEpForwarder := eventplatformimpl.NewMockEventPlatformForwarder(gomock.NewController(t))
+	npCollector.epForwarder = mockEpForwarder
+
+	var emittedPath payload.NetworkPath
+	mockEpForwarder.EXPECT().SendEventPlatformEventBlocking(
+		gomock.Any(),
+		eventplatform.EventTypeNetworkPath,
+	).DoAndReturn(func(msg *message.Message, _ string) error {
+		require.NoError(t, json.Unmarshal(msg.GetContent(), &emittedPath))
+		return nil
+	}).Times(1)
+
+	npCollector.runTracerouteForPath(&pathteststore.PathtestContext{
+		Pathtest: &common.Pathtest{
+			Hostname:  "10.0.0.2",
+			Port:      443,
+			Protocol:  payload.ProtocolTCP,
+			Namespace: "netflow-ns",
+			Origin:    payload.PathOriginNetflow,
+		},
+	})
+
+	assert.Equal(t, payload.PathOriginNetflow, emittedPath.Origin)
+	assert.Equal(t, payload.SourceProductNetworkDevice, emittedPath.SourceProduct)
+	assert.Equal(t, "netflow-ns", emittedPath.Namespace)
 }
 
 func Test_NpCollector_stopWithoutPanic(t *testing.T) {
