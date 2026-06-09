@@ -9,10 +9,21 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+
+	// We need to import the OTTL package to be able to parse OTTL conditions in processing rules, even if we don't use it directly in this file.
+	"go.opentelemetry.io/collector/component"
+	"go.uber.org/zap"
+
+	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/ottllog"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/ottlfuncs"
 )
 
 // Processing rule types
 const (
+	ExcludeAtMatchOTTL = "exclude_at_match_ottl"
+	IncludeAtMatchOTTL = "include_at_match_ottl"
+
 	ExcludeAtMatch   = "exclude_at_match"
 	IncludeAtMatch   = "include_at_match"
 	MaskSequences    = "mask_sequences"
@@ -37,6 +48,7 @@ type ProcessingRule struct {
 	ReplacePlaceholder string `mapstructure:"replace_placeholder" json:"replace_placeholder" yaml:"replace_placeholder"`
 	Pattern            string
 	Regex              *regexp.Regexp
+	OTTLCondition      *ottl.Condition[*ottllog.TransformContext]
 	Placeholder        []byte
 	Matching           []*SourceMatchEntry `mapstructure:"matching" json:"matching" yaml:"matching"`
 }
@@ -60,6 +72,14 @@ func ValidateProcessingRules(rules []*ProcessingRule) error {
 			_, err := regexp.Compile(rule.Pattern)
 			if err != nil {
 				return fmt.Errorf("invalid pattern %s for processing rule: %s", rule.Pattern, rule.Name)
+			}
+		case ExcludeAtMatchOTTL, IncludeAtMatchOTTL:
+			if rule.Pattern == "" {
+				return fmt.Errorf("no pattern provided for processing rule: %s", rule.Name)
+			}
+			err := validateOTTLPattern(rule.Pattern)
+			if err != nil {
+				return fmt.Errorf("invalid OTTL pattern %s for processing rule: %s, error: %v", rule.Pattern, rule.Name, err)
 			}
 		case ExcludeTruncated:
 			break
@@ -89,26 +109,69 @@ func ValidateProcessingRules(rules []*ProcessingRule) error {
 
 // CompileProcessingRules compiles all processing rule regular expressions.
 func CompileProcessingRules(rules []*ProcessingRule) error {
+
 	for _, rule := range rules {
 		if rule.Type == ExcludeTruncated || rule.Type == RemapSource {
 			continue
 		}
-		re, err := regexp.Compile(rule.Pattern)
-		if err != nil {
-			return err
-		}
+		// re, err := regexp.Compile(rule.Pattern)
+		// if err != nil {
+		// 	return err
+		// }
 		switch rule.Type {
-		case ExcludeAtMatch, IncludeAtMatch:
-			rule.Regex = re
-		case MaskSequences:
-			rule.Regex = re
-			rule.Placeholder = []byte(rule.ReplacePlaceholder)
-		case MultiLine:
-			rule.Regex, err = regexp.Compile("^" + rule.Pattern)
+		case ExcludeAtMatchOTTL, IncludeAtMatchOTTL:
+			err := compileOTTLProcessingRule(rule)
 			if err != nil {
 				return err
 			}
+
+		case ExcludeAtMatch, IncludeAtMatch:
+			re, err := regexp.Compile(rule.Pattern)
+			if err != nil {
+				return err
+			}
+			rule.Regex = re
+
+		case MaskSequences:
+			re, err := regexp.Compile(rule.Pattern)
+			if err != nil {
+				return err
+			}
+			rule.Regex = re
+			rule.Placeholder = []byte(rule.ReplacePlaceholder)
+
+		case MultiLine:
+			re, err := regexp.Compile("^" + rule.Pattern)
+			if err != nil {
+				return err
+			}
+			rule.Regex = re
 		}
 	}
+	return nil
+}
+
+// validateOTTLPattern checks that the given OTTL pattern is valid and can be parsed by the OTTL parser.
+func validateOTTLPattern(pattern string) error {
+	settings := component.TelemetrySettings{Logger: zap.NewNop()} // settings are only used for logging during parsing, so we can use a no-op logger here
+	parser, err := ottllog.NewParser(ottlfuncs.StandardFuncs[*ottllog.TransformContext](), settings)
+	if err != nil {
+		return err
+	}
+	_, err = parser.ParseCondition(pattern)
+	return err
+}
+
+func compileOTTLProcessingRule(rule *ProcessingRule) error {
+	settings := component.TelemetrySettings{Logger: zap.NewNop()} // settings are only used for logging during parsing, so we can use a no-op logger here
+	parser, err := ottllog.NewParser(ottlfuncs.StandardFuncs[*ottllog.TransformContext](), settings)
+	if err != nil {
+		return err
+	}
+	condition, err := parser.ParseCondition(rule.Pattern)
+	if err != nil {
+		return fmt.Errorf("error parsing OTTL condition for processing rule `%s`: %v", rule.Name, err)
+	}
+	rule.OTTLCondition = condition
 	return nil
 }
