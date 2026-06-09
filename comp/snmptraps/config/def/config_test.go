@@ -245,3 +245,22 @@ func TestNamespaceSetBothGloballyAndLocally(t *testing.T) {
 	}, "foo")
 	assert.Equal(t, "bar", config.Namespace)
 }
+
+func TestTagsUnmarshalFromYAML(t *testing.T) {
+	config := buildTrapsConfig(t, &TrapsConfig{
+		Tags: []string{"application:foo", "team:netops", "env:prod"},
+	}, "")
+	assert.Equal(t, []string{"application:foo", "team:netops", "env:prod"}, config.Tags)
+}
+
+func TestTagsDefaultEmpty(t *testing.T) {
+	config := buildTrapsConfig(t, nil, "")
+	assert.Empty(t, config.Tags)
+}
+
+func TestTagsNormalization(t *testing.T) {
+	config := buildTrapsConfig(t, &TrapsConfig{
+		Tags: []string{"  application:foo  ", "", "   ", "team:netops"},
+	}, "")
+	assert.Equal(t, []string{"application:foo", "team:netops"}, config.Tags)
+}
