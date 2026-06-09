@@ -30,6 +30,12 @@ type EtwInterface struct {
 	captureHTTPS       bool
 	requestSize        int64
 
+	// etwReady is closed once the ETW provider delivers its first event,
+	// signaling that the session is live and producing. It replaces the
+	// unreliable time.Sleep() approach for waiting on ETW startup.
+	etwReady     chan struct{}
+	etwReadyOnce sync.Once
+
 	// ETW component
 	httpguid windows.GUID
 	session  etw.Session
@@ -43,6 +49,7 @@ func NewEtwInterface(c *config.Config) (*EtwInterface, error) {
 		captureHTTPS:       c.EnableNativeTLSMonitoring,
 		captureHTTP:        c.EnableHTTPMonitoring,
 		requestSize:        c.HTTPMaxRequestFragment,
+		etwReady:           make(chan struct{}),
 	}
 	etwSessionName := "SystemProbeUSM_ETW"
 	etwcomp, err := etwimpl.NewEtw()
@@ -154,6 +161,14 @@ func (hei *EtwInterface) StartReadingHttpFlows() {
 			time.Sleep(3 * time.Second)
 		}
 	}()
+}
+
+// ETWReady returns a channel that is closed once the ETW provider has
+// delivered its first event, indicating the session is live and producing
+// events. Callers can select on it (with a timeout) instead of sleeping for a
+// fixed duration to wait for ETW startup.
+func (hei *EtwInterface) ETWReady() <-chan struct{} {
+	return hei.etwReady
 }
 
 //nolint:revive // TODO(WKIT) Fix revive linter
