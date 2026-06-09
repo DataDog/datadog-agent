@@ -9,6 +9,9 @@ package enrollment
 
 import (
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
 	"errors"
 	"sync/atomic"
 	"testing"
@@ -198,6 +201,57 @@ func TestWaitForLeaderAndSecret_FailsImmediatelyOnNonTransientError(t *testing.T
 	require.Error(t, err)
 	require.Nil(t, result)
 	assert.True(t, k8serrors.IsForbidden(errors.Unwrap(err)))
+}
+
+func makeTestResult(t *testing.T) *Result {
+	t.Helper()
+	privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+	return &Result{
+		PrivateKey:    privateKey,
+		URN:           "urn:ddog:us1:org123:runner456",
+		OrchClusterID: "cluster-abc",
+	}
+}
+
+func TestWriteIdentitySecret_CreatesSecret(t *testing.T) {
+	client := fake.NewSimpleClientset()
+	result := makeTestResult(t)
+
+	err := writeIdentitySecret(context.Background(), client, "default", "par-identity", result)
+	require.NoError(t, err)
+
+	secret, err := client.CoreV1().Secrets("default").Get(context.Background(), "par-identity", metav1.GetOptions{})
+	require.NoError(t, err)
+	assert.Equal(t, result.URN, string(secret.Data[urnField]))
+	assert.Equal(t, result.OrchClusterID, string(secret.Data[orchClusterIDField]))
+	assert.NotEmpty(t, secret.Data[privateKeyField])
+	assert.Equal(t, "datadog-cluster-agent", secret.Labels["app.kubernetes.io/name"])
+}
+
+func TestWriteIdentitySecret_UpdatesExistingSecret(t *testing.T) {
+	existing := makeTestSecret("default", "par-identity")
+	client := fake.NewSimpleClientset(existing)
+	result := makeTestResult(t)
+
+	err := writeIdentitySecret(context.Background(), client, "default", "par-identity", result)
+	require.NoError(t, err)
+
+	secret, err := client.CoreV1().Secrets("default").Get(context.Background(), "par-identity", metav1.GetOptions{})
+	require.NoError(t, err)
+	assert.Equal(t, result.URN, string(secret.Data[urnField]))
+}
+
+func TestWriteIdentitySecret_ReturnsErrorOnFailure(t *testing.T) {
+	client := fake.NewSimpleClientset()
+	client.PrependReactor("create", "secrets", func(_ k8stesting.Action) (bool, runtime.Object, error) {
+		return true, nil, k8serrors.NewForbidden(
+			schema.GroupResource{Resource: "secrets"}, "par-identity", errors.New("RBAC denied"))
+	})
+
+	err := writeIdentitySecret(context.Background(), client, "default", "par-identity", makeTestResult(t))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to create secret")
 }
 
 func TestIsNonTransientK8sError(t *testing.T) {

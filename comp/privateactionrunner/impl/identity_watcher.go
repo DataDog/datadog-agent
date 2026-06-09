@@ -36,20 +36,7 @@ func (p *PrivateActionRunner) startIdentityWatcher(ctx context.Context) {
 
 	secretInformer := apiClient.PARIdentitySecretInformerFactory.Core().V1().Secrets().Informer()
 	_, err = secretInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-		UpdateFunc: func(oldObj, newObj interface{}) {
-			oldSecret, ok1 := oldObj.(*corev1.Secret)
-			newSecret, ok2 := newObj.(*corev1.Secret)
-			if !ok1 || !ok2 {
-				return
-			}
-			if string(oldSecret.Data["urn"]) != string(newSecret.Data["urn"]) {
-				p.logger.Info("PAR identity secret rotated, triggering credential reload")
-				select {
-				case p.restartCh <- struct{}{}:
-				default: // a reload is already queued
-				}
-			}
-		},
+		UpdateFunc: p.handleIdentitySecretUpdate,
 	})
 	if err != nil {
 		p.logger.Errorf("PAR identity watcher: failed to register event handler: %v", err)
@@ -57,4 +44,21 @@ func (p *PrivateActionRunner) startIdentityWatcher(ctx context.Context) {
 	}
 
 	apiClient.PARIdentitySecretInformerFactory.Start(ctx.Done())
+}
+
+// handleIdentitySecretUpdate fires when the PAR identity secret is updated.
+// It sends to restartCh if the URN has changed, triggering a credential hot-reload.
+func (p *PrivateActionRunner) handleIdentitySecretUpdate(oldObj, newObj interface{}) {
+	oldSecret, ok1 := oldObj.(*corev1.Secret)
+	newSecret, ok2 := newObj.(*corev1.Secret)
+	if !ok1 || !ok2 {
+		return
+	}
+	if string(oldSecret.Data["urn"]) != string(newSecret.Data["urn"]) {
+		p.logger.Info("PAR identity secret rotated, triggering credential reload")
+		select {
+		case p.restartCh <- struct{}{}:
+		default: // a reload is already queued
+		}
+	}
 }
