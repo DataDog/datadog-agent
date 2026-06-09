@@ -126,7 +126,7 @@ func TestNativeHistogramFeatureGateNoEffect(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Eventually(t, func() bool {
-		for _, s := range mock.sketches {
+		for _, s := range mock.getSketches() {
 			if len(s.Points) > 0 {
 				if _, ok := s.Points[0].Sketch.(metrics.DDSketchProvider); ok {
 					return true
