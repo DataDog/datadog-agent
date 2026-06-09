@@ -1,0 +1,19 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "rotateidentity",
+    srcs = ["command.go"],
+    importpath = "github.com/DataDog/datadog-agent/cmd/privateactionrunner/subcommands/rotateidentity",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cmd/privateactionrunner/command",
+        "//comp/core",
+        "//comp/core/config",
+        "//comp/core/log/def",
+        "//pkg/config/setup",
+        "//pkg/privateactionrunner/enrollment",
+        "//pkg/util/fxutil",
+        "@com_github_spf13_cobra//:cobra",
+        "@org_uber_go_fx//:fx",
+    ],
+)
