@@ -149,11 +149,7 @@ __attribute__((always_inline)) void resolve_pid(struct __sk_buff *skb, struct pa
         }
     }
 
-    if (pkt->pid != 0) {
-        return;
-    }
-
-    if (pkt->network_direction == EGRESS) {
+    if (pkt->pid == 0 && pkt->network_direction == EGRESS) {
         u64 sched_cls_has_current_pid_tgid_helper = 0;
         LOAD_CONSTANT("sched_cls_has_current_pid_tgid_helper", sched_cls_has_current_pid_tgid_helper);
         if (sched_cls_has_current_pid_tgid_helper) {
@@ -163,7 +159,9 @@ __attribute__((always_inline)) void resolve_pid(struct __sk_buff *skb, struct pa
                 bpf_printk("helper pid: %d", pkt->pid);
             }
         }
-    } else if (pkt->network_direction == INGRESS) {
+    }
+
+    if (pkt->pid == 0) {
         if (is_sk_lookup_pid_enabled()) {
             // pid from socket lookup: namespace-correct resolution, preferred when available
             resolve_pid_from_sk_lookup(skb, pkt);
