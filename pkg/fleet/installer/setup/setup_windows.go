@@ -53,7 +53,6 @@ func formatDownloadError(tag string, err error) error {
 	for _, re := range regErrs {
 		fmt.Fprintf(&sb, "  - %s: %s\n", re.Registry, categorizeDownloadError(re.Err))
 	}
-	fmt.Fprintln(&sb, "Check DD_AGENT_MAJOR_VERSION / DD_AGENT_MINOR_VERSION, DD_INSTALLER_REGISTRY_URL, proxy settings, and credentials as appropriate.")
 	return errors.New(sb.String())
 }
 
@@ -113,6 +112,12 @@ func resolveAgentOCITag(e *env.Env) string {
 	if override := e.DefaultPackagesVersionOverride[agentPackage]; override != "" {
 		return override
 	}
+	// env.GetAgentVersion only joins major + minor when both are set; with
+	// only MAJOR it returns "latest". Handle the major-only case here so
+	// MAJOR=7 maps to the registry's moving "7" tag.
+	if e.AgentMajorVersion != "" && e.AgentMinorVersion == "" {
+		return e.AgentMajorVersion
+	}
 	v := strings.ReplaceAll(e.GetAgentVersion(), "~", "-")
 	if v == "latest" {
 		return v
@@ -155,13 +160,23 @@ func handoffToRequestedAgentInstallerVersion(ctx context.Context, e *env.Env, fl
 	if err != nil {
 		return false, formatDownloadError(tag, err)
 	}
+	// Manifest is already fetched by Download — read the package.version
+	// annotation to print the fully-qualified version (e.g. "7.79.2-1")
+	// alongside the user's request (e.g. "7.79" or "7"). Fall back to the
+	// tag if the annotation is missing for any reason.
+	resolved := tag
+	if manifest, mErr := pkg.Image.Manifest(); mErr == nil {
+		if v := manifest.Annotations[oci.AnnotationVersion]; v != "" {
+			resolved = v
+		}
+	}
 	exePath := filepath.Join(tmpDir, "datadog-installer.exe")
-	fmt.Fprintf(os.Stdout, "Downloading Datadog Agent %s ...\n", tag)
+	fmt.Fprintf(os.Stdout, "Downloading installer for Datadog Agent %s (requested %s) ...\n", resolved, tag)
 	if err := pkg.ExtractLayers(oci.DatadogPackageInstallerLayerMediaType, exePath); err != nil {
-		return false, fmt.Errorf("could not download Datadog Agent %s: %w", tag, err)
+		return false, fmt.Errorf("could not download Datadog Agent %s: %w", resolved, err)
 	}
 	if _, err := os.Stat(exePath); err != nil {
-		return false, fmt.Errorf("cannot install Datadog Agent %s: this command requires Agent 7.79 or newer", tag)
+		return false, fmt.Errorf("cannot install Datadog Agent %s: this command requires Agent 7.79 or newer", resolved)
 	}
 
 	// Re-exec the downloaded installer with the parent's os.Environ()

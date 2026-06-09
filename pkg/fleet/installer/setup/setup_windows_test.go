@@ -29,6 +29,7 @@ func TestResolveAgentOCITag(t *testing.T) {
 		{name: "dash RC", minor: "78.0-rc.2", want: "7.78.0-rc.2-1"},
 		{name: "explicit major bare minor", major: "7", minor: "78", want: "7.78"},
 		{name: "explicit major + patch", major: "7", minor: "78.0", want: "7.78.0-1"},
+		{name: "major only", major: "7", want: "7"},
 		{name: "custom beta tag", minor: "78.0-beta-extensions", want: "7.78.0-beta-extensions-1"},
 		{name: "custom beta tag idempotent", minor: "78.0-beta-extensions-1", want: "7.78.0-beta-extensions-1"},
 		{name: "long custom tag", minor: "78.0-beta-byoc-integration-test", want: "7.78.0-beta-byoc-integration-test-1"},
