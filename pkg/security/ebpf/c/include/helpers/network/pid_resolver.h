@@ -137,11 +137,16 @@ __attribute__((always_inline)) void resolve_pid(struct __sk_buff *skb, struct pa
     pkt->pid = 0;
     pkt->cgroup_id = 0;
 
+    int dbg = pkt->l4.udp.dest == htons(5555);
+
     // pid from socket cookie: set when the skb has an associated socket (mostly on egress)
     u64 cookie = bpf_get_socket_cookie(skb);
     u32 *pid = bpf_map_lookup_elem(&sock_cookie_pid, &cookie);
     if (pid) {
         pkt->pid = *pid;
+        if (dbg) {
+            bpf_printk("cookie pid: %d", pkt->pid);
+        }
     }
 
     if (pkt->pid != 0) {
@@ -154,15 +159,24 @@ __attribute__((always_inline)) void resolve_pid(struct __sk_buff *skb, struct pa
         if (sched_cls_has_current_pid_tgid_helper) {
             u64 pid_tgid = bpf_get_current_pid_tgid();
             pkt->pid = pid_tgid >> 32;
+            if (dbg) {
+                bpf_printk("helper pid: %d", pkt->pid);
+            }
         }
     } else if (pkt->network_direction == INGRESS) {
         if (is_sk_lookup_pid_enabled()) {
             // pid from socket lookup: namespace-correct resolution, preferred when available
             resolve_pid_from_sk_lookup(skb, pkt);
+            if (dbg) {
+                bpf_printk("sk_lookup pid: %d", pkt->pid);
+            }
         } else {
             // pid from flow pid: fallback used only when the socket-lookup path is unavailable (older
             // kernels without bpf_sk_lookup, sk-local storage, or the cgroup socket hook)
             resolve_pid_from_flow_pid(pkt);
+            if (dbg) {
+                bpf_printk("flow pid: %d", pkt->pid);
+            }
         }
     }
 
@@ -171,6 +185,9 @@ __attribute__((always_inline)) void resolve_pid(struct __sk_buff *skb, struct pa
         u32 pid_val = (u32)pkt->pid;
         if (IS_KERNEL_THREAD(pid_val)) {
             pkt->pid = 0;
+            if (dbg) {
+                bpf_printk("kthread pid: %d", pkt->pid);
+            }
         }
     }
 }

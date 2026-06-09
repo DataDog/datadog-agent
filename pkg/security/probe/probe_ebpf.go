@@ -246,6 +246,7 @@ func (p *EBPFProbe) initCgroup2MountPath() {
 	if err != nil {
 		seclog.Warnf("%v", err)
 	}
+	seclog.Warnf(">>> cgroup v2 path: %s", p.cgroup2MountPath)
 	if len(p.cgroup2MountPath) == 0 {
 		seclog.Debugf("cgroup v2 not found on the host")
 	}
@@ -483,6 +484,8 @@ func (p *EBPFProbe) initEBPFManager() error {
 		seclog.Warnf("managerOptions init failed: %v", err)
 		return err
 	}
+
+	seclog.Warnf(">>> isSkLookupPidResolutionEnabled: %v", p.isSkLookupPidResolutionEnabled())
 
 	p.Manager.Probes = probes.AllProbes(p.useFentry, p.cgroup2MountPath)
 

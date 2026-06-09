@@ -18,6 +18,8 @@
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
 
+#define BPF_NO_GLOBAL_DATA 1
+
 #include "bpf_tracing.h"
 #include "hooks/all.h"
 
