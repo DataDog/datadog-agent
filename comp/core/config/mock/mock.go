@@ -11,10 +11,23 @@ package configmock
 import (
 	"testing"
 
+	"go.uber.org/fx"
+
 	configdef "github.com/DataDog/datadog-agent/comp/core/config/def"
 	configimpl "github.com/DataDog/datadog-agent/comp/core/config/impl"
 	"github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
+
+// MockModule provides a mock config component via fx, for use in fxutil.Test.
+// It injects testing.TB (automatically available in fxutil.Test) to construct the mock.
+func MockModule() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(func(t testing.TB) configdef.Component {
+			return New(t)
+		}),
+	)
+}
 
 // New returns a mock for the config component.
 func New(t testing.TB) configdef.Component {
