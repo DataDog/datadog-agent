@@ -290,6 +290,7 @@ def build(
         and target_project == "agent"
         and host_distribution != "ociru"
         and "OMNIBUS_PACKAGE_ARTIFACT_DIR" not in os.environ
+        and sys.platform != 'darwin'
     )
     remote_cache_name = os.environ.get('CI_JOB_NAME_SLUG')
     use_remote_cache = use_omnibus_git_cache and remote_cache_name is not None
