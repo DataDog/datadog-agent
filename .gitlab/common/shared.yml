@@ -1,8 +1,7 @@
 ---
-## Shared `dd-pkg` steps:
-# - Install `dd-pkg`, logging the version in use for the job
-.setup_dd_pkg:
-  - curl --retry 5 -sSL "https://dd-package-tools.s3.amazonaws.com/dd-pkg/${DD_PKG_VERSION}/dd-pkg_Linux_${DD_PKG_ARCH}.tar.gz" | tar -xz -C /usr/local/bin dd-pkg
+## Shared `dd-pkg` helpers:
+# - Log the preinstalled `dd-pkg` version before using it.
+.log_dd_pkg_version:
   - dd-pkg version
 
 .get_artifactory_token_linux: &get_artifactory_token_linux
