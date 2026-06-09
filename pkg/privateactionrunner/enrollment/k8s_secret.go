@@ -230,6 +230,16 @@ func persistIdentityToK8sSecret(ctx context.Context, cfg configModel.Reader, res
 	return writeIdentitySecret(ctx, client, ns, getSecretName(cfg), result)
 }
 
+// rotateIdentityInK8sSecret persists identity to K8s secret without requiring leadership.
+func rotateIdentityInK8sSecret(ctx context.Context, cfg configModel.Reader, result *Result) error {
+	client, err := getKubeClient()
+	if err != nil {
+		return err
+	}
+	ns := namespace.GetResourcesNamespace()
+	return writeIdentitySecret(ctx, client, ns, getSecretName(cfg), result)
+}
+
 // isNonTransientK8sError returns true for errors that indicate a permanent
 // problem (e.g. RBAC misconfiguration) that will not resolve by retrying.
 // Unknown errors and network-level errors are assumed transient.

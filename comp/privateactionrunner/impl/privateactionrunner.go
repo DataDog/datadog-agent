@@ -80,13 +80,19 @@ type PrivateActionRunner struct {
 
 	workflowRunner *runners.WorkflowRunner
 	commonRunner   *runners.CommonRunner
+	runnersMu      sync.Mutex
+
+	// Shared across hot-reloads; RC won't re-deliver keys to a fresh subscriber.
+	keysManager taskverifier.KeysManager
 
 	telemetry *telemetry.Telemetry
 
-	started     bool
-	startOnce   sync.Once
-	startChan   chan struct{}
-	cancelStart context.CancelFunc
+	started         bool
+	startOnce       sync.Once
+	startChan       chan struct{}
+	cancelStart     context.CancelFunc
+	cancelLifecycle context.CancelFunc
+	restartCh       chan struct{}
 }
 
 // NewComponent creates a new privateactionrunner component
@@ -130,6 +136,7 @@ func NewPrivateActionRunner(
 		eventPlatform:  eventPlatform,
 		ipc:            ipcComp,
 		startChan:      make(chan struct{}),
+		restartCh:      make(chan struct{}, 1),
 	}, nil
 }
 
@@ -193,22 +200,23 @@ func (p *PrivateActionRunner) StartAsync(ctx context.Context) <-chan error {
 }
 
 func (p *PrivateActionRunner) start(ctx context.Context) error {
-	// Keep the parent context's deadline for the startup phase (config, enrollment, etc.)
-	// but allow Stop() to cancel as well.
-	ctx, p.cancelStart = context.WithCancel(ctx)
+	startupCtx, cancelStart := context.WithCancel(ctx)
+	p.cancelStart = cancelStart
+
+	// Detached from startupCtx so the identity watcher and restart loop outlive
+	// the Fx app.StartTimeout deadline; canceled by Stop.
+	lifecycleCtx, cancelLifecycle := context.WithCancel(context.Background())
+	p.cancelLifecycle = cancelLifecycle
+
 	defer p.logger.Flush()
-	cfg, err := p.getRunnerConfig(ctx)
+	cfg, err := p.getRunnerConfig(startupCtx)
 	if err != nil {
+		cancelLifecycle()
 		p.logger.Errorf("Private action runner failed to start: %v", err)
 		return err
 	}
-	commonTags := observability.CommonTags{
-		RunnerId:      cfg.RunnerId,
-		RunnerVersion: cfg.Version,
-		Modes:         cfg.Modes,
-		ExtraTags:     cfg.Tags,
-	}
-	ctx = observability.AddCommonTagsToLogs(ctx, commonTags)
+
+	p.keysManager = taskverifier.NewKeyManager(p.rcClient)
 
 	p.telemetry = telemetry.NewTelemetry(
 		&http.Client{Transport: httputils.CreateHTTPTransport(p.coreConfig)},
@@ -217,26 +225,96 @@ func (p *PrivateActionRunner) start(ctx context.Context) error {
 		observability.ParService,
 	)
 
+	if err := p.startRunners(lifecycleCtx, cfg); err != nil {
+		cancelLifecycle()
+		return err
+	}
+
+	p.startIdentityWatcher(lifecycleCtx) // no-op in non-kubeapiserver builds
+	go p.restartLoop(lifecycleCtx)
+
+	return nil
+}
+
+func (p *PrivateActionRunner) startRunners(ctx context.Context, cfg *parconfig.Config) error {
+	commonTags := observability.CommonTags{
+		RunnerId:      cfg.RunnerId,
+		RunnerVersion: cfg.Version,
+		Modes:         cfg.Modes,
+		ExtraTags:     cfg.Tags,
+	}
+	ctx = observability.AddCommonTagsToLogs(ctx, commonTags)
+
 	p.logger.Info("Private action runner starting")
 	p.logger.Info("==> Version : " + parversion.RunnerVersion)
 	p.logger.Info("==> Site : " + cfg.DatadogSite)
 	p.logger.Info("==> API Host : " + cfg.DDApiHost)
 	p.logger.Info("==> URN : " + cfg.Urn)
 
-	keysManager := taskverifier.NewKeyManager(p.rcClient)
-	taskVerifier := taskverifier.NewTaskVerifier(keysManager, cfg)
+	taskVerifier := taskverifier.NewTaskVerifier(p.keysManager, cfg)
 	opmsClient := opms.NewClient(cfg)
 
-	p.workflowRunner, err = runners.NewWorkflowRunner(cfg, keysManager, taskVerifier, opmsClient, p.traceroute, p.eventPlatform, p.ipc.GetClient())
+	workflowRunner, err := runners.NewWorkflowRunner(cfg, p.keysManager, taskVerifier, opmsClient, p.traceroute, p.eventPlatform, p.ipc.GetClient())
 	if err != nil {
 		return err
 	}
-	p.commonRunner = runners.NewCommonRunner(cfg)
-	err = p.workflowRunner.Start(ctx)
-	if err != nil {
+
+	commonRunner := runners.NewCommonRunner(cfg)
+	if err := workflowRunner.Start(ctx); err != nil {
 		return err
 	}
-	return p.commonRunner.Start(ctx)
+	if err := commonRunner.Start(ctx); err != nil {
+		return err
+	}
+
+	p.runnersMu.Lock()
+	p.workflowRunner = workflowRunner
+	p.commonRunner = commonRunner
+	p.runnersMu.Unlock()
+	return nil
+}
+
+// restartLoop listens for identity rotation signals and hot-reloads the PAR runners.
+func (p *PrivateActionRunner) restartLoop(ctx context.Context) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-p.restartCh:
+			p.logger.Info("PAR identity rotated, reloading runners with new credentials...")
+
+			// Load before stopping so a failed reload keeps the current runners running.
+			cfg, err := p.getRunnerConfig(ctx)
+			if err != nil {
+				p.logger.Errorf("PAR identity reload: failed to load new config, keeping current runners: %v", err)
+				continue
+			}
+
+			p.runnersMu.Lock()
+			oldWorkflow := p.workflowRunner
+			oldCommon := p.commonRunner
+			p.runnersMu.Unlock()
+
+			stopCtx, cancel := context.WithTimeout(context.Background(), maxStartupWaitTimeout)
+			if oldWorkflow != nil {
+				if err := oldWorkflow.Stop(stopCtx); err != nil {
+					p.logger.Warnf("Error stopping workflow runner during reload: %v", err)
+				}
+			}
+			if oldCommon != nil {
+				if err := oldCommon.Stop(stopCtx); err != nil {
+					p.logger.Warnf("Error stopping common runner during reload: %v", err)
+				}
+			}
+			cancel()
+
+			if err := p.startRunners(ctx, cfg); err != nil {
+				p.logger.Errorf("PAR identity reload: failed to restart runners: %v", err)
+			} else {
+				p.logger.Infof("PAR identity reload complete. New URN: %s", cfg.Urn)
+			}
+		}
+	}
 }
 
 func (p *PrivateActionRunner) Stop(ctx context.Context) error {
@@ -253,15 +331,22 @@ func (p *PrivateActionRunner) Stop(ctx context.Context) error {
 		// Don't return - continue to cleanup what we can
 	}
 
-	if p.workflowRunner != nil {
-		err := p.workflowRunner.Stop(ctx)
-		if err != nil {
+	if p.cancelLifecycle != nil {
+		p.cancelLifecycle()
+	}
+
+	p.runnersMu.Lock()
+	workflowRunner := p.workflowRunner
+	commonRunner := p.commonRunner
+	p.runnersMu.Unlock()
+
+	if workflowRunner != nil {
+		if err := workflowRunner.Stop(ctx); err != nil {
 			return err
 		}
 	}
-	if p.commonRunner != nil {
-		err := p.commonRunner.Stop(ctx)
-		if err != nil {
+	if commonRunner != nil {
+		if err := commonRunner.Stop(ctx); err != nil {
 			return err
 		}
 	}
