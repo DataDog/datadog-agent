@@ -65,7 +65,7 @@ go_test(
     gotags = ["test"],
     deps = select({
         "@rules_go//go/platform:android": [
-            "//comp/core/config",
+            "//comp/core/config/mock",
             "//comp/core/log/def",
             "//comp/core/log/mock",
             "//comp/core/workloadmeta/def",
@@ -83,7 +83,7 @@ go_test(
             "@org_uber_go_fx//:fx",
         ],
         "@rules_go//go/platform:linux": [
-            "//comp/core/config",
+            "//comp/core/config/mock",
             "//comp/core/log/def",
             "//comp/core/log/mock",
             "//comp/core/workloadmeta/def",
@@ -101,7 +101,7 @@ go_test(
             "@org_uber_go_fx//:fx",
         ],
         "@rules_go//go/platform:windows": [
-            "//comp/core/config",
+            "//comp/core/config/mock",
             "//comp/core/log/def",
             "//comp/core/log/mock",
             "//comp/core/workloadmeta/def",

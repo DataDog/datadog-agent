@@ -39,7 +39,7 @@ go_test(
     embed = [":kubernetes_resource_parsers"],
     gotags = ["test"],
     deps = [
-        "//comp/core/config",
+        "//comp/core/config/mock",
         "//comp/core/workloadmeta/collectors/util",
         "//comp/core/workloadmeta/def",
         "//pkg/languagedetection/languagemodels",
