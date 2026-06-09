@@ -10,9 +10,6 @@ end
 
 dependency 'datadog-agent-data-plane' if linux_target? && !heroku_target?
 
-# Used for memory profiling with the `status py` agent subcommand
-dependency 'pympler'
-
 dependency 'datadog-agent-integrations-py3'
 
 build do
