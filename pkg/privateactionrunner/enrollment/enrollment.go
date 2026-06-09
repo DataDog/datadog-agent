@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	configModel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
+	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/modes"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/regions"
@@ -141,7 +142,11 @@ func SelfEnroll(
 // runner name prefix from the agent identifier. Used by both the PAR component
 // (via performSelfEnrollment) and CLI rotate commands.
 func Enroll(ctx context.Context, cfg configModel.Reader, agentIdentifier *AgentIdentifier) (*Result, error) {
-	ddSite := cfg.GetString("site")
+	// Honor dd_url overriding site (matches what parconfig.FromDDConfig does, so
+	// startup self-enrollment and rotate commands target the same endpoint as the
+	// running PAR component when a custom dd_url is configured).
+	mainEndpoint := configutils.GetMainEndpoint(cfg, "https://api.", "dd_url")
+	ddSite := configutils.ExtractSiteFromURL(mainEndpoint)
 	if ddSite == "" {
 		ddSite = "datadoghq.com"
 	}

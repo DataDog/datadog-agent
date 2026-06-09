@@ -284,6 +284,16 @@ func (p *PrivateActionRunner) restartLoop(ctx context.Context) {
 		case <-p.restartCh:
 			p.logger.Info("PAR identity rotated, reloading runners with new credentials...")
 
+			// Validate the new config BEFORE tearing down the working runners. If the
+			// rotated secret is unreadable (missing fields, RBAC change, transient API
+			// error), keep the current runners processing actions rather than leaving
+			// PAR with nothing running until the next successful reload.
+			cfg, err := p.getRunnerConfig(ctx)
+			if err != nil {
+				p.logger.Errorf("PAR identity reload: failed to load new config, keeping current runners: %v", err)
+				continue
+			}
+
 			p.runnersMu.Lock()
 			oldWorkflow := p.workflowRunner
 			oldCommon := p.commonRunner
@@ -302,11 +312,6 @@ func (p *PrivateActionRunner) restartLoop(ctx context.Context) {
 			}
 			cancel()
 
-			cfg, err := p.getRunnerConfig(ctx)
-			if err != nil {
-				p.logger.Errorf("PAR identity reload: failed to load new config: %v", err)
-				continue
-			}
 			if err := p.startRunners(ctx, cfg); err != nil {
 				p.logger.Errorf("PAR identity reload: failed to restart runners: %v", err)
 			} else {

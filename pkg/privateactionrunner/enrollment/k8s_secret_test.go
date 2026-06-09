@@ -13,12 +13,12 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"errors"
-	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/atomic"
 
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -56,7 +56,7 @@ func TestWaitForLeaderAndSecret_RetriesTransientThenSucceeds(t *testing.T) {
 	secret := makeTestSecret("default", "test-secret")
 
 	client := fake.NewSimpleClientset()
-	var callCount atomic.Int32
+	callCount := atomic.NewInt32(0)
 	client.PrependReactor("get", "secrets", func(action k8stesting.Action) (bool, runtime.Object, error) {
 		n := callCount.Add(1)
 		if n <= 3 {
@@ -86,7 +86,7 @@ func TestWaitForLeaderAndSecret_HandlesAlternatingTransientAndNotFound(t *testin
 	secret := makeTestSecret("default", "test-secret")
 
 	client := fake.NewSimpleClientset()
-	var callCount atomic.Int32
+	callCount := atomic.NewInt32(0)
 	client.PrependReactor("get", "secrets", func(action k8stesting.Action) (bool, runtime.Object, error) {
 		n := callCount.Add(1)
 		switch {
@@ -147,7 +147,7 @@ func TestWaitForLeaderAndSecret_ReturnsNilWhenBecomesLeader(t *testing.T) {
 	})
 
 	leadershipChange := make(chan struct{}, 1)
-	var leader atomic.Bool
+	leader := atomic.NewBool(false)
 	isLeader := func() bool { return leader.Load() }
 
 	go func() {
@@ -231,8 +231,23 @@ func TestWriteIdentitySecret_CreatesSecret(t *testing.T) {
 
 func TestWriteIdentitySecret_UpdatesExistingSecret(t *testing.T) {
 	existing := makeTestSecret("default", "par-identity")
+	existing.ResourceVersion = "42"
 	client := fake.NewSimpleClientset(existing)
 	result := makeTestResult(t)
+
+	// Reject any Update that does not carry the existing ResourceVersion to mimic
+	// what a real Kubernetes apiserver does — proves writeIdentitySecret fetches
+	// the live object before issuing the Update.
+	client.PrependReactor("update", "secrets", func(action k8stesting.Action) (bool, runtime.Object, error) {
+		ua := action.(k8stesting.UpdateAction)
+		s := ua.GetObject().(*corev1.Secret)
+		if s.ResourceVersion != "42" {
+			return true, nil, k8serrors.NewConflict(
+				schema.GroupResource{Resource: "secrets"}, "par-identity",
+				errors.New("resourceVersion does not match"))
+		}
+		return false, nil, nil
+	})
 
 	err := writeIdentitySecret(context.Background(), client, "default", "par-identity", result)
 	require.NoError(t, err)
@@ -240,6 +255,30 @@ func TestWriteIdentitySecret_UpdatesExistingSecret(t *testing.T) {
 	secret, err := client.CoreV1().Secrets("default").Get(context.Background(), "par-identity", metav1.GetOptions{})
 	require.NoError(t, err)
 	assert.Equal(t, result.URN, string(secret.Data[urnField]))
+	assert.Equal(t, result.OrchClusterID, string(secret.Data[orchClusterIDField]))
+}
+
+// Verify that a transient 409 Conflict during update is retried (RetryOnConflict)
+// rather than surfaced as an error: a concurrent writer between our Get and Update
+// is a realistic scenario for the multi-replica cluster agent.
+func TestWriteIdentitySecret_RetriesOnConflict(t *testing.T) {
+	existing := makeTestSecret("default", "par-identity")
+	client := fake.NewSimpleClientset(existing)
+	result := makeTestResult(t)
+
+	attempts := atomic.NewInt32(0)
+	client.PrependReactor("update", "secrets", func(_ k8stesting.Action) (bool, runtime.Object, error) {
+		if attempts.Add(1) == 1 {
+			return true, nil, k8serrors.NewConflict(
+				schema.GroupResource{Resource: "secrets"}, "par-identity",
+				errors.New("the object has been modified"))
+		}
+		return false, nil, nil
+	})
+
+	err := writeIdentitySecret(context.Background(), client, "default", "par-identity", result)
+	require.NoError(t, err)
+	assert.GreaterOrEqual(t, attempts.Load(), int32(2), "expected at least one retry after conflict")
 }
 
 func TestWriteIdentitySecret_ReturnsErrorOnFailure(t *testing.T) {

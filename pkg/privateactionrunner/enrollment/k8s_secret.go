@@ -26,6 +26,7 @@ import (
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/util/retry"
 )
 
 const (
@@ -162,37 +163,59 @@ func writeIdentitySecret(ctx context.Context, client kubernetes.Interface, ns, s
 	}
 	encodedPrivateKey := base64.RawURLEncoding.EncodeToString(marshalledPrivateKey)
 
-	secret := &corev1.Secret{
+	labels := map[string]string{
+		"app.kubernetes.io/name":       "datadog-cluster-agent",
+		"app.kubernetes.io/component":  "private-action-runner",
+		"app.kubernetes.io/managed-by": "datadog-cluster-agent",
+	}
+	data := map[string][]byte{
+		privateKeyField:    []byte(encodedPrivateKey),
+		urnField:           []byte(result.URN),
+		orchClusterIDField: []byte(result.OrchClusterID),
+	}
+
+	newSecret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: ns,
 			Name:      secretName,
-			Labels: map[string]string{
-				"app.kubernetes.io/name":       "datadog-cluster-agent",
-				"app.kubernetes.io/component":  "private-action-runner",
-				"app.kubernetes.io/managed-by": "datadog-cluster-agent",
-			},
+			Labels:    labels,
 		},
 		Type: corev1.SecretTypeOpaque,
-		Data: map[string][]byte{
-			privateKeyField:    []byte(encodedPrivateKey),
-			urnField:           []byte(result.URN),
-			orchClusterIDField: []byte(result.OrchClusterID),
-		},
+		Data: data,
 	}
 
-	_, err = client.CoreV1().Secrets(ns).Create(ctx, secret, metav1.CreateOptions{})
-	if err != nil {
-		if !k8serrors.IsAlreadyExists(err) {
-			return fmt.Errorf("failed to create secret: %w", err)
-		}
-		_, err = client.CoreV1().Secrets(ns).Update(ctx, secret, metav1.UpdateOptions{})
-		if err != nil {
-			return fmt.Errorf("failed to update existing secret: %w", err)
-		}
-		log.Infof("Updated PAR identity in K8s secret: %s/%s", ns, secretName)
+	_, err = client.CoreV1().Secrets(ns).Create(ctx, newSecret, metav1.CreateOptions{})
+	if err == nil {
+		log.Infof("Created PAR identity in K8s secret: %s/%s", ns, secretName)
 		return nil
 	}
-	log.Infof("Created PAR identity in K8s secret: %s/%s", ns, secretName)
+	if !k8serrors.IsAlreadyExists(err) {
+		return fmt.Errorf("failed to create secret: %w", err)
+	}
+
+	// Secret already exists — fetch live ResourceVersion and merge updates onto it.
+	// RetryOnConflict handles the case where another writer updates the secret between
+	// our Get and Update calls (a real apiserver returns 409 Conflict in that case).
+	err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		existing, getErr := client.CoreV1().Secrets(ns).Get(ctx, secretName, metav1.GetOptions{})
+		if getErr != nil {
+			return getErr
+		}
+		existing.Type = corev1.SecretTypeOpaque
+		existing.Data = data
+		if existing.Labels == nil {
+			existing.Labels = map[string]string{}
+		}
+		for k, v := range labels {
+			existing.Labels[k] = v
+		}
+		_, updateErr := client.CoreV1().Secrets(ns).Update(ctx, existing, metav1.UpdateOptions{})
+		return updateErr
+	})
+	if err != nil {
+		return fmt.Errorf("failed to update existing secret: %w", err)
+	}
+	log.Infof("Updated PAR identity in K8s secret: %s/%s", ns, secretName)
 	return nil
 }
 
