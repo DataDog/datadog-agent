@@ -1,0 +1,100 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dd-host-profiler-profiles
+  namespace: dd-host-profiler
+data:
+  dd-host-profiler-apparmor: |
+    profile dd-host-profiler flags=(attach_disconnected,mediate_deleted) {
+      # File access — unrestricted (readOnlyRootFilesystem + volume mounts handle this)
+      /       r,
+      /**     rwlkm,
+
+      # Network — unrestricted (NetworkPolicy handles egress)
+      network,
+      unix,
+
+      # Capabilities mirroring securityContext.capabilities.add
+      capability bpf,
+      capability perfmon,
+      capability sys_ptrace,
+      capability sys_resource,
+      capability dac_read_search,
+      capability syslog,
+      capability checkpoint_restore,
+      capability kill,
+      capability ipc_lock,
+
+      # Go runtime and host-wide process tracing
+      signal,
+      ptrace (read, readby, trace) peer=**,
+
+      # Only exec permitted: objcopy for symbol extraction
+      /usr/bin/objcopy ix,
+      /usr/bin/*objcopy ix,
+    }
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: dd-host-profiler-apparmor-installer
+  namespace: dd-host-profiler
+  labels:
+    app: dd-host-profiler-apparmor-installer
+spec:
+  selector:
+    matchLabels:
+      app: dd-host-profiler-apparmor-installer
+  template:
+    metadata:
+      labels:
+        app: dd-host-profiler-apparmor-installer
+      annotations:
+        container.apparmor.security.beta.kubernetes.io/install-apparmor: unconfined
+    spec:
+      tolerations:
+        - operator: Exists
+      initContainers:
+        - name: install-apparmor
+          image: busybox:1.36
+          securityContext:
+            privileged: true
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              cp /profiles/dd-host-profiler-apparmor /host-apparmor/dd-host-profiler
+              nsenter --mount=/proc/1/ns/mnt -- apparmor_parser -r -W /etc/apparmor.d/dd-host-profiler || \
+              nsenter --mount=/proc/1/ns/mnt -- apparmor_parser -a -W /etc/apparmor.d/dd-host-profiler
+              echo "AppArmor profile loaded."
+          volumeMounts:
+            - name: profiles
+              mountPath: /profiles
+              readOnly: true
+            - name: host-apparmor
+              mountPath: /host-apparmor
+            - name: host-proc
+              mountPath: /proc
+              readOnly: true
+      containers:
+        - name: pause
+          image: registry.k8s.io/pause:3.9
+          resources:
+            requests:
+              cpu: 1m
+              memory: 4Mi
+            limits:
+              cpu: 10m
+              memory: 8Mi
+      volumes:
+        - name: profiles
+          configMap:
+            name: dd-host-profiler-profiles
+        - name: host-apparmor
+          hostPath:
+            path: /etc/apparmor.d
+            type: DirectoryOrCreate
+        - name: host-proc
+          hostPath:
+            path: /proc
