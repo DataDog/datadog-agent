@@ -363,14 +363,26 @@ static __always_inline int handle_udp_recvmsg_ret() {
 }
 
 SEC("fentry/udp_recvmsg")
-int BPF_PROG(udp_recvmsg, struct sock *sk, struct msghdr *msg, size_t len, int noblock, int flags) {
+int BPF_PROG(udp_recvmsg, struct sock *sk, struct msghdr *msg, size_t len, int flags) {
     log_debug("fentry/udp_recvmsg: flags: %x", flags);
     return handle_udp_recvmsg(sk, flags);
 }
 
+SEC("fentry/udp_recvmsg")
+int BPF_PROG(udp_recvmsg_pre_5_19_0, struct sock *sk, struct msghdr *msg, size_t len, int noblock, int flags) {
+    log_debug("fentry/udp_recvmsg (pre-5.19): flags: %x", flags);
+    return handle_udp_recvmsg(sk, flags);
+}
+
 SEC("fentry/udpv6_recvmsg")
-int BPF_PROG(udpv6_recvmsg, struct sock *sk, struct msghdr *msg, size_t len, int noblock, int flags) {
+int BPF_PROG(udpv6_recvmsg, struct sock *sk, struct msghdr *msg, size_t len, int flags) {
     log_debug("fentry/udpv6_recvmsg: flags: %x", flags);
+    return handle_udp_recvmsg(sk, flags);
+}
+
+SEC("fentry/udpv6_recvmsg")
+int BPF_PROG(udpv6_recvmsg_pre_5_19_0, struct sock *sk, struct msghdr *msg, size_t len, int noblock, int flags) {
+    log_debug("fentry/udpv6_recvmsg (pre-5.19): flags: %x", flags);
     return handle_udp_recvmsg(sk, flags);
 }
 

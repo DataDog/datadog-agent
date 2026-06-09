@@ -51,6 +51,7 @@ const (
 
 	// We use the following two probes for UDP
 	udpRecvMsg              = "udp_recvmsg"
+	udpRecvMsgPre5190       = "udp_recvmsg_pre_5_19_0"
 	udpRecvMsgReturn        = "udp_recvmsg_exit"
 	udpRecvMsgPre5190Return = "udp_recvmsg_exit_pre_5_19_0"
 	udpSendMsgReturn        = "udp_sendmsg_exit"
@@ -61,6 +62,7 @@ const (
 	skbConsumeUDP           = "skb_consume_udp"
 
 	udpv6RecvMsg              = "udpv6_recvmsg"
+	udpv6RecvMsgPre5190       = "udpv6_recvmsg_pre_5_19_0"
 	udpv6RecvMsgReturn        = "udpv6_recvmsg_exit"
 	udpv6RecvMsgPre5190Return = "udpv6_recvmsg_exit_pre_5_19_0"
 	udpv6SendMsgReturn        = "udpv6_sendmsg_exit"
@@ -134,11 +136,13 @@ var programs = map[string]struct{}{
 	tcpReadSockReturn:         {},
 	udpDestroySock:            {},
 	udpRecvMsg:                {},
+	udpRecvMsgPre5190:         {},
 	udpRecvMsgReturn:          {},
 	udpSendMsgReturn:          {},
 	udpSendPageReturn:         {},
 	udpSendSkb:                {},
 	udpv6RecvMsg:              {},
+	udpv6RecvMsgPre5190:       {},
 	udpv6RecvMsgReturn:        {},
 	udpv6SendMsgReturn:        {},
 	udpv6SendSkb:              {},
@@ -252,7 +256,7 @@ func enabledPrograms(c *config.Config, isClassificationSupported bool) (map[stri
 		enableProgram(enabled, udpDestroySock)
 		enableProgram(enabled, inetBind)
 		enableProgram(enabled, inetBindRet)
-		enableProgram(enabled, udpRecvMsg)
+		enableProgram(enabled, selectVersionBasedProbe(kv, udpRecvMsg, udpRecvMsgPre5190, kv5190))
 		enableProgram(enabled, selectVersionBasedProbe(kv, udpRecvMsgReturn, udpRecvMsgPre5190Return, kv5190))
 		enableProgram(enabled, udpSendMsgReturn)
 		enableProgram(enabled, udpSendSkb)
@@ -262,7 +266,7 @@ func enabledPrograms(c *config.Config, isClassificationSupported bool) (map[stri
 		enableProgram(enabled, udpv6DestroySock)
 		enableProgram(enabled, inet6Bind)
 		enableProgram(enabled, inet6BindRet)
-		enableProgram(enabled, udpv6RecvMsg)
+		enableProgram(enabled, selectVersionBasedProbe(kv, udpv6RecvMsg, udpv6RecvMsgPre5190, kv5190))
 		enableProgram(enabled, selectVersionBasedProbe(kv, udpv6RecvMsgReturn, udpv6RecvMsgPre5190Return, kv5190))
 		enableProgram(enabled, udpv6SendMsgReturn)
 		enableProgram(enabled, udpv6SendSkb)
