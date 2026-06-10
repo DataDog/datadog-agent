@@ -65,6 +65,7 @@ package_licenses(
 pkg_filegroup(
     name = "whole_distro",
     srcs = [
+        ":datadog_agent_finalize",
         ":everything",
         ":license_files",
     ] + select({
@@ -102,7 +103,6 @@ pkg_deb(
     data = ":whole_distro_tar",
     description = _DESCRIPTION,
     homepage = "http://www.datadoghq.com",
-    # vendor = "Datadog <package@datadoghq.com>",
     license = "Apache License Version 2.0",
     maintainer = "Datadog Packages <package@datadoghq.com>",
     package = select(package_name_selector),
@@ -115,7 +115,8 @@ pkg_deb(
     priority = "extra",
     recommends = ["datadog-signing-keys (>= 1:1.4.0)"],
     section = "utils",
-    version = "7",
+    # vendor = "Datadog <package@datadoghq.com>",  # pkg_deb_impl does not support vendor
+    version = "1:7",
 
     # TODO: pull in target_cpu as arch.
     # architecture = "$(COMPILATION_MODE)",
@@ -208,6 +209,32 @@ pkg_filegroup(
         ":experiment_link",
         ":stable_link",
         ":version_to_install_link",
+    ],
+)
+
+# Replacement for datadog-agent-finalize.rb out-of-install-dir entries
+pkg_mkdirs(
+    name = "log_dir",
+    dirs = ["var/log/datadog"],
+)
+
+dd_agent_pkg_mklink(
+    name = "dd_agent_usr_bin",
+    link_name = "usr/bin/dd-agent",
+    target = "/opt/datadog-agent/bin/agent/agent",
+)
+
+pkg_mkdirs(
+    name = "processes_dir",
+    dirs = ["/opt/datadog-agent/processes.d"],
+)
+
+pkg_filegroup(
+    name = "datadog_agent_finalize",
+    srcs = [
+        ":dd_agent_usr_bin",
+        ":log_dir",
+        ":processes_dir",
     ],
 )
 

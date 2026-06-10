@@ -31,6 +31,7 @@ bazel:packaging:comparison-gate:
     #
     # Accepted additions (Bazel-only):
     #   datadog-installer symlinks / package dirs     — installer-symlinks component
+    # TODO: fix linux/BUILD.bazel version to "1:7" (epoch mismatch — apt upgrades break without this)
     ACCEPTED_DIFF_PATTERNS: "version-manifest|^[<>] ./opt/datadog-packages/"
   script:
     # ── 1. Locate the omnibus reference deb ──────────────────────────────────
@@ -58,8 +59,8 @@ bazel:packaging:comparison-gate:
     - |
       echo "=== File tree diff (< omnibus  > bazel) ==="
       diff \
-        <(dpkg-deb --fsys-tarfile "$OMNIBUS_DEB" | tar t | sort) \
-        <(dpkg-deb --fsys-tarfile "$BAZEL_DEB"   | tar t | sort) \
+        <(dpkg-deb --fsys-tarfile "$OMNIBUS_DEB" | tar tv | sort) \
+        <(dpkg-deb --fsys-tarfile "$BAZEL_DEB"   | tar tv | sort) \
         | tee pkg-diff.txt || true
 
     # ── 4. Control / scriptlet diff ──────────────────────────────────────────
@@ -79,6 +80,8 @@ bazel:packaging:comparison-gate:
         diff /tmp/omnibus-ctrl/preinst  /tmp/bazel-ctrl/preinst  || true
         echo "--- prerm ---"
         diff /tmp/omnibus-ctrl/prerm    /tmp/bazel-ctrl/prerm    || true
+        echo "=== md5sums diff ==="
+        diff /tmp/omnibus-ctrl/md5sums /tmp/bazel-ctrl/md5sums | head -50 || true
       } | tee -a pkg-diff.txt
 
     # ── 5. Fail on unexpected diffs ───────────────────────────────────────────

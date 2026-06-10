@@ -1,6 +1,8 @@
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("//bazel/rules/ebpf:ebpf.bzl", "ebpf_prog")
 
+exports_files(["COPYING"])
+
 _HDRS = glob(["*.h"])
 
 cc_library(

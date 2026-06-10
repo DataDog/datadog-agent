@@ -1,0 +1,25 @@
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
+load("//tasks:build_tags.bzl", "SECRET_GENERIC_CONNECTOR_TAGS")
+
+exports_files(["LICENSE"])
+
+go_library(
+    name = "secret-generic-connector_lib",
+    srcs = ["main.go"],
+    importpath = "github.com/DataDog/datadog-agent/cmd/secret-generic-connector",
+    visibility = ["//visibility:private"],
+    deps = [
+        "//cmd/secret-generic-connector/backend",
+        "//cmd/secret-generic-connector/secret",
+    ],
+)
+
+go_binary(
+    name = "secret-generic-connector",
+    embed = [":secret-generic-connector_lib"],
+    gotags = SECRET_GENERIC_CONNECTOR_TAGS,
+    visibility = ["//visibility:public"],
+    x_defs = {
+        "main.appVersion": "{STABLE_AGENT_VERSION}",
+    },
+)
