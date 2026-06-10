@@ -10,7 +10,7 @@ network_devices:
 
 network_path:
   netflow_monitoring:
-    enabled: true
+    enabled: false
   collector:
     flush_interval: 2s
     monitor_ip_without_domain: true
