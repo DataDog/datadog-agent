@@ -784,9 +784,6 @@ def test(
             flavor,
             test_washer,
         )
-    go_success = True
-    go_stats: TestStats | None = None
-    test_result = False
 
     # Bazel test output — displayed after go test results.
     bazel_success = True
