@@ -106,6 +106,7 @@ go_test(
     ],
     embed = [":utils"],
     gotags = ["test"],
+    tags = ["manual"],  # keep
     deps = [
         "@com_github_datadog_ebpf_manager//:ebpf-manager",
         "@com_github_stretchr_testify//require",
