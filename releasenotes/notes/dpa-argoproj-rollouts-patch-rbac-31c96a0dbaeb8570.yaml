@@ -1,0 +1,13 @@
+---
+upgrade:
+  - |
+    The in-tree ``Dockerfiles/manifests/.../cluster-agent-rbac.yaml``
+    manifests now grant the cluster agent the ``patch`` verb on
+    ``argoproj.io/rollouts``, in addition to the existing
+    ``list``/``watch``/``get``. This is required for the workload
+    autoscaler (``DatadogPodAutoscaler``) to release its stale
+    ``.spec.replicas`` field-manager entry on Argo Rollouts targets
+    when scaling stops (paired with the ``fixes`` entry in the previous
+    release). Users deploying the cluster agent via the official Helm
+    chart or Datadog Operator must wait for the corresponding RBAC
+    bumps in those repositories or grant the verb manually.
