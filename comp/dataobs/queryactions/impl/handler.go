@@ -241,12 +241,11 @@ func (c *component) buildCheckConfig(payload *DOQueryPayload, baseCfg *integrati
 		// unambiguously on the receiving side.
 		queryNode := &yaml.Node{Kind: yaml.ScalarNode, Style: yaml.DoubleQuotedStyle, Value: q.Query}
 		qm := map[string]any{
-			"dbname":           q.DBName,
-			"monitor_id":       q.MonitorID,
-			"type":             q.Type,
-			"query":            queryNode,
-			"interval_seconds": q.IntervalSeconds,
-			"query_timeout":    q.TimeoutSeconds * 1000,
+			"dbname":        q.DBName,
+			"monitor_id":    q.MonitorID,
+			"type":          q.Type,
+			"query":         queryNode,
+			"query_timeout": q.TimeoutSeconds * 1000,
 			"entity": map[string]any{
 				"platform": q.Entity.Platform,
 				"account":  q.Entity.Account,
@@ -260,6 +259,9 @@ func (c *component) buildCheckConfig(payload *DOQueryPayload, baseCfg *integrati
 				"metric_config_id": q.CustomSQLSelectFields.MetricConfigID,
 				"entity_id":        q.CustomSQLSelectFields.EntityID,
 			}
+		}
+		if q.IntervalSeconds > 0 {
+			qm["interval_seconds"] = q.IntervalSeconds
 		}
 		if q.Schedule != "" {
 			qm["schedule"] = q.Schedule

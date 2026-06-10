@@ -717,7 +717,7 @@ func TestValidateQuerySpec_ValidScheduleOnly(t *testing.T) {
 	q := queries[0].(map[string]any)
 	assert.Equal(t, "20 * * * *", q["schedule"], "schedule field should be injected into query YAML")
 	_, hasInterval := q["interval_seconds"]
-	assert.True(t, hasInterval, "interval_seconds should still be present in YAML for Python-side compatibility")
+	assert.False(t, hasInterval, "interval_seconds should be absent when not set in the RC payload")
 }
 
 // TestValidateQuerySpec_BothScheduleAndInterval verifies that when both schedule and
@@ -766,7 +766,7 @@ func TestValidateQuerySpec_BothScheduleAndInterval(t *testing.T) {
 	require.Len(t, queries, 1)
 	q := queries[0].(map[string]any)
 	assert.Equal(t, "*/15 * * * *", q["schedule"], "schedule field should be injected")
-	assert.Equal(t, 300, q["interval_seconds"], "interval_seconds should also be present; Python enforces cron precedence")
+	assert.Equal(t, 300, q["interval_seconds"], "interval_seconds should be present when set in the RC payload")
 }
 
 // TestValidateQuerySpec_NeitherSetRejected verifies that a query with neither schedule nor
