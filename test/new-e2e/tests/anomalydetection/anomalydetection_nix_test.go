@@ -8,7 +8,7 @@
 //
 //   - anomalydetection_nix_test.go — reporter tests: DSD-spike (CUSUM) and file-log-spike (BOCPD)
 //   - defaults_nix_test.go        — observer disabled by default (no observer telemetry metrics)
-//   - config_matrix_nix_test.go   — sub-gate independence (metrics/logs/agent_logs gates)
+//   - config_matrix_nix_test.go   — sub-gate independence (metrics/logs/internal gates)
 //   - shutdown_nix_test.go        — graceful shutdown under DSD load (no panic/crash)
 package anomalydetection
 
@@ -55,8 +55,8 @@ anomaly_detection:
     enabled: true
   logs:
     enabled: false
-  agent_logs:
-    enabled: false
+    internal:
+      enabled: false
   detectors:
     cusum:
       enabled: true
@@ -199,8 +199,10 @@ anomaly_detection:
     enabled: false
   logs:
     enabled: true
-  agent_logs:
-    enabled: false
+    containers:
+      min_severity: ""  # plain file logs have no severity; accept all levels
+    internal:
+      enabled: false
   detectors:
     bocpd:
       warmup_points: 20
