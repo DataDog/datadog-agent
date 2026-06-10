@@ -19,7 +19,7 @@
 //
 // This server handles those hooks in two modes:
 //
-//   - When DD_SERVERLESS_MICROVM_USER_APP_PORT is unset: the agent responds
+//   - When DD_AWS_MICROVM_USER_APP_PORT is unset: the agent responds
 //     to each hook itself. /ready checks child-process liveness; /validate
 //     returns 200 directly; /launch, /resume, /suspend, and /terminate emit
 //     an enhanced metric and, for /suspend and /terminate, flush telemetry
@@ -88,6 +88,22 @@ const (
 
 	lambdaMicroVMIDKey = "lambda_microvm_id"      // for map[string]string trace tags: key only
 	lambdaMicroVMID    = lambdaMicroVMIDKey + ":" // for []string log/metric tags: key:value concatenated
+
+	// mirrorResponseTimeout is the deadline for writing the mirrored response
+	// back to the platform after the handler's main work (forward + optional
+	// flush) is done. It covers the io.Copy in mirrorResponse, which has no
+	// other deadline. Lifecycle responses are expected to be small; 5s is
+	// generous even for slow platform connections.
+	mirrorResponseTimeout = 5 * time.Second
+)
+
+// flushMode controls whether and how telemetry is flushed during a lifecycle hook.
+type flushMode int
+
+const (
+	noFlush         flushMode = iota // /launch, /resume: no flush
+	flushParallel                    // /suspend: flush concurrently with forward
+	flushSequential                  // /terminate: flush after forward completes
 )
 
 // Flusher is satisfied by serverless.FlushableAgent.
@@ -167,7 +183,7 @@ type Server struct {
 	httpServer *http.Server
 }
 
-// NewServer constructs a lifecycle Server. port is typically DefaultPort (9000) but can be overridden via DD_SERVERLESS_MICROVM_LIFECYCLE_PORT.
+// NewServer constructs a lifecycle Server. port is typically DefaultPort (9000) but can be overridden via DD_AWS_MICROVM_LIFECYCLE_PORT.
 func NewServer(
 	port int,
 	metricFlusher Flusher,
@@ -209,9 +225,11 @@ func NewServer(
 	// mirrored response.
 	maxTimeout := s.flushTimeout
 	if s.fwd != nil {
-		maxTimeout = max(maxTimeout, s.fwd.forwardTimeout, s.fwd.readyTimeout, s.fwd.validateTimeout)
+		// /terminate uses flushSequential: flush runs after the forward, so its
+		// wall-clock is forwardTimeout+flushTimeout, not max of the two.
+		maxTimeout = max(maxTimeout, s.fwd.forwardTimeout+s.flushTimeout, s.fwd.readyTimeout, s.fwd.validateTimeout)
 	}
-	writeTimeout := maxTimeout + 10*time.Second
+	writeTimeout := maxTimeout + mirrorResponseTimeout
 	s.httpServer = &http.Server{
 		Addr:         fmt.Sprintf(":%d", port),
 		Handler:      s.handler(),
@@ -322,7 +340,7 @@ func (s *Server) passThroughReady(w http.ResponseWriter, r *http.Request) {
 // is everything good?" signal. The platform sends /validate after each resume
 // from snapshot; a 200 confirms the restored VM is healthy.
 //
-// When a Forwarder is configured (DD_SERVERLESS_MICROVM_USER_APP_PORT set):
+// When a Forwarder is configured (DD_AWS_MICROVM_USER_APP_PORT set):
 // pass-through to the user app with TCP-wait, mirroring the response. The
 // TCP-wait handles the rare crash-then-restart window between resume and this
 // call. Without a forwarder the agent returns 200 directly; the user app is
@@ -356,6 +374,12 @@ func (s *Server) passThroughValidate(w http.ResponseWriter, r *http.Request) {
 // irrelevant to the platform's machine-to-machine lifecycle calls and are
 // intentionally dropped.
 func mirrorResponse(w http.ResponseWriter, resp *http.Response) {
+	// Bound the write to the platform so a slow or stalled connection does not
+	// block the handler indefinitely. mirrorResponseTimeout is sized to cover
+	// the io.Copy below; it is also reflected in the server's WriteTimeout.
+	if err := http.NewResponseController(w).SetWriteDeadline(time.Now().Add(mirrorResponseTimeout)); err != nil {
+		log.Warnf("MicroVM lifecycle: could not set write deadline on mirror response: %v", err)
+	}
 	if ct := resp.Header.Get("Content-Type"); ct != "" {
 		w.Header().Set("Content-Type", ct)
 	}
@@ -366,7 +390,7 @@ func mirrorResponse(w http.ResponseWriter, resp *http.Response) {
 }
 
 // flushAll runs metric/trace/logs flushes in parallel and waits for them,
-// bounded by flushCtx. Used by handleParallel for the env-var-set path
+// bounded by flushCtx. Used by handleWithForwarder for the env-var-set path
 // and by handleSuspend / handleTerminate for the env-var-unset path.
 // It first drains any pending metric samples so that lifecycle metrics
 // emitted immediately before this call are included in the flush.
@@ -390,38 +414,75 @@ func (s *Server) flushAll(flushCtx context.Context) {
 	s.waitForFlushes(flushCtx, flushDone)
 }
 
-// handleParallel runs the agent-side path (metric emission, optionally
+// handleWithForwarder runs the agent-side path (metric emission, optionally
 // followed by flush) in a goroutine while a synchronous PassThrough waits
 // for the user app's response, then joins and mirrors the user app's
 // response back to the platform.
 //
-// Used for /launch and /resume (withFlush=false) and for /suspend and
-// /terminate (withFlush=true). /ready and /validate use passThroughReady
+// Used for /launch and /resume (noFlush), /suspend (flushParallel), and
+// /terminate (flushSequential). /ready and /validate use passThroughReady
 // and passThroughValidate directly (TCP-wait path, not this function).
 //
-// Wall-clock is bounded by max(forwardTimeout, flushTimeout)+ε. flushCtx is
-// deliberately NOT derived from r.Context(): if the platform disconnects
-// mid-handler, the flush goroutine continues to its own budget so telemetry
-// is preserved. The handler never imposes its own outer deadline; the join
-// is unconditional.
-func (s *Server) handleParallel(metricName, path string, withFlush bool, w http.ResponseWriter, r *http.Request) {
-	flushCtx, cancel := context.WithTimeout(context.Background(), s.flushTimeout)
-	defer cancel()
-
+// flushParallel: flush runs concurrently with the forward; wall-clock is
+// max(forwardTimeout, flushTimeout)+ε. Known limitation: telemetry produced
+// by the user app during PassThrough may arrive in the pipeline after
+// Flush() returns and be missed. Residual items survive a suspend→resume
+// cycle (Firecracker preserves process memory), so the race is recoverable.
+//
+// flushSequential: flush runs after PassThrough returns; wall-clock is
+// forwardTimeout+flushTimeout. Eliminates the race at the cost of higher
+// latency. Used for /terminate where in-memory buffers are discarded with
+// the VM and residual items cannot be recovered.
+//
+// flushCtx is deliberately NOT derived from r.Context(): if the platform
+// disconnects mid-handler, the flush still runs to its own budget.
+func (s *Server) handleWithForwarder(metricName, path string, mode flushMode, w http.ResponseWriter, r *http.Request) {
 	sideDone := make(chan struct{})
+
+	var parallelCtx context.Context
+	var cancelParallel context.CancelFunc
+	if mode == flushParallel {
+		parallelCtx, cancelParallel = context.WithTimeout(context.Background(), s.flushTimeout)
+		defer cancelParallel()
+	}
+
 	go func() {
 		defer close(sideDone)
 		s.emitLifecycleMetric(metricName)
-		if withFlush {
-			s.flushAll(flushCtx)
+		if mode == flushParallel {
+			s.flushAll(parallelCtx)
 		}
 	}()
 
 	resp := s.fwd.PassThrough(path, r.Header, r.Body)
-	defer resp.Body.Close()
 
 	<-sideDone
 
+	if mode == flushSequential {
+		// Buffer the response body before flushing. PassThrough returns as soon
+		// as response headers arrive; the body is still tied to the
+		// forwardTimeout context (via cancelOnCloseReader). If flushAll runs
+		// first, that context's deadline can fire and cancel the underlying
+		// connection, making the io.Copy in mirrorResponse fail with a partial
+		// or empty body. Buffering here — while the context is fresh — makes
+		// mirrorResponse context-independent. The body is already capped at
+		// 1 MiB by limitedReadCloser, so io.ReadAll cannot allocate unboundedly.
+		bodyBytes, err := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if err != nil {
+			log.Debugf("MicroVM lifecycle: partial terminate response body (%d bytes read): %v", len(bodyBytes), err)
+		}
+		resp.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+
+		seqCtx, cancel := context.WithTimeout(context.Background(), s.flushTimeout)
+		defer cancel()
+		s.flushAll(seqCtx)
+	}
+
+	// defer is placed after the potential resp.Body replacement so it captures
+	// the NopCloser (no-op) in the flushSequential path and the original
+	// cancelOnCloseReader in all other paths.
+	defer resp.Body.Close()
 	mirrorResponse(w, resp)
 }
 
@@ -485,7 +546,7 @@ func (s *Server) handleLaunch(w http.ResponseWriter, r *http.Request) {
 	// forwarded /launch request carries a fixed Content-Length rather than
 	// chunked encoding (which some user-app HTTP servers reject).
 	r.Header.Set("Content-Length", strconv.Itoa(len(bodyBytes)))
-	s.dispatchHook(launchMetricName, pathLaunch, false, w, r)
+	s.dispatchHook(launchMetricName, pathLaunch, noFlush, w, r)
 }
 
 // handleResume emits the resume metric, restarts the heartbeat (stopped at
@@ -493,17 +554,45 @@ func (s *Server) handleLaunch(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleResume(w http.ResponseWriter, r *http.Request) {
 	log.Info("MicroVM lifecycle: resume")
 	s.heartbeat.Start()
-	s.dispatchHook(resumeMetricName, pathResume, false, w, r)
+	s.dispatchHook(resumeMetricName, pathResume, noFlush, w, r)
 }
 
 // handleSuspend stops the heartbeat, flushes telemetry, and (when a forwarder
 // is configured) mirrors the user app's response. Heartbeat is stopped before
 // flushing so any in-flight tick finishes before the metric agent drains;
 // /resume restarts it.
+//
+// Flush mode rationale: flushParallel is used here because Firecracker
+// snapshots the full process memory, preserving any pipeline-buffer items that
+// the parallel flush misses. Those residual items are drained by the agent's
+// periodic flush on the next resume. /terminate uses flushSequential (which
+// buffers the response body, waits for the user app to finish writing it, then
+// flushes) because the VM is torn down with no recovery path.
+//
+// TODO(platform-contract): verify whether the AWS MicroVM platform guarantees
+// that /terminate is always called before a suspended VM is permanently
+// discarded (e.g., snapshot eviction, spot termination, platform crash).
+// If /terminate is NOT guaranteed after /suspend, residual pipeline-buffer
+// items that survived the parallel flush on /suspend will be lost with no
+// recovery path — identical to the /terminate data-loss risk we already
+// address with flushSequential.
+//
+// If the guarantee cannot be confirmed, change flushParallel → flushSequential
+// here. The implementation already supports it (handleWithForwarder and
+// dispatchHook both handle flushSequential). The impact of that change:
+//   - /suspend wall-clock increases from max(forwardTimeout, flushTimeout) to
+//     forwardTimeout + flushTimeout (default: 1s + 5s = 6s vs 5s today).
+//   - The response body from the user app is fully buffered before flushing
+//     (same as /terminate), so logs emitted by the user app while writing its
+//     suspend response are included in the flush rather than risking the race.
+//   - Server WriteTimeout must be updated: the formula in NewServer already
+//     uses forwardTimeout+flushTimeout for the sequential path; adding /suspend
+//     to that path requires no additional change to the WriteTimeout formula
+//     since /terminate already sets the ceiling.
 func (s *Server) handleSuspend(w http.ResponseWriter, r *http.Request) {
 	log.Info("MicroVM lifecycle: suspend — flushing telemetry")
 	s.heartbeat.Stop()
-	s.dispatchHook(suspendMetricName, pathSuspend, true, w, r)
+	s.dispatchHook(suspendMetricName, pathSuspend, flushParallel, w, r)
 }
 
 // handleTerminate flushes all telemetry and, when a forwarder is configured,
@@ -520,22 +609,22 @@ func (s *Server) handleSuspend(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleTerminate(w http.ResponseWriter, r *http.Request) {
 	log.Info("MicroVM lifecycle: terminate — flushing telemetry")
 	s.heartbeat.Stop()
-	s.dispatchHook(terminateMetricName, pathTerminate, true, w, r)
+	s.dispatchHook(terminateMetricName, pathTerminate, flushSequential, w, r)
 }
 
 // dispatchHook is the shared dispatch path for launch, resume, suspend, and
-// terminate. When a forwarder is configured (DD_SERVERLESS_MICROVM_USER_APP_PORT
-// set): metric emission and optional flush run in a goroutine in parallel with
-// a pass-through to the user app, then the user app's response is mirrored back
-// to the platform. When no forwarder is configured: emit metric, optionally
-// flush telemetry, return 200.
-func (s *Server) dispatchHook(metricName, path string, withFlush bool, w http.ResponseWriter, r *http.Request) {
+// terminate. When a forwarder is configured (DD_AWS_MICROVM_USER_APP_PORT
+// set): delegates to handleWithForwarder which mirrors the user app's response.
+// When no forwarder is configured: emit metric, optionally flush, return 200.
+// In standalone mode the parallel/sequential distinction does not apply, so
+// both flush modes result in a single flushAll call.
+func (s *Server) dispatchHook(metricName, path string, mode flushMode, w http.ResponseWriter, r *http.Request) {
 	if s.fwd != nil {
-		s.handleParallel(metricName, path, withFlush, w, r)
+		s.handleWithForwarder(metricName, path, mode, w, r)
 		return
 	}
 	s.emitLifecycleMetric(metricName)
-	if withFlush {
+	if mode != noFlush {
 		flushCtx, cancel := context.WithTimeout(context.Background(), s.flushTimeout)
 		defer cancel()
 		s.flushAll(flushCtx)
