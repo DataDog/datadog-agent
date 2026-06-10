@@ -41,6 +41,7 @@ import (
 	doqueryactionsfx "github.com/DataDog/datadog-agent/comp/dataobs/queryactions/fx"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	logondurationfx "github.com/DataDog/datadog-agent/comp/logonduration/fx"
+	anomalysamplefx "github.com/DataDog/datadog-agent/comp/logs/anomalysampler"
 	networkconfigmanagement "github.com/DataDog/datadog-agent/comp/networkconfigmanagement/def"
 	networkconfigmanagementfx "github.com/DataDog/datadog-agent/comp/networkconfigmanagement/fx"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
@@ -517,6 +518,7 @@ func getSharedFxOption() fx.Option {
 		logssourcefx.Module(),
 		recordernoopfx.Module(),
 		reporterfx.Module(),
+		anomalysamplefx.Module(),
 		langDetectionClimpl.Module(),
 		metadata.Bundle(),
 		orchestratorForwarderImpl.Module(orchestratordef.NewDefaultParams()),

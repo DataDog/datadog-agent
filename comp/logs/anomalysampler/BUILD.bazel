@@ -1,0 +1,20 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "anomalysampler",
+    srcs = [
+        "scorer_rate_limiter.go",
+        "scorer_rate_limiter_noop.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/logs/anomalysampler",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/anomalydetection/observer/def",
+        "//comp/core/config",
+        "//comp/core/log/def",
+        "//pkg/logs/adaptivesampler",
+        "//pkg/util/fxutil",
+        "//pkg/util/option",
+        "@org_uber_go_fx//:fx",
+    ],
+)

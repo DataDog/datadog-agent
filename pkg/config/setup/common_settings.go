@@ -1854,6 +1854,14 @@ func logsagent(config pkgconfigmodel.Setup) {
 	// Exclude prevents adaptive sampling from applying to logs matching any rule when configured.
 	config.BindEnvAndSetDefault("logs_config.experimental_adaptive_sampling.exclude", []map[string]interface{}{})
 
+	// Anomaly-severity bridge: when enabled, the adaptive sampler's effective rate and burst limits
+	// are multiplied by the per-level value whenever the anomaly scorer transitions severity.
+	// Values > 1 relax sampling (keep more logs); values < 1 tighten it (keep fewer).
+	config.BindEnvAndSetDefault("logs_config.experimental_adaptive_sampling.anomaly_severity.enabled", false)
+	config.BindEnvAndSetDefault("logs_config.experimental_adaptive_sampling.anomaly_severity.low_multiplier", 1.0)
+	config.BindEnvAndSetDefault("logs_config.experimental_adaptive_sampling.anomaly_severity.medium_multiplier", 1.0)
+	config.BindEnvAndSetDefault("logs_config.experimental_adaptive_sampling.anomaly_severity.high_multiplier", 10.0)
+
 	// Enable the legacy auto multiline detection (v1)
 	config.BindEnvAndSetDefault("logs_config.force_auto_multi_line_detection_v1", false)
 

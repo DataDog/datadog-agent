@@ -12,6 +12,7 @@ import (
 	"time"
 
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
+	"github.com/DataDog/datadog-agent/pkg/logs/adaptivesampler"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
@@ -118,20 +119,22 @@ type samplerEntry struct {
 // frequently matched patterns appear at the front, so the scan exits early for the
 // common case where a hot pattern is matched.
 type AdaptiveSampler struct {
-	entries []samplerEntry
-	config  AdaptiveSamplerConfig
-	source  string // used as a telemetry tag
-	now     func() time.Time
+	entries             []samplerEntry
+	config              AdaptiveSamplerConfig
+	source              string // used as a telemetry tag
+	now                 func() time.Time
+	rateLimitMultiplier func() float64 // returns the current global rate multiplier
 }
 
 // NewAdaptiveSampler creates a new AdaptiveSampler.
 // source is the log source name used for telemetry tagging.
 func NewAdaptiveSampler(config AdaptiveSamplerConfig, source string) *AdaptiveSampler {
 	return &AdaptiveSampler{
-		entries: make([]samplerEntry, 0, config.MaxPatterns),
-		config:  config,
-		source:  source,
-		now:     time.Now,
+		entries:             make([]samplerEntry, 0, config.MaxPatterns),
+		config:              config,
+		source:              source,
+		now:                 time.Now,
+		rateLimitMultiplier: adaptivesampler.Shared().Multiplier,
 	}
 }
 
@@ -197,6 +200,9 @@ func (s *AdaptiveSampler) Process(msg *message.Message, tokens []Token) *message
 		return msg
 	}
 	now := s.now()
+	mult := s.rateLimitMultiplier()
+	effectiveRate := s.config.RateLimit * mult
+	effectiveBurst := s.config.BurstSize * mult
 
 	for i := range s.entries {
 		e := &s.entries[i]
@@ -205,9 +211,9 @@ func (s *AdaptiveSampler) Process(msg *message.Message, tokens []Token) *message
 		}
 		// Refill credits based on time elapsed since last seen.
 		elapsed := now.Sub(e.lastSeen).Seconds()
-		e.credits += elapsed * s.config.RateLimit
-		if e.credits > s.config.BurstSize {
-			e.credits = s.config.BurstSize
+		e.credits += elapsed * effectiveRate
+		if e.credits > effectiveBurst {
+			e.credits = effectiveBurst
 		}
 		e.lastSeen = now
 		e.matchCount++
@@ -250,7 +256,7 @@ func (s *AdaptiveSampler) Process(msg *message.Message, tokens []Token) *message
 	// New patterns start with matchCount=1 and belong at the end of the sorted list.
 	s.entries = append(s.entries, samplerEntry{
 		tokens:     tokens,
-		credits:    s.config.BurstSize - 1,
+		credits:    effectiveBurst - 1,
 		lastSeen:   now,
 		matchCount: 1,
 		sampled:    0,

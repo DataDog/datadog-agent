@@ -42,6 +42,7 @@ go_library(
         "//pkg/config/model",
         "//pkg/config/setup",
         "//pkg/config/structure",
+        "//pkg/logs/adaptivesampler",
         "//pkg/logs/message",
         "//pkg/logs/status/utils",
         "//pkg/util/log",
