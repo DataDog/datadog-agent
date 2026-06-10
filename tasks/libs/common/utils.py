@@ -182,6 +182,11 @@ def get_rtloader_paths(embedded_path=None, rtloader_root=None):
     return rtloader_lib, rtloader_headers, rtloader_common_headers
 
 
+# Build tags whose presence indicates go-sqlite3 is a dependency. Used by
+# apply_sqlite3_build_flags to skip the library lookup for builds that don't need it.
+SQLITE3_DEPENDENT_BUILD_TAGS = frozenset({"trivy", "podman"})
+
+
 def get_sqlite3_paths(embedded_path):
     """Return (lib_dir, include_dir) if a pre-built libsqlite3 is found under embedded_path, else (None, None)."""
     if not embedded_path or not SQLITE3_LIB_NAME:
@@ -193,6 +198,26 @@ def get_sqlite3_paths(embedded_path):
             if os.path.exists(os.path.join(include_dir, SQLITE3_HEADER_NAME)):
                 return os.path.join(embedded_path, libdir), include_dir
     return None, None
+
+
+def apply_sqlite3_build_flags(env, build_tags, embedded_path):
+    """Inject libsqlite3 into build_tags and set CGO env vars if the pre-built library is available.
+
+    Only acts when build_tags already contains a tag from SQLITE3_DEPENDENT_BUILD_TAGS,
+    so builds that don't need sqlite3 (IoT agent, dogstatsd, …) are left unchanged.
+    Returns the (possibly updated) build_tags list.
+    """
+    if not (SQLITE3_DEPENDENT_BUILD_TAGS & set(build_tags)):
+        return build_tags
+    sqlite3_lib, sqlite3_headers = get_sqlite3_paths(embedded_path)
+    if not sqlite3_lib:
+        return build_tags
+    build_tags = list(set(build_tags) | {"libsqlite3"})
+    env['DYLD_LIBRARY_PATH'] = env.get('DYLD_LIBRARY_PATH', os.environ.get('DYLD_LIBRARY_PATH', '')) + f":{sqlite3_lib}"
+    env['LD_LIBRARY_PATH'] = env.get('LD_LIBRARY_PATH', os.environ.get('LD_LIBRARY_PATH', '')) + f":{sqlite3_lib}"
+    env['CGO_LDFLAGS'] = env.get('CGO_LDFLAGS', os.environ.get('CGO_LDFLAGS', '')) + f" -L{sqlite3_lib}"
+    env['CGO_CFLAGS'] = env.get('CGO_CFLAGS', os.environ.get('CGO_CFLAGS', '')) + f" -I{sqlite3_headers}"
+    return build_tags
 
 
 def get_embedded_path(ctx):
@@ -276,7 +301,6 @@ def get_build_flags(
             raise Exit("unable to locate embedded path please check your setup or set --embedded-path")
 
     rtloader_lib, rtloader_headers, rtloader_common_headers = get_rtloader_paths(embedded_path, rtloader_root)
-    sqlite3_lib, sqlite3_headers = get_sqlite3_paths(embedded_path)
     # setting the install path, allowing the agent to be installed in a custom location
     if sys.platform.startswith('linux') and install_path:
         ldflags += f"-X {REPO_PATH}/pkg/config/setup.InstallPath={install_path} "
@@ -322,20 +346,11 @@ def get_build_flags(
     if sys.platform == 'win32':
         env['CGO_LDFLAGS'] = os.environ.get('CGO_LDFLAGS', '') + ' -Wl,--allow-multiple-definition'
 
-    if sqlite3_lib:
-        env['DYLD_LIBRARY_PATH'] = (
-            env.get('DYLD_LIBRARY_PATH', os.environ.get('DYLD_LIBRARY_PATH', '')) + f":{sqlite3_lib}"
-        )
-        env['LD_LIBRARY_PATH'] = env.get('LD_LIBRARY_PATH', os.environ.get('LD_LIBRARY_PATH', '')) + f":{sqlite3_lib}"
-        env['CGO_LDFLAGS'] = env.get('CGO_LDFLAGS', os.environ.get('CGO_LDFLAGS', '')) + f" -L{sqlite3_lib}"
-
     extra_cgo_flags = " -Werror -Wno-deprecated-declarations"
     if rtloader_headers:
         extra_cgo_flags += f" -I{rtloader_headers}"
     if rtloader_common_headers:
         extra_cgo_flags += f" -I{rtloader_common_headers}"
-    if sqlite3_headers:
-        extra_cgo_flags += f" -I{sqlite3_headers}"
     env['CGO_CFLAGS'] = os.environ.get('CGO_CFLAGS', '') + extra_cgo_flags
 
     if sys.platform == 'linux' and os.getenv('GOOS') == "windows":
