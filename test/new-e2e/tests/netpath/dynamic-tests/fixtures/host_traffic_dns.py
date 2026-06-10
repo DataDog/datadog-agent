@@ -43,20 +43,11 @@ def parse_question(packet):
 def build_response(packet, question, ip_bytes=None, rcode=0):
     answer = ip_bytes is not None
     flags = 0x8180 | rcode
-    response = (
-        packet[:2]
-        + struct.pack("!HHHHH", flags, 1, 1 if answer else 0, 0, 0)
-        + question
-    )
+    response = packet[:2] + struct.pack("!HHHHH", flags, 1, 1 if answer else 0, 0, 0) + question
     if not answer:
         return response
 
-    return (
-        response
-        + b"\xc0\x0c"
-        + struct.pack("!HHIH", QUERY_TYPE_A, QUERY_CLASS_IN, 30, len(ip_bytes))
-        + ip_bytes
-    )
+    return response + b"\xc0\x0c" + struct.pack("!HHIH", QUERY_TYPE_A, QUERY_CLASS_IN, 30, len(ip_bytes)) + ip_bytes
 
 
 def forward(packet, upstream):
