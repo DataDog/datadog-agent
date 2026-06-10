@@ -33,8 +33,7 @@ func kueueQueueGVRStrings() []string {
 }
 
 func shouldHaveKueueQueueStores(cfg config.Reader) bool {
-	return cfg.GetBool("cluster_agent.kube_metadata_collection.enabled") &&
-		cfg.GetBool("cluster_agent.kube_metadata_collection.kueue.enabled")
+	return cfg.GetBool("cluster_agent.kueue.enabled")
 }
 
 func newKueueQueueStore(ctx context.Context, wlmetaStore workloadmeta.Component, client dynamic.Interface, gvr schema.GroupVersionResource, queueType workloadmeta.KueueQueueType) (*cache.Reflector, *reflectorStore, error) {

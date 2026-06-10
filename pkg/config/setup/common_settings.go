@@ -380,7 +380,7 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("admission_controller.appsec.nginx.init_run_as_group", 82)
 
 	config.BindEnvAndSetDefault("cluster_agent.kube_metadata_collection.enabled", false)
-	config.BindEnvAndSetDefault("cluster_agent.kube_metadata_collection.kueue.enabled", true)
+	config.BindEnvAndSetDefault("cluster_agent.kueue.enabled", false)
 	// list of kubernetes resources for which we collect metadata
 	// each resource is specified in the format `{group}/{version}/{resource}` or `{group}/{resource}`
 	// resources that belong to the empty group can be specified simply as `{resource}` or as `/{resource}`

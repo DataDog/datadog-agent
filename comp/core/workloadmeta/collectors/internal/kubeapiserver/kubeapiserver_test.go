@@ -133,34 +133,32 @@ func TestShouldHaveKueueQueueStores(t *testing.T) {
 		expected bool
 	}{
 		{
-			name:     "metadata collection disabled",
+			name:     "kueue disabled",
 			cfg:      map[string]interface{}{},
 			expected: false,
 		},
 		{
-			name: "metadata collection enabled",
+			name: "kueue enabled",
 			cfg: map[string]interface{}{
-				"cluster_agent.kube_metadata_collection.enabled":       true,
-				"cluster_agent.kube_metadata_collection.kueue.enabled": true,
+				"cluster_agent.kueue.enabled": true,
 			},
 			expected: true,
 		},
 		{
-			name: "kubernetes tags collection does not enable kueue metadata collection",
+			name: "kubernetes tags collection does not enable kueue collection",
 			cfg: map[string]interface{}{
-				"cluster_agent.collect_kubernetes_tags":                true,
-				"cluster_agent.kube_metadata_collection.enabled":       false,
-				"cluster_agent.kube_metadata_collection.kueue.enabled": true,
+				"cluster_agent.collect_kubernetes_tags": true,
+				"cluster_agent.kueue.enabled":           false,
 			},
 			expected: false,
 		},
 		{
-			name: "kueue metadata collection disabled",
+			name: "metadata collection disabled does not disable kueue collection",
 			cfg: map[string]interface{}{
-				"cluster_agent.kube_metadata_collection.enabled":       true,
-				"cluster_agent.kube_metadata_collection.kueue.enabled": false,
+				"cluster_agent.kube_metadata_collection.enabled": false,
+				"cluster_agent.kueue.enabled":                    true,
 			},
-			expected: false,
+			expected: true,
 		},
 	}
 
