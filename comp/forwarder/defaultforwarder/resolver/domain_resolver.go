@@ -376,6 +376,7 @@ func NewDomainResolverWithMetricToVector(mainEndpoint string, apiKeys []utils.AP
 	}
 	r.RegisterAlternateDestination(vectorEndpoint, endpoints.V1SeriesEndpoint.Name, Vector)
 	r.RegisterAlternateDestination(vectorEndpoint, endpoints.SeriesEndpoint.Name, Vector)
+	r.RegisterAlternateDestination(vectorEndpoint, endpoints.V3SeriesEndpoint.Name, Vector)
 	r.RegisterAlternateDestination(vectorEndpoint, endpoints.SketchSeriesEndpoint.Name, Vector)
 	r.isMetricToVector = true
 	return r, nil

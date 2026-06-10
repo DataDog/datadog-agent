@@ -9,6 +9,8 @@ import (
 	"testing"
 
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/stretchr/testify/assert"
@@ -135,6 +137,28 @@ func TestIsMetricToVector(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, vec.IsMetricToVector(), "vector-diverted resolver must report true")
 	assert.Equal(t, "https://app.datadoghq.com", vec.GetConfigName())
+}
+
+func TestMetricToVectorResolvesSeriesEndpoints(t *testing.T) {
+	const mainEndpoint = "https://app.datadoghq.com"
+	const vectorEndpoint = "http://vector.example.test:8080"
+	apiKeys := []utils.APIKeys{utils.NewAPIKeys("api_key", "key1")}
+
+	vec, err := NewDomainResolverWithMetricToVector(mainEndpoint, apiKeys, vectorEndpoint)
+	require.NoError(t, err)
+
+	// All series and sketch endpoints, including v3, must be diverted to vector.
+	for _, endpoint := range []transaction.Endpoint{
+		endpoints.V1SeriesEndpoint,
+		endpoints.SeriesEndpoint,
+		endpoints.V3SeriesEndpoint,
+		endpoints.SketchSeriesEndpoint,
+	} {
+		assert.Equal(t, vectorEndpoint, vec.Resolve(endpoint), "%s must be diverted to vector", endpoint.Name)
+	}
+
+	// Unrelated endpoints stay on the main Datadog domain.
+	assert.Equal(t, mainEndpoint, vec.Resolve(endpoints.EventsEndpoint))
 }
 
 func TestScrubKeys(t *testing.T) {
