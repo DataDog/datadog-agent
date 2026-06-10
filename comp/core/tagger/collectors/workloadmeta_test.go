@@ -257,6 +257,7 @@ func TestHandleKubePod(t *testing.T) {
 						"kube_priority_class:high-priority",
 						"kube_service:service1",
 						"kube_service:service2",
+						"kueue_local_queue:batch",
 						"kube_qos:guaranteed",
 						"kube_runtime_class:myclass",
 						"ns_team:containers",
@@ -1570,6 +1571,67 @@ func TestKueueQueueEntityTagsPropagateToPodContainers(t *testing.T) {
 		}
 		assert.Subset(t, tagInfo.LowCardTags, []string{
 			"kube_namespace:default",
+			"kueue_cluster_queue:cluster-batch",
+			"kueue_local_queue:batch",
+		})
+		return
+	}
+	t.Fatal("container tag info not found")
+}
+
+func TestKueuePodLabelTagsPropagateWhenQueueEntityIsMissing(t *testing.T) {
+	const (
+		podUID      = "pod-uid"
+		containerID = "container-id"
+	)
+
+	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
+		fx.Supply(context.Background()),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+	store.Set(&workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainer,
+			ID:   containerID,
+		},
+	})
+
+	cfg := configmock.New(t)
+	collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
+
+	actual := collector.handleKubePod(workloadmeta.Event{
+		Type: workloadmeta.EventTypeSet,
+		Entity: &workloadmeta.KubernetesPod{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindKubernetesPod,
+				ID:   podUID,
+			},
+			EntityMeta: workloadmeta.EntityMeta{
+				Name:      "pod",
+				Namespace: "default",
+				Labels: map[string]string{
+					kubernetes.KueueLocalQueueNameLabelKey:   "batch",
+					kubernetes.KueueClusterQueueNameLabelKey: "cluster-batch",
+				},
+			},
+			Containers: []workloadmeta.OrchestratorContainer{
+				{
+					ID:   containerID,
+					Name: "app",
+				},
+			},
+		},
+		IsComplete: true,
+	})
+
+	assert.Len(t, actual, 2)
+	for _, tagInfo := range actual {
+		if tagInfo.EntityID != types.NewEntityID(types.ContainerID, containerID) {
+			continue
+		}
+		assert.Subset(t, tagInfo.LowCardTags, []string{
 			"kueue_cluster_queue:cluster-batch",
 			"kueue_local_queue:batch",
 		})

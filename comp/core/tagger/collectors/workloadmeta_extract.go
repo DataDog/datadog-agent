@@ -945,6 +945,11 @@ func (c *WorkloadMetaCollector) extractTagsFromPodKueueInfo(pod *workloadmeta.Ku
 	}
 
 	if localQueueName != "" {
+		// Preserve tags from pod labels when queue entities are unavailable. If
+		// the queue entity is present, duplicate queue tags are de-duplicated and
+		// queue label/annotation tags are added below.
+		tagList.AddLow(tags.KueueLocalQueue, localQueueName)
+
 		localQueueID, err := workloadmeta.GenerateKueueQueueEntityID(workloadmeta.KueueLocalQueue, pod.Namespace, localQueueName)
 		if err != nil {
 			log.Debugf("Could not generate Kueue LocalQueue entity ID for pod %s/%s: %v", pod.Namespace, pod.Name, err)
@@ -963,6 +968,8 @@ func (c *WorkloadMetaCollector) extractTagsFromPodKueueInfo(pod *workloadmeta.Ku
 	}
 
 	if clusterQueueName != "" {
+		tagList.AddLow(tags.KueueClusterQueue, clusterQueueName)
+
 		clusterQueueID, err := workloadmeta.GenerateKueueQueueEntityID(workloadmeta.KueueClusterQueue, "", clusterQueueName)
 		if err != nil {
 			log.Debugf("Could not generate Kueue ClusterQueue entity ID for pod %s/%s: %v", pod.Namespace, pod.Name, err)
