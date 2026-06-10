@@ -14,6 +14,7 @@ include:
     - ls -la $OMNIBUS_PACKAGE_DIR/
     - !reference [.create_signature_and_lint_linux_packages]
   after_script:
+    - !reference [.collect_bazel_build_metrics]
     - !reference [.static_quality_gate_package]
   stage: packaging
   artifacts:
@@ -227,6 +228,7 @@ installer_suse_rpm-arm64:
     - ls -la $OMNIBUS_PACKAGE_DIR/
     - !reference [.create_signature_and_lint_linux_packages]
   after_script:
+    - !reference [.collect_bazel_build_metrics]
     - !reference [.static_quality_gate_package]
   stage: packaging
   artifacts:
