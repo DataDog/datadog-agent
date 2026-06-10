@@ -6,7 +6,6 @@
 package observerimpl
 
 import (
-	"strings"
 	"time"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
@@ -177,17 +176,6 @@ func (e *LogPatternExtractor) SetObserverTelemetry(t *observerTelemetry) {
 	e.telemetry = t
 }
 
-// logSeverityIsWarnPlus returns true when the log should be clustered: warning
-func logSeverityIsWarnPlus(log observerdef.LogView) bool {
-	status := strings.ToLower(strings.TrimSpace(log.GetStatus()))
-	switch status {
-	case "warn", "warning", "error", "critical", "fatal", "alert", "emergency":
-		return true
-	default:
-		return false
-	}
-}
-
 // ProcessLog clusters the log message and emits a count metric for its pattern.
 func (e *LogPatternExtractor) ProcessLog(log observerdef.LogView) observerdef.LogMetricsExtractorOutput {
 	logUnixSec := log.GetTimestampUnixMilli() / 1000
@@ -200,9 +188,6 @@ func (e *LogPatternExtractor) ProcessLog(log observerdef.LogView) observerdef.Lo
 	}
 	if gc.clustersEvicted > 0 && e.telemetry != nil {
 		e.telemetry.recordLogPatternCountDelta(e.Name(), -float64(gc.clustersEvicted))
-	}
-	if !logSeverityIsWarnPlus(log) {
-		return result
 	}
 	message := log.GetContent()
 	groupTags := tagsForPatternGrouping(log.Tags(), log.GetHostname())
