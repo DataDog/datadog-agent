@@ -406,7 +406,7 @@ func (s *npCollectorImpl) runTracerouteForPath(ptest *pathteststore.PathtestCont
 	path.TestRunType = payload.TestRunTypeDynamic
 	path.SourceProduct = s.collectorConfigs.sourceProduct
 	if path.Origin == payload.PathOriginNetflow {
-		path.SourceProduct = payload.SourceProductNetworkDevice
+		path.SourceProduct = payload.SourceProductNetflow
 	}
 	path.CollectorType = payload.CollectorTypeAgent
 

@@ -501,7 +501,7 @@ func Test_NpCollector_runTracerouteForPath_NetflowSourceProduct(t *testing.T) {
 	})
 
 	assert.Equal(t, payload.PathOriginNetflow, emittedPath.Origin)
-	assert.Equal(t, payload.SourceProductNetworkDevice, emittedPath.SourceProduct)
+	assert.Equal(t, payload.SourceProductNetflow, emittedPath.SourceProduct)
 	assert.Equal(t, "netflow-ns", emittedPath.Namespace)
 }
 
