@@ -332,13 +332,14 @@ def _run_bazel_tests(
     _NOISY_PREFIXES = ('Loading:', 'Analyzing:', 'INFO:', 'WARNING:', 'Computing main repo mapping:')
 
     parsed_results: list[tuple[str, str, str | None, bool]] = []
-    run_failed = False
+    run_failed = False  # Track an overall failure accross batches.
     t_start = time.monotonic()
 
     for batch in batches:
         result = _run_bazel(*base_args, *batch, verbose=True)
         output = result.stdout
         if output:
+            # check output for the individual test pass/fail/skipped/cached.
             if verbose:
                 print(output)
             for line in output.splitlines():
@@ -346,11 +347,10 @@ def _run_bazel_tests(
                 if parsed:
                     parsed_results.append(parsed)
 
-        # If this batch failed, track an overall failure.
         if result.returncode != 0:
             run_failed = True
-            # Print the errors to the main log.  The individual test
-            # results have the details.
+            # Print the errors to the console/main log.  The individual test
+            # results .xml files have the details. Those get uploaded separately.
             for line in result.stderr.splitlines():
                 if line.strip().startswith(_NOISY_PREFIXES):
                     continue
