@@ -18,21 +18,19 @@
 #       See MODULE.bazel for the TODO and resolution options.
 #
 #   (b) datadog-* wheels: built from @integrations_core source with pip+hatchling.
-#       BLOCKER — the hermetic interpreter + hatchling (downloaded offline at build
-#       time by omnibus; see recipe line 100) wiring is not yet in place.
-#       `run_binary` scaffolding below captures the intent without being wired.
+#       datadog_checks_base is now wired and builds successfully.
+#       Per-check enabled-checks wheels are still stubbed (see TODO below).
 #
 # TODO(4b-step0): Prerequisite — 3.13 toolchain retarget in MODULE.bazel is done;
 #                 INTEGRATION_PYTHON_VERSION = "3.13" is already set.
 # TODO(4b-step2): Resolve the @py_integrations_deps BLOCKER (${INTEGRATIONS_WHEELS_STORAGE})
 #                 before activating the set-a filegroup.
-# TODO(4b-step3): Wire hatchling+interpreter inputs to the run_binary rules before
-#                 activating the set-b wheel builds.
 # TODO(4b-enabled-checks): Replace ENABLED_CHECKS stub list with the full set from
 #                 `dda inv agent.collect-integrations` minus excluded_folders
 #                 (omnibus recipe lines 33-50, 132).
 
-load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
+load("@rules_pkg//pkg:mappings.bzl", "REMOVE_BASE_DIRECTORY", "pkg_filegroup", "pkg_files")
+load(":whl_extract.bzl", "multi_whl_extract", "whl_extract")
 
 package(default_visibility = ["//packages:__subpackages__"])
 
@@ -43,36 +41,102 @@ package(default_visibility = ["//packages:__subpackages__"])
 #   python -m pip wheel . --no-deps --no-index --wheel-dir=<wheel_build_dir>
 #   (cwd = integrations-core/datadog_checks_base)
 #   with PIP_FIND_LINKS pointing at hatchling downloaded offline.
-#
-# TODO(4b-step3): Replace this genrule scaffold with a real run_binary once the
-#   hermetic interpreter target and hatchling build-dep are wired in as inputs.
-#   Inputs needed:
-#     - @cpython//:python_bin (or equivalent py_runtime from rules_python)
-#     - hatchling wheel pre-built at hatchling==0.25.1 (match omnibus recipe line 100)
-#   Until then, this target is tagged "manual" so it does not run in //... sweeps.
 # ---------------------------------------------------------------------------
 genrule(
     name = "datadog_checks_base_wheel",
-    srcs = ["@integrations_core//datadog_checks_base:all_files"],
+    srcs = [
+        "@integrations_core//:datadog_checks_base_srcs",
+        "@integrations_core//:datadog_checks_base_pyproject",
+        "@hatchling_whl//file",
+        "@hatchling_editables_whl//file",
+        "@hatchling_packaging_whl//file",
+        "@hatchling_pathspec_whl//file",
+        "@hatchling_pluggy_whl//file",
+    ],
     outs = ["datadog_checks_base.whl"],
-    # TODO(4b-step3): Replace with hermetic pip invocation.
-    # This is a SCAFFOLD ONLY — the command below will not succeed without
-    # the hermetic interpreter and hatchling inputs wired in.
-    # cmd = "$(location @cpython//:python_bin) -m pip wheel . --no-deps --no-index --wheel-dir=$(@D) >/dev/null",
-    cmd = "echo 'TODO: datadog_checks_base wheel build not yet wired' >&2; touch $@",
-    tags = ["manual"],
+    # datadog_checks_base is pure-Python (py3-none-any), so the interpreter
+    # version used to run pip does not affect the output wheel.
+    # current_py_toolchain resolves to the default rules_python interpreter
+    # (Python 3.12) and exposes $(PYTHON3) as a make-variable.
+    # The wheel deps use http_file rules (not pip.parse hub aliases) so they
+    # are configuration-independent and do not require a matching Python
+    # version flag in the build configuration.
+    #
+    # TODO(4b-step3-c-extensions): For set-a and enabled-checks wheels that
+    # have C extensions, the 3.13 ABI is required. Those wheels must use
+    # @cpython//:python_unix_runnable (the hermetic 3.13 interpreter with
+    # stdlib and libpython3.so staged as data deps) rather than this approach.
+    # http_file downloads files as a fixed name "downloaded", so we rename
+    # each to its proper .whl name when staging into the find-links directory.
+    cmd = """
+        WHEELS=$$(mktemp -d)
+        cp $(location @hatchling_whl//file)          $$WHEELS/hatchling-0.25.1-py2.py3-none-any.whl
+        cp $(location @hatchling_editables_whl//file) $$WHEELS/editables-0.6-py3-none-any.whl
+        cp $(location @hatchling_packaging_whl//file) $$WHEELS/packaging-26.2-py3-none-any.whl
+        cp $(location @hatchling_pathspec_whl//file)  $$WHEELS/pathspec-1.1.1-py3-none-any.whl
+        cp $(location @hatchling_pluggy_whl//file)    $$WHEELS/pluggy-1.6.0-py3-none-any.whl
+        SRCDIR=$$(dirname $(location @integrations_core//:datadog_checks_base_pyproject))
+        $(PYTHON3) -m pip wheel "$$SRCDIR" \
+            --no-deps \
+            --no-index \
+            --find-links="$$WHEELS" \
+            --wheel-dir=$(@D) 2>&1
+        mv $(@D)/datadog_checks_base-*.whl $(@D)/datadog_checks_base.whl
+    """,
+    toolchains = ["@rules_python//python:current_py_toolchain"],
 )
 
 # ---------------------------------------------------------------------------
-# (b) Stub pkg_files for the datadog_checks_base wheel once built.
-#     prefix matches omnibus site_packages_path layout.
-# TODO(4b-step3): Remove the manual tag and point srcs to the real wheel output.
+# lazy_loader — runtime dependency of datadog_checks_base/__init__.py.
+#
+# lazy_loader is a pure-Python package (lazy_loader-0.5-py3-none-any.whl)
+# that must be present in site-packages for `import datadog_checks.base`
+# to succeed.  It cannot be bundled inside datadog_checks_base.whl itself
+# (that wheel is built with --no-deps), so it is extracted alongside
+# datadog_checks_base into the same site_packages_tree below.
+#
+# http_file downloads files as a generic "downloaded" name without the .whl
+# extension.  multi_whl_extract requires allow_files=[".whl"], so we use a
+# rename genrule to give the file the proper .whl extension first.
 # ---------------------------------------------------------------------------
+genrule(
+    name = "lazy_loader_whl_renamed",
+    srcs = ["@lazy_loader_whl//file"],
+    outs = ["lazy_loader-0.5-py3-none-any.whl"],
+    cmd = "cp $< $@",
+)
+
+# ---------------------------------------------------------------------------
+# site_packages_tree — single merged TreeArtifact for all site-packages wheels.
+#
+# IMPORTANT: rules_pkg uses a dest-keyed dict (content_map) when building
+# manifests.  Two pkg_files entries that both use REMOVE_BASE_DIRECTORY with
+# the same prefix map to the *same* dest key; the second silently overwrites
+# the first, so only the last wheel lands in the package.  The old approach
+# of separate whl_extract + pkg_files per wheel therefore only ever included
+# lazy_loader (the last entry) and silently dropped datadog_checks_base.
+#
+# multi_whl_extract extracts all wheels into ONE declared directory so that a
+# SINGLE pkg_files entry covers the entire site-packages tree, eliminating the
+# collision.  The same approach must be used when set-a and enabled-checks
+# wheels are added (see TODOs below).
+# ---------------------------------------------------------------------------
+multi_whl_extract(
+    name = "site_packages_tree",
+    whls = [
+        ":datadog_checks_base_wheel",
+        ":lazy_loader_whl_renamed",
+        # TODO(4b-step2): add set-a wheels here once the
+        #   ${INTEGRATIONS_WHEELS_STORAGE} blocker is resolved.
+        # TODO(4b-enabled-checks): add per-check wheels here.
+    ],
+)
+
 pkg_files(
-    name = "datadog_checks_base_wheel_files",
-    srcs = [":datadog_checks_base_wheel"],
+    name = "site_packages_files",
+    srcs = [":site_packages_tree"],
     prefix = "embedded/lib/python3.13/site-packages",
-    tags = ["manual"],
+    renames = {":site_packages_tree": REMOVE_BASE_DIRECTORY},
 )
 
 # ---------------------------------------------------------------------------
@@ -84,12 +148,6 @@ pkg_files(
 #   filegroup(
 #       name = "set_a_wheels",
 #       srcs = ["@py_integrations_deps//:all_whl_requirements"],
-#   )
-#
-#   pkg_files(
-#       name = "set_a_wheel_files",
-#       srcs = [":set_a_wheels"],
-#       prefix = "embedded/lib/python3.13/site-packages",
 #   )
 # ---------------------------------------------------------------------------
 
@@ -113,18 +171,10 @@ pkg_files(
 
 # ---------------------------------------------------------------------------
 # site_packages — the top-level assembly target wired into embedded/BUILD.bazel.
-#
-# Currently a stub (empty srcs) until the set-a and set-b blockers are resolved.
-# Once unblocked, add:
-#   ":datadog_checks_base_wheel_files",   # set-b base wheel
-#   ":set_a_wheel_files",                 # set-a third-party deps
-#   ":enabled_checks_wheel_files",        # set-b per-check wheels (TODO above)
 # ---------------------------------------------------------------------------
 pkg_filegroup(
     name = "site_packages",
     srcs = [
-        # TODO(4b-step2): ":set_a_wheel_files",
-        # TODO(4b-step3): ":datadog_checks_base_wheel_files",
-        # TODO(4b-enabled-checks): ":enabled_checks_wheel_files",
+        ":site_packages_files",
     ],
 )

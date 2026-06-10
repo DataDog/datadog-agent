@@ -14,8 +14,8 @@ pkg_filegroup(
     name = "all_files",
     srcs = [
         ":etc_readme",
+        "//deps/integrations:site_packages",
         "@cpython//:runtime_deps",
-        # TODO(4b): "//deps/integrations:site_packages",
     ],
 )
 

@@ -332,13 +332,27 @@ use_repo(python, "python_" + PYTHON_VERSION.replace(".", "_"), "python_" + INTEG
 
 # Pin integrations-core at a known commit so we can reference its lockfiles
 # and per-check source trees hermetically.
-# Commit matches INTEGRATIONS_CORE_VERSION tracked in tasks/omnibus.py.
+# Tag matches the latest stable release of integrations-core.
+# Sourced from https://github.com/DataDog/integrations-core/releases/latest
 # To update: fetch the new tar.gz and recompute sha256.
 http_archive(
     name = "integrations_core",
-    sha256 = "ffc878d473c4d7abb84c84ed3ed13ef89949402bc0d09abed4426a2efebda0c5",
-    strip_prefix = "integrations-core-2babaf6bc6735a93aac83a754f2eec1bd868ef26",
-    urls = ["https://github.com/DataDog/integrations-core/archive/2babaf6bc6735a93aac83a754f2eec1bd868ef26.tar.gz"],
+    build_file_content = """
+filegroup(
+    name = "datadog_checks_base_srcs",
+    srcs = glob(["datadog_checks_base/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "datadog_checks_base_pyproject",
+    srcs = ["datadog_checks_base/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+""",
+    sha256 = "f986ffbb2cf9976f0504045096943afec9902c30e12b45364e5796cc9a24a16a",
+    strip_prefix = "integrations-core-ddev-v16.1.1",
+    urls = ["https://github.com/DataDog/integrations-core/archive/refs/tags/ddev-v16.1.1.tar.gz"],
 )
 
 pip = use_extension("@rules_python//python/extensions:pip.bzl", "pip")
@@ -385,6 +399,48 @@ use_repo(pip, "py_dev_requirements")
 #     requirements_lock = "@integrations_core//:.deps/resolved/linux-x86_64_3.13.txt",
 # )
 # use_repo(pip, "py_integrations_deps")
+
+# Hatchling build backend for building datadog-* integration wheels (set-b).
+# Pins the same version used by omnibus (recipe line 100).
+# Using http_file rules (rather than pip.parse hub aliases) so the wheel files
+# are configuration-independent — they can be used as genrule srcs without
+# requiring a matching Python version flag in the build configuration.
+# Hashes verified from PyPI (sha256 in the URL path on PyPI mirrors):
+http_file(
+    name = "hatchling_whl",
+    sha256 = "c1280be9510685a18e2ccdd1484872113587f41762f78d690f16e2ce6931da99",
+    urls = ["https://files.pythonhosted.org/packages/60/c5/97a0c443be91936900da8c263fcb808c43393cca5d1c7ed163c13b2d6d72/hatchling-0.25.1-py2.py3-none-any.whl"],
+)
+
+http_file(
+    name = "hatchling_editables_whl",
+    sha256 = "d70e4698078a1d033e7786d9c64e5be070d058a67c21417024d38a58ac20aa43",
+    urls = ["https://files.pythonhosted.org/packages/cc/0e/d095533037fc9468f947b19f2da53f869804632b508808de41e86e801797/editables-0.6-py3-none-any.whl"],
+)
+
+http_file(
+    name = "hatchling_packaging_whl",
+    sha256 = "5fc45236b9446107ff2415ce77c807cee2862cb6fac22b8a73826d0693b0980e",
+    urls = ["https://files.pythonhosted.org/packages/df/b2/87e62e8c3e2f4b32e5fe99e0b86d576da1312593b39f47d8ceef365e95ed/packaging-26.2-py3-none-any.whl"],
+)
+
+http_file(
+    name = "hatchling_pathspec_whl",
+    sha256 = "a00ce642f577bf7f473932318056212bc4f8bfdf53128c78bbd5af0b9b20b189",
+    urls = ["https://files.pythonhosted.org/packages/f1/d9/7fb5aa316bc299258e68c73ba3bddbc499654a07f151cba08f6153988714/pathspec-1.1.1-py3-none-any.whl"],
+)
+
+http_file(
+    name = "hatchling_pluggy_whl",
+    sha256 = "e920276dd6813095e9377c0bc5566d94c932c33b27a3e3945d8389c374dd4746",
+    urls = ["https://files.pythonhosted.org/packages/54/20/4d324d65cc6d9205fabedc306948156824eb9f0ee1633355a8f7ec5c66bf/pluggy-1.6.0-py3-none-any.whl"],
+)
+
+http_file(
+    name = "lazy_loader_whl",
+    sha256 = "ab0ea149e9c554d4ffeeb21105ac60bed7f3b4fd69b1d2360a4add51b170b005",
+    urls = ["https://files.pythonhosted.org/packages/8a/a1/8d812e53a5da1687abb10445275d41a8b13adb781bbf7196ddbcf8d88505/lazy_loader-0.5-py3-none-any.whl"],
+)
 
 register_toolchains("@pythons_hub//:all")
 
