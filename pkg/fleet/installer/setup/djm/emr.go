@@ -30,7 +30,7 @@ const (
 var (
 	emrInfoPath       = "/mnt/var/lib/info"
 	openLineageJARDir = "/usr/lib/spark/jars"
-	tracerConfigEmr = config.APMConfigurationDefault{
+	tracerConfigEmr   = config.APMConfigurationDefault{
 		DataJobsEnabled:               config.BoolToPtr(true),
 		IntegrationsEnabled:           config.BoolToPtr(false),
 		DataJobsCommandPattern:        ".*org.apache.spark.deploy.*",
