@@ -146,6 +146,14 @@ func (f *horizontalControllerFixture) testScalingDecision(args horizontalScaling
 		args.fakePai.AddHorizontalAction(action.Time.Time, action)
 		args.fakePai.HorizontalLastActionError = nil
 		args.fakePai.HorizontalActionSuccessCount++
+		// Mirror SetLastScaledTarget that the production code runs after
+		// every successful scaler.update — drives the release-on-disable
+		// gate in subsequent reconciles.
+		args.fakePai.LastScaledTarget = &model.LastScaledTarget{
+			Namespace: args.fakePai.Namespace,
+			Name:      args.fakePai.Spec.TargetRef.Name,
+			GVK:       args.fakePai.TargetGVK,
+		}
 	} else if args.scaleError != nil {
 		args.fakePai.HorizontalLastActionError = args.scaleError
 		// Counter is only incremented when the scale update itself fails (not for internal errors like policy restrictions)
@@ -375,14 +383,17 @@ func TestHorizontalControllerReleaseOwnershipOnDisable(t *testing.T) {
 		ApplyPolicy: disabledPolicy,
 	}
 
-	// Case 1: horizontal disabled with prior actions → release exactly once.
+	// Case 1: horizontal disabled with LastScaledTarget set (previous scale
+	// observed) → release exactly once against the recorded target.
 	fakePai := &model.FakePodAutoscalerInternal{
 		Namespace: autoscalerNamespace,
 		Name:      autoscalerName,
 		Spec:      spec,
 		TargetGVK: targetGVK,
-		HorizontalLastActions: []datadoghqcommon.DatadogPodAutoscalerHorizontalAction{
-			{Time: metav1.NewTime(f.clock.Now()), FromReplicas: 3, ToReplicas: 5},
+		LastScaledTarget: &model.LastScaledTarget{
+			Namespace: autoscalerNamespace,
+			Name:      autoscalerName,
+			GVK:       targetGVK,
 		},
 	}
 	f.scaler.mockGet(*fakePai, 5, 5, nil)
@@ -392,7 +403,8 @@ func TestHorizontalControllerReleaseOwnershipOnDisable(t *testing.T) {
 	f.scaler.AssertNumberOfCalls(t, "releaseReplicasOwnership", 1)
 	f.scaler.AssertCalled(t, "releaseReplicasOwnership", mock.Anything, autoscalerNamespace, autoscalerName, targetGVK)
 
-	// Case 2: horizontal disabled with no prior actions → no release.
+	// Case 2: horizontal disabled with LastScaledTarget unset (DPA never
+	// successfully scaled) → no release.
 	f.resetFakeScaler()
 	fakePaiNoActions := &model.FakePodAutoscalerInternal{
 		Namespace: autoscalerNamespace,
@@ -407,13 +419,84 @@ func TestHorizontalControllerReleaseOwnershipOnDisable(t *testing.T) {
 	f.scaler.AssertNumberOfCalls(t, "releaseReplicasOwnership", 0)
 }
 
+func TestHorizontalControllerReleaseOwnershipOnPreviewTransition(t *testing.T) {
+	// Apply mode == Preview is functionally "stop writing replicas" but
+	// IsHorizontalScalingEnabled() returns true. The release gate must
+	// still fire so the workload's stale managedFields entry is cleaned up.
+	f := newHorizontalControllerFixture(t, time.Now())
+	autoscalerNamespace := "default"
+	autoscalerName := "test"
+
+	targetGVK := schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: "Deployment"}
+	spec := &datadoghq.DatadogPodAutoscalerSpec{
+		TargetRef: v2.CrossVersionObjectReference{
+			Name:       autoscalerName,
+			Kind:       targetGVK.Kind,
+			APIVersion: targetGVK.Group + "/" + targetGVK.Version,
+		},
+		ApplyPolicy: &datadoghq.DatadogPodAutoscalerApplyPolicy{
+			Mode: datadoghq.DatadogPodAutoscalerApplyModePreview,
+		},
+	}
+	fakePai := &model.FakePodAutoscalerInternal{
+		Namespace: autoscalerNamespace,
+		Name:      autoscalerName,
+		Spec:      spec,
+		TargetGVK: targetGVK,
+		LastScaledTarget: &model.LastScaledTarget{
+			Namespace: autoscalerNamespace,
+			Name:      autoscalerName,
+			GVK:       targetGVK,
+		},
+	}
+	f.scaler.mockGet(*fakePai, 5, 5, nil)
+	_, _, err := f.runSync(fakePai)
+	assert.NoError(t, err)
+	f.scaler.AssertNumberOfCalls(t, "releaseReplicasOwnership", 1)
+	f.scaler.AssertCalled(t, "releaseReplicasOwnership", mock.Anything, autoscalerNamespace, autoscalerName, targetGVK)
+}
+
+func TestHorizontalControllerReleaseOwnershipOnTargetRefChange(t *testing.T) {
+	// If a DPA scaled workload "old" and is then retargeted to workload
+	// "new", the release must fire against "old" (the workload that
+	// actually holds the stale managedFields entry) — NOT against the
+	// current spec.TargetRef.Name which points at the new target.
+	f := newHorizontalControllerFixture(t, time.Now())
+	autoscalerNamespace := "default"
+
+	targetGVK := schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: "Deployment"}
+	spec := &datadoghq.DatadogPodAutoscalerSpec{
+		TargetRef: v2.CrossVersionObjectReference{
+			Name:       "new",
+			Kind:       targetGVK.Kind,
+			APIVersion: targetGVK.Group + "/" + targetGVK.Version,
+		},
+	}
+	fakePai := &model.FakePodAutoscalerInternal{
+		Namespace: autoscalerNamespace,
+		Name:      "dpa",
+		Spec:      spec,
+		TargetGVK: targetGVK,
+		LastScaledTarget: &model.LastScaledTarget{
+			Namespace: autoscalerNamespace,
+			Name:      "old",
+			GVK:       targetGVK,
+		},
+	}
+	f.scaler.mockGet(*fakePai, 5, 5, nil)
+	_, _, err := f.runSync(fakePai)
+	assert.NoError(t, err)
+	f.scaler.AssertCalled(t, "releaseReplicasOwnership", mock.Anything, autoscalerNamespace, "old", targetGVK)
+}
+
 func TestHorizontalControllerReleaseOwnershipOnDisable_FailureRetainsState(t *testing.T) {
 	// When releaseReplicasOwnership fails (e.g. RBAC not yet granted, or
 	// JSON-patch test op detected a managedFields race), the controller
-	// must NOT clear HorizontalLastActions — otherwise the gate
-	// (`len(HorizontalLastActions) > 0`) would never fire again and the
-	// stale managedFields entry would leak permanently. The controller
-	// should also return Requeue so the workqueue retries.
+	// must NOT clear LastScaledTarget — otherwise the gate would never
+	// fire again and the stale managedFields entry would leak permanently.
+	// The controller should also return Requeue with the error so the
+	// workqueue's maxRetry caps the retry budget and the error surfaces
+	// via DPA condition / Event / telemetry.
 	f := newHorizontalControllerFixture(t, time.Now())
 	autoscalerNamespace := "default"
 	autoscalerName := "test"
@@ -433,15 +516,17 @@ func TestHorizontalControllerReleaseOwnershipOnDisable_FailureRetainsState(t *te
 		ApplyPolicy: disabledPolicy,
 	}
 
-	priorActions := []datadoghqcommon.DatadogPodAutoscalerHorizontalAction{
-		{Time: metav1.NewTime(f.clock.Now()), FromReplicas: 3, ToReplicas: 5},
+	lastScaled := &model.LastScaledTarget{
+		Namespace: autoscalerNamespace,
+		Name:      autoscalerName,
+		GVK:       targetGVK,
 	}
 	fakePai := &model.FakePodAutoscalerInternal{
-		Namespace:             autoscalerNamespace,
-		Name:                  autoscalerName,
-		Spec:                  spec,
-		TargetGVK:             targetGVK,
-		HorizontalLastActions: priorActions,
+		Namespace:        autoscalerNamespace,
+		Name:             autoscalerName,
+		Spec:             spec,
+		TargetGVK:        targetGVK,
+		LastScaledTarget: lastScaled,
 	}
 
 	// Bypass the Maybe-equipped fakeScaler: install a fresh one with a
@@ -456,14 +541,14 @@ func TestHorizontalControllerReleaseOwnershipOnDisable_FailureRetainsState(t *te
 
 	autoscaler, result, err := f.runSync(fakePai)
 	assert.Equal(t, autoscaling.Requeue, result, "must requeue so the workqueue retries the release")
-	assert.NoError(t, err, "best-effort cleanup must not surface an error to the workqueue retry counter")
+	assert.Error(t, err, "release failures must surface to the workqueue so maxRetry caps the loop")
 	strictScaler.AssertNumberOfCalls(t, "releaseReplicasOwnership", 1)
 
-	// HorizontalLastActions must NOT be cleared — otherwise the gate above
-	// would never fire on the next reconcile and the stale managedFields
-	// entry would leak permanently.
-	assert.Equal(t, priorActions, autoscaler.HorizontalLastActions(),
-		"HorizontalLastActions must be retained on release failure to allow retry")
+	// LastScaledTarget must NOT be cleared — otherwise the gate would never
+	// fire on the next reconcile and the stale managedFields entry would
+	// leak permanently.
+	assert.Equal(t, lastScaled, autoscaler.LastScaledTarget(),
+		"LastScaledTarget must be retained on release failure to allow retry")
 }
 
 func TestHorizontalControllerSyncScaleDecisions(t *testing.T) {

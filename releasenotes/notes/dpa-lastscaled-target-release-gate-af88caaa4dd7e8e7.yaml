@@ -1,0 +1,22 @@
+---
+fixes:
+  - |
+    The workload autoscaler (``DatadogPodAutoscaler``) now releases the
+    cluster agent's ``.spec.replicas`` field-manager entry on additional
+    transitions that previously left the entry stale:
+
+    - When ``ApplyPolicy.Mode`` is switched to ``Preview`` (the
+      controller still computes recommendations but no longer writes
+      replicas, so the prior managedFields entry must be cleaned up).
+    - When ``Spec.TargetRef`` is retargeted to a different workload
+      (the release now fires against the *previously scaled* target,
+      not the new spec's target).
+
+    Release-failure handling has also been strengthened: failures now
+    surface via a DPA status condition, a Kubernetes Event, and a
+    telemetry counter; the workqueue's standard retry budget caps the
+    loop instead of hot-looping invisibly. The deletion paths
+    (remote-owned, profile-managed, local-owned) retry release up to
+    ``maxRetry`` attempts before logging an error and proceeding with
+    the delete, so a permanently broken release cannot block a user
+    from removing a DPA.

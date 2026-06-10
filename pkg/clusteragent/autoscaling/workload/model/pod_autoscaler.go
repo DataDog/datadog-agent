@@ -58,6 +58,17 @@ var resyncAnnotationKeysFromPodAutoscaler = []string{
 	CustomRecommenderAnnotationKey,
 }
 
+// LastScaledTarget records the workload that the horizontal controller most
+// recently wrote `.spec.replicas` on. It is used to release the cluster
+// agent's scale-subresource managedFields entry at the right target when
+// scaling stops (disabled, Preview, retarget, DPA deletion), even if the DPA
+// spec's TargetRef has since changed.
+type LastScaledTarget struct {
+	Namespace string
+	Name      string
+	GVK       schema.GroupVersionKind
+}
+
 // PodAutoscalerInternal holds the necessary data to work with the `DatadogPodAutoscaler` CRD.
 type PodAutoscalerInternal struct {
 	// namespace is the namespace of the PodAutoscaler
@@ -131,6 +142,17 @@ type PodAutoscalerInternal struct {
 
 	// horizontalActionSuccessCount is the number of successful horizontal actions
 	horizontalActionSuccessCount uint
+
+	// lastScaledTarget identifies the workload (ns/name/GVK) the horizontal
+	// controller most recently wrote `.spec.replicas` on, used to decide
+	// where to release the cluster agent's scale-subresource managedFields
+	// entry when the controller stops scaling (disabled, Preview, retarget,
+	// deletion). Nil means "no horizontal write has been observed since this
+	// internal state was constructed." Stored in-memory only — on controller
+	// restart this is rebuilt only after the next successful scale, which is
+	// an acceptable limitation since the next scale would re-establish the
+	// managedFields entry anyway.
+	lastScaledTarget *LastScaledTarget
 
 	// verticalLastAction is the last action taken by the Vertical Pod Autoscaler
 	verticalLastAction *datadoghqcommon.DatadogPodAutoscalerVerticalAction
@@ -803,6 +825,27 @@ func (p *PodAutoscalerInternal) HorizontalActionSuccessCount() uint {
 // HorizontalActionSuccessInc increment the number of horizontal actions that triggered a success
 func (p *PodAutoscalerInternal) HorizontalActionSuccessInc() {
 	p.horizontalActionSuccessCount++
+}
+
+// LastScaledTarget returns the workload the horizontal controller most
+// recently wrote `.spec.replicas` on, or nil if no write has been observed.
+func (p *PodAutoscalerInternal) LastScaledTarget() *LastScaledTarget {
+	return p.lastScaledTarget
+}
+
+// SetLastScaledTarget records the workload the horizontal controller just
+// successfully wrote `.spec.replicas` on. Called after every successful
+// scaler.update so the release path knows where the cluster agent's
+// managedFields entry currently lives.
+func (p *PodAutoscalerInternal) SetLastScaledTarget(target *LastScaledTarget) {
+	p.lastScaledTarget = target
+}
+
+// ClearLastScaledTarget resets the recorded last-scaled target. Called after
+// the cluster agent's managedFields entry on that target has been
+// successfully released.
+func (p *PodAutoscalerInternal) ClearLastScaledTarget() {
+	p.lastScaledTarget = nil
 }
 
 // VerticalLastAction returns the last action taken by the Vertical Pod Autoscaler

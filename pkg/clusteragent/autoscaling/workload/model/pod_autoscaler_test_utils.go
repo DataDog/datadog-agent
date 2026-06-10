@@ -46,6 +46,7 @@ type FakePodAutoscalerInternal struct {
 	HorizontalLastActionError          error
 	HorizontalActionErrorCount         uint
 	HorizontalActionSuccessCount       uint
+	LastScaledTarget                   *LastScaledTarget
 	HorizontalEventsRetention          time.Duration
 	HorizontalRecommendationsRetention time.Duration
 	VerticalLastAction                 *datadoghqcommon.DatadogPodAutoscalerVerticalAction
@@ -130,6 +131,7 @@ func (f FakePodAutoscalerInternal) Build() PodAutoscalerInternal {
 		horizontalLastActionError:          f.HorizontalLastActionError,
 		horizontalActionErrorCount:         f.HorizontalActionErrorCount,
 		horizontalActionSuccessCount:       f.HorizontalActionSuccessCount,
+		lastScaledTarget:                   f.LastScaledTarget,
 		horizontalEventsRetention:          f.HorizontalEventsRetention,
 		horizontalRecommendationsRetention: f.HorizontalRecommendationsRetention,
 		verticalLastAction:                 f.VerticalLastAction,

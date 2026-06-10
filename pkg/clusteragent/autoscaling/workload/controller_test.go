@@ -150,6 +150,18 @@ func TestLeaderCreateDeleteLocal(t *testing.T) {
 	assert.True(t, found)
 	model.AssertPodAutoscalersEqual(t, expectedDPAInternal, dpaInternal)
 
+	// Simulate that the controller successfully scaled the target before the
+	// K8s object was deleted (the production path records LastScaledTarget
+	// after every successful scaler.update); without this, the release
+	// helper correctly short-circuits because there's nothing to clean up.
+	deploymentGVK := schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: "Deployment"}
+	dpaInternal.SetLastScaledTarget(&model.LastScaledTarget{
+		Namespace: "default",
+		Name:      "app-0",
+		GVK:       deploymentGVK,
+	})
+	f.store.Set("default/dpa-0", dpaInternal, controllerID)
+
 	// Object deleted from Kubernetes, should be deleted from store
 	f.InformerObjects = nil
 	f.Objects = nil
@@ -160,8 +172,7 @@ func TestLeaderCreateDeleteLocal(t *testing.T) {
 	// controller must release `.spec.replicas` ownership on the target
 	// workload before clearing the internal store, so SSA writers do not
 	// conflict with a stale `datadog-cluster-agent` field manager.
-	f.scaler.AssertCalled(t, "releaseReplicasOwnership", mock.Anything, "default", "app-0",
-		schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: "Deployment"})
+	f.scaler.AssertCalled(t, "releaseReplicasOwnership", mock.Anything, "default", "app-0", deploymentGVK)
 
 	// Re-create object
 	f.InformerObjects = append(f.InformerObjects, dpa)
@@ -169,6 +180,9 @@ func TestLeaderCreateDeleteLocal(t *testing.T) {
 
 	f.RunControllerSync(true, "default/dpa-0")
 
+	// Re-fetch the stored DPA: after recreate, the store holds a fresh
+	// instance with no LastScaledTarget — assert it equals expected.
+	dpaInternal, found = f.store.Get("default/dpa-0")
 	assert.True(t, found)
 	model.AssertPodAutoscalersEqual(t, expectedDPAInternal, dpaInternal)
 }
@@ -222,8 +236,15 @@ func TestLeaderCreateDeleteRemote(t *testing.T) {
 	f.ExpectCreateAction(expectedUnstructured)
 	f.RunControllerSync(true, "default/dpa-0")
 
-	// We flag the object as deleted in the store, we expect delete operation in Kubernetes
+	// We flag the object as deleted in the store, we expect delete operation in Kubernetes.
+	// Also seed LastScaledTarget so the release path actually fires — the
+	// production helper short-circuits when no prior scale has been recorded.
 	dpaInternal.Deleted = true
+	dpaInternal.LastScaledTarget = &model.LastScaledTarget{
+		Namespace: "default",
+		Name:      "app-0",
+		GVK:       schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: "Deployment"},
+	}
 	f.store.Set("default/dpa-0", dpaInternal.Build(), controllerID)
 	f.InformerObjects = append(f.InformerObjects, expectedUnstructured)
 	f.Objects = append(f.Objects, expectedDPA)
