@@ -187,6 +187,7 @@ func (n *networkDeviceConfigImpl) retrieveAndStoreConfig(
 	profile *ncmprofile.NCMProfile,
 	confType ncmtypes.ConfigType,
 	deviceTags []string) (*ncmreport.NetworkDeviceConfig, bool, error) {
+	logger := LoggerFromContext(ctx)
 	getConfig := conn.RetrieveRunningConfig
 	mode := "running"
 	if confType == ncmtypes.STARTUP {
@@ -209,7 +210,7 @@ func (n *networkDeviceConfigImpl) retrieveAndStoreConfig(
 		var err error
 		configID, configHash, stored, err = configStore.StoreConfig(deviceID, confType, string(rawConfig))
 		if err != nil {
-			n.log.Warnf("ncm[%s]: unable to store %s config: %v", deviceID, mode, err)
+			_ = logger.Warnf("unable to store %s config: %v", deviceID, err)
 		}
 	}
 	conf := ncmreport.ToNetworkDeviceConfig(deviceID, device.IPAddress, confType, metadata, deviceTags, redactedConfig, configID, configHash)
@@ -259,13 +260,11 @@ func (n *networkDeviceConfigImpl) saveNoProfileForDevice(device *ncmconfig.Devic
 }
 
 func (n *networkDeviceConfigImpl) ReportConfigWithSender(deviceID string, baseSender sender.Sender) error {
+	var log log.Component = NewLogWrapper(n.log, fmt.Sprintf("ncm[%s]: ", deviceID))
+
 	var configs []ncmreport.NetworkDeviceConfig
-	ctx := context.Background()
+	ctx := WithLogger(context.Background(), log)
 	startTime := n.clock.Now()
-	debugf := func(format string, params ...interface{}) {
-		format = fmt.Sprintf("ncm[%s]: %s", deviceID, format)
-		n.log.Debugf(format, params...)
-	}
 	device, ok := n.deviceConfigs.Load(deviceID)
 	if !ok {
 		return fmt.Errorf("unknown device: %q", deviceID)
@@ -279,14 +278,14 @@ func (n *networkDeviceConfigImpl) ReportConfigWithSender(deviceID string, baseSe
 
 	conn, err := n.connect(device)
 	if err != nil {
-		n.log.Errorf("ncm[%s]: unable to connect to remote device: %s", deviceID, err)
+		log.Errorf("unable to connect to device: %s", err)
 		return err
 	}
 	defer conn.Close()
 
 	if profile == nil {
-		debugf("No profile specified, testing known profiles")
-		prof, ok := n.findMatchingProfile(device, conn)
+		log.Debug("No profile specified, testing known profiles")
+		prof, ok := n.findMatchingProfile(ctx, conn)
 		if !ok {
 			// store explicit nil to indicate that we shouldn't try to search for this again.
 			n.saveNoProfileForDevice(device)
@@ -295,7 +294,7 @@ func (n *networkDeviceConfigImpl) ReportConfigWithSender(deviceID string, baseSe
 		n.saveDetectedProfileForDevice(device, prof)
 		profile = prof
 	}
-	debugf("Using profile %q", profile.Name)
+	log.Debugf("Using profile %q", profile.Name)
 	// Update the remote client's device profile to access the correct commands
 	conn.SetProfile(profile)
 
@@ -304,7 +303,7 @@ func (n *networkDeviceConfigImpl) ReportConfigWithSender(deviceID string, baseSe
 	var nonBlockingErrors []error
 
 	if err := sender.SendDeviceMetadata(deviceID, device.IPAddress); err != nil {
-		n.log.Warnf("ncm[%s]: failed to send device metadata: %s", deviceID, err)
+		log.Warnf("failed to send device metadata: %s", err)
 		nonBlockingErrors = append(nonBlockingErrors, fmt.Errorf("failed to send device metadata: %w", err))
 	}
 	defer sender.Commit()
@@ -313,7 +312,7 @@ func (n *networkDeviceConfigImpl) ReportConfigWithSender(deviceID string, baseSe
 	var localStoreChanged bool
 
 	if runningConfig, stored, err := n.retrieveAndStoreConfig(ctx, device, conn, profile, ncmtypes.RUNNING, deviceTags); err != nil {
-		n.log.Warnf("ncm[%s]: unable to retrieve running config, will not send: %v", deviceID, err)
+		log.Warnf("unable to retrieve running config, will not send: %v", err)
 		nonBlockingErrors = append(nonBlockingErrors, fmt.Errorf("failed to retrieve running config: %w", err))
 	} else {
 		localStoreChanged = localStoreChanged || stored
@@ -321,7 +320,7 @@ func (n *networkDeviceConfigImpl) ReportConfigWithSender(deviceID string, baseSe
 	}
 
 	if startupConfig, stored, err := n.retrieveAndStoreConfig(ctx, device, conn, profile, ncmtypes.STARTUP, deviceTags); err != nil {
-		n.log.Warnf("ncm[%s]: unable to retrieve startup config, will not send: %v", deviceID, err)
+		log.Warnf("unable to retrieve startup config, will not send: %v", err)
 		nonBlockingErrors = append(nonBlockingErrors, fmt.Errorf("failed to retrieve startup config: %w", err))
 	} else {
 		localStoreChanged = localStoreChanged || stored
@@ -331,28 +330,32 @@ func (n *networkDeviceConfigImpl) ReportConfigWithSender(deviceID string, baseSe
 	var inventoryEntries []ncmreport.InventoryEntry
 	timeSinceInventory := startTime.Sub(n.getLastInventoryTime())
 	if configStore == nil {
-		debugf("rollback is disabled, so no inventory will be reported.")
+		log.Debugf("rollback is disabled, so no inventory will be reported.")
 	} else if localStoreChanged {
-		debugf("local configstore has updated, so inventory will be reported.")
+		log.Debugf("local configstore has updated, so inventory will be reported.")
 	} else if timeSinceInventory > n.inventoryMaxInterval {
-		debugf("inventory hasn't been reported in %v > %v and so will be reported.", timeSinceInventory, n.inventoryMaxInterval)
+		log.Debugf("inventory hasn't been reported in %v > %v and so will be reported.", timeSinceInventory, n.inventoryMaxInterval)
 	} else {
-		debugf("local config store unchanged, so no inventory will be reported.", timeSinceInventory)
+		log.Debugf("local config store unchanged since last report %v ago (< %v).", timeSinceInventory, n.inventoryMaxInterval)
 	}
 	if configStore != nil && (localStoreChanged || timeSinceInventory > n.inventoryMaxInterval) {
-		inventoryEntries = n.buildInventoryReport()
+		var err error
+		inventoryEntries, err = n.buildInventoryReport()
+		if err != nil {
+			log.Errorf("skipping inventory report due to error: %v", err)
+		}
 	}
 	if len(configs)+len(inventoryEntries) > 0 {
-		debugf("Sending NCM payload with %d configs and %d inventory entries", len(configs), len(inventoryEntries))
+		log.Debugf("Sending NCM payload with %d configs and %d inventory entries", len(configs), len(inventoryEntries))
 		err := sender.SendNCMPayload(ncmreport.ToNCMPayload(device.Namespace, n.hostname, configs, inventoryEntries, n.clock.Now().Unix()))
 		if err != nil {
-			n.log.Warnf("ncm[%v]: Failed to send payload to backend: %v", deviceID, err)
+			log.Warnf("Failed to send payload to backend: %v", err)
 			nonBlockingErrors = append(nonBlockingErrors, fmt.Errorf("failed to send payload to backend: %w", err))
 		} else if len(inventoryEntries) > 0 {
 			n.setLastInventoryTime(n.clock.Now())
 		}
 	} else {
-		debugf("no new config and no need to send inventory data")
+		log.Debugf("no new config and no need to send inventory data")
 	}
 	if len(nonBlockingErrors) == 0 {
 		lastTime, _ := n.lastReportTimes.Swap(deviceID, startTime)
@@ -375,14 +378,13 @@ func (n *networkDeviceConfigImpl) getDeviceTags(device *ncmconfig.DeviceInstance
 	}
 }
 
-func (n *networkDeviceConfigImpl) buildInventoryReport() []ncmreport.InventoryEntry {
+func (n *networkDeviceConfigImpl) buildInventoryReport() ([]ncmreport.InventoryEntry, error) {
 	if n.store == nil {
-		return nil
+		return nil, nil
 	}
 	configMeta, err := n.store.GetAllConfigMetadata()
 	if err != nil {
-		n.log.Errorf("error retrieving config metadata for inventory report: %v, skipping", err)
-		return nil
+		return nil, err
 	}
 	entries := make([]ncmreport.InventoryEntry, 0, len(configMeta))
 	for _, m := range configMeta {
@@ -393,7 +395,7 @@ func (n *networkDeviceConfigImpl) buildInventoryReport() []ncmreport.InventoryEn
 			ReportedAt: m.CapturedAt,
 		})
 	}
-	return entries
+	return entries, nil
 }
 
 // RollbackConfig rolls back a device to a previous configuration that's
@@ -412,13 +414,15 @@ func (n *networkDeviceConfigImpl) SetMaxReportInterval(interval time.Duration) {
 
 // findMatchingProfile tests each profile until one is successful.
 // TODO use GetVersion instead of fetching the entire config.
-func (n *networkDeviceConfigImpl) findMatchingProfile(device *ncmconfig.DeviceInstance, conn ncmremote.Connection) (*ncmprofile.NCMProfile, bool) {
+func (n *networkDeviceConfigImpl) findMatchingProfile(ctx context.Context, conn ncmremote.Connection) (*ncmprofile.NCMProfile, bool) {
+	logger := LoggerFromContext(ctx)
+	logger.Infof("Testing %d profiles", len(n.profiles))
 	for profName, prof := range n.profiles {
-		n.log.Debugf("ncm[%s] testing profile %s", device.DeviceID(), profName)
+		logger.Debugf("testing profile %s", profName)
 		conn.SetProfile(prof)
 		_, err := conn.RetrieveRunningConfig(context.Background())
 		if err != nil {
-			n.log.Infof("profile %s does not match remote device %s: %s", profName, device.IPAddress, err)
+			logger.Infof("Profile %s does not match: %s", profName, err)
 			continue
 		}
 		return prof, true

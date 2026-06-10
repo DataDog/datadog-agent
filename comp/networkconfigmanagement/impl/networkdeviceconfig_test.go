@@ -433,7 +433,7 @@ func TestCheck_FindMatchingProfile(t *testing.T) {
 	require.NoError(t, err)
 
 	// Run the profile matching function
-	actual, ok := comp.findMatchingProfile(device, conn)
+	actual, ok := comp.findMatchingProfile(t.Context(), conn)
 	assert.True(t, ok)
 	if assert.NotNil(t, actual) {
 		assert.Equal(t, "p2", actual.Name)
@@ -451,6 +451,6 @@ func TestCheck_FindMatchingProfile_Failure(t *testing.T) {
 	require.NoError(t, err)
 
 	// Run the profile matching function
-	_, ok := comp.findMatchingProfile(device, conn)
+	_, ok := comp.findMatchingProfile(t.Context(), conn)
 	assert.False(t, ok)
 }

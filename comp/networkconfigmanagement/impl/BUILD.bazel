@@ -3,6 +3,8 @@ load("@rules_go//go:def.bzl", "go_library")
 go_library(
     name = "impl",
     srcs = [
+        "logwrapper.go",
+        "map.go",
         "networkdeviceconfig.go",
         "store_endpoint.go",
     ],
