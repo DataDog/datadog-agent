@@ -20,10 +20,12 @@ import (
 )
 
 const (
-	emrInjectorVersion   = "0.64.0-1"
-	emrJavaTracerVersion = "1.63.0-1"
-	emrAgentVersion      = "7.79.2-1"
-	hadoopDriverFolder   = "/mnt/var/log/hadoop/steps/"
+	emrInjectorVersion    = "0.64.0-1"
+	emrJavaTracerVersion  = "1.63.0-1"
+	emrAgentVersion       = "7.79.2-1"
+	emrOpenLineageVersion = "1.24.0"
+	hadoopDriverFolder    = "/mnt/var/log/hadoop/steps/"
+	openLineageJARDir     = "/usr/lib/spark/jars"
 )
 
 var (
@@ -80,6 +82,7 @@ func SetupEmr(s *common.Setup) error {
 		s.Out.WriteString("Enabling Datadog Java Tracer DEBUG logs on DD_TRACE_DEBUG=true\n")
 		tracerConfigEmr.TraceDebug = config.BoolToPtr(true)
 	}
+	setupOpenLineage(s)
 	s.Config.ApplicationMonitoringYAML = &config.ApplicationMonitoringConfig{
 		Default: tracerConfigEmr,
 	}
@@ -203,6 +206,47 @@ func setEmrClusterNameSpanTags(span *telemetry.Span, source, reason, errorMessag
 	span.SetTag("cluster_name_resolution_reason", reason)
 	if errorMessage != "" {
 		span.SetTag("cluster_name_resolution_error_message", errorMessage)
+	}
+}
+
+func setupOpenLineage(s *common.Setup) {
+	if os.Getenv("DD_OPENLINEAGE_ENABLED") != "true" {
+		return
+	}
+	s.Out.WriteString("Enabling OpenLineage integration\n")
+	tracerConfigEmr.DataJobsOpenLineageEnabled = config.BoolToPtr(true)
+	s.Span.SetTag("host_tag_set.openlineage_enabled", "true")
+
+	// Check if an OpenLineage JAR is already on the classpath
+	matches, err := filepath.Glob(filepath.Join(openLineageJARDir, "openlineage-spark*.jar"))
+	if err == nil && len(matches) > 0 {
+		s.Out.WriteString(fmt.Sprintf("OpenLineage JAR already present (%s), skipping download\n", matches[0]))
+		return
+	}
+
+	jarDest := filepath.Join(openLineageJARDir, "openlineage-spark.jar")
+
+	// Allow pre-staged JAR via DD_OPENLINEAGE_JAR_PATH for VPCs without internet
+	if jarPath := os.Getenv("DD_OPENLINEAGE_JAR_PATH"); jarPath != "" {
+		s.Out.WriteString(fmt.Sprintf("Copying OpenLineage JAR from %s\n", jarPath))
+		if _, err := common.ExecuteCommandWithTimeout(s, "cp", jarPath, jarDest); err != nil {
+			log.Warnf("failed to copy OpenLineage JAR from %s: %v", jarPath, err)
+		}
+		return
+	}
+
+	// Download from Maven Central — default to Scala 2.12 variant, override via DD_OPENLINEAGE_SPARK_VARIANT
+	variant := os.Getenv("DD_OPENLINEAGE_SPARK_VARIANT")
+	if variant == "" {
+		variant = "_2.12"
+	}
+	jarURL := fmt.Sprintf(
+		"https://repo1.maven.org/maven2/io/openlineage/openlineage-spark%s/%s/openlineage-spark%s-%s.jar",
+		variant, emrOpenLineageVersion, variant, emrOpenLineageVersion,
+	)
+	s.Out.WriteString(fmt.Sprintf("Downloading OpenLineage JAR v%s\n", emrOpenLineageVersion))
+	if _, err := common.ExecuteCommandWithTimeout(s, "curl", "-sSfL", "-o", jarDest, jarURL); err != nil {
+		log.Warnf("failed to download OpenLineage JAR: %v", err)
 	}
 }
 
