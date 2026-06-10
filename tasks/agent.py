@@ -404,6 +404,7 @@ def hacky_dev_image_build(
     signed_pull=False,
     arch=None,
     development=True,
+    build_exclude=None,
 ):
     """
     Builds the agent or cluster-agent Docker image.
@@ -447,6 +448,7 @@ def hacky_dev_image_build(
             ctx,
             race=race,
             development=development,
+            build_exclude=build_exclude,
             cmake_options=f'-DPython3_ROOT_DIR={extracted_python_dir}/opt/datadog-agent/embedded -DPython3_FIND_STRATEGY=LOCATION',
         )
         ctx.run(

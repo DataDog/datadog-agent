@@ -18,6 +18,7 @@ import (
 
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/gpu/config/consts"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -75,6 +76,8 @@ type CollectorDependencies struct {
 	Telemetry *CollectorTelemetry
 	// Workloadmeta is used for getting auxialiary metadata about containers and GPUs
 	Workloadmeta workloadmeta.Component
+	// Config is used for collector-specific configuration.
+	Config pkgconfigmodel.Reader
 }
 
 // BuildCollectors returns a set of collectors that can be used to collect metrics from NVML.
