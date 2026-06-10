@@ -314,6 +314,9 @@ visual_studio(
 # Keep in sync with .python-version
 PYTHON_VERSION = "3.12"
 
+# Python version used for integration wheels (must match the embedded cpython interpreter).
+INTEGRATION_PYTHON_VERSION = "3.13"
+
 python = use_extension("@rules_python//python/extensions:python.bzl", "python")
 python.defaults(python_version = PYTHON_VERSION)
 python.toolchain(
@@ -321,7 +324,22 @@ python.toolchain(
     is_default = True,
     python_version = PYTHON_VERSION,
 )
-use_repo(python, "python_" + PYTHON_VERSION.replace(".", "_"), "pythons_hub")
+python.toolchain(
+    is_default = False,
+    python_version = INTEGRATION_PYTHON_VERSION,
+)
+use_repo(python, "python_" + PYTHON_VERSION.replace(".", "_"), "python_" + INTEGRATION_PYTHON_VERSION.replace(".", "_"), "pythons_hub")
+
+# Pin integrations-core at a known commit so we can reference its lockfiles
+# and per-check source trees hermetically.
+# Commit matches INTEGRATIONS_CORE_VERSION tracked in tasks/omnibus.py.
+# To update: fetch the new tar.gz and recompute sha256.
+http_archive(
+    name = "integrations_core",
+    sha256 = "ffc878d473c4d7abb84c84ed3ed13ef89949402bc0d09abed4426a2efebda0c5",
+    strip_prefix = "integrations-core-2babaf6bc6735a93aac83a754f2eec1bd868ef26",
+    urls = ["https://github.com/DataDog/integrations-core/archive/2babaf6bc6735a93aac83a754f2eec1bd868ef26.tar.gz"],
+)
 
 pip = use_extension("@rules_python//python/extensions:pip.bzl", "pip")
 
@@ -333,6 +351,40 @@ pip.parse(
     requirements_lock = "//deps:py_dev_requirements_lock.txt",
 )
 use_repo(pip, "py_dev_requirements")
+
+# Third-party dependencies for integration checks (set-a wheels).
+# Sourced from the pinned integrations-core lockfile at
+# .deps/resolved/linux-x86_64_3.13.txt (117 entries, all pre-built wheels).
+#
+# BLOCKER: The lockfile URLs contain a ${INTEGRATIONS_WHEELS_STORAGE} template
+# variable that must be substituted before use, AND the 28 'built/' packages are
+# served from agent-int-packages.datadoghq.com (internal Datadog CDN), not PyPI.
+# This means rules_python pip_parse cannot consume the lockfile verbatim:
+#   - The URL template must be expanded (see tasks/omnibus.py for substitution logic).
+#   - The 28 internally-built wheels (aerospike, cryptography, psycopg-c, etc.) must
+#     be sourced from the internal CDN or built from source.
+#   - The 89 'external/' packages mirror standard PyPI and could use PyPI directly.
+#
+# TODO(aarch64): Add a second hub using linux-aarch64_3.13.txt, or switch to
+# rules_python multi-platform support (requirements_by_platform) to cover both arches
+# with a single hub.
+#
+# TODO: Resolve the ${INTEGRATIONS_WHEELS_STORAGE} substitution. Options:
+#   (a) Preprocess the lockfile at MODULE.bazel extension eval time via a
+#       repository_rule that substitutes the variable and writes a resolved lockfile.
+#   (b) Use a Starlark module extension that reads the lockfile, substitutes the
+#       variable from an env_var, and calls pip.parse with the resolved requirements.
+#   (c) Maintain a separate resolved lockfile in-tree with real PyPI URLs for the
+#       89 external packages and http_file rules for the 28 internal packages.
+# TODO(4b-step2): Uncomment once the ${INTEGRATIONS_WHEELS_STORAGE} blocker is resolved.
+# The @integrations_core archive also needs a BUILD file at root for the label reference
+# to resolve. See the TODO block above for resolution options.
+# pip.parse(
+#     hub_name = "py_integrations_deps",
+#     python_version = INTEGRATION_PYTHON_VERSION,
+#     requirements_lock = "@integrations_core//:.deps/resolved/linux-x86_64_3.13.txt",
+# )
+# use_repo(pip, "py_integrations_deps")
 
 register_toolchains("@pythons_hub//:all")
 

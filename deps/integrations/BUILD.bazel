@@ -1,0 +1,130 @@
+# Bazel rules for building integrations-core wheels and assembling site-packages.
+#
+# Background:
+#   Omnibus builds these wheels with `pip wheel . --no-deps --no-index` (hatchling backend)
+#   against the integrations-core git source pinned in MODULE.bazel (@integrations_core).
+#   The integration-check enabled set replicates the omnibus excluded_folders logic from
+#   omnibus/config/software/datadog-agent-integrations-py3.rb lines 33-50 and the
+#   `dda inv agent.collect-integrations` selection at recipe line 132.
+#
+# Site-packages layout:
+#   (a) Third-party deps: @py_integrations_deps hub (set-a, PyPI/CDN wheels).
+#       NOTE: BLOCKER — the integrations-core lockfile
+#       (@integrations_core//:.deps/resolved/linux-x86_64_3.13.txt) contains a
+#       ${INTEGRATIONS_WHEELS_STORAGE} template variable, and 28 of the 117 packages
+#       are served from agent-int-packages.datadoghq.com (Datadog internal CDN),
+#       not PyPI.  The @py_integrations_deps hub cannot be consumed verbatim until
+#       the URL template is substituted and the internal packages are re-sourced.
+#       See MODULE.bazel for the TODO and resolution options.
+#
+#   (b) datadog-* wheels: built from @integrations_core source with pip+hatchling.
+#       BLOCKER — the hermetic interpreter + hatchling (downloaded offline at build
+#       time by omnibus; see recipe line 100) wiring is not yet in place.
+#       `run_binary` scaffolding below captures the intent without being wired.
+#
+# TODO(4b-step0): Prerequisite — 3.13 toolchain retarget in MODULE.bazel is done;
+#                 INTEGRATION_PYTHON_VERSION = "3.13" is already set.
+# TODO(4b-step2): Resolve the @py_integrations_deps BLOCKER (${INTEGRATIONS_WHEELS_STORAGE})
+#                 before activating the set-a filegroup.
+# TODO(4b-step3): Wire hatchling+interpreter inputs to the run_binary rules before
+#                 activating the set-b wheel builds.
+# TODO(4b-enabled-checks): Replace ENABLED_CHECKS stub list with the full set from
+#                 `dda inv agent.collect-integrations` minus excluded_folders
+#                 (omnibus recipe lines 33-50, 132).
+
+load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
+
+package(default_visibility = ["//packages:__subpackages__"])
+
+# ---------------------------------------------------------------------------
+# (b) datadog_checks_base wheel — built from integrations-core source.
+#
+# Omnibus invocation (recipe line 109):
+#   python -m pip wheel . --no-deps --no-index --wheel-dir=<wheel_build_dir>
+#   (cwd = integrations-core/datadog_checks_base)
+#   with PIP_FIND_LINKS pointing at hatchling downloaded offline.
+#
+# TODO(4b-step3): Replace this genrule scaffold with a real run_binary once the
+#   hermetic interpreter target and hatchling build-dep are wired in as inputs.
+#   Inputs needed:
+#     - @cpython//:python_bin (or equivalent py_runtime from rules_python)
+#     - hatchling wheel pre-built at hatchling==0.25.1 (match omnibus recipe line 100)
+#   Until then, this target is tagged "manual" so it does not run in //... sweeps.
+# ---------------------------------------------------------------------------
+genrule(
+    name = "datadog_checks_base_wheel",
+    srcs = ["@integrations_core//datadog_checks_base:all_files"],
+    outs = ["datadog_checks_base.whl"],
+    # TODO(4b-step3): Replace with hermetic pip invocation.
+    # This is a SCAFFOLD ONLY — the command below will not succeed without
+    # the hermetic interpreter and hatchling inputs wired in.
+    # cmd = "$(location @cpython//:python_bin) -m pip wheel . --no-deps --no-index --wheel-dir=$(@D) >/dev/null",
+    cmd = "echo 'TODO: datadog_checks_base wheel build not yet wired' >&2; touch $@",
+    tags = ["manual"],
+)
+
+# ---------------------------------------------------------------------------
+# (b) Stub pkg_files for the datadog_checks_base wheel once built.
+#     prefix matches omnibus site_packages_path layout.
+# TODO(4b-step3): Remove the manual tag and point srcs to the real wheel output.
+# ---------------------------------------------------------------------------
+pkg_files(
+    name = "datadog_checks_base_wheel_files",
+    srcs = [":datadog_checks_base_wheel"],
+    prefix = "embedded/lib/python3.13/site-packages",
+    tags = ["manual"],
+)
+
+# ---------------------------------------------------------------------------
+# (a) Third-party deps from the @py_integrations_deps hub.
+#
+# TODO(4b-step2): Uncomment and wire once the ${INTEGRATIONS_WHEELS_STORAGE}
+#   blocker is resolved. Example target reference:
+#
+#   filegroup(
+#       name = "set_a_wheels",
+#       srcs = ["@py_integrations_deps//:all_whl_requirements"],
+#   )
+#
+#   pkg_files(
+#       name = "set_a_wheel_files",
+#       srcs = [":set_a_wheels"],
+#       prefix = "embedded/lib/python3.13/site-packages",
+#   )
+# ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# Enabled-check list (set b, per-check wheels).
+#
+# Omnibus excluded_folders (recipe lines 33-38, always excluded):
+#   datadog_checks_base     — built separately above (NOT an integration)
+#   datadog_checks_dev      — development package only
+#   datadog_checks_tests_helper — testing only
+#   docker_daemon           — Agent v5 only
+#
+# Additional platform exclusions (recipe lines 40-50):
+#   osx: aerospike, teradata
+#   arm: ibm_ace, ibm_mq
+#
+# TODO(4b-enabled-checks): Replace stub list with output of
+#   `dda inv agent.collect-integrations <integrations_core_path> 3 linux <excluded>`
+#   (recipe line 132). Maintain as a .bzl constant in a companion enabled_checks.bzl.
+# ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# site_packages — the top-level assembly target wired into embedded/BUILD.bazel.
+#
+# Currently a stub (empty srcs) until the set-a and set-b blockers are resolved.
+# Once unblocked, add:
+#   ":datadog_checks_base_wheel_files",   # set-b base wheel
+#   ":set_a_wheel_files",                 # set-a third-party deps
+#   ":enabled_checks_wheel_files",        # set-b per-check wheels (TODO above)
+# ---------------------------------------------------------------------------
+pkg_filegroup(
+    name = "site_packages",
+    srcs = [
+        # TODO(4b-step2): ":set_a_wheel_files",
+        # TODO(4b-step3): ":datadog_checks_base_wheel_files",
+        # TODO(4b-enabled-checks): ":enabled_checks_wheel_files",
+    ],
+)

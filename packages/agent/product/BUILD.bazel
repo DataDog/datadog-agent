@@ -36,7 +36,6 @@ pkg_filegroup(
 
         # TODO: sysprobe - windows
         # TODO: systray - windows
-        # TODO: installer
         "//cmd/loader:trace_loader",
         ":dda_built_trace_agent_binary",
         ":dda_built_process_agent_binary",
@@ -57,10 +56,12 @@ pkg_filegroup(
         # TODO: dependency 'datadog-agent-integrations-py3'
     ] + select({
         "//packages/agent:linux_default": [
+            ":installer_binary",
             "//pkg/discovery/module/rust:all_files",
             "//pkg/procmgr/rust:all_files_linux",
         ],
         "//packages/agent:linux_fips": [
+            ":installer_binary",
             "//pkg/discovery/module/rust:all_files",
             "//pkg/procmgr/rust:all_files_linux",
         ],
@@ -111,7 +112,10 @@ pkg_mkdirs(
         "bin",
     ] + select({
         "@platforms//os:macos": ["etc"],
-        "//conditions:default": ["etc/datadog-agent"],
+        "//conditions:default": [
+            "etc/datadog-agent",
+            "checks.d",
+        ],
     }) + select({
         "@platforms//os:windows": [],
         "//conditions:default": [
@@ -293,6 +297,13 @@ pkg_files(
 pkg_files(
     name = "system_probe_binary",
     srcs = ["//cmd/system-probe"],
+    attributes = pkg_attributes(mode = "755"),
+    prefix = "embedded/bin",
+)
+
+pkg_files(
+    name = "installer_binary",
+    srcs = ["//cmd/installer"],
     attributes = pkg_attributes(mode = "755"),
     prefix = "embedded/bin",
 )
