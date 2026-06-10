@@ -262,7 +262,6 @@ func testCheckHistogramBucketSampling(t *testing.T, store *tags.Store) {
 		Points: []metrics.SketchPoint{
 			{Ts: 12345.0, Sketch: expSketch},
 		},
-		ContextKey: generateContextKey(bucket1),
 	}, flushed[0], .03)
 
 	bucket2 := &metrics.HistogramBucket{
@@ -295,7 +294,6 @@ func testCheckHistogramBucketSampling(t *testing.T, store *tags.Store) {
 		Points: []metrics.SketchPoint{
 			{Ts: 12400.0, Sketch: expSketch},
 		},
-		ContextKey: generateContextKey(bucket1),
 	}, flushed[0], .03)
 
 	// garbage collection
@@ -359,7 +357,6 @@ func testCheckHistogramBucketDontFlushFirstValue(t *testing.T, store *tags.Store
 		Points: []metrics.SketchPoint{
 			{Ts: 12400.0, Sketch: expSketch},
 		},
-		ContextKey: generateContextKey(bucket1),
 	}, flushed[0], .03)
 }
 
@@ -424,16 +421,14 @@ func testCheckHistogramBucketReset(t *testing.T, store *tags.Store) {
 
 	require.Len(t, flushed, 2)
 	metrics.AssertSketchSeriesApproxEqual(t, &metrics.SketchSeries{
-		Name:       "my.histogram",
-		ContextKey: generateContextKey(&metrics.HistogramBucket{Name: "my.histogram"}),
+		Name: "my.histogram",
 		Points: []metrics.SketchPoint{
 			{Ts: 12410, Sketch: sketchOf(10, 20, 3)},
 		},
 	}, flushed[0], 0.01)
 
 	metrics.AssertSketchSeriesApproxEqual(t, &metrics.SketchSeries{
-		Name:       "my.histogram",
-		ContextKey: generateContextKey(&metrics.HistogramBucket{Name: "my.histogram"}),
+		Name: "my.histogram",
 		Points: []metrics.SketchPoint{
 			{Ts: 12420, Sketch: sketchOf(10, 20, 2)},
 		},
@@ -502,7 +497,6 @@ func testCheckHistogramBucketMultipleBucketsSampling(t *testing.T, store *tags.S
 		Points: []metrics.SketchPoint{
 			{Ts: 12345.0, Sketch: expSketch.Finish()},
 		},
-		ContextKey: ctx,
 	}, flushed[0], .03)
 
 	// Second round: same bounds, larger raw values. Per-bound de-cumulation
@@ -544,7 +538,6 @@ func testCheckHistogramBucketMultipleBucketsSampling(t *testing.T, store *tags.S
 		Points: []metrics.SketchPoint{
 			{Ts: 12400.0, Sketch: expSketch.Finish()},
 		},
-		ContextKey: ctx,
 	}, flushed[0], .03)
 
 	// One more commit without further adds expires the context (sampler was
@@ -594,7 +587,6 @@ func testCheckHistogramBucketInfinityBucket(t *testing.T, store *tags.Store) {
 		Points: []metrics.SketchPoint{
 			{Ts: 12345.0, Sketch: expSketch},
 		},
-		ContextKey: generateContextKey(bucket1),
 	}, flushed[0], .03)
 }
 
@@ -632,7 +624,6 @@ func testCheckDistribution(t *testing.T, store *tags.Store) {
 		Points: []metrics.SketchPoint{
 			{Ts: 12345.0, Sketch: expSketch},
 		},
-		ContextKey: generateContextKey(&mSample1),
 	}, sketches[0])
 }
 
