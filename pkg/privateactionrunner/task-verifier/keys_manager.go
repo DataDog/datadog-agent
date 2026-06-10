@@ -31,22 +31,15 @@ type keysManager struct {
 	mu                     sync.RWMutex
 	ready                  chan struct{}
 	firstCallbackCompleted bool
-	startOnce              sync.Once
 }
 
 // noOpKeysManager satisfies KeysManager without requiring Remote Config.
 // WaitForReady returns immediately. Used when DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION=true.
 type noOpKeysManager struct{}
 
-var noOpReady = func() <-chan struct{} {
-	ready := make(chan struct{})
-	close(ready)
-	return ready
-}()
-
 func (n *noOpKeysManager) Start(_ context.Context)          {}
 func (n *noOpKeysManager) GetKey(_ string) types.DecodedKey { return nil }
-func (n *noOpKeysManager) Ready() <-chan struct{}           { return noOpReady }
+func (n *noOpKeysManager) WaitForReady()                    {}
 
 // NewKeyManager returns a KeysManager appropriate for the current environment.
 // When DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION=true, a no-op manager is returned.
@@ -63,10 +56,8 @@ func NewKeyManager(rcClient rcclient.Client) KeysManager {
 }
 
 func (k *keysManager) Start(ctx context.Context) {
-	k.startOnce.Do(func() {
-		log.FromContext(ctx).Info("Subscribing to remote config updates")
-		k.rcClient.Subscribe(state.ProductActionPlatformRunnerKeys, k.AgentConfigUpdateCallback)
-	})
+	log.FromContext(ctx).Info("Subscribing to remote config updates")
+	k.rcClient.Subscribe(state.ProductActionPlatformRunnerKeys, k.AgentConfigUpdateCallback)
 }
 
 func (k *keysManager) GetKey(keyId string) types.DecodedKey {
@@ -75,8 +66,8 @@ func (k *keysManager) GetKey(keyId string) types.DecodedKey {
 	return k.keys[keyId]
 }
 
-func (k *keysManager) Ready() <-chan struct{} {
-	return k.ready
+func (k *keysManager) WaitForReady() {
+	<-k.ready
 }
 
 func (k *keysManager) AgentConfigUpdateCallback(update map[string]state.RawConfig, callback func(string, state.ApplyStatus)) {

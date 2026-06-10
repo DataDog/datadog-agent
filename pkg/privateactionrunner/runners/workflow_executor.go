@@ -21,8 +21,7 @@ type Loop struct {
 	runner          *WorkflowRunner
 	sem             chan struct{}
 	shutdownChannel chan struct{}
-	closeOnce       sync.Once
-	done            chan struct{}
+	wg              sync.WaitGroup
 }
 
 func NewLoop(runner *WorkflowRunner) *Loop {
@@ -30,7 +29,6 @@ func NewLoop(runner *WorkflowRunner) *Loop {
 		runner:          runner,
 		sem:             make(chan struct{}, runner.config.RunnerPoolSize), // todo: we may consider moving to the semaphore before release.
 		shutdownChannel: make(chan struct{}),
-		done:            make(chan struct{}),
 	}
 }
 
@@ -40,8 +38,8 @@ func (l *Loop) Run(parentCtx context.Context) {
 	// Proper shutdown is handled by the Close method through the shutdownChannel which will let in flight task complete.
 	ctx, cancel := context.WithCancel(context.WithoutCancel(parentCtx))
 	defer cancel()
-	defer close(l.done)
 	logger := log.FromContext(ctx)
+	l.wg.Add(1) // Increment the WaitGroup counter
 
 	logger.Info("Starting loop")
 
@@ -53,6 +51,7 @@ func (l *Loop) Run(parentCtx context.Context) {
 		l.runner.config.MaxAttempts,
 	)
 
+	defer l.wg.Done()
 	for {
 		select {
 		case <-l.shutdownChannel:
@@ -161,11 +160,15 @@ func (l *Loop) handleTask(
 }
 
 func (l *Loop) Close(ctx context.Context) {
-	l.closeOnce.Do(func() {
-		close(l.shutdownChannel)
-	})
+	close(l.shutdownChannel)
+
+	done := make(chan struct{})
+	go func() {
+		l.wg.Wait()
+		close(done)
+	}()
 	select {
-	case <-l.done:
+	case <-done:
 		log.FromContext(ctx).Info("Worker stopped gracefully.")
 	case <-ctx.Done():
 		log.FromContext(ctx).Warn("Workflow loop timeout reached. Forcing shutdown.")

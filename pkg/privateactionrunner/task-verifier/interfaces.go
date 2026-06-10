@@ -20,5 +20,5 @@ type TaskVerifier interface {
 type KeysManager interface {
 	Start(ctx context.Context)
 	GetKey(keyId string) types.DecodedKey
-	Ready() <-chan struct{}
+	WaitForReady()
 }
