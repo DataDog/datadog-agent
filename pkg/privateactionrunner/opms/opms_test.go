@@ -265,7 +265,7 @@ func TestHealthCheck_RetryAfterMs_PopulatedOnError(t *testing.T) {
 
 func TestNewClientHonorsProxyConfig(t *testing.T) {
 	cfg := configmock.New(t)
-	cfg.SetWithoutSource("proxy.https", "https://proxy.example.com:3128")
+	cfg.SetInTest("proxy.https", "https://proxy.example.com:3128")
 	parCfg := &config.Config{OpmsRequestTimeout: 5000}
 
 	c := NewClient(cfg, parCfg).(*client)
@@ -282,7 +282,7 @@ func TestNewClientHonorsProxyConfig(t *testing.T) {
 
 func TestNewPublicClientHonorsProxyConfig(t *testing.T) {
 	cfg := configmock.New(t)
-	cfg.SetWithoutSource("proxy.https", "https://proxy.example.com:3128")
+	cfg.SetInTest("proxy.https", "https://proxy.example.com:3128")
 
 	pc := NewPublicClient(cfg, "https://api.datadoghq.com", nil).(*publicClient)
 
