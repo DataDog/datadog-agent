@@ -44,6 +44,8 @@ const (
 	KueueLocalQueueResourceName = "localqueues"
 	// KueueClusterQueueResourceName is the plural resource name for Kueue ClusterQueue objects
 	KueueClusterQueueResourceName = "clusterqueues"
+	// KueueResourceFlavorResourceName is the plural resource name for Kueue ResourceFlavor objects
+	KueueResourceFlavorResourceName = "resourceflavors"
 	// ArgoRolloutLabelKey is the label key that is present when the resource is managed by Argo Rollouts
 	ArgoRolloutLabelKey = "rollouts-pod-template-hash"
 
@@ -102,6 +104,8 @@ const (
 	KueueLocalQueueKind = "LocalQueue"
 	// KueueClusterQueueKind represents the Kueue ClusterQueue object kind
 	KueueClusterQueueKind = "ClusterQueue"
+	// KueueResourceFlavorKind represents the Kueue ResourceFlavor object kind
+	KueueResourceFlavorKind = "ResourceFlavor"
 	// HorizontalPodAutoscalerKind represents the HorizontalPodAutoscaler object kind
 	HorizontalPodAutoscalerKind = "HorizontalPodAutoscaler"
 	// IngressKind represents the Ingress object kind

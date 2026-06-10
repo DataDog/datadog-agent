@@ -109,6 +109,8 @@ const (
 	KueueLocalQueue = "kueue_local_queue"
 	// KueueClusterQueue is the tag for the admitted Kueue cluster queue name from pod labels
 	KueueClusterQueue = "kueue_cluster_queue"
+	// KueueResourceFlavor is the tag for the Kueue ResourceFlavor name
+	KueueResourceFlavor = "kueue_resource_flavor"
 	// KubeAutoscalerKind is the tag reflecting if a pod is managed by an Autoscaler
 	KubeAutoscalerKind = "kube_autoscaler_kind"
 	// KubeStaticCPUsTag is the tag that describes a container's cpu management

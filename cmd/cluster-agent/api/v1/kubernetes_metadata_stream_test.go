@@ -575,6 +575,77 @@ func TestComputeKueueQueueDiff(t *testing.T) {
 	}, diff)
 }
 
+func TestProcessKueueResourceFlavorEvents(t *testing.T) {
+	srv := NewKubeMetadataStreamServer(nil, nil)
+
+	srv.processWmetaEvents([]workloadmeta.Event{
+		{
+			Type: workloadmeta.EventTypeSet,
+			Entity: &workloadmeta.KubernetesKueueResourceFlavor{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindKubernetesKueueResourceFlavor,
+					ID:   "a100",
+				},
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: "a100",
+				},
+				NodeLabels: map[string]string{"nvidia.com/gpu.product": "NVIDIA-A100-SXM4-40GB"},
+			},
+		},
+	})
+
+	snapshot := srv.buildKueueResourceFlavorsSnapshot()
+	entry := snapshot["a100"]
+	assert.Equal(t, "a100", entry.name)
+	assert.Equal(t, map[string]string{"nvidia.com/gpu.product": "NVIDIA-A100-SXM4-40GB"}, entry.nodeLabels)
+
+	srv.processWmetaEvents([]workloadmeta.Event{
+		{
+			Type: workloadmeta.EventTypeUnset,
+			Entity: &workloadmeta.KubernetesKueueResourceFlavor{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindKubernetesKueueResourceFlavor,
+					ID:   "a100",
+				},
+			},
+		},
+	})
+
+	assert.Empty(t, srv.buildKueueResourceFlavorsSnapshot())
+}
+
+func TestComputeKueueResourceFlavorDiff(t *testing.T) {
+	old := map[string]kueueResourceFlavorEntry{
+		"a100": {
+			name:       "a100",
+			nodeLabels: map[string]string{"nvidia.com/gpu.product": "old"},
+		},
+		"h100": {
+			name: "h100",
+		},
+	}
+	current := map[string]kueueResourceFlavorEntry{
+		"a100": {
+			name:       "a100",
+			nodeLabels: map[string]string{"nvidia.com/gpu.product": "NVIDIA-A100-SXM4-40GB"},
+		},
+	}
+
+	diff := computeKueueResourceFlavorDiff(old, current)
+
+	assert.ElementsMatch(t, []*pb.KueueResourceFlavor{
+		{
+			Name:       "a100",
+			NodeLabels: map[string]string{"nvidia.com/gpu.product": "NVIDIA-A100-SXM4-40GB"},
+			Type:       pb.KubeMetadataEventType_SET,
+		},
+		{
+			Name: "h100",
+			Type: pb.KubeMetadataEventType_UNSET,
+		},
+	}, diff)
+}
+
 func TestFullStateResponse(t *testing.T) {
 	pods := map[string]podServiceEntry{
 		"ns1/pod1": {
@@ -583,14 +654,17 @@ func TestFullStateResponse(t *testing.T) {
 			services:  sets.New("svc1"),
 		},
 	}
-	namespaces := map[string]namespaceEntry{
-		"ns1": {
-			labels:      map[string]string{"l1": "v1"},
-			annotations: map[string]string{"a1": "v2"},
-		},
+	metadata := newMetadataSnapshot()
+	metadata.namespaces["ns1"] = namespaceEntry{
+		labels:      map[string]string{"l1": "v1"},
+		annotations: map[string]string{"a1": "v2"},
+	}
+	metadata.kueueResourceFlavors["a100"] = kueueResourceFlavorEntry{
+		name:       "a100",
+		nodeLabels: map[string]string{"nvidia.com/gpu.product": "NVIDIA-A100-SXM4-40GB"},
 	}
 
-	resp := fullStateResponse(pods, namespaces, nil)
+	resp := fullStateResponse(pods, metadata)
 
 	expected := &pb.KubeMetadataStreamResponse{
 		IsFullState: true,
@@ -608,6 +682,13 @@ func TestFullStateResponse(t *testing.T) {
 				Labels:      map[string]string{"l1": "v1"},
 				Annotations: map[string]string{"a1": "v2"},
 				Type:        pb.KubeMetadataEventType_SET,
+			},
+		},
+		KueueResourceFlavors: []*pb.KueueResourceFlavor{
+			{
+				Name:       "a100",
+				NodeLabels: map[string]string{"nvidia.com/gpu.product": "NVIDIA-A100-SXM4-40GB"},
+				Type:       pb.KubeMetadataEventType_SET,
 			},
 		},
 	}

@@ -43,19 +43,20 @@ type Kind string
 
 // Defined Kinds
 const (
-	KindContainer              Kind = "container"
-	KindKubernetesPod          Kind = "kubernetes_pod"
-	KindKubernetesMetadata     Kind = "kubernetes_metadata"
-	KindKubeletMetrics         Kind = "kubelet_metrics"
-	KindKubeCapabilities       Kind = "kubernetes_capabilities"
-	KindKubernetesDeployment   Kind = "kubernetes_deployment"
-	KindKubernetesKueueQueue   Kind = "kubernetes_kueue_queue"
-	KindECSTask                Kind = "ecs_task"
-	KindContainerImageMetadata Kind = "container_image_metadata"
-	KindProcess                Kind = "process"
-	KindGPU                    Kind = "gpu"
-	KindKubelet                Kind = "kubelet"
-	KindCRD                    Kind = "crd"
+	KindContainer                     Kind = "container"
+	KindKubernetesPod                 Kind = "kubernetes_pod"
+	KindKubernetesMetadata            Kind = "kubernetes_metadata"
+	KindKubeletMetrics                Kind = "kubelet_metrics"
+	KindKubeCapabilities              Kind = "kubernetes_capabilities"
+	KindKubernetesDeployment          Kind = "kubernetes_deployment"
+	KindKubernetesKueueQueue          Kind = "kubernetes_kueue_queue"
+	KindKubernetesKueueResourceFlavor Kind = "kubernetes_kueue_resource_flavor"
+	KindECSTask                       Kind = "ecs_task"
+	KindContainerImageMetadata        Kind = "container_image_metadata"
+	KindProcess                       Kind = "process"
+	KindGPU                           Kind = "gpu"
+	KindKubelet                       Kind = "kubelet"
+	KindCRD                           Kind = "crd"
 )
 
 // Source is the source name of an entity.
@@ -1496,6 +1497,53 @@ func (q KubernetesKueueQueue) String(verbose bool) string {
 }
 
 var _ Entity = &KubernetesKueueQueue{}
+
+// GenerateKueueResourceFlavorEntityID returns the workloadmeta entity ID for a Kueue ResourceFlavor.
+func GenerateKueueResourceFlavorEntityID(name string) string {
+	return name
+}
+
+// KubernetesKueueResourceFlavor is an Entity representing a Kueue ResourceFlavor.
+type KubernetesKueueResourceFlavor struct {
+	EntityID
+	EntityMeta
+	NodeLabels map[string]string
+}
+
+// GetID implements Entity#GetID.
+func (rf *KubernetesKueueResourceFlavor) GetID() EntityID {
+	return rf.EntityID
+}
+
+// Merge implements Entity#Merge.
+func (rf *KubernetesKueueResourceFlavor) Merge(e Entity) error {
+	rrf, ok := e.(*KubernetesKueueResourceFlavor)
+	if !ok {
+		return fmt.Errorf("cannot merge KubernetesKueueResourceFlavor with different kind %T", e)
+	}
+
+	return merge(rf, rrf)
+}
+
+// DeepCopy implements Entity#DeepCopy.
+func (rf KubernetesKueueResourceFlavor) DeepCopy() Entity {
+	crf := deepcopy.Copy(rf).(KubernetesKueueResourceFlavor)
+	return &crf
+}
+
+// String implements Entity#String.
+func (rf KubernetesKueueResourceFlavor) String(verbose bool) string {
+	var sb strings.Builder
+	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")
+	_, _ = fmt.Fprintln(&sb, rf.EntityID.String(verbose))
+	_, _ = fmt.Fprintln(&sb, "----------- Entity Meta -----------")
+	_, _ = fmt.Fprint(&sb, rf.EntityMeta.String(verbose))
+	_, _ = fmt.Fprintln(&sb, "----------- Kueue Resource Flavor -----------")
+	_, _ = fmt.Fprintln(&sb, "Node Labels:", rf.NodeLabels)
+	return sb.String()
+}
+
+var _ Entity = &KubernetesKueueResourceFlavor{}
 
 // ECSTaskKnownStatusStopped is the known status of an ECS task that has stopped.
 const ECSTaskKnownStatusStopped = "STOPPED"
