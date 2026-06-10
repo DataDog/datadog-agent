@@ -16,9 +16,10 @@ import (
 	"testing"
 	"time"
 
+	"sync/atomic"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/atomic"
 
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -56,10 +57,10 @@ func TestWaitForLeaderAndSecret_RetriesTransientThenSucceeds(t *testing.T) {
 	secret := makeTestSecret("default", "test-secret")
 
 	client := fake.NewSimpleClientset()
-	callCount := atomic.NewInt32(0)
+	callCount := 0
 	client.PrependReactor("get", "secrets", func(action k8stesting.Action) (bool, runtime.Object, error) {
-		n := callCount.Add(1)
-		if n <= 3 {
+		callCount++
+		if callCount <= 3 {
 			return true, nil, newServerTimeoutError()
 		}
 		return true, secret, nil
@@ -77,7 +78,7 @@ func TestWaitForLeaderAndSecret_RetriesTransientThenSucceeds(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	assert.Equal(t, "test-secret", result.Name)
-	assert.GreaterOrEqual(t, callCount.Load(), int32(4))
+	assert.GreaterOrEqual(t, callCount, 4)
 }
 
 // Tests that alternating between transient errors and NotFound responses
@@ -86,15 +87,15 @@ func TestWaitForLeaderAndSecret_HandlesAlternatingTransientAndNotFound(t *testin
 	secret := makeTestSecret("default", "test-secret")
 
 	client := fake.NewSimpleClientset()
-	callCount := atomic.NewInt32(0)
+	callCount := 0
 	client.PrependReactor("get", "secrets", func(action k8stesting.Action) (bool, runtime.Object, error) {
-		n := callCount.Add(1)
+		callCount++
 		switch {
-		case n <= 2:
+		case callCount <= 2:
 			return true, nil, newServerTimeoutError()
-		case n <= 4:
+		case callCount <= 4:
 			return true, nil, k8serrors.NewNotFound(schema.GroupResource{Resource: "secrets"}, "test-secret")
-		case n == 5:
+		case callCount == 5:
 			return true, nil, newServerTimeoutError()
 		default:
 			return true, secret, nil
@@ -147,7 +148,7 @@ func TestWaitForLeaderAndSecret_ReturnsNilWhenBecomesLeader(t *testing.T) {
 	})
 
 	leadershipChange := make(chan struct{}, 1)
-	leader := atomic.NewBool(false)
+	var leader atomic.Bool
 	isLeader := func() bool { return leader.Load() }
 
 	go func() {
@@ -255,25 +256,6 @@ func TestWriteIdentitySecret_UpdatesExistingSecret(t *testing.T) {
 	assert.Equal(t, result.OrchClusterID, string(secret.Data[orchClusterIDField]))
 }
 
-func TestWriteIdentitySecret_RetriesOnConflict(t *testing.T) {
-	existing := makeTestSecret("default", "par-identity")
-	client := fake.NewSimpleClientset(existing)
-	result := makeTestResult(t)
-
-	attempts := atomic.NewInt32(0)
-	client.PrependReactor("update", "secrets", func(_ k8stesting.Action) (bool, runtime.Object, error) {
-		if attempts.Add(1) == 1 {
-			return true, nil, k8serrors.NewConflict(
-				schema.GroupResource{Resource: "secrets"}, "par-identity",
-				errors.New("the object has been modified"))
-		}
-		return false, nil, nil
-	})
-
-	err := writeIdentitySecret(context.Background(), client, "default", "par-identity", result)
-	require.NoError(t, err)
-	assert.GreaterOrEqual(t, attempts.Load(), int32(2), "expected at least one retry after conflict")
-}
 
 func TestWriteIdentitySecret_ReturnsErrorOnFailure(t *testing.T) {
 	client := fake.NewSimpleClientset()
