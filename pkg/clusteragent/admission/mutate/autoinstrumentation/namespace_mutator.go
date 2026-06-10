@@ -98,10 +98,18 @@ func (m *mutatorCore) apmInjectionMutator(config extractedPodLibInfo, autoDetect
 		if err != nil {
 			log.Warnf("Skipping APM library injection for pod %s: %s", mutatecommon.PodString(pod), err)
 			annotation.Set(pod, annotation.InjectionError, err.Error())
+			annotation.Set(pod, annotation.InjectionStatus, annotation.InjectionStatusSkipped)
 			return nil
 		}
 
-		return libraryinjection.InjectAPMLibraries(pod, injectionCfg)
+		if err := libraryinjection.InjectAPMLibraries(pod, injectionCfg); err != nil {
+			// Per-library failures (unsupported language, injection error) are non-fatal
+			// at the webhook level: the outcome is already recorded in the pod annotations
+			// and returning an error here would cause Mutate to discard the entire patch,
+			// making the annotations and any successful injections unobservable.
+			log.Warnf("APM library injection completed with partial failures for pod %s: %v", mutatecommon.PodString(pod), err)
+		}
+		return nil
 	})
 }
 

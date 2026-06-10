@@ -515,6 +515,104 @@ func makeInstruction(functionID FunctionID, op Op) codeFragment {
 			bytes:  []byte{},
 		}
 
+	case EmitFilterSliceMarkerOp:
+		// u32 filter_data_type_id + u32 elem_byte_size
+		bytes := make([]byte, 0, 8)
+		bytes = binary.LittleEndian.AppendUint32(bytes, uint32(op.FilterDataTypeID))
+		bytes = binary.LittleEndian.AppendUint32(bytes, op.ElemByteSize)
+		return staticInstruction{
+			opcode: OpcodeEmitFilterSliceMarker,
+			bytes:  bytes,
+		}
+
+	case EmitFilterMapMarkerOp:
+		// u32 filter_data_type_id + u32 swiss_header_size + u32 used_field_offset
+		bytes := make([]byte, 0, 12)
+		bytes = binary.LittleEndian.AppendUint32(bytes, uint32(op.FilterDataTypeID))
+		bytes = binary.LittleEndian.AppendUint32(bytes, op.SwissHeaderSize)
+		bytes = binary.LittleEndian.AppendUint32(bytes, op.UsedFieldOffset)
+		return staticInstruction{
+			opcode: OpcodeEmitFilterMapMarker,
+			bytes:  bytes,
+		}
+
+	case InitFilterSliceLoopOp:
+		// u32 elem_byte_size + u32 iter_scratch_budget + u32 end_label_pc
+		prefix := make([]byte, 0, 8)
+		prefix = binary.LittleEndian.AppendUint32(prefix, op.ElemByteSize)
+		prefix = binary.LittleEndian.AppendUint32(prefix, op.IterScratchBudget)
+		return paramJumpInstruction{
+			opcode:     OpcodeInitFilterSliceLoop,
+			functionID: functionID,
+			prefix:     prefix,
+			label:      op.EndLabel,
+		}
+
+	case EmitFilterSliceElementOp:
+		// u32 elem_byte_size
+		return staticInstruction{
+			opcode: OpcodeEmitFilterSliceElement,
+			bytes:  binary.LittleEndian.AppendUint32(nil, op.ElemByteSize),
+		}
+
+	case FilterSliceAdvanceOp:
+		// u32 elem_byte_size + u32 body_label_pc
+		prefix := make([]byte, 0, 4)
+		prefix = binary.LittleEndian.AppendUint32(prefix, op.ElemByteSize)
+		return paramJumpInstruction{
+			opcode:     OpcodeFilterSliceAdvance,
+			functionID: functionID,
+			prefix:     prefix,
+			label:      op.BodyLabel,
+		}
+
+	case InitFilterMapLoopOp:
+		// u32 key_byte_size + u32 val_byte_size + u32 val_offset_in_pair +
+		// u32 iter_scratch_budget + swiss-map layout immediates +
+		// u32 end_label_pc
+		prefix := make([]byte, 0, 36)
+		prefix = binary.LittleEndian.AppendUint32(prefix, op.KeyByteSize)
+		prefix = binary.LittleEndian.AppendUint32(prefix, op.ValByteSize)
+		prefix = binary.LittleEndian.AppendUint32(prefix, op.ValOffsetInPair)
+		prefix = binary.LittleEndian.AppendUint32(prefix, op.IterScratchBudget)
+		prefix = append(prefix,
+			op.DirPtrOffset, op.DirLenOffset,
+			op.CtrlOffset, op.SlotsOffset, op.KeyInSlotOffset,
+		)
+		prefix = binary.LittleEndian.AppendUint16(prefix, op.ValInSlotOffset)
+		prefix = binary.LittleEndian.AppendUint16(prefix, op.SlotSize)
+		prefix = binary.LittleEndian.AppendUint16(prefix, op.GroupByteSize)
+		prefix = append(prefix,
+			op.TableGroupsFieldOffset,
+			op.GroupsDataFieldOffset,
+			op.GroupsLenMaskFieldOffset,
+		)
+		return paramJumpInstruction{
+			opcode:     OpcodeInitFilterMapLoop,
+			functionID: functionID,
+			prefix:     prefix,
+			label:      op.EndLabel,
+		}
+
+	case EmitFilterMapElementOp:
+		// u32 key_byte_size + u32 val_byte_size + u32 val_offset_in_pair
+		bytes := make([]byte, 0, 12)
+		bytes = binary.LittleEndian.AppendUint32(bytes, op.KeyByteSize)
+		bytes = binary.LittleEndian.AppendUint32(bytes, op.ValByteSize)
+		bytes = binary.LittleEndian.AppendUint32(bytes, op.ValOffsetInPair)
+		return staticInstruction{
+			opcode: OpcodeEmitFilterMapElement,
+			bytes:  bytes,
+		}
+
+	case FilterMapAdvanceOp:
+		// u32 body_label_pc (all other state lives in filter_loop_state).
+		return paramJumpInstruction{
+			opcode:     OpcodeFilterMapAdvance,
+			functionID: functionID,
+			label:      op.BodyLabel,
+		}
+
 	default:
 		panic(fmt.Sprintf("unsupported op: %T", op))
 	}

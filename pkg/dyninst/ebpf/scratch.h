@@ -258,6 +258,78 @@ static long copy_stack_loop(unsigned long i, void* _ctx) {
 
 static const uint64_t FAILED_READ_OFFSET_BIT = 1LL << 63;
 
+// scratch_buf_serialize_with_src is a sibling of
+// scratch_buf_serialize_inner that takes a separate src_addr for the
+// bpf_probe_read_user call. This decouples the wire header's .address
+// (which the filter emit helper uses to carry the output_index) from
+// the source-memory address (filter_loop_state.data_ptr or a swiss-map
+// slot field address). max_size is the static upper bound the verifier
+// needs for the in-buffer payload write.
+//
+// Return value matches scratch_buf_serialize_inner's convention:
+//   - 0 on buffer-full (header didn't fit).
+//   - offset with FAILED_READ_OFFSET_BIT set on bpf_probe_read_user
+//     failure (header committed, payload zeroed; caller should rollback
+//     to pre-emit_len).
+//   - plain offset on success.
+static inline buf_offset_t
+scratch_buf_serialize_with_src_inner(scratch_buf_t* scratch_buf,
+                                     di_data_item_header_t* hdr,
+                                     target_ptr_t src_addr,
+                                     const uint64_t len) {
+  buf_offset_t offset = scratch_buf_len(scratch_buf);
+  if (!scratch_buf_bounds_check(&offset, sizeof(di_data_item_header_t))) {
+    return 0;
+  }
+  if (hdr->length == ENQUEUE_LEN_SENTINEL) {
+    hdr->length = len;
+  }
+  uint64_t read_len = hdr->length;
+  if (read_len >= len) {
+    read_len = len;
+  }
+  hdr->length = read_len;
+  *(di_data_item_header_t*)(&(*scratch_buf)[offset]) = *hdr;
+  offset += sizeof(di_data_item_header_t);
+  if (!scratch_buf_bounds_check(&offset, len)) {
+    return 0;
+  }
+  int read_result = bpf_probe_read_user(&(*scratch_buf)[offset], read_len,
+                                        (void*)src_addr);
+  scratch_buf_set_len(scratch_buf, offset + read_len);
+  int rem = hdr->length % 8;
+  if (rem != 0) {
+    scratch_buf_increment_len(scratch_buf, 8 - rem);
+  }
+  if (read_result != 0) {
+    offset |= FAILED_READ_OFFSET_BIT;
+  }
+  return offset;
+}
+
+// scratch_buf_serialize_with_src_256 is the single fixed-size-class
+// global wrapper used by the filter emit helpers. Filter elements / map
+// (key, value) pairs are capped at COLLECTION_PREDICATE_MAX_ELEM_BYTES
+// (256), so we only need one bound here — no SIZE_LIST dispatch.
+buf_offset_t scratch_buf_serialize_with_src_256(
+    scratch_buf_t* scratch_buf,
+    di_data_item_header_t* hdr,
+    target_ptr_t src_addr,
+    const uint64_t len) {
+  if (!hdr || !scratch_buf) {
+    return 0;
+  }
+  if (hdr->length == ENQUEUE_LEN_SENTINEL) {
+    hdr->length = len;
+  } else if (hdr->length > len) {
+    hdr->length = len;
+  }
+  if (len > 256) {
+    return 0;  // not supported by this fixed-size wrapper.
+  }
+  return scratch_buf_serialize_with_src_inner(scratch_buf, hdr, src_addr, 256);
+}
+
 // Write the queue entry to the scratch buffer, and return the offset of the
 // data in the scratch buffer on success or 0 on failure.
 static buf_offset_t

@@ -1,0 +1,5 @@
+---
+other:
+  - |
+    The v3beta metrics series shadow sampling introduced in Agent 7.80.0 is
+    now disabled by default.

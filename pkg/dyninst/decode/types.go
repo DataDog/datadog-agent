@@ -9,11 +9,13 @@ package decode
 
 import (
 	"bytes"
+	"cmp"
 	"encoding/binary"
 	"errors"
 	"fmt"
 	"math"
 	"reflect"
+	"slices"
 	"strconv"
 	"time"
 	"unsafe"
@@ -161,6 +163,24 @@ type encodingContext struct {
 	// allocate a TraceContextType (synthetic types are always present in
 	// programs built via irgen, but tests may construct minimal contexts).
 	traceContextTypeID ir.TypeID
+	// currentExpr is set by processExpression before each encodeValue
+	// call. Read by filter-type decoders to surface ExprStatusTruncated
+	// as collection-truncation metadata. Other decoders ignore it.
+	currentExpr struct {
+		index  int
+		status ir.ExprStatus
+	}
+}
+
+// forEachOfType invokes fn for each data item whose IR type ID matches
+// typeID, in arbitrary (map iteration) order. Used by filter-type
+// decoders to collect per-element data items.
+func (e *encodingContext) forEachOfType(typeID ir.TypeID, fn func(output.DataItem)) {
+	for key, item := range e.dataItems {
+		if key.irType == uint32(typeID) {
+			fn(item)
+		}
+	}
 }
 
 // ResolveTypeName implements encodingContext.
@@ -282,6 +302,10 @@ type goSwissMapHeaderType struct {
 	elementTypeSize  uint32
 }
 type goSwissMapGroupsType ir.GoSwissMapGroupsType
+type goFilteredSliceType ir.GoFilteredSliceType
+type goFilteredSliceDataType ir.GoFilteredSliceDataType
+type goFilteredMapType ir.GoFilteredMapType
+type goFilteredMapDataType ir.GoFilteredMapDataType
 type goChannelType ir.GoChannelType
 type goEmptyInterfaceType ir.GoEmptyInterfaceType
 type goInterfaceType ir.GoInterfaceType
@@ -305,6 +329,10 @@ var (
 	_ decoderType = (*goHMapHeaderType)(nil)
 	_ decoderType = (*goHMapBucketType)(nil)
 	_ decoderType = (*goSwissMapGroupsType)(nil)
+	_ decoderType = (*goFilteredSliceType)(nil)
+	_ decoderType = (*goFilteredSliceDataType)(nil)
+	_ decoderType = (*goFilteredMapType)(nil)
+	_ decoderType = (*goFilteredMapDataType)(nil)
 	_ decoderType = (*goChannelType)(nil)
 	_ decoderType = (*goEmptyInterfaceType)(nil)
 	_ decoderType = (*goInterfaceType)(nil)
@@ -526,6 +554,14 @@ func newDecoderType(
 		return (*goHMapBucketType)(s), nil
 	case *ir.GoSwissMapGroupsType:
 		return (*goSwissMapGroupsType)(s), nil
+	case *ir.GoFilteredSliceType:
+		return (*goFilteredSliceType)(s), nil
+	case *ir.GoFilteredSliceDataType:
+		return (*goFilteredSliceDataType)(s), nil
+	case *ir.GoFilteredMapType:
+		return (*goFilteredMapType)(s), nil
+	case *ir.GoFilteredMapDataType:
+		return (*goFilteredMapDataType)(s), nil
 	case *ir.GoChannelType:
 		return (*goChannelType)(s), nil
 	case *ir.GoEmptyInterfaceType:
@@ -2366,4 +2402,322 @@ func getFieldByName(fields []ir.Field, name string) (*ir.Field, error) {
 		}
 	}
 	return nil, fmt.Errorf("field %s not found", name)
+}
+
+// ---- GoFilteredSliceType decoder ----
+
+func (s *goFilteredSliceType) irType() ir.Type { return (*ir.GoFilteredSliceType)(s) }
+
+func (s *goFilteredSliceType) encodeValueFields(
+	c *encodingContext, enc *jsontext.Encoder, data []byte,
+) error {
+	if len(data) < 8 {
+		return writeTokens(enc,
+			tokenNotCapturedReason,
+			tokenNotCapturedReasonPruned,
+		)
+	}
+	srcPtr := binary.NativeEndian.Uint64(data[0:8])
+	if srcPtr == 0 {
+		return writeTokens(enc,
+			jsontext.String("isNull"),
+			jsontext.Bool(true),
+		)
+	}
+	dataTypeID := s.Data.GetID()
+	var items []output.DataItem
+	c.forEachOfType(dataTypeID, func(item output.DataItem) {
+		items = append(items, item)
+	})
+	// Sort by header.Address (= output_index) ascending. Output indices
+	// are dense 0..N-1; a gap signals a flush-related skip.
+	slices.SortStableFunc(items, func(a, b output.DataItem) int {
+		return cmp.Compare(a.Header().Address, b.Header().Address)
+	})
+	if err := writeTokens(enc,
+		jsontext.String("size"),
+		jsontext.String(strconv.FormatInt(int64(len(items)), 10)),
+	); err != nil {
+		return err
+	}
+	if err := writeTokens(enc,
+		jsontext.String("elements"),
+		jsontext.BeginArray,
+	); err != nil {
+		return err
+	}
+	elemTypeID := s.Data.Element.GetID()
+	elemName := s.Data.Element.GetName()
+	for i, item := range items {
+		payload, ok := item.Data()
+		if !ok {
+			continue
+		}
+		if err := encodeValue(c, enc, elemTypeID, payload, elemName); err != nil {
+			return fmt.Errorf(
+				"could not encode %s filter element of %s: %w",
+				humanize.Ordinal(i+1), elemName, err,
+			)
+		}
+	}
+	if err := writeTokens(enc, jsontext.EndArray); err != nil {
+		return err
+	}
+	if c.currentExpr.status == ir.ExprStatusTruncated {
+		return writeTokens(enc,
+			tokenNotCapturedReason,
+			tokenNotCapturedReasonCollectionSize,
+		)
+	}
+	// Defensive: detect gap in the output_index sequence.
+	for i, item := range items {
+		if item.Header().Address != uint64(i) {
+			return writeTokens(enc,
+				tokenNotCapturedReason,
+				tokenNotCapturedReasonCollectionSize,
+			)
+		}
+	}
+	return nil
+}
+
+func (s *goFilteredSliceType) formatValueFields(
+	c *encodingContext, buf *bytes.Buffer, data []byte, limits *formatLimits,
+) error {
+	if len(data) < 8 {
+		writeBoundedError(buf, limits, "filter slice handle", "data too short")
+		return nil
+	}
+	srcPtr := binary.NativeEndian.Uint64(data[0:8])
+	if srcPtr == 0 {
+		writeBoundedString(buf, limits, formatNil)
+		return nil
+	}
+	dataTypeID := s.Data.GetID()
+	var items []output.DataItem
+	c.forEachOfType(dataTypeID, func(item output.DataItem) {
+		items = append(items, item)
+	})
+	slices.SortStableFunc(items, func(a, b output.DataItem) int {
+		return cmp.Compare(a.Header().Address, b.Header().Address)
+	})
+	if !limits.canWrite(1) {
+		return nil
+	}
+	buf.WriteByte('[')
+	limits.consume(1)
+	for i, item := range items {
+		if i > 0 {
+			if !writeBoundedString(buf, limits, formatCommaSpace) {
+				return nil
+			}
+		}
+		payload, ok := item.Data()
+		if !ok {
+			continue
+		}
+		before := buf.Len()
+		if err := formatType(c, buf, s.Data.Element, payload, limits); err != nil {
+			return err
+		}
+		limits.consume(buf.Len() - before)
+	}
+	if !limits.canWrite(1) {
+		return nil
+	}
+	buf.WriteByte(']')
+	limits.consume(1)
+	return nil
+}
+
+// ---- GoFilteredSliceDataType decoder ----
+
+// goFilteredSliceDataType is referenced only when an individual data
+// item of this type is being decoded (e.g. as a payload of a filter
+// element). The header's encodeValueFields routes through the element's
+// own type for actual rendering — this method should normally not be
+// called. Implemented for interface completeness.
+func (s *goFilteredSliceDataType) irType() ir.Type { return (*ir.GoFilteredSliceDataType)(s) }
+func (s *goFilteredSliceDataType) encodeValueFields(
+	_ *encodingContext, enc *jsontext.Encoder, _ []byte,
+) error {
+	return writeTokens(enc,
+		tokenNotCapturedReason,
+		tokenNotCapturedReasonUnimplemented,
+	)
+}
+func (s *goFilteredSliceDataType) formatValueFields(
+	_ *encodingContext, buf *bytes.Buffer, _ []byte, limits *formatLimits,
+) error {
+	writeBoundedString(buf, limits, "<filter slice data>")
+	return nil
+}
+
+// ---- GoFilteredMapType decoder ----
+
+func (s *goFilteredMapType) irType() ir.Type { return (*ir.GoFilteredMapType)(s) }
+
+func (s *goFilteredMapType) encodeValueFields(
+	c *encodingContext, enc *jsontext.Encoder, data []byte,
+) error {
+	if len(data) < 8 {
+		return writeTokens(enc,
+			tokenNotCapturedReason,
+			tokenNotCapturedReasonPruned,
+		)
+	}
+	srcPtr := binary.NativeEndian.Uint64(data[0:8])
+	if srcPtr == 0 {
+		return writeTokens(enc,
+			jsontext.String("isNull"),
+			jsontext.Bool(true),
+		)
+	}
+	dataTypeID := s.Data.GetID()
+	valOffset := int(s.Data.ValOffsetInPair)
+	var items []output.DataItem
+	c.forEachOfType(dataTypeID, func(item output.DataItem) {
+		items = append(items, item)
+	})
+	slices.SortStableFunc(items, func(a, b output.DataItem) int {
+		return cmp.Compare(a.Header().Address, b.Header().Address)
+	})
+	if err := writeTokens(enc,
+		jsontext.String("size"),
+		jsontext.String(strconv.FormatInt(int64(len(items)), 10)),
+	); err != nil {
+		return err
+	}
+	if err := writeTokens(enc,
+		jsontext.String("entries"),
+		jsontext.BeginArray,
+	); err != nil {
+		return err
+	}
+	keyTypeID := s.Data.KeyType.GetID()
+	keyName := s.Data.KeyType.GetName()
+	valTypeID := s.Data.ValueType.GetID()
+	valName := s.Data.ValueType.GetName()
+	keySize := int(s.Data.KeyType.GetByteSize())
+	valSize := int(s.Data.ValueType.GetByteSize())
+	for i, item := range items {
+		payload, ok := item.Data()
+		if !ok || len(payload) < valOffset+valSize {
+			continue
+		}
+		if err := writeTokens(enc, jsontext.BeginArray); err != nil {
+			return err
+		}
+		if err := encodeValue(c, enc, keyTypeID, payload[:keySize], keyName); err != nil {
+			return fmt.Errorf(
+				"could not encode %s filter map key of %s: %w",
+				humanize.Ordinal(i+1), keyName, err,
+			)
+		}
+		if err := encodeValue(c, enc, valTypeID, payload[valOffset:valOffset+valSize], valName); err != nil {
+			return fmt.Errorf(
+				"could not encode %s filter map value of %s: %w",
+				humanize.Ordinal(i+1), valName, err,
+			)
+		}
+		if err := writeTokens(enc, jsontext.EndArray); err != nil {
+			return err
+		}
+	}
+	if err := writeTokens(enc, jsontext.EndArray); err != nil {
+		return err
+	}
+	if c.currentExpr.status == ir.ExprStatusTruncated {
+		return writeTokens(enc,
+			tokenNotCapturedReason,
+			tokenNotCapturedReasonCollectionSize,
+		)
+	}
+	for i, item := range items {
+		if item.Header().Address != uint64(i) {
+			return writeTokens(enc,
+				tokenNotCapturedReason,
+				tokenNotCapturedReasonCollectionSize,
+			)
+		}
+	}
+	return nil
+}
+
+func (s *goFilteredMapType) formatValueFields(
+	c *encodingContext, buf *bytes.Buffer, data []byte, limits *formatLimits,
+) error {
+	if len(data) < 8 {
+		writeBoundedError(buf, limits, "filter map handle", "data too short")
+		return nil
+	}
+	srcPtr := binary.NativeEndian.Uint64(data[0:8])
+	if srcPtr == 0 {
+		writeBoundedString(buf, limits, formatNil)
+		return nil
+	}
+	dataTypeID := s.Data.GetID()
+	valOffset := int(s.Data.ValOffsetInPair)
+	keySize := int(s.Data.KeyType.GetByteSize())
+	valSize := int(s.Data.ValueType.GetByteSize())
+	var items []output.DataItem
+	c.forEachOfType(dataTypeID, func(item output.DataItem) {
+		items = append(items, item)
+	})
+	slices.SortStableFunc(items, func(a, b output.DataItem) int {
+		return cmp.Compare(a.Header().Address, b.Header().Address)
+	})
+	if !limits.canWrite(1) {
+		return nil
+	}
+	buf.WriteByte('{')
+	limits.consume(1)
+	for i, item := range items {
+		if i > 0 {
+			if !writeBoundedString(buf, limits, formatCommaSpace) {
+				return nil
+			}
+		}
+		payload, ok := item.Data()
+		if !ok || len(payload) < valOffset+valSize {
+			continue
+		}
+		before := buf.Len()
+		if err := formatType(c, buf, s.Data.KeyType, payload[:keySize], limits); err != nil {
+			return err
+		}
+		limits.consume(buf.Len() - before)
+		if !writeBoundedString(buf, limits, ": ") {
+			return nil
+		}
+		before = buf.Len()
+		if err := formatType(c, buf, s.Data.ValueType, payload[valOffset:valOffset+valSize], limits); err != nil {
+			return err
+		}
+		limits.consume(buf.Len() - before)
+	}
+	if !limits.canWrite(1) {
+		return nil
+	}
+	buf.WriteByte('}')
+	limits.consume(1)
+	return nil
+}
+
+// ---- GoFilteredMapDataType decoder ----
+
+func (s *goFilteredMapDataType) irType() ir.Type { return (*ir.GoFilteredMapDataType)(s) }
+func (s *goFilteredMapDataType) encodeValueFields(
+	_ *encodingContext, enc *jsontext.Encoder, _ []byte,
+) error {
+	return writeTokens(enc,
+		tokenNotCapturedReason,
+		tokenNotCapturedReasonUnimplemented,
+	)
+}
+func (s *goFilteredMapDataType) formatValueFields(
+	_ *encodingContext, buf *bytes.Buffer, _ []byte, limits *formatLimits,
+) error {
+	writeBoundedString(buf, limits, "<filter map data>")
+	return nil
 }

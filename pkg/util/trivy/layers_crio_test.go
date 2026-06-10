@@ -16,9 +16,9 @@ import (
 )
 
 func TestBuildCRIOLayerPaths(t *testing.T) {
-	// Distinct value namespaces for the path-encoded DiffID and the
-	// imgMeta layer DiffID so a positional swap is detectable -- the
-	// same-name fixtures of the original test let an off-by-one go silently.
+	// The layer DiffIDs (digest_*) and the lowerDir basenames (diff_*) use
+	// distinct value namespaces so a layer paired with the wrong path is
+	// detectable rather than silently masked by same-name fixtures.
 	imgMeta := &workloadmeta.ContainerImageMetadata{
 		Layers: []workloadmeta.ContainerImageLayer{
 			{DiffID: "sha256:digest_base"},
@@ -35,13 +35,19 @@ func TestBuildCRIOLayerPaths(t *testing.T) {
 		"/var/lib/containers/storage/overlay/diff_base/diff",
 	}
 
+	// manifestDigests are the per-layer compressed-blob digests from the image
+	// manifest, in image-config (base-to-top) order, so they pair with the
+	// non-empty layers. A third namespace (mdigest_*) keeps them distinct from
+	// the diff_ids and the lowerDir basenames.
+	manifestDigests := []string{"sha256:mdigest_base", "sha256:mdigest_middle", "sha256:mdigest_top"}
+
 	t.Run("happy_path_pairs_in_image_config_order", func(t *testing.T) {
-		got, err := buildCRIOLayerPaths(imgMeta, lowerDirs)
+		got, err := buildCRIOLayerPaths(imgMeta, lowerDirs, manifestDigests)
 		require.NoError(t, err)
 		want := []struct{ diffID, digest, path string }{
-			{"sha256:diff_base", "sha256:digest_base", "/var/lib/containers/storage/overlay/diff_base/diff"},
-			{"sha256:diff_middle", "sha256:digest_middle", "/var/lib/containers/storage/overlay/diff_middle/diff"},
-			{"sha256:diff_top", "sha256:digest_top", "/var/lib/containers/storage/overlay/diff_top/diff"},
+			{"sha256:digest_base", "sha256:mdigest_base", "/var/lib/containers/storage/overlay/diff_base/diff"},
+			{"sha256:digest_middle", "sha256:mdigest_middle", "/var/lib/containers/storage/overlay/diff_middle/diff"},
+			{"sha256:digest_top", "sha256:mdigest_top", "/var/lib/containers/storage/overlay/diff_top/diff"},
 		}
 		require.Len(t, got, len(want))
 		for i, w := range want {
@@ -51,15 +57,36 @@ func TestBuildCRIOLayerPaths(t *testing.T) {
 		}
 	})
 
+	t.Run("nil_manifest_digests_leave_digest_empty", func(t *testing.T) {
+		got, err := buildCRIOLayerPaths(imgMeta, lowerDirs, nil)
+		require.NoError(t, err)
+		require.Len(t, got, len(lowerDirs))
+		for i := range got {
+			assert.NotEmpty(t, got[i].DiffID)
+			assert.Empty(t, got[i].Digest, "no manifest digests means no LayerDigest")
+		}
+	})
+
+	t.Run("misaligned_manifest_digests_leave_digest_empty", func(t *testing.T) {
+		// Two digests for three layers: the counts disagree, so any positional
+		// pairing would be wrong. Drop the digests rather than mispair them.
+		got, err := buildCRIOLayerPaths(imgMeta, lowerDirs, manifestDigests[:2])
+		require.NoError(t, err)
+		require.Len(t, got, len(lowerDirs))
+		for i := range got {
+			assert.Empty(t, got[i].Digest, "misaligned manifest digests means no LayerDigest")
+		}
+	})
+
 	t.Run("count_mismatch_extra_lower_dir", func(t *testing.T) {
 		extra := append([]string{}, lowerDirs...)
 		extra = append(extra, "/var/lib/containers/storage/overlay/diff_spurious/diff")
-		_, err := buildCRIOLayerPaths(imgMeta, extra)
+		_, err := buildCRIOLayerPaths(imgMeta, extra, manifestDigests)
 		require.ErrorIs(t, err, errLayerCountMismatch)
 	})
 
 	t.Run("count_mismatch_short_lower_dir", func(t *testing.T) {
-		_, err := buildCRIOLayerPaths(imgMeta, lowerDirs[:1])
+		_, err := buildCRIOLayerPaths(imgMeta, lowerDirs[:1], manifestDigests)
 		require.ErrorIs(t, err, errLayerCountMismatch)
 	})
 }

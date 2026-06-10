@@ -17,7 +17,7 @@ if heroku_target?
 elsif fips_mode?
   flavor_flag = "--//packages/agent:flavor=fips"
 end
-bazel_flags = "--config=release #{flavor_flag} --//:install_dir='#{install_dir}'"
+bazel_flags = "#{flavor_flag} --//:install_dir='#{install_dir}'"
 
 # We don't want to build any dependencies in "repackaging mode" so all usual dependencies
 # need to go under this guard.

@@ -57,6 +57,7 @@
         "pidfd_open",
         "pidfd_send_signal",
         "pipe2",
+        "ppoll",
         "prctl",
         "pread64",
         "prlimit64",

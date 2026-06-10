@@ -13,14 +13,16 @@ package ir
 type ExprStatus uint8
 
 const (
-	ExprStatusAbsent   ExprStatus = 0 // evaluation failed (unknown reason)
-	ExprStatusPresent  ExprStatus = 1 // evaluation succeeded
-	ExprStatusNilDeref ExprStatus = 2 // nil pointer dereference
-	ExprStatusOOB      ExprStatus = 3 // index out of bounds
+	ExprStatusAbsent    ExprStatus = 0 // evaluation failed (unknown reason)
+	ExprStatusPresent   ExprStatus = 1 // evaluation succeeded
+	ExprStatusNilDeref  ExprStatus = 2 // nil pointer dereference
+	ExprStatusOOB       ExprStatus = 3 // index out of bounds
+	ExprStatusTruncated ExprStatus = 4 // value present, but collection was truncated to the iteration cap (filter only, today)
 )
 
 // ExprStatusBits is the number of bits per entry in the ExprStatusArray.
-const ExprStatusBits = 2
+// Must stay in sync with EXPR_STATUS_BITS in pkg/dyninst/ebpf/stack_machine.h.
+const ExprStatusBits = 4
 
 // Expression is a typed and validated set of operations for compilation
 // and evaluation.
@@ -534,3 +536,141 @@ type SwissMapLoopEndOp struct {
 }
 
 func (*SwissMapLoopEndOp) irOp() {}
+
+// EmitFilterSliceMarkerOp is the inline-pass op for a filter() call whose
+// source is a slice. At entry, scratch at sm->offset holds the 24-byte
+// source slice header (ptr, len, cap).
+//
+// The op:
+//   - reads len from header[8..16] and data_ptr from header[0..8].
+//   - if len > COLLECTION_PREDICATE_MAX_ITERATIONS, sets
+//     sm->pending_expr_status = EXPR_STATUS_TRUNCATED. The trailing
+//     compiler-appended ExprSaveOp reads and clears this field.
+//   - leaves the first 8 bytes at sm->offset as data_ptr (the wire
+//     handle); the compiler tracks lastOpSize = 8 so ExprSaveOp copies
+//     these 8 bytes into the event-root expression slot.
+//   - if len > 0, calls sm_record_pointer with FilterDataTypeID,
+//     data_ptr, and capped byte size
+//     min(len, MAX_ITERATIONS) * ElemByteSize. The chase loop's
+//     FILTER_DEFERRED arm later invokes the data type's enqueue_pc.
+type EmitFilterSliceMarkerOp struct {
+	FilterDataTypeID TypeID
+	ElemByteSize     uint32
+}
+
+func (*EmitFilterSliceMarkerOp) irOp() {}
+
+// EmitFilterMapMarkerOp is the inline-pass op for a filter() call whose
+// source is a map. At entry, scratch at sm->offset holds the raw
+// `map[K]V` user-space pointer (no DereferenceOp precedes this op, in
+// contrast to any/all). The op:
+//   - reads map_header_addr at sm->offset (the wire handle is already
+//     there; lastOpSize = 8).
+//   - if map_header_addr != 0, does a one-shot bpf_probe_read_user(8,
+//     map_header_addr + UsedFieldOffset) to obtain the `used` count
+//     and sets sm->pending_expr_status = EXPR_STATUS_TRUNCATED if
+//     used > COLLECTION_PREDICATE_MAX_ITERATIONS.
+//   - if map_header_addr != 0, calls sm_record_pointer with
+//     FilterDataTypeID, map_header_addr, and SwissHeaderSize. The
+//     enqueue_pc init op does its own bpf_probe_read_user of the map
+//     header to recover dirPtr / dirLen.
+type EmitFilterMapMarkerOp struct {
+	FilterDataTypeID TypeID
+	SwissHeaderSize  uint32
+	UsedFieldOffset  uint32
+}
+
+func (*EmitFilterMapMarkerOp) irOp() {}
+
+// InitFilterSliceLoopOp initializes the deferred slice-filter loop. Runs
+// inside the data type's enqueue_pc, after sm_chase_pointer's
+// FILTER_DEFERRED arm has populated sm->di_0 with the chase item:
+// di_0.address is the source data pointer and di_0.length is the capped
+// byte size (already min(len, MAX_ITERATIONS) * elem_size from the
+// marker op).
+//
+// On entry: in_progress=false on a fresh enqueue_pc invocation.
+// The op:
+//   - reads remaining = di_0.length / ElemByteSize.
+//   - sets filter_loop_state {data_ptr, remaining, output_index=0,
+//     elem_size, data_type_id, in_progress=true}.
+//   - if remaining == 0, jumps to EndLabel (loop body not entered).
+//
+// IterScratchBudget is the worst-case scratch-buffer bytes a single
+// iteration may consume — @it + predicate-body scratch + emit-element
+// overhead — computed by irgen at compile time from the predicate body's
+// emitted ops. Used by the per-iteration scratch_buf_bounds_check.
+type InitFilterSliceLoopOp struct {
+	ElemByteSize      uint32
+	IterScratchBudget uint32
+	EndLabel          LabelID
+}
+
+func (*InitFilterSliceLoopOp) irOp() {}
+
+// FilterSliceLoopStepOp closes the slice-filter loop body. Reads the
+// predicate result byte at sm->offset; on true, calls the emit helper
+// (which writes a per-element data item, then runs the element type's
+// handler against the just-emitted payload to chase nested pointers
+// inside the element). On false, skips emit. Always advances data_ptr
+// and remaining. If remaining > 0, prepares @it for the next iteration
+// (incl. an iteration-budget bounds check and a flush if needed) and
+// jumps to BodyLabel. Otherwise falls through (the enqueue_pc returns
+// to the chase loop).
+type FilterSliceLoopStepOp struct {
+	ElemByteSize  uint32
+	ElementTypeID TypeID
+	BodyLabel     LabelID
+}
+
+func (*FilterSliceLoopStepOp) irOp() {}
+
+// InitFilterMapLoopOp initializes the deferred map-filter loop. Runs
+// inside the map data type's enqueue_pc. sm->di_0.address is the raw
+// map[K]V pointer. The op does its own bpf_probe_read_user of the map
+// header (swiss_header_size bytes at di_0.address) to recover dirPtr
+// and dirLen, then initializes the swiss-map iteration cursor.
+//
+// On a nil-deref reading the header, emits the failure sentinel and
+// jumps to EndLabel. Otherwise sets up filter_loop_state for map
+// iteration and falls through to the body (or jumps to EndLabel if
+// dir_len/used indicate an empty map).
+type InitFilterMapLoopOp struct {
+	KeyByteSize       uint32
+	ValByteSize       uint32
+	ValOffsetInPair   uint32
+	IterScratchBudget uint32
+	EndLabel          LabelID
+
+	// Swiss-map header / group / table layout — same shape as
+	// SwissMapLoopBeginOp.
+	DirPtrOffset             uint8
+	DirLenOffset             uint8
+	CtrlOffset               uint8
+	SlotsOffset              uint8
+	KeyInSlotOffset          uint8
+	ValInSlotOffset          uint16
+	SlotSize                 uint16
+	GroupByteSize            uint16
+	TableGroupsFieldOffset   uint8
+	GroupsDataFieldOffset    uint8
+	GroupsLenMaskFieldOffset uint8
+}
+
+func (*InitFilterMapLoopOp) irOp() {}
+
+// FilterMapLoopStepOp closes the map-filter loop body. Same semantics as
+// FilterSliceLoopStepOp, but emits one data item per passing (key, value)
+// pair via the map-specific emit helper (which reads key and value
+// separately from the swiss-map slot's distinct field offsets), then
+// runs the key and value type handlers against the just-emitted payload
+// at offset 0 and ValOffsetInPair respectively. The compiler lowering
+// accounts for each handler's offsetShift when inserting the
+// IncrementOutputOffsetOp between them.
+type FilterMapLoopStepOp struct {
+	KeyTypeID   TypeID
+	ValueTypeID TypeID
+	BodyLabel   LabelID
+}
+
+func (*FilterMapLoopStepOp) irOp() {}

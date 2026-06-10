@@ -35,6 +35,11 @@ func NewInitContainerProvider(cfg LibraryInjectionConfig) *InitContainerProvider
 	}
 }
 
+// GetName returns the injection mode for this provider.
+func (p *InitContainerProvider) GetName() string {
+	return string(InjectionModeInitContainer)
+}
+
 // InjectInjector mutates the pod to add the APM injector using init containers.
 func (p *InitContainerProvider) InjectInjector(pod *corev1.Pod, cfg InjectorConfig) MutationResult {
 	// First, validate that the pod has sufficient resources

@@ -178,6 +178,22 @@ func opcodeByte(opcode compiler.Opcode) uint8 {
 		return 0x3a
 	case compiler.OpcodePanicUnwindEvictSlots:
 		return 0x3b
+	case compiler.OpcodeEmitFilterSliceMarker:
+		return 0x3c
+	case compiler.OpcodeEmitFilterMapMarker:
+		return 0x3d
+	case compiler.OpcodeInitFilterSliceLoop:
+		return 0x3e
+	case compiler.OpcodeEmitFilterSliceElement:
+		return 0x3f
+	case compiler.OpcodeFilterSliceAdvance:
+		return 0x40
+	case compiler.OpcodeInitFilterMapLoop:
+		return 0x41
+	case compiler.OpcodeEmitFilterMapElement:
+		return 0x42
+	case compiler.OpcodeFilterMapAdvance:
+		return 0x43
 	default:
 		panic(fmt.Sprintf("unknown opcode: %s", opcode))
 	}

@@ -381,6 +381,7 @@ modules:
   tasks/unit_tests/testdata/go_mod_formatter/valid_package: ignored
   test/e2e-framework:
     independent: false
+    should_test_condition: is_linux
   test/fakeintake: default
   test/integration/serverless/recorder-extension: ignored
   test/integration/serverless/src: ignored

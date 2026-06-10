@@ -34,10 +34,9 @@ type engineEvent struct {
 
 // advanceCompletedEvent is emitted after the engine finishes an Advance call.
 type advanceCompletedEvent struct {
-	advancedToSec  int64
-	reason         advanceReason
-	anomalyCount   int
-	telemetryCount int
+	advancedToSec int64
+	reason        advanceReason
+	anomalyCount  int
 	// anomalies are the anomalies detected in this advance cycle.
 	// Included so event sinks can forward them without querying engine state.
 	anomalies []observerdef.Anomaly

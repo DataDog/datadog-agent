@@ -14,12 +14,15 @@
 #include "swiss_map_hash.h"
 
 // Expression status values. Each expression gets EXPR_STATUS_BITS bits in the
-// expression status array at the start of event root data.
-#define EXPR_STATUS_BITS      2
+// expression status array at the start of event root data. Must stay in
+// sync with ir.ExprStatusBits / the ExprStatus* constants in
+// pkg/dyninst/ir/expression.go.
+#define EXPR_STATUS_BITS      4
 #define EXPR_STATUS_ABSENT    0  // evaluation failed (unknown reason)
 #define EXPR_STATUS_PRESENT   1  // evaluation succeeded
 #define EXPR_STATUS_NIL_DEREF 2  // nil pointer dereference
 #define EXPR_STATUS_OOB       3  // index out of bounds
+#define EXPR_STATUS_TRUNCATED 4  // value present, but collection truncated (filter)
 
 // Sentinel value for expr_status_idx indicating no status should be written
 // (used by condition expressions which report errors via condition_eval_error).
@@ -308,6 +311,19 @@ sm_chase_pointer(global_ctx_t* ctx, pointers_queue_item_t item) {
   if (info->byte_len == 0) {
     return true;
   }
+  // Filter (deferred collection-filter) types skip the entire
+  // header-write + payload-read block: the enqueue_pc itself emits
+  // per-element data items, and reading the source contents into
+  // scratch would corrupt our element-by-element streaming.
+  // sm->offset is positioned at the current buffer tail and
+  // sm->di_0 carries the chase item unchanged so the enqueue_pc
+  // can recover source pointer/length from it.
+  if (info->dynamic_size_class == DYNAMIC_SIZE_CLASS_FILTER_DEFERRED) {
+    sm->offset = scratch_buf_len(ctx->buf);
+    sm->pointer_chasing_ttl = item.ttl;
+    sm->di_0 = item.di;
+    goto enqueue_pc_jump;
+  }
   uint32_t byte_len = info->byte_len;
   switch (info->dynamic_size_class) {
   case DYNAMIC_SIZE_CLASS_STATIC:
@@ -334,6 +350,10 @@ sm_chase_pointer(global_ctx_t* ctx, pointers_queue_item_t item) {
       // In this case the info stores byte len of a single element.
       byte_len = sm->collection_size_limit * info->byte_len * 4;
     }
+    break;
+  case DYNAMIC_SIZE_CLASS_FILTER_DEFERRED:
+    // Already handled above; this case is unreachable but keeps the
+    // switch exhaustive.
     break;
   }
   // For dynamically-sized objects (strings, slices), byte_len is the
@@ -365,6 +385,7 @@ sm_chase_pointer(global_ctx_t* ctx, pointers_queue_item_t item) {
   sm->pointer_chasing_ttl = item.ttl;
   sm->di_0 = item.di;
   sm->di_0.length = item.di.length;
+enqueue_pc_jump:
   if (!info->enqueue_pc) {
     return false;
   }
@@ -3059,6 +3080,11 @@ sm_panic_unwind_evict_slots(scratch_buf_t* buf) {
   return 0;
 }
 
+// filter.h depends on COLLECTION_PREDICATE_MAX_ITERATIONS,
+// EXPR_STATUS_TRUNCATED, sm_record_pointer, and stack_machine_t —
+// all defined above. Include here so the helpers are in scope for the
+// sm_loop op handlers below.
+#include "filter.h"
 
 static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
   global_ctx_t* ctx = (global_ctx_t*)_ctx;
@@ -3115,6 +3141,11 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
     // Mirrors the ConditionBegin / ConditionCheck lifecycle for conditions.
     sm->condition_eval_error = false;
     sm->condition_nil_deref = false;
+    // Defensively clear any leftover one-shot status override. The
+    // marker ops set this; if any future code path ever sets it and
+    // errors before the matching ExprSave, prepare-time reset
+    // guarantees no cross-expression leak.
+    sm->pending_expr_status = 0;
     sm->expr_results_end_offset = scratch_buf_len(buf);
     sm->offset = sm->expr_results_end_offset;
     if (sm->expr_type == POINTER) {
@@ -3136,8 +3167,16 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
 
     LOG(4, "copy data 0x%llx->0x%llx !%u", sm->offset, sm->expr_results_offset + result_offset, byte_len);
 
-    // Write expression status = present.
-    expr_status_write(buf, sm->expr_results_offset, expr_idx, EXPR_STATUS_PRESENT);
+    // Write expression status. The default is PRESENT, but the filter
+    // marker ops set pending_expr_status = EXPR_STATUS_TRUNCATED
+    // inline (before the chase phase) when the source collection
+    // exceeds the iteration cap. The override is one-shot: cleared
+    // here so the next expression's save sees the default again.
+    uint8_t status = sm->pending_expr_status != 0
+                     ? sm->pending_expr_status
+                     : EXPR_STATUS_PRESENT;
+    expr_status_write(buf, sm->expr_results_offset, expr_idx, status);
+    sm->pending_expr_status = 0;
 
     // Set the offset at the result data, for potential following process type functions.
     sm->offset = sm->expr_results_offset + result_offset;
@@ -4973,11 +5012,140 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
     (void)sm_panic_unwind_evict_slots(buf);
     break;
 
+  case SM_OP_EMIT_FILTER_SLICE_MARKER: {
+    type_t data_type = (type_t)sm_read_program_uint32(sm);
+    uint32_t elem_size = sm_read_program_uint32(sm);
+    int r = sm_emit_filter_slice_marker_noctx(data_type, elem_size);
+    if (r == 2) {
+      return 1;
+    }
+    if (r == 0) {
+      // Helper stored chase params in sm->di_0; enqueue the chase.
+      sm_record_pointer(ctx, sm->di_0.type, sm->di_0.address,
+                        /*decrease_ttl=*/false, sm->di_0.length);
+    }
+  } break;
+
+  case SM_OP_INIT_FILTER_SLICE_LOOP: {
+    uint32_t elem_size = sm_read_program_uint32(sm);
+    uint32_t iter_budget = sm_read_program_uint32(sm);
+    uint32_t end_label_pc = sm_read_program_uint32(sm);
+    int r = sm_filter_slice_init_noctx(elem_size, iter_budget);
+    if (r == 1 || r == 2) {
+      sm->pc = end_label_pc;
+    }
+  } break;
+
+  case SM_OP_FILTER_SLICE_ADVANCE: {
+    uint32_t elem_size = sm_read_program_uint32(sm);
+    uint32_t body_target_pc = sm_read_program_uint32(sm);
+    uint32_t iter_budget = elem_size + 512 + 16 + elem_size + 8;
+    int r = sm_filter_slice_advance_noctx(elem_size, iter_budget);
+    if (r == 0) {
+      sm->pc = body_target_pc;
+    }
+  } break;
+
+  case SM_OP_EMIT_FILTER_SLICE_ELEMENT: {
+    uint32_t elem_size = sm_read_program_uint32(sm);
+    (void)elem_size;
+    sm_emit_filter_slice_element_noctx();
+  } break;
+
+  case SM_OP_EMIT_FILTER_MAP_MARKER: {
+    type_t data_type = (type_t)sm_read_program_uint32(sm);
+    uint32_t swiss_header_size = sm_read_program_uint32(sm);
+    uint32_t used_field_offset = sm_read_program_uint32(sm);
+    int r = sm_emit_filter_map_marker_noctx(data_type, swiss_header_size,
+                                            used_field_offset);
+    if (r == 2) {
+      return 1;
+    }
+    if (r == 0) {
+      sm_record_pointer(ctx, sm->di_0.type, sm->di_0.address,
+                        /*decrease_ttl=*/false, sm->di_0.length);
+    }
+  } break;
+
+  case SM_OP_INIT_FILTER_MAP_LOOP: {
+    uint32_t op_start = sm->pc - 1;
+    filter_loop_state_t* fst = filter_loop_state_load();
+    if (!fst) {
+      sm_read_program_uint32(sm); sm_read_program_uint32(sm);
+      sm_read_program_uint32(sm); sm_read_program_uint32(sm);
+      sm_read_program_uint8(sm); sm_read_program_uint8(sm);
+      sm_read_program_uint8(sm); sm_read_program_uint8(sm);
+      sm_read_program_uint8(sm);
+      sm_read_program_uint16(sm); sm_read_program_uint16(sm);
+      sm_read_program_uint16(sm);
+      sm_read_program_uint8(sm); sm_read_program_uint8(sm);
+      sm_read_program_uint8(sm);
+      uint32_t end_label_pc = sm_read_program_uint32(sm);
+      sm->pc = end_label_pc;
+      break;
+    }
+    fst->elem_size = sm_read_program_uint32(sm);
+    fst->val_size = sm_read_program_uint32(sm);
+    fst->val_offset_in_pair = sm_read_program_uint32(sm);
+    uint32_t iter_scratch_budget = sm_read_program_uint32(sm);
+    fst->map_dir_ptr_offset = sm_read_program_uint8(sm);
+    fst->map_dir_len_offset = sm_read_program_uint8(sm);
+    fst->map_ctrl_offset = sm_read_program_uint8(sm);
+    fst->map_slots_offset = sm_read_program_uint8(sm);
+    fst->map_key_in_slot_offset = sm_read_program_uint8(sm);
+    fst->map_val_in_slot_offset = sm_read_program_uint16(sm);
+    fst->map_slot_size = sm_read_program_uint16(sm);
+    fst->map_group_byte_size = sm_read_program_uint16(sm);
+    fst->map_table_groups_field_offset = sm_read_program_uint8(sm);
+    fst->map_groups_data_field_offset = sm_read_program_uint8(sm);
+    fst->map_groups_len_mask_field_offset = sm_read_program_uint8(sm);
+    uint32_t end_label_pc = sm_read_program_uint32(sm);
+    int r = sm_filter_map_init_noctx(iter_scratch_budget);
+    if (r == 1 || r == 2) {
+      sm->pc = end_label_pc;
+    } else if (r == 3) {
+      sm->pc = op_start;
+    }
+  } break;
+
+  case SM_OP_EMIT_FILTER_MAP_ELEMENT: {
+    uint32_t key_size = sm_read_program_uint32(sm);
+    uint32_t val_size = sm_read_program_uint32(sm);
+    uint32_t val_off = sm_read_program_uint32(sm);
+    (void)key_size; (void)val_size; (void)val_off;
+    sm_emit_filter_map_element_noctx();
+  } break;
+
+  case SM_OP_FILTER_MAP_ADVANCE: {
+    uint32_t op_start = sm->pc - 1;
+    uint32_t body_target_pc = sm_read_program_uint32(sm);
+    uint32_t iter_scratch_budget = 1024;
+    int r = sm_filter_map_advance_and_read_noctx(iter_scratch_budget);
+    if (r == 0) {
+      sm->pc = body_target_pc;
+    } else if (r == 3) {
+      sm->pc = op_start;
+    }
+  } break;
+
   default:
     LOG(1, "enqueue: @0x%x unknown instruction %d\n", sm->pc - 1, op);
     return 1;
   }
 
+  return 0;
+}
+
+// sm_run_reset_phase resets the swiss-map any/all loop phase. Re-derives
+// the stack_machine pointer via bpf_map_lookup_elem so the verifier
+// has fresh map_value bounds — loading the pointer through ctx after
+// a bpf_loop call boundary loses the typed-pointer info.
+__attribute__((noinline)) int sm_run_reset_phase(void) {
+  const unsigned long zero = 0;
+  stack_machine_t* sm =
+      (stack_machine_t*)bpf_map_lookup_elem(&stack_machine_buf, &zero);
+  if (!sm) return 0;
+  sm->swissmap_loop_state.phase = 0;
   return 0;
 }
 
@@ -4987,13 +5155,20 @@ __attribute__((always_inline)) int sm_run(global_ctx_t* ctx) {
   const int limit = 512 << 10;
   int n = bpf_loop(limit, sm_loop, ctx, 0);
   if (n == limit) {
-    // Hitting the iteration cap can leave a swiss-map any/all loop's phase
-    // mid-step (phase==1). Reset it so the next probe's first
-    // SM_OP_SWISS_MAP_LOOP_BEGIN runs sm_swissmap_loop_init rather than
-    // reading uninitialized state. Doing the reset here (cold path, after
-    // bpf_loop) avoids forcing a stack_machine_t spill in the hot
-    // probe_run_with_cookie frame.
-    ctx->stack_machine->swissmap_loop_state.phase = 0;
+    // Hitting the iteration cap can leave a swiss-map any/all loop's
+    // phase mid-step (phase==1). Reset it so the next probe's first
+    // SWISS_MAP_LOOP_BEGIN runs sm_swissmap_loop_init rather than
+    // reading uninitialized state.
+    //
+    // The reset goes through a noinline helper that re-derives the
+    // pointer via bpf_map_lookup_elem. Writing through
+    // ctx->stack_machine here would be rejected by the verifier:
+    // after the bpf_loop call the compiler may reload
+    // ctx->stack_machine from a stack spill whose typed-pointer info
+    // the verifier has forgotten, and the access to
+    // swissmap_loop_state.phase (well past the verifier's bounds-
+    // tracking window for a scalar register) fails.
+    (void)sm_run_reset_phase();
     LOG(2, "stack machine loop hit limit of %d steps", n)
     return -1;
   }

@@ -47,6 +47,14 @@ func NewMatcher(data []string, matchPrefix bool) Matcher {
 	}
 }
 
+// Len returns the number of entries in the compiled matcher.
+func (m *Matcher) Len() int {
+	if m == nil {
+		return 0
+	}
+	return len(m.data)
+}
+
 // Test returns true if the given string matches one in the matcher list.
 // or is matching by prefix if the matcher has been created with `matchPrefix`.
 func (m *Matcher) Test(name string) bool {

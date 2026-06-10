@@ -8,6 +8,7 @@
 package libraryinjection
 
 import (
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"time"
@@ -20,6 +21,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// injectedLibraryEntry represents a single component injected into a pod,
+// stored in the InjectedLibraries annotation.
+type injectedLibraryEntry struct {
+	// Name is the component name: "injector" or a language (e.g. "java", "python").
+	Name string `json:"name"`
+	// Image is the full OCI image reference used for injection.
+	Image string `json:"image"`
+	// Status is the outcome of the injection attempt: "injected", "skipped", or "error".
+	Status string `json:"status"`
+}
+
 // InjectAPMLibraries performs the complete APM injection into a pod.
 // This includes:
 // 1. Injecting the APM injector (volumes, mounts, and provider-specific resources)
@@ -28,9 +40,36 @@ import (
 //
 // Returns an error if the injection fails.
 func InjectAPMLibraries(pod *corev1.Pod, cfg LibraryInjectionConfig) error {
+	injectionStatus := annotation.InjectionStatusError
+	var injectionErr error
+	defer func() {
+		if injectionErr != nil {
+			annotation.Set(pod, annotation.InjectionError, injectionErr.Error())
+		}
+		annotation.Set(pod, annotation.InjectionStatus, injectionStatus)
+	}()
+
+	// Record the observed state of the Datadog CSI driver when detection is active.
+	// This is set regardless of the configured injection mode so that an operator
+	// can answer "is the driver installed?" and "is APM support enabled?" from the
+	// pod annotations alone.
+	if w := cfg.CSIDriverWatcher; w != nil {
+		var csiStatus string
+		switch {
+		case w.IsAPMEnabled():
+			csiStatus = annotation.CSIDriverStatusAPMEnabled
+		case w.IsRegistered():
+			csiStatus = annotation.CSIDriverStatusAPMDisabled
+		default:
+			csiStatus = annotation.CSIDriverStatusNotInstalled
+		}
+		annotation.Set(pod, annotation.CSIDriverStatus, csiStatus)
+	}
+
 	// Select the provider based on the injection mode (annotation or default)
 	factory := NewProviderFactory(InjectionMode(cfg.InjectionMode))
 	provider := factory.GetProviderForPod(pod, cfg)
+	annotation.Set(pod, annotation.EffectiveInjectionMode, provider.GetName())
 
 	// Inject the APM injector
 	injectorResult := provider.InjectInjector(pod, cfg.Injector)
@@ -38,11 +77,13 @@ func InjectAPMLibraries(pod *corev1.Pod, cfg LibraryInjectionConfig) error {
 	// Handle injector result
 	switch injectorResult.Status {
 	case MutationStatusSkipped:
-		annotation.Set(pod, annotation.InjectionError, injectorResult.Err.Error())
+		injectionErr = injectorResult.Err
+		injectionStatus = annotation.InjectionStatusSkipped
 		return nil
 	case MutationStatusError:
 		metrics.LibInjectionErrors.Inc("injector", strconv.FormatBool(cfg.AutoDetected), cfg.InjectionType)
 		log.Errorf("Cannot inject library injector into pod %s: %v", mutatecommon.PodString(pod), injectorResult.Err)
+		injectionErr = injectorResult.Err
 		return fmt.Errorf("injector injection failed: %w", injectorResult.Err)
 	}
 
@@ -54,13 +95,19 @@ func InjectAPMLibraries(pod *corev1.Pod, cfg LibraryInjectionConfig) error {
 	// Inject APM environment variables to application containers
 	injectAPMEnvVars(pod, cfg)
 
-	// Inject language-specific libraries
-	var lastError error
+	// Inject language-specific libraries and collect entries for the annotation.
+	// All attempted libraries are recorded, regardless of outcome.
+	// injectionErr is non-nil as soon as any library ends up with a non-injected status.
+	injectedEntries := []injectedLibraryEntry{{Name: "injector", Image: cfg.Injector.Package.FullRef(), Status: string(MutationStatusInjected)}}
 	for _, lib := range cfg.Libraries {
+		injectedEntries = append(injectedEntries, injectedLibraryEntry{Name: lib.Language, Image: lib.Package.FullRef()})
+		entry := &injectedEntries[len(injectedEntries)-1]
+
 		// Validate language before injection
 		if !IsLanguageSupported(lib.Language) {
 			metrics.LibInjectionErrors.Inc(lib.Language, strconv.FormatBool(cfg.AutoDetected), cfg.InjectionType)
-			lastError = fmt.Errorf("language %s is not supported", lib.Language)
+			injectionErr = fmt.Errorf("language %s is not supported", lib.Language)
+			entry.Status = string(MutationStatusSkipped)
 			continue
 		}
 
@@ -69,6 +116,7 @@ func InjectAPMLibraries(pod *corev1.Pod, cfg LibraryInjectionConfig) error {
 
 		libResult := provider.InjectLibrary(pod, lib)
 		injected := libResult.Status == MutationStatusInjected
+		entry.Status = string(libResult.Status)
 
 		metrics.LibInjectionAttempts.Inc(lib.Language, strconv.FormatBool(injected), strconv.FormatBool(cfg.AutoDetected), cfg.InjectionType)
 
@@ -78,11 +126,23 @@ func InjectAPMLibraries(pod *corev1.Pod, cfg LibraryInjectionConfig) error {
 
 		if libResult.Status == MutationStatusError {
 			metrics.LibInjectionErrors.Inc(lib.Language, strconv.FormatBool(cfg.AutoDetected), cfg.InjectionType)
-			lastError = fmt.Errorf("library injection failed for %s: %w", lib.Language, libResult.Err)
+			injectionErr = fmt.Errorf("library injection failed for %s: %w", lib.Language, libResult.Err)
 		}
 	}
 
-	return lastError
+	if entriesJSON, err := json.Marshal(injectedEntries); err == nil {
+		annotation.Set(pod, annotation.InjectedLibraries, string(entriesJSON))
+	} else {
+		log.Errorf("Failed to marshal injected libraries annotation for pod %s: %v", mutatecommon.PodString(pod), err)
+	}
+
+	if injectionErr != nil {
+		injectionStatus = annotation.InjectionStatusPartial
+	} else {
+		injectionStatus = annotation.InjectionStatusInjected
+	}
+
+	return injectionErr
 }
 
 // injectAPMEnvVars injects APM environment variables (LD_PRELOAD, etc.) into application containers.

@@ -39,7 +39,7 @@ build do
     env["GOMODCACHE"] = gomodcache.to_path
   end
 
-  bazel_flags = "--config=release --//:install_dir=#{install_dir}"
+  bazel_flags = "--//:install_dir=#{install_dir}"
 
   if linux_target?
     command "invoke installer.build --no-cgo --run-path=/opt/datadog-packages/run --install-path=#{install_dir}", env: env, :live_stream => Omnibus.logger.live_stream(:info)

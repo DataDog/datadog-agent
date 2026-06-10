@@ -21,8 +21,9 @@ type Component = any
 type Reporter interface {
 	// Name returns the reporter name for identification.
 	Name() string
-	// Report is called by the observer after each detection cycle.
-	Report(output ReportOutput)
+	// Report is called by the observer after each detection cycle and returns
+	// whether this call emitted at least one report payload.
+	Report(output ReportOutput) bool
 }
 
 // ReportOutput carries the data reporters receive after each detection cycle.

@@ -1236,6 +1236,57 @@ metrics:
         vgpu: false
       capabilities_required:
         nvlink: 5
+  nvlink.errors.fec.heavy:
+    metadata:
+      metric_type: gauge
+      description: >-
+        Per-link rate of NVLink messages with heavy FEC errors for the NVLink
+        port. The heavy threshold is configurable and defaults to 4 or more FEC
+        errors.
+    tagsets:
+      - device
+      - nvlink
+    support:
+      unsupported_architectures: []
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
+      capabilities_required:
+        nvlink: 5
+  nvlink.errors.fec.light:
+    metadata:
+      metric_type: gauge
+      description: >-
+        Per-link rate of NVLink messages with light FEC errors for the NVLink
+        port. The light threshold is configurable and defaults to 1 through 3
+        FEC errors.
+    tagsets:
+      - device
+      - nvlink
+    support:
+      unsupported_architectures: []
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
+      capabilities_required:
+        nvlink: 5
+  nvlink.errors.fec.none:
+    metadata:
+      metric_type: gauge
+      description: Per-link rate of NVLink messages with no FEC errors for the NVLink port
+    tagsets:
+      - device
+      - nvlink
+    support:
+      unsupported_architectures: []
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
+      capabilities_required:
+        nvlink: 5
   nvlink.speed:
     metadata:
       metric_type: gauge

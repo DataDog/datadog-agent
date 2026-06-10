@@ -225,7 +225,7 @@ void Three::freePyInfo(py_info_t *info)
     info->version = NULL;
     if (info->path) {
         _free(info->path);
-        info->version = NULL;
+        info->path = NULL;
     }
     _free(info);
     return;
