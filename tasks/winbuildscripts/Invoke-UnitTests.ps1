@@ -88,7 +88,7 @@ Invoke-BuildScript `
             New-LocalUser -Name "ddagentuser" -Description "Test user for the secrets feature on windows." -Password $Password
         }
         # Generate the datadog.yaml config file to be used in integration tests
-        & dda inv -- -e agent.generate-config --build-type="agent-py3" --output-file="./datadog.yaml"
+        & dda inv -- -e schema.template --schema=./pkg/config/schema/yaml/core_schema.yaml --build-type=agent-py3 --os-target=windows --output=./datadog.yaml
         # Build inputs needed for go builds
         & .\tasks\winbuildscripts\pre-go-build.ps1
     }
