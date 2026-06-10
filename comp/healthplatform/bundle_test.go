@@ -84,12 +84,12 @@ func TestBundleStartLifecycle(t *testing.T) {
 		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
 		fx.Provide(func(t testing.TB) config.Component {
 			cfg := config.NewMock(t)
-			cfg.SetWithoutSource("api_key", "test-api-key")
-			cfg.SetWithoutSource("dd_url", server.URL)
-			cfg.SetWithoutSource("health_platform.enabled", true)
-			cfg.SetWithoutSource("health_platform.persist_on_kubernetes", true)
-			cfg.SetWithoutSource("health_platform.forwarder.interval", tickInterval)
-			cfg.SetWithoutSource("run_path", t.TempDir())
+			cfg.SetInTest("api_key", "test-api-key")
+			cfg.SetInTest("dd_url", server.URL)
+			cfg.SetInTest("health_platform.enabled", true)
+			cfg.SetInTest("health_platform.persist_on_kubernetes", true)
+			cfg.SetInTest("health_platform.forwarder.interval", tickInterval)
+			cfg.SetInTest("run_path", t.TempDir())
 			return cfg
 		}),
 		telemetrymock.Module(),

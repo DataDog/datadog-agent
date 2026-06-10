@@ -48,13 +48,7 @@
           "location": {
             "method": "main.anyAllIntMap"
           }
-        },
-        "evaluationErrors": [
-          {
-            "expr": "any(m, {@value == 42}) && all(m, {@value > 0})",
-            "message": "error evaluating condition"
-          }
-        ]
+        }
       },
       "type": "snapshot"
     },
