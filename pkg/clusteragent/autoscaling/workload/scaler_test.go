@@ -10,7 +10,7 @@ package workload
 import (
 	"context"
 	"encoding/json"
-	"fmt"
+	"errors"
 	"strings"
 	"testing"
 
@@ -124,7 +124,7 @@ func TestScalerReleaseReplicasOwnership_ForbiddenSurfacesEvenWithMultipleMapping
 	dynClient.PrependReactor("get", "deployments", func(k8stesting.Action) (bool, runtime.Object, error) {
 		return true, nil, k8serrors.NewForbidden(
 			schema.GroupResource{Group: "apps", Resource: "deployments"},
-			"app", fmt.Errorf("user cannot patch deployments.apps"))
+			"app", errors.New("user cannot patch deployments.apps"))
 	})
 
 	err := sg.releaseReplicasOwnership(context.Background(), "default", "app", deploymentGVK)

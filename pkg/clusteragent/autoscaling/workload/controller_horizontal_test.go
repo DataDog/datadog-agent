@@ -9,6 +9,7 @@ package workload
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -451,7 +452,7 @@ func TestHorizontalControllerReleaseOwnershipOnDisable_FailureRetainsState(t *te
 	f.scaler = strictScaler
 	f.scaler.mockGet(*fakePai, 5, 5, nil)
 	strictScaler.On("releaseReplicasOwnership", mock.Anything, autoscalerNamespace, autoscalerName, targetGVK).
-		Return(fmt.Errorf("forbidden: missing patch permission"))
+		Return(errors.New("forbidden: missing patch permission"))
 
 	autoscaler, result, err := f.runSync(fakePai)
 	assert.Equal(t, autoscaling.Requeue, result, "must requeue so the workqueue retries the release")

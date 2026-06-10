@@ -23,7 +23,7 @@ import (
 )
 
 // datadogClusterAgentFieldManager is the field-manager name Kubernetes
-// records for writes the cluster agent issues against scaleable workloads.
+// records for writes the cluster agent issues against scalable workloads.
 // It is derived from the binary's user-agent. See the support case context
 // in the PR description for how stale entries with this manager surface as
 // SSA conflicts for users.
