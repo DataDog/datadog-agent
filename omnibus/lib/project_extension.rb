@@ -158,7 +158,7 @@ module Omnibus
           end
           raise "Failed to sign with windows-code-signer.exe"
         else
-          log.info(self.class.name) { "Successfully signed #{file} after #{attempts} attempt(s)" }
+          log.info(self.class.name) { "Successfully signed #{file} using windows-code-signer.exe after #{attempts} attempt(s)" }
         end
       rescue => e
         # Retry logic: raise error after 3 attempts
