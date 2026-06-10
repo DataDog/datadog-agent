@@ -188,15 +188,12 @@ def _run_bazel(
     cmd = [resolved_bazel] + list(args)
     if kwargs.get("verbose", True):
         print(" ".join(cmd))
-    # subprocess.run("printenv")
     result = subprocess.run(
         cmd,
         encoding="utf-8",
         capture_output=True,
         **kwargs,
     )
-    print("STDOUT", result.stdout)
-    print("STDERR", result.stderr)
     return result
 
 
