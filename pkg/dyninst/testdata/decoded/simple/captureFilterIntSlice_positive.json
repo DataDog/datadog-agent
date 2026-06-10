@@ -37,7 +37,7 @@
           }
         ],
         "probe": {
-          "id": "captureContainsIntSlice_42",
+          "id": "captureFilterIntSlice_positive",
           "location": {
             "method": "main.anyAllIntSlice"
           }
@@ -45,9 +45,19 @@
         "captures": {
           "entry": {
             "captureExpressions": {
-              "containsInt42": {
-                "type": "bool",
-                "value": "true"
+              "gt41": {
+                "type": "[]int",
+                "size": "2",
+                "elements": [
+                  {
+                    "type": "int",
+                    "value": "42"
+                  },
+                  {
+                    "type": "int",
+                    "value": "99"
+                  }
+                ]
               }
             }
           }
@@ -96,7 +106,7 @@
           }
         ],
         "probe": {
-          "id": "captureContainsIntSlice_42",
+          "id": "captureFilterIntSlice_positive",
           "location": {
             "method": "main.anyAllIntSlice"
           }
@@ -104,9 +114,10 @@
         "captures": {
           "entry": {
             "captureExpressions": {
-              "containsInt42": {
-                "type": "bool",
-                "value": "false"
+              "gt41": {
+                "type": "[]int",
+                "size": "0",
+                "elements": []
               }
             }
           }
@@ -155,7 +166,7 @@
           }
         ],
         "probe": {
-          "id": "captureContainsIntSlice_42",
+          "id": "captureFilterIntSlice_positive",
           "location": {
             "method": "main.anyAllIntSlice"
           }
@@ -163,9 +174,10 @@
         "captures": {
           "entry": {
             "captureExpressions": {
-              "containsInt42": {
-                "type": "bool",
-                "value": "false"
+              "gt41": {
+                "type": "[]int",
+                "size": "0",
+                "elements": []
               }
             }
           }
@@ -214,7 +226,7 @@
           }
         ],
         "probe": {
-          "id": "captureContainsIntSlice_42",
+          "id": "captureFilterIntSlice_positive",
           "location": {
             "method": "main.anyAllIntSlice"
           }
@@ -222,9 +234,9 @@
         "captures": {
           "entry": {
             "captureExpressions": {
-              "containsInt42": {
-                "type": "bool",
-                "value": "false"
+              "gt41": {
+                "type": "[]int",
+                "isNull": true
               }
             }
           }
@@ -273,7 +285,7 @@
           }
         ],
         "probe": {
-          "id": "captureContainsIntSlice_42",
+          "id": "captureFilterIntSlice_positive",
           "location": {
             "method": "main.anyAllIntSlice"
           }
@@ -281,9 +293,15 @@
         "captures": {
           "entry": {
             "captureExpressions": {
-              "containsInt42": {
-                "type": "bool",
-                "value": "true"
+              "gt41": {
+                "type": "[]int",
+                "size": "1",
+                "elements": [
+                  {
+                    "type": "int",
+                    "value": "42"
+                  }
+                ]
               }
             }
           }
@@ -332,7 +350,7 @@
           }
         ],
         "probe": {
-          "id": "captureContainsIntSlice_42",
+          "id": "captureFilterIntSlice_positive",
           "location": {
             "method": "main.anyAllIntSlice"
           }
@@ -340,9 +358,16 @@
         "captures": {
           "entry": {
             "captureExpressions": {
-              "containsInt42": {
-                "type": "bool",
-                "value": "true"
+              "gt41": {
+                "type": "[]int",
+                "size": "1",
+                "elements": [
+                  {
+                    "type": "int",
+                    "value": "42"
+                  }
+                ],
+                "notCapturedReason": "collectionSize"
               }
             }
           }
@@ -372,7 +397,7 @@
           {
             "function": "main.anyAllIntSlice",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 1269
+            "lineNumber": 1271
           },
           {
             "function": "main.main",
@@ -391,7 +416,7 @@
           }
         ],
         "probe": {
-          "id": "captureContainsIntSlice_42",
+          "id": "captureFilterIntSlice_positive",
           "location": {
             "method": "main.anyAllIntSlice"
           }
@@ -399,22 +424,19 @@
         "captures": {
           "entry": {
             "captureExpressions": {
-              "containsInt42": {
-                "type": "bool",
-                "notCapturedReason": "unavailable"
+              "gt41": {
+                "type": "[]int",
+                "size": "0",
+                "elements": [],
+                "notCapturedReason": "collectionSize"
               }
             }
           }
-        },
-        "evaluationErrors": [
-          {
-            "expr": "@when",
-            "message": "error evaluating condition"
-          }
-        ]
+        }
       }
     },
     "timestamp": "[ts]",
+    "duration": "[duration]",
     "process_tags": "entrypoint.name:sample,svc.user:sample"
   },
   {
@@ -455,7 +477,7 @@
           }
         ],
         "probe": {
-          "id": "captureContainsIntSlice_42",
+          "id": "captureFilterIntSlice_positive",
           "location": {
             "method": "main.anyAllIntSlice"
           }
@@ -463,9 +485,16 @@
         "captures": {
           "entry": {
             "captureExpressions": {
-              "containsInt42": {
-                "type": "bool",
-                "value": "true"
+              "gt41": {
+                "type": "[]int",
+                "size": "1",
+                "elements": [
+                  {
+                    "type": "int",
+                    "value": "42"
+                  }
+                ],
+                "notCapturedReason": "collectionSize"
               }
             }
           }
@@ -514,7 +543,7 @@
           }
         ],
         "probe": {
-          "id": "captureContainsIntSlice_42",
+          "id": "captureFilterIntSlice_positive",
           "location": {
             "method": "main.anyAllIntSlice"
           }
@@ -522,19 +551,15 @@
         "captures": {
           "entry": {
             "captureExpressions": {
-              "containsInt42": {
-                "type": "bool",
-                "notCapturedReason": "unavailable"
+              "gt41": {
+                "type": "[]int",
+                "size": "0",
+                "elements": [],
+                "notCapturedReason": "collectionSize"
               }
             }
           }
-        },
-        "evaluationErrors": [
-          {
-            "expr": "@when",
-            "message": "error evaluating condition"
-          }
-        ]
+        }
       }
     },
     "timestamp": "[ts]",

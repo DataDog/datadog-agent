@@ -4,7 +4,7 @@
     "ddsource": "dd_debugger",
     "logger": {
       "name": "",
-      "method": "main.anyAllStringSlice",
+      "method": "main.anyAllIntMap",
       "version": 0,
       "thread_id": "[goid]",
       "thread_name": ""
@@ -16,14 +16,14 @@
         "language": "go",
         "stack": [
           {
-            "function": "main.anyAllStringSlice",
+            "function": "main.anyAllIntMap",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 1407
+            "lineNumber": 1304
           },
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 503
+            "lineNumber": 394
           },
           {
             "function": "runtime.main",
@@ -37,17 +37,29 @@
           }
         ],
         "probe": {
-          "id": "captureContainsStringSlice_match",
+          "id": "captureFilterIntMap_valueEq42",
           "location": {
-            "method": "main.anyAllStringSlice"
+            "method": "main.anyAllIntMap"
           }
         },
         "captures": {
           "entry": {
             "captureExpressions": {
-              "containsStrMatch": {
-                "type": "bool",
-                "value": "true"
+              "valueIs42": {
+                "type": "map[string]int",
+                "size": "1",
+                "entries": [
+                  [
+                    {
+                      "type": "string",
+                      "value": "b"
+                    },
+                    {
+                      "type": "int",
+                      "value": "42"
+                    }
+                  ]
+                ]
               }
             }
           }
@@ -63,7 +75,7 @@
     "ddsource": "dd_debugger",
     "logger": {
       "name": "",
-      "method": "main.anyAllStringSlice",
+      "method": "main.anyAllIntMap",
       "version": 0,
       "thread_id": "[goid]",
       "thread_name": ""
@@ -75,14 +87,14 @@
         "language": "go",
         "stack": [
           {
-            "function": "main.anyAllStringSlice",
+            "function": "main.anyAllIntMap",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 1407
+            "lineNumber": 1304
           },
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 504
+            "lineNumber": 395
           },
           {
             "function": "runtime.main",
@@ -96,17 +108,18 @@
           }
         ],
         "probe": {
-          "id": "captureContainsStringSlice_match",
+          "id": "captureFilterIntMap_valueEq42",
           "location": {
-            "method": "main.anyAllStringSlice"
+            "method": "main.anyAllIntMap"
           }
         },
         "captures": {
           "entry": {
             "captureExpressions": {
-              "containsStrMatch": {
-                "type": "bool",
-                "value": "false"
+              "valueIs42": {
+                "type": "map[string]int",
+                "size": "0",
+                "entries": []
               }
             }
           }
@@ -122,7 +135,7 @@
     "ddsource": "dd_debugger",
     "logger": {
       "name": "",
-      "method": "main.anyAllStringSlice",
+      "method": "main.anyAllIntMap",
       "version": 0,
       "thread_id": "[goid]",
       "thread_name": ""
@@ -134,14 +147,14 @@
         "language": "go",
         "stack": [
           {
-            "function": "main.anyAllStringSlice",
+            "function": "main.anyAllIntMap",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 1407
+            "lineNumber": 1304
           },
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 505
+            "lineNumber": 396
           },
           {
             "function": "runtime.main",
@@ -155,17 +168,88 @@
           }
         ],
         "probe": {
-          "id": "captureContainsStringSlice_match",
+          "id": "captureFilterIntMap_valueEq42",
           "location": {
-            "method": "main.anyAllStringSlice"
+            "method": "main.anyAllIntMap"
           }
         },
         "captures": {
           "entry": {
             "captureExpressions": {
-              "containsStrMatch": {
-                "type": "bool",
-                "value": "false"
+              "valueIs42": {
+                "type": "map[string]int",
+                "isNull": true
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamp": "[ts]",
+    "duration": "[duration]",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
+  },
+  {
+    "service": "simple",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.anyAllIntMap",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": [
+          {
+            "function": "main.anyAllIntMap",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
+            "lineNumber": 1304
+          },
+          {
+            "function": "main.main",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
+            "lineNumber": 409
+          },
+          {
+            "function": "runtime.main",
+            "fileName": "runtime/proc.go",
+            "lineNumber": "[lineNumber]"
+          },
+          {
+            "function": "runtime.goexit",
+            "fileName": "runtime/asm_[arch].s",
+            "lineNumber": "[lineNumber]"
+          }
+        ],
+        "probe": {
+          "id": "captureFilterIntMap_valueEq42",
+          "location": {
+            "method": "main.anyAllIntMap"
+          }
+        },
+        "captures": {
+          "entry": {
+            "captureExpressions": {
+              "valueIs42": {
+                "type": "map[string]int",
+                "size": "1",
+                "entries": [
+                  [
+                    {
+                      "type": "string",
+                      "value": "match"
+                    },
+                    {
+                      "type": "int",
+                      "value": "42"
+                    }
+                  ]
+                ]
               }
             }
           }

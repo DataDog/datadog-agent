@@ -37,7 +37,7 @@
           }
         ],
         "probe": {
-          "id": "captureContainsStringSlice_match",
+          "id": "captureFilterStringSlice_match",
           "location": {
             "method": "main.anyAllStringSlice"
           }
@@ -45,9 +45,19 @@
         "captures": {
           "entry": {
             "captureExpressions": {
-              "containsStrMatch": {
-                "type": "bool",
-                "value": "true"
+              "matches": {
+                "type": "[]string",
+                "size": "1",
+                "elements": [
+                  {
+                    "type": "string",
+                    "value": "alpha"
+                  }
+                ]
+              },
+              "tag": {
+                "type": "string",
+                "value": "match"
               }
             }
           }
@@ -96,7 +106,7 @@
           }
         ],
         "probe": {
-          "id": "captureContainsStringSlice_match",
+          "id": "captureFilterStringSlice_match",
           "location": {
             "method": "main.anyAllStringSlice"
           }
@@ -104,9 +114,19 @@
         "captures": {
           "entry": {
             "captureExpressions": {
-              "containsStrMatch": {
-                "type": "bool",
-                "value": "false"
+              "matches": {
+                "type": "[]string",
+                "size": "1",
+                "elements": [
+                  {
+                    "type": "string",
+                    "value": "alpha"
+                  }
+                ]
+              },
+              "tag": {
+                "type": "string",
+                "value": "miss"
               }
             }
           }
@@ -155,7 +175,7 @@
           }
         ],
         "probe": {
-          "id": "captureContainsStringSlice_match",
+          "id": "captureFilterStringSlice_match",
           "location": {
             "method": "main.anyAllStringSlice"
           }
@@ -163,9 +183,13 @@
         "captures": {
           "entry": {
             "captureExpressions": {
-              "containsStrMatch": {
-                "type": "bool",
-                "value": "false"
+              "matches": {
+                "type": "[]string",
+                "isNull": true
+              },
+              "tag": {
+                "type": "string",
+                "value": "empty"
               }
             }
           }
