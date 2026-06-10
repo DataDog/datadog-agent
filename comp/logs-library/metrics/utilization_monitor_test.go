@@ -15,61 +15,64 @@ import (
 )
 
 func TestUtilizationMonitorLifecycle(t *testing.T) {
-	clock := clock.NewMock()
-	um := newTelemetryUtilizationMonitorWithSampleRateAndClock("name", "instance", 2*time.Second, clock, nil)
+	clk := clock.NewMock()
+	// Reporting is driven by the sampler, so each 1s window is closed with an explicit sample().
+	um := newTelemetryUtilizationMonitorWithSampleRateAndClock("name", "instance", time.Second, clk, nil)
 
-	// Converge on 50% utilization
+	// Converge on 50% utilization: 500ms busy + 500ms idle per window.
 	for i := 0; i < 100; i++ {
 		um.Start()
-		clock.Add(1 * time.Second)
-
+		clk.Add(500 * time.Millisecond)
 		um.Stop()
-		clock.Add(1 * time.Second)
+		clk.Add(500 * time.Millisecond)
+		um.sample(clk.Now())
 	}
 
-	require.InDelta(t, 0.5, um.avg, 0.01)
+	require.InDelta(t, 0.5, um.avg.Load(), 0.01)
 
-	// Converge on 100% utilization
+	// Converge on ~100% utilization: 990ms busy + 10ms idle per window.
 	for i := 0; i < 100; i++ {
 		um.Start()
-		clock.Add(1 * time.Second)
-
+		clk.Add(990 * time.Millisecond)
 		um.Stop()
-		clock.Add(1 * time.Millisecond)
+		clk.Add(10 * time.Millisecond)
+		um.sample(clk.Now())
 	}
 
-	require.InDelta(t, 0.99, um.avg, 0.01)
+	require.InDelta(t, 0.99, um.avg.Load(), 0.01)
 
-	// Converge on 0% utilization
+	// Converge on ~0% utilization: 1ms busy + 999ms idle per window.
 	for i := 0; i < 200; i++ {
 		um.Start()
-		clock.Add(1 * time.Millisecond)
-
+		clk.Add(1 * time.Millisecond)
 		um.Stop()
-		clock.Add(1 * time.Second)
+		clk.Add(999 * time.Millisecond)
+		um.sample(clk.Now())
 	}
 
-	require.InDelta(t, 0.0, um.avg, 0.01)
+	require.InDelta(t, 0.0, um.avg.Load(), 0.01)
 
 }
 
-// runBusyIterations drives the monitor at ~99% utilization for n samples.
-func runBusyIterations(um *TelemetryUtilizationMonitor, clk interface{ Add(time.Duration) }, n int) {
+// runBusyIterations drives the monitor at ~99% utilization for n 1s sample windows.
+func runBusyIterations(um *TelemetryUtilizationMonitor, clk *clock.Mock, n int) {
 	for i := 0; i < n; i++ {
 		um.Start()
 		clk.Add(990 * time.Millisecond)
 		um.Stop()
 		clk.Add(10 * time.Millisecond)
+		um.sample(clk.Now())
 	}
 }
 
-// runIdleIterations drives the monitor at ~0.1% utilization for n samples.
-func runIdleIterations(um *TelemetryUtilizationMonitor, clk interface{ Add(time.Duration) }, n int) {
+// runIdleIterations drives the monitor at ~0.1% utilization for n 1s sample windows.
+func runIdleIterations(um *TelemetryUtilizationMonitor, clk *clock.Mock, n int) {
 	for i := 0; i < n; i++ {
 		um.Start()
 		clk.Add(1 * time.Millisecond)
 		um.Stop()
 		clk.Add(999 * time.Millisecond)
+		um.sample(clk.Now())
 	}
 }
 
@@ -85,7 +88,7 @@ func TestSample_BlockedComponentObserved(t *testing.T) {
 		um.sample(clk.Now())
 	}
 
-	require.GreaterOrEqual(t, um.avg, SaturationThreshold,
+	require.GreaterOrEqual(t, um.avg.Load(), SaturationThreshold,
 		"a component blocked in-use must reach saturation via periodic sampling, not freeze at 0")
 	assert.True(t, um.isSaturated, "saturation state must flip while still blocked, before any Stop")
 }
@@ -100,7 +103,7 @@ func TestSample_IdleComponentStaysLow(t *testing.T) {
 		um.sample(clk.Now())
 	}
 
-	assert.InDelta(t, 0.0, um.avg, 0.0001, "an idle component sampled periodically must stay at 0 utilization")
+	assert.InDelta(t, 0.0, um.avg.Load(), 0.0001, "an idle component sampled periodically must stay at 0 utilization")
 	assert.False(t, um.isSaturated)
 }
 
@@ -113,7 +116,7 @@ func TestSaturationStateOnset(t *testing.T) {
 
 	runBusyIterations(um, clk, 40)
 
-	require.GreaterOrEqual(t, um.avg, SaturationThreshold, "EWMA must reach saturation threshold")
+	require.GreaterOrEqual(t, um.avg.Load(), SaturationThreshold, "EWMA must reach saturation threshold")
 	assert.True(t, um.isSaturated, "isSaturated must flip true at onset")
 	assert.False(t, um.saturatedSince.IsZero(), "saturatedSince must be recorded at onset")
 }
@@ -128,7 +131,7 @@ func TestRecoveryDebounce_StaysInSaturatedState(t *testing.T) {
 
 	runIdleIterations(um, clk, 5)
 
-	require.Less(t, um.avg, SaturationThreshold, "EWMA must have dropped below threshold")
+	require.Less(t, um.avg.Load(), SaturationThreshold, "EWMA must have dropped below threshold")
 	assert.True(t, um.isSaturated, "must remain saturated while debounce pending")
 	assert.False(t, um.pendingRecoverySince.IsZero(), "debounce timer must start running")
 }
@@ -156,11 +159,11 @@ func TestRecoveryDebounce_ResetByReSaturation(t *testing.T) {
 	require.True(t, um.isSaturated)
 
 	runIdleIterations(um, clk, 2)
-	require.Less(t, um.avg, SaturationThreshold)
+	require.Less(t, um.avg.Load(), SaturationThreshold)
 	require.False(t, um.pendingRecoverySince.IsZero(), "debounce must be running")
 
 	runBusyIterations(um, clk, 40)
-	require.GreaterOrEqual(t, um.avg, SaturationThreshold)
+	require.GreaterOrEqual(t, um.avg.Load(), SaturationThreshold)
 
 	assert.True(t, um.pendingRecoverySince.IsZero(), "debounce timer must be cancelled on re-saturation")
 }

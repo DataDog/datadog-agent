@@ -76,9 +76,8 @@ func TestTelemetryPipelineMonitor_TickerSamplesRegisteredMonitor(t *testing.T) {
 
 	require.Eventually(t, func() bool {
 		clk.Add(time.Second)
-		um.mu.Lock()
-		defer um.mu.Unlock()
-		return um.avg > 0
+		// avg is published atomically, so a subscriber can poll it without locking the hot path.
+		return um.avg.Load() > 0
 	}, 2*time.Second, 5*time.Millisecond,
 		"the pipeline monitor's ticker must sample its registered utilization monitor")
 }
