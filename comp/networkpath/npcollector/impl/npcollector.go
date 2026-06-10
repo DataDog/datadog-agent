@@ -361,6 +361,11 @@ func (s *npCollectorImpl) listenPathtests() {
 func (s *npCollectorImpl) runTracerouteForPath(ptest *pathteststore.PathtestContext) {
 	s.logger.Debugf("Run Traceroute for ptest: %+v", ptest)
 
+	if ptest.Pathtest.Origin == "" {
+		s.logger.Errorf("pathtest missing origin: %+v", ptest.Pathtest)
+		return
+	}
+
 	cfg := config.Config{
 		DestHostname:              ptest.Pathtest.Hostname,
 		DestPort:                  ptest.Pathtest.Port,
@@ -394,10 +399,7 @@ func (s *npCollectorImpl) runTracerouteForPath(ptest *pathteststore.PathtestCont
 	if ptest.Pathtest.Namespace != "" {
 		path.Namespace = ptest.Pathtest.Namespace
 	}
-	path.Origin = payload.PathOriginNetworkTraffic
-	if ptest.Pathtest.Origin != "" {
-		path.Origin = ptest.Pathtest.Origin
-	}
+	path.Origin = ptest.Pathtest.Origin
 	path.TestRunType = payload.TestRunTypeDynamic
 	path.SourceProduct = s.collectorConfigs.sourceProduct
 	if path.Origin == payload.PathOriginNetflow {

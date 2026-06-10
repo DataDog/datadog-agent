@@ -505,6 +505,30 @@ func Test_NpCollector_runTracerouteForPath_NetflowSourceProduct(t *testing.T) {
 	assert.Equal(t, "netflow-ns", emittedPath.Namespace)
 }
 
+func Test_NpCollector_runTracerouteForPath_RequiresOrigin(t *testing.T) {
+	agentConfigs := map[string]any{
+		"network_path.connections_monitoring.enabled": true,
+		"network_path.collector.filters":              []map[string]any{},
+	}
+
+	tracerouteCalled := false
+	tr := &tracerouteRunner{func(_ctx context.Context, _cfg config.Config) (payload.NetworkPath, error) {
+		tracerouteCalled = true
+		return payload.NetworkPath{}, nil
+	}}
+	_, npCollector := newTestNpCollector(t, agentConfigs, &teststatsd.Client{}, tr)
+
+	npCollector.runTracerouteForPath(&pathteststore.PathtestContext{
+		Pathtest: &common.Pathtest{
+			Hostname: "10.0.0.2",
+			Port:     443,
+			Protocol: payload.ProtocolTCP,
+		},
+	})
+
+	assert.False(t, tracerouteCalled)
+}
+
 func Test_NpCollector_stopWithoutPanic(t *testing.T) {
 	// GIVEN
 	agentConfigs := map[string]any{
