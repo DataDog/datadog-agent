@@ -69,8 +69,8 @@ func TestObserverDropsMetricsWhenIngestMetricsDisabled(t *testing.T) {
 	})
 
 	drop.ObserveLog(&logObs{
-		content:     "Request completed in 45ms",
-		status:      "info",
+		content:     "Request failed with unexpected error",
+		status:      "error",
 		tags:        []string{"service:web"},
 		timestampMs: 1_000_000,
 	})

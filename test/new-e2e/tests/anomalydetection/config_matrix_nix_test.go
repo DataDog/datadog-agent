@@ -7,7 +7,7 @@ package anomalydetection
 
 // Item 7 — sub-gate independence matrix (master=on in all cases).
 //
-// Three independent sub-gates (metrics.enabled, logs.enabled, agent_logs.enabled)
+// Three independent sub-gates (metrics.enabled, logs.enabled, logs.internal.enabled)
 // sit under anomaly_detection.enabled=true. This file verifies that each sub-gate
 // activates or suppresses the correct path independently. The master=off case is
 // covered by defaults_nix_test.go.
@@ -48,8 +48,8 @@ anomaly_detection:
     enabled: false
   logs:
     enabled: false
-  agent_logs:
-    enabled: false
+    internal:
+      enabled: false
 `
 	e2e.Run(t, &metricsOffLogsOffSuite{}, e2e.WithProvisioner(
 		awshost.Provisioner(
@@ -66,7 +66,7 @@ func (s *metricsOffLogsOffSuite) TestWarningPresent() {
 
 	tel := observerTelemetryOutput(s)
 	assert.False(s.T(), containsMetric(tel, telemetryLogsIngested),
-		"no log ingestion telemetry expected when logs and agent_logs are disabled")
+		"no log ingestion telemetry expected when logs and logs.internal are disabled")
 	assert.False(s.T(), containsMetric(tel, telemetryReportsEmitted),
 		"no reports expected when both metrics and logs ingestion are disabled")
 }
@@ -90,8 +90,8 @@ anomaly_detection:
     enabled: true
   logs:
     enabled: false
-  agent_logs:
-    enabled: false
+    internal:
+      enabled: false
 `
 	e2e.Run(t, &metricsOnLogsOffSuite{}, e2e.WithProvisioner(
 		awshost.Provisioner(
@@ -108,7 +108,7 @@ func (s *metricsOnLogsOffSuite) TestSubGateIndependence() {
 	assert.True(s.T(), containsMetric(tel, telemetrySeriesCount),
 		"metrics path should expose series telemetry when enabled")
 	assert.False(s.T(), containsMetricWithTag(tel, telemetryLogsIngested, "log_source", "internal"),
-		"internal log ingestion should not be active when agent_logs is disabled")
+		"internal log ingestion should not be active when logs.internal is disabled")
 }
 
 // --- Case 3: metrics=off, logs=on ----------------------------------------
@@ -128,8 +128,9 @@ anomaly_detection:
   enabled: true
   metrics:
     enabled: false
-  agent_logs:
-    enabled: true
+  logs:
+    internal:
+      enabled: true
 `
 	e2e.Run(t, &metricsOffLogsOnSuite{}, e2e.WithProvisioner(
 		awshost.Provisioner(
@@ -139,13 +140,13 @@ anomaly_detection:
 }
 
 // TestLogTapActiveMetricsWarningPresent verifies internal log ingestion telemetry
-// appears when agent_logs.enabled=true and metrics ingest is disabled.
+// appears when logs.internal.enabled=true and metrics ingest is disabled.
 func (s *metricsOffLogsOnSuite) TestLogTapActiveMetricsWarningPresent() {
 	waitForObserverReady(s)
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		tel := observerTelemetryOutput(s)
 		assert.True(c, containsMetricWithTag(tel, telemetryLogsIngested, "log_source", "internal"),
-			"internal log ingestion should be active when agent_logs is enabled")
+			"internal log ingestion should be active when logs.internal is enabled")
 	}, 2*time.Minute, 3*time.Second)
 }
 
@@ -166,8 +167,9 @@ anomaly_detection:
   enabled: true
   metrics:
     enabled: true
-  agent_logs:
-    enabled: true
+  logs:
+    internal:
+      enabled: true
 `
 	e2e.Run(t, &allGatesOnSuite{}, e2e.WithProvisioner(
 		awshost.Provisioner(
