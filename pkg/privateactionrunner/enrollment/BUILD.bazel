@@ -51,6 +51,5 @@ go_test(
         "@io_k8s_apimachinery//pkg/runtime/schema",
         "@io_k8s_client_go//kubernetes/fake",
         "@io_k8s_client_go//testing",
-        "@org_uber_go_atomic//:atomic",
     ],
 )

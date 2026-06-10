@@ -256,7 +256,6 @@ func TestWriteIdentitySecret_UpdatesExistingSecret(t *testing.T) {
 	assert.Equal(t, result.OrchClusterID, string(secret.Data[orchClusterIDField]))
 }
 
-
 func TestWriteIdentitySecret_ReturnsErrorOnFailure(t *testing.T) {
 	client := fake.NewSimpleClientset()
 	client.PrependReactor("create", "secrets", func(_ k8stesting.Action) (bool, runtime.Object, error) {
