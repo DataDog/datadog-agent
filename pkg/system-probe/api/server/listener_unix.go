@@ -32,17 +32,17 @@ func NewListener(socketAddr string) (net.Listener, error) {
 		}
 		// Attempt to remove the pre-existing socket
 		if err = os.Remove(socketAddr); err != nil {
-			return nil, fmt.Errorf("uds: remove stale UNIX socket: %v", err)
+			return nil, fmt.Errorf("uds: remove stale UNIX socket: %w", err)
 		}
 	}
 
 	conn, err := net.Listen("unix", socketAddr)
 	if err != nil {
-		return nil, fmt.Errorf("listen: %s", err)
+		return nil, fmt.Errorf("listen: %w", err)
 	}
 
 	if err := os.Chmod(socketAddr, 0720); err != nil {
-		return nil, fmt.Errorf("socket chmod write-only: %s", err)
+		return nil, fmt.Errorf("socket chmod write-only: %w", err)
 	}
 
 	perms, err := filesystem.NewPermission()
@@ -51,7 +51,7 @@ func NewListener(socketAddr string) (net.Listener, error) {
 	}
 
 	if err := perms.RestrictAccessToUser(socketAddr); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("restrict socket access: %w", err)
 	}
 
 	log.Debugf("uds: %s successfully initialized", conn.Addr())
