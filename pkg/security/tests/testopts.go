@@ -110,5 +110,5 @@ func withForceReload() optFunc {
 }
 
 func (to testOpts) Equal(opts testOpts) bool {
-	return reflect.DeepEqual(to, opts)
+	return reflect.DeepEqual(to, opts) && !to.enableSelfTests
 }
