@@ -1,30 +1,30 @@
-"""Repository rule to retrieve and install integrations and their dependencies."""
+"""Repository rule to retrieve target-platform integration dependency wheels."""
 
 load("@cpython_versions//:constants.bzl", "PYTHON_MAJOR_MINOR")
 load("//bazel/repo:release_json.bzl", "read_effective_release_json")
 
-def _detect_platform(ctx):
-    """Returns a (os, arch) tuple normalized to our lockfile naming convention."""
-    os_name = ctx.os.name
-    arch = ctx.os.arch
+def _lockfile_name(os, arch, python_version):
+    """Returns the target-platform lockfile name."""
+    if os not in ("linux", "macos", "windows"):
+        fail("Unsupported OS: " + os)
 
-    if "linux" in os_name:
-        os = "linux"
-    elif "mac" in os_name:
-        os = "macos"
-    elif "windows" in os_name:
-        os = "windows"
-    else:
-        fail("Unsupported OS: " + os_name)
-
-    if arch in ("x86_64", "amd64"):
-        arch = "x86_64"
-    elif arch in ("aarch64", "arm64"):
-        arch = "aarch64"
-    else:
+    if arch not in ("x86_64", "aarch64"):
         fail("Unsupported architecture: " + arch)
 
-    return (os, arch)
+    return "{}-{}_{}.txt".format(os, arch, python_version)
+
+_HEX_DIGITS = "0123456789abcdefABCDEF"
+
+def _is_full_commit_hash(ref):
+    """Returns whether ref is a 40-character Git commit hash."""
+    if len(ref) != 40:
+        return False
+
+    for char in ref.elems():
+        if char not in _HEX_DIGITS:
+            return False
+
+    return True
 
 def _parse_lockfile(content, wheels_storage):
     """Parse a PEP 440 direct-reference lockfile.
@@ -65,26 +65,24 @@ def _parse_lockfile(content, wheels_storage):
 
     return wheels
 
-def _agent_integrations_impl(rctx):
-    os, arch = _detect_platform(rctx)
+def _integration_dependency_wheels_impl(rctx):
     python_version = rctx.attr.python_version
-    lockfile_name = "{}-{}_{}.txt".format(os, arch, python_version)
+    lockfile_name = _lockfile_name(rctx.attr.os, rctx.attr.arch, python_version)
 
     release_info = read_effective_release_json(rctx, rctx.attr._release_info)
 
-    # Note: this asumes that INTEGRATIONS_CORE_VERSION is the full commit hash.
-    # Any other type of git reference will fail.
     commit = release_info["dependencies"]["INTEGRATIONS_CORE_VERSION"]
-    rctx.download_and_extract(
-        url = "{base_url}/archive/{commit}.tar.gz".format(
+    reproducible = _is_full_commit_hash(commit)
+    rctx.download(
+        url = "{base_url}/raw/{commit}/.deps/resolved/{lockfile_name}".format(
             base_url = rctx.attr.base_url,
             commit = commit,
+            lockfile_name = lockfile_name,
         ),
-        canonical_id = commit,
-        strip_prefix = "integrations-core-{}".format(commit),
+        output = lockfile_name,
     )
 
-    lockfile_content = rctx.read(".deps/resolved/{}".format(lockfile_name))
+    lockfile_content = rctx.read(lockfile_name)
     wheels = _parse_lockfile(lockfile_content, release_info["dependencies"]["INTEGRATIONS_WHEELS_STORAGE"])
 
     for wheel in wheels:
@@ -97,22 +95,26 @@ def _agent_integrations_impl(rctx):
     wheel_srcs = ",".join(['"wheelhouse/{}"'.format(w.filename) for w in wheels])
     rctx.template(
         "BUILD.bazel",
-        Label("//deps/agent_integrations:integrations.BUILD.bazel"),
+        Label("//deps/agent_integrations:dependency_wheels.BUILD.bazel"),
         substitutions = {"{wheel_srcs}": wheel_srcs},
     )
 
-    return rctx.repo_metadata(reproducible = True)
+    return rctx.repo_metadata(reproducible = reproducible)
 
-agent_integrations = repository_rule(
-    implementation = _agent_integrations_impl,
+integration_dependency_wheels = repository_rule(
+    implementation = _integration_dependency_wheels_impl,
     attrs = {
         "base_url": attr.string(
             default = "https://github.com/DataDog/integrations-core",
             doc = "Base URL of the repository",
         ),
-        "wheels_storage": attr.string(
+        "os": attr.string(
             mandatory = True,
-            doc = "Value substituted for ${INTEGRATIONS_WHEELS_STORAGE} in wheel URLs",
+            doc = "Target OS used to select the platform lockfile: linux, macos, or windows",
+        ),
+        "arch": attr.string(
+            mandatory = True,
+            doc = "Target architecture used to select the platform lockfile: x86_64 or aarch64",
         ),
         "python_version": attr.string(
             default = PYTHON_MAJOR_MINOR,
@@ -121,6 +123,6 @@ agent_integrations = repository_rule(
         "_release_info": attr.label(default = "//:release.json", allow_single_file = True),
     },
     doc =
-        """Retrieves the integrations repository and provides rules to install the integrations
-    and their dependencies in a Python environment.""",
+        """Retrieves integration dependency wheels for a target platform and provides rules to
+    install them in a Python environment.""",
 )

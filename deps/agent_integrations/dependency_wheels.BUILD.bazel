@@ -1,0 +1,6 @@
+filegroup(
+    name = "dependency_wheels",
+    srcs = [{wheel_srcs}],
+    visibility = ["//visibility:public"],
+    tags = ["manual"],
+)

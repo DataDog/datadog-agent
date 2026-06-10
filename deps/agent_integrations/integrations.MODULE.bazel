@@ -1,9 +1,34 @@
-agent_integrations = use_repo_rule(
-    "//deps/agent_integrations:agent_integrations.bzl",
-    "agent_integrations",
+integration_dependency_wheels = use_repo_rule(
+    "//deps/agent_integrations:dependency_wheels.bzl",
+    "integration_dependency_wheels",
 )
 
-agent_integrations(
-    name = "integrations_core",
-    wheels_storage = "stable",
+integration_dependency_wheels(
+    name = "integration_dependency_wheels_linux_x86_64",
+    arch = "x86_64",
+    os = "linux",
+)
+
+integration_dependency_wheels(
+    name = "integration_dependency_wheels_linux_aarch64",
+    arch = "aarch64",
+    os = "linux",
+)
+
+integration_dependency_wheels(
+    name = "integration_dependency_wheels_macos_x86_64",
+    arch = "x86_64",
+    os = "macos",
+)
+
+integration_dependency_wheels(
+    name = "integration_dependency_wheels_macos_aarch64",
+    arch = "aarch64",
+    os = "macos",
+)
+
+integration_dependency_wheels(
+    name = "integration_dependency_wheels_windows_x86_64",
+    arch = "x86_64",
+    os = "windows",
 )

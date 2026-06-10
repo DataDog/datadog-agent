@@ -18,13 +18,20 @@ embedded_dir = select({
 
 install_wheels(
     name = "integrations_dependencies",
-    srcs = ["@integrations_core//:dependency_wheels"],
+    srcs = select(
+        {
+            "//:linux_x86_64": ["@integration_dependency_wheels_linux_x86_64//:dependency_wheels"],
+            "//:linux_arm64": ["@integration_dependency_wheels_linux_aarch64//:dependency_wheels"],
+            "//:macos_x86_64": ["@integration_dependency_wheels_macos_x86_64//:dependency_wheels"],
+            "//:macos_arm64": ["@integration_dependency_wheels_macos_aarch64//:dependency_wheels"],
+            "//:windows_x86_64": ["@integration_dependency_wheels_windows_x86_64//:dependency_wheels"],
+        },
+        no_match_error = "No integration dependency lockfile repo is configured for this target platform.",
+    ),
     script_interpreter_relative_path = embedded_dir + select({
         "@platforms//os:windows": "/python.exe",
         "//conditions:default": "/bin/python3",
     }),
-    # TODO(agent-build): this currently depends INTEGRATIONS_CORE_VERSION being a commit hash,
-    # which is not guaranteed unless running under omnibus-wrapping code.
     tags = ["manual"],
 )
 
