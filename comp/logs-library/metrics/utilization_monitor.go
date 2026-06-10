@@ -35,22 +35,18 @@ func (n *NoopUtilizationMonitor) Start() {}
 // Stop does nothing.
 func (n *NoopUtilizationMonitor) Stop() {}
 
-// TelemetryUtilizationMonitor is a UtilizationMonitor that reports utilization metrics as telemetry.
+// TelemetryUtilizationMonitor reports component utilization as telemetry.
 //
-// Start/Stop run on the component goroutine (a hot path); sample() runs on the pipeline sampler
-// goroutine. They share state only through atomics, so the hot path takes no lock: Start/Stop
-// publish raw accumulators and the sampler owns all derived state.
+// Start/Stop run on the component hot path and touch only atomics; the sampler goroutine owns all
+// derived state, so neither side locks.
 type TelemetryUtilizationMonitor struct {
-	// Accumulators written by the hot path and read by the sampler. cumulativeBusyNanos plus the
-	// open interval (now - startInUseNanos, while started) is the effective busy time at any instant.
-	// Both are wall-clock UnixNano, so the window math stays self-consistent; NTP steps are absorbed
-	// by the >0 guards and clamp01 rather than corrupting the EWMA.
+	// Hot-path accumulators (wall-clock UnixNano), read by the sampler. Effective busy time is
+	// cumulativeBusyNanos plus the open interval (now - startInUseNanos) while started.
 	cumulativeBusyNanos atomic.Int64
 	startInUseNanos     atomic.Int64
 	started             atomic.Bool
 
-	// avg is the EWMA utilization (N=15, α≈0.125), written by the sampler and read atomically so
-	// subscribers can poll it without blocking the hot path.
+	// EWMA utilization (N=15, α≈0.125). Written by the sampler, read atomically by subscribers.
 	avg atomic.Float64
 
 	// Sampler-owned state.
@@ -87,39 +83,36 @@ func newTelemetryUtilizationMonitorWithSampleRateAndClock(name, instance string,
 	}
 }
 
-// Start tracks a start event in the utilization tracker. startInUseNanos is stored before
-// flipping started so the sampler never observes started with a stale start timestamp.
+// Start marks the component in-use.
 func (u *TelemetryUtilizationMonitor) Start() {
 	if u.started.Load() {
 		return
 	}
+	// Store the start before flipping started, so the sampler never sees started with a stale start.
 	u.startInUseNanos.Store(u.clock.Now().UnixNano())
 	u.started.Store(true)
 }
 
-// Stop tracks a finish event in the utilization tracker. The closed interval is credited to the
-// cumulative counter before clearing started, so a sampler that observes started=false also
-// observes the credited time.
+// Stop marks the component idle and credits the elapsed in-use interval.
 func (u *TelemetryUtilizationMonitor) Stop() {
 	if !u.started.Load() {
 		return
 	}
+	// Credit the interval before clearing started, so a sampler seeing started=false also sees it.
 	if busy := u.clock.Now().UnixNano() - u.startInUseNanos.Load(); busy > 0 {
 		u.cumulativeBusyNanos.Add(busy)
 	}
 	u.started.Store(false)
 }
 
-// sample is driven by the ticker so a component blocked mid-operation is observed, not frozen at
-// its last EWMA.
+// sample is driven by the ticker so a component blocked mid-operation is still observed.
 func (u *TelemetryUtilizationMonitor) sample(now time.Time) {
 	if now.Sub(u.lastSample) < u.sampleRate {
 		return
 	}
 
-	// effectiveBusyNanos is monotonic, so differencing it across the window normally credits the open
-	// interval exactly once. A torn read mid-Stop can briefly over- or under-count one interval;
-	// clamp01 bounds that window and the next one self-corrects, leaving only EWMA noise.
+	// A torn read against the hot path can over- or under-count one interval; clamp01 bounds the
+	// window and the next tick self-corrects.
 	effBusy := u.effectiveBusyNanos(now)
 	windowBusy := effBusy - u.lastEffectiveBusy
 	windowElapsed := now.UnixNano() - u.lastSample.UnixNano()
