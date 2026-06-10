@@ -518,6 +518,9 @@ func (s *USMSuite) TestTLSClassification() {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			if ebpftest.GetBuildMode() == ebpftest.Fentry {
+				t.Skip("protocol classification not supported for fentry tracer")
+			}
 			t.Cleanup(func() { tr.RemoveClient(clientID) })
 			t.Cleanup(func() { _ = tr.Pause() })
 
