@@ -1,12 +1,9 @@
-config:
+alternateConfig:
   extensions:
     health_check:
       endpoint: ${env:MY_POD_IP}:13133
 
   receivers:
-    jaeger: null
-    zipkin: null
-    prometheus: null
     otlp:
       protocols:
         grpc: {}
@@ -18,21 +15,6 @@ config:
           - site: ${env:DD_SITE}
             api_key: ${env:DD_API_KEY}
 
-  processors:
-    batch: null
-    memory_limiter: null
-    cumulativetodelta: {}
-    resourcedetection:
-      detectors: ["system"]
-      system:
-        resource_attributes:
-          host.arch:
-            enabled: true
-          host.name:
-            enabled: false
-          os.type:
-            enabled: false
-
   exporters:
     otlp_http:
       endpoint: https://otlp.${env:DD_SITE}
@@ -43,13 +25,9 @@ config:
   service:
     extensions: [health_check]
     pipelines:
-      logs: null
-      traces: null
       metrics:
         receivers: [otlp]
-        processors: [cumulativetodelta, resourcedetection, k8sattributes]
         exporters: [otlp_http]
       profiles:
         receivers: [profiling]
-        processors: [resourcedetection, k8sattributes]
         exporters: [otlp_http]
