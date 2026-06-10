@@ -15,10 +15,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/DataDog/datadog-agent/comp/syntheticstestscheduler/common"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
-	"github.com/stretchr/testify/require"
 )
 
 func TestToNetpathConfig(t *testing.T) {
@@ -74,9 +75,8 @@ func TestToNetpathConfig(t *testing.T) {
 				SourceService:      src,
 				DestinationService: dst,
 				ReverseDNS:         true,
-
-				TracerouteQueries: tracerouteCount,
-				E2eQueries:        probeCount,
+				TracerouteQueries:  tracerouteCount,
+				E2eQueries:         probeCount,
 			},
 			expectError: false,
 		},
@@ -112,9 +112,8 @@ func TestToNetpathConfig(t *testing.T) {
 				SourceService:      src,
 				DestinationService: dst,
 				ReverseDNS:         true,
-
-				TracerouteQueries: tracerouteCount,
-				E2eQueries:        probeCount,
+				TracerouteQueries:  tracerouteCount,
+				E2eQueries:         probeCount,
 			},
 			expectError: false,
 		},
@@ -146,9 +145,8 @@ func TestToNetpathConfig(t *testing.T) {
 				SourceService:      src,
 				DestinationService: dst,
 				ReverseDNS:         true,
-
-				TracerouteQueries: tracerouteCount,
-				E2eQueries:        probeCount,
+				TracerouteQueries:  tracerouteCount,
+				E2eQueries:         probeCount,
 			},
 			expectError: false,
 		},
