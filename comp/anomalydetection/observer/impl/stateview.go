@@ -127,6 +127,42 @@ func (sv *stateView) ListCorrelators() []ComponentStateInfo {
 	return result
 }
 
+// ScoreState merges the ScoreState from all scorers.
+// In the standard configuration there is exactly one scorer (anomaly_scorer);
+// if multiple scorers are registered their buckets and events are concatenated.
+func (sv *stateView) ScoreState() observerdef.ScoreState {
+	sv.engine.mu.RLock()
+	defer sv.engine.mu.RUnlock()
+
+	if len(sv.engine.scorers) == 0 {
+		return observerdef.ScoreState{}
+	}
+	if len(sv.engine.scorers) == 1 {
+		return sv.engine.scorers[0].ScoreState()
+	}
+	// Multi-scorer: merge (unusual; kept for completeness).
+	var merged observerdef.ScoreState
+	for _, sc := range sv.engine.scorers {
+		st := sc.ScoreState()
+		merged.Buckets = append(merged.Buckets, st.Buckets...)
+		merged.Events = append(merged.Events, st.Events...)
+		merged.Config = st.Config // last scorer's config wins
+	}
+	return merged
+}
+
+// ListScorers returns info about all scorers currently in the engine.
+func (sv *stateView) ListScorers() []ComponentStateInfo {
+	sv.engine.mu.RLock()
+	defer sv.engine.mu.RUnlock()
+
+	result := make([]ComponentStateInfo, len(sv.engine.scorers))
+	for i, sc := range sv.engine.scorers {
+		result[i] = ComponentStateInfo{Name: sc.Name(), Enabled: true}
+	}
+	return result
+}
+
 // ActiveCorrelations returns current sliding-window correlations from all correlators.
 func (sv *stateView) ActiveCorrelations() []observerdef.ActiveCorrelation {
 	sv.engine.mu.RLock()

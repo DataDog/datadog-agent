@@ -60,6 +60,8 @@ func (api *BenchAPI) Start(addr string) error {
 	mux.HandleFunc("/api/benchmark", api.cors(api.handleBenchmark))
 	mux.HandleFunc("/api/components/", api.cors(api.handleComponentAction))
 	mux.HandleFunc("/api/correlations/compressed", api.cors(api.handleCompressedCorrelations))
+	mux.HandleFunc("/api/scores", api.cors(api.handleScores))
+	mux.HandleFunc("/api/scores/replay", api.cors(api.handleScoresReplay))
 
 	mux.HandleFunc("/debug/pprof/", pprof.Index)
 	mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
@@ -1197,6 +1199,82 @@ func (api *BenchAPI) handleBenchmark(w http.ResponseWriter, _ *http.Request) {
 }
 
 // writeJSON writes a JSON response.
+// handleScores returns the current ScoreState from the live scorer.
+// GET /api/scores
+func (api *BenchAPI) handleScores(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		api.writeError(w, http.StatusMethodNotAllowed, "use GET")
+		return
+	}
+	sv := api.tb.getStateView()
+	if sv == nil {
+		api.writeJSON(w, observerdef.ScoreState{})
+		return
+	}
+	api.writeJSON(w, sv.ScoreState())
+}
+
+// handleScoresReplay re-runs the scorer over the full retained raw-anomaly set
+// using a config provided in the POST body. This lets the UI re-tune parameters
+// (alpha, thresholds, …) without re-running detectors.
+//
+// The testbench simulates the live agent's 1-second timer: anomalies are sorted
+// by timestamp and fed second-by-second, with Advance called once per unique
+// second (and for any empty seconds in between). This is the testbench equivalent
+// of the real timer that drives Advance in the online agent.
+//
+// POST /api/scores/replay   body: observerdef.ScorerConfig JSON
+func (api *BenchAPI) handleScoresReplay(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		api.writeError(w, http.StatusMethodNotAllowed, "use POST")
+		return
+	}
+
+	cfg := observerimpl.DefaultScorerConfig()
+	if err := json.NewDecoder(r.Body).Decode(&cfg); err != nil {
+		api.writeError(w, http.StatusBadRequest, "invalid config: "+err.Error())
+		return
+	}
+
+	sv := api.tb.getStateView()
+	if sv == nil {
+		api.writeJSON(w, observerdef.ScoreState{})
+		return
+	}
+
+	anomalies := sv.Anomalies()
+	if len(anomalies) == 0 {
+		api.writeJSON(w, observerdef.ScoreState{Config: cfg})
+		return
+	}
+
+	// Sort by timestamp ascending so the scorer processes time monotonically.
+	sorted := make([]observerdef.Anomaly, len(anomalies))
+	copy(sorted, anomalies)
+	sort.Slice(sorted, func(i, j int) bool {
+		return sorted[i].Timestamp < sorted[j].Timestamp
+	})
+
+	scorer := observerimpl.NewScorer(cfg)
+
+	// Feed anomalies and advance second-by-second (simulating the 1-second timer).
+	// For each unique second we call Advance once, after feeding all anomalies in that second.
+	first := sorted[0].Timestamp
+	last := sorted[len(sorted)-1].Timestamp
+
+	ai := 0
+	for sec := first; sec <= last; sec++ {
+		// Feed all anomalies whose timestamp == sec.
+		for ai < len(sorted) && sorted[ai].Timestamp == sec {
+			scorer.ProcessAnomaly(sorted[ai])
+			ai++
+		}
+		scorer.Advance(sec)
+	}
+
+	api.writeJSON(w, scorer.ScoreState())
+}
+
 func (api *BenchAPI) writeJSON(w http.ResponseWriter, data interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(data); err != nil {

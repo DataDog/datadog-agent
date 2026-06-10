@@ -309,6 +309,151 @@ type Correlator interface {
 	Reset()
 }
 
+// ScorerConfig holds the tunable parameters for the anomaly scoring pipeline.
+// All fields use calibrated defaults (see ANOMALY_SCORING.md §2.8).
+type ScorerConfig struct {
+	// Alpha is the EWMA smoothing factor (0 < α ≤ 1). Lower = smoother.
+	Alpha float64 `json:"alpha"`
+	// SaturationK is the saturation constant k: saturation = 1−exp(−n/k).
+	SaturationK float64 `json:"saturation_k"`
+	// LowThreshold is the EWMA level defining the Low/Medium severity boundary.
+	LowThreshold float64 `json:"low_threshold"`
+	// HighThreshold is the EWMA level defining the Medium/High severity boundary.
+	HighThreshold float64 `json:"high_threshold"`
+	// MarginPct is the hysteresis margin as a fraction of HighThreshold.
+	// effectiveMargin = HighThreshold × MarginPct.
+	MarginPct float64 `json:"margin_pct"`
+	// CooldownSecs is the minimum seconds to remain in any elevated state
+	// before a decrease transition is allowed.
+	CooldownSecs int64 `json:"cooldown_secs"`
+	// DetectorThresholds overrides the default score-to-level boundaries for
+	// specific detector names. Each entry is [low, medium, high, xhigh] thresholds:
+	//   score < low              → VeryLow (0)
+	//   low  ≤ score < medium    → Low     (1)
+	//   medium ≤ score < high    → Medium  (2)
+	//   high  ≤ score < xhigh   → High    (3)
+	//   score ≥ xhigh            → XHigh  (4)
+	// Detectors not in this map fall back to the global defaults [6, 12, 20, 35].
+	// Detectors that emit no numeric score (e.g. bocpd) ignore this map.
+	DetectorThresholds map[string][4]float64 `json:"detector_thresholds,omitempty"`
+}
+
+// ScoreBucket is the per-second telemetry unit emitted by the scorer.
+// One bucket is produced for every 1-second tick, even if it has no anomalies.
+type ScoreBucket struct {
+	// Second is the Unix timestamp (floor) for this bucket.
+	Second int64 `json:"second"`
+	// Bins[L] is the number of deduplicated anomalies at level L (0=VeryLow … 4=XHigh).
+	Bins [5]int `json:"bins"`
+	// Count is the total number of anomalies in this bucket (sum of Bins).
+	Count int `json:"count"`
+	// WeightSum is the sum of level weights for all anomalies in this bucket.
+	WeightSum float64 `json:"weight_sum"`
+	// Ewma is the EWMA value after processing this bucket.
+	Ewma float64 `json:"ewma"`
+}
+
+// SeverityLevel represents one of three severity states: Low, Medium, High.
+type SeverityLevel int
+
+const (
+	SeverityLow    SeverityLevel = 0
+	SeverityMedium SeverityLevel = 1
+	SeverityHigh   SeverityLevel = 2
+)
+
+// SeverityEvent records a state-machine transition.
+type SeverityEvent struct {
+	// Timestamp is the Unix second at which the transition occurred.
+	Timestamp int64 `json:"timestamp"`
+	// FromLevel is the state before the transition.
+	FromLevel SeverityLevel `json:"from_level"`
+	// ToLevel is the state after the transition.
+	ToLevel SeverityLevel `json:"to_level"`
+	// Direction is ScorerEventEscalation when ToLevel > FromLevel, and
+	// ScorerEventDeescalation when ToLevel < FromLevel.
+	Direction ScorerEventDirection `json:"direction"`
+}
+
+// ScoreState is the full snapshot of the scorer's current state.
+// This is what the testbench API serialises and the UI renders.
+type ScoreState struct {
+	Buckets []ScoreBucket   `json:"buckets"`
+	Events  []SeverityEvent `json:"events"`
+	Config  ScorerConfig    `json:"config"`
+}
+
+// ScorerListener receives severity state-machine transitions from the scorer.
+type ScorerListener interface {
+	OnSeverityTransition(event SeverityEvent)
+}
+
+// ScorerEventDirection restricts a subscription to escalations, de-escalations,
+// or both directions.
+type ScorerEventDirection int
+
+const (
+	// ScorerEventBoth delivers transitions in either direction (default).
+	ScorerEventBoth ScorerEventDirection = 0
+	// ScorerEventEscalation delivers only transitions where ToLevel > FromLevel.
+	ScorerEventEscalation ScorerEventDirection = 1
+	// ScorerEventDeescalation delivers only transitions where ToLevel < FromLevel.
+	ScorerEventDeescalation ScorerEventDirection = 2
+)
+
+// ScorerEventFilter selects which SeverityEvents are delivered to a listener.
+// All conditions are ANDed; a nil or empty slice means "any value".
+// The zero value ScorerEventFilter{} matches every transition.
+type ScorerEventFilter struct {
+	// FromLevels restricts to events whose FromLevel is in the set.
+	FromLevels []SeverityLevel
+	// ToLevels restricts to events whose ToLevel is in the set.
+	ToLevels []SeverityLevel
+	// Direction restricts by escalation or de-escalation.
+	Direction ScorerEventDirection
+}
+
+// AnomalyScorerConfiguration is the single object passed to SubscribeScorer
+// when registering a listener. It bundles who to call (Listener), which
+// transitions to deliver (Filter), and per-subscription state-machine tuning.
+type AnomalyScorerConfiguration struct {
+	// Listener is called for each matching severity transition. Required.
+	Listener ScorerListener
+	// Filter controls which transitions are delivered.
+	// Zero value ScorerEventFilter{} delivers all transitions.
+	Filter ScorerEventFilter
+	// CooldownSecs is the minimum number of seconds that must elapse after a
+	// delivered transition before a downward transition (de-escalation) can be
+	// delivered again. This gives each subscription its own state-machine
+	// cooldown, independent of the global scorer cooldown.
+	// Zero means no cooldown (every matching transition is delivered).
+	CooldownSecs int64
+}
+
+// Scorer computes a smoothed anomaly intensity signal and derives severity
+// state transitions from it. It mirrors the Correlator lifecycle:
+// ProcessAnomaly → Advance (once per second tick) → ScoreState → Reset.
+type Scorer interface {
+	// Name returns the scorer name for debugging.
+	Name() string
+	// ProcessAnomaly feeds a raw anomaly into the scorer's current-second buffer.
+	ProcessAnomaly(a Anomaly)
+	// Advance finalises the bucket at dataTime (unix seconds) and runs the
+	// EWMA + state-machine update for that second. Callers must invoke this
+	// after each 1-second detection cycle.
+	Advance(dataTime int64)
+	// LastEWMA returns the most recently computed EWMA score. Returns 0
+	// before the first Advance call.
+	LastEWMA() float64
+	// ScoreState returns the accumulated telemetry (all buckets + events so far).
+	ScoreState() ScoreState
+	// Reset clears all internal state for reanalysis.
+	Reset()
+	// Subscribe registers a listener to receive severity transitions matching cfg.Filter.
+	// Returns an unsubscribe function. Safe to call concurrently with Advance.
+	Subscribe(cfg AnomalyScorerConfiguration) func()
+}
+
 // Reporter receives reports and displays or delivers them.
 type Reporter interface {
 	// Name returns the reporter name for debugging.

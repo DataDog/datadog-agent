@@ -163,6 +163,9 @@ type disabledObserver struct{}
 
 func (*disabledObserver) GetHandle(_ string) observerdef.Handle { return &noopObserveHandle{} }
 func (*disabledObserver) DumpMetrics(_ string) error            { return nil }
+func (*disabledObserver) SubscribeScorer(_ observerdef.AnomalyScorerConfiguration) func() {
+	return func() {}
+}
 
 // NewComponent creates an observer.Component.
 func NewComponent(deps Requires) Provides {
@@ -173,7 +176,7 @@ func NewComponent(deps Requires) Provides {
 
 	catalog := defaultCatalog()
 	settings := settingsFromAgentConfig(catalog, cfg)
-	detectors, correlators, extractors, _ := catalog.Instantiate(settings)
+	detectors, correlators, scorers, extractors, _ := catalog.Instantiate(settings)
 
 	storageCfg := DefaultStorageConfig()
 	if cfg != nil {
@@ -192,6 +195,7 @@ func NewComponent(deps Requires) Provides {
 		extractors:  extractors,
 		detectors:   detectors,
 		correlators: correlators,
+		scorers:     scorers,
 		scheduler:   &currentBehaviorPolicy{},
 	})
 
@@ -220,6 +224,17 @@ func NewComponent(deps Requires) Provides {
 	processingTimeGauge := th.telemetryGauges[telemetryDetectorProcessingTimeNs]
 	eng.onProcessingTime = func(detectorTag string, nanos float64) {
 		processingTimeGauge.Set(nanos, detectorTag)
+	}
+
+	// Register the built-in severity logger so every state transition is
+	// visible in the agent log and emitted as a telemetry gauge. Subscribes
+	// with a zero-value filter to receive all transitions.
+	if len(scorers) > 0 {
+		pkglog.Infof("[observer] subscribing anomaly severity logger to scorer %q", scorers[0].Name())
+		stateGauge := th.telemetryGauges[telemetryScorerState]
+		scorers[0].Subscribe(observerdef.AnomalyScorerConfiguration{
+			Listener: newAnomalySeverityLogger(stateGauge),
+		})
 	}
 
 	obs := &observerImpl{
@@ -596,6 +611,18 @@ func (o *observerImpl) DumpMetrics(path string) error {
 	return o.engine.Storage().DumpToFile(path)
 }
 
+// SubscribeScorer registers a scorer event listener described by cfg.
+// Delegates to the first (and currently only) engine scorer.
+func (o *observerImpl) SubscribeScorer(cfg observerdef.AnomalyScorerConfiguration) func() {
+	o.engine.mu.RLock()
+	scorers := o.engine.scorers
+	o.engine.mu.RUnlock()
+	if len(scorers) == 0 {
+		return func() {}
+	}
+	return scorers[0].Subscribe(cfg)
+}
+
 // --- DebugView implementation ---
 
 // StateView returns a read-only window into engine state.
@@ -631,9 +658,9 @@ func (o *observerImpl) Flush() {
 // Reset clears all engine state and reconfigures with new settings. Implements DebugView.
 func (o *observerImpl) Reset(settings ComponentSettings, storageCfg StorageConfig) {
 	o.Flush()
-	detectors, correlators, extractors, _ := o.catalog.Instantiate(settings)
+	detectors, correlators, scorers, extractors, _ := o.catalog.Instantiate(settings)
 	o.replayMu.Lock()
-	o.engine.ResetForReplay(detectors, correlators, extractors, storageCfg)
+	o.engine.ResetForReplay(detectors, correlators, scorers, extractors, storageCfg)
 	o.replayMu.Unlock()
 }
 
