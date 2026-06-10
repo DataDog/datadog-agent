@@ -36,27 +36,32 @@ func init() {
 	knownHostKeys = slices.Concat(supported.HostKeys, insecure.HostKeys)
 }
 
-// SSHClient implements Client using SSH
-type SSHClient struct {
-	client *RetryingSSHClient
+// SSHConnector implements Client using SSH
+type SSHConnector struct {
 	device *ncmconfig.DeviceInstance // Device configuration for authentication
+}
+
+var _ Connector = (*SSHConnector)(nil)
+
+// SSHConnection implements Connection over SSH
+type SSHConnection struct {
+	client *RetryingSSHClient
+	device *ncmconfig.DeviceInstance
 	prof   *profile.NCMProfile
 }
 
-// SSHSession implements Session using an SSH session
-type SSHSession struct {
-	session *ssh.Session
-}
+var _ Connection = (*SSHConnection)(nil)
 
-// NewSSHClient creates a new SSH client for the given device configuration
-func NewSSHClient(device *ncmconfig.DeviceInstance) (*SSHClient, error) {
+// NewSSHConnector creates a new SSH connector for the given device configuration
+func NewSSHConnector(device *ncmconfig.DeviceInstance) (*SSHConnector, error) {
 	if device.Auth.SSH != nil {
 		if err := ValidateSSHConfig(device.Auth.SSH); err != nil {
 			return nil, fmt.Errorf("error validating ssh client config: %w", err)
 		}
+	} else {
+		return nil, errors.New("missing ssh client config")
 	}
-
-	return &SSHClient{
+	return &SSHConnector{
 		device: device,
 	}, nil
 }
@@ -71,6 +76,7 @@ func buildHostKeyCallback(config *ncmconfig.SSHConfig) (ssh.HostKeyCallback, err
 	}
 	if config.InsecureSkipVerify {
 		log.Warnf("SSH host key verification is disabled - connects are insecure!")
+		// no-dd-sa:go-security/ssh-ignore-keys
 		return ssh.InsecureIgnoreHostKey(), nil
 	}
 	return nil, errors.New("No SSH host key configured: set known_hosts file path or enable insecure_skip_verify")
@@ -139,114 +145,85 @@ func validateSupportedAlgorithms(algoType string, configuredAlgos []string, supp
 	return nil
 }
 
-// SetProfile sets the NCM profile for the device for the client to know which commands to be able to run
-func (c *SSHClient) SetProfile(profile *profile.NCMProfile) {
+// SetProfile sets the NCM profile that tells the connection what commands to run.
+func (c *SSHConnection) SetProfile(profile *profile.NCMProfile) {
 	c.prof = profile
 }
 
 // Connect establishes a new SSH connection to the specified IP address using the provided authentication credentials
-func (c *SSHClient) Connect() error {
+func (c *SSHConnector) Connect() (Connection, error) {
 	client, err := NewRetryingSSHClient(func() (*ssh.Client, error) {
 		return connectToDevice(c.device)
 	})
 	if err != nil {
-		return err
+		return nil, err
 	}
-	c.client = client
+	return &SSHConnection{
+		client: client,
+		device: c.device,
+	}, nil
+}
+
+func (c *SSHConnection) PushConfig(ctx context.Context, rawConfig string) error {
+	if c.prof == nil {
+		return fmt.Errorf("no device type provided for %q", c.device.IPAddress)
+	}
+	if len(c.prof.Commands.PushConfig) == 0 {
+		return fmt.Errorf("no push commands for profile %q", c.prof.Name)
+	}
+	for _, untypedCmd := range c.prof.Commands.PushConfig {
+		switch cmd := untypedCmd.(type) {
+		case *profile.SCPCommand:
+			if _, err := ExecuteSCP(ctx, c.client, cmd, rawConfig); err != nil {
+				return fmt.Errorf("unable to copy config to device %q: %w", c.device.IPAddress, err)
+			}
+		case *profile.PlainCommand:
+			if _, err := ExecuteCommand(ctx, c.client, cmd); err != nil {
+				return fmt.Errorf("error while pushing config to device %q: %w", c.device.IPAddress, err)
+			}
+		}
+	}
 	return nil
 }
 
-// NewSession creates a new SSH session for the client (needed for every command execution)
-func (c *SSHClient) NewSession() (Session, error) {
-	sess, err := c.client.NewSession()
-	if err != nil {
-		return nil, fmt.Errorf("failed to create SSH session: %w", err)
-	}
-	return &SSHSession{session: sess}, nil
-}
-
-// CombinedOutput runs a command using the SSH session and returns its output
-func (s *SSHSession) CombinedOutput(cmd string) ([]byte, error) {
-	if s.session == nil {
-		return nil, errors.New("SSH session is nil")
-	}
-	return s.session.CombinedOutput(cmd)
-}
-
-func (c *SSHClient) PushConfig(_ context.Context, _ string) error {
-	return errors.New("not implemented")
-}
-
 // RetrieveRunningConfig retrieves the running configuration for the device connected via SSH
-func (c *SSHClient) RetrieveRunningConfig() ([]byte, error) {
-	commands, err := c.prof.GetCommandValues(profile.Running)
-	if err != nil {
-		return []byte{}, err
+func (c *SSHConnection) RetrieveRunningConfig(ctx context.Context) ([]byte, error) {
+	if c.prof == nil {
+		return nil, fmt.Errorf("no device type provided for %q", c.device.IPAddress)
 	}
-	config, err := c.retrieveConfiguration(commands)
-	if err != nil {
-		return []byte{}, err
+	cmd := c.prof.Commands.GetRunning
+	if cmd == nil {
+		return nil, fmt.Errorf("no get_running command for profile %q", c.prof.Name)
 	}
-	err = c.prof.ValidateOutput(profile.Running, config)
-	if err != nil {
-		return []byte{}, err
-	}
-	return config, err
+	return c.execute(ctx, cmd)
 }
 
 // RetrieveStartupConfig retrieves the startup configuration for the device connected via SSH
-func (c *SSHClient) RetrieveStartupConfig() ([]byte, error) {
-	commands, err := c.prof.GetCommandValues(profile.Startup)
-	if err != nil {
-		return []byte{}, err
+func (c *SSHConnection) RetrieveStartupConfig(ctx context.Context) ([]byte, error) {
+	if c.prof == nil {
+		return nil, fmt.Errorf("no device type provided for %q", c.device.IPAddress)
 	}
-	config, err := c.retrieveConfiguration(commands)
-	if err != nil {
-		return []byte{}, err
+	cmd := c.prof.Commands.GetStartup
+	if cmd == nil {
+		return nil, fmt.Errorf("no get_startup command for profile %q", c.prof.Name)
 	}
-	err = c.prof.ValidateOutput(profile.Startup, config)
-	if err != nil {
-		return []byte{}, err
-	}
-	return c.retrieveConfiguration(commands)
+	return c.execute(ctx, cmd)
 }
 
-// retrieveConfiguration retrieves the configuration for a given network device using multiple commands
-func (c *SSHClient) retrieveConfiguration(commands []string) ([]byte, error) {
-	var result []byte
-
-	for _, cmd := range commands {
-		session, err := c.NewSession()
-		if err != nil {
-			return []byte{}, fmt.Errorf("failed to create session for command %s: %w", cmd, err)
-		}
-
-		log.Debugf("Executing command: %s", cmd)
-		output, err := session.CombinedOutput(cmd)
-		session.Close()
-
-		if err != nil {
-			return []byte{}, fmt.Errorf("command %s failed: %w", cmd, err)
-		}
-
-		result = append(result, output...)
-		result = append(result, '\n')
+func (c *SSHConnection) execute(ctx context.Context, cmd *profile.PlainCommand) ([]byte, error) {
+	result, err := ExecuteCommand(ctx, c.client, cmd)
+	if err != nil {
+		return nil, err
 	}
-
-	return result, nil
+	return []byte(result), nil
 }
 
 // Close closes the SSH client connection
-func (c *SSHClient) Close() error {
+func (c *SSHConnection) Close() error {
 	if c.client != nil {
 		return c.client.Close()
 	}
 	return nil
-}
-
-// Close closes the SSH session
-func (s *SSHSession) Close() error {
-	return s.session.Close()
 }
 
 // connectToDevice is a shorthand for connectToHost with parameters from the device

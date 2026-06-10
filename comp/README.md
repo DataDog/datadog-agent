@@ -116,6 +116,12 @@ Package autodiscovery provides the autodiscovery component for the Datadog Agent
 Package config implements a component to handle agent configuration.  This
 component temporarily wraps pkg/config.
 
+### [comp/core/configfilesdiscovery](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/configfilesdiscovery)
+
+*Datadog Team*: agent-discovery
+
+Package configfilesdiscovery defines the config files discovery component.
+
 ### [comp/core/configstream](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/configstream)
 
 *Datadog Team*: agent-configuration
@@ -302,7 +308,7 @@ Package connectionsforwarder defines a component to send connections data to the
 
 ### [comp/forwarder/defaultforwarder](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder)
 
-Package defaultforwarder implements a component to send payloads to the backend
+Package defaultforwarder defines the interface for the default forwarder component.
 
 ### [comp/forwarder/eventplatform](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/forwarder/eventplatform)
 

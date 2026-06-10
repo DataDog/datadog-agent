@@ -58,7 +58,7 @@ import (
 	workloadmetainit "github.com/DataDog/datadog-agent/comp/core/workloadmeta/init"
 	filterlistfx "github.com/DataDog/datadog-agent/comp/filterlist/fx"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	defaultforwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/def"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	eventplatformfx "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/fx"
 	eventplatformreceiverimpl "github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/impl"
@@ -200,7 +200,7 @@ func run(
 	mainCtx, mainCtxCancel := context.WithCancel(context.Background())
 	defer mainCtxCancel() // Calling cancel twice is safe
 
-	if !pkgconfigsetup.Datadog().IsSet("api_key") {
+	if !pkgconfigsetup.Datadog().IsConfigured("api_key") {
 		pkglog.Critical("no API key configured, exiting")
 		return nil
 	}

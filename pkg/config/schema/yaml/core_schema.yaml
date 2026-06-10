@@ -7,17 +7,15 @@ properties:
   api_key:
     node_type: setting
     title: Basic Configuration
+    type: string
+    default: ''
     visibility: public
     description: |-
       The Datadog API key used by your Agent to submit metrics and events to Datadog.
       Create a new API key here: https://app.datadoghq.com/organization-settings/api-keys .
       Read more about API keys here: https://docs.datadoghq.com/account_management/api-app-keys/#api-keys .
     tags:
-    - TODO:fix-no-default
-    - TODO:fix-missing-type
     - template_section:Common
-    default: ''
-    type: string
   app_key:
     node_type: setting
     type: string
@@ -31,6 +29,8 @@ properties:
     - template_section:Common
   site:
     node_type: setting
+    type: string
+    default: datadoghq.com
     visibility: public
     description: |-
       The site of the Datadog intake to send Agent data to.
@@ -40,14 +40,9 @@ properties:
       Set to 'us5.datadoghq.com' to send data to the US5 site.
       Set to 'ap1.datadoghq.com' to send data to the AP1 site.
       Set to 'ddog-gov.com' to send data to the US1-FED site.
-    example: datadoghq.com
     tags:
-    - TODO:fix-no-default
-    - TODO:fix-missing-type
     - template_section:Common
-    comment: |-
-      Agent
-      Don't set a default on 'site' to allow detecting with viper whether it's set in config
+    comment: Agent
   infrastructure_mode:
     node_type: setting
     type: string
@@ -68,6 +63,8 @@ properties:
       The possible values are: full, basic, end_user_device, none.
   dd_url:
     node_type: setting
+    type: string
+    default: https://app.datadoghq.com
     env_vars:
     - DD_DD_URL
     - DD_URL
@@ -78,10 +75,7 @@ properties:
       setting defined in "site". It does not affect APM, Logs, Remote Configuration, or Live Process intake which have their
       own "*_dd_url" settings.
       If DD_DD_URL and DD_URL are both set, DD_DD_URL is used in priority.
-    example: https://app.datadoghq.com
     tags:
-    - TODO:fix-no-default
-    - TODO:fix-missing-type
     - template_section:Common
   proxy:
     node_type: section
@@ -810,7 +804,6 @@ properties:
     default: true
     visibility: public
     description: Collect GPU related host tags
-    example: 'false'
     tags:
     - template_section:Common
     - full-agent-only:true
@@ -1109,6 +1102,44 @@ properties:
             description: URL endpoint for the Observability Pipelines Worker to send
               logs to
             example: '"http://127.0.0.1:8080"'
+            tags:
+            - template_section:Common
+          dual_ship:
+            node_type: setting
+            type: boolean
+            default: false
+            visibility: public
+            description: |-
+              When false (default), the Observability Pipelines Worker replaces the primary
+              Datadog logs intake as the sole destination. When true, logs are sent to BOTH
+              the primary Datadog intake and the Observability Pipelines Worker, which is
+              useful for evaluating OPW without interrupting the existing flow of telemetry
+              to Datadog.
+            tags:
+            - template_section:Common
+            comment: "dual_ship is logs-only: there is no equivalent dual-shipping\
+              \ code path for metrics, so\nthese keys live outside bindVectorOptions\
+              \ to avoid registering an unused metrics variant.\n\ndual_ship: when\
+              \ false (default), OPW replaces the primary Datadog endpoint and is\
+              \ the only\ndestination logs are shipped to. When true, Datadog remains\
+              \ the primary endpoint and OPW is\nadded as an additional endpoint \u2014\
+              \ intended for operators evaluating OPW without interrupting\nthe existing\
+              \ flow of telemetry to Datadog.\n\ndual_ship_reliable: when dual_ship=true,\
+              \ controls whether the OPW additional endpoint applies\nbackpressure\
+              \ to the main pipeline on failure (true) or is best-effort (false, the\
+              \ default).\nBest-effort is the safer default: an unreachable OPW must\
+              \ not block delivery to Datadog."
+          dual_ship_reliable:
+            node_type: setting
+            type: boolean
+            default: false
+            visibility: public
+            description: |-
+              Only meaningful when `dual_ship` is true. When false (default), the OPW
+              destination is treated as best-effort: failures to OPW do not apply
+              backpressure to the main pipeline, so an unhealthy OPW cannot stall delivery
+              to Datadog. Set to true to make the OPW destination reliable, meaning its
+              failures participate in flow control just like the primary Datadog endpoint.
             tags:
             - template_section:Common
       traces:
@@ -2157,6 +2188,8 @@ properties:
     comment: 'Notice: 0 means UDP port closed'
   bind_host:
     node_type: setting
+    type: string
+    default: ''
     visibility: public
     description: |-
       The host to listen on for Dogstatsd and traces. This is ignored by APM when
@@ -2166,8 +2199,6 @@ properties:
       To solve this problem, ensure Dogstatsd is listening on IPv4 by setting this value to "127.0.0.1".
     example: localhost
     tags:
-    - TODO:fix-no-default
-    - TODO:fix-missing-type
     - template_section:Dogstatsd
   dogstatsd_socket:
     node_type: setting
@@ -2325,6 +2356,8 @@ properties:
     - template_section:Dogstatsd
   dogstatsd_mapper_profiles:
     node_type: setting
+    type: array
+    default: []
     env_parser: json
     visibility: public
     description: |-
@@ -2365,8 +2398,6 @@ properties:
                 task_type: '$1'
                 task_name: '$2'
     tags:
-    - TODO:fix-no-default
-    - TODO:fix-missing-type
     - template_section:Dogstatsd
   dogstatsd_mapper_cache_size:
     node_type: setting
@@ -2880,6 +2911,7 @@ properties:
         - kubernetes
         - orchestratorexplorer
         - podman
+        - process
     tags:
     - template_section:CoreAgent
   autoconfig_include_features:
@@ -2903,6 +2935,7 @@ properties:
         - kubernetes
         - orchestratorexplorer
         - podman
+        - process
     tags:
     - template_section:CoreAgent
   container_cgroup_root:
@@ -4563,6 +4596,20 @@ properties:
               Binds to 0.0.0.0 by default (accepting all packets).
             tags:
             - template_section:CoreAgent
+          tags:
+            node_type: setting
+            type: array
+            default: []
+            items:
+              type: string
+            visibility: public
+            description: A list of low-cardinality tags (e.g. application, team, environment) attached to every trap forwarded to Datadog and to every SNMP traps telemetry metric emitted by the Agent.
+            example: |2-
+
+                - "application:my-app"
+                - "team:netops"
+            tags:
+            - template_section:CoreAgent
           stop_timeout:
             node_type: setting
             type: integer
@@ -5287,9 +5334,8 @@ properties:
         comment: HA Agent
       group:
         node_type: setting
-        tags:
-        - TODO:fix-no-default
-        - TODO:fix-missing-type
+        type: string
+        default: ''
   config_id:
     node_type: setting
     type: string
@@ -8050,9 +8096,8 @@ properties:
     - no-env
   fleet_policies_dir:
     node_type: setting
-    tags:
-    - TODO:fix-no-default
-    - TODO:fix-missing-type
+    type: string
+    default: ''
     comment: Directory to store fleet policies
   forwarder_apikey_validation_interval:
     node_type: setting
@@ -8209,19 +8254,29 @@ properties:
       enabled:
         node_type: setting
         type: boolean
-        default: false
+        default: true
       forwarder:
         node_type: section
         type: object
         properties:
           interval:
             node_type: setting
-            type: integer
-            default: 0
+            type: string
+            default: 0s
       persist_on_kubernetes:
         node_type: setting
         type: boolean
         default: false
+      invalidconfig_check:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            # Disabled by default: loading the compiled core_schema.yaml retains ~8 MiB of heap
+            # permanently (sync.Once global). Enable only if startup schema validation is needed.
+            default: false
   heroku_dyno:
     node_type: setting
     type: boolean
@@ -8331,9 +8386,11 @@ properties:
     - full-agent-only:true
   http_dial_fallback_delay:
     node_type: setting
+    type: number
+    default: -1ns
+    format: duration
     tags:
-    - TODO:fix-no-default
-    - TODO:fix-missing-type
+    - golang_type:duration
   ibm_metadata_timeout:
     node_type: setting
     type: integer
@@ -8620,9 +8677,9 @@ properties:
     comment: overridden in IoT Agent main
   ipc_address:
     node_type: setting
-    tags:
-    - TODO:fix-no-default
-    - TODO:fix-missing-type
+    type: string
+    default: localhost
+    comment: 'deprecated: use `cmd_host` instead'
   ipc_cert_file_path:
     node_type: setting
     type: string
@@ -9037,9 +9094,8 @@ properties:
     properties:
       id:
         node_type: setting
-        tags:
-        - TODO:fix-no-default
-        - TODO:fix-missing-type
+        type: string
+        default: ''
         comment: Network
   network_check:
     node_type: section
@@ -9177,9 +9233,8 @@ properties:
     - full-agent-only:true
   provider_kind:
     node_type: setting
-    tags:
-    - TODO:fix-no-default
-    - TODO:fix-missing-type
+    type: string
+    default: ''
   python_lazy_loading:
     node_type: setting
     type: boolean
@@ -9813,9 +9868,10 @@ properties:
     properties:
       checks:
         node_type: setting
-        tags:
-        - TODO:fix-no-default
-        - TODO:fix-missing-type
+        type: array
+        default: []
+        items:
+          type: string
       dogstatsd:
         node_type: section
         type: object
@@ -9876,9 +9932,11 @@ properties:
         default: true
   tls_handshake_timeout:
     node_type: setting
+    type: number
+    default: 10s
+    format: duration
     tags:
-    - TODO:fix-no-default
-    - TODO:fix-missing-type
+    - golang_type:duration
   trace_agent_host_socket_path:
     node_type: setting
     type: string
@@ -9936,6 +9994,17 @@ properties:
         node_type: section
         type: object
         properties:
+          dual_ship:
+            node_type: setting
+            type: boolean
+            default: false
+            comment: "Legacy vector.* aliases for dual_ship keys \u2014 users still\
+              \ on the legacy prefix must not have\ndual_ship=true silently dropped\
+              \ when the fallback in obsPipelineWorkerDualShip reads these keys."
+          dual_ship_reliable:
+            node_type: setting
+            type: boolean
+            default: false
           enabled:
             node_type: setting
             type: boolean

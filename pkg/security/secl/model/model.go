@@ -707,7 +707,9 @@ type FailedDNSEvent struct {
 
 // DNSResponse represents a DNS response event
 type DNSResponse struct {
-	ResponseCode uint8 `field:"code"` // SECLDoc[code] Definition:`Response code of the DNS response according to RFC 1035` Constants:`DNS Responses`
+	ResponseCode uint8       `field:"code,default:-1"`                              // SECLDoc[code] Definition:`Response code of the DNS response according to RFC 1035` Constants:`DNS Responses`
+	IPs          []net.IPNet `field:"ips"`                                          // SECLDoc[ips] Definition:`IP addresses resolved by the DNS response`
+	CNames       []string    `field:"cnames" op_override:"eval.CaseInsensitiveCmp"` // SECLDoc[cnames] Definition:`CNAME targets returned by the DNS response`
 }
 
 // Matches returns true if the two DNS events matches

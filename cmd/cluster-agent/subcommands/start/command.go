@@ -41,7 +41,7 @@ import (
 	healthprobe "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
 	healthprobefx "github.com/DataDog/datadog-agent/comp/core/healthprobe/fx"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -61,7 +61,7 @@ import (
 	workloadmetainit "github.com/DataDog/datadog-agent/comp/core/workloadmeta/init"
 	filterlistfx "github.com/DataDog/datadog-agent/comp/filterlist/fx"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	defaultforwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/def"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	eventplatformfx "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/fx"
 	eventplatformreceiverimpl "github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/impl"
@@ -91,6 +91,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/libraryinjection"
 	admissionpatch "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/patch"
 	apidca "github.com/DataDog/datadog-agent/pkg/clusteragent/api"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/autoscalinggate"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/cluster"
 	clusterspot "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/cluster/spot"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
@@ -180,6 +181,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					InitHelper: workloadmetainit.GetWorkloadmetaInit(),
 					AgentType:  workloadmeta.ClusterAgent,
 				}), // TODO(components): check what this must be for cluster-agent-cloudfoundry
+				fx.Supply(autoscalinggate.New()),
 				fx.Supply(context.Background()),
 				localTaggerfx.Module(),
 				workloadfilterfx.Module(),
@@ -290,6 +292,7 @@ func start(log log.Component,
 	tracerouteComp traceroute.Component,
 	eventPlatform eventplatform.Component,
 	healthPlatform option.Option[healthplatformdef.Component],
+	autoscalingGate *autoscalinggate.Gate,
 ) error {
 	stopCh := make(chan struct{})
 	validatingStopCh := make(chan struct{})
@@ -310,7 +313,7 @@ func start(log log.Component,
 	// Setup Internal Profiling
 	common.SetupInternalProfiling(settings, config, "")
 
-	if !config.IsSet("api_key") {
+	if !config.IsConfigured("api_key") {
 		return errors.New("no API key configured, exiting")
 	}
 
@@ -559,7 +562,7 @@ func start(log log.Component,
 			log.Error("Admission controller is disabled, vertical autoscaling requires the admission controller to be enabled. Vertical scaling will be disabled.")
 		}
 
-		if patcher, err := provider.StartWorkloadAutoscaling(mainCtx, clusterID, clusterName, le.IsLeader, apiCl, rcClient, wmeta, taggerComp, demultiplexer); err == nil {
+		if patcher, err := provider.StartWorkloadAutoscaling(mainCtx, clusterID, clusterName, le.IsLeader, apiCl, rcClient, wmeta, taggerComp, demultiplexer, autoscalingGate); err == nil {
 			pp = patcher
 		} else {
 			return fmt.Errorf("Error while starting workload autoscaling: %v", err)
@@ -593,7 +596,7 @@ func start(log log.Component,
 		}
 		log.Infof("[KubeActions] Starting with cluster_id=%s, cluster_name=%s", clusterID, clusterName)
 
-		if kubeactionsRetriever, err = kubeactions.Setup(mainCtx, apiCl.Cl, clusterName, clusterID, le.IsLeader, rcClient, epForwarder); err != nil {
+		if kubeactionsRetriever, err = kubeactions.Setup(mainCtx, apiCl.Cl, apiCl.DynamicCl, clusterName, clusterID, le.IsLeader, rcClient, epForwarder); err != nil {
 			return fmt.Errorf("Error while starting kubernetes actions: %v", err)
 		}
 		log.Info("Kubernetes actions subsystem started successfully")

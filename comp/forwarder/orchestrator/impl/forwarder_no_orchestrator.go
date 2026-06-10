@@ -12,7 +12,8 @@ import (
 	"go.uber.org/fx"
 
 	compdef "github.com/DataDog/datadog-agent/comp/def"
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	defaultforwarderdef "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/def"
+	defaultforwardernoop "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/noop-impl"
 	orchestrator "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -38,9 +39,9 @@ func Module(params orchestrator.Params) fxutil.Module {
 // dependencies (k8s, several MBs) while building binaries not needing these.
 func newOrchestratorForwarder(deps noOrchRequires) orchestrator.Component {
 	if deps.Params.UseNoopOrchestratorForwarder() {
-		forwarder := option.New[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
+		forwarder := option.New[defaultforwarderdef.Forwarder](defaultforwardernoop.NewComponent())
 		return &forwarder
 	}
-	forwarder := option.None[defaultforwarder.Forwarder]()
+	forwarder := option.None[defaultforwarderdef.Forwarder]()
 	return &forwarder
 }

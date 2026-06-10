@@ -209,6 +209,7 @@ func (s *packageDDOTSuite) TestInstallDDOTSubcommand() {
 
 	// Extension DDOT (ext/ddot on the agent package) must run under dd-procmgrd, not datadog-agent-ddot.service.
 	ddot.AssertDDOTManagedByProcmgr(s.T(), s.Env().RemoteHost)
+	ddot.AssertProcmgrDDOTTelemetry(s.T(), s.Env().RemoteHost)
 
 	state := s.host.State()
 	s.assertCoreUnits(state, true)

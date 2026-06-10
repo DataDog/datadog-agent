@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/internal/qbranch/anomalydetection-testbench
 
-go 1.25.9
+go 1.26.0
 
 replace github.com/DataDog/datadog-agent => ../../../
 
@@ -14,7 +14,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.78.1
 	github.com/DataDog/datadog-agent/pkg/util/log v0.78.1
 	github.com/DataDog/datadog-agent/pkg/util/option v0.78.1
-	github.com/DataDog/datadog-api-client-go/v2 v2.59.0
+	github.com/DataDog/datadog-api-client-go/v2 v2.60.0
 	github.com/apache/arrow-go/v18 v18.6.0
 	github.com/stretchr/testify v1.11.1
 	go.uber.org/fx v1.24.0
@@ -28,7 +28,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/delegatedauth/api/cloudauth/aws v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.77.0-devel.0.20260213154712-e02b9359151a // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.77.2 // indirect
-	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface v0.73.0-devel.0.20251030121902-cd89eab046d6 // indirect
+	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/log/fx v0.0.0-20250129172314-517df3f51a84 // indirect
 	github.com/DataDog/datadog-agent/comp/core/log/impl v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/log/mock v0.70.0 // indirect
@@ -89,7 +89,7 @@ require (
 	github.com/DataDog/go-acl v1.0.1 // indirect
 	github.com/DataDog/go-tuf v1.1.1-0.5.2 // indirect
 	github.com/DataDog/viper v1.15.1 // indirect
-	github.com/DataDog/zstd v1.5.7 // indirect
+	github.com/DataDog/zstd v1.5.8-0.20260421145859-31a7e515a571 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/acobaugh/osrelease v0.1.0 // indirect
 	github.com/andybalholm/brotli v1.2.1 // indirect
@@ -164,7 +164,7 @@ require (
 	golang.org/x/sys v0.45.0 // indirect
 	golang.org/x/text v0.37.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20260406210006-6f92a3bedf2d // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260504160031-60b97b32f348 // indirect
 	google.golang.org/grpc v1.81.1 // indirect
 	google.golang.org/protobuf v1.36.12-0.20260116114154-8c4c4ae446ca // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
@@ -187,6 +187,8 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/flare/builder => ../../../comp/core/flare/builder
 	github.com/DataDog/datadog-agent/comp/core/flare/types => ../../../comp/core/flare/types
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface => ../../../comp/core/hostname/hostnameinterface
+	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def => ../../../comp/core/hostname/hostnameinterface/def
+	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock => ../../../comp/core/hostname/hostnameinterface/mock
 	github.com/DataDog/datadog-agent/comp/core/ipc/def => ../../../comp/core/ipc/def
 	github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers => ../../../comp/core/ipc/httphelpers
 	github.com/DataDog/datadog-agent/comp/core/ipc/impl => ../../../comp/core/ipc/impl
@@ -252,7 +254,6 @@ replace (
 	github.com/DataDog/datadog-agent/internal/tools/independent-lint => ../../../internal/tools/independent-lint
 	github.com/DataDog/datadog-agent/internal/tools/modformatter => ../../../internal/tools/modformatter
 	github.com/DataDog/datadog-agent/internal/tools/modparser => ../../../internal/tools/modparser
-	github.com/DataDog/datadog-agent/internal/tools/proto => ../../../internal/tools/proto
 	github.com/DataDog/datadog-agent/internal/tools/worksynchronizer => ../../../internal/tools/worksynchronizer
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey => ../../../pkg/aggregator/ckey
 	github.com/DataDog/datadog-agent/pkg/api => ../../../pkg/api

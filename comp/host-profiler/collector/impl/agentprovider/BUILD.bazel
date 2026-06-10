@@ -11,11 +11,11 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",
-        "//comp/host-profiler/collector/impl/converters",
         "//comp/host-profiler/collector/impl/extensions/hpflareextension",
         "//comp/host-profiler/collector/impl/params",
         "//comp/host-profiler/version",
         "//pkg/config/utils",
+        "//pkg/util/confmaputils",
         "//pkg/util/log",
         "@io_opentelemetry_go_collector_confmap//:confmap",
     ],

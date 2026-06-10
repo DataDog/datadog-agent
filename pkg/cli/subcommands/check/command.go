@@ -57,16 +57,17 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/defaults"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	filterlistfx "github.com/DataDog/datadog-agent/comp/filterlist/fx"
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	defaultforwardernoop "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/noop-impl"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	eventplatformfx "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/fx"
 	eventplatformreceiverimpl "github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/impl"
 	orchestratordef "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/def"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/impl"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
-	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform"
+	"github.com/DataDog/datadog-agent/comp/healthplatform"
+	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	healthplatformmock "github.com/DataDog/datadog-agent/comp/healthplatform/store/mock"
-	logagent "github.com/DataDog/datadog-agent/comp/logs/agent"
+	logagent "github.com/DataDog/datadog-agent/comp/logs/agent/def"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	inventorychecks "github.com/DataDog/datadog-agent/comp/metadata/inventorychecks/def"
 	inventorychecksfx "github.com/DataDog/datadog-agent/comp/metadata/inventorychecks/fx"
@@ -188,7 +189,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams, wmCatalog fx.Option) *c
 				workloadfilterfx.Module(),
 				adfx.Module(),
 				healthplatform.Bundle(),
-				defaultforwarder.NoopModule(),
+				defaultforwardernoop.Module(),
 				inventorychecksfx.Module(),
 				logscompression.Module(),
 				metricscompression.Module(),
@@ -277,6 +278,7 @@ func run(
 	logReceiver option.Option[integrations.Component],
 	ipc ipc.Component,
 	traceroute traceroute.Component,
+	healthPlatform healthplatformdef.Component,
 ) error {
 	previousIntegrationTracing := false
 	previousIntegrationTracingExhaustive := false
@@ -306,6 +308,7 @@ func run(
 
 	// TODO: (components) - Until the checks are components we set there context so they can depends on components.
 	check.InitializeInventoryChecksContext(invChecks)
+	python.SetHealthPlatform(healthPlatform)
 	if !config.GetBool("python_lazy_loading") {
 		python.InitPython(common.GetPythonPaths()...)
 	}

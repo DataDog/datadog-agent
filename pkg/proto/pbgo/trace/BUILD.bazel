@@ -25,10 +25,7 @@ go_msgp(
     directives = ["limit arrays:500000 maps:500000"],
     out_test = "span_gen_test.go",
     patch_strip = 4,
-    patches = [
-        "//pkg/proto/patches:0001-Customize-msgpack-parsing.patch",
-        "//pkg/proto/patches:0002-Make-nil-map-deserialization-retrocompatible.patch",
-    ],
+    patches = ["//pkg/proto/patches:Customize-msgpack-parsing.patch"],
     src_file = "span.pb.go",
 )
 

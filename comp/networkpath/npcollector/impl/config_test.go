@@ -75,7 +75,7 @@ func TestNewConfig(t *testing.T) {
 				networkDevicesNamespace:   "default",
 				filterConfig:              []connfilter.Config{},
 				monitorIPWithoutDomain:    false,
-				ddSite:                    "",
+				ddSite:                    "datadoghq.com",
 				sourceProduct:             payload.SourceProductNetworkPath,
 			},
 		},
