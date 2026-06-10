@@ -25,7 +25,7 @@ import (
 const defaultMaxResponseBodyBytes int64 = 1 << 20
 
 // Forwarder POSTs lifecycle hooks to the user app. It is constructed only
-// when DD_SERVERLESS_MICROVM_USER_APP_PORT is set and we're in init-container
+// when DD_AWS_MICROVM_USER_APP_PORT is set and we're in init-container
 // mode + MicroVM origin.
 type Forwarder struct {
 	target               string        // e.g. "http://127.0.0.1:8080"
@@ -39,7 +39,7 @@ type Forwarder struct {
 // NewForwarder constructs a Forwarder targeting 127.0.0.1:<port>. The forwardTimeout
 // is used for /launch, /resume, /suspend, and /terminate; readyTimeout for /ready;
 // validateTimeout for /validate. Callers should pass the wire.go default constants
-// or values parsed from the DD_SERVERLESS_MICROVM_*_TIMEOUT_MS env vars.
+// or values parsed from the DD_AWS_MICROVM_*_TIMEOUT_MS env vars.
 func NewForwarder(port int, forwardTimeout, readyTimeout, validateTimeout time.Duration) *Forwarder {
 	return &Forwarder{
 		target: fmt.Sprintf("http://127.0.0.1:%d", port),
