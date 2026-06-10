@@ -63,6 +63,12 @@ func (c *thermalCheck) Configure(senderManager sender.SenderManager, _ uint64, d
 		return err
 	}
 
+	s, err := c.GetSender()
+	if err != nil {
+		return err
+	}
+	s.FinalizeCheckServiceTag()
+
 	c.pdhQuery, err = pdhutil.CreatePdhQuery()
 	if err != nil {
 		return err
