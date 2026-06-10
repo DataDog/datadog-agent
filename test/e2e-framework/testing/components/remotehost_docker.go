@@ -23,6 +23,6 @@ var _ common.Initializable = (*RemoteHostDocker)(nil)
 
 // Init is called by e2e test Suite after the component is provisioned.
 func (d *RemoteHostDocker) Init(ctx common.Context) (err error) {
-	d.Client, err = client.NewDocker(ctx.T(), d.ManagerOutput)
+	d.Client, err = client.NewDocker(ctx, d.ManagerOutput)
 	return err
 }
