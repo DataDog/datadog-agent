@@ -170,7 +170,7 @@ func TestHandleLaunchParsesInstanceID(t *testing.T) {
 
 // TestHandleLaunchWithForwarderParsesInstanceID verifies that when a forwarder is
 // configured, /launch still decodes the MicroVM instance ID from the request body
-// before delegating to handleParallel. Without the decode-then-restore fix, the
+// before delegating to handleWithForwarder. Without the decode-then-restore fix, the
 // forwarder path consumed r.Body first, so instanceID was never stored and all
 // subsequent lifecycle metrics lost the instance_id tag.
 func TestHandleLaunchWithForwarderParsesInstanceID(t *testing.T) {
@@ -288,8 +288,8 @@ func TestEmittedMetricsCarryCurrentTimestamp(t *testing.T) {
 }
 
 // TestEmittedMetricsCarryCurrentTimestamp_ForwarderPath verifies the same
-// timestamp guarantee for the handleParallel code path (forwarder enabled).
-// handleParallel runs metric emission in a goroutine but joins before the
+// timestamp guarantee for the handleWithForwarder code path (forwarder enabled).
+// handleWithForwarder runs metric emission in a goroutine but joins before the
 // handler returns, so the before/after window technique still applies.
 func TestEmittedMetricsCarryCurrentTimestamp_ForwarderPath(t *testing.T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -660,7 +660,7 @@ func (s *slowLogsFlusher) Flush(_ context.Context) {
 
 // When a forwarder is configured and the flush goroutine exceeds flushTimeout,
 // handleSuspend must still return promptly. The flush runs concurrently with
-// PassThrough inside handleParallel; flushAll's waitForFlushes honours the
+// PassThrough inside handleWithForwarder; flushAll's waitForFlushes honours the
 // timeout and closes sideDone so the handler is not blocked on the slow flusher.
 func TestHandleSuspend_WithForwarder_FlushTimeout_ReturnsPromptly(t *testing.T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -689,7 +689,7 @@ func TestHandleSuspend_WithForwarder_FlushTimeout_ReturnsPromptly(t *testing.T) 
 }
 
 // Same as TestHandleSuspend_WithForwarder_FlushTimeout_ReturnsPromptly but for
-// /terminate, which also calls handleParallel with withFlush=true.
+// /terminate, which also calls handleWithForwarder with flushSequential.
 func TestHandleTerminate_WithForwarder_FlushTimeout_ReturnsPromptly(t *testing.T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -714,6 +714,46 @@ func TestHandleTerminate_WithForwarder_FlushTimeout_ReturnsPromptly(t *testing.T
 	assert.Equal(t, http.StatusOK, rec.Code)
 	assert.Less(t, elapsed, 500*time.Millisecond,
 		"handleTerminate with forwarder must return promptly when flush times out (≪ slow flusher's 1s)")
+}
+
+// TestHandleTerminate_WithForwarder_BodyBufferedBeforeFlush verifies that the
+// response body from the user app is fully mirrored even when the sequential
+// flush runs after PassThrough returns and the forwardTimeout context expires
+// during the flush. Without buffering, the forwardTimeout context deadline
+// fires mid-flush, cancels the underlying TCP connection, and mirrorResponse
+// reads an empty or partial body. With buffering the body is read immediately
+// after PassThrough returns — while the context is still alive — so
+// mirrorResponse reads from an in-memory buffer that is context-independent.
+func TestHandleTerminate_WithForwarder_BodyBufferedBeforeFlush(t *testing.T) {
+	const wantBody = "terminate-response-body"
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+		w.WriteHeader(http.StatusOK)
+		_, _ = io.WriteString(w, wantBody)
+	}))
+	defer upstream.Close()
+
+	srv, _, _, _, _, _ := newTestServer()
+	// flushTimeout is longer than forwardTimeout so the sequential flush runs
+	// past the point where the forwardTimeout context would have expired.
+	srv.flushTimeout = 200 * time.Millisecond
+	srv.logsFlusher = &slowLogsFlusher{block: 150 * time.Millisecond}
+	srv.fwd = &Forwarder{
+		target: upstream.URL,
+		client: &http.Client{},
+		// forwardTimeout is short: expires during the flush, which means the
+		// cancelOnCloseReader's context deadline fires before mirrorResponse
+		// reads the body — unless the body was already buffered.
+		forwardTimeout:       100 * time.Millisecond,
+		maxResponseBodyBytes: defaultMaxResponseBodyBytes,
+	}
+
+	rec := httptest.NewRecorder()
+	srv.handleTerminate(rec, httptest.NewRequest(http.MethodPost, pathTerminate, nil))
+
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.Equal(t, wantBody, rec.Body.String(),
+		"response body must be fully mirrored even after sequential flush runs past forwardTimeout")
 }
 
 // /terminate with a forwarder waits for the user-app forward to complete
@@ -830,13 +870,14 @@ func TestNewServerConfiguresHTTPTimeouts(t *testing.T) {
 	flushTimeout := 5 * time.Second
 	srv := NewServer(0, &mockFlusher{}, &mockFlusher{}, &mockLogsAgent{}, &mockMetricEmitter{}, &mockSampleDrainer{}, metrics.MetricSourceAWSMicroVMEnhanced, flushTimeout, nil, nil, nil)
 	assert.Equal(t, 30*time.Second, srv.httpServer.ReadTimeout)
-	assert.Equal(t, flushTimeout+10*time.Second, srv.httpServer.WriteTimeout)
+	assert.Equal(t, flushTimeout+mirrorResponseTimeout, srv.httpServer.WriteTimeout)
 }
 
 // TestNewServerWithForwarderWriteTimeoutCoversForwardBudget verifies that when a
-// Forwarder is configured, WriteTimeout is sized to forwardTimeout+10s rather than
-// the shorter flushTimeout+10s. This prevents the HTTP server from closing the
-// platform-facing connection while the forwarder is still waiting for the user app.
+// Forwarder is configured, WriteTimeout accounts for the /terminate sequential
+// flush path whose wall-clock is forwardTimeout+flushTimeout. This prevents the
+// HTTP server from closing the platform-facing connection before the handler
+// finishes forwarding and flushing.
 func TestNewServerWithForwarderWriteTimeoutCoversForwardBudget(t *testing.T) {
 	flushTimeout := 5 * time.Second
 	fwd := &Forwarder{
@@ -845,8 +886,8 @@ func TestNewServerWithForwarderWriteTimeoutCoversForwardBudget(t *testing.T) {
 		maxResponseBodyBytes: defaultMaxResponseBodyBytes,
 	}
 	srv := NewServer(0, &mockFlusher{}, &mockFlusher{}, &mockLogsAgent{}, &mockMetricEmitter{}, &mockSampleDrainer{}, metrics.MetricSourceAWSMicroVMEnhanced, flushTimeout, nil, fwd, nil)
-	assert.Equal(t, fwd.forwardTimeout+10*time.Second, srv.httpServer.WriteTimeout,
-		"WriteTimeout must cover forwardTimeout (30s), not just flushTimeout (5s)")
+	assert.Equal(t, fwd.forwardTimeout+flushTimeout+mirrorResponseTimeout, srv.httpServer.WriteTimeout,
+		"WriteTimeout must cover forwardTimeout+flushTimeout (terminate sequential-flush path)")
 }
 
 // TestInstanceIDTagAppearsInMetricsAfterLaunch verifies that once /launch stores a
@@ -934,10 +975,10 @@ func TestMirrorResponse_BodyReadError_DoesNotPanic(t *testing.T) {
 func TestDispatchHook_NoForwarder_WithFlushFalse_EmitsMetricReturns200NoFlush(t *testing.T) {
 	srv, metric, trace, logs, emitter, drainer := newTestServer()
 	rec := httptest.NewRecorder()
-	srv.dispatchHook("test.metric", "/test", false, rec, httptest.NewRequest(http.MethodPost, "/test", nil))
+	srv.dispatchHook("test.metric", "/test", noFlush, rec, httptest.NewRequest(http.MethodPost, "/test", nil))
 	assert.Equal(t, http.StatusOK, rec.Code)
 	assert.Contains(t, emitter.getEmitted(), "test.metric")
-	assert.Equal(t, int32(0), metric.count.Load(), "withFlush=false must not flush")
+	assert.Equal(t, int32(0), metric.count.Load(), "noFlush must not flush")
 	assert.Equal(t, int32(0), trace.count.Load())
 	assert.Equal(t, int32(0), logs.count.Load())
 	assert.Equal(t, int32(0), drainer.count.Load())
@@ -948,10 +989,10 @@ func TestDispatchHook_NoForwarder_WithFlushFalse_EmitsMetricReturns200NoFlush(t 
 func TestDispatchHook_NoForwarder_WithFlushTrue_EmitsMetricAndFlushes(t *testing.T) {
 	srv, metric, trace, logs, emitter, drainer := newTestServer()
 	rec := httptest.NewRecorder()
-	srv.dispatchHook("test.metric", "/test", true, rec, httptest.NewRequest(http.MethodPost, "/test", nil))
+	srv.dispatchHook("test.metric", "/test", flushParallel, rec, httptest.NewRequest(http.MethodPost, "/test", nil))
 	assert.Equal(t, http.StatusOK, rec.Code)
 	assert.Contains(t, emitter.getEmitted(), "test.metric")
-	assert.Equal(t, int32(1), metric.count.Load(), "withFlush=true must flush metric agent")
+	assert.Equal(t, int32(1), metric.count.Load(), "flushParallel must flush metric agent")
 	assert.Equal(t, int32(1), trace.count.Load())
 	assert.Equal(t, int32(1), logs.count.Load())
 	assert.Equal(t, int32(1), drainer.count.Load())
@@ -959,7 +1000,7 @@ func TestDispatchHook_NoForwarder_WithFlushTrue_EmitsMetricAndFlushes(t *testing
 
 // TestDispatchHook_WithForwarder_DelegatesToHandleParallel verifies that when
 // a forwarder is configured, dispatchHook mirrors the user app's response and
-// emits the metric (via handleParallel). The no-forwarder 200 path must NOT
+// emits the metric (via handleWithForwarder). The no-forwarder 200 path must NOT
 // fire.
 func TestDispatchHook_WithForwarder_MirrorsUserAppResponse(t *testing.T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -976,7 +1017,7 @@ func TestDispatchHook_WithForwarder_MirrorsUserAppResponse(t *testing.T) {
 	}
 
 	rec := httptest.NewRecorder()
-	srv.dispatchHook("test.metric", pathResume, false, rec, httptest.NewRequest(http.MethodPost, pathResume, nil))
+	srv.dispatchHook("test.metric", pathResume, noFlush, rec, httptest.NewRequest(http.MethodPost, pathResume, nil))
 	assert.Equal(t, 418, rec.Code, "must mirror user-app status, not hardcoded 200")
 	assert.Contains(t, emitter.getEmitted(), "test.metric")
 }
@@ -1276,7 +1317,7 @@ func TestHandleLaunch_EmptyBaseTags_AppendsMicroVMIDOnly(t *testing.T) {
 
 // TestHandleLaunch_WithForwarder_UpdatesLogTags verifies that the log tag update
 // fires even when a user-app forwarder is configured. handleLaunch parses the
-// body and calls the setter before delegating to handleParallel.
+// body and calls the setter before delegating to handleWithForwarder.
 func TestHandleLaunch_WithForwarder_UpdatesLogTags(t *testing.T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
