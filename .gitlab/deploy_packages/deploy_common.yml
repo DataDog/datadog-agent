@@ -1,18 +1,19 @@
 ---
 .deploy_packages:
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy:$DATADOG_AGENT_DD_PKG_BUILDERS
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   stage: deploy_packages
   tags: ["arch:amd64"]
   rules:
     !reference [.on_deploy]
   variables:
+    DD_PKG_ARCH: x86_64
     MAJOR_VERSION: 6
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
     # Make job fail if there no files to upload are found
     - ls ${OMNIBUS_PACKAGE_DIR}/${ARTIFACT_NAME_PATTERN}
   script:
-    - !reference [.log_dd_pkg_version]
+    - !reference [.setup_dd_pkg]
     - dd-pkg upload "${OMNIBUS_PACKAGE_DIR}" "${DD_PKG_EXTRA_ARGS}"
 
 .deploy_packages_deb:
@@ -30,3 +31,4 @@
   variables:
     ARTIFACTS_PREFIX: suse_
     OMNIBUS_PACKAGE_DIR: $OMNIBUS_PACKAGE_DIR_SUSE
+
