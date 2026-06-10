@@ -135,7 +135,7 @@ func GetBinPath() string {
 	return defaultBinPath
 }
 
-// GetDefaultRunPath returns the path to the run directory
+// GetDefaultStatsdSocket returns the path to the run directory
 func GetDefaultStatsdSocket() string {
 	return defaultStatsdSocket
 }
