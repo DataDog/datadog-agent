@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log/errortracking"
+	agentversion "github.com/DataDog/datadog-agent/pkg/version"
 )
 
 // sendLogsBatch takes already-converted wire Log structs (produced by
@@ -63,7 +64,8 @@ func (s *senderImpl) sendLogsBatch(ctx context.Context, logs []Log) error {
 //   - PCs    -> multi-frame stack_trace ("file:line\tfunc" per line)
 //   - Count  -> 1 today; the Bouncer populates the suppressed-duplicate
 //     count here.
-//   - Message, Tags, TraceID, SpanID -> "" (not populated)
+//   - Tags   -> git.repository_url + git.commit.sha for Source Code Integration
+//   - Message, TraceID, SpanID -> "" (not populated)
 //   - IsCrash -> false (this path does not emit crash logs)
 func enrichErrorLog(e errortracking.ErrorLog) Log {
 	count := int(e.Count)
@@ -73,19 +75,30 @@ func enrichErrorLog(e errortracking.ErrorLog) Log {
 		// populate Count. Default to 1 so the wire field stays valid.
 		count = 1
 	}
+	tags := "git.repository_url:DataDog/datadog-agent"
+	if agentversion.Commit != "" {
+		tags += ",git.commit.sha:" + agentversion.Commit
+	}
 	out := Log{
 		Level:      LogLevelError,
 		TracerTime: e.Time.Unix(),
 		Count:      count,
 		IsCrash:    false,
 		ErrorKind:  e.ErrorKind,
+		Tags:       tags,
 	}
 	out.StackTrace = symbolizeStackFrames(e)
 	return out
 }
 
 // symbolizeStackFrames walks the PCs captured at log time and produces
-// the multi-line "file:line\tfunc" string the dd-go intake schema expects.
+// a multi-line stack string in Go's standard format:
+//
+//	github.com/DataDog/datadog-agent/pkg/util/log.Errorf
+//		/path/to/file.go:42 +0x1a4
+//
+// This matches the output of runtime panic traces and debug.Stack(), and
+// is the format the Error Tracking parser expects for frame extraction.
 //
 // Symbolization is deferred from handler-side to flush-time on purpose:
 // runtime.CallersFrames performs symbol table lookups and is relatively
@@ -103,7 +116,7 @@ func symbolizeStackFrames(e errortracking.ErrorLog) string {
 			if b.Len() > 0 {
 				b.WriteByte('\n')
 			}
-			fmt.Fprintf(&b, "%s:%d\t%s", frame.File, frame.Line, frame.Function)
+			fmt.Fprintf(&b, "%s\n\t%s:%d +0x%x", frame.Function, frame.File, frame.Line, frame.Entry)
 		}
 		if !more {
 			break
