@@ -117,7 +117,7 @@ func runAgentInstaller(ctx context.Context, e *env.Env, flavor, tag string) erro
 	fmt.Fprintf(os.Stdout, "Downloading installer for Datadog Agent %s ...\n", tag)
 	// bootstrap.DownloadInstallerExe handles the OCI installer.exe layer
 	// (Agent 7.79+) and falls back to MSI admin-install extraction for
-	// older fleet-supported Agents (7.65–7.78), so older versions go
+	// older fleet-supported Agents (7.72–7.78), so older versions go
 	// through the same version-matched-installer path as new ones.
 	exePath, err := bootstrap.DownloadInstallerExe(ctx, e, url, tmpDir)
 	if err != nil {
