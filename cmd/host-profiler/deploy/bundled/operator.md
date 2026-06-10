@@ -25,6 +25,10 @@ metadata:
       {"host-profiler": {"name": "registry.datadoghq.com/ddot-ebpf:7.81.0-preview-host-profiler-1.0"}}
 ```
 
+```shell
+kubectl apply -f <datadog-agent-manifest> -n <namespace>
+```
+
 The Operator rolls out a new DaemonSet revision adding the host-profiler container. Agent pods restart one node at a time.
 
 The profiler will run fully privileged in this configuration as Operator does not yet apply security enforcements. If you wish to reduce privileges, see next section.

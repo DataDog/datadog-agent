@@ -29,5 +29,4 @@ alternateConfig:
         receivers: [otlp]
         exporters: [otlp_http]
       profiles:
-        receivers: [profiling]
         exporters: [otlp_http]
