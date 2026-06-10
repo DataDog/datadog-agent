@@ -10,11 +10,14 @@ package workload
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -109,6 +112,25 @@ func TestScalerReleaseReplicasOwnership_TargetNotFoundIsNoError(t *testing.T) {
 
 	err := sg.releaseReplicasOwnership(context.Background(), "default", "missing", deploymentGVK)
 	assert.NoError(t, err, "missing target should be treated as already-released")
+}
+
+func TestScalerReleaseReplicasOwnership_ForbiddenSurfacesEvenWithMultipleMappings(t *testing.T) {
+	// RESTMapper iteration was historically prone to silently returning nil
+	// when a later mapping returned NotFound after an earlier mapping had
+	// returned a real error (Forbidden). The fix collapses to a single
+	// (preferred) mapping. Assert that a Forbidden on the first mapping
+	// propagates rather than being swallowed.
+	sg, dynClient := newScalerForTest(t)
+	dynClient.PrependReactor("get", "deployments", func(k8stesting.Action) (bool, runtime.Object, error) {
+		return true, nil, k8serrors.NewForbidden(
+			schema.GroupResource{Group: "apps", Resource: "deployments"},
+			"app", fmt.Errorf("user cannot patch deployments.apps"))
+	})
+
+	err := sg.releaseReplicasOwnership(context.Background(), "default", "app", deploymentGVK)
+	assert.Error(t, err, "Forbidden must propagate so the caller can requeue / surface it")
+	assert.True(t, k8serrors.IsForbidden(err) || strings.Contains(err.Error(), "forbidden"),
+		"underlying Forbidden must be preserved (errors.Is or string contains)")
 }
 
 func TestScalerReleaseReplicasOwnership_PatchIsTestGuarded(t *testing.T) {

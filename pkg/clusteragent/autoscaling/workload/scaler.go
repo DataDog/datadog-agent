@@ -92,29 +92,23 @@ func (sg *scalerImpl) update(ctx context.Context, gr schema.GroupResource, scale
 func (sg *scalerImpl) releaseReplicasOwnership(ctx context.Context, namespace, name string, gvk schema.GroupVersionKind) error {
 	mappings, err := sg.restMapper.RESTMappings(gvk.GroupKind())
 	if err != nil {
-		return fmt.Errorf("failed to get REST mappings for GVK: %s", gvk)
+		return fmt.Errorf("failed to get REST mappings for GVK %s: %w", gvk, err)
+	}
+	if len(mappings) == 0 {
+		return fmt.Errorf("no REST mappings for GVK %s", gvk)
 	}
 
-	var firstErr error
-	for i, mapping := range mappings {
-		gvr := mapping.Resource
-		err := sg.releaseReplicasOwnershipForGVR(ctx, namespace, name, gvr)
-		if err == nil {
-			return nil
-		}
-		if k8serrors.IsNotFound(err) {
-			// Target workload no longer exists — nothing left to release.
-			return nil
-		}
-		if i == 0 {
-			firstErr = err
-		}
+	// Multi-version mappings (e.g. CRDs served under multiple versions) all
+	// resolve to the same etcd object — patching via the preferred (first)
+	// mapping is sufficient. The previous loop would silently swallow a
+	// Forbidden from an earlier mapping if a later mapping returned NotFound,
+	// causing the release to look successful when it actually never ran.
+	err = sg.releaseReplicasOwnershipForGVR(ctx, namespace, name, mappings[0].Resource)
+	if k8serrors.IsNotFound(err) {
+		// Target workload no longer exists — nothing left to release.
+		return nil
 	}
-
-	if firstErr == nil {
-		return fmt.Errorf("unrecognized resource: %s", gvk)
-	}
-	return firstErr
+	return err
 }
 
 func (sg *scalerImpl) releaseReplicasOwnershipForGVR(ctx context.Context, namespace, name string, gvr schema.GroupVersionResource) error {
