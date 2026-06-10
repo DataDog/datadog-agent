@@ -1,0 +1,13 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "subcommands",
+    srcs = ["subcommands.go"],
+    importpath = "github.com/DataDog/datadog-agent/cmd/privateactionrunner/subcommands",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cmd/privateactionrunner/command",
+        "//cmd/privateactionrunner/subcommands/run",
+        "//cmd/privateactionrunner/subcommands/version",
+    ],
+)

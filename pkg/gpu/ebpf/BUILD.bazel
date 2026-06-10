@@ -1,6 +1,17 @@
 # gazelle:ignore
 
+load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules/ebpf:cgo_godefs.bzl", "cgo_godefs")
+
+go_library(
+    name = "ebpf",
+    srcs = [
+        "kprobe_types_linux.go",
+        "kprobe_types_string_linux.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/gpu/ebpf",
+    visibility = ["//visibility:public"],
+)
 
 exports_files([
     "kprobe_types_linux.go",

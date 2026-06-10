@@ -1,5 +1,4 @@
-# gazelle:ignore
-
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 load("//bazel/rules/ebpf:cgo_godefs.bzl", "cgo_godefs")
 
 exports_files([
@@ -12,4 +11,45 @@ cgo_godefs(
     src = "c_types.go",
     hdrs = ["//pkg/collector/corechecks/ebpf/c/runtime:corecheck_ebpf_headers"],
     visibility = ["//visibility:public"],
+)
+
+go_library(
+    name = "oomkill",
+    srcs = [
+        "c_types_linux.go",
+        "oom_kill.go",
+    ],
+    cgo = True,
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/oomkill",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/collector/corechecks/ebpf/probe/oomkill/model",
+        "//pkg/ebpf",
+        "//pkg/ebpf/bytecode",
+        "//pkg/ebpf/maps",
+        "//pkg/util/kernel",
+        "//pkg/util/log",
+        "@//pkg/ebpf/bytecode/runtime",
+        "@com_github_datadog_ebpf_manager//:ebpf-manager",
+        "@org_golang_x_sys//unix",
+    ],
+)
+
+go_test(
+    name = "oomkill_test",
+    srcs = [
+        "c_types_linux_test.go",
+        "oom_kill_test.go",
+    ],
+    embed = [":oomkill"],
+    gotags = ["test"],
+    deps = [
+        "//pkg/collector/corechecks/ebpf/probe/oomkill/model",
+        "//pkg/ebpf",
+        "//pkg/util/kernel",
+        "@//pkg/ebpf/bytecode/runtime",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_golang_x_sys//unix",
+    ],
 )

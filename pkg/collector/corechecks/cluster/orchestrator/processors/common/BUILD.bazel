@@ -1,0 +1,12 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "common",
+    srcs = ["base.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/common",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/collector/corechecks/cluster/orchestrator/processors",
+        "@com_github_datadog_agent_payload_v5//process",
+    ],
+)

@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_binary")
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
 
 exports_files(
     [
@@ -13,6 +13,55 @@ exports_files(
         "gpu.go",
     ],
     visibility = ["//pkg/ebpf/bytecode:__pkg__"],
+)
+
+go_library(
+    name = "runtime",
+    srcs = [
+        "all_helpers.go",
+        "asset.go",
+        "conntrack.go",
+        "gpu.go",
+        "helpers.go",
+        "offsetguess.go",
+        "offsetguess-test.go",
+        "oom-kill.go",
+        "protected_file.go",
+        "runtime-security.go",
+        "runtime_compilation_helpers.go",
+        "shared-libraries.go",
+        "tcp-queue-length.go",
+        "telemetry.go",
+        "tracer.go",
+        "usm.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//comp/core/telemetry/def",
+            "//comp/core/telemetry/impl",
+            "//pkg/ebpf",
+            "//pkg/ebpf/bytecode",
+            "//pkg/ebpf/compiler",
+            "//pkg/util/kernel",
+            "//pkg/util/kernel/headers",
+            "//pkg/util/log",
+            "@com_github_datadog_agent_payload_v5//process",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//comp/core/telemetry/def",
+            "//comp/core/telemetry/impl",
+            "//pkg/ebpf",
+            "//pkg/ebpf/bytecode",
+            "//pkg/ebpf/compiler",
+            "//pkg/util/kernel",
+            "//pkg/util/kernel/headers",
+            "//pkg/util/log",
+            "@com_github_datadog_agent_payload_v5//process",
+        ],
+        "//conditions:default": [],
+    }),
 )
 
 # Hand-written: rules_go respects //go:build ignore, so strip it before compiling.

@@ -1,5 +1,4 @@
-# gazelle:ignore
-
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 load("//bazel/rules/ebpf:cgo_godefs.bzl", "cgo_godefs")
 
 exports_files([
@@ -12,4 +11,55 @@ cgo_godefs(
     src = "types.go",
     visibility = ["//visibility:public"],
     deps = ["//pkg/network/ebpf/c:ebpf_c_network"],
+)
+
+go_library(
+    name = "sharedlibraries",
+    srcs = [
+        "compile.go",
+        "ebpf.go",
+        "libset.go",
+        "types_linux.go",
+    ],
+    cgo = True,
+    importpath = "github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/ebpf",
+        "//pkg/ebpf/bytecode",
+        "//pkg/ebpf/kernelbugs",
+        "//pkg/ebpf/modifiers",
+        "//pkg/ebpf/perf",
+        "//pkg/ebpf/telemetry",
+        "//pkg/network/ebpf",
+        "//pkg/util/common",
+        "//pkg/util/kernel",
+        "//pkg/util/log",
+        "@//pkg/ebpf/bytecode/runtime",
+        "@com_github_cilium_ebpf//:ebpf",
+        "@com_github_cilium_ebpf//asm",
+        "@com_github_cilium_ebpf//features",
+        "@com_github_cilium_ebpf//link",
+        "@com_github_datadog_ebpf_manager//:ebpf-manager",
+    ],
+)
+
+go_test(
+    name = "sharedlibraries_test",
+    srcs = [
+        "ebpf_test.go",
+        "types_linux_test.go",
+    ],
+    embed = [":sharedlibraries"],
+    gotags = ["test"],
+    deps = [
+        "//pkg/ebpf",
+        "//pkg/network/usm/sharedlibraries/testutil",
+        "//pkg/network/usm/testutil",
+        "//pkg/network/usm/utils",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@com_github_stretchr_testify//suite",
+        "@org_golang_x_sys//unix",
+    ],
 )

@@ -1,0 +1,14 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "sidecar",
+    srcs = ["container.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/appsec/sidecar",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/clusteragent/appsec/config",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/api/resource",
+        "@io_k8s_apimachinery//pkg/util/intstr",
+    ],
+)

@@ -1,4 +1,5 @@
 load("@rules_go//go:def.bzl", "go_binary", "go_library")
+load("//tasks:build_tags.bzl", "CWS_INSTRUMENTATION_TAGS", "FIPS_TAGS")
 
 go_library(
     name = "cws-instrumentation_lib",
@@ -24,6 +25,10 @@ go_library(
 go_binary(
     name = "cws-instrumentation",
     embed = [":cws-instrumentation_lib"],
+    gotags = CWS_INSTRUMENTATION_TAGS + select({
+        "//bazel/flags:fips_non_windows": FIPS_TAGS,
+        "//conditions:default": [],
+    }),
     # keep - This has a main_windows, but is really not implemented.
     target_compatible_with = ["@platforms//os:linux"],
     visibility = ["//visibility:public"],
