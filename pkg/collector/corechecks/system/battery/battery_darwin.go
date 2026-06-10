@@ -15,7 +15,10 @@ package battery
 */
 import "C"
 
-import "github.com/DataDog/datadog-agent/pkg/util/option"
+import (
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
+)
 
 // optionalInt converts C.OptionalInt to option.Option[float64]
 func optionalInt(o C.OptionalInt) option.Option[float64] {
@@ -109,5 +112,6 @@ func getPowerStateTags(isCharging, externalConnected, isCritical C.OptionalBool)
 		powerStateTags = append(powerStateTags, "power_state:battery_critical")
 	}
 
+	log.Debugf("Power state tags: %+v", powerStateTags)
 	return powerStateTags
 }
