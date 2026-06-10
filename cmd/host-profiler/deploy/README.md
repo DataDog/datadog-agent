@@ -61,3 +61,11 @@ export DD_SITE=<DATADOG_SITE>
 ```shell
 DD_BETA_COMMANDS_ENABLED=1 datadog-ci elf-symbols upload /path/to/build/symbols/
 ```
+
+## Security
+
+The host profiler does not run privileged. It requests only the specific Linux capabilities it needs (`BPF`, `PERFMON`, `SYS_PTRACE`, `SYS_RESOURCE`, `DAC_READ_SEARCH`, `SYSLOG`, `CHECKPOINT_RESTORE`, `IPC_LOCK`).
+
+**seccomp** further restricts the syscalls the container can make beyond what those capabilities allow. The profile ships at `/etc/dd-host-profiler/seccomp.json` inside the image and is applied automatically in all deployment paths except the Datadog Operator, which requires manual provisioning to each node.
+
+**AppArmor** is optional but recommended where available. It restricts which binaries the profiler can exec: only `objcopy`, used for symbol extraction, is permitted.
