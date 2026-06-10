@@ -5,8 +5,6 @@ go 1.25.0
 
 require (
 	github.com/DataDog/datadog-agent/comp/core/hostname/def v0.0.0-00010101000000-000000000000
-	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.61.0
-	go.uber.org/fx v1.24.0
 )
 
 require (
@@ -175,7 +173,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/executable => ../../../../../pkg/util/executable
 	github.com/DataDog/datadog-agent/pkg/util/filesystem => ../../../../../pkg/util/filesystem
 	github.com/DataDog/datadog-agent/pkg/util/flavor => ../../../../../pkg/util/flavor
-	github.com/DataDog/datadog-agent/pkg/util/fxutil => ../../../../../pkg/util/fxutil
 	github.com/DataDog/datadog-agent/pkg/util/grpc => ../../../../../pkg/util/grpc
 	github.com/DataDog/datadog-agent/pkg/util/hostinfo => ../../../../../pkg/util/hostinfo
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate => ../../../../../pkg/util/hostname/validate

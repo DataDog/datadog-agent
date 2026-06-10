@@ -5,9 +5,5 @@ go_library(
     srcs = ["mock.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/core/hostname/mock",
     visibility = ["//visibility:public"],
-    deps = [
-        "//comp/core/hostname/def",
-        "//pkg/util/fxutil",
-        "@org_uber_go_fx//:fx",
-    ],
+    deps = ["//comp/core/hostname/def"],
 )

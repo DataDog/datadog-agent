@@ -18,6 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/def"
+	hostnamefxmock "github.com/DataDog/datadog-agent/comp/core/hostname/fx-mock"
 	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
@@ -91,7 +92,7 @@ type SenderTestDeps struct {
 func TestGetDefaultSenderReturnsSameSender(t *testing.T) {
 	// this test not using anything global
 	// -
-	deps := fxutil.Test[SenderTestDeps](t, core.MockBundle(), hostnamemock.MockModule(), filterlistfx.MockModule())
+	deps := fxutil.Test[SenderTestDeps](t, core.MockBundle(), hostnamefxmock.MockModule(), filterlistfx.MockModule())
 	demux := testDemux(deps.Log, deps.Hostname, deps.FilterList)
 	aggregatorInstance := demux.Aggregator()
 	go aggregatorInstance.run()
@@ -111,7 +112,7 @@ func TestGetDefaultSenderReturnsSameSender(t *testing.T) {
 func TestGetSenderWithDifferentIDsReturnsDifferentCheckSamplers(t *testing.T) {
 	// this test not using anything global
 	// -
-	deps := fxutil.Test[SenderTestDeps](t, core.MockBundle(), hostnamemock.MockModule(), filterlistfx.MockModule())
+	deps := fxutil.Test[SenderTestDeps](t, core.MockBundle(), hostnamefxmock.MockModule(), filterlistfx.MockModule())
 	demux := testDemux(deps.Log, deps.Hostname, deps.FilterList)
 
 	aggregatorInstance := demux.Aggregator()
@@ -141,7 +142,7 @@ func TestGetSenderWithSameIDsReturnsSameSender(t *testing.T) {
 	// this test not using anything global
 	// -
 
-	deps := fxutil.Test[SenderTestDeps](t, core.MockBundle(), hostnamemock.MockModule(), filterlistfx.MockModule())
+	deps := fxutil.Test[SenderTestDeps](t, core.MockBundle(), hostnamefxmock.MockModule(), filterlistfx.MockModule())
 	demux := testDemux(deps.Log, deps.Hostname, deps.FilterList)
 	aggregatorInstance := demux.Aggregator()
 	go aggregatorInstance.run()
@@ -164,7 +165,7 @@ func TestDestroySender(t *testing.T) {
 	// this test not using anything global
 	// -
 
-	deps := fxutil.Test[SenderTestDeps](t, core.MockBundle(), hostnamemock.MockModule(), filterlistfx.MockModule())
+	deps := fxutil.Test[SenderTestDeps](t, core.MockBundle(), hostnamefxmock.MockModule(), filterlistfx.MockModule())
 	demux := testDemux(deps.Log, deps.Hostname, deps.FilterList)
 	aggregatorInstance := demux.Aggregator()
 	go aggregatorInstance.run()
@@ -194,7 +195,7 @@ func TestGetAndSetSender(t *testing.T) {
 	// this test not using anything global
 	// -
 
-	deps := fxutil.Test[SenderTestDeps](t, core.MockBundle(), hostnamemock.MockModule(), filterlistfx.MockModule())
+	deps := fxutil.Test[SenderTestDeps](t, core.MockBundle(), hostnamefxmock.MockModule(), filterlistfx.MockModule())
 	demux := testDemux(deps.Log, deps.Hostname, deps.FilterList)
 
 	itemChan := make(chan senderItem, 10)
@@ -217,7 +218,7 @@ func TestGetSenderDefaultHostname(t *testing.T) {
 	// this test not using anything global
 	// -
 
-	deps := fxutil.Test[SenderTestDeps](t, core.MockBundle(), hostnamemock.MockModule(), filterlistfx.MockModule())
+	deps := fxutil.Test[SenderTestDeps](t, core.MockBundle(), hostnamefxmock.MockModule(), filterlistfx.MockModule())
 	demux := testDemux(deps.Log, deps.Hostname, deps.FilterList)
 	aggregatorInstance := demux.Aggregator()
 	go aggregatorInstance.run()

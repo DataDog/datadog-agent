@@ -338,7 +338,11 @@ func TestTruncate(t *testing.T) {
 }
 
 func TestGetHostname(t *testing.T) {
-	hostnameComponent, _ := hostnamemock.New("testHostnameFromEnvVar")
+	{
+		m := hostnamemock.New(t)
+		m.Set("testHostnameFromEnvVar")
+		hostnameComponent := m
+	}
 	p := &Processor{
 		hostname: hostnameComponent,
 	}

@@ -12,6 +12,7 @@ import (
 
 	demultiplexerimpl "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/impl"
 	"github.com/DataDog/datadog-agent/comp/core"
+	hostnamefxmock "github.com/DataDog/datadog-agent/comp/core/hostname/fx-mock"
 	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/mock"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
@@ -29,7 +30,7 @@ import (
 func TestBundleDependencies(t *testing.T) {
 	fxutil.TestBundle(t, Bundle(demultiplexerimpl.Params{}),
 		core.MockBundle(),
-		hostnamemock.MockModule(),
+		hostnamefxmock.MockModule(),
 		defaultforwardermock.MockModule(),
 		orchestratormock.MockModule(),
 		eventplatformmock.MockModule(),

@@ -42,7 +42,7 @@ func (hs *service) GetWithProvider(ctx context.Context) (pkghostname.Data, error
 	return pkghostname.GetWithProvider(ctx)
 }
 
-// NewHostnameService creates a new instance of the component hostname
-func NewHostnameService(Requires) Provides {
+// NewComponent creates a new instance of the component hostname
+func NewComponent(Requires) Provides {
 	return Provides{Comp: &service{}}
 }

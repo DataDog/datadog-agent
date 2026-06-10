@@ -52,7 +52,7 @@ func TestStatus(t *testing.T) {
 	headerProvider := StatusProvider{
 		testServerURL: server.URL,
 		config:        configComponent,
-		hostname:      hostnameimpl.NewHostnameService(hostnameimpl.Requires{}).Comp,
+		hostname:      hostnameimpl.NewComponent(hostnameimpl.Requires{}).Comp,
 	}
 
 	tests := []struct {
@@ -106,7 +106,7 @@ func TestStatusError(t *testing.T) {
 	headerProvider := StatusProvider{
 		testServerURL: server.URL,
 		config:        configComponent,
-		hostname:      hostnameimpl.NewHostnameService(hostnameimpl.Requires{}).Comp,
+		hostname:      hostnameimpl.NewComponent(hostnameimpl.Requires{}).Comp,
 	}
 
 	tests := []struct {

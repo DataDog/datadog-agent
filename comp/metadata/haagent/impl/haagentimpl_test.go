@@ -31,7 +31,7 @@ func getProvides(t *testing.T, confOverrides map[string]any) (Provides, error) {
 		Config:     cfg,
 		Serializer: serializermock.NewMetricSerializer(t),
 		HaAgent:    haagentmock.NewMockHaAgent(),
-		Hostname:   hostnameimpl.NewHostnameService(hostnameimpl.Requires{}).Comp,
+		Hostname:   hostnameimpl.NewComponent(hostnameimpl.Requires{}).Comp,
 	}
 	return NewComponent(r)
 }

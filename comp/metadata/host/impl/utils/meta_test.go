@@ -20,7 +20,7 @@ func TestGetMeta(t *testing.T) {
 	ctx := context.Background()
 	cfg := config.NewMock(t)
 
-	meta := getMeta(ctx, cfg, hostnameimpl.NewHostnameService(hostnameimpl.Requires{}).Comp)
+	meta := getMeta(ctx, cfg, hostnameimpl.NewComponent(hostnameimpl.Requires{}).Comp)
 	assert.NotEmpty(t, meta.SocketHostname)
 	assert.NotEmpty(t, meta.Timezones)
 	assert.NotEmpty(t, meta.SocketFqdn)
@@ -35,7 +35,7 @@ func TestGetMetaFromCache(t *testing.T) {
 		Timezones:      []string{"tz_test"},
 	}, cache.NoExpiration)
 
-	m := GetMetaFromCache(ctx, cfg, hostnameimpl.NewHostnameService(hostnameimpl.Requires{}).Comp)
+	m := GetMetaFromCache(ctx, cfg, hostnameimpl.NewComponent(hostnameimpl.Requires{}).Comp)
 	assert.Equal(t, "socket_test", m.SocketHostname)
 	assert.Equal(t, []string{"tz_test"}, m.Timezones)
 }

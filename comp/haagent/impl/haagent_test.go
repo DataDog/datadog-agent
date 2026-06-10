@@ -215,7 +215,7 @@ func Test_haAgentImpl_onHaAgentUpdate(t *testing.T) {
 			}
 			agentConfigComponent := config.NewMockWithOverrides(t, agentConfigs)
 
-			h := newHaAgentImpl(logmock.New(t), hostnameimpl.NewHostnameService(hostnameimpl.Requires{}).Comp, newHaAgentConfigs(agentConfigComponent))
+			h := newHaAgentImpl(logmock.New(t), hostnameimpl.NewComponent(hostnameimpl.Requires{}).Comp, newHaAgentConfigs(agentConfigComponent))
 
 			if tt.initialState != "" {
 				h.state.Store(string(tt.initialState))

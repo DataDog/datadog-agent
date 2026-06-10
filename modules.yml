@@ -37,6 +37,7 @@ modules:
     used_by_otel: true
   comp/core/hostname/def:
     used_by_otel: true
+  comp/core/hostname/fx-mock: default
   comp/core/hostname/mock: default
   comp/core/ipc/def:
     used_by_otel: true

@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	hostnamefx "github.com/DataDog/datadog-agent/comp/core/hostname/fx"
+	hostnamefxmock "github.com/DataDog/datadog-agent/comp/core/hostname/fx-mock"
 	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/mock"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
@@ -55,7 +56,7 @@ func TestCommand(t *testing.T) {
 	fxutil.Test[ipc.Component](t,
 		ipcfx.ModuleReadWrite(),
 		core.MockBundle(),
-		hostnamemock.MockModule(),
+		hostnamefxmock.MockModule(),
 	)
 
 	// closely mirrors what the agents would use, but with mock modules where possible

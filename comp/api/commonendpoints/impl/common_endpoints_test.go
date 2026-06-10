@@ -24,7 +24,7 @@ func TestGetHostname(t *testing.T) {
 	req, err := http.NewRequest("GET", "/hostname", nil)
 	require.NoError(t, err)
 
-	hostname := hostnameimpl.NewHostnameService(hostnameimpl.Requires{}).Comp
+	hostname := hostnameimpl.NewComponent(hostnameimpl.Requires{}).Comp
 
 	rr := httptest.NewRecorder()
 	handler := http.HandlerFunc(getHostname(hostname))

@@ -12,6 +12,7 @@ import (
 
 	collectormock "github.com/DataDog/datadog-agent/comp/collector/collector/mock"
 	"github.com/DataDog/datadog-agent/comp/core"
+	hostnamefxmock "github.com/DataDog/datadog-agent/comp/core/hostname/fx-mock"
 	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/mock"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
@@ -28,7 +29,7 @@ import (
 func TestBundleDependencies(t *testing.T) {
 	fxutil.TestBundle(t, Bundle(),
 		core.MockBundle(),
-		hostnamemock.MockModule(),
+		hostnamefxmock.MockModule(),
 		fx.Supply(option.None[runnerdef.MetadataProvider]()),
 		fx.Provide(func() serializer.MetricSerializer { return nil }),
 		collectormock.MockModule(),

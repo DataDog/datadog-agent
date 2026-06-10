@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/def"
+	hostnamefxmock "github.com/DataDog/datadog-agent/comp/core/hostname/fx-mock"
 	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/mock"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	eventplatformimpl "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/impl"
@@ -27,7 +28,7 @@ import (
 
 func TestSubmitter_DrainChannelAndPayloadFormat(t *testing.T) {
 	// Create noop forwarder
-	hostname := fxutil.Test[hostname.Component](t, hostnamemock.MockModule())
+	hostname := fxutil.Test[hostname.Component](t, hostnamefxmock.MockModule())
 	compression := fxutil.Test[logscompression.Component](t, logscompressionmock.MockModule())
 	forwarder := eventplatformimpl.NewNoopEventPlatformForwarder(hostname, compression)
 

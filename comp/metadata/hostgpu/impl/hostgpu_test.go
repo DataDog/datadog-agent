@@ -93,7 +93,7 @@ func getTestInventoryHost(t *testing.T) *gpuHost {
 		Log:        logmock.New(t),
 		Config:     configmock.New(t),
 		Serializer: serializermock.NewMetricSerializer(t),
-		Hostname:   hostnameimpl.NewHostnameService(hostnameimpl.Requires{}).Comp,
+		Hostname:   hostnameimpl.NewComponent(hostnameimpl.Requires{}).Comp,
 	})
 	return p.Comp.(*gpuHost)
 }

@@ -31,7 +31,7 @@ func TestBuildServerlessEndpoints(t *testing.T) {
 func TestServerlessLogsAgent(t *testing.T) {
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	fakeCompression := compressionmock.NewMockCompressor()
-	hostnameService := hostnameimpl.NewHostnameService(hostnameimpl.Requires{}).Comp
+	hostnameService := hostnameimpl.NewComponent(hostnameimpl.Requires{}).Comp
 	config := config.NewMock(t)
 
 	serverlessLogsAgent := NewServerlessLogsAgent(fakeTagger, fakeCompression, hostnameService)

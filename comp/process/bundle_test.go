@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 	delegatedauthmock "github.com/DataDog/datadog-agent/comp/core/delegatedauth/mock"
+	hostnamefxmock "github.com/DataDog/datadog-agent/comp/core/hostname/fx-mock"
 	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/mock"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
@@ -63,7 +64,7 @@ func TestBundleDependencies(t *testing.T) {
 		fx.Supply(mockCoreBundleParams),
 		fx.Provide(func() types.CheckComponent { return nil }),
 		core.MockBundle(),
-		hostnamemock.MockModule(),
+		hostnamefxmock.MockModule(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 		fx.Provide(func() tagger.Component { return taggerfxmock.SetupFakeTagger(t) }),
 		coreStatusImpl.Module(),
@@ -137,7 +138,7 @@ func TestBundleOneShot(t *testing.T) {
 			proccontainers.InitSharedContainerProvider(wmeta, tagger, filterStore)
 		}),
 		mocktelemetry.Module(),
-		hostnamemock.MockModule(),
+		hostnamefxmock.MockModule(),
 		fx.Provide(func() delegatedauth.Component { return delegatedauthmock.New(t) }),
 		Bundle(),
 	)

@@ -90,7 +90,7 @@ func TestGetStatus(t *testing.T) {
 			Config: ConfigStatus{
 				LogLevel: cfg.GetString("log_level"),
 			},
-			Metadata: *hostMetadataUtils.GetFromCache(context.Background(), cfg, hostnameimpl.NewHostnameService(hostnameimpl.Requires{}).Comp),
+			Metadata: *hostMetadataUtils.GetFromCache(context.Background(), cfg, hostnameimpl.NewComponent(hostnameimpl.Requires{}).Comp),
 		},
 		Expvars: expectedExpVars,
 	}
@@ -98,7 +98,7 @@ func TestGetStatus(t *testing.T) {
 	expVarSrv := fakeExpVarServer(t, expectedExpVars)
 	defer expVarSrv.Close()
 
-	stats, err := GetStatus(cfg, expVarSrv.URL, hostnameimpl.NewHostnameService(hostnameimpl.Requires{}).Comp)
+	stats, err := GetStatus(cfg, expVarSrv.URL, hostnameimpl.NewComponent(hostnameimpl.Requires{}).Comp)
 	require.NoError(t, err)
 
 	OverrideTime(testTime)(stats)

@@ -25,7 +25,7 @@ func newTestHaAgentComponent(t *testing.T, agentConfigs map[string]interface{}, 
 	requires := Requires{
 		Logger:      logger,
 		AgentConfig: agentConfigComponent,
-		Hostname:    hostnameimpl.NewHostnameService(hostnameimpl.Requires{}).Comp,
+		Hostname:    hostnameimpl.NewComponent(hostnameimpl.Requires{}).Comp,
 	}
 
 	provides, err := NewComponent(requires)

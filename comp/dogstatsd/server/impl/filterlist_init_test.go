@@ -19,6 +19,7 @@ import (
 	demultiplexerimpl "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/impl"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/def"
+	hostnamefxmock "github.com/DataDog/datadog-agent/comp/core/hostname/fx-mock"
 	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
@@ -66,7 +67,7 @@ func TestWorkerFilterListInitializedFromLocalConfig(t *testing.T) {
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Provide(func() configComponent.Component { return configComponent.NewMockWithOverrides(t, cfg) }),
 		mocktelemetry.Module(),
-		hostnamemock.MockModule(),
+		hostnamefxmock.MockModule(),
 		serverdebugmock.MockModule(),
 		replaymock.MockModule(),
 		pidmapfx.Module(),

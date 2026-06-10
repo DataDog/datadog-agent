@@ -22,6 +22,7 @@ go_test(
     embed = [":diagnostic"],
     gotags = ["test"],
     deps = [
+        "//comp/core/hostname/fx-mock",
         "//comp/core/hostname/mock",
         "//comp/logs/agent/config",
         "//pkg/config/mock",

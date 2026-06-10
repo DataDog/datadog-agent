@@ -757,7 +757,7 @@ func TestWorker_HaIntegration(t *testing.T) {
 			requires := haagentimpl.Requires{
 				Logger:      logComponent,
 				AgentConfig: agentConfigComponent,
-				Hostname:    hostnameimpl.NewHostnameService(hostnameimpl.Requires{}).Comp,
+				Hostname:    hostnameimpl.NewComponent(hostnameimpl.Requires{}).Comp,
 			}
 			haagentcomp, _ := haagentimpl.NewComponent(requires)
 			haagentcomp.Comp.SetLeader(tt.setLeaderValue)

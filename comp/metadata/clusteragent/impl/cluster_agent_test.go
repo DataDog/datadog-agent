@@ -52,7 +52,7 @@ func getClusterAgentComp(t *testing.T) *datadogclusteragent {
 		Log:        l,
 		Config:     cfg,
 		Serializer: serializermock.NewMetricSerializer(t),
-		Hostname:   hostnameimpl.NewHostnameService(hostnameimpl.Requires{}).Comp,
+		Hostname:   hostnameimpl.NewComponent(hostnameimpl.Requires{}).Comp,
 	}
 
 	comp := NewComponent(r).Comp

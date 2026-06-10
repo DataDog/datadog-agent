@@ -41,7 +41,7 @@ func TestBundleDependencies(t *testing.T) {
 		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
 		fx.Provide(func(t testing.TB) config.Component { return config.NewMock(t) }),
 		telemetrymock.Module(),
-		hostnamemock.MockModule(),
+		hostnamefxmock.MockModule(),
 	)
 }
 
@@ -93,7 +93,7 @@ func TestBundleStartLifecycle(t *testing.T) {
 			return cfg
 		}),
 		telemetrymock.Module(),
-		hostnamemock.MockModule(),
+		hostnamefxmock.MockModule(),
 	)
 
 	var checkRunCount atomic.Int32

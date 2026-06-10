@@ -9,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	hostnamefxmock "github.com/DataDog/datadog-agent/comp/core/hostname/fx-mock"
 	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/mock"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -17,8 +18,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
-func getNewHostname(name hostnamemock.MockHostname) hostnamemock.Mock {
-	_, mock := hostnamemock.NewMock(name)
+func getNewHostname(name hostnamefxmock.MockHostname) hostnamemock.Mock {
+	_, mock := func() hostnamemock.Mock { m := hostnamemock.New(t); m.Set(string(name)); return m }()
 	return mock
 }
 

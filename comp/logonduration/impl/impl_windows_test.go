@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/def"
+	hostnamefxmock "github.com/DataDog/datadog-agent/comp/core/hostname/fx-mock"
 	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/mock"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	eventplatformimpl "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/impl"
@@ -265,7 +266,7 @@ func TestBuildCustomPayload(t *testing.T) {
 }
 
 func TestSubmitEvent_PayloadFormat(t *testing.T) {
-	hostname := fxutil.Test[hostname.Component](t, hostnamemock.MockModule())
+	hostname := fxutil.Test[hostname.Component](t, hostnamefxmock.MockModule())
 	compression := fxutil.Test[logscompression.Component](t, logscompressionmock.MockModule())
 	forwarder := eventplatformimpl.NewNoopEventPlatformForwarder(hostname, compression)
 
@@ -323,7 +324,7 @@ func TestSubmitEvent_PayloadFormat(t *testing.T) {
 }
 
 func TestSubmitEvent_MessageIncludesTotalDuration(t *testing.T) {
-	hostname := fxutil.Test[hostname.Component](t, hostnamemock.MockModule())
+	hostname := fxutil.Test[hostname.Component](t, hostnamefxmock.MockModule())
 	compression := fxutil.Test[logscompression.Component](t, logscompressionmock.MockModule())
 	forwarder := eventplatformimpl.NewNoopEventPlatformForwarder(hostname, compression)
 
@@ -359,7 +360,7 @@ func TestSubmitEvent_MessageIncludesTotalDuration(t *testing.T) {
 }
 
 func TestSubmitEvent_FallbackMessageWhenNoDuration(t *testing.T) {
-	hostname := fxutil.Test[hostname.Component](t, hostnamemock.MockModule())
+	hostname := fxutil.Test[hostname.Component](t, hostnamefxmock.MockModule())
 	compression := fxutil.Test[logscompression.Component](t, logscompressionmock.MockModule())
 	forwarder := eventplatformimpl.NewNoopEventPlatformForwarder(hostname, compression)
 

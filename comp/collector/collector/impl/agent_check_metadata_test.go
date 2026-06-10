@@ -14,6 +14,7 @@ import (
 
 	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	hostnamefxmock "github.com/DataDog/datadog-agent/comp/core/hostname/fx-mock"
 	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/mock"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
@@ -36,7 +37,7 @@ func TestExternalHostTags(t *testing.T) {
 	externalhost.SetExternalTags(host1, sourceType, tags1)
 	externalhost.SetExternalTags(host2, sourceType, tags2)
 
-	hostname, _ := hostnamemock.NewMock("my-hostname")
+	hostname := hostnamemock.New(t)
 	c := newCollector(dependencies{
 		Lc:               compdef.NewTestLifecycle(t),
 		Config:           config.NewMockWithOverrides(t, map[string]interface{}{"check_cancel_timeout": 500 * time.Millisecond}),

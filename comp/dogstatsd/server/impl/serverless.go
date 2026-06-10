@@ -34,7 +34,7 @@ type ServerlessDogstatsd interface {
 //nolint:revive // TODO(AML) Fix revive linter
 func NewServerlessServer(demux aggregator.Demultiplexer, extraTags []string) (ServerlessDogstatsd, error) {
 	wmeta := option.None[workloadmeta.Component]()
-	s := newServerCompat(pkgconfigsetup.Datadog(), logComponentImpl.NewTemporaryLoggerWithoutInit(), hostnameimpl.NewHostnameService(hostnameimpl.Requires{}).Comp, replay.NewNoopTrafficCapture(), serverdebugimpl.NewServerlessServerDebug(pkgconfigsetup.Datadog()), true, demux, wmeta, pidmapimpl.NewServerlessPidMap(), telemetry.GetCompatComponent(), filterlistimpl.NewNoopFilterList())
+	s := newServerCompat(pkgconfigsetup.Datadog(), logComponentImpl.NewTemporaryLoggerWithoutInit(), hostnameimpl.NewComponent(hostnameimpl.Requires{}).Comp, replay.NewNoopTrafficCapture(), serverdebugimpl.NewServerlessServerDebug(pkgconfigsetup.Datadog()), true, demux, wmeta, pidmapimpl.NewServerlessPidMap(), telemetry.GetCompatComponent(), filterlistimpl.NewNoopFilterList())
 
 	s.extraTags = append(s.extraTags, extraTags...)
 	err := s.start(context.TODO())

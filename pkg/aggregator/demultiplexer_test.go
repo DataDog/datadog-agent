@@ -14,6 +14,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core"
+	hostnamefxmock "github.com/DataDog/datadog-agent/comp/core/hostname/fx-mock"
 	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/mock"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
@@ -294,7 +295,7 @@ func createDemuxDepsWithOrchestratorFwd(
 		fx.Provide(func() secrets.Component { return secretsmock.New(t) }),
 		defaultforwardermock.MockModule(),
 		core.MockBundle(),
-		hostnamemock.MockModule(),
+		hostnamefxmock.MockModule(),
 		orchestratorForwarderImpl.Module(orchestratorParams),
 		eventplatformfx.Module(eventPlatformParams),
 		eventplatformreceiverimpl.Module(),

@@ -20,6 +20,7 @@ import (
 	demultiplexerimpl "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/impl"
 	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	hostnamefxmock "github.com/DataDog/datadog-agent/comp/core/hostname/fx-mock"
 	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/mock"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
@@ -81,7 +82,7 @@ func (s *SenderManagerProxy) GetDefaultSender() (sender.Sender, error) {
 }
 
 func (suite *CollectorDemuxTestSuite) SetupTest() {
-	hostname, _ := hostnamemock.NewMock("my-hostname")
+	hostname := hostnamemock.New(t)
 	suite.demux = demultiplexerimpl.NewFakeSamplerMock(
 		logmock.New(suite.T()),
 		hostname,

@@ -26,6 +26,7 @@ go_test(
     gotags = ["test"],
     deps = [
         "//comp/core/config",
+        "//comp/core/hostname/fx-mock",
         "//comp/core/hostname/mock",
         "//comp/core/log/mock",
         "//pkg/config/basic",

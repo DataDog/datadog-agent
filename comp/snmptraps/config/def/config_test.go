@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	hostnamefxmock "github.com/DataDog/datadog-agent/comp/core/hostname/fx-mock"
 	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/mock"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/basic"
@@ -113,7 +114,7 @@ func buildTrapsConfig(t testing.TB, trapConfig *TrapsConfig, globalNamespace str
 
 func buildTrapsConfigWithHostname(t testing.TB, trapConfig *TrapsConfig, globalNamespace, hostname string) *TrapsConfig {
 	ddcfg := buildDDConfig(t, trapConfig, globalNamespace)
-	hnService, _ := hostnamemock.New(hostnamemock.MockHostname(hostname))
+	hnService, _ := hostnamemock.New(hostnamefxmock.MockHostname(hostname))
 	name, err := hnService.Get(context.Background())
 	if err != nil {
 		t.Fatalf("%s", err)

@@ -22,6 +22,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/def"
+	hostnamefxmock "github.com/DataDog/datadog-agent/comp/core/hostname/fx-mock"
 	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
@@ -68,7 +69,7 @@ func TestConfDisabled(t *testing.T) {
 			fx.Provide(func() log.Component { return logmock.New(t) }),
 			fx.Provide(func() config.Component { return config.NewMockWithOverrides(t, overrides) }),
 			fx.Provide(func() serializer.MetricSerializer { return nil }),
-			hostnamemock.MockModule(),
+			hostnamefxmock.MockModule(),
 		)),
 	)
 
@@ -92,7 +93,7 @@ func TestConfInterval(t *testing.T) {
 			fx.Provide(func() log.Component { return logmock.New(t) }),
 			fx.Provide(func() config.Component { return config.NewMockWithOverrides(t, overrides) }),
 			fx.Provide(func() serializer.MetricSerializer { return nil }),
-			hostnamemock.MockModule(),
+			hostnamefxmock.MockModule(),
 		)),
 	)
 
@@ -125,7 +126,7 @@ func TestCollect(t *testing.T) {
 			fx.Provide(func() log.Component { return logmock.New(t) }),
 			fx.Provide(func() config.Component { return config.NewMock(t) }),
 			fx.Provide(func() serializer.MetricSerializer { return s }),
-			hostnamemock.MockModule(),
+			hostnamefxmock.MockModule(),
 		)),
 	)
 
@@ -150,7 +151,7 @@ func TestCollectError(t *testing.T) {
 			fx.Provide(func() log.Component { return logmock.New(t) }),
 			fx.Provide(func() config.Component { return config.NewMock(t) }),
 			fx.Provide(func() serializer.MetricSerializer { return s }),
-			hostnamemock.MockModule(),
+			hostnamefxmock.MockModule(),
 		)),
 	)
 

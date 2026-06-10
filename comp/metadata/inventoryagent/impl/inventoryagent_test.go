@@ -20,6 +20,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/def"
+	hostnamefxmock "github.com/DataDog/datadog-agent/comp/core/hostname/fx-mock"
 	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/mock"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
@@ -80,7 +81,7 @@ func getProvides(t *testing.T, confOverrides map[string]any, sysprobeConfOverrid
 			fx.Provide(func() serializer.MetricSerializer { return serializermock.NewMetricSerializer(t) }),
 			fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
 			fx.Provide(func(ipcComp ipc.Component) ipc.HTTPClient { return ipcComp.GetClient() }),
-			hostnamemock.MockModule(),
+			hostnamefxmock.MockModule(),
 		)),
 	)
 }
@@ -580,7 +581,7 @@ func TestFetchSystemProbeAgent(t *testing.T) {
 			fx.Provide(func() serializer.MetricSerializer { return serializermock.NewMetricSerializer(t) }),
 			fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
 			fx.Provide(func(ipcComp ipc.Component) ipc.HTTPClient { return ipcComp.GetClient() }),
-			hostnamemock.MockModule(),
+			hostnamefxmock.MockModule(),
 		)),
 	)
 	ia = p.Comp.(*inventoryagent)

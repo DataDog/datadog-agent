@@ -117,6 +117,7 @@ go_test(
         "//comp/anomalydetection/observer/def",
         "//comp/core",
         "//comp/core/hostname/def",
+        "//comp/core/hostname/fx-mock",
         "//comp/core/hostname/mock",
         "//comp/core/log/def",
         "//comp/core/log/mock",

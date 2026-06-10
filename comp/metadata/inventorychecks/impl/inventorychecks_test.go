@@ -18,7 +18,8 @@ import (
 	collectormock "github.com/DataDog/datadog-agent/comp/collector/collector/mock"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	hostname hostname "github.com/DataDog/datadog-agent/comp/core/hostname/def"
+	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/def"
+	hostnamefxmock "github.com/DataDog/datadog-agent/comp/core/hostname/fx-mock"
 	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
@@ -78,7 +79,7 @@ func getTestInventoryChecks(t *testing.T, coll option.Option[collector.Component
 			fx.Provide(func() option.Option[logagent.Component] {
 				return logAgent
 			}),
-			hostnamemock.MockModule(),
+			hostnamefxmock.MockModule(),
 		)),
 	)
 	return p.Comp.(*inventorychecksImpl)
@@ -165,7 +166,7 @@ func TestGetPayload(t *testing.T) {
 			}),
 			collectormock.MockModule(),
 			core.MockBundle(),
-			hostnamemock.MockModule(),
+			hostnamefxmock.MockModule(),
 			workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 		)
 
@@ -189,7 +190,7 @@ func TestGetPayload(t *testing.T) {
 			logsBundle.MockBundle(),
 			core.MockBundle(),
 			secretsnoopfx.Module(),
-			hostnamemock.MockModule(),
+			hostnamefxmock.MockModule(),
 			inventoryagentmock.MockModule(),
 			logscompression.MockModule(),
 			workloadmetafxmock.MockModule(workloadmeta.NewParams()),

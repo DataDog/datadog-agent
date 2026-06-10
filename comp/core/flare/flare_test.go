@@ -29,6 +29,7 @@ import (
 	flarebuilder "github.com/DataDog/datadog-agent/comp/core/flare/builder"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	"github.com/DataDog/datadog-agent/comp/core/flare/types"
+	hostnamefxmock "github.com/DataDog/datadog-agent/comp/core/hostname/fx-mock"
 	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/mock"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
@@ -69,7 +70,7 @@ func getFlareWithParams(t *testing.T, params Params, overrides map[string]interf
 			fx.Provide(func() log.Component { return logmock.New(t) }),
 			fx.Provide(func() config.Component { return config.NewMockWithOverrides(t, overrides) }),
 			nooptelemetry.Module(),
-			hostnamemock.MockModule(),
+			hostnamefxmock.MockModule(),
 			fx.Provide(func() secrets.Component { return secretsmock.New(t) }),
 			demultiplexerimpl.MockModule(),
 			fx.Provide(func() Params { return params }),
@@ -97,7 +98,7 @@ func getFlareComponent(t *testing.T, params Params, overrides map[string]interfa
 			fx.Provide(func() log.Component { return logmock.New(t) }),
 			fx.Provide(func() config.Component { return config.NewMockWithOverrides(t, overrides) }),
 			nooptelemetry.Module(),
-			hostnamemock.MockModule(),
+			hostnamefxmock.MockModule(),
 			fx.Provide(func() secrets.Component { return secretsmock.New(t) }),
 			demultiplexerimpl.MockModule(),
 			fx.Provide(func() Params { return params }),

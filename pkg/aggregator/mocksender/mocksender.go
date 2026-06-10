@@ -44,7 +44,7 @@ func CreateDefaultDemultiplexer() *aggregator.AgentDemultiplexer {
 	log := logimpl.NewTemporaryLoggerWithoutInit()
 	sharedForwarder := defaultforwardernoop.NewComponent()
 	orchestratorForwarder := option.New[defaultforwarder.Forwarder](defaultforwardernoop.NewComponent())
-	eventPlatformForwarder := option.NewPtr[eventplatform.Forwarder](eventplatformimpl.NewNoopEventPlatformForwarder(hostnameimpl.NewHostnameService(hostnameimpl.Requires{}).Comp, logscompressionmock.NewMockCompressor()))
+	eventPlatformForwarder := option.NewPtr[eventplatform.Forwarder](eventplatformimpl.NewNoopEventPlatformForwarder(hostnameimpl.NewComponent(hostnameimpl.Requires{}).Comp, logscompressionmock.NewMockCompressor()))
 	taggerComponent := nooptagger.NewComponent()
 	filterList := filterlist.NewNoopFilterList()
 	return aggregator.InitAndStartAgentDemultiplexer(log, sharedForwarder, &orchestratorForwarder, opts, eventPlatformForwarder, haagentmock.NewMockHaAgent(), metricscompressionmock.NewMockCompressor(), taggerComponent, filterList, "")

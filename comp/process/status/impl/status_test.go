@@ -50,7 +50,7 @@ func TestStatus(t *testing.T) {
 	headerProvider := statusProvider{
 		testServerURL: server.URL,
 		config:        configComponent,
-		hostname:      hostnameimpl.NewHostnameService(hostnameimpl.Requires{}).Comp,
+		hostname:      hostnameimpl.NewComponent(hostnameimpl.Requires{}).Comp,
 	}
 
 	tests := []struct {

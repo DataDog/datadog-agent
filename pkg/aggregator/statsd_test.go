@@ -14,7 +14,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
-	hostnamemock hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/mock"
+	hostnamefxmock "github.com/DataDog/datadog-agent/comp/core/hostname/fx-mock"
+	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -28,8 +29,8 @@ func TestStatsdDirect(t *testing.T) {
 
 	hostnameComp := fxutil.Test[hostnamemock.Mock](t,
 		fx.Options(
-			hostnamemock.MockModule(),
-			fx.Replace(hostnamemock.MockHostname("my-hostname")),
+			hostnamefxmock.MockModule(),
+			fx.Replace(hostnamefxmock.MockHostname("my-hostname")),
 		),
 	)
 

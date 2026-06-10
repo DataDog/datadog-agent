@@ -21,6 +21,7 @@ import (
 
 	demultiplexerimpl "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/impl"
 	"github.com/DataDog/datadog-agent/comp/core"
+	hostnamefxmock "github.com/DataDog/datadog-agent/comp/core/hostname/fx-mock"
 	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/mock"
 	defaultforwardermock "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/mock"
 	forwardermock "github.com/DataDog/datadog-agent/comp/ndmtmp/forwarder/mock"
@@ -70,7 +71,7 @@ var testOptions = fx.Options(
 	demultiplexerimpl.MockModule(),
 	defaultforwardermock.MockModule(),
 	core.MockBundle(),
-	hostnamemock.MockModule(),
+	hostnamefxmock.MockModule(),
 	rdnsquerierfxmock.MockModule(),
 	fx.Invoke(func(lc fx.Lifecycle, c server.Component) {
 		// Set the internal flush frequency to a small number so tests don't take forever

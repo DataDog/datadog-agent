@@ -61,7 +61,7 @@ func getSecurityAgentComp(t *testing.T, enableConfig bool) *secagent {
 		Log:        l,
 		Config:     cfg,
 		Serializer: serializermock.NewMetricSerializer(t),
-		Hostname:   hostnameimpl.NewHostnameService(hostnameimpl.Requires{}).Comp,
+		Hostname:   hostnameimpl.NewComponent(hostnameimpl.Requires{}).Comp,
 		IPCClient: fxutil.Test[ipc.HTTPClient](t,
 			fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
 			fx.Provide(func(ipcComp ipc.Component) ipc.HTTPClient { return ipcComp.GetClient() }),
