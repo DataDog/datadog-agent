@@ -43,7 +43,7 @@ func TestNoopIntegrationsChannelsAreNil(t *testing.T) {
 	assert.Nil(t, comp.SubscribeIntegration(), "SubscribeIntegration channel should be nil")
 }
 
-func TestNoopIntegrationsRegisterIntegrationIsNoop(t *testing.T) {
+func TestNoopIntegrationsRegisterIntegrationIsNoop(_ *testing.T) {
 	comp := NewNoopComponent()
 	// Should not panic
 	comp.RegisterIntegration("my-id", integration.Config{Name: "my_check"})
