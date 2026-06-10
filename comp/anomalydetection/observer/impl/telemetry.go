@@ -24,6 +24,7 @@ const (
 	telemetryStorageSeriesEvicted            = "observer.storage.series_evicted"              // Number of storage series evicted to enforce bounds.
 	telemetryStorageCapacityHit              = "observer.storage.capacity_hit"                // Number of times storage capacity eviction was triggered.
 	telemetryAdvanceSkipped                  = "observer.scheduler.advance_skipped"           // Number of advance requests skipped as already analyzed.
+	telemetryLogsSamplerDropped              = "observer.logs.sampler_dropped"                // Logs dropped by the source sampler before reaching the observer, by source and priority.
 )
 
 type observerTelemetry struct {
@@ -42,6 +43,7 @@ type observerTelemetry struct {
 	storageEvicted   telemetry.Counter
 	storageCapHit    telemetry.Counter
 	advanceSkipped   telemetry.Counter
+	samplerDropped   telemetry.Counter
 
 	inFlightInternal   atomic.Int64
 	inFlightKubelet    atomic.Int64
@@ -122,6 +124,12 @@ func newObserverTelemetry(telemetryComp telemetry.Component) *observerTelemetry 
 			[]string{"reason"},
 			"Number of skipped advance requests by trigger reason",
 		),
+		samplerDropped: telemetryComp.NewCounter(
+			"observer",
+			telemetryLogsSamplerDropped,
+			[]string{"source", "priority"},
+			"Logs dropped by the source sampler (rate limit or min_severity) before reaching the observer",
+		),
 	}
 }
 
@@ -189,6 +197,10 @@ func (t *observerTelemetry) recordStorageCapacityHit() {
 
 func (t *observerTelemetry) recordAdvanceSkipped(reason string) {
 	t.advanceSkipped.Add(1, reason)
+}
+
+func (t *observerTelemetry) recordSamplerDropped(source, priority string) {
+	t.samplerDropped.Add(1, source, priority)
 }
 
 func (t *observerTelemetry) inFlightCounter(logSource string) *atomic.Int64 {

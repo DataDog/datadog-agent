@@ -5984,7 +5984,7 @@ properties:
     node_type: section
     type: object
     properties:
-      agent_logs:
+      logs:
         node_type: section
         type: object
         properties:
@@ -5992,25 +5992,106 @@ properties:
             node_type: setting
             type: boolean
             default: true
-            comment: Agent-internal log sampling. Warn+ are never sampled.
-          sample_rate_debug:
-            node_type: setting
-            type: number
-            default: 0.05
-            tags:
-            - golang_type:float64
-          sample_rate_info:
-            node_type: setting
-            type: number
-            default: 0.2
-            tags:
-            - golang_type:float64
-          sample_rate_trace:
-            node_type: setting
-            type: number
-            default: 0
-            tags:
-            - golang_type:float64
+            comment: Master switch for all log ingestion (internal, kubelet, containers).
+          internal:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: true
+                comment: Forward agent-internal log lines to the anomaly-detection observer.
+              min_severity:
+                node_type: setting
+                type: string
+                default: warn
+                comment: Minimum log level to forward (trace/debug/info/warn/error/critical). Logs below this level are dropped before rate-limiting.
+              max_rate_high_priority:
+                node_type: setting
+                type: number
+                default: -1
+                comment: Max logs/s for warn/error/critical. -1 = unlimited, 0 = drop all.
+                tags:
+                - golang_type:float64
+              max_rate_medium_priority:
+                node_type: setting
+                type: number
+                default: 100
+                comment: Max logs/s for info. -1 = unlimited, 0 = drop all.
+                tags:
+                - golang_type:float64
+              max_rate_low_priority:
+                node_type: setting
+                type: number
+                default: 1
+                comment: Max logs/s for trace/debug. -1 = unlimited, 0 = drop all.
+                tags:
+                - golang_type:float64
+          kubelet:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: true
+                comment: Forward kubelet journald logs to the anomaly-detection observer.
+              min_severity:
+                node_type: setting
+                type: string
+                default: warn
+                comment: Minimum log level to forward.
+              max_rate_high_priority:
+                node_type: setting
+                type: number
+                default: -1
+                tags:
+                - golang_type:float64
+              max_rate_medium_priority:
+                node_type: setting
+                type: number
+                default: 100
+                tags:
+                - golang_type:float64
+              max_rate_low_priority:
+                node_type: setting
+                type: number
+                default: 1
+                tags:
+                - golang_type:float64
+          containers:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: true
+                comment: Forward container logs to the anomaly-detection observer.
+              min_severity:
+                node_type: setting
+                type: string
+                default: warn
+                comment: Minimum log level to forward.
+              max_rate_high_priority:
+                node_type: setting
+                type: number
+                default: -1
+                tags:
+                - golang_type:float64
+              max_rate_medium_priority:
+                node_type: setting
+                type: number
+                default: 100
+                tags:
+                - golang_type:float64
+              max_rate_low_priority:
+                node_type: setting
+                type: number
+                default: 1
+                tags:
+                - golang_type:float64
       debug:
         node_type: section
         type: object
@@ -6147,33 +6228,6 @@ properties:
         default: false
         comment: Master switch. When false the entire anomaly detection subsystem
           is a no-op.
-      logs:
-        node_type: section
-        type: object
-        properties:
-          containers:
-            node_type: section
-            type: object
-            properties:
-              enabled:
-                node_type: setting
-                type: boolean
-                default: true
-          enabled:
-            node_type: setting
-            type: boolean
-            default: true
-            comment: |-
-              Log ingestion gate. When false, container/journald logs are not routed
-              into the anomaly detection pipeline (recording is unaffected).
-          kubelet:
-            node_type: section
-            type: object
-            properties:
-              enabled:
-                node_type: setting
-                type: boolean
-                default: true
       metrics:
         node_type: section
         type: object
