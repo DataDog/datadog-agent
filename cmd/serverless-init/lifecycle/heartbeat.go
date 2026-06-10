@@ -17,7 +17,7 @@ import (
 
 // DefaultHeartbeatInterval is the period between heartbeat metrics. The
 // interval is hardcoded for now; if the platform team needs to tune it,
-// promote to a config value (see DD_SERVERLESS_MICROVM_* convention used by
+// promote to a config value (see DD_AWS_MICROVM_* convention used by
 // the forwarder port env var).
 const DefaultHeartbeatInterval = 5 * time.Minute
 

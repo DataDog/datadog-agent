@@ -12,19 +12,19 @@ import (
 )
 
 // UserAppPortEnvVar opts in to forwarding lifecycle hooks to the user app.
-const UserAppPortEnvVar = "DD_SERVERLESS_MICROVM_USER_APP_PORT"
+const UserAppPortEnvVar = "DD_AWS_MICROVM_USER_APP_PORT"
 
 // LifecyclePortEnvVar overrides the port the lifecycle hook server listens on (default 9000).
-const LifecyclePortEnvVar = "DD_SERVERLESS_MICROVM_LIFECYCLE_PORT"
+const LifecyclePortEnvVar = "DD_AWS_MICROVM_LIFECYCLE_PORT"
 
 // ForwardTimeoutMsEnvVar overrides the timeout (ms) for /launch, /resume, /suspend, /terminate.
-const ForwardTimeoutMsEnvVar = "DD_SERVERLESS_MICROVM_FORWARD_TIMEOUT_MS"
+const ForwardTimeoutMsEnvVar = "DD_AWS_MICROVM_FORWARD_TIMEOUT_MS"
 
 // ReadyTimeoutMsEnvVar overrides the timeout (ms) for /ready.
-const ReadyTimeoutMsEnvVar = "DD_SERVERLESS_MICROVM_READY_TIMEOUT_MS"
+const ReadyTimeoutMsEnvVar = "DD_AWS_MICROVM_READY_TIMEOUT_MS"
 
 // ValidateTimeoutMsEnvVar overrides the timeout (ms) for /validate.
-const ValidateTimeoutMsEnvVar = "DD_SERVERLESS_MICROVM_VALIDATE_TIMEOUT_MS"
+const ValidateTimeoutMsEnvVar = "DD_AWS_MICROVM_VALIDATE_TIMEOUT_MS"
 
 // parsePort parses a port number from a raw env-var string.
 // Returns defaultVal when raw is empty. Parsed port must not equal any value in forbidden.
