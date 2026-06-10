@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // levelWeights maps anomaly level (0–4) to its EWMA weight.
@@ -40,15 +41,31 @@ func DefaultScorerConfig() observer.ScorerConfig {
 
 // readScorerConfig reads scorer settings from the agent config.
 func readScorerConfig(r ConfigReader, prefix string) any {
-	cfg := DefaultScorerConfig()
+	defaults := DefaultScorerConfig()
+	cfg := defaults
 	if key := prefix + "alpha"; r.IsConfigured(key) {
-		cfg.Alpha = r.GetFloat64(key)
+		v := r.GetFloat64(key)
+		if v <= 0 || v >= 1 {
+			pkglog.Warnf("anomaly_scorer: %s must be in (0, 1), got %g — using default %g", key, v, defaults.Alpha)
+			v = defaults.Alpha
+		}
+		cfg.Alpha = v
 	}
 	if key := prefix + "saturation_k"; r.IsConfigured(key) {
-		cfg.SaturationK = r.GetFloat64(key)
+		v := r.GetFloat64(key)
+		if v <= 0 {
+			pkglog.Warnf("anomaly_scorer: %s must be > 0, got %g — using default %g", key, v, defaults.SaturationK)
+			v = defaults.SaturationK
+		}
+		cfg.SaturationK = v
 	}
 	if key := prefix + "window_secs"; r.IsConfigured(key) {
-		cfg.WindowSecs = int64(r.GetInt(key))
+		v := r.GetInt(key)
+		if v < 1 {
+			pkglog.Warnf("anomaly_scorer: %s must be >= 1, got %d — using default %d", key, v, defaults.WindowSecs)
+			v = int(defaults.WindowSecs)
+		}
+		cfg.WindowSecs = int64(v)
 	}
 	return cfg
 }
@@ -139,7 +156,19 @@ type anomalyScorer struct {
 }
 
 // NewScorer creates a new anomalyScorer with the given config.
+// Invalid parameter values are clamped to safe defaults to prevent panics
+// (e.g. a non-positive WindowSecs would cause make() to panic in the trim path).
 func NewScorer(cfg observer.ScorerConfig) observer.AnomalyScorer {
+	defaults := DefaultScorerConfig()
+	if cfg.WindowSecs < 1 {
+		cfg.WindowSecs = defaults.WindowSecs
+	}
+	if cfg.Alpha <= 0 || cfg.Alpha >= 1 {
+		cfg.Alpha = defaults.Alpha
+	}
+	if cfg.SaturationK <= 0 {
+		cfg.SaturationK = defaults.SaturationK
+	}
 	return &anomalyScorer{
 		config:    cfg,
 		pending:   make(map[int64][]observer.Anomaly),
