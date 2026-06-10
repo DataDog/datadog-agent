@@ -113,13 +113,10 @@ func newTestStore(t *testing.T) *healthPlatformImpl {
 		telemetry:        tel,
 		hostnameProvider: &mockHostname{name: "test-host"},
 		agentFlavor:      "agent",
-		issues:           make(map[string]*healthplatformpayload.Issue),
+		issues:           make(map[string]*storedIssue),
 		issuesByName:     make(map[string][]string),
-		extraJSON:        make(map[string]json.RawMessage),
-		remediationJSON:  make(map[string]json.RawMessage),
 		persistedIssues:  make(map[string]*PersistedIssue),
-
-		persistence: &memPersistence{},
+		persistence:      &memPersistence{},
 		metrics: telemetryMetrics{
 			issuesCounter: tel.NewCounter(
 				"health_platform", "issues_detected", []string{"issue_type"}, ""),
@@ -248,9 +245,9 @@ func TestGetAllIssuesDeepCopy(t *testing.T) {
 	require.NotNil(t, got)
 
 	// Mutating the returned value must not affect the in-store issue.
-	originalSource := h.issues["t:id"].Source
+	originalSource := h.issues["t:id"].issue.Source
 	got.Source = "hacked"
-	assert.Equal(t, originalSource, h.issues["t:id"].Source)
+	assert.Equal(t, originalSource, h.issues["t:id"].issue.Source)
 }
 
 func TestMultiInstanceSameType(t *testing.T) {
@@ -406,14 +403,11 @@ func TestTelemetryCounterIncrements(t *testing.T) {
 		telemetry:        tel,
 		hostnameProvider: &mockHostname{name: "test-host"},
 		agentFlavor:      "agent",
-		issues:           make(map[string]*healthplatformpayload.Issue),
+		issues:           make(map[string]*storedIssue),
 		issuesByName:     make(map[string][]string),
-		extraJSON:        make(map[string]json.RawMessage),
-		remediationJSON:  make(map[string]json.RawMessage),
 		persistedIssues:  make(map[string]*PersistedIssue),
-
-		persistence: &memPersistence{},
-		metrics:     telemetryMetrics{issuesCounter: counter},
+		persistence:      &memPersistence{},
+		metrics:          telemetryMetrics{issuesCounter: counter},
 	}
 
 	require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{Id: "t:id", IssueName: "t"}))
