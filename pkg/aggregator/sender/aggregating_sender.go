@@ -203,14 +203,14 @@ func (s *AggregatingSender) HistogramBucket(metric string, value int64, lowerBou
 	s.mu.Unlock()
 }
 
-// OpenmetricsBucket forwards directly to backend; the observer doesn't model
-// OpenMetrics buckets distinctly from histogram buckets.
-// TODO(agent-q): OpenmetricsBucket bypasses local interval aggregation — if an OpenMetrics check
-// ever runs through the hfrunner, buckets will be emitted at 1s cadence instead of originalInterval.
-// Add localAggregator support for OpenMetrics buckets to fix this.
-// https://github.com/DataDog/datadog-agent/pull/50297/changes/BASE..0cc0c644f7d8f54adf6e827b2c718c1b48cb4de9#r3181897116
+// OpenmetricsBucket sends to observer and accumulates for backend
 func (s *AggregatingSender) OpenmetricsBucket(metric string, value int64, lowerBound, upperBound float64, monotonic bool, hostname string, tags []string, flushFirstValue bool) {
-	s.backendSender.OpenmetricsBucket(metric, value, lowerBound, upperBound, monotonic, hostname, tags, flushFirstValue)
+	if s.observerHandle != nil {
+		s.observerHandle.ObserveMetric(s.newObserverSample(metric, float64(value), metrics.HistogramType, hostname, tags, 0))
+	}
+	s.mu.Lock()
+	s.aggregator.addOpenmetricsBucket(metric, value, lowerBound, upperBound, monotonic, hostname, tags, flushFirstValue)
+	s.mu.Unlock()
 }
 
 // Event forwards directly to backend
@@ -320,6 +320,11 @@ func (s *AggregatingSender) flush() {
 	// Flush histogram buckets
 	for _, hb := range s.aggregator.flushHistogramBuckets() {
 		s.backendSender.HistogramBucket(hb.name, hb.value, hb.lowerBound, hb.upperBound, hb.monotonic, hb.hostname, hb.tags, hb.flushFirstValue)
+	}
+
+	// Flush OpenMetrics buckets
+	for _, ob := range s.aggregator.flushOpenmetricsBuckets() {
+		s.backendSender.OpenmetricsBucket(ob.name, ob.value, ob.lowerBound, ob.upperBound, ob.monotonic, ob.hostname, ob.tags, ob.flushFirstValue)
 	}
 
 	// Commit to backend at original interval
