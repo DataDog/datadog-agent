@@ -50,25 +50,22 @@ import (
 	npmodel "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/model"
 	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
 	rdnsquerierfxmock "github.com/DataDog/datadog-agent/comp/rdnsquerier/fx-mock"
-	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 )
 
 type capturingNPCollector struct {
-	conns []npmodel.NetworkPathConnection
+	networkTrafficConns []npmodel.NetworkPathConnection
+	netflowConns        []npmodel.NetworkPathConnection
 }
 
 func (c *capturingNPCollector) ScheduleNetworkPathTests(conns iter.Seq[npmodel.NetworkPathConnection]) {
-	c.capture(payload.PathOriginNetworkTraffic, conns)
+	for conn := range conns {
+		c.networkTrafficConns = append(c.networkTrafficConns, conn)
+	}
 }
 
 func (c *capturingNPCollector) ScheduleNetflowPathTests(conns iter.Seq[npmodel.NetworkPathConnection]) {
-	c.capture(payload.PathOriginNetflow, conns)
-}
-
-func (c *capturingNPCollector) capture(origin payload.PathOrigin, conns iter.Seq[npmodel.NetworkPathConnection]) {
 	for conn := range conns {
-		conn.Origin = origin
-		c.conns = append(c.conns, conn)
+		c.netflowConns = append(c.netflowConns, conn)
 	}
 }
 
@@ -94,14 +91,14 @@ func TestFlowAggregator_scheduleNetworkPathForFlow(t *testing.T) {
 		IPProtocol: 17,
 	})
 
-	require.Len(t, collector.conns, 1)
-	assert.Equal(t, netip.MustParseAddrPort("10.0.0.1:12345"), collector.conns[0].Source)
-	assert.Equal(t, netip.MustParseAddrPort("10.0.0.2:161"), collector.conns[0].Dest)
-	assert.Equal(t, "netflow-ns", collector.conns[0].Namespace)
-	assert.Equal(t, payload.PathOriginNetflow, collector.conns[0].Origin)
-	assert.Empty(t, collector.conns[0].Domain)
-	assert.Equal(t, model.ConnectionType_udp, collector.conns[0].Type)
-	assert.Equal(t, model.ConnectionDirection_outgoing, collector.conns[0].Direction)
+	require.Empty(t, collector.networkTrafficConns)
+	require.Len(t, collector.netflowConns, 1)
+	assert.Equal(t, netip.MustParseAddrPort("10.0.0.1:12345"), collector.netflowConns[0].Source)
+	assert.Equal(t, netip.MustParseAddrPort("10.0.0.2:161"), collector.netflowConns[0].Dest)
+	assert.Equal(t, "netflow-ns", collector.netflowConns[0].Namespace)
+	assert.Empty(t, collector.netflowConns[0].Domain)
+	assert.Equal(t, model.ConnectionType_udp, collector.netflowConns[0].Type)
+	assert.Equal(t, model.ConnectionDirection_outgoing, collector.netflowConns[0].Direction)
 }
 
 func TestFlowAggregator_scheduleNetworkPathForFlow_RolledUpSourcePort(t *testing.T) {
@@ -120,12 +117,12 @@ func TestFlowAggregator_scheduleNetworkPathForFlow_RolledUpSourcePort(t *testing
 		IPProtocol: 6,
 	})
 
-	require.Len(t, collector.conns, 1)
-	assert.Equal(t, netip.MustParseAddrPort("10.0.0.1:0"), collector.conns[0].Source)
-	assert.Equal(t, netip.MustParseAddrPort("10.0.0.2:443"), collector.conns[0].Dest)
-	assert.Empty(t, collector.conns[0].Domain)
-	assert.Equal(t, payload.PathOriginNetflow, collector.conns[0].Origin)
-	assert.Equal(t, model.ConnectionType_tcp, collector.conns[0].Type)
+	require.Empty(t, collector.networkTrafficConns)
+	require.Len(t, collector.netflowConns, 1)
+	assert.Equal(t, netip.MustParseAddrPort("10.0.0.1:0"), collector.netflowConns[0].Source)
+	assert.Equal(t, netip.MustParseAddrPort("10.0.0.2:443"), collector.netflowConns[0].Dest)
+	assert.Empty(t, collector.netflowConns[0].Domain)
+	assert.Equal(t, model.ConnectionType_tcp, collector.netflowConns[0].Type)
 }
 
 func TestFlowAggregator_scheduleNetworkPathForFlow_IPTarget(t *testing.T) {
@@ -144,9 +141,10 @@ func TestFlowAggregator_scheduleNetworkPathForFlow_IPTarget(t *testing.T) {
 		IPProtocol: 6,
 	})
 
-	require.Len(t, collector.conns, 1)
-	assert.Equal(t, netip.MustParseAddrPort("10.0.0.2:443"), collector.conns[0].Dest)
-	assert.Empty(t, collector.conns[0].Domain)
+	require.Empty(t, collector.networkTrafficConns)
+	require.Len(t, collector.netflowConns, 1)
+	assert.Equal(t, netip.MustParseAddrPort("10.0.0.2:443"), collector.netflowConns[0].Dest)
+	assert.Empty(t, collector.netflowConns[0].Domain)
 }
 
 func TestFlowAggregator_scheduleNetworkPathForFlow_RolledUpDestinationPort(t *testing.T) {
@@ -165,7 +163,8 @@ func TestFlowAggregator_scheduleNetworkPathForFlow_RolledUpDestinationPort(t *te
 		IPProtocol: 6,
 	})
 
-	assert.Empty(t, collector.conns)
+	assert.Empty(t, collector.networkTrafficConns)
+	assert.Empty(t, collector.netflowConns)
 }
 
 func TestFlowAggregator_flushDoesNotScheduleNetworkPathForFilteredFlow(t *testing.T) {
@@ -204,7 +203,8 @@ func TestFlowAggregator_flushDoesNotScheduleNetworkPathForFilteredFlow(t *testin
 		EtherType:      uint32(0x0800),
 	})
 
-	require.Empty(t, collector.conns)
+	require.Empty(t, collector.networkTrafficConns)
+	require.Empty(t, collector.netflowConns)
 
 	flushedCount := aggregator.flush(common.FlushContext{
 		FlushTime:     flushTime,
@@ -213,7 +213,8 @@ func TestFlowAggregator_flushDoesNotScheduleNetworkPathForFilteredFlow(t *testin
 	})
 
 	assert.Equal(t, 0, flushedCount)
-	assert.Empty(t, collector.conns)
+	assert.Empty(t, collector.networkTrafficConns)
+	assert.Empty(t, collector.netflowConns)
 }
 
 func TestFlowAggregator_flushSchedulesNetworkPathForSentFlow(t *testing.T) {
@@ -255,7 +256,8 @@ func TestFlowAggregator_flushSchedulesNetworkPathForSentFlow(t *testing.T) {
 		EtherType:      uint32(0x0800),
 	})
 
-	require.Empty(t, collector.conns)
+	require.Empty(t, collector.networkTrafficConns)
+	require.Empty(t, collector.netflowConns)
 
 	flushedCount := aggregator.flush(common.FlushContext{
 		FlushTime:     flushTime,
@@ -264,14 +266,14 @@ func TestFlowAggregator_flushSchedulesNetworkPathForSentFlow(t *testing.T) {
 	})
 
 	assert.Equal(t, 1, flushedCount)
-	require.Len(t, collector.conns, 1)
-	assert.Equal(t, netip.MustParseAddrPort("10.0.0.1:12345"), collector.conns[0].Source)
-	assert.Equal(t, netip.MustParseAddrPort("10.0.0.20:443"), collector.conns[0].Dest)
-	assert.Empty(t, collector.conns[0].Domain)
-	assert.Equal(t, "netflow-ns", collector.conns[0].Namespace)
-	assert.Equal(t, payload.PathOriginNetflow, collector.conns[0].Origin)
-	assert.Equal(t, model.ConnectionType_tcp, collector.conns[0].Type)
-	assert.Equal(t, model.ConnectionDirection_outgoing, collector.conns[0].Direction)
+	require.Empty(t, collector.networkTrafficConns)
+	require.Len(t, collector.netflowConns, 1)
+	assert.Equal(t, netip.MustParseAddrPort("10.0.0.1:12345"), collector.netflowConns[0].Source)
+	assert.Equal(t, netip.MustParseAddrPort("10.0.0.20:443"), collector.netflowConns[0].Dest)
+	assert.Empty(t, collector.netflowConns[0].Domain)
+	assert.Equal(t, "netflow-ns", collector.netflowConns[0].Namespace)
+	assert.Equal(t, model.ConnectionType_tcp, collector.netflowConns[0].Type)
+	assert.Equal(t, model.ConnectionDirection_outgoing, collector.netflowConns[0].Direction)
 }
 
 func TestAggregator(t *testing.T) {

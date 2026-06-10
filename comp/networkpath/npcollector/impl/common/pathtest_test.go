@@ -91,6 +91,7 @@ func TestPathtest_GetHash_Netflow(t *testing.T) {
 		Hostname: "10.0.0.1",
 		Port:     53,
 		Protocol: payload.ProtocolUDP,
+		Origin:   payload.PathOriginNetworkTraffic,
 	}
 	namespaceHostnameBoundary := Pathtest{
 		Hostname:  "10.0.0.1",

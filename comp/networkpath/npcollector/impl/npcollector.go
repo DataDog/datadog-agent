@@ -134,9 +134,7 @@ func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *c
 }
 
 // makePathtest extracts pathtest information using a single connection and the connection check's reverse dns map
-func (s *npCollectorImpl) makePathtest(conn npmodel.NetworkPathConnection) common.Pathtest {
-	origin := conn.Origin
-
+func (s *npCollectorImpl) makePathtest(conn npmodel.NetworkPathConnection, origin payload.PathOrigin) common.Pathtest {
 	protocol := modelProtocolToPayload[conn.Type]
 	if s.collectorConfigs.icmpMode.ShouldUseICMP(protocol) {
 		protocol = payload.ProtocolICMP
@@ -281,14 +279,11 @@ func (s *npCollectorImpl) scheduleNetworkPathTests(origin payload.PathOrigin, co
 	connCount := 0
 	for conn := range conns {
 		connCount++
-		if origin != payload.PathOriginNetworkTraffic {
-			conn.Origin = origin
-		}
 		if !s.shouldScheduleNetworkPathForConn(conn, vpcSubnets) {
 			s.logger.Tracef("Skipped connection: addr=%s, protocol=%s", conn.Dest, conn.Type)
 			continue
 		}
-		pathtest := s.makePathtest(conn)
+		pathtest := s.makePathtest(conn, origin)
 		err := s.scheduleOne(&pathtest)
 		if err != nil {
 			s.logger.Errorf("Error scheduling pathtests: %s", err)

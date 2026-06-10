@@ -1111,11 +1111,13 @@ func Test_npCollectorImpl_ScheduleNetworkPathTests(t *testing.T) {
 			}
 
 			expectedPathtests := tt.expectedPathtests
+			expectedOrigin := payload.PathOriginNetworkTraffic
 			if tt.scheduleNetflow {
-				for _, pathtest := range expectedPathtests {
-					if pathtest.Origin == "" {
-						pathtest.Origin = payload.PathOriginNetflow
-					}
+				expectedOrigin = payload.PathOriginNetflow
+			}
+			for _, pathtest := range expectedPathtests {
+				if pathtest.Origin == "" {
+					pathtest.Origin = expectedOrigin
 				}
 			}
 			assert.Equal(t, expectedPathtests, actualPathtests)
@@ -1187,6 +1189,7 @@ func Test_npCollectorImpl_ScheduleMethods_methodGates(t *testing.T) {
 				Hostname: "10.0.0.2",
 				Port:     uint16(80),
 				Protocol: payload.ProtocolTCP,
+				Origin:   payload.PathOriginNetworkTraffic,
 			},
 		},
 		{
@@ -1766,11 +1769,10 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn(t *testing.T) {
 			shouldSchedule: true,
 		},
 		{
-			name: "should not schedule netflow IP target without domain by default",
+			name: "should not schedule IP target without domain by default",
 			conn: npmodel.NetworkPathConnection{
 				Source:    netip.MustParseAddrPort("10.0.0.1:30000"),
 				Dest:      netip.MustParseAddrPort("10.0.0.2:53"),
-				Origin:    payload.PathOriginNetflow,
 				Direction: model.ConnectionDirection_outgoing,
 				Type:      model.ConnectionType_udp,
 			},
@@ -1950,11 +1952,10 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn(t *testing.T) {
 			connectionExcluded: true,
 		},
 		{
-			name: "exclusion: block netflow source with original source IP",
+			name: "exclusion: block source with original source IP",
 			conn: npmodel.NetworkPathConnection{
 				Source:    netip.MustParseAddrPort("10.0.0.1:30000"),
 				Dest:      netip.MustParseAddrPort("10.0.0.2:53"),
-				Origin:    payload.PathOriginNetflow,
 				Direction: model.ConnectionDirection_outgoing,
 				Type:      model.ConnectionType_udp,
 			},
