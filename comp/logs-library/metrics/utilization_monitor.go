@@ -35,21 +35,17 @@ func (n *NoopUtilizationMonitor) Start() {}
 // Stop does nothing.
 func (n *NoopUtilizationMonitor) Stop() {}
 
-// TelemetryUtilizationMonitor reports component utilization as telemetry.
-//
-// Start/Stop run on the component hot path and touch only atomics; the sampler goroutine owns all
-// derived state, so neither side locks.
+// TelemetryUtilizationMonitor reports component utilization as telemetry. Start/Stop run lock-free
+// on the hot path; the sampler goroutine owns all derived state.
 type TelemetryUtilizationMonitor struct {
-	// Hot-path accumulators (wall-clock UnixNano), read by the sampler. Effective busy time is
-	// cumulativeBusyNanos plus the open interval (now - startInUseNanos) while started.
+	// Hot-path accumulators in ns; effective busy = cumulativeBusyNanos + open interval while started.
 	cumulativeBusyNanos atomic.Int64
 	startInUseNanos     atomic.Int64
 	started             atomic.Bool
 
-	// EWMA utilization (N=15, α≈0.125). Written by the sampler, read atomically by subscribers.
+	// EWMA utilization (N=15, α≈0.125); sampler writes, subscribers read.
 	avg atomic.Float64
 
-	// Sampler-owned state.
 	name              string
 	instance          string
 	sampleRate        time.Duration
@@ -57,18 +53,15 @@ type TelemetryUtilizationMonitor struct {
 	history           *rollingHistory
 	lastSample        time.Time
 	lastEffectiveBusy int64
-	// registry, when non-nil, receives utilization snapshots and supplies the capacity figures
-	// used in saturation logs. It is owned by the pipeline monitor; standalone monitors leave it nil.
-	registry *snapshotRegistry
+	registry          *snapshotRegistry // nil for standalone monitors
 
-	// Saturation episode tracking for log emission.
 	isSaturated          bool
 	saturatedSince       time.Time
 	lastThrottleLog      time.Time
 	episodeMaxUtil       float64
 	episodeMaxItems      int64
 	episodeMaxBytes      int64
-	pendingRecoverySince time.Time // non-zero while EWMA is below threshold but debounce not yet met
+	pendingRecoverySince time.Time
 }
 
 func newTelemetryUtilizationMonitorWithSampleRateAndClock(name, instance string, sampleRate time.Duration, clock clock.Clock, registry *snapshotRegistry) *TelemetryUtilizationMonitor {
@@ -111,8 +104,8 @@ func (u *TelemetryUtilizationMonitor) sample(now time.Time) {
 		return
 	}
 
-	// A torn read against the hot path can over- or under-count one interval; clamp01 bounds the
-	// window and the next tick self-corrects.
+	// A torn read against the hot path can over- or under-count one interval; clamp01 bounds it and
+	// the next tick self-corrects.
 	effBusy := u.effectiveBusyNanos(now)
 	windowBusy := effBusy - u.lastEffectiveBusy
 	windowElapsed := now.UnixNano() - u.lastSample.UnixNano()
@@ -137,7 +130,6 @@ func (u *TelemetryUtilizationMonitor) sample(now time.Time) {
 	u.updateSaturationState(now, avg)
 }
 
-// effectiveBusyNanos returns total in-use time as of now: completed intervals plus any open one.
 func (u *TelemetryUtilizationMonitor) effectiveBusyNanos(now time.Time) int64 {
 	busy := u.cumulativeBusyNanos.Load()
 	if u.started.Load() {
@@ -203,7 +195,6 @@ func (u *TelemetryUtilizationMonitor) updateSaturationState(now time.Time, avg f
 	}
 }
 
-// clamp01 bounds a ratio to [0, 1]; timing skew can push the raw ratio slightly outside it.
 func clamp01(v float64) float64 {
 	if v < 0 {
 		return 0
