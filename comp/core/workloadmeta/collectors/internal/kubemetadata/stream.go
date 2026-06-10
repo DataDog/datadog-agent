@@ -200,9 +200,7 @@ func (p *streamingProvider) handleDCAStreamUpdate(update streamUpdate, seenPods 
 	var events []workloadmeta.CollectorEvent
 
 	if update.updateIsFullState {
-		for _, queueEvent := range p.buildKueueQueueEvents(update.updatedKueueQueues) {
-			events = append(events, queueEvent)
-		}
+		events = append(events, p.buildKueueQueueEvents(update.updatedKueueQueues)...)
 
 		for _, uid := range seenPods {
 			if podEvent, ok := p.buildPodEventFromUID(uid); ok {
@@ -210,9 +208,7 @@ func (p *streamingProvider) handleDCAStreamUpdate(update streamUpdate, seenPods 
 			}
 		}
 	} else {
-		for _, queueEvent := range p.buildKueueQueueEvents(update.updatedKueueQueues) {
-			events = append(events, queueEvent)
-		}
+		events = append(events, p.buildKueueQueueEvents(update.updatedKueueQueues)...)
 
 		for namespacedName := range update.updatedPods {
 			uid, ok := seenPods[namespacedName]
