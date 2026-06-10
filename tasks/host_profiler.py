@@ -8,6 +8,7 @@ from invoke.context import Context
 from invoke.exceptions import Exit
 
 from tasks.build_tags import get_default_build_tags
+from tasks.libs.build.bazel import bazel_build_binary
 from tasks.libs.common.color import color_message
 from tasks.libs.common.constants import ALLOWED_REPO_NIGHTLY_BRANCHES
 from tasks.libs.common.go import go_build
@@ -61,7 +62,7 @@ def _get_profiler_agent_version(ctx):
 
 
 @task
-def build(ctx):
+def build(ctx, enable_bazel=True):
     """
     Build the host profiler
     """
@@ -83,16 +84,20 @@ def build(ctx):
     if sys.platform == 'win32':
         raise Exit("Windows is not supported for host-profiler")
 
-    go_build(
-        ctx,
-        f"{REPO_PATH}/cmd/host-profiler",
-        mod="readonly",
-        build_tags=build_tags,
-        ldflags=ldflags,
-        gcflags=gcflags,
-        bin_path=BIN_PATH,
-        env=env,
-    )
+    if enable_bazel:
+        binary_path = bazel_build_binary(ctx, "//cmd/host-profiler")
+        shutil.copy2(binary_path, BIN_PATH)
+    else:
+        go_build(
+            ctx,
+            f"{REPO_PATH}/cmd/host-profiler",
+            mod="readonly",
+            build_tags=build_tags,
+            ldflags=ldflags,
+            gcflags=gcflags,
+            bin_path=BIN_PATH,
+            env=env,
+        )
 
     dist_folder = os.path.join(BIN_DIR, "dist")
     if os.path.exists(dist_folder):

@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/kubelet"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
+	hostnameapiserver "github.com/DataDog/datadog-agent/pkg/util/kubernetes/hostnameapiserver"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -34,7 +34,7 @@ func TestFromContainer(t *testing.T) {
 	defer func() {
 		configIsContainerized = env.IsContainerized
 		configIsFeaturePresent = env.IsFeaturePresent
-		kubernetesGetKubeAPIServerHostname = kubernetes.GetKubeAPIServerHostname
+		kubernetesGetKubeAPIServerHostname = hostnameapiserver.GetKubeAPIServerHostname
 		dockerGetHostname = docker.GetHostname
 		kubeletGetHostname = kubelet.GetHostname
 	}()
@@ -81,7 +81,7 @@ func TestFromContainerInvalidHostname(t *testing.T) {
 	defer func() {
 		configIsContainerized = env.IsContainerized
 		configIsFeaturePresent = env.IsFeaturePresent
-		kubernetesGetKubeAPIServerHostname = kubernetes.GetKubeAPIServerHostname
+		kubernetesGetKubeAPIServerHostname = hostnameapiserver.GetKubeAPIServerHostname
 		dockerGetHostname = docker.GetHostname
 		kubeletGetHostname = kubelet.GetHostname
 	}()

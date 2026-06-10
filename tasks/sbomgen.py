@@ -1,8 +1,10 @@
 import os
+import shutil
 
 from invoke.tasks import task
 
 from tasks.build_tags import get_default_build_tags
+from tasks.libs.build.bazel import bazel_build_binary
 from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import (
     REPO_PATH,
@@ -19,6 +21,7 @@ def build(
     dumpdep=False,
     install_path=None,
     static=False,
+    enable_bazel=True,
 ):
     """
     Build the sbomgen binary
@@ -34,16 +37,20 @@ def build(
     if os.path.exists(BIN_PATH):
         os.remove(BIN_PATH)
 
-    go_build(
-        ctx,
-        f"{REPO_PATH}/cmd/sbomgen",
-        mod="readonly",
-        gcflags=gcflags,
-        ldflags=ldflags,
-        build_tags=build_tags,
-        bin_path=BIN_PATH,
-        env=env,
-        check_deadcode=os.getenv("DEPLOY_AGENT") == "true",
-    )
+    if enable_bazel:
+        binary_path = bazel_build_binary(ctx, "//cmd/sbomgen")
+        shutil.copy2(binary_path, BIN_PATH)
+    else:
+        go_build(
+            ctx,
+            f"{REPO_PATH}/cmd/sbomgen",
+            mod="readonly",
+            gcflags=gcflags,
+            ldflags=ldflags,
+            build_tags=build_tags,
+            bin_path=BIN_PATH,
+            env=env,
+            check_deadcode=os.getenv("DEPLOY_AGENT") == "true",
+        )
 
     ctx.run(f"ls -alh {BIN_PATH}")

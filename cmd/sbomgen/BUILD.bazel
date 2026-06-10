@@ -43,4 +43,14 @@ go_binary(
     }),
     target_compatible_with = ["@platforms//os:linux"],
     visibility = ["//visibility:public"],
+    # Stamp version/commit at binary link time, overriding the "dev" defaults
+    # set in //pkg/version:version.  Build with --stamp
+    # --workspace_status_command=bazel/tools/workspace_status.sh
+    x_defs = {
+        "github.com/DataDog/datadog-agent/pkg/version.Commit": "{STABLE_GIT_COMMIT}",
+        "github.com/DataDog/datadog-agent/pkg/version.AgentVersion": "{STABLE_AGENT_VERSION}",
+        "github.com/DataDog/datadog-agent/pkg/version.AgentVersionURLSafe": "{STABLE_AGENT_VERSION_URL_SAFE}",
+        "github.com/DataDog/datadog-agent/pkg/version.AgentPackageVersion": "{STABLE_AGENT_VERSION}",
+        "github.com/DataDog/datadog-agent/pkg/version.AgentPayloadVersion": "{STABLE_AGENT_PAYLOAD_VERSION}",
+    },
 )

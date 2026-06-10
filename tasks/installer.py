@@ -4,6 +4,7 @@ installer namespaced tasks
 
 import glob
 import hashlib
+import shutil
 import sys
 from os import getenv, makedirs, path
 
@@ -13,6 +14,7 @@ from tasks.build_tags import (
     compute_build_tags_for_flavor,
 )
 from tasks.flavor import AgentFlavor
+from tasks.libs.build.bazel import bazel_build_binary
 from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import REPO_PATH, bin_name, get_build_flags
 from tasks.windows_resources import build_messagetable, build_rc, versioninfo_vars
@@ -36,6 +38,7 @@ def build(
     no_strip_binary=True,
     no_cgo=False,
     fips_mode=False,
+    enable_bazel=True,
 ):
     """
     Build the installer.
@@ -72,19 +75,23 @@ def build(
     if not no_strip_binary:
         ldflags += " -s -w"
 
-    go_build(
-        ctx,
-        f"{REPO_PATH}/cmd/installer",
-        mod=go_mod,
-        race=race,
-        rebuild=rebuild,
-        gcflags=gcflags,
-        ldflags=ldflags,
-        build_tags=build_tags,
-        bin_path=installer_bin,
-        check_deadcode=getenv("DEPLOY_AGENT") == "true",
-        env=env,
-    )
+    if enable_bazel:
+        binary_path = bazel_build_binary(ctx, "//cmd/installer")
+        shutil.copy2(binary_path, installer_bin)
+    else:
+        go_build(
+            ctx,
+            f"{REPO_PATH}/cmd/installer",
+            mod=go_mod,
+            race=race,
+            rebuild=rebuild,
+            gcflags=gcflags,
+            ldflags=ldflags,
+            build_tags=build_tags,
+            bin_path=installer_bin,
+            check_deadcode=getenv("DEPLOY_AGENT") == "true",
+            env=env,
+        )
 
 
 @task

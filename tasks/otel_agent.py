@@ -8,6 +8,7 @@ from invoke.exceptions import Exit
 
 from tasks.build_tags import get_default_build_tags
 from tasks.flavor import AgentFlavor
+from tasks.libs.build.bazel import bazel_build_binary
 from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import REPO_PATH, bin_name, get_version_ldflags
 from tasks.windows_resources import build_messagetable, build_rc, versioninfo_vars
@@ -37,7 +38,7 @@ def byoc_release(ctx, version: str):
 
 
 @task
-def build(ctx, byoc=False, flavor=AgentFlavor.base.name):
+def build(ctx, byoc=False, flavor=AgentFlavor.base.name, enable_bazel=True):
     """
     Build the otel agent
     """
@@ -75,18 +76,22 @@ def build(ctx, byoc=False, flavor=AgentFlavor.base.name):
             out="cmd/otel-agent/rsrc.syso",
         )
 
-    go_build(
-        ctx,
-        f"{REPO_PATH}/cmd/otel-agent",
-        mod="readonly",
-        build_tags=build_tags,
-        ldflags=ldflags,
-        gcflags=gcflags,
-        bin_path=bin_path,
-        check_deadcode=os.getenv("DEPLOY_AGENT") == "true",
-        coverage=os.getenv("E2E_COVERAGE_PIPELINE") == "true",
-        env=env,
-    )
+    if enable_bazel:
+        binary_path = bazel_build_binary(ctx, "//cmd/otel-agent")
+        shutil.copy2(binary_path, bin_path)
+    else:
+        go_build(
+            ctx,
+            f"{REPO_PATH}/cmd/otel-agent",
+            mod="readonly",
+            build_tags=build_tags,
+            ldflags=ldflags,
+            gcflags=gcflags,
+            bin_path=bin_path,
+            check_deadcode=os.getenv("DEPLOY_AGENT") == "true",
+            coverage=os.getenv("E2E_COVERAGE_PIPELINE") == "true",
+            env=env,
+        )
 
     dist_folder = os.path.join(BIN_DIR, "dist")
     if os.path.exists(dist_folder):

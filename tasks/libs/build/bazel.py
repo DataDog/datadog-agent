@@ -107,9 +107,12 @@ def bazel(
         and the caller needs to process it.
     """
 
-    if not (resolved_bazel := shutil.which("bazel")):
+    # Prefer the 'bzl' launcher (Datadog wrapper) over plain 'bazel'.
+    resolved_bazel = shutil.which("bzl") or shutil.which("bazel")
+    if not resolved_bazel:
         raise Exit(bazel_not_found_message("red"))
-    cmd = ("sudo", resolved_bazel) if sudo else ("bazel",)
+    launcher = "bzl" if shutil.which("bzl") else "bazel"
+    cmd = ("sudo", resolved_bazel) if sudo else (launcher,)
     kwargs = {}
     # Invoke terminolgy is subtle. "hide" means hide from the user.
     # In every other libray, that would be called capture, and the
@@ -130,3 +133,54 @@ def bazel(
     if capture_stderr:
         return (result.stdout or "") + (result.stderr or "")
     return result.stdout
+
+
+def bazel_build_binary(
+    ctx: Context,
+    label: str,
+    platform: str | None = None,
+    stamp: bool = True,
+) -> str:
+    """Build a Bazel binary target and return the path to the built artifact.
+
+    label: Bazel label e.g. "//cmd/agent:agent"
+    platform:  optional platform flag e.g. "//bazel/platforms:linux_x86_64"
+    stamp: whether to embed version info via workspace_status_command (default True)
+    Returns the path to the built binary under bazel-bin.
+    """
+    import os
+    import subprocess
+
+    repo_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+    status_script = os.path.join(repo_root, "bazel", "tools", "workspace_status.sh")
+
+    args = ["build", label]
+    if stamp:
+        args += ["--stamp", f"--workspace_status_command={status_script}"]
+    if platform:
+        args += [f"--platforms={platform}"]
+
+    bazel(ctx, *args)
+
+    # Resolve the binary path from bazel-bin.
+    # Bazel puts go_binary outputs at bazel-bin/<pkg>/<name>_/<name>
+    # e.g. //cmd/agent:agent -> bazel-bin/cmd/agent/agent_/agent
+    pkg = label.lstrip("/").split(":")[0]  # "cmd/agent"
+    name = label.split(":")[-1] if ":" in label else pkg.split("/")[-1]  # "agent"
+    candidates = [
+        os.path.join(repo_root, "bazel-bin", pkg, f"{name}_", name),
+        os.path.join(repo_root, "bazel-bin", pkg, name),
+    ]
+    for p in candidates:
+        if os.path.isfile(p):
+            return p
+    # Fallback: search bazel-bin for the executable
+    result = subprocess.run(
+        ["find", "-L", os.path.join(repo_root, "bazel-bin", pkg), "-name", name, "-type", "f", "-executable"],
+        capture_output=True,
+        text=True,
+    )
+    found = [line for line in result.stdout.splitlines() if line]
+    if found:
+        return found[0]
+    raise Exit(f"bazel_build_binary: built {label} but could not find binary under bazel-bin/{pkg}")

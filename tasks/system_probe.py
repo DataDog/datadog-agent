@@ -22,7 +22,7 @@ from invoke.tasks import task
 
 from tasks.build_tags import UNIT_TEST_TAGS, get_default_build_tags
 from tasks.flavor import AgentFlavor
-from tasks.libs.build.bazel import bazel
+from tasks.libs.build.bazel import bazel, bazel_build_binary
 from tasks.libs.build.ninja import NinjaWriter
 from tasks.libs.ciproviders.gitlab_api import ReferenceTag
 from tasks.libs.common.color import color_message
@@ -199,6 +199,7 @@ def build(
     static=False,
     fips_mode=False,
     glibc=True,
+    enable_bazel=True,
 ):
     """
     Build the system-probe
@@ -217,6 +218,7 @@ def build(
         static=static,
         fips_mode=fips_mode,
         glibc=glibc,
+        enable_bazel=enable_bazel,
     )
 
 
@@ -244,6 +246,7 @@ def build_sysprobe_binary(
     fips_mode=False,
     static=False,
     glibc=True,
+    enable_bazel=True,
 ) -> None:
     arch_obj = Arch.from_str(arch)
 
@@ -282,20 +285,24 @@ def build_sysprobe_binary(
     if os.path.exists(binary):
         os.remove(binary)
 
-    go_build(
-        ctx,
-        f"{REPO_PATH}/cmd/system-probe",
-        mod=go_mod,
-        race=race,
-        rebuild=rebuild,
-        build_tags=build_tags,
-        bin_path=binary,
-        gcflags=gcflags,
-        ldflags=ldflags,
-        check_deadcode=os.getenv("DEPLOY_AGENT") == "true",
-        coverage=os.getenv("E2E_COVERAGE_PIPELINE") == "true",
-        env=env,
-    )
+    if enable_bazel:
+        binary_path = bazel_build_binary(ctx, "//cmd/system-probe")
+        shutil.copy2(binary_path, binary)
+    else:
+        go_build(
+            ctx,
+            f"{REPO_PATH}/cmd/system-probe",
+            mod=go_mod,
+            race=race,
+            rebuild=rebuild,
+            build_tags=build_tags,
+            bin_path=binary,
+            gcflags=gcflags,
+            ldflags=ldflags,
+            check_deadcode=os.getenv("DEPLOY_AGENT") == "true",
+            coverage=os.getenv("E2E_COVERAGE_PIPELINE") == "true",
+            env=env,
+        )
 
 
 def get_sysprobe_test_buildtags(is_windows, bundle_ebpf):

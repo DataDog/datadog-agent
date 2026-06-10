@@ -10,6 +10,7 @@ from tasks.build_tags import (
     compute_build_tags_for_flavor,
 )
 from tasks.flavor import AgentFlavor
+from tasks.libs.build.bazel import bazel_build_binary
 from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import REPO_PATH, bin_name, get_build_flags
 from tasks.system_probe import copy_ebpf_and_related_files
@@ -29,6 +30,7 @@ def build(
     flavor=AgentFlavor.base.name,
     rebuild=False,
     go_mod="readonly",
+    enable_bazel=True,
 ):
     """
     Build the process agent
@@ -66,20 +68,24 @@ def build(
         os.remove(BIN_PATH)
 
     # TODO static option
-    go_build(
-        ctx,
-        f"{REPO_PATH}/cmd/process-agent",
-        mod=go_mod,
-        race=race,
-        rebuild=rebuild,
-        gcflags=gcflags,
-        ldflags=ldflags,
-        build_tags=build_tags,
-        bin_path=BIN_PATH,
-        env=env,
-        check_deadcode=os.getenv("DEPLOY_AGENT") == "true",
-        coverage=os.getenv("E2E_COVERAGE_PIPELINE") == "true",
-    )
+    if enable_bazel:
+        binary_path = bazel_build_binary(ctx, "//cmd/process-agent")
+        shutil.copy2(binary_path, BIN_PATH)
+    else:
+        go_build(
+            ctx,
+            f"{REPO_PATH}/cmd/process-agent",
+            mod=go_mod,
+            race=race,
+            rebuild=rebuild,
+            gcflags=gcflags,
+            ldflags=ldflags,
+            build_tags=build_tags,
+            bin_path=BIN_PATH,
+            env=env,
+            check_deadcode=os.getenv("DEPLOY_AGENT") == "true",
+            coverage=os.getenv("E2E_COVERAGE_PIPELINE") == "true",
+        )
 
 
 class TempDir:

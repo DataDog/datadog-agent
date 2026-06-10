@@ -16,7 +16,7 @@ import tasks.libs.cws.secl_doc_gen as secl_doc_gen
 from tasks.build_tags import get_default_build_tags
 from tasks.flavor import AgentFlavor
 from tasks.go import run_golangci_lint
-from tasks.libs.build.bazel import bazel
+from tasks.libs.build.bazel import bazel, bazel_build_binary
 from tasks.libs.build.ninja import NinjaWriter
 from tasks.libs.common.git import get_commit_sha, get_common_ancestor, get_current_branch
 from tasks.libs.common.go import go_build
@@ -58,6 +58,7 @@ def build(
     go_mod="readonly",
     static=False,
     fips_mode=False,
+    enable_bazel=True,
 ):
     """
     Build the security agent
@@ -94,20 +95,24 @@ def build(
     if os.path.exists(BIN_PATH):
         os.remove(BIN_PATH)
 
-    go_build(
-        ctx,
-        f"{REPO_PATH}/cmd/security-agent",
-        mod=go_mod,
-        race=race,
-        rebuild=rebuild,
-        gcflags=gcflags,
-        ldflags=ldflags,
-        build_tags=build_tags,
-        bin_path=BIN_PATH,
-        env=env,
-        check_deadcode=os.getenv("DEPLOY_AGENT") == "true",
-        coverage=os.getenv("E2E_COVERAGE_PIPELINE") == "true",
-    )
+    if enable_bazel:
+        binary_path = bazel_build_binary(ctx, "//cmd/security-agent")
+        shutil.copy2(binary_path, BIN_PATH)
+    else:
+        go_build(
+            ctx,
+            f"{REPO_PATH}/cmd/security-agent",
+            mod=go_mod,
+            race=race,
+            rebuild=rebuild,
+            gcflags=gcflags,
+            ldflags=ldflags,
+            build_tags=build_tags,
+            bin_path=BIN_PATH,
+            env=env,
+            check_deadcode=os.getenv("DEPLOY_AGENT") == "true",
+            coverage=os.getenv("E2E_COVERAGE_PIPELINE") == "true",
+        )
 
 
 @task

@@ -7,20 +7,13 @@ go_library(
         "const.go",
         "doc.go",
         "helpers.go",
-        "hostname_stub.go",
         "resource.go",
         "tags.go",
         "time.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/kubernetes",
     visibility = ["//visibility:public"],
-    # NOTE: hostname.go (//go:build kubeapiserver && !kubelet) is intentionally excluded.
-    # It imports pkg/util/kubernetes/apiserver, which imports pkg/util/kubernetes/kubelet,
-    # which imports pkg/util/kubernetes — creating a cycle that Bazel cannot resolve.
-    # cluster-agent's GetKubeAPIServerHostname is blocked by this structural cycle until
-    # the source is refactored to break it (e.g. extract to a subpackage).
     deps = [
-        "//pkg/util/log",
         "//pkg/util/pointer",
         "@io_k8s_apimachinery//pkg/api/resource",
     ],

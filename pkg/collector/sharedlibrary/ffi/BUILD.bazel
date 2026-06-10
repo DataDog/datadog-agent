@@ -1,5 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
 load("@rules_cc//cc:defs.bzl", "cc_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 # The ffi C code is separated into its own cc_library so that the go_library
 # does not need cgo=True unconditionally. When sharedlibrarycheck is NOT in gotags,
@@ -10,11 +10,12 @@ cc_library(
     name = "ffi_c",
     srcs = ["ffi.c"],
     hdrs = ["ffi.h"],
+    includes = ["."],
+    visibility = ["//visibility:private"],
     deps = select({
         "@rules_go//go/platform:linux": ["//rtloader:rtloader_dynamic"],
         "//conditions:default": [],
     }),
-    visibility = ["//visibility:private"],
 )
 
 go_library(
