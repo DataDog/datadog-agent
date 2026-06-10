@@ -78,6 +78,10 @@ var (
 	// It might be overridden at build time via ldflags so it is a var instead of const
 	defaultInstallPath = "/opt/datadog-agent"
 
+	// runPath is the default run path for the agent
+	// It might be overridden at build time via ldflags so it is a var instead of const
+	runPath = ""
+
 	// utility variables
 	_here, _ = executable.Folder()
 	// PyChecksPath holds the path to the python checks from integrations-core shipped with the agent
@@ -98,6 +102,10 @@ func GetInstallPath() string {
 
 // GetDefaultRunPath returns the path to the run directory
 func GetDefaultRunPath() string {
+	// runPath might be set by a ldflag -X target, if so use that
+	if runPath != "" {
+		return runPath
+	}
 	return filepath.Join(GetInstallPath(), "run")
 }
 

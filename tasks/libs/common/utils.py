@@ -263,6 +263,11 @@ def get_build_flags(
     if sys.platform.startswith('linux') and install_path:
         ldflags += f"-X {REPO_PATH}/pkg/util/defaultpaths.defaultInstallPath={install_path} "
 
+    # setting the run path
+    if sys.platform.startswith('linux') and run_path:
+        ldflags += f"-X {REPO_PATH}/pkg/util/defaultpaths.runPath={run_path} "
+
+
     # lock down the agent to only use the symbols in the datadog-agent.map file
     # required because some go dependencies (such as go-nvml) will automatically include the --export-dynamic flag
     if sys.platform.startswith('linux'):
