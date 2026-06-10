@@ -1506,6 +1506,61 @@ func TestHandleKubeKueueQueue(t *testing.T) {
 	assertTagInfoListEqual(t, expected, actual)
 }
 
+func TestHandleKubeKueueResourceFlavor(t *testing.T) {
+	flavorID := workloadmeta.EntityID{
+		Kind: workloadmeta.KindKubernetesKueueResourceFlavor,
+		ID:   "a100",
+	}
+
+	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
+		fx.Supply(context.Background()),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+
+	cfg := configmock.New(t)
+	collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
+
+	actual := collector.handleKubeKueueResourceFlavor(workloadmeta.Event{
+		Type: workloadmeta.EventTypeSet,
+		Entity: &workloadmeta.KubernetesKueueResourceFlavor{
+			EntityID: flavorID,
+			EntityMeta: workloadmeta.EntityMeta{
+				Name: "a100",
+			},
+			NodeLabels: map[string]string{
+				"nvidia.com/gpu.product":              "NVIDIA-A100-SXM4-40GB",
+				"nvidia.com/gpu.family":               "Ampere",
+				"nvidia.com/gpu.compute.major":        "8",
+				"nvidia.com/cuda.driver-version.full": "535.104.12",
+				"feature.node.kubernetes.io/gpu":      "true",
+			},
+		},
+		IsComplete: true,
+	})
+
+	expected := []*types.TagInfo{
+		{
+			Source:               kueueResourceFlavorSource,
+			EntityID:             types.NewEntityID(types.KueueResourceFlavor, flavorID.ID),
+			IsComplete:           true,
+			HighCardTags:         []string{},
+			OrchestratorCardTags: []string{},
+			LowCardTags: []string{
+				"gpu_architecture:ampere",
+				"gpu_compute_major:8",
+				"gpu_device:NVIDIA-A100-SXM4-40GB",
+				"gpu_driver_version:535.104.12",
+				"gpu_vendor:nvidia",
+				"kueue_resource_flavor:a100",
+			},
+			StandardTags: []string{},
+		},
+	}
+	assertTagInfoListEqual(t, expected, actual)
+}
+
 func TestKueueQueueEntityTagsPropagateToPodContainers(t *testing.T) {
 	const (
 		podUID      = "pod-uid"

@@ -39,6 +39,14 @@ type expectedKueueQueue struct {
 	uid              string
 }
 
+type expectedKueueResourceFlavor struct {
+	name        string
+	nodeLabels  map[string]string
+	labels      map[string]string
+	annotations map[string]string
+	uid         string
+}
+
 // This is a simple test for run(). Exhaustive tests for the individual
 // functions it calls are defined below.
 func TestStreamingProvider_run(t *testing.T) {
@@ -395,9 +403,10 @@ func TestStreamingProvider_handleDCAStreamUpdate(t *testing.T) {
 		preExistingEvents []workloadmeta.CollectorEvent
 		initialSeenPods   map[string]string
 
-		update              streamUpdate
-		expectedPods        map[string]expectedPod
-		expectedKueueQueues map[string]expectedKueueQueue
+		update                       streamUpdate
+		expectedPods                 map[string]expectedPod
+		expectedKueueQueues          map[string]expectedKueueQueue
+		expectedKueueResourceFlavors map[string]expectedKueueResourceFlavor
 	}{
 		{
 			name: "full state emits Kueue queue entities and re-enriches all seen pods",
@@ -435,6 +444,16 @@ func TestStreamingProvider_handleDCAStreamUpdate(t *testing.T) {
 						Annotations:  map[string]string{"owner": "team-a"},
 						Uid:          "queue-uid",
 						Type:         pb.KubeMetadataEventType_SET,
+					},
+				},
+				KueueResourceFlavors: []*pb.KueueResourceFlavor{
+					{
+						Name:        "a100",
+						Labels:      map[string]string{"flavor": "gpu"},
+						Annotations: map[string]string{"owner": "team-a"},
+						Uid:         "flavor-uid",
+						NodeLabels:  map[string]string{"nvidia.com/gpu.product": "NVIDIA-A100-SXM4-40GB"},
+						Type:        pb.KubeMetadataEventType_SET,
 					},
 				},
 			},
@@ -476,6 +495,9 @@ func TestStreamingProvider_handleDCAStreamUpdate(t *testing.T) {
 				updatedKueueQueues: map[string]struct{}{
 					"localqueue/default/batch": {},
 				},
+				updatedKueueResourceFlavors: map[string]struct{}{
+					"a100": {},
+				},
 			},
 			expectedPods: map[string]expectedPod{
 				"uid-1": {
@@ -497,6 +519,15 @@ func TestStreamingProvider_handleDCAStreamUpdate(t *testing.T) {
 					labels:           map[string]string{"queue": "batch"},
 					annotations:      map[string]string{"owner": "team-a"},
 					uid:              "queue-uid",
+				},
+			},
+			expectedKueueResourceFlavors: map[string]expectedKueueResourceFlavor{
+				"a100": {
+					name:        "a100",
+					labels:      map[string]string{"flavor": "gpu"},
+					annotations: map[string]string{"owner": "team-a"},
+					uid:         "flavor-uid",
+					nodeLabels:  map[string]string{"nvidia.com/gpu.product": "NVIDIA-A100-SXM4-40GB"},
 				},
 			},
 		},
@@ -673,6 +704,32 @@ func TestStreamingProvider_handleDCAStreamUpdate(t *testing.T) {
 			expectedPods:        map[string]expectedPod{},
 			expectedKueueQueues: map[string]expectedKueueQueue{},
 		},
+		{
+			name: "Kueue ResourceFlavor unset removes local entity",
+			preExistingEvents: []workloadmeta.CollectorEvent{
+				{
+					Type:   workloadmeta.EventTypeSet,
+					Source: workloadmeta.SourceClusterOrchestrator,
+					Entity: &workloadmeta.KubernetesKueueResourceFlavor{
+						EntityID: workloadmeta.EntityID{
+							Kind: workloadmeta.KindKubernetesKueueResourceFlavor,
+							ID:   "a100",
+						},
+						EntityMeta: workloadmeta.EntityMeta{
+							Name: "a100",
+						},
+						NodeLabels: map[string]string{"nvidia.com/gpu.product": "NVIDIA-A100-SXM4-40GB"},
+					},
+				},
+			},
+			update: streamUpdate{
+				updatedKueueResourceFlavors: map[string]struct{}{
+					"a100": {},
+				},
+			},
+			expectedPods:                 map[string]expectedPod{},
+			expectedKueueResourceFlavors: map[string]expectedKueueResourceFlavor{},
+		},
 	}
 
 	for _, test := range tests {
@@ -714,6 +771,7 @@ func TestStreamingProvider_handleDCAStreamUpdate(t *testing.T) {
 				assert.Equal(t, expected.nsAnnotations, pod.NamespaceAnnotations)
 			}
 			assertKueueQueues(t, wmetaMock, test.expectedKueueQueues)
+			assertKueueResourceFlavors(t, wmetaMock, test.expectedKueueResourceFlavors)
 		})
 	}
 }
@@ -990,6 +1048,24 @@ func assertKueueQueues(t *testing.T, wmetaMock workloadmetamock.Mock, expected m
 		assert.Equal(t, expectedQueue.labels, queue.Labels)
 		assert.Equal(t, expectedQueue.annotations, queue.Annotations)
 		assert.Equal(t, expectedQueue.uid, queue.UID)
+	}
+}
+
+func assertKueueResourceFlavors(t *testing.T, wmetaMock workloadmetamock.Mock, expected map[string]expectedKueueResourceFlavor) {
+	t.Helper()
+
+	entities := wmetaMock.DumpStructured().Entities[string(workloadmeta.KindKubernetesKueueResourceFlavor)]
+	assert.Len(t, entities, len(expected))
+
+	for _, entity := range entities {
+		flavor := entity.(*workloadmeta.KubernetesKueueResourceFlavor)
+		expectedFlavor, found := expected[flavor.EntityID.ID]
+		require.True(t, found)
+		assert.Equal(t, expectedFlavor.name, flavor.Name)
+		assert.Equal(t, expectedFlavor.nodeLabels, flavor.NodeLabels)
+		assert.Equal(t, expectedFlavor.labels, flavor.Labels)
+		assert.Equal(t, expectedFlavor.annotations, flavor.Annotations)
+		assert.Equal(t, expectedFlavor.uid, flavor.UID)
 	}
 }
 

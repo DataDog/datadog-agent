@@ -167,6 +167,8 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 				tagInfos = append(tagInfos, c.handleKubeDeployment(ev)...)
 			case workloadmeta.KindKubernetesKueueQueue:
 				tagInfos = append(tagInfos, c.handleKubeKueueQueue(ev)...)
+			case workloadmeta.KindKubernetesKueueResourceFlavor:
+				tagInfos = append(tagInfos, c.handleKubeKueueResourceFlavor(ev)...)
 			case workloadmeta.KindGPU:
 				tagInfos = append(tagInfos, c.handleGPU(ev)...)
 			case workloadmeta.KindCRD:
@@ -784,6 +786,30 @@ func (c *WorkloadMetaCollector) handleKubeKueueQueue(ev workloadmeta.Event) []*t
 	}
 }
 
+func (c *WorkloadMetaCollector) handleKubeKueueResourceFlavor(ev workloadmeta.Event) []*types.TagInfo {
+	flavor := ev.Entity.(*workloadmeta.KubernetesKueueResourceFlavor)
+
+	tagList := taglist.NewTagList()
+	c.extractKueueResourceFlavorTags(flavor, tagList)
+	low, orch, high, standard := tagList.Compute()
+
+	if len(low)+len(orch)+len(high)+len(standard) == 0 {
+		return nil
+	}
+
+	return []*types.TagInfo{
+		{
+			Source:               kueueResourceFlavorSource,
+			EntityID:             common.BuildTaggerEntityID(flavor.EntityID),
+			HighCardTags:         high,
+			OrchestratorCardTags: orch,
+			LowCardTags:          low,
+			StandardTags:         standard,
+			IsComplete:           ev.IsComplete,
+		},
+	}
+}
+
 func (c *WorkloadMetaCollector) handleGPU(ev workloadmeta.Event) []*types.TagInfo {
 	gpu := ev.Entity.(*workloadmeta.GPU)
 
@@ -933,6 +959,51 @@ func (c *WorkloadMetaCollector) extractKueueQueueTags(queue *workloadmeta.Kubern
 	for name, value := range queue.Annotations {
 		k8smetadata.AddMetadataAsTags(name, value, annotationsAsTags, globAnnotations, tagList)
 	}
+}
+
+func (c *WorkloadMetaCollector) extractKueueResourceFlavorTags(flavor *workloadmeta.KubernetesKueueResourceFlavor, tagList *taglist.TagList) {
+	tagList.AddLow(tags.KueueResourceFlavor, flavor.Name)
+	for name, value := range flavor.NodeLabels {
+		if strings.HasPrefix(name, "nvidia.com/") {
+			tagList.AddLow(tags.KubeGPUVendor, "nvidia")
+		}
+
+		switch name {
+		case "nvidia.com/gpu.product":
+			tagList.AddLow(tags.KubeGPUDevice, value)
+		case "nvidia.com/gpu.family":
+			tagList.AddLow(tags.GPUArchitecture, strings.ToLower(value))
+		case "nvidia.com/cuda.driver-version.full":
+			tagList.AddLow(tags.GPUDriverVersion, value)
+		default:
+			if tagName, ok := nvidiaResourceFlavorNodeLabelTagName(name); ok {
+				tagList.AddLow(tagName, value)
+			}
+		}
+	}
+
+	groupResource := kubernetes.KueueResourceFlavorResourceName + "." + kubernetes.KueueGroupName
+	labelsAsTags := c.k8sResourcesLabelsAsTags[groupResource]
+	annotationsAsTags := c.k8sResourcesAnnotationsAsTags[groupResource]
+	globLabels := c.globK8sResourcesLabels[groupResource]
+	globAnnotations := c.globK8sResourcesAnnotations[groupResource]
+
+	for name, value := range flavor.Labels {
+		k8smetadata.AddMetadataAsTags(name, value, labelsAsTags, globLabels, tagList)
+	}
+
+	for name, value := range flavor.Annotations {
+		k8smetadata.AddMetadataAsTags(name, value, annotationsAsTags, globAnnotations, tagList)
+	}
+}
+
+func nvidiaResourceFlavorNodeLabelTagName(labelName string) (string, bool) {
+	const nvidiaLabelPrefix = "nvidia.com/"
+	tagName, ok := strings.CutPrefix(labelName, nvidiaLabelPrefix)
+	if !ok || tagName == "" {
+		return "", false
+	}
+	return strings.ReplaceAll(tagName, ".", "_"), true
 }
 
 func (c *WorkloadMetaCollector) extractTagsFromPodKueueInfo(pod *workloadmeta.KubernetesPod, tagList *taglist.TagList) {

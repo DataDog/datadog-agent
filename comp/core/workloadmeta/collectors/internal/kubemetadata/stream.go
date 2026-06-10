@@ -201,6 +201,7 @@ func (p *streamingProvider) handleDCAStreamUpdate(update streamUpdate, seenPods 
 
 	if update.updateIsFullState {
 		events = append(events, p.buildKueueQueueEvents(update.updatedKueueQueues)...)
+		events = append(events, p.buildKueueResourceFlavorEvents(update.updatedKueueResourceFlavors)...)
 
 		for _, uid := range seenPods {
 			if podEvent, ok := p.buildPodEventFromUID(uid); ok {
@@ -209,6 +210,7 @@ func (p *streamingProvider) handleDCAStreamUpdate(update streamUpdate, seenPods 
 		}
 	} else {
 		events = append(events, p.buildKueueQueueEvents(update.updatedKueueQueues)...)
+		events = append(events, p.buildKueueResourceFlavorEvents(update.updatedKueueResourceFlavors)...)
 
 		for namespacedName := range update.updatedPods {
 			uid, ok := seenPods[namespacedName]
@@ -312,11 +314,39 @@ func (p *streamingProvider) buildKueueQueueEvents(updatedQueueIDs map[string]str
 	return events
 }
 
+func (p *streamingProvider) buildKueueResourceFlavorEvents(updatedFlavorIDs map[string]struct{}) []workloadmeta.CollectorEvent {
+	events := make([]workloadmeta.CollectorEvent, 0, len(updatedFlavorIDs))
+	for flavorID := range updatedFlavorIDs {
+		flavor, found := p.dcaStream.getKueueResourceFlavor(flavorID)
+		if found {
+			events = append(events, workloadmeta.CollectorEvent{
+				Source: workloadmeta.SourceClusterOrchestrator,
+				Type:   workloadmeta.EventTypeSet,
+				Entity: flavor,
+			})
+			continue
+		}
+
+		events = append(events, workloadmeta.CollectorEvent{
+			Source: workloadmeta.SourceClusterOrchestrator,
+			Type:   workloadmeta.EventTypeUnset,
+			Entity: &workloadmeta.KubernetesKueueResourceFlavor{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindKubernetesKueueResourceFlavor,
+					ID:   flavorID,
+				},
+			},
+		})
+	}
+	return events
+}
+
 type streamUpdate struct {
-	updateIsFullState  bool
-	updatedPods        map[string]struct{} // keys are "namespace/name"
-	updatedNamespaces  map[string]struct{}
-	updatedKueueQueues map[string]struct{} // keys are workloadmeta entity IDs
+	updateIsFullState           bool
+	updatedPods                 map[string]struct{} // keys are "namespace/name"
+	updatedNamespaces           map[string]struct{}
+	updatedKueueQueues          map[string]struct{} // keys are workloadmeta entity IDs
+	updatedKueueResourceFlavors map[string]struct{} // keys are workloadmeta entity IDs
 }
 
 // dcaStreamClient manages a gRPC streaming connection to the DCA for
@@ -325,13 +355,14 @@ type dcaStreamClient struct {
 	nodeName string
 	cfg      configmodel.Reader
 
-	mu            sync.RWMutex
-	podServices   map[string][]string          // "namespace/podName" -> services
-	namespaces    map[string]namespaceMetadata // namespace name -> labels/annotations
-	kueueQueues   map[string]*workloadmeta.KubernetesKueueQueue
-	initialized   bool
-	unimplemented bool
-	pendingUpdate streamUpdate
+	mu                   sync.RWMutex
+	podServices          map[string][]string          // "namespace/podName" -> services
+	namespaces           map[string]namespaceMetadata // namespace name -> labels/annotations
+	kueueQueues          map[string]*workloadmeta.KubernetesKueueQueue
+	kueueResourceFlavors map[string]*workloadmeta.KubernetesKueueResourceFlavor
+	initialized          bool
+	unimplemented        bool
+	pendingUpdate        streamUpdate
 
 	updateCh chan struct{} // signals that pendingUpdate has new data
 
@@ -343,13 +374,14 @@ type dcaStreamClient struct {
 
 func newDCAStreamClient(nodeName string, cfg configmodel.Reader) *dcaStreamClient {
 	return &dcaStreamClient{
-		nodeName:    nodeName,
-		cfg:         cfg,
-		podServices: make(map[string][]string),
-		namespaces:  make(map[string]namespaceMetadata),
-		kueueQueues: make(map[string]*workloadmeta.KubernetesKueueQueue),
-		readyCh:     make(chan struct{}),
-		updateCh:    make(chan struct{}, 1),
+		nodeName:             nodeName,
+		cfg:                  cfg,
+		podServices:          make(map[string][]string),
+		namespaces:           make(map[string]namespaceMetadata),
+		kueueQueues:          make(map[string]*workloadmeta.KubernetesKueueQueue),
+		kueueResourceFlavors: make(map[string]*workloadmeta.KubernetesKueueResourceFlavor),
+		readyCh:              make(chan struct{}),
+		updateCh:             make(chan struct{}, 1),
 	}
 }
 
@@ -425,6 +457,20 @@ func (sc *dcaStreamClient) getKueueQueue(queueID string) (*workloadmeta.Kubernet
 	// queue is passed to workloadmeta after sc.mu is released, and it contains
 	// mutable maps such as Labels and Annotations.
 	return queue.DeepCopy().(*workloadmeta.KubernetesKueueQueue), true
+}
+
+func (sc *dcaStreamClient) getKueueResourceFlavor(flavorID string) (*workloadmeta.KubernetesKueueResourceFlavor, bool) {
+	sc.mu.RLock()
+	defer sc.mu.RUnlock()
+
+	flavor, found := sc.kueueResourceFlavors[flavorID]
+	if !found {
+		return nil, false
+	}
+	// Keep ownership of the cached entity with the stream client. The returned
+	// flavor is passed to workloadmeta after sc.mu is released, and it contains
+	// mutable maps such as Labels, Annotations, and NodeLabels.
+	return flavor.DeepCopy().(*workloadmeta.KubernetesKueueResourceFlavor), true
 }
 
 func (sc *dcaStreamClient) isUnimplemented() bool {
@@ -571,15 +617,31 @@ func (sc *dcaStreamClient) applyResponse(resp *pb.KubeMetadataStreamResponse) {
 		}
 		sc.kueueQueues = newKueueQueues
 
+		newKueueResourceFlavors := make(map[string]*workloadmeta.KubernetesKueueResourceFlavor, len(resp.KueueResourceFlavors))
+		updatedKueueResourceFlavors := make(map[string]struct{}, len(resp.KueueResourceFlavors)+len(sc.kueueResourceFlavors))
+		for flavorID := range sc.kueueResourceFlavors {
+			updatedKueueResourceFlavors[flavorID] = struct{}{}
+		}
+		for _, flavorMetadata := range resp.KueueResourceFlavors {
+			flavor := newKueueResourceFlavor(flavorMetadata)
+			if flavor == nil {
+				continue
+			}
+			newKueueResourceFlavors[flavor.EntityID.ID] = flavor
+			updatedKueueResourceFlavors[flavor.EntityID.ID] = struct{}{}
+		}
+		sc.kueueResourceFlavors = newKueueResourceFlavors
+
 		sc.initialized = true
 		sc.pendingUpdate.updateIsFullState = true
 		sc.pendingUpdate.updatedKueueQueues = updatedKueueQueues
+		sc.pendingUpdate.updatedKueueResourceFlavors = updatedKueueResourceFlavors
 		sc.notifyUpdate()
 		sc.signalReady()
 		return
 	}
 
-	if !sc.initialized && (len(resp.Mappings) > 0 || len(resp.NamespaceMetadata) > 0 || len(resp.KueueQueues) > 0) {
+	if !sc.initialized && (len(resp.Mappings) > 0 || len(resp.NamespaceMetadata) > 0 || len(resp.KueueQueues) > 0 || len(resp.KueueResourceFlavors) > 0) {
 		log.Errorf("Received incremental kube metadata update before full state, ignoring")
 		return
 	}
@@ -642,7 +704,29 @@ func (sc *dcaStreamClient) applyResponse(resp *pb.KubeMetadataStreamResponse) {
 		sc.pendingUpdate.updatedKueueQueues[queueID] = struct{}{}
 	}
 
-	if len(resp.Mappings) > 0 || len(resp.NamespaceMetadata) > 0 || len(resp.KueueQueues) > 0 {
+	for _, flavorMetadata := range resp.KueueResourceFlavors {
+		flavorID := kueueResourceFlavorID(flavorMetadata)
+		switch flavorMetadata.Type {
+		case pb.KubeMetadataEventType_SET:
+			flavor := newKueueResourceFlavor(flavorMetadata)
+			if flavor == nil {
+				continue
+			}
+			sc.kueueResourceFlavors[flavor.EntityID.ID] = flavor
+			flavorID = flavor.EntityID.ID
+		case pb.KubeMetadataEventType_UNSET:
+			delete(sc.kueueResourceFlavors, flavorID)
+		default:
+			log.Errorf("Unknown event type %d for Kueue ResourceFlavor metadata %s", flavorMetadata.Type, flavorID)
+			continue
+		}
+		if sc.pendingUpdate.updatedKueueResourceFlavors == nil {
+			sc.pendingUpdate.updatedKueueResourceFlavors = make(map[string]struct{})
+		}
+		sc.pendingUpdate.updatedKueueResourceFlavors[flavorID] = struct{}{}
+	}
+
+	if len(resp.Mappings) > 0 || len(resp.NamespaceMetadata) > 0 || len(resp.KueueQueues) > 0 || len(resp.KueueResourceFlavors) > 0 {
 		sc.notifyUpdate()
 	}
 }
@@ -670,6 +754,26 @@ func newKueueQueue(queueMetadata *pb.KueueQueue) *workloadmeta.KubernetesKueueQu
 	}
 }
 
+func newKueueResourceFlavor(flavorMetadata *pb.KueueResourceFlavor) *workloadmeta.KubernetesKueueResourceFlavor {
+	if flavorMetadata == nil || flavorMetadata.Name == "" {
+		return nil
+	}
+
+	return &workloadmeta.KubernetesKueueResourceFlavor{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesKueueResourceFlavor,
+			ID:   kueueResourceFlavorID(flavorMetadata),
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:        flavorMetadata.Name,
+			Labels:      flavorMetadata.Labels,
+			Annotations: flavorMetadata.Annotations,
+			UID:         flavorMetadata.Uid,
+		},
+		NodeLabels: flavorMetadata.NodeLabels,
+	}
+}
+
 func workloadmetaKueueQueueType(queueType pb.KueueQueueType) workloadmeta.KueueQueueType {
 	switch queueType {
 	case pb.KueueQueueType_CLUSTER_QUEUE:
@@ -691,6 +795,14 @@ func kueueQueueID(queueMetadata *pb.KueueQueue) string {
 		return ""
 	}
 	return id
+}
+
+func kueueResourceFlavorID(flavorMetadata *pb.KueueResourceFlavor) string {
+	if flavorMetadata == nil {
+		return ""
+	}
+
+	return workloadmeta.GenerateKueueResourceFlavorEntityID(flavorMetadata.Name)
 }
 
 // notifyUpdate sends signal on updateCh. Must be called with sc.mu held.

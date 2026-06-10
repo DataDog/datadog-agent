@@ -43,9 +43,19 @@ message KueueQueue {
   KubeMetadataEventType type = 8;
 }
 
+message KueueResourceFlavor {
+  string name = 1;
+  map<string, string> labels = 2;
+  map<string, string> annotations = 3;
+  string uid = 4;
+  map<string, string> node_labels = 5;
+  KubeMetadataEventType type = 6;
+}
+
 message KubeMetadataStreamResponse {
   bool is_full_state = 1;
   repeated PodServiceMapping mappings = 2;
   repeated NamespaceMetadata namespace_metadata = 3;
   repeated KueueQueue kueue_queues = 4;
+  repeated KueueResourceFlavor kueue_resource_flavors = 5;
 }
