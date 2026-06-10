@@ -105,76 +105,84 @@ func TestCRProvider_IsUpToDate(t *testing.T) {
 	assert.False(t, upToDate)
 }
 
-func TestCRProvider_Collect_GeneratesEndpointConfigs(t *testing.T) {
-	store := newMockTemplateStore(map[string][]integration.Config{
-		"default/my-svc": {{
-			Name:       "redisdb",
-			InitConfig: integration.Data("{}"),
-			Instances:  []integration.Data{integration.Data(`{"host":"%%host%%"}`)},
-			Source:     "datadoginstrumentation:default/cr1",
-		}},
-	})
-	slice := makeTestSlice("default", "my-svc", "uid-1", []discv1.Endpoint{
-		{Addresses: []string{"10.0.0.1"}, NodeName: strPtr("node-1")},
-		{Addresses: []string{"10.0.0.2"}, NodeName: strPtr("node-2")},
-	})
-	p := newTestProvider(store, slice)
-
-	configs, err := p.Collect(context.Background())
-	require.NoError(t, err)
-	require.Len(t, configs, 2)
-
-	for _, cfg := range configs {
-		assert.Equal(t, "redisdb", cfg.Name)
-		assert.True(t, cfg.ClusterCheck)
-		assert.Equal(t, names.KubeEndpointSlicesCR, cfg.Provider)
-		assert.NotEmpty(t, cfg.ServiceID)
-		assert.NotEmpty(t, cfg.ADIdentifiers)
-	}
-	assert.NotEqual(t, configs[0].ServiceID, configs[1].ServiceID)
-}
-
-func TestCRProvider_Collect_MultipleTemplatesPerService(t *testing.T) {
-	store := newMockTemplateStore(map[string][]integration.Config{
-		"default/my-svc": {
-			{Name: "redisdb", InitConfig: integration.Data("{}"), Instances: []integration.Data{integration.Data(`{}`)}},
-			{Name: "http_check", InitConfig: integration.Data("{}"), Instances: []integration.Data{integration.Data(`{}`)}},
+func TestCRProvider_Collect(t *testing.T) {
+	tests := []struct {
+		name                 string
+		templates            map[string][]integration.Config
+		slices               []*discv1.EndpointSlice
+		wantNames            []string // expected config.Name for every generated config
+		wantUniqueServiceIDs int      // distinct ServiceIDs across the generated configs
+	}{
+		{
+			name: "one template, slice with two endpoints: a config per endpoint",
+			templates: map[string][]integration.Config{
+				"default/my-svc": {{
+					Name:       "redisdb",
+					InitConfig: integration.Data("{}"),
+					Instances:  []integration.Data{integration.Data(`{"host":"%%host%%"}`)},
+					Source:     "datadoginstrumentation:default/cr1",
+				}},
+			},
+			slices: []*discv1.EndpointSlice{
+				makeTestSlice("default", "my-svc", "uid-1", []discv1.Endpoint{
+					{Addresses: []string{"10.0.0.1"}, NodeName: strPtr("node-1")},
+					{Addresses: []string{"10.0.0.2"}, NodeName: strPtr("node-2")},
+				}),
+			},
+			wantNames:            []string{"redisdb", "redisdb"},
+			wantUniqueServiceIDs: 2, // one per endpoint IP
 		},
-	})
-	slice := makeTestSlice("default", "my-svc", "uid-1", []discv1.Endpoint{
-		{Addresses: []string{"10.0.0.1"}, NodeName: strPtr("node-1")},
-	})
-	p := newTestProvider(store, slice)
-
-	configs, err := p.Collect(context.Background())
-	require.NoError(t, err)
-	require.Len(t, configs, 2)
-
-	configNames := make([]string, 0, len(configs))
-	for _, cfg := range configs {
-		configNames = append(configNames, cfg.Name)
+		{
+			name: "multiple templates, one endpoint: a config per template",
+			templates: map[string][]integration.Config{
+				"default/my-svc": {
+					{Name: "redisdb", InitConfig: integration.Data("{}"), Instances: []integration.Data{integration.Data(`{}`)}},
+					{Name: "http_check", InitConfig: integration.Data("{}"), Instances: []integration.Data{integration.Data(`{}`)}},
+				},
+			},
+			slices: []*discv1.EndpointSlice{
+				makeTestSlice("default", "my-svc", "uid-1", []discv1.Endpoint{
+					{Addresses: []string{"10.0.0.1"}, NodeName: strPtr("node-1")},
+				}),
+			},
+			wantNames:            []string{"redisdb", "http_check"},
+			wantUniqueServiceIDs: 1, // both checks target the same endpoint
+		},
+		{
+			name: "templates but no slices: nothing generated",
+			templates: map[string][]integration.Config{
+				"default/my-svc": {{Name: "redisdb"}},
+			},
+		},
+		{
+			name: "slices but no templates: nothing generated",
+			slices: []*discv1.EndpointSlice{
+				makeTestSlice("default", "my-svc", "uid-1", []discv1.Endpoint{
+					{Addresses: []string{"10.0.0.1"}},
+				}),
+			},
+		},
 	}
-	assert.ElementsMatch(t, []string{"redisdb", "http_check"}, configNames)
-}
 
-func TestCRProvider_Collect_NoSlicesReturnsEmpty(t *testing.T) {
-	store := newMockTemplateStore(map[string][]integration.Config{
-		"default/my-svc": {{Name: "redisdb"}},
-	})
-	p := newTestProvider(store) // no slices
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			p := newTestProvider(newMockTemplateStore(tc.templates), tc.slices...)
 
-	configs, err := p.Collect(context.Background())
-	require.NoError(t, err)
-	assert.Empty(t, configs)
-}
+			configs, err := p.Collect(context.Background())
+			require.NoError(t, err)
 
-func TestCRProvider_Collect_NoTemplatesReturnsEmpty(t *testing.T) {
-	slice := makeTestSlice("default", "my-svc", "uid-1", []discv1.Endpoint{
-		{Addresses: []string{"10.0.0.1"}},
-	})
-	p := newTestProvider(newMockTemplateStore(nil), slice)
-
-	configs, err := p.Collect(context.Background())
-	require.NoError(t, err)
-	assert.Empty(t, configs)
+			gotNames := make([]string, 0, len(configs))
+			serviceIDs := make(map[string]struct{})
+			for _, cfg := range configs {
+				gotNames = append(gotNames, cfg.Name)
+				serviceIDs[cfg.ServiceID] = struct{}{}
+				assert.True(t, cfg.ClusterCheck, "endpoint configs must be cluster checks")
+				assert.Equal(t, names.KubeEndpointSlicesCR, cfg.Provider)
+				assert.NotEmpty(t, cfg.ServiceID)
+				assert.NotEmpty(t, cfg.ADIdentifiers)
+			}
+			assert.ElementsMatch(t, tc.wantNames, gotNames)
+			assert.Len(t, serviceIDs, tc.wantUniqueServiceIDs)
+		})
+	}
 }
