@@ -1,6 +1,7 @@
 # gazelle:write_pb_go //pkg/proto/datadog/trace:trace_go_proto //pkg/proto/datadog/trace:trace_go_proto_tagged
 load("@rules_go//go:def.bzl", "go_library", "go_test")
 load("//bazel/rules/go_msgp:defs.bzl", "go_msgp")
+load("//bazel/rules/write_pb_go:defs.bzl", "write_pb_go")
 
 filegroup(
     name = "trace_go_proto_tagged_srcs",
@@ -118,4 +119,20 @@ go_test(
         "@com_github_vmihailenco_msgpack_v5//:msgpack",
         "@org_golang_google_protobuf//proto",
     ],
+)
+
+write_pb_go(
+    name = "write_pb_go",
+    srcs = {
+        "//pkg/proto/datadog/trace:trace_go_proto_tagged": [
+            "agent_payload.pb.go",
+            "agent_payload_vtproto.pb.go",
+            "span.pb.go",
+            "span_vtproto.pb.go",
+            "stats.pb.go",
+            "stats_vtproto.pb.go",
+            "tracer_payload.pb.go",
+            "tracer_payload_vtproto.pb.go",
+        ],
+    },
 )

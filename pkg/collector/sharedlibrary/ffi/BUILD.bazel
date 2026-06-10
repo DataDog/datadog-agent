@@ -21,6 +21,8 @@ cc_library(
 go_library(
     name = "ffi",
     srcs = [
+        "ffi.c",
+        "ffi.h",
         "library_loader.go",
         "library_loader_test_util.go",
         "stub.go",
@@ -33,15 +35,13 @@ go_library(
         "//conditions:default": [],
     }),
     cgo = True,
+    copts = ["-I pkg/collector/sharedlibrary/ffi/rtloader/include"],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/sharedlibrary/ffi",
     visibility = ["//visibility:public"],
-    deps = select({
-        "@rules_go//go/platform:linux": [
-            "//pkg/collector/aggregator",
-            "//pkg/util/filesystem",
-        ],
-        "//conditions:default": [],
-    }),
+    deps = [
+        "//pkg/collector/aggregator",
+        "//pkg/util/filesystem",
+    ],
 )
 
 go_test(
