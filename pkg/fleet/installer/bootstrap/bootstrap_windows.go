@@ -90,11 +90,7 @@ func DownloadInstallerExe(ctx context.Context, env *env.Env, url string, tmpDir 
 	if downloadedPackage.Name != AgentPackage {
 		// Only the Agent package uses the new installer each update; others
 		// use the currently installed datadog-installer.exe.
-		installerBin, err := iexec.GetExecutable()
-		if err != nil {
-			return "", fmt.Errorf("failed to get executable path: %w", err)
-		}
-		return installerBin, nil
+		return getLocalInstallerPath()
 	}
 
 	// Testing override: if InstallerBootstrapMode registry key is set, use
@@ -177,11 +173,7 @@ func downloadInstallerOldPath(ctx context.Context, env *env.Env, url string, tmp
 		)
 	}
 	if downloadedPackage.Name != AgentPackage {
-		installerBin, err := iexec.GetExecutable()
-		if err != nil {
-			return "", fmt.Errorf("failed to get executable path: %w", err)
-		}
-		return installerBin, nil
+		return getLocalInstallerPath()
 	}
 
 	layoutTmpDir, err := os.MkdirTemp(paths.RootTmpDir, "layout")

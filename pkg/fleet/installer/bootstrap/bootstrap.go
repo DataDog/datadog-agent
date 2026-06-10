@@ -33,11 +33,21 @@ func InstallExperiment(ctx context.Context, env *env.Env, url string) error {
 	return install(ctx, env, url, true)
 }
 
-// getLocalInstaller returns an installer executor from the current binary
-func getLocalInstaller(env *env.Env) (*iexec.InstallerExec, error) {
+// getLocalInstallerPath returns the path to the currently-running
+// datadog-installer.exe.
+func getLocalInstallerPath() (string, error) {
 	installerBin, err := iexec.GetExecutable()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get executable path: %w", err)
+		return "", fmt.Errorf("failed to get executable path: %w", err)
+	}
+	return installerBin, nil
+}
+
+// getLocalInstaller returns an installer executor from the current binary
+func getLocalInstaller(env *env.Env) (*iexec.InstallerExec, error) {
+	installerBin, err := getLocalInstallerPath()
+	if err != nil {
+		return nil, err
 	}
 	return iexec.NewInstallerExec(env, installerBin), nil
 }
