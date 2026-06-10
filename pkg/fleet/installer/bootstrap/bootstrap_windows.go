@@ -67,17 +67,21 @@ func downloadInstaller(ctx context.Context, env *env.Env, url string, tmpDir str
 	return iexec.NewInstallerExec(env, installerBinPath), nil
 }
 
-// DownloadInstallerExe downloads the Datadog Agent OCI package at url,
-// produces a local-disk path to a version-matched datadog-installer.exe,
-// and returns that path. Tries the dedicated installer.exe OCI layer
-// first (Agent 7.79+) and falls back to MSI admin-install extraction for
-// older packages — mirroring the OCI-then-MSI strategy this bootstrap
-// package has used in production. Honors the InstallerBootstrapMode
-// registry key (`OCI` / `MSI`) for testing.
+// DownloadInstallerExe downloads the Datadog Agent OCI package at url and
+// returns a local-disk path to a version-matched datadog-installer.exe.
+// Resolution order:
 //
-// For non-Agent OCI packages this returns the path to the locally-
-// installed datadog-installer.exe (other Datadog packages do not ship a
-// per-version installer.exe).
+//   - dedicated datadog-installer.exe OCI layer
+//     (DatadogPackageInstallerLayerMediaType, Agent 7.79+);
+//   - MSI admin-install extraction via downloadInstallerOldPath, run when
+//     the OCI installer layer is absent (Agent 7.78 and earlier);
+//   - getInstallerFromOCI inside downloadInstallerOldPath, as that helper's
+//     own fallback when MSI extraction fails.
+//
+// Honors the InstallerBootstrapMode registry key (`OCI` / `MSI`) for
+// testing. For non-Agent OCI packages this returns the path to the
+// locally-installed datadog-installer.exe (other Datadog packages do not
+// ship a per-version installer.exe).
 func DownloadInstallerExe(ctx context.Context, env *env.Env, url string, tmpDir string) (string, error) {
 	downloader := oci.NewDownloader(env, env.HTTPClient())
 	downloadedPackage, err := downloader.Download(ctx, url)
