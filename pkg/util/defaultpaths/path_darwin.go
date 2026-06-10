@@ -72,7 +72,7 @@ const (
 
 var (
 	binaryFolder, _ = executable.Folder()
-	installPath = filepath.Join(binaryFolder, "..", "..")
+	installPath     = filepath.Join(binaryFolder, "..", "..")
 
 	// PyChecksPath holds the path to the python checks from integrations-core shipped with the agent
 	PyChecksPath = filepath.Join(installPath, "checks.d")
