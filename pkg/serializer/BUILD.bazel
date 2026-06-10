@@ -52,6 +52,7 @@ go_test(
         "//comp/serializer/metricscompression/def",
         "//comp/serializer/metricscompression/impl",
         "//pkg/config/mock",
+        "//pkg/config/model",
         "//pkg/config/utils",
         "//pkg/metrics",
         "//pkg/metrics/event",
