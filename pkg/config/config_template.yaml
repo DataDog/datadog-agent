@@ -293,19 +293,19 @@ api_key:
 # forwarder_timeout: 20
 
 ## @param use_v3_api - custom object - optional
-## Controls use of the v3 metrics intake.
+## Controls the use of the v3 metrics intake.
 #
 # use_v3_api:
 
 #   # @param series - custom object - optional
-#   # Controls the use of v3 metrics intake for non-distribution metrics (series).
+#   # Controls the use of the v3 metrics intake for non-distribution metrics (series).
 #
 #   series:
 
 #     # @param enabled - string - optional - default: "true"
 #     # @env DD_USE_V3_API_SERIES_ENABLED - string - optional - default: "true"
 #     # Global default for the non-distribution metrics intake version. Accepted values:
-#     #   - true: v3 for every destination except Observability Pipeline Workers.
+#     #   - true: v3 for every destination except Observability Pipelines Worker.
 #     #   - datadog_only: v3 only when the destination URL is a Datadog endpoint.
 #     #   - false: v2 everywhere.
 #
@@ -314,9 +314,9 @@ api_key:
 #     # @param endpoints - object - optional - default: {}
 #     # @env DD_USE_V3_API_SERIES_ENDPOINTS - JSON object of string to string - optional - default: {}
 #     # Per-URL override map for non-distribution metrics intake version. The URL
-#     # must match exactly what was configured under `dd_url`, `additional_endpoints`.
+#     # must match exactly what was configured under `dd_url` or `additional_endpoints`.
 #     # Accepted values:
-#     #   - true: v3 for every destination except Observability Pipeline Workers.
+#     #   - true: v3 for every destination except Observability Pipelines Worker.
 #     #   - datadog_only: v3 only when the destination URL is a Datadog endpoint.
 #     #   - false: v2 everywhere.
 #
