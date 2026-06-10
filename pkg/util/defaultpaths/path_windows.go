@@ -102,6 +102,7 @@ func init() {
 		additionalChecksPath = filepath.Join(pd, "checks.d")
 		logFile = filepath.Join(pd, "logs", "agent.log")
 		dcaLogFile = filepath.Join(pd, "logs", "cluster-agent.log")
+		jmxLogFile = filepath.Join(pd, "logs", "jmxfetch.log")
 		dogstatsDProtocolLogFile = filepath.Join(pd, "logs", "dogstatsd_info", "dogstatsd-stats.log")
 		dogstatsDServiceLogFile = filepath.Join(pd, "logs", "dogstatsd.log")
 		traceAgentLogFile = filepath.Join(pd, "logs", "trace-agent.log")

@@ -38,10 +38,11 @@ const (
 	defaultLogFile = "/var/log/datadog/agent.log"
 	// DCALogFile points to the log file that will be used if not configured
 	defaultDCALogFile = "/var/log/datadog/cluster-agent.log"
-	// JmxLogFile points to the jmx fetch log file that will be used if not configured
+	// defaultJmxLogFile points to the jmx fetch log file that will be used if not configured
 	defaultJmxLogFile = "/var/log/datadog/jmxfetch.log"
-	// DogstatsDLogFile points to the dogstatsd stats log file that will be used if not configured
-	defaultDogstatsDLogFile         = "/var/log/datadog/dogstatsd_info/dogstatsd-stats.log"
+	// defaultDogstatsDServiceLogFile points to the old datadog.conf dogstatsd_log_file location for running dogstatsd in as a standalone service
+	defaultDogstatsDServiceLogFile = "/var/log/datadog/dogstatsd.log"
+	// defaultDogstatsDProtocolLogFile points to the dogstatsd stats log file that will be used if not configured
 	defaultDogstatsDProtocolLogFile = "/var/log/datadog/dogstatsd_info/dogstatsd-stats.log"
 	// StreamlogsLogFile points to the stream logs log file that will be used if not configured
 	defaultStreamlogsLogFile = "/var/log/datadog/streamlogs_info/streamlogs.log"
@@ -206,9 +207,9 @@ func GetDefaultTraceAgentLogFile() string {
 	return defaultTraceAgentLogFile
 }
 
-// GetDefaultDogstatsDServiceLogFile returns the path to the dogstatsd service log file
+// GetDefaultDogstatsDServiceLogFile returns the path to the legacy dogstatsd log file location
 func GetDefaultDogstatsDServiceLogFile() string {
-	return defaultDogstatsDLogFile
+	return defaultDogstatsDServiceLogFile
 }
 
 // GetDefaultDogstatsDProtocolLogFile returns the path to the DogStatsD protocol stats log file
