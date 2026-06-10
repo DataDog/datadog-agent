@@ -11,11 +11,16 @@ import (
 	"net/netip"
 	"sync"
 	"time"
+
+	cache "github.com/patrickmn/go-cache"
 )
 
 const (
 	localIPCacheTTL         = time.Minute
 	localIPCacheMaxStaleAge = 10 * time.Minute
+
+	localIPCacheSnapshotKey       = "local_interface_ips"
+	localIPCacheRefreshAttemptKey = "local_interface_ips_refresh_attempt"
 )
 
 type localIPDiscoveryFunc func() (map[netip.Addr]struct{}, error)
@@ -23,21 +28,17 @@ type localIPDiscoveryFunc func() (map[netip.Addr]struct{}, error)
 type localIPCache struct {
 	mu          sync.Mutex
 	discover    localIPDiscoveryFunc
-	timeNow     func() time.Time
 	ttl         time.Duration
 	maxStaleAge time.Duration
-
-	ips         map[netip.Addr]struct{}
-	refreshedAt time.Time
-	lastAttempt time.Time
+	items       *cache.Cache
 }
 
-func newLocalIPCache(discover localIPDiscoveryFunc, timeNow func() time.Time) *localIPCache {
+func newLocalIPCache(discover localIPDiscoveryFunc) *localIPCache {
 	return &localIPCache{
 		discover:    discover,
-		timeNow:     timeNow,
 		ttl:         localIPCacheTTL,
 		maxStaleAge: localIPCacheMaxStaleAge,
+		items:       cache.New(cache.NoExpiration, localIPCacheTTL),
 	}
 }
 
@@ -49,26 +50,33 @@ func (c *localIPCache) contains(addr netip.Addr) (bool, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	now := c.timeNow()
-	if c.lastAttempt.IsZero() || now.Sub(c.lastAttempt) >= c.ttl {
-		c.lastAttempt = now
+	if _, recentlyAttempted := c.items.Get(localIPCacheRefreshAttemptKey); !recentlyAttempted {
+		c.items.Set(localIPCacheRefreshAttemptKey, struct{}{}, c.ttl)
 		ips, err := c.discover()
 		if err != nil {
-			return c.containsStale(addr, now), err
+			return c.containsCached(addr), err
 		}
-		c.ips = ips
-		c.refreshedAt = now
+		c.items.Set(localIPCacheSnapshotKey, ips, c.maxStaleAge)
+		return containsLocalIP(ips, addr), nil
 	}
 
-	_, ok := c.ips[addr.Unmap()]
-	return ok, nil
+	return c.containsCached(addr), nil
 }
 
-func (c *localIPCache) containsStale(addr netip.Addr, now time.Time) bool {
-	if c.refreshedAt.IsZero() || now.Sub(c.refreshedAt) > c.maxStaleAge {
+func (c *localIPCache) containsCached(addr netip.Addr) bool {
+	cachedIPs, found := c.items.Get(localIPCacheSnapshotKey)
+	if !found {
 		return false
 	}
-	_, ok := c.ips[addr.Unmap()]
+	ips, ok := cachedIPs.(map[netip.Addr]struct{})
+	if !ok {
+		return false
+	}
+	return containsLocalIP(ips, addr)
+}
+
+func containsLocalIP(ips map[netip.Addr]struct{}, addr netip.Addr) bool {
+	_, ok := ips[addr.Unmap()]
 	return ok
 }
 

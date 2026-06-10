@@ -1367,7 +1367,6 @@ func Test_npCollectorImpl_ScheduleNetflowPathTests_LocalIPDiscoveryFailureFailsO
 		Type:      model.ConnectionType_tcp,
 	}}))
 
-	assert.Contains(t, stats.CountCalls, localIPDiscoveryFailureStat)
 	assert.NotContains(t, stats.CountCalls, netflowAgentSourceSkippedStat)
 	select {
 	case pathtest := <-npCollector.pathtestInputChan:
@@ -1935,7 +1934,6 @@ func Test_npCollectorImpl_getReverseDNSResult(t *testing.T) {
 var subnetSkippedStat = teststatsd.MetricsArgs{Name: netpathConnsSkippedMetricName, Value: 1, Tags: []string{"reason:skip_intra_vpc"}, Rate: 1}
 var cidrExcludedStat = teststatsd.MetricsArgs{Name: netpathConnsSkippedMetricName, Value: 1, Tags: []string{"reason:skip_cidr_excluded"}, Rate: 1}
 var netflowAgentSourceSkippedStat = teststatsd.MetricsArgs{Name: netpathConnsSkippedMetricName, Value: 1, Tags: []string{"reason:skip_netflow_agent_source"}, Rate: 1}
-var localIPDiscoveryFailureStat = teststatsd.MetricsArgs{Name: localIPDiscoveryFailuresMetricName, Value: 1, Tags: []string{}, Rate: 1}
 
 func Test_npCollectorImpl_shouldScheduleNetworkPathForConn(t *testing.T) {
 	tests := []struct {

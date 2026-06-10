@@ -41,7 +41,6 @@ const (
 	reverseDNSLookupFailuresMetricName  = reverseDNSLookupMetricPrefix + "failures"
 	reverseDNSLookupSuccessesMetricName = reverseDNSLookupMetricPrefix + "successes"
 	netpathConnsSkippedMetricName       = common.NetworkPathCollectorMetricPrefix + "schedule.conns_skipped"
-	localIPDiscoveryFailuresMetricName  = common.NetworkPathCollectorMetricPrefix + "local_ips.discovery_failures"
 )
 
 var getVPCSubnetsForHost = network.GetVPCSubnetsForHost
@@ -119,7 +118,7 @@ func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *c
 		inputChanFullLogLimit:  utillog.NewLogLimit(10, time.Minute*5),
 
 		networkDevicesNamespace: collectorConfigs.networkDevicesNamespace,
-		localIPs:                newLocalIPCache(discoverLocalInterfaceIPs, time.Now),
+		localIPs:                newLocalIPCache(discoverLocalInterfaceIPs),
 
 		receivedPathtestCount:    atomic.NewUint64(0),
 		processedTracerouteCount: atomic.NewUint64(0),
@@ -249,7 +248,6 @@ func (s *npCollectorImpl) shouldSkipNetflowAgentSource(conn npmodel.NetworkPathC
 
 	isLocal, err := s.localIPs.contains(conn.Source.Addr())
 	if err != nil {
-		_ = s.statsdClient.Incr(localIPDiscoveryFailuresMetricName, []string{}, 1)
 		s.logger.Debugf("failed to discover local interface IPs for NetFlow source filtering: %s", err)
 	}
 	if !isLocal {
@@ -257,6 +255,7 @@ func (s *npCollectorImpl) shouldSkipNetflowAgentSource(conn npmodel.NetworkPathC
 	}
 
 	_ = s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_netflow_agent_source"}, 1)
+	s.logger.Tracef("Skipping NetFlow connection from local Agent source: source=%s, dest=%s", conn.Source, conn.Dest)
 	return true
 }
 

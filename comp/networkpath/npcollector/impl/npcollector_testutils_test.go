@@ -96,13 +96,13 @@ func setTestLocalIPs(npCollector *npCollectorImpl, ips ...string) {
 			copiedLocalIPs[ip] = struct{}{}
 		}
 		return copiedLocalIPs, nil
-	}, MockTimeNow)
+	})
 }
 
 func setFailingTestLocalIPs(npCollector *npCollectorImpl, err error) {
 	npCollector.localIPs = newLocalIPCache(func() (map[netip.Addr]struct{}, error) {
 		return nil, err
-	}, MockTimeNow)
+	})
 }
 
 func createConns(numberOfConns int) []npmodel.NetworkPathConnection {
