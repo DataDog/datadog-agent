@@ -182,8 +182,8 @@ func TestPodSumResourceRequirements(t *testing.T) {
 			},
 			expectedLimitMem: "0",
 			expectedLimitCPU: "0",
-			expectedReqCPU: "50m",
-			expectedReqMem: "128Mi",
+			expectedReqCPU:   "50m",
+			expectedReqMem:   "128Mi",
 		},
 	}
 
