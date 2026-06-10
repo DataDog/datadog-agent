@@ -205,11 +205,19 @@ func (s *hostTrafficDynamicPathSuite) startHostTrafficDNSServer() {
 		shellQuote(hostTrafficDNSLogPath),
 		shellQuote(hostTrafficDNSPIDPath),
 	)
-	httpbinHost.MustExecute(fmt.Sprintf(`sudo pkill -f %s || true
+	httpbinHost.MustExecute(fmt.Sprintf(`if [ -f %s ]; then sudo kill "$(sudo cat %s)" || true; fi
+sudo rm -f %s %s
 sudo sh -c %s
 sleep 1
 sudo kill -0 "$(sudo cat %s)"
-`, shellQuote(hostTrafficDNSRemotePath), shellQuote(startCommand), shellQuote(hostTrafficDNSPIDPath)))
+`,
+		shellQuote(hostTrafficDNSPIDPath),
+		shellQuote(hostTrafficDNSPIDPath),
+		shellQuote(hostTrafficDNSPIDPath),
+		shellQuote(hostTrafficDNSLogPath),
+		shellQuote(startCommand),
+		shellQuote(hostTrafficDNSPIDPath),
+	))
 }
 
 func (s *hostTrafficDynamicPathSuite) stopHostTrafficDNSServer() {
