@@ -10,7 +10,13 @@ package rotateparidentity
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/command"
+	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
+	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -20,4 +26,16 @@ func TestRotatePARIdentityCommand(t *testing.T) {
 		[]string{"rotate-par-identity"},
 		run,
 		func() {})
+}
+
+func TestRun_DisabledPAR(t *testing.T) {
+	cfg := coreconfig.NewMockWithOverrides(t, map[string]interface{}{
+		"private_action_runner.enabled": false,
+	})
+	hostnameComp, _ := hostnamemock.NewMock("test-host")
+
+	err := run(logmock.New(t), cfg, hostnameComp)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "private_action_runner.enabled is false")
 }

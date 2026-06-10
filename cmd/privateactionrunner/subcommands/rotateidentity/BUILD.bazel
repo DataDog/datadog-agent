@@ -30,6 +30,11 @@ go_test(
     gotags = ["test"],
     deps = [
         "//cmd/privateactionrunner/command",
+        "//comp/core/config",
+        "//comp/core/hostname/hostnameinterface/mock",
+        "//comp/core/log/mock",
         "//pkg/util/fxutil",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )
