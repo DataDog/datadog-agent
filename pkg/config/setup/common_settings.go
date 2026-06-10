@@ -2070,22 +2070,39 @@ func anomalyDetection(config pkgconfigmodel.Setup) {
 	// Master switch. When false the entire anomaly detection subsystem is a no-op.
 	config.BindEnvAndSetDefault("anomaly_detection.enabled", false)
 
-	// Log ingestion gate. When false, container/journald logs are not routed
-	// into the anomaly detection pipeline (recording is unaffected).
+	// Log ingestion gate. When false, all log sources (container, kubelet, internal)
+	// are not routed into the anomaly detection pipeline (recording is unaffected).
 	config.BindEnvAndSetDefault("anomaly_detection.logs.enabled", true)
 	config.BindEnvAndSetDefault("anomaly_detection.logs.containers.enabled", true)
 	config.BindEnvAndSetDefault("anomaly_detection.logs.kubelet.enabled", true)
+
+	// Internal agent log tap.
+	// min_severity is the minimum level forwarded (logs below it are dropped before sampling).
+	// max_rate_* are in logs/second measured over a 10-second fixed window and apply
+	// after the min_severity gate. -1 means unlimited (no cap); 0 drops all logs of that priority.
+	// high_priority = warn/error/critical, medium_priority = info, low_priority = debug.
+	config.BindEnvAndSetDefault("anomaly_detection.logs.internal.enabled", true)
+	config.BindEnvAndSetDefault("anomaly_detection.logs.internal.min_severity", "warn")
+	config.BindEnvAndSetDefault("anomaly_detection.logs.internal.max_rate_high_priority", -1.0) // unlimited
+	config.BindEnvAndSetDefault("anomaly_detection.logs.internal.max_rate_medium_priority", 100.0)
+	config.BindEnvAndSetDefault("anomaly_detection.logs.internal.max_rate_low_priority", 1.0)
+
+	// Kubelet journald log rate limits (enabled flag already set above).
+	config.BindEnvAndSetDefault("anomaly_detection.logs.kubelet.min_severity", "warn")
+	config.BindEnvAndSetDefault("anomaly_detection.logs.kubelet.max_rate_high_priority", -1.0) // unlimited
+	config.BindEnvAndSetDefault("anomaly_detection.logs.kubelet.max_rate_medium_priority", 100.0)
+	config.BindEnvAndSetDefault("anomaly_detection.logs.kubelet.max_rate_low_priority", 1.0)
+
+	// Container log rate limits (enabled flag already set above).
+	config.BindEnvAndSetDefault("anomaly_detection.logs.containers.min_severity", "warn")
+	config.BindEnvAndSetDefault("anomaly_detection.logs.containers.max_rate_high_priority", -1.0) // unlimited
+	config.BindEnvAndSetDefault("anomaly_detection.logs.containers.max_rate_medium_priority", 100.0)
+	config.BindEnvAndSetDefault("anomaly_detection.logs.containers.max_rate_low_priority", 1.0)
 
 	// Metrics ingestion gate. When false, externally-ingested metrics
 	// (DogStatsD, check samplers) are dropped at the handle factory.
 	// Log-derived virtual metrics are unaffected.
 	config.BindEnvAndSetDefault("anomaly_detection.metrics.enabled", true)
-
-	// Agent-internal log sampling. Warn+ are never sampled.
-	config.BindEnvAndSetDefault("anomaly_detection.agent_logs.enabled", true)
-	config.BindEnvAndSetDefault("anomaly_detection.agent_logs.sample_rate_info", 0.2)
-	config.BindEnvAndSetDefault("anomaly_detection.agent_logs.sample_rate_debug", 0.05)
-	config.BindEnvAndSetDefault("anomaly_detection.agent_logs.sample_rate_trace", 0.0)
 
 	// Anomaly event reporting. Keep false during evaluation / shadow mode.
 	config.BindEnvAndSetDefault("anomaly_detection.reporting.enabled", false)

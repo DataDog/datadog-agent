@@ -793,6 +793,7 @@ core,github.com/aws/smithy-go/encoding/httpbinding,Apache-2.0,"Copyright 2015 Am
 core,github.com/aws/smithy-go/encoding/json,Apache-2.0,"Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
 core,github.com/aws/smithy-go/encoding/xml,Apache-2.0,"Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
 core,github.com/aws/smithy-go/endpoints,Apache-2.0,"Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
+core,github.com/aws/smithy-go/endpoints/private/bdd,Apache-2.0,"Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
 core,github.com/aws/smithy-go/endpoints/private/rulesfn,Apache-2.0,"Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
 core,github.com/aws/smithy-go/internal/sync/singleflight,BSD-3-Clause,"Copyright (c) 2009 The Go Authors. All rights reserved | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
 core,github.com/aws/smithy-go/io,Apache-2.0,"Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
@@ -2804,6 +2805,7 @@ core,go.opentelemetry.io/ebpf-profiler/asm/expression,Apache-2.0,Copyright The O
 core,go.opentelemetry.io/ebpf-profiler/collector,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/collector/config,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/collector/internal,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/ebpf-profiler/collector/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/host,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/internal/controller,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/internal/linux,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -2825,6 +2827,7 @@ core,go.opentelemetry.io/ebpf-profiler/libc,Apache-2.0,Copyright The OpenTelemet
 core,go.opentelemetry.io/ebpf-profiler/libpf,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/libpf/basehash,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/libpf/hash,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/ebpf-profiler/libpf/pfbufio,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/libpf/pfelf,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/libpf/pfelf/internal/mmap,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/libpf/pfunsafe,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -2840,6 +2843,8 @@ core,go.opentelemetry.io/ebpf-profiler/nopanicslicereader,Apache-2.0,Copyright T
 core,go.opentelemetry.io/ebpf-profiler/pacmask,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/periodiccaller,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/process,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/ebpf-profiler/processcontext,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/ebpf-profiler/processcontext/v1development,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/processmanager,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/processmanager/ebpf,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/processmanager/ebpfapi,Apache-2.0,Copyright The OpenTelemetry Authors
