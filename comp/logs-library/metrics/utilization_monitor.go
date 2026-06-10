@@ -115,8 +115,9 @@ func (u *TelemetryUtilizationMonitor) sample(now time.Time) {
 		return
 	}
 
-	// Differencing the monotonic effective-busy across the window credits the open interval once;
-	// a torn read against the hot path only shifts time between adjacent windows and self-corrects.
+	// effectiveBusyNanos is monotonic, so differencing it across the window normally credits the open
+	// interval exactly once. A torn read mid-Stop can briefly over- or under-count one interval;
+	// clamp01 bounds that window and the next one self-corrects, leaving only EWMA noise.
 	effBusy := u.effectiveBusyNanos(now)
 	windowBusy := effBusy - u.lastEffectiveBusy
 	windowElapsed := now.UnixNano() - u.lastSample.UnixNano()
