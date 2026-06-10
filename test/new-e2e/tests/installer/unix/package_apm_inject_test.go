@@ -66,7 +66,8 @@ func (s *packageApmInjectSuite) TestInstall() {
 	state.AssertFileExists("/usr/bin/dd-host-install", 0755, "root", "root")
 	state.AssertFileExists("/usr/bin/dd-container-install", 0755, "root", "root")
 	state.AssertDirExists("/etc/datadog-agent/inject", 0755, "root", "root")
-	if s.os == e2eos.Ubuntu2404 || s.os == e2eos.Debian12 {
+	if (s.os.Flavor == e2eos.Ubuntu && (s.os.Version == e2eos.Ubuntu2404.Version || s.os.Version == e2eos.Ubuntu2404E2E.Version)) ||
+		(s.os.Flavor == e2eos.Debian && (s.os.Version == e2eos.Debian12.Version || s.os.Version == e2eos.Debian12E2E.Version)) {
 		state.AssertDirExists("/etc/apparmor.d/abstractions/datadog.d", 0755, "root", "root")
 		state.AssertFileExists("/etc/apparmor.d/abstractions/datadog.d/injector", 0644, "root", "root")
 	}
@@ -364,7 +365,8 @@ func (s *packageApmInjectSuite) TestUninstrument() {
 	state.AssertDirExists("/opt/datadog-packages/datadog-apm-inject/stable", 0755, "root", "root")
 	s.assertLDPreloadNotInstrumented()
 	s.assertDockerdNotInstrumented()
-	if s.os == e2eos.Ubuntu2404 || s.os == e2eos.Debian12 {
+	if (s.os.Flavor == e2eos.Ubuntu && (s.os.Version == e2eos.Ubuntu2404.Version || s.os.Version == e2eos.Ubuntu2404E2E.Version)) ||
+		(s.os.Flavor == e2eos.Debian && (s.os.Version == e2eos.Debian12.Version || s.os.Version == e2eos.Debian12E2E.Version)) {
 		s.assertAppArmorProfile() // AppArmor profile should still be there
 	}
 }
@@ -446,7 +448,8 @@ func (s *packageApmInjectSuite) TestInstallWithUmask() {
 }
 
 func (s *packageApmInjectSuite) TestAppArmor() {
-	if s.os != e2eos.Ubuntu2404 && s.os != e2eos.Debian12 {
+	if !(s.os.Flavor == e2eos.Ubuntu && (s.os.Version == e2eos.Ubuntu2404.Version || s.os.Version == e2eos.Ubuntu2404E2E.Version)) &&
+		!(s.os.Flavor == e2eos.Debian && (s.os.Version == e2eos.Debian12.Version || s.os.Version == e2eos.Debian12E2E.Version)) {
 		s.T().Skip("AppArmor not installed by default")
 	}
 	assert.Contains(s.T(), s.Env().RemoteHost.MustExecute("sudo aa-enabled"), "Yes")
@@ -457,7 +460,7 @@ func (s *packageApmInjectSuite) TestAppArmor() {
 	defer s.Purge()
 	s.assertAppArmorProfile()
 	assert.Contains(s.T(), s.Env().RemoteHost.MustExecute("sudo aa-enabled"), "Yes")
-	s.Env().RemoteHost.MustExecute("sudo apt update && sudo apt install -y isc-dhcp-client")
+	// isc-dhcp-client is pre-baked in the e2e Ubuntu AMI
 	res := s.Env().RemoteHost.MustExecute("sudo DD_APM_INSTRUMENTATION_DEBUG=true /usr/sbin/dhclient 2>&1")
 	assert.Contains(s.T(), res, "not injecting")
 }
