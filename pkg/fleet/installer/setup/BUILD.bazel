@@ -18,6 +18,7 @@ go_library(
         "//pkg/fleet/installer/setup/djm",
     ] + select({
         "@rules_go//go/platform:windows": [
+            "//pkg/fleet/installer/bootstrap",
             "//pkg/fleet/installer/oci",
             "@com_github_google_go_containerregistry//pkg/v1/remote/transport",
         ],

@@ -49,6 +49,15 @@ func TestRequestedAgentVersion(t *testing.T) {
 		{name: "MAJOR=latest with MINOR is an error (no garbage tag)", major: "latest", minor: "79", wantErr: true},
 		{name: "MAJOR=6 is an error (unsupported on Windows fleet)", major: "6", wantErr: true},
 		{name: "MAJOR=8 is an error (future major not yet supported)", major: "8", wantErr: true},
+
+		// Minor floor: Windows handoff requires Agent 7.72+ (the version
+		// where datadog-installer.exe was publicly released with the
+		// `setup --flavor default` flow).
+		{name: "MINOR=72 is at the floor", minor: "72", want: "7.72"},
+		{name: "MINOR=72.0 is at the floor", minor: "72.0", want: "7.72.0-1"},
+		{name: "MINOR=71 is below the floor", minor: "71", wantErr: true},
+		{name: "MINOR=65 is below the floor (matches bootstrap fleet-automation minimum)", minor: "65.0", wantErr: true},
+		{name: "MINOR=latest is rejected (non-numeric)", minor: "latest", wantErr: true},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

@@ -15,12 +15,13 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/google/go-containerregistry/pkg/v1/remote/transport"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/bootstrap"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/oci"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
@@ -65,12 +66,29 @@ func requestedAgentVersion(e *env.Env) (string, error) {
 	if minor == "" {
 		return major, nil
 	}
+	// Agent 7.72 is the first publicly-released datadog-installer.exe
+	// where `installer.exe` with no args invokes `setup --flavor default`
+	// on Windows; the handoff re-execs the child with that exact
+	// invocation, so older Agents either don't recognize the "default"
+	// flavor or lack the `setup` subcommand entirely.
+	if n, err := parseMinorPrefix(minor); err != nil || n < 72 {
+		return "", fmt.Errorf("DD_AGENT_MINOR_VERSION must be 72 or newer on Windows. Current value: %s", minor)
+	}
 	minor = strings.ReplaceAll(minor, "~", "-")
 	v := major + "." + minor
 	if strings.Count(v, ".") >= 2 && !releaseSuffixRe.MatchString(v) {
 		v += "-1"
 	}
 	return v, nil
+}
+
+// parseMinorPrefix returns the numeric minor at the start of s — e.g. "78"
+// for any of "78", "78.0", "78.0~rc.2", "78.0-beta-extensions".
+func parseMinorPrefix(s string) (int, error) {
+	if i := strings.IndexAny(s, ".-~"); i >= 0 {
+		s = s[:i]
+	}
+	return strconv.Atoi(s)
 }
 
 // runAgentInstaller downloads the Agent OCI package at the given tag,
@@ -96,21 +114,14 @@ func runAgentInstaller(ctx context.Context, e *env.Env, flavor, tag string) erro
 	defer os.RemoveAll(tmpDir)
 
 	url := oci.PackageURL(e, agentPackage, tag)
-	pkg, err := oci.NewDownloader(e, e.HTTPClient()).Download(ctx, url)
+	fmt.Fprintf(os.Stdout, "Downloading installer for Datadog Agent %s ...\n", tag)
+	// bootstrap.DownloadInstallerExe handles the OCI installer.exe layer
+	// (Agent 7.79+) and falls back to MSI admin-install extraction for
+	// older fleet-supported Agents (7.65–7.78), so older versions go
+	// through the same version-matched-installer path as new ones.
+	exePath, err := bootstrap.DownloadInstallerExe(ctx, e, url, tmpDir)
 	if err != nil {
 		return formatDownloadError(tag, err)
-	}
-	exePath := filepath.Join(tmpDir, "datadog-installer.exe")
-	fmt.Fprintf(os.Stdout, "Downloading installer for Datadog Agent %s (requested %s) ...\n", pkg.Version, tag)
-	if err := pkg.ExtractLayers(oci.DatadogPackageInstallerLayerMediaType, exePath); err != nil {
-		return fmt.Errorf("could not download Datadog Agent %s: %w", pkg.Version, err)
-	}
-	// ExtractLayers returns nil even when no matching layer exists (the
-	// "no match" error only fires when annotation filters are passed); the
-	// file's absence is how we detect a package with no installer layer
-	// (pre-7.79).
-	if _, err := os.Stat(exePath); err != nil {
-		return fmt.Errorf("cannot install Datadog Agent %s: this command requires Agent 7.79 or newer", pkg.Version)
 	}
 
 	// Re-exec the downloaded installer with the parent's os.Environ()
