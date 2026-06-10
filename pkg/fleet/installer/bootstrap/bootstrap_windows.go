@@ -60,59 +60,82 @@ func install(ctx context.Context, env *env.Env, url string, experiment bool) err
 
 // downloadInstaller downloads the installer package from the registry and returns the path to the executable.
 func downloadInstaller(ctx context.Context, env *env.Env, url string, tmpDir string) (*iexec.InstallerExec, error) {
+	installerBinPath, err := DownloadInstallerExe(ctx, env, url, tmpDir)
+	if err != nil {
+		return nil, err
+	}
+	return iexec.NewInstallerExec(env, installerBinPath), nil
+}
+
+// DownloadInstallerExe downloads the Datadog Agent OCI package at url,
+// produces a local-disk path to a version-matched datadog-installer.exe,
+// and returns that path. Tries the dedicated installer.exe OCI layer
+// first (Agent 7.79+) and falls back to MSI admin-install extraction for
+// older packages — mirroring the OCI-then-MSI strategy this bootstrap
+// package has used in production. Honors the InstallerBootstrapMode
+// registry key (`OCI` / `MSI`) for testing.
+//
+// For non-Agent OCI packages this returns the path to the locally-
+// installed datadog-installer.exe (other Datadog packages do not ship a
+// per-version installer.exe).
+func DownloadInstallerExe(ctx context.Context, env *env.Env, url string, tmpDir string) (string, error) {
 	downloader := oci.NewDownloader(env, env.HTTPClient())
 	downloadedPackage, err := downloader.Download(ctx, url)
 	if err != nil {
-		return nil, installerErrors.Wrap(
+		return "", installerErrors.Wrap(
 			installerErrors.ErrDownloadFailed,
 			fmt.Errorf("could not download package: %w", err),
 		)
 	}
 	if downloadedPackage.Name != AgentPackage {
-		// Only the Agent package uses the new installer each update, others use
-		// the currently installed datadog-installer.exe
-		return getLocalInstaller(env)
+		// Only the Agent package uses the new installer each update; others
+		// use the currently installed datadog-installer.exe.
+		installerBin, err := iexec.GetExecutable()
+		if err != nil {
+			return "", fmt.Errorf("failed to get executable path: %w", err)
+		}
+		return installerBin, nil
 	}
 
-	// Testing override: if InstallerBootstrapMode registry key is set, use test-specific flow
+	// Testing override: if InstallerBootstrapMode registry key is set, use
+	// test-specific flow.
 	if mode := getInstallerBootstrapMode(); mode != "" {
-		return downloadInstallerTestMode(ctx, env, downloadedPackage, url, tmpDir, mode)
+		return downloadInstallerTestModePath(ctx, env, downloadedPackage, url, tmpDir, mode)
 	}
 
-	// Production flow: try OCI layer, fallback to MSI extraction for older packages
+	// Production flow: try OCI layer, fall back to MSI extraction for
+	// older packages.
 	installerBinPath := filepath.Join(tmpDir, "datadog-installer.exe")
-	err = downloadedPackage.ExtractLayers(oci.DatadogPackageInstallerLayerMediaType, installerBinPath) // Returns nil if the layer doesn't exist
-	if err != nil {
-		return nil, fmt.Errorf("failed to extract layers: %w", err)
+	if err := downloadedPackage.ExtractLayers(oci.DatadogPackageInstallerLayerMediaType, installerBinPath); err != nil {
+		return "", fmt.Errorf("failed to extract layers: %w", err)
 	}
 	if _, err := os.Stat(installerBinPath); err != nil {
-		// Fallback to the old method if the file/layer doesn't exist
-		// this is expected for versions earlier than 7.70
-		return downloadInstallerOld(ctx, env, url, tmpDir)
+		// Fallback to the old method if the file/layer doesn't exist.
+		// Expected for Agent versions earlier than 7.79.
+		return downloadInstallerOldPath(ctx, env, url, tmpDir)
 	}
-	return iexec.NewInstallerExec(env, installerBinPath), nil
+	return installerBinPath, nil
 }
 
-// downloadInstallerTestMode handles bootstrap when InstallerBootstrapMode is set.
-// This is ONLY used for testing to force a specific bootstrap path.
-func downloadInstallerTestMode(ctx context.Context, env *env.Env, pkg *oci.DownloadedPackage, url string, tmpDir string, mode string) (*iexec.InstallerExec, error) {
+// downloadInstallerTestModePath handles bootstrap when InstallerBootstrapMode
+// is set. This is ONLY used for testing to force a specific bootstrap path.
+func downloadInstallerTestModePath(ctx context.Context, env *env.Env, pkg *oci.DownloadedPackage, url string, tmpDir string, mode string) (string, error) {
 	switch mode {
 	case "OCI":
 		// Force OCI path - fail if installer layer is missing
 		installerBinPath := filepath.Join(tmpDir, "datadog-installer.exe")
-		err := pkg.ExtractLayers(oci.DatadogPackageInstallerLayerMediaType, installerBinPath)
-		if err != nil {
-			return nil, fmt.Errorf("failed to extract installer layer: %w", err)
+		if err := pkg.ExtractLayers(oci.DatadogPackageInstallerLayerMediaType, installerBinPath); err != nil {
+			return "", fmt.Errorf("failed to extract installer layer: %w", err)
 		}
 		if _, err := os.Stat(installerBinPath); err != nil {
-			return nil, fmt.Errorf("installer layer not found in OCI package (InstallerBootstrapMode=OCI): %w", err)
+			return "", fmt.Errorf("installer layer not found in OCI package (InstallerBootstrapMode=OCI): %w", err)
 		}
-		return iexec.NewInstallerExec(env, installerBinPath), nil
+		return installerBinPath, nil
 	case "MSI":
 		// Force MSI fallback path
-		return downloadInstallerOld(ctx, env, url, tmpDir)
+		return downloadInstallerOldPath(ctx, env, url, tmpDir)
 	default:
-		return nil, fmt.Errorf("unknown InstallerBootstrapMode: %s (expected OCI or MSI)", mode)
+		return "", fmt.Errorf("unknown InstallerBootstrapMode: %s (expected OCI or MSI)", mode)
 	}
 }
 
@@ -136,44 +159,50 @@ func getInstallerBootstrapMode() string {
 	return val
 }
 
-// downloadInstallerOld downloads the installer package from the registry and returns the path to the executable.
+// downloadInstallerOldPath downloads the installer package from the registry
+// and returns the local-disk path to its installer.exe, extracted via MSI
+// admin install.
 //
-// Should only be called for versions earlier than 7.70. This downloads the layer containing the MSI and then
-// uses MSI admin install to extract `datadog-installer.exe` from the MSI.
-func downloadInstallerOld(ctx context.Context, env *env.Env, url string, tmpDir string) (*iexec.InstallerExec, error) {
+// Should only be called for Agent versions earlier than 7.79 (where the
+// dedicated installer.exe OCI layer is absent). Downloads the main layer
+// containing the MSI and then uses MSI admin install to extract
+// `datadog-installer.exe` from the MSI.
+func downloadInstallerOldPath(ctx context.Context, env *env.Env, url string, tmpDir string) (string, error) {
 	downloader := oci.NewDownloader(env, env.HTTPClient())
 	downloadedPackage, err := downloader.Download(ctx, url)
 	if err != nil {
-		return nil, installerErrors.Wrap(
+		return "", installerErrors.Wrap(
 			installerErrors.ErrDownloadFailed,
 			fmt.Errorf("could not download package: %w", err),
 		)
 	}
 	if downloadedPackage.Name != AgentPackage {
-		return getLocalInstaller(env)
+		installerBin, err := iexec.GetExecutable()
+		if err != nil {
+			return "", fmt.Errorf("failed to get executable path: %w", err)
+		}
+		return installerBin, nil
 	}
 
 	layoutTmpDir, err := os.MkdirTemp(paths.RootTmpDir, "layout")
 	if err != nil {
-		return nil, fmt.Errorf("failed to create temporary directory: %w", err)
+		return "", fmt.Errorf("failed to create temporary directory: %w", err)
 	}
 	defer os.RemoveAll(layoutTmpDir)
-	err = downloadedPackage.WriteOCILayout(layoutTmpDir)
-	if err != nil {
-		return nil, fmt.Errorf("failed to write OCI layout: %w", err)
+	if err := downloadedPackage.WriteOCILayout(layoutTmpDir); err != nil {
+		return "", fmt.Errorf("failed to write OCI layout: %w", err)
 	}
 
-	err = downloadedPackage.ExtractLayers(oci.DatadogPackageLayerMediaType, tmpDir)
-	if err != nil {
-		return nil, fmt.Errorf("failed to extract layers: %w", err)
+	if err := downloadedPackage.ExtractLayers(oci.DatadogPackageLayerMediaType, tmpDir); err != nil {
+		return "", fmt.Errorf("failed to extract layers: %w", err)
 	}
 
 	installPath, err := getInstallerPath(ctx, tmpDir)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get installer path: %w", err)
+		return "", fmt.Errorf("failed to get installer path: %w", err)
 	}
 
-	return iexec.NewInstallerExec(env, installPath), nil
+	return installPath, nil
 }
 
 func getInstallerPath(ctx context.Context, tmpDir string) (string, error) {
