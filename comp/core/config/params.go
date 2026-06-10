@@ -139,6 +139,20 @@ func WithFleetPoliciesDirPath(fleetPoliciesDirPath string) func(*Params) {
 	}
 }
 
+// WithoutDefaultConfPath returns an option which disables the fallback
+// search for a default configuration file. By default, agent-style callers
+// add the platform DefaultConfPath (e.g. /etc/datadog-agent on Linux) to
+// the config component's search path. With this option, the configuration
+// is loaded only from the explicit ConfFilePath (when set) and environment
+// variables. Use this for binaries that have their own platform-default
+// location and should not silently fall back to the core agent's config
+// directory.
+func WithoutDefaultConfPath() func(*Params) {
+	return func(b *Params) {
+		b.defaultConfPath = ""
+	}
+}
+
 // WithCLIOverride registers a list of settings overrides from the CLI for the configuration. The map associate settings
 // name like "logs_config.enabled" to its value.
 func WithCLIOverride(setting string, value interface{}) func(*Params) {

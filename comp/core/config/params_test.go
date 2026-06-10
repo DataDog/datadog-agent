@@ -57,3 +57,14 @@ func TestWithCLIOverride(t *testing.T) {
 	params := NewParams("test_path", WithCLIOverride("test.setting", true), WithCLIOverride("test.setting2", "test"))
 	assert.Equal(t, map[string]interface{}{"test.setting": true, "test.setting2": "test"}, params.cliOverride)
 }
+
+func TestWithoutDefaultConfPath(t *testing.T) {
+	// NewAgentParams hardcodes defaultConfPath to DefaultConfPath. Verify
+	// WithoutDefaultConfPath disables the search-directory fallback.
+	params := NewAgentParams("", WithoutDefaultConfPath())
+	assert.Equal(t, "", params.defaultConfPath, "WithoutDefaultConfPath should clear the hardcoded DefaultConfPath")
+
+	// Without the option, the platform default is preserved.
+	params = NewAgentParams("")
+	assert.Equal(t, defaultpaths.ConfPath, params.defaultConfPath)
+}

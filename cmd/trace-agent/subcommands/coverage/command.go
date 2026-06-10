@@ -38,10 +38,11 @@ func MakeCommand(globalParamsGetter func() *subcommands.GlobalParams) *cobra.Com
 		Short: "Handle coverage generation for a running trace-agent",
 		Long:  ``,
 		RunE: func(*cobra.Command, []string) error {
+			gp := globalParamsGetter()
 			return fxutil.OneShot(requestCoverage,
-				fx.Supply(config.NewAgentParams(globalParamsGetter().ConfPath, config.WithFleetPoliciesDirPath(globalParamsGetter().FleetPoliciesDirPath))),
+				fx.Supply(config.NewAgentParams(gp.ConfPath, subcommands.AgentParamsOptions(gp)...)),
 				logfx.Module(),
-				fx.Supply(log.ForOneShot(globalParamsGetter().LoggerName, "off", true)),
+				fx.Supply(log.ForOneShot(gp.LoggerName, "off", true)),
 				secretsnoopfx.Module(),
 				delegatedauthnoopfx.Module(),
 				config.Module(),

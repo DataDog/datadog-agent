@@ -32,10 +32,11 @@ func MakeCommand(globalParamsGetter func() *subcommands.GlobalParams) *cobra.Com
 		Short: "Print the runtime configuration of a running trace-agent",
 		Long:  ``,
 		RunE: func(*cobra.Command, []string) error {
+			gp := globalParamsGetter()
 			return fxutil.OneShot(printConfig,
-				fx.Supply(config.NewAgentParams(globalParamsGetter().ConfPath, config.WithFleetPoliciesDirPath(globalParamsGetter().FleetPoliciesDirPath))),
+				fx.Supply(config.NewAgentParams(gp.ConfPath, subcommands.AgentParamsOptions(gp)...)),
 				logfx.Module(),
-				fx.Supply(log.ForOneShot(globalParamsGetter().LoggerName, "off", true)),
+				fx.Supply(log.ForOneShot(gp.LoggerName, "off", true)),
 				secretsnoopfx.Module(),
 				delegatedauthnoopfx.Module(),
 				config.Module(),
