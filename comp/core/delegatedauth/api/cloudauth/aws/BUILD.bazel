@@ -2,7 +2,11 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "aws",
-    srcs = ["aws.go"],
+    srcs = [
+        "aws.go",
+        "resolve_credentials_ec2.go",
+        "resolve_credentials_noec2.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/comp/core/delegatedauth/api/cloudauth/aws",
     visibility = ["//visibility:public"],
     deps = [
@@ -14,12 +18,17 @@ go_library(
         "//pkg/version",
         "@com_github_aws_aws_sdk_go_v2//aws",
         "@com_github_aws_aws_sdk_go_v2//aws/signer/v4:signer",
+        "@com_github_aws_aws_sdk_go_v2_config//:config",
     ],
 )
 
 go_test(
     name = "aws_test",
-    srcs = ["aws_test.go"],
+    srcs = [
+        "aws_test.go",
+        "resolve_credentials_ec2_test.go",
+        "resolve_credentials_test.go",
+    ],
     embed = [":aws"],
     gotags = ["test"],
     deps = [
