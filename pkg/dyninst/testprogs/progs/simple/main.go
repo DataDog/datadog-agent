@@ -497,6 +497,20 @@ func main() {
 		{Field1: 1}: 10,
 	}, "miss")
 	anyAllBigKeyMap(nil, "empty")
+
+	// Slices and arrays of strings (used by both any/all and contains
+	// probes).
+	anyAllStringSlice([]string{"alpha", "match", "gamma"}, "match")
+	anyAllStringSlice([]string{"alpha", "beta", "gamma"}, "miss")
+	anyAllStringSlice(nil, "empty")
+	anyAllStringArray([3]string{"alpha", "match", "gamma"}, "match")
+	anyAllStringArray([3]string{"alpha", "beta", "gamma"}, "miss")
+
+	// Negative targets for contains: slice element types that are not
+	// comparable base types (slice-of-slice, slice-of-map). The probe must
+	// be rejected at irgen.
+	anyAllIntSliceOfSlice([][]int{{1, 2}, {3, 4}}, "match")
+	anyAllIntSliceOfMap([]map[string]int{{"a": 1}, {"b": 2}}, "match")
 }
 
 //go:noinline
@@ -1369,4 +1383,37 @@ func anyAllBigValMap(m map[string]bigStruct, tag string) {
 //go:noinline
 func anyAllBigKeyMap(m map[bigStruct]int, tag string) {
 	fmt.Println("anyAllBigKeyMap", len(m), tag)
+}
+
+// anyAllStringSlice is the target for any/all (and contains) over a slice
+// of strings.
+//
+//go:noinline
+func anyAllStringSlice(xs []string, tag string) {
+	fmt.Println("anyAllStringSlice", len(xs), tag)
+}
+
+// anyAllStringArray is the target for any/all (and contains) over a Go
+// array of strings.
+//
+//go:noinline
+func anyAllStringArray(xs [3]string, tag string) {
+	fmt.Println("anyAllStringArray", xs, tag)
+}
+
+// anyAllIntSliceOfSlice exists so we can attach `contains` probes whose
+// element type is `[]int` and verify the resulting Issue surfaces at irgen
+// (slice-of-slice elements are not a comparable base type).
+//
+//go:noinline
+func anyAllIntSliceOfSlice(xs [][]int, tag string) {
+	fmt.Println("anyAllIntSliceOfSlice", len(xs), tag)
+}
+
+// anyAllIntSliceOfMap is the same negative-target shape, for slice elements
+// of map type.
+//
+//go:noinline
+func anyAllIntSliceOfMap(xs []map[string]int, tag string) {
+	fmt.Println("anyAllIntSliceOfMap", len(xs), tag)
 }

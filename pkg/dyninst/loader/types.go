@@ -147,6 +147,10 @@ func opcodeByte(opcode compiler.Opcode) uint8 {
 		return C.SM_OP_SWISS_MAP_LOOP_END
 	case compiler.OpcodeExprAdvanceOffset:
 		return C.SM_OP_EXPR_ADVANCE_OFFSET
+	case compiler.OpcodePanicUnwindPrepare:
+		return C.SM_OP_PANIC_UNWIND_PREPARE
+	case compiler.OpcodePanicUnwindEvictSlots:
+		return C.SM_OP_PANIC_UNWIND_EVICT_SLOTS
 	default:
 		panic(fmt.Sprintf("unknown opcode: %s", opcode))
 	}
