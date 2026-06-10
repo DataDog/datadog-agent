@@ -50,6 +50,10 @@ type DemultiplexerWithAggregator interface {
 	GetEventPlatformForwarder() (eventplatform.Forwarder, error)
 	GetEventsAndServiceChecksChannels() (chan []*event.Event, chan []*servicecheck.ServiceCheck)
 	DumpDogstatsdContexts(io.Writer) error
+	// DumpLookback sends the retained metric lookback samples through the
+	// serializer and returns the number of series sent. It returns an error
+	// when metric lookback is disabled.
+	DumpLookback() (int, error)
 }
 
 // AgentDemultiplexer is the demultiplexer implementation for the main Agent.
