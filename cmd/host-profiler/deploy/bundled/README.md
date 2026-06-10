@@ -2,7 +2,7 @@
 
 The host profiler runs as a sidecar in the Datadog Agent DaemonSet.
 
-- **[Datadog Operator](operator.md)**: add annotations to your existing `DatadogAgent` CR.
+- **[Datadog Operator](operator.md)**: add annotations to your existing `DatadogAgent` Custom Resource (CR).
 - **[Helm Charts](helm.md)**: add `hostProfiler` values to your existing Datadog Helm release.
 
 
