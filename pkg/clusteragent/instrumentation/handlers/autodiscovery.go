@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1"
 	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -32,15 +33,17 @@ const (
 // integration.Config entries. It supports both workload targets (Deployment,
 // DaemonSet, etc.) and Service targets, branching internally on the target kind.
 type AutodiscoveryHandler struct {
-	checkStore    *CheckStore
-	templateStore *ServiceCheckTemplateStore
+	checkStore           *CheckStore
+	templateStore        *ServiceCheckTemplateStore
+	serviceTargetEnabled bool
 }
 
 // NewAutodiscoveryHandler returns the Autodiscovery DatadogInstrumentation handler.
 func NewAutodiscoveryHandler(dep *Deps) *AutodiscoveryHandler {
 	return &AutodiscoveryHandler{
-		checkStore:    dep.CheckStore,
-		templateStore: dep.ServiceCheckTemplateStore,
+		checkStore:           dep.CheckStore,
+		templateStore:        dep.ServiceCheckTemplateStore,
+		serviceTargetEnabled: apiserver.UseEndpointSlices(),
 	}
 }
 
@@ -57,8 +60,12 @@ func (h *AutodiscoveryHandler) HasSection(cr *datadoghq.DatadogInstrumentation) 
 // SupportsTarget returns whether Autodiscovery check delivery supports the target kind.
 func (h *AutodiscoveryHandler) SupportsTarget(ref autoscalingv2.CrossVersionObjectReference) bool {
 	switch ref.Kind {
-	case "Deployment", "DaemonSet", "StatefulSet", "CronJob", "Job", "Service":
+	case "Deployment", "DaemonSet", "StatefulSet", "CronJob", "Job":
 		return true
+	case "Service":
+		// Service target support is backed by endpoint slices CR provider. If Endpointslice collection
+		// is disabled then service targets can't be supported.
+		return h.serviceTargetEnabled
 	default:
 		return false
 	}

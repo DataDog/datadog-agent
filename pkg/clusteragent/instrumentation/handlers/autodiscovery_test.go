@@ -39,10 +39,11 @@ func (s *ServiceCheckTemplateStore) templatesForService(namespace, name string) 
 func newHandler() (*AutodiscoveryHandler, *CheckStore, *ServiceCheckTemplateStore) {
 	cs := NewCheckStore()
 	ts := NewServiceCheckTemplateStore()
-	h := NewAutodiscoveryHandler(&Deps{
-		CheckStore:                cs,
-		ServiceCheckTemplateStore: ts,
-	})
+	h := &AutodiscoveryHandler{
+		checkStore:           cs,
+		templateStore:        ts,
+		serviceTargetEnabled: true,
+	}
 	return h, cs, ts
 }
 
