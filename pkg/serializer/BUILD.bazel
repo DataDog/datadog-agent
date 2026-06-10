@@ -61,6 +61,7 @@ go_test(
         "//pkg/serializer/marshaler",
         "//pkg/tagset",
         "//pkg/util/compression",
+        "//pkg/util/compression/impl-zlib",
         "//pkg/util/testutil",
         "//pkg/version",
         "@com_github_json_iterator_go//:go",
