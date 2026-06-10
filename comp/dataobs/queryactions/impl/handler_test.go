@@ -640,7 +640,6 @@ func TestBuildCheckConfig_PerQueryDBName(t *testing.T) {
 	assert.Equal(t, 200, q2["monitor_id"])
 }
 
-
 // TestOnRCUpdate_MalformedPostgresYAML_SurfacesParseError verifies that when a postgres
 // instance's YAML is malformed, the error message from findPostgresConfig mentions the
 // parse failure, not just "identifier not found".
