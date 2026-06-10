@@ -65,6 +65,7 @@ tests_linux-x64-py3:
 
 tests_linux-x64-py3_hybrid:
   extends:
+    - .bazel:defs:cache:progressive
     - .linux_tests
     - .linux_x64
   after_script:

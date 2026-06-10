@@ -169,6 +169,37 @@ def _minimize_bazel_patterns(patterns: list[str]) -> list[str]:
     return result
 
 
+def _run_bazel(
+    *args: str,
+    verbose: bool = False,
+    **kwargs,
+) -> subprocess.CompletedProcess[str]:
+    """Execute a bazel command.
+
+    args: command args
+    verbose: Echo comand line to stdout.
+
+    Returns:
+       subprocess run result
+    """
+    resolved_bazel = shutil.which("bazel")
+    if not resolved_bazel:
+        raise Exit("bazelisk not found")
+    cmd = [resolved_bazel] + list(args)
+    if kwargs.get("verbose", True):
+        print(" ".join(cmd))
+    # subprocess.run("printenv")
+    result = subprocess.run(
+        cmd,
+        encoding="utf-8",
+        capture_output=True,
+        **kwargs,
+    )
+    print("STDOUT", result.stdout)
+    print("STDERR", result.stderr)
+    return result
+
+
 def get_bazel_test_targets(ctx, flavor: str, modules: list[GoModule], bazel_flags: list[str] = None) -> dict[str, str]:
     """Query Bazel for go_test targets within the scope of the given modules.
 
@@ -210,14 +241,12 @@ def get_bazel_test_targets(ctx, flavor: str, modules: list[GoModule], bazel_flag
 
     scope = ' + '.join(bazel_patterns)
     all_flags = ["-k", "--color=no"] + (bazel_flags or [])
-    # We don't care about failure. There might be broken packages during
-    # development. We enumerate what we can and test those.
-    result = run_bazel(
-        ctx,
+    # We don't care about failure or stderr. There might be broken packages
+    # during development. We enumerate what we can and test those.
+    result = _run_bazel(
         "cquery",
         *all_flags,
         f"kind(go_test, {scope}) except attr(tags, manual, {scope})",
-        # hide="both",
     )
     output = result.stdout
 
@@ -310,20 +339,25 @@ def _run_bazel_tests(
     t_start = time.monotonic()
 
     for batch in batches:
-        result = run_bazel(ctx, *base_args, *batch, verbose=True)
+        result = _run_bazel(*base_args, *batch, verbose=True)
         output = result.stdout
-        if result.returncode != 0:
-            run_failed = True
-
         if output:
-            print(output)
+            if verbose:
+                print(output)
             for line in output.splitlines():
-                # In non-verbose mode filter Bazel's progress/info noise.
-                if not verbose and line.strip().startswith(_NOISY_PREFIXES):
-                    continue
                 parsed = _parse_bazel_test_line(line)
                 if parsed:
                     parsed_results.append(parsed)
+
+        # If this batch failed, track an overall failure.
+        if result.returncode != 0:
+            run_failed = True
+            # Print the errors to the main log.  The individual test
+            # results have the details.
+            for line in result.stderr.splitlines():
+                if line.strip().startswith(_NOISY_PREFIXES):
+                    continue
+                print(line)
 
     duration_s = time.monotonic() - t_start
 
@@ -714,7 +748,6 @@ def test(
             exclude_packages = set(bazel_targets.values())
             print(f"Skipping {len(exclude_packages)} Bazel-covered packages from go test")
 
-    _ = """
     with gitlab_section("Running unit tests", collapsed=True):
         result_junit = f"junit-out-{flavor}.xml" if junit_tar else ""
         test_result = test_flavor(
@@ -754,7 +787,6 @@ def test(
             flavor,
             test_washer,
         )
-    """
     go_success = True
     go_stats: TestStats | None = None
     test_result = False
@@ -1423,32 +1455,3 @@ def check_otel_module_versions(ctx, fix=False):
             f"  - {error}" for error in all_errors
         )
         raise Exit(error_msg)
-
-
-def run_bazel(
-    unused_context,
-    *args: str,
-    verbose: bool = False,
-    **kwargs,
-) -> None | str:
-    """Execute a bazel command.
-
-    args: command args
-    verbose: Echo comand line to stdout.
-
-    Returns:
-       subprocess run result
-    """
-    resolved_bazel = shutil.which("bazel")
-    if not resolved_bazel:
-        raise Exit("bazelisk not found")
-    cmd = [resolved_bazel] + list(args)
-    if kwargs.get("verbose", True):
-        print(" ".join(cmd))
-    # subprocess.run("printenv")
-    return subprocess.run(
-        cmd,
-        encoding="utf-8",
-        capture_output=True,
-        **kwargs,
-    )

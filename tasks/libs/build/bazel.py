@@ -130,33 +130,3 @@ def bazel(
     if capture_stderr:
         return (result.stdout or "") + (result.stderr or "")
     return result.stdout
-
-
-def run_bazel(
-    ctx: Context,
-    *args: str,
-    use_pty: bool = False,
-    verbose: bool = False,
-    **kwargs,
-) -> None | str:
-    """Execute a bazel command.
-
-    args: command args
-    use_pty: Run as a pty, combining stdout and stderr into one.
-    verbose: Echo comand line to stdout.
-
-    Returns:
-       subprocss run result
-    """
-    if not (resolved_bazel := shutil.which("bazel")):
-        raise Exit(bazel_not_found_message("red"))
-    cmd = (resolved_bazel,) + args
-    if sys.platform == "win32":
-        use_pty = False
-    return ctx.run(
-        (subprocess.list2cmdline if sys.platform == "win32" else shlex.join)(cmd),
-        echo=verbose,
-        in_stream=False,
-        pty=use_pty,
-        **kwargs,
-    )
