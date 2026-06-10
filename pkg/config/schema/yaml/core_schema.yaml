@@ -6016,13 +6016,15 @@ properties:
                 default: false
               alpha:
                 node_type: setting
-                type: float
+                type: number
+                golang_type: float64
                 default: 0.014
                 comment: EWMA smoothing factor (0 < alpha < 1). Smaller values produce
                   a slower-moving, more stable signal.
               saturation_k:
                 node_type: setting
-                type: float
+                type: number
+                golang_type: float64
                 default: 5.0
                 comment: Saturation cap in anomaly-count units. Limits the maximum
                   contribution of a single second to the EWMA to avoid spikes dominating
