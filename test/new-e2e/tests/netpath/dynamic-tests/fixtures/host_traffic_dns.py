@@ -4,7 +4,6 @@ import struct
 import sys
 import time
 
-
 QUERY_TYPE_A = 1
 QUERY_TYPE_AAAA = 28
 QUERY_TYPE_ANY = 255
