@@ -70,10 +70,6 @@ type OTLP struct {
 	// kind comes close.
 	SpanNameAsResourceName bool `mapstructure:"span_name_as_resource_name"`
 
-	// UseScopeConvention specifies whether to use the otel.scope.name and otel.scope.version
-	// attributes instead of the deprecated otel.library.name and otel.library.version.
-	UseScopeConvention bool `mapstructure:"use_scope_convention"`
-
 	// MaxRequestBytes specifies the maximum number of bytes that will be read
 	// from an incoming HTTP request.
 	MaxRequestBytes int64 `mapstructure:"-"`
