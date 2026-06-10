@@ -31,8 +31,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/anomalydetection/observer/def",
-        "//comp/core/hostname",
-        "//comp/core/hostname/hostnameinterface/def",
+        "//comp/core/hostname/def",
         "//comp/core/log/def",
         "//comp/core/log/impl",
         "//comp/core/secrets/noop-impl/types",
@@ -117,9 +116,9 @@ go_test(
     deps = [
         "//comp/anomalydetection/observer/def",
         "//comp/core",
-        "//comp/core/hostname",
-        "//comp/core/hostname/hostnameimpl",
-        "//comp/core/hostname/hostnameinterface/mock",
+        "//comp/core/hostname/def",
+        "//comp/core/hostname/fx-mock",
+        "//comp/core/hostname/mock",
         "//comp/core/log/def",
         "//comp/core/log/mock",
         "//comp/core/secrets/def",

@@ -17,7 +17,8 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
+	hostnamefxmock "github.com/DataDog/datadog-agent/comp/core/hostname/fx-mock"
+	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/mock"
 	ipcclientmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -196,10 +197,10 @@ func TestResolveHostname(t *testing.T) {
 
 			env.SetFeatures(t, tc.features...)
 
-			hostnameComp := fxutil.Test[hostnameinterface.Mock](t,
+			hostnameComp := fxutil.Test[hostnamemock.Mock](t,
 				fx.Options(
-					hostnameinterface.MockModule(),
-					fx.Replace(hostnameinterface.MockHostname(tc.mockHostname)),
+					hostnamefxmock.MockModule(),
+					fx.Replace(hostnamefxmock.MockHostname(tc.mockHostname)),
 				),
 			)
 

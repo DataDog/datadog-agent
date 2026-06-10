@@ -13,7 +13,7 @@ import (
 	"time"
 
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secretsnoopimpl "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl"
 	"github.com/DataDog/datadog-agent/comp/logs-library/client"
@@ -46,7 +46,7 @@ type Dependencies struct {
 	Lc           fx.Lifecycle
 	Log          log.Component
 	Config       configComponent.Component
-	Hostname     hostnameinterface.Component
+	Hostname     hostname.Component
 	Compression  compression.Component
 	IntakeOrigin config.IntakeOrigin
 }
@@ -55,7 +55,7 @@ type Dependencies struct {
 type Agent struct {
 	log          log.Component
 	config       pkgconfigmodel.Reader
-	hostname     hostnameinterface.Component
+	hostname     hostname.Component
 	compression  compression.Component
 	intakeOrigin config.IntakeOrigin
 

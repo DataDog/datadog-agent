@@ -15,8 +15,8 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/def"
+	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -72,7 +72,7 @@ type Provides struct {
 
 type PrivateActionRunner struct {
 	coreConfig     model.ReaderWriter
-	hostnameGetter hostnameinterface.Component
+	hostnameGetter hostname.Component
 	rcClient       pkgrcclient.Client
 	logger         log.Component
 	tagger         tagger.Component
@@ -114,7 +114,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 func NewPrivateActionRunner(
 	_ context.Context,
 	coreConfig model.ReaderWriter,
-	hostnameGetter hostnameinterface.Component,
+	hostnameGetter hostname.Component,
 	rcClient pkgrcclient.Client,
 	logger log.Component,
 	taggerComp tagger.Component,

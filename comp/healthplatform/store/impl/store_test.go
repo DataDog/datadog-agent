@@ -23,7 +23,7 @@ import (
 
 	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 	flarebuilder "github.com/DataDog/datadog-agent/comp/core/flare/builder"
-	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	hostname hostname "github.com/DataDog/datadog-agent/comp/core/hostname/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	telemetrymock "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
 )
@@ -47,16 +47,16 @@ func (m *memPersistence) save(state *PersistedState) error {
 	return nil
 }
 
-// mockHostname implements hostnameinterface.Component in tests.
+// mockHostname implements hostname.Component in tests.
 type mockHostname struct{ name string }
 
 func (m *mockHostname) Get(_ context.Context) (string, error) { return m.name, nil }
 func (m *mockHostname) GetSafe(_ context.Context) string      { return m.name }
-func (m *mockHostname) GetWithProvider(_ context.Context) (hostnameinterface.Data, error) {
-	return hostnameinterface.Data{Hostname: m.name, Provider: "mock"}, nil
+func (m *mockHostname) GetWithProvider(_ context.Context) (hostname.Data, error) {
+	return hostname.Data{Hostname: m.name, Provider: "mock"}, nil
 }
 
-var _ hostnameinterface.Component = (*mockHostname)(nil)
+var _ hostname.Component = (*mockHostname)(nil)
 
 // mockFlareBuilder captures AddFile calls; stubs the rest of the interface.
 type mockFlareBuilder struct {

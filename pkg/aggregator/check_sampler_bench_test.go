@@ -11,8 +11,9 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/comp/core/hostname"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/def"
+	hostnamefxmock "github.com/DataDog/datadog-agent/comp/core/hostname/fx-mock"
+	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
@@ -54,7 +55,7 @@ func benchmarkAddBucket(bucketValue int64, b *testing.B) {
 	// For some reasons using InitAggregator[WithInterval] doesn't fix the problem,
 	// but this do.
 	mockConfig := configmock.New(b)
-	deps := fxutil.Test[benchmarkDeps](b, core.MockBundle(), hostnameimpl.MockModule())
+	deps := fxutil.Test[benchmarkDeps](b, core.MockBundle(), hostnamefxmock.MockModule())
 	taggerComponent := taggerfxmock.SetupFakeTagger(b)
 	resolver, _ := resolver.NewSingleDomainResolvers(map[string][]utils.APIKeys{"hello": {utils.NewAPIKeys("", "world")}})
 	forwarderOpts := forwarderimpl.NewOptionsWithResolvers(mockConfig, deps.Log, resolver)

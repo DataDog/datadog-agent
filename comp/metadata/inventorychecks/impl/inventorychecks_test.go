@@ -18,8 +18,9 @@ import (
 	collectormock "github.com/DataDog/datadog-agent/comp/collector/collector/mock"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
-	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/def"
+	hostnamefxmock "github.com/DataDog/datadog-agent/comp/core/hostname/fx-mock"
+	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
@@ -51,7 +52,7 @@ type testDeps struct {
 	Serializer serializer.MetricSerializer
 	Coll       option.Option[collector.Component]
 	LogAgent   option.Option[logagent.Component]
-	Hostname   hostnameinterface.Component
+	Hostname   hostname.Component
 }
 
 func makeRequires(deps testDeps) Requires {
@@ -78,7 +79,7 @@ func getTestInventoryChecks(t *testing.T, coll option.Option[collector.Component
 			fx.Provide(func() option.Option[logagent.Component] {
 				return logAgent
 			}),
-			hostnameimpl.MockModule(),
+			hostnamefxmock.MockModule(),
 		)),
 	)
 	return p.Comp.(*inventorychecksImpl)
@@ -165,7 +166,7 @@ func TestGetPayload(t *testing.T) {
 			}),
 			collectormock.MockModule(),
 			core.MockBundle(),
-			hostnameimpl.MockModule(),
+			hostnamefxmock.MockModule(),
 			workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 		)
 
@@ -189,7 +190,7 @@ func TestGetPayload(t *testing.T) {
 			logsBundle.MockBundle(),
 			core.MockBundle(),
 			secretsnoopfx.Module(),
-			hostnameimpl.MockModule(),
+			hostnamefxmock.MockModule(),
 			inventoryagentmock.MockModule(),
 			logscompression.MockModule(),
 			workloadmetafxmock.MockModule(workloadmeta.NewParams()),

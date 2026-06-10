@@ -15,7 +15,7 @@ import (
 	"google.golang.org/grpc"
 
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
@@ -37,7 +37,7 @@ type dogtelExtension struct {
 
 	// Core components injected from FX
 	serializer   serializer.MetricSerializer
-	hostname     hostnameinterface.Component
+	hostname     hostname.Component
 	workloadmeta workloadmeta.Component
 	tagger       tagger.Component
 	ipc          ipc.Component

@@ -9,7 +9,7 @@ import (
 	"context"
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/def"
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/comp/logs-library/processor"
 	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
@@ -31,7 +31,7 @@ type observerPipeline struct {
 func newObserverPipeline(
 	cfg pkgconfigmodel.Reader,
 	processingRules []*logsconfig.ProcessingRule,
-	hostname hostnameinterface.Component,
+	hostname hostname.Component,
 	observerHandle observer.Handle,
 ) *observerPipeline {
 	chanSize := cfg.GetInt("logs_config.message_channel_size")

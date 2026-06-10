@@ -24,7 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	hostnamefx "github.com/DataDog/datadog-agent/comp/core/hostname/fx"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -109,7 +109,7 @@ With --analyze, the walk is matched against SNMP device profiles and a summary r
 					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(globalParams.ExtraConfFilePath), config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					LogParams:    log.ForOneShot(command.LoggerName, "off", true)}),
 				core.Bundle(core.WithSecrets()),
-				hostnameimpl.Module(),
+				hostnamefx.Module(),
 				snmpscanfx.Module(),
 				orchestratorimpl.Module(orchestrator.NewDisabledParams()),
 				eventplatformfx.Module(eventplatform.NewDefaultParams()),
@@ -174,7 +174,7 @@ With --analyze, the walk is matched against SNMP device profiles and a summary r
 					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(globalParams.ExtraConfFilePath), config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					LogParams:    log.ForOneShot(command.LoggerName, logLevelDefaultOff.Value(), true)}),
 				core.Bundle(core.WithSecrets()),
-				hostnameimpl.Module(),
+				hostnamefx.Module(),
 				orchestratorimpl.Module(orchestrator.NewDisabledParams()),
 				eventplatformfx.Module(eventplatform.NewDefaultParams()),
 				eventplatformreceiverimpl.Module(),

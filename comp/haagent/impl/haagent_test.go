@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	hostnameimpl "github.com/DataDog/datadog-agent/comp/core/hostname/impl"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
@@ -215,7 +215,7 @@ func Test_haAgentImpl_onHaAgentUpdate(t *testing.T) {
 			}
 			agentConfigComponent := config.NewMockWithOverrides(t, agentConfigs)
 
-			h := newHaAgentImpl(logmock.New(t), hostnameimpl.NewHostnameService(), newHaAgentConfigs(agentConfigComponent))
+			h := newHaAgentImpl(logmock.New(t), hostnameimpl.NewComponent(hostnameimpl.Requires{}).Comp, newHaAgentConfigs(agentConfigComponent))
 
 			if tt.initialState != "" {
 				h.state.Store(string(tt.initialState))

@@ -13,7 +13,7 @@ go_library(
         "//comp/api/api/def",
         "//comp/core/config",
         "//comp/core/flare/types",
-        "//comp/core/hostname/hostnameinterface/def",
+        "//comp/core/hostname/def",
         "//comp/core/log/def",
         "//comp/core/telemetry/def",
         "//comp/def",
@@ -33,13 +33,4 @@ go_test(
     srcs = ["store_test.go"],
     embed = [":impl"],
     gotags = ["test"],
-    deps = [
-        "//comp/core/flare/builder",
-        "//comp/core/hostname/hostnameinterface/def",
-        "//comp/core/log/mock",
-        "//comp/core/telemetry/mock",
-        "@com_github_datadog_agent_payload_v5//healthplatform",
-        "@com_github_stretchr_testify//assert",
-        "@com_github_stretchr_testify//require",
-    ],
 )

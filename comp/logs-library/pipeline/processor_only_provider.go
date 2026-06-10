@@ -8,7 +8,7 @@ package pipeline
 import (
 	"context"
 
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/def"
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/comp/logs-library/processor"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
@@ -26,7 +26,7 @@ type processorOnlyProvider struct {
 }
 
 // NewProcessorOnlyProvider is used by the logs check subcommand as the feature does not require the functionalities of the log pipeline other then the processor.
-func NewProcessorOnlyProvider(diagnosticMessageReceiver diagnostic.MessageReceiver, processingRules []*config.ProcessingRule, hostname hostnameinterface.Component, cfg pkgconfigmodel.Reader) Provider {
+func NewProcessorOnlyProvider(diagnosticMessageReceiver diagnostic.MessageReceiver, processingRules []*config.ProcessingRule, hostname hostname.Component, cfg pkgconfigmodel.Reader) Provider {
 	chanSize := cfg.GetInt("logs_config.message_channel_size")
 	outputChan := make(chan *message.Message, chanSize)
 	encoder := processor.NewJSONEncoder(cfg.GetBool("logs_config.use_container_timestamp"))

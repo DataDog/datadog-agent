@@ -6,7 +6,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/impl-remote",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/core/hostname",
+        "//comp/core/hostname/def",
         "//comp/core/log/def",
         "//comp/core/sysprobeconfig/def",
         "//comp/networkpath/traceroute/def",
@@ -24,7 +24,7 @@ go_test(
     embed = [":impl-remote"],
     gotags = ["test"],
     deps = [
-        "//comp/core/hostname/hostnameinterface/mock",
+        "//comp/core/hostname/mock",
         "//comp/core/log/mock",
         "//pkg/networkpath/payload",
         "//pkg/networkpath/traceroute/config",

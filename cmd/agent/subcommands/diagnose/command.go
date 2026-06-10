@@ -33,7 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/diagnose/format"
 	diagnosefx "github.com/DataDog/datadog-agent/comp/core/diagnose/fx"
 	diagnoseLocal "github.com/DataDog/datadog-agent/comp/core/diagnose/local"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	hostnamefx "github.com/DataDog/datadog-agent/comp/core/hostname/fx"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
@@ -126,7 +126,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				adfx.Module(),
 				haagentfx.Module(),
 				healthplatform.Bundle(),
-				hostnameimpl.Module(),
+				hostnamefx.Module(),
 				logscompressorfx.Module(),
 				metricscompressorfx.Module(),
 				diagnosefx.Module(),

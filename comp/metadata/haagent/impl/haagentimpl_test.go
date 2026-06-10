@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	hostnameimpl "github.com/DataDog/datadog-agent/comp/core/hostname/impl"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
 	serializermock "github.com/DataDog/datadog-agent/pkg/serializer/mocks"
@@ -31,7 +31,7 @@ func getProvides(t *testing.T, confOverrides map[string]any) (Provides, error) {
 		Config:     cfg,
 		Serializer: serializermock.NewMetricSerializer(t),
 		HaAgent:    haagentmock.NewMockHaAgent(),
-		Hostname:   hostnameimpl.NewHostnameService(),
+		Hostname:   hostnameimpl.NewComponent(hostnameimpl.Requires{}).Comp,
 	}
 	return NewComponent(r)
 }

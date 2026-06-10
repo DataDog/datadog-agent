@@ -16,7 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/otelcol"
 
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	hostnameimpl "github.com/DataDog/datadog-agent/comp/core/hostname/impl"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil"
 	pkgconfigmock "github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -27,7 +27,7 @@ import (
 func TestGetComponents(t *testing.T) {
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
-	_, err := getComponents(serializermock.NewMetricSerializer(t), make(chan *message.Message), fakeTagger, hostnameimpl.NewHostnameService(), nil)
+	_, err := getComponents(serializermock.NewMetricSerializer(t), make(chan *message.Message), fakeTagger, hostnameimpl.NewComponent(hostnameimpl.Requires{}).Comp, nil)
 	// No duplicate component
 	require.NoError(t, err)
 }
@@ -35,7 +35,7 @@ func TestGetComponents(t *testing.T) {
 func AssertSucessfulRun(t *testing.T, pcfg PipelineConfig) {
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
-	p, err := NewPipeline(pcfg, serializermock.NewMetricSerializer(t), make(chan *message.Message), fakeTagger, hostnameimpl.NewHostnameService(), nil)
+	p, err := NewPipeline(pcfg, serializermock.NewMetricSerializer(t), make(chan *message.Message), fakeTagger, hostnameimpl.NewComponent(hostnameimpl.Requires{}).Comp, nil)
 	require.NoError(t, err)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -62,7 +62,7 @@ func AssertSucessfulRun(t *testing.T, pcfg PipelineConfig) {
 func AssertFailedRun(t *testing.T, pcfg PipelineConfig, expected string) {
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
-	p, err := NewPipeline(pcfg, serializermock.NewMetricSerializer(t), make(chan *message.Message), fakeTagger, hostnameimpl.NewHostnameService(), nil)
+	p, err := NewPipeline(pcfg, serializermock.NewMetricSerializer(t), make(chan *message.Message), fakeTagger, hostnameimpl.NewComponent(hostnameimpl.Requires{}).Comp, nil)
 	require.NoError(t, err)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()

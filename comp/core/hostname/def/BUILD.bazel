@@ -7,6 +7,6 @@ go_library(
         "data.go",
         "data_serverless.go",
     ],
-    importpath = "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def",
+    importpath = "github.com/DataDog/datadog-agent/comp/core/hostname/def",
     visibility = ["//visibility:public"],
 )

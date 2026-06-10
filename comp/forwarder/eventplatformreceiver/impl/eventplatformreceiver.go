@@ -12,7 +12,7 @@ import (
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	apiutils "github.com/DataDog/datadog-agent/comp/api/api/utils/stream"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	eventplatformreceiver "github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
@@ -30,7 +30,7 @@ func Module() fxutil.Module {
 type Requires struct {
 	compdef.In
 
-	Hostname hostnameinterface.Component
+	Hostname hostname.Component
 	Config   configComponent.Component
 }
 
@@ -54,7 +54,7 @@ func NewComponent(reqs Requires) Provides {
 // NewReceiver returns a new event platform receiver.
 // Prefer NewComponent for fx-based construction; this function exists for
 // callers that construct the receiver directly without an fx container.
-func NewReceiver(hostname hostnameinterface.Component, config configComponent.Component) Provides {
+func NewReceiver(hostname hostname.Component, config configComponent.Component) Provides {
 	epr := diagnostic.NewBufferedMessageReceiver(&epFormatter{}, hostname, config)
 	return Provides{
 		Comp:     epr,

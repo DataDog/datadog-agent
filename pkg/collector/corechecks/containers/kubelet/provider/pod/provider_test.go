@@ -21,7 +21,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	hostnamefxmock "github.com/DataDog/datadog-agent/comp/core/hostname/fx-mock"
+	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/mock"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -84,7 +85,7 @@ func (suite *ProviderTestSuite) SetupTest() {
 	env.SetFeatures(suite.T(), env.Kubernetes) // Required to enable the "kubelet" collector
 	wmeta := fxutil.Test[workloadmetamock.Mock](suite.T(), fx.Options(
 		core.MockBundle(),
-		hostnameimpl.MockModule(),
+		hostnamefxmock.MockModule(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 		workloadfilterfxmock.MockModule(),
 		// GetCatalog() returns all collectors but only the kubelet one will

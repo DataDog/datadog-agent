@@ -17,7 +17,7 @@ import (
 	"go.opentelemetry.io/collector/extension"
 
 	configmock "github.com/DataDog/datadog-agent/comp/core/config"
-	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
+	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/mock"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	noopsimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
@@ -42,7 +42,11 @@ func TestNewFactory_ReturnsErrorOnCreate(t *testing.T) {
 // TestNewFactoryForAgent_CreatesExtension verifies NewFactoryForAgent produces
 // a working factory that creates an extension successfully.
 func TestNewFactoryForAgent_CreatesExtension(t *testing.T) {
-	hostname, _ := hostnameinterface.NewMock("test-host")
+	{
+		m := hostnamemock.New(t)
+		m.Set("test-host")
+		hostname := m
+	}
 	factory := NewFactoryForAgent(
 		configmock.NewMockWithOverrides(t, nil),
 		logmock.New(t),
@@ -70,7 +74,11 @@ func TestNewFactoryForAgent_CreatesExtension(t *testing.T) {
 // TestNewFactoryForAgent_InvalidConfigErrors verifies the factory rejects
 // an invalid configuration at create time.
 func TestNewFactoryForAgent_InvalidConfigErrors(t *testing.T) {
-	hostname, _ := hostnameinterface.NewMock("test-host")
+	{
+		m := hostnamemock.New(t)
+		m.Set("test-host")
+		hostname := m
+	}
 	factory := NewFactoryForAgent(
 		configmock.NewMockWithOverrides(t, nil),
 		logmock.New(t),
@@ -95,7 +103,11 @@ func TestNewFactoryForAgent_InvalidConfigErrors(t *testing.T) {
 // TestNewExtension_FX_InvalidConfig verifies the FX constructor (NewExtension)
 // rejects an invalid default config.
 func TestNewExtension_FX_DefaultSucceeds(t *testing.T) {
-	hostname, _ := hostnameinterface.NewMock("test-host")
+	{
+		m := hostnamemock.New(t)
+		m.Set("test-host")
+		hostname := m
+	}
 	ext, err := NewExtension(Requires{
 		Config:     configmock.NewMockWithOverrides(t, nil),
 		Log:        logmock.New(t),

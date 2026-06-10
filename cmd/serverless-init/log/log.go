@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	logConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent/def"
@@ -63,7 +63,7 @@ func CreateConfig(defaultSource string) *Config {
 }
 
 // SetupLogAgent creates the log agent and sets the base tags
-func SetupLogAgent(conf *Config, tags map[string]string, tagger tagger.Component, compression logscompression.Component, hostname hostnameinterface.Component, origin string) logsAgent.ServerlessLogsAgent {
+func SetupLogAgent(conf *Config, tags map[string]string, tagger tagger.Component, compression logscompression.Component, hostname hostname.Component, origin string) logsAgent.ServerlessLogsAgent {
 	logsAgent, _ := serverlessLogs.SetupLogAgent(conf.Channel, sourceName, conf.source, tagger, compression, hostname)
 
 	tagsArray := serverlessTag.MapToArray(tags)

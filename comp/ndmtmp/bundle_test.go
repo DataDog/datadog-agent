@@ -12,7 +12,8 @@ import (
 
 	demultiplexerimpl "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/impl"
 	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	hostnamefxmock "github.com/DataDog/datadog-agent/comp/core/hostname/fx-mock"
+	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/mock"
 	defaultforwardermock "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/mock"
 	eventplatformmock "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/mock"
 	orchestratormock "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/mock"
@@ -28,7 +29,7 @@ func TestBundleDependencies(t *testing.T) {
 		defaultforwardermock.MockModule(),
 		eventplatformmock.MockModule(),
 		core.MockBundle(),
-		hostnameimpl.MockModule(),
+		hostnamefxmock.MockModule(),
 	)
 }
 

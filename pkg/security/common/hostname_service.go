@@ -8,7 +8,7 @@ package common
 import (
 	"context"
 
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/def"
 )
 
 // StaticHostnameService is a hostname service that returns a fixed hostname
@@ -29,8 +29,8 @@ func (s *StaticHostnameService) Get(_ context.Context) (string, error) {
 }
 
 // GetWithProvider returns the fixed hostname with "static" as the provider
-func (s *StaticHostnameService) GetWithProvider(_ context.Context) (hostnameinterface.Data, error) {
-	return hostnameinterface.Data{
+func (s *StaticHostnameService) GetWithProvider(_ context.Context) (hostname.Data, error) {
+	return hostname.Data{
 		Hostname: s.hostname,
 		Provider: "static",
 	}, nil

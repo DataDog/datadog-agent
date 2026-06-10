@@ -40,8 +40,8 @@ import (
 	diagnosefx "github.com/DataDog/datadog-agent/comp/core/diagnose/fx"
 	healthprobe "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
 	healthprobefx "github.com/DataDog/datadog-agent/comp/core/healthprobe/fx"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/def"
+	hostnamefx "github.com/DataDog/datadog-agent/comp/core/hostname/fx"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -168,7 +168,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					LogParams:    log.ForDaemon(command.LoggerName, "log_file", defaultpaths.DCALogFile),
 				}),
 				core.Bundle(core.WithSecrets()),
-				hostnameimpl.Module(),
+				hostnamefx.Module(),
 				forwarder.Bundle(defaultforwarder.NewParams(defaultforwarder.WithResolvers(), defaultforwarder.WithDisableAPIKeyChecking())),
 				filterlistfx.Module(),
 				demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams()),
@@ -196,7 +196,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					status.NewInformationProvider(pkgclusterchecks.Provider{}),
 					status.NewInformationProvider(orchestratorStatus.Provider{}),
 				),
-				fx.Provide(func(config config.Component, hostname hostnameinterface.Component) status.HeaderInformationProvider {
+				fx.Provide(func(config config.Component, hostname hostname.Component) status.HeaderInformationProvider {
 					return status.NewHeaderInformationProvider(hostnameStatus.NewProvider(config, hostname))
 				}),
 				fx.Provide(func() option.Option[integrations.Component] {
@@ -285,7 +285,7 @@ func start(log log.Component,
 	ipc ipc.Component,
 	diagnoseComp diagnose.Component,
 	dcametadataComp dcametadata.Component,
-	hostnameGetter hostnameinterface.Component,
+	hostnameGetter hostname.Component,
 
 	clusterChecksMetadataComp clusterchecksmetadata.Component,
 	_ metadatarunner.Component,
@@ -778,7 +778,7 @@ func setupClusterCheck(ctx context.Context, ac autodiscovery.Component, tagger t
 func startPrivateActionRunner(
 	ctx context.Context,
 	config config.Component,
-	hostnameGetter hostnameinterface.Component,
+	hostnameGetter hostname.Component,
 	rcClient *rcclient.Client,
 	le *leaderelection.LeaderEngine,
 	log log.Component,

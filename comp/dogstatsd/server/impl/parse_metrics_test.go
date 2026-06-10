@@ -10,7 +10,8 @@ import (
 	"time"
 
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	hostnamefxmock "github.com/DataDog/datadog-agent/comp/core/hostname/fx-mock"
+	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	mocktelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
@@ -29,7 +30,7 @@ func parseMetricSample(t *testing.T, overrides map[string]any, rawSample []byte)
 			return configComponent.NewMockWithOverrides(t, overrides)
 		}),
 		mocktelemetry.Module(),
-		hostnameimpl.MockModule(),
+		hostnamefxmock.MockModule(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	)
 	stringInternerTelemetry := newSiTelemetry(false, deps.Telemetry)

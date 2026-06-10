@@ -10,7 +10,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",
-        "//comp/core/hostname",
+        "//comp/core/hostname/def",
         "//comp/def",
         "//comp/snmptraps/config/def",
     ],

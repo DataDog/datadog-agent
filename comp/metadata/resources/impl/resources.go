@@ -15,7 +15,7 @@ import (
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	resources "github.com/DataDog/datadog-agent/comp/metadata/resources/def"
 	runnerdef "github.com/DataDog/datadog-agent/comp/metadata/runner/def"
@@ -52,7 +52,7 @@ type Requires struct {
 	Log        log.Component
 	Config     config.Component
 	Serializer serializer.MetricSerializer
-	Hostname   hostnameinterface.Component
+	Hostname   hostname.Component
 }
 
 // Provides defines the output of the resources metadata component.

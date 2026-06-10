@@ -8,7 +8,7 @@ package configimpl
 import (
 	"context"
 
-	"github.com/DataDog/datadog-agent/comp/core/hostname"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/def"
 	trapsconf "github.com/DataDog/datadog-agent/comp/snmptraps/config/def"
 )
 

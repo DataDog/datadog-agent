@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	hostnameimpl "github.com/DataDog/datadog-agent/comp/core/hostname/impl"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 )
@@ -25,7 +25,7 @@ func newTestHaAgentComponent(t *testing.T, agentConfigs map[string]interface{}, 
 	requires := Requires{
 		Logger:      logger,
 		AgentConfig: agentConfigComponent,
-		Hostname:    hostnameimpl.NewHostnameService(),
+		Hostname:    hostnameimpl.NewComponent(hostnameimpl.Requires{}).Comp,
 	}
 
 	provides, err := NewComponent(requires)

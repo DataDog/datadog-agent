@@ -19,7 +19,7 @@ import (
 	"go.opentelemetry.io/collector/component"
 
 	configmock "github.com/DataDog/datadog-agent/comp/core/config"
-	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
+	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/mock"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
@@ -35,7 +35,11 @@ func newTestExtension(t *testing.T, cfgOverrides map[string]interface{}, extCfg 
 	if extCfg == nil {
 		extCfg = createDefaultConfig().(*Config)
 	}
-	hostname, _ := hostnameinterface.NewMock("test-host")
+	{
+		m := hostnamemock.New(t)
+		m.Set("test-host")
+		hostname := m
+	}
 	return &dogtelExtension{
 		config:     extCfg,
 		log:        logmock.New(t),
@@ -63,7 +67,11 @@ func TestStart_StandaloneMode_TaggerDisabled(t *testing.T) {
 	cfg := createDefaultConfig().(*Config)
 	cfg.EnableTaggerServer = false
 
-	hostname, _ := hostnameinterface.NewMock("test-host")
+	{
+		m := hostnamemock.New(t)
+		m.Set("test-host")
+		hostname := m
+	}
 	serializer := serializermock.NewMetricSerializer(t)
 	serializer.On("SendIterableSeries", mock.Anything).Return(nil)
 
@@ -102,7 +110,11 @@ func TestGetTaggerServerPort(t *testing.T) {
 
 // TestSendLivenessMetric_Success verifies SendIterableSeries is called with a SerieSource.
 func TestSendLivenessMetric_Success(t *testing.T) {
-	hostname, _ := hostnameinterface.NewMock("my-host")
+	{
+		m := hostnamemock.New(t)
+		m.Set("my-host")
+		hostname := m
+	}
 
 	serializer := serializermock.NewMetricSerializer(t)
 	serializer.On("SendIterableSeries", mock.AnythingOfType("*metrics.IterableSeries")).Return(nil)
@@ -122,7 +134,11 @@ func TestSendLivenessMetric_Success(t *testing.T) {
 
 // TestSendLivenessMetric_SerializerError verifies errors from SendIterableSeries are propagated.
 func TestSendLivenessMetric_SerializerError(t *testing.T) {
-	hostname, _ := hostnameinterface.NewMock("my-host")
+	{
+		m := hostnamemock.New(t)
+		m.Set("my-host")
+		hostname := m
+	}
 	wantErr := errors.New("serializer unavailable")
 
 	serializer := serializermock.NewMetricSerializer(t)
@@ -141,7 +157,11 @@ func TestSendLivenessMetric_SerializerError(t *testing.T) {
 
 // TestSendLivenessMetric_UsesHostname verifies the hostname is passed to the liveness serie.
 func TestSendLivenessMetric_UsesHostname(t *testing.T) {
-	hostname, _ := hostnameinterface.NewMock("expected-host")
+	{
+		m := hostnamemock.New(t)
+		m.Set("expected-host")
+		hostname := m
+	}
 
 	var captured []*agentmetrics.Serie
 	serializer := serializermock.NewMetricSerializer(t)
@@ -190,7 +210,11 @@ func TestStart_StandaloneMode_NoopSecretsWarning(t *testing.T) {
 	cfg := createDefaultConfig().(*Config)
 	cfg.EnableTaggerServer = false
 
-	hostname, _ := hostnameinterface.NewMock("test-host")
+	{
+		m := hostnamemock.New(t)
+		m.Set("test-host")
+		hostname := m
+	}
 	sz := serializermock.NewMetricSerializer(t)
 	sz.On("SendIterableSeries", mock.Anything).Return(nil)
 
@@ -260,7 +284,11 @@ func TestStart_StandaloneMode_InitializesLivenessChannel(t *testing.T) {
 	cfg := createDefaultConfig().(*Config)
 	cfg.EnableTaggerServer = false
 
-	hostname, _ := hostnameinterface.NewMock("test-host")
+	{
+		m := hostnamemock.New(t)
+		m.Set("test-host")
+		hostname := m
+	}
 	sz := serializermock.NewMetricSerializer(t)
 	sz.On("SendIterableSeries", mock.Anything).Return(nil)
 

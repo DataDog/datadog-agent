@@ -15,8 +15,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
-	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/def"
+	hostnamefxmock "github.com/DataDog/datadog-agent/comp/core/hostname/fx-mock"
+	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/mock"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	eventplatformimpl "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/impl"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
@@ -265,7 +266,7 @@ func TestBuildCustomPayload(t *testing.T) {
 }
 
 func TestSubmitEvent_PayloadFormat(t *testing.T) {
-	hostname := fxutil.Test[hostnameinterface.Component](t, hostnameimpl.MockModule())
+	hostname := fxutil.Test[hostname.Component](t, hostnamefxmock.MockModule())
 	compression := fxutil.Test[logscompression.Component](t, logscompressionmock.MockModule())
 	forwarder := eventplatformimpl.NewNoopEventPlatformForwarder(hostname, compression)
 
@@ -323,7 +324,7 @@ func TestSubmitEvent_PayloadFormat(t *testing.T) {
 }
 
 func TestSubmitEvent_MessageIncludesTotalDuration(t *testing.T) {
-	hostname := fxutil.Test[hostnameinterface.Component](t, hostnameimpl.MockModule())
+	hostname := fxutil.Test[hostname.Component](t, hostnamefxmock.MockModule())
 	compression := fxutil.Test[logscompression.Component](t, logscompressionmock.MockModule())
 	forwarder := eventplatformimpl.NewNoopEventPlatformForwarder(hostname, compression)
 
@@ -359,7 +360,7 @@ func TestSubmitEvent_MessageIncludesTotalDuration(t *testing.T) {
 }
 
 func TestSubmitEvent_FallbackMessageWhenNoDuration(t *testing.T) {
-	hostname := fxutil.Test[hostnameinterface.Component](t, hostnameimpl.MockModule())
+	hostname := fxutil.Test[hostname.Component](t, hostnamefxmock.MockModule())
 	compression := fxutil.Test[logscompression.Component](t, logscompressionmock.MockModule())
 	forwarder := eventplatformimpl.NewNoopEventPlatformForwarder(hostname, compression)
 

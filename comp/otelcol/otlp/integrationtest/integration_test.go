@@ -40,8 +40,8 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands"
 	agenttelemetryfx "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx"
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
-	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
-	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
+	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/def"
+	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/mock"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	logdef "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logtrace "github.com/DataDog/datadog-agent/comp/core/log/fx-trace"
@@ -124,10 +124,10 @@ func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams, pid
 		fx.Provide(func() []string {
 			return append(params.ConfPaths, params.Sets...)
 		}),
-		fx.Provide(func(h hostnameinterface.Component) serializerexporter.SourceProviderFunc {
+		fx.Provide(func(h hostname.Component) serializerexporter.SourceProviderFunc {
 			return h.Get
 		}),
-		hostnamemock.MockModule(),
+		hostnamefxmock.MockModule(),
 		secretsnoopfx.Module(),
 
 		fx.Provide(func(_ coreconfig.Component) logdef.Params {

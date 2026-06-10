@@ -9,21 +9,19 @@ package hostnameimpl
 import (
 	"context"
 
-	"github.com/DataDog/datadog-agent/comp/core/hostname"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/def"
 	pkghostname "github.com/DataDog/datadog-agent/pkg/util/hostname"
-	"go.uber.org/fx"
 )
 
-// Module defines the fx options for this component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(NewHostnameService))
+// Requires defines the dependencies for the hostname component
+type Requires struct{}
+
+// Provides defines the output of the hostname component
+type Provides struct {
+	Comp hostname.Component
 }
 
 type service struct{}
-
-var _ hostname.Component = (*service)(nil)
 
 // Get returns the hostname.
 func (hs *service) Get(ctx context.Context) (string, error) {
@@ -44,7 +42,7 @@ func (hs *service) GetWithProvider(ctx context.Context) (pkghostname.Data, error
 	return pkghostname.GetWithProvider(ctx)
 }
 
-// NewHostnameService creates a new instance of the component hostname
-func NewHostnameService() hostname.Component {
-	return &service{}
+// NewComponent creates a new instance of the component hostname
+func NewComponent(Requires) Provides {
+	return Provides{Comp: &service{}}
 }

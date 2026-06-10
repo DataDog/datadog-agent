@@ -5,7 +5,7 @@
 
 //go:build !serverless
 
-package hostnameinterface
+package hostname
 
 const (
 	// ConfigProvider is the default provider value from the configuration file

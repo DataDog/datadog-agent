@@ -17,14 +17,14 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	hostnameimpl "github.com/DataDog/datadog-agent/comp/core/hostname/impl"
 )
 
 func TestGetHostname(t *testing.T) {
 	req, err := http.NewRequest("GET", "/hostname", nil)
 	require.NoError(t, err)
 
-	hostname := hostnameimpl.NewHostnameService()
+	hostname := hostnameimpl.NewComponent(hostnameimpl.Requires{}).Comp
 
 	rr := httptest.NewRecorder()
 	handler := http.HandlerFunc(getHostname(hostname))

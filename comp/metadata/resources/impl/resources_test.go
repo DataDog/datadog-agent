@@ -21,8 +21,9 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/def"
+	hostnamefxmock "github.com/DataDog/datadog-agent/comp/core/hostname/fx-mock"
+	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -39,7 +40,7 @@ type testDeps struct {
 	Log        log.Component
 	Config     config.Component
 	Serializer serializer.MetricSerializer
-	Hostname   hostnameinterface.Component
+	Hostname   hostname.Component
 }
 
 func makeRequires(deps testDeps) Requires {
@@ -68,7 +69,7 @@ func TestConfDisabled(t *testing.T) {
 			fx.Provide(func() log.Component { return logmock.New(t) }),
 			fx.Provide(func() config.Component { return config.NewMockWithOverrides(t, overrides) }),
 			fx.Provide(func() serializer.MetricSerializer { return nil }),
-			hostnameimpl.MockModule(),
+			hostnamefxmock.MockModule(),
 		)),
 	)
 
@@ -92,7 +93,7 @@ func TestConfInterval(t *testing.T) {
 			fx.Provide(func() log.Component { return logmock.New(t) }),
 			fx.Provide(func() config.Component { return config.NewMockWithOverrides(t, overrides) }),
 			fx.Provide(func() serializer.MetricSerializer { return nil }),
-			hostnameimpl.MockModule(),
+			hostnamefxmock.MockModule(),
 		)),
 	)
 
@@ -125,7 +126,7 @@ func TestCollect(t *testing.T) {
 			fx.Provide(func() log.Component { return logmock.New(t) }),
 			fx.Provide(func() config.Component { return config.NewMock(t) }),
 			fx.Provide(func() serializer.MetricSerializer { return s }),
-			hostnameimpl.MockModule(),
+			hostnamefxmock.MockModule(),
 		)),
 	)
 
@@ -150,7 +151,7 @@ func TestCollectError(t *testing.T) {
 			fx.Provide(func() log.Component { return logmock.New(t) }),
 			fx.Provide(func() config.Component { return config.NewMock(t) }),
 			fx.Provide(func() serializer.MetricSerializer { return s }),
-			hostnameimpl.MockModule(),
+			hostnamefxmock.MockModule(),
 		)),
 	)
 
