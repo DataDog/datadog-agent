@@ -272,7 +272,7 @@ func (query *PdhQuery) CollectQueryData() error {
 	// Update the counters
 	err := PdhCollectQueryData(query.Handle)
 	if err != nil {
-		return fmt.Errorf("%v. This error indicates that the Windows performance counter database may need to be rebuilt", err)
+		return fmt.Errorf("%w. This error indicates that the Windows performance counter database may need to be rebuilt", err)
 	}
 	return nil
 }

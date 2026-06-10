@@ -92,7 +92,8 @@ func TestThermalCheck(t *testing.T) {
 
 // TestThermalCheckNoInstances verifies that the check handles PDH_NO_DATA (no
 // thermal zone instances on the host, e.g. VMs) silently — no error, no
-// warning, no metrics, just a Commit.
+// warning, no metrics, just a Commit. It runs multiple times because PDH
+// reports PDH_NO_DATA differently on the first Run than on later ones.
 func TestThermalCheckNoInstances(t *testing.T) {
 	pdhtest.SetupTesting(`..\testfiles\counter_indexes_en-us.txt`, `..\testfiles\allcounters_en-us.txt`)
 	pdhtest.SetMockCollectQueryDataReturn(pdhtest.PDH_NO_DATA)
@@ -103,9 +104,12 @@ func TestThermalCheckNoInstances(t *testing.T) {
 	check := new(thermalCheck)
 	mock := mocksender.NewMockSender(check.ID())
 	require.NoError(t, check.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider"))
+	mock.On("Commit").Return().Times(2)
 
-	mock.On("Commit").Return().Once()
-	require.NoError(t, check.Run())
+	for range 2 {
+		require.NoError(t, check.Run())
+		require.Empty(t, check.GetWarnings())
+	}
 
 	mock.AssertExpectations(t)
 	mock.AssertNotCalled(t, "Gauge")
