@@ -21,8 +21,6 @@ require (
 	go.opentelemetry.io/collector/pdata v1.60.0
 )
 
-require golang.org/x/exp v0.0.0-20260527015227-08cc5374adb3 // indirect
-
 require (
 	go.opentelemetry.io/collector/internal/componentalias v0.154.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
