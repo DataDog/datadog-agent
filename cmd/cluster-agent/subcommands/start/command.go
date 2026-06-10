@@ -391,7 +391,12 @@ func start(log log.Component,
 	eventBroadcaster.StartRecordingToSink(&corev1.EventSinkImpl{Interface: apiCl.Cl.CoreV1().Events("")})
 	eventRecorder := eventBroadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: "datadog-cluster-agent"})
 
-	instrHandlers := setupInstrumentationCRDHandler(le, ac)
+	var instrHandlers []instrumentation.Handler
+	if config.GetBool("instrumentation_crd_controller.enabled") {
+		instrHandlers = setupInstrumentationCRDHandler(le, ac)
+	} else {
+		pkglog.Debug("DatadogInstrumentation CRD controller is disabled")
+	}
 
 	ctx := controllers.ControllerContext{
 		InformerFactory:             apiCl.InformerFactory,
@@ -767,18 +772,20 @@ func setupInstrumentationCRDHandler(le *leaderelection.LeaderEngine, ac autodisc
 		ServiceCheckTemplateStore: serviceTemplateStore,
 	})
 
-	ac.SetServiceTracker(serviceTemplateStore)
-
-	epSlicesCRProvider, err := adproviders.NewKubeEndpointSlicesCRConfigProvider(serviceTemplateStore)
-	if err != nil {
-		pkglog.Warnf("Failed to create EndpointSlices CR config provider: %v", err)
-	} else {
-		ac.AddConfigProvider(epSlicesCRProvider, true, 10*time.Second)
-	}
-
 	api.ModifyAPIRouter(func(r *http.ServeMux) {
 		dcav1.InstallInstrumentationChecksEndpoints(r, checkStore)
 	})
+
+	if apiserver.UseEndpointSlices() {
+		ac.SetServiceTracker(serviceTemplateStore)
+
+		epSlicesCRProvider, err := adproviders.NewKubeEndpointSlicesCRConfigProvider(serviceTemplateStore)
+		if err != nil {
+			pkglog.Warnf("Failed to create EndpointSlices CR config provider: %v", err)
+		} else {
+			ac.AddConfigProvider(epSlicesCRProvider, true, 10*time.Second)
+		}
+	}
 	return instrHandlers
 }
 
