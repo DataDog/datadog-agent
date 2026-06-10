@@ -775,7 +775,9 @@ func (w *workloadmeta) pull(ctx context.Context) {
 
 		// Run each pull in its own separate goroutine to reduce
 		// latency and unlock the main goroutine to do other work.
+		w.startWg.Add(1)
 		go func(id string, c wmdef.Collector) {
+			defer w.startWg.Done()
 			pullCtx, pullCancel := context.WithTimeout(ctx, maxCollectorPullTime)
 			defer pullCancel()
 
