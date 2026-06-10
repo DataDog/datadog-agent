@@ -15,13 +15,25 @@ bazel:test:linux-arm64:
 
 bazel:test:macos-amd64:
   extends: [ .bazel:test, .bazel:runner:macos-amd64 ]
+  parallel: 50
   script:
-    - bazel test --keep_going //...
+    - rm -frv $XDG_CACHE_HOME/bazel-repo-contents-cache
+    - rm -frv $XDG_CACHE_HOME/uv
+    - rm -frv /Users/ec2-user/.gimme
+    - rm -frv /Users/ec2-user/Library/Caches/go-build
+    # find /Users/ec2-user/cache/DataDog/datadog-agent -mindepth 1 -name 'bazel*' -exec rm -rv {} + || true
+    - find /Users/ec2-user/cache/DataDog/datadog-agent || true
 
 bazel:test:macos-arm64:
   extends: [ .bazel:test, .bazel:runner:macos-arm64 ]
+  parallel: 50
   script:
-    - bazel test --keep_going //...
+    - rm -frv $XDG_CACHE_HOME/bazel-repo-contents-cache
+    - rm -frv $XDG_CACHE_HOME/uv
+    - rm -frv /Users/ec2-user/.gimme
+    - rm -frv /Users/ec2-user/Library/Caches/go-build
+    # find /Users/ec2-user/cache/DataDog/datadog-agent -mindepth 1 -name 'bazel*' -exec rm -rv {} + || true
+    - find /Users/ec2-user/cache/DataDog/datadog-agent || true
 
 bazel:test:windows-amd64:
   extends: [ .bazel:test, .bazel:runner:windows-amd64 ]
