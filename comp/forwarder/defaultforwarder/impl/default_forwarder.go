@@ -745,7 +745,7 @@ func (f *DefaultForwarder) SubmitOrchestratorChecks(payload transaction.BytesPay
 	bumpOrchestratorPayload(f.log, payloadType)
 
 	endpoint := endpoints.OrchestratorEndpoint
-	if f.config.IsSet("orchestrator_explorer.use_legacy_endpoint") {
+	if f.config.GetBool("orchestrator_explorer.use_legacy_endpoint") {
 		endpoint = endpoints.LegacyOrchestratorEndpoint
 	}
 	transactions := f.createHTTPTransactions(endpoint, payload, transaction.Process, extra)

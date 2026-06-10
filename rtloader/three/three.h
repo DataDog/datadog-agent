@@ -84,7 +84,6 @@ public:
 
     // Python Helpers
     char *getIntegrationList();
-    char *getInterpreterMemoryUsage();
 
     // aggregator API
     void setSubmitMetricCb(cb_submit_metric_t);
@@ -112,6 +111,8 @@ public:
     void setGetProcessStartTimeCb(cb_get_process_start_time_t);
     void setObfuscateMongoDBStringCb(cb_obfuscate_mongodb_string_t);
     void setEmitAgentTelemetryCb(cb_emit_agent_telemetry_t);
+    void setReportIssueCb(cb_report_issue_t);
+    void setResolveIssueCb(cb_resolve_issue_t);
 
     void initPymemStats();
     void getPymemStats(pymem_stats_t &);

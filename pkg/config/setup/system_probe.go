@@ -66,7 +66,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("auto_exit.noprocess.excluded_processes", []string{})
 
 	// statsd
-	cfg.BindEnv("bind_host") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	cfg.BindEnvAndSetDefault("bind_host", "localhost")
 	cfg.BindEnvAndSetDefault("dogstatsd_port", 8125)
 
 	// logging
@@ -168,11 +168,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("dynamic_instrumentation.circuit_breaker.interrupt_overhead", 2*time.Microsecond)
 
 	// network_tracer settings
-	// migration to BindEnvAndSetDefault is possible but requires switching
-	// the IsSet caller in pkg/system-probe/config/adjust.go to IsConfigured
-	// (same pattern as allow_prebuilt_fallback) so the legacy auto-enable
-	// from system_probe_config.enabled keeps respecting an explicit false.
-	cfg.BindEnv("network_config.enabled", "DD_SYSTEM_PROBE_NETWORK_ENABLED") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv' //nolint:errcheck
+	cfg.BindEnvAndSetDefault("network_config.enabled", false, "DD_SYSTEM_PROBE_NETWORK_ENABLED")
 	cfg.BindEnvAndSetDefault("system_probe_config.disable_tcp", false, "DD_DISABLE_TCP_TRACING")
 	cfg.BindEnvAndSetDefault("system_probe_config.disable_udp", false, "DD_DISABLE_UDP_TRACING")
 	cfg.BindEnvAndSetDefault("system_probe_config.disable_ipv6", false, "DD_DISABLE_IPV6_TRACING")
@@ -345,7 +341,8 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("event_monitoring_config.env_vars_resolution.enabled", true)
 
 	// process event monitoring data limits for network tracer
-	eventMonitorBindEnv(cfg, "event_monitoring_config.network_process.max_processes_tracked")
+	// 1024 mirrors defaultMaxProcessesTracked enforced by validateInt in pkg/system-probe/config/adjust_npm.go
+	eventMonitorBindEnvAndSetDefault(cfg, "event_monitoring_config.network_process.max_processes_tracked", 1024)
 
 	cfg.BindEnvAndSetDefault("event_monitoring_config.network_process.container_store.enabled", true)
 	cfg.BindEnvAndSetDefault("event_monitoring_config.network_process.container_store.max_containers_tracked", 1024)
@@ -381,7 +378,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("logon_duration.enabled", false)
 
 	// Fleet policies
-	cfg.BindEnv("fleet_policies_dir") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	cfg.BindEnvAndSetDefault("fleet_policies_dir", "")
 
 	// GPU monitoring
 	cfg.BindEnvAndSetDefault("gpu_monitoring.enabled", false)
@@ -434,16 +431,7 @@ func eventMonitorBindEnvAndSetDefault(config pkgconfigmodel.Setup, key string, v
 	emConfigKey := "DD_" + strings.ReplaceAll(strings.ToUpper(key), ".", "_")
 	runtimeSecKey := strings.Replace(emConfigKey, "EVENT_MONITORING_CONFIG", "RUNTIME_SECURITY_CONFIG", 1)
 
-	envs := []string{emConfigKey, runtimeSecKey}
-	config.BindEnvAndSetDefault(key, val, envs...)
-}
-
-// eventMonitorBindEnv is the same as eventMonitorBindEnvAndSetDefault, but without setting a default.
-func eventMonitorBindEnv(config pkgconfigmodel.Setup, key string) {
-	emConfigKey := "DD_" + strings.ReplaceAll(strings.ToUpper(key), ".", "_")
-	runtimeSecKey := strings.Replace(emConfigKey, "EVENT_MONITORING_CONFIG", "RUNTIME_SECURITY_CONFIG", 1)
-
-	config.BindEnv(key, emConfigKey, runtimeSecKey) //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnvAndSetDefault(key, val, emConfigKey, runtimeSecKey)
 }
 
 // DefaultPrivateIPCIDRs is a list of private IP CIDRs that are used to determine if an IP is private or not.

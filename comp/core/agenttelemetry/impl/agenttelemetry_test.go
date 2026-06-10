@@ -469,9 +469,9 @@ func TestRun(t *testing.T) {
 
 	a.start()
 
-	// Default configuration has 5 jobs with different schedules:
+	// Default configuration has 6 jobs with different schedules:
 	fmt.Println(r.(*runnerMock).jobs)
-	assert.Equal(t, 5, len(r.(*runnerMock).jobs))
+	assert.Equal(t, 6, len(r.(*runnerMock).jobs))
 
 	// Verify we have the expected number of profiles across all jobs
 	totalProfiles := 0
@@ -479,8 +479,8 @@ func TestRun(t *testing.T) {
 		totalProfiles += len(job.profiles)
 	}
 	fmt.Println(totalProfiles)
-	// Default config has 15 profiles total (checks, logs-and-metrics, database, synthetics, connectivity, service-discovery, runtime-started, runtime-running, hostname, rtloader, otlp, trace-agent, gpu, cluster-agent, injector)
-	assert.Equal(t, 15, totalProfiles)
+	// Default config has 17 profiles total (checks, logs-and-metrics, database, synthetics, connectivity, service-discovery, runtime-started, runtime-running, hostname, rtloader, otlp, procmgr, trace-agent, gpu, cluster-agent, injector, ebpf)
+	assert.Equal(t, 17, totalProfiles)
 }
 
 func TestReportMetricBasic(t *testing.T) {
