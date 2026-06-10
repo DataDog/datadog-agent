@@ -71,12 +71,13 @@ const (
 )
 
 var (
-	_here, _ = executable.Folder()
+	binaryFolder, _ = executable.Folder()
+	installPath = filepath.Join(binaryFolder, "..", "..")
 
 	// PyChecksPath holds the path to the python checks from integrations-core shipped with the agent
-	PyChecksPath = filepath.Join(_here, "..", "..", "checks.d")
+	PyChecksPath = filepath.Join(installPath, "checks.d")
 	// DistPath holds the path to the folder containing distribution files
-	distPath = filepath.Join(_here, "dist")
+	distPath = filepath.Join(installPath, "bin", "agent", "dist")
 )
 
 // GetDistPath returns the fully qualified path to the 'dist' directory
@@ -86,7 +87,7 @@ func GetDistPath() string {
 
 // GetInstallPath returns the fully qualified path to the datadog-agent executable
 func GetInstallPath() string {
-	return _here
+	return installPath
 }
 
 // GetDefaultRunPath returns the path to the run directory
@@ -227,17 +228,17 @@ func GetDefaultLogFile() string {
 
 // GetEmbeddedBinPath returns the path of the embedded binary.
 func GetEmbeddedBinPath() string {
-	return filepath.Join(GetInstallPath(), "..", "..", "embedded", "bin")
+	return filepath.Join(GetInstallPath(), "embedded", "bin")
 }
 
 // GetDefaultSystemProbeAddress returns the default unix socket path to be used for connecting to the system probe
 func GetDefaultSystemProbeAddress() string {
-	return filepath.Join(GetInstallPath(), "run/sysprobe.sock")
+	return filepath.Join(GetInstallPath(), "run", "sysprobe.sock")
 }
 
 // GetDefaultDDAgentBin returns the default path to the core agent binary
 func GetDefaultDDAgentBin() string {
-	return filepath.Join(GetInstallPath(), "bin/agent/agent")
+	return filepath.Join(GetInstallPath(), "bin", "agent", "agent")
 }
 
 // GetDefaultDataPlaneLogFile returns the default log file used by the data-plane agent if not configured

@@ -15,4 +15,4 @@ func DefaultLogFilePath() string {
 }
 
 // defaultDDAgentBin specifies the default path to the main agent binary.
-const defaultDDAgentBin = "/opt/datadog-agent/bin/agent/agent"
+var defaultDDAgentBin = defaultpaths.GetDefaultDDAgentBin()
