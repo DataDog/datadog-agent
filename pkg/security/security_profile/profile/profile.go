@@ -98,9 +98,22 @@ func (p *Profile) IsEnabled() bool {
 	return p.isEnabled.Load()
 }
 
-// Disable disables the profile
+// Disable disables the profile and drops its activity tree to free the memory it held.
 func (p *Profile) Disable() {
 	p.isEnabled.Store(false)
+
+	p.Lock()
+	defer p.Unlock()
+	p.resetActivityTreeLocked()
+}
+
+// resetActivityTreeLocked replaces the activity tree with a fresh, empty one. The caller must hold p.Lock().
+func (p *Profile) resetActivityTreeLocked() {
+	p.ActivityTree = activity_tree.NewActivityTree(p, p.treeOpts.pathsReducer, "security_profile")
+	p.ActivityTree.DNSMatchMaxDepth = p.treeOpts.dnsMatchMaxDepth
+	if p.treeOpts.differentiateArgs {
+		p.ActivityTree.DifferentiateArgs()
+	}
 }
 
 // Enable enables the profile
