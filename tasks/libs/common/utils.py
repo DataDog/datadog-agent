@@ -33,11 +33,15 @@ from tasks.libs.types.arch import Arch
 
 if sys.platform == "darwin":
     RTLOADER_LIB_NAME = "libdatadog-agent-rtloader.dylib"
+    SQLITE3_LIB_NAME = "libsqlite3.dylib"
 elif sys.platform == "win32":
     RTLOADER_LIB_NAME = "libdatadog-agent-rtloader.a"
+    SQLITE3_LIB_NAME = None  # linked statically on Windows
 else:
     RTLOADER_LIB_NAME = "libdatadog-agent-rtloader.so"
+    SQLITE3_LIB_NAME = "libsqlite3.so"
 RTLOADER_HEADER_NAME = "datadog_agent_rtloader.h"
+SQLITE3_HEADER_NAME = "sqlite3.h"
 
 
 @dataclass
@@ -178,6 +182,19 @@ def get_rtloader_paths(embedded_path=None, rtloader_root=None):
     return rtloader_lib, rtloader_headers, rtloader_common_headers
 
 
+def get_sqlite3_paths(embedded_path):
+    """Return (lib_dir, include_dir) if a pre-built libsqlite3 is found under embedded_path, else (None, None)."""
+    if not embedded_path or not SQLITE3_LIB_NAME:
+        return None, None
+    for libdir in ["lib", "lib64"]:
+        lib_path = os.path.join(embedded_path, libdir, SQLITE3_LIB_NAME)
+        if os.path.exists(lib_path):
+            include_dir = os.path.join(embedded_path, "include")
+            if os.path.exists(os.path.join(include_dir, SQLITE3_HEADER_NAME)):
+                return os.path.join(embedded_path, libdir), include_dir
+    return None, None
+
+
 def get_embedded_path(ctx):
     base = os.path.dirname(os.path.abspath(__file__))
     task_repo_root = os.path.abspath(os.path.join(base, "..", ".."))
@@ -259,6 +276,7 @@ def get_build_flags(
             raise Exit("unable to locate embedded path please check your setup or set --embedded-path")
 
     rtloader_lib, rtloader_headers, rtloader_common_headers = get_rtloader_paths(embedded_path, rtloader_root)
+    sqlite3_lib, sqlite3_headers = get_sqlite3_paths(embedded_path)
     # setting the install path, allowing the agent to be installed in a custom location
     if sys.platform.startswith('linux') and install_path:
         ldflags += f"-X {REPO_PATH}/pkg/config/setup.InstallPath={install_path} "
@@ -304,11 +322,20 @@ def get_build_flags(
     if sys.platform == 'win32':
         env['CGO_LDFLAGS'] = os.environ.get('CGO_LDFLAGS', '') + ' -Wl,--allow-multiple-definition'
 
+    if sqlite3_lib:
+        env['DYLD_LIBRARY_PATH'] = (
+            env.get('DYLD_LIBRARY_PATH', os.environ.get('DYLD_LIBRARY_PATH', '')) + f":{sqlite3_lib}"
+        )
+        env['LD_LIBRARY_PATH'] = env.get('LD_LIBRARY_PATH', os.environ.get('LD_LIBRARY_PATH', '')) + f":{sqlite3_lib}"
+        env['CGO_LDFLAGS'] = env.get('CGO_LDFLAGS', os.environ.get('CGO_LDFLAGS', '')) + f" -L{sqlite3_lib}"
+
     extra_cgo_flags = " -Werror -Wno-deprecated-declarations"
     if rtloader_headers:
         extra_cgo_flags += f" -I{rtloader_headers}"
     if rtloader_common_headers:
         extra_cgo_flags += f" -I{rtloader_common_headers}"
+    if sqlite3_headers:
+        extra_cgo_flags += f" -I{sqlite3_headers}"
     env['CGO_CFLAGS'] = os.environ.get('CGO_CFLAGS', '') + extra_cgo_flags
 
     if sys.platform == 'linux' and os.getenv('GOOS') == "windows":

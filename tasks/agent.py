@@ -31,6 +31,8 @@ from tasks.libs.common.utils import (
     REPO_PATH,
     bin_name,
     get_build_flags,
+    get_embedded_path,
+    get_sqlite3_paths,
     get_version,
     gitlab_section,
 )
@@ -143,6 +145,10 @@ def build(
 
     if not glibc:
         build_tags = list(set(build_tags).difference({"nvml"}))
+
+    sqlite3_lib, _ = get_sqlite3_paths(embedded_path or get_embedded_path(ctx))
+    if sqlite3_lib:
+        build_tags = list(set(build_tags) | {"libsqlite3"})
 
     if not agent_bin:
         agent_bin = os.path.join(BIN_PATH, bin_name("agent"))
