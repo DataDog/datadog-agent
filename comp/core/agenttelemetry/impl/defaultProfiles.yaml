@@ -262,6 +262,30 @@ profiles:
     start_after: 30
     iterations: 0
     period: 900
+- name: procmgr
+  metric:
+    exclude:
+      zero_metric: true
+    metrics:
+      - name: runtime.procmgr_daemon_reachable
+      - name: runtime.procmgr_daemon_ready
+      - name: runtime.procmgr_process_running
+        preserve_tags:
+          - process
+      - name: runtime.agent_service_installed
+        preserve_tags:
+          - service
+      - name: runtime.agent_service_procmgr_configured
+        preserve_tags:
+          - service
+      - name: runtime.agent_service_management_mode
+        preserve_tags:
+          - service
+          - mode
+  schedule:
+    start_after: 30
+    iterations: 0
+    period: 900
 - name: trace-agent
   metric:
     exclude:
@@ -372,4 +396,42 @@ profiles:
   schedule:
     start_after: 30
     iterations: 0
+    period: 900
+- name: ebpf
+  metric:
+    exclude:
+      zero_metric: true
+    metrics:
+      - name: ebpf.core_load_success
+        preserve_tags:
+          - platform
+          - platform_version
+          - kernel
+          - arch
+          - asset
+          - btf_type
+      - name: ebpf.core_load_error
+        preserve_tags:
+          - platform
+          - platform_version
+          - kernel
+          - arch
+          - asset
+          - error_type
+      - name: ebpf.core_remoteconfig_success
+        preserve_tags:
+          - platform
+          - platform_version
+          - kernel
+          - arch
+      - name: ebpf.core_remoteconfig_error
+        preserve_tags:
+          - platform
+          - platform_version
+          - kernel
+          - arch
+          - error_type
+  schedule:
+    start_after: 300 # 5 minutes
+    iterations: 1
     period: 900

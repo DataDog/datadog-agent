@@ -2891,6 +2891,7 @@ properties:
         - kubernetes
         - orchestratorexplorer
         - podman
+        - process
     tags:
     - template_section:CoreAgent
   autoconfig_include_features:
@@ -2914,6 +2915,7 @@ properties:
         - kubernetes
         - orchestratorexplorer
         - podman
+        - process
     tags:
     - template_section:CoreAgent
   container_cgroup_root:
@@ -4572,6 +4574,20 @@ properties:
             description: |-
               The hostname to listen on for incoming trap packets.
               Binds to 0.0.0.0 by default (accepting all packets).
+            tags:
+            - template_section:CoreAgent
+          tags:
+            node_type: setting
+            type: array
+            default: []
+            items:
+              type: string
+            visibility: public
+            description: A list of low-cardinality tags (e.g. application, team, environment) attached to every trap forwarded to Datadog and to every SNMP traps telemetry metric emitted by the Agent.
+            example: |2-
+
+                - "application:my-app"
+                - "team:netops"
             tags:
             - template_section:CoreAgent
           stop_timeout:
@@ -8218,7 +8234,7 @@ properties:
       enabled:
         node_type: setting
         type: boolean
-        default: false
+        default: true
       forwarder:
         node_type: section
         type: object
@@ -8231,6 +8247,16 @@ properties:
         node_type: setting
         type: boolean
         default: false
+      invalidconfig_check:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            # Disabled by default: loading the compiled core_schema.yaml retains ~8 MiB of heap
+            # permanently (sync.Once global). Enable only if startup schema validation is needed.
+            default: false
   heroku_dyno:
     node_type: setting
     type: boolean
