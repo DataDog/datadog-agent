@@ -1,0 +1,10 @@
+--- a/sdjournal/BUILD.bazel
++++ b/sdjournal/BUILD.bazel
+@@ -7,6 +7,7 @@
+         "journal.go",
+         "read.go",
+     ],
++    cdeps = ["@@+http_archive+systemd//:systemd_headers"],
+     cgo = True,
+     importpath = "github.com/coreos/go-systemd/v22/sdjournal",
+     importpath_aliases = ["github.com/coreos/go-systemd/sdjournal"],

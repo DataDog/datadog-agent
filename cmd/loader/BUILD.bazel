@@ -13,10 +13,10 @@ pkg_files(
     name = "trace_loader",
     srcs = select({
         "//packages/agent:linux_default": [
-            "@trace_loader_binary//:trace_loader",
+            "//cmd/loader",
         ],
         "//packages/agent:linux_fips": [
-            "@trace_loader_binary//:trace_loader",
+            "//cmd/loader",
         ],
         # This shouldn't be needed in practice, but it is used by the systemd
         # service, which is used when installing the deb manually.
@@ -112,4 +112,15 @@ go_binary(
         "@platforms//os:windows": ["@platforms//:incompatible"],
         "//conditions:default": [],
     }),
+    # Stamp version/commit at binary link time, overriding the "dev" defaults
+    # set in //pkg/version:version.  Build with --stamp
+    # --workspace_status_command=bazel/tools/workspace_status.sh to inject
+    # real values; without --stamp the literal placeholder strings are used.
+    x_defs = {
+        "github.com/DataDog/datadog-agent/pkg/version.Commit": "{STABLE_GIT_COMMIT}",
+        "github.com/DataDog/datadog-agent/pkg/version.AgentVersion": "{STABLE_AGENT_VERSION}",
+        "github.com/DataDog/datadog-agent/pkg/version.AgentVersionURLSafe": "{STABLE_AGENT_VERSION_URL_SAFE}",
+        "github.com/DataDog/datadog-agent/pkg/version.AgentPackageVersion": "{STABLE_AGENT_VERSION}",
+        "github.com/DataDog/datadog-agent/pkg/version.AgentPayloadVersion": "{STABLE_AGENT_PAYLOAD_VERSION}",
+    },
 )

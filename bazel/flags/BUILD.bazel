@@ -1,0 +1,93 @@
+load("@bazel_skylib//lib:selects.bzl", "selects")
+load("@bazel_skylib//rules:common_settings.bzl", "string_flag")
+
+# config_setting that is True when building for a FIPS platform.
+# Use this to gate goexperiment.systemcrypto and requirefips build tags.
+config_setting(
+    name = "fips",
+    constraint_values = ["//bazel/platforms:fips"],
+    visibility = ["//visibility:public"],
+)
+
+# config_setting for FIPS on non-Windows platforms.
+# requirefips is in WINDOWS_EXCLUDED_TAGS (tasks/build_tags.py) so it must
+# not be set when building for Windows/FIPS.
+config_setting(
+    name = "fips_linux_x86_64",
+    constraint_values = [
+        "//bazel/platforms:fips",
+        "@platforms//os:linux",
+        "@platforms//cpu:x86_64",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+config_setting(
+    name = "fips_linux_arm64",
+    constraint_values = [
+        "//bazel/platforms:fips",
+        "@platforms//os:linux",
+        "@platforms//cpu:arm64",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+config_setting(
+    name = "fips_macos_arm64",
+    constraint_values = [
+        "//bazel/platforms:fips",
+        "@platforms//os:macos",
+        "@platforms//cpu:arm64",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+config_setting(
+    name = "fips_macos_x86_64",
+    constraint_values = [
+        "//bazel/platforms:fips",
+        "@platforms//os:macos",
+        "@platforms//cpu:x86_64",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+# True on any FIPS platform except Windows.
+# requirefips is in WINDOWS_EXCLUDED_TAGS (tasks/build_tags.py) and must not
+# be set when targeting windows_x86_64_fips.
+selects.config_setting_group(
+    name = "fips_non_windows",
+    match_any = [
+        ":fips_linux_x86_64",
+        ":fips_linux_arm64",
+        ":fips_macos_arm64",
+        ":fips_macos_x86_64",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+string_flag(
+    name = "flavor",
+    build_setting_default = "base",
+    values = [
+        "base",
+        "heroku",
+        "iot",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+config_setting(
+    name = "flavor_base",
+    flag_values = {"//bazel/flags:flavor": "base"},
+)
+
+config_setting(
+    name = "flavor_heroku",
+    flag_values = {"//bazel/flags:flavor": "heroku"},
+)
+
+config_setting(
+    name = "flavor_iot",
+    flag_values = {"//bazel/flags:flavor": "iot"},
+)

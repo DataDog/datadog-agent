@@ -1,3 +1,4 @@
+load("@bazel_lib//lib:copy_file.bzl", "copy_file")
 load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules/ebpf:runtime_compilation.bzl", "runtime_compilation_bundle")
 
@@ -131,6 +132,90 @@ runtime_compilation_bundle(
     visibility = ["//visibility:public"],
 )
 
+# copy_file targets: copy prebuilt eBPF .o files into this package's directory
+# so //go:embed patterns (which resolve relative to the .go file) can find them.
+# arm64 variants
+copy_file(
+    name = "runtime-security-arm64",
+    src = "//pkg/security/ebpf/c/prebuilt:runtime-security",
+    out = "build/arm64/runtime-security.o",
+    target_compatible_with = [
+        "@platforms//cpu:aarch64",
+        "@platforms//os:linux",
+    ],
+)
+
+copy_file(
+    name = "runtime-security-syscall-wrapper-arm64",
+    src = "//pkg/security/ebpf/c/prebuilt:runtime-security-syscall-wrapper",
+    out = "build/arm64/runtime-security-syscall-wrapper.o",
+    target_compatible_with = [
+        "@platforms//cpu:aarch64",
+        "@platforms//os:linux",
+    ],
+)
+
+copy_file(
+    name = "runtime-security-fentry-arm64",
+    src = "//pkg/security/ebpf/c/prebuilt:runtime-security-fentry",
+    out = "build/arm64/runtime-security-fentry.o",
+    target_compatible_with = [
+        "@platforms//cpu:aarch64",
+        "@platforms//os:linux",
+    ],
+)
+
+copy_file(
+    name = "runtime-security-offset-guesser-arm64",
+    src = "//pkg/security/ebpf/c/prebuilt:runtime-security-offset-guesser",
+    out = "build/arm64/runtime-security-offset-guesser.o",
+    target_compatible_with = [
+        "@platforms//cpu:aarch64",
+        "@platforms//os:linux",
+    ],
+)
+
+# amd64 variants
+copy_file(
+    name = "runtime-security-amd64",
+    src = "//pkg/security/ebpf/c/prebuilt:runtime-security",
+    out = "build/x86_64/runtime-security.o",
+    target_compatible_with = [
+        "@platforms//cpu:x86_64",
+        "@platforms//os:linux",
+    ],
+)
+
+copy_file(
+    name = "runtime-security-syscall-wrapper-amd64",
+    src = "//pkg/security/ebpf/c/prebuilt:runtime-security-syscall-wrapper",
+    out = "build/x86_64/runtime-security-syscall-wrapper.o",
+    target_compatible_with = [
+        "@platforms//cpu:x86_64",
+        "@platforms//os:linux",
+    ],
+)
+
+copy_file(
+    name = "runtime-security-fentry-amd64",
+    src = "//pkg/security/ebpf/c/prebuilt:runtime-security-fentry",
+    out = "build/x86_64/runtime-security-fentry.o",
+    target_compatible_with = [
+        "@platforms//cpu:x86_64",
+        "@platforms//os:linux",
+    ],
+)
+
+copy_file(
+    name = "runtime-security-offset-guesser-amd64",
+    src = "//pkg/security/ebpf/c/prebuilt:runtime-security-offset-guesser",
+    out = "build/x86_64/runtime-security-offset-guesser.o",
+    target_compatible_with = [
+        "@platforms//cpu:x86_64",
+        "@platforms//os:linux",
+    ],
+)
+
 go_library(
     name = "bytecode",
     srcs = [
@@ -139,6 +224,21 @@ go_library(
         "permissions.go",
         "permissions_windows.go",
     ],
+    embedsrcs = select({
+        "@platforms//cpu:aarch64": [
+            ":runtime-security-arm64",
+            ":runtime-security-fentry-arm64",
+            ":runtime-security-offset-guesser-arm64",
+            ":runtime-security-syscall-wrapper-arm64",
+        ],
+        "@platforms//cpu:x86_64": [
+            ":runtime-security-amd64",
+            ":runtime-security-fentry-amd64",
+            ":runtime-security-offset-guesser-amd64",
+            ":runtime-security-syscall-wrapper-amd64",
+        ],
+        "//conditions:default": [],
+    }),
     importpath = "github.com/DataDog/datadog-agent/pkg/ebpf/bytecode",
     visibility = ["//visibility:public"],
 )

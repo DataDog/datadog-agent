@@ -257,3 +257,6 @@ pkg/config/schema/compressed/*.zstd
 .python-nix-home
 .venv-nix
 flake.lock
+.gem/
+crosstool-ng-*/
+result

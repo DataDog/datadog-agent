@@ -57,6 +57,10 @@ go_deps.gazelle_default_attributes(
         "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/ec2 @@//pkg/opentelemetry-mapping-go/otlp/attributes/ec2:ec2",
         "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/gcp @@//pkg/opentelemetry-mapping-go/otlp/attributes/gcp:gcp",
         "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics @@//pkg/opentelemetry-mapping-go/otlp/metrics:metrics",
+        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/rum @@//pkg/opentelemetry-mapping-go/otlp/rum:rum",
+        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata @@//pkg/opentelemetry-mapping-go/inframetadata:inframetadata",
+        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata/gohai @@//pkg/opentelemetry-mapping-go/inframetadata/gohai:gohai",
+        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata/payload @@//pkg/opentelemetry-mapping-go/inframetadata/payload:payload",
         "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/serializer @@//pkg/serializer:serializer",
         "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/tagset @@//pkg/tagset:tagset",
         "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/trace/config @@//pkg/trace/config:config",
@@ -66,6 +70,8 @@ go_deps.gazelle_default_attributes(
         "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/util/compression/impl-zlib @@//pkg/util/compression/impl-zlib:impl-zlib",
         "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/util/option @@//pkg/util/option:option",
         "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/remoteconfig/state @@//pkg/remoteconfig/state:state",
+        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry @@//pkg/fleet/installer/telemetry:telemetry",
+        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/tagset @@//pkg/tagset:tagset",
     ],
 )
 go_deps.gazelle_override(
@@ -83,6 +89,18 @@ go_deps.gazelle_override(
 go_deps.gazelle_override(
     build_extra_args = ["-build_tags=grpcnotrace"],
     path = "google.golang.org/grpc",
+)
+go_deps.gazelle_override(
+    directives = [
+        "gazelle:proto disable",
+    ],
+    path = "github.com/grpc-ecosystem/grpc-gateway/v2",
+)
+go_deps.gazelle_override(
+    directives = [
+        "gazelle:go_naming_convention go_default_library",
+    ],
+    path = "github.com/GoogleCloudPlatform/docker-credential-gcr",
 )
 go_deps.gazelle_override(
     build_extra_args = ["-build_tags=requirefips"],
@@ -534,6 +552,32 @@ go_deps.module_override(
     patch_strip = 1,
     patches = ["//bazel/rules/go_msgp:use-go-format.patch"],
     path = "github.com/tinylib/msgp",
+)
+
+# Wire the vendored libpcap into the gopacket/pcap cgo library so it builds
+# against the in-tree headers instead of the host system's pcap.h.
+go_deps.module_override(
+    patch_strip = 1,
+    patches = ["//bazel/patches:gopacket-pcap-cdeps.patch"],
+    path = "github.com/google/gopacket",
+)
+
+# Wire the vendored systemd headers into go-systemd's sdjournal cgo library so
+# it builds without the host system's systemd development headers.
+go_deps.module_override(
+    patch_strip = 1,
+    patches = ["//bazel/patches:go-systemd-sdjournal-cdeps.patch"],
+    path = "github.com/coreos/go-systemd/v22",
+)
+
+# Wire the vendored ODPI-C sources into godror's cgo library so it builds
+# without needing a system Oracle SDK. ODPI-C is an amalgamated C library
+# embedded in the module under odpi/; drv.go includes odpi/embed/dpi.c which
+# textually includes all odpi/src/*.c files.
+go_deps.module_override(
+    patch_strip = 1,
+    patches = ["//bazel/patches:godror-odpi-cdeps.patch"],
+    path = "github.com/godror/godror",
 )
 
 use_repo_rule("//bazel/rules/go_fast:repo.bzl", "go_fast")(name = "go_fast")
