@@ -185,7 +185,7 @@ func (sb *RawBucket) HandleSpan(s *StatSpan, weight float64, origin string, aggK
 		if _, exists := sb.data[aggr]; !exists {
 			if sb.additionalTagsEntries >= sb.additionalTagsCardinalityLimit {
 				if !sb.warnedThisBucket {
-					log.Warnf("additional_metric_tags cardinality limit (%d) reached for this bucket; masking values (e.g. %v)", sb.additionalTagsCardinalityLimit, s.matchingAdditionalMetricTags)
+					log.Warnf("additional_metric_tags cardinality limit (%d) reached for this bucket; masking %d tag value(s)", sb.additionalTagsCardinalityLimit, len(s.matchingAdditionalMetricTags))
 					sb.warnedThisBucket = true
 				}
 				// Cap reached: collapse this span's tag values onto the shared masked
