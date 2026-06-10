@@ -27,20 +27,11 @@ cc_library(
     srcs = ["sqlite3.c"],
     hdrs = _SQLITE3_PUBLIC_HEADERS,
     includes = ["."],
-    # SQLITE_* defines mirror mattn/go-sqlite3's bundled-amalgamation build
-    # (sqlite3.go:13-23) so this shared library is feature-equivalent to the
-    # binding's default flavor.
     copts = [
         "-Wall",
-        "-DSQLITE_DEFAULT_WAL_SYNCHRONOUS=1",
-        "-DSQLITE_ENABLE_FTS3",
-        "-DSQLITE_ENABLE_FTS3_PARENTHESIS",
         "-DSQLITE_ENABLE_MATH_FUNCTIONS",
-        "-DSQLITE_ENABLE_RTREE",
-        "-DSQLITE_ENABLE_UPDATE_DELETE_LIMIT",
         "-DSQLITE_OMIT_DEPRECATED",
         "-DSQLITE_THREADSAFE=1",
-        "-DSQLITE_TRACE_SIZE_LIMIT=15",
         "-O2",
     ],
     linkstatic = True,
