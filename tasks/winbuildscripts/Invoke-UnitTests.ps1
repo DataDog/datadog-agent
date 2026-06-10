@@ -143,9 +143,10 @@ Invoke-BuildScript `
     }
     $pipeline_suffix = if ($Env:CI_PIPELINE_ID) { $Env:CI_PIPELINE_ID } else { "local" }
     $pipeline_test_output_file = "${test_output_basename}_${pipeline_suffix}${test_output_ext}"
-    # Write JSON outside the mounted checkout so the file is not held open inside C:\mnt during test execution.
-    $internal_result_json = "C:\buildroot\$pipeline_test_output_file"
+    # When building out-of-source, write JSON to C:\buildroot so it is not held open inside C:\mnt
+    # during test execution; otherwise write directly to C:\mnt.
     $mounted_result_json = "C:\mnt\$pipeline_test_output_file"
+    $internal_result_json = if ($BuildOutOfSource) { "C:\buildroot\$pipeline_test_output_file" } else { $mounted_result_json }
 
     $TEST_WASHER_FLAG=""
     if ($Env:TEST_WASHER) {
@@ -203,15 +204,17 @@ Invoke-BuildScript `
         }
     }
 
-    # Copy the result JSON (and any unified variant produced by test-washer/junit-upload) back
-    # into C:\mnt so GitLab can collect it as a pipeline artifact.
-    if (Test-Path $internal_result_json) {
-        Copy-Item -Force $internal_result_json $mounted_result_json
-    }
-    $internal_unified_json = "C:\buildroot\${test_output_basename}_${pipeline_suffix}_unified${test_output_ext}"
-    $mounted_unified_json = "C:\mnt\${test_output_basename}_${pipeline_suffix}_unified${test_output_ext}"
-    if (Test-Path $internal_unified_json) {
-        Copy-Item -Force $internal_unified_json $mounted_unified_json
+    if ($BuildOutOfSource) {
+        # Copy the result JSON (and any unified variant produced by test-washer/junit-upload) back
+        # into C:\mnt so GitLab can collect it as a pipeline artifact.
+        if (Test-Path $internal_result_json) {
+            Copy-Item -Force $internal_result_json $mounted_result_json
+        }
+        $internal_unified_json = "C:\buildroot\${test_output_basename}_${pipeline_suffix}_unified${test_output_ext}"
+        $mounted_unified_json = "C:\mnt\${test_output_basename}_${pipeline_suffix}_unified${test_output_ext}"
+        if (Test-Path $internal_unified_json) {
+            Copy-Item -Force $internal_unified_json $mounted_unified_json
+        }
     }
 
     If ($err -ne 0) {
