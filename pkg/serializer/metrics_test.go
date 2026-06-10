@@ -965,25 +965,6 @@ func TestSeriesV3ExperimentalListWins(t *testing.T) {
 	}
 }
 
-// TestSeriesV3DisabledWhenCompressorIsZlib verifies that setting
-// serializer_compressor_kind to zlib forces v2 for series even when the new
-// use_v3_api.series.enabled default ("true") would otherwise opt into v3.
-func TestSeriesV3DisabledWhenCompressorIsZlib(t *testing.T) {
-	config := configmock.New(t)
-	config.SetInTest("dd_url", "https://app.datadoghq.com")
-	config.SetInTest("api_key", "test_key")
-	config.SetInTest("serializer_compressor_kind", "zlib")
-
-	s := newSeriesV3Serializer(t, config)
-	pipelines := s.buildPipelines(metricsKindSeries)
-	require.Len(t, pipelines, 1)
-	for conf, ctx := range pipelines {
-		require.Len(t, ctx.Destinations, 1)
-		assert.False(t, conf.V3, "zlib must force v2 for series")
-		assert.Equal(t, endpoints.SeriesEndpoint, ctx.Destinations[0].Endpoint)
-	}
-}
-
 // TestSeriesV3ForcedToV2WhenCompressorImplIsZlib covers the build-tag mismatch the old
 // config-string check missed: in a zlib-only build, serializer_compressor_kind="zstd" still
 // resolves to the zlib implementation (see pkg/util/compression/selector/zlib-no-zstd.go).
