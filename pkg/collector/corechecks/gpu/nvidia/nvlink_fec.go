@@ -55,7 +55,9 @@ type nvlinkFECCollector struct {
 func newNVLinkFECCollector(device ddnvml.Device, deps *CollectorDependencies) (Collector, error) {
 	lightErrorBucketThreshold := defaultNVLinkFECLightErrorThreshold
 	if deps != nil && deps.Config != nil && deps.Config.GetInt(nvlinkFECLightErrorThresholdConfig) > 0 {
-		lightErrorBucketThreshold = deps.Config.GetInt(nvlinkFECLightErrorThresholdConfig)
+		if v := deps.Config.GetInt(nvlinkFECLightErrorThresholdConfig); v > 0 {
+			lightErrorBucketThreshold = v
+		}
 	}
 
 	c := &nvlinkFECCollector{
@@ -156,6 +158,7 @@ func (c *nvlinkFECCollector) getPortMetrics(port int) ([]*Metric, error) {
 		}
 	}
 
+	// If we have partial errors we can't emit the grouped metrics as they're not complete.
 	if len(multiErr) == 0 {
 		fecMetrics = append(fecMetrics, c.fecSeverityMetrics(port, fecSeverityCounts)...)
 	}
