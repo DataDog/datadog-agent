@@ -51,31 +51,26 @@ func newHorizontalReconciler(clock clock.Clock, eventRecorder record.EventRecord
 }
 
 func (hr *horizontalController) sync(ctx context.Context, podAutoscaler *datadoghq.DatadogPodAutoscaler, autoscalerInternal *model.PodAutoscalerInternal, targetGVK schema.GroupVersionKind, scale *autoscalingv1.Scale, gr schema.GroupResource, scaleErr error) (autoscaling.ProcessResult, error) {
+	_ = targetGVK // historical signature; release now reads target from LastScaledTarget
+
 	// If we have no Spec, nothing to do
 	if autoscalerInternal.Spec() == nil {
 		return autoscaling.NoRequeue, nil
 	}
 
+	// If we previously wrote `.spec.replicas` and we are now in a state where
+	// we will not write again on the recorded target (horizontal scaling
+	// disabled, Preview mode, or the DPA was retargeted), release the cluster
+	// agent's scale-subresource managedFields entry on the recorded target so
+	// SSA writers (e.g. Helm) do not conflict with a stale field manager.
+	// Surface failures via event/condition/metric and requeue — bounded by
+	// maxRetry — rather than logging silently.
+	if err := hr.maybeReleaseLastScaledTargetOwnership(ctx, podAutoscaler, autoscalerInternal); err != nil {
+		return autoscaling.Requeue, err
+	}
+
 	// If horizontal scaling is disabled, clear horizontal state and exit.
 	if !autoscalerInternal.IsHorizontalScalingEnabled() {
-		// If we previously scaled this target, release ownership of
-		// `.spec.replicas` so SSA writers (e.g. Helm) do not conflict with
-		// a stale field manager once horizontal scaling is off. Gated on
-		// HorizontalLastActions to avoid issuing a GET on every reconcile
-		// while horizontal stays disabled — ClearHorizontalState below
-		// nils out actions so subsequent ticks skip this branch.
-		//
-		// IMPORTANT: only clear horizontal state once the release actually
-		// succeeds. If we cleared on failure (RBAC missing, JSON-patch test
-		// op race, transient API error), the gate above would never fire
-		// again and the stale managedFields entry would leak permanently.
-		// On failure we requeue and retry with a fresh snapshot.
-		if len(autoscalerInternal.HorizontalLastActions()) > 0 && autoscalerInternal.Spec().TargetRef.Name != "" {
-			if err := hr.scaler.releaseReplicasOwnership(ctx, autoscalerInternal.Namespace(), autoscalerInternal.Spec().TargetRef.Name, targetGVK); err != nil {
-				log.Warnf("Failed to release replicas ownership for %s %s/%s after disabling horizontal scaling, will retry: %v", targetGVK.Kind, autoscalerInternal.Namespace(), autoscalerInternal.Spec().TargetRef.Name, err)
-				return autoscaling.Requeue, nil
-			}
-		}
 		autoscalerInternal.ClearHorizontalState()
 		return autoscaling.NoRequeue, nil
 	}
@@ -149,6 +144,17 @@ func (hr *horizontalController) performScaling(ctx context.Context, podAutoscale
 	log.Debugf("Scaled target: %s/%s from %d replicas to %d replicas", scale.Namespace, scale.Name, horizontalAction.FromReplicas, horizontalAction.ToReplicas)
 	autoscalerInternal.UpdateFromHorizontalAction(horizontalAction, nil)
 	autoscalerInternal.HorizontalActionSuccessInc()
+	// Record where we just wrote `.spec.replicas` so a later release path
+	// (disable, Preview, retarget, deletion) knows which workload still holds
+	// our scale-subresource managedFields entry — independent of the current
+	// spec, which may be edited before release runs.
+	if gvk, gvkErr := autoscalerInternal.TargetGVK(); gvkErr == nil {
+		autoscalerInternal.SetLastScaledTarget(&model.LastScaledTarget{
+			Namespace: scale.Namespace,
+			Name:      scale.Name,
+			GVK:       gvk,
+		})
+	}
 	hr.eventRecorder.Eventf(podAutoscaler, corev1.EventTypeNormal, model.SuccessfulScaleEventReason, "Scaled target: %s/%s from %d replicas to %d replicas", scale.Namespace, scale.Name, horizontalAction.FromReplicas, horizontalAction.ToReplicas)
 	if nextEvalAfter > 0 {
 		return autoscaling.Requeue.After(nextEvalAfter), nil
@@ -519,4 +525,55 @@ func accumulateReplicasChange(currentTime time.Time, events []datadoghqcommon.Da
 		expireIn = periodDuration
 	}
 	return
+}
+
+// maybeReleaseLastScaledTargetOwnership releases the cluster agent's
+// scale-subresource managedFields entry on the workload we previously wrote
+// `.spec.replicas` on, if the controller is transitioning away from that
+// target. Triggers:
+//   - horizontal scaling disabled (both ScaleUp and ScaleDown strategies
+//     set to DisabledStrategySelect),
+//   - apply mode is Preview (the controller still computes recommendations
+//     but no longer writes replicas),
+//   - the DPA spec was retargeted to a different workload (different name
+//     or different GVK) since the last successful scale.
+//
+// If the release call returns an error, surface it via event/condition/
+// metric and propagate so the caller can requeue with the err set — the
+// workqueue's maxRetry guard then caps the retry budget rather than
+// silently hot-looping. On success, clears LastScaledTarget so we do not
+// re-issue the release on every subsequent reconcile.
+func (hr *horizontalController) maybeReleaseLastScaledTargetOwnership(
+	ctx context.Context,
+	podAutoscaler *datadoghq.DatadogPodAutoscaler,
+	autoscalerInternal *model.PodAutoscalerInternal,
+) error {
+	target := autoscalerInternal.LastScaledTarget()
+	if target == nil {
+		return nil
+	}
+	spec := autoscalerInternal.Spec()
+	if spec == nil {
+		return nil
+	}
+
+	disabled := !autoscalerInternal.IsHorizontalScalingEnabled()
+	preview := spec.ApplyPolicy != nil && spec.ApplyPolicy.Mode == datadoghq.DatadogPodAutoscalerApplyModePreview
+	targetChanged := target.Name != spec.TargetRef.Name ||
+		target.GVK.Kind != spec.TargetRef.Kind ||
+		target.GVK.GroupVersion().String() != spec.TargetRef.APIVersion
+	if !disabled && !preview && !targetChanged {
+		return nil
+	}
+
+	if err := hr.scaler.releaseReplicasOwnership(ctx, target.Namespace, target.Name, target.GVK); err != nil {
+		wrappedErr := autoscaling.NewConditionError(autoscaling.ConditionReasonScaleFailed,
+			fmt.Errorf("failed to release replicas ownership for %s %s/%s: %w", target.GVK.Kind, target.Namespace, target.Name, err))
+		hr.eventRecorder.Event(podAutoscaler, corev1.EventTypeWarning, model.FailedScaleEventReason, wrappedErr.Error())
+		autoscalerInternal.UpdateFromHorizontalAction(nil, wrappedErr)
+		autoscalerInternal.HorizontalActionErrorInc()
+		return wrappedErr
+	}
+	autoscalerInternal.ClearLastScaledTarget()
+	return nil
 }
