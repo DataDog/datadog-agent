@@ -8234,7 +8234,7 @@ properties:
       enabled:
         node_type: setting
         type: boolean
-        default: false
+        default: true
       forwarder:
         node_type: section
         type: object
@@ -8247,6 +8247,16 @@ properties:
         node_type: setting
         type: boolean
         default: false
+      invalidconfig_check:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            # Disabled by default: loading the compiled core_schema.yaml retains ~8 MiB of heap
+            # permanently (sync.Once global). Enable only if startup schema validation is needed.
+            default: false
   heroku_dyno:
     node_type: setting
     type: boolean
