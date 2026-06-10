@@ -157,10 +157,9 @@ func TestSendPayloadBody_NetworkError(t *testing.T) {
 // atel-level errortracking tests (buffered channel + flush + enrichErrorLog)
 // =============================================================================
 
-// TestErrorLogToLog_WireShape locks the wire payload shape: only
-// stack-derived data (StackTrace, ErrorKind) + Level + TracerTime + defaults
-// are populated. The schema fields Message, Tags, TraceID, SpanID stay on
-// Log so the dd-go intake sees the canonical shape, but they emit
+// TestErrorLogToLog_WireShape locks the wire payload shape: stack-derived
+// data (StackTrace, ErrorKind), git source integration Tags, Level,
+// TracerTime, and defaults are populated. Message, TraceID, SpanID stay
 // empty — the handler does not capture user-controlled inputs.
 func TestErrorLogToLog_WireShape(t *testing.T) {
 	in := errortracking.ErrorLog{
@@ -177,13 +176,16 @@ func TestErrorLogToLog_WireShape(t *testing.T) {
 	assert.Equal(t, in.Time.Unix(), out.TracerTime)
 	assert.Equal(t, 1, out.Count)
 	assert.False(t, out.IsCrash)
-	assert.NotEmpty(t, out.StackTrace, "captured PCs must produce file:line stack_trace")
+	assert.NotEmpty(t, out.StackTrace, "captured PCs must produce a stack_trace")
 	assert.Empty(t, out.ErrorKind,
 		"ErrorKind must be empty when no error attribute is present in the log record")
 
+	// Git source integration tags.
+	assert.Contains(t, out.Tags, "git.repository_url:DataDog/datadog-agent",
+		"Tags must carry git.repository_url for Source Code Integration")
+
 	// Wire schema fields that are intentionally not populated.
 	assert.Empty(t, out.Message, "Message must NOT be on the wire")
-	assert.Empty(t, out.Tags, "Tags must NOT be on the wire")
 	assert.Empty(t, out.TraceID, "TraceID must NOT be on the wire")
 	assert.Empty(t, out.SpanID, "SpanID must NOT be on the wire")
 }
@@ -198,10 +200,13 @@ func TestErrorLogToLog_NoPC_EmptyStackTrace(t *testing.T) {
 	assert.Empty(t, out.ErrorKind, "no captured PCs must produce empty error_kind")
 }
 
-// TestErrorLogToLog_MultiFramePCs locks the multi-frame stack format
-// (PR #50607 C7 / iglendd's "stack offset + frame limit" + pducolin's
-// "add function's name" threads): file:line\tfunc per line, newline
-// separated, function-named, bounded by the PCs array size.
+// TestErrorLogToLog_MultiFramePCs locks the multi-frame stack format.
+// Each frame produces two lines in Go's standard panic/debug.Stack shape:
+//
+//	github.com/DataDog/datadog-agent/.../Func
+//		/path/to/file.go:42 +0x1a4
+//
+// The Error Tracking parser requires this format for frame extraction.
 func TestErrorLogToLog_MultiFramePCs(t *testing.T) {
 	in := errortracking.ErrorLog{
 		Time: time.Date(2026, 5, 11, 12, 0, 0, 0, time.UTC),
@@ -214,16 +219,29 @@ func TestErrorLogToLog_MultiFramePCs(t *testing.T) {
 
 	require.NotEmpty(t, out.StackTrace, "multi-frame PCs must produce non-empty stack_trace")
 	lines := strings.Split(out.StackTrace, "\n")
-	assert.GreaterOrEqual(t, len(lines), 2,
-		"multi-frame stack_trace must be newline-separated, one frame per line")
-	for _, line := range lines {
-		parts := strings.SplitN(line, "\t", 2)
-		require.Len(t, parts, 2, "each frame must be file:line\\tfunc, got %q", line)
-		assert.Contains(t, parts[0], ":", "frame file part must be file:line, got %q", parts[0])
-		assert.NotEmpty(t, parts[1], "frame func part must be non-empty, got %q", line)
+	// Each frame produces 2 lines: function name + "\tfile:line +0xaddr".
+	// Between frames a blank separator '\n' is emitted, so total lines >= 2*frames.
+	require.GreaterOrEqual(t, len(lines), 4,
+		"at least 2 frames → at least 4 lines in stack_trace")
+
+	// Odd-indexed lines (0, 2, ...) are function names — no leading tab.
+	// Even-indexed lines (1, 3, ...) are file:line — leading tab + ":<digits> +0x".
+	// Source files may be .go or .s (assembly); both are valid.
+	for i, line := range lines {
+		if i%2 == 0 {
+			assert.NotEmpty(t, line, "function line (index %d) must not be empty", i)
+			assert.NotContains(t, line, "\t", "function line must not have a leading tab, got %q", line)
+		} else {
+			assert.True(t, strings.HasPrefix(line, "\t"),
+				"file:line line (index %d) must start with tab, got %q", i, line)
+			assert.Contains(t, line, "+0x",
+				"file:line line must contain entry offset (+0x), got %q", line)
+		}
 	}
-	// First frame should be in this test file (we captured at depth 1).
-	assert.Contains(t, lines[0], "errortracking_sender_test.go")
+	// First line is the fully-qualified function name from this test.
+	assert.Contains(t, lines[0], "TestErrorLogToLog_MultiFramePCs")
+	// Second line is the file:line for this test file.
+	assert.Contains(t, lines[1], "errortracking_sender_test.go")
 }
 
 // errorLog is a convenience for the atel-level tests below.
