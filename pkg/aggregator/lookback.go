@@ -12,6 +12,23 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 )
 
+// LookbackDumper dumps retained metric lookback samples and returns the number
+// of series sent.
+type LookbackDumper func() (int, error)
+
+// LookbackTrigger observes DogStatsD samples and optionally triggers a lookback
+// dump. It is injected into the demultiplexer by binaries that support trigger
+// evaluation so binaries that only reuse the aggregator do not link the
+// concrete trigger implementation.
+type LookbackTrigger interface {
+	Observe(name string, value float64) bool
+}
+
+// LookbackTriggerFactory builds a trigger after the demultiplexer has been
+// constructed, so the trigger callback can use the provided dump function
+// without forcing pkg/aggregator to link concrete lookback packages.
+type LookbackTriggerFactory func(LookbackDumper) LookbackTrigger
+
 // LookbackRetention owns metric lookback retention outside the normal metric
 // aggregation path. It is injected into the demultiplexer by binaries that
 // support lookback so binaries that only reuse the aggregator, such as

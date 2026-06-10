@@ -2168,7 +2168,8 @@ func anomalyDetection(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("anomaly_detection.storage.point_retention_secs", 120)
 }
 
-// metricLookback configures the in-memory check metric lookback ring buffer.
+// metricLookback configures the in-memory check metric lookback ring buffer and
+// the experimental DogStatsD-driven dump trigger.
 func metricLookback(config pkgconfigmodel.Setup) {
 	// Capture switch. When true, samples emitted through the metric lookback
 	// shadow sender are retained in a bounded in-memory ring buffer so they can
@@ -2179,4 +2180,15 @@ func metricLookback(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("metric_lookback.capacity", 0)
 	// Number of independent shards. Zero uses the ring buffer default.
 	config.BindEnvAndSetDefault("metric_lookback.shard_count", 0)
+
+	// Experimental trigger: watch a single incoming DogStatsD metric, track an
+	// exponential moving average of its value, and dump the lookback ring buffer
+	// when the average crosses a threshold.
+	config.BindEnvAndSetDefault("metric_lookback.trigger.enabled", false)
+	config.BindEnvAndSetDefault("metric_lookback.trigger.metric_name", "")
+	config.BindEnvAndSetDefault("metric_lookback.trigger.threshold", 0.0)
+	// EWMA smoothing factor in (0,1]. Higher reacts faster; 1 disables smoothing.
+	config.BindEnvAndSetDefault("metric_lookback.trigger.ewma_alpha", 0.3)
+	// Minimum time between dumps triggered by this watcher.
+	config.BindEnvAndSetDefault("metric_lookback.trigger.cooldown", "30s")
 }

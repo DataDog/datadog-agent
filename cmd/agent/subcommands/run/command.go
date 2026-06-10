@@ -476,6 +476,7 @@ func getSharedFxOption() fx.Option {
 		demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams(
 			demultiplexerimpl.WithDogstatsdNoAggregationPipelineConfig(),
 			demultiplexerimpl.WithLookbackRetentionFactory(newMetricLookbackRetention),
+			demultiplexerimpl.WithLookbackTriggerFactory(newMetricLookbackTrigger),
 		)),
 		demultiplexerendpointfx.Module(),
 		dogstatsd.Bundle(dogstatsdServer.Params{Serverless: false}),
