@@ -62,9 +62,9 @@ const (
 	additionalMetricTagValueMaxLength = 200
 	// Masked values carry a sentinel naming the component that masked them. The sentinel is
 	// propagated into each RawBucket so the same masking code attributes correctly in either
-	// context: tracer-side masking reports blocked_by_tracer, Agent-side reports blocked_by_agent.
-	blockedByTracerSentinel = "blocked_by_tracer"
-	blockedByAgentSentinel  = "blocked_by_agent"
+	// context: tracer-side masking reports tracer_blocked_value, Agent-side reports agent_blocked_value.
+	blockedByTracerSentinel = "tracer_blocked_value"
+	blockedByAgentSentinel  = "agent_blocked_value"
 )
 
 func maskAdditionalMetricTagValues(tags []string, sentinel string) []string {

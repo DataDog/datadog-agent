@@ -157,7 +157,7 @@ func TestNewConcentratorAdditionalMetricTagsValueLengthCapUsesAgentSentinel(t *t
 
 	statSpan, ok := c.spanConcentrator.NewStatSpanFromPB(span, nil, []string{"customer_tier"})
 	require.True(t, ok)
-	assert.Equal(t, []string{"customer_tier:blocked_by_agent"}, statSpan.matchingAdditionalMetricTags)
+	assert.Equal(t, []string{"customer_tier:agent_blocked_value"}, statSpan.matchingAdditionalMetricTags)
 	assert.Equal(t, BlockCounts{LengthBlocks: 1}, c.spanConcentrator.DrainBlockCounts())
 }
 
@@ -181,7 +181,7 @@ func TestNewConcentratorAdditionalMetricTagsCardinalityLimitUsesAgentSentinel(t 
 	c.spanConcentrator.addSpan(blocked, aggKey, infraTags{}, "", 1)
 
 	assert.Equal(t, []string{"customer_id:admitted"}, admitted.matchingAdditionalMetricTags)
-	assert.Equal(t, []string{"customer_id:blocked_by_agent"}, blocked.matchingAdditionalMetricTags)
+	assert.Equal(t, []string{"customer_id:agent_blocked_value"}, blocked.matchingAdditionalMetricTags)
 	assert.Equal(t, BlockCounts{CapBlocks: 1}, c.spanConcentrator.DrainBlockCounts())
 }
 

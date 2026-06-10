@@ -284,9 +284,9 @@ func TestRawBucketAdditionalMetricTagsCardinalityLimit(t *testing.T) {
 	assert.Zero(t, sb.HandleSpan(spanA, 1, "", aggKey))
 	assert.Zero(t, sb.HandleSpan(spanB, 1, "", aggKey))
 	assert.Equal(t, 1, sb.HandleSpan(spanC, 1, "", aggKey))
-	assert.Equal(t, []string{"customer_id:blocked_by_tracer"}, spanC.matchingAdditionalMetricTags)
+	assert.Equal(t, []string{"customer_id:tracer_blocked_value"}, spanC.matchingAdditionalMetricTags)
 	assert.Equal(t, 1, sb.HandleSpan(spanD, 1, "", aggKey))
-	assert.Equal(t, []string{"customer_id:blocked_by_tracer"}, spanD.matchingAdditionalMetricTags)
+	assert.Equal(t, []string{"customer_id:tracer_blocked_value"}, spanD.matchingAdditionalMetricTags)
 	assert.Zero(t, sb.HandleSpan(spanAAgain, 1, "", aggKey))
 	assert.Equal(t, []string{"customer_id:a"}, spanAAgain.matchingAdditionalMetricTags)
 
@@ -309,7 +309,7 @@ func TestRawBucketAdditionalMetricTagsCardinalityLimit(t *testing.T) {
 	maskedStats, ok := sb.data[maskedAggr]
 	require.True(t, ok)
 	assert.Equal(t, 2.0, maskedStats.hits)
-	assert.Equal(t, []string{"customer_id:blocked_by_tracer"}, maskedStats.additionalMetricTags)
+	assert.Equal(t, []string{"customer_id:tracer_blocked_value"}, maskedStats.additionalMetricTags)
 }
 
 func TestRawBucketAdditionalMetricTagsCardinalityLimitDefaultNoop(t *testing.T) {
@@ -354,9 +354,9 @@ func TestSpanConcentratorAdditionalMetricTagsCardinalityLimitResetsPerBucket(t *
 	sc.addSpan(secondBlocked, aggKey, infraTags{}, "", 1)
 
 	assert.Equal(t, []string{"customer_id:first-admitted"}, firstAdmitted.matchingAdditionalMetricTags)
-	assert.Equal(t, []string{"customer_id:blocked_by_tracer"}, firstBlocked.matchingAdditionalMetricTags)
+	assert.Equal(t, []string{"customer_id:tracer_blocked_value"}, firstBlocked.matchingAdditionalMetricTags)
 	assert.Equal(t, []string{"customer_id:second-admitted"}, secondAdmitted.matchingAdditionalMetricTags)
-	assert.Equal(t, []string{"customer_id:blocked_by_tracer"}, secondBlocked.matchingAdditionalMetricTags)
+	assert.Equal(t, []string{"customer_id:tracer_blocked_value"}, secondBlocked.matchingAdditionalMetricTags)
 
 	require.Len(t, sc.buckets, 2)
 	firstBucket, ok := sc.buckets[0]
