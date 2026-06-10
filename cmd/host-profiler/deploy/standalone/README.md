@@ -5,7 +5,7 @@ Standalone mode runs the Host Profiler as a DaemonSet, one pod per node, without
 Choose based on what your cluster already uses:
 
 - **[Helm](helm.md)**: uses the `open-telemetry/opentelemetry-collector` Helm chart with a Datadog-provided values override.
-- **[OTel Operator](operator.md)**: uses an `OpenTelemetryCollector` custom resource managed by the OpenTelemetry Operator.
+- **[OTel Operator](operator.md)**: uses an `OpenTelemetryCollector` Custom Resource (CR) managed by the OpenTelemetry Operator.
 
 ## Prerequisites
 
