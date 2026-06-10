@@ -43,6 +43,8 @@ func (n *NoopUtilizationMonitor) Stop() {}
 type TelemetryUtilizationMonitor struct {
 	// Accumulators written by the hot path and read by the sampler. cumulativeBusyNanos plus the
 	// open interval (now - startInUseNanos, while started) is the effective busy time at any instant.
+	// Both are wall-clock UnixNano, so the window math stays self-consistent; NTP steps are absorbed
+	// by the >0 guards and clamp01 rather than corrupting the EWMA.
 	cumulativeBusyNanos atomic.Int64
 	startInUseNanos     atomic.Int64
 	started             atomic.Bool
