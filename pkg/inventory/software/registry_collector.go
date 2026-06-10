@@ -268,6 +268,9 @@ func collectFromKey(root registry.Key, subkey string, view uint32) ([]*Entry, []
 				ProductCode: properties[msiProductCode],
 				Status:      "installed",
 				Is64Bit:     view == registry.WOW64_64KEY,
+				// InstallLocation is optional in the registry; when absent it is
+				// the empty string and omitted from the payload (omitempty).
+				InstallPath: properties[installLocation],
 			}
 			results = append(results, entry)
 		}

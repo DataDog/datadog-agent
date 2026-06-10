@@ -319,6 +319,12 @@ func buildEntryFromReceipt(receipt pkgReceiptInfo, summary pkgSummary, is64Bit b
 		}
 	}
 
+	// "N/A" is an internal sentinel meaning "no single meaningful path"; don't
+	// leak it into the payload. Leaving it empty lets omitempty drop the field.
+	if installPath == "N/A" {
+		installPath = ""
+	}
+
 	return &Entry{
 		DisplayName:  receipt.packageID,
 		Version:      receipt.version,

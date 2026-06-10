@@ -1,0 +1,9 @@
+---
+enhancements:
+  - |
+    The host Software Inventory metadata now reports the ``install_path`` of
+    each detected application, i.e. the filesystem location where the software
+    is installed. This is populated on macOS (applications, PKG receipts,
+    kernel/system extensions, Homebrew) and on Windows (from the registry
+    ``InstallLocation`` value). The field is omitted when no install path is
+    available.

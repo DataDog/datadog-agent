@@ -136,11 +136,9 @@ type Entry struct {
 	//   - Applications: "/Applications/Safari.app", "~/Applications/MyApp.app"
 	//   - Kernel extensions: "/Library/Extensions/SoftRAID.kext"
 	//   - System extensions: "/Library/SystemExtensions/.../com.example.extension.systemextension"
-	// For PKG receipts, this may be "N/A" if no single meaningful path exists;
-	// use InstallPaths for the full list of installation directories.
-	// NOTE: Currently excluded from backend payload (json:"-") but kept for
-	// internal use and future backend support.
-	InstallPath string `json:"-"`
+	// When no single meaningful path exists (e.g. some PKG receipts), this is
+	// left empty and omitted from the payload.
+	InstallPath string `json:"install_path,omitempty"`
 
 	// InstallPaths contains the top-level directories where a PKG installed files.
 	// This field is specific to PKG receipts and provides visibility into where
@@ -149,8 +147,9 @@ type Entry struct {
 	// for packages that install to multiple directories (e.g., CLI tools that
 	// install binaries to /usr/local/bin and libraries to /usr/local/lib).
 	// Examples: ["/usr/local/bin", "/usr/local/ykman", "/Library/LaunchDaemons"]
-	// NOTE: Currently excluded from backend payload (json:"-") but kept for
-	// internal use and future backend support.
+	// NOTE: Intentionally excluded from the backend payload (json:"-") for now:
+	// the backend Software Inventory schema only accepts the scalar install_path.
+	// Kept for internal use and to be exposed once the backend supports an array.
 	InstallPaths []string `json:"-"`
 }
 

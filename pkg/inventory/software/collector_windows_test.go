@@ -92,28 +92,32 @@ func TestUnicodeCollectFromKey(t *testing.T) {
 
 	// Test data with Unicode characters
 	testData := []struct {
-		subKey      string
-		displayName string
-		version     string
-		publisher   string
+		subKey          string
+		displayName     string
+		version         string
+		publisher       string
+		installLocation string
 	}{
 		{
-			subKey:      "{DEEFE46F-60F2-430B-AE0A-15A76E57B767}",
-			displayName: "Contrôle d'intégrité du PC Windows",
-			version:     "3.9.2402.14001",
-			publisher:   "Microsoft Corporation",
+			subKey:          "{DEEFE46F-60F2-430B-AE0A-15A76E57B767}",
+			displayName:     "Contrôle d'intégrité du PC Windows",
+			version:         "3.9.2402.14001",
+			publisher:       "Microsoft Corporation",
+			installLocation: `C:\Program Files\Windows PC Health Check`,
 		},
 		{
-			subKey:      "{TEST-UNICODE-2}",
-			displayName: "プログラムと機能", // "Programs and Features" in Japanese
-			version:     "1.0.0",
-			publisher:   "テスト発行者", // "Test Publisher" in Japanese
+			subKey:          "{TEST-UNICODE-2}",
+			displayName:     "プログラムと機能", // "Programs and Features" in Japanese
+			version:         "1.0.0",
+			publisher:       "テスト発行者", // "Test Publisher" in Japanese
+			installLocation: `C:\Program Files\プログラム`,
 		},
 		{
 			subKey:      "{TEST-UNICODE-3}",
 			displayName: "Інсталятор Windows", // "Windows Installer" in Ukrainian
 			version:     "2.0.0",
 			publisher:   "тестовий видавець", // "Test Publisher" in Ukrainian
+			// No InstallLocation: InstallPath should be empty (and omitted from the payload).
 		},
 	}
 
@@ -139,6 +143,13 @@ func TestUnicodeCollectFromKey(t *testing.T) {
 		err = subKey.SetStringValue("Publisher", td.publisher)
 		if err != nil {
 			t.Fatalf("Failed to set Publisher: %v", err)
+		}
+
+		if td.installLocation != "" {
+			err = subKey.SetStringValue("InstallLocation", td.installLocation)
+			if err != nil {
+				t.Fatalf("Failed to set InstallLocation: %v", err)
+			}
 		}
 	}
 
@@ -169,6 +180,7 @@ func TestUnicodeCollectFromKey(t *testing.T) {
 		assert.True(t, entry.Is64Bit, "Should be marked as 64-bit for WOW64_64KEY")
 		assert.Equal(t, td.publisher, entry.Publisher, "Publisher should match")
 		assert.Equal(t, td.subKey, entry.ProductCode, "ProductCode should be subkey name")
+		assert.Equal(t, td.installLocation, entry.InstallPath, "InstallPath should come from the InstallLocation registry value")
 	}
 }
 

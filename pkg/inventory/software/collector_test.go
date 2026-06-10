@@ -213,11 +213,12 @@ func TestPrivateFieldsExcludedFromJSON(t *testing.T) {
 
 	jsonStr := string(jsonData)
 
-	// Verify private fields are NOT in JSON
+	// Verify private fields are NOT in JSON.
+	// Note: install_paths (plural) is intentionally still private; only the
+	// scalar install_path is exposed to the backend for now.
 	assert.NotContains(t, jsonStr, "broken_reason")
 	assert.NotContains(t, jsonStr, "install_source")
 	assert.NotContains(t, jsonStr, "pkg_id")
-	assert.NotContains(t, jsonStr, "install_path")
 	assert.NotContains(t, jsonStr, "install_paths")
 
 	// Verify public fields ARE in JSON
@@ -225,4 +226,6 @@ func TestPrivateFieldsExcludedFromJSON(t *testing.T) {
 	assert.Contains(t, jsonStr, "name")
 	assert.Contains(t, jsonStr, "version")
 	assert.Contains(t, jsonStr, "product_code")
+	assert.Contains(t, jsonStr, "install_path")
+	assert.Contains(t, jsonStr, "/Applications/TestApp.app")
 }
