@@ -38,8 +38,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Use:   "rotate-par-identity",
 		Short: "Rotate the Private Action Runner identity for this cluster",
 		Long: `Generates fresh credentials and registers a new Private Action Runner identity.
-The new identity is written to the shared Kubernetes secret. Running cluster agent
-replicas will detect the change and reload their PAR connection automatically.`,
+The new identity is written to the shared Kubernetes secret. Run a Kubernetes
+rollout restart of the Cluster Agent deployment to apply the new identity.`,
 		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(run,
 				fx.Supply(core.BundleParams{
@@ -106,6 +106,6 @@ func run(_ log.Component, cfg config.Component, hostnameComp hostname.Component)
 
 	fmt.Printf("Identity successfully rotated. New URN: %s\n", result.URN)
 	fmt.Println("The new identity has been written to the Kubernetes secret.")
-	fmt.Println("Running cluster agent replicas will detect the change and reload automatically.")
+	fmt.Println("Run `kubectl rollout restart deployment/<cluster-agent-deployment> -n <namespace>` to apply the new identity.")
 	return nil
 }
