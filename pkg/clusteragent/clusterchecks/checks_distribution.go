@@ -44,11 +44,14 @@ func (ns RunnerStatus) utilization() float64 {
 // configsDistribution represents the placement of cluster check configs
 // across the runners of a cluster. Each entry is keyed by config digest.
 type configsDistribution struct {
-	Configs map[string]*ConfigStatus
-	Runners map[string]*RunnerStatus
+	Configs           map[string]*ConfigStatus
+	Runners           map[string]*RunnerStatus
+	stickinessEnabled bool
+	stickinessFactor  float64
+	stickinessLimit   float64
 }
 
-func newConfigsDistribution(workersPerRunner map[string]int) configsDistribution {
+func newConfigsDistribution(workersPerRunner map[string]int, stickinessEnabled bool, stickinessFactor float64, stickinessLimit float64) configsDistribution {
 	runners := map[string]*RunnerStatus{}
 	for runnerName, runnerWorkers := range workersPerRunner {
 		runners[runnerName] = &RunnerStatus{
@@ -59,8 +62,11 @@ func newConfigsDistribution(workersPerRunner map[string]int) configsDistribution
 	}
 
 	return configsDistribution{
-		Configs: map[string]*ConfigStatus{},
-		Runners: runners,
+		Configs:           map[string]*ConfigStatus{},
+		Runners:           runners,
+		stickinessEnabled: stickinessEnabled,
+		stickinessFactor:  stickinessFactor,
+		stickinessLimit:   stickinessLimit,
 	}
 }
 
@@ -82,8 +88,8 @@ func (distribution *configsDistribution) leastBusyRunner(preferredRunner string,
 		runnerUtilization := runnerStatus.utilization()
 		runnerNumChecks := runnerStatus.NumChecks
 
-		if runnerName == preferredRunner {
-			runnerUtilization -= max(workersNeeded*4, 2)
+		if distribution.stickinessEnabled && runnerName == preferredRunner {
+			runnerUtilization -= min(workersNeeded*distribution.stickinessFactor, distribution.stickinessLimit)
 		}
 
 		selectRunner := (leastBusyRunner == "") ||
