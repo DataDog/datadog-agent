@@ -25,11 +25,11 @@ const (
 	emrAgentVersion       = "7.79.2-1"
 	emrOpenLineageVersion = "1.24.0"
 	hadoopDriverFolder    = "/mnt/var/log/hadoop/steps/"
-	openLineageJARDir     = "/usr/lib/spark/jars"
 )
 
 var (
-	emrInfoPath     = "/mnt/var/lib/info"
+	emrInfoPath       = "/mnt/var/lib/info"
+	openLineageJARDir = "/usr/lib/spark/jars"
 	tracerConfigEmr = config.APMConfigurationDefault{
 		DataJobsEnabled:               config.BoolToPtr(true),
 		IntegrationsEnabled:           config.BoolToPtr(false),
