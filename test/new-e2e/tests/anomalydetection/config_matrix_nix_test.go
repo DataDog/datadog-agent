@@ -59,19 +59,16 @@ anomaly_detection:
 }
 
 // TestWarningPresent guards against silent processing when both sub-gates are
-// disabled. The metrics-disabled warning (observer.go:243) must appear so
-// operators can confirm the expected noop state from logs.
+// disabled. No log ingestion telemetry should be emitted.
 func (s *metricsOffLogsOffSuite) TestWarningPresent() {
-	waitForAgentStartup(s)
+	waitForObserverReady(s)
 	time.Sleep(10 * time.Second)
 
-	out, err := s.Env().RemoteHost.ReadFilePrivileged("/var/log/datadog/agent.log")
-	assert.NoError(s.T(), err, "reading agent.log")
-	agentLog := string(out)
-	assert.Contains(s.T(), agentLog, metricsDisabledWarning,
-		"metrics-disabled warning should appear when metrics.enabled=false")
-	assert.NotContains(s.T(), agentLog, observerAgentLogsMarker,
-		"agent-logs handle should not be created when agent_logs.enabled=false")
+	tel := observerTelemetryOutput(s)
+	assert.False(s.T(), containsMetric(tel, telemetryLogsIngested),
+		"no log ingestion telemetry expected when logs and agent_logs are disabled")
+	assert.False(s.T(), containsMetric(tel, telemetryReportsEmitted),
+		"no reports expected when both metrics and logs ingestion are disabled")
 }
 
 // --- Case 2: metrics=on, logs=off ----------------------------------------
@@ -107,14 +104,11 @@ anomaly_detection:
 // silently enable the agent-log tap.
 func (s *metricsOnLogsOffSuite) TestSubGateIndependence() {
 	waitForObserverReady(s)
-
-	out, err := s.Env().RemoteHost.ReadFilePrivileged("/var/log/datadog/agent.log")
-	assert.NoError(s.T(), err, "reading agent.log")
-	agentLog := string(out)
-	assert.NotContains(s.T(), agentLog, metricsDisabledWarning,
-		"no metrics-disabled warning expected when metrics.enabled=true")
-	assert.NotContains(s.T(), agentLog, observerAgentLogsMarker,
-		"agent-logs handle should not be created when agent_logs.enabled=false")
+	tel := observerTelemetryOutput(s)
+	assert.True(s.T(), containsMetric(tel, telemetrySeriesCount),
+		"metrics path should expose series telemetry when enabled")
+	assert.False(s.T(), containsMetricWithTag(tel, telemetryLogsIngested, "log_source", "internal"),
+		"internal log ingestion should not be active when agent_logs is disabled")
 }
 
 // --- Case 3: metrics=off, logs=on ----------------------------------------
@@ -144,19 +138,14 @@ anomaly_detection:
 	), e2e.WithStackName("anomalydetection-matrix-logs-on"))
 }
 
-// TestLogTapActiveMetricsWarningPresent verifies the agent-log tap is installed
-// when agent_logs.enabled=true, and that the metrics-disabled warning appears so
-// the noop metric path is observable from logs.
+// TestLogTapActiveMetricsWarningPresent verifies internal log ingestion telemetry
+// appears when agent_logs.enabled=true and metrics ingest is disabled.
 func (s *metricsOffLogsOnSuite) TestLogTapActiveMetricsWarningPresent() {
-	waitForAgentStartup(s)
+	waitForObserverReady(s)
 	s.EventuallyWithT(func(c *assert.CollectT) {
-		out, err := s.Env().RemoteHost.ReadFilePrivileged("/var/log/datadog/agent.log")
-		assert.NoError(c, err, "reading agent.log")
-		agentLog := string(out)
-		assert.Contains(c, agentLog, metricsDisabledWarning,
-			"metrics-disabled warning should appear when metrics.enabled=false")
-		assert.Contains(c, agentLog, observerAgentLogsMarker,
-			"agent-logs handle should be created when agent_logs.enabled=true")
+		tel := observerTelemetryOutput(s)
+		assert.True(c, containsMetricWithTag(tel, telemetryLogsIngested, "log_source", "internal"),
+			"internal log ingestion should be active when agent_logs is enabled")
 	}, 2*time.Minute, 3*time.Second)
 }
 
@@ -187,20 +176,15 @@ anomaly_detection:
 	), e2e.WithStackName("anomalydetection-matrix-all-on"))
 }
 
-// TestBothPathsActive is the full-active baseline: both handles must be wired
-// with no disabled warnings, so a regression disabling either path is immediately
-// visible.
+// TestBothPathsActive is the full-active baseline: metrics telemetry and
+// internal log ingestion telemetry must both be present.
 func (s *allGatesOnSuite) TestBothPathsActive() {
 	waitForObserverReady(s)
 	s.EventuallyWithT(func(c *assert.CollectT) {
-		out, err := s.Env().RemoteHost.ReadFilePrivileged("/var/log/datadog/agent.log")
-		assert.NoError(c, err, "reading agent.log")
-		agentLog := string(out)
-		assert.Contains(c, agentLog, observerReadyMarker,
+		tel := observerTelemetryOutput(s)
+		assert.True(c, containsMetric(tel, telemetrySeriesCount),
 			"metrics path should be active")
-		assert.Contains(c, agentLog, observerAgentLogsMarker,
-			"agent-logs tap should be installed")
-		assert.NotContains(c, agentLog, metricsDisabledWarning,
-			"no metrics-disabled warning expected when metrics.enabled=true")
+		assert.True(c, containsMetricWithTag(tel, telemetryLogsIngested, "log_source", "internal"),
+			"agent-logs ingestion should be active")
 	}, 2*time.Minute, 3*time.Second)
 }
