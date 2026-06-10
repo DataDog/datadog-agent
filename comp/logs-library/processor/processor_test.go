@@ -11,7 +11,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/hostname/mock"
+	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/mock"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"

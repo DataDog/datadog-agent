@@ -34,10 +34,10 @@ go_test(
     embed = [":processor"],
     gotags = ["test"],
     deps = [
+        "//comp/core/hostname/mock",
         "//comp/logs/agent/config",
         "//pkg/logs/message",
         "//pkg/logs/sources",
-        "@//comp/core/hostname/hostname/mock",
         "@com_github_datadog_agent_payload_v5//pb",
         "@com_github_stretchr_testify//assert",
     ],

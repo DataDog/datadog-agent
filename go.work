@@ -19,12 +19,13 @@ use (
 	comp/core/delegatedauth/api/cloudauth/aws
 	comp/core/flare/builder
 	comp/core/flare/types
+	comp/core/hostname/def
+	comp/core/hostname/fx-mock
+	comp/core/hostname/mock
 	comp/core/ipc/def
 	comp/core/ipc/httphelpers
 	comp/core/ipc/impl
 	comp/core/ipc/mock
-	comp/core/hostname/def
-	comp/core/hostname/mock
 	comp/core/log/def
 	comp/core/log/fx
 	comp/core/log/impl
