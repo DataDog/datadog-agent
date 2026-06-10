@@ -26,7 +26,6 @@ import (
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/util/retry"
 )
 
 const (
@@ -193,23 +192,19 @@ func writeIdentitySecret(ctx context.Context, client kubernetes.Interface, ns, s
 	}
 
 	// Fetch the live object so Update carries its ResourceVersion.
-	err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		existing, getErr := client.CoreV1().Secrets(ns).Get(ctx, secretName, metav1.GetOptions{})
-		if getErr != nil {
-			return getErr
-		}
-		existing.Type = corev1.SecretTypeOpaque
-		existing.Data = data
-		if existing.Labels == nil {
-			existing.Labels = map[string]string{}
-		}
-		for k, v := range labels {
-			existing.Labels[k] = v
-		}
-		_, updateErr := client.CoreV1().Secrets(ns).Update(ctx, existing, metav1.UpdateOptions{})
-		return updateErr
-	})
+	existing, err := client.CoreV1().Secrets(ns).Get(ctx, secretName, metav1.GetOptions{})
 	if err != nil {
+		return fmt.Errorf("failed to get existing secret: %w", err)
+	}
+	existing.Type = corev1.SecretTypeOpaque
+	existing.Data = data
+	if existing.Labels == nil {
+		existing.Labels = map[string]string{}
+	}
+	for k, v := range labels {
+		existing.Labels[k] = v
+	}
+	if _, err = client.CoreV1().Secrets(ns).Update(ctx, existing, metav1.UpdateOptions{}); err != nil {
 		return fmt.Errorf("failed to update existing secret: %w", err)
 	}
 	log.Infof("Updated PAR identity in K8s secret: %s/%s", ns, secretName)
