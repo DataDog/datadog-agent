@@ -82,7 +82,10 @@ build do
   }
 
   # Install dependencies
-  command_on_repo_root "bazelisk run --//packages/agent:flavor=#{ENV.fetch('AGENT_FLAVOR', 'base')} -- //deps/agent_integrations:install_dependencies --destdir=#{install_dir}"
+  command_on_repo_root "bazelisk run " \
+                       "--//packages/agent:flavor=#{ENV.fetch('AGENT_FLAVOR', 'base')} " \
+                       "--//:install_dir=#{install_dir} " \
+                       "-- //deps/agent_integrations:install_dependencies --destdir=#{install_dir}"
 
   # Prepare build env for integrations
   wheel_build_dir = windows_safe_path(project_dir, ".wheels")
