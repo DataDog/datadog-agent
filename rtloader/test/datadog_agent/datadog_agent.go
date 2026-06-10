@@ -40,6 +40,8 @@ extern char* obfuscateSQLExecPlan(char*, bool, char**);
 extern double getProcessStartTime();
 extern char* obfuscateMongoDBString(char*, char**);
 extern void emitAgentTelemetry(char*, char*, double, char*);
+extern void reportIssue(char*, char*, char**);
+extern void resolveIssue(char*, char**);
 
 
 static void initDatadogAgentTests(rtloader_t *rtloader) {
@@ -61,6 +63,8 @@ static void initDatadogAgentTests(rtloader_t *rtloader) {
    set_get_process_start_time_cb(rtloader, getProcessStartTime);
    set_obfuscate_mongodb_string_cb(rtloader, obfuscateMongoDBString);
    set_emit_agent_telemetry_cb(rtloader, emitAgentTelemetry);
+   set_report_issue_cb(rtloader, reportIssue);
+   set_resolve_issue_cb(rtloader, resolveIssue);
 }
 
 static inline void call_free(void* ptr) {
@@ -355,6 +359,32 @@ func obfuscateMongoDBString(cmd *C.char, errResult **C.char) *C.char {
 	default:
 		*errResult = (*C.char)(helpers.TrackedCString("unknown test case"))
 		return nil
+	}
+}
+
+//export reportIssue
+func reportIssue(checkName, reportJSON *C.char, errOut **C.char) {
+	*errOut = nil
+	name := C.GoString(checkName)
+	if name == "error-check" {
+		*errOut = (*C.char)(helpers.TrackedCString("stub failure"))
+		return
+	}
+}
+
+//export resolveIssue
+func resolveIssue(issueID *C.char, errOut **C.char) {
+	*errOut = nil
+	id := ""
+	if issueID != nil {
+		id = C.GoString(issueID)
+	}
+	if id == "error-resolve" {
+		*errOut = (*C.char)(helpers.TrackedCString("stub resolve failure"))
+		return
+	}
+	if id != "stub-issue" && id != "" {
+		panic(fmt.Sprintf("unexpected issue id: %s", id))
 	}
 }
 
