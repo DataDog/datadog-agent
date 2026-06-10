@@ -78,6 +78,7 @@ func setupSerializer(config pkgconfigmodel.Config, cfg *ExporterConfig) {
 	// Warning: do not change the following values. Your payloads will get dropped by Datadog's intake.
 	config.Set("serializer_max_payload_size", 2*megaByte+megaByte/2, pkgconfigmodel.SourceDefault)
 	config.Set("serializer_max_uncompressed_payload_size", 4*megaByte, pkgconfigmodel.SourceDefault)
+	config.Set("serializer_max_series_points_per_payload", 10000, pkgconfigmodel.SourceDefault)
 	config.Set("serializer_max_series_payload_size", 512000, pkgconfigmodel.SourceDefault)
 	config.Set("serializer_max_series_uncompressed_payload_size", 5242880, pkgconfigmodel.SourceDefault)
 	config.Set("serializer_compressor_kind", pkgconfigsetup.DefaultCompressorKind, pkgconfigmodel.SourceDefault)
@@ -133,7 +134,7 @@ func InitSerializer(logger *zap.Logger, cfg *ExporterConfig, sourceProvider sour
 			pkgconfig.Set("api_key", string(cfg.API.Key), pkgconfigmodel.SourceFile)
 			pkgconfig.Set("site", cfg.API.Site, pkgconfigmodel.SourceFile)
 			if cfg.Metrics.Metrics.TCPAddrConfig.Endpoint != "" {
-				pkgconfig.Set("dd_url", cfg.Metrics.Metrics.TCPAddrConfig.Endpoint, pkgconfigmodel.SourceDefault)
+				pkgconfig.Set("dd_url", cfg.Metrics.Metrics.TCPAddrConfig.Endpoint, pkgconfigmodel.SourceFile)
 			}
 			setupSerializer(pkgconfig, cfg)
 			setupForwarder(pkgconfig)

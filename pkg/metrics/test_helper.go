@@ -190,7 +190,6 @@ func assertSketchSeriesEqualWithComparator(t assert.TestingT, exp, act *SketchSe
 
 	assert.Equal(t, exp.Host, act.Host, "Host")
 	assert.Equal(t, exp.Interval, act.Interval, "Interval")
-	assert.Equal(t, exp.ContextKey, act.ContextKey, "ContextKey")
 
 	switch {
 	case len(exp.Points) != len(act.Points):

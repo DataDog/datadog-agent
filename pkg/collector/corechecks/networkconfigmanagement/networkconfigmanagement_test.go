@@ -45,7 +45,7 @@ import (
 // test by injecting it into the mock config and flushing the hostname cache.
 func mockAgentHostname(t *testing.T, hostname string) {
 	cfg := configmock.New(t)
-	cfg.SetWithoutSource("hostname", hostname)
+	cfg.SetInTest("hostname", hostname)
 	cache.Cache.Delete(cache.BuildAgentKey("hostname"))
 	t.Cleanup(func() { cache.Cache.Delete(cache.BuildAgentKey("hostname")) })
 }
@@ -113,7 +113,7 @@ type MockConnection struct {
 	Profile   *profile.NCMProfile
 }
 
-func (m *MockConnection) execute(cmd *profile.Command) ([]byte, error) {
+func (m *MockConnection) execute(cmd *profile.PlainCommand) ([]byte, error) {
 	r := fail(errors.New("unsupported command"))
 	if cmd != nil {
 		var ok bool
