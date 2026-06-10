@@ -42,12 +42,3 @@ func getLocalInstallerPath() (string, error) {
 	}
 	return installerBin, nil
 }
-
-// getLocalInstaller returns an installer executor from the current binary
-func getLocalInstaller(env *env.Env) (*iexec.InstallerExec, error) {
-	installerBin, err := getLocalInstallerPath()
-	if err != nil {
-		return nil, err
-	}
-	return iexec.NewInstallerExec(env, installerBin), nil
-}

@@ -70,6 +70,15 @@ func downloadInstaller(ctx context.Context, env *env.Env, url string, tmpDir str
 	return exec.NewInstallerExec(env, installerBinPath), nil
 }
 
+// getLocalInstaller returns an installer executor from the current binary.
+func getLocalInstaller(env *env.Env) (*exec.InstallerExec, error) {
+	installerBin, err := getLocalInstallerPath()
+	if err != nil {
+		return nil, err
+	}
+	return exec.NewInstallerExec(env, installerBin), nil
+}
+
 func getInstallerOCI(_ context.Context, env *env.Env) (string, error) {
 	version := "latest"
 	if env.DefaultPackagesVersionOverride[InstallerPackage] != "" {
