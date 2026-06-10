@@ -84,8 +84,8 @@ func TestBundleStartLifecycle(t *testing.T) {
 	deps := fxutil.Test[appDeps](t,
 		Bundle(),
 		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
-		fx.Provide(func(t *testing.T) config.Component {
-			cfg := configmockdirect.New(t)
+		fx.Provide(func(t testing.TB) config.Component {
+			cfg := configmockdirect.NewWithTB(t)
 			cfg.SetInTest("api_key", "test-api-key")
 			cfg.SetInTest("dd_url", server.URL)
 			cfg.SetInTest("health_platform.enabled", true)
@@ -152,7 +152,7 @@ func TestBundleStartLifecycle(t *testing.T) {
 // GetActiveIssueIDsByIssueName is called with module.IssueName(). They must
 // match or restart-based issue resolution silently breaks.
 func TestAllModulesIssueNameMatchesBuiltIssueName(t *testing.T) {
-	cfg := configmockdirect.New(t)
+	cfg := configmockdirect.NewWithTB(t)
 	mods := issues.GetAllModules(cfg)
 	require.NotEmpty(t, mods, "no modules registered")
 	for _, mod := range mods {
