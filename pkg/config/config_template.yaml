@@ -298,6 +298,7 @@ api_key:
 # use_v3_api:
 
 #   # @param series - custom object - optional
+#   # Controls the use of v3 metrics intake for non-distribution metrics (series).
 #
 #   series:
 
