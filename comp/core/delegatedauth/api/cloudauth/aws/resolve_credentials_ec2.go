@@ -21,12 +21,17 @@ import (
 // Shared config files, SSO, and credential_process are intentionally excluded.
 // The SDK handles caching and refresh internally.
 func (a *AWSAuth) resolveCredentials(ctx context.Context) *creds.SecurityCredentials {
+	// Default the region the same way the signing code does. The web-identity
+	// (IRSA) and container providers need a region to build the STS endpoint;
+	// without one, credential retrieval fails before signing's own default applies.
+	region := a.region
+	if region == "" {
+		region = defaultRegion
+	}
 	opts := []func(*config.LoadOptions) error{
 		config.WithSharedConfigFiles([]string{}),
 		config.WithSharedCredentialsFiles([]string{}),
-	}
-	if a.region != "" {
-		opts = append(opts, config.WithRegion(a.region))
+		config.WithRegion(region),
 	}
 	cfg, err := config.LoadDefaultConfig(ctx, opts...)
 	if err != nil {

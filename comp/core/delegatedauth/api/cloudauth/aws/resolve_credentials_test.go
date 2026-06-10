@@ -41,7 +41,18 @@ func TestResolveCredentials_StaticEnvVars_NoToken(t *testing.T) {
 }
 
 func TestResolveCredentials_NoCredsReturnsEmpty(t *testing.T) {
-	// No env vars set; no IMDS/STS available -- resolveCredentials must return non-nil empty creds.
+	// Clear any ambient AWS credential source so the test is hermetic on developer
+	// or CI machines that already have credentials configured.
+	t.Setenv("AWS_ACCESS_KEY_ID", "")
+	t.Setenv("AWS_SECRET_ACCESS_KEY", "")
+	t.Setenv("AWS_SESSION_TOKEN", "")
+	t.Setenv("AWS_WEB_IDENTITY_TOKEN_FILE", "")
+	t.Setenv("AWS_ROLE_ARN", "")
+	t.Setenv("AWS_CONTAINER_CREDENTIALS_RELATIVE_URI", "")
+	t.Setenv("AWS_CONTAINER_CREDENTIALS_FULL_URI", "")
+	// Disable IMDS so the ec2-build SDK chain cannot reach instance metadata on EC2 CI runners.
+	t.Setenv("AWS_EC2_METADATA_DISABLED", "true")
+
 	auth := &AWSAuth{region: "us-east-1"}
 	got := auth.resolveCredentials(context.Background())
 	require.NotNil(t, got)
