@@ -219,7 +219,8 @@ func createTestDevice() *ncmconfig.DeviceInstance {
 func TestCheck_Run_Success(t *testing.T) {
 	comp, reqs := createTestComponent(t)
 	device := createTestDevice()
-	comp.RegisterDevice(device)
+	err := comp.RegisterDevice(device)
+	assert.NoError(t, err)
 
 	mockSender := reqs.sender
 	// Set up mock sender expectations
@@ -228,7 +229,7 @@ func TestCheck_Run_Success(t *testing.T) {
 	mockSender.On("Count", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("Commit").Return()
 
-	err := comp.ReportConfig(device.DeviceID())
+	err = comp.ReportConfig(device.DeviceID())
 	assert.NoError(t, err)
 	assert.True(t, reqs.connFactory.conn.Closed, "Remote client should be closed after run")
 	expectedTags := []string{
@@ -352,9 +353,10 @@ func TestCheck_Run_ConnectionFailure(t *testing.T) {
 	reqs.connFactory.connectionError = errors.New("connection refused")
 
 	device := createTestDevice()
-	comp.RegisterDevice(device)
+	err := comp.RegisterDevice(device)
+	assert.NoError(t, err)
 
-	err := comp.ReportConfig(device.DeviceID())
+	err = comp.ReportConfig(device.DeviceID())
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "connection refused")
@@ -366,18 +368,15 @@ func TestCheck_Run_ConfigRetrievalFailure_NoProfileMatch(t *testing.T) {
 
 	device := createTestDevice()
 	device.Profile = ""
-	comp.RegisterDevice(device)
-
-	p, err := comp.getSavedProfileForDevice(device, false)
+	err := comp.RegisterDevice(device)
 	assert.NoError(t, err)
-	assert.Nil(t, p)
+	dc, ok := comp.devices.Load(device.DeviceID())
+	assert.True(t, ok)
+	assert.Nil(t, dc.profile)
 
 	err = comp.ReportConfig(device.DeviceID())
 	assert.ErrorContains(t, err, "no matching NCM profile for device default:10.0.0.1")
-
-	p, err = comp.getSavedProfileForDevice(device, false)
-	assert.Nil(t, p)
-	assert.ErrorContains(t, err, "no matching NCM profile for device default:10.0.0.1")
+	assert.Nil(t, dc.profile)
 	assert.True(t, reqs.connFactory.conn.Closed, "Remote client should be closed even on failure")
 }
 
@@ -385,10 +384,11 @@ func TestCheck_Run_ConfigRetrievalFailure_BadProfile(t *testing.T) {
 	comp, reqs := createTestComponent(t)
 	device := createTestDevice()
 	device.Profile = "not-a-profile"
-	comp.RegisterDevice(device)
-
-	err := comp.ReportConfig(device.DeviceID())
+	err := comp.RegisterDevice(device)
 	assert.ErrorContains(t, err, "nonexistent NCM profile \"not-a-profile\" specified for device default:10.0.0.1")
+
+	err = comp.ReportConfig(device.DeviceID())
+	assert.ErrorContains(t, err, "unknown device", "Device should not be registered if profile lookup failed.")
 	assert.False(t, reqs.connFactory.conn.Opened, "Remote client should not be opened if config is faulty")
 }
 
@@ -396,10 +396,12 @@ func TestCheck_Run_ProfileMatch(t *testing.T) {
 	comp, reqs := createTestComponent(t)
 	device := createTestDevice()
 	device.Profile = ""
-	comp.RegisterDevice(device)
-	p, err := comp.getSavedProfileForDevice(device, false)
-	assert.Nil(t, p)
+	err := comp.RegisterDevice(device)
 	assert.NoError(t, err)
+	dc, ok := comp.devices.Load(device.DeviceID())
+	assert.True(t, ok)
+	assert.Nil(t, dc.profile)
+
 	mockSender := reqs.sender
 	// Set up mock sender expectations
 	mockSender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return().Times(2)
@@ -410,24 +412,23 @@ func TestCheck_Run_ProfileMatch(t *testing.T) {
 	err = comp.ReportConfig(device.DeviceID())
 	assert.NoError(t, err)
 	assert.True(t, reqs.connFactory.conn.Closed)
-	p, err = comp.getSavedProfileForDevice(device, false)
-	assert.NoError(t, err)
-	if assert.NotNil(t, p) {
-		assert.Equal(t, "p2", p.Name, "Device profile should be detected as p2")
+
+	if assert.NotNil(t, dc.profile) {
+		assert.Equal(t, "p2", dc.profile.Name, "Device profile should be detected as p2")
 	}
 
 	t.Run("reloading config resets detected profile", func(t *testing.T) {
-		comp.RegisterDevice(device)
-		p, err = comp.getSavedProfileForDevice(device, false)
+		err := comp.RegisterDevice(device)
 		assert.NoError(t, err)
-		assert.Nil(t, p)
+		assert.Nil(t, dc.profile)
 	})
 }
 
 func TestCheck_FindMatchingProfile(t *testing.T) {
 	comp, reqs := createTestComponent(t)
 	device := createTestDevice()
-	comp.RegisterDevice(device)
+	err := comp.RegisterDevice(device)
+	assert.NoError(t, err)
 
 	conn, err := reqs.connFactory.Connect(device)
 	require.NoError(t, err)
@@ -444,7 +445,8 @@ func TestCheck_FindMatchingProfile_Failure(t *testing.T) {
 	comp, reqs := createTestComponent(t)
 	reqs.connFactory.conn.OutputMap["show running-config"] = fail(errors.New("command execution failed"))
 	device := createTestDevice()
-	comp.RegisterDevice(device)
+	err := comp.RegisterDevice(device)
+	assert.NoError(t, err)
 
 	// Remove the version command for the test to fail
 	conn, err := reqs.connFactory.Connect(device)
