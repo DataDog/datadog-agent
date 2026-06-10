@@ -26,6 +26,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	"github.com/DataDog/datadog-agent/pkg/collector/metriclookback/lookbacksender"
+	"github.com/DataDog/datadog-agent/pkg/collector/metriclookback/ringbuffer"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -76,6 +78,16 @@ type AgentDemultiplexer struct {
 	hostTagProvider *hosttags.HostTagProvider
 
 	filterList filterlist.Component
+
+	// lookbackBuffer retains recent shadow check metric samples in a bounded
+	// in-memory ring so they can be dumped to the serializer on demand. It is
+	// fed exclusively by lookbackSenderManager (the 1Hz shadow check path), not
+	// by the normal metric flow. Nil when metric_lookback.enabled is false.
+	lookbackBuffer *ringbuffer.Buffer
+	// lookbackSenderManager hands out shadow check senders that write to
+	// lookbackBuffer on Commit. The shadow check scheduler that drives these
+	// senders is wired separately. Nil when metric_lookback.enabled is false.
+	lookbackSenderManager *lookbacksender.SenderManager
 
 	// sharded statsd time samplers
 	statsd
@@ -241,7 +253,25 @@ func initAgentDemultiplexer(log log.Component,
 		},
 	}
 
+	// Metric lookback: a bounded ring buffer fed exclusively by the lookback
+	// shadow sender (not the normal metric flow). The shadow check scheduler
+	// that drives these senders is wired separately.
+	if pkgconfigsetup.Datadog().GetBool("metric_lookback.enabled") {
+		demux.lookbackBuffer = ringbuffer.New(ringbuffer.Options{
+			Capacity:   pkgconfigsetup.Datadog().GetInt("metric_lookback.capacity"),
+			ShardCount: pkgconfigsetup.Datadog().GetInt("metric_lookback.shard_count"),
+		})
+		demux.lookbackSenderManager = lookbacksender.NewSenderManager(context.Background(), hostname, demux.lookbackBuffer, nil)
+	}
+
 	return demux
+}
+
+// LookbackSenderManager returns the shadow sender manager whose senders write
+// to the metric lookback ring buffer, or nil when metric_lookback.enabled is
+// false. The 1Hz shadow check scheduler uses this to obtain lookback senders.
+func (d *AgentDemultiplexer) LookbackSenderManager() *lookbacksender.SenderManager {
+	return d.lookbackSenderManager
 }
 
 // Options returns options used during the demux initialization.
