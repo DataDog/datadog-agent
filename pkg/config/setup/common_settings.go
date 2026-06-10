@@ -475,6 +475,7 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("gpu.integrate_with_workloadmeta_processes", true)
 	config.BindEnvAndSetDefault("gpu.workload_tag_cache_size", 1024)
 	config.BindEnvAndSetDefault("gpu.disabled_collectors", []string{})
+	config.BindEnvAndSetDefault("gpu.nvlink.fec_light_error_threshold", 3)
 
 	// NCCL
 	config.BindEnvAndSetDefault("gpu.nccl.enabled", false)
@@ -875,6 +876,10 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	// Network
 	config.BindEnvAndSetDefault("network.id", "")
 
+	// Process manager (dd-procmgrd): on Windows the core agent starts dd-procmgr-service when enabled.
+	// On Linux, dd-procmgrd is managed by systemd (datadog-agent-procmgr.service); this setting is ignored there.
+	config.BindEnvAndSetDefault("process_manager.enabled", true)
+
 	// OTel Collector
 	config.BindEnvAndSetDefault("otelcollector.enabled", false)
 	config.BindEnvAndSetDefault("otelcollector.extension_url", "https://localhost:7777")
@@ -1201,9 +1206,15 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("auth_init_timeout", 30*time.Second)
 	config.BindEnvAndSetDefault("bind_host", "")
 	config.BindEnvAndSetDefault("health_port", int64(0))
-	config.BindEnvAndSetDefault("health_platform.enabled", false)
+	config.BindEnvAndSetDefault("health_platform.enabled", true)
 	config.BindEnvAndSetDefault("health_platform.persist_on_kubernetes", false)
 	config.BindEnvAndSetDefault("health_platform.forwarder.interval", "0s")
+	// health_platform.invalidconfig_check.enabled is off by default because the check calls
+	// schema.ValidateCoreConfig which decompresses, parses, and compiles the full core_schema.yaml
+	// (~8000 lines) into a *jsonschema.Schema retained globally for the process lifetime.
+	// This adds ~8 MiB of permanent heap even when the agent config is valid.
+	// Enable it deliberately if you need schema validation at startup.
+	config.BindEnvAndSetDefault("health_platform.invalidconfig_check.enabled", false)
 	config.BindEnvAndSetDefault("disable_py3_validation", false)
 	config.BindEnvAndSetDefault("win_skip_com_init", false)
 	config.BindEnvAndSetDefault("allow_arbitrary_tags", false)
