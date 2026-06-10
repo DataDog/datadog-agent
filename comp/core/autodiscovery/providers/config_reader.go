@@ -51,6 +51,7 @@ type ConfigFormatWrapper struct {
 	ConfigFormat string
 	Filename     string
 	Hash         string
+	IsDiscovery  bool // Marks this config as a discovery template (instances will be populated at runtime later)
 }
 
 type configPkg struct {
@@ -523,7 +524,7 @@ func GetIntegrationConfigFromFile(name, fpath string) (integration.Config, Confi
 	conf.Source = "file:" + fpath
 	hash := sha256.Sum256([]byte(scrubbedConfigFormat))
 
-	return conf, ConfigFormatWrapper{ConfigFormat: scrubbedConfigFormat, Filename: fpath, Hash: hex.EncodeToString(hash[:])}, err
+	return conf, ConfigFormatWrapper{ConfigFormat: scrubbedConfigFormat, Filename: fpath, Hash: hex.EncodeToString(hash[:]), IsDiscovery: cf.Discovery != nil}, err
 }
 
 func containsString(slice []string, str string) bool {

@@ -21,7 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logagent "github.com/DataDog/datadog-agent/comp/logs/agent/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
@@ -288,6 +288,12 @@ func (ic *inventorychecksImpl) getFilesMetadata() metadata {
 
 	filesMetadata := metadata{}
 	for _, configFile := range configFiles {
+		// Skip config discovery templates
+		// These are not integrations that are scheduled directly
+		// but rather, will be discovered later at runtime.
+		if configFile.IsDiscovery {
+			continue
+		}
 		// Use the filename as key
 		filesMetadata[configFile.Filename] = metadata{
 			"raw_config": configFile.ConfigFormat,
