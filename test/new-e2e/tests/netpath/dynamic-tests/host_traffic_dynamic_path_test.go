@@ -190,7 +190,7 @@ func (s *hostTrafficDynamicPathSuite) ensureCurlInstalled() {
 func (s *hostTrafficDynamicPathSuite) startHostTrafficDNSServer() {
 	httpbinHost := s.Env().HTTPBinHost
 	httpbinHost.CopyFileFromFS(hostTrafficDNSFiles, "fixtures/host_traffic_dns.py", hostTrafficDNSRemotePath)
-	httpbinHost.MustExecute(fmt.Sprintf("sudo chmod 0755 %s", shellQuote(hostTrafficDNSRemotePath)))
+	httpbinHost.MustExecute("sudo chmod 0755 " + shellQuote(hostTrafficDNSRemotePath))
 
 	upstream := strings.TrimSpace(httpbinHost.MustExecute("awk '/^nameserver / && $2 ~ /^[0-9.]+$/ {print $2; exit}' /etc/resolv.conf"))
 	require.NotEmpty(s.T(), upstream, "could not find an IPv4 DNS upstream on the HTTPBin host")
@@ -259,7 +259,7 @@ fi
 }
 
 func (s *hostTrafficDynamicPathSuite) assertHostTrafficDomainResolves() {
-	output := s.Env().RemoteHost.MustExecute(fmt.Sprintf("getent ahostsv4 %s", shellQuote(hostTrafficDomain)))
+	output := s.Env().RemoteHost.MustExecute("getent ahostsv4 " + shellQuote(hostTrafficDomain))
 	require.Contains(s.T(), output, s.Env().HTTPBinHost.Address)
 
 	s.Env().RemoteHost.MustExecute(fmt.Sprintf("curl -4 -fsS --retry 3 --max-time 5 %s >/dev/null", shellQuote(hostTrafficURL())))
