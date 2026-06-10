@@ -10,7 +10,6 @@ import (
 	"context"
 	"time"
 
-	adtypes "github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
@@ -32,7 +31,6 @@ type Component interface {
 	GetAutodiscoveryErrors() map[string]map[string]types.ErrorMsgSet
 	AddConfigProviderFromCatalog(cp pkgconfigsetup.ConfigurationProviders) error
 	GetTelemetryStore() *telemetry.Store
-	SetServiceTracker(adtypes.ServiceTracker)
 	// TODO (component): once cluster agent uses the API component remove this function
 	GetConfigCheck() integration.ConfigCheckResponse
 }

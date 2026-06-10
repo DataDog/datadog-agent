@@ -6,7 +6,6 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/core/autodiscovery/noopimpl",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/core/autodiscovery/common/types",
         "//comp/core/autodiscovery/def",
         "//comp/core/autodiscovery/integration",
         "//comp/core/autodiscovery/providers/types",

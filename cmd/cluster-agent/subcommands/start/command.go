@@ -33,6 +33,7 @@ import (
 	collectorimpl "github.com/DataDog/datadog-agent/comp/collector/collector/impl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	agenttelemetryfx "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx"
+	adtypes "github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
 	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
 	adfx "github.com/DataDog/datadog-agent/comp/core/autodiscovery/fx"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -213,6 +214,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					return option.None[serializer.MetricSerializer]()
 				}),
 				adfx.Module(),
+				// both concrete and interface typs of service store are needed.
+				fx.Provide(instrumentationhandlers.NewServiceCheckTemplateStore),
+				fx.Provide(func(s *instrumentationhandlers.ServiceCheckTemplateStore) adtypes.ServiceTracker { return s }),
 				rcservicefx.Module(),
 				rcstatusfx.Module(),
 				rctelemetryreporterfx.Module(),
@@ -295,6 +299,7 @@ func start(log log.Component,
 	eventPlatform eventplatform.Component,
 	healthPlatform option.Option[healthplatformdef.Component],
 	autoscalingGate *autoscalinggate.Gate,
+	serviceTemplateStore *instrumentationhandlers.ServiceCheckTemplateStore,
 ) error {
 	stopCh := make(chan struct{})
 	validatingStopCh := make(chan struct{})
@@ -393,7 +398,7 @@ func start(log log.Component,
 
 	var instrHandlers []instrumentation.Handler
 	if config.GetBool("instrumentation_crd_controller.enabled") {
-		instrHandlers = setupInstrumentationCRDHandler(le, ac)
+		instrHandlers = setupInstrumentationCRDHandler(le, ac, serviceTemplateStore)
 	} else {
 		pkglog.Debug("DatadogInstrumentation CRD controller is disabled")
 	}
@@ -763,9 +768,8 @@ func start(log log.Component,
 	return nil
 }
 
-func setupInstrumentationCRDHandler(le *leaderelection.LeaderEngine, ac autodiscovery.Component) []instrumentation.Handler {
+func setupInstrumentationCRDHandler(le *leaderelection.LeaderEngine, ac autodiscovery.Component, serviceTemplateStore *instrumentationhandlers.ServiceCheckTemplateStore) []instrumentation.Handler {
 	checkStore := instrumentationhandlers.NewCheckStore()
-	serviceTemplateStore := instrumentationhandlers.NewServiceCheckTemplateStore()
 	instrHandlers := instrumentationhandlers.DefaultHandlers(&instrumentationhandlers.Deps{
 		IsLeader:                  le.IsLeader,
 		CheckStore:                checkStore,
@@ -777,8 +781,6 @@ func setupInstrumentationCRDHandler(le *leaderelection.LeaderEngine, ac autodisc
 	})
 
 	if apiserver.UseEndpointSlices() {
-		ac.SetServiceTracker(serviceTemplateStore)
-
 		epSlicesCRProvider, err := adproviders.NewKubeEndpointSlicesCRConfigProvider(serviceTemplateStore)
 		if err != nil {
 			pkglog.Warnf("Failed to create EndpointSlices CR config provider: %v", err)

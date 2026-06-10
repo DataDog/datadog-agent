@@ -71,6 +71,7 @@ type Requires struct {
 	FilterStore    workloadfilter.Component
 	Telemetry      telemetry.Component
 	HealthPlatform option.Option[healthplatformdef.Component]
+	ServiceTracker adtypes.ServiceTracker `optional:"true"`
 }
 
 // AutoConfig implements the agent's autodiscovery mechanism.  It is
@@ -177,7 +178,7 @@ func newAutoConfig(deps Requires) autodiscoverydef.Component {
 		}
 	}()
 
-	ac := createNewAutoConfig(schController, deps.Secrets, deps.WMeta, deps.TaggerComp, deps.Log, deps.Telemetry, deps.FilterStore, deps.HealthPlatform)
+	ac := createNewAutoConfig(schController, deps.Secrets, deps.WMeta, deps.TaggerComp, deps.Log, deps.Telemetry, deps.FilterStore, deps.HealthPlatform, deps.ServiceTracker)
 	deps.Lc.Append(compdef.Hook{
 		OnStart: func(_ context.Context) error {
 			ac.start()
@@ -194,11 +195,11 @@ func newAutoConfig(deps Requires) autodiscoverydef.Component {
 // NewAutoConfigFromDeps creates an AutoConfig instance from explicit dependencies (without starting).
 // Exported for use by the mock package.
 func NewAutoConfigFromDeps(schedulerController *scheduler.Controller, secretResolver secrets.Component, wmeta option.Option[workloadmeta.Component], taggerComp tagger.Component, logs logComp.Component, telemetryComp telemetry.Component, filterStore workloadfilter.Component, hp option.Option[healthplatformdef.Component]) *AutoConfig {
-	return createNewAutoConfig(schedulerController, secretResolver, wmeta, taggerComp, logs, telemetryComp, filterStore, hp)
+	return createNewAutoConfig(schedulerController, secretResolver, wmeta, taggerComp, logs, telemetryComp, filterStore, hp, nil)
 }
 
 // createNewAutoConfig creates an AutoConfig instance (without starting).
-func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolver secrets.Component, wmeta option.Option[workloadmeta.Component], taggerComp tagger.Component, logs logComp.Component, telemetryComp telemetry.Component, filterStore workloadfilter.Component, hp option.Option[healthplatformdef.Component]) *AutoConfig {
+func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolver secrets.Component, wmeta option.Option[workloadmeta.Component], taggerComp tagger.Component, logs logComp.Component, telemetryComp telemetry.Component, filterStore workloadfilter.Component, hp option.Option[healthplatformdef.Component], tracker adtypes.ServiceTracker) *AutoConfig {
 	var hpComp healthplatformdef.Component
 	if h, ok := hp.Get(); ok {
 		hpComp = h
@@ -228,6 +229,7 @@ func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolv
 		telemetryStore:           acTelemetry.NewStore(telemetryComp),
 		healthPlatform:           hp,
 		staticConfigIndex:        staticConfigIndex,
+		serviceTracker:           tracker,
 	}
 
 	secretResolver.SubscribeToChanges(func(_, origin string, _ []string, oldValue, _ any) {
@@ -469,12 +471,6 @@ func (ac *AutoConfig) GetUnresolvedConfigs() []integration.Config {
 // GetTelemetryStore returns autodiscovery telemetry store.
 func (ac *AutoConfig) GetTelemetryStore() *acTelemetry.Store {
 	return ac.telemetryStore
-}
-
-// SetServiceTracker sets a ServiceTracker that endpoint listeners use to
-// determine whether a service's endpoints should be tracked for AD scheduling.
-func (ac *AutoConfig) SetServiceTracker(st adtypes.ServiceTracker) {
-	ac.serviceTracker = st
 }
 
 // AddConfigProviderFromCatalog looks up a config provider factory in the catalog by name,
