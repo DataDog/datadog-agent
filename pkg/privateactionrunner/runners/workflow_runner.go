@@ -8,6 +8,7 @@ package runners
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
@@ -36,6 +37,10 @@ type WorkflowRunner struct {
 	keysManager  taskverifier.KeysManager
 	taskVerifier taskverifier.TaskVerifier
 	taskLoop     *Loop
+	mu           sync.Mutex
+	started      bool
+	cancel       context.CancelFunc
+	wg           sync.WaitGroup
 }
 
 func NewWorkflowRunner(
@@ -59,18 +64,45 @@ func NewWorkflowRunner(
 
 func (n *WorkflowRunner) Start(ctx context.Context) error {
 	log.FromContext(ctx).Info("Starting Workflow runner")
-	if n.taskLoop != nil {
+	startTime := time.Now()
+	runnerCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
+
+	n.mu.Lock()
+	if n.started {
+		n.mu.Unlock()
+		cancel()
 		log.FromContext(ctx).Warn("WorkflowRunner already started")
 		return nil
 	}
-	startTime := time.Now()
+	n.started = true
+	n.cancel = cancel
+	n.mu.Unlock()
+
 	n.keysManager.Start(ctx)
-	n.taskLoop = NewLoop(n)
+	n.wg.Add(1)
 	go func() {
-		log.FromContext(ctx).Info("Waiting for KeysManager to be ready")
-		n.keysManager.WaitForReady()
-		observability.ReportKeysManagerReady(n.config.MetricsClient, log.FromContext(ctx), startTime)
-		n.taskLoop.Run(ctx)
+		defer n.wg.Done()
+		logger := log.FromContext(runnerCtx)
+		logger.Info("Waiting for KeysManager to be ready")
+		select {
+		case <-n.keysManager.Ready():
+		case <-runnerCtx.Done():
+			logger.Info("Workflow runner stopped before KeysManager was ready")
+			return
+		}
+
+		observability.ReportKeysManagerReady(n.config.MetricsClient, logger, startTime)
+		taskLoop := NewLoop(n)
+
+		n.mu.Lock()
+		if runnerCtx.Err() != nil {
+			n.mu.Unlock()
+			return
+		}
+		n.taskLoop = taskLoop
+		n.mu.Unlock()
+
+		taskLoop.Run(runnerCtx)
 	}()
 	return nil
 }
@@ -78,8 +110,27 @@ func (n *WorkflowRunner) Start(ctx context.Context) error {
 func (n *WorkflowRunner) Stop(ctx context.Context) error {
 	log.FromContext(ctx).Info("Stopping Workflow runner")
 
-	if n.taskLoop != nil {
-		n.taskLoop.Close(ctx)
+	n.mu.Lock()
+	cancel := n.cancel
+	taskLoop := n.taskLoop
+	n.mu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
+	if taskLoop != nil {
+		taskLoop.Close(ctx)
+	}
+
+	done := make(chan struct{})
+	go func() {
+		n.wg.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-ctx.Done():
+		log.FromContext(ctx).Warn("Workflow runner stop timeout reached.")
+		return ctx.Err()
 	}
 	return nil
 }

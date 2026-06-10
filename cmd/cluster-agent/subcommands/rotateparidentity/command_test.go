@@ -39,3 +39,16 @@ func TestRun_DisabledPAR(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "private_action_runner.enabled is false")
 }
+
+func TestRun_K8sSecretIdentityStorageDisabled(t *testing.T) {
+	cfg := coreconfig.NewMockWithOverrides(t, map[string]interface{}{
+		"private_action_runner.enabled":                 true,
+		"private_action_runner.identity_use_k8s_secret": false,
+	})
+	hostnameComp, _ := hostnamemock.NewMock("test-host")
+
+	err := run(logmock.New(t), cfg, hostnameComp)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "private_action_runner.identity_use_k8s_secret is false")
+}

@@ -237,6 +237,10 @@ func (p *PrivateActionRunner) start(ctx context.Context) error {
 }
 
 func (p *PrivateActionRunner) startRunners(ctx context.Context, cfg *parconfig.Config) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
 	commonTags := observability.CommonTags{
 		RunnerId:      cfg.RunnerId,
 		RunnerVersion: cfg.Version,
@@ -260,17 +264,50 @@ func (p *PrivateActionRunner) startRunners(ctx context.Context, cfg *parconfig.C
 	}
 
 	commonRunner := runners.NewCommonRunner(cfg)
+	p.runnersMu.Lock()
+	defer p.runnersMu.Unlock()
+
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	p.workflowRunner = workflowRunner
+	p.commonRunner = commonRunner
+
 	if err := workflowRunner.Start(ctx); err != nil {
+		p.workflowRunner = nil
+		p.commonRunner = nil
 		return err
 	}
 	if err := commonRunner.Start(ctx); err != nil {
+		p.workflowRunner = nil
+		p.commonRunner = nil
+		if stopErr := workflowRunner.Stop(context.Background()); stopErr != nil {
+			p.logger.Warnf("Error stopping workflow runner after failed start: %v", stopErr)
+		}
 		return err
 	}
+	return nil
+}
 
+func (p *PrivateActionRunner) stopRunners(ctx context.Context) error {
 	p.runnersMu.Lock()
-	p.workflowRunner = workflowRunner
-	p.commonRunner = commonRunner
-	p.runnersMu.Unlock()
+	defer p.runnersMu.Unlock()
+
+	workflowRunner := p.workflowRunner
+	commonRunner := p.commonRunner
+	p.workflowRunner = nil
+	p.commonRunner = nil
+
+	if workflowRunner != nil {
+		if err := workflowRunner.Stop(ctx); err != nil {
+			return err
+		}
+	}
+	if commonRunner != nil {
+		if err := commonRunner.Stop(ctx); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -290,21 +327,11 @@ func (p *PrivateActionRunner) restartLoop(ctx context.Context) {
 				continue
 			}
 
-			p.runnersMu.Lock()
-			oldWorkflow := p.workflowRunner
-			oldCommon := p.commonRunner
-			p.runnersMu.Unlock()
-
 			stopCtx, cancel := context.WithTimeout(context.Background(), maxStartupWaitTimeout)
-			if oldWorkflow != nil {
-				if err := oldWorkflow.Stop(stopCtx); err != nil {
-					p.logger.Warnf("Error stopping workflow runner during reload: %v", err)
-				}
-			}
-			if oldCommon != nil {
-				if err := oldCommon.Stop(stopCtx); err != nil {
-					p.logger.Warnf("Error stopping common runner during reload: %v", err)
-				}
+			if err := p.stopRunners(stopCtx); err != nil {
+				p.logger.Warnf("Error stopping runners during reload: %v", err)
+				cancel()
+				continue
 			}
 			cancel()
 
@@ -335,20 +362,8 @@ func (p *PrivateActionRunner) Stop(ctx context.Context) error {
 		p.cancelLifecycle()
 	}
 
-	p.runnersMu.Lock()
-	workflowRunner := p.workflowRunner
-	commonRunner := p.commonRunner
-	p.runnersMu.Unlock()
-
-	if workflowRunner != nil {
-		if err := workflowRunner.Stop(ctx); err != nil {
-			return err
-		}
-	}
-	if commonRunner != nil {
-		if err := commonRunner.Stop(ctx); err != nil {
-			return err
-		}
+	if err := p.stopRunners(ctx); err != nil {
+		return err
 	}
 	if p.telemetry != nil {
 		p.telemetry.Stop()

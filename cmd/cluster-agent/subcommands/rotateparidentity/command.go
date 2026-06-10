@@ -60,6 +60,9 @@ func run(_ log.Component, cfg config.Component, hostnameComp hostname.Component)
 	if !cfg.GetBool(pkgconfigsetup.PAREnabled) {
 		return errors.New("private_action_runner.enabled is false - set it to true before rotating the identity")
 	}
+	if !cfg.GetBool(pkgconfigsetup.PARIdentityUseK8sSecret) {
+		return errors.New("private_action_runner.identity_use_k8s_secret is false - set it to true before rotating the shared Kubernetes secret identity")
+	}
 
 	// Match the running agent's hostname so ShouldReenroll keeps the rotated identity.
 	hostnameVal, err := hostnameComp.Get(ctx)
