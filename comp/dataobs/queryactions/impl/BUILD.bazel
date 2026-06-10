@@ -20,6 +20,7 @@ go_library(
         "//comp/remote-config/rcclient/def",
         "//pkg/config/remote/data",
         "//pkg/remoteconfig/state",
+        "@com_github_robfig_cron_v3//:cron",
         "@in_gopkg_yaml_v3//:yaml_v3",
     ],
 )
