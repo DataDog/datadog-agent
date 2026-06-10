@@ -113,7 +113,7 @@ def sign_file(ctx, path, force=False):
         config = os.environ.get('WINDOWS_SIGNING_CONFIG')
         cert_args = f'--cert {cert} --key-info {config} ' if cert and config else ''
         print("signing with windows-code-signer.exe")
-        return ctx.run(f'C:\devtools\windows-code-signer.exe sign {cert_args}"{path}"')
+        return ctx.run(f'C:/devtools/windows-code-signer.exe sign {cert_args} "{path}"')
 
 
 def _ensure_wix_tools(ctx):
