@@ -24,6 +24,10 @@ const (
 	TaskFlare TaskType = "flare"
 	// TaskDeviceScan is the task sent to request a device scan for NDM device onboarding.
 	TaskDeviceScan TaskType = "ndm-device-scan"
+	// TaskConnectivityCheck is the task sent to request an on-demand connectivity (ICMP) check
+	// against one or more device IPs for NDM device onboarding. Unlike TaskDeviceScan it does not
+	// require any SNMP credentials to be present on the Agent.
+	TaskConnectivityCheck TaskType = "ndm-connectivity-check"
 )
 
 // AgentTaskConfig is a deserialized agent task configuration file
