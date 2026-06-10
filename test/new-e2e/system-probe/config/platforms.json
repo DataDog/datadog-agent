@@ -298,7 +298,7 @@
     },
     "ubuntu_26.04": {
       "image": "ubuntu-26.04-x86_64.qcow2.xz",
-      "image_version": "bryce.kahle/ubuntu-26-04",
+      "image_version": "20260610_1c4a8911",
       "os_name": "Ubuntu",
       "os_id": "ubuntu",
       "kernel": "7.0.0-15-generic",
@@ -568,7 +568,7 @@
     },
     "ubuntu_26.04": {
       "image": "ubuntu-26.04-arm64.qcow2.xz",
-      "image_version": "bryce.kahle/ubuntu-26-04",
+      "image_version": "20260610_1c4a8911",
       "os_name": "Ubuntu",
       "os_id": "ubuntu",
       "kernel": "7.0.0-15-generic",
