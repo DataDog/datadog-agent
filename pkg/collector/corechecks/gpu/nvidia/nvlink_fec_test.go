@@ -89,9 +89,9 @@ func TestNVLinkFECCollectorScopesAndBuckets(t *testing.T) {
 }
 
 func TestNVLinkFECCollectorConfigurableLightErrorThreshold(t *testing.T) {
-	pkgconfigsetup.Datadog().SetWithoutSource(nvlinkFECLightErrorThresholdConfig, 2)
+	pkgconfigsetup.Datadog().SetInTest(nvlinkFECLightErrorThresholdConfig, 2)
 	t.Cleanup(func() {
-		pkgconfigsetup.Datadog().SetWithoutSource(nvlinkFECLightErrorThresholdConfig, defaultNVLinkFECLightErrorThreshold)
+		pkgconfigsetup.Datadog().SetInTest(nvlinkFECLightErrorThresholdConfig, defaultNVLinkFECLightErrorThreshold)
 	})
 
 	fieldValues := make(map[uint32]testutil.MockFieldValue, len(nvlinkFECHistoryFieldIDs))
