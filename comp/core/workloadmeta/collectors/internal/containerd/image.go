@@ -456,10 +456,10 @@ func getLayersWithHistory(ocispecImage ocispec.Image, manifest ocispec.Manifest)
 
 	historyIndex := 0
 	for manifestIndex, manifestLayer := range manifest.Layers {
-		// DiffID is the OCI rootfs diff_id. When the image config is
-		// short of one (off-spec), fall back to the manifest layer
-		// digest -- a wrong-but-best-effort value rather than empty.
-		diffID := manifestLayer.Digest.String()
+		// The diff_id is the layer's uncompressed-content hash from the image
+		// config, not the manifest layer Digest (a compressed-blob hash). Leave
+		// it empty when the config has no entry rather than substitute the digest.
+		var diffID string
 		if manifestIndex < len(ocispecImage.RootFS.DiffIDs) {
 			diffID = ocispecImage.RootFS.DiffIDs[manifestIndex].String()
 		}
