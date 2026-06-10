@@ -119,10 +119,12 @@ func (sp *sourceProvider) handleSet(c *workloadmeta.Container) {
 		sp.mu.Unlock()
 		return // an AD source already owns this container; skip generic source
 	}
-	src := sources.NewLogSource(c.EntityID.ID, &logsconfig.LogsConfig{
+	cfg := &logsconfig.LogsConfig{
 		Type:       string(c.Runtime),
 		Identifier: c.EntityID.ID,
-	})
+	}
+	disableAdaptiveSampling(cfg)
+	src := sources.NewLogSource(c.EntityID.ID, cfg)
 	sp.activeSources[c.EntityID.ID] = src
 	sp.mu.Unlock()
 

@@ -61,6 +61,25 @@ func TestADSourceManagerAddSourceKeepsNonAgentContainer(t *testing.T) {
 	assert.True(t, isSuppressed(sp, "app-container"), "active AD source should still suppress generic fallback collection")
 }
 
+func TestADSourceManagerAddSource_DisablesAdaptiveSampling(t *testing.T) {
+	wmeta := newWMetaMock(t)
+	wmeta.Set(runningContainer("app-container", "nginx"))
+
+	logSources := sources.NewLogSources()
+	sp := newSourceProvider(wmeta, logSources, nil)
+	mgr := newADSourceManager(logSources, service.NewServices(), sp)
+
+	src := newContainerADSource("app-container")
+	mgr.AddSource(src)
+
+	got := logSources.GetSources()
+	require.Len(t, got, 1)
+	as := got[0].Config.ExperimentalAdaptiveSampling
+	require.NotNil(t, as, "ExperimentalAdaptiveSampling must be set")
+	require.NotNil(t, as.Enabled, "ExperimentalAdaptiveSampling.Enabled must be set")
+	assert.False(t, *as.Enabled, "adaptive sampling must be disabled on logssource AD sources")
+}
+
 func TestADSourceManagerAddSourceKeepsUnknownContainer(t *testing.T) {
 	wmeta := newWMetaMock(t)
 
