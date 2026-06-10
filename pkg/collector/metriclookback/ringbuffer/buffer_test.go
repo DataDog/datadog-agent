@@ -426,6 +426,102 @@ func TestLookbackSenderCommitAppendsFormattedSamples(t *testing.T) {
 	assertInvariants(t, buffer)
 }
 
+func TestSeriesExportReconstructsRetainedSamples(t *testing.T) {
+	now := time.Unix(200, 0)
+	buffer := New(Options{Capacity: 8, ShardCount: 1, Now: func() time.Time { return now }})
+	checkID := checkid.ID("export:check")
+
+	appendSample := func(name string, value float64, mtype metrics.MetricType, ts float64, tags []string) {
+		if err := buffer.Append(context.Background(), checkID, []metrics.MetricSample{{
+			Name:      name,
+			Value:     value,
+			Mtype:     mtype,
+			Tags:      tags,
+			Host:      "host-x",
+			Timestamp: ts,
+			NoIndex:   true,
+			Source:    metrics.MetricSourceInternal,
+			Unit:      "req",
+		}}); err != nil {
+			t.Fatalf("Append returned error: %v", err)
+		}
+	}
+
+	appendSample("lookback.gauge", 1.5, metrics.GaugeType, 10, []string{"b:2", "a:1"})
+	appendSample("lookback.count", 7, metrics.CountType, 0, []string{"c:3"}) // ts 0 -> fallback to now
+	appendSample("lookback.rate", 3, metrics.RateType, 30, nil)
+
+	series := buffer.Series()
+	if len(series) != 3 {
+		t.Fatalf("expected 3 series, got %d", len(series))
+	}
+
+	// Ordering must follow append sequence.
+	if series[0].Name != "lookback.gauge" || series[1].Name != "lookback.count" || series[2].Name != "lookback.rate" {
+		t.Fatalf("unexpected series order: %s, %s, %s", series[0].Name, series[1].Name, series[2].Name)
+	}
+
+	// Gauge serie: point, type mapping, context metadata, canonical tags.
+	gauge := series[0]
+	if len(gauge.Points) != 1 || gauge.Points[0].Value != 1.5 || gauge.Points[0].Ts != 10 {
+		t.Fatalf("unexpected gauge point: %+v", gauge.Points)
+	}
+	if gauge.MType != metrics.APIGaugeType {
+		t.Fatalf("expected APIGaugeType, got %v", gauge.MType)
+	}
+	if gauge.Host != "host-x" || !gauge.NoIndex || gauge.Unit != "req" || gauge.Source != metrics.MetricSourceInternal {
+		t.Fatalf("unexpected gauge context metadata: %+v", gauge)
+	}
+	if tags := gauge.Tags.UnsafeToReadOnlySliceString(); !reflect.DeepEqual(tags, []string{"a:1", "b:2"}) {
+		t.Fatalf("expected sorted canonical tags, got %#v", tags)
+	}
+
+	// Count serie: timestamp falls back to now, mapped to APICountType.
+	count := series[1]
+	if count.MType != metrics.APICountType {
+		t.Fatalf("expected APICountType, got %v", count.MType)
+	}
+	if count.Points[0].Ts != float64(now.UnixMicro())/1e6 || count.Points[0].Value != 7 {
+		t.Fatalf("unexpected count point: %+v", count.Points)
+	}
+
+	// Rate serie maps to APIRateType.
+	if series[2].MType != metrics.APIRateType {
+		t.Fatalf("expected APIRateType, got %v", series[2].MType)
+	}
+
+	// Export is non-destructive: the buffer still holds the samples.
+	if stats := buffer.Stats(); stats.Records != 3 {
+		t.Fatalf("expected export to be non-destructive, got %d records", stats.Records)
+	}
+
+	// SerieSource iterates the same series and reports the count.
+	source := buffer.SerieSource()
+	if source.Count() != 3 {
+		t.Fatalf("expected SerieSource count 3, got %d", source.Count())
+	}
+	var iterated int
+	for source.MoveNext() {
+		if source.Current() == nil {
+			t.Fatal("SerieSource returned nil serie")
+		}
+		iterated++
+	}
+	if iterated != 3 {
+		t.Fatalf("expected to iterate 3 series, got %d", iterated)
+	}
+}
+
+func TestSeriesExportEmptyBuffer(t *testing.T) {
+	buffer := New(Options{Capacity: 4, ShardCount: 2})
+	if series := buffer.Series(); series != nil {
+		t.Fatalf("expected nil series for empty buffer, got %#v", series)
+	}
+	if source := buffer.SerieSource(); source.Count() != 0 || source.MoveNext() {
+		t.Fatal("expected empty SerieSource")
+	}
+}
+
 func BenchmarkAppendStableContext(b *testing.B) {
 	buffer := New(Options{Capacity: 1024, ShardCount: 4})
 	sample := metrics.MetricSample{

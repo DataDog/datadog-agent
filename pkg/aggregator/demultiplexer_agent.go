@@ -754,6 +754,35 @@ func (d *AgentDemultiplexer) DumpDogstatsdContexts(dest io.Writer) error {
 	return nil
 }
 
+// DumpLookback sends every sample currently retained in the metric lookback
+// ring buffer through the normal serializer (and therefore the forwarder), as a
+// one-shot iterable series payload. It returns the number of series sent.
+//
+// The dump is non-destructive: the ring buffer keeps its samples, so callers
+// may dump repeatedly. It is safe to call from any goroutine.
+func (d *AgentDemultiplexer) DumpLookback() (int, error) {
+	d.m.RLock()
+	defer d.m.RUnlock()
+
+	if d.lookbackBuffer == nil {
+		return 0, errors.New("metric lookback is disabled")
+	}
+	if d.sharedSerializer == nil {
+		return 0, errors.New("serializer is not available")
+	}
+
+	source := d.lookbackBuffer.SerieSource()
+	count := int(source.Count())
+	if count == 0 {
+		return 0, nil
+	}
+	if err := d.sharedSerializer.SendIterableSeries(source); err != nil {
+		return 0, err
+	}
+	d.log.Debugf("Dumped %d lookback series to the serializer", count)
+	return count, nil
+}
+
 // GetSender returns a sender.Sender with passed ID, properly registered with the aggregator
 // If no error is returned here, DestroySender must be called with the same ID
 // once the sender is not used anymore
