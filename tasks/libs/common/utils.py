@@ -215,7 +215,13 @@ def apply_sqlite3_build_flags(env, build_tags, embedded_path):
     build_tags = list(set(build_tags) | {"libsqlite3"})
     env['DYLD_LIBRARY_PATH'] = env.get('DYLD_LIBRARY_PATH', os.environ.get('DYLD_LIBRARY_PATH', '')) + f":{sqlite3_lib}"
     env['LD_LIBRARY_PATH'] = env.get('LD_LIBRARY_PATH', os.environ.get('LD_LIBRARY_PATH', '')) + f":{sqlite3_lib}"
-    env['CGO_LDFLAGS'] = env.get('CGO_LDFLAGS', os.environ.get('CGO_LDFLAGS', '')) + f" -L{sqlite3_lib}"
+    ldflags = f" -L{sqlite3_lib}"
+    if sys.platform == "darwin":
+        # go-sqlite3's sqlite3_libsqlite3.go only adds -lsqlite3 for Linux; on
+        # macOS we must add it explicitly so the linker binds to our library
+        # rather than auto-linking the system sqlite3 (which omits extension loading).
+        ldflags += " -lsqlite3"
+    env['CGO_LDFLAGS'] = env.get('CGO_LDFLAGS', os.environ.get('CGO_LDFLAGS', '')) + ldflags
     env['CGO_CFLAGS'] = env.get('CGO_CFLAGS', os.environ.get('CGO_CFLAGS', '')) + f" -I{sqlite3_headers}"
     return build_tags
 

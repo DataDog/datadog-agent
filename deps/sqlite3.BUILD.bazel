@@ -70,10 +70,22 @@ cc_import(
 # package that imports the binding, and its tests are linux-only) that
 # embedding sqlite3 statically into each Windows .exe is cheaper than wiring
 # up DLL co-location for both runfiles and the install tree.
+#
+# macOS linkopts: go-sqlite3's sqlite3_libsqlite3.go only emits
+# "#cgo linux LDFLAGS: -lsqlite3"; it relies on the macOS linker auto-linking
+# from SDK stubs.  ld64.lld (LLVM's drop-in for Apple's ld64, used on CI)
+# does not do that, so without an explicit -lsqlite3 the linker would pick up
+# Apple's system sqlite3 (which has SQLITE_OMIT_LOAD_EXTENSION) instead of
+# ours.  The -L search path for our library is already provided by the
+# _libsqlite3_shared cc_import's CcInfo; we just need to name the library.
 cc_library(
     name = "libsqlite3_dynamic",
     hdrs = _SQLITE3_PUBLIC_HEADERS,
     includes = ["."],
+    linkopts = select({
+        "@platforms//os:macos": ["-lsqlite3"],
+        "//conditions:default": [],
+    }),
     visibility = ["//visibility:public"],
     deps = select({
         "@platforms//os:windows": [":libsqlite3"],
