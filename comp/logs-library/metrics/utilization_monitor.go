@@ -73,11 +73,6 @@ type TelemetryUtilizationMonitor struct {
 	pendingRecoverySince time.Time // non-zero while EWMA is below threshold but debounce not yet met
 }
 
-// NewTelemetryUtilizationMonitor creates a new TelemetryUtilizationMonitor that reports to telemetry only.
-func NewTelemetryUtilizationMonitor(name, instance string) *TelemetryUtilizationMonitor {
-	return newTelemetryUtilizationMonitorWithSampleRateAndClock(name, instance, 1*time.Second, clock.New(), nil)
-}
-
 func newTelemetryUtilizationMonitorWithSampleRateAndClock(name, instance string, sampleRate time.Duration, clock clock.Clock, registry *snapshotRegistry) *TelemetryUtilizationMonitor {
 	return &TelemetryUtilizationMonitor{
 		name:       name,
