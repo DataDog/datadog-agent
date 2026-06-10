@@ -41,6 +41,7 @@ import (
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
 	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil/normalize"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -210,6 +211,12 @@ func (c *collector) processCollectionIntervalConfig() time.Duration {
 // is done. It also gets a reference to the store that started it so it
 // can use Notify, or get access to other entities in the store.
 func (c *collector) Start(ctx context.Context, store workloadmeta.Component) error {
+	// iot_host:true signals IoT SKU intent — workloadmeta process collection is not
+	// expected to work in this context regardless of whether system-probe is present.
+	if flavor.GetFlavor() == flavor.IotAgent {
+		return errors.NewDisabled(componentName, "process collector is not supported on the IoT Agent")
+	}
+
 	if !c.isProcessCollectionEnabled() && !c.isServiceDiscoveryEnabled() && !c.isLanguageCollectionEnabled() && !c.isGPUMonitoringEnabled() {
 		return errors.NewDisabled(componentName, "process collection, service discovery, language collection, and GPU monitoring are disabled")
 	}

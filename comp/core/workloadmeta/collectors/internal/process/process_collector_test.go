@@ -35,6 +35,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil/mocks"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers/mocks"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -590,6 +591,29 @@ func TestStartConfiguration(t *testing.T) {
 			assert.Equal(t, tc.expectedError, err)
 		})
 	}
+}
+
+// TestStartConfigurationIoTAgent verifies the collector is disabled on the IoT Agent regardless of
+// individual feature flags, since system-probe is never present on that flavor.
+func TestStartConfigurationIoTAgent(t *testing.T) {
+	cfg := config.NewMock(t) // must precede SetTestFlavor to contain the iot_host mutation
+	// Enable every feature to confirm the IoT check is the gate, not individual flags.
+	cfg.SetInTest("process_config.process_collection.enabled", true)
+	cfg.SetInTest("language_detection.enabled", true)
+	cfg.SetInTest("gpu.enabled", true)
+	sysConfigOverrides := map[string]interface{}{
+		"discovery.enabled": true,
+	}
+
+	flavor.SetTestFlavor(t, flavor.IotAgent)
+
+	c := setUpCollectorTest(t, cfg, sysConfigOverrides, nil)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	err := c.collector.Start(ctx, c.mockStore)
+	assert.Equal(t, errors.NewDisabled(componentName, "process collector is not supported on the IoT Agent"), err)
 }
 
 func TestProcessCollectorIntervalConfig(t *testing.T) {

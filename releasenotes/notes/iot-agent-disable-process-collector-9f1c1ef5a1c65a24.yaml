@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Disable the workloadmeta process collector on the IoT Agent, where system-probe is not available.
