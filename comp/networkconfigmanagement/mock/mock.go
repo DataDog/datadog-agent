@@ -9,6 +9,7 @@ package mock
 import (
 	"errors"
 	"fmt"
+	"net/http"
 	"testing"
 	"time"
 
@@ -21,6 +22,11 @@ import (
 type mockNetworkConfigManagement struct {
 	store   ncmstore.ConfigStore
 	devices map[string]*config.DeviceInstance
+}
+
+// GetConfigEndpointHandler implements [networkconfigmanagement.Component].
+func (m *mockNetworkConfigManagement) GetConfigEndpointHandler() http.HandlerFunc {
+	panic("unimplemented")
 }
 
 // ReportConfig implements [networkconfigmanagement.Component].

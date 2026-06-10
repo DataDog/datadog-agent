@@ -9,6 +9,7 @@ package networkconfigmanagement
 // team: ndm-integrations
 
 import (
+	"net/http"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -31,4 +32,6 @@ type Component interface {
 	// SetMaxReportInterval sets a maximum time to wait between sending
 	// inventory reports.
 	SetMaxReportInterval(interval time.Duration)
+	// GetConfigEndpointHandler returns an HTTP handler for getting configuration
+	GetConfigEndpointHandler() http.HandlerFunc
 }
