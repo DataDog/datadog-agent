@@ -13,7 +13,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	telemetrynoop "github.com/DataDog/datadog-agent/comp/core/telemetry/fx-noop"
@@ -36,7 +37,7 @@ type resultTester struct {
 func newFilterList(t *testing.T) (*FilterList, config.Component) {
 	cfg := make(map[string]interface{})
 	logComponent := logmock.New(t)
-	configComponent := config.NewMockWithOverrides(t, cfg)
+	configComponent := configmock.NewWithOverrides(t, cfg)
 	telemetryComponent := fxutil.Test[telemetry.Component](t, telemetrynoop.Module())
 	return NewFilterList(logComponent, configComponent, telemetryComponent), configComponent
 }
@@ -463,7 +464,7 @@ func TestFilterListUpdateEmptyRestoresLocal(t *testing.T) {
 	cfg["metric_filterlist"] = []string{"local.metric.1", "local.metric.2"}
 
 	logComponent := logmock.New(t)
-	configComponent := config.NewMockWithOverrides(t, cfg)
+	configComponent := configmock.NewWithOverrides(t, cfg)
 	telemetryComponent := fxutil.Test[telemetry.Component](t, telemetrynoop.Module())
 	filterList := NewFilterList(logComponent, configComponent, telemetryComponent)
 
@@ -606,7 +607,7 @@ func TestFilterListUpdateMultipleMetrics(t *testing.T) {
 	cfg := make(map[string]interface{})
 
 	logComponent := logmock.New(t)
-	configComponent := config.NewMockWithOverrides(t, cfg)
+	configComponent := configmock.NewWithOverrides(t, cfg)
 	telemetryComponent := fxutil.Test[telemetry.Component](t, telemetrynoop.Module())
 	filterList := NewFilterList(logComponent, configComponent, telemetryComponent)
 

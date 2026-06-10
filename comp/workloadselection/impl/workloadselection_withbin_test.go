@@ -16,7 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 )
@@ -78,7 +78,7 @@ func TestNewComponent(t *testing.T) {
 			}
 
 			// Create mock components
-			mockConfig := config.NewMock(t)
+			mockConfig := configmock.New(t)
 			mockConfig.SetInTest("apm_config.workload_selection", tt.workloadSelectionEnabled)
 			mockLog := logmock.New(t)
 
@@ -158,7 +158,7 @@ func TestIsCompilePolicyBinaryAvailable(t *testing.T) {
 				getInstallPath = originalGetInstallPath
 			})
 
-			mockConfig := config.NewMock(t)
+			mockConfig := configmock.New(t)
 			mockLog := logmock.New(t)
 
 			component := &workloadselectionComponent{
@@ -184,7 +184,7 @@ func TestOnConfigUpdate_NoConfigs(t *testing.T) {
 	})
 
 	// Create mock components
-	mockConfig := config.NewMock(t)
+	mockConfig := configmock.New(t)
 	mockLog := logmock.New(t)
 
 	component := &workloadselectionComponent{
@@ -222,7 +222,7 @@ func TestOnConfigUpdate_SingleConfig(t *testing.T) {
 	})
 
 	// Create mock components
-	mockConfig := config.NewMock(t)
+	mockConfig := configmock.New(t)
 	mockLog := logmock.New(t)
 
 	component := &workloadselectionComponent{
@@ -262,7 +262,7 @@ func TestOnConfigUpdate_MultipleConfigs(t *testing.T) {
 		getInstallPath = originalGetInstallPath
 	})
 
-	mockConfig := config.NewMock(t)
+	mockConfig := configmock.New(t)
 	mockLog := logmock.New(t)
 
 	component := &workloadselectionComponent{
@@ -362,7 +362,7 @@ func TestOnConfigUpdate_ErrorHandling(t *testing.T) {
 		getInstallPath = originalGetInstallPath
 	})
 
-	mockConfig := config.NewMock(t)
+	mockConfig := configmock.New(t)
 	mockLog := logmock.New(t)
 
 	component := &workloadselectionComponent{

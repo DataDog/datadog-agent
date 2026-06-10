@@ -16,7 +16,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -24,7 +25,7 @@ import (
 )
 
 func setupClusterAgentConfig(t *testing.T) config.Component {
-	conf := config.NewMock(t)
+	conf := configmock.New(t)
 	conf.Set("admission_controller.enabled", true, model.SourceUnknown)
 	conf.Set("admission_controller.inject_config.enabled", true, model.SourceUnknown)
 	conf.Set("admission_controller.inject_tags.enabled", true, model.SourceUnknown)

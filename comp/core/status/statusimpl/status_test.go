@@ -20,7 +20,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/fx-mock"
+	configmockdirect "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/status"
@@ -189,7 +191,7 @@ func TestGetStatus(t *testing.T) {
 		os.Setenv("TZ", originalTZ)
 	}()
 
-	conf := config.NewMock(t)
+	conf := configmockdirect.New(t)
 	deps := fxutil.Test[dependencies](t, fx.Options(
 		fx.Provide(func() config.Component { return conf }),
 		fx.Provide(func() log.Component { return logmock.New(t) }),
@@ -499,7 +501,7 @@ func TestGetStatusDoNotRenderHeaderIfNoProviders(t *testing.T) {
 		os.Setenv("TZ", originalTZ)
 	}()
 
-	conf := config.NewMock(t)
+	conf := configmockdirect.New(t)
 	deps := fxutil.Test[dependencies](t, fx.Options(
 		fx.Provide(func() config.Component { return conf }),
 		fx.Provide(func() log.Component { return logmock.New(t) }),
@@ -552,7 +554,7 @@ func TestGetStatusWithErrors(t *testing.T) {
 		os.Setenv("TZ", originalTZ)
 	}()
 
-	conf := config.NewMock(t)
+	conf := configmockdirect.New(t)
 	deps := fxutil.Test[dependencies](t, fx.Options(
 		fx.Provide(func() config.Component { return conf }),
 		fx.Provide(func() log.Component { return logmock.New(t) }),
@@ -636,7 +638,7 @@ Status render errors
 
 func TestGetStatusBySection(t *testing.T) {
 	deps := fxutil.Test[dependencies](t, fx.Options(
-		fx.Provide(func() config.Component { return config.NewMock(t) }),
+		configmock.MockModule(),
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Supply(
 			agentParams,
@@ -811,7 +813,7 @@ func TestGetStatusBySectionsWithErrors(t *testing.T) {
 		os.Setenv("TZ", originalTZ)
 	}()
 
-	conf := config.NewMock(t)
+	conf := configmockdirect.New(t)
 	deps := fxutil.Test[dependencies](t, fx.Options(
 		fx.Provide(func() config.Component { return conf }),
 		fx.Provide(func() log.Component { return logmock.New(t) }),
@@ -942,7 +944,7 @@ func TestGetStatusByMultipleSections(t *testing.T) {
 	}()
 
 	deps := fxutil.Test[dependencies](t, fx.Options(
-		fx.Provide(func() config.Component { return config.NewMock(t) }),
+		configmock.MockModule(),
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Supply(
 			agentParams,
@@ -1070,7 +1072,7 @@ func TestFlareProvider(t *testing.T) {
 	}()
 
 	deps := fxutil.Test[dependencies](t, fx.Options(
-		fx.Provide(func() config.Component { return config.NewMock(t) }),
+		configmock.MockModule(),
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Supply(agentParams),
 	))
@@ -1083,7 +1085,7 @@ func TestFlareProvider(t *testing.T) {
 
 func TestGetStatusBySectionIncorrect(t *testing.T) {
 	deps := fxutil.Test[dependencies](t, fx.Options(
-		fx.Provide(func() config.Component { return config.NewMock(t) }),
+		configmock.MockModule(),
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Supply(
 			agentParams,

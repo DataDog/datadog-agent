@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package config
+// Package configimpl provides the config component implementation.
+package configimpl
 
 import (
 	"context"
@@ -11,9 +12,9 @@ import (
 	"path/filepath"
 	"time"
 
-	"go.uber.org/fx"
 	"go.yaml.in/yaml/v2"
 
+	configdef "github.com/DataDog/datadog-agent/comp/core/config/def"
 	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 	delegatedauthnooptypes "github.com/DataDog/datadog-agent/comp/core/delegatedauth/noop-impl/types"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
@@ -22,9 +23,6 @@ import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
-
-// Reader is a subset of Config that only allows reading of configuration
-type Reader = pkgconfigmodel.Reader //nolint:revive
 
 // cfg implements the Component.
 type cfg struct {
@@ -36,54 +34,56 @@ type cfg struct {
 	warnings *pkgconfigmodel.Warnings
 }
 
-type dependencies struct {
-	fx.In
-
-	Params        Params
+// Requires declares the input types to the config component constructor.
+type Requires struct {
+	Params        configdef.Params
 	Secret        secrets.Component
 	DelegatedAuth delegatedauth.Component
 }
 
-type provides struct {
-	fx.Out
-
-	Comp          Component
+// Provides defines the output of the config component.
+type Provides struct {
+	Comp          configdef.Component
 	FlareProvider flaretypes.Provider
 }
 
-// NewServerlessConfig initializes a config component from the given config file
-// TODO: serverless must be eventually migrated to fx, this workaround will then become obsolete - ts should not be created directly in this fashion.
-func NewServerlessConfig(path string) (Component, error) {
-	options := []func(*Params){WithConfigName("serverless")}
+// NewServerlessConfig initializes a config component from the given config file.
+// TODO: serverless must be eventually migrated to fx, this workaround will then become obsolete.
+func NewServerlessConfig(path string) (configdef.Component, error) {
+	options := []func(*configdef.Params){configdef.WithConfigName("serverless")}
 
 	_, err := os.Stat(path)
 	if !os.IsNotExist(err) {
-		options = append(options, WithConfFilePath(path))
+		options = append(options, configdef.WithConfFilePath(path))
 	}
 
-	d := dependencies{
-		Params:        NewParams(path, options...),
+	r := Requires{
+		Params:        configdef.NewParams(path, options...),
 		Secret:        &secretnooptypes.SecretNoop{},
 		DelegatedAuth: &delegatedauthnooptypes.DelegatedAuthNoop{},
 	}
-	return newConfig(d)
+	return newConfig(r)
 }
 
-func newComponent(deps dependencies) (provides, error) {
+// NewComponent creates a new config component.
+func NewComponent(deps Requires) (Provides, error) {
 	c, err := newConfig(deps)
-	return provides{
+	if err != nil {
+		return Provides{}, err
+	}
+	return Provides{
 		Comp:          c,
 		FlareProvider: flaretypes.NewProvider(c.fillFlare),
-	}, err
+	}, nil
 }
 
-func newConfig(deps dependencies) (*cfg, error) {
+func newConfig(deps Requires) (*cfg, error) {
 	config := pkgconfigsetup.GlobalConfigBuilder()
 	warnings := &pkgconfigmodel.Warnings{}
 
 	err := setupConfig(config, deps.Secret, deps.DelegatedAuth, deps.Params)
 	returnErrFct := func(e error) (*cfg, error) {
-		if e != nil && deps.Params.ignoreErrors {
+		if e != nil && deps.Params.GetIgnoreErrors() {
 			warnings.Errors = []error{e}
 			e = nil
 		}
@@ -94,13 +94,19 @@ func newConfig(deps dependencies) (*cfg, error) {
 		return returnErrFct(err)
 	}
 
-	if deps.Params.configLoadSecurityAgent {
-		if err := pkgconfigsetup.Merge(deps.Params.securityAgentConfigFilePaths, config); err != nil {
+	if deps.Params.GetConfigLoadSecurityAgent() {
+		if err := pkgconfigsetup.Merge(deps.Params.GetSecurityAgentConfigFilePaths(), config); err != nil {
 			return returnErrFct(err)
 		}
 	}
 
 	return &cfg{Config: config, warnings: warnings}, nil
+}
+
+// NewCfgFromPkgConfig creates a cfg component from an existing pkgconfigmodel.Config.
+// This is used in tests and mock implementations.
+func NewCfgFromPkgConfig(pkgCfg pkgconfigmodel.Config) configdef.Component {
+	return &cfg{Config: pkgCfg}
 }
 
 func (c *cfg) Warnings() *pkgconfigmodel.Warnings {

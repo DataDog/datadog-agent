@@ -11,7 +11,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	sysprobeconfigdef "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	sysprobeconfigmock "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/mock"
 	processdiscoverycheck "github.com/DataDog/datadog-agent/comp/process/processdiscoverycheck/def"
@@ -71,7 +72,7 @@ func TestProcessDiscoveryIsEnabled(t *testing.T) {
 				sysprobeConf.SetInTest(k, v)
 			}
 			c := fxutil.Test[processdiscoverycheck.Component](t, fx.Options(
-				fx.Provide(func(t testing.TB) config.Component { return config.NewMockWithOverrides(t, tc.configs) }),
+				fx.Provide(func() config.Component { return configmock.NewWithOverrides(t, tc.configs) }),
 				fx.Provide(func() sysprobeconfigdef.Component { return sysprobeConf }),
 				fxutil.ProvideComponentConstructor(NewCheck),
 			))

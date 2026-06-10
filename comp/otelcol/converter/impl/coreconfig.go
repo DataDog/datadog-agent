@@ -9,7 +9,7 @@ package converterimpl
 import (
 	"regexp"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 	"go.opentelemetry.io/collector/confmap"
 )
 

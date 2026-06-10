@@ -15,7 +15,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/core/config",
+        "//comp/core/config/def",
         "//pkg/discovery/tracermetadata/model",
         "//pkg/languagedetection/languagemodels",
         "//pkg/util/containers/image",

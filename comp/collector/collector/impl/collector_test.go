@@ -19,7 +19,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/collector/collector/impl/internal/middleware"
 	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
@@ -99,7 +99,7 @@ func (suite *CollectorTestSuite) SetupTest() {
 	hostname, _ := hostnameinterface.NewMock("my-hostname")
 	suite.c = newCollector(dependencies{
 		Lc:               compdef.NewTestLifecycle(suite.T()),
-		Config:           config.NewMockWithOverrides(suite.T(), map[string]interface{}{"check_cancel_timeout": 500 * time.Millisecond}),
+		Config:           configmock.NewWithOverrides(suite.T(), map[string]interface{}{"check_cancel_timeout": 500 * time.Millisecond}),
 		Log:              logmock.New(suite.T()),
 		HaAgent:          haagentmock.NewMockHaAgent(),
 		HealthPlatform:   healthplatformnoopimpl.NewNoopComponent(),

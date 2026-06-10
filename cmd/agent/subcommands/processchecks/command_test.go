@@ -14,7 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
-	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
+	configComponent "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	check "github.com/DataDog/datadog-agent/pkg/cli/subcommands/processchecks"
@@ -28,7 +28,7 @@ func TestCommand(t *testing.T) {
 	err := os.WriteFile(configPath, []byte("hostname: test"), 0644)
 	require.NoError(t, err)
 
-	configComponent.NewMockFromYAMLFile(t, configPath)
+	configComponent.NewFromYAMLFile(t, configPath)
 
 	// Check command should work when an Agent is running, so we need to
 	// ensure we have exisiting IPC auth artifacts.

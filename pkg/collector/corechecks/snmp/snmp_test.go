@@ -17,7 +17,7 @@ import (
 	demultiplexerimpl "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/impl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	agentconfig "github.com/DataDog/datadog-agent/comp/core/config"
+	agentconfigmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	defaultforwardermock "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/mock"
 	snmpscanmanager "github.com/DataDog/datadog-agent/comp/snmpscanmanager/def"
@@ -57,7 +57,7 @@ func createDeps(t *testing.T) deps {
 }
 
 func Test_Run_simpleCase(t *testing.T) {
-	cfg := agentconfig.NewMock(t)
+	cfg := agentconfigmock.New(t)
 	// We cache the run_path directory because the chk.Run() method will write in cache
 	testDir := t.TempDir()
 	cfg.SetInTest("run_path", testDir)
@@ -369,7 +369,7 @@ tags:
 }
 
 func Test_Run_customIfSpeed(t *testing.T) {
-	cfg := agentconfig.NewMock(t)
+	cfg := agentconfigmock.New(t)
 	testDir := t.TempDir()
 	cfg.SetInTest("run_path", testDir)
 	report.TimeNow = common.MockTimeNow
@@ -1030,10 +1030,10 @@ community_string: public
 
 func TestCheckID(t *testing.T) {
 	profile.SetConfdPathAndCleanProfiles()
-	check1 := newCheck(agentconfig.NewMock(t), nil, nil)
-	check2 := newCheck(agentconfig.NewMock(t), nil, nil)
-	check3 := newCheck(agentconfig.NewMock(t), nil, nil)
-	checkSubnet := newCheck(agentconfig.NewMock(t), nil, nil)
+	check1 := newCheck(agentconfigmock.New(t), nil, nil)
+	check2 := newCheck(agentconfigmock.New(t), nil, nil)
+	check3 := newCheck(agentconfigmock.New(t), nil, nil)
+	checkSubnet := newCheck(agentconfigmock.New(t), nil, nil)
 	// language=yaml
 	rawInstanceConfig1 := []byte(`
 ip_address: 1.1.1.1
@@ -2253,7 +2253,7 @@ func TestDeviceIDAsHostname(t *testing.T) {
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
 	}
-	chk := Check{sessionFactory: sessionFactory, agentConfig: agentconfig.NewMock(t)}
+	chk := Check{sessionFactory: sessionFactory, agentConfig: agentconfigmock.New(t)}
 	mockConfig.SetInTest("hostname", "test-hostname")
 	mockConfig.SetInTest("tags", []string{"agent_tag1:val1", "agent_tag2:val2"})
 	senderManager := deps.Demultiplexer
@@ -2457,7 +2457,7 @@ func TestDiscoveryDeviceIDAsHostname(t *testing.T) {
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
 	}
-	chk := Check{sessionFactory: sessionFactory, agentConfig: agentconfig.NewMock(t)}
+	chk := Check{sessionFactory: sessionFactory, agentConfig: agentconfigmock.New(t)}
 
 	mockConfig.SetInTest("hostname", "my-hostname")
 	senderManager := deps.Demultiplexer
@@ -2697,8 +2697,8 @@ func TestDeviceScansAreRequested(t *testing.T) {
 	mockScanManager, ok := scanManager.(*snmpscanmanagermock.SnmpScanManagerMock)
 	assert.True(t, ok)
 
-	check1 := newCheck(agentconfig.NewMock(t), nil, mockScanManager)
-	check2 := newCheck(agentconfig.NewMock(t), nil, mockScanManager)
+	check1 := newCheck(agentconfigmock.New(t), nil, mockScanManager)
+	check2 := newCheck(agentconfigmock.New(t), nil, mockScanManager)
 
 	// language=yaml
 	rawInstanceConfig1 := []byte(`

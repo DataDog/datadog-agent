@@ -10,7 +10,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/api/api/def",
-        "//comp/core/config",
+        "//comp/core/config/def",
         "//comp/core/flare/types",
         "//comp/core/log/def",
         "//comp/core/tagger/collectors",
@@ -42,7 +42,9 @@ go_test(
     embed = [":impl"],
     gotags = ["test"],
     deps = [
-        "//comp/core/config",
+        "//comp/core/config/def",
+        "//comp/core/config/fx-mock",
+        "//comp/core/config/mock",
         "//comp/core/log/def",
         "//comp/core/log/mock",
         "//comp/core/tagger/origindetection",
@@ -52,7 +54,6 @@ go_test(
         "//comp/core/telemetry/mock",
         "//comp/core/workloadmeta/def",
         "//comp/core/workloadmeta/fx-mock",
-        "//pkg/config/mock",
         "//pkg/tagger/types",
         "//pkg/tagset",
         "//pkg/util/containers/metrics",

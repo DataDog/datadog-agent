@@ -15,7 +15,8 @@ import (
 
 	demultiplexer "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/def"
 	demultiplexerimpl "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/impl"
-	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
+	configComponent "github.com/DataDog/datadog-agent/comp/core/config/def"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -84,7 +85,7 @@ func fulfillDeps(t testing.TB) serverDeps {
 func fulfillDepsWithConfigOverride(t testing.TB, overrides map[string]interface{}) serverDeps {
 	return fxutil.Test[serverDeps](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
-		fx.Provide(func() configComponent.Component { return configComponent.NewMockWithOverrides(t, overrides) }),
+		fx.Provide(func() configComponent.Component { return configmock.NewWithOverridesTB(t, overrides) }),
 		mocktelemetry.Module(),
 		hostnameimpl.MockModule(),
 		serverdebugmock.MockModule(),
@@ -105,7 +106,7 @@ func fulfillDepsWithConfigOverride(t testing.TB, overrides map[string]interface{
 func fulfillDepsWithConfigYaml(t testing.TB, yaml string) serverDeps {
 	return fxutil.Test[serverDeps](t, fx.Options(
 		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
-		fx.Provide(func(t testing.TB) configComponent.Component { return configComponent.NewMockFromYAML(t, yaml) }),
+		fx.Provide(func() configComponent.Component { return configmock.NewFromYAMLTB(t, yaml) }),
 		mocktelemetry.Module(),
 		hostnameimpl.MockModule(),
 		serverdebugmock.MockModule(),
@@ -128,7 +129,7 @@ func fulfillDepsWithConfigYaml(t testing.TB, yaml string) serverDeps {
 func fulfillDepsWithInactiveServer(t *testing.T, cfg map[string]interface{}) (depsWithoutServer, *dsdServer) {
 	deps := fxutil.Test[depsWithoutServer](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
-		fx.Provide(func() configComponent.Component { return configComponent.NewMockWithOverrides(t, cfg) }),
+		fx.Provide(func() configComponent.Component { return configmock.NewWithOverridesTB(t, cfg) }),
 		mocktelemetry.Module(),
 		hostnameimpl.MockModule(),
 		serverdebugmock.MockModule(),

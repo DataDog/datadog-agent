@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	configcomp "github.com/DataDog/datadog-agent/comp/core/config"
+	configcomp "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
 
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
@@ -128,7 +128,7 @@ cel_workload_exclude:
     containers:
       - "container.name != 67"
 `
-	configComponent := configcomp.NewMockFromYAML(t, yamlConfig)
+	configComponent := configcomp.NewFromYAML(t, yamlConfig)
 	var filterConfig []workloadfilter.RuleBundle
 	err := structure.UnmarshalKey(configComponent, "cel_workload_exclude", &filterConfig)
 

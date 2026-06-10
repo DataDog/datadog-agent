@@ -25,7 +25,8 @@ import (
 	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
 	adcmock "github.com/DataDog/datadog-agent/comp/core/autodiscovery/mock"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	flarebuilder "github.com/DataDog/datadog-agent/comp/core/flare/builder"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	"github.com/DataDog/datadog-agent/comp/core/flare/types"
@@ -67,7 +68,7 @@ func getFlareWithParams(t *testing.T, params Params, overrides map[string]interf
 		fxutil.Test[dependencies](
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
-			fx.Provide(func() config.Component { return config.NewMockWithOverrides(t, overrides) }),
+			fx.Provide(func() config.Component { return configmock.NewWithOverrides(t, overrides) }),
 			nooptelemetry.Module(),
 			hostnameimpl.MockModule(),
 			fx.Provide(func() secrets.Component { return secretsmock.New(t) }),
@@ -95,7 +96,7 @@ func getFlareComponent(t *testing.T, params Params, overrides map[string]interfa
 		fxutil.Test[dependencies](
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
-			fx.Provide(func() config.Component { return config.NewMockWithOverrides(t, overrides) }),
+			fx.Provide(func() config.Component { return configmock.NewWithOverrides(t, overrides) }),
 			nooptelemetry.Module(),
 			hostnameimpl.MockModule(),
 			fx.Provide(func() secrets.Component { return secretsmock.New(t) }),

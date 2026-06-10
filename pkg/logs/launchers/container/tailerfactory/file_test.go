@@ -21,7 +21,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
-	compConfig "github.com/DataDog/datadog-agent/comp/core/config"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/fx-mock"
+	configmockdirect "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -29,7 +30,6 @@ import (
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/comp/logs-library/pipeline"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/containersorpods"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/types"
@@ -124,7 +124,7 @@ func newWorkloadmetaMock(t *testing.T) workloadmetamock.Mock {
 
 	return fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
-		fx.Provide(func() compConfig.Component { return compConfig.NewMock(t) }),
+		configmock.MockModule(),
 		fx.Supply(context.Background()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
@@ -217,7 +217,7 @@ func TestMakeFileSource_docker_containerRestartPreservesAdaptiveSamplingConfig(t
 func TestMakeFileSource_podman_success(t *testing.T) {
 	fileTestSetup(t)
 	tmp := t.TempDir()
-	mockConfig := configmock.New(t)
+	mockConfig := configmockdirect.New(t)
 	mockConfig.SetInTest("logs_config.use_podman_logs", true)
 
 	// On Windows, podman runs within a Linux virtual machine, so the Agent would believe it runs in a Linux environment with all the paths being nix-like.
@@ -269,7 +269,7 @@ func TestMakeFileSource_podman_success(t *testing.T) {
 func TestMakeFileSource_podman_with_db_path_uses_annotation_success(t *testing.T) {
 	tmp := t.TempDir()
 	customPath := filepath.Join(tmp, "/configured/path/containers/storage/db.sql")
-	mockConfig := configmock.New(t)
+	mockConfig := configmockdirect.New(t)
 	mockConfig.SetInTest("logs_config.use_podman_logs", true)
 	mockConfig.SetInTest("podman_db_path", customPath)
 
@@ -331,7 +331,7 @@ func TestMakeFileSource_podman_with_multiple_db_paths_success(t *testing.T) {
 	require.NoError(t, os.MkdirAll(filepath.Dir(userLogPath), 0o777))
 	require.NoError(t, os.WriteFile(userLogPath, []byte("{}"), 0o666))
 
-	mockConfig := configmock.New(t)
+	mockConfig := configmockdirect.New(t)
 	mockConfig.SetInTest("logs_config.use_podman_logs", true)
 	mockConfig.SetInTest("podman_db_path", rootDBPath+","+userDBPath)
 
@@ -361,7 +361,7 @@ func TestMakeFileSource_podman_without_annotation_errors_even_with_dbpath(t *tes
 	}
 
 	tmp := t.TempDir()
-	mockConfig := configmock.New(t)
+	mockConfig := configmockdirect.New(t)
 	mockConfig.SetInTest("logs_config.use_podman_logs", true)
 	mockConfig.SetInTest("podman_db_path", filepath.Join(tmp, "configured/path/containers/storage/db.sql"))
 
@@ -408,7 +408,7 @@ func TestMakeFileSource_podman_autodiscovery_home_user(t *testing.T) {
 	require.NoError(t, os.MkdirAll(filepath.Dir(userLogPath), 0o777))
 	require.NoError(t, os.WriteFile(userLogPath, []byte("{}"), 0o666))
 
-	mockConfig := configmock.New(t)
+	mockConfig := configmockdirect.New(t)
 	mockConfig.SetInTest("logs_config.use_podman_logs", true)
 	// podman_db_path is intentionally left empty (auto-discovery mode)
 
@@ -463,7 +463,7 @@ func TestMakeFileSource_docker_no_file(t *testing.T) {
 
 func TestDockerOverride(t *testing.T) {
 	tmp := t.TempDir()
-	mockConfig := configmock.New(t)
+	mockConfig := configmockdirect.New(t)
 	customPath := filepath.Join(tmp, "/custom/path")
 	mockConfig.SetInTest("logs_config.docker_path_override", customPath)
 
@@ -504,7 +504,7 @@ func TestMakeK8sSource(t *testing.T) {
 
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
-		fx.Provide(func() compConfig.Component { return compConfig.NewMock(t) }),
+		configmock.MockModule(),
 		fx.Supply(context.Background()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
@@ -594,7 +594,7 @@ func TestGetPodAndContainer_wmeta_not_initialize(t *testing.T) {
 func TestGetPodAndContainer_pod_not_found(t *testing.T) {
 	workloadmetaStore := fxutil.Test[option.Option[workloadmeta.Component]](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
-		fx.Provide(func() compConfig.Component { return compConfig.NewMock(t) }),
+		configmock.MockModule(),
 		fx.Supply(context.Background()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
@@ -742,7 +742,7 @@ func TestLogsConfigFieldCoverage(t *testing.T) {
 	// Set up K8s workloadmeta so makeK8sFileSource can resolve the pod
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
-		fx.Provide(func() compConfig.Component { return compConfig.NewMock(t) }),
+		configmock.MockModule(),
 		fx.Supply(context.Background()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))

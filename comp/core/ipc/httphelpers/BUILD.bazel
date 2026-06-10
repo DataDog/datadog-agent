@@ -24,7 +24,7 @@ go_test(
     embed = [":httphelpers"],
     gotags = ["test"],
     deps = [
-        "//comp/core/config",
+        "//comp/core/config/mock",
         "//comp/core/ipc/def",
         "//pkg/api/security/cert",
         "//pkg/config/model",

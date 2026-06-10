@@ -9,7 +9,7 @@ package localapiimpl
 import (
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	localapi "github.com/DataDog/datadog-agent/comp/updater/localapi/def"

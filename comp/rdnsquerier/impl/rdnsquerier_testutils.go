@@ -17,7 +17,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
@@ -82,7 +82,7 @@ func testSetup(t *testing.T, overrides map[string]interface{}, start bool, fakeI
 	if _, ok := overrides["run_path"]; !ok {
 		overrides["run_path"] = t.TempDir()
 	}
-	config := config.NewMockWithOverrides(t, overrides)
+	config := configmock.NewWithOverrides(t, overrides)
 
 	logComp := logmock.New(t)
 	telemetryComp := fxutil.Test[telemetry.Component](t, mocktelemetry.Module())

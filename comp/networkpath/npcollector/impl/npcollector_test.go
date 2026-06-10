@@ -28,7 +28,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
+	configComponent "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	eventplatformimpl "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/impl"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/impl/common"
@@ -1796,7 +1796,7 @@ network_path:
 		t.Run(tt.name, func(t *testing.T) {
 			var configs []connfilter.Config
 			if tt.filters != "" {
-				cfg := configComponent.NewMockFromYAML(t, tt.filters)
+				cfg := configComponent.NewFromYAML(t, tt.filters)
 				err := structure.UnmarshalKey(cfg, "network_path.collector.filters", &configs)
 				require.NoError(t, err)
 			}

@@ -24,7 +24,8 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/DataDog/datadog-agent/comp/core"
-	configcomp "github.com/DataDog/datadog-agent/comp/core/config"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/fx-mock"
+	configmockdirect "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
@@ -673,7 +674,7 @@ func TestProcessEvents(t *testing.T) {
 
 	cacheDir := t.TempDir()
 
-	cfg := configcomp.NewMockWithOverrides(t, map[string]interface{}{
+	cfg := configmockdirect.NewWithOverrides(t, map[string]interface{}{
 		"sbom.cache_directory":                          cacheDir,
 		"sbom.container_image.enabled":                  true,
 		"sbom.container_image.allow_missing_repodigest": true,
@@ -691,7 +692,7 @@ func TestProcessEvents(t *testing.T) {
 
 			workloadmetaStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 				fx.Provide(func() log.Component { return logmock.New(t) }),
-				fx.Provide(func() configcomp.Component { return configcomp.NewMock(t) }),
+				configmock.MockModule(),
 				fx.Supply(context.Background()),
 				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 			))
@@ -813,7 +814,7 @@ func TestInUseFlagAccuracy(t *testing.T) {
 	}
 
 	cacheDir := t.TempDir()
-	cfg := configcomp.NewMockWithOverrides(t, map[string]interface{}{
+	cfg := configmockdirect.NewWithOverrides(t, map[string]interface{}{
 		"sbom.cache_directory":                          cacheDir,
 		"sbom.container_image.enabled":                  true,
 		"sbom.container_image.allow_missing_repodigest": true,
@@ -835,7 +836,7 @@ func TestInUseFlagAccuracy(t *testing.T) {
 		t.Helper()
 		store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 			fx.Provide(func() log.Component { return logmock.New(t) }),
-			fx.Provide(func() configcomp.Component { return configcomp.NewMock(t) }),
+			configmock.MockModule(),
 			fx.Supply(context.Background()),
 			workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 		))

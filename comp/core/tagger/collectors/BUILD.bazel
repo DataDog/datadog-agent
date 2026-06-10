@@ -13,7 +13,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/core/tagger/collectors",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/core/config",
+        "//comp/core/config/def",
         "//comp/core/tagger/common",
         "//comp/core/tagger/def",
         "//comp/core/tagger/k8s_metadata",
@@ -50,7 +50,9 @@ go_test(
     embed = [":collectors"],
     gotags = ["test"],
     deps = [
-        "//comp/core/config",
+        "//comp/core/config/def",
+        "//comp/core/config/fx-mock",
+        "//comp/core/config/mock",
         "//comp/core/log/def",
         "//comp/core/log/mock",
         "//comp/core/tagger/taglist",

@@ -33,7 +33,8 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/common"
 	autoexit "github.com/DataDog/datadog-agent/comp/agent/autoexit/def"
 	autoexitfx "github.com/DataDog/datadog-agent/comp/agent/autoexit/fx"
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
+	configfx "github.com/DataDog/datadog-agent/comp/core/config/fx"
 	configstreamconsumer "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/def"
 	configstreamconsumerfx "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/fx"
 	configsync "github.com/DataDog/datadog-agent/comp/core/configsync/def"
@@ -151,7 +152,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 func getSharedFxOption() fx.Option {
 	return fx.Options(
 		fx.Supply(log.ForDaemon(command.LoggerName, "log_file", common.DefaultLogFile)),
-		config.Module(),
+		configfx.Module(),
 		delegatedauthnoopfx.Module(),
 		sysprobeconfigfx.Module(),
 		systemprobeloggerfx.Module(),

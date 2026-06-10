@@ -6,7 +6,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/healthplatform/forwarder/impl",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/core/config",
+        "//comp/core/config/def",
         "//comp/core/log/def",
         "//comp/healthplatform/forwarder/def",
         "//pkg/config/model",
@@ -23,7 +23,8 @@ go_test(
     embed = [":impl"],
     gotags = ["test"],
     deps = [
-        "//comp/core/config",
+        "//comp/core/config/def",
+        "//comp/core/config/mock",
         "//comp/core/log/mock",
         "//pkg/version",
         "@com_github_datadog_agent_payload_v5//healthplatform",

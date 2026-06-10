@@ -22,7 +22,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/impl",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/core/config",
+        "//comp/core/config/def",
         "//comp/core/log/def",
         "//comp/core/secrets/def",
         "//comp/core/secrets/noop-impl/types",
@@ -66,7 +66,8 @@ go_test(
     embed = [":impl"],
     gotags = ["test"],
     deps = [
-        "//comp/core/config",
+        "//comp/core/config/def",
+        "//comp/core/config/mock",
         "//comp/core/log/def",
         "//comp/core/log/mock",
         "//comp/core/secrets/mock",

@@ -16,7 +16,8 @@ import (
 	"github.com/stretchr/testify/mock"
 	"go.uber.org/fx"
 
-	configComp "github.com/DataDog/datadog-agent/comp/core/config"
+	configComp "github.com/DataDog/datadog-agent/comp/core/config/def"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
@@ -111,7 +112,7 @@ func TestProcessAgentComponentOnLinux(t *testing.T) {
 				fxutil.ProvideComponentConstructor(NewComponent),
 				hostnameimpl.MockModule(),
 				fx.Provide(func() configComp.Component {
-					return configComp.NewMock(t)
+					return configmock.New(t)
 				}),
 			}
 
@@ -180,7 +181,7 @@ func TestStatusProvider(t *testing.T) {
 				fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
 				fx.Provide(func(t testing.TB) tagger.Component { return taggerfxmock.SetupFakeTagger(t) }),
 				fx.Provide(func() configComp.Component {
-					return configComp.NewMock(t)
+					return configmock.New(t)
 				}),
 				fx.Provide(func(tb testing.TB) sysprobeconfig.Component { return sysprobeconfigmock.NewMock(tb) }),
 				hostnameimpl.MockModule(),
@@ -232,7 +233,7 @@ func TestTelemetryCoreAgent(t *testing.T) {
 		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
 		fx.Provide(func(t testing.TB) tagger.Component { return taggerfxmock.SetupFakeTagger(t) }),
 		fx.Provide(func() configComp.Component {
-			return configComp.NewMockWithOverrides(t, map[string]interface{}{
+			return configmock.NewWithOverrides(t, map[string]interface{}{
 				"telemetry.enabled": true,
 			})
 		}),

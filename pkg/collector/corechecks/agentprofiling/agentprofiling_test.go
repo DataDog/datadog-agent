@@ -16,7 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	configmock "github.com/DataDog/datadog-agent/comp/core/config"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	flaremock "github.com/DataDog/datadog-agent/comp/core/flare/flareimpl"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
@@ -28,7 +28,7 @@ import (
 // createTestCheck creates a check instance with the given configuration
 func createTestCheck(t *testing.T, memoryThreshold string, cpuThreshold int, ticketID, userEmail string, terminateAgent bool) *Check {
 	flareComp := flaremock.NewMock().Comp
-	config := configmock.NewMock(t)
+	config := configmock.New(t)
 	check := newCheck(flareComp, config).(*Check)
 
 	configData := []byte(fmt.Sprintf(`memory_threshold: "%s"
@@ -89,7 +89,7 @@ func createCheckWithFailingFlare(t *testing.T, memoryThreshold string, cpuThresh
 		sendError:   sendError,
 		failUntil:   failUntil,
 	}
-	config := configmock.NewMock(t)
+	config := configmock.New(t)
 
 	check := &Check{
 		CheckBase:      core.NewCheckBase(CheckName),
@@ -240,7 +240,7 @@ func TestRetryOnFlareSendFailure(t *testing.T) {
 	failingMock := &failingFlareMock{
 		sendError: errors.New("send failed"),
 	}
-	config := configmock.NewMock(t)
+	config := configmock.New(t)
 
 	check := &Check{
 		CheckBase:      core.NewCheckBase(CheckName),
@@ -430,7 +430,7 @@ func TestTerminateAgentConfig(t *testing.T) {
 
 // TestFlareComponentNil tests behavior when flare component is nil
 func TestFlareComponentNil(t *testing.T) {
-	config := configmock.NewMock(t)
+	config := configmock.New(t)
 
 	check := &Check{
 		CheckBase:       core.NewCheckBase(CheckName),

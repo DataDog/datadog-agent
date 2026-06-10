@@ -12,7 +12,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
@@ -112,7 +113,7 @@ host_heartbeat_validity_seconds: 1000000
 }
 
 func TestFactory(t *testing.T) {
-	cfg := config.NewMock(t)
+	cfg := configmock.New(t)
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	mockFilterStore := workloadfilterfxmock.SetupMockFilter(t)
 	mockStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
@@ -164,7 +165,7 @@ func TestConfigure(t *testing.T) {
 	app := fxutil.Test[workloadmetaAndConfig](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Provide(func() config.Component {
-			return config.NewMockWithOverrides(t, map[string]interface{}{
+			return configmock.NewWithOverrides(t, map[string]interface{}{
 				"sbom.enabled":      true,
 				"sbom.host.enabled": true,
 			})

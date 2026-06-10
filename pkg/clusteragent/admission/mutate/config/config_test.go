@@ -22,7 +22,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	admCommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
@@ -86,7 +86,7 @@ func Test_injectionMode(t *testing.T) {
 func TestInjectHostIP(t *testing.T) {
 	pod := mutatecommon.FakePodWithContainer("foo-pod", corev1.Container{})
 	pod = mutatecommon.WithLabels(pod, map[string]string{"admission.datadoghq.com/enabled": "true"})
-	datadogConfig := config.NewMock(t)
+	datadogConfig := configmock.New(t)
 	filter, err := NewFilter(datadogConfig)
 	require.NoError(t, err)
 	mutator := NewMutator(NewMutatorConfig(datadogConfig), filter)
@@ -100,7 +100,7 @@ func TestInjectHostIP(t *testing.T) {
 func TestInjectService(t *testing.T) {
 	pod := mutatecommon.FakePodWithContainer("foo-pod", corev1.Container{})
 	pod = mutatecommon.WithLabels(pod, map[string]string{"admission.datadoghq.com/enabled": "true", "admission.datadoghq.com/config.mode": "service"})
-	datadogConfig := config.NewMock(t)
+	datadogConfig := configmock.New(t)
 	filter, err := NewFilter(datadogConfig)
 	require.NoError(t, err)
 	mutator := NewMutator(NewMutatorConfig(datadogConfig), filter)
@@ -127,7 +127,7 @@ func TestInjectEntityID(t *testing.T) {
 				Name: "cont-name",
 			})
 			pod = mutatecommon.WithLabels(pod, map[string]string{"admission.datadoghq.com/enabled": "true"})
-			datadogConfig := config.NewMockWithOverrides(t, tt.configOverrides)
+			datadogConfig := configmock.NewWithOverrides(t, tt.configOverrides)
 			filter, err := NewFilter(datadogConfig)
 			require.NoError(t, err)
 			mutator := NewMutator(NewMutatorConfig(datadogConfig), filter)
@@ -462,7 +462,7 @@ func TestInjectSocket(t *testing.T) {
 
 			pod = mutatecommon.WithLabels(pod, map[string]string{"admission.datadoghq.com/enabled": "true", "admission.datadoghq.com/config.mode": mode})
 
-			datadogConfig := config.NewMockWithOverrides(t, map[string]interface{}{
+			datadogConfig := configmock.NewWithOverrides(t, map[string]interface{}{
 				"csi.enabled":                  test.withCSIDriver,
 				"trace_agent_host_socket_path": test.TraceHostSocketPath,
 				"dogstatsd_host_socket_path":   test.DogStatsDHostSocketPath,
@@ -669,7 +669,7 @@ func TestInjectSocket_VolumeTypeSocket(t *testing.T) {
 			}
 			pod = mutatecommon.WithLabels(pod, labels)
 
-			datadogConfig := config.NewMockWithOverrides(t, map[string]interface{}{
+			datadogConfig := configmock.NewWithOverrides(t, map[string]interface{}{
 				"csi.enabled":                                            test.withCSIDriver,
 				"admission_controller.csi.enabled":                       test.withCSIDriver,
 				"admission_controller.inject_config.csi.enabled":         test.withCSIDriver,
@@ -746,7 +746,7 @@ func TestInjectSocketWithConflictingVolumeAndInitContainer(t *testing.T) {
 		},
 	}
 
-	datadogConfig := config.NewMock(t)
+	datadogConfig := configmock.New(t)
 	filter, err := NewFilter(datadogConfig)
 	require.NoError(t, err)
 	mutator := NewMutator(NewMutatorConfig(datadogConfig), filter)
@@ -784,7 +784,7 @@ func TestJSONPatchCorrectness(t *testing.T) {
 			mutatecommon.WithLabels(pod, map[string]string{admCommon.EnabledLabelKey: "true"})
 			podJSON, err := json.Marshal(pod)
 			assert.NoError(t, err)
-			datadogConfig := config.NewMockWithOverrides(t, tt.overrides)
+			datadogConfig := configmock.NewWithOverrides(t, tt.overrides)
 			filter, err := NewFilter(datadogConfig)
 			require.NoError(t, err)
 			mutator := NewMutator(NewMutatorConfig(datadogConfig), filter)
@@ -817,7 +817,7 @@ func BenchmarkJSONPatch(b *testing.B) {
 		b.Fatal(err)
 	}
 
-	datadogConfig := config.NewMock(b)
+	datadogConfig := configmock.NewWithTB(b)
 	filter, err := NewFilter(datadogConfig)
 	require.NoError(b, err)
 	mutator := NewMutator(NewMutatorConfig(datadogConfig), filter)

@@ -17,7 +17,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
@@ -57,7 +58,7 @@ func setupFetcher(t *testing.T) {
 func getSystemProbeComp(t *testing.T, enableConfig bool) *systemprobe {
 	l := logmock.New(t)
 
-	cfg := config.NewMock(t)
+	cfg := configmock.New(t)
 	cfg.Set("inventories_configuration_enabled", enableConfig, model.SourceUnknown)
 
 	r := Requires{

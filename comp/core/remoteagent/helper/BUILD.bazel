@@ -7,7 +7,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/api/api/apiimpl/listener",
-        "//comp/core/config",
+        "//comp/core/config/def",
         "//comp/core/ipc/def",
         "//comp/core/log/def",
         "//comp/def",

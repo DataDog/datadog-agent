@@ -3,39 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package config implements a component to handle agent configuration.  This
-// component temporarily wraps pkg/config.
-//
-// This component initializes pkg/config based on the bundle params, and
-// will return the same results as that package.  This is to support migration
-// to a component architecture.  When no code still uses pkg/config, that
-// package will be removed.
 package config
 
-import (
-	"time"
+import configdef "github.com/DataDog/datadog-agent/comp/core/config/def"
 
-	"go.uber.org/fx"
-
-	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-)
-
-// team: agent-configuration
-
-// Component is the component type.
-type Component interface {
-	pkgconfigmodel.ReaderWriter
-
-	// Warnings returns config warnings collected during setup.
-	Warnings() *pkgconfigmodel.Warnings
-
-	// StartTime returns the time at which the agent process started.
-	StartTime() time.Time
-}
-
-// Module defines the fx options for this component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newComponent))
-}
+// Component is a type alias kept for backward compatibility with external packages
+// that import this root package (e.g. opentelemetry-collector-contrib/pkg/datadog).
+// TODO: remove this file once all external callers have migrated to comp/core/config/def.
+type Component = configdef.Component

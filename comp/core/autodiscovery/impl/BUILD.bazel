@@ -23,7 +23,7 @@ go_library(
         "//comp/core/autodiscovery/scheduler",
         "//comp/core/autodiscovery/status",
         "//comp/core/autodiscovery/telemetry",
-        "//comp/core/config",
+        "//comp/core/config/def",
         "//comp/core/flare/types",
         "//comp/core/log/def",
         "//comp/core/secrets/def",

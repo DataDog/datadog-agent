@@ -13,7 +13,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
@@ -74,7 +75,7 @@ func TestProcessAgentComponent(t *testing.T) {
 				statsdimpl.MockModule(),
 				fxutil.ProvideComponentConstructor(NewComponent),
 				fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
-				fx.Provide(func(t testing.TB) config.Component { return config.NewMock(t) }),
+				configmock.MockModule(),
 				fx.Provide(func(t testing.TB) tagger.Component { return taggerfxmock.SetupFakeTagger(t) }),
 				fx.Provide(func(tb testing.TB) sysprobeconfig.Component { return sysprobeconfigmock.NewMock(tb) }),
 				hostnameimpl.MockModule(),

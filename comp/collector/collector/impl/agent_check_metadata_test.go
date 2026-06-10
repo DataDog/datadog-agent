@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
@@ -39,7 +39,7 @@ func TestExternalHostTags(t *testing.T) {
 	hostname, _ := hostnameinterface.NewMock("my-hostname")
 	c := newCollector(dependencies{
 		Lc:               compdef.NewTestLifecycle(t),
-		Config:           config.NewMockWithOverrides(t, map[string]interface{}{"check_cancel_timeout": 500 * time.Millisecond}),
+		Config:           configmock.NewWithOverrides(t, map[string]interface{}{"check_cancel_timeout": 500 * time.Millisecond}),
 		Log:              logmock.New(t),
 		HaAgent:          haagentmock.NewMockHaAgent(),
 		HealthPlatform:   healthplatformnoopimpl.NewNoopComponent(),

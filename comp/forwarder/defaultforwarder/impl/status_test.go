@@ -12,11 +12,11 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 )
 
 func TestJSON(t *testing.T) {
-	config := config.NewMock(t)
+	config := configmock.New(t)
 
 	provider := statusProvider{
 		config: config,
@@ -42,7 +42,7 @@ func TestJSONWith_forwarder_storage_max_size_in_bytes(t *testing.T) {
 	}
 
 	provider := statusProvider{
-		config: config.NewMockWithOverrides(t, overrides),
+		config: configmock.NewWithOverrides(t, overrides),
 	}
 
 	status := make(map[string]interface{})
@@ -54,7 +54,7 @@ func TestJSONWith_forwarder_storage_max_size_in_bytes(t *testing.T) {
 }
 
 func TestText(t *testing.T) {
-	config := config.NewMock(t)
+	config := configmock.New(t)
 
 	provider := statusProvider{
 		config: config,
@@ -67,7 +67,7 @@ func TestText(t *testing.T) {
 }
 
 func TestHTML(t *testing.T) {
-	config := config.NewMock(t)
+	config := configmock.New(t)
 
 	provider := statusProvider{
 		config: config,

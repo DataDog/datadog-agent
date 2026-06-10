@@ -18,7 +18,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
@@ -49,8 +50,8 @@ func TestLifecycle(t *testing.T) {
 	_ = fxutil.Test[apiserver.Component](t, fx.Options(
 		apiserverfx.Module(),
 		fx.Provide(func(t testing.TB) logcomp.Component { return logmock.New(t) }),
-		fx.Provide(func(t testing.TB) config.Component {
-			return config.NewMockWithOverrides(t, map[string]interface{}{
+		fx.Provide(func() config.Component {
+			return configmock.NewWithOverrides(t, map[string]interface{}{
 				"process_config.cmd_port": port,
 			})
 		}),
@@ -85,8 +86,8 @@ func TestPostAuthentication(t *testing.T) {
 	_ = fxutil.Test[apiserver.Component](t, fx.Options(
 		apiserverfx.Module(),
 		fx.Provide(func(t testing.TB) logcomp.Component { return logmock.New(t) }),
-		fx.Provide(func(t testing.TB) config.Component {
-			return config.NewMockWithOverrides(t, map[string]interface{}{
+		fx.Provide(func() config.Component {
+			return configmock.NewWithOverrides(t, map[string]interface{}{
 				"process_config.cmd_port": port,
 			})
 		}),

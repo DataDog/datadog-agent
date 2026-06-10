@@ -10,7 +10,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/params"
 	"go.opentelemetry.io/collector/confmap"
 )

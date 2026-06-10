@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
@@ -20,7 +20,7 @@ func TestStatusEnabled(t *testing.T) {
 	flavor.SetFlavor(flavor.ClusterAgent)
 	defer flavor.SetFlavor(flavor.DefaultAgent)
 
-	configComponent := config.NewMock(t)
+	configComponent := configmock.New(t)
 	configComponent.SetInTest("private_action_runner.enabled", true)
 	configComponent.SetInTest("private_action_runner.urn", "urn:datadog:action-runner:abcdef123456")
 	configComponent.SetInTest("private_action_runner.self_enroll", true)
@@ -71,7 +71,7 @@ func TestStatusEnabled(t *testing.T) {
 }
 
 func TestStatusDisabled(t *testing.T) {
-	configComponent := config.NewMock(t)
+	configComponent := configmock.New(t)
 	configComponent.SetInTest("private_action_runner.enabled", false)
 
 	provider := statusProvider{config: configComponent}

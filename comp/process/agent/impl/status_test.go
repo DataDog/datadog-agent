@@ -18,7 +18,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 )
 
@@ -47,7 +47,7 @@ func TestStatus(t *testing.T) {
 	server := fakeStatusServer(t, 200, jsonBytes)
 	defer server.Close()
 
-	configComponent := config.NewMock(t)
+	configComponent := configmock.New(t)
 
 	headerProvider := StatusProvider{
 		testServerURL: server.URL,
@@ -101,7 +101,7 @@ func TestStatusError(t *testing.T) {
 	errorResponse, err := fixturesTemplates.ReadFile("fixtures/text_error_response.tmpl")
 	assert.NoError(t, err)
 
-	configComponent := config.NewMock(t)
+	configComponent := configmock.New(t)
 
 	headerProvider := StatusProvider{
 		testServerURL: server.URL,

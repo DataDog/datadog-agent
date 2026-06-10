@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/fx-mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	sysprobeconfigdef "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
@@ -78,7 +78,7 @@ func TestConnectionsCheckIsEnabled(t *testing.T) {
 
 			sysprobeConf := sysprobeconfigmock.NewMockWithOverrides(t, tc.sysprobeConfigs)
 			c := fxutil.Test[connectionscheck.Component](t, fx.Options(
-				fx.Provide(func(t testing.TB) config.Component { return config.NewMock(t) }),
+				configmock.MockModule(),
 				fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
 				fx.Provide(func() sysprobeconfigdef.Component { return sysprobeConf }),
 				workloadmetafxmock.MockModule(workloadmeta.NewParams()),

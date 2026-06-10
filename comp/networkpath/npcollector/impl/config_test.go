@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/impl/pathteststore"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
@@ -155,7 +155,7 @@ func TestNewConfig(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockConfig := config.NewMockWithOverrides(t, tt.configOverride)
+			mockConfig := configmock.NewWithOverrides(t, tt.configOverride)
 			mockLogger := logmock.New(t)
 
 			result := newConfig(mockConfig, mockLogger)
@@ -168,7 +168,7 @@ func TestNewConfig(t *testing.T) {
 
 func TestNewConfigInvalidFilters(t *testing.T) {
 	// Test with invalid filter configuration that will cause unmarshalling error
-	mockConfig := config.NewMockWithOverrides(t, map[string]any{
+	mockConfig := configmock.NewWithOverrides(t, map[string]any{
 		"network_path.collector.filters": "invalid-string-should-be-array",
 	})
 	mockLogger := logmock.New(t)

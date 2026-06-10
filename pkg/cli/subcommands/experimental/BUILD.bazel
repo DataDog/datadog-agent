@@ -12,7 +12,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core",
-        "//comp/core/config",
+        "//comp/core/config/def",
         "//comp/core/log/def",
         "//pkg/cli/subcommands/config",
         "//pkg/config/schema",

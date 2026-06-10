@@ -10,7 +10,8 @@ import (
 
 	"github.com/stretchr/testify/suite"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	secretsnoopimpl "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	eventplatformreceiver "github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/def"
@@ -38,7 +39,7 @@ type EventPlatformForwarderTestSuite struct {
 }
 
 func (suite *EventPlatformForwarderTestSuite) SetupTest() {
-	suite.config = config.NewMock(suite.T())
+	suite.config = configmock.New(suite.T())
 
 	suite.receiver = fxutil.Test[eventplatformreceiver.Component](suite.T(), eventplatformreceivermock.MockModule())
 	suite.compression = fxutil.Test[logscompression.Component](suite.T(), logscompressionfxmock.MockModule())

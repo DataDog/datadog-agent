@@ -13,7 +13,8 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands"
-	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
+	coreconfig "github.com/DataDog/datadog-agent/comp/core/config/def"
+	coreconfigfx "github.com/DataDog/datadog-agent/comp/core/config/fx"
 	delegatedauthnoopfx "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx-noop"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -45,7 +46,7 @@ func MakeCommand(globalConfGetter func() *subcommands.GlobalParams) *cobra.Comma
 				fx.Supply(coreconfig.NewAgentParams(globalParams.CoreConfPath, coreconfig.WithExtraConfFiles(globalParams.ConfPaths))),
 				secretsnoopfx.Module(), // TODO: secret-enabled: is this required ?
 				fx.Supply(log.ForOneShot(globalParams.LoggerName, "off", true)),
-				coreconfig.Module(),
+				coreconfigfx.Module(),
 				logfx.Module(),
 				ipcfx.ModuleReadOnly(),
 				otelagentStatusfx.Module(),

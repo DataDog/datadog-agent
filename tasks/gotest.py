@@ -881,7 +881,9 @@ def get_modified_packages(ctx, build_tags=None, lint=False) -> list[GoModule]:
         if (
             len(modules_to_test[module].test_targets) >= WINDOWS_MAX_PACKAGES_NUMBER
         ):  # With more packages we can reach the limit of the command line length on Windows
-            modules_to_test[module].test_targets = default_modules[module].test_targets
+            module_str = str(module)
+            if module_str in default_modules:
+                modules_to_test[module].test_targets = default_modules[module_str].test_targets
 
     if not modules_to_test:
         print("No modules to test")
@@ -1188,7 +1190,9 @@ def format_packages(ctx: Context, impacted_packages: set[str], build_tags: list[
         if (
             len(modules_to_test[module].test_targets) >= WINDOWS_MAX_PACKAGES_NUMBER
         ):  # With more packages we can reach the limit of the command line length on Windows
-            modules_to_test[module].test_targets = default_modules[module].test_targets
+            module_str = str(module)
+            if module_str in default_modules:
+                modules_to_test[module].test_targets = default_modules[module_str].test_targets
 
     module_to_remove = []
     # Clean up to avoid running tests on package with no Go files matching build tags

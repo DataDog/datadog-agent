@@ -17,7 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
-	agentconfig "github.com/DataDog/datadog-agent/comp/core/config"
+	agentconfigmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -59,7 +59,7 @@ profiles:
 	assert.Nil(t, err)
 
 	connMgr := NewConnectionManager(config, sessionFactory)
-	deviceCk, err := NewDeviceCheck(config, connMgr, agentconfig.NewMock(t))
+	deviceCk, err := NewDeviceCheck(config, connMgr, agentconfigmock.New(t))
 	assert.Nil(t, err)
 
 	sender := mocksender.NewMockSender("123") // required to initiate aggregator
@@ -191,7 +191,7 @@ global_metrics:
 	assert.Nil(t, err)
 
 	connMgr := NewConnectionManager(config, sessionFactory)
-	deviceCk, err := NewDeviceCheck(config, connMgr, agentconfig.NewMock(t))
+	deviceCk, err := NewDeviceCheck(config, connMgr, agentconfigmock.New(t))
 	assert.Nil(t, err)
 
 	sender := mocksender.NewMockSender("123") // required to initiate aggregator
@@ -242,7 +242,7 @@ community_string: public
 	assert.Nil(t, err)
 
 	connMgr := NewConnectionManager(config, session.NewMockSession)
-	deviceCk, err := NewDeviceCheck(config, connMgr, agentconfig.NewMock(t))
+	deviceCk, err := NewDeviceCheck(config, connMgr, agentconfigmock.New(t))
 	assert.Nil(t, err)
 
 	sender := mocksender.NewMockSender("123") // required to initiate aggregator
@@ -274,7 +274,7 @@ community_string: public
 	assert.Nil(t, err)
 
 	connMgr := NewConnectionManager(config, session.NewMockSession)
-	deviceCk, err := NewDeviceCheck(config, connMgr, agentconfig.NewMock(t))
+	deviceCk, err := NewDeviceCheck(config, connMgr, agentconfigmock.New(t))
 	assert.Nil(t, err)
 
 	hostname, err := deviceCk.GetDeviceHostname()
@@ -341,7 +341,7 @@ profiles:
 	assert.Nil(t, err)
 
 	connMgr := NewConnectionManager(config, sessionFactory)
-	deviceCk, err := NewDeviceCheck(config, connMgr, agentconfig.NewMock(t))
+	deviceCk, err := NewDeviceCheck(config, connMgr, agentconfigmock.New(t))
 	assert.Nil(t, err)
 
 	snmpTags := []string{"snmp_device:1.2.3.4", "device_ip:1.2.3.4", "device_id:default:1.2.3.4", "snmp_profile:f5-big-ip", "device_vendor:f5", "snmp_host:foo_sys_name",
@@ -678,7 +678,7 @@ metrics:
 		assert.Nil(t, err)
 
 		connMgr := NewConnectionManager(config, sessionFactory)
-		deviceCk, err := NewDeviceCheck(config, connMgr, agentconfig.NewMock(t))
+		deviceCk, err := NewDeviceCheck(config, connMgr, agentconfigmock.New(t))
 		assert.Nil(t, err)
 
 		sender := mocksender.NewMockSender("123")
@@ -741,7 +741,7 @@ profiles:
 	assert.Nil(t, err)
 
 	connMgr := NewConnectionManager(config, sessionFactory)
-	deviceCk, err := NewDeviceCheck(config, connMgr, agentconfig.NewMock(t))
+	deviceCk, err := NewDeviceCheck(config, connMgr, agentconfigmock.New(t))
 	assert.Nil(t, err)
 
 	sender := mocksender.NewMockSender("123") // required to initiate aggregator
@@ -790,7 +790,7 @@ profiles:
 		return nil, errors.New("connection refused")
 	}
 	connMgr := NewConnectionManager(config, sessionFactory)
-	deviceCk, err := NewDeviceCheck(config, connMgr, agentconfig.NewMock(t))
+	deviceCk, err := NewDeviceCheck(config, connMgr, agentconfigmock.New(t))
 	assert.Nil(t, err)
 
 	sender := mocksender.NewMockSender("123")
@@ -839,7 +839,7 @@ profiles:
 		return nil, errors.New("connection refused")
 	}
 	connMgr := NewConnectionManager(config, sessionFactory)
-	deviceCk, err := NewDeviceCheck(config, connMgr, agentconfig.NewMock(t))
+	deviceCk, err := NewDeviceCheck(config, connMgr, agentconfigmock.New(t))
 	assert.Nil(t, err)
 
 	sender := mocksender.NewMockSender("123")
@@ -888,7 +888,7 @@ profiles:
 	assert.Nil(t, err)
 
 	connMgr := NewConnectionManager(config, sessionFactory)
-	deviceCk, err := NewDeviceCheck(config, connMgr, agentconfig.NewMock(t))
+	deviceCk, err := NewDeviceCheck(config, connMgr, agentconfigmock.New(t))
 	assert.Nil(t, err)
 
 	// override pinger with mock pinger
@@ -1031,7 +1031,7 @@ profiles:
 	assert.Nil(t, err)
 
 	connMgr := NewConnectionManager(config, sessionFactory)
-	deviceCk, err := NewDeviceCheck(config, connMgr, agentconfig.NewMock(t))
+	deviceCk, err := NewDeviceCheck(config, connMgr, agentconfigmock.New(t))
 	assert.Nil(t, err)
 
 	// override pinger with mock pinger
@@ -1164,7 +1164,7 @@ collect_topology: false
 	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
 	assert.Nil(t, err)
 
-	cfg := agentconfig.NewMock(t)
+	cfg := agentconfigmock.New(t)
 	cfg.SetInTest("tags", []string{"tag1:value1"})
 
 	connMgr := NewConnectionManager(config, sessionFactory)
@@ -1198,7 +1198,7 @@ collect_topology: false
 	assert.Nil(t, err)
 
 	connMgr := NewConnectionManager(config, sessionFactory)
-	deviceCk, err := NewDeviceCheck(config, connMgr, agentconfig.NewMock(t))
+	deviceCk, err := NewDeviceCheck(config, connMgr, agentconfigmock.New(t))
 	assert.Nil(t, err)
 
 	sender := mocksender.NewMockSender("123") // required to initiate aggregator
@@ -1343,7 +1343,7 @@ profiles:
 	assert.Nil(t, err)
 
 	connMgr := NewConnectionManager(config, sessionFactory)
-	deviceCk, err := NewDeviceCheck(config, connMgr, agentconfig.NewMock(t))
+	deviceCk, err := NewDeviceCheck(config, connMgr, agentconfigmock.New(t))
 	assert.Nil(t, err)
 
 	// Verify ConnectionManager is initialized

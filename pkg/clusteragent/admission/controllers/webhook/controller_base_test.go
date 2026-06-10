@@ -21,7 +21,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
 	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/fx-mock"
+	configmockdirect "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	noopTelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/fx-noop"
@@ -31,7 +33,6 @@ import (
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation"
-	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -49,7 +50,7 @@ func newFilterStoreFromConfig(t testing.TB, cfg config.Component) workloadfilter
 func TestNewController(t *testing.T) {
 	client := fake.NewSimpleClientset()
 	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
-	datadogConfig := config.NewMock(t)
+	datadogConfig := configmockdirect.New(t)
 	factory := informers.NewSharedInformerFactory(client, time.Duration(0))
 
 	// V1
@@ -152,13 +153,13 @@ func TestAutoInstrumentation(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Create a mock config.
-			mockConfig := configmock.NewFromFile(t, tt.config)
+			mockConfig := configmockdirect.NewFromYAMLFile(t, tt.config)
 
 			// Create a mock meta.
 			wmeta := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 				fx.Supply(config.Params{}),
 				fx.Provide(func() log.Component { return logmock.New(t) }),
-				fx.Provide(func() config.Component { return config.NewMock(t) }),
+				configmock.MockModule(),
 				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 			))
 

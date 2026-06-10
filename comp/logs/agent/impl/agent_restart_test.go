@@ -24,7 +24,8 @@ import (
 	"go.uber.org/atomic"
 	"go.uber.org/fx"
 
-	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
+	configComponent "github.com/DataDog/datadog-agent/comp/core/config/def"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
@@ -46,7 +47,6 @@ import (
 	inventoryagentmock "github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/mock"
 	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
-	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
@@ -124,7 +124,7 @@ func createTestAgent(suite *RestartTestSuite, endpoints *config.Endpoints) (*log
 	deps := fxutil.Test[testDeps](suite.T(),
 		fx.Provide(func() log.Component { return logmock.New(suite.T()) }),
 		fx.Provide(func() configComponent.Component {
-			return configComponent.NewMockWithOverrides(suite.T(), suite.configOverrides)
+			return configmock.NewWithOverrides(suite.T(), suite.configOverrides)
 		}),
 		hostnameimpl.MockModule(),
 		inventoryagentmock.MockModule(),

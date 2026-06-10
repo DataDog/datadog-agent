@@ -9,7 +9,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/netflow/config/def",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/core/config",
+        "//comp/core/config/def",
         "//comp/core/log/def",
         "//comp/netflow/common",
         "//pkg/config/structure",

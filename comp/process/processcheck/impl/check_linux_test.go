@@ -14,7 +14,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -60,8 +61,8 @@ func TestProcessCheckEnablementOnCoreAgent(t *testing.T) {
 
 			flavor.SetFlavor(tc.flavor)
 			c := fxutil.Test[processcheck.Component](t, fx.Options(
-				fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
-				fx.Provide(func(t testing.TB) config.Component { return config.NewMockWithOverrides(t, configs) }),
+				fx.Provide(func() log.Component { return logmock.New(t) }),
+				fx.Provide(func() config.Component { return configmock.NewWithOverrides(t, configs) }),
 				fx.Provide(func(tb testing.TB) sysprobeconfig.Component { return sysprobeconfigmock.NewMock(tb) }),
 				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 				gpusubscriberfxmock.MockModule(),

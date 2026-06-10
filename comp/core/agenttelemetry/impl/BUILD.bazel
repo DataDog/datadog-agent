@@ -15,7 +15,7 @@ go_library(
     deps = [
         "//comp/api/api/def",
         "//comp/core/agenttelemetry/def",
-        "//comp/core/config",
+        "//comp/core/config/def",
         "//comp/core/log/def",
         "//comp/core/telemetry/def",
         "//comp/def",

@@ -16,7 +16,7 @@ import (
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/extension"
 
-	configmock "github.com/DataDog/datadog-agent/comp/core/config"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
@@ -44,7 +44,7 @@ func TestNewFactory_ReturnsErrorOnCreate(t *testing.T) {
 func TestNewFactoryForAgent_CreatesExtension(t *testing.T) {
 	hostname, _ := hostnameinterface.NewMock("test-host")
 	factory := NewFactoryForAgent(
-		configmock.NewMockWithOverrides(t, nil),
+		configmock.NewWithOverrides(t, nil),
 		logmock.New(t),
 		serializermock.NewMetricSerializer(t),
 		hostname,
@@ -72,7 +72,7 @@ func TestNewFactoryForAgent_CreatesExtension(t *testing.T) {
 func TestNewFactoryForAgent_InvalidConfigErrors(t *testing.T) {
 	hostname, _ := hostnameinterface.NewMock("test-host")
 	factory := NewFactoryForAgent(
-		configmock.NewMockWithOverrides(t, nil),
+		configmock.NewWithOverrides(t, nil),
 		logmock.New(t),
 		serializermock.NewMetricSerializer(t),
 		hostname,
@@ -97,7 +97,7 @@ func TestNewFactoryForAgent_InvalidConfigErrors(t *testing.T) {
 func TestNewExtension_FX_DefaultSucceeds(t *testing.T) {
 	hostname, _ := hostnameinterface.NewMock("test-host")
 	ext, err := NewExtension(Requires{
-		Config:     configmock.NewMockWithOverrides(t, nil),
+		Config:     configmock.NewWithOverrides(t, nil),
 		Log:        logmock.New(t),
 		Serializer: serializermock.NewMetricSerializer(t),
 		Hostname:   hostname,

@@ -10,7 +10,7 @@ import (
 	"context"
 	"net/url"
 
-	cfgcomp "github.com/DataDog/datadog-agent/comp/core/config"
+	cfgcomp "github.com/DataDog/datadog-agent/comp/core/config/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	rcprotocoltest "github.com/DataDog/datadog-agent/comp/remote-config/rcprotocoltest/def"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/api"

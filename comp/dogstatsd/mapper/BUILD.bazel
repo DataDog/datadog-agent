@@ -20,7 +20,7 @@ go_test(
     embed = [":mapper"],
     gotags = ["test"],
     deps = [
-        "//comp/core/config",
+        "//comp/core/config/mock",
         "//pkg/config/structure",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

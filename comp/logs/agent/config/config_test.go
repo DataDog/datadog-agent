@@ -16,7 +16,8 @@ import (
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/atomic"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/types"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
@@ -28,7 +29,7 @@ type ConfigTestSuite struct {
 }
 
 func (suite *ConfigTestSuite) SetupTest() {
-	suite.config = config.NewMock(suite.T())
+	suite.config = configmock.New(suite.T())
 }
 
 func (suite *ConfigTestSuite) TestDefaultDatadogConfig() {
@@ -1008,7 +1009,7 @@ func (suite *ConfigTestSuite) TestBuildEndpointsWithLegacyVectorDualShipReliable
 // OPW is not enabled (or has no URL) emits a startup warning, because dual_ship has no effect
 // in that configuration — the OPW block is skipped entirely.
 func TestBuildEndpointsWithOPWDualShipNoOPWEnabledWarns(t *testing.T) {
-	cfg := config.NewMock(t)
+	cfg := configmock.New(t)
 	cfg.SetInTest("api_key", "123")
 	// OPW is NOT enabled — dual_ship=true should warn and silently no-op.
 	cfg.SetInTest("observability_pipelines_worker.logs.dual_ship", true)
@@ -1028,7 +1029,7 @@ func TestBuildEndpointsWithOPWDualShipNoOPWEnabledWarns(t *testing.T) {
 // dual_ship_reliable=true without dual_ship=true emits a startup warning, because the
 // reliability setting is silently ignored in that configuration.
 func TestBuildEndpointsWithOPWDualShipReliableWithoutDualShipWarns(t *testing.T) {
-	cfg := config.NewMock(t)
+	cfg := configmock.New(t)
 	cfg.SetInTest("api_key", "123")
 	cfg.SetInTest("observability_pipelines_worker.logs.enabled", true)
 	cfg.SetInTest("observability_pipelines_worker.logs.url", "https://opw.example.com:8443/")
@@ -1441,7 +1442,7 @@ func TestShouldUseTCP(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := config.NewMock(t)
+			cfg := configmock.New(t)
 			cfg.SetInTest("api_key", "test-key")
 			cfg.SetInTest("logs_config.force_use_tcp", tt.forceTCP)
 			cfg.SetInTest("logs_config.socks5_proxy_address", tt.socks5Proxy)

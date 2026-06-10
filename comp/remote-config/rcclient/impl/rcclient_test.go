@@ -12,7 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
+	coreconfigmock "github.com/DataDog/datadog-agent/comp/core/config/fx-mock"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -78,7 +79,7 @@ func TestRCClientCreate(t *testing.T) {
 		fxutil.ProvideComponentConstructor(NewRemoteConfigClient),
 		fxutil.ProvideOptional[rcclient.Component](),
 		fx.Provide(func() log.Component { return logmock.New(t) }),
-		fx.Provide(func() config.Component { return configmock.New(t) }),
+		coreconfigmock.MockModule(),
 		settingsmock.MockModule(),
 		sysprobeconfig.NoneModule(),
 		fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
@@ -91,7 +92,7 @@ func TestRCClientCreate(t *testing.T) {
 		fxutil.ProvideComponentConstructor(NewRemoteConfigClient),
 		fxutil.ProvideOptional[rcclient.Component](),
 		fx.Provide(func() log.Component { return logmock.New(t) }),
-		fx.Provide(func() config.Component { return configmock.New(t) }),
+		coreconfigmock.MockModule(),
 		sysprobeconfig.NoneModule(),
 		fx.Supply(
 			rcclient.Params{

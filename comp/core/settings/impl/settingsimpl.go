@@ -17,7 +17,7 @@ import (
 	"go.yaml.in/yaml/v2"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	settingsdef "github.com/DataDog/datadog-agent/comp/core/settings/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"

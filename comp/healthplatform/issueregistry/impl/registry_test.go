@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 )
 
 // No issue modules are imported here, so GetAllModules returns an empty slice.
@@ -21,25 +21,25 @@ import (
 // Component methods delegate to it without panicking on an empty registry.
 
 func TestNewReturnsValidComponent(t *testing.T) {
-	comp := New(Requires{Config: config.NewMock(t)})
+	comp := New(Requires{Config: configmock.New(t)})
 	assert.NotNil(t, comp)
 }
 
 func TestGetTemplateReturnsFalseForUnknown(t *testing.T) {
-	comp := New(Requires{Config: config.NewMock(t)})
+	comp := New(Requires{Config: configmock.New(t)})
 	_, ok := comp.GetTemplate("unknown-type")
 	assert.False(t, ok)
 }
 
 func TestGetBuiltInPeriodicHealthChecksEmptyRegistry(t *testing.T) {
-	comp := New(Requires{Config: config.NewMock(t)})
+	comp := New(Requires{Config: configmock.New(t)})
 	checks := comp.GetBuiltInPeriodicHealthChecks()
 	require.NotNil(t, checks)
 	assert.Empty(t, checks)
 }
 
 func TestGetBuiltInStartupHealthChecksEmptyRegistry(t *testing.T) {
-	comp := New(Requires{Config: config.NewMock(t)})
+	comp := New(Requires{Config: configmock.New(t)})
 	checks := comp.GetBuiltInStartupHealthChecks()
 	require.NotNil(t, checks)
 	assert.Empty(t, checks)

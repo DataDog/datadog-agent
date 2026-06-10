@@ -16,7 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -24,7 +24,7 @@ import (
 )
 
 func TestCommonHeaderProviderIndex(t *testing.T) {
-	config := config.NewMock(t)
+	config := configmock.New(t)
 
 	provider := newCommonHeaderProvider(agentParams, config)
 
@@ -43,7 +43,7 @@ func TestCommonHeaderProviderJSON(t *testing.T) {
 		os.Setenv("TZ", originalTZ)
 	}()
 
-	config := config.NewMock(t)
+	config := configmock.New(t)
 
 	provider := newCommonHeaderProvider(agentParams, config)
 	stats := map[string]interface{}{}
@@ -73,7 +73,7 @@ func TestCommonHeaderProviderText(t *testing.T) {
 		startTimeProvider = pkgconfigsetup.StartTime
 	}()
 
-	config := config.NewMock(t)
+	config := configmock.New(t)
 
 	provider := newCommonHeaderProvider(agentParams, config)
 
@@ -98,7 +98,7 @@ func TestCommonHeaderProviderTime(t *testing.T) {
 	}
 	defer func() { nowFunc = time.Now }()
 
-	config := config.NewMock(t)
+	config := configmock.New(t)
 
 	provider := newCommonHeaderProvider(agentParams, config)
 
@@ -132,7 +132,7 @@ func assertLogLevel(t *testing.T, provider status.HeaderProvider, expected strin
 }
 
 func TestCommonHeaderProviderConfig(t *testing.T) {
-	config := config.NewMock(t)
+	config := configmock.New(t)
 	provider := newCommonHeaderProvider(agentParams, config)
 
 	config.Set("log_level", "info", model.SourceAgentRuntime)
@@ -155,7 +155,7 @@ func TestCommonHeaderProviderTextWithFipsInformation(t *testing.T) {
 		"fips.enabled": true,
 	}
 
-	config := config.NewMockWithOverrides(t, overrides)
+	config := configmock.NewWithOverrides(t, overrides)
 	provider := newCommonHeaderProvider(agentParams, config)
 
 	buffer := new(bytes.Buffer)
@@ -182,7 +182,7 @@ func TestCommonHeaderProviderHTML(t *testing.T) {
 		os.Setenv("TZ", originalTZ)
 	}()
 
-	config := config.NewMock(t)
+	config := configmock.New(t)
 
 	provider := newCommonHeaderProvider(agentParams, config)
 
@@ -243,7 +243,7 @@ func TestCommonHeaderProviderHTMLWithFipsInformation(t *testing.T) {
 		"fips.enabled": true,
 	}
 
-	config := config.NewMockWithOverrides(t, overrides)
+	config := configmock.NewWithOverrides(t, overrides)
 	provider := newCommonHeaderProvider(agentParams, config)
 
 	buffer := new(bytes.Buffer)

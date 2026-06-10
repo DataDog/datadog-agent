@@ -8,7 +8,7 @@ go_library(
     deps = [
         "//cmd/agent/command",
         "//comp/core",
-        "//comp/core/config",
+        "//comp/core/config/def",
         "//comp/core/ipc/def",
         "//comp/core/ipc/fx",
         "//comp/core/log/def",

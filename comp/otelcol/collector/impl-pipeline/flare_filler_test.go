@@ -21,7 +21,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
@@ -128,7 +128,7 @@ func TestOTelExtFlareBuilder(t *testing.T) {
 	overrideConfigResponse = b.String()
 	defer func() { overrideConfigResponse = "" }()
 
-	cfg := config.NewMock(t)
+	cfg := configmock.New(t)
 	cfg.Set("otelcollector.enabled", true, pkgconfigmodel.SourceAgentRuntime)
 	cfg.Set("otelcollector.extension_url", 7777, pkgconfigmodel.SourceAgentRuntime)
 

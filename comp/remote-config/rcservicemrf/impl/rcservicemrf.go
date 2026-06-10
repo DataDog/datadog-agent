@@ -15,7 +15,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/host/impl/hosttags"
 
-	cfgcomp "github.com/DataDog/datadog-agent/comp/core/config"
+	cfgcomp "github.com/DataDog/datadog-agent/comp/core/config/def"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	compdef "github.com/DataDog/datadog-agent/comp/def"

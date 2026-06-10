@@ -9,7 +9,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/healthplatform",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/core/config",
+        "//comp/core/config/def",
         "//comp/core/diagnose/def",
         "//comp/core/log/def",
         "//comp/healthplatform/egress/def",
@@ -41,7 +41,9 @@ go_test(
     embed = [":healthplatform"],
     gotags = ["test"],
     deps = [
-        "//comp/core/config",
+        "//comp/core/config/def",
+        "//comp/core/config/fx-mock",
+        "//comp/core/config/mock",
         "//comp/core/hostname/hostnameinterface/mock",
         "//comp/core/log/def",
         "//comp/core/log/mock",

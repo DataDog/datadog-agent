@@ -8,7 +8,7 @@ package rdnsquerierimpl
 import (
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 )
 
 type rdnsQuerierConfig struct {

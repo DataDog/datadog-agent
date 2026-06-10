@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 )
 
@@ -49,7 +49,7 @@ func TestNewComponent_WithoutBin(t *testing.T) {
 			})
 
 			// Create mock components
-			mockConfig := config.NewMock(t)
+			mockConfig := configmock.New(t)
 			mockConfig.SetInTest("apm_config.workload_selection", tt.workloadSelectionEnabled)
 			mockLog := logmock.New(t)
 

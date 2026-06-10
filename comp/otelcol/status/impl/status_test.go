@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 )
@@ -50,7 +50,7 @@ func TestStatusOut(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			provides := NewComponent(Requires{
-				Config: config.NewMock(t),
+				Config: configmock.New(t),
 				Client: ipcmock.New(t).GetClient(),
 			})
 			headerProvider := provides.StatusProvider.Provider
@@ -135,7 +135,7 @@ exporters:
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			cfg := config.NewMockWithOverrides(t, tc.overrides)
+			cfg := configmock.NewWithOverrides(t, tc.overrides)
 			warnings := checkConfigWarnings(tc.runtimeConfig, cfg)
 			if tc.expectWarnings {
 				require.Len(t, warnings, 1)

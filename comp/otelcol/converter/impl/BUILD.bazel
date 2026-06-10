@@ -13,7 +13,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/otelcol/converter/impl",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/core/config",
+        "//comp/core/config/def",
         "//comp/core/hostname/hostnameinterface/def",
         "//comp/core/log/def",
         "//comp/otelcol/converter/def",
@@ -31,7 +31,7 @@ go_test(
     embed = [":impl"],
     gotags = ["test"],
     deps = [
-        "//comp/core/config",
+        "//comp/core/config/mock",
         "//comp/core/hostname/hostnameinterface/def",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

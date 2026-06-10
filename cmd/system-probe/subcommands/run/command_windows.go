@@ -11,7 +11,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 	healthprobe "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
 	pidimpl "github.com/DataDog/datadog-agent/comp/core/pid/impl"
 	settings "github.com/DataDog/datadog-agent/comp/core/settings/def"

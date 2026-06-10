@@ -19,7 +19,9 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
-	configcomp "github.com/DataDog/datadog-agent/comp/core/config"
+	configcomp "github.com/DataDog/datadog-agent/comp/core/config/def"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/fx-mock"
+	configmockdirect "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
@@ -32,8 +34,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
-	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	kubeletmock "github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet/mock"
 )
@@ -393,7 +393,7 @@ func TestProvider_Provide(t *testing.T) {
 func creatFakeStore(t *testing.T) workloadmetamock.Mock {
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
-		fx.Provide(func() configcomp.Component { return configcomp.NewMock(t) }),
+		configmock.MockModule(),
 		fx.Supply(context.Background()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
@@ -487,13 +487,13 @@ type FilteringTestSuite struct {
 	provider       *Provider
 	mockSender     *mocksender.MockSender
 	mockKubelet    *kubeletmock.KubeletMock
-	mockConfig     model.Config
+	mockConfig     configcomp.Component
 }
 
 func (suite *FilteringTestSuite) SetupTest() {
 	store := fxutil.Test[workloadmetamock.Mock](suite.T(), fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(suite.T()) }),
-		fx.Provide(func() configcomp.Component { return configcomp.NewMock(suite.T()) }),
+		fx.Provide(func() configcomp.Component { return configmockdirect.New(suite.T()) }),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
@@ -505,7 +505,7 @@ func (suite *FilteringTestSuite) SetupTest() {
 	suite.mockKubelet = kubeletmock.NewKubeletMock()
 
 	// Create mock config for filter configuration
-	suite.mockConfig = configmock.New(suite.T())
+	suite.mockConfig = configmockdirect.New(suite.T())
 	suite.workloadFilter = workloadfilterfxmock.SetupMockFilter(suite.T())
 }
 
@@ -749,7 +749,7 @@ func TestStaticPodUIDMismatchFallback(t *testing.T) {
 	canonicalUID := "85a6cc02-4460-4f8a-b5f0-123456789abc"
 
 	// Setup mock config with kubelet_use_api_server=true
-	mockConfig := configmock.New(t)
+	mockConfig := configmockdirect.New(t)
 	mockConfig.SetInTest("kubelet_use_api_server", true)
 
 	// Setup tagger with canonical UUID
@@ -760,7 +760,7 @@ func TestStaticPodUIDMismatchFallback(t *testing.T) {
 	// Setup workloadmeta store with pod using canonical UUID
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
-		fx.Provide(func() configcomp.Component { return configcomp.NewMock(t) }),
+		configmock.MockModule(),
 		fx.Supply(context.Background()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))

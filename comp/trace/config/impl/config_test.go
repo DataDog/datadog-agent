@@ -30,7 +30,8 @@ import (
 	"go.uber.org/fx"
 	"go.yaml.in/yaml/v2"
 
-	configcomp "github.com/DataDog/datadog-agent/comp/core/config"
+	configcomp "github.com/DataDog/datadog-agent/comp/core/config/def"
+	configmocktrace "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	logdef "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -279,7 +280,7 @@ var stringCodeBody string
 
 func TestConfigHostname(t *testing.T) {
 	t.Run("fail", func(t *testing.T) {
-		coreConfig := configcomp.NewMockFromYAMLFile(t, "./testdata/site_override.yaml")
+		coreConfig := configmocktrace.NewFromYAMLFile(t, "./testdata/site_override.yaml")
 		coreConfig.SetInTest("apm_config.dd_agent_bin", "/not/exist")
 		coreConfig.SetInTest("cmd_port", "-1")
 
@@ -293,7 +294,7 @@ func TestConfigHostname(t *testing.T) {
 		taggerComponent := taggerfxmock.SetupFakeTagger(t)
 
 		fxutil.TestStart(t, fx.Options(
-			fx.Provide(func() configcomp.Component { return configcomp.NewMock(t) }),
+			fx.Provide(func() configcomp.Component { return configmocktrace.New(t) }),
 			fx.Provide(func() tagger.Component {
 				return taggerComponent
 			}),
@@ -322,7 +323,7 @@ func TestConfigHostname(t *testing.T) {
 			t.Skip()
 		}
 
-		coreConfig := configcomp.NewMockFromYAMLFile(t, "./testdata/site_override.yaml")
+		coreConfig := configmocktrace.NewFromYAMLFile(t, "./testdata/site_override.yaml")
 		coreConfig.SetInTest("apm_config.dd_agent_bin", "/not/exist")
 		coreConfig.SetInTest("cmd_port", "-1")
 		config := buildComponent(t, false, coreConfig)
@@ -363,7 +364,7 @@ func TestConfigHostname(t *testing.T) {
 	})
 
 	t.Run("serverless", func(t *testing.T) {
-		coreConfig := configcomp.NewMockFromYAMLFile(t, "./testdata/site_default.yaml")
+		coreConfig := configmocktrace.NewFromYAMLFile(t, "./testdata/site_default.yaml")
 		coreConfig.SetInTest("serverless.enabled", true)
 		config := buildComponent(t, false, coreConfig)
 		cfg := config.Object()
@@ -2157,7 +2158,7 @@ func TestGenerateInstallSignature(t *testing.T) {
 
 	c := buildConfigComponentFromYAML(t, true, cfgFile)
 
-	coreConfig := configcomp.NewMock(t) // there only 1 mock per test, this get the already created mock
+	coreConfig := configmocktrace.New(t) // there only 1 mock per test, this get the already created mock
 	cfg := c.Object()
 	assert.NotNil(t, cfg)
 
@@ -2300,28 +2301,28 @@ func TestOnUpdateAPIKeyCallback(t *testing.T) {
 func buildConfigComponent(t *testing.T, setHostnameInConfig bool) Component {
 	t.Helper()
 
-	coreConfig := configcomp.NewMock(t)
+	coreConfig := configmocktrace.New(t)
 	return buildComponent(t, setHostnameInConfig, coreConfig)
 }
 
 func buildConfigComponentFromYAML(t *testing.T, setHostnameInConfig bool, yamlPath string) Component {
 	t.Helper()
 
-	coreConfig := configcomp.NewMockFromYAMLFile(t, yamlPath)
+	coreConfig := configmocktrace.NewFromYAMLFile(t, yamlPath)
 	return buildComponent(t, setHostnameInConfig, coreConfig)
 }
 
 func buildConfigComponentAndCoreFromYAML(t *testing.T, setHostnameInConfig bool, yamlPath string) (Component, configcomp.Component) {
 	t.Helper()
 
-	coreConfig := configcomp.NewMockFromYAMLFile(t, yamlPath)
+	coreConfig := configmocktrace.NewFromYAMLFile(t, yamlPath)
 	return buildComponent(t, setHostnameInConfig, coreConfig), coreConfig
 }
 
 func buildConfigComponentFromOverrides(t *testing.T, setHostnameInConfig bool, settings map[string]interface{}) Component {
 	t.Helper()
 
-	coreConfig := configcomp.NewMock(t)
+	coreConfig := configmocktrace.New(t)
 	for k, v := range settings {
 		coreConfig.SetInTest(k, v)
 	}
@@ -2609,7 +2610,7 @@ func TestNormalizeAPMMode(t *testing.T) {
 				t.Setenv("DD_APM_MODE", tt.envValue)
 			}
 
-			coreConfig := configcomp.NewMockFromYAMLFile(t, "./testdata/no_apm_config.yaml")
+			coreConfig := configmocktrace.NewFromYAMLFile(t, "./testdata/no_apm_config.yaml")
 			config := buildComponentWithBufferLogger(t, true, coreConfig, &logBuffer)
 			cfg := config.Object()
 

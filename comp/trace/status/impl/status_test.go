@@ -11,13 +11,13 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 )
 
 func TestStatusOut(t *testing.T) {
 	reqs := Requires{
-		Config: config.NewMock(t),
+		Config: configmock.New(t),
 		Client: ipcmock.New(t).GetClient(),
 	}
 

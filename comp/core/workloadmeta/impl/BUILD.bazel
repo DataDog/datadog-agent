@@ -16,7 +16,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/api/api/def",
-        "//comp/core/config",
+        "//comp/core/config/def",
         "//comp/core/flare/types",
         "//comp/core/log/def",
         "//comp/core/workloadmeta/collectors/sbomutil",
@@ -48,7 +48,7 @@ go_test(
     embed = [":impl"],
     gotags = ["test"],
     deps = [
-        "//comp/core/config",
+        "//comp/core/config/mock",
         "//comp/core/log/mock",
         "//comp/core/workloadmeta/collectors/util",
         "//comp/core/workloadmeta/def",

@@ -12,7 +12,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	mocktelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
@@ -25,7 +25,7 @@ import (
 
 func TestNewMock_ProvidesMockFilter(t *testing.T) {
 	// Use mock components for dependencies
-	cfg := config.NewMock(t)
+	cfg := configmock.New(t)
 	logger := logmock.New(t)
 	telemetry := fxutil.Test[telemetry.Mock](t, mocktelemetry.Module())
 
@@ -44,7 +44,7 @@ func TestNewMock_ProvidesMockFilter(t *testing.T) {
 }
 
 func TestNewMock_UsesMockConfig(t *testing.T) {
-	cfg := config.NewMock(t)
+	cfg := configmock.New(t)
 	cfg.SetInTest("container_exclude", "name:excluded-container")
 
 	logger := logmock.New(t)

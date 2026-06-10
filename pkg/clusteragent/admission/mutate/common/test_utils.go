@@ -23,7 +23,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
+	coreconfigmock "github.com/DataDog/datadog-agent/comp/core/config/fx-mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -289,7 +289,7 @@ type MockDeployment struct {
 func FakeStore(t *testing.T) workloadmeta.Component {
 	return fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
-		fx.Provide(func() coreconfig.Component { return coreconfig.NewMock(t) }),
+		coreconfigmock.MockModule(),
 		fx.Supply(context.Background()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
@@ -300,7 +300,7 @@ func FakeStore(t *testing.T) workloadmeta.Component {
 func FakeStoreWithDeployment(t *testing.T, deployments []MockDeployment) workloadmeta.Component {
 	mockStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
-		fx.Provide(func() coreconfig.Component { return coreconfig.NewMock(t) }),
+		coreconfigmock.MockModule(),
 		fx.Supply(context.Background()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))

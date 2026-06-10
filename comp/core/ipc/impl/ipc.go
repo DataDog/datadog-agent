@@ -20,7 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/api/security/cert"
 	pkgapiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 )
 

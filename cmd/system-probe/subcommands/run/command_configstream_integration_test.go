@@ -26,7 +26,8 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/structpb"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
+	configfx "github.com/DataDog/datadog-agent/comp/core/config/fx"
 	configstreamconsumer "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/def"
 	configstreamconsumerfx "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/fx"
 	delegatedauthnoopfx "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx-noop"
@@ -141,7 +142,7 @@ system_probe_config:
 			sysprobeconfigimpl.WithSysProbeConfFilePath(sysprobePath),
 			sysprobeconfigimpl.WithFleetPoliciesDirPath(""),
 		)),
-		config.Module(),
+		configfx.Module(),
 		delegatedauthnoopfx.Module(),
 		secretsnoopfx.Module(),
 		sysprobeconfigfx.Module(),

@@ -19,7 +19,9 @@ import (
 
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/fx-mock"
+	configmockdirect "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
@@ -45,7 +47,7 @@ func newTestClient(t *testing.T) (*languageDetectionClientImpl, chan *pbgo.Paren
 	respCh := make(chan *pbgo.ParentLanguageAnnotationRequest)
 	mockDCAClient := &MockDCAClient{respCh: respCh}
 
-	cfg := config.NewMockWithOverrides(t, map[string]interface{}{
+	cfg := configmockdirect.NewWithOverrides(t, map[string]interface{}{
 		"language_detection.reporting.enabled":       "true",
 		"language_detection.enabled":                 "true",
 		"cluster_agent.enabled":                      "true",
@@ -93,7 +95,7 @@ func TestClientEnabled(t *testing.T) {
 
 	tel := fxutil.Test[telemetry.Component](t, mocktelemetry.Module())
 	wm := fxutil.Test[workloadmeta.Component](t, workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-		fx.Provide(func() config.Component { return config.NewMock(t) }),
+		configmock.MockModule(),
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 	)
 
@@ -104,7 +106,7 @@ func TestClientEnabled(t *testing.T) {
 			testCase.languageDetectionReportingEnabled,
 			testCase.clusterAgentEnabled),
 			func(t *testing.T) {
-				cfg := config.NewMockWithOverrides(t, map[string]interface{}{
+				cfg := configmockdirect.NewWithOverrides(t, map[string]interface{}{
 					"language_detection.enabled":           testCase.languageDetectionEnabled,
 					"language_detection.reporting.enabled": testCase.languageDetectionReportingEnabled,
 					"cluster_agent.enabled":                testCase.clusterAgentEnabled,

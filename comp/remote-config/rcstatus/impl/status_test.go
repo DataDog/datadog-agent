@@ -11,13 +11,13 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestStatusOuput(t *testing.T) {
 	provides := NewStatus(Requires{
-		Config: config.NewMock(t),
+		Config: configmock.New(t),
 	})
 
 	statusProvider := provides.StatusProvider.Provider

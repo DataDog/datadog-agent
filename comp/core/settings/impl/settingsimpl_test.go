@@ -19,7 +19,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	settings "github.com/DataDog/datadog-agent/comp/core/settings/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -388,7 +389,7 @@ func TestRuntimeSettings(t *testing.T) {
 			deps := Requires{
 				Log: logmock.New(t),
 				Params: settings.Params{
-					Config: config.NewMock(t),
+					Config: configmock.New(t),
 					Settings: map[string]settings.RuntimeSetting{
 						"foo": &runtimeTestSetting{
 							hidden:      false,

@@ -1,0 +1,23 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "impl",
+    srcs = [
+        "config.go",
+        "setup.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/config/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config/def",
+        "//comp/core/delegatedauth/def",
+        "//comp/core/delegatedauth/noop-impl/types",
+        "//comp/core/flare/types",
+        "//comp/core/secrets/def",
+        "//comp/core/secrets/noop-impl/types",
+        "//pkg/config/model",
+        "//pkg/config/setup",
+        "//pkg/util/defaultpaths",
+        "@in_yaml_go_yaml_v2//:yaml",
+    ],
+)

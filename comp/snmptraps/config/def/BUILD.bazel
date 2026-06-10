@@ -9,7 +9,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/snmptraps/config/def",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/core/config",
+        "//comp/core/config/def",
         "//comp/core/log/def",
         "//comp/snmptraps/snmplog",
         "//pkg/config/structure",
@@ -25,7 +25,7 @@ go_test(
     embed = [":def"],
     gotags = ["test"],
     deps = [
-        "//comp/core/config",
+        "//comp/core/config/def",
         "//comp/core/hostname/hostnameinterface/mock",
         "//comp/core/log/mock",
         "//pkg/config/basic",

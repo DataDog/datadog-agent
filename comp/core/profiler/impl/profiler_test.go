@@ -16,7 +16,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	"github.com/DataDog/datadog-agent/comp/core/flare/types"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
@@ -29,12 +30,11 @@ import (
 	sysprobeconfigdef "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	sysprobeconfigmock "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/mock"
 
-	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-func createGenericConfig(t *testing.T) model.Config {
+func createGenericConfig(t *testing.T) config.Component {
 	handler := profilermock.NewMockHandler()
 
 	server := httptest.NewServer(handler)
@@ -70,13 +70,13 @@ type reqs struct {
 	Comp profilerdef.Component
 }
 
-func getProfiler(t testing.TB, overrideSysProbe map[string]interface{}) profiler {
+func getProfiler(t *testing.T, overrideSysProbe map[string]interface{}) profiler {
 	sysprobeConf := sysprobeconfigmock.NewMockWithOverrides(t, overrideSysProbe)
 	deps := fxutil.Test[reqs](
 		t,
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Provide(func() config.Component {
-			return config.NewMock(t)
+			return configmock.New(t)
 		}),
 		fx.Provide(func() sysprobeconfigdef.Component { return sysprobeConf }),
 		fxutil.ProvideOptional[sysprobeconfigdef.Component](),

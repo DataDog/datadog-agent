@@ -13,7 +13,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/fleet/daemon",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/core/config",
+        "//comp/core/config/def",
         "//pkg/api/middleware",
         "//pkg/config/remote/client",
         "//pkg/config/utils",

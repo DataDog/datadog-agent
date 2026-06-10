@@ -13,7 +13,8 @@ import (
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/atomic"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pkgconfigutils "github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -25,7 +26,7 @@ type EndpointsTestSuite struct {
 }
 
 func (suite *EndpointsTestSuite) SetupTest() {
-	suite.config = config.NewMock(suite.T())
+	suite.config = configmock.New(suite.T())
 }
 
 func (suite *EndpointsTestSuite) TestLogsEndpointConfig() {

@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/stretchr/testify/assert"
 )
@@ -24,14 +24,14 @@ func TestWorkloadListCommand(t *testing.T) {
 }
 
 func TestWorkloadURL(t *testing.T) {
-	cfg := config.NewMock(t)
+	cfg := configmock.New(t)
 
 	expected := "https://localhost:5010/agent/workload-list?verbose=true"
 	got, err := workloadURL(cfg, true)
 	assert.NoError(t, err)
 	assert.Equal(t, expected, got)
 
-	cfg = config.NewMockWithOverrides(t, map[string]interface{}{
+	cfg = configmock.NewWithOverrides(t, map[string]interface{}{
 		"security_agent.cmd_port": 1234,
 		"cmd_host":                "127.0.0.1",
 	})

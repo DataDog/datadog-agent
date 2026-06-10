@@ -30,7 +30,7 @@ import (
 	devicemetadata "github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	agentconfig "github.com/DataDog/datadog-agent/comp/core/config"
+	agentconfigmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	ncmcomp "github.com/DataDog/datadog-agent/comp/networkconfigmanagement/mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
@@ -163,7 +163,7 @@ func sequenceUUIDGenerator(ids ...string) func() string {
 // Test helper functions
 
 func createTestCheck(t *testing.T) *Check {
-	cfg := agentconfig.NewMock(t)
+	cfg := agentconfigmock.New(t)
 	comp := ncmcomp.Mock(t)
 	return newCheck(cfg, comp).(*Check)
 }

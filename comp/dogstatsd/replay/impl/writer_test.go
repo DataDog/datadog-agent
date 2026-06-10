@@ -19,7 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	telemetrynoop "github.com/DataDog/datadog-agent/comp/core/telemetry/fx-noop"
@@ -37,7 +37,7 @@ func writerTest(t *testing.T, z bool) {
 	file, path, err := OpenFile(fs, "foo/bar", "")
 	require.NoError(t, err)
 
-	cfg := config.NewMock(t)
+	cfg := configmock.New(t)
 
 	taggerComponent := taggerfxmock.SetupFakeTagger(t)
 

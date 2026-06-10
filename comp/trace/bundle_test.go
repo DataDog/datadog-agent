@@ -14,7 +14,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core"
-	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
+	coreconfigmock "github.com/DataDog/datadog-agent/comp/core/config/fx-mock"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -75,7 +75,7 @@ func TestMockBundleDependencies(t *testing.T) {
 	cfg := fxutil.Test[traceconfigdef.Component](t, fx.Options(
 		fx.Provide(func() context.Context { return context.TODO() }), // fx.Supply(ctx) fails with a missing type error.
 		fx.Supply(core.BundleParams{}),
-		fx.Provide(func() coreconfig.Component { return coreconfig.NewMock(t) }),
+		coreconfigmock.MockModule(),
 		fx.Provide(func() secrets.Component { return secretsmock.New(t) }),
 		mocktelemetry.Module(),
 		fx.Provide(func() log.Component { return logmock.New(t) }),

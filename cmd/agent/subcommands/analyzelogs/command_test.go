@@ -20,7 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	adcmock "github.com/DataDog/datadog-agent/comp/core/autodiscovery/mock"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
@@ -122,7 +122,7 @@ Auto-discovery IDs:
 	defer os.Remove(tempConfigFile.Name())
 	// Write config content to the temp file
 	// Create a mock config
-	config := config.NewMock(t)
+	config := configmock.New(t)
 
 	adsched := scheduler.NewController()
 	deps := fxutil.Test[testDeps](t,
@@ -194,7 +194,7 @@ func TestRunAnalyzeLogsInvalidConfig(t *testing.T) {
 	defer os.Remove(tempConfigFile.Name())
 	// Write config content to the temp file
 	// Create a mock config
-	config := config.NewMock(t)
+	config := configmock.New(t)
 
 	adsched := scheduler.NewController()
 	deps := fxutil.Test[testDeps](t,

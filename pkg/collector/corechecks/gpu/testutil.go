@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	taggercollectors "github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
 	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taglist"
@@ -133,7 +133,7 @@ func (c *Check) InjectXIDEventsForTest(uuid string, events []ddnvml.DeviceEventD
 
 func SetupWorkloadmetaGPUs(t *testing.T, wmetaMock workloadmetamock.Mock, fakeTagger taggermock.Mock, mode gpuspec.DeviceMode, validateDeviceCount bool) {
 	// Create the NVML collector to ensure we get the data in the same way as with real checks
-	cfg := config.NewMockWithOverrides(t, map[string]interface{}{
+	cfg := configmock.NewWithOverrides(t, map[string]interface{}{
 		"gpu.integrate_with_workloadmeta_processes": false,
 	})
 	nvmlCollector := collectors.GetNvmlCollector(t, cfg)

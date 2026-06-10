@@ -12,7 +12,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -83,8 +84,8 @@ func TestProcessChecksIsEnabled(t *testing.T) {
 				sysprobeConf.SetInTest(k, v)
 			}
 			c := fxutil.Test[processcheck.Component](t, fx.Options(
-				fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
-				fx.Provide(func(t testing.TB) config.Component { return config.NewMockWithOverrides(t, tc.configs) }),
+				fx.Provide(func() log.Component { return logmock.New(t) }),
+				fx.Provide(func() config.Component { return configmock.NewWithOverrides(t, tc.configs) }),
 				fx.Provide(func() sysprobeconfigdef.Component { return sysprobeConf }),
 				fxutil.ProvideOptional[sysprobeconfigdef.Component](),
 				workloadmetafxmock.MockModule(workloadmeta.NewParams()),

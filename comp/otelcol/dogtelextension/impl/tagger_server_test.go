@@ -18,7 +18,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
-	configmock "github.com/DataDog/datadog-agent/comp/core/config"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
@@ -44,7 +44,7 @@ func startBareGRPCServer(t *testing.T) (*grpc.Server, net.Listener) {
 func TestStopTaggerServer_NilServer(t *testing.T) {
 	ext := &dogtelExtension{
 		log:        logmock.New(t),
-		coreConfig: configmock.NewMockWithOverrides(t, nil),
+		coreConfig: configmock.NewWithOverrides(t, nil),
 		serializer: serializermock.NewMetricSerializer(t),
 		ipc:        ipcmock.New(t),
 	}
@@ -61,7 +61,7 @@ func TestStopTaggerServer_CleanStop(t *testing.T) {
 
 	ext := &dogtelExtension{
 		log:            logmock.New(t),
-		coreConfig:     configmock.NewMockWithOverrides(t, nil),
+		coreConfig:     configmock.NewWithOverrides(t, nil),
 		serializer:     serializermock.NewMetricSerializer(t),
 		ipc:            ipcmock.New(t),
 		taggerServer:   srv,
@@ -118,7 +118,7 @@ func TestStopTaggerServer_ForcedStop(t *testing.T) {
 
 	ext := &dogtelExtension{
 		log:            logmock.New(t),
-		coreConfig:     configmock.NewMockWithOverrides(t, nil),
+		coreConfig:     configmock.NewWithOverrides(t, nil),
 		serializer:     serializermock.NewMetricSerializer(t),
 		ipc:            ipcmock.New(t),
 		taggerServer:   srv,

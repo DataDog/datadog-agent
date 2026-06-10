@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/stretchr/testify/assert"
@@ -21,7 +21,7 @@ import (
 )
 
 func TestNewSingleClient(t *testing.T) {
-	cfg := config.NewMock(t)
+	cfg := configmock.New(t)
 	logger := logmock.New(t)
 	cfg.Set("api_key", "apikey123", pkgconfigmodel.SourceLocalConfigProcess)
 	cfg.Set("app_key", "appkey456", pkgconfigmodel.SourceLocalConfigProcess)
@@ -33,7 +33,7 @@ func TestNewSingleClient(t *testing.T) {
 }
 
 func TestNewFallbackClient(t *testing.T) {
-	cfg := config.NewMock(t)
+	cfg := configmock.New(t)
 	logger := logmock.New(t)
 	cfg.Set("api_key", "apikey123", pkgconfigmodel.SourceLocalConfigProcess)
 	cfg.Set("app_key", "appkey456", pkgconfigmodel.SourceLocalConfigProcess)
@@ -58,7 +58,7 @@ func TestExternalMetricsProviderEndpointAndRefresh(t *testing.T) {
 		w.Write([]byte("{\"status\": \"ok\"}"))
 	}))
 	defer ts.Close()
-	cfg := config.NewMock(t)
+	cfg := configmock.New(t)
 	logger := logmock.New(t)
 	cfg.Set("api_key", "apikey123", pkgconfigmodel.SourceLocalConfigProcess)
 	cfg.Set("app_key", "appkey456", pkgconfigmodel.SourceLocalConfigProcess)

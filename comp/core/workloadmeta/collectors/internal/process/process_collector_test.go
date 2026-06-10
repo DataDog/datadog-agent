@@ -21,7 +21,8 @@ import (
 	"go.uber.org/fx"
 	"go.uber.org/mock/gomock"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
@@ -96,7 +97,7 @@ func TestBasicCreatedProcessesCollection(t *testing.T) {
 		},
 	} {
 		t.Run(tc.description, func(t *testing.T) {
-			cfg := config.NewMock(t)
+			cfg := configmock.New(t)
 			cfg.SetInTest("process_config.process_collection.enabled", true)
 			cfg.SetInTest("process_config.intervals.process", 10)
 
@@ -174,7 +175,7 @@ func TestCreatedProcessesCollectionWithLanguages(t *testing.T) {
 		},
 	} {
 		t.Run(tc.description, func(t *testing.T) {
-			cfg := config.NewMock(t)
+			cfg := configmock.New(t)
 			cfg.SetInTest("process_config.process_collection.enabled", true)
 			cfg.SetInTest("process_config.intervals.process", 10)
 			cfg.SetInTest("language_detection.enabled", true)
@@ -281,7 +282,7 @@ func TestCreatedProcessesCollectionWithContainers(t *testing.T) {
 		},
 	} {
 		t.Run(tc.description, func(t *testing.T) {
-			cfg := config.NewMock(t)
+			cfg := configmock.New(t)
 			cfg.SetInTest("process_config.process_collection.enabled", true)
 			cfg.SetInTest("process_config.intervals.process", 10)
 
@@ -461,7 +462,7 @@ func TestProcessLifecycleCollection(t *testing.T) {
 		},
 	} {
 		t.Run(tc.description, func(t *testing.T) {
-			cfg := config.NewMock(t)
+			cfg := configmock.New(t)
 			cfg.SetInTest("process_config.process_collection.enabled", true)
 			cfg.SetInTest("process_config.intervals.process", 10)
 			cfg.SetInTest("language_detection.enabled", true)
@@ -572,7 +573,7 @@ func TestStartConfiguration(t *testing.T) {
 		},
 	} {
 		t.Run(tc.description, func(t *testing.T) {
-			cfg := config.NewMock(t)
+			cfg := configmock.New(t)
 			for k, v := range tc.configOverrides {
 				cfg.SetInTest(k, v)
 			}
@@ -619,7 +620,7 @@ func TestProcessCollectorIntervalConfig(t *testing.T) {
 		},
 	} {
 		t.Run(tc.description, func(t *testing.T) {
-			cfg := config.NewMock(t)
+			cfg := configmock.New(t)
 			if tc.intervalProcess != 0 {
 				cfg.SetInTest("process_config.intervals.process", tc.intervalProcess)
 			}
@@ -669,7 +670,7 @@ func TestProcessDifferentCmdline(t *testing.T) {
 		Stats:   &procutil.Stats{CreateTime: createTime}, // Same createTime!
 	}
 
-	cfg := config.NewMock(t)
+	cfg := configmock.New(t)
 	cfg.SetInTest("process_config.process_collection.enabled", true)
 	cfg.SetInTest("process_config.intervals.process", 10)
 	cfg.SetInTest("language_detection.enabled", true)
@@ -854,7 +855,7 @@ func TestContainerIDRaceCondition(t *testing.T) {
 	proc1CycleA := createTestPythonProcess(pid1, creationTime1)
 	proc1CycleB := createTestPythonProcess(pid1, creationTime1)
 
-	cfg := config.NewMock(t)
+	cfg := configmock.New(t)
 	cfg.SetInTest("process_config.process_collection.enabled", true)
 	cfg.SetInTest("process_config.intervals.process", 10)
 
@@ -908,7 +909,7 @@ func setUpCollectorTest(t *testing.T, cfg config.Component, sysProbeConfigOverri
 	// mock workloadmeta store
 	mockStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
-		fx.Provide(func(t testing.TB) config.Component { return config.NewMockWithOverrides(t, wlmConfigOverrides) }),
+		fx.Provide(func(t *testing.T) config.Component { return configmock.NewWithOverrides(t, wlmConfigOverrides) }),
 		workloadmetafxmock.MockModule(workloadmeta.Params{
 			AgentType: workloadmeta.NodeAgent,
 		}),

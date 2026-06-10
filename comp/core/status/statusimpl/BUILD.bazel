@@ -17,7 +17,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/api/api/def",
-        "//comp/core/config",
+        "//comp/core/config/def",
         "//comp/core/flare/types",
         "//comp/core/log/def",
         "//comp/core/status",
@@ -44,7 +44,9 @@ go_test(
     embed = [":statusimpl"],
     gotags = ["test"],
     deps = [
-        "//comp/core/config",
+        "//comp/core/config/def",
+        "//comp/core/config/fx-mock",
+        "//comp/core/config/mock",
         "//comp/core/log/def",
         "//comp/core/log/mock",
         "//comp/core/status",

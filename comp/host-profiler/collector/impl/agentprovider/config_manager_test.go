@@ -10,12 +10,12 @@ package agentprovider
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestNewConfigManagerDebugFromYAML(t *testing.T) {
-	cfg := config.NewMockFromYAML(t, `
+	cfg := configmock.NewFromYAML(t, `
 api_key: test-key
 site: datadoghq.com
 hostprofiler:
@@ -30,7 +30,7 @@ hostprofiler:
 func TestNewConfigManagerDebugFromEnvVar(t *testing.T) {
 	t.Setenv("DD_HOSTPROFILER_DEBUG_VERBOSITY", "detailed")
 
-	cfg := config.NewMockFromYAML(t, `
+	cfg := configmock.NewFromYAML(t, `
 api_key: test-key
 site: datadoghq.com
 `)
@@ -40,7 +40,7 @@ site: datadoghq.com
 }
 
 func TestNewConfigManagerAdditionalHTTPHeadersFromYAML(t *testing.T) {
-	cfg := config.NewMockFromYAML(t, `
+	cfg := configmock.NewFromYAML(t, `
 api_key: test-key
 site: datadoghq.com
 hostprofiler:
@@ -59,7 +59,7 @@ hostprofiler:
 func TestNewConfigManagerAdditionalHTTPHeadersFromEnvVar(t *testing.T) {
 	t.Setenv("DD_HOSTPROFILER_ADDITIONAL_HTTP_HEADERS", `{"x-custom-header":"custom-value"}`)
 
-	cfg := config.NewMockFromYAML(t, `
+	cfg := configmock.NewFromYAML(t, `
 api_key: test-key
 site: datadoghq.com
 `)
@@ -71,7 +71,7 @@ site: datadoghq.com
 }
 
 func TestNewConfigManagerAdditionalHTTPHeadersEmpty(t *testing.T) {
-	cfg := config.NewMockFromYAML(t, `
+	cfg := configmock.NewFromYAML(t, `
 api_key: test-key
 site: datadoghq.com
 `)
@@ -81,7 +81,7 @@ site: datadoghq.com
 }
 
 func TestNewConfigManagerDDProfilingEnabledFromYAML(t *testing.T) {
-	cfg := config.NewMockFromYAML(t, `
+	cfg := configmock.NewFromYAML(t, `
 api_key: test-key
 site: datadoghq.com
 hostprofiler:
@@ -96,7 +96,7 @@ hostprofiler:
 func TestNewConfigManagerDDProfilingEnabledFromEnvVar(t *testing.T) {
 	t.Setenv("DD_HOSTPROFILER_DDPROFILING_ENABLED", "true")
 
-	cfg := config.NewMockFromYAML(t, `
+	cfg := configmock.NewFromYAML(t, `
 api_key: test-key
 site: datadoghq.com
 `)
@@ -106,7 +106,7 @@ site: datadoghq.com
 }
 
 func TestNewConfigManagerDDProfilingEnabledDefault(t *testing.T) {
-	cfg := config.NewMockFromYAML(t, `
+	cfg := configmock.NewFromYAML(t, `
 api_key: test-key
 site: datadoghq.com
 `)
@@ -116,7 +116,7 @@ site: datadoghq.com
 }
 
 func TestNewConfigManagerDDProfilingPeriodFromYAML(t *testing.T) {
-	cfg := config.NewMockFromYAML(t, `
+	cfg := configmock.NewFromYAML(t, `
 api_key: test-key
 site: datadoghq.com
 hostprofiler:
@@ -131,7 +131,7 @@ hostprofiler:
 func TestNewConfigManagerDDProfilingPeriodFromEnvVar(t *testing.T) {
 	t.Setenv("DD_HOSTPROFILER_DDPROFILING_PERIOD", "45")
 
-	cfg := config.NewMockFromYAML(t, `
+	cfg := configmock.NewFromYAML(t, `
 api_key: test-key
 site: datadoghq.com
 `)
@@ -141,7 +141,7 @@ site: datadoghq.com
 }
 
 func TestNewConfigManagerDDProfilingPeriodDefault(t *testing.T) {
-	cfg := config.NewMockFromYAML(t, `
+	cfg := configmock.NewFromYAML(t, `
 api_key: test-key
 site: datadoghq.com
 `)
@@ -151,7 +151,7 @@ site: datadoghq.com
 }
 
 func TestNewConfigManagerHPFlarePortFromYAML(t *testing.T) {
-	cfg := config.NewMockFromYAML(t, `
+	cfg := configmock.NewFromYAML(t, `
 api_key: test-key
 site: datadoghq.com
 hostprofiler:
@@ -166,7 +166,7 @@ hostprofiler:
 func TestNewConfigManagerHPFlarePortFromEnvVar(t *testing.T) {
 	t.Setenv("DD_HOSTPROFILER_HPFLARE_PORT", "9999")
 
-	cfg := config.NewMockFromYAML(t, `
+	cfg := configmock.NewFromYAML(t, `
 api_key: test-key
 site: datadoghq.com
 `)
@@ -176,7 +176,7 @@ site: datadoghq.com
 }
 
 func TestNewConfigManagerHPFlarePortDefault(t *testing.T) {
-	cfg := config.NewMockFromYAML(t, `
+	cfg := configmock.NewFromYAML(t, `
 api_key: test-key
 site: datadoghq.com
 `)
@@ -186,7 +186,7 @@ site: datadoghq.com
 }
 
 func TestNewConfigManagerProfilingSendToMainEndpointDefault(t *testing.T) {
-	cfg := config.NewMockFromYAML(t, `
+	cfg := configmock.NewFromYAML(t, `
 api_key: main-key
 site: datadoghq.com
 apm_config:
@@ -204,7 +204,7 @@ apm_config:
 }
 
 func TestNewConfigManagerProfilingSendToMainEndpointDisabled(t *testing.T) {
-	cfg := config.NewMockFromYAML(t, `
+	cfg := configmock.NewFromYAML(t, `
 api_key: main-key
 site: datadoghq.com
 apm_config:

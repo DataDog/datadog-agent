@@ -23,7 +23,9 @@ import (
 
 	procmodel "github.com/DataDog/agent-payload/v5/process"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/fx-mock"
+	configmockdirect "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
@@ -40,8 +42,6 @@ import (
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	processapiserver "github.com/DataDog/datadog-agent/comp/process/apiserver/def"
 	processapiserverimpl "github.com/DataDog/datadog-agent/comp/process/apiserver/fx"
-	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	model "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -71,7 +71,7 @@ func createTestFile(t *testing.T, filename string) string {
 func TestRegistryJSON(t *testing.T) {
 	srcDir := createTestFile(t, "registry.json")
 
-	confMock := configmock.New(t)
+	confMock := configmockdirect.New(t)
 	confMock.SetInTest("logs_config.run_path", filepath.Dir(srcDir))
 
 	mock := flarehelpers.NewFlareBuilderMock(t, false)
@@ -80,7 +80,7 @@ func TestRegistryJSON(t *testing.T) {
 	mock.AssertFileContent("mockfilecontent", "registry.json")
 }
 
-func setupIPCAddress(t *testing.T, confMock model.Config, URL string) {
+func setupIPCAddress(t *testing.T, confMock config.Component, URL string) {
 	u, err := url.Parse(URL)
 	require.NoError(t, err)
 	host, port, err := net.SplitHostPort(u.Host)
@@ -94,7 +94,7 @@ func setupIPCAddress(t *testing.T, confMock model.Config, URL string) {
 func setupProcessAPIServer(t *testing.T) {
 	_ = fxutil.Test[processapiserver.Component](t, fx.Options(
 		processapiserverimpl.Module(),
-		fx.Provide(func() config.Component { return config.NewMock(t) }),
+		configmock.MockModule(),
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		mocktelemetry.Module(),
 		workloadmetafx.Module(workloadmeta.NewParams()),
@@ -114,7 +114,7 @@ func setupProcessAPIServer(t *testing.T) {
 func TestVersionHistory(t *testing.T) {
 	srcDir := createTestFile(t, "version-history.json")
 
-	confMock := configmock.New(t)
+	confMock := configmockdirect.New(t)
 	confMock.SetInTest("run_path", filepath.Dir(srcDir))
 
 	mock := flarehelpers.NewFlareBuilderMock(t, false)
@@ -147,7 +147,7 @@ process_config:
 `
 	// Setting an unused port to avoid problem when test run next to running Process Agent
 	port := 56789
-	cfg := configmock.New(t)
+	cfg := configmockdirect.New(t)
 	cfg.SetInTest("process_config.cmd_port", port)
 
 	ipcComp := ipcmock.New(t)
@@ -186,7 +186,7 @@ process_config:
 		port := listener.Addr().(*net.TCPAddr).Port
 		listener.Close()
 
-		cfg := configmock.New(t)
+		cfg := configmockdirect.New(t)
 		cfg.SetInTest("process_config.cmd_port", port)
 		cfg.SetInTest("process_config.process_discovery.enabled", true)
 		cfg.SetInTest("process_config.cmd_port", port)
@@ -251,7 +251,7 @@ func TestProcessAgentChecks(t *testing.T) {
 		mock.AssertFileContentMatch("error collecting data for 'process_discovery_check_output.json': .*", "process_discovery_check_output.json")
 	})
 	t.Run("with process-agent running", func(t *testing.T) {
-		cfg := configmock.New(t)
+		cfg := configmockdirect.New(t)
 		cfg.SetInTest("process_config.process_collection.enabled", true)
 		cfg.SetInTest("process_config.container_collection.enabled", true)
 		cfg.SetInTest("process_config.process_discovery.enabled", true)
@@ -274,7 +274,7 @@ func TestProcessAgentChecks(t *testing.T) {
 		at := ipcmock.New(t)
 
 		srv := at.NewMockServer(http.HandlerFunc(handler))
-		setupIPCAddress(t, configmock.New(t), srv.URL)
+		setupIPCAddress(t, configmockdirect.New(t), srv.URL)
 
 		mock := flarehelpers.NewFlareBuilderMock(t, false)
 		remoteProvider := RemoteFlareProvider{
@@ -293,7 +293,7 @@ func TestProcessAgentChecks(t *testing.T) {
 		port := listener.Addr().(*net.TCPAddr).Port
 		listener.Close()
 
-		cfg := configmock.New(t)
+		cfg := configmockdirect.New(t)
 		cfg.SetInTest("process_config.cmd_port", port)
 		cfg.SetInTest("process_config.process_discovery.enabled", true)
 		cfg.SetInTest("process_config.cmd_port", port)

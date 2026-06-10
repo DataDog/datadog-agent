@@ -7,7 +7,7 @@
 package metricscompressionimpl
 
 import (
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
 	zlib "github.com/DataDog/datadog-agent/pkg/util/compression/impl-zlib"
 	"github.com/DataDog/datadog-agent/pkg/util/compression/selector"

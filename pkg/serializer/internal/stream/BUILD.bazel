@@ -14,7 +14,7 @@ go_library(
         "@com_github_datadog_datadog_agent_pkg_serializer//:__subpackages__",
     ],
     deps = [
-        "//comp/core/config",
+        "//comp/core/config/def",
         "//comp/core/log/def",
         "//comp/core/telemetry/impl",
         "//comp/forwarder/defaultforwarder/transaction",
@@ -34,7 +34,7 @@ go_test(
     embed = [":stream"],
     gotags = ["test"],
     deps = [
-        "//comp/core/config",
+        "//comp/core/config/def",
         "//comp/core/log/mock",
         "//comp/serializer/metricscompression/impl",
         "//pkg/config/mock",

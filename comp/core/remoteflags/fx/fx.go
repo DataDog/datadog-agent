@@ -7,7 +7,7 @@
 package fx
 
 import (
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 	remoteflags "github.com/DataDog/datadog-agent/comp/core/remoteflags/def"
 	remoteflagsimpl "github.com/DataDog/datadog-agent/comp/core/remoteflags/impl"
 	noopimpl "github.com/DataDog/datadog-agent/comp/core/remoteflags/impl-noop"

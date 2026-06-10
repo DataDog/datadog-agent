@@ -16,7 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	v1 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v1"
 	"github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v3or4"
@@ -248,7 +248,7 @@ func TestDetermineDeploymentMode(t *testing.T) {
 			tt.setupEnv(t)
 
 			// Create a mock config with the test value
-			mockConfig := config.NewMockWithOverrides(t, map[string]interface{}{
+			mockConfig := configmock.NewWithOverrides(t, map[string]interface{}{
 				"ecs_deployment_mode": tt.configValue,
 			})
 			collector := &collector{

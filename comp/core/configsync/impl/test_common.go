@@ -19,7 +19,7 @@ import (
 
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	configsync "github.com/DataDog/datadog-agent/comp/core/configsync/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
@@ -35,7 +35,7 @@ func makeDeps(t *testing.T) Requires {
 	t.Helper()
 	ipcComp := ipcmock.New(t)
 	return Requires{
-		Config:     config.NewMock(t),
+		Config:     configmock.New(t),
 		Log:        logmock.New(t),
 		IPCClient:  ipcComp.GetClient(),
 		SyncParams: configsync.NewParams(0, false, 0),

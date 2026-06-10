@@ -29,7 +29,7 @@ go_test(
         "//comp/core/autodiscovery/def",
         "//comp/core/autodiscovery/integration",
         "//comp/core/autodiscovery/scheduler",
-        "//comp/core/config",
+        "//comp/core/config/mock",
         "//comp/core/log/mock",
         "//comp/core/workloadmeta/def",
         "//comp/core/workloadmeta/impl",

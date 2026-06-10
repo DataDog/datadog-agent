@@ -18,7 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
 
-	configmock "github.com/DataDog/datadog-agent/comp/core/config"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
@@ -39,7 +39,7 @@ func newTestExtension(t *testing.T, cfgOverrides map[string]interface{}, extCfg 
 	return &dogtelExtension{
 		config:     extCfg,
 		log:        logmock.New(t),
-		coreConfig: configmock.NewMockWithOverrides(t, cfgOverrides),
+		coreConfig: configmock.NewWithOverrides(t, cfgOverrides),
 		serializer: serializermock.NewMetricSerializer(t),
 		hostname:   hostname,
 		telemetry:  noopsimpl.GetCompatComponent(),
@@ -70,7 +70,7 @@ func TestStart_StandaloneMode_TaggerDisabled(t *testing.T) {
 	ext := &dogtelExtension{
 		config:     cfg,
 		log:        logmock.New(t),
-		coreConfig: configmock.NewMockWithOverrides(t, map[string]interface{}{"otel_standalone": true}),
+		coreConfig: configmock.NewWithOverrides(t, map[string]interface{}{"otel_standalone": true}),
 		serializer: serializer,
 		hostname:   hostname,
 		telemetry:  noopsimpl.GetCompatComponent(),
@@ -109,7 +109,7 @@ func TestSendLivenessMetric_Success(t *testing.T) {
 
 	ext := &dogtelExtension{
 		log:        logmock.New(t),
-		coreConfig: configmock.NewMockWithOverrides(t, nil),
+		coreConfig: configmock.NewWithOverrides(t, nil),
 		serializer: serializer,
 		hostname:   hostname,
 		buildInfo:  component.BuildInfo{Version: "7.0.0", Command: "otel-agent"},
@@ -130,7 +130,7 @@ func TestSendLivenessMetric_SerializerError(t *testing.T) {
 
 	ext := &dogtelExtension{
 		log:        logmock.New(t),
-		coreConfig: configmock.NewMockWithOverrides(t, nil),
+		coreConfig: configmock.NewWithOverrides(t, nil),
 		serializer: serializer,
 		hostname:   hostname,
 	}
@@ -158,7 +158,7 @@ func TestSendLivenessMetric_UsesHostname(t *testing.T) {
 
 	ext := &dogtelExtension{
 		log:        logmock.New(t),
-		coreConfig: configmock.NewMockWithOverrides(t, nil),
+		coreConfig: configmock.NewWithOverrides(t, nil),
 		serializer: serializer,
 		hostname:   hostname,
 		buildInfo:  component.BuildInfo{},
@@ -197,7 +197,7 @@ func TestStart_StandaloneMode_NoopSecretsWarning(t *testing.T) {
 	ext := &dogtelExtension{
 		config:     cfg,
 		log:        logmock.New(t),
-		coreConfig: configmock.NewMockWithOverrides(t, map[string]interface{}{"otel_standalone": true}),
+		coreConfig: configmock.NewWithOverrides(t, map[string]interface{}{"otel_standalone": true}),
 		serializer: sz,
 		hostname:   hostname,
 		telemetry:  noopsimpl.GetCompatComponent(),
@@ -267,7 +267,7 @@ func TestStart_StandaloneMode_InitializesLivenessChannel(t *testing.T) {
 	ext := &dogtelExtension{
 		config:     cfg,
 		log:        logmock.New(t),
-		coreConfig: configmock.NewMockWithOverrides(t, map[string]interface{}{"otel_standalone": true}),
+		coreConfig: configmock.NewWithOverrides(t, map[string]interface{}{"otel_standalone": true}),
 		serializer: sz,
 		hostname:   hostname,
 		telemetry:  noopsimpl.GetCompatComponent(),

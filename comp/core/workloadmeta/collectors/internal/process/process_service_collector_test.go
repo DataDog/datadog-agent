@@ -20,7 +20,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/pkg/discovery/core"
@@ -379,7 +379,7 @@ func TestServiceStoreLifetimeProcessCollectionDisabled(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			cfg := config.NewMock(t)
+			cfg := configmock.New(t)
 			cfg.SetInTest("process_config.process_collection.enabled", false)
 			cfg.SetInTest("language_detection.enabled", false)
 
@@ -607,7 +607,7 @@ func TestServiceStoreLifetime(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			cfg := config.NewMock(t)
+			cfg := configmock.New(t)
 			cfg.SetInTest("process_config.process_collection.enabled", true)
 			cfg.SetInTest("language_detection.enabled", true)
 			// setting process collection interval to the same as the service collection interval
@@ -715,7 +715,7 @@ func TestProcessDeathRemovesServiceData(t *testing.T) {
 		"discovery.enabled": true,
 	}
 
-	cfg := config.NewMock(t)
+	cfg := configmock.New(t)
 	cfg.SetInTest("process_config.process_collection.enabled", true)
 	cfg.SetInTest("language_detection.enabled", true)
 	// setting process collection interval to the same as the service collection interval

@@ -10,7 +10,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/agent/autoexit/def",
-        "//comp/core/config",
+        "//comp/core/config/def",
         "//comp/core/log/def",
         "//pkg/util/common",
         "@com_github_shirou_gopsutil_v4//process",
