@@ -247,11 +247,15 @@ func setupOpenLineage(s *common.Setup) {
 	}
 }
 
-// detectScalaVariant infers the Scala binary version suffix (e.g. "_2.12") by inspecting
-// the scala-library JAR bundled in Spark's jars directory. EMR releases may use either
-// Scala 2.12 or 2.13 depending on the Spark version (e.g. EMR 8.x with Spark 8.x uses 2.13).
-// Falls back to "_2.12" with a warning if detection fails.
+// detectScalaVariant returns the Scala binary version suffix (e.g. "_2.12") to use when
+// downloading the OpenLineage JAR. It checks, in order:
+//  1. DD_OPENLINEAGE_SPARK_VARIANT env var — for clusters where auto-detection is unavailable
+//  2. scala-library-*.jar in Spark's jars directory — reliable on most EMR releases
+//  3. Falls back to "_2.12" with a warning (covers EMR 6.x/7.x; EMR 8.x uses 2.13)
 func detectScalaVariant(s *common.Setup) string {
+	if v := os.Getenv("DD_OPENLINEAGE_SPARK_VARIANT"); v != "" {
+		return v
+	}
 	matches, _ := filepath.Glob(filepath.Join(openLineageJARDir, "scala-library-*.jar"))
 	if len(matches) == 0 {
 		log.Warn("Could not detect Scala variant from Spark jars directory — no scala-library-*.jar found. Falling back to Scala 2.12 for OpenLineage JAR download; set DD_OPENLINEAGE_SPARK_VARIANT to override.")

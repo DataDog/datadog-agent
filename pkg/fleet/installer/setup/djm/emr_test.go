@@ -226,4 +226,12 @@ func TestDetectScalaVariant(t *testing.T) {
 		openLineageJARDir = t.TempDir()
 		assert.Equal(t, "_2.12", detectScalaVariant(s))
 	})
+
+	t.Run("env var overrides detection", func(t *testing.T) {
+		openLineageJARDir = t.TempDir()
+		// Place a 2.12 JAR, but override to 2.13 via env var
+		require.NoError(t, os.WriteFile(filepath.Join(openLineageJARDir, "scala-library-2.12.18.jar"), []byte{}, 0644))
+		t.Setenv("DD_OPENLINEAGE_SPARK_VARIANT", "_2.13")
+		assert.Equal(t, "_2.13", detectScalaVariant(s))
+	})
 }
