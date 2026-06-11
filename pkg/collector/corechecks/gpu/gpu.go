@@ -366,8 +366,15 @@ func (c *Check) emitMetrics(snd sender.Sender, gpuToContainersMap map[string][]*
 
 	perDeviceMetrics := make(map[string]*deviceMetricsCollection)
 
+	var collectorResults []collectorMetricsCollection
+	if pkgconfigsetup.Datadog().GetBool("gpu.parallel_collectors") {
+		collectorResults = collectMetrics(c.collectors)
+	} else {
+		collectorResults = collectMetricsSerial(c.collectors)
+	}
+
 	var multiErr []error
-	for _, collectorResult := range collectMetrics(c.collectors) {
+	for _, collectorResult := range collectorResults {
 		c.telemetry.collectorTelemetry.Time.Observe(float64(collectorResult.duration.Milliseconds()), string(collectorResult.name))
 
 		if collectorResult.err != nil {
@@ -410,6 +417,16 @@ func (c *Check) emitMetrics(snd sender.Sender, gpuToContainersMap map[string][]*
 	return errors.Join(multiErr...)
 }
 
+func collectMetricsSerial(collectors []nvidia.Collector) []collectorMetricsCollection {
+	results := make([]collectorMetricsCollection, len(collectors))
+
+	for i, collector := range collectors {
+		results[i] = collectMetric(collector)
+	}
+
+	return results
+}
+
 func collectMetrics(collectors []nvidia.Collector) []collectorMetricsCollection {
 	results := make([]collectorMetricsCollection, len(collectors))
 
@@ -418,24 +435,27 @@ func collectMetrics(collectors []nvidia.Collector) []collectorMetricsCollection 
 	for i, collector := range collectors {
 		go func(i int, collector nvidia.Collector) {
 			defer wg.Done()
-
-			name := collector.Name()
-			log.Debugf("Collecting metrics from NVML collector: %s", name)
-
-			startTime := time.Now()
-			metrics, err := collector.Collect()
-			results[i] = collectorMetricsCollection{
-				name:       name,
-				deviceUUID: collector.DeviceUUID(),
-				metrics:    metrics,
-				err:        err,
-				duration:   time.Since(startTime),
-			}
+			results[i] = collectMetric(collector)
 		}(i, collector)
 	}
 	wg.Wait()
 
 	return results
+}
+
+func collectMetric(collector nvidia.Collector) collectorMetricsCollection {
+	name := collector.Name()
+	log.Debugf("Collecting metrics from NVML collector: %s", name)
+
+	startTime := time.Now()
+	metrics, err := collector.Collect()
+	return collectorMetricsCollection{
+		name:       name,
+		deviceUUID: collector.DeviceUUID(),
+		metrics:    metrics,
+		err:        err,
+		duration:   time.Since(startTime),
+	}
 }
 
 func (c *Check) emitSingleMetric(metric *nvidia.Metric, snd sender.Sender, currentExecutionTime time.Time, deviceContainers []*workloadmeta.Container, deviceTags []string) error {
