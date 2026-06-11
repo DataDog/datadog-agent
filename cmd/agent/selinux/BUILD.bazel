@@ -1,0 +1,36 @@
+"""SELinux policy compilation for system-probe."""
+
+load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files", "pkg_mkdirs")
+
+genrule(
+    name = "system_probe_policy_mod",
+    srcs = ["system_probe_policy.te"],
+    outs = ["system_probe_policy.mod"],
+    cmd = "checkmodule -M -m -c 19 -o $@ $<",
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+genrule(
+    name = "system_probe_policy_pp",
+    srcs = [":system_probe_policy_mod"],
+    outs = ["system_probe_policy.pp"],
+    cmd = "semodule_package -o $@ -m $<",
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+pkg_mkdirs(
+    name = "selinux_dir",
+    attributes = pkg_attributes(mode = "755"),
+    dirs = ["etc/datadog-agent/selinux"],
+    target_compatible_with = ["@platforms//os:linux"],
+    visibility = ["//packages:__subpackages__"],
+)
+
+pkg_files(
+    name = "selinux_policy_files",
+    srcs = [":system_probe_policy_pp"],
+    attributes = pkg_attributes(mode = "644"),
+    prefix = "etc/datadog-agent/selinux",
+    target_compatible_with = ["@platforms//os:linux"],
+    visibility = ["//packages:__subpackages__"],
+)

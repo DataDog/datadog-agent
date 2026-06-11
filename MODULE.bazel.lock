@@ -323,7 +323,7 @@
   "moduleExtensions": {
     "//bazel/toolchains/agent_data_plane:agent_data_plane_configure.bzl%agent_data_plane_configure": {
       "os:linux,arch:aarch64": {
-        "bzlTransitiveDigest": "3vSM09a9P9oJKtixpvLR0lHrRlbwxFvlVM0kDfhTwXQ=",
+        "bzlTransitiveDigest": "CVX7rBqV15D8jT9C5KH5bE0HxCLdmZ0uj/LTN5Mu+38=",
         "usagesDigest": "Mn8hje2vs3iTBGlVjz9P/Y3iRo33KcBSyBhfWUEdFpk=",
         "recordedInputs": [],
         "generatedRepoSpecs": {

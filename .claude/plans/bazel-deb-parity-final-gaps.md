@@ -26,7 +26,7 @@ package-name-normalized comparison, which produces 0 genuinely missing packages.
 |---|---|---|
 | Python `embedded/bin` entry-point scripts | ~40 | TODO — `whl_extract.bzl` doesn't generate entry-points yet |
 | kerberos/GSSAPI headers (`include/krb5/`, `include/gssrpc/`, etc.) | ~43 | TODO — check krb5 dep filegroup |
-| `.so` full-version symlinks (`libssl.so.3.5.5` etc.) | 7 | TODO — add symlinks to dep rules |
+| `.so` full-version symlinks (`libssl.so.3.5.5` etc.) | 7 | **ACCEPTED DEVIATION** — see note below |
 | `LICENSES/` nested format + specific license files | ~32 | TODO — layout/content gaps |
 | `bin/agent/dist/` stubs (`config.py`, `security-agent.yaml`, etc.) | 4 | TODO — check if in `cmd/agent/dist/` |
 | `clang-bpf`, `llc-bpf` | 2 | **IMPLEMENTED** — see Gap 5 below |
@@ -36,6 +36,53 @@ package-name-normalized comparison, which produces 0 genuinely missing packages.
 | Omnibus tracking files (`.install_root`, `.installed_by_pkg.txt`, etc.) | ~4 | Acceptable deviation — omnibus bookkeeping |
 | `python-scripts/` (`pre.py`, `post.py`, `packages.py`) | 4 | Acceptable deviation — omnibus install helpers, not needed at runtime |
 | eBPF test objects (`btf_test.o`, `uprobe_attacher-test.o`) | 3 | Acceptable deviation — test artifacts |
+
+**Note on `.so` full-version symlinks (7 items — accepted deviations):**
+
+All 7 items previously listed as "TODO — add symlinks to dep rules" are **not structural
+gaps** in the Bazel build. The `so_symlink.bzl` macro already generates the correct
+3-tier symlink chain (real_name/soname/linker_name) for every library. The apparent gap
+was an artefact of the investigation's `awk '{print $NF}'` extraction method, which for
+symlink lines in `dpkg-deb -c` output returns the symlink *target* rather than the
+symlink *path*, producing duplicate/incorrect entries in the comparison.
+
+The 7 items broken down:
+1. `libssl.so.3.5.5` — version skew (Bazel ships 3.5.7, ref is 3.5.5)
+2. `libcrypto.so.3.5.5` — version skew (same openssl version bump)
+3. `libsqlite3.so.3.50.4` — version skew (Bazel: 3.53.0, ref: 3.50.4)
+4. `libxml2.so.16.0.5` — version skew (Bazel: 16.1.3, ref: 16.0.5)
+5. `libxslt.so.1.1.43` — version skew (Bazel: 1.1.45, ref: 1.1.43)
+6. `libexslt.so.0.8.24` — version skew (Bazel: 0.8.25, ref: 0.8.24)
+7. `libdatadog-agent-rtloader.so.2` — intentional SOVERSION drop (PR #46720, 2026-02-20);
+   Bazel correctly emits `.so.0` per `VERSION=0.1.0` in `rtloader/BUILD.bazel`.
+
+**Fix implemented in comparison-gate.yml (June 2026):**
+
+The comparison gate was fundamentally redesigned to use a **path-set comparison** instead
+of a raw `diff` on full `tar tv` lines. This eliminates false positives from format
+differences between omnibus and Bazel:
+
+- **Leading `./` path prefix**: omnibus tar entries start with `./`; rules_pkg does not.
+- **Ownership**: omnibus uses `root/root`; rules_pkg uses `0/0`.
+- **Symlink permissions**: omnibus emits `lrwxrwxrwx`; rules_pkg emits `lrw-r--r--`.
+- **Timestamps**: real timestamps vs reproducible-build epoch (2000-01-01 00:00).
+- **File sizes**: same path but different binary version has different size.
+
+The new approach:
+1. `_path_set()` awk function extracts `TYPE PATH [-> SYMLINK_TARGET]` (stripping `./`)
+2. `.so` version normalization still applied (`lib*.so.X.Y.Z → lib*.so.X`)
+3. `diff` runs on the resulting path-set (one entry per file, not one line per char diff)
+4. PASS/FAIL decision uses `pkg-path-diff.txt`; raw `pkg-diff.txt` kept for human review
+
+Result: `embedded/lib` reduced from 345 reported false positives to **4 genuine entries**:
+- `libdatadog-agent-rtloader.so -> .so.2` and `.so.2 -> .so.0` — ACCEPTED (SOVERSION change)
+- `libkadm5clnt_mit.so.12 -> libkadm5clnt.so` — different symlink target (krb5 versioning)
+- `libkadm5srv_mit.so.12 -> libkadm5srv.so` — different symlink target (krb5 versioning)
+
+`ACCEPTED_DIFF_PATTERNS` updated to match path-set format (no `./` prefix).
+
+Do NOT add `pkg_symlink`/`dd_agent_pkg_mklink` for `.so` chains — `so_symlink.bzl` already
+emits the correct chain, and adding more would cause duplicate-path build errors.
 
 **Constraint:** `bzl build //packages/agent/linux:debian` must produce a complete deb
 without any omnibus pipeline having run first. The Bazel build path is fully independent
@@ -405,23 +452,47 @@ use target arch (like `@agent_data_plane` below does).
 
 ---
 
-## Gap 6 — agent-data-plane — REPO RULE WRITTEN, CI AUTH PENDING
+## Gap 6 — agent-data-plane — BINARY + LICENSE FILES WIRED (June 2026)
 
-**Status: repo rule complete; local binary extracted; production fetch needs Vault role.**
+**Status: binary + license files wired; production fetch needs Vault role.**
 
 `agent-data-plane` (the Saluki data plane) is a pre-built binary from
 `https://binaries.ddbuild.io/saluki/` — not built from source in this repo.
 
-**What was implemented:**
-- `bazel/toolchains/agent_data_plane/agent_data_plane_configure.bzl` — module extension +
-  repository rule that downloads the per-arch tarball (all four variants: amd64/arm64 + FIPS)
-  and emits a `select()` on `@platforms//cpu` — matching **target arch**, not host arch.
-- `MODULE.bazel` — extension registered with version 1.1.2 and all four SHA256 hashes
-  (sourced from `release.json:dependencies`).
-- `packages/agent/product/BUILD.bazel` — `agent_data_plane_binary` pkg_files added, gated to
-  `linux_default` / `linux_fips` (not heroku), per omnibus behavior.
-- `deps/agent-data-plane/agent-data-plane-arm64` — binary extracted from the reference deb
-  for local testing (SHA256: `a6dd08982c5547312094ddd6219f9b17f31d59fcdae91bf0dba002baad4dd4fc`).
+**What was implemented (June 2026 — iteration 5):**
+- `bazel/toolchains/agent_data_plane/agent_data_plane_configure.bzl`:
+  - **Fixed binary extraction path**: the download branch now uses
+    `mv opt/datadog-agent/embedded/bin/agent-data-plane bin/agent-data-plane-ARCH`
+    (was incorrectly `mv agent-data-plane bin/...` assuming root-level placement).
+  - **Added license extraction**: `cp -r opt/datadog/agent-data-plane/LICENSES licenses/LICENSES-ARCH`
+    and `cp opt/datadog/agent-data-plane/LICENSE-3rdparty.csv licenses/LICENSE-3rdparty-ARCH.csv`.
+  - **Local-override branch extended**: creates empty stub `licenses/` files so that
+    filegroup targets resolve at analysis time even without a real tarball.
+  - **Generated BUILD.bazel extended**: adds `license_csv` alias, `_lic_csv_*` filegroups,
+    `license_csv_files` pkg_files (with arch-selecting `renames`),
+    `license_dir_files_amd64` and `license_dir_files_arm64` pkg_files (with per-arch
+    `strip_prefix`, since glob() cannot appear in select()).
+- `packages/agent/product/BUILD.bazel`:
+  - Added `agent_data_plane_license_csv_files` (`pkg_filegroup` wrapping
+    `@agent_data_plane//:license_csv_files`) — ships CSV to `LICENSES/`.
+  - Added `agent_data_plane_license_dir_files` (`pkg_filegroup` with `select()` on cpu
+    picking `license_dir_files_amd64` or `license_dir_files_arm64`) — ships texts to
+    `LICENSES/LICENSES/`.
+  - Both wired into `all_files` under `linux_default` and `linux_fips` selects.
+
+**Tarball layout (ground truth: omnibus/config/software/datadog-agent-data-plane.rb lines 56-58):**
+```
+opt/datadog-agent/embedded/bin/agent-data-plane   → embedded/bin/agent-data-plane
+opt/datadog/agent-data-plane/LICENSES/            → LICENSES/LICENSES/ (nested — LICENSES dir
+                                                    already exists in install_dir)
+opt/datadog/agent-data-plane/LICENSE-3rdparty.csv → LICENSES/LICENSE-agent-data-plane-3rdparty.csv
+```
+
+**CAVEAT:** Tarball paths above are derived from omnibus .rb lines 56-58 and have NOT been
+verified against the actual 1.1.2 tarball (binaries.ddbuild.io requires Vault auth). If the
+tarball layout differs, the `mv`/`cp` paths in `agent_data_plane_configure.bzl` need adjustment.
+The binary-at-root assumption of the original rule came from the local binary override path
+masking the download-path bug; the .rb is now treated as ground truth for both binary and licenses.
 
 **Local development override:**
 ```bash
@@ -429,11 +500,13 @@ bzl build //packages/agent/linux:debian \
   --repo_env=AGENT_DATA_PLANE_LOCAL_BINARY=/path/to/agent-data-plane-arm64
 ```
 
+**Verification (--nobuild graph check):**
+`bzl build --nobuild //packages/agent/linux:debian --platforms=//bazel/platforms:linux_arm64
+  --repo_env=AGENT_DATA_PLANE_LOCAL_BINARY=...` → EXIT:0, "Build completed successfully".
+
 **To unblock production CI fetch:**
 The repo rule calls `binaries.ddbuild.io` which requires a Vault OIDC role
 (`binaries.ddbuild.io`) not provisioned for this workspace. Two options:
 1. Request the role from the platform/infra team for the Bazel CI runner Vault identity.
 2. Add `ddtool auth token binaries.ddbuild.io --datacenter us1.ddbuild.io` as a pre-step
    in the packaging GitLab job and pass the token as a `--repo_env=DDBUILD_TOKEN=...` arg.
-
-The `--nobuild` graph check passes (lazy fetch; no network call until actual build).

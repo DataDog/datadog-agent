@@ -111,22 +111,17 @@ filegroup(
     output_group = "kinit",
 )
 
-# The rules_foreign_cc "include" output_group is a single tree artifact at
-# package-relative path "krb5/include" (rules_foreign_cc framework.bzl:868
-# uses declare_directory(lib_name + "/" + out_include_dir)).
+# The rules_foreign_cc "include" output_group is a single tree artifact.
+# pkg_files on a tree artifact produces a single "type: tree" manifest entry.
+# When the openssl tree already claims dest "embedded" (a parent prefix),
+# the krb5 tree at "embedded/include" is silently dropped by the deb builder.
 #
-# pkg_files cannot strip within a tree artifact (rules_pkg pkg_files.bzl:157-161),
-# so strip_prefix operates on the tree's own package-relative path.
-# With root_paths=["krb5"] the tree root is "include/", strip_prefix="krb5_hdrs"
-# → dest="" → under collected_libs prefix "embedded" the tree claims key
-# "embedded" and is silently dropped in favour of the real embedded/ file entries
-# (aspect_bazel_lib copy_to_directory.bzl:274).
+# Fix: extract each header as an individual File artifact via genrule so that
+# pkg_files produces "type: file" manifest entries. Individual file entries are
+# not subject to tree-vs-tree dest-collision and survive packaging correctly.
 #
-# Fix (research-confirmed): strip all the way to "krb5/include" so the tree
-# root holds the headers directly (krb5.h, gssapi.h, …), then prefix="include"
-# maps the tree to dest "include". Through collected_libs (prefix "embedded")
-# → "embedded/include"; through agent_components (prefix "/opt/datadog-agent")
-# → "opt/datadog-agent/embedded/include/krb5.h" etc.
+# copy_to_directory is still used to remap the tree root from "krb5/include/"
+# to a flat directory so the genrule can address files by relative path.
 copy_to_directory(
     name = "_hdr_wrapped",
     srcs = [":_headers"],
@@ -134,10 +129,119 @@ copy_to_directory(
     root_paths = ["krb5/include"],
 )
 
+# Extract every header from the tree artifact as an individual declared file.
+# The full list is derived from the rules_foreign_cc build output and must be
+# kept in sync if upstream krb5 adds new public headers.
+genrule(
+    name = "_hdr_files_gen",
+    srcs = [":_hdr_wrapped"],
+    outs = [
+        "krb5_include/com_err.h",
+        "krb5_include/gssapi.h",
+        "krb5_include/kdb.h",
+        "krb5_include/krad.h",
+        "krb5_include/krb5.h",
+        "krb5_include/profile.h",
+        "krb5_include/verto-module.h",
+        "krb5_include/verto.h",
+        "krb5_include/gssapi/gssapi.h",
+        "krb5_include/gssapi/gssapi_alloc.h",
+        "krb5_include/gssapi/gssapi_ext.h",
+        "krb5_include/gssapi/gssapi_generic.h",
+        "krb5_include/gssapi/gssapi_krb5.h",
+        "krb5_include/gssapi/mechglue.h",
+        "krb5_include/gssrpc/auth.h",
+        "krb5_include/gssrpc/auth_gss.h",
+        "krb5_include/gssrpc/auth_gssapi.h",
+        "krb5_include/gssrpc/auth_unix.h",
+        "krb5_include/gssrpc/clnt.h",
+        "krb5_include/gssrpc/netdb.h",
+        "krb5_include/gssrpc/pmap_clnt.h",
+        "krb5_include/gssrpc/pmap_prot.h",
+        "krb5_include/gssrpc/pmap_rmt.h",
+        "krb5_include/gssrpc/rename.h",
+        "krb5_include/gssrpc/rpc.h",
+        "krb5_include/gssrpc/rpc_msg.h",
+        "krb5_include/gssrpc/svc.h",
+        "krb5_include/gssrpc/svc_auth.h",
+        "krb5_include/gssrpc/types.h",
+        "krb5_include/gssrpc/xdr.h",
+        "krb5_include/kadm5/admin.h",
+        "krb5_include/kadm5/chpass_util_strings.h",
+        "krb5_include/kadm5/kadm_err.h",
+        "krb5_include/krb5/ccselect_plugin.h",
+        "krb5_include/krb5/certauth_plugin.h",
+        "krb5_include/krb5/clpreauth_plugin.h",
+        "krb5_include/krb5/hostrealm_plugin.h",
+        "krb5_include/krb5/kadm5_auth_plugin.h",
+        "krb5_include/krb5/kadm5_hook_plugin.h",
+        "krb5_include/krb5/kdcpolicy_plugin.h",
+        "krb5_include/krb5/kdcpreauth_plugin.h",
+        "krb5_include/krb5/krb5.h",
+        "krb5_include/krb5/localauth_plugin.h",
+        "krb5_include/krb5/locate_plugin.h",
+        "krb5_include/krb5/plugin.h",
+        "krb5_include/krb5/preauth_plugin.h",
+        "krb5_include/krb5/pwqual_plugin.h",
+    ],
+    cmd = """
+        src=$$(dirname $(location :_hdr_wrapped))
+        out=$$(dirname $(RULEDIR)/krb5_include/com_err.h)
+        mkdir -p $$out $$out/gssapi $$out/gssrpc $$out/kadm5 $$out/krb5
+        cp $$src/krb5_hdrs/com_err.h $$out/
+        cp $$src/krb5_hdrs/gssapi.h $$out/
+        cp $$src/krb5_hdrs/kdb.h $$out/
+        cp $$src/krb5_hdrs/krad.h $$out/
+        cp $$src/krb5_hdrs/krb5.h $$out/
+        cp $$src/krb5_hdrs/profile.h $$out/
+        cp $$src/krb5_hdrs/verto-module.h $$out/
+        cp $$src/krb5_hdrs/verto.h $$out/
+        cp $$src/krb5_hdrs/gssapi/gssapi.h $$out/gssapi/
+        cp $$src/krb5_hdrs/gssapi/gssapi_alloc.h $$out/gssapi/
+        cp $$src/krb5_hdrs/gssapi/gssapi_ext.h $$out/gssapi/
+        cp $$src/krb5_hdrs/gssapi/gssapi_generic.h $$out/gssapi/
+        cp $$src/krb5_hdrs/gssapi/gssapi_krb5.h $$out/gssapi/
+        cp $$src/krb5_hdrs/gssapi/mechglue.h $$out/gssapi/
+        cp $$src/krb5_hdrs/gssrpc/auth.h $$out/gssrpc/
+        cp $$src/krb5_hdrs/gssrpc/auth_gss.h $$out/gssrpc/
+        cp $$src/krb5_hdrs/gssrpc/auth_gssapi.h $$out/gssrpc/
+        cp $$src/krb5_hdrs/gssrpc/auth_unix.h $$out/gssrpc/
+        cp $$src/krb5_hdrs/gssrpc/clnt.h $$out/gssrpc/
+        cp $$src/krb5_hdrs/gssrpc/netdb.h $$out/gssrpc/
+        cp $$src/krb5_hdrs/gssrpc/pmap_clnt.h $$out/gssrpc/
+        cp $$src/krb5_hdrs/gssrpc/pmap_prot.h $$out/gssrpc/
+        cp $$src/krb5_hdrs/gssrpc/pmap_rmt.h $$out/gssrpc/
+        cp $$src/krb5_hdrs/gssrpc/rename.h $$out/gssrpc/
+        cp $$src/krb5_hdrs/gssrpc/rpc.h $$out/gssrpc/
+        cp $$src/krb5_hdrs/gssrpc/rpc_msg.h $$out/gssrpc/
+        cp $$src/krb5_hdrs/gssrpc/svc.h $$out/gssrpc/
+        cp $$src/krb5_hdrs/gssrpc/svc_auth.h $$out/gssrpc/
+        cp $$src/krb5_hdrs/gssrpc/types.h $$out/gssrpc/
+        cp $$src/krb5_hdrs/gssrpc/xdr.h $$out/gssrpc/
+        cp $$src/krb5_hdrs/kadm5/admin.h $$out/kadm5/
+        cp $$src/krb5_hdrs/kadm5/chpass_util_strings.h $$out/kadm5/
+        cp $$src/krb5_hdrs/kadm5/kadm_err.h $$out/kadm5/
+        cp $$src/krb5_hdrs/krb5/ccselect_plugin.h $$out/krb5/
+        cp $$src/krb5_hdrs/krb5/certauth_plugin.h $$out/krb5/
+        cp $$src/krb5_hdrs/krb5/clpreauth_plugin.h $$out/krb5/
+        cp $$src/krb5_hdrs/krb5/hostrealm_plugin.h $$out/krb5/
+        cp $$src/krb5_hdrs/krb5/kadm5_auth_plugin.h $$out/krb5/
+        cp $$src/krb5_hdrs/krb5/kadm5_hook_plugin.h $$out/krb5/
+        cp $$src/krb5_hdrs/krb5/kdcpolicy_plugin.h $$out/krb5/
+        cp $$src/krb5_hdrs/krb5/kdcpreauth_plugin.h $$out/krb5/
+        cp $$src/krb5_hdrs/krb5/krb5.h $$out/krb5/
+        cp $$src/krb5_hdrs/krb5/localauth_plugin.h $$out/krb5/
+        cp $$src/krb5_hdrs/krb5/locate_plugin.h $$out/krb5/
+        cp $$src/krb5_hdrs/krb5/plugin.h $$out/krb5/
+        cp $$src/krb5_hdrs/krb5/preauth_plugin.h $$out/krb5/
+        cp $$src/krb5_hdrs/krb5/pwqual_plugin.h $$out/krb5/
+    """,
+)
+
 pkg_files(
     name = "hdr_files",
-    srcs = [":_hdr_wrapped"],
-    strip_prefix = "krb5_hdrs",
+    srcs = [":_hdr_files_gen"],
+    strip_prefix = "krb5_include",
     prefix = "include",
 )
 

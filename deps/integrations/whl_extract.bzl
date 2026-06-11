@@ -225,3 +225,132 @@ multi_whl_extract = rule(
     },
     toolchains = ["@rules_python//python:toolchain_type"],
 )
+
+def _whl_entry_points_impl(ctx):
+    """Generate pip-style console_scripts wrapper scripts from a site-packages tree.
+
+    For every dist-info/entry_points.txt found under site_packages that contains
+    a [console_scripts] section, emit one wrapper script per entry using the
+    standard pip wrapper format:
+
+        #!/opt/datadog-agent/embedded/bin/python3
+        import sys
+        from <module> import <func>
+        if __name__ == '__main__':
+            if sys.argv[0].endswith('.exe'):
+                sys.argv[0] = sys.argv[0][:-4]
+            sys.exit(<func>())
+    """
+    toolchain = ctx.toolchains["@rules_python//python:toolchain_type"]
+    runtime = toolchain.py3_runtime
+
+    out_dir = ctx.actions.declare_directory(ctx.attr.name)
+    site_packages = ctx.file.site_packages
+
+    if runtime.interpreter:
+        python_path = runtime.interpreter.path
+    else:
+        python_path = runtime.interpreter_path
+
+    # Python script to scan entry_points.txt files and emit wrapper scripts.
+    # Written to a genfile so it does not need shell escaping.
+    generate_script = ctx.actions.declare_file(ctx.attr.name + "_gen_entry_points.py")
+    ctx.actions.write(
+        output = generate_script,
+        content = r"""
+import os
+import sys
+
+site_packages_dir = sys.argv[1]
+out_dir = sys.argv[2]
+
+WRAPPER_TEMPLATE = (
+    "#!/opt/datadog-agent/embedded/bin/python3\n"
+    "import sys\n"
+    "from {module} import {func}\n"
+    "if __name__ == '__main__':\n"
+    "    if sys.argv[0].endswith('.exe'):\n"
+    "        sys.argv[0] = sys.argv[0][:-4]\n"
+    "    sys.exit({func}())\n"
+)
+
+for root, dirs, files in os.walk(site_packages_dir):
+    if not root.endswith('.dist-info'):
+        continue
+    ep_path = os.path.join(root, 'entry_points.txt')
+    if not os.path.isfile(ep_path):
+        continue
+    in_console_scripts = False
+    with open(ep_path, 'r', encoding='utf-8', errors='replace') as f:
+        for line in f:
+            line = line.strip()
+            if line.startswith('['):
+                in_console_scripts = (line == '[console_scripts]')
+                continue
+            if not in_console_scripts or not line or line.startswith('#'):
+                continue
+            # Parse: script_name = module:func
+            if '=' not in line:
+                continue
+            name_part, _, spec = line.partition('=')
+            name_part = name_part.strip()
+            spec = spec.strip()
+            if ':' not in spec:
+                continue
+            module, _, func = spec.partition(':')
+            module = module.strip()
+            func = func.strip().split('[')[0].strip()
+            if not name_part or not module or not func:
+                continue
+            script_content = WRAPPER_TEMPLATE.format(module=module, func=func)
+            script_path = os.path.join(out_dir, name_part)
+            with open(script_path, 'w', encoding='utf-8') as sf:
+                sf.write(script_content)
+            os.chmod(script_path, 0o755)
+""",
+    )
+
+    if runtime.interpreter:
+        inputs = depset([site_packages, generate_script, runtime.interpreter], transitive = [runtime.files])
+    else:
+        inputs = depset([site_packages, generate_script])
+
+    ctx.actions.run_shell(
+        inputs = inputs,
+        outputs = [out_dir],
+        command = '"{python}" "$1" "$2" "$3"'.format(python = python_path),
+        arguments = [generate_script.path, site_packages.path, out_dir.path],
+        mnemonic = "WhlEntryPoints",
+        progress_message = "Generating entry-point scripts from %s" % site_packages.basename,
+    )
+
+    return [DefaultInfo(files = depset([out_dir]))]
+
+whl_entry_points = rule(
+    doc = """Generate pip-style console_scripts wrapper scripts from a site-packages TreeArtifact.
+
+    Scans every dist-info/entry_points.txt under the provided site_packages
+    directory for [console_scripts] entries and emits one wrapper script per
+    entry in the standard pip format:
+
+        #!/opt/datadog-agent/embedded/bin/python3
+        import sys
+        from <module> import <func>
+        if __name__ == '__main__':
+            if sys.argv[0].endswith('.exe'):
+                sys.argv[0] = sys.argv[0][:-4]
+            sys.exit(<func>())
+
+    Output is a TreeArtifact suitable for packaging under embedded/bin with
+    mode 0755.
+    """,
+    implementation = _whl_entry_points_impl,
+    attrs = {
+        "site_packages": attr.label(
+            doc = "The site-packages TreeArtifact produced by multi_whl_extract.",
+            mandatory = True,
+            allow_single_file = True,
+        ),
+    },
+    toolchains = ["@rules_python//python:toolchain_type"],
+)

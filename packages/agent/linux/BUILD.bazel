@@ -61,6 +61,9 @@ pkg_filegroup(
         "//packages/debian/etc:all_files",
         # Agent config files, conf.d, etc-level dirs (etc/datadog-agent, checks.d), and config.py
         "//packages/agent/product:etc_files",
+        # SELinux policy for system-probe -> /etc/datadog-agent/selinux/
+        "//cmd/agent/selinux:selinux_dir",
+        "//cmd/agent/selinux:selinux_policy_files",
     ],
 )
 

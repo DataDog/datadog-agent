@@ -30,8 +30,8 @@
 #        datadog_checks_tests_helper, docker_daemon, ibm_ace, ibm_mq (arm exclusions),
 #        ddev (developer tool).
 
-load("@rules_pkg//pkg:mappings.bzl", "REMOVE_BASE_DIRECTORY", "pkg_filegroup", "pkg_files", "strip_prefix")
-load(":whl_extract.bzl", "multi_whl_extract")
+load("@rules_pkg//pkg:mappings.bzl", "REMOVE_BASE_DIRECTORY", "pkg_attributes", "pkg_filegroup", "pkg_files", "strip_prefix")
+load(":whl_extract.bzl", "multi_whl_extract", "whl_entry_points")
 
 package(default_visibility = ["//packages:__subpackages__"])
 
@@ -9169,11 +9169,49 @@ genrule(
 )
 
 # ---------------------------------------------------------------------------
+# bin_entry_points_tree — generate Python console_scripts wrapper scripts.
+#
+# pip install automatically creates a wrapper script for every entry listed
+# in the [console_scripts] section of a package's dist-info/entry_points.txt.
+# whl_extract/multi_whl_extract do not call pip, so these scripts are absent
+# from site_packages_tree.  This genrule recreates them.
+#
+# For every dist-info/entry_points.txt found under site_packages_tree that
+# contains a [console_scripts] section, emit one wrapper per entry at the
+# standard pip format:
+#
+#   #!/opt/datadog-agent/embedded/bin/python3
+#   # -*- coding: utf-8 -*-
+#   import re
+#   import sys
+#   from <module> import <func>
+#   if __name__ == '__main__':
+#       sys.argv[0] = re.sub(r'(-script\.pyw|\.exe)?$', '', sys.argv[0])
+#       sys.exit(<func>())
+#
+# Scripts are written into a declared directory and packaged at embedded/bin
+# with mode 0755 (matching pip's install behaviour).
+# ---------------------------------------------------------------------------
+whl_entry_points(
+    name = "bin_entry_points_tree",
+    site_packages = ":site_packages_tree",
+)
+
+pkg_files(
+    name = "bin_entry_points_files",
+    srcs = [":bin_entry_points_tree"],
+    attributes = pkg_attributes(mode = "0755"),
+    prefix = "embedded/bin",
+    renames = {":bin_entry_points_tree": REMOVE_BASE_DIRECTORY},
+)
+
+# ---------------------------------------------------------------------------
 # site_packages — the top-level assembly target wired into embedded/BUILD.bazel.
 # ---------------------------------------------------------------------------
 pkg_filegroup(
     name = "site_packages",
     srcs = [
+        ":bin_entry_points_files",
         ":site_packages_files",
     ],
 )

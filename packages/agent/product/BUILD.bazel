@@ -39,7 +39,7 @@ pkg_filegroup(
         ":dda_built_process_agent_binary",
         ":dda_built_privateactionrunner_binary",
         ":system_probe_binary",
-        # TODO: system-probe - selinux policy
+        # system-probe selinux policy is in //cmd/agent/selinux, routed via packages/agent/linux:etc_components
         ":ebpf_prebuilt_objects",
         ":ebpf_core_objects",
         ":ebpf_runtime_sources",
@@ -57,12 +57,16 @@ pkg_filegroup(
     ] + select({
         "//packages/agent:linux_default": [
             ":agent_data_plane_binary",
+            ":agent_data_plane_license_csv_files",
+            ":agent_data_plane_license_dir_files",
             ":installer_binary",
             "//pkg/discovery/module/rust:all_files",
             "//pkg/procmgr/rust:all_files_linux",
         ],
         "//packages/agent:linux_fips": [
             ":agent_data_plane_binary",
+            ":agent_data_plane_license_csv_files",
+            ":agent_data_plane_license_dir_files",
             ":installer_binary",
             "//pkg/discovery/module/rust:all_files",
             "//pkg/procmgr/rust:all_files_linux",
@@ -361,6 +365,29 @@ pkg_files(
     srcs = ["@agent_data_plane//:bin/agent-data-plane"],
     attributes = pkg_attributes(mode = "755"),
     prefix = "embedded/bin",
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+# Agent Data Plane license CSV → LICENSES/LICENSE-agent-data-plane-3rdparty.csv
+# Mirrors: omnibus/config/software/datadog-agent-data-plane.rb line 58.
+# NOTE: The per-arch pkg_files with the correct rename live in @agent_data_plane.
+pkg_filegroup(
+    name = "agent_data_plane_license_csv_files",
+    srcs = [
+        "@agent_data_plane//:license_csv_files",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+# Agent Data Plane license texts → LICENSES/LICENSES/
+# Mirrors: omnibus/config/software/datadog-agent-data-plane.rb line 57.
+# NOTE: local dev builds using AGENT_DATA_PLANE_LOCAL_BINARY create empty stubs.
+pkg_filegroup(
+    name = "agent_data_plane_license_dir_files",
+    srcs = select({
+        "@platforms//cpu:x86_64": ["@agent_data_plane//:license_dir_files_amd64"],
+        "@platforms//cpu:arm64": ["@agent_data_plane//:license_dir_files_arm64"],
+    }),
     target_compatible_with = ["@platforms//os:linux"],
 )
 

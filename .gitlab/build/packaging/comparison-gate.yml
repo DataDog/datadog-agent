@@ -22,17 +22,23 @@ bazel:packaging:comparison-gate:
     KUBERNETES_MEMORY_REQUEST: "16Gi"
     KUBERNETES_MEMORY_LIMIT: "16Gi"
     # Paths that are known/accepted to differ between omnibus and Bazel builds.
-    # Lines matching these patterns in the unified diff are not treated as
+    # Lines matching these patterns in the path-set diff are not treated as
     # failures.  Extend this list as each known difference is investigated.
+    # Each pattern matches against path-set lines of the form:
+    #   "TYPE PATH [-> TARGET]"   (e.g. "- opt/datadog-agent/embedded/lib/libssl.so")
     #
     # Accepted drops (omnibus-only, intentionally absent from Bazel output):
     #   version-manifest.json / version-manifest.txt  — omnibus-specific artefact
     #   LICENSE (aggregated text file)                — pending decision (Phase 6)
+    #   libdatadog-agent-rtloader.so.[0-9]            — intentional SOVERSION change
+    #                                                    (PR #46720, 2026-02-20); omnibus ref
+    #                                                    has .so.2, Bazel emits .so.0 per
+    #                                                    VERSION=0.1.0 in rtloader/BUILD.bazel
     #
     # Accepted additions (Bazel-only):
     #   datadog-installer symlinks / package dirs     — installer-symlinks component
     # TODO: fix linux/BUILD.bazel version to "1:7" (epoch mismatch — apt upgrades break without this)
-    ACCEPTED_DIFF_PATTERNS: "version-manifest|^[<>] ./opt/datadog-packages/"
+    ACCEPTED_DIFF_PATTERNS: "version-manifest|opt/datadog-packages/|libdatadog-agent-rtloader\\.so"
   script:
     # ── 1. Locate the omnibus reference deb ──────────────────────────────────
     - |
@@ -56,12 +62,47 @@ bazel:packaging:comparison-gate:
       echo "Bazel deb: $BAZEL_DEB"
 
     # ── 3. File-tree diff ─────────────────────────────────────────────────────
+    # Strategy: compare the *set of paths* (not full tar tv lines).  This
+    # avoids false positives from format differences between omnibus and Bazel:
+    #   - Leading "./" prefix: omnibus uses "./" before paths; rules_pkg does not.
+    #   - Ownership: omnibus uses "root/root"; rules_pkg uses "0/0".
+    #   - Symlink permissions: "lrwxrwxrwx" vs "lrw-r--r--".
+    #   - Timestamps: real timestamps vs reproducible-build epoch.
+    #   - File sizes: same path but different binary version → different size.
+    #
+    # Path normalization applied before comparison:
+    #   - lib*.so.X.Y.Z → lib*.so.X  (major-only; eliminates .so version skew)
+    #   - symlink target field (after "->") is included so that renamed targets
+    #     are detected as structural differences.
+    #
+    # The "only in omnibus" list is the actionable set.  The full `diff` on
+    # raw `tar tv` output is kept in pkg-diff.txt for human review but is not
+    # used for the PASS/FAIL decision.
     - |
-      echo "=== File tree diff (< omnibus  > bazel) ==="
+      _normalize_so() {
+        sed 's|\(lib[^./]*\.so\)\(\.[0-9][0-9]*\)\(\.[0-9][0-9.]*\)|\1\2|g'
+      }
+      # Extract "TYPE PATH [-> TARGET]" from a tar tv line, stripping leading ./ .
+      _path_set() {
+        awk '{
+          t = substr($1,1,1)
+          p = $6
+          sub(/^\.\//, "", p)
+          if ($7 == "->") print t, p, "->", $8
+          else print t, p
+        }'
+      }
+      echo "=== File tree diff (< omnibus  > bazel, raw for review) ==="
       diff \
         <(dpkg-deb --fsys-tarfile "$OMNIBUS_DEB" | tar tv | sort) \
         <(dpkg-deb --fsys-tarfile "$BAZEL_DEB"   | tar tv | sort) \
         | tee pkg-diff.txt || true
+      echo ""
+      echo "=== Path-set diff (< only-in-omnibus  > only-in-bazel) ==="
+      diff \
+        <(dpkg-deb --fsys-tarfile "$OMNIBUS_DEB" | tar tv | _normalize_so | _path_set | sort -u) \
+        <(dpkg-deb --fsys-tarfile "$BAZEL_DEB"   | tar tv | _normalize_so | _path_set | sort -u) \
+        | tee pkg-path-diff.txt || true
 
     # ── 4. Control / scriptlet diff ──────────────────────────────────────────
     - |
@@ -86,28 +127,34 @@ bazel:packaging:comparison-gate:
 
     # ── 5. Fail on unexpected diffs ───────────────────────────────────────────
     #
-    # Strip accepted patterns, then fail if anything remains.  The job is
-    # allow_failure:true so this produces a visible warning without blocking
-    # the pipeline while differences are being resolved.
+    # Use the path-set diff (not the raw diff) for the PASS/FAIL decision so
+    # that format differences (ownership, timestamps, permissions, file sizes)
+    # do not generate spurious failures.  Strip accepted path patterns, then
+    # fail if any path that is only-in-omnibus remains unexplained.
+    #
+    # The job is allow_failure:true so this produces a visible warning without
+    # blocking the pipeline while differences are being resolved.
     - |
       echo "=== Checking for unexpected differences ==="
-      UNEXPECTED=$(grep -E '^[<>]' pkg-diff.txt \
+      UNEXPECTED=$(grep -E '^[<>]' pkg-path-diff.txt \
         | grep -Ev "$ACCEPTED_DIFF_PATTERNS" \
         || true)
       if [[ -n "$UNEXPECTED" ]]; then
-        echo "FAIL: unexpected differences between omnibus and Bazel debs:"
+        echo "FAIL: unexpected path differences between omnibus and Bazel debs:"
         echo "$UNEXPECTED"
         exit 1
       else
-        echo "OK: no unexpected differences"
+        echo "OK: no unexpected path differences"
       fi
   after_script:
-    # Copy the diff report into the artifact directory so it is easy to find.
+    # Copy the diff reports into the artifact directory so they are easy to find.
     - cp pkg-diff.txt "$OMNIBUS_PACKAGE_DIR/agent-pkg-diff.txt" 2>/dev/null || true
+    - cp pkg-path-diff.txt "$OMNIBUS_PACKAGE_DIR/agent-pkg-path-diff.txt" 2>/dev/null || true
   artifacts:
     expire_in: 2 weeks
     when: always
     paths:
       - pkg-diff.txt
+      - pkg-path-diff.txt
       - $OMNIBUS_PACKAGE_DIR/agent-pkg-diff.txt
   allow_failure: true
