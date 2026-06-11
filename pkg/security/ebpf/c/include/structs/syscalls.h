@@ -152,8 +152,9 @@ struct syscall_cache_t {
         } exec;
 
         struct {
-            u32 is_thread;
-            u32 is_kthread;
+            u64 flags;
+            u32 is_thread: 1;
+            u32 is_kthread : 1;
             u32 parent_pid;
         } fork;
 
@@ -246,6 +247,12 @@ struct syscall_cache_t {
             u16 family;
             u16 port;
         } accept;
+
+        struct {
+            u16 domain;
+            u16 type;
+            u16 protocol;
+        } socket;
 
         struct {
             struct dentry *dentry;

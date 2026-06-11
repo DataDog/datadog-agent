@@ -81,7 +81,7 @@ func ToUnstructured(structIn any) (*unstructured.Unstructured, error) {
 }
 
 // ObjectHash returns a hash of the object
-func ObjectHash(obj interface{}) (string, error) {
+func ObjectHash(obj any) (string, error) {
 	hasher := murmur3.New64()
 	_, err := hasher.Write([]byte(dump.ForHash(obj)))
 	if err != nil {

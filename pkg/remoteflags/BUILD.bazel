@@ -1,0 +1,26 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "remoteflags",
+    srcs = ["flags.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/remoteflags",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/config/model",
+        "//pkg/remoteconfig/state",
+        "//pkg/util/log",
+    ],
+)
+
+go_test(
+    name = "remoteflags_test",
+    srcs = ["flags_test.go"],
+    embed = [":remoteflags"],
+    gotags = ["test"],
+    deps = [
+        "//pkg/config/model",
+        "//pkg/remoteconfig/state",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

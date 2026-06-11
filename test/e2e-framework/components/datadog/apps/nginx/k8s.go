@@ -134,7 +134,18 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespace
 		return nil, err
 	}
 
-	nginxManifest, err := k8s.NewNginxDeploymentManifest(namespace, nginxPort, k8s.WithRuntimeClass(runtimeClass), k8s.WithServiceAccount(sa), k8s.WithConfigMap())
+	var imagePullSecrets corev1.LocalObjectReferenceArray
+	if e.ImagePullRegistry() != "" {
+		imgPullSecret, err := utils.NewImagePullSecret(e, namespace, opts...)
+		if err != nil {
+			return nil, err
+		}
+		imagePullSecrets = append(imagePullSecrets, corev1.LocalObjectReferenceArgs{
+			Name: imgPullSecret.Metadata.Name(),
+		})
+	}
+
+	nginxManifest, err := k8s.NewNginxDeploymentManifest(namespace, nginxPort, k8s.WithRuntimeClass(runtimeClass), k8s.WithServiceAccount(sa), k8s.WithConfigMap(), k8s.WithImagePullSecrets(imagePullSecrets))
 	if err != nil {
 		return nil, err
 	}
@@ -325,7 +336,7 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespace
 		return nil, err
 	}
 
-	nginxQueryManifest, err := k8s.NewNginxQueryDeploymentManifest(namespace)
+	nginxQueryManifest, err := k8s.NewNginxQueryDeploymentManifest(namespace, k8s.WithImagePullSecrets(imagePullSecrets))
 	if err != nil {
 		return nil, err
 	}
@@ -408,6 +419,17 @@ func K8sRolloutAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, na
 		return nil, err
 	}
 
+	var rolloutImagePullSecrets corev1.LocalObjectReferenceArray
+	if e.ImagePullRegistry() != "" {
+		imgPullSecret, err := utils.NewImagePullSecret(e, namespace, opts...)
+		if err != nil {
+			return nil, err
+		}
+		rolloutImagePullSecrets = append(rolloutImagePullSecrets, corev1.LocalObjectReferenceArgs{
+			Name: imgPullSecret.Metadata.Name(),
+		})
+	}
+
 	err = argorollouts.RolloutFromDeployment(e.Ctx(), namespace+"/nginx", &appsv1.DeploymentArgs{
 		Metadata: &metav1.ObjectMetaArgs{
 			Name:      pulumi.String("nginx-rollout"),
@@ -430,6 +452,7 @@ func K8sRolloutAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, na
 					},
 				},
 				Spec: &corev1.PodSpecArgs{
+					ImagePullSecrets: rolloutImagePullSecrets,
 					Containers: &corev1.ContainerArray{
 						&corev1.ContainerArgs{
 							Name:  pulumi.String("nginx"),

@@ -8,15 +8,26 @@ package autoconnections
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	parutil "github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/jsonapi"
+)
+
+const (
+	createConnectionInitialBackoff = 1 * time.Second
+	createConnectionMaxBackoff     = 30 * time.Second
+	// Bounded so a flaky API can't block startup indefinitely: connection
+	// creation is best-effort (callers log-and-continue on failure), and we
+	// don't want a single bad connection to delay the rest of the loop.
+	createConnectionMaxElapsed = 5 * time.Minute
 )
 
 // ConnectionsClient is an HTTP client for creating connections via the Datadog API.
@@ -25,6 +36,7 @@ type ConnectionsClient struct {
 	baseUrl    string
 	apiKey     string
 	appKey     string
+	retryOpts  parutil.RetryHTTPOptions
 }
 
 func NewConnectionsAPIClient(cfg model.Reader, ddSite, apiKey, appKey string) (*ConnectionsClient, error) {
@@ -41,6 +53,11 @@ func NewConnectionsAPIClient(cfg model.Reader, ddSite, apiKey, appKey string) (*
 		baseUrl:    baseUrl,
 		apiKey:     apiKey,
 		appKey:     appKey,
+		retryOpts: parutil.RetryHTTPOptions{
+			InitialInterval: createConnectionInitialBackoff,
+			MaxInterval:     createConnectionMaxBackoff,
+			MaxElapsedTime:  createConnectionMaxElapsed,
+		},
 	}, nil
 }
 
@@ -80,6 +97,10 @@ func buildConnectionRequest(definition ConnectionDefinition, runnerID, runnerNam
 }
 
 func (c *ConnectionsClient) CreateConnection(ctx context.Context, definition ConnectionDefinition, runnerID, runnerName string, tags []string) error {
+	if c.appKey == "" {
+		return errors.New("app key is required to create connections")
+	}
+
 	reqBody := buildConnectionRequest(definition, runnerID, runnerName, tags)
 
 	body, err := jsonapi.Marshal(reqBody, jsonapi.MarshalClientMode())
@@ -89,9 +110,20 @@ func (c *ConnectionsClient) CreateConnection(ctx context.Context, definition Con
 
 	url := c.baseUrl + createConnectionEndpoint
 
+	_, err = parutil.RetryHTTPRequest(ctx, func() (struct{}, int, error) {
+		statusCode, sendErr := c.sendCreateConnection(ctx, url, body)
+		return struct{}{}, statusCode, sendErr
+	}, c.retryOpts)
+	return err
+}
+
+// sendCreateConnection performs a single connection-create POST and returns
+// the HTTP status code along with any error. The status code is 0 for
+// transport-level failures.
+func (c *ConnectionsClient) sendCreateConnection(ctx context.Context, url string, body []byte) (int, error) {
 	httpReq, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(body))
 	if err != nil {
-		return fmt.Errorf("failed to create request: %w", err)
+		return 0, fmt.Errorf("failed to create request: %w", err)
 	}
 
 	httpReq.Header.Set(apiKeyHeader, c.apiKey)
@@ -101,18 +133,18 @@ func (c *ConnectionsClient) CreateConnection(ctx context.Context, definition Con
 
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {
-		return fmt.Errorf("request failed: %w", err)
+		return 0, fmt.Errorf("request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return fmt.Errorf("failed to read response: %w", err)
+		return resp.StatusCode, fmt.Errorf("failed to read response: %w", err)
 	}
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("API request failed: %d - %s", resp.StatusCode, string(respBody))
+		return resp.StatusCode, fmt.Errorf("API request failed: %d - %s", resp.StatusCode, string(respBody))
 	}
 
-	return nil
+	return resp.StatusCode, nil
 }

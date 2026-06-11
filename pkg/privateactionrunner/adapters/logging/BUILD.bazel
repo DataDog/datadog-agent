@@ -1,0 +1,9 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "logging",
+    srcs = ["log_adapter.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging",
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/util/log"],
+)

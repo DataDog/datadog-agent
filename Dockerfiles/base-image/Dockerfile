@@ -20,16 +20,19 @@ ARG CI
 RUN if [ "$CI" = "true" ]; then \
   echo "http://us-east-1.ec2.archive.ubuntu.com/ubuntu\tpriority:1\nhttp://archive.ubuntu.com/ubuntu" > /etc/apt/mirrorlist.main && \
   echo "http://us-east-1.ec2.ports.ubuntu.com/ubuntu-ports\tpriority:1\nhttp://ports.ubuntu.com/ubuntu-ports" > /etc/apt/mirrorlist.ports && \
-  sed -i -e 's#http://archive.ubuntu.com\S*#mirror+file:/etc/apt/mirrorlist.main#g' \
-         -e 's#http://security.ubuntu.com\S*#mirror+file:/etc/apt/mirrorlist.main#g' \
-         -e 's#http://ports.ubuntu.com\S*#mirror+file:/etc/apt/mirrorlist.ports#g' /etc/apt/sources.list; \
+  for f in /etc/apt/sources.list /etc/apt/sources.list.d/ubuntu.sources; do \
+    if [ -f "$f" ]; then \
+      sed -i -e 's#http://archive.ubuntu.com\S*#mirror+file:/etc/apt/mirrorlist.main#g' \
+             -e 's#http://security.ubuntu.com\S*#mirror+file:/etc/apt/mirrorlist.main#g' \
+             -e 's#http://ports.ubuntu.com\S*#mirror+file:/etc/apt/mirrorlist.ports#g' "$f"; \
+    fi; \
+  done; \
   fi
 
 ENV DEBIAN_FRONTEND=noninteractive
-RUN apt update
 
 FROM baseimage AS nosys-seccomp
-RUN apt install --no-install-recommends -y gcc libc6-dev libseccomp-dev
+RUN apt update && apt install --no-install-recommends -y gcc libc6-dev libseccomp-dev
 COPY nosys-seccomp/nosys.c   /tmp/nosys.c
 COPY nosys-seccomp/nosys.sym /tmp/nosys.sym
 RUN gcc -pipe -Wall -Wextra -O2 -shared -fPIC -Wl,--version-script=/tmp/nosys.sym -o /tmp/nosys.so /tmp/nosys.c  -lseccomp
@@ -44,7 +47,8 @@ LABEL maintainer="Datadog <package@datadoghq.com>"
 
 ENV DEBIAN_FRONTEND=noninteractive
 # make sure we have recent dependencies -- CVE-fixing time!
-RUN apt full-upgrade -y && \
+RUN apt update && \
+    apt full-upgrade -y && \
     apt install -y tzdata ca-certificates adduser && \
     apt clean && \
     rm -rf /var/lib/apt/lists/*

@@ -158,7 +158,7 @@ func (r *Repository) Create(ctx context.Context, name string, stableSourcePath s
 		return fmt.Errorf("could not cleanup repository: %w", err)
 	}
 
-	err = repository.setStable(name, stableSourcePath)
+	err = repository.setStable(ctx, name, stableSourcePath)
 	if err != nil {
 		return fmt.Errorf("could not set first stable: %w", err)
 	}
@@ -246,7 +246,7 @@ func (r *Repository) SetExperiment(ctx context.Context, name string, sourcePath 
 	if filepath.Base(*repository.stable.packagePath) == name {
 		return errors.New("cannot set new experiment to the same version as stable")
 	}
-	err = repository.setExperiment(name, sourcePath)
+	err = repository.setExperiment(ctx, name, sourcePath)
 	if err != nil {
 		return fmt.Errorf("could not set experiment: %w", err)
 	}
@@ -353,8 +353,8 @@ func readRepository(rootPath string, preRemoveHooks map[string]PreRemoveHook) (*
 	}, nil
 }
 
-func (r *repositoryFiles) setExperiment(name string, sourcePath string) error {
-	path, err := movePackageFromSource(name, r.rootPath, sourcePath)
+func (r *repositoryFiles) setExperiment(ctx context.Context, name string, sourcePath string) error {
+	path, err := movePackageFromSource(ctx, name, r.rootPath, sourcePath)
 	if err != nil {
 		return fmt.Errorf("could not move experiment source: %w", err)
 	}
@@ -367,8 +367,8 @@ func (r *repositoryFiles) setExperimentToStable() error {
 	return r.experiment.Set(r.stable.linkPath)
 }
 
-func (r *repositoryFiles) setStable(name string, sourcePath string) error {
-	path, err := movePackageFromSource(name, r.rootPath, sourcePath)
+func (r *repositoryFiles) setStable(ctx context.Context, name string, sourcePath string) error {
+	path, err := movePackageFromSource(ctx, name, r.rootPath, sourcePath)
 	if err != nil {
 		return fmt.Errorf("could not move stable source: %w", err)
 	}
@@ -376,7 +376,7 @@ func (r *repositoryFiles) setStable(name string, sourcePath string) error {
 	return r.stable.Set(path)
 }
 
-func movePackageFromSource(packageName string, rootPath string, sourcePath string) (string, error) {
+func movePackageFromSource(ctx context.Context, packageName string, rootPath string, sourcePath string) (string, error) {
 	if packageName == "" || packageName == stableVersionLink || packageName == experimentVersionLink {
 		return "", errors.New("invalid package name")
 	}
@@ -403,7 +403,7 @@ func movePackageFromSource(packageName string, rootPath string, sourcePath strin
 	if err := paths.SetRepositoryPermissions(sourcePath); err != nil {
 		return "", fmt.Errorf("could not set permissions on package: %w", err)
 	}
-	err = os.Rename(sourcePath, targetPath)
+	err = paths.Rename(ctx, sourcePath, targetPath)
 	if err != nil {
 		return "", fmt.Errorf("could not move source: %w", err)
 	}
@@ -426,13 +426,17 @@ func (r *repositoryFiles) cleanup(ctx context.Context) error {
 		return fmt.Errorf("could not read root directory: %w", err)
 	}
 
+	// Precompute targets once to avoid repeated filepath.Base calls inside the loop.
+	stableTarget := r.stable.Target()
+	experimentTarget := r.experiment.Target()
+
 	// for all versions that are not stable or experiment:
 	// - if no pre-remove hook is configured, delete the package
 	// - if a pre-remove hook is configured, run the hook and delete the package only if the hook returns true
 	for _, file := range files {
 		isLink := file.Name() == stableVersionLink || file.Name() == experimentVersionLink
-		isStable := r.stable.Exists() && r.stable.Target() == file.Name()
-		isExperiment := r.experiment.Exists() && r.experiment.Target() == file.Name()
+		isStable := stableTarget != "" && stableTarget == file.Name()
+		isExperiment := experimentTarget != "" && experimentTarget == file.Name()
 		if isLink || isStable || isExperiment {
 			continue
 		}

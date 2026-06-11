@@ -22,7 +22,7 @@ type Info struct {
 	CPULogicalProcessors utils.Value[uint64] `json:"cpu_logical_processors"`
 	// Mhz the frequency for the CPU (Not available on ARM)
 	Mhz utils.Value[float64] `json:"mhz"`
-	// CacheSizeKB the cache size for the CPU in KB (Linux only)
+	// CacheSizeKB the cache size for the CPU in KB (Linux and Darwin)
 	CacheSizeKB utils.Value[uint64] `json:"cache_size" unit:" KB"`
 	// Family the CPU family
 	Family utils.Value[string] `json:"family"`
@@ -31,15 +31,15 @@ type Info struct {
 	// Stepping the CPU stepping
 	Stepping utils.Value[string] `json:"stepping"`
 
-	// CPUPkgs the CPU pkg count (Windows and Linux ARM64 only)
+	// CPUPkgs the CPU pkg count (Windows, Linux ARM64, and Darwin)
 	CPUPkgs utils.Value[uint64] `json:"cpu_pkgs"`
 	// CPUNumaNodes the CPU numa node count (Windows and Linux ARM64 only)
 	CPUNumaNodes utils.Value[uint64] `json:"cpu_numa_nodes"`
-	// CacheSizeL1Bytes the CPU L1 cache size (Windows and Linux ARM64 only)
+	// CacheSizeL1Bytes the CPU L1 cache size (Windows, Linux ARM64, and Darwin)
 	CacheSizeL1Bytes utils.Value[uint64] `json:"cache_size_l1"`
-	// CacheSizeL2Bytes the CPU L2 cache size (Windows and Linux ARM64 only)
+	// CacheSizeL2Bytes the CPU L2 cache size (Windows, Linux ARM64, and Darwin)
 	CacheSizeL2Bytes utils.Value[uint64] `json:"cache_size_l2"`
-	// CacheSizeL3 the CPU L3 cache size (Windows and Linux ARM64 only)
+	// CacheSizeL3Bytes the CPU L3 cache size (Windows, Linux ARM64, and Darwin; not available on Apple Silicon)
 	CacheSizeL3Bytes utils.Value[uint64] `json:"cache_size_l3"`
 }
 

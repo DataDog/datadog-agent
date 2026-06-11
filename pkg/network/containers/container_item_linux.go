@@ -15,19 +15,21 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
 	"time"
 
+	pathrs "github.com/cyphar/filepath-securejoin/pathrs-lite"
 	"github.com/shirou/gopsutil/v4/process"
+	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/network/events"
 	"github.com/DataDog/datadog-agent/pkg/util/funcs"
 	utilintern "github.com/DataDog/datadog-agent/pkg/util/intern"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var hostRoot = funcs.MemoizeNoError(func() string {
@@ -64,6 +66,16 @@ func newContainerReader(reader resolvConfReader) containerReader {
 type readContainerItemResult struct {
 	item         containerStoreItem
 	noDataReason string
+}
+
+func (r readContainerItemResult) String() string {
+	if r.noDataReason != "" {
+		return fmt.Sprintf("noData(%s)", r.noDataReason)
+	}
+	if r.item.resolvConf == nil {
+		return "empty"
+	}
+	return fmt.Sprintf("resolvConf(%d bytes)", len(r.item.resolvConf.Get()))
 }
 
 func (cr *containerReader) readContainerItem(ctx context.Context, entry *events.Process) (readContainerItemResult, error) {
@@ -122,25 +134,14 @@ func (r *resolvStripper) readResolvConf(entry *events.Process) (string, error) {
 		rootPath = kernel.HostProc(strconv.Itoa(int(entry.Pid)), "root")
 	}
 
-	resolvConfPath := filepath.Join(rootPath, "etc/resolv.conf")
-
-	resolvConf, err := r.stripResolvConfFilepath(resolvConfPath)
-	if errors.Is(err, os.ErrNotExist) || errors.Is(err, syscall.ESRCH) {
+	file, err := openResolvConf(rootPath)
+	if errors.Is(err, os.ErrNotExist) || errors.Is(err, syscall.ENOENT) || errors.Is(err, syscall.ESRCH) {
 		// report no file. don't turn this into an error, since if the process exited,
 		// that will be checked later by isProcessStillRunning
 		return "<missing>", nil
 	}
 	if err != nil {
-		return "", resolvConfReadError(resolvConfPath, err)
-	}
-
-	return resolvConf, nil
-}
-
-func (r *resolvStripper) stripResolvConfFilepath(path string) (string, error) {
-	file, err := os.Open(path)
-	if err != nil {
-		return "", err
+		return "", resolvConfReadError(rootPath+"/etc/resolv.conf", err)
 	}
 	defer file.Close()
 
@@ -150,6 +151,17 @@ func (r *resolvStripper) stripResolvConfFilepath(path string) (string, error) {
 	}
 
 	return r.stripResolvConf(int(stat.Size()), file)
+}
+
+// openResolvConf opens etc/resolv.conf within root, respecting absolute symlinks using pathrs.
+func openResolvConf(root string) (*os.File, error) {
+	handle, err := pathrs.OpenInRoot(root, "etc/resolv.conf")
+	if err != nil {
+		return nil, err
+	}
+	defer handle.Close()
+
+	return pathrs.Reopen(handle, unix.O_RDONLY)
 }
 
 func (r *resolvStripper) stripResolvConf(size int, f io.Reader) (string, error) {
@@ -197,7 +209,14 @@ func errIsProcessNotRunning(err error) bool {
 		errors.Is(err, os.ErrNotExist)
 }
 
-func (cr *containerReader) isProcessStillRunningImpl(ctx context.Context, entry *events.Process) (bool, error) {
+func (cr *containerReader) isProcessStillRunningImpl(ctx context.Context, entry *events.Process) (running bool, retErr error) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Warnf("Recovered panic in isProcessStillRunningImpl for pid %d (likely malformed /proc stat): %v", entry.Pid, r)
+			running = false
+			retErr = nil
+		}
+	}()
 	_, err := process.NewProcessWithContext(ctx, int32(entry.Pid))
 	if errIsProcessNotRunning(err) {
 		return false, nil

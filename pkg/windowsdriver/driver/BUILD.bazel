@@ -1,0 +1,16 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "driver",
+    srcs = ["driver.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/windowsdriver/driver",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "//pkg/util/log",
+            "//pkg/util/winutil",
+            "@org_golang_x_sys//windows",
+        ],
+        "//conditions:default": [],
+    }),
+)

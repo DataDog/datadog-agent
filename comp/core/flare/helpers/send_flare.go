@@ -252,7 +252,7 @@ func SendTo(cfg pkgconfigmodel.Reader, archivePath, caseID, email, apiKey, url s
 	}
 
 	apiKey = configUtils.SanitizeAPIKey(apiKey)
-	baseURL, _ := configUtils.AddAgentVersionToDomain(url, "flare")
+	baseURL, _ := buildFlareBaseURL(url)
 
 	transport := httputils.CreateHTTPTransport(cfg)
 	client := &http.Client{
@@ -315,10 +315,17 @@ func isRetryableFlareError(err error, statusCode int) bool {
 		strings.Contains(errStr, "temporary failure")
 }
 
+// buildFlareBaseURL returns the versioned flare domain for a given raw endpoint URL.
+// It is used by both GetFlareEndpoint and SendTo to avoid duplicating the
+// AddAgentVersionToDomain call.
+func buildFlareBaseURL(rawURL string) (string, error) {
+	return configUtils.AddAgentVersionToDomain(rawURL, "flare")
+}
+
 // GetFlareEndpoint creates the flare endpoint URL
 func GetFlareEndpoint(cfg config.Reader) string {
 	// Create flare endpoint to the shape of "https://<version>-flare.agent.datadoghq.com/support/flare"
-	flareRoute, _ := configUtils.AddAgentVersionToDomain(configUtils.GetInfraEndpoint(cfg), "flare")
+	flareRoute, _ := buildFlareBaseURL(configUtils.GetInfraEndpoint(cfg))
 	return flareRoute + datadogSupportURL
 }
 

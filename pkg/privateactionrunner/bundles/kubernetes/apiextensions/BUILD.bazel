@@ -1,0 +1,25 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "apiextensions",
+    srcs = [
+        "create_crd.go",
+        "delete_crd.go",
+        "delete_multiple_crds.go",
+        "entrypoint.go",
+        "get_crd.go",
+        "list_crd.go",
+        "patch_crd.go",
+        "update_crd.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/kubernetes/apiextensions",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/privateactionrunner/bundle-support/kubernetes",
+        "//pkg/privateactionrunner/libs/privateconnection",
+        "//pkg/privateactionrunner/types",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1/unstructured",
+        "@io_k8s_apimachinery//pkg/runtime/schema",
+        "@io_k8s_apimachinery//pkg/types",
+    ],
+)

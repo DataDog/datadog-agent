@@ -11,7 +11,7 @@ import (
 	"context"
 
 	dockerutil "github.com/DataDog/datadog-agent/pkg/util/docker"
-	docker "github.com/docker/docker/client"
+	docker "github.com/moby/moby/client"
 )
 
 func newDockerClient(ctx context.Context) (docker.APIClient, error) {

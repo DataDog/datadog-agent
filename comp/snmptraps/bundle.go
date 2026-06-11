@@ -8,15 +8,15 @@
 package snmptraps
 
 import (
-	"github.com/DataDog/datadog-agent/comp/snmptraps/server/serverimpl"
+	serverfx "github.com/DataDog/datadog-agent/comp/snmptraps/server/fx"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// team: ndm-core
+// team: network-device-monitoring-core
 
 // Bundle defines the fx options for this bundle.
 func Bundle() fxutil.BundleOptions {
 	return fxutil.Bundle(
-		serverimpl.Module(),
+		serverfx.Module(),
 	)
 }

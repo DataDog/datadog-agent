@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Fixed a panic in the system-probe container store caused by gopsutil
+    parsing malformed /proc/[pid]/stat files during process termination
+    race conditions.

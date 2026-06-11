@@ -22,29 +22,29 @@ const (
 
 func TestGetClusterAgentEndpointEmpty(t *testing.T) {
 	cfg := configmock.New(t)
-	cfg.SetWithoutSource("cluster_agent.url", "")
-	cfg.SetWithoutSource("cluster_agent.kubernetes_service_name", "")
+	cfg.SetInTest("cluster_agent.url", "")
+	cfg.SetInTest("cluster_agent.kubernetes_service_name", "")
 	_, err := GetClusterAgentEndpoint()
 	require.NotNil(t, err)
 }
 
 func TestGetClusterAgentEndpointFromUrl(t *testing.T) {
 	cfg := configmock.New(t)
-	cfg.SetWithoutSource("cluster_agent.url", "https://127.0.0.1:8080")
-	cfg.SetWithoutSource("cluster_agent.kubernetes_service_name", "")
+	cfg.SetInTest("cluster_agent.url", "https://127.0.0.1:8080")
+	cfg.SetInTest("cluster_agent.kubernetes_service_name", "")
 	_, err := GetClusterAgentEndpoint()
 	require.Nil(t, err, fmt.Sprintf("%v", err))
 
-	cfg.SetWithoutSource("cluster_agent.url", "https://127.0.0.1")
+	cfg.SetInTest("cluster_agent.url", "https://127.0.0.1")
 	_, err = GetClusterAgentEndpoint()
 	require.Nil(t, err, fmt.Sprintf("%v", err))
 
-	cfg.SetWithoutSource("cluster_agent.url", "127.0.0.1")
+	cfg.SetInTest("cluster_agent.url", "127.0.0.1")
 	endpoint, err := GetClusterAgentEndpoint()
 	require.Nil(t, err, fmt.Sprintf("%v", err))
 	assert.Equal(t, "https://127.0.0.1", endpoint)
 
-	cfg.SetWithoutSource("cluster_agent.url", "127.0.0.1:1234")
+	cfg.SetInTest("cluster_agent.url", "127.0.0.1:1234")
 	endpoint, err = GetClusterAgentEndpoint()
 	require.Nil(t, err, fmt.Sprintf("%v", err))
 	assert.Equal(t, "https://127.0.0.1:1234", endpoint)
@@ -52,20 +52,20 @@ func TestGetClusterAgentEndpointFromUrl(t *testing.T) {
 
 func TestGetClusterAgentEndpointFromUrlInvalid(t *testing.T) {
 	cfg := configmock.New(t)
-	cfg.SetWithoutSource("cluster_agent.url", "http://127.0.0.1:8080")
-	cfg.SetWithoutSource("cluster_agent.kubernetes_service_name", "")
+	cfg.SetInTest("cluster_agent.url", "http://127.0.0.1:8080")
+	cfg.SetInTest("cluster_agent.kubernetes_service_name", "")
 	_, err := GetClusterAgentEndpoint()
 	require.NotNil(t, err)
 
-	cfg.SetWithoutSource("cluster_agent.url", "tcp://127.0.0.1:8080")
+	cfg.SetInTest("cluster_agent.url", "tcp://127.0.0.1:8080")
 	_, err = GetClusterAgentEndpoint()
 	require.NotNil(t, err)
 }
 
 func TestGetClusterAgentEndpointFromKubernetesSvc(t *testing.T) {
 	cfg := configmock.New(t)
-	cfg.SetWithoutSource("cluster_agent.url", "")
-	cfg.SetWithoutSource("cluster_agent.kubernetes_service_name", "datadog-cluster-agent")
+	cfg.SetInTest("cluster_agent.url", "")
+	cfg.SetInTest("cluster_agent.kubernetes_service_name", "datadog-cluster-agent")
 	t.Setenv(clusterAgentServiceHost, "127.0.0.1")
 	t.Setenv(clusterAgentServicePort, "443")
 
@@ -74,10 +74,22 @@ func TestGetClusterAgentEndpointFromKubernetesSvc(t *testing.T) {
 	assert.Equal(t, "https://127.0.0.1:443", endpoint)
 }
 
+func TestGetClusterAgentEndpointFromKubernetesSvcIPv6(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.SetInTest("cluster_agent.url", "")
+	cfg.SetInTest("cluster_agent.kubernetes_service_name", "datadog-cluster-agent")
+	t.Setenv(clusterAgentServiceHost, "fd38:552b:2959::4f4a")
+	t.Setenv(clusterAgentServicePort, "5005")
+
+	endpoint, err := GetClusterAgentEndpoint()
+	require.Nil(t, err, fmt.Sprintf("%v", err))
+	assert.Equal(t, "https://[fd38:552b:2959::4f4a]:5005", endpoint)
+}
+
 func TestGetClusterAgentEndpointFromKubernetesSvcEmpty(t *testing.T) {
 	cfg := configmock.New(t)
-	cfg.SetWithoutSource("cluster_agent.url", "")
-	cfg.SetWithoutSource("cluster_agent.kubernetes_service_name", "datadog-cluster-agent")
+	cfg.SetInTest("cluster_agent.url", "")
+	cfg.SetInTest("cluster_agent.kubernetes_service_name", "datadog-cluster-agent")
 	t.Setenv(clusterAgentServiceHost, "127.0.0.1")
 	t.Setenv(clusterAgentServicePort, "")
 

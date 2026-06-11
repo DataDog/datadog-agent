@@ -11,7 +11,7 @@ name 'datadog-agent-integrations-py3'
 license "BSD-3-Clause"
 license_file "./LICENSE"
 
-dependency 'datadog-agent-integrations-py3-dependencies'
+dependency 'python3'
 
 python_version = "3.13"
 
@@ -98,7 +98,6 @@ build do
   build_deps_dir = windows_safe_path(project_dir, ".build_deps")
   # We download build dependencies to make them available without an index when installing integrations
   command "#{python} -m pip download --dest #{build_deps_dir} hatchling==0.25.1", :env => pre_build_env
-  command "#{python} -m pip download --dest #{build_deps_dir} setuptools==75.1.0", :env => pre_build_env # Version from ./setuptools3.rb
   build_env = {
     "PIP_FIND_LINKS" => build_deps_dir,
     "PIP_CONFIG_FILE" => pip_config_file,

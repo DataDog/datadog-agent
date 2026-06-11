@@ -196,6 +196,8 @@ func (d *directSender) encodeConfiguration(builder *model.CollectorConnectionsBu
 		w.SetDsmEnabled(d.agentCfg.DsmEnabled)
 		w.SetNpmEnabled(d.agentCfg.NpmEnabled)
 		w.SetUsmEnabled(d.agentCfg.UsmEnabled)
+		w.SetEudmEnabled(d.agentCfg.EudmEnabled)
+		w.SetDiscoveryServiceMapEnabled(d.agentCfg.DiscoveryServiceMapEnabled)
 	})
 	builder.SetContainerHostType(uint64(d.containerHostType))
 	builder.SetHostName(d.hostname)

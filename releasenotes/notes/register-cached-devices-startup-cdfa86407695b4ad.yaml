@@ -1,0 +1,7 @@
+fixes:
+  - |
+    Fixed a bug (only present when deduplication is enabled) where SNMP devices loaded
+    from the cache on agent restart were not registered immediately, causing them to be
+    temporarily unavailable until the next discovery cycle completed. Cached
+    devices are now registered right away and tracked for deduplication so that
+    subsequent scans for the same physical device are correctly deduplicated.

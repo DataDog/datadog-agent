@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"net"
 	"strconv"
-	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
@@ -96,9 +95,4 @@ func (cs ConnStats) ConnectionDirection() ConnDirection {
 // IsAssured returns whether the connection has seen traffic in both directions.
 func (cs ConnStats) IsAssured() bool {
 	return cs.Flags&uint8(Assured) != 0
-}
-
-// ToBatch converts a byte slice to a Batch pointer.
-func ToBatch(data []byte) *Batch {
-	return (*Batch)(unsafe.Pointer(&data[0]))
 }

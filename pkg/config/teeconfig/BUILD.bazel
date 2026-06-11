@@ -1,0 +1,20 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "teeconfig",
+    srcs = ["teeconfig.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/config/teeconfig",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/config/model",
+        "//pkg/util/log",
+    ],
+)
+
+go_test(
+    name = "teeconfig_test",
+    srcs = ["teeconfig_test.go"],
+    embed = [":teeconfig"],
+    gotags = ["test"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)

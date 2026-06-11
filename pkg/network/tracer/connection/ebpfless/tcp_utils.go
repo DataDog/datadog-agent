@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build (linux && linux_bpf) || darwin
 
 package ebpfless
 
@@ -12,12 +12,12 @@ import (
 	"strconv"
 	"strings"
 
-	"golang.org/x/sys/unix"
-
 	"github.com/google/gopacket/layers"
 
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/pkg/network"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/network/filter"
 )
 
 const ebpflessModuleName = "ebpfless_network_tracer"
@@ -29,9 +29,9 @@ type PCAPTuple network.ConnectionTuple
 
 func connDirectionFromPktType(pktType uint8) network.ConnectionDirection {
 	switch pktType {
-	case unix.PACKET_HOST:
+	case filter.PacketHost:
 		return network.INCOMING
-	case unix.PACKET_OUTGOING:
+	case filter.PacketOutgoing:
 		return network.OUTGOING
 	default:
 		return network.UNKNOWN
@@ -71,14 +71,14 @@ var statsTelemetry = struct {
 	tcpRstAndSyn            telemetry.Counter
 	tcpRstAndFin            telemetry.Counter
 }{
-	expiredPendingConns:     telemetry.NewCounter(ebpflessModuleName, "expired_pending_conns", nil, "Counter measuring the number of TCP connections which expired because it took too long to complete the handshake"),
-	droppedPendingConns:     telemetry.NewCounter(ebpflessModuleName, "dropped_pending_conns", nil, "Counter measuring the number of TCP connections which were dropped during the handshake (because the map was full)"),
-	droppedEstablishedConns: telemetry.NewCounter(ebpflessModuleName, "dropped_established_conns", nil, "Counter measuring the number of TCP connections which were dropped while established (because the map was full)"),
-	missedTCPHandshakes:     telemetry.NewCounter(ebpflessModuleName, "missed_tcp_handshakes", nil, "Counter measuring the number of TCP connections where we missed the SYN handshake"),
-	missingTCPFlags:         telemetry.NewCounter(ebpflessModuleName, "missing_tcp_flags", nil, "Counter measuring packets encountered with none of SYN, FIN, ACK, RST set"),
-	tcpSynAndFin:            telemetry.NewCounter(ebpflessModuleName, "tcp_syn_and_fin", nil, "Counter measuring packets encountered with SYN+FIN together"),
-	tcpRstAndSyn:            telemetry.NewCounter(ebpflessModuleName, "tcp_rst_and_syn", nil, "Counter measuring packets encountered with RST+SYN together"),
-	tcpRstAndFin:            telemetry.NewCounter(ebpflessModuleName, "tcp_rst_and_fin", nil, "Counter measuring packets encountered with RST+FIN together"),
+	expiredPendingConns:     telemetryimpl.GetCompatComponent().NewCounter(ebpflessModuleName, "expired_pending_conns", nil, "Counter measuring the number of TCP connections which expired because it took too long to complete the handshake"),
+	droppedPendingConns:     telemetryimpl.GetCompatComponent().NewCounter(ebpflessModuleName, "dropped_pending_conns", nil, "Counter measuring the number of TCP connections which were dropped during the handshake (because the map was full)"),
+	droppedEstablishedConns: telemetryimpl.GetCompatComponent().NewCounter(ebpflessModuleName, "dropped_established_conns", nil, "Counter measuring the number of TCP connections which were dropped while established (because the map was full)"),
+	missedTCPHandshakes:     telemetryimpl.GetCompatComponent().NewCounter(ebpflessModuleName, "missed_tcp_handshakes", nil, "Counter measuring the number of TCP connections where we missed the SYN handshake"),
+	missingTCPFlags:         telemetryimpl.GetCompatComponent().NewCounter(ebpflessModuleName, "missing_tcp_flags", nil, "Counter measuring packets encountered with none of SYN, FIN, ACK, RST set"),
+	tcpSynAndFin:            telemetryimpl.GetCompatComponent().NewCounter(ebpflessModuleName, "tcp_syn_and_fin", nil, "Counter measuring packets encountered with SYN+FIN together"),
+	tcpRstAndSyn:            telemetryimpl.GetCompatComponent().NewCounter(ebpflessModuleName, "tcp_rst_and_syn", nil, "Counter measuring packets encountered with RST+SYN together"),
+	tcpRstAndFin:            telemetryimpl.GetCompatComponent().NewCounter(ebpflessModuleName, "tcp_rst_and_fin", nil, "Counter measuring packets encountered with RST+FIN together"),
 }
 
 const tcpSeqMidpoint = 0x80000000
@@ -90,12 +90,6 @@ const (
 	connStatAttempted
 	connStatEstablished
 )
-
-var connStatusLabels = []string{
-	"Closed",
-	"Attempted",
-	"Established",
-}
 
 type synState uint8
 
@@ -136,14 +130,6 @@ func (ss *synState) isSynAcked() bool {
 	return *ss == synStateAcked || *ss == synStateMissed
 }
 
-func labelForState(tcpState connStatus) string {
-	idx := int(tcpState)
-	if idx < len(connStatusLabels) {
-		return connStatusLabels[idx]
-	}
-	return "BadState-" + strconv.Itoa(idx)
-}
-
 func isSeqBefore(prev, cur uint32) bool {
 	// check for wraparound with unsigned subtraction
 	diff := cur - prev
@@ -156,9 +142,9 @@ func isSeqBeforeEq(prev, cur uint32) bool {
 
 func debugPacketDir(pktType uint8) string {
 	switch pktType {
-	case unix.PACKET_HOST:
+	case filter.PacketHost:
 		return "Incoming"
-	case unix.PACKET_OUTGOING:
+	case filter.PacketOutgoing:
 		return "Outgoing"
 	default:
 		return "InvalidDir-" + strconv.Itoa(int(pktType))

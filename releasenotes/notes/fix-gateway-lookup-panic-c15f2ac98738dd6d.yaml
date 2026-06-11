@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Fix a panic in the system-probe network tracer caused by concurrent access
+    to the gateway lookup subnet cache. The cache now uses a thread-safe LRU
+    implementation.

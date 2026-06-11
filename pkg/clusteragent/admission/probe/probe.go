@@ -6,7 +6,7 @@
 //go:build kubeapiserver
 
 // Package probe periodically tests admission webhook connectivity by sending
-// dry-run pod creation requests through the Kubernetes API server.
+// dry-run ConfigMap creation requests through the Kubernetes API server.
 package probe
 
 import (
@@ -21,16 +21,20 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 
+	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/healthplatform/issues/admissionprobe"
+	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	admcommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/cloudprovider"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
-var errProbeNotReceived = errors.New("dry-run probe pod was not annotated by the webhook")
+var errProbeNotReceived = errors.New("dry-run probe configmap was not annotated by the webhook")
 
 // Probe periodically verifies that the admission webhook is reachable by
-// creating dry-run pods and checking if they are handled by the webhook.
+// creating dry-run ConfigMaps and checking if they are handled by the webhook.
 type Probe struct {
 	k8sClient      kubernetes.Interface
 	isLeaderFunc   func() bool
@@ -39,6 +43,8 @@ type Probe struct {
 	gracePeriod    time.Duration
 	logLimiter     *log.Limit
 	diagnosticHint string
+
+	healthPlatform option.Option[healthplatformdef.Component]
 
 	stats Stats
 }
@@ -68,10 +74,18 @@ type StatsSnapshot struct {
 	ConfigError          string
 }
 
-const defaultInterval = 60 * time.Second
+const (
+	defaultInterval = 60 * time.Second
+
+	healthCheckID   = "admission-controller-connectivity"
+	healthCheckName = "Admission Controller Connectivity"
+	healthIssueID   = "admission-controller-connectivity-failure"
+)
 
 // New creates a new admission controller connectivity probe.
-func New(k8sClient kubernetes.Interface, isLeaderFunc func() bool, datadogConfig config.Component) *Probe {
+// The namespace parameter specifies where dry-run ConfigMaps are created; this
+// should be the namespace the cluster agent is deployed in.
+func New(k8sClient kubernetes.Interface, isLeaderFunc func() bool, namespace string, datadogConfig config.Component, healthPlatform option.Option[healthplatformdef.Component]) *Probe {
 	interval := time.Duration(datadogConfig.GetInt("admission_controller.probe.interval")) * time.Second
 	if interval <= 0 {
 		log.Warnf("admission_controller.probe.interval is invalid (%s), falling back to %s", interval, defaultInterval)
@@ -79,12 +93,13 @@ func New(k8sClient kubernetes.Interface, isLeaderFunc func() bool, datadogConfig
 	}
 
 	return &Probe{
-		k8sClient:    k8sClient,
-		isLeaderFunc: isLeaderFunc,
-		namespace:    datadogConfig.GetString("admission_controller.probe.namespace"),
-		interval:     interval,
-		gracePeriod:  time.Duration(datadogConfig.GetInt("admission_controller.probe.grace_period")) * time.Second,
-		logLimiter:   log.NewLogLimit(1, 10*time.Minute),
+		k8sClient:      k8sClient,
+		isLeaderFunc:   isLeaderFunc,
+		namespace:      namespace,
+		interval:       interval,
+		gracePeriod:    time.Duration(datadogConfig.GetInt("admission_controller.probe.grace_period")) * time.Second,
+		logLimiter:     log.NewLogLimit(1, 10*time.Minute),
+		healthPlatform: healthPlatform,
 	}
 }
 
@@ -104,12 +119,15 @@ func (p *Probe) GetStatsSnapshot() StatsSnapshot {
 	}
 }
 
+// IsLeader returns whether this instance is the current leader.
+func (p *Probe) IsLeader() bool {
+	return p.isLeaderFunc()
+}
+
 // GetStatsForStatus returns probe stats formatted for the agent status output.
 func (p *Probe) GetStatsForStatus() map[string]interface{} {
 	snap := p.GetStatsSnapshot()
-	result := map[string]interface{}{
-		"Namespace": p.namespace,
-	}
+	result := map[string]interface{}{}
 
 	if snap.ConfigError != "" {
 		result["ConfigError"] = snap.ConfigError
@@ -147,7 +165,8 @@ func (p *Probe) Run(ctx context.Context) {
 	case <-time.After(p.gracePeriod):
 	}
 
-	p.diagnosticHint = diagnosticHintForProvider(cloudprovider.DCAGetName(ctx))
+	provider := cloudprovider.DCAGetName(ctx)
+	p.diagnosticHint = diagnosticHintForProvider(provider)
 	log.Infof("Admission controller probe is now active (namespace=%s, interval=%s)", p.namespace, p.interval)
 
 	// Run the first probe immediately, then on the configured interval.
@@ -193,6 +212,7 @@ func (p *Probe) runProbe(ctx context.Context) {
 	p.stats.mu.Unlock()
 
 	if err == nil {
+		p.clearHealthIssue()
 		return
 	}
 
@@ -200,65 +220,82 @@ func (p *Probe) runProbe(ctx context.Context) {
 }
 
 func (p *Probe) handleError(err error) {
-	if k8serrors.IsNotFound(err) {
-		msg := fmt.Sprintf("Probe namespace %q does not exist. Create it to enable admission controller connectivity probing.", p.namespace)
-		p.stats.mu.Lock()
-		p.stats.ConfigError = msg
-		p.stats.mu.Unlock()
-		if p.logLimiter.ShouldLog() {
-			log.Errorf("Admission controller probe misconfigured: %s", msg)
-		}
-		return
-	}
-
 	if k8serrors.IsForbidden(err) {
-		msg := fmt.Sprintf("The cluster agent service account does not have permission to create pods in namespace %q. Grant pod creation RBAC to enable connectivity probing.", p.namespace)
+		msg := fmt.Sprintf("The cluster agent service account does not have permission to create configmaps in namespace %q. Grant configmap creation RBAC to enable connectivity probing.", p.namespace)
 		p.stats.mu.Lock()
 		p.stats.ConfigError = msg
 		p.stats.mu.Unlock()
 		if p.logLimiter.ShouldLog() {
 			log.Errorf("Admission controller probe misconfigured: %s", msg)
 		}
+		p.clearHealthIssue()
 		return
 	}
 
 	if errors.Is(err, errProbeNotReceived) {
 		if p.logLimiter.ShouldLog() {
 			log.Errorf(
-				"Admission controller probe failed: the webhook did not handle the probe pod. "+
+				"Admission controller probe failed: the webhook did not handle the probe configmap. "+
 					"This indicates a network connectivity issue between the Kubernetes API server "+
 					"and the cluster agent admission webhook. %s",
 				p.diagnosticHint,
 			)
 		}
+		p.reportHealthIssue()
 		return
 	}
 
 	if p.logLimiter.ShouldLog() {
 		log.Errorf("Admission controller probe failed: %v", err)
 	}
+	p.reportHealthIssue()
+}
+
+func (p *Probe) reportHealthIssue() {
+	hp, ok := p.healthPlatform.Get()
+	if !ok {
+		return
+	}
+
+	issue, buildErr := (&admissionprobe.AdmissionProbeIssue{}).BuildIssue(map[string]string{
+		"remediation": p.diagnosticHint,
+	})
+	if buildErr != nil {
+		issue = &healthplatformpayload.Issue{
+			Id:        healthIssueID,
+			IssueName: healthIssueID,
+			Source:    "cluster-agent",
+		}
+	} else {
+		issue.Id = healthIssueID
+	}
+
+	if reportErr := hp.ReportIssue(issue); reportErr != nil {
+		log.Warnf("Failed to report admission probe health issue: %v", reportErr)
+	}
+}
+
+func (p *Probe) clearHealthIssue() {
+	hp, ok := p.healthPlatform.Get()
+	if !ok {
+		return
+	}
+	hp.ResolveIssue(healthIssueID)
 }
 
 func (p *Probe) execute(ctx context.Context) error {
-	pod := &corev1.Pod{
+	cm := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: "datadog-admission-probe-",
 			Namespace:    p.namespace,
 			Labels: map[string]string{
-				admcommon.EnabledLabelKey: "true",
-				admcommon.ProbeLabelKey:   "true",
+				admcommon.ProbeLabelKey: "true",
 			},
-		},
-		Spec: corev1.PodSpec{
-			Containers: []corev1.Container{{
-				Name:  "probe",
-				Image: "registry.k8s.io/pause:3.9",
-			}},
 		},
 	}
 
-	result, err := p.k8sClient.CoreV1().Pods(p.namespace).Create(
-		ctx, pod, metav1.CreateOptions{DryRun: []string{metav1.DryRunAll}},
+	result, err := p.k8sClient.CoreV1().ConfigMaps(p.namespace).Create(
+		ctx, cm, metav1.CreateOptions{DryRun: []string{metav1.DryRunAll}},
 	)
 	if err != nil {
 		return err

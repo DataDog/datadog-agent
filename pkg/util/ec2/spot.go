@@ -17,9 +17,10 @@ import (
 )
 
 const (
-	imdsSpotInstanceAction = "/spot/instance-action"
-	imdsInstanceLifeCycle  = "/instance-life-cycle"
-	instanceLifeCycleSpot  = "spot"
+	imdsSpotInstanceAction      = "/spot/instance-action"
+	imdsRebalanceRecommendation = "/events/recommendations/rebalance"
+	imdsInstanceLifeCycle       = "/instance-life-cycle"
+	instanceLifeCycleSpot       = "spot"
 )
 
 // ErrNotSpotInstance is returned when the instance is not a spot instance
@@ -29,6 +30,11 @@ var ErrNotSpotInstance = errors.New("instance is not a spot instance")
 type spotInstanceAction struct {
 	Action string `json:"action"`
 	Time   string `json:"time"`
+}
+
+// rebalanceRecommendation represents the response from the events/recommendations/rebalance IMDS endpoint
+type rebalanceRecommendation struct {
+	NoticeTime string `json:"noticeTime"`
 }
 
 var instanceLifeCycleFetcher = cachedfetch.Fetcher{
@@ -77,4 +83,35 @@ func GetSpotTerminationTime(ctx context.Context) (time.Time, error) {
 	}
 
 	return terminationTime, nil
+}
+
+// GetRebalanceRecommendationTime returns the time an EC2 rebalance recommendation was issued for a spot instance.
+// If the instance is not a spot instance, it returns ErrNotSpotInstance.
+// If no recommendation is active, it returns an error (typically a 404 from IMDS).
+// Docs: https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/rebalance-recommendations.html
+func GetRebalanceRecommendationTime(ctx context.Context) (time.Time, error) {
+	isSpot, err := IsSpotInstance(ctx)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("unable to determine instance type: %w", err)
+	}
+	if !isSpot {
+		return time.Time{}, ErrNotSpotInstance
+	}
+
+	res, err := ec2internal.GetMetadataItem(ctx, imdsRebalanceRecommendation, ec2internal.UseIMDSv2(), false)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("unable to retrieve rebalance recommendation from IMDS: %w", err)
+	}
+
+	var rec rebalanceRecommendation
+	if err := json.Unmarshal([]byte(res), &rec); err != nil {
+		return time.Time{}, fmt.Errorf("unable to parse rebalance recommendation response: %w", err)
+	}
+
+	noticeTime, err := time.Parse(time.RFC3339, rec.NoticeTime)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("unable to parse rebalance notice time %q: %w", rec.NoticeTime, err)
+	}
+
+	return noticeTime, nil
 }

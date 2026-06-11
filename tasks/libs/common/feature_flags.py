@@ -8,14 +8,15 @@ from invoke.context import Context
 from tasks.libs.common.color import Color, color_message
 
 
-def is_enabled(ctx: Context, feature: str, verbose: bool = False, default: bool = False) -> bool:  # noqa
+def is_enabled(ctx: Context, feature: str, verbose: bool = False, default: bool = False) -> bool:
     """
     Performs a dda feature flag check and returns whether a feature is enabled or not.
     """
     verbose = verbose or bool(os.getenv("VERBOSE_FEATURE_FLAGS"))
 
+    default_flag = str(default).lower()
     try:
-        res = ctx.run(f'dda self feature {feature}', hide=True)
+        res = ctx.run(f'dda self feature {feature} --default {default_flag}', hide=True)
         enabled = res.stdout.strip() == 'True'
     except Exception:
         if verbose:

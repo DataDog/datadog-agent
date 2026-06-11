@@ -16,9 +16,9 @@ import (
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"go.uber.org/fx"
 
+	config "github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	dderrors "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/sbom/scanner"
 	"github.com/DataDog/datadog-agent/pkg/util/crio"
@@ -33,11 +33,13 @@ const (
 type dependencies struct {
 	fx.In
 
+	Config config.Component
 	Filter workloadfilter.Component
 }
 
 type collector struct {
 	id             string
+	cfg            config.Component
 	client         crio.Client
 	store          workloadmeta.Component
 	catalog        workloadmeta.AgentType
@@ -52,6 +54,7 @@ func NewCollector(deps dependencies) (workloadmeta.CollectorProvider, error) {
 	return workloadmeta.CollectorProvider{
 		Collector: &collector{
 			id:             collectorID,
+			cfg:            deps.Config,
 			seenContainers: make(map[workloadmeta.EntityID]struct{}),
 			seenImages:     make(map[workloadmeta.EntityID]struct{}),
 			catalog:        workloadmeta.NodeAgent,
@@ -82,7 +85,7 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 		return fmt.Errorf("SBOM collection initialization failed: %v", err)
 	}
 
-	if imageMetadataCollectionIsEnabled() {
+	if c.imageMetadataCollectionIsEnabled() {
 		if err := checkOverlayImageDirectoryExists(); err != nil {
 			log.Warnf("Overlay image directory check failed: %v", err)
 		}
@@ -102,7 +105,7 @@ func (c *collector) Pull(ctx context.Context) error {
 	containerEvents := make([]workloadmeta.CollectorEvent, 0, len(containers))
 	var imageEvents []workloadmeta.CollectorEvent
 
-	collectImages := imageMetadataCollectionIsEnabled()
+	collectImages := c.imageMetadataCollectionIsEnabled()
 
 	for _, container := range containers {
 		containerEvent := c.convertContainerToEvent(ctx, container)
@@ -162,13 +165,13 @@ func (c *collector) GetTargetCatalog() workloadmeta.AgentType {
 }
 
 // imageMetadataCollectionIsEnabled checks if image metadata collection is enabled via configuration.
-func imageMetadataCollectionIsEnabled() bool {
-	return pkgconfigsetup.Datadog().GetBool("container_image.enabled")
+func (c *collector) imageMetadataCollectionIsEnabled() bool {
+	return c.cfg.GetBool("container_image.enabled")
 }
 
 // sbomCollectionIsEnabled returns true if SBOM collection is enabled.
-func sbomCollectionIsEnabled() bool {
-	return imageMetadataCollectionIsEnabled() && pkgconfigsetup.Datadog().GetBool("sbom.container_image.enabled")
+func (c *collector) sbomCollectionIsEnabled() bool {
+	return c.imageMetadataCollectionIsEnabled() && c.cfg.GetBool("sbom.container_image.enabled")
 }
 
 // checkOverlayImageDirectoryExists checks if the overlay-image directory exists.

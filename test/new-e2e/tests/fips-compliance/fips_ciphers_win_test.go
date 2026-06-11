@@ -9,11 +9,9 @@ import (
 	"bytes"
 	_ "embed"
 	"fmt"
-	"os"
 	"path/filepath"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/docker"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
@@ -81,10 +79,7 @@ func (s *fipsServerWinSuite) SetupSuite() {
 	// NOTE: Installing the Agent manually instead of using the Agent component
 	// to make devloops easier, as the Agent component does not support
 	// installing locally built packages.
-	if _, set := windowsAgent.LookupFlavorFromEnv(); !set {
-		os.Setenv(windowsAgent.PackageFlavorEnvVar, "fips")
-	}
-	agentPackage, err := windowsAgent.GetPackageFromEnv()
+	agentPackage, err := windowsAgent.GetPackageFromEnv(windowsAgent.WithFlavor("fips"))
 	require.NoError(s.T(), err)
 	s.T().Logf("Using Agent: %#v", agentPackage)
 	logFile := filepath.Join(s.SessionOutputDir(), "install.log")
@@ -175,14 +170,7 @@ func linuxDockerVMProvisioner(ctx *pulumi.Context, awsEnv aws.Environment, env *
 	// copied from docker environment/provisioner
 	//
 
-	// install the ECR credentials helper
-	// required to get pipeline agent images
-	// TODO: cred helper might not be needed? not sure about auth on fips-server image
-	installEcrCredsHelperCmd, err := ec2.InstallECRCredentialsHelper(awsEnv, linuxDockerVM)
-	if err != nil {
-		return err
-	}
-	manager, err := docker.NewManager(&awsEnv, linuxDockerVM, utils.PulumiDependsOn(installEcrCredsHelperCmd))
+	manager, err := docker.NewAWSManager(&awsEnv, linuxDockerVM)
 	if err != nil {
 		return err
 	}

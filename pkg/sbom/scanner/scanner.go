@@ -248,11 +248,12 @@ func (s *Scanner) handleScanRequest(ctx context.Context, request sbom.ScanReques
 
 	var imgMeta *workloadmeta.ContainerImageMetadata
 	if collector.Type() == collectors.ContainerImageScanType {
-		imgMeta = s.getImageMetadata(request)
-		if imgMeta == nil {
+		if imgMeta = s.getImageMetadata(request); imgMeta == nil {
+			s.scanQueue.Forget(request)
 			return
 		}
 	}
+
 	s.processScan(ctx, request, imgMeta, collector)
 }
 

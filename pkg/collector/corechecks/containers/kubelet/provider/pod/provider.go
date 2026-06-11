@@ -141,8 +141,57 @@ func (p *Provider) processWorkloadmetaPod(pod *workloadmeta.KubernetesPod, sende
 
 	p.generatePodTerminationMetric(sender, pod)
 	p.generatePodResizeMetric(sender, pod)
+	p.generatePodStartupMetrics(sender, pod)
+	p.generatePodSpecMetrics(sender, pod)
 
 	runningAggregator.recordPod(p, pod)
+}
+
+func (p *Provider) generatePodSpecMetrics(sender sender.Sender, pod *workloadmeta.KubernetesPod) {
+	if pod.Phase != "Running" && pod.Phase != "Pending" {
+		return
+	}
+
+	podID := pod.ID
+	if podID == "" {
+		log.Debug("skipping pod with no uid for pod resource metrics")
+		return
+	}
+
+	entityID := types.NewEntityID(types.KubernetesPodUID, podID)
+	tagList, _ := p.tagger.Tag(entityID, types.HighCardinality)
+	if len(tagList) == 0 {
+		return
+	}
+	tagList = utils.ConcatenateTags(tagList, p.config.Tags)
+
+	for r, value := range pod.Resources.RawRequests {
+		if r != "cpu" && r != "memory" {
+			continue
+		}
+
+		quantity, err := resource.ParseQuantity(value)
+		if err != nil {
+			log.Warnf("Failed to parse pod resource quantity %s: %s", value, err)
+			continue
+		}
+
+		sender.Gauge(common.KubeletMetricsPrefix+"pod."+r+".request", quantity.AsApproximateFloat64(), "", tagList)
+	}
+
+	for r, value := range pod.Resources.RawLimits {
+		if r != "cpu" && r != "memory" {
+			continue
+		}
+
+		quantity, err := resource.ParseQuantity(value)
+		if err != nil {
+			log.Warnf("Failed to parse pod resource quantity %s: %s", value, err)
+			continue
+		}
+
+		sender.Gauge(common.KubeletMetricsPrefix+"pod."+r+".limit", quantity.AsApproximateFloat64(), "", tagList)
+	}
 }
 
 func (p *Provider) generateContainerSpecMetrics(sender sender.Sender, pod *workloadmeta.KubernetesPod, cStatus *workloadmeta.KubernetesContainerStatus, containerID types.EntityID) {

@@ -36,6 +36,14 @@ func Mutate(rawPod []byte, ns string, mutationType string, m MutatorFunc, dc dyn
 		return nil, fmt.Errorf("failed to decode raw object: %v", err)
 	}
 
+	// In rare cases multiple mutation webhooks executed in sequence can cause the spec to be invalid. This was seen
+	// when the autoinstrumentation library injection webhook ran before and after GKE Autopilot webhooks.
+	// Normalize correctable issues before proceeding so downstream can assume the pod spec is valid.
+	if err := NormalizePodSpec(&pod); err != nil {
+		// TODO should we return early here?
+		log.Warnf("failed to normalize input spec for %s: %v - API Server is likely to reject due to invalid spec", PodString(&pod), err)
+	}
+
 	injected, err := m(&pod, ns, dc)
 	if err != nil {
 		metrics.MutationAttempts.Inc(mutationType, metrics.StatusError, strconv.FormatBool(false), err.Error())
@@ -199,7 +207,7 @@ func containsVolumeMount(volumeMounts []corev1.VolumeMount, element corev1.Volum
 // config option, and falls back to the default container registry if no
 // webhook-specific container registry is set.
 func ContainerRegistry(datadogConfig config.Component, specificConfigOpt string) string {
-	if datadogConfig.IsSet(specificConfigOpt) {
+	if datadogConfig.IsConfigured(specificConfigOpt) {
 		return datadogConfig.GetString(specificConfigOpt)
 	}
 

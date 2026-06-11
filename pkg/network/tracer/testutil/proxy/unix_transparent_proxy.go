@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build test
+//go:build test && !darwin
 
 // Package proxy provides a unix transparent proxy server that can be used for testing.
 package proxy
@@ -187,7 +187,7 @@ func (p *UnixTransparentProxyServer) handleConnection(unixSocketConn net.Conn) {
 	var err error
 	if p.useTLS {
 		timedContext, cancel := context.WithTimeout(context.Background(), defaultDialTimeout)
-		dialer := &tls.Dialer{Config: &tls.Config{InsecureSkipVerify: true}}
+		dialer := &tls.Dialer{Config: &tls.Config{InsecureSkipVerify: true, NextProtos: []string{"h2", "http/1.1"}}}
 		remoteConn, err = dialer.DialContext(timedContext, network, p.remoteAddr)
 		cancel()
 	} else {

@@ -63,18 +63,20 @@ type Opts struct {
 type CWSPtracerCtx struct {
 	Tracer
 
-	opts            *Opts
-	wg              sync.WaitGroup
-	cancel          context.Context
-	cancelFnc       context.CancelFunc
-	containerID     containerutils.ContainerID
-	probeAddr       string
-	client          net.Conn
-	clientReady     chan bool
-	msgDataChan     chan []byte
-	helloMsg        *ebpfless.Message
-	processCache    *ProcessCache
-	traceesReported []int
+	opts                *Opts
+	wg                  sync.WaitGroup
+	cancel              context.Context
+	cancelFnc           context.CancelFunc
+	containerID         containerutils.ContainerID
+	cgroupID            containerutils.CGroupID
+	probeAddr           string
+	client              net.Conn
+	clientReady         chan bool
+	msgDataChan         chan []byte
+	helloMsg            *ebpfless.Message
+	processCache        *ProcessCache
+	traceesReported     []int
+	stopSignalForwarder func()
 }
 
 type syscallHandlerFunc func(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, disableStats bool) error
@@ -307,6 +309,10 @@ func (ctx *CWSPtracerCtx) initCtxCommon() error {
 	if err != nil {
 		logger.Errorf("Retrieve container ID from proc failed: %v\n", err)
 	}
+	ctx.cgroupID, err = getCurrentProcCGroupID()
+	if err != nil {
+		logger.Errorf("Retrieve cgroup ID from proc failed: %v\n", err)
+	}
 	containerCtx, err := newContainerContext(ctx.containerID)
 	if err != nil {
 		return err
@@ -324,6 +330,7 @@ func (ctx *CWSPtracerCtx) initCtxCommon() error {
 			Mode:             ctx.opts.mode,
 			NSID:             getNSID(),
 			ContainerContext: containerCtx,
+			CGroupID:         ctx.cgroupID,
 			EntrypointArgs:   ctx.Args,
 		},
 	}
@@ -401,6 +408,9 @@ func initCWSPtracerAttach(pids []int, probeAddr string, opts Opts) (*CWSPtracerC
 func (ctx *CWSPtracerCtx) CWSCleanup() {
 	ctx.cancelFnc()
 	ctx.wg.Wait()
+	if ctx.stopSignalForwarder != nil {
+		ctx.stopSignalForwarder()
+	}
 	close(ctx.msgDataChan)
 	close(ctx.clientReady)
 }

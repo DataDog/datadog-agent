@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    ``DD_PROXY_HTTP``, ``DD_PROXY_HTTPS``, ``HTTP_PROXY``, ``HTTPS_PROXY``,
+    ``DD_PROXY_NO_PROXY``, and ``NO_PROXY`` environment variables are now
+    respected by the standalone OTel agent without requiring ``--core-config``.

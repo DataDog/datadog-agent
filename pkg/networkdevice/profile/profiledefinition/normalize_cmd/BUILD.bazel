@@ -1,0 +1,15 @@
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "normalize_cmd_lib",
+    srcs = ["main.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition/normalize_cmd",
+    visibility = ["//visibility:private"],
+    deps = ["//pkg/networkdevice/profile/profiledefinition/normalize_cmd/cmd"],
+)
+
+go_binary(
+    name = "normalize_cmd",
+    embed = [":normalize_cmd_lib"],
+    visibility = ["//visibility:public"],
+)

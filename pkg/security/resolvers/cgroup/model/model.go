@@ -36,7 +36,10 @@ func NewCacheEntry(containerContext model.ContainerContext, cgroupContext model.
 		cgroupContext:    cgroupContext,
 		pids:             make(map[uint32]bool, 10),
 	}
-	cacheEntry.pids[pid] = true
+
+	if pid != 0 {
+		cacheEntry.pids[pid] = true
+	}
 
 	// should not happen but added as a safe-guard to avoid overriding
 	// a Releasable pointer which would cause Releasable callbacks to not be called
@@ -130,11 +133,13 @@ func (cgce *CacheEntry) RemovePID(pid uint32) int {
 }
 
 // AddPID adds a pid to the list of pids
-func (cgce *CacheEntry) AddPID(pid uint32) {
+func (cgce *CacheEntry) AddPID(pid uint32) int {
 	cgce.lock.Lock()
 	defer cgce.lock.Unlock()
 
 	cgce.pids[pid] = true
+
+	return len(cgce.pids)
 }
 
 // SetPIDs set the pids list

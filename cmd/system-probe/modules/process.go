@@ -28,8 +28,7 @@ func init() { registerModule(Process) }
 
 // Process is a module that fetches process level data
 var Process = &module.Factory{
-	Name:             config.ProcessModule,
-	ConfigNamespaces: []string{},
+	Name: config.ProcessModule,
 	Fn: func(_ *sysconfigtypes.Config, _ module.FactoryDependencies) (module.Module, error) {
 		log.Infof("Creating process module for: %s", filepath.Base(os.Args[0]))
 
@@ -61,9 +60,9 @@ func (t *process) GetStats() map[string]interface{} {
 
 // Register registers endpoints for the module to expose data
 func (t *process) Register(httpMux *module.Router) error {
-	httpMux.HandleFunc("/stats", t.statsHandler).Methods("POST")
-	httpMux.HandleFunc("/service", t.serviceHandler).Methods("POST")
-	httpMux.HandleFunc("/network", t.networkHandler).Methods("POST")
+	httpMux.HandleFunc("POST /stats", t.statsHandler)
+	httpMux.HandleFunc("POST /service", t.serviceHandler)
+	httpMux.HandleFunc("POST /network", t.networkHandler)
 	return nil
 }
 

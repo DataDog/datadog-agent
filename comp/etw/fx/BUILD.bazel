@@ -1,0 +1,16 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "fx",
+    srcs = ["fx.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/etw/fx",
+    target_compatible_with = ["@platforms//os:windows"],
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "//comp/etw/impl",
+            "//pkg/util/fxutil",
+        ],
+        "//conditions:default": [],
+    }),
+)

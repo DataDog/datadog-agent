@@ -193,7 +193,7 @@ instances:
 	redacted := `init_config:
 instances:
 - host: 127.0.0.1
-  api_key: "***************************aaaaa"
+  api_key: "****************************aaaa"
   port: 8082
   api_key: "********"
   version: 4 # omit this line if you're running pdns_recursor version 3.x`

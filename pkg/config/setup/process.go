@@ -6,14 +6,13 @@
 package setup
 
 import (
-	"encoding/json"
 	"net"
-	"runtime"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -89,10 +88,7 @@ func setupProcesses(config pkgconfigmodel.Setup) {
 	procBindEnvAndSetDefault(config, "process_config.container_collection.enabled", true)
 	procBindEnvAndSetDefault(config, "process_config.process_collection.enabled", false)
 
-	// This allows for the process check to run in the core agent but is for linux only
-	procBindEnvAndSetDefault(config, "process_config.run_in_core_agent.enabled", runtime.GOOS == "linux")
-
-	config.BindEnv("process_config.process_dd_url", //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnvAndSetDefault("process_config.process_dd_url", "",
 		"DD_PROCESS_CONFIG_PROCESS_DD_URL",
 		"DD_PROCESS_AGENT_PROCESS_DD_URL",
 		"DD_PROCESS_AGENT_URL",
@@ -121,24 +117,13 @@ func setupProcesses(config pkgconfigmodel.Setup) {
 		"DD_CUSTOM_SENSITIVE_WORDS",
 		"DD_PROCESS_CONFIG_CUSTOM_SENSITIVE_WORDS",
 		"DD_PROCESS_AGENT_CUSTOM_SENSITIVE_WORDS")
-	config.ParseEnvAsStringSlice("process_config.custom_sensitive_words", func(val string) []string {
-		// historically we accept DD_CUSTOM_SENSITIVE_WORDS as "w1,w2,..." but Viper expects the user to set a list as ["w1","w2",...]
-		if strings.HasPrefix(val, "[") && strings.HasSuffix(val, "]") {
-			res := []string{}
-			if err := json.Unmarshal([]byte(val), &res); err != nil {
-				log.Errorf("Error parsing JSON value for 'process_config.custom_sensitive_words' from env vars: %s", err)
-				return nil
-			}
-			return res
-		}
+	pkgconfighelper.ParseEnvJSONOrComma("process_config.custom_sensitive_words", config)
 
-		return strings.Split(val, ",")
-	})
 	config.BindEnvAndSetDefault("process_config.scrub_args", true,
 		"DD_SCRUB_ARGS",
 		"DD_PROCESS_CONFIG_SCRUB_ARGS",
 		"DD_PROCESS_AGENT_SCRUB_ARGS")
-	config.BindEnv("process_config.strip_proc_arguments", //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnvAndSetDefault("process_config.strip_proc_arguments", false,
 		"DD_STRIP_PROCESS_ARGS",
 		"DD_PROCESS_CONFIG_STRIP_PROC_ARGUMENTS",
 		"DD_PROCESS_AGENT_STRIP_PROC_ARGUMENTS")
@@ -175,16 +160,7 @@ func setupProcesses(config pkgconfigmodel.Setup) {
 
 	processesAddOverrideOnce.Do(func() {
 		pkgconfigmodel.AddOverrideFunc(loadProcessTransforms)
-		pkgconfigmodel.AddOverrideFunc(overrideRunInCoreAgentConfig)
 	})
-}
-
-// overrideRunInCoreAgentConfig sets the process_config.run_in_core_agent.enabled to false in non-Linux environments.
-// Otherwise, it is a no-op.
-func overrideRunInCoreAgentConfig(config pkgconfigmodel.Config) {
-	if runtime.GOOS != "linux" {
-		config.Set("process_config.run_in_core_agent.enabled", false, pkgconfigmodel.SourceAgentRuntime)
-	}
 }
 
 // loadProcessTransforms loads transforms associated with process config settings.

@@ -10,11 +10,12 @@ package gpu
 import (
 	"errors"
 	"fmt"
+	"math"
 	"strconv"
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	agenterrors "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/gpu/config/consts"
@@ -142,6 +143,12 @@ func (c *WorkloadTagCache) GetOrCreateWorkloadTags(workloadID workloadmeta.Entit
 	return tags, err
 }
 
+// SetContainerProvider sets the container provider after construction.
+func (c *WorkloadTagCache) SetContainerProvider(p proccontainers.ContainerProvider) {
+	c.containerProvider = p
+	c.pidToCid = nil
+}
+
 // MarkStale marks all entries in the cache as stale. That way, on the next calls to GetWorkloadTags, we will
 // try to rebuild them, anf if we can't we will return stale data.
 func (c *WorkloadTagCache) MarkStale() {
@@ -184,7 +191,7 @@ func (c *WorkloadTagCache) buildContainerTags(containerID string) ([]string, err
 func (c *WorkloadTagCache) buildProcessTags(processID string) ([]string, error) {
 	var multiErr error
 
-	pidInt, err := strconv.Atoi(processID)
+	pidInt, err := strconv.ParseInt(processID, 10, 32)
 	if err != nil {
 		return nil, fmt.Errorf("error converting process ID to int: %w", err)
 	}
@@ -221,7 +228,7 @@ func (c *WorkloadTagCache) buildProcessTags(processID string) ([]string, error) 
 	if nspid == 0 {
 		usedFallbacks = true
 
-		nspid, nspidErr = getNsPID(pid)
+		nspid, nspidErr = getNsPID(uint32(pid))
 		if nspidErr != nil && !errors.Is(nspidErr, secutils.ErrNoNSPid) {
 			multiErr = errors.Join(multiErr, fmt.Errorf("error getting nspid for process %d: %w", pid, nspidErr))
 		}
@@ -263,8 +270,8 @@ func (c *WorkloadTagCache) buildProcessTags(processID string) ([]string, error) 
 // have the same NSpid values, specially in case of unusual pid namespace setups.
 // As such, we attempt reading the nspid for only on the main thread (group leader)
 // in /proc/X/task/X/status, or fail otherwise
-func getNsPID(pid int32) (int32, error) {
-	nspids, err := secutils.GetNsPids(uint32(pid), strconv.FormatUint(uint64(pid), 10))
+func getNsPID(pid uint32) (int32, error) {
+	nspids, err := secutils.GetNsPids(pid, strconv.FormatUint(uint64(pid), 10))
 	if err != nil {
 		return 0, fmt.Errorf("could not get nspid for pid %d: %w", pid, err)
 	}
@@ -272,7 +279,12 @@ func getNsPID(pid int32) (int32, error) {
 		return 0, secutils.ErrNoNSPid
 	}
 
-	return int32(nspids[len(nspids)-1]), nil
+	nspid := nspids[len(nspids)-1]
+	if nspid > math.MaxInt32 {
+		return 0, fmt.Errorf("nspid %d is too large to fit in int32", nspid)
+	}
+
+	return int32(nspid), nil
 }
 
 // getContainerID retrieves the container ID for a given PID from the container
@@ -307,4 +319,37 @@ func (c *WorkloadTagCache) getContainerID(pid int32) (string, error) {
 
 func (c *WorkloadTagCache) onLRUEvicted(workloadID workloadmeta.EntityID, _ *workloadTagCacheEntry) {
 	c.telemetry.cacheEvictions.Inc(string(workloadID.Kind))
+}
+
+// NewWorkloadTagCacheWithSubsystem creates a WorkloadTagCache that registers
+// its telemetry counters under "<subsystemPrefix>__workload_tag_cache". The
+// prefix must be unique per cache instance in the agent process.
+func NewWorkloadTagCacheWithSubsystem(subsystemPrefix string, tagger tagger.Component, wmeta workloadmeta.Component, containerProvider proccontainers.ContainerProvider, tm telemetry.Component, cacheSize int) (*WorkloadTagCache, error) {
+	c := &WorkloadTagCache{
+		tagger:            tagger,
+		wmeta:             wmeta,
+		containerProvider: containerProvider,
+		telemetry:         newWorkloadTagCacheTelemetryWithSubsystem(subsystemPrefix, tm),
+	}
+
+	var err error
+	c.cache, err = simplelru.NewLRU(cacheSize, c.onLRUEvicted)
+	if err != nil {
+		return nil, fmt.Errorf("error creating LRU cache: %w", err)
+	}
+
+	return c, nil
+}
+
+func newWorkloadTagCacheTelemetryWithSubsystem(subsystemPrefix string, tm telemetry.Component) *workloadTagCacheTelemetry {
+	subsystem := subsystemPrefix + "__workload_tag_cache"
+	return &workloadTagCacheTelemetry{
+		cacheHits:        tm.NewCounter(subsystem, "hits", []string{"entity_kind"}, "Number of cache hits"),
+		cacheMisses:      tm.NewCounter(subsystem, "misses", []string{"entity_kind"}, "Number of cache misses"),
+		cacheEvictions:   tm.NewCounter(subsystem, "evictions", []string{"entity_kind"}, "Number of cache evictions"),
+		staleEntriesUsed: tm.NewCounter(subsystem, "stale_entries_used", []string{"entity_kind"}, "Number of stale cache used"),
+		cacheSize:        tm.NewGauge(subsystem, "size", []string{}, "Cache size"),
+		buildErrors:      tm.NewCounter(subsystem, "build_errors", []string{"entity_kind"}, "Number of errors building workload tags"),
+		processFallbacks: tm.NewCounter(subsystem, "process_fallbacks", []string{}, "Counter with the number of times we had to fall back to getting process data directly, instead of through workloadmeta"),
+	}
 }

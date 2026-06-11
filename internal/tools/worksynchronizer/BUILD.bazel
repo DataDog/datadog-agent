@@ -22,6 +22,7 @@ go_test(
     srcs = ["worksynchronizer_test.go"],
     data = glob(["testdata/**"]),
     embed = [":worksynchronizer_lib"],
+    gotags = ["test"],
     deps = [
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

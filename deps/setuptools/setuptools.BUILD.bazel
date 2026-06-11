@@ -1,0 +1,28 @@
+# Python setuptools
+
+load("@@//compliance/rules:purl.bzl", "purl_for_generic")
+load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
+load("@rules_license//rules:license.bzl", "license")
+
+package(default_package_metadata = [":package_metadata"])
+
+VERSION = "75.1.0"
+
+package_metadata(
+    name = "package_metadata",
+    attributes = [
+        ":license",
+    ],
+    purl = purl_for_generic(
+        package = "setuptools",
+        version = VERSION,
+        download_url = "https://github.com/pypa/setuptools/archive/v{version}.tar.gz",
+    ),
+)
+
+license(
+    name = "license",
+    license_kinds = ["@rules_license//licenses/spdx:MIT"],
+    license_text = "LICENSE",
+    visibility = ["//visibility:public"],
+)

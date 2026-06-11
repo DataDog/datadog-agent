@@ -20,6 +20,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 
+	"github.com/twmb/murmur3"
+	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -43,6 +45,18 @@ const (
 	// CustomRecommenderAnnotationKey is the key used to store custom recommender configuration in annotations
 	CustomRecommenderAnnotationKey = "autoscaling.datadoghq.com/custom-recommender"
 )
+
+// resyncLabelKeysFromPodAutoscaler lists the label keys read by UpdateFromPodAutoscaler.
+var resyncLabelKeysFromPodAutoscaler = []string{
+	ProfileLabelKey,
+}
+
+// resyncAnnotationKeysFromPodAutoscaler lists the annotation keys read by UpdateFromPodAutoscaler.
+var resyncAnnotationKeysFromPodAutoscaler = []string{
+	PreviewAnnotationKey,
+	ProfileTemplateHashAnnotation,
+	CustomRecommenderAnnotationKey,
+}
 
 // PodAutoscalerInternal holds the necessary data to work with the `DatadogPodAutoscaler` CRD.
 type PodAutoscalerInternal struct {
@@ -69,6 +83,23 @@ type PodAutoscalerInternal struct {
 	// Version is stored in .Spec.RemoteVersion
 	// (only if owner == remote)
 	settingsTimestamp time.Time
+
+	// profileName is set for profile-managed autoscalers
+	profileName string
+
+	// desiredProfileTemplateHash is the target template hash from the profile
+	desiredProfileTemplateHash string
+
+	// appliedProfileHash is the profile template hash last applied to the Kubernetes object
+	appliedProfileHash string
+
+	// previewOptions holds the parsed preview feature flags from the DPA annotations
+	previewOptions previewOptions
+
+	// metadataHash fingerprints the K8s state read by UpdateFromPodAutoscaler
+	// (.metadata.generation plus watched labels/annotations), so that a single
+	// equality check captures both spec changes and out-of-spec edits.
+	metadataHash uint64
 
 	// scalingValues represents the active scaling values that should be used
 	scalingValues ScalingValues
@@ -113,6 +144,27 @@ type PodAutoscalerInternal struct {
 	// verticalActionSuccessCount is the number of successful vertical actions
 	verticalActionSuccessCount uint
 
+	// inPlacePatchSuccessCount is the number of pods successfully patched in-place
+	inPlacePatchSuccessCount uint
+
+	// inPlacePatchErrorCount is the number of pods that failed in-place patching
+	inPlacePatchErrorCount uint
+
+	// inPlaceEvictionSuccessCount is the number of pods successfully evicted during in-place resize
+	inPlaceEvictionSuccessCount uint
+
+	// inPlaceEvictionErrorCount is the number of pods that failed eviction during in-place resize
+	inPlaceEvictionErrorCount uint
+
+	// inPlaceRolloutFallbackCount is the number of times in-place resize fell back to a rollout
+	inPlaceRolloutFallbackCount uint
+
+	// inPlacePDBBlockedCount is the number of times eviction was blocked by a PodDisruptionBudget
+	inPlacePDBBlockedCount uint
+
+	// inPlaceResizeCompletedCount is the number of times all pods in a resize cycle completed successfully
+	inPlaceResizeCompletedCount uint
+
 	// verticalLastLimitReason is the reason vertical scaling was limited by min/max constraints.
 	// When non-nil, it carries a ConditionError so that both Reason and Message are preserved.
 	verticalLastLimitReason error
@@ -123,11 +175,15 @@ type PodAutoscalerInternal struct {
 	// scaledReplicas is the current number of PODs for the targetRef matching the resources recommendations
 	scaledReplicas *int32
 
+	// evictedReplicas is the number of pods evicted as an in-place resize fallback during the
+	// current recommendation cycle. Resets when the recommendation ID changes.
+	evictedReplicas *int32
+
 	// error is the an error encountered by the controller not specific to a scaling action
 	error error
 
 	// deleted flags the PodAutoscaler as deleted (removal to be handled by the controller)
-	// (only if owner == remote)
+	// (only if owner == remote or profile-managed)
 	deleted bool
 
 	//
@@ -146,6 +202,10 @@ type PodAutoscalerInternal struct {
 	// customRecommenderConfiguration holds the configuration for custom recommenders,
 	// Parsed from annotations on the autoscaler
 	customRecommenderConfiguration *RecommenderConfiguration
+
+	// submittedPodOps maps pod UID to the recommendationID of the last accepted patch or eviction,
+	// used to suppress redundant API calls during the informer-cache lag window.
+	submittedPodOps map[string]string
 }
 
 // NewPodAutoscalerInternal creates a new PodAutoscalerInternal from a Kubernetes CR
@@ -171,12 +231,107 @@ func NewPodAutoscalerFromSettings(ns, name string, podAutoscalerSpec *datadoghq.
 	return pda
 }
 
+// NewPodAutoscalerFromProfile creates a PodAutoscalerInternal for a profile-managed workload.
+func NewPodAutoscalerFromProfile(
+	ns, name, profileName string,
+	template *datadoghq.DatadogPodAutoscalerTemplate,
+	targetRef autoscalingv2.CrossVersionObjectReference,
+	templateHash string,
+	previewAnnotation string,
+) PodAutoscalerInternal {
+	pai := PodAutoscalerInternal{
+		namespace: ns,
+		name:      name,
+		upstreamCR: &datadoghq.DatadogPodAutoscaler{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: ns,
+				Name:      name,
+			},
+		},
+	}
+	pai.UpdateFromProfile(profileName, template, targetRef, templateHash, previewAnnotation)
+
+	return pai
+}
+
 //
 // Modifiers
 //
 
-// UpdateFromPodAutoscaler updates the PodAutoscalerInternal from a PodAutoscaler object inside K8S
+// previewOptions holds the parsed feature flags from PreviewAnnotation.
+type previewOptions struct {
+	Burstable bool `json:"burstable,omitempty"`
+}
+
+// parsePreviewAnnotationString parses a raw PreviewAnnotation JSON string.
+// Returns a zero-value previewOptions if the string is empty or unparseable.
+func parsePreviewAnnotationString(raw string) previewOptions {
+	if raw == "" {
+		return previewOptions{}
+	}
+	var opts previewOptions
+	if err := json.Unmarshal([]byte(raw), &opts); err != nil {
+		return previewOptions{}
+	}
+	return opts
+}
+
+// setPreviewAnnotation updates both the parsed previewOptions field and the upstreamCR annotation
+// to keep them in sync. Passing an empty string removes the annotation.
+func (p *PodAutoscalerInternal) setPreviewAnnotation(previewAnnotation string) {
+	if previewAnnotation == "" {
+		delete(p.upstreamCR.Annotations, PreviewAnnotationKey)
+	} else {
+		if p.upstreamCR.Annotations == nil {
+			p.upstreamCR.Annotations = make(map[string]string)
+		}
+		p.upstreamCR.Annotations[PreviewAnnotationKey] = previewAnnotation
+	}
+	p.previewOptions = parsePreviewAnnotationString(previewAnnotation)
+}
+
+// UpdateFromProfile updates the spec from a profile template while preserving scaling state.
+// previewAnnotation is the raw value of the profile's preview annotation (e.g.
+// `{"burstable":true}`), stored in a dedicated field rather than written to upstreamCR,
+// which mirrors the Kubernetes API object and should remain read-only.
+func (p *PodAutoscalerInternal) UpdateFromProfile(
+	profileName string,
+	template *datadoghq.DatadogPodAutoscalerTemplate,
+	targetRef autoscalingv2.CrossVersionObjectReference,
+	templateHash string,
+	previewAnnotation string,
+) {
+	dpaSpec := BuildDPASpecFromProfile(template, targetRef)
+
+	p.profileName = profileName
+	p.desiredProfileTemplateHash = templateHash
+	p.upstreamCR.Spec = dpaSpec
+	p.setPreviewAnnotation(previewAnnotation)
+
+	// Reset the target GVK as it might have changed
+	// Resolving the target GVK is done in the controller sync to ensure proper sync and error handling
+	p.targetGVK = schema.GroupVersionKind{}
+	// Compute the horizontal events retention again in case .Spec.ApplyPolicy has changed
+	p.horizontalEventsRetention, p.horizontalRecommendationsRetention = getHorizontalRetentionValues(dpaSpec.ApplyPolicy)
+}
+
+// UpdateFromPodAutoscaler updates the PodAutoscalerInternal from a PodAutoscaler object inside K8S.
+// For local-owner DPAs it short-circuits when the cached metadata fingerprint is unchanged.
 func (p *PodAutoscalerInternal) UpdateFromPodAutoscaler(podAutoscaler *datadoghq.DatadogPodAutoscaler) {
+	if podAutoscaler.Spec.Owner == datadoghqcommon.DatadogPodAutoscalerLocalOwner {
+		newHash := computePodAutoscalerMetadataHash(podAutoscaler)
+		if p.metadataHash == newHash {
+			return
+		}
+		p.metadataHash = newHash
+	}
+
+	if v, ok := podAutoscaler.Labels[ProfileLabelKey]; ok {
+		p.profileName = v
+	}
+	if v, ok := podAutoscaler.Annotations[ProfileTemplateHashAnnotation]; ok {
+		p.appliedProfileHash = v
+	}
 	p.upstreamCR = podAutoscaler
 	p.creationTimestamp = podAutoscaler.CreationTimestamp.Time
 	p.generation = podAutoscaler.Generation
@@ -187,6 +342,10 @@ func (p *PodAutoscalerInternal) UpdateFromPodAutoscaler(podAutoscaler *datadoghq
 	p.horizontalEventsRetention, p.horizontalRecommendationsRetention = getHorizontalRetentionValues(podAutoscaler.Spec.ApplyPolicy)
 	// Compute recommender configuration again in case .Annotations has changed
 	p.updateCustomRecommenderConfiguration(podAutoscaler.Annotations)
+	// Parse preview options from the K8s annotation so IsBurstable() works for standalone DPAs
+	// without branching on profile-managed vs standalone.
+	// For profile-managed DPAs, UpdateFromProfile() will overwrite this with the profile value.
+	p.previewOptions = parsePreviewAnnotationString(podAutoscaler.Annotations[PreviewAnnotationKey])
 }
 
 // UpdateFromSettings updates the PodAutoscalerInternal from a new settings
@@ -253,6 +412,24 @@ func (p *PodAutoscalerInternal) UpdateFromMainValues(mainScalingValues ScalingVa
 	p.mainScalingValuesVersion = version
 }
 
+// PartialUpdateFromMainValues updates the PodAutoscalerInternal from new partial main scaling values
+// This is currently aimed at handling merge between vertical from backend and horizontal from custom recommender.
+func (p *PodAutoscalerInternal) PartialUpdateFromMainValues(partialScalingValues ScalingValues, useHorizontal, useVertical bool, version uint64) {
+	if useHorizontal {
+		p.mainScalingValues.Horizontal = partialScalingValues.Horizontal
+		p.mainScalingValues.HorizontalError = partialScalingValues.HorizontalError
+	}
+
+	if useVertical {
+		p.mainScalingValues.Vertical = partialScalingValues.Vertical
+		p.mainScalingValues.VerticalError = partialScalingValues.VerticalError
+	}
+
+	if version > 0 {
+		p.mainScalingValuesVersion = version
+	}
+}
+
 // UpdateFromLocalValues updates the PodAutoscalerInternal from new local scaling values
 func (p *PodAutoscalerInternal) UpdateFromLocalValues(fallbackScalingValues ScalingValues) {
 	p.fallbackScalingValues = fallbackScalingValues
@@ -264,9 +441,15 @@ func (p *PodAutoscalerInternal) RemoveValues() {
 }
 
 // RemoveMainValues clears main autoscaling values data from the PodAutoscalerInternal as we stopped autoscaling
-func (p *PodAutoscalerInternal) RemoveMainValues() {
+func (p *PodAutoscalerInternal) RemoveMainValues() (removed bool, previous ScalingValues) {
+	if p.mainScalingValuesVersion == 0 && p.mainScalingValues.IsEmpty() {
+		return false, ScalingValues{}
+	}
+
+	previousMainScalingValues := p.mainScalingValues
 	p.mainScalingValues = ScalingValues{}
 	p.mainScalingValuesVersion = 0
+	return true, previousMainScalingValues
 }
 
 // RemoveLocalValues clears local autoscaling values data from the PodAutoscalerInternal as we stopped autoscaling
@@ -335,6 +518,29 @@ func (p *PodAutoscalerInternal) ClearVerticalState() {
 	p.verticalLastActionError = nil
 	p.verticalLastLimitReason = nil
 	p.scaledReplicas = nil
+	p.evictedReplicas = nil
+}
+
+// SetEvictedReplicas sets the evicted pod count for the current in-place resize cycle.
+func (p *PodAutoscalerInternal) SetEvictedReplicas(replicas int32) {
+	p.evictedReplicas = &replicas
+}
+
+// AddEvictedReplicas increments the evicted pod count for the current in-place resize cycle.
+func (p *PodAutoscalerInternal) AddEvictedReplicas(count int32) {
+	if count == 0 {
+		return
+	}
+	if p.evictedReplicas == nil {
+		p.evictedReplicas = &count
+		return
+	}
+	*p.evictedReplicas += count
+}
+
+// EvictedReplicas returns the evicted pod count for the current in-place resize cycle.
+func (p *PodAutoscalerInternal) EvictedReplicas() *int32 {
+	return p.evictedReplicas
 }
 
 // SetGeneration sets the generation of the PodAutoscaler
@@ -360,6 +566,11 @@ func (p *PodAutoscalerInternal) ClearCurrentReplicas() {
 // SetError sets an error encountered by the controller not specific to a scaling action
 func (p *PodAutoscalerInternal) SetError(err error) {
 	p.error = err
+}
+
+// SetProfileName sets the profile name for a profile-managed autoscaler.
+func (p *PodAutoscalerInternal) SetProfileName(name string) {
+	p.profileName = name
 }
 
 // SetDeleted flags the PodAutoscaler as deleted
@@ -498,6 +709,24 @@ func (p *PodAutoscalerInternal) IsHorizontalScalingEnabled() bool {
 	return !(scaleUpDisabled && scaleDownDisabled)
 }
 
+// IsBurstable returns true if the burstable preview option is enabled for this autoscaler.
+// The value is read directly from the cached previewOptions struct — no JSON decode per call.
+// For profile-managed DPAs previewOptions is populated by UpdateFromProfile; for standalone
+// DPAs it is populated by UpdateFromPodAutoscaler.
+func (p *PodAutoscalerInternal) IsBurstable() bool {
+	return p.previewOptions.Burstable
+}
+
+// PreviewAnnotation returns the JSON-encoded preview annotation forwarded from the cluster
+// profile (e.g. `{"burstable":true}`).  Returns empty string when no preview features are
+// active.  For standalone (non-profile-managed) autoscalers this always returns empty string.
+func (p *PodAutoscalerInternal) PreviewAnnotation() string {
+	if p.upstreamCR == nil {
+		return ""
+	}
+	return p.upstreamCR.Annotations[PreviewAnnotationKey]
+}
+
 func (p *PodAutoscalerInternal) IsVerticalScalingEnabled() bool {
 	spec := p.Spec()
 	if spec == nil || spec.ApplyPolicy == nil {
@@ -606,6 +835,110 @@ func (p *PodAutoscalerInternal) VerticalActionSuccessInc() {
 	p.verticalActionSuccessCount++
 }
 
+// InPlacePatchSuccessCount returns the number of pods successfully patched in-place
+func (p *PodAutoscalerInternal) InPlacePatchSuccessCount() uint {
+	return p.inPlacePatchSuccessCount
+}
+
+// InPlacePatchSuccessInc increments the in-place patch success counter
+func (p *PodAutoscalerInternal) InPlacePatchSuccessInc() {
+	p.inPlacePatchSuccessCount++
+}
+
+// InPlacePatchErrorCount returns the number of pods that failed in-place patching
+func (p *PodAutoscalerInternal) InPlacePatchErrorCount() uint {
+	return p.inPlacePatchErrorCount
+}
+
+// InPlacePatchErrorInc increments the in-place patch error counter
+func (p *PodAutoscalerInternal) InPlacePatchErrorInc() {
+	p.inPlacePatchErrorCount++
+}
+
+// InPlaceEvictionSuccessCount returns the number of pods successfully evicted during in-place resize
+func (p *PodAutoscalerInternal) InPlaceEvictionSuccessCount() uint {
+	return p.inPlaceEvictionSuccessCount
+}
+
+// InPlaceEvictionSuccessInc increments the in-place eviction success counter
+func (p *PodAutoscalerInternal) InPlaceEvictionSuccessInc() {
+	p.inPlaceEvictionSuccessCount++
+}
+
+// InPlaceEvictionErrorCount returns the number of pods that failed eviction during in-place resize
+func (p *PodAutoscalerInternal) InPlaceEvictionErrorCount() uint {
+	return p.inPlaceEvictionErrorCount
+}
+
+// InPlaceEvictionErrorInc increments the in-place eviction error counter
+func (p *PodAutoscalerInternal) InPlaceEvictionErrorInc() {
+	p.inPlaceEvictionErrorCount++
+}
+
+// InPlaceRolloutFallbackCount returns the number of times in-place resize fell back to a rollout
+func (p *PodAutoscalerInternal) InPlaceRolloutFallbackCount() uint {
+	return p.inPlaceRolloutFallbackCount
+}
+
+// InPlaceRolloutFallbackInc increments the rollout fallback counter
+func (p *PodAutoscalerInternal) InPlaceRolloutFallbackInc() {
+	p.inPlaceRolloutFallbackCount++
+}
+
+// InPlacePDBBlockedCount returns the number of times eviction was blocked by a PodDisruptionBudget
+func (p *PodAutoscalerInternal) InPlacePDBBlockedCount() uint {
+	return p.inPlacePDBBlockedCount
+}
+
+// InPlacePDBBlockedInc increments the PDB blocked counter
+func (p *PodAutoscalerInternal) InPlacePDBBlockedInc() {
+	p.inPlacePDBBlockedCount++
+}
+
+// InPlaceResizeCompletedCount returns the number of times all pods completed an in-place resize cycle
+func (p *PodAutoscalerInternal) InPlaceResizeCompletedCount() uint {
+	return p.inPlaceResizeCompletedCount
+}
+
+// InPlaceResizeCompletedInc increments the resize completed counter
+func (p *PodAutoscalerInternal) InPlaceResizeCompletedInc() {
+	p.inPlaceResizeCompletedCount++
+}
+
+// TrackPodOperation records that a patch or eviction for podUID was accepted by the API server.
+func (p *PodAutoscalerInternal) TrackPodOperation(podUID, recommendationID string) {
+	if p.submittedPodOps == nil {
+		p.submittedPodOps = make(map[string]string)
+	}
+	p.submittedPodOps[podUID] = recommendationID
+}
+
+// HasPendingOperation reports whether podUID has a tracked operation for the current recommendationID.
+func (p *PodAutoscalerInternal) HasPendingOperation(podUID, recommendationID string) bool {
+	if p.submittedPodOps == nil {
+		return false
+	}
+	return p.submittedPodOps[podUID] == recommendationID
+}
+
+// ClearPodOperations drops all tracked pod operations; called on resize completion.
+func (p *PodAutoscalerInternal) ClearPodOperations() {
+	p.submittedPodOps = nil
+}
+
+// PrunePodOperations removes entries whose stored recommendationID no longer matches
+// the current one, and entries whose pod UID have been removed from the livePodUIDs map.
+func (p *PodAutoscalerInternal) PrunePodOperations(recommendationID string, livePodUIDs map[string]struct{}) {
+	for uid, rid := range p.submittedPodOps {
+		if rid != recommendationID {
+			delete(p.submittedPodOps, uid)
+		}
+		if _, ok := livePodUIDs[uid]; !ok {
+			delete(p.submittedPodOps, uid)
+		}
+	}
+}
+
 // CurrentReplicas returns the current number of PODs for the targetRef
 func (p *PodAutoscalerInternal) CurrentReplicas() *int32 {
 	return p.currentReplicas
@@ -619,6 +952,32 @@ func (p *PodAutoscalerInternal) ScaledReplicas() *int32 {
 // Error returns the an error encountered by the controller not specific to a scaling action
 func (p *PodAutoscalerInternal) Error() error {
 	return p.error
+}
+
+// ProfileName returns the profile name if this is a profile-managed autoscaler.
+func (p *PodAutoscalerInternal) ProfileName() string {
+	return p.profileName
+}
+
+// IsProfileManaged returns true if this autoscaler is managed by a profile.
+func (p *PodAutoscalerInternal) IsProfileManaged() bool {
+	return p.profileName != ""
+}
+
+// DesiredProfileTemplateHash returns the desired profile template hash set via UpdateFromProfile.
+func (p *PodAutoscalerInternal) DesiredProfileTemplateHash() string {
+	return p.desiredProfileTemplateHash
+}
+
+// AppliedProfileHash returns the hash last successfully applied to Kubernetes.
+func (p *PodAutoscalerInternal) AppliedProfileHash() string {
+	return p.appliedProfileHash
+}
+
+// MarkProfileTemplateApplied copies the current desired hash to the applied hash.
+// Must be called after a successful K8s create or update of a profile-managed DPA.
+func (p *PodAutoscalerInternal) MarkProfileTemplateApplied() {
+	p.appliedProfileHash = p.desiredProfileTemplateHash
 }
 
 // Deleted returns the deletion status of the PodAutoscaler
@@ -703,8 +1062,9 @@ func (p *PodAutoscalerInternal) BuildStatus(currentTime metav1.Time, currentStat
 				Source:           p.scalingValues.Vertical.Source,
 				GeneratedAt:      metav1.NewTime(p.scalingValues.Vertical.Timestamp),
 				Version:          p.scalingValues.Vertical.ResourcesHash,
-				DesiredResources: p.scalingValues.Vertical.ContainerResources,
+				DesiredResources: containerResourcesForStatus(p.scalingValues.Vertical.ContainerResources),
 				Scaled:           p.scaledReplicas,
+				Evicted:          p.evictedReplicas,
 				PodCPURequest:    cpuReqSum,
 				PodMemoryRequest: memReqSum,
 			},
@@ -800,6 +1160,43 @@ func (p *PodAutoscalerInternal) BuildStatus(currentTime metav1.Time, currentStat
 	status.Conditions = append(status.Conditions, newCondition(rolloutStatus, verticalReason, verticalMessage, currentTime, datadoghqcommon.DatadogPodAutoscalerVerticalAbleToApply, existingConditions))
 
 	return status
+}
+
+// containerResourcesForStatus returns a copy of the container resources with internal sentinel
+// values removed from Limits and Requests so they are not surfaced in the DPA status.
+//
+// For Limits: applyVerticalConstraints (burstable mode) stores removeLimitSentinel (-1) in
+// Limits[cpu] to signal "delete this CPU limit from the pod". A negative quantity is never a
+// valid Kubernetes resource value, so only strictly positive quantities are kept in Limits.
+func containerResourcesForStatus(in []datadoghqcommon.DatadogPodAutoscalerContainerResources) []datadoghqcommon.DatadogPodAutoscalerContainerResources {
+	if len(in) == 0 {
+		return in
+	}
+	out := make([]datadoghqcommon.DatadogPodAutoscalerContainerResources, len(in))
+	for i, cr := range in {
+		out[i].Name = cr.Name
+		if len(cr.Limits) > 0 {
+			for k, v := range cr.Limits {
+				if v.Sign() > 0 {
+					if out[i].Limits == nil {
+						out[i].Limits = make(corev1.ResourceList, len(cr.Limits))
+					}
+					out[i].Limits[k] = v
+				}
+			}
+		}
+		if len(cr.Requests) > 0 {
+			for k, v := range cr.Requests {
+				if v.Sign() >= 0 {
+					if out[i].Requests == nil {
+						out[i].Requests = make(corev1.ResourceList, len(cr.Requests))
+					}
+					out[i].Requests[k] = v
+				}
+			}
+		}
+	}
+	return out
 }
 
 // Private helpers
@@ -977,6 +1374,22 @@ func getLongestScalingRulesPeriod(rules []datadoghqcommon.DatadogPodAutoscalerSc
 	return longest
 }
 
+// BuildDPASpecFromProfile builds a DPA spec from a profile template and a target ref.
+func BuildDPASpecFromProfile(
+	template *datadoghq.DatadogPodAutoscalerTemplate,
+	targetRef autoscalingv2.CrossVersionObjectReference,
+) datadoghq.DatadogPodAutoscalerSpec {
+	return datadoghq.DatadogPodAutoscalerSpec{
+		TargetRef:   targetRef,
+		Owner:       datadoghqcommon.DatadogPodAutoscalerLocalOwner,
+		ApplyPolicy: template.ApplyPolicy,
+		Objectives:  template.Objectives,
+		Fallback:    template.Fallback,
+		Constraints: template.Constraints,
+		Options:     template.Options,
+	}
+}
+
 func parseCustomConfigurationAnnotation(annotations map[string]string) (*RecommenderConfiguration, error) {
 	annotation, ok := annotations[CustomRecommenderAnnotationKey]
 
@@ -991,4 +1404,19 @@ func parseCustomConfigurationAnnotation(annotations map[string]string) (*Recomme
 	}
 
 	return &customConfiguration, nil
+}
+
+// computePodAutoscalerMetadataHash returns a fingerprint of the K8s state
+// read by UpdateFromPodAutoscaler — .metadata.generation plus the watched
+// labels/annotations — used to identify any change worth re-syncing.
+func computePodAutoscalerMetadataHash(podAutoscaler *datadoghq.DatadogPodAutoscaler) uint64 {
+	hasher := murmur3.New64()
+	_, _ = fmt.Fprintf(hasher, "G\x00%d\x00", podAutoscaler.Generation)
+	for _, key := range resyncLabelKeysFromPodAutoscaler {
+		_, _ = hasher.Write([]byte("L\x00" + key + "\x00" + podAutoscaler.Labels[key] + "\x00"))
+	}
+	for _, key := range resyncAnnotationKeysFromPodAutoscaler {
+		_, _ = hasher.Write([]byte("A\x00" + key + "\x00" + podAutoscaler.Annotations[key] + "\x00"))
+	}
+	return hasher.Sum64()
 }

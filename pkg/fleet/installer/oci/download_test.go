@@ -12,15 +12,20 @@ import (
 	"context"
 	"net/http"
 	"os"
+	"runtime"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/net/http2"
 
 	"github.com/google/go-containerregistry/pkg/authn"
 	oci "github.com/google/go-containerregistry/pkg/v1"
+	"github.com/google/go-containerregistry/pkg/v1/empty"
 	"github.com/google/go-containerregistry/pkg/v1/google"
+	"github.com/google/go-containerregistry/pkg/v1/mutate"
+	"github.com/google/go-containerregistry/pkg/v1/random"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/fixtures"
@@ -223,6 +228,90 @@ func TestGetRefAndKeychain(t *testing.T) {
 	}
 }
 
+func TestDownloadIndexVariantSelection(t *testing.T) {
+	plat := oci.Platform{OS: runtime.GOOS, Architecture: runtime.GOARCH}
+
+	baseImg, err := random.Image(64, 1)
+	require.NoError(t, err)
+	baseDigest, err := baseImg.Digest()
+	require.NoError(t, err)
+
+	fipsImg, err := random.Image(64, 1)
+	require.NoError(t, err)
+	fipsDigest, err := fipsImg.Digest()
+	require.NoError(t, err)
+	require.NotEqual(t, baseDigest, fipsDigest)
+
+	bothFlavorIndex := mutate.AppendManifests(empty.Index,
+		mutate.IndexAddendum{
+			Add:        baseImg,
+			Descriptor: oci.Descriptor{Platform: &plat},
+		},
+		mutate.IndexAddendum{
+			Add: fipsImg,
+			Descriptor: oci.Descriptor{
+				Platform: &oci.Platform{OS: plat.OS, Architecture: plat.Architecture, Variant: VariantFIPS},
+			},
+		},
+	)
+
+	t.Run("FIPSMode=false picks the base manifest", func(t *testing.T) {
+		d := NewDownloader(&env.Env{FIPSMode: false}, http.DefaultClient)
+		got, err := d.downloadIndex(bothFlavorIndex)
+		require.NoError(t, err)
+		gotDigest, err := got.Digest()
+		require.NoError(t, err)
+		assert.Equal(t, baseDigest, gotDigest)
+	})
+
+	t.Run("FIPSMode=true picks the FIPS manifest", func(t *testing.T) {
+		d := NewDownloader(&env.Env{FIPSMode: true}, http.DefaultClient)
+		got, err := d.downloadIndex(bothFlavorIndex)
+		require.NoError(t, err)
+		gotDigest, err := got.Digest()
+		require.NoError(t, err)
+		assert.Equal(t, fipsDigest, gotDigest)
+	})
+
+	// Even if the FIPS manifest is listed first in the index, a non-FIPS
+	// request must skip it instead of accepting it via Satisfies' empty-variant
+	// wildcard.
+	t.Run("FIPSMode=false skips FIPS manifest regardless of index order", func(t *testing.T) {
+		reorderedIndex := mutate.AppendManifests(empty.Index,
+			mutate.IndexAddendum{
+				Add: fipsImg,
+				Descriptor: oci.Descriptor{
+					Platform: &oci.Platform{OS: plat.OS, Architecture: plat.Architecture, Variant: VariantFIPS},
+				},
+			},
+			mutate.IndexAddendum{
+				Add:        baseImg,
+				Descriptor: oci.Descriptor{Platform: &plat},
+			},
+		)
+		d := NewDownloader(&env.Env{FIPSMode: false}, http.DefaultClient)
+		got, err := d.downloadIndex(reorderedIndex)
+		require.NoError(t, err)
+		gotDigest, err := got.Digest()
+		require.NoError(t, err)
+		assert.Equal(t, baseDigest, gotDigest)
+	})
+
+	// FIPS mode must not fall back to a base manifest if no FIPS variant is
+	// present in the index.
+	t.Run("FIPSMode=true returns ErrPackageNotFound when no FIPS manifest exists", func(t *testing.T) {
+		baseOnlyIndex := mutate.AppendManifests(empty.Index,
+			mutate.IndexAddendum{
+				Add:        baseImg,
+				Descriptor: oci.Descriptor{Platform: &plat},
+			},
+		)
+		d := NewDownloader(&env.Env{FIPSMode: true}, http.DefaultClient)
+		_, err := d.downloadIndex(baseOnlyIndex)
+		require.Error(t, err)
+	})
+}
+
 func TestPackageURL(t *testing.T) {
 	type test struct {
 		site     string
@@ -283,6 +372,62 @@ func TestIsStreamResetError(t *testing.T) {
 			assert.Equal(t, tc.expected, isStreamResetError(tc.err))
 		})
 	}
+}
+
+func TestWithRegistryOverride(t *testing.T) {
+	original := &env.Env{
+		RegistryOverride:            "original.registry.com",
+		RegistryAuthOverride:        "docker",
+		RegistryUsername:            "origuser",
+		RegistryPassword:            "origpass",
+		RegistryOverrideByImage:     map[string]string{"agent-package": "image-scoped.io"},
+		RegistryAuthOverrideByImage: map[string]string{"agent-package": "gcr"},
+		Site:                        "datadoghq.com",
+	}
+	client := http.DefaultClient
+	d := NewDownloader(original, client)
+
+	overridden := d.WithRegistryOverride("custom.registry.com", "password", "newuser", "newpass")
+
+	// Overridden downloader has new values
+	assert.Equal(t, "custom.registry.com", overridden.env.RegistryOverride)
+	assert.Equal(t, "password", overridden.env.RegistryAuthOverride)
+	assert.Equal(t, "newuser", overridden.env.RegistryUsername)
+	assert.Equal(t, "newpass", overridden.env.RegistryPassword)
+
+	// Image-scoped override maps are preserved (env vars take precedence)
+	assert.Equal(t, map[string]string{"agent-package": "image-scoped.io"}, overridden.env.RegistryOverrideByImage)
+	assert.Equal(t, map[string]string{"agent-package": "gcr"}, overridden.env.RegistryAuthOverrideByImage)
+
+	// Original is unchanged
+	assert.Equal(t, "original.registry.com", d.env.RegistryOverride)
+	assert.Equal(t, "docker", d.env.RegistryAuthOverride)
+	assert.Equal(t, "origuser", d.env.RegistryUsername)
+	assert.Equal(t, "origpass", d.env.RegistryPassword)
+
+	// Shares same HTTP client
+	assert.Same(t, d.client, overridden.client)
+
+	// Non-registry fields are preserved
+	assert.Equal(t, "datadoghq.com", overridden.env.Site)
+}
+
+func TestWithRegistryOverridePartial(t *testing.T) {
+	original := &env.Env{
+		RegistryOverride:     "original.registry.com",
+		RegistryAuthOverride: "docker",
+		RegistryUsername:     "origuser",
+		RegistryPassword:     "origpass",
+	}
+	d := NewDownloader(original, http.DefaultClient)
+
+	// Only override URL, leave auth/username/password empty
+	overridden := d.WithRegistryOverride("custom.registry.com", "", "", "")
+
+	assert.Equal(t, "custom.registry.com", overridden.env.RegistryOverride)
+	assert.Equal(t, "docker", overridden.env.RegistryAuthOverride)
+	assert.Equal(t, "origuser", overridden.env.RegistryUsername)
+	assert.Equal(t, "origpass", overridden.env.RegistryPassword)
 }
 
 func TestGetRefAndKeychains(t *testing.T) {

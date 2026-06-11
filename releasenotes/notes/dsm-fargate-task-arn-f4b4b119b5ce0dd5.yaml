@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    Add ECS Fargate task ARN to ``X-Datadog-Additional-Tags`` header on data-streams-message HTTP requests.

@@ -61,15 +61,19 @@ func updateUnameInfo(platformInfo *Info, uname *unix.Utsname) {
 	platformInfo.KernelName = utils.NewValue(utils.StringFromBytes(uname.Sysname[:]))
 	platformInfo.Hostname = utils.NewValue(utils.StringFromBytes(uname.Nodename[:]))
 	platformInfo.KernelRelease = utils.NewValue(utils.StringFromBytes(uname.Release[:]))
-	platformInfo.Machine = utils.NewValue(utils.StringFromBytes(uname.Machine[:]))
+	machine := utils.StringFromBytes(uname.Machine[:])
+	platformInfo.Machine = utils.NewValue(machine)
+	// HardwarePlatform mirrors Machine on Darwin (equivalent to uname -i)
+	platformInfo.HardwarePlatform = utils.NewValue(machine)
 	// for backward-compatibility reasons we just use the Sysname field
 	platformInfo.OS = utils.NewValue(utils.StringFromBytes(uname.Sysname[:]))
 	platformInfo.KernelVersion = utils.NewValue(utils.StringFromBytes(uname.Version[:]))
 }
 
 func (platformInfo *Info) fillPlatformInfo() {
-	platformInfo.HardwarePlatform = utils.NewErrorValue[string](utils.ErrNotCollectable)
 	platformInfo.Family = utils.NewErrorValue[string](utils.ErrNotCollectable)
+	// HardwarePlatform is set in updateUnameInfo from uname.Machine; initialize as error in case uname fails
+	platformInfo.HardwarePlatform = utils.NewErrorValue[string](utils.ErrNotCollectable)
 
 	platformInfo.Processor = utils.NewValue(getUnameProcessor())
 
@@ -91,6 +95,7 @@ func (platformInfo *Info) fillPlatformInfo() {
 		log.Debug("Running under Rosetta translator; overriding architecture values")
 		platformInfo.Processor = utils.NewValue("arm")
 		platformInfo.Machine = utils.NewValue("arm64")
+		platformInfo.HardwarePlatform = utils.NewValue("arm64")
 	} else if err != nil {
 		log.Debugf("Error when detecting Rosetta translator: %s", err)
 	}

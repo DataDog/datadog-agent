@@ -33,6 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
+	"github.com/DataDog/datadog-agent/pkg/process/util/coreagent"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -56,7 +57,7 @@ func NewProcessCheck(config pkgconfigmodel.Reader, sysprobeYamlConfig pkgconfigm
 		config:              config,
 		sysConfig:           sysprobeYamlConfig,
 		scrubber:            procutil.NewDefaultDataScrubber(),
-		lookupIdProbe:       NewLookupIDProbe(config),
+		lookupIDProbe:       NewLookupIDProbe(config),
 		serviceExtractor:    parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName, useImprovedAlgorithm),
 		wmeta:               wmeta,
 		gpuSubscriber:       gpuSubscriber,
@@ -121,8 +122,7 @@ type ProcessCheck struct {
 	checkCount uint32
 	skipAmount uint32
 
-	//nolint:revive // TODO(PROC) Fix revive linter
-	lookupIdProbe *LookupIdProbe
+	lookupIDProbe *LookupIDProbe
 
 	extractors []metadata.Extractor
 
@@ -189,8 +189,8 @@ func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo, oneShot bool
 	if !oneShot && workloadmeta.Enabled(p.config) && !p.WLMProcessCollectionEnabled() {
 		p.workloadMetaExtractor = workloadmeta.GetSharedWorkloadMetaExtractor(pkgconfigsetup.SystemProbe())
 
-		// The server is only needed on the process agent
-		if !p.config.GetBool("process_config.run_in_core_agent.enabled") && flavor.GetFlavor() == flavor.ProcessAgent {
+		// The server is only needed on the process agent on non-Linux platforms
+		if !coreagent.ProcessChecksRunInCoreAgent() && flavor.GetFlavor() == flavor.ProcessAgent {
 			p.workloadMetaServer = workloadmeta.NewGRPCServer(p.config, p.workloadMetaExtractor, p.grpcServerTLSConfig)
 			err = p.workloadMetaServer.Start()
 			if err != nil {
@@ -206,8 +206,7 @@ func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo, oneShot bool
 
 // IsEnabled returns true if the check is enabled by configuration
 func (p *ProcessCheck) IsEnabled() bool {
-	// TODO: this will eventually be removed once this config is baselined (hardcoded to true)
-	if p.config.GetBool("process_config.run_in_core_agent.enabled") && flavor.GetFlavor() == flavor.ProcessAgent {
+	if coreagent.ProcessChecksRunInCoreAgent() && flavor.GetFlavor() == flavor.ProcessAgent {
 		return false
 	}
 	return isProcessCheckEnabled(p.config, p.sysConfig)
@@ -311,7 +310,7 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 
 	pidToGPUTags := p.gpuSubscriber.GetGPUTags()
 
-	procsByCtr := fmtProcesses(p.scrubber, p.disallowList, procs, p.lastProcs, pidToCid, cpuTimes[0], p.lastCPUTime, p.lastRun, p.lookupIdProbe, p.ignoreZombieProcesses, p.serviceExtractor, pidToGPUTags, p.tagger, time.Now())
+	procsByCtr := fmtProcesses(p.scrubber, p.disallowList, procs, p.lastProcs, pidToCid, cpuTimes[0], p.lastCPUTime, p.lastRun, p.lookupIDProbe, p.ignoreZombieProcesses, p.serviceExtractor, pidToGPUTags, p.tagger, time.Now())
 	messages, totalProcs, totalContainers := createProcCtrMessages(p.hostInfo, procsByCtr, containers, p.maxBatchSize, p.maxBatchBytes, groupID, p.networkID, collectorProcHints)
 
 	// Store the last state for comparison on the next run.
@@ -478,8 +477,7 @@ func fmtProcesses(
 	ctrByProc map[int]string,
 	syst2, syst1 cpu.TimesStat,
 	lastRun time.Time,
-	//nolint:revive // TODO(PROC) Fix revive linter
-	lookupIdProbe *LookupIdProbe,
+	lookupIDProbe *LookupIDProbe,
 	zombiesIgnored bool,
 	serviceExtractor *parser.ServiceExtractor,
 	pidToGPUTags map[int32][]string,
@@ -495,19 +493,24 @@ func fmtProcesses(
 
 		// Hide disallow-listed args if the Scrubber is enabled
 		fp.Cmdline = scrubber.ScrubProcessCommand(fp)
+		var voluntaryCtxSwitches, involuntaryCtxSwitches uint64
+		if fp.Stats.CtxSwitches != nil {
+			voluntaryCtxSwitches = uint64(fp.Stats.CtxSwitches.Voluntary)
+			involuntaryCtxSwitches = uint64(fp.Stats.CtxSwitches.Involuntary)
+		}
 		proc := &model.Process{
 			Pid:                    fp.Pid,
 			NsPid:                  fp.NsPid,
 			Command:                formatCommand(fp),
-			User:                   formatUser(fp, lookupIdProbe),
+			User:                   formatUser(fp, lookupIDProbe),
 			Memory:                 formatMemory(fp.Stats),
 			Cpu:                    formatCPU(fp.Stats, lastProcs[fp.Pid].Stats, syst2, syst1),
 			CreateTime:             fp.Stats.CreateTime,
 			OpenFdCount:            fp.Stats.OpenFdCount,
 			State:                  model.ProcessState(model.ProcessState_value[fp.Stats.Status]),
 			IoStat:                 formatIO(fp.Stats, lastProcs[fp.Pid].Stats.IOStat, now, lastRun),
-			VoluntaryCtxSwitches:   uint64(fp.Stats.CtxSwitches.Voluntary),
-			InvoluntaryCtxSwitches: uint64(fp.Stats.CtxSwitches.Involuntary),
+			VoluntaryCtxSwitches:   voluntaryCtxSwitches,
+			InvoluntaryCtxSwitches: involuntaryCtxSwitches,
 			ContainerId:            ctrByProc[int(fp.Pid)],
 			ProcessContext:         serviceExtractor.GetServiceContext(fp.Pid),
 			// SERVICE DISCOVERY FIELDS

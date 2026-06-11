@@ -1,0 +1,12 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "crimock",
+    srcs = ["criutil.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/containers/cri/crimock",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_stretchr_testify//mock",
+        "@io_k8s_cri_api//pkg/apis/runtime/v1:runtime",
+    ],
+)

@@ -1,0 +1,93 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$id: https://raw.githubusercontent.com/DataDog/schema/main/agent/snmp_listener.yaml.schema.json
+node_type: section
+type: object
+properties:
+  allowed_failures:
+    node_type: setting
+    type: integer
+    default: 3
+  collect_device_metadata:
+    node_type: setting
+    type: boolean
+    default: true
+  collect_topology:
+    node_type: setting
+    type: boolean
+    default: true
+  configs:
+    node_type: setting
+    type: array
+    default: []
+    items:
+      type: object
+  discovery_allowed_failures:
+    node_type: setting
+    type: integer
+    default: 3
+  discovery_interval:
+    node_type: setting
+    type: integer
+    default: 3600
+  loader:
+    node_type: setting
+    type: string
+    default: core
+  min_collection_interval:
+    node_type: setting
+    type: integer
+    default: 15
+  namespace:
+    node_type: setting
+    type: string
+    default: default
+  oid_batch_size:
+    node_type: setting
+    type: integer
+    default: 5
+  ping:
+    node_type: section
+    type: object
+    properties:
+      count:
+        node_type: setting
+        type: integer
+        default: 2
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
+      interval:
+        node_type: setting
+        type: integer
+        default: 10
+      linux:
+        node_type: section
+        type: object
+        properties:
+          use_raw_socket:
+            node_type: setting
+            type: boolean
+            default: false
+      timeout:
+        node_type: setting
+        type: integer
+        default: 3000
+  retries:
+    node_type: setting
+    type: integer
+    default: 3
+  timeout:
+    node_type: setting
+    type: integer
+    default: 5
+  use_device_id_as_hostname:
+    node_type: setting
+    type: boolean
+    default: false
+  workers:
+    node_type: setting
+    type: integer
+    default: 2
+tags:
+- full-agent-only:true

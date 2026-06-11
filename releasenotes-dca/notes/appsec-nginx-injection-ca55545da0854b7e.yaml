@@ -1,0 +1,8 @@
+---
+features:
+  - |
+    Add AppSec injection support for ingress-nginx controllers. The Cluster Agent
+    now automatically injects the Datadog nginx-datadog module into ingress-nginx
+    controller pods, enabling AppSec protection without manual ``extraModules``
+    configuration. Configurable via ``admission_controller.appsec.nginx.init_image``
+    and ``admission_controller.appsec.nginx.module_mount_path``.

@@ -25,5 +25,13 @@
     {{- if gt .exporter.failed_metrics 0.0}}, WARNING: Send failed metrics: {{.exporter.failed_metrics}}{{end}}
     Log Records Sent: {{.exporter.logs}}
     {{- if gt .exporter.failed_logs 0.0}}, WARNING: Send failed logs: {{.exporter.failed_logs}}{{end}}
+{{- if .warnings}}
+
+  Warnings
+  ==========================
+  {{- range .warnings}}
+    - WARNING: {{.}}
+  {{- end}}
+{{- end}}
 {{- end}}
 {{- end}}

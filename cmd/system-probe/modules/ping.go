@@ -14,8 +14,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/gorilla/mux"
-
 	pingcheck "github.com/DataDog/datadog-agent/pkg/networkdevice/pinger"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
@@ -36,8 +34,7 @@ type pinger struct{}
 
 // Pinger is a factory for NDMs Ping module
 var Pinger = &module.Factory{
-	Name:             config.PingModule,
-	ConfigNamespaces: []string{"ping"},
+	Name: config.PingModule,
 	Fn: func(_ *sysconfigtypes.Config, _ module.FactoryDependencies) (module.Module, error) {
 		return &pinger{}, nil
 	},
@@ -57,9 +54,8 @@ func (p *pinger) Register(httpMux *module.Router) error {
 
 	httpMux.HandleFunc("/ping/{host}", func(w http.ResponseWriter, req *http.Request) {
 		start := time.Now()
-		vars := mux.Vars(req)
 		id := utils.GetClientID(req)
-		host := vars["host"]
+		host := req.PathValue("host")
 
 		count, err := getIntParam(countParam, req)
 		if err != nil {

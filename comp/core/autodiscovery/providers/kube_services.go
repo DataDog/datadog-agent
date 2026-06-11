@@ -10,7 +10,9 @@ package providers
 import (
 	"context"
 	"fmt"
+	"maps"
 	"strings"
+	"sync"
 
 	"go.uber.org/atomic"
 	v1 "k8s.io/api/core/v1"
@@ -38,6 +40,7 @@ const (
 type KubeServiceConfigProvider struct {
 	lister         listersv1.ServiceLister
 	upToDate       *atomic.Bool
+	configErrorsMu sync.RWMutex
 	configErrors   map[string]types.ErrorMsgSet
 	telemetryStore *telemetry.Store
 }
@@ -165,7 +168,7 @@ func valuesDiffer(first, second map[string]string, prefix string) bool {
 func (k *KubeServiceConfigProvider) parseServiceAnnotations(services []*v1.Service, ddConf model.Config) ([]integration.Config, error) {
 	var configs []integration.Config
 
-	setServiceIDs := map[string]struct{}{}
+	newErrors := make(map[string]types.ErrorMsgSet)
 
 	for _, svc := range services {
 		if svc == nil || svc.ObjectMeta.UID == "" {
@@ -174,7 +177,6 @@ func (k *KubeServiceConfigProvider) parseServiceAnnotations(services []*v1.Servi
 		}
 
 		serviceID := apiserver.EntityForService(svc)
-		setServiceIDs[serviceID] = struct{}{}
 		svcConf, errors := utils.ExtractTemplatesFromAnnotations(serviceID, svc.Annotations, kubeServiceID)
 		if len(errors) > 0 {
 			errMsgSet := make(types.ErrorMsgSet)
@@ -182,9 +184,7 @@ func (k *KubeServiceConfigProvider) parseServiceAnnotations(services []*v1.Servi
 				log.Errorf("Cannot parse service template for service %s/%s: %s", svc.Namespace, svc.Name, err)
 				errMsgSet[err.Error()] = struct{}{}
 			}
-			k.configErrors[serviceID] = errMsgSet
-		} else {
-			delete(k.configErrors, serviceID)
+			newErrors[serviceID] = errMsgSet
 		}
 
 		ignoreAdForHybridScenariosTags := ignoreADTagsFromAnnotations(svc.GetAnnotations(), kubeServiceAnnotationPrefix)
@@ -201,29 +201,20 @@ func (k *KubeServiceConfigProvider) parseServiceAnnotations(services []*v1.Servi
 		configs = append(configs, svcConf...)
 	}
 
-	k.cleanErrorsOfDeletedServices(setServiceIDs)
-
+	k.configErrorsMu.Lock()
+	k.configErrors = newErrors
 	if k.telemetryStore != nil {
 		k.telemetryStore.Errors.Set(float64(len(k.configErrors)), names.KubeServices)
 	}
+	k.configErrorsMu.Unlock()
 
 	return configs, nil
 }
 
-func (k *KubeServiceConfigProvider) cleanErrorsOfDeletedServices(setCurrentServiceIDs map[string]struct{}) {
-	setServiceIDsWithErrors := map[string]struct{}{}
-	for serviceID := range k.configErrors {
-		setServiceIDsWithErrors[serviceID] = struct{}{}
-	}
-
-	for serviceID := range setServiceIDsWithErrors {
-		if _, exists := setCurrentServiceIDs[serviceID]; !exists {
-			delete(k.configErrors, serviceID)
-		}
-	}
-}
-
 // GetConfigErrors returns a map of configuration errors for each Kubernetes service
 func (k *KubeServiceConfigProvider) GetConfigErrors() map[string]types.ErrorMsgSet {
-	return k.configErrors
+	k.configErrorsMu.RLock()
+	defer k.configErrorsMu.RUnlock()
+
+	return maps.Clone(k.configErrors)
 }

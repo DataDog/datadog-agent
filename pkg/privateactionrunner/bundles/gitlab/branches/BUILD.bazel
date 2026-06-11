@@ -1,0 +1,21 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "branches",
+    srcs = [
+        "create_branch.gen.go",
+        "delete_branch.gen.go",
+        "delete_merged_branches.gen.go",
+        "entrypoint.gen.go",
+        "get_branch.gen.go",
+        "list_branches.gen.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/gitlab/branches",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/privateactionrunner/bundle-support/gitlab",
+        "//pkg/privateactionrunner/libs/privateconnection",
+        "//pkg/privateactionrunner/types",
+        "@com_gitlab_gitlab_org_api_client_go//:client-go",
+    ],
+)

@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/security/reporter"
@@ -22,7 +23,7 @@ import (
 )
 
 // StartRuntimeSecurity starts runtime security
-func StartRuntimeSecurity(log log.Component, config config.Component, hostname string, stopper startstop.Stopper, statsdClient ddgostatsd.ClientInterface, compression compression.Component) (*RuntimeSecurityAgent, error) {
+func StartRuntimeSecurity(log log.Component, config config.Component, hostname string, stopper startstop.Stopper, statsdClient ddgostatsd.ClientInterface, compression compression.Component, secretsComp secrets.Component) (*RuntimeSecurityAgent, error) {
 	if !config.GetBool("runtime_security_config.enabled") {
 		log.Info("Datadog runtime security agent disabled by config")
 		return nil, nil
@@ -48,7 +49,7 @@ func StartRuntimeSecurity(log log.Component, config config.Component, hostname s
 	}
 	stopper.Add(ctx)
 
-	runtimeReporter, err := reporter.NewCWSReporter(hostname, stopper, endpoints, ctx, compression)
+	runtimeReporter, err := reporter.NewCWSReporter(hostname, stopper, endpoints, ctx, compression, secretsComp)
 	if err != nil {
 		return nil, err
 	}
@@ -59,7 +60,7 @@ func StartRuntimeSecurity(log log.Component, config config.Component, hostname s
 	}
 	stopper.Add(secInfoCtx)
 
-	secInfoReporter, err := reporter.NewCWSReporter(hostname, stopper, secInfoEndpoints, secInfoCtx, compression)
+	secInfoReporter, err := reporter.NewCWSReporter(hostname, stopper, secInfoEndpoints, secInfoCtx, compression, secretsComp)
 	if err != nil {
 		return nil, err
 	}

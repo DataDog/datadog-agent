@@ -8,15 +8,19 @@ package api
 import (
 	"context"
 
-	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
-
 	taggerserver "github.com/DataDog/datadog-agent/comp/core/tagger/server"
+	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 )
+
+type kubeMetadataStreamer interface {
+	StreamKubeMetadata(*pbgo.KubeMetadataStreamRequest, pbgo.AgentSecure_StreamKubeMetadataServer) error
+}
 
 type serverSecure struct {
 	pbgo.UnimplementedAgentSecureServer
 
-	taggerServer *taggerserver.Server
+	taggerServer       *taggerserver.Server
+	kubeMetadataServer kubeMetadataStreamer
 }
 
 func (s *serverSecure) TaggerStreamEntities(req *pbgo.StreamTagsRequest, srv pbgo.AgentSecure_TaggerStreamEntitiesServer) error {
@@ -25,4 +29,11 @@ func (s *serverSecure) TaggerStreamEntities(req *pbgo.StreamTagsRequest, srv pbg
 
 func (s *serverSecure) TaggerFetchEntity(ctx context.Context, req *pbgo.FetchEntityRequest) (*pbgo.FetchEntityResponse, error) {
 	return s.taggerServer.TaggerFetchEntity(ctx, req)
+}
+
+func (s *serverSecure) StreamKubeMetadata(req *pbgo.KubeMetadataStreamRequest, srv pbgo.AgentSecure_StreamKubeMetadataServer) error {
+	if s.kubeMetadataServer == nil {
+		return s.UnimplementedAgentSecureServer.StreamKubeMetadata(req, srv)
+	}
+	return s.kubeMetadataServer.StreamKubeMetadata(req, srv)
 }

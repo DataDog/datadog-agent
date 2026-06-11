@@ -15,6 +15,7 @@ import (
 	"maps"
 	"net/http"
 	"net/url"
+	"strings"
 	"sync"
 	"time"
 
@@ -71,9 +72,7 @@ const (
 	// Default QPS and Burst values for the clients
 	informerClientQPSLimit = 5
 	informerClientQPSBurst = 10
-	standardClientQPSLimit = 10
-	standardClientQPSBurst = 20
-	// This is mostly required for built-in controllers in Cluster Agent (ExternalMetrics, Autoscaling that can generate a high nunber of `Update` requests)
+	// This is mostly required for built-in controllers in Cluster Agent (ExternalMetrics, Autoscaling that can generate a high number of `Update` requests)
 	controllerClientQPSLimit = 150
 	controllerClientQPSBurst = 300
 )
@@ -106,8 +105,11 @@ type APIClient struct {
 	// InformerCl holds the main kubernetes client with long TO
 	InformerCl kubernetes.Interface
 
-	// DynamicCl holds a dynamic kubernetes client with long TO
+	// DynamicInformerCl holds a dynamic kubernetes client with long TO
 	DynamicInformerCl dynamic.Interface
+
+	// MetadataInformerCl holds a metadata-only kubernetes client with long TO
+	MetadataInformerCl metadata.Interface
 
 	// CRDInformerClient holds the extension kubernetes client with long TO
 	CRDInformerClient clientset.Interface
@@ -158,6 +160,10 @@ type APIClient struct {
 	defaultClientTimeout        time.Duration
 	defaultInformerTimeout      time.Duration
 	defaultInformerResyncPeriod time.Duration
+
+	// QPS and burst for the standard client
+	defaultClientQPS   float32
+	defaultClientBurst int
 }
 
 func initAPIClient() {
@@ -165,6 +171,8 @@ func initAPIClient() {
 		defaultClientTimeout:        time.Duration(pkgconfigsetup.Datadog().GetInt64("kubernetes_apiserver_client_timeout")) * time.Second,
 		defaultInformerTimeout:      time.Duration(pkgconfigsetup.Datadog().GetInt64("kubernetes_apiserver_informer_client_timeout")) * time.Second,
 		defaultInformerResyncPeriod: time.Duration(pkgconfigsetup.Datadog().GetInt64("kubernetes_informers_resync_period")) * time.Second,
+		defaultClientQPS:            float32(pkgconfigsetup.Datadog().GetFloat64("kubernetes_apiserver_client_qps")),
+		defaultClientBurst:          pkgconfigsetup.Datadog().GetInt("kubernetes_apiserver_client_burst"),
 	}
 	globalAPIClient.initRetry.SetupRetrier(&retry.Config{ //nolint:errcheck
 		Name:              "apiserver",
@@ -276,6 +284,15 @@ func getKubeDynamicClient(timeout time.Duration, qps float32, burst int) (dynami
 	return dynamic.NewForConfig(clientConfig)
 }
 
+func getKubeMetadataClient(timeout time.Duration, qps float32, burst int) (metadata.Interface, error) {
+	clientConfig, err := GetClientConfig(timeout, qps, burst)
+	if err != nil {
+		return nil, err
+	}
+
+	return metadata.NewForConfig(clientConfig)
+}
+
 func getCRDClient(timeout time.Duration, qps float32, burst int) (*clientset.Clientset, error) {
 	clientConfig, err := GetClientConfig(timeout, qps, burst)
 	if err != nil {
@@ -336,7 +353,7 @@ func (c *APIClient) GetAPIExtensionsInformerWithOptions(resyncPeriod *time.Durat
 func (c *APIClient) connect() error {
 	var err error
 	// Clients
-	c.Cl, err = GetKubeClient(c.defaultClientTimeout, standardClientQPSLimit, standardClientQPSBurst)
+	c.Cl, err = GetKubeClient(c.defaultClientTimeout, c.defaultClientQPS, c.defaultClientBurst)
 	if err != nil {
 		log.Infof("Could not get apiserver client: %v", err)
 		return err
@@ -372,6 +389,12 @@ func (c *APIClient) connect() error {
 		return err
 	}
 
+	c.MetadataInformerCl, err = getKubeMetadataClient(c.defaultInformerTimeout, informerClientQPSLimit, informerClientQPSBurst)
+	if err != nil {
+		log.Infof("Could not get apiserver metadata client: %v", err)
+		return err
+	}
+
 	c.VPAInformerClient, err = getKubeVPAClient(c.defaultInformerTimeout, informerClientQPSLimit, informerClientQPSBurst)
 	if err != nil {
 		log.Infof("Could not get apiserver vpa client: %v", err)
@@ -399,9 +422,11 @@ func (c *APIClient) connect() error {
 		pkgconfigsetup.Datadog().GetBool("orchestrator_explorer.enabled") ||
 		pkgconfigsetup.Datadog().GetBool("external_metrics_provider.use_datadogmetric_crd") ||
 		pkgconfigsetup.Datadog().GetBool("external_metrics_provider.wpa_controller") ||
+		pkgconfigsetup.Datadog().GetBool("instrumentation_crd_controller.enabled") ||
 		pkgconfigsetup.Datadog().GetBool("cluster_checks.enabled") ||
 		pkgconfigsetup.Datadog().GetBool("autoscaling.workload.enabled") ||
-		pkgconfigsetup.Datadog().GetBool("autoscaling.cluster.enabled") {
+		pkgconfigsetup.Datadog().GetBool("autoscaling.cluster.enabled") ||
+		pkgconfigsetup.Datadog().GetBool("instrumentation_crd_controller.enabled") {
 		c.DynamicInformerFactory = dynamicinformer.NewDynamicSharedInformerFactory(c.DynamicInformerCl, c.defaultInformerResyncPeriod)
 	}
 
@@ -451,7 +476,10 @@ func NewMetadataMapperBundle() *MetadataMapperBundle {
 
 // ComponentStatuses returns the component status list from the APIServer
 func (c *APIClient) ComponentStatuses() (*v1.ComponentStatusList, error) {
-	return c.Cl.CoreV1().ComponentStatuses().List(context.TODO(), metav1.ListOptions{TimeoutSeconds: pointer.Ptr(int64(c.defaultClientTimeout.Seconds()))})
+	ctx, cancel := context.WithTimeout(context.Background(), c.defaultClientTimeout)
+	defer cancel()
+
+	return c.Cl.CoreV1().ComponentStatuses().List(ctx, metav1.ListOptions{})
 }
 
 func (c *APIClient) getOrCreateConfigMap(name, namespace string) (cmEvent *v1.ConfigMap, err error) {
@@ -664,11 +692,29 @@ func (c *APIClient) GetRESTObject(path string, output runtime.Object) error {
 }
 
 // IsAPIServerReady retrieves the API Server readiness status
-func (c *APIClient) IsAPIServerReady(ctx context.Context) (bool, error) {
-	path := "/readyz"
-	_, err := c.Cl.Discovery().RESTClient().Get().AbsPath(path).DoRaw(ctx)
+func (c *APIClient) IsAPIServerReady() (bool, bool, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), c.defaultClientTimeout)
+	defer cancel()
 
-	return err == nil, err
+	path := "/readyz"
+	body, err := c.Cl.Discovery().RESTClient().Get().AbsPath(path).Param("verbose", "").DoRaw(ctx)
+
+	if err != nil {
+		return false, false, err
+	}
+
+	apiServerReady := false
+	etcdReady := false
+	for _, line := range strings.Split(string(body), "\n") {
+		switch {
+		case strings.Contains(line, "ready checked passed"):
+			apiServerReady = true
+		case strings.Contains(line, "[+]etcd-readiness ok"):
+			etcdReady = true
+		}
+	}
+
+	return apiServerReady, etcdReady, nil
 }
 
 func convertmetadataMapperBundleToAPI(input *MetadataMapperBundle) *apiv1.MetadataResponseBundle {
@@ -699,7 +745,7 @@ func (c *APIClient) GetARandomNodeName(ctx context.Context) (string, error) {
 
 // RESTClient returns a new REST client
 func (c *APIClient) RESTClient(apiPath string, groupVersion *schema.GroupVersion, negotiatedSerializer runtime.NegotiatedSerializer) (*rest.RESTClient, error) {
-	clientConfig, err := GetClientConfig(c.defaultClientTimeout, standardClientQPSLimit, standardClientQPSBurst)
+	clientConfig, err := GetClientConfig(c.defaultClientTimeout, c.defaultClientQPS, c.defaultClientBurst)
 	if err != nil {
 		return nil, err
 	}
@@ -713,7 +759,7 @@ func (c *APIClient) RESTClient(apiPath string, groupVersion *schema.GroupVersion
 
 // MetadataClient returns a new kubernetes metadata client
 func (c *APIClient) MetadataClient() (metadata.Interface, error) {
-	clientConfig, err := GetClientConfig(c.defaultInformerTimeout, standardClientQPSLimit, standardClientQPSBurst)
+	clientConfig, err := GetClientConfig(c.defaultInformerTimeout, c.defaultClientQPS, c.defaultClientBurst)
 	if err != nil {
 		return nil, err
 	}
@@ -724,7 +770,7 @@ func (c *APIClient) MetadataClient() (metadata.Interface, error) {
 
 // NewSPDYExecutor returns a new SPDY executor for the provided method and URL
 func (c *APIClient) NewSPDYExecutor(apiPath string, groupVersion *schema.GroupVersion, negotiatedSerializer runtime.NegotiatedSerializer, method string, url *url.URL) (remotecommand.Executor, error) {
-	clientConfig, err := GetClientConfig(c.defaultClientTimeout, standardClientQPSLimit, standardClientQPSBurst)
+	clientConfig, err := GetClientConfig(c.defaultClientTimeout, c.defaultClientQPS, c.defaultClientBurst)
 	if err != nil {
 		return nil, err
 	}

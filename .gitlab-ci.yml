@@ -1,5 +1,4 @@
 ---
-
 # Condition mixins for simplification of rules, needed in the include rules so must be defined first
 .if_run_all_e2e_tests: &if_run_all_e2e_tests
   if: $RUN_E2E_TESTS == "on"
@@ -13,11 +12,17 @@
 .if_release_branch: &if_release_branch
   if: $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+\.x$/
 
+.if_pr_targeting_release_branch: &if_pr_targeting_release_branch
+  if: $CI_MERGE_REQUEST_TARGET_BRANCH_NAME =~ /^[0-9]+\.[0-9]+\.x$/
+
 .if_mergequeue: &if_mergequeue
   if: $CI_COMMIT_BRANCH =~ /^mq-working-branch-/
 
+.if_deploy: &if_deploy
+  if: $DEPLOY_AGENT == "true" || $DDR_WORKFLOW_ID != null
+
 # Windows-specific Go source files, pkg/, and cmd/ (27 paths), need to be splitted because Gitlab has a limit to 50 paths in a single rule
-.windows_path: &windows_path
+.windows_path: &windows_path 
   # Windows-specific Go source files (by filename convention)
   - "**/*_windows.go"
 
@@ -36,7 +41,10 @@
   - pkg/logs/util/windowsevent/**/*
   - pkg/network/driver/**/*
 
-  # cmd/ 
+  # Global packages likely to impact windows
+  - pkg/config/**/*
+
+  # cmd/
   - cmd/agent/**/*
   - cmd/process-agent/**/*
   - cmd/security-agent/**/*
@@ -48,9 +56,15 @@
   - cmd/systray/**/*
   - cmd/otel-agent/**/*
 
-# Windows-specific comp/, tools, omnibus, containers, tasks, and cross-cutting (27 paths)
-.windows_path_2: &windows_path_2
-  # Windows-specific comp/ components
+# Bazel build system paths - single source of truth for all Bazel-related change detection.
+# Covers MODULE.bazel, MODULE.bazel.lock, BUILD.bazel, REPO.bazel, .bazelrc, .bazelversion.
+.bazel_paths: &bazel_paths
+  - "*.bazel*"
+  - deps/**/*
+  - bazel/**/*
+
+# Windows-specific comp/, tools, omnibus, containers, tasks, and cross-cutting paths
+.windows_path_2: &windows_path_2 # Windows-specific comp/ components
   - comp/systray/**/*
   - comp/updater/**/*
   - comp/checks/agentcrashdetect/**/*
@@ -69,9 +83,7 @@
   # Build/packaging
   - omnibus/**/*
   - packages/**/*
-  - deps/**/*
   - rtloader/**/*
-  - bazel/**/*
 
   # Windows containers
   - Dockerfiles/agent/windows/**/*
@@ -99,6 +111,8 @@
   - test/new-e2e/tests/installer/windows/**/*
   - test/new-e2e/tests/windows/**/*
   - test/new-e2e/tests/sysprobe-functional/**/*
+  - test/new-e2e/tests/process/**/*
+  - test/new-e2e/tests/agent-runtimes/**/*
 
 include:
   - local: .adms/**/*.yaml
@@ -116,6 +130,8 @@ include:
       - <<: *if_release_branch
       - <<: *if_triggered_pipeline
       - <<: *if_mergequeue
+      - <<: *if_deploy
+      - <<: *if_run_all_e2e_tests
       # - !reference [.except_skip_windows] Should be the rule but it is not working so we need to explicitly write the rule. See https://gitlab.com/gitlab-org/gitlab/-/issues/434157
       - changes:
           paths: *windows_path
@@ -125,6 +141,9 @@ include:
           compare_to: main
       - changes:
           paths: *windows_path_3
+          compare_to: main
+      - changes:
+          paths: *bazel_paths
           compare_to: main
       - when: never
 
@@ -175,7 +194,6 @@ stages:
   - dynamic_test
   - junit_upload
   - internal_kubernetes_deploy
-  - post_rc_build
   - check_merge
   - .post
 
@@ -251,25 +269,25 @@ variables:
   # Build images versions
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to
-  CI_IMAGE_BTF_GEN: v96864623-38cade90
+  CI_IMAGE_BTF_GEN: v116983866-e2293bec
   CI_IMAGE_BTF_GEN_SUFFIX: ""
-  CI_IMAGE_DOCKER_X64: v96864623-38cade90
+  CI_IMAGE_DOCKER_X64: v116983866-e2293bec
   CI_IMAGE_DOCKER_X64_SUFFIX: ""
-  CI_IMAGE_DOCKER_ARM64: v96864623-38cade90
+  CI_IMAGE_DOCKER_ARM64: v116983866-e2293bec
   CI_IMAGE_DOCKER_ARM64_SUFFIX: ""
-  CI_IMAGE_GITLAB_AGENT_DEPLOY: v96864623-38cade90
+  CI_IMAGE_GITLAB_AGENT_DEPLOY: v116983866-e2293bec
   CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX: ""
-  CI_IMAGE_LINUX: v96864623-38cade90
+  CI_IMAGE_LINUX: v116983866-e2293bec
   CI_IMAGE_LINUX_SUFFIX: ""
-  CI_IMAGE_RPM_X64: v96864623-38cade90
+  CI_IMAGE_RPM_X64: v116983866-e2293bec
   CI_IMAGE_RPM_X64_SUFFIX: ""
-  CI_IMAGE_RPM_ARM64: v96864623-38cade90
+  CI_IMAGE_RPM_ARM64: v116983866-e2293bec
   CI_IMAGE_RPM_ARM64_SUFFIX: ""
-  CI_IMAGE_RPM_ARMHF: v96864623-38cade90
+  CI_IMAGE_RPM_ARMHF: v116983866-e2293bec
   CI_IMAGE_RPM_ARMHF_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2022_X64: v95648322-a2e015b0
+  CI_IMAGE_WIN_LTSC2022_X64: v116983866-e2293bec
   CI_IMAGE_WIN_LTSC2022_X64_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2025_X64: v95648322-a2e015b0
+  CI_IMAGE_WIN_LTSC2025_X64: v116983866-e2293bec
   CI_IMAGE_WIN_LTSC2025_X64_SUFFIX: ""
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
@@ -300,8 +318,6 @@ variables:
   CHOCOLATEY_API_KEY: ci.datadog-agent.chocolatey_api_key # windows-products
   CODECOV_TOKEN: ci.datadog-agent.codecov_token # agent-devx
   CRC_PULL_SECRET: ci.datadog-agent.crc-pull-secret # container-integrations
-  DOCKER_REGISTRY_LOGIN: ci.datadog-agent.docker_hub_login # container-integrations
-  DOCKER_REGISTRY_PWD: ci.datadog-agent.docker_hub_pwd # container-integrations
   VCPKG_BLOB_SAS_URL: ci.datadog-agent-buildimages.vcpkg_blob_sas_url # windows-products
   WINGET_PAT: ci.datadog-agent.winget_pat # windows-products
   # End aws ssm variables
@@ -309,17 +325,14 @@ variables:
   # Start vault variables
   AGENT_API_KEY_ORG2: agent-api-key-org-2 # agent-devx
   AGENT_APP_KEY_ORG2: agent-app-key-org-2 # agent-devx
-  AGENT_GITHUB_APP: agent-github-app # agent-devx
   AGENT_QA_E2E: agent-qa-e2e # agent-devx
-  ATLASSIAN_WRITE: atlassian-write # agent-devx
+  ATLASSIAN_WRITE: atlassian-write # agent-delivery
   CODECOV: codecov # agent-devx
   DOCKER_REGISTRY_RO: dockerhub-readonly # agent-delivery
   DYNAMIC_TESTS_BREAKGLASS: dynamic-tests-breakglass # agent-devx
   E2E_AZURE: e2e-azure # agent-devx
   E2E_GCP: e2e-gcp # agent-devx
   INSTALL_SCRIPT_API_KEY_ORG2: install-script-api-key-org-2 # agent-devx
-  MACOS_GITHUB_APP_1: macos-github-app-one # agent-devx
-  MACOS_GITHUB_APP_2: macos-github-app-two # agent-devx
   MACOS_APPLE_APPLICATION_SIGNING: apple-application-signing # agent-delivery
   MACOS_APPLE_DEVELOPER_ACCOUNT: apple-developer-account # agent-delivery
   MACOS_APPLE_INSTALLER_SIGNING: apple-installer-signing # agent-delivery
@@ -337,7 +350,6 @@ variables:
   DDA_FEATURE_FLAGS_CI_VAULT_KEY: token
   DDA_FEATURE_FLAGS_CI_VAULT_PATH: k8s/gitlab-runner-datadog-agent/datadog-agent/$DDA_CLIENT_TOKEN
 
-  DD_PKG_VERSION: "latest"
   DD_PKG_GITLAB_URL: "https://artifact-gateway.us1.ddbuild.io/internal/artifact-gateway/api/v4"
   PIPELINE_KEY_ALIAS: "alias/ci_datadog-agent_pipeline-key"
 
@@ -368,9 +380,6 @@ variables:
 
 .if_not_main_branch: &if_not_main_branch
   if: $CI_COMMIT_BRANCH != "main"
-
-.if_deploy: &if_deploy
-  if: $DEPLOY_AGENT == "true" || $DDR_WORKFLOW_ID != null
 
 .if_deploy_stable: &if_deploy_stable
   if: ($DEPLOY_AGENT == "true" || $DDR_WORKFLOW_ID != null) && $BUCKET_BRANCH == "stable"
@@ -412,7 +421,6 @@ variables:
 .if_installer_tests: &if_installer_tests
   if: ($CI_COMMIT_BRANCH == "main"  || $DEPLOY_AGENT == "true" || $RUN_E2E_TESTS == "on" || $DDR_WORKFLOW_ID != null) && $RUN_E2E_TESTS != "off"
 
-
 # When RUN_E2E_TESTS is set to "auto". We do not enforce a behavior for the tests.
 # The behavior of each test will be defined by its rules.
 # For example for new-e2e tests created by each team, here is an example of such rules: https://github.com/DataDog/datadog-agent/blob/ba7079d92077ab5898378594dcafb9cd88a77e57/.gitlab-ci.yml#L1160-L1167
@@ -447,7 +455,7 @@ variables:
 # Paths that impact the final build artifacts (rpm, deb, docker images, etc.)
 # Used to conditionally skip expensive tests like SMP when only non-artifact files change
 # like documentation, CI config, e2e tests.
-.artifacts_build_impacting_paths: &artifacts_build_impacting_paths
+.on_smp_trigger_paths: &on_smp_trigger_paths
   paths:
     # agent source code
     - go.mod
@@ -459,18 +467,14 @@ variables:
     - rtloader/**/*
     # Build system
     - tasks/**/*.py
-    - deps/**/*
     - omnibus/**/*
-    - .bazelrc
-    - .bazelversion
-    - bazel/**/*
-    - BUILD.bazel
-    - MODULE.bazel
     - release.json
     # SMP regression detector experiments
     - test/regression/**/*
     # Containers
     - Dockerfiles/**/*
+    - .gitlab/test/functional_test/regression_detector.yml
+    - .gitlab/childs/smp-regression-child-pipeline.yml
 
 .if_coverage_pipeline: &if_coverage_pipeline
   if: $E2E_COVERAGE_PIPELINE == "true"
@@ -480,7 +484,6 @@ variables:
     paths:
       - omnibus/**/*
       - pkg/config/config_template.yaml
-      - pkg/config/security-agent_template.yaml
       - pkg/config/system-probe_template.yaml
     compare_to: $COMPARE_TO_BRANCH
 
@@ -490,6 +493,12 @@ variables:
 #
 workflow:
   rules:
+    - <<: *if_scheduled_main
+      variables:
+        WINDOWS_SIGNING_CERT: "s3://windows-code-signing-certificates/certs/beta/kms-signed.crt"
+        WINDOWS_SIGNING_CONFIG: "s3://windows-code-signing-certificates/certs/beta/config.json"
+        BAZEL_CACHE_POLICY_SUFFIX: "-push"
+        GO_TEST_SKIP_FLAKE: "false"
     - <<: *if_triggered_pipeline
     - <<: *if_main_branch
       variables:
@@ -512,6 +521,11 @@ workflow:
         SKIP_WINDOWS: "false"
     - changes:
         paths: *windows_path_3
+        compare_to: main
+      variables:
+        SKIP_WINDOWS: "false"
+    - changes:
+        paths: *bazel_paths
         compare_to: main
       variables:
         SKIP_WINDOWS: "false"
@@ -625,6 +639,14 @@ workflow:
   - <<: *if_main_branch
   - <<: *if_release_branch
 
+.except_release_branch:
+  - <<: *if_release_branch
+    when: never
+
+.except_pr_targeting_release_branch:
+  - <<: *if_pr_targeting_release_branch
+    when: never
+
 .not_on_release_branch_or_tagged_commit:
   - <<: *if_release_branch
     when: never
@@ -650,17 +672,33 @@ workflow:
 .on_dev_branches_with_artifact_changes:
   - !reference [.on_dev_branches]
   - changes:
-      <<: *artifacts_build_impacting_paths
+      <<: *on_smp_trigger_paths
+      compare_to: $COMPARE_TO_BRANCH
+  - changes:
+      paths: *bazel_paths
       compare_to: $COMPARE_TO_BRANCH
 
 .on_dev_branches_with_artifact_changes_manual:
   - !reference [.on_dev_branches]
   - changes:
-      <<: *artifacts_build_impacting_paths
+      <<: *on_smp_trigger_paths
+      compare_to: $COMPARE_TO_BRANCH
+    when: manual
+    allow_failure: true
+  - changes:
+      paths: *bazel_paths
       compare_to: $COMPARE_TO_BRANCH
     when: manual
     allow_failure: true
 
+# Rule for native OS linters (macOS, Windows): restrict to release/tag/nightly
+# deploys where the cross-platform lint job is insufficient (e.g. cgo, platform
+# runtime behavior). For normal branch and main pipelines the cross lint job
+# already provides coverage at a fraction of the resource cost.
+.on_native_os_linters:
+  - <<: *if_tagged_commit
+  - <<: *if_release_branch
+  - if: ($DEPLOY_AGENT == "true" || $DDR_WORKFLOW_ID != null) && $BUCKET_BRANCH =~ /^(nightly|oldnightly|beta|stable)$/
 
 .on_main_or_release_branch_or_deploy_always:
   - <<: *if_deploy
@@ -702,7 +740,7 @@ workflow:
   - <<: *on_build_changes
   - changes:
       paths:
-        - test/new-e2e/tests/agent-platform/install-script/**/*
+        - test/new-e2e/tests/agent-platform/tests/install_script*
         - test/e2e-framework/**/*
 
 .on_ddot_tests:
@@ -713,7 +751,7 @@ workflow:
   - <<: *on_build_changes
   - changes:
       paths:
-        - test/new-e2e/tests/agent-platform/ddot/**/*
+        - test/new-e2e/tests/agent-platform/tests/ddot*
         - test/e2e-framework/**/*
 
 .on_step_by_step_tests:
@@ -724,7 +762,7 @@ workflow:
   - <<: *on_build_changes
   - changes:
       paths:
-        - test/new-e2e/tests/agent-platform/step-by-step/**/*
+        - test/new-e2e/tests/agent-platform/tests/step_by_step*
         - test/e2e-framework/**/*
 
 .on_upgrade_tests:
@@ -735,7 +773,7 @@ workflow:
   - <<: *on_build_changes
   - changes:
       paths:
-        - test/new-e2e/tests/agent-platform/upgrade/**/*
+        - test/new-e2e/tests/agent-platform/tests/upgrade*
         - test/e2e-framework/**/*
 
 .on_persisting_integrations_tests:
@@ -746,7 +784,7 @@ workflow:
   - <<: *on_build_changes
   - changes:
       paths:
-        - test/new-e2e/tests/agent-platform/persisting-integrations/**/*
+        - test/new-e2e/tests/agent-platform/tests/persisting_integrations*
         - test/e2e-framework/**/*
 
 .on_rpm_tests:
@@ -757,7 +795,7 @@ workflow:
   - <<: *on_build_changes
   - changes:
       paths:
-        - test/new-e2e/tests/agent-platform/rpm/**/*
+        - test/new-e2e/tests/agent-platform/tests/rpm*
         - test/e2e-framework/**/*
 
 .on_package_signing_tests:
@@ -768,7 +806,7 @@ workflow:
   - <<: *on_build_changes
   - changes:
       paths:
-        - test/new-e2e/tests/agent-platform/package-signing/**/*
+        - test/new-e2e/tests/agent-platform/tests/package_signing*
         - test/e2e-framework/**/*
 
 .security_agent_change_paths: &security_agent_change_paths
@@ -871,7 +909,6 @@ workflow:
         - .gitlab/test/e2e/e2e.yml
         - test/e2e-framework/**/*
         - test/new-e2e/go.mod
-        - go.mod
         - flakes.yaml
         - release.json
       compare_to: $COMPARE_TO_BRANCH
@@ -893,7 +930,6 @@ workflow:
         - .gitlab/test/e2e/e2e.yml
         - test/e2e-framework/testing/**/*
         - test/new-e2e/go.mod
-        - go.mod
         - flakes.yaml
         - release.json
       compare_to: $COMPARE_TO_BRANCH
@@ -959,7 +995,6 @@ workflow:
         - pkg/util/trivy/**/*
         - test/new-e2e/tests/containers/**/*
         - test/new-e2e/go.mod
-        - go.mod
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
 
@@ -1107,7 +1142,6 @@ workflow:
         - comp/trace/**/*
         - test/new-e2e/tests/apm/**/*
         - test/new-e2e/go.mod
-        - go.mod
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
 
@@ -1135,7 +1169,6 @@ workflow:
         - comp/netflow/**/*
         - test/new-e2e/tests/ndm/netflow/**/*
         - test/new-e2e/go.mod
-        - go.mod
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
 
@@ -1146,11 +1179,20 @@ workflow:
         - pkg/collector/corechecks/snmp/**/*
         - test/new-e2e/tests/ndm/snmp/**/*
         - test/new-e2e/go.mod
-        - go.mod
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
   - when: manual
     allow_failure: true
+
+.on_anomalydetection_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        - comp/anomalydetection/**/*
+        - test/new-e2e/tests/anomalydetection/**/*
+        - test/new-e2e/go.mod
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
 
 .on_ha_agent_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
@@ -1160,7 +1202,6 @@ workflow:
         - pkg/aggregator/**/*
         - test/new-e2e/tests/ha-agent/**/*
         - test/new-e2e/go.mod
-        - go.mod
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
 
@@ -1174,7 +1215,6 @@ workflow:
         - comp/networkpath/**/*
         - test/new-e2e/tests/netpath/**/*
         - test/new-e2e/go.mod
-        - go.mod
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
 
@@ -1201,7 +1241,6 @@ workflow:
       paths:
         - cmd/otel-agent/**/*
         - comp/otelcol/**/*
-        - test/otel/testdata/**/*
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
 
@@ -1286,15 +1325,17 @@ workflow:
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
 
-.on_windows_systemprobe_or_e2e_changes:
+.on_systemprobe_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
         - pkg/discovery/module/*
         - pkg/network/**/*
+        - pkg/process/checks/**/*
         - pkg/process/monitor/*
         - pkg/util/kernel/**/*
         - test/new-e2e/tests/sysprobe-functional/**/*
+        - test/new-e2e/tests/usm/**/*
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
 
@@ -1365,11 +1406,11 @@ workflow:
   - !reference [.except_mergequeue] # The prerequisites are not run in the mergequeue pipeline so we need to skip this rule
   - changes:
       paths:
-        - comp/core/gui/guiimpl/systray/**/*
+        - comp/core/gui/impl/systray/**/*
         - "**/*.m"
       compare_to: $COMPARE_TO_BRANCH
 
-.on_packaging_change:
+.on_macos_change:
   - !reference [.except_mergequeue] # The prerequisites are not run in the mergequeue pipeline so we need to skip this rule
   - changes:
       paths:
@@ -1377,6 +1418,9 @@ workflow:
         - .gitlab-ci.yml
         - release.json
         - .gitlab/build/package_build/**/*
+      compare_to: $COMPARE_TO_BRANCH
+  - changes:
+      paths: *bazel_paths
       compare_to: $COMPARE_TO_BRANCH
 
 .on_go-version_change:
@@ -1457,9 +1501,16 @@ workflow:
         - comp/core/autodiscovery/listeners/staticconfig.go
       compare_to: $COMPARE_TO_BRANCH
 
+.on_autoscaling_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        - test/new-e2e/tests/autoscaling/**/*
+        - pkg/clusteragent/autoscaling/cluster/**/*
+      compare_to: $COMPARE_TO_BRANCH
+
 .on_gpu_integration_tests:
   - !reference [.on_scheduled_main]
-  - !reference [.manual]
   # Run on GPU-related changes
   - changes:
       paths:
@@ -1469,6 +1520,7 @@ workflow:
         - .gitlab/build/source_test/linux.yml
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
+  - !reference [.manual]
 
 .on_installer_systemd_changes:
   - <<: *if_main_branch

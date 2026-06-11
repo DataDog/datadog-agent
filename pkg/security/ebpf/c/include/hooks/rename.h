@@ -5,8 +5,9 @@
 #include "helpers/approvers.h"
 #include "helpers/filesystem.h"
 #include "helpers/syscalls.h"
+#include "helpers/discarders.h"
 
-int __attribute__((always_inline)) trace__sys_rename(u8 async, const char *oldpath, const char *newpath) {
+int __attribute__((always_inline)) trace__sys_rename(void *ctx, u8 async, const char *oldpath, const char *newpath) {
     struct syscall_cache_t syscall = {
         .policy = fetch_policy(EVENT_RENAME),
         .async = async,
@@ -16,28 +17,27 @@ int __attribute__((always_inline)) trace__sys_rename(u8 async, const char *oldpa
     if (!async) {
         collect_syscall_ctx(&syscall, SYSCALL_CTX_ARG_STR(0) | SYSCALL_CTX_ARG_STR(1), (void *)oldpath, (void *)newpath, NULL);
     }
-    cache_syscall(&syscall);
-
+    cache_syscall_update_cgroup(ctx, &syscall);
     return 0;
 }
 
 HOOK_SYSCALL_ENTRY2(rename, const char *, oldpath, const char *, newpath) {
-    return trace__sys_rename(SYNC_SYSCALL, oldpath, newpath);
+    return trace__sys_rename(ctx, SYNC_SYSCALL, oldpath, newpath);
 }
 
 HOOK_SYSCALL_ENTRY4(renameat, int, olddirfd, const char *, oldpath, int, newdirfd, const char *, newpath) {
-    return trace__sys_rename(SYNC_SYSCALL, oldpath, newpath);
+    return trace__sys_rename(ctx, SYNC_SYSCALL, oldpath, newpath);
 }
 
 HOOK_SYSCALL_ENTRY4(renameat2, int , olddirfd, const char *, oldpath, int, newdirfd, const char *, newpath) {
-    return trace__sys_rename(SYNC_SYSCALL, oldpath, newpath);
+    return trace__sys_rename(ctx, SYNC_SYSCALL, oldpath, newpath);
 }
 
 HOOK_ENTRY("do_renameat2")
 int hook_do_renameat2(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_RENAME);
     if (!syscall) {
-        return trace__sys_rename(ASYNC_SYSCALL, NULL, NULL);
+        return trace__sys_rename(ctx, ASYNC_SYSCALL, NULL, NULL);
     }
     return 0;
 }
@@ -96,16 +96,13 @@ int hook_vfs_rename(ctx_t *ctx) {
         get_path_id(inode, syscall->rename.target_file.path_key.mount_id, 0, invalidate_type);
     }
 
-    // always return after any invalidate_inode call
-    if (approve_syscall(syscall, rename_approvers) == DISCARDED) {
-        // do not pop, we want to invalidate the inode even if the syscall is discarded
-        return 0;
-    }
+    approve_syscall(syscall, rename_approvers);
 
     // the mount id of path_key is resolved by kprobe/mnt_want_write. It is already set by the time we reach this probe.
     syscall->resolver.dentry = syscall->rename.src_dentry;
     syscall->resolver.key = syscall->rename.src_file.path_key;
-    syscall->resolver.discarder_event_type = 0;
+    syscall->resolver.event_type = syscall->type;
+    syscall->resolver.flags = get_resolver_flags(syscall, 1);
     syscall->resolver.callback = DR_NO_CALLBACK;
     syscall->resolver.iteration = 0;
     syscall->resolver.ret = 0;
@@ -147,6 +144,11 @@ int __attribute__((always_inline)) sys_rename_ret(void *ctx, int retval, enum TA
         }
     }
 
+    if (syscall->state != DISCARDED && is_auid_discarder(EVENT_RENAME)) {
+        syscall->state = DISCARDED;
+        monitor_discarded(EVENT_RENAME);
+    }
+
     if (syscall->state != DISCARDED && is_event_enabled(EVENT_RENAME)) {
         syscall->retval = retval;
 
@@ -157,7 +159,8 @@ int __attribute__((always_inline)) sys_rename_ret(void *ctx, int retval, enum TA
             syscall->resolver.dentry = syscall->rename.target_dentry;
         }
         syscall->resolver.key = syscall->rename.target_file.path_key;
-        syscall->resolver.discarder_event_type = 0;
+        syscall->resolver.event_type = syscall->type;
+        syscall->resolver.flags = get_resolver_flags(syscall, 1);
         syscall->resolver.callback = select_dr_key(prog_type, DR_RENAME_CALLBACK_KPROBE_KEY, DR_RENAME_CALLBACK_TRACEPOINT_KEY);
         syscall->resolver.iteration = 0;
         syscall->resolver.ret = 0;

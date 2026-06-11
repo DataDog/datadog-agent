@@ -1,0 +1,16 @@
+# gazelle:ignore
+
+load("//bazel/rules/ebpf:cgo_godefs.bzl", "cgo_godefs")
+
+exports_files([
+    "offsetguess_types_linux.go",
+    "offsetguess_types_linux_test.go",
+])
+
+cgo_godefs(
+    name = "offsetguess_types_godefs",
+    src = "offsetguess_types.go",
+    hdrs = ["//pkg/network/ebpf/c/prebuilt:prebuilt_headers"],
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/network/ebpf/c:ebpf_c_network"],
+)

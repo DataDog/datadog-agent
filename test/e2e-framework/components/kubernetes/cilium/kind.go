@@ -27,7 +27,7 @@ func NewKindCluster(env config.Env, vm *remote.Host, name string, kubeVersion st
 
 	kindClusterConfigFlags := kubernetes.KindConfigFlags{
 		KubeProxyReplacement: params.hasKubeProxyReplacement(),
-		DualNodeSetup:        true,
+		WorkerNodes:          []kubernetes.KindWorkerNode{{}},
 	}
 
 	cluster, err := kubernetes.NewKindClusterWithConfig(env, vm, name, kubeVersion, kindClusterConfigFlags, opts...)

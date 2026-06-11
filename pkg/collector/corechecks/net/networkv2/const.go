@@ -305,6 +305,22 @@ var (
 			"tx_cqe_err",
 			"tx_dropped",
 			"tx_recover",
+			// Per-priority RoCE/PFC counters (mlx5 emits as rx_prio<N>_* / tx_prio<N>_*).
+			// rx_pause_duration / tx_pause_duration are in microseconds.
+			// Per kernel en_stats.c the kernel emits pause_transition only on rx, not tx.
+			"rx_packets",
+			"rx_bytes",
+			"rx_discards",
+			"rx_pause",
+			"rx_pause_duration",
+			"rx_pause_transition",
+			"rx_buf_discard",
+			"rx_cong_discard",
+			"rx_marked",
+			"tx_packets",
+			"tx_bytes",
+			"tx_pause",
+			"tx_pause_duration",
 		},
 	}
 )
@@ -379,6 +395,42 @@ var (
 			"tx_xdp_err",
 			"tx_xsk_err",
 			"tx_xsk_full",
+			// Global PFC counters (mlx5 emits with literal "global" infix, not per-priority).
+			// Per kernel en_stats.c the kernel emits pause_transition only on rx, not tx.
+			"rx_global_pause",
+			"rx_global_pause_duration",
+			"rx_global_pause_transition",
+			"tx_global_pause",
+			"tx_global_pause_duration",
+			// PCIe health: signal integrity, threshold-crossing event counters, buffer overflow.
+			// The percentage-style outbound_pci_stalled_{rd,wr} gauges are intentionally excluded
+			// since the submission path emits monotonic_count and would produce nonsense deltas.
+			"rx_pci_signal_integrity",
+			"tx_pci_signal_integrity",
+			"outbound_pci_buffer_overflow",
+			"outbound_pci_stalled_rd_events",
+			"outbound_pci_stalled_wr_events",
+			"pci_bw_inbound_high",
+			"pci_bw_inbound_low",
+			"pci_bw_outbound_high",
+			"pci_bw_outbound_low",
+			"pci_bw_stale_event",
+			"dev_out_of_buffer",
+			// PFC pause storm indicators (pathological flow-control behavior).
+			"tx_pause_storm_warning_events",
+			"tx_pause_storm_error_events",
+			"rx_pause_ctrl_phy",
+			"tx_pause_ctrl_phy",
+			// FEC / cable health. rx_bits_phy is the denominator for symbol_err and corrected_bits.
+			"rx_pcs_symbol_err_phy",
+			"rx_corrected_bits_phy",
+			"rx_bits_phy",
+			// Module and link recovery.
+			"module_unplug",
+			"rx_buffer_passed_thres_phy",
+			"total_success_recovery_phy",
+			// Drop indicators.
+			"rx_if_down_packets",
 		},
 	}
 )
@@ -467,6 +519,8 @@ var (
 )
 
 var (
+	// tcpStateMetricsSuffixMapping combines multiple TCP states into broader categories
+	// (the default behavior, matching combine_connection_states: true).
 	tcpStateMetricsSuffixMapping = map[string]map[string]string{
 		"ss": {
 			"ESTAB":      "established",
@@ -493,6 +547,39 @@ var (
 			"CLOSE_WAIT":  "closing",
 			"LAST_ACK":    "closing",
 			"LISTEN":      "listening",
+			"CLOSING":     "closing",
+			"NONE":        "connections", // sole UDP mapping
+		},
+	}
+
+	// tcpStateMetricsSuffixMappingUncombined maps each TCP state to its own individual
+	// metric suffix (matching combine_connection_states: false, mirroring the Python check).
+	tcpStateMetricsSuffixMappingUncombined = map[string]map[string]string{
+		"ss": {
+			"ESTAB":      "estab",
+			"SYN-SENT":   "syn_sent",
+			"SYN-RECV":   "syn_recv",
+			"FIN-WAIT-1": "fin_wait_1",
+			"FIN-WAIT-2": "fin_wait_2",
+			"TIME-WAIT":  "time_wait",
+			"CLOSE-WAIT": "close_wait",
+			"LAST-ACK":   "time_wait", // matches Python: last_ack is folded into time_wait
+			"LISTEN":     "listen",
+			"CLOSING":    "closing",
+			"UNCONN":     "unconn",
+			"NONE":       "connections", // sole UDP mapping
+		},
+		"netstat": {
+			"ESTABLISHED": "estab",
+			"SYN_SENT":    "syn_sent",
+			"SYN_RECV":    "syn_recv",
+			"FIN_WAIT1":   "fin_wait_1",
+			"FIN_WAIT2":   "fin_wait_2",
+			"TIME_WAIT":   "time_wait",
+			"CLOSE":       "close",
+			"CLOSE_WAIT":  "close_wait",
+			"LAST_ACK":    "time_wait", // matches Python: last_ack is folded into time_wait
+			"LISTEN":      "listen",
 			"CLOSING":     "closing",
 			"NONE":        "connections", // sole UDP mapping
 		},

@@ -21,8 +21,29 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
+type K8sAppOption func(*k8sAppOptions)
+
+type k8sAppOptions struct {
+	namespaceLabels pulumi.StringMap
+}
+
+func WithNamespaceLabels(labels pulumi.StringMap) K8sAppOption {
+	return func(opts *k8sAppOptions) {
+		opts.namespaceLabels = labels
+	}
+}
+
 func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespace string, statsdPort int, statsdSocket string, opts ...pulumi.ResourceOption) (*componentskube.Workload, error) {
+	return K8sAppDefinitionWithOptions(e, kubeProvider, namespace, statsdPort, statsdSocket, nil, opts...)
+}
+
+func K8sAppDefinitionWithOptions(e config.Env, kubeProvider *kubernetes.Provider, namespace string, statsdPort int, statsdSocket string, appOptions []K8sAppOption, opts ...pulumi.ResourceOption) (*componentskube.Workload, error) {
 	opts = append(opts, pulumi.Provider(kubeProvider), pulumi.Parent(kubeProvider), pulumi.DeletedWith(kubeProvider))
+
+	config := k8sAppOptions{}
+	for _, opt := range appOptions {
+		opt(&config)
+	}
 
 	k8sComponent := &componentskube.Workload{}
 	if err := e.Ctx().RegisterComponentResource("dd:apps", fmt.Sprintf("dogstatsd-%d", statsdPort), k8sComponent, opts...); err != nil {
@@ -33,7 +54,8 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespace
 
 	ns, err := corev1.NewNamespace(e.Ctx(), namespace, &corev1.NamespaceArgs{
 		Metadata: metav1.ObjectMetaArgs{
-			Name: pulumi.String(namespace),
+			Name:   pulumi.String(namespace),
+			Labels: config.namespaceLabels,
 		},
 	}, opts...)
 	if err != nil {
@@ -75,6 +97,17 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespace
 		return nil, err
 	}
 
+	var imagePullSecrets corev1.LocalObjectReferenceArray
+	if e.ImagePullRegistry() != "" {
+		imgPullSecret, err := utils.NewImagePullSecret(e, namespace, opts...)
+		if err != nil {
+			return nil, err
+		}
+		imagePullSecrets = append(imagePullSecrets, corev1.LocalObjectReferenceArgs{
+			Name: imgPullSecret.Metadata.Name(),
+		})
+	}
+
 	if _, err := appsv1.NewDeployment(e.Ctx(), fmt.Sprintf("dogstatsd-uds-with-csi-%d", statsdPort), &appsv1.DeploymentArgs{
 		Metadata: &metav1.ObjectMetaArgs{
 			Name:      pulumi.String("dogstatsd-uds-with-csi"),
@@ -100,6 +133,7 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespace
 				},
 				Spec: &corev1.PodSpecArgs{
 					ServiceAccountName: sa.Metadata.Name().Elem(),
+					ImagePullSecrets:   imagePullSecrets,
 					Containers: corev1.ContainerArray{
 						&corev1.ContainerArgs{
 							Name:  pulumi.String("dogstatsd"),
@@ -147,6 +181,7 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespace
 				},
 				Spec: &corev1.PodSpecArgs{
 					ServiceAccountName: sa.Metadata.Name().Elem(),
+					ImagePullSecrets:   imagePullSecrets,
 					Containers: corev1.ContainerArray{
 						&corev1.ContainerArgs{
 							Name:  pulumi.String("dogstatsd"),
@@ -214,6 +249,7 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespace
 				},
 				Spec: &corev1.PodSpecArgs{
 					ServiceAccountName: sa.Metadata.Name().Elem(),
+					ImagePullSecrets:   imagePullSecrets,
 					Containers: corev1.ContainerArray{
 						&corev1.ContainerArgs{
 							Name:  pulumi.String("dogstatsd"),
@@ -282,6 +318,7 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespace
 				},
 				Spec: &corev1.PodSpecArgs{
 					ServiceAccountName: sa.Metadata.Name().Elem(),
+					ImagePullSecrets:   imagePullSecrets,
 					Containers: corev1.ContainerArray{
 						&corev1.ContainerArgs{
 							Name:  pulumi.String("dogstatsd"),
@@ -342,6 +379,7 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespace
 				},
 				Spec: &corev1.PodSpecArgs{
 					ServiceAccountName: sa.Metadata.Name().Elem(),
+					ImagePullSecrets:   imagePullSecrets,
 					Containers: corev1.ContainerArray{
 						&corev1.ContainerArgs{
 							Name:  pulumi.String("dogstatsd"),
@@ -415,6 +453,7 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespace
 				},
 				Spec: &corev1.PodSpecArgs{
 					ServiceAccountName: sa.Metadata.Name().Elem(),
+					ImagePullSecrets:   imagePullSecrets,
 					Containers: corev1.ContainerArray{
 						&corev1.ContainerArgs{
 							Name:  pulumi.String("dogstatsd"),

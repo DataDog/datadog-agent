@@ -23,22 +23,23 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/discovery/core"
 	"github.com/DataDog/datadog-agent/pkg/discovery/model"
-	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
+	tracermetadata "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
 	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil/normalize"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -92,6 +93,16 @@ type Event struct {
 }
 
 func newProcessCollector(id string, catalog workloadmeta.AgentType, clock clock.Clock, processProbe procutil.Probe, config pkgconfigmodel.Reader, systemProbeConfig pkgconfigmodel.Reader) collector {
+	var discoveredServicesGauge telemetry.Gauge
+	if serviceDiscoveryEnabled(systemProbeConfig) {
+		discoveredServicesGauge = telemetryimpl.GetCompatComponent().NewGaugeWithOpts(
+			collectorID,
+			"discovered_services",
+			[]string{},
+			"Number of discovered alive services.",
+			telemetry.DefaultOptions,
+		)
+	}
 	return collector{
 		id:                     id,
 		catalog:                catalog,
@@ -108,6 +119,7 @@ func newProcessCollector(id string, catalog workloadmeta.AgentType, clock clock.
 		ignoredPids:              make(core.PidSet),
 		pidHeartbeats:            make(map[int32]time.Time),
 		knownInjectionStatusPids: make(core.PidSet),
+		metricDiscoveredServices: discoveredServicesGauge,
 	}
 }
 
@@ -159,7 +171,11 @@ func (c *collector) isProcessCollectionEnabled() bool {
 
 // isServiceDiscoveryEnabled returns a boolean indicating if service discovery is enabled
 func (c *collector) isServiceDiscoveryEnabled() bool {
-	return c.systemProbeConfig.GetBool("discovery.enabled")
+	return serviceDiscoveryEnabled(c.systemProbeConfig)
+}
+
+func serviceDiscoveryEnabled(systemProbeConfig pkgconfigmodel.Reader) bool {
+	return systemProbeConfig.GetBool("discovery.enabled")
 }
 
 // isGPUMonitoringEnabled returns a boolean indicating if GPU monitoring is enabled
@@ -213,14 +229,6 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 
 	if c.isServiceDiscoveryEnabled() {
 		serviceCollectionInterval := c.getServiceCollectionInterval()
-		// Initialize service discovery metric
-		c.metricDiscoveredServices = telemetry.NewGaugeWithOpts(
-			collectorID,
-			"discovered_services",
-			[]string{},
-			"Number of discovered alive services.",
-			telemetry.DefaultOptions,
-		)
 
 		if c.isProcessCollectionEnabled() || c.isLanguageCollectionEnabled() {
 			log.Debug("Starting cached service collection (process collection enabled)")
@@ -633,48 +641,53 @@ func (c *collector) updateDiscoveredServicesMetric() {
 	c.metricDiscoveredServices.Set(float64(count))
 }
 
+// collectProcessesOnce runs a single process collection iteration: scans
+// processes, computes the diff against lastCollectedProcesses, updates the
+// cache, and returns the resulting event. The caller is responsible for
+// delivering the event (e.g. via processEventsCh or store.Notify).
+func (c *collector) collectProcessesOnce() *Event {
+	// fetch process data
+	procs, err := c.processProbe.ProcessesByPID(c.clock.Now().UTC(), false)
+	if err != nil {
+		log.Errorf("Error getting processes by pid: %v", err)
+		return nil
+	}
+
+	// some processes are in a container so we want to store the container_id for them
+	pidToCid := c.containerProvider.GetPidToCid(cacheValidityNoRT)
+	// Enrich processes with container IDs before diffing so that a CID
+	// change (e.g. becoming available after a race with the container
+	// runtime) is detected by processCacheDifference.
+	enrichProcessesWithContainerID(procs, pidToCid)
+
+	// categorize the processes into events for workloadmeta
+	createdProcs := processCacheDifference(procs, c.lastCollectedProcesses)
+	languages := c.detectLanguages(createdProcs)
+	wlmCreatedProcs := createdProcessesToWorkloadmetaProcesses(createdProcs, pidToCid, languages)
+
+	wlmDeletedProcs := c.findDeletedProcesses(procs)
+
+	// store latest collected processes
+	c.mux.Lock()
+	c.lastCollectedProcesses = procs
+	c.mux.Unlock()
+
+	return &Event{
+		Type:    EventTypeProcess,
+		Created: wlmCreatedProcs,
+		Deleted: wlmDeletedProcs,
+	}
+}
+
 // collectProcesses captures all the required process data for the process check
 func (c *collector) collectProcesses(ctx context.Context, collectionTicker *clock.Ticker) {
-	// TODO: implement the full collection logic for the process collector. Once collection is done, submit events.
 	ctx, cancel := context.WithCancel(ctx)
 	defer collectionTicker.Stop()
 	defer cancel()
-	// Run collection immediately on startup, then wait for ticker to repeat
 	for {
-		// fetch process data and submit events to streaming channel for asynchronous processing
-		procs, err := c.processProbe.ProcessesByPID(c.clock.Now().UTC(), false)
-		if err != nil {
-			log.Errorf("Error getting processes by pid: %v", err)
-			return
+		if event := c.collectProcessesOnce(); event != nil {
+			c.processEventsCh <- event
 		}
-
-		// some processes are in a container so we want to store the container_id for them
-		pidToCid := c.containerProvider.GetPidToCid(cacheValidityNoRT)
-		// TODO: potentially scrub process data here instead of in the check?
-
-		// Enrich processes with container IDs before diffing so that a CID
-		// change (e.g. becoming available after a race with the container
-		// runtime) is detected by processCacheDifference.
-		enrichProcessesWithContainerID(procs, pidToCid)
-
-		// categorize the processes into events for workloadmeta
-		createdProcs := processCacheDifference(procs, c.lastCollectedProcesses)
-		languages := c.detectLanguages(createdProcs)
-		wlmCreatedProcs := createdProcessesToWorkloadmetaProcesses(createdProcs, pidToCid, languages)
-
-		wlmDeletedProcs := c.findDeletedProcesses(procs)
-
-		// send these events to the channel
-		c.processEventsCh <- &Event{
-			Type:    EventTypeProcess,
-			Created: wlmCreatedProcs,
-			Deleted: wlmDeletedProcs,
-		}
-
-		// store latest collected processes
-		c.mux.Lock()
-		c.lastCollectedProcesses = procs
-		c.mux.Unlock()
 
 		select {
 		case <-collectionTicker.C:
@@ -923,7 +936,6 @@ func convertModelServiceToService(modelService *model.Service) *workloadmeta.Ser
 		TCPPorts:                 modelService.TCPPorts,
 		UDPPorts:                 modelService.UDPPorts,
 		APMInstrumentation:       modelService.APMInstrumentation,
-		Type:                     modelService.Type,
 		LogFiles:                 logFiles,
 		UST: workloadmeta.UST{
 			Service: modelService.UST.Service,

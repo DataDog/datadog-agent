@@ -7,8 +7,10 @@ package utils
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
+	"syscall"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -54,8 +56,10 @@ func WriteAsJSON(req *http.Request, w http.ResponseWriter, data any, outputOptio
 	}
 	err := encoder.Encode(data)
 	if err != nil {
-		log.Errorf("unable to marshal data into JSON for %s: %s", req.URL.RequestURI(), err)
-		w.WriteHeader(500)
+		if !errors.Is(err, syscall.EPIPE) {
+			log.Errorf("unable to marshal data into JSON for %s: %s", req.URL.RequestURI(), err)
+			w.WriteHeader(500)
+		}
 		return
 	}
 }

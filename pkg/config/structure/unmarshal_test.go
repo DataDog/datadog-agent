@@ -7,7 +7,6 @@ package structure
 
 import (
 	"bytes"
-	"encoding/json"
 	"reflect"
 	"strings"
 	"testing"
@@ -1502,13 +1501,7 @@ func TestUnmarshalKeyOnSliceOfMap(t *testing.T) {
 	mockConfig := newEmptyMockConf(t)
 
 	mockConfig.BindEnvAndSetDefault("test_value", []map[string]int{})
-	mockConfig.ParseEnvAsSliceMapString("test_value", func(in string) []map[string]string {
-		var out []map[string]string
-		if err := json.Unmarshal([]byte(in), &out); err != nil {
-			require.FailNow(t, "can not parse JSON")
-		}
-		return out
-	})
+	mockConfig.ParseEnvJSON("test_value", []map[string]string{})
 
 	mockConfig.BuildSchema()
 
@@ -1537,4 +1530,42 @@ some_config:
 	err := UnmarshalKey(mockConfig, "some_config", &res)
 	assert.NoError(t, err)
 	assert.Equal(t, map[ResourceType]string{"memory": "5g"}, res.Resources)
+}
+
+func TestUnmarshalKeyIntSliceFromEnv(t *testing.T) {
+	const key = "my_feature.ports"
+	const envVar = "DD_MY_FEATURE_PORTS"
+
+	build := func(t *testing.T, backend, env string) model.Config {
+		t.Setenv(envVar, env)
+		viperConf, ntmConf := constructBothConfigs("", false, func(cfg model.Setup) {
+			cfg.BindEnvAndSetDefault(key, []int{53})
+		})
+		if backend == "viper" {
+			return viperConf
+		}
+		return ntmConf
+	}
+
+	for _, tc := range []struct {
+		name    string
+		backend string
+		env     string
+		want    []int
+	}{
+		{"ntm/space-separated", "ntm", "53 5353", []int{53, 5353}},
+		{"ntm/single", "ntm", "5353", []int{5353}},
+		{"ntm/json", "ntm", "[53,5353]", []int{53, 5353}},
+		{"viper/space-separated", "viper", "53 5353", []int{53, 5353}},
+		{"viper/single", "viper", "5353", []int{5353}},
+		{"viper/json", "viper", "[53,5353]", []int{53, 5353}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := build(t, tc.backend, tc.env)
+			var got []int
+			err := UnmarshalKey(cfg, key, &got)
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, got)
+		})
+	}
 }

@@ -83,7 +83,8 @@ int hook_security_inode_setattr(ctx_t *ctx) {
 
     syscall->resolver.dentry = syscall->setattr.dentry;
     syscall->resolver.key = syscall->setattr.file.path_key;
-    syscall->resolver.discarder_event_type = dentry_resolver_discarder_event_type(syscall);
+    syscall->resolver.event_type = syscall->type;
+    syscall->resolver.flags = get_resolver_flags(syscall, 1);
     syscall->resolver.callback = DR_SETATTR_CALLBACK_KPROBE_KEY;
     syscall->resolver.iteration = 0;
     syscall->resolver.ret = 0;
@@ -102,9 +103,9 @@ TAIL_CALL_FNC(dr_setattr_callback, ctx_t *ctx) {
         return 0;
     }
 
-    if (syscall->resolver.ret == DENTRY_DISCARDED) {
-        monitor_discarded(syscall->type);
-        pop_syscall(syscall->resolver.discarder_event_type);
+    apply_dentry_resolution_outcome(syscall, syscall->type);
+    if (syscall->state == DISCARDED) {
+        pop_syscall(syscall->resolver.event_type);
     }
 
     return 0;

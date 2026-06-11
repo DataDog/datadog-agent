@@ -20,7 +20,15 @@ message PodServiceMapping {
   KubeMetadataEventType type = 4;
 }
 
+message NamespaceMetadata {
+  string namespace = 1;
+  map<string, string> labels = 2;
+  map<string, string> annotations = 3;
+  KubeMetadataEventType type = 4;
+}
+
 message KubeMetadataStreamResponse {
   bool is_full_state = 1;
   repeated PodServiceMapping mappings = 2;
+  repeated NamespaceMetadata namespace_metadata = 3;
 }

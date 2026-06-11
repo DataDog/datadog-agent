@@ -18,4 +18,6 @@ const (
 	Versa Integration = "versa"
 	// Netflow the Netflow integration
 	Netflow Integration = "netflow"
+	// NetworkConfigManagement the Network Configuration Management integration
+	NetworkConfigManagement Integration = "network-configuration-management"
 )

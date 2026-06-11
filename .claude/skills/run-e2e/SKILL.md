@@ -72,13 +72,13 @@ Stop the execution early when you detect that issue in the logs
 dda inv new-e2e-tests.run --targets=./tests/windows/install-test
 
 # Run a specific test
-dda inv new-e2e-tests.run --targets=./tests/agent-platform/upgrade --run TestUpgrade
+dda inv new-e2e-tests.run --targets=./tests/agent-platform/tests/upgrade --run TestUpgrade
 
 # Keep stack for debugging
 dda inv new-e2e-tests.run --targets=./tests/containers --run TestContainerLinux --keep-stack
 
 # Run with specific agent image
-dda inv new-e2e-tests.run --targets=./tests/agent-platform --agent-image "my-registry/agent:latest"
+dda inv new-e2e-tests.run --targets=./tests/agent-platform/tests --agent-image "my-registry/agent:latest"
 
 # Run with stack name suffix
 dda inv new-e2e-tests.run --targets=./tests/windows/install-test --stack-name-suffix 2

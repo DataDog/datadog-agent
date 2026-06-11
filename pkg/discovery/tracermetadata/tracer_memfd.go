@@ -5,12 +5,14 @@
 
 //go:build linux
 
+// Package tracermetadata contains helper functions to parse the tracer memfd file
 package tracermetadata
 
 import (
 	"fmt"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
@@ -23,20 +25,20 @@ func IsTracerMemfdPath(linkTarget string) bool {
 	return strings.HasPrefix(linkTarget, "/memfd:"+memfdTracerFileName)
 }
 
-func parseData(data []byte) (TracerMetadata, error) {
-	var trMeta TracerMetadata
+func parseData(data []byte) (model.TracerMetadata, error) {
+	var trMeta model.TracerMetadata
 	if _, err := trMeta.UnmarshalMsg(data); err != nil {
-		return TracerMetadata{}, fmt.Errorf("error parsing tracer metadata: %s", err)
+		return model.TracerMetadata{}, fmt.Errorf("error parsing tracer metadata: %s", err)
 	}
 	return trMeta, nil
 }
 
 // GetTracerMetadataFromPath reads and parses tracer metadata from a known fd path.
 // The fdPath should be the full path to the fd (e.g., /proc/1234/fd/5).
-func GetTracerMetadataFromPath(fdPath string) (TracerMetadata, error) {
+func GetTracerMetadataFromPath(fdPath string) (model.TracerMetadata, error) {
 	data, err := kernel.ReadMemFdFile(fdPath, memFdTracerMaxSize)
 	if err != nil {
-		return TracerMetadata{}, err
+		return model.TracerMetadata{}, err
 	}
 	return parseData(data)
 }
@@ -44,7 +46,7 @@ func GetTracerMetadataFromPath(fdPath string) (TracerMetadata, error) {
 // GetTracerMetadata parses the tracer-generated metadata
 // according to
 // https://docs.google.com/document/d/1kcW6BLdYxXeTSUz31cBqoqfW1Jjs0IDljfKeUfIRQp4/
-func GetTracerMetadata(pid int, procRoot string) (TracerMetadata, error) {
+func GetTracerMetadata(pid int, procRoot string) (model.TracerMetadata, error) {
 	data, err := kernel.GetProcessMemFdFile(
 		pid,
 		procRoot,
@@ -52,7 +54,7 @@ func GetTracerMetadata(pid int, procRoot string) (TracerMetadata, error) {
 		memFdTracerMaxSize,
 	)
 	if err != nil {
-		return TracerMetadata{}, err
+		return model.TracerMetadata{}, err
 	}
 	return parseData(data)
 }

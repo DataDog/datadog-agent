@@ -10,8 +10,6 @@ package cluster
 import (
 	"encoding/json"
 
-	kubeAutoscaling "github.com/DataDog/agent-payload/v5/autoscaling/kubernetes"
-
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/cluster/model"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -37,8 +35,8 @@ func (avp *autoscalingValuesProcessor) preProcess() {
 }
 
 func (avp *autoscalingValuesProcessor) process(configKey string, rawConfig state.RawConfig) error {
-	valuesList := &kubeAutoscaling.ClusterAutoscalingValuesList{}
-	err := json.Unmarshal(rawConfig.Config, &valuesList)
+	valuesList := &model.ClusterAutoscalingValuesList{}
+	err := json.Unmarshal(rawConfig.Config, valuesList)
 	if err != nil {
 		avp.lastProcessingError = true
 		log.Errorf("failed to unmarshal config id:%s, version: %d, config key: %s, err: %v", rawConfig.Metadata.ID, rawConfig.Metadata.Version, configKey, err)
@@ -52,10 +50,10 @@ func (avp *autoscalingValuesProcessor) process(configKey string, rawConfig state
 	return nil
 }
 
-func (avp *autoscalingValuesProcessor) processValues(values *kubeAutoscaling.ClusterAutoscalingValues, _ uint64) {
+func (avp *autoscalingValuesProcessor) processValues(values model.ClusterAutoscalingValues, _ uint64) {
 	npi := model.NewNodePoolInternal(values)
 
-	id := values.Name
+	id := npi.Name()
 	avp.processed[id] = struct{}{}
 	avp.store.Set(id, npi, configRetrieverStoreID)
 }

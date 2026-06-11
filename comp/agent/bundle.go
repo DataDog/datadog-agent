@@ -7,21 +7,25 @@
 package agent
 
 import (
+	"go.uber.org/fx"
+
 	autoexitfx "github.com/DataDog/datadog-agent/comp/agent/autoexit/fx"
-	"github.com/DataDog/datadog-agent/comp/agent/cloudfoundrycontainer/cloudfoundrycontainerimpl"
+	cloudfoundrycontainerfx "github.com/DataDog/datadog-agent/comp/agent/cloudfoundrycontainer/fx"
 	expvarserverfx "github.com/DataDog/datadog-agent/comp/agent/expvarserver/fx"
-	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger/jmxloggerimpl"
+	jmxlogger "github.com/DataDog/datadog-agent/comp/agent/jmxlogger/def"
+	jmxloggerfx "github.com/DataDog/datadog-agent/comp/agent/jmxlogger/fx"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // team: agent-runtimes
 
 // Bundle defines the fx options for this bundle.
-func Bundle(params jmxloggerimpl.Params) fxutil.BundleOptions {
+func Bundle(params jmxlogger.Params) fxutil.BundleOptions {
 	return fxutil.Bundle(
 		autoexitfx.Module(),
-		jmxloggerimpl.Module(params),
+		jmxloggerfx.Module(),
+		fx.Supply(params),
 		expvarserverfx.Module(),
-		cloudfoundrycontainerimpl.Module(),
+		cloudfoundrycontainerfx.Module(),
 	)
 }

@@ -14,7 +14,6 @@ import (
 	"fmt"
 	"path"
 	"strconv"
-	"strings"
 	"syscall"
 	"time"
 
@@ -22,6 +21,7 @@ import (
 	"github.com/google/gopacket/layers"
 	"golang.org/x/sys/unix"
 
+	tracermetadata "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/sysctl"
 	sprocess "github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
@@ -266,8 +266,12 @@ type ProcessSerializer struct {
 	Pid uint32 `json:"pid,omitempty"`
 	// Parent Process ID
 	PPid *uint32 `json:"ppid,omitempty"`
+	// Session ID
+	SID uint32 `json:"sid"`
 	// Thread ID
 	Tid uint32 `json:"tid,omitempty"`
+	// ForkFlags
+	ForkFlags int `json:"fork_flags"`
 	// User ID
 	UID int `json:"uid"`
 	// Group ID
@@ -330,8 +334,8 @@ type ProcessSerializer struct {
 	Syscalls *SyscallsEventSerializer `json:"syscalls,omitempty"`
 	// List of AWS Security Credentials that the process had access to
 	AWSSecurityCredentials []*AWSSecurityCredentialsSerializer `json:"aws_security_credentials,omitempty"`
-	// Tags from an APM tracer instrumentation
-	Tracer map[string]string `json:"tracer,omitempty"`
+	// Metadata from APM tracer instrumentation
+	Tracer *tracermetadata.TracerMetadata `json:"tracer,omitempty"`
 	// Variable values
 	Variables Variables `json:"variables,omitempty"`
 }
@@ -636,6 +640,17 @@ type SetSockOptEventSerializer struct {
 	FilterHash string `json:"filter_hash,omitempty"`
 }
 
+// SocketEventSerializer serializes a socket event to JSON
+// easyjson:json
+type SocketEventSerializer struct {
+	// Socket domain
+	Domain string `json:"domain"`
+	// Socket type
+	Type string `json:"type"`
+	// Socket protocol
+	Protocol string `json:"protocol"`
+}
+
 // PrCtlEventSerializer serializes a prctl event
 // easyjson:json
 type PrCtlEventSerializer struct {
@@ -816,6 +831,7 @@ type EventSerializer struct {
 	*CapabilitiesEventSerializer  `json:"capabilities,omitempty"`
 	*PrCtlEventSerializer         `json:"prctl,omitempty"`
 	*SetrlimitEventSerializer     `json:"setrlimit,omitempty"`
+	*SocketEventSerializer        `json:"socket,omitempty"`
 }
 
 func newSyscallsEventSerializer(e *model.SyscallsEvent) *SyscallsEventSerializer {
@@ -960,6 +976,8 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 			Pid:             ps.Pid,
 			Tid:             ps.Tid,
 			PPid:            createNumPointer(ps.PPid),
+			SID:             ps.SID,
+			ForkFlags:       int(ps.ForkFlags),
 			Comm:            ps.Comm,
 			TTY:             ps.TTYName,
 			Executable:      newFileSerializer(&ps.FileEvent, e, 0, nil),
@@ -996,34 +1014,31 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 			psSerializer.UserSession = newUserSessionContextSerializer(&ps.UserSession, e)
 		}
 
-		awsSecurityCredentials := e.FieldHandlers.ResolveAWSSecurityCredentials(e)
+		awsSecurityCredentials := e.FieldHandlers.ResolveAWSSecurityCredentials(e, ps)
 		if len(awsSecurityCredentials) > 0 {
 			for _, creds := range awsSecurityCredentials {
 				psSerializer.AWSSecurityCredentials = append(psSerializer.AWSSecurityCredentials, newAWSSecurityCredentialsSerializer(&creds))
 			}
 		}
 
-		if len(ps.TracerTags) > 0 {
-			tracerTags := make(map[string]string, len(ps.TracerTags))
-			for _, tag := range ps.TracerTags {
-				key, value, found := strings.Cut(tag, ":")
-				if found {
-					tracerTags[key] = value
-				}
-			}
-			psSerializer.Tracer = tracerTags
+		if (ps.TracerMetadata != tracermetadata.TracerMetadata{}) {
+			tmetaCopy := ps.TracerMetadata
+			psSerializer.Tracer = &tmetaCopy
 		}
 
 		if len(ps.ContainerContext.ContainerID) != 0 {
 			psSerializer.Container = &ContainerContextSerializer{
 				ID:        string(ps.ContainerContext.ContainerID),
+				Source:    ps.ContainerContext.ContainerSource.String(),
 				CreatedAt: utils.NewEasyjsonTimeIfNotZero(ps.ContainerContext.UnixCreatedAt()),
 			}
 		}
 
 		if len(ps.CGroup.CGroupID) > 0 {
 			psSerializer.CGroup = &CGroupContextSerializer{
-				ID: string(ps.CGroup.CGroupID),
+				ID:        string(ps.CGroup.CGroupID),
+				Source:    ps.CGroup.CGroupSource.String(),
+				CreatedAt: utils.NewEasyjsonTimeIfNotZero(ps.CGroup.UnixCreatedAt()),
 			}
 		}
 
@@ -1032,6 +1047,7 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 	return &ProcessSerializer{
 		Pid:             ps.Pid,
 		Tid:             ps.Tid,
+		SID:             ps.SID,
 		IsKworker:       ps.IsKworker,
 		IsExec:          ps.IsExec,
 		IsExecExec:      ps.IsExecExec,
@@ -1054,20 +1070,10 @@ func serializeK8sContext(e *model.Event, ctx *model.UserSessionContext, userSess
 }
 
 func serializeSSHContext(ctx *model.UserSessionContext, userSessionContextSerializer *UserSessionContextSerializer) {
-	sshClientIP := ctx.SSHClientIP.IP.String()
-	if sshClientIP == "<nil>" {
-		sshClientIP = ""
-	}
-
-	sshAuthMethod := model.SSHAuthMethodToString(usersession.AuthType(ctx.SSHAuthMethod))
-	if sshAuthMethod == "<nil>" {
-		sshAuthMethod = ""
-	}
-
 	userSessionContextSerializer.SSHSessionID = strconv.FormatUint(uint64(ctx.SSHSessionID), 16)
 	userSessionContextSerializer.SSHClientPort = ctx.SSHClientPort
-	userSessionContextSerializer.SSHClientIP = sshClientIP
-	userSessionContextSerializer.SSHAuthMethod = sshAuthMethod
+	userSessionContextSerializer.SSHClientIP = utils.GetIPStringFromIPNet(ctx.SSHClientIP)
+	userSessionContextSerializer.SSHAuthMethod = model.SSHAuthMethodToString(usersession.AuthType(ctx.SSHAuthMethod))
 	userSessionContextSerializer.SSHPublicKey = ctx.SSHPublicKey
 }
 
@@ -1560,6 +1566,14 @@ func newSetrlimitEventSerializer(e *model.Event) *SetrlimitEventSerializer {
 	}
 }
 
+func newSocketEventSerializer(e *model.Event) *SocketEventSerializer {
+	return &SocketEventSerializer{
+		Domain:   model.SocketDomain(e.Socket.Domain).String(),
+		Type:     model.SocketType(e.Socket.Type).String(),
+		Protocol: model.SocketProtocol(e.Socket.Protocol).String(),
+	}
+}
+
 func newCGroupWriteEventSerializer(e *model.Event) *CGroupWriteEventSerializer {
 	return &CGroupWriteEventSerializer{
 		File: newFileSerializer(&e.CgroupWrite.File, e, 0, nil),
@@ -1609,6 +1623,7 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule, scrubber *utils.Sc
 	if !event.ProcessContext.ContainerContext.IsNull() {
 		s.ContainerContextSerializer = &ContainerContextSerializer{
 			ID:        string(event.ProcessContext.ContainerContext.ContainerID),
+			Source:    event.ProcessContext.ContainerContext.ContainerSource.String(),
 			CreatedAt: utils.NewEasyjsonTimeIfNotZero(time.Unix(0, int64(event.ProcessContext.ContainerContext.CreatedAt))),
 			Variables: newVariablesContext(event, rule, "container."),
 		}
@@ -1617,6 +1632,8 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule, scrubber *utils.Sc
 	if !event.ProcessContext.CGroup.IsNull() {
 		s.CGroupContextSerializer = &CGroupContextSerializer{
 			ID:        string(event.ProcessContext.CGroup.CGroupID),
+			Source:    event.ProcessContext.CGroup.CGroupSource.String(),
+			CreatedAt: utils.NewEasyjsonTimeIfNotZero(event.ProcessContext.CGroup.UnixCreatedAt()),
 			Variables: newVariablesContext(event, rule, "cgroup."),
 		}
 	}
@@ -1750,7 +1767,7 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule, scrubber *utils.Sc
 		s.SyscallContextSerializer = newSyscallContextSerializer(&event.Utimes.SyscallContext, event, func(ctx *SyscallContextSerializer, args *SyscallArgsSerializer) {
 			ctx.Utimes = args
 		})
-	case model.FileMountEventType:
+	case model.FileMountEventType, model.PivotRootEventType:
 		s.MountEventSerializer = newMountEventSerializer(event)
 		s.EventContextSerializer.Outcome = serializeOutcome(event.Mount.Retval)
 		s.SyscallContextSerializer = newSyscallContextSerializer(&event.Mount.SyscallContext, event, func(ctx *SyscallContextSerializer, args *SyscallArgsSerializer) {
@@ -1880,6 +1897,9 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule, scrubber *utils.Sc
 	case model.SetrlimitEventType:
 		s.EventContextSerializer.Outcome = serializeOutcome(event.Setrlimit.Retval)
 		s.SetrlimitEventSerializer = newSetrlimitEventSerializer(event)
+	case model.SocketEventType:
+		s.EventContextSerializer.Outcome = serializeOutcome(event.Socket.Retval)
+		s.SocketEventSerializer = newSocketEventSerializer(event)
 	}
 
 	return s

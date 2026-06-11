@@ -16,12 +16,15 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processorstest"
 	k8sTransformers "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers/k8s"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	orchestratorconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	wmutil "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 
 	autoscaling "k8s.io/api/autoscaling/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -31,6 +34,28 @@ import (
 	v1 "k8s.io/autoscaler/vertical-pod-autoscaler/pkg/apis/autoscaling.k8s.io/v1"
 	"k8s.io/client-go/kubernetes/fake"
 )
+
+func TestVerticalPodAutoscalerHandlers_BeforeCacheCheck(t *testing.T) {
+	resourceModel := &model.VerticalPodAutoscaler{}
+	resource := &v1.VerticalPodAutoscaler{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-vpa",
+			Namespace: "test-ns",
+		},
+	}
+
+	ctx := processorstest.NewProcessorContextBeforeCacheCheck("autoscaling.k8s.io", "verticalpodautoscalers")
+	entityID := taggertypes.NewEntityID(
+		taggertypes.KubernetesMetadata,
+		string(wmutil.GenerateKubeMetadataEntityID(ctx.GetCollectorGroup(), ctx.GetCollectorName(), resource.Namespace, resource.Name)),
+	)
+	tagger := processorstest.NewFakeTagger(map[taggertypes.EntityID][]string{entityID: {"tagger-tag:value"}})
+	handlers := NewVerticalPodAutoscalerHandlers(tagger)
+
+	skip := handlers.EnrichModel(ctx, resource, resourceModel)
+	assert.False(t, skip)
+	assert.Equal(t, []string{"tagger-tag:value"}, resourceModel.Tags)
+}
 
 func TestVerticalPodAutoscalerHandlers_ExtractResource(t *testing.T) {
 	handlers := &VerticalPodAutoscalerHandlers{}
@@ -101,16 +126,16 @@ func TestVerticalPodAutoscalerHandlers_ResourceList(t *testing.T) {
 	// Validate conversion
 	assert.Len(t, resources, 2)
 
-	// Verify deep copy was made
+	// Verify raw informer references are returned
 	resource1, ok := resources[0].(*v1.VerticalPodAutoscaler)
 	assert.True(t, ok)
 	assert.Equal(t, "test-vpa", resource1.Name)
-	assert.NotSame(t, vpa1, resource1) // Should be a copy
+	assert.Same(t, vpa1, resource1) // ResourceList returns raw informer references
 
 	resource2, ok := resources[1].(*v1.VerticalPodAutoscaler)
 	assert.True(t, ok)
 	assert.Equal(t, "vpa2", resource2.Name)
-	assert.NotSame(t, vpa2, resource2) // Should be a copy
+	assert.Same(t, vpa2, resource2) // ResourceList returns raw informer references
 }
 
 func TestVerticalPodAutoscalerHandlers_ResourceUID(t *testing.T) {
@@ -303,7 +328,7 @@ func TestVerticalPodAutoscalerProcessor_Process(t *testing.T) {
 	}
 
 	// Create processor and process vpas
-	processor := processors.NewProcessor(&VerticalPodAutoscalerHandlers{})
+	processor := processors.NewProcessor(&VerticalPodAutoscalerHandlers{tagger: processorstest.NewEmptyFakeTagger()})
 	result, listed, processed := processor.Process(ctx, []*v1.VerticalPodAutoscaler{vpa1, vpa2})
 
 	assert.Equal(t, 2, listed)
@@ -441,4 +466,14 @@ func createTestVerticalPodAutoscaler() *v1.VerticalPodAutoscaler {
 			},
 		},
 	}
+}
+
+func TestVerticalPodAutoscalerHandlers_CloneResource(t *testing.T) {
+	handlers := &VerticalPodAutoscalerHandlers{}
+	original := createTestVerticalPodAutoscaler()
+	cloned := handlers.CloneResource(original)
+	clonedTyped, ok := cloned.(*v1.VerticalPodAutoscaler)
+	assert.True(t, ok)
+	assert.NotSame(t, original, clonedTyped)
+	assert.Equal(t, original, clonedTyped)
 }

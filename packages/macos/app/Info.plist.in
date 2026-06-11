@@ -20,12 +20,18 @@
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
     <string>{build_version}</string>
+    <key>CFBundleSupportedPlatforms</key>
+    <array>
+        <string>MacOSX</string>
+    </array>
     <key>CFBundleVersion</key>
     <string>{build_version}</string>
     <key>LSHasLocalizedDisplayName</key>
     <false/>
+    <key>LSMinimumSystemVersion</key>
+    <string>12.0</string>
     <key>LSUIElement</key>
-    <false/>
+    <true/>
     <key>NSAppleScriptEnabled</key>
     <false/>
     <key>NSHumanReadableCopyright</key>

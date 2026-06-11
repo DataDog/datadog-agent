@@ -12,13 +12,11 @@ import (
 	"expvar"
 	"fmt"
 	"strconv"
-	"strings"
 	"sync"
 	"unsafe"
 
 	"github.com/mohae/deepcopy"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
@@ -126,73 +124,25 @@ func (*PythonCheckLoader) Name() string {
 // Load tries to import a Python module with the same name found in config.Name, searches for
 // subclasses of the AgentCheck class and returns the corresponding Check
 func (cl *PythonCheckLoader) Load(senderManager sender.SenderManager, config integration.Config, instance integration.Data, instanceIndex int) (check.Check, error) {
-	if pkgconfigsetup.Datadog().GetBool("python_lazy_loading") {
-		pythonOnce.Do(func() {
-			InitPython(common.GetPythonPaths()...)
-		})
+	if err := ensurePythonRuntime(); err != nil {
+		return nil, err
 	}
 
-	if rtloader == nil {
-		return nil, errors.New("python is not initialized")
-	}
 	moduleName := config.Name
 	// FastDigest is used as check id calculation does not account for tags order
 	configDigest := config.FastDigest()
 
-	// Lock the GIL
-	glock, err := newStickyLock()
+	cleanup, err := preparePythonLoaderRuntime()
 	if err != nil {
 		return nil, err
 	}
-	defer glock.unlock()
+	defer cleanup()
 
-	// Platform-specific preparation
-	if !pkgconfigsetup.Datadog().GetBool("win_skip_com_init") {
-		log.Debugf("Performing platform loading prep")
-		err = platformLoaderPrep()
-		if err != nil {
-			return nil, err
-		}
-		defer platformLoaderDone() //nolint:errcheck
-	} else {
-		log.Infof("Skipping platform loading prep")
+	loadedClass, err := loadPythonCheckClass(moduleName)
+	if err != nil {
+		return nil, err
 	}
-
-	// Looking for wheels first
-	modules := []string{fmt.Sprintf("%s.%s", wheelNamespace, moduleName), moduleName}
-	var loadedAsWheel bool
-
-	loadedName := ""
-	var checkModule *C.rtloader_pyobject_t
-	var checkClass *C.rtloader_pyobject_t
-	var loadErrors []string // store errors for each module
-
-	for _, name := range modules {
-		// TrackedCStrings untracked by memory tracker currently
-		moduleName := TrackedCString(name)
-		defer C.call_free(unsafe.Pointer(moduleName))
-		if res := C.get_class(rtloader, moduleName, &checkModule, &checkClass); res != 0 {
-			if strings.HasPrefix(name, wheelNamespace+".") {
-				loadedAsWheel = true
-			}
-			loadedName = name
-			break
-		}
-
-		if err := getRtLoaderError(); err != nil {
-			log.Debugf("Unable to load python module - %s: %v", name, err)
-			loadErrors = append(loadErrors, fmt.Sprintf("unable to load python module %s: %v", name, err))
-		} else {
-			log.Debugf("Unable to load python module - %s", name)
-			loadErrors = append(loadErrors, "unable to load python module "+name)
-		}
-	}
-
-	if checkModule == nil || checkClass == nil {
-		errMsg := strings.Join(loadErrors, ", ")
-		log.Debugf("Unable to load check %s: %s", moduleName, errMsg)
-		return nil, fmt.Errorf("unable to load check %s: %s", moduleName, errMsg)
-	}
+	defer loadedClass.decref()
 
 	wheelVersion := "unversioned"
 	// getting the wheel version for the check
@@ -202,14 +152,14 @@ func (cl *PythonCheckLoader) Load(senderManager sender.SenderManager, config int
 	versionAttr := TrackedCString("__version__")
 	defer C.call_free(unsafe.Pointer(versionAttr))
 	// get_attr_string allocation tracked by memory tracker
-	if res := C.get_attr_string(rtloader, checkModule, versionAttr, &version); res != 0 {
+	if res := C.get_attr_string(rtloader, loadedClass.module, versionAttr, &version); res != 0 {
 		wheelVersion = C.GoString(version)
 		C.rtloader_free(rtloader, unsafe.Pointer(version))
 	} else {
 		log.Debugf("python check '%s' doesn't have a '__version__' attribute: %s", config.Name, getRtLoaderError())
 	}
 
-	if !pkgconfigsetup.Datadog().GetBool("disable_py3_validation") && !loadedAsWheel {
+	if !pkgconfigsetup.Datadog().GetBool("disable_py3_validation") && !loadedClass.loadedAsWheel {
 		// Customers, though unlikely might version their custom checks.
 		// Let's use the module namespace to try to decide if this was a
 		// custom check, check for py3 compatibility
@@ -219,7 +169,7 @@ func (cl *PythonCheckLoader) Load(senderManager sender.SenderManager, config int
 		fileAttr := TrackedCString("__file__")
 		defer C.call_free(unsafe.Pointer(fileAttr))
 		// get_attr_string allocation tracked by memory tracker
-		if res := C.get_attr_string(rtloader, checkModule, fileAttr, &checkFilePath); res != 0 {
+		if res := C.get_attr_string(rtloader, loadedClass.module, fileAttr, &checkFilePath); res != 0 {
 			goCheckFilePath = C.GoString(checkFilePath)
 			C.rtloader_free(rtloader, unsafe.Pointer(checkFilePath))
 		} else {
@@ -227,8 +177,9 @@ func (cl *PythonCheckLoader) Load(senderManager sender.SenderManager, config int
 		}
 
 		// Ensure we never emit an empty check_name tag
+		loadedName := loadedClass.loadedName
 		if loadedName == "" {
-			loadedName = moduleName // config.Name (the original check name)
+			loadedName = moduleName
 		}
 		go reportPy3Warnings(loadedName, goCheckFilePath)
 	}
@@ -239,14 +190,14 @@ func (cl *PythonCheckLoader) Load(senderManager sender.SenderManager, config int
 
 		haSupportedAttr := TrackedCString("HA_SUPPORTED")
 		defer C.call_free(unsafe.Pointer(haSupportedAttr))
-		if res := C.get_attr_bool(rtloader, checkClass, haSupportedAttr, &haSupported); res != 0 {
+		if res := C.get_attr_bool(rtloader, loadedClass.class, haSupportedAttr, &haSupported); res != 0 {
 			goHASupported = haSupported == C.bool(true)
 		} else {
 			log.Debugf("Could not query the HA_SUPPORTED attribute for check %s: %s", moduleName, getRtLoaderError())
 		}
 	}
 
-	c, err := NewPythonCheck(senderManager, moduleName, checkClass, goHASupported)
+	c, err := NewPythonCheck(senderManager, moduleName, loadedClass.class, goHASupported)
 	if err != nil {
 		return c, err
 	}
@@ -255,11 +206,7 @@ func (cl *PythonCheckLoader) Load(senderManager sender.SenderManager, config int
 	if instanceIndex >= 0 {
 		configSource = configSource + "[" + strconv.Itoa(instanceIndex) + "]"
 	}
-	// The GIL should be unlocked at this point, `check.Configure` uses its own stickyLock and stickyLocks must not be nested
-	if err := c.Configure(senderManager, configDigest, instance, config.InitConfig, configSource); err != nil {
-		C.rtloader_decref(rtloader, checkClass)
-		C.rtloader_decref(rtloader, checkModule)
-
+	if err := c.Configure(senderManager, configDigest, instance, config.InitConfig, configSource, config.Provider); err != nil {
 		if errors.Is(err, check.ErrSkipCheckInstance) {
 			return nil, err
 		}
@@ -274,8 +221,6 @@ func (cl *PythonCheckLoader) Load(senderManager sender.SenderManager, config int
 	}
 
 	c.version = wheelVersion
-	C.rtloader_decref(rtloader, checkClass)
-	C.rtloader_decref(rtloader, checkModule)
 
 	log.Debugf("python loader: done loading check %s (version %s)", moduleName, wheelVersion)
 	return c, nil

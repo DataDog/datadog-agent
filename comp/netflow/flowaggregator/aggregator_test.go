@@ -20,17 +20,17 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/proto"
-	"github.com/golang/mock/gomock"
 	"github.com/prometheus/client_golang/prometheus"
 	promClient "github.com/prometheus/client_model/go"
 	"go.uber.org/atomic"
+	"go.uber.org/mock/gomock"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
+	eventplatformimpl "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/impl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -40,7 +40,7 @@ import (
 	ndmtestutils "github.com/DataDog/datadog-agent/pkg/networkdevice/testutils"
 
 	"github.com/DataDog/datadog-agent/comp/netflow/common"
-	"github.com/DataDog/datadog-agent/comp/netflow/config"
+	"github.com/DataDog/datadog-agent/comp/netflow/config/def"
 	"github.com/DataDog/datadog-agent/comp/netflow/goflowlib"
 	"github.com/DataDog/datadog-agent/comp/netflow/testutil"
 	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"

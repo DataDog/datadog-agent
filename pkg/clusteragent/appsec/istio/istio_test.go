@@ -304,7 +304,7 @@ func TestDeleted_SuccessfulDeletion(t *testing.T) {
 
 	// Pre-create the EnvoyFilter
 	existingFilter := newTestEnvoyFilter("istio-system")
-	client := dynamicfake.NewSimpleDynamicClient(scheme, existingFilter)
+	client := newFakeDynamicClient(scheme, existingFilter)
 
 	config := appsecconfig.Config{
 		Product: appsecconfig.Product{
@@ -343,7 +343,7 @@ func TestDeleted_FilterAlreadyDeleted(t *testing.T) {
 	ctx := context.Background()
 	logger := logmock.New(t)
 	scheme := runtime.NewScheme()
-	client := dynamicfake.NewSimpleDynamicClient(scheme) // No existing filter
+	client := newFakeDynamicClient(scheme) // No existing filter
 
 	config := appsecconfig.Config{
 		Product: appsecconfig.Product{
@@ -459,7 +459,7 @@ func TestDeleted_GetFilterError(t *testing.T) {
 	ctx := context.Background()
 	logger := logmock.New(t)
 	scheme := runtime.NewScheme()
-	client := dynamicfake.NewSimpleDynamicClient(scheme)
+	client := newFakeDynamicClient(scheme)
 
 	config := appsecconfig.Config{
 		Product: appsecconfig.Product{
@@ -491,6 +491,111 @@ func TestDeleted_GetFilterError(t *testing.T) {
 	assert.Contains(t, err.Error(), "could not check if Envoy Filter was already deleted")
 }
 
+// TestDeleted_CleanupMode_WithNativeGateways tests that cleanupPattern can delete the
+// EnvoyFilter via the K8s GatewayClass pattern even when native Istio Gateways are present.
+// cleanupPattern calls Deleted on live GatewayClasses, so Get(gwClass) returns found (cleanup mode).
+// TestDeleted_APIErrorInContextDetection verifies that a transient API error during
+// cleanup-mode detection causes Deleted() to return an error rather than silently
+// entering cleanup mode and prematurely deleting the shared EnvoyFilter.
+func TestDeleted_APIErrorInContextDetection(t *testing.T) {
+	ctx := context.Background()
+	logger := logmock.New(t)
+	scheme := runtime.NewScheme()
+
+	existingFilter := newTestEnvoyFilter("istio-system")
+	client := newFakeDynamicClient(scheme, existingFilter)
+
+	config := appsecconfig.Config{
+		Product: appsecconfig.Product{
+			Processor: appsecconfig.Processor{
+				ServiceName: "appsec-processor",
+				Namespace:   "datadog",
+				Port:        8080,
+			},
+		},
+		Injection: appsecconfig.Injection{
+			IstioNamespace: "istio-system",
+		},
+	}
+
+	pattern := newTestIstioPattern(client, logger, config)
+	gwClass := newTestGatewayClass("istio", istioGatewayControllerName)
+
+	// Simulate transient API error on the context-detection Get call
+	client.PrependReactor("get", "gatewayclasses", func(_ k8stesting.Action) (handled bool, ret runtime.Object, err error) {
+		return true, nil, errors.New("connection reset by peer")
+	})
+
+	deleteCalled := false
+	client.PrependReactor("delete", "*", func(_ k8stesting.Action) (handled bool, ret runtime.Object, err error) {
+		deleteCalled = true
+		return false, nil, nil
+	})
+
+	err := pattern.Deleted(ctx, gwClass)
+
+	require.Error(t, err, "Should return error when context detection API call fails")
+	assert.Contains(t, err.Error(), "could not determine calling context")
+	assert.False(t, deleteCalled, "Should NOT delete EnvoyFilter when context cannot be determined")
+}
+
+func TestDeleted_CleanupMode_WithNativeGateways(t *testing.T) {
+	ctx := context.Background()
+	logger := logmock.New(t)
+	scheme := runtime.NewScheme()
+
+	existingFilter := newTestEnvoyFilter("istio-system")
+	nativeGateway := &unstructured.Unstructured{
+		Object: map[string]any{
+			"apiVersion": "networking.istio.io/v1",
+			"kind":       "Gateway",
+			"metadata":   map[string]any{"name": "native-gw", "namespace": "default"},
+		},
+	}
+	client := newFakeDynamicClient(scheme, existingFilter)
+
+	config := appsecconfig.Config{
+		Product: appsecconfig.Product{
+			Processor: appsecconfig.Processor{
+				ServiceName: "appsec-processor",
+				Namespace:   "datadog",
+				Port:        8080,
+			},
+		},
+		Injection: appsecconfig.Injection{
+			IstioNamespace: "istio-system",
+		},
+	}
+
+	pattern := newTestIstioPattern(client, logger, config)
+	gwClass := newTestGatewayClass("istio", istioGatewayControllerName)
+
+	// In cleanup mode, Get(gwClass) returns found (GatewayClass still in cluster)
+	client.PrependReactor("get", "gatewayclasses", func(_ k8stesting.Action) (handled bool, ret runtime.Object, err error) {
+		return true, gwClass, nil
+	})
+
+	// Native gateways are present (would normally trigger the cross-pattern skip)
+	client.PrependReactor("list", "gateways", func(_ k8stesting.Action) (handled bool, ret runtime.Object, err error) {
+		return true, &unstructured.UnstructuredList{
+			Items: []unstructured.Unstructured{*nativeGateway},
+		}, nil
+	})
+
+	deletedResources := []string{}
+	client.PrependReactor("delete", "*", func(action k8stesting.Action) (handled bool, ret runtime.Object, err error) {
+		deleteAction := action.(k8stesting.DeleteAction)
+		deletedResources = append(deletedResources, deleteAction.GetName())
+		return false, nil, nil
+	})
+
+	err := pattern.Deleted(ctx, gwClass)
+
+	require.NoError(t, err)
+	assert.Contains(t, deletedResources, envoyFilterName,
+		"EnvoyFilter should be deleted in cleanup mode even when native Istio gateways exist")
+}
+
 func TestDeleted_FilterDeletionError(t *testing.T) {
 	ctx := context.Background()
 	logger := logmock.New(t)
@@ -498,7 +603,7 @@ func TestDeleted_FilterDeletionError(t *testing.T) {
 
 	// Pre-create the EnvoyFilter
 	existingFilter := newTestEnvoyFilter("istio-system")
-	client := dynamicfake.NewSimpleDynamicClient(scheme, existingFilter)
+	client := newFakeDynamicClient(scheme, existingFilter)
 
 	config := appsecconfig.Config{
 		Product: appsecconfig.Product{

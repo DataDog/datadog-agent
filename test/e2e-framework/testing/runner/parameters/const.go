@@ -25,6 +25,12 @@ const (
 	AWSPrivateKeyPassword StoreKey = StoreKey(components.CloudProviderAWS + PrivateKeyPasswordSuffix)
 	// AWSPrivateKeyPath private ssh key path
 	AWSPrivateKeyPath StoreKey = StoreKey(components.CloudProviderAWS + PrivateKeyPathSuffix)
+	// Registry used for image pulls (in K8s and manually running `docker run`)
+	ImagePullRegistry StoreKey = "image_pull_registry"
+	// Username used for image pulls (in K8s and manually running `docker run`)
+	ImagePullUsername StoreKey = "image_pull_username"
+	// Password used for image pulls (in K8s and manually running `docker run`)
+	ImagePullPassword StoreKey = "image_pull_password"
 	// Profile aws profile name
 	Profile StoreKey = "profile"
 	// AWSPublicKeyPath public ssh key path

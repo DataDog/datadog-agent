@@ -1,5 +1,3 @@
-
-
 .lint_windows_base:
   stage: lint
   needs: ["go_deps", "go_tools_deps"]
@@ -23,6 +21,8 @@
       -e CI_PROJECT_NAME
       -e CI_IDENTITIES_GITLAB_ID_TOKEN
       -e GOMODCACHE="c:\modcache"
+      -e GOPROXY
+      -e GONOSUMDB
       -e RUST_LOG="uv=trace"
       ${WINBUILDIMAGE}
       powershell.exe -c "c:\mnt\tasks\winbuildscripts\Invoke-Linters.ps1 -BuildOutOfSource 1 -CheckGoVersion 1 -InstallDeps 1"
@@ -32,8 +32,7 @@
 lint_windows-x64:
   extends: .lint_windows_base
   rules:
-    - !reference [.except_mergequeue]
-    - when: on_success
+    - !reference [.on_native_os_linters]
   variables:
     ARCH: "x64"
   timeout: 1h30m

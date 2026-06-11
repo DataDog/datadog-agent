@@ -1,0 +1,55 @@
+{
+  "type": "or",
+  "operation": "",
+  "left": {
+    "type": "and",
+    "operation": "",
+    "left": {
+      "type": "eq",
+      "operation": "",
+      "left": {
+        "type": "ref",
+        "ref": "x",
+        "operation": "",
+        "error": ""
+      },
+      "right": {
+        "type": "literal",
+        "operation": "",
+        "value": 1,
+        "error": ""
+      },
+      "error": ""
+    },
+    "right": {
+      "type": "eq",
+      "operation": "",
+      "left": {
+        "type": "ref",
+        "ref": "y",
+        "operation": "",
+        "error": ""
+      },
+      "right": {
+        "type": "literal",
+        "operation": "",
+        "value": 2,
+        "error": ""
+      },
+      "error": ""
+    },
+    "error": ""
+  },
+  "right": {
+    "type": "isEmpty",
+    "operation": "",
+    "left": {
+      "type": "ref",
+      "ref": "s",
+      "operation": "",
+      "error": ""
+    },
+    "error": ""
+  },
+  "error": ""
+}

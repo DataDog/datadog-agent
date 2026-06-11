@@ -7,11 +7,8 @@ package apiimpl
 
 import (
 	"fmt"
-	"net"
 	"net/http"
 	"time"
-
-	gorilla "github.com/gorilla/mux"
 
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/internal/agent"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/listener"
@@ -33,26 +30,23 @@ func (server *apiServer) startCMDServer(
 		// no way we can recover from this error
 		return fmt.Errorf("unable to listen to address %s: %v", cmdAddr, err)
 	}
-	server.cmdAddr = cmdListener.Addr().(*net.TCPAddr)
+	server.cmdAddr = cmdListener.Addr()
 
 	// gRPC server
 	grpcServer := server.grpcComponent.BuildServer()
 
 	// Setup multiplexer
 	// create the REST HTTP router
-	agentMux := gorilla.NewRouter()
-
-	// Validate token for every request
-	agentMux.Use(server.ipc.HTTPMiddleware)
+	agentMux := http.NewServeMux()
 
 	cmdMux := http.NewServeMux()
 	cmdMux.Handle(
 		"/agent/",
-		http.StripPrefix("/agent",
+		server.ipc.HTTPMiddleware(observability.MountWithPrefix("/agent",
 			agent.SetupHandlers(
 				agentMux,
 				server.endpointProviders,
-			)))
+			))))
 
 	// Add some observability in the API server
 	cmdMuxHandler := tmf.Middleware(cmdServerShortName)(cmdMux)

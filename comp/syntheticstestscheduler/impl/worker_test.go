@@ -477,6 +477,48 @@ func TestNetworkPathToTestResult(t *testing.T) {
 	}
 }
 
+func TestNetworkPathToTestResult_UsesBackendResultID(t *testing.T) {
+	src := "frontend"
+	dst := "backend"
+	icmpTTL := 5
+	icmpTimeout := 2
+
+	sched := &syntheticsTestScheduler{
+		generateTestResultID: func(func(rand io.Reader, max *big.Int) (n *big.Int, err error)) (string, error) {
+			return "generated-id", nil
+		},
+	}
+
+	worker := workerResult{
+		testCfg: SyntheticsTestCtx{
+			cfg: common.SyntheticsTestConfig{
+				PublicID: "pub-on-demand",
+				ResultID: "backend-result-id",
+				Type:     "network",
+				Config: struct {
+					Assertions []common.Assertion   `json:"assertions"`
+					Request    common.ConfigRequest `json:"request"`
+				}{
+					Request: common.ICMPConfigRequest{
+						Host: "8.8.8.8",
+						NetworkConfigRequest: common.NetworkConfigRequest{
+							SourceService:      &src,
+							DestinationService: &dst,
+							MaxTTL:             &icmpTTL,
+							Timeout:            &icmpTimeout,
+						},
+					},
+				},
+			},
+		},
+		hostname: "agent-host",
+	}
+
+	got, err := sched.networkPathToTestResult(&worker)
+	require.NoError(t, err)
+	require.Equal(t, "backend-result-id", got.Result.ID)
+}
+
 func TestGenerateRandomStringUInt63(t *testing.T) {
 	t.Run("success with mocked value", func(t *testing.T) {
 		randIntFn := func(_ io.Reader, _ *big.Int) (*big.Int, error) {

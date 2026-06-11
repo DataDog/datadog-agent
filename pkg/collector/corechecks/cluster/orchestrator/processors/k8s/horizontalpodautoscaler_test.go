@@ -22,12 +22,37 @@ import (
 	"k8s.io/client-go/kubernetes/fake"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	wmutil "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processorstest"
 	k8sTransformers "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers/k8s"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	orchestratorconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 )
+
+func TestHorizontalPodAutoscalerHandlers_BeforeCacheCheck(t *testing.T) {
+	resourceModel := &model.HorizontalPodAutoscaler{}
+	resource := &v2.HorizontalPodAutoscaler{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-hpa",
+			Namespace: "test-ns",
+		},
+	}
+
+	ctx := processorstest.NewProcessorContextBeforeCacheCheck("autoscaling", "horizontalpodautoscalers")
+	entityID := taggertypes.NewEntityID(
+		taggertypes.KubernetesMetadata,
+		string(wmutil.GenerateKubeMetadataEntityID(ctx.GetCollectorGroup(), ctx.GetCollectorName(), resource.Namespace, resource.Name)),
+	)
+	tagger := processorstest.NewFakeTagger(map[taggertypes.EntityID][]string{entityID: {"tagger-tag:value"}})
+	handlers := NewHorizontalPodAutoscalerHandlers(tagger)
+
+	skip := handlers.EnrichModel(ctx, resource, resourceModel)
+	assert.False(t, skip)
+	assert.Equal(t, []string{"tagger-tag:value"}, resourceModel.Tags)
+}
 
 func TestHorizontalPodAutoscalerHandlers_ExtractResource(t *testing.T) {
 	handlers := &HorizontalPodAutoscalerHandlers{}
@@ -92,16 +117,16 @@ func TestHorizontalPodAutoscalerHandlers_ResourceList(t *testing.T) {
 	// Validate conversion
 	assert.Len(t, resources, 2)
 
-	// Verify deep copy was made
+	// Verify raw informer references are returned
 	resource1, ok := resources[0].(*v2.HorizontalPodAutoscaler)
 	assert.True(t, ok)
 	assert.Equal(t, "hpa-1", resource1.Name)
-	assert.NotSame(t, hpa1, resource1) // Should be a copy
+	assert.Same(t, hpa1, resource1) // ResourceList returns raw informer references
 
 	resource2, ok := resources[1].(*v2.HorizontalPodAutoscaler)
 	assert.True(t, ok)
 	assert.Equal(t, "hpa-2", resource2.Name)
-	assert.NotSame(t, hpa2, resource2) // Should be a copy
+	assert.Same(t, hpa2, resource2) // ResourceList returns raw informer references
 }
 
 func TestHorizontalPodAutoscalerHandlers_ResourceUID(t *testing.T) {
@@ -296,7 +321,7 @@ func TestHorizontalPodAutoscalerProcessor_Process(t *testing.T) {
 	}
 
 	// Create processor and process HPAs
-	processor := processors.NewProcessor(&HorizontalPodAutoscalerHandlers{})
+	processor := processors.NewProcessor(&HorizontalPodAutoscalerHandlers{tagger: processorstest.NewEmptyFakeTagger()})
 	result, listed, processed := processor.Process(ctx, []*v2.HorizontalPodAutoscaler{hpa1, hpa2})
 
 	assert.Equal(t, 2, listed)
@@ -379,6 +404,7 @@ func createTestHorizontalPodAutoscaler(name, namespace string) *v2.HorizontalPod
 			UID:             types.UID("e42e5adc-0749-11e8-a2b8-000c29dea4f6"),
 		},
 		Spec: v2.HorizontalPodAutoscalerSpec{
+
 			ScaleTargetRef: v2.CrossVersionObjectReference{
 				Kind: "Deployment",
 				Name: "agent",
@@ -521,4 +547,14 @@ func createTestHorizontalPodAutoscaler(name, namespace string) *v2.HorizontalPod
 			},
 		},
 	}
+}
+
+func TestHorizontalPodAutoscalerHandlers_CloneResource(t *testing.T) {
+	handlers := &HorizontalPodAutoscalerHandlers{}
+	original := createTestHorizontalPodAutoscaler("test", "ns")
+	cloned := handlers.CloneResource(original)
+	clonedTyped, ok := cloned.(*v2.HorizontalPodAutoscaler)
+	assert.True(t, ok)
+	assert.NotSame(t, original, clonedTyped)
+	assert.Equal(t, original, clonedTyped)
 }

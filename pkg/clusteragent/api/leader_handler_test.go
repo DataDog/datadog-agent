@@ -17,8 +17,9 @@ import (
 
 // mockLeaderEngine is our mock implementation of the leaderEngine interface
 type mockLeaderEngine struct {
-	isLeader bool
-	leaderIP string
+	isLeader    bool
+	leaderIP    string
+	leaderIPErr error
 }
 
 func (m *mockLeaderEngine) IsLeader() bool {
@@ -26,7 +27,7 @@ func (m *mockLeaderEngine) IsLeader() bool {
 }
 
 func (m *mockLeaderEngine) GetLeaderIP() (string, error) {
-	return m.leaderIP, nil
+	return m.leaderIP, m.leaderIPErr
 }
 
 // fakeLeaderForwarder is a fake implementation of the forwarder for testing purposes.

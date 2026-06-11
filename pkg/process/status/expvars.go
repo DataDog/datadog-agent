@@ -217,8 +217,8 @@ func getEndpointsInfo(config config.Component) interface{} {
 	// obfuscate the api keys
 	for _, endpoint := range eps {
 		apiKey := endpoint.APIKey
-		if len(apiKey) > 5 {
-			apiKey = apiKey[len(apiKey)-5:]
+		if len(apiKey) > 4 {
+			apiKey = apiKey[len(apiKey)-4:]
 		}
 
 		endpointsInfo[endpoint.Endpoint.String()] = append(endpointsInfo[endpoint.Endpoint.String()], apiKey)

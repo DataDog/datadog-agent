@@ -37,7 +37,7 @@ spec:
       imagePullSecrets: []
       initContainers:
         - name: init-volume
-          image: "gcr.io/datadoghq/agent:7.73.0"
+          image: "registry.datadoghq.com/agent:7.76.1"
           imagePullPolicy: IfNotPresent
           command: ["bash", "-c"]
           args:
@@ -48,7 +48,7 @@ spec:
               readOnly: false # Need RW for writing agent config files
           resources: {}
         - name: init-config
-          image: "gcr.io/datadoghq/agent:7.73.0"
+          image: "registry.datadoghq.com/agent:7.76.1"
           imagePullPolicy: IfNotPresent
           command: ["bash", "-c"]
           args:
@@ -60,7 +60,7 @@ spec:
           resources: {}
       containers:
         - name: agent
-          image: "gcr.io/datadoghq/agent:7.73.0"
+          image: "registry.datadoghq.com/agent:7.76.1"
           command: ["bash", "-c"]
           args:
             - find /etc/datadog-agent/conf.d/ -name "*.yaml.default" -type f -delete && touch /etc/datadog-agent/datadog.yaml && exec agent run

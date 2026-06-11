@@ -8,6 +8,7 @@ package idx
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/tinylib/msgp/msgp"
 )
@@ -64,6 +65,7 @@ func (tp *InternalTracerPayload) UnmarshalMsgDictionary(bts []byte) error {
 		}
 		dict[i] = str
 	}
+	dictSize := sz
 	stringTable, newZeroRef := buildStringTable(dict)
 	tp.Strings = stringTable
 	// read num chunks
@@ -91,13 +93,15 @@ func (tp *InternalTracerPayload) UnmarshalMsgDictionary(bts []byte) error {
 			tp.Chunks[i].Spans = make([]*InternalSpan, sz)
 		}
 		convertedFields := NewSpanConvertedFields()
+		var rootSampling RootSamplingMergeState
 		for j := range tp.Chunks[i].Spans {
 			if tp.Chunks[i].Spans[j] == nil {
 				tp.Chunks[i].Spans[j] = NewInternalSpan(stringTable, &Span{})
 			}
-			if bts, err = tp.Chunks[i].Spans[j].UnmarshalMsgDictionaryConverted(bts, convertedFields, newZeroRef); err != nil {
+			if bts, err = tp.Chunks[i].Spans[j].UnmarshalMsgDictionaryConverted(bts, convertedFields, dictSize, newZeroRef); err != nil {
 				return err
 			}
+			rootSampling.ReconcileSamplingPriorityAfterChunkSpan(convertedFields, tp.Chunks[i].Spans[j].ParentID())
 		}
 		tp.Chunks[i].ApplyPromotedFields(convertedFields, &chunkConvertedFields)
 	}
@@ -109,12 +113,15 @@ func (tp *InternalTracerPayload) UnmarshalMsgDictionary(bts []byte) error {
 // has.
 const spanPropertyCount = 12
 
-func readV05StringRef(newZeroRef uint32, bts []byte) (uint32, []byte, error) {
+func readV05StringRef(dictSize uint32, newZeroRef uint32, bts []byte) (uint32, []byte, error) {
 	var parsedRef uint32
 	var err error
 	parsedRef, bts, err = msgp.ReadUint32Bytes(bts)
 	if err != nil {
 		return 0, bts, err
+	}
+	if parsedRef >= dictSize {
+		return 0, bts, fmt.Errorf("dictionary index %d out of range", parsedRef)
 	}
 	if parsedRef == 0 && newZeroRef != 0 {
 		// This string was moved from index 0 to index newZeroRef, so we return the new index
@@ -127,7 +134,7 @@ func readV05StringRef(newZeroRef uint32, bts []byte) (uint32, []byte, error) {
 // in pkg/trace/api/version.go
 // The provided InternalSpan must have a pre-populated Strings field
 // newZeroRef is the new location for string ref `0` (0 if unchanged) see buildStringTable for more details
-func (s *InternalSpan) UnmarshalMsgDictionaryConverted(bts []byte, convertedFields *SpanConvertedFields, newZeroRef uint32) ([]byte, error) {
+func (s *InternalSpan) UnmarshalMsgDictionaryConverted(bts []byte, convertedFields *SpanConvertedFields, dictSize uint32, newZeroRef uint32) ([]byte, error) {
 	var (
 		sz  uint32
 		err error
@@ -140,17 +147,17 @@ func (s *InternalSpan) UnmarshalMsgDictionaryConverted(bts []byte, convertedFiel
 		return bts, errors.New("encoded span needs exactly 12 elements in array")
 	}
 	// Service (0)
-	s.span.ServiceRef, bts, err = readV05StringRef(newZeroRef, bts)
+	s.span.ServiceRef, bts, err = readV05StringRef(dictSize, newZeroRef, bts)
 	if err != nil {
 		return bts, err
 	}
 	// Name (1)
-	s.span.NameRef, bts, err = readV05StringRef(newZeroRef, bts)
+	s.span.NameRef, bts, err = readV05StringRef(dictSize, newZeroRef, bts)
 	if err != nil {
 		return bts, err
 	}
 	// Resource (2)
-	s.span.ResourceRef, bts, err = readV05StringRef(newZeroRef, bts)
+	s.span.ResourceRef, bts, err = readV05StringRef(dictSize, newZeroRef, bts)
 	if err != nil {
 		return bts, err
 	}
@@ -201,11 +208,11 @@ func (s *InternalSpan) UnmarshalMsgDictionaryConverted(bts []byte, convertedFiel
 	for sz > 0 {
 		sz--
 		var key, val uint32
-		key, bts, err = readV05StringRef(newZeroRef, bts)
+		key, bts, err = readV05StringRef(dictSize, newZeroRef, bts)
 		if err != nil {
 			return bts, err
 		}
-		val, bts, err = readV05StringRef(newZeroRef, bts)
+		val, bts, err = readV05StringRef(dictSize, newZeroRef, bts)
 		if err != nil {
 			return bts, err
 		}
@@ -230,7 +237,7 @@ func (s *InternalSpan) UnmarshalMsgDictionaryConverted(bts []byte, convertedFiel
 			key uint32
 			val float64
 		)
-		key, bts, err = readV05StringRef(newZeroRef, bts)
+		key, bts, err = readV05StringRef(dictSize, newZeroRef, bts)
 		if err != nil {
 			return bts, err
 		}
@@ -246,7 +253,7 @@ func (s *InternalSpan) UnmarshalMsgDictionaryConverted(bts []byte, convertedFiel
 		}
 	}
 	// Type (11)
-	s.span.TypeRef, bts, err = readV05StringRef(newZeroRef, bts)
+	s.span.TypeRef, bts, err = readV05StringRef(dictSize, newZeroRef, bts)
 	if err != nil {
 		return bts, err
 	}

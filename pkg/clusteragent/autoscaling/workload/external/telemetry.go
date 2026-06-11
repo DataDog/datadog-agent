@@ -8,7 +8,8 @@
 package external
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 )
 
@@ -20,7 +21,7 @@ var (
 	commonOpts = telemetry.Options{NoDoubleUnderscoreSep: true}
 
 	// telemetryHorizontalExternalRecommendations tracks external horizontal scaling recommendation values
-	telemetryHorizontalExternalRecommendations = telemetry.NewGaugeWithOpts(
+	telemetryHorizontalExternalRecommendations = telemetryimpl.GetCompatComponent().NewGaugeWithOpts(
 		subsystem,
 		"recommended_replicas",
 		[]string{"namespace", "target_name", "autoscaler_name", "source", "recommender_host", le.JoinLeaderLabel},

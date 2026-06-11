@@ -15,7 +15,7 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	checker := pkgconfigsetup.NewChangeChecker()
+	checker := pkgconfigsetup.NewChangeChecker(pkgconfigsetup.Datadog())
 	exit := m.Run()
 	if checker.HasChanged() {
 		os.Exit(1)

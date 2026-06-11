@@ -1,0 +1,9 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "types",
+    srcs = ["types.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/tagger/types",
+    visibility = ["//visibility:public"],
+    deps = ["//comp/core/tagger/origindetection"],
+)

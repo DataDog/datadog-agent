@@ -21,3 +21,15 @@ runPredefinedPowershellScript:
       Write-Output "This vm name is $env:COMPUTERNAME"
     allowedEnvVars:
       - COMPUTERNAME
+
+  # Example restarting a Windows service
+  restartService:
+    script: |
+      Restart-Service -Name {{ parameters.serviceName }} -Force
+      Write-Output "Restart triggered for service '{{ parameters.serviceName }}' at $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
+    parameterSchema:
+      properties:
+        serviceName:
+          type: string
+      required:
+        - serviceName

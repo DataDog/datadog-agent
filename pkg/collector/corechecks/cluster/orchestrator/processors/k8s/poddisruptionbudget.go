@@ -9,6 +9,10 @@ package k8s
 
 import (
 	model "github.com/DataDog/agent-payload/v5/process"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	wmutil "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/common"
@@ -23,6 +27,33 @@ import (
 // PodDisruptionBudgetHandlers implements the Handlers interface for Kubernetes NetworkPolicy.
 type PodDisruptionBudgetHandlers struct {
 	common.BaseHandlers
+	tagger tagger.Component
+}
+
+// NewPodDisruptionBudgetHandlers creates a new PodDisruptionBudgetHandlers.
+func NewPodDisruptionBudgetHandlers(tagger tagger.Component) *PodDisruptionBudgetHandlers {
+	return &PodDisruptionBudgetHandlers{tagger: tagger}
+}
+
+// EnrichModel is a handler called before cache lookup.
+//
+//nolint:revive
+func (h *PodDisruptionBudgetHandlers) EnrichModel(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
+	r := resource.(*policyv1.PodDisruptionBudget)
+	m := resourceModel.(*model.PodDisruptionBudget)
+
+	entityID := taggertypes.NewEntityID(
+		taggertypes.KubernetesMetadata,
+		string(wmutil.GenerateKubeMetadataEntityID(ctx.GetCollectorGroup(), ctx.GetCollectorName(), r.Namespace, r.Name)),
+	)
+	taggerTags, err := h.tagger.Tag(entityID, taggertypes.HighCardinality)
+	if err != nil {
+		log.Debugf("Could not retrieve tags for poddisruptionbudget %s/%s: %s", r.Namespace, r.Name, err)
+		return
+	}
+
+	m.Tags = append(m.Tags, taggerTags...)
+	return
 }
 
 // AfterMarshalling is a handler called after resource marshalling.
@@ -74,10 +105,20 @@ func (h *PodDisruptionBudgetHandlers) ResourceList(_ processors.ProcessorContext
 	resources = make([]interface{}, 0, len(resourceList))
 
 	for _, resource := range resourceList {
-		resources = append(resources, resource.DeepCopy())
+		resources = append(resources, resource)
 	}
 
 	return resources
+}
+
+// CloneResource returns a deep copy of the resource.
+func (h *PodDisruptionBudgetHandlers) CloneResource(resource interface{}) interface{} {
+	return resource.(*policyv1.PodDisruptionBudget).DeepCopy()
+}
+
+// ResourceVersionFromRaw returns the resource version from the raw resource.
+func (h *PodDisruptionBudgetHandlers) ResourceVersionFromRaw(_ processors.ProcessorContext, resource interface{}) string {
+	return resource.(*policyv1.PodDisruptionBudget).ResourceVersion
 }
 
 // ResourceUID is a handler called to retrieve the resource UID.

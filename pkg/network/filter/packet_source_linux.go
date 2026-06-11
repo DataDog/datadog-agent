@@ -24,7 +24,8 @@ import (
 	"golang.org/x/net/bpf"
 	"golang.org/x/sys/unix"
 
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -40,10 +41,10 @@ var packetSourceTelemetry = struct {
 	captured  *telemetry.StatCounterWrapper
 	dropped   *telemetry.StatCounterWrapper
 }{
-	telemetry.NewStatCounterWrapper(telemetryModuleName, "polled_packets", []string{}, "Counter measuring the number of polled packets"),
-	telemetry.NewStatCounterWrapper(telemetryModuleName, "processed_packets", []string{}, "Counter measuring the number of processed packets"),
-	telemetry.NewStatCounterWrapper(telemetryModuleName, "captured_packets", []string{}, "Counter measuring the number of captured packets"),
-	telemetry.NewStatCounterWrapper(telemetryModuleName, "dropped_packets", []string{}, "Counter measuring the number of dropped packets"),
+	telemetry.NewStatCounterWrapper(telemetryimpl.GetCompatComponent(), telemetryModuleName, "polled_packets", []string{}, "Counter measuring the number of polled packets"),
+	telemetry.NewStatCounterWrapper(telemetryimpl.GetCompatComponent(), telemetryModuleName, "processed_packets", []string{}, "Counter measuring the number of processed packets"),
+	telemetry.NewStatCounterWrapper(telemetryimpl.GetCompatComponent(), telemetryModuleName, "captured_packets", []string{}, "Counter measuring the number of captured packets"),
+	telemetry.NewStatCounterWrapper(telemetryimpl.GetCompatComponent(), telemetryModuleName, "dropped_packets", []string{}, "Counter measuring the number of dropped packets"),
 }
 
 // AFPacketSource provides a RAW_SOCKET attached to an eBPF SOCKET_FILTER
@@ -66,32 +67,51 @@ type AFPacketInfo struct {
 	PktType uint8
 }
 
+// PacketType returns the packet direction type
+func (a *AFPacketInfo) PacketType() uint8 {
+	return a.PktType
+}
+
+// LinkLayerType returns the gopacket layer type for this packet.
+// Linux AF_PACKET always delivers Ethernet frames.
+func (a *AFPacketInfo) LinkLayerType() gopacket.LayerType {
+	return layers.LayerTypeEthernet
+}
+
 // GetPacketInfoBuffer returns a pointer to AFPacketInfo which is reused between calls
 func (p *AFPacketSource) GetPacketInfoBuffer() *AFPacketInfo {
 	return p.afPacketInfo
 }
 
+type packetSourceConfig struct {
+	snapLen uint16
+}
+
+// Option configures AFPacketSource
+type Option func(*packetSourceConfig)
+
 // OptSnapLen specifies the maximum length of the packet to read
 //
 // Defaults to 4096 bytes
-type OptSnapLen int
+func OptSnapLen(v uint16) Option {
+	return func(p *packetSourceConfig) {
+		p.snapLen = v
+	}
+}
 
 // NewAFPacketSource creates an AFPacketSource using the provided BPF filter
-func NewAFPacketSource(size int, opts ...interface{}) (*AFPacketSource, error) {
-	snapLen := defaultSnapLen
+func NewAFPacketSource(size uint32, opts ...Option) (*AFPacketSource, error) {
+	cfg := packetSourceConfig{
+		snapLen: defaultSnapLen,
+	}
 	for _, opt := range opts {
-		switch o := opt.(type) {
-		case OptSnapLen:
-			snapLen = int(o)
-			if snapLen <= 0 || snapLen > 65536 {
-				return nil, errors.New("snap len should be between 0 and 65536")
-			}
-		default:
-			return nil, fmt.Errorf("unknown option %+v", opt)
-		}
+		opt(&cfg)
+	}
+	if cfg.snapLen == 0 {
+		return nil, errors.New("SnapLen should be greater than zero")
 	}
 
-	frameSize, blockSize, numBlocks, err := afpacketComputeSize(size, snapLen, os.Getpagesize())
+	frameSize, blockSize, numBlocks, err := afpacketComputeSize(size, cfg.snapLen, uint32(os.Getpagesize()))
 	if err != nil {
 		return nil, fmt.Errorf("error computing mmap'ed buffer parameters: %w", err)
 	}
@@ -103,8 +123,8 @@ func NewAFPacketSource(size int, opts ...interface{}) (*AFPacketSource, error) {
 		afpacket.OptBlockSize(blockSize),
 		afpacket.OptNumBlocks(numBlocks),
 		afpacket.OptAddPktType(true),
+		afpacket.OptTPacketVersion(afpacket.TPacketVersion3),
 	)
-
 	if err != nil {
 		return nil, fmt.Errorf("error creating raw socket: %s", err)
 	}
@@ -158,11 +178,11 @@ func visitPackets(p zeroCopyPacketReader, visit AFPacketVisitor) error {
 		data, stats, err := p.ZeroCopyReadPacketData()
 
 		// Immediately retry for EAGAIN
-		if err == syscall.EAGAIN {
+		if errors.Is(err, syscall.EAGAIN) {
 			continue
 		}
 
-		if err == afpacket.ErrTimeout || err == afpacket.ErrCancelled {
+		if errors.Is(err, afpacket.ErrTimeout) || errors.Is(err, afpacket.ErrCancelled) {
 			return nil
 		}
 
@@ -234,13 +254,13 @@ func (p *AFPacketSource) pollStats() {
 
 			packetSourceTelemetry.polls.Add(sourceStats.Polls - prevPolls)
 			packetSourceTelemetry.processed.Add(sourceStats.Packets - prevProcessed)
-			packetSourceTelemetry.captured.Add(int64(socketStats.Packets()) - prevCaptured)
-			packetSourceTelemetry.dropped.Add(int64(socketStats.Drops()) - prevDropped)
+			packetSourceTelemetry.captured.Add(int64(socketStats.Packets) - prevCaptured)
+			packetSourceTelemetry.dropped.Add(int64(socketStats.Drops) - prevDropped)
 
 			prevPolls = sourceStats.Polls
 			prevProcessed = sourceStats.Packets
-			prevCaptured = int64(socketStats.Packets())
-			prevDropped = int64(socketStats.Drops())
+			prevCaptured = int64(socketStats.Packets)
+			prevDropped = int64(socketStats.Drops)
 		case <-p.exit:
 			return
 		}
@@ -253,10 +273,10 @@ func (p *AFPacketSource) pollStats() {
 // frame size and page size.
 //
 // See https://www.kernel.org/doc/Documentation/networking/packet_mmap.txt
-func afpacketComputeSize(targetSize, snaplen, pageSize int) (frameSize, blockSize, numBlocks int, err error) {
-	frameSize = tpacketAlign(unix.TPACKET_HDRLEN) + tpacketAlign(snaplen)
+func afpacketComputeSize(targetSize uint32, snaplen uint16, pageSize uint32) (frameSize, blockSize, numBlocks uint32, err error) {
+	frameSize = uint32(tpacketAlign(unix.TPACKET_HDRLEN)) + uint32(tpacketAlign(int(snaplen)))
 	if frameSize <= pageSize {
-		frameSize = int(nextPowerOf2(int64(frameSize)))
+		frameSize = uint32(nextPowerOf2(int64(frameSize)))
 		if frameSize <= pageSize {
 			blockSize = pageSize
 		}

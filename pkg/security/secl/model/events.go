@@ -143,8 +143,14 @@ const (
 	TracerMemfdCreateEventType
 	// TracerMemfdSealEventType Tracer memfd seal event
 	TracerMemfdSealEventType
+	// PivotRootEventType is sent when pivot_root completes successfully
+	PivotRootEventType
+	// SetSidEventType is sent when setsid completes successfully
+	SetSidEventType
 	// NopEventType nop event
 	NopEventType
+	// SocketEventType is sent when a socket is created
+	SocketEventType
 	// MaxKernelEventType is used internally to get the maximum number of kernel events.
 	MaxKernelEventType
 
@@ -152,7 +158,7 @@ const (
 	FirstEventType = FileOpenEventType
 
 	// LastEventType is the last valid event type
-	LastEventType = SyscallsEventType
+	LastEventType = PivotRootEventType
 
 	// FirstDiscarderEventType first event that accepts discarders
 	FirstDiscarderEventType = FileOpenEventType
@@ -161,7 +167,7 @@ const (
 	LastDiscarderEventType = FileChdirEventType
 
 	// LastApproverEventType is the last event that accepts approvers
-	LastApproverEventType = SetSockOptEventType
+	LastApproverEventType = SocketEventType
 
 	// CustomEventType represents a custom event type
 	CustomEventType EventType = iota
@@ -338,8 +344,14 @@ func (t EventType) String() string {
 		return "tracer_memfd_create"
 	case TracerMemfdSealEventType:
 		return "tracer_memfd_seal"
+	case PivotRootEventType:
+		return "pivot_root"
+	case SetSidEventType:
+		return "setsid"
 	case NopEventType:
 		return "nop"
+	case SocketEventType:
+		return "socket"
 	default:
 		return "unknown"
 	}

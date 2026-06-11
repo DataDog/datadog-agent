@@ -22,12 +22,37 @@ import (
 	"k8s.io/client-go/kubernetes/fake"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	wmutil "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processorstest"
 	k8sTransformers "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers/k8s"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	orchestratorconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 )
+
+func TestReplicaSetHandlers_BeforeCacheCheck(t *testing.T) {
+	resourceModel := &model.ReplicaSet{}
+	resource := &appsv1.ReplicaSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-rs",
+			Namespace: "test-ns",
+		},
+	}
+
+	ctx := processorstest.NewProcessorContextBeforeCacheCheck("apps", "replicasets")
+	entityID := taggertypes.NewEntityID(
+		taggertypes.KubernetesMetadata,
+		string(wmutil.GenerateKubeMetadataEntityID(ctx.GetCollectorGroup(), ctx.GetCollectorName(), resource.Namespace, resource.Name)),
+	)
+	tagger := processorstest.NewFakeTagger(map[taggertypes.EntityID][]string{entityID: {"tagger-tag:value"}})
+	handlers := NewReplicaSetHandlers(tagger)
+
+	skip := handlers.EnrichModel(ctx, resource, resourceModel)
+	assert.False(t, skip)
+	assert.Equal(t, []string{"tagger-tag:value"}, resourceModel.Tags)
+}
 
 func TestReplicaSetHandlers_ExtractResource(t *testing.T) {
 	handlers := &ReplicaSetHandlers{}
@@ -94,16 +119,16 @@ func TestReplicaSetHandlers_ResourceList(t *testing.T) {
 	// Validate conversion
 	assert.Len(t, resources, 2)
 
-	// Verify deep copy was made
+	// Verify raw informer references are returned
 	resource1, ok := resources[0].(*appsv1.ReplicaSet)
 	assert.True(t, ok)
 	assert.Equal(t, "test-rs", resource1.Name)
-	assert.NotSame(t, rs1, resource1) // Should be a copy
+	assert.Same(t, rs1, resource1) // ResourceList returns raw informer references
 
 	resource2, ok := resources[1].(*appsv1.ReplicaSet)
 	assert.True(t, ok)
 	assert.Equal(t, "rs2", resource2.Name)
-	assert.NotSame(t, rs2, resource2) // Should be a copy
+	assert.Same(t, rs2, resource2) // ResourceList returns raw informer references
 }
 
 func TestReplicaSetHandlers_ResourceUID(t *testing.T) {
@@ -296,7 +321,7 @@ func TestReplicaSetProcessor_Process(t *testing.T) {
 	}
 
 	// Create processor and process replica sets
-	processor := processors.NewProcessor(&ReplicaSetHandlers{})
+	processor := processors.NewProcessor(&ReplicaSetHandlers{tagger: processorstest.NewEmptyFakeTagger()})
 	result, listed, processed := processor.Process(ctx, []*appsv1.ReplicaSet{rs1, rs2})
 
 	assert.Equal(t, 2, listed)
@@ -432,4 +457,14 @@ func createTestReplicaSet() *appsv1.ReplicaSet {
 			},
 		},
 	}
+}
+
+func TestReplicaSetHandlers_CloneResource(t *testing.T) {
+	handlers := &ReplicaSetHandlers{}
+	original := createTestReplicaSet()
+	cloned := handlers.CloneResource(original)
+	clonedTyped, ok := cloned.(*appsv1.ReplicaSet)
+	assert.True(t, ok)
+	assert.NotSame(t, original, clonedTyped)
+	assert.Equal(t, original, clonedTyped)
 }

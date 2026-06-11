@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Dynamic Instrumentation: Fix a bug where ``evaluationErrors`` were reported
+    in the wrong location in snapshot payloads, causing them to not appear
+    properly in the UI.

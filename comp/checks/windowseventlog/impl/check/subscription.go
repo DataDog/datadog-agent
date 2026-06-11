@@ -17,8 +17,8 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/comp/checks/windowseventlog/impl/check/eventdatafilter"
-	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	logsConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/util/log"

@@ -1,0 +1,15 @@
+load("//bazel/rules:windows_resources.bzl", "win_resource")
+
+win_resource(
+    name = "rsrc",
+    src = "agent.rc",
+    visibility = ["//cmd/agent:__subpackages__"],
+    deps = [
+        "agent-py2.exe.manifest",
+        "agent-py3.exe.manifest",
+        "agent32-py2.exe.manifest",
+        "agent32-py3.exe.manifest",
+        "version.h",
+        "//tools/windows/DatadogAgentInstaller/WixSetup/assets:project.ico",
+    ],
+)

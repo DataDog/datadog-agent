@@ -6,7 +6,8 @@
 package main
 
 import (
-	"errors"
+	"fmt"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -23,34 +24,27 @@ func TestParseMod(t *testing.T) {
 	}{
 		{
 			name:              "Correct module",
-			modPath:           "./testdata/match",
-			expectedErr:       nil,
-			expectedGoVersion: "1.25.0",
-			expectedDepCount:  1,
-		},
-		{
-			name:              "Correct module with slash",
-			modPath:           "./testdata/match/",
+			modPath:           "./testdata/match.go.mod",
 			expectedErr:       nil,
 			expectedGoVersion: "1.25.0",
 			expectedDepCount:  1,
 		},
 		{
 			name:              "Correct module with patch version in go directive",
-			modPath:           "./testdata/patchgoversion/",
+			modPath:           "./testdata/patchgoversion.go.mod",
 			expectedErr:       nil,
 			expectedGoVersion: "1.25.6",
 			expectedDepCount:  0,
 		},
 		{
 			name:        "Missing module",
-			modPath:     "./testdata/nonexistant/",
-			expectedErr: errors.New("could not read go.mod file in ./testdata/nonexistant/"),
+			modPath:     "./testdata/nonexistent",
+			expectedErr: fmt.Errorf("could not read %s", filepath.FromSlash("testdata/nonexistent/go.mod")),
 		},
 		{
 			name:        "Badly formatted module",
-			modPath:     "./testdata/badformat/",
-			expectedErr: errors.New("could not parse go.mod file in ./testdata/badformat/"),
+			modPath:     "./testdata/badformat.go.mod",
+			expectedErr: fmt.Errorf("could not parse %s", filepath.FromSlash("testdata/badformat.go.mod")),
 		},
 	}
 
@@ -79,13 +73,13 @@ func TestFilterMatch(t *testing.T) {
 	}{
 		{
 			name:             "With matches",
-			modPath:          "./testdata/match",
+			modPath:          "./testdata/match.go.mod",
 			expectedMatches:  []string{"github.com/DataDog/datadog-agent/pkg/test"},
 			expectedDepCount: 1,
 		},
 		{
 			name:             "Without matches",
-			modPath:          "./testdata/nomatch",
+			modPath:          "./testdata/nomatch.go.mod",
 			expectedMatches:  []string{},
 			expectedDepCount: 2,
 		},

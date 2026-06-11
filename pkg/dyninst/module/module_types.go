@@ -19,4 +19,5 @@ type procRuntimeID struct {
 	runtimeID     string
 	gitInfo       *process.GitInfo
 	containerInfo *process.ContainerInfo
+	processTags   []string
 }

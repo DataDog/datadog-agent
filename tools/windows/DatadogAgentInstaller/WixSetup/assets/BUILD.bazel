@@ -1,0 +1,4 @@
+exports_files(
+    ["project.ico"],
+    visibility = ["//cmd:__subpackages__"],
+)

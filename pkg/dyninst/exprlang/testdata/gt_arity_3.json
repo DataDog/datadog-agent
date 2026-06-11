@@ -1,0 +1,5 @@
+{
+  "type": "error",
+  "operation": "",
+  "error": "parse error: malformed gt: expected exactly two operands, got 3 or more"
+}

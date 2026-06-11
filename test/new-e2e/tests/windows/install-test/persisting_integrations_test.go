@@ -10,6 +10,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
+
+	"github.com/cenkalti/backoff/v5"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
@@ -24,10 +27,10 @@ import (
 
 const (
 	thirdPartyIntegration = "datadog-ping==1.0.2"
-	pipPackage            = "grpcio"
+	pipPackage            = "grpcio==1.80.0"
 )
 
-// TestPersistingIntegrations tests upgrading the agent from WINDOWS_AGENT_VERSION to UPGRADE_TEST_VERSION
+// TestPersistingIntegrations tests upgrading the agent from the current version to the upgrade-test version
 func TestPersistingIntegrations(t *testing.T) {
 	s := &testPersistingIntegrationsSuite{}
 	upgradeAgentPackge, err := windowsAgent.GetUpgradeTestPackageFromEnv()
@@ -106,7 +109,7 @@ func (s *testPersistingIntegrationsSuite) TestPersistingIntegrations() {
 
 }
 
-// TestDisablePersistingIntegrations tests upgrading the agent from WINDOWS_AGENT_VERSION to UPGRADE_TEST_VERSION
+// TestDisablePersistingIntegrations tests upgrading the agent from the current version to the upgrade-test version
 // with the integrations persistence flag disabled
 // verify that the third party integration and pip package are not installed
 func TestDisablePersistingIntegrations(t *testing.T) {
@@ -190,7 +193,7 @@ func (s *testDisablePersistingIntegrationsSuite) TestDisablePersistingIntegratio
 
 }
 
-// TestPersistingIntegrations tests upgrading the agent from WINDOWS_AGENT_VERSION to UPGRADE_TEST_VERSION
+// TestIntegrationInstallFailure tests upgrading the agent from the current version to the upgrade-test version
 func TestIntegrationInstallFailure(t *testing.T) {
 	s := &testIntegrationInstallFailure{}
 	Run(t, s)
@@ -235,7 +238,7 @@ func (s *testIntegrationInstallFailure) TestIntegrationInstallFailure() {
 
 }
 
-// TestIntegrationFolderPermissions tests upgrading the agent from WINDOWS_AGENT_VERSION to UPGRADE_TEST_VERSION
+// TestIntegrationFolderPermissions tests upgrading the agent from the current version to the upgrade-test version
 // this tests the agent will not install if the folder permissions are incorrect
 func TestIntegrationFolderPermissions(t *testing.T) {
 	s := &testIntegrationFolderPermissions{}
@@ -332,7 +335,7 @@ func (s *testIntegrationFolderPermissions) TestIntegrationFolderPermissions() {
 
 }
 
-// TestIntegrationRollback tests upgrading the agent from WINDOWS_AGENT_VERSION to UPGRADE_TEST_VERSION
+// TestIntegrationRollback tests upgrading the agent from the current version to the upgrade-test version
 func TestIntegrationRollback(t *testing.T) {
 	s := &testIntegrationRollback{}
 	upgradeAgentPackge, err := windowsAgent.GetUpgradeTestPackageFromEnv()
@@ -435,7 +438,7 @@ func (s *testIntegrationRollback) TestIntegrationRollback() {
 
 }
 
-// TestPersistingIntegrationsDuringUninstall tests upgrading the agent from WINDOWS_AGENT_VERSION to UPGRADE_TEST_VERSION
+// TestPersistingIntegrationsDuringUninstall tests upgrading the agent from the current version to the upgrade-test version
 // verify that the third party integration and pip package are installed after uninstall and reinstall
 // this is the workload used by fleet to upgrade the agent
 func TestPersistingIntegrationsDuringUninstall(t *testing.T) {
@@ -521,12 +524,21 @@ func (s *testPersistingIntegrationsDuringUninstall) TestPersistingIntegrationsDu
 }
 
 // install third party integration
+//
+// The agent integration install command can fail transiently when the
+// integrations-core release pipeline is mid-rotation: the TUF metadata.staged
+// snapshot returns 403 for a few minutes at a time. Wheels can be unavailable
+// for several minutes; their release pipeline runs at least once a day at
+// 5AM CET and can also run during working hours. Retry to absorb that window.
 func (s *baseAgentMSISuite) installThirdPartyIntegration(vm *components.RemoteHost, integration string) error {
 	installPath, err := windowsAgent.GetInstallPathFromRegistry(s.Env().RemoteHost)
 	s.Require().NoError(err, "should get install path from registry")
 
 	cmd := fmt.Sprintf(`& "%s\bin\agent.exe" integration install -t %s`, installPath, integration)
-	_, err = vm.Execute(cmd)
+	_, err = backoff.Retry(s.T().Context(), func() (any, error) {
+		_, execErr := vm.Execute(cmd)
+		return nil, execErr
+	}, backoff.WithBackOff(backoff.NewConstantBackOff(30*time.Second)), backoff.WithMaxTries(30))
 
 	if err != nil {
 		s.T().Logf("Error installing integration %s:\n%s", integration, err)
@@ -536,12 +548,19 @@ func (s *baseAgentMSISuite) installThirdPartyIntegration(vm *components.RemoteHo
 }
 
 // install pip package
+//
+// pip resolves wheels from the same integrations-core CDN that the agent
+// integration installer uses, so the same transient 403 window applies.
+// Retry to absorb it.
 func (s *baseAgentMSISuite) installPipPackage(vm *components.RemoteHost, packageToInstall string) error {
 	installPath, err := windowsAgent.GetInstallPathFromRegistry(s.Env().RemoteHost)
 	s.Require().NoError(err, "should get install path from registry")
 
 	cmd := fmt.Sprintf(`& "%s\embedded3\python.exe" -m pip install %s`, installPath, packageToInstall)
-	_, err = vm.Execute(cmd)
+	_, err = backoff.Retry(s.T().Context(), func() (any, error) {
+		_, execErr := vm.Execute(cmd)
+		return nil, execErr
+	}, backoff.WithBackOff(backoff.NewConstantBackOff(30*time.Second)), backoff.WithMaxTries(30))
 
 	if err != nil {
 		s.T().Logf("Error installing pip package %s:\n%s", packageToInstall, err)
@@ -555,12 +574,14 @@ func (s *baseAgentMSISuite) checkPipPackageInstalled(vm *components.RemoteHost, 
 	installPath, err := windowsAgent.GetInstallPathFromRegistry(vm)
 	s.Require().NoError(err, "should get install path from registry")
 
-	cmd := fmt.Sprintf(`& "%s\embedded3\python.exe" -m pip show %s`, installPath, packageToCheck)
+	// pip show only accepts package names, not version specifiers like ==1.2.3
+	pkgName, _, _ := strings.Cut(packageToCheck, "==")
+	cmd := fmt.Sprintf(`& "%s\embedded3\python.exe" -m pip show %s`, installPath, pkgName)
 	out, err := vm.Execute(cmd)
 	s.Require().NoError(err, "should show pip package")
 
 	// check to make sure it is installed
-	packageCheck := "Name: " + packageToCheck
+	packageCheck := "Name: " + pkgName
 	assert.True(s.T(), strings.Contains(out, packageCheck), "pip package should be installed")
 }
 
@@ -569,7 +590,9 @@ func (s *baseAgentMSISuite) checkPipPackageNotInstalled(vm *components.RemoteHos
 	installPath, err := windowsAgent.GetInstallPathFromRegistry(vm)
 	s.Require().NoError(err, "should get install path from registry")
 
-	cmd := fmt.Sprintf(`& "%s\embedded3\python.exe" -m pip show %s`, installPath, packageToCheck)
+	// pip show only accepts package names, not version specifiers like ==1.2.3
+	pkgName, _, _ := strings.Cut(packageToCheck, "==")
+	cmd := fmt.Sprintf(`& "%s\embedded3\python.exe" -m pip show %s`, installPath, pkgName)
 	_, err = vm.Execute(cmd)
 	s.Require().ErrorContains(err, "not found", "should not find pip package")
 

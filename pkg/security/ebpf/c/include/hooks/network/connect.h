@@ -5,7 +5,7 @@
 #include "constants/syscall_macro.h"
 #include "helpers/discarders.h"
 
-int __attribute__((always_inline)) sys_connect(u64 pid_tgid) {
+int __attribute__((always_inline)) sys_connect(void *ctx, u64 pid_tgid) {
     struct policy_t policy = fetch_policy(EVENT_CONNECT);
     struct syscall_cache_t syscall = {
         .policy = policy,
@@ -15,7 +15,7 @@ int __attribute__((always_inline)) sys_connect(u64 pid_tgid) {
             .pid_tgid = pid_tgid,
         }
     };
-    cache_syscall(&syscall);
+    cache_syscall_update_cgroup(ctx, &syscall);
     return 0;
 }
 
@@ -24,7 +24,7 @@ HOOK_SYSCALL_ENTRY3(connect, int, socket, struct sockaddr *, addr, unsigned int,
         return 0;
     }
 
-    return sys_connect(0);
+    return sys_connect(ctx, 0);
 }
 
 int __attribute__((always_inline)) sys_connect_ret(void *ctx, int retval) {
@@ -33,12 +33,14 @@ int __attribute__((always_inline)) sys_connect_ret(void *ctx, int retval) {
         return 0;
     }
 
-    if (approve_syscall(syscall, connect_approvers) == DISCARDED) {
-        return 0;
-    }
+    approve_syscall(syscall, connect_approvers);
 
     // EAGAIN may be returned on Fedora 37 (kernel 6.0.7-301.fc37.x86_64)
     if (IS_UNHANDLED_ERROR(retval) && retval != -EINPROGRESS && retval != -EAGAIN) {
+        return 0;
+    }
+
+    if (syscall->state == DISCARDED) {
         return 0;
     }
 
@@ -50,6 +52,7 @@ int __attribute__((always_inline)) sys_connect_ret(void *ctx, int retval) {
         .family = syscall->connect.family,
         .port = syscall->connect.port,
         .protocol = syscall->connect.protocol,
+        .event.flags = (syscall->resolver.flags & RESOLVER_FLAG_SAVED_BY_ACTIVITY_DUMP ? (EVENT_FLAGS_SAVED_BY_AD | EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE) : 0),
     };
 
     struct proc_cache_t *entry;
@@ -61,7 +64,7 @@ int __attribute__((always_inline)) sys_connect_ret(void *ctx, int retval) {
     fill_cgroup_context(entry, &event.cgroup);
     fill_span_context(&event.span);
 
-    // Check if we should sample this event for activity dumps
+    // v1: check if this PID is traced by an activity dump
     struct activity_dump_config *config = lookup_or_delete_traced_pid(event.process.pid, bpf_ktime_get_ns(), NULL);
     if (config) {
         if (mask_has_event(config->event_mask, EVENT_CONNECT)) {
@@ -115,7 +118,7 @@ HOOK_ENTRY("io_connect")
 int hook_io_connect(ctx_t *ctx) {
     void *raw_req = (void *)CTX_PARM1(ctx);
     u64 pid_tgid = get_pid_tgid_from_iouring(raw_req);
-    return sys_connect(pid_tgid);
+    return sys_connect(ctx, pid_tgid);
 }
 
 HOOK_EXIT("io_connect")

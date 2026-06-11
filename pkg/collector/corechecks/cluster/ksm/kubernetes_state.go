@@ -15,6 +15,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/samber/lo"
@@ -243,6 +244,8 @@ type KSMCheck struct {
 	telemetry                  *telemetryCache
 	tagger                     tagger.Component
 	cancel                     context.CancelFunc
+	cancelCR                   context.CancelFunc
+	crMu                       sync.Mutex
 	isCLCRunner                bool
 	isRunningOnNodeAgent       bool
 	clusterIDTagValue          string
@@ -290,11 +293,11 @@ func init() {
 }
 
 // Configure prepares the configuration of the KSM check instance
-func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
+func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, config, initConfig integration.Data, source string, provider string) error {
 	k.BuildID(integrationConfigDigest, config, initConfig)
 	k.agentConfig = pkgconfigsetup.Datadog()
 
-	err := k.CommonConfigure(senderManager, initConfig, config, source)
+	err := k.CommonConfigure(senderManager, initConfig, config, source, provider)
 	if err != nil {
 		return err
 	}
@@ -325,9 +328,14 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 	// Prepare labels mapper
 	k.mergeLabelsMapper(defaultLabelsMapper())
 
-	// Start custom resource discovery if not
-	if k.instance.PodCollectionMode != nodeKubeletPodCollection {
-		k.customResourceDiscoverer = customresources.StartDiscovery()
+	if k.instance.usesCustomResourceMetrics() && k.instance.PodCollectionMode != nodeKubeletPodCollection {
+		k.crMu.Lock()
+		if k.cancelCR == nil {
+			ctx, cancel := context.WithCancel(context.Background())
+			k.customResourceDiscoverer = customresources.StartDiscovery(ctx)
+			k.cancelCR = cancel
+		}
+		k.crMu.Unlock()
 	}
 
 	// Retry configuration steps related to API Server in check executions if necessary
@@ -404,7 +412,7 @@ func (k *KSMCheck) buildStores() error {
 
 		// Enable the KSM default collectors if the config collectors list is empty.
 		if len(collectors) == 0 {
-			collectors = options.DefaultResources.AsSlice()
+			collectors = defaultCollectors()
 		}
 
 		builder.WithKubeClient(apiServerClient.InformerCl)
@@ -431,7 +439,6 @@ func (k *KSMCheck) buildStores() error {
 	builder.WithFamilyGeneratorFilter(allowDenyList)
 
 	ctx, cancel := context.WithCancel(context.Background())
-	k.cancel = cancel
 	builder.WithContext(ctx)
 
 	resyncPeriod := k.instance.ResyncPeriod
@@ -469,10 +476,12 @@ func (k *KSMCheck) buildStores() error {
 	}
 
 	if err = builder.WithAllowLabels(allowedLabels); err != nil {
+		cancel()
 		return err
 	}
 
 	if err := builder.WithEnabledResources(cr.collectors); err != nil {
+		cancel()
 		return err
 	}
 
@@ -490,6 +499,13 @@ func (k *KSMCheck) buildStores() error {
 
 	// Start the collection process
 	k.allStores = builder.BuildStores()
+
+	// Cancel the old reflectors after the new store is created. Cancelling the
+	// old context ensures previous reflectors release their resources.
+	if k.cancel != nil {
+		k.cancel()
+	}
+	k.cancel = cancel
 
 	return nil
 }
@@ -533,6 +549,10 @@ func filterUnknownCollectors(collectors []string, resources []*v1.APIResourceLis
 
 func (c *KSMConfig) parse(data []byte) error {
 	return yaml.Unmarshal(data, c)
+}
+
+func (c *KSMConfig) usesCustomResourceMetrics() bool {
+	return len(c.CustomResource.Spec.Resources) > 0
 }
 
 type customResources struct {
@@ -582,12 +602,14 @@ func (k *KSMCheck) discoverCustomResources(c *apiserver.APIClient, collectors []
 		clients[f.Name()] = client
 	}
 
-	customResourceFactories := customresources.GetCustomResourceFactories(k.customResourceDiscoverer, k.instance.CustomResource, c)
-	customResourceClients, customResourceCollectors := customresources.GetCustomResourceClientsAndCollectors(customResourceFactories, c)
+	if k.instance.usesCustomResourceMetrics() {
+		customResourceFactories := customresources.GetCustomResourceFactories(k.customResourceDiscoverer, k.instance.CustomResource, c)
+		customResourceClients, customResourceCollectors := customresources.GetCustomResourceClientsAndCollectors(customResourceFactories, c)
 
-	collectors = lo.Uniq(append(collectors, customResourceCollectors...))
-	maps.Copy(clients, customResourceClients)
-	factories = append(factories, customResourceFactories...)
+		collectors = lo.Uniq(append(collectors, customResourceCollectors...))
+		maps.Copy(clients, customResourceClients)
+		factories = append(factories, customResourceFactories...)
+	}
 
 	return customResources{
 		collectors: collectors,
@@ -650,18 +672,21 @@ func (k *KSMCheck) Run() error {
 
 	// Check if the custom resource discoverer was updated and rebuild KSM if needed
 	// Only check if discoverer was initialized (not in node_kubelet mode)
-	if k.customResourceDiscoverer != nil {
+	k.crMu.Lock()
+	discoverer := k.customResourceDiscoverer
+	k.crMu.Unlock()
+	if discoverer != nil {
 		wasUpdated := false
-		k.customResourceDiscoverer.SafeRead(func() {
-			wasUpdated = k.customResourceDiscoverer.WasUpdated
+		discoverer.SafeRead(func() {
+			wasUpdated = discoverer.WasUpdated
 		})
 
 		if wasUpdated {
 			if err := k.buildStores(); err != nil {
 				log.Errorf("Failed to rebuild KSM: %v", err)
 			}
-			k.customResourceDiscoverer.SafeWrite(func() {
-				k.customResourceDiscoverer.WasUpdated = false
+			discoverer.SafeWrite(func() {
+				discoverer.WasUpdated = false
 			})
 		}
 	}
@@ -755,6 +780,13 @@ func (k *KSMCheck) Cancel() {
 	if k.cancel != nil {
 		k.cancel()
 	}
+	k.crMu.Lock()
+	if k.cancelCR != nil {
+		log.Infof("Shutting down custom resource informers")
+		k.cancelCR()
+		k.cancelCR = nil
+	}
+	k.crMu.Unlock()
 }
 
 // processMetrics attaches tags and forwards metrics to the aggregator
@@ -1266,6 +1298,17 @@ func (k *KSMCheck) isKnownMetric(name string) bool {
 		return true
 	}
 	return false
+}
+
+// defaultCollectors returns the KSM default resource collectors with
+// "endpoints" added back for backward compatibility (upstream KSM v2.18
+// replaced "endpoints" with "endpointslices" in its defaults).
+func defaultCollectors() []string {
+	collectors := options.DefaultResources.AsSlice()
+	if _, found := options.DefaultResources["endpoints"]; !found {
+		collectors = append(collectors, "endpoints")
+	}
+	return collectors
 }
 
 // buildDeniedMetricsSet adds *_created metrics to the default denied metric rules.

@@ -3,9 +3,11 @@ minimumLimaVersion: "1.0.0"
 # Software versions - update these to keep tools current
 # Check latest: https://github.com/kubernetes-sigs/kind/releases
 #               https://kubernetes.io/releases/
+#               https://github.com/helm/helm/releases
 env:
   KIND_VERSION: "v0.27.0"
   KUBECTL_VERSION: "v1.32"
+  HELM_VERSION: "v3.20.2"
 
 images:
 - location: "https://cloud-images.ubuntu.com/releases/24.04/release/ubuntu-24.04-server-cloudimg-arm64.img"
@@ -32,7 +34,7 @@ provision:
   - mode: system
     script: |
       #!/bin/bash
-      set -eux
+      set -euo pipefail
       export DEBIAN_FRONTEND=noninteractive
 
       apt-get update
@@ -62,13 +64,13 @@ provision:
       chmod +x /usr/local/bin/kind
 
       # Helm
-      curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+      curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | DESIRED_VERSION="${HELM_VERSION}" bash
 
   # Datadog helm repo for lima user
   - mode: user
     script: |
       #!/bin/bash
-      set -eux
+      set -euo pipefail
       helm repo add datadog https://helm.datadoghq.com
       helm repo update
 

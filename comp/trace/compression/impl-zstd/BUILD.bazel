@@ -1,0 +1,14 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+# TODO(ABLD-424): reconcile @com_github_datadog_zstd CGo build with @zstd//:libzstd cc_library
+
+go_library(
+    name = "impl-zstd",
+    srcs = ["zstd.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/trace/compression/def",
+        "@com_github_datadog_zstd//:zstd",
+    ],
+)

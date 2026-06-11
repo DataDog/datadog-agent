@@ -8,10 +8,11 @@
 package docker
 
 import (
+	"net/netip"
 	"testing"
 
-	"github.com/docker/docker/api/types/container"
-	dockerNetworkTypes "github.com/docker/docker/api/types/network"
+	"github.com/moby/moby/api/types/container"
+	dockerNetworkTypes "github.com/moby/moby/api/types/network"
 
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -138,7 +139,7 @@ func TestDockerNetworkExtension(t *testing.T) {
 	})
 	container1RawDocker := container.Summary{
 		ID:    "kube-host-network",
-		State: string(workloadmeta.ContainerStatusRunning),
+		State: container.ContainerState(workloadmeta.ContainerStatusRunning),
 		HostConfig: struct {
 			NetworkMode string            `json:",omitempty"`
 			Annotations map[string]string `json:",omitempty"`
@@ -169,7 +170,7 @@ func TestDockerNetworkExtension(t *testing.T) {
 	})
 	container2RawDocker := container.Summary{
 		ID:    "kube-app",
-		State: string(workloadmeta.ContainerStatusRunning),
+		State: container.ContainerState(workloadmeta.ContainerStatusRunning),
 		HostConfig: struct {
 			NetworkMode string            `json:",omitempty"`
 			Annotations map[string]string `json:",omitempty"`
@@ -182,7 +183,7 @@ func TestDockerNetworkExtension(t *testing.T) {
 	// Container3 is only raw as it's excluded (pause container)
 	container3RawDocker := container.Summary{
 		ID:    "kube-app-pause",
-		State: string(workloadmeta.ContainerStatusRunning),
+		State: container.ContainerState(workloadmeta.ContainerStatusRunning),
 		HostConfig: struct {
 			NetworkMode string            `json:",omitempty"`
 			Annotations map[string]string `json:",omitempty"`
@@ -219,7 +220,7 @@ func TestDockerNetworkExtension(t *testing.T) {
 	})
 	container4RawDocker := container.Summary{
 		ID:    "docker-app",
-		State: string(workloadmeta.ContainerStatusRunning),
+		State: container.ContainerState(workloadmeta.ContainerStatusRunning),
 		HostConfig: struct {
 			NetworkMode string            `json:",omitempty"`
 			Annotations map[string]string `json:",omitempty"`
@@ -227,10 +228,10 @@ func TestDockerNetworkExtension(t *testing.T) {
 		NetworkSettings: &container.NetworkSettingsSummary{
 			Networks: map[string]*dockerNetworkTypes.EndpointSettings{
 				"ubuntu_default": {
-					IPAddress: "172.18.0.2",
+					IPAddress: netip.MustParseAddr("172.18.0.2"),
 				},
 				"bridge": {
-					IPAddress: "172.17.0.2",
+					IPAddress: netip.MustParseAddr("172.17.0.2"),
 				},
 			},
 		},
@@ -293,7 +294,7 @@ func TestNetworkCustomOnFailure(t *testing.T) {
 		Labels: map[string]string{
 			"io.kubernetes.pod.namespace": "kubens",
 		},
-		State:      string(workloadmeta.ContainerStatusRunning),
+		State:      container.ContainerState(workloadmeta.ContainerStatusRunning),
 		SizeRw:     100,
 		SizeRootFs: 200,
 	})

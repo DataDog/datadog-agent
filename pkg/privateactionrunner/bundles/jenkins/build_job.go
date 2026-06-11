@@ -29,7 +29,7 @@ func (h *BuildJobHandler) WithHttpClientProvider(httpClientProvider httpclient.P
 
 func NewBuildJobHandler(runnerConfig *config.Config) *BuildJobHandler {
 	return &BuildJobHandler{
-		httpClientProvider: httpclient.NewDefaultProvider(runnerConfig),
+		httpClientProvider: httpclient.NewDefaultProvider(runnerConfig, httpclient.WithURLAllowlistDisabled()),
 	}
 }
 

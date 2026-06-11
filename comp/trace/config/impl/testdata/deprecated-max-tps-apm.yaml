@@ -1,0 +1,23 @@
+apm_config:
+  enabled: false
+  log_file: abc
+  apm_dd_url: https://datadog.unittests
+  max_cpu_percent: 50
+  max_memory: 123.4
+  max_connections: 12 # deprecated
+  additional_endpoints:
+    https://my1.endpoint.com:
+      - apikey1
+      - apikey2
+    https://my2.endpoint.eu:
+      - apikey3
+      - "apikey4              "
+      - "apikey5\n \n         "
+  env: test
+  receiver_port: 18126
+  connection_limit: 123
+  apm_non_local_traffic: yes
+  extra_sample_rate: 0.5
+  max_traces_per_second: 5
+  max_events_per_second: 50
+  max_remote_traces_per_second: 9999

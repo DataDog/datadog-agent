@@ -112,17 +112,24 @@ func testSymDBProbes(t *testing.T, binPath string) {
 
 // collectFunctionProbes appends a method probe for each function and a line
 // probe for every injectable line within that function.
+//
+// Probe IDs are chosen so that method probes sort before line probes when
+// irgen sorts probes by ID for determinism. This keeps method-probe
+// indices below the uint16 cap that call_depths_entry_t.probe_id imposes
+// on entry/return-paired probes; line probes don't insert into
+// in_progress_calls and tolerate any probe index.
 func collectFunctionProbes(
 	probes []ir.ProbeDefinition,
 	nextID, methodCount, lineCount int,
 	functions []symdb.Function,
 ) ([]ir.ProbeDefinition, int, int, int) {
 	for _, fn := range functions {
-		// Method probe (probe on the function entry).
+		// Method probe (probe on the function entry). "a_method_" prefix
+		// sorts before "z_line_" so paired probes stay below uint16.
 		probes = append(probes, &rcjson.SnapshotProbe{
 			LogProbeCommon: rcjson.LogProbeCommon{
 				ProbeCommon: rcjson.ProbeCommon{
-					ID:    fmt.Sprintf("method_%d", nextID),
+					ID:    fmt.Sprintf("a_method_%010d", nextID),
 					Where: &rcjson.Where{MethodName: fn.QualifiedName},
 				},
 			},
@@ -136,11 +143,11 @@ func collectFunctionProbes(
 				probes = append(probes, &rcjson.SnapshotProbe{
 					LogProbeCommon: rcjson.LogProbeCommon{
 						ProbeCommon: rcjson.ProbeCommon{
-							ID: fmt.Sprintf("line_%d", nextID),
+							ID: fmt.Sprintf("z_line_%010d", nextID),
 							Where: &rcjson.Where{
 								MethodName: fn.QualifiedName,
 								SourceFile: fn.File,
-								Lines:      []string{strconv.Itoa(line)},
+								Lines:      []string{strconv.Itoa(int(line))},
 							},
 						},
 					},

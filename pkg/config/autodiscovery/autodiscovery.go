@@ -36,6 +36,15 @@ func DiscoverComponentsFromConfig() ([]pkgconfigsetup.ConfigurationProviders, []
 		log.Infof("Prometheus scraping is enabled: Adding the Prometheus config provider '%s'", prometheusProvider.Name)
 		detectedProviders = append(detectedProviders, prometheusProvider)
 	}
+
+	// Add instrumentation checks provider if `instrumentation_crd_controller.enabled` is true
+	if pkgconfigsetup.Datadog().GetBool("instrumentation_crd_controller.enabled") &&
+		flavor.GetFlavor() == flavor.DefaultAgent && env.IsKubernetes() {
+		instrumentationChecksProvider := pkgconfigsetup.ConfigurationProviders{Name: "instrumentation_checks", Polling: true}
+		log.Info("Instrumentation controller is enabled: Adding the instrumentation checks config provider")
+		detectedProviders = append(detectedProviders, instrumentationChecksProvider)
+	}
+
 	// Add database-monitoring aurora listener if the feature is enabled
 	if pkgconfigsetup.Datadog().GetBool("database_monitoring.autodiscovery.aurora.enabled") {
 		detectedListeners = append(detectedListeners, pkgconfigsetup.Listeners{Name: "database-monitoring-aurora"})
@@ -47,8 +56,16 @@ func DiscoverComponentsFromConfig() ([]pkgconfigsetup.ConfigurationProviders, []
 		log.Info("Database monitoring rds discovery is enabled: Adding the rds listener")
 	}
 
-	// Auto-add file-based kube service and endpoints config providers based on check config files.
+	// 1) Auto-add Prometheus HTTP SD config provider when a URL is configured
+	// 2) Auto-add file-based kube service and endpoints config providers based on check config files.
 	if flavor.GetFlavor() == flavor.ClusterAgent {
+
+		cfg := pkgconfigsetup.Datadog()
+		if cfg.IsConfigured("prometheus_http_sd.url") || cfg.IsConfigured("prometheus_http_sd.configs") {
+			log.Info("Prometheus HTTP SD is configured: Adding the prometheus_http_sd config provider")
+			detectedProviders = append(detectedProviders, pkgconfigsetup.ConfigurationProviders{Name: "prometheus_http_sd", Polling: true})
+		}
+
 		advancedConfigs, _, err := providers.ReadConfigFiles(providers.WithAdvancedADOnly)
 		if err != nil {
 			log.Warnf("Couldn't read config files: %v", err)
@@ -144,6 +161,12 @@ func DiscoverComponentsFromEnv() ([]pkgconfigsetup.ConfigurationProviders, []pkg
 	if isKubeEnv {
 		detectedListeners = append(detectedListeners, pkgconfigsetup.Listeners{Name: "kubelet"})
 		log.Info("Adding Kubelet listener from environment")
+	}
+
+	isProcessEnv := env.IsFeaturePresent(env.Process)
+	if isProcessEnv {
+		detectedListeners = append(detectedListeners, pkgconfigsetup.Listeners{Name: "process"})
+		log.Info("Adding Process listener from environment")
 	}
 
 	isGPUEnv := env.IsFeaturePresent(env.NVML)

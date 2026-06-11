@@ -320,6 +320,38 @@ func TestValidateAutoscalerSpec(t *testing.T) {
 				},
 			},
 		},
+		"resizePendingPeriod zero is valid (disabled)": {
+			spec: datadoghq.DatadogPodAutoscalerSpec{
+				ApplyPolicy: &datadoghq.DatadogPodAutoscalerApplyPolicy{
+					Update: &datadoghqcommon.DatadogPodAutoscalerUpdatePolicy{
+						ResizePendingPeriod: 0,
+					},
+				},
+			},
+		},
+		"resizePendingPeriod 1 is valid": {
+			spec: datadoghq.DatadogPodAutoscalerSpec{
+				ApplyPolicy: &datadoghq.DatadogPodAutoscalerApplyPolicy{
+					Update: &datadoghqcommon.DatadogPodAutoscalerUpdatePolicy{
+						ResizePendingPeriod: 1,
+					},
+				},
+			},
+		},
+		"rolloutFallbackDelay 1 is valid": {
+			spec: datadoghq.DatadogPodAutoscalerSpec{
+				ApplyPolicy: &datadoghq.DatadogPodAutoscalerApplyPolicy{
+					Update: &datadoghqcommon.DatadogPodAutoscalerUpdatePolicy{RolloutFallbackDelay: 1},
+				},
+			},
+		},
+		"rolloutFallbackDelay 3599 is valid": {
+			spec: datadoghq.DatadogPodAutoscalerSpec{
+				ApplyPolicy: &datadoghq.DatadogPodAutoscalerApplyPolicy{
+					Update: &datadoghqcommon.DatadogPodAutoscalerUpdatePolicy{RolloutFallbackDelay: 3599},
+				},
+			},
+		},
 	}
 
 	for name, tt := range tests {

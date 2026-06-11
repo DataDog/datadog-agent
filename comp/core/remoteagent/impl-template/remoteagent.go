@@ -35,7 +35,7 @@ type Provides struct {
 // NewComponent creates a new remoteagent component
 func NewComponent(reqs Requires) (Provides, error) {
 	// Check if the remoteAgentRegistry is enabled
-	if !reqs.Config.GetBool("remote_agent_registry.enabled") {
+	if !reqs.Config.GetBool("remote_agent.registry.enabled") {
 		return Provides{}, nil
 	}
 
@@ -56,6 +56,9 @@ func NewComponent(reqs Requires) (Provides, error) {
 
 	// Add your gRPC services implementations here: e.g.
 	// pbcore.RegisterStatusProviderServer(remoteAgentServer.GetGRPCServer(), remoteagentImpl)
+
+	// Call Start() after registering all gRPC services on the server.
+	remoteAgentServer.Start()
 
 	provides := Provides{
 		Comp: remoteagentImpl,

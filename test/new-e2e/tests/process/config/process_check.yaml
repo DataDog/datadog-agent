@@ -5,6 +5,3 @@ process_config:
     enabled: false
   process_discovery:
     enabled: false
-
-  run_in_core_agent:
-    enabled: false

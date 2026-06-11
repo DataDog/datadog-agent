@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    Fix an issue on Windows where the ``datadog-system-probe`` service could
+    hang during shutdown when Cloud Workload Security was enabled, resulting
+    in delayed Agent restarts and a forced service termination. The same
+    underlying issue could also prevent ``datadog-system-probe`` from
+    initializing the DNS monitoring or Network Path features, leaving them
+    unable to collect data.

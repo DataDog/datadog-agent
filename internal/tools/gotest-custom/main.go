@@ -7,7 +7,6 @@ package main
 import (
 	"archive/tar"
 	"bytes"
-	"compress/gzip"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -20,6 +19,7 @@ import (
 	"sync"
 
 	"github.com/google/shlex"
+	"github.com/klauspost/compress/zstd"
 )
 
 func main() {
@@ -148,7 +148,6 @@ type Manifest struct {
 }
 
 func getBinariesFromPackages(packages []string) ([]string, []string, error) {
-	binariesPath := "test-binaries.tar.gz"
 	manifestPath := "manifest.json"
 	extractPath := "test-binaries"
 
@@ -197,20 +196,36 @@ func getBinariesFromPackages(packages []string) ([]string, []string, error) {
 		}
 	}
 
-	// Open and extract tar.gz file
+	// Check if all needed binaries are already present on disk
+	// (e.g. pre-downloaded from S3 by the invoke task)
+	allPresent := len(targetBinaries) > 0
+	for binaryName := range targetBinaries {
+		outPath := filepath.Join(extractPath, binaryName)
+		if _, err := os.Stat(outPath); os.IsNotExist(err) {
+			allPresent = false
+			break
+		}
+	}
+
+	if allPresent {
+		return binaries, matchedPackages, nil
+	}
+
+	// Fall back to extracting from local tarball
+	binariesPath := "test-binaries.tar.zst"
 	file, err := os.Open(binariesPath)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to open archive: %v", err)
 	}
 	defer file.Close()
 
-	gzr, err := gzip.NewReader(file)
+	zr, err := zstd.NewReader(file)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to create gzip reader: %v", err)
+		return nil, nil, fmt.Errorf("failed to create zstd reader: %v", err)
 	}
-	defer gzr.Close()
+	defer zr.Close()
 
-	tr := tar.NewReader(gzr)
+	tr := tar.NewReader(zr)
 
 	// Extract only the targeted binaries
 	for {

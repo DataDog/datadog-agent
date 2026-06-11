@@ -512,8 +512,9 @@ func (m *metadataController) cleanupStaleNodes(namespace, serviceName string, af
 	for nodeName := range staleNodes {
 		log.Tracef("Cleaning up stale service metadata for Node %s and Service %s/%s", nodeName, namespace, serviceName)
 		metaBundle := m.store.getCopyOrNew(nodeName)
-		metaBundle.Services.Delete(namespace, serviceName)
-		m.store.set(nodeName, metaBundle)
+		if metaBundle.Services.Delete(namespace, serviceName) {
+			m.store.set(nodeName, metaBundle)
+		}
 	}
 
 	m.serviceToNodes[serviceName] = affectedNodes
@@ -559,9 +560,9 @@ func (m *metadataController) deleteService(namespace, svc string) error {
 		}
 		newMetaBundle := apiserver.NewMetadataMapperBundle()
 		newMetaBundle.DeepCopy(oldBundle)
-		newMetaBundle.Services.Delete(namespace, svc)
-
-		m.store.set(node.Name, newMetaBundle)
+		if newMetaBundle.Services.Delete(namespace, svc) {
+			m.store.set(node.Name, newMetaBundle)
+		}
 	}
 	return nil
 }

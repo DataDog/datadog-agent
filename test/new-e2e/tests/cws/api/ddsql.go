@@ -8,6 +8,7 @@ package api
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"time"
@@ -30,6 +31,7 @@ type DDSQLTableQueryParams struct {
 	DefaultEnd      int    `json:"default_end"`
 	DefaultInterval int    `json:"default_interval"`
 	Query           string `json:"query"`
+	Source          string `json:"source"`
 }
 
 // DDSQLTableResponse is a struct that represents a DDSQL table response
@@ -63,6 +65,7 @@ func (c *Client) TableQuery(query string) (*DDSQLTableResponse, error) {
 		DefaultEnd:      int(now.UnixMilli()),
 		DefaultInterval: 20000,
 		Query:           query,
+		Source:          "inventories",
 	}
 	payload := JSONAPIPayload[DDSQLTableQueryParams]{
 		Data: JSONAPIPayloadData[DDSQLTableQueryParams]{
@@ -94,6 +97,10 @@ func (c *Client) TableQuery(query string) (*DDSQLTableResponse, error) {
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("ddsql table query failed with status %d: %s", resp.StatusCode, string(data))
 	}
 
 	var ddSQLResp DDSQLTableResponse

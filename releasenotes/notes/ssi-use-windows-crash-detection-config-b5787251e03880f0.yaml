@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    On Windows, the APM SSI installer now automatically enables system-probe
+    to report injection telemetry from the ddinjector driver.

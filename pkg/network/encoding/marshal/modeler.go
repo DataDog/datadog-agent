@@ -65,12 +65,7 @@ func (c *ConnectionsModeler) Close() {
 
 func (c *ConnectionsModeler) modelConnections(builder *model.ConnectionsBuilder, conns *network.Connections) {
 	cfgOnce.Do(func() {
-		agentCfg = &model.AgentConfiguration{
-			NpmEnabled: pkgconfigsetup.SystemProbe().GetBool("network_config.enabled"),
-			UsmEnabled: pkgconfigsetup.SystemProbe().GetBool("service_monitoring_config.enabled"),
-			CcmEnabled: pkgconfigsetup.SystemProbe().GetBool("ccm_network_config.enabled"),
-			CsmEnabled: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.enabled"),
-		}
+		agentCfg = NewAgentConfiguration(pkgconfigsetup.SystemProbe(), pkgconfigsetup.Datadog())
 	})
 
 	for _, conn := range conns.Conns {
@@ -90,6 +85,8 @@ func (c *ConnectionsModeler) modelConnections(builder *model.ConnectionsBuilder,
 		w.SetUsmEnabled(agentCfg.UsmEnabled)
 		w.SetCcmEnabled(agentCfg.CcmEnabled)
 		w.SetCsmEnabled(agentCfg.CsmEnabled)
+		w.SetEudmEnabled(agentCfg.EudmEnabled)
+		w.SetDiscoveryServiceMapEnabled(agentCfg.DiscoveryServiceMapEnabled)
 	})
 	for _, d := range c.dnsFormatter.Domains() {
 		builder.AddDomains(d)

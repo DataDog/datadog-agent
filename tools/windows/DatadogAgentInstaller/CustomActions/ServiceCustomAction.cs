@@ -219,6 +219,7 @@ namespace Datadog.CustomActions
             _serviceController.SetCredentials(Constants.SystemProbeServiceName, "LocalSystem", "");
             _serviceController.SetCredentials(Constants.ProcessAgentServiceName, "LocalSystem", "");
             _serviceController.SetCredentials(Constants.InstallerServiceName, "LocalSystem", "");
+            _serviceController.SetCredentials(Constants.ProcmgrServiceName, "LocalSystem", "");
 
             _serviceController.SetCredentials(Constants.SecurityAgentServiceName, ddAgentUserName, ddAgentUserPassword);
         }
@@ -251,6 +252,7 @@ namespace Datadog.CustomActions
                 Constants.TraceAgentServiceName,
                 Constants.AgentServiceName,
                 Constants.InstallerServiceName,
+                Constants.ProcmgrServiceName,
             };
             if (_serviceController.ServiceExists(Constants.PrivateActionRunnerServiceName))
             {
@@ -372,6 +374,7 @@ namespace Datadog.CustomActions
                     Constants.ProcmonServiceName,       // might not exist depending on compile time options**
                     Constants.SecurityAgentServiceName, // might not exist depending on compile time options**
                     Constants.PrivateActionRunnerServiceName,
+                    Constants.ProcmgrServiceName,
                     Constants.ProcessAgentServiceName,
                     Constants.TraceAgentServiceName,
                     Constants.InstallerServiceName,

@@ -6,13 +6,16 @@
 #ifndef DATADOG_AGENT_RTLOADER_THREE_H
 #define DATADOG_AGENT_RTLOADER_THREE_H
 
+// Python.h must be included before any system headers, see
+// https://docs.python.org/3/c-api/intro.html#include-files
+#include <Python.h>
+
 #include <atomic>
 #include <map>
 #include <mutex>
 #include <string>
 #include <vector>
 
-#include <Python.h>
 #include <rtloader.h>
 
 class Three : public RtLoader
@@ -59,8 +62,9 @@ public:
     bool getAttrBool(RtLoaderPyObject *obj, const char *attributeName, bool &value) const;
     bool getCheck(RtLoaderPyObject *py_class, const char *init_config_str, const char *instance_str,
                   const char *check_id_str, const char *check_name, const char *agent_config_str,
-                  RtLoaderPyObject *&check);
+                  const char *provider_str, RtLoaderPyObject *&check);
 
+    char *discoverConfig(RtLoaderPyObject *py_class, const char *service_json);
     char *runCheck(RtLoaderPyObject *check);
     void cancelCheck(RtLoaderPyObject *check);
     char **getCheckWarnings(RtLoaderPyObject *check);
@@ -80,7 +84,6 @@ public:
 
     // Python Helpers
     char *getIntegrationList();
-    char *getInterpreterMemoryUsage();
 
     // aggregator API
     void setSubmitMetricCb(cb_submit_metric_t);
@@ -108,6 +111,8 @@ public:
     void setGetProcessStartTimeCb(cb_get_process_start_time_t);
     void setObfuscateMongoDBStringCb(cb_obfuscate_mongodb_string_t);
     void setEmitAgentTelemetryCb(cb_emit_agent_telemetry_t);
+    void setReportIssueCb(cb_report_issue_t);
+    void setResolveIssueCb(cb_resolve_issue_t);
 
     void initPymemStats();
     void getPymemStats(pymem_stats_t &);

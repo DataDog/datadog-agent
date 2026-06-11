@@ -26,7 +26,8 @@ struct event_sample_stats_t {
 };
 
 struct basename_t {
-    char value[BASENAME_FILTER_SIZE];
+    u8 type; // enum BASENAME_APPROVER_TYPE
+    char value[BASENAME_FILTER_SIZE]; // including \0
 };
 
 struct event_mask_filter_t {
@@ -78,6 +79,11 @@ struct is_discarded_by_inode_t {
     u64 event_type;
     struct inode_discarder_t discarder;
     u64 now;
+};
+
+struct auid_discarder_params_t {
+    u64 event_mask;
+    u32 revision;
 };
 
 #endif

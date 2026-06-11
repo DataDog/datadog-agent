@@ -23,6 +23,8 @@ build_windows_container_entrypoint:
       -e CI_PROJECT_NAME
       -e WINDOWS_BUILDER=true
       -e AWS_NETWORKING=true
+      -e GOPROXY
+      -e GONOSUMDB
       -e TARGET_ARCH="$ARCH"
       ${WINBUILDIMAGE}
       c:\mnt\Dockerfiles\agent\windows\entrypoint\build.bat

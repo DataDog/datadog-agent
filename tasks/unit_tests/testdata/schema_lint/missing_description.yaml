@@ -1,0 +1,24 @@
+properties:
+  public_no_desc:
+    node_type: setting
+    type: string
+    default: hello
+    visibility: public
+  public_empty_desc:
+    node_type: setting
+    type: string
+    default: world
+    description: ""
+    visibility: public
+  private_no_desc:
+    node_type: setting
+    type: number
+    default: 0
+  public_section_no_desc:
+    node_type: section
+    visibility: public
+    properties:
+      child:
+        node_type: setting
+        type: string
+        default: ok

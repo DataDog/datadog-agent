@@ -1,0 +1,14 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    The ``api_server.request_duration_seconds`` internal metric now tags requests with the
+    gorilla/mux route template (e.g. ``/{component}/status``) instead of the raw request path.
+    This prevents arbitrary user-provided path values from creating high-cardinality metric tags.
+    Requests that do not match any registered route are tagged with ``unknown``.

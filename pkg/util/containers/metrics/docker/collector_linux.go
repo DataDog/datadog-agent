@@ -10,7 +10,7 @@ package docker
 import (
 	"fmt"
 
-	"github.com/docker/docker/api/types/container"
+	"github.com/moby/moby/api/types/container"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/cgroups"
@@ -54,7 +54,7 @@ func convertMemoryStats(memStats *container.MemoryStats) *provider.ContainerMemS
 	}
 
 	inactiveFile := getFieldFromMap(memStats.Stats, "total_inactive_file", "inactive_file")
-	if inactiveFile != nil {
+	if inactiveFile != nil && *inactiveFile < *containerMemStats.UsageTotal {
 		containerMemStats.WorkingSet = pointer.Ptr(*containerMemStats.UsageTotal - *inactiveFile)
 	}
 

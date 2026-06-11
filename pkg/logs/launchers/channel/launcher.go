@@ -7,10 +7,12 @@
 package channel
 
 import (
+	"sync"
+
+	"github.com/DataDog/datadog-agent/comp/logs-library/pipeline"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
-	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
 	tailer "github.com/DataDog/datadog-agent/pkg/logs/tailers/channel"
@@ -23,21 +25,24 @@ import (
 type Launcher struct {
 	pipelineProvider pipeline.Provider
 	sources          chan *sources.LogSource
+	sourcesDone      chan struct{}
 	tailers          []*tailer.Tailer
 	stop             chan struct{}
+	stopOnce         sync.Once
 }
 
 // NewLauncher returns an initialized Launcher
 func NewLauncher() *Launcher {
 	return &Launcher{
-		stop: make(chan struct{}),
+		sourcesDone: make(chan struct{}),
+		stop:        make(chan struct{}),
 	}
 }
 
 // Start starts the launcher.
 func (l *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvider pipeline.Provider, _ auditor.Registry, _ *tailers.TailerTracker) {
 	l.pipelineProvider = pipelineProvider
-	l.sources = sourceProvider.GetAddedForType(config.StringChannelType)
+	l.sources = sourceProvider.GetAddedForType(config.StringChannelType, l.sourcesDone)
 	go l.run()
 }
 
@@ -62,8 +67,11 @@ func (l *Launcher) run() {
 
 // Stop waits for any running tailer to be flushed.
 func (l *Launcher) Stop() {
-	for _, tailer := range l.tailers {
-		tailer.WaitFlush()
-	}
-	l.stop <- struct{}{}
+	l.stopOnce.Do(func() {
+		for _, tailer := range l.tailers {
+			tailer.WaitFlush()
+		}
+		close(l.sourcesDone)
+		l.stop <- struct{}{}
+	})
 }

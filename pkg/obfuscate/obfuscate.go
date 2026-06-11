@@ -100,35 +100,35 @@ type Config struct {
 	SQL SQLConfig
 
 	// ES holds the obfuscation configuration for ElasticSearch bodies.
-	ES JSONConfig `mapstructure:"elasticsearch"`
+	ES JSONConfig `mapstructure:"elasticsearch" json:"elasticsearch"`
 
 	// OpenSearch holds the obfuscation configuration for OpenSearch bodies.
-	OpenSearch JSONConfig `mapstructure:"opensearch"`
+	OpenSearch JSONConfig `mapstructure:"opensearch" json:"opensearch"`
 
 	// Mongo holds the obfuscation configuration for MongoDB queries.
-	Mongo JSONConfig `mapstructure:"mongodb"`
+	Mongo JSONConfig `mapstructure:"mongodb" json:"mongodb"`
 
 	// SQLExecPlan holds the obfuscation configuration for SQL Exec Plans. This is strictly for safety related obfuscation,
 	// not normalization. Normalization of exec plans is configured in SQLExecPlanNormalize.
-	SQLExecPlan JSONConfig `mapstructure:"sql_exec_plan"`
+	SQLExecPlan JSONConfig `mapstructure:"sql_exec_plan" json:"sql_exec_plan"`
 
 	// SQLExecPlanNormalize holds the normalization configuration for SQL Exec Plans.
-	SQLExecPlanNormalize JSONConfig `mapstructure:"sql_exec_plan_normalize"`
+	SQLExecPlanNormalize JSONConfig `mapstructure:"sql_exec_plan_normalize" json:"sql_exec_plan_normalize"`
 
 	// HTTP holds the obfuscation settings for HTTP URLs.
-	HTTP HTTPConfig `mapstructure:"http"`
+	HTTP HTTPConfig `mapstructure:"http" json:"http"`
 
 	// Redis holds the obfuscation settings for Redis commands.
-	Redis RedisConfig `mapstructure:"redis"`
+	Redis RedisConfig `mapstructure:"redis" json:"redis"`
 
 	// Valkey holds the obfuscation settings for Valkey commands.
-	Valkey ValkeyConfig `mapstructure:"valkey"`
+	Valkey ValkeyConfig `mapstructure:"valkey" json:"valkey"`
 
 	// Memcached holds the obfuscation settings for Memcached commands.
-	Memcached MemcachedConfig `mapstructure:"memcached"`
+	Memcached MemcachedConfig `mapstructure:"memcached" json:"memcached"`
 
 	// Memcached holds the obfuscation settings for obfuscation of CC numbers in meta.
-	CreditCard CreditCardsConfig `mapstructure:"credit_cards"`
+	CreditCard CreditCardsConfig `mapstructure:"credit_cards" json:"credit_cards"`
 
 	// Statsd specifies the statsd client to use for reporting metrics.
 	Statsd StatsClient
@@ -143,7 +143,7 @@ type Config struct {
 	FullLogger FullLogger
 
 	// Cache enables the query cache for obfuscation for SQL and MongoDB queries.
-	Cache CacheConfig `mapstructure:"cache"`
+	Cache CacheConfig `mapstructure:"cache" json:"cache"`
 }
 
 // StatsClient implementations are able to emit stats.
@@ -267,71 +267,71 @@ type HTTPConfig struct {
 // RedisConfig holds the configuration settings for Redis obfuscation
 type RedisConfig struct {
 	// Enabled specifies whether this feature should be enabled.
-	Enabled bool `mapstructure:"enabled"`
+	Enabled bool `mapstructure:"enabled" json:"enabled"`
 
 	// RemoveAllArgs specifies whether all arguments to a given Redis
 	// command should be obfuscated.
-	RemoveAllArgs bool `mapstructure:"remove_all_args"`
+	RemoveAllArgs bool `mapstructure:"remove_all_args" json:"remove_all_args"`
 }
 
 // ValkeyConfig holds the configuration settings for Valkey obfuscation
 type ValkeyConfig struct {
 	// Enabled specifies whether this feature should be enabled.
-	Enabled bool `mapstructure:"enabled"`
+	Enabled bool `mapstructure:"enabled" json:"enabled"`
 
 	// RemoveAllArgs specifies whether all arguments to a given Valkey
 	// command should be obfuscated.
-	RemoveAllArgs bool `mapstructure:"remove_all_args"`
+	RemoveAllArgs bool `mapstructure:"remove_all_args" json:"remove_all_args"`
 }
 
 // MemcachedConfig holds the configuration settings for Memcached obfuscation
 type MemcachedConfig struct {
 	// Enabled specifies whether this feature should be enabled.
-	Enabled bool `mapstructure:"enabled"`
+	Enabled bool `mapstructure:"enabled" json:"enabled"`
 
 	// KeepCommand specifies whether the command of a given Memcached
 	// query should be kept. If false, the entire tag is removed.
-	KeepCommand bool `mapstructure:"keep_command"`
+	KeepCommand bool `mapstructure:"keep_command" json:"keep_command"`
 }
 
 // JSONConfig holds the obfuscation configuration for sensitive
 // data found in JSON objects.
 type JSONConfig struct {
 	// Enabled will specify whether obfuscation should be enabled.
-	Enabled bool `mapstructure:"enabled"`
+	Enabled bool `mapstructure:"enabled" json:"enabled"`
 
 	// KeepValues will specify a set of keys for which their values will
 	// not be obfuscated.
-	KeepValues []string `mapstructure:"keep_values"`
+	KeepValues []string `mapstructure:"keep_values" json:"keep_values"`
 
 	// ObfuscateSQLValues will specify a set of keys for which their values
 	// will be passed through SQL obfuscation
-	ObfuscateSQLValues []string `mapstructure:"obfuscate_sql_values"`
+	ObfuscateSQLValues []string `mapstructure:"obfuscate_sql_values" json:"obfuscate_sql_values"`
 }
 
 // CreditCardsConfig holds the configuration for credit card obfuscation in
 // (Meta) tags.
 type CreditCardsConfig struct {
 	// Enabled specifies whether this feature should be enabled.
-	Enabled bool `mapstructure:"enabled"`
+	Enabled bool `mapstructure:"enabled" json:"enabled"`
 
 	// Luhn specifies whether Luhn checksum validation should be enabled.
 	// https://dev.to/shiraazm/goluhn-a-simple-library-for-generating-calculating-and-verifying-luhn-numbers-588j
 	// It reduces false positives, but increases the CPU time X3.
-	Luhn bool `mapstructure:"luhn"`
+	Luhn bool `mapstructure:"luhn" json:"luhn"`
 
 	// KeepValues specifies tag keys that are known to not ever contain credit cards
 	// and therefore their values can be kept.
-	KeepValues []string `mapstructure:"keep_values"`
+	KeepValues []string `mapstructure:"keep_values" json:"keep_values"`
 }
 
 // CacheConfig holds the configuration for caching obfuscated queries.
 type CacheConfig struct {
 	// Enabled specifies whether caching should be enabled.
-	Enabled bool `mapstructure:"enabled"`
+	Enabled bool `mapstructure:"enabled" json:"enabled"`
 
 	// MaxSize is the maximum size of the cache in bytes.
-	MaxSize int64 `mapstructure:"max_size"`
+	MaxSize int64 `mapstructure:"max_size" json:"max_size"`
 }
 
 // NewObfuscator creates a new obfuscator

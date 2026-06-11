@@ -10,7 +10,19 @@ package checks
 import (
 	"errors"
 	"net/http"
+
+	"github.com/DataDog/datadog-agent/pkg/network/remoteservice"
 )
+
+// fetchRemoteServiceData is not applicable on this platform; returns nil.
+func fetchRemoteServiceData(_ *http.Client) (map[string][]string, map[uint32][]string, map[remoteservice.ListenKey]int32) {
+	return nil, nil, nil
+}
+
+// getRemoteProcessTags is not implemented on this platform; returns nil.
+func getRemoteProcessTags(_ int32, _ map[uint32][]string, _ func(int32) ([]string, error)) []string {
+	return nil
+}
 
 // getNetworkID fetches network_id
 func getNetworkID(_ *http.Client) (string, error) {

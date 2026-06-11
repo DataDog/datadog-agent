@@ -12,6 +12,7 @@ import (
 
 	"github.com/cilium/ebpf/rlimit"
 
+	"github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/prebuilt"
 	"github.com/DataDog/datadog-agent/pkg/util/funcs"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -31,6 +32,10 @@ func SupportedBuildModes() []BuildMode {
 		modes = append(modes, Prebuilt)
 	}
 	if os.Getenv("TEST_FENTRY_OVERRIDE") == "true" ||
+		// TODO: replace hardcoded 6.9 kernel version gate with features.SupportsFentry().
+		// Importing pkg/ebpf/features here today creates a test import cycle:
+		// pkg/ebpf [_test.go] -> ebpftest -> features -> kernelbugs -> pkg/ebpf
+		kv >= kernel.VersionCode(6, 9, 0) ||
 		(runtime.GOARCH == "amd64" && (hostPlatform == "amazon" || hostPlatform == "amzn") && kv.Major() == 5 && kv.Minor() == 10) {
 		modes = append(modes, Fentry)
 	}
@@ -59,6 +64,7 @@ func TestBuildMode(t *testing.T, mode BuildMode, name string, fn func(t *testing
 		for k, v := range mode.Env() {
 			t.Setenv(k, v)
 		}
+		_ = mock.NewSystemProbe(t)
 		if name != "" {
 			t.Run(name, fn)
 		} else {

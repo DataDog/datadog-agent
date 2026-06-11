@@ -6,7 +6,7 @@
 #define TTY_NAME_LEN 64
 #define MAX_XATTR_NAME_LEN 200
 #define CHAR_TO_UINT32_BASE_10_MAX_LEN 11
-#define BASENAME_FILTER_SIZE 256
+#define BASENAME_FILTER_SIZE 32 // has to be in sync with the userspace definition
 #define FSTYPE_LEN 16
 #define MAX_PATH_LEN 256
 #define REVISION_ARRAY_SIZE 4096
@@ -31,13 +31,19 @@
 #define DENTRY_ERROR -3
 #define FAKE_INODE_MSW 0xdeadc001UL
 #define DR_MAX_TAIL_CALL 29
-#define DR_MAX_ITERATION_DEPTH 41
+#define DR_MAX_ITERATION_DEPTH 40
 #define DR_MAX_SEGMENT_LENGTH 255
 #define DR_NO_CALLBACK -1
 
 enum TAIL_CALL_PROG_TYPE {
     KPROBE_OR_FENTRY_TYPE = 0,
     TRACEPOINT_TYPE = 1,
+};
+
+enum SOCKET_APPROVER_KEYS {
+    SOCKET_DOMAIN_APPROVER_KEY,
+    SOCKET_TYPE_APPROVER_KEY,
+    SOCKET_PROTOCOL_APPROVER_KEY,
 };
 
 enum DENTRY_RESOLVER_KEYS {
@@ -227,6 +233,11 @@ enum FLUSH_NETWORK_STATS_TYPE
     NETWORK_STATS_TICKER,
 };
 
+enum CACHE_SYSCALL_TYPE
+{
+    CACHE_SYSCALL_UPDATE_PROC_CACHE_CGROUP_KEY,
+};
+
 static __attribute__((always_inline)) u64 get_network_monitor_period() {
     u64 network_monitor_period;
     LOAD_CONSTANT("network_monitor_period", network_monitor_period);
@@ -274,6 +285,9 @@ enum global_rate_limiter_type {
     RAW_PACKET_FILTER_LIMITER = 0,
     RAW_PACKET_ACTION_LIMITER,
     OPEN_SAMPLE_LIMITER,
+    BIND_SAMPLE_LIMITER,
+    DNS_SAMPLE_LIMITER,
+    CONNECT_SAMPLE_LIMITER,
 };
 
 enum PATH_ID_INVALIDATE_TYPE {

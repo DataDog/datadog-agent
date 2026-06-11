@@ -1,0 +1,13 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "common",
+    srcs = ["entity_id_builder.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/tagger/common",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/tagger/types",
+        "//comp/core/workloadmeta/def",
+        "//pkg/util/log",
+    ],
+)

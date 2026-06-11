@@ -61,6 +61,11 @@ func TestObfuscateMemcachedKeepCommand(t *testing.T) {
 			"",
 			false,
 		},
+		{
+			"ჸ", // this is invalid, but it shouldn't crash
+			"ჸ",
+			true,
+		},
 	} {
 		t.Run(tt.in, func(t *testing.T) {
 			assert.Equal(t, tt.out, NewObfuscator(Config{Memcached: MemcachedConfig{

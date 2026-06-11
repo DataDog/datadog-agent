@@ -18,7 +18,7 @@ import (
 	"go.uber.org/atomic"
 	"go4.org/intern"
 
-	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
+	tracermetadata "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -156,15 +156,16 @@ func (h *eventConsumerWrapper) Copy(ev *model.Event) any {
 		}
 	}
 
-	tracerTags := ev.GetProcessTracerTags()
-	for _, tag := range tracerTags {
-		if tracermetadata.ShouldSkipServiceTag(tag,
-			tagsFound["DD_SERVICE"],
-			tagsFound["DD_ENV"],
-			tagsFound["DD_VERSION"]) {
-			continue
+	if tmeta := ev.GetProcessTracerMetadata(); (tmeta != tracermetadata.TracerMetadata{}) {
+		for key, value := range tmeta.Tags() {
+			if tracermetadata.ShouldSkipServiceTagKV(key, value,
+				tagsFound["DD_SERVICE"],
+				tagsFound["DD_ENV"],
+				tagsFound["DD_VERSION"]) {
+				continue
+			}
+			p.Tags = append(p.Tags, intern.GetByString(key+":"+value))
 		}
-		p.Tags = append(p.Tags, intern.GetByString(tag))
 	}
 
 	if cid := ev.GetContainerID(); cid != "" {

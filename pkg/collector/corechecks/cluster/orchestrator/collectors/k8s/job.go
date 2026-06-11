@@ -8,11 +8,11 @@
 package k8s
 
 import (
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
 	utilTypes "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/util"
-	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 
@@ -23,9 +23,9 @@ import (
 )
 
 // NewJobCollectorVersions builds the group of collector versions.
-func NewJobCollectorVersions(metadataAsTags utils.MetadataAsTags) collectors.CollectorVersions {
+func NewJobCollectorVersions(tagger tagger.Component) collectors.CollectorVersions {
 	return collectors.NewCollectorVersions(
-		NewJobCollector(metadataAsTags),
+		NewJobCollector(tagger),
 	)
 }
 
@@ -38,11 +38,7 @@ type JobCollector struct {
 }
 
 // NewJobCollector creates a new collector for the Kubernetes Job resource.
-func NewJobCollector(metadataAsTags utils.MetadataAsTags) *JobCollector {
-	resourceType := utilTypes.GetResourceType(utilTypes.JobName, utilTypes.JobVersion)
-	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
-	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
-
+func NewJobCollector(tagger tagger.Component) *JobCollector {
 	return &JobCollector{
 		metadata: &collectors.CollectorMetadata{
 			IsDefaultVersion:                     true,
@@ -53,12 +49,11 @@ func NewJobCollector(metadataAsTags utils.MetadataAsTags) *JobCollector {
 			Name:                                 utilTypes.JobName,
 			Kind:                                 kubernetes.JobKind,
 			NodeType:                             orchestrator.K8sJob,
+			Group:                                utilTypes.JobGroup,
 			Version:                              utilTypes.JobVersion,
-			LabelsAsTags:                         labelsAsTags,
-			AnnotationsAsTags:                    annotationsAsTags,
 			SupportsTerminatedResourceCollection: true,
 		},
-		processor: processors.NewProcessor(new(k8sProcessors.JobHandlers)),
+		processor: processors.NewProcessor(k8sProcessors.NewJobHandlers(tagger)),
 	}
 }
 

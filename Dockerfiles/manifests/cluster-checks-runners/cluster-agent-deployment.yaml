@@ -36,7 +36,7 @@ spec:
       automountServiceAccountToken: true
       initContainers:
         - name: init-volume
-          image: "gcr.io/datadoghq/cluster-agent:7.73.0"
+          image: "registry.datadoghq.com/cluster-agent:7.76.1"
           imagePullPolicy: IfNotPresent
           command:
             - cp
@@ -49,7 +49,7 @@ spec:
               mountPath: /opt/datadog-agent
       containers:
         - name: cluster-agent
-          image: "gcr.io/datadoghq/cluster-agent:7.73.0"
+          image: "registry.datadoghq.com/cluster-agent:7.76.1"
           imagePullPolicy: IfNotPresent
           resources: {}
           ports:
@@ -129,7 +129,7 @@ spec:
             - name: DD_ADMISSION_CONTROLLER_PORT
               value: "8000"
             - name: DD_ADMISSION_CONTROLLER_CONTAINER_REGISTRY
-              value: "gcr.io/datadoghq"
+              value: "registry.datadoghq.com"
             - name: DD_REMOTE_CONFIGURATION_ENABLED
               value: "false"
             - name: DD_CLUSTER_CHECKS_ENABLED
@@ -261,6 +261,11 @@ spec:
         - name: confd
           configMap:
             name: datadog-cluster-agent-confd
+            items:
+              - key: kubernetes_state_core.yaml.default
+                path: kubernetes_state_core.d/kubernetes_state_core.yaml.default
+              - key: kubernetes_apiserver.yaml
+                path: kubernetes_apiserver.d/kubernetes_apiserver.yaml
         - name: config
           emptyDir: {}
       affinity:

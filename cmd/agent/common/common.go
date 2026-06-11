@@ -9,7 +9,9 @@ package common
 
 import (
 	"fmt"
+	"net"
 	"path/filepath"
+	"strconv"
 
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
@@ -37,5 +39,6 @@ func NewSettingsClient(client ipc.HTTPClient) (settings.Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	return settingshttp.NewSecureClient(client, fmt.Sprintf("https://%v:%v/agent/config", ipcAddress, pkgconfigsetup.Datadog().GetInt("cmd_port")), "agent", ipchttp.WithLeaveConnectionOpen), nil
+	addr := net.JoinHostPort(ipcAddress, strconv.Itoa(pkgconfigsetup.Datadog().GetInt("cmd_port")))
+	return settingshttp.NewSecureClient(client, fmt.Sprintf("https://%s/agent/config", addr), "agent", ipchttp.WithLeaveConnectionOpen), nil
 }

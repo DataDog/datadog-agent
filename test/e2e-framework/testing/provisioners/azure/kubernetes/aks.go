@@ -7,6 +7,7 @@
 package azurekubernetes
 
 import (
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent/helm"
@@ -84,14 +85,6 @@ func AKSRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Provi
 		// to reach the Kubelet. Thus we need to use `tlsVerify: false` and `and `status.hostIP` as `host` in
 		// the Helm values
 		customValues := `
-datadog:
-  kubelet:
-    host:
-      valueFrom:
-        fieldRef:
-          fieldPath: status.hostIP
-    hostCAPath: /etc/kubernetes/certs/kubeletserver.crt
-    tlsVerify: false
 providers:
   aks:
     enabled: true
@@ -105,8 +98,23 @@ providers:
 		if err != nil {
 			return err
 		}
+
+		dependsOnDDAgent := utils.PulumiDependsOn(agent)
+		for _, appFunc := range params.agentDependentWorkloadAppFuncs {
+			_, err := appFunc(&azureEnv, aksCluster.KubeProvider, dependsOnDDAgent)
+			if err != nil {
+				return err
+			}
+		}
 	} else {
 		env.Agent = nil
+	}
+
+	for _, appFunc := range params.workloadAppFuncs {
+		_, err := appFunc(&azureEnv, aksCluster.KubeProvider)
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }

@@ -27,6 +27,7 @@ from invoke.exceptions import Exit
 
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.constants import ALLOWED_REPO_ALL_BRANCHES, REPO_PATH
+from tasks.libs.common.get_payload_version import get_payload_version
 from tasks.libs.common.git import get_commit_sha, get_default_branch, set_git_config
 from tasks.libs.releasing.version import get_version
 from tasks.libs.types.arch import Arch
@@ -284,7 +285,22 @@ def get_build_flags(
             )
         env['DYLD_LIBRARY_PATH'] = os.environ.get('DYLD_LIBRARY_PATH', '') + f":{':'.join(rtloader_lib)}"  # OSX
         env['LD_LIBRARY_PATH'] = os.environ.get('LD_LIBRARY_PATH', '') + f":{':'.join(rtloader_lib)}"  # linux
+        if sys.platform == "aix":
+            env['LIBPATH'] = os.environ.get('LIBPATH', '') + f":{':'.join(rtloader_lib)}"  # AIX
         env['CGO_LDFLAGS'] = os.environ.get('CGO_LDFLAGS', '') + f" -L{' -L '.join(rtloader_lib)}"
+
+    # On AIX, libpython must be linked explicitly so that Python API symbols enter
+    # the XCOFF process-global symbol table at startup (required by C extension modules).
+    # Fall back to embedded_path when python_home_3 is not explicitly set, since on AIX
+    # Python is installed alongside rtloader under the same embedded prefix.
+    # Must follow the rtloader block: that block also writes env['CGO_LDFLAGS'] from
+    # os.environ, so placing this before it would cause the python flag to be dropped.
+    if sys.platform == 'aix':
+        aix_python_lib_path = python_home_3 or embedded_path
+        if aix_python_lib_path:
+            env['CGO_LDFLAGS'] = (
+                env.get('CGO_LDFLAGS', os.environ.get('CGO_LDFLAGS', '')) + f" -L{aix_python_lib_path}/lib -lpython3"
+            )
 
     if sys.platform == 'win32':
         env['CGO_LDFLAGS'] = os.environ.get('CGO_LDFLAGS', '') + ' -Wl,--allow-multiple-definition'
@@ -305,7 +321,8 @@ def get_build_flags(
         ldflags += "-s -w -linkmode=external "
         extldflags += "-static "
     elif rtloader_lib:
-        ldflags += f"-r {':'.join(rtloader_lib)} "
+        if sys.platform != "aix":  # -r sets ELF RPATH; not valid for AIX XCOFF
+            ldflags += f"-r {':'.join(rtloader_lib)} "
 
     if os.environ.get("DELVE"):
         gcflags = "all=-N -l"
@@ -363,34 +380,6 @@ def get_common_test_args(build_tags, failfast):
         "build_tags": ",".join(build_tags),
         "failfast": "-failfast" if failfast else "",
     }
-
-
-def get_payload_version():
-    """
-    Return the Agent payload version (`x.y.z`) found in the go.mod file.
-    """
-    with open('go.mod') as f:
-        for rawline in f:
-            line = rawline.strip()
-            whitespace_split = line.split(" ")
-            if len(whitespace_split) < 2:
-                continue
-            pkgname = whitespace_split[0]
-            if pkgname == "github.com/DataDog/agent-payload/v5":
-                # Example of line
-                # github.com/DataDog/agent-payload/v5 v5.0.2
-                # github.com/DataDog/agent-payload/v5 v5.0.1-0.20200826134834-1ddcfb686e3f
-                version_split = re.split(r'[ +]', line)
-                if len(version_split) < 2:
-                    raise Exception(
-                        "Versioning of agent-payload in go.mod has changed, the version logic needs to be updated"
-                    )
-                version = version_split[1].split("-")[0].strip()
-                if not re.search(r"^v\d+(\.\d+){2}$", version):
-                    raise Exception(f"Version of agent-payload in go.mod is invalid: '{version}'")
-                return version
-
-    raise Exception("Could not find valid version for agent-payload in go.mod file")
 
 
 def get_version_ldflags(ctx, install_path=None):

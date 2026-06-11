@@ -16,7 +16,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -29,7 +28,7 @@ const (
 
 var (
 	// WebhookResources are the Kubernetes resources this webhook should be invoked for.
-	WebhookResources = map[string][]string{"": {"pods"}}
+	WebhookResources = []common.WebhookResourceRule{{APIGroup: "", APIVersion: "v1", Resources: []string{"pods"}}}
 
 	// WebhookOperations are the operations on the resources specified for which the webhook should be invoked.
 	WebhookOperations = []admissionregistrationv1.OperationType{admissionregistrationv1.Create}
@@ -57,17 +56,16 @@ func NewWebhookConfig(datadogConfig config.Component) *WebhookConfig {
 // Webhook is the auto instrumentation webhook used for Single Step Instrumentation.
 type Webhook struct {
 	name            string
-	resources       map[string][]string
+	resources       []common.WebhookResourceRule
 	operations      []admissionregistrationv1.OperationType
 	matchConditions []admissionregistrationv1.MatchCondition
-	wmeta           workloadmeta.Component
 	mutator         mutatecommon.Mutator
 	config          *WebhookConfig
 	labelSelectors  *LabelSelectors
 }
 
 // NewWebhook returns a new Webhook dependent on the injection filter.
-func NewWebhook(config *WebhookConfig, wmeta workloadmeta.Component, mutator mutatecommon.Mutator, labelSelectors *LabelSelectors) (*Webhook, error) {
+func NewWebhook(config *WebhookConfig, mutator mutatecommon.Mutator, labelSelectors *LabelSelectors) (*Webhook, error) {
 	log.Debug("Successfully created SSI webhook")
 	return &Webhook{
 		name:            WebhookName,
@@ -75,7 +73,6 @@ func NewWebhook(config *WebhookConfig, wmeta workloadmeta.Component, mutator mut
 		operations:      WebhookOperations,
 		matchConditions: WebhookMatchConditions,
 		mutator:         mutator,
-		wmeta:           wmeta,
 		config:          config,
 		labelSelectors:  labelSelectors,
 	}, nil
@@ -102,7 +99,7 @@ func (w *Webhook) Endpoint() string {
 }
 
 // Resources returns the kubernetes resources for which the webhook should be invoked.
-func (w *Webhook) Resources() map[string][]string {
+func (w *Webhook) Resources() []common.WebhookResourceRule {
 	return w.resources
 }
 

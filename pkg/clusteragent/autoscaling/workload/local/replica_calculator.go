@@ -23,7 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/loadstore"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
-	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -80,6 +79,7 @@ func (r replicaCalculator) calculateHorizontalRecommendations(dpai model.PodAuto
 	}
 
 	recommendedReplicas := model.HorizontalScalingValues{}
+	var lastUtilizationPct float64
 
 	for _, objective := range objectives {
 		recSettings, err := newResourceRecommenderSettings(objective)
@@ -98,15 +98,7 @@ func (r replicaCalculator) calculateHorizontalRecommendations(dpai model.PodAuto
 			break
 		}
 		ts := utilizationRes.recommendationTimestamp
-
-		telemetryHorizontalLocalUtilizationPct.Set(
-			float64(utilizationRes.averageUtilization),
-			namespace,
-			podOwnerName,
-			dpai.Name(),
-			string(recommendedReplicas.Source),
-			le.JoinLeaderValue,
-		)
+		lastUtilizationPct = float64(utilizationRes.averageUtilization)
 
 		// Always choose the highest recommendation given
 		if rec > recommendedReplicas.Replicas {
@@ -120,15 +112,7 @@ func (r replicaCalculator) calculateHorizontalRecommendations(dpai model.PodAuto
 		return nil, fmt.Errorf("No recommendation found for autoscaler: %s", dpai.ID())
 	}
 
-	telemetryHorizontalLocalRecommendations.Set(
-		float64(recommendedReplicas.Replicas),
-		namespace,
-		podOwnerName,
-		dpai.Name(),
-		string(recommendedReplicas.Source),
-		le.JoinLeaderValue,
-	)
-
+	recommendedReplicas.UtilizationPct = &lastUtilizationPct
 	return &recommendedReplicas, nil
 }
 

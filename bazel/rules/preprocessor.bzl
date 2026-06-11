@@ -1,14 +1,13 @@
 load("@bazel_skylib//lib:paths.bzl", "paths")
 load("@rules_cc//cc:action_names.bzl", "C_COMPILE_ACTION_NAME")
-load("@rules_cc//cc:find_cc_toolchain.bzl", "CC_TOOLCHAIN_ATTRS", "find_cpp_toolchain", "use_cc_toolchain")
-load("@rules_cc//cc/common:cc_common.bzl", "cc_common")
-load("@rules_cc//cc/common:cc_info.bzl", "CcInfo")
+load("@rules_cc//cc:defs.bzl", "CcInfo", "cc_common")
+load("@rules_cc//cc:find_cc_toolchain.bzl", "CC_TOOLCHAIN_ATTRS", "find_cc_toolchain", "use_cc_toolchain")
 
 def _c_preprocessor_impl(ctx):
     out = ctx.outputs.output
     source = ctx.file.input
     include_dirs = [paths.dirname(f.path) for f in ctx.files.deps]
-    cc_toolchain = find_cpp_toolchain(ctx)
+    cc_toolchain = find_cc_toolchain(ctx)
     compilation_ctx = cc_common.create_compilation_context(
         headers = depset(ctx.files.deps),
     )

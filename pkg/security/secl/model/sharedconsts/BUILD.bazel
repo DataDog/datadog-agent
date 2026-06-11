@@ -1,0 +1,13 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "sharedconsts",
+    srcs = [
+        "argsenvs.go",
+        "auditid.go",
+        "exitcode.go",
+        "prctl.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/security/secl/model/sharedconsts",
+    visibility = ["//visibility:public"],
+)
