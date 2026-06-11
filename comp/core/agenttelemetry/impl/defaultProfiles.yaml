@@ -15,6 +15,9 @@ profiles:
         preserve_tags:
           - check_name
           - state
+      - name: checks.skips
+        preserve_tags:
+          - check_name
       - name: pymem.inuse
       - name: health_platform.issues_detected
         preserve_tags:

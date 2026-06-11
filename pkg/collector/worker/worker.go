@@ -45,6 +45,13 @@ var workerUtilization = telemetryimpl.GetCompatComponent().NewGauge(
 	"Worker utilization. It's a value between 0 and 1 that represents the share of time that the check runner worker is running checks",
 )
 
+var tlmCheckSkips = telemetryimpl.GetCompatComponent().NewCounter(
+	"checks",
+	"skips",
+	[]string{"check_name"},
+	"Check runs skipped because a previous run was still in progress",
+)
+
 // Worker is an object that encapsulates the logic to manage a loop of processing
 // checks over the provided `PendingCheckChan`
 type Worker struct {
@@ -164,6 +171,7 @@ func (w *Worker) Run(ctx context.Context) {
 		// Add check to tracker if it's not already running
 		if !w.checksTracker.AddCheck(check) {
 			checkLogger.Debug("Check is already running, skipping execution...")
+			tlmCheckSkips.Inc(check.String())
 			continue
 		}
 
