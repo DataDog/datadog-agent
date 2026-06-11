@@ -8,7 +8,10 @@ else
   flavor_flag = fips_mode? ? "--//packages/agent:flavor=fips" : ""
 end
 
-dependency 'datadog-agent-data-plane' if (linux_target? || osx_target?) && !heroku_target?
+adp_artifact_hash_available = arm_target? ? !ENV['AGENT_DATA_PLANE_HASH_DARWIN_ARM64'].to_s.empty? : !ENV['AGENT_DATA_PLANE_HASH_DARWIN_AMD64'].to_s.empty?
+include_adp = linux_target? || (osx_target? && adp_artifact_hash_available)
+
+dependency 'datadog-agent-data-plane' if include_adp && !heroku_target?
 
 dependency 'datadog-agent-integrations-py3'
 

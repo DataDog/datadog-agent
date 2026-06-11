@@ -17,10 +17,11 @@ class TestADPMacOSPackaging(unittest.TestCase):
         self.assertIn('package_target = "darwin-#{target_arch}"', recipe)
         self.assertIn("Agent Data Plane FIPS artifacts are not available for macOS", recipe)
 
-    def test_adp_dependency_is_included_on_linux_and_macos(self):
+    def test_adp_dependency_is_included_on_linux_and_macos_when_artifact_hash_exists(self):
         dependencies = (REPO_ROOT / "omnibus/config/software/datadog-agent-dependencies.rb").read_text()
 
-        self.assertIn("(linux_target? || osx_target?) && !heroku_target?", dependencies)
+        self.assertIn("include_adp = linux_target? || (osx_target? && adp_artifact_hash_available)", dependencies)
+        self.assertIn("dependency 'datadog-agent-data-plane' if include_adp && !heroku_target?", dependencies)
 
     def test_darwin_adp_hashes_and_url_base_are_forwarded_to_omnibus(self):
         darwin_env = OS_SPECIFIC_ENV_PASSTHROUGH["darwin"]
@@ -60,6 +61,7 @@ class TestADPMacOSPackaging(unittest.TestCase):
         postinst = (REPO_ROOT / "omnibus/package-scripts/agent-dmg/postinst").read_text()
 
         self.assertIn("launchctl bootout system/com.datadoghq.data-plane", preinst)
+        self.assertIn('if [ -x "$INSTALL_DIR/embedded/bin/agent-data-plane" ]; then', postinst)
         self.assertIn("com.datadoghq.data-plane.plist.example", postinst)
         self.assertIn("/Library/LaunchDaemons/com.datadoghq.data-plane.plist", postinst)
         self.assertIn("launchctl enable system/com.datadoghq.data-plane", postinst)
