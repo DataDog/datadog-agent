@@ -76,8 +76,8 @@ func enrichErrorLog(e errortracking.ErrorLog) Log {
 		count = 1
 	}
 	tags := "git.repository_url:DataDog/datadog-agent"
-	if agentversion.Commit != "" {
-		tags += ",git.commit.sha:" + agentversion.Commit
+	if agentversion.FullCommit != "" {
+		tags += ",git.commit.sha:" + agentversion.FullCommit
 	}
 	out := Log{
 		Level:      LogLevelError,
