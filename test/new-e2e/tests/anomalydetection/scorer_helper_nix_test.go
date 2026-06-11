@@ -118,8 +118,8 @@ func (s *scorerHelperSuite) sendHelperGauge(name string, value float64) {
 // helper.report_events is left at its default (false).
 func (s *scorerHelperSuite) TestScorerHelperEmitsSeverityTransitionOnMultiSeriesSpike() {
 	// 5 distinct metric names → 5 independent anomaly series that spike at once.
-	// BOCPD needs warmup_points=20, holt_residual needs 24 points; we send 25 baseline
-	// ticks so both detectors are warmed up before the spike begins.
+	// BOCPD needs warmup_points=20, holt_residual needs 24 points; we send 30 baseline
+	// ticks to give a comfortable margin against SSH-latency-induced dropped ticks.
 	// Using 5 series gives saturation(5, k=5) ≈ 0.63 input per advance tick.
 	// With alpha=0.3, EWMA ≈ 0.3×0.63 = 0.19 after the very first spike second,
 	// well above low_threshold=0.040.
@@ -128,7 +128,7 @@ func (s *scorerHelperSuite) TestScorerHelperEmitsSeverityTransitionOnMultiSeries
 		metricPrefix   = "e2e.anomalydetection.scorer.s"
 		baseline       = 1.0
 		spike          = 5000.0
-		baselinePoints = 25 // exceeds both BOCPD warmup_points=20 and holt_residual WarmupPoints=24
+		baselinePoints = 30 // comfortable margin above BOCPD warmup_points=20 and holt_residual WarmupPoints=24
 		spikePoints    = 10 // 10 seconds of spike; EWMA crosses threshold in the first tick
 	)
 
