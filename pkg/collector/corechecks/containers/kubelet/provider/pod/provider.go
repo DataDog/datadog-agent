@@ -190,7 +190,7 @@ func (p *Provider) generatePodSpecMetrics(sender sender.Sender, pod *workloadmet
 			continue
 		}
 
-		sender.Gauge(common.KubeletMetricsPrefix+"pod."+r+".limit", quantity.AsApproximateFloat64(), "", tagList)
+		sender.Gauge(common.KubeletMetricsPrefix+"pod."+r+".limits", quantity.AsApproximateFloat64(), "", tagList)
 	}
 }
 

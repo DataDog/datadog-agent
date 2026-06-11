@@ -243,8 +243,8 @@ func (suite *ProviderTestSuite) TestTransformPodsRequestsLimits() {
 	// pod resource metrics
 	suite.mockSender.AssertMetric(suite.T(), "Gauge", common.KubeletMetricsPrefix+"pod.cpu.request", 0.75, "", append(config.Tags, "pod_name:cassandra-0", "kube_namespace:default"))
 	suite.mockSender.AssertMetric(suite.T(), "Gauge", common.KubeletMetricsPrefix+"pod.memory.request", 1610612736.0, "", append(config.Tags, "pod_name:cassandra-0", "kube_namespace:default"))
-	suite.mockSender.AssertMetric(suite.T(), "Gauge", common.KubeletMetricsPrefix+"pod.cpu.limit", 1.0, "", append(config.Tags, "pod_name:cassandra-0", "kube_namespace:default"))
-	suite.mockSender.AssertMetric(suite.T(), "Gauge", common.KubeletMetricsPrefix+"pod.memory.limit", 2147483648.0, "", append(config.Tags, "pod_name:cassandra-0", "kube_namespace:default"))
+	suite.mockSender.AssertMetric(suite.T(), "Gauge", common.KubeletMetricsPrefix+"pod.cpu.limits", 1.0, "", append(config.Tags, "pod_name:cassandra-0", "kube_namespace:default"))
+	suite.mockSender.AssertMetric(suite.T(), "Gauge", common.KubeletMetricsPrefix+"pod.memory.limits", 2147483648.0, "", append(config.Tags, "pod_name:cassandra-0", "kube_namespace:default"))
 }
 
 // TestTransformPodsInPlaceResize verifies that request/limit metrics
