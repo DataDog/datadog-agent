@@ -139,6 +139,7 @@ go_test(
         "utils_test.go",
         "zookeeper_test.go",
     ],
+    data = glob(["testdata/**"]),
     embed = [":providers"],
     gotags = ["test"],
     deps = [
