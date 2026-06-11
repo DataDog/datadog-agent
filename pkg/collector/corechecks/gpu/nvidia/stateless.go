@@ -330,22 +330,6 @@ func pcieLinkBytesPerSecond(gen int, width int) (float64, error) {
 	return bps, nil
 }
 
-func pcieLinkWidthMetrics(device ddnvml.Device) ([]Metric, uint64, error) {
-	currentWidth, err := device.GetCurrPcieLinkWidth()
-	if err != nil {
-		return nil, 0, fmt.Errorf("get current PCIe link width: %w", err)
-	}
-	maxWidth, err := device.GetMaxPcieLinkWidth()
-	if err != nil {
-		return nil, 0, fmt.Errorf("get max PCIe link width: %w", err)
-	}
-	return []Metric{
-		{Name: "pci.link.width.current", Value: float64(currentWidth), Type: metrics.GaugeType},
-		{Name: "pci.link.width.max", Value: float64(maxWidth), Type: metrics.GaugeType},
-		{Name: "pci.link.width.degraded", Value: boolToFloat(currentWidth < maxWidth), Type: metrics.GaugeType},
-	}, 0, nil
-}
-
 func pcieLinkMetrics(device ddnvml.Device) ([]Metric, uint64, error) {
 	var metricsOut []Metric
 

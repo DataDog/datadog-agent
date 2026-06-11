@@ -1716,7 +1716,7 @@ metrics:
       - device
     validator:
       range:
-        min: 1
+        min: 0
         max: 32
     support:
       device_modes:
@@ -1731,7 +1731,7 @@ metrics:
       - device
     validator:
       range:
-        min: 1
+        min: 0
         max: 32
     support:
       device_modes:
