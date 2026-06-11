@@ -38,7 +38,7 @@ func OperationAndResourceNameV2Enabled(conf *config.AgentConfig) bool {
 // scopeConventionEnabled checks if the new convention for otel.library.name and otel.library.version
 // to otel.scope.name and otel.scope.version should be used
 func scopeConventionEnabled(conf *config.AgentConfig) bool {
-	return !conf.HasFeature("disable_scope_convention")
+	return !conf.HasFeature("disable_otel_scope_convention")
 }
 
 // otelSpanToDDSpanMinimal is the internal implementation shared by OtelSpanToDDSpanMinimal and
@@ -313,7 +313,7 @@ func OtelSpanToDDSpan(
 	if otelspan.TraceState().AsRaw() != "" {
 		ddspan.Meta["w3c.tracestate"] = otelspan.TraceState().AsRaw()
 	}
-	scopeConventionGateEnabled := scopeConventionEnabled(conf)
+	scopeConventionGateEnabled := !conf.HasFeature("disable_scope_convention")
 	if lib.Name() != "" {
 		if scopeConventionGateEnabled {
 			ddspan.Meta[string(semconv.OtelScopeNameKey)] = lib.Name()
