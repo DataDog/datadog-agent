@@ -11,6 +11,7 @@ package mock
 import (
 	"sync"
 
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/internal/identity"
 	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/def"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -35,6 +36,9 @@ func newMockServerDebug() serverdebug.Component {
 }
 
 func (d *mockServerDebug) StoreMetricStats(_ metrics.MetricSample) {
+}
+
+func (d *mockServerDebug) StoreMetricStatsWithShardIdentity(_ identity.ShardIdentity) {
 }
 
 func (d *mockServerDebug) SetMetricStatsEnabled(enable bool) {

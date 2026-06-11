@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 	pidmap "github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap/def"
 	pidmapfx "github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap/fx"
+	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -98,6 +99,43 @@ func TestUDPListenerTelemetry(t *testing.T) {
 
 	case <-time.After(2 * time.Second):
 		assert.FailNow(t, "Timeout on receive channel")
+	}
+}
+
+func TestMilestone5UDPListenerCapturesIngressEnvelope(t *testing.T) {
+	contents := []byte("daemon:1|c")
+	capture := newRecordingCapture()
+
+	cfg := map[string]interface{}{}
+	cfg["dogstatsd_port"] = RandomPortName
+
+	packetChannel := make(chan packets.Packets)
+	deps := fulfillDepsWithConfig(t, cfg)
+	telemetryStore := NewTelemetryStore(nil, deps.Telemetry)
+	packetsTelemetryStore := packets.NewTelemetryStore(nil, deps.Telemetry)
+	s, err := NewUDPListener(packetChannel, newPacketPoolManagerUDP(deps.Config, packetsTelemetryStore), deps.Config, capture, telemetryStore, packetsTelemetryStore)
+	require.NoError(t, err)
+	require.NotNil(t, s)
+	mockConn := defaultMConn(s.conn.LocalAddr(), contents)
+	s.conn.Close()
+	s.conn = mockConn
+	s.Listen()
+	defer s.Stop()
+
+	select {
+	case <-packetChannel:
+	case <-time.After(2 * time.Second):
+		assert.FailNow(t, "Timeout on receive channel")
+	}
+
+	select {
+	case envelope := <-capture.envelopes:
+		assert.Equal(t, contents, envelope.Payload)
+		assert.Equal(t, packets.UDP, envelope.Source)
+		assert.Equal(t, "udp", envelope.ListenerID)
+		assert.Equal(t, s.conn.LocalAddr().String(), envelope.LocalAddr)
+	case <-time.After(2 * time.Second):
+		assert.FailNow(t, "Timeout on capture envelope")
 	}
 }
 
@@ -214,4 +252,46 @@ func (conn *udpMock) ReadFrom(b []byte) (int, net.Addr, error) {
 
 func (conn udpMock) Close() error {
 	return nil
+}
+
+type recordingCapture struct {
+	envelopes chan replay.IngressEnvelope
+}
+
+func newRecordingCapture() *recordingCapture {
+	return &recordingCapture{envelopes: make(chan replay.IngressEnvelope, 1)}
+}
+
+func (c *recordingCapture) IsOngoing() bool { return false }
+
+func (c *recordingCapture) StartCapture(_ string, _ time.Duration, _ bool) (string, error) {
+	return "", nil
+}
+
+func (c *recordingCapture) StopCapture() {}
+
+func (c *recordingCapture) RegisterSharedPoolManager(_ *packets.PoolManager[packets.Packet]) error {
+	return nil
+}
+
+func (c *recordingCapture) RegisterOOBPoolManager(_ *packets.PoolManager[[]byte]) error { return nil }
+
+func (c *recordingCapture) Enqueue(_ *replay.CaptureBuffer) bool { return false }
+
+func (c *recordingCapture) CaptureIngress(envelope replay.IngressEnvelope) bool {
+	c.envelopes <- cloneTestIngressEnvelope(envelope)
+	return true
+}
+
+func (c *recordingCapture) RecentIngress(_ int) []replay.IngressEnvelope { return nil }
+
+func (c *recordingCapture) IngressStats() replay.IngressStats { return replay.IngressStats{} }
+
+func (c *recordingCapture) GetStartUpError() error { return nil }
+
+func cloneTestIngressEnvelope(envelope replay.IngressEnvelope) replay.IngressEnvelope {
+	copyEnvelope := envelope
+	copyEnvelope.Payload = append([]byte(nil), envelope.Payload...)
+	copyEnvelope.Ancillary = append([]byte(nil), envelope.Ancillary...)
+	return copyEnvelope
 }

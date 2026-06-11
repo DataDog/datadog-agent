@@ -23,6 +23,7 @@ import (
 	orchestratorforwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/def"
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -112,6 +113,14 @@ type statsd struct {
 	// shared metric sample pool between the dogstatsd server & the time sampler
 	metricSamplePool *metrics.MetricSamplePool
 
+	// columnarV3 is the intentionally local-only DogStatsD v3 vertical-slice
+	// experiment. Supported DogStatsD samples are handed from parser workers to
+	// these shard-local workers and aggregated in this v3-aligned table, bypassing
+	// the legacy sampler state.
+	columnarV3           *dogstatsdColumnarStore
+	columnarV3Workers    []*dogstatsdColumnarWorker
+	columnarV3SamplePool *DogStatsDColumnarV3SamplePool
+
 	// the noAggregationStreamWorker is the one dealing with metrics that don't need to
 	// be aggregated/sampled.
 	noAggStreamWorker *noAggregationStreamWorker
@@ -196,6 +205,27 @@ func initAgentDemultiplexer(log log.Component,
 			filterList.GetHistoFilterList(), filterList.GetTagFilterList())
 	}
 
+	var columnarV3 *dogstatsdColumnarStore
+	var columnarV3Workers []*dogstatsdColumnarWorker
+	var columnarV3SamplePool *DogStatsDColumnarV3SamplePool
+	if columnarV3ExperimentEnabled() {
+		columnarV3 = newDogStatsDColumnarStore(bucketSize, statsdPipelinesCount, dogstatsdColumnarStoreConfig{
+			tagger:        tagger,
+			tagFilterList: filterList.GetTagFilterList(),
+		})
+		columnarV3SamplePool = newDogStatsDColumnarV3SamplePool(MetricSamplePoolBatchSize)
+		columnarV3Workers = make([]*dogstatsdColumnarWorker, statsdPipelinesCount)
+		for i := 0; i < statsdPipelinesCount; i++ {
+			columnarV3Workers[i] = newDogStatsDColumnarWorker(columnarV3, TimeSamplerID(i), bufferSize, columnarV3SamplePool, filterList.GetTagFilterList())
+		}
+		if columnarV3NativeSerializerEnabled() {
+			log.Infof("DogStatsD experimental columnar v3 native serializer enabled")
+		}
+		if columnarV3DirectSeriesSerializerEnabled() {
+			log.Infof("DogStatsD experimental columnar direct series serializer enabled")
+		}
+	}
+
 	var noAggWorker *noAggregationStreamWorker
 	var noAggSerializer serializer.MetricSerializer
 	if options.EnableNoAggregationPipeline {
@@ -234,10 +264,13 @@ func initAgentDemultiplexer(log log.Component,
 
 		// statsd time samplers
 		statsd: statsd{
-			pipelinesCount:    statsdPipelinesCount,
-			workers:           statsdWorkers,
-			metricSamplePool:  metricSamplePool,
-			noAggStreamWorker: noAggWorker,
+			pipelinesCount:       statsdPipelinesCount,
+			workers:              statsdWorkers,
+			metricSamplePool:     metricSamplePool,
+			columnarV3:           columnarV3,
+			columnarV3Workers:    columnarV3Workers,
+			columnarV3SamplePool: columnarV3SamplePool,
+			noAggStreamWorker:    noAggWorker,
 		},
 	}
 
@@ -371,6 +404,9 @@ func (d *AgentDemultiplexer) run() {
 	for _, w := range d.statsd.workers {
 		go w.run()
 	}
+	for _, w := range d.statsd.columnarV3Workers {
+		go w.run()
+	}
 
 	go d.aggregator.run()
 
@@ -468,6 +504,9 @@ func (d *AgentDemultiplexer) Stop() {
 	defer d.m.Unlock()
 
 	// aggregated data
+	for _, worker := range d.statsd.columnarV3Workers {
+		worker.stop()
+	}
 	for _, worker := range d.statsd.workers {
 		worker.stop()
 	}
@@ -505,6 +544,18 @@ func (d *AgentDemultiplexer) ForceFlushToSerializer(start time.Time, waitForSeri
 	<-trigger.blockChan
 }
 
+type directSeriesSketchSerializer interface {
+	SendDirectSeriesAndSketches(func(metrics.SerieSink, metrics.SketchesSink), serializer.DirectMetricsOptions) serializer.DirectMetricsResult
+}
+
+type directV3SeriesRowsSerializer interface {
+	SendDirectV3SeriesRows(func(metrics.SerieRowSink), serializer.DirectMetricsOptions) serializer.DirectMetricsResult
+}
+
+type directV3MetricPointRowsSerializer interface {
+	SendDirectV3MetricPointRows(func(metrics.V3MetricPointRowSink), serializer.DirectMetricsOptions) serializer.DirectMetricsResult
+}
+
 // flushToSerializer flushes all data from the aggregator and time samplers
 // to the serializer.
 //
@@ -526,63 +577,292 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 		return
 	}
 
+	if columnarV3ExperimentEnabled() {
+		if columnarV3NativeSerializerEnabled() {
+			if nativeRows, ok := d.sharedSerializer.(directV3MetricPointRowsSerializer); ok {
+				directSeries, _ := d.sharedSerializer.(directSeriesSketchSerializer)
+				d.flushToColumnarV3NativeSerializer(start, waitForSerializer, forceFlushAll, nativeRows, directSeries)
+				return
+			}
+		}
+		if columnarV3DirectSeriesSerializerEnabled() {
+			if directSeries, ok := d.sharedSerializer.(directSeriesSketchSerializer); ok {
+				d.flushToColumnarV3DirectSeriesSerializer(start, waitForSerializer, forceFlushAll, directSeries)
+				return
+			}
+		}
+		if directRows, ok := d.sharedSerializer.(directV3SeriesRowsSerializer); ok {
+			directSeries, _ := d.sharedSerializer.(directSeriesSketchSerializer)
+			d.flushToColumnarV3Serializer(start, waitForSerializer, forceFlushAll, directRows, directSeries)
+			return
+		}
+	}
+
+	if directSerializerExperimentEnabled() {
+		if direct, ok := d.sharedSerializer.(directSeriesSketchSerializer); ok {
+			d.flushToDirectSerializer(start, waitForSerializer, forceFlushAll, direct)
+			return
+		}
+	}
+
+	flushStart := time.Now()
 	logPayloads := pkgconfigsetup.Datadog().GetBool("log_payloads")
 	series, sketches := createIterableMetrics(d.aggregator.flushAndSerializeInParallel, d.sharedSerializer, logPayloads, false, d.hostTagProvider)
 	metrics.Serialize(
 		series,
 		sketches,
 		func(seriesSink metrics.SerieSink, sketchesSink metrics.SketchesSink) {
-			// flush DogStatsD pipelines (statsd/time samplers)
-			// ------------------------------------------------
-
-			for _, worker := range d.statsd.workers {
-				// order the flush to the time sampler, and wait, in a different routine
-				t := flushTrigger{
-					trigger: trigger{
-						time:          start,
-						blockChan:     make(chan struct{}),
-						forceFlushAll: forceFlushAll,
-					},
-					sketchesSink: sketchesSink,
-					seriesSink:   seriesSink,
-				}
-
-				worker.flushChan <- t
-				<-t.trigger.blockChan
-			}
-
-			// flush the aggregator (check samplers)
-			// -------------------------------------
-
-			if d.aggregator != nil {
-				t := flushTrigger{
-					trigger: trigger{
-						time:              start,
-						blockChan:         make(chan struct{}),
-						waitForSerializer: waitForSerializer,
-						forceFlushAll:     forceFlushAll,
-					},
-					sketchesSink: sketchesSink,
-					seriesSink:   seriesSink,
-				}
-
-				d.aggregator.flushChan <- t
-				<-t.trigger.blockChan
-			}
+			d.produceFlush(start, waitForSerializer, forceFlushAll, seriesSink, sketchesSink)
 		}, func(serieSource metrics.SerieSource) {
 			sendIterableSeries(d.sharedSerializer, start, serieSource)
 		},
 		func(sketches metrics.SketchesSource) {
 			// Don't send empty sketches payloads
 			if sketches.WaitForValue() {
+				serializeStart := time.Now()
 				err := d.sharedSerializer.SendSketch(sketches)
+				recordDogstatsdPipelineDuration("serialize_sketches", time.Since(serializeStart))
 				sketchesCount := sketches.Count()
 				d.log.Debugf("Flushing %d sketches to the serializer", sketchesCount)
 				updateSketchTelemetry(start, sketchesCount, err)
 				addFlushCount("Sketches", int64(sketchesCount))
 			}
 		})
+	recordDogstatsdPipelineDuration("flush_total", time.Since(flushStart))
 
+	addFlushTime("MainFlushTime", int64(time.Since(start)))
+	aggregatorNumberOfFlush.Add(1)
+}
+
+func (d *AgentDemultiplexer) produceFlush(start time.Time, waitForSerializer bool, forceFlushAll bool, seriesSink metrics.SerieSink, sketchesSink metrics.SketchesSink) {
+	producerStart := time.Now()
+	// flush DogStatsD pipelines (statsd/time samplers)
+	// ------------------------------------------------
+
+	dogstatsdSamplersStart := time.Now()
+	for _, worker := range d.statsd.workers {
+		// order the flush to the time sampler, and wait, in a different routine
+		t := flushTrigger{
+			trigger: trigger{
+				time:          start,
+				blockChan:     make(chan struct{}),
+				forceFlushAll: forceFlushAll,
+			},
+			sketchesSink: sketchesSink,
+			seriesSink:   seriesSink,
+		}
+
+		worker.flushChan <- t
+		<-t.trigger.blockChan
+	}
+	recordDogstatsdPipelineDuration("dogstatsd_samplers", time.Since(dogstatsdSamplersStart))
+
+	// flush the aggregator (check samplers)
+	// -------------------------------------
+
+	if d.aggregator != nil {
+		checkSamplersStart := time.Now()
+		t := flushTrigger{
+			trigger: trigger{
+				time:              start,
+				blockChan:         make(chan struct{}),
+				waitForSerializer: waitForSerializer,
+				forceFlushAll:     forceFlushAll,
+			},
+			sketchesSink: sketchesSink,
+			seriesSink:   seriesSink,
+		}
+
+		d.aggregator.flushChan <- t
+		<-t.trigger.blockChan
+		recordDogstatsdPipelineDuration("check_samplers", time.Since(checkSamplersStart))
+	}
+	recordDogstatsdPipelineDuration("producer_total", time.Since(producerStart))
+}
+
+func (d *AgentDemultiplexer) flushToDirectSerializer(start time.Time, waitForSerializer bool, forceFlushAll bool, direct directSeriesSketchSerializer) {
+	flushStart := time.Now()
+	logPayloads := pkgconfigsetup.Datadog().GetBool("log_payloads")
+	d.flushLegacyToDirectSerializer(start, waitForSerializer, forceFlushAll, direct, logPayloads)
+
+	recordDogstatsdPipelineDuration("flush_total", time.Since(flushStart))
+	addFlushTime("MainFlushTime", int64(time.Since(start)))
+	aggregatorNumberOfFlush.Add(1)
+}
+
+func (d *AgentDemultiplexer) flushLegacyToDirectSerializer(start time.Time, waitForSerializer bool, forceFlushAll bool, direct directSeriesSketchSerializer, logPayloads bool) {
+	serializeStart := time.Now()
+	result := direct.SendDirectSeriesAndSketches(
+		func(seriesSink metrics.SerieSink, sketchesSink metrics.SketchesSink) {
+			d.produceFlush(start, waitForSerializer, forceFlushAll, seriesSink, sketchesSink)
+		},
+		serializer.DirectMetricsOptions{
+			SeriesCallback:    seriesFlushCallback(logPayloads, d.hostTagProvider),
+			SeriesRowCallback: seriesRowFlushCallback(logPayloads, d.hostTagProvider),
+			SketchCallback:    sketchFlushCallback(logPayloads, false, d.hostTagProvider),
+		},
+	)
+	recordDogstatsdPipelineDuration("serialize_direct_metrics", time.Since(serializeStart))
+
+	if result.SeriesEnabled {
+		addFlushCount("Series", int64(result.SeriesCount))
+		updateSerieTelemetry(start, result.SeriesCount, result.SeriesErr)
+	}
+	if result.SketchesEnabled && result.SketchesCount > 0 {
+		d.log.Debugf("Flushing %d sketches to the direct serializer", result.SketchesCount)
+		updateSketchTelemetry(start, result.SketchesCount, result.SketchesErr)
+		addFlushCount("Sketches", int64(result.SketchesCount))
+	}
+}
+
+func (d *AgentDemultiplexer) flushToColumnarV3Serializer(start time.Time, waitForSerializer bool, forceFlushAll bool, directRows directV3SeriesRowsSerializer, directSeries directSeriesSketchSerializer) {
+	flushStart := time.Now()
+	logPayloads := pkgconfigsetup.Datadog().GetBool("log_payloads")
+
+	serializeStart := time.Now()
+	result := directRows.SendDirectV3SeriesRows(
+		func(rowSink metrics.SerieRowSink) {
+			columnarStart := time.Now()
+			var rows uint64
+			for _, worker := range d.statsd.columnarV3Workers {
+				trigger := dogstatsdColumnarFlushTrigger{
+					cutoffTime:    start.Unix(),
+					forceFlushAll: forceFlushAll,
+					rowSink:       rowSink,
+					blockChan:     make(chan uint64),
+				}
+				worker.flushChan <- trigger
+				rows += <-trigger.blockChan
+			}
+			tlmDogstatsdColumnarStats.Add(float64(rows), "flushed_rows")
+			tlmDogstatsdColumnarStats.Inc("flushes")
+			tlmDogstatsdColumnarDuration.Add(float64(time.Since(columnarStart).Nanoseconds()), "flush")
+			recordDogstatsdPipelineDuration("dogstatsd_columnar_v3", time.Since(columnarStart))
+		},
+		serializer.DirectMetricsOptions{
+			SeriesRowCallback: seriesRowFlushCallback(logPayloads, d.hostTagProvider),
+		},
+	)
+	recordDogstatsdPipelineDuration("serialize_columnar_v3", time.Since(serializeStart))
+
+	if result.SeriesEnabled {
+		addFlushCount("Series", int64(result.SeriesCount))
+		updateSerieTelemetry(start, result.SeriesCount, result.SeriesErr)
+	}
+
+	// Keep the legacy producer flush in the same cycle for unsupported metric
+	// types, late samples, check samplers, sketches, events, and service checks.
+	// In the intended local metric-only case this should be close to empty; the
+	// columnar telemetry plus aggregator.dogstatsd_metrics verify that supported
+	// DogStatsD samples bypassed the old state.
+	if directSeries != nil && !columnarV3SkipLegacyFlushEnabled() {
+		d.flushLegacyToDirectSerializer(start, waitForSerializer, forceFlushAll, directSeries, logPayloads)
+	}
+
+	recordDogstatsdPipelineDuration("flush_total", time.Since(flushStart))
+	addFlushTime("MainFlushTime", int64(time.Since(start)))
+	aggregatorNumberOfFlush.Add(1)
+}
+
+func (d *AgentDemultiplexer) flushToColumnarV3NativeSerializer(start time.Time, waitForSerializer bool, forceFlushAll bool, directRows directV3MetricPointRowsSerializer, directSeries directSeriesSketchSerializer) {
+	flushStart := time.Now()
+	logPayloads := pkgconfigsetup.Datadog().GetBool("log_payloads")
+
+	serializeStart := time.Now()
+	result := directRows.SendDirectV3MetricPointRows(
+		func(rowSink metrics.V3MetricPointRowSink) {
+			columnarStart := time.Now()
+			var rows uint64
+			for _, worker := range d.statsd.columnarV3Workers {
+				trigger := dogstatsdColumnarFlushTrigger{
+					cutoffTime:     start.Unix(),
+					forceFlushAll:  forceFlushAll,
+					v3PointRowSink: rowSink,
+					blockChan:      make(chan uint64),
+				}
+				worker.flushChan <- trigger
+				rows += <-trigger.blockChan
+			}
+			tlmDogstatsdColumnarStats.Add(float64(rows), "flushed_rows")
+			tlmDogstatsdColumnarStats.Inc("flushes")
+			tlmDogstatsdColumnarDuration.Add(float64(time.Since(columnarStart).Nanoseconds()), "flush")
+			recordDogstatsdPipelineDuration("dogstatsd_columnar_v3_native", time.Since(columnarStart))
+		},
+		serializer.DirectMetricsOptions{
+			V3MetricPointRowCallback: v3MetricPointRowFlushCallback(logPayloads, d.hostTagProvider),
+		},
+	)
+	recordDogstatsdPipelineDuration("serialize_columnar_v3_native", time.Since(serializeStart))
+
+	if result.SeriesEnabled {
+		addFlushCount("Series", int64(result.SeriesCount))
+		updateSerieTelemetry(start, result.SeriesCount, result.SeriesErr)
+	}
+
+	// Keep the legacy producer flush in the same cycle for unsupported metric
+	// types, late samples, check samplers, sketches, events, and service checks.
+	// In the intended local metric-only case this should be close to empty; the
+	// columnar telemetry plus aggregator.dogstatsd_metrics verify that supported
+	// DogStatsD samples bypassed the old state.
+	if directSeries != nil && !columnarV3SkipLegacyFlushEnabled() {
+		d.flushLegacyToDirectSerializer(start, waitForSerializer, forceFlushAll, directSeries, logPayloads)
+	}
+
+	recordDogstatsdPipelineDuration("flush_total", time.Since(flushStart))
+	addFlushTime("MainFlushTime", int64(time.Since(start)))
+	aggregatorNumberOfFlush.Add(1)
+}
+
+func (d *AgentDemultiplexer) flushToColumnarV3DirectSeriesSerializer(start time.Time, waitForSerializer bool, forceFlushAll bool, direct directSeriesSketchSerializer) {
+	flushStart := time.Now()
+	logPayloads := pkgconfigsetup.Datadog().GetBool("log_payloads")
+
+	serializeStart := time.Now()
+	result := direct.SendDirectSeriesAndSketches(
+		func(seriesSink metrics.SerieSink, _ metrics.SketchesSink) {
+			rowSink, ok := seriesSink.(metrics.SerieRowSink)
+			if !ok {
+				return
+			}
+			columnarStart := time.Now()
+			var rows uint64
+			for _, worker := range d.statsd.columnarV3Workers {
+				trigger := dogstatsdColumnarFlushTrigger{
+					cutoffTime:    start.Unix(),
+					forceFlushAll: forceFlushAll,
+					rowSink:       rowSink,
+					blockChan:     make(chan uint64),
+				}
+				worker.flushChan <- trigger
+				rows += <-trigger.blockChan
+			}
+			tlmDogstatsdColumnarStats.Add(float64(rows), "flushed_rows")
+			tlmDogstatsdColumnarStats.Inc("flushes")
+			tlmDogstatsdColumnarDuration.Add(float64(time.Since(columnarStart).Nanoseconds()), "flush")
+			recordDogstatsdPipelineDuration("dogstatsd_columnar_direct_series", time.Since(columnarStart))
+		},
+		serializer.DirectMetricsOptions{
+			SeriesRowCallback: seriesRowFlushCallback(logPayloads, d.hostTagProvider),
+			SketchCallback:    sketchFlushCallback(logPayloads, false, d.hostTagProvider),
+		},
+	)
+	recordDogstatsdPipelineDuration("serialize_columnar_direct_series", time.Since(serializeStart))
+
+	if result.SeriesEnabled {
+		addFlushCount("Series", int64(result.SeriesCount))
+		updateSerieTelemetry(start, result.SeriesCount, result.SeriesErr)
+	}
+	if result.SketchesEnabled && result.SketchesCount > 0 {
+		d.log.Debugf("Flushing %d sketches to the direct serializer", result.SketchesCount)
+		updateSketchTelemetry(start, result.SketchesCount, result.SketchesErr)
+		addFlushCount("Sketches", int64(result.SketchesCount))
+	}
+
+	if !columnarV3SkipLegacyFlushEnabled() {
+		d.flushLegacyToDirectSerializer(start, waitForSerializer, forceFlushAll, direct, logPayloads)
+	}
+
+	recordDogstatsdPipelineDuration("flush_total", time.Since(flushStart))
 	addFlushTime("MainFlushTime", int64(time.Since(start)))
 	aggregatorNumberOfFlush.Add(1)
 }
@@ -612,6 +892,9 @@ func (d *AgentDemultiplexer) SetAggregatorTagFilterList(tagMatcher filterlist.Ta
 	for _, worker := range d.statsd.workers {
 		worker.tagFilterListChan <- tagMatcher
 	}
+	for _, worker := range d.statsd.columnarV3Workers {
+		worker.tagFilterListChan <- tagMatcher
+	}
 }
 
 // SetSamplersFilterList triggers a reconfiguration of the filter list
@@ -635,6 +918,56 @@ func (d *AgentDemultiplexer) SetSamplersFilterList(filterList utilstrings.Matche
 	// Metrics from checks are only filtered here, so we need the full filter list.
 	d.aggregator.filterListChan <- filterList
 }
+
+// DogStatsDColumnarV3Enabled reports whether the local-only v3 columnar
+// vertical-slice experiment is active on this demultiplexer.
+func (d *AgentDemultiplexer) DogStatsDColumnarV3Enabled() bool {
+	return d != nil && d.statsd.columnarV3 != nil
+}
+
+// AcceptDogStatsDColumnarV3Sample returns whether a parsed DogStatsD sample is
+// inside the intentionally narrow supported slice. Unsupported samples should
+// fall back to the legacy aggregation path.
+func (d *AgentDemultiplexer) AcceptDogStatsDColumnarV3Sample(sample metrics.MetricSample) bool {
+	if d == nil || d.statsd.columnarV3 == nil {
+		return false
+	}
+	return d.statsd.columnarV3.accept(sample)
+}
+
+// GetDogStatsDColumnarV3SamplePool returns the handoff batch pool used by the
+// parser-side columnar batcher.
+func (d *AgentDemultiplexer) GetDogStatsDColumnarV3SamplePool() *DogStatsDColumnarV3SamplePool {
+	if d == nil {
+		return nil
+	}
+	return d.statsd.columnarV3SamplePool
+}
+
+// AggregateDogStatsDColumnarV3Samples hands an accepted DogStatsD columnar v3
+// batch to the corresponding shard-local columnar worker.
+func (d *AgentDemultiplexer) AggregateDogStatsDColumnarV3Samples(shard TimeSamplerID, samples DogStatsDColumnarV3SampleBatch) {
+	if d == nil || int(shard) >= len(d.statsd.columnarV3Workers) {
+		if d != nil && d.statsd.columnarV3SamplePool != nil {
+			d.statsd.columnarV3SamplePool.PutBatch(samples)
+		}
+		return
+	}
+	d.statsd.columnarV3Workers[shard].samplesChan <- samples
+}
+
+// InsertDogStatsDColumnarV3Sample inserts a parsed DogStatsD sample directly
+// into the experimental sharded columnar table. It remains for focused unit
+// tests and synchronous probes; production experiments use batched worker
+// handoff via AggregateDogStatsDColumnarV3Samples.
+func (d *AgentDemultiplexer) InsertDogStatsDColumnarV3Sample(shardKey ckey.ContextKey, sample metrics.MetricSample) bool {
+	if d == nil || d.statsd.columnarV3 == nil {
+		return false
+	}
+	return d.statsd.columnarV3.insert(shardKey, sample, timeNowNano())
+}
+
+var _ DogStatsDColumnarV3Inserter = (*AgentDemultiplexer)(nil)
 
 // SendSamplesWithoutAggregation buffers a bunch of metrics with timestamp. This data will be directly
 // transmitted "as-is" (i.e. no aggregation, no sampling) to the serializer.

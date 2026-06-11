@@ -66,7 +66,7 @@ go_test(
     ],
     embed = [":listeners"],
     gotags = ["test"],
-    deps = select({
+    deps = ["//comp/dogstatsd/replay/def"] + select({
         "@rules_go//go/platform:aix": [
             "//comp/core/config",
             "//comp/core/telemetry/def",

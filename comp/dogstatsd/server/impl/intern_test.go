@@ -84,26 +84,42 @@ func TestInternLoadOrStorePointer(t *testing.T) {
 	assert.NotEqual(&v3, &v4, "must point to a different address")
 }
 
-func TestInternLoadOrStoreReset(t *testing.T) {
+func TestInternLoadOrStoreBoundedEviction(t *testing.T) {
+	telemetryComp := fxutil.Test[telemetry.Component](t, mocktelemetry.Module())
+	assert := assert.New(t)
+	stringInternerTelemetry := newSiTelemetry(false, telemetryComp)
+	sInterner := newStringInterner(8, 1, stringInternerTelemetry)
+
+	// First sightings go through the recent segment.
+	sInterner.LoadOrStore([]byte("foo"))
+	assert.Equal(1, sInterner.len())
+	sInterner.LoadOrStore([]byte("bar"))
+	assert.Equal(2, sInterner.len())
+
+	// A second sighting promotes a key to protected, where it survives recent
+	// churn instead of being lost in a whole-cache reset.
+	sInterner.LoadOrStore([]byte("foo"))
+	assert.Contains(sInterner.protected, "foo")
+	assert.Equal(2, sInterner.len())
+
+	sInterner.LoadOrStore([]byte("boo"))
+	sInterner.LoadOrStore([]byte("far"))
+	sInterner.LoadOrStore([]byte("val"))
+	assert.LessOrEqual(sInterner.len(), 8)
+	assert.Contains(sInterner.protected, "foo")
+}
+
+func TestInternLoadOrStoreProtectedEviction(t *testing.T) {
 	telemetryComp := fxutil.Test[telemetry.Component](t, mocktelemetry.Module())
 	assert := assert.New(t)
 	stringInternerTelemetry := newSiTelemetry(false, telemetryComp)
 	sInterner := newStringInterner(4, 1, stringInternerTelemetry)
 
-	// first test that the good value is returned.
-	sInterner.LoadOrStore([]byte("foo"))
-	assert.Equal(1, len(sInterner.strings))
-	sInterner.LoadOrStore([]byte("bar"))
-	sInterner.LoadOrStore([]byte("bar"))
-	assert.Equal(2, len(sInterner.strings))
-	sInterner.LoadOrStore([]byte("boo"))
-	assert.Equal(3, len(sInterner.strings))
-	sInterner.LoadOrStore([]byte("far"))
-	sInterner.LoadOrStore([]byte("far"))
-	sInterner.LoadOrStore([]byte("far"))
-	assert.Equal(4, len(sInterner.strings))
-	sInterner.LoadOrStore([]byte("val"))
-	assert.Equal(1, len(sInterner.strings))
-	sInterner.LoadOrStore([]byte("val"))
-	assert.Equal(1, len(sInterner.strings))
+	for _, value := range []string{"a", "a", "b", "b", "c", "c", "d", "d", "e", "e"} {
+		sInterner.LoadOrStore([]byte(value))
+	}
+
+	assert.LessOrEqual(sInterner.len(), 4)
+	assert.LessOrEqual(len(sInterner.protected), sInterner.protectedMax)
+	assert.LessOrEqual(len(sInterner.recent), sInterner.recentMax)
 }

@@ -1,0 +1,23 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "lookback",
+    srcs = ["store.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/dogstatsd/internal/lookback",
+    visibility = ["//comp/dogstatsd:__subpackages__"],
+    deps = [
+        "//pkg/aggregator/ckey",
+        "@org_uber_go_atomic//:atomic",
+    ],
+)
+
+go_test(
+    name = "lookback_test",
+    srcs = ["store_test.go"],
+    embed = [":lookback"],
+    deps = [
+        "//pkg/aggregator/ckey",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

@@ -10,6 +10,7 @@
 package listeners
 
 import (
+	"net"
 	"testing"
 	"time"
 
@@ -34,6 +35,91 @@ func TestNewUDSDatagramListener(t *testing.T) {
 
 func TestStartStopUDSDatagramListener(t *testing.T) {
 	testStartStopUDSListener(t, udsDatagramListenerFactory, "unixgram")
+}
+
+func TestMilestone5UDSDatagramListenerCapturesIngressEnvelope(t *testing.T) {
+	socketPath := testSocketPath(t)
+
+	mockConfig := map[string]interface{}{}
+	mockConfig[socketPathConfKey("unixgram")] = socketPath
+	mockConfig["dogstatsd_origin_detection"] = false
+
+	contents := []byte("daemon:1|c")
+	packetsChannel := make(chan packets.Packets)
+	capture := newRecordingCapture()
+
+	deps := fulfillDepsWithConfig(t, mockConfig)
+	telemetryStore := NewTelemetryStore(nil, deps.Telemetry)
+	packetsTelemetryStore := packets.NewTelemetryStore(nil, deps.Telemetry)
+	s, err := NewUDSDatagramListener(packetsChannel, newPacketPoolManagerUDS(deps.Config, packetsTelemetryStore), nil, deps.Config, capture, option.None[workloadmeta.Component](), deps.PidMap, telemetryStore, packetsTelemetryStore, deps.Telemetry)
+	require.NoError(t, err)
+	require.NotNil(t, s)
+	defer s.Stop()
+
+	mConn := defaultMUnixConn(s.conn.LocalAddr(), false)
+	mConn.Write(contents)
+
+	go s.handleConnection(mConn, func(c netUnixConn) error { return c.Close() })
+	select {
+	case <-packetsChannel:
+	case <-time.After(2 * time.Second):
+		assert.FailNow(t, "Timeout on receive channel")
+	}
+
+	select {
+	case envelope := <-capture.envelopes:
+		assert.Equal(t, contents, envelope.Payload)
+		assert.Equal(t, packets.UDS, envelope.Source)
+		assert.NotEmpty(t, envelope.ListenerID)
+		assert.Equal(t, s.conn.LocalAddr().String(), envelope.LocalAddr)
+	case <-time.After(2 * time.Second):
+		assert.FailNow(t, "Timeout on capture envelope")
+	}
+}
+
+func TestMilestone5UDSDatagramListenerCaptureReadErrorWithOriginDoesNotPanic(t *testing.T) {
+	socketPath := testSocketPath(t)
+
+	mockConfig := map[string]interface{}{}
+	mockConfig[socketPathConfKey("unixgram")] = socketPath
+	mockConfig["dogstatsd_origin_detection"] = true
+
+	packetsChannel := make(chan packets.Packets)
+	capture := newRecordingCapture()
+
+	deps := fulfillDepsWithConfig(t, mockConfig)
+	telemetryStore := NewTelemetryStore(nil, deps.Telemetry)
+	packetsTelemetryStore := packets.NewTelemetryStore(nil, deps.Telemetry)
+	s, err := NewUDSDatagramListener(packetsChannel, newPacketPoolManagerUDS(deps.Config, packetsTelemetryStore), nil, deps.Config, capture, option.None[workloadmeta.Component](), deps.PidMap, telemetryStore, packetsTelemetryStore, deps.Telemetry)
+	require.NoError(t, err)
+	defer s.Stop()
+	// macOS cannot enable SO_PASSCRED during listener setup, but this test is
+	// only exercising the read-error path used when origin detection is active.
+	s.OriginDetection = true
+	s.oobPoolManager = NewUDSOobPoolManager()
+
+	calls := 0
+	mConn := defaultMUnixConn(s.conn.LocalAddr(), false)
+	mConn.readMsgUnix = func(_ []byte, _ []byte) (int, int, int, *net.UnixAddr, error) {
+		calls++
+		if calls == 1 {
+			return -1, -1, 0, nil, assert.AnError
+		}
+		return 0, 0, 0, nil, net.ErrClosed
+	}
+
+	require.NoError(t, s.handleConnection(mConn, func(c netUnixConn) error { return c.Close() }))
+	require.Equal(t, 2, calls)
+	select {
+	case <-packetsChannel:
+		assert.FailNow(t, "read errors should not forward packets")
+	default:
+	}
+	select {
+	case <-capture.envelopes:
+		assert.FailNow(t, "read errors should not capture ingress envelopes")
+	default:
+	}
 }
 
 func TestUDSDatagramReceive(t *testing.T) {

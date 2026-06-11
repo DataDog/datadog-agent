@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"math/bits"
 	"slices"
+	"strings"
 
 	"github.com/twmb/murmur3"
 
@@ -36,6 +37,14 @@ var (
 	tlmSplitReason = telemetryimpl.GetCompatComponent().NewCounter("serializer", "v3_payload_split_reason",
 		[]string{"reason"},
 		"Why payload was split",
+	)
+	tlmV3PayloadStats = telemetryimpl.GetCompatComponent().NewCounter("serializer", "v3_payload_stats",
+		[]string{"stat"},
+		"Payload-level stats for metrics v3 serialization",
+	)
+	tlmV3DictionaryEntries = telemetryimpl.GetCompatComponent().NewCounter("serializer", "v3_dictionary_entries",
+		[]string{"dictionary"},
+		"Payload-local dictionary entry counts for metrics v3 serialization",
 	)
 )
 
@@ -284,6 +293,7 @@ func (pb *payloadsBuilderV3) finishPayload() error {
 			payload = append(payload, compressedBytes...)
 		}
 
+		pb.recordPayloadStats(len(payload), uncompressedMetricDataSize)
 		pb.pipelineContext.addPayload(transaction.NewBytesPayload(payload, pb.pointsThisPayload))
 	}
 
@@ -291,6 +301,22 @@ func (pb *payloadsBuilderV3) finishPayload() error {
 	pb.reset()
 
 	return nil
+}
+
+func (pb *payloadsBuilderV3) recordPayloadStats(compressedPayloadSize int, uncompressedMetricDataSize int) {
+	tlmV3PayloadStats.Inc("payloads")
+	tlmV3PayloadStats.Add(float64(pb.pointsThisPayload), "points")
+	tlmV3PayloadStats.Add(float64(compressedPayloadSize), "compressed_bytes")
+	tlmV3PayloadStats.Add(float64(uncompressedMetricDataSize), "uncompressed_metric_data_bytes")
+
+	tlmV3DictionaryEntries.Add(float64(pb.dict.namesInterner.lastID), "names")
+	tlmV3DictionaryEntries.Add(float64(pb.dict.tagsInterner.lastID), "tag_strings")
+	tlmV3DictionaryEntries.Add(float64(pb.dict.tagsLastID), "tagsets")
+	tlmV3DictionaryEntries.Add(float64(pb.dict.resourceInterner.lastID), "resource_strings")
+	tlmV3DictionaryEntries.Add(float64(pb.dict.resourcesLastID), "resources")
+	tlmV3DictionaryEntries.Add(float64(pb.dict.sourceTypeNameInterner.lastID), "source_type_names")
+	tlmV3DictionaryEntries.Add(float64(pb.dict.originInfoInterner.lastID), "origins")
+	tlmV3DictionaryEntries.Add(float64(pb.dict.unitInterner.lastID), "units")
 }
 
 func (pb *payloadsBuilderV3) appendProtobufFieldHeader(dst []byte, id int, len int) ([]byte, error) {
@@ -317,6 +343,12 @@ func (pb *payloadsBuilderV3) reset() {
 	pb.stats = v3stats{}
 }
 
+func hasV3SpecialResourceTags(tags tagset.CompositeTags) bool {
+	return tags.Find(func(tag string) bool {
+		return strings.HasPrefix(tag, "device:") || strings.HasPrefix(tag, "dd.internal.resource:")
+	})
+}
+
 func (pb *payloadsBuilderV3) renderResources(serie *metrics.Serie) {
 	pb.resourcesBuf = pb.resourcesBuf[0:0]
 
@@ -335,6 +367,26 @@ func (pb *payloadsBuilderV3) renderResources(serie *metrics.Serie) {
 	}
 
 	pb.resourcesBuf = append(pb.resourcesBuf, serie.Resources...)
+}
+
+func (pb *payloadsBuilderV3) renderSerieRowResources(row *metrics.SerieRow) {
+	pb.resourcesBuf = pb.resourcesBuf[0:0]
+
+	if row.Host != "" {
+		pb.resourcesBuf = append(pb.resourcesBuf, metrics.Resource{
+			Type: resourceTypeHost,
+			Name: row.Host,
+		})
+	}
+
+	if row.Device != "" {
+		pb.resourcesBuf = append(pb.resourcesBuf, metrics.Resource{
+			Type: "device",
+			Name: row.Device,
+		})
+	}
+
+	pb.resourcesBuf = append(pb.resourcesBuf, row.Resources...)
 }
 
 func (pb *payloadsBuilderV3) checkPointsLimit(numPoints int) (bool, error) {
@@ -386,6 +438,10 @@ func (pb *payloadsBuilderV3) finishTxn(numPoints int) error {
 }
 
 func (pb *payloadsBuilderV3) writeSerie(serie *metrics.Serie) error {
+	if serie == nil {
+		return nil
+	}
+
 	if !pb.pipelineConfig.Filter.Filter(serie) {
 		return nil
 	}
@@ -394,12 +450,56 @@ func (pb *payloadsBuilderV3) writeSerie(serie *metrics.Serie) error {
 		return err
 	}
 
-	serie.PopulateDeviceField()
-	serie.PopulateResources()
-
 	for {
 		pb.writeSerieToTxn(serie)
 		err := pb.finishTxn(len(serie.Points))
+		if err == errRetry {
+			continue
+		}
+		return err
+	}
+}
+
+func (pb *payloadsBuilderV3) writeSerieRow(row *metrics.SerieRow) error {
+	if row == nil {
+		return nil
+	}
+
+	if !pb.pipelineConfig.Filter.Filter(row) {
+		return nil
+	}
+
+	if ok, err := pb.checkPointsLimit(len(row.Points)); !ok {
+		return err
+	}
+
+	for {
+		pb.writeSerieRowToTxn(row)
+		err := pb.finishTxn(len(row.Points))
+		if err == errRetry {
+			continue
+		}
+		return err
+	}
+}
+
+func (pb *payloadsBuilderV3) writeV3MetricPointRow(row *metrics.V3MetricPointRow) error {
+	if row == nil {
+		return nil
+	}
+
+	if !pb.pipelineConfig.Filter.Filter(row) {
+		return nil
+	}
+
+	numPoints := row.NumPoints()
+	if ok, err := pb.checkPointsLimit(numPoints); !ok {
+		return err
+	}
+
+	for {
+		pb.writeV3MetricPointRowToTxn(row)
+		err := pb.finishTxn(numPoints)
 		if err == errRetry {
 			continue
 		}
@@ -440,6 +540,19 @@ func (pb *payloadsBuilderV3) writePointCommon(timestamp int64) {
 }
 
 func (pb *payloadsBuilderV3) writeSerieToTxn(serie *metrics.Serie) {
+	if serie == nil {
+		return
+	}
+
+	// Preserve the no-mutation SerieRow compatibility path for uncommon tags that
+	// project into dedicated v3 resource fields, but avoid allocating a temporary
+	// SerieRow for the common path where tags can be written as-is.
+	if hasV3SpecialResourceTags(serie.Tags) {
+		row := metrics.SerieRowFromSerie(serie)
+		pb.writeSerieRowToTxn(&row)
+		return
+	}
+
 	pb.txn.Reset()
 
 	pb.renderResources(serie)
@@ -489,6 +602,144 @@ func (pb *payloadsBuilderV3) writeSerieToTxn(serie *metrics.Serie) {
 			pb.stats.valuesFloat64++
 			pb.txn.Float64(columnValueFloat64, pnt.Value)
 		}
+	}
+}
+
+func (pb *payloadsBuilderV3) writeSerieRowToTxn(row *metrics.SerieRow) {
+	pb.txn.Reset()
+
+	pb.renderSerieRowResources(row)
+
+	pb.writeMetricCommon(
+		row.Name,
+		row.Tags,
+		row.Interval,
+		row.SourceTypeName,
+		row.Source,
+		len(row.Points),
+	)
+
+	pointKind := pointKindZero
+	for _, pnt := range row.Points {
+		pointKind = pointKind.unionOf(pnt.Value)
+	}
+	valueType := pointKind.toValueType()
+
+	typeValue := valueType | metricType(row.MType)
+	if row.NoIndex {
+		typeValue |= flagNoIndex
+	}
+	if row.Unit != "" {
+		typeValue |= flagHasUnit
+	}
+
+	pb.txn.Int64(columnType, typeValue)
+
+	if row.Unit != "" {
+		pb.txn.Sint64(columnUnitRef,
+			pb.deltaUnitRef.encode(pb.dict.internUnit(row.Unit)))
+	}
+
+	for _, pnt := range row.Points {
+		pb.writePointCommon(int64(pnt.Ts))
+		switch valueType {
+		case valueZero:
+			pb.stats.valuesZero++
+		case valueSint64:
+			pb.stats.valuesSint64++
+			pb.txn.Sint64(columnValueSint64, int64(pnt.Value))
+		case valueFloat32:
+			pb.stats.valuesFloat32++
+			pb.txn.Float32(columnValueFloat32, float32(pnt.Value))
+		case valueFloat64:
+			pb.stats.valuesFloat64++
+			pb.txn.Float64(columnValueFloat64, pnt.Value)
+		}
+	}
+}
+
+func (pb *payloadsBuilderV3) renderV3MetricPointRowResources(row *metrics.V3MetricPointRow) {
+	pb.resourcesBuf = pb.resourcesBuf[0:0]
+
+	if row.Host != "" {
+		pb.resourcesBuf = append(pb.resourcesBuf, metrics.Resource{
+			Type: resourceTypeHost,
+			Name: row.Host,
+		})
+	}
+
+	if row.Device != "" {
+		pb.resourcesBuf = append(pb.resourcesBuf, metrics.Resource{
+			Type: "device",
+			Name: row.Device,
+		})
+	}
+
+	pb.resourcesBuf = append(pb.resourcesBuf, row.Resources...)
+}
+
+func (pb *payloadsBuilderV3) writeV3MetricPointRowToTxn(row *metrics.V3MetricPointRow) {
+	pb.txn.Reset()
+
+	pb.renderV3MetricPointRowResources(row)
+
+	numPoints := row.NumPoints()
+	pb.writeMetricCommon(
+		row.Name,
+		row.Tags,
+		row.Interval,
+		row.SourceTypeName,
+		row.Source,
+		numPoints,
+	)
+
+	pointKind := pointKindZero
+	if len(row.Values) > 0 {
+		for _, value := range row.Values {
+			pointKind = pointKind.unionOf(value)
+		}
+	} else {
+		pointKind = pointKind.unionOf(row.Value)
+	}
+	valueType := pointKind.toValueType()
+	typeValue := valueType | metricType(row.MType)
+	if row.NoIndex {
+		typeValue |= flagNoIndex
+	}
+	if row.Unit != "" {
+		typeValue |= flagHasUnit
+	}
+
+	pb.txn.Int64(columnType, typeValue)
+
+	if row.Unit != "" {
+		pb.txn.Sint64(columnUnitRef,
+			pb.deltaUnitRef.encode(pb.dict.internUnit(row.Unit)))
+	}
+
+	if len(row.Values) > 0 {
+		for i, value := range row.Values {
+			pb.writeV3MetricPoint(row.Timestamps[i], value, valueType)
+		}
+		return
+	}
+	pb.writeV3MetricPoint(row.Timestamp, row.Value, valueType)
+}
+
+func (pb *payloadsBuilderV3) writeV3MetricPoint(timestamp int64, value float64, valueType int64) {
+	pb.writePointCommon(timestamp)
+	switch valueType {
+	case valueZero:
+		pb.stats.valuesZero++
+	case valueSint64:
+		pb.stats.valuesSint64++
+		pb.txn.Sint64(columnValueSint64, int64(value))
+	case valueFloat32:
+		pb.stats.valuesFloat32++
+		pb.txn.Float32(columnValueFloat32, float32(value))
+	case valueFloat64:
+		pb.stats.valuesFloat64++
+		pb.txn.Float64(columnValueFloat64, value)
 	}
 }
 

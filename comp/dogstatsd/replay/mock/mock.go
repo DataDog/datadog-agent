@@ -76,6 +76,21 @@ func (tc *mockTrafficCapture) Enqueue(msg *replay.CaptureBuffer) bool {
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
+func (tc *mockTrafficCapture) CaptureIngress(_ replay.IngressEnvelope) bool {
+	return false
+}
+
+//nolint:revive // TODO(AML) Fix revive linter
+func (tc *mockTrafficCapture) RecentIngress(_ int) []replay.IngressEnvelope {
+	return nil
+}
+
+//nolint:revive // TODO(AML) Fix revive linter
+func (tc *mockTrafficCapture) IngressStats() replay.IngressStats {
+	return replay.IngressStats{}
+}
+
+//nolint:revive // TODO(AML) Fix revive linter
 func (tc *mockTrafficCapture) GetStartUpError() error {
 	return nil
 }

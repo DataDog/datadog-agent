@@ -34,7 +34,7 @@ type NamedPipeListener struct {
 	packetManager *packets.PacketManager
 	// TODO: Migrate to `ConnectionTracker` instead
 	connections       *namedPipeConnections
-	trafficCapture    replay.Component // Currently ignored
+	trafficCapture    replay.Component
 	listenWg          sync.WaitGroup
 	telemetryStore    *TelemetryStore
 	internalTelemetry *listenerTelemetry
@@ -200,6 +200,17 @@ func (l *NamedPipeListener) listenConnection(conn net.Conn, buffer []byte) {
 			messageSize := bytes.LastIndexByte(buffer[:endIndex], '\n') + 1
 			if messageSize > 0 {
 				l.internalTelemetry.onReadSuccess(messageSize)
+
+				if l.trafficCapture != nil {
+					l.trafficCapture.CaptureIngress(replay.IngressEnvelope{
+						Timestamp:  t1,
+						Source:     packets.NamedPipe,
+						ListenerID: "named_pipe",
+						Payload:    buffer[:messageSize],
+						RemoteAddr: conn.RemoteAddr().String(),
+						LocalAddr:  conn.LocalAddr().String(),
+					})
+				}
 
 				// PacketAssembler merges multiple packets together and sends them when its buffer is full
 				l.packetManager.PacketAssembler.AddMessage(buffer[:messageSize])

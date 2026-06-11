@@ -51,13 +51,18 @@ type UDPListener struct {
 	packetsBuffer   *packets.Buffer
 	packetAssembler *packets.Assembler
 	buffer          []byte
-	trafficCapture  replay.Component // Currently ignored
+	trafficCapture  replay.Component
 	listenWg        sync.WaitGroup
 	telemetryStore  *TelemetryStore
 }
 
 // NewUDPListener returns an idle UDP Statsd listener
 func NewUDPListener(packetOut chan packets.Packets, sharedPacketPoolManager *packets.PoolManager[packets.Packet], cfg model.Reader, capture replay.Component, telemetryStore *TelemetryStore, packetsTelemetryStore *packets.TelemetryStore) (*UDPListener, error) {
+	return NewUDPListenerWithWriter(packets.NewChannelBatchWriter(packetOut), sharedPacketPoolManager, cfg, capture, telemetryStore, packetsTelemetryStore)
+}
+
+// NewUDPListenerWithWriter returns an idle UDP Statsd listener using the given packet batch writer.
+func NewUDPListenerWithWriter(packetWriter packets.BatchWriter, sharedPacketPoolManager *packets.PoolManager[packets.Packet], cfg model.Reader, capture replay.Component, telemetryStore *TelemetryStore, packetsTelemetryStore *packets.TelemetryStore) (*UDPListener, error) {
 	var err error
 	var url string
 
@@ -93,7 +98,7 @@ func NewUDPListener(packetOut chan packets.Packets, sharedPacketPoolManager *pac
 	flushTimeout := cfg.GetDuration("dogstatsd_packet_buffer_flush_timeout")
 
 	buffer := make([]byte, bufferSize)
-	packetsBuffer := packets.NewBuffer(uint(packetsBufferSize), flushTimeout, packetOut, "udp", packetsTelemetryStore)
+	packetsBuffer := packets.NewBufferWithWriter(uint(packetsBufferSize), flushTimeout, packetWriter, "udp", packetsTelemetryStore)
 	packetAssembler := packets.NewAssembler(flushTimeout, packetsBuffer, sharedPacketPoolManager, packets.UDP)
 
 	listener := &UDPListener{
@@ -127,7 +132,7 @@ func (l *UDPListener) listen() {
 	var t1, t2 time.Time
 	log.Infof("dogstatsd-udp: starting to listen on %s", l.conn.LocalAddr())
 	for {
-		n, _, err := l.conn.ReadFrom(l.buffer)
+		n, remoteAddr, err := l.conn.ReadFrom(l.buffer)
 		t1 = time.Now()
 		udpPackets.Add(1)
 
@@ -145,6 +150,17 @@ func (l *UDPListener) listen() {
 
 			udpBytes.Add(int64(n))
 			l.telemetryStore.tlmUDPPacketsBytes.Add(float64(n), "agent")
+
+			if l.trafficCapture != nil {
+				l.trafficCapture.CaptureIngress(replay.IngressEnvelope{
+					Timestamp:  t1,
+					Source:     packets.UDP,
+					ListenerID: "udp",
+					Payload:    l.buffer[:n],
+					RemoteAddr: remoteAddr.String(),
+					LocalAddr:  l.conn.LocalAddr().String(),
+				})
+			}
 
 			// packetAssembler merges multiple packets together and sends them when its buffer is full
 			l.packetAssembler.AddMessage(l.buffer[:n])

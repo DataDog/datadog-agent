@@ -7,6 +7,7 @@ package serverimpl
 
 import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/internal/identity"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -26,15 +27,22 @@ type worker struct {
 	// the batcher will be responsible of batching a few samples / events / service
 	// checks and it will automatically forward them to the aggregator, meaning that
 	// the flushing logic to the aggregator is actually in the batcher.
-	batcher *batcher
-	parser  *parser
+	batcher         *batcher
+	parser          *parser
+	identityBuilder *identity.Builder
 
 	// we allocate it once per worker instead of once per packet. This will
 	// be used to store the samples out a of packets. Allocating it every
 	// time is very costly, especially on the GC.
 	samples metrics.MetricSampleBatch
 
-	packetsTelemetry *packets.TelemetryStore
+	packetsTelemetry            *packets.TelemetryStore
+	packetLog                   *packetIngressLog
+	rawIngress                  packets.RawIngressReader
+	rawIngressBatch             []packets.RawPacket
+	rawIngressBatchDrainEnabled bool
+	columnarV3                  aggregator.DogStatsDColumnarV3Inserter
+	columnarV3Enabled           bool
 
 	FilterListUpdate chan utilstrings.Matcher
 	filterList       utilstrings.Matcher
@@ -48,18 +56,47 @@ func newWorker(s *dsdServer, workerNum int, wmeta option.Option[workloadmeta.Com
 		batcher = newBatcher(s.demultiplexer.(aggregator.DemultiplexerWithAggregator), s.tlmChannel)
 	}
 
+	var columnarV3 aggregator.DogStatsDColumnarV3Inserter
+	columnarV3Enabled := false
+	if inserter, ok := s.demultiplexer.(aggregator.DogStatsDColumnarV3Inserter); ok && inserter.DogStatsDColumnarV3Enabled() {
+		columnarV3 = inserter
+		columnarV3Enabled = true
+	}
+
+	rawIngressBatchDrainSize := s.rawIngressBatchDrainSize
+	if rawIngressBatchDrainSize <= 0 {
+		rawIngressBatchDrainSize = defaultExperimentalRawIngressBatchDrainSize
+	}
+	var rawIngressBatch []packets.RawPacket
+	if s.rawIngressBatchDrain {
+		rawIngressBatch = make([]packets.RawPacket, 0, rawIngressBatchDrainSize)
+	}
+
 	return &worker{
-		server:           s,
-		batcher:          batcher,
-		parser:           newParser(s.config, s.sharedFloat64List, workerNum, wmeta, stringInternerTelemetry),
-		samples:          make(metrics.MetricSampleBatch, 0, defaultSampleSize),
-		packetsTelemetry: packetsTelemetry,
-		FilterListUpdate: make(chan utilstrings.Matcher),
-		filterList:       filterList,
+		server:                      s,
+		batcher:                     batcher,
+		parser:                      newParser(s.config, s.sharedFloat64List, workerNum, wmeta, stringInternerTelemetry),
+		identityBuilder:             identity.NewBuilderWithScope(uint16(workerNum + 1)),
+		samples:                     make(metrics.MetricSampleBatch, 0, defaultSampleSize),
+		packetsTelemetry:            packetsTelemetry,
+		rawIngressBatch:             rawIngressBatch,
+		rawIngressBatchDrainEnabled: s.rawIngressBatchDrain,
+		columnarV3:                  columnarV3,
+		columnarV3Enabled:           columnarV3Enabled,
+		FilterListUpdate:            make(chan utilstrings.Matcher),
+		filterList:                  filterList,
 	}
 }
 
 func (w *worker) run() {
+	if w.rawIngress != nil {
+		w.runRawIngress()
+		return
+	}
+	if w.packetLog != nil {
+		w.runPacketLog()
+		return
+	}
 	for {
 		select {
 		case <-w.server.stopChan:
@@ -70,12 +107,104 @@ func (w *worker) run() {
 		case filterList := <-w.FilterListUpdate:
 			w.filterList = filterList
 		case ps := <-w.server.packetsIn:
-			w.packetsTelemetry.TelemetryUntrackPackets(ps)
-			w.samples = w.samples[0:0]
-			// we return the samples in case the slice was extended
-			// when parsing the packets
-			w.samples = w.server.parsePackets(w.batcher, w.parser, ps, w.samples, &w.filterList)
+			w.processPackets(ps)
 		}
 
 	}
+}
+
+func (w *worker) runPacketLog() {
+	for {
+		select {
+		case <-w.server.stopChan:
+			return
+		case <-w.server.health.C:
+		case <-w.server.serverlessFlushChan:
+			w.batcher.flush()
+		case filterList := <-w.FilterListUpdate:
+			w.filterList = filterList
+		case <-w.packetLog.notify:
+			for {
+				ps, ok := w.packetLog.tryNext()
+				if !ok {
+					break
+				}
+				w.processPackets(ps)
+			}
+		}
+	}
+}
+
+func (w *worker) runRawIngress() {
+	var batchReader packets.RawIngressBatchReader
+	if w.rawIngressBatchDrainEnabled {
+		batchReader, _ = w.rawIngress.(packets.RawIngressBatchReader)
+	}
+
+	for {
+		select {
+		case <-w.server.stopChan:
+			return
+		case <-w.server.health.C:
+		case <-w.server.serverlessFlushChan:
+			w.batcher.flush()
+		case filterList := <-w.FilterListUpdate:
+			w.filterList = filterList
+		case <-w.rawIngress.Notify():
+			if batchReader != nil {
+				w.processRawIngressBatches(batchReader)
+			} else {
+				w.processRawIngressPackets()
+			}
+			w.batcher.flush()
+		}
+	}
+}
+
+func (w *worker) processRawIngressPackets() {
+	for {
+		rawPacket, ok := w.rawIngress.TryNext()
+		if !ok {
+			break
+		}
+		w.processRawPacket(rawPacket)
+	}
+}
+
+func (w *worker) processRawIngressBatches(batchReader packets.RawIngressBatchReader) {
+	for {
+		batch := batchReader.TryNextBatch(w.rawIngressBatch[:0])
+		if len(batch) == 0 {
+			break
+		}
+		for _, rawPacket := range batch {
+			w.processRawPacketNoRelease(rawPacket)
+		}
+		batchReader.ReleaseBatch(len(batch))
+	}
+}
+
+func (w *worker) processPackets(ps packets.Packets) {
+	w.packetsTelemetry.TelemetryUntrackPackets(ps)
+	w.samples = w.samples[0:0]
+	// we return the samples in case the slice was extended
+	// when parsing the packets
+	w.samples = w.server.parsePackets(w.batcher, w.parser, w.identityBuilder, ps, w.samples, &w.filterList)
+}
+
+func (w *worker) processRawPacket(rawPacket packets.RawPacket) {
+	w.processRawPacketNoRelease(rawPacket)
+	rawPacket.Release()
+}
+
+func (w *worker) processRawPacketNoRelease(rawPacket packets.RawPacket) {
+	packet := packets.Packet{
+		Contents:   rawPacket.Contents,
+		Origin:     rawPacket.Origin,
+		ProcessID:  rawPacket.ProcessID,
+		ListenerID: rawPacket.ListenerID,
+		Source:     rawPacket.Source,
+	}
+	w.samples = w.samples[0:0]
+	w.samples = w.server.parsePacket(w.batcher, w.parser, w.identityBuilder, &packet, w.samples, &w.filterList, w.columnarV3, w.columnarV3Enabled)
 }

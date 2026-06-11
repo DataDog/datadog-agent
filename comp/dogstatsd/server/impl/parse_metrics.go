@@ -47,6 +47,7 @@ type dogstatsdMetricSample struct {
 	metricType metricType
 	sampleRate float64
 	tags       []string
+	tagsetID   uint64
 	// localData is used for Origin Detection
 	localData origindetection.LocalData
 	// externalData is used for Origin Detection

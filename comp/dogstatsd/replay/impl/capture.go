@@ -33,6 +33,7 @@ type Requires struct {
 // trafficCapture allows capturing traffic from our listeners and writing it to file
 type trafficCapture struct {
 	writer       *TrafficCaptureWriter
+	rawIngress   *ingressRing
 	config       model.Reader
 	tagger       tagger.Component
 	startUpError error
@@ -59,6 +60,7 @@ func (tc *trafficCapture) configure(_ context.Context) error {
 		tc.startUpError = errors.New("unable to instantiate capture writer")
 	}
 	tc.writer = writer
+	tc.rawIngress = newIngressRing(tc.config.GetInt("dogstatsd_capture_raw_ring_size"))
 
 	return nil
 }
@@ -121,6 +123,39 @@ func (tc *trafficCapture) Enqueue(msg *replay.CaptureBuffer) bool {
 	tc.RLock()
 	defer tc.RUnlock()
 	return tc.writer.Enqueue(msg)
+}
+
+// CaptureIngress records a raw ingress envelope and writes it to the active capture, if any.
+func (tc *trafficCapture) CaptureIngress(envelope replay.IngressEnvelope) bool {
+	tc.RLock()
+	writer := tc.writer
+	rawIngress := tc.rawIngress
+	tc.RUnlock()
+
+	recorded := false
+	if rawIngress != nil {
+		recorded = rawIngress.append(envelope)
+	}
+	if writer != nil && writer.EnqueueIngress(envelope) {
+		recorded = true
+	}
+	return recorded
+}
+
+// RecentIngress returns a bounded raw ingress ring snapshot ordered oldest to newest.
+func (tc *trafficCapture) RecentIngress(max int) []replay.IngressEnvelope {
+	tc.RLock()
+	rawIngress := tc.rawIngress
+	tc.RUnlock()
+	return rawIngress.snapshot(max)
+}
+
+// IngressStats returns bounded raw ingress ring counters.
+func (tc *trafficCapture) IngressStats() replay.IngressStats {
+	tc.RLock()
+	rawIngress := tc.rawIngress
+	tc.RUnlock()
+	return rawIngress.stats()
 }
 
 func (tc *trafficCapture) defaultlocation() string {

@@ -24,6 +24,7 @@ import (
 	mocktelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/internal/identity"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 	pidmap "github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap/def"
 	pidmapfx "github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap/fx"
@@ -38,6 +39,7 @@ import (
 	offlinereportermock "github.com/DataDog/datadog-agent/comp/offlinereporter/mock"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx-mock"
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
@@ -125,7 +127,7 @@ func fulfillDepsWithConfigYaml(t testing.TB, yaml string) serverDeps {
 
 // Returns a server that is not started along with associated dependencies
 // Be careful when using this functionality, as server start instantiates many internal components to non-nil values
-func fulfillDepsWithInactiveServer(t *testing.T, cfg map[string]interface{}) (depsWithoutServer, *dsdServer) {
+func fulfillDepsWithInactiveServer(t testing.TB, cfg map[string]interface{}) (depsWithoutServer, *dsdServer) {
 	deps := fxutil.Test[depsWithoutServer](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Provide(func() configComponent.Component { return configComponent.NewMockWithOverrides(t, cfg) }),
@@ -153,6 +155,7 @@ type batcherMock struct {
 	events        []*event.Event
 	lateSamples   []metrics.MetricSample
 	samples       []metrics.MetricSample
+	columnarRows  []aggregator.DogStatsDColumnarV3Sample
 }
 
 func (b *batcherMock) appendServiceCheck(serviceCheck *servicecheck.ServiceCheck) {
@@ -167,9 +170,27 @@ func (b *batcherMock) appendLateSample(sample metrics.MetricSample) {
 	b.lateSamples = append(b.lateSamples, sample)
 }
 
+func (b *batcherMock) appendLateSampleWithContext(sample metrics.MetricSample, _ identity.HotPathContext) {
+	b.appendLateSample(sample)
+}
+
 func (b *batcherMock) appendSample(sample metrics.MetricSample) {
 	b.samples = append(b.samples, sample)
 }
+
+func (b *batcherMock) appendSampleWithContext(sample metrics.MetricSample, _ identity.HotPathContext) {
+	b.appendSample(sample)
+}
+
+func (b *batcherMock) appendColumnarV3SampleWithContext(sample metrics.MetricSample, _ identity.HotPathContext) {
+	b.appendSample(sample)
+}
+
+func (b *batcherMock) appendColumnarV3Row(row aggregator.DogStatsDColumnarV3Sample) {
+	b.columnarRows = append(b.columnarRows, row)
+}
+
+func (b *batcherMock) needsSampleContext() bool { return false }
 
 func (b *batcherMock) flush() {}
 
@@ -178,6 +199,7 @@ func (b *batcherMock) clear() {
 	b.events = b.events[0:0]
 	b.lateSamples = b.lateSamples[0:0]
 	b.samples = b.samples[0:0]
+	b.columnarRows = b.columnarRows[0:0]
 }
 
 func genTestPackets(inputs ...[]byte) []*packets.Packet {

@@ -50,7 +50,8 @@ func init() {
 // back packets ready to be processed.
 // Origin detection will be implemented for UDS.
 type UDSListener struct {
-	packetOut               chan packets.Packets
+	packetWriter            packets.BatchWriter
+	rawPacketWriter         packets.RawPacketWriter
 	sharedPacketPoolManager *packets.PoolManager[packets.Packet]
 	oobPoolManager          *packets.PoolManager[[]byte]
 	trafficCapture          replay.Component
@@ -145,9 +146,24 @@ func NewUDSOobPoolManager() *packets.PoolManager[[]byte] {
 
 // NewUDSListener returns an idle UDS Statsd listener
 func NewUDSListener(packetOut chan packets.Packets, sharedPacketPoolManager *packets.PoolManager[packets.Packet], sharedOobPacketPoolManager *packets.PoolManager[[]byte], cfg model.Reader, capture replay.Component, transport string, wmeta option.Option[workloadmeta.Component], pidMap pidmap.Component, telemetryStore *TelemetryStore, packetsTelemetryStore *packets.TelemetryStore, telemetry telemetry.Component, originDetection bool) (*UDSListener, error) {
+	return NewUDSListenerWithWriter(packets.NewChannelBatchWriter(packetOut), sharedPacketPoolManager, sharedOobPacketPoolManager, cfg, capture, transport, wmeta, pidMap, telemetryStore, packetsTelemetryStore, telemetry, originDetection)
+}
+
+// NewUDSListenerWithWriter returns an idle UDS Statsd listener using the given packet batch writer.
+func NewUDSListenerWithWriter(packetWriter packets.BatchWriter, sharedPacketPoolManager *packets.PoolManager[packets.Packet], sharedOobPacketPoolManager *packets.PoolManager[[]byte], cfg model.Reader, capture replay.Component, transport string, wmeta option.Option[workloadmeta.Component], pidMap pidmap.Component, telemetryStore *TelemetryStore, packetsTelemetryStore *packets.TelemetryStore, telemetry telemetry.Component, originDetection bool) (*UDSListener, error) {
+	return newUDSListener(packetWriter, nil, sharedPacketPoolManager, sharedOobPacketPoolManager, cfg, capture, transport, wmeta, pidMap, telemetryStore, packetsTelemetryStore, telemetry, originDetection)
+}
+
+// NewUDSListenerWithRawPacketWriter returns an idle UDS Statsd listener using the given raw packet writer.
+func NewUDSListenerWithRawPacketWriter(rawPacketWriter packets.RawPacketWriter, sharedPacketPoolManager *packets.PoolManager[packets.Packet], sharedOobPacketPoolManager *packets.PoolManager[[]byte], cfg model.Reader, capture replay.Component, transport string, wmeta option.Option[workloadmeta.Component], pidMap pidmap.Component, telemetryStore *TelemetryStore, packetsTelemetryStore *packets.TelemetryStore, telemetry telemetry.Component, originDetection bool) (*UDSListener, error) {
+	return newUDSListener(nil, rawPacketWriter, sharedPacketPoolManager, sharedOobPacketPoolManager, cfg, capture, transport, wmeta, pidMap, telemetryStore, packetsTelemetryStore, telemetry, originDetection)
+}
+
+func newUDSListener(packetWriter packets.BatchWriter, rawPacketWriter packets.RawPacketWriter, sharedPacketPoolManager *packets.PoolManager[packets.Packet], sharedOobPacketPoolManager *packets.PoolManager[[]byte], cfg model.Reader, capture replay.Component, transport string, wmeta option.Option[workloadmeta.Component], pidMap pidmap.Component, telemetryStore *TelemetryStore, packetsTelemetryStore *packets.TelemetryStore, telemetry telemetry.Component, originDetection bool) (*UDSListener, error) {
 	listener := &UDSListener{
 		OriginDetection:              originDetection,
-		packetOut:                    packetOut,
+		packetWriter:                 packetWriter,
+		rawPacketWriter:              rawPacketWriter,
 		sharedPacketPoolManager:      sharedPacketPoolManager,
 		trafficCapture:               capture,
 		pidMap:                       pidMap,
@@ -178,6 +194,10 @@ func NewUDSListener(packetOut chan packets.Packets, sharedPacketPoolManager *pac
 
 // Listen runs the intake loop. Should be called in its own goroutine
 func (l *UDSListener) handleConnection(conn netUnixConn, closeFunc CloseFunction) error {
+	if l.rawPacketWriter != nil && l.transport == "unixgram" && !l.OriginDetection {
+		return l.handleRawDatagramConnection(conn, closeFunc)
+	}
+
 	listenerID := l.getListenerID(conn)
 	tlmListenerID := listenerID
 	telemetryWithFullListenerID := l.telemetryWithListenerID
@@ -186,10 +206,10 @@ func (l *UDSListener) handleConnection(conn netUnixConn, closeFunc CloseFunction
 		tlmListenerID = "uds-" + conn.LocalAddr().Network()
 	}
 
-	packetsBuffer := packets.NewBuffer(
+	packetsBuffer := packets.NewBufferWithWriter(
 		l.packetBufferSize,
 		l.packetBufferFlushTimeout,
-		l.packetOut,
+		l.packetWriter,
 		tlmListenerID,
 		l.packetsTelemetryStore,
 	)
@@ -236,17 +256,6 @@ func (l *UDSListener) handleConnection(conn netUnixConn, closeFunc CloseFunction
 		// which will be pushed back by the server when processed.
 		packet := l.sharedPacketPoolManager.Get()
 		udsPackets.Add(1)
-
-		var capBuff *replay.CaptureBuffer
-		if l.trafficCapture != nil && l.trafficCapture.IsOngoing() {
-			capBuff = new(replay.CaptureBuffer)
-			capBuff.Pb.Ancillary = nil
-			capBuff.Pb.Payload = nil
-			capBuff.Pb.Pid = 0
-			capBuff.Pb.AncillarySize = int32(0)
-			capBuff.Pb.PayloadSize = int32(0)
-			capBuff.ContainerID = ""
-		}
 
 		if l.OriginDetection {
 			// Read datagram + credentials in ancillary data
@@ -324,6 +333,37 @@ func (l *UDSListener) handleConnection(conn netUnixConn, closeFunc CloseFunction
 
 		t1 = time.Now()
 
+		if err != nil {
+			if oob != nil {
+				l.oobPoolManager.Put(oob)
+			}
+			l.sharedPacketPoolManager.Put(packet)
+			// connection has been closed
+			if errors.Is(err, net.ErrClosed) {
+				return nil
+			}
+
+			if n < 0 || oobn < 0 {
+				log.Errorf("dogstatsd-uds: invalid negative read length: payload=%d ancillary=%d: %v", n, oobn, err)
+			} else {
+				log.Errorf("dogstatsd-uds: error reading packet: %v", err)
+			}
+			udsPacketReadingErrors.Add(1)
+			l.telemetryStore.tlmUDSPackets.Inc(tlmListenerID, l.transport, "error")
+			continue
+		}
+
+		if n < 0 || oobn < 0 {
+			if oob != nil {
+				l.oobPoolManager.Put(oob)
+			}
+			l.sharedPacketPoolManager.Put(packet)
+			log.Errorf("dogstatsd-uds: invalid negative read length without read error: payload=%d ancillary=%d", n, oobn)
+			udsPacketReadingErrors.Add(1)
+			l.telemetryStore.tlmUDSPackets.Inc(tlmListenerID, l.transport, "error")
+			continue
+		}
+
 		if oob != nil {
 			// Extract container id from credentials
 			pid, container, taggingErr := processUDSOrigin(oobS[:oobn], l.wmeta, l.pidMap)
@@ -334,42 +374,33 @@ func (l *UDSListener) handleConnection(conn netUnixConn, closeFunc CloseFunction
 			} else {
 				packet.ProcessID = uint32(pid)
 				packet.Origin = container
-				if capBuff != nil {
-					capBuff.ContainerID = container
-				}
 			}
-			if capBuff != nil {
-				capBuff.Oob = oob
-				capBuff.Pid = int32(pid)
-				capBuff.Pb.Pid = int32(pid)
-				capBuff.Pb.AncillarySize = int32(oobn)
-				capBuff.Pb.Ancillary = oobS[:oobn]
+
+			if l.trafficCapture != nil {
+				l.trafficCapture.CaptureIngress(replay.IngressEnvelope{
+					Timestamp:  time.Now(),
+					Source:     packets.UDS,
+					ListenerID: listenerID,
+					Payload:    packet.Buffer[:n],
+					ProcessID:  int32(pid),
+					Origin:     packet.Origin,
+					Ancillary:  oobS[:oobn],
+					LocalAddr:  conn.LocalAddr().String(),
+				})
 			}
 
 			// Return the buffer back to the pool for reuse
 			l.oobPoolManager.Put(oob)
+		} else if l.trafficCapture != nil {
+			l.trafficCapture.CaptureIngress(replay.IngressEnvelope{
+				Timestamp:  time.Now(),
+				Source:     packets.UDS,
+				ListenerID: listenerID,
+				Payload:    packet.Buffer[:n],
+				LocalAddr:  conn.LocalAddr().String(),
+			})
 		}
 
-		if capBuff != nil {
-			capBuff.Buff = packet
-			capBuff.Pb.Timestamp = time.Now().UnixNano()
-			capBuff.Pb.PayloadSize = int32(n)
-			capBuff.Pb.Payload = packet.Buffer[:n]
-
-			l.trafficCapture.Enqueue(capBuff)
-		}
-
-		if err != nil {
-			// connection has been closed
-			if errors.Is(err, net.ErrClosed) {
-				return nil
-			}
-
-			log.Errorf("dogstatsd-uds: error reading packet: %v", err)
-			udsPacketReadingErrors.Add(1)
-			l.telemetryStore.tlmUDSPackets.Inc(tlmListenerID, l.transport, "error")
-			continue
-		}
 		l.telemetryStore.tlmUDSPackets.Inc(tlmListenerID, l.transport, "ok")
 
 		udsBytes.Add(int64(n))
@@ -380,6 +411,94 @@ func (l *UDSListener) handleConnection(conn netUnixConn, closeFunc CloseFunction
 
 		// packetsBuffer handles the forwarding of the packets to the dogstatsd server intake channel
 		packetsBuffer.Append(packet)
+	}
+}
+
+func (l *UDSListener) handleRawDatagramConnection(conn netUnixConn, closeFunc CloseFunction) error {
+	listenerID := l.getListenerID(conn)
+	tlmListenerID := listenerID
+	telemetryWithFullListenerID := l.telemetryWithListenerID
+	if !telemetryWithFullListenerID {
+		tlmListenerID = "uds-" + conn.LocalAddr().Network()
+	}
+
+	l.telemetryStore.tlmUDSConnections.Inc(tlmListenerID, l.transport)
+	defer func() {
+		_ = closeFunc(conn)
+		if telemetryWithFullListenerID {
+			l.clearTelemetry(tlmListenerID)
+		}
+		l.telemetryStore.tlmUDSConnections.Dec(tlmListenerID, l.transport)
+	}()
+
+	var rateLimiter *ratelimit.MemBasedRateLimiter
+	if l.dogstatsdMemBasedRateLimiter {
+		var err error
+		rateLimiter, err = ratelimit.BuildMemBasedRateLimiter(l.config, l.telemetry)
+		if err != nil {
+			log.Errorf("Cannot use DogStatsD rate limiter: %v", err)
+			rateLimiter = nil
+		} else {
+			log.Info("DogStatsD rate limiter enabled")
+		}
+	}
+
+	if rcvbuf := l.config.GetInt("dogstatsd_so_rcvbuf"); rcvbuf != 0 {
+		if err := conn.SetReadBuffer(rcvbuf); err != nil {
+			log.Warnf("could not set socket rcvbuf: %s", err)
+		}
+	}
+
+	t1 := time.Now()
+	log.Debugf("dogstatsd-uds: starting raw ingress ring handler for %s", conn.LocalAddr())
+	for {
+		if rateLimiter != nil {
+			if err := rateLimiter.MayWait(); err != nil {
+				log.Error(err)
+			}
+		}
+
+		reservation, ok := l.rawPacketWriter.Reserve()
+		if !ok {
+			return nil
+		}
+
+		t2 := time.Now()
+		l.telemetryStore.tlmListener.Observe(float64(t2.Sub(t1).Nanoseconds()), tlmListenerID, l.transport, "uds")
+
+		n, _, err := conn.ReadFromUnix(reservation.Buffer())
+		t1 = time.Now()
+		udsPackets.Add(1)
+		if err != nil {
+			reservation.Abort()
+			if errors.Is(err, net.ErrClosed) {
+				return nil
+			}
+			log.Errorf("dogstatsd-uds: error reading packet: %v", err)
+			udsPacketReadingErrors.Add(1)
+			l.telemetryStore.tlmUDSPackets.Inc(tlmListenerID, l.transport, "error")
+			continue
+		}
+
+		l.telemetryStore.tlmUDSPackets.Inc(tlmListenerID, l.transport, "ok")
+		udsBytes.Add(int64(n))
+		l.telemetryStore.tlmUDSPacketsBytes.Add(float64(n), "agent", tlmListenerID, l.transport)
+
+		payload := reservation.Buffer()[:n]
+		if l.trafficCapture != nil {
+			l.trafficCapture.CaptureIngress(replay.IngressEnvelope{
+				Timestamp:  t1,
+				Source:     packets.UDS,
+				ListenerID: listenerID,
+				Payload:    payload,
+				LocalAddr:  conn.LocalAddr().String(),
+			})
+		}
+
+		reservation.Commit(n, packets.RawPacketMeta{
+			Source:     packets.UDS,
+			ListenerID: listenerID,
+		})
 	}
 }
 

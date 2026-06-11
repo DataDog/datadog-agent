@@ -1,0 +1,31 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "identity",
+    srcs = ["identity.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/dogstatsd/internal/identity",
+    visibility = ["//comp/dogstatsd:__subpackages__"],
+    deps = [
+        "//comp/core/tagger/def",
+        "//pkg/aggregator/ckey",
+        "//pkg/metrics",
+        "//pkg/tagger/types",
+        "//pkg/tagset",
+    ],
+)
+
+go_test(
+    name = "identity_test",
+    srcs = ["identity_test.go"],
+    embed = [":identity"],
+    gotags = ["test"],
+    deps = [
+        "//comp/core/tagger/impl-noop",
+        "//comp/core/tagger/origindetection",
+        "//pkg/aggregator/ckey",
+        "//pkg/metrics",
+        "//pkg/tagger/types",
+        "//pkg/tagset",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

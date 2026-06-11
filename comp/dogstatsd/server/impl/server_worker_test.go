@@ -14,10 +14,223 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/internal/identity"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/listeners"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 )
+
+type recordingMetricStatsDebug struct {
+	enabled bool
+	samples []metrics.MetricSample
+	shards  []identity.ShardIdentity
+}
+
+func (d *recordingMetricStatsDebug) StoreMetricStats(sample metrics.MetricSample) {
+	d.samples = append(d.samples, sample)
+}
+
+func (d *recordingMetricStatsDebug) StoreMetricStatsWithShardIdentity(shard identity.ShardIdentity) {
+	d.shards = append(d.shards, shard)
+}
+
+func (d *recordingMetricStatsDebug) IsDebugEnabled() bool { return d.enabled }
+
+func (d *recordingMetricStatsDebug) SetMetricStatsEnabled(enabled bool) { d.enabled = enabled }
+
+func (d *recordingMetricStatsDebug) GetJSONDebugStats() ([]byte, error) { return nil, nil }
+
+func TestParseMetricMessageColumnarV3Direct(t *testing.T) {
+	deps := fulfillDepsWithConfigOverride(t, map[string]interface{}{"dogstatsd_port": listeners.RandomPortName})
+	s := deps.Server.(*dsdServer)
+	parser := newParser(deps.Config, s.sharedFloat64List, 1, deps.WMeta, s.stringInternerTelemetry)
+	batcher := &batcherMock{}
+
+	samples, handled, err := s.parseMetricMessageColumnarV3Direct(batcher, parser, identity.NewBuilder(), []byte("direct.metric:42|g|#env:prod"), "", 0, "listener", false, nil, nil, nil)
+	require.NoError(t, err)
+	require.True(t, handled)
+	require.Empty(t, samples)
+	require.Len(t, batcher.samples, 1)
+	assert.Equal(t, "direct.metric", batcher.samples[0].Name)
+	assert.Equal(t, 42.0, batcher.samples[0].Value)
+	assert.Equal(t, metrics.GaugeType, batcher.samples[0].Mtype)
+	assert.Equal(t, []string{"env:prod"}, batcher.samples[0].Tags)
+}
+
+func TestParseMetricMessageColumnarV3DirectCarriesOriginMetadata(t *testing.T) {
+	deps := fulfillDepsWithConfigOverride(t, map[string]interface{}{"dogstatsd_port": listeners.RandomPortName})
+	s := deps.Server.(*dsdServer)
+	parser := newParser(deps.Config, s.sharedFloat64List, 1, deps.WMeta, s.stringInternerTelemetry)
+	parser.dsdOriginEnabled = true
+	batcher := &batcherMock{}
+
+	message := []byte("direct.metric:42|g|#env:prod,dd.internal.entity_id:pod-from-tag|c:metric-container|e:it-true,cn-nginx,pu-pod-from-env|card:high")
+	samples, handled, err := s.parseMetricMessageColumnarV3Direct(batcher, parser, identity.NewBuilder(), message, "socket-container", 1234, "listener", false, nil, nil, nil)
+	require.NoError(t, err)
+	require.True(t, handled)
+	require.Empty(t, samples)
+	require.Len(t, batcher.samples, 1)
+
+	sample := batcher.samples[0]
+	assert.Equal(t, []string{"env:prod"}, sample.Tags)
+	assert.Equal(t, "socket-container", sample.OriginInfo.ContainerIDFromSocket)
+	assert.Equal(t, uint32(1234), sample.OriginInfo.LocalData.ProcessID)
+	assert.Equal(t, "metric-container", sample.OriginInfo.LocalData.ContainerID)
+	assert.Equal(t, "pod-from-tag", sample.OriginInfo.LocalData.PodUID)
+	assert.True(t, sample.OriginInfo.ExternalData.Init)
+	assert.Equal(t, "nginx", sample.OriginInfo.ExternalData.ContainerName)
+	assert.Equal(t, "pod-from-env", sample.OriginInfo.ExternalData.PodUID)
+	assert.Equal(t, "high", sample.OriginInfo.Cardinality)
+}
+
+func TestParseMetricMessageColumnarV3FastLaneUsesExactTagsetHit(t *testing.T) {
+	t.Setenv("DD_DOGSTATSD_EXPERIMENTAL_PARSE_TAGSET_INTERNER", "true")
+	t.Setenv("DD_DOGSTATSD_EXPERIMENTAL_COMPACT_IDENTITIES", "true")
+	t.Setenv("DD_DOGSTATSD_EXPERIMENTAL_COLUMNAR_V3_FASTLANE", "true")
+
+	deps := fulfillDepsWithConfigOverride(t, map[string]interface{}{"dogstatsd_port": listeners.RandomPortName})
+	s := deps.Server.(*dsdServer)
+	parser := newParser(deps.Config, s.sharedFloat64List, 1, deps.WMeta, s.stringInternerTelemetry)
+	batcher := &batcherMock{}
+	builder := identity.NewBuilder()
+	message := []byte("fast.metric:42|g|#env:prod,service:agent")
+
+	for i := 0; i < 3; i++ {
+		var handled bool
+		var err error
+		_, handled, err = s.parseMetricMessageColumnarV3Direct(batcher, parser, builder, message, "", 0, "listener", false, nil, nil, nil)
+		require.NoError(t, err)
+		require.True(t, handled)
+	}
+
+	require.Len(t, batcher.samples, 2)
+	require.Len(t, batcher.columnarRows, 1)
+	row := batcher.columnarRows[0]
+	assert.Equal(t, "fast.metric", row.Name)
+	assert.Equal(t, 42.0, row.Value)
+	assert.Equal(t, metrics.GaugeType, row.Mtype)
+	assert.Equal(t, []string{"env:prod", "service:agent"}, row.Tags)
+	assert.True(t, row.HasDescriptor)
+	assert.NotZero(t, row.CompactID)
+	assert.NotNil(t, row.CompactState)
+}
+
+func TestParseMetricMessageColumnarV3FastLaneFallsBackForOriginMetadata(t *testing.T) {
+	t.Setenv("DD_DOGSTATSD_EXPERIMENTAL_PARSE_TAGSET_INTERNER", "true")
+	t.Setenv("DD_DOGSTATSD_EXPERIMENTAL_COMPACT_IDENTITIES", "true")
+	t.Setenv("DD_DOGSTATSD_EXPERIMENTAL_COLUMNAR_V3_FASTLANE", "true")
+
+	deps := fulfillDepsWithConfigOverride(t, map[string]interface{}{"dogstatsd_port": listeners.RandomPortName})
+	s := deps.Server.(*dsdServer)
+	parser := newParser(deps.Config, s.sharedFloat64List, 1, deps.WMeta, s.stringInternerTelemetry)
+	parser.dsdOriginEnabled = true
+	batcher := &batcherMock{}
+	builder := identity.NewBuilder()
+	message := []byte("fast.origin.metric:42|g|#env:prod|c:metric-container|card:high")
+
+	for i := 0; i < 3; i++ {
+		_, handled, err := s.parseMetricMessageColumnarV3Direct(batcher, parser, builder, message, "socket-container", 1234, "listener", false, nil, nil, nil)
+		require.NoError(t, err)
+		require.True(t, handled)
+	}
+
+	require.Len(t, batcher.samples, 3)
+	require.Empty(t, batcher.columnarRows, "no-materialization fast lane should not consume origin-bearing messages")
+	for _, sample := range batcher.samples {
+		assert.Equal(t, "socket-container", sample.OriginInfo.ContainerIDFromSocket)
+		assert.Equal(t, uint32(1234), sample.OriginInfo.LocalData.ProcessID)
+		assert.Equal(t, "metric-container", sample.OriginInfo.LocalData.ContainerID)
+		assert.Equal(t, "high", sample.OriginInfo.Cardinality)
+	}
+}
+
+func TestParseMetricMessageColumnarV3FastLaneFallsBackForSpecialTags(t *testing.T) {
+	t.Setenv("DD_DOGSTATSD_EXPERIMENTAL_PARSE_TAGSET_INTERNER", "true")
+	t.Setenv("DD_DOGSTATSD_EXPERIMENTAL_COMPACT_IDENTITIES", "true")
+	t.Setenv("DD_DOGSTATSD_EXPERIMENTAL_COLUMNAR_V3_FASTLANE", "true")
+
+	deps := fulfillDepsWithConfigOverride(t, map[string]interface{}{"dogstatsd_port": listeners.RandomPortName})
+	s := deps.Server.(*dsdServer)
+	parser := newParser(deps.Config, s.sharedFloat64List, 1, deps.WMeta, s.stringInternerTelemetry)
+	parser.dsdOriginEnabled = true
+	builder := identity.NewBuilder()
+
+	for _, tc := range []struct {
+		name   string
+		msg    []byte
+		assert func(*testing.T, metrics.MetricSample)
+	}{
+		{
+			name: "host tag",
+			msg:  []byte("fast.special.host:42|g|#env:prod,host:custom-host"),
+			assert: func(t *testing.T, sample metrics.MetricSample) {
+				assert.Equal(t, "custom-host", sample.Host)
+				assert.Equal(t, []string{"env:prod"}, sample.Tags)
+			},
+		},
+		{
+			name: "entity id tag",
+			msg:  []byte("fast.special.entity:42|g|#env:prod,dd.internal.entity_id:pod-from-tag"),
+			assert: func(t *testing.T, sample metrics.MetricSample) {
+				assert.Equal(t, "pod-from-tag", sample.OriginInfo.LocalData.PodUID)
+				assert.Equal(t, []string{"env:prod"}, sample.Tags)
+			},
+		},
+		{
+			name: "cardinality tag",
+			msg:  []byte("fast.special.card:42|g|#env:prod,dd.internal.card:high"),
+			assert: func(t *testing.T, sample metrics.MetricSample) {
+				assert.Equal(t, "high", sample.OriginInfo.Cardinality)
+				assert.Equal(t, []string{"env:prod"}, sample.Tags)
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			batcher := &batcherMock{}
+			for i := 0; i < 3; i++ {
+				_, handled, err := s.parseMetricMessageColumnarV3Direct(batcher, parser, builder, tc.msg, "", 0, "listener", false, nil, nil, nil)
+				require.NoError(t, err)
+				require.True(t, handled)
+			}
+
+			require.Len(t, batcher.samples, 3)
+			require.Empty(t, batcher.columnarRows, "no-materialization fast lane should not consume parser-special tagsets")
+			for _, sample := range batcher.samples {
+				tc.assert(t, sample)
+			}
+		})
+	}
+}
+
+func TestParseMetricMessageColumnarV3FastLaneUpdatesDebugStats(t *testing.T) {
+	t.Setenv("DD_DOGSTATSD_EXPERIMENTAL_PARSE_TAGSET_INTERNER", "true")
+	t.Setenv("DD_DOGSTATSD_EXPERIMENTAL_COMPACT_IDENTITIES", "true")
+	t.Setenv("DD_DOGSTATSD_EXPERIMENTAL_COLUMNAR_V3_FASTLANE", "true")
+
+	deps := fulfillDepsWithConfigOverride(t, map[string]interface{}{"dogstatsd_port": listeners.RandomPortName})
+	s := deps.Server.(*dsdServer)
+	debug := &recordingMetricStatsDebug{enabled: true}
+	s.Debug = debug
+	parser := newParser(deps.Config, s.sharedFloat64List, 1, deps.WMeta, s.stringInternerTelemetry)
+	batcher := &batcherMock{}
+	builder := identity.NewBuilder()
+	message := []byte("fast.metric:42|g|#env:prod,service:agent")
+
+	for i := 0; i < 3; i++ {
+		_, handled, err := s.parseMetricMessageColumnarV3Direct(batcher, parser, builder, message, "", 0, "listener", false, nil, nil, nil)
+		require.NoError(t, err)
+		require.True(t, handled)
+	}
+
+	require.Len(t, batcher.samples, 2)
+	require.Len(t, batcher.columnarRows, 1, "third point should use the no-materialization fast lane")
+	require.Len(t, debug.shards, 3, "debug stats should be updated from the shared series identity on both direct and fast-lane paths")
+	assert.Empty(t, debug.samples, "precomputed shared identity avoids rebuilding stats from MetricSample")
+	for _, shard := range debug.shards[1:] {
+		assert.Equal(t, debug.shards[0].ContextKey, shard.ContextKey)
+		assert.Equal(t, "fast.metric", shard.Client.Name)
+	}
+}
 
 // Run through all of the major metric types and verify both the default and the timestamped flows
 func TestMetricTypes(t *testing.T) {
@@ -125,7 +338,7 @@ func runTestMetrics(t *testing.T, deps serverDeps, input []byte, expTests []*tMe
 
 	var b batcherMock
 	parser := newParser(deps.Config, s.sharedFloat64List, 1, deps.WMeta, s.stringInternerTelemetry)
-	s.parsePackets(&b, parser, genTestPackets(input), metrics.MetricSampleBatch{}, nil)
+	s.parsePackets(&b, parser, nil, genTestPackets(input), metrics.MetricSampleBatch{}, nil)
 
 	samples := b.samples
 	timedSamples := b.lateSamples
@@ -165,7 +378,7 @@ func TestEvents(t *testing.T) {
 		SourceTypeName: "source investigation",
 	}
 
-	s.parsePackets(&b, parser, genTestPackets(input1, input2), metrics.MetricSampleBatch{}, nil)
+	s.parsePackets(&b, parser, nil, genTestPackets(input1, input2), metrics.MetricSampleBatch{}, nil)
 
 	assert.Equal(t, 2, len(b.events))
 
@@ -179,7 +392,7 @@ func TestEvents(t *testing.T) {
 		"_e{-5,2}:abc\n",
 	)
 
-	s.parsePackets(&b, parser, genTestPackets(input), metrics.MetricSampleBatch{}, nil)
+	s.parsePackets(&b, parser, nil, genTestPackets(input), metrics.MetricSampleBatch{}, nil)
 	assert.Equal(t, 1, len(b.events))
 	defaultEvent().testEvent(t, b.events[0])
 }
@@ -193,7 +406,7 @@ func TestServiceChecks(t *testing.T) {
 	parser := newParser(deps.Config, s.sharedFloat64List, 1, deps.WMeta, s.stringInternerTelemetry)
 	var b batcherMock
 
-	s.parsePackets(&b, parser, genTestPackets(defaultServiceInput), metrics.MetricSampleBatch{}, nil)
+	s.parsePackets(&b, parser, nil, genTestPackets(defaultServiceInput), metrics.MetricSampleBatch{}, nil)
 
 	assert.Equal(t, 1, len(b.serviceChecks))
 	defaultServiceCheck().testService(t, b.serviceChecks[0])
@@ -202,7 +415,7 @@ func TestServiceChecks(t *testing.T) {
 
 	// Test incomplete Service Check
 	input := append([]byte("_sc|agen.down\n"), defaultServiceInput...)
-	s.parsePackets(&b, parser, genTestPackets(input), metrics.MetricSampleBatch{}, nil)
+	s.parsePackets(&b, parser, nil, genTestPackets(input), metrics.MetricSampleBatch{}, nil)
 
 	assert.Equal(t, 1, len(b.serviceChecks))
 	defaultServiceCheck().testService(t, b.serviceChecks[0])
@@ -365,7 +578,7 @@ dogstatsd_mapper_profiles:
 
 			parser := newParser(deps.Config, s.sharedFloat64List, 1, deps.WMeta, s.stringInternerTelemetry)
 			var b batcherMock
-			s.parsePackets(&b, parser, genTestPackets(scenario.packets...), metrics.MetricSampleBatch{}, nil)
+			s.parsePackets(&b, parser, nil, genTestPackets(scenario.packets...), metrics.MetricSampleBatch{}, nil)
 
 			for idx, sample := range b.samples {
 				scenario.expectedSamples[idx].testMetric(t, sample)

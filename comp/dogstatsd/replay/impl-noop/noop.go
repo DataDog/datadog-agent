@@ -61,6 +61,21 @@ func (tc *noopTrafficCapture) Enqueue(_ *replaydef.CaptureBuffer) bool {
 	return true
 }
 
+// CaptureIngress does nothing.
+func (tc *noopTrafficCapture) CaptureIngress(_ replaydef.IngressEnvelope) bool {
+	return false
+}
+
+// RecentIngress returns no retained ingress envelopes.
+func (tc *noopTrafficCapture) RecentIngress(_ int) []replaydef.IngressEnvelope {
+	return nil
+}
+
+// IngressStats returns empty ingress stats.
+func (tc *noopTrafficCapture) IngressStats() replaydef.IngressStats {
+	return replaydef.IngressStats{}
+}
+
 // GetStartUpError returns nil
 func (tc *noopTrafficCapture) GetStartUpError() error {
 	return nil

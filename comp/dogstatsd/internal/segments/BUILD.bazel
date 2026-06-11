@@ -1,0 +1,20 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "segments",
+    srcs = ["segment.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/dogstatsd/internal/segments",
+    visibility = ["//comp/dogstatsd:__subpackages__"],
+    deps = ["//pkg/metrics"],
+)
+
+go_test(
+    name = "segments_test",
+    srcs = ["segment_test.go"],
+    embed = [":segments"],
+    deps = [
+        "//pkg/metrics",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

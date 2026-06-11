@@ -2,19 +2,26 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "impl",
-    srcs = ["debug.go"],
+    srcs = [
+        "debug.go",
+        "debug_stats_telemetry.go",
+        "debug_stats_view.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/impl",
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",
         "//comp/core/log/def",
         "//comp/core/log/impl",
+        "//comp/core/telemetry/def",
+        "//comp/core/telemetry/impl",
         "//comp/def",
+        "//comp/dogstatsd/internal/identity",
+        "//comp/dogstatsd/internal/seriesstats",
         "//comp/dogstatsd/serverDebug/def",
         "//pkg/aggregator/ckey",
         "//pkg/config/model",
         "//pkg/metrics",
-        "//pkg/tagset",
         "//pkg/util/defaultpaths",
         "//pkg/util/log",
         "//pkg/util/log/setup",
@@ -25,13 +32,20 @@ go_library(
 
 go_test(
     name = "impl_test",
-    srcs = ["debug_test.go"],
+    srcs = [
+        "debug_baseline_test.go",
+        "debug_test.go",
+        "identity_contract_test.go",
+        "materialized_view_test.go",
+        "resolved_context_test.go",
+    ],
     embed = [":impl"],
     gotags = ["test"],
     deps = [
         "//comp/core/config",
         "//comp/core/log/def",
         "//comp/core/log/mock",
+        "//comp/dogstatsd/internal/identity",
         "//comp/dogstatsd/serverDebug/def",
         "//pkg/aggregator/ckey",
         "//pkg/metrics",

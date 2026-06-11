@@ -6,6 +6,8 @@
 package aggregator
 
 import (
+	"os"
+	"strconv"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -93,6 +95,70 @@ type flushTrigger struct {
 	seriesSink   metrics.SerieSink
 }
 
+func seriesFlushCallback(logPayloads bool, hostTagProvider *hosttags.HostTagProvider) func(*metrics.Serie) {
+	hostTags := hostTagProvider.GetHostTags()
+	return func(se *metrics.Serie) {
+		if logPayloads {
+			log.Debugf("Flushing serie: %s", se)
+		}
+
+		if hostTags != nil {
+			se.Tags = tagset.CombineCompositeTagsAndSlice(se.Tags, hostTags)
+		}
+		tagsetTlm.updateHugeSerieTelemetry(se)
+		observeDogstatsdPipelineSerie(se)
+	}
+}
+
+func seriesRowFlushCallback(logPayloads bool, hostTagProvider *hosttags.HostTagProvider) func(*metrics.SerieRow) {
+	hostTags := hostTagProvider.GetHostTags()
+	return func(row *metrics.SerieRow) {
+		if logPayloads {
+			log.Debugf("Flushing serie row: %s", row)
+		}
+
+		if hostTags != nil {
+			row.Tags = tagset.CombineCompositeTagsAndSlice(row.Tags, hostTags)
+		}
+		row.NormalizeSpecialTags()
+		tagsetTlm.updateHugeSerieRowTelemetry(row)
+		observeDogstatsdPipelineSerieRow(row)
+	}
+}
+
+func v3MetricPointRowFlushCallback(logPayloads bool, hostTagProvider *hosttags.HostTagProvider) func(*metrics.V3MetricPointRow) {
+	hostTags := hostTagProvider.GetHostTags()
+	return func(row *metrics.V3MetricPointRow) {
+		if logPayloads {
+			log.Debugf("Flushing v3 metric point row: %s", row)
+		}
+
+		if hostTags != nil {
+			row.Tags = tagset.CombineCompositeTagsAndSlice(row.Tags, hostTags)
+		}
+		row.NormalizeSpecialTags()
+		tagsetTlm.updateHugeV3MetricPointRowTelemetry(row)
+		observeDogstatsdPipelineV3MetricPointRow(row)
+	}
+}
+
+func sketchFlushCallback(logPayloads bool, isServerless bool, hostTagProvider *hosttags.HostTagProvider) func(*metrics.SketchSeries) {
+	hostTags := hostTagProvider.GetHostTags()
+	return func(sketch *metrics.SketchSeries) {
+		if logPayloads {
+			log.Debugf("Flushing Sketches: %v", sketch)
+		}
+		if isServerless {
+			log.Debugf("Sending sketches payload : %s", sketch.String())
+		}
+		if hostTags != nil {
+			sketch.Tags = tagset.CombineCompositeTagsAndSlice(sketch.Tags, hostTags)
+		}
+		tagsetTlm.updateHugeSketchesTelemetry(sketch)
+		observeDogstatsdPipelineSketch(sketch)
+	}
+}
+
 func createIterableMetrics(
 	flushAndSerializeInParallel FlushAndSerializeInParallel,
 	serializer serializer.MetricSerializer,
@@ -102,34 +168,33 @@ func createIterableMetrics(
 ) (*metrics.IterableSeries, *metrics.IterableSketches) {
 	var series *metrics.IterableSeries
 	var sketches *metrics.IterableSketches
-	hostTags := hostTagProvider.GetHostTags()
 	if serializer.AreSeriesEnabled() {
-		series = metrics.NewIterableSeries(func(se *metrics.Serie) {
-			if logPayloads {
-				log.Debugf("Flushing serie: %s", se)
-			}
-
-			if hostTags != nil {
-				se.Tags = tagset.CombineCompositeTagsAndSlice(se.Tags, hostTagProvider.GetHostTags())
-			}
-			tagsetTlm.updateHugeSerieTelemetry(se)
-		}, flushAndSerializeInParallel.BufferSize, flushAndSerializeInParallel.ChannelSize)
+		series = metrics.NewIterableSeries(seriesFlushCallback(logPayloads, hostTagProvider), flushAndSerializeInParallel.BufferSize, flushAndSerializeInParallel.ChannelSize)
 	}
 	if serializer.AreSketchesEnabled() {
-		sketches = metrics.NewIterableSketches(func(sketch *metrics.SketchSeries) {
-			if logPayloads {
-				log.Debugf("Flushing Sketches: %v", sketch)
-			}
-			if isServerless {
-				log.Debugf("Sending sketches payload : %s", sketch.String())
-			}
-			if hostTags != nil {
-				sketch.Tags = tagset.CombineCompositeTagsAndSlice(sketch.Tags, hostTagProvider.GetHostTags())
-			}
-			tagsetTlm.updateHugeSketchesTelemetry(sketch)
-		}, flushAndSerializeInParallel.BufferSize, flushAndSerializeInParallel.ChannelSize)
+		sketches = metrics.NewIterableSketches(sketchFlushCallback(logPayloads, isServerless, hostTagProvider), flushAndSerializeInParallel.BufferSize, flushAndSerializeInParallel.ChannelSize)
 	}
 	return series, sketches
+}
+
+func directSerializerExperimentEnabled() bool {
+	enabled, err := strconv.ParseBool(os.Getenv("DD_DOGSTATSD_EXPERIMENTAL_DIRECT_SERIALIZER"))
+	return err == nil && enabled
+}
+
+func directRowsExperimentEnabled() bool {
+	enabled, err := strconv.ParseBool(os.Getenv("DD_DOGSTATSD_EXPERIMENTAL_DIRECT_ROWS"))
+	return err == nil && enabled
+}
+
+func directMetricRowsExperimentEnabled() bool {
+	enabled, err := strconv.ParseBool(os.Getenv("DD_DOGSTATSD_EXPERIMENTAL_DIRECT_METRIC_ROWS"))
+	return err == nil && enabled
+}
+
+func directContextRowsExperimentEnabled() bool {
+	enabled, err := strconv.ParseBool(os.Getenv("DD_DOGSTATSD_EXPERIMENTAL_DIRECT_CONTEXT_ROWS"))
+	return err == nil && enabled
 }
 
 // sendIterableSeries is continuously sending series to the serializer, until another routine calls SenderStopped on the
@@ -138,7 +203,9 @@ func createIterableMetrics(
 // from SendIterableSeries (because the SenderStopped methods has been called on the sink).
 func sendIterableSeries(serializer serializer.MetricSerializer, start time.Time, serieSource metrics.SerieSource) {
 	log.Debug("Demultiplexer: sendIterableSeries: start sending iterable series to the serializer")
+	serializeStart := time.Now()
 	err := serializer.SendIterableSeries(serieSource)
+	recordDogstatsdPipelineDuration("serialize_series", time.Since(serializeStart))
 	// if err == nil, SenderStopped was called and it is safe to read the number of series.
 	count := serieSource.Count()
 	addFlushCount("Series", int64(count))

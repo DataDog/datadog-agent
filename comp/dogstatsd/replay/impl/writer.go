@@ -93,11 +93,11 @@ func (tc *TrafficCaptureWriter) processMessage(msg *replay.CaptureBuffer) error 
 		tc.taggerState[msg.Pid] = msg.ContainerID
 	}
 
-	if tc.sharedPacketPoolManager != nil {
+	if tc.sharedPacketPoolManager != nil && msg.Buff != nil {
 		tc.sharedPacketPoolManager.Put(msg.Buff)
 	}
 
-	if tc.oobPacketPoolManager != nil {
+	if tc.oobPacketPoolManager != nil && msg.Oob != nil {
 		tc.oobPacketPoolManager.Put(msg.Oob)
 	}
 
@@ -183,13 +183,6 @@ func (tc *TrafficCaptureWriter) Capture(target io.WriteCloser, d time.Duration, 
 		return
 	}
 
-	if tc.sharedPacketPoolManager != nil {
-		tc.sharedPacketPoolManager.SetPassthru(false)
-	}
-	if tc.oobPacketPoolManager != nil {
-		tc.oobPacketPoolManager.SetPassthru(false)
-	}
-
 	done := make(chan struct{})
 	defer close(done)
 	go func() {
@@ -249,13 +242,6 @@ func (tc *TrafficCaptureWriter) StopCapture() {
 		tc.accepting = false
 	}
 
-	if tc.sharedPacketPoolManager != nil {
-		tc.sharedPacketPoolManager.SetPassthru(true)
-	}
-	if tc.oobPacketPoolManager != nil {
-		tc.oobPacketPoolManager.SetPassthru(true)
-	}
-
 	log.Debug("Capture was stopped")
 }
 
@@ -270,6 +256,30 @@ func (tc *TrafficCaptureWriter) Enqueue(msg *replay.CaptureBuffer) bool {
 	}
 
 	return false
+}
+
+// EnqueueIngress converts an ingress envelope to the existing capture file shape.
+func (tc *TrafficCaptureWriter) EnqueueIngress(envelope replay.IngressEnvelope) bool {
+	tc.RLock()
+	accepting := tc.accepting
+	tc.RUnlock()
+	if !accepting {
+		return false
+	}
+
+	captureBuffer := &replay.CaptureBuffer{
+		Pb: replay.UnixDogstatsdMsg{
+			Timestamp:     envelope.Timestamp.UnixNano(),
+			PayloadSize:   int32(len(envelope.Payload)),
+			Payload:       append([]byte(nil), envelope.Payload...),
+			Pid:           envelope.ProcessID,
+			AncillarySize: int32(len(envelope.Ancillary)),
+			Ancillary:     append([]byte(nil), envelope.Ancillary...),
+		},
+		Pid:         envelope.ProcessID,
+		ContainerID: envelope.Origin,
+	}
+	return tc.Enqueue(captureBuffer)
 }
 
 // RegisterSharedPoolManager registers the shared pool manager with the TrafficCaptureWriter.

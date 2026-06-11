@@ -1,0 +1,28 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "semantic",
+    srcs = ["replay.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/dogstatsd/internal/semantic",
+    visibility = ["//comp/dogstatsd:__subpackages__"],
+    deps = [
+        "//comp/dogstatsd/internal/lookback",
+        "//comp/dogstatsd/internal/seriesstats",
+        "//pkg/aggregator/ckey",
+        "//pkg/metrics",
+    ],
+)
+
+go_test(
+    name = "semantic_test",
+    srcs = ["replay_test.go"],
+    embed = [":semantic"],
+    deps = [
+        "//comp/dogstatsd/internal/lookback",
+        "//comp/dogstatsd/internal/seriesstats",
+        "//pkg/aggregator/ckey",
+        "//pkg/metrics",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

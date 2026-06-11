@@ -57,8 +57,10 @@ var (
 // parser parses dogstatsd messages
 // not safe for concurent use
 type parser struct {
-	interner    *stringInterner
-	float64List *float64ListPool
+	interner                  *stringInterner
+	tagsetInterner            *parserTagsetInterner
+	columnarV3FastDescriptors *columnarV3FastDescriptorCache
+	float64List               *float64ListPool
 
 	// dsdOriginEnabled controls whether the server should honor the container id sent by the
 	// client. Defaulting to false, this opt-in flag is used to avoid changing tags cardinality
@@ -77,11 +79,13 @@ func newParser(cfg model.Reader, float64List *float64ListPool, workerNum int, wm
 	readTimestamps := cfg.GetBool("dogstatsd_no_aggregation_pipeline")
 
 	return &parser{
-		interner:         newStringInterner(stringInternerCacheSize, workerNum, stringInternerTelemetry),
-		readTimestamps:   readTimestamps,
-		float64List:      float64List,
-		dsdOriginEnabled: cfg.GetBool("dogstatsd_origin_detection_client"),
-		provider:         provider.GetProvider(wmeta),
+		interner:                  newStringInterner(stringInternerCacheSize, workerNum, stringInternerTelemetry),
+		tagsetInterner:            newParserTagsetInterner(stringInternerCacheSize),
+		columnarV3FastDescriptors: newColumnarV3FastDescriptorCache(columnarV3FastLaneSize()),
+		readTimestamps:            readTimestamps,
+		float64List:               float64List,
+		dsdOriginEnabled:          cfg.GetBool("dogstatsd_origin_detection_client"),
+		provider:                  provider.GetProvider(wmeta),
 	}
 }
 
@@ -108,9 +112,20 @@ func nextField(message []byte) ([]byte, []byte) {
 }
 
 func (p *parser) parseTags(rawTags []byte) []string {
+	return p.parseTagsWithID(rawTags).tags
+}
+
+func (p *parser) parseTagsWithID(rawTags []byte) parserTagset {
 	if len(rawTags) == 0 {
-		return nil
+		return parserTagset{}
 	}
+	if p.tagsetInterner != nil {
+		return p.tagsetInterner.LoadOrParse(rawTags, p.parseTagsUncached)
+	}
+	return parserTagset{tags: p.parseTagsUncached(rawTags)}
+}
+
+func (p *parser) parseTagsUncached(rawTags []byte) []string {
 	tagsCount := bytes.Count(rawTags, commaSeparator)
 	tagsList := make([]string, tagsCount+1)
 
@@ -176,6 +191,7 @@ func (p *parser) parseMetricSample(message []byte) (dogstatsdMetricSample, error
 
 	sampleRate := 1.0
 	var tags []string
+	var tagsetID uint64
 	var localData origindetection.LocalData
 	var externalData origindetection.ExternalData
 	var cardinality string
@@ -186,7 +202,9 @@ func (p *parser) parseMetricSample(message []byte) (dogstatsdMetricSample, error
 		switch {
 		// tags
 		case bytes.HasPrefix(optionalField, tagsFieldPrefix):
-			tags = p.parseTags(optionalField[1:])
+			parsedTags := p.parseTagsWithID(optionalField[1:])
+			tags = parsedTags.tags
+			tagsetID = parsedTags.id
 		// sample rate
 		case bytes.HasPrefix(optionalField, sampleRateFieldPrefix):
 			sampleRate, err = parseMetricSampleSampleRate(optionalField[1:])
@@ -226,6 +244,7 @@ func (p *parser) parseMetricSample(message []byte) (dogstatsdMetricSample, error
 		metricType:   metricType,
 		sampleRate:   sampleRate,
 		tags:         tags,
+		tagsetID:     tagsetID,
 		localData:    localData,
 		externalData: externalData,
 		cardinality:  cardinality,

@@ -7,6 +7,7 @@
 package serverdebug
 
 import (
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/internal/identity"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
@@ -17,6 +18,10 @@ type Component interface {
 
 	// StoreMetricStats stores stats on the given metric sample.
 	StoreMetricStats(sample metrics.MetricSample)
+
+	// StoreMetricStatsWithShardIdentity stores stats using the shared parser-side
+	// series identity already computed by the DogStatsD worker hot path.
+	StoreMetricStatsWithShardIdentity(shard identity.ShardIdentity)
 
 	// IsDebugEnabled gets the DsdServerDebug instance which provides metric stats
 	IsDebugEnabled() bool

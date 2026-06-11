@@ -6,6 +6,8 @@
 package metrics
 
 import (
+	"sync/atomic"
+
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
@@ -94,6 +96,121 @@ type MetricSampleContext interface {
 // UnitMilliseconds is the unit string for timing metrics, as defined by the Datadog API.
 const UnitMilliseconds = "millisecond"
 
+// DogStatsDCompactIdentityState is shared by the experimental DogStatsD
+// compact-identity cache and downstream consumers that can acknowledge they no
+// longer need full descriptor fields on every row. It is intentionally tiny and
+// atomic because parser workers and columnar workers run on different
+// goroutines.
+type DogStatsDCompactIdentityState struct {
+	columnarDescriptorKnown atomic.Uint32
+	columnarDescriptorRefs  [4]atomic.Uint64
+}
+
+func dogstatsdColumnarMetricTypeBit(mtype MetricType) uint32 {
+	if mtype < 0 || mtype >= 32 {
+		return 0
+	}
+	return 1 << uint(mtype)
+}
+
+func dogstatsdColumnarMetricTypeRefIndex(mtype MetricType) int {
+	switch mtype {
+	case GaugeType:
+		return 0
+	case CounterType:
+		return 1
+	case CountType:
+		return 2
+	case SetType:
+		return 3
+	default:
+		return -1
+	}
+}
+
+// ColumnarDescriptorKnown reports whether the columnar-v3 consumer has already
+// observed descriptor metadata for this compact identity and metric type.
+func (s *DogStatsDCompactIdentityState) ColumnarDescriptorKnown(mtype MetricType) bool {
+	bit := dogstatsdColumnarMetricTypeBit(mtype)
+	return s != nil && bit != 0 && s.columnarDescriptorKnown.Load()&bit != 0
+}
+
+// MarkColumnarDescriptorKnown records that columnar-v3 can resolve this compact
+// identity and metric type without receiving descriptor strings on subsequent
+// rows.
+func (s *DogStatsDCompactIdentityState) MarkColumnarDescriptorKnown(mtype MetricType) {
+	if s == nil {
+		return
+	}
+	bit := dogstatsdColumnarMetricTypeBit(mtype)
+	if bit == 0 {
+		return
+	}
+	for {
+		old := s.columnarDescriptorKnown.Load()
+		if old&bit != 0 || s.columnarDescriptorKnown.CompareAndSwap(old, old|bit) {
+			return
+		}
+	}
+}
+
+// ColumnarDescriptorRef returns the columnar-v3 shard-local descriptor slot
+// last acknowledged for this compact identity and metric type. The generation
+// must be validated by the columnar shard before use.
+func (s *DogStatsDCompactIdentityState) ColumnarDescriptorRef(mtype MetricType) (int, uint32, bool) {
+	if s == nil {
+		return 0, 0, false
+	}
+	idx := dogstatsdColumnarMetricTypeRefIndex(mtype)
+	if idx < 0 {
+		return 0, 0, false
+	}
+	packed := s.columnarDescriptorRefs[idx].Load()
+	if packed == 0 {
+		return 0, 0, false
+	}
+	descriptorID := int(uint32(packed)) - 1
+	generation := uint32(packed >> 32)
+	return descriptorID, generation, generation != 0
+}
+
+// MarkColumnarDescriptorRef records the columnar-v3 shard-local descriptor slot
+// for this compact identity and metric type. The descriptor ID is packed as +1
+// so zero remains the missing-reference sentinel.
+func (s *DogStatsDCompactIdentityState) MarkColumnarDescriptorRef(mtype MetricType, descriptorID int, generation uint32) {
+	if s == nil || descriptorID < 0 || generation == 0 {
+		return
+	}
+	idx := dogstatsdColumnarMetricTypeRefIndex(mtype)
+	if idx < 0 {
+		return
+	}
+	packed := (uint64(generation) << 32) | uint64(uint32(descriptorID+1))
+	s.columnarDescriptorRefs[idx].Store(packed)
+	s.MarkColumnarDescriptorKnown(mtype)
+}
+
+// ClearColumnarDescriptorKnown clears the downstream descriptor acknowledgement
+// for one metric type.
+func (s *DogStatsDCompactIdentityState) ClearColumnarDescriptorKnown(mtype MetricType) {
+	if s == nil {
+		return
+	}
+	bit := dogstatsdColumnarMetricTypeBit(mtype)
+	if bit == 0 {
+		return
+	}
+	if idx := dogstatsdColumnarMetricTypeRefIndex(mtype); idx >= 0 {
+		s.columnarDescriptorRefs[idx].Store(0)
+	}
+	for {
+		old := s.columnarDescriptorKnown.Load()
+		if old&bit == 0 || s.columnarDescriptorKnown.CompareAndSwap(old, old&^bit) {
+			return
+		}
+	}
+}
+
 // MetricSample represents a raw metric sample
 type MetricSample struct {
 	Name            string
@@ -110,6 +227,11 @@ type MetricSample struct {
 	NoIndex         bool
 	Source          MetricSource
 	Unit            string
+
+	// DogStatsDTagsetID is an experimental parser-local compact identifier for
+	// an exact client-provided DogStatsD tagset. A value of 0 means no stable
+	// compact tagset identity is available for this sample.
+	DogStatsDTagsetID uint64
 }
 
 // Implement the MetricSampleContext interface

@@ -58,26 +58,35 @@ func extractTagsMetadata(tags []string, originFromUDS string, processID uint32, 
 	origin.LocalData.ProcessID = processID
 
 	n := 0
+	mutated := false
 	for _, tag := range tags {
 		if strings.HasPrefix(tag, hostTagPrefix) {
 			host = tag[len(hostTagPrefix):]
+			mutated = true
 			continue
 		} else if strings.HasPrefix(tag, entityIDTagPrefix) {
 			origin.LocalData.PodUID = tag[len(entityIDTagPrefix):]
+			mutated = true
 			continue
 		} else if strings.HasPrefix(tag, CardinalityTagPrefix) && origin.Cardinality == "" {
 			origin.Cardinality = tag[len(CardinalityTagPrefix):]
+			mutated = true
 			continue
 		} else if strings.HasPrefix(tag, jmxCheckNamePrefix) {
 			checkName := tag[len(jmxCheckNamePrefix):]
 			metricSource = metrics.JMXCheckNameToMetricSource(checkName)
+			mutated = true
 			continue
 		}
-		tags[n] = tag
+		if mutated {
+			tags[n] = tag
+		}
 		n++
 	}
 
-	tags = tags[:n]
+	if mutated {
+		tags = tags[:n]
+	}
 
 	return tags, host, origin, metricSource
 }
@@ -170,18 +179,19 @@ func enrichMetricSample(dest []metrics.MetricSample, ddSample dogstatsdMetricSam
 		for idx := range ddSample.values {
 			dest = append(dest,
 				metrics.MetricSample{
-					Host:       hostnameFromTags,
-					Name:       metricName,
-					Tags:       tags,
-					Mtype:      mtype,
-					Value:      ddSample.values[idx],
-					SampleRate: ddSample.sampleRate,
-					RawValue:   ddSample.setValue,
-					Timestamp:  tsToFloatForSamples(ddSample.ts),
-					OriginInfo: extractedOrigin,
-					ListenerID: listenerID,
-					Source:     metricSource,
-					Unit:       unit,
+					Host:              hostnameFromTags,
+					Name:              metricName,
+					Tags:              tags,
+					Mtype:             mtype,
+					Value:             ddSample.values[idx],
+					SampleRate:        ddSample.sampleRate,
+					RawValue:          ddSample.setValue,
+					Timestamp:         tsToFloatForSamples(ddSample.ts),
+					OriginInfo:        extractedOrigin,
+					ListenerID:        listenerID,
+					Source:            metricSource,
+					Unit:              unit,
+					DogStatsDTagsetID: ddSample.tagsetID,
 				})
 		}
 		return dest
@@ -189,18 +199,19 @@ func enrichMetricSample(dest []metrics.MetricSample, ddSample dogstatsdMetricSam
 
 	// only one value contained, simple append it
 	return append(dest, metrics.MetricSample{
-		Host:       hostnameFromTags,
-		Name:       metricName,
-		Tags:       tags,
-		Mtype:      mtype,
-		Value:      ddSample.value,
-		SampleRate: ddSample.sampleRate,
-		RawValue:   ddSample.setValue,
-		Timestamp:  tsToFloatForSamples(ddSample.ts),
-		OriginInfo: extractedOrigin,
-		ListenerID: listenerID,
-		Source:     metricSource,
-		Unit:       unit,
+		Host:              hostnameFromTags,
+		Name:              metricName,
+		Tags:              tags,
+		Mtype:             mtype,
+		Value:             ddSample.value,
+		SampleRate:        ddSample.sampleRate,
+		RawValue:          ddSample.setValue,
+		Timestamp:         tsToFloatForSamples(ddSample.ts),
+		OriginInfo:        extractedOrigin,
+		ListenerID:        listenerID,
+		Source:            metricSource,
+		Unit:              unit,
+		DogStatsDTagsetID: ddSample.tagsetID,
 	})
 }
 

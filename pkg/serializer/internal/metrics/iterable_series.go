@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"time"
 
 	jsoniter "github.com/json-iterator/go"
 	"github.com/richardartoul/molecule"
@@ -111,12 +112,25 @@ type serieWriter interface {
 	finishPayload() error
 }
 
+type serieRowWriter interface {
+	writeSerieRow(row *metrics.SerieRow) error
+}
+
+type v3MetricPointRowWriter interface {
+	writeV3MetricPointRow(row *metrics.V3MetricPointRow) error
+}
+
 // MarshalSplitCompressPipelines uses the stream compressor to marshal and
 // compress series payloads, allowing multiple variants to be generated in a
 // single pass over the input data. If a compressed payload is larger than the
 // max, a new payload will be generated. This method returns a slice of
 // compressed protobuf marshaled MetricPayload objects.
 func (series *IterableSeries) MarshalSplitCompressPipelines(config config.Component, strategy compression.Component, pipelines PipelineSet) error {
+	marshalStart := time.Now()
+	defer func() {
+		recordSeriesPipelineDuration("marshal_split_compress", time.Since(marshalStart))
+	}()
+
 	pbs := make([]serieWriter, 0, len(pipelines))
 	var sw serieWriter
 	for pipelineConfig, pipelineContext := range pipelines {
@@ -142,16 +156,25 @@ func (series *IterableSeries) MarshalSplitCompressPipelines(config config.Compon
 		}
 	}
 
+	segmentShadow := newOptionalSegmentShadowBuilder()
+	var segmentShadowStart time.Time
+	if segmentShadow != nil {
+		segmentShadowStart = time.Now()
+	}
+
 	// Use series.source.MoveNext() instead of series.MoveNext() because this function supports
 	// the serie.NoIndex field.
 	for series.source.MoveNext() {
+		current := series.source.Current()
 		for _, pb := range pbs {
-			err := pb.writeSerie(series.source.Current())
+			err := pb.writeSerie(current)
 			if err != nil {
 				return err
 			}
 		}
+		segmentShadow.observeSerie(current)
 	}
+	finishSegmentShadow(segmentShadow, "series", segmentShadowStart)
 
 	// if the last payload has any data, flush it
 	for i := range pbs {
@@ -235,6 +258,14 @@ func (pb *PayloadsBuilder) startPayload() error {
 }
 
 func (pb *PayloadsBuilder) writeSerie(serie *metrics.Serie) error {
+	if serie == nil {
+		return nil
+	}
+	row := metrics.SerieRowFromSerie(serie)
+	return pb.writeSerieRow(&row)
+}
+
+func (pb *PayloadsBuilder) writeSerieRow(row *metrics.SerieRow) error {
 	// constants for the protobuf data we will be writing, taken from MetricPayload in
 	// https://github.com/DataDog/agent-payload/blob/master/proto/metrics/agent_payload.proto
 	const payloadSeries = 1
@@ -271,7 +302,11 @@ func (pb *PayloadsBuilder) writeSerie(serie *metrics.Serie) error {
 	//                 |----|  'Origin' message
 	//                       |-----------| 'origin_service' field index
 
-	if !pb.pipelineConfig.Filter.Filter(serie) {
+	if row == nil {
+		return nil
+	}
+
+	if !pb.pipelineConfig.Filter.Filter(row) {
 		return nil
 	}
 
@@ -280,13 +315,10 @@ func (pb *PayloadsBuilder) writeSerie(serie *metrics.Serie) error {
 		if err != nil {
 			return err
 		}
-		pb.pointsThisPayload += len(serie.Points)
+		pb.pointsThisPayload += len(row.Points)
 		pb.seriesThisPayload++
 		return nil
 	}
-
-	serie.PopulateDeviceField()
-	serie.PopulateResources()
 
 	pb.buf.Reset()
 	err := pb.ps.Embedded(payloadSeries, func(ps *molecule.ProtoStream) error {
@@ -298,28 +330,28 @@ func (pb *PayloadsBuilder) writeSerie(serie *metrics.Serie) error {
 				return err
 			}
 
-			return ps.String(resourceName, serie.Host)
+			return ps.String(resourceName, row.Host)
 		})
 		if err != nil {
 			return err
 		}
 
-		if serie.Device != "" {
+		if row.Device != "" {
 			err = ps.Embedded(seriesResources, func(ps *molecule.ProtoStream) error {
 				err = ps.String(resourceType, "device")
 				if err != nil {
 					return err
 				}
 
-				return ps.String(resourceName, serie.Device)
+				return ps.String(resourceName, row.Device)
 			})
 			if err != nil {
 				return err
 			}
 		}
 
-		if len(serie.Resources) > 0 {
-			for _, r := range serie.Resources {
+		if len(row.Resources) > 0 {
+			for _, r := range row.Resources {
 				err = ps.Embedded(seriesResources, func(ps *molecule.ProtoStream) error {
 					err = ps.String(resourceType, r.Type)
 					if err != nil {
@@ -334,41 +366,41 @@ func (pb *PayloadsBuilder) writeSerie(serie *metrics.Serie) error {
 			}
 		}
 
-		err = ps.String(seriesMetric, serie.Name)
+		err = ps.String(seriesMetric, row.Name)
 		if err != nil {
 			return err
 		}
 
-		err = serie.Tags.ForEachErr(func(tag string) error {
+		err = row.Tags.ForEachErr(func(tag string) error {
 			return ps.String(seriesTags, tag)
 		})
 		if err != nil {
 			return err
 		}
 
-		err = ps.Int32(seriesType, serie.MType.SeriesAPIV2Enum())
+		err = ps.Int32(seriesType, row.MType.SeriesAPIV2Enum())
 		if err != nil {
 			return err
 		}
 
-		err = ps.String(seriesSourceTypeName, serie.SourceTypeName)
+		err = ps.String(seriesSourceTypeName, row.SourceTypeName)
 		if err != nil {
 			return err
 		}
 
-		err = ps.Int64(seriesInterval, serie.Interval)
+		err = ps.Int64(seriesInterval, row.Interval)
 		if err != nil {
 			return err
 		}
 
-		if serie.Unit != "" {
-			err = ps.String(seriesUnit, serie.Unit)
+		if row.Unit != "" {
+			err = ps.String(seriesUnit, row.Unit)
 			if err != nil {
 				return err
 			}
 		}
 
-		for _, p := range serie.Points {
+		for _, p := range row.Points {
 			err = ps.Embedded(seriesPoints, func(ps *molecule.ProtoStream) error {
 				err = ps.Int64(pointTimestamp, int64(p.Ts))
 				if err != nil {
@@ -389,21 +421,21 @@ func (pb *PayloadsBuilder) writeSerie(serie *metrics.Serie) error {
 
 		return ps.Embedded(serieMetadata, func(ps *molecule.ProtoStream) error {
 			return ps.Embedded(serieMetadataOrigin, func(ps *molecule.ProtoStream) error {
-				if serie.NoIndex {
+				if row.NoIndex {
 					err = ps.Int32(serieMetadataOriginMetricType, metryTypeNotIndexed)
 					if err != nil {
 						return err
 					}
 				}
-				err = ps.Int32(serieMetadataOriginOriginProduct, metricSourceToOriginProduct(serie.Source))
+				err = ps.Int32(serieMetadataOriginOriginProduct, metricSourceToOriginProduct(row.Source))
 				if err != nil {
 					return err
 				}
-				err = ps.Int32(serieMetadataOriginOriginCategory, metricSourceToOriginCategory(serie.Source))
+				err = ps.Int32(serieMetadataOriginOriginCategory, metricSourceToOriginCategory(row.Source))
 				if err != nil {
 					return err
 				}
-				return ps.Int32(serieMetadataOriginOriginService, metricSourceToOriginService(serie.Source))
+				return ps.Int32(serieMetadataOriginOriginService, metricSourceToOriginService(row.Source))
 			})
 		})
 	})
@@ -411,10 +443,10 @@ func (pb *PayloadsBuilder) writeSerie(serie *metrics.Serie) error {
 		return err
 	}
 
-	if len(serie.Points) > pb.maxPointsPerPayload {
+	if len(row.Points) > pb.maxPointsPerPayload {
 		// this series is just too big to fit in a payload (even alone)
 		err = stream.ErrItemTooBig
-	} else if pb.pointsThisPayload+len(serie.Points) > pb.maxPointsPerPayload {
+	} else if pb.pointsThisPayload+len(row.Points) > pb.maxPointsPerPayload {
 		// this series won't fit in this payload, but will fit in the next
 		err = stream.ErrPayloadFull
 	} else {

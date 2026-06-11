@@ -85,6 +85,20 @@ func (t *tagsetTelemetry) updateHugeSerieTelemetry(serie *metrics.Serie) {
 	t.updateTelemetry(tagsetSize, t.hugeSeriesCount, t.tlmHugeSeries)
 }
 
+// updateHugeSerieRowTelemetry increments huge and almost-huge counters for a
+// direct serializer row.
+func (t *tagsetTelemetry) updateHugeSerieRowTelemetry(row *metrics.SerieRow) {
+	tagsetSize := uint64(row.Tags.Len())
+	t.updateTelemetry(tagsetSize, t.hugeSeriesCount, t.tlmHugeSeries)
+}
+
+// updateHugeV3MetricPointRowTelemetry increments huge and almost-huge counters
+// for a native single-point v3 row.
+func (t *tagsetTelemetry) updateHugeV3MetricPointRowTelemetry(row *metrics.V3MetricPointRow) {
+	tagsetSize := uint64(row.Tags.Len())
+	t.updateTelemetry(tagsetSize, t.hugeSeriesCount, t.tlmHugeSeries)
+}
+
 func (t *tagsetTelemetry) exp() interface{} {
 	rv := map[string]map[string]uint64{
 		"Series":   {},

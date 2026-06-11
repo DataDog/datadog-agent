@@ -25,6 +25,8 @@ in `docs/dogstatsd/internals.md`.
 
 Details on existing Dogstatsd internals tuning fields are available in `docs/dogstatsd/configuration.md`.
 
+A longer-term design direction for DogStatsD ingestion, capture/replay, debug views, and local lookback queries is captured in `VISION.md`.
+
 ### [Experimental] Dogstatsd protocol 1.1
 
 This feature is experimental for now and could change or be removed in future releases.
