@@ -8,19 +8,13 @@ The Host Profiler runs as a sidecar in the Datadog Agent DaemonSet, and the Agen
 
 Review the [supported environments](../README.md#supported-environments) before continuing.
 
-Before running commands in this guide, change to the deployment docs directory from the repository root:
-
-```shell
-cd cmd/host-profiler/deploy
-```
-
 ## Prerequisites
 
-Deploy the Datadog Agent using Helm (chart version 3.220.0 or later). See the [installation guide](https://app.datadoghq.com/fleet/install-agent/latest?platform=kubernetes).
+Deploy the Datadog Agent with the Datadog Helm chart version **3.220.0** or later. See the [Datadog Agent installation guide](https://app.datadoghq.com/fleet/install-agent/latest?platform=kubernetes).
 
 ## Deploy
 
-1. Add to your `values.yaml` (create the file if you don't have one):
+1. Add the Host Profiler configuration to the `values.yaml` file for your Datadog Agent Helm release:
 
 ```yaml
 datadog:
@@ -29,22 +23,17 @@ datadog:
     image: "registry.datadoghq.com/ddot-ebpf:7.81.0-preview-host-profiler-1.0"
 ```
 
-2. Upgrade:
+2. Upgrade your existing Datadog Agent Helm release with the updated values. Adapt this command to your Helm or GitOps workflow:
 
 ```shell
-helm upgrade --install datadog datadog/datadog \
-  -f values.yaml \
-  --reuse-values \
-  -n datadog
+helm upgrade <RELEASE_NAME> datadog/datadog \
+  --namespace <NAMESPACE> \
+  --values values.yaml
 ```
 
-The chart automatically configures all required capabilities and seccomp.
+The Datadog Helm chart configures the required capabilities and seccomp profile automatically.
 
-Wait for the rollout to complete:
-
-```shell
-kubectl rollout status daemonset/datadog -n datadog
-```
+After you apply the updated values, Helm rolls out a new Agent DaemonSet revision with the Host Profiler sidecar. Wait for that rollout to complete before verifying profiles.
 
 ## Configuration
 
