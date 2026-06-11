@@ -1,6 +1,6 @@
 name "python3"
 
-default_version "3.13.13"
+default_version "3.13.14"
 
 
 relative_path "Python-#{version}"
