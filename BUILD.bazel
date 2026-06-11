@@ -178,7 +178,6 @@ exports_files(["go.mod"])
 # gazelle:exclude comp/metadata/haagent/impl
 # gazelle:exclude comp/metadata/host/fx
 # gazelle:exclude comp/metadata/host/impl/*.go
-# gazelle:exclude comp/metadata/host/impl/utils
 # gazelle:exclude comp/metadata/hostgpu/fx
 # gazelle:exclude comp/metadata/hostgpu/impl
 # gazelle:exclude comp/metadata/hostsysteminfo/fx
