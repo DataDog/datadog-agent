@@ -21,7 +21,11 @@ type Servicedef struct {
 	// suppressIfAny: if any of these keys is true, the service is not started even when configKeys
 	// would match. Used for datadog-otel-agent when process_manager.enabled: DDOT is supervised by
 	// dd-procmgrd (mirrors non-Windows where the agent does not start an SCM-managed otel service).
-	suppressIfAny  map[string]model.Reader
+	suppressIfAny map[string]model.Reader
+	// suppressOnlyIf: when non-nil, a suppressIfAny hit only disables the service if this returns true.
+	// For otel + process_manager: suppress only when the OCI extension wrote processes.d DDOT YAML;
+	// standalone datadog-agent-ddot MSI does not, and still needs the Agent to start datadog-otel-agent.
+	suppressOnlyIf func() bool
 	shouldShutdown bool
 
 	serviceName string
@@ -102,6 +106,7 @@ func subservices(coreConf model.Reader, sysprobeConf model.Reader) []Servicedef 
 			suppressIfAny: map[string]model.Reader{
 				"process_manager.enabled": coreConf,
 			},
+			suppressOnlyIf: winutil.DDOTProcmgrProcessDefinitionExists,
 			serviceName:    "datadog-otel-agent",
 			serviceInit:    otelInit,
 			shouldShutdown: true, // NOTE: not really ncessary with SCM dependency in place
@@ -180,6 +185,9 @@ func (s *Servicedef) Stop() error {
 func (s *Servicedef) IsEnabled() bool {
 	for configKey, cfg := range s.suppressIfAny {
 		if cfg.GetBool(configKey) {
+			if s.suppressOnlyIf != nil && !s.suppressOnlyIf() {
+				continue
+			}
 			log.Infof("Service %s suppressed by %s", s.name, configKey)
 			return false
 		}

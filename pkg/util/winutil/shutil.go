@@ -7,6 +7,7 @@
 package winutil
 
 import (
+	"os"
 	"path/filepath"
 
 	"golang.org/x/sys/windows"
@@ -79,4 +80,19 @@ func getDefaultProgramFilesDir() (path string, err error) {
 		path = filepath.Join(res, "Datadog", "Datadog Agent")
 	}
 	return
+}
+
+const ddotProcmgrProcessDefinitionFile = "datadog-agent-ddot.yaml"
+
+// DDOTProcmgrProcessDefinitionExists returns true when dd-procmgr is configured to supervise DDOT
+// via processes.d (OCI extension layout). The standalone datadog-agent-ddot MSI does not install
+// this file; those installs rely on the datadog-otel-agent Windows service started by the Agent.
+func DDOTProcmgrProcessDefinitionExists() bool {
+	installPath, err := GetProgramFilesDirForProduct("Datadog Agent")
+	if err != nil || installPath == "" {
+		return false
+	}
+	p := filepath.Join(installPath, "processes.d", ddotProcmgrProcessDefinitionFile)
+	st, err := os.Stat(p)
+	return err == nil && !st.IsDir()
 }

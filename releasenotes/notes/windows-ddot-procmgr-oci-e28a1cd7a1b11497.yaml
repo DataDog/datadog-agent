@@ -1,4 +1,4 @@
 ---
 enhancements:
   - |
-    On Windows, when the Agent is installed with the fleet OCI layout and the **DDOT** extension, the OpenTelemetry Collector is now supervised by **dd-procmgr** using a process definition under the Agent install layout, consistent with Linux. The **datadog-otel-agent** Windows service may still be registered for rollback, but the core Agent does not start it when ``process_manager.enabled`` is set, so DDOT is not run twice.
+    On Windows, when the Agent is installed with the fleet OCI layout and the **DDOT** extension, the OpenTelemetry Collector is now supervised by **dd-procmgr** using a process definition under the Agent install layout, consistent with Linux. The **datadog-otel-agent** Windows service may still be registered for rollback, but the core Agent does not start it when ``process_manager.enabled`` is set **and** that process definition is present, so DDOT is not run twice. Standalone **datadog-agent-ddot** installs are unchanged: the Agent still starts **datadog-otel-agent** when the collector is enabled.
