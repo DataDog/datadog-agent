@@ -52,14 +52,25 @@ type Worker struct {
 	Name string
 
 	checksTracker           *tracker.RunningChecksTracker
-	getDefaultSenderFunc    func() (sender.Sender, error)
 	pendingChecksChan       chan check.Check
 	runnerID                int
 	shouldAddCheckStatsFunc func(id checkid.ID) bool
+	statusEmitter           StatusEmitter
 	utilizationTickInterval time.Duration
 	haAgent                 haagent.Component
 	healthPlatform          healthplatform.Component
 	watchdogWarningTimeout  time.Duration
+}
+
+// StatusEmitter emits the integration check status after a completed run.
+type StatusEmitter interface {
+	Emit(context.Context, check.Check, error, []error)
+}
+
+// Options configures worker side effects. Nil fields preserve normal worker
+// behavior.
+type Options struct {
+	StatusEmitter StatusEmitter
 }
 
 // NewWorker returns an instance of a `Worker` after parameter sanity checks are passed
@@ -74,7 +85,34 @@ func NewWorker(
 	shouldAddCheckStatsFunc func(id checkid.ID) bool,
 	watchdogWarningTimeout time.Duration,
 ) (*Worker, error) {
+	return NewWorkerWithOptions(
+		senderManager,
+		haAgent,
+		healthPlatform,
+		runnerID,
+		ID,
+		pendingChecksChan,
+		checksTracker,
+		shouldAddCheckStatsFunc,
+		watchdogWarningTimeout,
+		Options{},
+	)
+}
 
+// NewWorkerWithOptions returns a `Worker` with injectable side-effect sinks for
+// specialized runners.
+func NewWorkerWithOptions(
+	senderManager sender.SenderManager,
+	haAgent haagent.Component,
+	healthPlatform healthplatform.Component,
+	runnerID int,
+	ID int,
+	pendingChecksChan chan check.Check,
+	checksTracker *tracker.RunningChecksTracker,
+	shouldAddCheckStatsFunc func(id checkid.ID) bool,
+	watchdogWarningTimeout time.Duration,
+	opts Options,
+) (*Worker, error) {
 	if checksTracker == nil {
 		return nil, errors.New("worker cannot initialize using a nil checksTracker")
 	}
@@ -98,6 +136,7 @@ func NewWorker(
 		healthPlatform,
 		pollingInterval,
 		watchdogWarningTimeout,
+		opts,
 	)
 }
 
@@ -115,6 +154,7 @@ func newWorkerWithOptions(
 	healthPlatform healthplatform.Component,
 	utilizationTickInterval time.Duration,
 	watchdogWarningTimeout time.Duration,
+	opts Options,
 ) (*Worker, error) {
 
 	if getDefaultSenderFunc == nil {
@@ -122,6 +162,10 @@ func newWorkerWithOptions(
 	}
 
 	workerName := fmt.Sprintf("worker_%d", ID)
+	statusEmitter := opts.StatusEmitter
+	if statusEmitter == nil {
+		statusEmitter = checkStatusEmitter{getDefaultSenderFunc: getDefaultSenderFunc}
+	}
 
 	return &Worker{
 		ID:                      ID,
@@ -130,7 +174,7 @@ func newWorkerWithOptions(
 		pendingChecksChan:       pendingChecksChan,
 		runnerID:                runnerID,
 		shouldAddCheckStatsFunc: shouldAddCheckStatsFunc,
-		getDefaultSenderFunc:    getDefaultSenderFunc,
+		statusEmitter:           statusEmitter,
 		haAgent:                 haAgent,
 		healthPlatform:          healthPlatform,
 		utilizationTickInterval: utilizationTickInterval,
@@ -210,36 +254,14 @@ func (w *Worker) Run(ctx context.Context) {
 
 		checkWarnings := check.GetWarnings()
 
-		// Use the default sender for the service checks
-		sender, err := w.getDefaultSenderFunc()
-		if err != nil {
-			log.Errorf("Error getting default sender: %v. Not sending status check for %s", err, check)
-		}
-		serviceCheckTags := []string{"check:" + check.String(), "dd_enable_check_intake:true"}
-		serviceCheckStatus := servicecheck.ServiceCheckOK
-
-		hname, _ := hostname.Get(ctx)
-
 		if len(checkWarnings) != 0 {
 			expvars.AddWarningsCount(len(checkWarnings))
-			serviceCheckStatus = servicecheck.ServiceCheckWarning
 		}
-
 		if checkErr != nil {
 			checkLogger.Error(checkErr)
 			expvars.AddErrorsCount(1)
-			serviceCheckStatus = servicecheck.ServiceCheckCritical
 		}
-
-		if sender != nil && !longRunning {
-			if pkgconfigsetup.Datadog().GetBool("integration_check_status_enabled") {
-				sender.ServiceCheck(serviceCheckStatusKey, serviceCheckStatus, hname, serviceCheckTags, "")
-			}
-			// FIXME(remy): this `Commit()` should be part of the `if` above, we keep
-			// it here for now to make sure it's not breaking any historical behavior
-			// with the shared default sender.
-			sender.Commit()
-		}
+		w.statusEmitter.Emit(ctx, check, checkErr, checkWarnings)
 
 		// Remove the check from the running list
 		w.checksTracker.DeleteCheck(check.ID())
@@ -266,6 +288,40 @@ func (w *Worker) Run(ctx context.Context) {
 	}
 
 	log.Debugf("Runner %d, worker %d: Finished processing checks.", w.runnerID, w.ID)
+}
+
+type checkStatusEmitter struct {
+	getDefaultSenderFunc func() (sender.Sender, error)
+}
+
+func (e checkStatusEmitter) Emit(ctx context.Context, c check.Check, err error, warnings []error) {
+	// Use the default sender for the service checks
+	sender, senderErr := e.getDefaultSenderFunc()
+	if senderErr != nil {
+		log.Errorf("Error getting default sender: %v. Not sending status check for %s", senderErr, c)
+	}
+	serviceCheckTags := []string{"check:" + c.String(), "dd_enable_check_intake:true"}
+	serviceCheckStatus := servicecheck.ServiceCheckOK
+
+	hname, _ := hostname.Get(ctx)
+
+	if len(warnings) != 0 {
+		serviceCheckStatus = servicecheck.ServiceCheckWarning
+	}
+
+	if err != nil {
+		serviceCheckStatus = servicecheck.ServiceCheckCritical
+	}
+
+	if sender != nil && c.Interval() != 0 {
+		if pkgconfigsetup.Datadog().GetBool("integration_check_status_enabled") {
+			sender.ServiceCheck(serviceCheckStatusKey, serviceCheckStatus, hname, serviceCheckTags, "")
+		}
+		// FIXME(remy): this `Commit()` should be part of the `if` above, we keep
+		// it here for now to make sure it's not breaking any historical behavior
+		// with the shared default sender.
+		sender.Commit()
+	}
 }
 
 func startUtilizationUpdater(name string, ut *utilizationtracker.UtilizationTracker) {
