@@ -531,7 +531,7 @@ workflow:
         SKIP_WINDOWS: "false"
     - if: $CI_COMMIT_TAG == null
       variables:
-        SKIP_WINDOWS: "true"
+        SKIP_WINDOWS: "false" # FIXME: temporary: don't skip Windows tests
 
 #
 # List of rule blocks used in the pipeline
