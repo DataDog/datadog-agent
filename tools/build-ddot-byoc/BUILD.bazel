@@ -1,4 +1,7 @@
-load("@rules_go//go:def.bzl", "go_binary", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+# gazelle:dd_agent_go_test on
 
 go_library(
     name = "build-ddot-byoc_lib",
@@ -26,11 +29,10 @@ go_binary(
     visibility = ["//visibility:public"],
 )
 
-go_test(
+dd_agent_go_test(
     name = "build-ddot-byoc_test",
     srcs = ["main_test.go"],
     embed = [":build-ddot-byoc_lib"],
-    gotags = ["test"],
     deps = [
         "@com_github_google_go_containerregistry//pkg/authn",
         "@com_github_google_go_containerregistry//pkg/name",
