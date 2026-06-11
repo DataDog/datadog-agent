@@ -445,7 +445,7 @@ func postInstallDDOTExtension(ctx HookContext) error {
 
 	// OCI DDOT is supervised by dd-procmgrd (same model as Linux extension): write processes.d
 	// under the MSI install root (see pkg/procmgr/rust default_config_dir on Windows).
-	if err := writeDDOTProcmgrConfigWindows(packagePath, ctx.PackagePath); err != nil {
+	if err := writeDDOTProcmgrConfigWindows(packagePath); err != nil {
 		return fmt.Errorf("failed to write DDOT process manager config: %w", err)
 	}
 	// Register the legacy SCM service (Manual, not started) so operators can fall back without reinstalling.
@@ -493,16 +493,9 @@ func writeOTelConfigWindowsExtension(ctx HookContext, extensionPath string) erro
 	return writeOTelConfigCommon(ctx, ddYaml, templatePath, outPath, true, 0o640)
 }
 
-func fleetPoliciesTrackFromPackagePath(pkgPath string) string {
-	if strings.EqualFold(filepath.Base(pkgPath), "experiment") {
-		return "experiment"
-	}
-	return "stable"
-}
-
 // writeDDOTProcmgrConfigWindows writes datadog-agent-ddot.yaml next to the MSI install layout so
 // dd-procmgrd picks it up (default_config_dir is InstallPath\processes.d on Windows).
-func writeDDOTProcmgrConfigWindows(installRootResolved string, packagePathRaw string) error {
+func writeDDOTProcmgrConfigWindows(installRootResolved string) error {
 	otelExe := filepath.Join(installRootResolved, "ext", "ddot", "embedded", "bin", "otel-agent.exe")
 	if _, err := os.Stat(otelExe); err != nil {
 		return nil
@@ -516,8 +509,7 @@ func writeDDOTProcmgrConfigWindows(installRootResolved string, packagePathRaw st
 		return fmt.Errorf("create processes.d: %w", err)
 	}
 
-	fleetTrack := fleetPoliciesTrackFromPackagePath(packagePathRaw)
-	fleetPolicies := filepath.Join(paths.ConfigsPath, "datadog-agent", fleetTrack)
+	fleetPolicies := filepath.Join(paths.ConfigsPath, "datadog-agent", "stable")
 
 	config := embedded.DDOTWindowsProcmgrConfig
 	config = strings.ReplaceAll(config, "__DDOT_INSTALL_ROOT__", filepath.ToSlash(filepath.Clean(installRootResolved)))
