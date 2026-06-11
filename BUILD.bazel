@@ -126,9 +126,6 @@ exports_files(["go.mod"])
 # gazelle:exclude comp/agent/bundle_test.go
 # gazelle:exclude comp/agent/cloudfoundrycontainer/fx
 # gazelle:exclude comp/agent/cloudfoundrycontainer/impl
-# gazelle:exclude comp/aggregator/demultiplexer/fx
-# gazelle:exclude comp/aggregator/demultiplexer/impl
-# gazelle:exclude comp/aggregator/demultiplexer/mock
 # gazelle:exclude comp/aggregator/demultiplexerendpoint/fx
 # gazelle:exclude comp/aggregator/demultiplexerendpoint/impl
 # gazelle:exclude comp/api/api/apiimpl/api.go
@@ -140,10 +137,6 @@ exports_files(["go.mod"])
 # gazelle:exclude comp/api/api/apiimpl/server_test.go
 # gazelle:exclude comp/api/authtoken
 # gazelle:exclude comp/api/commonendpoints
-# gazelle:exclude comp/api/grpcserver/fx-agent
-# gazelle:exclude comp/api/grpcserver/impl-agent
-# gazelle:exclude comp/checks/agentcrashdetect/fx
-# gazelle:exclude comp/checks/agentcrashdetect/impl
 # gazelle:exclude comp/checks/windowseventlog/fx
 # gazelle:exclude comp/checks/windowseventlog/impl/*.go
 # gazelle:exclude comp/checks/windowseventlog/impl/check/*.go
@@ -159,18 +152,11 @@ exports_files(["go.mod"])
 # gazelle:exclude comp/core/autodiscovery/common/utils
 # gazelle:exclude comp/core/autodiscovery/configresolver
 # gazelle:exclude comp/core/autodiscovery/listeners
-# gazelle:exclude comp/core/diagnose/fx
-# gazelle:exclude comp/core/diagnose/impl
 # gazelle:exclude comp/core/diagnose/local
 # gazelle:exclude comp/core/flare/flareimpl
-# gazelle:exclude comp/core/flare/helpers
 # gazelle:exclude comp/core/gui/fx
 # gazelle:exclude comp/core/gui/impl
 # gazelle:exclude comp/core/hostname/remotehostnameimpl
-# gazelle:exclude comp/core/profiler/fx
-# gazelle:exclude comp/core/profiler/impl
-# gazelle:exclude comp/core/remoteagentregistry/fx
-# gazelle:exclude comp/core/remoteagentregistry/impl
 # gazelle:exclude comp/core/sysprobeconfig/sysprobeconfigimpl
 # gazelle:exclude comp/core/tagger/fx
 # gazelle:exclude comp/core/tagger/fx-dual
@@ -196,7 +182,6 @@ exports_files(["go.mod"])
 # gazelle:exclude comp/core/workloadmeta/defaults
 # gazelle:exclude comp/core/workloadmeta/fx
 # gazelle:exclude comp/core/workloadmeta/init
-# gazelle:exclude comp/core/workloadmeta/server
 # gazelle:exclude comp/dogstatsd/http/fx
 # gazelle:exclude comp/dogstatsd/http/impl/*.go
 # gazelle:exclude comp/dogstatsd/replay/fx
@@ -212,8 +197,6 @@ exports_files(["go.mod"])
 # gazelle:exclude comp/host-profiler/collector/fx
 # gazelle:exclude comp/host-profiler/collector/impl/processor
 # gazelle:exclude comp/host-profiler/flare
-# gazelle:exclude comp/languagedetection/client/fx
-# gazelle:exclude comp/languagedetection/client/impl
 # gazelle:exclude comp/logonduration/fx
 # gazelle:exclude comp/logonduration/impl
 # gazelle:exclude comp/anomalydetection/logssource/impl
@@ -267,8 +250,6 @@ exports_files(["go.mod"])
 # gazelle:exclude comp/networkpath/traceroute/impl-local
 # gazelle:exclude comp/notableevents/fx
 # gazelle:exclude comp/notableevents/impl
-# gazelle:exclude comp/offlinereporter/fx
-# gazelle:exclude comp/offlinereporter/impl
 # gazelle:exclude comp/otelcol/collector/fx-pipeline
 # gazelle:exclude comp/otelcol/collector/impl-pipeline
 # gazelle:exclude comp/otelcol/converter/examples
@@ -396,13 +377,12 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/collector/corechecks/system/filehandles
 # gazelle:exclude pkg/collector/corechecks/system/memory
 # gazelle:exclude pkg/collector/corechecks/system/uptime
-# gazelle:exclude pkg/collector/corechecks/system/wincrashdetect
+# gazelle:exclude pkg/collector/corechecks/system/wincrashdetect/*.go
 # gazelle:exclude pkg/collector/corechecks/system/windowscertificate
 # gazelle:exclude pkg/collector/corechecks/system/winkmem
 # gazelle:exclude pkg/collector/corechecks/system/winproc
 # gazelle:exclude pkg/collector/corechecks/systemd
 # gazelle:exclude pkg/collector/corechecks/telemetry
-# gazelle:exclude pkg/collector/loaders
 # gazelle:exclude pkg/collector/python
 # gazelle:exclude pkg/collector/runner/*.go
 # gazelle:exclude pkg/collector/sharedlibrary/ffi
@@ -413,7 +393,6 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/compliance/tests
 # gazelle:exclude pkg/config/autodiscovery
 # gazelle:exclude pkg/config/legacy
-# gazelle:exclude pkg/diagnose/connectivity
 # gazelle:exclude pkg/discovery/language
 # gazelle:exclude pkg/discovery/module/rust/include
 # gazelle:exclude pkg/discovery/module/rust/src
@@ -578,7 +557,6 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/status/clusteragent
 # gazelle:exclude pkg/system-probe/api/client/check_test.go
 # gazelle:exclude pkg/system-probe/api/module
-# gazelle:exclude pkg/util/crashreport
 # gazelle:exclude pkg/util/kubernetes/apiserver/controllers
 # gazelle:exclude pkg/util/kubernetes/apiserver/leaderelection/status_templates
 # TODO(agent-build): re-include the following files once their unmigrated deps are
