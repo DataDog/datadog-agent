@@ -259,8 +259,6 @@ func (srv *KubeMetadataStreamServer) processNamespaceEvent(eventType workloadmet
 			delete(srv.namespaces, namespaceName)
 			return true
 		}
-	case workloadmeta.EventTypeAll:
-		log.Errorf("Unexpected event type %d for namespace %s", eventType, namespaceName)
 	default:
 		log.Errorf("Unknown event type %d for namespace %s", eventType, namespaceName)
 	}
@@ -286,8 +284,6 @@ func (srv *KubeMetadataStreamServer) processKueueQueueEvent(eventType workloadme
 			delete(srv.kueueQueues, key)
 			return true
 		}
-	case workloadmeta.EventTypeAll:
-		log.Errorf("Unexpected event type %d for Kueue queue %s", eventType, key)
 	default:
 		log.Errorf("Unknown event type %d for Kueue queue %s", eventType, key)
 	}
