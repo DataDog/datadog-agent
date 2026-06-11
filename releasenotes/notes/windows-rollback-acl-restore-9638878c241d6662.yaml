@@ -1,0 +1,10 @@
+---
+fixes:
+  - |
+    On Windows, when an Agent upgrade fails and the MSI rolls back, the
+    installer step that restores file permissions no longer aborts when a
+    generated file (such as ``auth_token`` or ``ipc_cert.pem``) was already
+    removed earlier in the rollback. Previously the first missing file would
+    stop the restore, leaving other files (for example ``datadog.yaml``)
+    without their permissions restored, which could prevent the Agent from
+    starting after the rollback.
