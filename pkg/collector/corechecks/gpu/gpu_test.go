@@ -8,6 +8,7 @@
 package gpu
 
 import (
+	"errors"
 	"fmt"
 	"slices"
 	"strconv"
@@ -544,7 +545,7 @@ func TestEmitMetricsCollectsCollectorsSeriallyWhenParallelCollectionDisabled(t *
 				select {
 				case <-releaseFirstCollector:
 				case <-time.After(time.Second):
-					return nil, fmt.Errorf("collector timed out waiting for release")
+					return nil, errors.New("collector timed out waiting for release")
 				}
 				return []*nvidia.Metric{
 					{Name: "serial.metric0", Value: 0, Type: ddmetrics.GaugeType},
