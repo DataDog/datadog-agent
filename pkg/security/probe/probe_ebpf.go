@@ -485,7 +485,7 @@ func (p *EBPFProbe) initEBPFManager() error {
 		return err
 	}
 
-	seclog.Warnf(">>> isSkLookupPidResolutionEnabled: %v", p.isSkLookupPidResolutionEnabled())
+	seclog.Warnf(">>> IsSkLookupPidResolutionSupported: %v", p.IsSkLookupPidResolutionSupported())
 
 	p.Manager.Probes = probes.AllProbes(p.useFentry, p.cgroup2MountPath)
 
@@ -2926,7 +2926,7 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 		},
 		manager.ConstantEditor{
 			Name:  "sk_lookup_pid_enabled",
-			Value: utils.BoolTouint64(p.isSkLookupPidResolutionEnabled()),
+			Value: utils.BoolTouint64(p.IsSkLookupPidResolutionSupported()),
 		},
 		manager.ConstantEditor{
 			Name:  "sched_cls_has_current_cgroup_id_helper",
@@ -3027,13 +3027,19 @@ func (p *EBPFProbe) isSKStorageSupported() bool {
 	return p.kernelVersion.HasSKStorageInTracingPrograms()
 }
 
-// isSkLookupPidResolutionEnabled returns whether the TC classifier should resolve packet pids
+// IsSkLookupPidResolutionSupported returns whether the TC classifier should resolve packet pids
 // through bpf_sk_lookup + sk-local storage instead of the flow_pid map. The pid is recorded in
 // sk-local storage by the cgroup/sock_create hook and read back from the TC classifier after a
 // bpf_sk_lookup. This needs the cgroup socket hook to be attached, sk-local storage usable from
 // both cgroup/sock and sched_cls programs, and bpf_sk_lookup in sched_cls. None of this requires
 // fentry, so it also works in kprobe mode.
-func (p *EBPFProbe) isSkLookupPidResolutionEnabled() bool {
+func (p *EBPFProbe) IsSkLookupPidResolutionSupported() bool {
+	if len(p.cgroup2MountPath) == 0 {
+		// the cgroup/sock_create hook that populates sk_storage_pid is attached at the cgroup v2
+		// mount point, so cgroup v2 must be available
+		return false
+	}
+
 	if !p.kernelVersion.HasBpfGetSocketCookieForCgroupSocket() {
 		// the cgroup/sock_create hook that populates sk_storage_pid isn't attached
 		return false
@@ -3055,7 +3061,7 @@ func (p *EBPFProbe) initManagerOptionsMapSpecEditors() {
 		SecurityProfileMaxCount:       p.config.RuntimeSecurity.SecurityProfileMaxCount,
 		NetworkFlowMonitorEnabled:     p.config.Probe.NetworkFlowMonitorEnabled,
 		NetworkSkStorageEnabled:       p.isSKStorageSupported(),
-		NetworkSkLookupPidEnabled:     p.isSkLookupPidResolutionEnabled(),
+		NetworkSkLookupPidEnabled:     p.IsSkLookupPidResolutionSupported(),
 		SpanTrackMaxCount:             1,
 		CapabilitiesMonitoringEnabled: p.config.Probe.CapabilitiesMonitoringEnabled,
 		CgroupSocketEnabled:           p.kernelVersion.HasBpfGetSocketCookieForCgroupSocket(),

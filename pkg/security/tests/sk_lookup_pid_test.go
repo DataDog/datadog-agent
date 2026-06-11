@@ -52,10 +52,8 @@ func skipIfSkLookupPidResolutionNotSupported(t *testing.T, testModule *testModul
 		return
 	}
 
-	kv := p.GetKernelVersion()
-	if !kv.HasBpfGetSocketCookieForCgroupSocket() || !kv.HasSkLookupForSchedCLS() ||
-		!kv.HasSKStorageInSchedCLS() || !kv.HasSKStorageInCgroupSock() {
-		t.Skip("bpf_sk_lookup based pid resolution is not supported on this kernel")
+	if !p.IsSkLookupPidResolutionSupported() {
+		t.Skip("bpf_sk_lookup based pid resolution is not supported on this host")
 	}
 }
 
