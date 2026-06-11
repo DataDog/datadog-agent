@@ -1,6 +1,7 @@
 load("@@//bazel/rules:foreign_cc_shared_wrapper.bzl", "foreign_cc_shared_wrapper")
 load("@@//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
 load("@@//bazel/rules/dd_packaging:dd_collect_dependencies.bzl", "dd_collect_dependencies")
+load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
 load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
@@ -110,14 +111,37 @@ filegroup(
     output_group = "kinit",
 )
 
+# The rules_foreign_cc "include" output_group is a single tree artifact at
+# package-relative path "krb5/include" (rules_foreign_cc framework.bzl:868
+# uses declare_directory(lib_name + "/" + out_include_dir)).
+#
+# pkg_files cannot strip within a tree artifact (rules_pkg pkg_files.bzl:157-161),
+# so strip_prefix operates on the tree's own package-relative path.
+# With root_paths=["krb5"] the tree root is "include/", strip_prefix="krb5_hdrs"
+# → dest="" → under collected_libs prefix "embedded" the tree claims key
+# "embedded" and is silently dropped in favour of the real embedded/ file entries
+# (aspect_bazel_lib copy_to_directory.bzl:274).
+#
+# Fix (research-confirmed): strip all the way to "krb5/include" so the tree
+# root holds the headers directly (krb5.h, gssapi.h, …), then prefix="include"
+# maps the tree to dest "include". Through collected_libs (prefix "embedded")
+# → "embedded/include"; through agent_components (prefix "/opt/datadog-agent")
+# → "opt/datadog-agent/embedded/include/krb5.h" etc.
+copy_to_directory(
+    name = "_hdr_wrapped",
+    srcs = [":_headers"],
+    out = "krb5_hdrs",
+    root_paths = ["krb5/include"],
+)
+
 pkg_files(
     name = "hdr_files",
-    srcs = [":_headers"],
+    srcs = [":_hdr_wrapped"],
+    strip_prefix = "krb5_hdrs",
     prefix = "include",
 )
 
-# Single public entry point for "ship all krb5 libraries". Consumers reference
-# this; the embedded/ prefix is applied at the consumption site, not here.
+# Single public entry point for "ship all krb5 libraries".
 dd_collect_dependencies(
     name = "installed_libs",
     srcs = [":{}_pkg".format(libname) for libname in LIBS.keys()],
