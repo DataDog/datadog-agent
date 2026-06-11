@@ -251,7 +251,7 @@ def releasenote_unique_ids(ctx, files=None):
 
     # Each releasenotes* directory is a separate reno corpus; UIDs only need to
     # be unique within a corpus, not across all corpora.
-    all_notes = glob('releasenotes*/notes/*.yaml')
+    all_notes = glob('releasenotes*/notes/**/*.yaml', recursive=True)
 
     # corpus_map: {corpus_dir -> {uid -> [paths]}}
     corpus_map: dict[str, dict[str, list[str]]] = {}
