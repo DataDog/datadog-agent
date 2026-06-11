@@ -157,6 +157,13 @@ func TestSkLookupPidResolution(t *testing.T) {
 
 	checkNetworkCompatibility(t)
 
+	// sk_storage_pid stores the socket owner's pid in the root pid namespace (bpf_get_current_pid_tgid),
+	// while createSocketInChild reports the child pid from the container's pid namespace. These differ
+	// in a container, so the assertion can't be made there.
+	if testEnvironment == DockerEnvironment {
+		t.Skip("skipping in docker: sk_storage_pid holds root pid namespace pids, which differ from the container pid namespace")
+	}
+
 	if testEnvironment != DockerEnvironment && !env.IsContainerized() {
 		if out, err := loadModule("veth"); err != nil {
 			t.Fatalf("couldn't load 'veth' module: %s,%v", string(out), err)
