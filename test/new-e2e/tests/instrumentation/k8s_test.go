@@ -58,29 +58,13 @@ const helmValues = `
 datadog:
   instrumentationCrd:
     enabled: true
-  admissionController:
-    enabled: true
 `
-
-// localHelmChartPath points at the in-progress helm-charts branch that adds
-// `datadog.instrumentationCrd.enabled`. Once the chart change lands upstream,
-// drop this constant and the WithHelmChartPath option below — the framework's
-// default remote chart will already pull the right CRD subchart and RBAC.
-const localHelmChartPath = "/Users/mathew.estafanous/go/src/github.com/DataDog/helm-charts/charts/datadog"
 
 // ddiGVR is the resource handle the dynamic client uses to CRUD CRs.
 var ddiGVR = schema.GroupVersionResource{
 	Group:    "datadoghq.com",
 	Version:  "v1alpha1",
 	Resource: "datadoginstrumentations",
-}
-
-func agentOptions() []kubernetesagentparams.Option {
-	return []kubernetesagentparams.Option{
-		// TODO: Replace with remote helm when merged (https://github.com/DataDog/helm-charts/pull/2717)
-		kubernetesagentparams.WithHelmRepoURL(""),
-		kubernetesagentparams.WithHelmValues(helmValues),
-	}
 }
 
 // k8sProvisioner picks between the AWS kindvm provisioner (default) and the
@@ -91,7 +75,7 @@ func k8sProvisioner() provisioners.TypedProvisioner[environments.Kubernetes] {
 			provlocal.WithWorkloadApp(func(e config.Env, kubeProvider *kubernetes.Provider) (*kubeComp.Workload, error) {
 				return nginx.K8sAppDefinition(e, kubeProvider, nginxNamespace, nginxPort, "", false, nil)
 			}),
-			provlocal.WithAgentOptions(agentOptions()...),
+			provlocal.WithAgentOptions(kubernetesagentparams.WithHelmValues(helmValues)),
 		)
 	}
 	return provkindvm.Provisioner(
@@ -99,7 +83,7 @@ func k8sProvisioner() provisioners.TypedProvisioner[environments.Kubernetes] {
 			scenkindvm.WithWorkloadApp(func(e config.Env, kubeProvider *kubernetes.Provider) (*kubeComp.Workload, error) {
 				return nginx.K8sAppDefinition(e, kubeProvider, nginxNamespace, nginxPort, "", false, nil)
 			}),
-			scenkindvm.WithAgentOptions(agentOptions()...),
+			scenkindvm.WithAgentOptions(kubernetesagentparams.WithHelmValues(helmValues)),
 		),
 	)
 }
