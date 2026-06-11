@@ -106,12 +106,13 @@ func (s *packageDDOTSuite) TestInstallDDOTInstaller() {
 	// Check if datadog.yaml exists, if not return an error
 	s.host.Run("sudo test -f /etc/datadog-agent/datadog.yaml || { echo 'Error: datadog.yaml does not exist'; exit 1; }")
 
-	s.host.WaitForUnitActive(s.T(), ddotUnit)
+	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit, procmgrUnit)
 
 	state := s.host.State()
-	// Verify running
 	s.assertCoreUnits(state, true)
-	s.assertDDOTUnits(state, false)
+	// Extension DDOT runs under dd-procmgrd; datadog-agent-ddot.service stays loaded but not the active supervisor.
+	state.AssertUnitsLoaded(ddotUnit)
+	state.AssertUnitsDead(ddotUnit)
 
 	// Verify files exist
 	state.AssertFileExists("/etc/datadog-agent/datadog.yaml", 0640, "dd-agent", "dd-agent")
@@ -121,6 +122,9 @@ func (s *packageDDOTSuite) TestInstallDDOTInstaller() {
 	state.AssertFileExists("/opt/datadog-packages/datadog-agent-ddot/stable/embedded/bin/otel-agent", 0755, "dd-agent", "dd-agent")
 
 	s.host.Run("sudo grep -q 'otelcollector:' /etc/datadog-agent/datadog.yaml")
+
+	ddot.AssertDDOTManagedByProcmgr(s.T(), s.Env().RemoteHost)
+	ddot.AssertProcmgrDDOTTelemetry(s.T(), s.Env().RemoteHost)
 }
 
 func (s *packageDDOTSuite) TestInstallDDOTWithoutDatadogYAML() {
@@ -255,29 +259,4 @@ func (s *packageDDOTSuite) assertCoreUnits(state host.State, oldUnits bool) {
 	for _, unit := range []string{agentUnit, traceUnit, procmgrUnit, processUnit, probeUnit, securityUnit} {
 		s.host.AssertUnitProperty(unit, "FragmentPath", filepath.Join(systemdPath, unit))
 	}
-}
-
-// Verify ddot service running
-func (s *packageDDOTSuite) assertDDOTUnits(state host.State, oldUnits bool) {
-	state.AssertUnitsLoaded(ddotUnit)
-	state.AssertUnitsRunning(ddotUnit)
-
-	systemdPath := "/etc/systemd/system"
-	if oldUnits {
-		pkgManager := s.host.GetPkgManager()
-		switch pkgManager {
-		case "apt":
-			if s.os.Flavor == e2eos.Ubuntu {
-				systemdPath = "/usr/lib/systemd/system"
-			} else {
-				systemdPath = "/lib/systemd/system"
-			}
-		case "yum", "zypper":
-			systemdPath = "/usr/lib/systemd/system"
-		default:
-			s.T().Fatalf("unsupported package manager: %s", pkgManager)
-		}
-	}
-
-	s.host.AssertUnitProperty(ddotUnit, "FragmentPath", filepath.Join(systemdPath, ddotUnit))
 }
