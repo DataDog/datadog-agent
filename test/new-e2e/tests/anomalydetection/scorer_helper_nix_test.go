@@ -73,8 +73,6 @@ anomaly_detection:
     enabled: true
   logs:
     enabled: false
-  agent_logs:
-    enabled: false
   detectors:
     cusum:
       enabled: true
@@ -141,7 +139,7 @@ func (s *scorerHelperSuite) TestScorerHelperEmitsSeverityTransitionOnMultiSeries
 		defer close(done)
 
 		// Phase 1: baseline — send one point per second on each series.
-		// All 5 series run in lockstep using the same ticker so they spike together.
+		// All 20 series run in lockstep using the same ticker so they spike together.
 		s.T().Logf("sending %d baseline points on %d series...", baselinePoints, seriesCount)
 		for i := 0; i < baselinePoints; i++ {
 			select {
@@ -162,8 +160,8 @@ func (s *scorerHelperSuite) TestScorerHelperEmitsSeverityTransitionOnMultiSeries
 			}
 		}
 
-		// Phase 2: spike — all 5 series simultaneously so the scorer sees
-		// 5 concurrent anomaly sources in the same advance window.
+		// Phase 2: spike — all 20 series simultaneously so the scorer sees
+		// 20 concurrent anomaly sources in the same advance window.
 		s.T().Logf("sending %d spike points on %d series...", spikePoints, seriesCount)
 		for i := 0; i < spikePoints; i++ {
 			select {
