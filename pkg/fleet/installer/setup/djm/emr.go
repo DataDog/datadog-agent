@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/common"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/config"
@@ -23,7 +24,7 @@ const (
 	emrInjectorVersion    = "0.64.0-1"
 	emrJavaTracerVersion  = "1.63.0-1"
 	emrAgentVersion       = "7.79.2-1"
-	emrOpenLineageVersion = "1.24.0"
+	emrOpenLineageVersion = "1.49.0"
 	hadoopDriverFolder    = "/mnt/var/log/hadoop/steps/"
 )
 
@@ -235,11 +236,7 @@ func setupOpenLineage(s *common.Setup) {
 		return
 	}
 
-	// Download from Maven Central — default to Scala 2.12 variant, override via DD_OPENLINEAGE_SPARK_VARIANT
-	variant := os.Getenv("DD_OPENLINEAGE_SPARK_VARIANT")
-	if variant == "" {
-		variant = "_2.12"
-	}
+	variant := detectScalaVariant(s)
 	jarURL := fmt.Sprintf(
 		"https://repo1.maven.org/maven2/io/openlineage/openlineage-spark%s/%s/openlineage-spark%s-%s.jar",
 		variant, emrOpenLineageVersion, variant, emrOpenLineageVersion,
@@ -248,6 +245,28 @@ func setupOpenLineage(s *common.Setup) {
 	if _, err := common.ExecuteCommandWithTimeout(s, "curl", "-sSfL", "-o", jarDest, jarURL); err != nil {
 		log.Warnf("failed to download OpenLineage JAR: %v", err)
 	}
+}
+
+// detectScalaVariant infers the Scala binary version suffix (e.g. "_2.12") by inspecting
+// the scala-library JAR bundled in Spark's jars directory. EMR releases may use either
+// Scala 2.12 or 2.13 depending on the Spark version (e.g. EMR 8.x with Spark 8.x uses 2.13).
+// Falls back to "_2.12" with a warning if detection fails.
+func detectScalaVariant(s *common.Setup) string {
+	matches, _ := filepath.Glob(filepath.Join(openLineageJARDir, "scala-library-*.jar"))
+	if len(matches) == 0 {
+		log.Warn("Could not detect Scala variant from Spark jars directory — no scala-library-*.jar found. Falling back to Scala 2.12 for OpenLineage JAR download; set DD_OPENLINEAGE_SPARK_VARIANT to override.")
+		s.Out.WriteString("WARNING: Could not detect Scala variant, falling back to Scala 2.12 for OpenLineage JAR\n")
+		return "_2.12"
+	}
+	// e.g. "scala-library-2.12.18.jar" → "_2.12"
+	base := strings.TrimSuffix(strings.TrimPrefix(filepath.Base(matches[0]), "scala-library-"), ".jar")
+	parts := strings.SplitN(base, ".", 3)
+	if len(parts) < 2 {
+		log.Warnf("Could not parse Scala version from JAR name %q. Falling back to Scala 2.12 for OpenLineage JAR download; set DD_OPENLINEAGE_SPARK_VARIANT to override.", filepath.Base(matches[0]))
+		s.Out.WriteString("WARNING: Could not parse Scala variant from JAR name, falling back to Scala 2.12 for OpenLineage JAR\n")
+		return "_2.12"
+	}
+	return "_" + parts[0] + "." + parts[1]
 }
 
 func enableEmrLogs(s *common.Setup) {

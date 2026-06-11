@@ -114,17 +114,19 @@ func TestSetupOpenLineage_Enabled(t *testing.T) {
 		return nil, nil
 	}
 
-	// Use a temp dir so the glob finds no existing JARs
 	origJARDir := openLineageJARDir
 	openLineageJARDir = t.TempDir()
 	defer func() { openLineageJARDir = origJARDir }()
+	// Place a scala-library JAR so variant detection works
+	require.NoError(t, os.WriteFile(filepath.Join(openLineageJARDir, "scala-library-2.12.18.jar"), []byte{}, 0644))
 
 	s := newTestSetup(t)
 	setupOpenLineage(s)
 
 	assert.Equal(t, config.BoolToPtr(true), tracerConfigEmr.DataJobsOpenLineageEnabled)
 	assert.Equal(t, "curl", capturedCmd)
-	assert.Contains(t, capturedArgs, "-sSfL")
+	expectedURL := "https://repo1.maven.org/maven2/io/openlineage/openlineage-spark_2.12/1.49.0/openlineage-spark_2.12-1.49.0.jar"
+	assert.Contains(t, capturedArgs, expectedURL)
 }
 
 func TestSetupOpenLineage_Disabled(t *testing.T) {
@@ -200,4 +202,28 @@ func TestSetupOpenLineage_CustomJarPath(t *testing.T) {
 	assert.Equal(t, config.BoolToPtr(true), tracerConfigEmr.DataJobsOpenLineageEnabled)
 	assert.Equal(t, "cp", capturedCmd)
 	assert.Equal(t, customJar, capturedArgs[0])
+}
+
+func TestDetectScalaVariant(t *testing.T) {
+	origJARDir := openLineageJARDir
+	defer func() { openLineageJARDir = origJARDir }()
+
+	s := newTestSetup(t)
+
+	t.Run("detects 2.12", func(t *testing.T) {
+		openLineageJARDir = t.TempDir()
+		require.NoError(t, os.WriteFile(filepath.Join(openLineageJARDir, "scala-library-2.12.18.jar"), []byte{}, 0644))
+		assert.Equal(t, "_2.12", detectScalaVariant(s))
+	})
+
+	t.Run("detects 2.13", func(t *testing.T) {
+		openLineageJARDir = t.TempDir()
+		require.NoError(t, os.WriteFile(filepath.Join(openLineageJARDir, "scala-library-2.13.12.jar"), []byte{}, 0644))
+		assert.Equal(t, "_2.13", detectScalaVariant(s))
+	})
+
+	t.Run("falls back to 2.12 when no JAR found", func(t *testing.T) {
+		openLineageJARDir = t.TempDir()
+		assert.Equal(t, "_2.12", detectScalaVariant(s))
+	})
 }
