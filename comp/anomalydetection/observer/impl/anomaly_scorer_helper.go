@@ -68,6 +68,16 @@ func (s *severityEventSender) send(scorerName string, evt observerdef.SeverityEv
 		"tags":            []string{helperEventSourceTag, "scorer:" + scorerName, "direction:" + direction},
 		"timestamp":       ts,
 		"aggregation_key": aggKey,
+		"attributes": map[string]any{
+			"changed_resource": map[string]any{
+				"name": scorerName,
+				"type": "anomaly_scorer",
+			},
+			"author": map[string]any{
+				"name": "datadog-agent-observer",
+				"type": "automation",
+			},
+		},
 	}
 	if host != "" {
 		attrs["host"] = host
@@ -83,6 +93,7 @@ func (s *severityEventSender) send(scorerName string, evt observerdef.SeverityEv
 		pkglog.Warnf("[observer] anomaly_scorer_helper: failed to marshal severity event: %v", err)
 		return
 	}
+	pkglog.Infof("[observer] anomaly_scorer_helper: sending severity event scorer=%s direction=%s aggKey=%s", scorerName, direction, aggKey)
 	epMsg := message.NewMessage(body, nil, "", time.Now().UnixNano())
 	if err := s.forwarder.SendEventPlatformEventBlocking(epMsg, eventplatform.EventTypeEventManagement); err != nil {
 		pkglog.Warnf("[observer] anomaly_scorer_helper: failed to send severity event: %v", err)
