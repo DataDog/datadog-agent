@@ -10,7 +10,7 @@ go_library(
         "//comp/healthplatform/issueregistry/def",
         "//comp/healthplatform/runner/def",
         "//comp/healthplatform/store/def",
-        "@com_github_datadog_agent_payload_v5//healthplatform",
+        "//pkg/proto/datadog/healthplatform:healthplatform_go_proto",
     ],
 )
 
@@ -24,7 +24,7 @@ go_test(
         "//comp/healthplatform/issueregistry/mock",
         "//comp/healthplatform/runner/def",
         "//comp/healthplatform/store/def",
-        "@com_github_datadog_agent_payload_v5//healthplatform",
+        "//pkg/proto/datadog/healthplatform:healthplatform_go_proto",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],

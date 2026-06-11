@@ -17,8 +17,8 @@ go_library(
         "//pkg/collector/check/id",
         "//pkg/config/setup",
         "//pkg/config/utils",
+        "//pkg/proto/datadog/healthplatform:healthplatform_go_proto",
         "//pkg/util/log",
-        "@com_github_datadog_agent_payload_v5//healthplatform",
         "@com_github_go_viper_mapstructure_v2//:mapstructure",
     ],
 )
