@@ -9,6 +9,7 @@ package structure
 import (
 	"encoding/json"
 	"reflect"
+	"strings"
 
 	mapstructure "github.com/go-viper/mapstructure/v2"
 
@@ -55,6 +56,36 @@ var ImplicitlyConvertArrayToMapSet UnmarshalKeyOption = func(fs *featureSet) {
 	fs.convertArrayToMap = true
 }
 
+// stringToNumberSliceHookFunc is a mapstructure decode hook that parses a single
+// string into a numeric slice, e.g. "53 5353" or "[53,5353]" -> []int{53,5353}
+func stringToNumberSliceHookFunc() mapstructure.DecodeHookFunc {
+	return func(f reflect.Type, t reflect.Type, data interface{}) (interface{}, error) {
+		if f.Kind() != reflect.String || t.Kind() != reflect.Slice {
+			return data, nil
+		}
+		switch t.Elem().Kind() {
+		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+			reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64,
+			reflect.Float32, reflect.Float64:
+		default:
+			return data, nil
+		}
+
+		s := strings.TrimSpace(data.(string))
+		// A value that looks like a JSON array is decoded as JSON
+		if strings.HasPrefix(s, "[") {
+			dec := json.NewDecoder(strings.NewReader(s))
+			dec.UseNumber() // keep large ints exact; json numbers otherwise decode as float64
+			var arr []interface{}
+			if err := dec.Decode(&arr); err == nil {
+				return arr, nil
+			}
+		}
+		// Otherwise treat it as a whitespace-separated list ("53 5353")
+		return strings.Fields(s), nil
+	}
+}
+
 func convertArrayToMap(rf reflect.Kind, rt reflect.Kind, data interface{}) (interface{}, error) {
 	if rf != reflect.Slice {
 		return data, nil
@@ -93,6 +124,7 @@ func UnmarshalKey(cfg model.Reader, key string, target interface{}, opts ...Unma
 	decodeHooks := []mapstructure.DecodeHookFunc{
 		mapstructure.StringToTimeDurationHookFunc(),
 		mapstructure.StringToSliceHookFunc(","),
+		stringToNumberSliceHookFunc(),
 	}
 	if fs.convertArrayToMap {
 		decodeHooks = append(decodeHooks, convertArrayToMap)

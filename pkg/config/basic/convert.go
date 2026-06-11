@@ -37,8 +37,24 @@ func ConvertToDefaultType(value, defaultValue interface{}, coerceMaps bool) (int
 		return cast.ToDurationE(value)
 	case []string:
 		return cast.ToStringSliceE(value)
+	case []int:
+		return toNumberSliceE(value, cast.ToIntE)
+	case []int32:
+		return toNumberSliceE(value, cast.ToInt32E)
+	case []int64:
+		return toNumberSliceE(value, cast.ToInt64E)
+	case []uint:
+		return toNumberSliceE(value, cast.ToUintE)
+	case []uint16:
+		return toNumberSliceE(value, cast.ToUint16E)
+	case []uint32:
+		return toNumberSliceE(value, cast.ToUint32E)
+	case []uint64:
+		return toNumberSliceE(value, cast.ToUint64E)
+	case []float32:
+		return toNumberSliceE(value, cast.ToFloat32E)
 	case []float64:
-		return toFloat64SliceE(value)
+		return toNumberSliceE(value, cast.ToFloat64E)
 	case map[string]interface{}:
 		if coerceMaps {
 			return cast.ToStringMapE(value)
@@ -55,19 +71,20 @@ func ConvertToDefaultType(value, defaultValue interface{}, coerceMaps bool) (int
 	return value, nil
 }
 
-// toFloat64SliceE casts any slice to []float64
-func toFloat64SliceE(value interface{}) ([]float64, error) {
-	raw, err := cast.ToSliceE(value)
+// toNumberSliceE converts value into a slice of T, applying conv to each element
+func toNumberSliceE[T any](value interface{}, conv func(interface{}) (T, error)) ([]T, error) {
+	// so a scalar string from env variables is split on whitespace
+	raw, err := cast.ToStringSliceE(value)
 	if err != nil {
 		return nil, err
 	}
-	out := make([]float64, len(raw))
+	out := make([]T, len(raw))
 	for i, v := range raw {
-		f, err := cast.ToFloat64E(v)
+		n, err := conv(v)
 		if err != nil {
 			return nil, err
 		}
-		out[i] = f
+		out[i] = n
 	}
 	return out, nil
 }
