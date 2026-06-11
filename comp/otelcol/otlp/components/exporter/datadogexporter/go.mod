@@ -49,7 +49,7 @@ require (
 )
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.201 // indirect
+	github.com/DataDog/agent-payload/v5 v5.0.205-0.20260707135643-e2e53de32031 // indirect
 	github.com/DataDog/datadog-agent/comp/api/api/def v0.72.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/config v0.77.0-devel.0.20260213154712-e02b9359151a // indirect
 	github.com/DataDog/datadog-agent/comp/core/delegatedauth v0.78.1 // indirect

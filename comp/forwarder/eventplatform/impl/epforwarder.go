@@ -76,7 +76,7 @@ const (
 	eventTypeDoQueryResults      = "do-query-results"
 )
 
-func getPassthroughPipelines() []passthroughPipelineDesc {
+func getPassthroughPipelines(cfg model.Reader) []passthroughPipelineDesc {
 	var passthroughPipelineDescs = []passthroughPipelineDesc{
 		{
 			eventType:              eventTypeDBMSamples,
@@ -342,7 +342,7 @@ func getPassthroughPipelines() []passthroughPipelineDesc {
 		},
 	}
 
-	if pkgconfigsetup.Datadog().GetBool("kubeactions.enabled") {
+	if cfg.GetBool("kubeactions.enabled") {
 		kubeactionsPipeline := passthroughPipelineDesc{
 			eventType:                     eventplatform.EventTypeKubeActions,
 			category:                      "Kubernetes Actions",
@@ -360,10 +360,10 @@ func getPassthroughPipelines() []passthroughPipelineDesc {
 		log.Infof("[KubeActions] EVP pipeline registered: host_prefix=%s, track_type=%s, v2_api=%v",
 			kubeactionsPipeline.hostnameEndpointPrefix,
 			kubeactionsPipeline.intakeTrackType,
-			pkgconfigsetup.Datadog().GetBool("kubeactions.forwarder.use_v2_api"))
+			cfg.GetBool("kubeactions.forwarder.use_v2_api"))
 	}
 
-	if pkgconfigsetup.Datadog().GetBool("software_inventory.enabled") {
+	if cfg.GetBool("software_inventory.enabled") {
 		softinvPipeline := passthroughPipelineDesc{
 			eventType:                     eventplatform.EventTypeSoftwareInventory,
 			category:                      "EUDM",
@@ -377,6 +377,22 @@ func getPassthroughPipelines() []passthroughPipelineDesc {
 			defaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
 		}
 		passthroughPipelineDescs = append(passthroughPipelineDescs, softinvPipeline)
+	}
+
+	if cfg.GetBool("config_files_discovery.enabled") {
+		configFilesDiscoveryPipeline := passthroughPipelineDesc{
+			eventType:                     eventplatform.EventTypeAgentDiscovery,
+			category:                      "Agent Discovery",
+			contentType:                   logshttp.ProtobufContentType,
+			endpointsConfigPrefix:         "config_files_discovery.forwarder.",
+			hostnameEndpointPrefix:        "agentdiscovery-intake.",
+			intakeTrackType:               "agentdiscovery",
+			defaultBatchMaxConcurrentSend: pkgconfigsetup.DefaultBatchMaxConcurrentSend,
+			defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
+			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
+			defaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
+		}
+		passthroughPipelineDescs = append(passthroughPipelineDescs, configFilesDiscoveryPipeline)
 	}
 
 	return passthroughPipelineDescs
@@ -412,7 +428,7 @@ func Diagnose() []diagnose.Diagnosis {
 	var diagnoses []diagnose.Diagnosis
 	cfg := pkgconfigsetup.Datadog()
 
-	for _, desc := range getPassthroughPipelines() {
+	for _, desc := range getPassthroughPipelines(cfg) {
 		//nolint:misspell
 		// TODO(ECT-4273): event-management-intake does not support the empty payload sent here
 		if desc.eventType == eventplatform.EventTypeEventManagement {
@@ -748,7 +764,7 @@ func newDefaultEventPlatformForwarder(config model.Reader, eventPlatformReceiver
 	destinationsCtx := client.NewDestinationsContext()
 	destinationsCtx.Start()
 	pipelines := make(map[string]*passthroughPipeline)
-	for i, desc := range getPassthroughPipelines() {
+	for i, desc := range getPassthroughPipelines(config) {
 		p, err := newHTTPPassthroughPipeline(config, eventPlatformReceiver, compression, desc, destinationsCtx, i, hostname, secretsComp)
 		if err != nil {
 			log.Errorf("Failed to initialize event platform forwarder pipeline. eventType=%s, error=%s", desc.eventType, err.Error())

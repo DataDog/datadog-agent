@@ -51,7 +51,7 @@ func TestEventPlatformForwarderTestSuite(t *testing.T) {
 func (suite *EventPlatformForwarderTestSuite) TestGetPassthroughPipelinesIncludesGenresources() {
 	var genresourcesDesc passthroughPipelineDesc
 	found := false
-	for _, desc := range getPassthroughPipelines() {
+	for _, desc := range getPassthroughPipelines(suite.config) {
 		if desc.eventType == eventplatform.EventTypeGenResources {
 			genresourcesDesc = desc
 			found = true
@@ -69,6 +69,40 @@ func (suite *EventPlatformForwarderTestSuite) TestGetPassthroughPipelinesInclude
 	suite.Equal(5000000, genresourcesDesc.defaultBatchMaxContentSize)
 	suite.Equal(1000, genresourcesDesc.defaultBatchMaxSize)
 	suite.Equal(100, genresourcesDesc.defaultInputChanSize)
+}
+
+func (suite *EventPlatformForwarderTestSuite) TestGetPassthroughPipelinesIncludesAgentDiscoveryWhenEnabled() {
+	suite.config.SetInTest("config_files_discovery.enabled", true)
+
+	var agentDiscoveryDesc passthroughPipelineDesc
+	found := false
+	for _, desc := range getPassthroughPipelines(suite.config) {
+		if desc.eventType == eventplatform.EventTypeAgentDiscovery {
+			agentDiscoveryDesc = desc
+			found = true
+			break
+		}
+	}
+
+	suite.Require().True(found)
+	suite.Equal("Agent Discovery", agentDiscoveryDesc.category)
+	suite.Equal(logshttp.ProtobufContentType, agentDiscoveryDesc.contentType)
+	suite.Equal("config_files_discovery.forwarder.", agentDiscoveryDesc.endpointsConfigPrefix)
+	suite.Equal("agentdiscovery-intake.", agentDiscoveryDesc.hostnameEndpointPrefix)
+	suite.Equal(laconfig.IntakeTrackType("agentdiscovery"), agentDiscoveryDesc.intakeTrackType)
+	suite.Equal(0, agentDiscoveryDesc.defaultBatchMaxConcurrentSend)
+	suite.Equal(5000000, agentDiscoveryDesc.defaultBatchMaxContentSize)
+	suite.Equal(1000, agentDiscoveryDesc.defaultBatchMaxSize)
+	suite.Equal(100, agentDiscoveryDesc.defaultInputChanSize)
+	suite.False(agentDiscoveryDesc.useStreamStrategy)
+}
+
+func (suite *EventPlatformForwarderTestSuite) TestGetPassthroughPipelinesSkipsAgentDiscoveryWhenDisabled() {
+	suite.config.SetInTest("config_files_discovery.enabled", false)
+
+	for _, desc := range getPassthroughPipelines(suite.config) {
+		suite.NotEqual(eventplatform.EventTypeAgentDiscovery, desc.eventType)
+	}
 }
 
 func (suite *EventPlatformForwarderTestSuite) TestNewHTTPPassthroughPipelineCompression() {

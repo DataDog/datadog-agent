@@ -144,9 +144,10 @@ func TestRedisCollectorReadsDetectedConfig(t *testing.T) {
 	assert.Equal(t, []string{"/etc/redis/redis.conf"}, reader.readFileCalls)
 	require.Len(t, files, 1)
 	assert.Equal(t, ConfigFile{
-		Path:      "/etc/redis/redis.conf",
-		Content:   []byte("port 6379\n"),
-		Truncated: true,
+		Path:          "/etc/redis/redis.conf",
+		Content:       []byte("port 6379\n"),
+		Truncated:     true,
+		PayloadFormat: redisConfigPayloadFormat,
 	}, files[0])
 }
 
