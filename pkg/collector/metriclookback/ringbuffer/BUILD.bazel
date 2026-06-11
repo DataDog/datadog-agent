@@ -16,7 +16,10 @@ go_test(
     name = "ringbuffer_test",
     srcs = ["buffer_test.go"],
     embed = [":ringbuffer"],
+    gotags = ["test"],
     deps = [
+        "//pkg/collector/check/id",
         "//pkg/collector/metriclookback/lookbacksender",
+        "//pkg/metrics",
     ],
 )
