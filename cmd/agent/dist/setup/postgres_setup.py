@@ -25,11 +25,11 @@ from psycopg2 import sql
 # on a fresh install is poor UX; the PostgreSQL default of 5000 is sufficient
 # for most deployments. See the note at the end of the RFC for details.
 _SETTINGS = [
-    ("shared_preload_libraries",         "pg_stat_statements", True,  True),
-    ("track_activity_query_size",        "4096",               True,  True),
-    ("pg_stat_statements.track",         "all",                False, False),
-    ("track_io_timing",                  "on",                 False, False),
-    ("pg_stat_statements.track_utility", "on",                 False, False),
+    ("shared_preload_libraries", "pg_stat_statements", True, True),
+    ("track_activity_query_size", "4096", True, True),
+    ("pg_stat_statements.track", "all", False, False),
+    ("track_io_timing", "on", False, False),
+    ("pg_stat_statements.track_utility", "on", False, False),
 ]
 
 _SQL_FUNC_PG_STAT_ACTIVITY = """
@@ -69,13 +69,13 @@ SECURITY DEFINER"""
 # Detect
 # ---------------------------------------------------------------------------
 
+
 def _detect(cur, config):
     # Fail immediately if connected to a standby/read replica.
     cur.execute("SELECT pg_is_in_recovery()")
     if cur.fetchone()[0]:
         raise RuntimeError(
-            "Connected to a read replica (pg_is_in_recovery() = true); "
-            "connect to the primary instance to run setup"
+            "Connected to a read replica (pg_is_in_recovery() = true); connect to the primary instance to run setup"
         )
 
     flavor = _detect_flavor(cur)
@@ -153,9 +153,7 @@ def _detect_user_exists(cur, username):
 
 def _detect_databases(cur, config):
     if config.get("all_databases"):
-        cur.execute(
-            "SELECT datname FROM pg_database WHERE datistemplate = false ORDER BY datname"
-        )
+        cur.execute("SELECT datname FROM pg_database WHERE datistemplate = false ORDER BY datname")
         return [row[0] for row in cur.fetchall()]
     return config.get("databases", [])
 
@@ -163,6 +161,7 @@ def _detect_databases(cur, config):
 # ---------------------------------------------------------------------------
 # Plan
 # ---------------------------------------------------------------------------
+
 
 def _plan(state, config):
     ops = []
@@ -179,14 +178,26 @@ def _plan_user_ops(state, config):
     user = config["datadog_user"]
     if not state["user_exists"]:
         if not config.get("datadog_password"):
-            raise RuntimeError(
-                f"--datadog-password is required when creating user {user!r} for the first time"
-            )
-        return [{"kind": "SQL", "description": f"create user {user!r}", "op_type": "create_user",
-                 "args": [user, config["datadog_password"]], "redact": True}]
+            raise RuntimeError(f"--datadog-password is required when creating user {user!r} for the first time")
+        return [
+            {
+                "kind": "SQL",
+                "description": f"create user {user!r}",
+                "op_type": "create_user",
+                "args": [user, config["datadog_password"]],
+                "redact": True,
+            }
+        ]
     if config.get("datadog_password") and config.get("update_password"):
-        return [{"kind": "SQL", "description": f"sync password for user {user!r}", "op_type": "alter_user_password",
-                 "args": [user, config["datadog_password"]], "redact": True}]
+        return [
+            {
+                "kind": "SQL",
+                "description": f"sync password for user {user!r}",
+                "op_type": "alter_user_password",
+                "args": [user, config["datadog_password"]],
+                "redact": True,
+            }
+        ]
     return [{"kind": "SKIP", "description": f"user {user!r} — already exists", "status": "skipped"}]
 
 
@@ -194,14 +205,32 @@ def _plan_grant_ops(state, config):
     user = config["datadog_user"]
     ops = []
     if state["pg_version"] >= 10:
-        ops.append({"kind": "SQL", "description": f"GRANT pg_monitor TO {user!r}",
-                    "op_type": "grant_pg_monitor", "args": [user]})
+        ops.append(
+            {
+                "kind": "SQL",
+                "description": f"GRANT pg_monitor TO {user!r}",
+                "op_type": "grant_pg_monitor",
+                "args": [user],
+            }
+        )
     else:
-        ops.append({"kind": "SQL", "description": f"GRANT pg_stat_* tables to {user!r} (PG 9.6)",
-                    "op_type": "grant_pg96", "args": [user]})
+        ops.append(
+            {
+                "kind": "SQL",
+                "description": f"GRANT pg_stat_* tables to {user!r} (PG 9.6)",
+                "op_type": "grant_pg96",
+                "args": [user],
+            }
+        )
     if state["pg_version"] >= 15 and state["flavor"] in ("rds", "aurora"):
-        ops.append({"kind": "SQL", "description": f"ALTER ROLE {user!r} INHERIT (RDS/Aurora PG 15+)",
-                    "op_type": "alter_role_inherit", "args": [user]})
+        ops.append(
+            {
+                "kind": "SQL",
+                "description": f"ALTER ROLE {user!r} INHERIT (RDS/Aurora PG 15+)",
+                "op_type": "alter_role_inherit",
+                "args": [user],
+            }
+        )
     return ops
 
 
@@ -223,12 +252,14 @@ def _plan_setting_ops(state, config):
 
         # Skip pg_stat_statements.* GUCs until the library is loaded.
         if flavor == "self_hosted" and name.startswith("pg_stat_statements.") and not pg_stat_loaded:
-            ops.append({
-                "kind": "SKIP",
-                "description": f"{name} — applied on next run after pg_stat_statements loads",
-                "setting_name": name,
-                "status": "skipped",
-            })
+            ops.append(
+                {
+                    "kind": "SKIP",
+                    "description": f"{name} — applied on next run after pg_stat_statements loads",
+                    "setting_name": name,
+                    "status": "skipped",
+                }
+            )
             continue
 
         # Optional restart-required settings: skip unless explicitly requested.
@@ -238,18 +269,22 @@ def _plan_setting_ops(state, config):
                 if current == desired or (name == "shared_preload_libraries" and desired in current.split(",")):
                     pass  # already set — fall through to normal planning (will show SKIP)
                 else:
-                    optional_restart_pending.append({
-                        "name": name,
-                        "desired": desired,
-                        "current": current,
-                        "description": f"optional — set {name}={desired} (requires one more restart)",
-                    })
-                    ops.append({
-                        "kind": "SKIP",
-                        "description": f"{name} — optional, skipped (add --yes to apply, requires restart)",
-                        "setting_name": name,
-                        "status": "skipped",
-                    })
+                    optional_restart_pending.append(
+                        {
+                            "name": name,
+                            "desired": desired,
+                            "current": current,
+                            "description": f"optional — set {name}={desired} (requires one more restart)",
+                        }
+                    )
+                    ops.append(
+                        {
+                            "kind": "SKIP",
+                            "description": f"{name} — optional, skipped (add --yes to apply, requires restart)",
+                            "setting_name": name,
+                            "status": "skipped",
+                        }
+                    )
                     continue
 
         if flavor == "self_hosted":
@@ -268,95 +303,205 @@ def _plan_self_hosted_setting(state, name, desired, current, requires_restart):
     if name == "shared_preload_libraries":
         return _plan_spl(state, desired, current)
     if current == desired:
-        return [{"kind": "SKIP", "description": f"{name} = {desired} — already set",
-                 "setting_name": name, "status": "skipped"}]
+        return [
+            {
+                "kind": "SKIP",
+                "description": f"{name} = {desired} — already set",
+                "setting_name": name,
+                "status": "skipped",
+            }
+        ]
     if name in state["pending_restart"]:
-        return [{"kind": "SKIP", "description": f"{name} — restart already pending, skipping ALTER SYSTEM",
-                 "setting_name": name, "status": "skipped"}]
+        return [
+            {
+                "kind": "SKIP",
+                "description": f"{name} — restart already pending, skipping ALTER SYSTEM",
+                "setting_name": name,
+                "status": "skipped",
+            }
+        ]
     kind = "ALTER_SYSTEM" if requires_restart else "ALTER_SYSTEM_RELOAD"
-    return [{"kind": kind, "description": f"ALTER SYSTEM SET {name} = '{desired}'",
-             "sql": f"ALTER SYSTEM SET {name} = '{desired}'",
-             "setting_name": name, "requires_restart": requires_restart}]
+    return [
+        {
+            "kind": kind,
+            "description": f"ALTER SYSTEM SET {name} = '{desired}'",
+            "sql": f"ALTER SYSTEM SET {name} = '{desired}'",
+            "setting_name": name,
+            "requires_restart": requires_restart,
+        }
+    ]
 
 
 def _plan_spl(state, desired, current):
     libs = [lib.strip() for lib in current.split(",") if lib.strip()]
     if desired in libs:
-        return [{"kind": "SKIP", "description": f"shared_preload_libraries already contains '{desired}'",
-                 "setting_name": "shared_preload_libraries", "status": "skipped"}]
+        return [
+            {
+                "kind": "SKIP",
+                "description": f"shared_preload_libraries already contains '{desired}'",
+                "setting_name": "shared_preload_libraries",
+                "status": "skipped",
+            }
+        ]
     if "shared_preload_libraries" in state["pending_restart"]:
-        return [{"kind": "SKIP",
-                 "description": "shared_preload_libraries — restart already pending; check postgresql.auto.conf before restarting",
-                 "setting_name": "shared_preload_libraries", "status": "skipped"}]
+        return [
+            {
+                "kind": "SKIP",
+                "description": "shared_preload_libraries — restart already pending; check postgresql.auto.conf before restarting",
+                "setting_name": "shared_preload_libraries",
+                "status": "skipped",
+            }
+        ]
     new_value = f"{current},{desired}" if current else desired
-    return [{"kind": "ALTER_SYSTEM", "description": f"ALTER SYSTEM SET shared_preload_libraries = '{new_value}'",
-             "sql": f"ALTER SYSTEM SET shared_preload_libraries = '{new_value}'",
-             "setting_name": "shared_preload_libraries", "requires_restart": True}]
+    return [
+        {
+            "kind": "ALTER_SYSTEM",
+            "description": f"ALTER SYSTEM SET shared_preload_libraries = '{new_value}'",
+            "sql": f"ALTER SYSTEM SET shared_preload_libraries = '{new_value}'",
+            "setting_name": "shared_preload_libraries",
+            "requires_restart": True,
+        }
+    ]
 
 
 def _plan_aws_setting(state, name, desired, current):
     if name == "shared_preload_libraries" and state["flavor"] == "aurora" and desired in current.split(","):
-        return [{"kind": "SKIP", "description": f"shared_preload_libraries already contains '{desired}' on Aurora — skipped",
-                 "setting_name": name, "status": "skipped"}]
+        return [
+            {
+                "kind": "SKIP",
+                "description": f"shared_preload_libraries already contains '{desired}' on Aurora — skipped",
+                "setting_name": name,
+                "status": "skipped",
+            }
+        ]
     instruction = (
-        f"Set {name} = '{desired}'\n"
-        f"    → RDS Console → Parameter Groups → your group → save → reboot instance"
+        f"Set {name} = '{desired}'\n    → RDS Console → Parameter Groups → your group → save → reboot instance"
     )
-    return [{"kind": "MANUAL_STEP", "description": f"[AWS Parameter Group] {name} = '{desired}'",
-             "setting_name": name, "manual_instruction": instruction, "status": "manual"}]
+    return [
+        {
+            "kind": "MANUAL_STEP",
+            "description": f"[AWS Parameter Group] {name} = '{desired}'",
+            "setting_name": name,
+            "manual_instruction": instruction,
+            "status": "manual",
+        }
+    ]
 
 
 def _plan_cloud_sql_setting(name, desired, current):
     if name == "shared_preload_libraries":
-        return [{"kind": "SKIP", "description": "shared_preload_libraries — pre-loaded on Cloud SQL",
-                 "setting_name": name, "status": "skipped"}]
+        return [
+            {
+                "kind": "SKIP",
+                "description": "shared_preload_libraries — pre-loaded on Cloud SQL",
+                "setting_name": name,
+                "status": "skipped",
+            }
+        ]
     if current == desired:
-        return [{"kind": "SKIP", "description": f"{name} = {desired} — already set",
-                 "setting_name": name, "status": "skipped"}]
+        return [
+            {
+                "kind": "SKIP",
+                "description": f"{name} = {desired} — already set",
+                "setting_name": name,
+                "status": "skipped",
+            }
+        ]
     instruction = (
         f"Set {name} = '{desired}'\n"
         f"    → Cloud SQL Console → your instance → Edit → Database flags → save → restart instance"
     )
-    return [{"kind": "MANUAL_STEP", "description": f"[Cloud SQL Database Flag] {name} = '{desired}'",
-             "setting_name": name, "manual_instruction": instruction, "status": "manual"}]
+    return [
+        {
+            "kind": "MANUAL_STEP",
+            "description": f"[Cloud SQL Database Flag] {name} = '{desired}'",
+            "setting_name": name,
+            "manual_instruction": instruction,
+            "status": "manual",
+        }
+    ]
 
 
 def _plan_azure_setting(name, desired, current):
     if name == "shared_preload_libraries" and desired in current.split(","):
-        return [{"kind": "SKIP", "description": f"shared_preload_libraries already contains '{desired}' on Azure — skipped",
-                 "setting_name": name, "status": "skipped"}]
+        return [
+            {
+                "kind": "SKIP",
+                "description": f"shared_preload_libraries already contains '{desired}' on Azure — skipped",
+                "setting_name": name,
+                "status": "skipped",
+            }
+        ]
     if current == desired:
-        return [{"kind": "SKIP", "description": f"{name} = {desired} — already set",
-                 "setting_name": name, "status": "skipped"}]
+        return [
+            {
+                "kind": "SKIP",
+                "description": f"{name} = {desired} — already set",
+                "setting_name": name,
+                "status": "skipped",
+            }
+        ]
     instruction = (
-        f"Set {name} = '{desired}'\n"
-        f"    → Azure Portal → your server → Server parameters → save → restart if required"
+        f"Set {name} = '{desired}'\n    → Azure Portal → your server → Server parameters → save → restart if required"
     )
-    return [{"kind": "MANUAL_STEP", "description": f"[Azure Server Parameters] {name} = '{desired}'",
-             "setting_name": name, "manual_instruction": instruction, "status": "manual"}]
+    return [
+        {
+            "kind": "MANUAL_STEP",
+            "description": f"[Azure Server Parameters] {name} = '{desired}'",
+            "setting_name": name,
+            "manual_instruction": instruction,
+            "status": "manual",
+        }
+    ]
 
 
 def _plan_per_db_ops(config, db):
     user = config["datadog_user"]
     return [
-        {"kind": "SQL", "description": "CREATE EXTENSION IF NOT EXISTS pg_stat_statements",
-         "op_type": "create_extension", "database": db},
-        {"kind": "SQL", "description": "CREATE SCHEMA IF NOT EXISTS datadog",
-         "op_type": "create_schema", "database": db},
-        {"kind": "SQL", "description": f"GRANT USAGE ON SCHEMA datadog TO {user!r}",
-         "op_type": "grant_schema_usage", "args": [user], "database": db},
-        {"kind": "SQL", "description": "CREATE OR REPLACE FUNCTION datadog.pg_stat_activity()",
-         "op_type": "func_pg_stat_activity", "database": db},
-        {"kind": "SQL", "description": "CREATE OR REPLACE FUNCTION datadog.pg_stat_statements()",
-         "op_type": "func_pg_stat_statements", "database": db},
-        {"kind": "SQL", "description": "CREATE OR REPLACE FUNCTION datadog.explain_statement()",
-         "op_type": "func_explain_statement", "database": db},
+        {
+            "kind": "SQL",
+            "description": "CREATE EXTENSION IF NOT EXISTS pg_stat_statements",
+            "op_type": "create_extension",
+            "database": db,
+        },
+        {
+            "kind": "SQL",
+            "description": "CREATE SCHEMA IF NOT EXISTS datadog",
+            "op_type": "create_schema",
+            "database": db,
+        },
+        {
+            "kind": "SQL",
+            "description": f"GRANT USAGE ON SCHEMA datadog TO {user!r}",
+            "op_type": "grant_schema_usage",
+            "args": [user],
+            "database": db,
+        },
+        {
+            "kind": "SQL",
+            "description": "CREATE OR REPLACE FUNCTION datadog.pg_stat_activity()",
+            "op_type": "func_pg_stat_activity",
+            "database": db,
+        },
+        {
+            "kind": "SQL",
+            "description": "CREATE OR REPLACE FUNCTION datadog.pg_stat_statements()",
+            "op_type": "func_pg_stat_statements",
+            "database": db,
+        },
+        {
+            "kind": "SQL",
+            "description": "CREATE OR REPLACE FUNCTION datadog.explain_statement()",
+            "op_type": "func_explain_statement",
+            "database": db,
+        },
     ]
 
 
 # ---------------------------------------------------------------------------
 # Apply
 # ---------------------------------------------------------------------------
+
 
 def _execute_op(cur, op):
     """Execute a single operation using psycopg2 with safe identifier handling."""
@@ -394,9 +539,7 @@ def _execute_op(cur, op):
     elif op_type == "create_schema":
         cur.execute("CREATE SCHEMA IF NOT EXISTS datadog")
     elif op_type == "grant_schema_usage":
-        cur.execute(
-            sql.SQL("GRANT USAGE ON SCHEMA datadog TO {}").format(sql.Identifier(args[0]))
-        )
+        cur.execute(sql.SQL("GRANT USAGE ON SCHEMA datadog TO {}").format(sql.Identifier(args[0])))
     elif op_type == "func_pg_stat_activity":
         cur.execute(_SQL_FUNC_PG_STAT_ACTIVITY)
     elif op_type == "func_pg_stat_statements":
@@ -467,9 +610,8 @@ def _apply(ops, uri, state, optional_restart_pending=None):
 
 def _build_result(ops, state, failed, optional_restart_pending=None):
     manual_steps = any(op["kind"] == "MANUAL_STEP" for op in ops)
-    restart_needed = (
-        any(op.get("requires_restart") and op.get("status") == "completed" for op in ops)
-        or bool(state.get("pending_restart"))
+    restart_needed = any(op.get("requires_restart") and op.get("status") == "completed" for op in ops) or bool(
+        state.get("pending_restart")
     )
     if failed:
         outcome = "failure"
@@ -512,6 +654,7 @@ def _dry_run_result(ops, state, optional_restart_pending=None):
 # Entry point
 # ---------------------------------------------------------------------------
 
+
 def main():
     raw = sys.stdin.read()
     args = json.loads(raw)
@@ -529,8 +672,7 @@ def main():
 
         if not state["user_exists"] and not config.get("datadog_password"):
             raise RuntimeError(
-                f"--datadog-password is required when creating user "
-                f"{config['datadog_user']!r} for the first time"
+                f"--datadog-password is required when creating user {config['datadog_user']!r} for the first time"
             )
 
         ops, optional_restart_pending = _plan(state, config)
