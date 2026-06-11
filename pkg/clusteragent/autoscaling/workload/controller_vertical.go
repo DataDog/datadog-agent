@@ -44,7 +44,6 @@ const (
 	minDelayBetweenRollouts = 10 * time.Minute
 	// inplaceResizeRequeueDelay is the delay between in-place resize progress checks
 	inplaceResizeRequeueDelay = 30 * time.Second
-
 )
 
 // verticalController is responsible for updating targetRef objects with the vertical recommendations
