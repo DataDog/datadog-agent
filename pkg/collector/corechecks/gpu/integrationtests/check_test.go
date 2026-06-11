@@ -13,6 +13,7 @@ import (
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/suite"
 	"go.uber.org/mock/gomock"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -28,40 +29,17 @@ import (
 	gpuutil "github.com/DataDog/datadog-agent/pkg/util/gpu"
 )
 
-// TestNVMLDeviceEnumeration tests that NVML can enumerate GPU devices on the current system.
-// This validates the check's ability to discover and interact with GPUs.
-func TestNVMLDeviceEnumeration(t *testing.T) {
-	testutil.RequireGPU(t)
-
-	lib, err := safenvml.GetSafeNvmlLib()
-	require.NoError(t, err, "NVML library should be available")
-	require.NotNil(t, lib, "NVML library should not be nil")
-
-	deviceCount, err := lib.DeviceGetCount()
-	require.NoError(t, err, "Should be able to get device count")
-	require.Greater(t, deviceCount, 0, "Should have at least one GPU")
-
-	for i := 0; i < deviceCount; i++ {
-		device, err := lib.DeviceGetHandleByIndex(i)
-		require.NoError(t, err, "Should be able to get device handle for index %d", i)
-		require.NotNil(t, device, "Device handle should not be nil")
-
-		name, err := device.GetName()
-		require.NoError(t, err, "Should be able to get device name")
-		t.Logf("GPU %d: %s", i, name)
-
-		uuid, err := device.GetUUID()
-		require.NoError(t, err, "Should be able to get device UUID")
-		t.Logf("GPU %d UUID: %s", i, uuid)
-	}
+type CheckTestSuite struct {
+	suite.Suite
+	devices []safenvml.Device
+	metrics map[string]map[string][]gpuspec.MetricObservation
 }
 
-func TestCheckRunMatchesSpecForPhysicalDevices(t *testing.T) {
+func (suite *CheckTestSuite) SetupTest() {
+	t := suite.T()
+
 	testutil.RequireGPU(t)
 	env.SetFeatures(t, env.KubernetesDevicePlugins, env.NVML)
-
-	specs, err := gpuspec.LoadSpecs()
-	require.NoError(t, err)
 
 	lib, err := safenvml.GetSafeNvmlLib()
 	require.NoError(t, err)
@@ -72,6 +50,7 @@ func TestCheckRunMatchesSpecForPhysicalDevices(t *testing.T) {
 	devices, err := cache.AllPhysicalDevices()
 	require.NoError(t, err)
 	require.NotEmpty(t, devices)
+	suite.devices = devices
 
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	wmetaMock := testutil.GetWorkloadMetaMock(t)
@@ -129,8 +108,16 @@ func TestCheckRunMatchesSpecForPhysicalDevices(t *testing.T) {
 			metricsByUUID[deviceUUID][metricName] = append(metricsByUUID[deviceUUID][metricName], sample)
 		}
 	}
+	suite.metrics = metricsByUUID
+}
 
-	for _, device := range devices {
+func (suite *CheckTestSuite) TestCheckRunMatchesSpecForPhysicalDevices() {
+	t := suite.T()
+
+	specs, err := gpuspec.LoadSpecs()
+	require.NoError(t, err)
+
+	for _, device := range suite.devices {
 		deviceInfo := device.GetDeviceInfo()
 		deviceUUID := strings.ToLower(deviceInfo.UUID)
 		archName := gpuutil.ArchToString(deviceInfo.Architecture)
@@ -143,7 +130,7 @@ func TestCheckRunMatchesSpecForPhysicalDevices(t *testing.T) {
 		require.True(t, ok, "architecture %s missing from architectures spec", archName)
 		require.True(t, gpuspec.IsModeSupportedByArchitecture(archSpec, gpuspec.DeviceModePhysical), "physical mode should be supported for architecture %s", archName)
 
-		deviceMetrics := metricsByUUID[deviceUUID]
+		deviceMetrics := suite.metrics[deviceUUID]
 		require.NotEmpty(t, deviceMetrics, "expected emitted metrics for GPU %s", deviceUUID)
 
 		capabilities := archSpec.EffectiveCapabilities(gpuspec.DeviceModePhysical)
@@ -161,6 +148,10 @@ func TestCheckRunMatchesSpecForPhysicalDevices(t *testing.T) {
 			gpu.ValidateEmittedMetricsAgainstSpec(t, specs, gpuConfig, deviceMetrics, nil, validationOptions)
 		})
 	}
+}
+
+func TestCheckTestSuite(t *testing.T) {
+	suite.Run(t, new(CheckTestSuite))
 }
 
 func linkCount(t *testing.T, device safenvml.Device, name string, countFunc func(safenvml.Device) (int, error)) int {
