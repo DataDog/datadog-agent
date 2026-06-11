@@ -213,7 +213,10 @@ func cleanTarPath(filePath string) string {
 }
 
 func readLimitedFileContent(r io.Reader, limit int) ([]byte, bool, error) {
-	// Read one byte past the limit so files exactly at the limit are not marked truncated.
+	// Read one byte past the returned content limit so we can tell callers whether the
+	// file was truncated or not. Reading only limit bytes does not allow us to distinguish
+	// a file exactly at the limit from a larger file, since the limited reader returns EOF
+	// in both cases.
 	content, err := io.ReadAll(io.LimitReader(r, int64(limit)+1))
 	if err != nil {
 		return nil, false, err
