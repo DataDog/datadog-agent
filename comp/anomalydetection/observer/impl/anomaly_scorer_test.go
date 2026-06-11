@@ -541,7 +541,7 @@ func (l *collectingListener) OnSeverityTransition(e observer.SeverityEvent) {
 // the EWMA crosses the Low threshold.
 func TestSubscribeBasic(t *testing.T) {
 	cfg := DefaultScorerConfig()
-	cfg.Alpha = 1.0 // EWMA = input (instant)
+	cfg.Alpha = 0.99 // near-instant EWMA (1.0 is rejected as invalid by NewScorer)
 	cfg.SaturationK = 1.0
 	cfg.WindowSecs = 5
 	s := NewScorer(cfg)
@@ -575,7 +575,7 @@ func TestSubscribeBasic(t *testing.T) {
 // TestSubscribeCooldown verifies that de-escalation is blocked during cooldown.
 func TestSubscribeCooldown(t *testing.T) {
 	cfg := DefaultScorerConfig()
-	cfg.Alpha = 1.0
+	cfg.Alpha = 0.99
 	cfg.SaturationK = 1.0
 	cfg.WindowSecs = 1 // short window so anomaly expires quickly
 	s := NewScorer(cfg)
@@ -593,7 +593,7 @@ func TestSubscribeCooldown(t *testing.T) {
 	s.ProcessAnomaly(makeAnomaly("bocpd", 1001, nil))
 	s.Advance(1001) // EWMA≈0.632 → High
 
-	// Advance with no anomalies: EWMA decays to 0 immediately (alpha=1).
+	// Advance with no anomalies: EWMA decays near 0 quickly (alpha=0.99).
 	// Cooldown=60 should block de-escalation for 60 seconds after the escalation.
 	s.Advance(1002) // EWMA=0 → raw Low, but cooldown blocks it
 
@@ -628,7 +628,7 @@ func TestSubscribeCooldown(t *testing.T) {
 // TestSubscribeFilter verifies that events not matching the filter are not delivered.
 func TestSubscribeFilter(t *testing.T) {
 	cfg := DefaultScorerConfig()
-	cfg.Alpha = 1.0
+	cfg.Alpha = 0.99
 	cfg.SaturationK = 1.0
 	cfg.WindowSecs = 1
 	s := NewScorer(cfg)
@@ -669,7 +669,7 @@ func TestSubscribeNilPanics(t *testing.T) {
 // TestUnsubscribe verifies that the returned unsubscribe function stops delivery.
 func TestUnsubscribe(t *testing.T) {
 	cfg := DefaultScorerConfig()
-	cfg.Alpha = 1.0
+	cfg.Alpha = 0.99
 	cfg.SaturationK = 1.0
 	cfg.WindowSecs = 1
 	s := NewScorer(cfg)
@@ -694,7 +694,7 @@ func TestUnsubscribe(t *testing.T) {
 // subscription's state machine so no stale state carries over into a replay run.
 func TestResetClearsSubscriptionState(t *testing.T) {
 	cfg := DefaultScorerConfig()
-	cfg.Alpha = 1.0
+	cfg.Alpha = 0.99
 	cfg.SaturationK = 1.0
 	cfg.WindowSecs = 1
 	s := NewScorer(cfg)

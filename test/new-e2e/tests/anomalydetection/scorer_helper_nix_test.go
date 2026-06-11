@@ -21,7 +21,7 @@ package anomalydetection
 //
 //   - Instead we check for the helper's explicit log line — a binary signal that
 //     OnSeverityTransition fired — which is robust and consistent with the rest of
-//     this test suite (observerReportMarker, observerReadyMarker).
+//     this test suite (scorerHelperEscalationMarker, scorerHelperRegisteredMarker).
 //
 //   - CUSUM is used (consistent with TestAnomalyDetectionMetricsTriggered): it fires
 //     deterministically after 5 baseline points and re-emits on every analysis cycle
