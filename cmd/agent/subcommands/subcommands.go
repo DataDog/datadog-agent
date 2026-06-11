@@ -10,7 +10,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	cmdanalyzelogs "github.com/DataDog/datadog-agent/cmd/agent/subcommands/analyzelogs"
 	cmdcheck "github.com/DataDog/datadog-agent/cmd/agent/subcommands/check"
-	cmddb "github.com/DataDog/datadog-agent/cmd/agent/subcommands/db"
 	cmdconfig "github.com/DataDog/datadog-agent/cmd/agent/subcommands/config"
 	cmdconfigcheck "github.com/DataDog/datadog-agent/cmd/agent/subcommands/configcheck"
 	cmdcontrolsvc "github.com/DataDog/datadog-agent/cmd/agent/subcommands/controlsvc"
@@ -52,7 +51,6 @@ import (
 func AgentSubcommands() []command.SubcommandFactory {
 	return []command.SubcommandFactory{
 		cmdcheck.Commands,
-		cmddb.Commands,
 		cmdconfigcheck.Commands,
 		cmdconfig.Commands,
 		cmdexperimental.Commands,

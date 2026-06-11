@@ -19,7 +19,7 @@ func RenderText(w io.Writer, result *SetupResult) {
 		fmt.Fprintln(w, "RESTART REQUIRED")
 		fmt.Fprintln(w, "The following settings won't take effect until PostgreSQL is restarted:")
 		for _, op := range result.Operations {
-			if op.RequiresRestart && op.Status != StatusSkipped {
+			if op.RequiresRestart && op.Status == StatusCompleted {
 				fmt.Fprintf(w, "  * %s\n", op.SettingName)
 			}
 		}
@@ -47,8 +47,8 @@ func RenderText(w io.Writer, result *SetupResult) {
 			detail = fmt.Sprintf("[%s] %s", op.Database, op.Description)
 		}
 		fmt.Fprintf(w, "  %s %s\n", prefix, detail)
-		if op.Status == StatusFailed && op.Error != nil {
-			fmt.Fprintf(w, "       error: %v\n", op.Error)
+		if op.Status == StatusFailed && op.Error != "" {
+			fmt.Fprintf(w, "       error: %s\n", op.Error)
 		}
 	}
 
@@ -73,8 +73,18 @@ func statusPrefix(s OperationStatus) string {
 	}
 }
 
-// jsonOperation is the JSON-serialisable form of an Operation.
-type jsonOperation struct {
+// jsonResult is the JSON-serialisable form of SetupResult for --output json.
+type jsonResult struct {
+	Flavor         string     `json:"flavor"`
+	PGVersion      int        `json:"pg_version"`
+	RestartNeeded  bool       `json:"restart_needed"`
+	ManualSteps    bool       `json:"manual_steps"`
+	Outcome        string     `json:"outcome"`
+	Operations     []jsonOp   `json:"operations"`
+	ManualStepList []string   `json:"manual_step_list,omitempty"`
+}
+
+type jsonOp struct {
 	Kind        string `json:"kind"`
 	Description string `json:"description"`
 	Database    string `json:"database,omitempty"`
@@ -82,38 +92,23 @@ type jsonOperation struct {
 	Error       string `json:"error,omitempty"`
 }
 
-// jsonResult is the JSON-serialisable form of SetupResult.
-type jsonResult struct {
-	Flavor        string          `json:"flavor"`
-	PGVersion     int             `json:"pg_version"`
-	RestartNeeded bool            `json:"restart_needed"`
-	ManualSteps   bool            `json:"manual_steps"`
-	Outcome       string          `json:"outcome"`
-	Operations    []jsonOperation `json:"operations"`
-	ManualStepList []string       `json:"manual_step_list,omitempty"`
-}
-
 // RenderJSON writes JSON output for a setup result to w.
 func RenderJSON(w io.Writer, result *SetupResult) error {
-	ops := make([]jsonOperation, 0, len(result.Operations))
+	ops := make([]jsonOp, 0, len(result.Operations))
 	var manualList []string
 	for _, op := range result.Operations {
 		if op.Kind == KindManualStep {
 			manualList = append(manualList, op.ManualInstruction)
 			continue
 		}
-		jo := jsonOperation{
+		ops = append(ops, jsonOp{
 			Kind:        string(op.Kind),
 			Description: op.Description,
 			Database:    op.Database,
 			Status:      string(op.Status),
-		}
-		if op.Error != nil {
-			jo.Error = op.Error.Error()
-		}
-		ops = append(ops, jo)
+			Error:       op.Error,
+		})
 	}
-
 	jr := jsonResult{
 		Flavor:         string(result.Flavor),
 		PGVersion:      result.PGVersion,
@@ -123,7 +118,6 @@ func RenderJSON(w io.Writer, result *SetupResult) error {
 		Operations:     ops,
 		ManualStepList: manualList,
 	}
-
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
 	return enc.Encode(jr)
