@@ -510,7 +510,6 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/sbom/collectors/procfs
 # gazelle:exclude pkg/sbom/scanner
 # gazelle:exclude pkg/security/clihelpers
-# gazelle:exclude pkg/security/config
 # gazelle:exclude pkg/security/ebpf/tests
 # gazelle:exclude pkg/security/events
 # gazelle:exclude pkg/security/generators/backend_doc
