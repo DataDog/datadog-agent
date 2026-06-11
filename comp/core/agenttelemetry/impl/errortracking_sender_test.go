@@ -10,10 +10,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -465,6 +467,91 @@ func TestFlushErrortracking_ShutdownCtxIsLive(t *testing.T) {
 		"shutdown-drain ctx must NOT be canceled at dispatch time")
 	assert.True(t, sm.ctxDeadlineOn[0],
 		"shutdown-drain ctx must carry the bounded timeout deadline")
+}
+
+// =============================================================================
+// Handler → atel integration tests
+// =============================================================================
+
+// TestHandlerIntegration_SingleRecord wires a real errortracking.Handler +
+// Bouncer directly to atel.SubmitErrorLog and verifies that a single slog
+// record at Error level flows end-to-end through to the mock sender.
+//
+// This covers the seam between the handler package and the atel component
+// that the per-layer unit tests exercise in isolation: handler_test.go uses
+// a recording stub as the Submitter, and errortracking_sender_test.go calls
+// SubmitErrorLog directly. This test validates both sides connected together.
+func TestHandlerIntegration_SingleRecord(t *testing.T) {
+	sm := &senderMock{}
+	a := newTestAtelMinimal(t, sm, 16)
+	defer a.cancel()
+
+	bouncer := errortracking.NewBouncer(24*time.Hour, 0)
+	sub := errortracking.Submitter(a.SubmitErrorLog)
+	var slot atomic.Pointer[errortracking.Submitter]
+	slot.Store(&sub)
+	loader := func() errortracking.Submitter {
+		p := slot.Load()
+		if p == nil {
+			return nil
+		}
+		return *p
+	}
+	h := errortracking.NewHandler(loader).
+		WithBouncerLoader(func() *errortracking.Bouncer { return bouncer })
+
+	r := slog.NewRecord(time.Now(), slog.LevelError, "integration test error", 0)
+	require.NoError(t, h.Handle(context.Background(), r))
+
+	a.flushErrortracking(context.Background())
+
+	logs := sm.capturedLogs()
+	require.Len(t, logs, 1, "single Handle call must produce exactly one flushed record")
+	require.Equal(t, 1, sm.sendLogsCalls(), "flush must issue a single sendLogsBatch call")
+
+	got := logs[0]
+	assert.Equal(t, LogLevelError, got.Level)
+	assert.False(t, got.IsCrash)
+	assert.Equal(t, 1, got.Count)
+	assert.NotEmpty(t, got.StackTrace, "handler must capture PCs and produce a non-empty stack_trace")
+	assert.Contains(t, got.Tags, "git.repository_url:DataDog/datadog-agent")
+	assert.Empty(t, got.Message, "message must NOT be on the wire")
+	assert.Empty(t, got.TraceID, "trace_id must NOT be on the wire")
+	assert.Empty(t, got.SpanID, "span_id must NOT be on the wire")
+}
+
+// TestSubmitErrorLog_ConcurrentSubmitters verifies that concurrent calls to
+// SubmitErrorLog from multiple goroutines are race-clean and that a subsequent
+// flush collects all records into a single sendLogsBatch call.
+//
+// Records are submitted directly (bypassing the handler) with distinct PC
+// values so the Bouncer does not deduplicate them. Run with -race to validate
+// the non-blocking select path under concurrent access.
+func TestSubmitErrorLog_ConcurrentSubmitters(t *testing.T) {
+	const N = 32
+	sm := &senderMock{}
+	a := newTestAtelMinimal(t, sm, N*2) // buffer large enough to hold all records
+	defer a.cancel()
+
+	var wg sync.WaitGroup
+	wg.Add(N)
+	for i := 0; i < N; i++ {
+		go func(i int) {
+			defer wg.Done()
+			a.SubmitErrorLog(errortracking.ErrorLog{
+				Time:   time.Now(),
+				PC:     uintptr(i + 1),
+				PCsLen: 0,
+				Count:  1,
+			})
+		}(i)
+	}
+	wg.Wait()
+
+	a.flushErrortracking(context.Background())
+
+	require.Equal(t, 1, sm.sendLogsCalls(), "all concurrent records must be batched into a single sendLogsBatch call")
+	require.Len(t, sm.capturedLogs(), N, "every submitted record must be present in the flush batch")
 }
 
 // BenchmarkSymbolizeStack measures the sender-side cost of walking the
