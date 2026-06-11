@@ -106,7 +106,7 @@ func (b *Builder) BuildStatus(verbose bool) Status {
 		ComponentUtilization:  utils,
 		Backpressure:          bp,
 		PerformanceProfile:    profile,
-		ProfileRecommendation: b.getProfileRecommendation(bp, activeProfile),
+		ProfileRecommendation: b.getProfileRecommendation(utils, bp, activeProfile, b.senderLatencyMs()),
 		BackpressureTable:     b.formatBackpressureSection(utils, bp),
 	}
 }
@@ -243,46 +243,99 @@ func (b *Builder) getBackpressureStatus(utils []ComponentUtilization) Backpressu
 	return BackpressureStatus{State: "HEALTHY"}
 }
 
-// recommendedProfileForSaturation is the profile name suggested when the logs
-// pipeline is saturated. Saturation means the agent needs more capacity, and
-// high-throughput is the catalog profile that scales pipelines, send
-// concurrency, and buffers up. low-latency/low-resource would not relieve
-// saturation, so any saturated stage maps here today. As the catalog grows this
-// is the single place to refine the per-stage mapping.
-const recommendedProfileForSaturation = "high-throughput"
+// Profiles recommended for specific bottleneck classes. These names must exist
+// in the pkg/config/setup catalog (guarded by a unit test).
+const (
+	profileHighThroughput  = "high-throughput"
+	profileHighConcurrency = "high-concurrency"
+)
 
-// saturatedStageLabel returns a human-readable description of the pipeline stage
-// a component belongs to, for use in recommendation rationale.
-func saturatedStageLabel(component string) string {
+// senderLatencyHighThresholdMs is the round-trip latency to the logs intake (ms)
+// above which a send/transport bottleneck is treated as latency-bound. At that
+// point more concurrent in-flight sends (the high-concurrency profile) is the
+// targeted remedy, since throughput ~= concurrency / latency. Heuristic; tunable.
+const senderLatencyHighThresholdMs = 250
+
+// senderLatencyMs returns the most recent HTTP sender latency to the intake in
+// milliseconds, or 0 when unavailable.
+func (b *Builder) senderLatencyMs() int64 {
+	if b.logsExpVars == nil {
+		return 0
+	}
+	if v, ok := b.logsExpVars.Get("SenderLatency").(*expvar.Int); ok && v != nil {
+		return v.Value()
+	}
+	return 0
+}
+
+// mostDownstreamSaturated returns the name of the most-downstream component for
+// which sat() is true, or "" if none. Most-downstream wins because backpressure
+// propagates upstream: when a stage stalls, every stage above it also fills, so
+// the deepest saturated stage is the true bottleneck and the rest are just
+// propagation victims.
+func mostDownstreamSaturated(utils []ComponentUtilization, sat func(ComponentUtilization) bool) string {
+	best := ""
+	bestRank := -1
+	for _, u := range utils {
+		if !sat(u) {
+			continue
+		}
+		if r := componentRank(u.Name); r > bestRank {
+			bestRank = r
+			best = u.Name
+		}
+	}
+	return best
+}
+
+// recommendProfileForBottleneck maps the bottleneck component to a recommended
+// profile and a rationale. Upstream stages (processor, strategy) saturating
+// while downstream keeps up is CPU-bound work — adding pipelines parallelizes
+// it. A downstream (worker/destination) bottleneck is network/intake-bound —
+// more concurrent in-flight sends help, unless the intake itself is the ceiling.
+// recommendProfileForBottleneck returns the recommended profile and a one-line
+// diagnosis of where the pipeline is bottlenecked (the "Reason" in the status).
+func recommendProfileForBottleneck(component string, latencyMs int64) (profile string, reason string) {
 	switch {
 	case component == "processor":
-		return "processing stage"
+		return profileHighThroughput, "The logs pipeline is bottlenecked at the processor stage, which is CPU-bound."
 	case component == "strategy":
-		return "compression/batching stage"
+		return profileHighThroughput, "The logs pipeline is bottlenecked at the compression and batching stage, which is CPU-bound."
 	case component == "worker" || component == logsMetrics.SenderTlmName || strings.HasPrefix(component, "destination_"):
-		return "send/transport stage"
+		if latencyMs >= senderLatencyHighThresholdMs {
+			return profileHighConcurrency, fmt.Sprintf("The logs pipeline is bottlenecked at the network send stage, with high intake latency (%dms).", latencyMs)
+		}
+		return profileHighConcurrency, "The logs pipeline is bottlenecked at the network send stage."
 	default:
-		return "logs pipeline"
+		return profileHighThroughput, "The logs pipeline is saturated."
 	}
 }
 
 // getProfileRecommendation suggests a logs performance profile based on the
-// observed backpressure state. It returns nil when the pipeline is healthy or
-// when the profile it would recommend is already active.
-func (b *Builder) getProfileRecommendation(bp BackpressureStatus, activeProfile string) *ProfileRecommendation {
-	if bp.State != "SATURATED" && bp.State != "WARNING" {
+// observed bottleneck. It locates the most-downstream saturated stage and maps
+// it to a profile. Returns nil when the pipeline is healthy or when the profile
+// it would recommend is already active.
+func (b *Builder) getProfileRecommendation(utils []ComponentUtilization, bp BackpressureStatus, activeProfile string, latencyMs int64) *ProfileRecommendation {
+	var bottleneck string
+	switch bp.State {
+	case "SATURATED":
+		bottleneck = mostDownstreamSaturated(utils, func(u ComponentUtilization) bool { return u.CurrentlySaturated })
+	case "WARNING":
+		bottleneck = mostDownstreamSaturated(utils, func(u ComponentUtilization) bool {
+			return u.Saturated1mSeconds > 0 || u.Saturated30mSeconds > 0
+		})
+	default:
 		return nil
 	}
-	recommended := recommendedProfileForSaturation
-	if recommended == activeProfile {
-		// Already on the profile we'd suggest; no further profile would help.
+	if bottleneck == "" {
 		return nil
 	}
-	return &ProfileRecommendation{
-		Profile: recommended,
-		Reason: fmt.Sprintf("The %s is saturated. Consider the %q performance profile (set logs_config.profile: %s), which raises pipeline count, send concurrency, and buffer sizes.",
-			saturatedStageLabel(bp.Component), recommended, recommended),
+	recommended, reason := recommendProfileForBottleneck(bottleneck, latencyMs)
+	if recommended == "" || recommended == activeProfile {
+		// Already on the profile we'd suggest, or nothing to suggest.
+		return nil
 	}
+	return &ProfileRecommendation{Profile: recommended, Reason: reason}
 }
 
 // formatBackpressureSection renders the backpressure section as preformatted text (omitted from JSON).
@@ -529,6 +582,7 @@ func (b *Builder) getMetricsStatus() map[string]string {
 	metrics["RetryTimeSpent"] = time.Duration(b.logsExpVars.Get("RetryTimeSpent").(*expvar.Int).Value()).String()
 	metrics["EncodedBytesSent"] = strconv.FormatInt(b.logsExpVars.Get("EncodedBytesSent").(*expvar.Int).Value(), 10)
 	metrics["LogsTruncated"] = strconv.FormatInt(b.logsExpVars.Get("LogsTruncated").(*expvar.Int).Value(), 10)
+	metrics["SenderLatency"] = time.Duration(b.senderLatencyMs() * int64(time.Millisecond)).String()
 	return metrics
 }
 

@@ -67,8 +67,12 @@
     {{- if .ProfileRecommendation }}
       <span class="stat_subtitle">Recommended Performance Profile</span>
       <span class="stat_subdata">
-        <strong>Recommended profile:</strong> {{ .ProfileRecommendation.Profile }}<br>
         {{ .ProfileRecommendation.Reason }}<br>
+        Recommended profile: <strong>{{ .ProfileRecommendation.Profile }}</strong><br>
+        <br>
+        To apply, add the following to datadog.yaml and restart the Agent:<br>
+        <code>logs_config:</code><br>
+        <code>&nbsp;&nbsp;profile: {{ .ProfileRecommendation.Profile }}</code><br>
       </span>
     {{- end }}
     {{- if .Errors }}

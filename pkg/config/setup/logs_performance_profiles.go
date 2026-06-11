@@ -79,6 +79,35 @@ var logsPerformanceProfiles = map[string]map[int]logsPerformanceProfile{
 			},
 		},
 	},
+	// high-concurrency raises the number of in-flight HTTP sends and the payload
+	// buffer to absorb intake/network latency. Recommended when the send/transport
+	// stage is the bottleneck (downstream-saturated) rather than CPU.
+	"high-concurrency": {
+		1: {
+			description: "Maximize concurrent in-flight sends to absorb intake/network latency (send/transport bottleneck).",
+			settings: map[string]interface{}{
+				"logs_config.batch_max_concurrent_send": 20,
+				"logs_config.payload_channel_size":      40,
+				"logs_config.use_compression":           true,
+				"logs_config.compression_kind":          "zstd",
+			},
+		},
+	},
+	// high-compression trades CPU for fewer bytes on the wire: higher zstd level
+	// and larger payloads. For bandwidth-constrained environments. (User-selectable;
+	// not auto-recommended, since saturation alone can't distinguish bandwidth from
+	// latency limits.)
+	"high-compression": {
+		1: {
+			description: "Reduce network bytes at the cost of CPU (higher compression level, larger payloads).",
+			settings: map[string]interface{}{
+				"logs_config.use_compression":        true,
+				"logs_config.compression_kind":       "zstd",
+				"logs_config.zstd_compression_level": 6,
+				"logs_config.batch_max_content_size": 5000000,
+			},
+		},
+	},
 }
 
 // LogsPerformanceProfileSetting is a single config key/value that a profile
