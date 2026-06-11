@@ -36,6 +36,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/fentry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/sk"
@@ -73,11 +74,15 @@ type EbpfTracerTelemetryData struct {
 	protocolClassifierCalls                  *prometheus.Desc
 	protocolClassifierSkippedFullyClassified *prometheus.Desc
 	protocolClassifierSkippedMaxAttempts     *prometheus.Desc
-	ongoingConnectPidCleaned                 telemetryComponent.Counter
-	PidCollisions                            *telemetryComponent.StatCounterWrapper
-	iterationDups                            telemetryComponent.Counter
-	iterationAborts                          telemetryComponent.Counter
-	sslCertMissed                            telemetryComponent.Counter
+	// classificationAttemptHistogram is the single-run shadow-evaluation histogram of
+	// the attempt on which each connection's application-layer protocol was first
+	// observed resolved, labeled by protocol and attempt bucket. See the NTWK-684 plan doc.
+	classificationAttemptHistogram *prometheus.Desc
+	ongoingConnectPidCleaned       telemetryComponent.Counter
+	PidCollisions                  *telemetryComponent.StatCounterWrapper
+	iterationDups                  telemetryComponent.Counter
+	iterationAborts                telemetryComponent.Counter
+	sslCertMissed                  telemetryComponent.Counter
 
 	mu sync.Mutex
 
@@ -118,6 +123,7 @@ var EbpfTracerTelemetry = EbpfTracerTelemetryData{
 	prometheus.NewDesc(connTracerModuleName+"__protocol_classifier_calls", "Counter measuring the number of times protocol_classifier_entrypoint was called", nil, nil),
 	prometheus.NewDesc(connTracerModuleName+"__protocol_classifier_skipped_fully_classified", "Counter measuring the number of times protocol classification was skipped because connection was fully classified", nil, nil),
 	prometheus.NewDesc(connTracerModuleName+"__protocol_classifier_skipped_max_attempts", "Counter measuring the number of times protocol classification WOULD have been skipped because max attempts was exceeded (shadow evaluation: counted but not enforced; full classification still runs)", nil, nil),
+	prometheus.NewDesc(connTracerModuleName+"__classification_attempt_histogram", "Shadow-evaluation histogram: count of connections whose application-layer protocol was first observed resolved on a given classification attempt, by protocol. The 'attempts' label is bucketed; the top bucket (15) saturates (15 or more). Low-bucket calibration is approximate (lag-by-one detection + lazy per-flow state creation) so use for knee/relative analysis, not exact single-attempt counts.", []string{"protocol", "attempts"}, nil),
 	telemetryimpl.GetCompatComponent().NewCounter(connTracerModuleName, "ongoing_connect_pid_cleaned", []string{}, "Counter measuring the number of tcp_ongoing_connect_pid entries cleaned in userspace"),
 	telemetryComponent.NewStatCounterWrapper(telemetryimpl.GetCompatComponent(), connTracerModuleName, "pid_collisions", []string{}, "Counter measuring number of process collisions"),
 	telemetryimpl.GetCompatComponent().NewCounter(connTracerModuleName, "iteration_dups", []string{}, "Counter measuring the number of connections iterated more than once"),
@@ -788,6 +794,7 @@ func (t *ebpfTracer) Describe(ch chan<- *prometheus.Desc) {
 	ch <- EbpfTracerTelemetry.protocolClassifierCalls
 	ch <- EbpfTracerTelemetry.protocolClassifierSkippedFullyClassified
 	ch <- EbpfTracerTelemetry.protocolClassifierSkippedMaxAttempts
+	ch <- EbpfTracerTelemetry.classificationAttemptHistogram
 }
 
 // Collect returns the current state of all metrics of the collector
@@ -858,6 +865,30 @@ func (t *ebpfTracer) Collect(ch chan<- prometheus.Metric) {
 	delta = int64(ebpfTelemetry.Protocol_classifier_skipped_max_attempts) - EbpfTracerTelemetry.lastProtocolClassifierSkippedMaxAttempts
 	EbpfTracerTelemetry.lastProtocolClassifierSkippedMaxAttempts = int64(ebpfTelemetry.Protocol_classifier_skipped_max_attempts)
 	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.protocolClassifierSkippedMaxAttempts, prometheus.CounterValue, float64(delta))
+
+	// Shadow-evaluation: emit the per-protocol classification-attempt histogram. Each
+	// cell is the cumulative count of connections whose application-layer protocol was
+	// first observed resolved on a given attempt (the "attempts" label; the top bucket
+	// saturates, i.e. 15 means "15 or more"). Reported as absolute cumulative counts
+	// (not deltas), so no per-cell last-value state is needed.
+	for protoNum := 1; protoNum < len(ebpfTelemetry.Classification_attempt_histogram); protoNum++ {
+		protoName := protocols.Application(uint8(protoNum)).String()
+		if protoName == protocols.Unknown.String() || protoName == "Invalid" {
+			continue
+		}
+		for bucket, count := range ebpfTelemetry.Classification_attempt_histogram[protoNum] {
+			if count == 0 {
+				continue
+			}
+			ch <- prometheus.MustNewConstMetric(
+				EbpfTracerTelemetry.classificationAttemptHistogram,
+				prometheus.CounterValue,
+				float64(count),
+				protoName,
+				strconv.Itoa(bucket),
+			)
+		}
+	}
 
 	// Collect the TCP failure telemetry
 	for k, v := range t.getTCPFailureTelemetry() {
