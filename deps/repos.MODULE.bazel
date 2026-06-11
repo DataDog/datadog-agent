@@ -76,9 +76,8 @@ http_archive(
 # - bazel-contrib/rules_foreign_cc#1493: load CcSharedLibraryInfo from rules_cc (Bazel 9)
 # - bazel-contrib/rules_foreign_cc#1492: bump bazel_skylib_gazelle_plugin to 1.9.0 (Bazel 9)
 bazel_dep(name = "rules_foreign_cc", version = "0.15.1")
-git_override(
+archive_override(
     module_name = "rules_foreign_cc",
-    commit = "7e486222f4899ea22f6f7b689534fc8b9e54b575",
     patch_strip = 1,
     patches = [
         # https://github.com/bazel-contrib/rules_foreign_cc/pull/1452
@@ -90,7 +89,9 @@ git_override(
         # finding a general solution that could be properly upstreamed
         "//bazel/patches:rules_foreign_cc/0004-Pass-cc-flags-as-CPPFLAGS.patch",
     ],
-    remote = "https://github.com/bazel-contrib/rules_foreign_cc",
+    sha256 = "7bdc037346ba96222f53907893329efc0586aaf46703f87e6084e1770a967f41",
+    strip_prefix = "rules_foreign_cc-7e486222f4899ea22f6f7b689534fc8b9e54b575",
+    urls = ["https://github.com/bazel-contrib/rules_foreign_cc/archive/7e486222f4899ea22f6f7b689534fc8b9e54b575.tar.gz"],
 )
 
 register_toolchains(
@@ -110,13 +111,12 @@ http_archive(
     patch_strip = 1,
     patches = [
         "//deps/openssl:0001-Set-the-install-name-to-use-rpath-instead-of-absolut.patch",
-        "//deps/openssl:0002-OSSL_PARAM_BLD_push_octet_allow_NULL_buffer.patch",
     ],
-    sha256 = "deae7c80cba99c4b4f940ecadb3c3338b13cb77418409238e57d7f31f2a3b736",
-    strip_prefix = "openssl-3.5.6",
+    sha256 = "a8c0d28a529ca480f9f36cf5792e2cd21984552a3c8e4aa11a24aa31aeac98e8",
+    strip_prefix = "openssl-3.5.7",
     urls = [
-        "https://github.com/openssl/openssl/releases/download/openssl-3.5.6/openssl-3.5.6.tar.gz",
-        "https://www.openssl.org/source/openssl-3.5.6.tar.gz",
+        "https://github.com/openssl/openssl/releases/download/openssl-3.5.7/openssl-3.5.7.tar.gz",
+        "https://www.openssl.org/source/openssl-3.5.7.tar.gz",
     ],
 )
 

@@ -61,93 +61,93 @@ func assertAbandoned(t *testing.T, msgs []*message.Message, minCount int) {
 // ---------------------------------------------------------------------------
 
 func TestGoStackTrace_Pattern1_PlainPanic(t *testing.T) {
-	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize)
+	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize, true)
 	msgs := feedLines(agg, "panic: something went wrong\n\ngoroutine 1 [running]:\nmain.plainPanic(...)\n\t/path/main.go:81\nmain.main()\n\t/path/main.go:46 +0x5b4\n")
 	assertCombined(t, msgs)
 }
 
 func TestGoStackTrace_Pattern2_FatalErrorConcurrentMap(t *testing.T) {
-	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize)
+	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize, true)
 	msgs := feedLines(agg, "fatal error: concurrent map writes\n\ngoroutine 47 [running]:\ninternal/runtime/maps.fatal({0x1048bc2e5?, 0x0?})\n\t/opt/homebrew/Cellar/go/1.26.0/libexec/src/runtime/panic.go:1181 +0x20\nmain.concurrentMapFatal.func1(0x1c)\n\t/path/main.go:93 +0x60\ncreated by main.concurrentMapFatal in goroutine 1\n\t/path/main.go:90 +0x48\n")
 	assertCombined(t, msgs)
 }
 
 func TestGoStackTrace_Pattern3_PanicPlusSignal(t *testing.T) {
-	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize)
+	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize, true)
 	msgs := feedLines(agg, "panic: runtime error: invalid memory address or nil pointer dereference\n[signal SIGSEGV: segmentation violation code=0x2 addr=0x0 pc=0x10436ffd0]\n\ngoroutine 1 [running]:\nmain.nilDerefSignalPanic()\n\t/path/main.go:103 +0x20\nmain.main()\n\t/path/main.go:50 +0x3b4\n")
 	assertCombined(t, msgs)
 }
 
 func TestGoStackTrace_Pattern4_SIGSEGVRegisterDump(t *testing.T) {
-	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize)
+	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize, true)
 	input := "SIGSEGV: segmentation violation\nPC=0x192bf82f4 m=0 sigcode=2 addr=0x0\n\ngoroutine 0 gp=0x1021a3080 m=0 mp=0x1021a3880 [idle]:\nruntime.usleep(0x3)\n\t/opt/homebrew/Cellar/go/1.26.0/libexec/src/runtime/sys_darwin.go:274 +0x1c fp=0x16ddee040 sp=0x16ddee020 pc=0x10206f8ec\n\ngoroutine 1 gp=0x7df94bf261e0 m=nil [sleep]:\nruntime.gopark(0x10404bfa09498?, 0x1665?, 0xb?, 0x0?, 0x1?)\n\t/opt/homebrew/Cellar/go/1.26.0/libexec/src/runtime/proc.go:462 +0xbc fp=0x7df94bfabd50 sp=0x7df94bfabd30 pc=0x102082b2c\n\nr0\t0x332a97571dd8\nr1\t0x10291c6a8\nlr\t0x1028f0c2c\nsp\t0x16d586380\npc\t0x10291c6a8\nfault\t0x10291c6a8\n"
 	msgs := feedLines(agg, input)
 	assertCombined(t, msgs)
 }
 
 func TestGoStackTrace_Pattern5_SIGTRAPCgo(t *testing.T) {
-	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize)
+	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize, true)
 	input := "SIGTRAP: trace trap\nPC=0x10291c6a8 m=0 sigcode=0\nsignal arrived during cgo execution\n\ngoroutine 1 gp=0x332a974ec1e0 m=0 mp=0x102a0b880 [syscall]:\nruntime.cgocall(0x10291c6a8, 0x332a97571dd8)\n\t/opt/homebrew/Cellar/go/1.26.0/libexec/src/runtime/cgocall.go:167 +0x44 fp=0x332a97571da0 sp=0x332a97571d60 pc=0x1028e8dc4\n\nr0\t0x332a97571dd8\nr1\t0x10291c6a8\nsp\t0x16d586380\npc\t0x10291c6a8\nfault\t0x10291c6a8\n"
 	msgs := feedLines(agg, input)
 	assertCombined(t, msgs)
 }
 
 func TestGoStackTrace_Pattern6_PanicOnSystemStack(t *testing.T) {
-	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize)
+	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize, true)
 	input := "panic: panic on system stack\nfatal error: panic on system stack\n\nruntime stack:\nruntime.throw({0x104ebbfb2?, 0x104f980b0?})\n\t/opt/homebrew/Cellar/go/1.26.0/libexec/src/runtime/panic.go:1229 +0x38 fp=0x16afea2c0 sp=0x16afea290 pc=0x104e86a18\nruntime.systemstack(0x0)\n\t/opt/homebrew/Cellar/go/1.26.0/libexec/src/runtime/asm_arm64.s:399 +0x68 fp=0x16afea3a0 sp=0x16afea390 pc=0x104e8acb8\n\ngoroutine 1 gp=0x14d4aaf241e0 m=0 mp=0x104fa7880 [running]:\nruntime.systemstack_switch()\n\t/opt/homebrew/Cellar/go/1.26.0/libexec/src/runtime/asm_arm64.s:347 +0x8 fp=0x14d4aafa9dc0 sp=0x14d4aafa9db0 pc=0x104e8ac38\nmain.main()\n\t/path/main.go:56 +0x3e0 fp=0x14d4aafa9f30 sp=0x14d4aafa9de0 pc=0x104eb7b60\n"
 	msgs := feedLines(agg, input)
 	assertCombined(t, msgs)
 }
 
 func TestGoStackTrace_Pattern7_PanicHoldingLocks(t *testing.T) {
-	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize)
+	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize, true)
 	msgs := feedLines(agg, "panic: panic holding locks\n\ngoroutine 1 [running]:\nmain.panicHoldingLocks(...)\n\t/path/main.go:164\nmain.main()\n\t/path/main.go:58 +0x574\n")
 	assertCombined(t, msgs)
 }
 
 func TestGoStackTrace_Pattern8_MultiLinePanicValue(t *testing.T) {
-	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize)
+	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize, true)
 	input := "panic: first line of error\n\tsecond line of error\n\tthird line\n\ngoroutine 1 [running]:\nmain.multiLinePanicValue(...)\n\t/path/main.go:170\nmain.main()\n\t/path/main.go:60 +0x528\n"
 	msgs := feedLines(agg, input)
 	assertCombined(t, msgs)
 }
 
 func TestGoStackTrace_Pattern9_NestedPanicChain(t *testing.T) {
-	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize)
+	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize, true)
 	input := "panic: outer panic [recovered]\n\tpanic: inner panic\n\ngoroutine 1 [running]:\nmain.nestedPanicChain.func1()\n\t/path/main.go:178 +0x30\npanic({0x104fc70a0?, 0x104fe4090?})\n\t/opt/homebrew/Cellar/go/1.26.0/libexec/src/runtime/panic.go:860 +0x12c\nmain.nestedPanicChain()\n\t/path/main.go:180 +0x48\nmain.main()\n\t/path/main.go:62 +0x40c\n"
 	msgs := feedLines(agg, input)
 	assertCombined(t, msgs)
 }
 
 func TestGoStackTrace_Pattern11_StackOverflow(t *testing.T) {
-	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize)
+	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize, true)
 	input := "runtime: goroutine stack exceeds 1000000000-byte limit\nruntime: sp=0x54fa64e03a0 stack=[0x54fa64e0000, 0x54fc64e0000]\nfatal error: stack overflow\n\nruntime stack:\nruntime.throw({0x1049329bc?, 0x1048d40ac?})\n\t/opt/homebrew/Cellar/go/1.26.0/libexec/src/runtime/panic.go:1229 +0x38 fp=0x16b572250 sp=0x16b572220 pc=0x1048fea18\nruntime.newstack()\n\t/opt/homebrew/Cellar/go/1.26.0/libexec/src/runtime/stack.go:1178 +0x498 fp=0x16b572380 sp=0x16b572250 pc=0x1048e7718\nruntime.morestack()\n\t/opt/homebrew/Cellar/go/1.26.0/libexec/src/runtime/asm_arm64.s:507 +0x70 fp=0x16b572380 sp=0x16b572380 pc=0x104902dc0\n\ngoroutine 1 gp=0x54f863441e0 m=0 mp=0x104a1f880 [running]:\nmain.stackOverflow()\n\t/path/main.go:191 +0x30 fp=0x54fa64e03a0 sp=0x54fa64e03a0 pc=0x104930190\nmain.stackOverflow()\n\t/path/main.go:192 +0x1c fp=0x54fa64e03b0 sp=0x54fa64e03a0 pc=0x10493017c\n...33554244 frames elided...\nmain.stackOverflow()\n\t/path/main.go:192 +0x1c fp=0x54fc64dfde0 sp=0x54fc64dfdd0 pc=0x10493017c\nmain.main()\n\t/path/main.go:66 +0x444 fp=0x54fc64dff30 sp=0x54fc64dfde0 pc=0x10492fbc4\n"
 	msgs := feedLines(agg, input)
 	assertCombined(t, msgs)
 }
 
 func TestGoStackTrace_Pattern13_OutOfMemory(t *testing.T) {
-	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize)
+	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize, true)
 	input := "runtime: out of memory: cannot allocate 140737488355328-byte block (3833856 in use)\nfatal error: out of memory\n\ngoroutine 1 gp=0x70edbce0c1e0 m=0 mp=0x10243f880 [running]:\nruntime.throw({0x1023524f0?, 0x1022c44d8?})\n\t/opt/homebrew/Cellar/go/1.26.0/libexec/src/runtime/panic.go:1229 +0x38 fp=0x70edbce90cb0 sp=0x70edbce90c80 pc=0x10231ea18\nmain.outOfMemory()\n\t/path/main.go:231 +0x2c fp=0x70edbce90de0 sp=0x70edbce90db0 pc=0x10235047c\nmain.main()\n\t/path/main.go:70 +0x47c fp=0x70edbce90f30 sp=0x70edbce90de0 pc=0x10234fbfc\n"
 	msgs := feedLines(agg, input)
 	assertCombined(t, msgs)
 }
 
 func TestGoStackTrace_Pattern14_UnexpectedFault(t *testing.T) {
-	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize)
+	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize, true)
 	input := "unexpected fault address 0x10524c000\nfatal error: fault\n[signal SIGSEGV: segmentation violation code=0x2 addr=0x10524c000 pc=0x104f24518]\n\ngoroutine 1 gp=0x6cb7e7e581e0 m=0 mp=0x105013880 [running]:\nruntime.throw({0x104f2532f?, 0x104f24514?})\n\t/opt/homebrew/Cellar/go/1.26.0/libexec/src/runtime/panic.go:1229 +0x38 fp=0x6cb7e7ed8d20 sp=0x6cb7e7ed8cf0 pc=0x104ef2a18\nmain.unexpectedFault()\n\t/path/main.go:258 +0x78 fp=0x6cb7e7ed8de0 sp=0x6cb7e7ed8d90 pc=0x104f24518\nmain.main()\n\t/path/main.go:72 +0x474 fp=0x6cb7e7ed8f30 sp=0x6cb7e7ed8de0 pc=0x104f23bf4\n"
 	msgs := feedLines(agg, input)
 	assertCombined(t, msgs)
 }
 
 func TestGoStackTrace_PartialCrash_HeaderPlusGoroutineHeader(t *testing.T) {
-	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize)
+	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize, true)
 	msgs := feedLines(agg, "panic: something went wrong\n\ngoroutine 1 [running]:\n")
 	assertCombined(t, msgs)
 }
 
 func TestGoStackTrace_NoTrailingNewline(t *testing.T) {
-	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize)
+	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize, true)
 	msgs := feedLines(agg, "panic: bad\n\ngoroutine 1 [running]:\nmain.main()\n\t/path/main.go:1 +0x1")
 	assertCombined(t, msgs)
 }
@@ -157,13 +157,13 @@ func TestGoStackTrace_NoTrailingNewline(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestGoStackTrace_EmptyInput(t *testing.T) {
-	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize)
+	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize, true)
 	msgs := feedLines(agg, "")
 	assert.Empty(t, msgs)
 }
 
 func TestGoStackTrace_BlankLinesOnly(t *testing.T) {
-	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize)
+	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize, true)
 	msgs := feedLines(agg, "\n\n\n")
 	for _, m := range msgs {
 		assert.False(t, m.ParsingExtra.IsMultiLine)
@@ -171,31 +171,31 @@ func TestGoStackTrace_BlankLinesOnly(t *testing.T) {
 }
 
 func TestGoStackTrace_RandomGarbage(t *testing.T) {
-	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize)
+	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize, true)
 	msgs := feedLines(agg, "hello world\nfoo bar\n")
 	assertAbandoned(t, msgs, 2)
 }
 
 func TestGoStackTrace_LogLineWithTimestamp(t *testing.T) {
-	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize)
+	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize, true)
 	msgs := feedLines(agg, "2024-01-01T00:00:00Z INFO starting server\n")
 	assertAbandoned(t, msgs, 1)
 }
 
 func TestGoStackTrace_HeaderOnly_NoStacks(t *testing.T) {
-	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize)
+	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize, true)
 	msgs := feedLines(agg, "panic: something went wrong\n")
 	assertAbandoned(t, msgs, 1)
 }
 
 func TestGoStackTrace_HeaderPlusBlank_NoChunk(t *testing.T) {
-	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize)
+	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize, true)
 	msgs := feedLines(agg, "panic: something went wrong\n\n")
 	assertAbandoned(t, msgs, 1)
 }
 
 func TestGoStackTrace_HeaderWithGarbageContinuation(t *testing.T) {
-	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize)
+	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize, true)
 	msgs := feedLines(agg, "panic: something went wrong\nTHIS IS NOT A VALID CONTINUATION\n\ngoroutine 1 [running]:\nmain.main()\n\t/path/main.go:46 +0x5b4\n")
 	for _, m := range msgs {
 		assert.False(t, m.ParsingExtra.IsMultiLine)
@@ -203,7 +203,7 @@ func TestGoStackTrace_HeaderWithGarbageContinuation(t *testing.T) {
 }
 
 func TestGoStackTrace_ValidHeaderGarbageAfterFirstChunk(t *testing.T) {
-	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize)
+	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize, true)
 	input := "panic: something went wrong\n\ngoroutine 1 [running]:\nmain.main()\n\t/path/main.go:46 +0x5b4\n\nTHIS IS GARBAGE\n"
 	msgs := feedLines(agg, input)
 	// The aggregator should combine the valid part and emit the garbage line separately.
@@ -219,7 +219,7 @@ func TestGoStackTrace_ValidHeaderGarbageAfterFirstChunk(t *testing.T) {
 }
 
 func TestGoStackTrace_GarbageInsideGoroutineChunk(t *testing.T) {
-	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize)
+	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize, true)
 	input := "panic: something went wrong\n\ngoroutine 1 [running]:\nmain.main()\n12345 this is not a valid stack line\n\t/path/main.go:46 +0x5b4\n"
 	msgs := feedLines(agg, input)
 	// The garbage line rejects the chunk. chunkCount is 1 at this point (goroutine header counted),
@@ -230,13 +230,13 @@ func TestGoStackTrace_GarbageInsideGoroutineChunk(t *testing.T) {
 }
 
 func TestGoStackTrace_FatalErrorHeaderOnly(t *testing.T) {
-	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize)
+	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize, true)
 	msgs := feedLines(agg, "fatal error: concurrent map writes\n")
 	assertAbandoned(t, msgs, 1)
 }
 
 func TestGoStackTrace_SignalHeaderOnly(t *testing.T) {
-	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize)
+	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize, true)
 	msgs := feedLines(agg, "SIGSEGV: segmentation violation\nPC=0x192bf82f4 m=0 sigcode=2 addr=0x0\n")
 	assertAbandoned(t, msgs, 1)
 }
@@ -246,7 +246,7 @@ func TestGoStackTrace_SignalHeaderOnly(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestGoStackTrace_TwoConsecutiveFuncLines(t *testing.T) {
-	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize)
+	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize, true)
 	input := "panic: bad\n\ngoroutine 1 [running]:\nmain.foo()\nmain.bar()\n\t/path/main.go:1 +0x1\n"
 	msgs := feedLines(agg, input)
 	// main.foo() starts chunk (chunkCount=1), expects file next.
@@ -256,7 +256,7 @@ func TestGoStackTrace_TwoConsecutiveFuncLines(t *testing.T) {
 }
 
 func TestGoStackTrace_TwoConsecutiveTabLines(t *testing.T) {
-	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize)
+	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize, true)
 	input := "panic: bad\n\ngoroutine 1 [running]:\nmain.foo()\n\t/path/main.go:1 +0x1\n\t/path/main.go:2 +0x2\n"
 	msgs := feedLines(agg, input)
 	// After first tab line, expectFile=false. Second tab line is rejected (expects func).
@@ -265,7 +265,7 @@ func TestGoStackTrace_TwoConsecutiveTabLines(t *testing.T) {
 }
 
 func TestGoStackTrace_TabRightAfterGoroutineHeader(t *testing.T) {
-	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize)
+	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize, true)
 	input := "panic: bad\n\ngoroutine 1 [running]:\n\t/path/main.go:1 +0x1\n"
 	msgs := feedLines(agg, input)
 	// goroutine header starts chunk (chunkCount=1), expectFile=false.
@@ -279,7 +279,7 @@ func TestGoStackTrace_TabRightAfterGoroutineHeader(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestGoStackTrace_Abandon_FalsePositiveHeader(t *testing.T) {
-	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize)
+	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize, true)
 	input := "panic: just a log message that starts with panic\nsome normal log line\nanother normal log line\n"
 	msgs := feedLines(agg, input)
 	// "panic:" matches the start marker, but "some normal log line" is not a valid header continuation.
@@ -288,7 +288,7 @@ func TestGoStackTrace_Abandon_FalsePositiveHeader(t *testing.T) {
 }
 
 func TestGoStackTrace_Abandon_HeaderPlusSignal_NoGoroutines(t *testing.T) {
-	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize)
+	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize, true)
 	input := "panic: runtime error: nil pointer dereference\n[signal SIGSEGV: segmentation violation code=0x2 addr=0x0 pc=0x10436ffd0]\n\nsome unrelated line\n"
 	msgs := feedLines(agg, input)
 	// Header + signal is valid header continuation, then empty line transitions to betweenChunks.
@@ -300,7 +300,7 @@ func TestGoStackTrace_Abandon_HeaderPlusSignal_NoGoroutines(t *testing.T) {
 }
 
 func TestGoStackTrace_Abandon_FlushWithChunkCountZero(t *testing.T) {
-	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize)
+	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize, true)
 	// Feed just a header + empty line, then flush. chunkCount == 0.
 	out := agg.Process(makeMsg("panic: something"))
 	assert.Empty(t, out)
@@ -315,7 +315,7 @@ func TestGoStackTrace_Abandon_FlushWithChunkCountZero(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestGoStackTrace_CombineAfterOneChunk(t *testing.T) {
-	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize)
+	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize, true)
 	// header + empty + goroutine header + func + file + empty + rejection
 	// chunkCount=1 at rejection point -> should combine
 	out := agg.Process(makeMsg("panic: bad"))
@@ -339,7 +339,7 @@ func TestGoStackTrace_CombineAfterOneChunk(t *testing.T) {
 }
 
 func TestGoStackTrace_AbandonBeforeAnyChunk(t *testing.T) {
-	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize)
+	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize, true)
 	// header -> rejection before any chunk starts
 	out := agg.Process(makeMsg("panic: bad"))
 	assert.Empty(t, out)
@@ -352,11 +352,83 @@ func TestGoStackTrace_AbandonBeforeAnyChunk(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// Timestamp / offset carry tests
+// ---------------------------------------------------------------------------
+
+// makeMsgTS builds a message carrying a per-line parser timestamp, mirroring
+// how the container/Docker tailer populates ParsingExtra.Timestamp.
+func makeMsgTS(content, ts string) *message.Message {
+	msg := makeMsg(content)
+	msg.ParsingExtra.Timestamp = ts
+	return msg
+}
+
+// When a trace is combined, the emitted message must carry the LAST combined
+// line's timestamp so downstream offset trackers advance past every folded
+// line; otherwise a reader restart replays lines 2..N as duplicates.
+func TestGoStackTrace_Combine_CarriesLastLineTimestamp(t *testing.T) {
+	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize, true)
+	lines := []struct{ content, ts string }{
+		{"panic: bad", "t0"},
+		{"", "t1"},
+		{"goroutine 1 [running]:", "t2"},
+		{"main.main()", "t3"},
+		{"\t/path/main.go:1 +0x1", "t4"},
+	}
+	var out []*message.Message
+	for _, l := range lines {
+		out = append(out, agg.Process(makeMsgTS(l.content, l.ts))...)
+	}
+	out = append(out, agg.Flush()...)
+	assertCombined(t, out)
+	assert.Equal(t, "t4", out[0].ParsingExtra.Timestamp,
+		"combined message must carry the last combined line's timestamp")
+}
+
+// When the trailing tentative lines are rolled back, the combined message must
+// carry the timestamp of the last COMMITTED line, not the rolled-back tail.
+func TestGoStackTrace_Combine_CarriesLastCommittedTimestampAfterRollback(t *testing.T) {
+	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize, true)
+	steps := []struct{ content, ts string }{
+		{"panic: bad", "t0"},
+		{"", "t1"},
+		{"goroutine 1 [running]:", "t2"},
+		{"main.foo()", "t3"},
+		{"\t/path/main.go:42 +0x1", "t4"},
+		{"exit status 2", "t5"}, // tentative, rolled back
+	}
+	var out []*message.Message
+	for _, s := range steps {
+		out = append(out, agg.Process(makeMsgTS(s.content, s.ts))...)
+	}
+	// Rejection triggers resolve with rollback of the tentative "exit status 2".
+	out = append(out, agg.Process(makeMsgTS("2024-01-01 INFO next log", "t6"))...)
+	require.Len(t, out, 3, "combined trace + rolled-back func + rejected line")
+	assert.True(t, out[0].ParsingExtra.IsMultiLine)
+	assert.Equal(t, "t4", out[0].ParsingExtra.Timestamp,
+		"combined message must carry the last committed line's timestamp, not the rolled-back tail")
+	assert.Equal(t, "t5", out[1].ParsingExtra.Timestamp,
+		"rolled-back line keeps its own timestamp")
+}
+
+// When multiline tagging is disabled (logs_config.tag_multi_line_logs=false),
+// combined traces must still be marked IsMultiLine but must NOT carry the
+// go_stack source tag, matching the other aggregators.
+func TestGoStackTrace_Combine_NoMultiLineTagWhenDisabled(t *testing.T) {
+	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize, false)
+	msgs := feedLines(agg, "panic: something went wrong\n\ngoroutine 1 [running]:\nmain.plainPanic(...)\n\t/path/main.go:81\nmain.main()\n\t/path/main.go:46 +0x5b4\n")
+	require.Len(t, msgs, 1, "expected exactly 1 combined message")
+	assert.True(t, msgs[0].ParsingExtra.IsMultiLine, "combined message should still be marked multiline")
+	assert.NotContains(t, msgs[0].ParsingExtra.Tags, message.MultiLineSourceTag("go_stack"),
+		"go_stack tag must be omitted when multiline tagging is disabled")
+}
+
+// ---------------------------------------------------------------------------
 // Uncommitted rollback tests
 // ---------------------------------------------------------------------------
 
 func TestGoStackTrace_Rollback_UnmatchedFuncName(t *testing.T) {
-	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize)
+	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize, true)
 	out := agg.Process(makeMsg("panic: bad"))
 	assert.Empty(t, out)
 	out = agg.Process(makeMsg(""))
@@ -383,7 +455,7 @@ func TestGoStackTrace_Rollback_UnmatchedFuncName(t *testing.T) {
 }
 
 func TestGoStackTrace_Rollback_FuncThenBlankLine(t *testing.T) {
-	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize)
+	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize, true)
 	out := agg.Process(makeMsg("panic: bad"))
 	assert.Empty(t, out)
 	out = agg.Process(makeMsg(""))
@@ -411,7 +483,7 @@ func TestGoStackTrace_Rollback_FuncThenBlankLine(t *testing.T) {
 }
 
 func TestGoStackTrace_Rollback_CompletePairNotRolledBack(t *testing.T) {
-	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize)
+	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize, true)
 	out := agg.Process(makeMsg("panic: bad"))
 	assert.Empty(t, out)
 	out = agg.Process(makeMsg(""))
@@ -431,7 +503,7 @@ func TestGoStackTrace_Rollback_CompletePairNotRolledBack(t *testing.T) {
 }
 
 func TestGoStackTrace_Rollback_ChunkBoundaryResetsUncommitted(t *testing.T) {
-	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize)
+	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize, true)
 	out := agg.Process(makeMsg("panic: bad"))
 	assert.Empty(t, out)
 	out = agg.Process(makeMsg(""))
@@ -467,7 +539,7 @@ func TestGoStackTrace_Rollback_ChunkBoundaryResetsUncommitted(t *testing.T) {
 }
 
 func TestGoStackTrace_Rollback_FlushWithUncommitted(t *testing.T) {
-	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize)
+	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize, true)
 	out := agg.Process(makeMsg("panic: bad"))
 	assert.Empty(t, out)
 	out = agg.Process(makeMsg(""))
@@ -493,7 +565,7 @@ func TestGoStackTrace_Rollback_FlushWithUncommitted(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestGoStackTrace_Overflow_AbandonRegardlessOfChunkCount(t *testing.T) {
-	agg := NewStackTraceAggregator(NewGoStackTraceParser(), 100) // very small max
+	agg := NewStackTraceAggregator(NewGoStackTraceParser(), 100, true) // very small max
 	out := agg.Process(makeMsg("panic: bad"))
 	assert.Empty(t, out)
 	out = agg.Process(makeMsg(""))
@@ -512,7 +584,7 @@ func TestGoStackTrace_Overflow_AbandonRegardlessOfChunkCount(t *testing.T) {
 }
 
 func TestGoStackTrace_Overflow_SmallBuffer(t *testing.T) {
-	agg := NewStackTraceAggregator(NewGoStackTraceParser(), 30) // tiny
+	agg := NewStackTraceAggregator(NewGoStackTraceParser(), 30, true) // tiny
 	out := agg.Process(makeMsg("panic: very long panic message"))
 	assert.Empty(t, out)
 	// Next line triggers overflow
@@ -529,7 +601,7 @@ func TestGoStackTrace_Overflow_SmallBuffer(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestGoStackTrace_NewStartMarkerResolvesOld(t *testing.T) {
-	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize)
+	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize, true)
 	// First crash
 	out := agg.Process(makeMsg("panic: first"))
 	assert.Empty(t, out)
@@ -558,7 +630,7 @@ func TestGoStackTrace_NewStartMarkerResolvesOld(t *testing.T) {
 }
 
 func TestGoStackTrace_AdjacentPanicsProduceSeparateMessages(t *testing.T) {
-	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize)
+	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize, true)
 
 	// Two complete panics back-to-back with no intervening normal lines.
 	// The second "panic:" must NOT be absorbed as a function name.
@@ -630,21 +702,21 @@ func TestNoopStackTraceAggregator_IsEmptyAlwaysTrue(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestGoStackTrace_ElidedFrames(t *testing.T) {
-	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize)
+	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize, true)
 	input := "panic: bad\n\ngoroutine 1 [running]:\nmain.foo()\n\t/path/main.go:1 +0x1\n...100 frames elided...\nmain.bar()\n\t/path/main.go:2 +0x2\n"
 	msgs := feedLines(agg, input)
 	assertCombined(t, msgs)
 }
 
 func TestGoStackTrace_CreatedByLine(t *testing.T) {
-	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize)
+	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize, true)
 	input := "fatal error: concurrent map writes\n\ngoroutine 47 [running]:\nmain.handler()\n\t/path/main.go:93 +0x60\ncreated by main.main in goroutine 1\n\t/path/main.go:90 +0x48\n"
 	msgs := feedLines(agg, input)
 	assertCombined(t, msgs)
 }
 
 func TestGoStackTrace_IsEmpty(t *testing.T) {
-	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize)
+	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize, true)
 	assert.True(t, agg.IsEmpty())
 	agg.Process(makeMsg("panic: test"))
 	assert.False(t, agg.IsEmpty())
@@ -653,7 +725,7 @@ func TestGoStackTrace_IsEmpty(t *testing.T) {
 }
 
 func TestGoStackTrace_CombinedContentContainsAllLines(t *testing.T) {
-	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize)
+	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize, true)
 	out := agg.Process(makeMsg("panic: bad"))
 	assert.Empty(t, out)
 	out = agg.Process(makeMsg(""))
@@ -676,7 +748,7 @@ func TestGoStackTrace_CombinedContentContainsAllLines(t *testing.T) {
 }
 
 func TestGoStackTrace_RawDataLenAggregated(t *testing.T) {
-	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize)
+	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize, true)
 	m1 := makeMsg("panic: bad")
 	m1.RawDataLen = 15
 	m2 := makeMsg("")
@@ -788,7 +860,7 @@ func TestCompositeStackTraceParser_PriorityOrder(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestNewStackTraceAggregatorFromNames_Go(t *testing.T) {
-	agg := NewStackTraceAggregatorFromNames([]string{"go"}, testMaxContentSize)
+	agg := NewStackTraceAggregatorFromNames([]string{"go"}, testMaxContentSize, true)
 	// Should behave like a real aggregator: buffer a Go panic
 	out := agg.Process(makeMsg("panic: bad"))
 	assert.Empty(t, out)
@@ -805,7 +877,7 @@ func TestNewStackTraceAggregatorFromNames_Go(t *testing.T) {
 }
 
 func TestNewStackTraceAggregatorFromNames_EmptyList(t *testing.T) {
-	agg := NewStackTraceAggregatorFromNames(nil, testMaxContentSize)
+	agg := NewStackTraceAggregatorFromNames(nil, testMaxContentSize, true)
 	// Should be a noop — everything passes through
 	out := agg.Process(makeMsg("panic: bad"))
 	require.Len(t, out, 1)
@@ -814,7 +886,7 @@ func TestNewStackTraceAggregatorFromNames_EmptyList(t *testing.T) {
 }
 
 func TestNewStackTraceAggregatorFromNames_UnknownName(t *testing.T) {
-	agg := NewStackTraceAggregatorFromNames([]string{"unknown_lang"}, testMaxContentSize)
+	agg := NewStackTraceAggregatorFromNames([]string{"unknown_lang"}, testMaxContentSize, true)
 	// Unknown parser name => noop
 	out := agg.Process(makeMsg("panic: bad"))
 	require.Len(t, out, 1)
@@ -822,7 +894,7 @@ func TestNewStackTraceAggregatorFromNames_UnknownName(t *testing.T) {
 }
 
 func TestNewStackTraceAggregatorFromNames_MixedKnownUnknown(t *testing.T) {
-	agg := NewStackTraceAggregatorFromNames([]string{"unknown_lang", "go"}, testMaxContentSize)
+	agg := NewStackTraceAggregatorFromNames([]string{"unknown_lang", "go"}, testMaxContentSize, true)
 	// Unknown is skipped, "go" is used
 	out := agg.Process(makeMsg("panic: bad"))
 	assert.Empty(t, out, "Go parser should buffer this")

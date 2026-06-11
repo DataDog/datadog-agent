@@ -176,10 +176,6 @@ modules:
     independent: false
     should_tag: false
     should_test_condition: never
-  internal/tools/proto:
-    independent: false
-    should_tag: false
-    should_test_condition: never
   internal/tools/worksynchronizer:
     independent: false
     should_tag: false
@@ -387,6 +383,7 @@ modules:
   tasks/unit_tests/testdata/go_mod_formatter/valid_package: ignored
   test/e2e-framework:
     independent: false
+    should_test_condition: is_linux
   test/fakeintake: default
   test/integration/serverless/recorder-extension: ignored
   test/integration/serverless/src: ignored

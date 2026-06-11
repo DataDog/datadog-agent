@@ -577,3 +577,25 @@ func TestAddAgentVersionToDomain(t *testing.T) {
 		}
 	}
 }
+
+// TestIsDatadogURL only covers the logic IsDatadogURL adds on top of ddURLRegexp (host
+// extraction, lowercasing, trailing-dot trimming, empty-host and parse-error handling). The
+// regexp's site/domain matching is already covered by TestAddAgentVersionToDomain.
+func TestIsDatadogURL(t *testing.T) {
+	tests := []struct {
+		url      string
+		expected bool
+	}{
+		{"https://app.datadoghq.com", true},     // baseline match
+		{"https://APP.DATADOGHQ.COM", true},     // host is lowercased
+		{"https://app.datadoghq.com.", true},    // trailing dot is trimmed
+		{"https://app.datadoghq.com:443", true}, // Hostname() strips the port
+		{"", false},                             // empty host
+		{"/just/a/path", false},                 // no host
+		{"http://\x7f", false},                  // url.Parse error
+	}
+
+	for _, tc := range tests {
+		assert.Equal(t, tc.expected, IsDatadogURL(tc.url), "IsDatadogURL(%q)", tc.url)
+	}
+}
