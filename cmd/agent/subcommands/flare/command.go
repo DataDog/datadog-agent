@@ -34,8 +34,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/diagnose/format"
 	diagnosefx "github.com/DataDog/datadog-agent/comp/core/diagnose/fx"
 	diagnoseLocal "github.com/DataDog/datadog-agent/comp/core/diagnose/local"
-	"github.com/DataDog/datadog-agent/comp/core/flare"
-	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
+	flare "github.com/DataDog/datadog-agent/comp/core/flare/def"
+	flarfx "github.com/DataDog/datadog-agent/comp/core/flare/fx"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
@@ -135,7 +135,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath), sysprobeconfigimpl.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					LogParams:            log.ForOneShot(command.LoggerName, cliParams.logLevelDefaultOff.Value(), false),
 				}),
-				flare.Module(flareParams),
+				flarfx.Module(flareParams),
 				flareprofilerfx.Module(),
 				// workloadmeta setup
 				wmcatalog.GetCatalog(),
@@ -320,7 +320,7 @@ func makeFlare(flareComp flare.Component,
 		}
 	}
 
-	response, e := flareComp.Send(filePath, caseID, customerEmail, helpers.NewLocalFlareSource())
+	response, e := flareComp.Send(filePath, caseID, customerEmail, flaretypes.NewLocalFlareSource())
 	fmt.Println(response)
 	return e
 }

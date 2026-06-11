@@ -17,9 +17,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	configmock "github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/flare"
-	flaremock "github.com/DataDog/datadog-agent/comp/core/flare/flareimpl"
-	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
+	flare "github.com/DataDog/datadog-agent/comp/core/flare/def"
+	flaremock "github.com/DataDog/datadog-agent/comp/core/flare/mock"
 	"github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -27,7 +26,7 @@ import (
 
 // createTestCheck creates a check instance with the given configuration
 func createTestCheck(t *testing.T, memoryThreshold string, cpuThreshold int, ticketID, userEmail string, terminateAgent bool) *Check {
-	flareComp := flaremock.NewMock().Comp
+	flareComp := flaremock.New(t).Comp
 	config := configmock.NewMock(t)
 	check := newCheck(flareComp, config).(*Check)
 
@@ -59,15 +58,15 @@ func (m *failingFlareMock) CreateWithArgs(args types.FlareArgs, duration time.Du
 	if m.createError != nil || (m.failUntil > 0 && m.callCount < m.failUntil) {
 		return "", errors.New("mock flare creation failure")
 	}
-	mock := flaremock.NewMock().Comp
+	mock := &flaremock.MockFlare{}
 	return mock.CreateWithArgs(args, duration, err, data)
 }
 
-func (m *failingFlareMock) Send(path string, caseID string, email string, source helpers.FlareSource) (string, error) {
+func (m *failingFlareMock) Send(path string, caseID string, email string, source types.FlareSource) (string, error) {
 	if m.sendError != nil || (m.failUntil > 0 && m.callCount < m.failUntil) {
 		return "", errors.New("mock flare send failure")
 	}
-	mock := flaremock.NewMock().Comp
+	mock := &flaremock.MockFlare{}
 	return mock.Send(path, caseID, email, source)
 }
 

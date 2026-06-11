@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
-	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
+	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	rcclienttypes "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
@@ -90,7 +90,7 @@ func TestHandleRCFlareTask_SendError(t *testing.T) {
 	createDCAArchiveFunc = func(_ bool, _, _ string, _ ProfileData, _ status.Component, _ diagnose.Component, _ ipc.Component) (string, error) {
 		return "/tmp/fake-flare.zip", nil
 	}
-	sendFlareFunc = func(_ pkgconfigmodel.Reader, _, _, _, _, _ string, _ flarehelpers.FlareSource) (string, error) {
+	sendFlareFunc = func(_ pkgconfigmodel.Reader, _, _, _, _, _ string, _ flaretypes.FlareSource) (string, error) {
 		return "", errors.New("send failed")
 	}
 
@@ -119,12 +119,12 @@ func TestHandleRCFlareTask_HappyPath(t *testing.T) {
 	tmpPath := tmpFile.Name()
 
 	var capturedCaseID, capturedUserHandle string
-	var capturedSource flarehelpers.FlareSource
+	var capturedSource flaretypes.FlareSource
 
 	createDCAArchiveFunc = func(_ bool, _, _ string, _ ProfileData, _ status.Component, _ diagnose.Component, _ ipc.Component) (string, error) {
 		return tmpPath, nil
 	}
-	sendFlareFunc = func(_ pkgconfigmodel.Reader, _, caseID, userHandle, _, _ string, source flarehelpers.FlareSource) (string, error) {
+	sendFlareFunc = func(_ pkgconfigmodel.Reader, _, caseID, userHandle, _, _ string, source flaretypes.FlareSource) (string, error) {
 		capturedCaseID = caseID
 		capturedUserHandle = userHandle
 		capturedSource = source
@@ -141,7 +141,7 @@ func TestHandleRCFlareTask_HappyPath(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "99999", capturedCaseID)
 	assert.Equal(t, "support@example.com", capturedUserHandle)
-	assert.Equal(t, flarehelpers.NewRemoteConfigFlareSource("uuid-5"), capturedSource)
+	assert.Equal(t, flaretypes.NewRemoteConfigFlareSource("uuid-5"), capturedSource)
 	_, statErr := os.Stat(tmpPath)
 	assert.True(t, os.IsNotExist(statErr), "flare archive should be removed after successful upload")
 }
@@ -163,7 +163,7 @@ func TestHandleRCFlareTask_NoCleanupOnSendError(t *testing.T) {
 	createDCAArchiveFunc = func(_ bool, _, _ string, _ ProfileData, _ status.Component, _ diagnose.Component, _ ipc.Component) (string, error) {
 		return tmpPath, nil
 	}
-	sendFlareFunc = func(_ pkgconfigmodel.Reader, _, _, _, _, _ string, _ flarehelpers.FlareSource) (string, error) {
+	sendFlareFunc = func(_ pkgconfigmodel.Reader, _, _, _, _, _ string, _ flaretypes.FlareSource) (string, error) {
 		return "", errors.New("send failed")
 	}
 

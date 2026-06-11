@@ -17,7 +17,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
+	flareimpl "github.com/DataDog/datadog-agent/comp/core/flare/impl"
 )
 
 var testConfig = map[string]string{
@@ -40,7 +40,7 @@ func TestOTelExtFlareBuilder(t *testing.T) {
 	overrideConfigResponse = b.String()
 
 	// Fill the flare
-	f := helpers.NewFlareBuilderMock(t, false)
+	f := flareimpl.NewFlareBuilderMock(t, false)
 	flareImpl := &flareImpl{port: 7778}
 	flareImpl.fillFlare(context.Background(), f)
 

@@ -32,8 +32,9 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/flare"
-	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
+	flare "github.com/DataDog/datadog-agent/comp/core/flare/def"
+	flarfx "github.com/DataDog/datadog-agent/comp/core/flare/fx"
+	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -85,7 +86,7 @@ func MakeCommand(globalConfGetter func() *subcommands.GlobalParams) *cobra.Comma
 					ConfigParams: config.NewAgentParams("", config.WithConfigName(globalParams.ConfigName)),
 					LogParams:    log.ForOneShot(globalParams.LoggerName, "info", false),
 				}),
-				flare.Module(flareParams),
+				flarfx.Module(flareParams),
 				core.Bundle(),
 				// Provide empty option for workloadmeta (optional dependency)
 				fx.Supply(option.None[workloadmeta.Component]()),
@@ -150,7 +151,7 @@ func makeFlare(
 	}
 
 	// Upload flare
-	response, e := flareComp.Send(filePath, caseID, customerEmail, helpers.NewLocalFlareSource())
+	response, e := flareComp.Send(filePath, caseID, customerEmail, flaretypes.NewLocalFlareSource())
 	fmt.Println(response)
 	return e
 }

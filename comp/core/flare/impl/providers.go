@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package flare
+package flareimpl
 
 import (
 	"context"
@@ -21,20 +21,20 @@ func getFirstSuffix(s string) string {
 	return filepath.Ext(strings.TrimSuffix(s, filepath.Ext(s)))
 }
 
-func (f *flare) collectLogsFiles(_ context.Context, fb types.FlareBuilder) error {
+func (f *flareImpl) collectLogsFiles(_ context.Context, fb types.FlareBuilder) error {
 	logFile := f.config.GetString("log_file")
 	if logFile == "" {
-		logFile = f.params.defaultLogFile
+		logFile = f.params.DefaultLogFile
 	}
 
 	jmxLogFile := f.config.GetString("jmx_log_file")
 	if jmxLogFile == "" {
-		jmxLogFile = f.params.defaultJMXLogFile
+		jmxLogFile = f.params.DefaultJMXLogFile
 	}
 
 	dogstatsdLogFile := f.config.GetString("dogstatsd_log_file")
 	if dogstatsdLogFile == "" {
-		dogstatsdLogFile = f.params.defaultDogstatsdLogFile
+		dogstatsdLogFile = f.params.DefaultDogstatsdLogFile
 	}
 
 	shouldIncludeFunc := func(path string) bool {
@@ -51,12 +51,12 @@ func (f *flare) collectLogsFiles(_ context.Context, fb types.FlareBuilder) error
 	return nil
 }
 
-func (f *flare) collectConfigFiles(_ context.Context, fb types.FlareBuilder) error {
+func (f *flareImpl) collectConfigFiles(_ context.Context, fb types.FlareBuilder) error {
 	confSearchPaths := map[string]string{
 		"":        f.config.GetString("confd_path"),
 		"fleet":   filepath.Join(f.config.GetString("fleet_policies_dir"), "conf.d"),
-		"dist":    filepath.Join(f.params.distPath, "conf.d"),
-		"checksd": f.params.pythonChecksPath,
+		"dist":    filepath.Join(f.params.DistPath, "conf.d"),
+		"checksd": f.params.PythonChecksPath,
 	}
 
 	for prefix, filePath := range confSearchPaths {

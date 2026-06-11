@@ -11,7 +11,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
+	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/impl"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 

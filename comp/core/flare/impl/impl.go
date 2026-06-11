@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package flare
+// Package flareimpl implements the flare component interface.
+package flareimpl
 
 import (
 	"context"
@@ -20,12 +21,11 @@ import (
 	"strconv"
 	"time"
 
-	"go.uber.org/fx"
-
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	apiutils "github.com/DataDog/datadog-agent/comp/api/api/utils"
+	// TODO: migrate to comp/core/config/def once that PR is merged
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
+	flare "github.com/DataDog/datadog-agent/comp/core/flare/def"
 	"github.com/DataDog/datadog-agent/comp/core/flare/types"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -33,75 +33,74 @@ import (
 	rcclienttypes "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
-	pkgFlare "github.com/DataDog/datadog-agent/pkg/flare"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // FlareBuilderFactory creates an instance of FlareBuilder
 type flareBuilderFactory func(localFlare bool, flareArgs types.FlareArgs) (types.FlareBuilder, error)
 
-var fbFactory flareBuilderFactory = helpers.NewFlareBuilder
+var fbFactory flareBuilderFactory = NewFlareBuilder
 
 // sendToFunc is used to send a flare to the backend. Overridden in tests to avoid real HTTP calls.
-var sendToFunc func(model.Reader, string, string, string, string, string, helpers.FlareSource) (string, error)
+var sendToFunc func(model.Reader, string, string, string, string, string, types.FlareSource) (string, error)
 
-type dependencies struct {
-	fx.In
-
+// Requires defines the dependencies for the flare component.
+type Requires struct {
 	Log       log.Component
 	Config    config.Component
-	Params    Params
+	Params    flare.Params
 	Providers []*types.FlareFiller `group:"flare"`
 	WMeta     option.Option[workloadmeta.Component]
 	IPC       ipc.Component
 }
 
-type provides struct {
-	fx.Out
-
-	Comp       Component
+// Provides defines the output of the flare component.
+type Provides struct {
+	Comp       flare.Component
 	Endpoint   api.AgentEndpointProvider
 	RCListener rcclienttypes.TaskListenerProvider
 }
 
-type flare struct {
+type flareImpl struct {
 	log       log.Component
 	config    config.Component
-	params    Params
+	params    flare.Params
 	providers []*types.FlareFiller
 }
 
-func newFlare(deps dependencies) provides {
-	f := &flare{
+// NewComponent creates a new flare component.
+func NewComponent(deps Requires) Provides {
+	f := &flareImpl{
 		log:       deps.Log,
 		config:    deps.Config,
 		params:    deps.Params,
-		providers: fxutil.GetAndFilterGroup(deps.Providers),
+		providers: filterNilProviders(deps.Providers),
 	}
 
-	// Adding legacy and internal providers. Registering then as Provider through FX create cycle dependencies.
-	//
-	// Do not extend this list, this is legacy behavior that should be remove at some point. To add data to a flare
-	// use the flare provider system: https://datadoghq.dev/datadog-agent/components/shared_features/flares/
-	f.providers = append(
-		f.providers,
-		pkgFlare.ExtraFlareProviders(deps.WMeta, deps.IPC)...,
-	)
 	f.providers = append(
 		f.providers,
 		types.NewFiller(f.collectLogsFiles),
 		types.NewFiller(f.collectConfigFiles),
 	)
 
-	return provides{
+	return Provides{
 		Comp:       f,
 		Endpoint:   api.NewAgentEndpointProvider(f.createAndReturnFlarePath, "/flare", "POST"),
 		RCListener: rcclienttypes.NewTaskListener(f.onAgentTaskEvent),
 	}
 }
 
-func (f *flare) onAgentTaskEvent(taskType rcclienttypes.TaskType, task rcclienttypes.AgentTaskConfig) (bool, error) {
+func filterNilProviders(providers []*types.FlareFiller) []*types.FlareFiller {
+	result := make([]*types.FlareFiller, 0, len(providers))
+	for _, p := range providers {
+		if p != nil {
+			result = append(result, p)
+		}
+	}
+	return result
+}
+
+func (f *flareImpl) onAgentTaskEvent(taskType rcclienttypes.TaskType, task rcclienttypes.AgentTaskConfig) (bool, error) {
 	if taskType != rcclienttypes.TaskFlare {
 		return false, nil
 	}
@@ -144,11 +143,11 @@ func (f *flare) onAgentTaskEvent(taskType rcclienttypes.TaskType, task rcclientt
 
 	f.log.Infof("Flare was created by remote-config at %s", filePath)
 
-	_, err = f.Send(filePath, caseID, userHandle, helpers.NewRemoteConfigFlareSource(task.Config.UUID))
+	_, err = f.Send(filePath, caseID, userHandle, types.NewRemoteConfigFlareSource(task.Config.UUID))
 	return true, err
 }
 
-func (f *flare) createAndReturnFlarePath(w http.ResponseWriter, r *http.Request) {
+func (f *flareImpl) createAndReturnFlarePath(w http.ResponseWriter, r *http.Request) {
 	var profile types.ProfileData
 
 	if r.Body != http.NoBody {
@@ -195,12 +194,12 @@ func (f *flare) createAndReturnFlarePath(w http.ResponseWriter, r *http.Request)
 }
 
 // Send sends a flare archive to Datadog. The local archive file is removed on success unless Params.KeepArchiveAfterSend is set (e.g. CLI --keep-archive).
-func (f *flare) Send(flarePath string, caseID string, email string, source helpers.FlareSource) (string, error) {
-	// For now this is a wrapper around helpers.SendFlare since some code hasn't migrated to FX yet.
+func (f *flareImpl) Send(flarePath string, caseID string, email string, source types.FlareSource) (string, error) {
+	// For now this is a wrapper around SendFlare since some code hasn't migrated to FX yet.
 	// The `source` is the reason why the flare was created, for now it's either local or remote-config
 	sendFn := sendToFunc
 	if sendFn == nil {
-		sendFn = helpers.SendTo
+		sendFn = SendTo
 	}
 	response, err := sendFn(f.config, flarePath, caseID, email, f.config.GetString("api_key"), utils.GetInfraEndpoint(f.config), source)
 	if err != nil {
@@ -219,23 +218,23 @@ func (f *flare) Send(flarePath string, caseID string, email string, source helpe
 // Create creates a new flare and returns the path to the final archive file.
 //
 // If providerTimeout is 0 or negative, the timeout from the configuration will be used.
-func (f *flare) Create(pdata types.ProfileData, providerTimeout time.Duration, ipcError error, diagnoseResult []byte) (string, error) {
+func (f *flareImpl) Create(pdata types.ProfileData, providerTimeout time.Duration, ipcError error, diagnoseResult []byte) (string, error) {
 	return f.create(types.FlareArgs{}, providerTimeout, ipcError, pdata, diagnoseResult)
 }
 
-// Create creates a new flare and returns the path to the final archive file.
+// CreateWithArgs creates a new flare and returns the path to the final archive file.
 //
 // If providerTimeout is 0 or negative, the timeout from the configuration will be used.
-func (f *flare) CreateWithArgs(flareArgs types.FlareArgs, providerTimeout time.Duration, ipcError error, diagnoseResult []byte) (string, error) {
+func (f *flareImpl) CreateWithArgs(flareArgs types.FlareArgs, providerTimeout time.Duration, ipcError error, diagnoseResult []byte) (string, error) {
 	return f.create(flareArgs, providerTimeout, ipcError, types.ProfileData{}, diagnoseResult)
 }
 
-func (f *flare) create(flareArgs types.FlareArgs, providerTimeout time.Duration, ipcError error, pdata types.ProfileData, diagnoseResult []byte) (string, error) {
+func (f *flareImpl) create(flareArgs types.FlareArgs, providerTimeout time.Duration, ipcError error, pdata types.ProfileData, diagnoseResult []byte) (string, error) {
 	if providerTimeout <= 0 {
 		providerTimeout = f.config.GetDuration("flare_provider_timeout")
 	}
 
-	fb, err := fbFactory(f.params.local, flareArgs)
+	fb, err := fbFactory(f.params.Local, flareArgs)
 	if err != nil {
 		return "", err
 	}
@@ -274,7 +273,7 @@ func (f *flare) create(flareArgs types.FlareArgs, providerTimeout time.Duration,
 	return fb.Save()
 }
 
-func (f *flare) runProviders(fb types.FlareBuilder, providerTimeout time.Duration) {
+func (f *flareImpl) runProviders(fb types.FlareBuilder, providerTimeout time.Duration) {
 	for _, p := range f.providers {
 		timeout := max(providerTimeout, p.Timeout(fb))
 		providerName := runtime.FuncForPC(reflect.ValueOf(p.Callback).Pointer()).Name()

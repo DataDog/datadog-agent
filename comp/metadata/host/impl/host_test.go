@@ -18,7 +18,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
+	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/impl"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"

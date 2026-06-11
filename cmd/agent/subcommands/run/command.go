@@ -81,8 +81,10 @@ import (
 	configstreamfx "github.com/DataDog/datadog-agent/comp/core/configstream/fx"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	diagnosefx "github.com/DataDog/datadog-agent/comp/core/diagnose/fx"
-	"github.com/DataDog/datadog-agent/comp/core/flare"
+	flare "github.com/DataDog/datadog-agent/comp/core/flare/def"
+	flarfx "github.com/DataDog/datadog-agent/comp/core/flare/fx"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
+	pkgflare "github.com/DataDog/datadog-agent/pkg/flare"
 	guidef "github.com/DataDog/datadog-agent/comp/core/gui/def"
 	guifx "github.com/DataDog/datadog-agent/comp/core/gui/fx"
 	healthprobe "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
@@ -413,7 +415,8 @@ func run(log log.Component,
 
 func getSharedFxOption() fx.Option {
 	return fx.Options(
-		flare.Module(flare.NewParams(
+		pkgflare.Module(),
+		flarfx.Module(flare.NewParams(
 			defaultpaths.GetDistPath(),
 			defaultpaths.PyChecksPath,
 			defaultpaths.LogFile,

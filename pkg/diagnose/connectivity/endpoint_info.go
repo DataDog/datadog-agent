@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/agent-payload/v5/gogen"
 	"github.com/gogo/protobuf/proto"
 
-	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
+	flareimpl "github.com/DataDog/datadog-agent/comp/core/flare/impl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -74,6 +74,6 @@ func getEndpointsInfo(cfg model.Reader) []endpointInfo {
 		{endpoints.SketchSeriesEndpoint, "POST", sketchPayload, protoCT},
 
 		// Flare endpoint
-		{transaction.Endpoint{Route: helpers.GetFlareEndpoint(cfg), Name: "flare"}, "HEAD", nil, jsonCT},
+		{transaction.Endpoint{Route: flareimpl.GetFlareEndpoint(cfg), Name: "flare"}, "HEAD", nil, jsonCT},
 	}
 }
