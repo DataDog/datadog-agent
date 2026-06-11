@@ -6266,12 +6266,29 @@ properties:
         node_type: section
         type: object
         properties:
-          enabled:
-            node_type: setting
-            type: boolean
-            default: false
-            comment: Anomaly event reporting. Keep false during evaluation / shadow
-              mode.
+          events:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: false
+                comment: Forward anomaly correlations as Datadog change events. Keep false during evaluation / shadow mode.
+          stdout:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: true
+                comment: Set to false to silence all [observer] stdout log lines.
+              verbose:
+                node_type: setting
+                type: boolean
+                default: false
+                comment: Set to true to print individual anomaly series lines after the title (one line per anomaly).
       storage:
         node_type: section
         type: object
