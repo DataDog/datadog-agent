@@ -225,7 +225,9 @@ func setupOpenLineage(s *common.Setup) {
 		return
 	}
 
-	jarDest := filepath.Join(openLineageJARDir, "openlineage-spark.jar")
+	variant := detectScalaVariant(s)
+	jarName := fmt.Sprintf("openlineage-spark%s-%s.jar", variant, emrOpenLineageVersion)
+	jarDest := filepath.Join(openLineageJARDir, jarName)
 
 	// Allow pre-staged JAR via DD_OPENLINEAGE_JAR_PATH for VPCs without internet
 	if jarPath := os.Getenv("DD_OPENLINEAGE_JAR_PATH"); jarPath != "" {
@@ -236,10 +238,9 @@ func setupOpenLineage(s *common.Setup) {
 		return
 	}
 
-	variant := detectScalaVariant(s)
 	jarURL := fmt.Sprintf(
-		"https://repo1.maven.org/maven2/io/openlineage/openlineage-spark%s/%s/openlineage-spark%s-%s.jar",
-		variant, emrOpenLineageVersion, variant, emrOpenLineageVersion,
+		"https://repo1.maven.org/maven2/io/openlineage/openlineage-spark%s/%s/%s",
+		variant, emrOpenLineageVersion, jarName,
 	)
 	s.Out.WriteString(fmt.Sprintf("Downloading OpenLineage JAR v%s\n", emrOpenLineageVersion))
 	if _, err := common.ExecuteCommandWithTimeout(s, "curl", "-sSfL", "-o", jarDest, jarURL); err != nil {

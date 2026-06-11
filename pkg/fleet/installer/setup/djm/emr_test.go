@@ -127,6 +127,7 @@ func TestSetupOpenLineage_Enabled(t *testing.T) {
 	assert.Equal(t, "curl", capturedCmd)
 	expectedURL := "https://repo1.maven.org/maven2/io/openlineage/openlineage-spark_2.12/1.49.0/openlineage-spark_2.12-1.49.0.jar"
 	assert.Contains(t, capturedArgs, expectedURL)
+	assert.Contains(t, capturedArgs, filepath.Join(openLineageJARDir, "openlineage-spark_2.12-1.49.0.jar"))
 }
 
 func TestSetupOpenLineage_Disabled(t *testing.T) {
