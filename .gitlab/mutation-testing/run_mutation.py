@@ -48,10 +48,14 @@ PATCH_REL = ".gitlab/mutation-testing/patches/0001-add-test-cmd-and-no-coverage-
 # Env vars: MUT_REPO_ROOT, MUT_TARGET, MUT_TIMEOUT, MUT_LOG, MUT_RAPID_SEED, MUT_RAPID_CHECKS.
 TEST_WRAPPER = """#!/usr/bin/env bash
 unset GOTMPDIR
+export GOWORK=off
 cd "$MUT_REPO_ROOT" || exit 2
+rapid_flags=""
+if grep -rq "pgregory.net/rapid" "./$MUT_TARGET"/*_test.go 2>/dev/null; then
+  rapid_flags="-rapid.seed=${MUT_RAPID_SEED:-1} -rapid.checks=${MUT_RAPID_CHECKS:-1000}"
+fi
 out=$(go test -tags=test -count=1 \\
-  -rapid.seed="${MUT_RAPID_SEED:-1}" \\
-  -rapid.checks="${MUT_RAPID_CHECKS:-1000}" \\
+  $rapid_flags \\
   -timeout "${MUT_TIMEOUT:-120}s" \\
   "./$MUT_TARGET" 2>&1)
 rc=$?
