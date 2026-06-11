@@ -87,7 +87,7 @@ const ddotProcmgrProcessDefinitionFile = "datadog-agent-ddot.yaml"
 // DDOTProcmgrProcessDefinitionExists returns true when dd-procmgr is configured to supervise DDOT
 // via processes.d (OCI extension layout). The standalone datadog-agent-ddot MSI does not install
 // this file; those installs rely on the datadog-otel-agent Windows service started by the Agent.
-// When this file exists, the core Agent suppresses starting datadog-otel-agent (Windows SCM).
+// The core Agent may suppress starting that SCM service when this file exists and process_manager.enabled is true.
 func DDOTProcmgrProcessDefinitionExists() bool {
 	installPath, err := GetProgramFilesDirForProduct("Datadog Agent")
 	if err != nil || installPath == "" {

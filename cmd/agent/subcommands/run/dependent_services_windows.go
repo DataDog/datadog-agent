@@ -19,8 +19,8 @@ type Servicedef struct {
 	name       string
 	configKeys map[string]model.Reader
 	// suppressIf: when non-nil and returns true, the service is not started even when configKeys match.
-	// Used for datadog-otel-agent: suppress SCM start when OCI DDOT processes.d YAML exists (dd-procmgr
-	// supervises DDOT). Standalone datadog-agent-ddot MSI does not install that file.
+	// Used for datadog-otel-agent: suppress SCM start when OCI DDOT processes.d YAML exists and the
+	// process manager is enabled (otherwise a stale file could block SCM otel after disabling procmgr).
 	suppressIf     func() bool
 	shouldShutdown bool
 
@@ -99,7 +99,9 @@ func subservices(coreConf model.Reader, sysprobeConf model.Reader) []Servicedef 
 			configKeys: map[string]model.Reader{
 				"otelcollector.enabled": coreConf,
 			},
-			suppressIf:     winutil.DDOTProcmgrProcessDefinitionExists,
+			suppressIf: func() bool {
+				return winutil.DDOTProcmgrProcessDefinitionExists() && coreConf.GetBool("process_manager.enabled")
+			},
 			serviceName:    "datadog-otel-agent",
 			serviceInit:    otelInit,
 			shouldShutdown: true, // NOTE: not really ncessary with SCM dependency in place
