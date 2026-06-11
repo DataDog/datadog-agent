@@ -112,7 +112,18 @@ func buildAuthMethods(auth ncmconfig.AuthCredentials) ([]ssh.AuthMethod, error) 
 	}
 
 	if auth.Password != "" {
-		methods = append(methods, ssh.Password(auth.Password))
+		methods = append(methods, ssh.Password(auth.Password), ssh.KeyboardInteractive(func(_, _ string, _ []string, echos []bool) ([]string, error) {
+			var answers []string
+			for _, echo := range echos {
+				// simple heuristic: if a prompt has echo=false, then it's probably a password.
+				if echo {
+					answers = append(answers, "")
+				} else {
+					answers = append(answers, auth.Password)
+				}
+			}
+			return answers, nil
+		}))
 	}
 
 	if len(methods) == 0 {
