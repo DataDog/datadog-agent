@@ -4,7 +4,6 @@ from pathlib import Path
 
 from tasks.libs.common.omnibus import ENV_PASSHTROUGH, OS_SPECIFIC_ENV_PASSTHROUGH
 
-
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
