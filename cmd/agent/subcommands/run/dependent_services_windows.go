@@ -16,8 +16,12 @@ type serviceInitFunc func() (err error)
 
 // Servicedef defines a service
 type Servicedef struct {
-	name           string
-	configKeys     map[string]model.Reader
+	name       string
+	configKeys map[string]model.Reader
+	// suppressIfAny: if any of these keys is true, the service is not started even when configKeys
+	// would match. Used for datadog-otel-agent when process_manager.enabled: DDOT is supervised by
+	// dd-procmgrd (mirrors non-Windows where the agent does not start an SCM-managed otel service).
+	suppressIfAny  map[string]model.Reader
 	shouldShutdown bool
 
 	serviceName string
@@ -95,6 +99,9 @@ func subservices(coreConf model.Reader, sysprobeConf model.Reader) []Servicedef 
 			configKeys: map[string]model.Reader{
 				"otelcollector.enabled": coreConf,
 			},
+			suppressIfAny: map[string]model.Reader{
+				"process_manager.enabled": coreConf,
+			},
 			serviceName:    "datadog-otel-agent",
 			serviceInit:    otelInit,
 			shouldShutdown: true, // NOTE: not really ncessary with SCM dependency in place
@@ -171,6 +178,12 @@ func (s *Servicedef) Stop() error {
 
 // IsEnabled checks to see if a given service should be started
 func (s *Servicedef) IsEnabled() bool {
+	for configKey, cfg := range s.suppressIfAny {
+		if cfg.GetBool(configKey) {
+			log.Infof("Service %s suppressed by %s", s.name, configKey)
+			return false
+		}
+	}
 	for configKey, cfg := range s.configKeys {
 		if cfg.GetBool(configKey) {
 			return true

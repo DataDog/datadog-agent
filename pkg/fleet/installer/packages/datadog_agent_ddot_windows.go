@@ -13,10 +13,12 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"go.yaml.in/yaml/v2"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/embedded"
 	windowssvc "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service/windows"
 	windowsuser "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/user/windows"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
@@ -39,6 +41,10 @@ const (
 	agentDDOTPackage = "datadog-agent-ddot"
 	otelServiceName  = "datadog-otel-agent"
 	coreAgentService = "datadogagent"
+
+	// Basename of the dd-procmgr process definition for DDOT (matches Linux OCI extension hook).
+	ddotProcmgrConfigFileName = "datadog-agent-ddot.yaml"
+	ddProcmgrServiceName      = "dd-procmgr-service"
 )
 
 // preInstallDatadogAgentDDOT performs pre-installation steps for DDOT on Windows
@@ -437,14 +443,33 @@ func postInstallDDOTExtension(ctx HookContext) error {
 		return fmt.Errorf("DDOT binary not found at %s: %w", binaryPath, err)
 	}
 
+	// OCI DDOT is supervised by dd-procmgrd (same model as Linux extension): write processes.d
+	// under the MSI install root (see pkg/procmgr/rust default_config_dir on Windows).
+	if err := writeDDOTProcmgrConfigWindows(packagePath, ctx.PackagePath); err != nil {
+		return fmt.Errorf("failed to write DDOT process manager config: %w", err)
+	}
+	// Register the legacy SCM service (Manual, not started) so operators can fall back without reinstalling.
 	if err := ensureDDOTServiceForExtension(binaryPath); err != nil {
-		return fmt.Errorf("failed to create DDOT service: %w", err)
+		return fmt.Errorf("failed to register DDOT Windows service for rollback: %w", err)
+	}
+	if err := stopServiceIfExists(otelServiceName); err != nil {
+		log.Warnf("DDOT: could not ensure %s is stopped after registration: %v", otelServiceName, err)
+	}
+	if err := winutil.RestartService(ddProcmgrServiceName); err != nil {
+		log.Warnf("DDOT: failed to restart %s to load new process config: %v", ddProcmgrServiceName, err)
 	}
 	return nil
 }
 
 // preRemoveDDOTExtension stops and removes the DDOT service before extension removal
-func preRemoveDDOTExtension(_ HookContext) error {
+func preRemoveDDOTExtension(ctx HookContext) error {
+	packagePath := ctx.PackagePath
+	if resolved, err := filepath.EvalSymlinks(ctx.PackagePath); err == nil {
+		packagePath = resolved
+	}
+	if err := removeDDOTProcmgrConfigWindows(packagePath); err != nil {
+		log.Warnf("failed to remove DDOT process manager config: %v", err)
+	}
 	if err := stopServiceIfExists(otelServiceName); err != nil {
 		log.Warnf("failed to stop DDOT service: %s", err)
 	}
@@ -453,6 +478,9 @@ func preRemoveDDOTExtension(_ HookContext) error {
 	}
 	if err := disableOtelCollectorConfigWindows(); err != nil {
 		log.Warnf("failed to disable otelcollector in datadog.yaml: %s", err)
+	}
+	if err := winutil.RestartService(ddProcmgrServiceName); err != nil {
+		log.Warnf("DDOT: failed to restart %s after removing process config: %v", ddProcmgrServiceName, err)
 	}
 	return nil
 }
@@ -465,7 +493,58 @@ func writeOTelConfigWindowsExtension(ctx HookContext, extensionPath string) erro
 	return writeOTelConfigCommon(ctx, ddYaml, templatePath, outPath, true, 0o640)
 }
 
-// ensureDDOTServiceForExtension ensures the DDOT service exists and is configured correctly for extension
+func fleetPoliciesTrackFromPackagePath(pkgPath string) string {
+	if strings.EqualFold(filepath.Base(pkgPath), "experiment") {
+		return "experiment"
+	}
+	return "stable"
+}
+
+// writeDDOTProcmgrConfigWindows writes datadog-agent-ddot.yaml next to the MSI install layout so
+// dd-procmgrd picks it up (default_config_dir is InstallPath\processes.d on Windows).
+func writeDDOTProcmgrConfigWindows(installRootResolved string, packagePathRaw string) error {
+	otelExe := filepath.Join(installRootResolved, "ext", "ddot", "embedded", "bin", "otel-agent.exe")
+	if _, err := os.Stat(otelExe); err != nil {
+		return nil
+	}
+	installPF := paths.DatadogProgramFilesDir
+	if installPF == "" {
+		return fmt.Errorf("DatadogProgramFilesDir is empty; cannot write processes.d for DDOT")
+	}
+	processesDir := filepath.Join(installPF, "processes.d")
+	if err := os.MkdirAll(processesDir, 0o755); err != nil {
+		return fmt.Errorf("create processes.d: %w", err)
+	}
+
+	fleetTrack := fleetPoliciesTrackFromPackagePath(packagePathRaw)
+	fleetPolicies := filepath.Join(paths.ConfigsPath, "datadog-agent", fleetTrack)
+
+	config := embedded.DDOTWindowsProcmgrConfig
+	config = strings.ReplaceAll(config, "__DDOT_INSTALL_ROOT__", filepath.ToSlash(filepath.Clean(installRootResolved)))
+	config = strings.ReplaceAll(config, "__DDOT_ETC_ROOT__", filepath.ToSlash(filepath.Clean(paths.DatadogDataDir)))
+	config = strings.ReplaceAll(config, "__DDOT_FLEET_POLICIES_DIR__", filepath.ToSlash(filepath.Clean(fleetPolicies)))
+
+	path := filepath.Join(processesDir, ddotProcmgrConfigFileName)
+	return os.WriteFile(path, []byte(config), 0o644)
+}
+
+func removeDDOTProcmgrConfigWindows(packageRootResolved string) error {
+	if installPF := paths.DatadogProgramFilesDir; installPF != "" {
+		p := filepath.Join(installPF, "processes.d", ddotProcmgrConfigFileName)
+		if err := os.Remove(p); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+	}
+	legacy := filepath.Join(packageRootResolved, "processes.d", ddotProcmgrConfigFileName)
+	if err := os.Remove(legacy); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return nil
+}
+
+// ensureDDOTServiceForExtension registers or updates the datadog-otel-agent Windows service as
+// Manual start. It never starts the service — default supervision is dd-procmgrd; the SCM entry
+// exists for optional rollback (e.g. stop procmgr-managed DDOT, then Start-Service).
 func ensureDDOTServiceForExtension(binaryPath string) error {
 	m, err := mgr.Connect()
 	if err != nil {

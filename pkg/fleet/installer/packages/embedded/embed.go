@@ -35,6 +35,13 @@ var systemdUnits embed.FS
 //go:embed tmpl/gen/debrpm/datadog-agent-ddot.yaml
 var DDOTProcessConfig string
 
+// DDOTWindowsProcmgrConfig is the codegen-rendered process manager config for DDOT on Windows
+// (see embedded/tmpl/main.go). Install time replaces __DDOT_*__ placeholders with real paths,
+// same pattern as DDOTProcessConfig + strings.ReplaceAll on Linux.
+//
+//go:embed tmpl/gen/windows/datadog-agent-ddot.yaml
+var DDOTWindowsProcmgrConfig string
+
 // SystemdUnitType is the type of systemd unit.
 type SystemdUnitType string
 

@@ -40,6 +40,14 @@ func generate(outputDir string) error {
 	if err != nil {
 		return fmt.Errorf("failed to create directory for deb-rpm: %w", err)
 	}
+	err = os.MkdirAll(filepath.Join(outputDir, "windows"), 0755)
+	if err != nil {
+		return fmt.Errorf("failed to create directory for windows: %w", err)
+	}
+	windowsDDOTPath := filepath.Join(outputDir, "windows", "datadog-agent-ddot.yaml")
+	if err := os.WriteFile(windowsDDOTPath, mustRenderWindowsDdotProcmgrYAML(), 0644); err != nil {
+		return fmt.Errorf("failed to write %s: %w", windowsDDOTPath, err)
+	}
 	for unit, content := range systemdUnitsOCI {
 		filePath := filepath.Join(outputDir, "oci", unit)
 		if err := os.MkdirAll(filepath.Dir(filePath), 0755); err != nil {
@@ -119,6 +127,31 @@ func mustReadSystemdUnit(name string, data systemdTemplateData, ambiantCapabilit
 
 func mustRenderYAMLConfig(name string, data systemdTemplateData) []byte {
 	return mustRenderTemplate(name+".tmpl", data, false)
+}
+
+// windowsDDOTCodegenData drives datadog-agent-ddot-windows.yaml.tmpl at codegen time. Runtime
+// replaces the placeholder tokens (same idea as DDOTProcessConfig + /opt/datadog-agent on Linux).
+var windowsDDOTCodegenData = systemdTemplateData{
+	InstallDir:       "__DDOT_INSTALL_ROOT__",
+	EtcDir:           "__DDOT_ETC_ROOT__",
+	FleetPoliciesDir: "__DDOT_FLEET_POLICIES_DIR__",
+	PIDDir:           "",
+	Stable:           true,
+}
+
+func mustRenderWindowsDdotProcmgrYAML() []byte {
+	tmpl, err := template.ParseFS(embedded, "datadog-agent-ddot-windows.yaml.tmpl")
+	if err != nil {
+		panic(err)
+	}
+	var buf bytes.Buffer
+	if err := tmpl.Execute(&buf, templateData{
+		systemdTemplateData:          windowsDDOTCodegenData,
+		AmbiantCapabilitiesSupported: false,
+	}); err != nil {
+		panic(err)
+	}
+	return buf.Bytes()
 }
 
 func systemdUnits(stableData, expData systemdTemplateData, ambiantCapabilitiesSupported bool) map[string][]byte {
