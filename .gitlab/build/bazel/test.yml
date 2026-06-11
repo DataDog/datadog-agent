@@ -38,7 +38,7 @@ bazel:test:windows-amd64:
 .bazel:test:flavor:
   extends: .bazel:test
   script:
-    - bazel test --keep_going --build_tests_only --config=$FLAVOR //...
+    - bazel test --keep_going --build_tests_only --config=$FLAVOR //pkg/... //comp/... //cmd/...
 
 bazel:test:linux-amd64:base:
   extends: [ .bazel:test:flavor, .bazel:runner:linux-amd64 ]
@@ -108,6 +108,5 @@ bazel:test:windows-amd64:base:
   variables:
     POWERSHELL_SCRIPT: >-
       bazel test --keep_going --build_tests_only --config=base
-      -//bazel/rules/dd_packaging/...
-      -//packages/agent/linux/...
+      //pkg/... //comp/... //cmd/...
 
