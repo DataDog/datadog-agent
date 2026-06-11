@@ -49,8 +49,7 @@ type Requires struct {
 	// storage for windowed log-rate annotations.
 	Reporters []reporterdef.Reporter `group:"anomalydetection_reporters"`
 
-	// EventPlatform and Hostname are needed by the anomalyScorerHelper when
-	// anomaly_detection.detectors.anomaly_scorer.helper.report_events is true.
+	// Both are optional so the observer can start without them (e.g. the testbench).
 	EventPlatform eventplatform.Component `optional:"true"`
 	Hostname      hostname.Component      `optional:"true"`
 }
