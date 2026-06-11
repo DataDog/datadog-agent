@@ -179,7 +179,6 @@ func (e *EbpfProgram) setupManagerAndPerfHandlers() error {
 
 	managerMods := []ddebpf.Modifier{
 		&ebpftelemetry.ErrorsTelemetryModifier{},
-		&ddebpf.HashMapNoPreallocModifier{},
 	}
 
 	// Load perf handlers for all enabled libsets
