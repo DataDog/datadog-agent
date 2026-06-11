@@ -1,0 +1,7 @@
+fixes:
+  - |
+    OTLP: The ``_dd.stats_computed=false`` resource attribute now overrides the
+    ``Datadog-Client-Computed-Stats: true`` HTTP header. Collectors that cannot
+    compute APM stats out-of-band can set this attribute to ensure APM metrics
+    are computed by the Agent regardless of the header value. When the attribute
+    is absent, the header still governs.
