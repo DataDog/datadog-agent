@@ -20,7 +20,9 @@ const (
 )
 
 type adScheduler struct {
-	resolver targetResolver
+	resolver   targetResolver
+	readers    map[RuntimeType]configReaderFactory
+	collectors map[string]configCollector
 
 	ctx             context.Context
 	cancel          context.CancelFunc
@@ -42,10 +44,12 @@ type configCollectionWork struct {
 // Autodiscovery calls this scheduler when integration configs appear or
 // disappear; this component only uses the scheduled configs as triggers for
 // one-shot config collection.
-func newADScheduler(resolver targetResolver) *adScheduler {
+func newADScheduler(resolver targetResolver, readers map[RuntimeType]configReaderFactory, collectors map[string]configCollector) *adScheduler {
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &adScheduler{
 		resolver:        resolver,
+		readers:         readers,
+		collectors:      collectors,
 		ctx:             ctx,
 		cancel:          cancel,
 		collectionQueue: make(chan configCollectionWork, configCollectionQueueSize),
@@ -66,13 +70,13 @@ func (s *adScheduler) Schedule(configs []integration.Config) {
 			continue
 		}
 
-		collector, ok := configCollectors[config.Name]
+		collector, ok := s.collectors[config.Name]
 		if !ok {
 			log.Debugf("config files discovery has no collector for integration %q service %q", config.Name, config.ServiceID)
 			continue
 		}
 
-		readerFactory, ok := configReaders[target.runtime]
+		readerFactory, ok := s.readers[target.runtime]
 		if !ok {
 			log.Debugf("config files discovery has no config reader for integration %q service %q runtime %q", config.Name, config.ServiceID, target.runtime)
 			continue
