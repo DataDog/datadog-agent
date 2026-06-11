@@ -49,6 +49,14 @@ write_source_file(
     out_file = "agent_payload_version.bzl",
 )
 
+# build_tags.bzl is the single source of truth for build tags. //BUILD.bazel
+# load()s GAZELLE_BUILD_TAGS from it; the dd_agent_go_test extension consumes it as a
+# file input to generate its tags.go.
+exports_files(
+    ["build_tags.bzl"],
+    visibility = ["//bazel/rules/go:__pkg__"],
+)
+
 # No `data = [...]` for renovate.json / deps/ / .renovate-untracked.json on
 # purpose: the script resolves them via $BUILD_WORKSPACE_DIRECTORY (set by
 # `bazel run`) so it reads the live workspace, not the bazel sandbox. Adding
