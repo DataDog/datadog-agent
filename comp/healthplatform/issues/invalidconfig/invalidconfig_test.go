@@ -14,13 +14,14 @@ import (
 	"github.com/DataDog/agent-payload/v5/healthplatform"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/healthplatform/issues/schemacheck"
 )
 
 func TestBuildIssue_SchemaViolationProducesMediumSeverity(t *testing.T) {
-	issue, err := InvalidConfigIssue{}.BuildIssue(map[string]string{
-		contextKeyConfigPath: "/etc/datadog-agent/datadog.yaml",
-		contextKeyErrorCount: "3",
-		contextKeyErrors:     "/agent_ipc/port: expected integer\n/tags: expected array",
+	issue, err := (&invalidConfigModule{}).BuildIssue(map[string]string{
+		schemacheck.ContextKeyConfigPath: "/etc/datadog-agent/datadog.yaml",
+		schemacheck.ContextKeyErrorCount: "3",
+		schemacheck.ContextKeyErrors:     "/agent_ipc/port: expected integer\n/tags: expected array",
 	})
 	require.NoError(t, err)
 	assert.Empty(t, issue.GetId(), "Id is set by the runner (ReportIssue), not by the template")
@@ -28,35 +29,35 @@ func TestBuildIssue_SchemaViolationProducesMediumSeverity(t *testing.T) {
 	assert.Equal(t, healthplatform.IssueSeverity_ISSUE_SEVERITY_MEDIUM, issue.GetSeverity())
 	assert.Contains(t, issue.GetTitle(), "3 schema violations")
 	assert.Equal(t, float64(3),
-		issue.GetExtra().GetFields()[contextKeyErrorCount].GetNumberValue())
+		issue.GetExtra().GetFields()[schemacheck.ContextKeyErrorCount].GetNumberValue())
 	assert.Contains(t, issue.GetDescription(), "agent_ipc/port")
 	assert.Contains(t, issue.GetDescription(), "/tags")
 	assert.Contains(t, issue.GetDescription(), "; ", "description must use a visible delimiter between violations so the UI renders them legibly")
 
-	errorsBlob := issue.GetExtra().GetFields()[contextKeyErrors].GetStringValue()
+	errorsBlob := issue.GetExtra().GetFields()[schemacheck.ContextKeyErrors].GetStringValue()
 	assert.Contains(t, errorsBlob, "agent_ipc/port")
 	assert.Contains(t, errorsBlob, "/tags")
 	assert.Contains(t, errorsBlob, " • ", "extra.errors must use a visible delimiter so the UI renders multi-violation blobs legibly")
 }
 
 // A vanilla mock has only defaults, which round-trip through YAML cleanly and
-// pass the schema. Confirms Run() is a no-op on a healthy config.
+// pass the schema. Confirms validation is a no-op on a healthy config.
 func TestCheck_HealthyConfigReturnsNil(t *testing.T) {
-	reports, err := newChecker(config.NewMock(t)).Run()
+	reports, err := check.Run(config.NewMock(t))
 	require.NoError(t, err)
 	assert.Empty(t, reports)
 }
 
 // Inject a string into an integer-typed field. Confirms the validator surfaces
-// the violation and the checker wraps it into an IssueReport.
+// the violation and wraps it into an IssueReport.
 func TestCheck_SchemaViolationProducesReport(t *testing.T) {
 	cfg := config.NewMock(t)
 	cfg.SetInTest("agent_ipc.port", "not-a-number")
 
-	reports, err := newChecker(cfg).Run()
+	reports, err := check.Run(cfg)
 	require.NoError(t, err)
 	require.Len(t, reports, 1)
 	assert.Equal(t, IssueID, reports[0].IssueName)
 	assert.Equal(t, IssueID, reports[0].IssueID)
-	assert.Contains(t, reports[0].Context[contextKeyErrors], "agent_ipc/port")
+	assert.Contains(t, reports[0].Context[schemacheck.ContextKeyErrors], "agent_ipc/port")
 }

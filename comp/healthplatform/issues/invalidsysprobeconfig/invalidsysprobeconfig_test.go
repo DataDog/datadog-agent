@@ -11,81 +11,52 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/agent-payload/v5/healthplatform"
-
-	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
+	sysprobeconfigmock "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/mock"
+	"github.com/DataDog/datadog-agent/comp/healthplatform/issues/schemacheck"
 )
 
-// stubSysprobeConfig is a minimal sysprobeconfig.Component for testing the checker
-// pipeline directly
-type stubSysprobeConfig struct {
-	sysprobeconfig.Component
-	settings   map[string]any
-	configFile string
-}
-
-func (s *stubSysprobeConfig) AllSettingsWithoutDefaultOrSecrets() map[string]any { return s.settings }
-func (s *stubSysprobeConfig) ConfigFileUsed() string                             { return s.configFile }
-
-// Locks the dedup contract: the backend keys on these fields, and they must stay
-// distinct from invalid-config (different IssueName, Location, and an extra tag).
+// Locks this module's slice of the dedup contract — what makes it distinct from
+// invalid-config. The shared proto fields are locked in schemacheck_test.
 func TestBuildIssue_LocksDedupContract(t *testing.T) {
-	issue, err := InvalidSysprobeConfigIssue{}.BuildIssue(map[string]string{
-		contextKeyErrorCount: "1",
-		contextKeyErrors:     "/system_probe_config/health_port: got string, want integer",
+	issue, err := (&invalidSysprobeConfigModule{}).BuildIssue(map[string]string{
+		schemacheck.ContextKeyErrorCount: "1",
+		schemacheck.ContextKeyErrors:     "/system_probe_config/health_port: got string, want integer",
 	})
 	require.NoError(t, err)
-	assert.Empty(t, issue.GetId(), "Id is set by the runner, not the template")
 	assert.Equal(t, IssueID, issue.GetIssueName())
-	assert.Equal(t, "configuration", issue.GetCategory())
 	assert.Equal(t, "system-probe", issue.GetLocation())
-	assert.Equal(t, healthplatform.IssueSeverity_ISSUE_SEVERITY_MEDIUM, issue.GetSeverity())
-	assert.Equal(t, "config", issue.GetSource())
 	assert.Equal(t, []string{"config", "schema", "system-probe"}, issue.GetTags())
+	assert.Contains(t, issue.GetTitle(), "Datadog system-probe configuration")
 }
 
-// A valid system-probe setting passes the schema, so Run() reports nothing.
+// A valid system-probe setting passes the schema → no report.
 func TestCheck_HealthyConfigReturnsNil(t *testing.T) {
-	cfg := &stubSysprobeConfig{settings: map[string]any{
-		"system_probe_config": map[string]any{"health_port": 5558},
-	}}
-	reports, err := newChecker(cfg).Run()
+	reports, err := check.Run(sysprobeconfigmock.NewMock(t))
 	require.NoError(t, err)
 	assert.Empty(t, reports)
 }
 
-// A string in an integer-typed field violates the schema; the checker wraps the
-// violation into a single IssueReport keyed by the system-probe issue id.
+// A string in an integer-typed field violates the schema → one report.
 func TestCheck_SchemaViolationProducesReport(t *testing.T) {
-	cfg := &stubSysprobeConfig{settings: map[string]any{
-		"system_probe_config": map[string]any{"health_port": "not-an-integer"},
-	}}
-	reports, err := newChecker(cfg).Run()
+	cfg := sysprobeconfigmock.NewMockWithOverrides(t, map[string]interface{}{
+		"system_probe_config.health_port": "not-an-integer",
+	})
+	reports, err := check.Run(cfg)
 	require.NoError(t, err)
 	require.Len(t, reports, 1)
 	assert.Equal(t, IssueID, reports[0].IssueName)
-	assert.Equal(t, IssueID, reports[0].IssueID)
-	assert.Equal(t, "system-probe", reports[0].Source)
-	assert.Contains(t, reports[0].Context[contextKeyErrors], "health_port")
+	assert.Contains(t, reports[0].Context[schemacheck.ContextKeyErrors], "health_port")
 }
 
-// When sysprobeconfig is absent
-func TestCheck_NilSysprobeConfigNoOps(t *testing.T) {
-	reports, err := newChecker(nil).Run()
-	require.NoError(t, err)
-	assert.Empty(t, reports)
-}
-
-// Without sysprobeconfig the module must not register a startup check
+// Without sysprobeconfig the module must NOT register a startup check, or the bundle
+// would resolve a real persisted system-probe issue without ever validating.
 func TestBuiltInStartupHealthCheck_SkippedWhenSysprobeAbsent(t *testing.T) {
-	m := &invalidSysprobeConfigModule{checker: newChecker(nil)}
-	assert.Nil(t, m.BuiltInStartupHealthCheck())
+	assert.Nil(t, (&invalidSysprobeConfigModule{cfg: nil}).BuiltInStartupHealthCheck())
 }
 
-// With sysprobeconfig present the startup check is registered
+// With sysprobeconfig present the startup check is registered with the system-probe source.
 func TestBuiltInStartupHealthCheck_RegisteredWhenSysprobePresent(t *testing.T) {
-	m := &invalidSysprobeConfigModule{checker: newChecker(&stubSysprobeConfig{})}
-	check := m.BuiltInStartupHealthCheck()
-	require.NotNil(t, check)
-	assert.Equal(t, "system-probe", check.Source)
+	chk := (&invalidSysprobeConfigModule{cfg: sysprobeconfigmock.NewMock(t)}).BuiltInStartupHealthCheck()
+	require.NotNil(t, chk)
+	assert.Equal(t, "system-probe", chk.Source)
 }

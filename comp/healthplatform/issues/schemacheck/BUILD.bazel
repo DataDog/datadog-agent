@@ -1,0 +1,27 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "schemacheck",
+    srcs = ["schemacheck.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/healthplatform/issues/schemacheck",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/healthplatform/runner/def",
+        "//pkg/util/log",
+        "//pkg/util/scrubber",
+        "@com_github_datadog_agent_payload_v5//healthplatform",
+        "@in_yaml_go_yaml_v3//:yaml",
+        "@org_golang_google_protobuf//types/known/structpb",
+    ],
+)
+
+go_test(
+    name = "schemacheck_test",
+    srcs = ["schemacheck_test.go"],
+    embed = [":schemacheck"],
+    gotags = ["test"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
+// Package invalidconfig reports datadog.yaml schema violations through the Agent Health Platform.
 package invalidconfig
 
 import (
@@ -10,32 +11,42 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issues"
+	"github.com/DataDog/datadog-agent/comp/healthplatform/issues/schemacheck"
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
+	"github.com/DataDog/datadog-agent/pkg/config/schema"
 )
 
 // IssueID is the stable Agent Health identifier for configuration-schema violations
 const IssueID = "invalid-config"
+
+var check = schemacheck.Check{
+	IssueID:            IssueID,
+	Validator:          schema.ValidateCoreConfig,
+	Subject:            "Datadog Agent configuration",
+	ViolationNoun:      "schema",
+	Location:           "agent",
+	Tags:               []string{"config", "schema"},
+	Impact:             "The Datadog Agent may apply defaults for incorrectly-typed fields and may not behave as configured.",
+	RemediationSummary: "Fix each schema violation in the configuration file, then restart the Datadog Agent.",
+}
 
 func init() {
 	issues.RegisterModuleFactory(NewModule)
 }
 
 type invalidConfigModule struct {
-	cfg     config.Component
-	checker *checker
+	cfg config.Component
 }
 
 // NewModule captures the config so the once-only startup check can read it.
 func NewModule(deps issues.ModuleDeps) issues.Module {
-	return &invalidConfigModule{cfg: deps.Config, checker: newChecker(deps.Config)}
+	return &invalidConfigModule{cfg: deps.Config}
 }
 
-func (m *invalidConfigModule) IssueName() string {
-	return IssueID
-}
+func (m *invalidConfigModule) IssueName() string { return IssueID }
 
 func (m *invalidConfigModule) BuildIssue(context map[string]string) (*healthplatform.Issue, error) {
-	return InvalidConfigIssue{}.BuildIssue(context)
+	return check.BuildIssue(context)
 }
 
 // BuiltInPeriodicHealthCheck returns nil as schema validation runs only at startup
@@ -60,7 +71,7 @@ func (m *invalidConfigModule) BuiltInStartupHealthCheck() *runnerdef.BuiltInHeal
 			if !m.cfg.GetBool("health_platform.invalidconfig_check.enabled") {
 				return nil, nil
 			}
-			return m.checker.Run()
+			return check.Run(m.cfg)
 		},
 	}
 }
