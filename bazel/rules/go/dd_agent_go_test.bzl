@@ -2,7 +2,7 @@ load("@rules_go//go:def.bzl", "go_test")
 load("//bazel/flavors:defs.bzl", "ALL_FLAVORS", "flavor_gotags")
 
 def dd_agent_go_test(name, flavors = None, tags = None, **kwargs):
-    """Wraps go_test with per-flavor variants grouped under a test_suite.
+    """Wraps go_test with per-flavor variants.
 
     The flavor-to-gotags mapping and the tag naming scheme are encapsulated
     here so that BUILD files only express intent (which flavors apply) and
@@ -10,8 +10,8 @@ def dd_agent_go_test(name, flavors = None, tags = None, **kwargs):
     this macro, not every BUILD file.
 
     Args:
-        name: Base name; used for the test_suite and as the prefix for each
-              per-flavor go_test (e.g. "foo_test_base", "foo_test_iot").
+        name: Base name; used as the prefix for each per-flavor go_test
+              (e.g. "foo_test_base", "foo_test_iot").
         flavors: List of flavor names to test under. Defaults to all flavors.
                  Override to restrict testing to a subset.
         tags: Optional user-supplied bazel tags; merged with the per-flavor
@@ -30,13 +30,3 @@ def dd_agent_go_test(name, flavors = None, tags = None, **kwargs):
             tags = user_tags + ["dd_agent_go_test", "flavor_" + flavor],
             **kwargs
         )
-    native.test_suite(
-        name = name,
-        # Propagate user-supplied tags to the suite itself so wildcard target
-        # patterns honour them: without this, `tags = ["manual"]` on the
-        # macro call would only land on the per-flavor variants; the suite
-        # would still be picked up by `bazel test //...` and Bazel's
-        # test_suite expansion would then run the manual member tests anyway.
-        tags = user_tags,
-        tests = [":" + name + "_" + flavor for flavor in flavors],
-    )
