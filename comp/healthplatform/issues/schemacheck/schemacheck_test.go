@@ -60,3 +60,13 @@ func TestBuildIssue_SingularSuffix(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "X has 1 schema violation", issue.GetTitle())
 }
+
+// An unparseable count must not understate a non-empty error list as 0
+func TestBuildIssue_MalformedCountFallsBackToBlob(t *testing.T) {
+	issue, err := Check{Subject: "X", ViolationNoun: "schema"}.BuildIssue(map[string]string{
+		ContextKeyErrorCount: "not-a-number",
+		ContextKeyErrors:     "/a: bad\n/b: bad\n/c: bad",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "X has 3 schema violations", issue.GetTitle())
+}

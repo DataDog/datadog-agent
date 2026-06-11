@@ -106,8 +106,12 @@ func (c Check) BuildIssue(ctx map[string]string) (*healthplatform.Issue, error) 
 	if path == "" {
 		path = "(unknown path)"
 	}
-	count, _ := strconv.Atoi(ctx[ContextKeyErrorCount])
 	schemaErrors := ctx[ContextKeyErrors]
+
+	count, err := strconv.Atoi(ctx[ContextKeyErrorCount])
+	if err != nil && schemaErrors != "" {
+		count = strings.Count(schemaErrors, "\n") + 1
+	}
 
 	suffix := ""
 	if count != 1 {
