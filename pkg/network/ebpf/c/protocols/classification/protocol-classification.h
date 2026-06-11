@@ -153,6 +153,21 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
     protocol_stack_wrapper_t *protocol_stack_wrapper = get_protocol_stack_wrapper_if_exists(&classification_ctx->tuple);
     protocol_stack_t *protocol_stack = protocol_stack_wrapper ? &protocol_stack_wrapper->stack : NULL;
 
+    // Single-run shadow evaluation: record, once per flow, the attempt on which
+    // the application-layer protocol was first observed resolved, bucketed per
+    // protocol. Detection is lag-by-one — classification completes in tail-called
+    // programs, so a layer resolved by a prior packet's attempt becomes visible
+    // here on a subsequent packet. classification_attempts is the count of prior
+    // attempts for this flow. Placed before the early-exit checks so even
+    // fully-classified flows are stamped. See the NTWK-684 plan doc
+    // "Implementation design — per-protocol attempt-resolution histogram".
+    if (protocol_stack_wrapper && !protocol_stack_wrapper->histogram_stamped &&
+        is_protocol_layer_known(protocol_stack, LAYER_APPLICATION)) {
+        record_classification_attempt_resolved(protocol_stack->layer_application,
+                                               protocol_stack_wrapper->classification_attempts);
+        protocol_stack_wrapper->histogram_stamped = 1;
+    }
+
     if (is_fully_classified(protocol_stack)) {
         increment_telemetry_count(protocol_classifier_skipped_fully_classified);
         return;

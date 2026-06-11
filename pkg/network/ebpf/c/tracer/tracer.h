@@ -125,6 +125,15 @@ typedef struct {
     conn_stats_ts_t conn_stats;
 } conn_t;
 
+// Dimensions of the single-run shadow-evaluation classification-attempt histogram.
+// CLASSIFICATION_APP_PROTO_BUCKETS indexes the application-layer protocol by its
+// stored low byte (PROTOCOL_HTTP..PROTOCOL_MYSQL = 1..8 today; index 0 is unused).
+// CLASSIFICATION_MAX_ATTEMPT_BUCKETS buckets the attempt count; bucket =
+// min(classification_attempts, CLASSIFICATION_MAX_ATTEMPT_BUCKETS-1). See the
+// NTWK-684 plan doc "Implementation design — per-protocol attempt-resolution histogram".
+#define CLASSIFICATION_APP_PROTO_BUCKETS 16
+#define CLASSIFICATION_MAX_ATTEMPT_BUCKETS 16
+
 // Telemetry names
 typedef struct {
     __u64 tcp_sent_miscounts;
@@ -142,6 +151,9 @@ typedef struct {
     __u64 protocol_classifier_calls;
     __u64 protocol_classifier_skipped_fully_classified;
     __u64 protocol_classifier_skipped_max_attempts;
+    // Shadow-evaluation histogram: count of connections whose application-layer
+    // protocol was first observed resolved on a given attempt, per protocol.
+    __u64 classification_attempt_histogram[CLASSIFICATION_APP_PROTO_BUCKETS][CLASSIFICATION_MAX_ATTEMPT_BUCKETS];
 } telemetry_t;
 
 typedef struct {

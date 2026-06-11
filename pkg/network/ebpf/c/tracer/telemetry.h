@@ -93,6 +93,27 @@ static __always_inline void increment_telemetry_count_times(enum telemetry_count
     __increment_telemetry_count(counter_name, times);
 }
 
+// record_classification_attempt_resolved records, into the shadow-evaluation
+// histogram, that a connection's application-layer protocol (identified by its
+// stored low byte `app_proto_num`) was first observed resolved after `attempts`
+// classification attempts. Bounds-checks both indices so the eBPF verifier
+// accepts the 2D array access. See the NTWK-684 plan doc.
+static __always_inline void record_classification_attempt_resolved(__u8 app_proto_num, __u16 attempts) {
+    if (app_proto_num == 0 || app_proto_num >= CLASSIFICATION_APP_PROTO_BUCKETS) {
+        return;
+    }
+    __u16 bucket = attempts;
+    if (bucket >= CLASSIFICATION_MAX_ATTEMPT_BUCKETS) {
+        bucket = CLASSIFICATION_MAX_ATTEMPT_BUCKETS - 1;
+    }
+    __u64 key = 0;
+    telemetry_t *val = bpf_map_lookup_elem(&telemetry, &key);
+    if (val == NULL) {
+        return;
+    }
+    __sync_fetch_and_add(&val->classification_attempt_histogram[app_proto_num][bucket], 1);
+}
+
 __maybe_unused static __always_inline void sockaddr_to_addr(struct sockaddr *sa, u64 *addr_h, u64 *addr_l, u16 *port, u32 *metadata) {
     if (!sa) {
         return;

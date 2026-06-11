@@ -111,6 +111,10 @@ typedef struct {
     __u64 updated;
     protocol_stack_t stack;
     __u16 classification_attempts;
+    // Shadow-evaluation marker: set once we have recorded this flow's
+    // application-layer resolution attempt into classification_attempt_histogram,
+    // so each flow is counted at most once. Fits in existing struct padding.
+    __u8 histogram_stamped;
 } protocol_stack_wrapper_t;
 
 typedef enum {

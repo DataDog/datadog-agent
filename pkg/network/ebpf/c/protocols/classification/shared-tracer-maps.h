@@ -54,23 +54,28 @@ static __always_inline protocol_stack_t* get_protocol_stack_if_exists(conn_tuple
     return __get_protocol_stack_if_exists(&normalized_tup);
 }
 
-// Checks if the maximum number of classification attempts has been exceeded for this connection.
-// Returns true if max attempts exceeded, false otherwise.
-// Also increments the classification_attempts counter.
+// Returns whether the configured max-attempts cap WOULD be exceeded for this
+// connection on this attempt, and always increments the per-flow
+// classification_attempts counter (saturating).
+//
+// The unconditional increment is required by the single-run shadow-evaluation
+// instrument: the attempt-resolution histogram reads classification_attempts to
+// bucket flows by attempt, and must keep counting even when the cap is disabled
+// (max_attempts == 0, the eval default). The cap is evaluated as a shadow only
+// — the caller records the result but does not enforce it. The comparison is
+// done before the increment so the count of "would-skip" packets is stable once
+// the threshold is reached.
 static __always_inline bool classification_attempts_exceeded(protocol_stack_wrapper_t *wrapper) {
     if (!wrapper) {
         return false;
     }
     __u64 max_attempts = get_max_protocol_classification_attempts();
-    if (max_attempts == 0) {
-        // If max_attempts is 0, there is no limit
-        return false;
+    bool exceeded = (max_attempts != 0) && (wrapper->classification_attempts >= max_attempts);
+    // Saturate to avoid wrapping the __u16 counter on very long-lived flows.
+    if (wrapper->classification_attempts < 0xffff) {
+        wrapper->classification_attempts++;
     }
-    if (wrapper->classification_attempts >= max_attempts) {
-        return true;
-    }
-    wrapper->classification_attempts++;
-    return false;
+    return exceeded;
 }
 
 // Returns the protocol_stack_t associated with the given connection tuple.

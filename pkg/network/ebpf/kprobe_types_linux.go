@@ -77,6 +77,7 @@ type Telemetry struct {
 	Protocol_classifier_calls                    uint64
 	Protocol_classifier_skipped_fully_classified uint64
 	Protocol_classifier_skipped_max_attempts     uint64
+	Classification_attempt_histogram             [16][16]uint64
 }
 type PortBinding struct {
 	Netns     uint32
@@ -102,10 +103,11 @@ type ProtocolStack struct {
 	Flags       uint8
 }
 type ProtocolStackWrapper struct {
-	Updated   uint64
-	Stack     ProtocolStack
-	Attempts  uint16
-	Pad_cgo_0 [2]byte
+	Updated                 uint64
+	Stack                   ProtocolStack
+	Classification_attempts uint16
+	Histogram_stamped       uint8
+	Pad_cgo_0               [1]byte
 }
 type TLSTags struct {
 	Chosen_version   uint16
