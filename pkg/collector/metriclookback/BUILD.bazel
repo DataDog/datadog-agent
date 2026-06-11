@@ -3,6 +3,7 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 go_library(
     name = "metriclookback",
     srcs = [
+        "autoconfig_adapter.go",
         "config.go",
         "scheduler.go",
     ],
@@ -16,6 +17,7 @@ go_library(
         "//pkg/collector/check/id",
         "//pkg/collector/checkloader",
         "//pkg/collector/runner/expvars",
+        "//pkg/util/log",
         "@//pkg/collector/runner",
         "@in_yaml_go_yaml_v2//:yaml",
     ],
@@ -24,6 +26,7 @@ go_library(
 go_test(
     name = "metriclookback_test",
     srcs = [
+        "autoconfig_adapter_test.go",
         "config_test.go",
         "scheduler_test.go",
     ],
