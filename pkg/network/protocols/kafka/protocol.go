@@ -24,7 +24,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/usm/buildmode"
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -405,47 +404,51 @@ func (p *protocol) processKafkaDirect(event *EbpfTx) {
 	p.statkeeper.Process(event)
 }
 
-// createAdaptiveConsumer creates the appropriate consumer based on configuration and kernel version
-// and determines which callback method to use internally.
+// createAdaptiveConsumer creates the appropriate consumer (DirectConsumer or BatchConsumer)
+// based on configuration, and determines which callback method to use internally. When the
+// BatchConsumer is used it is created later, in PreStart.
 func (p *protocol) createAdaptiveConsumer() error {
-	// Check if direct consumer is explicitly requested via configuration
-	if p.cfg.KafkaUseDirectConsumer {
-		// The eBPF direct-emit path is compiled out of the prebuilt object (it would push the
-		// Kafka v12 parser past the 4096-instruction verifier limit on kernels < 5.2). Only CO-RE
-		// and runtime-compiled objects keep it, so don't enable the userspace DirectConsumer when
-		// neither is available, otherwise we'd read from a ring buffer the program never writes to.
-		if !p.cfg.EnableCORE && !p.cfg.EnableRuntimeCompiler {
-			log.Warnf("Kafka monitoring: direct consumer requested but neither CO-RE nor runtime compilation is enabled; the prebuilt object does not emit direct events, falling back to batch consumer")
-			p.useDirectConsumer = false
-		} else if events.SupportsDirectConsumer() {
-			// Use DirectConsumer for kernel ≥5.8 (supports bpf_perf_event_output in socket filters)
-			directConsumer, err := events.NewDirectConsumer(eventStreamName, p.processKafkaDirect, p.cfg)
-			if err != nil {
-				return err
-			}
-			p.consumer = events.NewKernelAdaptiveConsumer[EbpfTx](
-				directConsumer,
-				[]ddebpf.Modifier{&directConsumer.EventHandler},
-			)
-			p.useDirectConsumer = true
-			log.Debugf("Kafka monitoring: using direct consumer (requested via configuration)")
+	if !shouldUseDirectConsumer(p.cfg) {
+		if p.cfg.KafkaUseDirectConsumer {
+			log.Warnf("Kafka monitoring: direct consumer requested but not usable (kernel < 5.8, or the prebuilt object may be loaded, which has the Kafka direct path compiled out); falling back to batch consumer")
 		} else {
-			// Fall back to BatchConsumer on unsupported kernels
-			kernelVersion, err := kernel.HostVersion()
-			if err != nil {
-				log.Warnf("Kafka monitoring: direct consumer requested but unable to determine kernel version (%v), falling back to batch consumer", err)
-			} else {
-				log.Warnf("Kafka monitoring: direct consumer requested but kernel version %v < 5.8.0, falling back to batch consumer", kernelVersion)
-			}
-			p.useDirectConsumer = false
+			log.Debugf("Kafka monitoring: using batch consumer (default behavior)")
 		}
-	} else {
-		// Default behavior: use BatchConsumer regardless of kernel version
-		log.Debugf("Kafka monitoring: using batch consumer (default behavior)")
 		p.useDirectConsumer = false
+		return nil
 	}
 
+	// Use DirectConsumer for kernel >= 5.8 (supports bpf_perf_event_output in socket filters).
+	directConsumer, err := events.NewDirectConsumer(eventStreamName, p.processKafkaDirect, p.cfg)
+	if err != nil {
+		return err
+	}
+	p.consumer = events.NewKernelAdaptiveConsumer[EbpfTx](
+		directConsumer,
+		[]ddebpf.Modifier{&directConsumer.EventHandler},
+	)
+	p.useDirectConsumer = true
+	log.Debugf("Kafka monitoring: using direct consumer (requested via configuration)")
 	return nil
+}
+
+// shouldUseDirectConsumer reports whether Kafka should use the DirectConsumer. It requires a
+// kernel >= 5.8.0 (for perf/ring-buffer output from socket filters) and an eBPF object that
+// keeps the Kafka direct-emit path. The prebuilt object compiles that path out (it would
+// otherwise exceed the 4096-instruction verifier limit on kernels < 5.2), so direct is only
+// safe when the prebuilt object cannot be the one that loads: a CO-RE or runtime-compiled
+// build is selected (prebuilt is not the sole option) AND prebuilt fallback is disabled (a
+// CO-RE/runtime load failure cannot silently drop to prebuilt). With both held, the loader
+// either loads a CO-RE/runtime-compiled object (which keep the direct path) or errors out;
+// it never silently lands on prebuilt.
+func shouldUseDirectConsumer(cfg *config.Config) bool {
+	if !cfg.KafkaUseDirectConsumer {
+		return false
+	}
+	if !events.SupportsDirectConsumer() {
+		return false
+	}
+	return (cfg.EnableCORE || cfg.EnableRuntimeCompiler) && !cfg.AllowPrebuiltFallback
 }
 
 func (p *protocol) setupInFlightMapCleaner() error {
