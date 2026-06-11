@@ -31,15 +31,16 @@ type TaggerListEntity struct {
 // TagInfo holds the tag information for a given entity and source. It's meant
 // to be created from collectors and read by the store.
 type TagInfo struct {
-	Source               string    // source collector's name
-	EntityID             EntityID  // entity id for lookup
-	HighCardTags         []string  // high cardinality tags that can create a lot of different timeseries (typically one per container, user request, etc.)
-	OrchestratorCardTags []string  // orchestrator cardinality tags that have as many combination as pods/tasks
-	LowCardTags          []string  // low cardinality tags safe for every pipeline
-	StandardTags         []string  // the discovered standard tags (env, version, service) for the entity
-	DeleteEntity         bool      // true if the entity is to be deleted from the store
-	ExpiryDate           time.Time // keep in cache until expiryDate
-	IsComplete           bool      // whether all expected collectors have reported data for this entity in wmeta
+	Source                     string    // source collector's name
+	EntityID                   EntityID  // entity id for lookup
+	HighCardTags               []string  // high cardinality tags that can create a lot of different timeseries (typically one per container, user request, etc.)
+	OrchestratorCardTags       []string  // orchestrator cardinality tags that have as many combination as pods/tasks
+	LowCardTags                []string  // low cardinality tags safe for every pipeline
+	StandardTags               []string  // the discovered standard tags (env, version, service) for the entity
+	DeleteEntity               bool      // true if the entity is to be deleted from the store
+	ExpiryDate                 time.Time // keep in cache until expiryDate
+	IsComplete                 bool      // whether all expected collectors have reported data for this entity in wmeta
+	PreserveEntityCompleteness bool      // true if this update should not change the entity-level completeness state
 }
 
 // CollectorPriority helps resolving dupe tags from collectors

@@ -145,7 +145,7 @@ func (s *TagStore) ProcessTagInfo(tagInfos []*types.TagInfo) {
 			s.store.Set(info.EntityID, storedTags)
 		}
 
-		completenessChanged := storedTags.getIsComplete() != info.IsComplete
+		completenessChanged := !info.PreserveEntityCompleteness && storedTags.getIsComplete() != info.IsComplete
 
 		// Skip if nothing changed
 		if !tagsChanged && !completenessChanged {
@@ -159,9 +159,10 @@ func (s *TagStore) ProcessTagInfo(tagInfos []*types.TagInfo) {
 		if tagsChanged {
 			storedTags.setTagsForSource(info.Source, newSt)
 		}
-		storedTags.setIsComplete(info.IsComplete)
-
-		s.trackCompletenessDelay(info.EntityID, eventType, info.IsComplete)
+		if !info.PreserveEntityCompleteness {
+			storedTags.setIsComplete(info.IsComplete)
+			s.trackCompletenessDelay(info.EntityID, eventType, info.IsComplete)
+		}
 
 		events = append(events, types.EntityEvent{
 			EventType: eventType,

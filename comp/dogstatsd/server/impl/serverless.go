@@ -11,6 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	logComponentImpl "github.com/DataDog/datadog-agent/comp/core/log/impl"
+	taggerdef "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	pidmapimpl "github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap/impl"
@@ -34,7 +35,7 @@ type ServerlessDogstatsd interface {
 //nolint:revive // TODO(AML) Fix revive linter
 func NewServerlessServer(demux aggregator.Demultiplexer, extraTags []string) (ServerlessDogstatsd, error) {
 	wmeta := option.None[workloadmeta.Component]()
-	s := newServerCompat(pkgconfigsetup.Datadog(), logComponentImpl.NewTemporaryLoggerWithoutInit(), hostnameimpl.NewHostnameService(), replay.NewNoopTrafficCapture(), serverdebugimpl.NewServerlessServerDebug(pkgconfigsetup.Datadog()), true, demux, wmeta, pidmapimpl.NewServerlessPidMap(), telemetry.GetCompatComponent(), filterlistimpl.NewNoopFilterList())
+	s := newServerCompat(pkgconfigsetup.Datadog(), logComponentImpl.NewTemporaryLoggerWithoutInit(), hostnameimpl.NewHostnameService(), replay.NewNoopTrafficCapture(), serverdebugimpl.NewServerlessServerDebug(pkgconfigsetup.Datadog()), true, demux, wmeta, pidmapimpl.NewServerlessPidMap(), telemetry.GetCompatComponent(), filterlistimpl.NewNoopFilterList(), option.None[taggerdef.Processor]())
 
 	s.extraTags = append(s.extraTags, extraTags...)
 	err := s.start(context.TODO())
