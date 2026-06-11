@@ -321,6 +321,26 @@
   },
   "selectedYankedVersions": {},
   "moduleExtensions": {
+    "//bazel/toolchains/agent_data_plane:agent_data_plane_configure.bzl%agent_data_plane_configure": {
+      "os:linux,arch:aarch64": {
+        "bzlTransitiveDigest": "3vSM09a9P9oJKtixpvLR0lHrRlbwxFvlVM0kDfhTwXQ=",
+        "usagesDigest": "Mn8hje2vs3iTBGlVjz9P/Y3iRo33KcBSyBhfWUEdFpk=",
+        "recordedInputs": [],
+        "generatedRepoSpecs": {
+          "agent_data_plane": {
+            "repoRuleId": "@@//bazel/toolchains/agent_data_plane:agent_data_plane_configure.bzl%download_agent_data_plane",
+            "attributes": {
+              "base_url": "https://binaries.ddbuild.io/saluki",
+              "version": "1.1.2",
+              "linux_amd64_sha256": "e1e9c91047e0c80a8fce7d27a0db53e1c5fff97c8823811fa98a6af70e7856ac",
+              "linux_arm64_sha256": "7a484a09daf1c3c521d7a1e37a00d9d6a331c6aa3cbcaa36bd5ef5a35601624e",
+              "fips_linux_amd64_sha256": "fdb181f88dab89602251189df07a84a90dfe45cc0699ee5c9803c29a27cf5ced",
+              "fips_linux_arm64_sha256": "5b4dcbb5970bfa541a3c3240abbb7f422673d856bb853d72093f16a6e4b2e24e"
+            }
+          }
+        }
+      }
+    },
     "//bazel/toolchains/linux_headers:linux_headers.bzl%linux_headers_extension": {
       "general": {
         "bzlTransitiveDigest": "st+R/ulVqPkT0R/t3yLLAqOk8EAK4MzET2sMpfW8YB4=",

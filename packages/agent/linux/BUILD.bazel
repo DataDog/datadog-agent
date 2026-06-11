@@ -39,9 +39,29 @@ pkg_filegroup(
         "//packages/agent/dependencies:all_files",
         "//packages/agent/product:all_files",
         "//packages/install_dir:embedded",
-        "//packages/install_dir:etc",
     ],
     prefix = "/opt/datadog-agent",
+)
+
+# Content that must land under /etc (not /opt/datadog-agent/etc).
+# These targets already encode etc/... paths in their prefix; routing them
+# through agent_components would prepend /opt/datadog-agent incorrectly.
+pkg_filegroup(
+    name = "etc_components",
+    srcs = [
+        # Compliance rules and runtime-security policy -> /etc/datadog-agent/{compliance,runtime-security}.d/
+        "//deps/security_agent_policies:all_files",
+        # SNMP traps DB -> /etc/datadog-agent/conf.d/snmp.d/traps_db/
+        "//deps/snmp_traps:all_files",
+        # Integration conf.d files -> /etc/datadog-agent/conf.d/<check>.d/
+        "//deps/integrations:confd",
+        # private-action-runner config -> /etc/datadog-agent/private-action-runner/
+        "//packages/install_dir:etc",
+        # sysvinit (etc/init.d/) and upstart (etc/init/) scripts for Debian/Ubuntu
+        "//packages/debian/etc:all_files",
+        # Agent config files, conf.d, etc-level dirs (etc/datadog-agent, checks.d), and config.py
+        "//packages/agent/product:etc_files",
+    ],
 )
 
 # This is an intermediate node so that have a place to collect all
@@ -53,6 +73,7 @@ pkg_filegroup(
     name = "everything",
     srcs = [
         ":agent_components",
+        ":etc_components",
     ],
 )
 
@@ -62,6 +83,14 @@ package_licenses(
     src = ":everything",
 )
 
+# Relocate LICENSES/ and sources/ from the deb root to
+# /opt/datadog-agent/LICENSES/ and /opt/datadog-agent/sources/.
+pkg_filegroup(
+    name = "license_files_in_install_dir",
+    srcs = [":license_files"],
+    prefix = "/opt/datadog-agent",
+)
+
 # Blend the dependencies, the license files and things that vary
 # a build time into the distribution.
 pkg_filegroup(
@@ -69,7 +98,7 @@ pkg_filegroup(
     srcs = [
         ":datadog_agent_finalize",
         ":everything",
-        ":license_files",
+        ":license_files_in_install_dir",
     ] + select({
         "//:is_standard_install": [
             ":datadog_agent_installer_symlinks",

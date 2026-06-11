@@ -1,4 +1,5 @@
 load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_files", "strip_prefix")
 
 go_library(
     name = "impl",
@@ -73,4 +74,16 @@ go_test(
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],
+)
+
+# GUI static assets (css, fonts, images, js) shipped to bin/agent/dist/views/.
+# Mirrors the omnibus copy performed by the agent.build invoke task.
+pkg_files(
+    name = "views_files",
+    srcs = glob([
+        "views/private/**",
+    ]),
+    prefix = "bin/agent/dist/views",
+    strip_prefix = strip_prefix.from_pkg("views/private"),
+    visibility = ["//packages:__subpackages__"],
 )

@@ -28,8 +28,6 @@ pkg_filegroup(
         # we'll do that in April.
         # "//packages/agent/dependencies:all_files",
         ":dirs",
-        ":example_config",
-        "//cmd/agent/dist:all_files",
         "//cmd/agent/dist:all_python_files",
         "//rtloader:all_files",
         ":dda_built_agent_binary",
@@ -46,6 +44,7 @@ pkg_filegroup(
         ":ebpf_core_objects",
         ":ebpf_runtime_sources",
         ":ebpf_copying",
+        ":llvm_bpf_binaries",
 
         # TODO: //pkg/discovery/module/rust
         ":security_agent_binary",
@@ -54,13 +53,16 @@ pkg_filegroup(
         ":secret_generic_connector_license",
         # TODO: cacerts
         # TODO: dependency 'datadog-agent-integrations-py3'
+        "//comp/core/gui/impl:views_files",
     ] + select({
         "//packages/agent:linux_default": [
+            ":agent_data_plane_binary",
             ":installer_binary",
             "//pkg/discovery/module/rust:all_files",
             "//pkg/procmgr/rust:all_files_linux",
         ],
         "//packages/agent:linux_fips": [
+            ":agent_data_plane_binary",
             ":installer_binary",
             "//pkg/discovery/module/rust:all_files",
             "//pkg/procmgr/rust:all_files_linux",
@@ -92,6 +94,9 @@ pkg_filegroup(
         ":example_config",
         "//cmd/agent/dist:all_files",
         "//cmd/agent/dist:all_python_files",
+        # :python_files (config.py) was removed from all_python_files to fix the
+        # /etc prefix bug in Bazel packaging, but omnibus still needs it here.
+        "//cmd/agent/dist:python_files",
     ],
 )
 
@@ -105,6 +110,10 @@ pkg_install(
 )
 
 # Dirs that should exist with particular permissions.
+# NOTE: only dirs that belong under /opt/datadog-agent are listed here.
+# Dirs that belong directly under /etc (etc/datadog-agent, checks.d) are
+# in :etc_dirs below, and are routed to whole_distro without the
+# /opt/datadog-agent prefix via packages/agent/linux:etc_components.
 pkg_mkdirs(
     name = "dirs",
     attributes = pkg_attributes(mode = "755"),
@@ -112,10 +121,7 @@ pkg_mkdirs(
         "bin",
     ] + select({
         "@platforms//os:macos": ["etc"],
-        "//conditions:default": [
-            "etc/datadog-agent",
-            "checks.d",
-        ],
+        "//conditions:default": [],
     }) + select({
         "@platforms//os:windows": [],
         "//conditions:default": [
@@ -131,6 +137,32 @@ pkg_mkdirs(
         ],
         "//conditions:default": [],
     }),
+)
+
+# Directories and config files that land directly under /etc (not /opt/datadog-agent/etc).
+# Referenced by //packages/agent/linux:etc_components which routes them without
+# the /opt/datadog-agent prefix.
+pkg_mkdirs(
+    name = "etc_dirs",
+    attributes = pkg_attributes(mode = "755"),
+    dirs = select({
+        "@platforms//os:macos": [],
+        "//conditions:default": [
+            "etc/datadog-agent",
+            "etc/datadog-agent/checks.d",
+        ],
+    }),
+)
+
+pkg_filegroup(
+    name = "etc_files",
+    srcs = [
+        ":etc_dirs",
+        ":example_config",
+        "//cmd/agent/dist:all_files",
+        # config.py -> /etc/datadog-agent/config.py
+        "//cmd/agent/dist:python_files",
+    ],
 )
 
 # eBPF prebuilt object files (.o) shipped to embedded/share/system-probe/ebpf/.
@@ -238,6 +270,19 @@ pkg_files(
     target_compatible_with = ["@platforms//os:linux"],
 )
 
+# LLVM/Clang binaries for runtime eBPF compilation (clang-bpf and llc-bpf).
+# llvm-strip is intentionally excluded to avoid over-shipping.
+pkg_files(
+    name = "llvm_bpf_binaries",
+    srcs = [
+        "@llvm_bpf//:bin/clang-bpf",
+        "@llvm_bpf//:bin/llc-bpf",
+    ],
+    attributes = pkg_attributes(mode = "755"),
+    prefix = "embedded/bin",
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
 pkg_files(
     name = "example_config",
     srcs = [
@@ -306,6 +351,17 @@ pkg_files(
     srcs = ["//cmd/installer"],
     attributes = pkg_attributes(mode = "755"),
     prefix = "embedded/bin",
+)
+
+# Agent Data Plane binary (linux_default and linux_fips only; not heroku).
+# NOTE: fetching @agent_data_plane requires binaries.ddbuild.io credentials.
+# For local builds pass --repo_env=AGENT_DATA_PLANE_LOCAL_BINARY=<path>.
+pkg_files(
+    name = "agent_data_plane_binary",
+    srcs = ["@agent_data_plane//:bin/agent-data-plane"],
+    attributes = pkg_attributes(mode = "755"),
+    prefix = "embedded/bin",
+    target_compatible_with = ["@platforms//os:linux"],
 )
 
 pkg_files(

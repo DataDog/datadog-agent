@@ -29,7 +29,7 @@ pkg_files(
     prefix = "embedded/bin",
     renames = select({
         "//packages/agent:linux_heroku": {":main_noop.sh": "trace-loader"},
-        "//conditions:default": {},
+        "//conditions:default": {"//cmd/loader": "trace-loader"},
     }),
     target_compatible_with = ["@platforms//os:linux"],
 )

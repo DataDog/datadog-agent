@@ -49,12 +49,15 @@ pkg_files(
     ],
     attributes = pkg_attributes(mode = "0644"),
     prefix = select(ETC_DIR_SELECTOR),
+    visibility = ["//packages/agent:__subpackages__"],
 )
 
 pkg_filegroup(
     name = "all_python_files",
     srcs = [
-        ":python_files",
+        # NOTE: :python_files (config.py) uses ETC_DIR_SELECTOR prefix.
+        # It is routed through packages/agent/linux:etc_components (without
+        # the /opt/datadog-agent prefix) to land at /etc/datadog-agent/.
         "//cmd/agent/dist/checks:python_files",
         "//cmd/agent/dist/utils:python_files",
     ],

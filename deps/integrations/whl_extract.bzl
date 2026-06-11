@@ -99,6 +99,15 @@ def _multi_whl_extract_impl(ctx):
     `python -m zipfile -e`.  If two wheels provide the same file (e.g. a
     shared namespace __init__.py with identical content) the later wheel's
     copy wins, which is harmless for pure-Python namespace packages.
+
+    After extraction, if `python` is provided (or falls back to the toolchain
+    interpreter):
+      - Runs `python -m compileall` to generate __pycache__/*.pyc files,
+        matching the bytecode cache that omnibus produces via `pip install`.
+        SOURCE_DATE_EPOCH is fixed for reproducible .pyc timestamps.
+      - Synthesizes INSTALLER and REQUESTED metadata files in every
+        .dist-info directory, matching the files pip generates on
+        `pip install`.
     """
     toolchain = ctx.toolchains["@rules_python//python:toolchain_type"]
     runtime = toolchain.py3_runtime
@@ -106,7 +115,16 @@ def _multi_whl_extract_impl(ctx):
     out_dir = ctx.actions.declare_directory(ctx.attr.name)
     whls = ctx.files.whls
 
-    if runtime.interpreter:
+    # Determine the Python interpreter to use.  If the caller provides an
+    # explicit `python` executable (e.g. @python_3_13//:python3 to match the
+    # embedded CPython ABI), use it directly.  Otherwise fall back to the
+    # resolved toolchain interpreter.
+    if ctx.attr.python:
+        python_exec = ctx.executable.python
+        python_path = python_exec.path
+        python_runfiles = ctx.attr.python[DefaultInfo].default_runfiles
+        inputs = depset(whls + [python_exec], transitive = [python_runfiles.files])
+    elif runtime.interpreter:
         python_path = runtime.interpreter.path
         inputs = depset(whls + [runtime.interpreter], transitive = [runtime.files])
     else:
@@ -124,6 +142,35 @@ def _multi_whl_extract_impl(ctx):
         )
         for whl in whls
     ]
+
+    # Compile all extracted .py files to produce __pycache__/*.pyc files,
+    # matching the bytecode cache that omnibus generates via `pip install`.
+    # SOURCE_DATE_EPOCH is fixed to a stable value so .pyc mtime fields are
+    # reproducible across rebuilds (required by Bazel hermeticity: two builds
+    # with the same inputs must produce bit-identical outputs).
+    # --invalidation-mode unchecked-hash skips mtime-based invalidation so the
+    # .pyc files remain valid regardless of when the source files are accessed.
+    # Errors are suppressed (|| true) because some C-extension stubs or
+    # syntax-error test fixtures may not compile; that is harmless.
+    extract_cmds.append(
+        'SOURCE_DATE_EPOCH=315532800 "{python}" -m compileall -q --invalidation-mode unchecked-hash "$OUT" 2>/dev/null || true'.format(
+            python = python_path,
+        ),
+    )
+
+    # Synthesize pip install metadata in every .dist-info directory.
+    # Omnibus runs `pip install` which writes INSTALLER ("pip\n") and
+    # REQUESTED (empty marker) into each dist-info.  Wheels extracted with
+    # `python -m zipfile -e` do not contain these files; generate them here
+    # so the installed package tree matches the omnibus layout.
+    extract_cmds.append(
+        r"""
+find "$OUT" -maxdepth 2 -type d -name '*.dist-info' | while IFS= read -r d; do
+  printf 'pip\n' > "$d/INSTALLER"
+  touch "$d/REQUESTED"
+done
+""",
+    )
 
     ctx.actions.run_shell(
         inputs = inputs,
@@ -145,6 +192,14 @@ multi_whl_extract = rule(
 
     All wheels are extracted into one declared directory, which is then covered
     by a single pkg_files + REMOVE_BASE_DIRECTORY entry.
+
+    After extraction, __pycache__/*.pyc files are compiled via compileall
+    and pip install metadata (INSTALLER, REQUESTED) is synthesized in every
+    .dist-info directory to match the omnibus site-packages layout.
+
+    Optionally pass `python` pointing to a specific interpreter (e.g.
+    @python_3_13//:python3) when the embedded CPython ABI differs from the
+    default rules_python toolchain.
     """,
     implementation = _multi_whl_extract_impl,
     attrs = {
@@ -152,6 +207,20 @@ multi_whl_extract = rule(
             doc = "The .whl files to extract, in order.",
             mandatory = True,
             allow_files = [".whl"],
+        ),
+        "python": attr.label(
+            doc = """Optional explicit Python interpreter executable.
+
+            When provided, this interpreter is used instead of the
+            toolchain-resolved one to run compileall.  Use this when the
+            integration wheels are built for a specific CPython version that
+            differs from the default rules_python toolchain (e.g.
+            @python_3_13//:python3 for CPython 3.13 ABI wheels).
+            """,
+            mandatory = False,
+            allow_single_file = True,
+            executable = True,
+            cfg = "exec",
         ),
     },
     toolchains = ["@rules_python//python:toolchain_type"],

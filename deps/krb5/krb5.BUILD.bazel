@@ -113,6 +113,7 @@ filegroup(
 pkg_files(
     name = "hdr_files",
     srcs = [":_headers"],
+    prefix = "include",
 )
 
 # Single public entry point for "ship all krb5 libraries". Consumers reference
