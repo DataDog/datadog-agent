@@ -38,6 +38,10 @@ func (r *stubRegistry) RefreshRemoteAgent(sessionID string) bool {
 	return r.validSessions[sessionID]
 }
 
+func (r *stubRegistry) ReportRemoteAgentEvent(_ string, _ []remoteagentregistry.RemoteAgentEvent) error {
+	return nil
+}
+
 func (r *stubRegistry) GetRegisteredAgents() []remoteagentregistry.RegisteredAgent { return nil }
 
 func (r *stubRegistry) GetRegisteredAgentStatuses() []remoteagentregistry.StatusData { return nil }
