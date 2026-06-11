@@ -25,8 +25,8 @@ const goCheckLoaderName = "core"
 
 // Options controls which source check instances get shadow configs.
 type Options struct {
-	Enabled    bool
-	CheckNames []string
+	ShadowChecksEnabled bool
+	ChecksToShadow      []string
 }
 
 // ShadowConfig describes a source check instance selected for shadow execution.
@@ -38,8 +38,10 @@ type ShadowConfig struct {
 	Instance           integration.Data
 	InstanceIndex      int
 	SourceConfigDigest string
-	SourceCheckID      checkid.ID
-	ShadowCheckID      checkid.ID
+	// SourceCheckID lets later scheduler/sender stages bind shadow work back
+	// to the original check ID while reporting with ShadowCheckID.
+	SourceCheckID checkid.ID
+	ShadowCheckID checkid.ID
 }
 
 type loaderConfig struct {
@@ -61,10 +63,10 @@ func DeriveShadowConfigs(configs []integration.Config, opts Options) []ShadowCon
 		initLoader := selectedInitLoader(config.InitConfig)
 		for instanceIndex, instance := range config.Instances {
 			instanceEnabled, hasInstanceSetting := instanceLookbackEnabled(instance)
-			if !opts.Enabled && !instanceEnabled {
+			if !opts.ShadowChecksEnabled && !instanceEnabled {
 				continue
 			}
-			if opts.Enabled && hasInstanceSetting && !instanceEnabled {
+			if opts.ShadowChecksEnabled && hasInstanceSetting && !instanceEnabled {
 				continue
 			}
 			if check.IsJMXInstance(config.Name, instance, config.InitConfig) {
@@ -93,7 +95,7 @@ func isSupportedCheckConfig(config integration.Config, opts Options) bool {
 	if !config.IsCheckConfig() || config.HasFilter(workloadfilter.MetricsFilter) {
 		return false
 	}
-	if len(opts.CheckNames) > 0 && !slices.Contains(opts.CheckNames, config.Name) {
+	if len(opts.ChecksToShadow) > 0 && !slices.Contains(opts.ChecksToShadow, config.Name) {
 		return false
 	}
 	return true

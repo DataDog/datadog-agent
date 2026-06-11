@@ -27,7 +27,7 @@ func TestDeriveShadowConfigsFromSystemWideConfig(t *testing.T) {
 		Provider: "file",
 	}
 
-	shadowConfigs := DeriveShadowConfigs([]integration.Config{source}, Options{Enabled: true})
+	shadowConfigs := DeriveShadowConfigs([]integration.Config{source}, Options{ShadowChecksEnabled: true})
 
 	require.Len(t, shadowConfigs, 2)
 	for i, shadowConfig := range shadowConfigs {
@@ -55,7 +55,7 @@ func TestDeriveShadowConfigsHonorsCheckNameAllowList(t *testing.T) {
 		},
 	}
 
-	shadowConfigs := DeriveShadowConfigs(configs, Options{Enabled: true, CheckNames: []string{"disk"}})
+	shadowConfigs := DeriveShadowConfigs(configs, Options{ShadowChecksEnabled: true, ChecksToShadow: []string{"disk"}})
 
 	require.Len(t, shadowConfigs, 1)
 	assert.Equal(t, "disk", shadowConfigs[0].SourceConfig.Name)
@@ -89,7 +89,7 @@ func TestDeriveShadowConfigsAllowsPerInstanceOptOutFromSystemWideEnablement(t *t
 		},
 	}
 
-	shadowConfigs := DeriveShadowConfigs([]integration.Config{source}, Options{Enabled: true})
+	shadowConfigs := DeriveShadowConfigs([]integration.Config{source}, Options{ShadowChecksEnabled: true})
 
 	require.Len(t, shadowConfigs, 1)
 	assert.Equal(t, 0, shadowConfigs[0].InstanceIndex)
@@ -106,7 +106,7 @@ func TestDeriveShadowConfigsInheritsSystemWideEnablementWhenInstanceEnabledIsUns
 		},
 	}
 
-	shadowConfigs := DeriveShadowConfigs([]integration.Config{source}, Options{Enabled: true})
+	shadowConfigs := DeriveShadowConfigs([]integration.Config{source}, Options{ShadowChecksEnabled: true})
 
 	require.Len(t, shadowConfigs, 2)
 	assert.Equal(t, 0, shadowConfigs[0].InstanceIndex)
@@ -150,7 +150,7 @@ func TestDeriveShadowConfigsSkipsUnsupportedConfigs(t *testing.T) {
 		},
 	}
 
-	shadowConfigs := DeriveShadowConfigs(configs, Options{})
+	shadowConfigs := DeriveShadowConfigs(configs, Options{ShadowChecksEnabled: true})
 
 	require.Len(t, shadowConfigs, 1)
 	assert.Equal(t, "core_explicit", shadowConfigs[0].SourceConfig.Name)
@@ -165,7 +165,7 @@ func TestDeriveShadowConfigsSkipsEmptyLoaderConfigs(t *testing.T) {
 		},
 	}
 
-	shadowConfigs := DeriveShadowConfigs([]integration.Config{source}, Options{Enabled: true})
+	shadowConfigs := DeriveShadowConfigs([]integration.Config{source}, Options{ShadowChecksEnabled: true})
 
 	require.Len(t, shadowConfigs, 1)
 	assert.Equal(t, 1, shadowConfigs[0].InstanceIndex)
@@ -181,7 +181,7 @@ func TestDeriveShadowConfigsHonorsInstanceLoaderOverride(t *testing.T) {
 		},
 	}
 
-	shadowConfigs := DeriveShadowConfigs([]integration.Config{source}, Options{})
+	shadowConfigs := DeriveShadowConfigs([]integration.Config{source}, Options{ShadowChecksEnabled: true})
 
 	require.Len(t, shadowConfigs, 1)
 	assert.Equal(t, 0, shadowConfigs[0].InstanceIndex)
@@ -197,7 +197,7 @@ func TestDeriveShadowConfigsSkipsInstanceLoaderOverrideFromCore(t *testing.T) {
 		},
 	}
 
-	shadowConfigs := DeriveShadowConfigs([]integration.Config{source}, Options{})
+	shadowConfigs := DeriveShadowConfigs([]integration.Config{source}, Options{ShadowChecksEnabled: true})
 
 	require.Len(t, shadowConfigs, 1)
 	assert.Equal(t, 1, shadowConfigs[0].InstanceIndex)
@@ -215,7 +215,7 @@ func TestDeriveShadowConfigsDoesNotMutateSourceConfig(t *testing.T) {
 	originalFastDigest := source.FastDigest()
 	originalInstance := append(integration.Data(nil), source.Instances[0]...)
 
-	shadowConfigs := DeriveShadowConfigs([]integration.Config{source}, Options{})
+	shadowConfigs := DeriveShadowConfigs([]integration.Config{source}, Options{ShadowChecksEnabled: true})
 
 	require.Len(t, shadowConfigs, 1)
 	assert.Equal(t, originalDigest, source.Digest())
