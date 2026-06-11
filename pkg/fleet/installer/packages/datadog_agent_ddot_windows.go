@@ -126,6 +126,43 @@ func readAPIKeyFromDatadogYAML() (string, error) {
 	return "", errors.New("api_key not found or empty in datadog.yaml")
 }
 
+// processManagerEnabledFromDatadogYAML reads process_manager.enabled from ProgramData datadog.yaml.
+func processManagerEnabledFromDatadogYAML() (bool, error) {
+	ddYaml := filepath.Join(paths.DatadogDataDir, "datadog.yaml")
+	data, err := os.ReadFile(ddYaml)
+	if err != nil {
+		return false, err
+	}
+	var cfg map[string]any
+	if err := yaml.Unmarshal(data, &cfg); err != nil {
+		return false, err
+	}
+	pm, ok := cfg["process_manager"].(map[string]any)
+	if !ok {
+		return false, nil
+	}
+	return yamlTruthy(pm["enabled"]), nil
+}
+
+func yamlTruthy(v any) bool {
+	switch x := v.(type) {
+	case bool:
+		return x
+	case string:
+		return strings.EqualFold(x, "true") || x == "1" || strings.EqualFold(x, "yes")
+	case int:
+		return x != 0
+	case int64:
+		return x != 0
+	case float64:
+		return x != 0
+	case uint64:
+		return x != 0
+	default:
+		return false
+	}
+}
+
 // preRemoveDatadogAgentDdot performs pre-removal steps for the DDOT package on Windows
 // All the steps are allowed to fail
 func preRemoveDatadogAgentDdot(ctx HookContext) error {
@@ -443,11 +480,19 @@ func postInstallDDOTExtension(ctx HookContext) error {
 		return fmt.Errorf("DDOT binary not found at %s: %w", binaryPath, err)
 	}
 
-	// OCI DDOT is supervised by dd-procmgrd (same model as Linux extension): write processes.d
-	// under the MSI install root (see pkg/procmgr/rust default_config_dir on Windows).
-	if err := writeDDOTProcmgrConfigWindows(packagePath); err != nil {
-		return fmt.Errorf("failed to write DDOT process manager config: %w", err)
+	procmgrEnabled, err := processManagerEnabledFromDatadogYAML()
+	if err != nil {
+		log.Warnf("DDOT: could not read process_manager from datadog.yaml (%v); not writing processes.d or restarting dd-procmgr", err)
+		procmgrEnabled = false
 	}
+	if procmgrEnabled {
+		if err := writeDDOTProcmgrConfigWindows(packagePath); err != nil {
+			return fmt.Errorf("failed to write DDOT process manager config: %w", err)
+		}
+	} else if err := removeDDOTProcmgrConfigWindows(packagePath); err != nil {
+		log.Warnf("DDOT: could not remove stale process manager config: %v", err)
+	}
+
 	// Register the legacy SCM service (Manual, not started) so operators can fall back without reinstalling.
 	if err := ensureDDOTServiceForExtension(binaryPath); err != nil {
 		return fmt.Errorf("failed to register DDOT Windows service for rollback: %w", err)
@@ -455,14 +500,21 @@ func postInstallDDOTExtension(ctx HookContext) error {
 	if err := stopServiceIfExists(otelServiceName); err != nil {
 		log.Warnf("DDOT: could not ensure %s is stopped after registration: %v", otelServiceName, err)
 	}
-	if err := winutil.RestartService(ddProcmgrServiceName); err != nil {
-		log.Warnf("DDOT: failed to restart %s to load new process config: %v", ddProcmgrServiceName, err)
+	if procmgrEnabled {
+		if err := winutil.RestartService(ddProcmgrServiceName); err != nil {
+			log.Warnf("DDOT: failed to restart %s to load new process config: %v", ddProcmgrServiceName, err)
+		}
 	}
 	return nil
 }
 
 // preRemoveDDOTExtension stops and removes the DDOT service before extension removal
 func preRemoveDDOTExtension(ctx HookContext) error {
+	restartProcmgr, err := processManagerEnabledFromDatadogYAML()
+	if err != nil {
+		log.Warnf("DDOT: could not read process_manager from datadog.yaml (%v); skipping dd-procmgr restart after removal", err)
+		restartProcmgr = false
+	}
 	packagePath := ctx.PackagePath
 	if resolved, err := filepath.EvalSymlinks(ctx.PackagePath); err == nil {
 		packagePath = resolved
@@ -479,8 +531,10 @@ func preRemoveDDOTExtension(ctx HookContext) error {
 	if err := disableOtelCollectorConfigWindows(); err != nil {
 		log.Warnf("failed to disable otelcollector in datadog.yaml: %s", err)
 	}
-	if err := winutil.RestartService(ddProcmgrServiceName); err != nil {
-		log.Warnf("DDOT: failed to restart %s after removing process config: %v", ddProcmgrServiceName, err)
+	if restartProcmgr {
+		if err := winutil.RestartService(ddProcmgrServiceName); err != nil {
+			log.Warnf("DDOT: failed to restart %s after removing process config: %v", ddProcmgrServiceName, err)
+		}
 	}
 	return nil
 }

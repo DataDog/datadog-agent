@@ -18,14 +18,10 @@ type serviceInitFunc func() (err error)
 type Servicedef struct {
 	name       string
 	configKeys map[string]model.Reader
-	// suppressIfAny: if any of these keys is true, the service is not started even when configKeys
-	// would match. Used for datadog-otel-agent when process_manager.enabled: DDOT is supervised by
-	// dd-procmgrd (mirrors non-Windows where the agent does not start an SCM-managed otel service).
-	suppressIfAny map[string]model.Reader
-	// suppressOnlyIf: when non-nil, a suppressIfAny hit only disables the service if this returns true.
-	// For otel + process_manager: suppress only when the OCI extension wrote processes.d DDOT YAML;
-	// standalone datadog-agent-ddot MSI does not, and still needs the Agent to start datadog-otel-agent.
-	suppressOnlyIf func() bool
+	// suppressIf: when non-nil and returns true, the service is not started even when configKeys match.
+	// Used for datadog-otel-agent: suppress SCM start when OCI DDOT processes.d YAML exists (dd-procmgr
+	// supervises DDOT). Standalone datadog-agent-ddot MSI does not install that file.
+	suppressIf     func() bool
 	shouldShutdown bool
 
 	serviceName string
@@ -103,10 +99,7 @@ func subservices(coreConf model.Reader, sysprobeConf model.Reader) []Servicedef 
 			configKeys: map[string]model.Reader{
 				"otelcollector.enabled": coreConf,
 			},
-			suppressIfAny: map[string]model.Reader{
-				"process_manager.enabled": coreConf,
-			},
-			suppressOnlyIf: winutil.DDOTProcmgrProcessDefinitionExists,
+			suppressIf:     winutil.DDOTProcmgrProcessDefinitionExists,
 			serviceName:    "datadog-otel-agent",
 			serviceInit:    otelInit,
 			shouldShutdown: true, // NOTE: not really ncessary with SCM dependency in place
@@ -183,14 +176,9 @@ func (s *Servicedef) Stop() error {
 
 // IsEnabled checks to see if a given service should be started
 func (s *Servicedef) IsEnabled() bool {
-	for configKey, cfg := range s.suppressIfAny {
-		if cfg.GetBool(configKey) {
-			if s.suppressOnlyIf != nil && !s.suppressOnlyIf() {
-				continue
-			}
-			log.Infof("Service %s suppressed by %s", s.name, configKey)
-			return false
-		}
+	if s.suppressIf != nil && s.suppressIf() {
+		log.Infof("Service %s suppressed (install policy)", s.name)
+		return false
 	}
 	for configKey, cfg := range s.configKeys {
 		if cfg.GetBool(configKey) {
