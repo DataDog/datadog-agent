@@ -7,6 +7,7 @@ package configfilesdiscoveryimpl
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"testing"
 	"time"
@@ -196,9 +197,11 @@ func TestResolveTargetDetectsRuntime(t *testing.T) {
 func TestSchedulerDispatchesRegisteredIntegrationsOnly(t *testing.T) {
 	collector := &recordingConfigCollector{}
 	readerFactory := &recordingConfigReaderFactory{reader: fakeConfigReader{runtime: RuntimeHost}}
-	withConfigCollectors(t, map[string]configCollector{"redis": collector})
-	withConfigReaders(t, map[RuntimeType]configReaderFactory{RuntimeHost: readerFactory.Build})
-	s := newADScheduler(targetResolver{})
+	s := newADScheduler(
+		targetResolver{},
+		map[RuntimeType]configReaderFactory{RuntimeHost: readerFactory.Build},
+		map[string]configCollector{"redis": collector},
+	)
 	defer s.Stop()
 
 	s.Schedule([]integration.Config{
@@ -218,9 +221,11 @@ func TestSchedulerDispatchesRegisteredIntegrationsOnly(t *testing.T) {
 
 func TestSchedulerContinuesAfterInvalidConfigInBatch(t *testing.T) {
 	collector := &recordingConfigCollector{}
-	withConfigCollectors(t, map[string]configCollector{"redis": collector})
-	withConfigReaders(t, map[RuntimeType]configReaderFactory{RuntimeDocker: fakeConfigReaderFactory(fakeConfigReader{runtime: RuntimeDocker})})
-	s := newADScheduler(targetResolver{})
+	s := newADScheduler(
+		targetResolver{},
+		map[RuntimeType]configReaderFactory{RuntimeDocker: fakeConfigReaderFactory(fakeConfigReader{runtime: RuntimeDocker})},
+		map[string]configCollector{"redis": collector},
+	)
 	defer s.Stop()
 
 	s.Schedule([]integration.Config{
@@ -237,9 +242,11 @@ func TestSchedulerRunsCollectorOutsideScheduleCallback(t *testing.T) {
 		unblock: make(chan struct{}),
 	}
 	readerFactory := &recordingConfigReaderFactory{reader: fakeConfigReader{runtime: RuntimeHost}}
-	withConfigCollectors(t, map[string]configCollector{"redis": collector})
-	withConfigReaders(t, map[RuntimeType]configReaderFactory{RuntimeHost: readerFactory.Build})
-	s := newADScheduler(targetResolver{})
+	s := newADScheduler(
+		targetResolver{},
+		map[RuntimeType]configReaderFactory{RuntimeHost: readerFactory.Build},
+		map[string]configCollector{"redis": collector},
+	)
 	defer s.Stop()
 
 	returned := make(chan struct{})
@@ -350,6 +357,18 @@ func (r fakeConfigReader) Runtime() RuntimeType {
 	return r.runtime
 }
 
+func (r fakeConfigReader) ReadFile(context.Context, string) (ConfigFile, error) {
+	return ConfigFile{}, errors.New("not implemented")
+}
+
+func (r fakeConfigReader) ReadEnvVars(context.Context, []string) (map[string]string, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (r fakeConfigReader) ReadCommandline(context.Context) (TargetCommandline, error) {
+	return TargetCommandline{}, errors.New("not implemented")
+}
+
 func fakeConfigReaderFactory(reader ConfigReader) configReaderFactory {
 	return func(target) (ConfigReader, error) {
 		return reader, nil
@@ -375,26 +394,6 @@ func (f *recordingConfigReaderFactory) recordedTargets() []target {
 	targets := make([]target, len(f.targets))
 	copy(targets, f.targets)
 	return targets
-}
-
-func withConfigCollectors(t *testing.T, collectors map[string]configCollector) {
-	t.Helper()
-
-	oldCollectors := configCollectors
-	configCollectors = collectors
-	t.Cleanup(func() {
-		configCollectors = oldCollectors
-	})
-}
-
-func withConfigReaders(t *testing.T, readers map[RuntimeType]configReaderFactory) {
-	t.Helper()
-
-	oldReaders := configReaders
-	configReaders = readers
-	t.Cleanup(func() {
-		configReaders = oldReaders
-	})
 }
 
 func newWorkloadMetaMock(t *testing.T) workloadmetamock.Mock {

@@ -54,6 +54,8 @@ type Params struct {
 	AgentServiceEnvironment pulumi.Map
 	// ExtraComposeManifests is a list of extra docker compose manifests to add beside the agent service.
 	ExtraComposeManifests []docker.ComposeInlineManifest
+	// ExtraAgentVolumes are extra bind-mount volumes (host:container[:opts]) added to the agent service.
+	ExtraAgentVolumes []string
 	// EnvironmentVariables is a map of environment variables to set with the docker-compose context
 	EnvironmentVariables pulumi.StringMap
 	// PulumiDependsOn is a list of resources to depend on.
@@ -153,6 +155,14 @@ func WithAgentServiceEnvVariable(key string, value pulumi.Input) func(*Params) e
 	}
 }
 
+// WithExtraVolumes adds extra bind-mount volumes (host:container[:opts]) to the agent container.
+func WithExtraVolumes(volumes ...string) func(*Params) error {
+	return func(p *Params) error {
+		p.ExtraAgentVolumes = append(p.ExtraAgentVolumes, volumes...)
+		return nil
+	}
+}
+
 // WithIntake configures the agent to use the given url as intake.
 // The url must be a valid Datadog intake, with a SSL valid certificate
 //
@@ -210,6 +220,10 @@ func withIntakeHostname(url pulumi.StringInput, shouldSkipSSLValidation pulumi.B
 			"DD_LOGS_CONFIG_LOGS_DD_URL":                 pulumi.Sprintf("%s", url),
 			"DD_LOGS_CONFIG_LOGS_NO_SSL":                 shouldSkipSSLValidation,
 			"DD_SERVICE_DISCOVERY_FORWARDER_LOGS_DD_URL": pulumi.Sprintf("%s", url),
+			// Host and container image SBOMs ship through the event platform
+			// forwarder; redirect those endpoints to the fakeintake as well.
+			"DD_SBOM_DD_URL":            pulumi.Sprintf("%s", url),
+			"DD_CONTAINER_IMAGE_DD_URL": pulumi.Sprintf("%s", url),
 		}
 		for key, value := range envVars {
 			if err := WithAgentServiceEnvVariable(key, value)(p); err != nil {
