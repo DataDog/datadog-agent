@@ -60,6 +60,9 @@ func (api *BenchAPI) Start(addr string) error {
 	mux.HandleFunc("/api/benchmark", api.cors(api.handleBenchmark))
 	mux.HandleFunc("/api/components/", api.cors(api.handleComponentAction))
 	mux.HandleFunc("/api/correlations/compressed", api.cors(api.handleCompressedCorrelations))
+	mux.HandleFunc("/api/scores", api.cors(api.handleScores))
+	mux.HandleFunc("/api/scores/config", api.cors(api.handleScoresConfig))
+	mux.HandleFunc("/api/scores/replay", api.cors(api.handleScoresReplay))
 
 	mux.HandleFunc("/debug/pprof/", pprof.Index)
 	mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
@@ -1194,6 +1197,124 @@ func (api *BenchAPI) handleBenchmark(w http.ResponseWriter, _ *http.Request) {
 		return
 	}
 	api.writeJSON(w, stats)
+}
+
+// handleScores returns the current ScoreState from the live scorer.
+// GET /api/scores
+func (api *BenchAPI) handleScores(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		api.writeError(w, http.StatusMethodNotAllowed, "use GET")
+		return
+	}
+	sv := api.tb.getStateView()
+	if sv == nil {
+		api.writeJSON(w, observerdef.ScoreState{})
+		return
+	}
+	api.writeJSON(w, sv.ScoreState())
+}
+
+// handleScoresConfig returns the server-side default ScorerConfig so the UI
+// never needs to hardcode threshold values.
+// GET /api/scores/config
+func (api *BenchAPI) handleScoresConfig(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		api.writeError(w, http.StatusMethodNotAllowed, "use GET")
+		return
+	}
+	api.writeJSON(w, observerimpl.DefaultScorerConfig())
+}
+
+// handleScoresReplay re-runs the scorer over the full retained raw-anomaly set
+// using a config provided in the POST body. This lets the UI inspect scorer
+// output without re-running detectors.
+//
+// The testbench simulates the live agent's 1-second timer: anomalies are sorted
+// by timestamp and fed second-by-second, with Advance called once per unique
+// second (and for any empty seconds in between).
+//
+// POST /api/scores/replay   body: observerdef.ScorerConfig JSON
+func (api *BenchAPI) handleScoresReplay(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		api.writeError(w, http.StatusMethodNotAllowed, "use POST")
+		return
+	}
+
+	cfg := observerimpl.DefaultScorerConfig()
+	if err := json.NewDecoder(r.Body).Decode(&cfg); err != nil {
+		api.writeError(w, http.StatusBadRequest, "invalid config: "+err.Error())
+		return
+	}
+	// Replay always keeps all buckets so the UI can render the full time range.
+	cfg.MaxBuckets = 0
+
+	sv := api.tb.getStateView()
+	if sv == nil {
+		api.writeJSON(w, observerdef.ScoreState{})
+		return
+	}
+
+	// Use only metric (non-log) anomalies with a valid timestamp.
+	// Log anomalies have no configured thresholds so the scorer would default
+	// them to Medium level, inflating the EWMA for the log-only period.
+	raw := sv.Anomalies()
+	anomalies := make([]observerdef.Anomaly, 0, len(raw))
+	for _, a := range raw {
+		if a.Type == observerdef.AnomalyTypeLog {
+			continue
+		}
+		if a.Timestamp == 0 {
+			continue
+		}
+		anomalies = append(anomalies, a)
+	}
+	if len(anomalies) == 0 {
+		api.writeJSON(w, observerdef.ScoreState{Config: cfg})
+		return
+	}
+
+	// Sort by timestamp ascending so the scorer processes time monotonically.
+	sorted := make([]observerdef.Anomaly, len(anomalies))
+	copy(sorted, anomalies)
+	sort.Slice(sorted, func(i, j int) bool {
+		return sorted[i].Timestamp < sorted[j].Timestamp
+	})
+
+	scorer := observerimpl.NewScorer(cfg)
+
+	// Feed anomalies and advance second-by-second (simulating the 1-second timer).
+	first := sorted[0].Timestamp
+	last := sorted[len(sorted)-1].Timestamp
+
+	collector := &scorerEventCollector{}
+	unsubscribe := scorer.Subscribe(observerdef.AnomalyScorerConfiguration{
+		Listener:     collector,
+		CooldownSecs: cfg.CooldownSecs,
+	})
+	defer unsubscribe()
+
+	ai := 0
+	for sec := first; sec <= last; sec++ {
+		for ai < len(sorted) && sorted[ai].Timestamp == sec {
+			scorer.ProcessAnomaly(sorted[ai])
+			ai++
+		}
+		scorer.Advance(sec)
+	}
+
+	state := scorer.ScoreState()
+	state.Events = collector.events
+	api.writeJSON(w, state)
+}
+
+// scorerEventCollector implements observerdef.ScorerListener, accumulating every
+// severity transition fired by the scorer's per-subscription state machine.
+type scorerEventCollector struct {
+	events []observerdef.SeverityEvent
+}
+
+func (c *scorerEventCollector) OnSeverityTransition(evt observerdef.SeverityEvent) {
+	c.events = append(c.events, evt)
 }
 
 // writeJSON writes a JSON response.

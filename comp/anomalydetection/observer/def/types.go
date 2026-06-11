@@ -335,6 +335,11 @@ type ScorerConfig struct {
 	// specific detector names. Each entry is [low, medium, high, xhigh] thresholds.
 	// Detectors not in this map fall back to the global defaults [6, 12, 20, 35].
 	DetectorThresholds map[string][4]float64 `json:"detector_thresholds,omitempty"`
+	// MaxBuckets is the maximum number of ScoreBucket entries retained in
+	// ScoreState(). 0 means unlimited (suitable for offline replay). Positive
+	// values cap retention to prevent unbounded growth in the live agent.
+	// DefaultScorerConfig sets this to WindowSecs.
+	MaxBuckets int64 `json:"max_buckets,omitempty"`
 }
 
 // ScoreBucket is the per-second telemetry unit emitted by the scorer.

@@ -163,14 +163,16 @@ var levelWeights = [5]float64{0.2, 0.5, 1.0, 2.0, 3.0}
 // Per-detector thresholds are set based on empirical score distributions across
 // kafka-partition-saturation, postmark, and dns-upstream-outage scenarios.
 func DefaultScorerConfig() observer.ScorerConfig {
+	const windowSecs = 15
 	return observer.ScorerConfig{
 		Alpha:         0.014,
 		SaturationK:   5.0,
-		WindowSecs:    15,
-		LowThreshold:  0.040,
-		HighThreshold: 0.060,
-		MarginPct:     0.20,
+		WindowSecs:    windowSecs,
+		LowThreshold:  0.15,
+		HighThreshold: 0.55,
+		MarginPct:     0.10,
 		CooldownSecs:  300,
+		MaxBuckets:    windowSecs, // cap live-agent ScoreState to prevent unbounded growth
 		DetectorThresholds: map[string][4]float64{
 			// tukey_biweight scores cap hard at ~50 across all scenarios.
 			// Calibrated: p25≈6, p50≈9, p75≈15, p90≈27, p99≈45 (3-scenario avg).
@@ -551,9 +553,9 @@ func (s *anomalyScorer) advanceSecond(sec int64) float64 {
 		WeightSum: weightSum,
 		Ewma:      s.ewma,
 	})
-	if int64(len(s.buckets)) > s.config.WindowSecs {
-		trimmed := make([]observer.ScoreBucket, s.config.WindowSecs)
-		copy(trimmed, s.buckets[int64(len(s.buckets))-s.config.WindowSecs:])
+	if cap := s.config.MaxBuckets; cap > 0 && int64(len(s.buckets)) > cap {
+		trimmed := make([]observer.ScoreBucket, cap)
+		copy(trimmed, s.buckets[int64(len(s.buckets))-cap:])
 		s.buckets = trimmed
 	}
 
