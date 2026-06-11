@@ -10,13 +10,12 @@ go_library(
         "worker.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/core/autodiscovery/discoverer",
-    tags = ["manual"],  # keep — listeners is not Bazel-built (see autodiscovery/impl)
+    tags = ["manual"],
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/autodiscovery/integration",
+        "//comp/core/workloadmeta/def",
         "//pkg/util/log",
-        "//pkg/util/tmplvar",
-        "@//comp/core/autodiscovery/listeners",
         "@//pkg/collector/python",
         "@io_k8s_apimachinery//pkg/util/wait",
         "@io_k8s_client_go//util/workqueue",
@@ -32,12 +31,10 @@ go_test(
     ],
     embed = [":discoverer"],
     gotags = ["test"],
-    tags = ["manual"],  # keep — same reason as the library
+    tags = ["manual"],
     deps = [
         "//comp/core/autodiscovery/integration",
-        "//comp/core/workloadfilter/def",
         "//comp/core/workloadmeta/def",
-        "@//comp/core/autodiscovery/listeners",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@org_uber_go_atomic//:atomic",

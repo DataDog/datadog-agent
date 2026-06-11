@@ -12,52 +12,75 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 )
 
-func TestParseDiscoveryResult_TwoConfigs(t *testing.T) {
-	payload := `[
-		{"check_name": "redis", "instances": [{"host": "10.0.0.1"}], "init_config": {"foo": 1}},
-		{"name": "redis", "instances": [{"host": "10.0.0.2"}]}
-	]`
-	configs, err := parseDiscoveryResult("redis", payload)
-	require.NoError(t, err)
-	require.Len(t, configs, 2)
-	assert.Equal(t, "redis", configs[0].Name)
-	assert.Equal(t, "redis", configs[1].Name)
-	assert.Len(t, configs[0].Instances, 1)
-	assert.JSONEq(t, `{"foo":1}`, string(configs[0].InitConfig))
-	// Empty init_config defaults to "{}" so check loaders don't trip over an
-	// empty document.
-	assert.Equal(t, integration.Data(`{}`), configs[1].InitConfig)
-}
+func TestParseDiscoveryResult(t *testing.T) {
+	tests := []struct {
+		name            string
+		integration     string
+		payload         string
+		wantErr         bool
+		wantNil         bool
+		wantLen         int
+		wantNames       []string
+		wantInitConfigs []string // per-config; "" means default "{}"
+		wantInstLens    []int
+	}{
+		{
+			name:        "two configs use integration name",
+			integration: "redis",
+			payload: `[
+				{"instances": [{"host": "10.0.0.1"}], "init_config": {"foo": 1}},
+				{"instances": [{"host": "10.0.0.2"}]}
+			]`,
+			wantLen:         2,
+			wantNames:       []string{"redis", "redis"},
+			wantInitConfigs: []string{`{"foo":1}`, `{}`},
+			wantInstLens:    []int{1, 1},
+		},
+		{
+			name:            "integration name used when no name field",
+			integration:     "krakend",
+			payload:         `[{"instances":[{"host":"x"}]}]`,
+			wantLen:         1,
+			wantNames:       []string{"krakend"},
+			wantInitConfigs: []string{`{}`},
+			wantInstLens:    []int{1},
+		},
+		{
+			name:        "empty array returns nil",
+			integration: "redis",
+			payload:     `[]`,
+			wantNil:     true,
+		},
+		{
+			name:        "invalid JSON returns error",
+			integration: "redis",
+			payload:     `not-json`,
+			wantErr:     true,
+		},
+	}
 
-func TestParseDiscoveryResult_DefaultsToIntegrationName(t *testing.T) {
-	payload := `[{"instances":[{"host":"x"}]}]`
-	configs, err := parseDiscoveryResult("krakend", payload)
-	require.NoError(t, err)
-	require.Len(t, configs, 1)
-	assert.Equal(t, "krakend", configs[0].Name)
-}
-
-func TestParseDiscoveryResult_CheckNameWinsOverName(t *testing.T) {
-	payload := `[{"check_name":"override","name":"alias","instances":[{}]}]`
-	configs, err := parseDiscoveryResult("redis", payload)
-	require.NoError(t, err)
-	require.Len(t, configs, 1)
-	assert.Equal(t, "override", configs[0].Name)
-}
-
-func TestParseDiscoveryResult_EmptyArray(t *testing.T) {
-	configs, err := parseDiscoveryResult("redis", `[]`)
-	require.NoError(t, err)
-	assert.Nil(t, configs)
-}
-
-func TestParseDiscoveryResult_InvalidJSON(t *testing.T) {
-	_, err := parseDiscoveryResult("redis", `not-json`)
-	require.Error(t, err)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			configs, err := parseDiscoveryResult(tc.integration, tc.payload)
+			if tc.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			if tc.wantNil {
+				assert.Nil(t, configs)
+				return
+			}
+			require.Len(t, configs, tc.wantLen)
+			for i, cfg := range configs {
+				assert.Equal(t, tc.wantNames[i], cfg.Name)
+				assert.JSONEq(t, tc.wantInitConfigs[i], string(cfg.InitConfig))
+				assert.Len(t, cfg.Instances, tc.wantInstLens[i])
+			}
+		})
+	}
 }
 
 // TestMarshalService_PrefersBridgeOverOtherNetworks: with multiple networks

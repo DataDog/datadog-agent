@@ -170,7 +170,7 @@ type cmServiceLookup struct {
 }
 
 // LookupService implements discoverer.ServiceLookup.
-func (l cmServiceLookup) LookupService(svcID string) (listeners.Service, bool) {
+func (l cmServiceLookup) LookupService(svcID string) (discoverer.ServiceInfo, bool) {
 	l.cm.m.Lock()
 	defer l.cm.m.Unlock()
 	svcAndADIDs, ok := l.cm.activeServices[svcID]
@@ -593,8 +593,6 @@ func (cm *reconcilingConfigManager) onDiscoveryResult(svcID, tplDigest string, c
 // Only the first entry in configs is used today (mirroring the original
 // design); integrations that need multiple instances should return a single
 // discoveredConfig with multiple instances.
-//
-// Must be called with cm.m locked.
 func (cm *reconcilingConfigManager) applyDiscoveredConfigsLocked(svcID, tplDigest string, configs []integration.Config) integration.ConfigChanges {
 	var changes integration.ConfigChanges
 

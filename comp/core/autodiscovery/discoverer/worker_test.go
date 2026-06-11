@@ -18,7 +18,6 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
 )
 
 // fakeDiscoverer is a ConfigDiscoverer stub whose DiscoverConfig is supplied
@@ -71,7 +70,7 @@ func (r *recordingCallback) snapshot() []recordedResult {
 
 const testTplDigest = "test-tpl-digest"
 
-func newSvc(id string) listeners.Service {
+func newSvc(id string) ServiceInfo {
 	return &fakeService{
 		id:    id,
 		hosts: map[string]string{"main": "10.0.0.1"},
@@ -85,7 +84,7 @@ func TestWorker_Success_TriggersCallbackOnce(t *testing.T) {
 	disco := &fakeDiscoverer{fn: func(_, _ string) (string, error) {
 		return `[{"instances":[{"host":"x"}]}]`, nil
 	}}
-	lookup := &fixedLookup{services: map[string]listeners.Service{"svc-1": newSvc("svc-1")}}
+	lookup := &fixedLookup{services: map[string]ServiceInfo{"svc-1": newSvc("svc-1")}}
 	cb := &recordingCallback{}
 
 	w := NewWorker(disco, lookup, cb.callback, Config{MaxAttempts: 3, RetryDelay: 10 * time.Millisecond})
@@ -110,7 +109,7 @@ func TestWorker_RetriesUpToMax(t *testing.T) {
 	disco := &fakeDiscoverer{fn: func(_, _ string) (string, error) {
 		return "", errors.New("nope")
 	}}
-	lookup := &fixedLookup{services: map[string]listeners.Service{"svc-1": newSvc("svc-1")}}
+	lookup := &fixedLookup{services: map[string]ServiceInfo{"svc-1": newSvc("svc-1")}}
 	cb := &recordingCallback{}
 
 	const max = 4
@@ -132,7 +131,7 @@ func TestWorker_PermFail_DropsImmediately(t *testing.T) {
 	disco := &fakeDiscoverer{fn: func(_, _ string) (string, error) {
 		return "", PermFail{Err: errors.New("permanent")}
 	}}
-	lookup := &fixedLookup{services: map[string]listeners.Service{"svc-1": newSvc("svc-1")}}
+	lookup := &fixedLookup{services: map[string]ServiceInfo{"svc-1": newSvc("svc-1")}}
 	cb := &recordingCallback{}
 
 	w := NewWorker(disco, lookup, cb.callback, Config{MaxAttempts: 10, RetryDelay: 5 * time.Millisecond})
@@ -156,7 +155,7 @@ func TestWorker_RetriesOnEmptyResult(t *testing.T) {
 		}
 		return `[{"instances":[{}]}]`, nil
 	}}
-	lookup := &fixedLookup{services: map[string]listeners.Service{"svc-1": newSvc("svc-1")}}
+	lookup := &fixedLookup{services: map[string]ServiceInfo{"svc-1": newSvc("svc-1")}}
 	cb := &recordingCallback{}
 
 	w := NewWorker(disco, lookup, cb.callback, Config{MaxAttempts: 5, RetryDelay: 5 * time.Millisecond})
@@ -183,7 +182,7 @@ func TestWorker_ServiceRemovedBetweenRetries(t *testing.T) {
 		<-release
 		return "", errors.New("released")
 	}}
-	lookup := &fixedLookup{services: map[string]listeners.Service{"svc-1": newSvc("svc-1")}}
+	lookup := &fixedLookup{services: map[string]ServiceInfo{"svc-1": newSvc("svc-1")}}
 	cb := &recordingCallback{}
 
 	w := NewWorker(disco, lookup, cb.callback, Config{MaxAttempts: 5, RetryDelay: 5 * time.Millisecond})
@@ -209,7 +208,7 @@ func TestWorker_DropsWhenServiceGone(t *testing.T) {
 	disco := &fakeDiscoverer{fn: func(_, _ string) (string, error) {
 		return "", errors.New("should not be called")
 	}}
-	lookup := &fixedLookup{services: map[string]listeners.Service{}} // empty
+	lookup := &fixedLookup{services: map[string]ServiceInfo{}} // empty
 	cb := &recordingCallback{}
 
 	w := NewWorker(disco, lookup, cb.callback, Config{MaxAttempts: 3, RetryDelay: 5 * time.Millisecond})
@@ -230,7 +229,7 @@ func TestWorker_NoHost_TriggersRetry(t *testing.T) {
 		return "", errors.New("should not be reached")
 	}}
 	noHost := &fakeService{id: "svc-1", hosts: map[string]string{}}
-	lookup := &fixedLookup{services: map[string]listeners.Service{"svc-1": noHost}}
+	lookup := &fixedLookup{services: map[string]ServiceInfo{"svc-1": noHost}}
 	cb := &recordingCallback{}
 
 	const max = 3
@@ -257,7 +256,7 @@ func TestWorker_NoBookkeepingLeakAfterServiceRemoval(t *testing.T) {
 		called.Add(1)
 		return "", errors.New("fail")
 	}}
-	lookup := &fixedLookup{services: map[string]listeners.Service{"svc-1": newSvc("svc-1")}}
+	lookup := &fixedLookup{services: map[string]ServiceInfo{"svc-1": newSvc("svc-1")}}
 	cb := &recordingCallback{}
 
 	w := NewWorker(disco, lookup, cb.callback, Config{MaxAttempts: 5, RetryDelay: 5 * time.Millisecond})
@@ -294,7 +293,7 @@ func TestWorker_ParallelProbes_DifferentServices(t *testing.T) {
 		return `[{"instances":[{}]}]`, nil
 	}}
 
-	services := map[string]listeners.Service{}
+	services := map[string]ServiceInfo{}
 	for i := range workers {
 		id := fmt.Sprintf("svc-%d", i)
 		services[id] = newSvc(id)
@@ -328,7 +327,7 @@ func TestWorker_SameKeyStillSerial(t *testing.T) {
 		inFlight.Add(-1)
 		return "", errors.New("fail")
 	}}
-	lookup := &fixedLookup{services: map[string]listeners.Service{"svc-1": newSvc("svc-1")}}
+	lookup := &fixedLookup{services: map[string]ServiceInfo{"svc-1": newSvc("svc-1")}}
 	cb := &recordingCallback{}
 
 	w := NewWorker(disco, lookup, cb.callback, Config{Workers: 4, MaxAttempts: 10, RetryDelay: 5 * time.Millisecond})

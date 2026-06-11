@@ -10,8 +10,6 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
-	"github.com/DataDog/datadog-agent/pkg/util/tmplvar"
 )
 
 // discoveryService is the JSON payload sent to the integration when asking it
@@ -27,13 +25,8 @@ type discoveryPort struct {
 	Name   string `json:"name"`
 }
 
-// discoveredConfig is the JSON shape returned by the integration. Mirrors the
-// fields of integration.Config that an integration may populate at discovery
-// time; everything else (AD identifiers, source, etc.) stays on the original
-// template.
+// discoveredConfig is the JSON shape returned by the integration.
 type discoveredConfig struct {
-	CheckName               string            `json:"check_name"`
-	Name                    string            `json:"name"`
 	Instances               []json.RawMessage `json:"instances"`
 	InitConfig              json.RawMessage   `json:"init_config"`
 	MetricConfig            json.RawMessage   `json:"metric_config"`
@@ -46,12 +39,13 @@ type discoveredConfig struct {
 // given live service. Returns ("", false, nil) when the service has no
 // usable host yet — typical during container startup, treated by callers as
 // a transient failure that warrants a retry.
-func marshalService(svc listeners.Service) (string, bool, error) {
-	host, err := tmplvar.GetHost("", svc)
+func marshalService(svc ServiceInfo) (string, bool, error) {
+	hosts, err := svc.GetHosts()
 	if err != nil {
-		// GetHost returns an error both when there is no host yet and when
-		// the service has multiple networks but no bridge — both cases are
-		// transient from the discoverer's perspective.
+		return "", false, nil
+	}
+	host, ok := pickHost(hosts)
+	if !ok {
 		return "", false, nil
 	}
 	exposed, err := svc.GetPorts()
@@ -73,6 +67,24 @@ func marshalService(svc listeners.Service) (string, bool, error) {
 	return string(b), true, nil
 }
 
+// pickHost applies the same fallback policy as %%host%%: single network →
+// use it; multiple networks with a "bridge" → use bridge; otherwise no
+// deterministic choice is possible and we return false.
+func pickHost(hosts map[string]string) (string, bool) {
+	if len(hosts) == 0 {
+		return "", false
+	}
+	if len(hosts) == 1 {
+		for _, ip := range hosts {
+			return ip, true
+		}
+	}
+	if ip, ok := hosts["bridge"]; ok {
+		return ip, true
+	}
+	return "", false
+}
+
 // parseDiscoveryResult turns the raw JSON returned by ConfigDiscoverer into a
 // slice of integration.Config. The configs returned here are not yet resolved
 // through configresolver — the caller is expected to run them through the
@@ -87,19 +99,12 @@ func parseDiscoveryResult(integrationName, resultJSON string) ([]integration.Con
 	}
 	configs := make([]integration.Config, 0, len(raws))
 	for _, raw := range raws {
-		name := integrationName
-		if raw.Name != "" {
-			name = raw.Name
-		}
-		if raw.CheckName != "" {
-			name = raw.CheckName
-		}
 		initConfig := raw.InitConfig
 		if len(initConfig) == 0 {
 			initConfig = json.RawMessage("{}")
 		}
 		cfg := integration.Config{
-			Name:                    name,
+			Name:                    integrationName,
 			InitConfig:              integration.Data(initConfig),
 			MetricConfig:            integration.Data(raw.MetricConfig),
 			LogsConfig:              integration.Data(raw.LogsConfig),

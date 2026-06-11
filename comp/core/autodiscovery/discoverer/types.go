@@ -22,7 +22,7 @@ package discoverer
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 )
 
 // PermFail wraps an error to signal the worker that retrying will never
@@ -40,9 +40,16 @@ type ConfigDiscoverer interface {
 	DiscoverConfig(integrationName, serviceJSON string) (string, error)
 }
 
-// ServiceLookup hands the worker a live listeners.Service for a given service
+// ServiceInfo is the subset of listeners.Service that the discoverer needs.
+type ServiceInfo interface {
+	GetServiceID() string
+	GetHosts() (map[string]string, error)
+	GetPorts() ([]workloadmeta.ContainerPort, error)
+}
+
+// ServiceLookup hands the worker a live ServiceInfo for a given service ID.
 type ServiceLookup interface {
-	LookupService(svcID string) (listeners.Service, bool)
+	LookupService(svcID string) (ServiceInfo, bool)
 }
 
 // ResultCallback receives the discovered configs after a successful probe.

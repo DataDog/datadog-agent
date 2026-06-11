@@ -8,9 +8,6 @@ package discoverer
 import (
 	"sync"
 
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
-	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 )
 
@@ -21,34 +18,22 @@ type servicePort struct {
 	Port int
 }
 
-// fakeService is a minimal listeners.Service implementation for the
-// discoverer package's unit tests. The real config manager hands the worker
-// genuine workloadmeta-backed services, but the discoverer itself only cares
-// about the Service interface — so the test double is fine.
+// fakeService is a minimal ServiceInfo implementation for the
+// discoverer package's unit tests.
 type fakeService struct {
 	id       string
-	adIDs    []string
 	hosts    map[string]string
 	hostsErr error
 	ports    []servicePort
 	portsErr error
 }
 
-var _ listeners.Service = (*fakeService)(nil)
+var _ ServiceInfo = (*fakeService)(nil)
 
-func (f *fakeService) Equal(o listeners.Service) bool                    { _, ok := o.(*fakeService); return ok }
-func (f *fakeService) GetServiceID() string                              { return f.id }
-func (f *fakeService) GetADIdentifiers() []string                        { return f.adIDs }
-func (f *fakeService) GetHosts() (map[string]string, error)              { return f.hosts, f.hostsErr }
-func (f *fakeService) GetTags() ([]string, error)                        { return nil, nil }
-func (f *fakeService) GetTagsWithCardinality(_ string) ([]string, error) { return nil, nil }
-func (f *fakeService) GetPid() (int, error)                              { return 0, nil }
-func (f *fakeService) GetHostname() (string, error)                      { return "", nil }
-func (f *fakeService) IsReady() bool                                     { return true }
-func (f *fakeService) HasFilter(_ workloadfilter.Scope) bool             { return false }
-func (f *fakeService) GetExtraConfig(_ string) (string, error)           { return "", nil }
-func (f *fakeService) GetImageName() string                              { return "" }
-func (f *fakeService) FilterTemplates(_ map[string]integration.Config)   {}
+func (f *fakeService) GetServiceID() string { return f.id }
+func (f *fakeService) GetHosts() (map[string]string, error) {
+	return f.hosts, f.hostsErr
+}
 func (f *fakeService) GetPorts() ([]workloadmeta.ContainerPort, error) {
 	if f.portsErr != nil {
 		return nil, f.portsErr
@@ -63,10 +48,10 @@ func (f *fakeService) GetPorts() ([]workloadmeta.ContainerPort, error) {
 // fixedLookup is a ServiceLookup mock implementation.
 type fixedLookup struct {
 	mu       sync.Mutex
-	services map[string]listeners.Service
+	services map[string]ServiceInfo
 }
 
-func (l *fixedLookup) LookupService(svcID string) (listeners.Service, bool) {
+func (l *fixedLookup) LookupService(svcID string) (ServiceInfo, bool) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	if l.services == nil {
