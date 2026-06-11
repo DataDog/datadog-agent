@@ -3,6 +3,40 @@
 Closes the 3 small remaining gaps and the embedded Python long pole.
 Follows on from `bazel-deb-parity.md` (which closed the bulk of the gap).
 
+---
+
+## Current parity status (June 2026)
+
+**Reference deb:** `datadog-agent_7.77.1-1_arm64.deb` (149 MB, 22,564 files) from `apt.datadoghq.com`
+**Bazel deb:** `datadog-agent_7.81.0-localbuild-1_arm64.deb` (~230 MB, 35,418 files)
+
+**Raw diff:** 2,447 paths only-in-reference. After filtering accepted deviations
+(`version-manifest.*`, paths containing `7.77.1`) and normalizing Python package version
+strings in dist-info paths, **genuine structural gaps = ~150 non-Python files**.
+
+The ~2,294 remaining raw gaps are all Python package version-skew: the Bazel deb installs
+newer versions of third-party packages than the 7.77.1 reference (e.g. `botocore-1.42.72`
+vs reference's `botocore-1.40.21`). All packages are present; only the dist-info directory
+name (which embeds the version) differs. The correct parity check for site-packages is a
+package-name-normalized comparison, which produces 0 genuinely missing packages.
+
+**Remaining ~150 genuine gaps by category:**
+
+| Category | Count | Status |
+|---|---|---|
+| Python `embedded/bin` entry-point scripts | ~40 | TODO — `whl_extract.bzl` doesn't generate entry-points yet |
+| kerberos/GSSAPI headers (`include/krb5/`, `include/gssrpc/`, etc.) | ~43 | TODO — check krb5 dep filegroup |
+| `.so` full-version symlinks (`libssl.so.3.5.5` etc.) | 7 | TODO — add symlinks to dep rules |
+| `LICENSES/` nested format + specific license files | ~32 | TODO — layout/content gaps |
+| `bin/agent/dist/` stubs (`config.py`, `security-agent.yaml`, etc.) | 4 | TODO — check if in `cmd/agent/dist/` |
+| `clang-bpf`, `llc-bpf` | 2 | **IMPLEMENTED** — see Gap 5 below |
+| `agent-data-plane` | 1 | **REPO RULE WRITTEN** — see Gap 6 below; CI auth needed for prod fetch |
+| SELinux policy (`.pp` file) | 2 | TODO — needs `genrule` to compile |
+| `embedded/bin/__pycache__/` | 1 | Acceptable deviation |
+| Omnibus tracking files (`.install_root`, `.installed_by_pkg.txt`, etc.) | ~4 | Acceptable deviation — omnibus bookkeeping |
+| `python-scripts/` (`pre.py`, `post.py`, `packages.py`) | 4 | Acceptable deviation — omnibus install helpers, not needed at runtime |
+| eBPF test objects (`btf_test.o`, `uprobe_attacher-test.o`) | 3 | Acceptable deviation — test artifacts |
+
 **Constraint:** `bzl build //packages/agent/linux:debian` must produce a complete deb
 without any omnibus pipeline having run first. The Bazel build path is fully independent
 of omnibus. Option A (importing omnibus-produced artifacts) is explicitly ruled out.
@@ -341,3 +375,65 @@ Omnibus retirement gate: stays allow_failure:true until all non-site-packages ga
 | `deps/integrations/BUILD.bazel` + `.bzl` (new) | 4b (wheel-build rules, conf.d relocation) |
 | `deps/cpython.BUILD.bazel` | 4a/4b reference: `runtime_deps`, `python_pkg` |
 | `omnibus/config/software/datadog-agent-integrations-py3.rb` | 4b reference: enabled-check set, excluded_folders |
+| `packages/agent/product/BUILD.bazel` | 5 (`llvm_bpf_binaries` pkg_files), 6 (`agent_data_plane_binary` pkg_files) |
+| `bazel/toolchains/agent_data_plane/agent_data_plane_configure.bzl` | 6 (new repo rule) |
+| `MODULE.bazel` | 6 (`agent_data_plane_configure` extension + hashes) |
+
+---
+
+## Gap 5 — clang-bpf / llc-bpf — IMPLEMENTED
+
+**Status: implemented June 2026.**
+
+Added `llvm_bpf_binaries` pkg_files to `packages/agent/product/BUILD.bazel`:
+```python
+pkg_files(
+    name = "llvm_bpf_binaries",
+    srcs = ["@llvm_bpf//:bin/clang-bpf", "@llvm_bpf//:bin/llc-bpf"],
+    attributes = pkg_attributes(mode = "755"),
+    prefix = "embedded/bin",
+    target_compatible_with = ["@platforms//os:linux"],
+)
+```
+Wired into `all_files` base srcs (ships to all Linux flavors).
+Source: the existing `@llvm_bpf` repo (LLVM 12.0.1 BPF binaries, public S3, pinned in
+`MODULE.bazel:188-204`). `llvm-strip` intentionally excluded.
+
+**Cross-arch caveat:** `@llvm_bpf` selects by build-host arch. Correct for native
+per-arch builds; if cross-compilation is added later, the repo rule needs reworking to
+use target arch (like `@agent_data_plane` below does).
+
+---
+
+## Gap 6 — agent-data-plane — REPO RULE WRITTEN, CI AUTH PENDING
+
+**Status: repo rule complete; local binary extracted; production fetch needs Vault role.**
+
+`agent-data-plane` (the Saluki data plane) is a pre-built binary from
+`https://binaries.ddbuild.io/saluki/` — not built from source in this repo.
+
+**What was implemented:**
+- `bazel/toolchains/agent_data_plane/agent_data_plane_configure.bzl` — module extension +
+  repository rule that downloads the per-arch tarball (all four variants: amd64/arm64 + FIPS)
+  and emits a `select()` on `@platforms//cpu` — matching **target arch**, not host arch.
+- `MODULE.bazel` — extension registered with version 1.1.2 and all four SHA256 hashes
+  (sourced from `release.json:dependencies`).
+- `packages/agent/product/BUILD.bazel` — `agent_data_plane_binary` pkg_files added, gated to
+  `linux_default` / `linux_fips` (not heroku), per omnibus behavior.
+- `deps/agent-data-plane/agent-data-plane-arm64` — binary extracted from the reference deb
+  for local testing (SHA256: `a6dd08982c5547312094ddd6219f9b17f31d59fcdae91bf0dba002baad4dd4fc`).
+
+**Local development override:**
+```bash
+bzl build //packages/agent/linux:debian \
+  --repo_env=AGENT_DATA_PLANE_LOCAL_BINARY=/path/to/agent-data-plane-arm64
+```
+
+**To unblock production CI fetch:**
+The repo rule calls `binaries.ddbuild.io` which requires a Vault OIDC role
+(`binaries.ddbuild.io`) not provisioned for this workspace. Two options:
+1. Request the role from the platform/infra team for the Bazel CI runner Vault identity.
+2. Add `ddtool auth token binaries.ddbuild.io --datacenter us1.ddbuild.io` as a pre-step
+   in the packaging GitLab job and pass the token as a `--repo_env=DDBUILD_TOKEN=...` arg.
+
+The `--nobuild` graph check passes (lazy fetch; no network call until actual build).
