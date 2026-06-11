@@ -727,21 +727,84 @@ func TestPCIELinkBytesPerSecond(t *testing.T) {
 	}
 }
 
-func TestPCIELinkWidthMetrics(t *testing.T) {
+func TestPCIELinkMetrics(t *testing.T) {
 	tests := map[string]struct {
-		currentWidth     int
-		maxWidth         int
-		expectedDegraded float64
+		currentWidth       int
+		maxWidth           int
+		currentGeneration  int
+		maxGeneration      int
+		expectedMetricVals map[string]float64
+		expectedErr        string
 	}{
-		"matching width": {
-			currentWidth:     16,
-			maxWidth:         16,
-			expectedDegraded: 0,
+		"matching link": {
+			currentWidth:      16,
+			maxWidth:          16,
+			currentGeneration: 4,
+			maxGeneration:     4,
+			expectedMetricVals: map[string]float64{
+				"pci.link.width.current":  16,
+				"pci.link.width.max":      16,
+				"pci.link.width.degraded": 0,
+				"pci.link.speed.current":  31.50769230769231e9,
+				"pci.link.speed.max":      31.50769230769231e9,
+				"pci.link.speed.degraded": 0,
+			},
 		},
-		"degraded width": {
-			currentWidth:     8,
-			maxWidth:         16,
-			expectedDegraded: 1,
+		"degraded link": {
+			currentWidth:      8,
+			maxWidth:          16,
+			currentGeneration: 4,
+			maxGeneration:     4,
+			expectedMetricVals: map[string]float64{
+				"pci.link.width.current":  8,
+				"pci.link.width.max":      16,
+				"pci.link.width.degraded": 1,
+				"pci.link.speed.current":  15.753846153846155e9,
+				"pci.link.speed.max":      31.50769230769231e9,
+				"pci.link.speed.degraded": 1,
+			},
+		},
+		"current width error": {
+			currentWidth:      -1,
+			maxWidth:          16,
+			currentGeneration: 4,
+			maxGeneration:     4,
+			expectedErr:       "get current PCIe link width",
+		},
+		"max width error emits current width": {
+			currentWidth:      16,
+			maxWidth:          -1,
+			currentGeneration: 4,
+			maxGeneration:     4,
+			expectedMetricVals: map[string]float64{
+				"pci.link.width.current": 16,
+			},
+			expectedErr: "get max PCIe link width",
+		},
+		"current generation error emits width metrics": {
+			currentWidth:      8,
+			maxWidth:          16,
+			currentGeneration: -1,
+			maxGeneration:     4,
+			expectedMetricVals: map[string]float64{
+				"pci.link.width.current":  8,
+				"pci.link.width.max":      16,
+				"pci.link.width.degraded": 1,
+			},
+			expectedErr: "get current PCIe link generation",
+		},
+		"max generation error emits current speed": {
+			currentWidth:      8,
+			maxWidth:          16,
+			currentGeneration: 4,
+			maxGeneration:     -1,
+			expectedMetricVals: map[string]float64{
+				"pci.link.width.current":  8,
+				"pci.link.width.max":      16,
+				"pci.link.width.degraded": 1,
+				"pci.link.speed.current":  15.753846153846155e9,
+			},
+			expectedErr: "get max PCIe link generation",
 		},
 	}
 
@@ -749,82 +812,45 @@ func TestPCIELinkWidthMetrics(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			device := setupMockDevice(t, testutil.WithCustomHook(func(device *mock.Device) {
 				device.GetCurrPcieLinkWidthFunc = func() (int, nvml.Return) {
+					if test.currentWidth == -1 {
+						return 0, nvml.ERROR_UNKNOWN
+					}
 					return test.currentWidth, nvml.SUCCESS
 				}
 				device.GetMaxPcieLinkWidthFunc = func() (int, nvml.Return) {
+					if test.maxWidth == -1 {
+						return 0, nvml.ERROR_UNKNOWN
+					}
 					return test.maxWidth, nvml.SUCCESS
 				}
-			}))
-
-			metricsOut, _, err := pcieLinkWidthMetrics(device)
-			require.NoError(t, err)
-			require.Len(t, metricsOut, 3)
-			metricsByName := metricValuesToPointers(metricsOut)
-			currentWidthMetric := findMetric(metricsByName, "pci.link.width.current")
-			maxWidthMetric := findMetric(metricsByName, "pci.link.width.max")
-			degradedMetric := findMetric(metricsByName, "pci.link.width.degraded")
-			require.NotNil(t, currentWidthMetric)
-			require.NotNil(t, maxWidthMetric)
-			require.NotNil(t, degradedMetric)
-			require.Equal(t, float64(test.currentWidth), currentWidthMetric.Value)
-			require.Equal(t, float64(test.maxWidth), maxWidthMetric.Value)
-			require.Equal(t, test.expectedDegraded, degradedMetric.Value)
-		})
-	}
-}
-
-func TestPCIELinkSpeedMetrics(t *testing.T) {
-	tests := map[string]struct {
-		currentGeneration int
-		maxGeneration     int
-		currentWidth      int
-		maxWidth          int
-		expectedDegraded  float64
-	}{
-		"matching speed": {
-			currentGeneration: 4,
-			maxGeneration:     4,
-			currentWidth:      16,
-			maxWidth:          16,
-			expectedDegraded:  0,
-		},
-		"degraded speed": {
-			currentGeneration: 3,
-			maxGeneration:     4,
-			currentWidth:      16,
-			maxWidth:          16,
-			expectedDegraded:  1,
-		},
-	}
-
-	for name, test := range tests {
-		t.Run(name, func(t *testing.T) {
-			device := setupMockDevice(t, testutil.WithCustomHook(func(device *mock.Device) {
 				device.GetCurrPcieLinkGenerationFunc = func() (int, nvml.Return) {
+					if test.currentGeneration == -1 {
+						return 0, nvml.ERROR_UNKNOWN
+					}
 					return test.currentGeneration, nvml.SUCCESS
 				}
 				device.GetMaxPcieLinkGenerationFunc = func() (int, nvml.Return) {
+					if test.maxGeneration == -1 {
+						return 0, nvml.ERROR_UNKNOWN
+					}
 					return test.maxGeneration, nvml.SUCCESS
-				}
-				device.GetCurrPcieLinkWidthFunc = func() (int, nvml.Return) {
-					return test.currentWidth, nvml.SUCCESS
-				}
-				device.GetMaxPcieLinkWidthFunc = func() (int, nvml.Return) {
-					return test.maxWidth, nvml.SUCCESS
 				}
 			}))
 
-			metricsOut, _, err := pcieLinkSpeedMetrics(device)
-			require.NoError(t, err)
-			require.Len(t, metricsOut, 3)
+			metricsOut, _, err := pcieLinkMetrics(device)
+			if test.expectedErr == "" {
+				require.NoError(t, err)
+			} else {
+				require.ErrorContains(t, err, test.expectedErr)
+			}
+			require.Len(t, metricsOut, len(test.expectedMetricVals))
 			metricsByName := metricValuesToPointers(metricsOut)
-			currentMetric := findMetric(metricsByName, "pci.link.speed.current")
-			maxMetric := findMetric(metricsByName, "pci.link.speed.max")
-			degradedMetric := findMetric(metricsByName, "pci.link.speed.degraded")
-			require.NotNil(t, currentMetric)
-			require.NotNil(t, maxMetric)
-			require.NotNil(t, degradedMetric)
-			require.Equal(t, test.expectedDegraded, degradedMetric.Value)
+			for metricName, expectedValue := range test.expectedMetricVals {
+				metric := findMetric(metricsByName, metricName)
+				require.NotNil(t, metric, "expected metric %s", metricName)
+				require.InDelta(t, expectedValue, metric.Value, 1e6)
+				require.Equal(t, metrics.GaugeType, metric.Type)
+			}
 		})
 	}
 }
