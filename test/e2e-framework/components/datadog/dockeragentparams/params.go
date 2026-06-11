@@ -206,15 +206,17 @@ func WithFakeintake(fi *fakeintake.Fakeintake) func(*Params) error {
 func withIntakeHostname(url pulumi.StringInput, shouldSkipSSLValidation pulumi.BoolInput) func(*Params) error {
 	return func(p *Params) error {
 		envVars := pulumi.Map{
-			"DD_DD_URL":                                  pulumi.Sprintf("%s", url),
-			"DD_PROCESS_CONFIG_PROCESS_DD_URL":           pulumi.Sprintf("%s", url),
-			"DD_APM_DD_URL":                              pulumi.Sprintf("%s", url),
-			"DD_SKIP_SSL_VALIDATION":                     shouldSkipSSLValidation,
-			"DD_REMOTE_CONFIGURATION_NO_TLS_VALIDATION":  shouldSkipSSLValidation,
-			"DD_LOGS_CONFIG_FORCE_USE_HTTP":              pulumi.Bool(true), // Force the use of HTTP/HTTPS rather than switching to TCP
-			"DD_LOGS_CONFIG_LOGS_DD_URL":                 pulumi.Sprintf("%s", url),
-			"DD_LOGS_CONFIG_LOGS_NO_SSL":                 shouldSkipSSLValidation,
-			"DD_SERVICE_DISCOVERY_FORWARDER_LOGS_DD_URL": pulumi.Sprintf("%s", url),
+			"DD_DD_URL":                                       pulumi.Sprintf("%s", url),
+			"DD_PROCESS_CONFIG_PROCESS_DD_URL":                pulumi.Sprintf("%s", url),
+			"DD_APM_DD_URL":                                   pulumi.Sprintf("%s", url),
+			"DD_SKIP_SSL_VALIDATION":                          shouldSkipSSLValidation,
+			"DD_REMOTE_CONFIGURATION_NO_TLS_VALIDATION":       shouldSkipSSLValidation,
+			"DD_LOGS_CONFIG_FORCE_USE_HTTP":                   pulumi.Bool(true), // Force the use of HTTP/HTTPS rather than switching to TCP
+			"DD_LOGS_CONFIG_LOGS_DD_URL":                      pulumi.Sprintf("%s", url),
+			"DD_LOGS_CONFIG_LOGS_NO_SSL":                      shouldSkipSSLValidation,
+			"DD_SERVICE_DISCOVERY_FORWARDER_LOGS_DD_URL":      pulumi.Sprintf("%s", url),
+			"DD_CONFIG_FILES_DISCOVERY_FORWARDER_LOGS_DD_URL": pulumi.Sprintf("%s", url),
+			"DD_CONFIG_FILES_DISCOVERY_FORWARDER_LOGS_NO_SSL": shouldSkipSSLValidation,
 			// Host and container image SBOMs ship through the event platform
 			// forwarder; redirect those endpoints to the fakeintake as well.
 			"DD_SBOM_DD_URL":            pulumi.Sprintf("%s", url),

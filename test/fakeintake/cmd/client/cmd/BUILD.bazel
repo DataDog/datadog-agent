@@ -13,6 +13,7 @@ go_library(
         "filtersketches.go",
         "flush.go",
         "get.go",
+        "getagentdiscovery.go",
         "getapmstats.go",
         "getcheckrun.go",
         "getcheckrunnames.go",

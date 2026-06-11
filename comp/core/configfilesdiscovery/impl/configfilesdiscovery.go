@@ -14,6 +14,7 @@ import (
 	configfilesdiscovery "github.com/DataDog/datadog-agent/comp/core/configfilesdiscovery/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 )
 
 // Requires defines the dependencies for the config files discovery component.
@@ -23,6 +24,7 @@ type Requires struct {
 	Lifecycle     compdef.Lifecycle
 	Autodiscovery autodiscovery.Component
 	WorkloadMeta  workloadmeta.Component
+	EventPlatform eventplatform.Component
 }
 
 // Provides defines the output of the config files discovery component.
@@ -40,6 +42,7 @@ type component struct {
 func newComponent(
 	ad autodiscovery.Component,
 	resolver targetResolver,
+	reporter configCollectionReporter,
 ) *component {
 	readers := map[RuntimeType]configReaderFactory{
 		RuntimeDocker: newDockerConfigReader,
@@ -49,7 +52,7 @@ func newComponent(
 	}
 	return &component{
 		ad:        ad,
-		scheduler: newADScheduler(resolver, readers, collectors, noopConfigFileReporter{}),
+		scheduler: newADScheduler(resolver, readers, collectors, reporter),
 	}
 }
 
@@ -58,6 +61,7 @@ func NewComponent(reqs Requires) Provides {
 	c := newComponent(
 		reqs.Autodiscovery,
 		targetResolver{store: reqs.WorkloadMeta},
+		newEventPlatformConfigReporter(reqs.EventPlatform),
 	)
 	reqs.Lifecycle.Append(compdef.Hook{OnStart: c.start, OnStop: c.stop})
 	return Provides{Comp: c}

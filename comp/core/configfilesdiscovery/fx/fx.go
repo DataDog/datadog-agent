@@ -15,6 +15,7 @@ import (
 	configfilesdiscoveryimpl "github.com/DataDog/datadog-agent/comp/core/configfilesdiscovery/impl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -36,6 +37,7 @@ type Requires struct {
 	Config        config.Component
 	Autodiscovery autodiscovery.Component
 	WorkloadMeta  workloadmeta.Component
+	EventPlatform eventplatform.Component
 }
 
 // Provides defines the optional output of the config files discovery fx module.
@@ -54,6 +56,7 @@ func newOptionalComponent(reqs Requires) Provides {
 		Lifecycle:     reqs.Lifecycle,
 		Autodiscovery: reqs.Autodiscovery,
 		WorkloadMeta:  reqs.WorkloadMeta,
+		EventPlatform: reqs.EventPlatform,
 	})
 	return Provides{Comp: option.New(provides.Comp)}
 }

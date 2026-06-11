@@ -12,6 +12,7 @@ go_library(
         "//comp/core/configfilesdiscovery/impl",
         "//comp/core/workloadmeta/def",
         "//comp/def",
+        "//comp/forwarder/eventplatform/def",
         "//pkg/util/fxutil",
         "//pkg/util/option",
         "@org_uber_go_fx//:fx",

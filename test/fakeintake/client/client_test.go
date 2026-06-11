@@ -573,6 +573,53 @@ func TestClient(t *testing.T) {
 		assert.Empty(t, ndmPayload.Subnet)
 	})
 
+	t.Run("getAgentDiscoveryPayloads", func(t *testing.T) {
+		ts := NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			payloads := []api.Payload{
+				{
+					Data: []byte(`[{"integration":"redisdb","service_id":"docker://abc123","runtime":"docker","configs":[{"type":"file","path":"/usr/local/etc/redis/redis.conf","content_base64":"cG9ydCA2Mzc5Cg==","truncated":false}]}]`),
+				},
+			}
+			resp, err := json.Marshal(api.APIFakeIntakePayloadsRawGETResponse{
+				Payloads: payloads,
+			})
+			require.NoError(t, err)
+			w.Write(resp)
+		}))
+		defer ts.Close()
+
+		client := NewClient(ts.URL)
+		err := client.getAgentDiscoveryPayloads()
+		require.NoError(t, err)
+		assert.True(t, client.agentDiscoveryAggregator.ContainsPayloadName("redisdb:docker://abc123"))
+	})
+
+	t.Run("GetAgentDiscoveryPayloads", func(t *testing.T) {
+		ts := NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			payloads := []api.Payload{
+				{
+					Data: []byte(`[{"integration":"redisdb","service_id":"docker://abc123","runtime":"docker","configs":[{"type":"file","path":"/usr/local/etc/redis/redis.conf","content_base64":"cG9ydCA2Mzc5Cg==","truncated":false}]}]`),
+				},
+			}
+			resp, err := json.Marshal(api.APIFakeIntakePayloadsRawGETResponse{
+				Payloads: payloads,
+			})
+			require.NoError(t, err)
+			w.Write(resp)
+		}))
+		defer ts.Close()
+
+		client := NewClient(ts.URL)
+		payloads, err := client.GetAgentDiscoveryPayloads()
+		require.NoError(t, err)
+		require.Len(t, payloads, 1)
+		assert.Equal(t, "redisdb", payloads[0].Integration)
+		assert.Equal(t, "docker://abc123", payloads[0].ServiceID)
+		require.Len(t, payloads[0].Configs, 1)
+		assert.Equal(t, "/usr/local/etc/redis/redis.conf", payloads[0].Configs[0].Path)
+		assert.NotContains(t, payloads[0].RawPayload, "payload_format")
+	})
+
 	t.Run("getNDMFlows", func(t *testing.T) {
 		ts := NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.Write(apiV2NDMFlow)

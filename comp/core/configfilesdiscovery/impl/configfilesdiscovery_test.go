@@ -7,6 +7,7 @@ package configfilesdiscoveryimpl
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"sync"
 	"testing"
@@ -24,6 +25,8 @@ import (
 	workloadmetaimpl "github.com/DataDog/datadog-agent/comp/core/workloadmeta/impl"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
 func TestResolveTargetDetectsRuntime(t *testing.T) {
@@ -271,8 +274,8 @@ func TestSchedulerRunsCollectorOutsideScheduleCallback(t *testing.T) {
 	collector.waitForRuns(t, 1)
 }
 
-func TestSchedulerReportsCollectedFiles(t *testing.T) {
-	reporter := &recordingConfigFileReporter{}
+func TestSchedulerReportsCollectedConfigCollection(t *testing.T) {
+	reporter := &recordingConfigCollectionReporter{}
 	collector := &recordingConfigCollector{
 		files: []ConfigFile{
 			{
@@ -295,12 +298,16 @@ func TestSchedulerReportsCollectedFiles(t *testing.T) {
 	})
 
 	reports := reporter.waitForReports(t, 1)
-	assert.Equal(t, configFileReportCall{
-		integration: redisIntegrationName,
-		file: ConfigFile{
-			Path:      "/etc/redis/redis.conf",
-			Content:   []byte("port 6379\n"),
-			Truncated: true,
+	assert.Equal(t, configCollectionReport{
+		Integration: redisIntegrationName,
+		ServiceID:   "docker://abc123",
+		Runtime:     RuntimeDocker,
+		Files: []ConfigFile{
+			{
+				Path:      "/etc/redis/redis.conf",
+				Content:   []byte("port 6379\n"),
+				Truncated: true,
+			},
 		},
 	}, reports[0])
 }
@@ -326,11 +333,114 @@ func TestComponentRegistersAutodiscoverySchedulerOnStart(t *testing.T) {
 }
 
 func TestComponentRegistersRedisCollector(t *testing.T) {
-	c := newComponent(nil, targetResolver{})
+	c := newComponent(nil, targetResolver{}, noopConfigCollectionReporter{})
 	adScheduler, ok := c.scheduler.(*adScheduler)
 	require.True(t, ok)
 
 	assert.Contains(t, adScheduler.collectors, redisIntegrationName)
+}
+
+func TestComponentUsesEventPlatformReporterWhenAvailable(t *testing.T) {
+	forwarder := &recordingEventPlatformForwarder{}
+	c := newComponent(nil, targetResolver{}, newEventPlatformConfigReporter(recordingEventPlatformComponent{
+		forwarder: forwarder,
+		ok:        true,
+	}))
+	adScheduler, ok := c.scheduler.(*adScheduler)
+	require.True(t, ok)
+
+	_, ok = adScheduler.reporter.(*eventPlatformConfigReporter)
+	require.True(t, ok)
+}
+
+func TestEventPlatformReporterSendsAgentDiscoveryPayload(t *testing.T) {
+	forwarder := &recordingEventPlatformForwarder{}
+	reporter := newEventPlatformConfigReporter(recordingEventPlatformComponent{
+		forwarder: forwarder,
+		ok:        true,
+	})
+
+	err := reporter.ReportConfigCollection(context.Background(), configCollectionReport{
+		Integration: redisIntegrationName,
+		ServiceID:   "docker://abc123",
+		Runtime:     RuntimeDocker,
+		Files: []ConfigFile{
+			{
+				Path:      "/etc/redis/redis.conf",
+				Content:   []byte("port 6379\n"),
+				Truncated: true,
+			},
+			{
+				Path:      "/etc/redis/users.acl",
+				Content:   []byte("user default on\n"),
+				Truncated: false,
+			},
+		},
+	})
+
+	require.NoError(t, err)
+	sent := forwarder.recordedMessages()
+	require.Len(t, sent, 1)
+	assert.Equal(t, eventplatform.EventTypeAgentDiscovery, sent[0].eventType)
+
+	var payload agentDiscoveryPayload
+	require.NoError(t, json.Unmarshal(sent[0].message.GetContent(), &payload))
+	assert.Equal(t, agentDiscoveryPayload{
+		Integration: redisIntegrationName,
+		ServiceID:   "docker://abc123",
+		Runtime:     RuntimeDocker,
+		Configs: []agentDiscoveryConfigObject{
+			{
+				Type:          configObjectTypeFile,
+				Path:          "/etc/redis/redis.conf",
+				ContentBase64: "cG9ydCA2Mzc5Cg==",
+				Truncated:     true,
+			},
+			{
+				Type:          configObjectTypeFile,
+				Path:          "/etc/redis/users.acl",
+				ContentBase64: "dXNlciBkZWZhdWx0IG9uCg==",
+				Truncated:     false,
+			},
+		},
+	}, payload)
+}
+
+func TestEventPlatformReporterSkipsEmptyCollections(t *testing.T) {
+	forwarder := &recordingEventPlatformForwarder{}
+	reporter := newEventPlatformConfigReporter(recordingEventPlatformComponent{
+		forwarder: forwarder,
+		ok:        true,
+	})
+
+	err := reporter.ReportConfigCollection(context.Background(), configCollectionReport{
+		Integration: redisIntegrationName,
+		ServiceID:   "docker://abc123",
+		Runtime:     RuntimeDocker,
+	})
+
+	require.NoError(t, err)
+	assert.Empty(t, forwarder.recordedMessages())
+}
+
+func TestEventPlatformReporterReturnsSendError(t *testing.T) {
+	forwarder := &recordingEventPlatformForwarder{err: errors.New("queue unavailable")}
+	reporter := newEventPlatformConfigReporter(recordingEventPlatformComponent{
+		forwarder: forwarder,
+		ok:        true,
+	})
+
+	err := reporter.ReportConfigCollection(context.Background(), configCollectionReport{
+		Integration: redisIntegrationName,
+		ServiceID:   "docker://abc123",
+		Runtime:     RuntimeDocker,
+		Files: []ConfigFile{
+			{Path: "/etc/redis/redis.conf", Content: []byte("port 6379\n")},
+		},
+	})
+
+	require.ErrorContains(t, err, "send agent discovery payload to event platform")
+	require.ErrorContains(t, err, "queue unavailable")
 }
 
 func checkConfig(name string, serviceID string) integration.Config {
@@ -380,28 +490,20 @@ func (c *recordingConfigCollector) Collect(ctx context.Context, reader ConfigRea
 	return c.files, c.err
 }
 
-type configFileReportCall struct {
-	integration string
-	file        ConfigFile
-}
-
-type recordingConfigFileReporter struct {
+type recordingConfigCollectionReporter struct {
 	mu      sync.Mutex
-	reports []configFileReportCall
+	reports []configCollectionReport
 	err     error
 }
 
-func (r *recordingConfigFileReporter) ReportConfigFile(_ context.Context, integration string, file ConfigFile) error {
+func (r *recordingConfigCollectionReporter) ReportConfigCollection(_ context.Context, report configCollectionReport) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.reports = append(r.reports, configFileReportCall{
-		integration: integration,
-		file:        file,
-	})
+	r.reports = append(r.reports, report)
 	return r.err
 }
 
-func (r *recordingConfigFileReporter) waitForReports(t *testing.T, count int) []configFileReportCall {
+func (r *recordingConfigCollectionReporter) waitForReports(t *testing.T, count int) []configCollectionReport {
 	t.Helper()
 
 	require.Eventually(t, func() bool {
@@ -412,9 +514,55 @@ func (r *recordingConfigFileReporter) waitForReports(t *testing.T, count int) []
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	reports := make([]configFileReportCall, len(r.reports))
+	reports := make([]configCollectionReport, len(r.reports))
 	copy(reports, r.reports)
 	return reports
+}
+
+type recordingEventPlatformComponent struct {
+	forwarder eventplatform.Forwarder
+	ok        bool
+}
+
+func (c recordingEventPlatformComponent) Get() (eventplatform.Forwarder, bool) {
+	return c.forwarder, c.ok
+}
+
+type eventPlatformSendCall struct {
+	message   *message.Message
+	eventType string
+}
+
+type recordingEventPlatformForwarder struct {
+	mu       sync.Mutex
+	messages []eventPlatformSendCall
+	err      error
+}
+
+func (f *recordingEventPlatformForwarder) SendEventPlatformEvent(_ *message.Message, _ string) error {
+	return errors.New("unexpected nonblocking Event Platform send")
+}
+
+func (f *recordingEventPlatformForwarder) SendEventPlatformEventBlocking(msg *message.Message, eventType string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.messages = append(f.messages, eventPlatformSendCall{
+		message:   msg,
+		eventType: eventType,
+	})
+	return f.err
+}
+
+func (f *recordingEventPlatformForwarder) Purge() map[string][]*message.Message {
+	return nil
+}
+
+func (f *recordingEventPlatformForwarder) recordedMessages() []eventPlatformSendCall {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	messages := make([]eventPlatformSendCall, len(f.messages))
+	copy(messages, f.messages)
+	return messages
 }
 
 func (c *recordingConfigCollector) waitForRuns(t *testing.T, count int) []runCall {

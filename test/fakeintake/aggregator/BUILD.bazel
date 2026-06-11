@@ -3,6 +3,7 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 go_library(
     name = "aggregator",
     srcs = [
+        "agentDiscoveryAggregator.go",
         "agenthealthAggregator.go",
         "apmStatsAggregator.go",
         "checkRunAggregator.go",
@@ -55,6 +56,7 @@ go_library(
 go_test(
     name = "aggregator_test",
     srcs = [
+        "agentDiscoveryAggregator_test.go",
         "agenthealthAggregator_test.go",
         "apmStatsAggregator_test.go",
         "checkRunAggregator_test.go",
