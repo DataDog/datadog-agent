@@ -1,6 +1,8 @@
 # Deploying Datadog's Host Profiler
 
-The Host Profiler collects CPU and memory profiles at the OS level across all processes, regardless of language or runtime.
+The Full Host Profiler collects CPU profiles across all processes, regardless of language or runtime. It runs directly on your hosts or as a DaemonSet on your Kubernetes nodes.
+
+The profiler is an OpenTelemetry Collector distribution powered by the [OpenTelemetry eBPF Profiler](https://github.com/open-telemetry/opentelemetry-ebpf-profiler).
 
 All commands in these docs assume you are running from this directory:
 
