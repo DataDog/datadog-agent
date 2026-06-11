@@ -38,8 +38,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Use:   "rotate-par-identity",
 		Short: "Rotate the Private Action Runner identity for this cluster",
 		Long: `Generates fresh credentials and registers a new Private Action Runner identity.
-The new identity is written to the shared Kubernetes secret. Run a Kubernetes
-rollout restart of the Cluster Agent deployment to apply the new identity.`,
+The new identity is written to the shared Kubernetes secret. After this command
+completes, run a Kubernetes rollout restart of the Cluster Agent deployment to
+apply the new identity.`,
 		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(run,
 				fx.Supply(core.BundleParams{
@@ -54,7 +55,7 @@ rollout restart of the Cluster Agent deployment to apply the new identity.`,
 	return []*cobra.Command{cmd}
 }
 
-func run(_ log.Component, cfg config.Component, hostnameComp hostname.Component) error {
+func run(logger log.Component, cfg config.Component, hostnameComp hostname.Component) error {
 	ctx := context.Background()
 
 	if !cfg.GetBool(pkgconfigsetup.PAREnabled) {
@@ -93,9 +94,9 @@ func run(_ log.Component, cfg config.Component, hostnameComp hostname.Component)
 
 	parCfg, err := parconfig.FromDDConfig(cfg)
 	if err != nil {
-		fmt.Printf("Identity rotated, but failed to load runner config for auto-connection: %v\n", err)
+		logger.Warnf("Identity rotated, but failed to load runner config for auto-connection: %v", err)
 	} else if urnParts, err := parutil.ParseRunnerURN(result.URN); err != nil {
-		fmt.Printf("Identity rotated, but failed to parse URN for auto-connection: %v\n", err)
+		logger.Warnf("Identity rotated, but failed to parse URN for auto-connection: %v", err)
 	} else {
 		autoconnections.CreateConnectionsIfEnabled(
 			ctx, cfg, parCfg,
@@ -104,8 +105,8 @@ func run(_ log.Component, cfg config.Component, hostnameComp hostname.Component)
 		)
 	}
 
-	fmt.Printf("Identity successfully rotated. New URN: %s\n", result.URN)
-	fmt.Println("The new identity has been written to the Kubernetes secret.")
-	fmt.Println("Run `kubectl rollout restart deployment/<cluster-agent-deployment> -n <namespace>` to apply the new identity.")
+	logger.Infof("Identity successfully rotated. New URN: %s", result.URN)
+	logger.Info("The new identity has been written to the Kubernetes secret.")
+	logger.Info("To apply the new identity, run `kubectl rollout restart deployment/<cluster-agent-deployment> -n <namespace>`.")
 	return nil
 }

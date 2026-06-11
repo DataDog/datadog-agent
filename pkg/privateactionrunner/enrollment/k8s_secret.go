@@ -230,8 +230,8 @@ func persistIdentityToK8sSecret(ctx context.Context, cfg configModel.Reader, res
 	return writeIdentitySecret(ctx, client, ns, getSecretName(cfg), result)
 }
 
-// rotateIdentityInK8sSecret persists identity to K8s secret without requiring leadership.
-func rotateIdentityInK8sSecret(ctx context.Context, cfg configModel.Reader, result *Result) error {
+// persistIdentityToK8sSecretNoLeader persists identity to K8s secret without requiring leadership.
+func persistIdentityToK8sSecretNoLeader(ctx context.Context, cfg configModel.Reader, result *Result) error {
 	client, err := getKubeClient()
 	if err != nil {
 		return err

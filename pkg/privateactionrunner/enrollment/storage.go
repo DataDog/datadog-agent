@@ -40,7 +40,7 @@ func PersistIdentity(ctx context.Context, cfg configModel.Reader, result *Result
 // RotateIdentity persists a new identity for explicit rotation.
 func RotateIdentity(ctx context.Context, cfg configModel.Reader, result *Result) error {
 	if cfg.GetBool(setup.PARIdentityUseK8sSecret) && flavor.GetFlavor() == flavor.ClusterAgent {
-		return rotateIdentityInK8sSecret(ctx, cfg, result)
+		return persistIdentityToK8sSecretNoLeader(ctx, cfg, result)
 	}
 	return persistIdentityToFile(cfg, result)
 }
