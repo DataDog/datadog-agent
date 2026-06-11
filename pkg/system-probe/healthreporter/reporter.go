@@ -124,15 +124,15 @@ func (r *Reporter) retryWithBackoff(op string, fn func() error) {
 	for {
 		if err := fn(); err == nil {
 			return
-		} else if time.Now().After(deadline) {
-			log.Warnf("health platform: gave up on %s after %s: %v", op, r.maxWait, err)
+		}
+		if time.Now().After(deadline) {
+			log.Warnf("health platform: gave up on %s after %s", op, r.maxWait)
 			return
-		} else {
-			log.Debugf("health platform: retrying %s in %s (err: %v)", op, backoff, err)
-			time.Sleep(backoff)
-			if backoff < 30*time.Second {
-				backoff *= 2
-			}
+		}
+		log.Debugf("health platform: retrying %s in %s", op, backoff)
+		time.Sleep(backoff)
+		if backoff < 30*time.Second {
+			backoff *= 2
 		}
 	}
 }

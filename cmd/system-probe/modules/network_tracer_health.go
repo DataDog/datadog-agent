@@ -9,6 +9,7 @@ package modules
 
 import (
 	"fmt"
+	"strconv"
 
 	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
@@ -43,9 +44,9 @@ func buildNetworkProbeIssue(initErr error, npmEnabled, usmEnabled bool) *healthp
 	var which string
 	switch {
 	case npmEnabled && usmEnabled:
-		which = "NPM and USM"
+		which = "CNM and USM"
 	case npmEnabled:
-		which = "NPM"
+		which = "CNM"
 	case usmEnabled:
 		which = "USM"
 	default:
@@ -54,8 +55,8 @@ func buildNetworkProbeIssue(initErr error, npmEnabled, usmEnabled bool) *healthp
 
 	extra, _ := structpb.NewStruct(map[string]any{
 		"error":       errStr,
-		"npm_enabled": fmt.Sprintf("%v", npmEnabled),
-		"usm_enabled": fmt.Sprintf("%v", usmEnabled),
+		"npm_enabled": strconv.FormatBool(npmEnabled),
+		"usm_enabled": strconv.FormatBool(usmEnabled),
 	})
 
 	return &healthplatformpayload.Issue{
@@ -75,7 +76,7 @@ func buildNetworkProbeIssue(initErr error, npmEnabled, usmEnabled bool) *healthp
 				{Order: 1, Text: "Check system-probe logs: journalctl -u datadog-agent-sysprobe or /var/log/datadog/system-probe.log"},
 				{Order: 2, Text: "Verify kernel version (>= 4.4 for NPM, >= 4.14 for USM): uname -r"},
 				{Order: 3, Text: "Check BTF availability for CO-RE probes: ls /sys/kernel/btf/vmlinux"},
-				{Order: 4, Text: "Verify capabilities: CAP_NET_ADMIN, CAP_SYS_ADMIN (CAP_BPF on kernel >= 5.8)"},
+				{Order: 4, Text: "Verify required capabilities are granted (check system-probe logs for specific capability errors)"},
 				{Order: 5, Text: "If in a container, ensure privileged mode or a permissive seccomp profile"},
 				{Order: 6, Text: "Restart after fixing: systemctl restart datadog-agent-sysprobe"},
 			},
