@@ -155,7 +155,6 @@ func tcpSender(
 		componentName,
 		queueCount,
 		workersPerQueue,
-		// A real monitor: this sender owns the snapshot registry surfaced on the status page.
 		metrics.NewTelemetryPipelineMonitor(),
 	)
 }
@@ -214,7 +213,6 @@ func httpSender(
 		minSenderConcurrency,
 		maxSenderConcurrency,
 		secretsComp,
-		// A real monitor: this sender owns the snapshot registry surfaced on the status page.
 		metrics.NewTelemetryPipelineMonitor(),
 	)
 }
