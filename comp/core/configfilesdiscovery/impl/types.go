@@ -50,7 +50,7 @@ type targetResolver struct {
 }
 
 func (r targetResolver) Resolve(config integration.Config) (target, bool) {
-	if config.Name == "" || config.ServiceID == "" || (!config.IsCheckConfig() && !config.IsDiscovery()) {
+	if config.Name == "" || config.ServiceID == "" || !config.IsCheckConfig() {
 		return target{}, false
 	}
 

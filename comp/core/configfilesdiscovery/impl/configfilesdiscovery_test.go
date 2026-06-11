@@ -173,28 +173,6 @@ func TestResolveTargetDetectsRuntime(t *testing.T) {
 			},
 			wantOK: false,
 		},
-		{
-			name: "discovery-only template (no instances)",
-			config: integration.Config{
-				Name:      "redis",
-				ServiceID: "process://1234",
-				Discovery: &integration.DiscoveryConfig{},
-			},
-			wantTarget: target{
-				runtime:  RuntimeHost,
-				entityID: "1234",
-			},
-			wantOK: true,
-		},
-		{
-			name: "logs-only config is rejected",
-			config: integration.Config{
-				Name:       "redis",
-				ServiceID:  "process://1234",
-				LogsConfig: []byte(`[{}]`),
-			},
-			wantOK: false,
-		},
 	}
 
 	for _, tt := range tests {
