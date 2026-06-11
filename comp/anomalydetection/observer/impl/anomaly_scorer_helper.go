@@ -27,7 +27,7 @@ const (
 	// helperEventSourceTag is the distinguishing tag applied to all severity events sent
 	// by the helper. It separates them from the reporter's correlation change events
 	// (which carry source:edge-intelligence / pattern:<x>).
-	helperEventSourceTag = "anomaly_scorer_source:helper"
+	helperEventSourceTag = "edge_intelligence_event_type:scorer-helper"
 )
 
 // severityEventSender handles the Datadog v2 change event submission for severity transitions.
