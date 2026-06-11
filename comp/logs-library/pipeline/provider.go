@@ -285,6 +285,9 @@ func (p *provider) Start() {
 // If failover is enabled, closes all router channels and waits for forwarder goroutines
 // to finish draining before stopping pipelines.
 func (p *provider) Stop() {
+	if p.sender == nil {
+		return
+	}
 	// Stop the sampler before pipelines so a flush blocked on a backed-up sender can't leak it.
 	p.sender.PipelineMonitor().Stop()
 

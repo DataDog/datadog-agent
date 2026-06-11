@@ -165,6 +165,8 @@ type recordingMonitor struct {
 func (m *recordingMonitor) Stop() { close(m.stopped) }
 
 func TestProviderStopStopsSamplerBeforePipelines(t *testing.T) {
+	assert.NotPanics(t, func() { NewMockProvider().Stop() })
+
 	cfg := configmock.New(t)
 	cfg.SetInTest("logs_config.message_channel_size", 10)
 
