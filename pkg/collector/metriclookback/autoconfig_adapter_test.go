@@ -22,7 +22,7 @@ func TestAutoConfigShadowAdapterReturnsBeforeShadowScheduleCompletes(t *testing.
 		scheduleEntered: make(chan struct{}),
 		releaseSchedule: make(chan struct{}),
 	}
-	scheduler := NewAutoConfigShadowAdapter(Options{Enabled: true}, shadowController)
+	scheduler := NewAutoConfigShadowAdapter(Options{ShadowChecksEnabled: true}, shadowController)
 	t.Cleanup(scheduler.Stop)
 
 	start := time.Now()
@@ -42,9 +42,9 @@ func TestAutoConfigShadowAdapterReturnsBeforeShadowScheduleCompletes(t *testing.
 
 func TestAutoConfigShadowAdapterSerializesLifecycleOperations(t *testing.T) {
 	source := newTestShadowConfig().SourceConfig
-	expected := DeriveShadowConfigs([]integration.Config{source}, Options{Enabled: true})
+	expected := DeriveShadowConfigs([]integration.Config{source}, Options{ShadowChecksEnabled: true})
 	shadowController := &recordingShadowController{}
-	scheduler := NewAutoConfigShadowAdapter(Options{Enabled: true}, shadowController)
+	scheduler := NewAutoConfigShadowAdapter(Options{ShadowChecksEnabled: true}, shadowController)
 	t.Cleanup(scheduler.Stop)
 
 	scheduler.Schedule([]integration.Config{source})
@@ -63,7 +63,7 @@ func TestAutoConfigShadowAdapterStopDropsQueuedOperationsAndStopsShadowScheduler
 		scheduleEntered: make(chan struct{}),
 		releaseSchedule: make(chan struct{}),
 	}
-	scheduler := NewAutoConfigShadowAdapter(Options{Enabled: true}, shadowController)
+	scheduler := NewAutoConfigShadowAdapter(Options{ShadowChecksEnabled: true}, shadowController)
 
 	scheduler.Schedule([]integration.Config{source})
 	select {
