@@ -84,7 +84,7 @@ func TestNoMappingsConfig(t *testing.T) {
 	deps := fulfillDepsWithConfigOverride(t, cfg)
 	s := deps.Server.(*dsdServer)
 	cw := deps.Config.(model.Writer)
-	cw.SetWithoutSource("dogstatsd_port", listeners.RandomPortName)
+	cw.SetInTest("dogstatsd_port", listeners.RandomPortName)
 
 	samples := []metrics.MetricSample{}
 

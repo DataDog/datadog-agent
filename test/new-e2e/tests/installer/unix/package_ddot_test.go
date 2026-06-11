@@ -106,10 +106,9 @@ func (s *packageDDOTSuite) TestInstallDDOTInstaller() {
 	// Check if datadog.yaml exists, if not return an error
 	s.host.Run("sudo test -f /etc/datadog-agent/datadog.yaml || { echo 'Error: datadog.yaml does not exist'; exit 1; }")
 
-	s.host.WaitForUnitActive(s.T(), ddotUnit)
+	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit, procmgrUnit, ddotUnit)
 
 	state := s.host.State()
-	// Verify running
 	s.assertCoreUnits(state, true)
 	s.assertDDOTUnits(state, false)
 
@@ -209,6 +208,7 @@ func (s *packageDDOTSuite) TestInstallDDOTSubcommand() {
 
 	// Extension DDOT (ext/ddot on the agent package) must run under dd-procmgrd, not datadog-agent-ddot.service.
 	ddot.AssertDDOTManagedByProcmgr(s.T(), s.Env().RemoteHost)
+	ddot.AssertProcmgrDDOTTelemetry(s.T(), s.Env().RemoteHost)
 
 	state := s.host.State()
 	s.assertCoreUnits(state, true)

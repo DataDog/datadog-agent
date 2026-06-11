@@ -5,14 +5,16 @@
 
 package profile
 
-import "regexp"
+import (
+	"regexp"
+)
 
-func MkCommand(command string, requires ...string) *Command {
+func MkCommand(command string, requires ...string) *PlainCommand {
 	vd := Validator{}
 	for _, req := range requires {
 		vd.Require = append(vd.Require, regexp.MustCompile(req))
 	}
-	return &Command{
+	return &PlainCommand{
 		Command:   command,
 		Validator: vd,
 	}
@@ -201,6 +203,16 @@ var DefaultProfiles = Map{
 		Commands: CommandSet{
 			GetRunning: MkCommand("show running-config | no-more | exclude ! Time:", `! Command: show running-config`),
 			GetStartup: MkCommand("show startup-config | no-more | exclude ! Time:", `! Command: show startup-config`),
+			PushConfig: []Command{
+				&SCPCommand{
+					RemoteCommand: "scp",
+					Filepath:      "/tmp/dd-rollback-config",
+				},
+				MkCommand("configure replace file:/tmp/dd-rollback-config"),
+				MkCommand("write", `Copy completed successfully`),
+				// TODO should we be deleting the file after?
+				// MkCommand("delete file:/tmp/dd-rollback-config"),
+			},
 		},
 		Redactions: []RedactionRule{
 			MkRedaction(`^(snmp-server community).*`),
@@ -318,7 +330,7 @@ var DefaultProfiles = Map{
 	"tmos": {
 		Name: "tmos",
 		Commands: CommandSet{
-			GetRunning: MkCommand("cat /config/partitions/*/bigip*.conf", `^sys global-settings\s*{`),
+			GetRunning: MkCommand("cat /config/partitions/*/bigip*.conf", `(^sys global-settings\s*{)|(^ltm (node|pool|virtual) \S+ {)|(^#TMSH-VERSION: \S+)`),
 		},
 		Redactions: []RedactionRule{
 			MkRedaction(`^([\s\t]*)secret \S+`, WithReplacement("${1}secret <secret hidden>")),
