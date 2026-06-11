@@ -198,6 +198,7 @@ func (l *KubeEndpointSlicesListener) serviceUpdated(old, obj interface{}) {
 	// Detect if new annotations are added
 	if !isServiceAnnotated(oldSvc, kubeEndpointSlicesID) && isServiceAnnotated(svc, kubeEndpointSlicesID) {
 		l.processServiceUpdate(svc.Namespace, svc.Name)
+		return
 	}
 
 	// Detect changes of AD labels for standard tags if the Service is annotated or tracked
