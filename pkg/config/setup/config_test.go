@@ -1648,11 +1648,11 @@ func TestSanitizeDataPlaneConfig(t *testing.T) {
 			wantSource:   pkgconfigmodel.SourceAgentRuntime,
 		},
 		{
-			name:         "darwin resets true to false",
+			name:         "darwin preserves true",
 			goos:         "darwin",
 			initialValue: true,
-			wantValue:    false,
-			wantSource:   pkgconfigmodel.SourceAgentRuntime,
+			wantValue:    true,
+			wantSource:   pkgconfigmodel.SourceFile,
 		},
 		{
 			// Even when already false, non-Linux writes SourceAgentRuntime so that
@@ -1664,11 +1664,11 @@ func TestSanitizeDataPlaneConfig(t *testing.T) {
 			wantSource:   pkgconfigmodel.SourceAgentRuntime,
 		},
 		{
-			name:         "darwin locks false via SourceAgentRuntime",
+			name:         "darwin preserves false",
 			goos:         "darwin",
 			initialValue: false,
 			wantValue:    false,
-			wantSource:   pkgconfigmodel.SourceAgentRuntime,
+			wantSource:   pkgconfigmodel.SourceFile,
 		},
 		{
 			name:         "darwin bypass: force-enable=true preserves true",
@@ -1687,13 +1687,13 @@ func TestSanitizeDataPlaneConfig(t *testing.T) {
 			wantSource:   pkgconfigmodel.SourceFile,
 		},
 		{
-			// Garbage value in the env var does NOT bypass the gate.
-			name:         "darwin bypass: force-enable=yes is ignored (gate applies)",
+			// Garbage value in the env var has no effect on Darwin because Darwin is supported.
+			name:         "darwin force-enable=yes has no effect",
 			goos:         "darwin",
 			forceEnable:  "yes",
 			initialValue: true,
-			wantValue:    false,
-			wantSource:   pkgconfigmodel.SourceAgentRuntime,
+			wantValue:    true,
+			wantSource:   pkgconfigmodel.SourceFile,
 		},
 		{
 			// When bypass is active and value is already false, gate is still skipped —
