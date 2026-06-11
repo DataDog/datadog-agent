@@ -841,7 +841,7 @@ func (c *WorkloadMetaCollector) handleGPU(ev workloadmeta.Event) []*types.TagInf
 func ExtractGPUTags(gpu *workloadmeta.GPU, tagList *taglist.TagList) {
 	gpuUUID := strings.ToLower(gpu.ID)
 	tagList.AddLow(tags.KubeGPUVendor, strings.ToLower(gpu.Vendor))
-	tagList.AddLow(tags.KubeGPUDevice, strings.ToLower(strings.ReplaceAll(gpu.Device, " ", "_")))
+	tagList.AddLow(tags.KubeGPUDevice, normalizeGPUDeviceName(gpu.Device))
 	tagList.AddLow(tags.KubeGPUUUID, gpuUUID)
 	tagList.AddLow(tags.GPUDriverVersion, gpu.DriverVersion)
 	tagList.AddLow(tags.GPUVirtualizationMode, gpu.VirtualizationMode)
@@ -856,6 +856,10 @@ func ExtractGPUTags(gpu *workloadmeta.GPU, tagList *taglist.TagList) {
 	} else {
 		tagList.AddLow(tags.GPUParentGPUUUID, strings.ToLower(gpu.ParentGPUUUID))
 	}
+}
+
+func normalizeGPUDeviceName(device string) string {
+	return strings.ToLower(strings.ReplaceAll(device, " ", "_"))
 }
 
 func (c *WorkloadMetaCollector) handleCRD(ev workloadmeta.Event) []*types.TagInfo {
@@ -970,7 +974,7 @@ func (c *WorkloadMetaCollector) extractKueueResourceFlavorTags(flavor *workloadm
 
 		switch name {
 		case "nvidia.com/gpu.product":
-			tagList.AddLow(tags.KubeGPUDevice, value)
+			tagList.AddLow(tags.KubeGPUDevice, normalizeNvidiaGPUProductLabel(value))
 		case "nvidia.com/gpu.family":
 			tagList.AddLow(tags.GPUArchitecture, strings.ToLower(value))
 		case "nvidia.com/cuda.driver-version.full":
@@ -1004,6 +1008,40 @@ func nvidiaResourceFlavorNodeLabelTagName(labelName string) (string, bool) {
 		return "", false
 	}
 	return strings.ReplaceAll(tagName, ".", "_"), true
+}
+
+func normalizeNvidiaGPUProductLabel(product string) string {
+	deviceName := strings.TrimSpace(product)
+
+	// GFD uses Kubernetes label-safe product names by replacing spaces from
+	// NVML names with dashes. Reconstruct common NVML word boundaries before
+	// applying the normal gpu_device tag normalization.
+	deviceName = strings.ReplaceAll(deviceName, "-MIG-", " MIG ")
+	deviceName = strings.ReplaceAll(deviceName, "-SHARED", " SHARED")
+
+	nvmlNameReplacements := []struct {
+		labelPart string
+		nvmlPart  string
+	}{
+		{"A100-80GB-PCIe", "A100 80GB PCIe"},
+		{"H100-NVL", "H100 NVL"},
+		{"RTX-6000-Ada-Generation", "RTX 6000 Ada Generation"},
+		{"RTX-A6000", "RTX A6000"},
+		{"GeForce-RTX-3090", "GeForce RTX 3090"},
+		{"GeForce-RTX-4090", "GeForce RTX 4090"},
+	}
+	for _, replacement := range nvmlNameReplacements {
+		deviceName = strings.Replace(deviceName, replacement.labelPart, replacement.nvmlPart, 1)
+	}
+
+	for _, vendorPrefix := range []string{"NVIDIA-", "Tesla-"} {
+		if strings.HasPrefix(deviceName, vendorPrefix) {
+			deviceName = strings.Replace(deviceName, "-", " ", 1)
+			break
+		}
+	}
+
+	return normalizeGPUDeviceName(deviceName)
 }
 
 func (c *WorkloadMetaCollector) extractTagsFromPodKueueInfo(pod *workloadmeta.KubernetesPod, tagList *taglist.TagList) {

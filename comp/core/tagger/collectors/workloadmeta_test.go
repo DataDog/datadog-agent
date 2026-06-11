@@ -1507,11 +1507,6 @@ func TestHandleKubeKueueQueue(t *testing.T) {
 }
 
 func TestHandleKubeKueueResourceFlavor(t *testing.T) {
-	flavorID := workloadmeta.EntityID{
-		Kind: workloadmeta.KindKubernetesKueueResourceFlavor,
-		ID:   "a100",
-	}
-
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Provide(func() config.Component { return config.NewMock(t) }),
@@ -1522,43 +1517,114 @@ func TestHandleKubeKueueResourceFlavor(t *testing.T) {
 	cfg := configmock.New(t)
 	collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
 
-	actual := collector.handleKubeKueueResourceFlavor(workloadmeta.Event{
-		Type: workloadmeta.EventTypeSet,
-		Entity: &workloadmeta.KubernetesKueueResourceFlavor{
-			EntityID: flavorID,
-			EntityMeta: workloadmeta.EntityMeta{
-				Name: "a100",
-			},
-			NodeLabels: map[string]string{
+	tests := []struct {
+		name             string
+		nodeLabels       map[string]string
+		expectedLowCard  []string
+		expectedFlavorID string
+	}{
+		{
+			name:             "a100 sxm4",
+			expectedFlavorID: "a100",
+			nodeLabels: map[string]string{
 				"nvidia.com/gpu.product":              "NVIDIA-A100-SXM4-40GB",
 				"nvidia.com/gpu.family":               "Ampere",
 				"nvidia.com/gpu.compute.major":        "8",
 				"nvidia.com/cuda.driver-version.full": "535.104.12",
 				"feature.node.kubernetes.io/gpu":      "true",
 			},
-		},
-		IsComplete: true,
-	})
-
-	expected := []*types.TagInfo{
-		{
-			Source:               kueueResourceFlavorSource,
-			EntityID:             types.NewEntityID(types.KueueResourceFlavor, flavorID.ID),
-			IsComplete:           true,
-			HighCardTags:         []string{},
-			OrchestratorCardTags: []string{},
-			LowCardTags: []string{
+			expectedLowCard: []string{
 				"gpu_architecture:ampere",
 				"gpu_compute_major:8",
-				"gpu_device:NVIDIA-A100-SXM4-40GB",
+				"gpu_device:nvidia_a100-sxm4-40gb",
 				"gpu_driver_version:535.104.12",
 				"gpu_vendor:nvidia",
 				"kueue_resource_flavor:a100",
 			},
-			StandardTags: []string{},
+		},
+		{
+			name:             "a100 pcie mig shared",
+			expectedFlavorID: "a100-pcie-mig",
+			nodeLabels: map[string]string{
+				"nvidia.com/gpu.product": "NVIDIA-A100-80GB-PCIe-MIG-3g.40gb-SHARED",
+			},
+			expectedLowCard: []string{
+				"gpu_device:nvidia_a100_80gb_pcie_mig_3g.40gb_shared",
+				"gpu_vendor:nvidia",
+				"kueue_resource_flavor:a100-pcie-mig",
+			},
+		},
+		{
+			name:             "tesla t4",
+			expectedFlavorID: "t4",
+			nodeLabels: map[string]string{
+				"nvidia.com/gpu.product": "Tesla-T4",
+			},
+			expectedLowCard: []string{
+				"gpu_device:tesla_t4",
+				"gpu_vendor:nvidia",
+				"kueue_resource_flavor:t4",
+			},
+		},
+		{
+			name:             "h100 nvl",
+			expectedFlavorID: "h100-nvl",
+			nodeLabels: map[string]string{
+				"nvidia.com/gpu.product": "NVIDIA-H100-NVL-MIG-3g.47gb",
+			},
+			expectedLowCard: []string{
+				"gpu_device:nvidia_h100_nvl_mig_3g.47gb",
+				"gpu_vendor:nvidia",
+				"kueue_resource_flavor:h100-nvl",
+			},
+		},
+		{
+			name:             "rtx ada",
+			expectedFlavorID: "rtx-6000",
+			nodeLabels: map[string]string{
+				"nvidia.com/gpu.product": "NVIDIA-RTX-6000-Ada-Generation",
+			},
+			expectedLowCard: []string{
+				"gpu_device:nvidia_rtx_6000_ada_generation",
+				"gpu_vendor:nvidia",
+				"kueue_resource_flavor:rtx-6000",
+			},
 		},
 	}
-	assertTagInfoListEqual(t, expected, actual)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			flavorID := workloadmeta.EntityID{
+				Kind: workloadmeta.KindKubernetesKueueResourceFlavor,
+				ID:   tt.expectedFlavorID,
+			}
+
+			actual := collector.handleKubeKueueResourceFlavor(workloadmeta.Event{
+				Type: workloadmeta.EventTypeSet,
+				Entity: &workloadmeta.KubernetesKueueResourceFlavor{
+					EntityID: flavorID,
+					EntityMeta: workloadmeta.EntityMeta{
+						Name: tt.expectedFlavorID,
+					},
+					NodeLabels: tt.nodeLabels,
+				},
+				IsComplete: true,
+			})
+
+			expected := []*types.TagInfo{
+				{
+					Source:               kueueResourceFlavorSource,
+					EntityID:             types.NewEntityID(types.KueueResourceFlavor, flavorID.ID),
+					IsComplete:           true,
+					HighCardTags:         []string{},
+					OrchestratorCardTags: []string{},
+					LowCardTags:          tt.expectedLowCard,
+					StandardTags:         []string{},
+				},
+			}
+			assertTagInfoListEqual(t, expected, actual)
+		})
+	}
 }
 
 func TestKueueQueueEntityTagsPropagateToPodContainers(t *testing.T) {
