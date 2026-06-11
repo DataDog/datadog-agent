@@ -7,9 +7,9 @@
 package core
 
 import (
+	healthplatform "github.com/DataDog/agent-payload/v5/healthplatform"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
-	anypb "google.golang.org/protobuf/types/known/anypb"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
 	reflect "reflect"
 	sync "sync"
@@ -32,15 +32,10 @@ type ReportHealthIssueRequest struct {
 	// live and rejects stale or unknown session IDs with UNAUTHENTICATED.
 	// Leave empty for sub-agents (system-probe, process-agent, security-agent)
 	// that are not registered with the Remote Agent Registry.
-	RemoteAgentSessionId string `protobuf:"bytes,1,opt,name=remote_agent_session_id,json=remoteAgentSessionId,proto3" json:"remote_agent_session_id,omitempty"`
-	// A datadog.healthplatform.Issue proto packed as google.protobuf.Any
-	// (type URL: type.googleapis.com/datadog.healthplatform.Issue).
-	// google.protobuf.Any is used because agent-payload's healthplatform.proto
-	// cannot be imported into this file directly (different module boundary);
-	// type safety is enforced in the handler via anypb.UnmarshalTo.
-	Issue         *anypb.Any `protobuf:"bytes,2,opt,name=issue,proto3" json:"issue,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	RemoteAgentSessionId string                `protobuf:"bytes,1,opt,name=remote_agent_session_id,json=remoteAgentSessionId,proto3" json:"remote_agent_session_id,omitempty"`
+	Issue                *healthplatform.Issue `protobuf:"bytes,2,opt,name=issue,proto3" json:"issue,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
 }
 
 func (x *ReportHealthIssueRequest) Reset() {
@@ -80,7 +75,7 @@ func (x *ReportHealthIssueRequest) GetRemoteAgentSessionId() string {
 	return ""
 }
 
-func (x *ReportHealthIssueRequest) GetIssue() *anypb.Any {
+func (x *ReportHealthIssueRequest) GetIssue() *healthplatform.Issue {
 	if x != nil {
 		return x.Issue
 	}
@@ -147,10 +142,10 @@ var File_datadog_api_v1_api_proto protoreflect.FileDescriptor
 
 const file_datadog_api_v1_api_proto_rawDesc = "" +
 	"\n" +
-	"\x18datadog/api/v1/api.proto\x12\x0edatadog.api.v1\x1a\x1cdatadog/model/v1/model.proto\x1a%datadog/remoteagent/remoteagent.proto\x1a'datadog/remoteconfig/remoteconfig.proto\x1a'datadog/workloadmeta/workloadmeta.proto\x1a+datadog/workloadfilter/workloadfilter.proto\x1a)datadog/autodiscovery/autodiscovery.proto\x1a'datadog/kubemetadata/kubemetadata.proto\x1a\x19google/protobuf/any.proto\x1a\x1bgoogle/protobuf/empty.proto\"}\n" +
+	"\x18datadog/api/v1/api.proto\x12\x0edatadog.api.v1\x1a\x1cdatadog/model/v1/model.proto\x1a%datadog/remoteagent/remoteagent.proto\x1a'datadog/remoteconfig/remoteconfig.proto\x1a'datadog/workloadmeta/workloadmeta.proto\x1a+datadog/workloadfilter/workloadfilter.proto\x1a)datadog/autodiscovery/autodiscovery.proto\x1a'datadog/kubemetadata/kubemetadata.proto\x1a+datadog/healthplatform/healthplatform.proto\x1a\x1bgoogle/protobuf/empty.proto\"\x86\x01\n" +
 	"\x18ReportHealthIssueRequest\x125\n" +
-	"\x17remote_agent_session_id\x18\x01 \x01(\tR\x14remoteAgentSessionId\x12*\n" +
-	"\x05issue\x18\x02 \x01(\v2\x14.google.protobuf.AnyR\x05issue\"m\n" +
+	"\x17remote_agent_session_id\x18\x01 \x01(\tR\x14remoteAgentSessionId\x123\n" +
+	"\x05issue\x18\x02 \x01(\v2\x1d.datadog.healthplatform.IssueR\x05issue\"m\n" +
 	"\x19ResolveHealthIssueRequest\x125\n" +
 	"\x17remote_agent_session_id\x18\x01 \x01(\tR\x14remoteAgentSessionId\x12\x19\n" +
 	"\bissue_id\x18\x02 \x01(\tR\aissueId2Z\n" +
@@ -195,7 +190,7 @@ var file_datadog_api_v1_api_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
 var file_datadog_api_v1_api_proto_goTypes = []any{
 	(*ReportHealthIssueRequest)(nil),                  // 0: datadog.api.v1.ReportHealthIssueRequest
 	(*ResolveHealthIssueRequest)(nil),                 // 1: datadog.api.v1.ResolveHealthIssueRequest
-	(*anypb.Any)(nil),                                 // 2: google.protobuf.Any
+	(*healthplatform.Issue)(nil),                      // 2: datadog.healthplatform.Issue
 	(*HostnameRequest)(nil),                           // 3: datadog.model.v1.HostnameRequest
 	(*StreamTagsRequest)(nil),                         // 4: datadog.model.v1.StreamTagsRequest
 	(*GenerateContainerIDFromOriginInfoRequest)(nil),  // 5: datadog.model.v1.GenerateContainerIDFromOriginInfoRequest
@@ -232,7 +227,7 @@ var file_datadog_api_v1_api_proto_goTypes = []any{
 	(*KubeMetadataStreamResponse)(nil),                // 36: datadog.kubemetadata.KubeMetadataStreamResponse
 }
 var file_datadog_api_v1_api_proto_depIdxs = []int32{
-	2,  // 0: datadog.api.v1.ReportHealthIssueRequest.issue:type_name -> google.protobuf.Any
+	2,  // 0: datadog.api.v1.ReportHealthIssueRequest.issue:type_name -> datadog.healthplatform.Issue
 	3,  // 1: datadog.api.v1.Agent.GetHostname:input_type -> datadog.model.v1.HostnameRequest
 	4,  // 2: datadog.api.v1.AgentSecure.TaggerStreamEntities:input_type -> datadog.model.v1.StreamTagsRequest
 	5,  // 3: datadog.api.v1.AgentSecure.TaggerGenerateContainerIDFromOriginInfo:input_type -> datadog.model.v1.GenerateContainerIDFromOriginInfoRequest

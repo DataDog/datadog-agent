@@ -16,7 +16,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/types/known/anypb"
 
 	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
 	healthplatformstore "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
@@ -57,13 +56,6 @@ func serverWithStoreAndRegistry(store healthplatformstore.Component, reg remotea
 	}
 }
 
-func packIssue(t *testing.T, issue *healthplatformpayload.Issue) *anypb.Any {
-	t.Helper()
-	packed, err := anypb.New(issue)
-	require.NoError(t, err)
-	return packed
-}
-
 // ── ReportHealthIssue ────────────────────────────────────────────────────────
 
 func TestReportHealthIssue_StoresIssue(t *testing.T) {
@@ -71,7 +63,7 @@ func TestReportHealthIssue_StoresIssue(t *testing.T) {
 	srv := serverWithStore(storeMock)
 
 	issue := &healthplatformpayload.Issue{Id: "test-issue", IssueName: "test-issue", Title: "Test Issue", Severity: healthplatformpayload.IssueSeverity_ISSUE_SEVERITY_HIGH}
-	_, err := srv.ReportHealthIssue(context.Background(), &pb.ReportHealthIssueRequest{Issue: packIssue(t, issue)})
+	_, err := srv.ReportHealthIssue(context.Background(), &pb.ReportHealthIssueRequest{Issue: issue})
 	require.NoError(t, err)
 
 	got := storeMock.GetIssue("test-issue")
@@ -83,16 +75,15 @@ func TestReportHealthIssue_StoresIssue(t *testing.T) {
 func TestReportHealthIssue_StoreUnavailable(t *testing.T) {
 	srv := &serverSecure{healthPlatformStore: option.None[healthplatformstore.Component]()}
 
-	_, err := srv.ReportHealthIssue(context.Background(), &pb.ReportHealthIssueRequest{Issue: packIssue(t, &healthplatformpayload.Issue{Id: "x"})})
+	_, err := srv.ReportHealthIssue(context.Background(), &pb.ReportHealthIssueRequest{Issue: &healthplatformpayload.Issue{Id: "x"}})
 	require.Error(t, err)
 	assert.Equal(t, codes.Unavailable, status.Code(err))
 }
 
-func TestReportHealthIssue_WrongPayloadType(t *testing.T) {
+func TestReportHealthIssue_NilIssue(t *testing.T) {
 	srv := serverWithStore(healthplatformmock.Mock(t))
 
-	wrongPayload := &anypb.Any{TypeUrl: "type.googleapis.com/unknown.Type", Value: []byte("not-a-valid-proto")}
-	_, err := srv.ReportHealthIssue(context.Background(), &pb.ReportHealthIssueRequest{Issue: wrongPayload})
+	_, err := srv.ReportHealthIssue(context.Background(), &pb.ReportHealthIssueRequest{})
 	require.Error(t, err)
 	assert.Equal(t, codes.InvalidArgument, status.Code(err))
 }
@@ -100,7 +91,7 @@ func TestReportHealthIssue_WrongPayloadType(t *testing.T) {
 func TestReportHealthIssue_EmptyIssueID(t *testing.T) {
 	srv := serverWithStore(healthplatformmock.Mock(t))
 
-	_, err := srv.ReportHealthIssue(context.Background(), &pb.ReportHealthIssueRequest{Issue: packIssue(t, &healthplatformpayload.Issue{Title: "no id"})})
+	_, err := srv.ReportHealthIssue(context.Background(), &pb.ReportHealthIssueRequest{Issue: &healthplatformpayload.Issue{Title: "no id"}})
 	require.Error(t, err)
 	assert.Equal(t, codes.InvalidArgument, status.Code(err))
 }
@@ -108,7 +99,7 @@ func TestReportHealthIssue_EmptyIssueID(t *testing.T) {
 func TestReportHealthIssue_EmptyIssueName(t *testing.T) {
 	srv := serverWithStore(healthplatformmock.Mock(t))
 
-	_, err := srv.ReportHealthIssue(context.Background(), &pb.ReportHealthIssueRequest{Issue: packIssue(t, &healthplatformpayload.Issue{Id: "has-id-no-name"})})
+	_, err := srv.ReportHealthIssue(context.Background(), &pb.ReportHealthIssueRequest{Issue: &healthplatformpayload.Issue{Id: "has-id-no-name"}})
 	require.Error(t, err)
 	assert.Equal(t, codes.InvalidArgument, status.Code(err))
 }
@@ -123,7 +114,7 @@ func TestReportHealthIssue_ValidSession(t *testing.T) {
 	issue := &healthplatformpayload.Issue{Id: "adp-issue", IssueName: "adp-issue", Title: "ADP issue"}
 	_, err := srv.ReportHealthIssue(context.Background(), &pb.ReportHealthIssueRequest{
 		RemoteAgentSessionId: "sess-123",
-		Issue:                packIssue(t, issue),
+		Issue:                issue,
 	})
 	require.NoError(t, err)
 	assert.NotNil(t, storeMock.GetIssue("adp-issue"))
@@ -137,7 +128,7 @@ func TestReportHealthIssue_InvalidSession(t *testing.T) {
 
 	_, err := srv.ReportHealthIssue(context.Background(), &pb.ReportHealthIssueRequest{
 		RemoteAgentSessionId: "stale-session",
-		Issue:                packIssue(t, &healthplatformpayload.Issue{Id: "x", IssueName: "x"}),
+		Issue:                &healthplatformpayload.Issue{Id: "x", IssueName: "x"},
 	})
 	require.Error(t, err)
 	assert.Equal(t, codes.Unauthenticated, status.Code(err))
@@ -150,7 +141,7 @@ func TestReportHealthIssue_SessionWithoutRegistry(t *testing.T) {
 
 	_, err := srv.ReportHealthIssue(context.Background(), &pb.ReportHealthIssueRequest{
 		RemoteAgentSessionId: "some-session",
-		Issue:                packIssue(t, &healthplatformpayload.Issue{Id: "x"}),
+		Issue:                &healthplatformpayload.Issue{Id: "x"},
 	})
 	require.Error(t, err)
 	assert.Equal(t, codes.Unavailable, status.Code(err))
@@ -163,7 +154,7 @@ func TestReportHealthIssue_NoSessionSubAgent(t *testing.T) {
 	srv := serverWithStore(storeMock) // no registry — fine for sub-agents
 
 	_, err := srv.ReportHealthIssue(context.Background(), &pb.ReportHealthIssueRequest{
-		Issue: packIssue(t, &healthplatformpayload.Issue{Id: "sysprobe-issue", IssueName: "sysprobe-issue"}),
+		Issue: &healthplatformpayload.Issue{Id: "sysprobe-issue", IssueName: "sysprobe-issue"},
 	})
 	require.NoError(t, err)
 	assert.NotNil(t, storeMock.GetIssue("sysprobe-issue"))

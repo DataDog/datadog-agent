@@ -9,7 +9,7 @@ import "datadog/workloadmeta/workloadmeta.proto";
 import "datadog/workloadfilter/workloadfilter.proto";
 import "datadog/autodiscovery/autodiscovery.proto";
 import "datadog/kubemetadata/kubemetadata.proto";
-import "google/protobuf/any.proto";
+import "datadog/healthplatform/healthplatform.proto";
 import "google/protobuf/empty.proto";
 
 option go_package = "pkg/proto/pbgo/core"; // golang
@@ -98,12 +98,7 @@ message ReportHealthIssueRequest {
     // Leave empty for sub-agents (system-probe, process-agent, security-agent)
     // that are not registered with the Remote Agent Registry.
     string remote_agent_session_id = 1;
-    // A datadog.healthplatform.Issue proto packed as google.protobuf.Any
-    // (type URL: type.googleapis.com/datadog.healthplatform.Issue).
-    // google.protobuf.Any is used because agent-payload's healthplatform.proto
-    // cannot be imported into this file directly (different module boundary);
-    // type safety is enforced in the handler via anypb.UnmarshalTo.
-    google.protobuf.Any issue = 2;
+    datadog.healthplatform.Issue issue = 2;
 }
 
 // ResolveHealthIssueRequest clears a previously reported health issue.
