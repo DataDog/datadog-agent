@@ -8,26 +8,7 @@
 // team: agent-configuration
 package configstreamconsumer
 
-import (
-	"os"
-	"path/filepath"
-	"runtime"
-	"strconv"
-	"strings"
-	"time"
-
-	yaml "go.yaml.in/yaml/v3"
-)
-
-const enabledEnvVar = "DD_REMOTE_AGENT_CONFIGSTREAM_CONSUMER_ENABLED"
-
-// Mirrors comp/core/config.DefaultConfPath without taking that dep (would cycle through impl).
-var defaultConfPath = func() string {
-	if runtime.GOOS == "windows" {
-		return `C:\ProgramData\Datadog`
-	}
-	return "/etc/datadog-agent"
-}()
+import "time"
 
 // Params for the configstreamconsumer component.
 type Params struct {
@@ -39,49 +20,28 @@ type Params struct {
 	ReadyTimeout time.Duration
 }
 
+// Option mutates Params.
+type Option func(*Params)
+
+// WithReadyTimeout overrides the default first-snapshot timeout.
+func WithReadyTimeout(d time.Duration) Option {
+	return func(p *Params) { p.ReadyTimeout = d }
+}
+
+// NewParams returns Params with the required fields set; apply Options for the rest.
+func NewParams(clientName, cliConfigPath string, opts ...Option) Params {
+	p := Params{
+		ClientName:    clientName,
+		CLIConfigPath: cliConfigPath,
+	}
+	for _, opt := range opts {
+		opt(&p)
+	}
+	return p
+}
+
 // Component is the config stream consumer. IsActive is true once the initial snapshot
 // has been applied to the global config builder.
 type Component interface {
 	IsActive() bool
-}
-
-// IsEnabled reports whether the consumer should run, from env or datadog.yaml.
-func IsEnabled(cliConfigPath string) bool {
-	if v, ok := os.LookupEnv(enabledEnvVar); ok {
-		if enabled, err := strconv.ParseBool(v); err == nil {
-			return enabled
-		}
-	}
-	for _, path := range yamlCandidates(cliConfigPath) {
-		data, err := os.ReadFile(path)
-		if err != nil {
-			continue
-		}
-		var cfg struct {
-			RemoteAgent struct {
-				ConfigStream struct {
-					Consumer struct {
-						Enabled bool `yaml:"enabled"`
-					} `yaml:"consumer"`
-				} `yaml:"configstream"`
-			} `yaml:"remote_agent"`
-		}
-		_ = yaml.Unmarshal(data, &cfg)
-		return cfg.RemoteAgent.ConfigStream.Consumer.Enabled
-	}
-	return false
-}
-
-func yamlCandidates(cliConfigPath string) []string {
-	out := make([]string, 0, 2)
-	for _, path := range []string{cliConfigPath, defaultConfPath} {
-		if path == "" {
-			continue
-		}
-		if !strings.HasSuffix(path, ".yaml") && !strings.HasSuffix(path, ".yml") {
-			path = filepath.Join(path, "datadog.yaml")
-		}
-		out = append(out, path)
-	}
-	return out
 }

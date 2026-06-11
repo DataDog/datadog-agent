@@ -15,6 +15,7 @@ import (
 
 	pkgtoken "github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/api/security/cert"
+	"github.com/DataDog/datadog-agent/pkg/config/create"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
@@ -76,15 +77,18 @@ func SeedGlobalBuilder(s Settings, configFile string) {
 }
 
 // DisableLocalEnvLayer drops the env layer (nodetreemodel only) so local DD_* vars
-// can't override streamed values.
+// can't override streamed values. Viper-backed configs cannot clear env vars.
 func DisableLocalEnvLayer(clientName string) {
+	b := pkgconfigsetup.GlobalConfigBuilder()
 	type envVarClearer interface{ ClearEnvVars() }
-	if clearer, ok := pkgconfigsetup.GlobalConfigBuilder().(envVarClearer); ok {
+	if clearer, ok := b.(envVarClearer); ok {
 		clearer.ClearEnvVars()
 		pkglog.Infof("configstreamconsumer[%s]: local env-var layer disabled", clientName)
 		return
 	}
-	pkglog.Warnf("configstreamconsumer[%s]: config impl does not support disabling the env-var layer; subprocess env vars may override streamed values", clientName)
+	if create.IsViperBacked(b) {
+		pkglog.Warnf("configstreamconsumer[%s]: viper-backed config cannot clear env vars; local DD_* may shadow streamed values", clientName)
+	}
 }
 
 // AuthTokenFilepath resolves the auth-token path via pkg/api/security's fallback rules.

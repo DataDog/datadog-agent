@@ -131,10 +131,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				)),
 				fx.Supply(sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.ConfFilePath), sysprobeconfigimpl.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath))),
 				fx.Supply(pidimpl.NewParams(cliParams.pidfilePath)),
-				fx.Supply(configstreamconsumer.Params{
-					ClientName:    systemProbeBootstrapClient,
-					CLIConfigPath: globalParams.DatadogConfFilePath(),
-				}),
+				fx.Supply(configstreamconsumer.NewParams(systemProbeBootstrapClient, globalParams.DatadogConfFilePath())),
 				configstreamconsumerfx.Module(),
 				getSharedFxOption(),
 			}

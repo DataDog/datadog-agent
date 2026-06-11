@@ -8,6 +8,7 @@ go_library(
     deps = [
         "//pkg/api/security",
         "//pkg/api/security/cert",
+        "//pkg/config/create",
         "//pkg/config/model",
         "//pkg/config/setup",
         "//pkg/util/log",

@@ -105,7 +105,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 		return Provides{}, errors.New("configstreamconsumer: ClientName is required")
 	}
 
-	if !configstreamconsumer.IsEnabled(reqs.Params.CLIConfigPath) {
+	if !isEnabled(reqs.Params.CLIConfigPath) {
 		return Provides{Comp: noopConsumer{}}, nil
 	}
 
@@ -178,13 +178,8 @@ func (c *consumer) start(_ context.Context) error {
 
 // registerWithBackoff retries forever until ctx is canceled, with no fallback.
 func (c *consumer) registerWithBackoff() error {
-	// We advertise this address but don't serve on it; consumers don't accept inbound calls.
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		return fmt.Errorf("open registration listener: %w", err)
-	}
-	defer listener.Close()
-	apiEndpointURI := "https://" + listener.Addr().String()
+	// Sentinel URI: the consumer registers no services, so core never dials back.
+	apiEndpointURI := "unix:///configstream-consumer/" + c.params.ClientName
 
 	bo := backoff.NewExponentialBackOff()
 	bo.InitialInterval = 500 * time.Millisecond

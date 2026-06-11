@@ -145,11 +145,7 @@ remote_agent:
 	opts := fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		telemetryfx.Module(),
-		fx.Supply(configstreamconsumer.Params{
-			ClientName:    "system-probe",
-			CLIConfigPath: datadogPath,
-			ReadyTimeout:  10 * time.Second,
-		}),
+		fx.Supply(configstreamconsumer.NewParams("system-probe", datadogPath, configstreamconsumer.WithReadyTimeout(10*time.Second))),
 		configstreamconsumerfx.Module(),
 	)
 
@@ -194,10 +190,7 @@ func TestConfigstreamConsumerDisabledIsNoop(t *testing.T) {
 	opts := fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		telemetryfx.Module(),
-		fx.Supply(configstreamconsumer.Params{
-			ClientName:    "system-probe",
-			CLIConfigPath: datadogPath,
-		}),
+		fx.Supply(configstreamconsumer.NewParams("system-probe", datadogPath)),
 		configstreamconsumerfx.Module(),
 	)
 	testRun := func(_ configstreamconsumer.Component) error { return nil }

@@ -29,7 +29,10 @@ go_library(
 
 go_test(
     name = "impl_test",
-    srcs = ["consumer_test.go"],
+    srcs = [
+        "consumer_test.go",
+        "enabled_test.go",
+    ],
     embed = [":impl"],
     gotags = ["test"],
     deps = [
