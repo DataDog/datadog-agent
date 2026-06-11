@@ -41,7 +41,6 @@ go_test(
         "updatable_test.go",
         "utils_test.go",
     ],
-    data = ["//pkg/collector/corechecks/snmp/internal/test:testdata"],
     embed = [":profile"],
     gotags = ["test"],
     deps = [
