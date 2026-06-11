@@ -16,24 +16,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// resolveCredentials uses the AWS SDK credential chain limited to:
-// env vars -> web identity (IRSA) -> container (ECS/Pod Identity) -> EC2 IMDS.
-// Shared config files, SSO, and credential_process are intentionally excluded.
-// The SDK handles caching and refresh internally.
+// resolveCredentials uses the AWS SDK default credential chain (ec2 build): environment
+// variables, shared config and credentials files (named profiles, SSO, credential_process),
+// web identity (IRSA), container credentials (ECS / EKS Pod Identity), and EC2 IMDS, in the
+// SDK's standard precedence. Behavior is controlled entirely by the standard AWS SDK
+// environment variables (for example AWS_REGION, AWS_DEFAULT_REGION, AWS_PROFILE,
+// AWS_EC2_METADATA_DISABLED); no Datadog-specific overrides are applied. The SDK handles
+// region resolution, caching, and refresh internally.
 func (a *AWSAuth) resolveCredentials(ctx context.Context) *creds.SecurityCredentials {
-	// Default the region the same way the signing code does. The web-identity
-	// (IRSA) and container providers need a region to build the STS endpoint;
-	// without one, credential retrieval fails before signing's own default applies.
-	region := a.region
-	if region == "" {
-		region = defaultRegion
-	}
-	opts := []func(*config.LoadOptions) error{
-		config.WithSharedConfigFiles([]string{}),
-		config.WithSharedCredentialsFiles([]string{}),
-		config.WithRegion(region),
-	}
-	cfg, err := config.LoadDefaultConfig(ctx, opts...)
+	cfg, err := config.LoadDefaultConfig(ctx)
 	if err != nil {
 		log.Warnf("AWS SDK LoadDefaultConfig failed: %v", err)
 		return &creds.SecurityCredentials{}

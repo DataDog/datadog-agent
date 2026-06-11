@@ -16,10 +16,12 @@ import (
 )
 
 // TestResolveCredentials_EC2_NoSourceReturnsEmptySecurityCredentials verifies that when no
-// credential source is configured (no env vars, no IMDS reachable in tests), the ec2 build
-// returns a non-nil *SecurityCredentials with empty fields -- not nil and not an error.
-// This pins the error-to-empty contract so callers can always read AccessKeyID safely.
+// credential source is available (env vars cleared, shared config isolated, IMDS disabled),
+// the ec2 build returns a non-nil *SecurityCredentials with empty fields -- not nil and not
+// an error. This pins the error-to-empty contract so callers can always read AccessKeyID safely.
 func TestResolveCredentials_EC2_NoSourceReturnsEmptySecurityCredentials(t *testing.T) {
+	isolateAWSEnv(t)
+
 	auth := &AWSAuth{region: "us-east-1"}
 	got := auth.resolveCredentials(context.Background())
 	require.NotNil(t, got, "resolveCredentials must never return nil in ec2 build")
@@ -28,8 +30,9 @@ func TestResolveCredentials_EC2_NoSourceReturnsEmptySecurityCredentials(t *testi
 }
 
 // TestResolveCredentials_EC2_StaticEnvVarsReturned verifies that static env credentials are
-// returned correctly by the SDK chain when shared config is disabled.
+// returned by the SDK chain.
 func TestResolveCredentials_EC2_StaticEnvVarsReturned(t *testing.T) {
+	isolateAWSEnv(t)
 	t.Setenv("AWS_ACCESS_KEY_ID", "EKSTATICKEY")
 	t.Setenv("AWS_SECRET_ACCESS_KEY", "EKSTATICSECRET")
 	t.Setenv("AWS_SESSION_TOKEN", "EKSTATICTOKEN")
