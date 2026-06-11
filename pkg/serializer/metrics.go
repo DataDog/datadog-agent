@@ -63,6 +63,17 @@ func (s *Serializer) zlibForcesV2() bool {
 	return s.Strategy.ContentEncoding() == compression.ZlibEncoding
 }
 
+// warnZlibDisablesV3 logs, once per serializer, that zlib compression is forcing
+// requested v3 pipelines back to v2.
+func (s *Serializer) warnZlibDisablesV3() {
+	s.zlibV3WarnOnce.Do(func() {
+		s.logger.Info(
+			"the active metrics compressor is zlib (deflate); disabling v3 metrics intake " +
+				"(use_v3_api.* and serializer_experimental_use_v3_api.*.endpoints are ignored). " +
+				"Switch to zstd to use the v3 endpoint.")
+	})
+}
+
 // evalSeriesV3 maps a single use_v3_api.series.enabled / endpoints[url] value onto a
 // v3-vs-v2 decision for r.
 func evalSeriesV3(key, value string, r resolver.DomainResolver, logger log.Component) bool {
@@ -186,7 +197,11 @@ func (s *Serializer) buildPipelinesRng(kind metricsKind, rng prng) metrics.Pipel
 	zlib := s.zlibForcesV2()
 
 	for _, resolver := range s.Forwarder.GetDomainResolvers() {
-		useV3 := !zlib && metricsUseV3(resolver, s.config, s.logger, kind)
+		useV3 := metricsUseV3(resolver, s.config, s.logger, kind)
+		if zlib && useV3 {
+			s.warnZlibDisablesV3()
+			useV3 = false
+		}
 
 		dest := metrics.PipelineDestination{
 			Resolver: resolver,
