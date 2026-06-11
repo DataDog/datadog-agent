@@ -62,8 +62,13 @@ func (s *NCMSender) getDeviceTags() []string {
 }
 
 // SendNCMCheckMetrics sends metrics about the check itself to Datadog
-func (s *NCMSender) SendNCMCheckMetrics(startTime time.Time, lastCheckTime time.Time) {
+func (s *NCMSender) SendNCMCheckMetrics(startTime time.Time, lastCheckTime time.Time, success bool) {
 	tags := append(s.getDeviceTags(), utils.GetCommonAgentTags()...)
+	if success {
+		tags = append(tags, "status:ok")
+	} else {
+		tags = append(tags, "status:error")
+	}
 	duration := s.clock.Since(startTime).Seconds()
 	s.Sender.Gauge(ncmCheckDurationMetric, duration, s.agentHostname, tags)
 

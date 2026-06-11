@@ -219,6 +219,7 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 					"runtime_mutex_profile_fraction": commonsettings.NewRuntimeMutexProfileFraction(),
 					"runtime_block_profile_rate":     commonsettings.NewRuntimeBlockProfileRate(),
 					"internal_profiling_goroutines":  commonsettings.NewProfilingGoroutines(),
+					"internal_profiling_period":      commonsettings.NewProfilingPeriod(),
 					"internal_profiling":             commonsettings.NewProfilingRuntimeSetting("internal_profiling", "process-agent"),
 				},
 				Config: c,

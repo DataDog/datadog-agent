@@ -180,12 +180,16 @@ func getSharedFxOption() fx.Option {
 			profilingGoRoutines := commonsettings.NewProfilingGoroutines()
 			profilingGoRoutines.ConfigPrefix = configPrefix
 
+			profilingPeriod := commonsettings.NewProfilingPeriod()
+			profilingPeriod.ConfigPrefix = configPrefix
+
 			return settings.Params{
 				Settings: map[string]settings.RuntimeSetting{
 					"log_level":                       commonsettings.NewLogLevelRuntimeSetting(),
 					"runtime_mutex_profile_fraction":  &commonsettings.RuntimeMutexProfileFraction{ConfigPrefix: configPrefix},
 					"runtime_block_profile_rate":      &commonsettings.RuntimeBlockProfileRate{ConfigPrefix: configPrefix},
 					"internal_profiling_goroutines":   profilingGoRoutines,
+					"internal_profiling_period":       profilingPeriod,
 					commonsettings.MaxDumpSizeConfKey: &commonsettings.ActivityDumpRuntimeSetting{ConfigKey: commonsettings.MaxDumpSizeConfKey},
 					"internal_profiling":              &commonsettings.ProfilingRuntimeSetting{SettingName: "internal_profiling", Service: "system-probe", ConfigPrefix: configPrefix},
 				},

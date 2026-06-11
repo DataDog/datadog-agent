@@ -53,7 +53,7 @@ type SSHConnection struct {
 var _ Connection = (*SSHConnection)(nil)
 
 // NewSSHConnector creates a new SSH connector for the given device configuration
-func NewSSHConnector(device *ncmconfig.DeviceInstance) (*SSHConnector, error) {
+func NewSSHConnector(device *ncmconfig.DeviceInstance) (Connector, error) {
 	if device.Auth.SSH != nil {
 		if err := ValidateSSHConfig(device.Auth.SSH); err != nil {
 			return nil, fmt.Errorf("error validating ssh client config: %w", err)
@@ -64,6 +64,14 @@ func NewSSHConnector(device *ncmconfig.DeviceInstance) (*SSHConnector, error) {
 	return &SSHConnector{
 		device: device,
 	}, nil
+}
+
+func ConnectOverSSH(device *ncmconfig.DeviceInstance) (Connection, error) {
+	c, err := NewSSHConnector(device)
+	if err != nil {
+		return nil, err
+	}
+	return c.Connect()
 }
 
 func buildHostKeyCallback(config *ncmconfig.SSHConfig) (ssh.HostKeyCallback, error) {
