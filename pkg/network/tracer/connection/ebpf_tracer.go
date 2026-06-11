@@ -117,7 +117,7 @@ var EbpfTracerTelemetry = EbpfTracerTelemetryData{
 	prometheus.NewDesc(connTracerModuleName+"__tcp_syn_retransmit", "Counter measuring the number of tcp retransmits of syn packets", nil, nil),
 	prometheus.NewDesc(connTracerModuleName+"__protocol_classifier_calls", "Counter measuring the number of times protocol_classifier_entrypoint was called", nil, nil),
 	prometheus.NewDesc(connTracerModuleName+"__protocol_classifier_skipped_fully_classified", "Counter measuring the number of times protocol classification was skipped because connection was fully classified", nil, nil),
-	prometheus.NewDesc(connTracerModuleName+"__protocol_classifier_skipped_max_attempts", "Counter measuring the number of times protocol classification was skipped because max attempts was exceeded", nil, nil),
+	prometheus.NewDesc(connTracerModuleName+"__protocol_classifier_skipped_max_attempts", "Counter measuring the number of times protocol classification WOULD have been skipped because max attempts was exceeded (shadow evaluation: counted but not enforced; full classification still runs)", nil, nil),
 	telemetryimpl.GetCompatComponent().NewCounter(connTracerModuleName, "ongoing_connect_pid_cleaned", []string{}, "Counter measuring the number of tcp_ongoing_connect_pid entries cleaned in userspace"),
 	telemetryComponent.NewStatCounterWrapper(telemetryimpl.GetCompatComponent(), connTracerModuleName, "pid_collisions", []string{}, "Counter measuring number of process collisions"),
 	telemetryimpl.GetCompatComponent().NewCounter(connTracerModuleName, "iteration_dups", []string{}, "Counter measuring the number of connections iterated more than once"),
