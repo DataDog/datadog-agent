@@ -9,4 +9,4 @@
 features:
   - |
     Parses and collects ``kubernetes.pod.cpu.request``, ``kubernetes.pod.memory.request``,
-    ``kubernetes.pod.cpu.limit``, and ``kubernetes.pod.memory.limit``.
+    ``kubernetes.pod.cpu.limits``, and ``kubernetes.pod.memory.limits``.
