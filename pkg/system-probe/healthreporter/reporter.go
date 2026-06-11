@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"google.golang.org/grpc"
-	"google.golang.org/protobuf/types/known/anypb"
 
 	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 	ipcdef "github.com/DataDog/datadog-agent/comp/core/ipc/def"
@@ -81,13 +80,9 @@ func (r *Reporter) Report(ctx context.Context, issue *healthplatformpayload.Issu
 	if err != nil {
 		return err
 	}
-	packed, err := anypb.New(issue)
-	if err != nil {
-		return fmt.Errorf("pack issue: %w", err)
-	}
 	ctx, cancel := context.WithTimeout(ctx, r.callTimeout)
 	defer cancel()
-	_, err = client.ReportHealthIssue(ctx, &pb.ReportHealthIssueRequest{Issue: packed})
+	_, err = client.ReportHealthIssue(ctx, &pb.ReportHealthIssueRequest{Issue: issue})
 	return err
 }
 
