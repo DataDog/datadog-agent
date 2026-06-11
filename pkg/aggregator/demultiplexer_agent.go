@@ -125,6 +125,11 @@ type dataOutputs struct {
 	forwarders       forwarders
 	sharedSerializer serializer.MetricSerializer
 	noAggSerializer  serializer.MetricSerializer
+
+	// statefulOutput is the stateful gRPC series transport for the aggregated
+	// serializer (nil unless enabled). The demux owns its lifecycle: started in
+	// run(), stopped in Stop().
+	statefulOutput *serializer.StatefulSeriesOutput
 }
 
 // InitAndStartAgentDemultiplexer creates a new Demultiplexer and runs what's necessary
@@ -166,7 +171,17 @@ func initAgentDemultiplexer(log log.Component,
 	// prepare the serializer
 	// ----------------------
 
-	sharedSerializer := serializer.NewSerializer(sharedForwarder, orchestratorForwarder, compressor, pkgconfigsetup.Datadog(), log, hostname)
+	// Build the aggregated serializer's StatefulOutput when enabled; on failure,
+	// sharedStatefulOutput stays nil and the serializer falls back to HTTP.
+	var sharedStatefulOutput *serializer.StatefulSeriesOutput
+	if pkgconfigsetup.Datadog().GetBool("serializer_experimental_use_v3_stateful_api.series.enabled") {
+		var err error
+		sharedStatefulOutput, err = serializer.NewStatefulSeriesOutput(pkgconfigsetup.Datadog(), sharedForwarder, compressor)
+		if err != nil {
+			log.Warnf("stateful v3 metrics path is enabled but construction failed (%v); falling back to HTTP v3", err)
+		}
+	}
+	sharedSerializer := serializer.NewSerializerWithStatefulOutput(sharedForwarder, orchestratorForwarder, compressor, pkgconfigsetup.Datadog(), log, hostname, sharedStatefulOutput)
 
 	// prepare the embedded aggregator
 	// --
@@ -199,6 +214,8 @@ func initAgentDemultiplexer(log log.Component,
 	var noAggWorker *noAggregationStreamWorker
 	var noAggSerializer serializer.MetricSerializer
 	if options.EnableNoAggregationPipeline {
+		// The no-aggregation pipeline uses the plain serializer (HTTP), not the
+		// stateful gRPC path.
 		noAggSerializer = serializer.NewSerializer(sharedForwarder, orchestratorForwarder, compressor, pkgconfigsetup.Datadog(), log, hostname)
 		noAggWorker = newNoAggregationStreamWorker(
 			pkgconfigsetup.Datadog().GetInt("dogstatsd_no_aggregation_pipeline_batch_size"),
@@ -225,6 +242,7 @@ func initAgentDemultiplexer(log log.Component,
 
 			sharedSerializer: sharedSerializer,
 			noAggSerializer:  noAggSerializer,
+			statefulOutput:   sharedStatefulOutput,
 		},
 
 		hostTagProvider: hosttags.NewHostTagProvider(),
@@ -365,6 +383,12 @@ func (d *AgentDemultiplexer) run() {
 			d.log.Debug("not starting the container lifecycle forwarder")
 		}
 
+		// stateful metrics gRPC transport (nil unless enabled). Started with the
+		// forwarders so DontStartForwarders test setups don't open the connection.
+		if d.statefulOutput != nil {
+			d.statefulOutput.Start()
+		}
+
 		d.log.Debug("Forwarders started")
 	}
 
@@ -482,6 +506,10 @@ func (d *AgentDemultiplexer) Stop() {
 		if d.dataOutputs.forwarders.containerLifecycle != nil {
 			d.dataOutputs.forwarders.containerLifecycle.Stop()
 			d.dataOutputs.forwarders.containerLifecycle = nil
+		}
+		if d.dataOutputs.statefulOutput != nil {
+			d.dataOutputs.statefulOutput.Stop()
+			d.dataOutputs.statefulOutput = nil
 		}
 	}
 

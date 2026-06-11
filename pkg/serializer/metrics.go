@@ -6,18 +6,23 @@
 package serializer
 
 import (
+	"errors"
 	"fmt"
 	"math/rand/v2"
 	"slices"
+	"time"
 
 	"github.com/google/uuid"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
+	statefulgrpc "github.com/DataDog/datadog-agent/pkg/serializer/grpc"
 	"github.com/DataDog/datadog-agent/pkg/serializer/internal/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/compression"
 )
 
 type metricsKind int
@@ -46,6 +51,16 @@ func metricsUseV3(resolver resolver.DomainResolver, config config.Component, kin
 
 func metricsValidateV3(config config.Component, kind metricsKind) bool {
 	return config.GetBool(fmt.Sprintf("serializer_experimental_use_v3_api.%s.validate", kind))
+}
+
+// metricsUseStateful reports whether the stateful gRPC path is enabled for this
+// kind. Series only; when enabled (and a StatefulOutput is wired) it replaces
+// the HTTP path for the default (non-MRF, non-local) resolver.
+func metricsUseStateful(config config.Component, kind metricsKind) bool {
+	if kind != metricsKindSeries {
+		return false
+	}
+	return config.GetBool("serializer_experimental_use_v3_stateful_api.series.enabled")
 }
 
 // metricsShadowSampleRate returns the per-flush probability of also sending
@@ -126,6 +141,7 @@ func (s *Serializer) buildPipelinesRng(kind metricsKind, rng prng) metrics.Pipel
 	validateV3 := metricsValidateV3(s.config, kind)
 	shadowRate := metricsShadowSampleRate(s.config, kind)
 	shadowSites := metricsShadowSites(s.config)
+	useStateful := metricsUseStateful(s.config, kind) && s.statefulOutput != nil
 
 	for _, resolver := range s.Forwarder.GetDomainResolvers() {
 		useV3 := metricsUseV3(resolver, s.config, kind)
@@ -154,6 +170,20 @@ func (s *Serializer) buildPipelinesRng(kind metricsKind, rng prng) metrics.Pipel
 			}
 
 		default:
+			// On the default resolver, the stateful gRPC path replaces the HTTP
+			// pipeline. The per-flush writer borrows the serializer's
+			// StatefulOutput for interning + Submit.
+			if useStateful {
+				conf := metrics.PipelineConfig{
+					Filter:   metrics.AllowAllFilter{},
+					V3:       true,
+					Stateful: true,
+				}
+				pipelines.Add(conf, dest)
+				pipelines[conf].StatefulOutput = s.statefulOutput
+				continue
+			}
+
 			validateV3 := useV3 && validateV3
 			shadowV3 := !useV3 && metricsShadowAllowed(resolver, shadowSites) && shadowRate > 0 && rng.Float64() < shadowRate
 			if validateV3 || shadowV3 {
@@ -207,4 +237,67 @@ func (s *Serializer) genUUID() string {
 		return ""
 	}
 	return uuid.String()
+}
+
+// StatefulSeriesOutput is the public alias for metrics.StatefulOutput, exposed
+// so the demultiplexer can construct it and pass it to the serializer without
+// importing the internal/metrics package directly.
+type StatefulSeriesOutput = metrics.StatefulOutput
+
+// NewStatefulSeriesOutput constructs (but does not start) a StatefulOutput for
+// the series stateful path; the caller owns its lifecycle (Start/Stop). The
+// destination and API key come from the forwarder's default DomainResolver and
+// compression reuses the serializer's compressor; only transport tuning comes
+// from the grpc.* keys. Returns an error if there is no usable default resolver
+// or the gRPC client cannot be constructed.
+func NewStatefulSeriesOutput(cfg config.Component, fwd forwarder.Forwarder, compressor compression.Compressor) (*StatefulSeriesOutput, error) {
+	res := defaultDomainResolver(fwd)
+	if res == nil {
+		return nil, errors.New("no default (non-MRF, non-local) domain resolver available for stateful series")
+	}
+	sender, err := newStatefulSender(cfg, res, compressor)
+	if err != nil {
+		return nil, err
+	}
+	return metrics.NewStatefulOutput([]*statefulgrpc.Sender{sender}), nil
+}
+
+// defaultDomainResolver returns the resolver that buildPipelines routes the
+// stateful series path to: the first non-local, non-MRF resolver. Returns nil
+// if none exists.
+func defaultDomainResolver(fwd forwarder.Forwarder) resolver.DomainResolver {
+	for _, r := range fwd.GetDomainResolvers() {
+		if !r.IsLocal() && !r.IsMRF() {
+			return r
+		}
+	}
+	return nil
+}
+
+// newStatefulSender builds the gRPC sender. The destination (the resolver's
+// base domain) and the API key (read per-RPC, rotation-aware) come from the
+// resolver; compression reuses the serializer's compressor. The Sender parses
+// the base domain into a dial target itself. Only the transport-tuning knobs
+// come from the grpc.* config keys.
+func newStatefulSender(cfg config.Component, res resolver.DomainResolver, compressor compression.Compressor) (*statefulgrpc.Sender, error) {
+	return statefulgrpc.NewSender(statefulgrpc.Config{
+		BaseURL: res.GetBaseDomain(),
+		APIKey: func() string {
+			keys := res.GetAPIKeys()
+			if len(keys) == 0 {
+				return ""
+			}
+			return keys[0]
+		},
+		Compression:       compressor,
+		StreamLifetime:    time.Duration(cfg.GetInt("serializer_experimental_use_v3_stateful_api.series.grpc.stream_lifetime")) * time.Second,
+		ConnectionTimeout: time.Duration(cfg.GetInt("serializer_experimental_use_v3_stateful_api.series.grpc.connection_timeout")) * time.Second,
+		DrainTimeout:      time.Duration(cfg.GetInt("serializer_experimental_use_v3_stateful_api.series.grpc.drain_timeout")) * time.Second,
+		MaxInflight:       cfg.GetInt("serializer_experimental_use_v3_stateful_api.series.grpc.max_inflight_payloads"),
+		// Backoff: reuse forwarder defaults.
+		BackoffFactor:    cfg.GetFloat64("forwarder_backoff_factor"),
+		BackoffBase:      time.Duration(cfg.GetInt("forwarder_backoff_base")) * time.Second,
+		BackoffMax:       time.Duration(cfg.GetInt("forwarder_backoff_max")) * time.Second,
+		RecoveryInterval: cfg.GetInt("forwarder_recovery_interval"),
+	})
 }

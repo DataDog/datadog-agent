@@ -120,7 +120,15 @@ func (series *IterableSeries) MarshalSplitCompressPipelines(config config.Compon
 	pbs := make([]serieWriter, 0, len(pipelines))
 	var sw serieWriter
 	for pipelineConfig, pipelineContext := range pipelines {
-		if !pipelineConfig.V3 {
+		if pipelineConfig.Stateful {
+			// Stateful gRPC path: the flush writer buffers series per lane and
+			// pre-interns + sorts + encodes them in finishPayload.
+			if pipelineContext.StatefulOutput == nil {
+				return errors.New("stateful pipeline missing StatefulOutput")
+			}
+			sw = newStatefulFlushWriter(config, strategy, pipelineConfig, pipelineContext, pipelineContext.StatefulOutput)
+			pbs = append(pbs, sw)
+		} else if !pipelineConfig.V3 {
 			bufferContext := marshaler.NewBufferContext()
 			pb, err := series.NewPayloadsBuilder(bufferContext, config, strategy, pipelineConfig, pipelineContext)
 			if err != nil {

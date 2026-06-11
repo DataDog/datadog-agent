@@ -124,10 +124,29 @@ type Serializer struct {
 	enableJSONToV1Intake bool
 	hostname             string
 	logger               log.Component
+
+	// statefulOutput owns this serializer's stateful gRPC series path. Non-nil
+	// only when built via NewSerializerWithStatefulOutput with a non-nil output;
+	// nil otherwise (falls back to HTTP). Per-serializer and never shared.
+	statefulOutput *metricsserializer.StatefulOutput
 }
 
-// NewSerializer returns a new Serializer initialized
+// NewSerializer returns a new Serializer initialized. The resulting serializer
+// has no stateful gRPC series path; callers that need one use
+// NewSerializerWithStatefulOutput.
 func NewSerializer(forwarder forwarder.Forwarder, orchestratorForwarder orchestratorForwarder.Component, compressor compression.Compressor, config config.Component, logger log.Component, hostName string) *Serializer {
+	return newSerializer(forwarder, orchestratorForwarder, compressor, config, logger, hostName, nil)
+}
+
+// NewSerializerWithStatefulOutput is like NewSerializer but attaches a pre-built
+// stateful series output. Only the aggregated serializer is built this way; the
+// no-aggregation serializer and serverless must use NewSerializer so they never
+// reach stateful state.
+func NewSerializerWithStatefulOutput(forwarder forwarder.Forwarder, orchestratorForwarder orchestratorForwarder.Component, compressor compression.Compressor, config config.Component, logger log.Component, hostName string, statefulOutput *metricsserializer.StatefulOutput) *Serializer {
+	return newSerializer(forwarder, orchestratorForwarder, compressor, config, logger, hostName, statefulOutput)
+}
+
+func newSerializer(forwarder forwarder.Forwarder, orchestratorForwarder orchestratorForwarder.Component, compressor compression.Compressor, config config.Component, logger log.Component, hostName string, statefulOutput *metricsserializer.StatefulOutput) *Serializer {
 	s := &Serializer{
 		Forwarder:                           forwarder,
 		orchestratorForwarder:               orchestratorForwarder,
@@ -145,6 +164,7 @@ func NewSerializer(forwarder forwarder.Forwarder, orchestratorForwarder orchestr
 		jsonExtraHeadersWithCompression:     make(http.Header),
 		protobufExtraHeadersWithCompression: make(http.Header),
 		logger:                              logger,
+		statefulOutput:                      statefulOutput,
 	}
 
 	initExtraHeaders(s)

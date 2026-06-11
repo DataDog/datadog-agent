@@ -66,9 +66,14 @@ func (mf MapFilter) ToList() []string {
 // doesn't belong here.
 //
 // This type must be comparable.
+//
+// Stateful=true selects the gRPC stateful builder. The selection tests Stateful
+// before V3, so V3 is ignored when Stateful is set (the stateful path is
+// v3-columnar internally either way).
 type PipelineConfig struct {
-	Filter Filter
-	V3     bool
+	Filter   Filter
+	V3       bool
+	Stateful bool
 }
 
 // PipelineDestination describes how to deliver a payload to the intake.
@@ -115,6 +120,10 @@ func (dest *PipelineDestination) send(payloads transaction.BytesPayloads, forwar
 type PipelineContext struct {
 	Destinations []PipelineDestination
 	payloads     transaction.BytesPayloads
+
+	// StatefulOutput is set on stateful pipelines (Stateful=true). It is owned
+	// by the Serializer; the per-flush writer borrows it to intern and submit.
+	StatefulOutput *StatefulOutput
 }
 
 func (c *PipelineContext) addPayload(p *transaction.BytesPayload) {

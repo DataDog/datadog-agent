@@ -1521,6 +1521,15 @@ func serializer(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("serializer_experimental_use_v3_api.series.shadow_sample_rate", float64(0))
 	config.BindEnvAndSetDefault("serializer_experimental_use_v3_api.series.shadow_sites", []string{"datadoghq.com"})
 
+	// Stateful v3 series path (gRPC), disabled by default. Destination, API key,
+	// and compression come from the agent's standard config (DomainResolver +
+	// serializer compressor); only gRPC transport tuning lives under grpc.*.
+	config.BindEnvAndSetDefault("serializer_experimental_use_v3_stateful_api.series.enabled", false)
+	config.BindEnvAndSetDefault("serializer_experimental_use_v3_stateful_api.series.grpc.stream_lifetime", 900) // seconds
+	config.BindEnvAndSetDefault("serializer_experimental_use_v3_stateful_api.series.grpc.max_inflight_payloads", 50)
+	config.BindEnvAndSetDefault("serializer_experimental_use_v3_stateful_api.series.grpc.drain_timeout", 5)       // seconds
+	config.BindEnvAndSetDefault("serializer_experimental_use_v3_stateful_api.series.grpc.connection_timeout", 10) // seconds
+
 	config.BindEnvAndSetDefault("use_v2_api.series", true)
 	// Serializer: allow user to blacklist any kind of payload to be sent
 	config.BindEnvAndSetDefault("enable_payloads.events", true)

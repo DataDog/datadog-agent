@@ -1,0 +1,388 @@
+syntax = "proto3";
+
+package datadog.intake.stateful;
+option go_package = "pkg/proto/pbgo/statefulpb";
+
+// ---------------------------------------------------------------------------
+// Dictionary-encoded
+// ---------------------------------------------------------------------------
+
+message DictEntryDefine {
+  uint64 id = 1;
+  string value = 2;
+}
+
+message DictEntryDelete {
+  uint64 id = 1;
+}
+
+// ---------------------------------------------------------------------------
+// Pattern dictionary
+// ---------------------------------------------------------------------------
+
+// pos_list is used to indicate where dynamic values should be inserted
+// it's more accurate than a marker
+// PatternDefine is also used to signal a update to an existing pattern.
+message PatternDefine {
+  uint64 pattern_id = 1;
+  string template = 2;
+  uint32 param_count = 3;
+  repeated uint32 pos_list = 4;
+}
+
+message PatternDelete {
+  uint64 pattern_id = 1;
+}
+
+// ---------------------------------------------------------------------------
+// Log payload
+// ---------------------------------------------------------------------------
+
+message TagSet {
+  DynamicValue tagset = 1;
+}
+
+message Tag {
+  DynamicValue key = 1;
+  DynamicValue value = 2;
+}
+
+message Log {
+  sint64 timestamp = 1;
+  oneof content {
+    StructuredLog structured = 2;
+    string raw = 3;
+  }
+  // Tags identifying the log source (hostname, service, ddsource, container tags).
+  // Excludes status which varies per log because status is sent separately to improve delta encoding.
+  // All tags are joined together and sent as a single tagset.
+  TagSet tags = 4;
+
+  // Optional UUID used to track logs when dual-sent via HTTP and gRPC.
+  optional string uuid = 5;
+
+  // Log severity level (e.g. "info", "warn", "error"). Sent separately from tags because
+  // status changes per log while other tags remain stable, which would defeat delta encoding.
+  DynamicValue status = 6;
+
+  // Service is sent separately because sometimes it is a top-level JSON field and also in ddtags,
+  // and sometimes it only exists as a top-level field.
+  DynamicValue service = 7;
+}
+
+message StructuredLog {
+  uint64 pattern_id = 1;
+  repeated DynamicValue dynamic_values = 2;
+  // JSON structured log fields. Example:
+  // Input log: {"msg":"Evicted user tags","agent":"core","time":"2026-03-31","level":"INFO"}
+  // With schema-based encoding, converts to:
+  //     json_context_schema 44 (points to "agent,level,time" in dictionary)
+  //     json_context_values ["core", "INFO", "2026-03-31"]
+  //     json_message_key "msg"
+  //     pattern_id 123 (points to "Evicted {} tags")
+  //     dynamic_values ["user"]
+
+  // The key of the JSON object to put the message back into (e.g. "msg", "message", "log").
+  DynamicValue json_message_key = 4;
+
+  // Schema-based JSON context encoding separates repeating key structure from per-log values.
+  // json_context_schema_id references a DictEntryDefine whose value is a comma-separated sorted
+  // list of JSON keys (e.g. "level,service,timestamp"). Delta-encoded across batches.
+  uint64 json_context_schema_id = 5;
+
+  // json_context_values contains the leaf values in the same order as the schema keys.
+  // Each value is encoded as a DynamicValue (int64 for numbers, dict_index for repeated strings).
+  // Nested objects and arrays are serialized as JSON strings.
+  repeated DynamicValue json_context_values = 6;
+
+  // Deprecated: use json_context_schema_id and json_context_values instead.
+  bytes json_context = 3;
+}
+
+message DynamicValue {
+  oneof value {
+    int64 int_value = 1;
+    double float_value = 2;
+    bool bool_value = 6;
+    string string_value = 3;
+    uint64 dict_index = 4;
+    bytes raw_json_value = 7;
+  }
+  
+  // When set to true, renders int_value, float_value, and bool_value back to JSON strings instead of JSON numbers/booleans.
+  // This preserves string-vs-number JSON typing for numeric-looking strings while keeping a numeric
+  // on-wire representation.
+  bool render_as_string = 5;
+}
+
+// We could choose to delta encode at batch level or at stream level.
+// If at stream level, then we need to send the delta encoding related state
+// to resync the Intake on stream restart
+// Currently we are doing it at batch level. This message below is not used,
+// we declare it here for future use.
+message DeltaEncodingSync {
+  uint64 timestamp = 1;
+  uint64 pattern_id = 2;
+  TagSet tags = 3;
+}
+
+// ---------------------------------------------------------------------------
+// Streaming envelope
+// ---------------------------------------------------------------------------
+
+message Datum {
+  oneof data {
+    PatternDefine pattern_define = 1;
+    PatternDelete pattern_delete = 2;
+    DictEntryDefine dict_entry_define = 3;
+    DictEntryDelete dict_entry_delete = 4;
+    DeltaEncodingSync delta_encoding_sync = 5;
+    Log logs = 6;
+  }
+}
+
+// DatumSequence wraps a sequence of Datum messages
+// Used for serialization in application-level compression
+message DatumSequence {
+  repeated Datum data = 1;
+}
+
+// data is sequence of pattern/dictionary changes + logs
+// the ordering is significant, must be processed in order
+message StatefulBatch {
+  uint32 batch_id = 1;
+
+  // Bytes of a serialized and compressed DatumSequence.
+  // This allows for Datums to be compressed while they are buffered in memory before being acked by the server.
+  bytes data = 2;
+}
+
+message BatchStatus {
+  uint32 batch_id = 1;
+
+  // TODO: only OK is used right now - should we just remove this enum?
+  enum Status {
+    UNKNOWN = 0;
+    OK = 1;
+  }
+  Status status = 2;
+}
+
+// ---------------------------------------------------------------------------
+// gRPC service definition (bi-directional streaming)
+// ---------------------------------------------------------------------------
+
+service StatefulLogsService {
+  rpc LogsStream(stream StatefulBatch) returns (stream BatchStatus);
+}
+
+// ===========================================================================
+// Metric stateful encoding
+//
+// Mirrors the columnar v3 metrics wire format (apiv3.payload.proto in
+// dd-source) but lifts the dictionary out of each payload into stream scope.
+// Dict entries persist across batches until stream rotation; each batch
+// carries the per-series + per-point columns referencing the stream's
+// accumulated dict.
+// ===========================================================================
+
+// ---------------------------------------------------------------------------
+// Dictionary entry definitions
+//
+// Each kind mirrors one of the six interner kinds in the v3
+// dictionaryBuilder (pkg/serializer/internal/metrics/iterable_series_v3.go).
+// IDs are stream-scoped, monotonic, per-kind (each kind has its own ID
+// space — id=1 in MetricNameDefine and id=1 in MetricTagStringDefine
+// refer to different entries). Id=0 is the "absent" sentinel (matches
+// v3 dict semantics; e.g. internName("") returns 0).
+// ---------------------------------------------------------------------------
+
+message MetricNameDefine {
+  uint64 id = 1;
+  string value = 2;
+}
+
+message MetricTagStringDefine {
+  uint64 id = 1;
+  string value = 2;
+}
+
+message MetricSourceTypeNameDefine {
+  uint64 id = 1;
+  string value = 2;
+}
+
+// Resource strings are interned in one pool but referenced as either
+// resource-type ("host", "device") or resource-name ("agent-dev-docker")
+// from MetricResourceDefine. Mirrors apiv3 dictResourceStr.
+message MetricResourceStringDefine {
+  uint64 id = 1;
+  string value = 2;
+}
+
+// A resource set: parallel arrays of (type_string_id, name_string_id).
+// type_string_ids[i] and name_string_ids[i] together identify the i-th
+// resource in this set.
+//
+// Mirrors apiv3 dictResourceLen + dictResourceType + dictResourceName
+// columns combined for one resource set, in proto-idiomatic form
+// (not the v3 packed/delta-encoded form).
+//
+// INVARIANTS (wire-level):
+//   - len(type_string_ids) == len(name_string_ids). A length mismatch
+//     is a malformed-batch wire violation.
+//   - All referenced string IDs must already be defined via
+//     MetricResourceStringDefine earlier on the stream (in this batch
+//     OR a previous batch on this stream).
+message MetricResourceDefine {
+  uint64 id = 1;
+  repeated uint64 type_string_ids = 2;
+  repeated uint64 name_string_ids = 3;
+}
+
+// Origin info tuple, mirroring apiv3 dictOriginInfo. Triples of
+// (product, category, service) enum codes (not strings).
+message MetricOriginDefine {
+  uint64 id = 1;
+  int32 product = 2;
+  int32 category = 3;
+  int32 service = 4;
+}
+
+// Tagset definition with prefix-sharing, mirroring apiv3 dictTagsets
+// semantics. The full tag set for this tagset is the union of:
+//   - the tagset referenced by prefix_id (if prefix_id != 0)
+//   - the tag strings listed in tag_string_ids
+//
+// INVARIANTS (wire-level):
+//   - prefix_id == 0 is the "no prefix" sentinel: this tagset stands
+//     alone, the full tag set is just tag_string_ids.
+//   - prefix_id != 0 MUST reference a MetricTagsetDefine already
+//     defined earlier on the stream. Self-reference (id == prefix_id)
+//     is a wire violation.
+//   - All tag_string_ids MUST already be defined via
+//     MetricTagStringDefine earlier on the stream.
+message MetricTagsetDefine {
+  uint64 id = 1;
+  uint64 prefix_id = 2;
+  repeated uint64 tag_string_ids = 3;
+}
+
+// ---------------------------------------------------------------------------
+// Metric series batch
+//
+// Carries the per-series + per-point columns of a v3 columnar payload,
+// with dict columns lifted out into the dict-define datums above.
+// References in the ref columns resolve against the stream's accumulated
+// dict.
+//
+// metric_data layout: identical to apiv3 MetricData encoding (per-column
+// streaming compression, concatenated with compressed protobuf field
+// headers — see pkg/serializer/internal/metrics/iterable_series_v3.go),
+// EXCEPT that dict columns 1-9 are absent (empty). Columns present
+// (series only, no sketches):
+//
+//   10  types               16  timestamps
+//   11  nameRefs            17  valsSint64
+//   12  tagsetRefs          18  valsFloat32
+//   13  resourcesRefs       19  valsFloat64
+//   14  intervals           23  sourceTypeNameRefs
+//   15  numPoints           24  originInfoRefs
+//
+// Ref column encoding (nameRefs, tagsetRefs, resourcesRefs,
+// sourceTypeNameRefs, originInfoRefs) is delta-zigzag-varint within the
+// column, reset at the start of each batch (batch-scoped delta state).
+//
+// metric_data is opaque bytes at the proto level, already containing
+// per-column compressed streams; outer DatumSequence compression is benign.
+//
+// Sketches (columns 20-22), unit columns (25/26), and legacy-origin columns
+// (27/28) are not written.
+//
+// INVARIANTS (wire-level):
+//   - All ref-column IDs (nameRefs, tagsetRefs, resourcesRefs,
+//     sourceTypeNameRefs, originInfoRefs) MUST resolve to dict entries
+//     already defined on the stream (earlier in this MetricDatumSequence or
+//     a previous batch). Forward refs and unresolved refs are wire violations.
+//   - The inner protobuf layout is the apiv3.MetricData schema; column
+//     additions there require a coordinated agent + intake update.
+message MetricSeriesBatch {
+  bytes metric_data = 1;
+}
+
+// ---------------------------------------------------------------------------
+// Metric datum envelope
+//
+// One element in a metric stream's batch payload.
+//
+// Ordering within a MetricDatumSequence is significant (define before
+// reference):
+//   - Define datums must precede any datum that references their ID.
+//   - Composite defines (MetricTagsetDefine → MetricTagStringDefine,
+//     MetricResourceDefine → MetricResourceStringDefine) must follow the
+//     entries they reference, defined earlier in this or a previous batch.
+//   - MetricSeriesBatch typically appears last.
+//
+// Field numbers 9-15 are reserved for future define/delete datums; eviction is
+// currently handled by full-dictionary re-emission on stream rotation.
+message MetricDatum {
+  oneof data {
+    MetricNameDefine            metric_name_define             = 1;
+    MetricTagStringDefine       metric_tag_string_define       = 2;
+    MetricSourceTypeNameDefine  metric_source_type_name_define = 3;
+    MetricResourceStringDefine  metric_resource_string_define  = 4;
+    MetricResourceDefine        metric_resource_define         = 5;
+    MetricOriginDefine          metric_origin_define           = 6;
+    MetricTagsetDefine          metric_tagset_define           = 7;
+    MetricSeriesBatch           metric_series_batch            = 8;
+
+    // 9-15  reserved for define/delete additions within the
+    //       single-byte varint field-tag range.
+  }
+}
+
+// MetricDatumSequence wraps a sequence of MetricDatum messages.
+// Mirrors the role of DatumSequence for logs.
+message MetricDatumSequence {
+  repeated MetricDatum data = 1;
+}
+
+// ---------------------------------------------------------------------------
+// Streaming envelope
+// ---------------------------------------------------------------------------
+
+// MetricStatefulBatch is the unit shipped over the gRPC stream. data is
+// the bytes of a serialized and (optionally stream-compressed)
+// MetricDatumSequence. Mirrors StatefulBatch for logs.
+//
+// batch_id semantics:
+//   - batch_id == 0: snapshot batch. The receiver resets its per-stream state
+//     and bootstraps from the contained full dictionary (no MetricSeriesBatch).
+//   - batch_id >= 1: incremental batches in strict send order, assigned
+//     monotonically from 1 per stream. Intake's ack must echo the id; an
+//     out-of-order ack triggers stream rotation on the agent.
+//   - batch_id resets to 0 (then 1, 2, ...) on every stream rotation; ids are
+//     not continuous across rotations (each new gRPC stream starts fresh).
+message MetricStatefulBatch {
+  uint32 batch_id = 1;
+  bytes data = 2;
+}
+
+// MetricBatchStatus is intake's acknowledgment per batch_id. There are no
+// per-batch error codes; malformed batches are log+dropped server-side (no ack).
+message MetricBatchStatus {
+  uint32 batch_id = 1;
+  enum Status {
+    UNKNOWN = 0;
+    OK = 1;
+  }
+  Status status = 2;
+}
+
+// ---------------------------------------------------------------------------
+// gRPC service definition (bi-directional streaming)
+// ---------------------------------------------------------------------------
+
+service StatefulMetricsService {
+  rpc MetricsStream(stream MetricStatefulBatch) returns (stream MetricBatchStatus);
+}
