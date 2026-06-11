@@ -108,7 +108,7 @@ func TestSetupOpenLineage_Enabled(t *testing.T) {
 
 	var capturedCmd string
 	var capturedArgs []string
-	common.ExecuteCommandWithTimeout = func(s *common.Setup, command string, args ...string) ([]byte, error) {
+	common.ExecuteCommandWithTimeout = func(_ *common.Setup, command string, args ...string) ([]byte, error) {
 		capturedCmd = command
 		capturedArgs = args
 		return nil, nil
@@ -152,7 +152,7 @@ func TestSetupOpenLineage_JarAlreadyPresent(t *testing.T) {
 	t.Setenv("DD_OPENLINEAGE_ENABLED", "true")
 
 	commandCalled := false
-	common.ExecuteCommandWithTimeout = func(s *common.Setup, command string, args ...string) ([]byte, error) {
+	common.ExecuteCommandWithTimeout = func(_ *common.Setup, _ string, _ ...string) ([]byte, error) {
 		commandCalled = true
 		return nil, nil
 	}
@@ -186,7 +186,7 @@ func TestSetupOpenLineage_CustomJarPath(t *testing.T) {
 
 	var capturedCmd string
 	var capturedArgs []string
-	common.ExecuteCommandWithTimeout = func(s *common.Setup, command string, args ...string) ([]byte, error) {
+	common.ExecuteCommandWithTimeout = func(_ *common.Setup, command string, args ...string) ([]byte, error) {
 		capturedCmd = command
 		capturedArgs = args
 		return nil, nil
