@@ -1,0 +1,16 @@
+load("@rules_python//python:py_binary.bzl", "py_binary")
+load("@rules_python//python:py_test.bzl", "py_test")
+
+py_binary(
+    name = "stdioredirect",
+    srcs = ["stdioredirect.py"],
+    visibility = ["//visibility:public"],
+)
+
+py_test(
+    name = "stdioredirect_test",
+    srcs = ["stdioredirect_test.py"],
+    args = ["$(rlocationpath :stdioredirect)"],
+    data = [":stdioredirect"],
+    deps = ["@rules_python//python/runfiles"],
+)
