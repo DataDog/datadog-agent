@@ -11,9 +11,9 @@ go_library(
         "//comp/healthplatform/forwarder/def",
         "//pkg/config/model",
         "//pkg/config/utils",
-        "//pkg/proto/datadog/healthplatform:healthplatform_go_proto",
         "//pkg/util/http",
         "//pkg/version",
+        "@com_github_datadog_agent_payload_v5//healthplatform",
     ],
 )
 
@@ -25,8 +25,8 @@ go_test(
     deps = [
         "//comp/core/config",
         "//comp/core/log/mock",
-        "//pkg/proto/datadog/healthplatform:healthplatform_go_proto",
         "//pkg/version",
+        "@com_github_datadog_agent_payload_v5//healthplatform",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],

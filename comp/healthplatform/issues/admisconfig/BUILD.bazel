@@ -13,7 +13,7 @@ go_library(
         "//comp/healthplatform/issues",
         "//comp/healthplatform/runner/def",
         "//comp/healthplatform/store/def",
-        "//pkg/proto/datadog/healthplatform:healthplatform_go_proto",
+        "@com_github_datadog_agent_payload_v5//healthplatform",
         "@org_golang_google_protobuf//types/known/structpb",
     ],
 )

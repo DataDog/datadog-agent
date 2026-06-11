@@ -18,8 +18,8 @@ go_library(
         "//comp/core/config",
         "//comp/healthplatform/issues",
         "//comp/healthplatform/runner/def",
-        "//pkg/proto/datadog/healthplatform:healthplatform_go_proto",
         "//pkg/template/text",
+        "@com_github_datadog_agent_payload_v5//healthplatform",
         "@org_golang_google_protobuf//types/known/structpb",
     ] + select({
         "@rules_go//go/platform:android": [
