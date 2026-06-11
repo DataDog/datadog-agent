@@ -15,11 +15,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/DataDog/datadog-agent/comp/syntheticstestscheduler/common"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
+	"github.com/stretchr/testify/require"
 )
 
 func TestToNetpathConfig(t *testing.T) {
