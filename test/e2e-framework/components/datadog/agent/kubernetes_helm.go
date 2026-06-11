@@ -28,7 +28,7 @@ import (
 )
 
 const (
-	HelmVersion = "3.219.0"
+	HelmVersion = "3.155.1"
 )
 
 // HelmInstallationArgs is the set of arguments for creating a new HelmInstallation component
@@ -251,17 +251,13 @@ func NewHelmInstallation(e config.Env, args HelmInstallationArgs, opts ...pulumi
 		windowsValuesYAML = append(windowsValuesYAML, args.ValuesYAML...)
 
 		windowsInstallName := baseName + "-windows"
-		// Windows depends on Linux completing first: the Linux release owns
-		// the cluster agent and the CRDs; Windows must join an already-running
-		// cluster agent to function correctly.
-		windowsOpts := append(opts, pulumi.DependsOn([]pulumi.Resource{linux}))
 		windows, err := helm.NewInstallation(e, helm.InstallArgs{
 			RepoURL:     args.RepoURL,
 			ChartName:   args.ChartPath,
 			InstallName: windowsInstallName,
 			Namespace:   args.Namespace,
 			ValuesYAML:  windowsValuesYAML,
-		}, windowsOpts...)
+		}, opts...)
 		if err != nil {
 			return nil, err
 		}
@@ -869,20 +865,6 @@ func buildWindowsHelmValues(baseName string, agentImagePath, agentImageTag, _, _
 		},
 		"clusterChecksRunner": pulumi.Map{
 			"enabled": pulumi.Bool(false),
-		},
-		// CRDs are owned by the Linux release. Disable the four CRDs that
-		// datadog/datadog enables by default in its datadog-crds dependency
-		// (see charts/datadog/values.yaml in DataDog/helm-charts). The
-		// datadog-crds subchart renders CRDs via templates/ with Helm
-		// ownership annotations, so if the Windows release tries to create
-		// them it fails with a "meta.helm.sh/release-name" ownership error.
-		"datadog-crds": pulumi.Map{
-			"crds": pulumi.Map{
-				"datadogMetrics":                      pulumi.Bool(false),
-				"datadogPodAutoscalers":               pulumi.Bool(false),
-				"datadogPodAutoscalerClusterProfiles": pulumi.Bool(false),
-				"datadogInstrumentations":             pulumi.Bool(false),
-			},
 		},
 	}
 }
