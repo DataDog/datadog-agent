@@ -9,7 +9,9 @@ package integrationtests
 
 import (
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/stretchr/testify/require"
@@ -31,14 +33,16 @@ import (
 
 type CheckTestSuite struct {
 	suite.Suite
-	devices []safenvml.Device
-	metrics map[string]map[string][]gpuspec.MetricObservation
+	devices    []safenvml.Device
+	metrics    map[string]map[string][]gpuspec.MetricObservation
+	smiSamples map[string]*testutil.SmiSample
 }
 
 func (suite *CheckTestSuite) SetupTest() {
 	t := suite.T()
 
 	testutil.RequireGPU(t)
+	testutil.RequireSmi(t)
 	env.SetFeatures(t, env.KubernetesDevicePlugins, env.NVML)
 
 	lib, err := safenvml.GetSafeNvmlLib()
@@ -71,6 +75,30 @@ func (suite *CheckTestSuite) SetupTest() {
 	require.NoError(t, err)
 	t.Cleanup(func() { checkInstance.Cancel() })
 
+	// Collect an nvidia-smi sample for each device concurrently with the
+	// collector runs below, so both observe the (idle) device over the same
+	// wall-clock window. nvidia-smi dmon takes ~3 seconds (three cycles), which
+	// overlaps the two check runs and the 1s sleep between them.
+	type smiResult struct {
+		uuid   string
+		sample *testutil.SmiSample
+		err    error
+	}
+	smiResults := make([]smiResult, len(devices))
+	var smiWG sync.WaitGroup
+	for i, device := range devices {
+		deviceID, err := device.GetUUID()
+		require.NoError(t, err, "could not get the device ID")
+		uuid := strings.ToLower(device.GetDeviceInfo().UUID)
+
+		smiWG.Add(1)
+		go func(i int, deviceID, uuid string) {
+			defer smiWG.Done()
+			sample, err := testutil.CollectSmiSample(deviceID)
+			smiResults[i] = smiResult{uuid: uuid, sample: sample, err: err}
+		}(i, deviceID, uuid)
+	}
+
 	err = checkInstance.Run()
 	require.NoError(t, err, "Check.Run() should not return an error")
 
@@ -86,9 +114,20 @@ func (suite *CheckTestSuite) SetupTest() {
 
 	// Run the check a second time so rate-derived field metrics such as NVLink
 	// throughput have a previous sample to compare against and can be emitted.
+	// We need a one second interval before the second call to ensure new
+	// metrics are available for the sample.
+	time.Sleep(1 * time.Second)
 	mockSender.ResetCalls()
 	err = checkInstance.Run()
 	require.NoError(t, err, "Second Check.Run() should not return an error")
+
+	// Wait for the concurrent nvidia-smi collection to finish and assert its results on the test goroutine.
+	smiWG.Wait()
+	suite.smiSamples = make(map[string]*testutil.SmiSample, len(smiResults))
+	for _, res := range smiResults {
+		require.NoError(t, res.err, "could not collect nvidia-smi sample for GPU %s", res.uuid)
+		suite.smiSamples[res.uuid] = res.sample
+	}
 
 	metricsByName := gpu.GetEmittedGPUMetrics(mockSender)
 	require.NotEmpty(t, metricsByName)
@@ -150,6 +189,44 @@ func (suite *CheckTestSuite) TestCheckRunMatchesSpecForPhysicalDevices() {
 	}
 }
 
+func (suite *CheckTestSuite) TestCheckMetricValuesMatchSmi() {
+	t := suite.T()
+
+	for _, device := range suite.devices {
+		arch, err := device.GetArchitecture()
+		require.NoError(t, err, "could not get device architecture")
+
+		deviceInfo := device.GetDeviceInfo()
+		deviceUUID := strings.ToLower(deviceInfo.UUID)
+		deviceMetrics := suite.metrics[deviceUUID]
+
+		sample := suite.smiSamples[deviceUUID]
+		require.NotNil(t, sample, "no nvidia-smi sample collected for GPU %s", deviceUUID)
+
+		// Power is recored in watts from nvidia-smi, but milliwatts from our collector. We need to scale it up and also
+		// give a larger margin of error to account for that.
+		requireMetricNearSmi(t, deviceMetrics, "power.usage", sample.PowerWatts, 1000, 500)
+		requireMetricNearSmi(t, deviceMetrics, "temperature", sample.GPUTempC, 1, 5)
+		requireMetricNearSmi(t, deviceMetrics, "encoder_active", sample.EncoderPct, 1, 5)
+		requireMetricNearSmi(t, deviceMetrics, "decoder_active", sample.DecoderPct, 1, 5)
+		requireMetricNearSmi(t, deviceMetrics, "clock.speed.memory", sample.MemClockMHz, 1, 5)
+		requireMetricNearSmi(t, deviceMetrics, "clock.speed.graphics", sample.ProcClockMHz, 1, 5)
+
+		// Not all GPUs have a memory temporature sensors.
+		if sample.MemTempC != nil {
+			requireMetricNearSmi(t, deviceMetrics, "memory.temperature", sample.MemTempC, 1, 5)
+		}
+
+		// Skip gpm metrics on older architectures.
+		if arch < nvml.DEVICE_ARCH_HOPPER {
+			continue
+		}
+
+		// GPM metrics (nvidia-smi --gpm-metrics) are only available on Hopper and newer GPUs.
+		requireMetricNearSmi(t, deviceMetrics, "gr_engine_active", sample.GraphicsActivity, 1, 5)
+	}
+}
+
 func TestCheckTestSuite(t *testing.T) {
 	suite.Run(t, new(CheckTestSuite))
 }
@@ -166,4 +243,36 @@ func linkCount(t *testing.T, device safenvml.Device, name string, countFunc func
 		return 0
 	}
 	return count
+}
+
+func getFloatValue(t *testing.T, in *float64) float64 {
+	t.Helper()
+	require.NotNil(t, in, "float value does not exist")
+	return *in
+}
+
+// requireMetricNearSmi asserts that the first emitted sample of the named
+// metric is within delta of the nvidia-smi reading, after applying scale to
+// convert the nvidia-smi units into the agent's units (e.g. watts to
+// milliwatts).
+//
+// It is a no-op when nvidia-smi did not report the field (dmon prints "-" for
+// counters the device does not support) or when the check did not emit the
+// metric for this device, since metric support varies across architectures.
+// Presence is enforced by TestCheckRunMatchesSpecForPhysicalDevices; this test
+// only validates the values that are actually reported on both sides.
+func requireMetricNearSmi(t *testing.T, deviceMetrics map[string][]gpuspec.MetricObservation, name string, smiValue *float64, scale, delta float64) {
+	t.Helper()
+
+	observations, ok := deviceMetrics[name]
+	require.True(t, ok, "could not find %s for device", name)
+	require.GreaterOrEqual(t, len(observations), 1, "%s was not emitted for this device", name)
+	actual := getFloatValue(t, observations[0].Value)
+
+	require.NotNil(t, smiValue, "nividia-smi value was blank for %s", name)
+	expected := *smiValue * scale
+
+	t.Logf("checking %s with value %f against nividia-smi value %f", name, actual, expected)
+
+	require.InDelta(t, expected, actual, delta, "%s value %v differs from nvidia-smi reading %v", name, actual, expected)
 }
