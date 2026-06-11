@@ -213,7 +213,12 @@ func runPostgresSetup(ctx context.Context, params *setupParams, uri string, useS
 		if err != nil {
 			return fmt.Errorf("unable to find embedded Python: %w", err)
 		}
-		scriptPath = filepath.Join(rootDir, "dist", "setup", "postgres_setup.py")
+		scriptPath = findSetupScript()
+		if scriptPath == "" {
+			return fmt.Errorf(
+				"unable to locate postgres_setup.py — ensure the agent is properly installed",
+			)
+		}
 	}
 
 	if _, err := os.Stat(scriptPath); err != nil {
