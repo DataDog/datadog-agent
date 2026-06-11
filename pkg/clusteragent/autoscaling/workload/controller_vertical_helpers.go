@@ -643,6 +643,13 @@ func isDisruptiveResize(pod *workloadmeta.KubernetesPod, recommendation *model.V
 // cpuChanging reports whether reco changes the container's CPU request or limit, compared in
 // millicores to avoid float equality across the two code paths.
 func cpuChanging(current workloadmeta.ContainerResources, reco datadoghqcommon.DatadogPodAutoscalerContainerResources) bool {
+	// CPURequest/CPULimit are stored as percentage of 1 CPU (0–100*numCPU); multiply by 10 to get millicores.
+	cpuMilliChanged := func(currentCPUPercent *float64, recoMillis int64) bool {
+		if currentCPUPercent == nil {
+			return true
+		}
+		return int64(*currentCPUPercent*10+0.5) != recoMillis
+	}
 	if q, ok := reco.Requests[corev1.ResourceCPU]; ok && cpuMilliChanged(current.CPURequest, q.MilliValue()) {
 		return true
 	}
@@ -654,6 +661,12 @@ func cpuChanging(current workloadmeta.ContainerResources, reco datadoghqcommon.D
 
 // memoryChanging reports whether reco changes the container's memory request or limit.
 func memoryChanging(current workloadmeta.ContainerResources, reco datadoghqcommon.DatadogPodAutoscalerContainerResources) bool {
+	memBytesChanged := func(currentBytes *uint64, recoBytes int64) bool {
+		if currentBytes == nil {
+			return true
+		}
+		return int64(*currentBytes) != recoBytes
+	}
 	if q, ok := reco.Requests[corev1.ResourceMemory]; ok && memBytesChanged(current.MemoryRequest, q.Value()) {
 		return true
 	}
@@ -661,24 +674,6 @@ func memoryChanging(current workloadmeta.ContainerResources, reco datadoghqcommo
 		return true
 	}
 	return false
-}
-
-// cpuMilliChanged compares a current CPU percentage against a recommended millicore value; a nil
-// current counts as changed.
-func cpuMilliChanged(currentPct *float64, recoMillis int64) bool {
-	if currentPct == nil {
-		return true
-	}
-	currentMillis := int64(*currentPct*10 + 0.5) // 100% == 1000m
-	return currentMillis != recoMillis
-}
-
-// memBytesChanged compares current and recommended memory in bytes; a nil current counts as changed.
-func memBytesChanged(currentBytes *uint64, recoBytes int64) bool {
-	if currentBytes == nil {
-		return true
-	}
-	return int64(*currentBytes) != recoBytes
 }
 
 // countDisruptedPods counts pods that are unavailable or mid-resize. In-flight resizes count even
@@ -698,7 +693,8 @@ func countDisruptedPods(podsByResizeStatus map[PodResizeStatus][]classifiedPod) 
 
 // allowedDisruptions returns how many more pods may be disrupted this sync to stay within budget.
 func allowedDisruptions(configured int, alreadyDisrupted int) int {
-	tolerance := int(float64(configured) * disruptionToleranceFraction)
+	pct := pkgconfigsetup.Datadog().GetInt("autoscaling.workload.in_place_vertical_scaling.disruption_tolerance_percent")
+	tolerance := int(float64(configured) * float64(pct) / 100.0)
 	// Allow one disruption when a healthy workload's tolerance truncates to 0, so low-replica
 	// workloads can still make progress.
 	if tolerance == 0 && alreadyDisrupted == 0 && configured > 0 {

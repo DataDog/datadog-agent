@@ -910,11 +910,11 @@ func TestAllowedDisruptions(t *testing.T) {
 		{name: "no replicas", configured: 0, alreadyDisrupted: 0, want: 0},
 		{name: "single replica, healthy", configured: 1, alreadyDisrupted: 0, want: 1},
 		{name: "single replica, already disrupted", configured: 1, alreadyDisrupted: 1, want: 0},
-		{name: "even fleet, nothing disrupted", configured: 10, alreadyDisrupted: 0, want: 5},
-		{name: "even fleet, partially consumed", configured: 10, alreadyDisrupted: 3, want: 2},
-		{name: "even fleet, budget exhausted", configured: 10, alreadyDisrupted: 5, want: 0},
-		{name: "even fleet, over budget", configured: 10, alreadyDisrupted: 8, want: 0},
-		{name: "odd fleet truncates tolerance", configured: 3, alreadyDisrupted: 0, want: 1},
+		{name: "even fleet, nothing disrupted", configured: 20, alreadyDisrupted: 0, want: 3},
+		{name: "even fleet, partially consumed", configured: 20, alreadyDisrupted: 1, want: 2},
+		{name: "even fleet, budget exhausted", configured: 20, alreadyDisrupted: 3, want: 0},
+		{name: "even fleet, over budget", configured: 20, alreadyDisrupted: 5, want: 0},
+		{name: "small fleet truncates tolerance", configured: 3, alreadyDisrupted: 0, want: 1},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

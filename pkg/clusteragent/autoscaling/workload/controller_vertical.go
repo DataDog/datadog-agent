@@ -45,10 +45,6 @@ const (
 	// inplaceResizeRequeueDelay is the delay between in-place resize progress checks
 	inplaceResizeRequeueDelay = 30 * time.Second
 
-	// disruptionToleranceFraction is the max fraction of a workload's replicas the controller will
-	// restart at once for a disruptive in-place resize. The pods/resize subresource bypasses PDB
-	// enforcement, so we throttle ourselves. 0.5 matches VPA's default eviction tolerance.
-	disruptionToleranceFraction = 0.5
 )
 
 // verticalController is responsible for updating targetRef objects with the vertical recommendations

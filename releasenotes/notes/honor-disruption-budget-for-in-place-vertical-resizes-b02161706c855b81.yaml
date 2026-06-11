@@ -8,4 +8,5 @@
 ---
 enhancements:
   - |
-    The in-place vertical autoscaler will now consider how container-level restarts impact pod disruption budgets. 
+    The in-place vertical autoscaler throttles disruptive resizes to at most 15% of a workload's replicas per reconcile,
+    configurable via ``autoscaling.workload.in_place_vertical_scaling.disruption_tolerance_percent``.
