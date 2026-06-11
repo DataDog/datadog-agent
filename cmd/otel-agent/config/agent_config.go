@@ -243,9 +243,12 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 		if !ddfg.OperationAndResourceNameV2FeatureGate.IsEnabled() {
 			apmConfigFeatures = append(apmConfigFeatures, "disable_operation_and_resource_name_logic_v2")
 		}
-		if !ddfg.ScopeConventionFeatureGate.IsEnabled() {
-			apmConfigFeatures = append(apmConfigFeatures, "disable_scope_convention")
-		}
+		// if !ddfg.ScopeConventionFeatureGate.IsEnabled() {
+		// 	apmConfigFeatures = append(apmConfigFeatures, "disable_scope_convention")
+		// }
+		// TODO: re-enable this when the PR in contrib adding the feature gate is merged,
+		//  and the otel-agent (DDOT) is updated to use the new version of the package.
+
 		if ddc.Traces.ComputeTopLevelBySpanKind {
 			apmConfigFeatures = append(apmConfigFeatures, "enable_otlp_compute_top_level_by_span_kind")
 		}

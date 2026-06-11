@@ -704,20 +704,11 @@ func (o *OTLPReceiver) convertSpan(res pcommon.Resource, lib pcommon.Instrumenta
 	if in.TraceState().AsRaw() != "" {
 		transform.SetMetaOTLP(span, "w3c.tracestate", in.TraceState().AsRaw())
 	}
-	scopeConventionGateEnabled := !o.conf.HasFeature("disable_scope_convention")
 	if lib.Name() != "" {
-		if scopeConventionGateEnabled {
-			transform.SetMetaOTLP(span, string(semconv117.OtelScopeNameKey), lib.Name())
-		} else {
-			transform.SetMetaOTLP(span, string(semconv117.OtelLibraryNameKey), lib.Name())
-		}
+		transform.SetMetaOTLP(span, string(semconv117.OtelLibraryNameKey), lib.Name())
 	}
 	if lib.Version() != "" {
-		if scopeConventionGateEnabled {
-			transform.SetMetaOTLP(span, string(semconv117.OtelScopeVersionKey), lib.Version())
-		} else {
-			transform.SetMetaOTLP(span, string(semconv117.OtelLibraryVersionKey), lib.Version())
-		}
+		transform.SetMetaOTLP(span, string(semconv117.OtelLibraryVersionKey), lib.Version())
 	}
 	transform.SetMetaOTLP(span, string(semconv117.OtelStatusCodeKey), in.Status().Code().String())
 	if msg := in.Status().Message(); msg != "" {

@@ -313,15 +313,16 @@ func OtelSpanToDDSpan(
 	if otelspan.TraceState().AsRaw() != "" {
 		ddspan.Meta["w3c.tracestate"] = otelspan.TraceState().AsRaw()
 	}
+	scopeConventionGateEnabled := scopeConventionEnabled(conf)
 	if lib.Name() != "" {
-		if scopeConventionEnabled(conf) {
+		if scopeConventionGateEnabled {
 			ddspan.Meta[string(semconv.OtelScopeNameKey)] = lib.Name()
 		} else {
 			ddspan.Meta[string(semconv.OtelLibraryNameKey)] = lib.Name()
 		}
 	}
 	if lib.Version() != "" {
-		if scopeConventionEnabled(conf) {
+		if scopeConventionGateEnabled {
 			ddspan.Meta[string(semconv.OtelScopeVersionKey)] = lib.Version()
 		} else {
 			ddspan.Meta[string(semconv.OtelLibraryVersionKey)] = lib.Version()
