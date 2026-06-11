@@ -727,6 +727,108 @@ func TestPCIELinkBytesPerSecond(t *testing.T) {
 	}
 }
 
+func TestPCIELinkWidthMetrics(t *testing.T) {
+	tests := map[string]struct {
+		currentWidth     int
+		maxWidth         int
+		expectedDegraded float64
+	}{
+		"matching width": {
+			currentWidth:     16,
+			maxWidth:         16,
+			expectedDegraded: 0,
+		},
+		"degraded width": {
+			currentWidth:     8,
+			maxWidth:         16,
+			expectedDegraded: 1,
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			device := setupMockDevice(t, testutil.WithCustomHook(func(device *mock.Device) {
+				device.GetCurrPcieLinkWidthFunc = func() (int, nvml.Return) {
+					return test.currentWidth, nvml.SUCCESS
+				}
+				device.GetMaxPcieLinkWidthFunc = func() (int, nvml.Return) {
+					return test.maxWidth, nvml.SUCCESS
+				}
+			}))
+
+			metricsOut, _, err := pcieLinkWidthMetrics(device)
+			require.NoError(t, err)
+			require.Len(t, metricsOut, 3)
+			metricsByName := metricValuesToPointers(metricsOut)
+			currentWidthMetric := findMetric(metricsByName, "pci.link.width.current")
+			maxWidthMetric := findMetric(metricsByName, "pci.link.width.max")
+			degradedMetric := findMetric(metricsByName, "pci.link.width.degraded")
+			require.NotNil(t, currentWidthMetric)
+			require.NotNil(t, maxWidthMetric)
+			require.NotNil(t, degradedMetric)
+			require.Equal(t, float64(test.currentWidth), currentWidthMetric.Value)
+			require.Equal(t, float64(test.maxWidth), maxWidthMetric.Value)
+			require.Equal(t, test.expectedDegraded, degradedMetric.Value)
+		})
+	}
+}
+
+func TestPCIELinkSpeedMetrics(t *testing.T) {
+	tests := map[string]struct {
+		currentGeneration int
+		maxGeneration     int
+		currentWidth      int
+		maxWidth          int
+		expectedDegraded  float64
+	}{
+		"matching speed": {
+			currentGeneration: 4,
+			maxGeneration:     4,
+			currentWidth:      16,
+			maxWidth:          16,
+			expectedDegraded:  0,
+		},
+		"degraded speed": {
+			currentGeneration: 3,
+			maxGeneration:     4,
+			currentWidth:      16,
+			maxWidth:          16,
+			expectedDegraded:  1,
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			device := setupMockDevice(t, testutil.WithCustomHook(func(device *mock.Device) {
+				device.GetCurrPcieLinkGenerationFunc = func() (int, nvml.Return) {
+					return test.currentGeneration, nvml.SUCCESS
+				}
+				device.GetMaxPcieLinkGenerationFunc = func() (int, nvml.Return) {
+					return test.maxGeneration, nvml.SUCCESS
+				}
+				device.GetCurrPcieLinkWidthFunc = func() (int, nvml.Return) {
+					return test.currentWidth, nvml.SUCCESS
+				}
+				device.GetMaxPcieLinkWidthFunc = func() (int, nvml.Return) {
+					return test.maxWidth, nvml.SUCCESS
+				}
+			}))
+
+			metricsOut, _, err := pcieLinkSpeedMetrics(device)
+			require.NoError(t, err)
+			require.Len(t, metricsOut, 3)
+			metricsByName := metricValuesToPointers(metricsOut)
+			currentMetric := findMetric(metricsByName, "pci.link.speed.current")
+			maxMetric := findMetric(metricsByName, "pci.link.speed.max")
+			degradedMetric := findMetric(metricsByName, "pci.link.speed.degraded")
+			require.NotNil(t, currentMetric)
+			require.NotNil(t, maxMetric)
+			require.NotNil(t, degradedMetric)
+			require.Equal(t, test.expectedDegraded, degradedMetric.Value)
+		})
+	}
+}
+
 func findAPICallByName(t *testing.T, apis []apiCallInfo, name string) apiCallInfo {
 	t.Helper()
 	for _, api := range apis {
