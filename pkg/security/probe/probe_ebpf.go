@@ -2925,7 +2925,7 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 			Value: utils.BoolTouint64(p.kernelVersion.HasBpfGetCurrentPidTgidForSchedCLS()),
 		},
 		manager.ConstantEditor{
-			Name:  "sk_lookup_pid_enabled",
+			Name:  "sk_lookup_pid_supported",
 			Value: utils.BoolTouint64(p.IsSkLookupPidResolutionSupported()),
 		},
 		manager.ConstantEditor{

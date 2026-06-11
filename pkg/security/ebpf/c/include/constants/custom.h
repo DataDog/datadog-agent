@@ -250,14 +250,14 @@ static __attribute__((always_inline)) u64 is_sk_storage_supported() {
     return is_sk_storage_supported;
 }
 
-// is_sk_lookup_pid_enabled returns whether TC pid resolution should be performed through
+// is_sk_lookup_pid_supported returns whether TC pid resolution should be performed through
 // bpf_sk_lookup + sk-local storage instead of the flow_pid map. It is only enabled when the
-// kernel supports bpf_sk_lookup in sched_cls programs and bpf_sk_storage in the socket
-// lifecycle (fentry) hooks that populate sk_storage_pid.
-static __attribute__((always_inline)) u64 is_sk_lookup_pid_enabled() {
-    u64 is_sk_lookup_pid_enabled;
-    LOAD_CONSTANT("sk_lookup_pid_enabled", is_sk_lookup_pid_enabled);
-    return is_sk_lookup_pid_enabled;
+// cgroup/sock_create hook that populates sk_storage_pid is loaded and bpf_sk_lookup / sk-local
+// storage are usable, as decided by IsSkLookupPidResolutionSupported on the Go side.
+static __attribute__((always_inline)) u64 is_sk_lookup_pid_supported() {
+    u64 is_sk_lookup_pid_supported;
+    LOAD_CONSTANT("sk_lookup_pid_supported", is_sk_lookup_pid_supported);
+    return is_sk_lookup_pid_supported;
 }
 
 static __attribute__((always_inline)) u64 is_network_flow_monitor_enabled() {

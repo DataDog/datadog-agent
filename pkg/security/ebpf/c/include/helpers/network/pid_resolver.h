@@ -162,7 +162,7 @@ __attribute__((always_inline)) void resolve_pid(struct __sk_buff *skb, struct pa
     }
 
     if (pkt->pid == 0) {
-        if (is_sk_lookup_pid_enabled()) {
+        if (is_sk_lookup_pid_supported()) {
             // pid from socket lookup: namespace-correct resolution, preferred when available
             resolve_pid_from_sk_lookup(skb, pkt);
             if (dbg) {
