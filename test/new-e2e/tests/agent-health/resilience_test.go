@@ -31,6 +31,7 @@ type resilienceSuite struct {
 // TestResilienceSuite runs the health platform resilience tests.
 // It reuses the broken_check fixtures from check_failure_test.go (same package).
 func TestResilienceSuite(t *testing.T) {
+	t.Parallel()
 	e2e.Run(t, &resilienceSuite{},
 		e2e.WithProvisioner(awshost.Provisioner(
 			awshost.WithRunOptions(
