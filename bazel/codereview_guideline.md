@@ -53,8 +53,8 @@ runfiles library or `$(rlocationpath :target)` in `genrule`/test `args`.
 
 ## MODULE.bazel lock file
 
-`MODULE.bazel.lock` must be committed. Flag any PR that modifies `MODULE.bazel` or any module extension without a
-corresponding update to `MODULE.bazel.lock`.
+`MODULE.bazel.lock` must be committed. Flag any PR that modifies any module extension (implementation or invocation)
+without a corresponding update to `MODULE.bazel.lock`.
 
 ## No WORKSPACE patterns
 
