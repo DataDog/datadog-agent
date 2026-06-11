@@ -390,7 +390,7 @@ func (p *EBPFProbe) sanityChecks() error {
 	}
 
 	if p.config.Probe.CapabilitiesMonitoringEnabled && !p.isCapabilitiesMonitoringSupported() {
-		seclog.Warnf("The capabilities monitoring feature of CWS requires a more recent kernel (at least 5.17), setting event_monitoring_config.capabilities_monitoring.enabled to false")
+		seclog.Warnf("The capabilities monitoring feature of CWS requires a kernel version between 5.17 and 6.13, setting event_monitoring_config.capabilities_monitoring.enabled to false")
 		p.config.Probe.CapabilitiesMonitoringEnabled = false
 	}
 

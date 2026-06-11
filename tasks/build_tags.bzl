@@ -332,3 +332,25 @@ UNIT_TEST_TAGS = set(["test"])
 
 # List of tags to always remove when running unit tests
 UNIT_TEST_EXCLUDED_TAGS = set(["datadog.no_waf", "pcap"])
+
+### Per-flavor unit-test tag sets
+
+def _unit_test_tags(flavor_tags):
+    return sorted(((flavor_tags | UNIT_TEST_TAGS) - UNIT_TEST_EXCLUDED_TAGS) | COMMON_TAGS)
+
+# FLAVOR_UNIT_TEST_TAGS maps each AgentFlavor name to the build tags used when
+# running its unit tests. It mirrors the build_tags[flavor]["unit-tests"] entries
+# in tasks/build_tags.py: the flavor's build set unioned with UNIT_TEST_TAGS,
+# minus UNIT_TEST_EXCLUDED_TAGS, then unioned with COMMON_TAGS (as
+# get_default_build_tags() does). LINUX_ONLY tags are kept here; per-platform
+# filtering is applied by flavor_gotags() in //bazel/flavors:defs.bzl. Consumed
+# by that macro (Starlark load) and, via tasks/build_tags.py, by the
+# dd_agent_go_test Gazelle extension's generated tags.go. Kept in sync with
+# build_tags.py by tasks/unit_tests/build_tags_tests.py.
+FLAVOR_UNIT_TEST_TAGS = {
+    "base": _unit_test_tags(AGENT_TEST_TAGS | PROCESS_AGENT_TAGS | CLUSTER_AGENT_TAGS),
+    "fips": _unit_test_tags(AGENT_TAGS | FIPS_TAGS),
+    "heroku": _unit_test_tags(AGENT_HEROKU_TAGS),
+    "iot": _unit_test_tags(IOT_AGENT_TAGS),
+    "dogstatsd": _unit_test_tags(DOGSTATSD_TAGS),
+}

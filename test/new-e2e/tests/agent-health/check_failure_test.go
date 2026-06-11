@@ -48,6 +48,7 @@ type checkFailureSuite struct {
 
 // TestCheckFailureSuite runs the check failure health issue lifecycle test.
 func TestCheckFailureSuite(t *testing.T) {
+	t.Parallel()
 	e2e.Run(t, &checkFailureSuite{},
 		e2e.WithProvisioner(awshost.Provisioner(
 			awshost.WithRunOptions(

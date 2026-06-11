@@ -95,6 +95,7 @@ common:ci-edge-cache --remote_cache=grpc://buildbarn-edge-cache.buildbarn.local-
 common:ci --noexperimental_convenience_symlinks # not CI-suitable: "These symlinks are only for the user's convenience"
 
 # Project/Language configs --------------------------------------------------------------------------------------
+import %workspace%/bazel/configs/flavors.bazelrc
 import %workspace%/bazel/configs/rust.bazelrc
 
 # Global release config ------------------------------------------------------------------------------------------------

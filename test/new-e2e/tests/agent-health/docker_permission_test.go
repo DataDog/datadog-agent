@@ -40,6 +40,7 @@ type dockerPermissionSuite struct {
 
 // TestDockerPermissionSuite runs the docker permission health check test.
 func TestDockerPermissionSuite(t *testing.T) {
+	t.Parallel()
 	e2e.Run(t, &dockerPermissionSuite{},
 		e2e.WithPulumiProvisioner(dockerPermissionEnvProvisioner(), nil),
 	)
