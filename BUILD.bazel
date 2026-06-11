@@ -370,7 +370,6 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/eventmonitor/consumers
 # gazelle:exclude pkg/eventmonitor/examples
 # gazelle:exclude pkg/eventmonitor/testutil
-# gazelle:exclude pkg/flare
 # Parent BUILD.bazel reaches into tmpl/ via intra-package paths; a local stub would split the package and break those refs.
 # gazelle:exclude pkg/fleet/installer/packages/embedded/tmpl
 # gazelle:exclude pkg/gpu/containers
