@@ -735,6 +735,64 @@ func TestApplyVerticalConstraints_CPURequestsRemoveLimits(t *testing.T) {
 	assert.Equal(t, expectedHash, vertical.ResourcesHash)
 }
 
+// TestApplyVerticalConstraints_CPURequestsRemoveLimits_PerContainer verifies that the
+// CPU-limit removal sentinel is applied per-container: with burstable=false, only the
+// container whose ControlledValues is CPURequestsRemoveLimitsMemoryRequestsAndLimits gets
+// its CPU limit stamped, while a sibling container with a plain constraint keeps its CPU
+// limit untouched. This guards the per-container granularity against being collapsed into
+// the autoscaler-wide burstable flag.
+func TestApplyVerticalConstraints_CPURequestsRemoveLimits_PerContainer(t *testing.T) {
+	vertical := &model.VerticalScalingValues{
+		ResourcesHash: "original-hash",
+		ContainerResources: []datadoghqcommon.DatadogPodAutoscalerContainerResources{
+			{
+				Name:     "app",
+				Requests: corev1.ResourceList{"cpu": resource.MustParse("300m"), "memory": resource.MustParse("256Mi")},
+				Limits:   corev1.ResourceList{"cpu": resource.MustParse("600m"), "memory": resource.MustParse("512Mi")},
+			},
+			{
+				Name:     "sidecar",
+				Requests: corev1.ResourceList{"cpu": resource.MustParse("100m"), "memory": resource.MustParse("128Mi")},
+				Limits:   corev1.ResourceList{"cpu": resource.MustParse("200m"), "memory": resource.MustParse("256Mi")},
+			},
+		},
+	}
+	constraints := &datadoghqcommon.DatadogPodAutoscalerConstraints{
+		Containers: []datadoghqcommon.DatadogPodAutoscalerContainerConstraints{
+			{
+				Name:             "app",
+				ControlledValues: pointer.Ptr(datadoghqcommon.DatadogPodAutoscalerContainerControlledValuesCPURequestsRemoveLimitsMemoryRequestsAndLimits),
+			},
+			{
+				// Plain constraint, no CPU-limit removal requested.
+				Name:       "sidecar",
+				MaxAllowed: corev1.ResourceList{"cpu": resource.MustParse("2")},
+			},
+		},
+	}
+
+	limitErr, err := applyVerticalConstraints(vertical, constraints, false)
+	require.NoError(t, err)
+	assert.Nil(t, limitErr)
+
+	require.Len(t, vertical.ContainerResources, 2)
+	byName := map[string]datadoghqcommon.DatadogPodAutoscalerContainerResources{}
+	for _, cr := range vertical.ContainerResources {
+		byName[cr.Name] = cr
+	}
+
+	// "app" requested CPU-limit removal -> sentinel stamped.
+	appCPULimit, exists := byName["app"].Limits[corev1.ResourceCPU]
+	require.True(t, exists, "app CPU key must be present in limits (sentinel)")
+	assert.Equal(t, 0, appCPULimit.Cmp(removeLimitSentinel), "app CPU limit must be the remove-limit sentinel value")
+
+	// "sidecar" did not request removal -> CPU limit must be preserved verbatim, not a sentinel.
+	sidecarCPULimit, exists := byName["sidecar"].Limits[corev1.ResourceCPU]
+	require.True(t, exists, "sidecar CPU limit must be preserved")
+	assert.Equal(t, 0, sidecarCPULimit.Cmp(resource.MustParse("200m")), "sidecar CPU limit must be unchanged")
+	assert.Greater(t, sidecarCPULimit.Sign(), 0, "sidecar CPU limit must not carry the removal sentinel")
+}
+
 func TestApplyVerticalConstraints_ValidationErrors(t *testing.T) {
 	vertical := &model.VerticalScalingValues{
 		ResourcesHash: "original-hash",
