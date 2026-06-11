@@ -126,8 +126,14 @@ func readAPIKeyFromDatadogYAML() (string, error) {
 	return "", errors.New("api_key not found or empty in datadog.yaml")
 }
 
-// processManagerEnabledFromDatadogYAML reads process_manager.enabled from ProgramData datadog.yaml.
+// processManagerEnabledFromDatadogYAML returns whether the process manager should run for DDOT hooks,
+// matching pkg/config/setup defaults: default true, overridable by DD_PROCESS_MANAGER_ENABLED, then
+// process_manager.enabled in ProgramData datadog.yaml. Missing process_manager section or missing
+// enabled key means true (same as BindEnvAndSetDefault("process_manager.enabled", true)).
 func processManagerEnabledFromDatadogYAML() (bool, error) {
+	if v, ok := os.LookupEnv("DD_PROCESS_MANAGER_ENABLED"); ok && strings.TrimSpace(v) != "" {
+		return yamlTruthy(v), nil
+	}
 	ddYaml := filepath.Join(paths.DatadogDataDir, "datadog.yaml")
 	data, err := os.ReadFile(ddYaml)
 	if err != nil {
@@ -139,7 +145,10 @@ func processManagerEnabledFromDatadogYAML() (bool, error) {
 	}
 	pm, ok := cfg["process_manager"].(map[string]any)
 	if !ok {
-		return false, nil
+		return true, nil
+	}
+	if _, has := pm["enabled"]; !has {
+		return true, nil
 	}
 	return yamlTruthy(pm["enabled"]), nil
 }
