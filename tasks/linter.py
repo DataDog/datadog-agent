@@ -241,13 +241,25 @@ def releasenote_unique_ids(ctx, files=None):
         m = uid_re.search(os.path.basename(path))
         return m.group(1) if m else None
 
-    all_notes = glob('releasenotes/notes/*.yaml') + glob('releasenotes-dca/notes/*.yaml')
+    def corpus_dir(path):
+        """Return the top-level releasenotes* directory for a given path."""
+        parts = path.replace('\\', '/').split('/')
+        for part in parts:
+            if part.startswith('releasenotes'):
+                return part
+        return ''
 
-    corpus: dict[str, list[str]] = {}
+    # Each releasenotes* directory is a separate reno corpus; UIDs only need to
+    # be unique within a corpus, not across all corpora.
+    all_notes = glob('releasenotes*/notes/*.yaml')
+
+    # corpus_map: {corpus_dir -> {uid -> [paths]}}
+    corpus_map: dict[str, dict[str, list[str]]] = {}
     for path in all_notes:
         uid = uid_of(path)
         if uid:
-            corpus.setdefault(uid, []).append(path)
+            d = corpus_dir(path)
+            corpus_map.setdefault(d, {}).setdefault(uid, []).append(path)
 
     targets = [f.strip() for f in files.split(',') if f.strip()] if files else all_notes
 
@@ -255,7 +267,8 @@ def releasenote_unique_ids(ctx, files=None):
     for path in targets:
         uid = uid_of(path)
         if uid:
-            existing = [f for f in corpus.get(uid, []) if f != path]
+            d = corpus_dir(path)
+            existing = [f for f in corpus_map.get(d, {}).get(uid, []) if f != path]
             if existing:
                 errors.append((path, uid, existing))
 
