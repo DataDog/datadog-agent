@@ -248,7 +248,7 @@ func (s *npCollectorImpl) shouldSkipNetflowAgentSource(conn npmodel.NetworkPathC
 
 	isLocal, err := s.localIPs.contains(conn.Source.Addr())
 	if err != nil {
-		s.logger.Debugf("failed to discover local interface IPs for NetFlow source filtering: %s", err)
+		s.logger.Warnf("failed to discover local interface IPs for NetFlow source filtering: %s", err)
 	}
 	if !isLocal {
 		return false
