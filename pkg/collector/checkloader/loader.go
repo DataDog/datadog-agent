@@ -38,6 +38,9 @@ type Loader struct {
 
 // New creates a shared check loader.
 func New(loaders []check.Loader, senderManager sender.SenderManager, errorRecorder LoaderErrorRecorder) *Loader {
+	if errorRecorder == nil {
+		errorRecorder = noopLoaderErrorRecorder{}
+	}
 	return &Loader{
 		loaders:       loaders,
 		senderManager: senderManager,
@@ -158,13 +161,14 @@ func (l *Loader) loadInstance(senderManager sender.SenderManager, config integra
 }
 
 func (l *Loader) setLoaderError(checkName, loaderName, err string) {
-	if l.errorRecorder != nil {
-		l.errorRecorder.SetLoaderError(checkName, loaderName, err)
-	}
+	l.errorRecorder.SetLoaderError(checkName, loaderName, err)
 }
 
 func (l *Loader) removeLoaderErrors(checkName string) {
-	if l.errorRecorder != nil {
-		l.errorRecorder.RemoveLoaderErrors(checkName)
-	}
+	l.errorRecorder.RemoveLoaderErrors(checkName)
 }
+
+type noopLoaderErrorRecorder struct{}
+
+func (noopLoaderErrorRecorder) SetLoaderError(string, string, string) {}
+func (noopLoaderErrorRecorder) RemoveLoaderErrors(string)             {}

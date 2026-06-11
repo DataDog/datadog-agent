@@ -18,6 +18,7 @@ import (
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -124,6 +125,7 @@ func (s *ShadowScheduler) Schedule(configs []ShadowConfig) error {
 		}
 		if _, exists := s.checks[key]; exists {
 			s.mu.Unlock()
+			log.Warnf("shadow check %s is already scheduled", config.ShadowCheckID)
 			continue
 		}
 		s.mu.Unlock()
@@ -137,6 +139,8 @@ func (s *ShadowScheduler) Schedule(configs []ShadowConfig) error {
 		}
 
 		s.mu.Lock()
+		// LoadInstance is synchronous and does not accept a context, so re-check
+		// scheduler state after loading to avoid late-starting after Stop.
 		if s.stopped {
 			s.mu.Unlock()
 			_ = handle.stop(s.stopTimeout)
@@ -144,6 +148,7 @@ func (s *ShadowScheduler) Schedule(configs []ShadowConfig) error {
 		}
 		if _, exists := s.checks[key]; exists {
 			s.mu.Unlock()
+			log.Warnf("shadow check %s was already scheduled while loading", config.ShadowCheckID)
 			_ = handle.stop(s.stopTimeout)
 			continue
 		}
