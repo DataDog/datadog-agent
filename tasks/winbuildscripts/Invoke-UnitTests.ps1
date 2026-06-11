@@ -154,7 +154,7 @@ Invoke-BuildScript `
     }
     $Env:Python3_ROOT_DIR=$Env:TEST_EMBEDDED_PY3
     & dda inv -- -e test --junit-tar="$Env:JUNIT_TAR" `
-        --race --profile --rerun-fails=2 --coverage --cpus 8 `
+        --race --profile --rerun-fails=2 --coverage --cpus 4 `
         --python-home-3=$Env:Python3_ROOT_DIR `
         --result-json $internal_result_json `
         --build-stdlib `
