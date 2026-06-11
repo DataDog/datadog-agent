@@ -445,6 +445,49 @@ func TestShadowSchedulerLoadErrorCleansUpShadowSenderAndCancelsContext(t *testin
 	}
 }
 
+func TestShadowSchedulerStopPreventsInFlightLoadFromStarting(t *testing.T) {
+	sourceConfig := newTestShadowConfig()
+	loader := &blockingShadowLoader{
+		checks:  []*testShadowCheck{newTestShadowCheck(sourceConfig.SourceCheckID)},
+		ready:   make(chan struct{}, 1),
+		release: make(chan struct{}),
+	}
+	senderManager := &recordingSenderManager{}
+	tickers := &manualTickerFactory{}
+	scheduler := NewShadowScheduler(ShadowSchedulerOptions{
+		Loader:           loader,
+		NewSenderManager: func(context.Context) aggregatorsender.SenderManager { return senderManager },
+		NewRunner:        newTestShadowRunnerFactory(t),
+		Interval:         time.Second,
+		StopTimeout:      time.Second,
+		NewTicker:        tickers.NewTicker,
+	})
+
+	errs := make(chan error, 1)
+	go func() {
+		errs <- scheduler.Schedule([]ShadowConfig{sourceConfig})
+	}()
+
+	select {
+	case <-loader.ready:
+	case <-time.After(time.Second):
+		t.Fatal("expected schedule to reach load")
+	}
+
+	require.NoError(t, scheduler.Stop())
+	close(loader.release)
+
+	require.Eventually(t, func() bool {
+		return len(errs) == 1
+	}, time.Second, 10*time.Millisecond)
+	require.ErrorIs(t, <-errs, errShadowSchedulerStopped)
+	assert.Len(t, tickers.Tickers(), 1)
+	assert.Equal(t, []checkid.ID{sourceConfig.ShadowCheckID}, senderManager.DestroySenderIDs())
+
+	tickers.Tick(0)
+	assert.Equal(t, 0, loader.checks[0].RunCount())
+}
+
 func TestShadowSchedulerStopStopsAllShadowChecks(t *testing.T) {
 	first := newTestShadowConfig()
 	second := newTestShadowConfig()
