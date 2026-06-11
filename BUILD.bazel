@@ -16,6 +16,8 @@ exports_files(glob(
     allow_empty = True,
 ))
 
+exports_files(["go.mod"])
+
 # TODO(agent-build): remove below `gazelle:exclude` directives (automatically updates @bazelify_go_work//:go.work)
 # gazelle:exclude cmd/agent/subcommands/*.go
 # gazelle:exclude cmd/agent/subcommands/analyzelogs
@@ -585,6 +587,7 @@ exports_files(glob(
 # gazelle:exclude test/e2e-framework/scenarios/aws/gensim-eks
 # gazelle:exclude test/e2e-framework/scenarios/aws/installer
 # gazelle:exclude test/e2e-framework/scenarios/aws/kindvm
+# gazelle:exclude test/e2e-framework/scenarios/aws/kubeadm
 # gazelle:exclude test/e2e-framework/scenarios/aws/microVMs/config
 # gazelle:exclude test/e2e-framework/scenarios/aws/microVMs/microvms/files
 # gazelle:exclude test/e2e-framework/scenarios/aws/test
@@ -693,11 +696,19 @@ gazelle(
     prefix = "github.com/DataDog/datadog-agent",
 )
 
+# Our dd_agent_go_test extension wraps the built-in Go extension and must replace it,
+# not extend it, to avoid duplicate rule generation.
+_LANGUAGES_WITHOUT_GO = [
+    lang
+    for lang in DEFAULT_LANGUAGES
+    if "//language/go" not in str(lang)
+]
+
 gazelle_binary(
     name = "gazelle_binary",
-    languages = DEFAULT_LANGUAGES + [
+    languages = _LANGUAGES_WITHOUT_GO + [
         "//bazel/rules/cws_codegen:gazelle_extension",
-        "//bazel/rules/go_build_tags:gazelle_extension",
+        "//bazel/rules/go:gazelle_extension",
         "//bazel/rules/go_msgp:gazelle_extension",
         "//bazel/rules/go_stringer:gazelle_extension",
         "//bazel/rules/write_pb_go:gazelle_extension",
