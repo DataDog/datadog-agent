@@ -317,7 +317,9 @@ func TestFromDDConfigPARRestrictedShellAllowedPathsUnset(t *testing.T) {
 	mockConfig.SetInTest(setup.PARPrivateKey, "")
 	mockConfig.SetInTest(setup.PARUrn, "")
 
-	cfg, err := FromDDConfig(mockConfig)
+	statsdProvides, err := statsdimpl.NewComponent()
+	require.NoError(t, err)
+	cfg, err := FromDDConfig(mockConfig, statsdProvides.Comp)
 	require.NoError(t, err)
 	assert.Equal(t, []string{"/"}, cfg.RShellAllowedPaths)
 }
@@ -341,7 +343,9 @@ func TestFromDDConfigPARRestrictedShellAllowedPathsEmpty(t *testing.T) {
 	mockConfig.SetInTest(setup.PARUrn, "")
 	mockConfig.SetInTest(setup.PARRestrictedShellAllowedPaths, []string{})
 
-	cfg, err := FromDDConfig(mockConfig)
+	statsdProvides, err := statsdimpl.NewComponent()
+	require.NoError(t, err)
+	cfg, err := FromDDConfig(mockConfig, statsdProvides.Comp)
 	require.NoError(t, err)
 	// Explicit empty: operator opts in to blocking everything.
 	assert.NotNil(t, cfg.RShellAllowedPaths)
@@ -356,7 +360,9 @@ func TestFromDDConfigPARRestrictedShellAllowedCommandsUnset(t *testing.T) {
 	mockConfig.SetInTest(setup.PARPrivateKey, "")
 	mockConfig.SetInTest(setup.PARUrn, "")
 
-	cfg, err := FromDDConfig(mockConfig)
+	statsdProvides, err := statsdimpl.NewComponent()
+	require.NoError(t, err)
+	cfg, err := FromDDConfig(mockConfig, statsdProvides.Comp)
 	require.NoError(t, err)
 	assert.Equal(t, []string{"rshell:*"}, cfg.RShellAllowedCommands)
 }
@@ -367,7 +373,9 @@ func TestFromDDConfigPARRestrictedShellAllowedCommandsSet(t *testing.T) {
 	mockConfig.SetInTest(setup.PARUrn, "")
 	mockConfig.SetInTest(setup.PARRestrictedShellAllowedCommands, []string{"cat", "ls"})
 
-	cfg, err := FromDDConfig(mockConfig)
+	statsdProvides, err := statsdimpl.NewComponent()
+	require.NoError(t, err)
+	cfg, err := FromDDConfig(mockConfig, statsdProvides.Comp)
 	require.NoError(t, err)
 	assert.Equal(t, []string{"cat", "ls"}, cfg.RShellAllowedCommands)
 }
@@ -378,7 +386,9 @@ func TestFromDDConfigPARRestrictedShellAllowedCommandsEmpty(t *testing.T) {
 	mockConfig.SetInTest(setup.PARUrn, "")
 	mockConfig.SetInTest(setup.PARRestrictedShellAllowedCommands, []string{})
 
-	cfg, err := FromDDConfig(mockConfig)
+	statsdProvides, err := statsdimpl.NewComponent()
+	require.NoError(t, err)
+	cfg, err := FromDDConfig(mockConfig, statsdProvides.Comp)
 	require.NoError(t, err)
 	// Explicit empty list: operator opts in to blocking every command.
 	// Distinct from the unset case above.
@@ -400,7 +410,9 @@ private_action_runner:
 `
 	mockConfig := configmock.NewFromYAML(t, yaml)
 
-	cfg, err := FromDDConfig(mockConfig)
+	statsdProvides, err := statsdimpl.NewComponent()
+	require.NoError(t, err)
+	cfg, err := FromDDConfig(mockConfig, statsdProvides.Comp)
 	require.NoError(t, err)
 	assert.Empty(t, cfg.RShellAllowedPaths, "YAML [] must surface as an empty slice; kill-switch is enforced by the handler intersection on this input")
 }
@@ -413,7 +425,9 @@ private_action_runner:
 `
 	mockConfig := configmock.NewFromYAML(t, yaml)
 
-	cfg, err := FromDDConfig(mockConfig)
+	statsdProvides, err := statsdimpl.NewComponent()
+	require.NoError(t, err)
+	cfg, err := FromDDConfig(mockConfig, statsdProvides.Comp)
 	require.NoError(t, err)
 	assert.Empty(t, cfg.RShellAllowedCommands, "YAML [] must surface as an empty slice; kill-switch is enforced by the handler intersection on this input")
 }
@@ -432,7 +446,9 @@ func TestFromDDConfigPARRestrictedShellAllowedPathsPassesThroughFileEntries(t *t
 	mockConfig.SetInTest(setup.PARUrn, "")
 	mockConfig.SetInTest(setup.PARRestrictedShellAllowedPaths, []string{tmpDir, fp})
 
-	cfg, err := FromDDConfig(mockConfig)
+	statsdProvides, err := statsdimpl.NewComponent()
+	require.NoError(t, err)
+	cfg, err := FromDDConfig(mockConfig, statsdProvides.Comp)
 	require.NoError(t, err)
 	assert.Equal(t, []string{tmpDir, fp}, cfg.RShellAllowedPaths)
 }
@@ -447,7 +463,9 @@ func TestFromDDConfigPARRestrictedShellAllowedPathsPassesThroughBackslash(t *tes
 	mockConfig.SetInTest(setup.PARUrn, "")
 	mockConfig.SetInTest(setup.PARRestrictedShellAllowedPaths, []string{`C:\Data`, "/var/log"})
 
-	cfg, err := FromDDConfig(mockConfig)
+	statsdProvides, err := statsdimpl.NewComponent()
+	require.NoError(t, err)
+	cfg, err := FromDDConfig(mockConfig, statsdProvides.Comp)
 	require.NoError(t, err)
 	assert.Equal(t, []string{`C:\Data`, "/var/log"}, cfg.RShellAllowedPaths)
 }
@@ -463,7 +481,9 @@ func TestFromDDConfigPARRestrictedShellAllowedCommandsPassesThroughUnnamespaced(
 	mockConfig.SetInTest(setup.PARUrn, "")
 	mockConfig.SetInTest(setup.PARRestrictedShellAllowedCommands, []string{"cat", "rshell:ls"})
 
-	cfg, err := FromDDConfig(mockConfig)
+	statsdProvides, err := statsdimpl.NewComponent()
+	require.NoError(t, err)
+	cfg, err := FromDDConfig(mockConfig, statsdProvides.Comp)
 	require.NoError(t, err)
 	assert.Equal(t, []string{"cat", "rshell:ls"}, cfg.RShellAllowedCommands)
 }
@@ -479,7 +499,9 @@ private_action_runner:
 `
 	mockConfig := configmock.NewFromYAML(t, yaml)
 
-	cfg, err := FromDDConfig(mockConfig)
+	statsdProvides, err := statsdimpl.NewComponent()
+	require.NoError(t, err)
+	cfg, err := FromDDConfig(mockConfig, statsdProvides.Comp)
 	require.NoError(t, err)
 	assert.Equal(t, []string{"/"}, cfg.RShellAllowedPaths)
 	assert.Equal(t, []string{"rshell:*"}, cfg.RShellAllowedCommands)
