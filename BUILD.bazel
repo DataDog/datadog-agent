@@ -24,16 +24,9 @@ exports_files(glob(
 # gazelle:exclude cmd/agent/subcommands/configcheck
 # gazelle:exclude cmd/agent/subcommands/controlsvc
 # gazelle:exclude cmd/agent/subcommands/coverage
-# gazelle:exclude cmd/agent/subcommands/createschema
 # gazelle:exclude cmd/agent/subcommands/diagnose
-# gazelle:exclude cmd/agent/subcommands/dogstatsd
-# gazelle:exclude cmd/agent/subcommands/dogstatsdcapture
 # gazelle:exclude cmd/agent/subcommands/dogstatsdreplay
-# gazelle:exclude cmd/agent/subcommands/dogstatsdstats
-# gazelle:exclude cmd/agent/subcommands/experimental
 # gazelle:exclude cmd/agent/subcommands/flare
-# gazelle:exclude cmd/agent/subcommands/health
-# gazelle:exclude cmd/agent/subcommands/hostname
 # gazelle:exclude cmd/agent/subcommands/import
 # gazelle:exclude cmd/agent/subcommands/integrations
 # gazelle:exclude cmd/agent/subcommands/jmx
@@ -41,10 +34,7 @@ exports_files(glob(
 # gazelle:exclude cmd/agent/subcommands/otel
 # gazelle:exclude cmd/agent/subcommands/processchecks
 # gazelle:exclude cmd/agent/subcommands/run
-# gazelle:exclude cmd/agent/subcommands/secret
-# gazelle:exclude cmd/agent/subcommands/secrethelper
 # gazelle:exclude cmd/agent/subcommands/snmp
-# gazelle:exclude cmd/agent/subcommands/status
 # gazelle:exclude cmd/agent/subcommands/stop
 # gazelle:exclude cmd/agent/subcommands/streamep
 # gazelle:exclude cmd/agent/subcommands/streamlogs

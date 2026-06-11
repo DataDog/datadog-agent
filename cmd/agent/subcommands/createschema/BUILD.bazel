@@ -1,0 +1,32 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "createschema",
+    srcs = ["command.go"],
+    importpath = "github.com/DataDog/datadog-agent/cmd/agent/subcommands/createschema",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cmd/agent/command",
+        "//comp/core",
+        "//comp/core/config",
+        "//pkg/config/buildschema",
+        "//pkg/config/model",
+        "//pkg/config/setup",
+        "//pkg/util/fxutil",
+        "@com_github_spf13_cobra//:cobra",
+        "@in_gopkg_yaml_v3//:yaml_v3",
+        "@org_uber_go_fx//:fx",
+    ],
+)
+
+go_test(
+    name = "createschema_test",
+    srcs = ["command_test.go"],
+    embed = [":createschema"],
+    gotags = ["test"],
+    deps = [
+        "//cmd/agent/command",
+        "//comp/core",
+        "//pkg/util/fxutil",
+    ],
+)
