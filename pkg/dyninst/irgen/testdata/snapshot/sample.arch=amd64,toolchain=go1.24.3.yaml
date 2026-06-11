@@ -15273,18 +15273,18 @@ Types:
     - __kind: EventRootType
       ID: 1758
       Name: Probe[github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.Filter[go.shape.float64]]
-      ByteSize: 73
-      ExprStatusArraySize: 1
+      ByteSize: 74
+      ExprStatusArraySize: 2
       DictEntries:
         - DictIndex: 0
           DictRegister: 0
-          Offset: 1
+          Offset: 2
         - DictIndex: 1
           DictRegister: 0
-          Offset: 9
+          Offset: 10
       Expressions:
         - Name: items
-          Offset: 17
+          Offset: 18
           Kind: template_segment
           Expression:
             Type: 358 GoSliceHeaderType []go.shape.float64
@@ -15297,7 +15297,7 @@ Types:
             IsSplit: false
           DictIndex: 0
         - Name: items
-          Offset: 41
+          Offset: 42
           Kind: argument
           Expression:
             Type: 358 GoSliceHeaderType []go.shape.float64
@@ -15310,7 +15310,7 @@ Types:
             IsSplit: false
           DictIndex: 0
         - Name: pred
-          Offset: 65
+          Offset: 66
           Kind: argument
           Expression:
             Type: 361 GoSubroutineType func(go.shape.float64) bool
@@ -15345,18 +15345,18 @@ Types:
     - __kind: EventRootType
       ID: 1756
       Name: Probe[github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.Filter[go.shape.int]]
-      ByteSize: 73
-      ExprStatusArraySize: 1
+      ByteSize: 74
+      ExprStatusArraySize: 2
       DictEntries:
         - DictIndex: 0
           DictRegister: 0
-          Offset: 1
+          Offset: 2
         - DictIndex: 1
           DictRegister: 0
-          Offset: 9
+          Offset: 10
       Expressions:
         - Name: items
-          Offset: 17
+          Offset: 18
           Kind: template_segment
           Expression:
             Type: 334 GoSliceHeaderType []go.shape.int
@@ -15369,7 +15369,7 @@ Types:
             IsSplit: false
           DictIndex: 0
         - Name: items
-          Offset: 41
+          Offset: 42
           Kind: argument
           Expression:
             Type: 334 GoSliceHeaderType []go.shape.int
@@ -15382,7 +15382,7 @@ Types:
             IsSplit: false
           DictIndex: 0
         - Name: pred
-          Offset: 65
+          Offset: 66
           Kind: argument
           Expression:
             Type: 336 GoSubroutineType func(go.shape.int) bool
@@ -15420,18 +15420,18 @@ Types:
     - __kind: EventRootType
       ID: 1760
       Name: Probe[github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.Map[go.shape.int,go.shape.string]]
-      ByteSize: 41
-      ExprStatusArraySize: 1
+      ByteSize: 42
+      ExprStatusArraySize: 2
       DictEntries:
         - DictIndex: 0
           DictRegister: 0
-          Offset: 1
+          Offset: 2
         - DictIndex: 1
           DictRegister: 0
-          Offset: 9
+          Offset: 10
       Expressions:
         - Name: box
-          Offset: 17
+          Offset: 18
           Kind: template_segment
           Expression:
             Type: 331 StructureType github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.Box[go.shape.int]
@@ -15444,7 +15444,7 @@ Types:
             IsSplit: false
           DictIndex: 0
         - Name: box
-          Offset: 25
+          Offset: 26
           Kind: argument
           Expression:
             Type: 331 StructureType github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.Box[go.shape.int]
@@ -15457,7 +15457,7 @@ Types:
             IsSplit: false
           DictIndex: 0
         - Name: f
-          Offset: 33
+          Offset: 34
           Kind: argument
           Expression:
             Type: 337 GoSubroutineType func(go.shape.int) go.shape.string
@@ -15492,21 +15492,21 @@ Types:
     - __kind: EventRootType
       ID: 1772
       Name: Probe[main.(*Pair[go.shape.int,go.shape.bool]).SetValue]
-      ByteSize: 50
-      ExprStatusArraySize: 1
+      ByteSize: 51
+      ExprStatusArraySize: 2
       DictEntries:
         - DictIndex: 1
           DictRegister: 3
-          Offset: 1
+          Offset: 2
         - DictIndex: 0
           DictRegister: 3
-          Offset: 9
+          Offset: 10
         - DictIndex: 2
           DictRegister: 3
-          Offset: 17
+          Offset: 18
       Expressions:
         - Name: k
-          Offset: 25
+          Offset: 26
           Kind: template_segment
           Expression:
             Type: 330 BaseType go.shape.int
@@ -15519,7 +15519,7 @@ Types:
             IsSplit: false
           DictIndex: 1
         - Name: x
-          Offset: 33
+          Offset: 34
           Kind: argument
           Expression:
             Type: 345 PointerType *main.Pair[go.shape.int,go.shape.bool]
@@ -15532,7 +15532,7 @@ Types:
             IsSplit: false
           DictIndex: 0
         - Name: k
-          Offset: 41
+          Offset: 42
           Kind: argument
           Expression:
             Type: 330 BaseType go.shape.int
@@ -15545,7 +15545,7 @@ Types:
             IsSplit: false
           DictIndex: 1
         - Name: v
-          Offset: 49
+          Offset: 50
           Kind: argument
           Expression:
             Type: 347 BaseType go.shape.bool
@@ -15563,21 +15563,21 @@ Types:
     - __kind: EventRootType
       ID: 1774
       Name: Probe[main.(*Pair[go.shape.string,go.shape.int]).SetValue]
-      ByteSize: 73
-      ExprStatusArraySize: 1
+      ByteSize: 74
+      ExprStatusArraySize: 2
       DictEntries:
         - DictIndex: 1
           DictRegister: 3
-          Offset: 1
+          Offset: 2
         - DictIndex: 0
           DictRegister: 3
-          Offset: 9
+          Offset: 10
         - DictIndex: 2
           DictRegister: 3
-          Offset: 17
+          Offset: 18
       Expressions:
         - Name: k
-          Offset: 25
+          Offset: 26
           Kind: template_segment
           Expression:
             Type: 332 GoStringHeaderType go.shape.string
@@ -15590,7 +15590,7 @@ Types:
             IsSplit: false
           DictIndex: 1
         - Name: x
-          Offset: 41
+          Offset: 42
           Kind: argument
           Expression:
             Type: 348 PointerType *main.Pair[go.shape.string,go.shape.int]
@@ -15603,7 +15603,7 @@ Types:
             IsSplit: false
           DictIndex: 0
         - Name: k
-          Offset: 49
+          Offset: 50
           Kind: argument
           Expression:
             Type: 332 GoStringHeaderType go.shape.string
@@ -15616,7 +15616,7 @@ Types:
             IsSplit: false
           DictIndex: 1
         - Name: v
-          Offset: 65
+          Offset: 66
           Kind: argument
           Expression:
             Type: 330 BaseType go.shape.int
@@ -15672,18 +15672,18 @@ Types:
     - __kind: EventRootType
       ID: 1788
       Name: Probe[main.genericContains[go.shape.int]]
-      ByteSize: 57
-      ExprStatusArraySize: 1
+      ByteSize: 58
+      ExprStatusArraySize: 2
       DictEntries:
         - DictIndex: 1
           DictRegister: 0
-          Offset: 1
+          Offset: 2
         - DictIndex: 0
           DictRegister: 0
-          Offset: 9
+          Offset: 10
       Expressions:
         - Name: needle
-          Offset: 17
+          Offset: 18
           Kind: template_segment
           Expression:
             Type: 330 BaseType go.shape.int
@@ -15696,7 +15696,7 @@ Types:
             IsSplit: false
           DictIndex: 1
         - Name: haystack
-          Offset: 25
+          Offset: 26
           Kind: argument
           Expression:
             Type: 334 GoSliceHeaderType []go.shape.int
@@ -15709,7 +15709,7 @@ Types:
             IsSplit: false
           DictIndex: 0
         - Name: needle
-          Offset: 49
+          Offset: 50
           Kind: argument
           Expression:
             Type: 330 BaseType go.shape.int
@@ -15782,18 +15782,18 @@ Types:
     - __kind: EventRootType
       ID: 1790
       Name: Probe[main.genericContains[go.shape.string]]
-      ByteSize: 73
-      ExprStatusArraySize: 1
+      ByteSize: 74
+      ExprStatusArraySize: 2
       DictEntries:
         - DictIndex: 1
           DictRegister: 0
-          Offset: 1
+          Offset: 2
         - DictIndex: 0
           DictRegister: 0
-          Offset: 9
+          Offset: 10
       Expressions:
         - Name: needle
-          Offset: 17
+          Offset: 18
           Kind: template_segment
           Expression:
             Type: 332 GoStringHeaderType go.shape.string
@@ -15806,7 +15806,7 @@ Types:
             IsSplit: false
           DictIndex: 1
         - Name: haystack
-          Offset: 33
+          Offset: 34
           Kind: argument
           Expression:
             Type: 355 GoSliceHeaderType []go.shape.string
@@ -15819,7 +15819,7 @@ Types:
             IsSplit: false
           DictIndex: 0
         - Name: needle
-          Offset: 57
+          Offset: 58
           Kind: argument
           Expression:
             Type: 332 GoStringHeaderType go.shape.string
@@ -16242,18 +16242,18 @@ Types:
     - __kind: EventRootType
       ID: 1778
       Name: Probe[main.genericSwap[go.shape.int,go.shape.string]]
-      ByteSize: 49
-      ExprStatusArraySize: 1
+      ByteSize: 50
+      ExprStatusArraySize: 2
       DictEntries:
         - DictIndex: 0
           DictRegister: 0
-          Offset: 1
+          Offset: 2
         - DictIndex: 1
           DictRegister: 0
-          Offset: 9
+          Offset: 10
       Expressions:
         - Name: a
-          Offset: 17
+          Offset: 18
           Kind: template_segment
           Expression:
             Type: 330 BaseType go.shape.int
@@ -16266,7 +16266,7 @@ Types:
             IsSplit: false
           DictIndex: 0
         - Name: a
-          Offset: 25
+          Offset: 26
           Kind: argument
           Expression:
             Type: 330 BaseType go.shape.int
@@ -16279,7 +16279,7 @@ Types:
             IsSplit: false
           DictIndex: 0
         - Name: b
-          Offset: 33
+          Offset: 34
           Kind: argument
           Expression:
             Type: 332 GoStringHeaderType go.shape.string
@@ -16333,18 +16333,18 @@ Types:
     - __kind: EventRootType
       ID: 1776
       Name: Probe[main.genericSwap[go.shape.string,go.shape.bool]]
-      ByteSize: 50
-      ExprStatusArraySize: 1
+      ByteSize: 51
+      ExprStatusArraySize: 2
       DictEntries:
         - DictIndex: 0
           DictRegister: 0
-          Offset: 1
+          Offset: 2
         - DictIndex: 1
           DictRegister: 0
-          Offset: 9
+          Offset: 10
       Expressions:
         - Name: a
-          Offset: 17
+          Offset: 18
           Kind: template_segment
           Expression:
             Type: 332 GoStringHeaderType go.shape.string
@@ -16357,7 +16357,7 @@ Types:
             IsSplit: false
           DictIndex: 0
         - Name: a
-          Offset: 33
+          Offset: 34
           Kind: argument
           Expression:
             Type: 332 GoStringHeaderType go.shape.string
@@ -16370,7 +16370,7 @@ Types:
             IsSplit: false
           DictIndex: 0
         - Name: b
-          Offset: 49
+          Offset: 50
           Kind: argument
           Expression:
             Type: 347 BaseType go.shape.bool
@@ -17185,11 +17185,11 @@ Types:
     - __kind: EventRootType
       ID: 1584
       Name: Probe[main.testCombinedByte]
-      ByteSize: 5
-      ExprStatusArraySize: 1
+      ByteSize: 6
+      ExprStatusArraySize: 2
       Expressions:
         - Name: w
-          Offset: 1
+          Offset: 2
           Kind: template_segment
           Expression:
             Type: 5 BaseType uint8
@@ -17202,7 +17202,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: x
-          Offset: 2
+          Offset: 3
           Kind: template_segment
           Expression:
             Type: 5 BaseType uint8
@@ -17215,7 +17215,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: w
-          Offset: 3
+          Offset: 4
           Kind: argument
           Expression:
             Type: 5 BaseType uint8
@@ -17228,7 +17228,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: x
-          Offset: 4
+          Offset: 5
           Kind: argument
           Expression:
             Type: 5 BaseType uint8
@@ -17275,11 +17275,11 @@ Types:
     - __kind: EventRootType
       ID: 1586
       Name: Probe[main.testCombinedString]
-      ByteSize: 34
-      ExprStatusArraySize: 1
+      ByteSize: 35
+      ExprStatusArraySize: 2
       Expressions:
         - Name: x
-          Offset: 1
+          Offset: 2
           Kind: template_segment
           Expression:
             Type: 11 GoStringHeaderType string
@@ -17292,7 +17292,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: x_val
-          Offset: 17
+          Offset: 18
           Kind: capture_expression
           Expression:
             Type: 11 GoStringHeaderType string
@@ -17305,7 +17305,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: w_val
-          Offset: 33
+          Offset: 34
           Kind: capture_expression
           Expression:
             Type: 5 BaseType uint8
@@ -17608,11 +17608,11 @@ Types:
     - __kind: EventRootType
       ID: 1706
       Name: Probe[main.testEmptySliceOfStructs]
-      ByteSize: 65
-      ExprStatusArraySize: 1
+      ByteSize: 66
+      ExprStatusArraySize: 2
       Expressions:
         - Name: xs
-          Offset: 1
+          Offset: 2
           Kind: template_segment
           Expression:
             Type: 265 GoSliceHeaderType []main.structWithNoStrings
@@ -17625,7 +17625,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: a
-          Offset: 25
+          Offset: 26
           Kind: template_segment
           Expression:
             Type: 9 BaseType int
@@ -17638,7 +17638,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: xs
-          Offset: 33
+          Offset: 34
           Kind: argument
           Expression:
             Type: 265 GoSliceHeaderType []main.structWithNoStrings
@@ -17651,7 +17651,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: a
-          Offset: 57
+          Offset: 58
           Kind: argument
           Expression:
             Type: 9 BaseType int
@@ -17794,11 +17794,11 @@ Types:
     - __kind: EventRootType
       ID: 1521
       Name: Probe[main.testErrorAtLine]Line
-      ByteSize: 49
-      ExprStatusArraySize: 1
+      ByteSize: 50
+      ExprStatusArraySize: 2
       Expressions:
         - Name: x
-          Offset: 1
+          Offset: 2
           Kind: template_segment
           Expression:
             Type: 9 BaseType int
@@ -17811,7 +17811,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: err
-          Offset: 9
+          Offset: 10
           Kind: template_segment
           Expression:
             Type: 15 GoInterfaceType error
@@ -17824,7 +17824,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: x
-          Offset: 25
+          Offset: 26
           Kind: local
           Expression:
             Type: 9 BaseType int
@@ -17837,7 +17837,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: err
-          Offset: 33
+          Offset: 34
           Kind: local
           Expression:
             Type: 15 GoInterfaceType error
@@ -18161,11 +18161,11 @@ Types:
     - __kind: EventRootType
       ID: 1542
       Name: Probe[main.testInlinedBB]
-      ByteSize: 33
-      ExprStatusArraySize: 1
+      ByteSize: 34
+      ExprStatusArraySize: 2
       Expressions:
         - Name: x
-          Offset: 1
+          Offset: 2
           Kind: template_segment
           Expression:
             Type: 9 BaseType int
@@ -18178,7 +18178,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: "y"
-          Offset: 9
+          Offset: 10
           Kind: template_segment
           Expression:
             Type: 9 BaseType int
@@ -18191,7 +18191,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: x
-          Offset: 17
+          Offset: 18
           Kind: argument
           Expression:
             Type: 9 BaseType int
@@ -18204,7 +18204,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: "y"
-          Offset: 25
+          Offset: 26
           Kind: argument
           Expression:
             Type: 9 BaseType int
@@ -18815,11 +18815,11 @@ Types:
     - __kind: EventRootType
       ID: 1690
       Name: Probe[main.testManyArgsArrayReturn]
-      ByteSize: 149
-      ExprStatusArraySize: 5
+      ByteSize: 153
+      ExprStatusArraySize: 9
       Expressions:
         - Name: a
-          Offset: 5
+          Offset: 9
           Kind: template_segment
           Expression:
             Type: 9 BaseType int
@@ -18832,7 +18832,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: b
-          Offset: 13
+          Offset: 17
           Kind: template_segment
           Expression:
             Type: 9 BaseType int
@@ -18845,7 +18845,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: c
-          Offset: 21
+          Offset: 25
           Kind: template_segment
           Expression:
             Type: 9 BaseType int
@@ -18858,7 +18858,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: d
-          Offset: 29
+          Offset: 33
           Kind: template_segment
           Expression:
             Type: 9 BaseType int
@@ -18871,7 +18871,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: e
-          Offset: 37
+          Offset: 41
           Kind: template_segment
           Expression:
             Type: 9 BaseType int
@@ -18884,7 +18884,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: f
-          Offset: 45
+          Offset: 49
           Kind: template_segment
           Expression:
             Type: 9 BaseType int
@@ -18897,7 +18897,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: g
-          Offset: 53
+          Offset: 57
           Kind: template_segment
           Expression:
             Type: 9 BaseType int
@@ -18910,7 +18910,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: h
-          Offset: 61
+          Offset: 65
           Kind: template_segment
           Expression:
             Type: 9 BaseType int
@@ -18923,7 +18923,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: i
-          Offset: 69
+          Offset: 73
           Kind: template_segment
           Expression:
             Type: 9 BaseType int
@@ -18936,7 +18936,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: a
-          Offset: 77
+          Offset: 81
           Kind: argument
           Expression:
             Type: 9 BaseType int
@@ -18949,7 +18949,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: b
-          Offset: 85
+          Offset: 89
           Kind: argument
           Expression:
             Type: 9 BaseType int
@@ -18962,7 +18962,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: c
-          Offset: 93
+          Offset: 97
           Kind: argument
           Expression:
             Type: 9 BaseType int
@@ -18975,7 +18975,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: d
-          Offset: 101
+          Offset: 105
           Kind: argument
           Expression:
             Type: 9 BaseType int
@@ -18988,7 +18988,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: e
-          Offset: 109
+          Offset: 113
           Kind: argument
           Expression:
             Type: 9 BaseType int
@@ -19001,7 +19001,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: f
-          Offset: 117
+          Offset: 121
           Kind: argument
           Expression:
             Type: 9 BaseType int
@@ -19014,7 +19014,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: g
-          Offset: 125
+          Offset: 129
           Kind: argument
           Expression:
             Type: 9 BaseType int
@@ -19027,7 +19027,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: h
-          Offset: 133
+          Offset: 137
           Kind: argument
           Expression:
             Type: 9 BaseType int
@@ -19040,7 +19040,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: i
-          Offset: 141
+          Offset: 145
           Kind: argument
           Expression:
             Type: 9 BaseType int
@@ -19842,11 +19842,11 @@ Types:
     - __kind: EventRootType
       ID: 1692
       Name: Probe[main.testMixedArgsStackReturn]
-      ByteSize: 165
-      ExprStatusArraySize: 5
+      ByteSize: 169
+      ExprStatusArraySize: 9
       Expressions:
         - Name: a
-          Offset: 5
+          Offset: 9
           Kind: template_segment
           Expression:
             Type: 9 BaseType int
@@ -19859,7 +19859,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: b
-          Offset: 13
+          Offset: 17
           Kind: template_segment
           Expression:
             Type: 9 BaseType int
@@ -19872,7 +19872,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: c
-          Offset: 21
+          Offset: 25
           Kind: template_segment
           Expression:
             Type: 9 BaseType int
@@ -19885,7 +19885,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: d
-          Offset: 29
+          Offset: 33
           Kind: template_segment
           Expression:
             Type: 9 BaseType int
@@ -19898,7 +19898,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: e
-          Offset: 37
+          Offset: 41
           Kind: template_segment
           Expression:
             Type: 9 BaseType int
@@ -19911,7 +19911,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: f
-          Offset: 45
+          Offset: 49
           Kind: template_segment
           Expression:
             Type: 9 BaseType int
@@ -19924,7 +19924,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: g
-          Offset: 53
+          Offset: 57
           Kind: template_segment
           Expression:
             Type: 9 BaseType int
@@ -19937,7 +19937,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: h
-          Offset: 61
+          Offset: 65
           Kind: template_segment
           Expression:
             Type: 9 BaseType int
@@ -19950,7 +19950,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: s
-          Offset: 69
+          Offset: 73
           Kind: template_segment
           Expression:
             Type: 11 GoStringHeaderType string
@@ -19963,7 +19963,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: a
-          Offset: 85
+          Offset: 89
           Kind: argument
           Expression:
             Type: 9 BaseType int
@@ -19976,7 +19976,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: b
-          Offset: 93
+          Offset: 97
           Kind: argument
           Expression:
             Type: 9 BaseType int
@@ -19989,7 +19989,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: c
-          Offset: 101
+          Offset: 105
           Kind: argument
           Expression:
             Type: 9 BaseType int
@@ -20002,7 +20002,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: d
-          Offset: 109
+          Offset: 113
           Kind: argument
           Expression:
             Type: 9 BaseType int
@@ -20015,7 +20015,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: e
-          Offset: 117
+          Offset: 121
           Kind: argument
           Expression:
             Type: 9 BaseType int
@@ -20028,7 +20028,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: f
-          Offset: 125
+          Offset: 129
           Kind: argument
           Expression:
             Type: 9 BaseType int
@@ -20041,7 +20041,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: g
-          Offset: 133
+          Offset: 137
           Kind: argument
           Expression:
             Type: 9 BaseType int
@@ -20054,7 +20054,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: h
-          Offset: 141
+          Offset: 145
           Kind: argument
           Expression:
             Type: 9 BaseType int
@@ -20067,7 +20067,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: s
-          Offset: 149
+          Offset: 153
           Kind: argument
           Expression:
             Type: 11 GoStringHeaderType string
@@ -20101,11 +20101,11 @@ Types:
     - __kind: EventRootType
       ID: 1696
       Name: Probe[main.testMultipleArrayArgs]
-      ByteSize: 81
-      ExprStatusArraySize: 1
+      ByteSize: 82
+      ExprStatusArraySize: 2
       Expressions:
         - Name: a
-          Offset: 1
+          Offset: 2
           Kind: template_segment
           Expression:
             Type: 114 ArrayType [2]int
@@ -20118,7 +20118,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: b
-          Offset: 17
+          Offset: 18
           Kind: template_segment
           Expression:
             Type: 256 ArrayType [3]int
@@ -20131,7 +20131,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: a
-          Offset: 41
+          Offset: 42
           Kind: argument
           Expression:
             Type: 114 ArrayType [2]int
@@ -20144,7 +20144,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: b
-          Offset: 57
+          Offset: 58
           Kind: argument
           Expression:
             Type: 256 ArrayType [3]int
@@ -20191,11 +20191,11 @@ Types:
     - __kind: EventRootType
       ID: 1688
       Name: Probe[main.testMultipleLargeArgs]
-      ByteSize: 321
-      ExprStatusArraySize: 1
+      ByteSize: 322
+      ExprStatusArraySize: 2
       Expressions:
         - Name: s1
-          Offset: 1
+          Offset: 2
           Kind: template_segment
           Expression:
             Type: 255 StructureType main.largeStruct
@@ -20208,7 +20208,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: s2
-          Offset: 81
+          Offset: 82
           Kind: template_segment
           Expression:
             Type: 255 StructureType main.largeStruct
@@ -20221,7 +20221,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: s1
-          Offset: 161
+          Offset: 162
           Kind: argument
           Expression:
             Type: 255 StructureType main.largeStruct
@@ -20234,7 +20234,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: s2
-          Offset: 241
+          Offset: 242
           Kind: argument
           Expression:
             Type: 255 StructureType main.largeStruct
@@ -20322,11 +20322,11 @@ Types:
     - __kind: EventRootType
       ID: 1635
       Name: Probe[main.testMultipleNamedReturn]
-      ByteSize: 33
-      ExprStatusArraySize: 1
+      ByteSize: 34
+      ExprStatusArraySize: 2
       Expressions:
         - Name: i
-          Offset: 1
+          Offset: 2
           Kind: template_segment
           Expression:
             Type: 9 BaseType int
@@ -20339,7 +20339,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: i
-          Offset: 9
+          Offset: 10
           Kind: template_segment
           Expression:
             Type: 9 BaseType int
@@ -20352,7 +20352,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: i
-          Offset: 17
+          Offset: 18
           Kind: template_segment
           Expression:
             Type: 9 BaseType int
@@ -20365,7 +20365,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: i
-          Offset: 25
+          Offset: 26
           Kind: argument
           Expression:
             Type: 9 BaseType int
@@ -20501,65 +20501,7 @@ Types:
     - __kind: EventRootType
       ID: 1634
       Name: Probe[main.testMultipleNamedReturn]Return
-      ByteSize: 33
-      ExprStatusArraySize: 1
-      Expressions:
-        - Name: result
-          Offset: 1
-          Kind: template_segment
-          Expression:
-            Type: 9 BaseType int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 108, index: 1, name: result}
-                  Offset: 0
-                  ByteSize: 8
-            LeafBodies: []
-            IsSplit: false
-          DictIndex: -1
-        - Name: result2
-          Offset: 9
-          Kind: template_segment
-          Expression:
-            Type: 9 BaseType int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 108, index: 2, name: result2}
-                  Offset: 0
-                  ByteSize: 8
-            LeafBodies: []
-            IsSplit: false
-          DictIndex: -1
-        - Name: result
-          Offset: 17
-          Kind: return
-          Expression:
-            Type: 9 BaseType int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 108, index: 1, name: result}
-                  Offset: 0
-                  ByteSize: 8
-            LeafBodies: []
-            IsSplit: false
-          DictIndex: -1
-        - Name: result2
-          Offset: 25
-          Kind: return
-          Expression:
-            Type: 9 BaseType int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 108, index: 2, name: result2}
-                  Offset: 0
-                  ByteSize: 8
-            LeafBodies: []
-            IsSplit: false
-          DictIndex: -1
-    - __kind: EventRootType
-      ID: 1636
-      Name: Probe[main.testMultipleNamedReturn]Return
-      ByteSize: 50
+      ByteSize: 34
       ExprStatusArraySize: 2
       Expressions:
         - Name: result
@@ -20575,39 +20517,13 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
-        - Name: result
+        - Name: result2
           Offset: 10
           Kind: template_segment
           Expression:
             Type: 9 BaseType int
             Operations:
                 - __kind: LocationOp
-                  Variable: {subprogram: 108, index: 1, name: result}
-                  Offset: 0
-                  ByteSize: 8
-            LeafBodies: []
-            IsSplit: false
-          DictIndex: -1
-        - Name: result2
-          Offset: 18
-          Kind: template_segment
-          Expression:
-            Type: 9 BaseType int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 108, index: 2, name: result2}
-                  Offset: 0
-                  ByteSize: 8
-            LeafBodies: []
-            IsSplit: false
-          DictIndex: -1
-        - Name: result2
-          Offset: 26
-          Kind: template_segment
-          Expression:
-            Type: 9 BaseType int
-            Operations:
-                - __kind: LocationOp
                   Variable: {subprogram: 108, index: 2, name: result2}
                   Offset: 0
                   ByteSize: 8
@@ -20615,7 +20531,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: result
-          Offset: 34
+          Offset: 18
           Kind: return
           Expression:
             Type: 9 BaseType int
@@ -20628,7 +20544,91 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: result2
-          Offset: 42
+          Offset: 26
+          Kind: return
+          Expression:
+            Type: 9 BaseType int
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 108, index: 2, name: result2}
+                  Offset: 0
+                  ByteSize: 8
+            LeafBodies: []
+            IsSplit: false
+          DictIndex: -1
+    - __kind: EventRootType
+      ID: 1636
+      Name: Probe[main.testMultipleNamedReturn]Return
+      ByteSize: 51
+      ExprStatusArraySize: 3
+      Expressions:
+        - Name: result
+          Offset: 3
+          Kind: template_segment
+          Expression:
+            Type: 9 BaseType int
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 108, index: 1, name: result}
+                  Offset: 0
+                  ByteSize: 8
+            LeafBodies: []
+            IsSplit: false
+          DictIndex: -1
+        - Name: result
+          Offset: 11
+          Kind: template_segment
+          Expression:
+            Type: 9 BaseType int
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 108, index: 1, name: result}
+                  Offset: 0
+                  ByteSize: 8
+            LeafBodies: []
+            IsSplit: false
+          DictIndex: -1
+        - Name: result2
+          Offset: 19
+          Kind: template_segment
+          Expression:
+            Type: 9 BaseType int
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 108, index: 2, name: result2}
+                  Offset: 0
+                  ByteSize: 8
+            LeafBodies: []
+            IsSplit: false
+          DictIndex: -1
+        - Name: result2
+          Offset: 27
+          Kind: template_segment
+          Expression:
+            Type: 9 BaseType int
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 108, index: 2, name: result2}
+                  Offset: 0
+                  ByteSize: 8
+            LeafBodies: []
+            IsSplit: false
+          DictIndex: -1
+        - Name: result
+          Offset: 35
+          Kind: return
+          Expression:
+            Type: 9 BaseType int
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 108, index: 1, name: result}
+                  Offset: 0
+                  ByteSize: 8
+            LeafBodies: []
+            IsSplit: false
+          DictIndex: -1
+        - Name: result2
+          Offset: 43
           Kind: return
           Expression:
             Type: 9 BaseType int
@@ -20707,11 +20707,11 @@ Types:
     - __kind: EventRootType
       ID: 1642
       Name: Probe[main.testMultipleNamedReturn]Return
-      ByteSize: 25
-      ExprStatusArraySize: 1
+      ByteSize: 26
+      ExprStatusArraySize: 2
       Expressions:
         - Name: '@duration'
-          Offset: 1
+          Offset: 2
           Kind: template_segment
           Expression:
             Type: 1 DurationType @duration
@@ -20724,7 +20724,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: result
-          Offset: 9
+          Offset: 10
           Kind: return
           Expression:
             Type: 9 BaseType int
@@ -20737,7 +20737,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: result2
-          Offset: 17
+          Offset: 18
           Kind: return
           Expression:
             Type: 9 BaseType int
@@ -20752,11 +20752,11 @@ Types:
     - __kind: EventRootType
       ID: 1587
       Name: Probe[main.testMultipleSimpleParams]
-      ByteSize: 63
-      ExprStatusArraySize: 3
+      ByteSize: 65
+      ExprStatusArraySize: 5
       Expressions:
         - Name: a
-          Offset: 3
+          Offset: 5
           Kind: template_segment
           Expression:
             Type: 6 BaseType bool
@@ -20769,7 +20769,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: b
-          Offset: 4
+          Offset: 6
           Kind: template_segment
           Expression:
             Type: 5 BaseType uint8
@@ -20782,7 +20782,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: c
-          Offset: 5
+          Offset: 7
           Kind: template_segment
           Expression:
             Type: 12 BaseType int32
@@ -20795,7 +20795,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: d
-          Offset: 9
+          Offset: 11
           Kind: template_segment
           Expression:
             Type: 18 BaseType uint
@@ -20808,7 +20808,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: e
-          Offset: 17
+          Offset: 19
           Kind: template_segment
           Expression:
             Type: 11 GoStringHeaderType string
@@ -20821,7 +20821,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: a
-          Offset: 33
+          Offset: 35
           Kind: argument
           Expression:
             Type: 6 BaseType bool
@@ -20834,7 +20834,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: b
-          Offset: 34
+          Offset: 36
           Kind: argument
           Expression:
             Type: 5 BaseType uint8
@@ -20847,7 +20847,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: c
-          Offset: 35
+          Offset: 37
           Kind: argument
           Expression:
             Type: 12 BaseType int32
@@ -20860,7 +20860,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: d
-          Offset: 39
+          Offset: 41
           Kind: argument
           Expression:
             Type: 18 BaseType uint
@@ -20873,7 +20873,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: e
-          Offset: 47
+          Offset: 49
           Kind: argument
           Expression:
             Type: 11 GoStringHeaderType string
@@ -21114,11 +21114,11 @@ Types:
     - __kind: EventRootType
       ID: 1597
       Name: Probe[main.testNilPointer]
-      ByteSize: 33
-      ExprStatusArraySize: 1
+      ByteSize: 34
+      ExprStatusArraySize: 2
       Expressions:
         - Name: z
-          Offset: 1
+          Offset: 2
           Kind: template_segment
           Expression:
             Type: 13 PointerType *bool
@@ -21131,7 +21131,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: a
-          Offset: 9
+          Offset: 10
           Kind: template_segment
           Expression:
             Type: 18 BaseType uint
@@ -21144,7 +21144,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: z
-          Offset: 17
+          Offset: 18
           Kind: argument
           Expression:
             Type: 13 PointerType *bool
@@ -21157,7 +21157,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: a
-          Offset: 25
+          Offset: 26
           Kind: argument
           Expression:
             Type: 18 BaseType uint
@@ -21172,11 +21172,11 @@ Types:
     - __kind: EventRootType
       ID: 1707
       Name: Probe[main.testNilSliceOfStructs]
-      ByteSize: 65
-      ExprStatusArraySize: 1
+      ByteSize: 66
+      ExprStatusArraySize: 2
       Expressions:
         - Name: xs
-          Offset: 1
+          Offset: 2
           Kind: template_segment
           Expression:
             Type: 265 GoSliceHeaderType []main.structWithNoStrings
@@ -21189,7 +21189,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: a
-          Offset: 25
+          Offset: 26
           Kind: template_segment
           Expression:
             Type: 9 BaseType int
@@ -21202,7 +21202,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: xs
-          Offset: 33
+          Offset: 34
           Kind: argument
           Expression:
             Type: 265 GoSliceHeaderType []main.structWithNoStrings
@@ -21215,7 +21215,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: a
-          Offset: 57
+          Offset: 58
           Kind: argument
           Expression:
             Type: 9 BaseType int
@@ -21230,11 +21230,11 @@ Types:
     - __kind: EventRootType
       ID: 1709
       Name: Probe[main.testNilSliceWithOtherParams]
-      ByteSize: 68
-      ExprStatusArraySize: 2
+      ByteSize: 69
+      ExprStatusArraySize: 3
       Expressions:
         - Name: a
-          Offset: 2
+          Offset: 3
           Kind: template_segment
           Expression:
             Type: 17 BaseType int8
@@ -21247,7 +21247,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: s
-          Offset: 3
+          Offset: 4
           Kind: template_segment
           Expression:
             Type: 268 GoSliceHeaderType []bool
@@ -21260,7 +21260,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: x
-          Offset: 27
+          Offset: 28
           Kind: template_segment
           Expression:
             Type: 18 BaseType uint
@@ -21273,7 +21273,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: a
-          Offset: 35
+          Offset: 36
           Kind: argument
           Expression:
             Type: 17 BaseType int8
@@ -21286,7 +21286,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: s
-          Offset: 36
+          Offset: 37
           Kind: argument
           Expression:
             Type: 268 GoSliceHeaderType []bool
@@ -21299,7 +21299,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: x
-          Offset: 60
+          Offset: 61
           Kind: argument
           Expression:
             Type: 18 BaseType uint
@@ -21474,11 +21474,11 @@ Types:
     - __kind: EventRootType
       ID: 1617
       Name: Probe[main.testReturnsAnyAndError]
-      ByteSize: 35
-      ExprStatusArraySize: 1
+      ByteSize: 36
+      ExprStatusArraySize: 2
       Expressions:
         - Name: v
-          Offset: 1
+          Offset: 2
           Kind: template_segment
           Expression:
             Type: 57 GoEmptyInterfaceType interface {}
@@ -21491,7 +21491,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: failed
-          Offset: 17
+          Offset: 18
           Kind: template_segment
           Expression:
             Type: 6 BaseType bool
@@ -21504,7 +21504,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: v
-          Offset: 18
+          Offset: 19
           Kind: argument
           Expression:
             Type: 57 GoEmptyInterfaceType interface {}
@@ -21517,7 +21517,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: failed
-          Offset: 34
+          Offset: 35
           Kind: argument
           Expression:
             Type: 6 BaseType bool
@@ -21684,11 +21684,11 @@ Types:
     - __kind: EventRootType
       ID: 1671
       Name: Probe[main.testReturnsBacktrackInt]Return
-      ByteSize: 83
-      ExprStatusArraySize: 3
+      ByteSize: 85
+      ExprStatusArraySize: 5
       Expressions:
         - Name: r0
-          Offset: 3
+          Offset: 5
           Kind: return
           Expression:
             Type: 9 BaseType int
@@ -21701,7 +21701,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: r1
-          Offset: 11
+          Offset: 13
           Kind: return
           Expression:
             Type: 9 BaseType int
@@ -21714,7 +21714,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: r2
-          Offset: 19
+          Offset: 21
           Kind: return
           Expression:
             Type: 9 BaseType int
@@ -21727,7 +21727,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: r3
-          Offset: 27
+          Offset: 29
           Kind: return
           Expression:
             Type: 9 BaseType int
@@ -21740,7 +21740,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: r4
-          Offset: 35
+          Offset: 37
           Kind: return
           Expression:
             Type: 9 BaseType int
@@ -21753,7 +21753,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: r5
-          Offset: 43
+          Offset: 45
           Kind: return
           Expression:
             Type: 9 BaseType int
@@ -21766,7 +21766,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: r6
-          Offset: 51
+          Offset: 53
           Kind: return
           Expression:
             Type: 9 BaseType int
@@ -21779,7 +21779,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: r7
-          Offset: 59
+          Offset: 61
           Kind: return
           Expression:
             Type: 9 BaseType int
@@ -21792,7 +21792,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: r8
-          Offset: 67
+          Offset: 69
           Kind: return
           Expression:
             Type: 11 GoStringHeaderType string
@@ -21998,11 +21998,11 @@ Types:
     - __kind: EventRootType
       ID: 1610
       Name: Probe[main.testReturnsIntAndFloat]Return
-      ByteSize: 25
-      ExprStatusArraySize: 1
+      ByteSize: 26
+      ExprStatusArraySize: 2
       Expressions:
         - Name: '@return.r0'
-          Offset: 1
+          Offset: 2
           Kind: template_segment
           Expression:
             Type: 9 BaseType int
@@ -22015,7 +22015,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: r0
-          Offset: 9
+          Offset: 10
           Kind: return
           Expression:
             Type: 9 BaseType int
@@ -22028,7 +22028,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: r1
-          Offset: 17
+          Offset: 18
           Kind: return
           Expression:
             Type: 20 BaseType float64
@@ -22043,11 +22043,11 @@ Types:
     - __kind: EventRootType
       ID: 1612
       Name: Probe[main.testReturnsIntAndFloat]Return
-      ByteSize: 25
-      ExprStatusArraySize: 1
+      ByteSize: 26
+      ExprStatusArraySize: 2
       Expressions:
         - Name: '@return.r1'
-          Offset: 1
+          Offset: 2
           Kind: template_segment
           Expression:
             Type: 20 BaseType float64
@@ -22060,7 +22060,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: r0
-          Offset: 9
+          Offset: 10
           Kind: return
           Expression:
             Type: 9 BaseType int
@@ -22073,7 +22073,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: r1
-          Offset: 17
+          Offset: 18
           Kind: return
           Expression:
             Type: 20 BaseType float64
@@ -22422,11 +22422,11 @@ Types:
     - __kind: EventRootType
       ID: 1657
       Name: Probe[main.testReturnsManyFloats]Return
-      ByteSize: 141
-      ExprStatusArraySize: 5
+      ByteSize: 145
+      ExprStatusArraySize: 9
       Expressions:
         - Name: r0
-          Offset: 5
+          Offset: 9
           Kind: return
           Expression:
             Type: 20 BaseType float64
@@ -22439,7 +22439,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: r1
-          Offset: 13
+          Offset: 17
           Kind: return
           Expression:
             Type: 20 BaseType float64
@@ -22452,7 +22452,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: r2
-          Offset: 21
+          Offset: 25
           Kind: return
           Expression:
             Type: 20 BaseType float64
@@ -22465,7 +22465,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: r3
-          Offset: 29
+          Offset: 33
           Kind: return
           Expression:
             Type: 20 BaseType float64
@@ -22478,7 +22478,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: r4
-          Offset: 37
+          Offset: 41
           Kind: return
           Expression:
             Type: 20 BaseType float64
@@ -22491,7 +22491,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: r5
-          Offset: 45
+          Offset: 49
           Kind: return
           Expression:
             Type: 20 BaseType float64
@@ -22504,7 +22504,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: r6
-          Offset: 53
+          Offset: 57
           Kind: return
           Expression:
             Type: 20 BaseType float64
@@ -22517,7 +22517,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: r7
-          Offset: 61
+          Offset: 65
           Kind: return
           Expression:
             Type: 20 BaseType float64
@@ -22530,7 +22530,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: r8
-          Offset: 69
+          Offset: 73
           Kind: return
           Expression:
             Type: 20 BaseType float64
@@ -22543,7 +22543,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: r9
-          Offset: 77
+          Offset: 81
           Kind: return
           Expression:
             Type: 20 BaseType float64
@@ -22556,7 +22556,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: r10
-          Offset: 85
+          Offset: 89
           Kind: return
           Expression:
             Type: 20 BaseType float64
@@ -22569,7 +22569,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: r11
-          Offset: 93
+          Offset: 97
           Kind: return
           Expression:
             Type: 20 BaseType float64
@@ -22582,7 +22582,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: r12
-          Offset: 101
+          Offset: 105
           Kind: return
           Expression:
             Type: 20 BaseType float64
@@ -22595,7 +22595,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: r13
-          Offset: 109
+          Offset: 113
           Kind: return
           Expression:
             Type: 20 BaseType float64
@@ -22608,7 +22608,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: r14
-          Offset: 117
+          Offset: 121
           Kind: return
           Expression:
             Type: 20 BaseType float64
@@ -22621,7 +22621,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: onlyOnAmd64_16
-          Offset: 125
+          Offset: 129
           Kind: return
           Expression:
             Type: 20 BaseType float64
@@ -22634,7 +22634,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: bothArmAndAmd64
-          Offset: 133
+          Offset: 137
           Kind: return
           Expression:
             Type: 20 BaseType float64
@@ -22674,11 +22674,11 @@ Types:
     - __kind: EventRootType
       ID: 1675
       Name: Probe[main.testReturnsMixed]Return
-      ByteSize: 50
-      ExprStatusArraySize: 2
+      ByteSize: 51
+      ExprStatusArraySize: 3
       Expressions:
         - Name: r0
-          Offset: 2
+          Offset: 3
           Kind: return
           Expression:
             Type: 9 BaseType int
@@ -22691,7 +22691,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: r1
-          Offset: 10
+          Offset: 11
           Kind: return
           Expression:
             Type: 20 BaseType float64
@@ -22704,7 +22704,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: r2
-          Offset: 18
+          Offset: 19
           Kind: return
           Expression:
             Type: 9 BaseType int
@@ -22717,7 +22717,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: r3
-          Offset: 26
+          Offset: 27
           Kind: return
           Expression:
             Type: 20 BaseType float64
@@ -22730,7 +22730,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: r4
-          Offset: 34
+          Offset: 35
           Kind: return
           Expression:
             Type: 11 GoStringHeaderType string
@@ -22780,11 +22780,11 @@ Types:
     - __kind: EventRootType
       ID: 1653
       Name: Probe[main.testReturnsNamedDeferLine]Line
-      ByteSize: 49
-      ExprStatusArraySize: 1
+      ByteSize: 50
+      ExprStatusArraySize: 2
       Expressions:
         - Name: i
-          Offset: 1
+          Offset: 2
           Kind: template_segment
           Expression:
             Type: 9 BaseType int
@@ -22797,7 +22797,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: i
-          Offset: 9
+          Offset: 10
           Kind: local
           Expression:
             Type: 9 BaseType int
@@ -22810,7 +22810,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: a
-          Offset: 17
+          Offset: 18
           Kind: local
           Expression:
             Type: 11 GoStringHeaderType string
@@ -22823,7 +22823,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: b
-          Offset: 33
+          Offset: 34
           Kind: local
           Expression:
             Type: 11 GoStringHeaderType string
@@ -22863,11 +22863,11 @@ Types:
     - __kind: EventRootType
       ID: 1655
       Name: Probe[main.testReturnsPrimitives]Return
-      ByteSize: 32
-      ExprStatusArraySize: 2
+      ByteSize: 34
+      ExprStatusArraySize: 4
       Expressions:
         - Name: r0
-          Offset: 2
+          Offset: 4
           Kind: return
           Expression:
             Type: 17 BaseType int8
@@ -22880,7 +22880,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: r1
-          Offset: 3
+          Offset: 5
           Kind: return
           Expression:
             Type: 105 BaseType int16
@@ -22893,7 +22893,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: r2
-          Offset: 5
+          Offset: 7
           Kind: return
           Expression:
             Type: 12 BaseType int32
@@ -22906,7 +22906,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: r3
-          Offset: 9
+          Offset: 11
           Kind: return
           Expression:
             Type: 14 BaseType int64
@@ -22919,7 +22919,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: r4
-          Offset: 17
+          Offset: 19
           Kind: return
           Expression:
             Type: 5 BaseType uint8
@@ -22932,7 +22932,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: r5
-          Offset: 18
+          Offset: 20
           Kind: return
           Expression:
             Type: 8 BaseType uint16
@@ -22945,7 +22945,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: r6
-          Offset: 20
+          Offset: 22
           Kind: return
           Expression:
             Type: 4 BaseType uint32
@@ -22958,7 +22958,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: r7
-          Offset: 24
+          Offset: 26
           Kind: return
           Expression:
             Type: 10 BaseType uint64
@@ -23215,22 +23215,9 @@ Types:
     - __kind: EventRootType
       ID: 1507
       Name: Probe[main.testSingleInt8]
-      ByteSize: 5
-      ExprStatusArraySize: 1
+      ByteSize: 6
+      ExprStatusArraySize: 2
       Expressions:
-        - Name: x
-          Offset: 1
-          Kind: template_segment
-          Expression:
-            Type: 17 BaseType int8
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 25, index: 0, name: x}
-                  Offset: 0
-                  ByteSize: 1
-            LeafBodies: []
-            IsSplit: false
-          DictIndex: -1
         - Name: x
           Offset: 2
           Kind: template_segment
@@ -23259,6 +23246,19 @@ Types:
           DictIndex: -1
         - Name: x
           Offset: 4
+          Kind: template_segment
+          Expression:
+            Type: 17 BaseType int8
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 25, index: 0, name: x}
+                  Offset: 0
+                  ByteSize: 1
+            LeafBodies: []
+            IsSplit: false
+          DictIndex: -1
+        - Name: x
+          Offset: 5
           Kind: argument
           Expression:
             Type: 17 BaseType int8
@@ -23698,11 +23698,11 @@ Types:
     - __kind: EventRootType
       ID: 1644
       Name: Probe[main.testSomeNamedReturn]Return
-      ByteSize: 33
-      ExprStatusArraySize: 1
+      ByteSize: 34
+      ExprStatusArraySize: 2
       Expressions:
         - Name: '@return.r0'
-          Offset: 1
+          Offset: 2
           Kind: template_segment
           Expression:
             Type: 9 BaseType int
@@ -23715,7 +23715,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: r0
-          Offset: 9
+          Offset: 10
           Kind: return
           Expression:
             Type: 9 BaseType int
@@ -23728,7 +23728,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: result2
-          Offset: 17
+          Offset: 18
           Kind: return
           Expression:
             Type: 9 BaseType int
@@ -23741,7 +23741,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: r2
-          Offset: 25
+          Offset: 26
           Kind: return
           Expression:
             Type: 9 BaseType int
@@ -23775,11 +23775,11 @@ Types:
     - __kind: EventRootType
       ID: 1648
       Name: Probe[main.testSomeNamedReturn]Return
-      ByteSize: 33
-      ExprStatusArraySize: 1
+      ByteSize: 34
+      ExprStatusArraySize: 2
       Expressions:
         - Name: '@return.r0'
-          Offset: 1
+          Offset: 2
           Kind: template_segment
           Expression:
             Type: 9 BaseType int
@@ -23792,7 +23792,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: r0
-          Offset: 9
+          Offset: 10
           Kind: return
           Expression:
             Type: 9 BaseType int
@@ -23805,7 +23805,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: result2
-          Offset: 17
+          Offset: 18
           Kind: return
           Expression:
             Type: 9 BaseType int
@@ -23818,7 +23818,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: r2
-          Offset: 25
+          Offset: 26
           Kind: return
           Expression:
             Type: 9 BaseType int
@@ -23833,11 +23833,11 @@ Types:
     - __kind: EventRootType
       ID: 1650
       Name: Probe[main.testSomeNamedReturn]Return
-      ByteSize: 25
-      ExprStatusArraySize: 1
+      ByteSize: 26
+      ExprStatusArraySize: 2
       Expressions:
         - Name: r0
-          Offset: 1
+          Offset: 2
           Kind: return
           Expression:
             Type: 9 BaseType int
@@ -23850,7 +23850,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: result2
-          Offset: 9
+          Offset: 10
           Kind: return
           Expression:
             Type: 9 BaseType int
@@ -23863,7 +23863,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: r2
-          Offset: 17
+          Offset: 18
           Kind: return
           Expression:
             Type: 9 BaseType int
@@ -23910,11 +23910,11 @@ Types:
     - __kind: EventRootType
       ID: 1695
       Name: Probe[main.testStackArgRegReturns]Return
-      ByteSize: 25
-      ExprStatusArraySize: 1
+      ByteSize: 26
+      ExprStatusArraySize: 2
       Expressions:
         - Name: r0
-          Offset: 1
+          Offset: 2
           Kind: return
           Expression:
             Type: 9 BaseType int
@@ -23927,7 +23927,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: r1
-          Offset: 9
+          Offset: 10
           Kind: return
           Expression:
             Type: 9 BaseType int
@@ -23940,7 +23940,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: r2
-          Offset: 17
+          Offset: 18
           Kind: return
           Expression:
             Type: 9 BaseType int
@@ -24115,11 +24115,11 @@ Types:
     - __kind: EventRootType
       ID: 1705
       Name: Probe[main.testStructSlice]
-      ByteSize: 65
-      ExprStatusArraySize: 1
+      ByteSize: 66
+      ExprStatusArraySize: 2
       Expressions:
         - Name: xs
-          Offset: 1
+          Offset: 2
           Kind: template_segment
           Expression:
             Type: 265 GoSliceHeaderType []main.structWithNoStrings
@@ -24132,7 +24132,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: a
-          Offset: 25
+          Offset: 26
           Kind: template_segment
           Expression:
             Type: 9 BaseType int
@@ -24145,7 +24145,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: xs
-          Offset: 33
+          Offset: 34
           Kind: argument
           Expression:
             Type: 265 GoSliceHeaderType []main.structWithNoStrings
@@ -24158,7 +24158,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: a
-          Offset: 57
+          Offset: 58
           Kind: argument
           Expression:
             Type: 9 BaseType int
@@ -24425,11 +24425,11 @@ Types:
     - __kind: EventRootType
       ID: 1714
       Name: Probe[main.testSubslices]
-      ByteSize: 146
-      ExprStatusArraySize: 2
+      ByteSize: 147
+      ExprStatusArraySize: 3
       Expressions:
         - Name: as
-          Offset: 2
+          Offset: 3
           Kind: template_segment
           Expression:
             Type: 262 GoSliceHeaderType []uint
@@ -24442,7 +24442,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: bs
-          Offset: 26
+          Offset: 27
           Kind: template_segment
           Expression:
             Type: 262 GoSliceHeaderType []uint
@@ -24455,7 +24455,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: cs
-          Offset: 50
+          Offset: 51
           Kind: template_segment
           Expression:
             Type: 262 GoSliceHeaderType []uint
@@ -24468,7 +24468,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: as
-          Offset: 74
+          Offset: 75
           Kind: argument
           Expression:
             Type: 262 GoSliceHeaderType []uint
@@ -24481,7 +24481,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: bs
-          Offset: 98
+          Offset: 99
           Kind: argument
           Expression:
             Type: 262 GoSliceHeaderType []uint
@@ -24494,7 +24494,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: cs
-          Offset: 122
+          Offset: 123
           Kind: argument
           Expression:
             Type: 262 GoSliceHeaderType []uint
@@ -24509,11 +24509,11 @@ Types:
     - __kind: EventRootType
       ID: 1730
       Name: Probe[main.testSubstrings]
-      ByteSize: 98
-      ExprStatusArraySize: 2
+      ByteSize: 99
+      ExprStatusArraySize: 3
       Expressions:
         - Name: a
-          Offset: 2
+          Offset: 3
           Kind: template_segment
           Expression:
             Type: 11 GoStringHeaderType string
@@ -24526,7 +24526,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: b
-          Offset: 18
+          Offset: 19
           Kind: template_segment
           Expression:
             Type: 11 GoStringHeaderType string
@@ -24539,7 +24539,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: c
-          Offset: 34
+          Offset: 35
           Kind: template_segment
           Expression:
             Type: 11 GoStringHeaderType string
@@ -24552,7 +24552,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: a
-          Offset: 50
+          Offset: 51
           Kind: argument
           Expression:
             Type: 11 GoStringHeaderType string
@@ -24565,7 +24565,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: b
-          Offset: 66
+          Offset: 67
           Kind: argument
           Expression:
             Type: 11 GoStringHeaderType string
@@ -24578,7 +24578,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: c
-          Offset: 82
+          Offset: 83
           Kind: argument
           Expression:
             Type: 11 GoStringHeaderType string
@@ -24663,11 +24663,11 @@ Types:
     - __kind: EventRootType
       ID: 1724
       Name: Probe[main.testThreeStringsInStructPointer]
-      ByteSize: 49
-      ExprStatusArraySize: 1
+      ByteSize: 50
+      ExprStatusArraySize: 2
       Expressions:
         - Name: a.a
-          Offset: 1
+          Offset: 2
           Kind: template_segment
           Expression:
             Type: 11 GoStringHeaderType string
@@ -24684,7 +24684,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: a.b
-          Offset: 17
+          Offset: 18
           Kind: template_segment
           Expression:
             Type: 11 GoStringHeaderType string
@@ -24701,7 +24701,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: a.c
-          Offset: 33
+          Offset: 34
           Kind: template_segment
           Expression:
             Type: 11 GoStringHeaderType string
@@ -24752,11 +24752,11 @@ Types:
     - __kind: EventRootType
       ID: 1721
       Name: Probe[main.testThreeStringsInStruct]
-      ByteSize: 49
-      ExprStatusArraySize: 1
+      ByteSize: 50
+      ExprStatusArraySize: 2
       Expressions:
         - Name: a.a
-          Offset: 1
+          Offset: 2
           Kind: template_segment
           Expression:
             Type: 11 GoStringHeaderType string
@@ -24769,7 +24769,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: t.b
-          Offset: 17
+          Offset: 18
           Kind: template_segment
           Expression:
             Type: 11 GoStringHeaderType string
@@ -24782,7 +24782,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: t.c
-          Offset: 33
+          Offset: 34
           Kind: template_segment
           Expression:
             Type: 11 GoStringHeaderType string
@@ -24803,11 +24803,11 @@ Types:
     - __kind: EventRootType
       ID: 1718
       Name: Probe[main.testThreeStrings]
-      ByteSize: 98
-      ExprStatusArraySize: 2
+      ByteSize: 99
+      ExprStatusArraySize: 3
       Expressions:
         - Name: x
-          Offset: 2
+          Offset: 3
           Kind: template_segment
           Expression:
             Type: 11 GoStringHeaderType string
@@ -24820,7 +24820,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: "y"
-          Offset: 18
+          Offset: 19
           Kind: template_segment
           Expression:
             Type: 11 GoStringHeaderType string
@@ -24833,7 +24833,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: z
-          Offset: 34
+          Offset: 35
           Kind: template_segment
           Expression:
             Type: 11 GoStringHeaderType string
@@ -24846,7 +24846,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: x
-          Offset: 50
+          Offset: 51
           Kind: argument
           Expression:
             Type: 11 GoStringHeaderType string
@@ -24859,7 +24859,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: "y"
-          Offset: 66
+          Offset: 67
           Kind: argument
           Expression:
             Type: 11 GoStringHeaderType string
@@ -24872,7 +24872,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: z
-          Offset: 82
+          Offset: 83
           Kind: argument
           Expression:
             Type: 11 GoStringHeaderType string
@@ -25399,11 +25399,11 @@ Types:
     - __kind: EventRootType
       ID: 1700
       Name: Probe[main.testZeroSizeArgAndReturn]
-      ByteSize: 17
-      ExprStatusArraySize: 1
+      ByteSize: 18
+      ExprStatusArraySize: 2
       Expressions:
         - Name: a
-          Offset: 1
+          Offset: 2
           Kind: template_segment
           Expression:
             Type: 258 ArrayType [0]int
@@ -25416,7 +25416,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: b
-          Offset: 1
+          Offset: 2
           Kind: template_segment
           Expression:
             Type: 9 BaseType int
@@ -25429,7 +25429,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: a
-          Offset: 9
+          Offset: 10
           Kind: argument
           Expression:
             Type: 258 ArrayType [0]int
@@ -25442,7 +25442,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: b
-          Offset: 9
+          Offset: 10
           Kind: argument
           Expression:
             Type: 9 BaseType int
@@ -25489,18 +25489,18 @@ Types:
     - __kind: EventRootType
       ID: 1794
       Name: Probe[main.typeWithGenerics[go.shape.int].Guess]
-      ByteSize: 41
-      ExprStatusArraySize: 1
+      ByteSize: 42
+      ExprStatusArraySize: 2
       DictEntries:
         - DictIndex: 1
           DictRegister: 3
-          Offset: 1
+          Offset: 2
         - DictIndex: 0
           DictRegister: 3
-          Offset: 9
+          Offset: 10
       Expressions:
         - Name: value
-          Offset: 17
+          Offset: 18
           Kind: template_segment
           Expression:
             Type: 330 BaseType go.shape.int
@@ -25513,7 +25513,7 @@ Types:
             IsSplit: false
           DictIndex: 1
         - Name: x
-          Offset: 25
+          Offset: 26
           Kind: argument
           Expression:
             Type: 356 StructureType main.typeWithGenerics[go.shape.int]
@@ -25526,7 +25526,7 @@ Types:
             IsSplit: false
           DictIndex: 0
         - Name: value
-          Offset: 33
+          Offset: 34
           Kind: argument
           Expression:
             Type: 330 BaseType go.shape.int
@@ -25560,18 +25560,18 @@ Types:
     - __kind: EventRootType
       ID: 1796
       Name: Probe[main.typeWithGenerics[go.shape.string].Guess]
-      ByteSize: 65
-      ExprStatusArraySize: 1
+      ByteSize: 66
+      ExprStatusArraySize: 2
       DictEntries:
         - DictIndex: 1
           DictRegister: 2
-          Offset: 1
+          Offset: 2
         - DictIndex: 0
           DictRegister: 2
-          Offset: 9
+          Offset: 10
       Expressions:
         - Name: value
-          Offset: 17
+          Offset: 18
           Kind: template_segment
           Expression:
             Type: 332 GoStringHeaderType go.shape.string
@@ -25584,7 +25584,7 @@ Types:
             IsSplit: false
           DictIndex: 1
         - Name: x
-          Offset: 33
+          Offset: 34
           Kind: argument
           Expression:
             Type: 357 StructureType main.typeWithGenerics[go.shape.string]
@@ -25597,7 +25597,7 @@ Types:
             IsSplit: false
           DictIndex: 0
         - Name: value
-          Offset: 49
+          Offset: 50
           Kind: argument
           Expression:
             Type: 332 GoStringHeaderType go.shape.string

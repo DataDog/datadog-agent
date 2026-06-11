@@ -369,15 +369,6 @@ DATADOG_AGENT_RTLOADER_API int handle_crashes(const int, const int, char **error
 */
 DATADOG_AGENT_RTLOADER_API char *get_integration_list(rtloader_t *);
 
-/*! \fn char *get_interpreter_memory_usage(rtloader_t *)
-    \brief Routine to get python interpreter memory usage (pympler).
-    \param rtloader_t A rtloader_t * pointer to the RtLoader instance.
-    \sa rtloader_t
-
-    TODO.
-*/
-DATADOG_AGENT_RTLOADER_API char *get_interpreter_memory_usage(rtloader_t *);
-
 // AGGREGATOR API
 /*! \fn void set_submit_metric_cb(rtloader_t *, cb_submit_metric_t)
     \brief Sets the submit metric callback to be used by rtloader for metric submission.
@@ -698,6 +689,24 @@ DATADOG_AGENT_RTLOADER_API void set_obfuscate_mongodb_string_cb(rtloader_t *, cb
     The callback is expected to be provided by the rtloader caller - in go-context: CGO.
 */
 DATADOG_AGENT_RTLOADER_API void set_emit_agent_telemetry_cb(rtloader_t *, cb_emit_agent_telemetry_t);
+
+/*! \fn void set_report_issue_cb(rtloader_t *, cb_report_issue_t)
+    \brief Sets a callback for reporting health platform issues from Python checks.
+    \param rtloader_t A rtloader_t * pointer to the RtLoader instance.
+    \param object A function pointer with cb_report_issue_t prototype to the callback function.
+
+    The callback is expected to be provided by the rtloader caller - in go-context: CGO.
+*/
+DATADOG_AGENT_RTLOADER_API void set_report_issue_cb(rtloader_t *, cb_report_issue_t);
+
+/*! \fn void set_resolve_issue_cb(rtloader_t *, cb_resolve_issue_t)
+    \brief Sets a callback for resolving health platform issues from Python checks.
+    \param rtloader_t A rtloader_t * pointer to the RtLoader instance.
+    \param object A function pointer with cb_resolve_issue_t prototype to the callback function.
+
+    The callback is expected to be provided by the rtloader caller - in go-context: CGO.
+*/
+DATADOG_AGENT_RTLOADER_API void set_resolve_issue_cb(rtloader_t *, cb_resolve_issue_t);
 
 #ifdef __cplusplus
 }

@@ -113,8 +113,8 @@ func newTestStore(t *testing.T) *healthPlatformImpl {
 		telemetry:        tel,
 		hostnameProvider: &mockHostname{name: "test-host"},
 		agentFlavor:      "agent",
-		issues:           make(map[string]*healthplatformpayload.Issue),
-		issuesByName:     make(map[string]map[string]struct{}),
+		issues:           make(map[string]*storedIssue),
+		issuesByName:     make(map[string][]string),
 		persistedIssues:  make(map[string]*PersistedIssue),
 		persistence:      &memPersistence{},
 		metrics: telemetryMetrics{
@@ -245,9 +245,9 @@ func TestGetAllIssuesDeepCopy(t *testing.T) {
 	require.NotNil(t, got)
 
 	// Mutating the returned value must not affect the in-store issue.
-	originalSource := h.issues["t:id"].Source
+	originalSource := h.issues["t:id"].issue.Source
 	got.Source = "hacked"
-	assert.Equal(t, originalSource, h.issues["t:id"].Source)
+	assert.Equal(t, originalSource, h.issues["t:id"].issue.Source)
 }
 
 func TestMultiInstanceSameType(t *testing.T) {
@@ -282,15 +282,28 @@ func TestPersistenceRoundTrip(t *testing.T) {
 	require.NoError(t, h1.ReportIssue(&healthplatformpayload.Issue{
 		Id: "t:id", IssueName: "t", Title: "Test Issue", Source: "test-src",
 	}))
+	firstSeen := h1.persistedIssues["t:id"].FirstSeen
 
 	h2 := newTestStore(t)
 	h2.persistence = newDiskPersistence(path, logger)
 	require.NoError(t, h2.loadFromDisk())
 
-	issue := h2.GetIssue("t:id")
-	require.NotNil(t, issue, "issue must survive persistence round-trip")
-	assert.Equal(t, "t:id", issue.Id)
-	assert.Equal(t, "Test Issue", issue.Title)
+	// Proto payload is not persisted — it is repopulated when the check re-runs.
+	// What must survive is the lifecycle state so that storeIssue can correctly
+	// resume firstSeen and state on the next ReportIssue call.
+	persisted := h2.persistedIssues["t:id"]
+	require.NotNil(t, persisted, "lifecycle state must survive persistence round-trip")
+	assert.Equal(t, "t:id", persisted.IssueID)
+	assert.Equal(t, "t", persisted.IssueType)
+	assert.Equal(t, firstSeen, persisted.FirstSeen)
+	assert.Equal(t, IssueStateNew, persisted.State)
+
+	// Re-reporting the same issue picks up the persisted firstSeen.
+	require.NoError(t, h2.ReportIssue(&healthplatformpayload.Issue{
+		Id: "t:id", IssueName: "t", Title: "Test Issue", Source: "test-src",
+	}))
+	assert.Equal(t, firstSeen, h2.persistedIssues["t:id"].FirstSeen, "firstSeen must be preserved across restart")
+	assert.Equal(t, IssueStateOngoing, h2.persistedIssues["t:id"].State)
 }
 
 func TestPersistenceVersionMismatch(t *testing.T) {
@@ -390,8 +403,8 @@ func TestTelemetryCounterIncrements(t *testing.T) {
 		telemetry:        tel,
 		hostnameProvider: &mockHostname{name: "test-host"},
 		agentFlavor:      "agent",
-		issues:           make(map[string]*healthplatformpayload.Issue),
-		issuesByName:     make(map[string]map[string]struct{}),
+		issues:           make(map[string]*storedIssue),
+		issuesByName:     make(map[string][]string),
 		persistedIssues:  make(map[string]*PersistedIssue),
 		persistence:      &memPersistence{},
 		metrics:          telemetryMetrics{issuesCounter: counter},

@@ -7,9 +7,9 @@ go_library(
     visibility = ["//visibility:private"],
     deps = [
         "//cmd/installer/command",
-        "//cmd/installer/subcommands",
         "//pkg/fleet/installer/commands",
         "//pkg/fleet/installer/errors",
+        "@//cmd/installer/subcommands",
         "@com_github_spf13_cobra//:cobra",
         "@org_uber_go_dig//:dig",
     ],

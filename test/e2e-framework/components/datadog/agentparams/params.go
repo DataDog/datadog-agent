@@ -341,13 +341,33 @@ func WithIntakeHostname(scheme string, hostname string) func(*Params) error {
 	return withIntakeHostname(pulumi.String(scheme), pulumi.String(hostname), pulumi.Int(port))
 }
 
-// WithFakeintake installs the fake intake and configures the Agent to use it.
+// WithFakeintake installs the fake intake and configures the Agent to use it,
+// including Remote Config. The agent is pointed at fakeintake's RC endpoint and
+// given the TUF root JSON derived from fakeintake's global signing key so it can
+// verify signed payloads without any extra provisioner options.
 //
 // This option is overwritten by `WithIntakeHostname`.
-func WithFakeintake(fakeintake *fakeintake.Fakeintake) func(*Params) error {
+func WithFakeintake(fi *fakeintake.Fakeintake) func(*Params) error {
 	return func(p *Params) error {
-		p.ResourceOptions = append(p.ResourceOptions, pulumi.DependsOn([]pulumi.Resource{fakeintake}))
-		return withIntakeHostname(fakeintake.Scheme, fakeintake.Host, fakeintake.Port)(p)
+		p.ResourceOptions = append(p.ResourceOptions, pulumi.DependsOn([]pulumi.Resource{fi}))
+		if err := withIntakeHostname(fi.Scheme, fi.Host, fi.Port)(p); err != nil {
+			return err
+		}
+		rootJSON, err := fakeintake.RCRootJSON()
+		if err != nil {
+			return fmt.Errorf("build fakeintake rc root json: %w", err)
+		}
+		rcConfig := fi.URL.ApplyT(func(fiURL string) (string, error) {
+			return fmt.Sprintf(`remote_configuration.enabled: true
+remote_configuration.rc_dd_url: %s
+remote_configuration.no_tls: true
+remote_configuration.refresh_interval: 5s
+remote_configuration.config_root: '%s'
+remote_configuration.director_root: '%s'
+`, fiURL, rootJSON, rootJSON), nil
+		}).(pulumi.StringOutput)
+		p.ExtraAgentConfig = append(p.ExtraAgentConfig, rcConfig)
+		return nil
 	}
 }
 
