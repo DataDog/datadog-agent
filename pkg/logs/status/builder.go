@@ -19,6 +19,8 @@ import (
 
 	logsMetrics "github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	sourcesPkg "github.com/DataDog/datadog-agent/pkg/logs/sources"
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
@@ -35,11 +37,13 @@ type Builder struct {
 	errors          *config.Messages
 	logsExpVars     *expvar.Map
 	pipelineMonitor logsMetrics.PipelineMonitor
+	config          model.Reader
 }
 
 // NewBuilder returns a new builder. pipelineMonitor owns the per-component backpressure snapshots
-// (may be nil, e.g. in tests, in which case the backpressure section is empty).
-func NewBuilder(isRunning *atomic.Uint32, endpoints *config.Endpoints, sources *sourcesPkg.LogSources, tracker *tailers.TailerTracker, warnings *config.Messages, errors *config.Messages, logExpVars *expvar.Map, pipelineMonitor logsMetrics.PipelineMonitor) *Builder {
+// (may be nil, e.g. in tests, in which case the backpressure section is empty). cfg may be nil,
+// in which case the performance-profile section is empty.
+func NewBuilder(isRunning *atomic.Uint32, endpoints *config.Endpoints, sources *sourcesPkg.LogSources, tracker *tailers.TailerTracker, warnings *config.Messages, errors *config.Messages, logExpVars *expvar.Map, pipelineMonitor logsMetrics.PipelineMonitor, cfg model.Reader) *Builder {
 	return &Builder{
 		isRunning:       isRunning,
 		endpoints:       endpoints,
@@ -49,7 +53,31 @@ func NewBuilder(isRunning *atomic.Uint32, endpoints *config.Endpoints, sources *
 		errors:          errors,
 		logsExpVars:     logExpVars,
 		pipelineMonitor: pipelineMonitor,
+		config:          cfg,
 	}
+}
+
+// getPerformanceProfile returns the active logs performance profile and the
+// settings it controls, reading each setting's current effective value and
+// source so the status reflects what actually took effect. Returns nil when no
+// profile is active or no config is available.
+func (b *Builder) getPerformanceProfile() *PerformanceProfile {
+	if b.config == nil {
+		return nil
+	}
+	name, version, settings, ok := pkgconfigsetup.ResolvedLogsPerformanceProfile(b.config)
+	if !ok {
+		return nil
+	}
+	pp := &PerformanceProfile{Name: name, Version: version}
+	for _, s := range settings {
+		pp.Settings = append(pp.Settings, PerformanceProfileSetting{
+			Key:    s.Key,
+			Value:  fmt.Sprintf("%v", b.config.Get(s.Key)),
+			Source: string(b.config.GetSource(s.Key)),
+		})
+	}
+	return pp
 }
 
 // BuildStatus returns the status of the logs-agent.
@@ -60,19 +88,26 @@ func (b *Builder) BuildStatus(verbose bool) Status {
 	}
 	utils := b.getComponentUtilization()
 	bp := b.getBackpressureStatus(utils)
+	profile := b.getPerformanceProfile()
+	activeProfile := ""
+	if profile != nil {
+		activeProfile = profile.Name
+	}
 	return Status{
-		IsRunning:            b.getIsRunning(),
-		Endpoints:            b.getEndpoints(),
-		Integrations:         b.getIntegrations(),
-		Tailers:              tailers,
-		StatusMetrics:        b.getMetricsStatus(),
-		ProcessFileStats:     b.getProcessFileStats(),
-		Warnings:             b.getWarnings(),
-		Errors:               b.getErrors(),
-		UseHTTP:              b.getUseHTTP(),
-		ComponentUtilization: utils,
-		Backpressure:         bp,
-		BackpressureTable:    b.formatBackpressureSection(utils, bp),
+		IsRunning:             b.getIsRunning(),
+		Endpoints:             b.getEndpoints(),
+		Integrations:          b.getIntegrations(),
+		Tailers:               tailers,
+		StatusMetrics:         b.getMetricsStatus(),
+		ProcessFileStats:      b.getProcessFileStats(),
+		Warnings:              b.getWarnings(),
+		Errors:                b.getErrors(),
+		UseHTTP:               b.getUseHTTP(),
+		ComponentUtilization:  utils,
+		Backpressure:          bp,
+		PerformanceProfile:    profile,
+		ProfileRecommendation: b.getProfileRecommendation(bp, activeProfile),
+		BackpressureTable:     b.formatBackpressureSection(utils, bp),
 	}
 }
 
@@ -183,26 +218,71 @@ func (b *Builder) getBackpressureStatus(utils []ComponentUtilization) Backpressu
 	if hasCurrSat {
 		dur30m := time.Duration(currSat30m) * time.Second
 		return BackpressureStatus{
-			State:  "SATURATED",
-			Reason: fmt.Sprintf("%s pipeline %s is currently saturated (saturated for %s in the last 30m)", currSatName, currSatInst, fmtDuration(dur30m)),
+			State:     "SATURATED",
+			Reason:    fmt.Sprintf("%s pipeline %s is currently saturated (saturated for %s in the last 30m)", currSatName, currSatInst, fmtDuration(dur30m)),
+			Component: currSatName,
 		}
 	}
 	// WARNING: saturation occurred in the last 1m or 30m but no component is currently at threshold.
 	if maxSat1m > 0 {
 		dur30m := time.Duration(sat30mForMaxSat1m) * time.Second
 		return BackpressureStatus{
-			State:  "WARNING",
-			Reason: fmt.Sprintf("%s pipeline %s is not currently saturated but was saturated for %s in the last 30m", satName1m, satInst1m, fmtDuration(dur30m)),
+			State:     "WARNING",
+			Reason:    fmt.Sprintf("%s pipeline %s is not currently saturated but was saturated for %s in the last 30m", satName1m, satInst1m, fmtDuration(dur30m)),
+			Component: satName1m,
 		}
 	}
 	if maxSat30m > 0 {
 		dur30m := time.Duration(maxSat30m) * time.Second
 		return BackpressureStatus{
-			State:  "WARNING",
-			Reason: fmt.Sprintf("%s pipeline %s is not currently saturated but was saturated for %s in the last 30m", satName30m, satInst30m, fmtDuration(dur30m)),
+			State:     "WARNING",
+			Reason:    fmt.Sprintf("%s pipeline %s is not currently saturated but was saturated for %s in the last 30m", satName30m, satInst30m, fmtDuration(dur30m)),
+			Component: satName30m,
 		}
 	}
 	return BackpressureStatus{State: "HEALTHY"}
+}
+
+// recommendedProfileForSaturation is the profile name suggested when the logs
+// pipeline is saturated. Saturation means the agent needs more capacity, and
+// high-throughput is the catalog profile that scales pipelines, send
+// concurrency, and buffers up. low-latency/low-resource would not relieve
+// saturation, so any saturated stage maps here today. As the catalog grows this
+// is the single place to refine the per-stage mapping.
+const recommendedProfileForSaturation = "high-throughput"
+
+// saturatedStageLabel returns a human-readable description of the pipeline stage
+// a component belongs to, for use in recommendation rationale.
+func saturatedStageLabel(component string) string {
+	switch {
+	case component == "processor":
+		return "processing stage"
+	case component == "strategy":
+		return "compression/batching stage"
+	case component == "worker" || component == logsMetrics.SenderTlmName || strings.HasPrefix(component, "destination_"):
+		return "send/transport stage"
+	default:
+		return "logs pipeline"
+	}
+}
+
+// getProfileRecommendation suggests a logs performance profile based on the
+// observed backpressure state. It returns nil when the pipeline is healthy or
+// when the profile it would recommend is already active.
+func (b *Builder) getProfileRecommendation(bp BackpressureStatus, activeProfile string) *ProfileRecommendation {
+	if bp.State != "SATURATED" && bp.State != "WARNING" {
+		return nil
+	}
+	recommended := recommendedProfileForSaturation
+	if recommended == activeProfile {
+		// Already on the profile we'd suggest; no further profile would help.
+		return nil
+	}
+	return &ProfileRecommendation{
+		Profile: recommended,
+		Reason: fmt.Sprintf("The %s is saturated. Consider the %q performance profile (set logs_config.profile: %s), which raises pipeline count, send concurrency, and buffer sizes.",
+			saturatedStageLabel(bp.Component), recommended, recommended),
+	}
 }
 
 // formatBackpressureSection renders the backpressure section as preformatted text (omitted from JSON).

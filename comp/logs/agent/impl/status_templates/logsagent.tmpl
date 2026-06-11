@@ -22,9 +22,27 @@
   {{- end }}
 {{- end }}
 
+{{- if .PerformanceProfile }}
+
+  Performance Profile
+  {{ printDashes "Performance Profile" "=" }}
+    Profile: {{ .PerformanceProfile.Name }} (version {{ .PerformanceProfile.Version }})
+  {{- range $setting := .PerformanceProfile.Settings }}
+    {{ $setting.Key }}: {{ $setting.Value }} (source: {{ $setting.Source }})
+  {{- end }}
+{{- end }}
+
 {{- if .BackpressureTable }}
 
 {{ .BackpressureTable }}
+{{- end }}
+
+{{- if .ProfileRecommendation }}
+
+  Recommended Performance Profile
+  {{ printDashes "Recommended Performance Profile" "=" }}
+    Recommended profile: {{ .ProfileRecommendation.Profile }}
+    {{ .ProfileRecommendation.Reason }}
 {{- end }}
 
 {{- if .ProcessFileStats }}

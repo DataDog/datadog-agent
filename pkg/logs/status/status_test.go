@@ -12,10 +12,13 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/util/testutils"
 )
@@ -92,6 +95,41 @@ func TestStatusDeduplicateErrorsAndWarnings(t *testing.T) {
 	status := Get(false)
 	assert.ElementsMatch(t, []string{"Identical Error", "Unique Error"}, status.Errors)
 	assert.ElementsMatch(t, []string{"Identical Warning", "Unique Warning"}, status.Warnings)
+}
+
+func TestStatusPerformanceProfileOffByDefault(t *testing.T) {
+	defer Clear()
+	initStatus(t)
+
+	status := Get(false)
+	assert.Nil(t, status.PerformanceProfile, "no profile section when profiles are off")
+}
+
+func TestStatusPerformanceProfile(t *testing.T) {
+	defer Clear()
+
+	mockConfig := configmock.New(t)
+	mockConfig.Set("logs_config.profile", "high-throughput", model.SourceFile)
+	InitStatus(mockConfig, testutils.CreateSources([]*sources.LogSource{
+		sources.NewLogSource("foo", &config.LogsConfig{Type: "foo"}),
+	}))
+
+	status := Get(false)
+
+	require.NotNil(t, status.PerformanceProfile)
+	assert.Equal(t, "high-throughput", status.PerformanceProfile.Name)
+	assert.Equal(t, 1, status.PerformanceProfile.Version)
+	require.NotEmpty(t, status.PerformanceProfile.Settings)
+
+	var foundPipelines bool
+	for _, s := range status.PerformanceProfile.Settings {
+		assert.NotEmpty(t, s.Key)
+		assert.NotEmpty(t, s.Source, "each touched setting must report its config source")
+		if s.Key == "logs_config.pipelines" {
+			foundPipelines = true
+		}
+	}
+	assert.True(t, foundPipelines, "high-throughput must report the pipelines setting it touches")
 }
 
 func TestMetrics(t *testing.T) {
@@ -227,6 +265,56 @@ func TestGetBackpressureStatus_SaturatedPicksHighestRatio(t *testing.T) {
 	bp := b.getBackpressureStatus(utils)
 	assert.Equal(t, "SATURATED", bp.State)
 	assert.Contains(t, bp.Reason, "sender", "highest AvgRatio component must appear in reason")
+}
+
+func TestProfileRecommendation_SaturatedRecommendsHighThroughput(t *testing.T) {
+	b := &Builder{}
+	utils := []ComponentUtilization{
+		{Name: "worker", Instance: "0", AvgRatio: 0.97, CurrentlySaturated: true, Saturated30mSeconds: 120},
+	}
+	bp := b.getBackpressureStatus(utils)
+
+	rec := b.getProfileRecommendation(bp, "")
+
+	require.NotNil(t, rec, "saturation with no active profile must yield a recommendation")
+	assert.Equal(t, "high-throughput", rec.Profile)
+	assert.True(t, pkgconfigsetup.LogsPerformanceProfileExists(rec.Profile),
+		"recommended profile must exist in the catalog")
+	assert.NotEmpty(t, rec.Reason)
+}
+
+func TestProfileRecommendation_HealthyNoRecommendation(t *testing.T) {
+	b := &Builder{}
+	utils := []ComponentUtilization{
+		{Name: "processor", Instance: "0", AvgRatio: 0.4},
+	}
+	bp := b.getBackpressureStatus(utils)
+
+	assert.Nil(t, b.getProfileRecommendation(bp, ""))
+}
+
+func TestProfileRecommendation_AlreadyOnRecommendedProfile(t *testing.T) {
+	b := &Builder{}
+	utils := []ComponentUtilization{
+		{Name: "worker", Instance: "0", AvgRatio: 0.97, CurrentlySaturated: true, Saturated30mSeconds: 120},
+	}
+	bp := b.getBackpressureStatus(utils)
+
+	// Already running the profile we'd recommend: no point recommending it again.
+	assert.Nil(t, b.getProfileRecommendation(bp, "high-throughput"))
+}
+
+func TestProfileRecommendation_WarningStateRecommends(t *testing.T) {
+	b := &Builder{}
+	utils := []ComponentUtilization{
+		{Name: "strategy", Instance: "0", AvgRatio: 0.6, Saturated1mSeconds: 30, Saturated30mSeconds: 90},
+	}
+	bp := b.getBackpressureStatus(utils)
+	require.Equal(t, "WARNING", bp.State)
+
+	rec := b.getProfileRecommendation(bp, "")
+	require.NotNil(t, rec)
+	assert.Equal(t, "high-throughput", rec.Profile)
 }
 
 func TestGetBackpressureStatus_WarningPicksHighestSat1m(t *testing.T) {

@@ -18,6 +18,15 @@
         {{$metric_name}}: {{$metric_value}}<br>
       {{- end }}
     {{- end }}
+    {{- if .PerformanceProfile }}
+      <span class="stat_subtitle">Performance Profile</span>
+      <span class="stat_subdata">
+        <strong>Profile:</strong> {{ .PerformanceProfile.Name }} (version {{ .PerformanceProfile.Version }})<br>
+        {{- range $setting := .PerformanceProfile.Settings }}
+        {{ $setting.Key }}: {{ $setting.Value }} (source: {{ $setting.Source }})<br>
+        {{- end }}
+      </span>
+    {{- end }}
     {{- if .ComponentUtilization }}
       <span class="stat_subtitle">Logs Agent Backpressure</span>
       <span class="stat_subdata">
@@ -53,6 +62,13 @@
           </tr>
           {{- end }}
         </table>
+      </span>
+    {{- end }}
+    {{- if .ProfileRecommendation }}
+      <span class="stat_subtitle">Recommended Performance Profile</span>
+      <span class="stat_subdata">
+        <strong>Recommended profile:</strong> {{ .ProfileRecommendation.Profile }}<br>
+        {{ .ProfileRecommendation.Reason }}<br>
       </span>
     {{- end }}
     {{- if .Errors }}

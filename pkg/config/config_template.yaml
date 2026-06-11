@@ -1225,6 +1225,29 @@ api_key:
 #
 # logs_config:
 
+#   # @param profile - string - optional - default: ""
+#   # @env DD_LOGS_CONFIG_PROFILE - string - optional - default: ""
+#   # Select a curated, pre-tuned Logs Agent performance profile instead of
+#   # tuning the individual logs_config.* performance settings by hand. The
+#   # selected profile sets pipelines, batching, channel sizes, and compression
+#   # for a given workload shape. Leave empty (the default) to keep the Agent's
+#   # standard default settings. Available profiles: "high-throughput",
+#   # "low-latency", "low-resource".
+#   #
+#   # A profile takes precedence over the same settings configured elsewhere in
+#   # this file; the Agent logs a warning listing any settings it overrides.
+#
+#   profile: ""
+
+#   # @param profile_version - integer - optional - default: 0
+#   # @env DD_LOGS_CONFIG_PROFILE_VERSION - integer - optional - default: 0
+#   # Pin the version of the selected `profile`. Profile versions are immutable,
+#   # so pinning a version guarantees that upgrading the Agent never changes a
+#   # host's effective performance settings. 0 (the default) resolves to
+#   # version 1. Set a higher version to opt into newer tuning.
+#
+#   profile_version: 0
+
 #   # @param container_collect_all - boolean - optional - default: false
 #   # @env DD_LOGS_CONFIG_CONTAINER_COLLECT_ALL - boolean - optional - default: false
 #   # Enable container log collection for all the containers (see ac_exclude to filter out containers)

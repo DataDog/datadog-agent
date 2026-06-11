@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
 )
@@ -100,6 +101,35 @@ type ComponentUtilization struct {
 type BackpressureStatus struct {
 	State  string `json:"state"`
 	Reason string `json:"reason"`
+	// Component is the pipeline component driving the state (e.g. "processor",
+	// "strategy", "worker", "destination_http"). Empty when HEALTHY.
+	Component string `json:"component,omitempty"`
+}
+
+// ProfileRecommendation suggests a logs performance profile based on observed
+// pipeline saturation. It is nil when no profile is recommended (e.g. the
+// pipeline is healthy or the recommended profile is already active).
+type ProfileRecommendation struct {
+	// Profile is the recommended logs_config.profile value.
+	Profile string `json:"profile"`
+	// Reason explains why the profile is recommended.
+	Reason string `json:"reason"`
+}
+
+// PerformanceProfileSetting is one config key controlled by the active logs
+// performance profile, along with its current effective value and source.
+type PerformanceProfileSetting struct {
+	Key    string `json:"key"`
+	Value  string `json:"value"`
+	Source string `json:"source"`
+}
+
+// PerformanceProfile describes the logs performance profile in effect and the
+// settings it controls. It is nil when no profile is active.
+type PerformanceProfile struct {
+	Name     string                      `json:"name"`
+	Version  int                         `json:"version"`
+	Settings []PerformanceProfileSetting `json:"settings"`
 }
 
 // Status provides some information about logs-agent.
@@ -115,6 +145,10 @@ type Status struct {
 	UseHTTP              bool                   `json:"use_http"`
 	ComponentUtilization []ComponentUtilization `json:"component_utilization"`
 	Backpressure         BackpressureStatus     `json:"backpressure"`
+	// PerformanceProfile is the active logs performance profile, or nil when off.
+	PerformanceProfile *PerformanceProfile `json:"performance_profile,omitempty"`
+	// ProfileRecommendation suggests a profile based on observed saturation, or nil when none.
+	ProfileRecommendation *ProfileRecommendation `json:"profile_recommendation,omitempty"`
 	// BackpressureTable is the preformatted text table, omitted from JSON; use ComponentUtilization for structured access.
 	BackpressureTable string `json:"-"`
 }
@@ -136,13 +170,13 @@ func GetCurrentTransport() Transport {
 }
 
 // Init instantiates the builder that builds the status on the fly.
-func Init(isRunning *atomic.Uint32, endpoints *config.Endpoints, sources *sources.LogSources, tracker *tailers.TailerTracker, logExpVars *expvar.Map, pipelineMonitor metrics.PipelineMonitor) {
+func Init(isRunning *atomic.Uint32, endpoints *config.Endpoints, sources *sources.LogSources, tracker *tailers.TailerTracker, logExpVars *expvar.Map, pipelineMonitor metrics.PipelineMonitor, coreConfig model.Reader) {
 	globalsLock.Lock()
 	defer globalsLock.Unlock()
 
 	warnings = config.NewMessages()
 	errors = config.NewMessages()
-	builder = NewBuilder(isRunning, endpoints, sources, tracker, warnings, errors, logExpVars, pipelineMonitor)
+	builder = NewBuilder(isRunning, endpoints, sources, tracker, warnings, errors, logExpVars, pipelineMonitor, coreConfig)
 }
 
 // Clear clears the status which means it needs to be initialized again to be used.
