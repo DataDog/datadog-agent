@@ -88,8 +88,7 @@ static int hook_sock_create(struct bpf_sock *ctx) {
     bpf_map_update_elem(&sock_cookie_pid, &cookie, &tgid, BPF_ANY);
 
     // record the owning pid in sk-local storage so the TC classifier can resolve it through
-    // bpf_sk_lookup. This runs in a cgroup/sock program (independently of fentry/kprobe mode), so
-    // it works on any kernel where sk-local storage is usable from cgroup/sock programs.
+    // bpf_sk_lookup; this cgroup/sock hook runs in both fentry and kprobe mode
     if (is_sk_lookup_pid_supported()) {
         u32 *stored_pid = bpf_sk_storage_get(&sk_storage_pid, ctx, &tgid, BPF_SK_STORAGE_GET_F_CREATE);
         if (stored_pid != NULL) {

@@ -250,10 +250,8 @@ static __attribute__((always_inline)) u64 is_sk_storage_supported() {
     return is_sk_storage_supported;
 }
 
-// is_sk_lookup_pid_supported returns whether TC pid resolution should be performed through
-// bpf_sk_lookup + sk-local storage instead of the flow_pid map. It is only enabled when the
-// cgroup/sock_create hook that populates sk_storage_pid is loaded and bpf_sk_lookup / sk-local
-// storage are usable, as decided by IsSkLookupPidResolutionSupported on the Go side.
+// is_sk_lookup_pid_supported returns whether TC pid resolution uses bpf_sk_lookup + sk-local storage
+// instead of the flow_pid map (decided by IsSkLookupPidResolutionSupported on the Go side).
 static __attribute__((always_inline)) u64 is_sk_lookup_pid_supported() {
     u64 is_sk_lookup_pid_supported;
     LOAD_CONSTANT("sk_lookup_pid_supported", is_sk_lookup_pid_supported);

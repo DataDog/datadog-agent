@@ -246,7 +246,6 @@ func (p *EBPFProbe) initCgroup2MountPath() {
 	if err != nil {
 		seclog.Warnf("%v", err)
 	}
-	seclog.Warnf(">>> cgroup v2 path: %s", p.cgroup2MountPath)
 	if len(p.cgroup2MountPath) == 0 {
 		seclog.Debugf("cgroup v2 not found on the host")
 	}
@@ -484,8 +483,6 @@ func (p *EBPFProbe) initEBPFManager() error {
 		seclog.Warnf("managerOptions init failed: %v", err)
 		return err
 	}
-
-	seclog.Warnf(">>> IsSkLookupPidResolutionSupported: %v", p.IsSkLookupPidResolutionSupported())
 
 	p.Manager.Probes = probes.AllProbes(p.useFentry, p.cgroup2MountPath)
 
@@ -3027,21 +3024,12 @@ func (p *EBPFProbe) isSKStorageSupported() bool {
 	return p.kernelVersion.HasSKStorageInTracingPrograms()
 }
 
-// IsSkLookupPidResolutionSupported returns whether the TC classifier should resolve packet pids
-// through bpf_sk_lookup + sk-local storage instead of the flow_pid map. The pid is recorded in
-// sk-local storage by the cgroup/sock_create hook and read back from the TC classifier after a
-// bpf_sk_lookup. This needs the cgroup socket hook to be attached, sk-local storage usable from
-// both cgroup/sock and sched_cls programs, and bpf_sk_lookup in sched_cls. None of this requires
-// fentry, so it also works in kprobe mode.
+// IsSkLookupPidResolutionSupported reports whether the TC classifier can resolve packet pids via
+// bpf_sk_lookup + sk-local storage (populated by the cgroup/sock_create hook) instead of the
+// flow_pid map. Requires cgroup v2, the cgroup socket hook, and bpf_sk_lookup / sk-local storage.
 func (p *EBPFProbe) IsSkLookupPidResolutionSupported() bool {
-	if len(p.cgroup2MountPath) == 0 {
-		// the cgroup/sock_create hook that populates sk_storage_pid is attached at the cgroup v2
-		// mount point, so cgroup v2 must be available
-		return false
-	}
-
-	if !p.kernelVersion.HasBpfGetSocketCookieForCgroupSocket() {
-		// the cgroup/sock_create hook that populates sk_storage_pid isn't attached
+	// the cgroup/sock_create hook that populates sk_storage_pid is attached at the cgroup v2 mount point
+	if len(p.cgroup2MountPath) == 0 || !p.kernelVersion.HasBpfGetSocketCookieForCgroupSocket() {
 		return false
 	}
 

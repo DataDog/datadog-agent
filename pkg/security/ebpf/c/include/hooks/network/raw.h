@@ -64,11 +64,6 @@ TAIL_CALL_CLASSIFIER_FNC(raw_packet_drop_action_cb, struct __sk_buff *skb) {
         return TC_ACT_UNSPEC;
     }
 
-    int dbg = pkt->l4.udp.dest == htons(5555);
-    if (dbg) {
-        bpf_printk(">>> DROP PACKET pid: %d", pkt->pid);
-    }
-
     if (!global_limiter_allow(RAW_PACKET_ACTION_LIMITER, 1, 1)) {
         return TC_ACT_SHOT;
     }

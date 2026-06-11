@@ -136,7 +136,6 @@ func assertSkStoragePidEntry(t *testing.T, m *ebpf.Map, fd int, expectedPid uint
 		t.Errorf("couldn't find sk_storage_pid entry for fd %d: %v", fd, err)
 		return
 	}
-	t.Logf("PID for fd %d: %d\n", fd, pid)
 	assert.Equal(t, expectedPid, pid, "wrong pid")
 }
 
