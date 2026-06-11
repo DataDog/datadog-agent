@@ -225,6 +225,56 @@ def releasenote(ctx):
 
 
 @task
+def releasenote_unique_ids(ctx, files=None):
+    """Check that release note UIDs are unique across the corpus.
+
+    Each reno filename ends with a 16-char hex UID (e.g. my-fix-aabbccdd11223344.yaml).
+    Two files sharing the same UID suffix break the changelog build and cause MQ conflicts.
+
+    When --files is given (comma-separated), only those files are checked against the
+    full corpus — intended for pre-commit and CI use. Without --files the full corpus
+    is scanned for any existing duplicates.
+    """
+    uid_re = re.compile(r'-([0-9a-f]{16})\.yaml$')
+
+    def uid_of(path):
+        m = uid_re.search(os.path.basename(path))
+        return m.group(1) if m else None
+
+    all_notes = glob('releasenotes/notes/*.yaml') + glob('releasenotes-dca/notes/*.yaml')
+
+    corpus: dict[str, list[str]] = {}
+    for path in all_notes:
+        uid = uid_of(path)
+        if uid:
+            corpus.setdefault(uid, []).append(path)
+
+    targets = [f.strip() for f in files.split(',') if f.strip()] if files else all_notes
+
+    errors = []
+    for path in targets:
+        uid = uid_of(path)
+        if uid:
+            existing = [f for f in corpus.get(uid, []) if f != path]
+            if existing:
+                errors.append((path, uid, existing))
+
+    if errors:
+        print(color_message("Duplicate release note UIDs detected:", "red"), file=sys.stderr)
+        for new, uid, dupes in errors:
+            print(f"  {new} (UID: {uid}) collides with:", file=sys.stderr)
+            for d in dupes:
+                print(f"    - {d}", file=sys.stderr)
+        print(
+            "\nFix: regenerate your note with `reno new <slug>` to get a fresh unique UID.",
+            file=sys.stderr,
+        )
+        raise Exit(code=1)
+
+    print(color_message(f"All {len(targets)} release note(s) have unique UIDs", "green"))
+
+
+@task
 def rst_releasenotes(ctx, files=None, only_changed=False):
     """Check release notes for RST formatting issues.
 
