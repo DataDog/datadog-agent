@@ -14,6 +14,7 @@
 #include "protocols/classification/structs.h"
 #include "protocols/classification/stack-helpers.h"
 #include "protocols/classification/routing.h"
+#include "tracer/telemetry.h"
 #include "protocols/grpc/defs.h"
 #include "protocols/grpc/helpers.h"
 #include "protocols/http/classification-helpers.h"
@@ -147,9 +148,19 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
         return;
     }
 
-    protocol_stack_t *protocol_stack = get_protocol_stack_if_exists(&classification_ctx->tuple);
+    increment_telemetry_count(protocol_classifier_calls);
+
+    protocol_stack_wrapper_t *protocol_stack_wrapper = get_protocol_stack_wrapper_if_exists(&classification_ctx->tuple);
+    protocol_stack_t *protocol_stack = protocol_stack_wrapper ? &protocol_stack_wrapper->stack : NULL;
 
     if (is_fully_classified(protocol_stack)) {
+        increment_telemetry_count(protocol_classifier_skipped_fully_classified);
+        return;
+    }
+
+    // Check if we've exceeded the maximum number of classification attempts
+    if (classification_attempts_exceeded(protocol_stack_wrapper)) {
+        increment_telemetry_count(protocol_classifier_skipped_max_attempts);
         return;
     }
 
