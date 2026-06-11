@@ -89,7 +89,6 @@ exports_files(glob(
 # gazelle:exclude comp/agent/cloudfoundrycontainer/fx
 # gazelle:exclude comp/agent/cloudfoundrycontainer/impl
 # gazelle:exclude comp/aggregator/demultiplexerendpoint/fx
-# gazelle:exclude comp/aggregator/demultiplexerendpoint/impl
 # gazelle:exclude comp/api/api/apiimpl/api.go
 # gazelle:exclude comp/api/api/apiimpl/api_mock.go
 # gazelle:exclude comp/api/api/apiimpl/api_test.go
@@ -119,7 +118,6 @@ exports_files(glob(
 # gazelle:exclude comp/core/gui/impl
 # gazelle:exclude comp/core/sysprobeconfig/sysprobeconfigimpl
 # gazelle:exclude comp/core/diagnose/local
-# gazelle:exclude comp/core/tagger/fx
 # gazelle:exclude comp/core/tagger/fx-dual
 # gazelle:exclude comp/core/tagger/impl-dual
 # gazelle:exclude comp/core/workloadmeta/collectors/catalog
@@ -141,7 +139,6 @@ exports_files(glob(
 # gazelle:exclude comp/core/workloadmeta/collectors/internal/remote/processcollector
 # gazelle:exclude comp/core/workloadmeta/collectors/internal/remote/workloadmeta
 # gazelle:exclude comp/core/workloadmeta/defaults
-# gazelle:exclude comp/core/workloadmeta/fx
 # gazelle:exclude comp/core/workloadmeta/init
 # gazelle:exclude comp/dogstatsd/http/fx
 # gazelle:exclude comp/dogstatsd/http/impl/*.go
@@ -272,7 +269,6 @@ exports_files(glob(
 # gazelle:exclude pkg/clusteragent/languagedetection
 # gazelle:exclude pkg/clusteragent/metricsstore
 # gazelle:exclude pkg/clusteragent/orchestrator
-# gazelle:exclude pkg/collector/aggregator
 # gazelle:exclude pkg/collector/corechecks/agentprofiling
 # gazelle:exclude pkg/collector/corechecks/cloud
 # gazelle:exclude pkg/collector/corechecks/cluster
@@ -403,8 +399,6 @@ exports_files(glob(
 # gazelle:exclude pkg/languagedetection/privileged
 # gazelle:exclude pkg/logs/client/http
 # gazelle:exclude pkg/logs/client/tcp
-# gazelle:exclude pkg/logs/internal/tag
-# gazelle:exclude pkg/logs/internal/util/adlistener
 # gazelle:exclude pkg/logs/launchers/container/tailerfactory
 # gazelle:exclude pkg/logs/launchers/file
 # gazelle:exclude pkg/logs/launchers/integration
@@ -448,7 +442,6 @@ exports_files(glob(
 # gazelle:exclude pkg/network/usm/tests
 # gazelle:exclude pkg/network/usm/testutil/grpc
 # gazelle:exclude pkg/network/usm/utils
-# gazelle:exclude pkg/networkdevice/sender
 # gazelle:exclude pkg/networkpath/telemetry
 # gazelle:exclude pkg/networkpath/traceroute/runner
 # gazelle:exclude pkg/privateactionrunner/autoconnections
