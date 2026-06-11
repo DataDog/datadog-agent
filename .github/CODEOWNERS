@@ -54,7 +54,6 @@
 /pyproject.toml                         @DataDog/agent-devx
 /repository.datadog.yml                 @DataDog/agent-devx
 /code-coverage.datadog.yml              @DataDog/agent-devx
-/generate_tools.go                      @DataDog/agent-devx
 /service.datadog.yaml                   @DataDog/agent-delivery @DataDog/agent-devx
 /static-analysis.datadog.yml            @DataDog/agent-devx
 /rust-toolchain.toml			@DataDog/agent-build
@@ -362,6 +361,7 @@
 /comp/checks/winregistry @DataDog/windows-products
 /comp/core/autodiscovery @DataDog/container-platform
 /comp/core/config @DataDog/agent-configuration
+/comp/core/configfilesdiscovery @DataDog/agent-discovery
 /comp/core/configstream @DataDog/agent-configuration
 /comp/core/configstreamconsumer @DataDog/agent-configuration
 /comp/core/configsync @DataDog/agent-configuration
@@ -874,6 +874,7 @@
 /test/new-e2e/tests/containers/ecs_test.go    @DataDog/ecs-experiences
 /test/new-e2e/tests/cspm                      @DataDog/agent-cspm @DataDog/agent-security
 /test/new-e2e/tests/discovery                 @DataDog/agent-discovery
+/test/new-e2e/tests/ddot                      @DataDog/agent-runtimes
 /test/new-e2e/tests/fips-compliance           @DataDog/agent-runtimes
 /test/new-e2e/tests/ha-agent                  @DataDog/network-device-monitoring-core
 /test/new-e2e/tests/language-detection        @DataDog/container-experiences
@@ -937,6 +938,10 @@
 /internal/third_party/kubernetes        @DataDog/container-integrations
 /internal/third_party/golang/           @DataDog/container-integrations
 
+/q_branch/                               @DataDog/q-branch
+/internal/qbranch/                       @DataDog/q-branch
+/comp/anomalydetection/                  @DataDog/q-branch # Useful for AGENTS.md files etc. at the root of all AD components
+
 # With the introduction of go.work, dependencies bump modify go.mod and go.sum in a lot of file.
 # Which bring a lot of team in the review each time. To make it smoother we no longer consider go.mod and go.sum owned by teams.
 # Each team can individually decide to update CODEOWNERS to be requested for a review on each modification of their go.mod/sum
@@ -947,10 +952,6 @@
 # Add here modules that need explicit review from the team owning them
 /pkg/util/scrubber/go.mod                @DataDog/agent-runtimes
 /pkg/util/scrubber/go.sum                @DataDog/agent-runtimes
-
-/q_branch/                               @DataDog/q-branch
-/internal/qbranch/                       @DataDog/q-branch
-/comp/anomalydetection/                  @DataDog/q-branch # Useful for AGENTS.md files etc. at the root of all AD components
 
 # AI-related files
 /.claude/rules/bazel.md               @DataDog/agent-build

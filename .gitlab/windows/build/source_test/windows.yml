@@ -61,8 +61,8 @@
     expire_in: 2 weeks
     when: always
     paths:
-      - ${TEST_OUTPUT_FILE}.json
-      - ${TEST_OUTPUT_FILE}_unified.json
+      - ${TEST_OUTPUT_FILE}_${CI_PIPELINE_ID}.json
+      - ${TEST_OUTPUT_FILE}_${CI_PIPELINE_ID}_unified.json
       - junit-*.tgz
     reports:
       junit: "**/junit-out-*.xml"

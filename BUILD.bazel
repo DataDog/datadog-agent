@@ -439,7 +439,6 @@ exports_files(glob(
 # gazelle:exclude pkg/gpu/safenvml
 # gazelle:exclude pkg/gpu/testutil
 # gazelle:exclude pkg/kubestatemetrics/builder
-# gazelle:exclude pkg/languagedetection/internal/detectors/privileged
 # gazelle:exclude pkg/languagedetection/privileged
 # gazelle:exclude pkg/logs/client/http
 # gazelle:exclude pkg/logs/client/tcp
@@ -694,11 +693,19 @@ gazelle(
     prefix = "github.com/DataDog/datadog-agent",
 )
 
+# Our dd_agent_go_test extension wraps the built-in Go extension and must replace it,
+# not extend it, to avoid duplicate rule generation.
+_LANGUAGES_WITHOUT_GO = [
+    lang
+    for lang in DEFAULT_LANGUAGES
+    if "//language/go" not in str(lang)
+]
+
 gazelle_binary(
     name = "gazelle_binary",
-    languages = DEFAULT_LANGUAGES + [
+    languages = _LANGUAGES_WITHOUT_GO + [
         "//bazel/rules/cws_codegen:gazelle_extension",
-        "//bazel/rules/go_build_tags:gazelle_extension",
+        "//bazel/rules/go:gazelle_extension",
         "//bazel/rules/go_msgp:gazelle_extension",
         "//bazel/rules/go_stringer:gazelle_extension",
         "//bazel/rules/write_pb_go:gazelle_extension",
@@ -863,6 +870,7 @@ write_source_files(
         "//pkg/proto/pbgo/privateactionrunner/errorcode:write_pb_go",
         "//pkg/proto/pbgo/privateactionrunner/privateactions:write_pb_go",
         "//pkg/proto/pbgo/process:write_pb_go",
+        "//pkg/proto/pbgo/procmgr:write_pb_go",
         "//pkg/proto/pbgo/sbom:write_pb_go",
         "//pkg/proto/pbgo/trace:agent_payload_gen",
         "//pkg/proto/pbgo/trace:span_gen",

@@ -562,11 +562,6 @@ char *get_integration_list(rtloader_t *rtloader)
     return AS_TYPE(RtLoader, rtloader)->getIntegrationList();
 }
 
-char *get_interpreter_memory_usage(rtloader_t *rtloader)
-{
-    return AS_TYPE(RtLoader, rtloader)->getInterpreterMemoryUsage();
-}
-
 void set_write_persistent_cache_cb(rtloader_t *rtloader, cb_write_persistent_cache_t cb)
 {
     AS_TYPE(RtLoader, rtloader)->setWritePersistentCacheCb(cb);
@@ -600,6 +595,16 @@ void set_obfuscate_mongodb_string_cb(rtloader_t *rtloader, cb_obfuscate_mongodb_
 void set_emit_agent_telemetry_cb(rtloader_t *rtloader, cb_emit_agent_telemetry_t cb)
 {
     AS_TYPE(RtLoader, rtloader)->setEmitAgentTelemetryCb(cb);
+}
+
+void set_report_issue_cb(rtloader_t *rtloader, cb_report_issue_t cb)
+{
+    AS_TYPE(RtLoader, rtloader)->setReportIssueCb(cb);
+}
+
+void set_resolve_issue_cb(rtloader_t *rtloader, cb_resolve_issue_t cb)
+{
+    AS_TYPE(RtLoader, rtloader)->setResolveIssueCb(cb);
 }
 
 /*
