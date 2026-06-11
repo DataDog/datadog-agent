@@ -125,10 +125,6 @@ exports_files(["go.mod"])
 # gazelle:exclude comp/connectivitychecker/fx
 # gazelle:exclude comp/connectivitychecker/impl
 # gazelle:exclude comp/core/autodiscovery/autodiscoveryimpl
-# gazelle:exclude comp/core/autodiscovery/common/utils
-# gazelle:exclude comp/core/autodiscovery/configresolver
-# gazelle:exclude comp/core/autodiscovery/listeners
-# gazelle:exclude comp/core/diagnose/local
 # gazelle:exclude comp/core/flare/flareimpl
 # gazelle:exclude comp/core/gui/fx
 # gazelle:exclude comp/core/gui/impl
@@ -283,7 +279,6 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/collector/corechecks/containers/cri
 # gazelle:exclude pkg/collector/corechecks/containers/docker
 # gazelle:exclude pkg/collector/corechecks/containers/kubelet
-# gazelle:exclude pkg/collector/corechecks/discovery
 # gazelle:exclude pkg/collector/corechecks/ebpf/noisyneighbor
 # gazelle:exclude pkg/collector/corechecks/ebpf/oomkill
 # gazelle:exclude pkg/collector/corechecks/ebpf/tcpqueuelength
