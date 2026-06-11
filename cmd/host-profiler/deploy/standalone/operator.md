@@ -6,7 +6,13 @@ If the OpenTelemetry Operator is not installed, follow the [official installatio
 
 ## Configure
 
+### Image and DataDog site
+
 In [`operator/collector.yaml`](operator/collector.yaml), update `spec.image` if you want a different image version, and set `DD_SITE` under `spec.env` to your Datadog site if you are not using `datadoghq.com`.
+
+### OpenTelemetry collector configuration
+
+The collector configuration lives in [`operator/collector.yaml`](operator/collector.yaml) under `spec.config` and can be configured like a regular collector.
 
 ## Deploy
 

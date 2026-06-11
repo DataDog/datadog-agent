@@ -23,6 +23,11 @@ kubectl create secret generic datadog-secret \
   --namespace dd-host-profiler
 ```
 
+## Configuration
+
+Standalone can be configured like any other OpenTelemetry Collector
+> https://opentelemetry.io/docs/collector/configuration/
+
 ## Verification
 
 After deploying the host profiler, profiles appear on the [Datadog Profiler](https://app.datadoghq.com/profiling) page within a few minutes. If profiles do not appear, see the [Troubleshooting](../troubleshooting.md) guide.

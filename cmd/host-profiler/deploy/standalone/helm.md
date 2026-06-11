@@ -13,7 +13,13 @@ helm repo update
 
 ## Configure
 
+### Image and DataDog site
+
 In [`helm/pod-spec.yaml`](helm/pod-spec.yaml), update `image.tag` if you want a different image version, and set `DD_SITE` under `extraEnvs` to your Datadog site if you are not using `datadoghq.com`.
+
+### OpenTelemetry collector configuration
+
+The collector configuration lives in [`helm/otel-config.yaml`](helm/otel-config.yaml) and can be configured like a regular collector.
 
 ## Deploy
 
