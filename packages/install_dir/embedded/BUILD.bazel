@@ -13,7 +13,9 @@ pkg_files(
 pkg_filegroup(
     name = "all_files",
     srcs = [
-        "etc_readme",
+        ":etc_readme",
+        "//deps/integrations:site_packages",
+        "@cpython//:runtime_deps",
     ],
 )
 

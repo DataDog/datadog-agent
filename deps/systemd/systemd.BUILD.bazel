@@ -47,6 +47,10 @@ pkg_files(
     prefix = "include/systemd",
 )
 
+# NOTE: embedded/include/systemd headers are intentionally shipped.
+# omnibus/config/software/systemd.rb installs them to embedded/include/systemd/
+# and datadog-agent-finalize.rb does NOT strip them.  Bazel is at parity with
+# omnibus on this point — do not add an exclusion here.
 pkg_filegroup(
     name = "all_files",
     srcs = [":hdr_files"],

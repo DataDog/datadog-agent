@@ -1,0 +1,89 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_files", "strip_prefix")
+
+go_library(
+    name = "impl",
+    srcs = [
+        "agent.go",
+        "auth.go",
+        "checks.go",
+        "checks_nopy.go",
+        "checks_python.go",
+        "gui.go",
+        "platform_darwin.go",
+        "platform_nix.go",
+        "platform_windows.go",
+        "render.go",
+    ],
+    embedsrcs = [
+        "views/templates/index.tmpl",
+        "views/templates/runningChecks.tmpl",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/gui/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/api/api/def",
+        "//comp/core/autodiscovery/impl",
+        "//comp/core/autodiscovery/integration",
+        "//comp/core/config",
+        "//comp/core/flare",
+        "//comp/core/flare/helpers",
+        "//comp/core/gui/def",
+        "//comp/core/hostname/hostnameinterface/def",
+        "//comp/core/log/def",
+        "//comp/core/status",
+        "//comp/def",
+        "//pkg/api/security",
+        "//pkg/collector",
+        "//pkg/collector/check/stats",
+        "//pkg/collector/corechecks",
+        "//pkg/collector/python",
+        "//pkg/config/model",
+        "//pkg/config/setup",
+        "//pkg/template/html",
+        "//pkg/util/defaultpaths",
+        "//pkg/util/log",
+        "//pkg/util/option",
+        "//pkg/util/system",
+        "//pkg/version",
+        "@com_github_cyphar_filepath_securejoin//:filepath-securejoin",
+        "@in_yaml_go_yaml_v2//:yaml",
+    ] + select({
+        "@rules_go//go/platform:windows": [
+            "//pkg/util/executable",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "impl_test",
+    srcs = [
+        "agent_test.go",
+        "auth_test.go",
+        "checks_test.go",
+        "platform_darwin_test.go",
+        "platform_nix_test.go",
+        "platform_windows_test.go",
+    ],
+    data = glob(["testdata/**"]),
+    embed = [":impl"],
+    gotags = ["test"],
+    deps = [
+        "//comp/core/config",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)
+
+# GUI static assets (css, fonts, images, js) shipped to bin/agent/dist/views/.
+# Mirrors the omnibus copy performed by the agent.build invoke task.
+pkg_files(
+    name = "views_files",
+    srcs = glob([
+        "views/private/**",
+    ]),
+    prefix = "bin/agent/dist/views",
+    strip_prefix = strip_prefix.from_pkg("views/private"),
+    visibility = ["//packages:__subpackages__"],
+)

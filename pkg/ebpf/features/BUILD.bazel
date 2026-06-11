@@ -1,0 +1,21 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "features",
+    srcs = [
+        "features.go",
+        "iterator.go",
+        "tracing.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/ebpf/features",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/ebpf/kernelbugs",
+        "//pkg/util/funcs",
+        "@com_github_cilium_ebpf//:ebpf",
+        "@com_github_cilium_ebpf//asm",
+        "@com_github_cilium_ebpf//features",
+        "@com_github_cilium_ebpf//link",
+        "@org_golang_x_sys//unix",
+    ],
+)

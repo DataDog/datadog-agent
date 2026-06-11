@@ -1,0 +1,8 @@
+"""Example configuration files shipped with the agent."""
+
+package(default_visibility = ["//visibility:public"])
+
+exports_files([
+    "application_monitoring.yaml.example",
+    "security-agent.yaml.example",
+])

@@ -9,6 +9,7 @@ from invoke.exceptions import Exit
 
 from tasks.build_tags import get_default_build_tags
 from tasks.flavor import AgentFlavor
+from tasks.libs.build.bazel import bazel_build_binary
 from tasks.libs.common.constants import CONTAINER_PLATFORM_MAPPING
 from tasks.libs.common.git import get_commit_sha, get_current_branch
 from tasks.libs.common.go import go_build
@@ -37,6 +38,7 @@ def build(
     no_strip_binary=False,
     arch_suffix=False,
     injector_only=False,
+    enable_bazel=True,
 ):
     """
     Build cws-instrumentation
@@ -71,19 +73,23 @@ def build(
     if not no_strip_binary:
         ldflags += " -s -w"
 
-    go_build(
-        ctx,
-        f"{REPO_PATH}/cmd/cws-instrumentation",
-        mod=go_mod,
-        race=race,
-        rebuild=rebuild,
-        gcflags=gcflags,
-        ldflags=ldflags,
-        build_tags=build_tags,
-        bin_path=agent_bin,
-        env=env,
-        check_deadcode=os.getenv("DEPLOY_AGENT") == "true",
-    )
+    if enable_bazel:
+        binary_path = bazel_build_binary(ctx, "//cmd/cws-instrumentation")
+        shutil.copy2(binary_path, agent_bin)
+    else:
+        go_build(
+            ctx,
+            f"{REPO_PATH}/cmd/cws-instrumentation",
+            mod=go_mod,
+            race=race,
+            rebuild=rebuild,
+            gcflags=gcflags,
+            ldflags=ldflags,
+            build_tags=build_tags,
+            bin_path=agent_bin,
+            env=env,
+            check_deadcode=os.getenv("DEPLOY_AGENT") == "true",
+        )
 
 
 @task

@@ -13,5 +13,4 @@ go_test(
     srcs = ["exitcode_test.go"],
     embed = [":exitcode"],
     gotags = ["test"],
-    target_compatible_with = ["@platforms//os:linux"],  # keep
 )

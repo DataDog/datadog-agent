@@ -1,0 +1,113 @@
+---
+# CI job that diffs the Bazel-built agent deb against the omnibus reference deb.
+# This gate is intended to run after the omnibus packaging job has produced its
+# artifact so that the comparison is meaningful.
+#
+# allow_failure: true until the known differences listed in
+# packages/installer/MIGRATION_PLAN.md are resolved and the diff is clean.
+
+bazel:packaging:comparison-gate:
+  extends: [ .bazel:defs:cache:omnibus-transition, .package_deb_x86 ]
+  stage: packaging
+  rules:
+    - when: on_success
+  # Consume the omnibus deb artifact produced earlier in the same pipeline.
+  # The deb lands in $OMNIBUS_PACKAGE_DIR on the runner for that job; GitLab
+  # copies the entire artifact directory to this job's workspace.
+  needs:
+    - job: agent_deb-x64-a7
+      artifacts: true
+  variables:
+    KUBERNETES_CPU_REQUEST: 8
+    KUBERNETES_MEMORY_REQUEST: "16Gi"
+    KUBERNETES_MEMORY_LIMIT: "16Gi"
+    # Paths that are known/accepted to differ between omnibus and Bazel builds.
+    # Lines matching these patterns in the unified diff are not treated as
+    # failures.  Extend this list as each known difference is investigated.
+    #
+    # Accepted drops (omnibus-only, intentionally absent from Bazel output):
+    #   version-manifest.json / version-manifest.txt  — omnibus-specific artefact
+    #   LICENSE (aggregated text file)                — pending decision (Phase 6)
+    #
+    # Accepted additions (Bazel-only):
+    #   datadog-installer symlinks / package dirs     — installer-symlinks component
+    # TODO: fix linux/BUILD.bazel version to "1:7" (epoch mismatch — apt upgrades break without this)
+    ACCEPTED_DIFF_PATTERNS: "version-manifest|^[<>] ./opt/datadog-packages/"
+  script:
+    # ── 1. Locate the omnibus reference deb ──────────────────────────────────
+    - |
+      OMNIBUS_DEB=$(find -L "$OMNIBUS_PACKAGE_DIR" -name "datadog-agent_*.deb" | head -1)
+      if [[ -z "$OMNIBUS_DEB" ]]; then
+        echo "ERROR: no omnibus deb found in $OMNIBUS_PACKAGE_DIR"
+        ls -la "$OMNIBUS_PACKAGE_DIR" || true
+        exit 1
+      fi
+      echo "Omnibus deb: $OMNIBUS_DEB"
+
+    # ── 2. Build the Bazel deb ────────────────────────────────────────────────
+    - bzl build //packages/agent/linux:debian
+    - |
+      BAZEL_DEB=$(find -L bazel-bin/packages/agent/linux -name "datadog-agent_*.deb" | head -1)
+      if [[ -z "$BAZEL_DEB" ]]; then
+        echo "ERROR: Bazel deb not found under bazel-bin/packages/agent/linux"
+        find bazel-bin/packages -name "*.deb" || true
+        exit 1
+      fi
+      echo "Bazel deb: $BAZEL_DEB"
+
+    # ── 3. File-tree diff ─────────────────────────────────────────────────────
+    - |
+      echo "=== File tree diff (< omnibus  > bazel) ==="
+      diff \
+        <(dpkg-deb --fsys-tarfile "$OMNIBUS_DEB" | tar tv | sort) \
+        <(dpkg-deb --fsys-tarfile "$BAZEL_DEB"   | tar tv | sort) \
+        | tee pkg-diff.txt || true
+
+    # ── 4. Control / scriptlet diff ──────────────────────────────────────────
+    - |
+      echo "=== Control section diff ==="
+      mkdir -p /tmp/omnibus-ctrl /tmp/bazel-ctrl
+      dpkg-deb -e "$OMNIBUS_DEB" /tmp/omnibus-ctrl/
+      dpkg-deb -e "$BAZEL_DEB"   /tmp/bazel-ctrl/
+      {
+        echo "--- control ---"
+        diff /tmp/omnibus-ctrl/control  /tmp/bazel-ctrl/control  || true
+        echo "--- postinst ---"
+        diff /tmp/omnibus-ctrl/postinst /tmp/bazel-ctrl/postinst || true
+        echo "--- postrm ---"
+        diff /tmp/omnibus-ctrl/postrm   /tmp/bazel-ctrl/postrm   || true
+        echo "--- preinst ---"
+        diff /tmp/omnibus-ctrl/preinst  /tmp/bazel-ctrl/preinst  || true
+        echo "--- prerm ---"
+        diff /tmp/omnibus-ctrl/prerm    /tmp/bazel-ctrl/prerm    || true
+        echo "=== md5sums diff ==="
+        diff /tmp/omnibus-ctrl/md5sums /tmp/bazel-ctrl/md5sums | head -50 || true
+      } | tee -a pkg-diff.txt
+
+    # ── 5. Fail on unexpected diffs ───────────────────────────────────────────
+    #
+    # Strip accepted patterns, then fail if anything remains.  The job is
+    # allow_failure:true so this produces a visible warning without blocking
+    # the pipeline while differences are being resolved.
+    - |
+      echo "=== Checking for unexpected differences ==="
+      UNEXPECTED=$(grep -E '^[<>]' pkg-diff.txt \
+        | grep -Ev "$ACCEPTED_DIFF_PATTERNS" \
+        || true)
+      if [[ -n "$UNEXPECTED" ]]; then
+        echo "FAIL: unexpected differences between omnibus and Bazel debs:"
+        echo "$UNEXPECTED"
+        exit 1
+      else
+        echo "OK: no unexpected differences"
+      fi
+  after_script:
+    # Copy the diff report into the artifact directory so it is easy to find.
+    - cp pkg-diff.txt "$OMNIBUS_PACKAGE_DIR/agent-pkg-diff.txt" 2>/dev/null || true
+  artifacts:
+    expire_in: 2 weeks
+    when: always
+    paths:
+      - pkg-diff.txt
+      - $OMNIBUS_PACKAGE_DIR/agent-pkg-diff.txt
+  allow_failure: true

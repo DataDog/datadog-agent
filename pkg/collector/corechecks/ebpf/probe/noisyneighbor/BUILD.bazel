@@ -1,5 +1,4 @@
-# gazelle:ignore
-
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 load("//bazel/rules/ebpf:cgo_godefs.bzl", "cgo_godefs")
 
 exports_files([
@@ -12,4 +11,39 @@ cgo_godefs(
     src = "ebpf_types.go",
     hdrs = ["//pkg/collector/corechecks/ebpf/c/runtime:corecheck_ebpf_headers"],
     visibility = ["//visibility:public"],
+)
+
+go_library(
+    name = "noisyneighbor",
+    srcs = [
+        "ebpf_types_linux.go",
+        "probe.go",
+    ],
+    cgo = True,
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/noisyneighbor",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/collector/corechecks/ebpf/probe/noisyneighbor/model",
+        "//pkg/ebpf",
+        "//pkg/ebpf/bytecode",
+        "//pkg/ebpf/telemetry",
+        "//pkg/util/kernel",
+        "//pkg/util/log",
+        "@com_github_datadog_ebpf_manager//:ebpf-manager",
+    ],
+)
+
+go_test(
+    name = "noisyneighbor_test",
+    srcs = [
+        "ebpf_types_linux_test.go",
+        "probe_test.go",
+    ],
+    embed = [":noisyneighbor"],
+    gotags = ["test"],
+    deps = [
+        "//pkg/ebpf",
+        "//pkg/util/kernel",
+        "@com_github_stretchr_testify//require",
+    ],
 )

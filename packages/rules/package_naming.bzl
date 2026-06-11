@@ -141,3 +141,17 @@ package_name_variables = rule(
     },
     toolchains = use_cc_toolchain(),
 )
+
+def _deb_architecture_file_impl(ctx):
+    cc_toolchain = find_cc_toolchain(ctx)
+    arch = _extract_arch(ctx, cc_toolchain.cpu, "deb")
+    out = ctx.actions.declare_file(ctx.label.name + ".txt")
+    ctx.actions.write(out, arch)
+    return DefaultInfo(files = depset([out]))
+
+deb_architecture_file = rule(
+    implementation = _deb_architecture_file_impl,
+    attrs = {},
+    toolchains = use_cc_toolchain(),
+    fragments = ["cpp"],
+)

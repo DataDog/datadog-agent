@@ -285,6 +285,51 @@ is written in the Starlark∩Python subset so it is both `load()`ed by `//BUILD.
 step. Edit that file to add or change a tag, using `set([...])` (a `{...}` literal is a dict in
 Starlark). The `AgentFlavor` mapping stays in `build_tags.py`, since Starlark has no enums.
 
+## Gazelle tag-union for agent migration
+
+When running Gazelle on packages not yet covered by the root `# gazelle:exclude` list (e.g. during
+the incremental BUILD-file migration), use the **canonical tag union** below so that Gazelle emits
+all per-flavor source variants into each BUILD file. `rules_go` then selects the correct variant at
+build time via `gotags`.
+
+### Canonical tag string (52 tags, sorted, comma-separated, no spaces)
+
+```
+bundle_installer,cel,clusterchecks,consul,containerd,cri,crio,cws_instrumentation_injector_only,datadog.no_waf,docker,e2ecoverage,e2eunit,ec2,etcd,fargateprocess,functionaltests,goexperiment.systemcrypto,grpcnotrace,jetson,jmx,kubeapiserver,kubelet,linux_bpf,manualtest,ncm,netcgo,netgo,no_dynamic_plugins,npm,nvml,oracle,orchestrator,osusergo,otlp,pcap,podman,private_runner_experimental,python,requirefips,retrynotrace,seclmax,serverless,sharedlibrarycheck,systemd,systemprobechecks,test,trivy,trivy_no_javadb,wmi,zk,zlib,zstd
+```
+
+This is `GAZELLE_BUILD_TAGS` (from `tasks/build_tags.bzl`) plus `pcap`. `pcap` is listed in
+`GAZELLE_OMIT_TAGS` in the normal repo-wide Gazelle run (because it requires cgo/libpcap which
+Gazelle's static analysis cannot resolve across the whole tree), but it is genuinely variant-bearing
+(`pcap.go` vs `pcap_unsupported.go`) and must be included when running on a scoped package that does
+not have pcap files. Including it for a repo-wide run risks breaking packages that use pcap — limit
+to targeted `update` invocations.
+
+### Exact Gazelle invocation
+
+```sh
+TAGS=$(cat /tmp/canonical_tags.txt)
+bzl run //:gazelle -- update -build_tags "$TAGS" ./path/to/package
+```
+
+To regenerate `/tmp/canonical_tags.txt` from the source of truth in `tasks/build_tags.bzl`
+(add `pcap` to `GAZELLE_BUILD_TAGS`, which otherwise omits it via `GAZELLE_OMIT_TAGS`):
+
+```sh
+python3 -c "
+exec(open('tasks/build_tags.bzl').read())
+tags = sorted(set(GAZELLE_BUILD_TAGS) | {'pcap'})
+print(','.join(tags), end='')
+" > /tmp/canonical_tags.txt
+```
+
+### Proof of correctness
+
+Running with these tags on `comp/otelcol/collector/impl-pipeline` (after temporarily removing its
+`gazelle:exclude` entry from the root `BUILD.bazel`) produced a `go_library` whose `srcs` contains
+both `no_otlp.go` (`//go:build !otlp`) and `pipeline.go` (`//go:build otlp`), confirming that the
+union correctly emits all per-flavor variants.
+
 ## Starlark language
 
 Starlark is Python-like but with deliberate restrictions for hermeticity and parallelism. Key divergences:
@@ -991,6 +1036,33 @@ Key Bazel macros:
 - `ebpf_prog` / `ebpf_program_suite` (`bazel/rules/ebpf/ebpf.bzl`) — compile `.c` → `.o`
 - `cgo_godefs` (`bazel/rules/ebpf/cgo_godefs.bzl`) — `go tool cgo -godefs` + `write_source_file` verification
 - `runtime_compilation_bundle` (`bazel/rules/ebpf/runtime_compilation.bzl`) — flatten headers + generate integrity hash `.go` file
+
+## Gazelle tag-union for agent migration
+
+Gazelle must be invoked with a `-build_tags` flag that is the union of all per-flavor build tags so
+that it emits ALL source-file variants (e.g. both `foo.go` with `//go:build sometag` and `no_foo.go`
+with `//go:build !sometag`) into a single `go_library` srcs list. rules_go then selects the correct
+variant at compile time via gotags; Gazelle only needs both variants present in the source list.
+
+The canonical tag string is stored in `/tmp/canonical_tags.txt` and is also recorded in
+`tasks/build_tags.bzl` (`GAZELLE_BUILD_TAGS`). To regenerate a BUILD.bazel for a package:
+
+```bash
+TAGS=$(cat /tmp/canonical_tags.txt)
+bzl run //:gazelle -- update -build_tags "$TAGS" ./<path/to/package>
+```
+
+Example proof — `comp/otelcol/collector/impl-pipeline` has two mutually exclusive source files:
+- `no_otlp.go` (`//go:build !otlp`)
+- `pipeline.go` (`//go:build otlp`)
+
+After removing the `# gazelle:exclude comp/otelcol/collector/impl-pipeline` line from the root
+`BUILD.bazel` and running Gazelle with the canonical tag string, the generated
+`comp/otelcol/collector/impl-pipeline/BUILD.bazel` contains both files in a single `go_library`
+srcs list — confirming the tag-union causes Gazelle to emit all variants.
+
+Note: packages still listed under `# gazelle:exclude` in the root `BUILD.bazel` are not yet
+migrated; remove the exclude line before running Gazelle on them.
 
 ## See also
 

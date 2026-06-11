@@ -1,0 +1,25 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "annotation",
+    srcs = ["annotation.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/annotation",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/util/log",
+        "@io_k8s_api//core/v1:core",
+    ],
+)
+
+go_test(
+    name = "annotation_test",
+    srcs = ["annotation_test.go"],
+    gotags = ["test"],
+    deps = [
+        ":annotation",
+        "//pkg/clusteragent/admission/mutate/common",
+        "@com_github_stretchr_testify//require",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+    ],
+)

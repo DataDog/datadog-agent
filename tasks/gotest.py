@@ -210,7 +210,14 @@ def get_bazel_test_targets(ctx, flavor: str, modules: list[GoModule], bazel_flag
     scope = ' + '.join(bazel_patterns)
     if not bazel_flags:
         bazel_flags = []
-    output = bazel(ctx, "cquery", *bazel_flags, f"kind(go_test, {scope})", capture_output=True, capture_stderr=True)
+    output = bazel(
+        ctx,
+        "cquery",
+        *bazel_flags,
+        f"kind(go_test, {scope}) except attr(tags, \"manual\", {scope})",
+        capture_output=True,
+        capture_stderr=True,
+    )
     if not output:
         return {}
 
@@ -272,7 +279,7 @@ def _run_bazel_tests(
     # Windows-safe command-length limit.
     # TODO: on Linux runners, the limit is much higher; consider platform-specific batching.
     MAX_CMD_LENGTH = 32000
-    base_args = ["test", "--keep_going"]
+    base_args = ["test", "--keep_going", "--test_tag_filters=-manual"]
     if bazel_flags:
         base_args.extend(bazel_flags)
     fixed_len = sum([len(a) for a in base_args]) + len(base_args) + 1  # args + spaces
@@ -563,9 +570,9 @@ def test(
     build_stdlib=False,
     test_washer=False,
     extra_args=None,
-    skip_tests_covered_by_bazel=False,
+    skip_tests_covered_by_bazel=True,
     write_bazel_test_list=None,
-    run_bazel_tests=False,
+    run_bazel_tests=True,
     run_on=None,  # noqa: U100, F841. Used by the run_on_devcontainer decorator
 ):
     """
@@ -584,11 +591,13 @@ def test(
     """
     sanitize_env_vars()
 
-    # Allow opting in to bazel integration via environment variable.
+    # Kill-switch: set EXPERIMENTAL_USE_BAZEL_TESTS=0/false/legacy to revert to pure go test
+    # (e.g. for CI emergency rollback).
     _bazel_env = os.environ.get("EXPERIMENTAL_USE_BAZEL_TESTS", "")
-    if _bazel_env not in ("", "0"):
-        skip_tests_covered_by_bazel = True
-        run_bazel_tests = True
+    if _bazel_env in ("0", "false", "legacy"):
+        # Kill-switch: revert to pure go test (e.g. for CI emergency rollback).
+        skip_tests_covered_by_bazel = False
+        run_bazel_tests = False
 
     modules, flavor = process_input_args(ctx, module, targets, flavor)
 

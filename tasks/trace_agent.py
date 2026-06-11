@@ -1,4 +1,5 @@
 import os
+import shutil
 import sys
 
 from invoke import task
@@ -8,6 +9,7 @@ from tasks.build_tags import (
 )
 from tasks.flavor import AgentFlavor
 from tasks.gointegrationtest import TRACE_AGENT_IT_CONF, containerized_integration_tests
+from tasks.libs.build.bazel import bazel_build_binary
 from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import REPO_PATH, bin_name, get_build_flags
 from tasks.windows_resources import build_messagetable, build_rc, versioninfo_vars
@@ -25,6 +27,7 @@ def build(
     flavor=AgentFlavor.base.name,
     install_path=None,
     go_mod="readonly",
+    enable_bazel=True,
 ):
     """
     Build the trace agent.
@@ -57,20 +60,24 @@ def build(
     # need to move into the pkg/trace module.
     with ctx.cd("./pkg/trace"):
         ctx.run(f"go generate -mod={go_mod} {REPO_PATH}/pkg/trace/info", env=env)
-    go_build(
-        ctx,
-        f"{REPO_PATH}/cmd/trace-agent",
-        mod=go_mod,
-        race=race,
-        rebuild=rebuild,
-        build_tags=build_tags,
-        bin_path=agent_bin,
-        ldflags=ldflags,
-        gcflags=gcflags,
-        env=env,
-        check_deadcode=os.getenv("DEPLOY_AGENT") == "true",
-        coverage=os.getenv("E2E_COVERAGE_PIPELINE") == "true",
-    )
+    if enable_bazel:
+        binary_path = bazel_build_binary(ctx, "//cmd/trace-agent")
+        shutil.copy2(binary_path, agent_bin)
+    else:
+        go_build(
+            ctx,
+            f"{REPO_PATH}/cmd/trace-agent",
+            mod=go_mod,
+            race=race,
+            rebuild=rebuild,
+            build_tags=build_tags,
+            bin_path=agent_bin,
+            ldflags=ldflags,
+            gcflags=gcflags,
+            env=env,
+            check_deadcode=os.getenv("DEPLOY_AGENT") == "true",
+            coverage=os.getenv("E2E_COVERAGE_PIPELINE") == "true",
+        )
 
 
 @task

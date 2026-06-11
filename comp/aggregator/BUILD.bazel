@@ -1,1 +1,36 @@
-# gazelle:ignore
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "aggregator",
+    srcs = ["bundle.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/aggregator",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/aggregator/demultiplexer/impl",
+        "//pkg/util/fxutil",
+    ],
+)
+
+go_test(
+    name = "aggregator_test",
+    srcs = ["bundle_test.go"],
+    embed = [":aggregator"],
+    gotags = ["test"],
+    deps = [
+        "//comp/aggregator/demultiplexer/impl",
+        "//comp/core",
+        "//comp/core/hostname/hostnameimpl",
+        "//comp/core/secrets/def",
+        "//comp/core/secrets/mock",
+        "//comp/core/tagger/fx-noop",
+        "//comp/filterlist/fx-mock",
+        "//comp/forwarder/defaultforwarder/mock",
+        "//comp/forwarder/eventplatform/mock",
+        "//comp/forwarder/orchestrator/mock",
+        "//comp/haagent/mock",
+        "//comp/serializer/logscompression/fx-mock",
+        "//comp/serializer/metricscompression/fx-mock",
+        "//pkg/util/fxutil",
+        "@org_uber_go_fx//:fx",
+    ],
+)

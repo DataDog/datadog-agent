@@ -55,22 +55,6 @@ go_msgp(
     src_file = "tracer_payload.pb.go",
 )
 
-write_pb_go(
-    name = "write_pb_go",
-    srcs = {
-        "//pkg/proto/datadog/trace:trace_go_proto_tagged": [
-            "agent_payload.pb.go",
-            "agent_payload_vtproto.pb.go",
-            "span.pb.go",
-            "span_vtproto.pb.go",
-            "stats.pb.go",
-            "stats_vtproto.pb.go",
-            "tracer_payload.pb.go",
-            "tracer_payload_vtproto.pb.go",
-        ],
-    },
-)
-
 go_library(
     name = "trace",
     srcs = [
@@ -135,4 +119,20 @@ go_test(
         "@com_github_vmihailenco_msgpack_v5//:msgpack",
         "@org_golang_google_protobuf//proto",
     ],
+)
+
+write_pb_go(
+    name = "write_pb_go",
+    srcs = {
+        "//pkg/proto/datadog/trace:trace_go_proto_tagged": [
+            "agent_payload.pb.go",
+            "agent_payload_vtproto.pb.go",
+            "span.pb.go",
+            "span_vtproto.pb.go",
+            "stats.pb.go",
+            "stats_vtproto.pb.go",
+            "tracer_payload.pb.go",
+            "tracer_payload_vtproto.pb.go",
+        ],
+    },
 )

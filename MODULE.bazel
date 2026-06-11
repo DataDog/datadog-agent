@@ -216,6 +216,20 @@ use_repo(llvm_bpf_ext, "llvm_bpf")
 
 register_toolchains("@llvm_bpf//:llvm_bpf_toolchain")
 
+######################################
+## Agent Data Plane binary          ##
+####################################
+
+agent_data_plane_ext = use_extension("//bazel/toolchains/agent_data_plane:agent_data_plane_configure.bzl", "agent_data_plane_configure")
+agent_data_plane_ext.configure(
+    fips_linux_amd64_sha256 = "fdb181f88dab89602251189df07a84a90dfe45cc0699ee5c9803c29a27cf5ced",
+    fips_linux_arm64_sha256 = "5b4dcbb5970bfa541a3c3240abbb7f422673d856bb853d72093f16a6e4b2e24e",
+    linux_amd64_sha256 = "e1e9c91047e0c80a8fce7d27a0db53e1c5fff97c8823811fa98a6af70e7856ac",
+    linux_arm64_sha256 = "7a484a09daf1c3c521d7a1e37a00d9d6a331c6aa3cbcaa36bd5ef5a35601624e",
+    version = "1.1.2",
+)
+use_repo(agent_data_plane_ext, "agent_data_plane")
+
 ## Linux kernel headers for eBPF prebuilt compilation
 ## Registers three repos: host auto-detect + explicit x86_64 + explicit aarch64
 ## for cross-compilation via --//bazel/rules/ebpf:target_arch=<arch>.
@@ -328,6 +342,9 @@ visual_studio(
 # Keep in sync with .python-version
 PYTHON_VERSION = "3.12"
 
+# Python version used for integration wheels (must match the embedded cpython interpreter).
+INTEGRATION_PYTHON_VERSION = "3.13"
+
 python = use_extension("@rules_python//python/extensions:python.bzl", "python")
 python.defaults(python_version = PYTHON_VERSION)
 python.toolchain(
@@ -335,7 +352,4523 @@ python.toolchain(
     is_default = True,
     python_version = PYTHON_VERSION,
 )
-use_repo(python, "python_" + PYTHON_VERSION.replace(".", "_"), "pythons_hub")
+python.toolchain(
+    is_default = False,
+    python_version = INTEGRATION_PYTHON_VERSION,
+)
+use_repo(python, "python_" + PYTHON_VERSION.replace(".", "_"), "python_" + INTEGRATION_PYTHON_VERSION.replace(".", "_"), "pythons_hub")
+
+# Pin integrations-core at a known commit so we can reference its lockfiles
+# and per-check source trees hermetically.
+# Tag matches the latest stable release of integrations-core.
+# Sourced from https://github.com/DataDog/integrations-core/releases/latest
+# To update: fetch the new tar.gz and recompute sha256.
+http_archive(
+    name = "integrations_core",
+    build_file_content = """
+filegroup(
+    name = "datadog_checks_base_srcs",
+    srcs = glob(["datadog_checks_base/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "datadog_checks_base_pyproject",
+    srcs = ["datadog_checks_base/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "active_directory_srcs",
+    srcs = glob(["active_directory/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "active_directory_pyproject",
+    srcs = ["active_directory/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "activemq_srcs",
+    srcs = glob(["activemq/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "activemq_pyproject",
+    srcs = ["activemq/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "activemq_confd",
+    srcs = glob(["activemq/datadog_checks/activemq/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "activemq_xml_srcs",
+    srcs = glob(["activemq_xml/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "activemq_xml_pyproject",
+    srcs = ["activemq_xml/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "activemq_xml_confd",
+    srcs = glob(["activemq_xml/datadog_checks/activemq_xml/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "aerospike_srcs",
+    srcs = glob(["aerospike/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "aerospike_pyproject",
+    srcs = ["aerospike/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "aerospike_confd",
+    srcs = glob(["aerospike/datadog_checks/aerospike/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "airflow_srcs",
+    srcs = glob(["airflow/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "airflow_pyproject",
+    srcs = ["airflow/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "airflow_confd",
+    srcs = glob(["airflow/datadog_checks/airflow/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "amazon_msk_srcs",
+    srcs = glob(["amazon_msk/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "amazon_msk_pyproject",
+    srcs = ["amazon_msk/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "amazon_msk_confd",
+    srcs = glob(["amazon_msk/datadog_checks/amazon_msk/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "ambari_srcs",
+    srcs = glob(["ambari/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "ambari_pyproject",
+    srcs = ["ambari/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "ambari_confd",
+    srcs = glob(["ambari/datadog_checks/ambari/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "apache_srcs",
+    srcs = glob(["apache/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "apache_pyproject",
+    srcs = ["apache/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "apache_confd",
+    srcs = glob(["apache/datadog_checks/apache/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "appgate_sdp_srcs",
+    srcs = glob(["appgate_sdp/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "appgate_sdp_pyproject",
+    srcs = ["appgate_sdp/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "appgate_sdp_confd",
+    srcs = glob(["appgate_sdp/datadog_checks/appgate_sdp/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "arangodb_srcs",
+    srcs = glob(["arangodb/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "arangodb_pyproject",
+    srcs = ["arangodb/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "arangodb_confd",
+    srcs = glob(["arangodb/datadog_checks/arangodb/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "arctic_wolf_aurora_endpoint_security_srcs",
+    srcs = glob(["arctic_wolf_aurora_endpoint_security/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "arctic_wolf_aurora_endpoint_security_pyproject",
+    srcs = ["arctic_wolf_aurora_endpoint_security/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "arctic_wolf_aurora_endpoint_security_confd",
+    srcs = glob(["arctic_wolf_aurora_endpoint_security/datadog_checks/arctic_wolf_aurora_endpoint_security/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "argo_rollouts_srcs",
+    srcs = glob(["argo_rollouts/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "argo_rollouts_pyproject",
+    srcs = ["argo_rollouts/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "argo_rollouts_confd",
+    srcs = glob(["argo_rollouts/datadog_checks/argo_rollouts/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "argo_workflows_srcs",
+    srcs = glob(["argo_workflows/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "argo_workflows_pyproject",
+    srcs = ["argo_workflows/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "argo_workflows_confd",
+    srcs = glob(["argo_workflows/datadog_checks/argo_workflows/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "argocd_srcs",
+    srcs = glob(["argocd/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "argocd_pyproject",
+    srcs = ["argocd/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "argocd_confd",
+    srcs = glob(["argocd/datadog_checks/argocd/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "aspdotnet_srcs",
+    srcs = glob(["aspdotnet/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "aspdotnet_pyproject",
+    srcs = ["aspdotnet/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "avi_vantage_srcs",
+    srcs = glob(["avi_vantage/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "avi_vantage_pyproject",
+    srcs = ["avi_vantage/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "avi_vantage_confd",
+    srcs = glob(["avi_vantage/datadog_checks/avi_vantage/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "aws_neuron_srcs",
+    srcs = glob(["aws_neuron/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "aws_neuron_pyproject",
+    srcs = ["aws_neuron/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "aws_neuron_confd",
+    srcs = glob(["aws_neuron/datadog_checks/aws_neuron/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "azure_iot_edge_srcs",
+    srcs = glob(["azure_iot_edge/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "azure_iot_edge_pyproject",
+    srcs = ["azure_iot_edge/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "azure_iot_edge_confd",
+    srcs = glob(["azure_iot_edge/datadog_checks/azure_iot_edge/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "barracuda_secure_edge_srcs",
+    srcs = glob(["barracuda_secure_edge/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "barracuda_secure_edge_pyproject",
+    srcs = ["barracuda_secure_edge/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "barracuda_secure_edge_confd",
+    srcs = glob(["barracuda_secure_edge/datadog_checks/barracuda_secure_edge/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "bentoml_srcs",
+    srcs = glob(["bentoml/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "bentoml_pyproject",
+    srcs = ["bentoml/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "bentoml_confd",
+    srcs = glob(["bentoml/datadog_checks/bentoml/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "beyondtrust_password_safe_srcs",
+    srcs = glob(["beyondtrust_password_safe/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "beyondtrust_password_safe_pyproject",
+    srcs = ["beyondtrust_password_safe/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "beyondtrust_password_safe_confd",
+    srcs = glob(["beyondtrust_password_safe/datadog_checks/beyondtrust_password_safe/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "beyondtrust_privileged_remote_access_srcs",
+    srcs = glob(["beyondtrust_privileged_remote_access/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "beyondtrust_privileged_remote_access_pyproject",
+    srcs = ["beyondtrust_privileged_remote_access/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "boundary_srcs",
+    srcs = glob(["boundary/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "boundary_pyproject",
+    srcs = ["boundary/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "boundary_confd",
+    srcs = glob(["boundary/datadog_checks/boundary/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "btrfs_srcs",
+    srcs = glob(["btrfs/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "btrfs_pyproject",
+    srcs = ["btrfs/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "btrfs_confd",
+    srcs = glob(["btrfs/datadog_checks/btrfs/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "cacti_srcs",
+    srcs = glob(["cacti/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "cacti_pyproject",
+    srcs = ["cacti/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "cacti_confd",
+    srcs = glob(["cacti/datadog_checks/cacti/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "calico_srcs",
+    srcs = glob(["calico/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "calico_pyproject",
+    srcs = ["calico/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "calico_confd",
+    srcs = glob(["calico/datadog_checks/calico/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "cassandra_srcs",
+    srcs = glob(["cassandra/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "cassandra_pyproject",
+    srcs = ["cassandra/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "cassandra_confd",
+    srcs = glob(["cassandra/datadog_checks/cassandra/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "cassandra_nodetool_srcs",
+    srcs = glob(["cassandra_nodetool/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "cassandra_nodetool_pyproject",
+    srcs = ["cassandra_nodetool/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "cassandra_nodetool_confd",
+    srcs = glob(["cassandra_nodetool/datadog_checks/cassandra_nodetool/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "celery_srcs",
+    srcs = glob(["celery/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "celery_pyproject",
+    srcs = ["celery/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "celery_confd",
+    srcs = glob(["celery/datadog_checks/celery/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "ceph_srcs",
+    srcs = glob(["ceph/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "ceph_pyproject",
+    srcs = ["ceph/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "ceph_confd",
+    srcs = glob(["ceph/datadog_checks/ceph/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "cert_manager_srcs",
+    srcs = glob(["cert_manager/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "cert_manager_pyproject",
+    srcs = ["cert_manager/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "cert_manager_confd",
+    srcs = glob(["cert_manager/datadog_checks/cert_manager/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "checkpoint_harmony_endpoint_srcs",
+    srcs = glob(["checkpoint_harmony_endpoint/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "checkpoint_harmony_endpoint_pyproject",
+    srcs = ["checkpoint_harmony_endpoint/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "checkpoint_harmony_endpoint_confd",
+    srcs = glob(["checkpoint_harmony_endpoint/datadog_checks/checkpoint_harmony_endpoint/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "checkpoint_quantum_firewall_srcs",
+    srcs = glob(["checkpoint_quantum_firewall/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "checkpoint_quantum_firewall_pyproject",
+    srcs = ["checkpoint_quantum_firewall/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "checkpoint_quantum_firewall_confd",
+    srcs = glob(["checkpoint_quantum_firewall/datadog_checks/checkpoint_quantum_firewall/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "cilium_srcs",
+    srcs = glob(["cilium/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "cilium_pyproject",
+    srcs = ["cilium/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "cilium_confd",
+    srcs = glob(["cilium/datadog_checks/cilium/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "cisco_aci_srcs",
+    srcs = glob(["cisco_aci/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "cisco_aci_pyproject",
+    srcs = ["cisco_aci/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "cisco_aci_confd",
+    srcs = glob(["cisco_aci/datadog_checks/cisco_aci/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "cisco_asa_srcs",
+    srcs = glob(["cisco_asa/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "cisco_asa_pyproject",
+    srcs = ["cisco_asa/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "cisco_asa_confd",
+    srcs = glob(["cisco_asa/datadog_checks/cisco_asa/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "cisco_secure_client_srcs",
+    srcs = glob(["cisco_secure_client/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "cisco_secure_client_pyproject",
+    srcs = ["cisco_secure_client/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "cisco_secure_client_confd",
+    srcs = glob(["cisco_secure_client/datadog_checks/cisco_secure_client/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "cisco_secure_firewall_srcs",
+    srcs = glob(["cisco_secure_firewall/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "cisco_secure_firewall_pyproject",
+    srcs = ["cisco_secure_firewall/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "cisco_secure_firewall_confd",
+    srcs = glob(["cisco_secure_firewall/datadog_checks/cisco_secure_firewall/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "cisco_secure_web_appliance_srcs",
+    srcs = glob(["cisco_secure_web_appliance/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "cisco_secure_web_appliance_pyproject",
+    srcs = ["cisco_secure_web_appliance/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "cisco_secure_web_appliance_confd",
+    srcs = glob(["cisco_secure_web_appliance/datadog_checks/cisco_secure_web_appliance/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "citrix_hypervisor_srcs",
+    srcs = glob(["citrix_hypervisor/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "citrix_hypervisor_pyproject",
+    srcs = ["citrix_hypervisor/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "citrix_hypervisor_confd",
+    srcs = glob(["citrix_hypervisor/datadog_checks/citrix_hypervisor/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "clickhouse_srcs",
+    srcs = glob(["clickhouse/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "clickhouse_pyproject",
+    srcs = ["clickhouse/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "clickhouse_confd",
+    srcs = glob(["clickhouse/datadog_checks/clickhouse/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "cloud_foundry_api_srcs",
+    srcs = glob(["cloud_foundry_api/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "cloud_foundry_api_pyproject",
+    srcs = ["cloud_foundry_api/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "cloud_foundry_api_confd",
+    srcs = glob(["cloud_foundry_api/datadog_checks/cloud_foundry_api/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "cloudera_srcs",
+    srcs = glob(["cloudera/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "cloudera_pyproject",
+    srcs = ["cloudera/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "cloudera_confd",
+    srcs = glob(["cloudera/datadog_checks/cloudera/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "cloudgen_firewall_srcs",
+    srcs = glob(["cloudgen_firewall/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "cloudgen_firewall_pyproject",
+    srcs = ["cloudgen_firewall/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "cloudgen_firewall_confd",
+    srcs = glob(["cloudgen_firewall/datadog_checks/cloudgen_firewall/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "cockroachdb_srcs",
+    srcs = glob(["cockroachdb/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "cockroachdb_pyproject",
+    srcs = ["cockroachdb/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "cockroachdb_confd",
+    srcs = glob(["cockroachdb/datadog_checks/cockroachdb/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "confluent_platform_srcs",
+    srcs = glob(["confluent_platform/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "confluent_platform_pyproject",
+    srcs = ["confluent_platform/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "confluent_platform_confd",
+    srcs = glob(["confluent_platform/datadog_checks/confluent_platform/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "consul_srcs",
+    srcs = glob(["consul/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "consul_pyproject",
+    srcs = ["consul/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "consul_confd",
+    srcs = glob(["consul/datadog_checks/consul/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "control_m_srcs",
+    srcs = glob(["control_m/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "control_m_pyproject",
+    srcs = ["control_m/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "coredns_srcs",
+    srcs = glob(["coredns/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "coredns_pyproject",
+    srcs = ["coredns/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "coredns_confd",
+    srcs = glob(["coredns/datadog_checks/coredns/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "couch_srcs",
+    srcs = glob(["couch/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "couch_pyproject",
+    srcs = ["couch/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "couch_confd",
+    srcs = glob(["couch/datadog_checks/couch/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "couchbase_srcs",
+    srcs = glob(["couchbase/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "couchbase_pyproject",
+    srcs = ["couchbase/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "couchbase_confd",
+    srcs = glob(["couchbase/datadog_checks/couchbase/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "crio_srcs",
+    srcs = glob(["crio/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "crio_pyproject",
+    srcs = ["crio/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "crio_confd",
+    srcs = glob(["crio/datadog_checks/crio/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "datadog_checks_dependency_provider_srcs",
+    srcs = glob(["datadog_checks_dependency_provider/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "datadog_checks_dependency_provider_pyproject",
+    srcs = ["datadog_checks_dependency_provider/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "datadog_checks_downloader_srcs",
+    srcs = glob(["datadog_checks_downloader/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "datadog_checks_downloader_pyproject",
+    srcs = ["datadog_checks_downloader/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "datadog_cluster_agent_srcs",
+    srcs = glob(["datadog_cluster_agent/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "datadog_cluster_agent_pyproject",
+    srcs = ["datadog_cluster_agent/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "datadog_cluster_agent_confd",
+    srcs = glob(["datadog_cluster_agent/datadog_checks/datadog_cluster_agent/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "datadog_csi_driver_srcs",
+    srcs = glob(["datadog_csi_driver/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "datadog_csi_driver_pyproject",
+    srcs = ["datadog_csi_driver/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "datadog_csi_driver_confd",
+    srcs = glob(["datadog_csi_driver/datadog_checks/datadog_csi_driver/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "dcgm_srcs",
+    srcs = glob(["dcgm/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "dcgm_pyproject",
+    srcs = ["dcgm/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "dcgm_confd",
+    srcs = glob(["dcgm/datadog_checks/dcgm/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "delinea_privilege_manager_srcs",
+    srcs = glob(["delinea_privilege_manager/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "delinea_privilege_manager_pyproject",
+    srcs = ["delinea_privilege_manager/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "delinea_privilege_manager_confd",
+    srcs = glob(["delinea_privilege_manager/datadog_checks/delinea_privilege_manager/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "delinea_secret_server_srcs",
+    srcs = glob(["delinea_secret_server/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "delinea_secret_server_pyproject",
+    srcs = ["delinea_secret_server/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "delinea_secret_server_confd",
+    srcs = glob(["delinea_secret_server/datadog_checks/delinea_secret_server/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "directory_srcs",
+    srcs = glob(["directory/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "directory_pyproject",
+    srcs = ["directory/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "directory_confd",
+    srcs = glob(["directory/datadog_checks/directory/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "disk_srcs",
+    srcs = glob(["disk/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "disk_pyproject",
+    srcs = ["disk/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "disk_confd",
+    srcs = glob(["disk/datadog_checks/disk/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "dns_check_srcs",
+    srcs = glob(["dns_check/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "dns_check_pyproject",
+    srcs = ["dns_check/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "dns_check_confd",
+    srcs = glob(["dns_check/datadog_checks/dns_check/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "do_query_actions_srcs",
+    srcs = glob(["do_query_actions/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "do_query_actions_pyproject",
+    srcs = ["do_query_actions/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "dotnetclr_srcs",
+    srcs = glob(["dotnetclr/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "dotnetclr_pyproject",
+    srcs = ["dotnetclr/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "druid_srcs",
+    srcs = glob(["druid/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "druid_pyproject",
+    srcs = ["druid/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "druid_confd",
+    srcs = glob(["druid/datadog_checks/druid/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "duckdb_srcs",
+    srcs = glob(["duckdb/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "duckdb_pyproject",
+    srcs = ["duckdb/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "duckdb_confd",
+    srcs = glob(["duckdb/datadog_checks/duckdb/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "ecs_fargate_srcs",
+    srcs = glob(["ecs_fargate/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "ecs_fargate_pyproject",
+    srcs = ["ecs_fargate/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "ecs_fargate_confd",
+    srcs = glob(["ecs_fargate/datadog_checks/ecs_fargate/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "eks_fargate_srcs",
+    srcs = glob(["eks_fargate/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "eks_fargate_pyproject",
+    srcs = ["eks_fargate/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "eks_fargate_confd",
+    srcs = glob(["eks_fargate/datadog_checks/eks_fargate/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "elastic_srcs",
+    srcs = glob(["elastic/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "elastic_pyproject",
+    srcs = ["elastic/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "elastic_confd",
+    srcs = glob(["elastic/datadog_checks/elastic/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "envoy_srcs",
+    srcs = glob(["envoy/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "envoy_pyproject",
+    srcs = ["envoy/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "envoy_confd",
+    srcs = glob(["envoy/datadog_checks/envoy/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "eset_protect_srcs",
+    srcs = glob(["eset_protect/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "eset_protect_pyproject",
+    srcs = ["eset_protect/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "eset_protect_confd",
+    srcs = glob(["eset_protect/datadog_checks/eset_protect/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "esxi_srcs",
+    srcs = glob(["esxi/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "esxi_pyproject",
+    srcs = ["esxi/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "esxi_confd",
+    srcs = glob(["esxi/datadog_checks/esxi/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "etcd_srcs",
+    srcs = glob(["etcd/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "etcd_pyproject",
+    srcs = ["etcd/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "etcd_confd",
+    srcs = glob(["etcd/datadog_checks/etcd/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "exchange_server_srcs",
+    srcs = glob(["exchange_server/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "exchange_server_pyproject",
+    srcs = ["exchange_server/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "external_dns_srcs",
+    srcs = glob(["external_dns/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "external_dns_pyproject",
+    srcs = ["external_dns/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "external_dns_confd",
+    srcs = glob(["external_dns/datadog_checks/external_dns/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "falco_srcs",
+    srcs = glob(["falco/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "falco_pyproject",
+    srcs = ["falco/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "falco_confd",
+    srcs = glob(["falco/datadog_checks/falco/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "flink_srcs",
+    srcs = glob(["flink/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "flink_pyproject",
+    srcs = ["flink/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "flink_confd",
+    srcs = glob(["flink/datadog_checks/flink/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "fluentd_srcs",
+    srcs = glob(["fluentd/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "fluentd_pyproject",
+    srcs = ["fluentd/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "fluentd_confd",
+    srcs = glob(["fluentd/datadog_checks/fluentd/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "fluxcd_srcs",
+    srcs = glob(["fluxcd/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "fluxcd_pyproject",
+    srcs = ["fluxcd/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "fluxcd_confd",
+    srcs = glob(["fluxcd/datadog_checks/fluxcd/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "fly_io_srcs",
+    srcs = glob(["fly_io/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "fly_io_pyproject",
+    srcs = ["fly_io/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "fly_io_confd",
+    srcs = glob(["fly_io/datadog_checks/fly_io/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "forescout_srcs",
+    srcs = glob(["forescout/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "forescout_pyproject",
+    srcs = ["forescout/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "forescout_confd",
+    srcs = glob(["forescout/datadog_checks/forescout/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "foundationdb_srcs",
+    srcs = glob(["foundationdb/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "foundationdb_pyproject",
+    srcs = ["foundationdb/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "foundationdb_confd",
+    srcs = glob(["foundationdb/datadog_checks/foundationdb/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "gearmand_srcs",
+    srcs = glob(["gearmand/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "gearmand_pyproject",
+    srcs = ["gearmand/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "gearmand_confd",
+    srcs = glob(["gearmand/datadog_checks/gearmand/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "gitlab_srcs",
+    srcs = glob(["gitlab/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "gitlab_pyproject",
+    srcs = ["gitlab/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "gitlab_confd",
+    srcs = glob(["gitlab/datadog_checks/gitlab/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "gitlab_runner_srcs",
+    srcs = glob(["gitlab_runner/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "gitlab_runner_pyproject",
+    srcs = ["gitlab_runner/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "gitlab_runner_confd",
+    srcs = glob(["gitlab_runner/datadog_checks/gitlab_runner/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "glusterfs_srcs",
+    srcs = glob(["glusterfs/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "glusterfs_pyproject",
+    srcs = ["glusterfs/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "glusterfs_confd",
+    srcs = glob(["glusterfs/datadog_checks/glusterfs/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "go_expvar_srcs",
+    srcs = glob(["go_expvar/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "go_expvar_pyproject",
+    srcs = ["go_expvar/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "go_expvar_confd",
+    srcs = glob(["go_expvar/datadog_checks/go_expvar/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "guarddog_srcs",
+    srcs = glob(["guarddog/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "guarddog_pyproject",
+    srcs = ["guarddog/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "guarddog_confd",
+    srcs = glob(["guarddog/datadog_checks/guarddog/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "gunicorn_srcs",
+    srcs = glob(["gunicorn/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "gunicorn_pyproject",
+    srcs = ["gunicorn/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "gunicorn_confd",
+    srcs = glob(["gunicorn/datadog_checks/gunicorn/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "haproxy_srcs",
+    srcs = glob(["haproxy/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "haproxy_pyproject",
+    srcs = ["haproxy/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "haproxy_confd",
+    srcs = glob(["haproxy/datadog_checks/haproxy/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "harbor_srcs",
+    srcs = glob(["harbor/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "harbor_pyproject",
+    srcs = ["harbor/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "harbor_confd",
+    srcs = glob(["harbor/datadog_checks/harbor/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "hazelcast_srcs",
+    srcs = glob(["hazelcast/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "hazelcast_pyproject",
+    srcs = ["hazelcast/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "hazelcast_confd",
+    srcs = glob(["hazelcast/datadog_checks/hazelcast/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "hdfs_datanode_srcs",
+    srcs = glob(["hdfs_datanode/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "hdfs_datanode_pyproject",
+    srcs = ["hdfs_datanode/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "hdfs_datanode_confd",
+    srcs = glob(["hdfs_datanode/datadog_checks/hdfs_datanode/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "hdfs_namenode_srcs",
+    srcs = glob(["hdfs_namenode/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "hdfs_namenode_pyproject",
+    srcs = ["hdfs_namenode/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "hdfs_namenode_confd",
+    srcs = glob(["hdfs_namenode/datadog_checks/hdfs_namenode/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "hive_srcs",
+    srcs = glob(["hive/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "hive_pyproject",
+    srcs = ["hive/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "hive_confd",
+    srcs = glob(["hive/datadog_checks/hive/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "hivemq_srcs",
+    srcs = glob(["hivemq/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "hivemq_pyproject",
+    srcs = ["hivemq/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "hivemq_confd",
+    srcs = glob(["hivemq/datadog_checks/hivemq/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "http_check_srcs",
+    srcs = glob(["http_check/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "http_check_pyproject",
+    srcs = ["http_check/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "http_check_confd",
+    srcs = glob(["http_check/datadog_checks/http_check/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "hudi_srcs",
+    srcs = glob(["hudi/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "hudi_pyproject",
+    srcs = ["hudi/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "hudi_confd",
+    srcs = glob(["hudi/datadog_checks/hudi/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "hugging_face_tgi_srcs",
+    srcs = glob(["hugging_face_tgi/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "hugging_face_tgi_pyproject",
+    srcs = ["hugging_face_tgi/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "hugging_face_tgi_confd",
+    srcs = glob(["hugging_face_tgi/datadog_checks/hugging_face_tgi/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "hyperv_srcs",
+    srcs = glob(["hyperv/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "hyperv_pyproject",
+    srcs = ["hyperv/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "ibm_db2_srcs",
+    srcs = glob(["ibm_db2/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "ibm_db2_pyproject",
+    srcs = ["ibm_db2/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "ibm_db2_confd",
+    srcs = glob(["ibm_db2/datadog_checks/ibm_db2/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "ibm_i_srcs",
+    srcs = glob(["ibm_i/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "ibm_i_pyproject",
+    srcs = ["ibm_i/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "ibm_i_confd",
+    srcs = glob(["ibm_i/datadog_checks/ibm_i/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "ibm_spectrum_lsf_srcs",
+    srcs = glob(["ibm_spectrum_lsf/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "ibm_spectrum_lsf_pyproject",
+    srcs = ["ibm_spectrum_lsf/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "ibm_spectrum_lsf_confd",
+    srcs = glob(["ibm_spectrum_lsf/datadog_checks/ibm_spectrum_lsf/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "ibm_was_srcs",
+    srcs = glob(["ibm_was/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "ibm_was_pyproject",
+    srcs = ["ibm_was/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "ibm_was_confd",
+    srcs = glob(["ibm_was/datadog_checks/ibm_was/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "iboss_srcs",
+    srcs = glob(["iboss/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "iboss_pyproject",
+    srcs = ["iboss/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "iboss_confd",
+    srcs = glob(["iboss/datadog_checks/iboss/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "ignite_srcs",
+    srcs = glob(["ignite/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "ignite_pyproject",
+    srcs = ["ignite/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "ignite_confd",
+    srcs = glob(["ignite/datadog_checks/ignite/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "iis_srcs",
+    srcs = glob(["iis/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "iis_pyproject",
+    srcs = ["iis/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "impala_srcs",
+    srcs = glob(["impala/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "impala_pyproject",
+    srcs = ["impala/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "impala_confd",
+    srcs = glob(["impala/datadog_checks/impala/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "infiniband_srcs",
+    srcs = glob(["infiniband/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "infiniband_pyproject",
+    srcs = ["infiniband/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "infiniband_confd",
+    srcs = glob(["infiniband/datadog_checks/infiniband/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "istio_srcs",
+    srcs = glob(["istio/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "istio_pyproject",
+    srcs = ["istio/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "istio_confd",
+    srcs = glob(["istio/datadog_checks/istio/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "ivanti_connect_secure_srcs",
+    srcs = glob(["ivanti_connect_secure/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "ivanti_connect_secure_pyproject",
+    srcs = ["ivanti_connect_secure/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "ivanti_connect_secure_confd",
+    srcs = glob(["ivanti_connect_secure/datadog_checks/ivanti_connect_secure/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "jboss_wildfly_srcs",
+    srcs = glob(["jboss_wildfly/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "jboss_wildfly_pyproject",
+    srcs = ["jboss_wildfly/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "jboss_wildfly_confd",
+    srcs = glob(["jboss_wildfly/datadog_checks/jboss_wildfly/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "journald_srcs",
+    srcs = glob(["journald/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "journald_pyproject",
+    srcs = ["journald/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "journald_confd",
+    srcs = glob(["journald/datadog_checks/journald/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "juniper_srx_firewall_srcs",
+    srcs = glob(["juniper_srx_firewall/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "juniper_srx_firewall_pyproject",
+    srcs = ["juniper_srx_firewall/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "juniper_srx_firewall_confd",
+    srcs = glob(["juniper_srx_firewall/datadog_checks/juniper_srx_firewall/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "kafka_srcs",
+    srcs = glob(["kafka/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "kafka_pyproject",
+    srcs = ["kafka/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "kafka_confd",
+    srcs = glob(["kafka/datadog_checks/kafka/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "kafka_actions_srcs",
+    srcs = glob(["kafka_actions/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "kafka_actions_pyproject",
+    srcs = ["kafka_actions/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "kafka_actions_confd",
+    srcs = glob(["kafka_actions/datadog_checks/kafka_actions/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "kafka_consumer_srcs",
+    srcs = glob(["kafka_consumer/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "kafka_consumer_pyproject",
+    srcs = ["kafka_consumer/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "kafka_consumer_confd",
+    srcs = glob(["kafka_consumer/datadog_checks/kafka_consumer/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "karpenter_srcs",
+    srcs = glob(["karpenter/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "karpenter_pyproject",
+    srcs = ["karpenter/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "karpenter_confd",
+    srcs = glob(["karpenter/datadog_checks/karpenter/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "keda_srcs",
+    srcs = glob(["keda/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "keda_pyproject",
+    srcs = ["keda/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "keda_confd",
+    srcs = glob(["keda/datadog_checks/keda/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "keycloak_srcs",
+    srcs = glob(["keycloak/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "keycloak_pyproject",
+    srcs = ["keycloak/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "keycloak_confd",
+    srcs = glob(["keycloak/datadog_checks/keycloak/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "kong_srcs",
+    srcs = glob(["kong/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "kong_pyproject",
+    srcs = ["kong/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "kong_confd",
+    srcs = glob(["kong/datadog_checks/kong/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "krakend_srcs",
+    srcs = glob(["krakend/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "krakend_pyproject",
+    srcs = ["krakend/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "kube_apiserver_metrics_srcs",
+    srcs = glob(["kube_apiserver_metrics/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "kube_apiserver_metrics_pyproject",
+    srcs = ["kube_apiserver_metrics/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "kube_apiserver_metrics_confd",
+    srcs = glob(["kube_apiserver_metrics/datadog_checks/kube_apiserver_metrics/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "kube_controller_manager_srcs",
+    srcs = glob(["kube_controller_manager/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "kube_controller_manager_pyproject",
+    srcs = ["kube_controller_manager/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "kube_controller_manager_confd",
+    srcs = glob(["kube_controller_manager/datadog_checks/kube_controller_manager/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "kube_dns_srcs",
+    srcs = glob(["kube_dns/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "kube_dns_pyproject",
+    srcs = ["kube_dns/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "kube_dns_confd",
+    srcs = glob(["kube_dns/datadog_checks/kube_dns/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "kube_metrics_server_srcs",
+    srcs = glob(["kube_metrics_server/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "kube_metrics_server_pyproject",
+    srcs = ["kube_metrics_server/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "kube_metrics_server_confd",
+    srcs = glob(["kube_metrics_server/datadog_checks/kube_metrics_server/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "kube_proxy_srcs",
+    srcs = glob(["kube_proxy/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "kube_proxy_pyproject",
+    srcs = ["kube_proxy/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "kube_proxy_confd",
+    srcs = glob(["kube_proxy/datadog_checks/kube_proxy/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "kube_scheduler_srcs",
+    srcs = glob(["kube_scheduler/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "kube_scheduler_pyproject",
+    srcs = ["kube_scheduler/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "kube_scheduler_confd",
+    srcs = glob(["kube_scheduler/datadog_checks/kube_scheduler/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "kubeflow_srcs",
+    srcs = glob(["kubeflow/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "kubeflow_pyproject",
+    srcs = ["kubeflow/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "kubeflow_confd",
+    srcs = glob(["kubeflow/datadog_checks/kubeflow/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "kubelet_srcs",
+    srcs = glob(["kubelet/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "kubelet_pyproject",
+    srcs = ["kubelet/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "kubelet_confd",
+    srcs = glob(["kubelet/datadog_checks/kubelet/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "kubernetes_cluster_autoscaler_srcs",
+    srcs = glob(["kubernetes_cluster_autoscaler/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "kubernetes_cluster_autoscaler_pyproject",
+    srcs = ["kubernetes_cluster_autoscaler/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "kubernetes_cluster_autoscaler_confd",
+    srcs = glob(["kubernetes_cluster_autoscaler/datadog_checks/kubernetes_cluster_autoscaler/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "kubernetes_state_srcs",
+    srcs = glob(["kubernetes_state/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "kubernetes_state_pyproject",
+    srcs = ["kubernetes_state/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "kubernetes_state_confd",
+    srcs = glob(["kubernetes_state/datadog_checks/kubernetes_state/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "kubevirt_api_srcs",
+    srcs = glob(["kubevirt_api/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "kubevirt_api_pyproject",
+    srcs = ["kubevirt_api/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "kubevirt_api_confd",
+    srcs = glob(["kubevirt_api/datadog_checks/kubevirt_api/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "kubevirt_controller_srcs",
+    srcs = glob(["kubevirt_controller/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "kubevirt_controller_pyproject",
+    srcs = ["kubevirt_controller/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "kubevirt_controller_confd",
+    srcs = glob(["kubevirt_controller/datadog_checks/kubevirt_controller/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "kubevirt_handler_srcs",
+    srcs = glob(["kubevirt_handler/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "kubevirt_handler_pyproject",
+    srcs = ["kubevirt_handler/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "kubevirt_handler_confd",
+    srcs = glob(["kubevirt_handler/datadog_checks/kubevirt_handler/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "kuma_srcs",
+    srcs = glob(["kuma/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "kuma_pyproject",
+    srcs = ["kuma/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "kuma_confd",
+    srcs = glob(["kuma/datadog_checks/kuma/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "kyototycoon_srcs",
+    srcs = glob(["kyototycoon/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "kyototycoon_pyproject",
+    srcs = ["kyototycoon/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "kyototycoon_confd",
+    srcs = glob(["kyototycoon/datadog_checks/kyototycoon/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "kyverno_srcs",
+    srcs = glob(["kyverno/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "kyverno_pyproject",
+    srcs = ["kyverno/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "kyverno_confd",
+    srcs = glob(["kyverno/datadog_checks/kyverno/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "lighttpd_srcs",
+    srcs = glob(["lighttpd/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "lighttpd_pyproject",
+    srcs = ["lighttpd/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "lighttpd_confd",
+    srcs = glob(["lighttpd/datadog_checks/lighttpd/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "linkerd_srcs",
+    srcs = glob(["linkerd/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "linkerd_pyproject",
+    srcs = ["linkerd/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "linkerd_confd",
+    srcs = glob(["linkerd/datadog_checks/linkerd/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "linux_audit_logs_srcs",
+    srcs = glob(["linux_audit_logs/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "linux_audit_logs_pyproject",
+    srcs = ["linux_audit_logs/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "linux_audit_logs_confd",
+    srcs = glob(["linux_audit_logs/datadog_checks/linux_audit_logs/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "linux_proc_extras_srcs",
+    srcs = glob(["linux_proc_extras/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "linux_proc_extras_pyproject",
+    srcs = ["linux_proc_extras/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "linux_proc_extras_confd",
+    srcs = glob(["linux_proc_extras/datadog_checks/linux_proc_extras/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "litellm_srcs",
+    srcs = glob(["litellm/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "litellm_pyproject",
+    srcs = ["litellm/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "litellm_confd",
+    srcs = glob(["litellm/datadog_checks/litellm/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "lparstats_srcs",
+    srcs = glob(["lparstats/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "lparstats_pyproject",
+    srcs = ["lparstats/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "lustre_srcs",
+    srcs = glob(["lustre/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "lustre_pyproject",
+    srcs = ["lustre/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "mac_audit_logs_srcs",
+    srcs = glob(["mac_audit_logs/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "mac_audit_logs_pyproject",
+    srcs = ["mac_audit_logs/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "mapr_srcs",
+    srcs = glob(["mapr/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "mapr_pyproject",
+    srcs = ["mapr/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "mapr_confd",
+    srcs = glob(["mapr/datadog_checks/mapr/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "mapreduce_srcs",
+    srcs = glob(["mapreduce/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "mapreduce_pyproject",
+    srcs = ["mapreduce/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "mapreduce_confd",
+    srcs = glob(["mapreduce/datadog_checks/mapreduce/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "marathon_srcs",
+    srcs = glob(["marathon/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "marathon_pyproject",
+    srcs = ["marathon/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "marathon_confd",
+    srcs = glob(["marathon/datadog_checks/marathon/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "marklogic_srcs",
+    srcs = glob(["marklogic/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "marklogic_pyproject",
+    srcs = ["marklogic/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "marklogic_confd",
+    srcs = glob(["marklogic/datadog_checks/marklogic/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "mcache_srcs",
+    srcs = glob(["mcache/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "mcache_pyproject",
+    srcs = ["mcache/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "mcache_confd",
+    srcs = glob(["mcache/datadog_checks/mcache/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "mesos_master_srcs",
+    srcs = glob(["mesos_master/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "mesos_master_pyproject",
+    srcs = ["mesos_master/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "mesos_master_confd",
+    srcs = glob(["mesos_master/datadog_checks/mesos_master/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "mesos_slave_srcs",
+    srcs = glob(["mesos_slave/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "mesos_slave_pyproject",
+    srcs = ["mesos_slave/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "mesos_slave_confd",
+    srcs = glob(["mesos_slave/datadog_checks/mesos_slave/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "microsoft_dns_srcs",
+    srcs = glob(["microsoft_dns/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "microsoft_dns_pyproject",
+    srcs = ["microsoft_dns/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "microsoft_sysmon_srcs",
+    srcs = glob(["microsoft_sysmon/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "microsoft_sysmon_pyproject",
+    srcs = ["microsoft_sysmon/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "milvus_srcs",
+    srcs = glob(["milvus/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "milvus_pyproject",
+    srcs = ["milvus/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "milvus_confd",
+    srcs = glob(["milvus/datadog_checks/milvus/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "mongo_srcs",
+    srcs = glob(["mongo/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "mongo_pyproject",
+    srcs = ["mongo/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "mongo_confd",
+    srcs = glob(["mongo/datadog_checks/mongo/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "mysql_srcs",
+    srcs = glob(["mysql/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "mysql_pyproject",
+    srcs = ["mysql/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "mysql_confd",
+    srcs = glob(["mysql/datadog_checks/mysql/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "n8n_srcs",
+    srcs = glob(["n8n/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "n8n_pyproject",
+    srcs = ["n8n/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "nagios_srcs",
+    srcs = glob(["nagios/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "nagios_pyproject",
+    srcs = ["nagios/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "nagios_confd",
+    srcs = glob(["nagios/datadog_checks/nagios/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "network_srcs",
+    srcs = glob(["network/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "network_pyproject",
+    srcs = ["network/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "network_confd",
+    srcs = glob(["network/datadog_checks/network/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "nfsstat_srcs",
+    srcs = glob(["nfsstat/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "nfsstat_pyproject",
+    srcs = ["nfsstat/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "nfsstat_confd",
+    srcs = glob(["nfsstat/datadog_checks/nfsstat/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "nginx_srcs",
+    srcs = glob(["nginx/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "nginx_pyproject",
+    srcs = ["nginx/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "nginx_confd",
+    srcs = glob(["nginx/datadog_checks/nginx/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "nginx_ingress_controller_srcs",
+    srcs = glob(["nginx_ingress_controller/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "nginx_ingress_controller_pyproject",
+    srcs = ["nginx_ingress_controller/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "nginx_ingress_controller_confd",
+    srcs = glob(["nginx_ingress_controller/datadog_checks/nginx_ingress_controller/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "nifi_srcs",
+    srcs = glob(["nifi/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "nifi_pyproject",
+    srcs = ["nifi/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "nutanix_srcs",
+    srcs = glob(["nutanix/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "nutanix_pyproject",
+    srcs = ["nutanix/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "nutanix_confd",
+    srcs = glob(["nutanix/datadog_checks/nutanix/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "nvidia_nim_srcs",
+    srcs = glob(["nvidia_nim/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "nvidia_nim_pyproject",
+    srcs = ["nvidia_nim/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "nvidia_nim_confd",
+    srcs = glob(["nvidia_nim/datadog_checks/nvidia_nim/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "nvidia_triton_srcs",
+    srcs = glob(["nvidia_triton/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "nvidia_triton_pyproject",
+    srcs = ["nvidia_triton/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "nvidia_triton_confd",
+    srcs = glob(["nvidia_triton/datadog_checks/nvidia_triton/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "octopus_deploy_srcs",
+    srcs = glob(["octopus_deploy/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "octopus_deploy_pyproject",
+    srcs = ["octopus_deploy/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "octopus_deploy_confd",
+    srcs = glob(["octopus_deploy/datadog_checks/octopus_deploy/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "openldap_srcs",
+    srcs = glob(["openldap/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "openldap_pyproject",
+    srcs = ["openldap/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "openldap_confd",
+    srcs = glob(["openldap/datadog_checks/openldap/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "openmetrics_srcs",
+    srcs = glob(["openmetrics/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "openmetrics_pyproject",
+    srcs = ["openmetrics/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "openmetrics_confd",
+    srcs = glob(["openmetrics/datadog_checks/openmetrics/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "openstack_srcs",
+    srcs = glob(["openstack/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "openstack_pyproject",
+    srcs = ["openstack/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "openstack_confd",
+    srcs = glob(["openstack/datadog_checks/openstack/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "openstack_controller_srcs",
+    srcs = glob(["openstack_controller/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "openstack_controller_pyproject",
+    srcs = ["openstack_controller/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "openstack_controller_confd",
+    srcs = glob(["openstack_controller/datadog_checks/openstack_controller/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "openvpn_srcs",
+    srcs = glob(["openvpn/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "openvpn_pyproject",
+    srcs = ["openvpn/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "openvpn_confd",
+    srcs = glob(["openvpn/datadog_checks/openvpn/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "ossec_security_srcs",
+    srcs = glob(["ossec_security/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "ossec_security_pyproject",
+    srcs = ["ossec_security/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "ossec_security_confd",
+    srcs = glob(["ossec_security/datadog_checks/ossec_security/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "palo_alto_panorama_srcs",
+    srcs = glob(["palo_alto_panorama/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "palo_alto_panorama_pyproject",
+    srcs = ["palo_alto_panorama/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "palo_alto_panorama_confd",
+    srcs = glob(["palo_alto_panorama/datadog_checks/palo_alto_panorama/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "pan_firewall_srcs",
+    srcs = glob(["pan_firewall/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "pan_firewall_pyproject",
+    srcs = ["pan_firewall/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "pan_firewall_confd",
+    srcs = glob(["pan_firewall/datadog_checks/pan_firewall/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "pdh_check_srcs",
+    srcs = glob(["pdh_check/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "pdh_check_pyproject",
+    srcs = ["pdh_check/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "pgbouncer_srcs",
+    srcs = glob(["pgbouncer/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "pgbouncer_pyproject",
+    srcs = ["pgbouncer/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "pgbouncer_confd",
+    srcs = glob(["pgbouncer/datadog_checks/pgbouncer/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "php_fpm_srcs",
+    srcs = glob(["php_fpm/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "php_fpm_pyproject",
+    srcs = ["php_fpm/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "php_fpm_confd",
+    srcs = glob(["php_fpm/datadog_checks/php_fpm/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "ping_federate_srcs",
+    srcs = glob(["ping_federate/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "ping_federate_pyproject",
+    srcs = ["ping_federate/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "ping_federate_confd",
+    srcs = glob(["ping_federate/datadog_checks/ping_federate/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "postfix_srcs",
+    srcs = glob(["postfix/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "postfix_pyproject",
+    srcs = ["postfix/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "postfix_confd",
+    srcs = glob(["postfix/datadog_checks/postfix/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "postgres_srcs",
+    srcs = glob(["postgres/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "postgres_pyproject",
+    srcs = ["postgres/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "postgres_confd",
+    srcs = glob(["postgres/datadog_checks/postgres/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "powerdns_recursor_srcs",
+    srcs = glob(["powerdns_recursor/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "powerdns_recursor_pyproject",
+    srcs = ["powerdns_recursor/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "powerdns_recursor_confd",
+    srcs = glob(["powerdns_recursor/datadog_checks/powerdns_recursor/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "prefect_srcs",
+    srcs = glob(["prefect/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "prefect_pyproject",
+    srcs = ["prefect/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "presto_srcs",
+    srcs = glob(["presto/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "presto_pyproject",
+    srcs = ["presto/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "presto_confd",
+    srcs = glob(["presto/datadog_checks/presto/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "process_srcs",
+    srcs = glob(["process/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "process_pyproject",
+    srcs = ["process/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "process_confd",
+    srcs = glob(["process/datadog_checks/process/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "prometheus_srcs",
+    srcs = glob(["prometheus/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "prometheus_pyproject",
+    srcs = ["prometheus/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "prometheus_confd",
+    srcs = glob(["prometheus/datadog_checks/prometheus/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "proxmox_srcs",
+    srcs = glob(["proxmox/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "proxmox_pyproject",
+    srcs = ["proxmox/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "proxmox_confd",
+    srcs = glob(["proxmox/datadog_checks/proxmox/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "proxysql_srcs",
+    srcs = glob(["proxysql/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "proxysql_pyproject",
+    srcs = ["proxysql/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "proxysql_confd",
+    srcs = glob(["proxysql/datadog_checks/proxysql/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "pulsar_srcs",
+    srcs = glob(["pulsar/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "pulsar_pyproject",
+    srcs = ["pulsar/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "pulsar_confd",
+    srcs = glob(["pulsar/datadog_checks/pulsar/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "quarkus_srcs",
+    srcs = glob(["quarkus/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "quarkus_pyproject",
+    srcs = ["quarkus/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "quarkus_confd",
+    srcs = glob(["quarkus/datadog_checks/quarkus/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "rabbitmq_srcs",
+    srcs = glob(["rabbitmq/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "rabbitmq_pyproject",
+    srcs = ["rabbitmq/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "rabbitmq_confd",
+    srcs = glob(["rabbitmq/datadog_checks/rabbitmq/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "ray_srcs",
+    srcs = glob(["ray/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "ray_pyproject",
+    srcs = ["ray/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "ray_confd",
+    srcs = glob(["ray/datadog_checks/ray/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "redisdb_srcs",
+    srcs = glob(["redisdb/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "redisdb_pyproject",
+    srcs = ["redisdb/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "redisdb_confd",
+    srcs = glob(["redisdb/datadog_checks/redisdb/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "rethinkdb_srcs",
+    srcs = glob(["rethinkdb/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "rethinkdb_pyproject",
+    srcs = ["rethinkdb/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "rethinkdb_confd",
+    srcs = glob(["rethinkdb/datadog_checks/rethinkdb/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "riak_srcs",
+    srcs = glob(["riak/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "riak_pyproject",
+    srcs = ["riak/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "riak_confd",
+    srcs = glob(["riak/datadog_checks/riak/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "riakcs_srcs",
+    srcs = glob(["riakcs/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "riakcs_pyproject",
+    srcs = ["riakcs/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "riakcs_confd",
+    srcs = glob(["riakcs/datadog_checks/riakcs/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "sap_hana_srcs",
+    srcs = glob(["sap_hana/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "sap_hana_pyproject",
+    srcs = ["sap_hana/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "sap_hana_confd",
+    srcs = glob(["sap_hana/datadog_checks/sap_hana/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "scylla_srcs",
+    srcs = glob(["scylla/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "scylla_pyproject",
+    srcs = ["scylla/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "scylla_confd",
+    srcs = glob(["scylla/datadog_checks/scylla/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "sidekiq_srcs",
+    srcs = glob(["sidekiq/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "sidekiq_pyproject",
+    srcs = ["sidekiq/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "sidekiq_confd",
+    srcs = glob(["sidekiq/datadog_checks/sidekiq/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "silk_srcs",
+    srcs = glob(["silk/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "silk_pyproject",
+    srcs = ["silk/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "silk_confd",
+    srcs = glob(["silk/datadog_checks/silk/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "silverstripe_cms_srcs",
+    srcs = glob(["silverstripe_cms/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "silverstripe_cms_pyproject",
+    srcs = ["silverstripe_cms/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "silverstripe_cms_confd",
+    srcs = glob(["silverstripe_cms/datadog_checks/silverstripe_cms/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "singlestore_srcs",
+    srcs = glob(["singlestore/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "singlestore_pyproject",
+    srcs = ["singlestore/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "singlestore_confd",
+    srcs = glob(["singlestore/datadog_checks/singlestore/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "slurm_srcs",
+    srcs = glob(["slurm/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "slurm_pyproject",
+    srcs = ["slurm/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "slurm_confd",
+    srcs = glob(["slurm/datadog_checks/slurm/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "snmp_srcs",
+    srcs = glob(["snmp/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "snmp_pyproject",
+    srcs = ["snmp/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "snmp_confd",
+    srcs = glob(["snmp/datadog_checks/snmp/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "solr_srcs",
+    srcs = glob(["solr/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "solr_pyproject",
+    srcs = ["solr/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "solr_confd",
+    srcs = glob(["solr/datadog_checks/solr/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "sonarqube_srcs",
+    srcs = glob(["sonarqube/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "sonarqube_pyproject",
+    srcs = ["sonarqube/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "sonarqube_confd",
+    srcs = glob(["sonarqube/datadog_checks/sonarqube/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "sonatype_nexus_srcs",
+    srcs = glob(["sonatype_nexus/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "sonatype_nexus_pyproject",
+    srcs = ["sonatype_nexus/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "sonatype_nexus_confd",
+    srcs = glob(["sonatype_nexus/datadog_checks/sonatype_nexus/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "sonicwall_firewall_srcs",
+    srcs = glob(["sonicwall_firewall/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "sonicwall_firewall_pyproject",
+    srcs = ["sonicwall_firewall/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "sonicwall_firewall_confd",
+    srcs = glob(["sonicwall_firewall/datadog_checks/sonicwall_firewall/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "spark_srcs",
+    srcs = glob(["spark/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "spark_pyproject",
+    srcs = ["spark/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "spark_confd",
+    srcs = glob(["spark/datadog_checks/spark/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "sqlserver_srcs",
+    srcs = glob(["sqlserver/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "sqlserver_pyproject",
+    srcs = ["sqlserver/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "sqlserver_confd",
+    srcs = glob(["sqlserver/datadog_checks/sqlserver/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "squid_srcs",
+    srcs = glob(["squid/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "squid_pyproject",
+    srcs = ["squid/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "squid_confd",
+    srcs = glob(["squid/datadog_checks/squid/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "ssh_check_srcs",
+    srcs = glob(["ssh_check/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "ssh_check_pyproject",
+    srcs = ["ssh_check/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "ssh_check_confd",
+    srcs = glob(["ssh_check/datadog_checks/ssh_check/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "statsd_srcs",
+    srcs = glob(["statsd/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "statsd_pyproject",
+    srcs = ["statsd/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "statsd_confd",
+    srcs = glob(["statsd/datadog_checks/statsd/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "strimzi_srcs",
+    srcs = glob(["strimzi/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "strimzi_pyproject",
+    srcs = ["strimzi/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "strimzi_confd",
+    srcs = glob(["strimzi/datadog_checks/strimzi/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "supabase_srcs",
+    srcs = glob(["supabase/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "supabase_pyproject",
+    srcs = ["supabase/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "supabase_confd",
+    srcs = glob(["supabase/datadog_checks/supabase/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "supervisord_srcs",
+    srcs = glob(["supervisord/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "supervisord_pyproject",
+    srcs = ["supervisord/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "supervisord_confd",
+    srcs = glob(["supervisord/datadog_checks/supervisord/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "suricata_srcs",
+    srcs = glob(["suricata/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "suricata_pyproject",
+    srcs = ["suricata/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "suricata_confd",
+    srcs = glob(["suricata/datadog_checks/suricata/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "symantec_endpoint_protection_srcs",
+    srcs = glob(["symantec_endpoint_protection/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "symantec_endpoint_protection_pyproject",
+    srcs = ["symantec_endpoint_protection/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "symantec_endpoint_protection_confd",
+    srcs = glob(["symantec_endpoint_protection/datadog_checks/symantec_endpoint_protection/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "system_core_srcs",
+    srcs = glob(["system_core/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "system_core_pyproject",
+    srcs = ["system_core/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "system_core_confd",
+    srcs = glob(["system_core/datadog_checks/system_core/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "system_swap_srcs",
+    srcs = glob(["system_swap/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "system_swap_pyproject",
+    srcs = ["system_swap/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "system_swap_confd",
+    srcs = glob(["system_swap/datadog_checks/system_swap/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "tcp_check_srcs",
+    srcs = glob(["tcp_check/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "tcp_check_pyproject",
+    srcs = ["tcp_check/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "tcp_check_confd",
+    srcs = glob(["tcp_check/datadog_checks/tcp_check/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "teamcity_srcs",
+    srcs = glob(["teamcity/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "teamcity_pyproject",
+    srcs = ["teamcity/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "teamcity_confd",
+    srcs = glob(["teamcity/datadog_checks/teamcity/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "tekton_srcs",
+    srcs = glob(["tekton/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "tekton_pyproject",
+    srcs = ["tekton/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "tekton_confd",
+    srcs = glob(["tekton/datadog_checks/tekton/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "teleport_srcs",
+    srcs = glob(["teleport/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "teleport_pyproject",
+    srcs = ["teleport/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "teleport_confd",
+    srcs = glob(["teleport/datadog_checks/teleport/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "temporal_srcs",
+    srcs = glob(["temporal/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "temporal_pyproject",
+    srcs = ["temporal/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "temporal_confd",
+    srcs = glob(["temporal/datadog_checks/temporal/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "tenable_srcs",
+    srcs = glob(["tenable/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "tenable_pyproject",
+    srcs = ["tenable/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "tenable_confd",
+    srcs = glob(["tenable/datadog_checks/tenable/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "teradata_srcs",
+    srcs = glob(["teradata/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "teradata_pyproject",
+    srcs = ["teradata/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "teradata_confd",
+    srcs = glob(["teradata/datadog_checks/teradata/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "tibco_ems_srcs",
+    srcs = glob(["tibco_ems/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "tibco_ems_pyproject",
+    srcs = ["tibco_ems/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "tibco_ems_confd",
+    srcs = glob(["tibco_ems/datadog_checks/tibco_ems/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "tls_srcs",
+    srcs = glob(["tls/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "tls_pyproject",
+    srcs = ["tls/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "tls_confd",
+    srcs = glob(["tls/datadog_checks/tls/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "tomcat_srcs",
+    srcs = glob(["tomcat/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "tomcat_pyproject",
+    srcs = ["tomcat/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "tomcat_confd",
+    srcs = glob(["tomcat/datadog_checks/tomcat/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "torchserve_srcs",
+    srcs = glob(["torchserve/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "torchserve_pyproject",
+    srcs = ["torchserve/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "torchserve_confd",
+    srcs = glob(["torchserve/datadog_checks/torchserve/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "traefik_mesh_srcs",
+    srcs = glob(["traefik_mesh/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "traefik_mesh_pyproject",
+    srcs = ["traefik_mesh/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "traefik_mesh_confd",
+    srcs = glob(["traefik_mesh/datadog_checks/traefik_mesh/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "traffic_server_srcs",
+    srcs = glob(["traffic_server/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "traffic_server_pyproject",
+    srcs = ["traffic_server/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "traffic_server_confd",
+    srcs = glob(["traffic_server/datadog_checks/traffic_server/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "twemproxy_srcs",
+    srcs = glob(["twemproxy/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "twemproxy_pyproject",
+    srcs = ["twemproxy/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "twemproxy_confd",
+    srcs = glob(["twemproxy/datadog_checks/twemproxy/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "twistlock_srcs",
+    srcs = glob(["twistlock/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "twistlock_pyproject",
+    srcs = ["twistlock/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "twistlock_confd",
+    srcs = glob(["twistlock/datadog_checks/twistlock/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "varnish_srcs",
+    srcs = glob(["varnish/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "varnish_pyproject",
+    srcs = ["varnish/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "varnish_confd",
+    srcs = glob(["varnish/datadog_checks/varnish/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "vault_srcs",
+    srcs = glob(["vault/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "vault_pyproject",
+    srcs = ["vault/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "vault_confd",
+    srcs = glob(["vault/datadog_checks/vault/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "velero_srcs",
+    srcs = glob(["velero/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "velero_pyproject",
+    srcs = ["velero/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "velero_confd",
+    srcs = glob(["velero/datadog_checks/velero/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "vertica_srcs",
+    srcs = glob(["vertica/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "vertica_pyproject",
+    srcs = ["vertica/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "vertica_confd",
+    srcs = glob(["vertica/datadog_checks/vertica/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "vllm_srcs",
+    srcs = glob(["vllm/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "vllm_pyproject",
+    srcs = ["vllm/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "vllm_confd",
+    srcs = glob(["vllm/datadog_checks/vllm/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "voltdb_srcs",
+    srcs = glob(["voltdb/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "voltdb_pyproject",
+    srcs = ["voltdb/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "voltdb_confd",
+    srcs = glob(["voltdb/datadog_checks/voltdb/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "vsphere_srcs",
+    srcs = glob(["vsphere/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "vsphere_pyproject",
+    srcs = ["vsphere/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "vsphere_confd",
+    srcs = glob(["vsphere/datadog_checks/vsphere/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "watchguard_firebox_srcs",
+    srcs = glob(["watchguard_firebox/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "watchguard_firebox_pyproject",
+    srcs = ["watchguard_firebox/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "watchguard_firebox_confd",
+    srcs = glob(["watchguard_firebox/datadog_checks/watchguard_firebox/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "wazuh_srcs",
+    srcs = glob(["wazuh/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "wazuh_pyproject",
+    srcs = ["wazuh/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "wazuh_confd",
+    srcs = glob(["wazuh/datadog_checks/wazuh/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "weaviate_srcs",
+    srcs = glob(["weaviate/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "weaviate_pyproject",
+    srcs = ["weaviate/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "weaviate_confd",
+    srcs = glob(["weaviate/datadog_checks/weaviate/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "weblogic_srcs",
+    srcs = glob(["weblogic/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "weblogic_pyproject",
+    srcs = ["weblogic/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "weblogic_confd",
+    srcs = glob(["weblogic/datadog_checks/weblogic/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "win32_event_log_srcs",
+    srcs = glob(["win32_event_log/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "win32_event_log_pyproject",
+    srcs = ["win32_event_log/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "windows_performance_counters_srcs",
+    srcs = glob(["windows_performance_counters/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "windows_performance_counters_pyproject",
+    srcs = ["windows_performance_counters/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "windows_service_srcs",
+    srcs = glob(["windows_service/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "windows_service_pyproject",
+    srcs = ["windows_service/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "wmi_check_srcs",
+    srcs = glob(["wmi_check/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "wmi_check_pyproject",
+    srcs = ["wmi_check/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "yarn_srcs",
+    srcs = glob(["yarn/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "yarn_pyproject",
+    srcs = ["yarn/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "yarn_confd",
+    srcs = glob(["yarn/datadog_checks/yarn/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "zeek_srcs",
+    srcs = glob(["zeek/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "zeek_pyproject",
+    srcs = ["zeek/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "zeek_confd",
+    srcs = glob(["zeek/datadog_checks/zeek/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "zk_srcs",
+    srcs = glob(["zk/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "zk_pyproject",
+    srcs = ["zk/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "zk_confd",
+    srcs = glob(["zk/datadog_checks/zk/data/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "zscaler_private_access_srcs",
+    srcs = glob(["zscaler_private_access/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "zscaler_private_access_pyproject",
+    srcs = ["zscaler_private_access/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "zscaler_private_access_confd",
+    srcs = glob(["zscaler_private_access/datadog_checks/zscaler_private_access/data/**"]),
+    visibility = ["//visibility:public"],
+)
+""",
+    sha256 = "f986ffbb2cf9976f0504045096943afec9902c30e12b45364e5796cc9a24a16a",
+    strip_prefix = "integrations-core-ddev-v16.1.1",
+    urls = ["https://github.com/DataDog/integrations-core/archive/refs/tags/ddev-v16.1.1.tar.gz"],
+)
+
+# The snowflake check (datadog_snowflake) was removed from integrations-core after ddev-v14.
+# Pin the last release that contains it (7.11.0) so we can build the check wheel.
+# SHA256 verified: sha256sum integrations-core-ddev-v14.3.2.tar.gz
+http_archive(
+    name = "integrations_core_snowflake",
+    build_file_content = """
+filegroup(
+    name = "snowflake_srcs",
+    srcs = glob(["snowflake/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "snowflake_pyproject",
+    srcs = ["snowflake/pyproject.toml"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "snowflake_confd",
+    srcs = glob(["snowflake/datadog_checks/snowflake/data/**"]),
+    visibility = ["//visibility:public"],
+)
+""",
+    sha256 = "3f195c31b23abc4908af6cb5b07f2e2b14a908ef86fbb9d9e7451b51274c4f86",
+    strip_prefix = "integrations-core-ddev-v14.3.2",
+    urls = ["https://github.com/DataDog/integrations-core/archive/refs/tags/ddev-v14.3.2.tar.gz"],
+)
 
 pip = use_extension("@rules_python//python/extensions:pip.bzl", "pip")
 
@@ -347,6 +4880,862 @@ pip.parse(
     requirements_lock = "//deps:py_dev_requirements_lock.txt",
 )
 use_repo(pip, "py_dev_requirements")
+
+# Third-party dependencies for integration checks (set-a wheels).
+# Sourced from the pinned integrations-core lockfile at
+# .deps/resolved/linux-x86_64_3.13.txt (117 entries, all pre-built wheels).
+#
+# BLOCKER: The lockfile URLs contain a ${INTEGRATIONS_WHEELS_STORAGE} template
+# variable that must be substituted before use, AND the 28 'built/' packages are
+# served from agent-int-packages.datadoghq.com (internal Datadog CDN), not PyPI.
+# This means rules_python pip_parse cannot consume the lockfile verbatim:
+#   - The URL template must be expanded (see tasks/omnibus.py for substitution logic).
+#   - The 28 internally-built wheels (aerospike, cryptography, psycopg-c, etc.) must
+#     be sourced from the internal CDN or built from source.
+#   - The 89 'external/' packages mirror standard PyPI and could use PyPI directly.
+#
+# TODO(aarch64): Add a second hub using linux-aarch64_3.13.txt, or switch to
+# rules_python multi-platform support (requirements_by_platform) to cover both arches
+# with a single hub.
+#
+# TODO: Resolve the ${INTEGRATIONS_WHEELS_STORAGE} substitution. Options:
+#   (a) Preprocess the lockfile at MODULE.bazel extension eval time via a
+#       repository_rule that substitutes the variable and writes a resolved lockfile.
+#   (b) Use a Starlark module extension that reads the lockfile, substitutes the
+#       variable from an env_var, and calls pip.parse with the resolved requirements.
+#   (c) Maintain a separate resolved lockfile in-tree with real PyPI URLs for the
+#       89 external packages and http_file rules for the 28 internal packages.
+# TODO(4b-step2): Uncomment once the ${INTEGRATIONS_WHEELS_STORAGE} blocker is resolved.
+# The @integrations_core archive also needs a BUILD file at root for the label reference
+# to resolve. See the TODO block above for resolution options.
+# pip.parse(
+#     hub_name = "py_integrations_deps",
+#     python_version = INTEGRATION_PYTHON_VERSION,
+#     requirements_lock = "@integrations_core//:.deps/resolved/linux-x86_64_3.13.txt",
+# )
+# use_repo(pip, "py_integrations_deps")
+
+# Hatchling build backend for building datadog-* integration wheels (set-b).
+# Pins the same version used by omnibus (recipe line 100).
+# Using http_file rules (rather than pip.parse hub aliases) so the wheel files
+# are configuration-independent — they can be used as genrule srcs without
+# requiring a matching Python version flag in the build configuration.
+# Hashes verified from PyPI (sha256 in the URL path on PyPI mirrors):
+http_file(
+    name = "hatchling_whl",
+    sha256 = "c1280be9510685a18e2ccdd1484872113587f41762f78d690f16e2ce6931da99",
+    urls = ["https://files.pythonhosted.org/packages/60/c5/97a0c443be91936900da8c263fcb808c43393cca5d1c7ed163c13b2d6d72/hatchling-0.25.1-py2.py3-none-any.whl"],
+)
+
+http_file(
+    name = "hatchling_editables_whl",
+    sha256 = "d70e4698078a1d033e7786d9c64e5be070d058a67c21417024d38a58ac20aa43",
+    urls = ["https://files.pythonhosted.org/packages/cc/0e/d095533037fc9468f947b19f2da53f869804632b508808de41e86e801797/editables-0.6-py3-none-any.whl"],
+)
+
+http_file(
+    name = "hatchling_packaging_whl",
+    sha256 = "5fc45236b9446107ff2415ce77c807cee2862cb6fac22b8a73826d0693b0980e",
+    urls = ["https://files.pythonhosted.org/packages/df/b2/87e62e8c3e2f4b32e5fe99e0b86d576da1312593b39f47d8ceef365e95ed/packaging-26.2-py3-none-any.whl"],
+)
+
+http_file(
+    name = "hatchling_pathspec_whl",
+    sha256 = "a00ce642f577bf7f473932318056212bc4f8bfdf53128c78bbd5af0b9b20b189",
+    urls = ["https://files.pythonhosted.org/packages/f1/d9/7fb5aa316bc299258e68c73ba3bddbc499654a07f151cba08f6153988714/pathspec-1.1.1-py3-none-any.whl"],
+)
+
+http_file(
+    name = "hatchling_pluggy_whl",
+    sha256 = "e920276dd6813095e9377c0bc5566d94c932c33b27a3e3945d8389c374dd4746",
+    urls = ["https://files.pythonhosted.org/packages/54/20/4d324d65cc6d9205fabedc306948156824eb9f0ee1633355a8f7ec5c66bf/pluggy-1.6.0-py3-none-any.whl"],
+)
+
+http_file(
+    name = "lazy_loader_whl",
+    sha256 = "ab0ea149e9c554d4ffeeb21105ac60bed7f3b4fd69b1d2360a4add51b170b005",
+    urls = ["https://files.pythonhosted.org/packages/8a/a1/8d812e53a5da1687abb10445275d41a8b13adb781bbf7196ddbcf8d88505/lazy_loader-0.5-py3-none-any.whl"],
+)
+
+# ---------------------------------------------------------------------------
+# Set-a: third-party wheels from the integrations-core aarch64 lockfile.
+# Sourced from .deps/resolved/linux-aarch64_3.13.txt with
+# INTEGRATIONS_WHEELS_STORAGE=stable. Consumed by
+# deps/integrations/BUILD.bazel via rename genrules + multi_whl_extract.
+# ---------------------------------------------------------------------------
+
+http_file(
+    name = "int_whl_aerospike",
+    sha256 = "13e750c0fbc8fd5f41810e5b3e72be2d132124e47a148dd147352a84b90fc614",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/built/aerospike/aerospike-7.1.1-20260423151051-cp313-cp313-manylinux_2_17_aarch64.manylinux2014_aarch64.whl"],
+)
+
+http_file(
+    name = "int_whl_botocore",
+    sha256 = "038f34553da68df2ce70edc729f170cc198678daaad43f98649727c59f6404d4",
+    urls = ["https://files.pythonhosted.org/packages/66/50/3297ba278a0d6644396011cc592ee88f628206599fc6cff25f5c83b629e7/botocore-1.42.72-py3-none-any.whl"],
+)
+
+http_file(
+    name = "int_whl_cm_client",
+    sha256 = "0bbcf2766028850c26a917deef3704a096cc9ba0c25220d45ff424334d25dcd7",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/built/cm-client/cm_client-45.0.4-20260326173357-py3-none-manylinux2014_aarch64.whl"],
+)
+
+http_file(
+    name = "int_whl_confluent_kafka",
+    sha256 = "19b40abeb68db5be7390e2d91db7436c056a8064e30a040be092cd427065c7bc",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/built/confluent-kafka/confluent_kafka-2.13.2-20260522140500-cp313-cp313-manylinux_2_17_aarch64.manylinux2014_aarch64.whl"],
+)
+
+http_file(
+    name = "int_whl_cryptography",
+    sha256 = "cd8a5437c5d4dddfa0d7f77159877cd94831ce854daae5b03cd1f0ff176057b0",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/built/cryptography/cryptography-46.0.7-20260522140502-cp313-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl"],
+)
+
+http_file(
+    name = "int_whl_ddtrace",
+    sha256 = "a4f8d07adccdd43908156ab2c143dbb6261ed9a3c43ba58a3bb6bd1b6ef94734",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/built/ddtrace/ddtrace-3.19.5-20260417115249-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.whl"],
+)
+
+http_file(
+    name = "int_whl_foundationdb",
+    sha256 = "d34180500220db4458e57505c774de0363456d4129f0e3fe98c9e99e8eef77c2",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/built/foundationdb/foundationdb-6.3.25-20260326173358-py3-none-manylinux2014_aarch64.whl"],
+)
+
+http_file(
+    name = "int_whl_gssapi",
+    sha256 = "861b3cde93aec1b05a5e9ac917780dbac66d773bd427834bdf738825e559d197",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/built/gssapi/gssapi-1.11.1-20260519113308-cp311-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl"],
+)
+
+http_file(
+    name = "int_whl_google_auth",
+    sha256 = "195ebe3dca18eddd1b3db5edc5189b76c13e96f29e73043b923ebcf3f1a860f7",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/external/google-auth/google_auth-2.49.1-py3-none-any.whl"],
+)
+
+http_file(
+    name = "int_whl_keystoneauth1",
+    sha256 = "981596c8e7346d2b46ee5ec738312b8e46b0beb29d62104ccb7c113ed9c7fbef",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/built/keystoneauth1/keystoneauth1-5.14.0-20260522142314-py3-none-any.whl"],
+)
+
+http_file(
+    name = "int_whl_krb5",
+    sha256 = "f6dd9d9a2d81b129b52ace318104ea9c04c1e7a5e11724aede73ba7c12f7fcac",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/built/krb5/krb5-0.9.0-20260519113309-cp311-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl"],
+)
+
+http_file(
+    name = "int_whl_openstacksdk",
+    sha256 = "88abe8f44e3b8c5c25b1093de735c700aa727a7ac408e273aa855d6db6ba38bf",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/built/openstacksdk/openstacksdk-4.10.0-20260522142338-py3-none-any.whl"],
+)
+
+http_file(
+    name = "int_whl_os_service_types",
+    sha256 = "758ccaa020eea0edd84bcf4123746ddd060d1dbaeef63d04d76bd2e0ae6f91d8",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/built/os-service-types/os_service_types-1.8.2-20260522142401-py3-none-any.whl"],
+)
+
+http_file(
+    name = "int_whl_pbr",
+    sha256 = "1544652b80307f0b4c491bd66f58f969cb0656994e632365f90e8e044c223b4e",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/built/pbr/pbr-7.0.3-20260522142424-py2.py3-none-any.whl"],
+)
+
+http_file(
+    name = "int_whl_psutil",
+    sha256 = "22e075e3cbc57b5da0d93f72f691746c5198ce88c5aea6fdb54186b3e8c46832",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/built/psutil/psutil-6.0.0-20260326173401-cp36-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl"],
+)
+
+http_file(
+    name = "int_whl_psycopg_c",
+    sha256 = "91f63a673fb68a595ab2c0a4e05178a7eacb964b154afb9cda19caae1e7e9a0b",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/built/psycopg-c/psycopg_c-3.3.3-20260522140537-cp313-cp313-manylinux_2_17_aarch64.manylinux2014_aarch64.whl"],
+)
+
+http_file(
+    name = "int_whl_pymongo",
+    sha256 = "30d8af4ef8fda85d1a865bdb254e6b2e3988f26b723eb39a4843c766371ff517",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/built/pymongo/pymongo-4.8.0-20260415154515-cp313-cp313-manylinux_2_17_aarch64.manylinux2014_aarch64.whl"],
+)
+
+# Pympler 0.7 source distribution — no pre-built wheel is available on PyPI or the agent CDN.
+# The genrule in deps/integrations/BUILD.bazel builds the wheel offline using setuptools.
+http_file(
+    name = "int_whl_pympler_source",
+    sha256 = "7a11e739125a9ce8bf868ded67238a40e8a7bf979bc03005eb8126182e5e274e",
+    urls = ["https://files.pythonhosted.org/packages/31/0a/646bbf701678213de5497d82e5bac24297bbffb333d1f8300cfc43329fa6/Pympler-0.7.tar.gz"],
+)
+
+http_file(
+    name = "int_whl_pyodbc",
+    sha256 = "91a4191cf30930755d82e8edd6ac861443dfb6fbbf7915753b73209038ad5ad2",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/built/pyodbc/pyodbc-5.3.0-20260415154516-cp313-cp313-manylinux_2_17_aarch64.manylinux2014_aarch64.whl"],
+)
+
+http_file(
+    name = "int_whl_pysnmp_mibs",
+    sha256 = "0cc4610711208cdc64361464a23d1f2dce88ec5990a12b4bdce4f13b6a169810",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/built/pysnmp-mibs/pysnmp_mibs-0.1.6-20260522142452-py2.py3-none-any.whl"],
+)
+
+http_file(
+    name = "int_whl_pyvmomi",
+    sha256 = "dd71476b7308286ed4219373ca9523e4f06bfed3f5932f60e5c67d8d5a673e1e",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/built/pyvmomi/pyvmomi-8.0.3.0.1-20260326173403-py2.py3-none-manylinux2014_aarch64.whl"],
+)
+
+http_file(
+    name = "int_whl_requests_unixsocket2",
+    sha256 = "aae3f1743ab60955ea91e9a095d54997ea56b956bab652bf194379ef4dc6fa7f",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/built/requests-unixsocket2/requests_unixsocket2-1.0.1-20260522142516-py3-none-any.whl"],
+)
+
+http_file(
+    name = "int_whl_securesystemslib",
+    sha256 = "861ab6f8c1930e0c05915f32a34f1c4ae1d76ee542ad2b424121e3e26a9fb1dd",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/built/securesystemslib/securesystemslib-0.28.0-20260522142540-py3-none-any.whl"],
+)
+
+http_file(
+    name = "int_whl_setuptools",
+    sha256 = "b020c62c9ea6c1c3e7a29a8e385967909ceb85a77398f7fbe3c63e2abab52e87",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/built/setuptools/setuptools-82.0.1-20260522142604-py3-none-any.whl"],
+)
+
+http_file(
+    name = "int_whl_simplejson",
+    sha256 = "cb739020a718c2e32041a0fa0a3f79398f45c067347fe8f286c8222fa777bc5d",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/built/simplejson/simplejson-3.20.2-20260326173404-cp313-cp313-manylinux_2_17_aarch64.manylinux2014_aarch64.whl"],
+)
+
+http_file(
+    name = "int_whl_stevedore",
+    sha256 = "b9c2fdfb8d02797f171fc63ada01759955b4bac02a7cbe63d2ad2e827e3530f6",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/built/stevedore/stevedore-5.8.0-20260522142606-py3-none-any.whl"],
+)
+
+http_file(
+    name = "int_whl_supervisor",
+    sha256 = "81d63e968a5133203a334102b8e6e72b1f5ecfc9673c1af7680f9f7e0db8d4fd",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/built/supervisor/supervisor-4.3.0-20260522142630-py2.py3-none-any.whl"],
+)
+
+http_file(
+    name = "int_whl_vertica_python",
+    sha256 = "df8d667b7bd070532a72c25f37e7259d3673c1908ae726fdfb3087d777caa9da",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/built/vertica-python/vertica_python-1.4.0-20260522142655-py3-none-any.whl"],
+)
+
+http_file(
+    name = "int_whl_websocket_client",
+    sha256 = "b628876a9b1eed1d49f1a230bf4b1c21fa3cd9163594f9f9628c8a8b22f97e10",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/built/websocket-client/websocket_client-1.9.0-20260522142719-py3-none-any.whl"],
+)
+
+http_file(
+    name = "int_whl_annotated_types",
+    sha256 = "1f02e8b43a8fbbc3f3e0d4f0f4bfc8131bcb4eebe8849b8e5c773f3a1c582a53",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/external/annotated-types/annotated_types-0.7.0-py3-none-any.whl"],
+)
+
+http_file(
+    name = "int_whl_asn1crypto",
+    sha256 = "db4e40728b728508912cbb3d44f19ce188f218e9eba635821bb4b68564f8fd67",
+    urls = ["https://agent-int-packages.datadoghq.com/external/asn1crypto/asn1crypto-1.5.1-py2.py3-none-any.whl"],
+)
+
+http_file(
+    name = "int_whl_attrs",
+    sha256 = "c647aa4a12dfbad9333ca4e71fe62ddc36f4e63b2d260a37a8b83d2f043ac309",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/external/attrs/attrs-26.1.0-py3-none-any.whl"],
+)
+
+http_file(
+    name = "int_whl_aws_msk_iam_sasl_signer_python",
+    sha256 = "310eb2db9ca0ff55ed06a24212739b87533e7f1cf6f34e43aabbd97a3b21290e",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/external/aws-msk-iam-sasl-signer-python/aws_msk_iam_sasl_signer_python-1.0.2-py2.py3-none-any.whl"],
+)
+
+http_file(
+    name = "int_whl_aws_requests_auth",
+    sha256 = "646bc37d62140ea1c709d20148f5d43197e6bd2d63909eb36fa4bb2345759977",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/external/aws-requests-auth/aws_requests_auth-0.4.3-py2.py3-none-any.whl"],
+)
+
+http_file(
+    name = "int_whl_azure_core",
+    sha256 = "522b4011e8180b1a3dcd2024396a4e7fe9ac37fb8597db47163d230b5efe892d",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/external/azure-core/azure_core-1.41.0-py3-none-any.whl"],
+)
+
+http_file(
+    name = "int_whl_azure_identity",
+    sha256 = "f4d0b956a8146f30333e071374171f3cfa7bdb8073adb8c3814b65567aa7447c",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/external/azure-identity/azure_identity-1.25.3-py3-none-any.whl"],
+)
+
+http_file(
+    name = "int_whl_bcrypt",
+    sha256 = "ddb4e1500f6efdd402218ffe34d040a1196c072e07929b9820f363a1fd1f4191",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/external/bcrypt/bcrypt-5.0.0-cp39-abi3-manylinux2014_aarch64.manylinux_2_17_aarch64.whl"],
+)
+
+http_file(
+    name = "int_whl_beautifulsoup4",
+    sha256 = "0918bfe44902e6ad8d57732ba310582e98da931428d231a5ecb9e7c703a735bb",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/external/beautifulsoup4/beautifulsoup4-4.14.3-py3-none-any.whl"],
+)
+
+http_file(
+    name = "int_whl_binary",
+    sha256 = "e79bba085cddfb9d3beefe138464506d2ef0c0f5f68c69e27fc9f82d4ac85470",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/external/binary/binary-1.0.2-py3-none-any.whl"],
+)
+
+http_file(
+    name = "int_whl_boto3",
+    sha256 = "2b5fdac4f202b2ccb9ed21f8b84229463b15573ea16941c2b1b8db1c69e08b63",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/external/boto3/boto3-1.42.72-py3-none-any.whl"],
+)
+
+http_file(
+    name = "int_whl_bytecode",
+    sha256 = "64fb10cde1db7ef5cc39bd414ecebd54ba3b40e1c4cf8121ca5e72f170916ff8",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/external/bytecode/bytecode-0.17.0-py3-none-any.whl"],
+)
+
+http_file(
+    name = "int_whl_cachetools",
+    sha256 = "46bc8ebefbe485407621d0a4264b23c080cedd913921bad7ac3ed2f26c183114",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/external/cachetools/cachetools-7.0.5-py3-none-any.whl"],
+)
+
+http_file(
+    name = "int_whl_certifi",
+    sha256 = "3c52e209ba0a4ad7aebe60436a4ab349c39e1e602e8c134221e546902ad25897",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/external/certifi/certifi-2026.5.20-py3-none-any.whl"],
+)
+
+http_file(
+    name = "int_whl_cffi",
+    sha256 = "d48a880098c96020b02d5a1f7d9251308510ce8858940e6fa99ece33f610838b",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/external/cffi/cffi-2.0.0-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.whl"],
+)
+
+http_file(
+    name = "int_whl_charset_normalizer",
+    sha256 = "0ea948db76d31190bf08bd371623927ee1339d5f2a0b4b1b4a4439a65298703c",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/external/charset-normalizer/charset_normalizer-3.4.7-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl"],
+)
+
+http_file(
+    name = "int_whl_click",
+    sha256 = "482be17c6991b8c19c5429a1e995d9b0efdbb63172824c41f99965dc0ade8ec2",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/external/click/click-8.4.1-py3-none-any.whl"],
+)
+
+http_file(
+    name = "int_whl_clickhouse_connect",
+    sha256 = "ab1e8e9961e6226ed9535a65fa65c1cf8d386d5179e10acbd093651bea68c7e0",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/external/clickhouse-connect/clickhouse_connect-0.14.1-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl"],
+)
+
+http_file(
+    name = "int_whl_decorator",
+    sha256 = "f47fe6fdbd2edd623ecfe36875d37aba411624e2670dd395dddae1358689bb3c",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/external/decorator/decorator-5.3.1-py3-none-any.whl"],
+)
+
+http_file(
+    name = "int_whl_dnspython",
+    sha256 = "01d9bbc4a2d76bf0db7c1f729812ded6d912bd318d3b1cf81d30c0f845dbf3af",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/external/dnspython/dnspython-2.8.0-py3-none-any.whl"],
+)
+
+http_file(
+    name = "int_whl_dogpile_cache",
+    sha256 = "dc7b47d37844db15e8fdc0243c1b58857a2ddc52a5118237a97127bac200e18d",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/external/dogpile-cache/dogpile_cache-1.5.0-py3-none-any.whl"],
+)
+
+http_file(
+    name = "int_whl_durationpy",
+    sha256 = "3b41e1b601234296b4fb368338fdcd3e13e0b4fb5b67345948f4f2bf9868b286",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/external/durationpy/durationpy-0.10-py3-none-any.whl"],
+)
+
+http_file(
+    name = "int_whl_envier",
+    sha256 = "73609040a76be48bbcb97074d9969666484aa0de706183a6e9ef773156a8a6a9",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/external/envier/envier-0.6.1-py3-none-any.whl"],
+)
+
+http_file(
+    name = "int_whl_fastavro",
+    sha256 = "780476c23175d2ae457c52f45b9ffa9d504593499a36cd3c1929662bf5b7b14b",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/external/fastavro/fastavro-1.12.1-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl"],
+)
+
+http_file(
+    name = "int_whl_filelock",
+    sha256 = "ca8afb0da15f229774c9ad1b455ed96e85a81373065fb10446672f64444ddf70",
+    urls = ["https://agent-int-packages.datadoghq.com/external/filelock/filelock-3.25.2-py3-none-any.whl"],
+)
+
+http_file(
+    name = "int_whl_hazelcast_python_client",
+    sha256 = "e2cec409068990ca9b4381fe97160cc2375412334782bef45ab4c8fe4d10536c",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/external/hazelcast-python-client/hazelcast_python_client-5.6.0-py3-none-any.whl"],
+)
+
+http_file(
+    name = "int_whl_idna",
+    sha256 = "cc246e3a3f89580c3a951b5ad298ca4638078b2cdd4f115654332b5c26daded5",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/external/idna/idna-3.16-py3-none-any.whl"],
+)
+
+http_file(
+    name = "int_whl_importlib_metadata",
+    sha256 = "5a1f80bf1daa489495071efbb095d75a634cf28a8bc299581244063b53176151",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/external/importlib-metadata/importlib_metadata-8.7.1-py3-none-any.whl"],
+)
+
+http_file(
+    name = "int_whl_in_toto",
+    sha256 = "eaf71733cdd5b2309b58b24169c13c24701da72baa43b7432d1dffc308e7bf32",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/external/in-toto/in_toto-2.0.0-py3-none-any.whl"],
+)
+
+http_file(
+    name = "int_whl_invoke",
+    sha256 = "f11327165e5cbb89b2ad1d88d3292b5113332c43b8553b494da435d6ec6f5053",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/external/invoke/invoke-3.0.3-py3-none-any.whl"],
+)
+
+http_file(
+    name = "int_whl_iso8601",
+    sha256 = "aac4145c4dcb66ad8b648a02830f5e2ff6c24af20f4f482689be402db2429242",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/external/iso8601/iso8601-2.1.0-py3-none-any.whl"],
+)
+
+http_file(
+    name = "int_whl_jellyfish",
+    sha256 = "32581c50b34a09889b2d96796170e53da313a1e7fde32be63c82e50e7e791e3c",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/external/jellyfish/jellyfish-1.2.1-cp313-cp313-manylinux_2_17_aarch64.manylinux2014_aarch64.whl"],
+)
+
+http_file(
+    name = "int_whl_jmespath",
+    sha256 = "a5663118de4908c91729bea0acadca56526eb2698e83de10cd116ae0f4e97c64",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/external/jmespath/jmespath-1.1.0-py3-none-any.whl"],
+)
+
+http_file(
+    name = "int_whl_jsonpatch",
+    sha256 = "0ae28c0cd062bbd8b8ecc26d7d164fbbea9652a1a3693f3b956c1eae5145dade",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/external/jsonpatch/jsonpatch-1.33-py2.py3-none-any.whl"],
+)
+
+http_file(
+    name = "int_whl_jsonpointer",
+    sha256 = "8ff8b95779d071ba472cf5bc913028df06031797532f08a7d5b602d8b2a488ca",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/external/jsonpointer/jsonpointer-3.1.1-py3-none-any.whl"],
+)
+
+http_file(
+    name = "int_whl_kubernetes",
+    sha256 = "39e2b33b46e5834ef6c3985ebfe2047ab39135d41de51ce7641a7ca5b372a13d",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/external/kubernetes/kubernetes-35.0.0-py2.py3-none-any.whl"],
+)
+
+http_file(
+    name = "int_whl_ldap3",
+    sha256 = "5869596fc4948797020d3f03b7939da938778a0f9e2009f7a072ccf92b8e8d70",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/external/ldap3/ldap3-2.9.1-py2.py3-none-any.whl"],
+)
+
+http_file(
+    name = "int_whl_looseversion",
+    sha256 = "781ef477b45946fc03dd4c84ea87734b21137ecda0e1e122bcb3c8d16d2a56e0",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/external/looseversion/looseversion-1.3.0-py2.py3-none-any.whl"],
+)
+
+http_file(
+    name = "int_whl_lxml",
+    sha256 = "419c58fc92cc3a2c3fa5f78c63dbf5da70c1fa9c1b25f25727ecee89a96c7de2",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/external/lxml/lxml-6.1.0-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.whl"],
+)
+
+http_file(
+    name = "int_whl_lz4",
+    sha256 = "533298d208b58b651662dd972f52d807d48915176e5b032fb4f8c3b6f5fe535c",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/external/lz4/lz4-4.4.5-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl"],
+)
+
+http_file(
+    name = "int_whl_mmh3",
+    sha256 = "3737303ca9ea0f7cb83028781148fcda4f1dac7821db0c47672971dabcf63593",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/external/mmh3/mmh3-5.2.1-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl"],
+)
+
+http_file(
+    name = "int_whl_msal",
+    sha256 = "36ecac30e2ff4322d956029aabce3c82301c29f0acb1ad89b94edcabb0e58ec4",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/external/msal/msal-1.36.0-py3-none-any.whl"],
+)
+
+http_file(
+    name = "int_whl_msal_extensions",
+    sha256 = "96d3de4d034504e969ac5e85bae8106c8373b5c6568e4c8fa7af2eca9dbe6bca",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/external/msal-extensions/msal_extensions-1.3.1-py3-none-any.whl"],
+)
+
+http_file(
+    name = "int_whl_oauthlib",
+    sha256 = "88119c938d2b8fb88561af5f6ee0eec8cc8d552b7bb1f712743136eb7523b7a1",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/external/oauthlib/oauthlib-3.3.1-py3-none-any.whl"],
+)
+
+http_file(
+    name = "int_whl_opentelemetry_api",
+    sha256 = "51a69edacadbc03a8950ace1c4c21099cacc538820ac2c9e36277e78cebba714",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/external/opentelemetry-api/opentelemetry_api-1.42.1-py3-none-any.whl"],
+)
+
+http_file(
+    name = "int_whl_orjson",
+    sha256 = "814be4b49b228cfc0b3c565acf642dd7d13538f966e3ccde61f4f55be3e20785",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/external/orjson/orjson-3.11.7-cp313-cp313-manylinux_2_17_aarch64.manylinux2014_aarch64.whl"],
+)
+
+http_file(
+    name = "int_whl_packaging",
+    sha256 = "b36f1fef9334a5588b4166f8bcd26a14e521f2b55e6b9de3aaa80d3ff7a37529",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/external/packaging/packaging-26.0-py3-none-any.whl"],
+)
+
+http_file(
+    name = "int_whl_paramiko",
+    sha256 = "0e20e00ac666503bf0b4eda3b6d833465a2b7aff2e2b3d79a8bba5ef144ee3b9",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/external/paramiko/paramiko-4.0.0-py3-none-any.whl"],
+)
+
+http_file(
+    name = "int_whl_pathspec",
+    sha256 = "a00ce642f577bf7f473932318056212bc4f8bfdf53128c78bbd5af0b9b20b189",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/external/pathspec/pathspec-1.1.1-py3-none-any.whl"],
+)
+
+http_file(
+    name = "int_whl_platformdirs",
+    sha256 = "e61adb1d5e5cb3441b4b7710bea7e4c12250ca49439228cc1021c00dcfac0917",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/external/platformdirs/platformdirs-4.9.6-py3-none-any.whl"],
+)
+
+http_file(
+    name = "int_whl_ply",
+    sha256 = "096f9b8350b65ebd2fd1346b12452efe5b9607f7482813ffca50c22722a807ce",
+    urls = ["https://agent-int-packages.datadoghq.com/external/ply/ply-3.11-py2.py3-none-any.whl"],
+)
+
+http_file(
+    name = "int_whl_prometheus_client",
+    sha256 = "150db128af71a5c2482b36e588fc8a6b95e498750da4b17065947c16070f4055",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/external/prometheus-client/prometheus_client-0.24.1-py3-none-any.whl"],
+)
+
+http_file(
+    name = "int_whl_protobuf",
+    sha256 = "9d7a5005fb96f3c1e64f397f91500b0eb371b28da81296ae73a6b08a5b76cdd6",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/external/protobuf/protobuf-7.34.0-cp310-abi3-manylinux2014_aarch64.whl"],
+)
+
+http_file(
+    name = "int_whl_psycopg",
+    sha256 = "f96525a72bcfade6584ab17e89de415ff360748c766f0106959144dcbb38c698",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/external/psycopg/psycopg-3.3.3-py3-none-any.whl"],
+)
+
+http_file(
+    name = "int_whl_psycopg_pool",
+    sha256 = "2af5b432941c4c9ad5c87b3fa410aec910ec8f7c122855897983a06c45f2e4b5",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/external/psycopg-pool/psycopg_pool-3.3.1-py3-none-any.whl"],
+)
+
+http_file(
+    name = "int_whl_pyasn1",
+    sha256 = "a80184d120f0864a52a073acc6fc642847d0be408e7c7252f31390c0f4eadcde",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/external/pyasn1/pyasn1-0.6.3-py3-none-any.whl"],
+)
+
+http_file(
+    name = "int_whl_pyasn1_modules",
+    sha256 = "29253a9207ce32b64c3ac6600edc75368f98473906e8fd1043bd6b5b1de2c14a",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/external/pyasn1-modules/pyasn1_modules-0.4.2-py3-none-any.whl"],
+)
+
+http_file(
+    name = "int_whl_pyasyncore",
+    sha256 = "269bbc5252671827387636822841a1fb721ec6e858b23a3e12cf92eb1f97da2a",
+    urls = ["https://agent-int-packages.datadoghq.com/external/pyasyncore/pyasyncore-1.0.5-py3-none-any.whl"],
+)
+
+http_file(
+    name = "int_whl_pycparser",
+    sha256 = "b727414169a36b7d524c1c3e31839a521725078d7b2ff038656844266160a992",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/external/pycparser/pycparser-3.0-py3-none-any.whl"],
+)
+
+http_file(
+    name = "int_whl_pydantic",
+    sha256 = "e561593fccf61e8a20fc46dfc2dfe075b8be7d0188df33f221ad1f0139180f9d",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/external/pydantic/pydantic-2.12.5-py3-none-any.whl"],
+)
+
+http_file(
+    name = "int_whl_pydantic_core",
+    sha256 = "0cbaad15cb0c90aa221d43c00e77bb33c93e8d36e0bf74760cd00e732d10a6a0",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/external/pydantic-core/pydantic_core-2.41.5-cp313-cp313-manylinux_2_17_aarch64.manylinux2014_aarch64.whl"],
+)
+
+http_file(
+    name = "int_whl_pyjwt",
+    sha256 = "28ca37c070cad8ba8cd9790cd940535d40274d22f80ab87f3ac6a713e6e8454c",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/external/pyjwt/pyjwt-2.12.1-py3-none-any.whl"],
+)
+
+http_file(
+    name = "int_whl_pymysql",
+    sha256 = "e6b1d89711dd51f8f74b1631fe08f039e7d76cf67a42a323d3178f0f25762ed9",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/external/pymysql/pymysql-1.1.2-py3-none-any.whl"],
+)
+
+http_file(
+    name = "int_whl_pynacl",
+    sha256 = "8845c0631c0be43abdd865511c41eab235e0be69c81dc66a50911594198679b0",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/external/pynacl/pynacl-1.6.2-cp38-abi3-manylinux2014_aarch64.manylinux_2_17_aarch64.whl"],
+)
+
+http_file(
+    name = "int_whl_pyopenssl",
+    sha256 = "df94d28498848b98cc1c0ffb8ef1e71e40210d3b0a8064c9d29571ed2904bf81",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/external/pyopenssl/pyopenssl-26.0.0-py3-none-any.whl"],
+)
+
+http_file(
+    name = "int_whl_pysmi",
+    sha256 = "d97c60de9f81d33ab2899124d95a94fa7fefacc86ab6e00cbfec543a073e6d33",
+    urls = ["https://agent-int-packages.datadoghq.com/external/pysmi/pysmi-1.2.1-py3-none-any.whl"],
+)
+
+http_file(
+    name = "int_whl_pysnmp",
+    sha256 = "57e704a6ba2bbf571d16cd5dc08b89bb3fa0ebeb5f4f26b87fececad3b3de7a6",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/external/pysnmp/pysnmp-7.1.22-py3-none-any.whl"],
+)
+
+http_file(
+    name = "int_whl_pysnmpcrypto",
+    sha256 = "5889733caa030f45d9e03ea9d6370fb06426a8cb7f839aabbcdde33c6f634679",
+    urls = ["https://agent-int-packages.datadoghq.com/external/pysnmpcrypto/pysnmpcrypto-0.0.4-py2.py3-none-any.whl"],
+)
+
+http_file(
+    name = "int_whl_pysocks",
+    sha256 = "2725bd0a9925919b9b51739eea5f9e2bae91e83288108a9ad338b2e3a4435ee5",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/external/pysocks/PySocks-1.7.1-py3-none-any.whl"],
+)
+
+http_file(
+    name = "int_whl_pyspnego",
+    sha256 = "7237cb47985ccf5da512106ddb2731e4f9cefec00991f76c054488eb95fb1a2d",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/external/pyspnego/pyspnego-0.12.1-py3-none-any.whl"],
+)
+
+http_file(
+    name = "int_whl_python_binary_memcached",
+    sha256 = "f7a74f212567e37520dd550f0d088b99bb4bae01034d3078135bfc16285960f9",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/external/python-binary-memcached/python_binary_memcached-0.31.4-py3-none-any.whl"],
+)
+
+http_file(
+    name = "int_whl_python_dateutil",
+    sha256 = "a8b2bc7bffae282281c8140a97d3aa9c14da0b136dfe83f850eea9a5f7470427",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/external/python-dateutil/python_dateutil-2.9.0.post0-py2.py3-none-any.whl"],
+)
+
+http_file(
+    name = "int_whl_python3_gearman",
+    sha256 = "4a5808d3a0bfc6c243548ad57e7aab4bee62c9cba2b1c3a860fdd292d46a112d",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/external/python3-gearman/python3_gearman-0.1.0-py3-none-any.whl"],
+)
+
+http_file(
+    name = "int_whl_pytz",
+    sha256 = "04156e608bee23d3792fd45c94ae47fae1036688e75032eea2e3bf0323d1f126",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/external/pytz/pytz-2026.2-py2.py3-none-any.whl"],
+)
+
+http_file(
+    name = "int_whl_pyyaml",
+    sha256 = "ee2922902c45ae8ccada2c5b501ab86c36525b883eff4255313a253a3160861c",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/external/pyyaml/pyyaml-6.0.3-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl"],
+)
+
+http_file(
+    name = "int_whl_redis",
+    sha256 = "9d4fcb002a12a5e3c3fbe005d59c48a2cc231f87fbb2f6b70c2d89bb64fec364",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/external/redis/redis-7.3.0-py3-none-any.whl"],
+)
+
+http_file(
+    name = "int_whl_requests",
+    sha256 = "3324635456fa185245e24865e810cecec7b4caf933d7eb133dcde67d48cee69b",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/external/requests/requests-2.33.0-py3-none-any.whl"],
+)
+
+http_file(
+    name = "int_whl_requests_kerberos",
+    sha256 = "ba9b0980b8489c93bfb13854fd118834e576d6700bfea3745cb2e62278cd16a6",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/external/requests-kerberos/requests_kerberos-0.15.0-py2.py3-none-any.whl"],
+)
+
+http_file(
+    name = "int_whl_requests_ntlm",
+    sha256 = "4c7534a7d0e482bb0928531d621be4b2c74ace437e88c5a357ceb7452d25a510",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/external/requests-ntlm/requests_ntlm-1.3.0-py3-none-any.whl"],
+)
+
+http_file(
+    name = "int_whl_requests_oauthlib",
+    sha256 = "7dd8a5c40426b779b0868c404bdef9768deccf22749cde15852df527e6269b36",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/external/requests-oauthlib/requests_oauthlib-2.0.0-py2.py3-none-any.whl"],
+)
+
+http_file(
+    name = "int_whl_requests_toolbelt",
+    sha256 = "cccfdd665f0a24fcf4726e690f65639d272bb0637b9b92dfd91a5568ccf6bd06",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/external/requests-toolbelt/requests_toolbelt-1.0.0-py2.py3-none-any.whl"],
+)
+
+http_file(
+    name = "int_whl_requestsexceptions",
+    sha256 = "3083d872b6e07dc5c323563ef37671d992214ad9a32b0ca4a3d7f5500bf38ce3",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/external/requestsexceptions/requestsexceptions-1.4.0-py2.py3-none-any.whl"],
+)
+
+http_file(
+    name = "int_whl_rethinkdb",
+    sha256 = "a8c3644a35beb7bc857887808d267e6124623b32dc1f54608e7729a14617a431",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/external/rethinkdb/rethinkdb-2.4.10.post1-py2.py3-none-any.whl"],
+)
+
+http_file(
+    name = "int_whl_s3transfer",
+    sha256 = "61bcd00ccb83b21a0fe7e91a553fff9729d46c83b4e0106e7c314a733891f7c2",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/external/s3transfer/s3transfer-0.16.1-py3-none-any.whl"],
+)
+
+http_file(
+    name = "int_whl_semver",
+    sha256 = "9c824d87ba7f7ab4a1890799cec8596f15c1241cb473404ea1cb0c55e4b04746",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/external/semver/semver-3.0.4-py3-none-any.whl"],
+)
+
+http_file(
+    name = "int_whl_service_identity",
+    sha256 = "6b047fbd8a84fd0bb0d55ebce4031e400562b9196e1e0d3e0fe2b8a59f6d4a85",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/external/service-identity/service_identity-24.2.0-py3-none-any.whl"],
+)
+
+http_file(
+    name = "int_whl_six",
+    sha256 = "4721f391ed90541fddacab5acf947aa0d3dc7d27b2e1e8eda2be8970586c3274",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/external/six/six-1.17.0-py2.py3-none-any.whl"],
+)
+
+# Snowflake Connector for Python — prebuilt cp313-aarch64 wheel from the agent CDN.
+# URL sourced from direct_url.json in the reference omnibus deb.
+# SHA256 verified against the downloaded wheel.
+http_file(
+    name = "int_whl_snowflake_connector_python",
+    sha256 = "54e648bbd506a0f2f8076f9eafe231b2d4284b1a884528c3a0690391ab2bb54e",
+    urls = ["https://agent-int-packages.datadoghq.com/external/snowflake-connector-python/snowflake_connector_python-4.0.0-cp313-cp313-manylinux_2_17_aarch64.manylinux2014_aarch64.whl"],
+)
+
+http_file(
+    name = "int_whl_sortedcontainers",
+    sha256 = "a163dcaede0f1c021485e957a39245190e74249897e2ae4b2aa38595db237ee0",
+    urls = ["https://agent-int-packages.datadoghq.com/external/sortedcontainers/sortedcontainers-2.4.0-py2.py3-none-any.whl"],
+)
+
+http_file(
+    name = "int_whl_soupsieve",
+    sha256 = "ed64f2ba4eebeab06cc4962affce381647455978ffc1e36bb79a545b91f45a95",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/external/soupsieve/soupsieve-2.8.3-py3-none-any.whl"],
+)
+
+http_file(
+    name = "int_whl_tuf",
+    sha256 = "a22ab5fa6daf910b3052929fdce42ccad8a300e5e85715daaff9592aed980f7a",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/external/tuf/tuf-4.0.0-py3-none-any.whl"],
+)
+
+http_file(
+    name = "int_whl_tomlkit",
+    sha256 = "592064ed85b40fa213469f81ac584f67a4f2992509a7c3ea2d632208623a3680",
+    urls = ["https://agent-int-packages.datadoghq.com/external/tomlkit/tomlkit-0.14.0-py3-none-any.whl"],
+)
+
+http_file(
+    name = "int_whl_typing_extensions",
+    sha256 = "f0fa19c6845758ab08074a0cfa8b7aecb71c999ca73d62883bc25cc018c4e548",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/external/typing-extensions/typing_extensions-4.15.0-py3-none-any.whl"],
+)
+
+http_file(
+    name = "int_whl_typing_inspection",
+    sha256 = "4ed1cacbdc298c220f1bd249ed5287caa16f34d44ef4e9c3d0cbad5b521545e7",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/external/typing-inspection/typing_inspection-0.4.2-py3-none-any.whl"],
+)
+
+http_file(
+    name = "int_whl_uhashring",
+    sha256 = "0d6cae4ac3205ef039860b0befd6bc762f1686a276805bf1b998c8657124df62",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/external/uhashring/uhashring-2.4-py3-none-any.whl"],
+)
+
+http_file(
+    name = "int_whl_urllib3",
+    sha256 = "9fb4c81ebbb1ce9531cce37674bbc6f1360472bc18ca9a553ede278ef7276897",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/external/urllib3/urllib3-2.7.0-py3-none-any.whl"],
+)
+
+http_file(
+    name = "int_whl_wrapt",
+    sha256 = "16997dfb9d67addc2e3f41b62a104341e80cac52f91110dece393923c0ebd5ca",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/external/wrapt/wrapt-2.1.2-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl"],
+)
+
+http_file(
+    name = "int_whl_zipp",
+    sha256 = "0b3596c50a5c700c9cb40ba8d86d9f2cc4807e9bedb06bcdf7fac85633e444dc",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/external/zipp/zipp-3.23.1-py3-none-any.whl"],
+)
+
+http_file(
+    name = "int_whl_zstandard",
+    sha256 = "bfc4e20784722098822e3eee42b8e576b379ed72cca4a7cb856ae733e62192ea",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/external/zstandard/zstandard-0.25.0-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.whl"],
+)
 
 register_toolchains("@pythons_hub//:all")
 

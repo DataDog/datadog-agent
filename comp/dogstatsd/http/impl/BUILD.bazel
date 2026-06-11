@@ -1,0 +1,49 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "impl",
+    srcs = [
+        "fx.go",
+        "handler.go",
+        "iterator.go",
+        "origin.go",
+        "server.go",
+        "sketch_iterator.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/dogstatsd/http/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/aggregator/demultiplexer/def",
+        "//comp/core/config",
+        "//comp/core/hostname/hostnameinterface/def",
+        "//comp/core/log/def",
+        "//comp/core/tagger/def",
+        "//comp/core/tagger/origindetection",
+        "//comp/def",
+        "//comp/dogstatsd/constants",
+        "//comp/dogstatsd/http/def",
+        "//comp/dogstatsd/http/impl/internal/reader",
+        "//pkg/metrics",
+        "//pkg/proto/pbgo/dogstatsdhttp",
+        "//pkg/tagger/types",
+        "//pkg/tagset",
+    ],
+)
+
+go_test(
+    name = "impl_test",
+    srcs = [
+        "iterator_test.go",
+        "sketch_iterator_test.go",
+    ],
+    embed = [":impl"],
+    gotags = ["test"],
+    deps = [
+        "//comp/core/tagger/fx-mock",
+        "//comp/core/tagger/types",
+        "//pkg/metrics",
+        "//pkg/proto/pbgo/dogstatsdhttp",
+        "//pkg/tagset",
+        "@com_github_stretchr_testify//require",
+    ],
+)

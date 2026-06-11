@@ -3,6 +3,9 @@
   rules:
     - when: on_success
 
+# This job is the broad platform guardrail (all targets, keep_going).
+# dda inv test in source_test covers the same non-manual set but is scoped
+# to the changed module's packages and produces per-package results.
 bazel:test:linux-amd64:
   extends: [ .bazel:test, .bazel:runner:linux-amd64 ]
   script:

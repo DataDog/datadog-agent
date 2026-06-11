@@ -16,7 +16,9 @@ pkg_filegroup(
     srcs = [
         "//deps/cacerts:all_files",
         "//deps/jmxfetch:all_files",
-        "//deps/snmp_traps:all_files",
+        # NOTE: deps/snmp_traps uses prefix=etc/datadog-agent/conf.d/...
+        # It is routed through packages/agent/linux:etc_components (without
+        # the /opt/datadog-agent prefix) to land at /etc/datadog-agent/conf.d/.
         # dependency 'datadog-agent-integrations-py3'
     ] + select({
         "@platforms//os:linux": [
@@ -30,17 +32,21 @@ pkg_filegroup(
         # if linux_target? and !heroku_target?
         "//packages/agent:linux_default": [
             "//deps/compile_policy:all_files",
-            "//deps/security_agent_policies:all_files",
             # dependency datadog_agent_data_plane
             # This is really part of system-probe
             "@libpcap//:all_files",
             "//deps/nfsiostat:all_files",
+            # dbus is linked statically into openscap but its headers
+            # (including dbus-arch-deps.h) must still be shipped.
+            "@dbus//:all_files",
         ],
         "//packages/agent:linux_fips": [
             "//deps/compile_policy:all_files",
             "//deps/nfsiostat:all_files",
-            "//deps/security_agent_policies:all_files",
             "@libpcap//:all_files",
+            # dbus is linked statically into openscap but its headers
+            # (including dbus-arch-deps.h) must still be shipped.
+            "@dbus//:all_files",
         ],
         "//packages/agent:linux_heroku": [],
         "//conditions:default": [],

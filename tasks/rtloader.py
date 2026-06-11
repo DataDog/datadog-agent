@@ -34,6 +34,11 @@ def run_make_command(ctx, command=""):
 
 @task
 def make(ctx, install_prefix=None, cmake_options=''):
+    # AIX builds rtloader natively as a prerequisite — keep the legacy cmake path there.
+    # On all other platforms, delegate to install_with_bazel unconditionally.
+    if sys.platform != "aix":
+        return install_with_bazel(ctx)
+
     dev_path = get_dev_path()
     prefix = install_prefix or dev_path
 

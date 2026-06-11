@@ -1,10 +1,12 @@
 import os
+import shutil
 
 from invoke.tasks import task
 
 from tasks.build_tags import get_default_build_tags
 from tasks.devcontainer import run_on_devcontainer
 from tasks.flavor import AgentFlavor
+from tasks.libs.build.bazel import bazel_build_binary
 from tasks.libs.common.constants import REPO_PATH
 from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import bin_name, get_build_flags
@@ -19,17 +21,22 @@ def build(
     ctx,
     install_path=None,
     go_mod="readonly",
+    enable_bazel=True,
 ):
     ldflags, gcflags, env = get_build_flags(ctx, install_path=install_path)
     build_tags = get_default_build_tags(build="loader", flavor=AgentFlavor.base)
-    go_build(
-        ctx,
-        f"{REPO_PATH}/cmd/loader",
-        build_tags=build_tags,
-        ldflags=ldflags,
-        gcflags=gcflags,
-        env=env,
-        bin_path=BIN_PATH,
-        mod=go_mod,
-        check_deadcode=os.getenv("DEPLOY_AGENT") == "true",
-    )
+    if enable_bazel:
+        binary_path = bazel_build_binary(ctx, "//cmd/loader")
+        shutil.copy2(binary_path, BIN_PATH)
+    else:
+        go_build(
+            ctx,
+            f"{REPO_PATH}/cmd/loader",
+            build_tags=build_tags,
+            ldflags=ldflags,
+            gcflags=gcflags,
+            env=env,
+            bin_path=BIN_PATH,
+            mod=go_mod,
+            check_deadcode=os.getenv("DEPLOY_AGENT") == "true",
+        )

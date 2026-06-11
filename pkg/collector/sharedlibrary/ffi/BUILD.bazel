@@ -1,0 +1,56 @@
+load("@rules_cc//cc:defs.bzl", "cc_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+# The ffi C code is separated into its own cc_library so that the go_library
+# does not need cgo=True unconditionally. When sharedlibrarycheck is NOT in gotags,
+# only stub.go compiles (no import "C"), so the cgo toolchain is not invoked.
+# When sharedlibrarycheck IS active, library_loader.go uses import "C" and links
+# against ffi_c via cdeps.
+cc_library(
+    name = "ffi_c",
+    srcs = ["ffi.c"],
+    hdrs = ["ffi.h"],
+    includes = ["."],
+    visibility = ["//visibility:private"],
+    deps = select({
+        "@rules_go//go/platform:linux": ["//rtloader:rtloader_dynamic"],
+        "//conditions:default": [],
+    }),
+)
+
+go_library(
+    name = "ffi",
+    srcs = [
+        "ffi.c",
+        "ffi.h",
+        "library_loader.go",
+        "library_loader_test_util.go",
+        "stub.go",
+    ],
+    cdeps = select({
+        "@rules_go//go/platform:linux": [
+            ":ffi_c",
+            "//rtloader:rtloader_dynamic",
+        ],
+        "//conditions:default": [],
+    }),
+    cgo = True,
+    copts = ["-I pkg/collector/sharedlibrary/ffi/rtloader/include"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/sharedlibrary/ffi",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/collector/aggregator",
+        "//pkg/util/filesystem",
+    ],
+)
+
+go_test(
+    name = "ffi_test",
+    srcs = ["library_loader_test.go"],
+    embed = [":ffi"],
+    gotags = ["test"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

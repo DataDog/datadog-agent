@@ -1,0 +1,25 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "fentry",
+    srcs = [
+        "manager.go",
+        "probes.go",
+        "tracer.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/network/tracer/connection/fentry",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/ebpf",
+        "//pkg/ebpf/bytecode",
+        "//pkg/ebpf/kernelbugs",
+        "//pkg/ebpf/perf",
+        "//pkg/ebpf/telemetry",
+        "//pkg/network/config",
+        "//pkg/network/ebpf",
+        "//pkg/network/ebpf/probes",
+        "//pkg/network/tracer/connection/util",
+        "//pkg/util/kernel",
+        "@com_github_datadog_ebpf_manager//:ebpf-manager",
+    ],
+)

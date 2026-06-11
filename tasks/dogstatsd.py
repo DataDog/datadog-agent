@@ -13,6 +13,7 @@ from tasks.build_tags import (
     compute_build_tags_for_flavor,
 )
 from tasks.flavor import AgentFlavor
+from tasks.libs.build.bazel import bazel_build_binary
 from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import REPO_PATH, bin_name, get_build_flags
 from tasks.schema.template import CORE_SCHEMA_FILE, generate_template
@@ -35,6 +36,7 @@ def build(
     build_include=None,
     build_exclude=None,
     go_mod="readonly",
+    enable_bazel=True,
 ):
     """
     Build Dogstatsd
@@ -59,19 +61,24 @@ def build(
     if static:
         bin_path = STATIC_BIN_PATH
 
-    go_build(
-        ctx,
-        f"{REPO_PATH}/cmd/dogstatsd",
-        mod=go_mod,
-        race=race,
-        rebuild=rebuild,
-        gcflags=gcflags,
-        ldflags=ldflags,
-        build_tags=build_tags,
-        bin_path=os.path.join(bin_path, bin_name("dogstatsd")),
-        env=env,
-        check_deadcode=os.getenv("DEPLOY_AGENT") == "true",
-    )
+    dogstatsd_bin = os.path.join(bin_path, bin_name("dogstatsd"))
+    if enable_bazel:
+        binary_path = bazel_build_binary(ctx, "//cmd/dogstatsd")
+        shutil.copy2(binary_path, dogstatsd_bin)
+    else:
+        go_build(
+            ctx,
+            f"{REPO_PATH}/cmd/dogstatsd",
+            mod=go_mod,
+            race=race,
+            rebuild=rebuild,
+            gcflags=gcflags,
+            ldflags=ldflags,
+            build_tags=build_tags,
+            bin_path=dogstatsd_bin,
+            env=env,
+            check_deadcode=os.getenv("DEPLOY_AGENT") == "true",
+        )
 
     # Render the configuration file template. The dogstatsd binary ships
     # on linux containers, so we always target linux (matches the legacy

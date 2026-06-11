@@ -28,36 +28,42 @@ pkg_filegroup(
         # we'll do that in April.
         # "//packages/agent/dependencies:all_files",
         ":dirs",
-        ":example_config",
-        "//cmd/agent/dist:all_files",
         "//cmd/agent/dist:all_python_files",
         "//rtloader:all_files",
         ":dda_built_agent_binary",
 
         # TODO: sysprobe - windows
         # TODO: systray - windows
-        # TODO: installer
         "//cmd/loader:trace_loader",
         ":dda_built_trace_agent_binary",
         ":dda_built_process_agent_binary",
         ":dda_built_privateactionrunner_binary",
-
-        # TODO: system-probe
+        ":system_probe_binary",
         # TODO: system-probe - selinux policy
-        # TODO: system-probe - eBPF
+        ":ebpf_prebuilt_objects",
+        ":ebpf_core_objects",
+        ":ebpf_runtime_sources",
+        ":ebpf_copying",
+        ":llvm_bpf_binaries",
 
         # TODO: //pkg/discovery/module/rust
-        # TODO: security-agent
-        # TODO: cws-instrumentation
-        # TODO: secret-generic-connector
+        ":security_agent_binary",
+        ":cws_instrumentation_binary",
+        ":secret_generic_connector_binary",
+        ":secret_generic_connector_license",
         # TODO: cacerts
         # TODO: dependency 'datadog-agent-integrations-py3'
+        "//comp/core/gui/impl:views_files",
     ] + select({
         "//packages/agent:linux_default": [
+            ":agent_data_plane_binary",
+            ":installer_binary",
             "//pkg/discovery/module/rust:all_files",
             "//pkg/procmgr/rust:all_files_linux",
         ],
         "//packages/agent:linux_fips": [
+            ":agent_data_plane_binary",
+            ":installer_binary",
             "//pkg/discovery/module/rust:all_files",
             "//pkg/procmgr/rust:all_files_linux",
         ],
@@ -88,6 +94,9 @@ pkg_filegroup(
         ":example_config",
         "//cmd/agent/dist:all_files",
         "//cmd/agent/dist:all_python_files",
+        # :python_files (config.py) was removed from all_python_files to fix the
+        # /etc prefix bug in Bazel packaging, but omnibus still needs it here.
+        "//cmd/agent/dist:python_files",
     ],
 )
 
@@ -101,6 +110,10 @@ pkg_install(
 )
 
 # Dirs that should exist with particular permissions.
+# NOTE: only dirs that belong under /opt/datadog-agent are listed here.
+# Dirs that belong directly under /etc (etc/datadog-agent, checks.d) are
+# in :etc_dirs below, and are routed to whole_distro without the
+# /opt/datadog-agent prefix via packages/agent/linux:etc_components.
 pkg_mkdirs(
     name = "dirs",
     attributes = pkg_attributes(mode = "755"),
@@ -108,24 +121,182 @@ pkg_mkdirs(
         "bin",
     ] + select({
         "@platforms//os:macos": ["etc"],
-        "//conditions:default": ["etc/datadog-agent"],
+        "//conditions:default": [],
     }) + select({
         "@platforms//os:windows": [],
         "//conditions:default": [
             "run",
             "scripts",
         ],
+    }) + select({
+        "@platforms//os:linux": [
+            "embedded/share/system-probe/ebpf",
+            "embedded/share/system-probe/ebpf/co-re",
+            "embedded/share/system-probe/ebpf/co-re/btf",
+            "embedded/share/system-probe/ebpf/runtime",
+        ],
+        "//conditions:default": [],
     }),
+)
+
+# Directories and config files that land directly under /etc (not /opt/datadog-agent/etc).
+# Referenced by //packages/agent/linux:etc_components which routes them without
+# the /opt/datadog-agent prefix.
+pkg_mkdirs(
+    name = "etc_dirs",
+    attributes = pkg_attributes(mode = "755"),
+    dirs = select({
+        "@platforms//os:macos": [],
+        "//conditions:default": [
+            "etc/datadog-agent",
+            "etc/datadog-agent/checks.d",
+        ],
+    }),
+)
+
+pkg_filegroup(
+    name = "etc_files",
+    srcs = [
+        ":etc_dirs",
+        ":example_config",
+        "//cmd/agent/dist:all_files",
+        # config.py -> /etc/datadog-agent/config.py
+        "//cmd/agent/dist:python_files",
+    ],
+)
+
+# eBPF prebuilt object files (.o) shipped to embedded/share/system-probe/ebpf/.
+# Mirrors the omnibus copy: pkg/ebpf/bytecode/build/<arch>/*.o (minus usm_events_test*).
+# Uses unstripped targets so output filenames are <name>.o (no .stripped infix).
+# TODO(packaging): ship stripped variants once pkg_files supports rename-by-suffix;
+# for now the unstripped objects are functionally equivalent for production use.
+pkg_files(
+    name = "ebpf_prebuilt_objects",
+    srcs = [
+        "//pkg/network/ebpf/c/prebuilt:conntrack",
+        "//pkg/network/ebpf/c/prebuilt:conntrack-debug",
+        "//pkg/network/ebpf/c/prebuilt:dns",
+        "//pkg/network/ebpf/c/prebuilt:dns-debug",
+        "//pkg/network/ebpf/c/prebuilt:offset-guess",
+        "//pkg/network/ebpf/c/prebuilt:offset-guess-debug",
+        "//pkg/network/ebpf/c/prebuilt:shared-libraries",
+        "//pkg/network/ebpf/c/prebuilt:shared-libraries-debug",
+        "//pkg/network/ebpf/c/prebuilt:tracer",
+        "//pkg/network/ebpf/c/prebuilt:tracer-debug",
+        "//pkg/network/ebpf/c/prebuilt:usm",
+        "//pkg/network/ebpf/c/prebuilt:usm-debug",
+        # usm_events_test is intentionally omitted (test-only; mirrors omnibus delete)
+        "//pkg/security/ebpf/c/prebuilt:runtime-security",
+        "//pkg/security/ebpf/c/prebuilt:runtime-security-fentry",
+        "//pkg/security/ebpf/c/prebuilt:runtime-security-offset-guesser",
+        "//pkg/security/ebpf/c/prebuilt:runtime-security-syscall-wrapper",
+    ],
+    prefix = "embedded/share/system-probe/ebpf",
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+# eBPF CO-RE object files (.o) shipped to embedded/share/system-probe/ebpf/co-re/.
+# Mirrors the omnibus copy: pkg/ebpf/bytecode/build/<arch>/co-re/*.o.
+pkg_files(
+    name = "ebpf_core_objects",
+    srcs = [
+        "//pkg/collector/corechecks/ebpf/c/runtime:ebpf",
+        "//pkg/collector/corechecks/ebpf/c/runtime:ebpf-debug",
+        "//pkg/collector/corechecks/ebpf/c/runtime:noisy-neighbor",
+        "//pkg/collector/corechecks/ebpf/c/runtime:noisy-neighbor-debug",
+        "//pkg/collector/corechecks/ebpf/c/runtime:oom-kill",
+        "//pkg/collector/corechecks/ebpf/c/runtime:oom-kill-debug",
+        "//pkg/collector/corechecks/ebpf/c/runtime:tcp-queue-length",
+        "//pkg/collector/corechecks/ebpf/c/runtime:tcp-queue-length-debug",
+        "//pkg/dyninst/ebpf:dyninst_event",
+        "//pkg/dyninst/ebpf:dyninst_event-debug",
+        "//pkg/ebpf/c:ksyms_iter",
+        "//pkg/ebpf/c:lock_contention",
+        "//pkg/gpu/ebpf/c/runtime:gpu",
+        "//pkg/gpu/ebpf/c/runtime:gpu-debug",
+        "//pkg/network/ebpf/c:tracer",
+        "//pkg/network/ebpf/c:tracer-debug",
+        "//pkg/network/ebpf/c/co-re:tracer-fentry",
+        "//pkg/network/ebpf/c/co-re:tracer-fentry-debug",
+        "//pkg/network/ebpf/c/runtime:conntrack",
+        "//pkg/network/ebpf/c/runtime:conntrack-debug",
+        "//pkg/network/ebpf/c/runtime:shared-libraries",
+        "//pkg/network/ebpf/c/runtime:shared-libraries-debug",
+        "//pkg/network/ebpf/c/runtime:usm",
+        "//pkg/network/ebpf/c/runtime:usm-debug",
+        "//pkg/network/ebpf/c/sk:sk_tracer",
+        "//pkg/network/ebpf/c/sk:sk_tracer-debug",
+    ],
+    prefix = "embedded/share/system-probe/ebpf/co-re",
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+# Runtime compilation source files (.c) shipped to embedded/share/system-probe/ebpf/runtime/.
+# Mirrors the omnibus copy: pkg/ebpf/bytecode/build/runtime/*.c.
+# Each _flat target outputs <name>/<name>.c; renames flatten this to just <name>.c.
+pkg_files(
+    name = "ebpf_runtime_sources",
+    srcs = [
+        "//pkg/ebpf/bytecode:conntrack_flat",
+        "//pkg/ebpf/bytecode:gpu_flat",
+        "//pkg/ebpf/bytecode:offsetguess-test_flat",
+        "//pkg/ebpf/bytecode:oom-kill_flat",
+        "//pkg/ebpf/bytecode:runtime-security_flat",
+        "//pkg/ebpf/bytecode:shared-libraries_flat",
+        "//pkg/ebpf/bytecode:tcp-queue-length_flat",
+        "//pkg/ebpf/bytecode:tracer_flat",
+        "//pkg/ebpf/bytecode:usm_flat",
+    ],
+    prefix = "embedded/share/system-probe/ebpf/runtime",
+    renames = {
+        "//pkg/ebpf/bytecode:conntrack_flat": "conntrack.c",
+        "//pkg/ebpf/bytecode:gpu_flat": "gpu.c",
+        "//pkg/ebpf/bytecode:offsetguess-test_flat": "offsetguess-test.c",
+        "//pkg/ebpf/bytecode:oom-kill_flat": "oom-kill.c",
+        "//pkg/ebpf/bytecode:runtime-security_flat": "runtime-security.c",
+        "//pkg/ebpf/bytecode:shared-libraries_flat": "shared-libraries.c",
+        "//pkg/ebpf/bytecode:tcp-queue-length_flat": "tcp-queue-length.c",
+        "//pkg/ebpf/bytecode:tracer_flat": "tracer.c",
+        "//pkg/ebpf/bytecode:usm_flat": "usm.c",
+    },
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+# GPL license for eBPF programs, shipped alongside the objects.
+pkg_files(
+    name = "ebpf_copying",
+    srcs = ["//pkg/ebpf/c:COPYING"],
+    prefix = "embedded/share/system-probe/ebpf",
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+# LLVM/Clang binaries for runtime eBPF compilation (clang-bpf and llc-bpf).
+# llvm-strip is intentionally excluded to avoid over-shipping.
+pkg_files(
+    name = "llvm_bpf_binaries",
+    srcs = [
+        "@llvm_bpf//:bin/clang-bpf",
+        "@llvm_bpf//:bin/llc-bpf",
+    ],
+    attributes = pkg_attributes(mode = "755"),
+    prefix = "embedded/bin",
+    target_compatible_with = ["@platforms//os:linux"],
 )
 
 pkg_files(
     name = "example_config",
     srcs = [
         "//pkg/config:agent_config",
+        "//pkg/config:system_probe_config",
+        "//pkg/config/example:application_monitoring.yaml.example",
+        "//pkg/config/example:security-agent.yaml.example",
     ],
     prefix = select(ETC_DIR_SELECTOR),
     renames = {
         "//pkg/config:agent_config": "datadog.yaml.example",
+        "//pkg/config:system_probe_config": "system-probe.yaml.example",
+        "//pkg/config/example:security-agent.yaml.example": "security-agent.yaml.example",
+        "//pkg/config/example:application_monitoring.yaml.example": "application_monitoring.yaml.example",
     },
 )
 
@@ -141,7 +312,7 @@ pkg_files(
 pkg_files(
     name = "dda_built_process_agent_binary",
     srcs = [
-        "@process_agent_binary//:process_agent",
+        "//cmd/process-agent",
     ],
     attributes = pkg_attributes(mode = "755"),
     prefix = select({
@@ -153,7 +324,7 @@ pkg_files(
 pkg_files(
     name = "dda_built_privateactionrunner_binary",
     srcs = [
-        "@privateactionrunner_binary//:privateactionrunner",
+        "//cmd/privateactionrunner",
     ],
     attributes = pkg_attributes(mode = "755"),
     prefix = "embedded/bin",
@@ -162,8 +333,61 @@ pkg_files(
 pkg_files(
     name = "dda_built_trace_agent_binary",
     srcs = [
-        "@trace_agent_binary//:trace_agent",
+        "//cmd/trace-agent",
     ],
     attributes = pkg_attributes(mode = "755"),
     prefix = "embedded/bin",
+)
+
+pkg_files(
+    name = "system_probe_binary",
+    srcs = ["//cmd/system-probe"],
+    attributes = pkg_attributes(mode = "755"),
+    prefix = "embedded/bin",
+)
+
+pkg_files(
+    name = "installer_binary",
+    srcs = ["//cmd/installer"],
+    attributes = pkg_attributes(mode = "755"),
+    prefix = "embedded/bin",
+)
+
+# Agent Data Plane binary (linux_default and linux_fips only; not heroku).
+# NOTE: fetching @agent_data_plane requires binaries.ddbuild.io credentials.
+# For local builds pass --repo_env=AGENT_DATA_PLANE_LOCAL_BINARY=<path>.
+pkg_files(
+    name = "agent_data_plane_binary",
+    srcs = ["@agent_data_plane//:bin/agent-data-plane"],
+    attributes = pkg_attributes(mode = "755"),
+    prefix = "embedded/bin",
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+pkg_files(
+    name = "security_agent_binary",
+    srcs = ["//cmd/security-agent"],
+    attributes = pkg_attributes(mode = "755"),
+    prefix = "embedded/bin",
+)
+
+pkg_files(
+    name = "cws_instrumentation_binary",
+    srcs = ["//cmd/cws-instrumentation"],
+    attributes = pkg_attributes(mode = "755"),
+    prefix = "embedded/bin",
+)
+
+pkg_files(
+    name = "secret_generic_connector_binary",
+    srcs = ["//cmd/secret-generic-connector"],
+    attributes = pkg_attributes(mode = "0500"),
+    prefix = "embedded/bin",
+)
+
+pkg_files(
+    name = "secret_generic_connector_license",
+    srcs = ["//cmd/secret-generic-connector:LICENSE"],
+    prefix = "LICENSES",
+    renames = {"//cmd/secret-generic-connector:LICENSE": "secret-generic-connector-LICENSE"},
 )

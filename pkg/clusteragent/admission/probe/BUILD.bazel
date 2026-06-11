@@ -1,0 +1,45 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "probe",
+    srcs = ["probe.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/probe",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/healthplatform/issues/admissionprobe",
+        "//comp/healthplatform/store/def",
+        "//pkg/clusteragent/admission/common",
+        "//pkg/util/kubernetes/cloudprovider",
+        "//pkg/util/log",
+        "//pkg/util/option",
+        "@com_github_datadog_agent_payload_v5//healthplatform",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/api/errors",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_client_go//kubernetes",
+    ],
+)
+
+go_test(
+    name = "probe_test",
+    srcs = ["probe_test.go"],
+    embed = [":probe"],
+    gotags = ["test"],
+    deps = [
+        "//comp/healthplatform/store/def",
+        "//comp/healthplatform/store/mock",
+        "//pkg/clusteragent/admission/common",
+        "//pkg/util/log",
+        "//pkg/util/option",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/api/errors",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/runtime",
+        "@io_k8s_apimachinery//pkg/runtime/schema",
+        "@io_k8s_client_go//kubernetes/fake",
+        "@io_k8s_client_go//testing",
+    ],
+)

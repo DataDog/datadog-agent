@@ -1,0 +1,36 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "config",
+    srcs = [
+        "config.go",
+        "pattern.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/appsec/config",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/log/def",
+        "//pkg/clusteragent/admission/mutate/common",
+        "//pkg/util/kubernetes",
+        "//pkg/util/kubernetes/apiserver/common/namespace",
+        "@io_k8s_api//admissionregistration/v1:admissionregistration",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1/unstructured",
+        "@io_k8s_apimachinery//pkg/runtime/schema",
+        "@io_k8s_client_go//dynamic",
+    ],
+)
+
+go_test(
+    name = "config_test",
+    srcs = ["config_test.go"],
+    embed = [":config"],
+    gotags = ["test"],
+    deps = [
+        "//comp/core/log/mock",
+        "//pkg/clusteragent/admission/mutate/common",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

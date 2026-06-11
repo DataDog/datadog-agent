@@ -25,6 +25,7 @@ from tasks.gointegrationtest import (
     CORE_AGENT_WINDOWS_IT_CONF,
     containerized_integration_tests,
 )
+from tasks.libs.build.bazel import bazel_build_binary
 from tasks.libs.common.constants import CONTAINER_PLATFORM_MAPPING
 from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import (
@@ -84,7 +85,7 @@ def build(
     agent_bin=None,
     run_on=None,  # noqa: U100, F841. Used by the run_on_devcontainer decorator
     glibc=True,
-    enable_bazel=False,
+    enable_bazel=True,
 ):
     """
     Build the agent. If the bits to include in the build are not specified,
@@ -103,8 +104,14 @@ def build(
                 embedded_path = bazel_embedded
                 python_home_3 = bazel_embedded
             else:
-                rtloader_make(ctx, install_prefix=embedded_path, cmake_options=cmake_options)
-                rtloader_install(ctx)
+                # rtloader_make on non-AIX delegates to install_with_bazel unconditionally,
+                # so capture the returned path and skip the cmake-only rtloader_install step.
+                bazel_embedded = rtloader_make(ctx, install_prefix=embedded_path, cmake_options=cmake_options)
+                if bazel_embedded:
+                    embedded_path = bazel_embedded
+                    python_home_3 = bazel_embedded
+                else:
+                    rtloader_install(ctx)
 
     ldflags, gcflags, env = get_build_flags(
         ctx,
@@ -155,20 +162,27 @@ def build(
         schema_compress(ctx)
 
     with gitlab_section("Build agent", collapsed=True):
-        go_build(
-            ctx,
-            f"{REPO_PATH}/cmd/{flavor_cmd}",
-            mod=go_mod,
-            env=env,
-            bin_path=agent_bin,
-            race=race,
-            rebuild=rebuild,
-            gcflags=gcflags,
-            ldflags=ldflags,
-            build_tags=build_tags,
-            check_deadcode=os.getenv("DEPLOY_AGENT") == "true",
-            coverage=os.getenv("E2E_COVERAGE_PIPELINE") == "true",
-        )
+        if enable_bazel:
+            binary_path = bazel_build_binary(ctx, f"//cmd/{flavor_cmd}")
+            # Copy the Bazel artifact to the expected output path
+            os.makedirs(os.path.dirname(agent_bin), exist_ok=True)
+            shutil.copy2(binary_path, agent_bin)
+            print(f"Copied Bazel-built binary to {agent_bin}")
+        else:
+            go_build(
+                ctx,
+                f"{REPO_PATH}/cmd/{flavor_cmd}",
+                mod=go_mod,
+                env=env,
+                bin_path=agent_bin,
+                race=race,
+                rebuild=rebuild,
+                gcflags=gcflags,
+                ldflags=ldflags,
+                build_tags=build_tags,
+                check_deadcode=os.getenv("DEPLOY_AGENT") == "true",
+                coverage=os.getenv("E2E_COVERAGE_PIPELINE") == "true",
+            )
 
     with gitlab_section("Generate configuration files", collapsed=True):
         generate_config_examples(

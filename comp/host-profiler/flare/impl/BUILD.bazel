@@ -1,0 +1,25 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "impl",
+    srcs = ["flare.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/host-profiler/flare/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/flare/types",
+        "//comp/core/ipc/def",
+        "//comp/host-profiler/collector/impl/extensions/hpflareextension",
+    ],
+)
+
+go_test(
+    name = "impl_test",
+    srcs = ["flare_test.go"],
+    embed = [":impl"],
+    gotags = ["test"],
+    deps = [
+        "//comp/core/flare/helpers",
+        "@com_github_stretchr_testify//require",
+    ],
+)

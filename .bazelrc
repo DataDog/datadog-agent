@@ -108,5 +108,18 @@ common:release --config=rust-release
 common:release --//:release
 common --config=release
 
+# Per-binary bundle tag configs ----------------------------------------------------------------------------------------
+# Use --config=bundle_<name> to activate the matching bundle_<name> Go build tag (and any cross-cutting
+# tags such as ebpf_bindata) in addition to the gotags already wired onto each cmd/ go_binary rule.
+# These compose with per-target gotags; both sets are unioned by rules_go.
+#
+# Cross-cutting opt-in configs (not per-binary):
+#   ebpf_bindata  — include pre-compiled eBPF bytecode (embedded bindata bundles).
+#   nvml          — enable NVIDIA Management Library support (requires libNVML at link time).
+#   no_glibc      — remove nvml from the effective tag set (used when building against older glibc).
+build:ebpf_bindata --@rules_go//go/config:tags=ebpf_bindata
+build:nvml --@rules_go//go/config:tags=nvml
+build:no_glibc --@rules_go//go/config:tags=no_glibc
+
 # Local development options --------------------------------------------------------------------------------------------
 try-import %workspace%/user.bazelrc
