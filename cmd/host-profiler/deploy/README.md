@@ -1,10 +1,33 @@
 # Deploying Datadog Host Profiler (Preview)
 
-The Full Host Profiler collects CPU profiles across all processes, regardless of language or runtime. It runs directly on your hosts or as a DaemonSet on your Kubernetes nodes.
+The Full Host Profiler collects CPU profiles across all processes, regardless of language or runtime. In this preview, it runs as a DaemonSet directly on your Kubernetes nodes.
 
 The profiler is an OpenTelemetry Collector distribution powered by the [OpenTelemetry eBPF Profiler](https://github.com/open-telemetry/opentelemetry-ebpf-profiler).
 
 > **Preview:** These deployment instructions use a preview Host Profiler image. Capabilities and configuration may change before general availability.
+
+## Supported environments
+
+This preview is Kubernetes-only.
+
+Your cluster must run nodes that meet all of these requirements:
+
+| Requirement              | Supported values                          |
+|--------------------------|-------------------------------------------|
+| Operating system         | Linux                                     |
+| Kernel                   | 5.10 or later                             |
+| CPU architecture         | amd64 or arm64                            |
+| Kubernetes workload type | Host-level DaemonSet with `hostPID: true` |
+
+Common supported setups include self-managed Kubernetes clusters, Amazon EKS with EC2 nodes, GKE Standard, and AKS VM node pools.
+
+Not supported in this preview:
+
+- Installing the profiler directly on hosts or VMs, including Docker without Kubernetes.
+- Serverless runtimes and container platforms (AWS Lambda, AWS Fargate for ECS, Google Cloud Run, Azure Container Apps, and Azure Functions).
+- Kubernetes serverless, virtual-node, or restricted-node modes that do not support host-level DaemonSets (Amazon EKS on Fargate, GKE Autopilot, and AKS virtual nodes backed by Azure Container Instances).
+
+## Deployment
 
 All commands in these docs assume you are running from this directory:
 
@@ -17,12 +40,6 @@ cd cmd/host-profiler/deploy
 **Otherwise**, use **[Standalone](standalone/README.md)** mode. The host profiler runs independently with no Agent required.
 
 If something isn't working, see [Troubleshooting](troubleshooting.md).
-
-## Requirements
-
-**OS:** Linux (kernel 5.10+)
-
-**Architecture:** amd64, arm64
 
 ## Common usage
 
