@@ -27,6 +27,7 @@ from invoke.exceptions import Exit
 
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.constants import ALLOWED_REPO_ALL_BRANCHES, REPO_PATH
+from tasks.libs.common.get_payload_version import get_payload_version
 from tasks.libs.common.git import get_commit_sha, get_default_branch, set_git_config
 from tasks.libs.releasing.version import get_version
 from tasks.libs.types.arch import Arch
@@ -379,34 +380,6 @@ def get_common_test_args(build_tags, failfast):
         "build_tags": ",".join(build_tags),
         "failfast": "-failfast" if failfast else "",
     }
-
-
-def get_payload_version():
-    """
-    Return the Agent payload version (`x.y.z`) found in the go.mod file.
-    """
-    with open('go.mod') as f:
-        for rawline in f:
-            line = rawline.strip()
-            whitespace_split = line.split(" ")
-            if len(whitespace_split) < 2:
-                continue
-            pkgname = whitespace_split[0]
-            if pkgname == "github.com/DataDog/agent-payload/v5":
-                # Example of line
-                # github.com/DataDog/agent-payload/v5 v5.0.2
-                # github.com/DataDog/agent-payload/v5 v5.0.1-0.20200826134834-1ddcfb686e3f
-                version_split = re.split(r'[ +]', line)
-                if len(version_split) < 2:
-                    raise Exception(
-                        "Versioning of agent-payload in go.mod has changed, the version logic needs to be updated"
-                    )
-                version = version_split[1].split("-")[0].strip()
-                if not re.search(r"^v\d+(\.\d+){2}$", version):
-                    raise Exception(f"Version of agent-payload in go.mod is invalid: '{version}'")
-                return version
-
-    raise Exception("Could not find valid version for agent-payload in go.mod file")
 
 
 def get_version_ldflags(ctx, install_path=None):
