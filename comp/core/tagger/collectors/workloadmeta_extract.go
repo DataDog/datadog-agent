@@ -170,6 +170,8 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 				tagInfos = append(tagInfos, c.handleKubeKueueQueue(ev)...)
 			case workloadmeta.KindKubernetesKueueResourceFlavor:
 				tagInfos = append(tagInfos, c.handleKubeKueueResourceFlavor(ev)...)
+			case workloadmeta.KindKubernetesKueueWorkload:
+				tagInfos = append(tagInfos, c.handleKubeKueueWorkload(ev)...)
 			case workloadmeta.KindGPU:
 				tagInfos = append(tagInfos, c.handleGPU(ev)...)
 			case workloadmeta.KindCRD:
@@ -815,6 +817,30 @@ func (c *WorkloadMetaCollector) handleKubeKueueResourceFlavor(ev workloadmeta.Ev
 	}
 }
 
+func (c *WorkloadMetaCollector) handleKubeKueueWorkload(ev workloadmeta.Event) []*types.TagInfo {
+	workload := ev.Entity.(*workloadmeta.KubernetesKueueWorkload)
+
+	tagList := taglist.NewTagList()
+	c.extractKueueWorkloadTags(workload, tagList)
+	low, orch, high, standard := tagList.Compute()
+
+	if len(low)+len(orch)+len(high)+len(standard) == 0 {
+		return nil
+	}
+
+	return []*types.TagInfo{
+		{
+			Source:               kueueWorkloadSource,
+			EntityID:             common.BuildTaggerEntityID(workload.EntityID),
+			HighCardTags:         high,
+			OrchestratorCardTags: orch,
+			LowCardTags:          low,
+			StandardTags:         standard,
+			IsComplete:           ev.IsComplete,
+		},
+	}
+}
+
 func (c *WorkloadMetaCollector) handleGPU(ev workloadmeta.Event) []*types.TagInfo {
 	gpu := ev.Entity.(*workloadmeta.GPU)
 
@@ -1003,6 +1029,30 @@ func (c *WorkloadMetaCollector) extractKueueResourceFlavorTags(flavor *workloadm
 	}
 }
 
+func (c *WorkloadMetaCollector) extractKueueWorkloadTags(workload *workloadmeta.KubernetesKueueWorkload, tagList *taglist.TagList) {
+	tagList.AddLow(tags.KueueWorkload, workload.Name)
+	if workload.QueueName != "" {
+		tagList.AddLow(tags.KueueLocalQueue, workload.QueueName)
+	}
+	if workload.ClusterQueueName != "" {
+		tagList.AddLow(tags.KueueClusterQueue, workload.ClusterQueueName)
+	}
+
+	groupResource := kubernetes.KueueWorkloadResourceName + "." + kubernetes.KueueGroupName
+	labelsAsTags := c.k8sResourcesLabelsAsTags[groupResource]
+	annotationsAsTags := c.k8sResourcesAnnotationsAsTags[groupResource]
+	globLabels := c.globK8sResourcesLabels[groupResource]
+	globAnnotations := c.globK8sResourcesAnnotations[groupResource]
+
+	for name, value := range workload.Labels {
+		k8smetadata.AddMetadataAsTags(name, value, labelsAsTags, globLabels, tagList)
+	}
+
+	for name, value := range workload.Annotations {
+		k8smetadata.AddMetadataAsTags(name, value, annotationsAsTags, globAnnotations, tagList)
+	}
+}
+
 func nvidiaResourceFlavorNodeLabelTagName(labelName string) (string, bool) {
 	const nvidiaLabelPrefix = "nvidia.com/"
 	tagName, ok := strings.CutPrefix(labelName, nvidiaLabelPrefix)
@@ -1024,6 +1074,10 @@ func kueueQueueGroupResource(queueType workloadmeta.KueueQueueType) string {
 }
 
 func (c *WorkloadMetaCollector) extractTagsFromPodKueueInfo(pod *workloadmeta.KubernetesPod, tagList *taglist.TagList) {
+	if c.extractTagsFromPodKueueWorkloadInfo(pod, tagList) {
+		return
+	}
+
 	clusterQueueName := pod.Labels[kubernetes.KueueClusterQueueNameLabelKey]
 	localQueueName := pod.Labels[kubernetes.KueueLocalQueueNameLabelKey]
 	if localQueueName == "" {
@@ -1068,6 +1122,69 @@ func (c *WorkloadMetaCollector) extractTagsFromPodKueueInfo(pod *workloadmeta.Ku
 		if err == nil && queue != nil {
 			c.extractKueueQueueTags(queue, tagList)
 		}
+	}
+}
+
+func (c *WorkloadMetaCollector) extractTagsFromPodKueueWorkloadInfo(pod *workloadmeta.KubernetesPod, tagList *taglist.TagList) bool {
+	workloadName := pod.Annotations[kubernetes.KueueWorkloadAnnotationKey]
+	if workloadName == "" {
+		workloadName = pod.Labels[kubernetes.KueuePodGroupNameLabelKey]
+	}
+	if workloadName == "" {
+		return false
+	}
+
+	workloadID := workloadmeta.GenerateKueueWorkloadEntityID(pod.Namespace, workloadName)
+	workload, err := c.store.GetKubernetesKueueWorkload(workloadID)
+	if err != nil || workload == nil {
+		return false
+	}
+
+	podSetName := pod.Labels[kubernetes.KueuePodSetLabelKey]
+	if podSetName == "" {
+		return false
+	}
+
+	assignment := kueuePodSetAssignmentByName(workload.PodSetAssignments, podSetName)
+	if assignment == nil {
+		return false
+	}
+
+	c.extractKueueWorkloadTags(workload, tagList)
+
+	flavorName := assignment.Flavors["nvidia.com/gpu"]
+	if flavorName == "" {
+		return true
+	}
+
+	flavorID := workloadmeta.GenerateKueueResourceFlavorEntityID(flavorName)
+	flavor, err := c.store.GetKubernetesKueueResourceFlavor(flavorID)
+	if err != nil || flavor == nil {
+		tagList.AddLow(tags.KueueResourceFlavor, flavorName)
+		return true
+	}
+
+	c.extractKueueResourceFlavorTags(flavor, tagList)
+	return true
+}
+
+func kueuePodSetAssignmentByName(assignments []workloadmeta.KueuePodSetAssignment, name string) *workloadmeta.KueuePodSetAssignment {
+	for i := range assignments {
+		if assignments[i].Name == name {
+			return &assignments[i]
+		}
+	}
+	return nil
+}
+
+func kueueQueueGroupResource(queueType workloadmeta.KueueQueueType) string {
+	switch queueType {
+	case workloadmeta.KueueLocalQueue:
+		return kubernetes.KueueLocalQueueResourceName + "." + kubernetes.KueueGroupName
+	case workloadmeta.KueueClusterQueue:
+		return kubernetes.KueueClusterQueueResourceName + "." + kubernetes.KueueGroupName
+	default:
+		return ""
 	}
 }
 

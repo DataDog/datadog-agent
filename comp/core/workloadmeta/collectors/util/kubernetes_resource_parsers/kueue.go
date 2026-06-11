@@ -23,6 +23,8 @@ type kueueQueueParser struct {
 
 type kueueResourceFlavorParser struct{}
 
+type kueueWorkloadParser struct{}
+
 // NewKueueQueueParser returns a parser for Kueue queue resources.
 func NewKueueQueueParser(queueType workloadmeta.KueueQueueType) (ObjectParser, error) {
 	if err := validateKueueQueueType(queueType); err != nil {
@@ -34,6 +36,11 @@ func NewKueueQueueParser(queueType workloadmeta.KueueQueueType) (ObjectParser, e
 // NewKueueResourceFlavorParser returns a parser for Kueue ResourceFlavor resources.
 func NewKueueResourceFlavorParser() ObjectParser {
 	return kueueResourceFlavorParser{}
+}
+
+// NewKueueWorkloadParser returns a parser for Kueue Workload resources.
+func NewKueueWorkloadParser() ObjectParser {
+	return kueueWorkloadParser{}
 }
 
 func (p kueueQueueParser) Parse(obj interface{}) workloadmeta.Entity {
@@ -93,6 +100,55 @@ func (p kueueResourceFlavorParser) Parse(obj interface{}) workloadmeta.Entity {
 	}
 }
 
+func (p kueueWorkloadParser) Parse(obj interface{}) workloadmeta.Entity {
+	u := obj.(*unstructured.Unstructured)
+	meta := workloadmeta.EntityMeta{
+		Name:        u.GetName(),
+		Namespace:   u.GetNamespace(),
+		Labels:      u.GetLabels(),
+		Annotations: u.GetAnnotations(),
+		UID:         string(u.GetUID()),
+	}
+
+	queueName, _, _ := unstructured.NestedString(u.Object, "spec", "queueName")
+	clusterQueueName, _, _ := unstructured.NestedString(u.Object, "status", "admission", "clusterQueue")
+
+	return &workloadmeta.KubernetesKueueWorkload{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesKueueWorkload,
+			ID:   workloadmeta.GenerateKueueWorkloadEntityID(meta.Namespace, meta.Name),
+		},
+		EntityMeta:        meta,
+		QueueName:         queueName,
+		ClusterQueueName:  clusterQueueName,
+		PodSetAssignments: kueuePodSetAssignments(u),
+	}
+}
+
+func kueuePodSetAssignments(u *unstructured.Unstructured) []workloadmeta.KueuePodSetAssignment {
+	assignments, found, _ := unstructured.NestedSlice(u.Object, "status", "admission", "podSetAssignments")
+	if !found {
+		return nil
+	}
+
+	podSetAssignments := make([]workloadmeta.KueuePodSetAssignment, 0, len(assignments))
+	for _, assignment := range assignments {
+		assignmentMap, ok := assignment.(map[string]interface{})
+		if !ok {
+			continue
+		}
+
+		name, _, _ := unstructured.NestedString(assignmentMap, "name")
+		flavors, _, _ := unstructured.NestedStringMap(assignmentMap, "flavors")
+		podSetAssignments = append(podSetAssignments, workloadmeta.KueuePodSetAssignment{
+			Name:    name,
+			Flavors: flavors,
+		})
+	}
+
+	return podSetAssignments
+}
+
 // GenerateKueueQueueEntityID returns the workloadmeta entity ID for a Kueue queue.
 func GenerateKueueQueueEntityID(queueType workloadmeta.KueueQueueType, namespace, name string) (string, error) {
 	return workloadmeta.GenerateKueueQueueEntityID(queueType, namespace, name)
@@ -126,5 +182,10 @@ func KueueQueueDeletionMeta(obj interface{}) metav1.Object {
 
 // KueueResourceFlavorDeletionMeta returns Kubernetes object metadata used by generic reflector stores.
 func KueueResourceFlavorDeletionMeta(obj interface{}) metav1.Object {
+	return obj.(metav1.Object)
+}
+
+// KueueWorkloadDeletionMeta returns Kubernetes object metadata used by generic reflector stores.
+func KueueWorkloadDeletionMeta(obj interface{}) metav1.Object {
 	return obj.(metav1.Object)
 }

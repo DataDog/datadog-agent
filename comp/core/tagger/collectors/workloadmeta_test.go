@@ -1690,6 +1690,320 @@ func TestHandleKubeKueueResourceFlavor(t *testing.T) {
 	}
 }
 
+func TestHandleKubeKueueWorkload(t *testing.T) {
+	workloadID := workloadmeta.EntityID{
+		Kind: workloadmeta.KindKubernetesKueueWorkload,
+		ID:   "default/job-sample",
+	}
+
+	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
+		fx.Supply(context.Background()),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+
+	cfg := configmock.New(t)
+	collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
+
+	actual := collector.handleKubeKueueWorkload(workloadmeta.Event{
+		Type: workloadmeta.EventTypeSet,
+		Entity: &workloadmeta.KubernetesKueueWorkload{
+			EntityID: workloadID,
+			EntityMeta: workloadmeta.EntityMeta{
+				Name:      "job-sample",
+				Namespace: "default",
+			},
+			QueueName:        "batch",
+			ClusterQueueName: "cluster-batch",
+		},
+		IsComplete: true,
+	})
+
+	expected := []*types.TagInfo{
+		{
+			Source:               kueueWorkloadSource,
+			EntityID:             types.NewEntityID(types.KueueWorkload, workloadID.ID),
+			IsComplete:           true,
+			HighCardTags:         []string{},
+			OrchestratorCardTags: []string{},
+			LowCardTags: []string{
+				"kueue_cluster_queue:cluster-batch",
+				"kueue_local_queue:batch",
+				"kueue_workload:job-sample",
+			},
+			StandardTags: []string{},
+		},
+	}
+	assertTagInfoListEqual(t, expected, actual)
+}
+
+func TestKueueWorkloadResourceFlavorTagsPropagateToPodContainers(t *testing.T) {
+	tests := []struct {
+		name        string
+		podLabels   map[string]string
+		annotations map[string]string
+	}{
+		{
+			name: "job or single pod workload annotation",
+			podLabels: map[string]string{
+				kubernetes.KueuePodSetLabelKey: "main",
+			},
+			annotations: map[string]string{
+				kubernetes.KueueWorkloadAnnotationKey: "job-sample",
+			},
+		},
+		{
+			name: "pod group label",
+			podLabels: map[string]string{
+				kubernetes.KueuePodGroupNameLabelKey: "job-sample",
+				kubernetes.KueuePodSetLabelKey:       "main",
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			const (
+				podUID      = "pod-uid"
+				containerID = "container-id"
+			)
+
+			store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+				fx.Provide(func() log.Component { return logmock.New(t) }),
+				fx.Provide(func() config.Component { return config.NewMock(t) }),
+				fx.Supply(context.Background()),
+				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+			))
+			store.Set(&workloadmeta.Container{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindContainer,
+					ID:   containerID,
+				},
+			})
+			store.Set(&workloadmeta.KubernetesKueueWorkload{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindKubernetesKueueWorkload,
+					ID:   "default/job-sample",
+				},
+				EntityMeta: workloadmeta.EntityMeta{
+					Name:      "job-sample",
+					Namespace: "default",
+				},
+				QueueName:        "batch",
+				ClusterQueueName: "cluster-batch",
+				PodSetAssignments: []workloadmeta.KueuePodSetAssignment{
+					{Name: "main", Flavors: map[string]string{"nvidia.com/gpu": "a100"}},
+				},
+			})
+			store.Set(&workloadmeta.KubernetesKueueResourceFlavor{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindKubernetesKueueResourceFlavor,
+					ID:   "a100",
+				},
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: "a100",
+				},
+				NodeLabels: map[string]string{
+					"nvidia.com/gpu.product": "NVIDIA-A100-SXM4-40GB",
+					"nvidia.com/gpu.family":  "Ampere",
+				},
+			})
+
+			cfg := configmock.New(t)
+			collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
+
+			actual := collector.handleKubePod(workloadmeta.Event{
+				Type: workloadmeta.EventTypeSet,
+				Entity: &workloadmeta.KubernetesPod{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindKubernetesPod,
+						ID:   podUID,
+					},
+					EntityMeta: workloadmeta.EntityMeta{
+						Name:        "pod",
+						Namespace:   "default",
+						Labels:      test.podLabels,
+						Annotations: test.annotations,
+					},
+					Containers: []workloadmeta.OrchestratorContainer{
+						{
+							ID:   containerID,
+							Name: "app",
+						},
+					},
+				},
+				IsComplete: true,
+			})
+
+			assert.Len(t, actual, 2)
+			for _, tagInfo := range actual {
+				if tagInfo.EntityID != types.NewEntityID(types.ContainerID, containerID) {
+					continue
+				}
+				assert.Subset(t, tagInfo.LowCardTags, []string{
+					"gpu_architecture:ampere",
+					"gpu_device:NVIDIA-A100-SXM4-40GB",
+					"gpu_vendor:nvidia",
+					"kueue_cluster_queue:cluster-batch",
+					"kueue_local_queue:batch",
+					"kueue_resource_flavor:a100",
+					"kueue_workload:job-sample",
+				})
+				return
+			}
+			t.Fatal("container tag info not found")
+		})
+	}
+}
+
+func TestKueueWorkloadFallbackToPodQueueLabels(t *testing.T) {
+	const (
+		podUID      = "pod-uid"
+		containerID = "container-id"
+	)
+
+	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
+		fx.Supply(context.Background()),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+	store.Set(&workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainer,
+			ID:   containerID,
+		},
+	})
+
+	cfg := configmock.New(t)
+	collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
+
+	actual := collector.handleKubePod(workloadmeta.Event{
+		Type: workloadmeta.EventTypeSet,
+		Entity: &workloadmeta.KubernetesPod{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindKubernetesPod,
+				ID:   podUID,
+			},
+			EntityMeta: workloadmeta.EntityMeta{
+				Name:      "pod",
+				Namespace: "default",
+				Labels: map[string]string{
+					kubernetes.KueueLocalQueueNameLabelKey:   "batch",
+					kubernetes.KueueClusterQueueNameLabelKey: "cluster-batch",
+					kubernetes.KueuePodSetLabelKey:           "main",
+				},
+				Annotations: map[string]string{
+					kubernetes.KueueWorkloadAnnotationKey: "missing-workload",
+				},
+			},
+			Containers: []workloadmeta.OrchestratorContainer{
+				{
+					ID:   containerID,
+					Name: "app",
+				},
+			},
+		},
+		IsComplete: true,
+	})
+
+	assert.Len(t, actual, 2)
+	for _, tagInfo := range actual {
+		if tagInfo.EntityID != types.NewEntityID(types.ContainerID, containerID) {
+			continue
+		}
+		assert.Subset(t, tagInfo.LowCardTags, []string{
+			"kueue_cluster_queue:cluster-batch",
+			"kueue_local_queue:batch",
+		})
+		assert.NotContains(t, tagInfo.LowCardTags, "kueue_workload:missing-workload")
+		return
+	}
+	t.Fatal("container tag info not found")
+}
+
+func TestKueueWorkloadMissingPodSetAssignmentFallsBackToPodQueueLabels(t *testing.T) {
+	const (
+		podUID      = "pod-uid"
+		containerID = "container-id"
+	)
+
+	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
+		fx.Supply(context.Background()),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+	store.Set(&workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainer,
+			ID:   containerID,
+		},
+	})
+	store.Set(&workloadmeta.KubernetesKueueWorkload{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesKueueWorkload,
+			ID:   "default/job-sample",
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:      "job-sample",
+			Namespace: "default",
+		},
+		QueueName:        "batch",
+		ClusterQueueName: "cluster-batch",
+		PodSetAssignments: []workloadmeta.KueuePodSetAssignment{
+			{Name: "other", Flavors: map[string]string{"nvidia.com/gpu": "a100"}},
+		},
+	})
+
+	cfg := configmock.New(t)
+	collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
+
+	actual := collector.handleKubePod(workloadmeta.Event{
+		Type: workloadmeta.EventTypeSet,
+		Entity: &workloadmeta.KubernetesPod{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindKubernetesPod,
+				ID:   podUID,
+			},
+			EntityMeta: workloadmeta.EntityMeta{
+				Name:      "pod",
+				Namespace: "default",
+				Labels: map[string]string{
+					kubernetes.KueueLocalQueueNameLabelKey:   "batch",
+					kubernetes.KueueClusterQueueNameLabelKey: "cluster-batch",
+					kubernetes.KueuePodSetLabelKey:           "main",
+				},
+				Annotations: map[string]string{
+					kubernetes.KueueWorkloadAnnotationKey: "job-sample",
+				},
+			},
+			Containers: []workloadmeta.OrchestratorContainer{
+				{
+					ID:   containerID,
+					Name: "app",
+				},
+			},
+		},
+		IsComplete: true,
+	})
+
+	assert.Len(t, actual, 2)
+	for _, tagInfo := range actual {
+		if tagInfo.EntityID != types.NewEntityID(types.ContainerID, containerID) {
+			continue
+		}
+		assert.Subset(t, tagInfo.LowCardTags, []string{
+			"kueue_cluster_queue:cluster-batch",
+			"kueue_local_queue:batch",
+		})
+		assert.NotContains(t, tagInfo.LowCardTags, "kueue_workload:job-sample")
+		return
+	}
+	t.Fatal("container tag info not found")
+}
+
 func TestKueueQueueEntityTagsPropagateToPodContainers(t *testing.T) {
 	const (
 		podUID      = "pod-uid"
