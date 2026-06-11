@@ -372,7 +372,7 @@
           {
             "function": "main.anyAllIntSlice",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 1271
+            "lineNumber": 1269
           },
           {
             "function": "main.main",
@@ -415,7 +415,6 @@
       }
     },
     "timestamp": "[ts]",
-    "duration": "[duration]",
     "process_tags": "entrypoint.name:sample,svc.user:sample"
   },
   {

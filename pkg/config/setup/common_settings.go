@@ -475,6 +475,7 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("gpu.integrate_with_workloadmeta_processes", true)
 	config.BindEnvAndSetDefault("gpu.workload_tag_cache_size", 1024)
 	config.BindEnvAndSetDefault("gpu.disabled_collectors", []string{})
+	config.BindEnvAndSetDefault("gpu.nvlink.fec_light_error_threshold", 3)
 
 	// NCCL
 	config.BindEnvAndSetDefault("gpu.nccl.enabled", false)
@@ -874,6 +875,10 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 
 	// Network
 	config.BindEnvAndSetDefault("network.id", "")
+
+	// Process manager (dd-procmgrd): on Windows the core agent starts dd-procmgr-service when enabled.
+	// On Linux, dd-procmgrd is managed by systemd (datadog-agent-procmgr.service); this setting is ignored there.
+	config.BindEnvAndSetDefault("process_manager.enabled", true)
 
 	// OTel Collector
 	config.BindEnvAndSetDefault("otelcollector.enabled", false)
@@ -1513,7 +1518,7 @@ func serializer(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("serializer_experimental_use_v3_api.compression_level", 0)
 	config.BindEnvAndSetDefault("serializer_experimental_use_v3_api.series.use_beta", false)
 	config.BindEnvAndSetDefault("serializer_experimental_use_v3_api.series.beta_route", "/api/intake/metrics/v3beta/series")
-	config.BindEnvAndSetDefault("serializer_experimental_use_v3_api.series.shadow_sample_rate", 0.001)
+	config.BindEnvAndSetDefault("serializer_experimental_use_v3_api.series.shadow_sample_rate", float64(0))
 	config.BindEnvAndSetDefault("serializer_experimental_use_v3_api.series.shadow_sites", []string{"datadoghq.com"})
 
 	config.BindEnvAndSetDefault("use_v3_api.series.enabled", "true")
@@ -1845,6 +1850,7 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line.pattern_table_match_threshold", 0.75)
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line.enable_json_aggregation", true)
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line.tag_aggregated_json", false)
+	config.BindEnvAndSetDefault("logs_config.auto_multi_line.stack_trace_parsers", []string{"go"})
 
 	// Adaptive sampler (experimental) rate-limits repetitive log patterns per source.
 	config.BindEnvAndSetDefault("logs_config.experimental_adaptive_sampling.enabled", false)
@@ -2049,6 +2055,8 @@ func kubernetes(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("kubernetes_metadata_streaming", true)
 	config.BindEnvAndSetDefault("kubernetes_apiserver_client_timeout", 10)
 	config.BindEnvAndSetDefault("kubernetes_apiserver_informer_client_timeout", 0)
+	config.BindEnvAndSetDefault("kubernetes_apiserver_client_qps", 40)
+	config.BindEnvAndSetDefault("kubernetes_apiserver_client_burst", 200)
 	config.BindEnvAndSetDefault("kubernetes_map_services_on_ip", false) // temporary opt-out of the new mapping logic
 	config.BindEnvAndSetDefault("kubernetes_apiserver_use_protobuf", false)
 	config.BindEnvAndSetDefault("kubernetes_ad_tags_disabled", []string{})
@@ -2073,22 +2081,39 @@ func anomalyDetection(config pkgconfigmodel.Setup) {
 	// Master switch. When false the entire anomaly detection subsystem is a no-op.
 	config.BindEnvAndSetDefault("anomaly_detection.enabled", false)
 
-	// Log ingestion gate. When false, container/journald logs are not routed
-	// into the anomaly detection pipeline (recording is unaffected).
+	// Log ingestion gate. When false, all log sources (container, kubelet, internal)
+	// are not routed into the anomaly detection pipeline (recording is unaffected).
 	config.BindEnvAndSetDefault("anomaly_detection.logs.enabled", true)
 	config.BindEnvAndSetDefault("anomaly_detection.logs.containers.enabled", true)
 	config.BindEnvAndSetDefault("anomaly_detection.logs.kubelet.enabled", true)
+
+	// Internal agent log tap.
+	// min_severity is the minimum level forwarded (logs below it are dropped before sampling).
+	// max_rate_* are in logs/second measured over a 10-second fixed window and apply
+	// after the min_severity gate. -1 means unlimited (no cap); 0 drops all logs of that priority.
+	// high_priority = warn/error/critical, medium_priority = info, low_priority = debug.
+	config.BindEnvAndSetDefault("anomaly_detection.logs.internal.enabled", true)
+	config.BindEnvAndSetDefault("anomaly_detection.logs.internal.min_severity", "warn")
+	config.BindEnvAndSetDefault("anomaly_detection.logs.internal.max_rate_high_priority", -1.0) // unlimited
+	config.BindEnvAndSetDefault("anomaly_detection.logs.internal.max_rate_medium_priority", 100.0)
+	config.BindEnvAndSetDefault("anomaly_detection.logs.internal.max_rate_low_priority", 1.0)
+
+	// Kubelet journald log rate limits (enabled flag already set above).
+	config.BindEnvAndSetDefault("anomaly_detection.logs.kubelet.min_severity", "warn")
+	config.BindEnvAndSetDefault("anomaly_detection.logs.kubelet.max_rate_high_priority", -1.0) // unlimited
+	config.BindEnvAndSetDefault("anomaly_detection.logs.kubelet.max_rate_medium_priority", 100.0)
+	config.BindEnvAndSetDefault("anomaly_detection.logs.kubelet.max_rate_low_priority", 1.0)
+
+	// Container log rate limits (enabled flag already set above).
+	config.BindEnvAndSetDefault("anomaly_detection.logs.containers.min_severity", "warn")
+	config.BindEnvAndSetDefault("anomaly_detection.logs.containers.max_rate_high_priority", -1.0) // unlimited
+	config.BindEnvAndSetDefault("anomaly_detection.logs.containers.max_rate_medium_priority", 100.0)
+	config.BindEnvAndSetDefault("anomaly_detection.logs.containers.max_rate_low_priority", 1.0)
 
 	// Metrics ingestion gate. When false, externally-ingested metrics
 	// (DogStatsD, check samplers) are dropped at the handle factory.
 	// Log-derived virtual metrics are unaffected.
 	config.BindEnvAndSetDefault("anomaly_detection.metrics.enabled", true)
-
-	// Agent-internal log sampling. Warn+ are never sampled.
-	config.BindEnvAndSetDefault("anomaly_detection.agent_logs.enabled", true)
-	config.BindEnvAndSetDefault("anomaly_detection.agent_logs.sample_rate_info", 0.2)
-	config.BindEnvAndSetDefault("anomaly_detection.agent_logs.sample_rate_debug", 0.05)
-	config.BindEnvAndSetDefault("anomaly_detection.agent_logs.sample_rate_trace", 0.0)
 
 	// Anomaly event reporting. Keep false during evaluation / shadow mode.
 	config.BindEnvAndSetDefault("anomaly_detection.reporting.enabled", false)
