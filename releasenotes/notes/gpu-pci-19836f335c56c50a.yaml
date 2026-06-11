@@ -9,4 +9,3 @@
 enhancements:
   - |
     gpu: add new PCI link width metrics ``gpu.pci.link.width.{current,max}`` and add degraded PCI link metrics ``gpu.pci.link.{width,speed}.degraded``.
-    considered a new feature), or remove this section.
