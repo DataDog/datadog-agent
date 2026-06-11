@@ -6147,6 +6147,54 @@ properties:
                 node_type: setting
                 type: boolean
                 default: true
+          anomaly_scorer:
+            node_type: section
+            type: object
+            properties:
+              alpha:
+                node_type: setting
+                type: number
+                default: 0.014
+              cooldown_secs:
+                node_type: setting
+                type: integer
+                default: 300
+              enabled:
+                node_type: setting
+                type: boolean
+                default: false
+              helper:
+                node_type: section
+                type: object
+                properties:
+                  enabled:
+                    node_type: setting
+                    type: boolean
+                    default: true
+                  report_events:
+                    node_type: setting
+                    type: boolean
+                    default: false
+              high_threshold:
+                node_type: setting
+                type: number
+                default: 0.060
+              low_threshold:
+                node_type: setting
+                type: number
+                default: 0.040
+              margin_pct:
+                node_type: setting
+                type: number
+                default: 0.20
+              saturation_k:
+                node_type: setting
+                type: number
+                default: 5.0
+              window_secs:
+                node_type: setting
+                type: integer
+                default: 15
           passthrough:
             node_type: section
             type: object

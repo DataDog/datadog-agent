@@ -246,6 +246,9 @@ func NewComponent(deps Requires) Provides {
 	// sets the observer.scorer.state gauge, and — when helper.report_events is true
 	// and the event-platform forwarder is available — sends v2 change events tagged
 	// anomaly_scorer_source:helper to separate them from reporter correlation events.
+	// Build the helper subscription config before obs is constructed; stored
+	// below so Reset() can re-subscribe after a testbench replay reset.
+	var helperCfg *observerdef.AnomalyScorerConfiguration
 	if len(scorers) > 0 {
 		helperEnabled := !cfg.IsConfigured("anomaly_detection.detectors.anomaly_scorer.helper.enabled") ||
 			cfg.GetBool("anomaly_detection.detectors.anomaly_scorer.helper.enabled")
@@ -266,9 +269,9 @@ func NewComponent(deps Requires) Provides {
 			}
 
 			helper := newAnomalyScorerHelper(scorer.Name(), obsTelemetry.scorerState, reportEvents, sender)
-			scorer.Subscribe(observerdef.AnomalyScorerConfiguration{
-				Listener: helper,
-			})
+			c := observerdef.AnomalyScorerConfiguration{Listener: helper}
+			scorer.Subscribe(c)
+			helperCfg = &c
 			pkglog.Infof("[observer] anomaly_scorer_helper registered for scorer %q (report_events=%v)", scorer.Name(), reportEvents)
 		}
 	}
@@ -279,6 +282,7 @@ func NewComponent(deps Requires) Provides {
 		obsCh:                make(chan observation, 1000),
 		telemetry:            obsTelemetry,
 		ingestMetricsEnabled: !cfg.IsConfigured("anomaly_detection.metrics.enabled") || cfg.GetBool("anomaly_detection.metrics.enabled"),
+		scorerHelperCfg:      helperCfg,
 	}
 
 	if !obs.ingestMetricsEnabled {
@@ -400,6 +404,12 @@ type observerImpl struct {
 	// agent-internal-log observer (which can post to obsCh while run() is
 	// processing) and a concurrent IngestLogSync call.
 	replayMu sync.Mutex
+
+	// scorerHelperCfg is the AnomalyScorerConfiguration used to subscribe the
+	// built-in anomalyScorerHelper. Stored so Reset() can re-subscribe the same
+	// helper to the newly-instantiated scorer after a testbench replay reset.
+	// Nil when no scorer or helper is configured.
+	scorerHelperCfg *observerdef.AnomalyScorerConfiguration
 }
 
 // run is the main dispatch loop, processing all observations sequentially.
@@ -706,6 +716,13 @@ func (o *observerImpl) Reset(settings ComponentSettings, storageCfg StorageConfi
 	o.replayMu.Lock()
 	o.engine.ResetForReplay(detectors, correlators, scorers, extractors, storageCfg)
 	o.replayMu.Unlock()
+
+	// Re-subscribe the built-in helper to the new scorer instance. Each replay
+	// creates a fresh scorer via catalog.Instantiate; without this the helper
+	// is silently detached from the live scorer after the first Reset call.
+	if o.scorerHelperCfg != nil && len(scorers) > 0 {
+		scorers[0].Subscribe(*o.scorerHelperCfg)
+	}
 }
 
 // GetReplayProgress returns lock-free replay progress counters. Implements DebugView.
