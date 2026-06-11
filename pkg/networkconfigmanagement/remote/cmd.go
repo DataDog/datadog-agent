@@ -9,7 +9,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
-	"strings"
+	"regexp"
 
 	"golang.org/x/crypto/ssh"
 
@@ -53,15 +53,22 @@ func ExecuteCommand(ctx context.Context, client sshClient, cmd *profile.PlainCom
 	}
 }
 
+// We found experimentally that some systems silently fail with unexpected
+// filenames; since we provide the filenames ourselves in our profiles, we can
+// ensure that we limit them to reasonable characters.
+var filenameRE = regexp.MustCompile("^[a-zA-Z0-9_:./-]*$")
+
 // ExecuteSCP executes an SCP command, sending the given data over SSH.
 func ExecuteSCP(ctx context.Context, client sshClient, cmd *profile.SCPCommand, data string) (string, error) {
+	if !filenameRE.MatchString(cmd.Filepath) {
+		return "", fmt.Errorf("bad filename for scp: %q", cmd.Filepath)
+	}
 	session, err := client.NewSession()
 	if err != nil {
 		return "", err
 	}
 	defer session.Close()
-
-	cmdStr := fmt.Sprintf("%s -t '%s'", cmd.RemoteCommand, strings.ReplaceAll(cmd.Filepath, "'", "'\"'\"'"))
+	cmdStr := fmt.Sprintf("%s -t %s", cmd.RemoteCommand, cmd.Filepath)
 	ch := make(chan result)
 	go func() {
 		response, err := executeSCP(session, cmdStr, filepath.Base(cmd.Filepath), data)
