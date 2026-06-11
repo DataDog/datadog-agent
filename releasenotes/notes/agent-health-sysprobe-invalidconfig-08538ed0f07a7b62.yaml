@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    On startup the Datadog Agent now validates the system-probe configuration against its schema and reports any violations through the Agent Health pipeline.
+    The Datadog Agent can now validate the system-probe configuration against its schema on startup and report any violations through the Agent Health pipeline. This is disabled by default; enable it with ``health_platform.invalidsysprobeconfig_check.enabled``.

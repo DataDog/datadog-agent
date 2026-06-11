@@ -6,6 +6,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/healthplatform/issues/invalidsysprobeconfig",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/core/config",
         "//comp/core/sysprobeconfig/def",
         "//comp/healthplatform/issues",
         "//comp/healthplatform/issues/schemacheck",
@@ -21,6 +22,7 @@ go_test(
     embed = [":invalidsysprobeconfig"],
     gotags = ["test"],
     deps = [
+        "//comp/core/config",
         "//comp/core/sysprobeconfig/mock",
         "//comp/healthplatform/issues/schemacheck",
         "@com_github_stretchr_testify//assert",

@@ -9,6 +9,7 @@ package invalidsysprobeconfig
 import (
 	"github.com/DataDog/agent-payload/v5/healthplatform"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issues"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issues/schemacheck"
@@ -35,12 +36,13 @@ func init() {
 }
 
 type invalidSysprobeConfigModule struct {
-	cfg sysprobeconfig.Component
+	datadog  config.Component         // holds the feature flag
+	sysprobe sysprobeconfig.Component // the config we validate
 }
 
-// NewModule captures the system-probe config so the once-only startup check can read it.
+// NewModule captures the configs so the once-only startup check can read them.
 func NewModule(deps issues.ModuleDeps) issues.Module {
-	return &invalidSysprobeConfigModule{cfg: deps.SysProbeConfig}
+	return &invalidSysprobeConfigModule{datadog: deps.Config, sysprobe: deps.SysProbeConfig}
 }
 
 func (m *invalidSysprobeConfigModule) IssueName() string { return IssueID }
@@ -56,14 +58,17 @@ func (m *invalidSysprobeConfigModule) BuiltInPeriodicHealthCheck() *runnerdef.Bu
 
 // BuiltInStartupHealthCheck runs the system-probe schema validation once at agent startup.
 func (m *invalidSysprobeConfigModule) BuiltInStartupHealthCheck() *runnerdef.BuiltInHealthCheck {
-	if m.cfg == nil {
+	if m.sysprobe == nil {
 		// sysprobeconfig isn't bundled
 		return nil
 	}
 	return &runnerdef.BuiltInHealthCheck{
 		Source: "system-probe",
 		Fn: func() ([]runnerdef.IssueReport, error) {
-			return check.Run(m.cfg)
+			if !m.datadog.GetBool("health_platform.invalidsysprobeconfig_check.enabled") {
+				return nil, nil
+			}
+			return check.Run(m.sysprobe)
 		},
 	}
 }

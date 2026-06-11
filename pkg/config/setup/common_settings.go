@@ -1216,6 +1216,8 @@ func agent(config pkgconfigmodel.Setup) {
 	// This adds ~8 MiB of permanent heap even when the agent config is valid.
 	// Enable it deliberately if you need schema validation at startup.
 	config.BindEnvAndSetDefault("health_platform.invalidconfig_check.enabled", false)
+	// health_platform.invalidsysprobeconfig_check.enabled gates the system-probe schema check
+	config.BindEnvAndSetDefault("health_platform.invalidsysprobeconfig_check.enabled", false)
 	config.BindEnvAndSetDefault("disable_py3_validation", false)
 	config.BindEnvAndSetDefault("win_skip_com_init", false)
 	config.BindEnvAndSetDefault("allow_arbitrary_tags", false)

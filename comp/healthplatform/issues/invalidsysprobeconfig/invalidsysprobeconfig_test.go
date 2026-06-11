@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	sysprobeconfigmock "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/mock"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issues/schemacheck"
 )
@@ -51,12 +52,32 @@ func TestCheck_SchemaViolationProducesReport(t *testing.T) {
 // Without sysprobeconfig the module must NOT register a startup check, or the bundle
 // would resolve a real persisted system-probe issue without ever validating.
 func TestBuiltInStartupHealthCheck_SkippedWhenSysprobeAbsent(t *testing.T) {
-	assert.Nil(t, (&invalidSysprobeConfigModule{cfg: nil}).BuiltInStartupHealthCheck())
+	assert.Nil(t, (&invalidSysprobeConfigModule{sysprobe: nil}).BuiltInStartupHealthCheck())
 }
 
 // With sysprobeconfig present the startup check is registered with the system-probe source.
 func TestBuiltInStartupHealthCheck_RegisteredWhenSysprobePresent(t *testing.T) {
-	chk := (&invalidSysprobeConfigModule{cfg: sysprobeconfigmock.NewMock(t)}).BuiltInStartupHealthCheck()
+	chk := (&invalidSysprobeConfigModule{sysprobe: sysprobeconfigmock.NewMock(t)}).BuiltInStartupHealthCheck()
 	require.NotNil(t, chk)
 	assert.Equal(t, "system-probe", chk.Source)
+}
+
+// The check is gated behind health_platform.invalidsysprobeconfig_check.enabled: off (the default)
+// suppresses the report even with a violation; on lets it through.
+func TestBuiltInStartupHealthCheck_GatedByFlag(t *testing.T) {
+	sp := sysprobeconfigmock.NewMockWithOverrides(t, map[string]interface{}{
+		"system_probe_config.health_port": "not-an-integer",
+	})
+
+	off := (&invalidSysprobeConfigModule{datadog: config.NewMock(t), sysprobe: sp}).BuiltInStartupHealthCheck()
+	reports, err := off.Fn()
+	require.NoError(t, err)
+	assert.Empty(t, reports, "flag off suppresses the check")
+
+	dd := config.NewMock(t)
+	dd.SetInTest("health_platform.invalidsysprobeconfig_check.enabled", true)
+	on := (&invalidSysprobeConfigModule{datadog: dd, sysprobe: sp}).BuiltInStartupHealthCheck()
+	reports, err = on.Fn()
+	require.NoError(t, err)
+	require.Len(t, reports, 1, "flag on surfaces the violation")
 }
