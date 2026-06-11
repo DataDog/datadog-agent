@@ -509,7 +509,7 @@ func writeDDOTProcmgrConfigWindows(installRootResolved string, packagePathRaw st
 	}
 	installPF := paths.DatadogProgramFilesDir
 	if installPF == "" {
-		return fmt.Errorf("DatadogProgramFilesDir is empty; cannot write processes.d for DDOT")
+		return errors.New("DatadogProgramFilesDir is empty; cannot write processes.d for DDOT")
 	}
 	processesDir := filepath.Join(installPF, "processes.d")
 	if err := os.MkdirAll(processesDir, 0o755); err != nil {
