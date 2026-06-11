@@ -1064,8 +1064,6 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	// Listen addresses must include a URL scheme (e.g. "tcp://").
 	config.BindEnvAndSetDefault("data_plane.api_listen_address", "tcp://0.0.0.0:5100")
 	config.BindEnvAndSetDefault("data_plane.secure_api_listen_address", "tcp://0.0.0.0:5101")
-	config.BindEnvAndSetDefault("data_plane.telemetry_enabled", false)
-	config.BindEnvAndSetDefault("data_plane.telemetry_listen_addr", "tcp://0.0.0.0:5102")
 	config.BindEnvAndSetDefault("data_plane.log_file", DefaultDataPlaneLogFile)
 	config.BindEnvAndSetDefault("data_plane.dogstatsd.enabled", true)
 	config.BindEnvAndSetDefault("data_plane.otlp.enabled", false)
