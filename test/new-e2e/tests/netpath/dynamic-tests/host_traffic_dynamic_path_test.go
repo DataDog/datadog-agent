@@ -276,7 +276,7 @@ func (s *hostTrafficDynamicPathSuite) assertHostTrafficDomainResolves() {
 func (s *hostTrafficDynamicPathSuite) startHostTrafficGenerator(duration time.Duration) {
 	seconds := int(duration.Seconds())
 	trafficCommand := fmt.Sprintf(
-		"end=$((SECONDS+%d)); while [ $SECONDS -lt $end ]; do curl -4 -fsS --max-time 5 %s >/dev/null || true; sleep 2; done",
+		"i=0; while [ \"$i\" -lt %d ]; do curl -4 -fsS --max-time 5 %s >/dev/null || true; sleep 2; i=$((i+2)); done",
 		seconds,
 		shellQuote(hostTrafficURL()),
 	)
