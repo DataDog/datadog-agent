@@ -47,10 +47,6 @@ func (b *builder) SetDefault(key string, value interface{}) {
 func (b *builder) SetEnvPrefix(_ string) {
 }
 
-func (b *builder) BindEnv(key string, envvars ...string) {
-	b.addToSchema(key, nil, envvars, false)
-}
-
 func (b *builder) ParseEnvAsStringSlice(_ string, _ func(string) []string) {
 	// pass
 }
@@ -238,11 +234,6 @@ func (b *builder) AllFlattenedSettingsWithSequenceID() (map[string]interface{}, 
 
 func (b *builder) SetTestOnlyDynamicSchema(_ bool) {
 	b.notImplemented()
-}
-
-func (b *builder) IsSet(_ string) bool {
-	b.notImplemented()
-	return false
 }
 
 func (b *builder) IsConfigured(_ string) bool {

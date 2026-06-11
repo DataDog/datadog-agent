@@ -371,44 +371,33 @@ func LoadProxyFromEnv(config pkgconfigmodel.ReaderWriter) {
 		return value, found
 	}
 
-	var isSet bool
 	p := &pkgconfigmodel.Proxy{}
-	if isSet = config.IsSet("proxy"); isSet {
-		if err := structure.UnmarshalKey(config, "proxy", p); err != nil {
-			isSet = false
-			log.Errorf("Could not load proxy setting from the configuration (ignoring): %s", err)
-		}
+	if err := structure.UnmarshalKey(config, "proxy", p); err != nil {
+		log.Errorf("Could not load proxy setting from the configuration (ignoring): %s", err)
 	}
 
 	if HTTP, found := lookupEnv("DD_PROXY_HTTP"); found {
-		isSet = true
 		p.HTTP = HTTP
 	} else if HTTP, found := lookupEnvCaseInsensitive("HTTP_PROXY"); found {
-		isSet = true
 		p.HTTP = HTTP
 	}
 
 	if HTTPS, found := lookupEnv("DD_PROXY_HTTPS"); found {
-		isSet = true
 		p.HTTPS = HTTPS
 	} else if HTTPS, found := lookupEnvCaseInsensitive("HTTPS_PROXY"); found {
-		isSet = true
 		p.HTTPS = HTTPS
 	}
 
 	if noProxy, found := lookupEnv("DD_PROXY_NO_PROXY"); found {
-		isSet = true
 		p.NoProxy = strings.FieldsFunc(noProxy, func(r rune) bool {
 			return r == ',' || r == ' '
 		}) // comma and space-separated list, consistent with viper and documentation
 	} else if noProxy, found := lookupEnvCaseInsensitive("NO_PROXY"); found {
-		isSet = true
 		p.NoProxy = strings.Split(noProxy, ",") // comma-separated list, consistent with other tools that use the NO_PROXY env var
 	}
 
 	if !config.GetBool("use_proxy_for_cloud_metadata") {
 		log.Debugf("'use_proxy_for_cloud_metadata' is enabled: adding cloud provider URL to the no_proxy list")
-		isSet = true
 		p.NoProxy = append(p.NoProxy,
 			"169.254.169.254", // Azure, EC2, GCE
 			"100.100.100.200", // Alibaba
@@ -417,7 +406,7 @@ func LoadProxyFromEnv(config pkgconfigmodel.ReaderWriter) {
 
 	// We have to set each value individually so both config.Get("proxy")
 	// and config.Get("proxy.http") work
-	if isSet {
+	if p.HTTPS != "" || p.HTTP != "" || len(p.NoProxy) > 0 {
 		config.Set("proxy.http", p.HTTP, pkgconfigmodel.SourceConfigPostInit)
 		config.Set("proxy.https", p.HTTPS, pkgconfigmodel.SourceConfigPostInit)
 
