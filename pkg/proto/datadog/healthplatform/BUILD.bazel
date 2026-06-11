@@ -1,0 +1,7 @@
+# gazelle:ignore
+
+alias(
+    name = "healthplatform_go_proto",
+    actual = "@com_github_datadog_agent_payload_v5//healthplatform",
+    visibility = ["//visibility:public"],
+)
