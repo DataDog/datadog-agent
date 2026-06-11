@@ -97,7 +97,7 @@ func NewModule(
 // eventbufBudgetBytes is the per-process byte ceiling enforced across all
 // per-program event buffers. Matches the pre-Buffer pairing-store budget.
 // TODO: make this configurable.
-const eventbufBudgetBytes = 512 << 10
+const eventbufBudgetBytes = 512 << 18
 
 // tombstoneFilePath is the path to the tombstone file left behind to detect
 // crashes while loading programs. If empty, tombstone files are not
