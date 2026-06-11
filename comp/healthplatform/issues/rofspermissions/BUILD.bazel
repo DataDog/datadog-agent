@@ -15,9 +15,9 @@ go_library(
         "//comp/healthplatform/issues",
         "//comp/healthplatform/runner/def",
         "//pkg/config/env",
-        "//pkg/proto/datadog/healthplatform:healthplatform_go_proto",
         "//pkg/util/filesystem",
         "//pkg/util/log",
+        "@com_github_datadog_agent_payload_v5//healthplatform",
         "@org_golang_google_protobuf//types/known/structpb",
     ],
 )

@@ -8,6 +8,6 @@ go_library(
     deps = [
         "//comp/core/flare/types",
         "//comp/healthplatform/store/def",
-        "//pkg/proto/datadog/healthplatform:healthplatform_go_proto",
+        "@com_github_datadog_agent_payload_v5//healthplatform",
     ],
 )
