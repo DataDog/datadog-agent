@@ -30,6 +30,13 @@ import (
 // ErrSysprobeUnsupported is the unsupported error prefix, for error-class matching from callers
 var ErrSysprobeUnsupported = errors.New("system-probe unsupported")
 
+// Sentinel errors that categorize probe-init failures for targeted remediation in health issues.
+var (
+	errNetworkProbeKernelUnsupported = errors.New("kernel version not supported by network probe")
+	errNetworkProbeVerifierRejected  = errors.New("eBPF verifier rejected network probe program")
+	errNetworkProbeUSMUnsupported    = errors.New("USM not supported on this kernel")
+)
+
 const inactivityLogDuration = 10 * time.Minute
 const inactivityRestartDuration = 20 * time.Minute
 const maxConntrackDumpSize = 3000
@@ -39,7 +46,7 @@ func createNetworkTracerModule(_ *sysconfigtypes.Config, deps module.FactoryDepe
 
 	// Checking whether the current OS + kernel version is supported by the tracer
 	if supported, err := tracer.IsTracerSupportedByOS(ncfg.ExcludedBPFLinuxVersions); !supported {
-		initErr := fmt.Errorf("%w: %s", ErrSysprobeUnsupported, err)
+		initErr := fmt.Errorf("%w: %w: %s", ErrSysprobeUnsupported, errNetworkProbeKernelUnsupported, err)
 		reportNetworkProbeInitFailure(deps, initErr, ncfg.NPMEnabled, ncfg.ServiceMonitoringEnabled)
 		return nil, initErr
 	}
@@ -53,8 +60,9 @@ func createNetworkTracerModule(_ *sysconfigtypes.Config, deps module.FactoryDepe
 
 	t, err := tracer.NewTracer(ncfg, deps.Telemetry, deps.Statsd)
 	if err != nil {
-		reportNetworkProbeInitFailure(deps, err, ncfg.NPMEnabled, ncfg.ServiceMonitoringEnabled)
-		return nil, err
+		initErr := categorizeTracerError(err)
+		reportNetworkProbeInitFailure(deps, initErr, ncfg.NPMEnabled, ncfg.ServiceMonitoringEnabled)
+		return nil, initErr
 	}
 	resolveNetworkProbeInitFailure(deps)
 

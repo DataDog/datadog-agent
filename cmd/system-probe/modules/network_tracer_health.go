@@ -8,6 +8,7 @@
 package modules
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 
@@ -70,16 +71,61 @@ func buildNetworkProbeIssue(initErr error, npmEnabled, usmEnabled bool) *healthp
 		Source:      "system-probe",
 		Extra:       extra,
 		Tags:        []string{"system-probe", "npm", "usm", "ebpf", "network-monitoring"},
-		Remediation: &healthplatformpayload.Remediation{
+		Remediation: networkProbeRemediation(initErr),
+	}
+}
+
+func networkProbeRemediation(initErr error) *healthplatformpayload.Remediation {
+	logStep := &healthplatformpayload.RemediationStep{
+		Order: 1, Text: "Check system-probe logs: journalctl -u datadog-agent-sysprobe or /var/log/datadog/system-probe.log",
+	}
+	restartStep := &healthplatformpayload.RemediationStep{
+		Order: 99, Text: "Restart after fixing: systemctl restart datadog-agent-sysprobe",
+	}
+
+	switch {
+	case errors.Is(initErr, errNetworkProbeKernelUnsupported):
+		return &healthplatformpayload.Remediation{
+			Summary: "The running kernel does not meet the minimum version requirements for this feature.",
+			Steps: []*healthplatformpayload.RemediationStep{
+				logStep,
+				{Order: 2, Text: "Check the kernel version: uname -r (NPM requires >= 4.4, USM requires >= 4.14)"},
+				{Order: 3, Text: "Upgrade the host kernel or disable the unsupported feature in datadog.yaml"},
+				restartStep,
+			},
+		}
+	case errors.Is(initErr, errNetworkProbeVerifierRejected):
+		return &healthplatformpayload.Remediation{
+			Summary: "The eBPF verifier rejected a network probe program. The full verifier log is in system-probe logs.",
+			Steps: []*healthplatformpayload.RemediationStep{
+				logStep,
+				{Order: 2, Text: "Search logs for 'verifier' to find the rejected program and the verifier output"},
+				{Order: 3, Text: "Check BTF availability for CO-RE probes: ls /sys/kernel/btf/vmlinux"},
+				{Order: 4, Text: "If in a container, ensure privileged mode or a permissive seccomp profile"},
+				restartStep,
+			},
+		}
+	case errors.Is(initErr, errNetworkProbeUSMUnsupported):
+		return &healthplatformpayload.Remediation{
+			Summary: "Universal Service Monitoring (USM) requires a newer kernel than the one running.",
+			Steps: []*healthplatformpayload.RemediationStep{
+				logStep,
+				{Order: 2, Text: "Check the kernel version: uname -r (USM requires >= 4.14)"},
+				{Order: 3, Text: "Upgrade the host kernel or disable USM (service_monitoring_config.enabled: false) in datadog.yaml"},
+				restartStep,
+			},
+		}
+	default:
+		return &healthplatformpayload.Remediation{
 			Summary: "Check kernel compatibility and system-probe capabilities, then restart system-probe.",
 			Steps: []*healthplatformpayload.RemediationStep{
-				{Order: 1, Text: "Check system-probe logs: journalctl -u datadog-agent-sysprobe or /var/log/datadog/system-probe.log"},
+				logStep,
 				{Order: 2, Text: "Verify kernel version (>= 4.4 for NPM, >= 4.14 for USM): uname -r"},
 				{Order: 3, Text: "Check BTF availability for CO-RE probes: ls /sys/kernel/btf/vmlinux"},
 				{Order: 4, Text: "Verify required capabilities are granted (check system-probe logs for specific capability errors)"},
 				{Order: 5, Text: "If in a container, ensure privileged mode or a permissive seccomp profile"},
-				{Order: 6, Text: "Restart after fixing: systemctl restart datadog-agent-sysprobe"},
+				restartStep,
 			},
-		},
+		}
 	}
 }
