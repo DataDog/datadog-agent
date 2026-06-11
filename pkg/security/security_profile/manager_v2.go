@@ -1046,9 +1046,6 @@ func (m *ManagerV2) evictUnusedNodes() {
 		}
 		evicted := profile.ActivityTree.EvictUnusedNodes(evictionTime, filepathsInProcessCache, selector.Image, selector.Tag)
 		if evicted > 0 {
-			// Re-enable against the post-eviction size: EvictUnusedNodes just updated
-			// Stats under the lock we hold, so reading it directly is both correct and
-			// race-free (going through ComputeHeapSize here would re-lock and deadlock).
 			if !profile.IsEnabled() && profile.ActivityTree.Stats.HeapSize() < int64(m.config.RuntimeSecurity.SecurityProfileV2MaxDumpSize()) {
 				profile.Enable()
 			}
