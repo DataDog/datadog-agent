@@ -362,7 +362,11 @@ func NewScorer(cfg observer.ScorerConfig) observer.AnomalyScorer {
 // Subscribe registers cfg.Listener to receive severity transitions matching
 // cfg.Filter. Each subscription runs its own state machine using cfg.CooldownSecs.
 // Returns an unsubscribe function. Safe to call concurrently.
+// Panics if cfg.Listener is nil.
 func (s *anomalyScorer) Subscribe(cfg observer.AnomalyScorerConfiguration) func() {
+	if cfg.Listener == nil {
+		panic("anomalyScorer.Subscribe: Listener must not be nil")
+	}
 	sub := &scorerSubscription{cfg: cfg}
 
 	s.subsMu.Lock()
@@ -588,11 +592,10 @@ func (s *anomalyScorer) ScoreState() observer.ScoreState {
 	}
 }
 
-// Reset clears all internal state. Implements observer.AnomalyScorer.
+// Reset clears all internal EWMA/window state and resets every subscription's
+// state machine so they re-seed on the next Advance call. Implements observer.AnomalyScorer.
 func (s *anomalyScorer) Reset() {
 	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	s.pending = make(map[int64][]observer.Anomaly)
 	s.windowMap = make(map[string]windowEntry)
 	s.ewma = 0
@@ -602,4 +605,14 @@ func (s *anomalyScorer) Reset() {
 	s.state = observer.SeverityLow
 	s.lastStateEntryTs = 0
 	s.stateInitialized = false
+	s.mu.Unlock()
+
+	// Reset each subscription's state machine so stale state from before
+	// the reset cannot produce spurious transitions or block cooldowns.
+	s.subsMu.RLock()
+	for _, sub := range s.subs {
+		sub.stateInitialized = false
+		sub.lastStateEntryTs = 0
+	}
+	s.subsMu.RUnlock()
 }
