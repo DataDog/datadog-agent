@@ -670,6 +670,9 @@ new-e2e-sbom:
   parallel:
     matrix:
       - EXTRA_PARAMS: --run "TestSBOMKindSuite"
+      - EXTRA_PARAMS: --run "TestSBOMKubeadmSuite"
+      - EXTRA_PARAMS: --run "TestSBOMKubeadmCrioSuite"
+      - EXTRA_PARAMS: --run "TestSBOMDockerHostSuite"
 
 new-e2e-usm:
   extends: .new_e2e_template
