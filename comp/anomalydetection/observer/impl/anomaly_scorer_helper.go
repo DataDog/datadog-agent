@@ -27,7 +27,11 @@ const (
 	// helperEventSourceTag is the distinguishing tag applied to all severity events sent
 	// by the helper. It separates them from the reporter's correlation change events
 	// (which carry source:edge-intelligence / pattern:<x>).
-	helperEventSourceTag = "edge_intelligence_event_type:scorer-helper"
+	helperEventSourceTag = "edge_intelligence_event_type:scorer_helper"
+
+	// helperEventSourceIntegrationTag mirrors the reporter's "source:edge-intelligence"
+	// tag so that helper events are findable by the same source filter.
+	helperEventSourceIntegrationTag = "source:edge-intelligence"
 )
 
 // severityEventSender handles the Datadog v2 change event submission for severity transitions.
@@ -65,13 +69,13 @@ func (s *severityEventSender) send(scorerName string, evt observerdef.SeverityEv
 		"message":         msg,
 		"category":        "change",
 		"integration_id":  helperEventIntegrationID,
-		"tags":            []string{helperEventSourceTag, "scorer:" + scorerName, "direction:" + direction},
+		"tags":            []string{helperEventSourceIntegrationTag, helperEventSourceTag, "scorer:" + scorerName, "direction:" + direction},
 		"timestamp":       ts,
 		"aggregation_key": aggKey,
 		"attributes": map[string]any{
 			"changed_resource": map[string]any{
 				"name": scorerName,
-				"type": "anomaly_scorer",
+				"type": "anomaly",
 			},
 			"author": map[string]any{
 				"name": "datadog-agent-observer",
