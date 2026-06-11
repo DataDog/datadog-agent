@@ -64,6 +64,18 @@ func TestTelemetryPipelineMonitor_StartStopLifecycle(_ *testing.T) {
 	pm.Stop() // idempotent
 }
 
+func TestMakeUtilizationMonitor_ReplacesDuplicateKey(t *testing.T) {
+	clk := clock.NewMock()
+	pm := newTelemetryPipelineMonitorWithClock(clk, time.Second)
+
+	first := pm.MakeUtilizationMonitor("processor", "0").(*TelemetryUtilizationMonitor)
+	second := pm.MakeUtilizationMonitor("processor", "0").(*TelemetryUtilizationMonitor)
+
+	require.Len(t, pm.utilizationMonitors, 1)
+	require.NotSame(t, first, second)
+	require.Same(t, second, pm.utilizationMonitors["processor:0"])
+}
+
 // TestTelemetryPipelineMonitor_TickerSamplesRegisteredMonitor checks the running ticker samples its registered monitors.
 func TestTelemetryPipelineMonitor_TickerSamplesRegisteredMonitor(t *testing.T) {
 	clk := clock.NewMock()

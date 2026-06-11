@@ -192,7 +192,7 @@ type TelemetryPipelineMonitor struct {
 	registry *snapshotRegistry
 
 	// utilizationMonitors are ticked by sampleLoop so a component blocked between Start and Stop is still sampled.
-	utilizationMonitors []*TelemetryUtilizationMonitor
+	utilizationMonitors map[string]*TelemetryUtilizationMonitor
 	clock               clock.Clock
 	sampleInterval      time.Duration
 	stopCh              chan struct{}
@@ -207,11 +207,12 @@ func NewTelemetryPipelineMonitor() *TelemetryPipelineMonitor {
 
 func newTelemetryPipelineMonitorWithClock(clk clock.Clock, sampleInterval time.Duration) *TelemetryPipelineMonitor {
 	return &TelemetryPipelineMonitor{
-		monitors:       make(map[string]*CapacityMonitor),
-		lock:           sync.RWMutex{},
-		registry:       newSnapshotRegistry(),
-		clock:          clk,
-		sampleInterval: sampleInterval,
+		monitors:            make(map[string]*CapacityMonitor),
+		utilizationMonitors: make(map[string]*TelemetryUtilizationMonitor),
+		lock:                sync.RWMutex{},
+		registry:            newSnapshotRegistry(),
+		clock:               clk,
+		sampleInterval:      sampleInterval,
 	}
 }
 
@@ -244,7 +245,7 @@ func (c *TelemetryPipelineMonitor) getMonitor(name string, instanceID string) *C
 func (c *TelemetryPipelineMonitor) MakeUtilizationMonitor(name string, instanceID string) UtilizationMonitor {
 	m := newTelemetryUtilizationMonitorWithSampleRateAndClock(name, instanceID, c.sampleInterval, c.clock, c.registry)
 	c.lock.Lock()
-	c.utilizationMonitors = append(c.utilizationMonitors, m)
+	c.utilizationMonitors[name+":"+instanceID] = m
 	c.lock.Unlock()
 	return m
 }
@@ -287,8 +288,10 @@ func (c *TelemetryPipelineMonitor) sampleLoop(stop, done chan struct{}) {
 		case <-ticker.C:
 			now := c.clock.Now()
 			c.lock.RLock()
-			// MakeUtilizationMonitor only appends, so the captured slice never races registration.
-			monitors := c.utilizationMonitors
+			monitors := make([]*TelemetryUtilizationMonitor, 0, len(c.utilizationMonitors))
+			for _, m := range c.utilizationMonitors {
+				monitors = append(monitors, m)
+			}
 			c.lock.RUnlock()
 			for _, m := range monitors {
 				m.sample(now)
