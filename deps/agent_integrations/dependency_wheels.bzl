@@ -95,7 +95,7 @@ def _integration_dependency_wheels_impl(rctx):
     wheel_srcs = ",".join(['"wheelhouse/{}"'.format(w.filename) for w in wheels])
     rctx.template(
         "BUILD.bazel",
-        Label("//deps/agent_integrations:dependency_wheels.BUILD.bazel"),
+        Label("//deps/agent_integrations:dependency_wheels.BUILD.bazel.tmpl"),
         substitutions = {"{wheel_srcs}": wheel_srcs},
     )
 
