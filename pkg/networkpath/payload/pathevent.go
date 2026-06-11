@@ -92,7 +92,7 @@ func (m ICMPMode) ShouldUseICMP(protocol Protocol) bool {
 	}
 }
 
-// PathOrigin origin of the path e.g. network_traffic, network_path_integration
+// PathOrigin origin of the path e.g. network_traffic, network_path_integration, network_devices
 type PathOrigin string
 
 const (
@@ -102,6 +102,8 @@ const (
 	PathOriginNetworkPathIntegration PathOrigin = "network_path_integration"
 	// PathOriginSynthetics correspond to traffic from synthetics.
 	PathOriginSynthetics PathOrigin = "synthetics"
+	// PathOriginNetworkDevices corresponds to traffic observed via Network Device Monitoring (NetFlow).
+	PathOriginNetworkDevices PathOrigin = "network_devices"
 )
 
 // TestRunType defines the type of test run
@@ -165,8 +167,27 @@ type NetworkPathSource struct {
 // about the destination of a path
 type NetworkPathDestination struct {
 	Hostname string `json:"hostname"`
-	Port     uint16 `json:"port"`
-	Service  string `json:"service,omitempty"`
+	// IPAddress is the originally-observed destination IP, preserved separately
+	// from any IP that hop-level traceroute data may resolve to. For NDM-origin
+	// events this is the IP from the NetFlow record; for CNM-origin events this
+	// is the IP from the observed connection.
+	IPAddress net.IP `json:"ip_address,omitempty"`
+	Port      uint16 `json:"port"`
+	Service   string `json:"service,omitempty"`
+}
+
+// NetworkDeviceOriginInfo carries metadata about the network device(s) whose
+// flows triggered this path test. Only populated for path tests with
+// Origin == PathOriginNetworkDevices.
+type NetworkDeviceOriginInfo struct {
+	// Namespaces is the set of NetFlow namespaces that observed this destination.
+	Namespaces []string `json:"namespaces,omitempty"`
+	// ExporterAddresses is the set of NetFlow exporter device IPs (as strings)
+	// that observed this destination during the observation window.
+	ExporterAddresses []string `json:"exporter_addresses,omitempty"`
+	// ExporterCount is the total observed count. May exceed len(ExporterAddresses)
+	// if the set was truncated for payload-size reasons.
+	ExporterCount int `json:"exporter_count,omitempty"`
 }
 
 // E2eProbe contains e2e probe results
@@ -249,4 +270,6 @@ type NetworkPath struct {
 	Traceroute    Traceroute             `json:"traceroute"`
 	E2eProbe      E2eProbe               `json:"e2e_probe"`
 	Tags          []string               `json:"tags,omitempty"`
+	// NetworkDeviceInfo is populated only when Origin == PathOriginNetworkDevices.
+	NetworkDeviceInfo *NetworkDeviceOriginInfo `json:"network_device_info,omitempty"`
 }

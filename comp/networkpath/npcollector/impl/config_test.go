@@ -22,12 +22,20 @@ import (
 )
 
 func TestNetworkPathCollectorEnabled(t *testing.T) {
-	config := &collectorConfigs{
-		connectionsMonitoringEnabled: true,
-	}
+	// CNM gate alone enables.
+	config := &collectorConfigs{connectionsMonitoringEnabled: true}
 	assert.True(t, config.networkPathCollectorEnabled())
 
-	config.connectionsMonitoringEnabled = false
+	// NDM gate alone enables.
+	config = &collectorConfigs{netflowMonitoringEnabled: true}
+	assert.True(t, config.networkPathCollectorEnabled())
+
+	// Both enabled → enabled.
+	config = &collectorConfigs{connectionsMonitoringEnabled: true, netflowMonitoringEnabled: true}
+	assert.True(t, config.networkPathCollectorEnabled())
+
+	// Neither enabled → disabled.
+	config = &collectorConfigs{}
 	assert.False(t, config.networkPathCollectorEnabled())
 }
 

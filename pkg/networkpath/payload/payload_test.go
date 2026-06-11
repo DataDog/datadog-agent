@@ -12,6 +12,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestPathOriginNetworkDevices(t *testing.T) {
+	require.Equal(t, PathOrigin("network_devices"), PathOriginNetworkDevices)
+}
+
 func TestICMPMode(t *testing.T) {
 	require.True(t, ICMPModeNone.ShouldUseICMP(ProtocolICMP))
 	require.True(t, ICMPModeTCP.ShouldUseICMP(ProtocolICMP))

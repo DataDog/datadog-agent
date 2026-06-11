@@ -17,30 +17,36 @@ import (
 )
 
 type collectorConfigs struct {
+	// connectionsMonitoringEnabled is the CNM-side trigger gate
+	// (network_path.connections_monitoring.enabled).
 	connectionsMonitoringEnabled bool
-	workers                      int
-	timeout                      time.Duration
-	maxTTL                       int
-	pathtestInputChanSize        int
-	pathtestProcessingChanSize   int
-	storeConfig                  pathteststore.Config
-	flushInterval                time.Duration
-	reverseDNSEnabled            bool
-	reverseDNSTimeout            time.Duration
-	disableIntraVPCCollection    bool
-	networkDevicesNamespace      string
-	sourceExcludedConns          map[string][]string
-	destExcludedConns            map[string][]string
-	tcpMethod                    payload.TCPMethod
-	icmpMode                     payload.ICMPMode
-	tcpSynParisTracerouteMode    bool
-	tracerouteQueries            int
-	e2eQueries                   int
-	disableWindowsDriver         bool
-	filterConfig                 []connfilter.Config
-	monitorIPWithoutDomain       bool
-	ddSite                       string
-	sourceProduct                payload.SourceProduct
+	// netflowMonitoringEnabled is the NDM-side trigger gate
+	// (network_path.netflow_monitoring.enabled). When true, the npcollector
+	// activates even if connectionsMonitoringEnabled is false.
+	netflowMonitoringEnabled   bool
+	workers                    int
+	timeout                    time.Duration
+	maxTTL                     int
+	pathtestInputChanSize      int
+	pathtestProcessingChanSize int
+	storeConfig                pathteststore.Config
+	flushInterval              time.Duration
+	reverseDNSEnabled          bool
+	reverseDNSTimeout          time.Duration
+	disableIntraVPCCollection  bool
+	networkDevicesNamespace    string
+	sourceExcludedConns        map[string][]string
+	destExcludedConns          map[string][]string
+	tcpMethod                  payload.TCPMethod
+	icmpMode                   payload.ICMPMode
+	tcpSynParisTracerouteMode  bool
+	tracerouteQueries          int
+	e2eQueries                 int
+	disableWindowsDriver       bool
+	filterConfig               []connfilter.Config
+	monitorIPWithoutDomain     bool
+	ddSite                     string
+	sourceProduct              payload.SourceProduct
 }
 
 func newConfig(agentConfig config.Component, logger log.Component) *collectorConfigs {
@@ -52,6 +58,7 @@ func newConfig(agentConfig config.Component, logger log.Component) *collectorCon
 	}
 	return &collectorConfigs{
 		connectionsMonitoringEnabled: agentConfig.GetBool("network_path.connections_monitoring.enabled"),
+		netflowMonitoringEnabled:     agentConfig.GetBool("network_path.netflow_monitoring.enabled"),
 		workers:                      agentConfig.GetInt("network_path.collector.workers"),
 		timeout:                      agentConfig.GetDuration("network_path.collector.timeout") * time.Millisecond,
 		maxTTL:                       agentConfig.GetInt("network_path.collector.max_ttl"),
@@ -84,8 +91,10 @@ func newConfig(agentConfig config.Component, logger log.Component) *collectorCon
 	}
 }
 
-// networkPathCollectorEnabled checks if Network Path Collector should be enabled
-// Network Path Collector is expected to be enabled if a feature depend on it.
+// networkPathCollectorEnabled checks if Network Path Collector should be enabled.
+// The collector activates if ANY origin's trigger gate is on — CNM (connections
+// monitoring) or NDM (netflow monitoring). Each origin's caller is still responsible
+// for its own gate before invoking ScheduleNetworkPathTests.
 func (c *collectorConfigs) networkPathCollectorEnabled() bool {
-	return c.connectionsMonitoringEnabled
+	return c.connectionsMonitoringEnabled || c.netflowMonitoringEnabled
 }

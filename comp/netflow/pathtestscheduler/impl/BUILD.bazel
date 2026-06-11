@@ -1,0 +1,46 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "impl",
+    srcs = [
+        "config.go",
+        "converter.go",
+        "scheduler.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/netflow/pathtestscheduler/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/log/def",
+        "//comp/def",
+        "//comp/netflow/common",
+        "//comp/netflow/pathtestscheduler/def",
+        "//comp/networkpath/npcollector/def",
+        "//comp/networkpath/npcollector/model",
+        "//pkg/networkpath/payload",
+        "@com_github_datadog_agent_payload_v5//process",
+        "@com_github_datadog_datadog_go_v5//statsd",
+    ],
+)
+
+go_test(
+    name = "impl_test",
+    srcs = [
+        "config_test.go",
+        "converter_test.go",
+        "scheduler_test.go",
+    ],
+    embed = [":impl"],
+    gotags = ["test"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/log/mock",
+        "//comp/netflow/common",
+        "//comp/networkpath/npcollector/model",
+        "//pkg/networkpath/payload",
+        "//pkg/trace/teststatsd",
+        "@com_github_datadog_agent_payload_v5//process",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

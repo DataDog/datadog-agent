@@ -33,6 +33,7 @@ import (
 	eventplatformimpl "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/impl"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/impl/common"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/impl/connfilter"
+	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/impl/pathteststore"
 	npmodel "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/model"
 	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
@@ -1892,4 +1893,551 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn_subnets(t *testing.T)
 		})
 	}
 
+}
+
+// Test_shouldScheduleNetworkPathForConn_OriginNetworkDevice verifies that connections with
+// OriginNetworkDevice bypass the IntraHost, SystemProbeConn, and Direction checks while
+// still applying CIDR and domain/IP filter checks.
+func Test_shouldScheduleNetworkPathForConn_OriginNetworkDevice(t *testing.T) {
+	tests := []struct {
+		name           string
+		conn           npmodel.NetworkPathConnection
+		vpcSubnets     []netip.Prefix
+		shouldSchedule bool
+		agentConfigs   map[string]any
+	}{
+		{
+			name: "NDM: IntraHost flag is bypassed",
+			conn: npmodel.NetworkPathConnection{
+				Source:    netip.MustParseAddrPort("10.0.0.1:30000"),
+				Dest:      netip.MustParseAddrPort("10.0.0.2:80"),
+				Family:    model.ConnectionFamily_v4,
+				Domain:    "some.host",
+				IntraHost: true, // would be rejected for CNM
+				Origin:    npmodel.OriginNetworkDevice,
+			},
+			shouldSchedule: true,
+		},
+		{
+			name: "NDM: SystemProbeConn flag is bypassed",
+			conn: npmodel.NetworkPathConnection{
+				Source:          netip.MustParseAddrPort("10.0.0.1:30000"),
+				Dest:            netip.MustParseAddrPort("10.0.0.2:80"),
+				Family:          model.ConnectionFamily_v4,
+				Domain:          "some.host",
+				SystemProbeConn: true, // would be rejected for CNM
+				Origin:          npmodel.OriginNetworkDevice,
+			},
+			shouldSchedule: true,
+		},
+		{
+			name: "NDM: incoming Direction is bypassed",
+			conn: npmodel.NetworkPathConnection{
+				Source:    netip.MustParseAddrPort("10.0.0.1:30000"),
+				Dest:      netip.MustParseAddrPort("10.0.0.2:80"),
+				Family:    model.ConnectionFamily_v4,
+				Direction: model.ConnectionDirection_incoming, // would be rejected for CNM
+				Domain:    "some.host",
+				Origin:    npmodel.OriginNetworkDevice,
+			},
+			shouldSchedule: true,
+		},
+		{
+			name: "NDM: none Direction is bypassed",
+			conn: npmodel.NetworkPathConnection{
+				Source:    netip.MustParseAddrPort("10.0.0.1:30000"),
+				Dest:      netip.MustParseAddrPort("10.0.0.2:80"),
+				Family:    model.ConnectionFamily_v4,
+				Direction: model.ConnectionDirection_none, // would be rejected for CNM
+				Domain:    "some.host",
+				Origin:    npmodel.OriginNetworkDevice,
+			},
+			shouldSchedule: true,
+		},
+		{
+			name: "NDM: IPv6 with no domain is still rejected",
+			conn: npmodel.NetworkPathConnection{
+				Source: netip.MustParseAddrPort("[::1]:30000"),
+				Dest:   netip.MustParseAddrPort("[2001:db8::1]:80"),
+				Family: model.ConnectionFamily_v6,
+				// no Domain — IPv6 without domain is not supported
+				Origin: npmodel.OriginNetworkDevice,
+			},
+			shouldSchedule: false,
+		},
+		{
+			name: "NDM: CIDR exclude filter still applies",
+			conn: npmodel.NetworkPathConnection{
+				Source: netip.MustParseAddrPort("10.0.0.1:30000"),
+				Dest:   netip.MustParseAddrPort("192.168.1.1:80"),
+				Family: model.ConnectionFamily_v4,
+				Domain: "some.host",
+				Origin: npmodel.OriginNetworkDevice,
+			},
+			vpcSubnets:     []netip.Prefix{mustParseCIDR(t, "192.168.0.0/16")},
+			shouldSchedule: false,
+		},
+		{
+			name: "NDM: domain/IP filter exclude still applies",
+			agentConfigs: map[string]any{
+				"network_path.connections_monitoring.enabled":      true,
+				"network_path.collector.monitor_ip_without_domain": true,
+				"network_path.collector.filters": []map[string]any{
+					{"match_domain": "blocked-ndm.com", "type": "exclude"},
+				},
+			},
+			conn: npmodel.NetworkPathConnection{
+				Source: netip.MustParseAddrPort("10.0.0.1:30000"),
+				Dest:   netip.MustParseAddrPort("10.0.0.2:80"),
+				Family: model.ConnectionFamily_v4,
+				Domain: "blocked-ndm.com",
+				Origin: npmodel.OriginNetworkDevice,
+			},
+			shouldSchedule: false,
+		},
+	}
+
+	defaultAgentConfigs := map[string]any{
+		"network_path.connections_monitoring.enabled":      true,
+		"network_path.collector.monitor_ip_without_domain": true,
+		"network_path.collector.filters":                   []map[string]any{},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfgs := tt.agentConfigs
+			if cfgs == nil {
+				cfgs = defaultAgentConfigs
+			}
+			stats := &teststatsd.Client{}
+			_, npCollector := newTestNpCollector(t, cfgs, stats, nil)
+			assert.Equal(t, tt.shouldSchedule, npCollector.shouldScheduleNetworkPathForConn(tt.conn, tt.vpcSubnets))
+		})
+	}
+}
+
+// Test_shouldScheduleNetworkPathForConn_OriginAgentTraffic verifies that connections with
+// the default OriginAgentTraffic value preserve exact existing behavior (regression guard).
+func Test_shouldScheduleNetworkPathForConn_OriginAgentTraffic(t *testing.T) {
+	agentConfigs := map[string]any{
+		"network_path.connections_monitoring.enabled":      true,
+		"network_path.collector.monitor_ip_without_domain": true,
+		"network_path.collector.filters":                   []map[string]any{},
+	}
+
+	tests := []struct {
+		name           string
+		conn           npmodel.NetworkPathConnection
+		shouldSchedule bool
+	}{
+		{
+			name: "CNM: outgoing conn is scheduled",
+			conn: npmodel.NetworkPathConnection{
+				Source:    netip.MustParseAddrPort("10.0.0.1:30000"),
+				Dest:      netip.MustParseAddrPort("10.0.0.2:80"),
+				Family:    model.ConnectionFamily_v4,
+				Direction: model.ConnectionDirection_outgoing,
+				Domain:    "some.host",
+				Origin:    npmodel.OriginAgentTraffic,
+			},
+			shouldSchedule: true,
+		},
+		{
+			name: "CNM: IntraHost still blocks",
+			conn: npmodel.NetworkPathConnection{
+				Source:    netip.MustParseAddrPort("10.0.0.1:30000"),
+				Dest:      netip.MustParseAddrPort("10.0.0.2:80"),
+				Family:    model.ConnectionFamily_v4,
+				Direction: model.ConnectionDirection_outgoing,
+				Domain:    "some.host",
+				IntraHost: true,
+				Origin:    npmodel.OriginAgentTraffic,
+			},
+			shouldSchedule: false,
+		},
+		{
+			name: "CNM: SystemProbeConn still blocks",
+			conn: npmodel.NetworkPathConnection{
+				Source:          netip.MustParseAddrPort("10.0.0.1:30000"),
+				Dest:            netip.MustParseAddrPort("10.0.0.2:80"),
+				Family:          model.ConnectionFamily_v4,
+				Direction:       model.ConnectionDirection_outgoing,
+				Domain:          "some.host",
+				SystemProbeConn: true,
+				Origin:          npmodel.OriginAgentTraffic,
+			},
+			shouldSchedule: false,
+		},
+		{
+			name: "CNM: incoming Direction still blocks",
+			conn: npmodel.NetworkPathConnection{
+				Source:    netip.MustParseAddrPort("10.0.0.1:30000"),
+				Dest:      netip.MustParseAddrPort("10.0.0.2:80"),
+				Family:    model.ConnectionFamily_v4,
+				Direction: model.ConnectionDirection_incoming,
+				Domain:    "some.host",
+				Origin:    npmodel.OriginAgentTraffic,
+			},
+			shouldSchedule: false,
+		},
+		{
+			name: "CNM: zero-value Origin (unset) behaves as AgentTraffic — incoming blocks",
+			conn: npmodel.NetworkPathConnection{
+				Source:    netip.MustParseAddrPort("10.0.0.1:30000"),
+				Dest:      netip.MustParseAddrPort("10.0.0.2:80"),
+				Family:    model.ConnectionFamily_v4,
+				Direction: model.ConnectionDirection_incoming,
+				Domain:    "some.host",
+				// Origin not set — zero value == OriginAgentTraffic
+			},
+			shouldSchedule: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			stats := &teststatsd.Client{}
+			_, npCollector := newTestNpCollector(t, agentConfigs, stats, nil)
+			assert.Equal(t, tt.shouldSchedule, npCollector.shouldScheduleNetworkPathForConn(tt.conn, nil))
+		})
+	}
+}
+
+// Test_makePathtest_NDMFields verifies that makePathtest propagates Origin, DestIP,
+// Namespaces, ExporterAddrs, and uses conn.Protocol when non-zero.
+func Test_makePathtest_NDMFields(t *testing.T) {
+	agentConfigs := map[string]any{
+		"network_path.connections_monitoring.enabled":      true,
+		"network_path.collector.monitor_ip_without_domain": true,
+		"network_path.collector.filters":                   []map[string]any{},
+	}
+	stats := &teststatsd.Client{}
+	_, npCollector := newTestNpCollector(t, agentConfigs, stats, nil)
+
+	exporterIP1 := netip.MustParseAddr("172.16.0.1")
+	exporterIP2 := netip.MustParseAddr("172.16.0.2")
+	destIP := netip.MustParseAddr("203.0.113.50")
+
+	t.Run("NDM conn: propagates Origin, DestIP, Namespaces, ExporterAddrs", func(t *testing.T) {
+		conn := npmodel.NetworkPathConnection{
+			Source:        netip.MustParseAddrPort("10.0.0.1:30000"),
+			Dest:          netip.MustParseAddrPort("203.0.113.50:443"),
+			Family:        model.ConnectionFamily_v4,
+			Type:          model.ConnectionType_tcp,
+			Origin:        npmodel.OriginNetworkDevice,
+			DestIP:        destIP,
+			Namespaces:    []string{"ns-a", "ns-b"},
+			ExporterAddrs: []netip.Addr{exporterIP1, exporterIP2},
+		}
+
+		pt := npCollector.makePathtest(conn)
+
+		assert.Equal(t, npmodel.OriginNetworkDevice, pt.Origin)
+		assert.Equal(t, destIP, pt.DestIP)
+		assert.Equal(t, []string{"ns-a", "ns-b"}, pt.Metadata.Namespaces)
+		assert.Equal(t, []netip.Addr{exporterIP1, exporterIP2}, pt.Metadata.ExporterAddrs)
+		// Protocol derived from Type (conn.Protocol is zero)
+		assert.Equal(t, payload.ProtocolTCP, pt.Protocol)
+		assert.Equal(t, uint16(443), pt.Port)
+	})
+
+	t.Run("NDM conn: conn.Protocol overrides Type-based mapping", func(t *testing.T) {
+		conn := npmodel.NetworkPathConnection{
+			Source:   netip.MustParseAddrPort("10.0.0.1:30000"),
+			Dest:     netip.MustParseAddrPort("203.0.113.50:0"),
+			Family:   model.ConnectionFamily_v4,
+			Type:     model.ConnectionType_tcp, // would map to TCP
+			Protocol: payload.ProtocolICMP,     // explicit override
+			Origin:   npmodel.OriginNetworkDevice,
+		}
+
+		pt := npCollector.makePathtest(conn)
+
+		assert.Equal(t, payload.ProtocolICMP, pt.Protocol)
+		// No port for ICMP
+		assert.Equal(t, uint16(0), pt.Port)
+		assert.Equal(t, npmodel.OriginNetworkDevice, pt.Origin)
+	})
+
+	t.Run("NDM conn: UDP protocol via conn.Protocol", func(t *testing.T) {
+		conn := npmodel.NetworkPathConnection{
+			Source:   netip.MustParseAddrPort("10.0.0.1:30000"),
+			Dest:     netip.MustParseAddrPort("203.0.113.50:53"),
+			Family:   model.ConnectionFamily_v4,
+			Protocol: payload.ProtocolUDP,
+			Origin:   npmodel.OriginNetworkDevice,
+		}
+
+		pt := npCollector.makePathtest(conn)
+
+		assert.Equal(t, payload.ProtocolUDP, pt.Protocol)
+		// No port for UDP
+		assert.Equal(t, uint16(0), pt.Port)
+	})
+
+	t.Run("CNM conn: Origin zero value, no new NDM fields set", func(t *testing.T) {
+		conn := npmodel.NetworkPathConnection{
+			Source:    netip.MustParseAddrPort("10.0.0.1:30000"),
+			Dest:      netip.MustParseAddrPort("10.0.0.2:80"),
+			Family:    model.ConnectionFamily_v4,
+			Type:      model.ConnectionType_tcp,
+			Direction: model.ConnectionDirection_outgoing,
+			// Origin not set (zero value == OriginAgentTraffic)
+		}
+
+		pt := npCollector.makePathtest(conn)
+
+		assert.Equal(t, npmodel.OriginAgentTraffic, pt.Origin)
+		assert.Equal(t, netip.Addr{}, pt.DestIP) // zero value
+		assert.Nil(t, pt.Metadata.Namespaces)
+		assert.Nil(t, pt.Metadata.ExporterAddrs)
+		assert.Equal(t, payload.ProtocolTCP, pt.Protocol)
+	})
+
+	t.Run("CNM conn: Domain is used as hostname and ReverseDNSHostname", func(t *testing.T) {
+		conn := npmodel.NetworkPathConnection{
+			Source:    netip.MustParseAddrPort("10.0.0.1:30000"),
+			Dest:      netip.MustParseAddrPort("93.184.216.34:443"),
+			Family:    model.ConnectionFamily_v4,
+			Type:      model.ConnectionType_tcp,
+			Direction: model.ConnectionDirection_outgoing,
+			Domain:    "example.com",
+		}
+
+		pt := npCollector.makePathtest(conn)
+
+		assert.Equal(t, "example.com", pt.Hostname)
+		assert.Equal(t, "example.com", pt.Metadata.ReverseDNSHostname)
+	})
+
+	// Plan §1.8: for NDM-origin connections, Hostname (the probe target) must
+	// be the IP, not the rDNS-derived Domain. Domain is still preserved as
+	// metadata.
+	t.Run("NDM conn: Hostname is IP even when Domain is set (plan §1.8)", func(t *testing.T) {
+		conn := npmodel.NetworkPathConnection{
+			Source: netip.MustParseAddrPort("10.0.0.1:30000"),
+			Dest:   netip.MustParseAddrPort("203.0.113.50:443"),
+			Family: model.ConnectionFamily_v4,
+			Type:   model.ConnectionType_tcp,
+			Origin: npmodel.OriginNetworkDevice,
+			DestIP: destIP,
+			Domain: "ec2-203-0-113-50.compute.amazonaws.com",
+		}
+
+		pt := npCollector.makePathtest(conn)
+
+		assert.Equal(t, "203.0.113.50", pt.Hostname, "NDM probe target must be the IP, not rDNS domain")
+		assert.Equal(t, "ec2-203-0-113-50.compute.amazonaws.com", pt.Metadata.ReverseDNSHostname, "Domain still preserved as metadata")
+	})
+}
+
+// Test_runTracerouteForPath_OriginStamping verifies that runTracerouteForPath sets the
+// correct path.Origin based on the pathtest's Origin field.
+func Test_runTracerouteForPath_OriginStamping(t *testing.T) {
+	agentConfigs := map[string]any{
+		"network_path.connections_monitoring.enabled":      true,
+		"network_path.collector.monitor_ip_without_domain": true,
+		"network_path.collector.filters":                   []map[string]any{},
+	}
+
+	tests := []struct {
+		name           string
+		pathtestOrigin npmodel.OriginType
+		expectedOrigin payload.PathOrigin
+	}{
+		{
+			name:           "OriginAgentTraffic maps to PathOriginNetworkTraffic",
+			pathtestOrigin: npmodel.OriginAgentTraffic,
+			expectedOrigin: payload.PathOriginNetworkTraffic,
+		},
+		{
+			name:           "OriginNetworkDevice maps to PathOriginNetworkDevices",
+			pathtestOrigin: npmodel.OriginNetworkDevice,
+			expectedOrigin: payload.PathOriginNetworkDevices,
+		},
+		{
+			name:           "zero-value Origin maps to PathOriginNetworkTraffic (unchanged CNM behavior)",
+			pathtestOrigin: "", // zero value, same as OriginAgentTraffic
+			expectedOrigin: payload.PathOriginNetworkTraffic,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var capturedPayload payload.NetworkPath
+
+			tr := &tracerouteRunner{func(_ context.Context, cfg config.Config) (payload.NetworkPath, error) {
+				return payload.NetworkPath{
+					Source: payload.NetworkPathSource{Hostname: "test-host"},
+					Destination: payload.NetworkPathDestination{
+						Hostname: cfg.DestHostname,
+						Port:     cfg.DestPort,
+					},
+					Traceroute: payload.Traceroute{
+						Runs: []payload.TracerouteRun{
+							{
+								RunID: "test-run",
+								Source: payload.TracerouteSource{
+									IPAddress: net.ParseIP("10.0.0.1"),
+								},
+								Destination: payload.TracerouteDestination{
+									IPAddress: net.ParseIP(cfg.DestHostname),
+								},
+							},
+						},
+					},
+				}, nil
+			}}
+
+			stats := &teststatsd.Client{}
+			_, npCollector := newTestNpCollector(t, agentConfigs, stats, tr)
+
+			// Capture the emitted event via the mock forwarder
+			var capturedBytes []byte
+			mockEpForwarder := eventplatformimpl.NewMockEventPlatformForwarder(gomock.NewController(t))
+			mockEpForwarder.EXPECT().SendEventPlatformEventBlocking(
+				gomock.Any(),
+				eventplatform.EventTypeNetworkPath,
+			).DoAndReturn(func(msg *message.Message, _ string) error {
+				capturedBytes = make([]byte, len(msg.GetContent()))
+				copy(capturedBytes, msg.GetContent())
+				return nil
+			}).Times(1)
+			npCollector.epForwarder = mockEpForwarder
+
+			ptestCtx := &pathteststore.PathtestContext{}
+			ptestCtx.Pathtest = &common.Pathtest{
+				Hostname: "10.0.0.5",
+				Port:     80,
+				Protocol: payload.ProtocolTCP,
+				Origin:   tt.pathtestOrigin,
+			}
+
+			npCollector.runTracerouteForPath(ptestCtx)
+
+			require.NoError(t, json.Unmarshal(capturedBytes, &capturedPayload))
+			assert.Equal(t, tt.expectedOrigin, capturedPayload.Origin)
+		})
+	}
+}
+
+// Test_runTracerouteForPath_NDMMetadataStamping verifies that DestIP and the
+// NDM-specific metadata (Namespaces, ExporterAddresses) are stamped onto the
+// emitted event for NDM-origin pathtests, and that they are absent for
+// CNM-origin pathtests. See plan §1.8 and §1.9.
+func Test_runTracerouteForPath_NDMMetadataStamping(t *testing.T) {
+	agentConfigs := map[string]any{
+		"network_path.connections_monitoring.enabled":      true,
+		"network_path.collector.monitor_ip_without_domain": true,
+		"network_path.collector.filters":                   []map[string]any{},
+	}
+
+	destIP := netip.MustParseAddr("203.0.113.50")
+	exporter1 := netip.MustParseAddr("10.0.0.1")
+	exporter2 := netip.MustParseAddr("10.0.0.2")
+
+	t.Run("NDM origin stamps DestIP and NetworkDeviceInfo", func(t *testing.T) {
+		tr := &tracerouteRunner{func(_ context.Context, cfg config.Config) (payload.NetworkPath, error) {
+			return payload.NetworkPath{
+				Source:      payload.NetworkPathSource{Hostname: "test-host"},
+				Destination: payload.NetworkPathDestination{Hostname: cfg.DestHostname, Port: cfg.DestPort},
+				Traceroute: payload.Traceroute{
+					Runs: []payload.TracerouteRun{{RunID: "r1",
+						Source:      payload.TracerouteSource{IPAddress: net.ParseIP("10.0.0.99")},
+						Destination: payload.TracerouteDestination{IPAddress: net.ParseIP("203.0.113.50")},
+					}},
+				},
+			}, nil
+		}}
+
+		stats := &teststatsd.Client{}
+		_, npCollector := newTestNpCollector(t, agentConfigs, stats, tr)
+
+		var capturedBytes []byte
+		mockEpForwarder := eventplatformimpl.NewMockEventPlatformForwarder(gomock.NewController(t))
+		mockEpForwarder.EXPECT().SendEventPlatformEventBlocking(
+			gomock.Any(),
+			eventplatform.EventTypeNetworkPath,
+		).DoAndReturn(func(msg *message.Message, _ string) error {
+			capturedBytes = make([]byte, len(msg.GetContent()))
+			copy(capturedBytes, msg.GetContent())
+			return nil
+		}).Times(1)
+		npCollector.epForwarder = mockEpForwarder
+
+		ptestCtx := &pathteststore.PathtestContext{}
+		ptestCtx.Pathtest = &common.Pathtest{
+			Hostname: "203.0.113.50",
+			Port:     443,
+			Protocol: payload.ProtocolTCP,
+			Origin:   npmodel.OriginNetworkDevice,
+			DestIP:   destIP,
+			Metadata: common.PathtestMetadata{
+				Namespaces:    []string{"ns-a", "ns-b"},
+				ExporterAddrs: []netip.Addr{exporter1, exporter2},
+			},
+		}
+
+		npCollector.runTracerouteForPath(ptestCtx)
+
+		var got payload.NetworkPath
+		require.NoError(t, json.Unmarshal(capturedBytes, &got))
+
+		assert.Equal(t, payload.PathOriginNetworkDevices, got.Origin)
+		// DestIP stamped onto Destination
+		assert.True(t, net.ParseIP("203.0.113.50").Equal(got.Destination.IPAddress), "Destination.IPAddress should be the originally-observed IP")
+		// NetworkDeviceInfo populated
+		require.NotNil(t, got.NetworkDeviceInfo)
+		assert.Equal(t, []string{"ns-a", "ns-b"}, got.NetworkDeviceInfo.Namespaces)
+		assert.Equal(t, []string{"10.0.0.1", "10.0.0.2"}, got.NetworkDeviceInfo.ExporterAddresses)
+		assert.Equal(t, 2, got.NetworkDeviceInfo.ExporterCount)
+	})
+
+	t.Run("CNM origin does not stamp NetworkDeviceInfo", func(t *testing.T) {
+		tr := &tracerouteRunner{func(_ context.Context, cfg config.Config) (payload.NetworkPath, error) {
+			return payload.NetworkPath{
+				Source:      payload.NetworkPathSource{Hostname: "test-host"},
+				Destination: payload.NetworkPathDestination{Hostname: cfg.DestHostname, Port: cfg.DestPort},
+				Traceroute: payload.Traceroute{
+					Runs: []payload.TracerouteRun{{RunID: "r1",
+						Source:      payload.TracerouteSource{IPAddress: net.ParseIP("10.0.0.99")},
+						Destination: payload.TracerouteDestination{IPAddress: net.ParseIP("10.0.0.5")},
+					}},
+				},
+			}, nil
+		}}
+
+		stats := &teststatsd.Client{}
+		_, npCollector := newTestNpCollector(t, agentConfigs, stats, tr)
+
+		var capturedBytes []byte
+		mockEpForwarder := eventplatformimpl.NewMockEventPlatformForwarder(gomock.NewController(t))
+		mockEpForwarder.EXPECT().SendEventPlatformEventBlocking(
+			gomock.Any(),
+			eventplatform.EventTypeNetworkPath,
+		).DoAndReturn(func(msg *message.Message, _ string) error {
+			capturedBytes = make([]byte, len(msg.GetContent()))
+			copy(capturedBytes, msg.GetContent())
+			return nil
+		}).Times(1)
+		npCollector.epForwarder = mockEpForwarder
+
+		ptestCtx := &pathteststore.PathtestContext{}
+		ptestCtx.Pathtest = &common.Pathtest{
+			Hostname: "10.0.0.5",
+			Port:     80,
+			Protocol: payload.ProtocolTCP,
+			Origin:   npmodel.OriginAgentTraffic,
+			// No DestIP, no NDM metadata
+		}
+
+		npCollector.runTracerouteForPath(ptestCtx)
+
+		var got payload.NetworkPath
+		require.NoError(t, json.Unmarshal(capturedBytes, &got))
+
+		assert.Equal(t, payload.PathOriginNetworkTraffic, got.Origin)
+		assert.Nil(t, got.Destination.IPAddress, "CNM events should not stamp Destination.IPAddress (DestIP is zero-value)")
+		assert.Nil(t, got.NetworkDeviceInfo, "CNM events should not have NetworkDeviceInfo populated")
+	})
 }

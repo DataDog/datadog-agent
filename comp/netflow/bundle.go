@@ -9,6 +9,7 @@ package netflow
 
 import (
 	nfconfigfx "github.com/DataDog/datadog-agent/comp/netflow/config/fx"
+	pathtestschedulerfx "github.com/DataDog/datadog-agent/comp/netflow/pathtestscheduler/fx"
 	serverfx "github.com/DataDog/datadog-agent/comp/netflow/server/fx"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -19,5 +20,6 @@ import (
 func Bundle() fxutil.BundleOptions {
 	return fxutil.Bundle(
 		serverfx.Module(),
-		nfconfigfx.Module())
+		nfconfigfx.Module(),
+		pathtestschedulerfx.Module())
 }

@@ -9,6 +9,7 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"net/netip"
 	"strings"
 	"testing"
 	"time"
@@ -18,6 +19,7 @@ import (
 
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/impl/common"
+	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/model"
 	utillog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -360,4 +362,258 @@ func Test_pathtestStore_rate_limit_circuit_breaker(t *testing.T) {
 		})
 	}
 
+}
+
+// Test_pathtestStore_origin_rate_limiter_selection verifies that when
+// OriginRateLimits contains an override for OriginNetworkDevice, NDM pathtests
+// are governed by the NDM-specific limiter while CNM pathtests (OriginAgentTraffic)
+// still use the default limiter.
+func Test_pathtestStore_origin_rate_limiter_selection(t *testing.T) {
+	logger := logmock.New(t)
+
+	// Configure a tight default (for CNM) and a more generous NDM override.
+	config := Config{
+		ContextsLimit:    100,
+		TTL:              10 * time.Minute,
+		Interval:         10 * time.Minute,
+		MaxPerMinute:     60, // default: 1/s, burst = 10s worth = 10
+		MaxBurstDuration: 10 * time.Second,
+		OriginRateLimits: map[model.OriginType]OriginRateLimit{
+			model.OriginNetworkDevice: {
+				MaxPerMinute:     600, // NDM: 10/s, burst = 10s worth = 100
+				MaxBurstDuration: 10 * time.Second,
+			},
+		},
+	}
+
+	now := time.Now()
+	setMockTimeNow(now)
+	store := NewPathtestStore(config, logger, &statsd.NoOpClient{}, mockTimeNow)
+
+	// Add 15 CNM pathtests (OriginAgentTraffic / zero value)
+	for i := range 15 {
+		store.Add(&common.Pathtest{
+			Hostname: fmt.Sprintf("cnm-host-%d", i),
+			Port:     80,
+			Origin:   model.OriginAgentTraffic,
+		})
+	}
+
+	// Add 15 NDM pathtests (OriginNetworkDevice)
+	for i := range 15 {
+		store.Add(&common.Pathtest{
+			Hostname: fmt.Sprintf("ndm-host-%d", i),
+			Port:     80,
+			Origin:   model.OriginNetworkDevice,
+		})
+	}
+
+	// Advance time so all pathtests are eligible to flush (nextRun <= now).
+	now = now.Add(10 * time.Second)
+	setMockTimeNow(now)
+	flushed := store.Flush()
+
+	cnmFlushed := 0
+	ndmFlushed := 0
+	for _, ctx := range flushed {
+		if ctx.Pathtest.Origin == model.OriginNetworkDevice {
+			ndmFlushed++
+		} else {
+			cnmFlushed++
+		}
+	}
+
+	// Default limiter allows burst of 10 within the first 10 s → CNM capped at 10.
+	assert.Equal(t, 10, cnmFlushed, "CNM pathtests should be capped by the default limiter")
+	// NDM limiter allows burst of 100 within the first 10 s → all 15 NDM tests should flush.
+	assert.Equal(t, 15, ndmFlushed, "NDM pathtests should be governed by the NDM-specific limiter")
+}
+
+// Test_pathtestStore_origin_rate_limiter_independence verifies that exhausting the
+// NDM rate-limit budget does not prevent CNM pathtests from flushing, and vice versa.
+func Test_pathtestStore_origin_rate_limiter_independence(t *testing.T) {
+	logger := logmock.New(t)
+
+	config := Config{
+		ContextsLimit:    200,
+		TTL:              10 * time.Minute,
+		Interval:         10 * time.Minute,
+		MaxPerMinute:     60, // default (CNM): burst = 10 within 10 s
+		MaxBurstDuration: 10 * time.Second,
+		OriginRateLimits: map[model.OriginType]OriginRateLimit{
+			model.OriginNetworkDevice: {
+				MaxPerMinute:     60, // NDM: same rate, independent bucket
+				MaxBurstDuration: 10 * time.Second,
+			},
+		},
+	}
+
+	now := time.Now()
+	setMockTimeNow(now)
+	store := NewPathtestStore(config, logger, &statsd.NoOpClient{}, mockTimeNow)
+
+	// Add 20 NDM pathtests to exhaust the NDM burst budget (max 10 in 10 s).
+	for i := range 20 {
+		store.Add(&common.Pathtest{
+			Hostname: fmt.Sprintf("ndm-host-%d", i),
+			Port:     80,
+			Origin:   model.OriginNetworkDevice,
+		})
+	}
+
+	// Add 5 CNM pathtests (well within the default budget).
+	for i := range 5 {
+		store.Add(&common.Pathtest{
+			Hostname: fmt.Sprintf("cnm-host-%d", i),
+			Port:     80,
+			Origin:   model.OriginAgentTraffic,
+		})
+	}
+
+	now = now.Add(10 * time.Second)
+	setMockTimeNow(now)
+	flushed := store.Flush()
+
+	cnmFlushed := 0
+	ndmFlushed := 0
+	for _, ctx := range flushed {
+		if ctx.Pathtest.Origin == model.OriginNetworkDevice {
+			ndmFlushed++
+		} else {
+			cnmFlushed++
+		}
+	}
+
+	// NDM burst budget is 10; the 10 extra NDM pathtests should be held back.
+	assert.Equal(t, 10, ndmFlushed, "NDM budget exhausted: only burst-window worth should flush")
+	// CNM uses its own independent budget and is not affected by NDM exhaustion.
+	assert.Equal(t, 5, cnmFlushed, "CNM budget must be unaffected by NDM budget exhaustion")
+}
+
+// Test_pathtestStore_backward_compat verifies that when no OriginRateLimits override
+// is set the store behaves identically to the original single-limiter implementation:
+// all pathtests (regardless of origin) share the default budget.
+func Test_pathtestStore_backward_compat(t *testing.T) {
+	logger := logmock.New(t)
+
+	// No OriginRateLimits — exactly what callers using the old Config shape provide.
+	config := Config{
+		ContextsLimit:    100,
+		TTL:              10 * time.Minute,
+		Interval:         10 * time.Minute,
+		MaxPerMinute:     60,
+		MaxBurstDuration: 10 * time.Second,
+		// OriginRateLimits intentionally omitted (nil map).
+	}
+
+	now := time.Now()
+	setMockTimeNow(now)
+	store := NewPathtestStore(config, logger, &statsd.NoOpClient{}, mockTimeNow)
+
+	// Mix of CNM and NDM pathtests — both share the single default limiter.
+	for i := range 15 {
+		store.Add(&common.Pathtest{
+			Hostname: fmt.Sprintf("cnm-host-%d", i),
+			Port:     80,
+			Origin:   model.OriginAgentTraffic,
+		})
+	}
+	for i := range 15 {
+		store.Add(&common.Pathtest{
+			Hostname: fmt.Sprintf("ndm-host-%d", i),
+			Port:     80,
+			Origin:   model.OriginNetworkDevice,
+		})
+	}
+
+	now = now.Add(10 * time.Second)
+	setMockTimeNow(now)
+	flushed := store.Flush()
+
+	// Total burst budget = 10 (60/min × 10s/60s_per_min = 10).
+	// Combined CNM+NDM must not exceed that budget.
+	assert.Len(t, flushed, 10, "without OriginRateLimits overrides, all origins share the default budget")
+}
+
+// Test_pathtestStore_add_metadata_union verifies that when a hash collision occurs
+// (same dedup key added twice), the store unions the Namespaces and ExporterAddrs
+// metadata fields rather than discarding the new values.
+func Test_pathtestStore_add_metadata_union(t *testing.T) {
+	logger := logmock.New(t)
+
+	config := Config{
+		ContextsLimit: 10,
+		TTL:           10 * time.Minute,
+		Interval:      1 * time.Minute,
+	}
+
+	setMockTimeNow(mockTimeJan2)
+	store := NewPathtestStore(config, logger, &statsd.NoOpClient{}, mockTimeNow)
+
+	// First Add: Namespaces=["ns1"], ExporterAddrs=[]
+	pt1 := &common.Pathtest{
+		Hostname: "host1",
+		Port:     443,
+		Protocol: "TCP",
+		Origin:   model.OriginNetworkDevice,
+		Metadata: common.PathtestMetadata{
+			Namespaces: []string{"ns1"},
+		},
+	}
+	store.Add(pt1)
+
+	// Confirm it was stored.
+	hash := pt1.GetHash()
+	assert.Equal(t, 1, len(store.contexts))
+	ptCtx := store.contexts[hash]
+	assert.Equal(t, []string{"ns1"}, ptCtx.Pathtest.Metadata.Namespaces)
+	assert.Empty(t, ptCtx.Pathtest.Metadata.ExporterAddrs)
+
+	// Second Add with the same hash: Namespaces=["ns2"], ExporterAddrs=[1.1.1.1, 2.2.2.2]
+	pt2 := &common.Pathtest{
+		Hostname: "host1",
+		Port:     443,
+		Protocol: "TCP",
+		Origin:   model.OriginNetworkDevice,
+		Metadata: common.PathtestMetadata{
+			Namespaces:    []string{"ns2"},
+			ExporterAddrs: []netip.Addr{netip.MustParseAddr("1.1.1.1"), netip.MustParseAddr("2.2.2.2")},
+		},
+	}
+	store.Add(pt2)
+
+	// Still only one context (dedup).
+	assert.Equal(t, 1, len(store.contexts))
+
+	// Namespaces must contain both ns1 and ns2 (order not guaranteed).
+	ptCtx = store.contexts[hash]
+	assert.ElementsMatch(t, []string{"ns1", "ns2"}, ptCtx.Pathtest.Metadata.Namespaces)
+	assert.ElementsMatch(t,
+		[]netip.Addr{netip.MustParseAddr("1.1.1.1"), netip.MustParseAddr("2.2.2.2")},
+		ptCtx.Pathtest.Metadata.ExporterAddrs)
+
+	// Third Add: add overlapping ns1 and a new exporter 3.3.3.3 — no duplicates.
+	pt3 := &common.Pathtest{
+		Hostname: "host1",
+		Port:     443,
+		Protocol: "TCP",
+		Origin:   model.OriginNetworkDevice,
+		Metadata: common.PathtestMetadata{
+			Namespaces:    []string{"ns1"},
+			ExporterAddrs: []netip.Addr{netip.MustParseAddr("1.1.1.1"), netip.MustParseAddr("3.3.3.3")},
+		},
+	}
+	store.Add(pt3)
+
+	ptCtx = store.contexts[hash]
+	assert.ElementsMatch(t, []string{"ns1", "ns2"}, ptCtx.Pathtest.Metadata.Namespaces,
+		"duplicate ns1 must not be added again")
+	assert.ElementsMatch(t,
+		[]netip.Addr{
+			netip.MustParseAddr("1.1.1.1"),
+			netip.MustParseAddr("2.2.2.2"),
+			netip.MustParseAddr("3.3.3.3"),
+		},
+		ptCtx.Pathtest.Metadata.ExporterAddrs,
+		"duplicate 1.1.1.1 must not be added; new 3.3.3.3 must be added")
 }

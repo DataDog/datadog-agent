@@ -7,6 +7,7 @@
 package pathteststore
 
 import (
+	"net/netip"
 	"sync"
 	time "time"
 
@@ -15,6 +16,7 @@ import (
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/impl/common"
+	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/model"
 )
 
 const (
@@ -41,6 +43,30 @@ func (p *PathtestContext) SetLastFlushInterval(lastFlushInterval time.Duration) 
 	p.lastFlushInterval = lastFlushInterval
 }
 
+// OriginRateLimit holds the rate-limit parameters for a specific origin type.
+// Both fields follow the same semantics as Config.MaxPerMinute and
+// Config.MaxBurstDuration.
+type OriginRateLimit struct {
+	// MaxPerMinute is a "circuit breaker" config that limits pathtests. 0 is unlimited.
+	MaxPerMinute int
+	// MaxBurstDuration is how long pathtest "budget" can build up in the rate limiter
+	MaxBurstDuration time.Duration
+}
+
+func (o OriginRateLimit) rateLimiter() *rate.Limiter {
+	if o.MaxPerMinute <= 0 {
+		return rate.NewLimiter(rate.Inf, 0)
+	}
+
+	maxPerMinute := float64(o.MaxPerMinute)
+	perSecondRate := rate.Limit(maxPerMinute / 60)
+
+	minutesOfBurst := float64(o.MaxBurstDuration) / float64(time.Minute)
+	maxBurst := int(maxPerMinute * minutesOfBurst)
+
+	return rate.NewLimiter(perSecondRate, maxBurst)
+}
+
 // Config is the configuration for the PathtestStore
 type Config struct {
 	// ContextsLimit is the maximum number of contexts to keep in the store
@@ -51,9 +77,16 @@ type Config struct {
 	// Interval defines how frequently pathtests should run
 	Interval time.Duration
 	// MaxPerMinute is a "circuit breaker" config that limits pathtests. 0 is unlimited.
+	// This is the default budget that applies to OriginAgentTraffic and any origin not
+	// explicitly listed in OriginRateLimits.
 	MaxPerMinute int
-	// MaxBurstDuration is how long pathtest "budget" can build up in the rate limiter
+	// MaxBurstDuration is how long pathtest "budget" can build up in the rate limiter.
+	// This is the default burst window that applies to origins without an override.
 	MaxBurstDuration time.Duration
+	// OriginRateLimits holds per-origin rate-limit overrides. Origins not listed here
+	// use MaxPerMinute / MaxBurstDuration. The map is optional and empty by default,
+	// which preserves the original single-limiter behavior for backward compatibility.
+	OriginRateLimits map[model.OriginType]OriginRateLimit
 }
 
 // Store is used to accumulate aggregated contexts
@@ -75,8 +108,13 @@ type Store struct {
 	// lastContextWarning is the last time a warning was logged about the store being full
 	lastContextWarning time.Time
 
-	// rateLimiter is used to limit the number of pathtests that can be flushed per minute
-	rateLimiter *rate.Limiter
+	// defaultRateLimiter is the fallback limiter used when a pathtest's origin has no
+	// entry in rateLimiters.  It is built from Config.MaxPerMinute / MaxBurstDuration.
+	defaultRateLimiter *rate.Limiter
+
+	// rateLimiters holds per-origin rate limiters built from Config.OriginRateLimits.
+	// Origins absent from this map fall back to defaultRateLimiter.
+	rateLimiters map[model.OriginType]*rate.Limiter
 
 	// structures needed to ease mocking/testing
 	timeNowFn func() time.Time
@@ -91,30 +129,41 @@ func (f *Store) newPathtestContext(pt *common.Pathtest, runUntilDuration time.Du
 	}
 }
 
-func (c Config) rateLimiter() *rate.Limiter {
-	if c.MaxPerMinute <= 0 {
-		return rate.NewLimiter(rate.Inf, 0)
+// buildDefaultRateLimiter builds the limiter for origins that have no explicit override.
+func (c Config) buildDefaultRateLimiter() *rate.Limiter {
+	return OriginRateLimit{
+		MaxPerMinute:     c.MaxPerMinute,
+		MaxBurstDuration: c.MaxBurstDuration,
+	}.rateLimiter()
+}
+
+// limiterForOrigin returns the rate limiter that should govern pathtests for the
+// given origin.  It returns the per-origin limiter when one has been configured,
+// and falls back to the default limiter otherwise.
+func (f *Store) limiterForOrigin(origin model.OriginType) *rate.Limiter {
+	if l, ok := f.rateLimiters[origin]; ok {
+		return l
 	}
-
-	maxPerMinute := float64(c.MaxPerMinute)
-	perSecondRate := rate.Limit(maxPerMinute / 60)
-
-	minutesOfBurst := float64(c.MaxBurstDuration) / float64(time.Minute)
-	maxBurst := int(maxPerMinute * minutesOfBurst)
-
-	return rate.NewLimiter(perSecondRate, maxBurst)
+	return f.defaultRateLimiter
 }
 
 // NewPathtestStore creates a new Store
 func NewPathtestStore(config Config, logger log.Component, statsdClient ddgostatsd.ClientInterface, timeNow func() time.Time) *Store {
+	// Build per-origin rate limiters from OriginRateLimits overrides.
+	originLimiters := make(map[model.OriginType]*rate.Limiter, len(config.OriginRateLimits))
+	for origin, orl := range config.OriginRateLimits {
+		originLimiters[origin] = orl.rateLimiter()
+	}
+
 	return &Store{
-		contexts:      make(map[uint64]*PathtestContext),
-		config:        config,
-		logger:        logger,
-		statsdClient:  statsdClient,
-		lastFlushTime: timeNow(),
-		rateLimiter:   config.rateLimiter(),
-		timeNowFn:     timeNow,
+		contexts:           make(map[uint64]*PathtestContext),
+		config:             config,
+		logger:             logger,
+		statsdClient:       statsdClient,
+		lastFlushTime:      timeNow(),
+		defaultRateLimiter: config.buildDefaultRateLimiter(),
+		rateLimiters:       originLimiters,
+		timeNowFn:          timeNow,
 	}
 }
 
@@ -148,7 +197,8 @@ func (f *Store) Flush() []*PathtestContext {
 			}
 			continue
 		}
-		if ptConfigCtx.nextRun.After(now) || !f.rateLimiter.AllowN(now, 1) {
+		limiter := f.limiterForOrigin(ptConfigCtx.Pathtest.Origin)
+		if ptConfigCtx.nextRun.After(now) || !limiter.AllowN(now, 1) {
 			continue
 		}
 		if !ptConfigCtx.lastFlushTime.IsZero() {
@@ -159,7 +209,13 @@ func (f *Store) Flush() []*PathtestContext {
 		ptConfigCtx.nextRun = ptConfigCtx.nextRun.Add(f.config.Interval)
 	}
 
-	f.statsdClient.Gauge(networkPathStoreMetricPrefix+"ratelimiter_tokens", f.rateLimiter.Tokens(), []string{}, 1) //nolint:errcheck
+	// Emit ratelimiter_tokens for the default limiter (backward-compatible metric)
+	// and a separate tagged gauge for each explicitly-configured origin override.
+	f.statsdClient.Gauge(networkPathStoreMetricPrefix+"ratelimiter_tokens", f.defaultRateLimiter.Tokens(), []string{}, 1) //nolint:errcheck
+	for origin, limiter := range f.rateLimiters {
+		tag := "origin:" + string(origin)
+		f.statsdClient.Gauge(networkPathStoreMetricPrefix+"ratelimiter_tokens", limiter.Tokens(), []string{tag}, 1) //nolint:errcheck
+	}
 
 	return pathtestsToFlush
 }
@@ -186,7 +242,39 @@ func (f *Store) Add(pathtestToAdd *common.Pathtest) {
 		f.contexts[hash] = f.newPathtestContext(pathtestToAdd, f.config.TTL)
 		return
 	}
+	// Hash collision: refresh TTL and union the metadata sets so that all
+	// observed namespaces and exporter addresses are accumulated across flushes.
 	pathtestCtx.runUntil = f.timeNowFn().Add(f.config.TTL)
+	for _, ns := range pathtestToAdd.Metadata.Namespaces {
+		if !containsString(pathtestCtx.Pathtest.Metadata.Namespaces, ns) {
+			pathtestCtx.Pathtest.Metadata.Namespaces = append(pathtestCtx.Pathtest.Metadata.Namespaces, ns)
+		}
+	}
+	for _, addr := range pathtestToAdd.Metadata.ExporterAddrs {
+		if !containsAddr(pathtestCtx.Pathtest.Metadata.ExporterAddrs, addr) {
+			pathtestCtx.Pathtest.Metadata.ExporterAddrs = append(pathtestCtx.Pathtest.Metadata.ExporterAddrs, addr)
+		}
+	}
+}
+
+// containsString reports whether slice contains s.
+func containsString(slice []string, s string) bool {
+	for _, v := range slice {
+		if v == s {
+			return true
+		}
+	}
+	return false
+}
+
+// containsAddr reports whether slice contains addr.
+func containsAddr(slice []netip.Addr, addr netip.Addr) bool {
+	for _, v := range slice {
+		if v == addr {
+			return true
+		}
+	}
+	return false
 }
 
 // GetContextsCount returns pathtest contexts count
