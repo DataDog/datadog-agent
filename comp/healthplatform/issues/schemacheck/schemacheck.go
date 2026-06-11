@@ -82,21 +82,21 @@ func (c Check) Run(cfg ConfigReader) ([]runnerdef.IssueReport, error) {
 	}, nil
 }
 
-// normalizeForSchema coerces a Go-native config map into JSON-native types via
-// a YAML round-trip. ScrubYaml strips any accidental secret-like values
+// normalizeForSchema coerces a Go-native config map into the JSON-native types
+// jsonschema requires (it rejects []string, map[interface{}]interface{}, etc.) via a
+// YAML round-trip, then scrubs any accidental secret-like values in place.
 func normalizeForSchema(in map[string]any) (map[string]any, error) {
 	b, err := yaml.Marshal(in)
 	if err != nil {
 		return nil, err
 	}
-	scrubbed, err := scrubber.ScrubYaml(b)
-	if err != nil {
-		return nil, err
-	}
 	var out map[string]any
-	if err := yaml.Unmarshal(scrubbed, &out); err != nil {
+	if err := yaml.Unmarshal(b, &out); err != nil {
 		return nil, err
 	}
+	// ScrubDataObj takes an *interface{} but scrubs the map in place.
+	obj := interface{}(out)
+	scrubber.ScrubDataObj(&obj)
 	return out, nil
 }
 
