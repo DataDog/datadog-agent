@@ -90,11 +90,12 @@ lint_releasenotes_rst:
 lint_releasenotes_unique_ids:
   extends: .lint
   rules:
-    - <<: *if_mergequeue
+    - !reference [.on_mergequeue]
     - changes:
         paths:
           - releasenotes/notes/**/*.yaml
           - releasenotes-dca/notes/**/*.yaml
+          - releasenotes-installscript/notes/**/*.yaml
         compare_to: $COMPARE_TO_BRANCH
     - when: manual
       allow_failure: true
