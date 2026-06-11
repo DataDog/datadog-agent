@@ -73,7 +73,41 @@ func (h *AutodiscoveryHandler) SupportsTarget(ref autoscalingv2.CrossVersionObje
 
 // Validate reports per-check validation errors against spec.config.checks.
 func (h *AutodiscoveryHandler) Validate(cr *datadoghq.DatadogInstrumentation) []instrumentation.ValidationError {
-	return validateChecks(cr, h.Name())
+	if cr == nil {
+		return nil
+	}
+	var errs []instrumentation.ValidationError
+	for i, check := range cr.Spec.Config.Checks {
+		if strings.TrimSpace(check.Integration) == "" {
+			errs = append(errs, instrumentation.ValidationError{
+				Type:        checksReadyConditionType,
+				Reason:      "InvalidIntegration",
+				Message:     "integration name must not be empty",
+				Field:       fmt.Sprintf("spec.config.checks[%d].integration", i),
+				HandlerName: h.Name(),
+			})
+		}
+		if len(check.Instances) == 0 && len(check.Logs) == 0 {
+			errs = append(errs, instrumentation.ValidationError{
+				Type:        checksReadyConditionType,
+				Reason:      "InvalidInstances",
+				Message:     "at least one instance or log config is required",
+				Field:       fmt.Sprintf("spec.config.checks[%d].instances", i),
+				HandlerName: h.Name(),
+			})
+		}
+
+		if len(check.ContainerImage) == 0 && !isService(cr) {
+			errs = append(errs, instrumentation.ValidationError{
+				Type:        checksReadyConditionType,
+				Reason:      "InvalidContainerImage",
+				Message:     "at least one container image is required",
+				Field:       fmt.Sprintf("spec.config.checks[%d].containerImage", i),
+				HandlerName: h.Name(),
+			})
+		}
+	}
+	return errs
 }
 
 // Handle translates check configs on Create/Update, removes them on Delete,
@@ -228,43 +262,4 @@ func buildCELSelector(ref autoscalingv2.CrossVersionObjectReference, namespace s
 	return workloadfilter.Rules{
 		Containers: []string{expr},
 	}
-}
-
-// validateChecks validates the check configs in a DatadogInstrumentation CR.
-func validateChecks(cr *datadoghq.DatadogInstrumentation, handlerName string) []instrumentation.ValidationError {
-	if cr == nil {
-		return nil
-	}
-	var errs []instrumentation.ValidationError
-	for i, check := range cr.Spec.Config.Checks {
-		if strings.TrimSpace(check.Integration) == "" {
-			errs = append(errs, instrumentation.ValidationError{
-				Type:        checksReadyConditionType,
-				Reason:      "InvalidIntegration",
-				Message:     "integration name must not be empty",
-				Field:       fmt.Sprintf("spec.config.checks[%d].integration", i),
-				HandlerName: handlerName,
-			})
-		}
-		if len(check.Instances) == 0 && len(check.Logs) == 0 {
-			errs = append(errs, instrumentation.ValidationError{
-				Type:        checksReadyConditionType,
-				Reason:      "InvalidInstances",
-				Message:     "at least one instance or log config is required",
-				Field:       fmt.Sprintf("spec.config.checks[%d].instances", i),
-				HandlerName: handlerName,
-			})
-		}
-
-		if len(check.ContainerImage) == 0 && !isService(cr) {
-			errs = append(errs, instrumentation.ValidationError{
-				Type:        checksReadyConditionType,
-				Reason:      "InvalidContainerImage",
-				Message:     "at least one container image is required",
-				Field:       fmt.Sprintf("spec.config.checks[%d].containerImage", i),
-				HandlerName: handlerName,
-			})
-		}
-	}
-	return errs
 }
