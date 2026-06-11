@@ -2181,6 +2181,11 @@ func metricLookback(config pkgconfigmodel.Setup) {
 	// Number of independent shards. Zero uses the ring buffer default.
 	config.BindEnvAndSetDefault("metric_lookback.shard_count", 0)
 
+	// Debug/demo seed endpoint. Disabled by default; when enabled, a hidden
+	// command can write one sample through the lookback shadow sender so the
+	// dump path can be demonstrated in a live agent before the scheduler exists.
+	config.BindEnvAndSetDefault("metric_lookback.debug_seed.enabled", false)
+
 	// Experimental trigger: watch a single incoming DogStatsD metric, track an
 	// exponential moving average of its value, and dump the lookback ring buffer
 	// when the average crosses a threshold.
