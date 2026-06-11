@@ -45,7 +45,7 @@ func NewTestbenchReporter() *TestbenchReporter {
 
 func (r *TestbenchReporter) Name() string { return "testbench_reporter" }
 
-func (r *TestbenchReporter) Report(output reporter.ReportOutput) {
+func (r *TestbenchReporter) Report(output reporter.ReportOutput) bool {
 	type advancePayload struct {
 		AdvancedToSec int64 `json:"advancedToSec"`
 		NewAnomalies  int   `json:"newAnomalies"`
@@ -57,6 +57,7 @@ func (r *TestbenchReporter) Report(output reporter.ReportOutput) {
 		Correlations:  len(output.ActiveCorrelations),
 	})
 	r.hub.Broadcast(SSEEvent{Event: "advance", Data: data})
+	return len(output.ActiveCorrelations) > 0 || len(output.NewAnomalies) > 0
 }
 
 // Subscribe registers an SSE client. Implements SSEAccess.
