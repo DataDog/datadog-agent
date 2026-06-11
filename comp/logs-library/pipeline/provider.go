@@ -155,7 +155,6 @@ func tcpSender(
 		componentName,
 		queueCount,
 		workersPerQueue,
-		// A real monitor: this sender owns the snapshot registry surfaced on the status page.
 		metrics.NewTelemetryPipelineMonitor(),
 	)
 }
@@ -214,7 +213,6 @@ func httpSender(
 		minSenderConcurrency,
 		maxSenderConcurrency,
 		secretsComp,
-		// A real monitor: this sender owns the snapshot registry surfaced on the status page.
 		metrics.NewTelemetryPipelineMonitor(),
 	)
 }
@@ -287,6 +285,9 @@ func (p *provider) Start() {
 // If failover is enabled, closes all router channels and waits for forwarder goroutines
 // to finish draining before stopping pipelines.
 func (p *provider) Stop() {
+	// Stop the sampler before pipelines so a flush blocked on a backed-up sender can't leak it.
+	p.sender.PipelineMonitor().Stop()
+
 	stopper := startstop.NewParallelStopper()
 
 	for _, ch := range p.routerChannels {

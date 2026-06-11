@@ -180,11 +180,11 @@ func (s *Sender) Start() {
 // Stop stops all sender workers
 func (s *Sender) Stop() {
 	log.Debug("sender mux stopping")
+	s.pipelineMonitor.Stop()
 	for _, s := range s.workers {
 		s.stop()
 	}
 	for _, q := range s.queues {
 		close(q)
 	}
-	s.pipelineMonitor.Stop()
 }
