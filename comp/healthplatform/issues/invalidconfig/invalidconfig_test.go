@@ -32,7 +32,7 @@ func TestBuildIssue_SchemaViolationProducesMediumSeverity(t *testing.T) {
 		issue.GetExtra().GetFields()[schemacheck.ContextKeyErrorCount].GetNumberValue())
 	assert.Contains(t, issue.GetDescription(), "agent_ipc/port")
 	assert.Contains(t, issue.GetDescription(), "/tags")
-	assert.Contains(t, issue.GetDescription(), "; ", "description must use a visible delimiter between violations so the UI renders them legibly")
+	assert.Contains(t, issue.GetDescription(), " • ", "description must use a visible delimiter between violations so the UI renders them legibly")
 
 	errorsBlob := issue.GetExtra().GetFields()[schemacheck.ContextKeyErrors].GetStringValue()
 	assert.Contains(t, errorsBlob, "agent_ipc/port")

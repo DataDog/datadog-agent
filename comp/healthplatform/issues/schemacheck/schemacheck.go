@@ -107,15 +107,17 @@ func (c Check) BuildIssue(ctx map[string]string) (*healthplatform.Issue, error) 
 		path = "(unknown path)"
 	}
 	count, _ := strconv.Atoi(ctx[ContextKeyErrorCount])
-	errors := ctx[ContextKeyErrors]
+	schemaErrors := ctx[ContextKeyErrors]
 
 	suffix := ""
 	if count != 1 {
 		suffix = "s"
 	}
+	// One bullet-separated blob, reused for the prose description and the structured field.
+	errorList := strings.ReplaceAll(schemaErrors, "\n", " • ")
 	desc := fmt.Sprintf("Found %d %s violation%s in %s", count, c.ViolationNoun, suffix, path)
-	if errors != "" {
-		desc += ": " + strings.ReplaceAll(errors, "\n", "; ")
+	if schemaErrors != "" {
+		desc += ": " + errorList
 	} else {
 		desc += "."
 	}
@@ -123,7 +125,7 @@ func (c Check) BuildIssue(ctx map[string]string) (*healthplatform.Issue, error) 
 	extra, _ := structpb.NewStruct(map[string]any{
 		ContextKeyConfigPath: path,
 		ContextKeyErrorCount: count,
-		ContextKeyErrors:     strings.ReplaceAll(errors, "\n", " • "),
+		ContextKeyErrors:     errorList,
 		ContextKeyImpact:     c.Impact,
 	})
 
