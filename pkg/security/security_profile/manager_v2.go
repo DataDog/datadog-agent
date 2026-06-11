@@ -329,6 +329,10 @@ func (m *ManagerV2) persistAllProfiles() {
 
 // persistProfile encodes and persists a single profile to all configured storage backends
 func (m *ManagerV2) persistProfile(p *profile.Profile) {
+	if !p.IsEnabled() {
+		return
+	}
+
 	format := config.Protobuf
 	requests := m.configuredStorageRequests[format]
 
