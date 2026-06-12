@@ -1,4 +1,8 @@
-"""Installer package components specific to Linux."""
+"""Installer package components specific to Linux.
+
+Much of this package is tagged "manual" to avoid graph explosion on
+license gathering in bazel test ... expansion.
+"""
 
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load(

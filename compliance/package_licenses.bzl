@@ -20,7 +20,7 @@ def package_licenses(name = None, src = None, visibility = None, **kwargs):
         **kwargs: other args
     """
     # All targets are explicitly "manual" to not get caught in ... expansion.
-    # The license collection runs an aspect over the entire build graph and 
+    # The license collection runs an aspect over the entire build graph and
     # can be expensive. We should test license collection for each product
     # packaging explicitly.
 
