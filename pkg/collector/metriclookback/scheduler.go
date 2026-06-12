@@ -307,8 +307,23 @@ func (h *shadowCheckHandle) start() {
 			case <-h.stopCh:
 				return
 			case <-h.ticker.C():
+				checks := h.runner.GetChan()
 				select {
-				case h.runner.GetChan() <- h.check:
+				case checks <- h.check:
+					continue
+				default:
+				}
+
+				start := time.Now()
+				select {
+				case checks <- h.check:
+					enqueueDuration := time.Since(start)
+					checkName := checkid.IDToCheckName(h.check.ID())
+					tlmShadowEnqueueDelays.Inc(checkName)
+					tlmShadowEnqueueDelayDuration.Set(enqueueDuration.Seconds(), checkName)
+					if enqueueDuration > h.check.Interval() {
+						log.Debugf("Shadow check %s tick delayed by %s while enqueueing", h.check.ID(), enqueueDuration)
+					}
 				case <-h.stopCh:
 					return
 				}

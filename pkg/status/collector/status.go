@@ -13,11 +13,14 @@ import (
 	"expvar"
 	"io"
 	"sort"
+	"strings"
 
 	collectorcomp "github.com/DataDog/datadog-agent/comp/collector/collector/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 )
+
+const shadowCheckIDSuffix = ":shadow"
 
 // Provider provides the functionality to populate the status output with the collector information
 type Provider struct {
@@ -45,6 +48,7 @@ func (p Provider) PopulateStatus(stats map[string]interface{}) {
 		runnerStats := make(map[string]interface{})
 		_ = json.Unmarshal(runnerStatsJSON, &runnerStats)
 		stats["runnerStats"] = runnerStats
+		stats["shadowRunnerStats"] = splitShadowRunnerStats(runnerStats)
 
 		// Extract worker utilization data if available
 		if workersData, ok := runnerStats["Workers"]; ok {
@@ -149,6 +153,50 @@ func (p Provider) PopulateStatus(stats map[string]interface{}) {
 	}
 
 	stats["inventories"] = p.collectCheckMetadata()
+}
+
+// splitShadowRunnerStats moves shadow check rows out of runnerStats["Checks"]
+// in place. Aggregate runner stats stay on runnerStats because they are shared
+// across normal and shadow checks.
+func splitShadowRunnerStats(runnerStats map[string]interface{}) map[string]interface{} {
+	checks, ok := runnerStats["Checks"].(map[string]interface{})
+	if !ok {
+		return nil
+	}
+
+	normalChecks := make(map[string]interface{}, len(checks))
+	shadowChecks := make(map[string]interface{})
+
+	for checkName, checkInstances := range checks {
+		instances, ok := checkInstances.(map[string]interface{})
+		if !ok {
+			normalChecks[checkName] = checkInstances
+			continue
+		}
+
+		normalInstances := make(map[string]interface{}, len(instances))
+		shadowInstances := make(map[string]interface{})
+		for checkID, instance := range instances {
+			if strings.HasSuffix(checkID, shadowCheckIDSuffix) {
+				shadowInstances[checkID] = instance
+				continue
+			}
+			normalInstances[checkID] = instance
+		}
+
+		if len(normalInstances) != 0 {
+			normalChecks[checkName] = normalInstances
+		}
+		if len(shadowInstances) != 0 {
+			shadowChecks[checkName] = shadowInstances
+		}
+	}
+
+	runnerStats["Checks"] = normalChecks
+	if len(shadowChecks) == 0 {
+		return nil
+	}
+	return map[string]interface{}{"Checks": shadowChecks}
 }
 
 // collectCheckMetadata builds a map of check-hash → metadata from the collector,
