@@ -55,15 +55,29 @@ class TestADPMacOSPackaging(unittest.TestCase):
         self.assertEqual(plist["UserName"], "_dd-agent")
         self.assertEqual(plist["GroupName"], "daemon")
 
-    def test_package_scripts_manage_adp_launchdaemon(self):
+    def test_system_launchdaemons_are_managed_consistently(self):
+        build_file = (REPO_ROOT / "packages/macos/app/BUILD.bazel").read_text()
         preinst = (REPO_ROOT / "omnibus/package-scripts/agent-dmg/preinst").read_text()
         postinst = (REPO_ROOT / "omnibus/package-scripts/agent-dmg/postinst").read_text()
         uninstall = (REPO_ROOT / "cmd/agent/macos/uninstall_mac_os.sh").read_text()
 
-        self.assertIn("launchctl bootout system/com.datadoghq.data-plane", preinst)
-        self.assertIn("com.datadoghq.data-plane.plist.example", postinst)
-        self.assertIn("/Library/LaunchDaemons/com.datadoghq.data-plane.plist", postinst)
-        self.assertIn("launchctl enable system/com.datadoghq.data-plane", postinst)
-        self.assertIn("launchctl bootstrap system /Library/LaunchDaemons/com.datadoghq.data-plane.plist", postinst)
-        self.assertIn("launchctl bootout system/com.datadoghq.data-plane", uninstall)
-        self.assertIn("/Library/LaunchDaemons/com.datadoghq.data-plane.plist", uninstall)
+        services = [
+            ("agent", "launchd_plist_example", "com.datadoghq.agent"),
+            ("sysprobe", "launchd_sysprobe_plist_example", "com.datadoghq.sysprobe"),
+            ("data-plane", "launchd_data_plane_plist_example", "com.datadoghq.data-plane"),
+        ]
+        for name, build_target, label in services:
+            with self.subTest(service=name):
+                plist = f"/Library/LaunchDaemons/{label}.plist"
+                example_plist = f"{label}.plist.example"
+
+                self.assertIn(f'":{build_target}"', build_file)
+                self.assertIn(f"launchctl bootout system/{label}", preinst)
+                self.assertIn(example_plist, postinst)
+                self.assertIn(plist, postinst)
+                self.assertIn(f"chown root:wheel {plist}", postinst)
+                self.assertIn(f"chmod 644 {plist}", postinst)
+                self.assertIn(f"launchctl enable system/{label}", postinst)
+                self.assertIn(f"launchctl bootstrap system {plist}", postinst)
+                self.assertIn(f"launchctl bootout system/{label}", uninstall)
+                self.assertIn(plist, uninstall)
