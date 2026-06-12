@@ -1,21 +1,16 @@
-FROM registry.ddbuild.io/ci/datadog-agent-devenv:1-amd64
+FROM registry.ddbuild.io/ci/datadog-agent-buildimages/dev-env-workspace:v116983866-e2293bec
 
-USER root
-# Add the dog group (gid 501) and bits user (uid 2000) to match the host workspace identity.
-# /home/datadog/go/bin is 755 so bits can reach pre-installed tools (golangci-lint, dlv, etc.).
-RUN groupadd -g 501 dog && \
-    useradd -m -u 2000 -g 501 -G sudo -s /bin/bash bits && \
-    echo 'bits ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers && \
-    git config --system --add safe.directory /workspace
-
-# Tools that are dynamically linked and must live in the image.
-# gh/claude/ddtool/dd-gitsign are statically linked and bind-mounted at runtime instead.
+# Tools missing from the dev-env base image needed for local credential management.
+# Most tools (gh, dd-gitsign, ddtool, gosu, dlv, etc.) are already in the base image.
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends tmux pass gpg && \
+    apt-get install -y --no-install-recommends tmux pass && \
     rm -rf /var/lib/apt/lists/*
 
-USER bits
-ENV HOME=/home/bits \
-    GOPATH=/home/bits/go \
-    PATH="/home/bits/go/bin:/home/datadog/go/bin:/usr/local/go/bin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+# Allow git to operate on the bind-mounted repo (different owner than container user).
+RUN git config --system --add safe.directory /workspace
+
 WORKDIR /workspace
+
+# Override the default sshd CMD: the entrypoint creates the bits user from HOST_UID/HOST_GID,
+# then execs into this shell instead of starting an SSH server.
+CMD ["gosu", "bits", "bash"]

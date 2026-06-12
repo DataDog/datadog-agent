@@ -11,7 +11,7 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 IMAGE="datadog-agent-devenv:local"
-DOCKERFILE="${REPO_ROOT}/dev/Dockerfile.devenv"
+DOCKERFILE="${REPO_ROOT}/devcontainer/Dockerfile"
 
 build_image() {
     echo "Building devenv wrapper image..."
@@ -27,9 +27,10 @@ if [[ "${1:-}" == "--rebuild" ]]; then
     shift
 fi
 
-CMD=(bash)
+# Always drop into the bits user after the entrypoint's setup runs.
+CMD=(gosu bits bash)
 if [[ $# -gt 0 ]]; then
-    CMD=("$@")
+    CMD=(gosu bits "$@")
 fi
 
 # Resolve paths that can't be evaluated as literals inside docker run flags.
@@ -53,17 +54,16 @@ add_mount() {
     fi
 }
 
-# Core repo + persistent home (Go module cache, dda cache, go build cache all live here)
+# Core repo and persistent build caches.
+# /var/cache/dd holds Go module/build cache, bundler cache, etc. (set by the linux CI image).
+# A named volume lets Docker seed it from the image on first use and persist it across runs.
 MOUNTS+=(-v "${REPO_ROOT}:/workspace:cached")
-MOUNTS+=(-v "datadog-agent-bits-home:/home/bits")
+MOUNTS+=(-v "datadog-agent-dd-cache:/var/cache/dd")
 MOUNTS+=(-v "/var/run/docker.sock:/var/run/docker.sock")
 
-# Statically linked binaries — bind-mounted so the container tracks the host version
-# without requiring an image rebuild when these tools are upgraded.
-add_mount /usr/bin/gh                         /usr/local/bin/gh          ro
+# claude is a DotSlash wrapper; bind-mount the host binary so the container tracks the host version.
+# gh, dd-gitsign, ddtool, gosu, dlv, etc. are already installed in the dev-env base image.
 add_mount "${CLAUDE_BIN}"                     /usr/local/bin/claude      ro
-add_mount "${HOME}/.local/bin/ddtool"         /usr/local/bin/ddtool      ro
-add_mount "${HOME}/.local/bin/dd-gitsign"     /usr/local/bin/dd-gitsign  ro
 
 # claude: managed auth settings (system path, no home-volume conflict) + user state
 add_mount /etc/claude-code                    /etc/claude-code           ro
@@ -88,6 +88,10 @@ add_mount "${HOME}/.gnupg"                    /home/bits/.gnupg
 add_mount "${HOME}/.password-store"           /home/bits/.password-store ro
 
 ENV_FLAGS=(
+    # Map the host user's UID/GID into the container so file ownership is correct.
+    # The entrypoint creates the bits user with these IDs on first boot.
+    -e HOST_UID="$(id -u)"
+    -e HOST_GID="$(id -g)"
     -e SSH_AUTH_SOCK=/ssh-agent
     # Tell pass/aws-vault where to find the credential store.
     -e AWS_VAULT_BACKEND=pass
