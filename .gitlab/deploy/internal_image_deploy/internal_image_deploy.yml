@@ -140,8 +140,6 @@ publish_internal_container_image-scrappy:
   needs:
     - job: docker_build_agent7_scrappy
       artifacts: false
-    - job: docker_build_agent7_scrappy_arm64
-      artifacts: false
   variables:
     <<: *agent_variables
     RELEASE_TAG_SUFFIX: "-scrappy"
