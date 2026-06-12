@@ -33,11 +33,11 @@ helm upgrade <RELEASE_NAME> datadog/datadog \
 
 The Datadog Helm chart configures the required capabilities and seccomp profile automatically.
 
+The Host Profiler infers most configuration from the Datadog Agent configuration. For optional overrides, see [Configuration](configuration.md).
+
 After you apply the updated values, Helm rolls out a new Agent DaemonSet revision with the Host Profiler sidecar. Wait for that rollout to complete before verifying profiles.
 
-## Configuration
-
-The Host Profiler infers most configuration from the Datadog Agent configuration. For optional overrides, see [Configuration](configuration.md).
+After deploying the Host Profiler, profiles appear on the [Datadog Profiler](https://app.datadoghq.com/profiling) page within a few minutes. If profiles do not appear, see the [Troubleshooting](../troubleshooting.md) guide.
 
 ## AppArmor (optional)
 
@@ -48,7 +48,3 @@ datadog:
   hostProfiler:
     apparmor: localhost/dd-host-profiler
 ```
-
-## Verification
-
-After deploying the Host Profiler, profiles appear on the [Datadog Profiler](https://app.datadoghq.com/profiling) page within a few minutes. If profiles do not appear, see the [Troubleshooting](../troubleshooting.md) guide.
