@@ -43,11 +43,6 @@ const (
 	contentTypeHeader = "Content-Type"
 	applicationForm   = "application/x-www-form-urlencoded; charset=utf-8"
 
-	// Standard AWS environment variable names
-	awsAccessKeyIDEnvVar     = "AWS_ACCESS_KEY_ID"
-	awsSecretAccessKeyEnvVar = "AWS_SECRET_ACCESS_KEY"
-	awsSessionTokenEnvVar    = "AWS_SESSION_TOKEN"
-
 	defaultRegion         = "us-east-1"
 	defaultStsHost        = "sts.amazonaws.com"
 	regionalStsHost       = "sts.%s.amazonaws.com"

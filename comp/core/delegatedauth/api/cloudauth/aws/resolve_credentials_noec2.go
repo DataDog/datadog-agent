@@ -14,6 +14,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/aws/creds"
 )
 
+// Standard AWS environment variable names. Only the non-ec2 build reads these directly; the
+// ec2 build resolves credentials through the AWS SDK default chain.
+const (
+	awsAccessKeyIDEnvVar     = "AWS_ACCESS_KEY_ID"
+	awsSecretAccessKeyEnvVar = "AWS_SECRET_ACCESS_KEY"
+	awsSessionTokenEnvVar    = "AWS_SESSION_TOKEN"
+)
+
 // resolveCredentials returns static credentials from environment variables for non-ec2 builds.
 // Only AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY (and optionally AWS_SESSION_TOKEN) are checked.
 // IRSA and container credential sources are not supported in this build variant.
