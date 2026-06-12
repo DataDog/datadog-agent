@@ -9,22 +9,23 @@ package kindfilelogging
 
 import (
 	"fmt"
+	"testing"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/docker"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers/helmagent"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/parameters"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/optional"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent/helm"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
 	kubeComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
-
-	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
@@ -112,23 +113,57 @@ func WithExtraConfigParams(configMap runner.ConfigMap) ProvisionerOption {
 	}
 }
 
-// Provisioner creates a new provisioner
+// kindDefaultHelmValues are KinD-specific Helm overrides for kindfilelogging clusters.
+const kindDefaultHelmValues = `
+datadog:
+  kubelet:
+    tlsVerify: false
+  envDict:
+    DD_CONTAINER_EXCLUDE: "kube_namespace:^exclude-namespace$"
+agents:
+  useHostNetwork: true
+`
+
+// Provisioner creates a new provisioner.
+// Agent installation is performed via Helm after Pulumi provisions the KinD
+// cluster and FakeIntake (PostProvision), rather than inside Pulumi itself.
 func Provisioner(opts ...ProvisionerOption) provisioners.TypedProvisioner[environments.Kubernetes] {
-	// We ALWAYS need to make a deep copy of `params`, as the provisioner can be called multiple times.
-	// and it's easy to forget about it, leading to issues that are hard to debug.
 	params := newProvisionerParams()
 	_ = optional.ApplyOptions(params, opts)
 
-	provisioner := provisioners.NewTypedPulumiProvisioner(provisionerBaseID+params.name, func(ctx *pulumi.Context, env *environments.Kubernetes) error {
+	agentOpts := params.agentOptions
+	usePostProvision := agentOpts != nil
+
+	pulumiProv := provisioners.NewTypedPulumiProvisioner(provisionerBaseID+params.name, func(ctx *pulumi.Context, env *environments.Kubernetes) error {
 		// We ALWAYS need to make a deep copy of `params`, as the provisioner can be called multiple times.
 		// and it's easy to forget about it, leading to issues that are hard to debug.
 		params := newProvisionerParams()
 		_ = optional.ApplyOptions(params, opts)
-
+		if usePostProvision {
+			params.agentOptions = nil
+		}
 		return KindRunFunc(ctx, env, params)
 	}, params.extraConfigParams)
 
-	return provisioner
+	if !usePostProvision {
+		return pulumiProv
+	}
+
+	clusterNameTag, err := runner.GetProfile().ParamStore().GetWithDefault(parameters.StackNameSuffix, "")
+	if err != nil {
+		clusterNameTag = ""
+	}
+	postProvisionOpts := []kubernetesagentparams.Option{
+		kubernetesagentparams.WithHelmValues(kindDefaultHelmValues),
+	}
+	if clusterNameTag != "" {
+		postProvisionOpts = append(postProvisionOpts, kubernetesagentparams.WithTags([]string{"stackid:" + clusterNameTag}))
+	}
+	postProvisionOpts = append(postProvisionOpts, agentOpts...)
+
+	return provisioners.WithPostProvision(pulumiProv, func(t *testing.T, env *environments.Kubernetes) {
+		helmagent.Install(installers.FromT(t), env, runner.CloudAWS, postProvisionOpts...)
+	})
 }
 
 // KindRunFunc is the Pulumi run function that runs the provisioner
@@ -157,13 +192,9 @@ func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Prov
 		return fmt.Errorf("kindCluster.Export: %w", err)
 	}
 
-	kubeProvider, err := kubernetes.NewProvider(ctx, awsEnv.Namer.ResourceName("k8s-provider"), &kubernetes.ProviderArgs{
-		EnableServerSideApply: pulumi.Bool(true),
-		Kubeconfig:            kindCluster.KubeConfig,
-	})
-	if err != nil {
-		return fmt.Errorf("kubernetes.NewProvider: %w", err)
-	}
+	// kubeProvider is no longer needed since agent install moved to PostProvision.
+	// Keep the provider creation for any future Pulumi workload resources that need it.
+	_ = kindCluster.KubeConfig // reference keeps the cluster in the dependency graph
 
 	if params.fakeintakeOptions != nil {
 		fakeintakeOpts := []fakeintake.Option{fakeintake.WithLoadBalancer()}
@@ -185,33 +216,8 @@ func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Prov
 		env.FakeIntake = nil
 	}
 
-	if params.agentOptions != nil {
-		kindClusterName := ctx.Stack()
-		helmValues := fmt.Sprintf(`
-datadog:
-  kubelet:
-    tlsVerify: false
-  clusterName: "%s"
-  envDict:
-    DD_CONTAINER_EXCLUDE: "kube_namespace:^exclude-namespace$"
-agents:
-  useHostNetwork: true
-`, kindClusterName)
-
-		newOpts := []kubernetesagentparams.Option{kubernetesagentparams.WithHelmValues(helmValues)}
-		params.agentOptions = append(newOpts, params.agentOptions...)
-		agent, err := helm.NewKubernetesAgent(&awsEnv, kindClusterName, kubeProvider, params.agentOptions...)
-		if err != nil {
-			return fmt.Errorf("agent.NewKubernetesAgent: %w", err)
-		}
-		err = agent.Export(ctx, &env.Agent.KubernetesAgentOutput)
-		if err != nil {
-			return fmt.Errorf("agent.Export: %w", err)
-		}
-
-	} else {
-		env.Agent = nil
-	}
+	// Agent installation is handled by PostProvision via helmagent.Install.
+	env.Agent = nil
 
 	return nil
 }
