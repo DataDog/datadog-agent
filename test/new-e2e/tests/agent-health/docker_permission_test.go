@@ -42,7 +42,7 @@ type dockerPermissionSuite struct {
 func TestDockerPermissionSuite(t *testing.T) {
 	t.Parallel()
 	e2e.Run(t, &dockerPermissionSuite{},
-		e2e.WithPulumiProvisioner(dockerPermissionEnvProvisioner(), nil),
+		e2e.WithProvisioner(dockerPermissionEnvProvisioner()),
 	)
 }
 

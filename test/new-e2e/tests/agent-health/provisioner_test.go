@@ -8,15 +8,17 @@ package agenthealth
 
 import (
 	_ "embed"
+	"testing"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/docker"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers/hostagent"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
 )
 
@@ -26,8 +28,12 @@ var dockerPermissionAgentConfig string
 //go:embed fixtures/docker-compose.busybox.yaml
 var busyboxComposeContent string
 
-func dockerPermissionEnvProvisioner() provisioners.PulumiEnvRunFunc[dockerPermissionEnv] {
-	return func(ctx *pulumi.Context, env *dockerPermissionEnv) error {
+// dockerPermissionEnvProvisioner returns a TypedProvisioner for the docker
+// permission test environment. Agent installation is performed via SSH in
+// PostProvision (after Pulumi deploys the VM, FakeIntake, and Docker compose),
+// preserving the dependency ordering without Pulumi DependsOn.
+func dockerPermissionEnvProvisioner() provisioners.TypedProvisioner[dockerPermissionEnv] {
+	pulumiProv := provisioners.NewTypedPulumiProvisioner("docker-permission", func(ctx *pulumi.Context, env *dockerPermissionEnv) error {
 		awsEnv, err := aws.NewEnvironment(ctx)
 		if err != nil {
 			return err
@@ -57,21 +63,26 @@ func dockerPermissionEnvProvisioner() provisioners.PulumiEnvRunFunc[dockerPermis
 			return err
 		}
 
-		composeBusyboxCmd, err := dockerManager.ComposeStrUp("busybox", []docker.ComposeInlineManifest{
+		// Deploy the busybox compose — the agent must not start until this is done.
+		// PostProvision runs after all Pulumi resources are ready, so the ordering
+		// is preserved without needing an explicit DependsOn on the agent install.
+		if _, err = dockerManager.ComposeStrUp("busybox", []docker.ComposeInlineManifest{
 			{Name: "busybox", Content: pulumi.String(busyboxComposeContent)},
-		}, pulumi.StringMap{})
-		if err != nil {
+		}, pulumi.StringMap{}); err != nil {
 			return err
 		}
 
-		hostAgent, err := agent.NewHostAgent(&awsEnv, remoteHost,
-			agentparams.WithFakeintake(fi),
+		// Agent installation moved to PostProvision.
+		env.Agent = nil
+		return nil
+	}, nil)
+
+	return provisioners.WithPostProvision(pulumiProv, func(t *testing.T, env *dockerPermissionEnv) {
+		env.Agent = hostagent.InstallOnHost(
+			installers.FromT(t),
+			env.RemoteHost,
+			env.Fakeintake,
 			agentparams.WithAgentConfig(dockerPermissionAgentConfig),
-			agentparams.WithPulumiResourceOptions(pulumi.DependsOn([]pulumi.Resource{composeBusyboxCmd})),
 		)
-		if err != nil {
-			return err
-		}
-		return hostAgent.Export(ctx, &env.Agent.HostAgentOutput)
-	}
+	})
 }
