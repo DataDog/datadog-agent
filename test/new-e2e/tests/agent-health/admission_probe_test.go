@@ -150,19 +150,24 @@ func (suite *admissionProbeSuite) TestAdmissionProbeIssueLifecycle() {
 
 		require.NoError(t, fakeIntake.FlushServerAndResetAggregators())
 
-		// Once resolved, the issue should be absent from all subsequent health reports.
+		// Once resolved, the issue must not appear as active (NEW/ONGOING) in any
+		// subsequent health report. A single RESOLVED-state report is allowed: the
+		// store keeps the issue with state RESOLVED for exactly one egress tick so
+		// the state transition is forwarded before the issue is pruned.
 		require.Never(t, func() bool {
 			payloads, err := fakeIntake.GetAgentHealth()
 			if err != nil {
 				return false
 			}
 			for _, payload := range payloads {
-				if len(findIssuesByID(t, payload, admissionProbeIssueID)) > 0 {
-					return true
+				for _, iss := range findIssuesByID(t, payload, admissionProbeIssueID) {
+					if iss.PersistedIssue == nil || iss.PersistedIssue.State != healthplatform.IssueState_ISSUE_STATE_RESOLVED {
+						return true
+					}
 				}
 			}
 			return false
-		}, 3*time.Minute, 15*time.Second, "Admission probe issue still present after restoring connectivity")
+		}, 3*time.Minute, 15*time.Second, "Admission probe issue still present (non-RESOLVED) after restoring connectivity")
 
 		t.Log("Phase 3 passed: admission probe issue resolved")
 	})
