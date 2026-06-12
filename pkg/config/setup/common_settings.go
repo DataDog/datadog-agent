@@ -1067,8 +1067,6 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	// Listen addresses must include a URL scheme (e.g. "tcp://").
 	config.BindEnvAndSetDefault("data_plane.api_listen_address", "tcp://0.0.0.0:5100")
 	config.BindEnvAndSetDefault("data_plane.secure_api_listen_address", "tcp://0.0.0.0:5101")
-	config.BindEnvAndSetDefault("data_plane.telemetry_enabled", false)
-	config.BindEnvAndSetDefault("data_plane.telemetry_listen_addr", "tcp://0.0.0.0:5102")
 	config.BindEnvAndSetDefault("data_plane.log_file", DefaultDataPlaneLogFile)
 	config.BindEnvAndSetDefault("data_plane.dogstatsd.enabled", true)
 	config.BindEnvAndSetDefault("data_plane.otlp.enabled", false)
@@ -2148,6 +2146,10 @@ func anomalyDetection(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("anomaly_detection.detectors.time_cluster.enabled", true)
 	config.BindEnvAndSetDefault("anomaly_detection.detectors.time_cluster.min_cluster_size", 0)
 	config.BindEnvAndSetDefault("anomaly_detection.detectors.passthrough.enabled", false)
+	config.BindEnvAndSetDefault("anomaly_detection.detectors.anomaly_scorer.enabled", false)
+	config.BindEnvAndSetDefault("anomaly_detection.detectors.anomaly_scorer.alpha", 0.014)
+	config.BindEnvAndSetDefault("anomaly_detection.detectors.anomaly_scorer.saturation_k", 5.0)
+	config.BindEnvAndSetDefault("anomaly_detection.detectors.anomaly_scorer.window_secs", 15)
 
 	// Storage tuning. See storageConfig in the observer component.
 	config.BindEnvAndSetDefault("anomaly_detection.storage.max_series", 50000)
