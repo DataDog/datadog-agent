@@ -140,6 +140,8 @@ func (r *Runner) Run(ctx context.Context, cfg config.Config) (payload.NetworkPat
 		ReverseDns:            cfg.ReverseDNS,
 		CollectSourcePublicIP: !cfg.DisableSourcePublicIPCollection,
 		UseWindowsDriver:      !cfg.DisableWindowsDriver,
+		TracerouteQueries:     cfg.TracerouteQueries,
+		E2eQueries:            cfg.E2eQueries,
 	}
 
 	log.Debugf("source public IP collection enabled: %t", !cfg.DisableSourcePublicIPCollection)
