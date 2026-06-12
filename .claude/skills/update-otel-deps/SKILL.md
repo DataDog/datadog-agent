@@ -1,6 +1,6 @@
 ---
 name: update-otel-deps
-description: Update OTel collector dependencies in the Agent — runs inv collector.update/generate, fixes common test and build failures (ddflareextension testdata, OCB build, static quality gates, transitive dependency conflicts).
+description: Use when a user asks to update, bump, or troubleshoot OpenTelemetry Collector dependencies in datadog-agent, including OCB build failures, ddflareextension golden files, static quality gates, or OTel transitive dependency conflicts.
 argument-hint: "[target-version]"
 allowed-tools: Bash, Read, Write, Edit, Glob, Grep, AskUserQuestion
 ---
@@ -117,4 +117,15 @@ dda inv test --targets=./comp/otelcol/ddflareextension/impl/... --build-include=
 Open a draft PR to let CI catch any remaining failures. The PR title convention is:
 `Update OTel Collector dependencies to v<VERSION>`
 
-If CI still has failures not covered above, post in [#opentelemetry-agent](https://dd.enterprise.slack.com/archives/C086Z7E2A0Y).
+Once the PR is open, run `/dd:ci:fix` to automatically fetch, analyze, and fix any remaining CI failures. If issues are not covered by the troubleshooting steps above, post in [#opentelemetry-agent](https://dd.enterprise.slack.com/archives/C086Z7E2A0Y).
+
+---
+
+## Success checklist
+
+- [ ] `dda inv collector.update` + `collector.generate` + `tidy` + `generate-licenses` all completed without error
+- [ ] No remaining references to the old OTel version in tracked files
+- [ ] ddflareextension unit + E2E golden files updated and tests pass
+- [ ] OCB build script succeeds (or known issue tracked)
+- [ ] Static quality gate limits raised if breached (exemption approved)
+- [ ] Draft PR open and CI green (use `/dd:ci:fix` for any remaining failures)
