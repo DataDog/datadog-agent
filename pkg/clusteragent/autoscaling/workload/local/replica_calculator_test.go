@@ -280,11 +280,9 @@ func TestCalculateUtilizationPodResource(t *testing.T) {
 			},
 			currentTime: testTime,
 			want: utilizationResult{
-				averageUtilization: 0.275,
-				missingPods:        []string{},
-				podToUtilization: map[string]float64{
-					"pod-name1": 0.275,
-				},
+				averageUtilization:      0.275,
+				missingPods:             0,
+				measuredPods:            1,
 				recommendationTimestamp: time.Unix(testTime.Unix()-30, 0),
 			},
 			err: nil,
@@ -340,11 +338,9 @@ func TestCalculateUtilizationPodResource(t *testing.T) {
 			},
 			currentTime: testTime,
 			want: utilizationResult{
-				averageUtilization: 0.275,
-				missingPods:        []string{},
-				podToUtilization: map[string]float64{
-					"pod-name1": .275,
-				},
+				averageUtilization:      0.275,
+				missingPods:             0,
+				measuredPods:            1,
 				recommendationTimestamp: time.Unix(testTime.Unix()-30, 0),
 			},
 			err: nil,
@@ -417,12 +413,9 @@ func TestCalculateUtilizationPodResource(t *testing.T) {
 			},
 			currentTime: testTime,
 			want: utilizationResult{
-				averageUtilization: 0.275,
-				missingPods:        []string{},
-				podToUtilization: map[string]float64{
-					"pod-name1": 0.25,
-					"pod-name2": 0.30,
-				},
+				averageUtilization:      0.275,
+				missingPods:             0,
+				measuredPods:            2,
 				recommendationTimestamp: time.Unix(testTime.Unix()-30, 0),
 			},
 			err: nil,
@@ -486,11 +479,9 @@ func TestCalculateUtilizationPodResource(t *testing.T) {
 			},
 			currentTime: testTime,
 			want: utilizationResult{
-				averageUtilization: 0.25,
-				missingPods:        []string{"pod-name2"},
-				podToUtilization: map[string]float64{
-					"pod-name1": 0.25,
-				},
+				averageUtilization:      0.25,
+				missingPods:             1,
+				measuredPods:            1,
 				recommendationTimestamp: time.Unix(testTime.Unix()-30, 0),
 			},
 			err: nil,
@@ -660,11 +651,9 @@ func TestCalculateUtilizationContainerResource(t *testing.T) {
 			},
 			currentTime: testTime,
 			want: utilizationResult{
-				averageUtilization: 0.25,
-				missingPods:        []string{},
-				podToUtilization: map[string]float64{
-					"pod-name1": 0.25,
-				},
+				averageUtilization:      0.25,
+				missingPods:             0,
+				measuredPods:            1,
 				recommendationTimestamp: time.Unix(testTime.Unix()-30, 0),
 			},
 			err: nil,
@@ -720,11 +709,9 @@ func TestCalculateUtilizationContainerResource(t *testing.T) {
 			},
 			currentTime: testTime,
 			want: utilizationResult{
-				averageUtilization: 0.25,
-				missingPods:        []string{},
-				podToUtilization: map[string]float64{
-					"pod-name1": 0.25,
-				},
+				averageUtilization:      0.25,
+				missingPods:             0,
+				measuredPods:            1,
 				recommendationTimestamp: time.Unix(testTime.Unix()-30, 0),
 			},
 			err: nil,
@@ -797,12 +784,9 @@ func TestCalculateUtilizationContainerResource(t *testing.T) {
 			},
 			currentTime: testTime,
 			want: utilizationResult{
-				averageUtilization: 0.275,
-				missingPods:        []string{},
-				podToUtilization: map[string]float64{
-					"pod-name1": 0.25,
-					"pod-name2": 0.30,
-				},
+				averageUtilization:      0.275,
+				missingPods:             0,
+				measuredPods:            2,
 				recommendationTimestamp: time.Unix(testTime.Unix()-30, 0),
 			},
 			err: nil,
@@ -866,11 +850,9 @@ func TestCalculateUtilizationContainerResource(t *testing.T) {
 			},
 			currentTime: testTime,
 			want: utilizationResult{
-				averageUtilization: 0.25,
-				missingPods:        []string{"pod-name2"},
-				podToUtilization: map[string]float64{
-					"pod-name1": 0.25,
-				},
+				averageUtilization:      0.25,
+				missingPods:             1,
+				measuredPods:            1,
 				recommendationTimestamp: time.Unix(testTime.Unix()-30, 0),
 			},
 			err: nil,
@@ -1182,14 +1164,9 @@ func TestRecommend(t *testing.T) {
 			currentTime:         testTime,
 			recommendedReplicas: 3,
 			utilizationRes: utilizationResult{
-				averageUtilization: 0.46425,
-				missingPods:        []string{},
-				podToUtilization: map[string]float64{
-					"pod-name1": 0.517,
-					"pod-name2": 0.420,
-					"pod-name3": 0.44,
-					"pod-name4": 0.48,
-				},
+				averageUtilization:      0.46425,
+				missingPods:             0,
+				measuredPods:            4,
 				recommendationTimestamp: time.Unix(testTime.Unix()-30, 0),
 			},
 			err: nil,
@@ -1333,14 +1310,9 @@ func TestRecommend(t *testing.T) {
 			currentTime:         testTime,
 			recommendedReplicas: 5,
 			utilizationRes: utilizationResult{
-				averageUtilization: 0.941,
-				missingPods:        []string{},
-				podToUtilization: map[string]float64{
-					"pod-name1": 0.944,
-					"pod-name2": 0.92,
-					"pod-name3": 0.94,
-					"pod-name4": 0.96,
-				},
+				averageUtilization:      0.941,
+				missingPods:             0,
+				measuredPods:            4,
 				recommendationTimestamp: time.Unix(testTime.Unix()-30, 0),
 			},
 			err: nil,
@@ -1457,12 +1429,9 @@ func TestRecommend(t *testing.T) {
 			recommendedReplicas: 5,
 			utilizationRes: utilizationResult{
 				// Only the two pods with usable metrics drive the average.
-				averageUtilization: 0.94,
-				missingPods:        []string{"pod-name2", "pod-name4"},
-				podToUtilization: map[string]float64{
-					"pod-name1": 0.94,
-					"pod-name3": 0.94,
-				},
+				averageUtilization:      0.94,
+				missingPods:             2,
+				measuredPods:            2,
 				recommendationTimestamp: time.Unix(testTime.Unix()-30, 0),
 			},
 			err: nil,
@@ -1579,12 +1548,9 @@ func TestRecommend(t *testing.T) {
 			recommendedReplicas: 3,
 			utilizationRes: utilizationResult{
 				// Average is over the two ready pods with metrics.
-				averageUtilization: 0.25,
-				missingPods:        []string{"pod-name2", "pod-name3"},
-				podToUtilization: map[string]float64{
-					"pod-name1": 0.24,
-					"pod-name4": 0.26,
-				},
+				averageUtilization:      0.25,
+				missingPods:             2,
+				measuredPods:            2,
 				recommendationTimestamp: time.Unix(testTime.Unix()-30, 0),
 			},
 			err: nil,
@@ -1870,11 +1836,11 @@ func TestCalculateUtilizationExcludesIneligiblePods(t *testing.T) {
 	require.NoError(t, err)
 
 	// Only the healthy pod contributes to the average.
-	assert.Equal(t, map[string]float64{"healthy": 0.5}, res.podToUtilization)
+	assert.Equal(t, 1, res.measuredPods)
 	assert.InDelta(t, 0.5, res.averageUtilization, 1e-9)
 	// no-data and stale running pods are Ready-but-unmeasured -> missing (reserved as slots).
 	// Pending and still-warming pods are excluded entirely.
-	assert.ElementsMatch(t, []string{"no-data", "stale"}, res.missingPods)
+	assert.Equal(t, 2, res.missingPods)
 }
 
 // TestRecommendDoesNotInfinitelyUpscaleWithWarmupPods reproduces the fallback runaway:
@@ -2023,7 +1989,7 @@ func TestRecommendReservesSlotForMissingMetricsPod(t *testing.T) {
 		}
 		rec, res, err := recommend(currentTime, *recSettings, pods, loadstore.QueryResult{Results: results})
 		require.NoError(t, err)
-		assert.ElementsMatch(t, []string{"missing"}, res.missingPods)
+		assert.Equal(t, 1, res.missingPods)
 		assert.Equalf(t, int32(3), rec, "expected 2 measured + 1 reserved slot = 3, got %d", rec)
 	})
 
@@ -2044,7 +2010,7 @@ func TestRecommendReservesSlotForMissingMetricsPod(t *testing.T) {
 		}
 		rec, res, err := recommend(currentTime, *recSettings, pods, loadstore.QueryResult{Results: results})
 		require.NoError(t, err)
-		assert.ElementsMatch(t, []string{"missing"}, res.missingPods)
+		assert.Equal(t, 1, res.missingPods)
 		assert.Equalf(t, int32(2), rec, "expected 1 (collapsed measured) + 1 reserved slot = 2, got %d", rec)
 	})
 }

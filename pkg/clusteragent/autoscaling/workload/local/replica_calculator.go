@@ -41,9 +41,10 @@ type replicaCalculator struct {
 type utilizationResult struct {
 	// averageUtilization is computed over measured pods only.
 	averageUtilization float64
-	podToUtilization   map[string]float64
-	// missingPods are measurable pods without usable metrics; recommend reserves one slot each.
-	missingPods             []string
+	// measuredPods is the number of pods with usable metrics; it is the average's denominator.
+	measuredPods int
+	// missingPods is the count of measurable pods without usable metrics; recommend reserves one slot each.
+	missingPods             int
 	recommendationTimestamp time.Time
 }
 
@@ -140,9 +141,9 @@ func recommend(currentTime time.Time, recSettings resourceRecommenderSettings, p
 		return 0, utilizationResult{}, err
 	}
 
-	measuredCount := float64(len(utilizationRes.podToUtilization))
+	measuredCount := float64(utilizationRes.measuredPods)
 	recommendedReplicas := calculateReplicas(recSettings, measuredCount, utilizationRes.averageUtilization)
-	recommendedReplicas += int32(len(utilizationRes.missingPods))
+	recommendedReplicas += int32(utilizationRes.missingPods)
 
 	return recommendedReplicas, utilizationRes, nil
 }
@@ -156,9 +157,9 @@ func calculateUtilization(recSettings resourceRecommenderSettings, pods []*workl
 		return utilizationResult{}, errors.New("Issue fetching metrics data")
 	}
 
-	podUtilization := make(map[string]float64)
+	measuredPods := 0
 	totalMeasuredUtilization := 0.0
-	missingPods := []string{}
+	missingPods := 0
 	lastValidTimestamp := time.Time{}
 
 	for _, pod := range pods {
@@ -169,11 +170,11 @@ func calculateUtilization(recSettings resourceRecommenderSettings, pods []*workl
 		minValidTime := pod.ReadyTimestamp.Add(readinessWarmupWindow)
 		utilization, lastTimestamp, ok := calculatePodUtilization(recSettings, pod, queryResult, currentTime, minValidTime)
 		if !ok {
-			missingPods = append(missingPods, pod.Name)
+			missingPods++
 			continue
 		}
 
-		podUtilization[pod.Name] = utilization
+		measuredPods++
 		// Keep the average deterministic by accumulating in pod order.
 		totalMeasuredUtilization += utilization
 		if lastTimestamp.After(lastValidTimestamp) {
@@ -181,13 +182,13 @@ func calculateUtilization(recSettings resourceRecommenderSettings, pods []*workl
 		}
 	}
 
-	if len(podUtilization) == 0 {
+	if measuredPods == 0 {
 		return utilizationResult{}, errors.New("Issue calculating pod utilization")
 	}
 
 	return utilizationResult{
-		averageUtilization:      totalMeasuredUtilization / float64(len(podUtilization)),
-		podToUtilization:        podUtilization,
+		averageUtilization:      totalMeasuredUtilization / float64(measuredPods),
+		measuredPods:            measuredPods,
 		missingPods:             missingPods,
 		recommendationTimestamp: lastValidTimestamp,
 	}, nil
@@ -272,7 +273,8 @@ func processAverageContainerMetricValue(series []loadstore.EntityValue, currentT
 
 		ts := convertTimestampToTime(entity.Timestamp)
 		// Keep samples exactly at the warmup boundary, matching HPA's strict-before check.
-		if !minValidTime.IsZero() && ts.Before(minValidTime) {
+		// minValidTime is always set: isMeasurablePod guarantees a non-nil ReadyTimestamp.
+		if ts.Before(minValidTime) {
 			continue
 		}
 
