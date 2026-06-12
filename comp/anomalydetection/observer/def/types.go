@@ -323,7 +323,7 @@ type ScorerConfig struct {
 	WindowSecs int64 `json:"window_secs"`
 	// DetectorThresholds overrides the default score-to-level boundaries for
 	// specific detector names. Each entry is [low, medium, high, xhigh] thresholds.
-	// Detectors not in this map fall back to the global defaults [6, 12, 20, 35].
+	// Detectors not in this map default to level 2 (Medium) regardless of their score.
 	DetectorThresholds map[string][4]float64 `json:"detector_thresholds,omitempty"`
 }
 

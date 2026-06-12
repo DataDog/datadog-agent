@@ -91,7 +91,9 @@ func anomalyLevel(a observer.Anomaly, cfg observer.ScorerConfig) int {
 }
 
 // seriesID returns a stable string key for deduplication.
-// Returns "" when the anomaly has no identifiable series (never deduplicated then).
+// Prefers SourceRef.CompactID() when available (set by the metrics pipeline);
+// falls back to Source.Key() otherwise. SeriesDescriptor.Key() always returns
+// a non-empty string, so the result is never "".
 func seriesID(a observer.Anomaly) string {
 	if a.SourceRef != nil {
 		return a.SourceRef.CompactID()
@@ -230,27 +232,19 @@ func (s *anomalyScorer) Advance(dataTime int64) {
 // advanceSecond processes a single second. Must be called with mu held.
 //
 // Steps:
-//  1. Merge: update windowMap with anomalies for this second (max level per series).
-//  2. Evict: remove series last seen before the window start.
-//  3. Bucket: count unique series in the window by level.
+//  1. Merge: record the latest second per level for each series in windowMap.
+//  2. Evict: remove per-level timestamps that have fallen outside the window.
+//  3. Bucket: count unique live series by their highest active level.
 //  4. Saturate + EWMA: compute the smoothed score from the window count.
 func (s *anomalyScorer) advanceSecond(sec int64) {
 	anomalies := s.pending[sec]
 	delete(s.pending, sec)
 
 	// Step 1: merge new anomalies into the window.
-	// Keyed anomalies record the latest second per level; unkeyed are counted separately.
-	var unkeyedCount int
-	var unkeyedWeightSum float64
-
+	// seriesID always returns a non-empty key, so every anomaly is keyed.
 	for _, a := range anomalies {
 		sid := seriesID(a)
 		l := anomalyLevel(a, s.config)
-		if sid == "" {
-			unkeyedCount++
-			unkeyedWeightSum += levelWeights[l]
-			continue
-		}
 		e := s.windowMap[sid]
 		if sec > e[l] {
 			e[l] = sec
@@ -298,9 +292,6 @@ func (s *anomalyScorer) advanceSecond(sec int64) {
 			weightSum += levelWeights[maxLevel]
 		}
 	}
-	// Add unkeyed anomalies from this second on top.
-	count += unkeyedCount
-	weightSum += unkeyedWeightSum
 
 	// Step 4: saturated input → EWMA.
 	var input float64
