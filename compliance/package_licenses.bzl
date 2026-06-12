@@ -19,6 +19,10 @@ def package_licenses(name = None, src = None, visibility = None, **kwargs):
         visibility: visisibility
         **kwargs: other args
     """
+    # All targets are explicitly "manual" to not get caught in ... expansion.
+    # The license collection runs an aspect over the entire build graph and 
+    # can be expensive. We should test license collection for each product
+    # packaging explicitly.
 
     # Collect everything
     license_csv(
@@ -78,12 +82,14 @@ def package_licenses(name = None, src = None, visibility = None, **kwargs):
             "@platforms//os:windows": [],  #TODO(ABLD-351): deal with products that don't have source offers
             "//conditions:default": [":%s_offer_dir_stripped_" % name],
         }),
+        tags = ["manual"],
         visibility = visibility or ["//visibility:public"],
         **kwargs
     )
 
+    # Temporary target while we are still doing a hybrid omnibus build.
     pkg_install(
         name = "%s_install" % name,
         srcs = [name],
-        tags = ["manual"],  # Do not catch in ... expansion.
+        tags = ["manual"],
     )
