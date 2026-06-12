@@ -309,6 +309,66 @@ type Correlator interface {
 	Reset()
 }
 
+// ScorerConfig holds the tunable parameters for the anomaly scoring pipeline.
+type ScorerConfig struct {
+	// Alpha is the EWMA smoothing factor (0 < α ≤ 1). Lower = smoother.
+	Alpha float64 `json:"alpha"`
+	// SaturationK is the saturation constant k: saturation = 1−exp(−n/k).
+	// Calibrated against the window count (unique anomalous series), not per-second count.
+	SaturationK float64 `json:"saturation_k"`
+	// WindowSecs is the number of seconds a series stays in the active deduplication
+	// window. A series seen at time t expires after t+WindowSecs. The saturation
+	// function is applied to the number of unique series in the window, not to the
+	// per-second event count.
+	WindowSecs int64 `json:"window_secs"`
+	// DetectorThresholds overrides the default score-to-level boundaries for
+	// specific detector names. Each entry is [low, medium, high, xhigh] thresholds.
+	// Detectors not in this map default to level 2 (Medium) regardless of their score.
+	DetectorThresholds map[string][4]float64 `json:"detector_thresholds,omitempty"`
+}
+
+// ScoreBucket is the per-second telemetry unit emitted by the scorer.
+// One bucket is produced for every 1-second tick, even if it has no anomalies.
+type ScoreBucket struct {
+	// Second is the Unix timestamp (floor) for this bucket.
+	Second int64 `json:"second"`
+	// Bins[L] is the number of deduplicated anomalies at level L (0=VeryLow … 4=XHigh).
+	Bins [5]int `json:"bins"`
+	// Count is the total number of anomalies in this bucket (sum of Bins).
+	Count int `json:"count"`
+	// WeightSum is the sum of level weights for all anomalies in this bucket.
+	WeightSum float64 `json:"weight_sum"`
+	// Ewma is the EWMA value after processing this bucket.
+	Ewma float64 `json:"ewma"`
+}
+
+// ScoreState is the accumulated telemetry snapshot from the scorer.
+type ScoreState struct {
+	Buckets []ScoreBucket `json:"buckets"`
+	Config  ScorerConfig  `json:"config"`
+}
+
+// AnomalyScorer computes a smoothed anomaly intensity signal (EWMA) from the
+// stream of anomalies produced by the detection pipeline. It mirrors the
+// Correlator lifecycle: ProcessAnomaly → Advance (once per second tick) → ScoreState → Reset.
+type AnomalyScorer interface {
+	// Name returns the scorer name for debugging.
+	Name() string
+	// ProcessAnomaly feeds a raw anomaly into the scorer's current-second buffer.
+	ProcessAnomaly(a Anomaly)
+	// Advance finalises the bucket at dataTime (unix seconds) and runs the
+	// EWMA update for that second. Callers must invoke this after each
+	// 1-second detection cycle.
+	Advance(dataTime int64)
+	// LastScore returns the most recently computed EWMA score. Returns 0
+	// before the first Advance call.
+	LastScore() float64
+	// ScoreState returns the accumulated telemetry (all buckets so far).
+	ScoreState() ScoreState
+	// Reset clears all internal state for reanalysis.
+	Reset()
+}
+
 // Reporter receives reports and displays or delivers them.
 type Reporter interface {
 	// Name returns the reporter name for debugging.

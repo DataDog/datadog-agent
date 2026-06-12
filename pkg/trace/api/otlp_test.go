@@ -1138,6 +1138,43 @@ func testOTLPReceiveResourceSpans(enableReceiveResourceSpansV2 bool, t *testing.
 		t.Run("resource", testAndExpect(testSpans[1], http.Header{}, func(p *Payload) {
 			require.True(p.ClientComputedStats)
 		}))
+
+		if enableReceiveResourceSpansV2 {
+			// _dd.stats_computed = false (bool or string) overrides the header in V2 only.
+			falseAttrSpans := []testutil.OTLPResourceSpan{{
+				LibName:    "libname",
+				LibVersion: "1.2",
+				Attributes: map[string]interface{}{
+					keyStatsComputed: false,
+				},
+				Spans: []*testutil.OTLPSpan{{Attributes: map[string]interface{}{string(semconv.K8SPodUIDKey): "123cid"}}},
+			}}
+
+			t.Run("resource_false_bool_no_header", testAndExpect(falseAttrSpans, http.Header{}, func(p *Payload) {
+				require.False(p.ClientComputedStats)
+			}))
+
+			t.Run("resource_false_bool_overrides_header", testAndExpect(falseAttrSpans, http.Header{
+				header.ComputedStats: []string{"true"},
+			}, func(p *Payload) {
+				require.False(p.ClientComputedStats)
+			}))
+
+			falseStringAttrSpans := []testutil.OTLPResourceSpan{{
+				LibName:    "libname",
+				LibVersion: "1.2",
+				Attributes: map[string]interface{}{
+					keyStatsComputed: "false",
+				},
+				Spans: []*testutil.OTLPSpan{{Attributes: map[string]interface{}{string(semconv.K8SPodUIDKey): "123cid"}}},
+			}}
+
+			t.Run("resource_false_string_overrides_header", testAndExpect(falseStringAttrSpans, http.Header{
+				header.ComputedStats: []string{"true"},
+			}, func(p *Payload) {
+				require.False(p.ClientComputedStats)
+			}))
+		}
 	})
 
 	t.Run("ClientComputedTopLevel", func(t *testing.T) {
