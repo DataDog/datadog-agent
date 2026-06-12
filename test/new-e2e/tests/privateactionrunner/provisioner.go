@@ -8,13 +8,12 @@ package privateactionrunner
 import (
 	"fmt"
 	"os"
+	"testing"
 
-	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/command"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent/helm"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/docker"
 	kubeComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
@@ -22,8 +21,11 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	awsFakeintake "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers/helmagent"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
 	awskubernetes "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/kubernetes/kindvm"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
 )
 
 const (
@@ -34,8 +36,6 @@ const (
 )
 
 // parHelmValuesTemplate configures the agent with PAR enabled.
-// Fakeintake URL wiring (DD_DD_URL, DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION) is handled
-// automatically by the e2e framework's configureFakeintake when fakeintake is present.
 // %s parameters: clusterName, runnerURN, privateKeyB64
 const parHelmValuesTemplate = `
 datadog:
@@ -56,8 +56,8 @@ agents:
 `
 
 // parK8sProvisioner provisions a Kind-on-EC2 cluster with:
-//   - fakeintake deployed as ECS Fargate (HTTP, no load balancer) — PAR polls its OPMS endpoints
-//   - Datadog Agent with PAR enabled (custom image via --agent-image CLI flag)
+//   - fakeintake deployed as ECS Fargate (HTTP, no load balancer)
+//   - Datadog Agent with PAR enabled, installed via Helm in PostProvision
 func parK8sProvisioner(runnerURN, privateKeyB64 string) provisioners.Provisioner {
 	p := provisioners.NewTypedPulumiProvisioner[environments.Kubernetes]("par-k8s",
 		func(ctx *pulumi.Context, env *environments.Kubernetes) error {
@@ -68,10 +68,6 @@ func parK8sProvisioner(runnerURN, privateKeyB64 string) provisioners.Provisioner
 			}
 
 			// 1. Deploy fakeintake as ECS Fargate (HTTP, no load balancer).
-			// PAR inside the Kind cluster reaches it at fakeintake's private VPC IP.
-			// The test process also calls fakeintake directly for control operations (enqueue/result).
-			// FAKEINTAKE_IMAGE_OVERRIDE allows using a locally-built image during development
-			// (same pattern used by CI and docker_test.go).
 			var fiOpts []awsFakeintake.Option
 			if img := os.Getenv("FAKEINTAKE_IMAGE_OVERRIDE"); img != "" {
 				fiOpts = append(fiOpts, awsFakeintake.WithImageURL(img))
@@ -107,15 +103,7 @@ func parK8sProvisioner(runnerURN, privateKeyB64 string) provisioners.Provisioner
 				return fmt.Errorf("kindCluster.Export: %w", err)
 			}
 
-			kubeProvider, err := kubernetes.NewProvider(ctx, awsEnv.Namer.ResourceName("k8s-provider"), &kubernetes.ProviderArgs{
-				EnableServerSideApply: pulumi.Bool(true),
-				Kubeconfig:            kindCluster.KubeConfig,
-			})
-			if err != nil {
-				return fmt.Errorf("kubernetes.NewProvider: %w", err)
-			}
-
-			// 4. Plant test data file on the Kind node (accessible to PAR at /host/var/log/)
+			// 4. Plant test data file on the Kind node
 			_, err = host.OS.Runner().Command(
 				awsEnv.CommonNamer().ResourceName("plant-testdata"),
 				&command.Args{
@@ -130,26 +118,19 @@ func parK8sProvisioner(runnerURN, privateKeyB64 string) provisioners.Provisioner
 				return fmt.Errorf("plant testdata: %w", err)
 			}
 
-			// 5. Deploy Datadog agent via Helm with PAR enabled.
-			// DD_DD_URL and DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION for the PAR container are
-			// injected automatically by the e2e framework's configureFakeintake.
-			agent, err := helm.NewKubernetesAgent(&awsEnv, name, kubeProvider,
-				kubernetesagentparams.WithFakeintake(fi),
-				kubernetesagentparams.WithHelmValues(fmt.Sprintf(parHelmValuesTemplate, ctx.Stack(), runnerURN, privateKeyB64)),
-				kubernetesagentparams.WithClusterName(kindCluster.ClusterName),
-				kubernetesagentparams.WithTags([]string{"stackid:" + ctx.Stack()}),
-				kubernetesagentparams.WithHelmChartVersion(minHelmChartVersion),
-			)
-			if err != nil {
-				return fmt.Errorf("helm.NewKubernetesAgent: %w", err)
-			}
-			if err = agent.Export(ctx, &env.Agent.KubernetesAgentOutput); err != nil {
-				return fmt.Errorf("agent.Export: %w", err)
-			}
-
+			// Agent installation moved to PostProvision.
+			env.Agent = nil
 			return nil
 		}, nil)
 
 	p.SetDiagnoseFunc(awskubernetes.DiagnoseFunc)
-	return p
+
+	return provisioners.WithPostProvision(p, func(t *testing.T, env *environments.Kubernetes) {
+		clusterName := env.KubernetesCluster.ClusterName
+		helmagent.Install(installers.FromT(t), env, runner.CloudAWS,
+			kubernetesagentparams.WithHelmValues(fmt.Sprintf(parHelmValuesTemplate, clusterName, runnerURN, privateKeyB64)),
+			kubernetesagentparams.WithTags([]string{"stackid:" + clusterName}),
+			kubernetesagentparams.WithHelmChartVersion(minHelmChartVersion),
+		)
+	})
 }
