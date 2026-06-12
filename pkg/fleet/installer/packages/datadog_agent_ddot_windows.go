@@ -545,10 +545,18 @@ func postInstallDDOTExtension(ctx HookContext) error {
 
 // preRemoveDDOTExtension stops and removes the DDOT service before extension removal
 func preRemoveDDOTExtension(ctx HookContext) error {
-	restartProcmgr, err := processManagerEnabledFromDatadogYAML()
+	procmgrEnabled, err := processManagerEnabledFromDatadogYAML()
 	if err != nil {
-		log.Warnf("DDOT: could not read process_manager from datadog.yaml (%v); skipping dd-procmgr restart after removal", err)
-		restartProcmgr = false
+		log.Warnf("DDOT: could not read process_manager from datadog.yaml (%v); skipping dd-procmgr stop before removal", err)
+		procmgrEnabled = false
+	}
+	// Stop dd-procmgr while processes.d still exists so supervised otel-agent.exe exits and
+	// releases file locks before we delete the YAML and extension files (RestartService here
+	// races removal and can time out; the core Agent starts dd-procmgr on demand afterward).
+	if procmgrEnabled {
+		if err := winutil.StopService(ddProcmgrServiceName); err != nil {
+			log.Warnf("DDOT: failed to stop %s before extension removal: %v", ddProcmgrServiceName, err)
+		}
 	}
 	packagePath := ctx.PackagePath
 	if resolved, err := filepath.EvalSymlinks(ctx.PackagePath); err == nil {
@@ -565,11 +573,6 @@ func preRemoveDDOTExtension(ctx HookContext) error {
 	}
 	if err := disableOtelCollectorConfigWindows(); err != nil {
 		log.Warnf("failed to disable otelcollector in datadog.yaml: %s", err)
-	}
-	if restartProcmgr {
-		if err := winutil.RestartService(ddProcmgrServiceName); err != nil {
-			log.Warnf("DDOT: failed to restart %s after removing process config: %v", ddProcmgrServiceName, err)
-		}
 	}
 	return nil
 }
