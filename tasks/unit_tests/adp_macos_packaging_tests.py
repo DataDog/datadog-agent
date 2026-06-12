@@ -57,17 +57,14 @@ class TestADPMacOSPackaging(unittest.TestCase):
 
     def test_windows_installer_packages_adp_binary(self):
         binaries = (
-            REPO_ROOT
-            / "tools/windows/DatadogAgentInstaller/WixSetup/Datadog Agent/AgentBinaries.cs"
+            REPO_ROOT / "tools/windows/DatadogAgentInstaller/WixSetup/Datadog Agent/AgentBinaries.cs"
         ).read_text()
         installer = (
-            REPO_ROOT
-            / "tools/windows/DatadogAgentInstaller/WixSetup/Datadog Agent/AgentInstaller.cs"
+            REPO_ROOT / "tools/windows/DatadogAgentInstaller/WixSetup/Datadog Agent/AgentInstaller.cs"
         ).read_text()
 
         self.assertIn('public string AgentDataPlane => $@"{_binSource}\\agent-data-plane.exe";', binaries)
         self.assertIn("agentBinDir.AddFile(new WixSharp.File(_agentBinaries.AgentDataPlane));", installer)
-
 
     def test_macos_app_installs_adp_launchdaemon_template(self):
         build_file = (REPO_ROOT / "packages/macos/app/BUILD.bazel").read_text()
