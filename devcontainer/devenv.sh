@@ -77,8 +77,11 @@ add_mount "${HOME}/.claude"                        /home/bits/.claude
 # gh: token lives in hosts.yml and is rewritten on refresh — mount rw
 add_mount "${HOME}/.config/gh"                     /home/bits/.config/gh
 
-# git: config, signing program, and commit hooks
-add_mount "${HOME}/.gitconfig"                     /home/bits/.gitconfig                ro
+# git: signing program and commit hooks.
+# .gitconfig is NOT bind-mounted: bind-mounting a single file blocks atomic rewrites
+# (rename-over-mount → EBUSY), which breaks "gh auth login" and "git config --global".
+# The home named volume owns .gitconfig; git identity is seeded via GIT_AUTHOR_* env vars
+# which startup.sh picks up and writes into the volume's .gitconfig on first boot.
 add_mount "${HOME}/.config/gitsign"                /home/bits/.config/gitsign           ro
 add_mount "${HOME}/.global_hooks"                  /home/bits/.global_hooks             ro
 add_mount "${HOME}/.tmux.conf"                     /home/bits/.tmux.conf                ro
@@ -99,6 +102,9 @@ ENV_FLAGS=(
     -e HOST_UID="$(id -u)"
     -e HOST_GID="$(id -g)"
     -e SSH_AUTH_SOCK=/ssh-agent
+    # Seed git identity into the home volume's .gitconfig via startup.sh.
+    -e GIT_AUTHOR_NAME="$(git config --global user.name 2>/dev/null || true)"
+    -e GIT_AUTHOR_EMAIL="$(git config --global user.email 2>/dev/null || true)"
     # Tell pass where its dedicated GPG homedir is (set on the host via /etc/profile.d/).
     -e PASSWORD_STORE_GPG_OPTS="--homedir /home/bits/.config/password-store/gpg"
     # Tell pass/aws-vault where to find the credential store.
