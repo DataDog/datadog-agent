@@ -128,6 +128,64 @@ The signing key is persisted at `~/.fakeintake/signing.key` by default — it mu
 match the agent's stored `remote-config.db`. Generating a new key requires
 flushing that DB.
 
+## Running fakeintake locally
+
+Build and start the server:
+
+```bash
+dda inv fakeintake.build
+# Binaries land in test/fakeintake/build/
+
+./test/fakeintake/build/fakeintake              # listens on :80 (default)
+./test/fakeintake/build/fakeintake --port 8080  # custom port
+```
+
+The server prints its RC signing keys at startup — paste them into `datadog.yaml`
+if you need Remote Config (see Remote Config section below).
+
+## Agent configuration for local fakeintake
+
+Minimal `datadog.yaml` to redirect all agent forwarders to a locally running
+fakeintake. Substitute `PORT` with the port fakeintake is listening on (default: 80).
+
+```yaml
+api_key: "00000000000000000000000000000001"
+
+dd_url: "http://localhost:PORT"
+
+logs_config:
+  logs_dd_url: "localhost:PORT"
+  logs_no_ssl: true
+  force_use_http: true
+
+process_config:
+  process_dd_url: "http://localhost:PORT"
+
+apm_config:
+  apm_dd_url: "http://localhost:PORT"
+```
+
+**`skip_ssl_validation` gotcha:** do _not_ set `skip_ssl_validation: true` — it
+causes Remote Config initialization to fail with a TLS-validation error. If you
+need to disable TLS validation for RC specifically, use
+`remote_configuration.no_tls_validation: true` instead.
+
+Place this file at `dev/dist/datadog.yaml`; after building with
+`dda inv agent.build` it is copied to `bin/agent/dist/datadog.yaml`. Run the
+agent with:
+
+```bash
+./bin/agent/agent run -c bin/agent/dist/datadog.yaml
+```
+
+Verify payloads are arriving with `fakeintakectl`:
+
+```bash
+FAKEINTAKECTL=test/fakeintake/build/fakeintakectl
+$FAKEINTAKECTL --url http://localhost:PORT get metric names
+$FAKEINTAKECTL --url http://localhost:PORT route-stats
+```
+
 ## CLI usage (`fakeintakectl`)
 
 Use `fakeintakectl` (built from `cmd/client/`) for non-Go callers — Python
