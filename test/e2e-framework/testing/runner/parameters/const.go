@@ -94,6 +94,14 @@ const (
 	CoverageOutDir StoreKey = "coverage_out_dir"
 	// SkipWindows skips Windows infrastructure and workloads in tests
 	SkipWindows StoreKey = "skip_windows"
+	// EnvDescriptor is the path to a pre-provisioned environment descriptor JSON file.
+	// When set, BaseSuite.SetupSuite skips Pulumi provisioning and loads the env
+	// from the descriptor, then runs PostProvision (agent install) + tests.
+	// Use this to split the provision step from the install+test step in CI.
+	EnvDescriptor StoreKey = "env_descriptor"
+	// DumpEnvDescriptor is the path where SetupSuite should write the environment
+	// descriptor JSON after a successful Pulumi provision, for use by a subsequent job.
+	DumpEnvDescriptor StoreKey = "dump_env_descriptor"
 )
 
 const (

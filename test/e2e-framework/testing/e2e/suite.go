@@ -222,6 +222,10 @@ type BaseSuite[Env any] struct {
 	// after SetupSuite returns, so a Goexit during setup never registers the defer); the
 	// t.Cleanup hook covers that one gap.
 	cleanupCalled bool
+
+	// attachMode is true when the environment was loaded from a descriptor file
+	// rather than provisioned by Pulumi. TearDown is skipped in this mode.
+	attachMode bool
 }
 
 //
@@ -409,6 +413,14 @@ func (bs *BaseSuite[Env]) init(options []SuiteOption, self Suite[Env]) {
 	}
 
 	bs.originalProvisioners = bs.params.provisioners
+
+	// Env-var overrides for the descriptor paths (take precedence over SuiteOption).
+	if v, err := runner.GetProfile().ParamStore().GetWithDefault(parameters.EnvDescriptor, ""); err == nil && v != "" {
+		bs.params.envDescriptorPath = v
+	}
+	if v, err := runner.GetProfile().ParamStore().GetWithDefault(parameters.DumpEnvDescriptor, ""); err == nil && v != "" {
+		bs.params.dumpEnvDescriptorPath = v
+	}
 }
 
 func (bs *BaseSuite[Env]) reconcileEnv(targetProvisioners provisioners.ProvisionerMap) error {
@@ -683,9 +695,28 @@ func (bs *BaseSuite[Env]) SetupSuite() {
 	bs.Require().NoError(err)
 	bs.datadogClient = datadog.NewClient(apiKey, appKey)
 
-	if err := bs.reconcileEnv(bs.originalProvisioners); err != nil {
-		// `panic()` is required to stop the execution of the test suite. Otherwise `testify.Suite` will keep on running suite tests.
-		panic(err)
+	if bs.params.envDescriptorPath != "" {
+		// Attach mode: load a pre-provisioned environment from a descriptor file
+		// instead of running Pulumi. This enables the provision-then-install split.
+		utils.Logf(bs.T(), "Attach mode: loading env from descriptor %s", bs.params.envDescriptorPath)
+		if err := bs.loadEnvFromDescriptor(bs.params.envDescriptorPath); err != nil {
+			panic(fmt.Errorf("attach mode: failed to load env from descriptor %s: %w", bs.params.envDescriptorPath, err))
+		}
+		bs.attachMode = true
+	} else {
+		if err := bs.reconcileEnv(bs.originalProvisioners); err != nil {
+			// `panic()` is required to stop the execution of the test suite. Otherwise `testify.Suite` will keep on running suite tests.
+			panic(err)
+		}
+		// After a successful Pulumi provision, optionally dump the env descriptor for
+		// use by a subsequent install+test job.
+		if bs.params.dumpEnvDescriptorPath != "" {
+			if err := bs.dumpEnvDescriptor(bs.params.dumpEnvDescriptorPath); err != nil {
+				utils.Logf(bs.T(), "WARNING: failed to dump env descriptor to %s: %v", bs.params.dumpEnvDescriptorPath, err)
+			} else {
+				utils.Logf(bs.T(), "Env descriptor written to %s", bs.params.dumpEnvDescriptorPath)
+			}
+		}
 	}
 
 	// Call PostProvision on any provisioner that supports post-infrastructure
@@ -783,6 +814,13 @@ func (bs *BaseSuite[Env]) IsWithinCI() bool {
 // [testify Suite]: https://pkg.go.dev/github.com/stretchr/testify/suite
 func (bs *BaseSuite[Env]) TearDownSuite() {
 	if bs.cleanupCalled {
+		return
+	}
+	// In attach mode the provision job owns the infrastructure lifetime.
+	// Skip destruction so we don't tear down what another job is responsible for.
+	if bs.attachMode {
+		utils.Logf(bs.T(), "Attach mode: skipping infrastructure teardown (managed by provision job)")
+		bs.cleanupCalled = true
 		return
 	}
 	bs.cleanupCalled = true

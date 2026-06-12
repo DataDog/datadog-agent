@@ -534,6 +534,8 @@ def _compute_go_test_timeout(explicit: str | None, now: datetime.datetime | None
         "keep_stack": "Keep the stack after running the test, you are responsible for destroying the stack later.",
         "timeout": "Go test timeout (Go duration string, e.g. '1h55m'). Defaults to CI_JOB_TIMEOUT minus a teardown buffer when running in GitLab CI, otherwise to 4h.",
         "pipeline_id": "GitLab pipeline ID to use; the commit SHA is automatically fetched from this pipeline for container-based tests",
+        "env_descriptor": "Path to a pre-provisioned environment descriptor JSON (enables attach mode: skip Pulumi, install agent + run tests only). Also readable from E2E_ENV_DESCRIPTOR.",
+        "dump_env_descriptor": "Path where the env descriptor JSON should be written after a successful Pulumi provision (provision job only). Also readable from E2E_DUMP_ENV_DESCRIPTOR.",
     },
 )
 def run(
@@ -564,6 +566,8 @@ def run(
     local_package="",
     result_json=DEFAULT_E2E_TEST_OUTPUT_JSON,
     stack_name_suffix="",
+    env_descriptor="",
+    dump_env_descriptor="",
     use_prebuilt_binaries=False,
     max_retries=0,
     osdescriptors="",
@@ -742,6 +746,12 @@ def run(
 
     if stack_name_suffix:
         env_vars["E2E_STACK_NAME_SUFFIX"] = stack_name_suffix
+
+    if env_descriptor:
+        env_vars["E2E_ENV_DESCRIPTOR"] = env_descriptor
+
+    if dump_env_descriptor:
+        env_vars["E2E_DUMP_ENV_DESCRIPTOR"] = dump_env_descriptor
 
     gotestsum_format = "standard-verbose" if verbose else "pkgname"
 
