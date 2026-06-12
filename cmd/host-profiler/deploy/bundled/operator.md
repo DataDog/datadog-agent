@@ -86,7 +86,7 @@ spec:
     nodeAgent:
       containers:
         host-profiler:
-          appArmorProfileName: localhost/dd-host-profiler
+          appArmorProfileName: localhost/host-profiler
 ```
 
 ## Verification
