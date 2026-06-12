@@ -11,8 +11,21 @@ import (
 
 	"go.uber.org/atomic"
 
-	"github.com/DataDog/datadog-agent/comp/netflow/common"
 	flowpb "github.com/netsampler/goflow2/pb"
+
+	"github.com/DataDog/datadog-agent/comp/netflow/common"
+)
+
+// Used to map biflow byte/packet counts through additionalFields
+const (
+	biflowInitiatorOctets  = "initiator_octets"
+	biflowResponderOctets  = "responder_octets"
+	biflowInitiatorPackets = "initiator_packets"
+	biflowResponderPackets = "responder_packets"
+	biflowInBytes          = "in_bytes"
+	biflowInPackets        = "in_packets"
+	biflowOutBytes         = "out_bytes"
+	biflowOutPackets       = "out_packets"
 )
 
 // AggregatorFormatDriver is used as goflow formatter to forward flow data to aggregator/EP Forwarder
@@ -48,11 +61,81 @@ func (d *AggregatorFormatDriver) Format(data interface{}) ([]byte, []byte, error
 		d.listenerFlowCount.Add(1)
 		d.flowAggIn <- ConvertFlow(flow, d.namespace)
 	case *common.FlowMessageWithAdditionalFields:
+		fwd, rev := splitBiflow(ConvertFlowWithAdditionalFields(flow, d.namespace))
 		d.listenerFlowCount.Add(1)
-		d.flowAggIn <- ConvertFlowWithAdditionalFields(flow, d.namespace)
+		d.flowAggIn <- fwd
+		if rev != nil {
+			d.listenerFlowCount.Add(1)
+			d.flowAggIn <- rev
+		}
 	default:
 		return nil, nil, errors.New("message is not flowpb.FlowMessage or common.FlowMessageWithAdditionalFields")
 	}
 
 	return nil, nil, nil
+}
+
+// Detects bidirectional flow records and splits them into two unidirectional flows
+func splitBiflow(flow *common.Flow) (*common.Flow, *common.Flow) {
+	if flow.AdditionalFields == nil {
+		return flow, nil
+	}
+	initOctets, hasInitOctets := flow.AdditionalFields[biflowInitiatorOctets].(uint64)
+	initPkts, _ := flow.AdditionalFields[biflowInitiatorPackets].(uint64)
+	respOctets, hasRespOctets := flow.AdditionalFields[biflowResponderOctets].(uint64)
+	respPkts, _ := flow.AdditionalFields[biflowResponderPackets].(uint64)
+
+	inBytes, _ := flow.AdditionalFields[biflowInBytes].(uint64)
+	inPackets, _ := flow.AdditionalFields[biflowInPackets].(uint64)
+	outBytes, hasOutBytes := flow.AdditionalFields[biflowOutBytes].(uint64)
+	outPackets, _ := flow.AdditionalFields[biflowOutPackets].(uint64)
+
+	delete(flow.AdditionalFields, biflowInitiatorOctets)
+	delete(flow.AdditionalFields, biflowInitiatorPackets)
+	delete(flow.AdditionalFields, biflowResponderOctets)
+	delete(flow.AdditionalFields, biflowResponderPackets)
+	delete(flow.AdditionalFields, biflowInBytes)
+	delete(flow.AdditionalFields, biflowInPackets)
+	delete(flow.AdditionalFields, biflowOutBytes)
+	delete(flow.AdditionalFields, biflowOutPackets)
+
+	var revBytes, revPkts uint64
+	hasRev := false
+
+	if hasInitOctets {
+		flow.Bytes = initOctets
+		flow.Packets = initPkts
+		if hasRespOctets && respOctets > 0 {
+			revBytes, revPkts, hasRev = respOctets, respPkts, true
+		}
+	} else if hasOutBytes && outBytes > 0 {
+		flow.Bytes = inBytes
+		flow.Packets = inPackets
+		revBytes, revPkts, hasRev = outBytes, outPackets, true
+	}
+
+	if !hasRev {
+		return flow, nil
+	}
+
+	// copy flow and swap src/dst for reverse direction
+	rev := *flow
+	rev.SrcAddr = append([]byte(nil), flow.DstAddr...)
+	rev.DstAddr = append([]byte(nil), flow.SrcAddr...)
+	rev.SrcPort, rev.DstPort = flow.DstPort, flow.SrcPort
+	rev.SrcMac, rev.DstMac = flow.DstMac, flow.SrcMac
+	rev.SrcMask, rev.DstMask = flow.DstMask, flow.SrcMask
+	rev.SrcReverseDNSHostname = flow.DstReverseDNSHostname
+	rev.DstReverseDNSHostname = flow.SrcReverseDNSHostname
+	rev.InputInterface, rev.OutputInterface = flow.OutputInterface, flow.InputInterface
+	rev.Bytes, rev.Packets = revBytes, revPkts
+	rev.Direction = 1 // egress
+
+	if flow.AdditionalFields != nil {
+		rev.AdditionalFields = make(common.AdditionalFields, len(flow.AdditionalFields))
+		for k, v := range flow.AdditionalFields {
+			rev.AdditionalFields[k] = v
+		}
+	}
+	return flow, &rev
 }

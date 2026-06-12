@@ -10,12 +10,14 @@ package netflowstate
 import (
 	"bytes"
 	"context"
-	"github.com/DataDog/datadog-agent/comp/netflow/common"
-	"github.com/DataDog/datadog-agent/comp/netflow/config/def"
-	"github.com/DataDog/datadog-agent/comp/netflow/goflowlib/additionalfields"
-	"github.com/netsampler/goflow2/utils"
 	"sync"
 	"time"
+
+	"github.com/netsampler/goflow2/utils"
+
+	"github.com/DataDog/datadog-agent/comp/netflow/common"
+	config "github.com/DataDog/datadog-agent/comp/netflow/config/def"
+	"github.com/DataDog/datadog-agent/comp/netflow/goflowlib/additionalfields"
 
 	"github.com/netsampler/goflow2/decoders/netflow"
 	"github.com/netsampler/goflow2/decoders/netflow/templates"
@@ -25,6 +27,18 @@ import (
 	"github.com/netsampler/goflow2/transport"
 	"github.com/prometheus/client_golang/prometheus"
 )
+
+// Used to map biflow byte/packet counts through Additional Fields (see formatdriver.go)
+var builtinBiflowMappings = []config.Mapping{
+	{Field: 231, Type: common.Integer, Destination: "initiator_octets", Endian: common.BigEndian},
+	{Field: 232, Type: common.Integer, Destination: "responder_octets", Endian: common.BigEndian},
+	{Field: 298, Type: common.Integer, Destination: "initiator_packets", Endian: common.BigEndian},
+	{Field: 299, Type: common.Integer, Destination: "responder_packets", Endian: common.BigEndian},
+	{Field: 1, Type: common.Integer, Destination: "in_bytes", Endian: common.BigEndian},
+	{Field: 2, Type: common.Integer, Destination: "in_packets", Endian: common.BigEndian},
+	{Field: 23, Type: common.Integer, Destination: "out_bytes", Endian: common.BigEndian},
+	{Field: 24, Type: common.Integer, Destination: "out_packets", Endian: common.BigEndian},
+}
 
 // StateNetFlow holds a NetflowV9/IPFIX producer
 type StateNetFlow struct {
@@ -160,6 +174,9 @@ func (s *StateNetFlow) initConfig() {
 
 func mapFieldsConfig(mappingConfs []config.Mapping) map[uint16]config.Mapping {
 	mappedFieldsConfig := make(map[uint16]config.Mapping)
+	for _, m := range builtinBiflowMappings {
+		mappedFieldsConfig[m.Field] = m
+	}
 	for _, conf := range mappingConfs {
 		mappedFieldsConfig[conf.Field] = conf
 	}
