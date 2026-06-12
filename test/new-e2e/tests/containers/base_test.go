@@ -70,6 +70,21 @@ type testMetricExpectValueArgs struct {
 	Max float64
 }
 
+// cpustressUsageMin / cpustressUsageMax bound the expected `container.cpu.usage`
+// (in nanocores) for the shared stress-ng workload (`--cpu=1 --cpu-load=15`
+// under a 0.2-core allocation: a 200m limit on Kubernetes, Cpu:200 on ECS).
+// The reported usage is noisy: across 220 failures sampled from two independent
+// bursts (2026-05 and 2026-06) the value spanned [0.125, 0.172] core, roughly
+// symmetric around the ~0.15 target. The previous [0.145, 0.155] window (±3%)
+// sat well inside that spread, making it the dominant flake for TestCPU across
+// the Kind/EKS/OpenShift/ECS suites (CONTINT-5277, CONTINT-5146, CONTINT-3928,
+// CONTINT-4153). [0.12, 0.18] covers the observed envelope with a small margin
+// while still catching gross collection errors.
+const (
+	cpustressUsageMin = 120_000_000 // 0.12 core (observed min ~0.125)
+	cpustressUsageMax = 180_000_000 // 0.18 core (observed max ~0.172)
+)
+
 // myCollectT does nothing more than "github.com/stretchr/testify/assert".CollectT
 // It’s used only to get access to `errors` field which is otherwise private.
 type myCollectT struct {
