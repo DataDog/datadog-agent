@@ -2583,6 +2583,8 @@ github.com/DataDog/gopacket v0.0.0-20260429164037-ee5a3263d056 h1:S7D0BKyRGQvojP
 github.com/DataDog/gopacket v0.0.0-20260429164037-ee5a3263d056/go.mod h1:HRh7JESdpg5Hh6f8QMoFPht5/r/fPs/Hl3qghMoDztI=
 github.com/DataDog/jsonapi v0.12.0 h1:N4e9RpmUflcV5hzceltSz8XUpM3PMtQr5C9Bhv0g87s=
 github.com/DataDog/jsonapi v0.12.0/go.mod h1:FUSGF3bwMARlVfXEoFo9R/CVlYYy9BGL4C/Prf6Ke3M=
+github.com/DataDog/kube-state-metrics/v2 v2.18.1-dd.1 h1:jOm7IWckE0Ds+Dh27yvPEF0tUGd8uor34yfXVAaPDyQ=
+github.com/DataDog/kube-state-metrics/v2 v2.18.1-dd.1/go.mod h1:l3y0BPcRFh7fm+wM9gRCqcXUQlsr9JzbFtEySbJYxCQ=
 github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 h1:EbzDX8HPk5uE2FsJYxD74QmMw0/3CqSKhEr6teh0ncQ=
 github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49/go.mod h1:SvsjzyJlSg0rKsqYgdcFxeEVflx3ZNAyFfkUHP0TxXg=
 github.com/DataDog/netlink v1.0.1-0.20240223195320-c7a4f832a3d1 h1:HnvrdC79xJ+RPxTQdhDDwxblTNWhJUKeyTPsuyaOnxQ=
@@ -2628,8 +2630,6 @@ github.com/Intevation/jsonpath v0.2.1/go.mod h1:WnZ8weMmwAx/fAO3SutjYFU+v7DFreNY
 github.com/Jeffail/gabs/v2 v2.1.0 h1:6dV9GGOjoQgzWTQEltZPXlJdFloxvIq7DwqgxMCbq30=
 github.com/Jeffail/gabs/v2 v2.1.0/go.mod h1:xCn81vdHKxFUuWWAaD5jCTQDNPBMh5pPs9IJ+NcziBI=
 github.com/JohnCGriffin/overflow v0.0.0-20211019200055-46fa312c352c/go.mod h1:X0CRv0ky0k6m906ixxpzmDRLvX58TFUKS2eePweuyxk=
-github.com/L3n41c/kube-state-metrics/v2 v2.18.1-0.20260415185427-29e500020566 h1:qT90f/cp2nS0MzD8pAO10Wgsf43XzD1hugjyUqflKuQ=
-github.com/L3n41c/kube-state-metrics/v2 v2.18.1-0.20260415185427-29e500020566/go.mod h1:l3y0BPcRFh7fm+wM9gRCqcXUQlsr9JzbFtEySbJYxCQ=
 github.com/Masterminds/goutils v1.1.1 h1:5nUrii3FMTL5diU80unEVvNevw1nH4+ZV4DSLVJLSYI=
 github.com/Masterminds/goutils v1.1.1/go.mod h1:8cTjp+g8YejhMuvIA5y2vz3BpJxksy863GQaJW2MFNU=
 github.com/Masterminds/semver v1.4.2/go.mod h1:MB6lktGJrhw8PrUyiEoblNEGEQ+RzHPF078ddwwvV3Y=
