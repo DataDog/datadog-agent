@@ -51,6 +51,10 @@ type ListenerConfig struct {
 
 	Configs []Config
 
+	// InitConfig holds the global NCM settings (init_config.ssh) applied as defaults to every
+	// discovered device, overridable per credential via ncm[].ssh.
+	InitConfig NCMInitConfig `mapstructure:"init_config"`
+
 	// DON'T USE. This is only used to read the raw array from datadog.yaml
 	UnmarshalledConfigs []UnmarshalledConfig `mapstructure:"configs"`
 }
@@ -70,6 +74,7 @@ type UnmarshalledConfig struct {
 	IgnoredIPAddresses    []string                                     `mapstructure:"ignored_ip_addresses"`
 	InterfaceConfigs      map[string][]snmpintegration.InterfaceConfig `mapstructure:"interface_configs"`
 	Loader                string                                       `mapstructure:"loader"`
+	NCM                   []NCMCredential                              `mapstructure:"ncm"`
 	MinCollectionInterval uint                                         `mapstructure:"min_collection_interval"`
 	Namespace             string                                       `mapstructure:"namespace"`
 	Network               string                                       `mapstructure:"network_address"`
@@ -107,6 +112,7 @@ type Config struct {
 	Loader                  string
 	MinCollectionInterval   uint
 	Namespace               string
+	NCM                     []NCMCredential
 	Network                 string
 	OidBatchSize            int
 	Port                    uint16
@@ -127,6 +133,36 @@ type Config struct {
 
 	// InterfaceConfigs is a map of IP to a list of snmpintegration.InterfaceConfig
 	InterfaceConfigs map[string][]snmpintegration.InterfaceConfig
+}
+
+// NCMCredential holds SSH credentials used to generate a Network Config Management (NCM)
+// config entry for a device discovered on this subnet. The optional SSH block lets a credential
+// override the connection settings inherited from the global init_config.ssh, field by field.
+type NCMCredential struct {
+	User     string        `mapstructure:"user"`
+	Password string        `mapstructure:"pass"`
+	SSH      *NCMSSHConfig `mapstructure:"ssh"`
+}
+
+// NCMSSHConfig holds optional SSH connection settings for Network Config Management (NCM). It is
+// used both as the global default (init_config.ssh) and as a per-credential override. Pointers are
+// used for scalar booleans/ints so that "not set" can be distinguished from a zero value, allowing
+// strict pass-through: only fields the user actually specified are written to the generated config.
+type NCMSSHConfig struct {
+	Timeout               *int     `mapstructure:"timeout"`
+	KnownHostsPath        string   `mapstructure:"known_hosts_path"`
+	InsecureSkipVerify    *bool    `mapstructure:"insecure_skip_verify"`
+	Ciphers               []string `mapstructure:"ciphers"`
+	KeyExchanges          []string `mapstructure:"key_exchanges"`
+	HostKeyAlgorithms     []string `mapstructure:"host_key_algorithms"`
+	AllowLegacyAlgorithms *bool    `mapstructure:"allow_legacy_algorithms"`
+}
+
+// NCMInitConfig holds the global Network Config Management (NCM) settings configured at the
+// autodiscovery level (network_devices.autodiscovery.init_config). Its SSH block provides defaults
+// that each credential's ncm[].ssh block can override field by field.
+type NCMInitConfig struct {
+	SSH *NCMSSHConfig `mapstructure:"ssh"`
 }
 
 // Authentication holds SNMP authentication data
@@ -203,6 +239,7 @@ func NewListenerConfig() (ListenerConfig, error) {
 			Loader:                unmarshalledConfig.Loader,
 			MinCollectionInterval: unmarshalledConfig.MinCollectionInterval,
 			Namespace:             unmarshalledConfig.Namespace,
+			NCM:                   unmarshalledConfig.NCM,
 			Network:               unmarshalledConfig.Network,
 			OidBatchSize:          unmarshalledConfig.OidBatchSize,
 			PingConfig:            unmarshalledConfig.PingConfig,

@@ -168,6 +168,41 @@ snmp_listener:
 	assert.Equal(t, false, conf.Configs[2].CollectDeviceMetadata)
 }
 
+func TestNewListenerConfigNCM(t *testing.T) {
+	configmock.SetDefaultConfigType(t, "yaml")
+
+	configmock.NewFromYAML(t, `
+network_devices:
+  autodiscovery:
+    configs:
+     - network_address: 10.10.0.0/24
+       snmp_version: 2
+       community_string: 'public'
+       ncm:
+         - user: admin
+           pass: secret
+         - user: netops
+           pass: hunter2
+     - network_address: 10.20.0.0/24
+       snmp_version: 2
+       community_string: 'public'
+`)
+
+	conf, err := snmp.NewListenerConfig()
+	assert.NoError(t, err)
+
+	// First subnet carries two NCM credentials.
+	assert.Equal(t, "10.10.0.0/24", conf.Configs[0].Network)
+	assert.Equal(t, []snmp.NCMCredential{
+		{User: "admin", Password: "secret"},
+		{User: "netops", Password: "hunter2"},
+	}, conf.Configs[0].NCM)
+
+	// Second subnet has no NCM credentials.
+	assert.Equal(t, "10.20.0.0/24", conf.Configs[1].Network)
+	assert.Empty(t, conf.Configs[1].NCM)
+}
+
 func TestNewNetworkDevicesListenerConfig(t *testing.T) {
 	configmock.SetDefaultConfigType(t, "yaml")
 
