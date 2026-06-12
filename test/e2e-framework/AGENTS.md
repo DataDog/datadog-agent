@@ -16,13 +16,13 @@ test/e2e-framework/
 │   ├── e2e/              # Test harness: BaseSuite, Run(), SuiteOption
 │   ├── environments/     # Environment types: Host, DockerHost, Kubernetes, ECS
 │   ├── provisioners/     # Provisioner interfaces + cloud-specific implementations
-│   │   ├── aws/          # host, docker, ecs, kubernetes (eks, kindvm, kubeadm)
+│   │   ├── aws/          # host, docker, ecs, kubernetes (eks, kindvm)
 │   │   ├── azure/        # host (linux, windows), kubernetes (aks)
 │   │   ├── gcp/          # host (linux), kubernetes (gke, openshiftvm)
 │   │   └── local/        # host (podman), kubernetes (kind)
 │   └── components/       # Test-side wrappers: RemoteHost, Agent, FakeIntake
 ├── scenarios/
-│   └── aws/              # Pulumi programs: ec2, ec2docker, ecs, eks, kindvm, kubeadm
+│   └── aws/              # Pulumi programs: ec2, ec2docker, ecs, eks, kindvm
 ├── components/
 │   ├── datadog/          # Pulumi components: agent, agentparams, fakeintake
 │   │   ├── agentparams/  # Agent configuration options (WithAgentConfig, etc.)
