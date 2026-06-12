@@ -83,9 +83,12 @@ add_mount "${HOME}/.ssh"                      /home/bits/.ssh            ro
 add_mount "${SSH_AGENT_SOCK}"                 /ssh-agent
 
 # GPG / pass: required for the ddtool → Vault → GPG auth chain that backs claude + dd-gitsign.
-# .gnupg is rw because gpg-agent writes state; .password-store is read-only.
-add_mount "${HOME}/.gnupg"                    /home/bits/.gnupg
-add_mount "${HOME}/.password-store"           /home/bits/.password-store ro
+# pass uses a separate GPG homedir under .config/password-store/gpg (not ~/.gnupg).
+# Both need to be rw because the GPG agent writes state into them.
+add_mount "${HOME}/.gnupg"                         /home/bits/.gnupg
+add_mount "${HOME}/.config/password-store/gpg"     /home/bits/.config/password-store/gpg
+add_mount "${HOME}/.password-store"                /home/bits/.password-store ro
+add_mount "${HOME}/.claude.json"                   /home/bits/.claude.json
 
 ENV_FLAGS=(
     # Map the host user's UID/GID into the container so file ownership is correct.
@@ -93,6 +96,8 @@ ENV_FLAGS=(
     -e HOST_UID="$(id -u)"
     -e HOST_GID="$(id -g)"
     -e SSH_AUTH_SOCK=/ssh-agent
+    # Tell pass where its dedicated GPG homedir is (set on the host via /etc/profile.d/).
+    -e PASSWORD_STORE_GPG_OPTS="--homedir /home/bits/.config/password-store/gpg"
     # Tell pass/aws-vault where to find the credential store.
     -e AWS_VAULT_BACKEND=pass
     -e AWS_VAULT_PASS_PREFIX=aws-vault
