@@ -67,6 +67,7 @@ func NewConcentrator(conf *config.AgentConfig, writer Writer, now time.Time, sta
 		ComputeStatsBySpanKind: conf.ComputeStatsBySpanKind,
 		BucketInterval:         bsize,
 	}, now)
+	sc.additionalMetricTagValueBlockSentinel = blockedByAgentSentinel
 	_, disabledCIDStats := conf.Features["disable_cid_stats"]
 	_, disabledProcessStats := conf.Features["disable_process_stats"]
 	c := Concentrator{
