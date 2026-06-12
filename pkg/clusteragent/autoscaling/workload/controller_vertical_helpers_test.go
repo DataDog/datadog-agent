@@ -691,6 +691,108 @@ func TestApplyVerticalConstraints_AllFeatures(t *testing.T) {
 	assert.Equal(t, expectedHash, vertical.ResourcesHash)
 }
 
+func TestApplyVerticalConstraints_CPURequestsRemoveLimits(t *testing.T) {
+	vertical := &model.VerticalScalingValues{
+		ResourcesHash: "original-hash",
+		ContainerResources: []datadoghqcommon.DatadogPodAutoscalerContainerResources{
+			{
+				Name:     "app",
+				Requests: corev1.ResourceList{"cpu": resource.MustParse("300m"), "memory": resource.MustParse("256Mi")},
+				Limits:   corev1.ResourceList{"cpu": resource.MustParse("600m"), "memory": resource.MustParse("512Mi")},
+			},
+		},
+	}
+	constraints := &datadoghqcommon.DatadogPodAutoscalerConstraints{
+		Containers: []datadoghqcommon.DatadogPodAutoscalerContainerConstraints{
+			{
+				Name:             "app",
+				ControlledValues: pointer.Ptr(datadoghqcommon.DatadogPodAutoscalerContainerControlledValuesCPURequestsRemoveLimitsMemoryRequestsAndLimits),
+			},
+		},
+	}
+
+	limitErr, err := applyVerticalConstraints(vertical, constraints, false)
+	require.NoError(t, err)
+	assert.Nil(t, limitErr)
+
+	require.Len(t, vertical.ContainerResources, 1)
+	app := vertical.ContainerResources[0]
+
+	// CPU limit must carry the sentinel value so patchContainerResources removes it from the pod
+	cpuLimit, exists := app.Limits[corev1.ResourceCPU]
+	require.True(t, exists, "CPU key must be present in limits (sentinel)")
+	assert.Equal(t, 0, cpuLimit.Cmp(removeLimitSentinel), "CPU limit must be the remove-limit sentinel value")
+	// Memory limit must be preserved
+	assert.Equal(t, resource.MustParse("512Mi"), app.Limits[corev1.ResourceMemory], "memory limit must be preserved")
+	// CPU and memory requests must be preserved
+	assert.Equal(t, resource.MustParse("300m"), app.Requests[corev1.ResourceCPU])
+	assert.Equal(t, resource.MustParse("256Mi"), app.Requests[corev1.ResourceMemory])
+
+	// Hash must be recomputed
+	assert.NotEqual(t, "original-hash", vertical.ResourcesHash)
+	expectedHash, err := autoscaling.ObjectHash(vertical.ContainerResources)
+	require.NoError(t, err)
+	assert.Equal(t, expectedHash, vertical.ResourcesHash)
+}
+
+// TestApplyVerticalConstraints_CPURequestsRemoveLimits_PerContainer verifies that the
+// CPU-limit removal sentinel is applied per-container: with burstable=false, only the
+// container whose ControlledValues is CPURequestsRemoveLimitsMemoryRequestsAndLimits gets
+// its CPU limit stamped, while a sibling container with a plain constraint keeps its CPU
+// limit untouched. This guards the per-container granularity against being collapsed into
+// the autoscaler-wide burstable flag.
+func TestApplyVerticalConstraints_CPURequestsRemoveLimits_PerContainer(t *testing.T) {
+	vertical := &model.VerticalScalingValues{
+		ResourcesHash: "original-hash",
+		ContainerResources: []datadoghqcommon.DatadogPodAutoscalerContainerResources{
+			{
+				Name:     "app",
+				Requests: corev1.ResourceList{"cpu": resource.MustParse("300m"), "memory": resource.MustParse("256Mi")},
+				Limits:   corev1.ResourceList{"cpu": resource.MustParse("600m"), "memory": resource.MustParse("512Mi")},
+			},
+			{
+				Name:     "sidecar",
+				Requests: corev1.ResourceList{"cpu": resource.MustParse("100m"), "memory": resource.MustParse("128Mi")},
+				Limits:   corev1.ResourceList{"cpu": resource.MustParse("200m"), "memory": resource.MustParse("256Mi")},
+			},
+		},
+	}
+	constraints := &datadoghqcommon.DatadogPodAutoscalerConstraints{
+		Containers: []datadoghqcommon.DatadogPodAutoscalerContainerConstraints{
+			{
+				Name:             "app",
+				ControlledValues: pointer.Ptr(datadoghqcommon.DatadogPodAutoscalerContainerControlledValuesCPURequestsRemoveLimitsMemoryRequestsAndLimits),
+			},
+			{
+				// Plain constraint, no CPU-limit removal requested.
+				Name:       "sidecar",
+				MaxAllowed: corev1.ResourceList{"cpu": resource.MustParse("2")},
+			},
+		},
+	}
+
+	limitErr, err := applyVerticalConstraints(vertical, constraints, false)
+	require.NoError(t, err)
+	assert.Nil(t, limitErr)
+
+	require.Len(t, vertical.ContainerResources, 2)
+	byName := map[string]datadoghqcommon.DatadogPodAutoscalerContainerResources{}
+	for _, cr := range vertical.ContainerResources {
+		byName[cr.Name] = cr
+	}
+
+	// "app" requested CPU-limit removal -> sentinel stamped.
+	appCPULimit, exists := byName["app"].Limits[corev1.ResourceCPU]
+	require.True(t, exists, "app CPU key must be present in limits (sentinel)")
+	assert.Equal(t, 0, appCPULimit.Cmp(removeLimitSentinel), "app CPU limit must be the remove-limit sentinel value")
+
+	// "sidecar" did not request removal -> CPU limit must be preserved verbatim, not a sentinel.
+	sidecarCPULimit, exists := byName["sidecar"].Limits[corev1.ResourceCPU]
+	require.True(t, exists, "sidecar CPU limit must be preserved")
+	assert.Equal(t, 0, sidecarCPULimit.Cmp(resource.MustParse("200m")), "sidecar CPU limit must be unchanged")
+	assert.Greater(t, sidecarCPULimit.Sign(), 0, "sidecar CPU limit must not carry the removal sentinel")
+}
+
 func TestApplyVerticalConstraints_ValidationErrors(t *testing.T) {
 	vertical := &model.VerticalScalingValues{
 		ResourcesHash: "original-hash",
@@ -778,7 +880,7 @@ func TestFromAutoscalerToContainerResourcePatches_Burstable(t *testing.T) {
 		Containers: []workloadmeta.OrchestratorContainer{{Name: "app"}},
 	}
 
-	t.Run("burstable: cpu removed from limits, LimitsToDelete set", func(t *testing.T) {
+	t.Run("burstable=true: cpu removed from limits, LimitsToDelete set", func(t *testing.T) {
 		ai := (&model.FakePodAutoscalerInternal{
 			Namespace:            "default",
 			Name:                 "ai",
@@ -796,7 +898,7 @@ func TestFromAutoscalerToContainerResourcePatches_Burstable(t *testing.T) {
 		assert.Equal(t, []string{"cpu"}, p.LimitsToDelete, "cpu must be listed for deletion")
 	})
 
-	t.Run("non-burstable: cpu limit set normally, LimitsToDelete empty", func(t *testing.T) {
+	t.Run("burstable=false: cpu limit set normally, LimitsToDelete empty", func(t *testing.T) {
 		ai := (&model.FakePodAutoscalerInternal{
 			Namespace:     "default",
 			Name:          "ai",
@@ -935,4 +1037,63 @@ func TestCountDisruptedPods(t *testing.T) {
 	}
 	assert.Equal(t, 4, countDisruptedPods(m))
 	assert.Equal(t, 0, countDisruptedPods(nil))
+}
+
+// TestApplyVerticalConstraints_BurstableHashChange verifies that enabling and disabling
+// burstable mode produces distinct ResourcesHash values.  This hash difference is what
+// the vertical controller uses as the recommendationID: when pods carry the old hash and
+// the new recommendationID differs, a rollout is triggered.  Concretely:
+//   - burstable=false with no constraints is a no-op (hash unchanged from backend value)
+//   - burstable=true stamps removeLimitSentinel on every CPU limit and recomputes the hash
+//
+// The two hashes must never be equal, otherwise unsetting spec.options.burstable would not
+// trigger a rollout to restore CPU limits.
+func TestApplyVerticalConstraints_BurstableHashChange(t *testing.T) {
+	backendHash := "backend-hash-v1"
+	baseRec := func() *model.VerticalScalingValues {
+		return &model.VerticalScalingValues{
+			ResourcesHash: backendHash,
+			ContainerResources: []datadoghqcommon.DatadogPodAutoscalerContainerResources{
+				{
+					Name:     "app",
+					Requests: corev1.ResourceList{"cpu": resource.MustParse("200m")},
+					Limits:   corev1.ResourceList{"cpu": resource.MustParse("400m")},
+				},
+			},
+		}
+	}
+
+	t.Run("burstable=false with no constraints leaves hash unchanged", func(t *testing.T) {
+		rec := baseRec()
+		_, err := applyVerticalConstraints(rec, nil, false)
+		require.NoError(t, err)
+		assert.Equal(t, backendHash, rec.ResourcesHash,
+			"burstable=false with no constraints must not modify the hash")
+	})
+
+	t.Run("burstable=true stamps sentinel and recomputes hash", func(t *testing.T) {
+		rec := baseRec()
+		_, err := applyVerticalConstraints(rec, nil, true)
+		require.NoError(t, err)
+		assert.NotEqual(t, backendHash, rec.ResourcesHash,
+			"burstable=true must recompute the hash after stamping the CPU-limit sentinel")
+		cpuLimit := rec.ContainerResources[0].Limits[corev1.ResourceCPU]
+		assert.Equal(t, removeLimitSentinel, cpuLimit,
+			"burstable=true must stamp removeLimitSentinel on each CPU limit")
+	})
+
+	t.Run("burstable hash differs from non-burstable hash — rollout is triggered on toggle", func(t *testing.T) {
+		withBurstable := baseRec()
+		_, err := applyVerticalConstraints(withBurstable, nil, true)
+		require.NoError(t, err)
+
+		withoutBurstable := baseRec()
+		// burstable=false with no constraints is a no-op; hash stays as backendHash.
+		_, err = applyVerticalConstraints(withoutBurstable, nil, false)
+		require.NoError(t, err)
+
+		assert.NotEqual(t, withBurstable.ResourcesHash, withoutBurstable.ResourcesHash,
+			"toggling burstable must change the recommendationID so the vertical controller "+
+				"detects that pods carry a stale hash and triggers a rollout to restore CPU limits")
+	})
 }

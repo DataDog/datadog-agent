@@ -6131,6 +6131,35 @@ properties:
         node_type: section
         type: object
         properties:
+          anomaly_scorer:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: false
+              alpha:
+                node_type: setting
+                type: number
+                golang_type: float64
+                default: 0.014
+                comment: EWMA smoothing factor (0 < alpha < 1). Smaller values produce
+                  a slower-moving, more stable signal.
+              saturation_k:
+                node_type: setting
+                type: number
+                golang_type: float64
+                default: 5.0
+                comment: Saturation cap in anomaly-count units. Limits the maximum
+                  contribution of a single second to the EWMA to avoid spikes dominating
+                  the signal.
+              window_secs:
+                node_type: setting
+                type: integer
+                default: 15
+                comment: Sliding deduplication window in seconds. An anomaly series
+                  is counted at most once per window.
           bocpd:
             node_type: section
             type: object
@@ -6461,7 +6490,7 @@ properties:
               enabled:
                 node_type: setting
                 type: boolean
-                default: false
+                default: true
           limit:
             node_type: setting
             type: integer
@@ -7033,14 +7062,6 @@ properties:
         node_type: setting
         type: string
         default: tcp://0.0.0.0:5101
-      telemetry_enabled:
-        node_type: setting
-        type: boolean
-        default: false
-      telemetry_listen_addr:
-        node_type: setting
-        type: string
-        default: tcp://0.0.0.0:5102
       use_new_config_stream_endpoint:
         node_type: setting
         type: boolean
@@ -8346,8 +8367,11 @@ properties:
         properties:
           interval:
             node_type: setting
-            type: string
+            type: number
             default: 0s
+            format: duration
+            tags:
+            - golang_type:duration
       persist_on_kubernetes:
         node_type: setting
         type: boolean

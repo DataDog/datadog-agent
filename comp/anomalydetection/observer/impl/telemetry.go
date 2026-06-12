@@ -25,6 +25,8 @@ const (
 	telemetryStorageCapacityHit              = "observer.storage.capacity_hit"                // Number of times storage capacity eviction was triggered.
 	telemetryAdvanceSkipped                  = "observer.scheduler.advance_skipped"           // Number of advance requests skipped as already analyzed.
 	telemetryLogsSamplerDropped              = "observer.logs.sampler_dropped"                // Logs dropped by the source sampler before reaching the observer, by source and priority.
+	telemetryDetectorProcessingTimeNs        = "observer.detector.processing_time_ns"         // Per-detector processing time in nanoseconds.
+	telemetryScorerEWMA                      = "observer.scorer.ewma"                         // Anomaly scorer smoothed EWMA signal, updated every second.
 )
 
 type observerTelemetry struct {
@@ -44,6 +46,8 @@ type observerTelemetry struct {
 	storageCapHit    telemetry.Counter
 	advanceSkipped   telemetry.Counter
 	samplerDropped   telemetry.Counter
+	processingTime   telemetry.Gauge
+	scorerEwma       telemetry.Gauge
 
 	inFlightInternal   atomic.Int64
 	inFlightKubelet    atomic.Int64
@@ -129,6 +133,18 @@ func newObserverTelemetry(telemetryComp telemetry.Component) *observerTelemetry 
 			telemetryLogsSamplerDropped,
 			[]string{"source", "priority"},
 			"Logs dropped by the source sampler (rate limit or min_severity) before reaching the observer",
+		),
+		processingTime: telemetryComp.NewGauge(
+			"observer",
+			telemetryDetectorProcessingTimeNs,
+			[]string{"detector"},
+			"Per-detector processing time in nanoseconds",
+		),
+		scorerEwma: telemetryComp.NewGauge(
+			"observer",
+			telemetryScorerEWMA,
+			[]string{"scorer"},
+			"Anomaly scorer EWMA signal, updated every second",
 		),
 	}
 }
@@ -224,4 +240,12 @@ func classifyLogSource(source string, tags []string) string {
 		}
 	}
 	return "containers"
+}
+
+func (t *observerTelemetry) recordProcessingTime(detectorTag string, durationNs float64) {
+	t.processingTime.Set(durationNs, detectorTag)
+}
+
+func (t *observerTelemetry) recordScorerEWMA(scorerName string, score float64) {
+	t.scorerEwma.Set(score, scorerName)
 }

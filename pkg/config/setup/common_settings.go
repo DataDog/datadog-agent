@@ -626,6 +626,9 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("cluster_checks.rebalance_period", 10*time.Minute)
 	config.BindEnvAndSetDefault("cluster_checks.ksm_sharding_enabled", false) // KSM resource sharding: splits KSM check by resource type (pods, nodes, others)
 	config.BindEnvAndSetDefault("cluster_checks.crd_collection", false)
+	config.BindEnvAndSetDefault("cluster_checks.experimental_stickiness_enabled", false) // Experimental. Subject to change. Biases check placement toward the runner where a check previously ran.
+	config.BindEnvAndSetDefault("cluster_checks.experimental_stickiness_factor", 4.0)    // Experimental. Subject to change. Multiplier applied to workersNeeded when computing the stickiness bias.
+	config.BindEnvAndSetDefault("cluster_checks.experimental_stickiness_limit", 1.0)     // Experimental. Subject to change. Maximum stickiness bias applied regardless of workersNeeded.
 
 	// Cluster check runner
 	config.BindEnvAndSetDefault("clc_runner_enabled", false)
@@ -1064,8 +1067,6 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	// Listen addresses must include a URL scheme (e.g. "tcp://").
 	config.BindEnvAndSetDefault("data_plane.api_listen_address", "tcp://0.0.0.0:5100")
 	config.BindEnvAndSetDefault("data_plane.secure_api_listen_address", "tcp://0.0.0.0:5101")
-	config.BindEnvAndSetDefault("data_plane.telemetry_enabled", false)
-	config.BindEnvAndSetDefault("data_plane.telemetry_listen_addr", "tcp://0.0.0.0:5102")
 	config.BindEnvAndSetDefault("data_plane.log_file", DefaultDataPlaneLogFile)
 	config.BindEnvAndSetDefault("data_plane.dogstatsd.enabled", true)
 	config.BindEnvAndSetDefault("data_plane.otlp.enabled", false)
@@ -1209,7 +1210,7 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("health_port", int64(0))
 	config.BindEnvAndSetDefault("health_platform.enabled", true)
 	config.BindEnvAndSetDefault("health_platform.persist_on_kubernetes", false)
-	config.BindEnvAndSetDefault("health_platform.forwarder.interval", "0s")
+	config.BindEnvAndSetDefault("health_platform.forwarder.interval", 0*time.Second)
 	// health_platform.invalidconfig_check.enabled is off by default because the check calls
 	// schema.ValidateCoreConfig which decompresses, parses, and compiles the full core_schema.yaml
 	// (~8000 lines) into a *jsonschema.Schema retained globally for the process lifetime.
@@ -1345,7 +1346,7 @@ func autoscaling(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("autoscaling.workload.external_recommender.tls.ca_file", "")
 	config.BindEnvAndSetDefault("autoscaling.workload.external_recommender.tls.cert_file", "")
 	config.BindEnvAndSetDefault("autoscaling.workload.external_recommender.tls.key_file", "")
-	config.BindEnvAndSetDefault("autoscaling.workload.in_place_vertical_scaling.enabled", false)
+	config.BindEnvAndSetDefault("autoscaling.workload.in_place_vertical_scaling.enabled", true)
 	config.BindEnvAndSetDefault("autoscaling.workload.in_place_vertical_scaling.disruption_tolerance_percent", 15)
 	config.BindEnvAndSetDefault("autoscaling.failover.metrics", []string{"container.memory.usage", "container.cpu.usage"})
 
@@ -2146,6 +2147,10 @@ func anomalyDetection(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("anomaly_detection.detectors.time_cluster.enabled", true)
 	config.BindEnvAndSetDefault("anomaly_detection.detectors.time_cluster.min_cluster_size", 0)
 	config.BindEnvAndSetDefault("anomaly_detection.detectors.passthrough.enabled", false)
+	config.BindEnvAndSetDefault("anomaly_detection.detectors.anomaly_scorer.enabled", false)
+	config.BindEnvAndSetDefault("anomaly_detection.detectors.anomaly_scorer.alpha", 0.014)
+	config.BindEnvAndSetDefault("anomaly_detection.detectors.anomaly_scorer.saturation_k", 5.0)
+	config.BindEnvAndSetDefault("anomaly_detection.detectors.anomaly_scorer.window_secs", 15)
 
 	// Storage tuning. See storageConfig in the observer component.
 	config.BindEnvAndSetDefault("anomaly_detection.storage.max_series", 50000)

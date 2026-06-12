@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
+//go:build ncm
+
 // Package networkconfigmanagementimpl implements the networkconfigmanagement component interface
 package networkconfigmanagementimpl
 
@@ -13,7 +15,6 @@ import (
 	"github.com/benbjohnson/clock"
 
 	demultiplexer "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/def"
-	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -23,19 +24,7 @@ import (
 	ncmprofile "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/profile"
 	ncmremote "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/remote"
 	ncmstore "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/store"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
-
-// CheckName is the name of the check
-const CheckName = "network_config_management"
-
-// Provides defines the output of the networkconfigmanagement component
-type Provides struct {
-	compdef.Out
-
-	Comp              option.Option[networkconfigmanagement.Component]
-	GetConfigEndpoint api.EndpointProvider `group:"agent_endpoint"`
-}
 
 // Requires defines the dependencies for the networkconfigmanagement component
 type Requires struct {
@@ -53,14 +42,11 @@ func NewComponent(reqs Requires) (Provides, error) {
 	compImpl, err := newComponent(reqs)
 	if err != nil {
 		reqs.Logger.Errorf("NCM service could not be initialized: %s", err)
-		comp = &stub.NCMStub{}
+		comp = stub.NewStub("network config management could not be initialized")
 	} else {
 		comp = compImpl
 	}
-	return Provides{
-		Comp:              option.New(comp),
-		GetConfigEndpoint: api.NewAgentEndpointProvider(comp.GetConfigEndpointHandler(), "/ncm/config", "GET").Provider,
-	}, nil
+	return NewProvides(comp), nil
 
 }
 
