@@ -64,6 +64,9 @@ func (m *mockHealthPlatform) ResolveIssue(checkID string) {
 	delete(m.issues, checkID)
 }
 
+// PruneResolvedIssues is a no-op in the mock (issues are deleted immediately on ResolveIssue).
+func (m *mockHealthPlatform) PruneResolvedIssues() {}
+
 // ResolveAllIssues clears all issues
 func (m *mockHealthPlatform) ResolveAllIssues() {
 	m.issues = make(map[string]*healthplatformpayload.Issue)

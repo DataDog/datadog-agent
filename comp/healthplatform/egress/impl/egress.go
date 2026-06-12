@@ -150,6 +150,9 @@ func (e *egress) tick() {
 		return
 	}
 
+	// Remove RESOLVED issues now that their state transition has been forwarded.
+	e.store.PruneResolvedIssues()
+
 	e.log.Info(fmt.Sprintf("Health platform egress: sent report with %d issues", count))
 }
 

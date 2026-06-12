@@ -54,6 +54,10 @@ func (n *NoopHealthPlatform) GetIssue(_ string) *healthplatformpayload.Issue {
 func (n *NoopHealthPlatform) ResolveIssue(_ string) {
 }
 
+// PruneResolvedIssues does nothing when the health platform is disabled.
+func (n *NoopHealthPlatform) PruneResolvedIssues() {
+}
+
 // ResolveAllIssues does nothing when the health platform is disabled.
 func (n *NoopHealthPlatform) ResolveAllIssues() {
 }

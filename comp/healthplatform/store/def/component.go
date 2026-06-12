@@ -39,8 +39,16 @@ type Component interface {
 	// =========================================================================
 
 	// ResolveIssue marks the issue with the given IssueId as resolved.
+	// The issue remains in the active set with state RESOLVED until
+	// PruneResolvedIssues is called, so the egress can forward the
+	// state transition before the issue is removed.
 	// No-op if no such issue is currently active.
 	ResolveIssue(issueID string)
+
+	// PruneResolvedIssues removes all RESOLVED issues from the active set.
+	// Called by the egress after a successful send so that the RESOLVED
+	// state is forwarded exactly once before the issue disappears.
+	PruneResolvedIssues()
 
 	// ResolveAllIssues marks every active issue as resolved.
 	ResolveAllIssues()
