@@ -1,4 +1,4 @@
-profile dd-host-profiler flags=(attach_disconnected,mediate_deleted) {
+profile host-profiler flags=(attach_disconnected,mediate_deleted) {
   # File access — unrestricted (readOnlyRootFilesystem + volume mounts handle this)
   /       r,
   /**     rwlkm,

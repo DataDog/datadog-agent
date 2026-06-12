@@ -77,7 +77,7 @@ securityContext:
   # ... existing fields ...
   appArmorProfile:
     type: Localhost
-    localhostProfile: dd-host-profiler
+    localhostProfile: host-profiler
 ```
 
 ### Cilium (optional)

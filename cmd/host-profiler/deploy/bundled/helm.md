@@ -46,5 +46,5 @@ To use a custom AppArmor profile instead of `unconfined`, load [`apparmor-profil
 ```yaml
 datadog:
   hostProfiler:
-    apparmor: localhost/dd-host-profiler
+    apparmor: localhost/host-profiler
 ```
