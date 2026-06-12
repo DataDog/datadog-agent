@@ -8,66 +8,58 @@ The Host Profiler runs as a sidecar in the Datadog Agent DaemonSet, and the Agen
 
 Review the [supported environments](../README.md#supported-environments) before continuing.
 
-Before running commands in this guide, change to the deployment docs directory from the repository root:
-
-```shell
-cd cmd/host-profiler/deploy
-```
-
 ## Prerequisites
 
-Deploy the Datadog Agent using the Operator. See the [installation guide](https://app.datadoghq.com/fleet/install-agent/latest?platform=kubernetes).
+Your Datadog Agent must be managed by the Datadog Operator version **1.25.0** or later. See the [Datadog Agent installation guide](https://app.datadoghq.com/fleet/install-agent/latest?platform=kubernetes).
 
 ## Deploy
 
-Add the annotations to your existing `DatadogAgent` Custom Resource:
-
-```shell
-kubectl annotate datadogagent datadog \
-  agent.datadoghq.com/host-profiler-enabled="true" \
-  'experimental.agent.datadoghq.com/image-override-config={"host-profiler":{"name":"registry.datadoghq.com/ddot-ebpf:7.81.0-preview-host-profiler-1.0"}}' \
-  -n <namespace>
-```
-
-Or add them directly to your manifest and re-apply:
+Update your existing `DatadogAgent` Custom Resource by adding the following annotations and host-profiler container override:
 
 ```yaml
 metadata:
   annotations:
+    # Enable the Host Profiler sidecar and set the preview Host Profiler image.
     agent.datadoghq.com/host-profiler-enabled: "true"
     experimental.agent.datadoghq.com/image-override-config: |
       {"host-profiler": {"name": "registry.datadoghq.com/ddot-ebpf:7.81.0-preview-host-profiler-1.0"}}
+spec:
+  override:
+    nodeAgent:
+      containers:
+        host-profiler:
+          # Required for current Datadog Operator versions.
+          # Future Operator versions are expected to configure the Host Profiler
+          # security context automatically.
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              # Drop default capabilities and add only the ones the Host Profiler needs.
+              drop: ["ALL"]
+              add: ["BPF", "PERFMON", "SYS_PTRACE", "SYS_RESOURCE", "DAC_READ_SEARCH", "SYSLOG", "CHECKPOINT_RESTORE", "IPC_LOCK"]
 ```
 
-```shell
-kubectl apply -f <datadog-agent-manifest> -n <namespace>
-```
+Apply the updated `DatadogAgent` Custom Resource through your usual workflow.
 
-The Operator rolls out a new DaemonSet revision adding the host-profiler container. Agent pods restart one node at a time.
-
-The profiler will run fully privileged in this configuration as Operator does not yet apply security enforcements. If you wish to reduce privileges, see next section.
+After you apply the updated Custom Resource, the Operator rolls out a new Agent DaemonSet revision with the Host Profiler sidecar. Wait for that rollout to complete before verifying profiles.
 
 ## Configuration
 
 The Host Profiler infers most configuration from the Datadog Agent configuration. For optional overrides, see [Configuration](configuration.md).
 
-## Capabilities and seccomp
+## Seccomp (recommended)
 
-### Capabilities
+Current Operator versions do not install the Host Profiler seccomp profile automatically.
 
-Apply the provided patch to set the required capabilities on the host-profiler container:
+To use seccomp, provision the profile to each node through your cluster's node management tooling. The profile is available at `/etc/dd-host-profiler/seccomp.json` inside the Host Profiler image and must be copied to `/var/lib/kubelet/seccomp/host-profiler.json` on every node.
 
-```shell
-kubectl patch datadogagent datadog -n <namespace> --patch-file bundled/operator/override.yaml --type merge
-```
-
-### Seccomp (recommended)
-
-Provision the seccomp profile to each node through your cluster's node management tooling before deploying the host-profiler.
-
-The profile is at `/etc/dd-host-profiler/seccomp.json` inside the image. Copy it to `/var/lib/kubelet/seccomp/host-profiler.json` on every node, then add `seccompProfile` to [`operator/override.yaml`](operator/override.yaml):
+Then add `seccompProfile` to the same host-profiler container override in your `DatadogAgent` Custom Resource:
 
 ```yaml
+spec:
+  override:
+    nodeAgent:
       containers:
         host-profiler:
           securityContext:
