@@ -16,8 +16,8 @@
   tags: ["arch:amd64", "specific:true"]
   rules:
     - !reference [.except_mergequeue]
-    - when: manual
-      allow_failure: true
+    # TODO: make manual before merge to main
+    - when: on_success
   timeout: 30m
   retry: 2
   variables:
