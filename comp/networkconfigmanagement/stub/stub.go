@@ -8,7 +8,9 @@
 package stub
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -21,19 +23,43 @@ var errNoNCM = errors.New("NCM not available")
 
 // NCMStub is an NCM implementation that returns "not available" for every
 // operation.
-type NCMStub struct{}
+type NCMStub struct {
+	err error
+}
+
+func NewStub(msg string) *NCMStub {
+	return &NCMStub{
+		err: errors.New(msg),
+	}
+}
 
 var _ networkconfigmanagement.Component = (*NCMStub)(nil)
 
-func (s *NCMStub) RegisterDevice(_ *config.DeviceInstance) error          { return errNoNCM }
-func (s *NCMStub) ReportConfig(_ string) error                            { return errNoNCM }
-func (s *NCMStub) ReportConfigWithSender(_ string, _ sender.Sender) error { return errNoNCM }
-func (s *NCMStub) RollbackConfig(_, _, _ string) error                    { return errNoNCM }
+func (s *NCMStub) GetError() error {
+	if s.err != nil {
+		return s.err
+	}
+	return errNoNCM
+}
+
+func (s *NCMStub) ErrorMsg() string {
+	return s.GetError().Error()
+}
+
+func (s *NCMStub) RegisterDevice(_ *config.DeviceInstance) error          { return s.GetError() }
+func (s *NCMStub) ReportConfig(_ string) error                            { return s.GetError() }
+func (s *NCMStub) ReportConfigWithSender(_ string, _ sender.Sender) error { return s.GetError() }
+func (s *NCMStub) RollbackConfig(_ context.Context, _, _, _ string) error { return s.GetError() }
 func (s *NCMStub) SetMaxReportInterval(_ time.Duration)                   {}
 
 // GetConfigEndpointHandler implements [networkconfigmanagement.Component].
 func (s *NCMStub) GetConfigEndpointHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, _ *http.Request) {
-		http.Error(w, `{"error": "ncm rollbacks not available for agent"}`, http.StatusBadRequest)
+		http.Error(w, fmt.Sprintf(`{"error": %q}`, s.ErrorMsg()), http.StatusBadRequest)
 	}
+}
+
+// RollbackEndpointHandler implements [networkconfigmanagement.Component].
+func (s *NCMStub) RollbackEndpointHandler() http.HandlerFunc {
+	return s.GetConfigEndpointHandler()
 }

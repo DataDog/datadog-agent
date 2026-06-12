@@ -174,7 +174,7 @@ func NewComponent(deps Requires) Provides {
 
 	catalog := defaultCatalog()
 	settings := settingsFromAgentConfig(catalog, cfg)
-	detectors, correlators, extractors, _ := catalog.Instantiate(settings)
+	detectors, correlators, scorers, extractors, _ := catalog.Instantiate(settings)
 
 	storageCfg := DefaultStorageConfig()
 	if cfg != nil {
@@ -193,6 +193,7 @@ func NewComponent(deps Requires) Provides {
 		extractors:  extractors,
 		detectors:   detectors,
 		correlators: correlators,
+		scorers:     scorers,
 		scheduler:   &currentBehaviorPolicy{},
 	})
 
@@ -204,6 +205,8 @@ func NewComponent(deps Requires) Provides {
 	eng.onStorageSeriesEvicted = obsTelemetry.recordStorageSeriesEvicted
 	eng.onStorageCapacityHit = obsTelemetry.recordStorageCapacityHit
 	eng.onAdvanceSkipped = obsTelemetry.recordAdvanceSkipped
+	eng.onProcessingTime = obsTelemetry.recordProcessingTime
+	eng.onScorerEWMA = obsTelemetry.recordScorerEWMA
 	for _, extractor := range extractors {
 		if sinkAware, ok := extractor.(interface{ SetObserverTelemetry(*observerTelemetry) }); ok {
 			sinkAware.SetObserverTelemetry(obsTelemetry)
@@ -645,9 +648,9 @@ func (o *observerImpl) Flush() {
 // Reset clears all engine state and reconfigures with new settings. Implements DebugView.
 func (o *observerImpl) Reset(settings ComponentSettings, storageCfg StorageConfig) {
 	o.Flush()
-	detectors, correlators, extractors, _ := o.catalog.Instantiate(settings)
+	detectors, correlators, scorers, extractors, _ := o.catalog.Instantiate(settings)
 	o.replayMu.Lock()
-	o.engine.ResetForReplay(detectors, correlators, extractors, storageCfg)
+	o.engine.ResetForReplay(detectors, correlators, scorers, extractors, storageCfg)
 	o.replayMu.Unlock()
 }
 
