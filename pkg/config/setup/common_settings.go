@@ -1347,6 +1347,7 @@ func autoscaling(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("autoscaling.workload.external_recommender.tls.cert_file", "")
 	config.BindEnvAndSetDefault("autoscaling.workload.external_recommender.tls.key_file", "")
 	config.BindEnvAndSetDefault("autoscaling.workload.in_place_vertical_scaling.enabled", true)
+	config.BindEnvAndSetDefault("autoscaling.workload.in_place_vertical_scaling.disruption_tolerance_percent", 15)
 	config.BindEnvAndSetDefault("autoscaling.failover.metrics", []string{"container.memory.usage", "container.cpu.usage"})
 
 	// Cluster autoscaling product
