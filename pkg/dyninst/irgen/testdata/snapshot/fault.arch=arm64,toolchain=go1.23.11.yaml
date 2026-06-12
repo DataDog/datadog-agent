@@ -344,11 +344,11 @@ Types:
     - __kind: EventRootType
       ID: 109
       Name: Probe[main.callMe]
-      ByteSize: 41
-      ExprStatusArraySize: 1
+      ByteSize: 42
+      ExprStatusArraySize: 2
       Expressions:
         - Name: s1
-          Offset: 1
+          Offset: 2
           Kind: argument
           Expression:
             Type: 12 GoStringHeaderType string
@@ -361,7 +361,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: s2
-          Offset: 17
+          Offset: 18
           Kind: argument
           Expression:
             Type: 12 GoStringHeaderType string
@@ -374,7 +374,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: i
-          Offset: 33
+          Offset: 34
           Kind: argument
           Expression:
             Type: 97 PointerType *int
