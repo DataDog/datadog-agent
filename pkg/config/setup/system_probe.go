@@ -134,7 +134,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("system_probe_config.enable_co_re", true, "DD_ENABLE_CO_RE")
 	cfg.BindEnvAndSetDefault("system_probe_config.btf_path", "", "DD_SYSTEM_PROBE_BTF_PATH")
 	cfg.BindEnvAndSetDefault("system_probe_config.btf_output_dir", defaultBTFOutputDir, "DD_SYSTEM_PROBE_BTF_OUTPUT_DIR")
-	cfg.BindEnvAndSetDefault("system_probe_config.remote_config_btf_enabled", false, "DD_SYSTEM_PROBE_REMOTE_CONFIG_BTF_ENABLED")
+	cfg.BindEnvAndSetDefault("system_probe_config.remote_config_btf_enabled", true, "DD_SYSTEM_PROBE_REMOTE_CONFIG_BTF_ENABLED")
 	cfg.BindEnvAndSetDefault("system_probe_config.enable_runtime_compiler", false, "DD_ENABLE_RUNTIME_COMPILER")
 	// deprecated in favor of allow_prebuilt_fallback below
 	cfg.BindEnvAndSetDefault("system_probe_config.allow_precompiled_fallback", false, "DD_ALLOW_PRECOMPILED_FALLBACK")

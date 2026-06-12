@@ -30,9 +30,25 @@ type target struct {
 	entityID string
 }
 
+// ConfigFile is the content read from a runtime-specific config file path.
+type ConfigFile struct {
+	Path      string
+	Content   []byte
+	Truncated bool
+}
+
+// TargetCommandline is the command line used to start the target service.
+type TargetCommandline struct {
+	Args       []string
+	WorkingDir string
+}
+
 // ConfigReader is the runtime-specific config access layer used by config collectors.
 type ConfigReader interface {
 	Runtime() RuntimeType
+	ReadFile(context.Context, string) (ConfigFile, error)
+	ReadEnvVars(context.Context, []string) (map[string]string, error)
+	ReadCommandline(context.Context) (TargetCommandline, error)
 }
 
 type configReaderFactory func(target) (ConfigReader, error)
@@ -40,10 +56,6 @@ type configReaderFactory func(target) (ConfigReader, error)
 type configCollector interface {
 	Run(context.Context, ConfigReader) error
 }
-
-var configReaders = map[RuntimeType]configReaderFactory{}
-
-var configCollectors = map[string]configCollector{}
 
 type targetResolver struct {
 	store workloadmeta.Component
