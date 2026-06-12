@@ -125,7 +125,6 @@ exports_files(["go.mod"])
 # gazelle:exclude comp/connectivitychecker/fx
 # gazelle:exclude comp/connectivitychecker/impl
 # gazelle:exclude comp/core/autodiscovery/autodiscoveryimpl
-# gazelle:exclude comp/core/autodiscovery/mock
 # gazelle:exclude comp/core/flare/flareimpl
 # gazelle:exclude comp/core/gui/fx
 # gazelle:exclude comp/core/gui/impl
