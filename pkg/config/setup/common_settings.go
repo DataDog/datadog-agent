@@ -257,6 +257,7 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 
 	// Network Path
 	config.BindEnvAndSetDefault("network_path.connections_monitoring.enabled", false)
+	config.BindEnvAndSetDefault("network_path.netflow_monitoring.enabled", false)
 	config.BindEnvAndSetDefault("network_path.collector.workers", 4)
 	config.BindEnvAndSetDefault("network_path.collector.timeout", DefaultNetworkPathTimeout)
 	config.BindEnvAndSetDefault("network_path.collector.max_ttl", DefaultNetworkPathMaxTTL)
@@ -626,6 +627,9 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("cluster_checks.rebalance_period", 10*time.Minute)
 	config.BindEnvAndSetDefault("cluster_checks.ksm_sharding_enabled", false) // KSM resource sharding: splits KSM check by resource type (pods, nodes, others)
 	config.BindEnvAndSetDefault("cluster_checks.crd_collection", false)
+	config.BindEnvAndSetDefault("cluster_checks.experimental_stickiness_enabled", false) // Experimental. Subject to change. Biases check placement toward the runner where a check previously ran.
+	config.BindEnvAndSetDefault("cluster_checks.experimental_stickiness_factor", 4.0)    // Experimental. Subject to change. Multiplier applied to workersNeeded when computing the stickiness bias.
+	config.BindEnvAndSetDefault("cluster_checks.experimental_stickiness_limit", 1.0)     // Experimental. Subject to change. Maximum stickiness bias applied regardless of workersNeeded.
 
 	// Cluster check runner
 	config.BindEnvAndSetDefault("clc_runner_enabled", false)
@@ -1209,7 +1213,7 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("health_port", int64(0))
 	config.BindEnvAndSetDefault("health_platform.enabled", true)
 	config.BindEnvAndSetDefault("health_platform.persist_on_kubernetes", false)
-	config.BindEnvAndSetDefault("health_platform.forwarder.interval", "0s")
+	config.BindEnvAndSetDefault("health_platform.forwarder.interval", 0*time.Second)
 	// health_platform.invalidconfig_check.enabled is off by default because the check calls
 	// schema.ValidateCoreConfig which decompresses, parses, and compiles the full core_schema.yaml
 	// (~8000 lines) into a *jsonschema.Schema retained globally for the process lifetime.
@@ -1345,7 +1349,7 @@ func autoscaling(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("autoscaling.workload.external_recommender.tls.ca_file", "")
 	config.BindEnvAndSetDefault("autoscaling.workload.external_recommender.tls.cert_file", "")
 	config.BindEnvAndSetDefault("autoscaling.workload.external_recommender.tls.key_file", "")
-	config.BindEnvAndSetDefault("autoscaling.workload.in_place_vertical_scaling.enabled", false)
+	config.BindEnvAndSetDefault("autoscaling.workload.in_place_vertical_scaling.enabled", true)
 	config.BindEnvAndSetDefault("autoscaling.failover.metrics", []string{"container.memory.usage", "container.cpu.usage"})
 
 	// Cluster autoscaling product
@@ -1521,6 +1525,9 @@ func serializer(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("serializer_experimental_use_v3_api.series.beta_route", "/api/intake/metrics/v3beta/series")
 	config.BindEnvAndSetDefault("serializer_experimental_use_v3_api.series.shadow_sample_rate", float64(0))
 	config.BindEnvAndSetDefault("serializer_experimental_use_v3_api.series.shadow_sites", []string{"datadoghq.com"})
+
+	config.BindEnvAndSetDefault("use_v3_api.series.enabled", "true")
+	config.BindEnvAndSetDefault("use_v3_api.series.endpoints", map[string]string{})
 
 	config.BindEnvAndSetDefault("use_v2_api.series", true)
 	// Serializer: allow user to blacklist any kind of payload to be sent
@@ -1991,6 +1998,11 @@ func bindVectorOptions(config pkgconfigmodel.Setup, datatype string) {
 
 	config.BindEnvAndSetDefault(fmt.Sprintf("vector.%s.enabled", datatype), false)
 	config.BindEnvAndSetDefault(fmt.Sprintf("vector.%s.url", datatype), "")
+
+	if datatype == Metrics {
+		config.BindEnvAndSetDefault(fmt.Sprintf("observability_pipelines_worker.%s.use_v3_api.series", datatype), false)
+		config.BindEnvAndSetDefault(fmt.Sprintf("vector.%s.use_v3_api.series", datatype), false)
+	}
 }
 
 func cloudfoundry(config pkgconfigmodel.Setup) {
@@ -2137,6 +2149,10 @@ func anomalyDetection(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("anomaly_detection.detectors.time_cluster.enabled", true)
 	config.BindEnvAndSetDefault("anomaly_detection.detectors.time_cluster.min_cluster_size", 0)
 	config.BindEnvAndSetDefault("anomaly_detection.detectors.passthrough.enabled", false)
+	config.BindEnvAndSetDefault("anomaly_detection.detectors.anomaly_scorer.enabled", false)
+	config.BindEnvAndSetDefault("anomaly_detection.detectors.anomaly_scorer.alpha", 0.014)
+	config.BindEnvAndSetDefault("anomaly_detection.detectors.anomaly_scorer.saturation_k", 5.0)
+	config.BindEnvAndSetDefault("anomaly_detection.detectors.anomaly_scorer.window_secs", 15)
 
 	// Storage tuning. See storageConfig in the observer component.
 	config.BindEnvAndSetDefault("anomaly_detection.storage.max_series", 50000)

@@ -242,6 +242,7 @@
 /cmd/ai_prompt_logger/                  @DataDog/windows-products
 /cmd/cluster-agent/                     @DataDog/container-platform
 /cmd/cluster-agent/subcommands/autoscalerlist   @DataDog/container-autoscaling @DataDog/container-integrations
+/cmd/cluster-agent/subcommands/rotateparidentity   @Datadog/action-platform
 /cmd/cluster-agent/subcommands/start/agent_task.go @DataDog/container-platform @DataDog/fleet
 /cmd/cluster-agent-cloudfoundry/        @DataDog/agent-integrations
 /cmd/cluster-agent/api/v1/cloudfoundry_metadata.go        @DataDog/agent-integrations
@@ -771,6 +772,7 @@
 /tasks/unit_tests/python_version_tests.py @DataDog/agent-integrations
 /tasks/unit_tests/kmt_tests.py          @DataDog/ebpf-platform
 /tasks/unit_tests/macos_tests.py        @DataDog/windows-products
+/tasks/unit_tests/winbuild_tests.py     @DataDog/windows-products
 /tasks/pkg_template.py                  @DataDog/agent-runtimes
 /tasks/cluster_agent_cloudfoundry.py    @DataDog/agent-integrations
 /tasks/devcontainer.py                  @DataDog/agent-devx @DataDog/container-platform
