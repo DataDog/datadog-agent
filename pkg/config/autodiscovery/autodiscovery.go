@@ -38,7 +38,8 @@ func DiscoverComponentsFromConfig() ([]pkgconfigsetup.ConfigurationProviders, []
 	}
 
 	// Add instrumentation checks provider if `instrumentation_crd_controller.enabled` is true
-	if pkgconfigsetup.Datadog().GetBool("instrumentation_crd_controller.enabled") && flavor.GetFlavor() == flavor.DefaultAgent {
+	if pkgconfigsetup.Datadog().GetBool("instrumentation_crd_controller.enabled") &&
+		flavor.GetFlavor() == flavor.DefaultAgent && env.IsKubernetes() {
 		instrumentationChecksProvider := pkgconfigsetup.ConfigurationProviders{Name: "instrumentation_checks", Polling: true}
 		log.Info("Instrumentation controller is enabled: Adding the instrumentation checks config provider")
 		detectedProviders = append(detectedProviders, instrumentationChecksProvider)
@@ -160,6 +161,12 @@ func DiscoverComponentsFromEnv() ([]pkgconfigsetup.ConfigurationProviders, []pkg
 	if isKubeEnv {
 		detectedListeners = append(detectedListeners, pkgconfigsetup.Listeners{Name: "kubelet"})
 		log.Info("Adding Kubelet listener from environment")
+	}
+
+	isProcessEnv := env.IsFeaturePresent(env.Process)
+	if isProcessEnv {
+		detectedListeners = append(detectedListeners, pkgconfigsetup.Listeners{Name: "process"})
+		log.Info("Adding Process listener from environment")
 	}
 
 	isGPUEnv := env.IsFeaturePresent(env.NVML)

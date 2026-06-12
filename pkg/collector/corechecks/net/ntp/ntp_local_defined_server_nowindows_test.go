@@ -9,6 +9,7 @@ package ntp
 
 import (
 	"os"
+	"path/filepath"
 	"sort"
 	"testing"
 
@@ -170,4 +171,38 @@ func TestGetLocalDefinedNTPServersIncludesTimesyncdPath(t *testing.T) {
 		t.Skip("a real ntp/chrony/timesyncd config exists on this host")
 	}
 	assert.Contains(t, err.Error(), "/etc/systemd/timesyncd.conf")
+}
+
+// withTimesyncdDropInDirs swaps the package-level drop-in dir list for the
+// duration of the test and restores it on cleanup.
+func withTimesyncdDropInDirs(t *testing.T, dirs []string) {
+	orig := timesyncdDropInDirs
+	timesyncdDropInDirs = dirs
+	t.Cleanup(func() { timesyncdDropInDirs = orig })
+}
+
+func TestGetLocalDefinedNTPServersReadsTimesyncdDropIn(t *testing.T) {
+	dir := t.TempDir()
+	err := os.WriteFile(filepath.Join(dir, "cloud-init.conf"),
+		[]byte("[Time]\nNTP=dropin-host.example\n"), 0644)
+	assert.NoError(t, err)
+
+	withTimesyncdDropInDirs(t, []string{dir})
+
+	servers, err := getLocalDefinedNTPServers()
+	assert.NoError(t, err)
+	assert.Contains(t, servers, "dropin-host.example")
+}
+
+// TestTimesyncdDropInDirsMatchSystemdDocs guards the production constant. The
+// behavioral tests swap this var out for a t.TempDir() path, so a typo in any
+// of these strings would not be caught by them. Pinning the list here forces
+// any change to be deliberate.
+func TestTimesyncdDropInDirsMatchSystemdDocs(t *testing.T) {
+	assert.Equal(t, []string{
+		"/etc/systemd/timesyncd.conf.d",
+		"/run/systemd/timesyncd.conf.d",
+		"/usr/local/lib/systemd/timesyncd.conf.d",
+		"/usr/lib/systemd/timesyncd.conf.d",
+	}, timesyncdDropInDirs)
 }

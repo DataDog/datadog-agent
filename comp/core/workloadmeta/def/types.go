@@ -549,10 +549,11 @@ func (c ContainerAllocatedResource) String() string {
 // OrchestratorContainer is a reference to a Container with
 // orchestrator-specific data attached to it.
 type OrchestratorContainer struct {
-	ID        string
-	Name      string
-	Image     ContainerImage
-	Resources ContainerResources `proto:"ignore"`
+	ID           string
+	Name         string
+	Image        ContainerImage
+	Resources    ContainerResources    `proto:"ignore"`
+	ResizePolicy ContainerResizePolicy `proto:"ignore"`
 }
 
 // String returns a string representation of OrchestratorContainer.
@@ -564,6 +565,7 @@ func (o OrchestratorContainer) String(verbose bool) string {
 		_, _ = fmt.Fprintln(&sb, "Image:", o.Image.Name)
 		_, _ = fmt.Fprintln(&sb, "----------- Resources -----------")
 		_, _ = fmt.Fprint(&sb, o.Resources.String(true))
+		_, _ = fmt.Fprint(&sb, o.ResizePolicy.String())
 	}
 	return sb.String()
 }
@@ -1542,7 +1544,7 @@ type ContainerImageMetadata struct {
 // ContainerImageLayer represents a layer of a container image
 type ContainerImageLayer struct {
 	MediaType string
-	Digest    string
+	DiffID    string
 	SizeBytes int64
 	URLs      []string
 	History   *v1.History `proto:"ignore"`
@@ -1663,7 +1665,7 @@ func (layer ContainerImageLayer) String() string {
 	var sb strings.Builder
 
 	_, _ = fmt.Fprintln(&sb, "Media Type:", layer.MediaType)
-	_, _ = fmt.Fprintln(&sb, "Digest:", layer.Digest)
+	_, _ = fmt.Fprintln(&sb, "Diff ID:", layer.DiffID)
 	_, _ = fmt.Fprintln(&sb, "Size in bytes:", layer.SizeBytes)
 	_, _ = fmt.Fprintln(&sb, "URLs:", layer.URLs)
 

@@ -27,7 +27,7 @@ import (
 	updatertelemetryfx "github.com/DataDog/datadog-agent/comp/updater/telemetry/fx"
 	updaterFx "github.com/DataDog/datadog-agent/comp/updater/updater/fx"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/service"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
@@ -50,7 +50,7 @@ func getCommonFxOption(global *command.GlobalParams) fx.Option {
 		fx.Supply(core.BundleParams{
 			ConfigParams:         config.NewAgentParams(global.ConfFilePath),
 			SysprobeConfigParams: sysprobeconfigimpl.NewParams(),
-			LogParams:            log.ForDaemon("INSTALLER", "installer.log_file", pkgconfigsetup.DefaultUpdaterLogFile),
+			LogParams:            log.ForDaemon("INSTALLER", "installer.log_file", defaultpaths.GetDefaultUpdaterLogFile()),
 		}),
 		core.Bundle(core.WithSecrets()),
 		hostnameimpl.Module(),

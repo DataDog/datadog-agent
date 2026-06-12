@@ -54,6 +54,9 @@ type CLIParams struct {
 
 	// LogsOnly skips ingesting parquet metrics and trace stats; only log rows are loaded.
 	LogsOnly bool
+
+	// ParquetFormat selects the parquet file layout. Empty string = auto-detect.
+	ParquetFormat bench.ParquetFormat
 }
 
 func main() {
@@ -70,6 +73,7 @@ func main() {
 	sendAnomalyEvent := flag.String("send-anomaly-event", "", "Run scenario and send one Datadog event per correlation, then exit")
 	skipDropped := flag.Bool("skip-dropped", true, "Skip metrics marked as dropped by the live observer's channel during parquet load")
 	logsOnly := flag.Bool("logs-only", false, "Load only log rows from scenarios; skip parquet metrics and trace stats (interactive and headless)")
+	parquetFormat := flag.String("parquet-format", "", "Parquet layout: v1 (observer-metrics-*/observer-logs-*), v2 (contexts.parquet + metrics-*/logs-*), or empty to auto-detect")
 	flag.Parse()
 
 	// --config takes full precedence over --enable/--disable/--only.
@@ -152,6 +156,7 @@ func main() {
 			SendAnomalyEvent:   *sendAnomalyEvent,
 			SkipDroppedMetrics: *skipDropped,
 			LogsOnly:           *logsOnly,
+			ParquetFormat:      bench.ParquetFormat(*parquetFormat),
 		}),
 	)
 	if err != nil {
@@ -180,6 +185,7 @@ func run(
 		ComponentSettings:  params.ComponentSettings,
 		SkipDroppedMetrics: params.SkipDroppedMetrics,
 		LogsOnly:           params.LogsOnly,
+		ParquetFormat:      params.ParquetFormat,
 	})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to create test bench: %v\n", err)

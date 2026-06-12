@@ -1,0 +1,91 @@
+[
+  {
+    "service": "panic_recover",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.b",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": [
+          {
+            "function": "main.b",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/panic_recover/main.go",
+            "lineNumber": 97
+          },
+          {
+            "function": "main.a",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/panic_recover/main.go",
+            "lineNumber": 93
+          },
+          {
+            "function": "main.main",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/panic_recover/main.go",
+            "lineNumber": 26
+          },
+          {
+            "function": "runtime.main",
+            "fileName": "runtime/proc.go",
+            "lineNumber": "[lineNumber]"
+          },
+          {
+            "function": "runtime.goexit",
+            "fileName": "runtime/asm_[arch].s",
+            "lineNumber": "[lineNumber]"
+          }
+        ],
+        "probe": {
+          "id": "b",
+          "location": {
+            "method": "main.b"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "x": {
+                "type": "int",
+                "value": "42"
+              }
+            }
+          },
+          "return": {
+            "captureExpressions": {
+              "@exception": {
+                "type": "interface {}",
+                "fields": {
+                  "data": {
+                    "type": "*errors.errorString",
+                    "address": "[addr]",
+                    "fields": {
+                      "s": {
+                        "type": "string",
+                        "value": "synthetic from c with x=42 s=\"hello\""
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "evaluationErrors": [
+          {
+            "expr": "@return",
+            "message": "function did not return: panic was recovered by an ancestor frame"
+          }
+        ]
+      },
+      "type": "snapshot"
+    },
+    "timestamp": "[ts]",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
+  }
+]

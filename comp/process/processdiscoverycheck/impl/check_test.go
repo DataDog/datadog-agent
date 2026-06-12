@@ -68,7 +68,7 @@ func TestProcessDiscoveryIsEnabled(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			sysprobeConf := sysprobeconfigmock.NewMock(t)
 			for k, v := range tc.sysProbeConfigs {
-				sysprobeConf.SetWithoutSource(k, v)
+				sysprobeConf.SetInTest(k, v)
 			}
 			c := fxutil.Test[processdiscoverycheck.Component](t, fx.Options(
 				fx.Provide(func(t testing.TB) config.Component { return config.NewMockWithOverrides(t, tc.configs) }),

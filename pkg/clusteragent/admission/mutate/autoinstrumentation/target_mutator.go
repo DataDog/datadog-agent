@@ -489,11 +489,10 @@ func getEnabledLabel(pod *corev1.Pod) (bool, bool) {
 	return false, found
 }
 
-// getAllLatestDefaultLibraries returns all supported by APM Instrumentation tracing libraries
-// that should be enabled by default
+// getAllLatestDefaultLibraries returns the tracing libraries included in the default/all bundle.
 func getAllLatestDefaultLibraries(containerRegistry string) []libInfo {
 	var libsToInject []libInfo
-	for _, lang := range supportedLanguages {
+	for _, lang := range defaultInjectedLanguages {
 		libsToInject = append(libsToInject, lang.defaultLibInfo(containerRegistry, ""))
 	}
 
