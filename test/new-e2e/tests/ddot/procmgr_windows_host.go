@@ -72,3 +72,19 @@ func waitForProcmgrCLIWindows(t *testing.T, host *components.RemoteHost, cli str
 		assert.NoError(c, err, "dd-procmgr CLI not reachable")
 	}, 2*time.Minute, 2*time.Second)
 }
+
+// WindowsDescribeDDOTCommandLine runs dd-procmgr describe and returns the Command field from text output.
+func WindowsDescribeDDOTCommandLine(host *components.RemoteHost, ddProcmgrCLI string) (string, error) {
+	out, err := host.Execute(psProcmgr(ddProcmgrCLI, "describe "+procmgrProcessName))
+	if err != nil {
+		return "", err
+	}
+	out = strings.ReplaceAll(out, "\r", "")
+	for _, line := range strings.Split(out, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if after, ok := strings.CutPrefix(trimmed, "Command:"); ok {
+			return strings.TrimSpace(after), nil
+		}
+	}
+	return "", nil
+}
