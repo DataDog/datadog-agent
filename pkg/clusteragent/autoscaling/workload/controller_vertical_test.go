@@ -1270,6 +1270,9 @@ func disruptivePod(name, recID, owner string, ready bool, cpuPct float64, condTy
 // TestSyncInternal_InPlace_DisruptionBudget_CountsInFlightResizes verifies that in-flight resizes
 // count even while Ready, so they still consume budget across syncs.
 func TestSyncInternal_InPlace_DisruptionBudget_CountsInFlightResizes(t *testing.T) {
+	pkgconfigsetup.Datadog().SetInTest("autoscaling.workload.in_place_vertical_scaling.disruption_tolerance_percent", 50)
+	defer pkgconfigsetup.Datadog().SetInTest("autoscaling.workload.in_place_vertical_scaling.disruption_tolerance_percent", 15)
+
 	f := newVerticalControllerFixture(t, time.Now())
 
 	var resizePatches int
