@@ -2117,8 +2117,15 @@ func anomalyDetection(config pkgconfigmodel.Setup) {
 	// Log-derived virtual metrics are unaffected.
 	config.BindEnvAndSetDefault("anomaly_detection.metrics.enabled", true)
 
-	// Anomaly event reporting. Keep false during evaluation / shadow mode.
-	config.BindEnvAndSetDefault("anomaly_detection.reporting.enabled", false)
+	// Stdout reporting verbosity.
+	// stdout.enabled: set to false to silence all [observer] stdout log lines.
+	// stdout.verbose: set to true to print individual anomaly series after the title line.
+	// Default: title-only (stdout.enabled=true, stdout.verbose=false).
+	config.BindEnvAndSetDefault("anomaly_detection.reporting.stdout.enabled", true)
+	config.BindEnvAndSetDefault("anomaly_detection.reporting.stdout.verbose", false)
+
+	// Datadog event reporting. Keep false during evaluation / shadow mode.
+	config.BindEnvAndSetDefault("anomaly_detection.reporting.events.enabled", false)
 
 	// Parquet recording of raw ingested signals for offline analysis and replay.
 	config.BindEnvAndSetDefault("anomaly_detection.recording.enabled", false)
