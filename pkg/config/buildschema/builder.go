@@ -88,7 +88,7 @@ func (b *builder) addToSchema(name string, val interface{}, envVars []string, no
 			}
 		case time.Duration:
 			node = map[string]interface{}{
-				"type":   "number",
+				"type":   "string",
 				"format": "duration",
 				"tags":   []string{"golang_type:duration"},
 			}
