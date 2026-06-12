@@ -28,7 +28,7 @@ fi
 # floods logs with hash lines (e.g. "##########  67.5%"). Must be set before
 # the exec redirect below, which makes [ -t ] checks unreliable.
 # --no-progress-meter requires curl 7.67+ (2019); macOS 12+ ships >=7.79.
-if [ -t 2 ]; then
+if [ -t 1 ] && [ -t 2 ]; then
     curl_progress_opt="--progress-bar"
 else
     curl_progress_opt="--no-progress-meter"
