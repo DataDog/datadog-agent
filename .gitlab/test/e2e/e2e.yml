@@ -702,6 +702,20 @@ new-e2e-discovery:
     TEAM: agent-discovery
     ON_NIGHTLY_FIPS: "true"
 
+new-e2e-instrumentation:
+  extends: .new_e2e_template
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - agent_deb-x64-a7
+    - qa_agent_linux
+    - qa_dca
+  rules:
+    - !reference [.on_instrumentation_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/instrumentation
+    TEAM: container-platform
+
 new-e2e-process-ecs:
   extends: .new_e2e_template
   needs:

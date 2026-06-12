@@ -1518,6 +1518,17 @@ workflow:
         - pkg/clusteragent/autoscaling/cluster/**/*
       compare_to: $COMPARE_TO_BRANCH
 
+.on_instrumentation_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        - test/new-e2e/tests/instrumentation/**/*
+        - pkg/clusteragent/instrumentation/**/*
+        - pkg/clusteragent/admission/validate/datadoginstrumentation/*
+        - comp/core/autodiscovery/providers/instrumentationchecks.go
+        - cmd/cluster-agent/api/v1/instrumentationchecks.go
+      compare_to: $COMPARE_TO_BRANCH
+
 .on_gpu_integration_tests:
   - !reference [.on_scheduled_main]
   # Run on GPU-related changes
