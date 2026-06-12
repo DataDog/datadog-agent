@@ -41,10 +41,16 @@ After deploying the Host Profiler, profiles appear on the [Datadog Profiler](htt
 
 ## AppArmor (optional)
 
-To use a custom AppArmor profile instead of `unconfined`, load [`apparmor-profile`](../apparmor-profile) on each node, then set:
+AppArmor provides extra hardening on Linux distributions and Kubernetes clusters where AppArmor is available. The Host Profiler does not require AppArmor to run; the Datadog Helm chart configures the required capabilities and seccomp profile automatically.
+
+Use this section only if your nodes support AppArmor and you already manage node-local AppArmor profiles. AppArmor profiles must be loaded on each node before Kubernetes can apply them to a pod.
+
+To enable the provided profile, load [`apparmor-profile`](../apparmor-profile) on each node, then set:
 
 ```yaml
 datadog:
   hostProfiler:
     apparmor: localhost/host-profiler
 ```
+
+The provided profile limits what the Host Profiler container can execute. It allows `objcopy`, which is used for debug symbol extraction.
