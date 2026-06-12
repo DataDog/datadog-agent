@@ -131,9 +131,15 @@ publish_internal_container_image-host_profiler_standalone:
     TMPL_SRC_IMAGE_SUFFIX: "-7"
 
 # Scrappy live-inference detector overlay (amd64 only — scrappy-infer is AVX2 ELF)
+# The DataDog/images tmpl-v24 pipeline expects both amd64 and arm64 source images to
+# assemble a multi-arch manifest, but scrappy is amd64-only.  The child pipeline will
+# therefore always fail looking for the arm64 variant.  allow_failure: true keeps the
+# pipeline green while still triggering the downstream job for when / if an arm64 build
+# is eventually added.
 # TODO: make manual before merge to main
 publish_internal_container_image-scrappy:
   extends: .docker_trigger_base
+  allow_failure: true
   needs:
     - job: docker_build_agent7_scrappy
       artifacts: false
