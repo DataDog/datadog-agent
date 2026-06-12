@@ -1,4 +1,7 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+# gazelle:dd_agent_go_test on
 
 go_library(
     name = "file",
@@ -35,7 +38,7 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "file_test",
     srcs = [
         "fingerprint_test.go",
@@ -44,7 +47,6 @@ go_test(
         "tailer_windows_test.go",
     ],
     embed = [":file"],
-    gotags = ["test"],
     deps = [
         "//comp/logs-library/metrics",
         "//comp/logs/agent/config",

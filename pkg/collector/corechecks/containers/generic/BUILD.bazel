@@ -1,4 +1,7 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+# gazelle:dd_agent_go_test on
 
 go_library(
     name = "generic",
@@ -39,7 +42,7 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "generic_test",
     srcs = [
         "processor_network_test.go",
@@ -47,7 +50,6 @@ go_test(
         "rate_capping_sender_test.go",
     ],
     embed = [":generic"],
-    gotags = ["test"],
     deps = [
         "//comp/core/tagger/fx-mock",
         "//comp/core/tagger/types",

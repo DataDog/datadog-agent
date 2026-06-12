@@ -477,14 +477,13 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/system-probe/api/module
 # gazelle:exclude pkg/util/kubernetes/apiserver/controllers
 # gazelle:exclude pkg/util/kubernetes/apiserver/leaderelection/status_templates
-# TODO(agent-build): re-include the following files once their unmigrated deps are
-#   reachable from Bazel-migrated targets:
-#     - hostname.go      -> pkg/util/kubernetes/apiserver, pkg/util/kubernetes/clustername
-#     - resource.go      -> k8s.io/apimachinery/pkg/api/resource
-#     - resource_test.go -> k8s.io/apimachinery/pkg/api/resource
+# Keep hostname.go out of //pkg/util/kubernetes:kubernetes: adding it pulls deps
+#   kubernetes -> clustername -> hostinfo -> kubelet -> kubernetes
+# because //pkg/util/kubernetes/kubelet depends on //pkg/util/kubernetes. Go build
+# tags hide this in single-config compiles; Bazel analyzes the full target graph.
+# TODO: break the cycle (e.g. move GetKubeAPIServerHostname to another package, or
+# trim kubelet's dependency on the parent kubernetes library) then drop this exclude.
 # gazelle:exclude pkg/util/kubernetes/hostname.go
-# gazelle:exclude pkg/util/kubernetes/resource.go
-# gazelle:exclude pkg/util/kubernetes/resource_test.go
 # gazelle:exclude tasks/unit_tests
 # gazelle:exclude test/benchmarks
 # gazelle:exclude test/e2e-framework/components/datadog/agent/helm

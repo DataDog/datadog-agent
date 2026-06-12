@@ -1,4 +1,7 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+# gazelle:dd_agent_go_test on
 
 go_library(
     name = "topn",
@@ -17,14 +20,13 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "topn_test",
     srcs = [
         "filter_per_flush_test.go",
         "filter_per_flush_throttler_test.go",
     ],
     embed = [":topn"],
-    gotags = ["test"],
     deps = [
         "//comp/core/log/mock",
         "//comp/netflow/common",

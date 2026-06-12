@@ -1,4 +1,7 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+# gazelle:dd_agent_go_test on
 
 go_library(
     name = "winproc",
@@ -81,11 +84,10 @@ go_library(
     }),
 )
 
-go_test(
+dd_agent_go_test(
     name = "winproc_test",
     srcs = ["winproc_windows_test.go"],
     embed = [":winproc"],
-    gotags = ["test"],
     deps = select({
         "@rules_go//go/platform:windows": [
             "//comp/core/autodiscovery/integration",

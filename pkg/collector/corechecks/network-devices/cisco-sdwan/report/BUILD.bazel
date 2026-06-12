@@ -1,4 +1,7 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+# gazelle:dd_agent_go_test on
 
 go_library(
     name = "report",
@@ -20,14 +23,13 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "report_test",
     srcs = [
         "metadata_test.go",
         "metrics_test.go",
     ],
     embed = [":report"],
-    gotags = ["test"],
     deps = [
         "//pkg/aggregator/mocksender",
         "//pkg/collector/corechecks/network-devices/cisco-sdwan/client",

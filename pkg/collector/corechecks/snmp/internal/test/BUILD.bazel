@@ -1,3 +1,5 @@
+# gazelle:dd_agent_go_test on
+
 filegroup(
     name = "testdata",
     srcs = glob(["**"]),
