@@ -1,6 +1,6 @@
 {
     "base_branch": "main",
-    "current_milestone": "7.81.0",
+    "current_milestone": "7.82.0",
     "dependencies": {
         "AGENT_DATA_PLANE_HASH_DARWIN_AMD64": "49800332f994b980e1fe36608c95068c2ac546acb5812cade882db523afe76b0",
         "AGENT_DATA_PLANE_HASH_DARWIN_ARM64": "fec9812ab3cf3628c1f266d37c4d93da98f74891a8a12bb1968affcabff173b1",
@@ -14,8 +14,8 @@
         "JMXFETCH_HASH": "3eb735171a3e41518c4101a6aee06fee8b93092d015769c2e470eecadb4bd11b",
         "JMXFETCH_VERSION": "0.52.0",
         "OMNIBUS_RUBY_VERSION": "5b00eeae9fa553e5ae445ba91a0a0ab4c21aa749",
-        "SECURITY_AGENT_POLICIES_SHA256": "bf77e504a831f67ea4e9030da7d1a9cbd17ca4310f1b094a4c956469f192a895",
-        "SECURITY_AGENT_POLICIES_VERSION": "v0.80.0",
+        "SECURITY_AGENT_POLICIES_SHA256": "ce59c93ca93295b0becac504d94c13e6c0e17a6599a52158e4bd704a804b8fcc",
+        "SECURITY_AGENT_POLICIES_VERSION": "v0.81.0",
         "WINDOWS_DDNPM_DRIVER": "release-signed",
         "WINDOWS_DDNPM_SHASUM": "4943c83e548d1a49ee3eb1c045d6be2f3888fee343961533c2958bdc8e5002c7",
         "WINDOWS_DDNPM_VERSION": "2.14.0",

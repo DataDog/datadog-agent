@@ -6,7 +6,9 @@
 package stats
 
 import (
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -388,6 +390,51 @@ func TestAdditionalMetricTags(t *testing.T) {
 
 	agg := NewAggregationFromSpan(statSpan, "", PayloadAggregationKey{})
 	assert.Equal(t, additionalMetricTagsHash, agg.AdditionalMetricTagsHash)
+}
+
+func TestAdditionalMetricTagsValueLengthCap(t *testing.T) {
+	sc := NewSpanConcentrator(&SpanConcentratorConfig{
+		BucketInterval: int64(time.Second),
+	}, time.Unix(0, 0))
+	maxLengthValue := strings.Repeat("a", additionalMetricTagValueMaxLength)
+	overLengthValue := strings.Repeat("b", additionalMetricTagValueMaxLength+1)
+
+	span := &pb.Span{
+		Service:  "checkout-service",
+		Name:     "checkout.process",
+		Resource: "POST /checkout/process",
+		Type:     "web",
+		Meta: map[string]string{
+			"customer_tier": overLengthValue,
+			"datacenter":    maxLengthValue,
+		},
+	}
+	traceutil.SetMeasured(span, true)
+
+	statSpan, ok := sc.NewStatSpanFromPB(span, nil, []string{"datacenter", "customer_tier"})
+	require.True(t, ok)
+	assert.Equal(t, []string{"datacenter:" + maxLengthValue, "customer_tier:tracer_blocked_value"}, statSpan.matchingAdditionalMetricTags)
+	assert.Equal(t, BlockCounts{LengthBlocks: 1}, sc.DrainBlockCounts())
+	assert.Equal(t, BlockCounts{}, sc.DrainBlockCounts())
+
+	agg := NewAggregationFromSpan(statSpan, "", PayloadAggregationKey{})
+	assert.Equal(t, tagsFnvHash([]string{"customer_tier:tracer_blocked_value", "datacenter:" + maxLengthValue}), agg.AdditionalMetricTagsHash)
+}
+
+func TestAdditionalMetricTagsValueLengthCapV1(t *testing.T) {
+	sc := NewSpanConcentrator(&SpanConcentratorConfig{
+		BucketInterval: int64(time.Second),
+	}, time.Unix(0, 0))
+	span := newTestInternalSpanV1()
+	span.SetFloat64Attribute("_dd.measured", 1)
+	span.SetStringAttribute("customer_tier", strings.Repeat("b", additionalMetricTagValueMaxLength+1))
+	span.SetStringAttribute("datacenter", "use1")
+
+	statSpan, ok := sc.NewStatSpanFromV1(span, nil, []string{"datacenter", "customer_tier"})
+	require.True(t, ok)
+	assert.Equal(t, []string{"datacenter:use1", "customer_tier:tracer_blocked_value"}, statSpan.matchingAdditionalMetricTags)
+	assert.Equal(t, BlockCounts{LengthBlocks: 1}, sc.DrainBlockCounts())
+	assert.Equal(t, BlockCounts{}, sc.DrainBlockCounts())
 }
 
 func TestPeerTagsToAggregateForSpan(t *testing.T) {
