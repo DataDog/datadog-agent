@@ -6,7 +6,7 @@ load("//compliance:license_csv.bzl", "license_csv")
 
 visibility("public")
 
-def package_licenses(name = None, src = None):
+def package_licenses(name = None, src = None, visibility = None, **kwargs):
     """Collects all the licenses for a source target and makes them available for packaging.
 
     This result of this rule is a pkg_filegorup suitable for use in pkg_* rules.
@@ -16,6 +16,8 @@ def package_licenses(name = None, src = None):
         name: name
         src: target to search. This is typically a filegroup of the top level
              elements that will be bundled into a distribution artifact.
+        visibility: visisibility
+        **kwargs: other args
     """
 
     # Collect everything
@@ -33,6 +35,7 @@ def package_licenses(name = None, src = None):
         name = "%s_copied_license_dir_" % name,
         srcs = [":%s_licenses_" % name],
         output_group = "licenses",
+        tags = ["manual"],
     )
 
     # This silliness strips the directory name of the license TreeArtifact.
@@ -41,6 +44,7 @@ def package_licenses(name = None, src = None):
         src = ":%s_copied_license_dir_" % name,
         outdir_name = "LICENSES",
         strip_prefix = ".",
+        tags = ["manual"],
     )
 
     # Turn the copied offers into a target we can feed to other rules.
@@ -48,6 +52,7 @@ def package_licenses(name = None, src = None):
         name = "%s_copied_offer_dir_" % name,
         srcs = [":%s_licenses_" % name],
         output_group = "offers",
+        tags = ["manual"],
     )
 
     # This silliness strips the directory name of the offer TreeArtifact.
@@ -56,6 +61,7 @@ def package_licenses(name = None, src = None):
         src = ":%s_copied_offer_dir_" % name,
         outdir_name = "sources",
         strip_prefix = ".",
+        tags = ["manual"],
     )
 
     # You would expect that filter_directory returns something usuable to pkg_* rules.
@@ -72,7 +78,8 @@ def package_licenses(name = None, src = None):
             "@platforms//os:windows": [],  #TODO(ABLD-351): deal with products that don't have source offers
             "//conditions:default": [":%s_offer_dir_stripped_" % name],
         }),
-        visibility = ["//visibility:public"],
+        visibility = visibility or ["//visibility:public"],
+        **kwargs
     )
 
     pkg_install(
