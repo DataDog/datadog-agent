@@ -74,6 +74,9 @@
 
       RUN chmod +x /opt/scrappy/scrappy-infer
 
+      # Install PyTorch (CPU-only) for the .pt inference backend
+      RUN pip3 install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
+
       # Runtime config hints — overridable via env / datadog.yaml
       ENV DD_ANOMALY_DETECTION_DETECTORS_SCRAPPY_DETECTOR_MODEL_PATH=/opt/scrappy/model.pt \
           DD_ANOMALY_DETECTION_DETECTORS_SCRAPPY_DETECTOR_VOCAB_PATH=/opt/scrappy/vocab.json
