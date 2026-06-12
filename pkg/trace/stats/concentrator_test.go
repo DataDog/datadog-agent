@@ -8,6 +8,7 @@ package stats
 import (
 	"fmt"
 	"math/rand"
+	"strings"
 	"testing"
 	"time"
 
@@ -133,6 +134,55 @@ func TestNewConcentratorPeerTags(t *testing.T) {
 		c := NewConcentrator(&cfg, nil, time.Now(), statsd)
 		assert.Equal(cfg.ConfiguredPeerTags(), c.getPeerTagKeys())
 	})
+}
+
+func TestNewConcentratorAdditionalMetricTagsValueLengthCapUsesAgentSentinel(t *testing.T) {
+	cfg := config.AgentConfig{
+		BucketInterval: time.Duration(testBucketInterval),
+		AgentVersion:   "0.99.0",
+		DefaultEnv:     "env",
+		Hostname:       "hostname",
+	}
+	c := NewConcentrator(&cfg, noopStatsWriter{}, time.Now(), &statsd.NoOpClient{})
+	span := &pb.Span{
+		Service:  "checkout-service",
+		Name:     "checkout.process",
+		Resource: "POST /checkout/process",
+		Type:     "web",
+		Meta: map[string]string{
+			"customer_tier": strings.Repeat("a", additionalMetricTagValueMaxLength+1),
+		},
+	}
+	traceutil.SetMeasured(span, true)
+
+	statSpan, ok := c.spanConcentrator.NewStatSpanFromPB(span, nil, []string{"customer_tier"})
+	require.True(t, ok)
+	assert.Equal(t, []string{"customer_tier:agent_blocked_value"}, statSpan.matchingAdditionalMetricTags)
+	assert.Equal(t, BlockCounts{LengthBlocks: 1}, c.spanConcentrator.DrainBlockCounts())
+}
+
+func TestNewConcentratorAdditionalMetricTagsCardinalityLimitUsesAgentSentinel(t *testing.T) {
+	cfg := config.AgentConfig{
+		BucketInterval: time.Duration(testBucketInterval),
+		AgentVersion:   "0.99.0",
+		DefaultEnv:     "env",
+		Hostname:       "hostname",
+	}
+	c := NewConcentrator(&cfg, noopStatsWriter{}, time.Unix(0, 0), &statsd.NoOpClient{})
+	c.spanConcentrator.additionalTagsCardinalityLimit = 1
+	aggKey := PayloadAggregationKey{Env: "prod", Hostname: "host"}
+
+	admitted := newAdditionalMetricTagStatSpan("admitted")
+	admitted.start = 1
+	blocked := newAdditionalMetricTagStatSpan("blocked")
+	blocked.start = 2
+
+	c.spanConcentrator.addSpan(admitted, aggKey, infraTags{}, "", 1)
+	c.spanConcentrator.addSpan(blocked, aggKey, infraTags{}, "", 1)
+
+	assert.Equal(t, []string{"customer_id:admitted"}, admitted.matchingAdditionalMetricTags)
+	assert.Equal(t, []string{"customer_id:agent_blocked_value"}, blocked.matchingAdditionalMetricTags)
+	assert.Equal(t, BlockCounts{CapBlocks: 1}, c.spanConcentrator.DrainBlockCounts())
 }
 
 // TestConcentrator_PeerTagKeysFollowRegistry verifies that getPeerTagKeys

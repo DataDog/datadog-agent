@@ -314,12 +314,11 @@ func testSketch(t *testing.T, store *tags.Store) {
 
 	t.Run("single bucket", func(t *testing.T) {
 		var (
-			now    float64
-			name   = "m.0"
-			tags   = []string{"a"}
-			host   = "host"
-			exp    = &quantile.Sketch{}
-			keyGen = ckey.NewKeyGenerator()
+			now  float64
+			name = "m.0"
+			tags = []string{"a"}
+			host = "host"
+			exp  = &quantile.Sketch{}
 		)
 
 		for i := 0; i < bucketSize; i++ {
@@ -342,7 +341,6 @@ func testSketch(t *testing.T, store *tags.Store) {
 					Ts:     0,
 				},
 			},
-			ContextKey: keyGen.Generate(name, host, tagset.NewHashingTagsAccumulatorWithTags(tags)),
 		}, flushed[0])
 
 		_, flushed = flushSerie(sampler, now, false)
@@ -391,7 +389,6 @@ func testSketchBucketSampling(t *testing.T, store *tags.Store) {
 			{Ts: 10000, Sketch: expSketch},
 			{Ts: 10010, Sketch: expSketch},
 		},
-		ContextKey: generateContextKey(&mSample1),
 	}, flushed[0])
 
 	// The samples added after the flush time remains in the dist sampler
@@ -438,7 +435,6 @@ func testSketchContextSampling(t *testing.T, store *tags.Store) {
 		Points: []metrics.SketchPoint{
 			{Ts: 10010, Sketch: expSketch},
 		},
-		ContextKey: generateContextKey(&mSample1),
 	}, flushed[0])
 
 	metrics.AssertSketchSeriesEqual(t, &metrics.SketchSeries{
@@ -448,7 +444,6 @@ func testSketchContextSampling(t *testing.T, store *tags.Store) {
 		Points: []metrics.SketchPoint{
 			{Ts: 10010, Sketch: expSketch},
 		},
-		ContextKey: generateContextKey(&mSample2),
 	}, flushed[1])
 }
 func TestSketchContextSampling(t *testing.T) {
@@ -508,7 +503,6 @@ func testBucketSamplingWithSketchAndSeries(t *testing.T, store *tags.Store) {
 			{Ts: 12340.0, Sketch: expSketch},
 			{Ts: 12350.0, Sketch: expSketch},
 		},
-		ContextKey: generateContextKey(&dSample1),
 	}, sketches[0])
 }
 func TestBucketSamplingWithSketchAndSeries(t *testing.T) {
@@ -672,7 +666,6 @@ func TestForcedFlush(t *testing.T) {
 			{Ts: 1010.0, Sketch: expSketch},
 			{Ts: 1020.0, Sketch: expSketch},
 		},
-		ContextKey: generateContextKey(testSketch),
 	}, sSerie[0])
 }
 
@@ -681,7 +674,7 @@ func TestForcedFlush(t *testing.T) {
 // filterlist must collapse to a single context AND their values must
 // sum in the resulting Serie's Point.
 func testTimeSamplerStripCountAggregates(t *testing.T, store *tags.Store) {
-	configmock.New(t).SetWithoutSource("metric_tag_filterlist_adp_only", false)
+	configmock.New(t).SetInTest("metric_tag_filterlist_adp_only", false)
 	sampler := testTimeSampler(store)
 	matcher := filterlist.NewTagMatcher(map[string]filterlist.MetricTagList{
 		"count.metric": {
@@ -739,7 +732,7 @@ func TestTimeSamplerStripCountAggregates(t *testing.T) {
 //	sample2: 3 * (1/0.25) = 12
 //	total = 20  →  rate = 20/10 = 2.0
 func testTimeSamplerStripCounterAggregates(t *testing.T, store *tags.Store) {
-	configmock.New(t).SetWithoutSource("metric_tag_filterlist_adp_only", false)
+	configmock.New(t).SetInTest("metric_tag_filterlist_adp_only", false)
 	sampler := testTimeSampler(store)
 	matcher := filterlist.NewTagMatcher(map[string]filterlist.MetricTagList{
 		"counter.metric": {

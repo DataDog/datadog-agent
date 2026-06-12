@@ -16,8 +16,8 @@
 --     resources, change_metadata)
 --   - Sub-category classification (spike, drop, new_pattern) recorded in
 --     change_metadata.sub_category
---   - Routing identity for edge-intelligence (integration_id,
---     source_type_id, changed_resource.type), locked by invariant
+--   - Routing identity for edge-intelligence (integration_id and
+--     changed_resource.type), locked by invariant
 --   - Payload size caps imposed by the v2 Events API
 --
 -- Excludes:
@@ -104,7 +104,6 @@ external entity ChangeEvent {
     message: String
     category: EventCategory
     integration_id: String
-    source_type_id: Integer
     tags: Set<String>
     timestamp: Timestamp
     aggregation_key: String
@@ -253,9 +252,12 @@ config {
 -- Routing Identity
 ------------------------------------------------------------
 
--- The Event Management intake routes a change event by the publisher's
--- (integration_id, source_type_id) pair. These values are constants of
--- the `edge-intelligence` integration; they are not configurable and are
+-- The Event Management intake routes a change event by integration_id.
+-- source_type_id is derived intake-side from that integration and is not
+-- emitted by the reporter payload.
+--
+-- integration_id and changed_resource.type are constants of the
+-- `edge-intelligence` integration; they are not configurable and are
 -- enforced on every emitted ChangeEvent by the RoutingIdentityLocked
 -- invariant.
 --
@@ -263,7 +265,7 @@ config {
 -- previously-emitted `configuration` value.
 --
 --   integration_id        = "edge-intelligence"
---   source_type_id        = 78252213
+--   derived source_type_id = 78252213 (from integration_id)
 --   changed_resource_type = "anomaly"
 --   author_name           = "datadog-agent-observer"
 --   author_type           = "automation"
@@ -340,7 +342,6 @@ rule PublishNewCorrelation {
                     message: render_change_message(c),
                     category: change,
                     integration_id: "edge-intelligence",
-                    source_type_id: 78252213,
                     tags: derive_event_tags(c),
                     timestamp: c.first_seen,
                     aggregation_key: "observer:" + c.pattern,
@@ -504,11 +505,12 @@ invariant SubCategoryCoversAll {
 
 invariant RoutingIdentityLocked {
     -- Every emitted ChangeEvent uses the locked routing identity.
+    -- source_type_id is not emitted; Event Management derives it from
+    -- integration_id for the registered publisher.
     -- changed_resource.type is `anomaly`; the previously-emitted
     -- `configuration` value is rejected by the intake.
     for e in ChangeEvents:
         e.integration_id = "edge-intelligence"
-        and e.source_type_id = 78252213
         and e.changed_resource_type = "anomaly"
         and e.author_name = "datadog-agent-observer"
         and e.author_type = "automation"

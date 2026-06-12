@@ -56,7 +56,7 @@ func (suite *LauncherTestSuite) SetupTest() {
 	suite.source = sources.NewLogSource(suite.T().Name(), &config.LogsConfig{Type: config.IntegrationType, Path: suite.testPath})
 	// Override `logs_config.run_path` before calling `sources.NewLogSources()` as otherwise
 	// it will try and create `/opt/datadog` directory and fail
-	cfg.SetWithoutSource("logs_config.run_path", suite.testDir)
+	cfg.SetInTest("logs_config.run_path", suite.testDir)
 
 	suite.s = NewLauncher(suite.fs, sources.NewLogSources(), suite.integrationsComp)
 	suite.s.fileSizeMax = 10 * 1024 * 1024
@@ -755,7 +755,7 @@ func TestReadOnlyFileSystem(t *testing.T) {
 	readOnlyDir, err := afero.TempDir(fs, "readonly", t.Name())
 	assert.NoError(t, err, "Unable to make tempdir readonly")
 
-	cfg.SetWithoutSource("logs_config.run_path", readOnlyDir)
+	cfg.SetInTest("logs_config.run_path", readOnlyDir)
 
 	integrationsComp := integrationsmock.Mock()
 	s := NewLauncher(afero.NewReadOnlyFs(fs), sources.NewLogSources(), integrationsComp)
@@ -781,8 +781,8 @@ func TestReadOnlyFileSystem(t *testing.T) {
 func TestCombinedDiskUsageFallback(t *testing.T) {
 	cfg := configmock.New(t)
 	totalUsage := 100
-	cfg.SetWithoutSource("logs_config.integrations_logs_disk_ratio", -1)
-	cfg.SetWithoutSource("logs_config.integrations_logs_total_usage", totalUsage)
+	cfg.SetInTest("logs_config.integrations_logs_disk_ratio", -1)
+	cfg.SetInTest("logs_config.integrations_logs_total_usage", totalUsage)
 
 	integrationsComp := integrationsmock.Mock()
 	s := NewLauncher(afero.NewOsFs(), sources.NewLogSources(), integrationsComp)
