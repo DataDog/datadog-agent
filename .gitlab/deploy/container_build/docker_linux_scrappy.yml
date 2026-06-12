@@ -51,7 +51,7 @@
     # ── 3. Fetch model weights + scrappy Python source from S3 ────────────────
     - aws s3 cp --only-show-errors --region us-east-1 ${SCRAPPY_MODEL_S3_URI}epoch_020.pt ${SCRAPPY_BUILD_CONTEXT}/epoch_020.pt
     - aws s3 cp --only-show-errors --region us-east-1 ${SCRAPPY_MODEL_S3_URI}run_manifest.json ${SCRAPPY_BUILD_CONTEXT}/run_manifest.json
-    - aws s3 cp --only-show-errors --region us-east-1 ${SCRAPPY_MODEL_S3_URI}scrappy-src.tar.gz ${SCRAPPY_BUILD_CONTEXT}/scrappy-src.tar.gz
+    - aws s3 cp --only-show-errors --region us-east-1 ${SCRAPPY_MODEL_S3_URI}scrappy-pip.tar.gz ${SCRAPPY_BUILD_CONTEXT}/scrappy-src.tar.gz
 
     # ── 4. Write the overlay Dockerfile ───────────────────────────────────────
     # Layered on top of the standard agent image built in this same pipeline.
@@ -72,18 +72,21 @@
       COPY vocab.json       /opt/scrappy/vocab.json
       # Python scorer script (required by the .pt backend)
       COPY scrappy_scorer.py /opt/scrappy/scrappy_scorer.py
-      # Scrappy Python training source (ScrappyModel/ScrappyConfig) needed by scorer
+      # Scrappy Python package (ScrappyModel/ScrappyConfig) — pip-installable tarball
+      # containing pyproject.toml + src/scrappy/. Installed as a proper package so
+      # no PYTHONPATH manipulation is needed.
       COPY scrappy-src.tar.gz /tmp/scrappy-src.tar.gz
 
       RUN chmod +x /opt/scrappy/scrappy-infer \
-       && pip3 install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu \
-       && tar xzf /tmp/scrappy-src.tar.gz -C /opt/scrappy/ \
+       && pip3 install --no-cache-dir \
+            numpy \
+            torch --index-url https://download.pytorch.org/whl/cpu \
+       && pip3 install --no-cache-dir /tmp/scrappy-src.tar.gz \
        && rm /tmp/scrappy-src.tar.gz
 
       # Runtime config hints — overridable via env / datadog.yaml
       ENV DD_ANOMALY_DETECTION_DETECTORS_SCRAPPY_DETECTOR_MODEL_PATH=/opt/scrappy/model.pt \
-          DD_ANOMALY_DETECTION_DETECTORS_SCRAPPY_DETECTOR_VOCAB_PATH=/opt/scrappy/vocab.json \
-          PYTHONPATH=/opt/scrappy/src
+          DD_ANOMALY_DETECTION_DETECTORS_SCRAPPY_DETECTOR_VOCAB_PATH=/opt/scrappy/vocab.json
       DOCKERFILE
 
     # ── 5. Log what we're building ────────────────────────────────────────────
