@@ -225,7 +225,7 @@ void Three::freePyInfo(py_info_t *info)
     info->version = NULL;
     if (info->path) {
         _free(info->path);
-        info->version = NULL;
+        info->path = NULL;
     }
     _free(info);
     return;
@@ -1117,6 +1117,16 @@ void Three::setObfuscateMongoDBStringCb(cb_obfuscate_mongodb_string_t cb)
 void Three::setEmitAgentTelemetryCb(cb_emit_agent_telemetry_t cb)
 {
     _set_emit_agent_telemetry_cb(cb);
+}
+
+void Three::setReportIssueCb(cb_report_issue_t cb)
+{
+    _set_report_issue_cb(cb);
+}
+
+void Three::setResolveIssueCb(cb_resolve_issue_t cb)
+{
+    _set_resolve_issue_cb(cb);
 }
 
 // Python Helpers

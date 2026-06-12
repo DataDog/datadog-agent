@@ -77,7 +77,8 @@
             "86": "ami-031eff1ae75bb87e4",
             "86-fips": "ami-0d0fb96b595c56e03",
             "9": "ami-0d424760e95da7d14",
-            "9-e2e": "ami-0838852bcc66ea9a2"
+            "9-e2e": "ami-0838852bcc66ea9a2",
+            "10": "ami-07b1b74df74f960a5"
         }
     },
     "rocky-linux": {

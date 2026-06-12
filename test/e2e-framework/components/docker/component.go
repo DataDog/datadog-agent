@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/command"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	remoteComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/remote"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
@@ -184,10 +185,61 @@ func (d *Manager) install() (command.Command, error) {
 	opts := []pulumi.ResourceOption{pulumi.Parent(d)}
 	opts = utils.MergeOptions(d.opts, opts...)
 
-	// Patch ip range that docker uses to create its bridge networks
-	// This is to avoid conflicts with other IP ranges used internally
+	// TODO(ACIX-1305 follow-up): remove this runtime install once a RHEL 10 -e2e
+	// AMI pre-bakes Docker CE. The migrated OSes assume Docker is pre-baked and
+	// hard-fail if it is missing; RHEL family has no -e2e AMI yet (introduced by
+	// the SBOM/RHEL10 work in #51486), so it remains a temporary runtime install.
+	//
+	// Red Hat family flavors have no distro "docker" package, so install Docker CE
+	// from Docker's repo first; the generic Ensure below then no-ops (command -v
+	// docker succeeds). The el9 repo is reused because RHEL 10 ($releasever=10) is
+	// not served by Docker yet.
+	switch d.Host.OS.Descriptor().Flavor {
+	case os.RedHat, os.CentOS, os.RockyLinux:
+		dockerCEInstall, err := d.Host.OS.Runner().Command(d.namer.ResourceName("docker-ce-install"), &command.Args{
+			Sudo: true,
+			Create: pulumi.String(`bash <<'EOF'
+set -euxo pipefail
+# Single-node e2e box: relax SELinux and firewalld (mirrors the kubeadm box) so
+# the agent container can read host bind mounts without extra rules.
+setenforce 0 || true
+sed -i 's/^SELINUX=enforcing/SELINUX=permissive/' /etc/selinux/config || true
+systemctl disable --now firewalld || true
+curl -fsSL https://download.docker.com/linux/centos/docker-ce.repo -o /etc/yum.repos.d/docker-ce.repo
+sed -i 's/\$releasever/9/g' /etc/yum.repos.d/docker-ce.repo
+dnf install -y docker-ce docker-ce-cli containerd.io
+# RHEL 10 dropped the legacy iptables kernel module, so docker 29 must use its
+# nftables firewall backend or the daemon cannot program bridge NAT. Set it
+# before the first start (the full daemon.json follows); surface logs on failure.
+mkdir -p /etc/docker && printf '{"firewall-backend": "nftables", "storage-driver": "overlay2"}' > /etc/docker/daemon.json
+# docker needs IPv4 forwarding to create its default bridge network.
+echo 'net.ipv4.ip_forward=1' > /etc/sysctl.d/99-docker.conf && sysctl -w net.ipv4.ip_forward=1
+systemctl enable --now docker || { journalctl -xeu docker.service --no-pager | tail -80; exit 1; }
+EOF`),
+		}, opts...)
+		if err != nil {
+			return nil, err
+		}
+		opts = utils.MergeOptions(opts, utils.PulumiDependsOn(dockerCEInstall))
+
+		dockerInstall, err := d.Host.OS.PackageManager().Ensure("docker", nil, "docker", os.WithPulumiResourceOptions(opts...))
+		if err != nil {
+			return nil, err
+		}
+		opts = utils.MergeOptions(opts, utils.PulumiDependsOn(dockerInstall))
+	}
+
+	// Patch the daemon config: pin overlay2 + a mirror and move docker off the
+	// default bridge IP range to avoid conflicts with other internal ranges.
+	// Red Hat 10 dropped the legacy iptables kernel module, so docker 29 needs
+	// its nftables firewall backend or the daemon cannot program bridge NAT.
+	daemonOpts := `"storage-driver": "overlay2", "registry-mirrors": ["https://mirror.gcr.io"], "bip": "192.168.16.1/24", "default-address-pools":[{"base":"192.168.32.0/24", "size":24}], "max-download-attempts": 10`
+	switch d.Host.OS.Descriptor().Flavor {
+	case os.RedHat, os.CentOS, os.RockyLinux:
+		daemonOpts += `, "firewall-backend": "nftables"`
+	}
 	daemonPatch, err := d.Host.OS.Runner().Command(d.namer.ResourceName("daemon-patch"), &command.Args{
-		Create: pulumi.Sprintf("sudo mkdir -p /etc/docker && echo '{\"bip\": \"192.168.16.1/24\", \"default-address-pools\":[{\"base\":\"192.168.32.0/24\", \"size\":24}], \"max-download-attempts\": 10}' | sudo tee /etc/docker/daemon.json"),
+		Create: pulumi.Sprintf("sudo mkdir -p /etc/docker && echo '{%s}' | sudo tee /etc/docker/daemon.json", daemonOpts),
 		Sudo:   true,
 	}, opts...)
 	if err != nil {
@@ -236,6 +288,15 @@ func (d *Manager) install() (command.Command, error) {
 // surfaces as a typed Go error rather than a bare bash exit code.
 func (d *Manager) assertCompose() (command.Command, error) {
 	opts := append(d.opts, pulumi.Parent(d))
+
+	// TODO(ACIX-1305 follow-up): remove this runtime install once a RHEL 10 -e2e
+	// AMI pre-bakes docker-compose. RHEL family has no -e2e AMI yet (introduced by
+	// the SBOM/RHEL10 work in #51486); migrated OSes assume docker-compose is
+	// pre-baked and hard-fail below if it is missing.
+	switch d.Host.OS.Descriptor().Flavor {
+	case os.RedHat, os.CentOS, os.RockyLinux:
+		return InstallCompose(d.Host, opts...)
+	}
 
 	versionCmd, err := d.Host.OS.Runner().Command(
 		d.namer.ResourceName("compose-version"),
