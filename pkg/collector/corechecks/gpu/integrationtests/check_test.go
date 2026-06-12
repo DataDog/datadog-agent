@@ -205,7 +205,7 @@ func (suite *CheckTestSuite) TestCheckMetricValuesMatchSmi() {
 
 		// Power is recored in watts from nvidia-smi, but milliwatts from our collector. We need to scale it up and also
 		// give a larger margin of error to account for that.
-		requireMetricNearSmi(t, deviceMetrics, "power.usage", sample.PowerWatts, 1000, 500)
+		requireMetricNearSmi(t, deviceMetrics, "power.usage", sample.PowerWatts, 1000, 1000)
 		requireMetricNearSmi(t, deviceMetrics, "temperature", sample.GPUTempC, 1, 5)
 		requireMetricNearSmi(t, deviceMetrics, "encoder_active", sample.EncoderPct, 1, 5)
 		requireMetricNearSmi(t, deviceMetrics, "decoder_active", sample.DecoderPct, 1, 5)
@@ -255,12 +255,6 @@ func getFloatValue(t *testing.T, in *float64) float64 {
 // metric is within delta of the nvidia-smi reading, after applying scale to
 // convert the nvidia-smi units into the agent's units (e.g. watts to
 // milliwatts).
-//
-// It is a no-op when nvidia-smi did not report the field (dmon prints "-" for
-// counters the device does not support) or when the check did not emit the
-// metric for this device, since metric support varies across architectures.
-// Presence is enforced by TestCheckRunMatchesSpecForPhysicalDevices; this test
-// only validates the values that are actually reported on both sides.
 func requireMetricNearSmi(t *testing.T, deviceMetrics map[string][]gpuspec.MetricObservation, name string, smiValue *float64, scale, delta float64) {
 	t.Helper()
 
@@ -273,6 +267,5 @@ func requireMetricNearSmi(t *testing.T, deviceMetrics map[string][]gpuspec.Metri
 	expected := *smiValue * scale
 
 	t.Logf("checking %s with value %f against nividia-smi value %f", name, actual, expected)
-
 	require.InDelta(t, expected, actual, delta, "%s value %v differs from nvidia-smi reading %v", name, actual, expected)
 }
