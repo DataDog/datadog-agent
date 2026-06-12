@@ -106,7 +106,7 @@ import %workspace%/bazel/configs/rust.bazelrc
 # though we will never release that instance of the package to customers.
 common:release --config=rust-release
 common:release --//:release
-# common --config=release
+common --config=release
 
 # Local development options --------------------------------------------------------------------------------------------
 try-import %workspace%/user.bazelrc
