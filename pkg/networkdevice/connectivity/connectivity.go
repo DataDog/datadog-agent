@@ -13,15 +13,28 @@ import (
 	"errors"
 	"fmt"
 	"net/netip"
+	"strings"
 	"time"
 
+	"github.com/gosnmp/gosnmp"
+
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/pinger"
+	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 )
 
 const (
 	defaultPingCount   = 3
 	defaultPingTimeout = 3 * time.Second
 	pingInterval       = 100 * time.Millisecond
+
+	// SNMP identity OIDs (scalar .0 instances). A successful GET of these proves SNMP
+	// reachability plus valid credentials, and identifies the device.
+	oidSysDescr    = "1.3.6.1.2.1.1.1.0"
+	oidSysObjectID = "1.3.6.1.2.1.1.2.0"
+
+	defaultSNMPTimeout   = 3 * time.Second
+	defaultSNMPPort      = 161
+	defaultSNMPCommunity = "public"
 
 	// CheckPing and CheckSNMP are the supported check types. These string values MUST match
 	// the com.datadoghq.remoteaction.networkdevices.connectivityCheck manifest unions exactly.
@@ -167,19 +180,170 @@ func runPing(host string, opts *PingOptions) CheckResult {
 	return CheckResult{Type: CheckPing, Success: true, FailureCategory: failureNone, RttMs: &rtt}
 }
 
-// runSNMP performs the SNMP reachability + identity check (sysObjectID / sysDescr) and
-// classifies credential / version failures.
-//
-// TODO(NDM): not yet implemented (deferred with the credentials work). Intended approach:
-//   - build a *snmpparse.SNMPConfig from opts → snmpparse.NewSNMP(cfg, logger) → Connect()
-//   - GET sysObjectID (1.3.6.1.2.1.1.2.0) and sysDescr (1.3.6.1.2.1.1.1.0)
-//   - classify: no UDP/161 response -> unreachable/timeout; auth/decrypt error ->
-//     credential_failure; version/report PDU -> version_mismatch
-func runSNMP(_ context.Context, _ string, opts *SnmpOptions) CheckResult {
+// runSNMP performs the SNMP reachability + identity check by GET-ing sysObjectID and sysDescr,
+// and classifies credential / version / reachability failures. Credentials are taken from opts
+// in the clear (first iteration); they are used only to build the local SNMP client and are
+// never echoed back in the result.
+func runSNMP(ctx context.Context, host string, opts *SnmpOptions) CheckResult {
 	if opts == nil || opts.Version == "" {
 		return CheckResult{Type: CheckSNMP, Success: false, FailureCategory: failureUnknown, Error: "snmp options (version) are required when 'snmp' is requested"}
 	}
-	return CheckResult{Type: CheckSNMP, Success: false, FailureCategory: failureUnknown, Error: "snmp check not yet implemented"}
+
+	client, err := buildSNMPClient(ctx, host, opts)
+	if err != nil {
+		// Bad version / auth / priv inputs: a configuration problem, not a device response.
+		return CheckResult{Type: CheckSNMP, Success: false, FailureCategory: failureUnknown, Error: err.Error()}
+	}
+
+	if err := client.Connect(); err != nil {
+		category, msg := classifySNMPError(err)
+		return CheckResult{Type: CheckSNMP, Success: false, FailureCategory: category, Error: msg}
+	}
+	defer func() { _ = client.Conn.Close() }()
+
+	packet, err := client.Get([]string{oidSysObjectID, oidSysDescr})
+	if err != nil {
+		category, msg := classifySNMPError(err)
+		return CheckResult{Type: CheckSNMP, Success: false, FailureCategory: category, Error: msg}
+	}
+
+	// The device answered, so it is reachable and the credentials were accepted. Decode the
+	// identity OIDs best-effort (a missing scalar yields an unconvertible PDU we simply skip).
+	res := CheckResult{Type: CheckSNMP, Success: true, FailureCategory: failureNone}
+	for _, pdu := range packet.Variables {
+		value, convErr := gosnmplib.GetValueFromPDU(pdu)
+		if convErr != nil {
+			continue
+		}
+		str, convErr := gosnmplib.StandardTypeToString(value)
+		if convErr != nil {
+			continue
+		}
+		switch strings.TrimLeft(pdu.Name, ".") {
+		case oidSysObjectID:
+			res.SysObjectID = str
+		case oidSysDescr:
+			res.SysDescr = str
+		}
+	}
+	return res
+}
+
+// buildSNMPClient builds a gosnmp client from the (clear-text) options. It is intentionally
+// dependency-free (no log.Component), so the same logic backs both the PAR action and the CLI.
+func buildSNMPClient(ctx context.Context, host string, opts *SnmpOptions) (*gosnmp.GoSNMP, error) {
+	version, err := snmpVersion(opts.Version)
+	if err != nil {
+		return nil, err
+	}
+
+	port := uint16(defaultSNMPPort)
+	if opts.Port > 0 {
+		port = uint16(opts.Port)
+	}
+	timeout := defaultSNMPTimeout
+	if opts.TimeoutMs > 0 {
+		timeout = time.Duration(opts.TimeoutMs) * time.Millisecond
+	}
+
+	client := &gosnmp.GoSNMP{
+		Context:     ctx,
+		Target:      host,
+		Port:        port,
+		Transport:   "udp",
+		Version:     version,
+		Timeout:     timeout,
+		Retries:     opts.Retries,
+		ContextName: opts.ContextName,
+	}
+
+	if version == gosnmp.Version3 {
+		authProtocol, err := gosnmplib.GetAuthProtocol(opts.AuthProtocol)
+		if err != nil {
+			return nil, err
+		}
+		privProtocol, err := gosnmplib.GetPrivProtocol(opts.PrivProtocol)
+		if err != nil {
+			return nil, err
+		}
+		client.SecurityModel = gosnmp.UserSecurityModel
+		client.MsgFlags = v3MsgFlags(opts)
+		client.SecurityParameters = &gosnmp.UsmSecurityParameters{
+			UserName:                 opts.User,
+			AuthenticationProtocol:   authProtocol,
+			AuthenticationPassphrase: opts.AuthKey,
+			PrivacyProtocol:          privProtocol,
+			PrivacyPassphrase:        opts.PrivKey,
+		}
+	} else {
+		community := opts.Community
+		if community == "" {
+			community = defaultSNMPCommunity
+		}
+		client.Community = community
+	}
+	return client, nil
+}
+
+// snmpVersion maps the manifest version string ("1" | "2c" | "3") to a gosnmp version.
+func snmpVersion(version string) (gosnmp.SnmpVersion, error) {
+	switch strings.ToLower(strings.TrimSpace(version)) {
+	case "1":
+		return gosnmp.Version1, nil
+	case "2", "2c":
+		return gosnmp.Version2c, nil
+	case "3":
+		return gosnmp.Version3, nil
+	default:
+		return 0, fmt.Errorf("unsupported snmp version %q (expected 1, 2c, or 3)", version)
+	}
+}
+
+// v3MsgFlags derives the v3 security level from which credentials were supplied, matching the
+// behavior of snmpparse.NewSNMP: priv key -> AuthPriv, auth key only -> AuthNoPriv, else
+// NoAuthNoPriv.
+func v3MsgFlags(opts *SnmpOptions) gosnmp.SnmpV3MsgFlags {
+	switch {
+	case opts.PrivKey != "":
+		return gosnmp.AuthPriv
+	case opts.AuthKey != "":
+		return gosnmp.AuthNoPriv
+	default:
+		return gosnmp.NoAuthNoPriv
+	}
+}
+
+// classifySNMPError maps a gosnmp connect/get error to a manifest failureCategory. The match is
+// heuristic (gosnmp surfaces these conditions only as error strings); the original message is
+// returned alongside so callers retain the detail.
+func classifySNMPError(err error) (category, message string) {
+	message = err.Error()
+	lower := strings.ToLower(message)
+	switch {
+	case strings.Contains(lower, "request timeout"):
+		return failureTimeout, message
+	case containsAny(lower,
+		"decryption", "wrong digest", "unknown username", "not authentic",
+		"authentication parameters are not configured", "privacy parameters are not configured",
+		"unknown security level", "passphrase is required", "password is empty", "unknown engine id"):
+		return failureCredential, message
+	case containsAny(lower, "connection refused", "no route to host", "network is unreachable", "no such host"):
+		return failureUnreachable, message
+	case strings.Contains(lower, "version"):
+		return failureVersionMismatch, message
+	default:
+		return failureUnknown, message
+	}
+}
+
+// containsAny reports whether s contains any of the given substrings.
+func containsAny(s string, subs ...string) bool {
+	for _, sub := range subs {
+		if strings.Contains(s, sub) {
+			return true
+		}
+	}
+	return false
 }
 
 // expandTargets resolves the input targets (individual IPs and CIDR ranges) into a
