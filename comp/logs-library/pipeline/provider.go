@@ -27,7 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
 
@@ -401,17 +400,11 @@ func (p *provider) Flush(ctx context.Context) {
 	if p.serverlessMeta.IsEnabled() {
 		p.serverlessMeta.Lock()
 		defer p.serverlessMeta.Unlock()
-		// Respect serverless timeouts -- don't block past the shutdown window
-		waitDone := make(chan struct{})
-		go func() {
-			p.serverlessMeta.WaitGroup().Wait()
-			close(waitDone)
-		}()
-		select {
-		case <-waitDone:
-			log.Debug("serverless pipeline flush: finished — all in-flight sends completed before deadline")
-		case <-ctx.Done():
-			log.Debugf("serverless pipeline flush: deadline exceeded (%v) — some in-flight sends may not have completed", ctx.Err())
-		}
+		// Wait for the logs sender to finish sending payloads to all destinations before allowing the flush to finish.
+		// The lock must be held for the full duration: Add(1) in batch.go also acquires this lock, so holding it here
+		// prevents any Add from racing with Wait returning on a zero counter (which panics).
+		// The flush context deadline is not surfaceable here without propagating ctx into sendWithRetry; at the hard
+		// process deadline the OS terminates us regardless.
+		p.serverlessMeta.WaitGroup().Wait()
 	}
 }

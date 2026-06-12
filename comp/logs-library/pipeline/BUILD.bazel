@@ -27,7 +27,6 @@ go_library(
         "//pkg/logs/message",
         "//pkg/logs/status/statusinterface",
         "//pkg/util/compression",
-        "//pkg/util/log",
         "//pkg/util/startstop",
         "@org_uber_go_atomic//:atomic",
     ],
