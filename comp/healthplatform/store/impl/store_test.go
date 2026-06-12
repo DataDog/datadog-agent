@@ -211,7 +211,7 @@ func TestResolveIssueRemovesFromActive(t *testing.T) {
 	require.NotNil(t, issue.PersistedIssue)
 	assert.Equal(t, IssueStateResolved, issue.PersistedIssue.State)
 
-	h.PruneResolvedIssues()
+	h.PruneResolvedIssues([]string{"t:id"})
 	assert.Nil(t, h.GetIssue("t:id"))
 
 	require.NotNil(t, h.persistedIssues["t:id"])
@@ -245,7 +245,7 @@ func TestResolveIssuePersistedOnly(t *testing.T) {
 	assert.Equal(t, "p:id", issue.Id)
 	assert.Equal(t, "my-issue", issue.IssueName)
 
-	h.PruneResolvedIssues()
+	h.PruneResolvedIssues([]string{"p:id"})
 	assert.Nil(t, h.GetIssue("p:id"))
 }
 

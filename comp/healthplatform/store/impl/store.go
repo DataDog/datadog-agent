@@ -467,13 +467,15 @@ func (h *healthPlatformImpl) ResolveIssue(issueID string) {
 	}
 }
 
-// PruneResolvedIssues removes all RESOLVED issues from the active set.
-// Called by the egress after a successful send.
-func (h *healthPlatformImpl) PruneResolvedIssues() {
+// PruneResolvedIssues removes the given issues from the active set if they
+// are still in RESOLVED state. Only IDs present in the snapshot that was just
+// forwarded should be passed, so an issue that resolved during an in-flight
+// send is not pruned before its RESOLVED state has been forwarded.
+func (h *healthPlatformImpl) PruneResolvedIssues(ids []string) {
 	h.issuesMux.Lock()
 	defer h.issuesMux.Unlock()
-	for id, stored := range h.issues {
-		if stored != nil && stored.issue != nil &&
+	for _, id := range ids {
+		if stored, ok := h.issues[id]; ok && stored != nil && stored.issue != nil &&
 			stored.issue.PersistedIssue != nil &&
 			stored.issue.PersistedIssue.State == healthplatform.IssueState_ISSUE_STATE_RESOLVED {
 			delete(h.issues, id)

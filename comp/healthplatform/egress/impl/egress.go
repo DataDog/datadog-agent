@@ -137,6 +137,18 @@ func (e *egress) tick() {
 		return
 	}
 
+	// Collect IDs that are RESOLVED in this snapshot before sending.
+	// We pass only these IDs to PruneResolvedIssues so that an issue which
+	// resolves while Send is in-flight is not pruned before its RESOLVED
+	// state transition has been forwarded.
+	var resolvedIDs []string
+	for id, iss := range issues {
+		if iss != nil && iss.PersistedIssue != nil &&
+			iss.PersistedIssue.State == healthplatform.IssueState_ISSUE_STATE_RESOLVED {
+			resolvedIDs = append(resolvedIDs, id)
+		}
+	}
+
 	report := e.buildReport(issues)
 
 	// Fresh context with a fixed timeout per send: the run loop does not carry
@@ -150,8 +162,8 @@ func (e *egress) tick() {
 		return
 	}
 
-	// Remove RESOLVED issues now that their state transition has been forwarded.
-	e.store.PruneResolvedIssues()
+	// Remove only the RESOLVED issues that were included in the sent snapshot.
+	e.store.PruneResolvedIssues(resolvedIDs)
 
 	e.log.Info(fmt.Sprintf("Health platform egress: sent report with %d issues", count))
 }

@@ -56,7 +56,7 @@ func (n *noopHealthPlatform) GetIssue(_ string) *healthplatformpayload.Issue {
 func (n *noopHealthPlatform) ResolveIssue(_ string) {
 }
 
-func (n *noopHealthPlatform) PruneResolvedIssues() {
+func (n *noopHealthPlatform) PruneResolvedIssues(_ []string) {
 }
 
 func (n *noopHealthPlatform) ResolveAllIssues() {

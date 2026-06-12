@@ -45,10 +45,12 @@ type Component interface {
 	// No-op if no such issue is currently active.
 	ResolveIssue(issueID string)
 
-	// PruneResolvedIssues removes all RESOLVED issues from the active set.
-	// Called by the egress after a successful send so that the RESOLVED
-	// state is forwarded exactly once before the issue disappears.
-	PruneResolvedIssues()
+	// PruneResolvedIssues removes the given issues from the active set,
+	// provided they are still in RESOLVED state. ids must be the IDs that
+	// were RESOLVED in the snapshot passed to the just-completed send; passing
+	// the full set avoids pruning an issue that resolved during the in-flight
+	// send (whose RESOLVED transition has not yet been forwarded).
+	PruneResolvedIssues(ids []string)
 
 	// ResolveAllIssues marks every active issue as resolved.
 	ResolveAllIssues()
