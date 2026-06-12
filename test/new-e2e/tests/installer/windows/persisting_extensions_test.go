@@ -300,7 +300,7 @@ func (s *testExtensionsSuite) TestExtensionRemovedOnUninstall() {
 	err := s.Installer().Uninstall()
 	s.Require().NoError(err, "Failed to uninstall agent")
 
-	// 5. Legacy otel SCM service must be gone; procmgr must not be running (Stopped or SCM row removed).
+	// 5. Legacy otel and procmgr SCM services must be gone
 	s.verifyServiceNotFound("datadog-otel-agent")
-	s.verifyServiceStopped("dd-procmgr-service")
+	s.verifyServiceNotFound("dd-procmgr-service")
 }
