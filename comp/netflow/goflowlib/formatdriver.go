@@ -108,7 +108,7 @@ func splitBiflow(flow *common.Flow) (*common.Flow, *common.Flow) {
 		if hasRespOctets && respOctets > 0 {
 			revBytes, revPkts, hasRev = respOctets, respPkts, true
 		}
-	} else if hasOutBytes && outBytes > 0 {
+	} else if hasOutBytes && outBytes > 0 && inBytes > 0 {
 		flow.Bytes = inBytes
 		flow.Packets = inPackets
 		revBytes, revPkts, hasRev = outBytes, outPackets, true
