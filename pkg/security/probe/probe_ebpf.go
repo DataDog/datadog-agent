@@ -390,7 +390,7 @@ func (p *EBPFProbe) sanityChecks() error {
 	}
 
 	if p.config.Probe.CapabilitiesMonitoringEnabled && !p.isCapabilitiesMonitoringSupported() {
-		seclog.Warnf("The capabilities monitoring feature of CWS requires a more recent kernel (at least 5.17), setting event_monitoring_config.capabilities_monitoring.enabled to false")
+		seclog.Warnf("The capabilities monitoring feature of CWS requires a kernel version between 5.17 and 6.13, setting event_monitoring_config.capabilities_monitoring.enabled to false")
 		p.config.Probe.CapabilitiesMonitoringEnabled = false
 	}
 
@@ -799,16 +799,23 @@ func (p *EBPFProbe) applyRawPacketActionFilters(applyFromRuleset bool) error {
 		return err
 	}
 
+	var errs *multierror.Error
+
 	var progSpecs []*lib.ProgramSpec
 	if len(p.rawPacketActionFilters) > 0 {
 		progSpecs, err = rawpacket.DropActionsToProgramSpecs(rawPacketEventMap.FD(), routerMap.FD(), p.rawPacketActionFilters, opts)
+		// if there is an error, keep it but we still want to load the valid programs
 		if err != nil {
-			return err
+			errs = multierror.Append(errs, err)
 		}
 	}
 
 	// add or close if none
-	return p.setupRawPacketProgs(progSpecs, probes.TCRawPacketDropActionKey, probes.RawPacketMaxTailCall, &p.rawPacketActionCollection, applyFromRuleset)
+	if err := p.setupRawPacketProgs(progSpecs, probes.TCRawPacketDropActionKey, probes.RawPacketMaxTailCall, &p.rawPacketActionCollection, applyFromRuleset); err != nil {
+		errs = multierror.Append(errs, err)
+	}
+
+	return errs.ErrorOrNil()
 }
 
 func (p *EBPFProbe) addRawPacketActionFilter(actionFilter rawpacket.Filter) error {
@@ -1139,8 +1146,6 @@ func (p *EBPFProbe) newRelatedProcessEvent(pce *model.ProcessCacheEntry, err err
 		relatedEvent.SetPathResolutionError(&relatedEvent.ProcessCacheEntry.FileEvent, err)
 	}
 
-	p.Resolvers.ProcessResolver.TryReparentFromProcfsLocked(pce, metrics.ReparentCallpathRelatedEvent, nil)
-
 	return relatedEvent
 }
 
@@ -1182,23 +1187,11 @@ func (p *EBPFProbe) setProcessContext(eventType model.EventType, event *model.Ev
 				event.Error = model.ErrNoProcessContext
 			}
 		} else {
-			// If the kernel reports a different ppid than the one in our
-			// cache, the process was reparented (e.g. subreaper). Update
-			// the cache tree immediately using the authoritative kernel value.
-			if event.PIDContext.PPid != 0 {
-				p.Resolvers.ProcessResolver.TryReparentFromKernelPPid(entry, event.PIDContext.PPid, p.onNewPCE)
-			}
-
 			// If the kernel reports a different SID than the one in our
 			// cache, the process called setsid(). Update the cache entry.
 			if event.PIDContext.SID != 0 {
 				entry.SID = event.PIDContext.SID
 			}
-
-			// Attempt to repair the lineage of processes that were orphaned
-			// during subreaper reparenting (the exit tracepoint may fire
-			// before the kernel has completed forget_original_parent).
-			p.Resolvers.ProcessResolver.TryReparentFromProcfs(entry, metrics.ReparentCallpathSetProcessContext, p.onNewPCE)
 
 			if _, err := entry.HasValidLineage(); err != nil {
 				event.Error = &model.ErrProcessBrokenLineage{Err: err}
@@ -3511,8 +3504,6 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	} else {
 		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameTaskStructPID, "struct task_struct", "thread_pid")
 	}
-	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameTaskStructRealParent, "struct task_struct", "real_parent")
-	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameTaskStructTGID, "struct task_struct", "tgid")
 
 	// splice event
 	constantFetcher.AppendSizeofRequest(constantfetch.SizeOfPipeBuffer, "struct pipe_buffer")

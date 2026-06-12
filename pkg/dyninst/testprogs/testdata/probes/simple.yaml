@@ -743,7 +743,7 @@ probes:
     methodName: main.condLine
     sourceFile: main.go
     lines:
-      - "740"
+      - "754"
   when:
     dsl: "n == 7"
     json: {eq: [{ref: "n"}, 7]}
@@ -768,7 +768,7 @@ probes:
     methodName: main.condLine
     sourceFile: main.go
     lines:
-      - "740"
+      - "754"
   sampling:
     snapshotsPerSecond: 10
 
@@ -3416,7 +3416,7 @@ probes:
     methodName: main.condLine
     sourceFile: main.go
     lines:
-      - "740"
+      - "754"
   when:
     dsl: "@duration == 0.0"
     json: {eq: [{ref: "@duration"}, 0.0]}
@@ -3524,7 +3524,7 @@ probes:
     methodName: main.condLine
     sourceFile: main.go
     lines:
-      - "740"
+      - "754"
   when:
     dsl: "n == 7 && tag == \"match\""
     json:
@@ -3820,9 +3820,11 @@ probes:
   sampling:
     snapshotsPerSecond: 10
 
-# Negative: contains applied to a non-map operand (string) — must fail at
-# irgen with ConditionExpressionUnresolvable.
-- id: condContains_on_string
+# Negative: contains(string, string) is substring containment, which is a
+# recognised future feature but not implemented today. Surfaces
+# IssueKindUnsupportedFeature with a forward-looking message rather than a
+# generic resolve failure.
+- id: condContains_string_substring
   type: LOG_PROBE
   captureSnapshot: true
   where:
@@ -3833,35 +3835,38 @@ probes:
   sampling:
     snapshotsPerSecond: 10
   tags:
-    - "issue:ConditionExpressionUnresolvable"
+    - "issue:UnsupportedFeature"
 
-# Negative: contains applied to a slice operand — must fail at irgen.
-- id: condContains_on_slice
+# Negative: contains(string, null). null is not a string literal, so this is
+# a type mismatch — IssueKindConditionExpressionUnresolvable.
+- id: condContains_string_null_key
   type: LOG_PROBE
   captureSnapshot: true
   where:
-    methodName: main.condSliceArg
+    methodName: main.condContainsMap
   when:
-    dsl: "contains(x, 1)"
-    json: {contains: [{ref: "x"}, 1]}
+    dsl: "contains(tag, null)"
+    json: {contains: [{ref: "tag"}, null]}
   sampling:
     snapshotsPerSecond: 10
   tags:
     - "issue:ConditionExpressionUnresolvable"
 
-# Negative: contains applied to an array operand — must fail at irgen.
-- id: condContains_on_array
+# Negative: contains(string, intLiteral). Type mismatch — substring search
+# expects a string key — IssueKindConditionExpressionUnresolvable.
+- id: condContains_string_int_key
   type: LOG_PROBE
   captureSnapshot: true
   where:
-    methodName: main.intArrayArg
+    methodName: main.condContainsMap
   when:
-    dsl: "contains(s, 1)"
-    json: {contains: [{ref: "s"}, 1]}
+    dsl: "contains(tag, 42)"
+    json: {contains: [{ref: "tag"}, 42]}
   sampling:
     snapshotsPerSecond: 10
   tags:
     - "issue:ConditionExpressionUnresolvable"
+
 
 # Negative: contains with a non-literal key — must fail at irgen with
 # ConditionExpressionUnresolvable.
@@ -5065,3 +5070,670 @@ probes:
     snapshotsPerSecond: 10
   tags:
     - "issue:ConditionExpressionUnresolvable"
+
+# ---------------------------------------------------------------------------
+# contains(slice/array, key) probes. These are paired with the corresponding
+# any(slice/array, {@it == key}) probes above — `contains` desugars to that
+# any form in irgen, so the generated opcodes must be identical.
+# ---------------------------------------------------------------------------
+
+# Positive: contains over an []int.
+- id: containsIntSlice_eq42
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.anyAllIntSlice
+  when:
+    dsl: "contains(xs, 42)"
+    json: { contains: [{ref: "xs"}, 42] }
+  template: "containsInt42 tag={tag}"
+  segments:
+    - str: "containsInt42 tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+
+# Positive: contains over a [5]int array.
+- id: containsIntArray_eq42
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.anyAllIntArray
+  when:
+    dsl: "contains(xs, 42)"
+    json: { contains: [{ref: "xs"}, 42] }
+  template: "containsIntArr42 tag={tag}"
+  segments:
+    - str: "containsIntArr42 tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+
+# Reference any-form probe over []string, paired with containsStringSlice_match
+# so the decoded snapshots can be compared opcode-equivalence-wise.
+- id: anyStringSlice_match
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.anyAllStringSlice
+  when:
+    dsl: 'any(xs, {@it == "match"})'
+    json: { any: [{ref: "xs"}, {eq: [{ref: "@it"}, "match"]}] }
+  template: "anyStrMatch tag={tag}"
+  segments:
+    - str: "anyStrMatch tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+
+# Positive: contains over a []string.
+- id: containsStringSlice_match
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.anyAllStringSlice
+  when:
+    dsl: 'contains(xs, "match")'
+    json: { contains: [{ref: "xs"}, "match"] }
+  template: "containsStrMatch tag={tag}"
+  segments:
+    - str: "containsStrMatch tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+
+# Reference any-form probe over a [3]string array, paired with
+# containsStringArray_match.
+- id: anyStringArray_match
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.anyAllStringArray
+  when:
+    dsl: 'any(xs, {@it == "match"})'
+    json: { any: [{ref: "xs"}, {eq: [{ref: "@it"}, "match"]}] }
+  template: "anyStrArrMatch tag={tag}"
+  segments:
+    - str: "anyStrArrMatch tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+
+# Positive: contains over a [3]string array.
+- id: containsStringArray_match
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.anyAllStringArray
+  when:
+    dsl: 'contains(xs, "match")'
+    json: { contains: [{ref: "xs"}, "match"] }
+  template: "containsStrArrMatch tag={tag}"
+  segments:
+    - str: "containsStrArrMatch tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+
+# Negative: contains over a slice of structs. The body desugars to
+# `@it == 42`, which the comparison-leaf machinery rejects because @it is
+# a struct, not a comparable base type.
+- id: containsStructSlice_unsupported
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.anyAllStructSlice
+  when:
+    json: { contains: [{ref: "xs"}, 42] }
+  template: "should be rejected"
+  segments:
+    - str: "should be rejected"
+  sampling:
+    snapshotsPerSecond: 10
+  tags:
+    - "issue:ConditionExpressionUnresolvable"
+
+# Negative: contains over a slice of pointers. @it is *int (a pointer),
+# not a comparable base type.
+- id: containsPtrIntSlice_unsupported
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.anyAllPtrIntSlice
+  when:
+    json: { contains: [{ref: "xs"}, 0] }
+  template: "should be rejected"
+  segments:
+    - str: "should be rejected"
+  sampling:
+    snapshotsPerSecond: 10
+  tags:
+    - "issue:ConditionExpressionUnresolvable"
+
+# Negative: contains over a slice whose element is itself a slice.
+- id: containsSliceOfSlice_unsupported
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.anyAllIntSliceOfSlice
+  when:
+    json: { contains: [{ref: "xs"}, 0] }
+  template: "should be rejected"
+  segments:
+    - str: "should be rejected"
+  sampling:
+    snapshotsPerSecond: 10
+  tags:
+    - "issue:ConditionExpressionUnresolvable"
+
+# Negative: contains over a slice whose element is a map.
+- id: containsSliceOfMap_unsupported
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.anyAllIntSliceOfMap
+  when:
+    json: { contains: [{ref: "xs"}, 0] }
+  template: "should be rejected"
+  segments:
+    - str: "should be rejected"
+  sampling:
+    snapshotsPerSecond: 10
+  tags:
+    - "issue:ConditionExpressionUnresolvable"
+
+# Negative: contains() inside an any/all predicate body. The slice/array
+# form of contains desugars to a nested slice/array loop inside
+# emitContainsLeaf, which would clobber the singleton slice_loop_state /
+# cur_loop_it_start scratch the outer loop relies on. irgen's
+# checkPredicateBodyScope must reject it before that desugaring runs.
+- id: containsInsideAny_nested_err
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.anyAllIntSliceOfSlice
+  when:
+    json: { any: [{ref: "xs"}, {contains: [{ref: "@it"}, 0]}] }
+  template: "should be rejected"
+  segments:
+    - str: "should be rejected"
+  sampling:
+    snapshotsPerSecond: 10
+  tags:
+    - "issue:ConditionExpressionUnresolvable"
+
+# ---------------------------------------------------------------------------
+# any / all / contains in template-segment position. Each probe renders the
+# bool result of an any/all/contains call as a string in the template
+# output. These exercise resolveExpression's AnyExpr/AllExpr cases and the
+# compiler's expression-side encoding of the loop opcodes.
+# ---------------------------------------------------------------------------
+
+- id: templateAnyIntSlice_eq42
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.anyAllIntSlice
+  template: "any42={any(xs, {@it == 42})} tag={tag}"
+  segments:
+    - str: "any42="
+    - json: { any: [{ref: "xs"}, {eq: [{ref: "@it"}, 42]}] }
+      dsl: "any(xs, {@it == 42})"
+    - str: " tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+
+- id: templateAllIntSlice_positive
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.anyAllIntSlice
+  template: "allpos={all(xs, {@it > 0})} tag={tag}"
+  segments:
+    - str: "allpos="
+    - json: { all: [{ref: "xs"}, {gt: [{ref: "@it"}, 0]}] }
+      dsl: "all(xs, {@it > 0})"
+    - str: " tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+
+- id: templateContainsIntSlice_42
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.anyAllIntSlice
+  template: "containsInt42={contains(xs, 42)} tag={tag}"
+  segments:
+    - str: "containsInt42="
+    - json: { contains: [{ref: "xs"}, 42] }
+      dsl: "contains(xs, 42)"
+    - str: " tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+
+- id: templateContainsIntArray_42
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.anyAllIntArray
+  template: "containsIntArr42={contains(xs, 42)} tag={tag}"
+  segments:
+    - str: "containsIntArr42="
+    - json: { contains: [{ref: "xs"}, 42] }
+      dsl: "contains(xs, 42)"
+    - str: " tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+
+- id: templateContainsStringSlice_match
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.anyAllStringSlice
+  template: "containsStrMatch={contains(xs, \"match\")} tag={tag}"
+  segments:
+    - str: "containsStrMatch="
+    - json: { contains: [{ref: "xs"}, "match"] }
+      dsl: 'contains(xs, "match")'
+    - str: " tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+
+# NB: map-base probes in template position (contains(m, k), any(m, ...))
+# are not included here. They work on go1.24+ (swiss-map) but on go1.23
+# they produce a different rendered string ({error: ...}). The decoded-
+# snapshot test framework wants per-toolchain variant files for that case;
+# rather than maintain a _geq_go1.24.3.json fork for each, we rely on the
+# condition-position map probes (anyIntMap_*, condContains_*) for map
+# coverage and exercise the new template/capture path only on slice/array.
+
+# ---------------------------------------------------------------------------
+# any / all / contains in capture-expression position. The bool result is
+# recorded as a named capture entry in the snapshot.
+# ---------------------------------------------------------------------------
+
+- id: captureAnyIntSlice_eq42
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.anyAllIntSlice
+  captureExpressions:
+    - name: "any42"
+      expr:
+        dsl: "any(xs, {@it == 42})"
+        json: { any: [{ref: "xs"}, {eq: [{ref: "@it"}, 42]}] }
+  sampling:
+    snapshotsPerSecond: 10
+
+- id: captureAllIntSlice_positive
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.anyAllIntSlice
+  captureExpressions:
+    - name: "allpos"
+      expr:
+        dsl: "all(xs, {@it > 0})"
+        json: { all: [{ref: "xs"}, {gt: [{ref: "@it"}, 0]}] }
+  sampling:
+    snapshotsPerSecond: 10
+
+- id: captureContainsIntSlice_42
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.anyAllIntSlice
+  captureExpressions:
+    - name: "containsInt42"
+      expr:
+        dsl: "contains(xs, 42)"
+        json: { contains: [{ref: "xs"}, 42] }
+  sampling:
+    snapshotsPerSecond: 10
+
+- id: captureContainsStringSlice_match
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.anyAllStringSlice
+  captureExpressions:
+    - name: "containsStrMatch"
+      expr:
+        dsl: 'contains(xs, "match")'
+        json: { contains: [{ref: "xs"}, "match"] }
+  sampling:
+    snapshotsPerSecond: 10
+
+- id: captureAnyStructSlice_I32eq300
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.anyAllStructSlice
+  captureExpressions:
+    - name: "anyI32_300"
+      expr:
+        dsl: "any(xs, {@it.I32 == 300})"
+        json: { any: [{ref: "xs"}, {eq: [{getmember: [{ref: "@it"}, "I32"]}, 300]}] }
+  sampling:
+    snapshotsPerSecond: 10
+
+# ---------------------------------------------------------------------------
+# Negative — template / capture expressions that don't resolve. These don't
+# produce a probe-level Issue: the failure surfaces as an InvalidSegment
+# (template) or a skipped capture entry / evaluationError row.
+# ---------------------------------------------------------------------------
+
+# Template: contains over a slice of structs — the desugared @it == 42
+# comparison rejects the struct LHS. Segment renders as {error: ...}.
+- id: templateContains_struct_unsupported
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.anyAllStructSlice
+  template: "containsStruct={contains(xs, 42)} tag={tag}"
+  segments:
+    - str: "containsStruct="
+    - json: { contains: [{ref: "xs"}, 42] }
+      dsl: "contains(xs, 42)"
+    - str: " tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+
+# Template: contains(stringArg, "x") — substring containment is not yet
+# implemented. Segment renders as {error: ...substring...} but does NOT
+# escalate to a probe-level Issue in template/capture position.
+- id: templateContains_substring_string
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condContainsMap
+  template: "containsSubstr={contains(tag, \"x\")} tag={tag}"
+  segments:
+    - str: "containsSubstr="
+    - json: { contains: [{ref: "tag"}, "x"] }
+      dsl: 'contains(tag, "x")'
+    - str: " tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+
+# Capture: predicate body references outer scope. The capture entry is
+# skipped — the snapshot still loads, but the expression is invalid.
+- id: captureAny_outerScope_err
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.anyAllIntSlice
+  captureExpressions:
+    - name: "any_outer"
+      expr:
+        dsl: 'any(xs, {tag == "match"})'
+        json: { any: [{ref: "xs"}, {eq: [{ref: "tag"}, "match"]}] }
+  sampling:
+    snapshotsPerSecond: 10
+
+# Capture: nested any in body. Rejected the same way as condition position.
+- id: captureAny_nested_err
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.anyAllIntSlice
+  captureExpressions:
+    - name: "any_nested"
+      expr:
+        dsl: "any(xs, {any(@it, {@it == 1})})"
+        json:
+          any:
+            - {ref: "xs"}
+            - {any: [{ref: "@it"}, {eq: [{ref: "@it"}, 1]}]}
+  sampling:
+    snapshotsPerSecond: 10
+
+# ---------------------------------------------------------------------------
+# Negative — runtime eval errors. The probe loads cleanly; the snapshot
+# carries an evaluationErrors entry / {error: ...} substring when the body
+# faults at runtime.
+# ---------------------------------------------------------------------------
+
+# Template: any over a 5000-elem slice with no match — loop hits the
+# 4096-element cap and trips eval_error. Segment renders {error: ...}.
+- id: templateAnyIntSlice_toolarge
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.anyAllIntSlice
+  template: "anyTooLarge={any(xs, {@it == -1})} tag={tag}"
+  segments:
+    - str: "anyTooLarge="
+    - json: { any: [{ref: "xs"}, {eq: [{ref: "@it"}, -1]}] }
+      dsl: "any(xs, {@it == -1})"
+    - str: " tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+
+# Regression: a template segment that traps the iteration cap (any over the
+# 5000-elem slice for "toolarge" tag) must NOT leak condition_eval_error
+# into the probe's `when:` check. We use a small slice for the condition
+# branch (tag == "toolarge"), which would fail to fire if EXPR_PREPARE
+# didn't clear the flag.
+- id: regression_condEvalErrorIsolation
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.anyAllIntSlice
+  when:
+    dsl: 'tag == "toolarge"'
+    json: { eq: [{ref: "tag"}, "toolarge"] }
+  template: "isolation={any(xs, {@it == -1})} tag={tag}"
+  segments:
+    - str: "isolation="
+    - json: { any: [{ref: "xs"}, {eq: [{ref: "@it"}, -1]}] }
+      dsl: "any(xs, {@it == -1})"
+    - str: " tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+
+# Capture: any over slice of *int with predicate that derefs @it. The
+# `unguarded_nil` input contains a nil pointer; the body faults at runtime
+# and the capture entry surfaces an evaluationError row rather than a
+# value.
+- id: captureAnyPtrIntSlice_unguarded
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.anyAllPtrIntSlice
+  captureExpressions:
+    - name: "anyDeref"
+      expr:
+        dsl: "any(xs, {@it == 1})"
+        json: { any: [{ref: "xs"}, {eq: [{ref: "@it"}, 1]}] }
+  sampling:
+    snapshotsPerSecond: 10
+
+# Capture: filter() over a slice with an equality predicate.
+- id: captureFilterIntSlice_eq42
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.anyAllIntSlice
+  captureExpressions:
+    - name: "matches"
+      expr:
+        dsl: "filter(xs, {@it == 42})"
+        json: { filter: [{ref: "xs"}, {eq: [{ref: "@it"}, 42]}] }
+    - name: "tag"
+      expr:
+        dsl: "tag"
+        json: {ref: "tag"}
+  sampling:
+    snapshotsPerSecond: 10
+
+# Capture: filter() over a slice with a > predicate that selects most elements
+# but not all (so the output is bounded and reasonable to snapshot).
+- id: captureFilterIntSlice_positive
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.anyAllIntSlice
+  captureExpressions:
+    - name: "gt41"
+      expr:
+        dsl: "filter(xs, {@it > 41})"
+        json: { filter: [{ref: "xs"}, {gt: [{ref: "@it"}, 41]}] }
+  sampling:
+    snapshotsPerSecond: 10
+
+# Capture: filter() over a swiss map with a @value predicate. hmap support is
+# rejected by irgen with IssueKindUnsupportedFeature; the go1.23 toolchains
+# carry the unsupported tag because they still use hmap.
+- id: captureFilterIntMap_valueEq42
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.anyAllIntMap
+  tags:
+    - "issue:UnsupportedFeature@arch=amd64,toolchain=go1.23.11"
+    - "issue:UnsupportedFeature@arch=arm64,toolchain=go1.23.11"
+  captureExpressions:
+    - name: "valueIs42"
+      expr:
+        dsl: "filter(m, {@value == 42})"
+        json: { filter: [{ref: "m"}, {eq: [{ref: "@value"}, 42]}] }
+  sampling:
+    snapshotsPerSecond: 10
+
+# Capture: len() composed with filter() is unsupported (filter is leaf-only)
+# and surfaces as IssueKindUnsupportedFeature.
+- id: captureFilter_len_err
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.anyAllIntSlice
+  tags:
+    - "issue:UnsupportedFeature"
+  captureExpressions:
+    - name: "lenOfFilter"
+      expr:
+        dsl: "len(filter(xs, {@it == 42}))"
+        json: { len: { filter: [{ref: "xs"}, {eq: [{ref: "@it"}, 42]}] } }
+  sampling:
+    snapshotsPerSecond: 10
+
+# Condition: filter() in probe condition position is unsupported and surfaces
+# as IssueKindUnsupportedFeature.
+- id: captureFilter_condition_err
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.anyAllIntSlice
+  when:
+    dsl: "filter(xs, {@it == 42})"
+    json: { filter: [{ref: "xs"}, {eq: [{ref: "@it"}, 42]}] }
+  template: "should_never_render"
+  segments:
+    - str: "should_never_render"
+  tags:
+    - "issue:UnsupportedFeature"
+  sampling:
+    snapshotsPerSecond: 10
+
+# ---------------------------------------------------------------------------
+# filter() over collections with element types that need nested pointer
+# chasing. These exercise the sm->offset handoff between
+# EmitFilterSliceElementOp / EmitFilterMapElementOp and the subsequent
+# CallOp for the element's type handler.
+# ---------------------------------------------------------------------------
+
+# filter() over []string — string elements need data-pointer chasing.
+# Uses @it == "match" (not !isEmpty) so the ExprReadString op advances
+# sm->offset past cur_loop_it_start + 16, breaking the coincidental
+# alignment with the 16-byte data-item header that masked the sm->offset
+# bug with the !isEmpty predicate.
+- id: captureFilterStringSlice_match
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.anyAllStringSlice
+  capture:
+    maxReferenceDepth: 20
+  captureExpressions:
+    - name: "matches"
+      expr:
+        dsl: 'filter(xs, {@it == "alpha"})'
+        json: { filter: [{ref: "xs"}, {eq: [{ref: "@it"}, "alpha"]}] }
+    - name: "tag"
+      expr:
+        dsl: "tag"
+        json: {ref: "tag"}
+  sampling:
+    snapshotsPerSecond: 10
+
+# filter() over []condFields — condFields contains a string field (S),
+# so the element type handler needs to chase the string data pointer.
+# maxReferenceDepth: 5 ensures the chase actually runs (default depth
+# causes notCapturedReason:depth which masks the sm->offset bug).
+- id: captureFilterStructSlice_I32gt0
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.anyAllStructSlice
+  capture:
+    maxReferenceDepth: 20
+  captureExpressions:
+    - name: "matches"
+      expr:
+        dsl: "filter(xs, {@it.I32 > 0})"
+        json: { filter: [{ref: "xs"}, {gt: [{getmember: [{ref: "@it"}, "I32"]}, 0]}] }
+    - name: "tag"
+      expr:
+        dsl: "tag"
+        json: {ref: "tag"}
+  sampling:
+    snapshotsPerSecond: 10
+
+# filter() over map[string]int — map with string keys needs key chasing.
+# hmap (go1.23) is unsupported for filter.
+- id: captureFilterIntMap_valueGt0
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.anyAllIntMap
+  capture:
+    maxReferenceDepth: 20
+  tags:
+    - "issue:UnsupportedFeature@arch=amd64,toolchain=go1.23.11"
+    - "issue:UnsupportedFeature@arch=arm64,toolchain=go1.23.11"
+  captureExpressions:
+    - name: "matches"
+      expr:
+        dsl: "filter(m, {@value > 0})"
+        json: { filter: [{ref: "m"}, {gt: [{ref: "@value"}, 0]}] }
+    - name: "tag"
+      expr:
+        dsl: "tag"
+        json: {ref: "tag"}
+  sampling:
+    snapshotsPerSecond: 10

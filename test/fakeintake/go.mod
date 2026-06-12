@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/test/fakeintake
 
-go 1.25.0
+go 1.26.0
 
 // every datadog-agent module replaced in the fakeintake go.mod needs to be copied in the Dockerfile
 
@@ -10,10 +10,11 @@ require (
 	github.com/DataDog/datadog-agent/pkg/metrics v0.64.0
 	github.com/DataDog/datadog-agent/pkg/networkpath/payload v0.0.0-20250128160050-7ac9ccd58c07
 	github.com/DataDog/datadog-agent/pkg/proto v0.64.0-devel
-	github.com/DataDog/zstd v1.5.7
+	github.com/DataDog/zstd v1.5.8-0.20260421145859-31a7e515a571
 	github.com/benbjohnson/clock v1.3.5
 	github.com/cenkalti/backoff/v5 v5.0.3
 	github.com/google/uuid v1.6.0
+	github.com/klauspost/compress v1.18.6 // indirect
 	github.com/kr/pretty v0.3.1
 	github.com/prometheus/client_golang v1.23.3-0.20251103151724-a5ae20370e5e
 	github.com/samber/lo v1.52.0
@@ -36,7 +37,6 @@ require (
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
-	github.com/klauspost/compress v1.18.6 // indirect
 	github.com/kr/text v0.2.0 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/philhofer/fwd v1.2.0 // indirect
@@ -53,7 +53,7 @@ require (
 	golang.org/x/net v0.55.0 // indirect
 	golang.org/x/sys v0.45.0 // indirect
 	golang.org/x/text v0.37.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20260504160031-60b97b32f348 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260526163538-3dc84a4a5aaa // indirect
 	google.golang.org/grpc v1.81.1 // indirect
 )
 
@@ -202,6 +202,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/cgroups => ../../pkg/util/cgroups
 	github.com/DataDog/datadog-agent/pkg/util/common => ../../pkg/util/common
 	github.com/DataDog/datadog-agent/pkg/util/compression => ../../pkg/util/compression
+	github.com/DataDog/datadog-agent/pkg/util/confmaputils => ../../pkg/util/confmaputils
 	github.com/DataDog/datadog-agent/pkg/util/containers/image => ../../pkg/util/containers/image
 	github.com/DataDog/datadog-agent/pkg/util/defaultpaths => ../../pkg/util/defaultpaths
 	github.com/DataDog/datadog-agent/pkg/util/executable => ../../pkg/util/executable

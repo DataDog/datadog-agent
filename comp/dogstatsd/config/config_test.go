@@ -62,13 +62,13 @@ func TestTruthTable(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			cfg := configmock.New(t)
 			if tc.useDogstatsd != nil {
-				cfg.SetWithoutSource("use_dogstatsd", *tc.useDogstatsd)
+				cfg.SetInTest("use_dogstatsd", *tc.useDogstatsd)
 			}
 			if tc.dpEnabled != nil {
-				cfg.SetWithoutSource("data_plane.enabled", *tc.dpEnabled)
+				cfg.SetInTest("data_plane.enabled", *tc.dpEnabled)
 			}
 			if tc.dpDogstatsd != nil {
-				cfg.SetWithoutSource("data_plane.dogstatsd.enabled", *tc.dpDogstatsd)
+				cfg.SetInTest("data_plane.dogstatsd.enabled", *tc.dpDogstatsd)
 			}
 
 			c := NewConfig(cfg)

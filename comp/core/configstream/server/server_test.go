@@ -70,6 +70,10 @@ func (m *mockRemoteAgentRegistry) RefreshRemoteAgent(_ string) bool {
 	return true
 }
 
+func (m *mockRemoteAgentRegistry) ReportRemoteAgentEvent(_ string, _ []remoteagentregistry.RemoteAgentEvent) error {
+	return nil
+}
+
 func (m *mockRemoteAgentRegistry) GetRegisteredAgents() []remoteagentregistry.RegisteredAgent {
 	return nil
 }

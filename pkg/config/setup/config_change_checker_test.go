@@ -8,8 +8,9 @@ package setup
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
 func TestChangeChecker(t *testing.T) {
@@ -27,7 +28,7 @@ func TestChangeChecker(t *testing.T) {
 }
 
 func assertConfigChangeDetected(r *require.Assertions, cfg model.Config, checker *ChangeChecker, key string, value interface{}) {
-	cfg.SetWithoutSource(key, value)
+	cfg.SetInTest(key, value)
 	r.True(checker.HasChanged())
 	cfg.UnsetForSource(key, model.SourceUnknown)
 	r.False(checker.HasChanged())

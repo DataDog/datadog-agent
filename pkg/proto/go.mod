@@ -29,7 +29,7 @@ require (
 	golang.org/x/net v0.55.0 // indirect
 	golang.org/x/sys v0.45.0 // indirect
 	golang.org/x/text v0.37.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20260504160031-60b97b32f348 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260526163538-3dc84a4a5aaa // indirect
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 )
 
@@ -179,6 +179,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/cgroups => ../../pkg/util/cgroups
 	github.com/DataDog/datadog-agent/pkg/util/common => ../../pkg/util/common
 	github.com/DataDog/datadog-agent/pkg/util/compression => ../../pkg/util/compression
+	github.com/DataDog/datadog-agent/pkg/util/confmaputils => ../../pkg/util/confmaputils
 	github.com/DataDog/datadog-agent/pkg/util/containers/image => ../../pkg/util/containers/image
 	github.com/DataDog/datadog-agent/pkg/util/defaultpaths => ../../pkg/util/defaultpaths
 	github.com/DataDog/datadog-agent/pkg/util/executable => ../../pkg/util/executable

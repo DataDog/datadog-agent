@@ -1,5 +1,4 @@
 ---
-
 # Condition mixins for simplification of rules, needed in the include rules so must be defined first
 .if_run_all_e2e_tests: &if_run_all_e2e_tests
   if: $RUN_E2E_TESTS == "on"
@@ -13,6 +12,9 @@
 .if_release_branch: &if_release_branch
   if: $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+\.x$/
 
+.if_pr_targeting_release_branch: &if_pr_targeting_release_branch
+  if: $CI_MERGE_REQUEST_TARGET_BRANCH_NAME =~ /^[0-9]+\.[0-9]+\.x$/
+
 .if_mergequeue: &if_mergequeue
   if: $CI_COMMIT_BRANCH =~ /^mq-working-branch-/
 
@@ -20,7 +22,7 @@
   if: $DEPLOY_AGENT == "true" || $DDR_WORKFLOW_ID != null
 
 # Windows-specific Go source files, pkg/, and cmd/ (27 paths), need to be splitted because Gitlab has a limit to 50 paths in a single rule
-.windows_path: &windows_path
+.windows_path: &windows_path 
   # Windows-specific Go source files (by filename convention)
   - "**/*_windows.go"
 
@@ -62,8 +64,7 @@
   - bazel/**/*
 
 # Windows-specific comp/, tools, omnibus, containers, tasks, and cross-cutting paths
-.windows_path_2: &windows_path_2
-  # Windows-specific comp/ components
+.windows_path_2: &windows_path_2 # Windows-specific comp/ components
   - comp/systray/**/*
   - comp/updater/**/*
   - comp/checks/agentcrashdetect/**/*
@@ -237,6 +238,14 @@ variables:
   TEST_KEYS_URL: apttesting.datad0g.com/test-keys
   INSTALLER_TESTING_S3_BUCKET: installtesting.datad0g.com
   WINDOWS_TESTING_S3_BUCKET: pipelines/A7/$CI_PIPELINE_ID
+  # Shared, accumulating Windows symbol server.
+  # Not pipeline-scoped: PDBs from every pipeline land here, deduplicated by the
+  # GUID-indexed layout, and aged out by a 30-day lifecycle policy on this path.
+  # The path is all-lowercase on purpose: dbgeng (cdb/windbg) lowercases the
+  # symbol-server URL path it requests, and S3 keys are case-sensitive, so an
+  # uppercase path (e.g. A7) would 404.
+  # Symbols for release builds are handled by agent-release-management.
+  WINDOWS_SYMBOLS_S3_BUCKET: pipelines/windows-symbols
   WINDOWS_BUILDS_S3_BUCKET: $WIN_S3_BUCKET/builds
   WINDOWS_POWERSHELL_DIR: $CI_PROJECT_DIR/signed_scripts
   DEB_RPM_TESTING_BUCKET_BRANCH: testing # branch of the DEB_TESTING_S3_BUCKET and RPM_TESTING_S3_BUCKET repos to release to, 'testing'
@@ -268,25 +277,25 @@ variables:
   # Build images versions
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to
-  CI_IMAGE_BTF_GEN: v116490909-fc35a1a5
+  CI_IMAGE_BTF_GEN: v116983866-e2293bec
   CI_IMAGE_BTF_GEN_SUFFIX: ""
-  CI_IMAGE_DOCKER_X64: v116490909-fc35a1a5
+  CI_IMAGE_DOCKER_X64: v116983866-e2293bec
   CI_IMAGE_DOCKER_X64_SUFFIX: ""
-  CI_IMAGE_DOCKER_ARM64: v116490909-fc35a1a5
+  CI_IMAGE_DOCKER_ARM64: v116983866-e2293bec
   CI_IMAGE_DOCKER_ARM64_SUFFIX: ""
-  CI_IMAGE_GITLAB_AGENT_DEPLOY: v116490909-fc35a1a5
+  CI_IMAGE_GITLAB_AGENT_DEPLOY: v116983866-e2293bec
   CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX: ""
-  CI_IMAGE_LINUX: v116490909-fc35a1a5
+  CI_IMAGE_LINUX: v116983866-e2293bec
   CI_IMAGE_LINUX_SUFFIX: ""
-  CI_IMAGE_RPM_X64: v116490909-fc35a1a5
+  CI_IMAGE_RPM_X64: v116983866-e2293bec
   CI_IMAGE_RPM_X64_SUFFIX: ""
-  CI_IMAGE_RPM_ARM64: v116490909-fc35a1a5
+  CI_IMAGE_RPM_ARM64: v116983866-e2293bec
   CI_IMAGE_RPM_ARM64_SUFFIX: ""
-  CI_IMAGE_RPM_ARMHF: v116490909-fc35a1a5
+  CI_IMAGE_RPM_ARMHF: v116983866-e2293bec
   CI_IMAGE_RPM_ARMHF_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2022_X64: v114471858-795a98da
+  CI_IMAGE_WIN_LTSC2022_X64: v116983866-e2293bec
   CI_IMAGE_WIN_LTSC2022_X64_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2025_X64: v114471858-795a98da
+  CI_IMAGE_WIN_LTSC2025_X64: v116983866-e2293bec
   CI_IMAGE_WIN_LTSC2025_X64_SUFFIX: ""
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
@@ -419,7 +428,6 @@ variables:
 # RUN_E2E_TESTS can be set to false to force installer tests to not run on main/deploy pipelines.
 .if_installer_tests: &if_installer_tests
   if: ($CI_COMMIT_BRANCH == "main"  || $DEPLOY_AGENT == "true" || $RUN_E2E_TESTS == "on" || $DDR_WORKFLOW_ID != null) && $RUN_E2E_TESTS != "off"
-
 
 # When RUN_E2E_TESTS is set to "auto". We do not enforce a behavior for the tests.
 # The behavior of each test will be defined by its rules.
@@ -639,6 +647,14 @@ workflow:
   - <<: *if_main_branch
   - <<: *if_release_branch
 
+.except_release_branch:
+  - <<: *if_release_branch
+    when: never
+
+.except_pr_targeting_release_branch:
+  - <<: *if_pr_targeting_release_branch
+    when: never
+
 .not_on_release_branch_or_tagged_commit:
   - <<: *if_release_branch
     when: never
@@ -683,6 +699,14 @@ workflow:
     when: manual
     allow_failure: true
 
+# Rule for native OS linters (macOS, Windows): restrict to release/tag/nightly
+# deploys where the cross-platform lint job is insufficient (e.g. cgo, platform
+# runtime behavior). For normal branch and main pipelines the cross lint job
+# already provides coverage at a fraction of the resource cost.
+.on_native_os_linters:
+  - <<: *if_tagged_commit
+  - <<: *if_release_branch
+  - if: ($DEPLOY_AGENT == "true" || $DDR_WORKFLOW_ID != null) && $BUCKET_BRANCH =~ /^(nightly|oldnightly|beta|stable)$/
 
 .on_main_or_release_branch_or_deploy_always:
   - <<: *if_deploy

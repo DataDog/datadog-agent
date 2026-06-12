@@ -31,14 +31,18 @@ trap cleanup EXIT
 
 # ─── Step 1: Strip debug info from shared libraries ───────────────────────────
 #
-# /opt/freeware/bin/strip supports -X64 (required for XCOFF64 binaries on AIX).
-# The system /usr/bin/strip is 32-bit only and will refuse or silently corrupt
-# 64-bit XCOFF objects. Use while-read rather than for-f-in-$(find) to avoid
-# command substitution size limits and to handle filenames with spaces safely.
+# strip -X64 selects 64-bit XCOFF object mode; the system /usr/bin/strip
+# handles XCOFF64 correctly on AIX 7.x.
+# -type f skips symlinks so each physical file is processed exactly once
+# (the lib directory contains versioned symlinks like libxml2.so -> libxml2.so.16.0.5).
+# Use while-read rather than for-f-in-$(find) to avoid command substitution
+# size limits and to handle filenames with spaces safely.
 
 log "Stripping debug info from .so files under $EMBEDDED_DESTDIR/lib"
-find "$EMBEDDED_DESTDIR/lib" -name "*.so*" | while IFS= read -r f; do
-    /opt/freeware/bin/strip -X64 "$f" 2>/dev/null || true
+find "$EMBEDDED_DESTDIR/lib" -type f -name "*.so*" | while IFS= read -r f; do
+    # AIX strip exits 255 with "0654-420 already stripped" for files distributed
+    # without debug symbols (e.g. toolbox libs like liblzma, libxml2); ignore it.
+    strip -X64 "$f" 2>/dev/null || true
 done
 log "Strip pass complete"
 

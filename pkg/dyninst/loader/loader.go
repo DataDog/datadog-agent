@@ -28,6 +28,7 @@ import (
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Loader is responsible for loading the eBPF, making it ready to attach.
@@ -260,6 +261,41 @@ type RuntimeStats struct {
 	HitCnt uint64
 	// Number of probe hits that skipped data capture due to throttling.
 	ThrottledCnt uint64
+
+	// runtime.recovery probe counters. Zero on programs where no
+	// FunctionWhere user probe is configured (the recovery probe is
+	// not synthesised; see irgen.maybeAddRuntimeRecoveryProbe).
+	// Recovery counters are written only on the probe-0 entry of the
+	// stats_buf ARRAY (they are process-wide, not per-probe).
+
+	// RecoveryFires is the number of times the runtime.recovery uprobe
+	// fired. Each firing corresponds to one panic+recover that reached
+	// runtime.recovery.
+	RecoveryFires uint64
+	// RecoveryEvictedFrames is the cumulative number of in_progress_calls
+	// slots evicted by recovery firings. A single recovery can evict 0
+	// or more frames depending on how many probed frames sit in the
+	// unwound region.
+	RecoveryEvictedFrames uint64
+	// RecoverySubmitFailures is the number of synthetic-event submits
+	// that failed (out_ringbuf full) and were converted to a
+	// PANIC_UNWOUND_LOST drop notification on the side channel.
+	RecoverySubmitFailures uint64
+	// RecoveryNoOpenCalls counts recoveries on goroutines that had no
+	// probed-frame pairing state in flight. These are common (every
+	// non-probed goroutine that panics+recovers) and very cheap thanks
+	// to an early short-circuit before the panic-chain reads.
+	RecoveryNoOpenCalls uint64
+	// RecoveryFilteredGoexit counts recoveries triggered by a
+	// runtime.Goexit unwind rather than a real panic-recover; these are
+	// out of scope for this revision and are skipped.
+	RecoveryFilteredGoexit uint64
+	// RecoveryInvalidState counts recoveries we couldn't process due
+	// to defensive bail-out conditions (panic_ptr==0, recovered!=1,
+	// stack_hi mismatch, etc.). Should normally stay at 0; a non-zero
+	// value indicates either a runtime.recovery firing pattern this
+	// code doesn't understand or a DWARF/ABI mismatch.
+	RecoveryInvalidState uint64
 }
 
 // RuntimeStats returns the per-probe runtime stats for the program,
@@ -724,6 +760,61 @@ func setCommonConstants(spec *ebpf.CollectionSpec, serialized *serializedProgram
 				f.variableName, f.fieldName, f.s.Name, err,
 			)
 		}
+	}
+
+	// runtime._panic offsets. Optional: if the binary's DWARF lacks the
+	// type or a field, leave the corresponding OFFSET_ at 0 — the
+	// recovery probe attach path treats a missing g._panic offset as a
+	// signal to skip the probe and the rest of dyninst continues working.
+	panicStruct := serialized.commonTypes.Panic
+	if panicStruct == nil {
+		log.Warnf(
+			"dyninst: runtime._panic not present in target DWARF; " +
+				"recovery probe will no-op and panic-recover leaks will " +
+				"not be cleaned up for this binary",
+		)
+		return nil
+	}
+	gPanicOff, err := g.FieldOffsetByName("_panic")
+	if err != nil {
+		log.Warnf(
+			"dyninst: runtime.g has no _panic field (%v); recovery "+
+				"probe will no-op", err,
+		)
+		return nil
+	}
+	if err := setVariable(spec, "OFFSET_runtime_dot_g___panic", gPanicOff); err != nil {
+		return fmt.Errorf("failed to set OFFSET_runtime_dot_g___panic: %w", err)
+	}
+	var missing []string
+	for _, f := range []struct {
+		fieldName    string
+		variableName string
+	}{
+		{"arg", "OFFSET_runtime_dot__panic__arg"},
+		{"startSP", "OFFSET_runtime_dot__panic__startSP"},
+		{"sp", "OFFSET_runtime_dot__panic__sp"},
+		{"recovered", "OFFSET_runtime_dot__panic__recovered"},
+		{"goexit", "OFFSET_runtime_dot__panic__goexit"},
+	} {
+		off, err := panicStruct.FieldOffsetByName(f.fieldName)
+		if err != nil {
+			missing = append(missing, f.fieldName)
+			continue
+		}
+		if err := setVariable(spec, f.variableName, off); err != nil {
+			return fmt.Errorf(
+				"failed to set %s for %s in runtime._panic: %w",
+				f.variableName, f.fieldName, err,
+			)
+		}
+	}
+	if len(missing) > 0 {
+		log.Warnf(
+			"dyninst: runtime._panic missing fields %v; recovery probe "+
+				"may behave incorrectly (panic-unwound frames could leak)",
+			missing,
+		)
 	}
 	return nil
 }
