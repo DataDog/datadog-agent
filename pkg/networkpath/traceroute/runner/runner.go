@@ -144,8 +144,6 @@ func (r *Runner) Run(ctx context.Context, cfg config.Config) (payload.NetworkPat
 		E2eQueries:            cfg.E2eQueries,
 	}
 
-	log.Debugf("source public IP collection enabled: %t", !cfg.DisableSourcePublicIPCollection)
-
 	results, err := r.traceroute.RunTraceroute(ctx, params)
 	if err != nil {
 		tracerouteRunnerTelemetry.failedRuns.Inc()
