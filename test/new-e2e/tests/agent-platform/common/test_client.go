@@ -226,10 +226,8 @@ func (c *TestClient) ExecuteWithRetry(cmd string) (string, error) {
 // NewWindowsTestClient create a TestClient for Windows VM
 func NewWindowsTestClient(context common.Context, host *components.RemoteHost) *TestClient {
 	fileManager := filemanager.NewRemoteHost(host)
-	t := context.T()
-
 	agentClient, err := client.NewHostAgentClient(context, host.HostOutput, false)
-	require.NoError(t, err)
+	require.NoError(context, err)
 
 	helper := helpers.NewWindowsHelper()
 	client := NewTestClient(host, agentClient, fileManager, helper)

@@ -50,7 +50,7 @@ func New(context e2ecommon.Context, assertions *require.Assertions, remoteHost *
 // HasAService returns an assertion object that can be used to assert things about
 // a given Windows service. If the service doesn't exist, it fails.
 func (r *RemoteWindowsHostAssertions) HasAService(serviceName string) *RemoteWindowsServiceAssertions {
-	r.context.T().Helper()
+	contextT(r.context).Helper()
 	serviceConfig, err := common.GetServiceConfig(r.remoteHost, serviceName)
 	r.require.NoError(err)
 	return &RemoteWindowsServiceAssertions{RemoteWindowsHostAssertions: r, serviceConfig: serviceConfig}
@@ -59,7 +59,7 @@ func (r *RemoteWindowsHostAssertions) HasAService(serviceName string) *RemoteWin
 // HasNoService returns an assertion object that can be used to assert things about
 // a given Windows service. If the service doesn't exist, it fails.
 func (r *RemoteWindowsHostAssertions) HasNoService(serviceName string) *RemoteWindowsHostAssertions {
-	r.context.T().Helper()
+	contextT(r.context).Helper()
 	_, err := common.GetServiceConfig(r.remoteHost, serviceName)
 	r.require.Error(err)
 	return r
@@ -68,7 +68,7 @@ func (r *RemoteWindowsHostAssertions) HasNoService(serviceName string) *RemoteWi
 // DirExists checks whether a directory exists in the given path. It also fails if
 // the path points to a directory or there is an error when trying to check the file.
 func (r *RemoteWindowsHostAssertions) DirExists(path string, msgAndArgs ...interface{}) *RemoteWindowsHostAssertions {
-	r.context.T().Helper()
+	contextT(r.context).Helper()
 	_, err := r.remoteHost.Lstat(path)
 	r.require.NoError(err, msgAndArgs...)
 	return r
@@ -76,7 +76,7 @@ func (r *RemoteWindowsHostAssertions) DirExists(path string, msgAndArgs ...inter
 
 // NoDirExists checks whether a directory does not exist in the given path.
 func (r *RemoteWindowsHostAssertions) NoDirExists(path string, msgAndArgs ...interface{}) *RemoteWindowsHostAssertions {
-	r.context.T().Helper()
+	contextT(r.context).Helper()
 	_, err := r.remoteHost.Lstat(path)
 	r.require.ErrorIs(err, fs.ErrNotExist, msgAndArgs...)
 	return r
@@ -85,7 +85,7 @@ func (r *RemoteWindowsHostAssertions) NoDirExists(path string, msgAndArgs ...int
 // FileExists checks whether a file exists in the given path. It also fails if
 // the path points to a directory or there is an error when trying to check the file.
 func (r *RemoteWindowsHostAssertions) FileExists(path string, msgAndArgs ...interface{}) *RemoteWindowsHostAssertions {
-	r.context.T().Helper()
+	contextT(r.context).Helper()
 	exists, err := r.remoteHost.FileExists(path)
 	r.require.NoError(err)
 	r.require.True(exists, msgAndArgs...)
@@ -95,7 +95,7 @@ func (r *RemoteWindowsHostAssertions) FileExists(path string, msgAndArgs ...inte
 // NoFileExists checks whether a file does not exist in the given path. It also fails if
 // the path points to a directory or there is an error when trying to check the file.
 func (r *RemoteWindowsHostAssertions) NoFileExists(path string, msgAndArgs ...interface{}) *RemoteWindowsHostAssertions {
-	r.context.T().Helper()
+	contextT(r.context).Helper()
 	exists, err := r.remoteHost.FileExists(path)
 	r.require.NoError(err)
 	r.require.False(exists, msgAndArgs...)
@@ -106,7 +106,7 @@ func (r *RemoteWindowsHostAssertions) NoFileExists(path string, msgAndArgs ...in
 // It does not run a full test suite on it, but merely checks if it has the required
 // service running.
 func (r *RemoteWindowsHostAssertions) HasARunningDatadogAgentService() *RemoteWindowsAgentAssertions {
-	r.context.T().Helper()
+	contextT(r.context).Helper()
 
 	installPath, err := windowsagent.GetInstallPathFromRegistry(r.remoteHost)
 	r.require.NoError(err)
@@ -132,7 +132,7 @@ func (r *RemoteWindowsHostAssertions) HasARunningDatadogAgentService() *RemoteWi
 
 // HasNoDatadogAgentService checks if the remote host doesn't have a Datadog Agent installed.
 func (r *RemoteWindowsHostAssertions) HasNoDatadogAgentService() *RemoteWindowsBinaryAssertions {
-	r.context.T().Helper()
+	contextT(r.context).Helper()
 	r.NoFileExists(defaultAgentBinPath)
 	r.HasNoService("datadogagent")
 	return &RemoteWindowsBinaryAssertions{
@@ -144,7 +144,7 @@ func (r *RemoteWindowsHostAssertions) HasNoDatadogAgentService() *RemoteWindowsB
 // HasBinary checks if a binary exists on the remote host and returns a more specific assertion
 // allowing to run further tests on the binary.
 func (r *RemoteWindowsHostAssertions) HasBinary(path string) *RemoteWindowsBinaryAssertions {
-	r.context.T().Helper()
+	contextT(r.context).Helper()
 	r.FileExists(path)
 	return &RemoteWindowsBinaryAssertions{
 		RemoteWindowsHostAssertions: r,
@@ -154,7 +154,7 @@ func (r *RemoteWindowsHostAssertions) HasBinary(path string) *RemoteWindowsBinar
 
 // HasRegistryKey checks if a registry key exists on the remote host.
 func (r *RemoteWindowsHostAssertions) HasRegistryKey(key string) *RemoteWindowsRegistryKeyAssertions {
-	r.context.T().Helper()
+	contextT(r.context).Helper()
 	exists, err := common.RegistryKeyExists(r.remoteHost, key)
 	r.require.NoError(err)
 	r.require.True(exists)
@@ -166,7 +166,7 @@ func (r *RemoteWindowsHostAssertions) HasRegistryKey(key string) *RemoteWindowsR
 
 // HasNoRegistryKey checks if a registry key does not exist on the remote host.
 func (r *RemoteWindowsHostAssertions) HasNoRegistryKey(key string) *RemoteWindowsHostAssertions {
-	r.context.T().Helper()
+	contextT(r.context).Helper()
 	exists, err := common.RegistryKeyExists(r.remoteHost, key)
 	r.require.NoError(err)
 	r.require.False(exists)
@@ -175,7 +175,7 @@ func (r *RemoteWindowsHostAssertions) HasNoRegistryKey(key string) *RemoteWindow
 
 // HasNamedPipe checks if a named pipe exists on the remote host
 func (r *RemoteWindowsHostAssertions) HasNamedPipe(pipeName string) *RemoteWindowsNamedPipeAssertions {
-	r.context.T().Helper()
+	contextT(r.context).Helper()
 
 	cmd := fmt.Sprintf("Test-Path '%s'", pipeName)
 	out, err := r.remoteHost.Execute(cmd)
@@ -191,7 +191,7 @@ func (r *RemoteWindowsHostAssertions) HasNamedPipe(pipeName string) *RemoteWindo
 
 // HasNoNamedPipe checks if a named pipe does not exist on the remote host
 func (r *RemoteWindowsHostAssertions) HasNoNamedPipe(pipeName string) *RemoteWindowsHostAssertions {
-	r.context.T().Helper()
+	contextT(r.context).Helper()
 
 	cmd := fmt.Sprintf("Test-Path '%s'", pipeName)
 	out, err := r.remoteHost.Execute(cmd)
@@ -204,7 +204,7 @@ func (r *RemoteWindowsHostAssertions) HasNoNamedPipe(pipeName string) *RemoteWin
 
 // HasARunningDatadogInstallerService verifies that the Datadog Installer service is installed and correctly configured.
 func (r *RemoteWindowsHostAssertions) HasARunningDatadogInstallerService() *RemoteWindowsHostAssertions {
-	r.context.T().Helper()
+	contextT(r.context).Helper()
 
 	r.HasAService(consts.ServiceName).
 		WithStatus("Running").
@@ -232,7 +232,7 @@ func (r *RemoteWindowsHostAssertions) HasARunningDatadogInstallerService() *Remo
 
 // HasDatadogInstaller verifies that the Datadog Installer is installed on the remote host.
 func (r *RemoteWindowsHostAssertions) HasDatadogInstaller() *RemoteWindowsInstallerAssertions {
-	r.context.T().Helper()
+	contextT(r.context).Helper()
 
 	installPath, err := windowsagent.GetInstallPathFromRegistry(r.remoteHost)
 	r.require.NoError(err)
@@ -246,7 +246,7 @@ func (r *RemoteWindowsHostAssertions) HasDatadogInstaller() *RemoteWindowsInstal
 // on key Agent files and directories. This is to verify that config updates
 // or upgrades haven't broken file permissions.
 func (r *RemoteWindowsHostAssertions) HasDDAgentUserFileAccess(args ...string) *RemoteWindowsHostAssertions {
-	r.context.T().Helper()
+	contextT(r.context).Helper()
 
 	var agentUserName string
 	if len(args) > 0 {

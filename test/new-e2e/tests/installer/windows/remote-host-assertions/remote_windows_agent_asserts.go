@@ -30,7 +30,7 @@ type RemoteWindowsAgentConfigAssertions struct {
 // The `config get` subcommand only supports a small set of keys, so this method
 // fetches the full config and unmarshals it into a map.
 func (r *RemoteWindowsAgentAssertions) RuntimeConfig(commandArgs ...string) *RemoteWindowsAgentConfigAssertions {
-	r.context.T().Helper()
+	contextT(r.context).Helper()
 	output, err := r.agentClient.ConfigWithError(
 		agentclient.WithArgs(commandArgs),
 	)
@@ -48,7 +48,7 @@ func (r *RemoteWindowsAgentAssertions) RuntimeConfig(commandArgs ...string) *Rem
 
 // getConfigValue navigates through nested config using dot notation and returns the final value
 func (c *RemoteWindowsAgentConfigAssertions) getConfigValue(key string) interface{} {
-	c.context.T().Helper()
+	contextT(c.context).Helper()
 
 	// Navigate through nested config using dot notation
 	keys := strings.Split(key, ".")
@@ -77,7 +77,7 @@ func (c *RemoteWindowsAgentConfigAssertions) getConfigValue(key string) interfac
 
 // WithValueEqual checks if a config key has the expected value
 func (c *RemoteWindowsAgentConfigAssertions) WithValueEqual(key string, expectedValue interface{}) *RemoteWindowsAgentConfigAssertions {
-	c.context.T().Helper()
+	contextT(c.context).Helper()
 
 	actualValue := c.getConfigValue(key)
 	c.require.Equal(expectedValue, actualValue, "expected config value %s to be %v, but got %v", key, expectedValue, actualValue)
