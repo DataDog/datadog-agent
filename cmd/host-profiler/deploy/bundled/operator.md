@@ -70,7 +70,11 @@ spec:
 
 ## AppArmor (optional)
 
-Load [`apparmor-profile`](../apparmor-profile) on each node using your cluster's AppArmor provisioning mechanism, then set `appArmorProfileName` on the host-profiler container override:
+AppArmor provides extra hardening on Linux distributions and Kubernetes clusters where AppArmor is available. The Host Profiler does not require AppArmor to run.
+
+Use this section only if your nodes support AppArmor and you already manage node-local AppArmor profiles. AppArmor profiles must be loaded on each node before Kubernetes can apply them to a pod.
+
+To enable the provided profile, load [`apparmor-profile`](../apparmor-profile) on each node, then add `appArmorProfileName` to the host-profiler container override in your `DatadogAgent` Custom Resource:
 
 ```yaml
 spec:
@@ -80,3 +84,5 @@ spec:
         host-profiler:
           appArmorProfileName: localhost/host-profiler
 ```
+
+The provided profile limits what the Host Profiler container can execute. It allows `objcopy`, which is used for debug symbol extraction.
