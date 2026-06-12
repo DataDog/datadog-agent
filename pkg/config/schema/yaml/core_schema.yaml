@@ -2579,7 +2579,7 @@ properties:
   jmx_log_file:
     node_type: setting
     type: string
-    default: ''
+    default: ${log_path}/jmxfetch.log
     visibility: public
     description: Path of the log file where JMXFetch logs are written.
     example: <JMXFETCH_LOG_FILE_PATH>
@@ -2706,7 +2706,7 @@ properties:
   log_file:
     node_type: setting
     type: string
-    default: ''
+    default: ${log_path}/agent.log
     visibility: public
     description: |-
       Path of the log file for the Datadog Agent.
@@ -6313,12 +6313,29 @@ properties:
         node_type: section
         type: object
         properties:
-          enabled:
-            node_type: setting
-            type: boolean
-            default: false
-            comment: Anomaly event reporting. Keep false during evaluation / shadow
-              mode.
+          events:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: false
+                comment: Forward anomaly correlations as Datadog change events. Keep false during evaluation / shadow mode.
+          stdout:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: true
+                comment: Set to false to silence all [observer] stdout log lines.
+              verbose:
+                node_type: setting
+                type: boolean
+                default: false
+                comment: Set to true to print individual anomaly series lines after the title (one line per anomaly).
       storage:
         node_type: section
         type: object
@@ -6769,6 +6786,15 @@ properties:
     node_type: setting
     type: string
     default: .
+  config_files_discovery:
+    node_type: section
+    type: object
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
+        comment: Config files discovery
   container_exclude:
     node_type: setting
     type: array

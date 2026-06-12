@@ -262,11 +262,11 @@ def get_build_flags(
     rtloader_lib, rtloader_headers, rtloader_common_headers = get_rtloader_paths(embedded_path, rtloader_root)
     # setting the install path, allowing the agent to be installed in a custom location
     if sys.platform.startswith('linux') and install_path:
-        ldflags += f"-X {REPO_PATH}/pkg/config/setup.InstallPath={install_path} "
+        ldflags += f"-X {REPO_PATH}/pkg/util/defaultpaths.defaultInstallPath={install_path} "
 
     # setting the run path
     if sys.platform.startswith('linux') and run_path:
-        ldflags += f"-X {REPO_PATH}/pkg/config/setup.defaultRunPath={run_path} "
+        ldflags += f"-X {REPO_PATH}/pkg/util/defaultpaths.runPath={run_path} "
 
     # lock down the agent to only use the symbols in the datadog-agent.map file
     # required because some go dependencies (such as go-nvml) will automatically include the --export-dynamic flag
