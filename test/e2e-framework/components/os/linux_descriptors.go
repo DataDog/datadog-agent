@@ -27,6 +27,7 @@ var (
 
 	RedHatDefault = RedHat9
 	RedHat9       = NewDescriptor(RedHat, "9")
+	RedHat10      = NewDescriptor(RedHat, "10")
 
 	SuseDefault = Suse15
 	Suse15      = NewDescriptor(Suse, "15-4")
