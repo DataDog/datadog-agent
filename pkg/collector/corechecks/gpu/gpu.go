@@ -211,6 +211,7 @@ func (c *Check) ensureInitCollectors() error {
 				PRMCache:             c.prmCache,
 				Telemetry:            c.telemetry.collectorTelemetry,
 				Workloadmeta:         c.wmeta,
+				Config:               pkgconfigsetup.Datadog(),
 			},
 			c.disabledCollectors)
 		if err != nil {

@@ -1520,6 +1520,9 @@ func TestProfileManagedDPA(t *testing.T) {
 					condition(datadoghqcommon.DatadogPodAutoscalerHorizontalAbleToScaleCondition, corev1.ConditionUnknown, "", "", testTime),
 					condition(datadoghqcommon.DatadogPodAutoscalerVerticalAbleToApply, corev1.ConditionUnknown, "", "", testTime),
 				},
+				Options: &datadoghqcommon.DatadogPodAutoscalerOptionsStatus{
+					Burstable: pointer.Ptr(true),
+				},
 			},
 		}
 		f.ExpectCreateAction(mustUnstructured(t, expectedDPA))
