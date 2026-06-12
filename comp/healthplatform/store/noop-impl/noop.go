@@ -55,7 +55,7 @@ func (n *NoopHealthPlatform) ResolveIssue(_ string) {
 }
 
 // PruneResolvedIssues does nothing when the health platform is disabled.
-func (n *NoopHealthPlatform) PruneResolvedIssues() {
+func (n *NoopHealthPlatform) PruneResolvedIssues(_ []string) {
 }
 
 // ResolveAllIssues does nothing when the health platform is disabled.

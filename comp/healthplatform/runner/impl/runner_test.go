@@ -47,7 +47,7 @@ func (m *mockStore) ResolveAllIssues()                                          
 func (m *mockStore) GetIssue(_ string) *healthplatformpayload.Issue               { return nil }
 func (m *mockStore) GetAllIssues() (int, map[string]*healthplatformpayload.Issue) { return 0, nil }
 func (m *mockStore) GetActiveIssueIDsByIssueName(_ string) []string               { return nil }
-func (m *mockStore) PruneResolvedIssues()                                         {}
+func (m *mockStore) PruneResolvedIssues(_ []string)                               {}
 
 var _ storedef.Component = (*mockStore)(nil)
 
