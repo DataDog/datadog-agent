@@ -33,6 +33,7 @@ go_test(
     name = "http_test",
     srcs = [
         "destination_test.go",
+        "sync_destination_test.go",
         "worker_pool_test.go",
     ],
     embed = [":http"],
