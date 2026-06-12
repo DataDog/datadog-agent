@@ -205,10 +205,48 @@ func TestResolveIssueRemovesFromActive(t *testing.T) {
 
 	h.ResolveIssue("t:id")
 
+	// Issue stays in the active set with RESOLVED state until PruneResolvedIssues is called.
+	issue := h.GetIssue("t:id")
+	require.NotNil(t, issue)
+	require.NotNil(t, issue.PersistedIssue)
+	assert.Equal(t, IssueStateResolved, issue.PersistedIssue.State)
+
+	h.PruneResolvedIssues()
 	assert.Nil(t, h.GetIssue("t:id"))
+
 	require.NotNil(t, h.persistedIssues["t:id"])
 	assert.Equal(t, IssueStateResolved, h.persistedIssues["t:id"].State)
 	assert.NotEmpty(t, h.persistedIssues["t:id"].ResolvedAt)
+}
+
+// TestResolveIssuePersistedOnly covers the restart scenario: the issue was
+// persisted from a previous run (state=NEW on disk) but is not active in
+// memory. ResolveIssue must insert a minimal entry into h.issues so the next
+// egress tick can forward the RESOLVED state.
+func TestResolveIssuePersistedOnly(t *testing.T) {
+	h := newTestStore(t)
+	// Simulate a previous run: persist the issue directly without adding it to
+	// h.issues (as if the store was just loaded from disk).
+	h.persistedIssues["p:id"] = &PersistedIssue{
+		IssueID:   "p:id",
+		IssueType: "my-issue",
+		State:     IssueStateNew,
+		FirstSeen: "2026-01-01T00:00:00Z",
+		LastSeen:  "2026-01-01T00:00:00Z",
+	}
+
+	h.ResolveIssue("p:id")
+
+	// A minimal entry must be added to h.issues with RESOLVED state.
+	issue := h.GetIssue("p:id")
+	require.NotNil(t, issue, "minimal RESOLVED entry must be present for egress forwarding")
+	require.NotNil(t, issue.PersistedIssue)
+	assert.Equal(t, IssueStateResolved, issue.PersistedIssue.State)
+	assert.Equal(t, "p:id", issue.Id)
+	assert.Equal(t, "my-issue", issue.IssueName)
+
+	h.PruneResolvedIssues()
+	assert.Nil(t, h.GetIssue("p:id"))
 }
 
 func TestResolveIssueUnknownIDIsNoop(t *testing.T) {

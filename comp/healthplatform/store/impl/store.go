@@ -275,6 +275,13 @@ func NewComponent(reqs Requires) (Provides, error) {
 		persistence:     persistence,
 	}
 
+	// Load persisted issues eagerly so that GetActiveIssueIDsByIssueName is
+	// populated before any OnStart hook (including the startup health check
+	// goroutine in bundle.go) can read it.
+	if err := comp.loadFromDisk(); err != nil {
+		reqs.Log.Warn("Failed to load persisted issues: " + err.Error())
+	}
+
 	// Register lifecycle hooks for component start/stop
 	reqs.Lifecycle.Append(compdef.Hook{
 		OnStart: comp.start,
@@ -310,11 +317,6 @@ func NewComponent(reqs Requires) (Provides, error) {
 // start starts the health platform component
 func (h *healthPlatformImpl) start(_ context.Context) error {
 	h.log.Info("Starting health platform component")
-
-	// Load persisted issues from disk
-	if err := h.loadFromDisk(); err != nil {
-		h.log.Warn("Failed to load persisted issues: " + err.Error())
-	}
 	return nil
 }
 
@@ -414,16 +416,38 @@ func hydrateIssue(issue *healthplatform.Issue, stored *storedIssue) {
 // Clear Methods
 // ============================================================================
 
-// ResolveIssue marks an issue as resolved and removes it from the active set.
+// ResolveIssue marks an issue as resolved. The issue stays in the active set
+// with state RESOLVED so the next egress tick can forward the transition.
+// PruneResolvedIssues removes it after the send.
 func (h *healthPlatformImpl) ResolveIssue(issueID string) {
 	h.issuesMux.Lock()
 
 	stateChanged := false
-	if _, ok := h.issues[issueID]; ok {
+	if stored, ok := h.issues[issueID]; ok {
 		h.log.Info("Cleared issue: " + issueID)
 		stateChanged = true
+		// Mark the stored proto RESOLVED so GetAllIssues returns the
+		// transition state on the next egress tick.
+		if stored != nil && stored.issue != nil {
+			if stored.issue.PersistedIssue == nil {
+				stored.issue.PersistedIssue = &healthplatform.PersistedIssue{}
+			}
+			stored.issue.PersistedIssue.State = healthplatform.IssueState_ISSUE_STATE_RESOLVED
+		}
+	} else if persisted, hasPersisted := h.persistedIssues[issueID]; hasPersisted && persisted.State != IssueStateResolved {
+		// Issue was persisted from a previous agent run but not active in memory
+		// (common after a restart). Insert a minimal entry so the next egress tick
+		// can forward the RESOLVED state transition.
+		h.log.Info("Resolving persisted-only issue: " + issueID)
+		stateChanged = true
+		h.issues[issueID] = &storedIssue{issue: &healthplatform.Issue{
+			Id:        issueID,
+			IssueName: persisted.IssueType,
+			PersistedIssue: &healthplatform.PersistedIssue{
+				State: healthplatform.IssueState_ISSUE_STATE_RESOLVED,
+			},
+		}}
 	}
-	delete(h.issues, issueID)
 
 	if persisted := h.persistedIssues[issueID]; persisted != nil {
 		h.issuesByName[persisted.IssueType] = removeID(h.issuesByName[persisted.IssueType], issueID)
@@ -439,6 +463,20 @@ func (h *healthPlatformImpl) ResolveIssue(issueID string) {
 	if stateChanged {
 		if err := h.saveToDisk(); err != nil {
 			h.log.Warn("Failed to persist issues to disk: " + err.Error())
+		}
+	}
+}
+
+// PruneResolvedIssues removes all RESOLVED issues from the active set.
+// Called by the egress after a successful send.
+func (h *healthPlatformImpl) PruneResolvedIssues() {
+	h.issuesMux.Lock()
+	defer h.issuesMux.Unlock()
+	for id, stored := range h.issues {
+		if stored != nil && stored.issue != nil &&
+			stored.issue.PersistedIssue != nil &&
+			stored.issue.PersistedIssue.State == healthplatform.IssueState_ISSUE_STATE_RESOLVED {
+			delete(h.issues, id)
 		}
 	}
 }

@@ -48,6 +48,7 @@ func (m *mockStore) ResolveIssue(_ string)                            {}
 func (m *mockStore) ResolveAllIssues()                                {}
 func (m *mockStore) GetIssue(_ string) *healthplatformpayload.Issue   { return nil }
 func (m *mockStore) GetActiveIssueIDsByIssueName(_ string) []string   { return nil }
+func (m *mockStore) PruneResolvedIssues()                             {}
 
 // mockForwarder records Send calls.
 type mockForwarder struct {
