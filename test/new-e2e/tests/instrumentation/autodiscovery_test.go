@@ -3,11 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
+//go:build !e2eunit
+
 // Package instrumentation contains the end-to-end suite for DatadogInstrumentation
-// CRD-backed Autodiscovery check scheduling (CONTP-1688). It exercises the full
-// pipeline: a CR applied to the cluster -> DCA controller -> DCA endpoint
-// (/api/v1/instrumentation/configs) -> Node Agent InstrumentationChecksConfigProvider ->
-// the standard Autodiscovery pipeline -> check runs reported to fakeintake.
+// CRD-backed Autodiscovery check scheduling.
 package instrumentation
 
 import (
