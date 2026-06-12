@@ -21,7 +21,6 @@ import (
 	healthplatformstore "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	healthplatformmock "github.com/DataDog/datadog-agent/comp/healthplatform/store/mock"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // stubRegistry is a minimal remoteagentregistry.Component for testing session validation.
@@ -46,12 +45,12 @@ func (r *stubRegistry) GetRegisteredAgents() []remoteagentregistry.RegisteredAge
 func (r *stubRegistry) GetRegisteredAgentStatuses() []remoteagentregistry.StatusData { return nil }
 
 func serverWithStore(store healthplatformstore.Component) *serverSecure {
-	return &serverSecure{healthPlatformStore: option.New(store)}
+	return &serverSecure{healthPlatformStore: store}
 }
 
 func serverWithStoreAndRegistry(store healthplatformstore.Component, reg remoteagentregistry.Component) *serverSecure {
 	return &serverSecure{
-		healthPlatformStore: option.New(store),
+		healthPlatformStore: store,
 		remoteAgentRegistry: reg,
 	}
 }
@@ -70,14 +69,6 @@ func TestReportHealthIssue_StoresIssue(t *testing.T) {
 	require.NotNil(t, got)
 	assert.Equal(t, "Test Issue", got.Title)
 	assert.Equal(t, healthplatformpayload.IssueSeverity_ISSUE_SEVERITY_HIGH, got.Severity)
-}
-
-func TestReportHealthIssue_StoreUnavailable(t *testing.T) {
-	srv := &serverSecure{healthPlatformStore: option.None[healthplatformstore.Component]()}
-
-	_, err := srv.ReportHealthIssue(context.Background(), &pb.ReportHealthIssueRequest{Issue: &healthplatformpayload.Issue{Id: "x"}})
-	require.Error(t, err)
-	assert.Equal(t, codes.Unavailable, status.Code(err))
 }
 
 func TestReportHealthIssue_NilIssue(t *testing.T) {
@@ -172,14 +163,6 @@ func TestResolveHealthIssue_ClearsIssue(t *testing.T) {
 	_, err := srv.ResolveHealthIssue(context.Background(), &pb.ResolveHealthIssueRequest{IssueId: "to-resolve"})
 	require.NoError(t, err)
 	assert.Nil(t, storeMock.GetIssue("to-resolve"))
-}
-
-func TestResolveHealthIssue_StoreUnavailable(t *testing.T) {
-	srv := &serverSecure{healthPlatformStore: option.None[healthplatformstore.Component]()}
-
-	_, err := srv.ResolveHealthIssue(context.Background(), &pb.ResolveHealthIssueRequest{IssueId: "x"})
-	require.Error(t, err)
-	assert.Equal(t, codes.Unavailable, status.Code(err))
 }
 
 func TestResolveHealthIssue_EmptyIssueID(t *testing.T) {
