@@ -26,14 +26,14 @@ import (
 // The one override: when delegated_auth.aws.region is configured (a.region), it is passed to
 // the SDK so it takes precedence over AWS_REGION/AWS_DEFAULT_REGION, keeping credential
 // resolution consistent with the signing endpoint. When it is unset, the SDK resolves the
-// region itself. The SDK handles caching and refresh internally.
+// region from AWS_REGION/AWS_DEFAULT_REGION/IMDS itself, falling back to defaultRegion so a
+// region always exists. This matters for IRSA-only pods that have AWS_ROLE_ARN and
+// AWS_WEB_IDENTITY_TOKEN_FILE but no region set: the SDK's web-identity provider calls STS to
+// retrieve credentials, and STS endpoint resolution needs a region. The fallback mirrors the
+// signing path, which also defaults to defaultRegion when none is configured. The SDK handles
+// caching and refresh internally.
 func (a *AWSAuth) resolveCredentials(ctx context.Context) *creds.SecurityCredentials {
-	var opts []func(*config.LoadOptions) error
-	if a.region != "" {
-		opts = append(opts, config.WithRegion(a.region))
-	}
-
-	cfg, err := config.LoadDefaultConfig(ctx, opts...)
+	cfg, err := config.LoadDefaultConfig(ctx, a.regionLoadOptions()...)
 	if err != nil {
 		log.Warnf("AWS SDK LoadDefaultConfig failed: %v", err)
 		return &creds.SecurityCredentials{}
@@ -50,4 +50,16 @@ func (a *AWSAuth) resolveCredentials(ctx context.Context) *creds.SecurityCredent
 		SecretAccessKey: sdkCreds.SecretAccessKey,
 		Token:           sdkCreds.SessionToken,
 	}
+}
+
+// regionLoadOptions builds the SDK region options. WithDefaultRegion only applies when no
+// region is resolved from AWS_REGION/AWS_DEFAULT_REGION/IMDS, guaranteeing a region always
+// exists (needed for the IRSA web-identity STS call); WithRegion, set when
+// delegated_auth.aws.region is configured, takes precedence over it.
+func (a *AWSAuth) regionLoadOptions() []func(*config.LoadOptions) error {
+	opts := []func(*config.LoadOptions) error{config.WithDefaultRegion(defaultRegion)}
+	if a.region != "" {
+		opts = append(opts, config.WithRegion(a.region))
+	}
+	return opts
 }

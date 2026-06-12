@@ -11,6 +11,7 @@ import (
 	"context"
 	"testing"
 
+	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -43,4 +44,40 @@ func TestResolveCredentials_EC2_StaticEnvVarsReturned(t *testing.T) {
 	assert.Equal(t, "EKSTATICKEY", got.AccessKeyID)
 	assert.Equal(t, "EKSTATICSECRET", got.SecretAccessKey)
 	assert.Equal(t, "EKSTATICTOKEN", got.Token)
+}
+
+// resolvedRegion applies the region load options the way resolveCredentials does and returns
+// the region the SDK settled on, so we can assert region resolution without an STS call.
+func resolvedRegion(t *testing.T, auth *AWSAuth) string {
+	t.Helper()
+	cfg, err := awsconfig.LoadDefaultConfig(context.Background(), auth.regionLoadOptions()...)
+	require.NoError(t, err)
+	return cfg.Region
+}
+
+// TestResolveCredentials_EC2_RegionFallback covers region resolution precedence. The
+// IRSA-only case (no configured region, no AWS_REGION/AWS_DEFAULT_REGION) must still yield a
+// region, otherwise the SDK web-identity provider's STS call fails endpoint resolution.
+func TestResolveCredentials_EC2_RegionFallback(t *testing.T) {
+	t.Run("IRSA-only pod with no region falls back to defaultRegion", func(t *testing.T) {
+		isolateAWSEnv(t)
+		t.Setenv("AWS_ROLE_ARN", "arn:aws:iam::123456789012:role/example")
+		t.Setenv("AWS_WEB_IDENTITY_TOKEN_FILE", "/var/run/secrets/eks.amazonaws.com/serviceaccount/token")
+
+		assert.Equal(t, defaultRegion, resolvedRegion(t, &AWSAuth{}))
+	})
+
+	t.Run("env region is honored when no region is configured", func(t *testing.T) {
+		isolateAWSEnv(t)
+		t.Setenv("AWS_REGION", "ap-southeast-2")
+
+		assert.Equal(t, "ap-southeast-2", resolvedRegion(t, &AWSAuth{}))
+	})
+
+	t.Run("configured region overrides env region", func(t *testing.T) {
+		isolateAWSEnv(t)
+		t.Setenv("AWS_REGION", "ap-southeast-2")
+
+		assert.Equal(t, "eu-west-1", resolvedRegion(t, &AWSAuth{region: "eu-west-1"}))
+	})
 }
