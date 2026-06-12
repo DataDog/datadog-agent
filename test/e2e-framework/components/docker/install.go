@@ -25,7 +25,7 @@ func InstallDocker(host *remoteComp.Host, opts ...pulumi.ResourceOption) (comman
 // (Azure, GCP). AWS e2e AMIs have docker-compose v2.27.0 pre-baked.
 func InstallCompose(host *remoteComp.Host, opts ...pulumi.ResourceOption) (command.Command, error) {
 	installCompose := pulumi.Sprintf(
-		"curl --retry 10 -fsSLo /usr/local/bin/docker-compose https://github.com/docker/compose/releases/download/%s/docker-compose-linux-$(uname -p) && sudo chmod 755 /usr/local/bin/docker-compose",
+		"curl --retry 10 -fsSLo /usr/local/bin/docker-compose https://github.com/docker/compose/releases/download/%s/docker-compose-linux-$(uname -m) && sudo chmod 755 /usr/local/bin/docker-compose",
 		composeVersion,
 	)
 	return host.OS.Runner().Command("install-compose", &command.Args{Create: installCompose, Sudo: true}, opts...)
