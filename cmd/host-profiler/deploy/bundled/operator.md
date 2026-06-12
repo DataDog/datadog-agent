@@ -14,7 +14,7 @@ Your Datadog Agent must be managed by the Datadog Operator version **1.25.0** or
 
 ## Deploy
 
-Update your existing `DatadogAgent` Custom Resource by adding the following annotations and host-profiler container override:
+Update your existing `DatadogAgent` Custom Resource with the following annotations and host-profiler container override:
 
 ```yaml
 metadata:
