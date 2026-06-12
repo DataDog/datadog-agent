@@ -29,7 +29,6 @@ go_test(
     embed = [":netflowstate"],
     gotags = ["test"],
     deps = [
-        "//comp/netflow/common",
         "//comp/netflow/testutil",
         "@com_github_netsampler_goflow2//decoders/netflow/templates",
         "@com_github_netsampler_goflow2//decoders/netflow/templates/memory",
