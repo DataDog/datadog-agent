@@ -6,7 +6,6 @@
 package anomalydetection
 
 import (
-	"strings"
 	"testing"
 	"time"
 
@@ -17,6 +16,25 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 )
+
+// observerMetricNames lists anomaly-detection observer telemetry expected only
+// when the observer pipeline is enabled.
+var observerMetricNames = []string{
+	"observer.channel.dropped",
+	"observer.rrcf.score",
+	"observer.rrcf.threshold",
+	"observer.log_pattern_extractor.pattern_count",
+	telemetryLogsIngested,
+	"observer.logs.processed_bytes",
+	"observer.logs.dropped",
+	telemetrySeriesCount,
+	telemetryReportsEmitted,
+	telemetryReportsOngoing,
+	telemetryLogsInFlight,
+	"observer.storage.series_evicted",
+	"observer.storage.capacity_hit",
+	"observer.scheduler.advance_skipped",
+}
 
 // disabledByDefaultSuite verifies that the observer is a no-op when
 // anomaly_detection is not configured. This guards against the component
@@ -36,31 +54,17 @@ func TestAnomalyDetectionDisabledByDefault(t *testing.T) {
 	), e2e.WithStackName("anomalydetection-disabled-default"))
 }
 
-// TestObserverSilentWithDefaultConfig asserts the observer analysis pipeline is
-// not wired when anomaly_detection is not configured.
-// The meaningful signal is observerReadyMarker — the "all-metrics" handle that
-// the aggregator creates only when the full analysis pipeline is active.
+// TestObserverSilentWithDefaultConfig asserts the observer pipeline is disabled
+// by default by checking that observer telemetry is not present.
 func (s *disabledByDefaultSuite) TestObserverSilentWithDefaultConfig() {
 	waitForAgentStartup(s)
 
-	// Give the agent time to emit any potential observer startup logs.
+	// Give the agent time to initialize all components and metadata collectors.
 	time.Sleep(10 * time.Second)
 
-	out, err := s.Env().RemoteHost.ReadFilePrivileged("/var/log/datadog/agent.log")
-	assert.NoError(s.T(), err, "reading agent.log for observer check")
-	agentLog := string(out)
-
-	// Collect any [observer] lines as evidence for the failure message.
-	// The match uses "[observer" (no closing bracket) to catch all observer-prefixed
-	// tags including [observer/engine], etc.
-	var culprits []string
-	for _, line := range strings.Split(agentLog, "\n") {
-		if strings.Contains(line, "[observer") {
-			culprits = append(culprits, line)
-		}
+	tel := observerTelemetryOutput(s)
+	for _, metricName := range observerMetricNames {
+		assert.False(s.T(), containsMetric(tel, metricName),
+			"observer telemetry %q should not be emitted with default config", metricName)
 	}
-
-	assert.NotContains(s.T(), agentLog, observerReadyMarker,
-		"observer analysis pipeline must not start with default config; [observer] lines found:\n%s",
-		strings.Join(culprits, "\n"))
 }

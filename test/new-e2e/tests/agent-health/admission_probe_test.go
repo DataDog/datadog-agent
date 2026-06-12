@@ -44,6 +44,7 @@ type admissionProbeSuite struct {
 }
 
 func TestAdmissionProbeSuite(t *testing.T) {
+	t.Parallel()
 	e2e.Run(t, &admissionProbeSuite{},
 		e2e.WithProvisioner(provkindvm.Provisioner(
 			provkindvm.WithRunOptions(

@@ -129,6 +129,14 @@ func TestGetIntegrationConfig(t *testing.T) {
 	config, _, err = GetIntegrationConfigFromFile("foo", "testdata/testcheck.yaml")
 	require.Nil(t, err)
 	assert.Nil(t, config.Discovery)
+
+	// discovery-only: a file with only `discovery: {}` is valid and has no instances.
+	config, _, err = GetIntegrationConfigFromFile("foo", "tests/discovery_only.yaml")
+	require.Nil(t, err)
+	require.NotNil(t, config.Discovery, "discovery-only file should produce a non-nil Discovery field")
+	assert.Empty(t, config.Instances)
+	assert.Nil(t, config.MetricConfig)
+	assert.Nil(t, config.LogsConfig)
 }
 
 func TestReadConfigFiles(t *testing.T) {
@@ -137,7 +145,7 @@ func TestReadConfigFiles(t *testing.T) {
 
 	configs, errors, err := ReadConfigFiles(GetAll)
 	require.Nil(t, err)
-	require.Equal(t, 22, len(configs))
+	require.Equal(t, 23, len(configs))
 	require.Equal(t, 4, len(errors))
 
 	for _, c := range configs {
@@ -148,7 +156,7 @@ func TestReadConfigFiles(t *testing.T) {
 
 	configs, _, err = ReadConfigFiles(WithoutAdvancedAD)
 	require.Nil(t, err)
-	require.Equal(t, 20, len(configs))
+	require.Equal(t, 21, len(configs))
 
 	expectedConfig1 := integration.Config{
 		Name: "advanced_ad",

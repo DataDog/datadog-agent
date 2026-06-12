@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    Process Autodiscovery is now enabled by default on Linux through the
+    ``process`` autoconfig feature. It can be disabled with
+    ``DD_AUTOCONFIG_EXCLUDE_FEATURES=process``.

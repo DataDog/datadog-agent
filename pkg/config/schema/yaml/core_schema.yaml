@@ -306,6 +306,30 @@ properties:
     - template_section:Common
     - full-agent-only:true
     comment: Installer configuration
+  process_manager:
+    node_type: section
+    type: object
+    visibility: public
+    description: |-
+      When true (see `enabled` below), the Datadog process manager daemon (dd-procmgrd) is enabled for this host install.
+      On Windows, the core Agent starts the Windows service `dd-procmgr-service` when this option is true.
+      On Linux, dd-procmgrd is started by systemd (`datadog-agent-procmgr.service` linked to the main Agent unit);
+      this setting is ignored on Linux and does not enable or disable the systemd unit.
+    tags:
+    - template_section:Common
+    - full-agent-only:true
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: true
+        visibility: public
+        description: |-
+          When true (Windows only), the core Agent starts the dd-procmgr-service Windows service.
+          On Linux, the process manager daemon is started by systemd; this option is ignored.
+        tags:
+        - template_section:Common
+        comment: Process manager
   tag_value_split_separator:
     node_type: setting
     type: object
@@ -1688,6 +1712,24 @@ properties:
             tags:
             - template_section:CoreAgent
             comment: Network Path
+      netflow_monitoring:
+        node_type: section
+        type: object
+        description: '[experimental] Configurations for Network Path Dynamic Test for
+          monitoring NetFlow destinations via Network Path.'
+        tags:
+        - template_section:CoreAgent
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
+            description: |-
+              [experimental] Enables Network Path Dynamic Test for monitoring NetFlow destinations via Network Path.
+              NetFlow destinations are monitored by IP. Enable `network_path.collector.monitor_ip_without_domain` to allow direct IP targets.
+            example: 'true'
+            tags:
+            - template_section:CoreAgent
       collector:
         node_type: section
         type: object
@@ -2891,6 +2933,7 @@ properties:
         - kubernetes
         - orchestratorexplorer
         - podman
+        - process
     tags:
     - template_section:CoreAgent
   autoconfig_include_features:
@@ -2914,6 +2957,7 @@ properties:
         - kubernetes
         - orchestratorexplorer
         - podman
+        - process
     tags:
     - template_section:CoreAgent
   container_cgroup_root:
@@ -5958,7 +6002,7 @@ properties:
     node_type: section
     type: object
     properties:
-      agent_logs:
+      logs:
         node_type: section
         type: object
         properties:
@@ -5966,25 +6010,106 @@ properties:
             node_type: setting
             type: boolean
             default: true
-            comment: Agent-internal log sampling. Warn+ are never sampled.
-          sample_rate_debug:
-            node_type: setting
-            type: number
-            default: 0.05
-            tags:
-            - golang_type:float64
-          sample_rate_info:
-            node_type: setting
-            type: number
-            default: 0.2
-            tags:
-            - golang_type:float64
-          sample_rate_trace:
-            node_type: setting
-            type: number
-            default: 0
-            tags:
-            - golang_type:float64
+            comment: Master switch for all log ingestion (internal, kubelet, containers).
+          internal:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: true
+                comment: Forward agent-internal log lines to the anomaly-detection observer.
+              min_severity:
+                node_type: setting
+                type: string
+                default: warn
+                comment: Minimum log level to forward (trace/debug/info/warn/error/critical). Logs below this level are dropped before rate-limiting.
+              max_rate_high_priority:
+                node_type: setting
+                type: number
+                default: -1
+                comment: Max logs/s for warn/error/critical. -1 = unlimited, 0 = drop all.
+                tags:
+                - golang_type:float64
+              max_rate_medium_priority:
+                node_type: setting
+                type: number
+                default: 100
+                comment: Max logs/s for info. -1 = unlimited, 0 = drop all.
+                tags:
+                - golang_type:float64
+              max_rate_low_priority:
+                node_type: setting
+                type: number
+                default: 1
+                comment: Max logs/s for trace/debug. -1 = unlimited, 0 = drop all.
+                tags:
+                - golang_type:float64
+          kubelet:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: true
+                comment: Forward kubelet journald logs to the anomaly-detection observer.
+              min_severity:
+                node_type: setting
+                type: string
+                default: warn
+                comment: Minimum log level to forward.
+              max_rate_high_priority:
+                node_type: setting
+                type: number
+                default: -1
+                tags:
+                - golang_type:float64
+              max_rate_medium_priority:
+                node_type: setting
+                type: number
+                default: 100
+                tags:
+                - golang_type:float64
+              max_rate_low_priority:
+                node_type: setting
+                type: number
+                default: 1
+                tags:
+                - golang_type:float64
+          containers:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: true
+                comment: Forward container logs to the anomaly-detection observer.
+              min_severity:
+                node_type: setting
+                type: string
+                default: warn
+                comment: Minimum log level to forward.
+              max_rate_high_priority:
+                node_type: setting
+                type: number
+                default: -1
+                tags:
+                - golang_type:float64
+              max_rate_medium_priority:
+                node_type: setting
+                type: number
+                default: 100
+                tags:
+                - golang_type:float64
+              max_rate_low_priority:
+                node_type: setting
+                type: number
+                default: 1
+                tags:
+                - golang_type:float64
       debug:
         node_type: section
         type: object
@@ -6121,33 +6246,6 @@ properties:
         default: false
         comment: Master switch. When false the entire anomaly detection subsystem
           is a no-op.
-      logs:
-        node_type: section
-        type: object
-        properties:
-          containers:
-            node_type: section
-            type: object
-            properties:
-              enabled:
-                node_type: setting
-                type: boolean
-                default: true
-          enabled:
-            node_type: setting
-            type: boolean
-            default: true
-            comment: |-
-              Log ingestion gate. When false, container/journald logs are not routed
-              into the anomaly detection pipeline (recording is unaffected).
-          kubelet:
-            node_type: section
-            type: object
-            properties:
-              enabled:
-                node_type: setting
-                type: boolean
-                default: true
       metrics:
         node_type: section
         type: object
@@ -6363,7 +6461,7 @@ properties:
               enabled:
                 node_type: setting
                 type: boolean
-                default: false
+                default: true
           limit:
             node_type: setting
             type: integer
@@ -6926,14 +7024,6 @@ properties:
         node_type: setting
         type: string
         default: tcp://0.0.0.0:5101
-      telemetry_enabled:
-        node_type: setting
-        type: boolean
-        default: false
-      telemetry_listen_addr:
-        node_type: setting
-        type: string
-        default: tcp://0.0.0.0:5102
       use_new_config_stream_endpoint:
         node_type: setting
         type: boolean
@@ -8232,19 +8322,32 @@ properties:
       enabled:
         node_type: setting
         type: boolean
-        default: false
+        default: true
       forwarder:
         node_type: section
         type: object
         properties:
           interval:
             node_type: setting
-            type: string
+            type: number
             default: 0s
+            format: duration
+            tags:
+            - golang_type:duration
       persist_on_kubernetes:
         node_type: setting
         type: boolean
         default: false
+      invalidconfig_check:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            # Disabled by default: loading the compiled core_schema.yaml retains ~8 MiB of heap
+            # permanently (sync.Once global). Enable only if startup schema validation is needed.
+            default: false
   heroku_dyno:
     node_type: setting
     type: boolean
