@@ -19,6 +19,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 )
 
 func TestProcessEventCreatesCorrectTags(t *testing.T) {
@@ -258,7 +260,9 @@ func TestProcessEventUsesDistribution(t *testing.T) {
 	snd := new(mocksender.MockSender)
 	snd.On("Distribution", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 
-	c := &Check{}
+	c := &Check{
+		checkTelemetry: newCheckTelemetry(telemetryimpl.NewMockComponent()),
+	}
 	parsed := ParsedEvent{
 		Event: NCCLInspectorEvent{
 			Rank:   0,
