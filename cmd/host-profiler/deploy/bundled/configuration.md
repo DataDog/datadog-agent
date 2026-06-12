@@ -17,14 +17,33 @@ If your Agent is configured to send profiles to multiple Datadog endpoints, the 
 
 ## Optional overrides
 
-The following settings can be overridden in the Datadog Agent configuration for both [Datadog Helm chart](helm.md) and [Datadog Operator](operator.md) deployments:
+Most bundled deployments do not need these settings. Use them to expose Host Profiler health data, collect diagnostics, or follow instructions from Datadog Support.
 
-| Name                                   | Values            | Default          | Description                                                                                                                         |
-|:---------------------------------------|:------------------|:-----------------|:------------------------------------------------------------------------------------------------------------------------------------|
-| `hostprofiler.debug.verbosity`         | string            | _(disabled)_     | Configures a [debug exporter](https://github.com/open-telemetry/opentelemetry-collector/blob/main/exporter/debugexporter/README.md) |
-| `hostprofiler.additional_http_headers` | map[string]string | _(empty)_        | Adds additional headers to payloads                                                                                                 |
-| `hostprofiler.ddprofiling.enabled`     | bool              | `false`          | Enables Go Runtime Profiler                                                                                                         |
-| `hostprofiler.ddprofiling.period`      | int               | `0`              | Sampling rate                                                                                                                       |
-| `hostprofiler.health_metrics.enabled`  | bool              | `true`           | Enables collector internal metrics collection                                                                                       |
-| `hostprofiler.health_metrics.target`   | string            | `127.0.0.1:8889` | Exposed Prometheus address                                                                                                          |
-| `hostprofiler.hpflare.port`            | int               | `7778`           | Exposed port to retrieve Host Profiler flares                                                                                       |
+The following settings can be overridden in the Datadog Agent configuration for both [Datadog Helm chart](helm.md) and [Datadog Operator](operator.md) deployments.
+
+### Health metrics
+
+| Name | Values | Default | Description |
+| :---- | :---- | :---- | :---- |
+| `hostprofiler.health_metrics.enabled` | bool | `true` | Sends internal Host Profiler health metrics to Datadog. |
+| `hostprofiler.health_metrics.target` | string | `127.0.0.1:8889` | Address used for the Host Profiler internal Prometheus metrics endpoint. Change this only if the default address conflicts with another service. |
+
+### Diagnostics
+
+| Name | Values | Default | Description |
+| :---- | :---- | :---- | :---- |
+| `hostprofiler.hpflare.port` | int | `7778` | Local port used to collect Host Profiler flare diagnostics. Change this only if the default port conflicts with another service. |
+| `hostprofiler.debug.verbosity` | `basic`, `normal`, `detailed` | _(disabled)_ | Enables the OpenTelemetry debug exporter for troubleshooting. See the [debug exporter verbosity documentation](https://pkg.go.dev/go.opentelemetry.io/collector/exporter/debugexporter#readme-verbosity-levels). Use temporarily because it can increase log volume. |
+
+### Advanced export settings
+
+| Name | Values | Default | Description |
+| :---- | :---- | :---- | :---- |
+| `hostprofiler.additional_http_headers` | map[string]string | _(empty)_ | Adds custom headers to profile export requests, for example when required by an outbound proxy or gateway. |
+
+### Host Profiler self-profiling
+
+| Name | Values | Default | Description |
+| :---- | :---- | :---- | :---- |
+| `hostprofiler.ddprofiling.enabled` | bool | `false` | Enables Datadog profiling for the Host Profiler process itself. This does not control profiling of your workloads. |
+| `hostprofiler.ddprofiling.period` | int | `60` seconds when enabled | Self-profiling collection interval. Used only when `hostprofiler.ddprofiling.enabled` is `true`. |
