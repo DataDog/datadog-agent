@@ -111,7 +111,19 @@ static __always_inline void record_classification_attempt_resolved(__u8 app_prot
     if (val == NULL) {
         return;
     }
-    __sync_fetch_and_add(&val->classification_attempt_histogram[app_proto_num][bucket], 1);
+    // Bound the indices for the eBPF verifier. The >= checks above let the compiler
+    // prove app_proto_num < 16 and ELIDE a plain mask (which is why an earlier
+    // `& 15` had no effect — same "invalid access to map value, off=32880"). Run the
+    // values through barrier_var() first so the compiler treats them as opaque and
+    // cannot elide the mask; the subsequent `& (N-1)` then gives the verifier a
+    // provable [0, N-1] bound for the 2D map-value access.
+    __u8 proto_idx = app_proto_num;
+    __u16 bucket_idx = bucket;
+    barrier_var(proto_idx);
+    barrier_var(bucket_idx);
+    proto_idx &= (CLASSIFICATION_APP_PROTO_BUCKETS - 1);
+    bucket_idx &= (CLASSIFICATION_MAX_ATTEMPT_BUCKETS - 1);
+    __sync_fetch_and_add(&val->classification_attempt_histogram[proto_idx][bucket_idx], 1);
 }
 
 // record_classification_skip_attempt records, into the shadow-evaluation skip histogram,
