@@ -4346,6 +4346,61 @@ api_key:
 #
 #     retries: 3
 
+#     # @param init_config - custom object - optional
+#     # Global defaults for the generated Network Config Management (NCM) configuration. These
+#     # settings apply to every discovered device that has `ncm` credentials, and can be
+#     # overridden field by field per credential via `configs[].ncm[].ssh`.
+#     #
+#     init_config:
+
+#       # @param ssh - custom object - optional
+#       # Global SSH connection settings used as defaults for all NCM devices. A field set in a
+#       # credential's `ssh` block takes precedence; otherwise the value below is used. Only the
+#       # fields actually specified are written to the generated config (strict pass-through):
+#       # nothing is injected. At least one host verification option (`known_hosts_path` or
+#       # `insecure_skip_verify`) must be provided here or per credential, otherwise the NCM check
+#       # rejects the device.
+#       #
+#       ssh:
+
+#         # @param timeout - integer - optional
+#         # SSH connection timeout in seconds.
+#         #
+#         timeout: 30
+
+#         # @param known_hosts_path - string - optional
+#         # Path to the known_hosts file used to verify the device's host key.
+#         #
+#         known_hosts_path: /etc/ssh/known_hosts
+
+#         # @param insecure_skip_verify - boolean - optional
+#         # Skip host key verification. Use only in trusted/dev environments.
+#         #
+#         insecure_skip_verify: false
+
+#         # @param ciphers - list of strings - optional
+#         # Allowed SSH ciphers.
+#         #
+#         ciphers:
+#           - aes256-gcm@openssh.com
+
+#         # @param key_exchanges - list of strings - optional
+#         # Allowed SSH key exchange algorithms.
+#         #
+#         key_exchanges:
+#           - curve25519-sha256
+
+#         # @param host_key_algorithms - list of strings - optional
+#         # Allowed SSH host key algorithms.
+#         #
+#         host_key_algorithms:
+#           - ssh-ed25519
+
+#         # @param allow_legacy_algorithms - boolean - optional
+#         # Allow legacy SSH algorithms for older network devices.
+#         #
+#         allow_legacy_algorithms: false
+
 #     # @param configs - list of object - optional - default: []
 #     # @env DD_NETWORK_DEVICES_AUTODISCOVERY_CONFIGS - JSON list of object - optional - default: []
 #     # The actual list of configurations used to discover SNMP devices in various subnets.
@@ -4552,6 +4607,46 @@ api_key:
 #             - match_field: index
 #               match_value: '2'
 #               disabled: true
+#
+#         # @param ncm - list of custom objects - optional
+#         # SSH credentials used to generate Network Config Management (NCM) configuration for
+#         # devices discovered in this subnet. When set, every device that responds to SNMP in
+#         # this subnet is written to a generated `network_config_management.d/auto_conf.yaml`
+#         # config file (one instance per credential) so the NCM check can collect its config.
+#         # Subnets without an `ncm` block do not contribute any NCM device entries.
+#         #
+#         # Each credential may carry an optional `ssh` block to override, field by field, the
+#         # global SSH connection settings defined in `init_config.ssh` (see below). Any field set
+#         # here takes precedence; fields left unset are inherited from `init_config.ssh`. Only the
+#         # fields actually specified (here or in `init_config.ssh`) are written; nothing is
+#         # injected. At least one host verification option (`known_hosts_path` or
+#         # `insecure_skip_verify`) must be provided somewhere or the NCM check rejects the device.
+#         # Example:
+#         # ncm:
+#         #   - user: admin
+#         #     pass: 'secret'
+#         #     ssh:
+#         #       ciphers:
+#         #         - aes128-ctr
+#
+#         ncm:
+#           - user: <USERNAME>
+#             pass: '<PASSWORD>'
+#             # @param ssh - custom object - optional
+#             # Optional per-credential SSH overrides. See `init_config.ssh` for the full list of
+#             # supported fields.
+#             #
+#             # ssh:
+#             #   timeout: 30
+#             #   known_hosts_path: /etc/ssh/known_hosts
+#             #   insecure_skip_verify: false
+#             #   ciphers:
+#             #     - aes256-gcm@openssh.com
+#             #   key_exchanges:
+#             #     - curve25519-sha256
+#             #   host_key_algorithms:
+#             #     - ssh-ed25519
+#             #   allow_legacy_algorithms: false
 
 #   # @param snmp_traps - custom object - optional
 #   # This section configures SNMP traps collection.
