@@ -1,0 +1,20 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "lookbackdump",
+    srcs = ["command.go"],
+    importpath = "github.com/DataDog/datadog-agent/cmd/agent/subcommands/lookbackdump",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cmd/agent/command",
+        "//comp/core",
+        "//comp/core/config",
+        "//comp/core/ipc/def",
+        "//comp/core/ipc/fx",
+        "//comp/core/log/def",
+        "//pkg/config/setup",
+        "//pkg/util/fxutil",
+        "@com_github_spf13_cobra//:cobra",
+        "@org_uber_go_fx//:fx",
+    ],
+)
