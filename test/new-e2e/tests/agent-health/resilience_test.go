@@ -153,6 +153,12 @@ func (suite *resilienceSuite) TestHealthPlatformIssueRecurrence() {
 			),
 		),
 	))
+	// Restart so the Python module cache is cleared and fixed_check.py is loaded.
+	agent := suite.Env().Agent
+	require.NoError(suite.T(), agent.Client.Restart())
+	require.EventuallyWithT(suite.T(), func(ct *assert.CollectT) {
+		assert.True(ct, agent.Client.IsReady())
+	}, 2*time.Minute, 10*time.Second, "agent not ready after fix")
 
 	// Wait for the issue to explicitly transition to RESOLVED before flushing.
 	require.EventuallyWithT(suite.T(), func(ct *assert.CollectT) {
