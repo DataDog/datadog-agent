@@ -26,7 +26,7 @@ comp/anomalydetection/
     fx/         ← production Fx wiring
     impl/       ← engine, detectors, correlators, extractors, telemetry
       patterns/ ← log pattern tokenizer/clusterer subpackage
-  logssource/   ← container log source feeding the observer
+  logssource/   ← container and kubelet log sources feeding the observer
     def/ fx/ impl/
   reporter/     ← anomaly event reporter
     def/
@@ -38,10 +38,8 @@ comp/anomalydetection/
     mock/
   recorder/     ← parquet recorder for scenario capture
     def/
-    fx/         ← full implementation (parquet, heavy deps)
     fx-noop/    ← stub wired in the main agent build
-    impl/
-    impl-noop/
+    impl-noop/  ← no-op implementation
 ```
 
 The **production agent** wires `reporter/fx-noop` and `recorder/fx-noop` to
@@ -55,7 +53,7 @@ keep those heavy dependencies out of the agent binary. The
 
 | Layer | Code | Role |
 |-------|------|------|
-| **Component** (`observerImpl`) | `impl/observer.go` | Fx lifecycle, channel dispatch, Handle factory, HF check runners |
+| **Component** (`observerImpl`) | `impl/observer.go` | Fx lifecycle, channel dispatch, Handle factory |
 | **Engine** (`engine`) | `impl/engine.go` | Storage, detection, correlation, replay — the shared core |
 
 The engine is a plain Go struct, not an Fx component. Both the live observer
@@ -65,7 +63,8 @@ and the testbench use the same engine.
 
 | File | Purpose |
 |------|---------|
-| `def/component.go` | Public interfaces: Component, Handle, View types, Detector, Correlator, etc. |
+| `def/component.go` | Component interface (GetHandle, GetStorageReader, etc.) |
+| `def/types.go` | Public interfaces: Handle, View types, Detector, Correlator, etc. |
 | `impl/engine.go` | Pipeline orchestration: ingest, advance, detect, correlate, replay |
 | `impl/storage.go` | In-memory columnar time-series storage (1s buckets, read-time aggregation) |
 | `impl/scheduler.go` | Scheduling policy: when to advance analysis |
@@ -85,7 +84,7 @@ code.
 **Reading order:**
 1. `README.md` — pipeline overview, extension guide, configuration
 2. `observer-engine.allium` — behavioral spec (rules, contracts, invariants)
-3. `def/component.go` — public interfaces
+3. `def/component.go` and `def/types.go` — public interfaces
 4. `impl/engine.go` — implementation of the spec
 
 ## Key Design Decisions
