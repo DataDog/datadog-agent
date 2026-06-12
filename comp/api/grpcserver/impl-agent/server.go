@@ -61,7 +61,7 @@ type serverSecure struct {
 	autodiscovery        autodiscovery.Component
 	configComp           config.Component
 	configStreamServer   *configstreamServer.Server
-	healthPlatformStore  option.Option[healthplatformstore.Component]
+	healthPlatformStore  healthplatformstore.Component
 }
 
 // remoteAgentServer implements the dedicated RemoteAgent gRPC service, which owns the remote agent lifecycle
@@ -319,11 +319,6 @@ func (s *serverSecure) validateSessionID(sessionID string) error {
 }
 
 func (s *serverSecure) ReportHealthIssue(_ context.Context, in *pb.ReportHealthIssueRequest) (*emptypb.Empty, error) {
-	store, ok := s.healthPlatformStore.Get()
-	if !ok {
-		return nil, status.Error(codes.Unavailable, "health platform store not available")
-	}
-
 	if err := s.validateSessionID(in.GetRemoteAgentSessionId()); err != nil {
 		return nil, err
 	}
@@ -339,18 +334,13 @@ func (s *serverSecure) ReportHealthIssue(_ context.Context, in *pb.ReportHealthI
 		return nil, status.Error(codes.InvalidArgument, "issue_name cannot be empty")
 	}
 
-	if err := store.ReportIssue(issue); err != nil {
+	if err := s.healthPlatformStore.ReportIssue(issue); err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to store issue: %v", err)
 	}
 	return &emptypb.Empty{}, nil
 }
 
 func (s *serverSecure) ResolveHealthIssue(_ context.Context, in *pb.ResolveHealthIssueRequest) (*emptypb.Empty, error) {
-	store, ok := s.healthPlatformStore.Get()
-	if !ok {
-		return nil, status.Error(codes.Unavailable, "health platform store not available")
-	}
-
 	if err := s.validateSessionID(in.GetRemoteAgentSessionId()); err != nil {
 		return nil, err
 	}
@@ -358,7 +348,7 @@ func (s *serverSecure) ResolveHealthIssue(_ context.Context, in *pb.ResolveHealt
 		return nil, status.Error(codes.InvalidArgument, "issue_id cannot be empty")
 	}
 
-	store.ResolveIssue(in.GetIssueId())
+	s.healthPlatformStore.ResolveIssue(in.GetIssueId())
 	return &emptypb.Empty{}, nil
 }
 

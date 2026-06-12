@@ -63,7 +63,7 @@ type Requires struct {
 	Telemetry           telemetry.Component
 	Hostname            hostnameinterface.Component
 	ConfigStream        configstream.Component
-	HealthPlatformStore option.Option[healthplatformstore.Component]
+	HealthPlatformStore healthplatformstore.Component
 }
 
 type server struct {
@@ -83,7 +83,7 @@ type server struct {
 	telemetry           telemetry.Component
 	hostname            hostnameinterface.Component
 	configStream        configstream.Component
-	healthPlatformStore option.Option[healthplatformstore.Component]
+	healthPlatformStore healthplatformstore.Component
 }
 
 func (s *server) BuildServer() http.Handler {
