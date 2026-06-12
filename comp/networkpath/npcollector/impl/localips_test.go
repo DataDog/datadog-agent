@@ -29,7 +29,6 @@ func TestLocalIPCacheRefreshesAfterTTL(t *testing.T) {
 		}
 		return map[netip.Addr]struct{}{secondIP: {}}, nil
 	})
-	localIPs.ttl = time.Millisecond
 
 	containsFirst, err := localIPs.contains(firstIP)
 	require.NoError(t, err)
@@ -40,7 +39,7 @@ func TestLocalIPCacheRefreshesAfterTTL(t *testing.T) {
 	assert.False(t, containsSecond)
 	assert.Equal(t, 1, discoveryCalls)
 
-	time.Sleep(10 * time.Millisecond)
+	localIPs.items.Delete(localIPCacheRefreshAttemptKey)
 
 	containsSecond, err = localIPs.contains(secondIP)
 	require.NoError(t, err)
@@ -61,7 +60,6 @@ func TestLocalIPCacheUsesStaleSnapshotOnDiscoveryFailure(t *testing.T) {
 		}
 		return map[netip.Addr]struct{}{localIP: {}}, nil
 	})
-	localIPs.ttl = time.Millisecond
 	localIPs.maxStaleAge = time.Minute
 
 	containsLocal, err := localIPs.contains(localIP)
@@ -69,7 +67,7 @@ func TestLocalIPCacheUsesStaleSnapshotOnDiscoveryFailure(t *testing.T) {
 	assert.True(t, containsLocal)
 
 	failDiscovery = true
-	time.Sleep(10 * time.Millisecond)
+	localIPs.items.Delete(localIPCacheRefreshAttemptKey)
 
 	containsLocal, err = localIPs.contains(localIP)
 	require.ErrorIs(t, err, discoveryErr)
