@@ -488,7 +488,12 @@ sm_memoize_pointer(__maybe_unused global_ctx_t* ctx, type_t type,
 // abandonment in a scope emits, subsequent ones in the same scope
 // return without writing. Reason NONE (silent-skip cases like
 // "already memoized" and TTL exhaustion) never emits.
-static inline __attribute__((always_inline)) void
+//
+// noinline: called from every chase-failure site in sm_record_pointer
+// (queue-push failure, memoize-cap variants), each of which inlines the
+// dedup-flag check + scratch write. Lifting the body out keeps the
+// verifier's per-site fanout shallow on older kernels.
+__attribute__((noinline)) static void
 sm_record_pointer_emit_placeholder(global_ctx_t* ctx, type_t type,
                                    target_ptr_t addr,
                                    data_item_reason_t reason) {

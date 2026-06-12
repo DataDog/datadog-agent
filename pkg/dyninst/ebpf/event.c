@@ -71,7 +71,11 @@ struct {
 // event header. Probe_id, stack_byte_depth, last_seq and entry_ktime_ns
 // are zero — the notification applies to every buffered invocation on
 // header->goid whose depth falls in (panic_lo_depth, panic_hi_depth].
-static inline __attribute__((always_inline)) void
+//
+// noinline: this is a cold path called from two distinct sites in
+// probe_run. Inlining duplicates ~30 instructions and the post-call
+// state into both branches, doubling verifier work on a hot function.
+__attribute__((noinline)) static void
 notify_panic_unwound_lost(uint32_t prog_id, const di_event_header_t* header) {
   stats_t* stats = bpf_map_lookup_elem(&stats_buf, &zero_uint32);
   if (stats) {
