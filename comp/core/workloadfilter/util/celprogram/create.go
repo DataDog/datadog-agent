@@ -10,17 +10,27 @@ import (
 	"github.com/google/cel-go/cel"
 
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 )
+
+// getEnv returns a reusable CEL environment for the given object type, building it once and storing
+// it in the global in-memory cache (no expiration) so it is shared by every program.
+func getEnv(objectType workloadfilter.ResourceType) (*cel.Env, error) {
+	key := cache.BuildAgentKey("workloadfilter", "celprogram", "env", string(objectType))
+	return cache.Get[*cel.Env](key, func() (*cel.Env, error) {
+		return cel.NewEnv(
+			cel.Types(&workloadfilter.Container{}, &workloadfilter.Pod{}, &workloadfilter.KubeService{}, &workloadfilter.KubeEndpoint{}, &workloadfilter.Process{}),
+			cel.Variable(string(objectType), cel.ObjectType(convertTypeToProtoType(objectType))),
+		)
+	})
+}
 
 // CreateCELProgram creates a CEL program from the given rules and object type.
 func CreateCELProgram(rules string, objectType workloadfilter.ResourceType) (cel.Program, error) {
 	if rules == "" {
 		return nil, nil
 	}
-	env, err := cel.NewEnv(
-		cel.Types(&workloadfilter.Container{}, &workloadfilter.Pod{}, &workloadfilter.KubeService{}, &workloadfilter.KubeEndpoint{}, &workloadfilter.Process{}),
-		cel.Variable(string(objectType), cel.ObjectType(convertTypeToProtoType(objectType))),
-	)
+	env, err := getEnv(objectType)
 	if err != nil {
 		return nil, err
 	}
