@@ -85,12 +85,10 @@ func waitForProcmgrCLI(t *testing.T, host *components.RemoteHost, installRoot st
 	}, 2*time.Minute, 2*time.Second)
 }
 
-func assertManagedByProcmgr(t *testing.T, host *components.RemoteHost, installRoot string) {
+// waitProcmgrDDOTDescribeRunningStable polls `dd-procmgr describe` until State is Running
+// and stays Running for minRunningDuration (avoids flaky passes on a crash loop).
+func waitProcmgrDDOTDescribeRunningStable(t *testing.T, host *components.RemoteHost, describeCmd string) {
 	t.Helper()
-
-	waitForProcmgrCLI(t, host, installRoot)
-
-	describeCmd := procmgrCLICmd(installRoot, "describe "+procmgrProcessName)
 	var runningSince time.Time
 	const minRunningDuration = 5 * time.Second
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
@@ -115,6 +113,15 @@ func assertManagedByProcmgr(t *testing.T, host *components.RemoteHost, installRo
 			return
 		}
 	}, 2*time.Minute, 5*time.Second)
+}
+
+func assertManagedByProcmgr(t *testing.T, host *components.RemoteHost, installRoot string) {
+	t.Helper()
+
+	waitForProcmgrCLI(t, host, installRoot)
+
+	describeCmd := procmgrCLICmd(installRoot, "describe "+procmgrProcessName)
+	waitProcmgrDDOTDescribeRunningStable(t, host, describeCmd)
 }
 
 func assertNotManagedByProcmgr(t *testing.T, host *components.RemoteHost, installRoot string) {
