@@ -1,7 +1,5 @@
 load("@rules_go//go:def.bzl", "go_library")
 
-# gazelle:dd_agent_go_test on
-
 # gazelle:resolve go github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest //pkg/ebpf/ebpftest
 
 go_library(
