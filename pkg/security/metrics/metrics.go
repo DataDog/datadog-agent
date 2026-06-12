@@ -534,9 +534,9 @@ var (
 
 	// Event Processing metrics
 
-	// MetricSecurityProfileV2EventsDroppedMaxSize is the name of the metric used to report events dropped because profile reached max size
-	// Tags: -
-	MetricSecurityProfileV2EventsDroppedMaxSize = newRuntimeMetric(".security_profile_v2.events.dropped_max_size")
+	// MetricSecurityProfileV2DisabledProfiles is the name of the metric used to report the amount of disabled profiles in this host
+	// Tags: profile_image_name, profile_image_tag
+	MetricSecurityProfileV2DisabledProfiles = newRuntimeMetric(".security_profile_v2.disabled_profiles")
 
 	// Persistence metrics
 
