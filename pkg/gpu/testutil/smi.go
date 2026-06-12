@@ -24,7 +24,7 @@ const (
 )
 
 // SmiSample is a sample of metrics from the dmon subcommand of nividia-smi. The values returned from dmon might not
-// exist 
+// exist
 type SmiSample struct {
 	Index            int
 	PowerWatts       *float64
