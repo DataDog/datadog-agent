@@ -191,15 +191,16 @@ func (c *homebrewCollector) Collect() ([]*Entry, []*Warning, error) {
 				}
 
 				entry := &Entry{
-					DisplayName: formulaName,
-					Version:     version,
-					InstallDate: installDate,
-					Source:      softwareTypeHomebrew,
-					ProductCode: formulaName, // Use formula name as product code
-					Status:      status,
-					Is64Bit:     is64Bit,
-					InstallPath: versionPath,
-					UserSID:     prefix.username, // Set username for per-user installs
+					DisplayName:  formulaName,
+					Version:      version,
+					InstallDate:  installDate,
+					Source:       softwareTypeHomebrew,
+					ProductCode:  formulaName, // Use formula name as product code
+					Status:       status,
+					Is64Bit:      is64Bit,
+					InstallPath:  versionPath,
+					InstallPaths: singleInstallPath(versionPath),
+					UserSID:      prefix.username, // Set username for per-user installs
 				}
 
 				// Add metadata about whether it was explicitly installed or as a dependency
@@ -280,15 +281,16 @@ func (c *homebrewCollector) Collect() ([]*Entry, []*Warning, error) {
 						}
 
 						entry := &Entry{
-							DisplayName: caskName + " (cask)",
-							Version:     version,
-							InstallDate: installDate,
-							Source:      softwareTypeHomebrew,
-							ProductCode: caskName,
-							Status:      statusInstalled,
-							Is64Bit:     is64Bit,
-							InstallPath: versionPath,
-							UserSID:     prefix.username,
+							DisplayName:  caskName + " (cask)",
+							Version:      version,
+							InstallDate:  installDate,
+							Source:       softwareTypeHomebrew,
+							ProductCode:  caskName,
+							Status:       statusInstalled,
+							Is64Bit:      is64Bit,
+							InstallPath:  versionPath,
+							InstallPaths: singleInstallPath(versionPath),
+							UserSID:      prefix.username,
 						}
 
 						entries = append(entries, entry)

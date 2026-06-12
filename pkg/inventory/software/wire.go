@@ -10,6 +10,8 @@ package software
 // with explicit JSON tags so internal-only fields (e.g. install_path) are
 // preserved over the wire. The backend payload uses Entry and omits
 // internal fields via json:"-"; this type is not sent to the backend.
+// The backend-facing install location field is install_paths; install_path is
+// internal-only (used by Entry.GetID) but preserved over the wire.
 // Some fields (e.g. InstallPath, InstallPaths, PkgID, InstallSource) are
 // primarily used on macOS but present for all platforms for future use.
 type SoftwareInventoryWireEntry struct {

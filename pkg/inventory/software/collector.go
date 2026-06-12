@@ -128,7 +128,7 @@ type Entry struct {
 	// internal use and future backend support.
 	PkgID string `json:"-"`
 
-	// InstallPath is the filesystem path where the software is installed.
+	// InstallPath is the single filesystem path where the software is installed.
 	// This field helps identify the exact location of an installation, which is
 	// particularly useful when multiple versions of the same software exist
 	// in different locations (e.g., /Applications vs ~/Applications).
@@ -136,21 +136,36 @@ type Entry struct {
 	//   - Applications: "/Applications/Safari.app", "~/Applications/MyApp.app"
 	//   - Kernel extensions: "/Library/Extensions/SoftRAID.kext"
 	//   - System extensions: "/Library/SystemExtensions/.../com.example.extension.systemextension"
-	// When no single meaningful path exists (e.g. some PKG receipts), this is
-	// left empty and omitted from the payload.
-	InstallPath string `json:"install_path,omitempty"`
+	// NOTE: Excluded from the backend payload (json:"-"). It is retained for
+	// internal use only: GetID() keys on it to distinguish installations, and it
+	// is preserved over the Agent<->System Probe wire. The backend instead
+	// consumes InstallPaths (see below); collectors that know a single path
+	// populate InstallPaths from this value.
+	InstallPath string `json:"-"`
 
-	// InstallPaths contains the top-level directories where a PKG installed files.
-	// This field is specific to PKG receipts and provides visibility into where
-	// the package scattered its files across the filesystem.
-	// Unlike InstallPath (single path), this captures all installation locations
-	// for packages that install to multiple directories (e.g., CLI tools that
-	// install binaries to /usr/local/bin and libraries to /usr/local/lib).
-	// Examples: ["/usr/local/bin", "/usr/local/ykman", "/Library/LaunchDaemons"]
-	// NOTE: Intentionally excluded from the backend payload (json:"-") for now:
-	// the backend Software Inventory schema only accepts the scalar install_path.
-	// Kept for internal use and to be exposed once the backend supports an array.
-	InstallPaths []string `json:"-"`
+	// InstallPaths contains the install location(s) of the software. This is the
+	// field sent to the backend.
+	// For most sources it is a single-element list mirroring InstallPath. For PKG
+	// receipts it captures all top-level directories the package installed files
+	// into (e.g. CLI tools that install binaries to /usr/local/bin and libraries
+	// to /usr/local/lib).
+	// Examples:
+	//   - Applications: ["/Applications/Safari.app"]
+	//   - PKG receipts: ["/usr/local/bin", "/usr/local/ykman", "/Library/LaunchDaemons"]
+	// When no install location is known the list is left empty and omitted from
+	// the payload.
+	InstallPaths []string `json:"install_paths,omitempty"`
+}
+
+// singleInstallPath returns a one-element slice for a non-empty path, or nil so
+// that an absent path is omitted from the payload (InstallPaths is omitempty).
+// Collectors that know a single install location use this to populate
+// Entry.InstallPaths from Entry.InstallPath.
+func singleInstallPath(p string) []string {
+	if p == "" {
+		return nil
+	}
+	return []string{p}
 }
 
 // GetID returns a unique identifier for the software entry.

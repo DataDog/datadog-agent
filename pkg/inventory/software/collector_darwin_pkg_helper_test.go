@@ -225,6 +225,9 @@ func TestBuildEntryFromReceipt_SetsInstallPathFromPrefix(t *testing.T) {
 	entry := buildEntryFromReceipt(receipt, summary, true)
 	assert.NotNil(t, entry)
 	assert.Equal(t, "/opt/example", entry.InstallPath)
+	// The single top-level path collapses into the prefix, so InstallPaths
+	// mirrors the scalar prefix rather than being left empty.
+	assert.Equal(t, []string{"/opt/example"}, entry.InstallPaths)
 }
 
 func TestBuildEntryFromReceipt_NormalizesNAInstallPathToEmpty(t *testing.T) {

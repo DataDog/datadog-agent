@@ -204,14 +204,15 @@ func (c *systemExtensionsCollector) Collect() ([]*Entry, []*Warning, error) {
 		}
 
 		entry := &Entry{
-			DisplayName: sysExt.Identifier,
-			Version:     version,
-			InstallDate: installDate,
-			Source:      softwareTypeSysExt,
-			ProductCode: sysExt.Identifier,
-			Status:      status,
-			Is64Bit:     is64Bit,
-			InstallPath: installPath,
+			DisplayName:  sysExt.Identifier,
+			Version:      version,
+			InstallDate:  installDate,
+			Source:       softwareTypeSysExt,
+			ProductCode:  sysExt.Identifier,
+			Status:       status,
+			Is64Bit:      is64Bit,
+			InstallPath:  installPath,
+			InstallPaths: singleInstallPath(installPath),
 		}
 
 		entries = append(entries, entry)
