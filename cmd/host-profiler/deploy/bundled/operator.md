@@ -42,11 +42,11 @@ spec:
 
 Apply the updated `DatadogAgent` Custom Resource through your usual workflow.
 
+The Host Profiler infers most configuration from the Datadog Agent configuration. For optional overrides, see [Configuration](configuration.md).
+
 After you apply the updated Custom Resource, the Operator rolls out a new Agent DaemonSet revision with the Host Profiler sidecar. Wait for that rollout to complete before verifying profiles.
 
-## Configuration
-
-The Host Profiler infers most configuration from the Datadog Agent configuration. For optional overrides, see [Configuration](configuration.md).
+After deploying the Host Profiler, profiles appear on the [Datadog Profiler](https://app.datadoghq.com/profiling) page within a few minutes. If profiles do not appear, see the [Troubleshooting](../troubleshooting.md) guide.
 
 ## Seccomp (recommended)
 
@@ -80,7 +80,3 @@ spec:
         host-profiler:
           appArmorProfileName: localhost/host-profiler
 ```
-
-## Verification
-
-After deploying the Host Profiler, profiles appear on the [Datadog Profiler](https://app.datadoghq.com/profiling) page within a few minutes. If profiles do not appear, see the [Troubleshooting](../troubleshooting.md) guide.
