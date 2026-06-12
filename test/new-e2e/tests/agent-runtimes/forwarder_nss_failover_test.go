@@ -22,7 +22,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/docker"
@@ -32,6 +31,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers/hostagent"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/common"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client"
@@ -107,51 +108,47 @@ func runUDSTraceGenerator(h *components.RemoteHost, service string, addSpanTags 
 }
 
 func multiFakeIntakeAWS(agentOptions ...agentparams.Option) provisioners.Provisioner {
-	runFunc := func(ctx *pulumi.Context, env *multiFakeIntakeEnv) error {
-		awsEnv, err := aws.NewEnvironment(ctx)
-		if err != nil {
-			return err
-		}
+	pulumiProv := provisioners.NewTypedPulumiProvisioner("aws-nssfailover",
+		func(ctx *pulumi.Context, env *multiFakeIntakeEnv) error {
+			awsEnv, err := aws.NewEnvironment(ctx)
+			if err != nil {
+				return err
+			}
 
-		host, err := ec2.NewVM(awsEnv, "nssfailover")
-		if err != nil {
-			return err
-		}
-		host.Export(ctx, &env.Host.HostOutput)
+			host, err := ec2.NewVM(awsEnv, "nssfailover")
+			if err != nil {
+				return err
+			}
+			host.Export(ctx, &env.Host.HostOutput)
 
-		agent, err := agent.NewHostAgent(&awsEnv, host, agentOptions...)
-		if err != nil {
-			return err
-		}
-		agent.Export(ctx, &env.Agent.HostAgentOutput)
+			fakeIntake1, err := fakeintake.NewECSFargateInstance(awsEnv, fakeintake1Name)
+			if err != nil {
+				return err
+			}
+			fakeIntake1.Export(ctx, &env.Fakeintake1.FakeintakeOutput)
 
-		fakeIntake1, err := fakeintake.NewECSFargateInstance(awsEnv, fakeintake1Name)
-		if err != nil {
-			return err
-		}
-		fakeIntake1.Export(ctx, &env.Fakeintake1.FakeintakeOutput)
+			fakeIntake2, err := fakeintake.NewECSFargateInstance(awsEnv, fakeintake2Name)
+			if err != nil {
+				return err
+			}
+			fakeIntake2.Export(ctx, &env.Fakeintake2.FakeintakeOutput)
 
-		fakeIntake2, err := fakeintake.NewECSFargateInstance(awsEnv, fakeintake2Name)
-		if err != nil {
-			return err
-		}
-		fakeIntake2.Export(ctx, &env.Fakeintake2.FakeintakeOutput)
+			dockerManager, err := docker.NewAWSManager(&awsEnv, host)
+			if err != nil {
+				return err
+			}
+			if err = dockerManager.Export(ctx, &env.Docker.ManagerOutput); err != nil {
+				return err
+			}
 
-		// Create a docker manager
-		dockerManager, err := docker.NewAWSManager(&awsEnv, host)
-		if err != nil {
-			return err
-		}
-		// export the docker manager configuration to the environment, this will automatically initialize the docker client
-		err = dockerManager.Export(ctx, &env.Docker.ManagerOutput)
-		if err != nil {
-			return err
-		}
+			// Agent installation moved to PostProvision.
+			env.Agent = nil
+			return nil
+		}, nil)
 
-		return nil
-	}
-
-	return provisioners.NewTypedPulumiProvisioner("aws-nssfailover", runFunc, nil)
+	return provisioners.WithPostProvision(pulumiProv, func(t *testing.T, env *multiFakeIntakeEnv) {
+		env.Agent = hostagent.InstallOnHost(installers.FromT(t), env.Host, nil, agentOptions...)
+	})
 }
 
 type multiFakeIntakeSuite struct {
