@@ -9,7 +9,6 @@ go_library(
     deps = [
         "//pkg/security/generators/accessors/common",
         "@com_github_masterminds_sprig_v3//:sprig",
-        "@org_golang_x_tools//go/packages",
     ],
 )
 

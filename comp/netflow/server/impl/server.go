@@ -14,7 +14,8 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
+	demultiplexer "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/def"
+	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
@@ -23,6 +24,7 @@ import (
 	nfconfig "github.com/DataDog/datadog-agent/comp/netflow/config/def"
 	"github.com/DataDog/datadog-agent/comp/netflow/flowaggregator"
 	server "github.com/DataDog/datadog-agent/comp/netflow/server/def"
+	npcollector "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/def"
 	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
 	rdnsquerierimplnone "github.com/DataDog/datadog-agent/comp/rdnsquerier/impl-none"
 )
@@ -32,11 +34,13 @@ type Requires struct {
 	compdef.In
 	Lc            compdef.Lifecycle
 	Config        nfconfig.Component
+	AgentConfig   coreconfig.Component
 	Logger        log.Component
 	Demultiplexer demultiplexer.Component
 	Forwarder     forwarder.Component
 	Hostname      hostname.Component
 	RDNSQuerier   rdnsquerier.Component
+	NPCollector   npcollector.Component `optional:"true"`
 }
 
 // Provides defines what the netflow server component provides.
@@ -67,8 +71,9 @@ func NewComponent(deps Requires) (Provides, error) {
 		rdnsQuerier = rdnsquerierimplnone.NewNone().Comp
 		deps.Logger.Infof("Reverse DNS Enrichment is disabled for NDM NetFlow")
 	}
+	networkPathEnabled := deps.AgentConfig.GetBool("network_path.netflow_monitoring.enabled")
 
-	flowAgg := flowaggregator.NewFlowAggregator(sender, deps.Forwarder, conf, deps.Hostname.GetSafe(context.Background()), deps.Logger, rdnsQuerier)
+	flowAgg := flowaggregator.NewFlowAggregator(sender, deps.Forwarder, conf, deps.Hostname.GetSafe(context.Background()), deps.Logger, rdnsQuerier, networkPathEnabled, deps.NPCollector)
 
 	srv := &Server{
 		config:  conf,

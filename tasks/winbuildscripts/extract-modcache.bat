@@ -16,7 +16,7 @@ if "%2" == "" (
 
 set MODCACHE_ROOT=%1
 set MODCACHE_FILE_ROOT=%2
-set MODCACHE_XZ_FILE=%MODCACHE_ROOT%\%MODCACHE_FILE_ROOT%.tar.xz
+set MODCACHE_ZST_FILE=%MODCACHE_ROOT%\%MODCACHE_FILE_ROOT%.tar.zst
 set MODCACHE_TAR_FILE=%MODCACHE_ROOT%\%MODCACHE_FILE_ROOT%.tar
 
 if "%GOMODCACHE%" == "" (
@@ -24,10 +24,10 @@ if "%GOMODCACHE%" == "" (
     goto :endofscript
 )
 
-@echo MODCACHE_XZ_FILE %MODCACHE_XZ_FILE% MODCACHE_TAR_FILE %MODCACHE_TAR_FILE% GOMODCACHE %GOMODCACHE%
-if exist %MODCACHE_XZ_FILE% (
-    @echo Extracting modcache file %MODCACHE_XZ_FILE%
-    Powershell -C "7z x %MODCACHE_XZ_FILE% -o%MODCACHE_ROOT% -bt"
+@echo MODCACHE_ZST_FILE %MODCACHE_ZST_FILE% MODCACHE_TAR_FILE %MODCACHE_TAR_FILE% GOMODCACHE %GOMODCACHE%
+if exist %MODCACHE_ZST_FILE% (
+    @echo Extracting modcache file %MODCACHE_ZST_FILE%
+    Powershell -C "7z x %MODCACHE_ZST_FILE% -o%MODCACHE_ROOT% -bt"
     dir %MODCACHE_TAR_FILE%
     REM Use -aoa to allow overwriting existing files
     REM This shouldn't have any negative impact: since modules are
@@ -36,7 +36,11 @@ if exist %MODCACHE_XZ_FILE% (
     Powershell -C "7z x %MODCACHE_TAR_FILE% -o%GOMODCACHE%\cache -aoa -bt"
     @echo Modcache extracted
 ) else (
-    @echo %MODCACHE_XZ_FILE% not found, dependencies will be downloaded
+    if defined CI (
+        @echo ERROR: %MODCACHE_ZST_FILE% not found in CI
+        exit /b 1
+    )
+    @echo %MODCACHE_ZST_FILE% not found, dependencies will be downloaded
 )
 goto :endofscript
 
@@ -46,9 +50,9 @@ goto :endofscript
 goto :eof
 
 :endofscript
-if exist %MODCACHE_XZ_FILE% (
-    @echo deleting modcache tar.xz %MODCACHE_XZ_FILE%
-    del /f %MODCACHE_XZ_FILE%
+if exist %MODCACHE_ZST_FILE% (
+    @echo deleting modcache tar.zst %MODCACHE_ZST_FILE%
+    del /f %MODCACHE_ZST_FILE%
 )
 if exist %MODCACHE_TAR_FILE% (
     @echo deleting modcache tar %MODCACHE_TAR_FILE%

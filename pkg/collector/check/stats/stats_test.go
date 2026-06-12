@@ -92,7 +92,7 @@ func TestNewStats(t *testing.T) {
 
 func TestNewStatsStateTelemetryInitialized(t *testing.T) {
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("telemetry.checks", "*")
+	mockConfig.SetInTest("telemetry.checks", "*")
 
 	NewStats(newMockCheck(), healthplatformmock.Mock(t))
 
@@ -115,28 +115,34 @@ func TestTranslateEventPlatformEventTypes(t *testing.T) {
 	original := map[string]interface{}{
 		"EventPlatformEvents": map[string]interface{}{
 			"dbm-samples":  12,
+			"genresources": 56,
 			"unknown-type": 34,
 		},
 		"EventPlatformEventsErrors": map[string]interface{}{
 			"dbm-samples":  12,
+			"genresources": 56,
 			"unknown-type": 34,
 		},
 		"SomeOtherKey": map[string]interface{}{
 			"dbm-samples":  12,
+			"genresources": 56,
 			"unknown-type": 34,
 		},
 	}
 	expected := map[string]interface{}{
 		"EventPlatformEvents": map[string]interface{}{
 			"Database Monitoring Query Samples": 12,
+			"Generic Resources":                 56,
 			"unknown-type":                      34,
 		},
 		"EventPlatformEventsErrors": map[string]interface{}{
 			"Database Monitoring Query Samples": 12,
+			"Generic Resources":                 56,
 			"unknown-type":                      34,
 		},
 		"SomeOtherKey": map[string]interface{}{
 			"dbm-samples":  12,
+			"genresources": 56,
 			"unknown-type": 34,
 		},
 	}

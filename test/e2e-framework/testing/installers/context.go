@@ -32,8 +32,12 @@ func FromT(t *testing.T) Context {
 type testingTContext struct{ t *testing.T }
 
 func (c *testingTContext) Errorf(format string, args ...any) { c.t.Errorf(format, args...) }
-func (c *testingTContext) FailNow()                          { c.t.FailNow() }
-func (c *testingTContext) Logf(format string, args ...any)   { c.t.Logf(format, args...) }
-func (c *testingTContext) Helper()                           { c.t.Helper() }
-func (c *testingTContext) Cleanup(fn func())                 { c.t.Cleanup(fn) }
-func (c *testingTContext) SessionOutputDir() string          { return "" }
+func (c *testingTContext) FailNow(format string, args ...any) {
+	c.t.Helper()
+	c.t.Logf(format, args...)
+	c.t.FailNow()
+}
+func (c *testingTContext) Logf(format string, args ...any) { c.t.Logf(format, args...) }
+func (c *testingTContext) Helper()                         { c.t.Helper() }
+func (c *testingTContext) Cleanup(fn func())               { c.t.Cleanup(fn) }
+func (c *testingTContext) SessionOutputDir() string        { return "" }

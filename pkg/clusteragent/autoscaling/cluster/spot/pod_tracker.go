@@ -12,7 +12,6 @@ import (
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/utils/clock"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -51,7 +50,6 @@ type podInfo struct {
 // Pods are grouped first by top-level owner (e.g. Deployment) and then by direct owner
 // (e.g. ReplicaSet). This enables O(1) per-workload operations.
 type podTracker struct {
-	clock         clock.Clock
 	defaultConfig workloadSpotConfig
 	configSource  func(objectRef) (workloadSpotConfig, bool)
 
@@ -60,9 +58,8 @@ type podTracker struct {
 	pendingSpotPods map[string]pendingSpotPod
 }
 
-func newPodTracker(clk clock.Clock, defaultConfig workloadSpotConfig, configSource func(objectRef) (workloadSpotConfig, bool)) *podTracker {
+func newPodTracker(defaultConfig workloadSpotConfig, configSource func(objectRef) (workloadSpotConfig, bool)) *podTracker {
 	return &podTracker{
-		clock:           clk,
 		defaultConfig:   defaultConfig,
 		configSource:    configSource,
 		podSets:         make(map[objectRef]map[objectRef]*ownerPodSet),
@@ -136,12 +133,12 @@ func (t *podTracker) addedOrUpdated(pod *workloadmeta.KubernetesPod) {
 	if !ok {
 		return
 	}
-	ps.track(pod.ID, isSpot, podInfo{name: pod.Name, phase: pod.Phase}, t.clock.Now())
+	ps.track(pod.ID, isSpot, podInfo{name: pod.Name, phase: pod.Phase}, time.Now())
 
 	if isSpot {
 		if pod.Phase == string(corev1.PodPending) {
 			if _, exists := t.pendingSpotPods[pod.ID]; !exists {
-				createdAt := t.clock.Now()
+				createdAt := time.Now()
 				if !pod.CreationTimestamp.IsZero() {
 					createdAt = pod.CreationTimestamp
 				}
@@ -179,7 +176,7 @@ func (t *podTracker) deletePod(o podOwnership, uid string) {
 func (t *podTracker) deletePodLocked(o podOwnership, uid string) {
 	if owners, ok := t.podSets[o.topLevelOwner]; ok {
 		if ps, ok := owners[o.directOwner]; ok {
-			if ps.delete(uid, t.clock.Now()) {
+			if ps.delete(uid, time.Now()) {
 				delete(owners, o.directOwner)
 			}
 		}
@@ -225,7 +222,7 @@ func (t *podTracker) getPodToDelete(rebalanceStabilizationPeriod time.Duration) 
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
-	now := t.clock.Now()
+	now := time.Now()
 	lastUpdatedBefore := now.Add(-rebalanceStabilizationPeriod)
 	for topLevel, owners := range t.podSets {
 		cfg, ok := t.configSource(topLevel)

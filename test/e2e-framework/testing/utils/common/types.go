@@ -16,14 +16,17 @@ package common
 type Context interface {
 	// Errorf reports a non-fatal test/operation failure.
 	Errorf(format string, args ...any)
-	// FailNow marks the current operation as failed and stops execution.
-	FailNow()
+	// FailNow logs the formatted message, marks the current operation as failed, and stops execution.
+	FailNow(format string, args ...any)
 	// Logf logs a message.
 	Logf(format string, args ...any)
 	// Helper marks the calling function as a helper (no-op outside tests).
 	Helper()
 	// Cleanup registers a function to be called when the operation finishes.
 	Cleanup(fn func())
+	// SessionOutputDir returns the root output directory for the current test session.
+	// Implementations that have no output directory return "".
+	SessionOutputDir() string
 }
 
 // Initializable defines the interface for an object that needs to be initialized

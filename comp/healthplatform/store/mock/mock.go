@@ -8,7 +8,6 @@ package mock
 
 import (
 	"testing"
-	"time"
 
 	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 	"google.golang.org/protobuf/proto"
@@ -27,40 +26,12 @@ func Mock(_ *testing.T) healthplatform.Component {
 	}
 }
 
-// ReportIssue reports an issue with minimal information
-// The mock implementation just creates and stores a basic issue
-// If report is nil, it clears the issue (resolution)
-func (m *mockHealthPlatform) ReportIssue(checkID string, checkName string, report *healthplatformpayload.IssueReport) error {
-	if checkID == "" {
-		return nil // Mock doesn't validate
-	}
-
-	// If report is nil, clear the issue
-	if report == nil {
-		delete(m.issues, checkID)
+// ReportIssue stores the proto Issue keyed by issue.Id for testing.
+func (m *mockHealthPlatform) ReportIssue(issue *healthplatformpayload.Issue) error {
+	if issue == nil || issue.Id == "" {
 		return nil
 	}
-
-	// Create a basic issue from the report for testing purposes
-	issue := &healthplatformpayload.Issue{
-		Id:          report.IssueId,
-		Title:       checkName,
-		Description: "Mock issue",
-		Category:    "test",
-		Location:    "test",
-		Severity:    "low",
-		Source:      "test",
-		Tags:        report.Tags,
-	}
-
-	// Store the issue
-	m.issues[checkID] = issue
-
-	return nil
-}
-
-// ScheduleHealthCheck does nothing in the mock implementation
-func (m *mockHealthPlatform) ScheduleHealthCheck(_ string, _ string, _ healthplatform.HealthCheckFunc, _ time.Duration) error {
+	m.issues[issue.Id] = proto.Clone(issue).(*healthplatformpayload.Issue)
 	return nil
 }
 
@@ -96,4 +67,9 @@ func (m *mockHealthPlatform) ResolveIssue(checkID string) {
 // ResolveAllIssues clears all issues
 func (m *mockHealthPlatform) ResolveAllIssues() {
 	m.issues = make(map[string]*healthplatformpayload.Issue)
+}
+
+// GetActiveIssueIDsByIssueName returns nil in the mock.
+func (m *mockHealthPlatform) GetActiveIssueIDsByIssueName(_ string) []string {
+	return nil
 }

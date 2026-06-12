@@ -3,7 +3,7 @@
 # Copyright 2016-present Datadog, Inc.
 #
 set -euo pipefail
-umask 0
+umask 0022
 
 os=$(uname -s)
 arch=$(uname -m)

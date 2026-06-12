@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/gcp/fakeintake"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers/helmagent"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
@@ -51,7 +52,7 @@ func GKEProvisioner(opts ...ProvisionerOption) provisioners.TypedProvisioner[env
 	}
 
 	return provisioners.WithPostProvision(pulumiProv, func(t *testing.T, env *environments.Kubernetes) {
-		helmagent.Install(t, env, runner.CloudGCP, agentOpts...)
+		helmagent.Install(installers.FromT(t), env, runner.CloudGCP, agentOpts...)
 	})
 }
 

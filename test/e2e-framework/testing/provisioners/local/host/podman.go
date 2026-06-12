@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers/hostagent"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
@@ -137,7 +138,7 @@ func PodmanProvisioner(opts ...ProvisionerOption) provisioners.TypedProvisioner[
 	}
 
 	return provisioners.WithPostProvision(pulumiProv, func(t *testing.T, env *environments.Host) {
-		hostagent.Install(t, env, agentOpts...)
+		hostagent.Install(installers.FromT(t), env, agentOpts...)
 	})
 }
 

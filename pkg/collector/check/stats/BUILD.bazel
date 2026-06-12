@@ -12,6 +12,7 @@ go_library(
         "//comp/core/telemetry/def",
         "//comp/core/telemetry/impl",
         "//comp/haagent/def",
+        "//comp/healthplatform/issues/checkfailure",
         "//comp/healthplatform/store/def",
         "//pkg/collector/check/id",
         "//pkg/config/setup",

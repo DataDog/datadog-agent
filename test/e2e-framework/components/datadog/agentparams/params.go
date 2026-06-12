@@ -10,12 +10,13 @@ import (
 	"path"
 	"strings"
 
+	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	perms "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams/filepermissions"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/fakeintake"
-	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
 // Params defines the parameters for the Agent installation.
@@ -38,6 +39,7 @@ import (
 //   - [WithLogs]
 //   - [WithAdditionalInstallParameters]
 //   - [WithSkipAPIKeyInConfig]
+//   - [WithV3MetricsDisabled]
 //
 // [Functional options pattern]: https://dave.cheney.net/2014/10/17/functional-options-for-friendly-apis
 
@@ -336,8 +338,8 @@ network_devices.netflow.forwarder.logs_dd_url: %[1]s:%[2]d
 network_devices.netflow.forwarder.logs_no_ssl: true
 network_path.forwarder.logs_dd_url: %[1]s:%[2]d
 network_path.forwarder.logs_no_ssl: true
-network_config_management.forwarder.logs_dd_url: %[1]s:%[2]d
-network_config_management.forwarder.logs_no_ssl: true
+network_devices.config_management.forwarder.logs_dd_url: %[1]s:%[2]d
+network_devices.config_management.forwarder.logs_no_ssl: true
 synthetics.forwarder.logs_dd_url: %[1]s:%[2]d
 synthetics.forwarder.logs_no_ssl: true
 container_lifecycle.logs_dd_url: %[1]s:%[2]d
@@ -384,13 +386,33 @@ func WithIntakeHostname(scheme string, hostname string) func(*Params) error {
 	}
 }
 
-// WithFakeintake installs the fake intake and configures the Agent to use it.
+// WithFakeintake installs the fake intake and configures the Agent to use it,
+// including Remote Config. The agent is pointed at fakeintake's RC endpoint and
+// given the TUF root JSON derived from fakeintake's global signing key so it can
+// verify signed payloads without any extra provisioner options.
 //
 // This option is overwritten by `WithIntakeHostname`.
-func WithFakeintake(fakeintake *fakeintake.Fakeintake) func(*Params) error {
+func WithFakeintake(fi *fakeintake.Fakeintake) func(*Params) error {
 	return func(p *Params) error {
-		p.ResourceOptions = append(p.ResourceOptions, pulumi.DependsOn([]pulumi.Resource{fakeintake}))
-		return withIntakeHostname(fakeintake.Scheme, fakeintake.Host, fakeintake.Port)(p)
+		p.ResourceOptions = append(p.ResourceOptions, pulumi.DependsOn([]pulumi.Resource{fi}))
+		if err := withIntakeHostname(fi.Scheme, fi.Host, fi.Port)(p); err != nil {
+			return err
+		}
+		rootJSON, err := fakeintake.RCRootJSON()
+		if err != nil {
+			return fmt.Errorf("build fakeintake rc root json: %w", err)
+		}
+		rcConfig := fi.URL.ApplyT(func(fiURL string) (string, error) {
+			return fmt.Sprintf(`remote_configuration.enabled: true
+remote_configuration.rc_dd_url: %s
+remote_configuration.no_tls: true
+remote_configuration.refresh_interval: 5s
+remote_configuration.config_root: '%s'
+remote_configuration.director_root: '%s'
+`, fiURL, rootJSON, rootJSON), nil
+		}).(pulumi.StringOutput)
+		p.ExtraAgentConfig = append(p.ExtraAgentConfig, rcConfig)
+		return nil
 	}
 }
 
@@ -435,6 +457,17 @@ func WithHostname(hostname string) func(*Params) error {
 		yaml := fmt.Sprintf("hostname: %s", hostname)
 		p.ExtraAgentConfig = append(p.ExtraAgentConfig, pulumi.String(yaml))
 		p.ExtraAgentConfigRaw = append(p.ExtraAgentConfigRaw, yaml)
+		return nil
+	}
+}
+
+// WithV3MetricsDisabled forces the agent onto the V2 series intake API by setting
+// use_v3_api.series.enabled=false. V3 is the default, so this opts back out in order to
+// exercise the V2 wire format and /api/v2/series routing.
+func WithV3MetricsDisabled() func(*Params) error {
+	return func(p *Params) error {
+		p.ExtraAgentConfig = append(p.ExtraAgentConfig,
+			pulumi.String("use_v3_api:\n  series:\n    enabled: \"false\"\n"))
 		return nil
 	}
 }

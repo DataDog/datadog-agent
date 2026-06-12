@@ -7,7 +7,6 @@
 package fx
 
 import (
-	networkconfigmanagement "github.com/DataDog/datadog-agent/comp/networkconfigmanagement/def"
 	networkconfigmanagementimpl "github.com/DataDog/datadog-agent/comp/networkconfigmanagement/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -18,6 +17,5 @@ func Module() fxutil.Module {
 		fxutil.ProvideComponentConstructor(
 			networkconfigmanagementimpl.NewComponent,
 		),
-		fxutil.ProvideOptional[networkconfigmanagement.Component](),
 	)
 }

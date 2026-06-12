@@ -35,6 +35,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/gcp/compute"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/gcp/fakeintake"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers/helmagent"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
 	gcpkubernetes "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/gcp/kubernetes"
@@ -96,7 +97,7 @@ func OpenshiftVMProvisioner(opts ...ProvisionerOption) provisioners.TypedProvisi
 	)
 
 	return provisioners.WithPostProvision(pulumiProv, func(t *testing.T, env *environments.Kubernetes) {
-		helmagent.Install(t, env, runner.CloudGCP, postProvisionOpts...)
+		helmagent.Install(installers.FromT(t), env, runner.CloudGCP, postProvisionOpts...)
 	})
 }
 

@@ -64,9 +64,9 @@ mkdir -p "$EMBEDDED_DESTDIR/share"
 #
 ZLIB_VERSION="1.3.1"
 BZIP2_VERSION="1.0.8"
-OPENSSL_VERSION="3.5.6"
+OPENSSL_VERSION="3.5.7"
 XZ_VERSION="5.8.1"
-LIBXML2_VERSION="2.14.5"    # built from source (AIX Toolbox also available but we build)
+LIBXML2_VERSION="2.15.3"    # built from source (AIX Toolbox also available but we build)
 LIBXSLT_VERSION="1.1.45"   # from AIX Toolbox (yum install libxslt-devel; source build fails on AIX)
 
 # These are sourced from AIX Toolbox (build from source fails on AIX)
@@ -264,9 +264,6 @@ else
     rm -rf "$BUILD_DIR/build/openssl-${OPENSSL_VERSION}"
     extract_gz "$TARBALL" "$BUILD_DIR/build"
     cd "$BUILD_DIR/build/openssl-${OPENSSL_VERSION}"
-    # Apply OpenSSL 3.5.6 regression fix (matches deps/repos.MODULE.bazel).
-    # Upstream issue: openssl/openssl#30728 — OSSL_PARAM_BLD_push_octet_*() with buf=NULL, bsize=0 fails.
-    patch -p1 < "$SCRIPT_DIR/../../../deps/openssl/0002-OSSL_PARAM_BLD_push_octet_allow_NULL_buffer.patch"
     ./Configure aix64-gcc \
         --prefix="$EMBEDDED" \
         --openssldir="$EMBEDDED/ssl" \
@@ -426,7 +423,7 @@ else
     # Build as a shared library wrapped in a .a archive (AIX convention).
     # Python's configure link tests require a shared member to detect sqlite3.
     $CC "$CFLAGS" -DSQLITE_ENABLE_MATH_FUNCTIONS -shared -Wl,-brtl -Wl,-bexpall \
-        sqlite3.c -lpthreads -o libsqlite3.so.0
+        sqlite3.c -lpthreads -lm -o libsqlite3.so.0
     ar -X64 -rcs "$EMBEDDED_DESTDIR/lib/libsqlite3.a" libsqlite3.so.0
     cp sqlite3.h sqlite3ext.h "$EMBEDDED_DESTDIR/include/"
     lib_cache_save sqlite "$SQLITE_VERSION" "$_pre"

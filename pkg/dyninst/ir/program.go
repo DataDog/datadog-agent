@@ -94,6 +94,12 @@ type CommonTypes struct {
 	G *StructureType
 	// M corresponds to runtime.m, non-nil
 	M *StructureType
+	// Panic corresponds to runtime._panic. Nil if the type wasn't found
+	// in the binary's DWARF (e.g. stripped runtime, exotic toolchain).
+	// Loader treats absence as a signal to not attach the runtime.recovery
+	// probe; the rest of dyninst keeps working without panic-unwind
+	// handling.
+	Panic *StructureType
 }
 
 // InlinePCRanges represent the pc ranges for a single instance of an inlined subprogram.
@@ -144,6 +150,14 @@ const (
 	// event and the return event for the invocation. Only available on
 	// subprograms that have a return event.
 	VariableRoleDuration
+	// VariableRoleLoopIt is a synthetic variable representing the
+	// current element (`@it`) of an any/all loop. Its bytes live at
+	// sm->offset in the loop's scratch slot, written by the loop's
+	// Begin/End ops before each body iteration. The compiler treats a
+	// LocationOp with this role as a no-op (the bytes are already at
+	// sm->offset); GetMemberExpr-driven offset and ByteSize adjustments
+	// on the LocationOp narrow to the desired field within @it.
+	VariableRoleLoopIt
 )
 
 func (vr VariableRole) String() string {
@@ -156,6 +170,8 @@ func (vr VariableRole) String() string {
 		return "Local"
 	case VariableRoleDuration:
 		return "Duration"
+	case VariableRoleLoopIt:
+		return "LoopIt"
 	default:
 		return fmt.Sprintf("VariableRole(%d)", vr)
 	}
@@ -178,6 +194,12 @@ type Variable struct {
 	// no dict resolution is needed (the variable is not a generic shape type).
 	// See pkg/dyninst/irgen/go_generics.md for details.
 	DictIndex int
+	// LoopBaseOffset is the byte offset of this variable's bytes inside the
+	// any/all loop's per-iteration scratch slot. Only meaningful when Role is
+	// VariableRoleLoopIt. For slice/array iteration and the map @it (key),
+	// this is 0. For the map @value, this is the 8-byte-aligned value offset
+	// the loop runtime writes alongside the key.
+	LoopBaseOffset uint32
 }
 
 // PCRange is the range of PC values that will be probed.

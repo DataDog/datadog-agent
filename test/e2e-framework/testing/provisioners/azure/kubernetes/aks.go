@@ -16,6 +16,7 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers/helmagent"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
@@ -68,7 +69,7 @@ func AKSProvisioner(opts ...ProvisionerOption) provisioners.TypedProvisioner[env
 	)
 
 	return provisioners.WithPostProvision(pulumiProv, func(t *testing.T, env *environments.Kubernetes) {
-		helmagent.Install(t, env, runner.CloudAzure, postProvisionOpts...)
+		helmagent.Install(installers.FromT(t), env, runner.CloudAzure, postProvisionOpts...)
 	})
 }
 

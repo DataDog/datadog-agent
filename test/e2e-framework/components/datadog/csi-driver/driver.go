@@ -31,7 +31,7 @@ func NewDatadogCSIDriver(e config.Env, kubeProvider *kubernetes.Provider, csiDri
 	}
 	opts = append(opts, utils.PulumiDependsOn(ns))
 
-	csiRepo := "docker.io/datadog/csi-driver"
+	csiRepo := "registry.datadoghq.com/csi-driver"
 	registrarRepo := "registry.k8s.io/sig-storage/csi-node-driver-registrar"
 
 	var imgPullSecret *corev1.Secret

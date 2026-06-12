@@ -14,11 +14,8 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"
 	osComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/remote"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/common"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclientparams"
 )
@@ -28,7 +25,7 @@ const (
 )
 
 // NewHostAgentClient creates an Agent client for host install
-func NewHostAgentClient(context common.Context, hostOutput remote.HostOutput, waitForAgentReady bool) (agentclient.Agent, error) {
+func NewHostAgentClient(context Context, hostOutput remote.HostOutput, waitForAgentReady bool) (agentclient.Agent, error) {
 	params := agentclientparams.NewParams(hostOutput.OSFamily)
 	params.ShouldWaitForReady = waitForAgentReady
 
@@ -51,7 +48,7 @@ func NewHostAgentClient(context common.Context, hostOutput remote.HostOutput, wa
 }
 
 // NewHostAgentClientWithParams creates an Agent client for host install with custom parameters
-func NewHostAgentClientWithParams(context common.Context, hostOutput remote.HostOutput, options ...agentclientparams.Option) (agentclient.Agent, error) {
+func NewHostAgentClientWithParams(context Context, hostOutput remote.HostOutput, options ...agentclientparams.Option) (agentclient.Agent, error) {
 	params := agentclientparams.NewParams(hostOutput.OSFamily, options...)
 
 	host, err := NewHost(context, hostOutput)
@@ -68,13 +65,15 @@ func NewHostAgentClientWithParams(context common.Context, hostOutput remote.Host
 		}
 	}
 
-	waitForAgentsReady(context, host, params)
+	if err := waitForAgentsReady(context, host, params); err != nil {
+		return nil, err
+	}
 
 	return commandRunner, nil
 }
 
 // NewDockerAgentClient creates an Agent client for a Docker install
-func NewDockerAgentClient(context common.Context, dockerAgentOutput agent.DockerAgentOutput, options ...agentclientparams.Option) (agentclient.Agent, error) {
+func NewDockerAgentClient(context Context, dockerAgentOutput agent.DockerAgentOutput, options ...agentclientparams.Option) (agentclient.Agent, error) {
 	params := agentclientparams.NewParams(dockerAgentOutput.DockerManager.Host.OSFamily, options...)
 	ae := newAgentDockerExecutor(context, dockerAgentOutput)
 	commandRunner := newAgentCommandRunner(context, ae)
@@ -91,7 +90,7 @@ func NewDockerAgentClient(context common.Context, dockerAgentOutput agent.Docker
 // NewK8sAgentClient creates an Agent client for a Kubernetes install, passing the ListOptions
 // to select the pod that runs the agent. There are some helper functions to create common selectors,
 // such as AgentSelectorAnyPod that will select any pod that runs the agent.
-func NewK8sAgentClient(context common.Context, podSelector metav1.ListOptions, clusterClient *KubernetesClient, options ...agentclientparams.Option) (agentclient.Agent, error) {
+func NewK8sAgentClient(context Context, podSelector metav1.ListOptions, clusterClient *KubernetesClient, options ...agentclientparams.Option) (agentclient.Agent, error) {
 	params := agentclientparams.NewParams(osComp.LinuxFamily, options...)
 	ae, err := newAgentK8sExecutor(podSelector, clusterClient)
 	if err != nil {
@@ -117,33 +116,49 @@ func NewK8sAgentClient(context common.Context, podSelector metav1.ListOptions, c
 // If the timeout is reached, an error is returned.
 //
 // As of now this is only implemented for Linux.
-func waitForAgentsReady(tt common.Context, host *Host, params *agentclientparams.Params) {
-	hostHTTPClient := host.NewHTTPClient()
-	require.EventuallyWithT(tt, func(t *assert.CollectT) {
-		agentReadyCmds := map[string]func(*agentclientparams.Params, *Host) (*http.Request, bool, error){
-			"process-agent":  processAgentRequest,
-			"trace-agent":    traceAgentRequest,
-			"security-agent": securityAgentRequest,
-		}
+func waitForAgentsReady(ctx Context, host *Host, params *agentclientparams.Params) error {
+	agentReadyCmds := map[string]func(*agentclientparams.Params, *Host) (*http.Request, bool, error){
+		"process-agent":  processAgentRequest,
+		"trace-agent":    traceAgentRequest,
+		"security-agent": securityAgentRequest,
+	}
 
+	hostHTTPClient := host.NewHTTPClient()
+	deadline := time.Now().Add(params.WaitForDuration)
+	var lastErr error
+
+	for time.Now().Before(deadline) {
+		allReady := true
 		for name, getReadyRequest := range agentReadyCmds {
 			req, ok, err := getReadyRequest(params, host)
-			if !assert.NoErrorf(t, err, "could not build ready command for %s", name) {
+			if err != nil {
+				allReady = false
+				lastErr = fmt.Errorf("could not build ready command for %s: %w", name, err)
 				continue
 			}
-
 			if !ok {
 				continue
 			}
-
-			tt.Logf("Checking if %s is ready...", name)
+			ctx.Logf("Checking if %s is ready...", name)
 			resp, err := hostHTTPClient.Do(req)
-			if assert.NoErrorf(t, err, "%s did not become ready", name) {
-				assert.Less(t, resp.StatusCode, 400)
-				resp.Body.Close()
+			if err != nil {
+				allReady = false
+				lastErr = fmt.Errorf("%s did not become ready: %w", name, err)
+				continue
+			}
+			resp.Body.Close()
+			if resp.StatusCode >= 400 {
+				allReady = false
+				lastErr = fmt.Errorf("%s returned status %d", name, resp.StatusCode)
 			}
 		}
-	}, params.WaitForDuration, params.WaitForTick)
+		if allReady {
+			return nil
+		}
+		time.Sleep(params.WaitForTick)
+	}
+
+	return fmt.Errorf("agents not ready after %v: %w", params.WaitForDuration, lastErr)
 }
 
 func processAgentRequest(params *agentclientparams.Params, host *Host) (*http.Request, bool, error) {

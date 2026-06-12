@@ -17,42 +17,42 @@ func TestIsCheckTelemetryEnabled(t *testing.T) {
 	assert := assert.New(t)
 
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("agent_telemetry.enabled", false)
-	mockConfig.SetWithoutSource("telemetry.enabled", false)
+	mockConfig.SetInTest("agent_telemetry.enabled", false)
+	mockConfig.SetInTest("telemetry.enabled", false)
 
 	assert.False(IsCheckTelemetryEnabled("cpu", mockConfig))
 	assert.False(IsCheckTelemetryEnabled("disk", mockConfig))
 
-	mockConfig.SetWithoutSource("telemetry.enabled", true)
+	mockConfig.SetInTest("telemetry.enabled", true)
 
 	assert.False(IsCheckTelemetryEnabled("cpu", mockConfig))
 	assert.False(IsCheckTelemetryEnabled("disk", mockConfig))
 
-	mockConfig.SetWithoutSource("telemetry.enabled", true)
-	mockConfig.SetWithoutSource("telemetry.checks", []string{"*"})
+	mockConfig.SetInTest("telemetry.enabled", true)
+	mockConfig.SetInTest("telemetry.checks", []string{"*"})
 
 	assert.True(IsCheckTelemetryEnabled("cpu", mockConfig))
 	assert.True(IsCheckTelemetryEnabled("disk", mockConfig))
 
-	mockConfig.SetWithoutSource("telemetry.enabled", true)
-	mockConfig.SetWithoutSource("telemetry.checks", []string{"cpu"})
+	mockConfig.SetInTest("telemetry.enabled", true)
+	mockConfig.SetInTest("telemetry.checks", []string{"cpu"})
 
 	assert.True(IsCheckTelemetryEnabled("cpu", mockConfig))
 	assert.False(IsCheckTelemetryEnabled("disk", mockConfig))
 
-	mockConfig.SetWithoutSource("telemetry.enabled", false)
-	mockConfig.SetWithoutSource("telemetry.checks", []string{"cpu"})
+	mockConfig.SetInTest("telemetry.enabled", false)
+	mockConfig.SetInTest("telemetry.checks", []string{"cpu"})
 
 	assert.False(IsCheckTelemetryEnabled("cpu", mockConfig))
 	assert.False(IsCheckTelemetryEnabled("disk", mockConfig))
 
-	mockConfig.SetWithoutSource("telemetry.enabled", true)
-	mockConfig.SetWithoutSource("telemetry.checks", []string{"cpu", "disk"})
+	mockConfig.SetInTest("telemetry.enabled", true)
+	mockConfig.SetInTest("telemetry.checks", []string{"cpu", "disk"})
 
 	assert.True(IsCheckTelemetryEnabled("cpu", mockConfig))
 	assert.True(IsCheckTelemetryEnabled("disk", mockConfig))
 
-	mockConfig.SetWithoutSource("agent_telemetry.enabled", true)
-	mockConfig.SetWithoutSource("site", "xx.ddog-gov.com")
+	mockConfig.SetInTest("agent_telemetry.enabled", true)
+	mockConfig.SetInTest("site", "xx.ddog-gov.com")
 	assert.False(IsAgentTelemetryEnabled(mockConfig))
 }

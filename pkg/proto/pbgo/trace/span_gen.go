@@ -6,6 +6,12 @@ import (
 	"github.com/tinylib/msgp/msgp"
 )
 
+// Size limits for msgp deserialization
+const (
+	zfb52131alimitArrays = 500000
+	zfb52131alimitMaps   = 500000
+)
+
 // MarshalMsg implements msgp.Marshaler
 func (z *AttributeAnyValue) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
@@ -57,6 +63,10 @@ func (z *AttributeAnyValue) UnmarshalMsg(bts []byte) (o []byte, err error) {
 	zb0001, bts, err = msgp.ReadMapHeaderBytes(bts)
 	if err != nil {
 		err = msgp.WrapError(err)
+		return
+	}
+	if zb0001 > zfb52131alimitMaps {
+		err = msgp.ErrLimitExceeded
 		return
 	}
 	for zb0001 > 0 {
@@ -118,6 +128,10 @@ func (z *AttributeAnyValue) UnmarshalMsg(bts []byte) (o []byte, err error) {
 					err = msgp.WrapError(err, "ArrayValue")
 					return
 				}
+				if zb0003 > zfb52131alimitMaps {
+					err = msgp.ErrLimitExceeded
+					return
+				}
 				for zb0003 > 0 {
 					zb0003--
 					field, bts, err = msgp.ReadMapKeyZC(bts)
@@ -131,6 +145,10 @@ func (z *AttributeAnyValue) UnmarshalMsg(bts []byte) (o []byte, err error) {
 						zb0004, bts, err = msgp.ReadArrayHeaderBytes(bts)
 						if err != nil {
 							err = msgp.WrapError(err, "ArrayValue", "Values")
+							return
+						}
+						if zb0004 > zfb52131alimitArrays {
+							err = msgp.ErrLimitExceeded
 							return
 						}
 						if cap(z.ArrayValue.Values) >= int(zb0004) {
@@ -254,6 +272,10 @@ func (z *AttributeArray) UnmarshalMsg(bts []byte) (o []byte, err error) {
 		err = msgp.WrapError(err)
 		return
 	}
+	if zb0001 > zfb52131alimitMaps {
+		err = msgp.ErrLimitExceeded
+		return
+	}
 	for zb0001 > 0 {
 		zb0001--
 		field, bts, err = msgp.ReadMapKeyZC(bts)
@@ -267,6 +289,10 @@ func (z *AttributeArray) UnmarshalMsg(bts []byte) (o []byte, err error) {
 			zb0002, bts, err = msgp.ReadArrayHeaderBytes(bts)
 			if err != nil {
 				err = msgp.WrapError(err, "Values")
+				return
+			}
+			if zb0002 > zfb52131alimitArrays {
+				err = msgp.ErrLimitExceeded
 				return
 			}
 			if cap(z.Values) >= int(zb0002) {
@@ -347,6 +373,10 @@ func (z *AttributeArrayValue) UnmarshalMsg(bts []byte) (o []byte, err error) {
 	zb0001, bts, err = msgp.ReadMapHeaderBytes(bts)
 	if err != nil {
 		err = msgp.WrapError(err)
+		return
+	}
+	if zb0001 > zfb52131alimitMaps {
+		err = msgp.ErrLimitExceeded
 		return
 	}
 	for zb0001 > 0 {
@@ -572,6 +602,10 @@ func (z *Span) UnmarshalMsg(bts []byte) (o []byte, err error) {
 		err = msgp.WrapError(err)
 		return
 	}
+	if zb0001 > zfb52131alimitMaps {
+		err = msgp.ErrLimitExceeded
+		return
+	}
 	for zb0001 > 0 {
 		zb0001--
 		field, bts, err = msgp.ReadMapKeyZC(bts)
@@ -691,6 +725,10 @@ func (z *Span) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				err = msgp.WrapError(err, "Meta")
 				return
 			}
+			if zb0002 > zfb52131alimitMaps {
+				err = msgp.ErrLimitExceeded
+				return
+			}
 			if z.Meta == nil && zb0002 > 0 {
 				z.Meta = make(map[string]string, zb0002)
 			} else if len(z.Meta) > 0 {
@@ -722,6 +760,10 @@ func (z *Span) UnmarshalMsg(bts []byte) (o []byte, err error) {
 			zb0003, bts, err = msgp.ReadMapHeaderBytes(bts)
 			if err != nil {
 				err = msgp.WrapError(err, "Metrics")
+				return
+			}
+			if zb0003 > zfb52131alimitMaps {
+				err = msgp.ErrLimitExceeded
 				return
 			}
 			if z.Metrics == nil && zb0003 > 0 {
@@ -763,6 +805,10 @@ func (z *Span) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				err = msgp.WrapError(err, "MetaStruct")
 				return
 			}
+			if zb0004 > zfb52131alimitMaps {
+				err = msgp.ErrLimitExceeded
+				return
+			}
 			if z.MetaStruct == nil {
 				z.MetaStruct = make(map[string][]byte, zb0004)
 			} else if len(z.MetaStruct) > 0 {
@@ -777,24 +823,44 @@ func (z *Span) UnmarshalMsg(bts []byte) (o []byte, err error) {
 					err = msgp.WrapError(err, "MetaStruct")
 					return
 				}
-				za0006, bts, err = msgp.ReadBytesBytes(bts, za0006)
+				var zb0005 uint32
+				zb0005, bts, err = msgp.ReadBytesHeader(bts)
 				if err != nil {
 					err = msgp.WrapError(err, "MetaStruct", za0005)
 					return
 				}
+				if zb0005 > zfb52131alimitArrays {
+					err = msgp.ErrLimitExceeded
+					return
+				}
+				if za0006 == nil || uint32(cap(za0006)) < zb0005 {
+					za0006 = make([]byte, zb0005)
+				} else {
+					za0006 = za0006[:zb0005]
+				}
+				if uint32(len(bts)) < zb0005 {
+					err = msgp.ErrShortBytes
+					return
+				}
+				copy(za0006, bts[:zb0005])
+				bts = bts[zb0005:]
 				z.MetaStruct[za0005] = za0006
 			}
 		case "span_links":
-			var zb0005 uint32
-			zb0005, bts, err = msgp.ReadArrayHeaderBytes(bts)
+			var zb0006 uint32
+			zb0006, bts, err = msgp.ReadArrayHeaderBytes(bts)
 			if err != nil {
 				err = msgp.WrapError(err, "SpanLinks")
 				return
 			}
-			if cap(z.SpanLinks) >= int(zb0005) {
-				z.SpanLinks = (z.SpanLinks)[:zb0005]
+			if zb0006 > zfb52131alimitArrays {
+				err = msgp.ErrLimitExceeded
+				return
+			}
+			if cap(z.SpanLinks) >= int(zb0006) {
+				z.SpanLinks = (z.SpanLinks)[:zb0006]
 			} else {
-				z.SpanLinks = make([]*SpanLink, zb0005)
+				z.SpanLinks = make([]*SpanLink, zb0006)
 			}
 			for za0007 := range z.SpanLinks {
 				if msgp.IsNil(bts) {
@@ -815,16 +881,20 @@ func (z *Span) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				}
 			}
 		case "span_events":
-			var zb0006 uint32
-			zb0006, bts, err = msgp.ReadArrayHeaderBytes(bts)
+			var zb0007 uint32
+			zb0007, bts, err = msgp.ReadArrayHeaderBytes(bts)
 			if err != nil {
 				err = msgp.WrapError(err, "SpanEvents")
 				return
 			}
-			if cap(z.SpanEvents) >= int(zb0006) {
-				z.SpanEvents = (z.SpanEvents)[:zb0006]
+			if zb0007 > zfb52131alimitArrays {
+				err = msgp.ErrLimitExceeded
+				return
+			}
+			if cap(z.SpanEvents) >= int(zb0007) {
+				z.SpanEvents = (z.SpanEvents)[:zb0007]
 			} else {
-				z.SpanEvents = make([]*SpanEvent, zb0006)
+				z.SpanEvents = make([]*SpanEvent, zb0007)
 			}
 			for za0008 := range z.SpanEvents {
 				if msgp.IsNil(bts) {
@@ -936,6 +1006,10 @@ func (z *SpanEvent) UnmarshalMsg(bts []byte) (o []byte, err error) {
 		err = msgp.WrapError(err)
 		return
 	}
+	if zb0001 > zfb52131alimitMaps {
+		err = msgp.ErrLimitExceeded
+		return
+	}
 	for zb0001 > 0 {
 		zb0001--
 		field, bts, err = msgp.ReadMapKeyZC(bts)
@@ -966,6 +1040,10 @@ func (z *SpanEvent) UnmarshalMsg(bts []byte) (o []byte, err error) {
 			zb0002, bts, err = msgp.ReadMapHeaderBytes(bts)
 			if err != nil {
 				err = msgp.WrapError(err, "Attributes")
+				return
+			}
+			if zb0002 > zfb52131alimitMaps {
+				err = msgp.ErrLimitExceeded
 				return
 			}
 			if z.Attributes == nil {
@@ -1101,6 +1179,10 @@ func (z *SpanLink) UnmarshalMsg(bts []byte) (o []byte, err error) {
 		err = msgp.WrapError(err)
 		return
 	}
+	if zb0001 > zfb52131alimitMaps {
+		err = msgp.ErrLimitExceeded
+		return
+	}
 	for zb0001 > 0 {
 		zb0001--
 		field, bts, err = msgp.ReadMapKeyZC(bts)
@@ -1142,6 +1224,10 @@ func (z *SpanLink) UnmarshalMsg(bts []byte) (o []byte, err error) {
 			zb0002, bts, err = msgp.ReadMapHeaderBytes(bts)
 			if err != nil {
 				err = msgp.WrapError(err, "Attributes")
+				return
+			}
+			if zb0002 > zfb52131alimitMaps {
+				err = msgp.ErrLimitExceeded
 				return
 			}
 			if z.Attributes == nil {

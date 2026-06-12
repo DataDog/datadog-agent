@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/gcp/fakeintake"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers/hostagent"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
 
@@ -59,7 +60,7 @@ func Provisioner(opts ...ProvisionerOption) provisioners.TypedProvisioner[enviro
 	}
 
 	return provisioners.WithPostProvision(pulumiProv, func(t *testing.T, env *environments.Host) {
-		hostagent.Install(t, env, agentOpts...)
+		hostagent.Install(installers.FromT(t), env, agentOpts...)
 	})
 }
 

@@ -13,7 +13,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	logonduration "github.com/DataDog/datadog-agent/comp/logonduration/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -39,9 +39,21 @@ type Milestone struct {
 // eventInput holds the data needed to build and send a logon duration event.
 type eventInput struct {
 	Hostname  string
+	Title     string
 	Message   string
 	Timestamp time.Time
 	Custom    map[string]interface{}
+}
+
+// buildEventTitle returns the event title. When both the boot and logon
+// durations were measured, the title reports the total; otherwise (e.g. the
+// Windows autologger missed an ETL or a macOS log signal did not match) it
+// flags the timeline as incomplete.
+func buildEventTitle(complete bool, totalMs int64) string {
+	if complete {
+		return fmt.Sprintf("Device booted up: Boot & login took %d ms", totalMs)
+	}
+	return "Device booted up: Boot timeline incomplete"
 }
 
 func buildEventPayload(input eventInput) (map[string]interface{}, error) {
@@ -52,7 +64,7 @@ func buildEventPayload(input eventInput) (map[string]interface{}, error) {
 			"type": "event",
 			"attributes": map[string]interface{}{
 				"host":           input.Hostname,
-				"title":          "Logon duration",
+				"title":          input.Title,
 				"category":       "alert",
 				"integration_id": "system-notable-events",
 				"system-notable-events": map[string]interface{}{

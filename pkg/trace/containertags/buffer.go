@@ -20,9 +20,9 @@ import (
 )
 
 const (
-	maxBufferDuration = 8 * time.Second
-	// 5M is an order of magnitude less then trace-agent binary in memory
-	maxSizeForNoLimit = int64(5_000_000)
+	maxBufferDuration = 12 * time.Second
+	// 7M is an order of magnitude less then trace-agent binary in memory
+	maxSizeForNoLimit = int64(7_000_000)
 	maxDebugErrorLen  = 100
 
 	metricMemoryUsage      = "datadog.trace_agent.tag_buffer.memory_usage"
@@ -226,8 +226,13 @@ func (p *containerTagsBuffer) IsEnabled() bool {
 }
 
 func (p *containerTagsBuffer) resolveContainerTagsWithSource(containerID string) ([]string, bool, error) {
-	ctags, _, err := p.resolveFunc(containerID)
+	ctags, isComplete, err := p.resolveFunc(containerID)
+	// early exit to avoid waiting if the tagset is complete
+	if isComplete && err == nil {
+		return ctags, isComplete, err
+	}
 	// cheat - testing kube tag presence, waiting for tagger to expose source
+	// TODO: confirm when it's safe to remove this config and rely entirely on completeness bool
 	var okSource bool
 	for _, tag := range ctags {
 		if !strings.HasPrefix(tag, "kube_") {

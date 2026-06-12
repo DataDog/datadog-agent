@@ -1,0 +1,12 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "impl-testbench",
+    srcs = [
+        "reporter.go",
+        "sse.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/impl-testbench",
+    visibility = ["//visibility:public"],
+    deps = ["//comp/anomalydetection/reporter/def"],
+)

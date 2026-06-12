@@ -70,17 +70,12 @@ type StringMapItem struct {
 
 // MarshalBinary returns the binary representation of a StringMapItem
 func (i *StringMapItem) MarshalBinary() ([]byte, error) {
-	n := i.size
-	if len(i.str) < i.size {
+	rep := make([]byte, i.size)
+	n := i.size - 1 // leave room for trailing \0
+	if len(i.str) < n {
 		n = len(i.str)
 	}
-
-	buffer := new(bytes.Buffer)
-	if err := binary.Write(buffer, binary.NativeEndian, []byte(i.str)[0:n]); err != nil {
-		return nil, err
-	}
-	rep := make([]byte, i.size)
-	copy(rep, buffer.Bytes())
+	copy(rep, i.str[:n])
 	return rep, nil
 }
 

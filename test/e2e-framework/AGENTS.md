@@ -16,13 +16,13 @@ test/e2e-framework/
 │   ├── e2e/              # Test harness: BaseSuite, Run(), SuiteOption
 │   ├── environments/     # Environment types: Host, DockerHost, Kubernetes, ECS
 │   ├── provisioners/     # Provisioner interfaces + cloud-specific implementations
-│   │   ├── aws/          # host, docker, ecs, kubernetes (eks, kindvm)
+│   │   ├── aws/          # host, docker, ecs, kubernetes (eks, kindvm, kubeadm)
 │   │   ├── azure/        # host (linux, windows), kubernetes (aks)
 │   │   ├── gcp/          # host (linux), kubernetes (gke, openshiftvm)
 │   │   └── local/        # host (podman), kubernetes (kind)
 │   └── components/       # Test-side wrappers: RemoteHost, Agent, FakeIntake
 ├── scenarios/
-│   └── aws/              # Pulumi programs: ec2, ec2docker, ecs, eks, kindvm
+│   └── aws/              # Pulumi programs: ec2, ec2docker, ecs, eks, kindvm, kubeadm
 ├── components/
 │   ├── datadog/          # Pulumi components: agent, agentparams, fakeintake
 │   │   ├── agentparams/  # Agent configuration options (WithAgentConfig, etc.)
@@ -101,6 +101,12 @@ Use `agentparams` to configure the agent on provisioned infrastructure:
 - `WithLogs()` — enable log collection
 - `WithSystemProbeConfig(yaml)` — system-probe config
 - `WithFile(path, content, useSudo)` — place arbitrary files on the host
+
+For `environments.DockerHost`, use `dockeragentparams.WithAgentServiceEnvVariable`
+or `AgentServiceEnvironment` for environment variables that must be visible
+inside the Agent container. `dockeragentparams.WithEnvironmentVariables` only
+sets the environment for the `docker-compose` command and compose-file variable
+interpolation.
 
 ## Beyond out of the box environments
 

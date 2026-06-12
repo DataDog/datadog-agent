@@ -22,7 +22,6 @@ import (
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/dd-trace-go/v2/ddtrace/mocktracer"
-	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
@@ -54,7 +53,7 @@ func TestGetNodeAnnotations(t *testing.T) {
 	// we need to do this because the default behavior for /annotations/node/{node}
 	// applies a filter based on this config
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("kubernetes_node_annotations_as_host_aliases", "annotation1")
+	mockConfig.SetInTest("kubernetes_node_annotations_as_host_aliases", "annotation1")
 
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		getNodeAnnotations(w, r, mockStore)
@@ -99,17 +98,16 @@ func TestGetNodeAnnotations(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// build a request setting the appropriate mux variables
-			// we inject the mux vars here because we are not routing this request through a real router
-
+			// Route through a real ServeMux so that PathValue is populated.
 			// we aren't using httptest.NewRequest() because it panics when invalid URLs are passed,
 			// but we want to test that whitespace is stripped - so we instead ignore the error here
+			r := http.NewServeMux()
+			r.HandleFunc("GET /annotations/node/{nodeName}", handler.ServeHTTP)
 			req, _ := http.NewRequest("GET", tt.path, nil)
-			req = mux.SetURLVars(req, tt.muxVars)
 
 			respw := httptest.NewRecorder()
 
-			handler.ServeHTTP(respw, req)
+			r.ServeHTTP(respw, req)
 
 			require.Equal(t, tt.status, respw.Code)
 
@@ -170,12 +168,13 @@ func TestGetNodeUID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			r := http.NewServeMux()
+			r.HandleFunc("GET /uid/node/{nodeName}", handler.ServeHTTP)
 			req, _ := http.NewRequest("GET", "/uid/node/"+tt.node, nil)
-			req = mux.SetURLVars(req, map[string]string{"nodeName": tt.node})
 
 			respw := httptest.NewRecorder()
 
-			handler.ServeHTTP(respw, req)
+			r.ServeHTTP(respw, req)
 
 			require.Equal(t, tt.status, respw.Code)
 
@@ -213,10 +212,11 @@ func TestGetNodeMetadata_SpanCreation(t *testing.T) {
 		getNodeLabels(w, r, mockStore)
 	})
 
+	r := http.NewServeMux()
+	r.HandleFunc("GET /tags/node/{nodeName}", handler.ServeHTTP)
 	req := httptest.NewRequest("GET", "/tags/node/"+testNode, nil)
-	req = mux.SetURLVars(req, map[string]string{"nodeName": testNode})
 	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, req)
+	r.ServeHTTP(rec, req)
 
 	require.Equal(t, http.StatusOK, rec.Code)
 
@@ -244,10 +244,11 @@ func TestGetNodeMetadata_SpanError(t *testing.T) {
 		getNodeLabels(w, r, mockStore)
 	})
 
+	r := http.NewServeMux()
+	r.HandleFunc("GET /tags/node/{nodeName}", handler.ServeHTTP)
 	req := httptest.NewRequest("GET", "/tags/node/missing_node", nil)
-	req = mux.SetURLVars(req, map[string]string{"nodeName": "missing_node"})
 	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, req)
+	r.ServeHTTP(rec, req)
 
 	require.Equal(t, http.StatusInternalServerError, rec.Code)
 
@@ -283,10 +284,11 @@ func TestGetNamespaceMetadata_SpanCreation(t *testing.T) {
 		getNamespaceLabels(w, r, mockStore)
 	})
 
+	r := http.NewServeMux()
+	r.HandleFunc("GET /tags/namespace/{ns}", handler.ServeHTTP)
 	req := httptest.NewRequest("GET", "/tags/namespace/default", nil)
-	req = mux.SetURLVars(req, map[string]string{"ns": "default"})
 	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, req)
+	r.ServeHTTP(rec, req)
 
 	require.Equal(t, http.StatusOK, rec.Code)
 
@@ -313,10 +315,11 @@ func TestGetNamespaceMetadata_SpanError(t *testing.T) {
 		getNamespaceLabels(w, r, mockStore)
 	})
 
+	r := http.NewServeMux()
+	r.HandleFunc("GET /tags/namespace/{ns}", handler.ServeHTTP)
 	req := httptest.NewRequest("GET", "/tags/namespace/missing_ns", nil)
-	req = mux.SetURLVars(req, map[string]string{"ns": "missing_ns"})
 	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, req)
+	r.ServeHTTP(rec, req)
 
 	require.Equal(t, http.StatusInternalServerError, rec.Code)
 
@@ -338,10 +341,11 @@ func TestGetPodMetadata_SpanCreation(t *testing.T) {
 	// still verifies span creation and tag propagation.
 	handler := http.HandlerFunc(getPodMetadata)
 
+	r := http.NewServeMux()
+	r.HandleFunc("GET /tags/pod/{nodeName}/{ns}/{podName}", handler.ServeHTTP)
 	req := httptest.NewRequest("GET", "/tags/pod/node1/default/pod1", nil)
-	req = mux.SetURLVars(req, map[string]string{"nodeName": "node1", "ns": "default", "podName": "pod1"})
 	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, req)
+	r.ServeHTTP(rec, req)
 
 	spans := mt.FinishedSpans()
 	require.Len(t, spans, 1)
@@ -360,10 +364,11 @@ func TestGetPodMetadataForNode_SpanCreation(t *testing.T) {
 
 	handler := http.HandlerFunc(getPodMetadataForNode)
 
+	r := http.NewServeMux()
+	r.HandleFunc("GET /tags/pod/{nodeName}", handler.ServeHTTP)
 	req := httptest.NewRequest("GET", "/tags/pod/node1", nil)
-	req = mux.SetURLVars(req, map[string]string{"nodeName": "node1"})
 	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, req)
+	r.ServeHTTP(rec, req)
 
 	spans := mt.FinishedSpans()
 	require.Len(t, spans, 1)
@@ -437,10 +442,11 @@ func TestGetNodeMetadata_SpanErrorWithTelemetryWrapper(t *testing.T) {
 		getNodeLabels(w, r, mockStore)
 	})
 
+	r := http.NewServeMux()
+	r.HandleFunc("GET /tags/node/{nodeName}", handler)
 	req := httptest.NewRequest("GET", "/tags/node/missing_node", nil)
-	req = mux.SetURLVars(req, map[string]string{"nodeName": "missing_node"})
 	rec := httptest.NewRecorder()
-	handler(rec, req)
+	r.ServeHTTP(rec, req)
 
 	require.Equal(t, http.StatusInternalServerError, rec.Code)
 
@@ -479,10 +485,11 @@ func TestGetNodeInfo_SpanCreation(t *testing.T) {
 		getNodeInfo(w, r, mockStore)
 	})
 
+	r := http.NewServeMux()
+	r.HandleFunc("GET /info/node/{nodeName}", handler.ServeHTTP)
 	req := httptest.NewRequest("GET", "/info/node/"+testNode, nil)
-	req = mux.SetURLVars(req, map[string]string{"nodeName": testNode})
 	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, req)
+	r.ServeHTTP(rec, req)
 
 	require.Equal(t, http.StatusInternalServerError, rec.Code)
 

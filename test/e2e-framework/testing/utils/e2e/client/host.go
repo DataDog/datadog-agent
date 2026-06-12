@@ -31,7 +31,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/parameters"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/common"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/optional"
 )
 
@@ -53,7 +52,7 @@ type HostArtifactClient interface {
 type sshExecutor struct {
 	client     *ssh.Client
 	privileged *ssh.Client
-	context    common.Context
+	context    Context
 
 	username             string
 	privilegedUsername   string
@@ -77,7 +76,7 @@ type Host struct {
 
 // NewHost creates a new ssh client to connect to a remote host with
 // reconnect retry logic
-func NewHost(context common.Context, hostOutput remote.HostOutput) (*Host, error) {
+func NewHost(context Context, hostOutput remote.HostOutput) (*Host, error) {
 	var privateSSHKey []byte
 
 	privateKeyPath, err := runner.GetProfile().ParamStore().GetWithDefault(parameters.StoreKey(hostOutput.CloudProvider+parameters.PrivateKeyPathSuffix), "")
@@ -210,7 +209,25 @@ func (h *sshExecutor) startAndReconnectOnError(command string) (*ssh.Session, io
 // MustExecute executes a command and requires no error.
 func (h *sshExecutor) MustExecute(command string, options ...ExecuteOption) string {
 	stdout, err := h.Execute(command, options...)
-	require.NoError(h.context, err)
+	if err != nil {
+		h.context.FailNow("%v", err)
+	}
+	return stdout
+}
+
+// MustExecuteOn runs Execute and requires no error on tb.
+//
+// Use this instead of [sshExecutor.MustExecute] inside require.EventuallyWithT (or similar) when the
+// closure receives a *assert.CollectT: [MustExecute] fails via the suite context and aborts the
+// whole test on the first error instead of letting the poll retry.
+//
+// tb must satisfy [require.TestingT] (e.g. *testing.T or *assert.CollectT).
+func (h *sshExecutor) MustExecuteOn(tb require.TestingT, command string, options ...ExecuteOption) string {
+	if hh, ok := tb.(interface{ Helper() }); ok {
+		hh.Helper()
+	}
+	stdout, err := h.Execute(command, options...)
+	require.NoError(tb, err)
 	return stdout
 }
 
@@ -221,10 +238,13 @@ func (h *Host) CopyFileFromFS(fs fs.FS, src, dst string) {
 	sftpClient := h.getSFTPClient()
 	defer sftpClient.Close()
 	file, err := fs.Open(src)
-	require.NoError(h.context, err)
+	if err != nil {
+		h.context.FailNow("%v", err)
+	}
 	defer file.Close()
-	err = copyFileFromIoReader(sftpClient, file, dst)
-	require.NoError(h.context, err)
+	if err = copyFileFromIoReader(sftpClient, file, dst); err != nil {
+		h.context.FailNow("%v", err)
+	}
 }
 
 // CopyFile creates a sftp session and copy a single file to the remote host through SSH
@@ -233,8 +253,9 @@ func (h *Host) CopyFile(src string, dst string) {
 	dst = h.convertPathSeparator(dst)
 	sftpClient := h.getSFTPClient()
 	defer sftpClient.Close()
-	err := copyFile(sftpClient, src, dst)
-	require.NoError(h.context, err)
+	if err := copyFile(sftpClient, src, dst); err != nil {
+		h.context.FailNow("%v", err)
+	}
 }
 
 // CopyFolder create a sftp session and copy a folder to remote host through SSH
@@ -551,10 +572,15 @@ func (h *Host) appendWithSftp(path string, content []byte) (int64, error) {
 func (h *Host) getSFTPClient() *sftp.Client {
 	sftpClient, err := sftp.NewClient(h.client, sftp.UseConcurrentWrites(true))
 	if err != nil {
-		err = h.Reconnect()
-		require.NoError(h.context, err)
+		if err = h.Reconnect(); err != nil {
+			h.context.FailNow("%v", err)
+			return nil
+		}
 		sftpClient, err = sftp.NewClient(h.client, sftp.UseConcurrentWrites(true))
-		require.NoError(h.context, err)
+		if err != nil {
+			h.context.FailNow("%v", err)
+			return nil
+		}
 	}
 	return sftpClient
 }
@@ -562,15 +588,20 @@ func (h *Host) getSFTPClient() *sftp.Client {
 func (h *Host) getSFTPPrivilegedClient() *sftp.Client {
 	if h.privileged == nil {
 		// Some cloud provider don't provide SSH connection as root (GCP) required for these file operations
-		h.context.Errorf("SSH: SFTP requires privileged connection")
+		h.context.FailNow("can't SFTP files without a privileged SSH connection")
 		return nil
 	}
 	sftpClient, err := sftp.NewClient(h.privileged, sftp.UseConcurrentWrites(true))
 	if err != nil {
-		err = h.Reconnect()
-		require.NoError(h.context, err)
+		if err = h.Reconnect(); err != nil {
+			h.context.FailNow("%v", err)
+			return nil
+		}
 		sftpClient, err = sftp.NewClient(h.privileged, sftp.UseConcurrentWrites(true))
-		require.NoError(h.context, err)
+		if err != nil {
+			h.context.FailNow("%v", err)
+			return nil
+		}
 	}
 	return sftpClient
 }

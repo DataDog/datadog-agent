@@ -65,7 +65,8 @@ func InstallOnWindowsHost(t common.Context, env *environments.WindowsHost, opts 
 //	)
 func InstallOnHost(t common.Context, host *components.RemoteHost, fakeIntake *components.FakeIntake, opts ...agentparams.Option) *components.RemoteHostAgent {
 	t.Helper()
-	require.NotNil(t, host, "hostagent.InstallOnHost: host is nil, infrastructure must be provisioned first")
+	rt := common.RequireT{Context: t}
+	require.NotNil(rt, host, "hostagent.InstallOnHost: host is nil, infrastructure must be provisioned first")
 
 	// Parse options to extract version info for install and config for later
 	p := &agentparams.Params{
@@ -73,7 +74,7 @@ func InstallOnHost(t common.Context, host *components.RemoteHost, fakeIntake *co
 		Files:        make(map[string]*agentparams.FileDefinition),
 	}
 	for _, opt := range opts {
-		require.NoError(t, opt(p))
+		require.NoError(rt, opt(p))
 	}
 
 	// Read version defaults from runner profile (same source as Pulumi config)
@@ -81,7 +82,7 @@ func InstallOnHost(t common.Context, host *components.RemoteHost, fakeIntake *co
 
 	// Get API key for the install script
 	apiKey, err := runner.GetProfile().SecretStore().Get(parameters.APIKey)
-	require.NoError(t, err, "failed to get API key")
+	require.NoError(rt, err, "failed to get API key")
 	apiKey = strings.TrimSpace(apiKey)
 
 	// Run the install script via SSH
@@ -97,7 +98,7 @@ func InstallOnHost(t common.Context, host *components.RemoteHost, fakeIntake *co
 	agentComp.HostAgentOutput.FIPSEnabled = (p.Version.Flavor == agentparams.FIPSFlavor)
 
 	err = agentComp.Init(t)
-	require.NoError(t, err, "failed to initialize agent client")
+	require.NoError(rt, err, "failed to initialize agent client")
 
 	// Wire cross-component references for Configure
 	agentComp.SetComponents(host, fakeIntake)
@@ -113,19 +114,20 @@ func InstallOnHost(t common.Context, host *components.RemoteHost, fakeIntake *co
 // profile and applies them to the Params if not already set by user options.
 func applyVersionDefaults(t common.Context, p *agentparams.Params) {
 	t.Helper()
+	rt := common.RequireT{Context: t}
 	profile := runner.GetProfile()
 
 	// Default major version
 	if p.Version.Major == "" {
 		major, err := profile.ParamStore().GetWithDefault(parameters.MajorVersion, "7")
-		require.NoError(t, err)
+		require.NoError(rt, err)
 		p.Version.Major = major
 	}
 
 	// Pipeline ID overrides version
 	if p.Version.PipelineID == "" && p.Version.Minor == "" && p.Version.LocalPath == "" {
 		pipelineID, err := profile.ParamStore().GetWithDefault(parameters.PipelineID, "")
-		require.NoError(t, err)
+		require.NoError(rt, err)
 		if pipelineID != "" {
 			p.Version.PipelineID = pipelineID
 		}
@@ -143,7 +145,7 @@ func applyVersionDefaults(t common.Context, p *agentparams.Params) {
 	// Default flavor
 	if p.Version.Flavor == "" {
 		fips, err := profile.ParamStore().GetWithDefault(parameters.FIPS, "false")
-		require.NoError(t, err)
+		require.NoError(rt, err)
 		if fips == "true" {
 			p.Version.Flavor = agentparams.FIPSFlavor
 		} else {
@@ -164,7 +166,7 @@ func installAgent(t common.Context, host *components.RemoteHost, version agentpa
 	case oscomp.MacOSFamily:
 		installMacOSAgent(t, host, version, apiKey)
 	default:
-		require.Fail(t, "unsupported OS family: %v", host.OSFamily)
+		require.Fail(common.RequireT{Context: t}, "unsupported OS family: %v", host.OSFamily)
 	}
 }
 
@@ -220,7 +222,7 @@ func installWindowsAgent(t common.Context, host *components.RemoteHost, version 
 	}
 
 	msiURL, err := agenturl.WindowsMSI(version)
-	require.NoError(t, err, "failed to resolve Windows MSI URL")
+	require.NoError(common.RequireT{Context: t}, err, "failed to resolve Windows MSI URL")
 
 	localFilename := `C:\datadog-agent.msi`
 	logFile := `C:\datadog-agent-install.log`

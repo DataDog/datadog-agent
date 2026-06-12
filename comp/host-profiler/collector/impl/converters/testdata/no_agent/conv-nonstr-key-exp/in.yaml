@@ -1,0 +1,10 @@
+exporters:
+  otlp_http:
+    headers:
+      dd-api-key: 12345
+service:
+  pipelines:
+    profiles:
+      processors: []
+      receivers: []
+      exporters: [otlp_http]

@@ -181,7 +181,7 @@ func (pn *ProcessNode) addFiles(files []string, stats *Stats, newEvent func() *m
 
 		// TODO: add open flags by parsing `/proc/[pid]/fdinfo/fd` + O_RDONLY|O_CLOEXEC for the shared libs
 
-		_ = pn.InsertFileEvent(&evt.Open.File, evt, "", Snapshot, stats, false, reducer, nil)
+		_ = pn.InsertFileEvent(&evt.Open.File, evt, 0, Snapshot, stats, false, reducer, nil)
 	}
 }
 
@@ -228,5 +228,5 @@ func (pn *ProcessNode) insertSnapshottedSocket(family uint16, ip net.IP, protoco
 	}
 	evt.Bind.Addr.Port = port
 
-	_ = pn.InsertBindEvent(evt, "", Snapshot, stats, false)
+	_ = pn.InsertBindEvent(evt, 0, Snapshot, stats, false)
 }

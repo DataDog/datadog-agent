@@ -5,6 +5,15 @@
 
 package types
 
+// ServiceTracker reports whether a service is being tracked for endpoint checks
+// by an external source (e.g., DatadogInstrumentation CRs).
+type ServiceTracker interface {
+	HasService(namespace, name string) bool
+	// NotifyOnChange registers a callback invoked with the namespace and name of a
+	// service whose templates or tracked-state change. Multiple subscribers are supported.
+	NotifyOnChange(func(namespace, name string))
+}
+
 const (
 	// CheckCmdName is the check name for autodiscovery component, used by cli mode.
 	CheckCmdName = "check-cmd"
@@ -14,6 +23,12 @@ const (
 
 // CelIdentifier represents a CEL-based AD identifier.
 type CelIdentifier string
+
+// ConfigRequired returns true if this CEL identifier should be
+// injected into a config's ADIdentifiers
+func (c CelIdentifier) ConfigRequired(hasADIDs bool) bool {
+	return c == CelProcessIdentifier || !hasADIDs
+}
 
 const (
 	// CelContainerIdentifier is the CEL identifier for container resources.

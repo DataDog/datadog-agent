@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/eks"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers/helmagent"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
 	awskubernetes "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/kubernetes"
@@ -83,7 +84,7 @@ func Provisioner(opts ...ProvisionerOption) provisioners.TypedProvisioner[enviro
 	}
 
 	return provisioners.WithPostProvision(pulumiProv, func(t *testing.T, env *environments.Kubernetes) {
-		helmagent.Install(t, env, runner.CloudAWS, agentOpts...)
+		helmagent.Install(installers.FromT(t), env, runner.CloudAWS, agentOpts...)
 	})
 }
 

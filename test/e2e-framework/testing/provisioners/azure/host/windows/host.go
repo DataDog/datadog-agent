@@ -17,6 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/windows/defender"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers/hostagent"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
 )
@@ -56,7 +57,7 @@ func Provisioner(opts ...ProvisionerOption) provisioners.TypedProvisioner[enviro
 	}
 
 	return provisioners.WithPostProvision(pulumiProv, func(t *testing.T, env *environments.WindowsHost) {
-		hostagent.InstallOnWindowsHost(t, env, agentOpts...)
+		hostagent.InstallOnWindowsHost(installers.FromT(t), env, agentOpts...)
 	})
 }
 

@@ -50,6 +50,22 @@ import (
 // computed for the resource spans.
 const keyStatsComputed = "_dd.stats_computed"
 
+// resolveClientComputedStats determines whether APM stats have already been computed for
+// the given resource spans. The _dd.stats_computed resource attribute takes precedence over
+// the HTTP header when explicitly set:
+//   - true / any non-empty, non-"false" value → stats already computed (concentrator skips them)
+//   - false (bool or string "false")           → force stats computation via concentrator
+//
+// When the attribute is absent, fromHeader (derived from Datadog-Client-Computed-Stats) is used.
+func resolveClientComputedStats(attrs pcommon.Map, fromHeader bool) bool {
+	_, ok := attrs.Get(keyStatsComputed)
+	if !ok {
+		return fromHeader
+	}
+	s := transform.GetOTelAttrVal(attrs, true, keyStatsComputed)
+	return s != "" && s != "false"
+}
+
 var _ (ptraceotlp.GRPCServer) = (*OTLPReceiver)(nil)
 
 // OTLPReceiver implements an OpenTelemetry Collector receiver which accepts incoming
@@ -99,6 +115,11 @@ func NewOTLPReceiver(out chan<- *Payload, cfg *config.AgentConfig, statsd statsd
 		enableReceiveResourceSpansV2Val = 0.0
 	}
 	_ = statsd.Gauge("datadog.trace_agent.otlp.enable_receive_resource_spans_v2", enableReceiveResourceSpansV2Val, nil, 1)
+	enableContainerTagsV2Val := 1.0
+	if cfg.HasFeature("disable_otlp_container_tags_v2") {
+		enableContainerTagsV2Val = 0.0
+	}
+	_ = statsd.Gauge("datadog.trace_agent.otlp.enable_container_tags_v2", enableContainerTagsV2Val, nil, 1)
 	grpcMaxRecvMsgSize := 10 * 1024 * 1024
 	if cfg.OTLPReceiver.GrpcMaxRecvMsgSizeMib > 0 {
 		grpcMaxRecvMsgSize = cfg.OTLPReceiver.GrpcMaxRecvMsgSizeMib * 1024 * 1024
@@ -297,7 +318,7 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 
 	// Get container ID from OTel semantic conventions
 	containerID := transform.LookupSemanticStringWithAccessor(resAccessor, semantics.ConceptContainerID, true)
-	if containerID == "" && !o.conf.HasFeature("enable_otlp_container_tags_v2") {
+	if containerID == "" && o.conf.HasFeature("disable_otlp_container_tags_v2") {
 		containerID = transform.LookupSemanticStringWithAccessor(resAccessor, semantics.ConceptK8sPodUID, true)
 	}
 
@@ -307,7 +328,7 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 	// Get container tags from OTel semantic conventions
 	var containerTags string
 	var builder *strings.Builder
-	if o.conf.HasFeature("enable_otlp_container_tags_v2") {
+	if !o.conf.HasFeature("disable_otlp_container_tags_v2") {
 		// As part of extracting container tags, we remove some of the corresponding resource attributes
 		// from otelres so that OtelSpanToDDSpan does not duplicate them as span attributes.
 		// Because otelres is immutable when this function is called from the Datadog exporter,
@@ -345,7 +366,7 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 			}
 			ddspan := transform.OtelSpanToDDSpan(otelspan, otelres, libspans.Scope(), o.conf)
 
-			if p, ok := semantics.LookupFloat64(registry, semantics.NewMetricsMapAccessor(ddspan.Metrics), semantics.ConceptSamplingPriority); ok {
+			if p, ok := semantics.LookupFloat64(semantics.DefaultRegistry(), semantics.NewMetricsMapAccessor(ddspan.Metrics), semantics.ConceptSamplingPriority); ok {
 				priorityByID[traceID] = sampler.SamplingPriority(p)
 			}
 			tracesByID[traceID] = append(tracesByID[traceID], ddspan)
@@ -367,7 +388,7 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 	_ = o.statsd.Count("datadog.trace_agent.otlp.traces", int64(len(tracesByID)), tags, 1)
 	p := Payload{
 		Source:                 tagstats,
-		ClientComputedStats:    transform.GetOTelAttrVal(otelres.Attributes(), true, keyStatsComputed) != "" || clientComputedStats,
+		ClientComputedStats:    resolveClientComputedStats(otelres.Attributes(), clientComputedStats),
 		ClientComputedTopLevel: o.conf.HasFeature("enable_otlp_compute_top_level_by_span_kind"),
 		TracerPayload: &pb.TracerPayload{
 			Hostname:      hostname,

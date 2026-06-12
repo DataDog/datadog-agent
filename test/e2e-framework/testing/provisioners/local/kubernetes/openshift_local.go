@@ -13,6 +13,7 @@ import (
 	kubeComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/local"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers/helmagent"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
@@ -64,7 +65,7 @@ func OpenShiftLocalProvisioner(opts ...ProvisionerOption) provisioners.TypedProv
 	)
 
 	return provisioners.WithPostProvision(pulumiProv, func(t *testing.T, env *environments.Kubernetes) {
-		helmagent.Install(t, env, runner.CloudGCP, postProvisionOpts...)
+		helmagent.Install(installers.FromT(t), env, runner.CloudGCP, postProvisionOpts...)
 	})
 }
 

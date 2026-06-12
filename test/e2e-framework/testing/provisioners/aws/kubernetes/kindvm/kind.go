@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/kindvm"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers/helmagent"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers/workloads"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
@@ -78,7 +79,7 @@ func (w *kindProvisionerWrapper) PostProvision(t *testing.T, env *environments.K
 		kubernetesagentparams.WithTags([]string{"stackid:" + env.KubernetesCluster.ClusterName}),
 	}
 	opts = append(opts, w.agentOpts...)
-	helmagent.Install(t, env, runner.CloudAWS, opts...)
+	helmagent.Install(installers.FromT(t), env, runner.CloudAWS, opts...)
 
 	if len(w.workloadOpts) > 0 {
 		workloads.Deploy(t, env, w.workloadOpts...)

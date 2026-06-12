@@ -12,7 +12,6 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
-	"time"
 
 	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 
@@ -37,12 +36,7 @@ func NewNoopHealthPlatform() *NoopHealthPlatform {
 }
 
 // ReportIssue does nothing when the health platform is disabled.
-func (n *NoopHealthPlatform) ReportIssue(_ string, _ string, _ *healthplatformpayload.IssueReport) error {
-	return nil
-}
-
-// ScheduleHealthCheck does nothing when the health platform is disabled.
-func (n *NoopHealthPlatform) ScheduleHealthCheck(_ string, _ string, _ healthplatform.HealthCheckFunc, _ time.Duration) error {
+func (n *NoopHealthPlatform) ReportIssue(_ *healthplatformpayload.Issue) error {
 	return nil
 }
 
@@ -62,6 +56,11 @@ func (n *NoopHealthPlatform) ResolveIssue(_ string) {
 
 // ResolveAllIssues does nothing when the health platform is disabled.
 func (n *NoopHealthPlatform) ResolveAllIssues() {
+}
+
+// GetActiveIssueIDsByIssueName returns nil when the health platform is disabled.
+func (n *NoopHealthPlatform) GetActiveIssueIDsByIssueName(_ string) []string {
+	return nil
 }
 
 // GetIssuesHandler handles GET /health-platform/issues when disabled.

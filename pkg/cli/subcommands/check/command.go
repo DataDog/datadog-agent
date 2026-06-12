@@ -25,17 +25,19 @@ import (
 	"go.yaml.in/yaml/v2"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
-	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger"
-	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger/jmxloggerimpl"
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
+	jmxlogger "github.com/DataDog/datadog-agent/comp/agent/jmxlogger/def"
+	jmxloggerfx "github.com/DataDog/datadog-agent/comp/agent/jmxlogger/fx"
+	demultiplexer "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/def"
+	demultiplexerimpl "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/impl"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl"
 	internalAPI "github.com/DataDog/datadog-agent/comp/api/api/def"
 	grpcNonefx "github.com/DataDog/datadog-agent/comp/api/grpcserver/fx-none"
-	"github.com/DataDog/datadog-agent/comp/collector/collector"
+	collector "github.com/DataDog/datadog-agent/comp/collector/collector/def"
+	collectornoopimpl "github.com/DataDog/datadog-agent/comp/collector/collector/noop-impl"
 	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
+	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
+	adfx "github.com/DataDog/datadog-agent/comp/core/autodiscovery/fx"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/impl"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -45,7 +47,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
+	sysprobeconfigimpl "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/impl"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	dualTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-dual"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
@@ -55,17 +57,21 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/defaults"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	filterlistfx "github.com/DataDog/datadog-agent/comp/filterlist/fx"
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
-	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
+	defaultforwardernoop "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/noop-impl"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
+	eventplatformfx "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/fx"
+	eventplatformreceiverimpl "github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/impl"
+	orchestratordef "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/def"
+	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/impl"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
-	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform"
+	"github.com/DataDog/datadog-agent/comp/healthplatform"
+	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	healthplatformmock "github.com/DataDog/datadog-agent/comp/healthplatform/store/mock"
-	logagent "github.com/DataDog/datadog-agent/comp/logs/agent"
+	logagent "github.com/DataDog/datadog-agent/comp/logs/agent/def"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	inventorychecks "github.com/DataDog/datadog-agent/comp/metadata/inventorychecks/def"
 	inventorychecksfx "github.com/DataDog/datadog-agent/comp/metadata/inventorychecks/fx"
+	networkconfigmanagement "github.com/DataDog/datadog-agent/comp/networkconfigmanagement/def"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	remotetraceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/fx-remote"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
@@ -76,7 +82,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
-	"github.com/DataDog/datadog-agent/pkg/collector/sharedlibrary/sharedlibraryimpl"
+	sharedlibrarycheck "github.com/DataDog/datadog-agent/pkg/collector/sharedlibrary/sharedlibraryimpl"
 	"github.com/DataDog/datadog-agent/pkg/commonchecks"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -159,7 +165,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams, wmCatalog fx.Option) *c
 			cliParams.cmd = cmd
 			cliParams.args = args
 
-			eventplatforParams := eventplatformimpl.NewDefaultParams()
+			eventplatforParams := eventplatform.NewDefaultParams()
 			eventplatforParams.UseNoopEventPlatformForwarder = true
 
 			disableCmdPort()
@@ -181,22 +187,22 @@ func MakeCommand(globalParamsGetter func() GlobalParams, wmCatalog fx.Option) *c
 				fx.Supply(context.Background()),
 				dualTaggerfx.Module(common.DualTaggerParams()),
 				workloadfilterfx.Module(),
-				autodiscoveryimpl.Module(),
+				adfx.Module(),
 				healthplatform.Bundle(),
-				defaultforwarder.NoopModule(),
+				defaultforwardernoop.Module(),
 				inventorychecksfx.Module(),
 				logscompression.Module(),
 				metricscompression.Module(),
 				filterlistfx.Module(),
 				// inventorychecksimpl depends on a collector and serializer when created to send payload.
 				// Here we just want to collect metadata to be displayed, so we don't need a collector.
-				collector.NoneModule(),
+				collectornoopimpl.NoneModule(),
 				fx.Supply(status.NewInformationProvider(statuscollector.Provider{})),
 				fx.Provide(func() serializer.MetricSerializer { return nil }),
 				// Initializing the aggregator with a flush interval of 0 (to disable the flush goroutines)
 				demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams(demultiplexerimpl.WithFlushInterval(0))),
-				orchestratorForwarderImpl.Module(orchestratorForwarderImpl.NewNoopParams()),
-				eventplatformimpl.Module(eventplatforParams),
+				orchestratorForwarderImpl.Module(orchestratordef.NewNoopParams()),
+				eventplatformfx.Module(eventplatforParams),
 				eventplatformreceiverimpl.Module(),
 				fx.Supply(
 					status.Params{
@@ -211,7 +217,8 @@ func MakeCommand(globalParamsGetter func() GlobalParams, wmCatalog fx.Option) *c
 				fx.Supply(option.None[integrations.Component]()),
 
 				getPlatformModules(),
-				jmxloggerimpl.Module(jmxloggerimpl.NewCliParams("")),
+				jmxloggerfx.Module(),
+				fx.Supply(jmxlogger.NewCliParams("")),
 				haagentfx.Module(),
 				ipcfx.ModuleReadOnly(),
 				remotetraceroute.Module(),
@@ -271,6 +278,7 @@ func run(
 	logReceiver option.Option[integrations.Component],
 	ipc ipc.Component,
 	traceroute traceroute.Component,
+	healthPlatform healthplatformdef.Component,
 ) error {
 	previousIntegrationTracing := false
 	previousIntegrationTracingExhaustive := false
@@ -300,6 +308,7 @@ func run(
 
 	// TODO: (components) - Until the checks are components we set there context so they can depends on components.
 	check.InitializeInventoryChecksContext(invChecks)
+	python.SetHealthPlatform(healthPlatform)
 	if !config.GetBool("python_lazy_loading") {
 		python.InitPython(common.GetPythonPaths()...)
 	}
@@ -310,7 +319,7 @@ func run(
 	// TODO Ideally we would support RC in the check subcommand,
 	//  but at the moment this is not possible - only one process can access the RC database at a time,
 	//  so the subcommand can't read the RC database if the agent is also running.
-	commonchecks.RegisterChecks(wmeta, filterStore, tagger, config, telemetry, nil, nil, nil, traceroute)
+	commonchecks.RegisterChecks(wmeta, filterStore, tagger, config, telemetry, nil, nil, nil, traceroute, option.None[networkconfigmanagement.Component]())
 
 	common.LoadComponents(ac, pkgconfigsetup.Datadog().GetString("confd_path"))
 	ac.LoadAndRun(context.Background())

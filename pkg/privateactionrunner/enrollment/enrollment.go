@@ -11,7 +11,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	configModel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/config/setup"
+	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/modes"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/regions"
@@ -75,9 +78,10 @@ func ShouldReenroll(agentIdentifier *AgentIdentifier, identity *PersistedIdentit
 	return false
 }
 
-// SelfEnroll performs self-registration of a private action runner using API credentials
+// SelfEnroll performs self-registration using API key + application key.
 func SelfEnroll(
 	ctx context.Context,
+	cfg configModel.Reader,
 	ddSite,
 	runnerNamePrefix,
 	apiKey,
@@ -97,7 +101,7 @@ func SelfEnroll(
 	}
 
 	ddBaseURL := "https://api." + ddSite
-	publicClient := opms.NewPublicClient(ddBaseURL, extraHeaders)
+	publicClient := opms.NewPublicClient(cfg, ddBaseURL, extraHeaders)
 
 	runnerModes := []modes.Mode{modes.ModePull}
 
@@ -111,6 +115,89 @@ func SelfEnroll(
 		ctx,
 		apiKey,
 		appKey,
+		runnerName,
+		runnerModes,
+		publicJwk,
+		enrollmentHostname,
+		agentIdentifier.OrchClusterID,
+		agentFlavor,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("enrollment API call failed: %w", err)
+	}
+
+	region := regions.GetRegionFromDDSite(ddSite)
+	urn := util.MakeRunnerURN(region, createRunnerResponse.OrgID, createRunnerResponse.RunnerID)
+
+	return &Result{
+		PrivateKey:    privateJwk.Key.(*ecdsa.PrivateKey),
+		URN:           urn,
+		Hostname:      enrollmentHostname,
+		RunnerName:    runnerName,
+		OrchClusterID: agentIdentifier.OrchClusterID,
+	}, nil
+}
+
+// Enroll performs self-enrollment using config and an agent identifier.
+func Enroll(ctx context.Context, cfg configModel.Reader, agentIdentifier *AgentIdentifier) (*Result, error) {
+	mainEndpoint := configutils.GetMainEndpoint(cfg, "https://api.", "dd_url")
+	ddSite := configutils.ExtractSiteFromURL(mainEndpoint)
+	if ddSite == "" {
+		ddSite = "datadoghq.com"
+	}
+	apiKey := cfg.GetString("api_key")
+	extraHeaders := cfg.GetStringMapString(setup.PAROpmsExtraHeaders)
+
+	runnerNamePrefix := agentIdentifier.Hostname
+	if flavor.GetFlavor() == flavor.ClusterAgent {
+		if clusterName := clustername.GetClusterName(ctx, agentIdentifier.Hostname); clusterName != "" {
+			runnerNamePrefix = clusterName
+		} else {
+			log.Warnf("Cluster name not found, falling back to hostname '%s' for cluster agent enrollment", agentIdentifier.Hostname)
+		}
+	}
+
+	if cfg.GetBool(setup.PARApiKeyOnlyEnrollment) {
+		return SelfEnrollApiKeyOnly(ctx, cfg, ddSite, runnerNamePrefix, apiKey, agentIdentifier, extraHeaders)
+	}
+	appKey := cfg.GetString("app_key")
+	return SelfEnroll(ctx, cfg, ddSite, runnerNamePrefix, apiKey, appKey, agentIdentifier, extraHeaders)
+}
+
+// SelfEnrollApiKeyOnly performs self-registration using only an API key (no application key).
+func SelfEnrollApiKeyOnly(
+	ctx context.Context,
+	cfg configModel.Reader,
+	ddSite,
+	runnerNamePrefix,
+	apiKey string,
+	agentIdentifier *AgentIdentifier,
+	extraHeaders map[string]string,
+) (*Result, error) {
+	agentFlavor := flavor.GetFlavor()
+
+	now := time.Now().UTC()
+	formattedTime := now.Format("20060102150405")
+	runnerName := runnerNamePrefix + "-" + formattedTime
+
+	privateJwk, publicJwk, err := util.GenerateKeys()
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate key pair: %w", err)
+	}
+
+	ddBaseURL := "https://api." + ddSite
+	publicClient := opms.NewPublicClient(cfg, ddBaseURL, extraHeaders)
+
+	runnerModes := []modes.Mode{modes.ModePull}
+
+	enrollmentHostname := agentIdentifier.Hostname
+	if agentFlavor == flavor.ClusterAgent {
+		enrollmentHostname = ""
+	}
+
+	createRunnerResponse, err := publicClient.EnrollWithApiKeyOnly(
+		ctx,
+		apiKey,
 		runnerName,
 		runnerModes,
 		publicJwk,

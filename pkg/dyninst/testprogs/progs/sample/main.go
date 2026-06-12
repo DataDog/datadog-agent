@@ -19,6 +19,11 @@ import (
 )
 
 func main() {
+	// Disable 128-bit trace id generation so the upper bits of the trace id
+	// are zero rather than time-based — keeps the testTakeContext snapshot
+	// trace_id deterministic across runs (lower 64 bits come from
+	// tracer.WithSpanID in executeContextFuncs).
+	os.Setenv("DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", "false")
 	// Default to "sample-service" for dyninst tests, but let DD_SERVICE win so
 	// demo deployments can report under their own service name.
 	service := os.Getenv("DD_SERVICE")
@@ -68,6 +73,7 @@ func runAll() {
 
 	executeContinuationFuncs()
 	executeContinuationStringFuncs()
+	executeTimeFuncs()
 
 	// unsupported for MVP, should not cause failures
 	executeEsoteric()
@@ -75,5 +81,6 @@ func runAll() {
 	executeMapFuncs()
 	executeInterfaceFuncs()
 	executeReturns()
+	executeContextFuncs()
 	go returnGoroutineId()
 }

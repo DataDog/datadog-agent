@@ -24,6 +24,7 @@ go_test(
         "lookup_dd_test.go",
         "lookup_pdata_test.go",
         "lookup_test.go",
+        "registry_update_test.go",
         "semantics_test.go",
     ],
     embed = [":semantics"],

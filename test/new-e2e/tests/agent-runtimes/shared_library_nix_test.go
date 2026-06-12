@@ -14,7 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 )
 
-var linuxDefaultPermissions = perms.NewUnixPermissions(perms.WithPermissions("0740"), perms.WithOwner("dd-agent"), perms.WithGroup("dd-agent"))
+var linuxDefaultPermissions = perms.NewUnixPermissions(perms.WithPermissions("0700"), perms.WithOwner("dd-agent"), perms.WithGroup("dd-agent"))
 
 type linuxSharedLibrarySuite struct {
 	sharedLibrarySuite

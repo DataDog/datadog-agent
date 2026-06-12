@@ -32,9 +32,9 @@ func (c *CLIContext) Errorf(format string, args ...any) {
 	fmt.Fprintf(os.Stderr, "[ERROR] "+format+"\n", args...)
 }
 
-// FailNow prints a failure indicator and exits the process with code 1.
-func (c *CLIContext) FailNow() {
-	fmt.Fprintln(os.Stderr, "[FATAL] installer reported a failure, exiting")
+// FailNow prints a formatted failure message and exits the process with code 1.
+func (c *CLIContext) FailNow(format string, args ...any) {
+	fmt.Fprintf(os.Stderr, "[FATAL] "+format+"\n", args...)
 	c.RunCleanup()
 	os.Exit(1)
 }

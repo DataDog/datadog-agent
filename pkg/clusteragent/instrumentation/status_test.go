@@ -159,7 +159,7 @@ func TestUpdateStatusConditions(t *testing.T) {
 				return
 			}
 
-			got, err := tt.client.Resource(gvrDatadogInstrumentation).Namespace(tt.cr.Namespace).Get(t.Context(), tt.cr.Name, metav1.GetOptions{})
+			got, err := tt.client.Resource(DatadogInstrumentationGVR).Namespace(tt.cr.Namespace).Get(t.Context(), tt.cr.Name, metav1.GetOptions{})
 			require.NoError(t, err)
 
 			latest := &datadoghq.DatadogInstrumentation{}
@@ -204,7 +204,7 @@ func TestUpdateStatusConditionsUpdatesExistingCondition(t *testing.T) {
 	err := updateStatusConditions(t.Context(), client, cr, statuses)
 	require.NoError(t, err)
 
-	got, err := client.Resource(gvrDatadogInstrumentation).Namespace("default").Get(t.Context(), "ddi-update", metav1.GetOptions{})
+	got, err := client.Resource(DatadogInstrumentationGVR).Namespace("default").Get(t.Context(), "ddi-update", metav1.GetOptions{})
 	require.NoError(t, err)
 
 	latest := &datadoghq.DatadogInstrumentation{}

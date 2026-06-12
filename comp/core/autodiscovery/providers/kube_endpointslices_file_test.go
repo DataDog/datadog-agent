@@ -8,6 +8,7 @@
 package providers
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -31,19 +32,16 @@ var tplCelSlice = integration.Config{
 	},
 }
 
-// Initialize the shared dummy CEL template with a matching program
+// Initialize the shared dummy CEL template with matching programs
 func init() {
-	matchingProgram, celADID, compileErr, recErr := integration.CreateMatchingProgram(tplCelSlice.CELSelector)
-	if compileErr != nil {
-		panic("failed to compile CEL matching program: " + compileErr.Error())
+	programs, celADIDs, err := integration.CreateMatchingPrograms(tplCelSlice.CELSelector, true)
+	if err != nil {
+		panic("failed to create CEL matching program: " + err.Error())
 	}
-	if recErr != nil {
-		panic("failed to create CEL matching program: " + recErr.Error())
+	if !slices.Contains(celADIDs, adtypes.CelEndpointIdentifier) {
+		panic("expected CEL identifiers to contain " + string(adtypes.CelEndpointIdentifier))
 	}
-	if celADID != adtypes.CelEndpointIdentifier {
-		panic("expected CEL identifier to be " + string(adtypes.CelEndpointIdentifier) + " but got " + string(celADID))
-	}
-	tplCelSlice.SetMatchingProgram(matchingProgram)
+	tplCelSlice.SetMatchingPrograms(programs)
 }
 
 func TestEndpointSlices_BuildConfigStore(t *testing.T) {
@@ -130,7 +128,7 @@ func TestEndpointSlices_BuildConfigStore(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			p := &KubeEndpointSlicesFileConfigProvider{}
 			p.buildConfigStore(tt.templates)
-			// Ignore unexported matchingProgram because it gets recompiled with different signature
+			// Ignore unexported matchingPrograms because it gets recompiled with different signature
 			if diff := cmp.Diff(tt.want, p.store.epSliceConfigs,
 				cmp.AllowUnexported(epSliceConfig{}),
 				cmpopts.IgnoreUnexported(integration.Config{})); diff != "" {

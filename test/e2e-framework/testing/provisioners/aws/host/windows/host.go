@@ -15,6 +15,7 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers/hostagent"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
@@ -98,7 +99,7 @@ func Provisioner(opts ...ProvisionerOption) provisioners.TypedProvisioner[enviro
 	}
 
 	return provisioners.WithPostProvision(pulumiProv, func(t *testing.T, env *environments.WindowsHost) {
-		hostagent.InstallOnWindowsHost(t, env, agentOpts...)
+		hostagent.InstallOnWindowsHost(installers.FromT(t), env, agentOpts...)
 	})
 }
 

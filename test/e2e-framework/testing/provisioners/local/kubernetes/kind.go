@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/local"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers/helmagent"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
@@ -215,7 +216,7 @@ func Provisioner(opts ...ProvisionerOption) provisioners.TypedProvisioner[enviro
 			},
 			agentOpts...,
 		)
-		helmagent.Install(t, env, runner.CloudAWS, opts...)
+		helmagent.Install(installers.FromT(t), env, runner.CloudAWS, opts...)
 	})
 }
 

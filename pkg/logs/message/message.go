@@ -78,14 +78,12 @@ type MessageMetadata struct {
 	Hostname           string
 	Origin             *Origin
 	Status             string
-	IngestionTimestamp int64
+	IngestionTimestamp int64 // In nanoseconds
 	// RawDataLen tracks the original size of the message content before any trimming/transformation.
 	// This is used when calculating the tailer offset - so this will NOT always be equal to `len(Content)`
 	// This is also used to track the original content size before the message is processed and encoded later
 	// in the pipeline.
 	RawDataLen int
-	// Tags added on processing
-	ProcessingTags []string
 	// Extra information from the parsers
 	ParsingExtra
 	// Extra information for Serverless Logs messages
@@ -290,14 +288,6 @@ type ParsingExtra struct {
 	IsMultiLine bool
 	IsMRFAllow  bool
 	Tags        []string
-	// SourceOverride, if non-empty, is applied to the message origin's source
-	// by the tailer after origin creation. Used by parsers (e.g. syslog) that
-	// run before the origin exists.
-	SourceOverride string
-	// ServiceOverride, if non-empty, is applied to the message origin's service
-	// by the tailer after origin creation. Used by parsers (e.g. syslog) that
-	// run before the origin exists.
-	ServiceOverride string
 }
 
 // ServerlessExtra ships extra information from logs processing in serverless envs.
@@ -392,6 +382,18 @@ func (m *Message) Render() ([]byte, error) {
 	}
 }
 
+// Methods implementing observer.LogView for read-only observation.
+
+// GetHostname returns the message hostname.
+func (m *Message) GetHostname() string {
+	return m.Hostname
+}
+
+// GetTimestampUnixMilli returns the message ingestion timestamp in Unix milliseconds.
+func (m *Message) GetTimestampUnixMilli() int64 {
+	return m.IngestionTimestamp / 1000000
+}
+
 // StructuredContent stores enough information from a tailer to manipulate a
 // structured log message (from journald or windowsevents) and to render it to
 // be encoded later on in the pipeline.
@@ -448,12 +450,12 @@ func (m *MessageMetadata) GetLatency() int64 {
 
 // Tags returns all tags that this message is attached with.
 func (m *MessageMetadata) Tags() []string {
-	return m.Origin.Tags(m.ProcessingTags)
+	return m.Origin.Tags()
 }
 
 // TagsToString returns all tags that this message is attached with, as a string.
 func (m *MessageMetadata) TagsToString() string {
-	return m.Origin.TagsToString(m.ProcessingTags)
+	return m.Origin.TagsToString()
 }
 
 // Count returns the number of messages

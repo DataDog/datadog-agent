@@ -119,6 +119,24 @@ func TestGetIntegrationConfig(t *testing.T) {
 	config, _, err = GetIntegrationConfigFromFile("foo", "tests/ad_with_service_id.yaml")
 	assert.Nil(t, err)
 	assert.Empty(t, config.ServiceID)
+
+	// discovery: presence of `discovery: {}` populates Config.Discovery.
+	config, _, err = GetIntegrationConfigFromFile("foo", "tests/discovery.yaml")
+	require.Nil(t, err)
+	require.NotNil(t, config.Discovery, "discovery: {} should produce a non-nil Discovery field")
+
+	// no discovery: a regular config leaves Discovery nil.
+	config, _, err = GetIntegrationConfigFromFile("foo", "tests/testcheck.yaml")
+	require.Nil(t, err)
+	assert.Nil(t, config.Discovery)
+
+	// discovery-only: a file with only `discovery: {}` is valid and has no instances.
+	config, _, err = GetIntegrationConfigFromFile("foo", "tests/discovery_only.yaml")
+	require.Nil(t, err)
+	require.NotNil(t, config.Discovery, "discovery-only file should produce a non-nil Discovery field")
+	assert.Empty(t, config.Instances)
+	assert.Nil(t, config.MetricConfig)
+	assert.Nil(t, config.LogsConfig)
 }
 
 func TestReadConfigFiles(t *testing.T) {
@@ -127,7 +145,7 @@ func TestReadConfigFiles(t *testing.T) {
 
 	configs, errors, err := ReadConfigFiles(GetAll)
 	require.Nil(t, err)
-	require.Equal(t, 21, len(configs))
+	require.Equal(t, 23, len(configs))
 	require.Equal(t, 4, len(errors))
 
 	for _, c := range configs {
@@ -138,7 +156,7 @@ func TestReadConfigFiles(t *testing.T) {
 
 	configs, _, err = ReadConfigFiles(WithoutAdvancedAD)
 	require.Nil(t, err)
-	require.Equal(t, 19, len(configs))
+	require.Equal(t, 21, len(configs))
 
 	expectedConfig1 := integration.Config{
 		Name: "advanced_ad",
@@ -180,8 +198,8 @@ func TestReadConfigFiles(t *testing.T) {
 	require.Equal(t, 2, len(configs))
 
 	// Ignore the Source field for comparison because varies by OS
-	// Ignore the matchingProgram field for comparison since it's not relevant for the test
-	ignoreFields := cmpopts.IgnoreFields(integration.Config{}, "Source", "matchingProgram")
+	// Ignore the matchingPrograms field for comparison since it's not relevant for the test
+	ignoreFields := cmpopts.IgnoreFields(integration.Config{}, "Source", "matchingPrograms")
 
 	// Check if expectedConfig1 is in the configs slice
 	found := false
@@ -241,8 +259,8 @@ instances:
 
 	// Change config
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("autoconf_config_files_poll", true)
-	mockConfig.SetWithoutSource("autoconf_config_files_poll_interval", 2)
+	mockConfig.SetInTest("autoconf_config_files_poll", true)
+	mockConfig.SetInTest("autoconf_config_files_poll_interval", 2)
 
 	// Write file + reset reader (trigger a read on all files)
 	assert.NoError(t, os.WriteFile(testFilePath, []byte(testFileContent), 0o660))

@@ -46,7 +46,8 @@ fn is_recoverable_read_error(error: &anyhow::Error) -> bool {
 }
 
 /// Parse `--config=PATH`, `--config PATH`, or `-c PATH` (same idea as `agent run -c` /
-/// `system-probe --config`). Unknown arguments are rejected.
+/// `system-probe --config`). Unknown arguments are ignored because Chrome may pass
+/// browser-owned arguments such as `--parent-window=...` on Windows.
 fn config_path_from_args() -> Option<PathBuf> {
     let args: Vec<String> = env::args().collect();
     let mut i = 1usize;
@@ -75,9 +76,8 @@ fn config_path_from_args() -> Option<PathBuf> {
             i += 2;
             continue;
         }
-        eprintln!("error: unexpected argument: {arg}");
-        print_help();
-        process::exit(2);
+        eprintln!("[native-host-rs] ignoring unexpected argument: {arg}");
+        i += 1;
     }
     found
 }

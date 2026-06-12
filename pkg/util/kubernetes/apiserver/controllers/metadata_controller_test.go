@@ -49,7 +49,7 @@ func TestMetadataControllerSyncEndpoints(t *testing.T) {
 	// it being modified by other tests.
 	metaController.store = &MetaBundleStore{
 		cache:       gocache.New(gocache.NoExpiration, 5*time.Second),
-		subscribers: make(map[string]chan struct{}),
+		subscribers: make(map[string][]chan struct{}),
 	}
 
 	pod1 := newFakePod(
@@ -371,7 +371,7 @@ func TestMetadataControllerSyncEndpointSlices(t *testing.T) {
 
 	metaController.store = &MetaBundleStore{
 		cache:       gocache.New(gocache.NoExpiration, 5*time.Second),
-		subscribers: make(map[string]chan struct{}),
+		subscribers: make(map[string][]chan struct{}),
 	}
 
 	pod1 := newFakePod(

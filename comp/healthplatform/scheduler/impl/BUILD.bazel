@@ -8,7 +8,9 @@ go_library(
     deps = [
         "//comp/core/log/def",
         "//comp/def",
+        "//comp/healthplatform/runner/def",
         "//comp/healthplatform/scheduler/def",
+        "//comp/healthplatform/store/def",
     ],
 )
 
@@ -19,6 +21,8 @@ go_test(
     gotags = ["test"],
     deps = [
         "//comp/core/log/mock",
+        "//comp/healthplatform/runner/def",
+        "//comp/healthplatform/store/def",
         "@com_github_datadog_agent_payload_v5//healthplatform",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

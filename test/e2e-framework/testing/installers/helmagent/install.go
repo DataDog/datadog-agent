@@ -131,10 +131,11 @@ clusterAgent:
 //	)
 func Install(t common.Context, env *environments.Kubernetes, cloud runner.Cloud, opts ...kubernetesagentparams.Option) {
 	t.Helper()
-	require.NotNil(t, env.KubernetesCluster, "helmagent.Install: KubernetesCluster is nil, infrastructure must be provisioned first")
+	rt := common.RequireT{Context: t}
+	require.NotNil(rt, env.KubernetesCluster, "helmagent.Install: KubernetesCluster is nil, infrastructure must be provisioned first")
 
 	p, err := buildParams(opts)
-	require.NoError(t, err, "failed to build helm agent params")
+	require.NoError(rt, err, "failed to build helm agent params")
 
 	k8sClient := env.KubernetesCluster.Client()
 	ctx := context.Background()
@@ -144,14 +145,14 @@ func Install(t common.Context, env *environments.Kubernetes, cloud runner.Cloud,
 		ObjectMeta: metav1.ObjectMeta{Name: p.Namespace},
 	}, metav1.CreateOptions{})
 	if err != nil && !strings.Contains(err.Error(), "already exists") {
-		require.NoError(t, err, "failed to create namespace %s", p.Namespace)
+		require.NoError(rt, err, "failed to create namespace %s", p.Namespace)
 	}
 
 	// Create credentials secret
 	apiKey, err := runner.GetProfile().SecretStore().Get(parameters.APIKey)
-	require.NoError(t, err, "failed to get API key")
+	require.NoError(rt, err, "failed to get API key")
 	appKey, err := runner.GetProfile().SecretStore().Get(parameters.APPKey)
-	require.NoError(t, err, "failed to get APP key")
+	require.NoError(rt, err, "failed to get APP key")
 
 	secretName := defaultReleaseName + "-datadog-credentials"
 	_, err = k8sClient.CoreV1().Secrets(p.Namespace).Create(ctx, &corev1.Secret{
@@ -162,23 +163,23 @@ func Install(t common.Context, env *environments.Kubernetes, cloud runner.Cloud,
 		},
 	}, metav1.CreateOptions{})
 	if err != nil && !strings.Contains(err.Error(), "already exists") {
-		require.NoError(t, err, "failed to create credentials secret")
+		require.NoError(rt, err, "failed to create credentials secret")
 	}
 
 	// Create image pull secret when registry credentials are configured.
 	// Mirrors utils.NewImagePullSecret in common/utils/kubernetes.go.
 	pullSecretName, err := createImagePullSecret(ctx, k8sClient, p.Namespace)
-	require.NoError(t, err, "failed to create image pull secret")
+	require.NoError(rt, err, "failed to create image pull secret")
 
 	// Build and merge all values
 	valuesYAML := buildValuesYAML(t, env, p, cloud, secretName, pullSecretName)
 
 	// Parse values into map for the Helm SDK
 	vals := map[string]interface{}{}
-	require.NoError(t, yaml.Unmarshal([]byte(valuesYAML), &vals), "failed to parse helm values")
+	require.NoError(rt, yaml.Unmarshal([]byte(valuesYAML), &vals), "failed to parse helm values")
 
 	// Run helm upgrade --install via the Go SDK (no helm CLI required)
-	require.NoError(t,
+	require.NoError(rt,
 		helmUpgradeInstall(t, env.KubernetesCluster.KubeConfig, p, vals),
 		"helm upgrade --install failed",
 	)
@@ -598,7 +599,7 @@ clusterChecksRunner:
 func mustMerge(t common.Context, base, overlay string) string {
 	t.Helper()
 	merged, err := utils.MergeYAMLWithSlices(base, overlay)
-	require.NoError(t, err, "failed to merge helm values")
+	require.NoError(common.RequireT{Context: t}, err, "failed to merge helm values")
 	return merged
 }
 

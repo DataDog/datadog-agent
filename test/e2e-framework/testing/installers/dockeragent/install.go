@@ -95,7 +95,8 @@ func WithEnvVar(key, value string) Option {
 //	dockeragent.Install(s.T(), s.Env())
 func Install(t common.Context, env *environments.DockerHost, opts ...Option) {
 	t.Helper()
-	require.NotNil(t, env.RemoteHost, "dockeragent.Install: RemoteHost is nil, infrastructure must be provisioned first")
+	rt := common.RequireT{Context: t}
+	require.NotNil(rt, env.RemoteHost, "dockeragent.Install: RemoteHost is nil, infrastructure must be provisioned first")
 
 	p := &Params{}
 	for _, o := range opts {
@@ -103,7 +104,7 @@ func Install(t common.Context, env *environments.DockerHost, opts ...Option) {
 	}
 
 	apiKey, err := runner.GetProfile().SecretStore().Get(parameters.APIKey)
-	require.NoError(t, err, "failed to get API key")
+	require.NoError(rt, err, "failed to get API key")
 	apiKey = strings.TrimSpace(apiKey)
 
 	imagePath := resolveImagePath(t, p)
@@ -120,7 +121,7 @@ func Install(t common.Context, env *environments.DockerHost, opts ...Option) {
 	env.Agent.DockerAgentOutput.DockerManager.Host = env.RemoteHost.HostOutput
 	env.Agent.DockerAgentOutput.ContainerName = agentContainerName
 	err = env.Agent.Init(t)
-	require.NoError(t, err, "failed to initialize docker agent client")
+	require.NoError(rt, err, "failed to initialize docker agent client")
 }
 
 // resolveImagePath determines the docker image path from Params and the runner profile.

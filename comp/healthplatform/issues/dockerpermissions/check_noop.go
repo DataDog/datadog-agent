@@ -8,10 +8,10 @@
 package dockerpermissions
 
 import (
-	"github.com/DataDog/agent-payload/v5/healthplatform"
+	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 )
 
 // Check is a noop on unsupported platforms
-func Check() (*healthplatform.IssueReport, error) {
+func Check() ([]runnerdef.IssueReport, error) {
 	return nil, nil
 }

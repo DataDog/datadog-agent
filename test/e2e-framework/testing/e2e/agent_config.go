@@ -10,6 +10,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers"
 )
 
 // SetAgentConfig reconfigures the agent on a provisioned Host environment
@@ -27,5 +28,5 @@ import (
 // This function is kept for backward compatibility during migration.
 func SetAgentConfig(t *testing.T, env *environments.Host, opts ...agentparams.Option) {
 	t.Helper()
-	env.Agent.Configure(t, opts...)
+	env.Agent.Configure(installers.FromT(t), opts...)
 }

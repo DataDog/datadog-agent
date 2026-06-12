@@ -292,8 +292,6 @@ mod tests {
     fn test_integration_erlang_no_name() {
         // When the Erlang detector can't find a name, fall back to the exe
         // basename with extension stripped: "beam.smp" -> "beam".
-        // Matches Go's ExtractServiceMetadata fallback
-        // (pkg/discovery/usm/service.go:340-347).
         let cmdline = cmdline!["beam.smp", "-smp", "auto", "-noinput"];
         let (envs, fs) = test_ctx();
         let mut ctx = DetectionContext::new(0, envs, &fs);

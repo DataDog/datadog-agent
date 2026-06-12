@@ -4,57 +4,48 @@
 // Copyright 2025-present Datadog, Inc.
 
 // Package store provides the interface for the health platform store component.
-// The store collects and reports health information from the host system,
-// sending it to the Datadog backend with hostname, host ID, organization ID,
-// and a list of issues.
+// The store is the central state owner: it receives issue reports, owns the
+// in-memory issue map, persists state to disk, and exposes the local
+// /health-platform/issues HTTP endpoint.
 package store
 
 // team: agent-health
 
 import (
-	"time"
-
 	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
-	checkrunnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/scheduler/def"
 )
-
-// HealthCheckFunc is an alias of checkrunnerdef.HealthCheckFunc to avoid callers
-// having to import checkrunner/def directly.
-type HealthCheckFunc = checkrunnerdef.HealthCheckFunc
 
 // Component is the health platform store component interface.
 type Component interface {
-	// ReportIssue reports an issue with context; the health platform fills in
-	// remediation from the issue template registry. It is the main way for
-	// integrations to report issues. If report is nil, any existing issue for
-	// the given checkID is resolved.
-	ReportIssue(checkID string, checkName string, report *healthplatformpayload.IssueReport) error
-
-	// ScheduleHealthCheck schedules a function to be called periodically to
-	// check for issues. If interval is 0 or negative, the runner's default
-	// interval is used.
-	ScheduleHealthCheck(checkID string, checkName string, checkFn HealthCheckFunc, interval time.Duration) error
+	// ReportIssue records a new or ongoing issue keyed by issue.Id. Two calls
+	// with the same issue.Id update the same instance (state machine: new →
+	// ongoing). issue.IssueName is used as the issue-type key for telemetry
+	// and persistence. Call ResolveIssue to mark an issue as resolved.
+	ReportIssue(issue *healthplatformpayload.Issue) error
 
 	// =========================================================================
 	// Query Methods
 	// =========================================================================
 
-	// GetAllIssues returns the count and all active issues, indexed by checkID.
+	// GetAllIssues returns the count and all active issues, indexed by IssueId.
 	// The returned map contains deep copies; modifying it does not affect the store.
 	GetAllIssues() (int, map[string]*healthplatformpayload.Issue)
 
-	// GetIssue returns the issue reported for the given checkID, or nil if
-	// no such issue is currently active.
-	GetIssue(checkID string) *healthplatformpayload.Issue
+	// GetIssue returns the active issue with the given IssueId, or nil if none.
+	GetIssue(issueID string) *healthplatformpayload.Issue
 
 	// =========================================================================
 	// Resolve Methods
 	// =========================================================================
 
-	// ResolveIssue marks the issue for the given checkID as resolved.
-	// No-op if no issue is currently active for that checkID.
-	ResolveIssue(checkID string)
+	// ResolveIssue marks the issue with the given IssueId as resolved.
+	// No-op if no such issue is currently active.
+	ResolveIssue(issueID string)
 
 	// ResolveAllIssues marks every active issue as resolved.
 	ResolveAllIssues()
+
+	// GetActiveIssueIDsByIssueName returns the IDs of all currently active issues
+	// with the given IssueName (e.g. "docker_file_tailing_disabled").
+	GetActiveIssueIDsByIssueName(issueName string) []string
 }

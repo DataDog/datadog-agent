@@ -3,6 +3,7 @@ load("@rules_go//go:def.bzl", "go_library")
 go_library(
     name = "python",
     srcs = [
+        "discovery_nopy.go",
         "embed_nopy.go",
         "version_nopy.go",
     ],

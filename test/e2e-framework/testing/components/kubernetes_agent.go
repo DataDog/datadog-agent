@@ -47,8 +47,7 @@ func (a *KubernetesAgent) SetBaseOptions(opts ...kubernetesagentparams.Option) {
 func (a *KubernetesAgent) Configure(t common.Context, opts ...kubernetesagentparams.Option) {
 	t.Helper()
 	if a.Installer == nil {
-		t.Errorf("KubernetesAgent.Configure: no installer set, was the agent installed via helmagent.Install or similar?")
-		t.FailNow()
+		t.FailNow("KubernetesAgent.Configure: no installer set, was the agent installed via helmagent.Install or similar?")
 	}
 
 	// Merge: apply baseline options first, then caller's overrides
@@ -57,7 +56,6 @@ func (a *KubernetesAgent) Configure(t common.Context, opts ...kubernetesagentpar
 	merged = append(merged, opts...)
 
 	if err := a.Installer.Upgrade(t, merged); err != nil {
-		t.Errorf("KubernetesAgent.Configure failed: %v", err)
-		t.FailNow()
+		t.FailNow("KubernetesAgent.Configure failed: %v", err)
 	}
 }

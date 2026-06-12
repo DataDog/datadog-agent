@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2docker"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers/dockeragent"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
@@ -121,7 +122,7 @@ func Provisioner(opts ...ProvisionerOption) provisioners.TypedProvisioner[enviro
 	}
 
 	return provisioners.WithPostProvision(pulumiProv, func(t *testing.T, env *environments.DockerHost) {
-		dockeragent.Install(t, env, installerOpts...)
+		dockeragent.Install(installers.FromT(t), env, installerOpts...)
 	})
 }
 

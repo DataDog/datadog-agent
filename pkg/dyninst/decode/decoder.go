@@ -137,6 +137,7 @@ func NewDecoder(
 			}
 		}
 	}
+	var traceContextTypeID ir.TypeID
 	for _, t := range program.Types {
 		decoderType, err := newDecoderType(t, program.Types)
 		if err != nil {
@@ -147,6 +148,9 @@ func NewDecoder(
 		if goRuntimeType, ok := t.GetGoRuntimeType(); ok {
 			decoder.typesByGoRuntimeType[goRuntimeType] = id
 		}
+		if _, ok := t.(*ir.TraceContextType); ok {
+			traceContextTypeID = id
+		}
 	}
 	decoder.entryOrLine.encodingContext = encodingContext{
 		typesByID:            decoder.decoderTypes,
@@ -154,6 +158,7 @@ func NewDecoder(
 		typeResolver:         typeNameResolver,
 		dataItems:            make(map[typeAndAddr]output.DataItem),
 		currentlyEncoding:    make(map[typeAndAddr]struct{}),
+		traceContextTypeID:   traceContextTypeID,
 	}
 	decoder._return.encodingContext = encodingContext{
 		typesByID:            decoder.decoderTypes,
@@ -161,6 +166,7 @@ func NewDecoder(
 		typeResolver:         typeNameResolver,
 		dataItems:            make(map[typeAndAddr]output.DataItem),
 		currentlyEncoding:    make(map[typeAndAddr]struct{}),
+		traceContextTypeID:   traceContextTypeID,
 	}
 	return decoder, nil
 }
@@ -257,6 +263,13 @@ type Event struct {
 	// flag in the emitted snapshot JSON so users know the capture is not
 	// full.
 	Truncated bool
+	// PanicUnwound is true when Return is a synthetic return-side event
+	// emitted by the runtime.recovery uprobe in place of a normal return.
+	// The function never returned; instead its frame was torn down by a
+	// recovered panic. The decoder renders the entry capture, skips the
+	// normal return-side decoding (no root type was generated for this
+	// path), and records an evaluation error noting the panic.
+	PanicUnwound bool
 }
 
 // firstFragment returns the first event from a FragmentedEvent. This is used
@@ -271,6 +284,9 @@ func firstFragment(fe output.FragmentedEvent) output.Event {
 
 type message struct {
 	Service     string           `json:"service"`
+	DDTraceID   string           `json:"dd.trace_id,omitempty"`
+	DDSpanID    string           `json:"dd.span_id,omitempty"`
+	DDParentID  string           `json:"dd.parent_id,omitempty"`
 	DDSource    ddDebuggerSource `json:"ddsource"`
 	Logger      logger           `json:"logger"`
 	Debugger    debuggerData     `json:"debugger"`
@@ -334,6 +350,9 @@ func (s *message) init(
 	); err != nil {
 		return nil, err
 	}
+	if trace := decoder.entryOrLine.traceContext; trace.valid {
+		s.setTraceContext(trace)
+	}
 	probeEvent := decoder.probeEvents[decoder.entryOrLine.rootType.ID]
 	probe := probeEvent.probe
 	instance := probeEvent.instance
@@ -378,11 +397,37 @@ func (s *message) init(
 	var returnFirstFragment output.Event
 	var returnHeader *output.EventHeader
 	var returnMissingReason string
-	if event.Return != nil {
+	if event.PanicUnwound {
+		// The recovery probe emitted a synthetic return whose root
+		// payload is the recovery probe's own EventRootType with a
+		// single @exception capture expression carrying the panic value's
+		// chased interface payload. Route it through the standard
+		// _return.init so the @exception value renders normally as the
+		// Return capture; surface the panic-recovery context as an
+		// evaluation error so callers know this isn't a real return.
+		if event.Return != nil {
+			if err := decoder._return.init(
+				event.Return, decoder.program.Types, &s.Debugger.Snapshot.EvaluationErrors,
+			); err != nil {
+				return nil, fmt.Errorf("error initializing panic-unwound return event: %w", err)
+			}
+			s.Debugger.Snapshot.captures.Return = &decoder._return
+		}
+		s.Debugger.Snapshot.EvaluationErrors = append(
+			s.Debugger.Snapshot.EvaluationErrors,
+			evaluationError{
+				Expression: "@return",
+				Message:    "function did not return: panic was recovered by an ancestor frame",
+			},
+		)
+	} else if event.Return != nil {
 		if err := decoder._return.init(
 			event.Return, decoder.program.Types, &s.Debugger.Snapshot.EvaluationErrors,
 		); err != nil {
 			return nil, fmt.Errorf("error initializing return event: %w", err)
+		}
+		if trace := decoder._return.traceContext; !s.hasTraceContext() && trace.valid {
+			s.setTraceContext(trace)
 		}
 		returnProbeEvent := decoder.probeEvents[decoder._return.rootType.ID]
 		if returnProbeEvent.instance != instance {
@@ -530,4 +575,16 @@ func (s *message) init(
 	}
 
 	return probe, nil
+}
+
+func (s *message) hasTraceContext() bool {
+	return s.DDTraceID != "" || s.DDSpanID != ""
+}
+
+func (s *message) setTraceContext(trace traceContext) {
+	s.DDTraceID = fmt.Sprintf("%016x%016x", trace.traceIDUpper, trace.traceIDLower)
+	s.DDSpanID = strconv.FormatUint(trace.spanID, 10)
+	if trace.parentID != 0 {
+		s.DDParentID = strconv.FormatUint(trace.parentID, 10)
+	}
 }

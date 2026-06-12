@@ -1,0 +1,21 @@
+---
+fixes:
+  - |
+    Fix the Agent's Docker integration against Docker daemons that return
+    malformed values in their ``/info`` response. The failure was visible in
+    Agent logs as::
+
+        Docker init error: temporary failure in dockerutil, will retry later:
+        Error reading remote info: netip.ParsePrefix("invalid Prefix"): no '/'
+
+    When triggered, it prevented the Docker integration from initializing,
+    which cascaded into:
+
+    * missing container and image tags on metrics, traces and logs collected
+      from Docker containers,
+    * missing ``docker_version`` and ``docker_swarm`` entries in host
+      metadata,
+    * missing ``docker_swarm_node_role`` host tag on Docker Swarm nodes,
+    * in containerized deployments without an explicit ``DD_HOSTNAME``, the
+      Agent could refuse to start because the Docker hostname provider could
+      no longer determine a hostname.

@@ -21,6 +21,7 @@ import (
 	"path"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"syscall"
 	"testing"
@@ -28,6 +29,7 @@ import (
 
 	"github.com/creack/pty"
 
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
@@ -1146,13 +1148,17 @@ func TestProcessExecCTime(t *testing.T) {
 
 func TestProcessPIDVariable(t *testing.T) {
 	SkipIfNotAvailable(t)
-	flake.MarkOnJobName(t, "ubuntu_25.10")
-
-	executable := which(t, "touch")
+	procRoot := "/proc"
+	processPid := strconv.Itoa(os.Getpid())
+	if env.IsContainerized() {
+		procRoot = "/host/proc"
+		processPid = "self"
+	}
+	openPath := fmt.Sprintf("%s/%s/maps", procRoot, processPid)
 
 	ruleDef := &rules.RuleDefinition{
 		ID:         "test_rule_var",
-		Expression: `open.file.path =~ "/proc/*/maps" && open.file.path != "/proc/${process.pid}/maps"`,
+		Expression: fmt.Sprintf(`open.file.path == "%s/${process.pid}/maps"`, procRoot),
 	}
 
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{ruleDef})
@@ -1162,8 +1168,8 @@ func TestProcessPIDVariable(t *testing.T) {
 	defer test.Close()
 
 	test.WaitSignalFromRule(t, func() error {
-		cmd := exec.Command(executable, fmt.Sprintf("/proc/%d/maps", os.Getpid()))
-		return cmd.Run()
+		_, err := os.Open(openPath)
+		return err
 	}, func(_ *model.Event, rule *rules.Rule) {
 		assert.Equal(t, "test_rule_var", rule.ID, "wrong rule triggered")
 	}, "test_rule_var")
@@ -2524,69 +2530,6 @@ func TestSymLinkResolution(t *testing.T) {
 		}, "symlink_true_exec")
 		assert.NoError(t, err)
 	})
-}
-
-func TestProcessSubreaperReparenting(t *testing.T) {
-	SkipIfNotAvailable(t)
-
-	if ebpfLessEnabled {
-		t.Skip("subreaper reparenting test not supported in ebpfless mode")
-	}
-
-	ruleDefs := []*rules.RuleDefinition{
-		{
-			ID:         "test_subreaper_open",
-			Expression: `open.file.path == "{{.Root}}/test-subreaper" && process.parent.file.name == "syscall_tester"`,
-		},
-	}
-
-	test, err := newTestModule(t, nil, ruleDefs)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer test.Close()
-
-	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	testFile, _, err := test.Path("test-subreaper")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	defer os.Remove(testFile)
-
-	// The subreaper command:
-	// 1. Calls prctl(PR_SET_CHILD_SUBREAPER, 1)
-	// 2. Forks a child that forks a grandchild and exits immediately
-	// 3. The grandchild is reparented to the subreaper (syscall_tester)
-	// 4. The grandchild opens testFile
-	//
-	// Expected lineage after reparenting:
-	//   syscall_tester (subreaper) -> grandchild (opens file)
-	//
-	// We verify that the parent PID matches the subreaper's PID (not the
-	// intermediate child's PID) to ensure the process cache was properly
-	// updated after reparenting.
-	var subreaperPid int
-	test.WaitSignalFromRule(t, func() error {
-		cmd := exec.CommandContext(context.Background(), syscallTester, "subreaper", testFile)
-		if err := cmd.Start(); err != nil {
-			return err
-		}
-		subreaperPid = cmd.Process.Pid
-		return cmd.Wait()
-	}, func(event *model.Event, rule *rules.Rule) {
-		assertTriggeredRule(t, rule, "test_subreaper_open")
-		assertFieldEqual(t, event, "process.parent.file.name", "syscall_tester", "after subreaper reparenting, parent should be syscall_tester")
-		if testEnvironment != DockerEnvironment {
-			// In Docker mode, cmd.Process.Pid is the container-namespace PID
-			// while process.parent.pid is the host PID from eBPF.
-			assertFieldEqual(t, event, "process.parent.pid", subreaperPid, "after subreaper reparenting, parent PID should be the subreaper's PID, not the intermediate child's")
-		}
-	}, "test_subreaper_open")
 }
 
 func TestProcessSID(t *testing.T) {

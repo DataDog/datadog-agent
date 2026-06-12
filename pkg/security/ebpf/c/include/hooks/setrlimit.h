@@ -17,7 +17,7 @@ static const int important_resources[] = {
     RLIMIT_CORE
 };
 
-static __always_inline int handle_setrlimit_common(unsigned int resource, const struct rlimit __user *new_rlim, u32 target_pid)
+static __always_inline int handle_setrlimit_common(void *ctx, unsigned int resource, const struct rlimit __user *new_rlim, u32 target_pid)
 {
     bool is_important = false;
     for (int i = 0; i < ARRAY_SIZE(important_resources); i++) {
@@ -46,7 +46,7 @@ static __always_inline int handle_setrlimit_common(unsigned int resource, const 
         }
     };
 
-    cache_syscall(&cache);
+    cache_syscall_update_cgroup(ctx, &cache);
     return 0;
 }
 
@@ -54,7 +54,7 @@ HOOK_SYSCALL_ENTRY2(setrlimit,
                     unsigned int, resource,
                     const struct rlimit __user *, new_rlim)
 {
-    return handle_setrlimit_common(resource, new_rlim, 0);
+    return handle_setrlimit_common(ctx, resource, new_rlim, 0);
 }
 
 HOOK_ENTRY("security_task_setrlimit")
@@ -135,7 +135,7 @@ HOOK_SYSCALL_ENTRY4(prlimit64,
         return 0;
     }
     
-    return handle_setrlimit_common(resource, new_limit, pid);
+    return handle_setrlimit_common(ctx, resource, new_limit, pid);
 }
 
 HOOK_SYSCALL_EXIT(prlimit64) {

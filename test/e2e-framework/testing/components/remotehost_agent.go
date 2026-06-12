@@ -72,7 +72,7 @@ func (a *RemoteHostAgent) SetComponents(host *RemoteHost, fakeIntake *FakeIntake
 //	)
 func (a *RemoteHostAgent) Configure(t common.Context, opts ...agentparams.Option) {
 	t.Helper()
-	require.NotNil(t, a.host, "RemoteHostAgent.Configure: host not set, call SetComponents first")
+	require.NotNil(common.RequireT{Context: t}, a.host, "RemoteHostAgent.Configure: host not set, call SetComponents first")
 
 	// Merge: apply baseline options first, then caller's overrides
 	merged := make([]agentparams.Option, 0, len(a.baseOptions)+len(opts))
@@ -97,12 +97,13 @@ func applyAgentConfig(t common.Context, host *RemoteHost, fakeIntake *FakeIntake
 		Integrations: make(map[string]*agentparams.FileDefinition),
 		Files:        make(map[string]*agentparams.FileDefinition),
 	}
+	rt := common.RequireT{Context: t}
 	for _, opt := range opts {
-		require.NoError(t, opt(p))
+		require.NoError(rt, opt(p))
 	}
 
 	configFolder, err := host.GetAgentConfigFolder()
-	require.NoError(t, err, "failed to get agent config folder")
+	require.NoError(rt, err, "failed to get agent config folder")
 
 	// Build the full datadog.yaml with framework defaults merged in
 	fullConfig := buildCoreAgentConfig(t, host, fakeIntake, p)
@@ -131,21 +132,22 @@ func applyAgentConfig(t common.Context, host *RemoteHost, fakeIntake *FakeIntake
 		if fileDef.UseSudo {
 			mkdirPrivileged(t, host, dir)
 		} else {
-			require.NoError(t, host.MkdirAll(dir), "failed to create directory %s", dir)
+			require.NoError(rt, host.MkdirAll(dir), "failed to create directory %s", dir)
 		}
 		writeFileDefinition(t, host, filePath, fileDef)
 	}
 
 	// Restart the agent and wait for ready.
-	require.NoError(t, agentClient.Restart(), "failed to restart agent")
+	require.NoError(rt, agentClient.Restart(), "failed to restart agent")
 	restartSubAgentServices(t, host, p)
-	require.Eventually(t, agentClient.IsReady, 2*time.Minute, 5*time.Second, "agent not ready after config change")
+	require.Eventually(rt, agentClient.IsReady, 2*time.Minute, 5*time.Second, "agent not ready after config change")
 }
 
 // buildCoreAgentConfig assembles the full datadog.yaml content by merging the
 // user-provided AgentConfig with framework defaults (fakeintake URLs, API key).
 func buildCoreAgentConfig(t common.Context, host *RemoteHost, fakeIntake *FakeIntake, p *agentparams.Params) string {
 	t.Helper()
+	rt := common.RequireT{Context: t}
 
 	config := p.AgentConfig
 
@@ -166,7 +168,7 @@ func buildCoreAgentConfig(t common.Context, host *RemoteHost, fakeIntake *FakeIn
 	// Merge API key
 	if !p.SkipAPIKeyInConfig {
 		apiKey, err := runner.GetProfile().SecretStore().Get(parameters.APIKey)
-		require.NoError(t, err, "failed to get API key from secret store")
+		require.NoError(rt, err, "failed to get API key from secret store")
 		config = mergeYAML(t, config, fmt.Sprintf("api_key: %s", strings.TrimSpace(apiKey)))
 	}
 
@@ -226,7 +228,7 @@ func mergeYAML(t common.Context, base, overlay string) string {
 		return base
 	}
 	merged, err := utils.MergeYAMLWithSlices(base, overlay)
-	require.NoError(t, err, "failed to merge agent config YAML")
+	require.NoError(common.RequireT{Context: t}, err, "failed to merge agent config YAML")
 	return merged
 }
 
@@ -280,7 +282,7 @@ func writeFileDefinition(t common.Context, host *RemoteHost, fullPath string, fi
 		writeConfigFile(t, host, fullPath, fileDef.Content)
 	} else {
 		_, err := host.WriteFile(fullPath, []byte(fileDef.Content))
-		require.NoError(t, err, "failed to write file %s", fullPath)
+		require.NoError(common.RequireT{Context: t}, err, "failed to write file %s", fullPath)
 	}
 	if perms, ok := fileDef.Permissions.Get(); ok {
 		cmd := perms.SetupPermissionsCommand(fullPath)
