@@ -156,7 +156,6 @@ exports_files(["go.mod"])
 # gazelle:exclude comp/core/flare/flareimpl
 # gazelle:exclude comp/core/gui/fx
 # gazelle:exclude comp/core/gui/impl
-# gazelle:exclude comp/core/hostname/remotehostnameimpl
 # gazelle:exclude comp/core/sysprobeconfig/sysprobeconfigimpl
 # gazelle:exclude comp/core/tagger/fx
 # gazelle:exclude comp/core/tagger/fx-dual
@@ -192,13 +191,10 @@ exports_files(["go.mod"])
 # gazelle:exclude comp/dogstatsd/status/fx
 # gazelle:exclude comp/dogstatsd/status/impl
 # gazelle:exclude comp/forwarder/orchestrator/orchestratorimpl
-# gazelle:exclude comp/haagent/fx
-# gazelle:exclude comp/haagent/impl
 # gazelle:exclude comp/host-profiler/collector/fx
 # gazelle:exclude comp/host-profiler/collector/impl/processor
 # gazelle:exclude comp/host-profiler/flare
 # gazelle:exclude comp/logonduration/fx
-# gazelle:exclude comp/logonduration/impl
 # gazelle:exclude comp/anomalydetection/logssource/impl
 # gazelle:exclude comp/logs/adscheduler/fx
 # gazelle:exclude comp/logs/adscheduler/impl
@@ -249,7 +245,6 @@ exports_files(["go.mod"])
 # gazelle:exclude comp/networkpath/traceroute/fx-local
 # gazelle:exclude comp/networkpath/traceroute/impl-local
 # gazelle:exclude comp/notableevents/fx
-# gazelle:exclude comp/notableevents/impl
 # gazelle:exclude comp/otelcol/collector/fx-pipeline
 # gazelle:exclude comp/otelcol/collector/impl-pipeline
 # gazelle:exclude comp/otelcol/converter/examples
@@ -497,7 +492,6 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/networkdevice/sender
 # gazelle:exclude pkg/networkpath/telemetry
 # gazelle:exclude pkg/networkpath/traceroute/runner
-# gazelle:exclude pkg/orchestrator/config
 # gazelle:exclude pkg/privateactionrunner/autoconnections
 # gazelle:exclude pkg/privateactionrunner/runners
 # gazelle:exclude pkg/privileged-logs/module
@@ -521,7 +515,6 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/security/events
 # gazelle:exclude pkg/security/generators/backend_doc
 # gazelle:exclude pkg/security/module
-# gazelle:exclude pkg/security/probe/config
 # gazelle:exclude pkg/security/probe/constantfetch
 # gazelle:exclude pkg/security/probe/eventstream
 # gazelle:exclude pkg/security/probe/kfilters
