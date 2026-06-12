@@ -145,7 +145,25 @@ cc_library(
 
 filegroup(
     name = "all_srcs",
-    srcs = glob(["**"], exclude = ["BUILD.bazel"]),
+    srcs = glob(
+        ["**"],
+        exclude = [
+            "BUILD.bazel",
+            ".devcontainer/**",
+            "Android/**",
+            "Doc/**",
+            "InternalDocs/**",
+            "iOS/**",
+            # Windows related.
+            "PC/**",
+            "PCbuild/**",
+            "Tools/msi/**",
+            "Tools/nuget/**",
+            # Tests that don't need to be shipped with the Agent
+            "Lib/idlelib/idle_test/**",
+            "Lib/test/**",
+        ],
+    ),
 )
 
 UNIX_BINS = [
