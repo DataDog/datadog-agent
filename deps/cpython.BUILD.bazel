@@ -315,6 +315,8 @@ configure_make(
       --install-prefix "##PREFIX##" \
       --sandbox-prefix "$$BUILD_TMPDIR/$$INSTALL_PREFIX" \
       $$INSTALLDIR/lib/python{version}/_sysconfigdata__*.py
+    rm -f $$INSTALLDIR/lib/python{version}/config-*/Makefile
+    find $$INSTALLDIR/lib/python{version} -name '*.exe' -delete
     """.format(
         version = PYTHON_MAJOR_MINOR,
     ),
@@ -394,19 +396,6 @@ select_file(
     srcs = ":python_unix",
     subpath = "bin/python{}".format(PYTHON_MAJOR_MINOR),
     visibility = ["//visibility:public"],
-)
-
-# Using a copy here is the most convenient way to exclude a bunch of things for the final package
-copy_to_directory(
-    name = "python_lib_dir_unix",
-    srcs = [":python_lib_dir_group_unix"],
-    exclude_srcs_patterns = [
-        "test/**/*",
-        "**/*.exe",
-        "**/Makefile",
-    ],
-    root_paths = ["python_unix/lib/python{}".format(PYTHON_MAJOR_MINOR)],
-    out = "python{}".format(PYTHON_MAJOR_MINOR),
 )
 
 filegroup(
@@ -511,7 +500,7 @@ dd_cc_packaged(
     installed_files = [":_python_pkg_common_files"],
     installed_executables = {
         ":python3_bin": "bin",
-        ":python_lib_dir_unix": "lib/python{}".format(PYTHON_MAJOR_MINOR),
+        ":python_lib_dir_group_unix": "lib/python{}".format(PYTHON_MAJOR_MINOR),
     } | select({
         "@platforms//os:linux": {":python_stable_lib_linux": "lib"},
         "//conditions:default": {},
