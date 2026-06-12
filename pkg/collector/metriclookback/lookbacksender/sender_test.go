@@ -7,10 +7,16 @@ package lookbacksender
 
 import (
 	"context"
+	"errors"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
 
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
@@ -27,9 +33,14 @@ type recordedAppend struct {
 type recordingWriter struct {
 	mu      sync.Mutex
 	appends []recordedAppend
+	err     error
 }
 
 func (w *recordingWriter) Append(ctx context.Context, checkID checkid.ID, samples []metrics.MetricSample) error {
+	if w.err != nil {
+		return w.err
+	}
+
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
@@ -164,6 +175,46 @@ func TestSenderDropsUnsupportedPayloadsAndRejectsInvalidTimestamps(t *testing.T)
 	assert.Equal(t, int64(0), lookbackSender.GetSenderStats().MetricSamples)
 }
 
+func TestSenderTelemetry(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource("telemetry.metric_lookback", "*")
+
+	writer := &recordingWriter{}
+	manager := NewSenderManager(context.Background(), "default-host", writer, func() float64 { return 42 })
+
+	sender, err := manager.GetSender(checkid.ID("cpu:first:shadow"))
+	require.NoError(t, err)
+	lookbackSender := sender.(*Sender)
+
+	distributionDrops := tlmUnsupportedDrops.WithValues("Distribution")
+	dropsBefore := distributionDrops.Get()
+	lookbackSender.Distribution("metric.distribution", 1, "", nil)
+	lookbackSender.Distribution("metric.distribution", 2, "", nil)
+	assert.Equal(t, dropsBefore, distributionDrops.Get())
+
+	lookbackSender.Commit()
+	assert.Equal(t, dropsBefore+2, distributionDrops.Get())
+	lookbackSender.Commit()
+	assert.Equal(t, dropsBefore+2, distributionDrops.Get())
+
+	lookbackSender.Gauge("metric.gauge", 1, "", nil)
+	lookbackSender.Distribution("metric.distribution", 1, "", nil)
+	lookbackSender.Commit()
+
+	telemetry := getTelemetry(t)
+	assert.Contains(t, telemetry, `metric_lookback__writer_append_samples{check_name="cpu",state="ok"}`)
+	assert.Contains(t, telemetry, `metric_lookback__writer_append_duration{check_name="cpu",state="ok"}`)
+	assert.Equal(t, dropsBefore+3, distributionDrops.Get())
+
+	writer.err = errors.New("append failed")
+	lookbackSender.Gauge("metric.gauge", 1, "", nil)
+	lookbackSender.Commit()
+
+	telemetry = getTelemetry(t)
+	assert.Contains(t, telemetry, `metric_lookback__writer_append_samples{check_name="cpu",state="error"}`)
+	assert.Contains(t, telemetry, `metric_lookback__writer_append_duration{check_name="cpu",state="error"}`)
+}
+
 func TestSenderManagerReusesAndDestroysSendersByCheckID(t *testing.T) {
 	manager := NewSenderManager(context.Background(), "default-host", &recordingWriter{}, func() float64 { return 42 })
 	checkID := checkid.ID("cpu:shadow")
@@ -181,3 +232,14 @@ func TestSenderManagerReusesAndDestroysSendersByCheckID(t *testing.T) {
 }
 
 type testContextKey struct{}
+
+func getTelemetry(t *testing.T) string {
+	t.Helper()
+
+	req, err := http.NewRequest("GET", "/", nil)
+	require.NoError(t, err)
+
+	rec := httptest.NewRecorder()
+	telemetryimpl.GetCompatComponent().Handler().ServeHTTP(rec, req)
+	return strings.ReplaceAll(rec.Body.String(), "\r\n", "\n")
+}

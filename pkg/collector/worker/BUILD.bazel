@@ -1,0 +1,29 @@
+# gazelle:ignore
+
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "worker",
+    srcs = [
+        "check_logger.go",
+        "utilization.go",
+        "worker.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/worker",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/telemetry/impl",
+        "//comp/haagent/def",
+        "//comp/healthplatform/store/def",
+        "//pkg/aggregator/sender",
+        "//pkg/collector/check",
+        "//pkg/collector/check/id",
+        "//pkg/collector/runner/expvars",
+        "//pkg/collector/runner/tracker",
+        "//pkg/config/setup",
+        "//pkg/metrics/servicecheck",
+        "//pkg/util/hostname",
+        "//pkg/util/log",
+        "//pkg/util/utilizationtracker",
+    ],
+)

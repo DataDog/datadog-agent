@@ -208,3 +208,132 @@ func TestCollectCheckMetadata_UnknownHashesNotAdded(t *testing.T) {
 
 	assert.NotContains(t, result, "stale-hash", "stale hashes from expvar should not appear in collector path")
 }
+
+func TestSplitShadowRunnerStats(t *testing.T) {
+	runnerStats := map[string]interface{}{
+		"Checks": map[string]interface{}{
+			"cpu": map[string]interface{}{
+				"cpu:first":        map[string]interface{}{"CheckID": "cpu:first"},
+				"cpu:first:shadow": map[string]interface{}{"CheckID": "cpu:first:shadow"},
+			},
+			"memory": map[string]interface{}{
+				"memory:first:shadow": map[string]interface{}{"CheckID": "memory:first:shadow"},
+			},
+		},
+		"Runs": float64(3),
+	}
+
+	shadowStats := splitShadowRunnerStats(runnerStats)
+
+	normalChecks := runnerStats["Checks"].(map[string]interface{})
+	require.Contains(t, normalChecks, "cpu")
+	assert.NotContains(t, normalChecks["cpu"].(map[string]interface{}), "cpu:first:shadow")
+	assert.NotContains(t, normalChecks, "memory")
+
+	shadowChecks := shadowStats["Checks"].(map[string]interface{})
+	require.Contains(t, shadowChecks, "cpu")
+	assert.Contains(t, shadowChecks["cpu"].(map[string]interface{}), "cpu:first:shadow")
+	require.Contains(t, shadowChecks, "memory")
+	assert.Contains(t, shadowChecks["memory"].(map[string]interface{}), "memory:first:shadow")
+}
+
+func TestRenderTextSplitsShadowChecks(t *testing.T) {
+	data := map[string]interface{}{
+		"runnerStats": map[string]interface{}{
+			"Checks": map[string]interface{}{
+				"cpu": map[string]interface{}{
+					"cpu:first":        testRenderedCheckStats("cpu:first", 1, 1),
+					"cpu:first:shadow": testRenderedCheckStats("cpu:first:shadow", 15, 15),
+				},
+			},
+		},
+		"inventories": map[string]interface{}{},
+	}
+	data["shadowRunnerStats"] = splitShadowRunnerStats(data["runnerStats"].(map[string]interface{}))
+
+	output := new(bytes.Buffer)
+	err := Provider{}.TextWithData(output, data)
+
+	require.NoError(t, err)
+	rendered := output.String()
+	require.Contains(t, rendered, "Running Checks")
+	require.Contains(t, rendered, "Shadow Checks")
+	require.Contains(t, rendered, "runner aggregate counts and worker utilization are shared")
+	assert.Contains(t, rendered, "Instance ID: cpu:first ")
+	assert.Contains(t, rendered, "Instance ID: cpu:first:shadow ")
+	assert.Less(t, strings.Index(rendered, "Instance ID: cpu:first "), strings.Index(rendered, "Shadow Checks"))
+	assert.Greater(t, strings.Index(rendered, "Instance ID: cpu:first:shadow "), strings.Index(rendered, "Shadow Checks"))
+}
+
+func TestRenderTextWithOnlyShadowChecksShowsNormalEmptyState(t *testing.T) {
+	data := map[string]interface{}{
+		"runnerStats": map[string]interface{}{
+			"Checks": map[string]interface{}{
+				"cpu": map[string]interface{}{
+					"cpu:first:shadow": testRenderedCheckStats("cpu:first:shadow", 15, 15),
+				},
+			},
+			"Runs": float64(15),
+		},
+		"inventories": map[string]interface{}{},
+	}
+	data["shadowRunnerStats"] = splitShadowRunnerStats(data["runnerStats"].(map[string]interface{}))
+
+	output := new(bytes.Buffer)
+	err := Provider{}.TextWithData(output, data)
+
+	require.NoError(t, err)
+	rendered := output.String()
+	assert.Contains(t, rendered, "No normal checks have run yet")
+	assert.Contains(t, rendered, "Shadow Checks")
+	assert.Contains(t, rendered, "Instance ID: cpu:first:shadow ")
+}
+
+func TestRenderHTMLSplitsShadowChecks(t *testing.T) {
+	data := map[string]interface{}{
+		"runnerStats": map[string]interface{}{
+			"Checks": map[string]interface{}{
+				"cpu": map[string]interface{}{
+					"cpu:first":        testRenderedCheckStats("cpu:first", 1, 1),
+					"cpu:first:shadow": testRenderedCheckStats("cpu:first:shadow", 15, 15),
+				},
+			},
+		},
+		"inventories": map[string]interface{}{},
+	}
+	data["shadowRunnerStats"] = splitShadowRunnerStats(data["runnerStats"].(map[string]interface{}))
+
+	output := new(bytes.Buffer)
+	err := status.RenderHTML(templatesFS, "collectorHTML.tmpl", output, data)
+
+	require.NoError(t, err)
+	rendered := output.String()
+	require.Contains(t, rendered, "Running Checks")
+	require.Contains(t, rendered, "Shadow Checks")
+	require.Contains(t, rendered, "Runner aggregate counts and worker utilization are shared")
+	assert.Contains(t, rendered, "Instance ID: cpu:first ")
+	assert.Contains(t, rendered, "Instance ID: cpu:first:shadow ")
+	assert.Less(t, strings.Index(rendered, "Instance ID: cpu:first "), strings.Index(rendered, "Shadow Checks"))
+	assert.Greater(t, strings.Index(rendered, "Instance ID: cpu:first:shadow "), strings.Index(rendered, "Shadow Checks"))
+}
+
+func testRenderedCheckStats(id string, totalRuns, totalMetricSamples int) map[string]interface{} {
+	return map[string]interface{}{
+		"CheckID":                  id,
+		"CheckConfigSource":        "file:cpu",
+		"TotalRuns":                float64(totalRuns),
+		"MetricSamples":            float64(1),
+		"TotalMetricSamples":       float64(totalMetricSamples),
+		"Events":                   float64(0),
+		"TotalEvents":              float64(0),
+		"EventPlatformEvents":      map[string]interface{}{},
+		"TotalEventPlatformEvents": map[string]interface{}{},
+		"ServiceChecks":            float64(0),
+		"TotalServiceChecks":       float64(0),
+		"AverageExecutionTime":     float64(1),
+		"UpdateTimestamp":          float64(1708424850),
+		"LastSuccessDate":          float64(1708424850),
+		"LastError":                "",
+		"LastWarnings":             []interface{}{},
+	}
+}
