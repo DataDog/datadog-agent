@@ -28,7 +28,6 @@ enum telemetry_counter {
     tcp_syn_retransmit,
     protocol_classifier_calls,
     protocol_classifier_skipped_fully_classified,
-    protocol_classifier_skipped_max_attempts,
     protocol_classifier_skipped_fully_classified_v2,
 };
 
@@ -80,9 +79,6 @@ static __always_inline void __increment_telemetry_count(enum telemetry_counter c
     case protocol_classifier_skipped_fully_classified:
         __sync_fetch_and_add(&val->protocol_classifier_skipped_fully_classified, times);
         break;
-    case protocol_classifier_skipped_max_attempts:
-        __sync_fetch_and_add(&val->protocol_classifier_skipped_max_attempts, times);
-        break;
     case protocol_classifier_skipped_fully_classified_v2:
         __sync_fetch_and_add(&val->protocol_classifier_skipped_fully_classified_v2, times);
         break;
@@ -116,6 +112,45 @@ static __always_inline void record_classification_attempt_resolved(__u8 app_prot
         return;
     }
     __sync_fetch_and_add(&val->classification_attempt_histogram[app_proto_num][bucket], 1);
+}
+
+// record_classification_skip_attempt records a classification pass into the
+// shadow-evaluation skip histogram, bucketed by the per-flow attempt depth `a`
+// (the count of prior classification passes for this still-unclassified flow).
+// Bucket lower edges are the candidate cap values {1,2,3,4,5,10,20,50,100}; a pass
+// at depth a lands in the band [edge, next_edge). Userspace derives "passes a cap of
+// N would skip" as the sum of buckets with edge >= N. a < 1 is not recorded (no cap
+// >= 1 would skip the very first pass). See the NTWK-684 plan doc.
+static __always_inline void record_classification_skip_attempt(__u16 a) {
+    if (a < 1) {
+        return;
+    }
+    int bucket;
+    if (a < 2) {
+        bucket = 0;
+    } else if (a < 3) {
+        bucket = 1;
+    } else if (a < 4) {
+        bucket = 2;
+    } else if (a < 5) {
+        bucket = 3;
+    } else if (a < 10) {
+        bucket = 4;
+    } else if (a < 20) {
+        bucket = 5;
+    } else if (a < 50) {
+        bucket = 6;
+    } else if (a < 100) {
+        bucket = 7;
+    } else {
+        bucket = 8;
+    }
+    __u64 key = 0;
+    telemetry_t *val = bpf_map_lookup_elem(&telemetry, &key);
+    if (val == NULL) {
+        return;
+    }
+    __sync_fetch_and_add(&val->classification_skip_attempt_histogram[bucket], 1);
 }
 
 __maybe_unused static __always_inline void sockaddr_to_addr(struct sockaddr *sa, u64 *addr_h, u64 *addr_l, u16 *port, u32 *metadata) {

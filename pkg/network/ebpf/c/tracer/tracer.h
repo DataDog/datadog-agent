@@ -134,6 +134,13 @@ typedef struct {
 #define CLASSIFICATION_APP_PROTO_BUCKETS 16
 #define CLASSIFICATION_MAX_ATTEMPT_BUCKETS 16
 
+// classification_skip_attempt_histogram buckets a classification pass by the per-flow
+// attempt depth at which it occurred (for flows not yet classified under v1). Bucket
+// lower edges are the candidate cap values {1,2,3,4,5,10,20,50,100}; userspace derives
+// "passes a cap of N would skip" as the sum of buckets with edge >= N. Env-independent:
+// one run measures every candidate cap. See the NTWK-684 plan doc.
+#define CLASSIFICATION_SKIP_BUCKETS 9
+
 // Telemetry names
 typedef struct {
     __u64 tcp_sent_miscounts;
@@ -150,7 +157,6 @@ typedef struct {
     __u64 tcp_syn_retransmit;
     __u64 protocol_classifier_calls;
     __u64 protocol_classifier_skipped_fully_classified;
-    __u64 protocol_classifier_skipped_max_attempts;
     // Shadow-evaluation: count of packets where the candidate v2 predicate
     // (is_fully_classified_v2 — v1 OR encryption-layer-known) WOULD short-circuit
     // but v1 did not. Counted, not enforced.
@@ -158,6 +164,11 @@ typedef struct {
     // Shadow-evaluation histogram: count of connections whose application-layer
     // protocol was first observed resolved on a given attempt, per protocol.
     __u64 classification_attempt_histogram[CLASSIFICATION_APP_PROTO_BUCKETS][CLASSIFICATION_MAX_ATTEMPT_BUCKETS];
+    // Shadow-evaluation histogram: count of classification passes by per-flow attempt
+    // depth, for flows not yet classified under v1. Replaces the env-var-dependent
+    // protocol_classifier_skipped_max_attempts scalar — one run measures every candidate
+    // cap N (userspace sums buckets with edge >= N). Indexed per CLASSIFICATION_SKIP_BUCKETS.
+    __u64 classification_skip_attempt_histogram[CLASSIFICATION_SKIP_BUCKETS];
 } telemetry_t;
 
 typedef struct {

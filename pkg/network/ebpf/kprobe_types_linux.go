@@ -76,9 +76,9 @@ type Telemetry struct {
 	Tcp_syn_retransmit                              uint64
 	Protocol_classifier_calls                       uint64
 	Protocol_classifier_skipped_fully_classified    uint64
-	Protocol_classifier_skipped_max_attempts        uint64
 	Protocol_classifier_skipped_fully_classified_v2 uint64
 	Classification_attempt_histogram                [16][16]uint64
+	Classification_skip_attempt_histogram           [9]uint64
 }
 type PortBinding struct {
 	Netns     uint32
