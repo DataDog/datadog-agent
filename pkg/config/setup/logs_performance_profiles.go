@@ -8,6 +8,7 @@ package setup
 import (
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -246,7 +247,7 @@ func sortedVersions(versions map[int]logsPerformanceProfile) string {
 	sort.Ints(nums)
 	parts := make([]string, 0, len(nums))
 	for _, n := range nums {
-		parts = append(parts, fmt.Sprintf("%d", n))
+		parts = append(parts, strconv.Itoa(n))
 	}
 	return strings.Join(parts, ", ")
 }
