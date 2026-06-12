@@ -13,8 +13,8 @@ import (
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/commands"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 )
 
 // common constants for all the updater subcommands.
@@ -52,7 +52,7 @@ type SubcommandFactory func(globalParams *GlobalParams) []*cobra.Command
 // MakeCommand makes the top-level Cobra command for this app.
 func MakeCommand(subcommandFactories []SubcommandFactory) *cobra.Command {
 	globalParams := GlobalParams{
-		ConfFilePath: pkgconfigsetup.DefaultUpdaterLogFile,
+		ConfFilePath: defaultpaths.GetDefaultUpdaterLogFile(),
 	}
 
 	// AgentCmd is the root command

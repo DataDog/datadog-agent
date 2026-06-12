@@ -51,8 +51,9 @@ func testOTLPIngestDocker(t *testing.T, v3Enabled bool) {
 		dockeragentparams.WithAgentServiceEnvVariable("DD_OTLP_CONFIG_METRICS_RESOURCE_ATTRIBUTES_AS_TAGS", pulumi.StringPtr("true")),
 		dockeragentparams.WithExtraComposeManifest("calendar-rest-go", pulumi.String(strings.ReplaceAll(otlpIngestCompose, "{APPS_VERSION}", apps.Version))),
 	}
-	if v3Enabled {
-		agentOptions = append(agentOptions, dockeragentparams.WithV3MetricsEnabled())
+	if !v3Enabled {
+		// V3 is the default intake; force V2 explicitly to exercise the V2 wire format.
+		agentOptions = append(agentOptions, dockeragentparams.WithV3MetricsDisabled())
 	}
 
 	stackName := "otlpingestdocker"
@@ -73,13 +74,14 @@ func testOTLPIngestDocker(t *testing.T, v3Enabled bool) {
 	)
 }
 
-// TestOTLPIngestDocker runs the OTLP ingest Docker e2e test with the default V2 metrics endpoint.
+// TestOTLPIngestDocker runs the OTLP ingest Docker e2e test with the V2 metrics intake API
+// (V3 is the default, so this variant disables it explicitly).
 func TestOTLPIngestDocker(t *testing.T) {
 	testOTLPIngestDocker(t, false)
 }
 
-// TestOTLPIngestDockerV3 runs the OTLP ingest Docker e2e test with the V3 metrics intake API
-// enabled. Metric assertions are identical to the V2 variant; the test additionally verifies
+// TestOTLPIngestDockerV3 runs the OTLP ingest Docker e2e test with the default V3 metrics intake
+// API. Metric assertions are identical to the V2 variant; the test additionally verifies
 // that payloads were routed to /api/intake/metrics/v3/series and not /api/v2/series.
 func TestOTLPIngestDockerV3(t *testing.T) {
 	testOTLPIngestDocker(t, true)

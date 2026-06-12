@@ -113,7 +113,7 @@ func setupConfig(config pkgconfigmodel.BuildableConfig, secretComp secrets.Compo
 
 // GetInstallPath returns the install path for the agent
 func GetInstallPath() string {
-	return pkgconfigsetup.InstallPath
+	return defaultpaths.GetInstallPath()
 }
 
 // getCommonRoot determines the common root path from CLI flags or environment.

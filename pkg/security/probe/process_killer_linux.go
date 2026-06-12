@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"path/filepath"
 	"syscall"
 
 	psutil "github.com/shirou/gopsutil/v4/process"
@@ -17,21 +18,25 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 )
 
-var (
-	// list of binaries that can't be killed
-	binariesExcluded = []string{
-		// package / image
-		"/opt/datadog-agent/bin/agent/agent",
-		"/opt/datadog-agent/embedded/bin/trace-agent",
-		"/opt/datadog-agent/embedded/bin/security-agent",
-		"/opt/datadog-agent/embedded/bin/process-agent",
-		"/opt/datadog-agent/embedded/bin/system-probe",
-		"/opt/datadog-agent/embedded/bin/cws-instrumentation",
-		"/opt/datadog-agent/embedded/bin/privateactionrunner",
-		"/opt/datadog-agent/bin/datadog-cluster-agent",
-		// installer
+// getBinariesExcluded returns the list of binaries that can't be killed.
+// Paths are built dynamically based on the configured install path.
+func getBinariesExcluded() []string {
+	installPath := defaultpaths.GetInstallPath()
+
+	return []string{
+		// package / image - dynamic paths based on install location
+		filepath.Join(installPath, "bin/agent/agent"),
+		filepath.Join(installPath, "embedded/bin/trace-agent"),
+		filepath.Join(installPath, "embedded/bin/security-agent"),
+		filepath.Join(installPath, "embedded/bin/process-agent"),
+		filepath.Join(installPath, "embedded/bin/system-probe"),
+		filepath.Join(installPath, "embedded/bin/cws-instrumentation"),
+		filepath.Join(installPath, "embedded/bin/privateactionrunner"),
+		filepath.Join(installPath, "bin/datadog-cluster-agent"),
+		// installer - these use wildcards and remain hard-coded
 		"/opt/datadog-packages/datadog-agent/*/bin/agent/agent",
 		"/opt/datadog-packages/datadog-agent/*/embedded/bin/trace-agent",
 		"/opt/datadog-packages/datadog-agent/*/embedded/bin/security-agent",
@@ -42,6 +47,11 @@ var (
 		"/opt/datadog-packages/datadog-agent/*/bin/datadog-cluster-agent",
 		"/opt/datadog-packages/datadog-installer/*/bin/installer/installer",
 	}
+}
+
+var (
+	// binariesExcluded is populated at init time from getBinariesExcluded()
+	binariesExcluded = getBinariesExcluded()
 )
 
 type killContext struct {

@@ -51,6 +51,7 @@ type ConfigFormatWrapper struct {
 	ConfigFormat string
 	Filename     string
 	Hash         string
+	IsDiscovery  bool // Marks this config as a discovery template (instances will be populated at runtime later)
 }
 
 type configPkg struct {
@@ -445,9 +446,9 @@ func GetIntegrationConfigFromFile(name, fpath string) (integration.Config, Confi
 		return conf, ConfigFormatWrapper{}, err
 	}
 
-	// If no valid instances were found & this is neither a metrics file, nor a logs file
-	// this is not a valid configuration file
-	if cf.MetricConfig == nil && cf.LogsConfig == nil && len(cf.Instances) < 1 {
+	// If no valid instances were found & this is neither a metrics file, a logs file,
+	// nor a discovery-only template, this is not a valid configuration file
+	if cf.MetricConfig == nil && cf.LogsConfig == nil && cf.Discovery == nil && len(cf.Instances) < 1 {
 		return conf, ConfigFormatWrapper{}, errors.New("Configuration file contains no valid instances")
 	}
 
@@ -523,7 +524,7 @@ func GetIntegrationConfigFromFile(name, fpath string) (integration.Config, Confi
 	conf.Source = "file:" + fpath
 	hash := sha256.Sum256([]byte(scrubbedConfigFormat))
 
-	return conf, ConfigFormatWrapper{ConfigFormat: scrubbedConfigFormat, Filename: fpath, Hash: hex.EncodeToString(hash[:])}, err
+	return conf, ConfigFormatWrapper{ConfigFormat: scrubbedConfigFormat, Filename: fpath, Hash: hex.EncodeToString(hash[:]), IsDiscovery: cf.Discovery != nil}, err
 }
 
 func containsString(slice []string, str string) bool {

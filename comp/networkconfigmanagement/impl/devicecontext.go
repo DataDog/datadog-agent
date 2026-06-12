@@ -63,3 +63,13 @@ func (dc *DeviceContext) GetTags() []string {
 		"profile:" + dc.profile.Name,
 	}
 }
+
+// GetExplicitProfile returns the profile if and only if one was explicitly
+// configured (as opposed to being inferred). If the profile is unknown or was
+// inferred, this will return nil.
+func (dc *DeviceContext) GetExplicitProfile() *ncmprofile.NCMProfile {
+	if dc.device.Profile == "" {
+		return nil
+	}
+	return dc.profile
+}

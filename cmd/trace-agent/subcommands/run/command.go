@@ -89,7 +89,7 @@ func runTraceAgentProcess(ctx context.Context, cliParams *Params, defaultConfPat
 		telemetryfx.Module(),
 		coreconfig.Module(),
 		fx.Provide(func() log.Params {
-			return log.ForDaemon("TRACE", "apm_config.log_file", traceconfigimpl.DefaultLogFilePath)
+			return log.ForDaemon("TRACE", "apm_config.log_file", traceconfigimpl.DefaultLogFilePath())
 		}),
 		logtracefx.Module(),
 		autoexitfx.Module(),

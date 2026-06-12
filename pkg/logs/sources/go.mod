@@ -32,6 +32,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/fips v0.75.4 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/types v0.75.4 // indirect
 	github.com/DataDog/datadog-agent/pkg/template v0.75.4 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/defaultpaths v0.64.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.75.4 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.75.4 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.75.4 // indirect

@@ -225,13 +225,13 @@ func (p *PrivateActionRunner) start(ctx context.Context) error {
 
 	keysManager := taskverifier.NewKeyManager(p.rcClient)
 	taskVerifier := taskverifier.NewTaskVerifier(keysManager, cfg)
-	opmsClient := opms.NewClient(cfg)
+	opmsClient := opms.NewClient(p.coreConfig, cfg)
 
 	p.workflowRunner, err = runners.NewWorkflowRunner(cfg, keysManager, taskVerifier, opmsClient, p.traceroute, p.eventPlatform, p.ipc.GetClient())
 	if err != nil {
 		return err
 	}
-	p.commonRunner = runners.NewCommonRunner(cfg)
+	p.commonRunner = runners.NewCommonRunner(p.coreConfig, cfg)
 	err = p.workflowRunner.Start(ctx)
 	if err != nil {
 		return err

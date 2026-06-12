@@ -70,7 +70,7 @@ func TestCollectCommand(t *testing.T) {
 				require.Equal(t, "collect", cliParams.command)
 				require.Equal(t, "debug", cliParams.jmxLogLevel)      // overrides --log-level
 				require.Equal(t, "debug", coreParams.LogLevelFn(nil)) // overrides --log-level
-				require.True(t, strings.HasPrefix(cliParams.logFile, defaultpaths.JMXFlareDirectory))
+				require.True(t, strings.HasPrefix(cliParams.logFile, defaultpaths.GetDefaultJMXFlareDirectory()))
 				require.Equal(t, cliParams.logFile, coreParams.LogFileFn(nil))
 				require.Equal(t, "CORE", coreParams.LoggerName())
 			})

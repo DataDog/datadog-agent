@@ -29,6 +29,7 @@ go_library(
         "//comp/core/telemetry/fx",
         "//comp/core/telemetry/fx-noop",
         "//pkg/config/setup",
+        "//pkg/util/defaultpaths",
         "//pkg/util/fxutil",
         "//pkg/util/option",
         "@io_opentelemetry_go_collector_component//:component",

@@ -21,7 +21,7 @@ type gpuMetricSender struct {
 }
 
 func (gpuMetricSender *gpuMetricSender) Init() error {
-	regex, err := regexp.Compile(`(?:EMC_FREQ\s*(?P<emcPct>\d+)%(?:@(?P<emcFreq>\d+))?\s*)?GR3D_FREQ\s*(?P<gpuPct>\d+)%(?:@(?P<gpuFreq>\d+)|@(?:\[(?P<gpcFreqs>(?:\d+,?)+)]))?`)
+	regex, err := regexp.Compile(`(?:EMC_FREQ\s*(?P<emcPct>\d+)%(?:@(?P<emcFreq>\d+))?\s*)?GR3D_FREQ\s*(?:(?P<gpuPct>\d+)%)?(?:@(?P<gpuFreq>\d+)|@(?:\[(?P<gpcFreqs>(?:\d+,?)+)]))?`)
 	if err != nil {
 		return err
 	}
@@ -52,11 +52,13 @@ func (gpuMetricSender *gpuMetricSender) SendMetrics(sender sender.Sender, field 
 		sender.Gauge("nvidia.jetson.emc.freq", emcFreq, "", nil)
 	}
 
-	gpuPct, err := strconv.ParseFloat(gpuFields["gpuPct"], 64)
-	if err != nil {
-		return err
+	if len(gpuFields["gpuPct"]) > 0 {
+		gpuPct, err := strconv.ParseFloat(gpuFields["gpuPct"], 64)
+		if err != nil {
+			return err
+		}
+		sender.Gauge("nvidia.jetson.gpu.usage", gpuPct, "", nil)
 	}
-	sender.Gauge("nvidia.jetson.gpu.usage", gpuPct, "", nil)
 
 	if len(gpuFields["gpuFreq"]) > 0 {
 		gpuFreq, err := strconv.ParseFloat(gpuFields["gpuFreq"], 64)

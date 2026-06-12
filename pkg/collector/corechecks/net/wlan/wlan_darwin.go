@@ -24,7 +24,7 @@ import (
 	"time"
 
 	checkpkg "github.com/DataDog/datadog-agent/pkg/collector/check"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -103,7 +103,7 @@ func (c *WLANCheck) GetWiFiInfo() (wifiInfo, error) {
 	}
 
 	// Try to fetch from console user's GUI
-	socketPath := filepath.Join(pkgconfigsetup.InstallPath, "run", "ipc", fmt.Sprintf("gui-%s.sock", uid))
+	socketPath := filepath.Join(defaultpaths.GetInstallPath(), "run", "ipc", fmt.Sprintf("gui-%s.sock", uid))
 	info, err := c.fetchWiFiFromGUI(socketPath, 1*time.Second)
 	if err != nil {
 		// GUI might not be running - try to launch it
@@ -143,7 +143,7 @@ func (c *WLANCheck) GetWiFiInfo() (wifiInfo, error) {
 // WiFi data is system-wide, so any user's GUI will return identical data
 func (c *WLANCheck) tryAnyAvailableGUISocket() (wifiInfo, error) {
 	// Find all GUI sockets
-	runPath := filepath.Join(pkgconfigsetup.InstallPath, "run", "ipc")
+	runPath := filepath.Join(defaultpaths.GetInstallPath(), "run", "ipc")
 	socketsPattern := filepath.Join(runPath, "gui-*.sock")
 	sockets, err := filepath.Glob(socketsPattern)
 	if err != nil {

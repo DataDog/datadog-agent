@@ -238,20 +238,20 @@ func patchContainerResources(reco datadoghqcommon.DatadogPodAutoscalerContainerR
 		cont.Resources.Requests = corev1.ResourceList{}
 	}
 	for resourceName, limit := range reco.Limits {
-		if limit.Sign() < 0 {
-			// Negative value (removeLimitSentinel) is set by applyVerticalConstraints in burstable
-			// mode, meaning "remove this limit from the container".
-			if _, hasCurrent := cont.Resources.Limits[resourceName]; hasCurrent {
+		if limit.Cmp(removeLimitSentinel) == 0 {
+			// Sentinel: applyVerticalConstraints signalled that this limit must be actively
+			// removed from the pod (e.g. CPURequestsRemoveLimitsMemoryRequestsAndLimits).
+			if _, exists := cont.Resources.Limits[resourceName]; exists {
 				delete(cont.Resources.Limits, resourceName)
 				patched = true
 			}
-		} else if cont.Resources.Limits[resourceName] != limit {
+		} else if limit.Cmp(cont.Resources.Limits[resourceName]) != 0 {
 			cont.Resources.Limits[resourceName] = limit
 			patched = true
 		}
 	}
 	for resourceName, request := range reco.Requests {
-		if cont.Resources.Requests[resourceName] != request {
+		if request.Cmp(cont.Resources.Requests[resourceName]) != 0 {
 			cont.Resources.Requests[resourceName] = request
 			patched = true
 		}

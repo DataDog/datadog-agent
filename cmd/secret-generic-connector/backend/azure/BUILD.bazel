@@ -1,4 +1,7 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+# gazelle:dd_agent_go_test on
 
 go_library(
     name = "azure",
@@ -14,11 +17,10 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "azure_test",
     srcs = ["keyvault_test.go"],
     embed = [":azure"],
-    gotags = ["test"],
     deps = [
         "//cmd/secret-generic-connector/secret",
         "@com_github_azure_azure_sdk_for_go_sdk_security_keyvault_azsecrets//:azsecrets",

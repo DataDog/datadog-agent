@@ -31,7 +31,7 @@ properties:
       log_file:
         node_type: setting
         type: string
-        default: ''
+        default: ${log_path}/system-probe.log
         visibility: public
         description: The full path to the file where system-probe logs are written.
         example: /var/log/datadog/system-probe.log
@@ -511,7 +511,7 @@ properties:
       remote_config_btf_enabled:
         node_type: setting
         type: boolean
-        default: false
+        default: true
         env_vars:
         - DD_SYSTEM_PROBE_REMOTE_CONFIG_BTF_ENABLED
         tags: []

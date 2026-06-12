@@ -26,6 +26,8 @@ go_test(
     gotags = ["test"],
     deps = [
         "//comp/core/log/mock",
+        "//comp/forwarder/defaultforwarder/endpoints",
+        "//comp/forwarder/defaultforwarder/transaction",
         "//pkg/config/mock",
         "//pkg/config/utils",
         "@com_github_stretchr_testify//assert",

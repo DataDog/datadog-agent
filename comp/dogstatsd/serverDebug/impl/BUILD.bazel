@@ -15,7 +15,6 @@ go_library(
         "//pkg/config/model",
         "//pkg/metrics",
         "//pkg/tagset",
-        "//pkg/util/defaultpaths",
         "//pkg/util/log",
         "//pkg/util/log/setup",
         "@com_github_benbjohnson_clock//:clock",

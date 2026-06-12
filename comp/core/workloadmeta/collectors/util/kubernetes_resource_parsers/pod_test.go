@@ -142,3 +142,52 @@ func TestPodParser_Parse(t *testing.T) {
 		cmp.Diff(expected, parsed, opt),
 	)
 }
+
+func TestResizePolicyFromContainerResizePolicy(t *testing.T) {
+	rule := func(r corev1.ResourceName, p corev1.ResourceResizeRestartPolicy) corev1.ContainerResizePolicy {
+		return corev1.ContainerResizePolicy{ResourceName: r, RestartPolicy: p}
+	}
+
+	tests := []struct {
+		name  string
+		rules []corev1.ContainerResizePolicy
+		want  workloadmeta.ContainerResizePolicy
+	}{
+		{
+			name:  "no rules",
+			rules: nil,
+			want:  workloadmeta.ContainerResizePolicy{},
+		},
+		{
+			name:  "cpu only",
+			rules: []corev1.ContainerResizePolicy{rule(corev1.ResourceCPU, corev1.NotRequired)},
+			want:  workloadmeta.ContainerResizePolicy{CPURestartPolicy: string(corev1.NotRequired)},
+		},
+		{
+			name:  "memory only",
+			rules: []corev1.ContainerResizePolicy{rule(corev1.ResourceMemory, corev1.RestartContainer)},
+			want:  workloadmeta.ContainerResizePolicy{MemoryRestartPolicy: string(corev1.RestartContainer)},
+		},
+		{
+			name: "both resources",
+			rules: []corev1.ContainerResizePolicy{
+				rule(corev1.ResourceCPU, corev1.NotRequired),
+				rule(corev1.ResourceMemory, corev1.RestartContainer),
+			},
+			want: workloadmeta.ContainerResizePolicy{
+				CPURestartPolicy:    string(corev1.NotRequired),
+				MemoryRestartPolicy: string(corev1.RestartContainer),
+			},
+		},
+		{
+			name:  "unsupported resource ignored",
+			rules: []corev1.ContainerResizePolicy{rule(corev1.ResourceName("ephemeral-storage"), corev1.RestartContainer)},
+			want:  workloadmeta.ContainerResizePolicy{},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, ResizePolicyFromContainerResizePolicy(tc.rules))
+		})
+	}
+}

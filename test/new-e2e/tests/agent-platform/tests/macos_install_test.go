@@ -48,8 +48,7 @@ func (m *macosInstallSuite) TestInstallAgent() {
 
 	// The agent should start at some point
 	m.EventuallyWithT(func(c *assert.CollectT) {
-		_, err := macosTestClient.Execute("sudo /usr/local/bin/datadog-agent status")
-		assert.NoError(c, err)
+		macosTestClient.MustExecuteOn(c, "sudo /usr/local/bin/datadog-agent status")
 	}, 20*time.Second, 1*time.Second)
 
 	// check that there is no world-writable files or directories in /opt/datadog-agent

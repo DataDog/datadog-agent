@@ -16,6 +16,7 @@ import (
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestGrain(t *testing.T) {
@@ -260,10 +261,121 @@ func TestGrainWithSynthetics(t *testing.T) {
 	}, aggr)
 }
 
+func newAdditionalMetricTagStatSpan(value string) *StatSpan {
+	return &StatSpan{
+		service:                      "checkout-service",
+		name:                         "checkout.process",
+		resource:                     "POST /checkout/process",
+		isTopLevel:                   true,
+		duration:                     int64(time.Millisecond),
+		matchingAdditionalMetricTags: []string{"customer_id:" + value},
+	}
+}
+
+func TestRawBucketAdditionalMetricTagsCardinalityLimit(t *testing.T) {
+	aggKey := PayloadAggregationKey{Env: "prod", Hostname: "host"}
+	sb := NewRawBucket(0, 1e9, 2)
+	spanA := newAdditionalMetricTagStatSpan("a")
+	spanB := newAdditionalMetricTagStatSpan("b")
+	spanC := newAdditionalMetricTagStatSpan("c")
+	spanD := newAdditionalMetricTagStatSpan("d")
+	spanAAgain := newAdditionalMetricTagStatSpan("a")
+
+	assert.Zero(t, sb.HandleSpan(spanA, 1, "", aggKey))
+	assert.Zero(t, sb.HandleSpan(spanB, 1, "", aggKey))
+	assert.Equal(t, 1, sb.HandleSpan(spanC, 1, "", aggKey))
+	assert.Equal(t, []string{"customer_id:tracer_blocked_value"}, spanC.matchingAdditionalMetricTags)
+	assert.Equal(t, 1, sb.HandleSpan(spanD, 1, "", aggKey))
+	assert.Equal(t, []string{"customer_id:tracer_blocked_value"}, spanD.matchingAdditionalMetricTags)
+	assert.Zero(t, sb.HandleSpan(spanAAgain, 1, "", aggKey))
+	assert.Equal(t, []string{"customer_id:a"}, spanAAgain.matchingAdditionalMetricTags)
+
+	require.Len(t, sb.data, 3)
+	assert.Equal(t, 2, sb.additionalTagsEntries)
+	assert.True(t, sb.warnedThisBucket)
+
+	spanAAggr := NewAggregationFromSpan(spanA, "", aggKey)
+	spanBAggr := NewAggregationFromSpan(spanB, "", aggKey)
+	maskedAggr := NewAggregationFromSpan(spanC, "", aggKey)
+
+	spanAStats, ok := sb.data[spanAAggr]
+	require.True(t, ok)
+	assert.Equal(t, 2.0, spanAStats.hits)
+
+	spanBStats, ok := sb.data[spanBAggr]
+	require.True(t, ok)
+	assert.Equal(t, 1.0, spanBStats.hits)
+
+	maskedStats, ok := sb.data[maskedAggr]
+	require.True(t, ok)
+	assert.Equal(t, 2.0, maskedStats.hits)
+	assert.Equal(t, []string{"customer_id:tracer_blocked_value"}, maskedStats.additionalMetricTags)
+}
+
+func TestRawBucketAdditionalMetricTagsCardinalityLimitDefaultNoop(t *testing.T) {
+	aggKey := PayloadAggregationKey{Env: "prod", Hostname: "host"}
+	sb := NewRawBucket(0, 1e9, 0)
+	spans := []*StatSpan{
+		newAdditionalMetricTagStatSpan("a"),
+		newAdditionalMetricTagStatSpan("b"),
+		newAdditionalMetricTagStatSpan("c"),
+	}
+
+	for _, span := range spans {
+		assert.Zero(t, sb.HandleSpan(span, 1, "", aggKey))
+	}
+
+	require.Len(t, sb.data, 3)
+	assert.Zero(t, sb.additionalTagsEntries)
+	assert.False(t, sb.warnedThisBucket)
+	assert.Equal(t, []string{"customer_id:c"}, spans[2].matchingAdditionalMetricTags)
+}
+
+func TestSpanConcentratorAdditionalMetricTagsCardinalityLimitResetsPerBucket(t *testing.T) {
+	bsize := int64(time.Second)
+	sc := NewSpanConcentrator(&SpanConcentratorConfig{
+		BucketInterval:                       bsize,
+		AdditionalMetricTagsCardinalityLimit: 1,
+	}, time.Unix(0, 0))
+	aggKey := PayloadAggregationKey{Env: "prod", Hostname: "host"}
+
+	firstAdmitted := newAdditionalMetricTagStatSpan("first-admitted")
+	firstAdmitted.start = 1
+	firstBlocked := newAdditionalMetricTagStatSpan("first-blocked")
+	firstBlocked.start = 2
+	secondAdmitted := newAdditionalMetricTagStatSpan("second-admitted")
+	secondAdmitted.start = bsize + 1
+	secondBlocked := newAdditionalMetricTagStatSpan("second-blocked")
+	secondBlocked.start = bsize + 2
+
+	sc.addSpan(firstAdmitted, aggKey, infraTags{}, "", 1)
+	sc.addSpan(firstBlocked, aggKey, infraTags{}, "", 1)
+	sc.addSpan(secondAdmitted, aggKey, infraTags{}, "", 1)
+	sc.addSpan(secondBlocked, aggKey, infraTags{}, "", 1)
+
+	assert.Equal(t, []string{"customer_id:first-admitted"}, firstAdmitted.matchingAdditionalMetricTags)
+	assert.Equal(t, []string{"customer_id:tracer_blocked_value"}, firstBlocked.matchingAdditionalMetricTags)
+	assert.Equal(t, []string{"customer_id:second-admitted"}, secondAdmitted.matchingAdditionalMetricTags)
+	assert.Equal(t, []string{"customer_id:tracer_blocked_value"}, secondBlocked.matchingAdditionalMetricTags)
+
+	require.Len(t, sc.buckets, 2)
+	firstBucket, ok := sc.buckets[0]
+	require.True(t, ok)
+	secondBucket, ok := sc.buckets[bsize]
+	require.True(t, ok)
+
+	assert.Equal(t, 1, firstBucket.additionalTagsEntries)
+	assert.True(t, firstBucket.warnedThisBucket)
+	assert.Equal(t, 1, secondBucket.additionalTagsEntries)
+	assert.True(t, secondBucket.warnedThisBucket)
+	assert.Equal(t, BlockCounts{CapBlocks: 2}, sc.DrainBlockCounts())
+	assert.Equal(t, BlockCounts{}, sc.DrainBlockCounts())
+}
+
 func BenchmarkHandleSpanRandom(b *testing.B) {
 	sc := NewSpanConcentrator(&SpanConcentratorConfig{}, time.Now())
 	b.Run("no_peer_tags", func(b *testing.B) {
-		sb := NewRawBucket(0, 1e9)
+		sb := NewRawBucket(0, 1e9, 0)
 		var benchStatSpans []*StatSpan
 		for _, s := range benchSpans {
 			statSpan, ok := sc.NewStatSpanFromPB(s, nil, nil)
@@ -321,7 +433,7 @@ func BenchmarkHandleSpanRandom(b *testing.B) {
 		"topicname",
 	}
 	b.Run("peer_tags", func(b *testing.B) {
-		sb := NewRawBucket(0, 1e9)
+		sb := NewRawBucket(0, 1e9, 0)
 		var benchStatSpans []*StatSpan
 		for _, s := range benchSpans {
 			statSpan, ok := sc.NewStatSpanFromPB(s, peerTags, nil)

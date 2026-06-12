@@ -300,6 +300,13 @@
   review:
     name: '#fleet-automation'
     id: 'C05PUSNU4H5'
+'@datadog/gpu-monitoring-agent':
+  notification:
+    name: '#gpu-monitoring-agent-ops'
+    id: 'C0APTNVCC04'
+  review:
+    name: '#gpu-monitoring-agent-reviews'
+    id: 'C0B7VF7LKGT'
 '@datadog/injection-platform':
   notification:
     name: '#injection-platform'

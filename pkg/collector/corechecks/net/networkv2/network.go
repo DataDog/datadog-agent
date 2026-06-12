@@ -477,28 +477,6 @@ func getEthtoolMetrics(driverName string, statsMap map[string]uint64) map[string
 			}
 		}
 		if continueCase {
-			// Extract the priority (0-7) and the metric name from ethtool stat name:
-			//   rx_prio3_packets -> (prio:3, rx_packets)
-			//   tx_prio0_pause_duration -> (prio:0, tx_pause_duration)
-			// Restricted to the 802.1p priority range 0..7.
-			parts := strings.Split(statName, "_")
-			for i, part := range parts {
-				if len(part) > 4 && strings.HasPrefix(part, "prio") {
-					if num, err := strconv.Atoi(part[4:]); err == nil {
-						if num < 0 || num > 7 {
-							break
-						}
-						parts = append(parts[:i], parts[i+1:]...)
-						queueTag = fmt.Sprintf("prio:%d", num)
-						newKey = strings.Join(parts, "_")
-						metricPrefix = ".prio."
-						continueCase = false
-						break
-					}
-				}
-			}
-		}
-		if continueCase {
 			// if we've made it this far, check if the stat name is a global metric for the NIC
 			if statName != "" {
 				if slices.Contains(ethtoolGlobalMetrics, statName) {

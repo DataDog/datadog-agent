@@ -34,7 +34,7 @@ import (
 //	 - [WithFakeintake]
 //	 - [WithLogs]
 //   - [WithExtraComposeManifest]
-//   - [WithV3MetricsEnabled]
+//   - [WithV3MetricsDisabled]
 //
 // [Functional options pattern]: https://dave.cheney.net/2014/10/17/functional-options-for-friendly-apis
 
@@ -62,10 +62,6 @@ type Params struct {
 	PulumiDependsOn []pulumi.ResourceOption
 	// FIPS is true if FIPS image is needed.
 	FIPS bool
-
-	// intakeURL is stored by withIntakeHostname so that WithV3MetricsEnabled
-	// can inject V3 endpoint config after fakeintake wiring.
-	intakeURL pulumi.StringInput
 }
 
 type Option = func(*Params) error
@@ -209,7 +205,6 @@ func WithFakeintake(fi *fakeintake.Fakeintake) func(*Params) error {
 
 func withIntakeHostname(url pulumi.StringInput, shouldSkipSSLValidation pulumi.BoolInput) func(*Params) error {
 	return func(p *Params) error {
-		p.intakeURL = url
 		envVars := pulumi.Map{
 			"DD_DD_URL":                                  pulumi.Sprintf("%s", url),
 			"DD_PROCESS_CONFIG_PROCESS_DD_URL":           pulumi.Sprintf("%s", url),
@@ -234,22 +229,13 @@ func withIntakeHostname(url pulumi.StringInput, shouldSkipSSLValidation pulumi.B
 	}
 }
 
-// WithV3MetricsEnabled opts the Agent into the V3 metrics intake API for its primary
-// fakeintake endpoint. It adds serializer_experimental_use_v3_api series endpoints pointing
-// at the same URL used for DD_DD_URL, so the serializer sends to /api/intake/metrics/v3/series
-// instead of /api/v2/series.
-//
-// Only series are redirected; sketches V3 support is not yet implemented in fakeintake.
-//
-// Must be called after WithFakeintake or WithIntake so the intake URL is known.
-func WithV3MetricsEnabled() func(*Params) error {
+// WithV3MetricsDisabled forces the Agent onto the V2 series intake API by setting
+// DD_USE_V3_API_SERIES_ENABLED=false. V3 is the default, so this opts back out in order to
+// exercise the V2 wire format and /api/v2/series routing.
+func WithV3MetricsDisabled() func(*Params) error {
 	return func(p *Params) error {
-		if p.intakeURL == nil {
-			return fmt.Errorf("WithV3MetricsEnabled must be called after WithFakeintake or WithIntake")
-		}
 		return WithAgentServiceEnvVariable(
-			"DD_SERIALIZER_EXPERIMENTAL_USE_V3_API_SERIES_ENDPOINTS",
-			pulumi.Sprintf("%s", p.intakeURL),
+			"DD_USE_V3_API_SERIES_ENABLED", pulumi.StringPtr("false"),
 		)(p)
 	}
 }

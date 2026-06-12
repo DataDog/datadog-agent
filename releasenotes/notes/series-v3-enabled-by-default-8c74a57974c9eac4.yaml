@@ -1,0 +1,12 @@
+prelude:
+  |
+  Metrics now use the Datadog v3 intake by default. The v3
+  payload format is more compact, reducing outbound bandwidth from
+  Agents to Datadog.
+
+  Metrics sent to Observability Pipelines Worker continue to use
+  the v2 intake by default.
+
+  To keep using v2 intake, set
+  ``use_v3_api.series.enabled: "false"`` (global) or
+  ``use_v3_api.series.endpoints: { "<url>": "false" }`` (per-endpoint).
