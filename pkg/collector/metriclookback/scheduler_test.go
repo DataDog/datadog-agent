@@ -833,8 +833,8 @@ func (m *recordingSenderManager) DestroySenderIDs() []checkid.ID {
 func newTestShadowRunnerFactory(t *testing.T) ShadowRunnerFactory {
 	t.Helper()
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("check_runners", 1)
-	mockConfig.SetWithoutSource("hostname", "myhost")
+	mockConfig.SetInTest("check_runners", 1)
+	mockConfig.SetInTest("hostname", "myhost")
 
 	return func(scheduled runner.ScheduledChecks) ShadowRunner {
 		r := runner.NewRunnerWithOptions(
