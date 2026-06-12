@@ -291,3 +291,18 @@ deploy_host_profiler_to_reliability_env_devtest:
     - when: on_success
   needs:
     - dev_deploy-host-profiler-devtest
+
+# Publishes the scrappy-overlay agent image to agent-dev for use with
+# q_branch/generators/observer-eval/ (gensim scrappy-detect / scrappy-collect modes).
+# Trigger manually after docker_build_agent7_scrappy completes.
+dev_branch-scrappy:
+  extends: .docker_publish_job_definition
+  stage: dev_container_deploy
+  rules:
+    - !reference [.manual]
+  needs:
+    - docker_build_agent7_scrappy
+  variables:
+    IMG_REGISTRIES: dev
+    IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-scrappy-amd64
+    IMG_DESTINATIONS: agent-dev:${CI_COMMIT_REF_SLUG}-scrappy,agent-dev:${CI_COMMIT_SHORT_SHA}-scrappy
