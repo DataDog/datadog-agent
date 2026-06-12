@@ -58,9 +58,12 @@ class TestADPMacOSPackaging(unittest.TestCase):
     def test_package_scripts_manage_adp_launchdaemon(self):
         preinst = (REPO_ROOT / "omnibus/package-scripts/agent-dmg/preinst").read_text()
         postinst = (REPO_ROOT / "omnibus/package-scripts/agent-dmg/postinst").read_text()
+        uninstall = (REPO_ROOT / "cmd/agent/macos/uninstall_mac_os.sh").read_text()
 
         self.assertIn("launchctl bootout system/com.datadoghq.data-plane", preinst)
         self.assertIn("com.datadoghq.data-plane.plist.example", postinst)
         self.assertIn("/Library/LaunchDaemons/com.datadoghq.data-plane.plist", postinst)
         self.assertIn("launchctl enable system/com.datadoghq.data-plane", postinst)
         self.assertIn("launchctl bootstrap system /Library/LaunchDaemons/com.datadoghq.data-plane.plist", postinst)
+        self.assertIn("launchctl bootout system/com.datadoghq.data-plane", uninstall)
+        self.assertIn("/Library/LaunchDaemons/com.datadoghq.data-plane.plist", uninstall)
