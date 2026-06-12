@@ -32,7 +32,7 @@ func (c *Client) RCAddConfig(orgID, product, configID, configName string, data [
 	if err != nil {
 		return err
 	}
-	resp, err := http.Post(c.fakeIntakeURL+"/fakeintake/rc/config", "application/json", bytes.NewReader(body))
+	resp, err := c.httpClient.Post(c.fakeIntakeURL+"/fakeintake/rc/config", "application/json", bytes.NewReader(body))
 	if err != nil {
 		return err
 	}
@@ -46,7 +46,7 @@ func (c *Client) RCAddConfig(orgID, product, configID, configName string, data [
 
 // RCListConfigs returns every Remote Config entry stored on fakeintake.
 func (c *Client) RCListConfigs() ([]api.RCConfig, error) {
-	resp, err := http.Get(c.fakeIntakeURL + "/fakeintake/rc/configs")
+	resp, err := c.httpClient.Get(c.fakeIntakeURL + "/fakeintake/rc/configs")
 	if err != nil {
 		return nil, err
 	}
@@ -68,7 +68,7 @@ func (c *Client) RCDeleteConfig(key string) error {
 	if err != nil {
 		return err
 	}
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return err
 	}
@@ -84,7 +84,7 @@ func (c *Client) RCDeleteConfig(key string) error {
 // Use Polls / LastPoll to assert that the agent has actually reached out.
 func (c *Client) RCStats() (api.RCStats, error) {
 	var stats api.RCStats
-	resp, err := http.Get(c.fakeIntakeURL + "/fakeintake/rc/stats")
+	resp, err := c.httpClient.Get(c.fakeIntakeURL + "/fakeintake/rc/stats")
 	if err != nil {
 		return stats, err
 	}
