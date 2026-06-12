@@ -42,6 +42,31 @@ def _agent_data_plane_impl(rctx):
         rctx.execute(["mkdir", "-p", "licenses/LICENSES-amd64", "licenses/LICENSES-aarch64"])
         rctx.file("licenses/LICENSE-3rdparty-amd64.csv", content = "")
         rctx.file("licenses/LICENSE-3rdparty-aarch64.csv", content = "")
+
+        # Write stub THIRD-PARTY license texts so that the license_dir_files_arm64 /
+        # license_dir_files_amd64 pkg_files targets (which glob licenses/LICENSES-{arch}/**)
+        # produce non-empty output matching the 13 SPDX standard-license files expected at
+        # LICENSES/LICENSES/ in production builds.  Stub content is minimal — these files are
+        # only present so the packaging target resolves; they are never shipped.
+        _stub_license_names = [
+            "THIRD-PARTY-0BSD",
+            "THIRD-PARTY-Apache-2.0",
+            "THIRD-PARTY-BSD-2-Clause",
+            "THIRD-PARTY-BSD-3-Clause",
+            "THIRD-PARTY-BSL-1.0",
+            "THIRD-PARTY-ISC",
+            "THIRD-PARTY-LGPL-2.1-or-later",
+            "THIRD-PARTY-MIT",
+            "THIRD-PARTY-MPL-2.0",
+            "THIRD-PARTY-OpenSSL",
+            "THIRD-PARTY-Unicode-3.0",
+            "THIRD-PARTY-Unlicense",
+            "THIRD-PARTY-Zlib",
+        ]
+        for _name in _stub_license_names:
+            _stub_content = "# Stub license file for local development builds. Not for distribution.\n# License: {}\n".format(_name)
+            rctx.file("licenses/LICENSES-amd64/" + _name, content = _stub_content)
+            rctx.file("licenses/LICENSES-aarch64/" + _name, content = _stub_content)
     else:
         version = rctx.attr.version
         base_url = rctx.attr.base_url

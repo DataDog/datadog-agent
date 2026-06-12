@@ -6,7 +6,7 @@ load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
 
-package(default_package_metadata = [":package_metadata", ":ship_source_offer"])
+package(default_package_metadata = [":package_metadata", ":license", ":ship_source_offer"])
 
 _VERSION = "253"
 
@@ -14,6 +14,7 @@ package_metadata(
     name = "package_metadata",
     attributes = [
         ":license",
+        ":gpl2_license",
         ":ship_source_offer",
     ],
     purl = purl_for_generic(
@@ -27,6 +28,13 @@ license(
     name = "license",
     license_kinds = ["@rules_license//licenses/spdx:LGPL-2.1-or-later"],
     license_text = "LICENSE.LGPL2.1",
+    visibility = ["//visibility:public"],
+)
+
+license(
+    name = "gpl2_license",
+    license_kinds = ["@rules_license//licenses/spdx:GPL-2.0-only"],
+    license_text = "LICENSE.GPL2",
     visibility = ["//visibility:public"],
 )
 

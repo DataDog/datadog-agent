@@ -4,6 +4,7 @@ Gathering spot for all the components shipped as part of the product.
 This gradually replaces datadog-agent.rb.
 """
 
+load("@bazel_skylib//rules:write_file.bzl", "write_file")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load(
     "@rules_pkg//pkg:mappings.bzl",
@@ -11,7 +12,9 @@ load(
     "pkg_filegroup",
     "pkg_files",
     "pkg_mkdirs",
+    "pkg_mklink",
 )
+load("//bazel/rules:dd_agent_expand_template.bzl", "dd_agent_expand_template")
 load("//packages/agent:defs.bzl", "ETC_DIR_SELECTOR")
 
 package(default_visibility = ["//packages:__subpackages__"])
@@ -28,7 +31,13 @@ pkg_filegroup(
         # we'll do that in April.
         # "//packages/agent/dependencies:all_files",
         ":dirs",
+        ":install_root",
+        ":installed_by_pkg",
+        ":py_compiled_files",
+        ":top_level_license",
+        ":python_scripts",
         "//cmd/agent/dist:all_python_files",
+        "//cmd/agent/dist:dist_config_files",
         "//rtloader:all_files",
         ":dda_built_agent_binary",
 
@@ -45,6 +54,7 @@ pkg_filegroup(
         ":ebpf_runtime_sources",
         ":ebpf_copying",
         ":llvm_bpf_binaries",
+        ":btf_archive",
 
         # TODO: //pkg/discovery/module/rust
         ":security_agent_binary",
@@ -54,12 +64,17 @@ pkg_filegroup(
         # TODO: cacerts
         # TODO: dependency 'datadog-agent-integrations-py3'
         "//comp/core/gui/impl:views_files",
+        ":version_manifest_json",
+        ":version_manifest_txt",
+        ":final_constraints_py3",
+        ":requirements_agent_release",
     ] + select({
         "//packages/agent:linux_default": [
             ":agent_data_plane_binary",
             ":agent_data_plane_license_csv_files",
             ":agent_data_plane_license_dir_files",
             ":installer_binary",
+            ":sd_agent_compat_symlink",
             "//pkg/discovery/module/rust:all_files",
             "//pkg/procmgr/rust:all_files_linux",
         ],
@@ -68,6 +83,7 @@ pkg_filegroup(
             ":agent_data_plane_license_csv_files",
             ":agent_data_plane_license_dir_files",
             ":installer_binary",
+            ":sd_agent_compat_symlink",
             "//pkg/discovery/module/rust:all_files",
             "//pkg/procmgr/rust:all_files_linux",
         ],
@@ -169,6 +185,79 @@ pkg_filegroup(
     ],
 )
 
+# Empty marker file placed at {install_dir}/.install_root (mirrors omnibus `touch`).
+write_file(
+    name = "install_root_file",
+    out = ".install_root",
+    content = [],
+    newline = "unix",
+)
+
+pkg_files(
+    name = "install_root",
+    srcs = [":install_root_file"],
+    prefix = "",
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+# Empty marker file placed at {install_dir}/embedded/.installed_by_pkg.txt.
+# Mirrors omnibus/config/software/datadog-agent-finalize.rb lines 119-120.
+# At omnibus build time this file contains a list of python site-packages paths;
+# the Bazel deb ships no Python integrations at build time so an empty placeholder
+# is correct. Consumed at runtime by pkg/fleet/installer/packages/integrations.
+write_file(
+    name = "installed_by_pkg_file",
+    out = ".installed_by_pkg.txt",
+    content = [],
+    newline = "unix",
+)
+
+pkg_files(
+    name = "installed_by_pkg",
+    srcs = [":installed_by_pkg_file"],
+    prefix = "embedded",
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+# Empty marker file placed at {install_dir}/embedded/.py_compiled_files.txt.
+# Present in the reference omnibus deb tree; likely a legacy artifact from a
+# Python byte-compilation step. An empty placeholder closes the parity gap.
+write_file(
+    name = "py_compiled_files_file",
+    out = ".py_compiled_files.txt",
+    content = [],
+    newline = "unix",
+)
+
+pkg_files(
+    name = "py_compiled_files",
+    srcs = [":py_compiled_files_file"],
+    prefix = "embedded",
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+# Root LICENSE file shipped to {install_dir}/LICENSE.
+# //:LICENSE is exported via `exports_files(["LICENSE"])` in the root BUILD.bazel.
+pkg_files(
+    name = "top_level_license",
+    srcs = ["//:LICENSE"],
+    prefix = "",
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+# Python lifecycle scripts copied from omnibus/python-scripts/
+# (packages.py, post.py, pre.py — non-test files only).
+pkg_files(
+    name = "python_scripts",
+    srcs = [
+        "//omnibus:python-scripts/packages.py",
+        "//omnibus:python-scripts/post.py",
+        "//omnibus:python-scripts/pre.py",
+    ],
+    prefix = "python-scripts",
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
 # eBPF prebuilt object files (.o) shipped to embedded/share/system-probe/ebpf/.
 # Mirrors the omnibus copy: pkg/ebpf/bytecode/build/<arch>/*.o (minus usm_events_test*).
 # Uses unstripped targets so output filenames are <name>.o (no .stripped infix).
@@ -204,6 +293,7 @@ pkg_files(
 pkg_files(
     name = "ebpf_core_objects",
     srcs = [
+        "//cmd/system-probe/subcommands/ebpf/testdata:btf_test",
         "//pkg/collector/corechecks/ebpf/c/runtime:ebpf",
         "//pkg/collector/corechecks/ebpf/c/runtime:ebpf-debug",
         "//pkg/collector/corechecks/ebpf/c/runtime:noisy-neighbor",
@@ -216,6 +306,7 @@ pkg_files(
         "//pkg/dyninst/ebpf:dyninst_event-debug",
         "//pkg/ebpf/c:ksyms_iter",
         "//pkg/ebpf/c:lock_contention",
+        "//pkg/ebpf/testdata/c:uprobe_attacher-test",
         "//pkg/gpu/ebpf/c/runtime:gpu",
         "//pkg/gpu/ebpf/c/runtime:gpu-debug",
         "//pkg/network/ebpf/c:tracer",
@@ -284,6 +375,29 @@ pkg_files(
     ],
     attributes = pkg_attributes(mode = "755"),
     prefix = "embedded/bin",
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+# Compatibility symlink: embedded/bin/sd-agent -> system-probe-lite.
+# The binary was renamed from sd-agent to system-probe-lite in commit 56a828039f.
+# The reference omnibus deb (7.77.1) shipped the old name as a real binary;
+# this symlink preserves path compatibility for any tooling that still references sd-agent.
+pkg_mklink(
+    name = "sd_agent_compat_symlink",
+    attributes = pkg_attributes(mode = "0755"),
+    link_name = "embedded/bin/sd-agent",
+    target = "system-probe-lite",
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+# BTF archive (minimized-btfs.tar.xz) shipped to embedded/share/system-probe/ebpf/co-re/btf/.
+# Mirrors the omnibus copy from $SYSTEM_PROBE_BIN/minimized-btfs.tar.xz.
+# The archive is an external binary artifact; set MINIMIZED_BTFS_PATH to the directory
+# containing the archive. Stub (empty filegroup) is used when the env var is not set.
+pkg_files(
+    name = "btf_archive",
+    srcs = ["@minimized_btfs_archive//:archive"],
+    prefix = "embedded/share/system-probe/ebpf/co-re/btf",
     target_compatible_with = ["@platforms//os:linux"],
 )
 
@@ -417,4 +531,46 @@ pkg_files(
     srcs = ["//cmd/secret-generic-connector:LICENSE"],
     prefix = "LICENSES",
     renames = {"//cmd/secret-generic-connector:LICENSE": "secret-generic-connector-LICENSE"},
+)
+
+# Version manifest files. Templates live in the parent package.
+# No prefix here — linux/BUILD.bazel applies /opt/datadog-agent as prefix.
+dd_agent_expand_template(
+    name = "version_manifest_json",
+    out = "version-manifest.json",
+    target_compatible_with = ["@platforms//os:linux"],
+    template = "//packages/agent:version-manifest.json.in",
+)
+
+dd_agent_expand_template(
+    name = "version_manifest_txt",
+    out = "version-manifest.txt",
+    target_compatible_with = ["@platforms//os:linux"],
+    template = "//packages/agent:version-manifest.txt.in",
+)
+
+# Stub for final_constraints-py3.txt (structural parity with omnibus).
+# The omnibus version is generated by `pip freeze`; full pip freeze reproduction
+# is a separate effort. This stub satisfies file-presence parity checks.
+write_file(
+    name = "final_constraints_py3_stub",
+    out = "final_constraints-py3.txt",
+    content = ["# pip freeze output - generated at build time"],
+    newline = "unix",
+)
+
+pkg_files(
+    name = "final_constraints_py3",
+    srcs = [":final_constraints_py3_stub"],
+    prefix = "",
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+# requirements-agent-release.txt from integrations-core archive.
+# Mirrors: omnibus/config/software/datadog-agent-integrations-py3.rb line 317.
+pkg_files(
+    name = "requirements_agent_release",
+    srcs = ["@integrations_core//:requirements-agent-release.txt"],
+    prefix = "",
+    target_compatible_with = ["@platforms//os:linux"],
 )

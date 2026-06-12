@@ -105,9 +105,9 @@ def _multi_whl_extract_impl(ctx):
       - Runs `python -m compileall` to generate __pycache__/*.pyc files,
         matching the bytecode cache that omnibus produces via `pip install`.
         SOURCE_DATE_EPOCH is fixed for reproducible .pyc timestamps.
-      - Synthesizes INSTALLER and REQUESTED metadata files in every
-        .dist-info directory, matching the files pip generates on
-        `pip install`.
+      - Synthesizes INSTALLER, REQUESTED, and direct_url.json metadata
+        files in every .dist-info directory, matching the files pip
+        generates on `pip install`.
     """
     toolchain = ctx.toolchains["@rules_python//python:toolchain_type"]
     runtime = toolchain.py3_runtime
@@ -159,15 +159,38 @@ def _multi_whl_extract_impl(ctx):
     )
 
     # Synthesize pip install metadata in every .dist-info directory.
-    # Omnibus runs `pip install` which writes INSTALLER ("pip\n") and
-    # REQUESTED (empty marker) into each dist-info.  Wheels extracted with
-    # `python -m zipfile -e` do not contain these files; generate them here
-    # so the installed package tree matches the omnibus layout.
+    # Omnibus runs `pip install` which writes INSTALLER ("pip\n"),
+    # REQUESTED (empty marker), and direct_url.json into each dist-info.
+    # Wheels extracted with `python -m zipfile -e` do not contain these
+    # files; generate them here so the installed package tree matches the
+    # omnibus layout.
     extract_cmds.append(
         r"""
 find "$OUT" -maxdepth 2 -type d -name '*.dist-info' | while IFS= read -r d; do
   printf 'pip\n' > "$d/INSTALLER"
   touch "$d/REQUESTED"
+  if [ ! -f "$d/direct_url.json" ]; then
+    printf '{"url": "", "archive_info": {}}\n' > "$d/direct_url.json"
+  fi
+done
+""",
+    )
+
+    # Flatten dist-info/licenses/ content into the parent dist-info/ directory.
+    # Newer wheels (Wheel-Version 1.0 built with setuptools 77+/82+) place
+    # license files under dist-info/licenses/ per the emerging PEP 639
+    # convention.  pip 25.x copies them to the dist-info root during
+    # installation, producing the flat layout that the reference omnibus deb
+    # contains.  Since multi_whl_extract uses `python -m zipfile -e` (not pip),
+    # the licenses/ subdir is preserved verbatim; replicate pip's flattening
+    # here so the installed layout matches omnibus.
+    extract_cmds.append(
+        r"""
+find "$OUT" -maxdepth 3 -type f -path '*.dist-info/licenses/*' | while IFS= read -r f; do
+  dst="$(dirname "$(dirname "$f")")/$(basename "$f")"
+  if [ ! -f "$dst" ]; then
+    cp "$f" "$dst"
+  fi
 done
 """,
     )
@@ -194,8 +217,9 @@ multi_whl_extract = rule(
     by a single pkg_files + REMOVE_BASE_DIRECTORY entry.
 
     After extraction, __pycache__/*.pyc files are compiled via compileall
-    and pip install metadata (INSTALLER, REQUESTED) is synthesized in every
-    .dist-info directory to match the omnibus site-packages layout.
+    and pip install metadata (INSTALLER, REQUESTED, direct_url.json) is
+    synthesized in every .dist-info directory to match the omnibus
+    site-packages layout.
 
     Optionally pass `python` pointing to a specific interpreter (e.g.
     @python_3_13//:python3) when the embedded CPython ABI differs from the
@@ -259,6 +283,7 @@ def _whl_entry_points_impl(ctx):
         output = generate_script,
         content = r"""
 import os
+import re
 import sys
 
 site_packages_dir = sys.argv[1]
@@ -273,6 +298,8 @@ WRAPPER_TEMPLATE = (
     "        sys.argv[0] = sys.argv[0][:-4]\n"
     "    sys.exit({func}())\n"
 )
+
+written_names = set()
 
 for root, dirs, files in os.walk(site_packages_dir):
     if not root.endswith('.dist-info'):
@@ -307,6 +334,36 @@ for root, dirs, files in os.walk(site_packages_dir):
             with open(script_path, 'w', encoding='utf-8') as sf:
                 sf.write(script_content)
             os.chmod(script_path, 0o755)
+            written_names.add(name_part)
+
+# Also emit scripts from *.data/scripts/ directories (wheel .data layout).
+# pip extracts these from the wheel archive and rewrites the shebang line.
+# whl_extract/multi_whl_extract do not run pip, so we replicate that here:
+# for each file found under a path matching *.data/scripts/, copy it to
+# out_dir with the shebang replaced by the embedded interpreter path.
+SHEBANG_RE = re.compile(rb'^#![^\n]*python[^\n]*\n')
+EMBEDDED_SHEBANG = b'#!/opt/datadog-agent/embedded/bin/python3\n'
+
+for root, dirs, files in os.walk(site_packages_dir):
+    # Skip __pycache__ directories.
+    dirs[:] = [d for d in dirs if d != '__pycache__']
+    if not re.search(r'\.data[/\\]scripts$', root):
+        continue
+    for fname in files:
+        if fname in written_names:
+            continue
+        src_path = os.path.join(root, fname)
+        if not os.path.isfile(src_path):
+            continue
+        with open(src_path, 'rb') as sf:
+            content = sf.read()
+        # Replace a python shebang on the first line (if present).
+        content = SHEBANG_RE.sub(EMBEDDED_SHEBANG, content, count=1)
+        dst_path = os.path.join(out_dir, fname)
+        with open(dst_path, 'wb') as df:
+            df.write(content)
+        os.chmod(dst_path, 0o755)
+        written_names.add(fname)
 """,
     )
 

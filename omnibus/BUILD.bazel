@@ -4,3 +4,8 @@ exports_files(
     glob(["package-scripts/**"]),
     visibility = ["//packages:__subpackages__"],
 )
+
+exports_files(
+    glob(["python-scripts/*.py"]),
+    visibility = ["//packages:__subpackages__"],
+)

@@ -30,10 +30,33 @@
 #        datadog_checks_tests_helper, docker_daemon, ibm_ace, ibm_mq (arm exclusions),
 #        ddev (developer tool).
 
+load("@@//compliance/rules:purl.bzl", "purl_for_generic")
+load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
+load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:mappings.bzl", "REMOVE_BASE_DIRECTORY", "pkg_attributes", "pkg_filegroup", "pkg_files", "strip_prefix")
 load(":whl_extract.bzl", "multi_whl_extract", "whl_entry_points")
 
-package(default_visibility = ["//packages:__subpackages__"])
+package(
+    default_package_metadata = [":integrations_metadata"],
+    default_visibility = ["//packages:__subpackages__"],
+)
+
+license(
+    name = "integrations_license",
+    license_kinds = ["@rules_license//licenses/spdx:BSD-3-Clause"],
+    license_text = "@integrations_core//:LICENSE",
+    visibility = ["//visibility:public"],
+)
+
+package_metadata(
+    name = "integrations_metadata",
+    attributes = [":integrations_license"],
+    purl = purl_for_generic(
+        download_url = "https://github.com/DataDog/integrations-core/archive/refs/tags/{version}.tar.gz",
+        package = "datadog-agent-integrations-py3",
+        version = "ddev-v16.1.1",
+    ),
+)
 
 # ---------------------------------------------------------------------------
 # (b) datadog_checks_base wheel — built from integrations-core source.
@@ -90,7 +113,7 @@ genrule(
 # ---------------------------------------------------------------------------
 # lazy_loader — runtime dependency of datadog_checks_base/__init__.py.
 #
-# lazy_loader is a pure-Python package (lazy_loader-0.5-py3-none-any.whl)
+# lazy_loader is a pure-Python package (lazy_loader-0.4-20260226183451-py3-none-any.whl)
 # that must be present in site-packages for `import datadog_checks.base`
 # to succeed.  It cannot be bundled inside datadog_checks_base.whl itself
 # (that wheel is built with --no-deps), so it is extracted alongside
@@ -103,7 +126,7 @@ genrule(
 genrule(
     name = "lazy_loader_whl_renamed",
     srcs = ["@lazy_loader_whl//file"],
-    outs = ["lazy_loader-0.5-py3-none-any.whl"],
+    outs = ["lazy_loader-0.4-20260226183451-py3-none-any.whl"],
     cmd = "cp $< $@",
 )
 
@@ -534,14 +557,14 @@ pkg_files(
 genrule(
     name = "int_whl_aerospike_renamed",
     srcs = ["@int_whl_aerospike//file"],
-    outs = ["aerospike-7.1.1-20260423151051-cp313-cp313-manylinux_2_17_aarch64.manylinux2014_aarch64.whl"],
+    outs = ["aerospike-7.1.1-20260211190045-cp313-cp313-manylinux_2_17_aarch64.manylinux2014_aarch64.whl"],
     cmd = "cp $< $@",
 )
 
 genrule(
     name = "int_whl_botocore_renamed",
     srcs = ["@int_whl_botocore//file"],
-    outs = ["botocore-1.42.72-py3-none-any.whl"],
+    outs = ["botocore-1.40.21-py3-none-any.whl"],
     cmd = "cp $< $@",
 )
 
@@ -555,14 +578,14 @@ genrule(
 genrule(
     name = "int_whl_confluent_kafka_renamed",
     srcs = ["@int_whl_confluent_kafka//file"],
-    outs = ["confluent_kafka-2.13.2-20260522140500-cp313-cp313-manylinux_2_17_aarch64.manylinux2014_aarch64.whl"],
+    outs = ["confluent_kafka-2.13.0-20260319153630-cp313-cp313-manylinux_2_17_aarch64.manylinux2014_aarch64.whl"],
     cmd = "cp $< $@",
 )
 
 genrule(
     name = "int_whl_cryptography_renamed",
     srcs = ["@int_whl_cryptography//file"],
-    outs = ["cryptography-46.0.7-20260522140502-cp313-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl"],
+    outs = ["cryptography-46.0.5-20260227113241-cp313-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl"],
     cmd = "cp $< $@",
 )
 
@@ -597,7 +620,7 @@ genrule(
 genrule(
     name = "int_whl_keystoneauth1_renamed",
     srcs = ["@int_whl_keystoneauth1//file"],
-    outs = ["keystoneauth1-5.14.0-20260522142314-py3-none-any.whl"],
+    outs = ["keystoneauth1-5.13.1-20260416112116-py3-none-any.whl"],
     cmd = "cp $< $@",
 )
 
@@ -611,7 +634,7 @@ genrule(
 genrule(
     name = "int_whl_openstacksdk_renamed",
     srcs = ["@int_whl_openstacksdk//file"],
-    outs = ["openstacksdk-4.10.0-20260522142338-py3-none-any.whl"],
+    outs = ["openstacksdk-4.7.0-20260226183452-py3-none-any.whl"],
     cmd = "cp $< $@",
 )
 
@@ -639,7 +662,7 @@ genrule(
 genrule(
     name = "int_whl_psycopg_c_renamed",
     srcs = ["@int_whl_psycopg_c//file"],
-    outs = ["psycopg_c-3.3.3-20260522140537-cp313-cp313-manylinux_2_17_aarch64.manylinux2014_aarch64.whl"],
+    outs = ["psycopg_c-3.2.10-20260213173541-cp313-cp313-manylinux_2_17_aarch64.manylinux2014_aarch64.whl"],
     cmd = "cp $< $@",
 )
 
@@ -769,7 +792,7 @@ genrule(
 genrule(
     name = "int_whl_attrs_renamed",
     srcs = ["@int_whl_attrs//file"],
-    outs = ["attrs-26.1.0-py3-none-any.whl"],
+    outs = ["attrs-25.4.0-py3-none-any.whl"],
     cmd = "cp $< $@",
 )
 
@@ -797,7 +820,7 @@ genrule(
 genrule(
     name = "int_whl_azure_identity_renamed",
     srcs = ["@int_whl_azure_identity//file"],
-    outs = ["azure_identity-1.25.3-py3-none-any.whl"],
+    outs = ["azure_identity-1.24.0-py3-none-any.whl"],
     cmd = "cp $< $@",
 )
 
@@ -811,7 +834,7 @@ genrule(
 genrule(
     name = "int_whl_beautifulsoup4_renamed",
     srcs = ["@int_whl_beautifulsoup4//file"],
-    outs = ["beautifulsoup4-4.14.3-py3-none-any.whl"],
+    outs = ["beautifulsoup4-4.13.5-py3-none-any.whl"],
     cmd = "cp $< $@",
 )
 
@@ -825,7 +848,7 @@ genrule(
 genrule(
     name = "int_whl_boto3_renamed",
     srcs = ["@int_whl_boto3//file"],
-    outs = ["boto3-1.42.72-py3-none-any.whl"],
+    outs = ["boto3-1.40.21-py3-none-any.whl"],
     cmd = "cp $< $@",
 )
 
@@ -839,14 +862,14 @@ genrule(
 genrule(
     name = "int_whl_cachetools_renamed",
     srcs = ["@int_whl_cachetools//file"],
-    outs = ["cachetools-7.0.5-py3-none-any.whl"],
+    outs = ["cachetools-6.2.0-py3-none-any.whl"],
     cmd = "cp $< $@",
 )
 
 genrule(
     name = "int_whl_certifi_renamed",
     srcs = ["@int_whl_certifi//file"],
-    outs = ["certifi-2026.5.20-py3-none-any.whl"],
+    outs = ["certifi-2026.2.25-py3-none-any.whl"],
     cmd = "cp $< $@",
 )
 
@@ -881,7 +904,7 @@ genrule(
 genrule(
     name = "int_whl_decorator_renamed",
     srcs = ["@int_whl_decorator//file"],
-    outs = ["decorator-5.3.1-py3-none-any.whl"],
+    outs = ["decorator-5.2.1-py3-none-any.whl"],
     cmd = "cp $< $@",
 )
 
@@ -1000,7 +1023,7 @@ genrule(
 genrule(
     name = "int_whl_kubernetes_renamed",
     srcs = ["@int_whl_kubernetes//file"],
-    outs = ["kubernetes-35.0.0-py2.py3-none-any.whl"],
+    outs = ["kubernetes-33.1.0-py2.py3-none-any.whl"],
     cmd = "cp $< $@",
 )
 
@@ -1084,7 +1107,7 @@ genrule(
 genrule(
     name = "int_whl_paramiko_renamed",
     srcs = ["@int_whl_paramiko//file"],
-    outs = ["paramiko-4.0.0-py3-none-any.whl"],
+    outs = ["paramiko-3.5.1-py3-none-any.whl"],
     cmd = "cp $< $@",
 )
 
@@ -1140,7 +1163,7 @@ genrule(
 genrule(
     name = "int_whl_pyasn1_renamed",
     srcs = ["@int_whl_pyasn1//file"],
-    outs = ["pyasn1-0.6.3-py3-none-any.whl"],
+    outs = ["pyasn1-0.4.8-py2.py3-none-any.whl"],
     cmd = "cp $< $@",
 )
 
@@ -1182,7 +1205,7 @@ genrule(
 genrule(
     name = "int_whl_pyjwt_renamed",
     srcs = ["@int_whl_pyjwt//file"],
-    outs = ["pyjwt-2.12.1-py3-none-any.whl"],
+    outs = ["PyJWT-2.10.1-py3-none-any.whl"],
     cmd = "cp $< $@",
 )
 
@@ -1217,7 +1240,7 @@ genrule(
 genrule(
     name = "int_whl_pysnmp_renamed",
     srcs = ["@int_whl_pysnmp//file"],
-    outs = ["pysnmp-7.1.22-py3-none-any.whl"],
+    outs = ["pysnmp-5.1.0-py3-none-any.whl"],
     cmd = "cp $< $@",
 )
 
@@ -1273,7 +1296,7 @@ genrule(
 genrule(
     name = "int_whl_pyyaml_renamed",
     srcs = ["@int_whl_pyyaml//file"],
-    outs = ["pyyaml-6.0.3-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl"],
+    outs = ["PyYAML-6.0.2-cp313-cp313-manylinux_2_17_aarch64.manylinux2014_aarch64.whl"],
     cmd = "cp $< $@",
 )
 
@@ -1336,7 +1359,7 @@ genrule(
 genrule(
     name = "int_whl_s3transfer_renamed",
     srcs = ["@int_whl_s3transfer//file"],
-    outs = ["s3transfer-0.16.1-py3-none-any.whl"],
+    outs = ["s3transfer-0.13.1-py3-none-any.whl"],
     cmd = "cp $< $@",
 )
 
@@ -1420,7 +1443,7 @@ genrule(
 genrule(
     name = "int_whl_urllib3_renamed",
     srcs = ["@int_whl_urllib3//file"],
-    outs = ["urllib3-2.7.0-py3-none-any.whl"],
+    outs = ["urllib3-2.6.3-py3-none-any.whl"],
     cmd = "cp $< $@",
 )
 

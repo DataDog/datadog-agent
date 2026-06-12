@@ -1,12 +1,35 @@
 load("@//bazel/rules:foreign_cc_shared_wrapper.bzl", "foreign_cc_shared_wrapper")
 load("@//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
+load("@@//compliance/rules:purl.bzl", "purl_for_generic")
 load("@//deps/openssl:version.bzl", "OPENSSL_VERSION")
 load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
+load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
 load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
+load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_files")
 
 # This should be private. We can fix it in another PR
-package(default_visibility = ["//visibility:public"])
+package(
+    default_package_metadata = [":package_metadata"],
+    default_visibility = ["//visibility:public"],
+)
+
+package_metadata(
+    name = "package_metadata",
+    attributes = [":license"],
+    purl = purl_for_generic(
+        package = "openssl3",
+        version = OPENSSL_VERSION,
+        download_url = "https://www.openssl.org/source/openssl-{version}.tar.gz",
+    ),
+)
+
+license(
+    name = "license",
+    license_kinds = ["@rules_license//licenses/spdx:Apache-2.0"],
+    license_text = "LICENSE.txt",
+    visibility = ["//visibility:public"],
+)
 
 filegroup(
     name = "all_srcs",

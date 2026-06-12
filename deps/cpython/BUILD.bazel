@@ -1,9 +1,38 @@
 """Package delimiter."""
 
+load("@@//compliance/rules:purl.bzl", "purl_for_generic")
+load("@cpython_versions//:constants.bzl", "PYTHON_VERSION")
+load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
+load("@rules_license//rules:license.bzl", "license")
 load("@rules_python//python:py_library.bzl", "py_library")
 load("@rules_python//python:py_test.bzl", "py_test")
 
-exports_files(["fix_sysconfigdata.py"])
+package(default_package_metadata = [":package_metadata"])
+
+exports_files([
+    "fix_sysconfigdata.py",
+    "Python-2.0",
+])
+
+# The license text file is named Python-2.0 (matching the SPDX identifier) so
+# gather_licenses.py produces python3-Python-2.0, matching the reference deb.
+license(
+    name = "license",
+    license_kinds = ["@rules_license//licenses/spdx:Python-2.0"],
+    license_text = "Python-2.0",
+    visibility = ["//visibility:public"],
+)
+
+package_metadata(
+    name = "package_metadata",
+    attributes = [":license"],
+    purl = purl_for_generic(
+        download_url = "https://www.python.org/ftp/python/{version}/Python-{version}.tar.xz",
+        package = "python3",
+        version = PYTHON_VERSION,
+    ),
+    visibility = ["//visibility:public"],
+)
 
 py_library(
     name = "fix_sysconfigdata_lib",

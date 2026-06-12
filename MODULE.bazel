@@ -352,6 +352,8 @@ use_repo(python, "python_" + PYTHON_VERSION.replace(".", "_"), "python_" + INTEG
 http_archive(
     name = "integrations_core",
     build_file_content = """
+exports_files(["LICENSE"])
+
 filegroup(
     name = "datadog_checks_base_srcs",
     srcs = glob(["datadog_checks_base/**"]),
@@ -4821,6 +4823,8 @@ filegroup(
     srcs = glob(["zscaler_private_access/datadog_checks/zscaler_private_access/data/**"]),
     visibility = ["//visibility:public"],
 )
+
+exports_files(["requirements-agent-release.txt"], visibility = ["//visibility:public"])
 """,
     sha256 = "f986ffbb2cf9976f0504045096943afec9902c30e12b45364e5796cc9a24a16a",
     strip_prefix = "integrations-core-ddev-v16.1.1",
@@ -4939,8 +4943,8 @@ http_file(
 
 http_file(
     name = "lazy_loader_whl",
-    sha256 = "ab0ea149e9c554d4ffeeb21105ac60bed7f3b4fd69b1d2360a4add51b170b005",
-    urls = ["https://files.pythonhosted.org/packages/8a/a1/8d812e53a5da1687abb10445275d41a8b13adb781bbf7196ddbcf8d88505/lazy_loader-0.5-py3-none-any.whl"],
+    sha256 = "8a0e48065225ff214f449a3e0f8b82cbf6b5e436a27e4a1b419aa8727e46cafe",
+    urls = ["https://agent-int-packages.datadoghq.com/built/lazy-loader/lazy_loader-0.4-20260226183451-py3-none-any.whl"],
 )
 
 # ---------------------------------------------------------------------------
@@ -4952,14 +4956,14 @@ http_file(
 
 http_file(
     name = "int_whl_aerospike",
-    sha256 = "13e750c0fbc8fd5f41810e5b3e72be2d132124e47a148dd147352a84b90fc614",
-    urls = ["https://agent-int-packages.datadoghq.com/stable/built/aerospike/aerospike-7.1.1-20260423151051-cp313-cp313-manylinux_2_17_aarch64.manylinux2014_aarch64.whl"],
+    sha256 = "ccb89e123c654abefedeaa7fad685fefb4582391049fb3ba4b2142c0a130cbc9",
+    urls = ["https://agent-int-packages.datadoghq.com/built/aerospike/aerospike-7.1.1-20260211190045-cp313-cp313-manylinux_2_17_aarch64.manylinux2014_aarch64.whl"],
 )
 
 http_file(
     name = "int_whl_botocore",
-    sha256 = "038f34553da68df2ce70edc729f170cc198678daaad43f98649727c59f6404d4",
-    urls = ["https://files.pythonhosted.org/packages/66/50/3297ba278a0d6644396011cc592ee88f628206599fc6cff25f5c83b629e7/botocore-1.42.72-py3-none-any.whl"],
+    sha256 = "574ecf9b68c1721650024a27e00e0080b6f141c281ebfce49e0d302969270ef4",
+    urls = ["https://files.pythonhosted.org/packages/df/6a/effb671afa31d35805d0760b45676136fd1209e263641861456b4566ae9b/botocore-1.40.21-py3-none-any.whl"],
 )
 
 http_file(
@@ -4970,14 +4974,14 @@ http_file(
 
 http_file(
     name = "int_whl_confluent_kafka",
-    sha256 = "19b40abeb68db5be7390e2d91db7436c056a8064e30a040be092cd427065c7bc",
-    urls = ["https://agent-int-packages.datadoghq.com/stable/built/confluent-kafka/confluent_kafka-2.13.2-20260522140500-cp313-cp313-manylinux_2_17_aarch64.manylinux2014_aarch64.whl"],
+    sha256 = "16a580b4a71f0af4f3122b15e2ff80e22c4d93e861ad38288049657f3d57c588",
+    urls = ["https://agent-int-packages.datadoghq.com/built/confluent-kafka/confluent_kafka-2.13.0-20260319153630-cp313-cp313-manylinux_2_17_aarch64.manylinux2014_aarch64.whl"],
 )
 
 http_file(
     name = "int_whl_cryptography",
-    sha256 = "cd8a5437c5d4dddfa0d7f77159877cd94831ce854daae5b03cd1f0ff176057b0",
-    urls = ["https://agent-int-packages.datadoghq.com/stable/built/cryptography/cryptography-46.0.7-20260522140502-cp313-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl"],
+    sha256 = "bba110f0fd5a7bd8fb8e131c6d5c16318389c1bcba3b10d6ac99cf278d2bd819",
+    urls = ["https://agent-int-packages.datadoghq.com/built/cryptography/cryptography-46.0.5-20260227113241-cp313-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl"],
 )
 
 http_file(
@@ -5006,8 +5010,8 @@ http_file(
 
 http_file(
     name = "int_whl_keystoneauth1",
-    sha256 = "981596c8e7346d2b46ee5ec738312b8e46b0beb29d62104ccb7c113ed9c7fbef",
-    urls = ["https://agent-int-packages.datadoghq.com/stable/built/keystoneauth1/keystoneauth1-5.14.0-20260522142314-py3-none-any.whl"],
+    sha256 = "a15092187950de965ff6096e203d31e461c61cfd47ec1f5249a0e2955187cba2",
+    urls = ["https://agent-int-packages.datadoghq.com/stable/built/keystoneauth1/keystoneauth1-5.13.1-20260416112116-py3-none-any.whl"],
 )
 
 http_file(
@@ -5018,8 +5022,8 @@ http_file(
 
 http_file(
     name = "int_whl_openstacksdk",
-    sha256 = "88abe8f44e3b8c5c25b1093de735c700aa727a7ac408e273aa855d6db6ba38bf",
-    urls = ["https://agent-int-packages.datadoghq.com/stable/built/openstacksdk/openstacksdk-4.10.0-20260522142338-py3-none-any.whl"],
+    sha256 = "2b163ed6b63a0f837966aeb56459ab37f4b9944e0bb2f2cea2d01e7c199e7a70",
+    urls = ["https://agent-int-packages.datadoghq.com/built/openstacksdk/openstacksdk-4.7.0-20260226183452-py3-none-any.whl"],
 )
 
 http_file(
@@ -5042,8 +5046,8 @@ http_file(
 
 http_file(
     name = "int_whl_psycopg_c",
-    sha256 = "91f63a673fb68a595ab2c0a4e05178a7eacb964b154afb9cda19caae1e7e9a0b",
-    urls = ["https://agent-int-packages.datadoghq.com/stable/built/psycopg-c/psycopg_c-3.3.3-20260522140537-cp313-cp313-manylinux_2_17_aarch64.manylinux2014_aarch64.whl"],
+    sha256 = "57290fe106c3b3dfa21c2a80b7379a2b9b68129d8f2fdeabac1b88032a675dd2",
+    urls = ["https://agent-int-packages.datadoghq.com/built/psycopg-c/psycopg_c-3.2.10-20260213173541-cp313-cp313-manylinux_2_17_aarch64.manylinux2014_aarch64.whl"],
 )
 
 http_file(
@@ -5140,8 +5144,8 @@ http_file(
 
 http_file(
     name = "int_whl_attrs",
-    sha256 = "c647aa4a12dfbad9333ca4e71fe62ddc36f4e63b2d260a37a8b83d2f043ac309",
-    urls = ["https://agent-int-packages.datadoghq.com/stable/external/attrs/attrs-26.1.0-py3-none-any.whl"],
+    sha256 = "adcf7e2a1fb3b36ac48d97835bb6d8ade15b8dcce26aba8bf1d14847b57a3373",
+    urls = ["https://agent-int-packages.datadoghq.com/external/attrs/attrs-25.4.0-py3-none-any.whl"],
 )
 
 http_file(
@@ -5164,8 +5168,8 @@ http_file(
 
 http_file(
     name = "int_whl_azure_identity",
-    sha256 = "f4d0b956a8146f30333e071374171f3cfa7bdb8073adb8c3814b65567aa7447c",
-    urls = ["https://agent-int-packages.datadoghq.com/stable/external/azure-identity/azure_identity-1.25.3-py3-none-any.whl"],
+    sha256 = "9e04997cde0ab02ed66422c74748548e620b7b29361c72ce622acab0267ff7c4",
+    urls = ["https://agent-int-packages.datadoghq.com/external/azure-identity/azure_identity-1.24.0-py3-none-any.whl"],
 )
 
 http_file(
@@ -5176,8 +5180,8 @@ http_file(
 
 http_file(
     name = "int_whl_beautifulsoup4",
-    sha256 = "0918bfe44902e6ad8d57732ba310582e98da931428d231a5ecb9e7c703a735bb",
-    urls = ["https://agent-int-packages.datadoghq.com/stable/external/beautifulsoup4/beautifulsoup4-4.14.3-py3-none-any.whl"],
+    sha256 = "642085eaa22233aceadff9c69651bc51e8bf3f874fb6d7104ece2beb24b47c4a",
+    urls = ["https://agent-int-packages.datadoghq.com/external/beautifulsoup4/beautifulsoup4-4.13.5-py3-none-any.whl"],
 )
 
 http_file(
@@ -5188,8 +5192,8 @@ http_file(
 
 http_file(
     name = "int_whl_boto3",
-    sha256 = "2b5fdac4f202b2ccb9ed21f8b84229463b15573ea16941c2b1b8db1c69e08b63",
-    urls = ["https://agent-int-packages.datadoghq.com/stable/external/boto3/boto3-1.42.72-py3-none-any.whl"],
+    sha256 = "3772fb828864d3b7046c8bdf2f4860aaca4a79f25b7b060206c6a5f4944ea7f9",
+    urls = ["https://agent-int-packages.datadoghq.com/external/boto3/boto3-1.40.21-py3-none-any.whl"],
 )
 
 http_file(
@@ -5200,14 +5204,14 @@ http_file(
 
 http_file(
     name = "int_whl_cachetools",
-    sha256 = "46bc8ebefbe485407621d0a4264b23c080cedd913921bad7ac3ed2f26c183114",
-    urls = ["https://agent-int-packages.datadoghq.com/stable/external/cachetools/cachetools-7.0.5-py3-none-any.whl"],
+    sha256 = "1c76a8960c0041fcc21097e357f882197c79da0dbff766e7317890a65d7d8ba6",
+    urls = ["https://agent-int-packages.datadoghq.com/external/cachetools/cachetools-6.2.0-py3-none-any.whl"],
 )
 
 http_file(
     name = "int_whl_certifi",
-    sha256 = "3c52e209ba0a4ad7aebe60436a4ab349c39e1e602e8c134221e546902ad25897",
-    urls = ["https://agent-int-packages.datadoghq.com/stable/external/certifi/certifi-2026.5.20-py3-none-any.whl"],
+    sha256 = "027692e4402ad994f1c42e52a4997a9763c646b73e4096e4d5d6db8af1d6f0fa",
+    urls = ["https://agent-int-packages.datadoghq.com/external/certifi/certifi-2026.2.25-py3-none-any.whl"],
 )
 
 http_file(
@@ -5236,8 +5240,8 @@ http_file(
 
 http_file(
     name = "int_whl_decorator",
-    sha256 = "f47fe6fdbd2edd623ecfe36875d37aba411624e2670dd395dddae1358689bb3c",
-    urls = ["https://agent-int-packages.datadoghq.com/stable/external/decorator/decorator-5.3.1-py3-none-any.whl"],
+    sha256 = "d316bb415a2d9e2d2b3abcc4084c6502fc09240e292cd76a76afc106a1c8e04a",
+    urls = ["https://files.pythonhosted.org/packages/4e/8c/f3147f5c4b73e7550fe5f9352eaa956ae838d5c51eb58e7a25b9f3e2643b/decorator-5.2.1-py3-none-any.whl"],
 )
 
 http_file(
@@ -5338,8 +5342,8 @@ http_file(
 
 http_file(
     name = "int_whl_kubernetes",
-    sha256 = "39e2b33b46e5834ef6c3985ebfe2047ab39135d41de51ce7641a7ca5b372a13d",
-    urls = ["https://agent-int-packages.datadoghq.com/stable/external/kubernetes/kubernetes-35.0.0-py2.py3-none-any.whl"],
+    sha256 = "544de42b24b64287f7e0aa9513c93cb503f7f40eea39b20f66810011a86eabc5",
+    urls = ["https://files.pythonhosted.org/packages/89/43/d9bebfc3db7dea6ec80df5cb2aad8d274dd18ec2edd6c4f21f32c237cbbb/kubernetes-33.1.0-py2.py3-none-any.whl"],
 )
 
 http_file(
@@ -5410,8 +5414,8 @@ http_file(
 
 http_file(
     name = "int_whl_paramiko",
-    sha256 = "0e20e00ac666503bf0b4eda3b6d833465a2b7aff2e2b3d79a8bba5ef144ee3b9",
-    urls = ["https://agent-int-packages.datadoghq.com/stable/external/paramiko/paramiko-4.0.0-py3-none-any.whl"],
+    sha256 = "43b9a0501fc2b5e70680388d9346cf252cfb7d00b0667c39e80eb43a408b8f61",
+    urls = ["https://files.pythonhosted.org/packages/15/f8/c7bd0ef12954a81a1d3cea60a13946bd9a49a0036a5927770c461eade7ae/paramiko-3.5.1-py3-none-any.whl"],
 )
 
 http_file(
@@ -5458,8 +5462,8 @@ http_file(
 
 http_file(
     name = "int_whl_pyasn1",
-    sha256 = "a80184d120f0864a52a073acc6fc642847d0be408e7c7252f31390c0f4eadcde",
-    urls = ["https://agent-int-packages.datadoghq.com/stable/external/pyasn1/pyasn1-0.6.3-py3-none-any.whl"],
+    sha256 = "39c7e2ec30515947ff4e87fb6f456dfc6e84857d34be479c9d4a4ba4bf46aa5d",
+    urls = ["https://files.pythonhosted.org/packages/62/1e/a94a8d635fa3ce4cfc7f506003548d0a2447ae76fd5ca53932970fe3053f/pyasn1-0.4.8-py2.py3-none-any.whl"],
 )
 
 http_file(
@@ -5494,8 +5498,8 @@ http_file(
 
 http_file(
     name = "int_whl_pyjwt",
-    sha256 = "28ca37c070cad8ba8cd9790cd940535d40274d22f80ab87f3ac6a713e6e8454c",
-    urls = ["https://agent-int-packages.datadoghq.com/stable/external/pyjwt/pyjwt-2.12.1-py3-none-any.whl"],
+    sha256 = "dcdd193e30abefd5debf142f9adfcdd2b58004e644f25406ffaebd50bd98dacb",
+    urls = ["https://agent-int-packages.datadoghq.com/external/pyjwt/PyJWT-2.10.1-py3-none-any.whl"],
 )
 
 http_file(
@@ -5524,8 +5528,8 @@ http_file(
 
 http_file(
     name = "int_whl_pysnmp",
-    sha256 = "57e704a6ba2bbf571d16cd5dc08b89bb3fa0ebeb5f4f26b87fececad3b3de7a6",
-    urls = ["https://agent-int-packages.datadoghq.com/stable/external/pysnmp/pysnmp-7.1.22-py3-none-any.whl"],
+    sha256 = "375a8adfc6820faf24ace6761a6d20544e60580d714ff7266df272850c39b439",
+    urls = ["https://files.pythonhosted.org/packages/40/c0/701d1f43862245982e207bd28eca7c0889c62ca90012b23a64bb0f3eb9b4/pysnmp-5.1.0-py3-none-any.whl"],
 )
 
 http_file(
@@ -5572,8 +5576,8 @@ http_file(
 
 http_file(
     name = "int_whl_pyyaml",
-    sha256 = "ee2922902c45ae8ccada2c5b501ab86c36525b883eff4255313a253a3160861c",
-    urls = ["https://agent-int-packages.datadoghq.com/stable/external/pyyaml/pyyaml-6.0.3-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl"],
+    sha256 = "0ffe8360bab4910ef1b9e87fb812d8bc0a308b0d0eef8c8f44e0254ab3b07133",
+    urls = ["https://agent-int-packages.datadoghq.com/external/pyyaml/PyYAML-6.0.2-cp313-cp313-manylinux_2_17_aarch64.manylinux2014_aarch64.whl"],
 )
 
 http_file(
@@ -5626,8 +5630,8 @@ http_file(
 
 http_file(
     name = "int_whl_s3transfer",
-    sha256 = "61bcd00ccb83b21a0fe7e91a553fff9729d46c83b4e0106e7c314a733891f7c2",
-    urls = ["https://agent-int-packages.datadoghq.com/stable/external/s3transfer/s3transfer-0.16.1-py3-none-any.whl"],
+    sha256 = "a981aa7429be23fe6dfc13e80e4020057cbab622b08c0315288758d67cabc724",
+    urls = ["https://agent-int-packages.datadoghq.com/external/s3transfer/s3transfer-0.13.1-py3-none-any.whl"],
 )
 
 http_file(
@@ -5701,8 +5705,8 @@ http_file(
 
 http_file(
     name = "int_whl_urllib3",
-    sha256 = "9fb4c81ebbb1ce9531cce37674bbc6f1360472bc18ca9a553ede278ef7276897",
-    urls = ["https://agent-int-packages.datadoghq.com/stable/external/urllib3/urllib3-2.7.0-py3-none-any.whl"],
+    sha256 = "bf272323e553dfb2e87d9bfd225ca7b0f467b919d7bbd355436d3fd37cb0acd4",
+    urls = ["https://agent-int-packages.datadoghq.com/external/urllib3/urllib3-2.6.3-py3-none-any.whl"],
 )
 
 http_file(
@@ -5833,6 +5837,10 @@ use_extension("//bazel/tools:bazelisk_check.bzl", "bazelisk_check")
 ###########################################################################
 
 prebuilt_file = use_repo_rule("//bazel/repo:prebuilt_file.bzl", "prebuilt_file")
+
+minimized_btfs = use_repo_rule("//bazel/repo:minimized_btfs.bzl", "minimized_btfs")
+
+minimized_btfs(name = "minimized_btfs_archive")
 
 prebuilt_file(
     name = "agent_binary",

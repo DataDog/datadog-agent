@@ -25,7 +25,7 @@ http_file(
 
 http_file(
     name = "cacert_license",
-    downloaded_file_path = "MPL-2.0.txt",
+    downloaded_file_path = "index.815ca599c9df.txt",
     sha256 = "fab3dd6bdab226f1c08630b1dd917e11fcb4ec5e1e020e2c16f83a0a13863e85",
     urls = [
         "https://www.mozilla.org/media/MPL/2.0/index.815ca599c9df.txt",

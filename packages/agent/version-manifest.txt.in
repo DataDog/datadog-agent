@@ -1,0 +1,6 @@
+datadog-agent {build_version}
+
+Component        Installed Version    Version GUID
+--------------------------------------------------
+datadog-agent
+python3

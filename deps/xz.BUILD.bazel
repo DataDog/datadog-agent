@@ -1,14 +1,16 @@
 """Agent specific BUILD file for xz-utils / liblzma."""
 
 load("@@//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
+load("@@//compliance/rules:purl.bzl", "purl_for_generic")
 load("@bazel_skylib//lib:selects.bzl", "selects")
 load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
+load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
 
 package(
-    default_package_metadata = [":license"],
+    default_package_metadata = [":license", ":liblzma_metadata"],
     default_visibility = ["@@//packages:__subpackages__"],
 )
 
@@ -17,7 +19,7 @@ alias(
     actual = "@xz//:liblzma",
 )
 
-VERSION = "5.4.2"
+VERSION = "5.8.1"
 
 # Warning: starting from 5.5.2, the license switches to BSD-0
 license(
@@ -26,6 +28,24 @@ license(
     license_text = "COPYING.0BSD",
     copyright_notice = "Copyright (C) The XZ Utils authors and contributors",
     visibility = ["//visibility:public"],
+)
+
+license(
+    name = "liblzma_license",
+    license_kinds = ["@rules_license//licenses/spdx:0BSD"],
+    license_text = "COPYING",
+    copyright_notice = "Copyright (C) The XZ Utils authors and contributors",
+    visibility = ["//visibility:public"],
+)
+
+package_metadata(
+    name = "liblzma_metadata",
+    attributes = [":liblzma_license"],
+    purl = purl_for_generic(
+        package = "liblzma",
+        version = VERSION,
+        download_url = "https://tukaani.org/xz/xz-{version}.tar.gz",
+    ),
 )
 
 copy_file(

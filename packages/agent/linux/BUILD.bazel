@@ -6,6 +6,7 @@ load(
     "@rules_pkg//pkg:mappings.bzl",
     "pkg_attributes",
     "pkg_filegroup",
+    "pkg_files",
     "pkg_mkdirs",
 )
 load("@rules_pkg//pkg:rpm.bzl", "pkg_rpm")
@@ -86,11 +87,49 @@ package_licenses(
     src = ":everything",
 )
 
+# patchelf is a build tool not in the packaging dep graph, so its license is
+# not collected by the gather_licenses aspect. Include it explicitly here so
+# patchelf-COPYING appears in the shipped LICENSES/ directory.
+pkg_files(
+    name = "patchelf_license",
+    srcs = ["@patchelf//:COPYING"],
+    prefix = "LICENSES",
+    renames = {"@patchelf//:COPYING": "patchelf-COPYING"},
+)
+
+# omnibus names the sqlite3 library as "libsqlite3" with license "Public-Domain".
+# The Bazel gather_licenses aspect produces sqlite3-LICENSE.md (a different entry)
+# because the @sqlite3 external repo is named "sqlite3" not "libsqlite3".
+# Ship this extra entry explicitly to close the parity gap.
+pkg_files(
+    name = "libsqlite3_public_domain_license",
+    srcs = ["@sqlite3_license//file:LICENSE.md"],
+    prefix = "LICENSES",
+    renames = {"@sqlite3_license//file:LICENSE.md": "libsqlite3-Public-Domain"},
+)
+
+# setuptools3 (Python's setuptools) uses the Python-2.0 license.
+# It is installed at runtime by pip and is not in the Bazel dep graph,
+# so gather_licenses does not collect it. Ship it explicitly using the
+# same Python-2.0 text that the cpython license rule already embeds.
+pkg_files(
+    name = "setuptools3_python_20_license",
+    srcs = ["//deps/cpython:Python-2.0"],
+    prefix = "LICENSES",
+    renames = {"//deps/cpython:Python-2.0": "setuptools3-Python-2.0"},
+)
+
 # Relocate LICENSES/ and sources/ from the deb root to
 # /opt/datadog-agent/LICENSES/ and /opt/datadog-agent/sources/.
 pkg_filegroup(
     name = "license_files_in_install_dir",
-    srcs = [":license_files"],
+    srcs = [
+        ":license_files",
+        ":patchelf_license",
+        ":libsqlite3_public_domain_license",
+        ":setuptools3_python_20_license",
+        "//deps/static_licenses:all_files",
+    ],
     prefix = "/opt/datadog-agent",
 )
 

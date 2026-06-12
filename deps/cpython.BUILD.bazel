@@ -10,8 +10,20 @@ load("@bazel_skylib//rules:select_file.bzl", "select_file")
 load("@cpython_versions//:constants.bzl", "PYTHON_MAJOR_MINOR", "PYTHON_MAJOR_MINOR_FLAT")
 load("@rules_cc//cc:defs.bzl", "cc_import", "cc_library")
 load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
+load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_files", "pkg_mklink")
+
+# Expose the license file so //deps/cpython:package_metadata can reference it
+# and gather_licenses.py collects it as python3-LICENSE.
+exports_files(["LICENSE"])
+
+license(
+    name = "license",
+    license_kinds = ["@rules_license//licenses/spdx:Python-2.0"],
+    license_text = "LICENSE",
+    visibility = ["//visibility:public"],
+)
 
 # Keep in sync with the ones on repos.MODULE.bazel
 python_externals = {

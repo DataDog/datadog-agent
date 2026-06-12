@@ -30,6 +30,7 @@ common --repo_env=GOMODCACHE # https://wiki.archlinux.org/title/XDG_Base_Directo
 common --repo_env=GOTOOLCHAIN=local # Extend https://github.com/bazel-contrib/rules_go/pull/3660 to Go SDK patching rules
 common --repo_env=PACKAGE_VERSION # Keep in sync with env_vars in MODULE.bazel
 common --repo_env=SIGN_MAC # Keep in sync with env_vars in MODULE.bazel
+common --repo_env=MINIMIZED_BTFS_PATH # Keep in sync with environ in bazel/repo/minimized_btfs.bzl
 common --repo_env=XDG_CACHE_HOME # https://wiki.archlinux.org/title/XDG_Base_Directory
 common --run_env=GOTOOLCHAIN=local # Extend https://github.com/bazel-contrib/rules_go/pull/3660 to `bazel run //:go`
 common --skip_incompatible_explicit_targets # Let target_compatible_with skip rather than fail

@@ -17,6 +17,8 @@ bazel:packaging:comparison-gate:
   needs:
     - job: agent_deb-x64-a7
       artifacts: true
+    - job: generate_minimized_btfs_x64
+      artifacts: true
   variables:
     KUBERNETES_CPU_REQUEST: 8
     KUBERNETES_MEMORY_REQUEST: "16Gi"
@@ -50,7 +52,18 @@ bazel:packaging:comparison-gate:
       fi
       echo "Omnibus deb: $OMNIBUS_DEB"
 
-    # ── 2. Build the Bazel deb ────────────────────────────────────────────────
+    # ── 2. Stage the BTF archive so MINIMIZED_BTFS_PATH is set for Bazel ────
+    # The generate_minimized_btfs_x64 artifact lands at $CI_PROJECT_DIR/minimized-btfs.tar.xz.
+    # Copy it into a dedicated directory and export MINIMIZED_BTFS_PATH so the
+    # @minimized_btfs_archive repo rule picks it up (see bazel/repo/minimized_btfs.bzl).
+    # .bazelrc already has `common --repo_env=MINIMIZED_BTFS_PATH`, which forwards
+    # the shell env var into Bazel's repo-rule environment automatically.
+    - |
+      mkdir -p /tmp/minimized-btfs-dir
+      cp "$CI_PROJECT_DIR/minimized-btfs.tar.xz" /tmp/minimized-btfs-dir/
+      export MINIMIZED_BTFS_PATH=/tmp/minimized-btfs-dir
+
+    # ── 3. Build the Bazel deb ────────────────────────────────────────────────
     - bzl build //packages/agent/linux:debian
     - |
       BAZEL_DEB=$(find -L bazel-bin/packages/agent/linux -name "datadog-agent_*.deb" | head -1)
@@ -61,7 +74,7 @@ bazel:packaging:comparison-gate:
       fi
       echo "Bazel deb: $BAZEL_DEB"
 
-    # ── 3. File-tree diff ─────────────────────────────────────────────────────
+    # ── 4. File-tree diff ─────────────────────────────────────────────────────
     # Strategy: compare the *set of paths* (not full tar tv lines).  This
     # avoids false positives from format differences between omnibus and Bazel:
     #   - Leading "./" prefix: omnibus uses "./" before paths; rules_pkg does not.
@@ -104,7 +117,7 @@ bazel:packaging:comparison-gate:
         <(dpkg-deb --fsys-tarfile "$BAZEL_DEB"   | tar tv | _normalize_so | _path_set | sort -u) \
         | tee pkg-path-diff.txt || true
 
-    # ── 4. Control / scriptlet diff ──────────────────────────────────────────
+    # ── 5. Control / scriptlet diff ──────────────────────────────────────────
     - |
       echo "=== Control section diff ==="
       mkdir -p /tmp/omnibus-ctrl /tmp/bazel-ctrl
@@ -125,7 +138,7 @@ bazel:packaging:comparison-gate:
         diff /tmp/omnibus-ctrl/md5sums /tmp/bazel-ctrl/md5sums | head -50 || true
       } | tee -a pkg-diff.txt
 
-    # ── 5. Fail on unexpected diffs ───────────────────────────────────────────
+    # ── 6. Fail on unexpected diffs ───────────────────────────────────────────
     #
     # Use the path-set diff (not the raw diff) for the PASS/FAIL decision so
     # that format differences (ownership, timestamps, permissions, file sizes)

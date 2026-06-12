@@ -52,6 +52,21 @@ pkg_files(
     visibility = ["//packages/agent:__subpackages__"],
 )
 
+pkg_files(
+    name = "dist_config_files",
+    srcs = [
+        "config.py",
+        "system-probe.yaml",
+        "//pkg/config/example:security-agent.yaml.example",
+    ],
+    attributes = pkg_attributes(mode = "0644"),
+    prefix = "bin/agent/dist",
+    renames = {
+        "//pkg/config/example:security-agent.yaml.example": "security-agent.yaml",
+    },
+    visibility = ["//packages/agent:__subpackages__"],
+)
+
 pkg_filegroup(
     name = "all_python_files",
     srcs = [

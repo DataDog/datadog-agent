@@ -2,7 +2,7 @@ load("@cpython_versions//:constants.bzl", "PYTHON_MAJOR_MINOR")
 load("@rules_cc//cc:cc_static_library.bzl", "cc_static_library")
 load("@rules_cc//cc:defs.bzl", "cc_import", "cc_library", "cc_shared_library")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files", "pkg_mklink")
 load("//bazel/rules:dd_agent_expand_template.bzl", "dd_agent_expand_template")
 load("//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
 load("//bazel/rules/dd_packaging:dd_collect_dependencies.bzl", "dd_collect_dependencies")
@@ -247,6 +247,19 @@ pkg_files(
     }),
 )
 
+# Compatibility SONAME symlink matching the legacy CMake/omnibus build.
+# The CMake build historically shipped libdatadog-agent-rtloader.so.2 as
+# an additional symlink pointing to the real versioned file.  Reference-
+# omnibus.deb: so.2 → so.0.1.0; so → so.2.  The Bazel so_symlink rule
+# generates so.0 and so from version="0.1.0" (major=0), so so.2 must be
+# added as an explicit compat entry.
+pkg_mklink(
+    name = "rtloader_so2_compat_link",
+    link_name = "lib/libdatadog-agent-rtloader.so.2",
+    target = "libdatadog-agent-rtloader.so.0.1.0",
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
 pkg_filegroup(
     name = "all_files",
     srcs = select({
@@ -254,6 +267,7 @@ pkg_filegroup(
         "//conditions:default": [
             ":rtloader_header_pkg_files",
             ":rtloader_pkg_packaged",
+            ":rtloader_so2_compat_link",
             ":three_pkg_packaged",
         ],
     }),
