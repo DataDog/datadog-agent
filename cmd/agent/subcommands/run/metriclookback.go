@@ -46,14 +46,13 @@ func registerMetricLookbackScheduler(
 		NewSenderManager: func(ctx context.Context) sender.SenderManager {
 			return lookbacksender.NewSenderManager(ctx, hostname.GetSafe(ctx), noopLookbackWriter{}, nil)
 		},
-		NewRunner: func(scheduled collectorrunner.ScheduledChecks) metriclookback.ShadowRunner {
+		NewRunner: func() metriclookback.ShadowRunner {
 			r := collectorrunner.NewRunnerWithOptions(
 				demux,
 				haAgent,
 				healthplatform,
 				collectorrunner.Options{StatusEmitter: noopShadowStatusEmitter{}},
 			)
-			r.SetScheduler(scheduled)
 			return r
 		},
 	})
