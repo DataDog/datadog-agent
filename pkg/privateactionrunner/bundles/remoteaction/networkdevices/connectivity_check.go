@@ -18,19 +18,9 @@ import (
 )
 
 const (
-	// maxExpandedTargets bounds CIDR expansion so a single task stays within its timeout
-	// and within the Action Platform's per-action limits.
-	maxExpandedTargets = 1024
-
 	defaultPingCount   = 3
 	defaultPingTimeout = 3 * time.Second
 	pingInterval       = 100 * time.Millisecond
-
-	// TODO(NDM): the PAR action runs inside the Agent process; confirm it has the
-	// privileges the pinger needs. Raw sockets require CAP_NET_RAW; with UseRawSocket=false
-	// the Linux pinger routes through system-probe. This default may need to come from
-	// agent config (e.g. network_devices.connectivity_check.use_raw_sockets).
-	useRawSocket = true
 )
 
 // Check types and failure categories. These string values MUST match the
@@ -172,7 +162,7 @@ func (h *ConnectivityCheckHandler) runPing(host string, opts *PingOptions) Check
 	}
 
 	p, err := pinger.New(pinger.Config{
-		UseRawSocket: useRawSocket,
+		UseRawSocket: false,
 		Count:        count,
 		Interval:     pingInterval,
 		Timeout:      timeout,
@@ -216,30 +206,25 @@ func (h *ConnectivityCheckHandler) runSNMP(_ context.Context, _ string, opts *Sn
 	return CheckResult{Type: checkSNMP, Success: false, FailureCategory: failureUnknown, Error: "snmp check not yet implemented"}
 }
 
-// expandTargets resolves the input targets (individual IPs and CIDR ranges) into a bounded,
-// de-duplicated list of host addresses to check.
+// expandTargets resolves the input targets (individual IPs and CIDR ranges) into a
+// de-duplicated list of host addresses to check. The backend is responsible for bounding
+// the size of the targets it sends.
 func expandTargets(targets []string) ([]string, error) {
 	var hosts []string
 	seen := make(map[string]struct{})
-	add := func(s string) bool {
+	add := func(s string) {
 		if _, ok := seen[s]; ok {
-			return true
-		}
-		if len(hosts) >= maxExpandedTargets {
-			return false
+			return
 		}
 		seen[s] = struct{}{}
 		hosts = append(hosts, s)
-		return true
 	}
 
 	for _, t := range targets {
 		// CIDR range -> sweep every address in the prefix.
 		if prefix, err := netip.ParsePrefix(t); err == nil {
 			for addr := prefix.Masked().Addr(); prefix.Contains(addr); addr = addr.Next() {
-				if !add(addr.String()) {
-					return nil, fmt.Errorf("targets expand to more than %d addresses; use smaller ranges", maxExpandedTargets)
-				}
+				add(addr.String())
 				if !addr.Next().IsValid() {
 					break
 				}
@@ -248,9 +233,7 @@ func expandTargets(targets []string) ([]string, error) {
 		}
 		// Single IP address.
 		if addr, err := netip.ParseAddr(t); err == nil {
-			if !add(addr.String()) {
-				return nil, fmt.Errorf("targets expand to more than %d addresses; use smaller ranges", maxExpandedTargets)
-			}
+			add(addr.String())
 			continue
 		}
 		return nil, fmt.Errorf("invalid target %q (expected an IP address or CIDR range)", t)
