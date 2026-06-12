@@ -48,11 +48,13 @@ After you apply the updated Custom Resource, the Operator rolls out a new Agent 
 
 After deploying the Host Profiler, profiles appear on the [Datadog Profiler](https://app.datadoghq.com/profiling) page within a few minutes. If profiles do not appear, see the [Troubleshooting](../troubleshooting.md) guide.
 
-## Seccomp (recommended)
+## Seccomp (optional)
 
-Current Operator versions do not install the Host Profiler seccomp profile automatically.
+Seccomp provides extra hardening by restricting the syscalls available to the Host Profiler container. The Host Profiler does not require seccomp to run in this preview.
 
-To use seccomp, provision the profile to each node through your cluster's node management tooling. The profile is available at `/etc/dd-host-profiler/seccomp.json` inside the Host Profiler image and must be copied to `/var/lib/kubelet/seccomp/host-profiler.json` on every node.
+Current Operator versions do not install or configure the Host Profiler seccomp profile automatically. A future Operator version is expected to configure seccomp by default.
+
+Use this section only if you already manage node-local seccomp profiles or want to add the extra hardening manually. The profile is available at `/etc/dd-host-profiler/seccomp.json` inside the Host Profiler image and must be copied to `/var/lib/kubelet/seccomp/host-profiler.json` on every node.
 
 Then add `seccompProfile` to the same host-profiler container override in your `DatadogAgent` Custom Resource:
 
