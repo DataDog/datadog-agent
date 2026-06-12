@@ -325,6 +325,53 @@ func (p *Provider) processUsageMetric(metricName string, metricFam *prom.MetricF
 	}
 }
 
+// isContainerMemoryLimitSet checks if the memory limit is set on the container level.
+// Returns True if this is the case, False otherwise.
+func isContainerMemoryLimitSet(pod *workloadmeta.KubernetesPod, containerName string) bool {
+	for _, c := range pod.GetAllContainers() {
+		if c.Name == containerName {
+			return c.Resources.MemoryLimit != nil && *c.Resources.MemoryLimit > 0
+		}
+	}
+
+	return false
+}
+
+// shouldSendMetric checks if the metric should be processed.
+// It checks:
+// - If the metric is `kubernetes.memory.limits`
+// - if the container name for that metric has a pod associated with it
+// - if the memory limit is set on the container level
+// Then it adds the missing tags and returns true if the metric should be processed, false otherwise.
+func (p *Provider) shouldSendMetric(metricName string, sample *prom.Sample) bool {
+	// non matching metrics should be sent
+	if metricName != "kubernetes.memory.limits" {
+		return true
+	}
+
+	// no container name, send the metric
+	containerName := p.getContainerName(sample.Metric)
+	if containerName == "" {
+		return true
+	}
+
+	// no pod, send the metric
+	pod := p.getPodByMetricLabel(sample.Metric)
+	if pod == nil {
+		return true
+	}
+
+	// if the container itself has no memory limit set, skip the metric
+	if isContainerMemoryLimitSet(pod, containerName) {
+		return true
+	}
+
+	// this code path is only reach if the memory limit is set on the pod level,
+	// which is why the metric exists and not on the container level.
+	// so we should skip that metric.
+	return false
+}
+
 func (p *Provider) processLimitMetric(metricName string, metricFam *prom.MetricFamily, cache map[string]*processCache, pctMetricName string, sender sender.Sender) {
 	samples := p.latestValueByContext(metricFam, p.getEntityIDIfContainerMetric)
 	for containerID, sample := range samples {
@@ -340,14 +387,9 @@ func (p *Provider) processLimitMetric(metricName string, metricFam *prom.MetricF
 			// is reported by this provider AND the kubelet provider.
 			// Without this tag it reports as two series;
 			// one with kube_static_cpus:N/A and one with kube_static_cpus:true/false
-			if strings.Contains(metricName, "memory.limits") {
-				pod := p.getPodByMetricLabel(sample.Metric)
-				if pod != nil {
-					tags = common.AppendKubeStaticCPUsTag(p.store, pod.QOSClass, cID, tags)
-				}
+			if p.shouldSendMetric(metricName, sample) {
+				sender.Gauge(metricName, sample.Value, "", tags)
 			}
-
-			sender.Gauge(metricName, sample.Value, "", tags)
 		}
 
 		if pctMetricName != "" && sample.Value > 0 {
@@ -434,6 +476,7 @@ func (p *Provider) getPodByMetricLabel(labels prom.Metric) *workloadmeta.Kuberne
 	}
 	if pod, err := p.store.GetKubernetesPodByName(podName, namespace); err == nil {
 		filterablePod := workloadmetafilter.CreatePod(pod)
+		log.Infof("filtered pods: %+v", p.podFilter)
 		if !p.podFilter.IsExcluded(filterablePod) {
 			return pod
 		}
