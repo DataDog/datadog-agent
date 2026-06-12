@@ -56,7 +56,13 @@ type Params struct {
 	SecurityAgentConfig string
 	Integrations        map[string]*FileDefinition
 	Files               map[string]*FileDefinition
-	ExtraAgentConfig    []pulumi.StringInput
+	// Deprecated: ExtraAgentConfig is used by the Pulumi agent-install path only.
+	// For the standard installer path (hostagent.Install, helmagent.Install, etc.)
+	// use ExtraAgentConfigRaw instead. Pulumi cannot resolve pulumi.StringInput
+	// values outside a Pulumi context; these values are silently ignored by
+	// non-Pulumi installers. Will be removed once the Pulumi agent-install path
+	// is fully replaced (Phase 4c cleanup).
+	ExtraAgentConfig []pulumi.StringInput
 	// ExtraAgentConfigRaw stores the same content as ExtraAgentConfig but as
 	// resolved YAML strings, for use by non-Pulumi installers (hostagent.Install)
 	// that cannot evaluate pulumi.StringInput values.
