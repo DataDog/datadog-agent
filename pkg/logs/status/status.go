@@ -100,6 +100,8 @@ type ComponentUtilization struct {
 type BackpressureStatus struct {
 	State  string `json:"state"`
 	Reason string `json:"reason"`
+	// Suggestion is a brief, component-specific corrective hint with a doc link. Empty when HEALTHY.
+	Suggestion string `json:"suggestion,omitempty"`
 }
 
 // Status provides some information about logs-agent.

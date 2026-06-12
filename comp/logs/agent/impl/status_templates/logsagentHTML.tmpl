@@ -25,6 +25,9 @@
         {{- if .Backpressure.Reason }}
         <strong>Reason:</strong> {{ .Backpressure.Reason }}<br>
         {{- end }}
+        {{- if .Backpressure.Suggestion }}
+        <strong>Suggestion:</strong> {{ .Backpressure.Suggestion }}<br>
+        {{- end }}
         <table style="border-collapse:collapse;margin-top:6px;font-family:monospace;font-size:12px">
           <tr style="text-align:left;border-bottom:1px solid #ccc">
             <th style="padding:2px 8px">Component</th>
