@@ -130,6 +130,18 @@ publish_internal_container_image-host_profiler_standalone:
     <<: *host_profiler_standalone_variables
     TMPL_SRC_IMAGE_SUFFIX: "-7"
 
+# Scrappy live-inference detector overlay (amd64 only — scrappy-infer is AVX2 ELF)
+# TODO: make manual before merge to main
+publish_internal_container_image-scrappy:
+  extends: .docker_trigger_base
+  needs:
+    - job: docker_build_agent7_scrappy
+      artifacts: false
+  variables:
+    <<: *agent_variables
+    RELEASE_TAG_SUFFIX: "-scrappy"
+    TMPL_SRC_IMAGE_SUFFIX: "-7-scrappy"
+
 # DCA publish jobs
 publish_internal_dca_container_image:
   extends: .docker_trigger_base
