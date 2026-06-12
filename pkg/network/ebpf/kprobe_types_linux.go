@@ -62,22 +62,23 @@ type PidTs struct {
 	Timestamp uint64
 }
 type Telemetry struct {
-	Tcp_sent_miscounts                           uint64
-	Udp_sends_processed                          uint64
-	Udp_sends_missed                             uint64
-	Udp_dropped_conns                            uint64
-	Tcp_done_missing_pid                         uint64
-	Tcp_connect_failed_tuple                     uint64
-	Tcp_done_failed_tuple                        uint64
-	Tcp_finish_connect_failed_tuple              uint64
-	Tcp_close_target_failures                    uint64
-	Tcp_done_connection_flush                    uint64
-	Tcp_close_connection_flush                   uint64
-	Tcp_syn_retransmit                           uint64
-	Protocol_classifier_calls                    uint64
-	Protocol_classifier_skipped_fully_classified uint64
-	Protocol_classifier_skipped_max_attempts     uint64
-	Classification_attempt_histogram             [16][16]uint64
+	Tcp_sent_miscounts                              uint64
+	Udp_sends_processed                             uint64
+	Udp_sends_missed                                uint64
+	Udp_dropped_conns                               uint64
+	Tcp_done_missing_pid                            uint64
+	Tcp_connect_failed_tuple                        uint64
+	Tcp_done_failed_tuple                           uint64
+	Tcp_finish_connect_failed_tuple                 uint64
+	Tcp_close_target_failures                       uint64
+	Tcp_done_connection_flush                       uint64
+	Tcp_close_connection_flush                      uint64
+	Tcp_syn_retransmit                              uint64
+	Protocol_classifier_calls                       uint64
+	Protocol_classifier_skipped_fully_classified    uint64
+	Protocol_classifier_skipped_max_attempts        uint64
+	Protocol_classifier_skipped_fully_classified_v2 uint64
+	Classification_attempt_histogram                [16][16]uint64
 }
 type PortBinding struct {
 	Netns     uint32

@@ -168,6 +168,14 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
         protocol_stack_wrapper->histogram_stamped = 1;
     }
 
+    // Shadow evaluation of the candidate v2 predicate: count packets where v2
+    // (v1 OR encryption-layer-known) would short-circuit but v1 did not — i.e.
+    // the TLS-flow waste v1 misses. Counted, not enforced (no early return);
+    // measured against the v1 counter below. See NTWK-684 plan doc.
+    if (!is_fully_classified(protocol_stack) && is_fully_classified_v2(protocol_stack)) {
+        increment_telemetry_count(protocol_classifier_skipped_fully_classified_v2);
+    }
+
     if (is_fully_classified(protocol_stack)) {
         increment_telemetry_count(protocol_classifier_skipped_fully_classified);
         return;

@@ -29,6 +29,7 @@ enum telemetry_counter {
     protocol_classifier_calls,
     protocol_classifier_skipped_fully_classified,
     protocol_classifier_skipped_max_attempts,
+    protocol_classifier_skipped_fully_classified_v2,
 };
 
 static __always_inline void __increment_telemetry_count(enum telemetry_counter counter_name, int times) {
@@ -81,6 +82,9 @@ static __always_inline void __increment_telemetry_count(enum telemetry_counter c
         break;
     case protocol_classifier_skipped_max_attempts:
         __sync_fetch_and_add(&val->protocol_classifier_skipped_max_attempts, times);
+        break;
+    case protocol_classifier_skipped_fully_classified_v2:
+        __sync_fetch_and_add(&val->protocol_classifier_skipped_fully_classified_v2, times);
         break;
     }
 }

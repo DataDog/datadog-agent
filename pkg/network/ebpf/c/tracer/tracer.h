@@ -151,6 +151,10 @@ typedef struct {
     __u64 protocol_classifier_calls;
     __u64 protocol_classifier_skipped_fully_classified;
     __u64 protocol_classifier_skipped_max_attempts;
+    // Shadow-evaluation: count of packets where the candidate v2 predicate
+    // (is_fully_classified_v2 — v1 OR encryption-layer-known) WOULD short-circuit
+    // but v1 did not. Counted, not enforced.
+    __u64 protocol_classifier_skipped_fully_classified_v2;
     // Shadow-evaluation histogram: count of connections whose application-layer
     // protocol was first observed resolved on a given attempt, per protocol.
     __u64 classification_attempt_histogram[CLASSIFICATION_APP_PROTO_BUCKETS][CLASSIFICATION_MAX_ATTEMPT_BUCKETS];

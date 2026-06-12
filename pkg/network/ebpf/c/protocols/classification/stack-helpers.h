@@ -125,6 +125,24 @@ __maybe_unused static __always_inline bool is_protocol_layer_known(protocol_stac
     return proto != PROTOCOL_UNKNOWN;
 }
 
+// is_fully_classified_v2 is the candidate "predicate fix" evaluated as a shadow by the
+// single-run shadow-evaluation instrument. In addition to the v1 condition
+// (is_fully_classified), it treats a flow as fully classified once the encryption layer
+// is known: from the socket filter's vantage point it cannot see inside TLS (USM's
+// plaintext classification runs in separate uprobe programs, not this entrypoint), so a
+// known encryption layer means there is nothing more for the socket filter to do. This
+// captures the dominant TLS-flow waste that v1 misses (TLS flows are never
+// mark_as_fully_classified'd and re-run is_tls() on every packet). It does NOT catch
+// genuinely-unrecognized flows (no layer ever set) — those remain the max-attempts cap's
+// job. See the NTWK-684 plan doc "Update (2026-06-12) — grounded findings".
+__maybe_unused static __always_inline bool is_fully_classified_v2(protocol_stack_t *stack) {
+    if (!stack) {
+        return false;
+    }
+
+    return is_fully_classified(stack) || is_protocol_layer_known(stack, LAYER_ENCRYPTION);
+}
+
 // merge_protocol_stacks modifies `this` by merging it with `that`
 static __always_inline void merge_protocol_stacks(protocol_stack_t *this, protocol_stack_t *that) {
     if (!this || !that) {
