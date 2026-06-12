@@ -8,7 +8,6 @@ package components
 import (
 	"fmt"
 	"strings"
-	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
@@ -71,7 +70,7 @@ func (a *RemoteHostAgent) SetComponents(host *RemoteHost, fakeIntake *FakeIntake
 //	s.Env().Agent.Configure(s.T(),
 //	    agentparams.WithAgentConfig("log_level: info"),
 //	)
-func (a *RemoteHostAgent) Configure(t *testing.T, opts ...agentparams.Option) {
+func (a *RemoteHostAgent) Configure(t common.Context, opts ...agentparams.Option) {
 	t.Helper()
 	require.NotNil(t, a.host, "RemoteHostAgent.Configure: host not set, call SetComponents first")
 
@@ -91,7 +90,7 @@ func (a *RemoteHostAgent) SetBaseOptions(opts ...agentparams.Option) {
 
 // applyAgentConfig writes agent config files via SSH and restarts the agent.
 // This is the core implementation shared by Configure and SetAgentConfig.
-func applyAgentConfig(t *testing.T, host *RemoteHost, fakeIntake *FakeIntake, agentClient agentclient.Agent, opts []agentparams.Option) {
+func applyAgentConfig(t common.Context, host *RemoteHost, fakeIntake *FakeIntake, agentClient agentclient.Agent, opts []agentparams.Option) {
 	t.Helper()
 
 	p := &agentparams.Params{
@@ -145,7 +144,7 @@ func applyAgentConfig(t *testing.T, host *RemoteHost, fakeIntake *FakeIntake, ag
 
 // buildCoreAgentConfig assembles the full datadog.yaml content by merging the
 // user-provided AgentConfig with framework defaults (fakeintake URLs, API key).
-func buildCoreAgentConfig(t *testing.T, host *RemoteHost, fakeIntake *FakeIntake, p *agentparams.Params) string {
+func buildCoreAgentConfig(t common.Context, host *RemoteHost, fakeIntake *FakeIntake, p *agentparams.Params) string {
 	t.Helper()
 
 	config := p.AgentConfig
@@ -218,7 +217,7 @@ event_management.forwarder.logs_no_ssl: true
 `, host, port, scheme)
 }
 
-func mergeYAML(t *testing.T, base, overlay string) string {
+func mergeYAML(t common.Context, base, overlay string) string {
 	t.Helper()
 	if base == "" {
 		return overlay
@@ -231,7 +230,7 @@ func mergeYAML(t *testing.T, base, overlay string) string {
 	return merged
 }
 
-func restartSubAgentServices(t *testing.T, host *RemoteHost, p *agentparams.Params) {
+func restartSubAgentServices(t common.Context, host *RemoteHost, p *agentparams.Params) {
 	t.Helper()
 
 	switch host.OSFamily {
@@ -265,7 +264,7 @@ func restartLinuxService(host *RemoteHost, service string) {
 	_, _ = host.Execute(fmt.Sprintf("sudo service %s restart", service))
 }
 
-func writeConfigFile(t *testing.T, host *RemoteHost, fullPath string, content string) {
+func writeConfigFile(t common.Context, host *RemoteHost, fullPath string, content string) {
 	t.Helper()
 	switch host.OSFamily {
 	case oscomp.WindowsFamily:
@@ -275,7 +274,7 @@ func writeConfigFile(t *testing.T, host *RemoteHost, fullPath string, content st
 	}
 }
 
-func writeFileDefinition(t *testing.T, host *RemoteHost, fullPath string, fileDef *agentparams.FileDefinition) {
+func writeFileDefinition(t common.Context, host *RemoteHost, fullPath string, fileDef *agentparams.FileDefinition) {
 	t.Helper()
 	if fileDef.UseSudo {
 		writeConfigFile(t, host, fullPath, fileDef.Content)
@@ -291,7 +290,7 @@ func writeFileDefinition(t *testing.T, host *RemoteHost, fullPath string, fileDe
 	}
 }
 
-func mkdirPrivileged(t *testing.T, host *RemoteHost, dir string) {
+func mkdirPrivileged(t common.Context, host *RemoteHost, dir string) {
 	t.Helper()
 	switch host.OSFamily {
 	case oscomp.WindowsFamily:

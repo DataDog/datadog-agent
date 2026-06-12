@@ -10,7 +10,6 @@ package hostagent
 import (
 	"fmt"
 	"strings"
-	"testing"
 
 	"github.com/stretchr/testify/require"
 
@@ -21,20 +20,9 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers/internal/agenturl"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/parameters"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/common"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclientparams"
 )
-
-// testContext adapts *testing.T to common.Context for agent client initialization.
-type testContext struct {
-	t *testing.T
-}
-
-func (c *testContext) Errorf(format string, args ...any) { c.t.Errorf(format, args...) }
-func (c *testContext) FailNow()                          { c.t.FailNow() }
-func (c *testContext) Logf(format string, args ...any)   { c.t.Logf(format, args...) }
-func (c *testContext) Helper()                           { c.t.Helper() }
-func (c *testContext) Cleanup(fn func())                 { c.t.Cleanup(fn) }
-func (c *testContext) SessionOutputDir() string          { return "" }
 
 // Install installs the Datadog Agent on a remote host via SSH, configures it,
 // and starts it. It populates env.Agent with the initialized agent component.
@@ -50,14 +38,14 @@ func (c *testContext) SessionOutputDir() string          { return "" }
 //	    agentparams.WithAgentConfig("log_level: debug"),
 //	    agentparams.WithLogs(),
 //	)
-func Install(t *testing.T, env *environments.Host, opts ...agentparams.Option) {
+func Install(t common.Context, env *environments.Host, opts ...agentparams.Option) {
 	t.Helper()
 	env.Agent = InstallOnHost(t, env.RemoteHost, env.FakeIntake, opts...)
 }
 
 // InstallOnWindowsHost installs the Datadog Agent on a Windows host environment.
 // It is the Windows-specific counterpart to Install for environments.WindowsHost.
-func InstallOnWindowsHost(t *testing.T, env *environments.WindowsHost, opts ...agentparams.Option) {
+func InstallOnWindowsHost(t common.Context, env *environments.WindowsHost, opts ...agentparams.Option) {
 	t.Helper()
 	env.Agent = InstallOnHost(t, env.RemoteHost, env.FakeIntake, opts...)
 }
@@ -75,7 +63,7 @@ func InstallOnWindowsHost(t *testing.T, env *environments.WindowsHost, opts ...a
 //	    agentparams.WithLogs(),
 //	    agentparams.WithIntegration("nginx.d", nginxConfig),
 //	)
-func InstallOnHost(t *testing.T, host *components.RemoteHost, fakeIntake *components.FakeIntake, opts ...agentparams.Option) *components.RemoteHostAgent {
+func InstallOnHost(t common.Context, host *components.RemoteHost, fakeIntake *components.FakeIntake, opts ...agentparams.Option) *components.RemoteHostAgent {
 	t.Helper()
 	require.NotNil(t, host, "hostagent.InstallOnHost: host is nil, infrastructure must be provisioned first")
 
@@ -108,7 +96,7 @@ func InstallOnHost(t *testing.T, host *components.RemoteHost, fakeIntake *compon
 	agentComp.HostAgentOutput.Host = host.HostOutput
 	agentComp.HostAgentOutput.FIPSEnabled = (p.Version.Flavor == agentparams.FIPSFlavor)
 
-	err = agentComp.Init(&testContext{t: t})
+	err = agentComp.Init(t)
 	require.NoError(t, err, "failed to initialize agent client")
 
 	// Wire cross-component references for Configure
@@ -123,7 +111,7 @@ func InstallOnHost(t *testing.T, host *components.RemoteHost, fakeIntake *compon
 
 // applyVersionDefaults reads version-related parameters from the runner
 // profile and applies them to the Params if not already set by user options.
-func applyVersionDefaults(t *testing.T, p *agentparams.Params) {
+func applyVersionDefaults(t common.Context, p *agentparams.Params) {
 	t.Helper()
 	profile := runner.GetProfile()
 
@@ -165,7 +153,7 @@ func applyVersionDefaults(t *testing.T, p *agentparams.Params) {
 }
 
 // installAgent runs the appropriate install command via SSH based on the OS.
-func installAgent(t *testing.T, host *components.RemoteHost, version agentparams.PackageVersion, apiKey string) {
+func installAgent(t common.Context, host *components.RemoteHost, version agentparams.PackageVersion, apiKey string) {
 	t.Helper()
 
 	switch host.OSFamily {
@@ -182,7 +170,7 @@ func installAgent(t *testing.T, host *components.RemoteHost, version agentparams
 
 // installLinuxAgent installs the agent on Linux via the official install script.
 // Mirrors the logic in components/datadog/agent/host_linuxos.go:getInstallCommand.
-func installLinuxAgent(t *testing.T, host *components.RemoteHost, version agentparams.PackageVersion, apiKey string) {
+func installLinuxAgent(t common.Context, host *components.RemoteHost, version agentparams.PackageVersion, apiKey string) {
 	t.Helper()
 
 	var envVars []string
@@ -224,7 +212,7 @@ func installLinuxAgent(t *testing.T, host *components.RemoteHost, version agentp
 
 // installWindowsAgent installs the Datadog Agent on Windows via PowerShell over SSH.
 // Mirrors the logic in components/datadog/agent/host_windowsos.go:getInstallCommand.
-func installWindowsAgent(t *testing.T, host *components.RemoteHost, version agentparams.PackageVersion, apiKey string) {
+func installWindowsAgent(t common.Context, host *components.RemoteHost, version agentparams.PackageVersion, apiKey string) {
 	t.Helper()
 
 	if version.Flavor == "" {
@@ -265,7 +253,7 @@ if ($exitCode -ne 0) { exit $exitCode }`,
 
 // installMacOSAgent installs the Datadog Agent on macOS via the official install script over SSH.
 // Mirrors the logic in components/datadog/agent/host_macos.go:getInstallCommand.
-func installMacOSAgent(t *testing.T, host *components.RemoteHost, version agentparams.PackageVersion, apiKey string) {
+func installMacOSAgent(t common.Context, host *components.RemoteHost, version agentparams.PackageVersion, apiKey string) {
 	t.Helper()
 
 	var exports []string

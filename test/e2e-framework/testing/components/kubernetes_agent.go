@@ -6,10 +6,9 @@
 package components
 
 import (
-	"testing"
-
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/common"
 )
 
 // KubernetesAgentInstaller is the interface that agent installers (Helm,
@@ -17,7 +16,7 @@ import (
 type KubernetesAgentInstaller interface {
 	// Upgrade reconfigures the agent with the given options.
 	// For Helm this runs helm upgrade; for Operator this updates the CR.
-	Upgrade(t *testing.T, opts []kubernetesagentparams.Option) error
+	Upgrade(t common.Context, opts []kubernetesagentparams.Option) error
 }
 
 // KubernetesAgent is an agent running in a Kubernetes cluster.
@@ -45,10 +44,11 @@ func (a *KubernetesAgent) SetBaseOptions(opts ...kubernetesagentparams.Option) {
 // The actual reconfiguration is performed by the Installer that was set
 // during initial installation (e.g., Helm runs helm upgrade, Operator
 // updates the DatadogAgent CR).
-func (a *KubernetesAgent) Configure(t *testing.T, opts ...kubernetesagentparams.Option) {
+func (a *KubernetesAgent) Configure(t common.Context, opts ...kubernetesagentparams.Option) {
 	t.Helper()
 	if a.Installer == nil {
-		t.Fatal("KubernetesAgent.Configure: no installer set, was the agent installed via helmagent.Install or similar?")
+		t.Errorf("KubernetesAgent.Configure: no installer set, was the agent installed via helmagent.Install or similar?")
+		t.FailNow()
 	}
 
 	// Merge: apply baseline options first, then caller's overrides
@@ -57,6 +57,7 @@ func (a *KubernetesAgent) Configure(t *testing.T, opts ...kubernetesagentparams.
 	merged = append(merged, opts...)
 
 	if err := a.Installer.Upgrade(t, merged); err != nil {
-		t.Fatalf("KubernetesAgent.Configure failed: %v", err)
+		t.Errorf("KubernetesAgent.Configure failed: %v", err)
+		t.FailNow()
 	}
 }

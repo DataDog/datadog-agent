@@ -7,8 +7,9 @@ package common
 
 // Context defines the execution context for e2e test operations.
 // It is satisfied by *testing.T (in tests) and by CLI context implementations
-// (outside tests). Removing *testing.T from this interface is what allows the
-// installer layer to run in non-test programs.
+// (outside tests). The interface is intentionally minimal — no *testing.T, no
+// test-specific methods — so non-test programs can implement it without any
+// test framework.
 //
 // The Errorf + FailNow pair satisfies testify's require.TestingT, so callers
 // can pass a Context directly to require.NoError(ctx, err) etc.
@@ -23,8 +24,6 @@ type Context interface {
 	Helper()
 	// Cleanup registers a function to be called when the operation finishes.
 	Cleanup(fn func())
-	// SessionOutputDir returns the directory for output files and artifacts.
-	SessionOutputDir() string
 }
 
 // Initializable defines the interface for an object that needs to be initialized

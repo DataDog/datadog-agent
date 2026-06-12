@@ -12,8 +12,8 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
-	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
@@ -38,6 +38,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/parameters"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/common"
 )
 
 const (
@@ -128,7 +129,7 @@ clusterAgent:
 //	    kubernetesagentparams.WithHelmValues(myValues),
 //	    kubernetesagentparams.WithNamespace("datadog"),
 //	)
-func Install(t *testing.T, env *environments.Kubernetes, cloud runner.Cloud, opts ...kubernetesagentparams.Option) {
+func Install(t common.Context, env *environments.Kubernetes, cloud runner.Cloud, opts ...kubernetesagentparams.Option) {
 	t.Helper()
 	require.NotNil(t, env.KubernetesCluster, "helmagent.Install: KubernetesCluster is nil, infrastructure must be provisioned first")
 
@@ -203,7 +204,7 @@ func Install(t *testing.T, env *environments.Kubernetes, cloud runner.Cloud, opt
 // No helm CLI required; kubeconfig is used in-memory.
 // action.Upgrade.Install = true is purely informational in Helm v3 and does not
 // handle the install case — we detect release existence and branch manually.
-func helmUpgradeInstall(t *testing.T, kubeconfig string, p *kubernetesagentparams.Params, vals map[string]interface{}) error {
+func helmUpgradeInstall(t common.Context, kubeconfig string, p *kubernetesagentparams.Params, vals map[string]interface{}) error {
 	t.Helper()
 
 	// Build RESTClientGetter from in-memory kubeconfig (no temp file needed)
@@ -225,7 +226,11 @@ func helmUpgradeInstall(t *testing.T, kubeconfig string, p *kubernetesagentparam
 	// repos and then loads their index from RepositoryCache; if it finds a
 	// match but the index isn't there it returns "no cached repo found".
 	// Pointing both to a temp dir ensures a clean slate.
-	isolated := t.TempDir()
+	isolated, err := os.MkdirTemp("", "helm-*")
+	if err != nil {
+		return fmt.Errorf("failed to create helm temp dir: %w", err)
+	}
+	t.Cleanup(func() { os.RemoveAll(isolated) }) //nolint:errcheck
 	envSettings := cli.New()
 	envSettings.RepositoryCache = isolated
 	envSettings.RepositoryConfig = isolated + "/repositories.yaml"
@@ -341,7 +346,7 @@ type helmInstaller struct {
 }
 
 // Upgrade runs helm upgrade with the given options.
-func (h *helmInstaller) Upgrade(t *testing.T, opts []kubernetesagentparams.Option) error {
+func (h *helmInstaller) Upgrade(t common.Context, opts []kubernetesagentparams.Option) error {
 	Install(t, h.env, h.cloud, opts...)
 	return nil
 }
@@ -365,7 +370,7 @@ func buildParams(opts []kubernetesagentparams.Option) (*kubernetesagentparams.Pa
 // buildValuesYAML generates the Helm values YAML that configures the agent.
 // This replicates the values produced by the Pulumi buildLinuxHelmValues
 // function in kubernetes_helm.go to ensure identical agent behavior.
-func buildValuesYAML(t *testing.T, env *environments.Kubernetes, p *kubernetesagentparams.Params, cloud runner.Cloud, secretName, pullSecretName string) string {
+func buildValuesYAML(t common.Context, env *environments.Kubernetes, p *kubernetesagentparams.Params, cloud runner.Cloud, secretName, pullSecretName string) string {
 	t.Helper()
 
 	// Cluster name is required for KinD/non-cloud clusters where the agent
@@ -590,7 +595,7 @@ clusterChecksRunner:
 	return base
 }
 
-func mustMerge(t *testing.T, base, overlay string) string {
+func mustMerge(t common.Context, base, overlay string) string {
 	t.Helper()
 	merged, err := utils.MergeYAMLWithSlices(base, overlay)
 	require.NoError(t, err, "failed to merge helm values")
@@ -686,7 +691,7 @@ clusterChecksRunner:
 // on the runner profile (pipeline ID, commit SHA) or user-provided image paths.
 // Mirrors the logic in docker_image.go's dockerAgentFullImagePath /
 // dockerClusterAgentFullImagePath when no explicit image is provided.
-func buildImageValues(t *testing.T, p *kubernetesagentparams.Params, cloud runner.Cloud) string {
+func buildImageValues(t common.Context, p *kubernetesagentparams.Params, cloud runner.Cloud) string {
 	t.Helper()
 
 	// User-provided full image paths take precedence

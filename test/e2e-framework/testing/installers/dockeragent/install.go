@@ -12,7 +12,6 @@ package dockeragent
 import (
 	"fmt"
 	"strings"
-	"testing"
 
 	"github.com/stretchr/testify/require"
 	"sigs.k8s.io/yaml"
@@ -21,17 +20,8 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/parameters"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/common"
 )
-
-// testContext adapts *testing.T to common.Context for agent client initialization.
-type testContext struct{ t *testing.T }
-
-func (c *testContext) Errorf(format string, args ...any) { c.t.Errorf(format, args...) }
-func (c *testContext) FailNow()                          { c.t.FailNow() }
-func (c *testContext) Logf(format string, args ...any)   { c.t.Logf(format, args...) }
-func (c *testContext) Helper()                           { c.t.Helper() }
-func (c *testContext) Cleanup(fn func())                 { c.t.Cleanup(fn) }
-func (c *testContext) SessionOutputDir() string          { return "" }
 
 const (
 	agentContainerName     = "datadog-agent"
@@ -103,7 +93,7 @@ func WithEnvVar(key, value string) Option {
 // Usage in SetupSuite:
 //
 //	dockeragent.Install(s.T(), s.Env())
-func Install(t *testing.T, env *environments.DockerHost, opts ...Option) {
+func Install(t common.Context, env *environments.DockerHost, opts ...Option) {
 	t.Helper()
 	require.NotNil(t, env.RemoteHost, "dockeragent.Install: RemoteHost is nil, infrastructure must be provisioned first")
 
@@ -129,12 +119,12 @@ func Install(t *testing.T, env *environments.DockerHost, opts ...Option) {
 	env.Agent = &components.DockerAgent{}
 	env.Agent.DockerAgentOutput.DockerManager.Host = env.RemoteHost.HostOutput
 	env.Agent.DockerAgentOutput.ContainerName = agentContainerName
-	err = env.Agent.Init(&testContext{t: t})
+	err = env.Agent.Init(t)
 	require.NoError(t, err, "failed to initialize docker agent client")
 }
 
 // resolveImagePath determines the docker image path from Params and the runner profile.
-func resolveImagePath(t *testing.T, p *Params) string {
+func resolveImagePath(t common.Context, p *Params) string {
 	t.Helper()
 
 	if p.FullImagePath != "" {
