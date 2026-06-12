@@ -26,26 +26,6 @@ const (
 	telemetryReportsEmitted = "observer.reports.emitted"
 	telemetryReportsOngoing = "observer.reports.ongoing"
 
-	// observerReadyMarker is logged when the demultiplexer wires the observer into
-	// the DSD/metrics pipeline. It only appears when metrics.enabled=true: the
-	// SetObserver call returns early without calling GetHandle when metrics are off.
-	observerReadyMarker = "[observer] getting handle for all-metrics"
-
-	// observerLogsHandleMarker is logged when the logssource component obtains its
-	// observer handle. It appears at agent startup when logs.enabled=true, regardless
-	// of metrics.enabled. Use this as the readiness signal for log-triggered tests.
-	observerLogsHandleMarker = "[observer] getting handle for logs"
-
-	// observerAgentLogsMarker is logged when the agent-log tap is installed.
-	observerAgentLogsMarker = "[observer] getting handle for agent-internal-logs"
-
-	// observerReportMarker is printed to stdout (→ journald) by the stdoutReporter
-	// on every advance that yields at least one active correlation.
-	observerReportMarker = "[observer] report: pattern="
-
-	// metricsDisabledWarning is logged when anomaly_detection.metrics.enabled=false.
-	metricsDisabledWarning = "anomaly_detection.metrics.enabled=false"
-
 	// scorerHelperEscalationMarker is emitted by anomalyScorerHelper.OnSeverityTransition
 	// when the EWMA rises above low_threshold (an escalation event). It is logged at info
 	// level, captured by journald, and serves as the assertion target for scorer helper tests.

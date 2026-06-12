@@ -1712,6 +1712,24 @@ properties:
             tags:
             - template_section:CoreAgent
             comment: Network Path
+      netflow_monitoring:
+        node_type: section
+        type: object
+        description: '[experimental] Configurations for Network Path Dynamic Test for
+          monitoring NetFlow destinations via Network Path.'
+        tags:
+        - template_section:CoreAgent
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
+            description: |-
+              [experimental] Enables Network Path Dynamic Test for monitoring NetFlow destinations via Network Path.
+              NetFlow destinations are monitored by IP. Enable `network_path.collector.monitor_ip_without_domain` to allow direct IP targets.
+            example: 'true'
+            tags:
+            - template_section:CoreAgent
       collector:
         node_type: section
         type: object
@@ -6520,7 +6538,7 @@ properties:
               enabled:
                 node_type: setting
                 type: boolean
-                default: false
+                default: true
           limit:
             node_type: setting
             type: integer
@@ -7083,14 +7101,6 @@ properties:
         node_type: setting
         type: string
         default: tcp://0.0.0.0:5101
-      telemetry_enabled:
-        node_type: setting
-        type: boolean
-        default: false
-      telemetry_listen_addr:
-        node_type: setting
-        type: string
-        default: tcp://0.0.0.0:5102
       use_new_config_stream_endpoint:
         node_type: setting
         type: boolean
@@ -8396,8 +8406,11 @@ properties:
         properties:
           interval:
             node_type: setting
-            type: string
+            type: number
             default: 0s
+            format: duration
+            tags:
+            - golang_type:duration
       persist_on_kubernetes:
         node_type: setting
         type: boolean

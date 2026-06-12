@@ -333,7 +333,7 @@ type ScorerConfig struct {
 	CooldownSecs int64 `json:"cooldown_secs"`
 	// DetectorThresholds overrides the default score-to-level boundaries for
 	// specific detector names. Each entry is [low, medium, high, xhigh] thresholds.
-	// Detectors not in this map fall back to the global defaults [6, 12, 20, 35].
+	// Detectors not in this map default to level 2 (Medium) regardless of their score.
 	DetectorThresholds map[string][4]float64 `json:"detector_thresholds,omitempty"`
 	// MaxBuckets is the maximum number of ScoreBucket entries retained in
 	// ScoreState(). 0 means unlimited (suitable for offline replay). Positive

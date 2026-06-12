@@ -258,7 +258,7 @@ func NewComponent(deps Requires) Provides {
 			var sender *severityEventSender
 			if reportEvents {
 				if deps.EventPlatform == nil {
-					pkglog.Warn("[observer] anomaly_scorer_helper: report_events=true but event-platform component is not available; severity events will not be sent to the backend")
+					pkglog.Warn("[observer] anomaly_scorer_helper: report_events=true but event-platform component is absent (e.g. testbench); severity events will not be sent to the backend")
 				} else if fwd, ok := deps.EventPlatform.Get(); ok {
 					sender = &severityEventSender{
 						forwarder: fwd,

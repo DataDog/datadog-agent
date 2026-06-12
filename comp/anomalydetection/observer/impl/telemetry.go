@@ -26,8 +26,8 @@ const (
 	telemetryAdvanceSkipped                  = "observer.scheduler.advance_skipped"           // Number of advance requests skipped as already analyzed.
 	telemetryLogsSamplerDropped              = "observer.logs.sampler_dropped"                // Logs dropped by the source sampler before reaching the observer, by source and priority.
 	telemetryDetectorProcessingTimeNs        = "observer.detector.processing_time_ns"         // Per-detector processing time in nanoseconds.
-	telemetryScorerEWMA  = "observer.scorer.ewma"   // Anomaly scorer smoothed EWMA signal, updated every second.
-	telemetryScorerState = "observer.scorer.state"  // Anomaly scorer severity level on transition (0=Low,1=Medium,2=High).
+	telemetryScorerEWMA                      = "observer.scorer.ewma"                         // Anomaly scorer smoothed EWMA signal, updated every second.
+	telemetryScorerState                     = "observer.scorer.state"                        // Anomaly scorer severity level on transition (0=Low,1=Medium,2=High).
 )
 
 type observerTelemetry struct {
