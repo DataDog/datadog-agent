@@ -1,0 +1,28 @@
+[
+  {
+    "target": "pkg/logs/internal/framer",
+    "status": "ok",
+    "message": "136 mutants, 104 killed, 32 survived, 0 other, 13 hit 120s cap",
+    "files_mutated": 5,
+    "total": 136,
+    "killed": 104,
+    "survived": 32,
+    "other": 0,
+    "score": 76.47058823529412,
+    "duration_seconds": 1762.610608100891,
+    "timeout_mutants": 13
+  },
+  {
+    "target": "pkg/logs/internal/decoder/preprocessor",
+    "status": "ok",
+    "message": "407 mutants, 332 killed, 75 survived, 0 other, 1 hit 120s cap",
+    "files_mutated": 16,
+    "total": 407,
+    "killed": 332,
+    "survived": 75,
+    "other": 0,
+    "score": 81.57248157248156,
+    "duration_seconds": 1204.6425919532776,
+    "timeout_mutants": 1
+  }
+]
