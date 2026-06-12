@@ -117,7 +117,7 @@ func TestUnicodeCollectFromKey(t *testing.T) {
 			displayName: "Інсталятор Windows", // "Windows Installer" in Ukrainian
 			version:     "2.0.0",
 			publisher:   "тестовий видавець", // "Test Publisher" in Ukrainian
-			// No InstallLocation: InstallPath is empty and InstallPaths is empty (omitted from the payload).
+			// No InstallLocation: InstallPath should be empty.
 		},
 	}
 
@@ -181,9 +181,6 @@ func TestUnicodeCollectFromKey(t *testing.T) {
 		assert.Equal(t, td.publisher, entry.Publisher, "Publisher should match")
 		assert.Equal(t, td.subKey, entry.ProductCode, "ProductCode should be subkey name")
 		assert.Equal(t, td.installLocation, entry.InstallPath, "InstallPath should come from the InstallLocation registry value")
-		// InstallPaths is the backend-facing field; it mirrors the scalar
-		// InstallLocation as a single-element list, or is empty when absent.
-		assert.Equal(t, singleInstallPath(td.installLocation), entry.InstallPaths, "InstallPaths should mirror the InstallLocation registry value")
 	}
 }
 

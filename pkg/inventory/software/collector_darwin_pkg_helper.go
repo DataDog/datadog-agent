@@ -321,15 +321,10 @@ func buildEntryFromReceipt(receipt pkgReceiptInfo, summary pkgSummary, is64Bit b
 
 	// "N/A" is an internal sentinel meaning "no single meaningful path"; don't
 	// leak it into GetID(). Leaving it empty keeps it out of the identifier.
+	// When installPaths is empty, GetSoftwareInventoryWithCollectors mirrors this
+	// scalar path into InstallPaths (the backend-facing field) downstream.
 	if installPath == "N/A" {
 		installPath = ""
-	}
-
-	// InstallPaths is the backend-facing install location field. When the receipt
-	// yielded a single meaningful prefix but no distinct top-level paths, mirror
-	// the scalar install path so the location is still reported.
-	if len(installPaths) == 0 {
-		installPaths = singleInstallPath(installPath)
 	}
 
 	return &Entry{

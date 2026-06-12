@@ -158,16 +158,15 @@ func (c *macPortsCollector) Collect() ([]*Entry, []*Warning, error) {
 			entryIs64Bit := isMacPortsPort64Bit(archs, host64Bit)
 
 			entry := &Entry{
-				DisplayName:  name,
-				Version:      fullVersion,
-				InstallDate:  installDateStr,
-				Source:       softwareTypeMacPorts,
-				ProductCode:  name, // MacPorts uses name as identifier
-				Status:       status,
-				Is64Bit:      entryIs64Bit,
-				InstallPath:  installPath,
-				InstallPaths: singleInstallPath(installPath),
-				UserSID:      username,
+				DisplayName: name,
+				Version:     fullVersion,
+				InstallDate: installDateStr,
+				Source:      softwareTypeMacPorts,
+				ProductCode: name, // MacPorts uses name as identifier
+				Status:      status,
+				Is64Bit:     entryIs64Bit,
+				InstallPath: installPath,
+				UserSID:     username,
 			}
 
 			entries = append(entries, entry)

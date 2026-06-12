@@ -232,3 +232,32 @@ func TestPrivateFieldsExcludedFromJSON(t *testing.T) {
 	assert.Contains(t, jsonStr, "/Applications")
 	assert.Contains(t, jsonStr, "/Library")
 }
+
+func TestInstallPathsMirrorsInstallPath(t *testing.T) {
+	// GetSoftwareInventoryWithCollectors mirrors the scalar (internal) InstallPath
+	// into InstallPaths (the backend-facing field) for collectors that only know a
+	// single location, while leaving collectors that already populate InstallPaths
+	// (e.g. macOS PKG receipts) untouched.
+	collector := &MockCollector{
+		entries: map[string]*Entry{
+			// Single install path: should be mirrored into InstallPaths.
+			"single": {DisplayName: "Single", Source: "app", InstallPath: "/Applications/Single.app"},
+			// Already has InstallPaths (multiple dirs): must be left as-is.
+			"multi": {DisplayName: "Multi", Source: "pkg", InstallPath: "/usr/local", InstallPaths: []string{"/usr/local/bin", "/usr/local/lib"}},
+			// No install path: InstallPaths stays empty so it is omitted from the payload.
+			"none": {DisplayName: "None", Source: "app"},
+		},
+	}
+
+	inventory, _, err := GetSoftwareInventoryWithCollectors([]Collector{collector})
+	assert.NoError(t, err)
+
+	byName := make(map[string]*Entry, len(inventory))
+	for _, e := range inventory {
+		byName[e.DisplayName] = e
+	}
+
+	assert.Equal(t, []string{"/Applications/Single.app"}, byName["Single"].InstallPaths)
+	assert.Equal(t, []string{"/usr/local/bin", "/usr/local/lib"}, byName["Multi"].InstallPaths)
+	assert.Empty(t, byName["None"].InstallPaths)
+}

@@ -223,7 +223,6 @@ func (c *applicationsCollector) Collect() ([]*Entry, []*Warning, error) {
 				Is64Bit:       is64Bit,
 				InstallSource: installSource,
 				InstallPath:   appPath,
-				InstallPaths:  singleInstallPath(appPath),
 				UserSID:       currentUsername, // Set username for per-user apps (empty for system-wide)
 			}
 

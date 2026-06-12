@@ -102,7 +102,6 @@ func (c *kernelExtensionsCollector) Collect() ([]*Entry, []*Warning, error) {
 				BrokenReason: brokenReason,
 				Is64Bit:      is64Bit,
 				InstallPath:  kextPath,
-				InstallPaths: singleInstallPath(kextPath),
 			}
 
 			entries = append(entries, entry)

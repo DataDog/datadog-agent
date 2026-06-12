@@ -157,17 +157,6 @@ type Entry struct {
 	InstallPaths []string `json:"install_paths,omitempty"`
 }
 
-// singleInstallPath returns a one-element slice for a non-empty path, or nil so
-// that an absent path is omitted from the payload (InstallPaths is omitempty).
-// Collectors that know a single install location use this to populate
-// Entry.InstallPaths from Entry.InstallPath.
-func singleInstallPath(p string) []string {
-	if p == "" {
-		return nil
-	}
-	return []string{p}
-}
-
 // GetID returns a unique identifier for the software entry.
 // This method provides a consistent way to identify software entries
 // across different collection runs and system restarts.
@@ -221,6 +210,17 @@ func GetSoftwareInventoryWithCollectors(collectors []Collector) ([]*Entry, []*Wa
 
 		// Add entries to result list
 		allEntries = append(allEntries, entries...)
+	}
+
+	// InstallPaths is the backend-facing install location field. Most collectors
+	// only know a single location, which they report via the internal InstallPath
+	// (json:"-"); mirror it into InstallPaths here so it reaches the backend.
+	// Collectors that already populate InstallPaths (e.g. macOS PKG receipts,
+	// which list multiple top-level directories) are left untouched.
+	for _, e := range allEntries {
+		if e != nil && len(e.InstallPaths) == 0 && e.InstallPath != "" {
+			e.InstallPaths = []string{e.InstallPath}
+		}
 	}
 
 	return allEntries, allWarnings, allErrors

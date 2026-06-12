@@ -259,20 +259,18 @@ func collectFromKey(root registry.Key, subkey string, view uint32) ([]*Entry, []
 				// If err, date will be blank ""
 				date, _ = getKeyLastWriteTime(sk)
 			}
-			// InstallLocation is optional in the registry; when absent it is the
-			// empty string, so InstallPaths is left empty and omitted from the payload.
-			installPath := properties[installLocation]
 			entry := &Entry{
-				DisplayName:  name,
-				Version:      trimVersion(properties[displayVersion]),
-				InstallDate:  date,
-				Source:       softwareTypeDesktop,
-				Publisher:    properties[publisher],
-				ProductCode:  properties[msiProductCode],
-				Status:       "installed",
-				Is64Bit:      view == registry.WOW64_64KEY,
-				InstallPath:  installPath,
-				InstallPaths: singleInstallPath(installPath),
+				DisplayName: name,
+				Version:     trimVersion(properties[displayVersion]),
+				InstallDate: date,
+				Source:      softwareTypeDesktop,
+				Publisher:   properties[publisher],
+				ProductCode: properties[msiProductCode],
+				Status:      "installed",
+				Is64Bit:     view == registry.WOW64_64KEY,
+				// InstallLocation is optional in the registry; when absent it is the
+				// empty string, which is dropped from the backend payload downstream.
+				InstallPath: properties[installLocation],
 			}
 			results = append(results, entry)
 		}
