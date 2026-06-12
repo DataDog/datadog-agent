@@ -6,32 +6,34 @@
 // Package installers defines the shared types for the Pulumi-free installer layer.
 package installers
 
-import "testing"
+import (
+	"testing"
 
-// Context is the execution context an installer runs in. It is satisfied by:
-//   - a test, via a thin adapter wrapping *testing.T (used by PostProvision)
-//   - the e2e-install CLI, which builds a real *testing.T via go test -c
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/common"
+)
+
+// Context is an alias for common.Context that installer packages use as their
+// first parameter. It is satisfied by:
+//   - *testing.T via FromT (in test code)
+//   - BaseSuite[Env] directly (since BaseSuite now implements common.Context)
+//   - CLIContext (in the e2e-install CLI, which calls os.Exit(1) on FailNow)
 //
-// It is intentionally NOT named after "testing" and does NOT expose T() *testing.T
-// so that callers are not forced into a test context at the type level. However,
-// since the current client infrastructure (client.Host.MustExecute etc.) is still
-// coupled to *testing.T via common.Context.T(), the CLI path uses go test -c to
-// obtain a real *testing.T transparently. This coupling will be removed in Phase 4c.
-//
-// Within installers, use this as the first parameter instead of *testing.T.
-type Context interface {
-	// testify require.TestingT methods — makes Context a drop-in for
-	// require.NoError(ctx, ...) calls inside installer functions.
-	Errorf(format string, args ...any)
-	FailNow()
+// Since common.Context no longer contains T() *testing.T, installer functions
+// can be called from non-test programs without any test framework bootstrapping.
+type Context = common.Context
 
-	Logf(format string, args ...any)
-	Helper()
-	Cleanup(fn func())
-}
-
-// FromT wraps *testing.T to satisfy Context. Use this in test code where you
-// have a *testing.T and need to pass it to an installer function expecting Context.
+// FromT wraps *testing.T to satisfy Context. Use this when you have a
+// *testing.T (e.g. in a custom SetupSuite) and need to pass it to an installer.
 func FromT(t *testing.T) Context {
-	return t
+	return &testingTContext{t: t}
 }
+
+// testingTContext wraps *testing.T to implement common.Context.
+type testingTContext struct{ t *testing.T }
+
+func (c *testingTContext) Errorf(format string, args ...any) { c.t.Errorf(format, args...) }
+func (c *testingTContext) FailNow()                          { c.t.FailNow() }
+func (c *testingTContext) Logf(format string, args ...any)   { c.t.Logf(format, args...) }
+func (c *testingTContext) Helper()                           { c.t.Helper() }
+func (c *testingTContext) Cleanup(fn func())                 { c.t.Cleanup(fn) }
+func (c *testingTContext) SessionOutputDir() string          { return "" }

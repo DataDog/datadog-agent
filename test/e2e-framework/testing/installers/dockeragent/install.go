@@ -26,8 +26,12 @@ import (
 // testContext adapts *testing.T to common.Context for agent client initialization.
 type testContext struct{ t *testing.T }
 
-func (c *testContext) T() *testing.T            { return c.t }
-func (c *testContext) SessionOutputDir() string { return "" }
+func (c *testContext) Errorf(format string, args ...any) { c.t.Errorf(format, args...) }
+func (c *testContext) FailNow()                          { c.t.FailNow() }
+func (c *testContext) Logf(format string, args ...any)   { c.t.Logf(format, args...) }
+func (c *testContext) Helper()                           { c.t.Helper() }
+func (c *testContext) Cleanup(fn func())                 { c.t.Cleanup(fn) }
+func (c *testContext) SessionOutputDir() string          { return "" }
 
 const (
 	agentContainerName     = "datadog-agent"

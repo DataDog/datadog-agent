@@ -869,6 +869,21 @@ func (bs *BaseSuite[Env]) SessionOutputDir() string {
 	return bs.outputDir
 }
 
+// Errorf implements common.Context. Delegates to the current *testing.T.
+func (bs *BaseSuite[Env]) Errorf(format string, args ...any) { bs.T().Errorf(format, args...) }
+
+// FailNow implements common.Context. Delegates to the current *testing.T.
+func (bs *BaseSuite[Env]) FailNow() { bs.T().FailNow() }
+
+// Logf implements common.Context. Delegates to the current *testing.T.
+func (bs *BaseSuite[Env]) Logf(format string, args ...any) { bs.T().Logf(format, args...) }
+
+// Helper implements common.Context. Delegates to the current *testing.T.
+func (bs *BaseSuite[Env]) Helper() { bs.T().Helper() }
+
+// Cleanup implements common.Context. Delegates to the current *testing.T.
+func (bs *BaseSuite[Env]) Cleanup(fn func()) { bs.T().Cleanup(fn) }
+
 // Run is a helper function to run a test suite.
 // Unfortunately, we cannot use `s Suite[Env]` as Go is not able to match it with a struct
 // However it's able to verify the same constraint on T

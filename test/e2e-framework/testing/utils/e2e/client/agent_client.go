@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
-	"testing"
 	"time"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"
@@ -39,7 +38,7 @@ func NewHostAgentClient(context common.Context, hostOutput remote.HostOutput, wa
 	}
 
 	ae := newAgentHostExecutor(hostOutput.OSFamily, host, params)
-	commandRunner := newAgentCommandRunner(context.T(), ae)
+	commandRunner := newAgentCommandRunner(context, ae)
 
 	if params.ShouldWaitForReady {
 		if err := waitForReadyTimeout(commandRunner, agentReadyTimeout); err != nil {
@@ -61,7 +60,7 @@ func NewHostAgentClientWithParams(context common.Context, hostOutput remote.Host
 	}
 
 	ae := newAgentHostExecutor(hostOutput.OSFamily, host, params)
-	commandRunner := newAgentCommandRunner(context.T(), ae)
+	commandRunner := newAgentCommandRunner(context, ae)
 
 	if params.ShouldWaitForReady {
 		if err := waitForReadyTimeout(commandRunner, agentReadyTimeout); err != nil {
@@ -69,7 +68,7 @@ func NewHostAgentClientWithParams(context common.Context, hostOutput remote.Host
 		}
 	}
 
-	waitForAgentsReady(context.T(), host, params)
+	waitForAgentsReady(context, host, params)
 
 	return commandRunner, nil
 }
@@ -78,7 +77,7 @@ func NewHostAgentClientWithParams(context common.Context, hostOutput remote.Host
 func NewDockerAgentClient(context common.Context, dockerAgentOutput agent.DockerAgentOutput, options ...agentclientparams.Option) (agentclient.Agent, error) {
 	params := agentclientparams.NewParams(dockerAgentOutput.DockerManager.Host.OSFamily, options...)
 	ae := newAgentDockerExecutor(context, dockerAgentOutput)
-	commandRunner := newAgentCommandRunner(context.T(), ae)
+	commandRunner := newAgentCommandRunner(context, ae)
 
 	if params.ShouldWaitForReady {
 		if err := commandRunner.waitForReadyTimeout(agentReadyTimeout); err != nil {
@@ -99,7 +98,7 @@ func NewK8sAgentClient(context common.Context, podSelector metav1.ListOptions, c
 		return nil, fmt.Errorf("could not create k8s agent executor: %w", err)
 	}
 
-	commandRunner := newAgentCommandRunner(context.T(), ae)
+	commandRunner := newAgentCommandRunner(context, ae)
 
 	if params.ShouldWaitForReady {
 		if err := commandRunner.waitForReadyTimeout(agentReadyTimeout); err != nil {
@@ -118,7 +117,7 @@ func NewK8sAgentClient(context common.Context, podSelector metav1.ListOptions, c
 // If the timeout is reached, an error is returned.
 //
 // As of now this is only implemented for Linux.
-func waitForAgentsReady(tt *testing.T, host *Host, params *agentclientparams.Params) {
+func waitForAgentsReady(tt common.Context, host *Host, params *agentclientparams.Params) {
 	hostHTTPClient := host.NewHTTPClient()
 	require.EventuallyWithT(tt, func(t *assert.CollectT) {
 		agentReadyCmds := map[string]func(*agentclientparams.Params, *Host) (*http.Request, bool, error){

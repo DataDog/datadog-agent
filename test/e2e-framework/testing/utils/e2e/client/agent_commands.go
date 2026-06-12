@@ -9,10 +9,9 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/common"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/optional"
 
@@ -28,13 +27,13 @@ type agentCommandExecutor interface {
 // agentCommandRunner is an internal type that provides methods to run Agent commands.
 // It is used by both [VMClient] and [Docker]
 type agentCommandRunner struct {
-	t        *testing.T
+	t        common.Context
 	executor agentCommandExecutor
 	isReady  bool
 }
 
 // Create a new instance of agentCommandRunner
-func newAgentCommandRunner(t *testing.T, executor agentCommandExecutor) *agentCommandRunner {
+func newAgentCommandRunner(t common.Context, executor agentCommandExecutor) *agentCommandRunner {
 	agent := &agentCommandRunner{
 		t:        t,
 		executor: executor,
@@ -208,7 +207,7 @@ func (agent *agentCommandRunner) WorkloadList() (*agentclient.Status, error) {
 func (agent *agentCommandRunner) waitForReadyTimeout(timeout time.Duration) error {
 	interval := 100 * time.Millisecond
 	maxRetries := timeout.Milliseconds() / interval.Milliseconds()
-	utils.Logf(agent.t, "Waiting for the agent to be ready")
+	agent.t.Logf("Waiting for the agent to be ready")
 	_, err := backoff.Retry(context.Background(), func() (any, error) {
 		_, err := agent.executor.execute([]string{"status"})
 		if err != nil {

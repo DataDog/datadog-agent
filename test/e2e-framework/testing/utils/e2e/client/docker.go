@@ -14,7 +14,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"testing"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/docker"
 	"github.com/docker/cli/cli/connhelper"
@@ -25,20 +24,21 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/parameters"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/common"
 )
 
 // A Docker client that is connected to an [docker.Deamon].
 //
 // [docker.Deamon]: https://pkg.go.dev/github.com/DataDog/datadog-agent/test/e2e-framework@main/components/datadog/agent/docker#Deamon
 type Docker struct {
-	t        *testing.T
+	t        common.Context
 	client   *client.Client
 	scrubber *scrubber.Scrubber
 }
 
 // NewDocker creates a new instance of Docker
 // NOTE: docker+ssh does not support password protected SSH keys.
-func NewDocker(t *testing.T, dockerOutput docker.ManagerOutput) (*Docker, error) {
+func NewDocker(t common.Context, dockerOutput docker.ManagerOutput) (*Docker, error) {
 	deamonURL := fmt.Sprintf("ssh://%v@%v", dockerOutput.Host.Username, dockerOutput.Host.Address)
 
 	sshOpts := []string{"-o", "StrictHostKeyChecking no"}

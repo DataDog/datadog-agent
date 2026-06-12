@@ -29,8 +29,12 @@ type testContext struct {
 	t *testing.T
 }
 
-func (c *testContext) T() *testing.T            { return c.t }
-func (c *testContext) SessionOutputDir() string { return "" }
+func (c *testContext) Errorf(format string, args ...any) { c.t.Errorf(format, args...) }
+func (c *testContext) FailNow()                          { c.t.FailNow() }
+func (c *testContext) Logf(format string, args ...any)   { c.t.Logf(format, args...) }
+func (c *testContext) Helper()                           { c.t.Helper() }
+func (c *testContext) Cleanup(fn func())                 { c.t.Cleanup(fn) }
+func (c *testContext) SessionOutputDir() string          { return "" }
 
 // Install installs the Datadog Agent on a remote host via SSH, configures it,
 // and starts it. It populates env.Agent with the initialized agent component.
