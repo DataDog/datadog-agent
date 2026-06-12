@@ -319,10 +319,8 @@ func buildEntryFromReceipt(receipt pkgReceiptInfo, summary pkgSummary, is64Bit b
 		}
 	}
 
-	// "N/A" is an internal sentinel meaning "no single meaningful path"; don't
-	// leak it into GetID(). Leaving it empty keeps it out of the identifier.
-	// When installPaths is empty, GetSoftwareInventoryWithCollectors mirrors this
-	// scalar path into InstallPaths (the backend-facing field) downstream.
+	// Normalize the internal "N/A" sentinel to empty so it doesn't leak into
+	// GetID() or get mirrored into InstallPaths.
 	if installPath == "N/A" {
 		installPath = ""
 	}

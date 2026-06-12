@@ -228,9 +228,8 @@ func TestBuildEntryFromReceipt_SetsInstallPathFromPrefix(t *testing.T) {
 }
 
 func TestBuildEntryFromReceipt_NormalizesNAInstallPathToEmpty(t *testing.T) {
-	// No meaningful prefix ("/") and no top-level paths => internal "N/A"
-	// sentinel, which must be normalized to empty so it is omitted from the
-	// payload rather than leaking the literal "N/A".
+	// No meaningful prefix ("/") and no top-level paths yields the internal "N/A"
+	// sentinel, which must be normalized to empty.
 	receipt := pkgReceiptInfo{
 		packageID:   "com.example.tool",
 		version:     "2.0",

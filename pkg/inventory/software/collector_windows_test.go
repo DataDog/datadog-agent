@@ -117,7 +117,6 @@ func TestUnicodeCollectFromKey(t *testing.T) {
 			displayName: "Інсталятор Windows", // "Windows Installer" in Ukrainian
 			version:     "2.0.0",
 			publisher:   "тестовий видавець", // "Test Publisher" in Ukrainian
-			// No InstallLocation: InstallPath should be empty.
 		},
 	}
 

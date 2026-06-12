@@ -213,11 +213,8 @@ func TestPrivateFieldsExcludedFromJSON(t *testing.T) {
 
 	jsonStr := string(jsonData)
 
-	// Verify private fields are NOT in JSON.
-	// Note: the scalar install_path is intentionally private; the backend-facing
-	// install location field is install_paths (plural). The quoted-key check on
-	// install_path is required because "install_path" is a substring of the
-	// exposed "install_paths" key.
+	// Verify private fields are NOT in JSON. install_path is checked as a quoted
+	// key because it is a substring of the exposed install_paths.
 	assert.NotContains(t, jsonStr, "broken_reason")
 	assert.NotContains(t, jsonStr, "install_source")
 	assert.NotContains(t, jsonStr, "pkg_id")
@@ -234,18 +231,14 @@ func TestPrivateFieldsExcludedFromJSON(t *testing.T) {
 }
 
 func TestInstallPathsMirrorsInstallPath(t *testing.T) {
-	// GetSoftwareInventoryWithCollectors mirrors the scalar (internal) InstallPath
-	// into InstallPaths (the backend-facing field) for collectors that only know a
-	// single location, while leaving collectors that already populate InstallPaths
-	// (e.g. macOS PKG receipts) untouched.
+	// GetSoftwareInventoryWithCollectors mirrors the scalar InstallPath into
+	// InstallPaths for single-location collectors, while leaving collectors that
+	// already populate InstallPaths (e.g. macOS PKG receipts) untouched.
 	collector := &MockCollector{
 		entries: map[string]*Entry{
-			// Single install path: should be mirrored into InstallPaths.
 			"single": {DisplayName: "Single", Source: "app", InstallPath: "/Applications/Single.app"},
-			// Already has InstallPaths (multiple dirs): must be left as-is.
-			"multi": {DisplayName: "Multi", Source: "pkg", InstallPath: "/usr/local", InstallPaths: []string{"/usr/local/bin", "/usr/local/lib"}},
-			// No install path: InstallPaths stays empty so it is omitted from the payload.
-			"none": {DisplayName: "None", Source: "app"},
+			"multi":  {DisplayName: "Multi", Source: "pkg", InstallPath: "/usr/local", InstallPaths: []string{"/usr/local/bin", "/usr/local/lib"}},
+			"none":   {DisplayName: "None", Source: "app"},
 		},
 	}
 
