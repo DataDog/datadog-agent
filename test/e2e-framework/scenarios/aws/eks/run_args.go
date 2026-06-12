@@ -255,3 +255,20 @@ func WithDeployArgoRollout() RunOption {
 		return nil
 	}
 }
+
+// AgentOptions returns the agent options stored in RunParams. Returns nil if
+// WithoutAgent was called. Used by the provisioner to install via PostProvision.
+func (p *RunParams) AgentOptions() []kubernetesagentparams.Option {
+	return p.agentOptions
+}
+
+// EksOptions returns the EKS cluster options, used by the provisioner to
+// determine conditional agent options (Windows nodes, GPU nodes).
+func (p *RunParams) EksOptions() []Option {
+	return p.eksOptions
+}
+
+// DeployOperator reports whether the Datadog Operator install path is requested.
+func (p *RunParams) DeployOperator() bool {
+	return p.deployOperator
+}

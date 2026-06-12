@@ -50,6 +50,69 @@ const (
 	chartVersion = "3.155.1"
 )
 
+// OpenShiftHelmValues are the OpenShift-specific Helm overrides applied
+// automatically when installing the agent on an OpenShift cluster. They mirror
+// the Pulumi-based BuildOpenShiftHelmValues function in
+// components/datadog/agent/kubernetes_helm.go.
+const OpenShiftHelmValues = `
+datadog:
+  kubelet:
+    tlsVerify: false
+  apm:
+    portEnabled: true
+  sbom:
+    containerImage:
+      enabled: true
+      overlayFSDirectScan: true
+  criSocketPath: /var/run/crio/crio.sock
+  useHostPID: true
+  originDetectionUnified:
+    enabled: true
+  dogstatsd:
+    originDetection: true
+    tagCardinality: high
+agents:
+  enabled: true
+  tolerations:
+    - effect: NoSchedule
+      key: node-role.kubernetes.io/master
+      operator: Exists
+    - effect: NoSchedule
+      key: node-role.kubernetes.io/infra
+      operator: Exists
+    - effect: NoSchedule
+      key: node.kubernetes.io/disk-pressure
+      operator: Exists
+  useHostNetwork: true
+  replicas: 1
+  podSecurity:
+    securityContextConstraints:
+      create: true
+  volumeMounts:
+    - name: trivycache
+      mountPath: /root/.cache/trivy
+    - name: imageoverlay
+      mountPath: /var/lib/containers/storage
+  volumes:
+    - name: trivycache
+      emptyDir: {}
+    - name: imageoverlay
+      hostPath:
+        path: /var/lib/containers/storage
+clusterAgent:
+  resources:
+    limits:
+      cpu: 300m
+      memory: 400Mi
+    requests:
+      cpu: 150m
+      memory: 300Mi
+  enabled: true
+  podSecurity:
+    securityContextConstraints:
+      create: true
+`
+
 // Install installs the Datadog Agent on a Kubernetes cluster via Helm,
 // configures it, and waits for the agent pods to be ready.
 // It populates env.Agent with the initialized agent component.

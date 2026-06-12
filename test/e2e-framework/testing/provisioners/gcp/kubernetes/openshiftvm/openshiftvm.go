@@ -9,14 +9,13 @@ package gcpopenshiftvm
 import (
 	"context"
 	"fmt"
+	"testing"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
 	kubernetesNewProvider "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
-	agentComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent/helm"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/cpustress"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/dogstatsd"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/etcd"
@@ -36,9 +35,10 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/gcp/compute"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/gcp/fakeintake"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers/helmagent"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
 	gcpkubernetes "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/gcp/kubernetes"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/optional"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
 )
 
 const (
@@ -59,25 +59,45 @@ func openshiftDiagnoseFunc(ctx context.Context, name string) (string, error) {
 	return fmt.Sprintf("Dumping OpenShift cluster state:\n%s", dumpResult), nil
 }
 
-// OpenshiftVMProvisioner creates a new provisioner for OpenShift VM on GCP
+// OpenshiftVMProvisioner creates a new provisioner for OpenShift VM on GCP.
+//
+// Agent installation is performed via Helm after Pulumi provisions the
+// OpenShift cluster and FakeIntake (PostProvision). OpenShift-specific Helm
+// overrides are prepended automatically. The preAgentHooks (SCC, namespace
+// labels) continue to run inside Pulumi since they use the Pulumi k8s
+// provider; only the Helm agent install moves outside.
 func OpenshiftVMProvisioner(opts ...ProvisionerOption) provisioners.TypedProvisioner[environments.Kubernetes] {
-	// We ALWAYS need to make a deep copy of `params`, as the provisioner can be called multiple times.
-	// and it's easy to forget about it, leading to hard to debug issues.
-	params := newProvisionerParams()
-	_ = optional.ApplyOptions(params, opts)
+	// Capture user-provided agent options outside the closure so PostProvision
+	// receives clean options (before Pulumi would add the fakeintake resource).
+	params := newProvisionerParams(opts...)
+	agentOpts := params.agentOptions
+	usePostProvision := agentOpts != nil
 
-	provisioner := provisioners.NewTypedPulumiProvisioner(provisionerBaseID+params.name, func(ctx *pulumi.Context, env *environments.Kubernetes) error {
+	pulumiProv := provisioners.NewTypedPulumiProvisioner(provisionerBaseID+params.name, func(ctx *pulumi.Context, env *environments.Kubernetes) error {
 		// We ALWAYS need to make a deep copy of `params`, as the provisioner can be called multiple times.
 		// and it's easy to forget about it, leading to hard to debug issues.
-		params := newProvisionerParams()
-		_ = optional.ApplyOptions(params, opts)
-
+		params := newProvisionerParams(opts...)
+		if usePostProvision {
+			params.agentOptions = nil
+		}
 		return OpenShiftVMRunFunc(ctx, env, params)
 	}, params.extraConfigParams)
 
-	provisioner.SetDiagnoseFunc(openshiftDiagnoseFunc)
+	pulumiProv.SetDiagnoseFunc(openshiftDiagnoseFunc)
 
-	return provisioner
+	if !usePostProvision {
+		return pulumiProv
+	}
+
+	// Prepend OpenShift-specific Helm values then user options.
+	postProvisionOpts := append(
+		[]kubernetesagentparams.Option{kubernetesagentparams.WithHelmValues(helmagent.OpenShiftHelmValues)},
+		agentOpts...,
+	)
+
+	return provisioners.WithPostProvision(pulumiProv, func(t *testing.T, env *environments.Kubernetes) {
+		helmagent.Install(t, env, runner.CloudGCP, postProvisionOpts...)
+	})
 }
 
 func OpenShiftVMRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *ProvisionerParams) error {
@@ -147,47 +167,18 @@ func OpenShiftVMRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, param
 		env.FakeIntake = nil
 	}
 
-	// Deploy the agent
-	var agent *agentComp.KubernetesAgent
-	var dependsOnDDAgent pulumi.ResourceOption
-	if params.agentOptions != nil {
-		for _, hook := range params.preAgentHooks {
-			if err := hook(&gcpEnv, openshiftKubeProvider); err != nil {
-				return err
-			}
-		}
-
-		params.agentOptions = append(params.agentOptions,
-			func(p *kubernetesagentparams.Params) error {
-				p.HelmValues = append(p.HelmValues, agentComp.BuildOpenShiftHelmValues().ToYAMLPulumiAssetOutput())
-				return nil
-			},
-			kubernetesagentparams.WithClusterName(openshiftCluster.ClusterName),
-			kubernetesagentparams.WithNamespace("datadog"),
-			// OpenShift deployments need more time due to security context constraints and slower startup
-			kubernetesagentparams.WithTimeout(900), // 15 minutes
-			// Use the cluster name (DisplayName(49)) for the stackid tag instead of ctx.Stack(),
-			// because the cluster name may be truncated
-			kubernetesagentparams.WithStackIDTag(openshiftCluster.ClusterName),
-		)
-
-		if fakeIntake != nil {
-			params.agentOptions = append(params.agentOptions, kubernetesagentparams.WithFakeintake(fakeIntake))
-		}
-
-		agent, err = helm.NewKubernetesAgent(&gcpEnv, params.name, openshiftKubeProvider, params.agentOptions...)
-		if err != nil {
+	// Run preAgentHooks (SCC setup, namespace labels) via the Pulumi k8s provider.
+	// These configure OpenShift-specific cluster state that must exist before
+	// the agent is installed. Agent installation itself is handled by PostProvision.
+	for _, hook := range params.preAgentHooks {
+		if err := hook(&gcpEnv, openshiftKubeProvider); err != nil {
 			return err
 		}
-
-		err = agent.Export(ctx, &env.Agent.KubernetesAgentOutput)
-		if err != nil {
-			return err
-		}
-		dependsOnDDAgent = utils.PulumiDependsOn(agent)
-	} else {
-		env.Agent = nil
 	}
+
+	// Agent installation is handled by PostProvision via helmagent.Install.
+	env.Agent = nil
+	var dependsOnDDAgent pulumi.ResourceOption
 
 	if gcpEnv.TestingWorkloadDeploy() {
 		// Deploy the VPA CRD

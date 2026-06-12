@@ -175,3 +175,15 @@ func WithDocker() Option {
 		return nil
 	}
 }
+
+// AgentOptions returns the agent options stored in the Params. Returns nil if
+// WithoutAgent was called. Used by provisioners to determine whether to
+// install the agent via PostProvision.
+func (p *Params) AgentOptions() []agentparams.Option {
+	return p.agentOptions
+}
+
+// InstallUpdater reports whether the updater install path is requested.
+func (p *Params) InstallUpdater() bool {
+	return p.installUpdater
+}

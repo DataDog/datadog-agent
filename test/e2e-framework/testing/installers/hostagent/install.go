@@ -18,6 +18,7 @@ import (
 	oscomp "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers/internal/agenturl"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/parameters"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclientparams"
@@ -46,6 +47,13 @@ func (c *testContext) SessionOutputDir() string { return "" }
 //	    agentparams.WithLogs(),
 //	)
 func Install(t *testing.T, env *environments.Host, opts ...agentparams.Option) {
+	t.Helper()
+	env.Agent = InstallOnHost(t, env.RemoteHost, env.FakeIntake, opts...)
+}
+
+// InstallOnWindowsHost installs the Datadog Agent on a Windows host environment.
+// It is the Windows-specific counterpart to Install for environments.WindowsHost.
+func InstallOnWindowsHost(t *testing.T, env *environments.WindowsHost, opts ...agentparams.Option) {
 	t.Helper()
 	env.Agent = InstallOnHost(t, env.RemoteHost, env.FakeIntake, opts...)
 }
@@ -210,21 +218,72 @@ func installLinuxAgent(t *testing.T, host *components.RemoteHost, version agentp
 	host.MustExecute(cmd)
 }
 
-// installWindowsAgent installs the agent on Windows via MSI.
-// Mirrors the logic in components/datadog/agent/host_windowsos.go.
+// installWindowsAgent installs the Datadog Agent on Windows via PowerShell over SSH.
+// Mirrors the logic in components/datadog/agent/host_windowsos.go:getInstallCommand.
 func installWindowsAgent(t *testing.T, host *components.RemoteHost, version agentparams.PackageVersion, apiKey string) {
 	t.Helper()
-	// TODO: Implement Windows agent install via SSH
-	// This requires downloading the MSI and running msiexec
-	require.Fail(t, "hostagent.Install: Windows agent install via SSH not yet implemented, use the Pulumi provisioner")
+
+	if version.Flavor == "" {
+		version.Flavor = agentparams.DefaultFlavor
+	}
+
+	msiURL, err := agenturl.WindowsMSI(version)
+	require.NoError(t, err, "failed to resolve Windows MSI URL")
+
+	localFilename := `C:\datadog-agent.msi`
+	logFile := `C:\datadog-agent-install.log`
+
+	var cmd string
+
+	// Enable FIPS policy before install if requested.
+	if version.Flavor == agentparams.FIPSFlavor {
+		cmd += `Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Lsa\FipsAlgorithmPolicy' -Name 'Enabled' -Value 1 -Type DWORD; `
+	}
+
+	// Download the MSI with retries.
+	cmd += fmt.Sprintf(`
+$ProgressPreference = 'SilentlyContinue';
+$ErrorActionPreference = 'Stop';
+[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072;
+for ($i=0; $i -lt 3; $i++) {
+    try { (New-Object Net.WebClient).DownloadFile('%s','%s'); break } catch { if ($i -eq 2) { throw } }
+};`, msiURL, localFilename)
+
+	// Run msiexec silently.
+	cmd += fmt.Sprintf(`
+$exitCode = (Start-Process -Wait msiexec -PassThru -ArgumentList '/qn /i %s APIKEY=%s /log %s').ExitCode;
+Get-Content %s;
+if ($exitCode -ne 0) { exit $exitCode }`,
+		localFilename, apiKey, logFile, logFile)
+
+	host.MustExecute(cmd)
 }
 
-// installMacOSAgent installs the agent on macOS.
-// Mirrors the logic in components/datadog/agent/host_macos.go.
+// installMacOSAgent installs the Datadog Agent on macOS via the official install script over SSH.
+// Mirrors the logic in components/datadog/agent/host_macos.go:getInstallCommand.
 func installMacOSAgent(t *testing.T, host *components.RemoteHost, version agentparams.PackageVersion, apiKey string) {
 	t.Helper()
-	// TODO: Implement macOS agent install via SSH
-	require.Fail(t, "hostagent.Install: macOS agent install via SSH not yet implemented, use the Pulumi provisioner")
+
+	var exports []string
+	if version.Major != "" {
+		exports = append(exports, fmt.Sprintf("DD_AGENT_MAJOR_VERSION=%s", version.Major))
+	}
+	if version.Minor != "" {
+		exports = append(exports, fmt.Sprintf("DD_AGENT_MINOR_VERSION=%s", version.Minor))
+	}
+	if version.PipelineID != "" {
+		exports = append(exports, fmt.Sprintf("DD_REPO_URL=https://dd-agent-macostesting.s3.amazonaws.com/ci/datadog-agent/pipeline-%s-%s",
+			version.PipelineID, host.Architecture))
+	}
+
+	envStr := strings.Join(exports, " ")
+	cmd := fmt.Sprintf(
+		`for i in 1 2 3 4 5; do curl -fsSL https://install.datadoghq.com/scripts/install_mac_os.sh -o install-script.sh && break || sleep $((2**$i)); done && `+
+			`for i in 1 2 3; do DD_API_KEY=%s %s DD_INSTALL_ONLY=true bash install-script.sh && exit 0 || sleep $((2**$i)); done; exit 1`,
+		apiKey, envStr,
+	)
+
+	host.MustExecute(cmd)
 }
 
 // detectArch returns the architecture string for the current host.

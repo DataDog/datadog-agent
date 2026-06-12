@@ -5,19 +5,22 @@
 
 package examples
 
-// This file demonstrates the recommended pattern for host-based E2E tests
-// using the non-Pulumi installer approach:
+// This file demonstrates two patterns for host-based E2E tests using the
+// installer approach (agent installed via SSH, not Pulumi):
 //
-//  1. The Pulumi provisioner creates only infrastructure (VM + fakeintake).
-//  2. hostagent.Install installs and configures the agent via SSH in SetupSuite,
-//     decoupled from Pulumi's lifecycle.
-//  3. agent.Configure reconfigures the agent mid-suite without re-running
-//     Pulumi, replacing the old UpdateEnv pattern for agent-only changes.
+// Pattern A – Canonical (recommended): pass agent options to the provisioner
+// via WithRunOptions(ec2.WithAgentOptions(...)). The provisioner installs the
+// agent via PostProvision automatically. Tests look identical to the old Pulumi
+// approach; only the install mechanism changes under the hood.
 //
-// Compared to the old approach (passing ec2.WithAgentOptions to the provisioner),
-// this pattern makes agent install and config changes faster and independent of
-// Pulumi state, and it works in the same way on any remote host regardless of
-// how the infrastructure was provisioned.
+// Pattern B – Explicit: suppress Pulumi agent install with WithoutAgent and
+// call hostagent.Install yourself in SetupSuite. Use this for bespoke
+// environments where you need fine control over installation order, or when
+// the provisioner wrapper does not yet support your scenario.
+//
+// In both patterns, agent.Configure reconfigures the running agent mid-suite
+// via SSH without re-running Pulumi, replacing the old UpdateEnv pattern for
+// agent-only changes.
 
 import (
 	"testing"
@@ -34,33 +37,26 @@ import (
 	"github.com/DataDog/datadog-agent/test/fakeintake/client"
 )
 
-type hostAgentInstallSuite struct {
+// ── Pattern A: canonical, no SetupSuite override needed ──────────────────────
+
+type hostAgentSuite struct {
 	e2e.BaseSuite[environments.Host]
 }
 
-func TestHostAgentInstall(t *testing.T) {
-	// The provisioner provisions a VM and a fakeintake, but no agent.
-	// Agent installation is handled in SetupSuite by hostagent.Install.
-	e2e.Run(t, &hostAgentInstallSuite{}, e2e.WithProvisioner(
-		awshost.Provisioner(awshost.WithRunOptions(scenec2.WithoutAgent())),
+// TestHostAgent demonstrates the canonical pattern: pass agent options to the
+// provisioner. The provisioner installs the agent via SSH automatically
+// (PostProvision), the test body is identical to the old Pulumi-based approach.
+func TestHostAgent(t *testing.T) {
+	e2e.Run(t, &hostAgentSuite{}, e2e.WithProvisioner(
+		awshost.Provisioner(awshost.WithRunOptions(
+			scenec2.WithAgentOptions(
+				agentparams.WithAgentConfig("log_level: info"),
+			),
+		)),
 	))
 }
 
-func (s *hostAgentInstallSuite) SetupSuite() {
-	s.BaseSuite.SetupSuite()
-	defer s.CleanupOnSetupFailure()
-
-	// Install the agent on the provisioned VM via SSH.
-	// hostagent.Install automatically connects the agent to s.Env().FakeIntake
-	// and populates s.Env().Agent with a ready-to-use agent client.
-	hostagent.Install(s.T(), s.Env(),
-		agentparams.WithAgentConfig("log_level: info"),
-	)
-}
-
-// TestFakeIntakeReceivesMetrics verifies the SSH-installed agent sends metrics
-// to the fakeintake, the same way it would with a Pulumi-installed agent.
-func (s *hostAgentInstallSuite) TestFakeIntakeReceivesMetrics() {
+func (s *hostAgentSuite) TestFakeIntakeReceivesMetrics() {
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		metrics, err := s.Env().FakeIntake.Client().FilterMetrics("system.load.1")
 		assert.NoError(c, err)
@@ -68,8 +64,7 @@ func (s *hostAgentInstallSuite) TestFakeIntakeReceivesMetrics() {
 	}, 5*time.Minute, 10*time.Second)
 }
 
-// TestFakeIntakeReceivesSystemUptime shows filtering metrics by value.
-func (s *hostAgentInstallSuite) TestFakeIntakeReceivesSystemUptime() {
+func (s *hostAgentSuite) TestFakeIntakeReceivesSystemUptime() {
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		metrics, err := s.Env().FakeIntake.Client().FilterMetrics("system.uptime", client.WithMetricValueHigherThan(0))
 		assert.NoError(c, err)
@@ -78,11 +73,49 @@ func (s *hostAgentInstallSuite) TestFakeIntakeReceivesSystemUptime() {
 }
 
 // TestReconfigure shows agent.Configure as a lightweight alternative to
-// UpdateEnv: it rewrites config files and restarts the agent via SSH
-// without touching the Pulumi stack, making config-only changes faster.
-func (s *hostAgentInstallSuite) TestReconfigure() {
+// UpdateEnv: it rewrites config files and restarts the agent via SSH without
+// touching the Pulumi stack, making config-only changes fast.
+func (s *hostAgentSuite) TestReconfigure() {
 	s.Env().Agent.Configure(s.T(),
 		agentparams.WithAgentConfig("log_level: debug"),
 	)
 	assert.Contains(s.T(), s.Env().Agent.Client.Config(), "log_level: debug")
+}
+
+// ── Pattern B: explicit, for bespoke install scenarios ───────────────────────
+
+type hostAgentExplicitInstallSuite struct {
+	e2e.BaseSuite[environments.Host]
+}
+
+// TestHostAgentExplicitInstall demonstrates the explicit pattern: suppress
+// Pulumi agent install with WithoutAgent, then call hostagent.Install yourself
+// in SetupSuite. Useful when you need control over the installation order or
+// when installing into a custom environment type.
+func TestHostAgentExplicitInstall(t *testing.T) {
+	e2e.Run(t, &hostAgentExplicitInstallSuite{}, e2e.WithProvisioner(
+		// WithoutAgent tells the provisioner to provision infra only (VM + fakeintake),
+		// leaving agent installation to SetupSuite below.
+		awshost.Provisioner(awshost.WithRunOptions(scenec2.WithoutAgent())),
+	))
+}
+
+func (s *hostAgentExplicitInstallSuite) SetupSuite() {
+	s.BaseSuite.SetupSuite()
+	defer s.CleanupOnSetupFailure()
+
+	// Install the agent on the provisioned VM via SSH. hostagent.Install
+	// automatically connects the agent to s.Env().FakeIntake and populates
+	// s.Env().Agent with a ready-to-use agent client.
+	hostagent.Install(s.T(), s.Env(),
+		agentparams.WithAgentConfig("log_level: info"),
+	)
+}
+
+func (s *hostAgentExplicitInstallSuite) TestFakeIntakeReceivesMetrics() {
+	s.EventuallyWithT(func(c *assert.CollectT) {
+		metrics, err := s.Env().FakeIntake.Client().FilterMetrics("system.load.1")
+		assert.NoError(c, err)
+		assert.Greater(c, len(metrics), 0, "no 'system.load.1' metrics yet")
+	}, 5*time.Minute, 10*time.Second)
 }

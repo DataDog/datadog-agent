@@ -7,14 +7,16 @@
 package gcphost
 
 import (
+	"testing"
+
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/gcp"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/gcp/compute"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/gcp/fakeintake"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers/hostagent"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
 
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/updater"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
@@ -25,20 +27,40 @@ const (
 	defaultVMName     = "vm"
 )
 
-// Provisioner creates a VM environment with an VM, a FakeIntake and a Host Agent configured to talk to each other.
-// FakeIntake and Agent creation can be deactivated by using [WithoutFakeIntake] and [WithoutAgent] options.
+// Provisioner creates a VM environment with a GCP VM, a FakeIntake and a Host
+// Agent configured to talk to each other.
+//
+// Agent installation is performed via SSH after Pulumi provisions the VM and
+// FakeIntake (PostProvision), rather than inside Pulumi itself. This makes
+// agent reconfiguration fast (no Pulumi cycle required for agent-only changes).
+//
+// FakeIntake and Agent creation can be deactivated by using [WithoutFakeIntake]
+// and [WithoutAgent] options.
 func Provisioner(opts ...ProvisionerOption) provisioners.TypedProvisioner[environments.Host] {
-	// We need to build params here to be able to use params.name in the provisioner name
+	// Capture user-provided agent options outside the closure so PostProvision
+	// receives the clean options (before Pulumi would add the fakeintake resource).
 	params := GetProvisionerParams(opts...)
+	agentOpts := params.agentOptions
+	usePostProvision := agentOpts != nil && !params.installUpdater
 
-	provisioner := provisioners.NewTypedPulumiProvisioner(provisionerBaseID+params.name, func(ctx *pulumi.Context, env *environments.Host) error {
+	pulumiProv := provisioners.NewTypedPulumiProvisioner(provisionerBaseID+params.name, func(ctx *pulumi.Context, env *environments.Host) error {
 		// We ALWAYS need to make a deep copy of `params`, as the provisioner can be called multiple times.
 		// and it's easy to forget about it, leading to hard-to-debug issues.
 		params := GetProvisionerParams(opts...)
+		if usePostProvision {
+			// Tell Run not to install the agent – PostProvision handles it.
+			params.agentOptions = nil
+		}
 		return Run(ctx, env, RunParams{ProvisionerParams: params})
 	}, params.extraConfigParams)
 
-	return provisioner
+	if !usePostProvision {
+		return pulumiProv
+	}
+
+	return provisioners.WithPostProvision(pulumiProv, func(t *testing.T, env *environments.Host) {
+		hostagent.Install(t, env, agentOpts...)
+	})
 }
 
 // Run deploys an environment given a pulumi.Context
@@ -75,9 +97,10 @@ func Run(ctx *pulumi.Context, env *environments.Host, runParams RunParams) error
 			return err
 		}
 
-		// Normally if FakeIntake is enabled, Agent is enabled, but just in case
-		if params.agentOptions != nil {
-			// Prepend in case it's overridden by the user
+		// Only wire the Pulumi fakeintake resource into agent options for the
+		// updater path; regular agent installs are handled by hostagent.Install
+		// which reads env.FakeIntake directly.
+		if params.installUpdater && params.agentOptions != nil {
 			newOpts := []agentparams.Option{agentparams.WithFakeintake(fakeIntake)}
 			params.agentOptions = append(newOpts, params.agentOptions...)
 		}
@@ -90,7 +113,7 @@ func Run(ctx *pulumi.Context, env *environments.Host, runParams RunParams) error
 		env.Updater = nil
 	}
 
-	// Create Agent if required
+	// Create Updater if required (agent install moved to PostProvision for regular installs)
 	if params.installUpdater && params.agentOptions != nil {
 		updater, err := updater.NewHostUpdater(&gcpEnv, host, params.agentOptions...)
 		if err != nil {
@@ -103,20 +126,10 @@ func Run(ctx *pulumi.Context, env *environments.Host, runParams RunParams) error
 		}
 		// todo: add agent once updater installs agent on bootstrap
 		env.Agent = nil
-	} else if params.agentOptions != nil {
-		agent, err := agent.NewHostAgent(&gcpEnv, host, params.agentOptions...)
-		if err != nil {
-			return err
-		}
-
-		err = agent.Export(ctx, &env.Agent.HostAgentOutput)
-		if err != nil {
-			return err
-		}
-
-		env.Agent.ClientOptions = params.agentClientOptions
 	} else {
+		// Agent installation is handled by PostProvision via hostagent.Install.
 		// Suite inits all fields by default, so we need to explicitly set it to nil
+		// so Init wires SetComponents correctly on the nil agent.
 		env.Agent = nil
 	}
 

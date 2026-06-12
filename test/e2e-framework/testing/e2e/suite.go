@@ -475,6 +475,16 @@ func (bs *BaseSuite[Env]) reconcileEnv(targetProvisioners provisioners.Provision
 	// We need top copy provisioners to protect against external modifications
 	bs.currentProvisioners = provisioners.CopyProvisioners(targetProvisioners)
 	bs.env = newEnv
+
+	// Call PostProvision on any provisioner that implements it so that
+	// UpdateEnv also triggers agent install / workload updates, not only
+	// initial setup.
+	for _, p := range targetProvisioners {
+		if pp, ok := p.(provisioners.PostProvisioner[Env]); ok {
+			pp.PostProvision(bs.T(), bs.env)
+		}
+	}
+
 	return nil
 }
 

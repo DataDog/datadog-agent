@@ -8,10 +8,12 @@ package awshost
 
 import (
 	"fmt"
+	"testing"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers/hostagent"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/optional"
@@ -64,18 +66,39 @@ func WithRunOptions(runOptions ...ec2.Option) ProvisionerOption {
 	}
 }
 
-// Provisioner creates a VM environment with an EC2 VM, an ECS Fargate FakeIntake and a Host Agent configured to talk to each other.
-// FakeIntake and Agent creation can be deactivated by using [WithoutFakeIntake] and [WithoutAgent] options.
+// Provisioner creates a VM environment with an EC2 VM, an ECS Fargate FakeIntake
+// and a Host Agent configured to talk to each other.
+//
+// Agent installation is performed via SSH after Pulumi provisions the VM and
+// FakeIntake (PostProvision), rather than inside Pulumi itself. This makes
+// agent reconfiguration fast (no Pulumi cycle required for agent-only changes).
+//
+// FakeIntake and Agent creation can be deactivated by using [WithoutFakeIntake]
+// and [WithoutAgent] options inside the ec2 run options.
 func Provisioner(opts ...ProvisionerOption) provisioners.TypedProvisioner[environments.Host] {
-	// Build provisioner parameters and initial run params for naming
+	// Extract ec2 params outside the Pulumi closure to determine whether agent
+	// installation is requested and capture the user-provided agent options.
 	params := getProvisionerParams(opts...)
-	runParams := ec2.GetParams(params.runOptions...)
+	ec2Params := ec2.GetParams(params.runOptions...)
 
-	provisioner := provisioners.NewTypedPulumiProvisioner(provisionerBaseID+runParams.Name, func(ctx *pulumi.Context, env *environments.Host) error {
+	// Only route through PostProvision for a regular host-agent install.
+	// The updater path (installUpdater) and no-agent path stay on the
+	// existing code until Phase 1f.
+	usePostProvision := ec2Params.AgentOptions() != nil && !ec2Params.InstallUpdater()
+	agentOpts := ec2Params.AgentOptions() // user-provided options, before Pulumi adds fakeintake
+
+	pulumiProv := provisioners.NewTypedPulumiProvisioner(provisionerBaseID+ec2Params.Name, func(ctx *pulumi.Context, env *environments.Host) error {
 		// We ALWAYS need to make a deep copy of `params`, as the provisioner can be called multiple times.
 		// and it's easy to forget about it, leading to hard to debug issues.
 		params := getProvisionerParams(opts...)
-		runParams := ec2.GetParams(params.runOptions...)
+		runOpts := params.runOptions
+
+		// When installing via PostProvision, suppress Pulumi agent install so
+		// the VM is provisioned without the agent – the SSH installer handles it.
+		if usePostProvision {
+			runOpts = append(runOpts, ec2.WithoutAgent())
+		}
+		runParams := ec2.GetParams(runOpts...)
 
 		var awsEnv aws.Environment
 		var err error
@@ -91,7 +114,13 @@ func Provisioner(opts ...ProvisionerOption) provisioners.TypedProvisioner[enviro
 		return ec2.Run(ctx, awsEnv, env, runParams)
 	}, params.extraConfigParams)
 
-	return provisioner
+	if !usePostProvision {
+		return pulumiProv
+	}
+
+	return provisioners.WithPostProvision(pulumiProv, func(t *testing.T, env *environments.Host) {
+		hostagent.Install(t, env, agentOpts...)
+	})
 }
 
 func ProvisionerNoFakeIntake(opts ...ProvisionerOption) provisioners.TypedProvisioner[environments.Host] {

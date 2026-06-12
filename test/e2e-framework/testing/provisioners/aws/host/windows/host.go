@@ -7,15 +7,17 @@
 package winawshost
 
 import (
+	"testing"
+
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2/windows"
 	scenwin "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2/windows"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers/hostagent"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
-
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/optional"
 )
 
@@ -61,28 +63,43 @@ func GetProvisionerParams(opts ...ProvisionerOption) *ProvisionerParams {
 	return params
 }
 
-// Provisioner creates a VM environment with a Windows EC2 VM, an ECS Fargate FakeIntake and a Host Agent configured to talk to each other.
-// FakeIntake and Agent creation can be deactivated by using [WithoutFakeIntake] and [WithoutAgent] options.
+// Provisioner creates a VM environment with a Windows EC2 VM, an ECS Fargate
+// FakeIntake and a Host Agent configured to talk to each other.
+//
+// Agent installation is performed via MSI over SSH after Pulumi provisions the
+// VM and FakeIntake (PostProvision). FakeIntake and Agent creation can be
+// deactivated by using [WithoutFakeIntake] and [WithoutAgent] options.
 func Provisioner(opts ...ProvisionerOption) provisioners.TypedProvisioner[environments.WindowsHost] {
-	// We need to build params here to be able to use params.name in the provisioner name
 	params := GetProvisionerParams(opts...)
 	runParams := scenwin.GetRunParams(params.runOptions...)
 
-	provisioner := provisioners.NewTypedPulumiProvisioner(provisionerBaseID+runParams.Name, func(ctx *pulumi.Context, env *environments.WindowsHost) error {
+	agentOpts := runParams.AgentOptions()
+	usePostProvision := agentOpts != nil
+
+	pulumiProv := provisioners.NewTypedPulumiProvisioner(provisionerBaseID+runParams.Name, func(ctx *pulumi.Context, env *environments.WindowsHost) error {
 		// We ALWAYS need to make a deep copy of `params`, as the provisioner can be called multiple times.
 		// and it's easy to forget about it, leading to hard to debug issues.
 		params := GetProvisionerParams(opts...)
-		runParams := scenwin.GetRunParams(params.runOptions...)
+		runOpts := params.runOptions
+		if usePostProvision {
+			runOpts = append(runOpts, scenwin.WithoutAgent())
+		}
+		runParams := scenwin.GetRunParams(runOpts...)
 
 		awsEnv, err := aws.NewEnvironment(ctx)
 		if err != nil {
 			return err
 		}
 		return scenwin.RunWithEnv(ctx, awsEnv, env, runParams)
-
 	}, nil)
 
-	return provisioner
+	if !usePostProvision {
+		return pulumiProv
+	}
+
+	return provisioners.WithPostProvision(pulumiProv, func(t *testing.T, env *environments.WindowsHost) {
+		hostagent.InstallOnWindowsHost(t, env, agentOpts...)
+	})
 }
 
 // ProvisionerNoAgent wraps Provisioner with hardcoded WithoutAgent options.
