@@ -207,16 +207,28 @@ func (s *AdaptiveSampler) appendPatternHashTagIfEnabled(msg *message.Message, to
 	}
 }
 
+func (s *AdaptiveSampler) recordKeptTlm() {
+	if !s.config.DetectionOnly {
+		tlmAdaptiveSamplerKept.Inc(s.source)
+	}
+}
+
+func (s *AdaptiveSampler) recordProtectedTlm() {
+	if !s.config.DetectionOnly {
+		tlmAdaptiveSamplerProtected.Inc(s.source)
+	}
+}
+
 // Process applies credit-based rate limiting to the message.
 // Returns the message if allowed, nil if dropped.
 func (s *AdaptiveSampler) Process(msg *message.Message, tokens []Token) *message.Message {
 	if !s.shouldSample(msg, tokens) {
-		tlmAdaptiveSamplerKept.Inc(s.source)
+		s.recordKeptTlm()
 		return msg
 	}
 	if s.config.ProtectImportantLogs && isImportant(tokens) {
-		tlmAdaptiveSamplerKept.Inc(s.source)
-		tlmAdaptiveSamplerProtected.Inc(s.source)
+		s.recordKeptTlm()
+		s.recordProtectedTlm()
 		return msg
 	}
 	now := s.now()
@@ -268,11 +280,10 @@ func (s *AdaptiveSampler) Process(msg *message.Message, tokens []Token) *message
 		}
 
 		if allow {
-			tlmAdaptiveSamplerKept.Inc(s.source)
+			s.recordKeptTlm()
 			return msg
 		}
 		if s.config.DetectionOnly {
-			tlmAdaptiveSamplerKept.Inc(s.source)
 			return msg
 		}
 		tlmAdaptiveSamplerDropped.Inc(s.source)
@@ -294,7 +305,7 @@ func (s *AdaptiveSampler) Process(msg *message.Message, tokens []Token) *message
 		matchCount: 1,
 		sampled:    0,
 	})
-	tlmAdaptiveSamplerKept.Inc(s.source)
+	s.recordKeptTlm()
 	return msg
 }
 

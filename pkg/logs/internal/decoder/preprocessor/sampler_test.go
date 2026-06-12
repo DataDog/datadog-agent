@@ -236,6 +236,91 @@ func TestAdaptiveSampler_DetectionOnlyDoesNotEmitSampledCountAfterRefill(t *test
 	assert.Equal(t, int64(0), s.entries[0].sampled)
 }
 
+func TestAdaptiveSampler_DetectionOnlyDoesNotRecordOutcomeTelemetry(t *testing.T) {
+	source := strings.ReplaceAll(t.Name(), "/", "_")
+	s := NewAdaptiveSampler(AdaptiveSamplerConfig{
+		MaxPatterns:    10,
+		RateLimit:      0,
+		BurstSize:      1,
+		MatchThreshold: 0.9,
+		DetectionOnly:  true,
+	}, source)
+	t0 := time.Now()
+	s.now = func() time.Time { return t0 }
+
+	keptBefore := tlmAdaptiveSamplerKept.WithValues(source).Get()
+	droppedBefore := tlmAdaptiveSamplerDropped.WithValues(source).Get()
+	bytesDroppedBefore := tlmAdaptiveSamplerBytesDropped.WithValues(source).Get()
+
+	require.NotNil(t, s.Process(testMsg(), patternA), "first message creates the pattern and would be kept")
+	out := s.Process(testMsg(), patternA)
+	require.NotNil(t, out, "detection-only should keep messages that would be dropped")
+	assert.Contains(t, out.ParsingExtra.Tags, adaptiveSamplerNoisyLogTag)
+
+	assert.Equal(t, keptBefore, tlmAdaptiveSamplerKept.WithValues(source).Get())
+	assert.Equal(t, droppedBefore, tlmAdaptiveSamplerDropped.WithValues(source).Get())
+	assert.Equal(t, bytesDroppedBefore, tlmAdaptiveSamplerBytesDropped.WithValues(source).Get())
+}
+
+func TestAdaptiveSampler_RecordsOutcomeTelemetry(t *testing.T) {
+	source := strings.ReplaceAll(t.Name(), "/", "_")
+	s := NewAdaptiveSampler(AdaptiveSamplerConfig{
+		MaxPatterns:    10,
+		RateLimit:      0,
+		BurstSize:      1,
+		MatchThreshold: 0.9,
+	}, source)
+	t0 := time.Now()
+	s.now = func() time.Time { return t0 }
+
+	msg := testMsg()
+	keptBefore := tlmAdaptiveSamplerKept.WithValues(source).Get()
+	droppedBefore := tlmAdaptiveSamplerDropped.WithValues(source).Get()
+	bytesDroppedBefore := tlmAdaptiveSamplerBytesDropped.WithValues(source).Get()
+
+	require.NotNil(t, s.Process(msg, patternA), "first message creates the pattern and is kept")
+	require.Nil(t, s.Process(msg, patternA), "second message should be dropped")
+
+	assert.Equal(t, keptBefore+1, tlmAdaptiveSamplerKept.WithValues(source).Get())
+	assert.Equal(t, droppedBefore+1, tlmAdaptiveSamplerDropped.WithValues(source).Get())
+	assert.Equal(t, bytesDroppedBefore+float64(msg.RawDataLen), tlmAdaptiveSamplerBytesDropped.WithValues(source).Get())
+}
+
+func TestAdaptiveSampler_DetectionOnlyDoesNotRecordProtectedTelemetry(t *testing.T) {
+	source := strings.ReplaceAll(t.Name(), "/", "_")
+	s := NewAdaptiveSampler(AdaptiveSamplerConfig{
+		MaxPatterns:          10,
+		RateLimit:            0,
+		BurstSize:            1,
+		MatchThreshold:       0.9,
+		ProtectImportantLogs: true,
+		DetectionOnly:        true,
+	}, source)
+	importantTokens := tokenize("ERROR something went wrong")
+
+	protectedBefore := tlmAdaptiveSamplerProtected.WithValues(source).Get()
+	require.NotNil(t, s.Process(testMsg(), importantTokens), "important logs should still pass through")
+
+	assert.Equal(t, protectedBefore, tlmAdaptiveSamplerProtected.WithValues(source).Get())
+}
+
+func TestAdaptiveSampler_RecordsProtectedTelemetry(t *testing.T) {
+	source := strings.ReplaceAll(t.Name(), "/", "_")
+	s := NewAdaptiveSampler(AdaptiveSamplerConfig{
+		MaxPatterns:          10,
+		RateLimit:            0,
+		BurstSize:            1,
+		MatchThreshold:       0.9,
+		ProtectImportantLogs: true,
+	}, source)
+	importantTokens := tokenize("ERROR something went wrong")
+
+	protectedBefore := tlmAdaptiveSamplerProtected.WithValues(source).Get()
+	require.NotNil(t, s.Process(testMsg(), importantTokens), "important logs should pass through")
+
+	assert.Equal(t, protectedBefore+1, tlmAdaptiveSamplerProtected.WithValues(source).Get())
+}
+
 // Credits are capped at BurstSize even if a long time has passed.
 func TestAdaptiveSampler_CreditsCappedAtBurstSize(t *testing.T) {
 	const burst = 3.0
