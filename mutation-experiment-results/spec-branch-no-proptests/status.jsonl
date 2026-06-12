@@ -1,0 +1,1 @@
+{"target": "pkg/logs/internal/decoder/preprocessor", "status": "ok", "message": "407 mutants, 330 killed, 77 survived, 0 other, 1 hit 120s cap", "files_mutated": 16, "total": 407, "killed": 330, "survived": 77, "other": 0, "score": 81.08108108108108, "duration_seconds": 841.9152858257294, "timeout_mutants": 1}
