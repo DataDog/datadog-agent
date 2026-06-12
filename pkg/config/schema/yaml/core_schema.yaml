@@ -8532,7 +8532,7 @@ properties:
         default: ''
       refresh_interval:
         node_type: setting
-        type: string
+        type: number
         default: 30s
         format: duration
         tags:
