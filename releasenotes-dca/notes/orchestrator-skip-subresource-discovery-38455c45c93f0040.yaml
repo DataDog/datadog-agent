@@ -1,9 +1,5 @@
 ---
 fixes:
   - |
-    Fix the orchestrator explorer attempting to collect Kubernetes subresources
-    (such as ``nodepools/scale``) when collecting out-of-the-box custom resources
-    by group. Subresources cannot be listed or watched on their own, which
-    previously produced a continuous stream of ``Failed to watch`` errors and
-    informer sync warnings on clusters running operators like Karpenter. Only
-    full resources are now considered during custom resource discovery.
+    Fix a bug in the orchestrator explorer check that led to trying to collect
+    Kubernetes subresources under certain custom resource API groups.
