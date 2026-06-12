@@ -714,6 +714,7 @@ namespace WixSetup.Datadog_Agent
                 AttributesDefinition = "SupportsErrors=yes; SupportsInformationals=yes; SupportsWarnings=yes; KeyPath=yes"
             });
             agentBinDir.AddFile(new WixSharp.File(_agentBinaries.Procmgr));
+            agentBinDir.AddFile(new WixSharp.File(_agentBinaries.AgentDataPlane));
 
             // AI usage Chrome native messaging host (Rust). Plain non-service file in bin\agent.
             // Explicit Id only on the .exe so future custom actions can reference it via [#ai_prompt_logger_native_host].
