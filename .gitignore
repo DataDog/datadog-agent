@@ -251,6 +251,7 @@ AUTO_JIRA.md
 # Devcontainer
 .devcontainer/
 !.devcontainer/datadog/default
+!.devcontainer/datadog/agent-security
 
 # Ignoring compressed schema
 pkg/config/schema/compressed/*.zstd
