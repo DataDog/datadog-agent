@@ -1,0 +1,14 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "envdesc",
+    srcs = ["envdesc.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/testing/envdesc",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/e2e-framework/testing/utils/common",
+        "@com_github_datadog_datadog_agent_test_e2e_framework//components",
+        "@com_github_datadog_datadog_agent_test_e2e_framework//testing/environments",
+        "@com_github_datadog_datadog_agent_test_e2e_framework//testing/provisioners",
+    ],
+)

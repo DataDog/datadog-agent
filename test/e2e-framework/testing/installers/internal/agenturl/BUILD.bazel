@@ -1,0 +1,14 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "agenturl",
+    srcs = ["windows.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers/internal/agenturl",
+    visibility = ["//test/e2e-framework/testing/installers:__subpackages__"],
+    deps = [
+        "@com_github_aws_aws_sdk_go_v2//aws",
+        "@com_github_aws_aws_sdk_go_v2_config//:config",
+        "@com_github_aws_aws_sdk_go_v2_service_s3//:s3",
+        "@com_github_datadog_datadog_agent_test_e2e_framework//components/datadog/agentparams",
+    ],
+)
