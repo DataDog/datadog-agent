@@ -2,7 +2,12 @@
 # Scrappy agent image — overlays the standard agent7 image with the scrappy
 # live-inference detector assets (native engine + PyTorch checkpoint + vocab).
 #
-# linux/amd64 only: scrappy-infer is an AVX2/FMA ELF binary, no arm64 build.
+# scrappy-infer is an AVX2/FMA ELF binary (linux/amd64 only).  To allow the
+# DataDog/images pipeline to assemble a multi-arch manifest (tmpl-v24 requires
+# both amd64 and arm64 source tags), a second job re-tags the plain agent7
+# arm64 image with the -scrappy suffix.  On arm64 hosts that image is
+# functionally identical to the plain agent — scrappy inference is silently
+# unavailable there.
 #
 # Model weights are fetched from the persistent S3 artefacts bucket at
 #   s3://dd-ci-persistent-artefacts-build-stable/datadog-agent/scrappy/<VERSION>/
@@ -115,3 +120,32 @@ docker_build_agent7_scrappy:
   needs:
     - job: docker_build_agent7
       artifacts: false
+
+# arm64 passthrough — re-tags the plain agent7 arm64 image with the -scrappy
+# suffix so that DataDog/images (tmpl-v24) can assemble a multi-arch manifest.
+# The scrappy-infer AVX2 binary is not included; arm64 containers fall back to
+# the standard agent behaviour (no live-inference scoring).
+docker_build_agent7_scrappy_arm64:
+  stage: container_build
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
+  tags: ["arch:amd64", "specific:true"]
+  rules:
+    - !reference [.except_mergequeue]
+    # TODO: make manual before merge to main
+    - when: on_success
+  timeout: 10m
+  retry: 2
+  needs:
+    - job: docker_build_agent7_arm64
+      artifacts: false
+  script:
+    - |
+      if [[ "$BUCKET_BRANCH" == "nightly" ]]; then
+        ECR_RELEASE_SUFFIX="-nightly"
+      else
+        ECR_RELEASE_SUFFIX="${CI_COMMIT_TAG:+-release}"
+      fi
+    - SRC="registry.ddbuild.io/ci/datadog-agent/agent${ECR_RELEASE_SUFFIX}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-arm64"
+    - DST="registry.ddbuild.io/ci/datadog-agent/agent${ECR_RELEASE_SUFFIX}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-scrappy-arm64"
+    - echo "Retagging ${SRC} → ${DST}"
+    - crane copy "${SRC}" "${DST}"
