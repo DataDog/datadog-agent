@@ -174,3 +174,36 @@ func TestLogsPerformanceProfileV1AlwaysExists(t *testing.T) {
 		assert.Truef(t, ok, "profile %q must define version 1", name)
 	}
 }
+
+// The profile config is intentionally undocumented in the datadog.yaml
+// template (shipping as a hidden feature). These tests guard that hiding it
+// from the template did not make the feature unreachable: the keys must stay
+// bound to the schema and to their environment variables.
+func TestLogsPerformanceProfileKeysRemainKnown(t *testing.T) {
+	cfg := newTestConf(t)
+
+	assert.True(t, cfg.IsKnown("logs_config.profile"),
+		"logs_config.profile must stay bound even though it is hidden from the config template")
+	assert.True(t, cfg.IsKnown("logs_config.profile_version"),
+		"logs_config.profile_version must stay bound even though it is hidden from the config template")
+}
+
+func TestLogsPerformanceProfileEnvVarsRemainBound(t *testing.T) {
+	t.Setenv("DD_LOGS_CONFIG_PROFILE", "high-throughput")
+	t.Setenv("DD_LOGS_CONFIG_PROFILE_VERSION", "1")
+
+	cfg := newTestConf(t)
+
+	assert.Equal(t, "high-throughput", cfg.GetString("logs_config.profile"),
+		"DD_LOGS_CONFIG_PROFILE must still feed logs_config.profile")
+	assert.Equal(t, 1, cfg.GetInt("logs_config.profile_version"),
+		"DD_LOGS_CONFIG_PROFILE_VERSION must still feed logs_config.profile_version")
+
+	// The hidden feature must remain fully functional when driven by env vars.
+	applyLogsPerformanceProfile(cfg)
+	profile := logsPerformanceProfiles["high-throughput"][1]
+	for key, want := range profile.settings {
+		assert.EqualValues(t, want, cfg.Get(key),
+			"env-var-selected profile must apply %s", key)
+	}
+}
