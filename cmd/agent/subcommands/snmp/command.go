@@ -8,6 +8,7 @@ package snmp
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
@@ -39,6 +40,7 @@ import (
 	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
 	snmpscan "github.com/DataDog/datadog-agent/comp/snmpscan/def"
 	snmpscanfx "github.com/DataDog/datadog-agent/comp/snmpscan/fx"
+	connectivity "github.com/DataDog/datadog-agent/pkg/networkdevice/connectivity"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
 	"github.com/DataDog/datadog-agent/pkg/snmp/analyzer"
 	"github.com/DataDog/datadog-agent/pkg/snmp/snmpparse"
@@ -222,6 +224,44 @@ With --analyze, the walk is matched against SNMP device profiles and a summary r
 
 	// This command does nothing until the backend supports it, so it isn't enabled yet.
 	snmpCmd.AddCommand(snmpScanCmd)
+
+	// `connectivity` runs entirely on this host with no backend (unlike walk/scan, which can be
+	// wired to the Action Platform). It shares its logic with the connectivityCheck Private Action,
+	// so you can validate connectivity from an installed Agent without standing up any backend.
+	var connectivityChecks string
+	var connectivityCount, connectivityTimeoutMs int
+	connectivityCmd := &cobra.Command{
+		Use:   "connectivity <target> [<target>...]",
+		Short: "Run a connectivity check (ICMP) against device IPs / CIDR ranges locally, with no backend.",
+		Long: `Run connectivity checks against one or more device IPs or CIDR ranges and print per-device
+results as JSON. Runs entirely on this host, with no Datadog backend / Action Platform involved.
+This is the same logic the connectivityCheck Private Action runs on the Agent.`,
+		Args: cobra.MinimumNArgs(1),
+		RunE: func(_ *cobra.Command, args []string) error {
+			checks := strings.Split(connectivityChecks, ",")
+			for i := range checks {
+				checks[i] = strings.TrimSpace(checks[i])
+			}
+			out, err := connectivity.Run(context.Background(), connectivity.Request{
+				Targets: args,
+				Checks:  checks,
+				Ping:    &connectivity.PingOptions{Count: connectivityCount, TimeoutMs: connectivityTimeoutMs},
+			})
+			if err != nil {
+				return err
+			}
+			b, err := json.MarshalIndent(out, "", "  ")
+			if err != nil {
+				return err
+			}
+			fmt.Println(string(b))
+			return nil
+		},
+	}
+	connectivityCmd.Flags().StringVar(&connectivityChecks, "checks", connectivity.CheckPing, "Comma-separated checks to run (currently: ping)")
+	connectivityCmd.Flags().IntVar(&connectivityCount, "count", 0, "Number of ICMP echo requests per device (0 = default)")
+	connectivityCmd.Flags().IntVar(&connectivityTimeoutMs, "timeout-ms", 0, "Per-request ICMP timeout in milliseconds (0 = default)")
+	snmpCmd.AddCommand(connectivityCmd)
 
 	return []*cobra.Command{snmpCmd}
 }
