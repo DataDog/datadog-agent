@@ -7,6 +7,7 @@
 package invalidconfig
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -40,16 +41,12 @@ func (c *checker) validate() ([]runnerdef.IssueReport, error) {
 	}
 	normalized, err := normalizeForSchema(raw)
 	if err != nil {
-		// Normalization failed — treat as no violations so bundle.go still
-		// calls ResolveIssue for any stale issues from a prior run.
-		pkglog.Warnf("invalidconfig: normalize config: %v; skipping check", err)
-		return nil, nil
+		return nil, fmt.Errorf("invalidconfig: normalize config: %w", err)
 	}
 	errs, schemaErr := schema.ValidateCoreConfig(normalized)
 	if schemaErr != nil {
-		// Schema unavailable — same rationale: allow stale-issue resolution.
 		pkglog.Warnf("invalidconfig: schema validator unavailable; skipping check: %v", schemaErr)
-		return nil, nil
+		return nil, schemaErr
 	}
 	if len(errs) == 0 {
 		return nil, nil

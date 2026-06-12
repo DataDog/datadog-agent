@@ -8,6 +8,7 @@ package agenthealth
 import (
 	_ "embed"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -121,6 +122,15 @@ func (suite *checkFailureSuite) TestCheckFailureIssueLifecycle() {
 				),
 			),
 		))
+		// WithFile only writes the file; it does not reload the Python module
+		// already cached in the agent's interpreter. Restart so fixed_check.py
+		// is imported fresh, clearHealthPlatformIssue is called, and the RESOLVED
+		// state transition is forwarded to fakeintake.
+		agent := suite.Env().Agent
+		require.NoError(t, agent.Client.Restart())
+		require.EventuallyWithT(t, func(ct *assert.CollectT) {
+			assert.True(ct, agent.Client.IsReady())
+		}, 2*time.Minute, 10*time.Second, "agent not ready after fix")
 
 		// Wait for the issue to explicitly transition to RESOLVED before flushing.
 		require.EventuallyWithT(t, func(ct *assert.CollectT) {
