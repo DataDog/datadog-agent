@@ -63,6 +63,14 @@ type SNMPListener struct {
 	deviceDeduper  devicededuper.DeviceDeduper
 	sessionFactory snmpSessionFactory
 	workerFunc     snmpWorkerFunc
+	// ncmWriteMu guards ncmDevices and serializes writes of the generated NCM autodiscovery
+	// config file.
+	ncmWriteMu sync.Mutex
+	// ncmDevices tracks the NCM-eligible devices currently advertised in the generated NCM
+	// config file, keyed by the SNMP entityID. It mirrors snmpSubnet.devices: entries are added
+	// per device when a device is registered and removed when a device is evicted (after
+	// AllowedFailures), so the NCM file is updated device-by-device rather than rebuilt wholesale.
+	ncmDevices map[string]ncmDeviceEntry
 }
 
 // SNMPService implements and store results from the Service interface for the SNMP listener
@@ -385,6 +393,12 @@ func (l *SNMPListener) initializeSubnets() []snmpSubnet {
 		l.loadCache(&subnet)
 	}
 
+	// Repopulate the NCM autodiscovery config file from the cache-loaded devices on startup.
+	if l.ncmConfigEnabled() {
+		log.Info("NCM autodiscovery config generation is enabled")
+		l.writeNCMConfig()
+	}
+
 	return subnets
 }
 
@@ -577,6 +591,13 @@ func (l *SNMPListener) registerService(pendingDevice devicededuper.PendingDevice
 	if !pendingDevice.AddedFromCache {
 		l.writeCache(svc.subnet)
 	}
+
+	// Track the device for NCM config generation. When added from cache we only record the
+	// device; the single startup write in initializeSubnets persists the file once.
+	if len(svc.subnet.config.NCM) > 0 {
+		l.recordNCMDevice(svc.entityID, svc.deviceIP, svc.subnet.config.NCM, !pendingDevice.AddedFromCache)
+	}
+
 	l.newService <- svc
 }
 
@@ -601,6 +622,13 @@ func (l *SNMPListener) deleteService(entityID string, subnet *snmpSubnet) {
 		l.delService <- svc
 		delete(l.services, entityID)
 		delete(subnet.devices, entityID)
+
+		// Only drop the device from the NCM config once it is actually evicted (after
+		// AllowedFailures consecutive failures), mirroring SNMP's grace period so transient
+		// blips don't churn the file.
+		if len(subnet.config.NCM) > 0 {
+			l.removeNCMDevice(entityID)
+		}
 	}
 
 	l.writeCache(subnet)
