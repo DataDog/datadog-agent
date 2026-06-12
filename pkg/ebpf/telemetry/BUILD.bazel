@@ -70,6 +70,7 @@ dd_agent_go_test(
     ],
     data = glob(["testdata/**"]),
     embed = [":telemetry"],
+    target_compatible_with = ["@platforms//os:linux"],  # keep
     deps = [
         "//pkg/ebpf",
         "//pkg/ebpf/bytecode",
