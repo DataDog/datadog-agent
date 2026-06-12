@@ -227,7 +227,7 @@ func (c *TestClient) ExecuteWithRetry(cmd string) (string, error) {
 func NewWindowsTestClient(context common.Context, host *components.RemoteHost) *TestClient {
 	fileManager := filemanager.NewRemoteHost(host)
 	agentClient, err := client.NewHostAgentClient(context, host.HostOutput, false)
-	require.NoError(context, err)
+	require.NoError(common.RequireT{Context: context}, err)
 
 	helper := helpers.NewWindowsHelper()
 	client := NewTestClient(host, agentClient, fileManager, helper)

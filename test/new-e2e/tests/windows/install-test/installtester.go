@@ -53,7 +53,9 @@ type TesterOption func(*Tester)
 // NewTester creates a new Tester
 func NewTester(context utilscommon.Context, host *components.RemoteHost, opts ...TesterOption) (*Tester, error) {
 	t := &Tester{}
-	tt := context.T()
+	// Type-assert to get *testing.T — install testers are always used in test context.
+	type hasT interface{ T() *testing.T }
+	tt := context.(hasT).T()
 
 	var err error
 
