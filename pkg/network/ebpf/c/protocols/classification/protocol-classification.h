@@ -181,16 +181,16 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
         return;
     }
 
-    // Single-run shadow evaluation of the max-attempts cap, env-independent: record
-    // this classification pass into the skip histogram bucketed by the per-flow attempt
-    // depth, so one run measures the would-skip count for EVERY candidate cap N (userspace
-    // sums buckets with edge >= N) without setting DD_MAX_PROTOCOL_CLASSIFICATION_ATTEMPTS.
-    // attempts_before is the pre-increment depth (count of prior passes). Only flows not
-    // yet classified under v1 reach here (the is_fully_classified return is above), which
-    // is exactly the population a cap would skip. classification_attempts_exceeded() still
-    // increments the per-flow counter (saturating); its boolean — whether the env-configured
-    // cap would fire — is unused on the eval branch and retained only for the enforcing
-    // prototype. See the "Single-run shadow evaluation" section of the NTWK-684 plan doc.
+    // Single-run shadow evaluation of the max-attempts cap, env-independent: record (once
+    // per flow, via exact-match on the monotonic per-flow counter) that this flow reached
+    // a given attempt depth, so one run measures, for every candidate cap N, how many flows
+    // a cap of N would cut off — without setting DD_MAX_PROTOCOL_CLASSIFICATION_ATTEMPTS.
+    // attempts_before is the pre-increment depth. Only flows not yet classified under v1
+    // reach here (the is_fully_classified return is above), which is exactly the population
+    // a cap would affect. classification_attempts_exceeded() still increments the per-flow
+    // counter (saturating); its boolean — whether the env-configured cap would fire — is
+    // unused on the eval branch and retained only for the enforcing prototype. See the
+    // "Single-run shadow evaluation" section of the NTWK-684 plan doc.
     __u16 attempts_before = protocol_stack_wrapper ? protocol_stack_wrapper->classification_attempts : 0;
     classification_attempts_exceeded(protocol_stack_wrapper);
     record_classification_skip_attempt(attempts_before);

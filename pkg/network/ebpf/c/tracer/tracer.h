@@ -134,12 +134,14 @@ typedef struct {
 #define CLASSIFICATION_APP_PROTO_BUCKETS 16
 #define CLASSIFICATION_MAX_ATTEMPT_BUCKETS 16
 
-// classification_skip_attempt_histogram buckets a classification pass by the per-flow
-// attempt depth at which it occurred (for flows not yet classified under v1). Bucket
-// lower edges are the candidate cap values {1,2,3,4,5,10,20,50,100}; userspace derives
-// "passes a cap of N would skip" as the sum of buckets with edge >= N. Env-independent:
-// one run measures every candidate cap. See the NTWK-684 plan doc.
-#define CLASSIFICATION_SKIP_BUCKETS 9
+// classification_skip_attempt_histogram counts, once per flow, that a connection's
+// per-flow classification-attempt counter reached an exact depth in
+// CLASSIFICATION_SKIP_EDGES {2,3,4,5,6,7,8,9,10,100}. Because the counter is monotonic
+// (+1 per classification pass, saturating), an exact-match increments each bucket at most
+// once per flow, so bucket N = number of flows that reached >= N attempts — i.e. flows a
+// max-attempts cap of N would still be re-classifying / would cut off. Env-independent.
+// See the NTWK-684 plan doc.
+#define CLASSIFICATION_SKIP_BUCKETS 10
 
 // Telemetry names
 typedef struct {
@@ -164,10 +166,10 @@ typedef struct {
     // Shadow-evaluation histogram: count of connections whose application-layer
     // protocol was first observed resolved on a given attempt, per protocol.
     __u64 classification_attempt_histogram[CLASSIFICATION_APP_PROTO_BUCKETS][CLASSIFICATION_MAX_ATTEMPT_BUCKETS];
-    // Shadow-evaluation histogram: count of classification passes by per-flow attempt
-    // depth, for flows not yet classified under v1. Replaces the env-var-dependent
-    // protocol_classifier_skipped_max_attempts scalar — one run measures every candidate
-    // cap N (userspace sums buckets with edge >= N). Indexed per CLASSIFICATION_SKIP_BUCKETS.
+    // Shadow-evaluation histogram: per-flow count of connections whose attempt counter
+    // reached each exact depth in CLASSIFICATION_SKIP_EDGES {2,3,4,5,6,7,8,9,10,100}.
+    // bucket N = flows that reached >= N attempts (flows a cap of N would cut off).
+    // Replaces the env-var-dependent protocol_classifier_skipped_max_attempts scalar.
     __u64 classification_skip_attempt_histogram[CLASSIFICATION_SKIP_BUCKETS];
 } telemetry_t;
 

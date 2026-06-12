@@ -78,7 +78,7 @@ type Telemetry struct {
 	Protocol_classifier_skipped_fully_classified    uint64
 	Protocol_classifier_skipped_fully_classified_v2 uint64
 	Classification_attempt_histogram                [16][16]uint64
-	Classification_skip_attempt_histogram           [9]uint64
+	Classification_skip_attempt_histogram           [10]uint64
 }
 type PortBinding struct {
 	Netns     uint32

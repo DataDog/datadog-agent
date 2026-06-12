@@ -52,10 +52,12 @@ const (
 )
 
 // classificationSkipCapEdges are the candidate max-attempts cap values exposed by the
-// shadow-evaluation skip histogram. They MUST match the kernel bucket lower edges in
-// record_classification_skip_attempt() (telemetry.h): bucket i covers attempt depths
-// [edge[i], edge[i+1]), so "passes a cap of N would skip" = sum of buckets with edge >= N.
-var classificationSkipCapEdges = [...]int{1, 2, 3, 4, 5, 10, 20, 50, 100}
+// shadow-evaluation skip histogram. They MUST match the exact-match depths in
+// record_classification_skip_attempt() (telemetry.h), in the same order: bucket i counts,
+// once per flow, connections that reached exactly classificationSkipCapEdges[i] attempts.
+// Because the per-flow counter is monotonic, bucket i = flows that reached >= that depth
+// (flows a cap of that value would cut off).
+var classificationSkipCapEdges = [...]int{2, 3, 4, 5, 6, 7, 8, 9, 10, 100}
 
 var tcpOngoingConnectMapTTL = 30 * time.Minute.Nanoseconds()
 var tlsTagsMapTTL = 3 * time.Minute.Nanoseconds()
@@ -136,7 +138,7 @@ var EbpfTracerTelemetry = EbpfTracerTelemetryData{
 	prometheus.NewDesc(connTracerModuleName+"__tcp_syn_retransmit", "Counter measuring the number of tcp retransmits of syn packets", nil, nil),
 	prometheus.NewDesc(connTracerModuleName+"__protocol_classifier_calls", "Counter measuring the number of times protocol_classifier_entrypoint was called", nil, nil),
 	prometheus.NewDesc(connTracerModuleName+"__protocol_classifier_skipped_fully_classified", "Counter measuring the number of times protocol classification was skipped because connection was fully classified", nil, nil),
-	prometheus.NewDesc(connTracerModuleName+"__protocol_classifier_skipped_max_attempts", "Shadow evaluation: number of classification passes a max-attempts cap of {max_attempts} WOULD skip (counted, not enforced; full classification still runs). One series per candidate cap N; the N=100 series means >=100. Env-independent — measures every candidate cap in a single run.", []string{"max_attempts"}, nil),
+	prometheus.NewDesc(connTracerModuleName+"__protocol_classifier_skipped_max_attempts", "Shadow evaluation: number of flows (counted once each) that reached at least {max_attempts} classification attempts — i.e. flows a max-attempts cap of that value would cut off (counted, not enforced). One series per candidate cap N in {2,3,4,5,6,7,8,9,10,100}; the N=100 series means >=100. Env-independent — measures every candidate cap in a single run.", []string{"max_attempts"}, nil),
 	prometheus.NewDesc(connTracerModuleName+"__protocol_classifier_skipped_fully_classified_v2", "Counter measuring the number of times the candidate v2 predicate (v1 OR encryption-layer-known) WOULD have short-circuited but v1 did not (shadow evaluation: counted but not enforced). Captures TLS-flow waste that v1 misses.", nil, nil),
 	prometheus.NewDesc(connTracerModuleName+"__classification_attempt_histogram", "Shadow-evaluation histogram: count of connections whose application-layer protocol was first observed resolved on a given classification attempt, by protocol. The 'attempts' label is bucketed; the top bucket (15) saturates (15 or more). Low-bucket calibration is approximate (lag-by-one detection + lazy per-flow state creation) so use for knee/relative analysis, not exact single-attempt counts.", []string{"protocol", "attempts"}, nil),
 	telemetryimpl.GetCompatComponent().NewCounter(connTracerModuleName, "ongoing_connect_pid_cleaned", []string{}, "Counter measuring the number of tcp_ongoing_connect_pid entries cleaned in userspace"),
@@ -879,15 +881,15 @@ func (t *ebpfTracer) Collect(ch chan<- prometheus.Metric) {
 	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.protocolClassifierSkippedFullyClassified, prometheus.CounterValue, float64(delta))
 
 	// Shadow-evaluation max-attempts skip histogram: emit one series per candidate cap N.
-	// classificationSkipCapEdges are the kernel bucket lower edges; "passes a cap of N would
-	// skip" is the sum of buckets with edge >= N (tail sum). Reported as absolute cumulative
-	// counts. The N=100 series means ">= 100".
-	for j, n := range classificationSkipCapEdges {
-		var sum uint64
-		for i := j; i < len(ebpfTelemetry.Classification_skip_attempt_histogram); i++ {
-			sum += ebpfTelemetry.Classification_skip_attempt_histogram[i]
+	// Each kernel bucket already counts flows once (exact-match on the monotonic per-flow
+	// counter), so bucket i = flows that reached >= classificationSkipCapEdges[i] attempts =
+	// flows a cap of that value would cut off. Emitted directly (no tail sum), absolute
+	// cumulative. The N=100 series means ">= 100".
+	for i, n := range classificationSkipCapEdges {
+		if i >= len(ebpfTelemetry.Classification_skip_attempt_histogram) {
+			break
 		}
-		ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.classificationSkipAttemptHistogram, prometheus.CounterValue, float64(sum), strconv.Itoa(n))
+		ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.classificationSkipAttemptHistogram, prometheus.CounterValue, float64(ebpfTelemetry.Classification_skip_attempt_histogram[i]), strconv.Itoa(n))
 	}
 
 	delta = int64(ebpfTelemetry.Protocol_classifier_skipped_fully_classified_v2) - EbpfTracerTelemetry.lastProtocolClassifierSkippedFullyClassifiedV2
@@ -935,16 +937,16 @@ func (t *ebpfTracer) Type() TracerType {
 }
 
 // GetProtocolClassifierStats returns telemetry stats for the protocol classifier.
-// skippedMaxAttempts is the total of the shadow skip histogram (all classification passes
-// at attempt depth >= 1, i.e. what a cap of 1 would skip) — a rough activity summary for
-// the debug log; the per-candidate-cap breakdown is exported via the Prometheus histogram.
+// skippedMaxAttempts is the first bucket of the shadow skip histogram (flows that reached
+// >= 2 classification attempts) — a rough activity summary for the debug log; the
+// per-candidate-cap breakdown is exported via the Prometheus histogram.
 func (t *ebpfTracer) GetProtocolClassifierStats() (calls, skippedFullyClassified, skippedMaxAttempts uint64) {
 	tm := t.getEBPFTelemetry()
 	if tm == nil {
 		return 0, 0, 0
 	}
-	for _, c := range tm.Classification_skip_attempt_histogram {
-		skippedMaxAttempts += c
+	if len(tm.Classification_skip_attempt_histogram) > 0 {
+		skippedMaxAttempts = tm.Classification_skip_attempt_histogram[0]
 	}
 	return tm.Protocol_classifier_calls, tm.Protocol_classifier_skipped_fully_classified, skippedMaxAttempts
 }
