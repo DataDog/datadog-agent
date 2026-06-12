@@ -131,7 +131,7 @@ func TestGetIntegrationConfig(t *testing.T) {
 	assert.Nil(t, config.Discovery)
 
 	// discovery-only: a file with only `discovery: {}` is valid and has no instances.
-	config, _, err = GetIntegrationConfigFromFile("foo", "tests/discovery_only.yaml")
+	config, _, err = GetIntegrationConfigFromFile("foo", "testdata/discovery_only.yaml")
 	require.Nil(t, err)
 	require.NotNil(t, config.Discovery, "discovery-only file should produce a non-nil Discovery field")
 	assert.Empty(t, config.Instances)
