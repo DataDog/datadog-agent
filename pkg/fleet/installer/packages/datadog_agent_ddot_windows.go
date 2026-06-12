@@ -126,6 +126,28 @@ func readAPIKeyFromDatadogYAML() (string, error) {
 	return "", errors.New("api_key not found or empty in datadog.yaml")
 }
 
+// yamlNestedStringKeyMap returns a string-keyed map for a YAML-decoded nested object.
+// yaml.v2 stores nested maps as map[interface{}]interface{} when the parent is map[string]any,
+// so a plain .(map[string]any) on cfg["process_manager"] misses valid configs.
+func yamlNestedStringKeyMap(v any) (map[string]any, bool) {
+	switch m := v.(type) {
+	case map[string]any:
+		return m, true
+	case map[interface{}]interface{}:
+		out := make(map[string]any, len(m))
+		for k, val := range m {
+			ks, ok := k.(string)
+			if !ok {
+				continue
+			}
+			out[ks] = val
+		}
+		return out, true
+	default:
+		return nil, false
+	}
+}
+
 // processManagerEnabledFromDatadogYAML returns whether the process manager should run for DDOT hooks,
 // matching pkg/config/setup defaults: default true, overridable by DD_PROCESS_MANAGER_ENABLED, then
 // process_manager.enabled in ProgramData datadog.yaml. Missing process_manager section or missing
@@ -143,14 +165,18 @@ func processManagerEnabledFromDatadogYAML() (bool, error) {
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
 		return false, err
 	}
-	pm, ok := cfg["process_manager"].(map[string]any)
+	return processManagerEnabledFromCfgMap(cfg), nil
+}
+
+func processManagerEnabledFromCfgMap(cfg map[string]any) bool {
+	pm, ok := yamlNestedStringKeyMap(cfg["process_manager"])
 	if !ok {
-		return true, nil
+		return true
 	}
 	if _, has := pm["enabled"]; !has {
-		return true, nil
+		return true
 	}
-	return yamlTruthy(pm["enabled"]), nil
+	return yamlTruthy(pm["enabled"])
 }
 
 func yamlTruthy(v any) bool {
