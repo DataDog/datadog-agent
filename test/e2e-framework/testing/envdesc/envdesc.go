@@ -188,7 +188,13 @@ func LoadEnv[Env any](d *Descriptor, ctx common.Context) (*Env, error) {
 }
 
 // buildEnvFromResources populates the given env field values from the RawResources
-// map. It mirrors the private buildEnvFromResources in testing/e2e/suite.go.
+// map. Key lookup order:
+//  1. `import:` struct tag on the field (same as Pulumi path)
+//  2. importable.Key() (set by Export, available when loading from Pulumi outputs)
+//  3. Field name (fallback; used when loading from a descriptor written by DumpEnv)
+//
+// Missing optional resources (Agent, Updater) are silently skipped so that
+// "infra-only" descriptors (no agent in the resources map) load cleanly.
 func buildEnvFromResources(resources provisioners.RawResources, fields []reflect.StructField, values []reflect.Value, ctx common.Context) error {
 	if len(fields) != len(values) {
 		return fmt.Errorf("fields and values length mismatch")
@@ -202,8 +208,10 @@ func buildEnvFromResources(resources provisioners.RawResources, fields []reflect
 		importKeyFromTag := field.Tag.Get(importKey)
 
 		if fieldValue.IsNil() {
-			if _, found := resources[importKeyFromTag]; found {
-				return fmt.Errorf("resource %s has key %s but field is nil", field.Name, importKeyFromTag)
+			if importKeyFromTag != "" {
+				if _, found := resources[importKeyFromTag]; found {
+					return fmt.Errorf("resource %s has key %s but field is nil", field.Name, importKeyFromTag)
+				}
 			}
 			continue
 		}
@@ -213,13 +221,18 @@ func buildEnvFromResources(resources provisioners.RawResources, fields []reflect
 		if importKeyFromTag != "" {
 			resourceKey = importKeyFromTag
 		}
+		// Fallback to field name — used when loading from a descriptor written by
+		// DumpEnv (which uses field names as keys, not Pulumi export names).
 		if resourceKey == "" {
-			return fmt.Errorf("resource %s has no import key", field.Name)
+			resourceKey = field.Name
 		}
 
 		rawResource, found := resources[resourceKey]
 		if !found {
-			return fmt.Errorf("expected resource %s (key %s) not found in descriptor", field.Name, resourceKey)
+			// Some fields (Agent, Updater) may legitimately be absent from an
+			// infra-only descriptor. Mark them nil and continue rather than failing.
+			fieldValue.Set(reflect.Zero(fieldValue.Type()))
+			continue
 		}
 
 		if err := importable.Import(rawResource, fieldValue.Interface()); err != nil {
@@ -234,4 +247,77 @@ func buildEnvFromResources(resources provisioners.RawResources, fields []reflect
 	}
 
 	return nil
+}
+
+// DetectEnvType inspects the keys of a Pulumi stack outputs map and returns the
+// env_type string ("host", "kubernetes", "dockerhost", "ecs") by heuristic:
+// - any value with "kubeConfig" key → kubernetes
+// - any value with "ecsCluster" key → ecs
+// - any value with "dockerManager" key → dockerhost
+// - otherwise → host
+func DetectEnvType(pulumiOutputs map[string]json.RawMessage) string {
+	for _, v := range pulumiOutputs {
+		var m map[string]json.RawMessage
+		if json.Unmarshal(v, &m) != nil {
+			continue
+		}
+		if _, ok := m["kubeConfig"]; ok {
+			return "kubernetes"
+		}
+		if _, ok := m["ecsCluster"]; ok {
+			return "ecs"
+		}
+		if _, ok := m["dockerManager"]; ok {
+			return "dockerhost"
+		}
+	}
+	return "host"
+}
+
+// MapPulumiOutputsToDescriptor converts raw Pulumi stack outputs (keyed by
+// Pulumi export name, e.g. "dd-Host-aws-vm") into a Descriptor keyed by env
+// field names ("RemoteHost", "FakeIntake", "KubernetesCluster", etc.) that
+// envdesc.LoadEnv can read. Unknown outputs are silently skipped.
+func MapPulumiOutputsToDescriptor(scenario string, pulumiOutputs map[string]json.RawMessage) *Descriptor {
+	envType := DetectEnvType(pulumiOutputs)
+	d := &Descriptor{
+		Scenario:  scenario,
+		EnvType:   envType,
+		Resources: make(map[string]json.RawMessage),
+	}
+
+	fieldHints := map[string]string{
+		// Fields that identify each env component type by a unique JSON key
+		"address":       "RemoteHost",        // remote.HostOutput
+		"kubeConfig":    "KubernetesCluster", // kubernetes.ClusterOutput
+		"url":           "FakeIntake",        // fakeintake.FakeintakeOutput — check also for "host" field
+		"dockerManager": "Docker",            // docker.ManagerOutput
+	}
+	usedFields := map[string]bool{}
+
+	for _, v := range pulumiOutputs {
+		var m map[string]json.RawMessage
+		if json.Unmarshal(v, &m) != nil {
+			continue
+		}
+		for jsonKey, fieldName := range fieldHints {
+			if _, ok := m[jsonKey]; ok && !usedFields[fieldName] {
+				// Extra disambiguation: "url" could be FakeIntake or something else.
+				// FakeIntake has "url" + "host" + "port".
+				if jsonKey == "url" {
+					if _, hasHost := m["host"]; !hasHost {
+						continue
+					}
+					if _, hasPort := m["port"]; !hasPort {
+						continue
+					}
+				}
+				d.Resources[fieldName] = v
+				usedFields[fieldName] = true
+				break
+			}
+		}
+	}
+
+	return d
 }

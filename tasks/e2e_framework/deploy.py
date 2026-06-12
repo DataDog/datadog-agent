@@ -1,3 +1,6 @@
+import json
+import os
+import tempfile
 from typing import Any
 
 import boto3
@@ -40,7 +43,10 @@ def deploy(
 
     if install_agent is None:
         install_agent = tool.get_default_agent_install()
-    flags["ddagent:deploy"] = install_agent and not install_installer
+
+    # Pulumi provisions infrastructure only — agent install is handled below
+    # via e2e-install, which calls the Pulumi-free installer packages.
+    flags["ddagent:deploy"] = False
     flags["ddupdater:deploy"] = install_installer
 
     if install_workload is None:
@@ -53,25 +59,9 @@ def deploy(
         raise Exit(f"Error in config {config.get_full_profile_path(config_path)}") from e
 
     flags["scenario"] = scenario_name
-    flags["ddagent:version"] = agent_version
-    flags["ddagent:flavor"] = agent_flavor
     flags["ddagent:fakeintake"] = use_fakeintake
-    flags["ddagent:fullImagePath"] = full_image_path
-    flags["ddagent:clusterAgentFullImagePath"] = cluster_agent_full_image_path
-    flags["ddagent:configPath"] = agent_config_path
-    flags["ddagent:extraEnvVars"] = agent_env
-    flags["ddagent:helmConfig"] = helm_config
-    flags["ddagent:localPackage"] = local_package
 
-    flags["ddagent:pipeline_id"] = "" if pipeline_id is None else pipeline_id
-
-    if install_agent:
-        flags["ddagent:apiKey"] = config.get_api_key(cfg)
-
-    # When using fakeintake, enable dual shipping to send data to both fakeintake and Datadog
-    # Otherwise pulumi will configure the agent to send data directly to fakeintake
-    # this is breakind UI/console related features that require communication with Datadog backend
-    # see go package agent.HelmValues.configureFakeintake for more details
+    # When using fakeintake, enable dual shipping to send data to both fakeintake and Datadog.
     if use_fakeintake is True:
         flags["ddagent:dualshipping"] = True
 
@@ -84,7 +74,7 @@ def deploy(
     if app_key_required:
         flags["ddagent:appKey"] = config.get_app_key(cfg)
 
-    return _deploy(
+    full_stack_name = _deploy(
         ctx,
         stack_name,
         flags,
@@ -94,6 +84,187 @@ def deploy(
         pulumi_extra_args=pulumi_extra_args,
         pulumi_env=pulumi_env,
     )
+
+    # Install the agent via e2e-install (separate from Pulumi).
+    if install_agent and not install_installer:
+        _install_agent_via_cli(
+            ctx=ctx,
+            full_stack_name=full_stack_name,
+            scenario_name=scenario_name,
+            pipeline_id=pipeline_id,
+            agent_version=agent_version,
+            agent_flavor=agent_flavor,
+            agent_config_path=agent_config_path,
+            helm_config=helm_config,
+            full_image_path=full_image_path,
+        )
+
+    return full_stack_name
+
+
+def _install_agent_via_cli(
+    ctx: Context,
+    full_stack_name: str,
+    scenario_name: str,
+    pipeline_id: str | None,
+    agent_version: str | None,
+    agent_flavor: str | None,
+    agent_config_path: str | None,
+    helm_config: str | None,
+    full_image_path: str | None,
+) -> None:
+    """Run e2e-install to install the agent on the already-provisioned env.
+
+    Retrieves the Pulumi stack outputs, maps them to an envdesc.Descriptor,
+    builds an installspec.Spec from the agent parameters, and invokes the
+    e2e-install binary.
+    """
+    # Get Pulumi stack outputs (the provisioned env's connection info).
+    pulumi_outputs = tool.get_stack_json_outputs(ctx, full_stack_name)
+
+    # Determine cloud and env type from scenario name.
+    cloud = _cloud_from_scenario(scenario_name)
+    env_type = _env_type_from_scenario(scenario_name)
+
+    # Build an env descriptor by heuristically mapping Pulumi output keys to
+    # the field names that envdesc.LoadEnv expects.
+    env_descriptor = {
+        "scenario": scenario_name,
+        "env_type": env_type,
+        "resources": _map_pulumi_outputs_to_fields(pulumi_outputs),
+    }
+
+    # Build an install spec from the agent parameters.
+    spec: dict[str, Any] = {"env_type": env_type, "cloud": cloud}
+
+    if env_type in ("host", "windowshost"):
+        version: dict[str, str] = {}
+        if pipeline_id:
+            version["pipeline_id"] = pipeline_id
+        if agent_version:
+            parts = agent_version.split(".", 1)
+            if len(parts) == 2:
+                version["major"], version["minor"] = parts
+            else:
+                version["major"] = parts[0]
+        if agent_flavor:
+            version["flavor"] = agent_flavor
+        host_spec: dict[str, Any] = {"version": version}
+        if agent_config_path:
+            try:
+                with open(agent_config_path) as f:
+                    host_spec["agent_config"] = f.read()
+            except OSError:
+                pass
+        spec["host"] = host_spec
+
+    elif env_type == "kubernetes":
+        k8s_spec: dict[str, Any] = {}
+        if helm_config:
+            k8s_spec["helm_values"] = [helm_config]
+        spec["kubernetes"] = k8s_spec
+
+    elif env_type == "dockerhost":
+        docker_spec: dict[str, Any] = {}
+        if full_image_path:
+            docker_spec["full_image_path"] = full_image_path
+        if agent_flavor and "fips" in agent_flavor:
+            docker_spec["fips"] = True
+        spec["docker"] = docker_spec
+
+    # Write descriptor and spec to temp files and invoke e2e-install.
+    with tempfile.TemporaryDirectory() as tmpdir:
+        env_file = os.path.join(tmpdir, "env.json")
+        spec_file = os.path.join(tmpdir, "spec.json")
+
+        with open(env_file, "w") as f:
+            json.dump(env_descriptor, f, indent=2)
+        with open(spec_file, "w") as f:
+            json.dump(spec, f, indent=2)
+
+        e2e_install_bin = _find_e2e_install_binary()
+        ctx.run(f"{e2e_install_bin} --env {env_file} --spec {spec_file}")
+
+
+def _find_e2e_install_binary() -> str:
+    """Return the path to the e2e-install binary, building it if necessary."""
+    # Check if already built
+    candidate = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+        "test",
+        "e2e-framework",
+        "bin",
+        "e2e-install",
+    )
+    if os.path.exists(candidate):
+        return candidate
+
+    # Build it
+    framework_dir = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+        "test",
+        "e2e-framework",
+    )
+    bin_dir = os.path.join(framework_dir, "bin")
+    os.makedirs(bin_dir, exist_ok=True)
+    import subprocess
+
+    subprocess.check_call(
+        ["go", "build", "-o", os.path.join(bin_dir, "e2e-install"), "./cmd/e2e-install/"],
+        cwd=framework_dir,
+    )
+    return os.path.join(bin_dir, "e2e-install")
+
+
+def _cloud_from_scenario(scenario: str) -> str:
+    """Map a scenario name to a cloud string for the install spec."""
+    if scenario.startswith("az/") or scenario.startswith("azure/"):
+        return "az"
+    if scenario.startswith("gcp/"):
+        return "gcp"
+    return "aws"
+
+
+def _env_type_from_scenario(scenario: str) -> str:
+    """Map a scenario name to an envdesc env_type."""
+    if any(x in scenario for x in ("eks", "gke", "aks", "kind", "openshift")):
+        return "kubernetes"
+    if "docker" in scenario:
+        return "dockerhost"
+    if "ecs" in scenario:
+        return "ecs"
+    return "host"
+
+
+def _map_pulumi_outputs_to_fields(pulumi_outputs: dict) -> dict:
+    """Heuristically map Pulumi stack output values to envdesc field names.
+
+    Pulumi export keys are stack-name-specific (e.g. "dd-Host-aws-vm").
+    envdesc.LoadEnv looks up by field name ("RemoteHost", "FakeIntake", ...).
+    We identify each component by a distinctive JSON key in its output struct.
+    """
+    result: dict[str, Any] = {}
+    used: set[str] = set()
+
+    for raw_value in pulumi_outputs.values():
+        if not isinstance(raw_value, dict):
+            continue
+        keys = set(raw_value.keys())
+
+        if "address" in keys and "username" in keys and "RemoteHost" not in used:
+            result["RemoteHost"] = raw_value
+            used.add("RemoteHost")
+        elif "kubeConfig" in keys and "KubernetesCluster" not in used:
+            result["KubernetesCluster"] = raw_value
+            used.add("KubernetesCluster")
+        elif "url" in keys and "host" in keys and "port" in keys and "FakeIntake" not in used:
+            result["FakeIntake"] = raw_value
+            used.add("FakeIntake")
+        elif "dockerManager" in keys and "Docker" not in used:
+            result["Docker"] = raw_value
+            used.add("Docker")
+
+    return result
 
 
 @task
