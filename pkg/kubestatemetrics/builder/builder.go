@@ -458,10 +458,72 @@ func generateConfigMapStores(
 	return stores, nil
 }
 
+// configMapWatcher is a context-aware watch.Interface that converts PartialObjectMetadata
+// events to ConfigMap events. Unlike apiwatch.Filter, it selects on ctx.Done() when
+// forwarding events, preventing the goroutine from deadlocking if the consumer stops
+// reading before the watcher is stopped.
+type configMapWatcher struct {
+	result chan apiwatch.Event
+	cancel context.CancelFunc
+}
+
+func newConfigMapWatcher(ctx context.Context, inner apiwatch.Interface) *configMapWatcher {
+	ctx, cancel := context.WithCancel(ctx)
+	cw := &configMapWatcher{
+		result: make(chan apiwatch.Event),
+		cancel: cancel,
+	}
+	go cw.loop(ctx, inner)
+	return cw
+}
+
+func (cw *configMapWatcher) loop(ctx context.Context, inner apiwatch.Interface) {
+	defer close(cw.result)
+	defer inner.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case event, ok := <-inner.ResultChan():
+			if !ok {
+				return
+			}
+			if event.Object == nil {
+				continue
+			}
+			partialObject, ok := event.Object.(*v1.PartialObjectMetadata)
+			if !ok {
+				continue
+			}
+			event.Object = &corev1.ConfigMap{
+				ObjectMeta: v1.ObjectMeta{
+					Name:            partialObject.GetName(),
+					Namespace:       partialObject.GetNamespace(),
+					UID:             partialObject.GetUID(),
+					ResourceVersion: partialObject.GetResourceVersion(),
+				},
+			}
+			select {
+			case <-ctx.Done():
+				return
+			case cw.result <- event:
+			}
+		}
+	}
+}
+
+func (cw *configMapWatcher) Stop() {
+	cw.cancel()
+}
+
+func (cw *configMapWatcher) ResultChan() <-chan apiwatch.Event {
+	return cw.result
+}
+
 func createConfigMapListWatch(metadataClient metadata.Interface, gvr schema.GroupVersionResource, namespace string) *cache.ListWatch {
 	return &cache.ListWatch{
-		ListFunc: func(options v1.ListOptions) (runtime.Object, error) {
-			result, err := metadataClient.Resource(gvr).Namespace(namespace).List(context.TODO(), options)
+		ListWithContextFunc: func(ctx context.Context, options v1.ListOptions) (runtime.Object, error) {
+			result, err := metadataClient.Resource(gvr).Namespace(namespace).List(ctx, options)
 			if err != nil {
 				return nil, err
 			}
@@ -480,34 +542,12 @@ func createConfigMapListWatch(metadataClient metadata.Interface, gvr schema.Grou
 
 			return configMapList, nil
 		},
-		WatchFunc: func(options v1.ListOptions) (apiwatch.Interface, error) {
-			watcher, err := metadataClient.Resource(gvr).Namespace(namespace).Watch(context.TODO(), options)
+		WatchFuncWithContext: func(ctx context.Context, options v1.ListOptions) (apiwatch.Interface, error) {
+			watcher, err := metadataClient.Resource(gvr).Namespace(namespace).Watch(ctx, options)
 			if err != nil {
 				return nil, err
 			}
-
-			return apiwatch.Filter(watcher, func(event apiwatch.Event) (apiwatch.Event, bool) {
-				if event.Object == nil {
-					return event, false
-				}
-
-				partialObject, ok := event.Object.(*v1.PartialObjectMetadata)
-				if !ok {
-					return event, false
-				}
-
-				configMap := &corev1.ConfigMap{
-					ObjectMeta: v1.ObjectMeta{
-						Name:            partialObject.GetName(),
-						Namespace:       partialObject.GetNamespace(),
-						UID:             partialObject.GetUID(),
-						ResourceVersion: partialObject.GetResourceVersion(),
-					},
-				}
-
-				event.Object = configMap
-				return event, true
-			}), nil
+			return newConfigMapWatcher(ctx, watcher), nil
 		},
 	}
 }
