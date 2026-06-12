@@ -45,18 +45,3 @@ const Stopped = defaultforwarderimpl.Stopped
 //
 // Deprecated: use comp/forwarder/defaultforwarder/impl instead.
 const Started = defaultforwarderimpl.Started
-
-// OTelSyncForwarder is the synchronous forwarder for the OTel serializer exporter.
-//
-// Deprecated: use comp/forwarder/defaultforwarder/impl instead.
-type OTelSyncForwarder = defaultforwarderimpl.OTelSyncForwarder
-
-// NewOTelSyncForwarder creates a new synchronous, error-propagating forwarder for OTel.
-//
-// Deprecated: use comp/forwarder/defaultforwarder/impl instead.
-var NewOTelSyncForwarder = defaultforwarderimpl.NewOTelSyncForwarder
-
-// ErrPermanentHTTPError is the sentinel for permanent intake errors (400, 413, 403-drop).
-//
-// Deprecated: use comp/forwarder/defaultforwarder/impl instead.
-var ErrPermanentHTTPError = defaultforwarderimpl.ErrPermanentHTTPError
