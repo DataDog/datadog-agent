@@ -144,18 +144,6 @@ func (s *testExtensionsSuite) verifyServiceNotFound(serviceName string) {
 	}, 5*time.Minute, 2*time.Second, "Windows service %q should be removed from SCM", serviceName)
 }
 
-// verifyServiceStopped waits until the service is Stopped, or absent from SCM (NotFound).
-// MSI uninstall often removes the service entry instead of leaving a Stopped row.
-func (s *testExtensionsSuite) verifyServiceStopped(serviceName string) {
-	assert.Eventually(s.T(), func() bool {
-		out, ok := s.pollWindowsServiceStatus(serviceName)
-		if !ok {
-			return false
-		}
-		return strings.Contains(out, "NotFound") || strings.EqualFold(out, "Stopped")
-	}, 5*time.Minute, 2*time.Second, "Windows service %q should be stopped or removed from SCM", serviceName)
-}
-
 // setAgentConfig creates the agent configuration with the given OCI registry URL.
 func (s *testExtensionsSuite) setAgentConfig(registryURL string) {
 	configPath := `C:\ProgramData\Datadog\datadog.yaml`
