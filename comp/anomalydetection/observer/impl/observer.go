@@ -162,6 +162,7 @@ func settingsFromAgentConfig(catalog *componentCatalog, cfg config.Component) Co
 type disabledObserver struct{}
 
 func (*disabledObserver) GetHandle(_ string) observerdef.Handle { return &noopObserveHandle{} }
+func (*disabledObserver) RecordSamplerDropped(_, _ string)      {}
 func (*disabledObserver) DumpMetrics(_ string) error            { return nil }
 
 // NewComponent creates an observer.Component.
@@ -173,7 +174,7 @@ func NewComponent(deps Requires) Provides {
 
 	catalog := defaultCatalog()
 	settings := settingsFromAgentConfig(catalog, cfg)
-	detectors, correlators, extractors, _ := catalog.Instantiate(settings)
+	detectors, correlators, scorers, extractors, _ := catalog.Instantiate(settings)
 
 	storageCfg := DefaultStorageConfig()
 	if cfg != nil {
@@ -192,6 +193,7 @@ func NewComponent(deps Requires) Provides {
 		extractors:  extractors,
 		detectors:   detectors,
 		correlators: correlators,
+		scorers:     scorers,
 		scheduler:   &currentBehaviorPolicy{},
 	})
 
@@ -203,6 +205,8 @@ func NewComponent(deps Requires) Provides {
 	eng.onStorageSeriesEvicted = obsTelemetry.recordStorageSeriesEvicted
 	eng.onStorageCapacityHit = obsTelemetry.recordStorageCapacityHit
 	eng.onAdvanceSkipped = obsTelemetry.recordAdvanceSkipped
+	eng.onProcessingTime = obsTelemetry.recordProcessingTime
+	eng.onScorerEWMA = obsTelemetry.recordScorerEWMA
 	for _, extractor := range extractors {
 		if sinkAware, ok := extractor.(interface{ SetObserverTelemetry(*observerTelemetry) }); ok {
 			sinkAware.SetObserverTelemetry(obsTelemetry)
@@ -286,16 +290,19 @@ func NewComponent(deps Requires) Provides {
 
 	// Wire agent-internal logs into the observer via the pkg/util/log tap.
 	// anomaly_detection.logs.enabled is the parent gate; without it,
-	// agent_logs are also disabled. anomaly_detection.agent_logs.enabled
+	// internal logs are also disabled. anomaly_detection.logs.internal.enabled
 	// defaults to true when unset (explicit false disables it).
 	logsEnabled := !cfg.IsConfigured("anomaly_detection.logs.enabled") || cfg.GetBool("anomaly_detection.logs.enabled")
-	agentLogsEnabled := !cfg.IsConfigured("anomaly_detection.agent_logs.enabled") || cfg.GetBool("anomaly_detection.agent_logs.enabled")
+	agentLogsEnabled := !cfg.IsConfigured("anomaly_detection.logs.internal.enabled") || cfg.GetBool("anomaly_detection.logs.internal.enabled")
 	if (analysisEnabled || recorderEnabled) && logsEnabled && agentLogsEnabled {
-		sampleInfo := cfg.GetFloat64("anomaly_detection.agent_logs.sample_rate_info")
-		sampleDebug := cfg.GetFloat64("anomaly_detection.agent_logs.sample_rate_debug")
-		sampleTrace := cfg.GetFloat64("anomaly_detection.agent_logs.sample_rate_trace")
+		minSeverity := cfg.GetString("anomaly_detection.logs.internal.min_severity")
+		maxRateHigh := cfg.GetFloat64("anomaly_detection.logs.internal.max_rate_high_priority")
+		maxRateMedium := cfg.GetFloat64("anomaly_detection.logs.internal.max_rate_medium_priority")
+		maxRateLow := cfg.GetFloat64("anomaly_detection.logs.internal.max_rate_low_priority")
 		agentLogsHandle := obs.GetHandle("agent-internal-logs")
-		installAgentLogTap(agentLogsHandle, sampleInfo, sampleDebug, sampleTrace)
+		installAgentLogTap(agentLogsHandle, minSeverity, maxRateHigh, maxRateMedium, maxRateLow, func(priority string) {
+			obsTelemetry.recordSamplerDropped("internal", priority)
+		})
 		deps.Lifecycle.Append(compdef.Hook{
 			OnStop: func(_ context.Context) error {
 				pkglog.SetLogObserver(nil)
@@ -592,6 +599,13 @@ func (h *noopObserveHandle) ObserveMetricAndReportDrop(_ observerdef.MetricView)
 }
 func (h *noopObserveHandle) ObserveLog(_ observerdef.LogView) {}
 
+// RecordSamplerDropped increments the rate-limiter dropped counter.
+func (o *observerImpl) RecordSamplerDropped(source, priority string) {
+	if o.telemetry != nil {
+		o.telemetry.recordSamplerDropped(source, priority)
+	}
+}
+
 // DumpMetrics writes all stored metrics to the specified file as JSON.
 func (o *observerImpl) DumpMetrics(path string) error {
 	// For simplicity, just dump directly (storage access is single-threaded from run loop,
@@ -634,9 +648,9 @@ func (o *observerImpl) Flush() {
 // Reset clears all engine state and reconfigures with new settings. Implements DebugView.
 func (o *observerImpl) Reset(settings ComponentSettings, storageCfg StorageConfig) {
 	o.Flush()
-	detectors, correlators, extractors, _ := o.catalog.Instantiate(settings)
+	detectors, correlators, scorers, extractors, _ := o.catalog.Instantiate(settings)
 	o.replayMu.Lock()
-	o.engine.ResetForReplay(detectors, correlators, extractors, storageCfg)
+	o.engine.ResetForReplay(detectors, correlators, scorers, extractors, storageCfg)
 	o.replayMu.Unlock()
 }
 

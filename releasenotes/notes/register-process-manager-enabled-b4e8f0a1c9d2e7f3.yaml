@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    Register ``process_manager.enabled`` in the Agent configuration schema (``pkg/config/schema/core_schema.yaml``),
+    set its default in ``pkg/config/setup``, and document it in ``config_template.yaml``.
+    On Windows, this option controls whether the core Agent starts ``dd-procmgr-service``. On Linux, ``dd-procmgrd``
+    is started by systemd; this setting is ignored there.

@@ -3,10 +3,36 @@
 load("@bazel_lib//lib:write_source_files.bzl", "write_source_file", "write_source_files")
 load("@bazel_skylib//rules:common_settings.bzl", "bool_flag", "string_flag")
 load("@bazel_skylib//rules:run_binary.bzl", "run_binary")
+load("@dd_release_json//:release_json.bzl", "release_json")
 load("@gazelle//:def.bzl", "DEFAULT_LANGUAGES", "gazelle", "gazelle_binary")
+load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
+load("@rules_license//rules:license.bzl", "license")
+load("//compliance/rules:purl.bzl", "purl_for_generic")
 load("//tasks:build_tags.bzl", "GAZELLE_BUILD_TAGS")
 
-package(default_visibility = ["//visibility:public"])
+package(
+    default_package_metadata = [":package_metadata"],
+    default_visibility = ["//visibility:public"],
+)
+
+package_metadata(
+    name = "package_metadata",
+    attributes = [
+        ":license",
+    ],
+    purl = purl_for_generic(
+        download_url = "https://github.com/DataDog/datadog-agent/releases/tag/{version}",
+        package = "datadog-agent",
+        version = release_json.get("current_milestone"),
+    ),
+)
+
+license(
+    name = "license",
+    license_kinds = ["@rules_license//licenses/spdx:Apache-2.0"],
+    license_text = "LICENSE",
+    visibility = ["//visibility:public"],
+)
 
 # Temporary export for hybrid omnibus/bazel build.
 # This glob is empty running bazel alone in a pipeline job.
@@ -15,6 +41,8 @@ exports_files(glob(
     ["bin/**"],
     allow_empty = True,
 ))
+
+exports_files(["go.mod"])
 
 # TODO(agent-build): remove below `gazelle:exclude` directives (automatically updates @bazelify_go_work//:go.work)
 # gazelle:exclude cmd/agent/subcommands/*.go
@@ -98,9 +126,6 @@ exports_files(glob(
 # gazelle:exclude comp/agent/bundle_test.go
 # gazelle:exclude comp/agent/cloudfoundrycontainer/fx
 # gazelle:exclude comp/agent/cloudfoundrycontainer/impl
-# gazelle:exclude comp/aggregator/demultiplexer/fx
-# gazelle:exclude comp/aggregator/demultiplexer/impl
-# gazelle:exclude comp/aggregator/demultiplexer/mock
 # gazelle:exclude comp/aggregator/demultiplexerendpoint/fx
 # gazelle:exclude comp/aggregator/demultiplexerendpoint/impl
 # gazelle:exclude comp/api/api/apiimpl/api.go
@@ -112,10 +137,6 @@ exports_files(glob(
 # gazelle:exclude comp/api/api/apiimpl/server_test.go
 # gazelle:exclude comp/api/authtoken
 # gazelle:exclude comp/api/commonendpoints
-# gazelle:exclude comp/api/grpcserver/fx-agent
-# gazelle:exclude comp/api/grpcserver/impl-agent
-# gazelle:exclude comp/checks/agentcrashdetect/fx
-# gazelle:exclude comp/checks/agentcrashdetect/impl
 # gazelle:exclude comp/checks/windowseventlog/fx
 # gazelle:exclude comp/checks/windowseventlog/impl/*.go
 # gazelle:exclude comp/checks/windowseventlog/impl/check/*.go
@@ -131,18 +152,10 @@ exports_files(glob(
 # gazelle:exclude comp/core/autodiscovery/common/utils
 # gazelle:exclude comp/core/autodiscovery/configresolver
 # gazelle:exclude comp/core/autodiscovery/listeners
-# gazelle:exclude comp/core/diagnose/fx
-# gazelle:exclude comp/core/diagnose/impl
 # gazelle:exclude comp/core/diagnose/local
 # gazelle:exclude comp/core/flare/flareimpl
-# gazelle:exclude comp/core/flare/helpers
 # gazelle:exclude comp/core/gui/fx
 # gazelle:exclude comp/core/gui/impl
-# gazelle:exclude comp/core/hostname/remotehostnameimpl
-# gazelle:exclude comp/core/profiler/fx
-# gazelle:exclude comp/core/profiler/impl
-# gazelle:exclude comp/core/remoteagentregistry/fx
-# gazelle:exclude comp/core/remoteagentregistry/impl
 # gazelle:exclude comp/core/sysprobeconfig/sysprobeconfigimpl
 # gazelle:exclude comp/core/tagger/fx
 # gazelle:exclude comp/core/tagger/fx-dual
@@ -168,7 +181,6 @@ exports_files(glob(
 # gazelle:exclude comp/core/workloadmeta/defaults
 # gazelle:exclude comp/core/workloadmeta/fx
 # gazelle:exclude comp/core/workloadmeta/init
-# gazelle:exclude comp/core/workloadmeta/server
 # gazelle:exclude comp/dogstatsd/http/fx
 # gazelle:exclude comp/dogstatsd/http/impl/*.go
 # gazelle:exclude comp/dogstatsd/replay/fx
@@ -179,15 +191,10 @@ exports_files(glob(
 # gazelle:exclude comp/dogstatsd/status/fx
 # gazelle:exclude comp/dogstatsd/status/impl
 # gazelle:exclude comp/forwarder/orchestrator/orchestratorimpl
-# gazelle:exclude comp/haagent/fx
-# gazelle:exclude comp/haagent/impl
 # gazelle:exclude comp/host-profiler/collector/fx
 # gazelle:exclude comp/host-profiler/collector/impl/processor
 # gazelle:exclude comp/host-profiler/flare
-# gazelle:exclude comp/languagedetection/client/fx
-# gazelle:exclude comp/languagedetection/client/impl
 # gazelle:exclude comp/logonduration/fx
-# gazelle:exclude comp/logonduration/impl
 # gazelle:exclude comp/anomalydetection/logssource/impl
 # gazelle:exclude comp/logs/adscheduler/fx
 # gazelle:exclude comp/logs/adscheduler/impl
@@ -238,9 +245,6 @@ exports_files(glob(
 # gazelle:exclude comp/networkpath/traceroute/fx-local
 # gazelle:exclude comp/networkpath/traceroute/impl-local
 # gazelle:exclude comp/notableevents/fx
-# gazelle:exclude comp/notableevents/impl
-# gazelle:exclude comp/offlinereporter/fx
-# gazelle:exclude comp/offlinereporter/impl
 # gazelle:exclude comp/otelcol/collector/fx-pipeline
 # gazelle:exclude comp/otelcol/collector/impl-pipeline
 # gazelle:exclude comp/otelcol/converter/examples
@@ -368,13 +372,12 @@ exports_files(glob(
 # gazelle:exclude pkg/collector/corechecks/system/filehandles
 # gazelle:exclude pkg/collector/corechecks/system/memory
 # gazelle:exclude pkg/collector/corechecks/system/uptime
-# gazelle:exclude pkg/collector/corechecks/system/wincrashdetect
+# gazelle:exclude pkg/collector/corechecks/system/wincrashdetect/*.go
 # gazelle:exclude pkg/collector/corechecks/system/windowscertificate
 # gazelle:exclude pkg/collector/corechecks/system/winkmem
 # gazelle:exclude pkg/collector/corechecks/system/winproc
 # gazelle:exclude pkg/collector/corechecks/systemd
 # gazelle:exclude pkg/collector/corechecks/telemetry
-# gazelle:exclude pkg/collector/loaders
 # gazelle:exclude pkg/collector/python
 # gazelle:exclude pkg/collector/runner/*.go
 # gazelle:exclude pkg/collector/sharedlibrary/ffi
@@ -385,7 +388,6 @@ exports_files(glob(
 # gazelle:exclude pkg/compliance/tests
 # gazelle:exclude pkg/config/autodiscovery
 # gazelle:exclude pkg/config/legacy
-# gazelle:exclude pkg/diagnose/connectivity
 # gazelle:exclude pkg/discovery/language
 # gazelle:exclude pkg/discovery/module/rust/include
 # gazelle:exclude pkg/discovery/module/rust/src
@@ -490,7 +492,6 @@ exports_files(glob(
 # gazelle:exclude pkg/networkdevice/sender
 # gazelle:exclude pkg/networkpath/telemetry
 # gazelle:exclude pkg/networkpath/traceroute/runner
-# gazelle:exclude pkg/orchestrator/config
 # gazelle:exclude pkg/privateactionrunner/autoconnections
 # gazelle:exclude pkg/privateactionrunner/runners
 # gazelle:exclude pkg/privileged-logs/module
@@ -514,7 +515,6 @@ exports_files(glob(
 # gazelle:exclude pkg/security/events
 # gazelle:exclude pkg/security/generators/backend_doc
 # gazelle:exclude pkg/security/module
-# gazelle:exclude pkg/security/probe/config
 # gazelle:exclude pkg/security/probe/constantfetch
 # gazelle:exclude pkg/security/probe/eventstream
 # gazelle:exclude pkg/security/probe/kfilters
@@ -550,7 +550,6 @@ exports_files(glob(
 # gazelle:exclude pkg/status/clusteragent
 # gazelle:exclude pkg/system-probe/api/client/check_test.go
 # gazelle:exclude pkg/system-probe/api/module
-# gazelle:exclude pkg/util/crashreport
 # gazelle:exclude pkg/util/kubernetes/apiserver/controllers
 # gazelle:exclude pkg/util/kubernetes/apiserver/leaderelection/status_templates
 # TODO(agent-build): re-include the following files once their unmigrated deps are
@@ -585,6 +584,7 @@ exports_files(glob(
 # gazelle:exclude test/e2e-framework/scenarios/aws/gensim-eks
 # gazelle:exclude test/e2e-framework/scenarios/aws/installer
 # gazelle:exclude test/e2e-framework/scenarios/aws/kindvm
+# gazelle:exclude test/e2e-framework/scenarios/aws/kubeadm
 # gazelle:exclude test/e2e-framework/scenarios/aws/microVMs/config
 # gazelle:exclude test/e2e-framework/scenarios/aws/microVMs/microvms/files
 # gazelle:exclude test/e2e-framework/scenarios/aws/test
@@ -693,11 +693,19 @@ gazelle(
     prefix = "github.com/DataDog/datadog-agent",
 )
 
+# Our dd_agent_go_test extension wraps the built-in Go extension and must replace it,
+# not extend it, to avoid duplicate rule generation.
+_LANGUAGES_WITHOUT_GO = [
+    lang
+    for lang in DEFAULT_LANGUAGES
+    if "//language/go" not in str(lang)
+]
+
 gazelle_binary(
     name = "gazelle_binary",
-    languages = DEFAULT_LANGUAGES + [
+    languages = _LANGUAGES_WITHOUT_GO + [
         "//bazel/rules/cws_codegen:gazelle_extension",
-        "//bazel/rules/go_build_tags:gazelle_extension",
+        "//bazel/rules/go:gazelle_extension",
         "//bazel/rules/go_msgp:gazelle_extension",
         "//bazel/rules/go_stringer:gazelle_extension",
         "//bazel/rules/write_pb_go:gazelle_extension",
