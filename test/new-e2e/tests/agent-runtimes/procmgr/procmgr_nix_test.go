@@ -91,8 +91,7 @@ func (s *procmgrLinuxSuite) SetupSuite() {
 
 	if s.hasCLI {
 		require.EventuallyWithT(s.T(), func(t *assert.CollectT) {
-			_, err := s.Env().RemoteHost.Execute("sudo chmod 0777 " + linuxSocket)
-			assert.NoError(t, err, "socket not yet available")
+			s.Env().RemoteHost.MustExecuteOn(t, "sudo chmod 0777 "+linuxSocket)
 		}, 30*time.Second, 2*time.Second)
 	}
 }
@@ -177,7 +176,7 @@ func (s *procmgrLinuxSuite) TestDDOTRestartAfterKill() {
 func (s *procmgrLinuxSuite) TestDDOTProcessDescribe() {
 	s.requireDDOT()
 	require.EventuallyWithT(s.T(), func(t *assert.CollectT) {
-		out := s.Env().RemoteHost.MustExecute(s.platform.cliCmd("describe datadog-agent-ddot"))
+		out := s.Env().RemoteHost.MustExecuteOn(t, s.platform.cliCmd("describe datadog-agent-ddot"))
 		assertField(t, out, "Name", "datadog-agent-ddot")
 		assertField(t, out, "State", "Running")
 		assertField(t, out, "Command", ddotExtBinaryPath)
@@ -195,7 +194,7 @@ func (s *procmgrLinuxSuite) waitForRunningProcess(name, expectedBinary string, t
 	s.T().Helper()
 	var pid string
 	require.EventuallyWithT(s.T(), func(t *assert.CollectT) {
-		out := s.Env().RemoteHost.MustExecute(s.platform.cliCmd("describe " + name))
+		out := s.Env().RemoteHost.MustExecuteOn(t, s.platform.cliCmd("describe "+name))
 		assertField(t, out, "State", "Running")
 		p := fieldValue(out, "PID")
 		if !assert.NotEmpty(t, p, "PID should be present for a Running process") ||
