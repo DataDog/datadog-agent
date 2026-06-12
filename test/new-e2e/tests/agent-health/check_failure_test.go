@@ -21,11 +21,11 @@ import (
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 )
 
-const healthPlatformAgentConfig = `health_platform:
-  enabled: true
-  forwarder:
-    interval: 30s
-`
+// healthPlatformAgentConfig is the shared base agent config for health platform E2E tests.
+// The short forwarder interval reduces detection and resolution latency.
+//
+//go:embed fixtures/agent_config.yaml
+var healthPlatformAgentConfig string
 
 const brokenCheckConf = `init_config:
 instances:
@@ -68,8 +68,7 @@ func TestCheckFailureSuite(t *testing.T) {
 
 // TestCheckFailureIssueLifecycle verifies that a check execution failure is
 // detected in fakeintake as NEW and that replacing the failing check with a
-// working version causes the issue to stop being reported (or be reported as
-// RESOLVED).
+// working version causes the issue to transition to RESOLVED.
 //
 // Cross-restart persistence is tested separately in TestResilienceSuite.
 func (suite *checkFailureSuite) TestCheckFailureIssueLifecycle() {
@@ -122,6 +121,21 @@ func (suite *checkFailureSuite) TestCheckFailureIssueLifecycle() {
 				),
 			),
 		))
+
+		// Wait for the issue to explicitly transition to RESOLVED before flushing.
+		require.EventuallyWithT(t, func(ct *assert.CollectT) {
+			payloads, err := fakeIntake.GetAgentHealth()
+			assert.NoError(ct, err)
+			for _, p := range payloads {
+				for _, iss := range findIssuesByPrefix(p, issuePrefix) {
+					if iss.PersistedIssue != nil && iss.PersistedIssue.State == healthplatform.IssueState_ISSUE_STATE_RESOLVED {
+						return
+					}
+				}
+			}
+			assert.Fail(ct, "issue not yet RESOLVED")
+		}, defaultIssueTimeout, defaultIssuePollInterval, "issue never transitioned to RESOLVED after fix")
+
 		require.NoError(t, fakeIntake.FlushServerAndResetAggregators())
 
 		require.Never(t, func() bool {
@@ -134,6 +148,6 @@ func (suite *checkFailureSuite) TestCheckFailureIssueLifecycle() {
 				}
 			}
 			return false
-		}, defaultIssueAbsenceWindow, defaultIssuePollInterval, "issue still reported as non-resolved after fix")
+		}, defaultIssueAbsenceWindow, defaultIssuePollInterval, "issue reappeared as non-resolved after fix")
 	})
 }

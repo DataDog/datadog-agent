@@ -153,9 +153,24 @@ func (suite *resilienceSuite) TestHealthPlatformIssueRecurrence() {
 			),
 		),
 	))
+
+	// Wait for the issue to explicitly transition to RESOLVED before flushing.
+	require.EventuallyWithT(suite.T(), func(ct *assert.CollectT) {
+		payloads, err := fakeIntake.GetAgentHealth()
+		assert.NoError(ct, err)
+		for _, p := range payloads {
+			for _, iss := range findIssuesByPrefix(p, issuePrefix) {
+				if iss.PersistedIssue != nil && iss.PersistedIssue.State == healthplatform.IssueState_ISSUE_STATE_RESOLVED {
+					return
+				}
+			}
+		}
+		assert.Fail(ct, "issue not yet RESOLVED")
+	}, defaultIssueTimeout, defaultIssuePollInterval, "issue never transitioned to RESOLVED after fix")
+
 	require.NoError(suite.T(), fakeIntake.FlushServerAndResetAggregators())
 
-	// Verify the issue is resolved or no longer reported.
+	// Verify the issue is no longer reported after flush.
 	require.Never(suite.T(), func() bool {
 		payloads, _ := fakeIntake.GetAgentHealth()
 		for _, p := range payloads {
@@ -166,7 +181,7 @@ func (suite *resilienceSuite) TestHealthPlatformIssueRecurrence() {
 			}
 		}
 		return false
-	}, defaultIssueAbsenceWindow, defaultIssuePollInterval, "issue not resolved after fix")
+	}, defaultIssueAbsenceWindow, defaultIssuePollInterval, "issue reappeared as non-resolved after fix")
 
 	// Re-break: deploy the broken check again.
 	suite.UpdateEnv(awshost.Provisioner(

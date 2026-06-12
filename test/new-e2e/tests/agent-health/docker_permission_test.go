@@ -188,6 +188,21 @@ func (suite *dockerPermissionSuite) TestDockerPermissionIssueLifecycle() {
 		require.EventuallyWithT(t, func(ct *assert.CollectT) {
 			assert.True(ct, agent.Client.IsReady())
 		}, 2*time.Minute, 10*time.Second, "agent not ready after fix restart")
+
+		// Wait for the issue to explicitly transition to RESOLVED before flushing.
+		require.EventuallyWithT(t, func(ct *assert.CollectT) {
+			payloads, err := fakeIntake.GetAgentHealth()
+			assert.NoError(ct, err)
+			for _, p := range payloads {
+				for _, iss := range findIssuesByID(t, p, issueID) {
+					if iss.PersistedIssue != nil && iss.PersistedIssue.State == healthplatform.IssueState_ISSUE_STATE_RESOLVED {
+						return
+					}
+				}
+			}
+			assert.Fail(ct, "issue not yet RESOLVED")
+		}, defaultIssueTimeout, defaultIssuePollInterval, "issue never transitioned to RESOLVED after fix")
+
 		require.NoError(t, fakeIntake.FlushServerAndResetAggregators())
 
 		require.Never(t, func() bool {
@@ -200,6 +215,6 @@ func (suite *dockerPermissionSuite) TestDockerPermissionIssueLifecycle() {
 				}
 			}
 			return false
-		}, defaultIssueAbsenceWindow, defaultIssuePollInterval, "issue still reported as non-resolved after fix")
+		}, defaultIssueAbsenceWindow, defaultIssuePollInterval, "issue reappeared as non-resolved after fix")
 	})
 }
