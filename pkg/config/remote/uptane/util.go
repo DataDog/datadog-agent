@@ -239,7 +239,8 @@ func openCacheDB(path string, agentVersion string, apiKey string, url string) (*
 	apiKeyHash := hashAPIKey(apiKey)
 
 	db, err := bbolt.Open(path, 0600, &bbolt.Options{
-		Timeout: databaseLockTimeout,
+		Timeout:        databaseLockTimeout,
+		NoFreelistSync: true,
 	})
 	if err != nil {
 		if errors.Is(err, bbolterr.ErrTimeout) {
