@@ -96,7 +96,7 @@ func TestLookbackBufferNotFedByNormalFlow(t *testing.T) {
 // TestLookbackDisabled verifies the manager and buffer are absent when disabled.
 func TestLookbackDisabled(t *testing.T) {
 	cfg := configmock.New(t)
-	cfg.SetWithoutSource("metric_lookback.enabled", false)
+	cfg.SetInTest("metric_lookback.enabled", false)
 	demux := initLookbackTestDemux(t)
 	defer demux.Stop()
 
