@@ -2,7 +2,10 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "invalidsysprobeconfig",
-    srcs = ["module.go"],
+    srcs = [
+        "module.go",
+        "stub.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/comp/healthplatform/issues/invalidsysprobeconfig",
     visibility = ["//visibility:public"],
     deps = [

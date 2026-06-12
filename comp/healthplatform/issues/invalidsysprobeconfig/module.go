@@ -3,7 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
+//go:build !jetson
+
 // Package invalidsysprobeconfig reports system-probe.yaml schema violations through the Agent Health Platform.
+// Excluded from the IoT Agent build to stay under the binary size budget.
 package invalidsysprobeconfig
 
 import (
