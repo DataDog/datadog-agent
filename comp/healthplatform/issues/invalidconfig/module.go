@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build !jetson && (!clusterchecks || test)
-
 package invalidconfig
 
 import (
@@ -23,12 +21,13 @@ func init() {
 }
 
 type invalidConfigModule struct {
+	cfg     config.Component
 	checker *checker
 }
 
 // NewModule captures the config so the once-only startup check can read it.
 func NewModule(cfg config.Component) issues.Module {
-	return &invalidConfigModule{checker: newChecker(cfg)}
+	return &invalidConfigModule{cfg: cfg, checker: newChecker(cfg)}
 }
 
 func (m *invalidConfigModule) IssueName() string {
@@ -44,10 +43,24 @@ func (m *invalidConfigModule) BuiltInPeriodicHealthCheck() *runnerdef.BuiltInPer
 	return nil
 }
 
-// BuiltInStartupHealthCheck runs the schema validation once at agent startup.
+// BuiltInStartupHealthCheck runs schema validation once at agent startup.
+// The check is gated inside Fn rather than at registration time so that
+// IssueNames-based stale-issue resolution still fires on restart even when
+// the flag is disabled — returning nil/empty resolves any previously-stored
+// issues rather than leaving them orphaned.
+//
+// The gate exists because schema.ValidateCoreConfig decompresses, parses, and
+// compiles the full core_schema.yaml (~8000 lines) into a *jsonschema.Schema
+// stored in a process-lifetime global — adding ~8 MiB of permanent heap even
+// when the agent config is valid.
 func (m *invalidConfigModule) BuiltInStartupHealthCheck() *runnerdef.BuiltInHealthCheck {
 	return &runnerdef.BuiltInHealthCheck{
 		Source: "agent",
-		Fn:     m.checker.Run,
+		Fn: func() ([]runnerdef.IssueReport, error) {
+			if !m.cfg.GetBool("health_platform.invalidconfig_check.enabled") {
+				return nil, nil
+			}
+			return m.checker.Run()
+		},
 	}
 }

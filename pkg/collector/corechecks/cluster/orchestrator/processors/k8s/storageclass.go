@@ -37,10 +37,10 @@ func NewStorageClassHandlers(tagger tagger.Component) *StorageClassHandlers {
 	return &StorageClassHandlers{tagger: tagger}
 }
 
-// BeforeCacheCheck is a handler called before cache lookup.
+// EnrichModel is a handler called before cache lookup.
 //
 //nolint:revive
-func (h *StorageClassHandlers) BeforeCacheCheck(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
+func (h *StorageClassHandlers) EnrichModel(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
 	r := resource.(*storagev1.StorageClass)
 	m := resourceModel.(*model.StorageClass)
 
@@ -113,10 +113,24 @@ func (h *StorageClassHandlers) ResourceList(ctx processors.ProcessorContext, lis
 	resources = make([]interface{}, 0, len(resourceList))
 
 	for _, resource := range resourceList {
-		resources = append(resources, resource.DeepCopy())
+		resources = append(resources, resource)
 	}
 
 	return resources
+}
+
+// CloneResource returns a deep copy of the resource.
+//
+//nolint:revive
+func (h *StorageClassHandlers) CloneResource(resource interface{}) interface{} {
+	return resource.(*storagev1.StorageClass).DeepCopy()
+}
+
+// ResourceVersionFromRaw returns the resource version from the raw resource.
+//
+//nolint:revive
+func (h *StorageClassHandlers) ResourceVersionFromRaw(_ processors.ProcessorContext, resource interface{}) string {
+	return resource.(*storagev1.StorageClass).ResourceVersion
 }
 
 // ResourceUID is a handler called to retrieve the resource UID.

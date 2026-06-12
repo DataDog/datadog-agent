@@ -404,7 +404,7 @@ func TestRegistrationRefreshContention(t *testing.T) {
 	configComp := configmock.New(t)
 
 	// Set a short query timeout for faster test
-	configComp.SetWithoutSource("remote_agent.registry.query_timeout", 50*time.Millisecond)
+	configComp.SetInTest("remote_agent.registry.query_timeout", 50*time.Millisecond)
 
 	registerCallCount := 0
 	refreshCallCount := 0
@@ -571,7 +571,7 @@ type mockCoreAgentServer struct {
 	address      string
 	registerFunc func(context.Context, *pbcore.RegisterRemoteAgentRequest) (*pbcore.RegisterRemoteAgentResponse, error)
 	refreshFunc  func(context.Context, *pbcore.RefreshRemoteAgentRequest) (*pbcore.RefreshRemoteAgentResponse, error)
-	pbcore.UnimplementedAgentSecureServer
+	pbcore.UnimplementedRemoteAgentServer
 	echo.UnimplementedEchoServer
 }
 
@@ -625,7 +625,7 @@ func newMockCoreAgentServer(
 	}
 
 	mock.server = grpc.NewServer(serverOpts...)
-	pbcore.RegisterAgentSecureServer(mock.server, mock)
+	pbcore.RegisterRemoteAgentServer(mock.server, mock)
 
 	// register echo service
 	echo.RegisterEchoServer(mock.server, mock)

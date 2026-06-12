@@ -12,13 +12,14 @@ import (
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 )
 
-// componentKind distinguishes detectors from correlators in the catalog.
+// componentKind distinguishes detectors from correlators and scorers in the catalog.
 type componentKind int
 
 const (
 	componentDetector componentKind = iota
 	componentCorrelator
 	componentExtractor
+	componentScorer
 )
 
 // componentEntry describes a registered pipeline component.
@@ -93,7 +94,7 @@ type ComponentSettings struct {
 //
 //	catalog := defaultCatalog()
 //	settings := ComponentSettings{ ... } // from agent config, testbench UI, etc.
-//	detectors, correlators, extractors, components := catalog.Instantiate(settings)
+//	detectors, correlators, scorers, extractors, components := catalog.Instantiate(settings)
 type componentCatalog struct {
 	entries []componentEntry
 }
@@ -204,6 +205,36 @@ func defaultCatalog() *componentCatalog {
 				factory:        func(any) any { return NewScanWelchDetector() },
 				defaultEnabled: false,
 			},
+			{
+				name:           "holt_residual",
+				displayName:    "HoltResidual",
+				kind:           componentDetector,
+				defaultConfig:  DefaultHoltResidualConfig(),
+				factory:        func(cfg any) any { return NewHoltResidualDetectorWithConfig(cfg.(HoltResidualConfig)) },
+				defaultEnabled: false,
+				parseJSON: func(defaults any, raw []byte) (any, error) {
+					cfg := defaults.(HoltResidualConfig)
+					if err := json.Unmarshal(raw, &cfg); err != nil {
+						return nil, err
+					}
+					return cfg, nil
+				},
+			},
+			{
+				name:           "tukey_biweight",
+				displayName:    "TukeyBiweight",
+				kind:           componentDetector,
+				defaultConfig:  DefaultTukeyBiweightConfig(),
+				factory:        func(cfg any) any { return NewTukeyBiweightDetectorWithConfig(cfg.(TukeyBiweightConfig)) },
+				defaultEnabled: false,
+				parseJSON: func(defaults any, raw []byte) (any, error) {
+					cfg := defaults.(TukeyBiweightConfig)
+					if err := json.Unmarshal(raw, &cfg); err != nil {
+						return nil, err
+					}
+					return cfg, nil
+				},
+			},
 			// ---- Correlators ----
 			{
 				name:           "cross_signal",
@@ -243,6 +274,23 @@ func defaultCatalog() *componentCatalog {
 				factory:        func(any) any { return NewDetectorPassthroughCorrelator() },
 				defaultEnabled: false,
 			},
+			// ---- Scorers ----
+			{
+				name:           "anomaly_scorer",
+				displayName:    "AnomalyScorer",
+				kind:           componentScorer,
+				defaultConfig:  DefaultScorerConfig(),
+				factory:        func(cfg any) any { return NewScorer(cfg.(observerdef.ScorerConfig)) },
+				defaultEnabled: false,
+				readConfig:     readScorerConfig,
+				parseJSON: func(defaults any, raw []byte) (any, error) {
+					cfg := defaults.(observerdef.ScorerConfig)
+					if err := json.Unmarshal(raw, &cfg); err != nil {
+						return nil, fmt.Errorf("anomaly_scorer: failed to parse JSON config: %w", err)
+					}
+					return cfg, nil
+				},
+			},
 		},
 	}
 }
@@ -253,6 +301,7 @@ func defaultCatalog() *componentCatalog {
 func (c *componentCatalog) Instantiate(settings ComponentSettings) (
 	detectors []observerdef.Detector,
 	correlators []observerdef.Correlator,
+	scorers []observerdef.AnomalyScorer,
 	extractors []observerdef.LogMetricsExtractor,
 	components map[string]*componentInstance,
 ) {
@@ -297,9 +346,13 @@ func (c *componentCatalog) Instantiate(settings ComponentSettings) (
 			if ext, ok := instance.(observerdef.LogMetricsExtractor); ok {
 				extractors = append(extractors, ext)
 			}
+		case componentScorer:
+			if sc, ok := instance.(observerdef.AnomalyScorer); ok {
+				scorers = append(scorers, sc)
+			}
 		}
 	}
-	return detectors, correlators, extractors, components
+	return detectors, correlators, scorers, extractors, components
 }
 
 // CatalogEntry is a public view of a catalog component.
@@ -308,6 +361,47 @@ type CatalogEntry struct {
 	DisplayName    string
 	Kind           string // "detector", "correlator", or "extractor"
 	DefaultEnabled bool
+}
+
+// ParseSettingsFromJSON builds ComponentSettings from a map of JSON-encoded
+// per-component overrides (e.g. from a --config params file). Each value may
+// contain an optional "enabled" bool plus component-specific hyperparameters.
+// Unknown component names are rejected.
+func ParseSettingsFromJSON(overrides map[string]json.RawMessage) (ComponentSettings, error) {
+	cat := defaultCatalog()
+	settings := ComponentSettings{
+		Enabled: make(map[string]bool),
+		configs: make(map[string]any),
+	}
+	for name, raw := range overrides {
+		var entry *componentEntry
+		for i := range cat.entries {
+			if cat.entries[i].name == name {
+				entry = &cat.entries[i]
+				break
+			}
+		}
+		if entry == nil {
+			return ComponentSettings{}, fmt.Errorf("unknown component %q in params file", name)
+		}
+		var wrapper struct {
+			Enabled *bool `json:"enabled"`
+		}
+		if err := json.Unmarshal(raw, &wrapper); err != nil {
+			return ComponentSettings{}, fmt.Errorf("parsing enabled for %q: %w", name, err)
+		}
+		if wrapper.Enabled != nil {
+			settings.Enabled[name] = *wrapper.Enabled
+		}
+		if entry.parseJSON != nil {
+			cfg, err := entry.parseJSON(entry.defaultConfig, raw)
+			if err != nil {
+				return ComponentSettings{}, fmt.Errorf("parsing config for %q: %w", name, err)
+			}
+			settings.configs[name] = cfg
+		}
+	}
+	return settings, nil
 }
 
 // TestbenchCatalogEntries returns all component names and kinds from the testbench catalog.
@@ -341,6 +435,8 @@ func kindString(k componentKind) string {
 		return "correlator"
 	case componentExtractor:
 		return "extractor"
+	case componentScorer:
+		return "scorer"
 	default:
 		return "unknown"
 	}

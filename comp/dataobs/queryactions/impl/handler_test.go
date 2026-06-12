@@ -9,7 +9,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
+	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	noopautoconfig "github.com/DataDog/datadog-agent/comp/core/autodiscovery/noopimpl"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
@@ -177,7 +177,7 @@ func TestBuildCheckConfig_MultipleQueries(t *testing.T) {
 	assert.Equal(t, "run_query", q1["type"])
 	assert.Equal(t, "SELECT count(*) FROM orders", q1["query"])
 	assert.Equal(t, 60, q1["interval_seconds"])
-	assert.Equal(t, 10, q1["timeout_seconds"])
+	assert.Equal(t, 10000, q1["query_timeout"])
 
 	entity1, ok := q1["entity"].(map[string]any)
 	require.True(t, ok)
@@ -666,4 +666,224 @@ func TestOnRCUpdate_MalformedPostgresYAML_SurfacesParseError(t *testing.T) {
 	require.Equal(t, state.ApplyStateError, statuses["path/cfg-badyaml"].State)
 	assert.Contains(t, statuses["path/cfg-badyaml"].Error, "YAML parse error",
 		"error message should surface the YAML parse failure, not just 'identifier not found'")
+}
+
+// --- validateQuerySpec tests ---
+
+// TestValidateQuerySpec_ValidScheduleOnly verifies that a query with a valid cron schedule
+// and no interval_seconds passes validation and flows through to the scheduled check.
+func TestValidateQuerySpec_ValidScheduleOnly(t *testing.T) {
+	postgresCfg := integration.Config{
+		Name:      "postgres",
+		Provider:  "file",
+		NodeName:  "node1",
+		Instances: []integration.Data{integration.Data("host: localhost\ndata_observability:\n  enabled: true\n")},
+	}
+	c := newTestComponentWithAC(t, []integration.Config{postgresCfg})
+
+	payload := DOQueryPayload{
+		ConfigID:     "cfg-cron-only",
+		DBIdentifier: DBIdentifier{Type: "self-hosted", Host: "localhost"},
+		Queries: []QuerySpec{
+			{
+				MonitorID:      42,
+				Type:           "run_query",
+				Query:          "SELECT count(*) FROM orders",
+				Schedule:       "20 * * * *",
+				TimeoutSeconds: 10,
+				Entity:         EntityMetadata{Platform: "postgres", Database: "shop", Table: "orders"},
+			},
+		},
+	}
+	payloadJSON, err := json.Marshal(payload)
+	require.NoError(t, err)
+
+	statuses, changes := collectStatuses(c, map[string]state.RawConfig{
+		"path/cfg-cron-only": {Config: payloadJSON},
+	})
+
+	require.Equal(t, state.ApplyStateAcknowledged, statuses["path/cfg-cron-only"].State)
+	require.Len(t, changes.Schedule, 1, "should schedule the DO check")
+
+	var instance map[string]any
+	require.NoError(t, yaml.Unmarshal(changes.Schedule[0].Instances[0], &instance))
+	doConfig, ok := instance["data_observability"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, 10, doConfig["collection_interval"], "collection_interval must always be 10")
+
+	queries, ok := doConfig["queries"].([]any)
+	require.True(t, ok)
+	require.Len(t, queries, 1)
+	q := queries[0].(map[string]any)
+	assert.Equal(t, "20 * * * *", q["schedule"], "schedule field should be injected into query YAML")
+	_, hasInterval := q["interval_seconds"]
+	assert.False(t, hasInterval, "interval_seconds should be absent when not set in the RC payload")
+}
+
+// TestValidateQuerySpec_BothScheduleAndInterval verifies that when both schedule and
+// interval_seconds are set, the config flows through (cron wins downstream in Python).
+func TestValidateQuerySpec_BothScheduleAndInterval(t *testing.T) {
+	postgresCfg := integration.Config{
+		Name:      "postgres",
+		Provider:  "file",
+		Instances: []integration.Data{integration.Data("host: localhost\ndata_observability:\n  enabled: true\n")},
+	}
+	c := newTestComponentWithAC(t, []integration.Config{postgresCfg})
+
+	payload := DOQueryPayload{
+		ConfigID:     "cfg-both",
+		DBIdentifier: DBIdentifier{Type: "self-hosted", Host: "localhost"},
+		Queries: []QuerySpec{
+			{
+				MonitorID:       77,
+				Type:            "run_query",
+				Query:           "SELECT 1",
+				IntervalSeconds: 300,
+				Schedule:        "*/15 * * * *",
+				TimeoutSeconds:  10,
+				Entity:          EntityMetadata{Platform: "postgres", Database: "db", Table: "t"},
+			},
+		},
+	}
+	payloadJSON, err := json.Marshal(payload)
+	require.NoError(t, err)
+
+	statuses, changes := collectStatuses(c, map[string]state.RawConfig{
+		"path/cfg-both": {Config: payloadJSON},
+	})
+
+	require.Equal(t, state.ApplyStateAcknowledged, statuses["path/cfg-both"].State)
+	require.Len(t, changes.Schedule, 1, "should schedule the DO check when both fields are set")
+
+	var instance map[string]any
+	require.NoError(t, yaml.Unmarshal(changes.Schedule[0].Instances[0], &instance))
+	doConfig, ok := instance["data_observability"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, 10, doConfig["collection_interval"], "collection_interval must always be 10")
+
+	queries, ok := doConfig["queries"].([]any)
+	require.True(t, ok)
+	require.Len(t, queries, 1)
+	q := queries[0].(map[string]any)
+	assert.Equal(t, "*/15 * * * *", q["schedule"], "schedule field should be injected")
+	assert.Equal(t, 300, q["interval_seconds"], "interval_seconds should be present when set in the RC payload")
+}
+
+// TestValidateQuerySpec_NeitherSetRejected verifies that a query with neither schedule nor
+// a positive interval_seconds is rejected with ApplyStateError and no check is scheduled.
+func TestValidateQuerySpec_NeitherSetRejected(t *testing.T) {
+	postgresCfg := integration.Config{
+		Name:      "postgres",
+		Instances: []integration.Data{integration.Data("host: localhost\ndata_observability:\n  enabled: true\n")},
+	}
+	c := newTestComponentWithAC(t, []integration.Config{postgresCfg})
+
+	payload := DOQueryPayload{
+		ConfigID:     "cfg-neither",
+		DBIdentifier: DBIdentifier{Type: "self-hosted", Host: "localhost"},
+		Queries: []QuerySpec{
+			{
+				MonitorID:       55,
+				Type:            "run_query",
+				Query:           "SELECT 1",
+				IntervalSeconds: 0, // zero — invalid when no schedule
+				TimeoutSeconds:  10,
+				Entity:          EntityMetadata{Platform: "postgres", Database: "db", Table: "t"},
+			},
+		},
+	}
+	payloadJSON, err := json.Marshal(payload)
+	require.NoError(t, err)
+
+	statuses, changes := collectStatuses(c, map[string]state.RawConfig{
+		"path/cfg-neither": {Config: payloadJSON},
+	})
+
+	require.Equal(t, state.ApplyStateError, statuses["path/cfg-neither"].State)
+	assert.Contains(t, statuses["path/cfg-neither"].Error, "interval_seconds must be > 0 when schedule is unset")
+	assert.Empty(t, changes.Schedule, "no check should be scheduled for invalid query")
+}
+
+// TestValidateQuerySpec_InvalidCronRejected verifies that a query with an invalid cron
+// expression is rejected with ApplyStateError before any postgres config lookup occurs.
+func TestValidateQuerySpec_InvalidCronRejected(t *testing.T) {
+	// No postgres configs at all — if validation fires before findPostgresConfig, this test
+	// will still report ApplyStateError (not "no matching postgres config").
+	c := newTestComponentWithAC(t, []integration.Config{})
+
+	payload := DOQueryPayload{
+		ConfigID:     "cfg-badcron",
+		DBIdentifier: DBIdentifier{Type: "self-hosted", Host: "localhost"},
+		Queries: []QuerySpec{
+			{
+				MonitorID:      33,
+				Type:           "run_query",
+				Query:          "SELECT 1",
+				Schedule:       "not-a-cron",
+				TimeoutSeconds: 10,
+				Entity:         EntityMetadata{Platform: "postgres", Database: "db", Table: "t"},
+			},
+		},
+	}
+	payloadJSON, err := json.Marshal(payload)
+	require.NoError(t, err)
+
+	statuses, changes := collectStatuses(c, map[string]state.RawConfig{
+		"path/cfg-badcron": {Config: payloadJSON},
+	})
+
+	require.Equal(t, state.ApplyStateError, statuses["path/cfg-badcron"].State)
+	assert.Contains(t, statuses["path/cfg-badcron"].Error, "invalid cron schedule",
+		"error should mention the bad cron expression")
+	assert.Empty(t, changes.Schedule, "no check should be scheduled for invalid cron")
+}
+
+// TestValidateQuerySpec_ValidIntervalOnly verifies that existing behavior is preserved:
+// a query with only interval_seconds set (no schedule) flows through correctly and
+// does not inject a schedule field into the YAML.
+func TestValidateQuerySpec_ValidIntervalOnly(t *testing.T) {
+	postgresCfg := integration.Config{
+		Name:      "postgres",
+		Provider:  "file",
+		Instances: []integration.Data{integration.Data("host: localhost\ndata_observability:\n  enabled: true\n")},
+	}
+	c := newTestComponentWithAC(t, []integration.Config{postgresCfg})
+
+	payload := DOQueryPayload{
+		ConfigID:     "cfg-interval-only",
+		DBIdentifier: DBIdentifier{Type: "self-hosted", Host: "localhost"},
+		Queries: []QuerySpec{
+			{
+				MonitorID:       99,
+				Type:            "run_query",
+				Query:           "SELECT count(*) FROM orders",
+				IntervalSeconds: 60,
+				TimeoutSeconds:  10,
+				Entity:          EntityMetadata{Platform: "postgres", Database: "shop", Table: "orders"},
+			},
+		},
+	}
+	payloadJSON, err := json.Marshal(payload)
+	require.NoError(t, err)
+
+	statuses, changes := collectStatuses(c, map[string]state.RawConfig{
+		"path/cfg-interval-only": {Config: payloadJSON},
+	})
+
+	require.Equal(t, state.ApplyStateAcknowledged, statuses["path/cfg-interval-only"].State)
+	require.Len(t, changes.Schedule, 1, "should schedule the DO check")
+
+	var instance map[string]any
+	require.NoError(t, yaml.Unmarshal(changes.Schedule[0].Instances[0], &instance))
+	doConfig, ok := instance["data_observability"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, 10, doConfig["collection_interval"], "collection_interval must always be 10")
+
+	queries, ok := doConfig["queries"].([]any)
+	require.True(t, ok)
+	require.Len(t, queries, 1)
+	q := queries[0].(map[string]any)
+	assert.Equal(t, 60, q["interval_seconds"], "interval_seconds should be present")
+	_, hasSchedule := q["schedule"]
+	assert.False(t, hasSchedule, "schedule field must be absent when not set on the query")
 }

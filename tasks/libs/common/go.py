@@ -74,6 +74,49 @@ def download_go_dependencies(
                 future.result()  # Raises if module failed
 
 
+def _with_pdb_extldflag(ldflags: str, bin_path: str) -> str:
+    """
+    Insert ``-Wl,--pdb=<abs(bin_path)>.pdb`` into the linker's external-
+    linker flags so mingw ld emits a PDB next to the binary.
+
+    `tasks/libs/common/utils.py:get_build_flags` emits its accumulated
+    extldflags as a single-quoted whole arg ``'-extldflags=...'``. If
+    that group is present we splice our flag in just before the closing
+    quote, so the Go linker still sees one ``-extldflags=`` token (it
+    honors only the last one). Otherwise we append a fresh
+    ``'-extldflags=<our flag>'``.
+    """
+    pdb_flag = f"-Wl,--pdb={os.path.abspath(bin_path)}.pdb"
+    open_marker = "'-extldflags="
+    open_idx = ldflags.find(open_marker)
+    if open_idx != -1:
+        close_idx = ldflags.find("'", open_idx + len(open_marker))
+        if close_idx != -1:
+            return ldflags[:close_idx] + " " + pdb_flag + ldflags[close_idx:]
+    suffix = f" '-extldflags={pdb_flag}'"
+    return (ldflags + suffix) if ldflags else suffix.lstrip()
+
+
+def _with_hermetic_mingw_path(ctx: Context, env: dict[str, str] | None) -> dict[str, str] | None:
+    """
+    Prepend the Bazel hermetic MinGW (GNU ld >= 2.44) to PATH for a Windows cgo
+    build, so the linker emits PDBs that Microsoft dbghelp/symstore can read. The
+    build image's default mingw is ld 2.43, whose `--pdb` output those tools
+    can't parse (WINA-2770). Returns env unchanged if it can't be resolved.
+
+    TODO: remove once migrated fully to the Bazel MinGW toolchain.
+    """
+    # bazel fetch is idempotent: it extracts @winlibs_mingw64 only if missing.
+    if not ctx.run("bazelisk fetch --repo=@winlibs_mingw64", hide=True, warn=True).ok:
+        return env
+    res = ctx.run("bazelisk info output_base", hide=True, warn=True)
+    if not res.ok:
+        return env
+    mingw_bin = f"{res.stdout.strip()}/external/+winlibs_mingw_repository+winlibs_mingw64/bin"
+    path = (env or {}).get("PATH") or os.environ.get("PATH", "")
+    return {**(env or {}), "PATH": f"{mingw_bin}{os.pathsep}{path}"}
+
+
 def go_build(
     ctx: Context,
     entrypoint: str | Path,
@@ -91,6 +134,21 @@ def go_build(
     coverage: bool = False,
     trimpath: bool = True,
 ) -> Result:
+    # When targeting Windows with a known output path, ensure the parent
+    # directory exists and ask mingw ld to emit a PDB next to the binary
+    # so cdb/WPA/xperf can resolve Go symbols. ld writes the PDB during
+    # the link step — before `go build` copies the .exe to bin_path —
+    # which is why the pre-create is needed.
+    target_is_windows = (
+        sys.platform == "win32" or (env or {}).get("GOOS") == "windows" or os.getenv("GOOS") == "windows"
+    )
+    if bin_path and target_is_windows:
+        os.makedirs(os.path.dirname(os.path.abspath(str(bin_path))) or ".", exist_ok=True)
+        if os.environ.get("DD_GO_PDB", "1") != "0":
+            ldflags = _with_pdb_extldflag(ldflags or "", str(bin_path))
+            if sys.platform == "win32":
+                env = _with_hermetic_mingw_path(ctx, env)
+
     cmd = "go build"
     if coverage:
         cmd += " -cover -covermode=atomic"

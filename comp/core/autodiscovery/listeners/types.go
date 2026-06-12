@@ -8,6 +8,7 @@ package listeners
 import (
 	"errors"
 
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -76,6 +77,7 @@ type ServiceListernerDeps struct {
 	Filter            workloadfilter.Component
 	Wmeta             option.Option[workloadmeta.Component]
 	StaticConfigIndex *StaticConfigIndex
+	ServiceTracker    types.ServiceTracker
 }
 
 // ServiceListenerFactory builds a service listener

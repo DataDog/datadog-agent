@@ -202,6 +202,10 @@ type PodAutoscalerInternal struct {
 	// customRecommenderConfiguration holds the configuration for custom recommenders,
 	// Parsed from annotations on the autoscaler
 	customRecommenderConfiguration *RecommenderConfiguration
+
+	// submittedPodOps maps pod UID to the recommendationID of the last accepted patch or eviction,
+	// used to suppress redundant API calls during the informer-cache lag window.
+	submittedPodOps map[string]string
 }
 
 // NewPodAutoscalerInternal creates a new PodAutoscalerInternal from a Kubernetes CR
@@ -384,7 +388,17 @@ func (p *PodAutoscalerInternal) SetActiveScalingValues(currentTime time.Time, ho
 
 	// Update scaling values
 	p.scalingValues.Horizontal = selectScalingValues(horizontalActiveSource).Horizontal
-	p.scalingValues.Vertical = selectScalingValues(verticalActiveSource).Vertical
+
+	// selectScalingValues(nil) returns p.scalingValues — a self-assignment that would
+	// keep any previously-constrained vertical value (including a burstable sentinel)
+	// alive across cycles. When the backend stops emitting a vertical recommendation,
+	// reset Vertical to nil so the next sync sees "no recommendation" and clears live
+	// state instead of re-applying the stale sentinel.
+	if verticalActiveSource == nil {
+		p.scalingValues.Vertical = nil
+	} else {
+		p.scalingValues.Vertical = selectScalingValues(verticalActiveSource).Vertical
+	}
 
 	// Update error states based on main product recommendations
 	p.scalingValues.HorizontalError = p.mainScalingValues.HorizontalError
@@ -705,11 +719,14 @@ func (p *PodAutoscalerInternal) IsHorizontalScalingEnabled() bool {
 	return !(scaleUpDisabled && scaleDownDisabled)
 }
 
-// IsBurstable returns true if the burstable preview option is enabled for this autoscaler.
-// The value is read directly from the cached previewOptions struct — no JSON decode per call.
-// For profile-managed DPAs previewOptions is populated by UpdateFromProfile; for standalone
-// DPAs it is populated by UpdateFromPodAutoscaler.
+// IsBurstable returns true if burstable mode is enabled for this autoscaler.
+// Burstable mode requires an explicit opt-in via spec.options.burstable or the
+// preview annotation; there is no cluster-level default.
 func (p *PodAutoscalerInternal) IsBurstable() bool {
+	spec := p.Spec()
+	if spec != nil && spec.Options != nil && spec.Options.Burstable != nil {
+		return *spec.Options.Burstable
+	}
 	return p.previewOptions.Burstable
 }
 
@@ -901,6 +918,40 @@ func (p *PodAutoscalerInternal) InPlaceResizeCompletedInc() {
 	p.inPlaceResizeCompletedCount++
 }
 
+// TrackPodOperation records that a patch or eviction for podUID was accepted by the API server.
+func (p *PodAutoscalerInternal) TrackPodOperation(podUID, recommendationID string) {
+	if p.submittedPodOps == nil {
+		p.submittedPodOps = make(map[string]string)
+	}
+	p.submittedPodOps[podUID] = recommendationID
+}
+
+// HasPendingOperation reports whether podUID has a tracked operation for the current recommendationID.
+func (p *PodAutoscalerInternal) HasPendingOperation(podUID, recommendationID string) bool {
+	if p.submittedPodOps == nil {
+		return false
+	}
+	return p.submittedPodOps[podUID] == recommendationID
+}
+
+// ClearPodOperations drops all tracked pod operations; called on resize completion.
+func (p *PodAutoscalerInternal) ClearPodOperations() {
+	p.submittedPodOps = nil
+}
+
+// PrunePodOperations removes entries whose stored recommendationID no longer matches
+// the current one, and entries whose pod UID have been removed from the livePodUIDs map.
+func (p *PodAutoscalerInternal) PrunePodOperations(recommendationID string, livePodUIDs map[string]struct{}) {
+	for uid, rid := range p.submittedPodOps {
+		if rid != recommendationID {
+			delete(p.submittedPodOps, uid)
+		}
+		if _, ok := livePodUIDs[uid]; !ok {
+			delete(p.submittedPodOps, uid)
+		}
+	}
+}
+
 // CurrentReplicas returns the current number of PODs for the targetRef
 func (p *PodAutoscalerInternal) CurrentReplicas() *int32 {
 	return p.currentReplicas
@@ -1024,7 +1075,7 @@ func (p *PodAutoscalerInternal) BuildStatus(currentTime metav1.Time, currentStat
 				Source:           p.scalingValues.Vertical.Source,
 				GeneratedAt:      metav1.NewTime(p.scalingValues.Vertical.Timestamp),
 				Version:          p.scalingValues.Vertical.ResourcesHash,
-				DesiredResources: containerResourcesForStatus(p.scalingValues.Vertical.ContainerResources),
+				DesiredResources: p.scalingValues.Vertical.ContainerResourcesForStatus(),
 				Scaled:           p.scaledReplicas,
 				Evicted:          p.evictedReplicas,
 				PodCPURequest:    cpuReqSum,
@@ -1121,44 +1172,50 @@ func (p *PodAutoscalerInternal) BuildStatus(currentTime metav1.Time, currentStat
 	}
 	status.Conditions = append(status.Conditions, newCondition(rolloutStatus, verticalReason, verticalMessage, currentTime, datadoghqcommon.DatadogPodAutoscalerVerticalAbleToApply, existingConditions))
 
+	// spec.options.burstable is reported when explicitly set; the annotation fallback is
+	// reported only when true (it has no explicit false — absence means default).
+	spec := p.Spec()
+	if spec != nil && spec.Options != nil && spec.Options.Burstable != nil {
+		status.Options = &datadoghqcommon.DatadogPodAutoscalerOptionsStatus{
+			Burstable: pointer.Ptr(*spec.Options.Burstable),
+		}
+	} else if p.previewOptions.Burstable {
+		status.Options = &datadoghqcommon.DatadogPodAutoscalerOptionsStatus{
+			Burstable: pointer.Ptr(true),
+		}
+	}
+
 	return status
 }
 
-// containerResourcesForStatus returns a copy of the container resources with internal sentinel
-// values removed from Limits and Requests so they are not surfaced in the DPA status.
-//
-// For Limits: applyVerticalConstraints (burstable mode) stores removeLimitSentinel (-1) in
-// Limits[cpu] to signal "delete this CPU limit from the pod". A negative quantity is never a
-// valid Kubernetes resource value, so only strictly positive quantities are kept in Limits.
-func containerResourcesForStatus(in []datadoghqcommon.DatadogPodAutoscalerContainerResources) []datadoghqcommon.DatadogPodAutoscalerContainerResources {
-	if len(in) == 0 {
-		return in
+// ContainerResourcesForStatus returns a copy of ContainerResources safe to write to the DPA status.
+// Any limit entry carrying a negative quantity is removed: negative quantities are never valid
+// Kubernetes resource values and are used internally as sentinels (e.g. to signal that a limit
+// must be actively deleted from a live pod). Exposing them in the status would be confusing.
+func (v *VerticalScalingValues) ContainerResourcesForStatus() []datadoghqcommon.DatadogPodAutoscalerContainerResources {
+	if v.ContainerResources == nil {
+		return nil
 	}
-	out := make([]datadoghqcommon.DatadogPodAutoscalerContainerResources, len(in))
-	for i, cr := range in {
-		out[i].Name = cr.Name
-		if len(cr.Limits) > 0 {
-			for k, v := range cr.Limits {
-				if v.Sign() > 0 {
-					if out[i].Limits == nil {
-						out[i].Limits = make(corev1.ResourceList, len(cr.Limits))
-					}
-					out[i].Limits[k] = v
-				}
+	result := make([]datadoghqcommon.DatadogPodAutoscalerContainerResources, len(v.ContainerResources))
+	for i, cr := range v.ContainerResources {
+		cp := datadoghqcommon.DatadogPodAutoscalerContainerResources{Name: cr.Name}
+		if cr.Requests != nil {
+			cp.Requests = make(corev1.ResourceList, len(cr.Requests))
+			for k, q := range cr.Requests {
+				cp.Requests[k] = q.DeepCopy()
 			}
 		}
-		if len(cr.Requests) > 0 {
-			for k, v := range cr.Requests {
-				if v.Sign() >= 0 {
-					if out[i].Requests == nil {
-						out[i].Requests = make(corev1.ResourceList, len(cr.Requests))
-					}
-					out[i].Requests[k] = v
+		for res, qty := range cr.Limits {
+			if qty.Sign() >= 0 {
+				if cp.Limits == nil {
+					cp.Limits = make(corev1.ResourceList)
 				}
+				cp.Limits[res] = qty.DeepCopy()
 			}
 		}
+		result[i] = cp
 	}
-	return out
+	return result
 }
 
 // Private helpers
