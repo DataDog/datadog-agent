@@ -9,4 +9,4 @@
 enhancements:
   - |
     The OTel Datadog exporter will now emit ``otel.datadog_exporter.metrics.running.fargate{task_arn}`` for AWS ECS Fargate workloads so that each workload has its own metric.
-    Host-based workloads continue to use ``otel.datadog_exporter.metrics.running{host} unchanged.``
+    Host-based workloads continue to use ``otel.datadog_exporter.metrics.running{host}`` unchanged.
