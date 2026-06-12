@@ -3,10 +3,36 @@
 load("@bazel_lib//lib:write_source_files.bzl", "write_source_file", "write_source_files")
 load("@bazel_skylib//rules:common_settings.bzl", "bool_flag", "string_flag")
 load("@bazel_skylib//rules:run_binary.bzl", "run_binary")
+load("@dd_release_json//:release_json.bzl", "release_json")
 load("@gazelle//:def.bzl", "DEFAULT_LANGUAGES", "gazelle", "gazelle_binary")
+load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
+load("@rules_license//rules:license.bzl", "license")
+load("//compliance/rules:purl.bzl", "purl_for_generic")
 load("//tasks:build_tags.bzl", "GAZELLE_BUILD_TAGS")
 
-package(default_visibility = ["//visibility:public"])
+package(
+    default_package_metadata = [":package_metadata"],
+    default_visibility = ["//visibility:public"],
+)
+
+package_metadata(
+    name = "package_metadata",
+    attributes = [
+        ":license",
+    ],
+    purl = purl_for_generic(
+        download_url = "https://github.com/DataDog/datadog-agent/releases/tag/{version}",
+        package = "datadog-agent",
+        version = release_json.get("current_milestone"),
+    ),
+)
+
+license(
+    name = "license",
+    license_kinds = ["@rules_license//licenses/spdx:Apache-2.0"],
+    license_text = "LICENSE",
+    visibility = ["//visibility:public"],
+)
 
 # Temporary export for hybrid omnibus/bazel build.
 # This glob is empty running bazel alone in a pipeline job.
@@ -130,7 +156,6 @@ exports_files(["go.mod"])
 # gazelle:exclude comp/core/flare/flareimpl
 # gazelle:exclude comp/core/gui/fx
 # gazelle:exclude comp/core/gui/impl
-# gazelle:exclude comp/core/hostname/remotehostnameimpl
 # gazelle:exclude comp/core/sysprobeconfig/sysprobeconfigimpl
 # gazelle:exclude comp/core/tagger/fx
 # gazelle:exclude comp/core/tagger/fx-dual
@@ -166,13 +191,10 @@ exports_files(["go.mod"])
 # gazelle:exclude comp/dogstatsd/status/fx
 # gazelle:exclude comp/dogstatsd/status/impl
 # gazelle:exclude comp/forwarder/orchestrator/orchestratorimpl
-# gazelle:exclude comp/haagent/fx
-# gazelle:exclude comp/haagent/impl
 # gazelle:exclude comp/host-profiler/collector/fx
 # gazelle:exclude comp/host-profiler/collector/impl/processor
 # gazelle:exclude comp/host-profiler/flare
 # gazelle:exclude comp/logonduration/fx
-# gazelle:exclude comp/logonduration/impl
 # gazelle:exclude comp/anomalydetection/logssource/impl
 # gazelle:exclude comp/logs/adscheduler/fx
 # gazelle:exclude comp/logs/adscheduler/impl
@@ -223,7 +245,6 @@ exports_files(["go.mod"])
 # gazelle:exclude comp/networkpath/traceroute/fx-local
 # gazelle:exclude comp/networkpath/traceroute/impl-local
 # gazelle:exclude comp/notableevents/fx
-# gazelle:exclude comp/notableevents/impl
 # gazelle:exclude comp/otelcol/collector/fx-pipeline
 # gazelle:exclude comp/otelcol/collector/impl-pipeline
 # gazelle:exclude comp/otelcol/converter/examples
@@ -471,7 +492,6 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/networkdevice/sender
 # gazelle:exclude pkg/networkpath/telemetry
 # gazelle:exclude pkg/networkpath/traceroute/runner
-# gazelle:exclude pkg/orchestrator/config
 # gazelle:exclude pkg/privateactionrunner/autoconnections
 # gazelle:exclude pkg/privateactionrunner/runners
 # gazelle:exclude pkg/privileged-logs/module
@@ -495,7 +515,6 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/security/events
 # gazelle:exclude pkg/security/generators/backend_doc
 # gazelle:exclude pkg/security/module
-# gazelle:exclude pkg/security/probe/config
 # gazelle:exclude pkg/security/probe/constantfetch
 # gazelle:exclude pkg/security/probe/eventstream
 # gazelle:exclude pkg/security/probe/kfilters
