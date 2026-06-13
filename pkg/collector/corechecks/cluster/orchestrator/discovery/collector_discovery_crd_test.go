@@ -109,6 +109,27 @@ func TestDiscoveryCollector_List(t *testing.T) {
 			},
 		},
 		{
+			name: "exclude subresources other than status",
+			setup: func() *DiscoveryCollector {
+				return &DiscoveryCollector{
+					cache: DiscoveryCache{
+						CollectorForVersion: map[CollectorVersion]struct{}{
+							{GroupVersion: "karpenter.sh/v1", Kind: "nodepools"}:       {},
+							{GroupVersion: "karpenter.sh/v1", Kind: "nodepools/scale"}: {},
+							{GroupVersion: "karpenter.sh/v1", Kind: "nodeclaims"}:      {},
+						},
+					},
+				}
+			},
+			group:   "karpenter.sh",
+			version: "v1",
+			kind:    "",
+			expected: []CollectorVersion{
+				{GroupVersion: "karpenter.sh/v1", Kind: "nodepools"},
+				{GroupVersion: "karpenter.sh/v1", Kind: "nodeclaims"},
+			},
+		},
+		{
 			name: "match by group only",
 			setup: func() *DiscoveryCollector {
 				return &DiscoveryCollector{

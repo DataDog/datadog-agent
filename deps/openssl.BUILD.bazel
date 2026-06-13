@@ -10,7 +10,20 @@ package(default_visibility = ["//visibility:public"])
 
 filegroup(
     name = "all_srcs",
-    srcs = glob(["**"], exclude = ["BUILD.bazel"]),
+    srcs = glob(
+        ["**"],
+        exclude = [
+            "BUILD.bazel",
+            ".ctags.d/**",
+            "doc/**",
+            "test/recipes/**",
+            "VMS/**",
+            "*.md",
+            "funding.json",
+        ],
+    ) + glob([
+        "doc/**/build.info",
+    ]),
 )
 
 config_setting(
