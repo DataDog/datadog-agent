@@ -112,10 +112,10 @@ pub fn detect_ai_usage(
             if !is_in_terminal_foreground_group(process) {
                 continue;
             }
-            if let Some(tool) = ai_candidates.get(&process.pid) {
-                if foreground_title_matches_non_empty_tool_hint(foreground, tool) {
-                    return Some(detection_from_match(foreground, process, tool));
-                }
+            if let Some(tool) = ai_candidates.get(&process.pid)
+                && foreground_title_matches_non_empty_tool_hint(foreground, tool)
+            {
+                return Some(detection_from_match(foreground, process, tool));
             }
         }
     }

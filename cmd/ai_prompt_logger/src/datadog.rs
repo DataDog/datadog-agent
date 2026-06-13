@@ -53,18 +53,13 @@ pub struct AiProcessConfig {
     pub secondary: bool,
 }
 
-#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum AiProcessMatchScope {
     Direct,
     HostedChild,
+    #[default]
     Both,
-}
-
-impl Default for AiProcessMatchScope {
-    fn default() -> Self {
-        Self::Both
-    }
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -165,15 +160,15 @@ impl DatadogClient {
             Self::yaml_config_path()
         };
 
-        if let Some(ref yaml_path) = yaml_path {
-            if let Ok(contents) = fs::read_to_string(yaml_path) {
-                Self::apply_yaml(
-                    &contents,
-                    &mut agent_base,
-                    &mut proxy_version,
-                    &mut evp_subdomain,
-                );
-            }
+        if let Some(ref yaml_path) = yaml_path
+            && let Ok(contents) = fs::read_to_string(yaml_path)
+        {
+            Self::apply_yaml(
+                &contents,
+                &mut agent_base,
+                &mut proxy_version,
+                &mut evp_subdomain,
+            );
         }
 
         let base = agent_base.trim_end_matches('/').to_string();
@@ -327,17 +322,14 @@ impl DatadogClient {
             Err(_) => return false,
         };
 
-        match ureq::post(&self.intake_url)
+        ureq::post(&self.intake_url)
             .config()
             .timeout_global(Some(AGENT_REQUEST_TIMEOUT))
             .build()
             .header("Content-Type", "application/json")
             .header("X-Datadog-EVP-Subdomain", &self.evp_subdomain)
             .send_json(&body)
-        {
-            Ok(_) => true,
-            Err(_) => false,
-        }
+            .is_ok()
     }
 
     /// Build `{ ... }` for POST /api/v2/aiusage.
