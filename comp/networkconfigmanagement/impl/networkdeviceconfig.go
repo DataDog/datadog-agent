@@ -90,15 +90,15 @@ func (n *networkDeviceConfigImpl) SetMaxReportInterval(interval time.Duration) {
 // necessary. The inventory report will be included if the device had new
 // configuration, or if more than n.inventoryMaxInterval has elapsed since the
 // last time inventory was reported.
-func (n *networkDeviceConfigImpl) ReportConfig(deviceID string) error {
-	return n.ReportConfigWithSender(deviceID, n.sender)
+func (n *networkDeviceConfigImpl) ReportConfig(ctx context.Context, deviceID string) error {
+	return n.ReportConfigWithSender(ctx, deviceID, n.sender)
 }
 
 // ReportConfigWithSender runs the NCM check using the specified sender.
-func (n *networkDeviceConfigImpl) ReportConfigWithSender(deviceID string, baseSender sender.Sender) error {
+func (n *networkDeviceConfigImpl) ReportConfigWithSender(ctx context.Context, deviceID string, baseSender sender.Sender) error {
 	var log log.Component = NewLogWrapper(n.log, fmt.Sprintf("ncm[%s]: ", deviceID))
 
-	ctx := WithLogger(context.Background(), log)
+	ctx = WithLogger(ctx, log)
 	startTime := n.clock.Now()
 	dc, ok := n.devices.Load(deviceID)
 	if !ok {
@@ -254,7 +254,9 @@ func (n *networkDeviceConfigImpl) RollbackConfig(ctx context.Context, deviceID s
 		return fmt.Errorf("cannot push config to device %q: %w", deviceID, err)
 	}
 
-	return n.ReportConfig(deviceID)
+	// TODO if this fails we should still return success so that the user knows
+	// the rollback itself happened.
+	return n.ReportConfig(ctx, deviceID)
 }
 
 // findMatchingProfile tests each profile until one is successful.
