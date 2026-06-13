@@ -86,6 +86,7 @@ package_licenses(
         "@platforms//os:windows": ["@platforms//:incompatible"],
         "//conditions:default": [],
     }),
+    tags = ["manual"],
 )
 
 pkg_filegroup(
@@ -94,6 +95,7 @@ pkg_filegroup(
         ":everything",
         ":license_files",
     ],
+    tags = ["manual"],
 )
 
 pkg_tar(
