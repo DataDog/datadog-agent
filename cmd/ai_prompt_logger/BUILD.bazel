@@ -12,8 +12,8 @@ _MACOS_OR_WINDOWS = select({
 
 rust_binary(
     name = "ai-prompt-logger-native-host",
-    compile_data = ["ai_usage_native_host.yaml.example"],
     srcs = glob(["src/**/*.rs"]),
+    compile_data = ["ai_usage_native_host.yaml.example"],
     edition = "2024",
     target_compatible_with = _MACOS_OR_WINDOWS,
     deps = [
