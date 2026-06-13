@@ -914,6 +914,131 @@ func TestFromAutoscalerToContainerResourcePatches_Burstable(t *testing.T) {
 	})
 }
 
+const restartContainer = string(corev1.RestartContainer)
+
+func disruptionReco(name, cpu, mem string) *model.VerticalScalingValues {
+	requests := corev1.ResourceList{}
+	if cpu != "" {
+		requests[corev1.ResourceCPU] = resource.MustParse(cpu)
+	}
+	if mem != "" {
+		requests[corev1.ResourceMemory] = resource.MustParse(mem)
+	}
+	return &model.VerticalScalingValues{
+		ContainerResources: []datadoghqcommon.DatadogPodAutoscalerContainerResources{
+			{Name: name, Requests: requests},
+		},
+	}
+}
+
+func TestIsDisruptiveResize(t *testing.T) {
+	cpu500m := float64(50)
+	mem512 := uint64(512 * 1024 * 1024)
+
+	container := func(policy workloadmeta.ContainerResizePolicy) workloadmeta.OrchestratorContainer {
+		return workloadmeta.OrchestratorContainer{
+			Name:         "app",
+			Resources:    workloadmeta.ContainerResources{CPURequest: &cpu500m, MemoryRequest: &mem512},
+			ResizePolicy: policy,
+		}
+	}
+	podWith := func(c workloadmeta.OrchestratorContainer) *workloadmeta.KubernetesPod {
+		return &workloadmeta.KubernetesPod{Containers: []workloadmeta.OrchestratorContainer{c}}
+	}
+
+	tests := []struct {
+		name string
+		pod  *workloadmeta.KubernetesPod
+		reco *model.VerticalScalingValues
+		want bool
+	}{
+		{
+			name: "no resize policy + cpu changing",
+			pod:  podWith(container(workloadmeta.ContainerResizePolicy{})),
+			reco: disruptionReco("app", "1000m", "512Mi"),
+			want: false,
+		},
+		{
+			name: "cpu RestartContainer + cpu changing",
+			pod:  podWith(container(workloadmeta.ContainerResizePolicy{CPURestartPolicy: restartContainer})),
+			reco: disruptionReco("app", "1000m", "512Mi"),
+			want: true,
+		},
+		{
+			name: "memory RestartContainer + only cpu changing",
+			pod:  podWith(container(workloadmeta.ContainerResizePolicy{MemoryRestartPolicy: restartContainer})),
+			reco: disruptionReco("app", "1000m", "512Mi"),
+			want: false,
+		},
+		{
+			name: "cpu RestartContainer + cpu unchanged",
+			pod:  podWith(container(workloadmeta.ContainerResizePolicy{CPURestartPolicy: restartContainer})),
+			reco: disruptionReco("app", "500m", "512Mi"),
+			want: false,
+		},
+		{
+			name: "memory RestartContainer + memory changing",
+			pod:  podWith(container(workloadmeta.ContainerResizePolicy{MemoryRestartPolicy: restartContainer})),
+			reco: disruptionReco("app", "500m", "1Gi"),
+			want: true,
+		},
+		{
+			name: "recommendation container absent from pod",
+			pod:  podWith(container(workloadmeta.ContainerResizePolicy{CPURestartPolicy: restartContainer})),
+			reco: disruptionReco("other", "1000m", "1Gi"),
+			want: false,
+		},
+		{
+			name: "nil recommendation",
+			pod:  podWith(container(workloadmeta.ContainerResizePolicy{CPURestartPolicy: restartContainer})),
+			reco: nil,
+			want: false,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, isDisruptiveResize(tc.pod, tc.reco))
+		})
+	}
+}
+
+func TestAllowedDisruptions(t *testing.T) {
+	tests := []struct {
+		name             string
+		configured       int
+		alreadyDisrupted int
+		want             int
+	}{
+		{name: "no replicas", configured: 0, alreadyDisrupted: 0, want: 0},
+		{name: "single replica, healthy", configured: 1, alreadyDisrupted: 0, want: 1},
+		{name: "single replica, already disrupted", configured: 1, alreadyDisrupted: 1, want: 0},
+		{name: "even fleet, nothing disrupted", configured: 20, alreadyDisrupted: 0, want: 3},
+		{name: "even fleet, partially consumed", configured: 20, alreadyDisrupted: 1, want: 2},
+		{name: "even fleet, budget exhausted", configured: 20, alreadyDisrupted: 3, want: 0},
+		{name: "even fleet, over budget", configured: 20, alreadyDisrupted: 5, want: 0},
+		{name: "small fleet truncates tolerance", configured: 3, alreadyDisrupted: 0, want: 1},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, allowedDisruptions(tc.configured, tc.alreadyDisrupted))
+		})
+	}
+}
+
+func TestCountDisruptedPods(t *testing.T) {
+	ready := &workloadmeta.KubernetesPod{Ready: true}
+	notReady := &workloadmeta.KubernetesPod{Ready: false}
+	m := map[PodResizeStatus][]classifiedPod{
+		PodResizeStatusNeedsPatch: {{pod: ready}, {pod: notReady}}, // NotReady counts, Ready does not
+		PodResizeStatusCompleted:  {{pod: ready}},                  // on target + Ready: not disrupted
+		PodResizeStatusInProgress: {{pod: ready}},                  // in-flight counts even while Ready
+		PodResizeStatusDeferred:   {{pod: ready}},                  // in-flight counts even while Ready
+		PodResizeStatusEvicting:   {{pod: notReady}},               // being evicted: counts
+	}
+	assert.Equal(t, 4, countDisruptedPods(m))
+	assert.Equal(t, 0, countDisruptedPods(nil))
+}
+
 // TestApplyVerticalConstraints_BurstableHashChange verifies that enabling and disabling
 // burstable mode produces distinct ResourcesHash values.  This hash difference is what
 // the vertical controller uses as the recommendationID: when pods carry the old hash and

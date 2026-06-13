@@ -34,7 +34,7 @@ go_library(
         "//comp/updater/telemetry/fx",
         "//comp/updater/updater/fx",
         "//pkg/config/remote/service",
-        "//pkg/config/setup",
+        "//pkg/util/defaultpaths",
         "//pkg/util/fxutil",
         "//pkg/util/option",
         "@com_github_spf13_cobra//:cobra",
