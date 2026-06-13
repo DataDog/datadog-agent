@@ -22,6 +22,7 @@ type NCMProfile struct {
 }
 
 type CommandSet struct {
+	Verify     *PlainCommand
 	GetVersion *PlainCommand `json:"get_version,omitempty"`
 	// Config fetching
 	GetRunning *PlainCommand `json:"get_running,omitempty"`

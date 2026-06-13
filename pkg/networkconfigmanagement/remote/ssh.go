@@ -205,6 +205,19 @@ func (c *SSHConnection) PushConfig(ctx context.Context, rawConfig string) error 
 	return nil
 }
 
+// Verify validates that the profile works as we expect it to
+func (c *SSHConnection) Verify(ctx context.Context) error {
+	if c.prof == nil {
+		return fmt.Errorf("no device type provided for %q", c.device.IPAddress)
+	}
+	cmd := c.prof.Commands.Verify
+	if cmd == nil {
+		return fmt.Errorf("no verify command for profile %q", c.prof.Name)
+	}
+	_, err := c.execute(ctx, cmd)
+	return err
+}
+
 // RetrieveRunningConfig retrieves the running configuration for the device connected via SSH
 func (c *SSHConnection) RetrieveRunningConfig(ctx context.Context) ([]byte, error) {
 	if c.prof == nil {
