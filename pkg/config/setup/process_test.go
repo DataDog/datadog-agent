@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 )
 
 // TestProcessDefaults tests to ensure that the config has set process settings correctly
@@ -27,11 +28,11 @@ func TestProcessDefaultConfig(t *testing.T) {
 	}{
 		{
 			key:          "process_config.dd_agent_bin",
-			defaultValue: DefaultDDAgentBin,
+			defaultValue: defaultpaths.GetDefaultDDAgentBin(),
 		},
 		{
 			key:          "process_config.log_file",
-			defaultValue: DefaultProcessAgentLogFile,
+			defaultValue: defaultpaths.GetDefaultProcessAgentLogFile(),
 		},
 		{
 			key:          "process_config.grpc_connection_timeout_secs",
