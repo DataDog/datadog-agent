@@ -56,6 +56,7 @@ func newMockConnection() *MockConnection {
 			"show running-config": ok(runningOutput),
 			"show startup-config": ok(startupOutput),
 			"show version":        ok(versionOutput),
+			"show system":         ok("Test System"),
 		},
 	}
 }
@@ -90,7 +91,10 @@ func (m *MockConnection) execute(cmd *profile.PlainCommand) ([]byte, error) {
 		var ok bool
 		r, ok = m.OutputMap[cmd.Command]
 		if !ok {
-			r = fail(fmt.Errorf("unknown command %q", cmd))
+			r = fail(fmt.Errorf("unknown command %q", cmd.Command))
+		}
+		if r.err == nil {
+			r.err = cmd.Validator.Validate(r.response)
 		}
 	}
 	return []byte(r.response), r.err
@@ -102,6 +106,11 @@ func (m *MockConnection) RetrieveRunningConfig(_ context.Context) ([]byte, error
 
 func (m *MockConnection) RetrieveStartupConfig(_ context.Context) ([]byte, error) {
 	return m.execute(m.Profile.Commands.GetStartup)
+}
+
+func (m *MockConnection) Verify(_ context.Context) error {
+	_, err := m.execute(m.Profile.Commands.Verify)
+	return err
 }
 
 func (m *MockConnection) PushConfig(_ context.Context, _ string) error {
@@ -364,7 +373,6 @@ func TestCheck_Run_ConnectionFailure(t *testing.T) {
 
 func TestCheck_Run_ConfigRetrievalFailure_NoProfileMatch(t *testing.T) {
 	comp, reqs := createTestComponent(t)
-	reqs.connFactory.conn.OutputMap["show running-config"] = fail(errors.New("command execution failed"))
 
 	device := createTestDevice()
 	device.Profile = ""
@@ -394,6 +402,7 @@ func TestCheck_Run_ConfigRetrievalFailure_BadProfile(t *testing.T) {
 
 func TestCheck_Run_ProfileMatch(t *testing.T) {
 	comp, reqs := createTestComponent(t)
+	reqs.connFactory.conn.OutputMap["show system"] = ok("OS: System P2.1")
 	device := createTestDevice()
 	device.Profile = ""
 	err := comp.RegisterDevice(device)
@@ -426,6 +435,7 @@ func TestCheck_Run_ProfileMatch(t *testing.T) {
 
 func TestCheck_FindMatchingProfile(t *testing.T) {
 	comp, reqs := createTestComponent(t)
+	reqs.connFactory.conn.OutputMap["show system"] = ok("OS: System P2.1")
 	device := createTestDevice()
 	err := comp.RegisterDevice(device)
 	assert.NoError(t, err)

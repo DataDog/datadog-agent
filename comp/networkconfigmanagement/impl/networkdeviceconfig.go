@@ -258,15 +258,16 @@ func (n *networkDeviceConfigImpl) RollbackConfig(ctx context.Context, deviceID s
 }
 
 // findMatchingProfile tests each profile until one is successful.
-// TODO use GetVersion instead of fetching the entire config.
 func (n *networkDeviceConfigImpl) findMatchingProfile(ctx context.Context, conn ncmremote.Connection) (*ncmprofile.NCMProfile, bool) {
 	logger := LoggerFromContext(ctx)
 	logger.Infof("Testing %d profiles", len(n.profiles))
 	for profName, prof := range n.profiles {
+		if prof.Commands.Verify == nil {
+			continue
+		}
 		logger.Debugf("testing profile %s", profName)
 		conn.SetProfile(prof)
-		_, err := conn.RetrieveRunningConfig(context.Background())
-		if err != nil {
+		if err := conn.Verify(ctx); err != nil {
 			logger.Infof("Profile %s does not match: %s", profName, err)
 			continue
 		}

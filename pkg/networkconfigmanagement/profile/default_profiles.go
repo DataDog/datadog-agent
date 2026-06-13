@@ -53,6 +53,7 @@ var DefaultProfiles = Map{
 	"aoscx": {
 		Name: "aoscx",
 		Commands: CommandSet{
+			Verify:     MkCommand("show system", `(AOS|ArubaOS)-CX Version`),
 			GetRunning: MkCommand("show running-config", `!Version (.*)?`),
 			GetStartup: MkCommand("show startup-config", `!Version (.*)?`),
 			GetVersion: MkCommand("show version"),
@@ -72,6 +73,7 @@ var DefaultProfiles = Map{
 	"aosw": {
 		Name: "aosw",
 		Commands: CommandSet{
+			Verify:     MkCommand("show version", `(Alcatel-Lucent Operating System-Wireless|AOS-W|AOS-10)`),
 			GetRunning: MkCommand("show running-config", `Building Configuration...`),
 			GetVersion: MkCommand("show version"),
 		},
@@ -102,6 +104,7 @@ var DefaultProfiles = Map{
 	"cisco-asa": {
 		Name: "cisco-asa",
 		Commands: CommandSet{
+			Verify:     MkCommand("show version", "Cisco Adaptive Security Appliance Software Version"),
 			GetRunning: MkCommand("more system:running-config", `ASA Version \d+\.\d+\(\d+\)`),
 			GetVersion: MkCommand("show version"),
 		},
@@ -125,9 +128,17 @@ var DefaultProfiles = Map{
 	"cisco-ios": {
 		Name: "cisco-ios",
 		Commands: CommandSet{
+			Verify:     MkCommand("show version", `(Cisco IOS|Cisco Internetwork Operating System)`),
 			GetRunning: MkCommand("show running-config", `Building configuration...`, `Current configuration :`),
 			GetStartup: MkCommand("show startup-config", `Using (.*?) out of (.*?) bytes`),
 			GetVersion: MkCommand("show version"),
+			PushConfig: []Command{
+				&SCPCommand{
+					RemoteCommand: "scp",
+					Filepath:      "flash:/dd-rollback-config",
+				},
+				MkCommand("configure replace flash:/dd-rollback-config force"),
+			},
 		},
 		Redactions: []RedactionRule{
 			MkRedaction(`(?m)^(snmp-server community).*`),
@@ -159,6 +170,7 @@ var DefaultProfiles = Map{
 			MkRedaction(`(?m)^\s*Building configuration...\s*`, WithReplacement(""), WithMultiline()),
 			MkRedaction(`Current configuration : (.*)\s*`, WithReplacement(""), WithMultiline()),
 			MkRedaction(`(?m)(?:^!\s*$\s*)?^! Last configuration change at .*?$\s*(?:^!\s*$\s*)?`, WithReplacement(""), WithMultiline()),
+			MkRedaction(`(?m)(?:^!\s*$\s*)?^! NVRAM config last updated at .*$\s*(?:^!\s*$\s*)?`, WithReplacement(""), WithMultiline()),
 			MkRedaction(`(?s)^\s*Using \d+ out of \d+ bytes\s*`, WithReplacement(""), WithMultiline()),
 		},
 		MetadataRules: []MetadataRule{
@@ -181,6 +193,7 @@ var DefaultProfiles = Map{
 	"dellos10": {
 		Name: "dellos10",
 		Commands: CommandSet{
+			Verify:     MkCommand("show version", `(Dell EMC Networking|Dell Application Software)`),
 			GetRunning: MkCommand("show running-configuration", `! Version (.*)?`),
 			GetStartup: MkCommand("show startup-configuration", `(?m)^hostname\s+\S+`),
 		},
@@ -201,6 +214,7 @@ var DefaultProfiles = Map{
 	"eos": {
 		Name: "eos",
 		Commands: CommandSet{
+			Verify:     MkCommand("show version", `Arista .*`),
 			GetRunning: MkCommand("show running-config | no-more | exclude ! Time:", `! Command: show running-config`),
 			GetStartup: MkCommand("show startup-config | no-more | exclude ! Time:", `! Command: show startup-config`),
 			PushConfig: []Command{
@@ -244,6 +258,7 @@ var DefaultProfiles = Map{
 	"fortios": {
 		Name: "fortios",
 		Commands: CommandSet{
+			Verify:     MkCommand("get system status", `Version: FortiGate`),
 			GetRunning: MkCommand("show full-configuration", `config (system|global|vdom)`),
 		},
 		Redactions: []RedactionRule{
@@ -261,6 +276,7 @@ var DefaultProfiles = Map{
 	"junos": {
 		Name: "junos",
 		Commands: CommandSet{
+			Verify:     MkCommand("show version", `Junos:`),
 			GetRunning: MkCommand("show configuration | display omit", `version \d+\.\d+[^;]*;`),
 			GetVersion: MkCommand("show version"),
 		},
@@ -284,6 +300,7 @@ var DefaultProfiles = Map{
 	"nxos": {
 		Name: "nxos",
 		Commands: CommandSet{
+			Verify:     MkCommand("show version", `Cisco Nexus Operating System`),
 			GetRunning: MkCommand("show running-config", `!Command: show running-config`),
 			GetStartup: MkCommand("show startup-config", `!Command: show startup-config`),
 			GetVersion: MkCommand("show version"),
@@ -319,6 +336,7 @@ var DefaultProfiles = Map{
 	"pan-os": {
 		Name: "pan-os",
 		Commands: CommandSet{
+			Verify:     MkCommand("show system info", `model: *PA-`),
 			GetRunning: MkCommand("show config running", `(?s)<config.*</config>`),
 			GetVersion: MkCommand("show system info"),
 		},
