@@ -36,7 +36,7 @@ func (m *mockNetworkConfigManagement) GetConfigEndpointHandler() http.HandlerFun
 }
 
 // ReportConfig implements [networkconfigmanagement.Component].
-func (m *mockNetworkConfigManagement) ReportConfig(deviceID string) error {
+func (m *mockNetworkConfigManagement) ReportConfig(_ context.Context, deviceID string) error {
 	if _, ok := m.devices[deviceID]; ok {
 		return nil
 	}
@@ -44,7 +44,7 @@ func (m *mockNetworkConfigManagement) ReportConfig(deviceID string) error {
 }
 
 // ReportConfig implements [networkconfigmanagement.Component].
-func (m *mockNetworkConfigManagement) ReportConfigWithSender(deviceID string, _ sender.Sender) error {
+func (m *mockNetworkConfigManagement) ReportConfigWithSender(_ context.Context, deviceID string, _ sender.Sender) error {
 	if _, ok := m.devices[deviceID]; ok {
 		return nil
 	}
