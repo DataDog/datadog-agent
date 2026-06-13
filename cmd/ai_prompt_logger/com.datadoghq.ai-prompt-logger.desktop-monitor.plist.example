@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.datadoghq.ai-prompt-logger.desktop-monitor</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/opt/datadog-agent/embedded/bin/ai-prompt-logger-native-host</string>
+        <string>--desktop-monitor</string>
+        <string>--config</string>
+        <string>/opt/datadog-agent/etc/ai_usage_native_host.yaml</string>
+    </array>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <dict>
+        <key>OtherJobEnabled</key>
+        <dict>
+            <key>com.datadoghq.agent</key>
+            <true/>
+        </dict>
+        <key>SuccessfulExit</key>
+        <false/>
+    </dict>
+
+    <key>StandardOutPath</key>
+    <string>/opt/datadog-agent/logs/ai-usage-desktop-monitor.launchd.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/opt/datadog-agent/logs/ai-usage-desktop-monitor.launchd.log</string>
+</dict>
+</plist>

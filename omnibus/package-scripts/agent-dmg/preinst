@@ -12,6 +12,7 @@ SYSTEM_LOG_DIR=/var/log/datadog
 SYSTEM_LOG_BASE_DIR=/var/log
 
 CONF_DIR="$INSTALL_DIR/etc"
+AI_USAGE_DESKTOP_MONITOR_LABEL="com.datadoghq.ai-prompt-logger.desktop-monitor"
 
 mkdir -p $LOG_DIR
 chmod 750 $LOG_DIR
@@ -191,8 +192,10 @@ if [ -e "$CONF_DIR/datadog.yaml" ]; then
     for logged_user in $(who | awk '{print $1}' | sort -u); do
         logged_uid=$(id -u "$logged_user" 2>/dev/null) || continue
         launchctl bootout "gui/$logged_uid/com.datadoghq.gui" 2>/dev/null || true
+        launchctl bootout "gui/$logged_uid/$AI_USAGE_DESKTOP_MONITOR_LABEL" 2>/dev/null || true
     done
     kill $(pgrep -f 'Datadog Agent.app') 2>/dev/null || true
+    pkill -f 'ai-prompt-logger-native-host.*--desktop-monitor' 2>/dev/null || true
 
     # Save existing config for restoration in postinst.
     # All install-time staging data lives under a single root-only directory.

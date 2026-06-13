@@ -4,6 +4,8 @@ Chrome **Native Messaging** host that forwards **AI usage** events to the **loca
 
 Chrome registration for **macOS** is done by the **Datadog Agent** package (`postinst` + per-user manifests). On **Windows**, the MSI installs a machine-wide Chrome Native Messaging Host registration under HKLM — see the **Windows install** section below.
 
+The same binary can also run as a standalone desktop monitor with `--desktop-monitor`. In that mode it is a separate long-lived user-session process and does not use Chrome's native messaging protocol.
+
 ## Build
 
 From the **repository root** (workspace member):
@@ -29,9 +31,10 @@ Settings live in **`ai_usage_native_host.yaml`** (see **`ai_usage_native_host.ya
   ```bash
   ai-prompt-logger-native-host --config=/opt/datadog-agent/etc/ai_usage_native_host.yaml
   ai-prompt-logger-native-host -c ./ai_usage_native_host.yaml
+  ai-prompt-logger-native-host --desktop-monitor -c ./ai_usage_native_host.yaml
   ```
 
-- **No flags**: the binary looks for `ai_usage_native_host.yaml` under the packaged config location. On Windows, that is `%ProgramData%\Datadog\ai_usage_native_host.yaml`; otherwise it searches under `{install_root}/etc/…` inferred from the executable path.
+- **No flags**: the binary looks for `ai_usage_native_host.yaml` under the packaged config location. On Windows, it first uses the Agent MSI `ConfigRoot` registry value, then falls back to `%ProgramData%\Datadog\ai_usage_native_host.yaml`; otherwise it searches under `{install_root}/etc/…` inferred from the executable path.
 
 On a **packaged macOS** agent, Chrome is pointed at **`embedded/bin/run_ai_usage_native_host.sh`**, which **`exec`s** the binary with **`--config=$install_root/etc/ai_usage_native_host.yaml`**. On first config creation, the installer generates `trace_agent_url` from the Agent's `apm_config.receiver_port` in `datadog.yaml`.
 
@@ -45,9 +48,39 @@ EVP / Agent URL behaviour (defaults):
 
 Ensure the Agent is listening on the trace port (default `127.0.0.1:8126`) with EVP proxy enabled.
 
+## Desktop monitor mode
+
+`--desktop-monitor` runs the host as a standalone desktop application. It is intended to be launched in the interactive user session, not as the Datadog Agent or system-probe service in Session 0.
+
+On Windows and macOS, each poll:
+
+1. Reads the foreground window.
+2. Resolves the foreground process image name.
+3. Directly matches the foreground process against the configured AI process lookup table.
+4. If the foreground process is a configured host process such as a terminal or IDE, scans the process tree for AI CLI descendants. Windows uses foreground window title hints as a best-effort active-tab signal. macOS prefers the controlling pseudo-terminal foreground process group when available, which avoids matching AI CLIs in inactive tabs or panes.
+5. Sends at most one observed AI usage event for the poll through the same Agent EVP path used by Chrome mode.
+
+Relevant config keys under `desktop_monitoring`:
+
+- `enabled`: disables standalone monitoring when set to `false`.
+- `poll_interval_seconds`: poll interval, default `60`.
+- `ai_process_names`: direct AI app/CLI lookup table. Defaults are loaded from `ai_usage_native_host.yaml.example` and include Cursor, Visual Studio Code, Claude/Claude Code, Claude Cowork service, Codex, OpenClaw, Hermes Agent, and additional Agent Skills client candidates.
+- `ai_process_names[].match_scope`: controls whether an entry applies to direct foreground processes (`direct`), hosted child processes (`hosted_child`), or both (`both`). Matching is case-insensitive, so duplicate process names that only differ by case are unnecessary.
+- `ai_process_names[].window_title_hints`: lowercase title fragments used to confirm hosted CLI matches from terminal multiplexers such as Windows Terminal.
+- `host_process_names`: foreground host lookup table for terminals and IDEs that may contain AI CLI children.
+
+Broad runtime names such as `node.exe`/`node`, `python.exe`/`python`, and `conhost.exe` are not direct AI-tool matches by default because they need command-line or path inspection to avoid false positives.
+
+Desktop events use the extension-compatible field semantics: tool display name, provider, user ID, and approved flag. The event source is `desktop_app`.
+
+On Windows, `--desktop-monitor` detaches from the scheduler-created console after startup. When file logging is enabled for diagnostics or startup config errors need to be reported, logs are written to `C:\ProgramData\Datadog\logs\ai-usage-desktop-monitor.log`, falling back to `%LOCALAPPDATA%\Datadog\logs\ai-usage-desktop-monitor.log` if the ProgramData log path is unavailable. Each record includes the process ID and user. The log rotates at 10 MB with one `.1` backup.
+
+On macOS, foreground detection uses the frontmost visible CoreGraphics window owner. Terminal-hosted CLI detection uses libproc process metadata and treats a process as active in its terminal session when it has a controlling terminal and its process group matches that terminal's foreground process group. When file logging is enabled for diagnostics or startup config errors need to be reported, logs are written to `$DD_LOG_DIR` when set, then `/opt/datadog-agent/logs/ai-usage-desktop-monitor.log`, then `~/Library/Logs/Datadog/ai-usage-desktop-monitor.log`.
+
 ## Protocol
 
 Chrome uses a 4-byte little-endian length prefix + UTF-8 JSON for each message.
+The native host keeps stdout reserved for protocol frames and reads Chrome messages from stdin. Runtime diagnostics do not write to stdout or stderr.
 
 ### `HEALTH_CHECK`
 
@@ -104,6 +137,22 @@ HKLM\SOFTWARE\WOW6432Node\Google\Chrome\NativeMessagingHosts\com.datadoghq.ai_pr
 
 The default value for both keys points to the manifest under `bin\agent\dist`. The manifest's `path` field points to the bundled host executable under `bin\agent`, and `allowed_origins` uses the installer default Chrome extension ID (`gkmbhgbippkmmmidcikijiblbagbjgjj`). The active config's `trace_agent_url` is generated from the Agent's `apm_config.receiver_port` in `datadog.yaml`.
 
+The MSI registers a Task Scheduler logon task named `Datadog AI Usage Monitor`. The task launches the same bundled host executable with `--desktop-monitor --config "C:\ProgramData\Datadog\ai_usage_native_host.yaml"` in the interactive user session. Chrome native messaging registration remains separate and continues to launch the host without `--desktop-monitor`.
+
+## macOS install (DMG)
+
+The Datadog Agent macOS package ships the native host under `/opt/datadog-agent/embedded/bin` and installs the Chrome native messaging wrapper `run_ai_usage_native_host.sh`.
+
+For desktop monitoring, the package also ships `com.datadoghq.ai-prompt-logger.desktop-monitor.plist.example` and installs it as a LaunchAgent with label `com.datadoghq.ai-prompt-logger.desktop-monitor`. The LaunchAgent runs:
+
+```bash
+/opt/datadog-agent/embedded/bin/ai-prompt-logger-native-host --desktop-monitor --config /opt/datadog-agent/etc/ai_usage_native_host.yaml
+```
+
+The LaunchAgent uses `RunAtLoad` and `KeepAlive` tied to the system Agent service. Package scripts bootstrap it for the active console user on install, boot it out during upgrade/uninstall, and remove it on uninstall. The monitor also checks `system/com.datadoghq.agent` through `launchctl` and exits when the Agent service is stopped.
+
+The package grants narrow read access for logged-in users to `ai_usage_native_host.yaml` without broadening access to unrelated Agent config files.
+
 ## Local smoke test
 
 From the repo root, after a release build (script defaults to `target/release/…` under the repo):
@@ -121,3 +170,5 @@ python3 cmd/ai_prompt_logger/scripts/test_host.py target/release/ai-prompt-logge
 ```
 
 `SEND_USAGE_EVENT` reports `success: true` only if the local Agent accepts the EVP AI usage request.
+
+For local desktop-monitoring validation, prefer Rust unit tests plus manual Windows or macOS smoke tests. Bazel/package verification is useful in CI or a provisioned packaging environment, but Bazel-related tools may not be available on every local workstation.
