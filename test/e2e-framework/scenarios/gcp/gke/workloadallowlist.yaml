@@ -3,12 +3,14 @@ kind: WorkloadAllowlist
 metadata:
   annotations:
     autopilot.gke.io/no-connect: "true"
-  name: datadog-datadog-daemonset-exemption-v1.0.1
+  name: datadog-datadog-daemonset-exemption-v1.0.5
 exemptions:
   - autogke-no-write-mode-hostpath
   - autogke-no-host-port
   - autogke-default-linux-capabilities
+  - autogke-disallow-hostnamespaces
 matchingCriteria:
+  hostPID: true
   containers:
     - command:
         - process-agent
@@ -195,7 +197,7 @@ matchingCriteria:
           name: cgroups
           readOnly: true
         - mountPath: /opt/datadog-agent/run
-          name: pointerdir
+          name: datadogrun
         - mountPath: /var/log/pods
           name: logpodpath
           readOnly: true
@@ -397,6 +399,9 @@ matchingCriteria:
         - mountPath: /etc/passwd
           name: passwd
           readOnly: true
+        - mountPath: /opt/datadog-agent/run
+          name: datadogrun
+          readOnly: false
         - mountPath: /host/proc
           name: procdir
           readOnly: true
@@ -601,7 +606,7 @@ matchingCriteria:
       name: passwd
     - hostPath:
         path: /var/autopilot/addon/datadog/logs # store logs tailing metadata, needed for logs collection
-      name: pointerdir
+      name: datadogrun
     - hostPath:
         path: /var/log/pods # Containers logs retrieval (https://docs.datadoghq.com/agent/kubernetes/log/)
       name: logpodpath
