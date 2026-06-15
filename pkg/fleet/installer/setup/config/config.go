@@ -121,7 +121,25 @@ type DatadogConfigDJM struct {
 
 // DatadogConfigProcessConfig represents the configuration for the process agent
 type DatadogConfigProcessConfig struct {
-	ExpvarPort int `yaml:"expvar_port,omitempty"`
+	ExpvarPort          int                            `yaml:"expvar_port,omitempty"`
+	ProcessCollection   DatadogConfigProcessCollection `yaml:"process_collection,omitempty"`
+	ContainerCollection DatadogConfigProcessContainer  `yaml:"container_collection,omitempty"`
+	ProcessDiscovery    DatadogConfigProcessDiscovery  `yaml:"process_discovery,omitempty"`
+}
+
+// DatadogConfigProcessCollection represents the configuration for live process collection
+type DatadogConfigProcessCollection struct {
+	Enabled *bool `yaml:"enabled,omitempty"`
+}
+
+// DatadogConfigProcessContainer represents the configuration for container collection
+type DatadogConfigProcessContainer struct {
+	Enabled *bool `yaml:"enabled,omitempty"`
+}
+
+// DatadogConfigProcessDiscovery represents the configuration for process discovery
+type DatadogConfigProcessDiscovery struct {
+	Enabled *bool `yaml:"enabled,omitempty"`
 }
 
 // DatadogConfigInstaller represents the configuration for the installer
