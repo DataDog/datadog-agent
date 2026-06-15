@@ -16,6 +16,8 @@ cd cmd/host-profiler/deploy
 
 ## Prerequisites
 
+This guide requires the [OpenTelemetry Collector Helm chart](https://opentelemetry.io/docs/platforms/kubernetes/helm/collector/) version **0.152.1** or later.
+
 1. Apply [`prerequisites.yaml`](../prerequisites.yaml) to create the `dd-host-profiler` namespace:
 
 ```shell
