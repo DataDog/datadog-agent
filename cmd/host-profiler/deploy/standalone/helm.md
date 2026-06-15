@@ -10,24 +10,32 @@ Review the [supported environments](../README.md#supported-environments) before 
 
 ## Prerequisites
 
-This guide requires the [OpenTelemetry Collector Helm chart](https://opentelemetry.io/docs/platforms/kubernetes/helm/collector/) version **0.152.1** or later from the `open-telemetry` Helm repository: `https://open-telemetry.github.io/opentelemetry-helm-charts`.
+Before deploying, make sure you have:
 
-Create the required Kubernetes resources before deploying:
-
+- [OpenTelemetry Collector Helm chart](https://opentelemetry.io/docs/platforms/kubernetes/helm/collector/) version **0.152.1** or later.
 - A namespace for the Host Profiler. You can reuse an existing namespace or create a dedicated one.
-- A Datadog API key exposed to the Collector as `DD_API_KEY`. The example values read it from a Kubernetes Secret named `datadog-secret` with an `api-key` key in the same namespace as the Helm release. If you use another secret-management mechanism, adapt [`helm/pod-spec.yaml`](helm/pod-spec.yaml) accordingly.
+- A Datadog API key available to the Collector as `DD_API_KEY`.
 
-Do not put the raw API key directly in Helm values or Collector configuration; those may be stored in the cluster.
+The example values read `DD_API_KEY` from a Kubernetes Secret named `datadog-secret`, using the key `api-key`, in the same namespace as the Helm release. If you use another secret-management mechanism, adapt the configuration files accordingly.
+
+> **Note:** Do not put the raw API key directly in Helm values or Collector configuration; those may be stored in the cluster.
 
 ## Adapt the configuration
 
-Before deploying, adapt the provided configuration files to your environment:
+Before deploying, update the provided configuration files for your environment:
 
-- [`helm/pod-spec.yaml`](helm/pod-spec.yaml): pod-level settings. Review the file, and **adapt the `DD_API_KEY` secret reference and `DD_SITE`** before deploying. See [Datadog sites](https://docs.datadoghq.com/getting_started/site/) for the correct `DD_SITE` value.
-- [`helm/otel-config.yaml`](helm/otel-config.yaml): OpenTelemetry Collector pipelines and Datadog export. Review the file and adapt it like any other [OpenTelemetry Collector configuration](https://opentelemetry.io/docs/collector/configuration/).
-- [`helm/network-policy.yaml`](helm/network-policy.yaml): default Kubernetes NetworkPolicy, rendered through the Helm chart's `extraManifests`.
+1. In [`helm/pod-spec.yaml`](helm/pod-spec.yaml):
+   - Set `DD_SITE` if your Datadog site is not `datadoghq.com`. See [Datadog sites](https://docs.datadoghq.com/getting_started/site/).
+   - Adapt the `DD_API_KEY` secret reference if you do not use the example `datadog-secret` Kubernetes Secret.
+   - Review the remaining pod settings. For all supported values, see the [OpenTelemetry Collector Helm chart values](https://github.com/open-telemetry/opentelemetry-helm-charts/blob/main/charts/opentelemetry-collector/values.yaml).
 
-If your cluster uses Cilium and you want FQDN-scoped egress enforcement, use [`helm/cilium-network-policy.yaml`](helm/cilium-network-policy.yaml) instead of [`helm/network-policy.yaml`](helm/network-policy.yaml).
+2. In [`helm/otel-config.yaml`](helm/otel-config.yaml):
+   - Review the OpenTelemetry Collector pipelines and Datadog export configuration.
+   - Adapt it like any other [OpenTelemetry Collector configuration](https://opentelemetry.io/docs/collector/configuration/).
+
+3. Choose a network policy values file:
+   - Use [`helm/network-policy.yaml`](helm/network-policy.yaml) by default.
+   - If your cluster uses Cilium and you want FQDN-scoped egress enforcement, use [`helm/cilium-network-policy.yaml`](helm/cilium-network-policy.yaml) instead.
 
 ## Deploy
 
