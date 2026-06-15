@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// GetInformation returns host info with PlatformVersion set to "V.R TLN"
+// GetInformation returns host info with PlatformVersion set to "<X>.<Y> TL<Z>"
 // format (e.g. "7.3 TL2") derived from oslevel -s output, because oslevel
 // (no flags) reports the base install level ("7.3.0.0") regardless of the
 // installed Technology Level.
@@ -37,11 +37,11 @@ func GetInformation() *host.InfoStat {
 	return info
 }
 
-// kernelVersionToPlatformVersion derives "X.Y TL<Z>" from an
+// kernelVersionToPlatformVersion derives "<X>.<Y> TL<Z>" from an
 // kernel version string (e.g. "7.3.1.4" -> "7.3 TL1").
 // Supplementary Package (SP) is not included in the platform version.
-func kernelVersionToPlatformVersion(osLevel string) string {
-	kernelVersion := platform.ParseOsLevelToKernelVersion(osLevel)
+func kernelVersionToPlatformVersion(osLevelVersion string) string {
+	kernelVersion := platform.ParseKernelVersionFromOsLevel(osLevelVersion)
 	parts := strings.Split(kernelVersion, ".")
 	if len(parts) < 3 {
 		return ""

@@ -6,32 +6,26 @@ package platform
 
 import (
 	"fmt"
+	"regexp"
 	"runtime"
-	"strconv"
-	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/gohai/utils"
 	gopsutilhost "github.com/shirou/gopsutil/v4/host"
 	"golang.org/x/sys/unix"
 )
 
-// ParseOsLevelToKernelVersion parses the output of `oslevel -s` into
-// version, release, TL, and SP components following the pattern
-// "version.release-TL-SP-date".
-func ParseOsLevelToKernelVersion(osLevel string) string {
-	// check that osLevel is in the format "version.release-TL-SP-date"
-	parts := strings.SplitN(osLevel, "-", 4)
-	if len(parts) < 4 || len(parts[0]) < 2 {
+// osLevelRe matches oslevel -s output (e.g. "7300-02-02-2419") and captures
+// version, release, TL, and SP. The 0* prefix on TL and SP strips leading zeros.
+var osLevelKernelVersionRegex = regexp.MustCompile(`^(\d)(\d)\d{2}-0*(\d+)-0*(\d+)-\d{4}$`)
+
+// ParseKernelVersionFromOsLevel converts oslevel -s output to VRMF dot notation
+// (e.g. "7300-02-02-2419" -> "7.3.2.2").
+func ParseKernelVersionFromOsLevel(osLevelVersion string) string {
+	matches := osLevelKernelVersionRegex.FindStringSubmatch(osLevelVersion)
+	if matches == nil {
 		return ""
 	}
-
-	// extract each part of the kernel version
-	version := int(parts[0][0]) - '0'
-	release := int(parts[0][1]) - '0'
-	tl, _ := strconv.Atoi(parts[1])
-	sp, _ := strconv.Atoi(parts[2])
-
-	return fmt.Sprintf("%d.%d.%d.%d", version, release, tl, sp)
+	return fmt.Sprintf("%s.%s.%s.%s", matches[1], matches[2], matches[3], matches[4])
 }
 
 func (info *Info) fillPlatformInfo() {
@@ -58,14 +52,14 @@ func (info *Info) fillPlatformInfo() {
 	if err == nil {
 		info.KernelName = utils.NewValue("AIX")
 		info.Hostname = utils.NewValue(hostInfo.Hostname)
-		info.KernelVersion = utils.NewValue(ParseOsLevelToKernelVersion(hostInfo.KernelVersion))
+		info.KernelVersion = utils.NewValue(ParseKernelVersionFromOsLevel(hostInfo.KernelVersion))
 	} else if unameErr == nil {
 		// Fall back to uname fields if gopsutil fails.
 		info.KernelName = utils.NewValue(utils.StringFromBytes(uname.Sysname[:]))
 		info.Hostname = utils.NewValue(utils.StringFromBytes(uname.Nodename[:]))
 
-		// Extract first 2 parts of the kernel version ("7.3.1.4" -> "7.3")
-		kernelVersion := utils.StringFromBytes(uname.Version[:]) + "." + utils.StringFromBytes(uname.Release[:])
+		// Extract version and release available through uname.
+		kernelVersion := fmt.Sprintf("%s.%s", utils.StringFromBytes(uname.Version[:]), utils.StringFromBytes(uname.Release[:]))
 		info.KernelVersion = utils.NewValue(kernelVersion)
 	} else {
 		// Both gopsutil and uname failed; report the actual errors.
