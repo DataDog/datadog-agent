@@ -396,7 +396,6 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/security/resolvers/file
 # gazelle:exclude pkg/security/resolvers/hash
 # gazelle:exclude pkg/security/resolvers/mount
-# gazelle:exclude pkg/security/resolvers/netns
 # gazelle:exclude pkg/security/resolvers/path
 # gazelle:exclude pkg/security/resolvers/process
 # gazelle:exclude pkg/security/resolvers/securitydescriptors
