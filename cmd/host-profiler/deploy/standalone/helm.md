@@ -25,13 +25,9 @@ Before deploying, adapt the provided configuration files to your environment:
 
 - [`helm/pod-spec.yaml`](helm/pod-spec.yaml): pod-level settings. Review the file, and **adapt the `DD_API_KEY` secret reference and `DD_SITE`** before deploying. See [Datadog sites](https://docs.datadoghq.com/getting_started/site/) for the correct `DD_SITE` value.
 - [`helm/otel-config.yaml`](helm/otel-config.yaml): OpenTelemetry Collector pipelines and Datadog export. Review the file and adapt it like any other [OpenTelemetry Collector configuration](https://opentelemetry.io/docs/collector/configuration/).
+- [`helm/network-policy.yaml`](helm/network-policy.yaml): default Kubernetes NetworkPolicy, rendered through the Helm chart's `extraManifests`.
 
-Choose the network policy manifest that matches your cluster networking:
-
-- If your cluster uses Cilium, use [`cilium-network-policy.yaml`](cilium-network-policy.yaml) for FQDN-scoped egress enforcement.
-- Otherwise, use [`network-policy.yaml`](network-policy.yaml).
-
-If you use a namespace other than `dd-host-profiler`, update the policy namespace before applying it. If you change the generated resource names in [`helm/pod-spec.yaml`](helm/pod-spec.yaml), update the policy selectors too.
+If your cluster uses Cilium and you want FQDN-scoped egress enforcement, use [`helm/cilium-network-policy.yaml`](helm/cilium-network-policy.yaml) instead of [`helm/network-policy.yaml`](helm/network-policy.yaml).
 
 ## Deploy
 
@@ -41,7 +37,8 @@ Deploy or update the OpenTelemetry Collector Helm release with the provided valu
 helm upgrade --install <RELEASE_NAME> open-telemetry/opentelemetry-collector \
   --namespace <NAMESPACE> \
   --values cmd/host-profiler/deploy/standalone/helm/pod-spec.yaml \
-  --values cmd/host-profiler/deploy/standalone/helm/otel-config.yaml
+  --values cmd/host-profiler/deploy/standalone/helm/otel-config.yaml \
+  --values cmd/host-profiler/deploy/standalone/helm/network-policy.yaml
 ```
 
 ### Seccomp
