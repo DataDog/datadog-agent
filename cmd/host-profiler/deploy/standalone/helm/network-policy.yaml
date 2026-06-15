@@ -17,7 +17,6 @@ extraManifests:
         matchLabels:
           app.kubernetes.io/name: '{{ include "opentelemetry-collector.name" . }}'
           app.kubernetes.io/instance: '{{ .Release.Name }}'
-          component: agent-collector
       policyTypes:
         - Egress
       egress:
