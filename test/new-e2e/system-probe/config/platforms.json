@@ -49,6 +49,14 @@
       "image": "amzn2023-amd64-2023.qcow2.xz",
       "image_version": "20251015_301103a6"
     },
+    "amazon_2023_6.12": {
+      "os_name": "Amazon Linux",
+      "os_id": "amzn",
+      "kernel": "6.12.30-1.amzn2023",
+      "os_version": "2023",
+      "image": "amzn2023-amd64-6.12.qcow2.xz",
+      "image_version": "20251015_301103a6"
+    },
     "centos_7.9": {
       "os_name": "CentOS Linux",
       "os_id": "centos",
@@ -436,6 +444,14 @@
       "kernel": "6.1.119-129.201.amzn2023",
       "os_version": "2023",
       "image": "amzn2023-arm64-2023.qcow2.xz",
+      "image_version": "20251015_301103a6"
+    },
+    "amazon_2023_6.12": {
+      "os_name": "Amazon Linux",
+      "os_id": "amzn",
+      "kernel": "6.12.30-1.amzn2023",
+      "os_version": "2023",
+      "image": "amzn2023-arm64-6.12.qcow2.xz",
       "image_version": "20251015_301103a6"
     },
     "ubuntu_18.04": {
