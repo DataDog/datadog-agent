@@ -1,5 +1,8 @@
 load("@rules_go//go:def.bzl", "go_library")
 
+# crio.go uses //go:build crio && trivy
+# gazelle:build_tags crio,trivy
+
 go_library(
     name = "crio",
     srcs = [
