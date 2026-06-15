@@ -13,6 +13,12 @@ properties:
     type: string
     default: ''
     comment: Override the Datadog APP Key for external metrics endpoint
+  autoscaler_autogen_label_selector:
+    node_type: setting
+    type: string
+    default: ''
+    comment: Label selector to filter which HPAs and WPAs the DCA generates DatadogMetrics
+      for (e.g. "app.kubernetes.io/managed-by!=keda-operator")
   batch_window:
     node_type: setting
     type: integer

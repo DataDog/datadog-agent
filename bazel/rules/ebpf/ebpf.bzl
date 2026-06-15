@@ -22,6 +22,7 @@ _COMMON_FLAGS = [
     "-Wno-unused-value",
     "-Wno-pointer-sign",
     "-Wno-compare-distinct-pointer-types",
+    "-Wno-microsoft-anon-tag",
     "-Wunused",
     "-Wall",
     "-Werror",
@@ -32,6 +33,7 @@ _COMMON_FLAGS = [
     "-fno-asynchronous-unwind-tables",
     "-fno-jump-tables",
     "-fmerge-all-constants",
+    "-fms-extensions",
 ]
 
 _PREBUILT_FLAGS = [
