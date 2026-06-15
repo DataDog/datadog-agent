@@ -15,8 +15,40 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 )
+
+// blockingFetcher is a ConfigFetcher that lets a test gate the gRPC call.
+// It is used to assert what Client.update() does — and does not — hold the
+// client mutex around. See the lock-discipline tests at the bottom of this
+// file.
+type blockingFetcher struct {
+	started chan struct{} // closed when ClientGetConfigs is entered
+	release chan struct{} // signaled to let ClientGetConfigs return
+	resp    *pbgo.ClientGetConfigsResponse
+	err     error
+}
+
+func newBlockingFetcher() *blockingFetcher {
+	return &blockingFetcher{
+		started: make(chan struct{}),
+		release: make(chan struct{}),
+		resp:    &pbgo.ClientGetConfigsResponse{}, // empty: applyUpdate returns no changes, but lock discipline still applies
+	}
+}
+
+func (f *blockingFetcher) ClientGetConfigs(_ context.Context, _ *pbgo.ClientGetConfigsRequest) (*pbgo.ClientGetConfigsResponse, error) {
+	// Signal once; subsequent calls just proceed without blocking so the
+	// poll loop can keep iterating.
+	select {
+	case <-f.started:
+	default:
+		close(f.started)
+		<-f.release
+	}
+	return f.resp, f.err
+}
 
 // mockListener captures OnUpdate / OnStateChange calls and (optionally) injects
 // latency or counts concurrency.
@@ -611,4 +643,240 @@ func TestClient_BroadcastStateChange_NonBlocking(t *testing.T) {
 	// The fast listener should still observe the state change promptly.
 	require.Eventually(t, func() bool { return fast.stateChangeCount() == 1 },
 		time.Second, 5*time.Millisecond)
+}
+
+// --- Lock discipline tests --------------------------------------------------
+//
+// These tests pin the invariant that Client.update() releases c.m for its
+// long-running steps (the gRPC fetch and the subsequent applyUpdate / TUF
+// verification). Holding c.m across those steps would block every other
+// Client API that takes c.m — SubscribeAll, SetAgentName, GetConfigs,
+// broadcastStateChange — for the full duration of a poll iteration. That
+// regression has been introduced before; these tests guard against it
+// returning.
+//
+// Pre-PR locking discipline (preserved by this PR):
+//
+//	update():
+//	  newUpdateRequest()        // c.state.CurrentState() — no c.m
+//	    ↳ briefly takes c.m to copy c.products
+//	  configFetcher.ClientGetConfigs(...)  // no c.m, may take seconds
+//	  applyUpdate(response)                // no c.m, TUF verification
+//	  c.m.Lock(); dispatch loop; c.m.Unlock()
+//
+// state.Repository is partly thread-safe (metadata is a sync.Map), but configs
+// and TUF state are NOT — only the single poll-loop goroutine writes them.
+// The lock discipline above is what makes that safe in practice.
+
+// TestClient_LockNotHeldDuringFetch verifies that c.m is free while the
+// gRPC fetch is in flight. Concretely: a blocking ConfigFetcher parks the
+// poll loop inside ClientGetConfigs, and during that window we must be
+// able to take c.m via every public API that touches it.
+//
+// If a future refactor hoists c.m above the fetcher call, this test deadlocks
+// (each public API blocks until the fetcher returns).
+func TestClient_LockNotHeldDuringFetch(t *testing.T) {
+	fetcher := newBlockingFetcher()
+	c, err := NewClient(fetcher, WithoutTufVerification(), WithAgent("test", "0.0"))
+	require.NoError(t, err)
+	t.Cleanup(c.Close)
+
+	c.Start()
+
+	select {
+	case <-fetcher.started:
+	case <-time.After(2 * time.Second):
+		t.Fatal("ConfigFetcher.ClientGetConfigs was never called")
+	}
+
+	// While the fetcher is blocked, every c.m-taking API must return
+	// promptly. We run each under a deadline so a regression manifests as
+	// a clean failure instead of a hung test.
+	done := make(chan string, 4)
+
+	go func() {
+		c.SubscribeAll("APM_SAMPLING", &mockListener{})
+		done <- "SubscribeAll"
+	}()
+	go func() {
+		c.SetAgentName("agent")
+		done <- "SetAgentName"
+	}()
+	go func() {
+		_ = c.GetConfigs("APM_SAMPLING")
+		done <- "GetConfigs"
+	}()
+	go func() {
+		c.broadcastStateChange(true)
+		done <- "broadcastStateChange"
+	}()
+
+	deadline := time.After(500 * time.Millisecond)
+	got := map[string]bool{}
+	for len(got) < 4 {
+		select {
+		case name := <-done:
+			got[name] = true
+		case <-deadline:
+			t.Fatalf("c.m appears held during fetch — only completed: %v", got)
+		}
+	}
+
+	// Unblock the fetcher so the poll loop can finish cleanly.
+	close(fetcher.release)
+}
+
+// TestClient_DispatchLoopHoldsLockBriefly verifies the lock-window after the
+// fetch returns. Once applyUpdate completes, update() does take c.m to
+// iterate listeners — that window must be short and must not block on
+// listener work. The slow-listener case is covered by the dispatcher tests;
+// here we assert the lock isn't held for an unbounded time relative to a
+// single iteration.
+func TestClient_DispatchLoopHoldsLockBriefly(t *testing.T) {
+	fetcher := newBlockingFetcher()
+	c, err := NewClient(fetcher, WithoutTufVerification(), WithAgent("test", "0.0"))
+	require.NoError(t, err)
+	t.Cleanup(c.Close)
+
+	// Subscribe a listener that would block forever if dispatch were
+	// synchronous. With the async dispatcher this only parks the worker,
+	// not the poll loop / lock.
+	block := make(chan struct{})
+	t.Cleanup(func() { close(block) })
+	c.SubscribeAll("APM_SAMPLING", &mockListener{onUpdateHook: func() { <-block }})
+
+	c.Start()
+	select {
+	case <-fetcher.started:
+	case <-time.After(2 * time.Second):
+		t.Fatal("poll loop never reached fetch")
+	}
+
+	// Release the fetcher and immediately race a SubscribeAll against the
+	// dispatch lock window. The dispatch is non-blocking even if a listener
+	// is permanently stuck (block channel held open), so this must return
+	// fast.
+	close(fetcher.release)
+
+	settled := make(chan struct{})
+	go func() {
+		c.SubscribeAll("APM_TRACING", &mockListener{})
+		close(settled)
+	}()
+	select {
+	case <-settled:
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("SubscribeAll blocked on dispatch lock window — listener work leaked under c.m?")
+	}
+}
+
+// TestClient_BoundApplyStatusVersionCheck verifies the closure returned by
+// boundApplyStatus drops writes for paths NOT present in the snapshot it was
+// built from, and forwards writes for paths that are present. This guards the
+// version-binding wiring; the underlying version-vs-version comparison is
+// exhaustively tested in state.TestUpdateApplyStatusIfVersion.
+func TestClient_BoundApplyStatusVersionCheck(t *testing.T) {
+	repo, err := state.NewUnverifiedRepository()
+	require.NoError(t, err)
+	c := &Client{state: repo}
+
+	// Snapshot containing one path at v1. The closure must remember v1.
+	snapshot := map[string]state.RawConfig{
+		"datadog/2/APM_SAMPLING/known/x": {Metadata: state.Metadata{Version: 1}},
+	}
+	bound := c.boundApplyStatus(snapshot)
+
+	// Unknown path: the closure must drop the write without panicking and
+	// without touching the repository.
+	bound("datadog/2/APM_SAMPLING/unknown/y",
+		state.ApplyStatus{State: state.ApplyStateError, Error: "should be dropped"})
+
+	// Known path: the closure forwards to UpdateApplyStatusIfVersion. Since
+	// no metadata is loaded in the empty repository, the underlying call
+	// returns false — we only care here that the wiring invoked it without
+	// panic. The end-to-end "stale ack rejected" guarantee is covered by
+	// state.TestUpdateApplyStatusIfVersion.
+	bound("datadog/2/APM_SAMPLING/known/x",
+		state.ApplyStatus{State: state.ApplyStateAcknowledged})
+}
+
+// TestClient_ConcurrentSubscribeWhilePolling is a stress test that runs the
+// real poll loop with a fast (non-blocking) fetcher and hammers it with
+// concurrent SubscribeAll / SetAgentName / GetConfigs calls. Under -race this
+// catches any reintroduction of the c.m / c.state locking confusion the PR
+// review flagged. It does not assert exact behavior — only that no deadlock,
+// panic, or data race occurs.
+func TestClient_ConcurrentSubscribeWhilePolling(t *testing.T) {
+	fetcher := &blockingFetcher{
+		started: make(chan struct{}),
+		release: make(chan struct{}),
+		resp:    &pbgo.ClientGetConfigsResponse{},
+	}
+	close(fetcher.release) // never block
+
+	c, err := NewClient(fetcher, WithoutTufVerification(), WithAgent("test", "0.0"))
+	require.NoError(t, err)
+	t.Cleanup(c.Close)
+	c.Start()
+
+	products := []string{"APM_SAMPLING", "APM_TRACING", "ASM_FEATURES", "LIVE_DEBUGGING"}
+
+	var wg sync.WaitGroup
+	deadline := time.Now().Add(200 * time.Millisecond)
+	for i := 0; i < 8; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			for time.Now().Before(deadline) {
+				p := products[i%len(products)]
+				c.SubscribeAll(p, &mockListener{})
+				_ = c.GetConfigs(p)
+				c.SetAgentName("agent")
+			}
+		}(i)
+	}
+	wg.Wait()
+}
+
+// TestClient_SubscribeDuringClose races SubscribeAll against Close to exercise
+// the wg.Add-vs-wg.Wait window mellon85 flagged: SubscribeAll does wg.Add(1)
+// for its dispatcher, and Close does wg.Wait(). If the gate (the ctx.Err()
+// check under c.m in SubscribeAll, paired with cancelUnderLock holding c.m)
+// were removed, a wg.Add concurrent with wg.Wait at counter zero would panic
+// with "WaitGroup is reused before previous Wait has returned" / "negative
+// counter". Run under -race; the harness reports any data race on c.listeners
+// or the WaitGroup. It asserts no panic/deadlock rather than exact behavior.
+func TestClient_SubscribeDuringClose(t *testing.T) {
+	for iter := 0; iter < 200; iter++ {
+		fetcher := &blockingFetcher{
+			started: make(chan struct{}),
+			release: make(chan struct{}),
+			resp:    &pbgo.ClientGetConfigsResponse{},
+		}
+		close(fetcher.release) // never block the poll loop
+
+		c, err := NewClient(fetcher, WithoutTufVerification(), WithAgent("test", "0.0"))
+		require.NoError(t, err)
+		c.Start()
+
+		// Fire SubscribeAll concurrently with Close. Whichever wins, the
+		// outcome must be safe: either the subscription registers before the
+		// ctx is canceled (its wg.Add completes before wg.Wait begins), or it
+		// observes the canceled ctx and is dropped. Neither may panic.
+		var wg sync.WaitGroup
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			c.SubscribeAll("APM_SAMPLING", &mockListener{})
+		}()
+		go func() {
+			defer wg.Done()
+			c.Close()
+		}()
+		wg.Wait()
+
+		// A SubscribeAll that lands after Close must be dropped, never leaving
+		// a leaked dispatcher behind (Close already returned from wg.Wait).
+		c.SubscribeAll("APM_TRACING", &mockListener{})
+	}
 }

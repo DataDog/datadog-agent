@@ -401,7 +401,13 @@ func (c *Client) GetClientID() string {
 	return c.ID
 }
 
-// UpdateApplyStatus updates the config's metadata to reflect its applied status
+// UpdateApplyStatus updates the config's metadata to reflect its applied status.
+//
+// This is the non-version-checked variant: it writes by path only. Listeners
+// reacting to an update should prefer the apply-status callback passed into
+// OnUpdate, which is version-bound to the snapshot they received and therefore
+// safe against a newer config version landing while they process — see
+// Client.boundApplyStatus and state.Repository.UpdateApplyStatusIfVersion.
 func (c *Client) UpdateApplyStatus(cfgPath string, status state.ApplyStatus) {
 	c.state.UpdateApplyStatus(cfgPath, status)
 }
@@ -499,6 +505,17 @@ func (c *Client) SetInstallerState(state *pbgo.ClientUpdater) {
 }
 
 func (c *Client) startFn() {
+	// Guard wg.Add against a Close that races Start: like SubscribeAll, the
+	// check and the Add run under c.m, and cancelUnderLock cancels under c.m.
+	// So either we Add before Close begins wg.Wait, or we observe the canceled
+	// ctx and skip starting the poll loop entirely — never wg.Add concurrent
+	// with wg.Wait at counter zero (which panics).
+	c.m.Lock()
+	defer c.m.Unlock()
+	if c.ctx.Err() != nil {
+		log.Warnf("remote-config: Start called after Close; poll loop not started")
+		return
+	}
 	c.wg.Add(1)
 	go func() {
 		defer c.wg.Done()
@@ -599,13 +616,11 @@ func (c *Client) update() error {
 		return err
 	}
 
-	// applyUpdate mutates c.state (configs map); the lock is held both to keep
-	// listeners stable for the snapshot/dispatch below and to serialize this
-	// mutation with any concurrent external readers of c.state (e.g. the
-	// public Client.GetConfigs, which also takes c.m).
-	c.m.Lock()
-	defer c.m.Unlock()
-
+	// applyUpdate runs WITHOUT c.m: state.Repository synchronizes its own
+	// `configs` (configsMu) and `metadata` (metadataMu), so the poll loop's
+	// mutation here is already safe against concurrent readers such as the
+	// public Client.GetConfigs. Keeping it off c.m means a poll's TUF
+	// verification never blocks SubscribeAll / SetAgentName / GetConfigs.
 	changedProducts, err := c.applyUpdate(response)
 	if err != nil {
 		return err
@@ -614,22 +629,57 @@ func (c *Client) update() error {
 		return nil
 	}
 
+	// c.m is taken only for the dispatch below, which reads Client-owned state
+	// (c.listeners). It is never held across listener work — scheduleUpdate
+	// just stages a payload and signals a worker.
+	c.m.Lock()
+	defer c.m.Unlock()
 	for product, productListeners := range c.listeners {
 		if !containsProduct(changedProducts, product) {
 			continue
 		}
-		// Snapshot once per product while still holding c.m — state.GetConfigs
-		// returns a fresh map (see pkg/remoteconfig/state/configs.go), so it is
-		// safe to hand off to workers without further synchronization.
+		// Snapshot once per product. state.GetConfigs returns a fresh map
+		// (see pkg/remoteconfig/state/configs.go), so it's safe to hand off
+		// to workers without further synchronization.
 		configs := c.state.GetConfigs(product)
+		// Bind the apply-status callback to the versions in *this* snapshot.
+		// A slow Listener.OnUpdate may finish after the next poll has already
+		// replaced the configs at these paths; without version-binding, the
+		// late ApplyStatus would stamp the new version's metadata with the
+		// result of processing the old config (see
+		// state.Repository.UpdateApplyStatusIfVersion).
+		applyStatus := c.boundApplyStatus(configs)
 		for _, entry := range productListeners {
 			if response.ConfigStatus == pbgo.ConfigStatus_CONFIG_STATUS_OK ||
 				!entry.listener.ShouldIgnoreSignatureExpiration() {
-				entry.scheduleUpdate(configs, c.state.UpdateApplyStatus)
+				entry.scheduleUpdate(configs, applyStatus)
 			}
 		}
 	}
 	return nil
+}
+
+// boundApplyStatus returns an apply-status callback that drops writes for any
+// config path whose version no longer matches the one in the supplied
+// snapshot. This is the load-bearing piece for correctness against slow
+// listeners: a stale callback from an in-progress OnUpdate must not overwrite
+// the apply status of a newer config version.
+func (c *Client) boundApplyStatus(snapshot map[string]state.RawConfig) func(string, state.ApplyStatus) {
+	versions := make(map[string]uint64, len(snapshot))
+	for path, cfg := range snapshot {
+		versions[path] = cfg.Metadata.Version
+	}
+	return func(path string, status state.ApplyStatus) {
+		expected, ok := versions[path]
+		if !ok {
+			// Path was not in the snapshot the listener received; nothing to
+			// safely write to. Drop.
+			return
+		}
+		if !c.state.UpdateApplyStatusIfVersion(path, expected, status) {
+			log.Debugf("remote-config: dropped stale apply-status for %s (expected v=%d superseded by newer update)", path, expected)
+		}
+	}
 }
 
 // broadcastStateChange dispatches an OnStateChange signal to every registered
