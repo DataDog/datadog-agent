@@ -32,6 +32,21 @@ func NewPodParser(annotationsExclude []string) (ObjectParser, error) {
 	return podParser{annotationsFilter: filters}, nil
 }
 
+// ResizePolicyFromContainerResizePolicy converts a container's resize policy rules to the
+// workloadmeta representation.
+func ResizePolicyFromContainerResizePolicy(rules []corev1.ContainerResizePolicy) workloadmeta.ContainerResizePolicy {
+	policy := workloadmeta.ContainerResizePolicy{}
+	for _, rule := range rules {
+		switch rule.ResourceName {
+		case corev1.ResourceCPU:
+			policy.CPURestartPolicy = string(rule.RestartPolicy)
+		case corev1.ResourceMemory:
+			policy.MemoryRestartPolicy = string(rule.RestartPolicy)
+		}
+	}
+	return policy
+}
+
 func (p podParser) Parse(obj interface{}) workloadmeta.Entity {
 	pod := obj.(*corev1.Pod)
 	owners := make([]workloadmeta.KubernetesPodOwner, 0, len(pod.OwnerReferences))
@@ -98,6 +113,7 @@ func (p podParser) Parse(obj interface{}) workloadmeta.Entity {
 		if memoryLimit, found := container.Resources.Limits[corev1.ResourceMemory]; found {
 			c.Resources.MemoryLimit = kubernetes.FormatMemoryRequests(memoryLimit)
 		}
+		c.ResizePolicy = ResizePolicyFromContainerResizePolicy(container.ResizePolicy)
 		containersList = append(containersList, c)
 	}
 
