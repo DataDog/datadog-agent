@@ -43,31 +43,29 @@ If your cluster does not enforce NetworkPolicy resources, these manifests do not
 
 ## Deploy
 
+Apply the adapted manifests through your usual Kubernetes workflow. For example:
+
 ```shell
 kubectl apply -f standalone/operator/rbac.yaml
 kubectl apply -f standalone/operator/collector.yaml
-```
-
-On non-Cilium clusters:
-
-```shell
 kubectl apply -f standalone/operator/network-policy.yaml
 ```
 
-The Operator deployment uses two manifests:
+If your cluster uses Cilium, apply `standalone/operator/cilium-network-policy.yaml` instead of `standalone/operator/network-policy.yaml`.
 
-1. [`operator/rbac.yaml`](operator/rbac.yaml): RBAC needed for node, kubelet, and Kubernetes metadata used during profile enrichment.
-2. [`operator/collector.yaml`](operator/collector.yaml): the `OpenTelemetryCollector` Custom Resource that runs the Host Profiler as a DaemonSet.
+The provided manifests configure the required capabilities and seccomp profile automatically. An init container installs the seccomp profile onto each node, so no manual seccomp setup is required.
 
-The Operator reconciles the Custom Resource and creates the DaemonSet.
+After you apply the manifests, the OpenTelemetry Operator reconciles the Custom Resource and rolls out an OpenTelemetry Collector DaemonSet with the Host Profiler. Wait for that rollout to complete before verifying profiles.
 
-### Seccomp
+After deploying the Host Profiler, profiles appear on the [Datadog Profiler](https://app.datadoghq.com/profiling) page within a few minutes. If profiles do not appear, see the [Troubleshooting](../troubleshooting.md) guide.
 
-The Collector is automatically configured to run under a seccomp profile. An init container copies the profile from the Collector image to every node at pod startup. No manual steps required.
+## AppArmor (optional)
 
-### AppArmor (optional)
+AppArmor provides extra hardening on Linux distributions and Kubernetes clusters where AppArmor is available. The Host Profiler does not require AppArmor to run; the provided manifests configure the required capabilities and seccomp profile automatically.
 
-Load [`apparmor-profile`](../apparmor-profile) on each node using your cluster's AppArmor provisioning mechanism, then update `securityContext` in [`operator/collector.yaml`](operator/collector.yaml):
+Use this section only if your nodes support AppArmor and you already manage node-local AppArmor profiles. AppArmor profiles must be loaded on each node before Kubernetes can apply them to a pod.
+
+To enable the provided profile, load [`apparmor-profile`](../apparmor-profile) on each node, then update `securityContext` in [`operator/collector.yaml`](operator/collector.yaml):
 
 ```yaml
 securityContext:
@@ -77,15 +75,4 @@ securityContext:
     localhostProfile: host-profiler
 ```
 
-### Cilium (optional)
-
-On clusters with Cilium, replace the standard network policy with the Cilium one to get FQDN-scoped egress enforcement:
-
-```shell
-kubectl delete -f standalone/operator/network-policy.yaml
-kubectl apply -f standalone/operator/cilium-network-policy.yaml
-```
-
-## Verification
-
-After deploying the Host Profiler, profiles appear on the [Datadog Profiler](https://app.datadoghq.com/profiling) page within a few minutes. If profiles do not appear, see the [Troubleshooting](../troubleshooting.md) guide.
+The provided profile limits what the Host Profiler container can execute. It allows `objcopy`, which is used for debug symbol extraction.
