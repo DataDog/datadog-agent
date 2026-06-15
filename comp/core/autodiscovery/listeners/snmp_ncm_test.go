@@ -26,7 +26,7 @@ func newNCMTestListener(t *testing.T, namespace string) (*SNMPListener, string) 
 	mockConfig.SetInTest("confd_path", confdPath)
 
 	l := &SNMPListener{
-		config: snmp.ListenerConfig{Namespace: namespace},
+		config: snmp.ListenerConfig{Namespace: namespace, ConfdPath: confdPath},
 	}
 	dest := filepath.Join(confdPath, ncmConfigDirName, ncmConfigFileName)
 	return l, dest

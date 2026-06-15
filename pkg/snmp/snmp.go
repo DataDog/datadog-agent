@@ -55,6 +55,11 @@ type ListenerConfig struct {
 	// discovered device, overridable per credential via ncm[].ssh.
 	InitConfig NCMInitConfig `mapstructure:"init_config"`
 
+	// ConfdPath is the resolved confd_path used to write the generated NCM autodiscovery config.
+	// It is populated from the global config in NewListenerConfig so consumers in the comp/ tree
+	// don't need to import pkg/config/setup directly.
+	ConfdPath string `mapstructure:"-"`
+
 	// DON'T USE. This is only used to read the raw array from datadog.yaml
 	UnmarshalledConfigs []UnmarshalledConfig `mapstructure:"configs"`
 }
@@ -222,6 +227,8 @@ func NewListenerConfig() (ListenerConfig, error) {
 	if !ddcfg.IsConfigured(configKey+".namespace") && ddcfg.IsConfigured("network_devices.namespace") {
 		snmpConfig.Namespace = ddcfg.GetString("network_devices.namespace")
 	}
+
+	snmpConfig.ConfdPath = ddcfg.GetString("confd_path")
 
 	snmpConfig.Configs = make([]Config, len(snmpConfig.UnmarshalledConfigs))
 

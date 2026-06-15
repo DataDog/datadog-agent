@@ -14,7 +14,6 @@ import (
 
 	"go.yaml.in/yaml/v2"
 
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/snmp"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -164,7 +163,7 @@ func (l *SNMPListener) writeNCMConfig() {
 // must hold ncmWriteMu. When no devices remain, any existing file is removed rather than leaving
 // an instance-less (invalid) NCM config.
 func (l *SNMPListener) writeNCMConfigLocked() {
-	confdPath := pkgconfigsetup.Datadog().GetString("confd_path")
+	confdPath := l.config.ConfdPath
 	if confdPath == "" {
 		log.Errorf("Couldn't write NCM autodiscovery config: confd_path is not set")
 		return
