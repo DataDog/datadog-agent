@@ -12,21 +12,21 @@ import (
 	"testing"
 	"time"
 
-	delegatedauthmock "github.com/DataDog/datadog-agent/comp/core/delegatedauth/mock"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice"
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/mode"
 	serverlessInitTag "github.com/DataDog/datadog-agent/cmd/serverless-init/tag"
+	delegatedauthmock "github.com/DataDog/datadog-agent/comp/core/delegatedauth/mock"
 	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	agentmock "github.com/DataDog/datadog-agent/comp/logs/agent/mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
+	pkgmetrics "github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/metrics"
+	"github.com/DataDog/datadog-agent/pkg/serverless/metrics/metricstest"
 	serverlessTag "github.com/DataDog/datadog-agent/pkg/serverless/tags"
-	"github.com/DataDog/datadog-agent/pkg/serverless/trace"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -63,73 +63,36 @@ func TestFxApp(t *testing.T) {
 	fxutil.TestOneShot(t, main)
 }
 
-type TestTimeoutFlushableAgent struct {
-	hasBeenCalled bool
-}
-
-type TestFlushableAgent struct {
-	hasBeenCalled bool
-}
-
-func (tfa *TestTimeoutFlushableAgent) Flush() {
-	time.Sleep(1 * time.Hour)
-	tfa.hasBeenCalled = true
-}
-
-func (tfa *TestFlushableAgent) Flush() {
-	tfa.hasBeenCalled = true
-}
-
-func TestFlushSuccess(t *testing.T) {
-	metricAgent := &TestFlushableAgent{}
+func TestFlushLogsAgentSuccess(t *testing.T) {
 	mockLogsAgent := agentmock.NewMockServerlessLogsAgent()
-	lastFlush(100*time.Millisecond, metricAgent, mockLogsAgent)
-	assert.Equal(t, true, metricAgent.hasBeenCalled)
+	flushLogsAgent(100*time.Millisecond, mockLogsAgent)
 	assert.Equal(t, true, mockLogsAgent.DidFlush())
 }
 
-func TestFlushTimeout(t *testing.T) {
-	metricAgent := &TestTimeoutFlushableAgent{}
+func TestFlushLogsAgentTimeout(t *testing.T) {
 	mockLogsAgent := agentmock.NewMockServerlessLogsAgent()
 	mockLogsAgent.SetFlushDelay(time.Hour)
 
-	lastFlush(100*time.Millisecond, metricAgent, mockLogsAgent)
-	assert.Equal(t, false, metricAgent.hasBeenCalled)
+	flushLogsAgent(100*time.Millisecond, mockLogsAgent)
 	assert.Equal(t, false, mockLogsAgent.DidFlush())
 }
 
-// TestSetupWithoutAPIKey verifies that when DD_API_KEY is not set,
-// the metric agent is not started and the trace agent is a no-op.
-// This prevents noisy error logs when serverless-init is used without configuration.
-func TestSetupWithoutAPIKey(t *testing.T) {
-	configmock.New(t)
-
-	modeConf = mode.DetectMode()
-
-	// Explicitly unset DD_API_KEY
-	t.Setenv("DD_API_KEY", "")
-
-	_ = pkgconfigsetup.LoadDatadog(pkgconfigsetup.Datadog(), secretsmock.New(t), delegatedauthmock.New(t), nil)
-	fakeTagger := taggerfxmock.SetupFakeTagger(t)
-
-	// Simulate the API key check from setup()
-	apiKey := configUtils.SanitizeAPIKey(pkgconfigsetup.Datadog().GetString("api_key"))
-	assert.Empty(t, apiKey)
-
-	// When no API key, metric agent should not be started (Demux is nil)
-	metricAgent := &metrics.ServerlessMetricAgent{
-		SketchesBucketOffset: 0,
-		Tagger:               fakeTagger,
-	}
-	assert.Nil(t, metricAgent.Demux)
-	assert.False(t, metricAgent.IsReady())
-
-	// Noop trace agent should be safe to call
-	traceAgent := trace.NewNoopTraceAgent()
+func TestFlushLogsAgentNil(t *testing.T) {
 	assert.NotPanics(t, func() {
-		traceAgent.Flush()
-		traceAgent.SetTags(map[string]string{"test": "value"})
-		traceAgent.Stop()
+		flushLogsAgent(100*time.Millisecond, nil)
+	})
+}
+
+// TestSetupWithoutAPIKey verifies that when DD_API_KEY is not set, the metric
+// agent is left as a bare struct (Demux nil) and reporting metrics through it
+// is a safe no-op. sendMetricSample (in pkg/serverless/metrics/metric.go) takes
+// the early-return path when Demux is nil, preventing noisy panics when
+// serverless-init is used without configuration.
+func TestSetupWithoutAPIKey(t *testing.T) {
+	metricAgent := &metrics.ServerlessMetricAgent{}
+	assert.NotPanics(t, func() {
+		metricAgent.AddEnhancedMetric("enhanced.metric", 1.0, pkgmetrics.MetricSourceServerless, 0)
+		metricAgent.AddLegacyEnhancedMetric("legacy.metric", 1.0, pkgmetrics.MetricSourceServerless)
 	})
 }
 
@@ -141,8 +104,8 @@ func TestSetupOtlpAgentNoPanic(t *testing.T) {
 	configmock.New(t)
 	_ = pkgconfigsetup.LoadDatadog(pkgconfigsetup.Datadog(), secretsmock.New(t), delegatedauthmock.New(t), nil)
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
-	metricAgent := setupMetricAgent(map[string]string{}, map[string]string{}, map[string]string{}, fakeTagger, false)
-	defer metricAgent.Stop()
+	bundle := metricstest.New(t, fakeTagger)
+	metricAgent := metrics.New(bundle.Demux, metrics.Tags{})
 
 	assert.NotPanics(t, func() { setupOtlpAgent(metricAgent, fakeTagger) })
 
