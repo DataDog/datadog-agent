@@ -38,13 +38,17 @@ os_version: str = "The version of the OS to use (default will be selected depend
 full_image_path: str = "The full image path (registry:tag) of the Agent image to deploy"
 cluster_agent_full_image_path: str = "The full image path (registry:tag) of the Cluster Agent image to deploy"
 baseline_version: str = "The container version of the baseline Agent variant (benchmarkeks)"
-baseline_full_image_path: str = "The full image path (registry:tag) of the baseline Agent image to deploy (benchmarkeks)"
+baseline_full_image_path: str = (
+    "The full image path (registry:tag) of the baseline Agent image to deploy (benchmarkeks)"
+)
 baseline_cluster_agent_version: str = "The container version of the baseline Cluster Agent variant (benchmarkeks)"
 baseline_cluster_agent_full_image_path: str = (
     "The full image path (registry:tag) of the baseline Cluster Agent image to deploy (benchmarkeks)"
 )
 comparison_version: str = "The container version of the comparison Agent variant (benchmarkeks)"
-comparison_full_image_path: str = "The full image path (registry:tag) of the comparison Agent image to deploy (benchmarkeks)"
+comparison_full_image_path: str = (
+    "The full image path (registry:tag) of the comparison Agent image to deploy (benchmarkeks)"
+)
 comparison_cluster_agent_version: str = "The container version of the comparison Cluster Agent variant (benchmarkeks)"
 comparison_cluster_agent_full_image_path: str = (
     "The full image path (registry:tag) of the comparison Cluster Agent image to deploy (benchmarkeks)"
