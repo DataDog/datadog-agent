@@ -20,8 +20,6 @@ func baseFlow() *common.Flow {
 		DstAddr:          []byte{10, 0, 0, 2},
 		SrcPort:          1234,
 		DstPort:          80,
-		Bytes:            500,
-		Packets:          5,
 		InputInterface:   1,
 		OutputInterface:  2,
 		AdditionalFields: common.AdditionalFields{},
