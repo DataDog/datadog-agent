@@ -61,7 +61,7 @@ After deploying the Host Profiler, profiles appear on the [Datadog Profiler](htt
 
 ## AppArmor (optional)
 
-AppArmor provides extra hardening on Linux distributions and Kubernetes clusters where AppArmor is available. The Host Profiler does not require AppArmor to run; the provided Helm values configure the required capabilities and seccomp profile automatically.
+AppArmor provides extra hardening on Linux distributions and Kubernetes clusters where AppArmor is available. The Host Profiler does not require AppArmor to run.
 
 Use this section only if your nodes support AppArmor and you already manage node-local AppArmor profiles. AppArmor profiles must be loaded on each node before Kubernetes can apply them to a pod.
 
