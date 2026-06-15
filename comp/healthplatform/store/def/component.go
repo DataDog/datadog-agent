@@ -45,6 +45,11 @@ type Component interface {
 	// ResolveAllIssues marks every active issue as resolved.
 	ResolveAllIssues()
 
+	// PruneResolvedIssues removes RESOLVED tombstones from the active set.
+	// Called by the egress after a successful send so that resolved issues are
+	// not re-forwarded on every subsequent tick.
+	PruneResolvedIssues()
+
 	// GetActiveIssueIDsByIssueName returns the IDs of all currently active issues
 	// with the given IssueName (e.g. "docker_file_tailing_disabled").
 	GetActiveIssueIDsByIssueName(issueName string) []string

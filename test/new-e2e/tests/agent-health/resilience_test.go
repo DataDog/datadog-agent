@@ -153,20 +153,26 @@ func (suite *resilienceSuite) TestHealthPlatformIssueRecurrence() {
 			),
 		),
 	))
-	require.NoError(suite.T(), fakeIntake.FlushServerAndResetAggregators())
+	// Restart so the Python module cache is cleared and fixed_check.py is loaded.
+	agent := suite.Env().Agent
+	require.NoError(suite.T(), agent.Client.Restart())
+	require.EventuallyWithT(suite.T(), func(ct *assert.CollectT) {
+		assert.True(ct, agent.Client.IsReady())
+	}, 2*time.Minute, 10*time.Second, "agent not ready after fix")
 
-	// Verify the issue is resolved or no longer reported.
-	require.Never(suite.T(), func() bool {
-		payloads, _ := fakeIntake.GetAgentHealth()
+	// Wait for the RESOLVED state to appear in fakeintake before re-breaking.
+	require.EventuallyWithT(suite.T(), func(ct *assert.CollectT) {
+		payloads, err := fakeIntake.GetAgentHealth()
+		assert.NoError(ct, err)
 		for _, p := range payloads {
 			for _, iss := range findIssuesByPrefix(p, issuePrefix) {
-				if iss.PersistedIssue == nil || iss.PersistedIssue.State != healthplatform.IssueState_ISSUE_STATE_RESOLVED {
-					return true
+				if iss.PersistedIssue != nil && iss.PersistedIssue.State == healthplatform.IssueState_ISSUE_STATE_RESOLVED {
+					return
 				}
 			}
 		}
-		return false
-	}, defaultIssueAbsenceWindow, defaultIssuePollInterval, "issue not resolved after fix")
+		assert.Fail(ct, "no payload found with the issue in RESOLVED state")
+	}, defaultIssueTimeout, defaultIssuePollInterval, "issue never transitioned to RESOLVED after fix")
 
 	// Re-break: deploy the broken check again.
 	suite.UpdateEnv(awshost.Provisioner(

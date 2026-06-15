@@ -58,6 +58,10 @@ func (n *NoopHealthPlatform) ResolveIssue(_ string) {
 func (n *NoopHealthPlatform) ResolveAllIssues() {
 }
 
+// PruneResolvedIssues does nothing when the health platform is disabled.
+func (n *NoopHealthPlatform) PruneResolvedIssues() {
+}
+
 // GetActiveIssueIDsByIssueName returns nil when the health platform is disabled.
 func (n *NoopHealthPlatform) GetActiveIssueIDsByIssueName(_ string) []string {
 	return nil

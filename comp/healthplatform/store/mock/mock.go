@@ -73,3 +73,13 @@ func (m *mockHealthPlatform) ResolveAllIssues() {
 func (m *mockHealthPlatform) GetActiveIssueIDsByIssueName(_ string) []string {
 	return nil
 }
+
+// PruneResolvedIssues removes resolved issues from the mock store.
+func (m *mockHealthPlatform) PruneResolvedIssues() {
+	for id, issue := range m.issues {
+		if issue != nil && issue.PersistedIssue != nil &&
+			issue.PersistedIssue.State == healthplatformpayload.IssueState_ISSUE_STATE_RESOLVED {
+			delete(m.issues, id)
+		}
+	}
+}

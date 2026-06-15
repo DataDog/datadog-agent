@@ -8,6 +8,7 @@ package agenthealth
 import (
 	_ "embed"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -21,11 +22,11 @@ import (
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 )
 
-const healthPlatformAgentConfig = `health_platform:
-  enabled: true
-  forwarder:
-    interval: 30s
-`
+// healthPlatformAgentConfig is the shared base agent config for health platform E2E tests.
+// The short forwarder interval reduces detection and resolution latency.
+//
+//go:embed fixtures/agent_config.yaml
+var healthPlatformAgentConfig string
 
 const brokenCheckConf = `init_config:
 instances:
@@ -68,8 +69,7 @@ func TestCheckFailureSuite(t *testing.T) {
 
 // TestCheckFailureIssueLifecycle verifies that a check execution failure is
 // detected in fakeintake as NEW and that replacing the failing check with a
-// working version causes the issue to stop being reported (or be reported as
-// RESOLVED).
+// working version causes the issue to transition to RESOLVED.
 //
 // Cross-restart persistence is tested separately in TestResilienceSuite.
 func (suite *checkFailureSuite) TestCheckFailureIssueLifecycle() {
@@ -108,32 +108,42 @@ func (suite *checkFailureSuite) TestCheckFailureIssueLifecycle() {
 		assert.NotEmpty(t, issue.Remediation.Summary)
 	})
 
-	suite.T().Run("Resolution", func(t *testing.T) {
-		suite.UpdateEnv(awshost.Provisioner(
-			awshost.WithRunOptions(
-				ec2.WithAgentOptions(
-					agentparams.WithAgentConfig(healthPlatformAgentConfig),
-					agentparams.WithIntegration("broken_check.d", brokenCheckConf),
-					agentparams.WithFile(
-						"/etc/datadog-agent/checks.d/broken_check.py",
-						fixedCheckPy,
-						true,
-					),
+	suite.UpdateEnv(awshost.Provisioner(
+		awshost.WithRunOptions(
+			ec2.WithAgentOptions(
+				agentparams.WithAgentConfig(healthPlatformAgentConfig),
+				agentparams.WithIntegration("broken_check.d", brokenCheckConf),
+				agentparams.WithFile(
+					"/etc/datadog-agent/checks.d/broken_check.py",
+					fixedCheckPy,
+					true,
 				),
 			),
-		))
-		require.NoError(t, fakeIntake.FlushServerAndResetAggregators())
+		),
+	))
+	// WithFile only writes the file; it does not reload the Python module
+	// already cached in the agent's interpreter. Restart so fixed_check.py
+	// is imported fresh, clearHealthPlatformIssue is called, and the RESOLVED
+	// state transition is forwarded to fakeintake.
+	agent := suite.Env().Agent
+	require.NoError(suite.T(), agent.Client.Restart())
+	require.EventuallyWithT(suite.T(), func(ct *assert.CollectT) {
+		assert.True(ct, agent.Client.IsReady())
+	}, 2*time.Minute, 10*time.Second, "agent not ready after fix")
+	require.NoError(suite.T(), fakeIntake.FlushServerAndResetAggregators())
 
-		require.Never(t, func() bool {
-			payloads, _ := fakeIntake.GetAgentHealth()
+	suite.T().Run("Resolution", func(t *testing.T) {
+		require.EventuallyWithT(t, func(ct *assert.CollectT) {
+			payloads, err := fakeIntake.GetAgentHealth()
+			assert.NoError(ct, err)
 			for _, p := range payloads {
 				for _, iss := range findIssuesByPrefix(p, issuePrefix) {
-					if iss.PersistedIssue == nil || iss.PersistedIssue.State != healthplatform.IssueState_ISSUE_STATE_RESOLVED {
-						return true
+					if iss.PersistedIssue != nil && iss.PersistedIssue.State == healthplatform.IssueState_ISSUE_STATE_RESOLVED {
+						return
 					}
 				}
 			}
-			return false
-		}, defaultIssueAbsenceWindow, defaultIssuePollInterval, "issue still reported as non-resolved after fix")
+			assert.Fail(ct, "no payload found with the issue in RESOLVED state")
+		}, defaultIssueTimeout, defaultIssuePollInterval, "issue never transitioned to RESOLVED after fix")
 	})
 }

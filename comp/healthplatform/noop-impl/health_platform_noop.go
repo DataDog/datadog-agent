@@ -59,6 +59,9 @@ func (n *noopHealthPlatform) ResolveIssue(_ string) {
 func (n *noopHealthPlatform) ResolveAllIssues() {
 }
 
+func (n *noopHealthPlatform) PruneResolvedIssues() {
+}
+
 func (n *noopHealthPlatform) GetActiveIssueIDsByIssueName(_ string) []string {
 	return nil
 }

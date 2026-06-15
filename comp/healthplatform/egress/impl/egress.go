@@ -151,6 +151,7 @@ func (e *egress) tick() {
 	}
 
 	e.log.Info(fmt.Sprintf("Health platform egress: sent report with %d issues", count))
+	e.store.PruneResolvedIssues()
 }
 
 func (e *egress) buildReport(issues map[string]*healthplatform.Issue) *healthplatform.HealthReport {

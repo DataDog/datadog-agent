@@ -23,7 +23,7 @@ import (
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
@@ -419,17 +419,32 @@ func (h *healthPlatformImpl) ResolveIssue(issueID string) {
 	h.issuesMux.Lock()
 
 	stateChanged := false
-	if _, ok := h.issues[issueID]; ok {
+	if stored, ok := h.issues[issueID]; ok {
 		h.log.Info("Cleared issue: " + issueID)
 		stateChanged = true
+		if stored != nil && stored.issue != nil {
+			if stored.issue.PersistedIssue == nil {
+				stored.issue.PersistedIssue = &healthplatform.PersistedIssue{}
+			}
+			stored.issue.PersistedIssue.State = healthplatform.IssueState_ISSUE_STATE_RESOLVED
+		}
 	}
-	delete(h.issues, issueID)
 
 	if persisted := h.persistedIssues[issueID]; persisted != nil {
 		h.issuesByName[persisted.IssueType] = removeID(h.issuesByName[persisted.IssueType], issueID)
 		if persisted.State != IssueStateResolved {
 			persisted.State = IssueStateResolved
 			persisted.ResolvedAt = time.Now().Format(time.RFC3339)
+			stateChanged = true
+		}
+
+		if _, ok := h.issues[issueID]; !ok {
+			tombstone := &healthplatform.Issue{
+				Id:             issueID,
+				IssueName:      persisted.IssueType,
+				PersistedIssue: persistedIssueToProto(persisted),
+			}
+			h.issues[issueID] = &storedIssue{issue: tombstone}
 			stateChanged = true
 		}
 	}
@@ -439,6 +454,21 @@ func (h *healthPlatformImpl) ResolveIssue(issueID string) {
 	if stateChanged {
 		if err := h.saveToDisk(); err != nil {
 			h.log.Warn("Failed to persist issues to disk: " + err.Error())
+		}
+	}
+}
+
+// PruneResolvedIssues removes RESOLVED tombstones from h.issues.
+// Called by the egress after a successful send so that resolved issues are
+// not re-forwarded on every subsequent tick.
+func (h *healthPlatformImpl) PruneResolvedIssues() {
+	h.issuesMux.Lock()
+	defer h.issuesMux.Unlock()
+	for id, stored := range h.issues {
+		if stored != nil && stored.issue != nil &&
+			stored.issue.PersistedIssue != nil &&
+			stored.issue.PersistedIssue.State == IssueStateResolved {
+			delete(h.issues, id)
 		}
 	}
 }

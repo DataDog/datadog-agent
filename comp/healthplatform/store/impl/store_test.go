@@ -203,9 +203,14 @@ func TestResolveIssueRemovesFromActive(t *testing.T) {
 	h := newTestStore(t)
 	require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{Id: "t:id", IssueName: "t"}))
 
+	// ResolveIssue keeps the issue active with RESOLVED state so the egress keeps
+	// forwarding it. Cleanup happens on the next restart via loadFromDisk.
 	h.ResolveIssue("t:id")
+	issue := h.GetIssue("t:id")
+	require.NotNil(t, issue, "issue must stay in active set after ResolveIssue")
+	require.NotNil(t, issue.PersistedIssue)
+	assert.Equal(t, IssueStateResolved, issue.PersistedIssue.State)
 
-	assert.Nil(t, h.GetIssue("t:id"))
 	require.NotNil(t, h.persistedIssues["t:id"])
 	assert.Equal(t, IssueStateResolved, h.persistedIssues["t:id"].State)
 	assert.NotEmpty(t, h.persistedIssues["t:id"].ResolvedAt)
