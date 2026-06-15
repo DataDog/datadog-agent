@@ -2,10 +2,6 @@
     "$schema": "https://docs.renovatebot.com/renovate-schema.json",
     "extends": ["config:recommended", "mergeConfidence:all-badges", ":enablePreCommit", "schedule:nonOfficeHours"],
     "ignorePaths": [],
-    "constraints": {
-      "go": "1.26.4"
-    },
-    "constraintsFiltering": "strict",
     "minimumReleaseAge": "7 days",
     "prConcurrentLimit": 20,
     "labels": ["dependencies", "changelog/no-changelog", "qa/no-code-change"],
@@ -98,11 +94,20 @@
         "enabled": false
       },
       {
+        "description": "Only propose Go module updates compatible with the module go directive",
         "matchManagers": ["gomod"],
-        "matchDepTypes": ["replace"],
+        "matchDepTypes": ["require", "indirect", "tool"],
+        "constraintsFiltering": "strict"
+      },
+      {
+        "description": "Disable Go directives, toolchain (go update is managed independently) or replace (->fork)",
+        "matchManagers": ["gomod"],
+        "matchDepNames": ["go"],
+        "matchDepTypes": ["golang", "toolchain", "replace"],
         "enabled": false
       },
       {
+        "description": "Disable when pinned on a commit (->forks)",
         "matchManagers": ["gomod"],
         "matchUpdateTypes": ["digest"],
         "enabled": false
