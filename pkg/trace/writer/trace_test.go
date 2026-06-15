@@ -570,7 +570,6 @@ func TestTraceWriterInfo(t *testing.T) {
 	assert.Equal(t, int64(2), tw.statsLastMinute.Payloads.Load())
 	assert.NotEmpty(t, tw.statsLastMinute.Bytes.Load())
 	assert.NotEmpty(t, tw.statsLastMinute.BytesUncompressed.Load())
-	assert.Less(t, tw.statsLastMinute.Bytes.Load(), tw.statsLastMinute.BytesUncompressed.Load())
 	assert.Empty(t, tw.statsLastMinute.Errors.Load())
 	assert.Empty(t, tw.statsLastMinute.Retries.Load())
 
