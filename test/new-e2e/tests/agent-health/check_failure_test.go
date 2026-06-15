@@ -122,10 +122,6 @@ func (suite *checkFailureSuite) TestCheckFailureIssueLifecycle() {
 				),
 			),
 		))
-		// Flush before restarting so the post-restart RESOLVED payload is not
-		// buried in historical ONGOING payloads and can be found immediately.
-		require.NoError(t, fakeIntake.FlushServerAndResetAggregators())
-
 		// WithFile only writes the file; it does not reload the Python module
 		// already cached in the agent's interpreter. Restart so fixed_check.py
 		// is imported fresh, clearHealthPlatformIssue is called, and the RESOLVED
