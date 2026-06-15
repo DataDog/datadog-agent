@@ -71,8 +71,6 @@ func (w *worker) run() {
 		case <-w.server.stopChan:
 			return
 		case <-w.server.health.C:
-		case <-w.server.serverlessFlushChan:
-			w.batcher.flush()
 		case <-w.flushChan:
 			w.batcher.flush()
 		case filterList := <-w.FilterListUpdate:

@@ -8,7 +8,6 @@ go_library(
     deps = [
         "//comp/core/config",
         "//comp/core/log/def",
-        "//comp/core/log/impl",
         "//comp/def",
         "//comp/dogstatsd/serverDebug/def",
         "//pkg/aggregator/ckey",
