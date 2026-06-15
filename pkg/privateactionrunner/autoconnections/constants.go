@@ -24,7 +24,7 @@ const (
 )
 
 func getPrivateActionRunnerDir() string {
-	return filepath.Join(defaultpaths.ConfPath, privateActionRunnerRelativeDir)
+	return filepath.Join(defaultpaths.GetDefaultConfPath(), privateActionRunnerRelativeDir)
 }
 func getScriptConfigPath() string {
 	filename := "script-config.yaml"

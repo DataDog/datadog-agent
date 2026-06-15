@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/slices"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
+	adtypes "github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
 	autodiscoverydef "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
 	discovererPkg "github.com/DataDog/datadog-agent/comp/core/autodiscovery/discoverer"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -71,6 +72,7 @@ type Requires struct {
 	FilterStore    workloadfilter.Component
 	Telemetry      telemetry.Component
 	HealthPlatform option.Option[healthplatformdef.Component]
+	ServiceTracker adtypes.ServiceTracker `optional:"true"`
 }
 
 // AutoConfig implements the agent's autodiscovery mechanism.  It is
@@ -100,6 +102,7 @@ type AutoConfig struct {
 	telemetryStore           *acTelemetry.Store
 	healthPlatform           option.Option[healthplatformdef.Component]
 	staticConfigIndex        *listeners.StaticConfigIndex
+	serviceTracker           adtypes.ServiceTracker
 
 	// m covers the `configPollers`, `listenerCandidates`, `listeners`, and `listenerRetryStop`, but
 	// not the values they point to.
@@ -177,7 +180,7 @@ func newAutoConfig(deps Requires) autodiscoverydef.Component {
 		}
 	}()
 
-	ac := createNewAutoConfig(schController, deps.Secrets, deps.WMeta, deps.TaggerComp, deps.Log, deps.Telemetry, deps.FilterStore, deps.HealthPlatform)
+	ac := createNewAutoConfig(schController, deps.Secrets, deps.WMeta, deps.TaggerComp, deps.Log, deps.Telemetry, deps.FilterStore, deps.HealthPlatform, deps.ServiceTracker)
 	deps.Lc.Append(compdef.Hook{
 		OnStart: func(_ context.Context) error {
 			ac.start()
@@ -194,11 +197,11 @@ func newAutoConfig(deps Requires) autodiscoverydef.Component {
 // NewAutoConfigFromDeps creates an AutoConfig instance from explicit dependencies (without starting).
 // Exported for use by the mock package.
 func NewAutoConfigFromDeps(schedulerController *scheduler.Controller, secretResolver secrets.Component, wmeta option.Option[workloadmeta.Component], taggerComp tagger.Component, logs logComp.Component, telemetryComp telemetry.Component, filterStore workloadfilter.Component, hp option.Option[healthplatformdef.Component]) *AutoConfig {
-	return createNewAutoConfig(schedulerController, secretResolver, wmeta, taggerComp, logs, telemetryComp, filterStore, hp)
+	return createNewAutoConfig(schedulerController, secretResolver, wmeta, taggerComp, logs, telemetryComp, filterStore, hp, nil)
 }
 
 // createNewAutoConfig creates an AutoConfig instance (without starting).
-func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolver secrets.Component, wmeta option.Option[workloadmeta.Component], taggerComp tagger.Component, logs logComp.Component, telemetryComp telemetry.Component, filterStore workloadfilter.Component, hp option.Option[healthplatformdef.Component]) *AutoConfig {
+func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolver secrets.Component, wmeta option.Option[workloadmeta.Component], taggerComp tagger.Component, logs logComp.Component, telemetryComp telemetry.Component, filterStore workloadfilter.Component, hp option.Option[healthplatformdef.Component], tracker adtypes.ServiceTracker) *AutoConfig {
 	var hpComp healthplatformdef.Component
 	if h, ok := hp.Get(); ok {
 		hpComp = h
@@ -229,6 +232,7 @@ func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolv
 		telemetryStore:           acTelemetry.NewStore(telemetryComp),
 		healthPlatform:           hp,
 		staticConfigIndex:        staticConfigIndex,
+		serviceTracker:           tracker,
 	}
 
 	secretResolver.SubscribeToChanges(func(_, origin string, _ []string, oldValue, _ any) {
@@ -597,6 +601,7 @@ func (ac *AutoConfig) addListenerCandidates(listenerConfigs []pkgconfigsetup.Lis
 			Tagger:            ac.taggerComp,
 			Wmeta:             ac.wmeta,
 			StaticConfigIndex: ac.staticConfigIndex,
+			ServiceTracker:    ac.serviceTracker,
 		}
 
 		ac.listenerCandidates[c.Name] = &listenerCandidate{factory: factory, options: factoryOptions}

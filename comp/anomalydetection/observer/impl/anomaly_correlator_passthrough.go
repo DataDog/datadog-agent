@@ -13,11 +13,10 @@ import (
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 )
 
-// DetectorPassthroughCorrelator passes all anomalies straight through, grouped
-// by detector name. It does no time-clustering or filtering — each detector's
-// anomalies become a separate ActiveCorrelation. This is used for Level 1
-// detector-specific evaluation where we want to score each detector's raw
-// output independently.
+// DetectorPassthroughCorrelator passes all anomalies straight through without
+// time-clustering or filtering. Each individual anomaly becomes its own
+// ActiveCorrelation. This is used for Level 1 detector-specific evaluation
+// where we want to score each detector's raw output independently.
 type DetectorPassthroughCorrelator struct {
 	// anomaliesByDetector groups anomalies by DetectorName.
 	anomaliesByDetector map[string][]observer.Anomaly
@@ -62,9 +61,7 @@ func (c *DetectorPassthroughCorrelator) Reset() {
 //   - Anomalies:   single-element slice containing the original anomaly
 //   - FirstSeen/LastUpdated: the anomaly's timestamp
 //
-// When serialized via WriteObserverOutput, each correlation becomes an
-// ObserverCorrelation where period_start == period_end == anomaly.Timestamp.
-// This allows the scorer to evaluate each detection independently
+// This allows the scorer to evaluate each detection independently.
 func (c *DetectorPassthroughCorrelator) ActiveCorrelations() []observer.ActiveCorrelation {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
