@@ -52,8 +52,9 @@ func TestUninitializedConfig(t *testing.T) {
 	name := iisCfg.GetSiteNameFromID(0)
 	assert.Equal(t, name, "")
 
-	atags, cfgtags := iisCfg.GetAPMTags(0, "/")
+	atags, cfgtags, envtags := iisCfg.GetAPMTags(0, "/")
 	assert.Equal(t, atags.DDService, "")
 	assert.Equal(t, cfgtags.DDService, "")
+	assert.Equal(t, envtags.DDService, "")
 
 }
