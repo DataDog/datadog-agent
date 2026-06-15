@@ -131,45 +131,6 @@ impl Drop for JobObject {
 // Platform functions
 // ---------------------------------------------------------------------------
 
-/// Keys we copy from the parent (`dd-procmgr`) after `env_clear()` so children
-/// see a Windows baseline similar to an SCM-started service (SystemRoot, PATH,
-/// temp dirs, etc.). Values from `environment_file` / YAML `env:` still override.
-fn is_windows_baseline_env_key(key: &std::ffi::OsStr) -> bool {
-    let Some(s) = key.to_str() else {
-        return false;
-    };
-    matches!(
-        s.to_ascii_lowercase().as_str(),
-        "systemroot"
-            | "windir"
-            | "systemdrive"
-            | "programdata"
-            | "programfiles"
-            | "programfiles(x86)"
-            | "programw6432"
-            | "commonprogramfiles"
-            | "commonprogramfiles(x86)"
-            | "commonprogramw6432"
-            | "public"
-            | "temp"
-            | "tmp"
-            | "path"
-            | "pathext"
-            | "localappdata"
-            | "appdata"
-            | "userprofile"
-            | "comspec"
-    )
-}
-
-pub fn apply_minimal_parent_env(cmd: &mut tokio::process::Command) {
-    for (k, v) in std::env::vars_os() {
-        if is_windows_baseline_env_key(&k) {
-            cmd.env(k, v);
-        }
-    }
-}
-
 /// Place the child in its own process group so `GenerateConsoleCtrlEvent`
 /// can target it without affecting the daemon.
 pub fn setup_process_group(cmd: &mut tokio::process::Command) {
