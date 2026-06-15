@@ -187,7 +187,8 @@ func buildProvisioner(opts *options) (provisioners.Provisioner, error) {
 		return nil, err
 	}
 
-	vmOpts := []ec2.VMOption{ec2.WithOSArch(desc, oscomp.ArchitectureFromString(opts.arch))}
+	// desc already carries the architecture, validated in parseOSDescriptor.
+	vmOpts := []ec2.VMOption{ec2.WithOS(desc)}
 	if opts.instanceType != "" {
 		vmOpts = append(vmOpts, ec2.WithInstanceType(opts.instanceType))
 	}
@@ -319,8 +320,10 @@ func defaultInstallCmd(tool string) string {
 		// Native installer; installs to ~/.local/bin.
 		return "curl -fsSL https://claude.ai/install.sh | bash"
 	case "codex":
-		// Requires Node.js; installs the codex CLI globally for the current user.
-		return "npm install -g @openai/codex"
+		// Bootstrap Node.js/npm if missing (default Ubuntu host has neither), then
+		// install the codex CLI globally. Targets Debian/Ubuntu; for other distros
+		// pass --install-cmd. The global bin lands on PATH (/usr/bin).
+		return "command -v npm >/dev/null 2>&1 || { curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash -; sudo apt-get install -y nodejs; }; sudo npm install -g @openai/codex"
 	default:
 		return ""
 	}
