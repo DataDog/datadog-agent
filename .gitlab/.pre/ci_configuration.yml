@@ -19,7 +19,7 @@ test_gitlab_compare_to:
     - !reference [.except_mergequeue]
     - !reference [.on_gitlab_changes]
   before_script:
-    - !reference [.setup_github_token_write]
+    - !reference [.setup_github_token_compare_to]
   script:
     - dda self dep sync -f legacy-tasks
     - dda inv -- pipeline.compare-to-itself
