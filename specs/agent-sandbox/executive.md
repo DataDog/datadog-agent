@@ -38,7 +38,7 @@ Agent Sandbox is not a general Agent development environment, cloud environment 
 | REQ-AS-002 | Stay Local and Apple-Native on macOS | ⏭️ Planned | Stage A, Stage B |
 | REQ-AS-003 | Install a Published Host Agent Version | ⏭️ Planned | Stage A |
 | REQ-AS-004 | Apply Host Agent Configuration Overrides | ⏭️ Planned | Stage A |
-| REQ-AS-005 | Run Agent Commands Without Manual SSH Management | ⏭️ Planned | Stage A |
+| REQ-AS-005 | Run Agent Commands and SSH Without Manual Credential Management | ⏭️ Planned | Stage A |
 | REQ-AS-006 | Inspect Sandbox and Host Agent Health | ⏭️ Planned | Stage A |
 | REQ-AS-007 | Destroy Sandbox State Predictably | ⏭️ Planned | Stage A, Stage B |
 | REQ-AS-008 | Create a Local Kubernetes Agent Sandbox | ⏭️ Planned | Stage B |

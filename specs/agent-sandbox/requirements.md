@@ -83,17 +83,19 @@ An Agent maintainer needs to reproduce basic Kubernetes Agent behavior locally u
 - WHEN a configuration override is applied to an existing sandbox, THE SYSTEM SHALL make the Agent's resulting running state observable to the user.
 - IF the supplied configuration override cannot be applied, THE SYSTEM SHALL report the failure and preserve the sandbox for inspection.
 
-### REQ-AS-005: Run Agent Commands Without Manual SSH Management
+### REQ-AS-005: Run Agent Commands and SSH Without Manual Credential Management
 
-**User benefit:** A user can answer subcommand and diagnostics questions without remembering guest addresses, keys, usernames, or service paths.
+**User benefit:** A user can answer subcommand and diagnostics questions, or directly inspect the guest, without remembering guest addresses, keys, usernames, or service paths.
 
-**Rationale:** JY-AS-03 requires a convenient CLI wrapper that turns common Agent inspection tasks into direct local commands.
+**Rationale:** JY-AS-03 requires both a convenient command wrapper for common Agent inspection tasks and direct SSH access for ad hoc debugging. In both cases the system manages connection details so the user does not handle credentials manually.
 
 **EARS:**
 
 - WHEN the user requests a supported Agent subcommand for a running host Agent sandbox, THE SYSTEM SHALL execute that subcommand inside the sandbox and return its exit status, standard output, and standard error to the user.
+- WHEN the user requests direct SSH access for a running sandbox, THE SYSTEM SHALL open an SSH session using the sandbox's managed connection details.
 - WHEN the user requests an interactive shell for a running sandbox, THE SYSTEM SHALL open a guest shell using the sandbox's managed connection details.
-- THE SYSTEM SHALL NOT require the user to manually provide SSH key paths, guest IP addresses, or guest usernames for supported sandbox commands.
+- THE SYSTEM SHALL provide a local command wrapper for supported sandbox commands and direct SSH access.
+- THE SYSTEM SHALL NOT require the user to manually provide SSH key paths, guest IP addresses, or guest usernames for supported sandbox commands or direct SSH access.
 
 ### REQ-AS-006: Inspect Sandbox and Host Agent Health
 

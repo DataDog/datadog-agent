@@ -127,11 +127,12 @@ contract PublishedAgentArtifact {
 
 contract ManagedGuestConnection {
     execute: (sandbox: Sandbox, command: String) -> CommandResult
+    open_ssh_session: (sandbox: Sandbox) -> CommandResult
 
     @invariant UserDoesNotProvideSSHDetails
-        -- Supported commands resolve guest address, user and key
-        -- material from sandbox metadata rather than from user-supplied
-        -- SSH connection parameters.
+        -- Supported commands and direct SSH access resolve guest
+        -- address, user and key material from sandbox metadata rather
+        -- than from user-supplied SSH connection parameters.
 }
 
 ------------------------------------------------------------
@@ -227,6 +228,13 @@ rule RunManagedAgentCommand {
     ensures: CommandResultDelivered(result: execute(sandbox, command))
 }
 
+rule OpenManagedSSHSession {
+    when: SSHSessionRequested(sandbox)
+    requires: sandbox.state = running
+    requires: sandbox.ssh_metadata_present
+    ensures: CommandResultDelivered(result: open_ssh_session(sandbox))
+}
+
 rule ReportStatus {
     when: StatusRequested(sandbox)
     requires: sandbox.state != absent
@@ -283,6 +291,7 @@ surface SandboxCLI {
         HostConfigApplyRequested(sandbox, config)
         KubernetesConfigApplyRequested(sandbox, config)
         AgentCommandRequested(sandbox, command)
+        SSHSessionRequested(sandbox)
         KubeconfigRequested(sandbox)
         DestroyRequested(sandbox)
         CapabilityRequested(capability)

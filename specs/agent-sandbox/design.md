@@ -30,7 +30,7 @@ Core command groups:
 - `destroy`: stops the sandbox if needed and removes instance-specific mutable state and managed connection metadata.
 - `agent`: runs supported host Agent subcommands in a host Agent sandbox and returns command exit status, standard output, and standard error.
 - `logs`: retrieves recent host Agent logs or Kubernetes Agent pod logs, depending on mode.
-- `shell`: opens an interactive guest shell using managed connection details.
+- `shell` and `ssh`: open an interactive guest shell or SSH session using managed connection details.
 - `config apply`: applies host Agent configuration or Kubernetes Agent deployment configuration to an existing sandbox.
 - `kubeconfig`: writes or prints host-usable Kubernetes access configuration for a running Kubernetes Agent sandbox.
 
@@ -40,7 +40,7 @@ Unsupported capabilities are rejected at the CLI boundary with an explicit out-o
 
 **Traces to:** REQ-AS-001, REQ-AS-006, REQ-AS-007, REQ-AS-010, REQ-AS-012
 
-The sandbox stores all local state beneath a single sandbox root directory. The root is divided into cache state and instance state.
+The sandbox stores all local state beneath a single sandbox root directory. The default root is a dedicated user-level directory, `$HOME/.dd-agent-dev/sandbox`, not the current Agent worktree, not the root Agent checkout, and not a Phoenix task worktree. The CLI accepts an explicit state-root override for users who need a different disk location. The root is divided into cache state and instance state.
 
 Cache state contains reusable, immutable base image material keyed by operating system image identity and architecture. Cache entries are not sandbox instances and are not removed by normal instance destruction.
 
@@ -95,11 +95,11 @@ Provisioning records artifact identities and configuration sources in instance m
 
 **Traces to:** REQ-AS-005, REQ-AS-006, REQ-AS-010
 
-Each instance receives generated SSH credentials stored in its instance directory. The CLI resolves connection details from metadata and never requires the user to pass key paths, guest addresses, or usernames for supported commands.
+Each instance receives generated SSH credentials stored in its instance directory under the sandbox state root. The CLI resolves connection details from metadata and never requires the user to pass key paths, guest addresses, or usernames for supported commands or direct SSH access.
 
 Non-interactive commands execute through a common command runner that captures exit status, standard output, standard error, start time, and end time. The runner streams or prints output according to command type while preserving the underlying exit status for automation.
 
-Interactive shell commands attach the user's terminal to the guest shell through the managed connection. Status and log commands use the same connection model and report the failed connection step when the guest is unreachable.
+Direct SSH access is exposed through the same local command surface as other sandbox operations, including an invoke-friendly wrapper suitable for `dda inv` or equivalent task integration. The wrapper supplies the managed key, username, host, and port, then hands control to the user's terminal session. Interactive shell commands may use the direct SSH path or a narrower guest shell command, but both resolve connection details from sandbox metadata. Status and log commands use the same connection model and report the failed connection step when the guest is unreachable.
 
 Kubeconfig export uses managed guest access to retrieve cluster connection material, rewrites it for host-side access through the sandbox connection path, and stores the exported kubeconfig in the instance directory.
 
