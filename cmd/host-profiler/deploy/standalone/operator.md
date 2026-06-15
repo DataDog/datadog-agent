@@ -2,17 +2,11 @@
 
 ## Overview
 
-Use this guide when the Datadog Agent is not installed and you want the OpenTelemetry Operator to deploy the Host Profiler as its own OpenTelemetry Collector DaemonSet. If the Datadog Agent is already installed, use one of the Datadog Agent guides from the [deployment overview](../README.md#deployment) instead.
+Use this guide when your cluster does not run the Datadog Agent and you use the OpenTelemetry Operator to manage Collector deployments. If the Datadog Agent is already installed, including deployments that also run the Datadog Distribution of OpenTelemetry (DDOT), use one of the Datadog Agent guides from the [deployment overview](../README.md#deployment) instead.
 
-The Host Profiler runs independently and sends profiles directly to Datadog.
+The Host Profiler runs independently and sends profiles directly to Datadog. For cluster-wide host profiling, this guide uses the recommended OpenTelemetry Collector DaemonSet deployment.
 
 Review the [supported environments](../README.md#supported-environments) before continuing.
-
-Before running commands in this guide, change to the deployment docs directory from the repository root:
-
-```shell
-cd cmd/host-profiler/deploy
-```
 
 ## Prerequisites
 
