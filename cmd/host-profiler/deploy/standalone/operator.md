@@ -39,20 +39,20 @@ The Collector configuration lives in [`operator/collector.yaml`](operator/collec
 ## Deploy
 
 ```shell
+kubectl apply -f standalone/operator/rbac.yaml
 kubectl apply -f standalone/operator/collector.yaml
 ```
 
 On non-Cilium clusters:
 
 ```shell
-kubectl apply -f standalone/network-policy.yaml
+kubectl apply -f standalone/operator/network-policy.yaml
 ```
 
-[`operator/collector.yaml`](operator/collector.yaml) contains three resources:
+The Operator deployment uses two manifests:
 
-1. A `ClusterRole` granting the collector's service account access to the kubelet APIs needed for hostname resolution.
-2. A `ClusterRoleBinding` attaching that role to the `dd-host-profiler-collector` service account the Operator creates.
-3. The `OpenTelemetryCollector` Custom Resource defining the DaemonSet.
+1. [`operator/rbac.yaml`](operator/rbac.yaml): RBAC needed for node, kubelet, and Kubernetes metadata used during profile enrichment.
+2. [`operator/collector.yaml`](operator/collector.yaml): the `OpenTelemetryCollector` Custom Resource that runs the Host Profiler as a DaemonSet.
 
 The Operator reconciles the Custom Resource and creates the DaemonSet.
 
@@ -77,8 +77,8 @@ securityContext:
 On clusters with Cilium, replace the standard network policy with the Cilium one to get FQDN-scoped egress enforcement:
 
 ```shell
-kubectl delete -f standalone/network-policy.yaml
-kubectl apply -f standalone/cilium-network-policy.yaml
+kubectl delete -f standalone/operator/network-policy.yaml
+kubectl apply -f standalone/operator/cilium-network-policy.yaml
 ```
 
 ## Verification
