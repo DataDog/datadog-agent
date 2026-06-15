@@ -1,0 +1,10 @@
+load("@rules_cc//cc:defs.bzl", "cc_library")
+
+# Bazel-native link target for the cgo sds-go binding, consumed as a `cdeps`
+# dependency (see //bazel/patches:sds-go-cdep.patch). Wraps the libdd_sds static
+# archive built from the crates.io `dd-sensitive-data-scanner` crate.
+cc_library(
+    name = "dd_sds",
+    visibility = ["//visibility:public"],
+    deps = ["//deps/sds/rust:dd_sds_static"],
+)

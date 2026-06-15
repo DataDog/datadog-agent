@@ -1,0 +1,13 @@
+load("@rules_rust//rust:defs.bzl", "rust_static_library")
+
+# Builds libdd_sds.a from the crates.io `dd-sensitive-data-scanner` crate (with the
+# `dd_sds_go` FFI feature). Linked into the cgo sds-go binding via //deps/sds:dd_sds.
+rust_static_library(
+    name = "dd_sds_static",
+    srcs = ["src/lib.rs"],
+    crate_name = "dd_sds",
+    crate_root = "src/lib.rs",
+    edition = "2024",
+    visibility = ["//visibility:public"],
+    deps = ["@crates//:dd-sensitive-data-scanner"],
+)

@@ -1,0 +1,17 @@
+Wire the cgo sds-go binding to the bazel-built libdd_sds.
+
+Gazelle turns the binding's `#cgo LDFLAGS: -L../../sds/target/release -ldd_sds`
+into a clinkopt with a relative path bazel can't resolve, so the link fails with
+`cannot find -ldd_sds`. Replace it with a cdeps edge onto //deps/sds:dd_sds (the
+libdd_sds static archive). Applied via go_deps.module_override, after gazelle.
+--- a/BUILD.bazel
++++ b/BUILD.bazel
+@@ -45,7 +45,7 @@
+         "validation.go",
+     ],
+     cgo = True,
+-    clinkopts = ["-L../../sds/target/release -ldd_sds"],
++    cdeps = ["@@//deps/sds:dd_sds"],
+     importpath = "github.com/DataDog/dd-sensitive-data-scanner/sds-go/go",
+     visibility = ["//visibility:public"],
+ )
