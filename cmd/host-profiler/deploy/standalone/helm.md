@@ -34,8 +34,10 @@ Before deploying, update the provided Helm values files for your environment. Th
    - Adapt it like any other [OpenTelemetry Collector configuration](https://opentelemetry.io/docs/collector/configuration/).
 
 3. Choose a network policy values file:
-   - Use [`helm/network-policy-values.yaml`](helm/network-policy-values.yaml) by default.
+   - If your cluster enforces Kubernetes NetworkPolicy, use [`helm/network-policy-values.yaml`](helm/network-policy-values.yaml) by default.
    - If your cluster uses Cilium and you want FQDN-scoped egress enforcement, use [`helm/cilium-network-policy-values.yaml`](helm/cilium-network-policy-values.yaml) instead.
+
+If your cluster does not enforce NetworkPolicy resources, these values do not restrict egress; use your cluster's supported network controls instead.
 
 ## Deploy
 
