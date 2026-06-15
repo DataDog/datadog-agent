@@ -106,7 +106,7 @@ func (b *Builder) BuildStatus(verbose bool) Status {
 		ComponentUtilization:  utils,
 		Backpressure:          bp,
 		PerformanceProfile:    profile,
-		ProfileRecommendation: b.getProfileRecommendation(utils, bp, activeProfile, b.senderLatencyMs()),
+		ProfileRecommendation: b.getProfileRecommendation(utils, activeProfile, b.senderLatencyMs(), b.logsDropped(), b.bytesMissed(), b.destinationDelivering()),
 		BackpressureTable:     b.formatBackpressureSection(utils, bp),
 	}
 }
@@ -268,6 +268,77 @@ func (b *Builder) senderLatencyMs() int64 {
 	return 0
 }
 
+// bytesMissed returns the total number of bytes lost before they could be
+// consumed (e.g. a file rotating away before the tailer drained it), or 0 when
+// unavailable. This is backpressure-induced read-side loss.
+func (b *Builder) bytesMissed() int64 {
+	if b.logsExpVars == nil {
+		return 0
+	}
+	if v, ok := b.logsExpVars.Get("BytesMissed").(*expvar.Int); ok && v != nil {
+		return v.Value()
+	}
+	return 0
+}
+
+// logsDropped returns the total number of logs dropped summed across all
+// destinations (permanent send failures, or non-reliable endpoints giving up),
+// or 0 when unavailable. This is send-side loss.
+func (b *Builder) logsDropped() int64 {
+	if b.logsExpVars == nil {
+		return 0
+	}
+	m, ok := b.logsExpVars.Get("DestinationLogsDropped").(*expvar.Map)
+	if !ok || m == nil {
+		return 0
+	}
+	var total int64
+	m.Do(func(kv expvar.KeyValue) {
+		if v, ok := kv.Value.(*expvar.Int); ok && v != nil {
+			total += v.Value()
+		}
+	})
+	return total
+}
+
+// destinationDelivering reports whether the pipeline is successfully delivering
+// to its destination. It is false only when logs have been processed but none
+// have been sent (LogsProcessed > 0 && LogsSent == 0) — the signature of an
+// intake that is rejecting or unreachable. A send-stage bottleneck is only a
+// tuning problem (fixable by a profile) when the intake is actually delivering;
+// otherwise no performance profile can help.
+func (b *Builder) destinationDelivering() bool {
+	if b.logsExpVars == nil {
+		return true
+	}
+	var processed, sent int64
+	if v, ok := b.logsExpVars.Get("LogsProcessed").(*expvar.Int); ok && v != nil {
+		processed = v.Value()
+	}
+	if v, ok := b.logsExpVars.Get("LogsSent").(*expvar.Int); ok && v != nil {
+		sent = v.Value()
+	}
+	return !(processed > 0 && sent == 0)
+}
+
+// isSendStage reports whether the component is part of the network send/transport
+// stage (the worker pool, the sender aggregation point, or a destination).
+func isSendStage(component string) bool {
+	return component == "worker" || component == logsMetrics.SenderTlmName || strings.HasPrefix(component, "destination_")
+}
+
+// bottleneckComponent localizes the pipeline bottleneck: the most-downstream
+// currently-saturated stage, falling back to the most-downstream stage saturated
+// in the last 1m/30m. Returns "" when no stage is saturated.
+func (b *Builder) bottleneckComponent(utils []ComponentUtilization) string {
+	if c := mostDownstreamSaturated(utils, func(u ComponentUtilization) bool { return u.CurrentlySaturated }); c != "" {
+		return c
+	}
+	return mostDownstreamSaturated(utils, func(u ComponentUtilization) bool {
+		return u.Saturated1mSeconds > 0 || u.Saturated30mSeconds > 0
+	})
+}
+
 // mostDownstreamSaturated returns the name of the most-downstream component for
 // which sat() is true, or "" if none. Most-downstream wins because backpressure
 // propagates upstream: when a stage stalls, every stage above it also fills, so
@@ -311,31 +382,46 @@ func recommendProfileForBottleneck(component string, latencyMs int64) (profile s
 	}
 }
 
-// getProfileRecommendation suggests a logs performance profile based on the
-// observed bottleneck. It locates the most-downstream saturated stage and maps
-// it to a profile. Returns nil when the pipeline is healthy or when the profile
-// it would recommend is already active.
-func (b *Builder) getProfileRecommendation(utils []ComponentUtilization, bp BackpressureStatus, activeProfile string, latencyMs int64) *ProfileRecommendation {
-	var bottleneck string
-	switch bp.State {
-	case "SATURATED":
-		bottleneck = mostDownstreamSaturated(utils, func(u ComponentUtilization) bool { return u.CurrentlySaturated })
-	case "WARNING":
-		bottleneck = mostDownstreamSaturated(utils, func(u ComponentUtilization) bool {
-			return u.Saturated1mSeconds > 0 || u.Saturated30mSeconds > 0
-		})
-	default:
+// getProfileRecommendation suggests a logs performance profile only when the
+// agent is actually losing logs. Loss is the gate; saturation (normal under
+// load) merely localizes the bottleneck. dropped/missed are the send-side and
+// read-side loss counts; delivering reports whether the intake is reachable.
+// Returns nil when no logs are being lost, when the loss is not fixable by a
+// profile, or when the profile it would recommend is already active.
+func (b *Builder) getProfileRecommendation(utils []ComponentUtilization, activeProfile string, latencyMs, dropped, missed int64, delivering bool) *ProfileRecommendation {
+	// Loss is the gate. Saturation without loss is normal and never recommends.
+	if dropped == 0 && missed == 0 {
 		return nil
 	}
-	if bottleneck == "" {
-		return nil
+
+	bottleneck := b.bottleneckComponent(utils)
+
+	if dropped > 0 {
+		// Send-side drops localize to the destination. A profile helps only when
+		// the send stage is saturated (load-driven) and the intake is delivering;
+		// otherwise the drops are permanent send errors or a dead intake.
+		if !isSendStage(bottleneck) || !delivering {
+			return nil
+		}
+	} else {
+		// missed > 0: backpressure-induced read-side loss.
+		if bottleneck == "" {
+			// Rotation outran an idle reader; the fix is logs_config.close_timeout,
+			// not a performance profile.
+			return nil
+		}
+		if isSendStage(bottleneck) && !delivering {
+			// The intake is rejecting or unreachable; no profile can help.
+			return nil
+		}
 	}
+
 	recommended, reason := recommendProfileForBottleneck(bottleneck, latencyMs)
 	if recommended == "" || recommended == activeProfile {
 		// Already on the profile we'd suggest, or nothing to suggest.
 		return nil
 	}
-	return &ProfileRecommendation{Profile: recommended, Reason: reason}
+	return &ProfileRecommendation{Profile: recommended, Reason: "Logs are being lost. " + reason}
 }
 
 // formatBackpressureSection renders the backpressure section as preformatted text (omitted from JSON).
@@ -577,6 +663,8 @@ func (b *Builder) getMetricsStatus() map[string]string {
 	var metrics = make(map[string]string)
 	metrics["LogsProcessed"] = strconv.FormatInt(b.logsExpVars.Get("LogsProcessed").(*expvar.Int).Value(), 10)
 	metrics["LogsSent"] = strconv.FormatInt(b.logsExpVars.Get("LogsSent").(*expvar.Int).Value(), 10)
+	metrics["LogsDropped"] = strconv.FormatInt(b.logsDropped(), 10)
+	metrics["BytesMissed"] = strconv.FormatInt(b.bytesMissed(), 10)
 	metrics["BytesSent"] = strconv.FormatInt(b.logsExpVars.Get("BytesSent").(*expvar.Int).Value(), 10)
 	metrics["RetryCount"] = strconv.FormatInt(b.logsExpVars.Get("RetryCount").(*expvar.Int).Value(), 10)
 	metrics["RetryTimeSpent"] = time.Duration(b.logsExpVars.Get("RetryTimeSpent").(*expvar.Int).Value()).String()

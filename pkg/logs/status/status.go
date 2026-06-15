@@ -106,9 +106,11 @@ type BackpressureStatus struct {
 	Component string `json:"component,omitempty"`
 }
 
-// ProfileRecommendation suggests a logs performance profile based on observed
-// pipeline saturation. It is nil when no profile is recommended (e.g. the
-// pipeline is healthy or the recommended profile is already active).
+// ProfileRecommendation suggests a logs performance profile when the agent is
+// actually losing logs (saturation alone does not trigger one). The loss signal
+// gates the recommendation; saturation only localizes the bottleneck. It is nil
+// when no logs are being lost, when the loss is not fixable by a profile, or
+// when the recommended profile is already active.
 type ProfileRecommendation struct {
 	// Profile is the recommended logs_config.profile value.
 	Profile string `json:"profile"`
@@ -147,7 +149,7 @@ type Status struct {
 	Backpressure         BackpressureStatus     `json:"backpressure"`
 	// PerformanceProfile is the active logs performance profile, or nil when off.
 	PerformanceProfile *PerformanceProfile `json:"performance_profile,omitempty"`
-	// ProfileRecommendation suggests a profile based on observed saturation, or nil when none.
+	// ProfileRecommendation suggests a profile when the agent is losing logs, or nil when none.
 	ProfileRecommendation *ProfileRecommendation `json:"profile_recommendation,omitempty"`
 	// BackpressureTable is the preformatted text table, omitted from JSON; use ComponentUtilization for structured access.
 	BackpressureTable string `json:"-"`
