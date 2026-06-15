@@ -49,6 +49,10 @@ type openmetricsScraper struct {
 	flushFirstValue bool
 }
 
+type scrapePrepass struct {
+	processStartTime float64
+}
+
 var defaultBearerTokenPath = "/var/run/secrets/kubernetes.io/serviceaccount/token"
 
 func newScraper(cfg *scraperConfig) (*openmetricsScraper, error) {
@@ -114,7 +118,28 @@ func (s *openmetricsScraper) scrape(sender sender.Sender) error {
 	}
 
 	useOpenMetrics := s.cfg.useLatestSpec || responseUsesOpenMetrics(contentType)
-	metrics, ignoredLines, err := parseMetrics(body, s.rawLineFilter, useOpenMetrics, s.cfg.mode == latestMode)
+	prepass := scrapePrepass{processStartTime: math.Inf(1)}
+	if s.needsPrepass() {
+		if _, err := s.runPrepass(body, useOpenMetrics, &prepass); err != nil {
+			if s.flushFirstValue {
+				s.flushFirstValue = false
+			}
+			return err
+		}
+	}
+	runtime := runtimeData{
+		flushFirstValue: s.flushFirstValue || s.shouldFlushFirstValue(prepass.processStartTime),
+		staticTags:      s.staticTags,
+	}
+
+	submittedSamples := 0
+	ignoredLines, err := walkParsedMetrics(body, s.rawLineFilter, useOpenMetrics, s.cfg.mode == latestMode, func(metric parsedMetric) (bool, error) {
+		metric = s.applyRawMetricPrefix(metric)
+		count := s.processMetric(metric, runtime, sender, submittedSamples)
+		submittedSamples += count
+		keepMaterializing := s.cfg.maxReturnedMetrics <= 0 || submittedSamples < s.cfg.maxReturnedMetrics
+		return keepMaterializing, nil
+	})
 	if err != nil {
 		if s.flushFirstValue {
 			s.flushFirstValue = false
@@ -126,66 +151,79 @@ func (s *openmetricsScraper) scrape(sender sender.Sender) error {
 		s.submitTelemetryCount(sender, "telemetry.metrics.blacklist.count", float64(ignoredLines))
 	}
 
-	metrics = s.applyRawMetricPrefix(metrics)
-	runtime := runtimeData{
-		flushFirstValue: s.flushFirstValue || s.shouldFlushFirstValue(metrics),
-		staticTags:      s.staticTags,
-	}
-	metrics = s.labelAggregator.prepare(metrics)
-
-	submittedSamples := 0
-	for _, metric := range metrics {
-		s.labelAggregator.beforeMetric(metric)
-		if s.isMetricExcluded(metric) {
-			if s.cfg.telemetry {
-				s.submitTelemetryCount(sender, "telemetry.metrics.ignored.count", float64(len(metric.Samples)))
-			}
-			continue
-		}
-		if s.cfg.telemetry {
-			s.submitTelemetryCount(sender, "telemetry.metrics.input.count", float64(len(metric.Samples)))
-		}
-
-		transformer := s.transformer.get(metric)
-		if transformer == nil {
-			continue
-		}
-		samples := s.generateSampleData(metric, sender)
-		if s.cfg.maxReturnedMetrics > 0 {
-			remaining := s.cfg.maxReturnedMetrics - submittedSamples
-			if remaining <= 0 {
-				break
-			}
-			if len(samples) > remaining {
-				samples = samples[:remaining]
-			}
-		}
-		submittedSamples += len(samples)
-		transformer.transformer(metric, samples, runtime, sender)
-	}
-
 	s.labelAggregator.afterScrape()
 	s.flushFirstValue = true
 	return nil
 }
 
-func (s *openmetricsScraper) shouldFlushFirstValue(metrics []parsedMetric) bool {
+func (s *openmetricsScraper) needsPrepass() bool {
+	return s.labelAggregator.needsPrepass() || (s.cfg.useProcessStartTime && !s.flushFirstValue)
+}
+
+func (s *openmetricsScraper) runPrepass(data []byte, useOpenMetrics bool, prepass *scrapePrepass) (int, error) {
+	var labelPreparer *labelAggregatorPreparer
+	if s.labelAggregator.needsPrepass() {
+		labelPreparer = s.labelAggregator.newPreparer()
+	}
+
+	needProcessStartTime := s.cfg.useProcessStartTime && !s.flushFirstValue
+	labelPrepassDone := labelPreparer == nil
+	return walkParsedMetrics(data, s.rawLineFilter, useOpenMetrics, s.cfg.mode == latestMode, func(metric parsedMetric) (bool, error) {
+		metric = s.applyRawMetricPrefix(metric)
+		if labelPreparer != nil {
+			labelPrepassDone = labelPreparer.collect(metric)
+		}
+		if metric.Name != "process_start_time_seconds" {
+			return !labelPrepassDone || needProcessStartTime, nil
+		}
+		for _, sample := range metric.Samples {
+			if sample.Value < prepass.processStartTime {
+				prepass.processStartTime = sample.Value
+			}
+		}
+		return !labelPrepassDone || needProcessStartTime, nil
+	})
+}
+
+func (s *openmetricsScraper) shouldFlushFirstValue(processStart float64) bool {
 	if !s.cfg.useProcessStartTime || s.flushFirstValue {
 		return false
 	}
 	agentStart := float64(pkgconfigsetup.StartTime.Unix())
-	processStart := math.Inf(1)
-	for _, metric := range metrics {
-		if metric.Name != "process_start_time_seconds" {
-			continue
+	return processStart < math.Inf(1) && processStart > agentStart
+}
+
+func (s *openmetricsScraper) processMetric(metric parsedMetric, runtime runtimeData, sender sender.Sender, submittedSamples int) int {
+	if s.cfg.maxReturnedMetrics > 0 && submittedSamples >= s.cfg.maxReturnedMetrics {
+		return 0
+	}
+	s.labelAggregator.beforeMetric(metric)
+	if s.isMetricExcluded(metric) {
+		if s.cfg.telemetry {
+			s.submitTelemetryCount(sender, "telemetry.metrics.ignored.count", float64(len(metric.Samples)))
 		}
-		for _, sample := range metric.Samples {
-			if sample.Value < processStart {
-				processStart = sample.Value
-			}
+		return 0
+	}
+	if s.cfg.telemetry {
+		s.submitTelemetryCount(sender, "telemetry.metrics.input.count", float64(len(metric.Samples)))
+	}
+
+	transformer := s.transformer.get(metric)
+	if transformer == nil {
+		return 0
+	}
+	samples := s.generateSampleData(metric, sender)
+	if s.cfg.maxReturnedMetrics > 0 {
+		remaining := s.cfg.maxReturnedMetrics - submittedSamples
+		if remaining <= 0 {
+			return 0
+		}
+		if len(samples) > remaining {
+			samples = samples[:remaining]
 		}
 	}
-	return processStart < math.Inf(1) && processStart > agentStart
+	transformer.transformer(metric, samples, runtime, sender)
+	return len(samples)
 }
 
 func (s *openmetricsScraper) fetch(sender sender.Sender) ([]byte, string, error) {
@@ -274,14 +312,12 @@ func (s *openmetricsScraper) bearerToken() (string, error) {
 	return strings.TrimSpace(string(token)), nil
 }
 
-func (s *openmetricsScraper) applyRawMetricPrefix(metrics []parsedMetric) []parsedMetric {
+func (s *openmetricsScraper) applyRawMetricPrefix(metric parsedMetric) parsedMetric {
 	if s.cfg.rawMetricPrefix == "" {
-		return metrics
+		return metric
 	}
-	for i := range metrics {
-		metrics[i].Name = strings.TrimPrefix(metrics[i].Name, s.cfg.rawMetricPrefix)
-	}
-	return metrics
+	metric.Name = strings.TrimPrefix(metric.Name, s.cfg.rawMetricPrefix)
+	return metric
 }
 
 func (s *openmetricsScraper) isMetricExcluded(metric parsedMetric) bool {

@@ -32,7 +32,9 @@ type parsedSample struct {
 	Timestamp int64
 }
 
-func parseMetrics(data []byte, rawLineFilter *regexp.Regexp, useOpenMetrics bool, trimCounterSuffix bool) ([]parsedMetric, int, error) {
+type parsedMetricHandler func(parsedMetric) (bool, error)
+
+func walkParsedMetrics(data []byte, rawLineFilter *regexp.Regexp, useOpenMetrics bool, trimCounterSuffix bool, handler parsedMetricHandler) (int, error) {
 	filtered, ignoredLines := filterRawLines(data, rawLineFilter)
 
 	st := labels.NewSymbolTable()
@@ -45,9 +47,27 @@ func parseMetrics(data []byte, rawLineFilter *regexp.Regexp, useOpenMetrics bool
 		parser = textparse.NewPromParser(filtered, st, false)
 	}
 
-	var metrics []parsedMetric
-	var current *parsedMetric
+	var current parsedMetric
+	hasCurrent := false
+	materialize := true
 	var lbls labels.Labels
+	flushCurrent := func() error {
+		if !hasCurrent {
+			return nil
+		}
+		if len(current.Samples) == 0 {
+			hasCurrent = false
+			return nil
+		}
+		keepMaterializing, err := handler(current)
+		if err != nil {
+			return err
+		}
+		materialize = keepMaterializing
+		current = parsedMetric{}
+		hasCurrent = false
+		return nil
+	}
 
 	for {
 		entry, err := parser.Next()
@@ -55,11 +75,17 @@ func parseMetrics(data []byte, rawLineFilter *regexp.Regexp, useOpenMetrics bool
 			break
 		}
 		if err != nil {
-			return nil, ignoredLines, err
+			return ignoredLines, err
 		}
 
 		switch entry {
 		case textparse.EntryType:
+			if err := flushCurrent(); err != nil {
+				return ignoredLines, err
+			}
+			if !materialize {
+				continue
+			}
 			name, typ := parser.Type()
 			metricType := strings.ToLower(string(typ))
 			metricName := string(name)
@@ -69,9 +95,12 @@ func parseMetrics(data []byte, rawLineFilter *regexp.Regexp, useOpenMetrics bool
 			if trimCounterSuffix {
 				metricName = normalizeFamilyName(metricName, metricType)
 			}
-			metrics = append(metrics, parsedMetric{Name: metricName, Type: metricType})
-			current = &metrics[len(metrics)-1]
+			current = parsedMetric{Name: metricName, Type: metricType}
+			hasCurrent = true
 		case textparse.EntrySeries:
+			if !materialize {
+				continue
+			}
 			_, ts, value := parser.Series()
 			parser.Labels(&lbls)
 			rawName := lbls.Get(model.MetricNameLabel)
@@ -79,11 +108,14 @@ func parseMetrics(data []byte, rawLineFilter *regexp.Regexp, useOpenMetrics bool
 				continue
 			}
 
-			if current == nil || !sampleBelongsToFamily(rawName, current) {
+			if !hasCurrent || !sampleBelongsToFamily(rawName, &current) {
+				if err := flushCurrent(); err != nil {
+					return ignoredLines, err
+				}
 				metricType := "unknown"
 				metricName := rawName
-				metrics = append(metrics, parsedMetric{Name: metricName, Type: metricType})
-				current = &metrics[len(metrics)-1]
+				current = parsedMetric{Name: metricName, Type: metricType}
+				hasCurrent = true
 			}
 
 			sampleLabels := make(map[string]string, lbls.Len())
@@ -103,16 +135,22 @@ func parseMetrics(data []byte, rawLineFilter *regexp.Regexp, useOpenMetrics bool
 		}
 	}
 
-	return dropEmptyMetrics(metrics), ignoredLines, nil
+	if err := flushCurrent(); err != nil {
+		return ignoredLines, err
+	}
+	return ignoredLines, nil
 }
 
 func filterRawLines(data []byte, filter *regexp.Regexp) ([]byte, int) {
+	if filter == nil {
+		return data, 0
+	}
 	lines := bytes.Split(data, []byte{'\n'})
 	filtered := make([][]byte, 0, len(lines))
 	ignored := 0
 	for _, line := range lines {
 		line = bytes.TrimRight(bytes.TrimLeft(line, " \t"), "\r")
-		if filter != nil && filter.Match(line) {
+		if filter.Match(line) {
 			ignored++
 			continue
 		}
@@ -122,6 +160,9 @@ func filterRawLines(data []byte, filter *regexp.Regexp) ([]byte, int) {
 }
 
 func sanitizePromInfoTypes(data []byte) ([]byte, map[string]struct{}) {
+	if !bytes.Contains(data, []byte("info")) {
+		return data, nil
+	}
 	lines := bytes.Split(data, []byte{'\n'})
 	infoTypes := map[string]struct{}{}
 	for i, line := range lines {
@@ -162,14 +203,4 @@ func sampleBelongsToFamily(sampleName string, metric *parsedMetric) bool {
 	default:
 		return false
 	}
-}
-
-func dropEmptyMetrics(metrics []parsedMetric) []parsedMetric {
-	out := metrics[:0]
-	for _, metric := range metrics {
-		if len(metric.Samples) > 0 {
-			out = append(out, metric)
-		}
-	}
-	return out
 }

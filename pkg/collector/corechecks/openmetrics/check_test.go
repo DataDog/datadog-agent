@@ -1368,6 +1368,28 @@ metrics:
 	wildcard.sender.AssertMetric(t, "Gauge", "openmetrics.metric2", 2, "", []string{"node:host2", "timestamp:123", "matched_label:foobar"})
 }
 
+func TestMaxReturnedMetricsStillValidatesResponseTail(t *testing.T) {
+	run := configureOpenMetricsCheck(t, `
+openmetrics_endpoint: %%endpoint%%
+namespace: openmetrics
+metrics:
+  - metric*
+max_returned_metrics: 1
+`, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/plain; version=0.0.4")
+		_, err := w.Write([]byte(`
+# TYPE metric1 gauge
+metric1 1
+# TYPE metric2 gauge
+metric2 2
+invalid_metric{
+`))
+		require.NoError(t, err)
+	}))
+
+	require.Error(t, run.check.Run())
+}
+
 func TestIntegrationsCoreOpenMetricsFixtureParity(t *testing.T) {
 	payload := `
 # TYPE prometheus_target_interval_length_seconds summary

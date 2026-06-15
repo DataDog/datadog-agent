@@ -38,6 +38,11 @@ type sharedLabelSet struct {
 	sharedLabels map[string]string
 }
 
+type labelAggregatorPreparer struct {
+	aggregator *labelAggregator
+	pending    map[string]shareLabelConfig
+}
+
 func newLabelAggregator(cfg *scraperConfig) (*labelAggregator, error) {
 	aggregator := &labelAggregator{
 		cacheSharedLabels:   cfg.cacheSharedLabels,
@@ -80,15 +85,11 @@ func parseShareLabelConfig(metric string, cfg types.ShareLabelsConfig) (shareLab
 	return parsed, nil
 }
 
-func (a *labelAggregator) prepare(metrics []parsedMetric) []parsedMetric {
-	if !a.configured {
-		return metrics
-	}
+func (a *labelAggregator) needsPrepass() bool {
+	return a.configured && !a.cacheSharedLabels
+}
 
-	if a.cacheSharedLabels {
-		return metrics
-	}
-
+func (a *labelAggregator) newPreparer() *labelAggregatorPreparer {
 	a.labelSets = nil
 	a.unconditionalLabels = map[string]string{}
 
@@ -99,18 +100,17 @@ func (a *labelAggregator) prepare(metrics []parsedMetric) []parsedMetric {
 	if a.targetInfo {
 		pending["target_info"] = shareLabelConfig{}
 	}
+	return &labelAggregatorPreparer{aggregator: a, pending: pending}
+}
 
-	for _, metric := range metrics {
-		if config, ok := pending[metric.Name]; ok {
-			a.collect(metric, config)
-			delete(pending, metric.Name)
-		}
-		if len(pending) == 0 && !a.cacheSharedLabels {
-			break
-		}
+func (p *labelAggregatorPreparer) collect(metric parsedMetric) bool {
+	config, ok := p.pending[metric.Name]
+	if !ok {
+		return len(p.pending) == 0
 	}
-
-	return metrics
+	p.aggregator.collect(metric, config)
+	delete(p.pending, metric.Name)
+	return len(p.pending) == 0
 }
 
 func (a *labelAggregator) beforeMetric(metric parsedMetric) {
