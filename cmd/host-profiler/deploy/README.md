@@ -33,12 +33,12 @@ Choose the guide that matches how your Kubernetes cluster is managed:
 
 | If your cluster...                                                    | Use this guide                                   | What it deploys                                                    |
 |-----------------------------------------------------------------------|--------------------------------------------------|--------------------------------------------------------------------|
-| Already runs the Datadog Agent installed with Helm                    | [Datadog Helm chart](bundled/helm.md)            | Adds the profiler as a sidecar to the Agent DaemonSet.             |
-| Already runs the Datadog Agent installed with the Datadog Operator    | [Datadog Operator](bundled/operator.md)          | Adds the profiler as a sidecar to the Agent DaemonSet.             |
+| Already runs the Datadog Agent with Helm, including DDOT deployments | [Datadog Helm chart](bundled/helm.md)            | Adds the profiler as a sidecar to the Agent DaemonSet.             |
+| Already runs the Datadog Agent with the Datadog Operator, including DDOT deployments | [Datadog Operator](bundled/operator.md)          | Adds the profiler as a sidecar to the Agent DaemonSet.             |
 | Does not run the Datadog Agent and you use Helm                       | [OpenTelemetry Helm chart](standalone/helm.md)   | Deploys the profiler as its own OpenTelemetry Collector DaemonSet. |
 | Does not run the Datadog Agent and you use the OpenTelemetry Operator | [OpenTelemetry Operator](standalone/operator.md) | Deploys the profiler as its own OpenTelemetry Collector DaemonSet. |
 
-If the Datadog Agent is already installed, including deployments that also run the Datadog Distribution of OpenTelemetry (DDOT), use one of the Datadog Agent paths so the Agent can enrich profiles with infrastructure metadata. Otherwise, use one of the OpenTelemetry paths.
+If the Datadog Agent is already installed, use one of the Datadog Agent paths so the Agent can enrich profiles with infrastructure metadata. Otherwise, use one of the OpenTelemetry paths.
 
 If something isn't working, see [Troubleshooting](troubleshooting.md).
 
