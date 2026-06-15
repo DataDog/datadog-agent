@@ -19,6 +19,7 @@ import (
 )
 
 const (
+	defaultBaseName       = "dda"
 	defaultAgentNamespace = "datadog"
 	DatadogHelmRepo       = "https://helm.datadoghq.com"
 )
@@ -43,6 +44,11 @@ const (
 // [Functional options pattern]: https://dave.cheney.net/2014/10/17/functional-options-for-friendly-apis
 
 type Params struct {
+	// BaseName is the base name used to derive the Helm release and Pulumi resource
+	// names for this Agent installation. It defaults to "dda". Override it (e.g. via
+	// WithBaseName) when deploying multiple Agent installations in the same cluster to
+	// avoid resource name collisions.
+	BaseName string
 	// AgentFullImagePath is the full path of the docker agent image to use.
 	AgentFullImagePath string
 	// ClusterAgentFullImagePath is the full path of the docker cluster agent image to use.
@@ -94,6 +100,7 @@ type Option = func(*Params) error
 
 func NewParams(env config.Env, options ...Option) (*Params, error) {
 	version := &Params{
+		BaseName:      defaultBaseName,
 		Namespace:     defaultAgentNamespace,
 		HelmRepoURL:   DatadogHelmRepo,
 		HelmChartPath: "datadog",
@@ -106,6 +113,16 @@ func NewParams(env config.Env, options ...Option) (*Params, error) {
 	}
 
 	return common.ApplyOption(version, options)
+}
+
+// WithBaseName sets the base name used to derive the Helm release and Pulumi
+// resource names for the Agent installation. Use it to deploy several Agent
+// installations in the same cluster without resource name collisions.
+func WithBaseName(baseName string) func(*Params) error {
+	return func(p *Params) error {
+		p.BaseName = baseName
+		return nil
+	}
 }
 
 // WithClusterName sets the name of the cluster. Should only be used if you know what you are doing. Must no be necessary in most cases.

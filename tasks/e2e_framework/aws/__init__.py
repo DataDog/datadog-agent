@@ -1,5 +1,6 @@
 from invoke.collection import Collection
 
+from tasks.e2e_framework.aws.benchmarkeks import create_benchmarkeks, destroy_benchmarkeks
 from tasks.e2e_framework.aws.docker import create_docker, destroy_docker
 from tasks.e2e_framework.aws.ecs import create_ecs, destroy_ecs
 from tasks.e2e_framework.aws.eks import create_eks, destroy_eks
@@ -35,6 +36,8 @@ collection.add_task(create_ecs)
 collection.add_task(destroy_ecs)
 collection.add_task(create_eks)
 collection.add_task(destroy_eks)
+collection.add_task(create_benchmarkeks)
+collection.add_task(destroy_benchmarkeks)
 collection.add_task(create_installer_lab)
 collection.add_task(destroy_installer_lab)
 collection.add_task(create_kind)

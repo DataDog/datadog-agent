@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/gcp/gke"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/gcp/openshiftvm"
 
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/benchmarkeks"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2docker"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ecs"
@@ -31,20 +32,21 @@ type ScenarioRegistry map[string]pulumi.RunFunc
 
 func Scenarios() ScenarioRegistry {
 	return ScenarioRegistry{
-		"aws/vm":          ec2.VMRun,
-		"aws/dockervm":    ec2docker.DockerRun,
-		"aws/ecs":         ecs.Run,
-		"aws/eks":         eks.Run,
-		"aws/gensim-eks":  awsgensimeks.Run,
-		"aws/installer":   installer.Run,
-		"aws/microvms":    microvms.Run,
-		"aws/kind":        kindvm.Run,
-		"az/vm":           computerun.VMRun,
-		"az/aks":          aks.Run,
-		"gcp/vm":          gcpcompute.VMRun,
-		"gcp/gke":         gke.Run,
-		"gcp/openshiftvm": openshiftvm.Run,
-		"localpodman/vm":  localpodmanrun.VMRun,
+		"aws/vm":           ec2.VMRun,
+		"aws/dockervm":     ec2docker.DockerRun,
+		"aws/ecs":          ecs.Run,
+		"aws/eks":          eks.Run,
+		"aws/benchmarkeks": benchmarkeks.Run,
+		"aws/gensim-eks":   awsgensimeks.Run,
+		"aws/installer":    installer.Run,
+		"aws/microvms":     microvms.Run,
+		"aws/kind":         kindvm.Run,
+		"az/vm":            computerun.VMRun,
+		"az/aks":           aks.Run,
+		"gcp/vm":           gcpcompute.VMRun,
+		"gcp/gke":          gke.Run,
+		"gcp/openshiftvm":  openshiftvm.Run,
+		"localpodman/vm":   localpodmanrun.VMRun,
 	}
 }
 

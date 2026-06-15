@@ -33,6 +33,10 @@ const (
 
 // HelmInstallationArgs is the set of arguments for creating a new HelmInstallation component
 type HelmInstallationArgs struct {
+	// BaseName is the base name used to derive the Helm release and Pulumi resource
+	// names. When empty, it defaults to "dda". Set it to a unique value to install
+	// multiple Agents in the same cluster without resource name collisions.
+	BaseName string
 	// KubeProvider is the Kubernetes provider to use
 	KubeProvider *kubernetes.Provider
 	// Namespace is the namespace in which to install the agent
@@ -93,11 +97,17 @@ type HelmComponent struct {
 func NewHelmInstallation(e config.Env, args HelmInstallationArgs, opts ...pulumi.ResourceOption) (*HelmComponent, error) {
 	apiKey := e.AgentAPIKey()
 	appKey := e.AgentAPPKey()
-	baseName := "dda"
+	baseName := args.BaseName
+	if baseName == "" {
+		baseName = "dda"
+	}
 	opts = append(opts, pulumi.Providers(args.KubeProvider), e.WithProviders(config.ProviderRandom), pulumi.DeletedWith(args.KubeProvider))
 
 	helmComponent := &HelmComponent{}
-	if err := e.Ctx().RegisterComponentResource("dd:agent", "dda", helmComponent, opts...); err != nil {
+	// baseName is the parent component resource name; child resources (random token,
+	// secret, Helm releases) inherit a unique URN path from it, so multiple Agent
+	// installations with distinct base names never collide.
+	if err := e.Ctx().RegisterComponentResource("dd:agent", baseName, helmComponent, opts...); err != nil {
 		return nil, err
 	}
 	opts = append(opts, pulumi.Parent(helmComponent))
