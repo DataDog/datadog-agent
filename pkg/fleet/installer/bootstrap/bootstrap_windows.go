@@ -116,12 +116,12 @@ func DownloadInstallerExe(ctx context.Context, env *env.Env, url string, tmpDir 
 // Honors the InstallerBootstrapMode registry key (`OCI` / `MSI`) to
 // force one path or the other for testing.
 func extractInstallerFromAgentPackage(ctx context.Context, pkg *oci.DownloadedPackage, tmpDir string) (string, error) {
-	// Testing override: if InstallerBootstrapMode registry key is set, use test-specific flow.
+	// Testing override: if InstallerBootstrapMode registry key is set, use test-specific flow
 	if mode := getInstallerBootstrapMode(); mode != "" {
 		return extractInstallerFromAgentPackageTestMode(ctx, pkg, tmpDir, mode)
 	}
 
-	// Production flow: try OCI layer, fall back to MSI extraction for older packages.
+	// Production flow: try OCI layer, fall back to MSI extraction for older packages
 	installerBinPath := filepath.Join(tmpDir, "datadog-installer.exe")
 	if err := pkg.ExtractLayers(oci.DatadogPackageInstallerLayerMediaType, installerBinPath); err != nil { // Returns nil if the layer doesn't exist
 		return "", fmt.Errorf("failed to extract layers: %w", err)
