@@ -6,6 +6,8 @@
 // Package types provides common types and constants used throughout NCM.
 package types
 
+import "strings"
+
 // ConfigType defines the type of network device configuration
 type ConfigType string
 
@@ -34,6 +36,14 @@ type ConfigMetadata struct {
 	RawHash        string     `json:"raw_hash"`         // hex of the unredacted config
 	IsPinned       bool       `json:"is_pinned"`        // determines if a config is up for eviction
 	AgentVersion   string     `json:"agent_version"`    // TODO: should it be useful to include as part of the payload?
+}
+
+func (c *ConfigMetadata) GetNamespace() string {
+	namespace, _, ok := strings.Cut(c.DeviceID, ":")
+	if !ok {
+		return ""
+	}
+	return namespace
 }
 
 // RawConfig is a temporary backup method until blocks logic is stable

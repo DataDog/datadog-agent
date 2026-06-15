@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    A ``DatadogInstrumentation`` custom resource can now target a Kubernetes
+    ``Service`` to run checks against each of its endpoints.
