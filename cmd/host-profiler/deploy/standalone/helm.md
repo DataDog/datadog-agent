@@ -46,9 +46,9 @@ Deploy or update the OpenTelemetry Collector Helm release with the provided valu
 ```shell
 helm upgrade --install <RELEASE_NAME> open-telemetry/opentelemetry-collector \
   --namespace <NAMESPACE> \
-  --values cmd/host-profiler/deploy/standalone/helm/collector-values.yaml \
-  --values cmd/host-profiler/deploy/standalone/helm/collector-config-values.yaml \
-  --values cmd/host-profiler/deploy/standalone/helm/network-policy-values.yaml
+  --values helm/collector-values.yaml \
+  --values helm/collector-config-values.yaml \
+  --values helm/network-policy-values.yaml
 ```
 
 If your cluster uses Cilium, replace the `network-policy-values.yaml` values file with `cilium-network-policy-values.yaml`.

@@ -14,7 +14,7 @@ Your Datadog Agent must be managed by the Datadog Operator version **1.25.0** or
 
 ## Deploy
 
-Update your existing `DatadogAgent` Custom Resource with the following annotations and host-profiler container override:
+Update your existing `DatadogAgent` Custom Resource with the following annotations and host-profiler container override. Merge this snippet into your existing resource rather than replacing unrelated fields:
 
 ```yaml
 metadata:
@@ -44,7 +44,12 @@ Apply the updated `DatadogAgent` Custom Resource through your usual workflow.
 
 The Host Profiler infers most configuration from the Datadog Agent configuration. For optional overrides, see [Configuration](configuration.md).
 
-After you apply the updated Custom Resource, the Operator rolls out a new Agent DaemonSet revision with the Host Profiler sidecar. Wait for that rollout to complete before verifying profiles.
+After you apply the updated Custom Resource, the Operator rolls out a new Agent DaemonSet revision with the Host Profiler sidecar. Wait for that rollout to complete before verifying profiles:
+
+```shell
+kubectl get daemonset -n <NAMESPACE>
+kubectl rollout status daemonset/<DATADOG_AGENT_DAEMONSET_NAME> -n <NAMESPACE>
+```
 
 After deploying the Host Profiler, profiles appear on the [Datadog Profiler](https://app.datadoghq.com/profiling) page within a few minutes. If profiles do not appear, see the [Troubleshooting](../troubleshooting.md) guide.
 

@@ -23,7 +23,7 @@ datadog:
     image: "registry.datadoghq.com/ddot-ebpf:7.81.0-preview-host-profiler-1.0"
 ```
 
-2. Upgrade your existing Datadog Agent Helm release with the updated values. Adapt this command to your Helm or GitOps workflow:
+2. Upgrade your existing Datadog Agent Helm release with the updated values. Adapt this command to your Helm or GitOps workflow, and include any existing values files you already use for the release:
 
 ```shell
 helm upgrade <RELEASE_NAME> datadog/datadog \
@@ -35,7 +35,12 @@ The Datadog Helm chart configures the required capabilities and seccomp profile 
 
 The Host Profiler infers most configuration from the Datadog Agent configuration. For optional overrides, see [Configuration](configuration.md).
 
-After you apply the updated values, Helm rolls out a new Agent DaemonSet revision with the Host Profiler sidecar. Wait for that rollout to complete before verifying profiles.
+After you apply the updated values, Helm rolls out a new Agent DaemonSet revision with the Host Profiler sidecar. Wait for that rollout to complete before verifying profiles:
+
+```shell
+kubectl get daemonset -n <NAMESPACE>
+kubectl rollout status daemonset/<DATADOG_AGENT_DAEMONSET_NAME> -n <NAMESPACE>
+```
 
 After deploying the Host Profiler, profiles appear on the [Datadog Profiler](https://app.datadoghq.com/profiling) page within a few minutes. If profiles do not appear, see the [Troubleshooting](../troubleshooting.md) guide.
 

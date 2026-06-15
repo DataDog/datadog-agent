@@ -29,8 +29,13 @@ alternateConfig:
   service:
     extensions: [health_check]
     pipelines:
+      # The Helm chart's kubernetesAttributes preset adds the k8sattributes
+      # processor to the rendered metrics pipeline.
       metrics:
         receivers: [otlp]
         exporters: [otlp_http]
+      # The Helm chart's profiling and kubernetesAttributes presets add the
+      # profiling receiver and k8sattributes processor to the rendered profiles
+      # pipeline.
       profiles:
         exporters: [otlp_http]
