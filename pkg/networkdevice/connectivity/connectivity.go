@@ -29,9 +29,9 @@ const (
 
 	// SNMP identity OIDs (scalar .0 instances). A successful GET of these proves SNMP
 	// reachability plus valid credentials, and identifies the device.
-	oidSysDescr    = "1.3.6.1.2.1.1.1.0"
-	oidSysObjectID = "1.3.6.1.2.1.1.2.0"
 	oidSysName     = "1.3.6.1.2.1.1.5.0"
+	oidSysObjectID = "1.3.6.1.2.1.1.2.0"
+	oidSysDescr    = "1.3.6.1.2.1.1.1.0"
 
 	defaultSNMPTimeout   = 3 * time.Second
 	defaultSNMPPort      = 161
@@ -199,7 +199,7 @@ func runSNMP(ctx context.Context, host string, opts *SNMPOptions) CheckResult {
 	}
 	defer func() { _ = client.Conn.Close() }()
 
-	packet, err := client.Get([]string{oidSysObjectID, oidSysDescr, oidSysName})
+	packet, err := client.Get([]string{oidSysName, oidSysObjectID, oidSysDescr})
 	if err != nil {
 		category, msg := classifySNMPError(err)
 		return CheckResult{Type: CheckSNMP, Success: false, FailureCategory: category, Error: msg}
@@ -218,12 +218,12 @@ func runSNMP(ctx context.Context, host string, opts *SNMPOptions) CheckResult {
 			continue
 		}
 		switch strings.TrimLeft(pdu.Name, ".") {
+		case oidSysName:
+			res.SysName = str
 		case oidSysObjectID:
 			res.SysObjectID = str
 		case oidSysDescr:
 			res.SysDescr = str
-		case oidSysName:
-			res.SysName = str
 		}
 	}
 	return res
