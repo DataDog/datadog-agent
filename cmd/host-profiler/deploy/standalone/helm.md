@@ -49,6 +49,8 @@ helm upgrade --install <RELEASE_NAME> open-telemetry/opentelemetry-collector \
   --values cmd/host-profiler/deploy/standalone/helm/network-policy-values.yaml
 ```
 
+If your cluster uses Cilium, replace the `network-policy-values.yaml` values file with `cilium-network-policy-values.yaml`.
+
 The provided Helm values configure the required capabilities and seccomp profile automatically. An init container installs the seccomp profile onto each node, so no manual seccomp setup is required.
 
 After you apply the values, Helm rolls out an OpenTelemetry Collector DaemonSet with the Host Profiler. Wait for that rollout to complete before verifying profiles.
