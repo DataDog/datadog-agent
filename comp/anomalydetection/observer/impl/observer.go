@@ -121,7 +121,7 @@ func (l *logObs) GetHostname() string {
 	return l.hostname
 }
 
-// Optionally, for logs that provide timestamp interface (if needed elsewhere)
+// GetTimestampUnixMilli implements observerdef.LogView.
 func (l *logObs) GetTimestampUnixMilli() int64 {
 	return l.timestampMs
 }
@@ -174,7 +174,7 @@ func NewComponent(deps Requires) Provides {
 
 	catalog := defaultCatalog()
 	settings := settingsFromAgentConfig(catalog, cfg)
-	detectors, correlators, extractors, _ := catalog.Instantiate(settings)
+	detectors, correlators, scorers, extractors, _ := catalog.Instantiate(settings)
 
 	storageCfg := DefaultStorageConfig()
 	if cfg != nil {
@@ -193,6 +193,7 @@ func NewComponent(deps Requires) Provides {
 		extractors:  extractors,
 		detectors:   detectors,
 		correlators: correlators,
+		scorers:     scorers,
 		scheduler:   &currentBehaviorPolicy{},
 	})
 
@@ -204,6 +205,8 @@ func NewComponent(deps Requires) Provides {
 	eng.onStorageSeriesEvicted = obsTelemetry.recordStorageSeriesEvicted
 	eng.onStorageCapacityHit = obsTelemetry.recordStorageCapacityHit
 	eng.onAdvanceSkipped = obsTelemetry.recordAdvanceSkipped
+	eng.onProcessingTime = obsTelemetry.recordProcessingTime
+	eng.onScorerEWMA = obsTelemetry.recordScorerEWMA
 	for _, extractor := range extractors {
 		if sinkAware, ok := extractor.(interface{ SetObserverTelemetry(*observerTelemetry) }); ok {
 			sinkAware.SetObserverTelemetry(obsTelemetry)
@@ -342,10 +345,10 @@ type observerImpl struct {
 	advanceLogCleanup func() // flushes advance log recording file
 
 	// ingestMetricsEnabled gates externally-ingested metrics at the handle
-	// factory. When false, "all-metrics" and HF handles return a wrapper
-	// that drops ObserveMetric calls. Logs and profiles still pass through,
-	// and log-derived virtual metrics produced inside the engine by
-	// LogMetricsExtractors are unaffected because they bypass the handle.
+	// factory. When false, handles return a metricDropHandle wrapper that drops
+	// ObserveMetric calls. ObserveLog still passes through, and log-derived
+	// virtual metrics produced inside the engine by LogMetricsExtractors are
+	// unaffected because they bypass the handle.
 	ingestMetricsEnabled bool
 
 	// replayMu serialises engine access between the run() dispatch loop and
@@ -421,7 +424,7 @@ type seriesDetectorAdapter struct {
 
 	// lastVisibleCount is keyed by the storage's compact SeriesRef so we
 	// avoid rebuilding a string key per series per Detect call. SeriesRefs
-	// are append-only (storage.go:217) so they remain stable for the lifetime
+	// are append-only (storage.go:305) so they remain stable for the lifetime
 	// of a series.
 	lastVisibleCount map[observerdef.SeriesRef]int
 }
@@ -552,10 +555,10 @@ func (o *observerImpl) GetHandle(name string) observerdef.Handle {
 	return o.handleFunc(name)
 }
 
-// innerHandle creates the base handle without any middleware wrapping.
-// When anomaly_detection.metrics.enabled=false, the handle is wrapped with
+// innerHandle creates the base handle for a named source. When
+// anomaly_detection.metrics.enabled=false, the handle is wrapped with
 // metricDropHandle so external metrics are dropped at the edge, while
-// ObserveLog/ObserveProfile pass through.
+// ObserveLog calls still pass through.
 func (o *observerImpl) innerHandle(name string) observerdef.Handle {
 	h := &handle{ch: o.obsCh, source: name, telemetry: o.telemetry}
 	o.engine.registerHandle(h)
@@ -566,8 +569,8 @@ func (o *observerImpl) innerHandle(name string) observerdef.Handle {
 	return out
 }
 
-// metricDropHandle drops every ObserveMetric call but lets logs and
-// profiles through. Used when anomaly_detection.metrics.enabled=false so
+// metricDropHandle drops every ObserveMetric call but lets ObserveLog
+// through. Used when anomaly_detection.metrics.enabled=false so
 // external metric sources (DogStatsD, check samplers) do not feed the engine.
 // Virtual metrics produced by LogMetricsExtractors during engine.IngestLog are
 // unaffected because they bypass this handle path entirely.
@@ -645,9 +648,9 @@ func (o *observerImpl) Flush() {
 // Reset clears all engine state and reconfigures with new settings. Implements DebugView.
 func (o *observerImpl) Reset(settings ComponentSettings, storageCfg StorageConfig) {
 	o.Flush()
-	detectors, correlators, extractors, _ := o.catalog.Instantiate(settings)
+	detectors, correlators, scorers, extractors, _ := o.catalog.Instantiate(settings)
 	o.replayMu.Lock()
-	o.engine.ResetForReplay(detectors, correlators, extractors, storageCfg)
+	o.engine.ResetForReplay(detectors, correlators, scorers, extractors, storageCfg)
 	o.replayMu.Unlock()
 }
 
