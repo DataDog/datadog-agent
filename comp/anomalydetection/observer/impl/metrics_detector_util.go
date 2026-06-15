@@ -108,7 +108,8 @@ func detectorMedian(vals []float64) float64 {
 // When scaleToSigma is true, the result is scaled by 1.4826 to estimate the
 // standard deviation for normally distributed data. Use scaleToSigma=true when
 // comparing against sigma-based thresholds (e.g. Mann-Whitney's deviation check),
-// and false when using raw MAD as a denominator for relative change scores (e.g. TopK).
+// and false when using raw MAD as a denominator for relative change scores
+// (e.g. ScanMW/ScanWelch preMAD checks).
 func detectorMAD(vals []float64, median float64, scaleToSigma bool) float64 {
 	if len(vals) == 0 {
 		return 0
