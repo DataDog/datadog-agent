@@ -15,6 +15,7 @@ import (
 
 	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 )
 
 const (
@@ -51,7 +52,7 @@ const (
 
 var (
 	// defaultSystemProbeBPFDir is the default path for eBPF programs
-	defaultSystemProbeBPFDir = filepath.Join(InstallPath, "embedded/share/system-probe/ebpf")
+	defaultSystemProbeBPFDir = filepath.Join(defaultpaths.GetInstallPath(), "embedded/share/system-probe/ebpf")
 )
 
 // InitSystemProbeConfig declares all the configuration values normally read from system-probe.yaml.
@@ -72,7 +73,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	// logging
 	cfg.BindEnvAndSetDefault("system_probe_config.log_file", "")
 	cfg.BindEnvAndSetDefault("system_probe_config.log_level", "")
-	cfg.BindEnvAndSetDefault("log_file", defaultSystemProbeLogFilePath)
+	cfg.BindEnvAndSetDefault("log_file", defaultpaths.GetDefaultSystemProbeLogFile())
 	cfg.BindEnvAndSetDefault("log_level", "info", "DD_LOG_LEVEL", "LOG_LEVEL")
 	cfg.BindEnvAndSetDefault("syslog_uri", "")
 	cfg.BindEnvAndSetDefault("syslog_rfc", false)
@@ -97,7 +98,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("system_probe_config.external", false, "DD_SYSTEM_PROBE_EXTERNAL")
 	cfg.SetDefault("system_probe_config.adjusted", false)
 
-	cfg.BindEnvAndSetDefault("system_probe_config.sysprobe_socket", DefaultSystemProbeAddress, "DD_SYSPROBE_SOCKET")
+	cfg.BindEnvAndSetDefault("system_probe_config.sysprobe_socket", defaultpaths.GetDefaultSystemProbeAddress(), "DD_SYSPROBE_SOCKET")
 	cfg.BindEnvAndSetDefault("system_probe_config.max_conns_per_message", defaultConnsMessageBatchSize)
 
 	cfg.BindEnvAndSetDefault("system_probe_config.debug_port", 0)

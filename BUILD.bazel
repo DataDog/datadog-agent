@@ -3,10 +3,36 @@
 load("@bazel_lib//lib:write_source_files.bzl", "write_source_file", "write_source_files")
 load("@bazel_skylib//rules:common_settings.bzl", "bool_flag", "string_flag")
 load("@bazel_skylib//rules:run_binary.bzl", "run_binary")
+load("@dd_release_json//:release_json.bzl", "release_json")
 load("@gazelle//:def.bzl", "DEFAULT_LANGUAGES", "gazelle", "gazelle_binary")
+load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
+load("@rules_license//rules:license.bzl", "license")
+load("//compliance/rules:purl.bzl", "purl_for_generic")
 load("//tasks:build_tags.bzl", "GAZELLE_BUILD_TAGS")
 
-package(default_visibility = ["//visibility:public"])
+package(
+    default_package_metadata = [":package_metadata"],
+    default_visibility = ["//visibility:public"],
+)
+
+package_metadata(
+    name = "package_metadata",
+    attributes = [
+        ":license",
+    ],
+    purl = purl_for_generic(
+        download_url = "https://github.com/DataDog/datadog-agent/releases/tag/{version}",
+        package = "datadog-agent",
+        version = release_json.get("current_milestone"),
+    ),
+)
+
+license(
+    name = "license",
+    license_kinds = ["@rules_license//licenses/spdx:Apache-2.0"],
+    license_text = "LICENSE",
+    visibility = ["//visibility:public"],
+)
 
 # Temporary export for hybrid omnibus/bazel build.
 # This glob is empty running bazel alone in a pipeline job.

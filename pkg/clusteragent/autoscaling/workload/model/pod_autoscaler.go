@@ -162,6 +162,9 @@ type PodAutoscalerInternal struct {
 	// inPlacePDBBlockedCount is the number of times eviction was blocked by a PodDisruptionBudget
 	inPlacePDBBlockedCount uint
 
+	// inPlaceDisruptionThrottledCount is the number of disruptive in-place resizes deferred to stay within the disruption budget
+	inPlaceDisruptionThrottledCount uint
+
 	// inPlaceResizeCompletedCount is the number of times all pods in a resize cycle completed successfully
 	inPlaceResizeCompletedCount uint
 
@@ -906,6 +909,17 @@ func (p *PodAutoscalerInternal) InPlacePDBBlockedCount() uint {
 // InPlacePDBBlockedInc increments the PDB blocked counter
 func (p *PodAutoscalerInternal) InPlacePDBBlockedInc() {
 	p.inPlacePDBBlockedCount++
+}
+
+// InPlaceDisruptionThrottledCount returns the number of disruptive in-place resizes deferred
+// because the disruption budget was already consumed.
+func (p *PodAutoscalerInternal) InPlaceDisruptionThrottledCount() uint {
+	return p.inPlaceDisruptionThrottledCount
+}
+
+// InPlaceDisruptionThrottledAdd adds count deferred disruptive resizes to the throttle counter.
+func (p *PodAutoscalerInternal) InPlaceDisruptionThrottledAdd(count uint) {
+	p.inPlaceDisruptionThrottledCount += count
 }
 
 // InPlaceResizeCompletedCount returns the number of times all pods completed an in-place resize cycle
