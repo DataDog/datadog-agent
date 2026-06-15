@@ -74,6 +74,7 @@ ALL_TAGS = set([
     "zlib",
     "zstd",
     "cel",
+    "cloudfoundry",  # used to include Cloud Foundry (BBS/CC/garden) support, only in the cloudfoundry cluster-agent
     "cws_instrumentation_injector_only",  # used for building cws-instrumentation with only the injector code
     "remove_all_sd",  # remove all discovery provider from prometheusreceiver components
 ]).union(COMMON_TAGS)
@@ -175,7 +176,7 @@ CLUSTER_AGENT_TAGS = set([
 ])
 
 # CLUSTER_AGENT_CLOUDFOUNDRY_TAGS lists the tags needed when building the cloudfoundry cluster-agent
-CLUSTER_AGENT_CLOUDFOUNDRY_TAGS = set(["clusterchecks", "cel"])
+CLUSTER_AGENT_CLOUDFOUNDRY_TAGS = set(["clusterchecks", "cel", "cloudfoundry"])
 
 # DOGSTATSD_TAGS lists the tags needed when building dogstatsd
 DOGSTATSD_TAGS = set(["containerd", "docker", "kubelet", "podman", "zlib", "zstd"])
