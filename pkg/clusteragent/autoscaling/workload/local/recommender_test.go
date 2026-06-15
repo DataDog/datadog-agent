@@ -17,6 +17,7 @@ import (
 
 	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
 
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/loadstore"
@@ -30,7 +31,16 @@ func TestProcessScaleUp(t *testing.T) {
 
 	// setup podwatcher
 	pw := workload.NewPodWatcher(nil, nil)
-	pw.HandleEvent(newFakeWLMPodEvent("default", "test-deployment", "pod1", []string{"container-name1", "container-name2"}))
+	pw.HandleEvent(workloadmeta.Event{
+		Type: workloadmeta.EventTypeSet,
+		Entity: newFakePod(fakePodConfig{
+			podName:        "pod1",
+			containerNames: []string{"container-name1", "container-name2"},
+			deployment:     "test-deployment",
+			cpuRequest:     25,
+			readyTimestamp: time.Now().Add(-time.Hour),
+		}),
+	})
 
 	// setup store
 	store := autoscaling.NewStore[model.PodAutoscalerInternal]()
@@ -79,9 +89,36 @@ func TestProcessScaleDown(t *testing.T) {
 
 	// setup podwatcher
 	pw := workload.NewPodWatcher(nil, nil)
-	pw.HandleEvent(newFakeWLMPodEvent("default", "test-deployment", "pod1", []string{"container-name1", "container-name2"}))
-	pw.HandleEvent(newFakeWLMPodEvent("default", "test-deployment", "pod2", []string{"container-name1"}))
-	pw.HandleEvent(newFakeWLMPodEvent("default", "test-deployment", "pod3", []string{"container-name1"}))
+	pw.HandleEvent(workloadmeta.Event{
+		Type: workloadmeta.EventTypeSet,
+		Entity: newFakePod(fakePodConfig{
+			podName:        "pod1",
+			containerNames: []string{"container-name1", "container-name2"},
+			deployment:     "test-deployment",
+			cpuRequest:     25,
+			readyTimestamp: time.Now().Add(-time.Hour),
+		}),
+	})
+	pw.HandleEvent(workloadmeta.Event{
+		Type: workloadmeta.EventTypeSet,
+		Entity: newFakePod(fakePodConfig{
+			podName:        "pod2",
+			containerNames: []string{"container-name1"},
+			deployment:     "test-deployment",
+			cpuRequest:     25,
+			readyTimestamp: time.Now().Add(-time.Hour),
+		}),
+	})
+	pw.HandleEvent(workloadmeta.Event{
+		Type: workloadmeta.EventTypeSet,
+		Entity: newFakePod(fakePodConfig{
+			podName:        "pod3",
+			containerNames: []string{"container-name1"},
+			deployment:     "test-deployment",
+			cpuRequest:     25,
+			readyTimestamp: time.Now().Add(-time.Hour),
+		}),
+	})
 
 	// setup store
 	store := autoscaling.NewStore[model.PodAutoscalerInternal]()

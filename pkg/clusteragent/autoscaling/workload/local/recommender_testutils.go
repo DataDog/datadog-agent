@@ -9,8 +9,10 @@ package local
 
 import (
 	"sync"
+	"time"
 
 	autoscalingv2 "k8s.io/api/autoscaling/v2"
+	corev1 "k8s.io/api/core/v1"
 
 	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
 	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha2"
@@ -27,15 +29,51 @@ func resetWorkloadMetricStore() {
 	loadstore.WorkloadMetricStoreOnce = sync.Once{}
 }
 
-func newFakeWLMPodEvent(ns, deployment, podName string, containerNames []string) workloadmeta.Event {
-	containers := []workloadmeta.OrchestratorContainer{}
-	for _, c := range containerNames {
+// newFakePod builds a single pod with the given lifecycle/readiness state. CPU and memory
+// requests are set on every container so it can be used as an autoscaling target.
+type fakePodConfig struct {
+	namespace      string
+	deployment     string
+	podName        string
+	containerNames []string
+	cpuRequest     float64
+	phase          string
+	ready          bool
+	readyTimestamp time.Time
+}
+
+func newFakePod(config fakePodConfig) *workloadmeta.KubernetesPod {
+	if config.namespace == "" {
+		config.namespace = "default"
+	}
+	if config.podName == "" {
+		config.podName = "pod"
+	}
+	if len(config.containerNames) == 0 {
+		config.containerNames = []string{"c"}
+	}
+	if config.cpuRequest == 0 {
+		config.cpuRequest = 100.0 // 1 core
+	}
+	if config.phase == "" {
+		config.phase = string(corev1.PodRunning)
+	}
+
+	// A zero readyTimestamp means "readiness time unknown" -> nil pointer.
+	var readyTS *time.Time
+	if !config.readyTimestamp.IsZero() {
+		readyTS = &config.readyTimestamp
+		config.ready = true
+	}
+
+	containers := make([]workloadmeta.OrchestratorContainer, 0, len(config.containerNames))
+	for _, c := range config.containerNames {
 		containers = append(containers, workloadmeta.OrchestratorContainer{
 			ID:   c + "-id",
 			Name: c,
 			Resources: workloadmeta.ContainerResources{
-				CPURequest:    func(f float64) *float64 { return &f }(25), // 250m
-				MemoryRequest: func(f uint64) *uint64 { return &f }(2048),
+				CPURequest:    pointer.Ptr(config.cpuRequest),
+				MemoryRequest: pointer.Ptr[uint64](2048),
 			},
 		})
 	}
@@ -43,19 +81,36 @@ func newFakeWLMPodEvent(ns, deployment, podName string, containerNames []string)
 	pod := &workloadmeta.KubernetesPod{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindKubernetesPod,
-			ID:   podName,
+			ID:   config.podName,
 		},
 		EntityMeta: workloadmeta.EntityMeta{
-			Name:      podName,
-			Namespace: ns,
+			Name:      config.podName,
+			Namespace: config.namespace,
 		},
-		Owners:     []workloadmeta.KubernetesPodOwner{{Kind: kubernetes.ReplicaSetKind, Name: deployment + "-766dbb7846"}},
-		Containers: containers,
+		Containers:     containers,
+		Phase:          config.phase,
+		Ready:          config.ready,
+		ReadyTimestamp: readyTS,
 	}
+	if config.deployment != "" {
+		pod.Owners = []workloadmeta.KubernetesPodOwner{{Kind: kubernetes.ReplicaSetKind, Name: config.deployment + "-766dbb7846"}}
+	}
+	return pod
+}
 
-	return workloadmeta.Event{
-		Type:   workloadmeta.EventTypeSet,
-		Entity: pod,
+// newCPUUsageResult builds a loadstore PodResult with two CPU usage data points at
+// currentTime-15s and currentTime-30s that yield the requested utilization ratio against
+// a 1-core (1e9 nanocores) request.
+func newCPUUsageResult(podName, containerName string, utilization float64, currentTime time.Time) loadstore.PodResult {
+	usage := utilization * 1e9 // 1 core request == 1e9 nanocores
+	return loadstore.PodResult{
+		PodName: podName,
+		ContainerValues: map[string][]loadstore.EntityValue{
+			containerName: {
+				*newEntityValue(currentTime.Unix()-15, usage),
+				*newEntityValue(currentTime.Unix()-30, usage),
+			},
+		},
 	}
 }
 

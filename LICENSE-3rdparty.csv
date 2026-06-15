@@ -1330,7 +1330,6 @@ core,github.com/google/gopacket/afpacket,BSD-3-Clause,"Copyright (c) 2009-2011 A
 core,github.com/google/gopacket/layers,BSD-3-Clause,"Copyright (c) 2009-2011 Andreas Krennmair. All rights reserved. | Copyright (c) 2012 Google, Inc. All rights reserved."
 core,github.com/google/gopacket/pcap,BSD-3-Clause,"Copyright (c) 2009-2011 Andreas Krennmair. All rights reserved. | Copyright (c) 2012 Google, Inc. All rights reserved."
 core,github.com/google/gopacket/pcapgo,BSD-3-Clause,"Copyright (c) 2009-2011 Andreas Krennmair. All rights reserved. | Copyright (c) 2012 Google, Inc. All rights reserved."
-core,github.com/google/jsonschema-go/jsonschema,MIT,Copyright (c) 2025 JSON Schema Go Project Authors
 core,github.com/google/pprof/profile,Apache-2.0,Andrew Hunter <andrewhhunter@gmail.com> | Google Inc. | Hyoun Kyu Cho <netforce@google.com> | Martin Spier <spiermar@gmail.com> | Raul Silvera <rsilvera@google.com> | Taco de Wolff <tacodewolff@gmail.com> | Tipp Moseley <tipp@google.com>
 core,github.com/google/s2a-go,Apache-2.0,Copyright (c) 2020 Google
 core,github.com/google/s2a-go/fallback,Apache-2.0,Copyright (c) 2020 Google
@@ -1622,15 +1621,6 @@ core,github.com/moby/sys/sequential,Apache-2.0,Kir Kolyshkin <kolyshkin@gmail.co
 core,github.com/moby/sys/signal,Apache-2.0,Copyright (c) 2014-2018 The Docker & Go Authors. All rights reserved.
 core,github.com/moby/sys/user,Apache-2.0,Copyright (c) 2014-2018 The Docker & Go Authors. All rights reserved.
 core,github.com/moby/sys/userns,Apache-2.0,Copyright (c) 2014-2018 The Docker & Go Authors. All rights reserved.
-core,github.com/modelcontextprotocol/go-sdk/auth,Apache-2.0,"Copyright (c) 2024-2025 Model Context Protocol a Series of LF Projects, LLC"
-core,github.com/modelcontextprotocol/go-sdk/internal/json,Apache-2.0,"Copyright (c) 2024-2025 Model Context Protocol a Series of LF Projects, LLC"
-core,github.com/modelcontextprotocol/go-sdk/internal/jsonrpc2,Apache-2.0,"Copyright (c) 2024-2025 Model Context Protocol a Series of LF Projects, LLC"
-core,github.com/modelcontextprotocol/go-sdk/internal/mcpgodebug,Apache-2.0,"Copyright (c) 2024-2025 Model Context Protocol a Series of LF Projects, LLC"
-core,github.com/modelcontextprotocol/go-sdk/internal/util,Apache-2.0,"Copyright (c) 2024-2025 Model Context Protocol a Series of LF Projects, LLC"
-core,github.com/modelcontextprotocol/go-sdk/internal/xcontext,Apache-2.0,"Copyright (c) 2024-2025 Model Context Protocol a Series of LF Projects, LLC"
-core,github.com/modelcontextprotocol/go-sdk/jsonrpc,Apache-2.0,"Copyright (c) 2024-2025 Model Context Protocol a Series of LF Projects, LLC"
-core,github.com/modelcontextprotocol/go-sdk/mcp,Apache-2.0,"Copyright (c) 2024-2025 Model Context Protocol a Series of LF Projects, LLC"
-core,github.com/modelcontextprotocol/go-sdk/oauthex,Apache-2.0,"Copyright (c) 2024-2025 Model Context Protocol a Series of LF Projects, LLC"
 core,github.com/modern-go/concurrent,Apache-2.0,Copyright (c) 2018 Tao Wen
 core,github.com/modern-go/reflect2,Apache-2.0,Copyright (c) 2018 Tao Wen
 core,github.com/mohae/deepcopy,MIT,Copyright (c) 2014 Joel
@@ -2341,18 +2331,6 @@ core,github.com/scaleway/scaleway-sdk-go/parameter,Apache-2.0,Copyright 2019 Sca
 core,github.com/scaleway/scaleway-sdk-go/scw,Apache-2.0,Copyright 2019 Scaleway
 core,github.com/scaleway/scaleway-sdk-go/validation,Apache-2.0,Copyright 2019 Scaleway
 core,github.com/secure-systems-lab/go-securesystemslib/cjson,MIT,Copyright (c) 2021 NYU Secure Systems Lab
-core,github.com/segmentio/asm/ascii,MIT,Copyright (c) 2021 Segment
-core,github.com/segmentio/asm/base64,MIT,Copyright (c) 2021 Segment
-core,github.com/segmentio/asm/cpu,MIT,Copyright (c) 2021 Segment
-core,github.com/segmentio/asm/cpu/arm,MIT,Copyright (c) 2021 Segment
-core,github.com/segmentio/asm/cpu/arm64,MIT,Copyright (c) 2021 Segment
-core,github.com/segmentio/asm/cpu/cpuid,MIT,Copyright (c) 2021 Segment
-core,github.com/segmentio/asm/cpu/x86,MIT,Copyright (c) 2021 Segment
-core,github.com/segmentio/asm/internal/unsafebytes,MIT,Copyright (c) 2021 Segment
-core,github.com/segmentio/asm/keyset,MIT,Copyright (c) 2021 Segment
-core,github.com/segmentio/encoding/ascii,MIT,"Copyright (c) 2019 Segment.io, Inc"
-core,github.com/segmentio/encoding/iso8601,MIT,"Copyright (c) 2019 Segment.io, Inc"
-core,github.com/segmentio/encoding/json,MIT,"Copyright (c) 2019 Segment.io, Inc"
 core,github.com/shirou/gopsutil/v3/common,BSD-3-Clause,"Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2014, WAKAYAMA Shirou"
 core,github.com/shirou/gopsutil/v3/cpu,BSD-3-Clause,"Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2014, WAKAYAMA Shirou"
 core,github.com/shirou/gopsutil/v3/internal/common,BSD-3-Clause,"Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2014, WAKAYAMA Shirou"
@@ -2484,7 +2462,6 @@ core,github.com/xeipuuv/gojsonschema,Apache-2.0,Copyright 2015 xeipuuv
 core,github.com/xi2/xz,Public Domain,Igor Pavlov <http://7-zip.org/> | Lasse Collin <lasse.collin@tukaani.org> | Michael Cross <https://github.com/xi2>
 core,github.com/xor-gate/ar,MIT,Copyright (c) 2013 Blake Smith <blakesmith0@gmail.com>
 core,github.com/yashtewari/glob-intersection,Apache-2.0,Copyright (c) 2018 Yash Tewari (yashtewari)
-core,github.com/yosida95/uritemplate/v3,BSD-3-Clause,"Copyright (C) 2016, Kohei YOSHIDA <https://yosida95.com/>. All rights reserved"
 core,github.com/youmark/pkcs8,MIT,Copyright (c) 2014 youmark
 core,github.com/yusufpapurcu/wmi,MIT,Copyright (c) 2013 Stack Exchange
 core,github.com/zeebo/xxh3,BSD-2-Clause,"Copyright (c) 2012-2014, Yann Collet | Copyright (c) 2019, Jeff Wendling"

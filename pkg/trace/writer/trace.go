@@ -324,12 +324,12 @@ func (w *TraceWriter) serialize(pl *pb.AgentPayload) {
 		return
 	}
 
-	w.stats.BytesUncompressed.Add(int64(len(b)))
 	p := newPayload(map[string]string{
 		"Content-Type":     "application/x-protobuf",
 		"Content-Encoding": w.compressor.Encoding(),
 		headerLanguages:    strings.Join(info.Languages(), "|"),
 	})
+	p.uncompressedSize = len(b)
 	p.body.Grow(len(b) / 2)
 	writer, err := w.compressor.NewWriter(p.body)
 	if err != nil {
@@ -378,6 +378,7 @@ func (w *TraceWriter) recordEvent(t eventType, data *eventData) {
 		log.Debugf("Flushed traces to the API; time: %s, bytes: %d", data.duration, data.bytes)
 		w.timing.Since("datadog.trace_agent.trace_writer.flush_duration", time.Now().Add(-data.duration))
 		w.stats.Bytes.Add(int64(data.bytes))
+		w.stats.BytesUncompressed.Add(int64(data.uncompressedBytes))
 		w.stats.Payloads.Inc()
 		if !w.telemetryCollector.SentFirstTrace() {
 			go w.telemetryCollector.SendFirstTrace()

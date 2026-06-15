@@ -75,7 +75,6 @@ import (
 	remotetraceroutefx "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/fx-remote"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/appsec"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/instrumentation"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/mcp"
 
 	adproviders "github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
@@ -715,17 +714,6 @@ func start(log log.Component,
 		}
 	} else {
 		pkglog.Info("Admission controller is disabled")
-	}
-
-	if config.GetBool("cluster_agent.mcp.enabled") {
-		// Get MCP configured endpoint
-		mcpEndpoint := config.GetString("cluster_agent.mcp.endpoint")
-		// Register MCP handler on the HTTP metrics server via HTTP
-		mcpHandler := mcp.CreateMCPHandler()
-		http.Handle(mcpEndpoint, mcpHandler)
-		pkglog.Infof("MCP endpoint registered with HTTP metrics server on port %d: %s", metricsPort, mcpEndpoint)
-	} else {
-		pkglog.Debug("MCP server is disabled")
 	}
 
 	pkglog.Infof("All components started. Cluster Agent now running.")

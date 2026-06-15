@@ -302,6 +302,7 @@ type APMConfigurationDefault struct {
 	AppsecEnabled                 *bool   `yaml:"DD_APPSEC_ENABLED,omitempty"`
 	IastEnabled                   *bool   `yaml:"DD_IAST_ENABLED,omitempty"`
 	DataJobsEnabled               *bool   `yaml:"DD_DATA_JOBS_ENABLED,omitempty"`
+	DataJobsOpenLineageEnabled    *bool   `yaml:"DD_DATA_JOBS_OPENLINEAGE_ENABLED,omitempty"`
 	AppsecScaEnabled              *bool   `yaml:"DD_APPSEC_SCA_ENABLED,omitempty"`
 	LogsCollectionEnabled         *bool   `yaml:"DD_APP_LOGS_COLLECTION_ENABLED,omitempty"`
 	RumEnabled                    *bool   `yaml:"DD_RUM_ENABLED,omitempty"`
