@@ -3,9 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-// Package connectivity runs on-host connectivity checks (ICMP, SNMP) against network
-// devices and classifies failures. It backs both the connectivityCheck Private Action
-// and the `datadog-agent snmp connectivity` CLI, so the two share identical logic.
+// Package connectivity runs on-host ICMP and SNMP checks against network devices for the
+// connectivityCheck Private Action.
 package connectivity
 
 import (
@@ -24,44 +23,33 @@ import (
 )
 
 const (
-	defaultPingCount   = 3
-	defaultPingTimeout = 3 * time.Second
-	pingInterval       = 100 * time.Millisecond
+	// pingInterval is the spacing between ICMP echo requests (not a device-facing input).
+	pingInterval = 100 * time.Millisecond
 
-	// SNMP identity OIDs (scalar .0 instances). A successful GET of these proves SNMP
-	// reachability plus valid credentials, and identifies the device.
-	oidSysName     = "1.3.6.1.2.1.1.5.0"
-	oidSysObjectID = "1.3.6.1.2.1.1.2.0"
-	oidSysDescr    = "1.3.6.1.2.1.1.1.0"
+	// oidSysName is the device's administratively-assigned name.
+	oidSysName = "1.3.6.1.2.1.1.5.0"
 
-	defaultSNMPTimeout   = 3 * time.Second
-	defaultSNMPPort      = 161
-	defaultSNMPCommunity = "public"
-
-	// CheckPing and CheckSNMP are the supported check types. These string values MUST match
-	// the com.datadoghq.remoteaction.networkdevices.connectivityCheck manifest unions exactly.
+	// Check types; values MUST match the connectivityCheck manifest.
 	CheckPing = "ping"
 	CheckSNMP = "snmp"
 
-	failureNone            = "none"
-	failureUnreachable     = "unreachable"
-	failureTimeout         = "timeout"
-	failureCredential      = "credential_failure"
-	failureVersionMismatch = "version_mismatch"
-	failureUnknown         = "unknown"
+	failureNone        = "none"
+	failureUnreachable = "unreachable"
+	failureTimeout     = "timeout"
+	failureCredential  = "credential_failure"
+	failureUnknown     = "unknown"
 )
 
 // PingOptions configures the ICMP reachability check.
 type PingOptions struct {
-	Count     int `json:"count,omitempty"`
-	TimeoutMs int `json:"timeoutMs,omitempty"`
+	Count     int `json:"count"`
+	TimeoutMs int `json:"timeoutMs"`
 }
 
-// SNMPOptions configures the SNMP check. Credentials are sensitive: they are never returned
-// in outputs.
+// SNMPOptions configures the SNMP check.
 type SNMPOptions struct {
 	Version      string `json:"version"`
-	Port         int    `json:"port,omitempty"`
+	Port         int    `json:"port"`
 	Community    string `json:"community,omitempty"`
 	User         string `json:"user,omitempty"`
 	AuthProtocol string `json:"authProtocol,omitempty"`
@@ -69,35 +57,43 @@ type SNMPOptions struct {
 	PrivProtocol string `json:"privProtocol,omitempty"`
 	PrivKey      string `json:"privKey,omitempty"`
 	ContextName  string `json:"contextName,omitempty"`
-	TimeoutMs    int    `json:"timeoutMs,omitempty"`
+	TimeoutMs    int    `json:"timeoutMs"`
 	Retries      int    `json:"retries,omitempty"`
 }
 
-// Request is the connectivity-check input. The JSON tags match the
-// com.datadoghq.remoteaction.networkdevices.connectivityCheck manifest.
+// Request is the connectivity-check input; JSON tags match the connectivityCheck manifest.
 type Request struct {
 	TargetAddresses []string     `json:"targetAddresses"`
 	Checks          []string     `json:"checks"`
-	PingOptions     *PingOptions `json:"ping,omitempty"`
-	SNMPOptions     *SNMPOptions `json:"snmp,omitempty"`
+	PingOptions     *PingOptions `json:"pingOptions,omitempty"`
+	SNMPOptions     *SNMPOptions `json:"snmpOptions,omitempty"`
 }
 
-// CheckResult is the result of a single connectivity check against a device.
-type CheckResult struct {
-	Type            string `json:"type"`
-	Success         bool   `json:"success"`
+// checkResult holds the fields common to every connectivity check result.
+type checkResult struct {
+	Success bool   `json:"success"`
+	RttMs   *int64 `json:"rttMs,omitempty"`
+	Error   string `json:"error,omitempty"`
+}
+
+// PingResult is the result of the ICMP reachability check.
+type PingResult struct {
+	checkResult
 	FailureCategory string `json:"failureCategory"`
-	RttMs           *int64 `json:"rttMs,omitempty"`
+}
+
+// SNMPResult is the result of the SNMP check.
+type SNMPResult struct {
+	checkResult
+	FailureCategory string `json:"failureCategory"`
 	SysName         string `json:"sysName,omitempty"`
-	SysObjectID     string `json:"sysObjectID,omitempty"`
-	SysDescr        string `json:"sysDescr,omitempty"`
-	Error           string `json:"error,omitempty"`
 }
 
 // DeviceResult holds the connectivity results for a single resolved device address.
 type DeviceResult struct {
-	IPAddress    string        `json:"ipAddress"`
-	CheckResults []CheckResult `json:"checkResults"`
+	IPAddress  string      `json:"ipAddress"`
+	PingResult *PingResult `json:"pingResult,omitempty"`
+	SNMPResult *SNMPResult `json:"snmpResult,omitempty"`
 }
 
 // Result is the connectivity-check output.
@@ -127,88 +123,72 @@ func Run(ctx context.Context, req Request) (Result, error) {
 		}
 		dr := DeviceResult{IPAddress: host}
 		for _, c := range req.Checks {
-			var res CheckResult
 			switch c {
 			case CheckPing:
-				res = runPing(host, req.PingOptions)
+				dr.PingResult = runPing(host, req.PingOptions)
 			case CheckSNMP:
-				res = runSNMP(ctx, host, req.SNMPOptions)
-			default:
-				res = CheckResult{Type: c, Success: false, FailureCategory: failureUnknown, Error: fmt.Sprintf("unsupported check %q", c)}
+				dr.SNMPResult = runSNMP(ctx, host, req.SNMPOptions)
 			}
-			dr.CheckResults = append(dr.CheckResults, res)
 		}
 		devices = append(devices, dr)
 	}
 	return Result{Devices: devices}, nil
 }
 
-// runPing performs the ICMP reachability check by reusing the Agent's pinger.
-func runPing(host string, opts *PingOptions) CheckResult {
-	count := defaultPingCount
-	timeout := defaultPingTimeout
-	if opts != nil {
-		if opts.Count > 0 {
-			count = opts.Count
-		}
-		if opts.TimeoutMs > 0 {
-			timeout = time.Duration(opts.TimeoutMs) * time.Millisecond
-		}
+func runPing(host string, opts *PingOptions) *PingResult {
+	if opts == nil {
+		return &PingResult{checkResult: checkResult{Success: false, Error: "ping options are required"}, FailureCategory: failureUnknown}
 	}
 
 	p, err := pinger.New(pinger.Config{
 		UseRawSocket: false,
-		Count:        count,
+		Count:        opts.Count,
 		Interval:     pingInterval,
-		Timeout:      timeout,
+		Timeout:      time.Duration(opts.TimeoutMs) * time.Millisecond,
 	})
 	if err != nil {
-		return CheckResult{Type: CheckPing, Success: false, FailureCategory: failureUnknown, Error: err.Error()}
+		return &PingResult{checkResult: checkResult{Success: false, Error: err.Error()}, FailureCategory: failureUnknown}
 	}
 
 	result, err := p.Ping(host)
 	if err != nil {
-		return CheckResult{Type: CheckPing, Success: false, FailureCategory: failureUnreachable, Error: err.Error()}
+		return &PingResult{checkResult: checkResult{Success: false, Error: err.Error()}, FailureCategory: failureUnreachable}
 	}
 	if result == nil || !result.CanConnect {
-		// No ICMP echo replies were received within the timeout window.
-		return CheckResult{Type: CheckPing, Success: false, FailureCategory: failureUnreachable}
+		return &PingResult{checkResult: checkResult{Success: false}, FailureCategory: failureUnreachable}
 	}
 
 	rtt := result.AvgRtt.Milliseconds()
-	return CheckResult{Type: CheckPing, Success: true, FailureCategory: failureNone, RttMs: &rtt}
+	return &PingResult{checkResult: checkResult{Success: true, RttMs: &rtt}, FailureCategory: failureNone}
 }
 
-// runSNMP performs the SNMP reachability + identity check by GET-ing sysObjectID and sysDescr,
-// and classifies credential / version / reachability failures. Credentials are taken from opts
-// in the clear (first iteration); they are used only to build the local SNMP client and are
-// never echoed back in the result.
-func runSNMP(ctx context.Context, host string, opts *SNMPOptions) CheckResult {
+// runSNMP GETs sysName, measures the request round-trip, and classifies failures. Credentials
+// are used only to build the local client and are never echoed back in the result.
+func runSNMP(ctx context.Context, host string, opts *SNMPOptions) *SNMPResult {
 	if opts == nil || opts.Version == "" {
-		return CheckResult{Type: CheckSNMP, Success: false, FailureCategory: failureUnknown, Error: "snmp options (version) are required when 'snmp' is requested"}
+		return &SNMPResult{checkResult: checkResult{Success: false, Error: "snmp options (version) are required when 'snmp' is requested"}, FailureCategory: failureUnknown}
 	}
 
 	client, err := buildSNMPClient(ctx, host, opts)
 	if err != nil {
-		// Bad version / auth / priv inputs: a configuration problem, not a device response.
-		return CheckResult{Type: CheckSNMP, Success: false, FailureCategory: failureUnknown, Error: err.Error()}
+		return &SNMPResult{checkResult: checkResult{Success: false, Error: err.Error()}, FailureCategory: failureUnknown}
 	}
 
 	if err := client.Connect(); err != nil {
 		category, msg := classifySNMPError(err)
-		return CheckResult{Type: CheckSNMP, Success: false, FailureCategory: category, Error: msg}
+		return &SNMPResult{checkResult: checkResult{Success: false, Error: msg}, FailureCategory: category}
 	}
 	defer func() { _ = client.Conn.Close() }()
 
-	packet, err := client.Get([]string{oidSysName, oidSysObjectID, oidSysDescr})
+	start := time.Now()
+	packet, err := client.Get([]string{oidSysName})
 	if err != nil {
 		category, msg := classifySNMPError(err)
-		return CheckResult{Type: CheckSNMP, Success: false, FailureCategory: category, Error: msg}
+		return &SNMPResult{checkResult: checkResult{Success: false, Error: msg}, FailureCategory: category}
 	}
+	rtt := time.Since(start).Milliseconds()
 
-	// The device answered, so it is reachable and the credentials were accepted. Decode the
-	// identity OIDs best-effort (a missing scalar yields an unconvertible PDU we simply skip).
-	res := CheckResult{Type: CheckSNMP, Success: true, FailureCategory: failureNone}
+	res := &SNMPResult{checkResult: checkResult{Success: true, RttMs: &rtt}, FailureCategory: failureNone}
 	for _, pdu := range packet.Variables {
 		value, convErr := gosnmplib.GetValueFromPDU(pdu)
 		if convErr != nil {
@@ -218,42 +198,28 @@ func runSNMP(ctx context.Context, host string, opts *SNMPOptions) CheckResult {
 		if convErr != nil {
 			continue
 		}
-		switch strings.TrimLeft(pdu.Name, ".") {
-		case oidSysName:
+		if strings.TrimLeft(pdu.Name, ".") == oidSysName {
 			res.SysName = str
-		case oidSysObjectID:
-			res.SysObjectID = str
-		case oidSysDescr:
-			res.SysDescr = str
 		}
 	}
 	return res
 }
 
-// buildSNMPClient builds a gosnmp client from the (clear-text) options. It is intentionally
-// dependency-free (no log.Component), so the same logic backs both the PAR action and the CLI.
+// buildSNMPClient builds a gosnmp client from opts. It avoids snmpparse.NewSNMP so it needs no
+// log.Component dependency.
 func buildSNMPClient(ctx context.Context, host string, opts *SNMPOptions) (*gosnmp.GoSNMP, error) {
 	version, err := snmpVersion(opts.Version)
 	if err != nil {
 		return nil, err
 	}
 
-	port := uint16(defaultSNMPPort)
-	if opts.Port > 0 {
-		port = uint16(opts.Port)
-	}
-	timeout := defaultSNMPTimeout
-	if opts.TimeoutMs > 0 {
-		timeout = time.Duration(opts.TimeoutMs) * time.Millisecond
-	}
-
 	client := &gosnmp.GoSNMP{
 		Context:     ctx,
 		Target:      host,
-		Port:        port,
+		Port:        uint16(opts.Port),
 		Transport:   "udp",
 		Version:     version,
-		Timeout:     timeout,
+		Timeout:     time.Duration(opts.TimeoutMs) * time.Millisecond,
 		Retries:     opts.Retries,
 		ContextName: opts.ContextName,
 	}
@@ -277,11 +243,7 @@ func buildSNMPClient(ctx context.Context, host string, opts *SNMPOptions) (*gosn
 			PrivacyPassphrase:        opts.PrivKey,
 		}
 	} else {
-		community := opts.Community
-		if community == "" {
-			community = defaultSNMPCommunity
-		}
-		client.Community = community
+		client.Community = opts.Community
 	}
 	return client, nil
 }
@@ -300,9 +262,7 @@ func snmpVersion(version string) (gosnmp.SnmpVersion, error) {
 	}
 }
 
-// v3MsgFlags derives the v3 security level from which credentials were supplied, matching the
-// behavior of snmpparse.NewSNMP: priv key -> AuthPriv, auth key only -> AuthNoPriv, else
-// NoAuthNoPriv.
+// v3MsgFlags derives the v3 security level from the supplied credentials.
 func v3MsgFlags(opts *SNMPOptions) gosnmp.SnmpV3MsgFlags {
 	switch {
 	case opts.PrivKey != "":
@@ -314,47 +274,33 @@ func v3MsgFlags(opts *SNMPOptions) gosnmp.SnmpV3MsgFlags {
 	}
 }
 
-// classifySNMPError maps a gosnmp connect/get error to a manifest failureCategory. Where gosnmp
-// (or the net stack) exposes a typed error, it is matched by identity via errors.Is; only the
-// conditions gosnmp surfaces as a bare string (it discards the underlying error without %w) fall
-// back to substring matching. The original message is returned alongside so callers retain detail.
+// classifySNMPError maps a gosnmp connect/get error to a failureCategory. The gosnmp v3 USM
+// sentinels and the %w-wrapped socket errnos are matched by identity; only the timeout, which
+// gosnmp re-creates as a bare string, needs a substring match.
 func classifySNMPError(err error) (category, message string) {
 	message = err.Error()
 	switch {
-	// gosnmp returns these v3 USM conditions as exported sentinels, unwrapped all the way out
-	// of Get(), so match on identity rather than on message text.
 	case errors.Is(err, gosnmp.ErrWrongDigest),
 		errors.Is(err, gosnmp.ErrDecryption),
 		errors.Is(err, gosnmp.ErrUnknownUsername),
 		errors.Is(err, gosnmp.ErrUnknownSecurityLevel),
 		errors.Is(err, gosnmp.ErrUnknownEngineID):
 		return failureCredential, message
-	// A read timeout bounded by the context deadline is surfaced as context.DeadlineExceeded.
 	case errors.Is(err, context.DeadlineExceeded):
 		return failureTimeout, message
-	// Socket errors are %w-wrapped by gosnmp's receive(), so the underlying errno is reachable.
 	case errors.Is(err, syscall.ECONNREFUSED),
 		errors.Is(err, syscall.EHOSTUNREACH),
 		errors.Is(err, syscall.ENETUNREACH):
 		return failureUnreachable, message
 	}
-
-	// The remaining conditions have no gosnmp sentinel and the underlying error is dropped
-	// (re-created via fmt.Errorf without %w), so a substring match is the only option.
-	lower := strings.ToLower(message)
-	switch {
-	case strings.Contains(lower, "request timeout"):
+	if strings.Contains(strings.ToLower(message), "request timeout") {
 		return failureTimeout, message
-	case strings.Contains(lower, "version"):
-		return failureVersionMismatch, message
-	default:
-		return failureUnknown, message
 	}
+	return failureUnknown, message
 }
 
-// expandTargets resolves the input targets (individual IPs and CIDR ranges) into a
-// de-duplicated list of host addresses. The caller (backend) is responsible for bounding
-// the size of the targets it sends.
+// expandTargets resolves IPs and CIDR ranges into a de-duplicated host list; the backend bounds
+// the target count.
 func expandTargets(targets []string) ([]string, error) {
 	var hosts []string
 	seen := make(map[string]struct{})
@@ -367,7 +313,6 @@ func expandTargets(targets []string) ([]string, error) {
 	}
 
 	for _, t := range targets {
-		// CIDR range -> sweep every address in the prefix.
 		if prefix, err := netip.ParsePrefix(t); err == nil {
 			for addr := prefix.Masked().Addr(); prefix.Contains(addr); addr = addr.Next() {
 				add(addr.String())
@@ -377,7 +322,6 @@ func expandTargets(targets []string) ([]string, error) {
 			}
 			continue
 		}
-		// Single IP address.
 		if addr, err := netip.ParseAddr(t); err == nil {
 			add(addr.String())
 			continue

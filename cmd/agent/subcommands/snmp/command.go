@@ -8,7 +8,6 @@ package snmp
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
@@ -40,7 +39,6 @@ import (
 	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
 	snmpscan "github.com/DataDog/datadog-agent/comp/snmpscan/def"
 	snmpscanfx "github.com/DataDog/datadog-agent/comp/snmpscan/fx"
-	connectivity "github.com/DataDog/datadog-agent/pkg/networkdevice/connectivity"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
 	"github.com/DataDog/datadog-agent/pkg/snmp/analyzer"
 	"github.com/DataDog/datadog-agent/pkg/snmp/snmpparse"
@@ -224,64 +222,6 @@ With --analyze, the walk is matched against SNMP device profiles and a summary r
 
 	// This command does nothing until the backend supports it, so it isn't enabled yet.
 	snmpCmd.AddCommand(snmpScanCmd)
-
-	// `connectivity` runs entirely on this host with no backend (unlike walk/scan, which can be
-	// wired to the Action Platform). It shares its logic with the connectivityCheck Private Action,
-	// so you can validate connectivity from an installed Agent without standing up any backend.
-	var connectivityChecks string
-	var connectivityCount, connectivityTimeoutMs int
-	var snmpOpts connectivity.SNMPOptions
-	connectivityCmd := &cobra.Command{
-		Use:   "connectivity <target> [<target>...]",
-		Short: "Run a connectivity check (ICMP and/or SNMP) against device IPs / CIDR ranges locally, with no backend.",
-		Long: `Run connectivity checks against one or more device IPs or CIDR ranges and print per-device
-results as JSON. Runs entirely on this host, with no Datadog backend / Action Platform involved.
-This is the same logic the connectivityCheck Private Action runs on the Agent.
-
-Examples:
-  agent snmp connectivity 10.0.0.0/24 --checks ping
-  agent snmp connectivity 10.0.0.5 --checks snmp --snmp-version 2c --snmp-community public
-  agent snmp connectivity 10.0.0.5 --checks ping,snmp --snmp-version 3 --snmp-user admin \
-    --snmp-auth-protocol SHA --snmp-auth-key <key> --snmp-priv-protocol AES --snmp-priv-key <key>`,
-		Args: cobra.MinimumNArgs(1),
-		RunE: func(_ *cobra.Command, args []string) error {
-			checks := strings.Split(connectivityChecks, ",")
-			for i := range checks {
-				checks[i] = strings.TrimSpace(checks[i])
-			}
-			localSnmpOpts := snmpOpts
-			out, err := connectivity.Run(context.Background(), connectivity.Request{
-				TargetAddresses: args,
-				Checks:          checks,
-				PingOptions:     &connectivity.PingOptions{Count: connectivityCount, TimeoutMs: connectivityTimeoutMs},
-				SNMPOptions:     &localSnmpOpts,
-			})
-			if err != nil {
-				return err
-			}
-			b, err := json.MarshalIndent(out, "", "  ")
-			if err != nil {
-				return err
-			}
-			fmt.Println(string(b))
-			return nil
-		},
-	}
-	connectivityCmd.Flags().StringVar(&connectivityChecks, "checks", connectivity.CheckPing, "Comma-separated checks to run: ping, snmp")
-	connectivityCmd.Flags().IntVar(&connectivityCount, "count", 0, "Number of ICMP echo requests per device (0 = default)")
-	connectivityCmd.Flags().IntVar(&connectivityTimeoutMs, "timeout-ms", 0, "Per-request ICMP timeout in milliseconds (0 = default)")
-	connectivityCmd.Flags().StringVar(&snmpOpts.Version, "snmp-version", "2c", "SNMP version: 1, 2c, or 3")
-	connectivityCmd.Flags().IntVar(&snmpOpts.Port, "snmp-port", 0, "SNMP port (0 = 161)")
-	connectivityCmd.Flags().StringVar(&snmpOpts.Community, "snmp-community", "", "SNMP v1/v2c community string (empty = public)")
-	connectivityCmd.Flags().StringVar(&snmpOpts.User, "snmp-user", "", "SNMP v3 username")
-	connectivityCmd.Flags().StringVar(&snmpOpts.AuthProtocol, "snmp-auth-protocol", "", "SNMP v3 auth protocol: MD5, SHA, SHA224, SHA256, SHA384, SHA512")
-	connectivityCmd.Flags().StringVar(&snmpOpts.AuthKey, "snmp-auth-key", "", "SNMP v3 auth key")
-	connectivityCmd.Flags().StringVar(&snmpOpts.PrivProtocol, "snmp-priv-protocol", "", "SNMP v3 priv protocol: DES, AES, AES192, AES256, AES192C, AES256C")
-	connectivityCmd.Flags().StringVar(&snmpOpts.PrivKey, "snmp-priv-key", "", "SNMP v3 priv key")
-	connectivityCmd.Flags().StringVar(&snmpOpts.ContextName, "snmp-context", "", "SNMP v3 context name")
-	connectivityCmd.Flags().IntVar(&snmpOpts.Retries, "snmp-retries", 0, "SNMP retries")
-	connectivityCmd.Flags().IntVar(&snmpOpts.TimeoutMs, "snmp-timeout-ms", 0, "SNMP per-request timeout in milliseconds (0 = default)")
-	snmpCmd.AddCommand(connectivityCmd)
 
 	return []*cobra.Command{snmpCmd}
 }
