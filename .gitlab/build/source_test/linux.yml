@@ -67,7 +67,6 @@ tests_linux-x64-py3_hybrid:
   extends:
     - .bazel:runner:linux-arm64
     - .linux_tests
-    - .linux_x64
   after_script:
     - !reference [.upload_junit_source]
     # skip coverage upload for several reasons
