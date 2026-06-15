@@ -6,7 +6,7 @@ metadata:
 spec:
   podSelector:
     matchLabels:
-      app.kubernetes.io/name: host-profiler-collector
+      app.kubernetes.io/name: dd-host-profiler-collector
   policyTypes:
     - Egress
   egress:
