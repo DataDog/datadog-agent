@@ -238,7 +238,6 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/collector/corechecks/network-devices/versa/payload
 # gazelle:exclude pkg/collector/corechecks/network-devices/versa/report
 # gazelle:exclude pkg/collector/corechecks/networkconfigmanagement
-# gazelle:exclude pkg/collector/corechecks/networkpath
 # gazelle:exclude pkg/collector/corechecks/nvidia
 # gazelle:exclude pkg/collector/corechecks/oracle/*.go
 # gazelle:exclude pkg/collector/corechecks/oracle/compose
