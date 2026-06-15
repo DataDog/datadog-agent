@@ -1,19 +1,41 @@
 """
-DBM Postgres setup — Detect → Plan → Apply using psycopg2 (bundled with the agent).
+DBM Postgres setup — Detect → Plan → Apply using psycopg (v3).
 
 Called by 'datadog-agent integration setup postgres' via the embedded Python binary.
 Reads a JSON config from stdin, writes a JSON result to stdout.
 Function bodies mirror integrations-core/postgres/tests/compose/resources/03_setup.sh.
 NOTE: if the canonical SQL in integrations-core changes, this file must be updated manually.
+
+Connections reuse the Postgres integration's connection layer rather than a
+standalone copy: delegates to datadog_checks.postgres.connection_pool.configure_connection
+(autocommit, SQL_ASCII text decoding, CommenterCursor) and the integration's
+database-autodiscovery query. When the integration package isn't importable
+(e.g. dev runs with --use-sys-python), falls back to a minimal psycopg config.
 """
 
 import json
 import sys
 
-import psycopg2
-import psycopg2.extensions
-import psycopg2.extras
-from psycopg2 import sql
+try:
+    import psycopg
+    from psycopg import sql
+
+    _IMPORT_ERROR = None
+except ImportError as exc:  # pragma: no cover - exercised only without psycopg3 installed
+    psycopg = None
+    sql = None
+    _IMPORT_ERROR = exc
+
+# Reuse the integration's connection layer when available so setup connects and
+# decodes exactly like the running check.
+try:
+    from datadog_checks.postgres.connection_pool import configure_connection as _integration_configure_connection
+    from datadog_checks.postgres.discovery import AUTODISCOVERY_QUERY
+
+    _INTEGRATION_CONFIGURE = _integration_configure_connection
+except ImportError:  # pragma: no cover - dev / --use-sys-python without the integration
+    _INTEGRATION_CONFIGURE = None
+    AUTODISCOVERY_QUERY = "select datname from pg_catalog.pg_database where datistemplate = false"
 
 # (name, desired_value, requires_restart, required)
 # required=False means the setting is optional per DBM docs — DBM works without it,
@@ -63,6 +85,47 @@ $$
 LANGUAGE 'plpgsql'
 RETURNS NULL ON NULL INPUT
 SECURITY DEFINER"""
+
+
+# ---------------------------------------------------------------------------
+# Connections
+# ---------------------------------------------------------------------------
+
+
+def _configure_connection(conn):
+    """Configure a psycopg connection for setup.
+
+    Delegates to the integration's configure_connection when available so setup
+    connects exactly like the running check (autocommit, SQL_ASCII text decoding,
+    CommenterCursor). Falls back to a minimal config when the integration package
+    isn't importable (dev / --use-sys-python).
+
+    ClientCursor is required — not just stylistic: PostgreSQL rejects server-side
+    bound parameters in utility statements (CREATE USER ... WITH PASSWORD %s),
+    which psycopg3's default server-binding Cursor would send as $1.
+    CommenterCursor subclasses ClientCursor, so the fallback sets it directly."""
+    if _INTEGRATION_CONFIGURE is not None:
+        _INTEGRATION_CONFIGURE(conn)
+    else:
+        conn.autocommit = True
+        conn.cursor_factory = psycopg.ClientCursor
+    return conn
+
+
+def _connect(uri, dbname=None):
+    """Open a configured psycopg (v3) connection. `dbname`, when given, overrides
+    the database in `uri` for per-database operations."""
+    kwargs = {}
+    if dbname:
+        kwargs["dbname"] = dbname
+    return _configure_connection(psycopg.connect(uri, **kwargs))
+
+
+def _query(cur, composed):
+    """Render a psycopg.sql composition to a plain string. CommenterCursor runs
+    add_sql_comment(), which calls .strip() on the query, so it needs a str —
+    not a sql.Composed. Identifiers stay safely quoted by as_string()."""
+    return composed.as_string(cur)
 
 
 # ---------------------------------------------------------------------------
@@ -153,8 +216,9 @@ def _detect_user_exists(cur, username):
 
 def _detect_databases(cur, config):
     if config.get("all_databases"):
-        cur.execute("SELECT datname FROM pg_database WHERE datistemplate = false ORDER BY datname")
-        return [row[0] for row in cur.fetchall()]
+        # Reuse the integration's autodiscovery query; sort for stable output.
+        cur.execute(AUTODISCOVERY_QUERY)
+        return sorted(row[0] for row in cur.fetchall())
     return config.get("databases", [])
 
 
@@ -504,42 +568,45 @@ def _plan_per_db_ops(config, db):
 
 
 def _execute_op(cur, op):
-    """Execute a single operation using psycopg2 with safe identifier handling."""
+    """Execute a single operation using psycopg (v3) with safe identifier handling."""
     op_type = op.get("op_type")
     args = op.get("args", [])
 
     if op_type == "create_user":
         cur.execute(
-            sql.SQL("CREATE USER {} WITH PASSWORD %s").format(sql.Identifier(args[0])),
+            _query(cur, sql.SQL("CREATE USER {} WITH PASSWORD %s").format(sql.Identifier(args[0]))),
             (args[1],),
         )
     elif op_type == "alter_user_password":
         cur.execute(
-            sql.SQL("ALTER USER {} WITH PASSWORD %s").format(sql.Identifier(args[0])),
+            _query(cur, sql.SQL("ALTER USER {} WITH PASSWORD %s").format(sql.Identifier(args[0]))),
             (args[1],),
         )
     elif op_type == "grant_pg_monitor":
-        cur.execute(sql.SQL("GRANT pg_monitor TO {}").format(sql.Identifier(args[0])))
+        cur.execute(_query(cur, sql.SQL("GRANT pg_monitor TO {}").format(sql.Identifier(args[0]))))
     elif op_type == "grant_pg96":
         cur.execute(
-            sql.SQL(
-                "GRANT SELECT ON pg_stat_database TO {};"
-                "GRANT SELECT ON pg_stat_database_conflicts TO {};"
-                "GRANT SELECT ON pg_stat_bgwriter TO {}"
-            ).format(
-                sql.Identifier(args[0]),
-                sql.Identifier(args[0]),
-                sql.Identifier(args[0]),
+            _query(
+                cur,
+                sql.SQL(
+                    "GRANT SELECT ON pg_stat_database TO {};"
+                    "GRANT SELECT ON pg_stat_database_conflicts TO {};"
+                    "GRANT SELECT ON pg_stat_bgwriter TO {}"
+                ).format(
+                    sql.Identifier(args[0]),
+                    sql.Identifier(args[0]),
+                    sql.Identifier(args[0]),
+                ),
             )
         )
     elif op_type == "alter_role_inherit":
-        cur.execute(sql.SQL("ALTER ROLE {} INHERIT").format(sql.Identifier(args[0])))
+        cur.execute(_query(cur, sql.SQL("ALTER ROLE {} INHERIT").format(sql.Identifier(args[0]))))
     elif op_type == "create_extension":
         cur.execute("CREATE EXTENSION IF NOT EXISTS pg_stat_statements")
     elif op_type == "create_schema":
         cur.execute("CREATE SCHEMA IF NOT EXISTS datadog")
     elif op_type == "grant_schema_usage":
-        cur.execute(sql.SQL("GRANT USAGE ON SCHEMA datadog TO {}").format(sql.Identifier(args[0])))
+        cur.execute(_query(cur, sql.SQL("GRANT USAGE ON SCHEMA datadog TO {}").format(sql.Identifier(args[0]))))
     elif op_type == "func_pg_stat_activity":
         cur.execute(_SQL_FUNC_PG_STAT_ACTIVITY)
     elif op_type == "func_pg_stat_statements":
@@ -553,9 +620,7 @@ def _execute_op(cur, op):
 
 
 def _apply(ops, uri, state, optional_restart_pending=None):
-    params = psycopg2.extensions.parse_dsn(uri)
-    base_conn = psycopg2.connect(**params)
-    base_conn.autocommit = True
+    base_conn = _connect(uri)
 
     db_conns = {}
     failed = False
@@ -578,10 +643,7 @@ def _apply(ops, uri, state, optional_restart_pending=None):
             try:
                 if db:
                     if db not in db_conns:
-                        db_params = dict(params)
-                        db_params["dbname"] = db
-                        db_conns[db] = psycopg2.connect(**db_params)
-                        db_conns[db].autocommit = True
+                        db_conns[db] = _connect(uri, dbname=db)
                     conn = db_conns[db]
                 else:
                     conn = base_conn
@@ -661,10 +723,20 @@ def main():
     uri = args["connection_uri"]
     config = args["config"]
 
+    if _IMPORT_ERROR is not None:
+        print(
+            json.dumps(
+                {
+                    "success": False,
+                    "error": "psycopg (v3) is not available in this Python environment; "
+                    "ensure the Datadog Postgres integration is installed ({})".format(_IMPORT_ERROR),
+                }
+            )
+        )
+        sys.exit(1)
+
     try:
-        params = psycopg2.extensions.parse_dsn(uri)
-        conn = psycopg2.connect(**params)
-        conn.autocommit = True
+        conn = _connect(uri)
         cur = conn.cursor()
 
         state = _detect(cur, config)
