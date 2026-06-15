@@ -25,11 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// discoveredChangesBuffer is the buffer size for the channel that delivers
-// asynchronously-discovered configs to AutoConfig. Sized to absorb a burst
-// of completions without blocking the worker goroutine on a busy scheduler.
-const discoveredChangesBuffer = 128
-
 // configManager implements the logic of handling additions and removals of
 // configs (which may or may not be templates) and services, and reconciling
 // those together to resolve templates.

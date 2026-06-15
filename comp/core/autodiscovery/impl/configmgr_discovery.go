@@ -12,6 +12,11 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 )
 
+// discoveredChangesBuffer is the buffer size for the channel that delivers
+// asynchronously-discovered configs to AutoConfig. Sized to absorb a burst
+// of completions without blocking the worker goroutine on a busy scheduler.
+const discoveredChangesBuffer = 128
+
 // initDiscoveryWorker wires the workqueue-backed discovery worker into cm.
 func initDiscoveryWorker(cm *reconcilingConfigManager, disco discoverer.ConfigDiscoverer) {
 	cm.discoveredCh = make(chan integration.ConfigChanges, discoveredChangesBuffer)
