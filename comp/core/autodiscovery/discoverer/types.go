@@ -6,18 +6,7 @@
 // Package discoverer owns configuration-discovery for Autodiscovery templates
 // that carry a non-nil Discovery field. Such templates do not resolve through
 // the regular template variable substitution path; instead, the integration
-// itself is asked to produce the runtime instance config given live service
-// information.
-//
-// The package defines the ConfigDiscoverer interface (the boundary the agent
-// uses to ask an integration to discover its config), the JSON shapes for the
-// request/response payloads, and a worker that drives a delayed workqueue
-// with bounded retries.
-//
-// In its current form the package is wired in but disabled by default: the
-// production AutoConfig constructor passes a nil ConfigDiscoverer, so
-// Discovery templates are silently skipped until a real (e.g. Python-backed)
-// implementation is supplied.
+// itself is asked to produce the runtime instance config given live service info.
 package discoverer
 
 import (
@@ -32,10 +21,8 @@ type PermFail struct{ Err error }
 func (e PermFail) Error() string { return e.Err.Error() }
 func (e PermFail) Unwrap() error { return e.Err }
 
-// ConfigDiscoverer is the boundary between Autodiscovery and the runtime that
-// hosts the integration's discover_config implementation. The agent serializes
-// the live service information as JSON and the integration returns a JSON
-// payload describing one or more discovered configs.
+// Boundary between Autodiscovery and the discovery_config implementation.
+// Agent serializes service info as JSON to the integration. Returns JSON configs.
 type ConfigDiscoverer interface {
 	DiscoverConfig(integrationName, serviceJSON string) (string, error)
 }
