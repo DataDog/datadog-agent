@@ -474,7 +474,7 @@ func (f *DefaultForwarder) Stop() {
 		select {
 		case <-donePurging:
 		case <-time.After(purgeTimeout):
-			f.log.Warnf("Timeout emptying new transactions before stopping the forwarder %v", purgeTimeout)
+			f.log.Warnf("Timed out after %v emptying queued transactions before stopping the forwarder; in-flight payloads may be dropped", purgeTimeout)
 		}
 	} else {
 		for _, df := range f.domainForwarders {
