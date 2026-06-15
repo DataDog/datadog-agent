@@ -10,7 +10,6 @@ package trace
 import (
 	"errors"
 	"os"
-	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -19,14 +18,12 @@ import (
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 )
 
 func setupTraceAgentTest(t *testing.T) {
-	// ensure a free port is used for starting the trace agent
-	if port, err := testutil.FindTCPPort(); err == nil {
-		t.Setenv("DD_RECEIVER_PORT", strconv.Itoa(port))
-	}
+	// Disable TCP: tests don't submit traces over HTTP, and `FindTCPPort` caused a TOCTOU race.
+	t.Setenv("DD_RECEIVER_PORT", "0")
+	configmock.New(t) // fresh config so BuildSchema picks up DD_RECEIVER_PORT=0
 }
 
 type LoadConfigMocked struct {
