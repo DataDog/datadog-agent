@@ -1,0 +1,9 @@
+---
+enhancements:
+  - |
+    Installer: The default install script now honors the
+    ``DD_PROCESS_CONFIG_PROCESS_COLLECTION_ENABLED``,
+    ``DD_PROCESS_CONFIG_CONTAINER_COLLECTION_ENABLED``, and
+    ``DD_PROCESS_CONFIG_PROCESS_DISCOVERY_ENABLED`` environment variables
+    (and their ``DD_PROCESS_AGENT_*`` aliases) to set the corresponding
+    ``process_config`` collection toggles in ``datadog.yaml`` at install time
