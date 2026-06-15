@@ -35,11 +35,6 @@ import (
 func OperationAndResourceNameV2Enabled(conf *config.AgentConfig) bool {
 	return !conf.OTLPReceiver.SpanNameAsResourceName && len(conf.OTLPReceiver.SpanNameRemappings) == 0 && !conf.HasFeature("disable_operation_and_resource_name_logic_v2")
 }
-// scopeConventionEnabled checks if the new convention for otel.library.name and otel.library.version
-// to otel.scope.name and otel.scope.version should be used
-func scopeConventionEnabled(conf *config.AgentConfig) bool {
-	return !conf.HasFeature("disable_otel_scope_convention")
-}
 
 // otelSpanToDDSpanMinimal is the internal implementation shared by OtelSpanToDDSpanMinimal and
 // OtelSpanToDDSpan, accepting a pre-created accessor to avoid repeated allocation.
