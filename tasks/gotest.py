@@ -197,7 +197,9 @@ def _run_bazel(
     return result
 
 
-def get_bazel_test_targets(ctx, flavor: str, modules: list[GoModule], bazel_flags: list[str] = None) -> dict[str, str]:
+def get_bazel_test_targets(
+    ctx, flavor: AgentFlavor, modules: list[GoModule], bazel_flags: list[str] = None
+) -> dict[str, str]:
     """Query Bazel for go_test targets within the scope of the given modules.
 
     Returns a dict mapping Bazel label (without config hash) to Go import path.
