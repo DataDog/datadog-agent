@@ -31,7 +31,9 @@ extraEnvs:
 command:
   name: host-profiler
 
-# Enable the chart integrations the Host Profiler relies on.
+# Enable the chart integrations the Host Profiler relies on. The profiling
+# preset configures host-level profiling settings such as hostPID and the
+# profile receiver wiring; kubernetesAttributes adds Kubernetes metadata.
 presets:
   profiling:
     enabled: true

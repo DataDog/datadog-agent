@@ -46,12 +46,12 @@ If your cluster does not enforce NetworkPolicy resources, these manifests do not
 Apply the adapted manifests through your usual Kubernetes workflow. For example:
 
 ```shell
-kubectl apply -f standalone/operator/rbac.yaml
-kubectl apply -f standalone/operator/collector.yaml
-kubectl apply -f standalone/operator/network-policy.yaml
+kubectl apply -f operator/rbac.yaml
+kubectl apply -f operator/collector.yaml
+kubectl apply -f operator/network-policy.yaml
 ```
 
-If your cluster uses Cilium, apply `standalone/operator/cilium-network-policy.yaml` instead of `standalone/operator/network-policy.yaml`.
+If your cluster uses Cilium, apply [`operator/cilium-network-policy.yaml`](operator/cilium-network-policy.yaml) instead of [`operator/network-policy.yaml`](operator/network-policy.yaml).
 
 The provided manifests configure the required capabilities and seccomp profile automatically. An init container installs the seccomp profile onto each node, so no manual seccomp setup is required.
 
