@@ -31,6 +31,7 @@ const (
 	// reachability plus valid credentials, and identifies the device.
 	oidSysDescr    = "1.3.6.1.2.1.1.1.0"
 	oidSysObjectID = "1.3.6.1.2.1.1.2.0"
+	oidSysName     = "1.3.6.1.2.1.1.5.0"
 
 	defaultSNMPTimeout   = 3 * time.Second
 	defaultSNMPPort      = 161
@@ -55,9 +56,9 @@ type PingOptions struct {
 	TimeoutMs int `json:"timeoutMs,omitempty"`
 }
 
-// SnmpOptions configures the SNMP check. Credentials are sensitive: they are never returned
+// SNMPOptions configures the SNMP check. Credentials are sensitive: they are never returned
 // in outputs.
-type SnmpOptions struct {
+type SNMPOptions struct {
 	Version      string `json:"version"`
 	Port         int    `json:"port,omitempty"`
 	Community    string `json:"community,omitempty"`
@@ -74,10 +75,10 @@ type SnmpOptions struct {
 // Request is the connectivity-check input. The JSON tags match the
 // com.datadoghq.remoteaction.networkdevices.connectivityCheck manifest.
 type Request struct {
-	Targets []string     `json:"targets"`
-	Checks  []string     `json:"checks"`
-	Ping    *PingOptions `json:"ping,omitempty"`
-	Snmp    *SnmpOptions `json:"snmp,omitempty"`
+	TargetAddresses []string     `json:"targetAddresses"`
+	Checks          []string     `json:"checks"`
+	PingOptions     *PingOptions `json:"ping,omitempty"`
+	SNMPOptions     *SNMPOptions `json:"snmp,omitempty"`
 }
 
 // CheckResult is the result of a single connectivity check against a device.
@@ -86,16 +87,16 @@ type CheckResult struct {
 	Success         bool   `json:"success"`
 	FailureCategory string `json:"failureCategory"`
 	RttMs           *int64 `json:"rttMs,omitempty"`
-	SysObjectID     string `json:"sysObjectId,omitempty"`
+	SysName         string `json:"sysName,omitempty"`
+	SysObjectID     string `json:"sysObjectID,omitempty"`
 	SysDescr        string `json:"sysDescr,omitempty"`
 	Error           string `json:"error,omitempty"`
 }
 
 // DeviceResult holds the connectivity results for a single resolved device address.
 type DeviceResult struct {
-	IPAddress string        `json:"ipAddress"`
-	Succeeded bool          `json:"succeeded"`
-	Results   []CheckResult `json:"results"`
+	IPAddress    string        `json:"ipAddress"`
+	CheckResults []CheckResult `json:"checkResults"`
 }
 
 // Result is the connectivity-check output.
@@ -106,14 +107,14 @@ type Result struct {
 // Run expands the request targets into host addresses and runs each requested check against
 // every device, classifying any failures. It runs entirely on the local host (no backend).
 func Run(ctx context.Context, req Request) (Result, error) {
-	if len(req.Targets) == 0 {
-		return Result{}, errors.New("at least one target is required")
+	if len(req.TargetAddresses) == 0 {
+		return Result{}, errors.New("at least one target address is required")
 	}
 	if len(req.Checks) == 0 {
 		return Result{}, errors.New("at least one check is required")
 	}
 
-	hosts, err := expandTargets(req.Targets)
+	hosts, err := expandTargets(req.TargetAddresses)
 	if err != nil {
 		return Result{}, err
 	}
@@ -123,21 +124,18 @@ func Run(ctx context.Context, req Request) (Result, error) {
 		if ctx.Err() != nil {
 			break
 		}
-		dr := DeviceResult{IPAddress: host, Succeeded: true}
+		dr := DeviceResult{IPAddress: host}
 		for _, c := range req.Checks {
 			var res CheckResult
 			switch c {
 			case CheckPing:
-				res = runPing(host, req.Ping)
+				res = runPing(host, req.PingOptions)
 			case CheckSNMP:
-				res = runSNMP(ctx, host, req.Snmp)
+				res = runSNMP(ctx, host, req.SNMPOptions)
 			default:
 				res = CheckResult{Type: c, Success: false, FailureCategory: failureUnknown, Error: fmt.Sprintf("unsupported check %q", c)}
 			}
-			if !res.Success {
-				dr.Succeeded = false
-			}
-			dr.Results = append(dr.Results, res)
+			dr.CheckResults = append(dr.CheckResults, res)
 		}
 		devices = append(devices, dr)
 	}
@@ -184,7 +182,7 @@ func runPing(host string, opts *PingOptions) CheckResult {
 // and classifies credential / version / reachability failures. Credentials are taken from opts
 // in the clear (first iteration); they are used only to build the local SNMP client and are
 // never echoed back in the result.
-func runSNMP(ctx context.Context, host string, opts *SnmpOptions) CheckResult {
+func runSNMP(ctx context.Context, host string, opts *SNMPOptions) CheckResult {
 	if opts == nil || opts.Version == "" {
 		return CheckResult{Type: CheckSNMP, Success: false, FailureCategory: failureUnknown, Error: "snmp options (version) are required when 'snmp' is requested"}
 	}
@@ -201,7 +199,7 @@ func runSNMP(ctx context.Context, host string, opts *SnmpOptions) CheckResult {
 	}
 	defer func() { _ = client.Conn.Close() }()
 
-	packet, err := client.Get([]string{oidSysObjectID, oidSysDescr})
+	packet, err := client.Get([]string{oidSysObjectID, oidSysDescr, oidSysName})
 	if err != nil {
 		category, msg := classifySNMPError(err)
 		return CheckResult{Type: CheckSNMP, Success: false, FailureCategory: category, Error: msg}
@@ -224,6 +222,8 @@ func runSNMP(ctx context.Context, host string, opts *SnmpOptions) CheckResult {
 			res.SysObjectID = str
 		case oidSysDescr:
 			res.SysDescr = str
+		case oidSysName:
+			res.SysName = str
 		}
 	}
 	return res
@@ -231,7 +231,7 @@ func runSNMP(ctx context.Context, host string, opts *SnmpOptions) CheckResult {
 
 // buildSNMPClient builds a gosnmp client from the (clear-text) options. It is intentionally
 // dependency-free (no log.Component), so the same logic backs both the PAR action and the CLI.
-func buildSNMPClient(ctx context.Context, host string, opts *SnmpOptions) (*gosnmp.GoSNMP, error) {
+func buildSNMPClient(ctx context.Context, host string, opts *SNMPOptions) (*gosnmp.GoSNMP, error) {
 	version, err := snmpVersion(opts.Version)
 	if err != nil {
 		return nil, err
@@ -302,7 +302,7 @@ func snmpVersion(version string) (gosnmp.SnmpVersion, error) {
 // v3MsgFlags derives the v3 security level from which credentials were supplied, matching the
 // behavior of snmpparse.NewSNMP: priv key -> AuthPriv, auth key only -> AuthNoPriv, else
 // NoAuthNoPriv.
-func v3MsgFlags(opts *SnmpOptions) gosnmp.SnmpV3MsgFlags {
+func v3MsgFlags(opts *SNMPOptions) gosnmp.SnmpV3MsgFlags {
 	switch {
 	case opts.PrivKey != "":
 		return gosnmp.AuthPriv

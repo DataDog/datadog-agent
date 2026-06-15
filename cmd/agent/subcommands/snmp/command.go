@@ -230,7 +230,7 @@ With --analyze, the walk is matched against SNMP device profiles and a summary r
 	// so you can validate connectivity from an installed Agent without standing up any backend.
 	var connectivityChecks string
 	var connectivityCount, connectivityTimeoutMs int
-	var snmpOpts connectivity.SnmpOptions
+	var snmpOpts connectivity.SNMPOptions
 	connectivityCmd := &cobra.Command{
 		Use:   "connectivity <target> [<target>...]",
 		Short: "Run a connectivity check (ICMP and/or SNMP) against device IPs / CIDR ranges locally, with no backend.",
@@ -251,10 +251,10 @@ Examples:
 			}
 			localSnmpOpts := snmpOpts
 			out, err := connectivity.Run(context.Background(), connectivity.Request{
-				Targets: args,
-				Checks:  checks,
-				Ping:    &connectivity.PingOptions{Count: connectivityCount, TimeoutMs: connectivityTimeoutMs},
-				Snmp:    &localSnmpOpts,
+				TargetAddresses: args,
+				Checks:          checks,
+				PingOptions:     &connectivity.PingOptions{Count: connectivityCount, TimeoutMs: connectivityTimeoutMs},
+				SNMPOptions:     &localSnmpOpts,
 			})
 			if err != nil {
 				return err
