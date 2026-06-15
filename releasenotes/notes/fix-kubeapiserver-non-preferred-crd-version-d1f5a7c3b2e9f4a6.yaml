@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    Fixed the Cluster Agent ``kubeapiserver`` workloadmeta collector failing to
+    auto-discover Custom Resource Definitions that are served only on a
+    non-preferred version of their API group (for example a ``v1alpha1`` CRD in
+    a group whose preferred version is ``v2alpha1``). Such resources referenced
+    by ``DD_KUBERNETES_RESOURCES_ANNOTATIONS_AS_TAGS`` are now correctly
+    resolved instead of causing an auto-discovery error at startup.
