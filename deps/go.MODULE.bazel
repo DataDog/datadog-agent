@@ -70,6 +70,12 @@ go_deps.gazelle_default_attributes(
 )
 go_deps.gazelle_override(
     directives = [
+        "gazelle:go_naming_convention go_default_library",
+    ],
+    path = "github.com/GoogleCloudPlatform/docker-credential-gcr",
+)
+go_deps.gazelle_override(
+    directives = [
         "gazelle:build_file_generation on",
     ],
     path = "github.com/coreos/etcd",
