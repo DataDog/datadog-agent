@@ -10,21 +10,15 @@ Review the [supported environments](../README.md#supported-environments) before 
 
 ## Prerequisites
 
-1. Apply [`prerequisites.yaml`](../prerequisites.yaml) to create the `dd-host-profiler` namespace:
+Before deploying, make sure you have:
 
-```shell
-kubectl apply -f prerequisites.yaml
-```
+- [OpenTelemetry Operator](https://opentelemetry.io/docs/kubernetes/operator/) installed.
+- A namespace for the Host Profiler. You can reuse an existing namespace or create a dedicated one.
+- A Datadog API key available to the Collector as `DD_API_KEY`.
 
-2. Create a Kubernetes secret with your Datadog API key:
+The example manifests read `DD_API_KEY` from a Kubernetes Secret named `datadog-secret`, using the key `api-key`, in the same namespace as the `OpenTelemetryCollector` Custom Resource. If you use another secret-management mechanism, adapt [`operator/collector.yaml`](operator/collector.yaml) accordingly.
 
-```shell
-kubectl create secret generic datadog-secret \
-  --from-literal=api-key="$DD_API_KEY" \
-  --namespace dd-host-profiler
-```
-
-3. If the OpenTelemetry Operator is not installed, follow the [official installation guide](https://opentelemetry.io/docs/kubernetes/operator/).
+> **Note:** Do not put the raw API key directly in Collector configuration; it may be stored in the cluster.
 
 ## Configuration
 
