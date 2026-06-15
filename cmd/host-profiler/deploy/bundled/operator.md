@@ -2,7 +2,7 @@
 
 ## Overview
 
-Use this guide when the Datadog Agent is already installed with the Datadog Operator. If your Agent is installed with Helm, use the [Datadog Helm chart guide](helm.md) instead.
+Use this guide when the Datadog Agent is already installed with the Datadog Operator. This includes Datadog Agent deployments that also run the Datadog Distribution of OpenTelemetry (DDOT). If your Agent is installed with Helm, use the [Datadog Helm chart guide](helm.md) instead.
 
 The Host Profiler runs as a sidecar in the Datadog Agent DaemonSet, and the Agent enriches profiles with Datadog infrastructure metadata.
 
