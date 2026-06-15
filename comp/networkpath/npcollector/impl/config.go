@@ -18,7 +18,7 @@ import (
 
 type collectorConfigs struct {
 	connectionsMonitoringEnabled    bool
-    netflowMonitoringEnabled        bool
+	netflowMonitoringEnabled        bool
 	workers                         int
 	timeout                         time.Duration
 	maxTTL                          int
