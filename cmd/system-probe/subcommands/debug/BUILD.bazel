@@ -1,0 +1,33 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+# gazelle:dd_agent_go_test on
+
+go_library(
+    name = "debug",
+    srcs = ["command.go"],
+    importpath = "github.com/DataDog/datadog-agent/cmd/system-probe/subcommands/debug",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cmd/system-probe/command",
+        "//comp/core",
+        "//comp/core/config",
+        "//comp/core/log/def",
+        "//comp/core/sysprobeconfig/def",
+        "//comp/core/sysprobeconfig/impl",
+        "//pkg/system-probe/api/client",
+        "//pkg/util/fxutil",
+        "@com_github_spf13_cobra//:cobra",
+        "@org_uber_go_fx//:fx",
+    ],
+)
+
+dd_agent_go_test(
+    name = "debug_test",
+    srcs = ["command_test.go"],
+    embed = [":debug"],
+    deps = [
+        "//cmd/system-probe/command",
+        "//pkg/util/fxutil",
+    ],
+)

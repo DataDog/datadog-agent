@@ -52,7 +52,7 @@ import (
 	remotetraceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/fx-remote"
 	"github.com/DataDog/datadog-agent/comp/process"
 	agent "github.com/DataDog/datadog-agent/comp/process/agent/def"
-	"github.com/DataDog/datadog-agent/comp/process/apiserver"
+	apiserver "github.com/DataDog/datadog-agent/comp/process/apiserver/def"
 	expvars "github.com/DataDog/datadog-agent/comp/process/expvars/def"
 	"github.com/DataDog/datadog-agent/comp/process/hostinfo/def"
 	profiler "github.com/DataDog/datadog-agent/comp/process/profiler/def"
@@ -219,6 +219,7 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 					"runtime_mutex_profile_fraction": commonsettings.NewRuntimeMutexProfileFraction(),
 					"runtime_block_profile_rate":     commonsettings.NewRuntimeBlockProfileRate(),
 					"internal_profiling_goroutines":  commonsettings.NewProfilingGoroutines(),
+					"internal_profiling_period":      commonsettings.NewProfilingPeriod(),
 					"internal_profiling":             commonsettings.NewProfilingRuntimeSetting("internal_profiling", "process-agent"),
 				},
 				Config: c,

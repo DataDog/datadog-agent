@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import ast
-import os
 import shlex
 import shutil
 import subprocess
@@ -132,33 +130,3 @@ def bazel(
     if capture_stderr:
         return (result.stdout or "") + (result.stderr or "")
     return result.stdout
-
-
-class BazelTools:
-    """Hermetic Bazel-managed tool paths; populated once on first instantiation."""
-
-    _paths = {}
-
-    def __new__(cls, ctx):
-        if not cls._paths:
-            labels = ("@com_github_tinylib_msgp//:msgp", "@rules_go//go")
-            bazel(ctx, "build", *labels)
-            root = bazel(ctx, "info", "execution_root", capture_output=True).strip()
-            for line in bazel(
-                ctx,
-                "cquery",
-                f"config(set({' '.join(labels)}), target)",
-                "--output=starlark",
-                "--starlark:expr=target.label.name,target.files_to_run.executable.path",
-                capture_output=True,
-            ).splitlines():
-                name, path = ast.literal_eval(line)
-                cls._paths[name] = Path(root, path)
-        return super().__new__(cls)
-
-    def __getattr__(self, name):
-        return self._paths[name]
-
-    @property
-    def go_env(self):
-        return {"PATH": f"{self._paths['go_bin_runner'].parent}{os.pathsep}{os.getenv('PATH', '')}"}

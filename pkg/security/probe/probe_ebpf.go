@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"net"
 	"net/netip"
 	"os"
 	"path/filepath"
@@ -389,7 +390,7 @@ func (p *EBPFProbe) sanityChecks() error {
 	}
 
 	if p.config.Probe.CapabilitiesMonitoringEnabled && !p.isCapabilitiesMonitoringSupported() {
-		seclog.Warnf("The capabilities monitoring feature of CWS requires a more recent kernel (at least 5.17), setting event_monitoring_config.capabilities_monitoring.enabled to false")
+		seclog.Warnf("The capabilities monitoring feature of CWS requires a kernel version between 5.17 and 6.13, setting event_monitoring_config.capabilities_monitoring.enabled to false")
 		p.config.Probe.CapabilitiesMonitoringEnabled = false
 	}
 
@@ -798,16 +799,23 @@ func (p *EBPFProbe) applyRawPacketActionFilters(applyFromRuleset bool) error {
 		return err
 	}
 
+	var errs *multierror.Error
+
 	var progSpecs []*lib.ProgramSpec
 	if len(p.rawPacketActionFilters) > 0 {
 		progSpecs, err = rawpacket.DropActionsToProgramSpecs(rawPacketEventMap.FD(), routerMap.FD(), p.rawPacketActionFilters, opts)
+		// if there is an error, keep it but we still want to load the valid programs
 		if err != nil {
-			return err
+			errs = multierror.Append(errs, err)
 		}
 	}
 
 	// add or close if none
-	return p.setupRawPacketProgs(progSpecs, probes.TCRawPacketDropActionKey, probes.RawPacketMaxTailCall, &p.rawPacketActionCollection, applyFromRuleset)
+	if err := p.setupRawPacketProgs(progSpecs, probes.TCRawPacketDropActionKey, probes.RawPacketMaxTailCall, &p.rawPacketActionCollection, applyFromRuleset); err != nil {
+		errs = multierror.Append(errs, err)
+	}
+
+	return errs.ErrorOrNil()
 }
 
 func (p *EBPFProbe) addRawPacketActionFilter(actionFilter rawpacket.Filter) error {
@@ -1171,8 +1179,6 @@ func (p *EBPFProbe) newRelatedProcessEvent(pce *model.ProcessCacheEntry, err err
 		relatedEvent.SetPathResolutionError(&relatedEvent.ProcessCacheEntry.FileEvent, err)
 	}
 
-	p.Resolvers.ProcessResolver.TryReparentFromProcfsLocked(pce, metrics.ReparentCallpathRelatedEvent, nil)
-
 	return relatedEvent
 }
 
@@ -1214,23 +1220,11 @@ func (p *EBPFProbe) setProcessContext(eventType model.EventType, event *model.Ev
 				event.Error = model.ErrNoProcessContext
 			}
 		} else {
-			// If the kernel reports a different ppid than the one in our
-			// cache, the process was reparented (e.g. subreaper). Update
-			// the cache tree immediately using the authoritative kernel value.
-			if event.PIDContext.PPid != 0 {
-				p.Resolvers.ProcessResolver.TryReparentFromKernelPPid(entry, event.PIDContext.PPid, p.onNewPCE)
-			}
-
 			// If the kernel reports a different SID than the one in our
 			// cache, the process called setsid(). Update the cache entry.
 			if event.PIDContext.SID != 0 {
 				entry.SID = event.PIDContext.SID
 			}
-
-			// Attempt to repair the lineage of processes that were orphaned
-			// during subreaper reparenting (the exit tracepoint may fire
-			// before the kernel has completed forget_original_parent).
-			p.Resolvers.ProcessResolver.TryReparentFromProcfs(entry, metrics.ReparentCallpathSetProcessContext, p.onNewPCE)
 
 			if _, err := entry.HasValidLineage(); err != nil {
 				event.Error = &model.ErrProcessBrokenLineage{Err: err}
@@ -1695,12 +1689,14 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 					Payload: trimRightZeros(data[offset:]),
 				}
 			} else {
-				p.addToDNSResolver(p.dnsLayer)
+				ips, cnames := p.addToDNSResolver(p.dnsLayer)
 				event.Type = uint32(model.DNSEventType) // remap to regular DNS event type
 				event.DNS = model.DNSEvent{
 					ID: p.dnsLayer.ID,
 					Response: &model.DNSResponse{
 						ResponseCode: uint8(p.dnsLayer.ResponseCode),
+						IPs:          ips,
+						CNames:       cnames,
 					},
 				}
 				if len(p.dnsLayer.Questions) != 0 {
@@ -1798,6 +1794,12 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 		if event.SetSockOpt.IsFilterTruncated {
 			p.BPFFilterTruncated.Add(1)
 		}
+
+	case model.SocketEventType:
+		if !p.regularUnmarshalEvent(&event.Socket, eventType, offset, dataLen, data) {
+			return false
+		}
+
 	case model.SetrlimitEventType:
 		if !p.regularUnmarshalEvent(&event.Setrlimit, eventType, offset, dataLen, data) {
 			return false
@@ -2617,8 +2619,14 @@ func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.FilterReport, boo
 		return nil, false, err
 	}
 
-	if err := applyDNSDefaultDropMaskFromRules(p.Manager, rs); err != nil {
-		seclog.Warnf("failed to apply DNS default-drop mask: %v", err)
+	if p.config.Probe.EnableDiscarders {
+		if err := applyDNSDefaultDropMaskFromRules(p.Manager, rs); err != nil {
+			seclog.Warnf("failed to apply DNS default-drop mask: %v", err)
+		}
+	} else {
+		if err := setDNSDiscarderMask(p.Manager, 0); err != nil {
+			seclog.Warnf("failed to disable DNS default-drop mask: %v", err)
+		}
 	}
 
 	fpb := newFilterPolicyBlock()
@@ -2724,6 +2732,13 @@ func (p *EBPFProbe) OnNewRuleSetLoaded(rs *rules.RuleSet) {
 	p.variableStoreMu.Lock()
 	p.variableStore = rs.GetVariableStore()
 	p.variableStoreMu.Unlock()
+
+	// Snapshot inherited SECL variables onto an entry before its parent link
+	// is changed, so the values resolved through inheritance survive the
+	// reparenting.
+	p.Resolvers.ProcessResolver.SetPreReparentCb(func(entry *model.ProcessCacheEntry) {
+		rs.CopyInheritedVariables(entry)
+	})
 
 	p.HandleRemediationStatus(rs)
 }
@@ -3522,8 +3537,6 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	} else {
 		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameTaskStructPID, "struct task_struct", "thread_pid")
 	}
-	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameTaskStructRealParent, "struct task_struct", "real_parent")
-	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameTaskStructTGID, "struct task_struct", "tgid")
 
 	// splice event
 	constantFetcher.AppendSizeofRequest(constantfetch.SizeOfPipeBuffer, "struct pipe_buffer")
@@ -3849,19 +3862,51 @@ func (p *EBPFProbe) newOpenEventFromReplay(entry *model.ProcessCacheEntry, snaps
 	return event
 }
 
-func (p *EBPFProbe) addToDNSResolver(dnsLayer *layers.DNS) {
+func (p *EBPFProbe) addToDNSResolver(dnsLayer *layers.DNS) ([]net.IPNet, []string) {
+	var ips []net.IPNet
+	var cnames []string
+
 	for _, answer := range dnsLayer.Answers {
-		if answer.Type == layers.DNSTypeCNAME {
-			p.Resolvers.DNSResolver.AddNewCname(string(answer.CNAME), string(answer.Name))
-		} else if answer.Type == layers.DNSTypeA || answer.Type == layers.DNSTypeAAAA {
+		switch answer.Type {
+		case layers.DNSTypeCNAME:
+			cname := string(answer.CNAME)
+			cnames = append(cnames, cname)
+			p.Resolvers.DNSResolver.AddNewCname(cname, string(answer.Name))
+		case layers.DNSTypeA, layers.DNSTypeAAAA:
 			ip, ok := netip.AddrFromSlice(answer.IP)
 			if ok {
 				p.Resolvers.DNSResolver.AddNew(string(answer.Name), ip)
 			} else {
-				seclog.Errorf("DNS response with an invalid IP received: %v", ip)
+				seclog.Errorf("DNS response with an invalid IP received: %v", answer.IP)
+				continue
+			}
+
+			if ipNet, ok := dnsAnswerIPNet(answer); ok {
+				ips = append(ips, ipNet)
 			}
 		}
 	}
+
+	return ips, cnames
+}
+
+func dnsAnswerIPNet(answer layers.DNSResourceRecord) (net.IPNet, bool) {
+	switch answer.Type {
+	case layers.DNSTypeA:
+		ip := answer.IP.To4()
+		if ip == nil {
+			return net.IPNet{}, false
+		}
+		return net.IPNet{IP: append(net.IP(nil), ip...), Mask: net.CIDRMask(32, 32)}, true
+	case layers.DNSTypeAAAA:
+		ip := answer.IP.To16()
+		if ip == nil {
+			return net.IPNet{}, false
+		}
+		return net.IPNet{IP: append(net.IP(nil), ip...), Mask: net.CIDRMask(128, 128)}, true
+	}
+
+	return net.IPNet{}, false
 }
 
 func trimRightZeros(b []byte) []byte {

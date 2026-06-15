@@ -56,7 +56,7 @@ func TestStoreConfig(t *testing.T) {
 		configUUID, rawHash, stored, err := cs.StoreConfig("device:10.0.0.1", "running", testRawConfig)
 		require.NoError(t, err)
 		assert.NotEmpty(t, configUUID)
-		assert.Equal(t, hashConfig(testRawConfig), rawHash)
+		assert.Equal(t, HashConfig(testRawConfig), rawHash)
 		assert.True(t, stored)
 	})
 
@@ -98,7 +98,7 @@ func TestGetConfig(t *testing.T) {
 		assert.Equal(t, types.RUNNING, metadata.ConfigType)
 		assert.NotZero(t, metadata.CapturedAt)
 		assert.Equal(t, metadata.CapturedAt, metadata.LastAccessedAt)
-		assert.Equal(t, hashConfig(testRawConfig), metadata.RawHash)
+		assert.Equal(t, HashConfig(testRawConfig), metadata.RawHash)
 		assert.NotEmpty(t, metadata.AgentVersion)
 	})
 
@@ -166,14 +166,14 @@ func TestDeleteConfig(t *testing.T) {
 
 func TestHashConfig(t *testing.T) {
 	t.Run("deterministic", func(t *testing.T) {
-		h1 := hashConfig("hello")
-		h2 := hashConfig("hello")
+		h1 := HashConfig("hello")
+		h2 := HashConfig("hello")
 		assert.Equal(t, h1, h2)
 	})
 
 	t.Run("different inputs produce different hashes", func(t *testing.T) {
-		h1 := hashConfig("config-a")
-		h2 := hashConfig("config-b")
+		h1 := HashConfig("config-a")
+		h2 := HashConfig("config-b")
 		assert.NotEqual(t, h1, h2)
 	})
 }
@@ -335,7 +335,7 @@ func TestGetAllConfigMetadata(t *testing.T) {
 		assert.Equal(t, "device:10.0.0.1", configMeta[0].DeviceID)
 		assert.Equal(t, types.RUNNING, configMeta[0].ConfigType)
 		assert.NotZero(t, configMeta[0].CapturedAt)
-		assert.Equal(t, hashConfig(testRawConfig), configMeta[0].RawHash)
+		assert.Equal(t, HashConfig(testRawConfig), configMeta[0].RawHash)
 		assert.NotEmpty(t, configMeta[0].AgentVersion)
 	})
 

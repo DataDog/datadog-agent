@@ -4,7 +4,7 @@ $defs:
     type: object
     properties:
       env:
-        description: 'Env the profiler will report with. Default: none'
+        description: 'Env the profiler will report with. Default: DD_ENV, then none'
         type: string
       period:
         description: 'Period in seconds the profiler will report with. Default: 60s'
@@ -15,10 +15,10 @@ $defs:
         items:
           type: string
       service:
-        description: 'Service the profiler will report with. Default: BuildInfo.Command (e.g. otel-agent)'
+        description: 'Service the profiler will report with. Default: DD_SERVICE, then BuildInfo.Command (e.g. otel-agent)'
         type: string
       version:
-        description: 'Version the profiler will report with. Default: BuildInfo.Version (e.g. v0.117.0)'
+        description: 'Version the profiler will report with. Default: DD_VERSION, then BuildInfo.Version (e.g. v0.117.0)'
         type: string
 description: Config contains the config of the profiler.
 type: object

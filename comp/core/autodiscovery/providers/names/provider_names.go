@@ -39,6 +39,8 @@ const (
 	KubeEndpointsFile = "kubernetes-endpoints-file"
 	// KubeEndpointSlicesFile loads Kubernetes EndpointSlice check configurations from YAML files.
 	KubeEndpointSlicesFile = "kubernetes-endpointslices-file"
+	// KubeEndpointSlicesCR loads Kubernetes EndpointSlice check configurations from DatadogInstrumentation CRs.
+	KubeEndpointSlicesCR = "kubernetes-endpointslices-cr"
 	// KubeCRD discovers check configurations from YAML files that target Kubernetes CRDs via advanced AD identifiers.
 	KubeCRD = "kubernetes-crd"
 	// ProcessLog autodiscovers log collection configurations from running processes.
@@ -57,8 +59,8 @@ const (
 	Zookeeper = "zookeeper"
 	// GPU discovers GPU devices and generates check configurations for GPU monitoring.
 	GPU = "gpu"
-	// DataStreamsLiveMessages provides live message sampling configurations for Data Streams Monitoring.
-	DataStreamsLiveMessages = "dsm-live-messages"
+	// DataStreamsKafkaActions provides one-off Kafka action configurations for Data Streams Monitoring.
+	DataStreamsKafkaActions = "dsm-kafka-actions"
 	// DOQueryActions provides check configurations for Database Observability query-level actions.
 	DOQueryActions = "do-query-actions"
 	// PrometheusHTTPSD discovers check configurations from a Prometheus HTTP Service Discovery endpoint.

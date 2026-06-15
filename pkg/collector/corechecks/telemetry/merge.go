@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	remoteAgentLabel = "remote_agent"
+	emitterLabel = "emitter"
 
 	pointSentMetric    = "point__sent"
 	pointDroppedMetric = "point__dropped"
@@ -83,7 +83,7 @@ func isMergedMetric(name string) bool {
 	return slices.Contains(regularRegistryMergeMetrics, name)
 }
 
-// mergeLabelNames returns the sorted label names used by the given metric family, excluding remote_agent.
+// mergeLabelNames returns the sorted label names used by the given metric family, excluding emitter.
 func mergeLabelNames(mfs []*dto.MetricFamily, metricName string) []string {
 	labelNames := make(map[string]struct{})
 	for _, mf := range mfs {
@@ -96,7 +96,7 @@ func mergeLabelNames(mfs []*dto.MetricFamily, metricName string) []string {
 			}
 			for _, label := range metric.Label {
 				name := label.GetName()
-				if name == "" || name == remoteAgentLabel {
+				if name == "" || name == emitterLabel {
 					continue
 				}
 				labelNames[name] = struct{}{}
@@ -115,7 +115,7 @@ func mergeLabelNames(mfs []*dto.MetricFamily, metricName string) []string {
 // discoverMergeLabels determines the customer-facing tag shape for each merged metric.
 //
 // The default registry is preferred because it defines the existing customer-facing metric shape. If the default
-// registry has no samples yet, regular-registry labels are used as a fallback while still dropping remote_agent.
+// registry has no samples yet, regular-registry labels are used as a fallback while still dropping emitter.
 func discoverMergeLabels(defaultMfs, regularMfs []*dto.MetricFamily) map[string][]string {
 	labelsByMetric := make(map[string][]string, len(regularRegistryMergeMetrics))
 	for _, metricName := range regularRegistryMergeMetrics {
@@ -140,7 +140,7 @@ func mergeTags(labels []*dto.LabelPair, labelNames []string) []string {
 
 // collectMergeMetrics extracts allowlisted gauge metrics and aggregates them by the discovered customer-facing tags.
 //
-// When requireRemoteAgent is true, only series with a remote_agent label are collected. This prevents unrelated regular
+// When requireRemoteAgent is true, only series with a emitter label are collected. This prevents unrelated regular
 // registry series from being folded into customer-facing telemetry.
 func collectMergeMetrics(mfs []*dto.MetricFamily, requireRemoteAgent bool, labelsByMetric map[string][]string) mergeMetricValues {
 	values := newMergeMetricValues()
@@ -160,7 +160,7 @@ func collectMergeMetrics(mfs []*dto.MetricFamily, requireRemoteAgent bool, label
 				continue
 			}
 			if requireRemoteAgent {
-				if _, ok := labelValue(metric.Label, remoteAgentLabel); !ok {
+				if _, ok := labelValue(metric.Label, emitterLabel); !ok {
 					continue
 				}
 			}

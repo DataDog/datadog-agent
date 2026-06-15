@@ -122,6 +122,10 @@ var (
 			"kube_namespace:default",
 		},
 		"kubernetes_pod_uid://resized-pod-uid-0001": {"pod_name:resized-pod"},
+		"kubernetes_pod_uid://dc24642d-e142-11e9-b8b8-42010af002dd": {
+			"pod_name:cassandra-0",
+			"kube_namespace:default",
+		},
 	}
 
 	// InstanceTags are default tags that should be applied to all metrics at the instance level

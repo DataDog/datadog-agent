@@ -24,7 +24,9 @@ import (
 const (
 	winDaemonBin = `C:\Program Files\Datadog\Datadog Agent\bin\agent\dd-procmgrd.exe`
 	winCLIBin    = `C:\Program Files\Datadog\Datadog Agent\bin\agent\dd-procmgr.exe`
-	winConfigDir = `C:/ProgramData/Datadog/dd-procmgr/processes.d`
+	// Must match dd-procmgrd default on Windows: install root + processes.d
+	// (see pkg/procmgr/rust/src/platform/windows.rs default_config_dir).
+	winConfigDir = `C:/Program Files/Datadog/Datadog Agent/processes.d`
 
 	winSleepCommand = `C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe`
 
@@ -99,9 +101,8 @@ func (s *procmgrWindowsSuite) SetupSuite() {
 
 	if s.hasCLI {
 		require.EventuallyWithT(s.T(), func(t *assert.CollectT) {
-			out, err := s.Env().RemoteHost.Execute(
+			out := s.Env().RemoteHost.MustExecuteOn(t,
 				`powershell -Command "(Get-Service dd-procmgr-service).Status"`)
-			assert.NoError(t, err)
 			assert.Equal(t, "Running", strings.TrimSpace(out))
 		}, 60*time.Second, 2*time.Second)
 	}

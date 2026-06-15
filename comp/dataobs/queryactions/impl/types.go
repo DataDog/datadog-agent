@@ -29,6 +29,7 @@ type QuerySpec struct {
 	Type                  string                 `json:"type"`
 	Query                 string                 `json:"query"`
 	IntervalSeconds       int                    `json:"interval_seconds"`
+	Schedule              string                 `json:"schedule,omitempty"`
 	TimeoutSeconds        int                    `json:"timeout_seconds"`
 	Entity                EntityMetadata         `json:"entity"`
 	CustomSQLSelectFields *CustomSQLSelectFields `json:"custom_sql_select_fields,omitempty"`
