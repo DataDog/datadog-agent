@@ -1450,6 +1450,11 @@ type KubernetesKueueQueue struct {
 	EntityMeta
 	QueueType        KueueQueueType
 	ClusterQueueName string
+	// ResolvedTags holds the queue's label/annotation tags already resolved
+	// against kubernetes_resources_{labels,annotations}_as_tags. Each entry is
+	// in "name:value" form where a leading '+' on the name denotes a
+	// high-cardinality tag (as interpreted by taglist.AddAuto).
+	ResolvedTags []string
 }
 
 // GetID implements Entity#GetID.
@@ -1483,6 +1488,9 @@ func (q KubernetesKueueQueue) String(verbose bool) string {
 	_, _ = fmt.Fprintln(&sb, "----------- Kueue Queue -----------")
 	_, _ = fmt.Fprintln(&sb, "Queue Type:", q.QueueType)
 	_, _ = fmt.Fprintln(&sb, "Cluster Queue:", q.ClusterQueueName)
+	if verbose {
+		_, _ = fmt.Fprintln(&sb, "Resolved Tags:", q.ResolvedTags)
+	}
 	return sb.String()
 }
 

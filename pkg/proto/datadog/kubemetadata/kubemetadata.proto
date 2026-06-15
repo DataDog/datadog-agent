@@ -37,8 +37,11 @@ message KueueQueue {
   string name = 2;
   KueueQueueType queue_type = 3;
   string cluster_queue = 4;
-  map<string, string> labels = 5;
-  map<string, string> annotations = 6;
+  // resolved_tags holds the queue's label/annotation tags already resolved by
+  // the cluster agent against kubernetes_resources_{labels,annotations}_as_tags.
+  // Each entry is in "name:value" form where a leading '+' on the name denotes
+  // a high-cardinality tag (as interpreted by taglist.AddAuto).
+  repeated string resolved_tags = 5;
   string uid = 7;
   KubeMetadataEventType type = 8;
 }

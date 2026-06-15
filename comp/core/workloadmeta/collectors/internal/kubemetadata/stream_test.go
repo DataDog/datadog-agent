@@ -34,8 +34,7 @@ type expectedKueueQueue struct {
 	namespace        string
 	name             string
 	clusterQueueName string
-	labels           map[string]string
-	annotations      map[string]string
+	resolvedTags     []string
 	uid              string
 }
 
@@ -431,8 +430,7 @@ func TestStreamingProvider_handleDCAStreamUpdate(t *testing.T) {
 						Name:         "batch",
 						QueueType:    pb.KueueQueueType_LOCAL_QUEUE,
 						ClusterQueue: "cluster-batch",
-						Labels:       map[string]string{"queue": "batch"},
-						Annotations:  map[string]string{"owner": "team-a"},
+						ResolvedTags: []string{"queue:batch", "+owner:team-a"},
 						Uid:          "queue-uid",
 						Type:         pb.KubeMetadataEventType_SET,
 					},
@@ -494,8 +492,7 @@ func TestStreamingProvider_handleDCAStreamUpdate(t *testing.T) {
 					namespace:        "default",
 					name:             "batch",
 					clusterQueueName: "cluster-batch",
-					labels:           map[string]string{"queue": "batch"},
-					annotations:      map[string]string{"owner": "team-a"},
+					resolvedTags:     []string{"queue:batch", "+owner:team-a"},
 					uid:              "queue-uid",
 				},
 			},
@@ -987,8 +984,7 @@ func assertKueueQueues(t *testing.T, wmetaMock workloadmetamock.Mock, expected m
 		assert.Equal(t, expectedQueue.name, queue.Name)
 		assert.Equal(t, workloadmeta.KueueLocalQueue, queue.QueueType)
 		assert.Equal(t, expectedQueue.clusterQueueName, queue.ClusterQueueName)
-		assert.Equal(t, expectedQueue.labels, queue.Labels)
-		assert.Equal(t, expectedQueue.annotations, queue.Annotations)
+		assert.Equal(t, expectedQueue.resolvedTags, queue.ResolvedTags)
 		assert.Equal(t, expectedQueue.uid, queue.UID)
 	}
 }

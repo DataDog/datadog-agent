@@ -1484,6 +1484,9 @@ func TestHandleKubeKueueQueue(t *testing.T) {
 			},
 			QueueType:        workloadmeta.KueueLocalQueue,
 			ClusterQueueName: "cluster-batch",
+			// ResolvedTags are produced by the cluster agent. A leading '+' on
+			// the name denotes a high-cardinality tag.
+			ResolvedTags: []string{"team:eng", "+owner:alice"},
 		},
 		IsComplete: true,
 	})
@@ -1493,12 +1496,65 @@ func TestHandleKubeKueueQueue(t *testing.T) {
 			Source:               kueueQueueSource,
 			EntityID:             types.NewEntityID(types.KubernetesKueueQueue, queueID.ID),
 			IsComplete:           true,
-			HighCardTags:         []string{},
+			HighCardTags:         []string{"owner:alice"},
 			OrchestratorCardTags: []string{},
 			LowCardTags: []string{
 				"kube_namespace:default",
 				"kueue_cluster_queue:cluster-batch",
 				"kueue_local_queue:batch",
+				"team:eng",
+			},
+			StandardTags: []string{},
+		},
+	}
+	assertTagInfoListEqual(t, expected, actual)
+}
+
+func TestHandleKubeKueueQueueResolvedTags(t *testing.T) {
+	queueID := workloadmeta.EntityID{
+		Kind: workloadmeta.KindKubernetesKueueQueue,
+		ID:   "localqueue/default/batch",
+	}
+
+	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
+		fx.Supply(context.Background()),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+
+	cfg := configmock.New(t)
+	collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
+
+	actual := collector.handleKubeKueueQueue(workloadmeta.Event{
+		Type: workloadmeta.EventTypeSet,
+		Entity: &workloadmeta.KubernetesKueueQueue{
+			EntityID: queueID,
+			EntityMeta: workloadmeta.EntityMeta{
+				Name:      "batch",
+				Namespace: "default",
+			},
+			QueueType:        workloadmeta.KueueLocalQueue,
+			ClusterQueueName: "cluster-batch",
+			// The cluster agent resolves label/annotation tags and streams them
+			// pre-resolved; a leading '+' denotes a high-cardinality tag.
+			ResolvedTags: []string{"team:batch", "+owner:team-a"},
+		},
+		IsComplete: true,
+	})
+
+	expected := []*types.TagInfo{
+		{
+			Source:               kueueQueueSource,
+			EntityID:             types.NewEntityID(types.KubernetesKueueQueue, queueID.ID),
+			IsComplete:           true,
+			HighCardTags:         []string{"owner:team-a"},
+			OrchestratorCardTags: []string{},
+			LowCardTags: []string{
+				"kube_namespace:default",
+				"kueue_cluster_queue:cluster-batch",
+				"kueue_local_queue:batch",
+				"team:batch",
 			},
 			StandardTags: []string{},
 		},

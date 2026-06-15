@@ -536,10 +536,10 @@ func TestProcessKueueQueueEvents(t *testing.T) {
 func TestComputeKueueQueueDiff(t *testing.T) {
 	old := map[string]kueueQueueEntry{
 		"localqueue/ns1/local-a": {
-			namespace: "ns1",
-			name:      "local-a",
-			queueType: workloadmeta.KueueLocalQueue,
-			labels:    map[string]string{"queue": "old"},
+			namespace:    "ns1",
+			name:         "local-a",
+			queueType:    workloadmeta.KueueLocalQueue,
+			resolvedTags: []string{"queue:old"},
 		},
 		"localqueue/ns1/local-b": {
 			namespace: "ns1",
@@ -549,10 +549,10 @@ func TestComputeKueueQueueDiff(t *testing.T) {
 	}
 	current := map[string]kueueQueueEntry{
 		"localqueue/ns1/local-a": {
-			namespace: "ns1",
-			name:      "local-a",
-			queueType: workloadmeta.KueueLocalQueue,
-			labels:    map[string]string{"queue": "new"},
+			namespace:    "ns1",
+			name:         "local-a",
+			queueType:    workloadmeta.KueueLocalQueue,
+			resolvedTags: []string{"queue:new"},
 		},
 	}
 
@@ -560,11 +560,11 @@ func TestComputeKueueQueueDiff(t *testing.T) {
 
 	assert.ElementsMatch(t, []*pb.KueueQueue{
 		{
-			Namespace: "ns1",
-			Name:      "local-a",
-			QueueType: pb.KueueQueueType_LOCAL_QUEUE,
-			Labels:    map[string]string{"queue": "new"},
-			Type:      pb.KubeMetadataEventType_SET,
+			Namespace:    "ns1",
+			Name:         "local-a",
+			QueueType:    pb.KueueQueueType_LOCAL_QUEUE,
+			ResolvedTags: []string{"queue:new"},
+			Type:         pb.KubeMetadataEventType_SET,
 		},
 		{
 			Namespace: "ns1",

@@ -18,6 +18,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
@@ -49,16 +50,20 @@ type kueueQueueEntry struct {
 	name             string
 	queueType        workloadmeta.KueueQueueType
 	clusterQueueName string
-	labels           map[string]string
-	annotations      map[string]string
-	uid              string
+	// resolvedTags holds the queue's label/annotation tags already resolved
+	// against kubernetes_resources_{labels,annotations}_as_tags. Each entry is
+	// in "name:value" form where a leading '+' on the name denotes a
+	// high-cardinality tag (as interpreted by taglist.AddAuto).
+	resolvedTags []string
+	uid          string
 }
 
 // KubeMetadataStreamServer streams pod-to-service mappings and namespace
 // labels/annotations from the DCA to node agents.
 type KubeMetadataStreamServer struct {
-	store *controllers.MetaBundleStore
-	wmeta workloadmeta.Component
+	store    *controllers.MetaBundleStore
+	wmeta    workloadmeta.Component
+	resolver *kueueQueueTagResolver
 
 	namespacesMutex sync.RWMutex
 	namespaces      map[string]namespaceEntry // keys are namespace names
@@ -75,6 +80,7 @@ func NewKubeMetadataStreamServer(store *controllers.MetaBundleStore, wmeta workl
 	return &KubeMetadataStreamServer{
 		store:                store,
 		wmeta:                wmeta,
+		resolver:             newKueueQueueTagResolver(pkgconfigsetup.Datadog()),
 		namespaces:           make(map[string]namespaceEntry),
 		kueueQueues:          make(map[string]kueueQueueEntry),
 		namespaceSubscribers: make(map[string][]chan struct{}),
@@ -274,8 +280,7 @@ func (srv *KubeMetadataStreamServer) processKueueQueueEvent(eventType workloadme
 			name:             queue.Name,
 			queueType:        queue.QueueType,
 			clusterQueueName: queue.ClusterQueueName,
-			labels:           queue.Labels,
-			annotations:      queue.Annotations,
+			resolvedTags:     srv.resolver.resolveKueueQueueTags(queue),
 			uid:              queue.UID,
 		}
 		return true
@@ -519,8 +524,7 @@ func protoKueueQueue(entry kueueQueueEntry, eventType pb.KubeMetadataEventType) 
 		Name:         entry.name,
 		QueueType:    protoKueueQueueType(entry.queueType),
 		ClusterQueue: entry.clusterQueueName,
-		Labels:       entry.labels,
-		Annotations:  entry.annotations,
+		ResolvedTags: entry.resolvedTags,
 		Uid:          entry.uid,
 		Type:         eventType,
 	}
@@ -532,8 +536,7 @@ func kueueQueueEqual(left, right kueueQueueEntry) bool {
 		left.queueType == right.queueType &&
 		left.clusterQueueName == right.clusterQueueName &&
 		left.uid == right.uid &&
-		maps.Equal(left.labels, right.labels) &&
-		maps.Equal(left.annotations, right.annotations)
+		slices.Equal(left.resolvedTags, right.resolvedTags)
 }
 
 func protoKueueQueueType(queueType workloadmeta.KueueQueueType) pb.KueueQueueType {

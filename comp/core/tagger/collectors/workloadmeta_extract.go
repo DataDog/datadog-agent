@@ -920,18 +920,15 @@ func (c *WorkloadMetaCollector) extractKueueQueueTags(queue *workloadmeta.Kubern
 		tagList.AddLow(tags.KueueClusterQueue, queue.Name)
 	}
 
-	groupResource := kueueQueueGroupResource(queue.QueueType)
-	labelsAsTags := c.k8sResourcesLabelsAsTags[groupResource]
-	annotationsAsTags := c.k8sResourcesAnnotationsAsTags[groupResource]
-	globLabels := c.globK8sResourcesLabels[groupResource]
-	globAnnotations := c.globK8sResourcesAnnotations[groupResource]
-
-	for name, value := range queue.Labels {
-		k8smetadata.AddMetadataAsTags(name, value, labelsAsTags, globLabels, tagList)
-	}
-
-	for name, value := range queue.Annotations {
-		k8smetadata.AddMetadataAsTags(name, value, annotationsAsTags, globAnnotations, tagList)
+	// Label/annotation tags are resolved by the cluster agent and streamed as
+	// already-resolved "name:value" entries (a leading '+' on the name denotes a
+	// high-cardinality tag). AddAuto restores the original cardinality.
+	for _, tag := range queue.ResolvedTags {
+		name, value, found := strings.Cut(tag, ":")
+		if !found {
+			continue
+		}
+		tagList.AddAuto(name, value)
 	}
 }
 
@@ -980,17 +977,6 @@ func (c *WorkloadMetaCollector) extractTagsFromPodKueueInfo(pod *workloadmeta.Ku
 		if err == nil && queue != nil {
 			c.extractKueueQueueTags(queue, tagList)
 		}
-	}
-}
-
-func kueueQueueGroupResource(queueType workloadmeta.KueueQueueType) string {
-	switch queueType {
-	case workloadmeta.KueueLocalQueue:
-		return kubernetes.KueueLocalQueueResourceName + "." + kubernetes.KueueGroupName
-	case workloadmeta.KueueClusterQueue:
-		return kubernetes.KueueClusterQueueResourceName + "." + kubernetes.KueueGroupName
-	default:
-		return ""
 	}
 }
 

@@ -659,14 +659,13 @@ func newKueueQueue(queueMetadata *pb.KueueQueue) *workloadmeta.KubernetesKueueQu
 			ID:   kueueQueueID(queueMetadata),
 		},
 		EntityMeta: workloadmeta.EntityMeta{
-			Name:        queueMetadata.Name,
-			Namespace:   queueMetadata.Namespace,
-			Labels:      queueMetadata.Labels,
-			Annotations: queueMetadata.Annotations,
-			UID:         queueMetadata.Uid,
+			Name:      queueMetadata.Name,
+			Namespace: queueMetadata.Namespace,
+			UID:       queueMetadata.Uid,
 		},
 		QueueType:        queueType,
 		ClusterQueueName: queueMetadata.ClusterQueue,
+		ResolvedTags:     queueMetadata.ResolvedTags,
 	}
 }
 
