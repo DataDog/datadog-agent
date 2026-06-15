@@ -39,6 +39,7 @@ import (
 	configWebhook "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/config"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/cwsinstrumentation"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/ncclprofiler"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/rshell"
 	admspot "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/spot"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/tagsfromlabels"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/validate/datadoginstrumentation"
@@ -178,6 +179,10 @@ func (c *controllerBase) generateWebhooks(datadogConfig config.Component, wmeta 
 	// Setup NCCL profiler injection webhook.
 	ncclWebhook := ncclprofiler.NewWebhook(datadogConfig)
 	webhooks = append(webhooks, ncclWebhook)
+
+	// Setup rshell binary injection webhook.
+	rshellWebhook := rshell.NewWebhook(datadogConfig)
+	webhooks = append(webhooks, rshellWebhook)
 
 	return webhooks
 }

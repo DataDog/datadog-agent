@@ -755,6 +755,11 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.remote_copy.mount_volume", false)
 	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.remote_copy.directory", "/tmp")
 	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.timeout", 2)
+	config.BindEnvAndSetDefault("admission_controller.rshell_injection.enabled", false)
+	config.BindEnvAndSetDefault("admission_controller.rshell_injection.mutate_unlabelled", false)
+	config.BindEnvAndSetDefault("admission_controller.rshell_injection.container_registry", "")
+	config.BindEnvAndSetDefault("admission_controller.rshell_injection.image_name", "rshell")
+	config.BindEnvAndSetDefault("admission_controller.rshell_injection.image_tag", "latest")
 	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.enabled", false)
 	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.provider", "")
 	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.endpoint", "/agentsidecar")
@@ -1366,6 +1371,12 @@ func autoscaling(config pkgconfigmodel.Setup) {
 
 	// Kubernetes actions
 	config.BindEnvAndSetDefault("kubeactions.enabled", false)
+	// exec_command dca-local policy restriction. Empty lists mean "no dca-local
+	// restriction" (the effective policy is then payload ∩ agent absolute max).
+	// Operators may narrow, but never widen, the agent's hardcoded ceiling.
+	config.BindEnvAndSetDefault("kubeactions.exec_command.allowed_commands", []string{})
+	config.BindEnvAndSetDefault("kubeactions.exec_command.allowed_paths", []string{})
+	config.BindEnvAndSetDefault("kubeactions.exec_command.allow_remediation", false)
 	// TODO(kubeactions): Update hostnameEndpointPrefix to "kubeops-intake." once provisioned
 	bindEnvAndSetLogsConfigKeys(config, "kubeactions.forwarder.")
 }

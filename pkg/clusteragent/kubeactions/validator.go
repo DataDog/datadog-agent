@@ -14,6 +14,10 @@ import (
 	kubeactions "github.com/DataDog/agent-payload/v5/kubeactions"
 )
 
+// maxExecScriptBytes mirrors rshell's MaxScriptBytes (5 MiB): scripts larger than
+// this are rejected before being dispatched.
+const maxExecScriptBytes = 5 * 1024 * 1024
+
 // ValidationError represents an error during action validation
 type ValidationError struct {
 	Action  *kubeactions.KubeAction
@@ -152,6 +156,38 @@ func (v *ActionValidator) ValidateAction(action *kubeactions.KubeAction) error {
 			return &ValidationError{
 				Action:  action,
 				Message: "actions are not allowed to get protected kind " + action.Resource.Kind,
+			}
+		}
+	case ActionTypeExecCommand:
+		if action.Resource.Kind != "Pod" {
+			return &ValidationError{
+				Action:  action,
+				Message: "resource.kind must be 'Pod' for exec_command action",
+			}
+		}
+		params := action.GetExecCommand()
+		if params == nil {
+			return &ValidationError{
+				Action:  action,
+				Message: "exec_command parameters are required",
+			}
+		}
+		if params.GetContainer() == "" {
+			return &ValidationError{
+				Action:  action,
+				Message: "container is required for exec_command action",
+			}
+		}
+		if params.GetScript() == "" {
+			return &ValidationError{
+				Action:  action,
+				Message: "script is required for exec_command action",
+			}
+		}
+		if len(params.GetScript()) > maxExecScriptBytes {
+			return &ValidationError{
+				Action:  action,
+				Message: fmt.Sprintf("script exceeds maximum size of %d bytes", maxExecScriptBytes),
 			}
 		}
 	}

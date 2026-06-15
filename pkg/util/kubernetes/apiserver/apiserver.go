@@ -782,6 +782,13 @@ func (c *APIClient) NewSPDYExecutor(apiPath string, groupVersion *schema.GroupVe
 	return remotecommand.NewSPDYExecutor(clientConfig, method, url)
 }
 
+// RESTConfig returns a REST client configuration for this APIClient. It is intended
+// for callers that need a *rest.Config directly (e.g. to build a streaming executor
+// for pod exec) rather than a typed clientset.
+func (c *APIClient) RESTConfig() (*rest.Config, error) {
+	return GetClientConfig(c.defaultClientTimeout, c.defaultClientQPS, c.defaultClientBurst)
+}
+
 // GetKubeSecret fetches a secret from k8s
 func GetKubeSecret(namespace string, name string) (map[string][]byte, error) {
 	kubeClient, err := GetKubeClient(10*time.Second, 0, 0) // Default QPS and burst to Kube client defaults using 0)
