@@ -67,6 +67,7 @@ tests_linux-x64-py3_hybrid:
   extends:
     - .bazel:runner:linux-arm64
     - .linux_tests
+    - .linux_x64
   after_script:
     - !reference [.upload_junit_source]
     # skip coverage upload for several reasons
@@ -79,7 +80,6 @@ tests_linux-x64-py3_hybrid:
   variables:
     CONDA_ENV: ddpy3
     EXPERIMENTAL_USE_BAZEL_TESTS: "1"
-    FLAVOR: base
   allow_failure: true  # This is for measurement during migration. It is not the actual test job.
 
 tests_nodetreemodel:
