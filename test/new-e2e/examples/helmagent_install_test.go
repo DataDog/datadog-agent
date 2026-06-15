@@ -93,7 +93,7 @@ func (s *helmAgentInstallSuite) TestFakeIntakeReceivesKubernetesMetrics() {
 // UpdateEnv: it upgrades the Helm release without re-running Pulumi,
 // making config-only changes faster.
 func (s *helmAgentInstallSuite) TestReconfigure() {
-	s.Env().Agent.Configure(s.T(),
+	s.Env().Agent.Configure(s,
 		kubernetesagentparams.WithHelmValues(`
 datadog:
   logs:
