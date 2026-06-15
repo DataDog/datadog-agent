@@ -4,7 +4,7 @@ networkPolicy:
   enabled: false
 
 # Custom Kubernetes resources rendered by the Helm chart.
-# Use this CiliumNetworkPolicy instead of helm/network-policy.yaml when your
+# Use this CiliumNetworkPolicy instead of helm/network-policy-values.yaml when your
 # cluster uses Cilium and you want FQDN-scoped Datadog intake egress.
 extraManifests:
   - apiVersion: cilium.io/v2

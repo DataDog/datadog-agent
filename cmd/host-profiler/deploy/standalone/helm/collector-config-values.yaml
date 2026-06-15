@@ -10,7 +10,7 @@ alternateConfig:
       protocols:
         grpc: {}
         http: {}
-    # Host Profiler receiver. DD_SITE and DD_API_KEY are provided by pod-spec.yaml.
+    # Host Profiler receiver. DD_SITE and DD_API_KEY are provided by collector-values.yaml.
     profiling:
       symbol_uploader:
         enabled: true

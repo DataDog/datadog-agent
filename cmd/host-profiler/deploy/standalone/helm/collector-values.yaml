@@ -11,12 +11,12 @@ image:
   repository: registry.datadoghq.com/ddot-ebpf
   tag: 7.81.0-preview-host-profiler-1.0
 
-# Environment variables used by helm/otel-config.yaml.
+# Environment variables used by helm/collector-config-values.yaml.
 extraEnvs:
   # Change this if your Datadog site is not datadoghq.com.
   - name: DD_SITE
     value: "datadoghq.com"
-  # helm/otel-config.yaml references DD_API_KEY for profile export and debug
+  # helm/collector-config-values.yaml references DD_API_KEY for profile export and debug
   # symbol upload. This example reads it from a Kubernetes Secret named
   # datadog-secret with key api-key in the Helm release namespace.
   # If you use another secret-management mechanism, replace this valueFrom block
