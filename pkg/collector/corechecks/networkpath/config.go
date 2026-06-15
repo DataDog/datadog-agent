@@ -30,11 +30,12 @@ type Number interface {
 
 // InitConfig is used to deserialize integration init config
 type InitConfig struct {
-	MinCollectionInterval int64 `yaml:"min_collection_interval"`
-	TimeoutMs             int64 `yaml:"timeout"`
-	MaxTTL                uint8 `yaml:"max_ttl"`
-	TracerouteQueries     int   `yaml:"traceroute_queries"`
-	E2eQueries            int   `yaml:"e2e_queries"`
+	MinCollectionInterval           int64 `yaml:"min_collection_interval"`
+	TimeoutMs                       int64 `yaml:"timeout"`
+	MaxTTL                          uint8 `yaml:"max_ttl"`
+	TracerouteQueries               int   `yaml:"traceroute_queries"`
+	E2eQueries                      int   `yaml:"e2e_queries"`
+	DisableSourcePublicIPCollection bool  `yaml:"disable_source_public_ip_collection"`
 }
 
 // InstanceConfig is used to deserialize integration instance config
@@ -121,7 +122,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	c.TCPMethod = payload.MakeTCPMethod(instance.TCPMethod)
 	c.TCPSynParisTracerouteMode = instance.TCPSynParisTracerouteMode
 	c.DisableWindowsDriver = instance.DisableWindowsDriver
-	c.DisableSourcePublicIPCollection = instance.DisableSourcePublicIPCollection
+	c.DisableSourcePublicIPCollection = initConfig.DisableSourcePublicIPCollection || instance.DisableSourcePublicIPCollection
 
 	c.MinCollectionInterval = firstNonZero(
 		time.Duration(instance.MinCollectionInterval)*time.Second,

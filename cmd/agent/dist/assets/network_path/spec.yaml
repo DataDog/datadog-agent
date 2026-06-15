@@ -26,6 +26,16 @@ files:
         Specifies how much time in milliseconds the traceroute should
         wait for a response from each hop before timing out.
       required: false
+    - name: disable_source_public_ip_collection
+      fleet_configurable: true
+      value:
+        type: boolean
+        example: false
+        default: false
+      description: |
+        Disables collection of the source public IP address for all instances.
+        When enabled, the source public IP will not be collected or reported.
+      required: false
   - template: instances
     options:
     - name: hostname
