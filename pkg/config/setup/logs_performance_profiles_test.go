@@ -6,11 +6,56 @@
 package setup
 
 import (
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// throughputLadder is the monotonic superset chain: each profile must contain
+// every setting of the one before it, at the same value, plus its own.
+var throughputLadder = []string{"high-concurrency", "high-throughput", "max-throughput"}
+
+func TestThroughputLadderIsMonotonicSuperset(t *testing.T) {
+	for i := 1; i < len(throughputLadder); i++ {
+		lower := logsPerformanceProfiles[throughputLadder[i-1]][1].settings
+		higher := logsPerformanceProfiles[throughputLadder[i]][1].settings
+		require.NotEmpty(t, lower)
+		require.NotEmpty(t, higher)
+		for key, lowerVal := range lower {
+			higherVal, ok := higher[key]
+			assert.Truef(t, ok, "%q must carry %q from %q (monotonic ladder)",
+				throughputLadder[i], key, throughputLadder[i-1])
+			assert.EqualValuesf(t, lowerVal, higherVal,
+				"%q must not lower %q set by %q", throughputLadder[i], key, throughputLadder[i-1])
+		}
+	}
+}
+
+func TestMaxThroughputDisablesCompression(t *testing.T) {
+	cfg := confFromYAML(t, `
+logs_config:
+  profile: max-throughput
+`)
+
+	applyLogsPerformanceProfile(cfg)
+
+	assert.False(t, cfg.GetBool("logs_config.use_compression"),
+		"max-throughput must disable compression to remove the CPU bottleneck")
+}
+
+func TestHighThroughputUsesOnePipelinePerCore(t *testing.T) {
+	cfg := confFromYAML(t, `
+logs_config:
+  profile: high-throughput
+`)
+
+	applyLogsPerformanceProfile(cfg)
+
+	assert.Equal(t, runtime.GOMAXPROCS(0), cfg.GetInt("logs_config.pipelines"),
+		"high-throughput must scale pipelines to one per core, uncapped")
+}
 
 func TestLogsPerformanceProfileOffByDefault(t *testing.T) {
 	cfg := confFromYAML(t, ``)
@@ -35,7 +80,7 @@ logs_config:
 	profile := logsPerformanceProfiles["high-throughput"][1]
 	require.NotEmpty(t, profile.settings, "high-throughput v1 must define settings")
 	for key, want := range profile.settings {
-		assert.EqualValues(t, want, cfg.Get(key),
+		assert.EqualValues(t, resolveProfileSettingValue(want), cfg.Get(key),
 			"profile must set %s to its profile value", key)
 	}
 }
@@ -51,7 +96,7 @@ logs_config:
 
 	profile := logsPerformanceProfiles["high-throughput"][1]
 	for key, want := range profile.settings {
-		assert.EqualValues(t, want, cfg.Get(key), "omitted version must apply v1 for %s", key)
+		assert.EqualValues(t, resolveProfileSettingValue(want), cfg.Get(key), "omitted version must apply v1 for %s", key)
 	}
 }
 
@@ -89,7 +134,7 @@ logs_config:
 
 	applyLogsPerformanceProfile(cfg)
 
-	want := logsPerformanceProfiles["high-throughput"][1].settings["logs_config.pipelines"]
+	want := resolveProfileSettingValue(logsPerformanceProfiles["high-throughput"][1].settings["logs_config.pipelines"])
 	assert.EqualValues(t, want, cfg.GetInt("logs_config.pipelines"),
 		"profile must win over an explicitly-configured key")
 }
@@ -203,7 +248,7 @@ func TestLogsPerformanceProfileEnvVarsRemainBound(t *testing.T) {
 	applyLogsPerformanceProfile(cfg)
 	profile := logsPerformanceProfiles["high-throughput"][1]
 	for key, want := range profile.settings {
-		assert.EqualValues(t, want, cfg.Get(key),
+		assert.EqualValues(t, resolveProfileSettingValue(want), cfg.Get(key),
 			"env-var-selected profile must apply %s", key)
 	}
 }

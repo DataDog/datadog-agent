@@ -7,6 +7,7 @@ package setup
 
 import (
 	"fmt"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -27,6 +28,64 @@ type logsPerformanceProfile struct {
 	settings map[string]interface{}
 }
 
+// pipelinesPerCoreSentinel is a sentinel value for logs_config.pipelines meaning
+// "one logs pipeline per logical CPU, uncapped". The default caps pipelines at 4
+// (see fixupLogsAgent); the performance-oriented profiles remove that cap to
+// scale processing parallelism to the host. It is resolved to
+// runtime.GOMAXPROCS(0) when the profile is applied, so the value adapts to the
+// machine rather than being a fixed integer baked into the catalog.
+type pipelinesPerCoreSentinel struct{}
+
+// pipelinesPerCore is the catalog value used wherever a profile wants one
+// pipeline per core.
+var pipelinesPerCore = pipelinesPerCoreSentinel{}
+
+// resolveProfileSettingValue resolves any runtime-computed sentinel setting
+// value (currently only pipelinesPerCore) to a concrete value. Plain values
+// pass through unchanged.
+func resolveProfileSettingValue(v interface{}) interface{} {
+	if _, ok := v.(pipelinesPerCoreSentinel); ok {
+		return runtime.GOMAXPROCS(0)
+	}
+	return v
+}
+
+// mergeProfileSettings returns the union of the given settings maps; later maps
+// win on key conflicts. Used to compose the throughput ladder so that each tier
+// is a guaranteed superset of the one below it.
+func mergeProfileSettings(maps ...map[string]interface{}) map[string]interface{} {
+	out := map[string]interface{}{}
+	for _, m := range maps {
+		for k, v := range m {
+			out[k] = v
+		}
+	}
+	return out
+}
+
+// The throughput-oriented profiles form a monotonic ladder, each a strict
+// superset of the one below it, so escalating between them never lowers a
+// setting a lower tier raised: high-concurrency ⊂ high-throughput ⊂ max-throughput.
+var (
+	// highConcurrencySettings raises in-flight HTTP sends and the payload buffer
+	// to absorb intake/network latency (send/transport bottleneck).
+	highConcurrencySettings = map[string]interface{}{
+		"logs_config.batch_max_concurrent_send": 20,
+		"logs_config.payload_channel_size":      40,
+	}
+	// highThroughputSettings = high-concurrency + one pipeline per core (uncapped)
+	// and a larger message channel, distributing processing across all cores.
+	highThroughputSettings = mergeProfileSettings(highConcurrencySettings, map[string]interface{}{
+		"logs_config.pipelines":            pipelinesPerCore,
+		"logs_config.message_channel_size": 200,
+	})
+	// maxThroughputSettings = high-throughput + compression disabled, removing the
+	// compression CPU cost at the expense of more bytes on the wire and memory.
+	maxThroughputSettings = mergeProfileSettings(highThroughputSettings, map[string]interface{}{
+		"logs_config.use_compression": false,
+	})
+)
+
 // logsPerformanceProfiles is the catalog of available profiles, keyed by
 // profile name and then by version.
 //
@@ -40,19 +99,33 @@ type logsPerformanceProfile struct {
 // The values below are v1 baselines intended to be calibrated with
 // benchmarking data; once a version is released its values must not change.
 var logsPerformanceProfiles = map[string]map[int]logsPerformanceProfile{
-	// high-throughput maximizes sustained log volume: more pipelines, higher
-	// send concurrency, and larger in-memory buffers.
+	// high-concurrency raises the number of in-flight HTTP sends and the payload
+	// buffer to absorb intake/network latency. Recommended when the send/transport
+	// stage is the bottleneck (downstream-saturated) rather than CPU. Base tier of
+	// the throughput ladder.
+	"high-concurrency": {
+		1: {
+			description: "Maximize concurrent in-flight sends to absorb intake/network latency (send/transport bottleneck).",
+			settings:    highConcurrencySettings,
+		},
+	},
+	// high-throughput maximizes sustained log volume: high-concurrency plus one
+	// pipeline per core (uncapped) and larger in-memory buffers to parallelize
+	// CPU-bound processing.
 	"high-throughput": {
 		1: {
-			description: "Maximize sustained log throughput (more pipelines, higher send concurrency, larger buffers).",
-			settings: map[string]interface{}{
-				"logs_config.pipelines":                 8,
-				"logs_config.batch_max_concurrent_send": 10,
-				"logs_config.message_channel_size":      200,
-				"logs_config.payload_channel_size":      20,
-				"logs_config.use_compression":           true,
-				"logs_config.compression_kind":          "zstd",
-			},
+			description: "Maximize sustained log throughput (one pipeline per core, high send concurrency, larger buffers).",
+			settings:    highThroughputSettings,
+		},
+	},
+	// max-throughput removes the compression CPU bottleneck: high-throughput plus
+	// compression disabled, at the expense of more bandwidth and memory.
+	// (User-selectable; not auto-recommended, since dropping compression trades
+	// real bandwidth that saturation alone cannot justify.)
+	"max-throughput": {
+		1: {
+			description: "Remove the compression CPU bottleneck (high-throughput plus compression disabled), at the expense of bandwidth and memory.",
+			settings:    maxThroughputSettings,
 		},
 	},
 	// low-latency minimizes delivery delay: small batch wait, smaller batches,
@@ -77,20 +150,6 @@ var logsPerformanceProfiles = map[string]map[int]logsPerformanceProfile{
 				"logs_config.batch_max_concurrent_send": 1,
 				"logs_config.message_channel_size":      50,
 				"logs_config.payload_channel_size":      5,
-			},
-		},
-	},
-	// high-concurrency raises the number of in-flight HTTP sends and the payload
-	// buffer to absorb intake/network latency. Recommended when the send/transport
-	// stage is the bottleneck (downstream-saturated) rather than CPU.
-	"high-concurrency": {
-		1: {
-			description: "Maximize concurrent in-flight sends to absorb intake/network latency (send/transport bottleneck).",
-			settings: map[string]interface{}{
-				"logs_config.batch_max_concurrent_send": 20,
-				"logs_config.payload_channel_size":      40,
-				"logs_config.use_compression":           true,
-				"logs_config.compression_kind":          "zstd",
 			},
 		},
 	},
@@ -166,7 +225,7 @@ func ResolvedLogsPerformanceProfile(config pkgconfigmodel.Reader) (name string, 
 		return "", 0, nil, false
 	}
 	for _, key := range sortedSettingKeys(profile.settings) {
-		settings = append(settings, LogsPerformanceProfileSetting{Key: key, Value: profile.settings[key]})
+		settings = append(settings, LogsPerformanceProfileSetting{Key: key, Value: resolveProfileSettingValue(profile.settings[key])})
 	}
 	return name, version, settings, true
 }
@@ -213,7 +272,7 @@ func applyLogsPerformanceProfile(config pkgconfigmodel.Config) {
 
 	var overridden []string
 	for _, key := range sortedSettingKeys(profile.settings) {
-		value := profile.settings[key]
+		value := resolveProfileSettingValue(profile.settings[key])
 		// "Profile wins + warn": if the user explicitly configured this key,
 		// the profile still overrides it, but we surface that so the behavior
 		// is observable.
