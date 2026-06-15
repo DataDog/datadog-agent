@@ -3,9 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-// Package connectivity runs on-host ICMP and SNMP checks against network devices for the
-// connectivityCheck Private Action.
-package connectivity
+package com_datadoghq_remoteaction_networkdevices
 
 import (
 	"context"
@@ -58,7 +56,7 @@ type SNMPOptions struct {
 	PrivKey      string `json:"privKey,omitempty"`
 	ContextName  string `json:"contextName,omitempty"`
 	TimeoutMs    int    `json:"timeoutMs"`
-	Retries      int    `json:"retries,omitempty"`
+	Retries      int    `json:"retries"`
 }
 
 // Request is the connectivity-check input; JSON tags match the connectivityCheck manifest.
@@ -101,9 +99,9 @@ type Result struct {
 	Devices []DeviceResult `json:"devices"`
 }
 
-// Run expands the request targets into host addresses and runs each requested check against
+// runChecks expands the request targets into host addresses and runs each requested check against
 // every device, classifying any failures. It runs entirely on the local host (no backend).
-func Run(ctx context.Context, req Request) (Result, error) {
+func runChecks(ctx context.Context, req Request) (Result, error) {
 	if len(req.TargetAddresses) == 0 {
 		return Result{}, errors.New("at least one target address is required")
 	}
