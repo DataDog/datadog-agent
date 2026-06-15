@@ -1591,6 +1591,15 @@ func forwarder(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("forwarder_apikey_validation_interval", DefaultAPIKeyValidationInterval) // in minutes
 	config.BindEnvAndSetDefault("forwarder_num_workers", 1)
 	config.BindEnvAndSetDefault("forwarder_stop_timeout", 2)
+	// forwarder_stop_wait_for_inflight controls whether Worker.Stop waits for
+	// in-flight HTTP transactions to finish before returning (true) or cancels
+	// them immediately (false). serverless-init sets this to true via
+	// preloadEarly so that the final-flush HTTP request is never aborted by a
+	// Stop call. Only safe when the process is about to exit: on
+	// forwarder_stop_timeout overrun the in-flight HTTP goroutines are
+	// leaked (workerCtx has no independent cancellation), so a long-running
+	// process that flips this flag will accumulate goroutines on every Stop.
+	config.BindEnvAndSetDefault("forwarder_stop_wait_for_inflight", false)
 	config.BindEnvAndSetDefault("forwarder_max_concurrent_requests", 10)
 	// Forwarder retry settings
 	config.BindEnvAndSetDefault("forwarder_backoff_factor", 2)
@@ -1663,8 +1672,20 @@ func dogstatsd(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("dogstatsd_log_file_max_size", "10Mb")
 	// Control for how long counter would be sampled to 0 if not received
 	config.BindEnvAndSetDefault("dogstatsd_expiry_seconds", 300)
-	// Control dogstatsd shutdown behaviors
+	// Control dogstatsd shutdown behaviors.
+	// On stop, drain the time-sampler workers' in-flight samples and flush the
+	// final (incomplete) bucket to the serializer. Pairs with
+	// dogstatsd_flush_on_stop, which feeds this stage: the server batcher flush
+	// runs one layer upstream so batched samples reach the sampler before this
+	// drain+flush happens.
 	config.BindEnvAndSetDefault("dogstatsd_flush_incomplete_buckets", false)
+	// When set, the dogstatsd server flushes pending worker batchers into the
+	// time sampler on stop (used by serverless-init). This only moves samples
+	// from the server batcher to the sampler; pair with
+	// dogstatsd_flush_incomplete_buckets so the sampler then flushes that final
+	// bucket out to the serializer. Used together, batched samples are not
+	// dropped on the shutdown of a short-lived process.
+	config.BindEnvAndSetDefault("dogstatsd_flush_on_stop", false)
 	// Control how long we keep dogstatsd contexts in memory.
 	config.BindEnvAndSetDefault("dogstatsd_context_expiry_seconds", 20)
 	config.BindEnvAndSetDefault("dogstatsd_origin_detection", false) // Only supported for socket traffic
