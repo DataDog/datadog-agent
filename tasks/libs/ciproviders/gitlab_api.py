@@ -30,7 +30,12 @@ from requests.adapters import HTTPAdapter
 from tasks.libs.common.auth import datadog_infra_token
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.feature_flags import is_enabled
-from tasks.libs.common.git import get_common_ancestor, get_current_branch, get_current_pr, get_default_branch
+from tasks.libs.common.git import (
+    get_ancestor_base_branch,
+    get_common_ancestor,
+    get_current_branch,
+    get_default_branch,
+)
 from tasks.libs.common.utils import retry_function, running_in_ci
 from tasks.libs.linter.gitlab_exceptions import FailureLevel, SingleGitlabLintFailure
 from tasks.libs.types.types import JobDependency
@@ -1211,8 +1216,7 @@ def retrieve_all_paths(yaml):
 
 def gitlab_configuration_is_modified(ctx):
     branch = get_current_branch(ctx)
-    pr = get_current_pr(branch_name=branch)
-    target_branch = pr.base.ref if pr else "main"  # Fallback to main if PR cannot be found
+    target_branch = get_ancestor_base_branch()
 
     if branch == "main":
         # We usually squash merge on main so comparing only to the last commit
