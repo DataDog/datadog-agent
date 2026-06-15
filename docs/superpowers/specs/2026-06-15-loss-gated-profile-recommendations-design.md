@@ -76,11 +76,40 @@ func (b *Builder) logsDropped() int64
 
 Both nil-guard `b.logsExpVars`. `logsDropped` sums across the per-host map.
 
+### 2a. Destination-health discriminator
+
+A send-stage bottleneck is a *tuning* problem (fixable by `high-concurrency`)
+only when sends are **succeeding but too slow**. When the intake is rejecting or
+unreachable, a *reliable* endpoint blocks and retries — backpressure propagates
+upstream and the send stage saturates, but no performance profile can help,
+because the root cause is connectivity. Recommending `high-concurrency` there is
+actively misleading (observed in testing: intake down, `LogsSent: 0`,
+`RetryCount` climbing, `SenderLatency: 6ms`, yet `high-concurrency` recommended).
+
+Add a helper:
+
+```go
+// destinationDelivering reports whether the logs pipeline is successfully
+// delivering to its destination. It is false only when logs have been processed
+// but none have been sent (LogsProcessed > 0 && LogsSent == 0), the signature of
+// an intake that is rejecting or unreachable. Corroborated by DestinationErrors
+// / RetryCount, but the delivery test is the gate.
+func (b *Builder) destinationDelivering() bool
+```
+
+This gates **only** the send-stage recommendation (`high-concurrency`); a
+CPU-bound processor/strategy bottleneck (`high-throughput`) is unaffected,
+because sends are fine in that case.
+
+Limitation (accepted): with since-start counters this detects "never delivered,"
+not a mid-run outage that follows earlier successful delivery. Acceptable for
+advisory output; documented under Out of scope.
+
 ### 3. Reworked `getProfileRecommendation`
 
 Loss becomes the gate; saturation is demoted from trigger to localizer.
 
-New signature (drops the now-unused `bp`; loss values passed in like
+New signature (drops the now-unused `bp`; loss + health values passed in like
 `latencyMs`, read in `BuildStatus` via the accessors so the function stays
 unit-testable without touching global expvars):
 
@@ -89,6 +118,7 @@ func (b *Builder) getProfileRecommendation(
     utils []ComponentUtilization,
     activeProfile string,
     latencyMs, dropped, missed int64,
+    delivering bool,
 ) *ProfileRecommendation
 ```
 
@@ -99,15 +129,20 @@ Logic:
 2. **Send-side loss wins (most specific).** If `dropped > 0`:
    - Find the most-downstream saturated stage (current saturation; fall back to
      recent 1m/30m).
-   - If it is the send stage (`worker`, `SenderTlmName`, or `destination_*`) →
-     recommend `high-concurrency`, citing intake latency when
-     `latencyMs >= senderLatencyHighThresholdMs` (250ms). Drops corroborated by
-     downstream saturation are load-driven.
+   - If it is the send stage (`worker`, `SenderTlmName`, or `destination_*`):
+     - If `!delivering` → the intake is rejecting/unreachable; no profile helps →
+       return `nil`.
+     - Else recommend `high-concurrency`, citing intake latency when
+       `latencyMs >= senderLatencyHighThresholdMs` (250ms). Drops corroborated by
+       downstream saturation are load-driven.
    - Otherwise (no downstream saturation) → the drops are permanent send errors
      (4xx/auth/payload), which no profile fixes → return `nil`.
 3. **Read-side backpressure loss.** Else (`missed > 0`):
    - Localize via the saturation table: most-downstream saturated stage
-     (current; fall back to recent 1m/30m) → `recommendProfileForBottleneck`.
+     (current; fall back to recent 1m/30m).
+   - If the bottleneck is the send stage and `!delivering` → intake is
+     rejecting/unreachable; no profile helps → return `nil`.
+   - Otherwise → `recommendProfileForBottleneck`.
    - If **nothing** is saturated → loss is rotation outrunning an idle reader;
      the remedy is `logs_config.close_timeout`, not a perf profile → return
      `nil`.
@@ -136,9 +171,11 @@ old saturation-only phrasing.
 | No loss (any saturation) | none |
 | `missed>0`, processor saturated | `high-throughput` |
 | `missed>0`, strategy saturated | `high-throughput` |
-| `missed>0`, worker/destination saturated | `high-concurrency` |
+| `missed>0`, worker/destination saturated, delivering | `high-concurrency` |
+| `missed>0`, worker/destination saturated, **not** delivering | none (intake unhealthy) |
 | `missed>0`, nothing saturated | none (close_timeout hint territory) |
-| `dropped>0`, worker/destination saturated | `high-concurrency` |
+| `dropped>0`, worker/destination saturated, delivering | `high-concurrency` |
+| `dropped>0`, worker/destination saturated, **not** delivering | none (intake unhealthy) |
 | `dropped>0`, no downstream saturation | none (permanent send errors) |
 | recommended profile already active | none |
 
@@ -151,7 +188,12 @@ In `pkg/logs/status/builder.go`'s test file
   (pass `dropped`/`missed`, drop `bp`) and inject loss so they still exercise
   localization.
 - Add cases covering each row of the behavior matrix above, in particular the
-  headline change: **saturated with zero loss → `nil`**.
+  headline change: **saturated with zero loss → `nil`**, and the intake-unhealthy
+  guard: **loss + send stage saturated + not delivering → `nil`** (the
+  `LogsSent: 0`, `LogsProcessed > 0` scenario).
+- Add a test for `destinationDelivering`: false when `LogsProcessed > 0 &&
+  LogsSent == 0`, true otherwise (including the fresh-start `LogsProcessed == 0`
+  case).
 - Add a test that `getMetricsStatus` includes `BytesMissed` and `LogsDropped`
   keys, summing across multiple destination hosts for `LogsDropped`.
 
@@ -164,6 +206,10 @@ gains keys, not the JSON expvar dump.
 
 - Rate/windowed loss detection (deltas over time). We use a simple non-zero
   threshold since agent start; the recommendation is advisory.
+- Detecting a mid-run intake outage that follows earlier successful delivery.
+  `destinationDelivering` uses since-start counters, so it catches "never
+  delivered" but not "was delivering, now failing." Acceptable for advisory
+  output; revisit with windowed counters if needed.
 - Loss signals for non-file, non-HTTP/TCP sources (UDP socket overflow,
   journald, integration channel drops). Neither counter covers those; left for
   future work.
