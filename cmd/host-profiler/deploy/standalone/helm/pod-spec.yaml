@@ -2,7 +2,8 @@
 nameOverride: host-profiler-collector
 fullnameOverride: host-profiler-collector
 
-# The Host Profiler must run on every supported node.
+# Recommended: run as a DaemonSet to collect profiles from every supported node
+# and provide a cluster-wide view.
 mode: daemonset
 
 # Enable the chart integrations the Host Profiler relies on.
