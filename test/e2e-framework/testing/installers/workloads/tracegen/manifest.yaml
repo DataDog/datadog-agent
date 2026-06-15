@@ -1,0 +1,88 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{.Namespace}}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: tracegen-uds-sa
+  namespace: {{.Namespace}}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tracegen-uds
+  namespace: {{.Namespace}}
+  labels:
+    app: tracegen-uds
+spec:
+  selector:
+    matchLabels:
+      app: tracegen-uds
+  template:
+    metadata:
+      labels:
+        app: tracegen-uds
+    spec:
+      {{- if .ImagePullSecret}}
+      imagePullSecrets:
+      - name: {{.ImagePullSecret}}
+      {{- end}}
+      serviceAccountName: tracegen-uds-sa
+      containers:
+      - name: tracegen-uds
+        image: ghcr.io/datadog/apps-tracegen:{{.Version}}
+        env:
+        - name: DD_TRACE_AGENT_URL
+          value: unix:///var/run/datadog/apm.socket
+        resources:
+          requests:
+            cpu: 2m
+            memory: 32Mi
+          limits:
+            cpu: 10m
+            memory: 32Mi
+        volumeMounts:
+        - name: apmsocketpath
+          mountPath: /var/run/datadog
+      volumes:
+      - name: apmsocketpath
+        hostPath:
+          path: /var/run/datadog
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tracegen-tcp
+  namespace: {{.Namespace}}
+  labels:
+    app: tracegen-tcp
+spec:
+  selector:
+    matchLabels:
+      app: tracegen-tcp
+  template:
+    metadata:
+      labels:
+        app: tracegen-tcp
+    spec:
+      {{- if .ImagePullSecret}}
+      imagePullSecrets:
+      - name: {{.ImagePullSecret}}
+      {{- end}}
+      containers:
+      - name: tracegen-tcp
+        image: ghcr.io/datadog/apps-tracegen:{{.Version}}
+        env:
+        - name: DD_AGENT_HOST
+          valueFrom:
+            fieldRef:
+              fieldPath: status.hostIP
+        resources:
+          requests:
+            cpu: 2m
+            memory: 32Mi
+          limits:
+            cpu: 10m
+            memory: 32Mi

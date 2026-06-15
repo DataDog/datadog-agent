@@ -1,0 +1,23 @@
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "e2e-install_lib",
+    srcs = ["main.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2e-install",
+    visibility = ["//visibility:private"],
+    deps = [
+        "//test/e2e-framework/testing/cliutil",
+        "//test/e2e-framework/testing/envdesc",
+        "//test/e2e-framework/testing/installers/dockeragent",
+        "//test/e2e-framework/testing/installers/helmagent",
+        "//test/e2e-framework/testing/installers/hostagent",
+        "//test/e2e-framework/testing/installspec",
+        "//test/e2e-framework/testing/environments",
+    ],
+)
+
+go_binary(
+    name = "e2e-install",
+    embed = [":e2e-install_lib"],
+    visibility = ["//visibility:public"],
+)

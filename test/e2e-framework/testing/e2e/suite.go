@@ -222,6 +222,10 @@ type BaseSuite[Env any] struct {
 	// after SetupSuite returns, so a Goexit during setup never registers the defer); the
 	// t.Cleanup hook covers that one gap.
 	cleanupCalled bool
+
+	// attachMode is true when the environment was loaded from a descriptor file
+	// rather than provisioned by Pulumi. TearDown is skipped in this mode.
+	attachMode bool
 }
 
 //
@@ -409,6 +413,14 @@ func (bs *BaseSuite[Env]) init(options []SuiteOption, self Suite[Env]) {
 	}
 
 	bs.originalProvisioners = bs.params.provisioners
+
+	// Env-var overrides for the descriptor paths (take precedence over SuiteOption).
+	if v, err := runner.GetProfile().ParamStore().GetWithDefault(parameters.EnvDescriptor, ""); err == nil && v != "" {
+		bs.params.envDescriptorPath = v
+	}
+	if v, err := runner.GetProfile().ParamStore().GetWithDefault(parameters.DumpEnvDescriptor, ""); err == nil && v != "" {
+		bs.params.dumpEnvDescriptorPath = v
+	}
 }
 
 func (bs *BaseSuite[Env]) reconcileEnv(targetProvisioners provisioners.ProvisionerMap) error {
@@ -463,18 +475,12 @@ func (bs *BaseSuite[Env]) reconcileEnv(targetProvisioners provisioners.Provision
 					diagnoseResult, diagnoseErr := diagnosableProvisioner.Diagnose(ctx, stackName)
 					if diagnoseErr != nil {
 						utils.Logf(bs.T(), "WARNING: Diagnose failed: %v", diagnoseErr)
-					}
-
-					// some diagnose calls/commands could fail, we still need any previous output that succeeded.
-					if diagnoseResult != "" {
+					} else if diagnoseResult != "" {
 						utils.Logf(bs.T(), "Diagnose result: %s", diagnoseResult)
 					}
 				}
 
 			}
-
-			// set the env here so the tearDown can call diagnose too if it fails
-			bs.env = newEnv
 			return fmt.Errorf("your stack '%s' provisioning failed, check logs above. Provisioner was %s, failed with err: %v", bs.params.stackName, id, err)
 		}
 
@@ -510,6 +516,16 @@ func (bs *BaseSuite[Env]) reconcileEnv(targetProvisioners provisioners.Provision
 	// We need top copy provisioners to protect against external modifications
 	bs.currentProvisioners = provisioners.CopyProvisioners(targetProvisioners)
 	bs.env = newEnv
+
+	// Call PostProvision on any provisioner that implements it so that
+	// UpdateEnv also triggers agent install / workload updates, not only
+	// initial setup.
+	for _, p := range targetProvisioners {
+		if pp, ok := p.(provisioners.PostProvisioner[Env]); ok {
+			pp.PostProvision(bs.T(), bs.env)
+		}
+	}
+
 	return nil
 }
 
@@ -679,9 +695,36 @@ func (bs *BaseSuite[Env]) SetupSuite() {
 	bs.Require().NoError(err)
 	bs.datadogClient = datadog.NewClient(apiKey, appKey)
 
-	if err := bs.reconcileEnv(bs.originalProvisioners); err != nil {
-		// `panic()` is required to stop the execution of the test suite. Otherwise `testify.Suite` will keep on running suite tests.
-		panic(err)
+	if bs.params.envDescriptorPath != "" {
+		// Attach mode: load a pre-provisioned environment from a descriptor file
+		// instead of running Pulumi. This enables the provision-then-install split.
+		utils.Logf(bs.T(), "Attach mode: loading env from descriptor %s", bs.params.envDescriptorPath)
+		if err := bs.loadEnvFromDescriptor(bs.params.envDescriptorPath); err != nil {
+			panic(fmt.Errorf("attach mode: failed to load env from descriptor %s: %w", bs.params.envDescriptorPath, err))
+		}
+		bs.attachMode = true
+	} else {
+		if err := bs.reconcileEnv(bs.originalProvisioners); err != nil {
+			// `panic()` is required to stop the execution of the test suite. Otherwise `testify.Suite` will keep on running suite tests.
+			panic(err)
+		}
+		// After a successful Pulumi provision, optionally dump the env descriptor for
+		// use by a subsequent install+test job.
+		if bs.params.dumpEnvDescriptorPath != "" {
+			if err := bs.dumpEnvDescriptor(bs.params.dumpEnvDescriptorPath); err != nil {
+				utils.Logf(bs.T(), "WARNING: failed to dump env descriptor to %s: %v", bs.params.dumpEnvDescriptorPath, err)
+			} else {
+				utils.Logf(bs.T(), "Env descriptor written to %s", bs.params.dumpEnvDescriptorPath)
+			}
+		}
+	}
+
+	// Call PostProvision on any provisioner that supports post-infrastructure
+	// setup (e.g. Helm-based agent installation, workload deployment).
+	for _, p := range bs.currentProvisioners {
+		if pp, ok := p.(provisioners.PostProvisioner[Env]); ok {
+			pp.PostProvision(bs.T(), bs.env)
+		}
 	}
 
 	if bs.initOnly {
@@ -773,6 +816,13 @@ func (bs *BaseSuite[Env]) TearDownSuite() {
 	if bs.cleanupCalled {
 		return
 	}
+	// In attach mode the provision job owns the infrastructure lifetime.
+	// Skip destruction so we don't tear down what another job is responsible for.
+	if bs.attachMode {
+		utils.Logf(bs.T(), "Attach mode: skipping infrastructure teardown (managed by provision job)")
+		bs.cleanupCalled = true
+		return
+	}
 	bs.cleanupCalled = true
 	bs.endTime = time.Now()
 
@@ -820,10 +870,7 @@ func (bs *BaseSuite[Env]) TearDownSuite() {
 			diagnoseResult, diagnoseErr := diagnosableProvisioner.Diagnose(ctx, stackName)
 			if diagnoseErr != nil {
 				utils.Logf(bs.T(), "WARNING: Diagnose failed: %v", diagnoseErr)
-			}
-
-			// some diagnose calls/commands could fail, we still need any previous output that succeeded.
-			if diagnoseResult != "" {
+			} else if diagnoseResult != "" {
 				utils.Logf(bs.T(), "Diagnose result: %s", diagnoseResult)
 			}
 		}
@@ -869,10 +916,6 @@ func (bs *BaseSuite[Env]) TearDownSuite() {
 // If a test is explicitly restarting the agent the coverage should be saved first otherwise the counters are reset after restart.
 func (bs *BaseSuite[Env]) SaveCoverage(coverageDir string) error {
 	if coverageEnv, ok := any(bs.env).(common.Coverageable); ok {
-		// Apply coverage required override if set
-		if overrideable, ok := any(bs.env).(common.CoverageRequiredOverrideable); ok {
-			overrideable.SetCoverageRequiredOverride(bs.params.coverageRequired)
-		}
 		// Create coverage folder if it doesn't exist
 		rootTestName := strings.ToLower(strings.Split(bs.T().Name(), "/")[0])
 		coverageFolder := filepath.Join(coverageDir, rootTestName)
@@ -925,6 +968,15 @@ func (bs *BaseSuite[Env]) attachMetadataToCoverage(coverageDir string) {
 func (bs *BaseSuite[Env]) SessionOutputDir() string {
 	return bs.outputDir
 }
+
+// Errorf implements common.Context. Delegates to the current *testing.T.
+func (bs *BaseSuite[Env]) Errorf(format string, args ...any) { bs.T().Errorf(format, args...) }
+
+// Helper implements common.Context. Delegates to the current *testing.T.
+func (bs *BaseSuite[Env]) Helper() { bs.T().Helper() }
+
+// Cleanup implements common.Context. Delegates to the current *testing.T.
+func (bs *BaseSuite[Env]) Cleanup(fn func()) { bs.T().Cleanup(fn) }
 
 // Run is a helper function to run a test suite.
 // Unfortunately, we cannot use `s Suite[Env]` as Go is not able to match it with a struct

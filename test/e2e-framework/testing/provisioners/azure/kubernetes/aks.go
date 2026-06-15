@@ -7,44 +7,75 @@
 package azurekubernetes
 
 import (
-	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
-	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+	"testing"
 
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent/helm"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/azure"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/azure/aks"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/azure/fakeintake"
+	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers/helmagent"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/optional"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
 )
 
 const (
 	provisionerBaseID = "azure-aks"
 )
 
-// AKSProvisioner creates a new provisioner for AKS on Azure
-func AKSProvisioner(opts ...ProvisionerOption) provisioners.TypedProvisioner[environments.Kubernetes] {
-	// We ALWAYS need to make a deep copy of `params`, as the provisioner can be called multiple times.
-	// and it's easy to forget about it, leading to hard to debug issues.
-	params := newProvisionerParams()
-	_ = optional.ApplyOptions(params, opts)
+// aksDefaultHelmValues are AKS-specific Helm overrides applied automatically
+// by PostProvision. On Kata nodes, AKS uses the node-name as the only SAN in
+// the Kubelet certificate which is not DNS-resolvable, so we enable the AKS
+// provider which sets tlsVerify:false and uses status.hostIP as the Kubelet
+// host.
+const aksDefaultHelmValues = `
+providers:
+  aks:
+    enabled: true
+`
 
-	provisioner := provisioners.NewTypedPulumiProvisioner(provisionerBaseID+params.name, func(ctx *pulumi.Context, env *environments.Kubernetes) error {
+// AKSProvisioner creates a new provisioner for AKS on Azure.
+//
+// Agent installation is performed via Helm after Pulumi provisions the AKS
+// cluster and FakeIntake (PostProvision), rather than inside Pulumi itself.
+func AKSProvisioner(opts ...ProvisionerOption) provisioners.TypedProvisioner[environments.Kubernetes] {
+	// Capture user-provided agent options outside the closure so PostProvision
+	// receives clean options (before Pulumi would add the fakeintake resource).
+	params := newProvisionerParams(opts...)
+	agentOpts := params.agentOptions
+	usePostProvision := agentOpts != nil
+
+	pulumiProv := provisioners.NewTypedPulumiProvisioner(provisionerBaseID+params.name, func(ctx *pulumi.Context, env *environments.Kubernetes) error {
 		// We ALWAYS need to make a deep copy of `params`, as the provisioner can be called multiple times.
 		// and it's easy to forget about it, leading to hard to debug issues.
-		params := newProvisionerParams()
-		_ = optional.ApplyOptions(params, opts)
-
+		params := newProvisionerParams(opts...)
+		if usePostProvision {
+			params.agentOptions = nil
+		}
 		return AKSRunFunc(ctx, env, params)
 	}, params.extraConfigParams)
 
-	return provisioner
+	if !usePostProvision {
+		return pulumiProv
+	}
+
+	// Prepend AKS-specific defaults then user options.
+	postProvisionOpts := append(
+		[]kubernetesagentparams.Option{kubernetesagentparams.WithHelmValues(aksDefaultHelmValues)},
+		agentOpts...,
+	)
+
+	return provisioners.WithPostProvision(pulumiProv, func(t *testing.T, env *environments.Kubernetes) {
+		helmagent.Install(installers.FromT(t), env, runner.CloudAzure, postProvisionOpts...)
+	})
 }
 
-// AKSRunFunc is the run function for AKS provisioner
+// AKSRunFunc is the run function for AKS provisioner.
+// When agentOptions is nil (PostProvision handles the install), it only
+// provisions the cluster and FakeIntake.
 func AKSRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *ProvisionerParams) error {
 	azureEnv, err := azure.NewEnvironment(ctx)
 	if err != nil {
@@ -61,8 +92,6 @@ func AKSRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Provi
 		return err
 	}
 
-	agentOptions := params.agentOptions
-
 	// Deploy a fakeintake
 	if params.fakeintakeOptions != nil {
 		fakeIntake, err := fakeintake.NewVMInstance(azureEnv, params.fakeintakeOptions...)
@@ -73,43 +102,14 @@ func AKSRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Provi
 		if err != nil {
 			return err
 		}
-		agentOptions = append(agentOptions, kubernetesagentparams.WithFakeintake(fakeIntake))
-
 	} else {
 		env.FakeIntake = nil
 	}
 
-	if params.agentOptions != nil {
-		// On Kata nodes, AKS uses the node-name (like aks-kata-21213134-vmss000000) as the only SAN in the Kubelet
-		// certificate. However, the DNS name aks-kata-21213134-vmss000000 is not resolvable, so it cannot be used
-		// to reach the Kubelet. Thus we need to use `tlsVerify: false` and `and `status.hostIP` as `host` in
-		// the Helm values
-		customValues := `
-providers:
-  aks:
-    enabled: true
-`
-		agentOptions = append(agentOptions, kubernetesagentparams.WithHelmValues(customValues))
-		agent, err := helm.NewKubernetesAgent(&azureEnv, params.name, aksCluster.KubeProvider, agentOptions...)
-		if err != nil {
-			return err
-		}
-		err = agent.Export(ctx, &env.Agent.KubernetesAgentOutput)
-		if err != nil {
-			return err
-		}
+	// Agent installation is handled by PostProvision via helmagent.Install.
+	env.Agent = nil
 
-		dependsOnDDAgent := utils.PulumiDependsOn(agent)
-		for _, appFunc := range params.agentDependentWorkloadAppFuncs {
-			_, err := appFunc(&azureEnv, aksCluster.KubeProvider, dependsOnDDAgent)
-			if err != nil {
-				return err
-			}
-		}
-	} else {
-		env.Agent = nil
-	}
-
+	// Deploy Pulumi-based workloads (workloadAppFuncs use the Pulumi k8s provider).
 	for _, appFunc := range params.workloadAppFuncs {
 		_, err := appFunc(&azureEnv, aksCluster.KubeProvider)
 		if err != nil {

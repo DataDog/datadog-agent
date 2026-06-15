@@ -1,0 +1,17 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "dockeragent",
+    srcs = ["install.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers/dockeragent",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/e2e-framework/testing/utils/common",
+        "//test/e2e-framework/testing/components",
+        "//test/e2e-framework/testing/environments",
+        "//test/e2e-framework/testing/runner",
+        "//test/e2e-framework/testing/runner/parameters",
+        "@com_github_stretchr_testify//require",
+        "@io_k8s_sigs_yaml//:yaml",
+    ],
+)

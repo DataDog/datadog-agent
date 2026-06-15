@@ -181,3 +181,9 @@ func WithPreAgentInstallHook(cb preAgentInstallHook) Option {
 		return nil
 	}
 }
+
+// AgentOptions returns the docker agent options. Returns nil if WithoutAgent
+// was called. Used by the provisioner to install via PostProvision.
+func (p *Params) AgentOptions() []dockeragentparams.Option {
+	return p.agentOptions
+}

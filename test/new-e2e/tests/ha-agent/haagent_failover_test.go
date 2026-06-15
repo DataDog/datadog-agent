@@ -13,21 +13,19 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
-
 	componentsOs "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
-
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers/hostagent"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 //go:embed fixtures/snmp_conf.yaml
@@ -43,14 +41,14 @@ type multiVMEnv struct {
 	Agent2 *components.RemoteHostAgent
 }
 
-func multiVMEnvProvisioner() provisioners.PulumiEnvRunFunc[multiVMEnv] {
-	return func(ctx *pulumi.Context, env *multiVMEnv) error {
+// multiVMEnvProvisioner returns a provisioner for two VMs with HA agents.
+// configID is generated once outside the Pulumi closure so both closures
+// (Pulumi + PostProvision) share the same value.
+func multiVMEnvProvisioner() provisioners.TypedProvisioner[multiVMEnv] {
+	// Generate config_id outside the closure so it's stable across retries.
+	randomConfigID := fmt.Sprintf("ci-e2e-ha-failover-%d", rand.Intn(10))
 
-		// Generate a random config_id (0-9) to avoid conflicts when tests run in parallel
-		randomConfigID := fmt.Sprintf("ci-e2e-ha-failover-%d", rand.Intn(10))
-
-		// language=yaml
-		agentConfig1 := fmt.Sprintf(`
+	agentConfig1 := fmt.Sprintf(`
 hostname: test-e2e-agent1
 ha_agent:
     enabled: true
@@ -58,7 +56,7 @@ config_id: %s
 log_level: debug
 `, randomConfigID)
 
-		agentConfig2 := fmt.Sprintf(`
+	agentConfig2 := fmt.Sprintf(`
 hostname: test-e2e-agent2
 ha_agent:
     enabled: true
@@ -66,6 +64,7 @@ config_id: %s
 log_level: debug
 `, randomConfigID)
 
+	pulumiProv := provisioners.NewTypedPulumiProvisioner("aws-ha-multivm", func(ctx *pulumi.Context, env *multiVMEnv) error {
 		awsEnv, err := aws.NewEnvironment(ctx)
 		if err != nil {
 			return err
@@ -83,20 +82,25 @@ log_level: debug
 		}
 		host2.Export(ctx, &env.Host2.HostOutput)
 
-		agent1, err := agent.NewHostAgent(&awsEnv, host1, agentparams.WithAgentConfig(agentConfig1), agentparams.WithIntegration("snmp.d", snmpConfig), agentparams.WithIntegration("cisco_aci.d", ciscoAciConfig))
-		if err != nil {
-			return err
-		}
-		agent1.Export(ctx, &env.Agent1.HostAgentOutput)
-
-		agent2, err := agent.NewHostAgent(&awsEnv, host2, agentparams.WithAgentConfig(agentConfig2), agentparams.WithIntegration("snmp.d", snmpConfig), agentparams.WithIntegration("cisco_aci.d", ciscoAciConfig))
-		if err != nil {
-			return err
-		}
-		agent2.Export(ctx, &env.Agent2.HostAgentOutput)
-
+		// Agent installation moved to PostProvision.
+		env.Agent1 = nil
+		env.Agent2 = nil
 		return nil
-	}
+	}, nil)
+
+	return provisioners.WithPostProvision(pulumiProv, func(t *testing.T, env *multiVMEnv) {
+		ctx := installers.FromT(t)
+		env.Agent1 = hostagent.InstallOnHost(ctx, env.Host1, nil,
+			agentparams.WithAgentConfig(agentConfig1),
+			agentparams.WithIntegration("snmp.d", snmpConfig),
+			agentparams.WithIntegration("cisco_aci.d", ciscoAciConfig),
+		)
+		env.Agent2 = hostagent.InstallOnHost(ctx, env.Host2, nil,
+			agentparams.WithAgentConfig(agentConfig2),
+			agentparams.WithIntegration("snmp.d", snmpConfig),
+			agentparams.WithIntegration("cisco_aci.d", ciscoAciConfig),
+		)
+	})
 }
 
 type testHAAgentFailoverSuite struct {
@@ -104,7 +108,7 @@ type testHAAgentFailoverSuite struct {
 }
 
 func TestHAAgentFailoverSuite(t *testing.T) {
-	e2e.Run(t, &testHAAgentFailoverSuite{}, e2e.WithPulumiProvisioner(multiVMEnvProvisioner(), nil))
+	e2e.Run(t, &testHAAgentFailoverSuite{}, e2e.WithProvisioner(multiVMEnvProvisioner()))
 }
 
 type haAgentMetadata struct {

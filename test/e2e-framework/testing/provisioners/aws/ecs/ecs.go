@@ -8,11 +8,13 @@ package ecs
 
 import (
 	"fmt"
+	"testing"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 	scenecs "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ecs"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers/ecsagent"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/optional"
@@ -78,13 +80,27 @@ func WithExtraConfigParams(configMap runner.ConfigMap) ProvisionerOption {
 	}
 }
 
-// Provisioner creates an ECS environment and delegates to scenarios/aws/ecs
+// Provisioner creates an ECS environment with the Datadog Agent installed as a
+// Daemon service.
+//
+// Agent installation is performed via the AWS SDK after Pulumi provisions the
+// ECS cluster and FakeIntake (PostProvision). Pulumi provisions only the ECS
+// cluster, capacity providers, FakeIntake, and workloads — NOT the agent.
 func Provisioner(opts ...ProvisionerOption) provisioners.TypedProvisioner[environments.ECS] {
 	params := GetProvisionerParams(opts...)
-	provisioner := provisioners.NewTypedPulumiProvisioner(provisionerBaseID+params.name, func(ctx *pulumi.Context, env *environments.ECS) error {
+	runParams := scenecs.GetRunParams(params.runOptions...)
+	agentOpts := runParams.AgentOptions()
+	usePostProvision := agentOpts != nil
+
+	pulumiProv := provisioners.NewTypedPulumiProvisioner(provisionerBaseID+params.name, func(ctx *pulumi.Context, env *environments.ECS) error {
 		// deep copy on each invocation
 		params := GetProvisionerParams(opts...)
-		runParams := scenecs.GetRunParams(params.runOptions...)
+		runOpts := params.runOptions
+		if usePostProvision {
+			// Tell Pulumi to skip agent install — PostProvision handles it.
+			runOpts = append(runOpts, scenecs.WithoutAgent())
+		}
+		runParams := scenecs.GetRunParams(runOpts...)
 
 		var awsEnv aws.Environment
 		var err error
@@ -101,5 +117,11 @@ func Provisioner(opts ...ProvisionerOption) provisioners.TypedProvisioner[enviro
 		return scenecs.RunWithEnv(ctx, awsEnv, env, runParams)
 	}, params.extraConfigParams)
 
-	return provisioner
+	if !usePostProvision {
+		return pulumiProv
+	}
+
+	return provisioners.WithPostProvision(pulumiProv, func(t *testing.T, env *environments.ECS) {
+		ecsagent.Install(t, env, agentOpts...)
+	})
 }

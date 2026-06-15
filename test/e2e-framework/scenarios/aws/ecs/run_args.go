@@ -111,3 +111,15 @@ func WithFargateWorkloadApp(appFunc FargateWorkloadAppFunc) RunOption {
 		return nil
 	}
 }
+
+// WithoutAgent disables agent installation (Pulumi path).
+// Used by the ECS provisioner to tell Pulumi to skip the agent — PostProvision
+// installs it via the ecsagent installer instead.
+func WithoutAgent() RunOption {
+	return func(p *RunParams) error { p.agentOptions = nil; return nil }
+}
+
+// AgentOptions returns the agent options. Returns nil if WithoutAgent was called.
+func (p *RunParams) AgentOptions() []ecsagentparams.Option {
+	return p.agentOptions
+}

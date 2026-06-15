@@ -68,7 +68,6 @@ func GetRunParams(opts ...RunOption) *RunParams {
 		operatorDDAOptions:  nil, // nil by default - DDA is only deployed when options are explicitly provided
 		deployDogstatsd:     false,
 		deployOperator:      false,
-		workerNodes:         []kubecomp.KindWorkerNode{},
 	}
 	if err := optional.ApplyOptions(p, opts); err != nil {
 		panic(fmt.Errorf("unable to apply RunOption, err: %w", err))
@@ -175,6 +174,14 @@ func WithDeployDogstatsd() RunOption {
 // WithDeployTestWorkload enables test workloads
 func WithDeployTestWorkload() RunOption {
 	return func(p *RunParams) error { p.deployTestWorkload = true; return nil }
+}
+
+// WithoutDeployTestWorkload disables the default test workload deployment.
+// Use this when you install the agent and workloads outside of Pulumi
+// (e.g., via helmagent.Install in SetupSuite) so the provisioner only
+// creates infrastructure.
+func WithoutDeployTestWorkload() RunOption {
+	return func(p *RunParams) error { p.deployTestWorkload = false; return nil }
 }
 
 // WithWorkloadApp adds a workload app to the environment

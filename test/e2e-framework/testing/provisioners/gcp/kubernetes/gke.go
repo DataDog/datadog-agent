@@ -7,44 +7,58 @@
 package gcpkubernetes
 
 import (
-	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
+	"testing"
+
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/gcp"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/gcp/gke"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent/helm"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/gcp/fakeintake"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers/helmagent"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/optional"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
 )
 
 const (
 	provisionerBaseID = "gcp-gke"
 )
 
-// GKEProvisioner creates a new provisioner for GKE on GCP
+// GKEProvisioner creates a new provisioner for GKE on GCP.
+//
+// Agent installation is performed via Helm after Pulumi provisions the GKE
+// cluster and FakeIntake (PostProvision), rather than inside Pulumi itself.
 func GKEProvisioner(opts ...ProvisionerOption) provisioners.TypedProvisioner[environments.Kubernetes] {
-	// We ALWAYS need to make a deep copy of `params`, as the provisioner can be called multiple times.
-	// and it's easy to forget about it, leading to hard to debug issues.
-	params := newProvisionerParams()
-	_ = optional.ApplyOptions(params, opts)
+	// Capture user-provided agent options outside the closure so PostProvision
+	// receives clean options (before Pulumi would add the fakeintake resource).
+	params := newProvisionerParams(opts...)
+	agentOpts := params.agentOptions
+	usePostProvision := agentOpts != nil
 
-	provisioner := provisioners.NewTypedPulumiProvisioner(provisionerBaseID+params.name, func(ctx *pulumi.Context, env *environments.Kubernetes) error {
+	pulumiProv := provisioners.NewTypedPulumiProvisioner(provisionerBaseID+params.name, func(ctx *pulumi.Context, env *environments.Kubernetes) error {
 		// We ALWAYS need to make a deep copy of `params`, as the provisioner can be called multiple times.
 		// and it's easy to forget about it, leading to hard to debug issues.
-		params := newProvisionerParams()
-		_ = optional.ApplyOptions(params, opts)
-
+		params := newProvisionerParams(opts...)
+		if usePostProvision {
+			params.agentOptions = nil
+		}
 		return GKERunFunc(ctx, env, params)
 	}, params.extraConfigParams)
 
-	return provisioner
+	if !usePostProvision {
+		return pulumiProv
+	}
+
+	return provisioners.WithPostProvision(pulumiProv, func(t *testing.T, env *environments.Kubernetes) {
+		helmagent.Install(installers.FromT(t), env, runner.CloudGCP, agentOpts...)
+	})
 }
 
-// GKERunFunc is the run function for GKE provisioner
+// GKERunFunc is the run function for GKE provisioner.
+// When agentOptions is nil (PostProvision handles the install), it only
+// provisions the cluster and FakeIntake.
 func GKERunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *ProvisionerParams) error {
 	gcpEnv, err := gcp.NewEnvironment(ctx)
 	if err != nil {
@@ -66,8 +80,6 @@ func GKERunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Provi
 		return nil
 	}
 
-	agentOptions := params.agentOptions
-
 	// Deploy a fakeintake
 	if params.fakeintakeOptions != nil {
 		fakeIntake, err := fakeintake.NewVMInstance(gcpEnv, params.fakeintakeOptions...)
@@ -78,33 +90,15 @@ func GKERunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Provi
 		if err != nil {
 			return err
 		}
-		agentOptions = append(agentOptions, kubernetesagentparams.WithFakeintake(fakeIntake))
-
 	} else {
 		env.FakeIntake = nil
 	}
 
-	if params.agentOptions != nil {
-		agent, err := helm.NewKubernetesAgent(&gcpEnv, params.name, cluster.KubeProvider, agentOptions...)
-		if err != nil {
-			return err
-		}
-		err = agent.Export(ctx, &env.Agent.KubernetesAgentOutput)
-		if err != nil {
-			return err
-		}
-		dependsOnDDAgent := utils.PulumiDependsOn(agent)
-		for _, appFunc := range params.agentDependentWorkloadAppFuncs {
-			_, err := appFunc(&gcpEnv, cluster.KubeProvider, dependsOnDDAgent)
-			if err != nil {
-				return err
-			}
-		}
-	} else {
-		env.Agent = nil
-	}
+	// Agent installation is handled by PostProvision via helmagent.Install.
+	env.Agent = nil
 
-	// Deploy workloads
+	// Deploy Pulumi-based workloads (workloadAppFuncs use the Pulumi k8s provider).
+	// These are separate from the workloads.Deploy installer path.
 	for _, appFunc := range params.workloadAppFuncs {
 		_, err := appFunc(&gcpEnv, cluster.KubeProvider)
 		if err != nil {

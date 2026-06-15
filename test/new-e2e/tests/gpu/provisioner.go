@@ -10,14 +10,12 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"testing"
 
-	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/command"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent/helm"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/docker"
@@ -29,8 +27,12 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers/helmagent"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers/hostagent"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
 	awskubernetes "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/kubernetes/kindvm"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
 )
 
 //go:embed testdata/config/agent_config.yaml
@@ -152,9 +154,12 @@ func getDefaultProvisionerParams() *provisionerParams {
 	}
 }
 
-// gpuHostProvisioner provisions a single EC2 instance with GPU support
+// gpuHostProvisioner provisions a single EC2 instance with GPU support.
+// Agent installation is performed via SSH in PostProvision after Pulumi
+// completes all setup (GPU validation, Docker, image pulls).
 func gpuHostProvisioner(params *provisionerParams) provisioners.Provisioner {
-	return provisioners.NewTypedPulumiProvisioner[environments.Host]("gpu", func(ctx *pulumi.Context, env *environments.Host) error {
+	agentOpts := params.agentOptions
+	pulumiProv := provisioners.NewTypedPulumiProvisioner[environments.Host]("gpu", func(ctx *pulumi.Context, env *environments.Host) error {
 		name := "gpuvm"
 		awsEnv, err := aws.NewEnvironment(ctx)
 		if err != nil {
@@ -210,32 +215,33 @@ func gpuHostProvisioner(params *provisionerParams) provisioners.Provisioner {
 			return fmt.Errorf("validateDockerCuda failed: %w", err)
 		}
 
-		// Combine agent options from the parameters with the fakeintake and docker dependencies
-		params.agentOptions = append(params.agentOptions,
-			agentparams.WithFakeintake(fakeIntake),
-			agentparams.WithPulumiResourceOptions(utils.PulumiDependsOn(dockerCudaValidateCmd)), // Depend on Docker to avoid apt lock issues
-		)
+		// Depend on dockerCudaValidateCmd to ensure Docker+CUDA are ready before
+		// we return from Pulumi. PostProvision (agent install) runs after this.
+		_ = dockerCudaValidateCmd
 
 		// Set updater to nil as we're not using it
 		env.Updater = nil
-
-		// Install the agent
-		agent, err := agent.NewHostAgent(&awsEnv, host, params.agentOptions...)
-		if err != nil {
-			return fmt.Errorf("NewHostAgent failed: %w", err)
-		}
-
-		err = agent.Export(ctx, &env.Agent.HostAgentOutput)
-		if err != nil {
-			return fmt.Errorf("agent export failed: %w", err)
-		}
+		// Agent installation moved to PostProvision.
+		env.Agent = nil
 
 		return nil
 	}, nil)
+
+	return provisioners.WithPostProvision(pulumiProv, func(t *testing.T, env *environments.Host) {
+		env.Agent = hostagent.InstallOnHost(
+			installers.FromT(t),
+			env.RemoteHost,
+			env.FakeIntake,
+			agentOpts...,
+		)
+	})
 }
 
-// gpuK8sProvisioner provisions a Kubernetes cluster with GPU support
+// gpuK8sProvisioner provisions a Kubernetes cluster with GPU support.
+// Agent installation is performed via Helm in PostProvision after Pulumi
+// completes all setup (KinD cluster, GPU operator, image pulls).
 func gpuK8sProvisioner(params *provisionerParams) provisioners.Provisioner {
+	k8sAgentOpts := params.kubernetesAgentOptions
 	provisioner := provisioners.NewTypedPulumiProvisioner[environments.Kubernetes]("gpu-k8s", func(ctx *pulumi.Context, env *environments.Kubernetes) error {
 		name := "kind" // Match the name of the kind cluster in the aws-kind provisioner so that we can reuse the DiagnoseFunc, which assumes the VM name is kind
 		awsEnv, err := aws.NewEnvironment(ctx)
@@ -278,13 +284,8 @@ func gpuK8sProvisioner(params *provisionerParams) provisioners.Provisioner {
 			return fmt.Errorf("kindCluster.Export: %w", err)
 		}
 
-		kubeProvider, err := kubernetes.NewProvider(ctx, awsEnv.Namer.ResourceName("k8s-provider"), &kubernetes.ProviderArgs{
-			EnableServerSideApply: pulumi.Bool(true),
-			Kubeconfig:            kindCluster.KubeConfig,
-		})
-		if err != nil {
-			return fmt.Errorf("kubernetes.NewProvider: %w", err)
-		}
+		// kubeProvider no longer needed since agent install moved to PostProvision.
+		_ = kindCluster.KubeConfig
 
 		// Create the fakeintake instance
 		fakeIntake, err := fakeintake.NewECSFargateInstance(awsEnv, name)
@@ -310,33 +311,29 @@ func gpuK8sProvisioner(params *provisionerParams) provisioners.Provisioner {
 			return fmt.Errorf("downloadContainerdImagesInKindNodes: %w", err)
 		}
 
-		kindClusterName := ctx.Stack()
-		helmValues := fmt.Sprintf(helmValuesTemplate, kindClusterName)
+		// Depend on dockerPullCmds to ensure images are ready before PostProvision.
+		_ = dockerPullCmds
 
-		// Combine agent options from the parameters with the fakeintake and docker dependencies, and helm values
-		params.kubernetesAgentOptions = append(params.kubernetesAgentOptions,
-			kubernetesagentparams.WithFakeintake(fakeIntake),
-			kubernetesagentparams.WithHelmValues(helmValues),
-			kubernetesagentparams.WithClusterName(kindCluster.ClusterName),
-			kubernetesagentparams.WithTags([]string{"stackid:" + ctx.Stack()}),
-			kubernetesagentparams.WithPulumiResourceOptions(utils.PulumiDependsOn(dockerPullCmds...)),
-		)
-
-		agent, err := helm.NewKubernetesAgent(&awsEnv, "kind", kubeProvider, params.kubernetesAgentOptions...)
-		if err != nil {
-			return fmt.Errorf("agent.NewKubernetesAgent: %w", err)
-		}
-		err = agent.Export(ctx, &env.Agent.KubernetesAgentOutput)
-		if err != nil {
-			return fmt.Errorf("agent.Export: %w", err)
-		}
+		// Agent installation moved to PostProvision.
+		env.Agent = nil
 
 		return nil
 	}, nil)
 
 	provisioner.SetDiagnoseFunc(awskubernetes.DiagnoseFunc)
 
-	return provisioner
+	return provisioners.WithPostProvision(provisioner, func(t *testing.T, env *environments.Kubernetes) {
+		clusterName := env.KubernetesCluster.ClusterName
+		helmValues := fmt.Sprintf(helmValuesTemplate, clusterName)
+		opts := append(
+			[]kubernetesagentparams.Option{
+				kubernetesagentparams.WithHelmValues(helmValues),
+				kubernetesagentparams.WithTags([]string{"stackid:" + clusterName}),
+			},
+			k8sAgentOpts...,
+		)
+		helmagent.Install(installers.FromT(t), env, runner.CloudAWS, opts...)
+	})
 }
 
 // validateGPUDevices checks that there are GPU devices present and accesible

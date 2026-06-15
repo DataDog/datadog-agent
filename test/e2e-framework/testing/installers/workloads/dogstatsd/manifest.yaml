@@ -1,0 +1,261 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{.Namespace}}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: dogstatsd-sa
+  namespace: {{.Namespace}}
+---
+# dogstatsd-uds-with-csi: uses admission controller CSI injection (no socket mount)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dogstatsd-uds-with-csi
+  namespace: {{.Namespace}}
+  labels:
+    app: dogstatsd-uds-with-csi
+spec:
+  selector:
+    matchLabels:
+      app: dogstatsd-uds-with-csi
+  template:
+    metadata:
+      labels:
+        app: dogstatsd-uds-with-csi
+        admission.datadoghq.com/config.mode: csi
+        admission.datadoghq.com/enabled: "true"
+    spec:
+      {{- if .ImagePullSecret}}
+      imagePullSecrets:
+      - name: {{.ImagePullSecret}}
+      {{- end}}
+      serviceAccountName: dogstatsd-sa
+      containers:
+      - name: dogstatsd
+        image: ghcr.io/datadog/apps-dogstatsd:{{.Version}}
+        resources:
+          requests:
+            cpu: 10m
+            memory: 32Mi
+          limits:
+            cpu: 100m
+            memory: 32Mi
+---
+# dogstatsd-uds: mounts agent DSD socket from host via HostPath
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dogstatsd-uds
+  namespace: {{.Namespace}}
+  labels:
+    app: dogstatsd-uds
+spec:
+  selector:
+    matchLabels:
+      app: dogstatsd-uds
+  template:
+    metadata:
+      labels:
+        app: dogstatsd-uds
+    spec:
+      {{- if .ImagePullSecret}}
+      imagePullSecrets:
+      - name: {{.ImagePullSecret}}
+      {{- end}}
+      containers:
+      - name: dogstatsd
+        image: ghcr.io/datadog/apps-dogstatsd:{{.Version}}
+        env:
+        - name: STATSD_URL
+          value: unix:///var/dsd.socket
+        resources:
+          requests:
+            cpu: 10m
+            memory: 32Mi
+          limits:
+            cpu: 100m
+            memory: 32Mi
+        volumeMounts:
+        - name: dogstatsd-socket
+          mountPath: /var/dsd.socket
+      volumes:
+      - name: dogstatsd-socket
+        hostPath:
+          path: {{.StatsdSocket}}
+          type: Socket
+---
+# dogstatsd-udp: sends metrics over UDP using the host IP
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dogstatsd-udp
+  namespace: {{.Namespace}}
+  labels:
+    app: dogstatsd-udp
+spec:
+  selector:
+    matchLabels:
+      app: dogstatsd-udp
+  template:
+    metadata:
+      labels:
+        app: dogstatsd-udp
+    spec:
+      {{- if .ImagePullSecret}}
+      imagePullSecrets:
+      - name: {{.ImagePullSecret}}
+      {{- end}}
+      containers:
+      - name: dogstatsd
+        image: ghcr.io/datadog/apps-dogstatsd:{{.Version}}
+        env:
+        - name: HOST_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.hostIP
+        - name: STATSD_URL
+          value: "$(HOST_IP):{{.StatsdPort}}"
+        - name: DD_ENTITY_ID
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.uid
+        resources:
+          requests:
+            cpu: 2m
+            memory: 32Mi
+          limits:
+            cpu: 10m
+            memory: 32Mi
+---
+# dogstatsd-udp-origin-detection: UDP without entity ID (tests origin detection)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dogstatsd-udp-origin-detection
+  namespace: {{.Namespace}}
+  labels:
+    app: dogstatsd-udp-origin-detection
+spec:
+  selector:
+    matchLabels:
+      app: dogstatsd-udp-origin-detection
+  template:
+    metadata:
+      labels:
+        app: dogstatsd-udp-origin-detection
+    spec:
+      {{- if .ImagePullSecret}}
+      imagePullSecrets:
+      - name: {{.ImagePullSecret}}
+      {{- end}}
+      containers:
+      - name: dogstatsd
+        image: ghcr.io/datadog/apps-dogstatsd:{{.Version}}
+        env:
+        - name: HOST_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.hostIP
+        - name: STATSD_URL
+          value: "$(HOST_IP):{{.StatsdPort}}"
+        resources:
+          requests:
+            cpu: 2m
+            memory: 32Mi
+          limits:
+            cpu: 10m
+            memory: 32Mi
+---
+# dogstatsd-udp-contname-injected: tests container name injection via DD_ENTITY_ID
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dogstatsd-udp-contname-injected
+  namespace: {{.Namespace}}
+  labels:
+    app: dogstatsd-udp-contname-injected
+spec:
+  selector:
+    matchLabels:
+      app: dogstatsd-udp-contname-injected
+  template:
+    metadata:
+      labels:
+        app: dogstatsd-udp-contname-injected
+    spec:
+      {{- if .ImagePullSecret}}
+      imagePullSecrets:
+      - name: {{.ImagePullSecret}}
+      {{- end}}
+      containers:
+      - name: dogstatsd
+        image: ghcr.io/datadog/apps-dogstatsd:{{.Version}}
+        env:
+        - name: HOST_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.hostIP
+        - name: STATSD_URL
+          value: "$(HOST_IP):{{.StatsdPort}}"
+        - name: DD_INTERNAL_POD_UID
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.uid
+        - name: DD_ENTITY_ID
+          value: en-$(DD_INTERNAL_POD_UID)/dogstatsd
+        resources:
+          requests:
+            cpu: 2m
+            memory: 32Mi
+          limits:
+            cpu: 10m
+            memory: 32Mi
+---
+# dogstatsd-udp-external-data-only: tests external data mode
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dogstatsd-udp-external-data-only
+  namespace: {{.Namespace}}
+  labels:
+    app: dogstatsd-udp-external-data-only
+spec:
+  selector:
+    matchLabels:
+      app: dogstatsd-udp-external-data-only
+  template:
+    metadata:
+      labels:
+        app: dogstatsd-udp-external-data-only
+        admission.datadoghq.com/enabled: "true"
+    spec:
+      {{- if .ImagePullSecret}}
+      imagePullSecrets:
+      - name: {{.ImagePullSecret}}
+      {{- end}}
+      containers:
+      - name: dogstatsd
+        image: ghcr.io/datadog/apps-dogstatsd:{{.Version}}
+        env:
+        - name: HOST_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.hostIP
+        - name: STATSD_URL
+          value: "$(HOST_IP):{{.StatsdPort}}"
+        - name: DD_ENTITY_ID
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.uid
+        - name: DD_EXTERNAL_DATA_ONLY
+          value: "true"
+        resources:
+          requests:
+            cpu: 2m
+            memory: 32Mi
+          limits:
+            cpu: 10m
+            memory: 32Mi

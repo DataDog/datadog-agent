@@ -5,13 +5,27 @@
 
 package common
 
-import "testing"
-
-// Context defines an interface that allows to get information about current test context
+// Context defines the execution context for e2e test operations.
+// It is satisfied by *testing.T (in tests) and by CLI context implementations
+// (outside tests). The interface is intentionally minimal — no *testing.T, no
+// test-specific methods — so non-test programs can implement it without any
+// test framework.
+//
+// The Errorf + FailNow pair satisfies testify's require.TestingT, so callers
+// can pass a Context directly to require.NoError(ctx, err) etc.
 type Context interface {
-	T() *testing.T
-	Logf(format string, args ...any)
+	// Errorf reports a non-fatal test/operation failure.
+	Errorf(format string, args ...any)
+	// FailNow logs the formatted message, marks the current operation as failed, and stops execution.
 	FailNow(format string, args ...any)
+	// Logf logs a message.
+	Logf(format string, args ...any)
+	// Helper marks the calling function as a helper (no-op outside tests).
+	Helper()
+	// Cleanup registers a function to be called when the operation finishes.
+	Cleanup(fn func())
+	// SessionOutputDir returns the root output directory for the current test session.
+	// Implementations that have no output directory return "".
 	SessionOutputDir() string
 }
 

@@ -29,6 +29,17 @@ type suiteParams struct {
 	coverageRequired map[string]bool
 
 	provisioners provisioners.ProvisionerMap
+
+	// envDescriptorPath, when non-empty, enables "attach mode": SetupSuite loads the
+	// pre-provisioned environment from this JSON descriptor file instead of running
+	// Pulumi, then runs PostProvision (agent install) + tests normally.
+	// TearDown is skipped in attach mode (the provision job owns infrastructure lifetime).
+	envDescriptorPath string
+
+	// dumpEnvDescriptorPath, when non-empty, causes SetupSuite to write the environment
+	// descriptor JSON to this path after a successful Pulumi provision.
+	// Use this in the provision job so the install+test job can consume it.
+	dumpEnvDescriptorPath string
 }
 
 // SuiteOption is an optional function parameter type for e2e options
@@ -97,5 +108,39 @@ func WithSkipCoverage() SuiteOption {
 func WithCoverageRequired(overrides map[string]bool) SuiteOption {
 	return func(options *suiteParams) {
 		options.coverageRequired = overrides
+	}
+}
+
+// WithPreProvisionedEnv enables "attach mode": SetupSuite loads the environment
+// from the given JSON descriptor file (written by a prior provision job or QA
+// task) instead of running Pulumi. PostProvision (agent install) and tests then
+// run exactly as they would after a normal Pulumi provision.
+//
+// TearDown is skipped in attach mode — the job that originally provisioned the
+// infrastructure is responsible for destroying it.
+//
+// The descriptor path can also be supplied via the E2E_ENV_DESCRIPTOR environment
+// variable, which takes precedence over this option.
+//
+// Usage:
+//
+//	e2e.Run(t, suite, e2e.WithProvisioner(awshost.Provisioner(...)),
+//	    e2e.WithPreProvisionedEnv("/path/to/env.json"))
+func WithPreProvisionedEnv(descriptorPath string) SuiteOption {
+	return func(options *suiteParams) {
+		options.envDescriptorPath = descriptorPath
+	}
+}
+
+// WithDumpEnvDescriptor causes SetupSuite to write the environment descriptor
+// JSON to path after a successful Pulumi provision. The descriptor can then be
+// consumed by a subsequent install+test job via WithPreProvisionedEnv or the
+// E2E_ENV_DESCRIPTOR environment variable.
+//
+// The path can also be supplied via the E2E_DUMP_ENV_DESCRIPTOR environment
+// variable, which takes precedence over this option.
+func WithDumpEnvDescriptor(path string) SuiteOption {
+	return func(options *suiteParams) {
+		options.dumpEnvDescriptorPath = path
 	}
 }

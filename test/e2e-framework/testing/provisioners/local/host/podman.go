@@ -7,12 +7,15 @@
 package localhost
 
 import (
+	"testing"
+
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers/hostagent"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/optional"
 
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/local"
 
@@ -106,26 +109,42 @@ func PodmanProvisionerNoFakeIntake(opts ...ProvisionerOption) provisioners.Typed
 	return PodmanProvisioner(mergedOpts...)
 }
 
-// PodmanProvisioner creates a new provisioner
+// PodmanProvisioner creates a new provisioner for a local Podman-based host environment.
+//
+// Agent installation is performed via SSH after Pulumi provisions the host and
+// FakeIntake (PostProvision), rather than inside Pulumi itself.
 func PodmanProvisioner(opts ...ProvisionerOption) provisioners.TypedProvisioner[environments.Host] {
-	// We ALWAYS need to make a deep copy of `params`, as the provisioner can be called multiple times.
-	// and it's easy to forget about it, leading to hard to debug issues.
 	params := newProvisionerParams()
 	_ = optional.ApplyOptions(params, opts)
 
-	provisioner := provisioners.NewTypedPulumiProvisioner(provisionerBaseID+params.name, func(ctx *pulumi.Context, env *environments.Host) error {
+	// Capture user-provided agent options before the closure so PostProvision
+	// receives clean options (before Pulumi would add the fakeintake resource).
+	agentOpts := params.agentOptions
+	usePostProvision := agentOpts != nil
+
+	pulumiProv := provisioners.NewTypedPulumiProvisioner(provisionerBaseID+params.name, func(ctx *pulumi.Context, env *environments.Host) error {
 		// We ALWAYS need to make a deep copy of `params`, as the provisioner can be called multiple times.
 		// and it's easy to forget about it, leading to hard to debug issues.
 		params := newProvisionerParams()
 		_ = optional.ApplyOptions(params, opts)
-
+		if usePostProvision {
+			params.agentOptions = nil
+		}
 		return PodmanRunFunc(ctx, env, params)
 	}, params.extraConfigParams)
 
-	return provisioner
+	if !usePostProvision {
+		return pulumiProv
+	}
+
+	return provisioners.WithPostProvision(pulumiProv, func(t *testing.T, env *environments.Host) {
+		hostagent.Install(installers.FromT(t), env, agentOpts...)
+	})
 }
 
-// PodmanRunFunc is the Pulumi run function that runs the provisioner
+// PodmanRunFunc is the Pulumi run function that runs the provisioner.
+// Agent installation is handled by PodmanProvisioner's PostProvision step when
+// agentOptions are provided; this function only provisions the VM and FakeIntake.
 func PodmanRunFunc(ctx *pulumi.Context, env *environments.Host, params *ProvisionerParams) error {
 	localEnv, err := local.NewEnvironment(ctx)
 	if err != nil {
@@ -151,29 +170,12 @@ func PodmanRunFunc(ctx *pulumi.Context, env *environments.Host, params *Provisio
 		if err != nil {
 			return err
 		}
-
-		if params.agentOptions != nil {
-			newOpts := []agentparams.Option{agentparams.WithFakeintake(fakeIntake)}
-			params.agentOptions = append(newOpts, params.agentOptions...)
-		}
 	} else {
 		env.FakeIntake = nil
 	}
 
-	if params.agentOptions != nil {
-		agentOptions := []agentparams.Option{agentparams.WithHostname("localdocker-vm")}
-		agentOptions = append(agentOptions, params.agentOptions...)
-		agent, err := agent.NewHostAgent(&localEnv, vm, agentOptions...)
-		if err != nil {
-			return err
-		}
-		err = agent.Export(ctx, &env.Agent.HostAgentOutput)
-		if err != nil {
-			return err
-		}
-	} else {
-		env.Agent = nil
-	}
+	// Agent installation is handled by PostProvision; always nil here.
+	env.Agent = nil
 
 	// explicit set the updater as nil as we do not use it
 	env.Updater = nil

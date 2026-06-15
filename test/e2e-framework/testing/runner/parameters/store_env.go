@@ -55,6 +55,8 @@ var envVariablesByStoreKey = map[StoreKey]string{
 	CoverageOutDir:               "E2E_COVERAGE_OUT_DIR",
 	StackNameSuffix:              "E2E_STACK_NAME_SUFFIX",
 	SkipWindows:                  "E2E_SKIP_WINDOWS",
+	EnvDescriptor:                "E2E_ENV_DESCRIPTOR",
+	DumpEnvDescriptor:            "E2E_DUMP_ENV_DESCRIPTOR",
 }
 
 type envValueStore struct {
