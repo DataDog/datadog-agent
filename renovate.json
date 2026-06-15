@@ -102,7 +102,6 @@
       {
         "description": "Disable Go directives, toolchain (go update is managed independently) or replace (->fork)",
         "matchManagers": ["gomod"],
-        "matchDepNames": ["go"],
         "matchDepTypes": ["golang", "toolchain", "replace"],
         "enabled": false
       },
