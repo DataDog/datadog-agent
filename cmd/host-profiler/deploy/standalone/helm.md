@@ -15,7 +15,9 @@ This guide requires the [OpenTelemetry Collector Helm chart](https://opentelemet
 Create the required Kubernetes resources before deploying:
 
 - A namespace for the Host Profiler. You can reuse an existing namespace or create a dedicated one.
-- Secret `datadog-secret` in that namespace, with an `api-key` key containing your Datadog API key.
+- A Datadog API key exposed to the Collector as `DD_API_KEY`. The example values read it from a Kubernetes Secret named `datadog-secret` with an `api-key` key in the same namespace as the Helm release. If you use another secret-management mechanism, adapt [`helm/pod-spec.yaml`](helm/pod-spec.yaml) accordingly.
+
+Do not put the raw API key directly in Helm values or Collector configuration; those may be stored in the cluster.
 
 ## Setup
 
