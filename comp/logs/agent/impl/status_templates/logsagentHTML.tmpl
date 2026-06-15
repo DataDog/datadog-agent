@@ -18,6 +18,43 @@
         {{$metric_name}}: {{$metric_value}}<br>
       {{- end }}
     {{- end }}
+    {{- if .ComponentUtilization }}
+      <span class="stat_subtitle">Logs Agent Backpressure</span>
+      <span class="stat_subdata">
+        <strong>Overall state:</strong> {{ .Backpressure.State }}<br>
+        {{- if .Backpressure.Reason }}
+        <strong>Reason:</strong> {{ .Backpressure.Reason }}<br>
+        {{- end }}
+        <table style="border-collapse:collapse;margin-top:6px;font-family:monospace;font-size:12px">
+          <tr style="text-align:left;border-bottom:1px solid #ccc">
+            <th style="padding:2px 8px">Component</th>
+            <th style="padding:2px 8px">Instance</th>
+            <th style="padding:2px 8px">Current</th>
+            <th style="padding:2px 8px">5m avg/max</th>
+            <th style="padding:2px 8px">30m avg/max</th>
+            <th style="padding:2px 8px">2h max</th>
+            <th style="padding:2px 8px">5h max</th>
+            <th style="padding:2px 8px">10h max</th>
+            <th style="padding:2px 8px">30m saturated</th>
+            <th style="padding:2px 8px">Last saturated</th>
+          </tr>
+          {{- range .ComponentUtilization }}
+          <tr>
+            <td style="padding:2px 8px">{{ .Name }}</td>
+            <td style="padding:2px 8px">{{ .Instance }}</td>
+            <td style="padding:2px 8px">{{ printf "%d%%" (pctInt .AvgRatio) }}</td>
+            <td style="padding:2px 8px">{{ printf "%d/%d%%" (pctInt .Avg5m) (pctInt .Max5m) }}</td>
+            <td style="padding:2px 8px">{{ printf "%d/%d%%" (pctInt .Avg30m) (pctInt .Max30m) }}</td>
+            <td style="padding:2px 8px">{{ printf "%d%%" (pctInt .Max2h) }}</td>
+            <td style="padding:2px 8px">{{ printf "%d%%" (pctInt .Max5h) }}</td>
+            <td style="padding:2px 8px">{{ printf "%d%%" (pctInt .Max10h) }}</td>
+            <td style="padding:2px 8px">{{ if .Saturated30mSeconds }}{{ .Saturated30mSeconds }}s{{ else }}0s{{ end }}</td>
+            <td style="padding:2px 8px">{{ if .HasLastSaturated }}{{ .LastSaturatedAt }}{{ else }}-{{ end }}</td>
+          </tr>
+          {{- end }}
+        </table>
+      </span>
+    {{- end }}
     {{- if .Errors }}
       <span class="error stat_subtitle">Errors</span>
       <span class="stat_subdata">
