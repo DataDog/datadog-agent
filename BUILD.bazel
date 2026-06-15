@@ -390,7 +390,6 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/security/proto/api/transform
 # gazelle:exclude pkg/security/resolvers/process
 # gazelle:exclude pkg/security/resolvers/securitydescriptors
-# gazelle:exclude pkg/security/resolvers/usergroup
 # gazelle:exclude pkg/security/rules
 # gazelle:exclude pkg/security/security_profile
 # gazelle:exclude pkg/security/serializers
