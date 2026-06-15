@@ -25,6 +25,11 @@ import (
 func RegisterProvider(name string,
 	factory func(providerConfig *pkgconfigsetup.ConfigurationProviders, telemetryStore *telemetry.Store) (types.ConfigProvider, error),
 	providerCatalog map[string]types.ConfigProviderFactory) {
+	if factory == nil {
+		log.Infof("ConfigProvider factory %s does not exist.", name)
+		return
+	}
+
 	RegisterProviderWithComponents(
 		name,
 		func(providerConfig *pkgconfigsetup.ConfigurationProviders, _ workloadmeta.Component, _ tagger.Component, _ workloadfilter.Component, _ healthplatformdef.Component, telemetryStore *telemetry.Store) (types.ConfigProvider, error) {
