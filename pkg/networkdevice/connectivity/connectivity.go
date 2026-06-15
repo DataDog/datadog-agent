@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"net/netip"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/gosnmp/gosnmp"
@@ -313,37 +314,42 @@ func v3MsgFlags(opts *SNMPOptions) gosnmp.SnmpV3MsgFlags {
 	}
 }
 
-// classifySNMPError maps a gosnmp connect/get error to a manifest failureCategory. The match is
-// heuristic (gosnmp surfaces these conditions only as error strings); the original message is
-// returned alongside so callers retain the detail.
+// classifySNMPError maps a gosnmp connect/get error to a manifest failureCategory. Where gosnmp
+// (or the net stack) exposes a typed error, it is matched by identity via errors.Is; only the
+// conditions gosnmp surfaces as a bare string (it discards the underlying error without %w) fall
+// back to substring matching. The original message is returned alongside so callers retain detail.
 func classifySNMPError(err error) (category, message string) {
 	message = err.Error()
+	switch {
+	// gosnmp returns these v3 USM conditions as exported sentinels, unwrapped all the way out
+	// of Get(), so match on identity rather than on message text.
+	case errors.Is(err, gosnmp.ErrWrongDigest),
+		errors.Is(err, gosnmp.ErrDecryption),
+		errors.Is(err, gosnmp.ErrUnknownUsername),
+		errors.Is(err, gosnmp.ErrUnknownSecurityLevel),
+		errors.Is(err, gosnmp.ErrUnknownEngineID):
+		return failureCredential, message
+	// A read timeout bounded by the context deadline is surfaced as context.DeadlineExceeded.
+	case errors.Is(err, context.DeadlineExceeded):
+		return failureTimeout, message
+	// Socket errors are %w-wrapped by gosnmp's receive(), so the underlying errno is reachable.
+	case errors.Is(err, syscall.ECONNREFUSED),
+		errors.Is(err, syscall.EHOSTUNREACH),
+		errors.Is(err, syscall.ENETUNREACH):
+		return failureUnreachable, message
+	}
+
+	// The remaining conditions have no gosnmp sentinel and the underlying error is dropped
+	// (re-created via fmt.Errorf without %w), so a substring match is the only option.
 	lower := strings.ToLower(message)
 	switch {
 	case strings.Contains(lower, "request timeout"):
 		return failureTimeout, message
-	case containsAny(lower,
-		"decryption", "wrong digest", "unknown username", "not authentic",
-		"authentication parameters are not configured", "privacy parameters are not configured",
-		"unknown security level", "passphrase is required", "password is empty", "unknown engine id"):
-		return failureCredential, message
-	case containsAny(lower, "connection refused", "no route to host", "network is unreachable", "no such host"):
-		return failureUnreachable, message
 	case strings.Contains(lower, "version"):
 		return failureVersionMismatch, message
 	default:
 		return failureUnknown, message
 	}
-}
-
-// containsAny reports whether s contains any of the given substrings.
-func containsAny(s string, subs ...string) bool {
-	for _, sub := range subs {
-		if strings.Contains(s, sub) {
-			return true
-		}
-	}
-	return false
 }
 
 // expandTargets resolves the input targets (individual IPs and CIDR ranges) into a
