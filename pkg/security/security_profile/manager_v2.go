@@ -48,6 +48,21 @@ type pendingProfile struct {
 	events    *list.List
 }
 
+const (
+	metricSourceRuntime = 0
+	metricSourceReplay  = 1
+	metricSourceCount   = 2
+)
+
+// perEventTypeMetrics holds the precomputed statsd tags and the counters for a
+// (source, event_type) pair. Counters are incremented on the hot path and flushed in SendStats.
+type perEventTypeMetrics struct {
+	tags            []string
+	eventsReceived  atomic.Uint64
+	eventsImmediate atomic.Uint64
+	eventsDropped   atomic.Uint64
+}
+
 type ManagerV2 struct {
 	config        *config.Config
 	statsdClient  statsd.ClientInterface
@@ -63,6 +78,9 @@ type ManagerV2 struct {
 	pathsReducer *activity_tree.PathsReducer
 
 	eventFiltering map[eventFilteringEntry]*atomic.Uint64
+
+	// Per-(source, event_type) metric counters, indexed by source then event type.
+	eventMetrics [metricSourceCount][model.MaxKernelEventType]perEventTypeMetrics
 
 	// storage
 	localStorage              *storage.Directory
@@ -153,6 +171,7 @@ func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, resol
 	}
 
 	m.initMetricsMap()
+	m.initEventMetrics()
 	return m, nil
 }
 
@@ -169,6 +188,27 @@ func (m *ManagerV2) initMetricsMap() {
 			}
 		}
 	}
+}
+
+// initEventMetrics precomputes the {source, event_type} statsd tags for every event type.
+func (m *ManagerV2) initEventMetrics() {
+	for et := model.EventType(0); et < model.MaxKernelEventType; et++ {
+		ets := et.String()
+		m.eventMetrics[metricSourceRuntime][et].tags = []string{"source:" + string(model.EventSourceRuntime), "event_type:" + ets}
+		m.eventMetrics[metricSourceReplay][et].tags = []string{"source:" + string(model.EventSourceReplay), "event_type:" + ets}
+	}
+}
+
+// eventMetricsFor returns the metric counters for the given source/event type, or nil if the
+// event type is out of range.
+func (m *ManagerV2) eventMetricsFor(source string, et model.EventType) *perEventTypeMetrics {
+	if et >= model.MaxKernelEventType {
+		return nil
+	}
+	if source == string(model.EventSourceReplay) {
+		return &m.eventMetrics[metricSourceReplay][et]
+	}
+	return &m.eventMetrics[metricSourceRuntime][et]
 }
 
 func (m *ManagerV2) Start(ctx context.Context) {
@@ -327,23 +367,24 @@ func (m *ManagerV2) persistAllProfiles() {
 	}
 }
 
-// persistProfile encodes and persists a single profile to all configured storage backends
+// persistProfile encodes and persists a single profile to all configured storage backends.
+// Each configured format is encoded once (e.g. Protobuf/SecDump for the remote backend,
+// Profile/SecurityProfile for local storage) and sent to every request using that format.
 func (m *ManagerV2) persistProfile(p *profile.Profile) {
 	if !p.IsEnabled() {
 		return
 	}
 
-	format := config.Protobuf
-	requests := m.configuredStorageRequests[format]
+	for format, requests := range m.configuredStorageRequests {
+		data, err := p.Encode(format)
+		if err != nil {
+			seclog.Errorf("couldn't encode profile [%s] to %s format: %v", p.GetSelectorStr(), format, err)
+			continue
+		}
 
-	data, err := p.Encode(format)
-	if err != nil {
-		seclog.Errorf("couldn't encode profile [%s] to %s format: %v", p.GetSelectorStr(), format, err)
-		return
-	}
-
-	for _, request := range requests {
-		m.persistProfileToStorage(p, request, data)
+		for _, request := range requests {
+			m.persistProfileToStorage(p, request, data)
+		}
 	}
 
 	p.SetHasAlreadyBeenSent()
@@ -404,14 +445,11 @@ func (m *ManagerV2) ProcessEvent(event *model.Event) {
 		return
 	}
 
-	// Resolve event source (runtime or replay) and event type
 	source := event.FieldHandlers.ResolveSource(event, &event.BaseEvent)
-	eventType := event.GetType()
-	metricTags := []string{"source:" + source, "event_type:" + eventType}
+	em := m.eventMetricsFor(source, model.EventType(event.Type))
 
-	// Emit metric for events that pass initial filters
-	if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2EventsReceived, 1, metricTags, 1.0); err != nil {
-		seclog.Warnf("couldn't send %s metric: %v", metrics.MetricSecurityProfileV2EventsReceived, err)
+	if em != nil {
+		em.eventsReceived.Inc()
 	}
 
 	// Try to resolve tags for this workload
@@ -422,12 +460,12 @@ func (m *ManagerV2) ProcessEvent(event *model.Event) {
 		// Set resolved tags on the event for downstream processing
 		event.ProcessContext.Process.ContainerContext.Tags = workloadTags
 
-		if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2EventsImmediate, 1, metricTags, 1.0); err != nil {
-			seclog.Warnf("couldn't send %s metric: %v", metrics.MetricSecurityProfileV2EventsImmediate, err)
+		if em != nil {
+			em.eventsImmediate.Inc()
 		}
 		m.processEventWithResolvedTags(event)
 	} else {
-		m.queueEventForTagResolution(event, metricTags)
+		m.queueEventForTagResolution(event, em)
 	}
 }
 
@@ -495,7 +533,7 @@ func (m *ManagerV2) processEventWithResolvedTags(event *model.Event) {
 }
 
 // queueEventForTagResolution queues an event while waiting for tag resolution
-func (m *ManagerV2) queueEventForTagResolution(event *model.Event, tags []string) {
+func (m *ManagerV2) queueEventForTagResolution(event *model.Event, em *perEventTypeMetrics) {
 	cgroupID := event.ProcessContext.Process.CGroup.CGroupID
 
 	m.profilePendingEventsLock.Lock()
@@ -521,9 +559,8 @@ func (m *ManagerV2) queueEventForTagResolution(event *model.Event, tags []string
 			// Decrement queue size BEFORE clearing the list
 			m.queueSize.Sub(uint64(eventsLen))
 			pendingEvents.events.Init()
-			// Emit dropped metric
-			if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2TagResolutionEventsDropped, int64(eventsLen), tags, 1.0); err != nil {
-				seclog.Warnf("couldn't send %s metric: %v", metrics.MetricSecurityProfileV2TagResolutionEventsDropped, err)
+			if em != nil {
+				em.eventsDropped.Add(uint64(eventsLen))
 			}
 		}
 		return
@@ -610,6 +647,29 @@ func (m *ManagerV2) SendStats() error {
 		if value := count.Swap(0); value > 0 {
 			if err := m.statsdClient.Count(metrics.MetricSecurityProfileEventFiltering, int64(value), tags, 1.0); err != nil {
 				return err
+			}
+		}
+	}
+
+	// Per-(source, event_type) event counters (range over pointers to avoid copying the atomics).
+	for src := range &m.eventMetrics {
+		shard := &m.eventMetrics[src]
+		for et := range shard {
+			em := &shard[et]
+			if value := em.eventsReceived.Swap(0); value > 0 {
+				if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2EventsReceived, int64(value), em.tags, 1.0); err != nil {
+					return err
+				}
+			}
+			if value := em.eventsImmediate.Swap(0); value > 0 {
+				if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2EventsImmediate, int64(value), em.tags, 1.0); err != nil {
+					return err
+				}
+			}
+			if value := em.eventsDropped.Swap(0); value > 0 {
+				if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2TagResolutionEventsDropped, int64(value), em.tags, 1.0); err != nil {
+					return err
+				}
 			}
 		}
 	}
