@@ -18,14 +18,10 @@ import (
 
 // Used to map biflow byte/packet counts through additionalFields
 const (
-	biflowInitiatorOctets  = "initiator_octets"
-	biflowResponderOctets  = "responder_octets"
-	biflowInitiatorPackets = "initiator_packets"
-	biflowResponderPackets = "responder_packets"
-	biflowInBytes          = "in_bytes"
-	biflowInPackets        = "in_packets"
-	biflowOutBytes         = "out_bytes"
-	biflowOutPackets       = "out_packets"
+	biflowInitiatorOctets  = "datadog.initiator_octets"
+	biflowResponderOctets  = "datadog.responder_octets"
+	biflowInitiatorPackets = "datadog.initiator_packets"
+	biflowResponderPackets = "datadog.responder_packets"
 )
 
 // AggregatorFormatDriver is used as goflow formatter to forward flow data to aggregator/EP Forwarder
@@ -85,19 +81,10 @@ func splitBiflow(flow *common.Flow) (*common.Flow, *common.Flow) {
 	respOctets, hasRespOctets := flow.AdditionalFields[biflowResponderOctets].(uint64)
 	respPkts, _ := flow.AdditionalFields[biflowResponderPackets].(uint64)
 
-	inBytes, _ := flow.AdditionalFields[biflowInBytes].(uint64)
-	inPackets, _ := flow.AdditionalFields[biflowInPackets].(uint64)
-	outBytes, hasOutBytes := flow.AdditionalFields[biflowOutBytes].(uint64)
-	outPackets, _ := flow.AdditionalFields[biflowOutPackets].(uint64)
-
 	delete(flow.AdditionalFields, biflowInitiatorOctets)
 	delete(flow.AdditionalFields, biflowInitiatorPackets)
 	delete(flow.AdditionalFields, biflowResponderOctets)
 	delete(flow.AdditionalFields, biflowResponderPackets)
-	delete(flow.AdditionalFields, biflowInBytes)
-	delete(flow.AdditionalFields, biflowInPackets)
-	delete(flow.AdditionalFields, biflowOutBytes)
-	delete(flow.AdditionalFields, biflowOutPackets)
 
 	var revBytes, revPkts uint64
 	hasRev := false
@@ -108,10 +95,6 @@ func splitBiflow(flow *common.Flow) (*common.Flow, *common.Flow) {
 		if hasRespOctets && respOctets > 0 {
 			revBytes, revPkts, hasRev = respOctets, respPkts, true
 		}
-	} else if hasOutBytes && outBytes > 0 && inBytes > 0 {
-		flow.Bytes = inBytes
-		flow.Packets = inPackets
-		revBytes, revPkts, hasRev = outBytes, outPackets, true
 	}
 
 	if !hasRev {
