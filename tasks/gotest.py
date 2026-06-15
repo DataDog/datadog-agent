@@ -406,6 +406,7 @@ def test_flavor(
     result_json: str = DEFAULT_TEST_OUTPUT_JSON,
     recursive: bool = True,
     exclude_packages: set[str] | None = None,
+    skip_tests_covered_by_bazel: bool = False,
 ):
     """
     Runs unit tests for given flavor, build tags, and modules.
@@ -439,33 +440,65 @@ def test_flavor(
         module_list, recursive, ctx=ctx, build_tags=build_tags, exclude_packages=exclude_packages or None
     )
 
-    with CodecovWorkaround(ctx, result.path, coverage, packages, args) as cov_test_path:
-        res = ctx.run(
-            command=cmd.format(
-                packages=packages,
-                cov_test_path=cov_test_path,
-                **args,
-            ),
-            env=env,
-            out_stream=test_profiler,
-            warn=True,
-        )
-        # early stop on SIGINT: exit code is 128 + signal number, SIGINT is 2, so 130
-        if res is not None and res.exited == 130:
-            raise KeyboardInterrupt()
-
-    if res.exited is None or res.exited > 0:
-        result.failed = True
+    # When skip_tests_covered_by_bazel is True, packages was expanded by `go list`
+    # into individual package names and the list can be very long. Batch them to
+    # stay within Windows command-line length limits (same heuristic as
+    # _run_bazel_tests). Otherwise, treat the whole package list as one batch.
+    #
+    # NOTE: Multiple batches break proper JUnit XML output — each gotestsum
+    # invocation overwrites the previous batch's file, so only the last batch's
+    # results survive. This is a known limitation that we accept here because this
+    # mode is used only to measure test timing, not to load coverage data.
+    if skip_tests_covered_by_bazel:
+        MAX_CMD_LENGTH = 32000
+        package_list = packages.split()
+        batches: list[list[str]] = []
+        current_batch: list[str] = []
+        current_len = 0
+        for pkg in package_list:
+            pkg_len = len(pkg) + 1  # +1 for the separating space
+            if current_batch and current_len + pkg_len > MAX_CMD_LENGTH:
+                batches.append(current_batch)
+                current_batch = [pkg]
+                current_len = pkg_len
+            else:
+                current_batch.append(pkg)
+                current_len += pkg_len
+        if current_batch:
+            batches.append(current_batch)
     else:
-        lines = res.stdout.splitlines()
-        if lines is not None and 'DONE 0 tests' in lines[-1]:
-            cov_path = os.path.join(result.path, PROFILE_COV)
-            print(color_message(f"No tests were run, skipping coverage report. Removing {cov_path}.", "orange"))
-            try:
-                os.remove(cov_path)
-            except FileNotFoundError as e:
-                print(f"Could not remove coverage file {cov_path}\n{e}")
-            return
+        batches = [packages.split()]
+
+    res = None
+    for batch in batches:
+        batch_packages = ' '.join(batch)
+        with CodecovWorkaround(ctx, result.path, coverage, batch_packages, args) as cov_test_path:
+            res = ctx.run(
+                command=cmd.format(
+                    packages=batch_packages,
+                    cov_test_path=cov_test_path,
+                    **args,
+                ),
+                env=env,
+                out_stream=test_profiler,
+                warn=True,
+            )
+            # early stop on SIGINT: exit code is 128 + signal number, SIGINT is 2, so 130
+            if res is not None and res.exited == 130:
+                raise KeyboardInterrupt()
+
+        if res is not None and (res.exited is None or res.exited > 0):
+            result.failed = True
+        elif not skip_tests_covered_by_bazel:
+            lines = res.stdout.splitlines()
+            if lines is not None and 'DONE 0 tests' in lines[-1]:
+                cov_path = os.path.join(result.path, PROFILE_COV)
+                print(color_message(f"No tests were run, skipping coverage report. Removing {cov_path}.", "orange"))
+                try:
+                    os.remove(cov_path)
+                except FileNotFoundError as e:
+                    print(f"Could not remove coverage file {cov_path}\n{e}")
+                return
 
     if result_junit:
         enrich_junitxml(result_junit, flavor)  # type: ignore
@@ -764,6 +797,7 @@ def test(
             coverage=coverage,
             recursive=not only_modified_packages,  # Disable recursive tests when only modified packages is enabled, to avoid testing a package and all its subpackages
             exclude_packages=exclude_packages or None,
+            skip_tests_covered_by_bazel=skip_tests_covered_by_bazel,
         )
 
     # Go test output (only if tests ran)
