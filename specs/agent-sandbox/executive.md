@@ -34,19 +34,19 @@ Agent Sandbox is not a general Agent development environment, cloud environment 
 
 | Requirement | User-benefit title | Status | Stage relevance |
 | --- | --- | --- | --- |
-| REQ-AS-001 | Create a Clean Host Sandbox Quickly | ⏭️ Planned | Stage A |
-| REQ-AS-002 | Stay Local and Apple-Native on macOS | ⏭️ Planned | Stage A, Stage B |
-| REQ-AS-003 | Install a Published Host Agent Version | ⏭️ Planned | Stage A |
-| REQ-AS-004 | Apply Host Agent Configuration Overrides | ⏭️ Planned | Stage A |
-| REQ-AS-005 | Run Agent Commands and SSH Without Manual Credential Management | ⏭️ Planned | Stage A |
-| REQ-AS-006 | Inspect Sandbox and Host Agent Health | ⏭️ Planned | Stage A |
-| REQ-AS-007 | Destroy Sandbox State Predictably | ⏭️ Planned | Stage A, Stage B |
+| REQ-AS-001 | Create a Clean Host Sandbox Quickly | 🔄 In Progress | Stage A |
+| REQ-AS-002 | Stay Local and Apple-Native on macOS | 🔄 In Progress | Stage A, Stage B |
+| REQ-AS-003 | Install a Published Host Agent Version | 🔄 In Progress | Stage A |
+| REQ-AS-004 | Apply Host Agent Configuration Overrides | 🔄 In Progress | Stage A |
+| REQ-AS-005 | Run Agent Commands and SSH Without Manual Credential Management | 🔄 In Progress | Stage A |
+| REQ-AS-006 | Inspect Sandbox and Host Agent Health | 🔄 In Progress | Stage A |
+| REQ-AS-007 | Destroy Sandbox State Predictably | 🔄 In Progress | Stage A, Stage B |
 | REQ-AS-008 | Create a Local Kubernetes Agent Sandbox | ⏭️ Planned | Stage B |
 | REQ-AS-009 | Deploy a Published Agent Container Image | ⏭️ Planned | Stage B |
 | REQ-AS-010 | Export Kubernetes Access for Host Tooling | ⏭️ Planned | Stage B |
 | REQ-AS-011 | Apply Kubernetes Agent Configuration | ⏭️ Planned | Stage B |
-| REQ-AS-012 | Keep Scope Boundaries Observable | ⏭️ Planned | Stage A, Stage B |
+| REQ-AS-012 | Keep Scope Boundaries Observable | 🔄 In Progress | Stage A, Stage B |
 
 ## Signoff Checkpoint
 
-Stage A implementation is blocked until reviewers sign off on `requirements.md`, including the named journeys, requirement IDs, and out-of-scope boundaries. After signoff, implementation work should trace commits, tests, and review discussion back to the relevant `REQ-AS-###` IDs.
+Stage A implementation signoff is complete for the current MVP scope. The implementation now traces commits, tests, and review discussion back to the relevant `REQ-AS-###` IDs. Stage B implementation remains blocked until its requirements are separately reviewed for execution readiness.
