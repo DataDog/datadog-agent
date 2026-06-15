@@ -20,15 +20,26 @@ The example manifests read `DD_API_KEY` from a Kubernetes Secret named `datadog-
 
 > **Note:** Do not put the raw API key directly in Collector configuration; it may be stored in the cluster.
 
-## Configuration
+## Adapt the manifests
 
-### Image and Datadog site
+Before deploying, update the provided manifests for your environment:
 
-In [`operator/collector.yaml`](operator/collector.yaml), update `spec.image` if you want a different image version, and set `DD_SITE` under `spec.env` to your Datadog site if you are not using `datadoghq.com`.
+1. In [`operator/rbac.yaml`](operator/rbac.yaml):
+   - If you use a namespace other than `host-profiler`, update the `ClusterRoleBinding` subject namespace.
+   - If you change the `OpenTelemetryCollector` name, update the service account name in the `ClusterRoleBinding` subject.
 
-### OpenTelemetry Collector configuration
+2. In [`operator/collector.yaml`](operator/collector.yaml):
+   - Set `metadata.namespace` to your chosen namespace.
+   - Set `DD_SITE` if your Datadog site is not `datadoghq.com`. See [Datadog sites](https://docs.datadoghq.com/getting_started/site/).
+   - Adapt the `DD_API_KEY` secret reference if you do not use the example `datadog-secret` Kubernetes Secret.
+   - Review the OpenTelemetry Collector configuration under `spec.config`. Adapt it like any other [OpenTelemetry Collector configuration](https://opentelemetry.io/docs/collector/configuration/).
 
-The Collector configuration lives in [`operator/collector.yaml`](operator/collector.yaml) under `spec.config` and can be configured like a regular Collector. See the [OpenTelemetry Collector configuration documentation](https://opentelemetry.io/docs/collector/configuration/).
+3. Choose a network policy manifest:
+   - If your cluster enforces Kubernetes NetworkPolicy, use [`operator/network-policy.yaml`](operator/network-policy.yaml) by default.
+   - If your cluster uses Cilium and you want FQDN-scoped egress enforcement, use [`operator/cilium-network-policy.yaml`](operator/cilium-network-policy.yaml) instead.
+   - If you change the namespace or `OpenTelemetryCollector` name, update the policy metadata and pod selectors.
+
+If your cluster does not enforce NetworkPolicy resources, these manifests do not restrict egress; use your cluster's supported network controls instead.
 
 ## Deploy
 
