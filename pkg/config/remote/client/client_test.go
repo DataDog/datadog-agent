@@ -423,6 +423,153 @@ func TestClient_SubscribeAfterCloseIsNoop(t *testing.T) {
 	c.m.Unlock()
 }
 
+// TestClient_SubscribeAllRegistersWorkerTrackedByWg verifies the
+// SubscribeAll → worker-goroutine → wg path end-to-end: after a real
+// SubscribeAll, Close() must drain the dispatcher (a future refactor that
+// forgets to wg.Add on the worker would hang or race here).
+func TestClient_SubscribeAllRegistersWorkerTrackedByWg(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	c := &Client{
+		ctx:       ctx,
+		closeFn:   cancel,
+		listeners: make(map[string][]*listenerEntry),
+	}
+
+	l := &mockListener{}
+	c.SubscribeAll("p", l)
+
+	c.m.Lock()
+	require.Len(t, c.listeners["p"], 1, "SubscribeAll should register exactly one entry")
+	require.Contains(t, c.products, "p", "SubscribeAll should track the product")
+	c.m.Unlock()
+
+	done := make(chan struct{})
+	go func() {
+		c.Close()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("Close did not return — worker goroutine is not tracked in wg")
+	}
+}
+
+// TestClient_SubscribeAllRaceWithClose hammers concurrent SubscribeAll/Close
+// to verify the wg.Add ↔ wg.Wait race documented in cancelUnderLock cannot
+// trigger sync.WaitGroup's "Add concurrent with Wait" panic. Run with -race.
+func TestClient_SubscribeAllRaceWithClose(t *testing.T) {
+	for iter := 0; iter < 50; iter++ {
+		ctx, cancel := context.WithCancel(context.Background())
+		c := &Client{
+			ctx:       ctx,
+			closeFn:   cancel,
+			listeners: make(map[string][]*listenerEntry),
+		}
+
+		var wg sync.WaitGroup
+		// Fire several SubscribeAll calls in parallel with Close. Whichever
+		// wins, none of them must panic.
+		for i := 0; i < 8; i++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				c.SubscribeAll("p", &mockListener{})
+			}()
+		}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			c.Close()
+		}()
+		wg.Wait()
+
+		// Drain any worker that won the race.
+		c.Close()
+	}
+}
+
+// TestClient_RecoveryStateChangeDeliveredBeforeUpdate covers the
+// error→success transition that pollLoop fires: broadcastStateChange(true) is
+// staged, then update() stages a fresh OnUpdate. When both land in a single
+// drain, the listener must see OnStateChange first so it knows RC is back
+// before processing the accompanying snapshot.
+func TestClient_RecoveryStateChangeDeliveredBeforeUpdate(t *testing.T) {
+	ordered := make(chan string, 4)
+	l := &deliveryOrderListener{ch: ordered}
+
+	gateOpen := make(chan struct{})
+	l.gate = gateOpen
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	c := &Client{
+		ctx:       ctx,
+		closeFn:   cancel,
+		listeners: make(map[string][]*listenerEntry),
+	}
+
+	entry := &listenerEntry{listener: l, wake: make(chan struct{}, 1)}
+	go entry.run(ctx)
+	c.listeners["p"] = []*listenerEntry{entry}
+
+	// Park the worker inside a sentinel OnUpdate so the recovery signals
+	// accumulate in pending fields.
+	entry.scheduleUpdate(map[string]state.RawConfig{"warm": {}}, nil)
+	require.Eventually(t, l.inGate, time.Second, 5*time.Millisecond)
+
+	// Recovery path: pollLoop calls broadcastStateChange(true) right before
+	// the next successful update() dispatches its snapshot.
+	c.broadcastStateChange(true)
+	entry.scheduleUpdate(map[string]state.RawConfig{"recovered": {}}, nil)
+
+	close(gateOpen)
+
+	require.Eventually(t, func() bool { return len(ordered) >= 3 },
+		time.Second, 5*time.Millisecond)
+	got := drainChan(ordered)
+	assert.Equal(t, []string{"update", "state", "update"}, got,
+		"on recovery, OnStateChange(true) must precede the OnUpdate in the same drain")
+}
+
+// TestClient_CloseTimeout verifies that CloseTimeout returns false promptly
+// when a listener is stuck, and true once it finishes. Either way the client
+// context is canceled.
+func TestClient_CloseTimeout(t *testing.T) {
+	release := make(chan struct{})
+	l := &mockListener{onUpdateHook: func() { <-release }}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	c := &Client{
+		ctx:       ctx,
+		closeFn:   cancel,
+		listeners: make(map[string][]*listenerEntry),
+	}
+	entry := &listenerEntry{listener: l, wake: make(chan struct{}, 1)}
+	c.wg.Add(1)
+	go func() {
+		defer c.wg.Done()
+		entry.run(c.ctx)
+	}()
+	c.listeners["p"] = []*listenerEntry{entry}
+
+	entry.scheduleUpdate(map[string]state.RawConfig{}, nil)
+	require.Eventually(t, func() bool { return l.inflight.Load() == 1 },
+		time.Second, 5*time.Millisecond)
+
+	start := time.Now()
+	ok := c.CloseTimeout(50 * time.Millisecond)
+	elapsed := time.Since(start)
+	assert.False(t, ok, "CloseTimeout should report failure when listener is stuck")
+	assert.Less(t, elapsed, 200*time.Millisecond, "CloseTimeout overshot its deadline")
+	assert.Error(t, c.ctx.Err(), "ctx should be canceled even on timeout")
+
+	// Release the listener and verify a follow-up CloseTimeout drains cleanly.
+	close(release)
+	assert.True(t, c.CloseTimeout(time.Second),
+		"CloseTimeout should report success once listeners finish")
+}
+
 // TestClient_BroadcastStateChange_NonBlocking confirms broadcastStateChange
 // returns promptly even when a listener's worker is busy.
 func TestClient_BroadcastStateChange_NonBlocking(t *testing.T) {

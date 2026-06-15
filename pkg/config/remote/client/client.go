@@ -13,7 +13,6 @@ import (
 	"crypto/tls"
 	"encoding/hex"
 	"errors"
-	"os"
 	"slices"
 	"sync"
 	"time"
@@ -354,13 +353,47 @@ func (c *Client) Start() {
 // After Close returns, no further OnUpdate or OnStateChange callback will
 // fire — callers can safely tear down resources their listeners depend on.
 // In-flight callbacks at the moment of Close run to completion before Close
-// returns; a stuck listener will therefore stall shutdown indefinitely (this
-// is the same hazard that existed for the poll loop before this refactor).
+// returns; a stuck listener will therefore stall shutdown indefinitely. Use
+// CloseTimeout when the caller can't tolerate that — e.g. agent shutdown.
 //
 // A client that has been closed cannot be restarted.
 func (c *Client) Close() {
-	c.closeFn()
+	c.cancelUnderLock()
 	c.wg.Wait()
+}
+
+// CloseTimeout is like Close but bounds how long it will wait for in-flight
+// listener callbacks to finish. It returns true if all workers drained within
+// the timeout, false if at least one is still running (in which case the
+// dispatcher goroutine is leaked — its listener should be considered stuck).
+//
+// The client context is always canceled before returning, so the poll loop
+// itself exits regardless of the result.
+func (c *Client) CloseTimeout(timeout time.Duration) bool {
+	c.cancelUnderLock()
+	done := make(chan struct{})
+	go func() {
+		c.wg.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+		return true
+	case <-time.After(timeout):
+		return false
+	}
+}
+
+// cancelUnderLock cancels the client context with c.m held. Holding the lock
+// here is what makes SubscribeAll's "ctx.Err() != nil ⇒ skip wg.Add" check
+// race-free: any SubscribeAll that observes a nil ctx error under c.m is
+// guaranteed to complete its wg.Add(1) before this function (and therefore
+// before wg.Wait) runs, so sync.WaitGroup's "Add concurrent with Wait when
+// counter is zero" panic is impossible.
+func (c *Client) cancelUnderLock() {
+	c.m.Lock()
+	c.closeFn()
+	c.m.Unlock()
 }
 
 // GetClientID gets the client ID
@@ -395,11 +428,18 @@ func (c *Client) SubscribeAll(product string, listener Listener) {
 	c.m.Lock()
 	defer c.m.Unlock()
 
-	// If Close has already canceled the context, there's no poll loop to
-	// dispatch updates and nothing for a worker to do. Dropping the
-	// subscription quietly is the right behaviour — adding more goroutines to
-	// the wg after Close has been called could leak past the Wait barrier.
+	// Race-free shutdown gate: Close cancels c.ctx while holding c.m (see
+	// cancelUnderLock). Because this check and the c.wg.Add(1) below also run
+	// under c.m, either:
+	//   (a) we observe a nil ctx error here and complete wg.Add before Close
+	//       can begin wg.Wait, or
+	//   (b) Close already canceled the ctx, we observe the error, and skip
+	//       wg.Add entirely.
+	// Without this serialization, wg.Add concurrent with wg.Wait at counter=0
+	// would panic. Log loudly because subscribing after Close is almost
+	// always a caller lifecycle bug.
 	if c.ctx.Err() != nil {
+		log.Warnf("remote-config: SubscribeAll(product=%s) called after Close; subscription dropped", product)
 		return
 	}
 
@@ -476,27 +516,12 @@ func (c *Client) pollLoop() {
 	logLimit := log.NewLogLimit(5, time.Minute)
 	interval := 0 * time.Second
 
-	// TEMP DEBUG (kube-actions): capture pod hostname once so we can correlate
-	// log lines with the current leader (see `kubectl get lease datadog-agent-leader-election`).
-	debugHost, _ := os.Hostname()
-	lastUpdateEnd := time.Now()
-
 	for {
 		select {
 		case <-c.ctx.Done():
 			return
 		case <-time.After(interval):
-			// TEMP DEBUG (kube-actions): log every pollLoop iteration to measure
-			// time spent inside update() (gRPC fetch + serial listener dispatch).
-			// `gap` is wall-clock time since the previous update() returned — a
-			// gap >> pollInterval means a listener (most likely workload
-			// autoscaling reconcile) blocked the loop on this pod.
-			updateStart := time.Now()
-			gap := updateStart.Sub(lastUpdateEnd)
 			err := c.update()
-			lastUpdateEnd = time.Now()
-			log.Infof("[RC-DEBUG] pollLoop host=%s products=%v gap=%s duration=%s err=%v",
-				debugHost, c.products, gap, lastUpdateEnd.Sub(updateStart), err)
 			if err != nil {
 				consecutiveFailures++
 				if status.Code(err) == codes.Unimplemented {
@@ -760,6 +785,12 @@ type listenerEntry struct {
 
 	// Fields below are owned by the dispatcher (poll loop side) for writes and
 	// the worker for reads/resets. mu protects them.
+	//
+	// Lock ordering: Client.m must always be acquired BEFORE listenerEntry.mu.
+	// The schedule* helpers are called from update()/broadcastStateChange with
+	// c.m held; no code path takes the reverse order, and adding one would
+	// risk a deadlock. The worker's run loop never acquires c.m, which keeps
+	// this discipline easy to maintain.
 	mu                 sync.Mutex
 	pendingConfigs     map[string]state.RawConfig
 	pendingApplyStatus func(string, state.ApplyStatus)
