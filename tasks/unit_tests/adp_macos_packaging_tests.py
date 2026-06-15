@@ -64,7 +64,30 @@ class TestADPMacOSPackaging(unittest.TestCase):
         ).read_text()
 
         self.assertIn('public string AgentDataPlane => $@"{_binSource}\\agent-data-plane.exe";', binaries)
-        self.assertIn("agentBinDir.AddFile(new WixSharp.File(_agentBinaries.AgentDataPlane));", installer)
+        self.assertIn(
+            "agentBinDir.AddFile(new WixSharp.File(_agentBinaries.AgentDataPlane, dataPlaneService));", installer
+        )
+
+    def test_windows_installer_registers_adp_service(self):
+        constants = (REPO_ROOT / "tools/windows/DatadogAgentInstaller/CustomActions/Constants.cs").read_text()
+        installer = (
+            REPO_ROOT / "tools/windows/DatadogAgentInstaller/WixSetup/Datadog Agent/AgentInstaller.cs"
+        ).read_text()
+
+        self.assertIn('public const string DataPlaneServiceName = "datadog-agent-data-plane";', constants)
+        self.assertIn('new Id("ddagentdataplaneservice")', installer)
+        self.assertIn("Constants.DataPlaneServiceName", installer)
+        self.assertIn(
+            "agentBinDir.AddFile(new WixSharp.File(_agentBinaries.AgentDataPlane, dataPlaneService));", installer
+        )
+
+    def test_windows_custom_actions_manage_adp_service(self):
+        service_actions = (
+            REPO_ROOT / "tools/windows/DatadogAgentInstaller/CustomActions/ServiceCustomAction.cs"
+        ).read_text()
+
+        self.assertIn("_serviceController.SetCredentials(Constants.DataPlaneServiceName", service_actions)
+        self.assertIn("Constants.DataPlaneServiceName,", service_actions)
 
     def test_macos_app_installs_adp_launchdaemon_template(self):
         build_file = (REPO_ROOT / "packages/macos/app/BUILD.bazel").read_text()
