@@ -26,7 +26,6 @@ AGENT_CORECHECKS = [
     "sbom",
     "systemd",
     "tcp_queue_length",
-    "thermal",
     "uptime",
     "jetson",
     "telemetry",
@@ -66,6 +65,7 @@ AIX_CORECHECKS = [
 WINDOWS_CORECHECKS = [
     "agentcrashdetect",
     "sbom",
+    "thermal",
     "windows_registry",
     "winkmem",
     "wincrashdetect",
