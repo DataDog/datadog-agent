@@ -1,12 +1,12 @@
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: dd-host-profiler
-  namespace: dd-host-profiler
+  name: host-profiler
+  namespace: host-profiler
 spec:
   podSelector:
     matchLabels:
-      app.kubernetes.io/name: dd-host-profiler-collector
+      app.kubernetes.io/name: host-profiler-collector
   policyTypes:
     - Egress
   egress:

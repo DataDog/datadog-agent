@@ -1,8 +1,8 @@
 apiVersion: opentelemetry.io/v1beta1
 kind: OpenTelemetryCollector
 metadata:
-  name: dd-host-profiler
-  namespace: dd-host-profiler
+  name: host-profiler
+  namespace: host-profiler
 spec:
   mode: daemonset
   image: registry.datadoghq.com/ddot-ebpf:7.81.0-preview-host-profiler-1.0
