@@ -102,6 +102,16 @@ files:
       description: |
         Destination service name.
       required: false
+    - name: disable_source_public_ip_collection
+      fleet_configurable: true
+      value:
+        type: boolean
+        example: false
+        default: false
+      description: |
+        Disables collection of the source public IP address for this instance.
+        When enabled, the source public IP will not be collected or reported.
+      required: false
     - name: tcp_method
       fleet_configurable: true
       value:
