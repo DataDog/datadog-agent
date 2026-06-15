@@ -7,10 +7,9 @@
 package celprogram
 
 import (
-	"github.com/google/cel-go/cel"
-
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	"github.com/google/cel-go/cel"
 )
 
 // getEnv returns a reusable CEL environment for the given object type, building it once and storing
@@ -19,8 +18,8 @@ func getEnv(objectType workloadfilter.ResourceType) (*cel.Env, error) {
 	key := cache.BuildAgentKey("workloadfilter", "celprogram", "env", string(objectType))
 	return cache.Get[*cel.Env](key, func() (*cel.Env, error) {
 		return cel.NewEnv(
-			cel.Types(&workloadfilter.Container{}, &workloadfilter.Pod{}, &workloadfilter.KubeService{}, &workloadfilter.KubeEndpoint{}, &workloadfilter.Process{}),
-			cel.Variable(string(objectType), cel.ObjectType(convertTypeToProtoType(objectType))),
+			cel.Types(objectType.ToProtoMessage()),
+			cel.Variable(string(objectType), cel.ObjectType(objectType.ToProtoTypeString())),
 		)
 	})
 }
@@ -43,22 +42,4 @@ func CreateCELProgram(rules string, objectType workloadfilter.ResourceType) (cel
 		return nil, err
 	}
 	return prg, nil
-}
-
-// convertTypeToProtoType converts a filter.ResourceType to its corresponding proto type string.
-func convertTypeToProtoType(key workloadfilter.ResourceType) string {
-	switch key {
-	case workloadfilter.ContainerType:
-		return "datadog.workloadfilter.FilterContainer"
-	case workloadfilter.PodType:
-		return "datadog.workloadfilter.FilterPod"
-	case workloadfilter.KubeServiceType:
-		return "datadog.workloadfilter.FilterKubeService"
-	case workloadfilter.KubeEndpointType:
-		return "datadog.workloadfilter.FilterKubeEndpoint"
-	case workloadfilter.ProcessType:
-		return "datadog.workloadfilter.FilterProcess"
-	default:
-		return ""
-	}
 }
