@@ -230,8 +230,7 @@ func runSNMP(ctx context.Context, host string, opts *SNMPOptions) *SNMPResult {
 	return res
 }
 
-// buildSNMPClient builds a gosnmp client from opts. It avoids snmpparse.NewSNMP so it needs no
-// log.Component dependency.
+// buildSNMPClient builds a gosnmp client from opts.
 func buildSNMPClient(ctx context.Context, host string, opts *SNMPOptions) (*gosnmp.GoSNMP, error) {
 	version, err := snmpVersion(opts.Version)
 	if err != nil {
@@ -324,22 +323,13 @@ func classifySNMPError(err error) (category, message string) {
 	return failureUnknown, message
 }
 
-// expandTargets resolves IPs and CIDR ranges into a de-duplicated host list.
+// expandTargets resolves IPs and CIDR ranges into a host list.
 func expandTargets(targets []string) ([]string, error) {
 	var hosts []string
-	seen := make(map[string]struct{})
-	add := func(s string) {
-		if _, ok := seen[s]; ok {
-			return
-		}
-		seen[s] = struct{}{}
-		hosts = append(hosts, s)
-	}
-
 	for _, t := range targets {
 		if prefix, err := netip.ParsePrefix(t); err == nil {
 			for addr := prefix.Masked().Addr(); prefix.Contains(addr); addr = addr.Next() {
-				add(addr.String())
+				hosts = append(hosts, addr.String())
 				if !addr.Next().IsValid() {
 					break
 				}
@@ -347,7 +337,7 @@ func expandTargets(targets []string) ([]string, error) {
 			continue
 		}
 		if addr, err := netip.ParseAddr(t); err == nil {
-			add(addr.String())
+			hosts = append(hosts, addr.String())
 			continue
 		}
 		return nil, fmt.Errorf("invalid target %q (expected an IP address or CIDR range)", t)
