@@ -20,22 +20,22 @@ The example values read `DD_API_KEY` from a Kubernetes Secret named `datadog-sec
 
 > **Note:** Do not put the raw API key directly in Helm values or Collector configuration; those may be stored in the cluster.
 
-## Adapt the configuration
+## Adapt the Helm values files
 
-Before deploying, update the provided configuration files for your environment:
+Before deploying, update the provided Helm values files for your environment. These files are passed to the OpenTelemetry Collector Helm chart with `--values`:
 
-1. In [`helm/pod-spec.yaml`](helm/pod-spec.yaml):
+1. In [`helm/collector-values.yaml`](helm/collector-values.yaml):
    - Set `DD_SITE` if your Datadog site is not `datadoghq.com`. See [Datadog sites](https://docs.datadoghq.com/getting_started/site/).
    - Adapt the `DD_API_KEY` secret reference if you do not use the example `datadog-secret` Kubernetes Secret.
    - Review the remaining pod settings. For all supported values, see the [OpenTelemetry Collector Helm chart values](https://github.com/open-telemetry/opentelemetry-helm-charts/blob/main/charts/opentelemetry-collector/values.yaml).
 
-2. In [`helm/otel-config.yaml`](helm/otel-config.yaml):
+2. In [`helm/collector-config-values.yaml`](helm/collector-config-values.yaml):
    - Review the OpenTelemetry Collector pipelines and Datadog export configuration.
    - Adapt it like any other [OpenTelemetry Collector configuration](https://opentelemetry.io/docs/collector/configuration/).
 
 3. Choose a network policy values file:
-   - Use [`helm/network-policy.yaml`](helm/network-policy.yaml) by default.
-   - If your cluster uses Cilium and you want FQDN-scoped egress enforcement, use [`helm/cilium-network-policy.yaml`](helm/cilium-network-policy.yaml) instead.
+   - Use [`helm/network-policy-values.yaml`](helm/network-policy-values.yaml) by default.
+   - If your cluster uses Cilium and you want FQDN-scoped egress enforcement, use [`helm/cilium-network-policy-values.yaml`](helm/cilium-network-policy-values.yaml) instead.
 
 ## Deploy
 
@@ -44,9 +44,9 @@ Deploy or update the OpenTelemetry Collector Helm release with the provided valu
 ```shell
 helm upgrade --install <RELEASE_NAME> open-telemetry/opentelemetry-collector \
   --namespace <NAMESPACE> \
-  --values cmd/host-profiler/deploy/standalone/helm/pod-spec.yaml \
-  --values cmd/host-profiler/deploy/standalone/helm/otel-config.yaml \
-  --values cmd/host-profiler/deploy/standalone/helm/network-policy.yaml
+  --values cmd/host-profiler/deploy/standalone/helm/collector-values.yaml \
+  --values cmd/host-profiler/deploy/standalone/helm/collector-config-values.yaml \
+  --values cmd/host-profiler/deploy/standalone/helm/network-policy-values.yaml
 ```
 
 ### Seccomp
@@ -55,7 +55,7 @@ The Collector is automatically configured to run under a seccomp profile. An ini
 
 ### AppArmor (optional)
 
-Load [`apparmor-profile`](../apparmor-profile) on each node using your cluster's AppArmor provisioning mechanism, then update `securityContext` in [`helm/pod-spec.yaml`](helm/pod-spec.yaml):
+Load [`apparmor-profile`](../apparmor-profile) on each node using your cluster's AppArmor provisioning mechanism, then update `securityContext` in [`helm/collector-values.yaml`](helm/collector-values.yaml):
 
 ```yaml
 securityContext:
