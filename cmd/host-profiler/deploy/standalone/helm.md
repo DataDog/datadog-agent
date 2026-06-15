@@ -8,38 +8,18 @@ The Host Profiler runs independently as an OpenTelemetry Collector DaemonSet and
 
 Review the [supported environments](../README.md#supported-environments) before continuing.
 
-Before running commands in this guide, change to the deployment docs directory from the repository root:
-
-```shell
-cd cmd/host-profiler/deploy
-```
-
 ## Prerequisites
 
 This guide requires the [OpenTelemetry Collector Helm chart](https://opentelemetry.io/docs/platforms/kubernetes/helm/collector/) version **0.152.1** or later.
 
-1. Apply [`prerequisites.yaml`](../prerequisites.yaml) to create the `dd-host-profiler` namespace:
+Create the required Kubernetes resources before deploying:
 
-```shell
-kubectl apply -f prerequisites.yaml
-```
-
-2. Create a Kubernetes secret with your Datadog API key:
-
-```shell
-kubectl create secret generic datadog-secret \
-  --from-literal=api-key="$DD_API_KEY" \
-  --namespace dd-host-profiler
-```
+- A namespace for the Host Profiler. You can reuse an existing namespace or create a dedicated one.
+- Secret `datadog-secret` in that namespace, with an `api-key` key containing your Datadog API key.
 
 ## Setup
 
-Add the OpenTelemetry Helm chart repository:
-
-```shell
-helm repo add open-telemetry https://open-telemetry.github.io/opentelemetry-helm-charts
-helm repo update
-```
+Use the OpenTelemetry Collector Helm chart from the `open-telemetry` Helm repository: `https://open-telemetry.github.io/opentelemetry-helm-charts`.
 
 ## Configuration
 
@@ -53,18 +33,16 @@ The Collector configuration lives in [`helm/otel-config.yaml`](helm/otel-config.
 
 ## Deploy
 
-```shell
-helm upgrade --install dd-host-profiler open-telemetry/opentelemetry-collector \
-  --namespace dd-host-profiler \
-  --values standalone/helm/pod-spec.yaml \
-  --values standalone/helm/otel-config.yaml
-```
-
-On non-Cilium clusters:
+Deploy or update the OpenTelemetry Collector Helm release with the provided values files. Adapt this command to your Helm workflow and chosen namespace:
 
 ```shell
-kubectl apply -f standalone/network-policy.yaml
+helm upgrade --install <RELEASE_NAME> open-telemetry/opentelemetry-collector \
+  --namespace <NAMESPACE> \
+  --values cmd/host-profiler/deploy/standalone/helm/pod-spec.yaml \
+  --values cmd/host-profiler/deploy/standalone/helm/otel-config.yaml
 ```
+
+On non-Cilium clusters, apply [`network-policy.yaml`](network-policy.yaml) to allow the Host Profiler egress it needs. If you use a namespace other than `dd-host-profiler`, update the policy namespace before applying it.
 
 ### Seccomp
 
@@ -84,12 +62,7 @@ securityContext:
 
 ### Cilium (optional)
 
-On clusters with Cilium, replace the standard network policy with the Cilium one to get FQDN-scoped egress enforcement:
-
-```shell
-kubectl delete -f standalone/network-policy.yaml
-kubectl apply -f standalone/cilium-network-policy.yaml
-```
+On clusters with Cilium, use [`cilium-network-policy.yaml`](cilium-network-policy.yaml) instead of the standard network policy to get FQDN-scoped egress enforcement.
 
 ## Verification
 
