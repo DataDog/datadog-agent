@@ -385,7 +385,6 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/security/generators/backend_doc
 # gazelle:exclude pkg/security/module
 # gazelle:exclude pkg/security/probe/constantfetch
-# gazelle:exclude pkg/security/probe/kfilters
 # gazelle:exclude pkg/security/probe/monitors
 # gazelle:exclude pkg/security/probe/selftests
 # gazelle:exclude pkg/security/process_list
