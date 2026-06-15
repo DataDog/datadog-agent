@@ -38,7 +38,7 @@ Choose the guide that matches how your Kubernetes cluster is managed:
 | Does not run the Datadog Agent and you use Helm                       | [OpenTelemetry Helm chart](standalone/helm.md)   | Deploys the profiler as its own OpenTelemetry Collector DaemonSet. |
 | Does not run the Datadog Agent and you use the OpenTelemetry Operator | [OpenTelemetry Operator](standalone/operator.md) | Deploys the profiler as its own OpenTelemetry Collector DaemonSet. |
 
-If the Datadog Agent is already installed, use one of the Datadog Agent paths so the Agent can enrich profiles with infrastructure metadata. Otherwise, use one of the OpenTelemetry paths.
+If the Datadog Agent is already installed, including deployments that also run the Datadog Distribution of OpenTelemetry (DDOT), use one of the Datadog Agent paths so the Agent can enrich profiles with infrastructure metadata. Otherwise, use one of the OpenTelemetry paths.
 
 If something isn't working, see [Troubleshooting](troubleshooting.md).
 
