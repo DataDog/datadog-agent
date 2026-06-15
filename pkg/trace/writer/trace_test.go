@@ -14,7 +14,6 @@ import (
 	"runtime"
 	"sync"
 	"testing"
-	"time"
 
 	compression "github.com/DataDog/datadog-agent/comp/trace/compression/def"
 	gzip "github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip"
@@ -555,14 +554,11 @@ func TestTraceWriterInfo(t *testing.T) {
 	defer useFlushThreshold(testSpans[0].Size + testSpans[1].Size + 10)()
 	tw := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, zstd.NewComponent())
 
-	time.Sleep(200 * time.Millisecond) // allow stats to be initialized
-
 	for _, ss := range testSpans {
 		tw.WriteChunks(ss)
 	}
 	err := tw.FlushSync()
 	assert.NoError(t, err)
-	time.Sleep(200 * time.Millisecond) // allow stats to be propagated in the reporter goroutine
 	// One payload flushes due to overflowing the threshold, and the second one
 	// because of the sync flush
 	assert.Equal(t, 2, srv.Accepted())
@@ -616,11 +612,9 @@ func TestTraceWriterBytesMetricsMultipleSenders(t *testing.T) {
 	}
 	defer useFlushThreshold(1)()
 	tw := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, passthroughCompressor{})
-	time.Sleep(200 * time.Millisecond)
 
 	tw.WriteChunks(randomSampledSpans(20, 8))
 	require.NoError(t, tw.FlushSync())
-	time.Sleep(200 * time.Millisecond)
 
 	bytes := tw.statsLastMinute.Bytes.Load()
 	bytesUncompressed := tw.statsLastMinute.BytesUncompressed.Load()
