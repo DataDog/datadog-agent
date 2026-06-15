@@ -7,11 +7,16 @@ package issues
 
 import (
 	"fmt"
+	"regexp"
 	"sync"
 
 	"github.com/DataDog/agent-payload/v5/healthplatform"
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 )
+
+// issueNamePattern enforces snake_case for IssueName: lowercase letters, digits,
+// and underscores only. Hyphens and uppercase are not allowed.
+var issueNamePattern = regexp.MustCompile(`^[a-z][a-z0-9_]*$`)
 
 // Registry manages issue modules — providing issue templates, built-in periodic
 // health checks, and built-in once-at-startup health checks.
@@ -32,12 +37,18 @@ func NewRegistry() *Registry {
 }
 
 // RegisterModule registers an issue module, extracting its template, periodic
-// check, and once check.
+// check, and once check. Panics if the module's IssueName does not follow
+// snake_case convention (^[a-z][a-z0-9_]*$).
 func (r *Registry) RegisterModule(module Module) {
+	name := module.IssueName()
+	if !issueNamePattern.MatchString(name) {
+		panic(fmt.Sprintf("healthplatform: IssueName %q is invalid — must match %s (snake_case only, no hyphens or uppercase)", name, issueNamePattern))
+	}
+
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	r.templates[module.IssueName()] = module
+	r.templates[name] = module
 
 	if check := module.BuiltInPeriodicHealthCheck(); check != nil {
 		check.IssueNames = append(check.IssueNames, module.IssueName())

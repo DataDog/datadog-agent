@@ -6,6 +6,7 @@
 package issues
 
 import (
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -94,14 +95,14 @@ func TestNewRegistry(t *testing.T) {
 
 func TestRegisterModuleWithPeriodicCheck(t *testing.T) {
 	registry := NewRegistry()
-	registry.RegisterModule(&mockModuleWithCheck{id: "test-issue-1"})
+	registry.RegisterModule(&mockModuleWithCheck{id: "test_issue_1"})
 
-	_, exists := registry.GetTemplate("test-issue-1")
+	_, exists := registry.GetTemplate("test_issue_1")
 	assert.True(t, exists)
 
 	checks := registry.GetBuiltInPeriodicHealthChecks()
 	assert.Len(t, checks, 1)
-	assert.Equal(t, "check-test-issue-1", checks[0].Source)
+	assert.Equal(t, "check-test_issue_1", checks[0].Source)
 	assert.Equal(t, 5*time.Minute, checks[0].Interval)
 
 	assert.Empty(t, registry.GetBuiltInStartupHealthChecks())
@@ -109,23 +110,23 @@ func TestRegisterModuleWithPeriodicCheck(t *testing.T) {
 
 func TestRegisterModuleWithOnceCheck(t *testing.T) {
 	registry := NewRegistry()
-	registry.RegisterModule(&mockModuleWithOnce{id: "test-issue-2"})
+	registry.RegisterModule(&mockModuleWithOnce{id: "test_issue_2"})
 
-	_, exists := registry.GetTemplate("test-issue-2")
+	_, exists := registry.GetTemplate("test_issue_2")
 	assert.True(t, exists)
 
 	once := registry.GetBuiltInStartupHealthChecks()
 	assert.Len(t, once, 1)
-	assert.Equal(t, "once-test-issue-2", once[0].Source)
+	assert.Equal(t, "once-test_issue_2", once[0].Source)
 
 	assert.Empty(t, registry.GetBuiltInPeriodicHealthChecks())
 }
 
 func TestRegisterModuleWithoutCheck(t *testing.T) {
 	registry := NewRegistry()
-	registry.RegisterModule(&mockModuleWithoutCheck{id: "test-issue-3"})
+	registry.RegisterModule(&mockModuleWithoutCheck{id: "test_issue_3"})
 
-	_, exists := registry.GetTemplate("test-issue-3")
+	_, exists := registry.GetTemplate("test_issue_3")
 	assert.True(t, exists)
 	assert.Empty(t, registry.GetBuiltInPeriodicHealthChecks())
 	assert.Empty(t, registry.GetBuiltInStartupHealthChecks())
@@ -133,9 +134,9 @@ func TestRegisterModuleWithoutCheck(t *testing.T) {
 
 func TestRegisterMultipleModules(t *testing.T) {
 	registry := NewRegistry()
-	registry.RegisterModule(&mockModuleWithCheck{id: "periodic"})
-	registry.RegisterModule(&mockModuleWithOnce{id: "once"})
-	registry.RegisterModule(&mockModuleWithoutCheck{id: "neither"})
+	registry.RegisterModule(&mockModuleWithCheck{id: "periodic_check"})
+	registry.RegisterModule(&mockModuleWithOnce{id: "once_check"})
+	registry.RegisterModule(&mockModuleWithoutCheck{id: "neither_check"})
 
 	assert.Len(t, registry.GetBuiltInPeriodicHealthChecks(), 1)
 	assert.Len(t, registry.GetBuiltInStartupHealthChecks(), 1)
@@ -150,26 +151,26 @@ func TestGetTemplateNotFound(t *testing.T) {
 
 func TestBuildIssue(t *testing.T) {
 	registry := NewRegistry()
-	registry.RegisterModule(&mockModuleWithCheck{id: "test-issue"})
+	registry.RegisterModule(&mockModuleWithCheck{id: "test_issue"})
 
-	issue, err := registry.BuildIssue("test-issue", map[string]string{"key": "test-value"})
+	issue, err := registry.BuildIssue("test_issue", map[string]string{"key": "test-value"})
 	require.NoError(t, err)
 	assert.Empty(t, issue.Id, "Id is set by the caller (ReportIssue), not by the template")
-	assert.Equal(t, "Test Issue: test-issue", issue.Title)
+	assert.Equal(t, "Test Issue: test_issue", issue.Title)
 	assert.Equal(t, "Context value: test-value", issue.Description)
 }
 
 func TestBuildIssueNotFound(t *testing.T) {
 	registry := NewRegistry()
-	issue, err := registry.BuildIssue("non-existent-issue", nil)
+	issue, err := registry.BuildIssue("nonexistent_issue", nil)
 	assert.Error(t, err)
 	assert.Nil(t, issue)
-	assert.Contains(t, err.Error(), "no issue template found for: non-existent-issue")
+	assert.Contains(t, err.Error(), "no issue template found for: nonexistent_issue")
 }
 
 func TestGetBuiltInPeriodicHealthChecksReturnsCopy(t *testing.T) {
 	registry := NewRegistry()
-	registry.RegisterModule(&mockModuleWithCheck{id: "test-issue"})
+	registry.RegisterModule(&mockModuleWithCheck{id: "test_issue"})
 
 	checks1 := registry.GetBuiltInPeriodicHealthChecks()
 	checks2 := registry.GetBuiltInPeriodicHealthChecks()
@@ -180,7 +181,7 @@ func TestGetBuiltInPeriodicHealthChecksReturnsCopy(t *testing.T) {
 
 func TestGetBuiltInStartupHealthChecksReturnsCopy(t *testing.T) {
 	registry := NewRegistry()
-	registry.RegisterModule(&mockModuleWithOnce{id: "test-issue"})
+	registry.RegisterModule(&mockModuleWithOnce{id: "test_issue_once"})
 
 	once1 := registry.GetBuiltInStartupHealthChecks()
 	once2 := registry.GetBuiltInStartupHealthChecks()
@@ -198,7 +199,7 @@ func TestRegistryConcurrentAccess(t *testing.T) {
 		go func(idx int) {
 			defer wg.Done()
 			registry.RegisterModule(&mockModuleWithCheck{
-				id: "concurrent-issue-" + string(rune('A'+idx)),
+				id: fmt.Sprintf("concurrent_issue_%d", idx),
 			})
 		}(i)
 	}
@@ -209,10 +210,48 @@ func TestRegistryConcurrentAccess(t *testing.T) {
 			defer wg.Done()
 			registry.GetBuiltInPeriodicHealthChecks()
 			registry.GetBuiltInStartupHealthChecks()
-			registry.GetTemplate("concurrent-issue-A")
+			registry.GetTemplate("concurrent_issue_0")
 		}()
 	}
 
 	wg.Wait()
 	assert.Len(t, registry.GetBuiltInPeriodicHealthChecks(), 10)
+}
+
+func TestRegisterModuleInvalidIssueName(t *testing.T) {
+	invalid := []string{
+		"kebab-case",
+		"CamelCase",
+		"has space",
+		"UPPER",
+		"mixed-And_stuff",
+		"_leading_underscore",
+	}
+	for _, name := range invalid {
+		t.Run(name, func(t *testing.T) {
+			registry := NewRegistry()
+			assert.Panics(t, func() {
+				registry.RegisterModule(&mockModuleWithoutCheck{id: name})
+			}, "IssueName %q should be rejected", name)
+		})
+	}
+}
+
+func TestRegisterModuleValidIssueName(t *testing.T) {
+	valid := []string{
+		"snake_case",
+		"check_execution_failure",
+		"ad_misconfiguration",
+		"simple",
+		"with123numbers",
+		"a",
+	}
+	for _, name := range valid {
+		t.Run(name, func(t *testing.T) {
+			registry := NewRegistry()
+			assert.NotPanics(t, func() {
+				registry.RegisterModule(&mockModuleWithoutCheck{id: name})
+			}, "IssueName %q should be accepted", name)
+		})
+	}
 }
