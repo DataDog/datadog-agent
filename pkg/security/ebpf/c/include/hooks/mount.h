@@ -346,7 +346,7 @@ int hook_make_visible(ctx_t *ctx) {
     }
 
     struct mount *newmnt = (struct mount *)CTX_PARM1(ctx);
-    // check if this mount has already been processed
+    // check if this mount has already been processed by another hook
     if (syscall->mount.newmnt == newmnt) {
         return 0;
     }
@@ -370,7 +370,7 @@ int hook_attach_mnt(ctx_t *ctx) {
     }
 
     struct mount *newmnt = (struct mount *)CTX_PARM1(ctx);
-    // check if this mount has already been processed
+        // check if this mount has already been processed by another hook
     if (syscall->mount.newmnt == newmnt) {
         return 0;
     }
@@ -394,7 +394,7 @@ int hook___attach_mnt(ctx_t *ctx) {
     }
 
     struct mount *newmnt = (struct mount *)CTX_PARM1(ctx);
-    // check if this mount has already been processed by the hook on attach_mnt
+        // check if this mount has already been processed by another hook
     if (syscall->mount.newmnt == newmnt) {
         return 0;
     }
@@ -417,7 +417,7 @@ int hook_mnt_set_mountpoint(ctx_t *ctx) {
     }
 
     struct mount *newmnt = (struct mount *)CTX_PARM3(ctx);
-    // check if this mount has already been processed
+        // check if this mount has already been processed by another hook
     if (syscall->mount.newmnt == newmnt) {
         return 0;
     }
@@ -484,7 +484,7 @@ int hook_attach_recursive_mnt(ctx_t *ctx) {
     }
 
     struct mount *newmnt = (struct mount *)CTX_PARM1(ctx);
-    // check if this mount has already been processed
+        // check if this mount has already been processed by another hook
     if (syscall->mount.newmnt == newmnt) {
         return 0;
     }
@@ -510,7 +510,7 @@ int hook_propagate_mnt(ctx_t *ctx) {
     }
 
     struct mount *newmnt = (struct mount *)CTX_PARM3(ctx);
-    // check if this mount has already been processed
+        // check if this mount has already been processed by another hook
     if (syscall->mount.newmnt == newmnt) {
         return 0;
     }

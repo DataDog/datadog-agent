@@ -18,6 +18,10 @@
 # * Note:
 # If you mute a parent test it will ignore all the subtests as well.
 
+# TODO: https://datadoghq.atlassian.net/browse/SVLS-4500
+"pkg/serverless/trace":
+  - test: TestStartEnabledTrueValidConfigValidPath
+
 # TODO: https://datadoghq.atlassian.net/browse/CONTINT-4143
 test/new-e2e/tests/containers:
   - test: TestECSSuite/TestCPU/metric___container.cpu.usage{^ecs_container_name:stress-ng$}
@@ -30,6 +34,11 @@ test/new-e2e/tests/containers:
 
 test/new-e2e/tests/sbom:
   - test: TestSBOMKindSuite/TestSBOM
+
+# TODO: https://app.datadoghq.com/incidents/55979
+test/new-e2e/tests/installer/unix:
+  - test: TestPackages/ddot_debian_12_x86_64_install_script/TestInstallDDOTInstaller
+    on-log: "auto-restart"
 
 on-log:
   - "panic: Expected to find a single pod" # K8s Agent Executor can be flaky with the current implementation
