@@ -519,7 +519,6 @@ use_repo(
     "org_uber_go_multierr",
     "org_uber_go_zap",
     "org_uber_go_zap_exp",
-    "sh_helm_helm_v3",
     "tools_gotest_gotestsum",
 )
 

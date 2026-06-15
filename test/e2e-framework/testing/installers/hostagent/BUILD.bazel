@@ -6,15 +6,15 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers/hostagent",
     visibility = ["//visibility:public"],
     deps = [
+        "//test/e2e-framework/components/datadog/agentparams",
+        "//test/e2e-framework/components/os",
         "//test/e2e-framework/testing/installers/internal/agenturl",
         "//test/e2e-framework/testing/utils/common",
-        "@com_github_datadog_datadog_agent_test_e2e_framework//components/datadog/agentparams",
-        "@com_github_datadog_datadog_agent_test_e2e_framework//components/os",
+        "//test/e2e-framework/testing/utils/e2e/client/agentclientparams",
         "@com_github_datadog_datadog_agent_test_e2e_framework//testing/components",
         "@com_github_datadog_datadog_agent_test_e2e_framework//testing/environments",
         "@com_github_datadog_datadog_agent_test_e2e_framework//testing/runner",
         "@com_github_datadog_datadog_agent_test_e2e_framework//testing/runner/parameters",
-        "@com_github_datadog_datadog_agent_test_e2e_framework//testing/utils/e2e/client/agentclientparams",
         "@com_github_stretchr_testify//require",
     ],
 )

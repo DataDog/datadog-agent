@@ -6,6 +6,7 @@ go_library(
         "internal_error.go",
         "output_dirs.go",
         "random.go",
+        "require_adapter.go",
         "types.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/common",
