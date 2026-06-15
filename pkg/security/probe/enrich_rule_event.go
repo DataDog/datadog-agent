@@ -13,6 +13,7 @@ import (
 	"math"
 	"path/filepath"
 	"strconv"
+	"time"
 
 	gopsutilprocess "github.com/shirou/gopsutil/v4/process"
 	"golang.org/x/sys/unix"
@@ -22,6 +23,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	utilkernel "github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
+
+// startTimeTolerance covers jiffies precision + boot-time skew between
+// the eBPF-captured ForkTime and gopsutil's /proc/<pid>/stat reading.
+const startTimeTolerance = 50 * time.Millisecond
 
 // enrichKind selects which kind of values we re-resolve from /proc on a
 // rule match. Used to share fetch + apply code between argv and envp.
@@ -133,11 +138,11 @@ func applyFullProcessValues(pr *model.Process, values []string, kind enrichKind)
 	}
 }
 
-// sameProcessAsCached returns true when /proc/<pr.Pid>/exe still points to
-// the inode the eBPF probe captured at exec time. Inode-only leaves a
-// narrow cross-filesystem collision window on PID reuse; tighter checks
-// (device, mount id) need care because btrfs/nfs/fuse expose different
-// identifiers between kernel-side s_dev and userspace stat.
+// sameProcessAsCached returns true when /proc/<pr.Pid> still describes the
+// process the eBPF probe captured: inode of /proc/<pid>/exe matches the
+// cached one and /proc/<pid>/stat start time matches ForkTime. The start
+// time invariant defeats PID reuse even when the recycled PID re-execs the
+// same binary. Falls back to inode-only when ForkTime is zero.
 func sameProcessAsCached(pr *model.Process) bool {
 	cachedInode := pr.FileEvent.Inode
 	if cachedInode == 0 {
@@ -148,5 +153,21 @@ func sameProcessAsCached(pr *model.Process) bool {
 	if err := unix.Stat(exePath, &st); err != nil {
 		return false
 	}
-	return st.Ino == cachedInode
+	if st.Ino != cachedInode {
+		return false
+	}
+	if !pr.ForkTime.IsZero() {
+		proc, err := gopsutilprocess.NewProcess(int32(pr.Pid))
+		if err != nil {
+			return false
+		}
+		createMs, err := proc.CreateTime()
+		if err != nil {
+			return false
+		}
+		if delta := pr.ForkTime.Sub(time.UnixMilli(createMs)).Abs(); delta > startTimeTolerance {
+			return false
+		}
+	}
+	return true
 }

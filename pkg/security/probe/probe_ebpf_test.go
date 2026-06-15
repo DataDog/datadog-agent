@@ -14,8 +14,10 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/gopacket/layers"
+	gopsutilprocess "github.com/shirou/gopsutil/v4/process"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
@@ -30,6 +32,16 @@ func selfExeInode(t *testing.T) uint64 {
 	var st unix.Stat_t
 	require.NoError(t, unix.Stat("/proc/self/exe", &st), "stat /proc/self/exe")
 	return st.Ino
+}
+
+// selfStartTime returns the running test process's start time via gopsutil.
+func selfStartTime(t *testing.T) time.Time {
+	t.Helper()
+	proc, err := gopsutilprocess.NewProcess(int32(os.Getpid()))
+	require.NoError(t, err, "gopsutil.NewProcess(self)")
+	ms, err := proc.CreateTime()
+	require.NoError(t, err, "proc.CreateTime")
+	return time.UnixMilli(ms)
 }
 
 func newTestEBPFProbe() *EBPFProbe {
@@ -139,9 +151,17 @@ func TestGetAndPutBackPoolEventRoundTrip(t *testing.T) {
 
 func TestSameProcessAsCached(t *testing.T) {
 	selfInode := selfExeInode(t)
+	selfStart := selfStartTime(t)
 	selfPid := uint32(os.Getpid())
 
-	t.Run("self pid with matching cached inode returns true", func(t *testing.T) {
+	t.Run("self pid with matching cached inode and forktime returns true", func(t *testing.T) {
+		pr := &model.Process{PIDContext: model.PIDContext{Pid: selfPid}}
+		pr.FileEvent.Inode = selfInode
+		pr.ForkTime = selfStart
+		assert.True(t, sameProcessAsCached(pr))
+	})
+
+	t.Run("zero forktime degrades to inode-only and returns true", func(t *testing.T) {
 		pr := &model.Process{PIDContext: model.PIDContext{Pid: selfPid}}
 		pr.FileEvent.Inode = selfInode
 		assert.True(t, sameProcessAsCached(pr))
@@ -150,17 +170,34 @@ func TestSameProcessAsCached(t *testing.T) {
 	t.Run("self pid with mismatching cached inode returns false", func(t *testing.T) {
 		pr := &model.Process{PIDContext: model.PIDContext{Pid: selfPid}}
 		pr.FileEvent.Inode = 0xdeadbeef
+		pr.ForkTime = selfStart
+		assert.False(t, sameProcessAsCached(pr))
+	})
+
+	t.Run("self pid with mismatching cached forktime returns false", func(t *testing.T) {
+		pr := &model.Process{PIDContext: model.PIDContext{Pid: selfPid}}
+		pr.FileEvent.Inode = selfInode
+		pr.ForkTime = selfStart.Add(-time.Hour)
+		assert.False(t, sameProcessAsCached(pr))
+	})
+
+	t.Run("self pid with forktime just outside tolerance returns false", func(t *testing.T) {
+		pr := &model.Process{PIDContext: model.PIDContext{Pid: selfPid}}
+		pr.FileEvent.Inode = selfInode
+		pr.ForkTime = selfStart.Add(startTimeTolerance + time.Second)
 		assert.False(t, sameProcessAsCached(pr))
 	})
 
 	t.Run("zero cached inode returns false", func(t *testing.T) {
 		pr := &model.Process{PIDContext: model.PIDContext{Pid: selfPid}}
+		pr.ForkTime = selfStart
 		assert.False(t, sameProcessAsCached(pr))
 	})
 
 	t.Run("nonexistent pid returns false", func(t *testing.T) {
 		pr := &model.Process{PIDContext: model.PIDContext{Pid: uint32(math.MaxInt32)}}
 		pr.FileEvent.Inode = selfInode
+		pr.ForkTime = selfStart
 		assert.False(t, sameProcessAsCached(pr))
 	})
 }
@@ -225,12 +262,14 @@ func TestEnrichRuleEventSelfPID(t *testing.T) {
 
 	require.NotEmpty(t, os.Args)
 	selfInode := selfExeInode(t)
+	selfStart := selfStartTime(t)
 
 	ev := &model.Event{}
 	ev.ProcessContext = &model.ProcessContext{
 		Process: model.Process{
 			PIDContext:    model.PIDContext{Pid: uint32(os.Getpid())},
 			Argv0:         os.Args[0],
+			ForkTime:      selfStart,
 			ArgsTruncated: true,
 			ArgsEntry: &model.ArgsEntry{
 				Values:    []string{os.Args[0], "fake-truncat..."},
@@ -321,6 +360,7 @@ func TestEnrichRuleEventExeMismatch(t *testing.T) {
 			PIDContext:    model.PIDContext{Pid: uint32(os.Getpid())},
 			Comm:          "totally-different-binary",
 			Argv0:         "/nope/binary",
+			ForkTime:      selfStartTime(t),
 			ArgsTruncated: true,
 			ArgsEntry:     &model.ArgsEntry{Values: []string{fakeArg}, Truncated: true},
 			EnvsTruncated: true,
@@ -328,6 +368,46 @@ func TestEnrichRuleEventExeMismatch(t *testing.T) {
 		},
 	}
 	ev.ProcessContext.Process.FileEvent.Inode = 0xdeadbeef
+	origArgsEntry := ev.ProcessContext.Process.ArgsEntry
+	origEnvsEntry := ev.ProcessContext.Process.EnvsEntry
+
+	p.EnrichRuleEvent(ev)
+
+	pr := &ev.ProcessContext.Process
+	assert.True(t, pr.ArgsTruncated)
+	assert.True(t, pr.EnvsTruncated)
+	assert.Same(t, origArgsEntry, pr.ArgsEntry)
+	assert.Same(t, origEnvsEntry, pr.EnvsEntry)
+	assert.Equal(t, []string{fakeArg}, pr.ArgsEntry.Values)
+	assert.Equal(t, []string{fakeEnv}, pr.EnvsEntry.Values)
+}
+
+// TestEnrichRuleEventForkTimeMismatch covers PID reuse where the inode
+// coincides (recycled PID re-execed the same binary): the forktime check
+// rejects and we keep the cached truncated values.
+func TestEnrichRuleEventForkTimeMismatch(t *testing.T) {
+	p := newTestEBPFProbe()
+
+	const fakeArg = "fake-truncated-arg..."
+	const fakeEnv = "FAKE_ENV=truncated..."
+
+	selfInode := selfExeInode(t)
+	staleStart := selfStartTime(t).Add(-time.Hour)
+
+	ev := &model.Event{}
+	ev.ProcessContext = &model.ProcessContext{
+		Process: model.Process{
+			PIDContext:    model.PIDContext{Pid: uint32(os.Getpid())},
+			Comm:          "stale-incarnation",
+			Argv0:         os.Args[0],
+			ForkTime:      staleStart,
+			ArgsTruncated: true,
+			ArgsEntry:     &model.ArgsEntry{Values: []string{fakeArg}, Truncated: true},
+			EnvsTruncated: true,
+			EnvsEntry:     &model.EnvsEntry{Values: []string{fakeEnv}, Truncated: true},
+		},
+	}
+	ev.ProcessContext.Process.FileEvent.Inode = selfInode
 	origArgsEntry := ev.ProcessContext.Process.ArgsEntry
 	origEnvsEntry := ev.ProcessContext.Process.EnvsEntry
 
