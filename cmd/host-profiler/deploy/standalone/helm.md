@@ -49,13 +49,19 @@ helm upgrade --install <RELEASE_NAME> open-telemetry/opentelemetry-collector \
   --values cmd/host-profiler/deploy/standalone/helm/network-policy-values.yaml
 ```
 
-### Seccomp
+The provided Helm values configure the required capabilities and seccomp profile automatically. An init container installs the seccomp profile onto each node, so no manual seccomp setup is required.
 
-The Collector is automatically configured to run under a seccomp profile. An init container copies the profile from the Collector image to every node at pod startup. No manual steps required.
+After you apply the values, Helm rolls out an OpenTelemetry Collector DaemonSet with the Host Profiler. Wait for that rollout to complete before verifying profiles.
 
-### AppArmor (optional)
+After deploying the Host Profiler, profiles appear on the [Datadog Profiler](https://app.datadoghq.com/profiling) page within a few minutes. If profiles do not appear, see the [Troubleshooting](../troubleshooting.md) guide.
 
-Load [`apparmor-profile`](../apparmor-profile) on each node using your cluster's AppArmor provisioning mechanism, then update `securityContext` in [`helm/collector-values.yaml`](helm/collector-values.yaml):
+## AppArmor (optional)
+
+AppArmor provides extra hardening on Linux distributions and Kubernetes clusters where AppArmor is available. The Host Profiler does not require AppArmor to run; the provided Helm values configure the required capabilities and seccomp profile automatically.
+
+Use this section only if your nodes support AppArmor and you already manage node-local AppArmor profiles. AppArmor profiles must be loaded on each node before Kubernetes can apply them to a pod.
+
+To enable the provided profile, load [`apparmor-profile`](../apparmor-profile) on each node, then update `securityContext` in [`helm/collector-values.yaml`](helm/collector-values.yaml):
 
 ```yaml
 securityContext:
@@ -65,6 +71,4 @@ securityContext:
     localhostProfile: host-profiler
 ```
 
-## Verification
-
-After deploying the Host Profiler, profiles appear on the [Datadog Profiler](https://app.datadoghq.com/profiling) page within a few minutes. If profiles do not appear, see the [Troubleshooting](../troubleshooting.md) guide.
+The provided profile limits what the Host Profiler container can execute. It allows `objcopy`, which is used for debug symbol extraction.
