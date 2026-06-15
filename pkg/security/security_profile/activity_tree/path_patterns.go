@@ -248,29 +248,28 @@ func groupChildrenBySignature(children map[string]*FileNode) []signatureBucket {
 	return out
 }
 
-// mergeInto folds src into dst in place: unions Children, Seen,
-// MatchedRules, Open flags/mode, and keeps the more authoritative
-// GenerationType. dst.Name is left to the caller.
+// mergeInto folds src into dst in place: unions NodeBase observations,
+// Children, MatchedRules, Open flags/mode, and keeps the more
+// authoritative GenerationType. dst.Name is left to the caller.
 func (dst *FileNode) mergeInto(src *FileNode) {
 	if src == nil {
 		return
 	}
-	for tag, times := range src.Seen {
-		if times == nil {
-			continue
-		}
-		if existing, ok := dst.Seen[tag]; ok && existing != nil {
-			if times.FirstSeen.Before(existing.FirstSeen) {
-				existing.FirstSeen = times.FirstSeen
+	src.EachSeen(func(id uint64, times ImageTagTimes) {
+		if existing, ok := dst.GetSeenTimes(id); ok {
+			firstSeen := existing.FirstSeen
+			lastSeen := existing.LastSeen
+			if times.FirstSeen.Before(firstSeen) {
+				firstSeen = times.FirstSeen
 			}
-			if times.LastSeen.After(existing.LastSeen) {
-				existing.LastSeen = times.LastSeen
+			if times.LastSeen.After(lastSeen) {
+				lastSeen = times.LastSeen
 			}
+			dst.RecordWithTimestamps(id, firstSeen, lastSeen)
 		} else {
-			cp := *times
-			dst.Seen[tag] = &cp
+			dst.RecordWithTimestamps(id, times.FirstSeen, times.LastSeen)
 		}
-	}
+	})
 
 	dst.MatchedRules = model.AppendMatchedRule(dst.MatchedRules, src.MatchedRules)
 

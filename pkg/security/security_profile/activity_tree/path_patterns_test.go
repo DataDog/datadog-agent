@@ -287,7 +287,7 @@ func TestInsertFileEvent_PatternAbsorbsVariants(t *testing.T) {
 				PathnameStr:           path,
 			}},
 		}
-		pn.InsertFileEvent(&event.Open.File, event, "tag", Unknown, stats, false, nil, nil)
+		pn.InsertFileEvent(&event.Open.File, event, uint64(1), Unknown, stats, false, nil, nil)
 	}
 
 	// After insertion the /tmp node exists, and its children contain the
@@ -323,7 +323,7 @@ func TestInsertFileEvent_AnomalyDryRunQuietOnVariants(t *testing.T) {
 				PathnameStr:           path,
 			}},
 		}
-		pn.InsertFileEvent(&event.Open.File, event, "tag", Unknown, stats, false, nil, nil)
+		pn.InsertFileEvent(&event.Open.File, event, uint64(1), Unknown, stats, false, nil, nil)
 	}
 
 	// Force-merge (finalize-style) so the pattern exists even under the
@@ -342,7 +342,7 @@ func TestInsertFileEvent_AnomalyDryRunQuietOnVariants(t *testing.T) {
 
 	// Dry-run insert: no new FileNode should be created.
 	before := stats.FileNodes
-	isNew := pn.InsertFileEvent(&newVariant.Open.File, newVariant, "tag", Unknown, stats, true, nil, nil)
+	isNew := pn.InsertFileEvent(&newVariant.Open.File, newVariant, uint64(1), Unknown, stats, true, nil, nil)
 	assert.True(t, isNew == false || stats.FileNodes == before,
 		"dry-run insert on pattern variant should not create new nodes")
 	// The pattern-lookup-hit counter should have fired at least once.
@@ -369,7 +369,7 @@ func TestFinalizePatterns_MergesBelowMaxChildren(t *testing.T) {
 				PathnameStr:           path,
 			}},
 		}
-		pn.InsertFileEvent(&event.Open.File, event, "tag", Unknown, stats, false, nil, nil)
+		pn.InsertFileEvent(&event.Open.File, event, uint64(1), Unknown, stats, false, nil, nil)
 	}
 
 	// No merge happened yet.
@@ -430,7 +430,7 @@ func TestFinalizePatterns_PreservesFixedAlphaTopLevelDirs(t *testing.T) {
 				PathnameStr:           p,
 			}},
 		}
-		pn.InsertFileEvent(&ev.Open.File, ev, "tag", Unknown, stats, false, nil, nil)
+		pn.InsertFileEvent(&ev.Open.File, ev, uint64(1), Unknown, stats, false, nil, nil)
 	}
 
 	at.FinalizePatterns()
@@ -606,7 +606,7 @@ func TestInsertFileEvent_R2_AnomalyRaisedOnCrossClassVariant(t *testing.T) {
 				PathnameStr:           path,
 			}},
 		}
-		pn.InsertFileEvent(&ev.Open.File, ev, "tag", Unknown, stats, false, nil, nil)
+		pn.InsertFileEvent(&ev.Open.File, ev, uint64(1), Unknown, stats, false, nil, nil)
 	}
 
 	job := pn.Files["var"].Children["log"].Children["job"]
@@ -627,7 +627,7 @@ func TestInsertFileEvent_R2_AnomalyRaisedOnCrossClassVariant(t *testing.T) {
 			PathnameStr:           "/var/log/job/malicious_binary",
 		}},
 	}
-	isNew := pn.InsertFileEvent(&anomaly.Open.File, anomaly, "tag", Unknown, stats, true, nil, nil)
+	isNew := pn.InsertFileEvent(&anomaly.Open.File, anomaly, uint64(1), Unknown, stats, true, nil, nil)
 	assert.True(t, isNew, "cross-class candidate must surface as a new entry")
 }
 
@@ -648,7 +648,7 @@ func TestInsertFileEvent_R2_SameShapeStillQuiet(t *testing.T) {
 				PathnameStr:           path,
 			}},
 		}
-		pn.InsertFileEvent(&ev.Open.File, ev, "tag", Unknown, stats, false, nil, nil)
+		pn.InsertFileEvent(&ev.Open.File, ev, uint64(1), Unknown, stats, false, nil, nil)
 	}
 	job := pn.Files["var"].Children["log"].Children["job"]
 	mergeChildren(job.Children, 3, stats)
@@ -661,7 +661,7 @@ func TestInsertFileEvent_R2_SameShapeStillQuiet(t *testing.T) {
 		}},
 	}
 	before := stats.FilePatternLookupHits
-	isNew := pn.InsertFileEvent(&variant.Open.File, variant, "tag", Unknown, stats, true, nil, nil)
+	isNew := pn.InsertFileEvent(&variant.Open.File, variant, uint64(1), Unknown, stats, true, nil, nil)
 	assert.False(t, isNew, "same-shape numeric variant must match the trained pattern")
 	assert.Greater(t, stats.FilePatternLookupHits, before)
 }
@@ -688,7 +688,7 @@ func TestInsertFileEvent_DisabledByDefaultOnV1Trees(t *testing.T) {
 				PathnameStr:           path,
 			}},
 		}
-		pn.InsertFileEvent(&ev.Open.File, ev, "tag", Unknown, stats, false, nil, nil)
+		pn.InsertFileEvent(&ev.Open.File, ev, uint64(1), Unknown, stats, false, nil, nil)
 	}
 
 	tmp, ok := pn.Files["tmp"]
