@@ -388,7 +388,6 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/security/probe/selftests
 # gazelle:exclude pkg/security/process_list
 # gazelle:exclude pkg/security/proto/api/transform
-# gazelle:exclude pkg/security/resolvers/file
 # gazelle:exclude pkg/security/resolvers/hash
 # gazelle:exclude pkg/security/resolvers/path
 # gazelle:exclude pkg/security/resolvers/process
