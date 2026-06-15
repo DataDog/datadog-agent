@@ -56,6 +56,16 @@ const (
 
 	// Maximum IPC response size (4KB is sufficient for WiFi metadata)
 	maxIPCResponseSize = 4096
+
+	// Maximum IPC response size for a scan response, which carries one entry
+	// per visible access point and can be substantially larger than the
+	// single connected-AP response.
+	maxScanIPCResponseSize = 65536
+
+	// Timeout for a scan request. An active scan (CWInterface.scanForNetworks)
+	// can take several seconds, so this is much larger than the connected-AP
+	// fetch timeout.
+	scanRequestTimeout = 6 * time.Second
 )
 
 // guiWiFiData represents the WiFi data structure from GUI IPC
@@ -82,9 +92,34 @@ type guiIPCResponse struct {
 	Error   *string      `json:"error"`
 }
 
+// guiAPData represents a single visible access point from the GUI scan IPC
+// command. It carries only the fields needed to emit system.wlan.scan.rssi.
+type guiAPData struct {
+	RSSI  int    `json:"rssi"`
+	SSID  string `json:"ssid"`
+	BSSID string `json:"bssid"`
+}
+
+// guiScanData is the payload of a get_wifi_scan response.
+type guiScanData struct {
+	AccessPoints []guiAPData `json:"access_points"`
+	Error        *string     `json:"error"`
+}
+
+// guiScanResponse represents the IPC response to a get_wifi_scan command.
+type guiScanResponse struct {
+	Success bool         `json:"success" required:"true"`
+	Data    *guiScanData `json:"data"`
+	Error   *string      `json:"error"`
+}
+
 // getWiFiInfo is a package-level function variable for testability
 // Tests can reassign this to mock WiFi data retrieval
 var getWiFiInfo func() (wifiInfo, error)
+
+// getNearbyAPs is a package-level function variable for testability
+// Tests can reassign this to mock nearby access point scanning
+var getNearbyAPs func() ([]accessPointInfo, error)
 
 // GetWiFiInfo retrieves WiFi information via IPC from the GUI/user app
 func (c *WLANCheck) GetWiFiInfo() (wifiInfo, error) {
@@ -551,4 +586,147 @@ func (c *WLANCheck) fetchWiFiFromGUI(socketPath string, timeout time.Duration) (
 		info.ssid, info.rssi, info.phyMode, data.LocationAuthorized)
 
 	return info, nil
+}
+
+// validateAPData performs defensive validation on a single scanned access
+// point received from the GUI. It reuses the same bounds as validateWiFiData.
+func validateAPData(ap *guiAPData) error {
+	if ap.RSSI < minRSSI || ap.RSSI > maxRSSI {
+		return fmt.Errorf("RSSI out of range: %d (expected %d to %d)", ap.RSSI, minRSSI, maxRSSI)
+	}
+	if len(ap.SSID) > maxSSIDLength {
+		return fmt.Errorf("SSID too long: %d bytes (max %d)", len(ap.SSID), maxSSIDLength)
+	}
+	if ap.BSSID != "" && !isValidMACAddress(ap.BSSID) {
+		return fmt.Errorf("invalid BSSID format: %s (expected XX:XX:XX:XX:XX:XX)", ap.BSSID)
+	}
+	return nil
+}
+
+// GetNearbyAccessPoints scans for all visible access points via the GUI IPC
+// server (get_wifi_scan command).
+//
+// Graceful degradation: if no GUI is reachable or it does not support the scan
+// command (e.g. an older GUI build), this returns an empty slice and no error
+// so the check stays healthy — the connected-AP metrics have already been
+// emitted by the time this runs.
+func (c *WLANCheck) GetNearbyAccessPoints() ([]accessPointInfo, error) {
+	if getNearbyAPs != nil {
+		return getNearbyAPs()
+	}
+
+	// Prefer the console user's GUI socket, mirroring GetWiFiInfo.
+	uid, err := getConsoleUserUID()
+	if err == nil {
+		socketPath := filepath.Join(defaultpaths.GetInstallPath(), "run", "ipc", fmt.Sprintf("gui-%s.sock", uid))
+		aps, ferr := c.fetchWiFiScanFromGUI(socketPath, scanRequestTimeout)
+		if ferr == nil {
+			return aps, nil
+		}
+		log.Infof("Console user's GUI scan unavailable: %v, trying any available socket", ferr)
+	} else {
+		log.Debugf("No console user detected: %v, trying any available socket", err)
+	}
+
+	// Fallback: try any available socket (WiFi scan data is system-wide).
+	runPath := filepath.Join(defaultpaths.GetInstallPath(), "run", "ipc")
+	sockets, globErr := filepath.Glob(filepath.Join(runPath, "gui-*.sock"))
+	if globErr == nil {
+		for _, socketPath := range sockets {
+			aps, ferr := c.fetchWiFiScanFromGUI(socketPath, scanRequestTimeout)
+			if ferr == nil {
+				return aps, nil
+			}
+			log.Debugf("Fallback scan socket %s failed: %v", socketPath, ferr)
+		}
+	}
+
+	// No socket produced scan data. Degrade gracefully rather than failing the
+	// check, since the GUI may not yet support get_wifi_scan.
+	log.Info("Nearby AP scan unavailable (GUI may not support get_wifi_scan); skipping system.wlan.scan.rssi")
+	return nil, nil
+}
+
+// fetchWiFiScanFromGUI connects to the GUI Unix socket and fetches the list of
+// visible access points via the get_wifi_scan command.
+func (c *WLANCheck) fetchWiFiScanFromGUI(socketPath string, timeout time.Duration) ([]accessPointInfo, error) {
+	// Validate socket ownership before connecting (security: prevent socket hijacking)
+	if err := validateSocketOwnership(socketPath); err != nil {
+		return nil, fmt.Errorf("socket validation failed: %w", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	var d net.Dialer
+	conn, err := d.DialContext(ctx, "unix", socketPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to GUI socket %s: %w", socketPath, err)
+	}
+	defer conn.Close()
+
+	if deadline, ok := ctx.Deadline(); ok {
+		if err := conn.SetDeadline(deadline); err != nil {
+			return nil, fmt.Errorf("failed to set deadline: %w", err)
+		}
+	}
+
+	// request_location_permission is forwarded the same way as get_wifi_info so
+	// the GUI can prompt for Location Services (BSSID/SSID require it).
+	request := map[string]any{
+		"command":                     "get_wifi_scan",
+		"request_location_permission": c.requestLocationPermission,
+	}
+	requestData, err := json.Marshal(request)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal request: %w", err)
+	}
+
+	if _, err := conn.Write(append(requestData, '\n')); err != nil {
+		return nil, fmt.Errorf("failed to write request: %w", err)
+	}
+
+	// Read response with a larger size limit than the connected-AP path.
+	reader := bufio.NewReaderSize(conn, maxScanIPCResponseSize)
+	responseLine, err := reader.ReadString('\n')
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response: %w", err)
+	}
+	if len(responseLine) > maxScanIPCResponseSize {
+		return nil, fmt.Errorf("response too large: %d bytes (max %d)", len(responseLine), maxScanIPCResponseSize)
+	}
+
+	// Strict decoding: reject unknown/extra fields (attack detection).
+	var response guiScanResponse
+	decoder := json.NewDecoder(strings.NewReader(responseLine))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&response); err != nil {
+		return nil, fmt.Errorf("invalid IPC scan response structure: %w", err)
+	}
+
+	if !response.Success || response.Data == nil {
+		errMsg := "unknown error"
+		if response.Error != nil {
+			errMsg = *response.Error
+		}
+		return nil, fmt.Errorf("GUI returned error: %s", errMsg)
+	}
+
+	aps := make([]accessPointInfo, 0, len(response.Data.AccessPoints))
+	for i := range response.Data.AccessPoints {
+		ap := &response.Data.AccessPoints[i]
+		// Skip (don't fail) individual malformed entries.
+		if err := validateAPData(ap); err != nil {
+			log.Warnf("Skipping invalid access point from GUI scan: %v", err)
+			continue
+		}
+		aps = append(aps, accessPointInfo{
+			rssi:  ap.RSSI,
+			ssid:  ap.SSID,
+			bssid: ap.BSSID,
+		})
+	}
+
+	log.Debugf("WiFi scan retrieved %d access point(s)", len(aps))
+	return aps, nil
 }

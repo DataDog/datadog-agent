@@ -41,9 +41,25 @@ type wifiInfo struct {
 	phyMode          string
 }
 
+// accessPointInfo contains the subset of WiFi data we report per visible
+// access point during a scan (connected or not). RSSI is the payload; ssid
+// and bssid are used for tagging. Whether an AP is the connected one is
+// derived at emit time by comparing its BSSID to the connected BSSID, so it
+// is intentionally not stored here.
+type accessPointInfo struct {
+	rssi  int
+	ssid  string
+	bssid string
+}
+
 // wlanInitConfig mirrors the init_config section of wlan.d/conf.yaml.
 type wlanInitConfig struct {
 	RequestLocationPermission bool `yaml:"request_location_permission"`
+
+	// CollectNearbyAPs toggles emission of system.wlan.scan.rssi for every
+	// visible access point (connected and nearby). A nil pointer means the
+	// option was omitted, in which case it defaults to enabled.
+	CollectNearbyAPs *bool `yaml:"collect_nearby_aps"`
 }
 
 // WLANCheck monitors the status of the WLAN interface
@@ -58,6 +74,10 @@ type WLANCheck struct {
 	// Location Services permission. The agent owns the config; the GUI has no
 	// read access to auth_token / ipc_cert.pem and cannot query the agent itself.
 	requestLocationPermission bool
+
+	// When true, emit system.wlan.scan.rssi for every visible access point
+	// (connected and nearby). Defaults to true; disabled via init_config.
+	collectNearbyAPs bool
 }
 
 // Configure reads request_location_permission from init_config so it can be
@@ -80,6 +100,8 @@ func (c *WLANCheck) Configure(senderManager sender.SenderManager, _ uint64, data
 		}
 	}
 	c.requestLocationPermission = ic.RequestLocationPermission
+	// Default to enabled when the option is omitted from init_config.
+	c.collectNearbyAPs = ic.CollectNearbyAPs == nil || *ic.CollectNearbyAPs
 	return nil
 }
 
@@ -224,6 +246,11 @@ func (c *WLANCheck) Run() error {
 		sender.Gauge("system.wlan.rxrate", float64(wi.receiveRate), "", tags)
 	}
 
+	// Emit per-AP RSSI for every visible access point (connected and nearby).
+	if c.collectNearbyAPs {
+		c.emitNearbyAPs(sender, wi.bssid)
+	}
+
 	// Emit event metrics for roaming and channel swaps
 	if c.isRoaming(&wi) {
 		sender.Count("system.wlan.roaming_events", 1.0, "", tags)
@@ -244,6 +271,43 @@ func (c *WLANCheck) Run() error {
 
 	sender.Commit()
 	return nil
+}
+
+// emitNearbyAPs scans for all visible access points and emits one
+// system.wlan.scan.rssi gauge per AP, tagged with ssid, bssid, and
+// connected:1|0 (1 for the AP matching connectedBSSID, 0 otherwise).
+//
+// Failure to scan is non-fatal: the connected-AP metrics have already been
+// emitted in Run(), so we log and return rather than failing the check.
+func (c *WLANCheck) emitNearbyAPs(sender sender.Sender, connectedBSSID string) {
+	aps, err := c.GetNearbyAccessPoints()
+	if err != nil {
+		log.Warnf("Failed to scan for nearby access points: %v", err)
+		return
+	}
+
+	for _, ap := range aps {
+		ssid := ap.ssid
+		if ssid == "" {
+			ssid = "unknown"
+		}
+		bssid := ap.bssid
+		if bssid == "" {
+			bssid = "unknown"
+		}
+
+		connected := "0"
+		if connectedBSSID != "" && strings.EqualFold(ap.bssid, connectedBSSID) {
+			connected = "1"
+		}
+
+		tags := []string{
+			"ssid:" + ssid,
+			"bssid:" + bssid,
+			"connected:" + connected,
+		}
+		sender.Gauge("system.wlan.scan.rssi", float64(ap.rssi), "", tags)
+	}
 }
 
 // Factory creates a new check factory

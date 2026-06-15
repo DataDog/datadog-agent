@@ -3,6 +3,11 @@
 ## to `conf.yaml` and make your changes on that file.
 
 init_config:
+    ## @param collect_nearby_aps - boolean - optional - default: true
+    ## Emit system.wlan.scan.rssi for every visible access point (the connected
+    ## one and nearby ones), tagged with ssid, bssid, and connected:1|0.
+    ## Set to false to disable scanning for nearby access points.
+    # collect_nearby_aps: true
 
 instances:
   - {}

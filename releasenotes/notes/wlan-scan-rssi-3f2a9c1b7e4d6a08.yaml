@@ -1,0 +1,16 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    The ``wlan`` integration now emits ``system.wlan.scan.rssi``, a per-access-point
+    signal-strength metric covering every visible access point (the connected one and
+    nearby ones whose RSSI is measurable). Each series is tagged with ``ssid``, ``bssid``,
+    and ``connected`` (``1`` for the currently connected access point, ``0`` otherwise).
+    This is supported on Windows and macOS. Collection is enabled by default and can be
+    disabled by setting ``collect_nearby_aps: false`` in the integration ``init_config``.

@@ -929,3 +929,133 @@ func TestWLANReceiveRateValid(t *testing.T) {
 	wlanCheck.Run()
 	mockSender.AssertMetric(t, "Gauge", "system.wlan.rxrate", 5.0, "", expectedTags)
 }
+
+func TestWLANCollectNearbyAPsDefaultEnabled(t *testing.T) {
+	wlanCheck := new(WLANCheck)
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	// init_config omitted -> collect_nearby_aps defaults to enabled.
+	wlanCheck.Configure(senderManager, integration.FakeConfigHash, nil, nil, "test", "provider")
+
+	assert.True(t, wlanCheck.collectNearbyAPs)
+}
+
+func TestWLANCollectNearbyAPsExplicitTrue(t *testing.T) {
+	wlanCheck := new(WLANCheck)
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	wlanCheck.Configure(senderManager, integration.FakeConfigHash, nil, integration.Data("collect_nearby_aps: true"), "test", "provider")
+
+	assert.True(t, wlanCheck.collectNearbyAPs)
+}
+
+func TestWLANCollectNearbyAPsDisabled(t *testing.T) {
+	getWiFiInfo = func() (wifiInfo, error) {
+		return wifiInfo{
+			rssi:       10,
+			ssid:       "test-ssid",
+			bssid:      "test-bssid",
+			macAddress: "hardware-address",
+			phyMode:    "802.11ac",
+		}, nil
+	}
+	getNearbyAPs = func() ([]accessPointInfo, error) {
+		t.Fatal("GetNearbyAccessPoints should not be called when collect_nearby_aps is false")
+		return nil, nil
+	}
+	defer func() {
+		getWiFiInfo = nil
+		getNearbyAPs = nil
+	}()
+
+	wlanCheck := new(WLANCheck)
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	wlanCheck.Configure(senderManager, integration.FakeConfigHash, nil, integration.Data("collect_nearby_aps: false"), "test", "provider")
+
+	assert.False(t, wlanCheck.collectNearbyAPs)
+
+	mockSender := mocksender.NewMockSenderWithSenderManager(wlanCheck.ID(), senderManager)
+	mockSender.SetupAcceptAll()
+
+	wlanCheck.Run()
+
+	mockSender.AssertMetricMissing(t, "Gauge", "system.wlan.scan.rssi")
+}
+
+func TestWLANScanRSSIEmission(t *testing.T) {
+	getWiFiInfo = func() (wifiInfo, error) {
+		return wifiInfo{
+			rssi:         10,
+			ssid:         "test-ssid",
+			bssid:        "AA:BB:CC:DD:EE:01",
+			channel:      1,
+			noise:        20,
+			noiseValid:   true,
+			transmitRate: 4.0,
+			macAddress:   "hardware-address",
+			phyMode:      "802.11ac",
+		}, nil
+	}
+	getNearbyAPs = func() ([]accessPointInfo, error) {
+		return []accessPointInfo{
+			{rssi: 10, ssid: "test-ssid", bssid: "AA:BB:CC:DD:EE:01"},   // the connected AP
+			{rssi: -60, ssid: "neighbor-1", bssid: "AA:BB:CC:DD:EE:02"}, // nearby
+			{rssi: -70, ssid: "", bssid: ""},                            // nearby, missing ssid/bssid
+		}, nil
+	}
+	defer func() {
+		getWiFiInfo = nil
+		getNearbyAPs = nil
+	}()
+
+	wlanCheck := new(WLANCheck)
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	wlanCheck.Configure(senderManager, integration.FakeConfigHash, nil, nil, "test", "provider")
+
+	mockSender := mocksender.NewMockSenderWithSenderManager(wlanCheck.ID(), senderManager)
+	mockSender.SetupAcceptAll()
+
+	wlanCheck.Run()
+
+	// The connected AP is tagged connected:1; nearby APs connected:0. Empty
+	// ssid/bssid fall back to "unknown" like the connected-AP path.
+	mockSender.AssertMetric(t, "Gauge", "system.wlan.scan.rssi", 10.0, "", []string{"ssid:test-ssid", "bssid:AA:BB:CC:DD:EE:01", "connected:1"})
+	mockSender.AssertMetric(t, "Gauge", "system.wlan.scan.rssi", -60.0, "", []string{"ssid:neighbor-1", "bssid:AA:BB:CC:DD:EE:02", "connected:0"})
+	mockSender.AssertMetric(t, "Gauge", "system.wlan.scan.rssi", -70.0, "", []string{"ssid:unknown", "bssid:unknown", "connected:0"})
+}
+
+func TestWLANScanErrorDoesNotFailCheck(t *testing.T) {
+	getWiFiInfo = func() (wifiInfo, error) {
+		return wifiInfo{
+			rssi:         10,
+			ssid:         "test-ssid",
+			bssid:        "test-bssid",
+			channel:      1,
+			noise:        20,
+			noiseValid:   true,
+			transmitRate: 4.0,
+			macAddress:   "hardware-address",
+			phyMode:      "802.11ac",
+		}, nil
+	}
+	getNearbyAPs = func() ([]accessPointInfo, error) {
+		return nil, errors.New("scan failed")
+	}
+	defer func() {
+		getWiFiInfo = nil
+		getNearbyAPs = nil
+	}()
+
+	expectedTags := []string{"ssid:test-ssid", "bssid:test-bssid", "mac_address:hardware-address", "status:ok"}
+
+	wlanCheck := new(WLANCheck)
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	wlanCheck.Configure(senderManager, integration.FakeConfigHash, nil, nil, "test", "provider")
+
+	mockSender := mocksender.NewMockSenderWithSenderManager(wlanCheck.ID(), senderManager)
+	mockSender.SetupAcceptAll()
+
+	// A scan failure is non-fatal: connected-AP metrics still emit and Run succeeds.
+	err := wlanCheck.Run()
+	assert.NoError(t, err)
+	mockSender.AssertMetric(t, "Gauge", "system.wlan.rssi", 10.0, "", expectedTags)
+	mockSender.AssertMetricMissing(t, "Gauge", "system.wlan.scan.rssi")
+}
