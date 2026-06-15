@@ -4,6 +4,10 @@ networkPolicy:
   enabled: false
 
 # Custom Kubernetes resources rendered by the Helm chart.
+# Requires a cluster networking layer that enforces Kubernetes NetworkPolicy.
+# If your cluster does not enforce NetworkPolicy resources, this manifest is
+# accepted but does not restrict egress.
+#
 # This NetworkPolicy allows DNS, Datadog intake egress, and kubelet API access
 # required by the Host Profiler.
 extraManifests:
