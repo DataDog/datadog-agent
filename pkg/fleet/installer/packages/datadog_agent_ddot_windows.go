@@ -526,7 +526,7 @@ func postInstallDDOTExtension(ctx HookContext) error {
 
 	procmgrEnabled, err := processManagerEnabledFromDatadogYAML()
 	if err != nil {
-		log.Warnf("DDOT: could not read process_manager from datadog.yaml (%v); not writing processes.d or restarting dd-procmgr", err)
+		log.Warnf("DDOT: could not read process_manager from datadog.yaml (%v); not writing processes.d", err)
 		procmgrEnabled = false
 	}
 	if procmgrEnabled {
@@ -544,28 +544,18 @@ func postInstallDDOTExtension(ctx HookContext) error {
 	if err := stopServiceIfExists(otelServiceName); err != nil {
 		log.Warnf("DDOT: could not ensure %s is stopped after registration: %v", otelServiceName, err)
 	}
-	if procmgrEnabled {
-		if err := winutil.RestartService(ddProcmgrServiceName); err != nil {
-			log.Warnf("DDOT: failed to restart %s to load new process config: %v", ddProcmgrServiceName, err)
-		}
-	}
+	// No RestartService(dd-procmgr-service) here: InstallExtensions restarts Datadog agent services
+	// after all extension hooks return, which reloads dd-procmgr and picks up processes.d.
 	return nil
 }
 
-// preRemoveDDOTExtension stops and removes the DDOT service before extension removal
+// preRemoveDDOTExtension removes DDOT process manager config, restarts dd-procmgr-service to drop
+// supervised DDOT, then stops/removes the legacy SCM entry and disables otelcollector in datadog.yaml.
 func preRemoveDDOTExtension(ctx HookContext) error {
 	procmgrEnabled, err := processManagerEnabledFromDatadogYAML()
 	if err != nil {
-		log.Warnf("DDOT: could not read process_manager from datadog.yaml (%v); skipping dd-procmgr stop before removal", err)
+		log.Warnf("DDOT: could not read process_manager from datadog.yaml (%v); skipping dd-procmgr restart after config removal", err)
 		procmgrEnabled = false
-	}
-	// Stop dd-procmgr while processes.d still exists so supervised otel-agent.exe exits and
-	// releases file locks before we delete the YAML and extension files (RestartService here
-	// races removal and can time out; the core Agent starts dd-procmgr on demand afterward).
-	if procmgrEnabled {
-		if err := winutil.StopService(ddProcmgrServiceName); err != nil {
-			log.Warnf("DDOT: failed to stop %s before extension removal: %v", ddProcmgrServiceName, err)
-		}
 	}
 	packagePath := ctx.PackagePath
 	if resolved, err := filepath.EvalSymlinks(ctx.PackagePath); err == nil {
@@ -573,6 +563,11 @@ func preRemoveDDOTExtension(ctx HookContext) error {
 	}
 	if err := removeDDOTProcmgrConfigWindows(packagePath); err != nil {
 		log.Warnf("failed to remove DDOT process manager config: %v", err)
+	}
+	if procmgrEnabled {
+		if err := winutil.RestartServiceWithTimeout(ddProcmgrServiceName, 120*time.Second); err != nil {
+			log.Warnf("DDOT: failed to restart %s after removing DDOT process manager config: %v", ddProcmgrServiceName, err)
+		}
 	}
 	if err := stopServiceIfExists(otelServiceName); err != nil {
 		log.Warnf("failed to stop DDOT service: %s", err)
