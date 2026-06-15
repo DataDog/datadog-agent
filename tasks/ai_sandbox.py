@@ -117,6 +117,10 @@ def run(
         prompt_file = tmp_prompt
     prompt_file = str(Path(prompt_file).expanduser().absolute())
 
+    # `go build -o` does not create the output's parent directory, and bin/ is
+    # gitignored (absent in a clean checkout), so create it first.
+    os.makedirs(os.path.join(E2E_FRAMEWORK_DIR, os.path.dirname(CLI_BIN)), exist_ok=True)
+
     try:
         with ctx.cd(E2E_FRAMEWORK_DIR):
             ctx.run(f"go build -o {CLI_BIN} {CLI_PACKAGE}")

@@ -126,12 +126,8 @@ func run(opts *options) error {
 		return err
 	}
 
-	ctx.Logf("Provisioning stack %q (os=%s arch=%s)...", opts.stackName, opts.osDescriptor, opts.arch)
-	env, err := standalone.Provision[environments.Host](ctx, opts.stackName, provisioner)
-	if err != nil {
-		return err
-	}
-
+	// Register teardown before provisioning so partial resources are cleaned up even
+	// if provisioning itself fails (the Pulumi provisioner does not delete on failure).
 	if !opts.keep {
 		defer func() {
 			ctx.Logf("Destroying stack %q...", opts.stackName)
@@ -143,17 +139,31 @@ func run(opts *options) error {
 		ctx.Logf("--keep set: stack %q will be left running; destroy it manually when done", opts.stackName)
 	}
 
+	ctx.Logf("Provisioning stack %q (os=%s arch=%s)...", opts.stackName, opts.osDescriptor, opts.arch)
+	env, err := standalone.Provision[environments.Host](ctx, opts.stackName, provisioner)
+	if err != nil {
+		return err
+	}
+
 	if env.RemoteHost == nil {
 		return errors.New("provisioned environment has no RemoteHost")
 	}
 
-	if err := runAITool(ctx, env, opts, prompt); err != nil {
-		return err
-	}
+	runErr := runAITool(ctx, env, opts, prompt)
 
+	// Always attempt retrieval, even when the tool failed, so tool-output.log and any
+	// partial artifacts are available locally for inspection.
 	ctx.Logf("Retrieving %s -> %s ...", opts.remoteOutputDir, opts.localOutputDir)
-	if err := env.RemoteHost.GetFolder(opts.remoteOutputDir, opts.localOutputDir); err != nil {
-		return fmt.Errorf("failed to retrieve remote output dir: %w", err)
+	getErr := env.RemoteHost.GetFolder(opts.remoteOutputDir, opts.localOutputDir)
+
+	if runErr != nil {
+		if getErr != nil {
+			ctx.Logf("WARNING: failed to retrieve remote output dir: %v", getErr)
+		}
+		return runErr
+	}
+	if getErr != nil {
+		return fmt.Errorf("failed to retrieve remote output dir: %w", getErr)
 	}
 
 	ctx.Logf("Done. Output available at %s", opts.localOutputDir)
