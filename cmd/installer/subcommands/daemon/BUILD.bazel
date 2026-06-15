@@ -1,5 +1,7 @@
 load("@rules_go//go:def.bzl", "go_library", "go_test")
 
+# gazelle:dd_agent_go_test on
+
 go_library(
     name = "daemon",
     srcs = [
@@ -32,7 +34,7 @@ go_library(
         "//comp/updater/telemetry/fx",
         "//comp/updater/updater/fx",
         "//pkg/config/remote/service",
-        "//pkg/config/setup",
+        "//pkg/util/defaultpaths",
         "//pkg/util/fxutil",
         "//pkg/util/option",
         "@com_github_spf13_cobra//:cobra",
