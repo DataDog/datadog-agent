@@ -32,6 +32,62 @@ func getSocketProbes(fentry bool, cgroup2MountPoint string) []*manager.Probe {
 			},
 			CGroupPath: cgroup2MountPoint,
 		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "hook_post_bind4",
+			},
+			CGroupPath: cgroup2MountPoint,
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "hook_post_bind6",
+			},
+			CGroupPath: cgroup2MountPoint,
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "hook_connect4",
+			},
+			CGroupPath: cgroup2MountPoint,
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "hook_connect6",
+			},
+			CGroupPath: cgroup2MountPoint,
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "hook_sendmsg4",
+			},
+			CGroupPath: cgroup2MountPoint,
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "hook_sendmsg6",
+			},
+			CGroupPath: cgroup2MountPoint,
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "hook_recvmsg4",
+			},
+			CGroupPath: cgroup2MountPoint,
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "hook_recvmsg6",
+			},
+			CGroupPath: cgroup2MountPoint,
+		},
 	}
 
 	socketProbes = append(socketProbes, ExpandSyscallProbes(&manager.Probe{
@@ -48,6 +104,14 @@ func GetAllSocketProgramFunctions() []string {
 	return []string{
 		"hook_sock_create",
 		"hook_sock_release",
+		"hook_post_bind4",
+		"hook_post_bind6",
+		"hook_connect4",
+		"hook_connect6",
+		"hook_sendmsg4",
+		"hook_sendmsg6",
+		"hook_recvmsg4",
+		"hook_recvmsg6",
 	}
 }
 
