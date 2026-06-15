@@ -13,6 +13,7 @@ import (
 	"crypto/tls"
 	"encoding/hex"
 	"errors"
+	"maps"
 	"slices"
 	"sync"
 	"time"
@@ -639,20 +640,27 @@ func (c *Client) update() error {
 			continue
 		}
 		// Snapshot once per product. state.GetConfigs returns a fresh map
-		// (see pkg/remoteconfig/state/configs.go), so it's safe to hand off
-		// to workers without further synchronization.
+		// (see pkg/remoteconfig/state/configs.go).
 		configs := c.state.GetConfigs(product)
 		// Bind the apply-status callback to the versions in *this* snapshot.
 		// A slow Listener.OnUpdate may finish after the next poll has already
 		// replaced the configs at these paths; without version-binding, the
 		// late ApplyStatus would stamp the new version's metadata with the
 		// result of processing the old config (see
-		// state.Repository.UpdateApplyStatusIfVersion).
+		// state.Repository.UpdateApplyStatusIfVersion). The closure only reads
+		// the captured versions and routes through a synchronized repository
+		// method, so it is safe to share across this product's listeners.
 		applyStatus := c.boundApplyStatus(configs)
 		for _, entry := range productListeners {
 			if response.ConfigStatus == pbgo.ConfigStatus_CONFIG_STATUS_OK ||
 				!entry.listener.ShouldIgnoreSignatureExpiration() {
-				entry.scheduleUpdate(configs, applyStatus)
+				// Hand each listener its own map so concurrent workers can't
+				// race on a shared instance if a listener mutates its input.
+				// This is a shallow clone — it isolates map-level mutations
+				// (add/delete/replace), matching the per-listener isolation the
+				// synchronous code provided. Config bodies ([]byte) are still
+				// shared, exactly as before; they must be treated read-only.
+				entry.scheduleUpdate(maps.Clone(configs), applyStatus)
 			}
 		}
 	}
