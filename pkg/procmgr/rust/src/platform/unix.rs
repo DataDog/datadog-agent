@@ -9,6 +9,10 @@ use nix::unistd::Pid;
 use std::os::unix::process::ExitStatusExt;
 use std::path::PathBuf;
 
+/// On Unix, managed children intentionally do not inherit the parent environment
+/// beyond what `processes.d` supplies (see `env_clear` in `ManagedProcess`).
+pub fn apply_minimal_parent_env(_cmd: &mut tokio::process::Command) {}
+
 /// Place the child in its own process group so signals don't propagate
 /// to the daemon itself and SIGTERM can target all descendants.
 pub fn setup_process_group(cmd: &mut tokio::process::Command) {
