@@ -93,7 +93,7 @@ func (c *CrossSignalCorrelator) Name() string {
 	return "cross_signal_correlator"
 }
 
-// Process implements Correlator. It adds an anomaly to the buffer
+// ProcessAnomaly implements Correlator. It adds an anomaly to the buffer
 // using its data timestamp and evicts old entries.
 func (c *CrossSignalCorrelator) ProcessAnomaly(anomaly observer.Anomaly) {
 	dataTime := anomaly.Timestamp

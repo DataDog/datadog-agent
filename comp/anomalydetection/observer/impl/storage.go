@@ -18,7 +18,6 @@ import (
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// timeSeriesStorage is an internal storage for time series data.
 // StorageConfig holds tunable parameters for timeSeriesStorage.
 type StorageConfig struct {
 	// MaxSeries caps live series; when exceeded on Advance, series are evicted
@@ -57,6 +56,7 @@ const (
 	storagePointRetentionSecs = 120
 )
 
+// timeSeriesStorage is an internal storage for time series data.
 type timeSeriesStorage struct {
 	cfg    StorageConfig
 	mu     sync.RWMutex
@@ -966,37 +966,14 @@ func (s *timeSeriesStorage) DataTimestamps() []int64 {
 
 // SeriesGeneration returns a counter that increments whenever the series
 // catalog changes — either when a new series key is created or when an
-// existing key is removed via RemoveSeriesByKeys. Callers can use this to
-// safely cache ListSeries results.
+// existing key is removed via RemoveSeriesByRefs or RemoveSeriesByMetricName.
+// Callers can use this to safely cache ListSeries results.
 func (s *timeSeriesStorage) SeriesGeneration() uint64 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.seriesGen
 }
 
-// RemoveSeriesByKeys deletes the listed internal series keys (as produced by
-// seriesKey). The compact numeric SeriesRef IDs assigned to each removed
-// series are retired but NEVER reused: the slot in seriesIDStats is set to
-// nil so any stale SeriesRef resolves to nil via resolveByID, and the slot
-// in seriesIDKeys is set to "" — the slice length is preserved so subsequent
-// index lookups remain bounds-safe, but the original key string is no longer
-// referenced and can be garbage-collected. GetSeriesByNumericID's nil-stats
-// guard handles the empty-string lookup safely (s.series[""] is always nil).
-// Returns the SeriesRefs that were actually freed (one per successful removal,
-// in input order; unknown keys are silently skipped). seriesGen is bumped iff
-// at least one series was removed so cached ListSeries results are invalidated.
-//
-// Callers use the returned refs to fan out per-series teardown to detector
-// state that's keyed by SeriesRef (BOCPD, ScanMW, ScanWelch posterior maps,
-// seriesDetectorAdapter.lastVisibleCount, etc.). Without that fan-out, those
-// maps grow with the cumulative number of series ever observed even though
-// storage shrinks â defeating the LRU caps put on the upstream extractors.
-//
-// This is the storage-side counterpart to engine.removeContextRefsForEvictedKeys:
-// the engine's contextRefs index keeps track of which storage key was created
-// for which extractor context key, so when an extractor evicts a context the
-// engine can pass the corresponding storage keys here to free their tags +
-// columnar arrays. Without this path, evicted patterns leak indefinitely.
 // RemoveSeriesByRefs deletes series by their compact numeric refs. Each removed
 // series has its seriesIDStats slot set to nil (ref is never reused) and its
 // hash slot deleted from s.series. Returns the refs actually freed; out-of-range

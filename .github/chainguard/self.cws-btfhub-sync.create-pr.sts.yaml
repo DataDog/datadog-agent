@@ -1,13 +1,13 @@
 ---
 issuer: https://token.actions.githubusercontent.com
 
-subject: repo:DataDog/datadog-agent:ref:refs/heads/main
+subject_pattern: repo:DataDog/datadog-agent:ref:refs/heads/.*
 
 claim_pattern:
   event_name: (workflow_dispatch|schedule)
-  ref: refs/heads/main
-  ref_protected: "true"
   job_workflow_ref: DataDog/datadog-agent/\.github/workflows/cws-btfhub-sync\.yml@refs/heads/main
+  ref: refs/heads/.*
+  repository: DataDog/datadog-agent
 
 permissions:
   contents: write

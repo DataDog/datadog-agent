@@ -13,7 +13,9 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/kubeactions/executors",
     visibility = ["//visibility:public"],
     deps = [
+        "//pkg/config/setup",
         "//pkg/util/log",
+        "//pkg/util/scrubber",
         "@com_github_datadog_agent_payload_v5//kubeactions",
         "@io_k8s_api//apps/v1:apps",
         "@io_k8s_api//core/v1:core",

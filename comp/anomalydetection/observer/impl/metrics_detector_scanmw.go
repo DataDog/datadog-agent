@@ -129,7 +129,7 @@ func (d *ScanMWDetector) RemoveSeries(refs []observer.SeriesRef) {
 // and scans for changepoints. After finding one, the segment start advances
 // so subsequent calls only examine post-change data.
 //
-// Iteration pattern is the same as BOCPD (metrics_detector_bocpd.go:140-221)
+// Iteration pattern is the same as BOCPD (metrics_detector_bocpd.go Detect loop)
 // and ScanWelch — consider dedup if more scan-based detectors are added.
 func (d *ScanMWDetector) Detect(storage observer.StorageReader, dataTime int64) observer.DetectionResult {
 	d.ensureDefaults()

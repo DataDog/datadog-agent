@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 )
@@ -365,7 +366,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("ccm_network_config.enabled", false)
 
 	// Discovery config
-	cfg.BindEnvAndSetDefault("discovery.enabled", runtime.GOOS == "linux")
+	cfg.BindEnvAndSetDefault("discovery.enabled", runtime.GOOS == "linux" && !pkgconfigenv.IsECSFargate())
 	cfg.BindEnvAndSetDefault("discovery.use_system_probe_lite", runtime.GOOS == "linux")
 	cfg.BindEnvAndSetDefault("discovery.cpu_usage_update_delay", "60s")
 	cfg.BindEnvAndSetDefault("discovery.service_collection_interval", "60s")

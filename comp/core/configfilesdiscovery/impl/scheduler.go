@@ -23,6 +23,7 @@ type adScheduler struct {
 	resolver   targetResolver
 	readers    map[RuntimeType]configReaderFactory
 	collectors map[string]configCollector
+	reporter   configFileReporter
 
 	ctx             context.Context
 	cancel          context.CancelFunc
@@ -40,16 +41,31 @@ type configCollectionWork struct {
 	readerFactory configReaderFactory
 }
 
+type configFileReporter interface {
+	ReportConfigFile(context.Context, string, ConfigFile) error
+}
+
+type noopConfigFileReporter struct{}
+
+func (noopConfigFileReporter) ReportConfigFile(context.Context, string, ConfigFile) error {
+	return nil
+}
+
 // newADScheduler builds the object registered with autodiscovery.
 // Autodiscovery calls this scheduler when integration configs appear or
 // disappear; this component only uses the scheduled configs as triggers for
 // one-shot config collection.
-func newADScheduler(resolver targetResolver, readers map[RuntimeType]configReaderFactory, collectors map[string]configCollector) *adScheduler {
+func newADScheduler(resolver targetResolver, readers map[RuntimeType]configReaderFactory, collectors map[string]configCollector, reporter configFileReporter) *adScheduler {
+	if reporter == nil {
+		reporter = noopConfigFileReporter{}
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &adScheduler{
 		resolver:        resolver,
 		readers:         readers,
 		collectors:      collectors,
+		reporter:        reporter,
 		ctx:             ctx,
 		cancel:          cancel,
 		collectionQueue: make(chan configCollectionWork, configCollectionQueueSize),
@@ -119,14 +135,28 @@ func (s *adScheduler) runCollection(work configCollectionWork) {
 		return
 	}
 
-	if err := work.collector.Run(s.ctx, reader); err != nil {
+	files, err := work.collector.Collect(s.ctx, reader)
+	if err != nil {
 		select {
 		case <-s.ctx.Done():
 			return
 		default:
-			log.Warnf("failed to run config files discovery for integration %q service %q: %v", work.config.Name, work.config.ServiceID, err)
+			log.Warnf("failed to collect config files for integration %q service %q: %v", work.config.Name, work.config.ServiceID, err)
 			return
 		}
+	}
+
+	for _, file := range files {
+		if err := s.reporter.ReportConfigFile(s.ctx, work.config.Name, file); err != nil {
+			select {
+			case <-s.ctx.Done():
+				return
+			default:
+				log.Warnf("failed to report config file for integration %q service %q path %q: %v", work.config.Name, work.config.ServiceID, file.Path, err)
+				continue
+			}
+		}
+		log.Debugf("config files discovery collected config file: integration %q path %q size_bytes %d truncated %t", work.config.Name, file.Path, len(file.Content), file.Truncated)
 	}
 }
 

@@ -30,13 +30,11 @@ const (
 )
 
 type observerTelemetry struct {
-	// Existing telemetry
 	channelDropped  telemetry.Counter
 	rrcfScore       telemetry.Gauge
 	rrcfThreshold   telemetry.Gauge
 	logPatternCount telemetry.Counter
 
-	// New telemetry
 	logsIngested     telemetry.Counter
 	processedLogSize telemetry.Counter
 	droppedLogs      telemetry.Counter

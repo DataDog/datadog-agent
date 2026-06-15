@@ -201,6 +201,7 @@ func TestSchedulerDispatchesRegisteredIntegrationsOnly(t *testing.T) {
 		targetResolver{},
 		map[RuntimeType]configReaderFactory{RuntimeHost: readerFactory.Build},
 		map[string]configCollector{"redis": collector},
+		nil,
 	)
 	defer s.Stop()
 
@@ -225,6 +226,7 @@ func TestSchedulerContinuesAfterInvalidConfigInBatch(t *testing.T) {
 		targetResolver{},
 		map[RuntimeType]configReaderFactory{RuntimeDocker: fakeConfigReaderFactory(fakeConfigReader{runtime: RuntimeDocker})},
 		map[string]configCollector{"redis": collector},
+		nil,
 	)
 	defer s.Stop()
 
@@ -246,6 +248,7 @@ func TestSchedulerRunsCollectorOutsideScheduleCallback(t *testing.T) {
 		targetResolver{},
 		map[RuntimeType]configReaderFactory{RuntimeHost: readerFactory.Build},
 		map[string]configCollector{"redis": collector},
+		nil,
 	)
 	defer s.Stop()
 
@@ -268,6 +271,40 @@ func TestSchedulerRunsCollectorOutsideScheduleCallback(t *testing.T) {
 	collector.waitForRuns(t, 1)
 }
 
+func TestSchedulerReportsCollectedFiles(t *testing.T) {
+	reporter := &recordingConfigFileReporter{}
+	collector := &recordingConfigCollector{
+		files: []ConfigFile{
+			{
+				Path:      "/etc/redis/redis.conf",
+				Content:   []byte("port 6379\n"),
+				Truncated: true,
+			},
+		},
+	}
+	s := newADScheduler(
+		targetResolver{},
+		map[RuntimeType]configReaderFactory{RuntimeDocker: fakeConfigReaderFactory(fakeConfigReader{runtime: RuntimeDocker})},
+		map[string]configCollector{redisIntegrationName: collector},
+		reporter,
+	)
+	defer s.Stop()
+
+	s.Schedule([]integration.Config{
+		checkConfig(redisIntegrationName, "docker://abc123"),
+	})
+
+	reports := reporter.waitForReports(t, 1)
+	assert.Equal(t, configFileReportCall{
+		integration: redisIntegrationName,
+		file: ConfigFile{
+			Path:      "/etc/redis/redis.conf",
+			Content:   []byte("port 6379\n"),
+			Truncated: true,
+		},
+	}, reports[0])
+}
+
 func TestComponentRegistersAutodiscoverySchedulerOnStart(t *testing.T) {
 	ac := &fakeAutodiscovery{}
 	lifecycle := &recordingLifecycle{}
@@ -286,6 +323,14 @@ func TestComponentRegistersAutodiscoverySchedulerOnStart(t *testing.T) {
 	require.NotNil(t, lifecycle.hook.OnStop)
 	require.NoError(t, lifecycle.hook.OnStop(context.Background()))
 	assert.Equal(t, schedulerName, ac.removedName)
+}
+
+func TestComponentRegistersRedisCollector(t *testing.T) {
+	c := newComponent(nil, targetResolver{})
+	adScheduler, ok := c.scheduler.(*adScheduler)
+	require.True(t, ok)
+
+	assert.Contains(t, adScheduler.collectors, redisIntegrationName)
 }
 
 func checkConfig(name string, serviceID string) integration.Config {
@@ -310,17 +355,19 @@ type recordingConfigCollector struct {
 	mu      sync.Mutex
 	runs    []runCall
 	unblock chan struct{}
+	files   []ConfigFile
+	err     error
 }
 
 type runCall struct {
 	reader ConfigReader
 }
 
-func (c *recordingConfigCollector) Run(ctx context.Context, reader ConfigReader) error {
+func (c *recordingConfigCollector) Collect(ctx context.Context, reader ConfigReader) ([]ConfigFile, error) {
 	if c.unblock != nil {
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return nil, ctx.Err()
 		case <-c.unblock:
 		}
 	}
@@ -330,7 +377,44 @@ func (c *recordingConfigCollector) Run(ctx context.Context, reader ConfigReader)
 	c.runs = append(c.runs, runCall{
 		reader: reader,
 	})
-	return nil
+	return c.files, c.err
+}
+
+type configFileReportCall struct {
+	integration string
+	file        ConfigFile
+}
+
+type recordingConfigFileReporter struct {
+	mu      sync.Mutex
+	reports []configFileReportCall
+	err     error
+}
+
+func (r *recordingConfigFileReporter) ReportConfigFile(_ context.Context, integration string, file ConfigFile) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.reports = append(r.reports, configFileReportCall{
+		integration: integration,
+		file:        file,
+	})
+	return r.err
+}
+
+func (r *recordingConfigFileReporter) waitForReports(t *testing.T, count int) []configFileReportCall {
+	t.Helper()
+
+	require.Eventually(t, func() bool {
+		r.mu.Lock()
+		defer r.mu.Unlock()
+		return len(r.reports) >= count
+	}, time.Second, 10*time.Millisecond)
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	reports := make([]configFileReportCall, len(r.reports))
+	copy(reports, r.reports)
+	return reports
 }
 
 func (c *recordingConfigCollector) waitForRuns(t *testing.T, count int) []runCall {

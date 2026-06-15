@@ -53,7 +53,8 @@ type Requires struct {
 	FilterStore option.Option[workloadfilter.Component]
 
 	// Autodiscovery is optional: when absent the AD scheduler is simply not started
-	// and the observer falls back to generic container log collection only.
+	// and the observer falls back to generic container and kubelet log collection
+	// without AD-scheduled config overlays.
 	Autodiscovery autodiscovery.Component `fx:"optional"`
 }
 
@@ -68,13 +69,12 @@ type logssourceComponent struct{}
 // NewComponent creates the logssource component.
 //
 // anomaly_detection.logs.enabled is the main toggle for all log ingestion:
-// setting it to false disables container, kubelet, and agent-internal logs
-// (observer's internal log tap).
+// setting it to false disables container and kubelet sources wired here.
 // anomaly_detection.logs.containers.enabled controls workloadmeta generic
 // container sources and AD-scheduled container log configs.
 // anomaly_detection.logs.kubelet.enabled controls the kubelet journald source.
-// anomaly_detection.logs.internal.enabled additionally controls the agent-internal
-// log tap and defaults to true when logs.enabled is true.
+// Agent-internal logs are wired separately by the observer via
+// anomaly_detection.logs.internal.enabled (see observer/impl/observer.go).
 //
 // The component is a no-op when any of these are true:
 //   - the observer is unavailable

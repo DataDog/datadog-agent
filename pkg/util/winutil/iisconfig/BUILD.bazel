@@ -24,6 +24,7 @@ go_test(
     name = "iisconfig_test",
     srcs = [
         "apmtags_test.go",
+        "envvars_test.go",
         "iisconfig_test.go",
         "matching_subsite_test.go",
     ],

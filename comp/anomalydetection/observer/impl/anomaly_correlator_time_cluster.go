@@ -21,7 +21,7 @@ type TimeClusterConfig struct {
 	ProximitySeconds int64 `json:"proximity_seconds"`
 
 	// WindowSeconds is how long to keep anomalies before eviction.
-	// Default: 60 seconds.
+	// Default: 120 seconds (see DefaultTimeClusterConfig).
 	WindowSeconds int64 `json:"window_seconds"`
 
 	// MinClusterSize is the minimum number of anomalies a cluster must contain
@@ -73,7 +73,7 @@ func NewTimeClusterCorrelator(config TimeClusterConfig) *TimeClusterCorrelator {
 		config.ProximitySeconds = 10
 	}
 	if config.WindowSeconds == 0 {
-		config.WindowSeconds = 60
+		config.WindowSeconds = DefaultTimeClusterConfig().WindowSeconds
 	}
 	return &TimeClusterCorrelator{
 		config:   config,
@@ -201,7 +201,7 @@ func (c *TimeClusterCorrelator) mergeClusters(clusters []*timeCluster) *timeClus
 	return merged
 }
 
-// Flush evicts old clusters and returns empty (reporters pull state via ActiveCorrelations).
+// Advance evicts old clusters past the retention window (reporters pull state via ActiveCorrelations).
 func (c *TimeClusterCorrelator) Advance(dataTime int64) {
 	c.mu.Lock()
 	defer c.mu.Unlock()

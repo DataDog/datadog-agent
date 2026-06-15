@@ -1,0 +1,5 @@
+{
+  "DD_SERVICE": "json-service",
+  "DD_ENV": "json-env",
+  "DD_VERSION": "json-version"
+}
