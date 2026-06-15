@@ -4,7 +4,7 @@
 // Copyright 2016-present Datadog, Inc.
 
 // Package fx provides the testbench fx module for the reporter component.
-// Wire this in the testbench binary: it provides the SSE-pushing reporter.Component
+// Wire this in the testbench binary: it provides the SSE-pushing reporter.Reporter
 // and exposes SSEAccess for the HTTP API to register browser clients.
 package fx
 
