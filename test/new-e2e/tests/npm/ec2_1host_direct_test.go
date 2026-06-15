@@ -57,7 +57,7 @@ func (v *ec2VMDirectSuite) BeforeTest(suiteName, testName string) {
 
 	// Verify that the process agent is not running
 	assert.EventuallyWithT(v.T(), func(c *assert.CollectT) {
-		status := v.Env().RemoteHost.MustExecute("sudo /opt/datadog-agent/embedded/bin/process-agent status")
+		status := v.Env().RemoteHost.MustExecuteOn(c, "sudo /opt/datadog-agent/embedded/bin/process-agent status")
 		assert.Contains(c, status, "The Process Agent is not running")
 	}, 1*time.Minute, 5*time.Second)
 

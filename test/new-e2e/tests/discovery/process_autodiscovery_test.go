@@ -89,8 +89,7 @@ http {
 
 	// Verify nginx stub_status is accessible, retrying to allow reload to complete
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
-		output, err := s.Env().RemoteHost.Execute("curl -s http://localhost:81/nginx_status")
-		assert.NoError(c, err, "curl failed")
+		output := s.Env().RemoteHost.MustExecuteOn(c, "curl -s http://localhost:81/nginx_status")
 		assert.Contains(c, output, "Active connections", "nginx stub_status should be accessible")
 	}, 30*time.Second, 2*time.Second)
 }
@@ -112,7 +111,7 @@ func (s *processAutodiscoverySuite) verifyRedisCheckScheduledViaProcess(c *asser
 	t := s.T()
 
 	// Verify check configuration via config-check
-	configCheckOutput := s.Env().RemoteHost.MustExecute("sudo datadog-agent configcheck")
+	configCheckOutput := s.Env().RemoteHost.MustExecuteOn(c, "sudo datadog-agent configcheck")
 
 	if !assert.Contains(c, configCheckOutput, "=== redisdb check ===", "redisdb check should be configured") {
 		t.Logf("config-check output: %s", configCheckOutput)
@@ -132,7 +131,7 @@ func (s *processAutodiscoverySuite) verifyRedisCheckScheduledViaProcess(c *asser
 	}
 
 	// Verify the check is running via collector status
-	statusOutput := s.Env().RemoteHost.MustExecute("sudo datadog-agent status collector --json")
+	statusOutput := s.Env().RemoteHost.MustExecuteOn(c, "sudo datadog-agent status collector --json")
 
 	var status collectorStatus
 	err := json.Unmarshal([]byte(statusOutput), &status)
@@ -180,7 +179,7 @@ func (s *processAutodiscoverySuite) verifyNginxCheckScheduledViaProcess(c *asser
 	t.Logf("nginx process count: %s", nginxCount)
 
 	// Verify check configuration via config-check
-	configCheckOutput := s.Env().RemoteHost.MustExecute("sudo datadog-agent configcheck")
+	configCheckOutput := s.Env().RemoteHost.MustExecuteOn(c, "sudo datadog-agent configcheck")
 
 	if !assert.Contains(c, configCheckOutput, "=== nginx check ===", "nginx check should be configured") {
 		t.Logf("config-check output: %s", configCheckOutput)
@@ -194,7 +193,7 @@ func (s *processAutodiscoverySuite) verifyNginxCheckScheduledViaProcess(c *asser
 	}
 
 	// Verify the check is running via collector status
-	statusOutput := s.Env().RemoteHost.MustExecute("sudo datadog-agent status collector --json")
+	statusOutput := s.Env().RemoteHost.MustExecuteOn(c, "sudo datadog-agent status collector --json")
 
 	var status collectorStatus
 	err := json.Unmarshal([]byte(statusOutput), &status)

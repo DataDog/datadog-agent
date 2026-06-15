@@ -727,6 +727,134 @@ func TestPCIELinkBytesPerSecond(t *testing.T) {
 	}
 }
 
+func TestPCIELinkMetrics(t *testing.T) {
+	tests := map[string]struct {
+		currentWidth       int
+		maxWidth           int
+		currentGeneration  int
+		maxGeneration      int
+		expectedMetricVals map[string]float64
+		expectedErr        string
+	}{
+		"matching link": {
+			currentWidth:      16,
+			maxWidth:          16,
+			currentGeneration: 4,
+			maxGeneration:     4,
+			expectedMetricVals: map[string]float64{
+				"pci.link.width.current":  16,
+				"pci.link.width.max":      16,
+				"pci.link.width.degraded": 0,
+				"pci.link.speed.current":  31.50769230769231e9,
+				"pci.link.speed.max":      31.50769230769231e9,
+				"pci.link.speed.degraded": 0,
+			},
+		},
+		"degraded link": {
+			currentWidth:      8,
+			maxWidth:          16,
+			currentGeneration: 4,
+			maxGeneration:     4,
+			expectedMetricVals: map[string]float64{
+				"pci.link.width.current":  8,
+				"pci.link.width.max":      16,
+				"pci.link.width.degraded": 1,
+				"pci.link.speed.current":  15.753846153846155e9,
+				"pci.link.speed.max":      31.50769230769231e9,
+				"pci.link.speed.degraded": 1,
+			},
+		},
+		"current width error": {
+			currentWidth:      -1,
+			maxWidth:          16,
+			currentGeneration: 4,
+			maxGeneration:     4,
+			expectedErr:       "get current PCIe link width",
+		},
+		"max width error emits current width": {
+			currentWidth:      16,
+			maxWidth:          -1,
+			currentGeneration: 4,
+			maxGeneration:     4,
+			expectedMetricVals: map[string]float64{
+				"pci.link.width.current": 16,
+			},
+			expectedErr: "get max PCIe link width",
+		},
+		"current generation error emits width metrics": {
+			currentWidth:      8,
+			maxWidth:          16,
+			currentGeneration: -1,
+			maxGeneration:     4,
+			expectedMetricVals: map[string]float64{
+				"pci.link.width.current":  8,
+				"pci.link.width.max":      16,
+				"pci.link.width.degraded": 1,
+			},
+			expectedErr: "get current PCIe link generation",
+		},
+		"max generation error emits current speed": {
+			currentWidth:      8,
+			maxWidth:          16,
+			currentGeneration: 4,
+			maxGeneration:     -1,
+			expectedMetricVals: map[string]float64{
+				"pci.link.width.current":  8,
+				"pci.link.width.max":      16,
+				"pci.link.width.degraded": 1,
+				"pci.link.speed.current":  15.753846153846155e9,
+			},
+			expectedErr: "get max PCIe link generation",
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			device := setupMockDevice(t, testutil.WithCustomHook(func(device *mock.Device) {
+				device.GetCurrPcieLinkWidthFunc = func() (int, nvml.Return) {
+					if test.currentWidth == -1 {
+						return 0, nvml.ERROR_UNKNOWN
+					}
+					return test.currentWidth, nvml.SUCCESS
+				}
+				device.GetMaxPcieLinkWidthFunc = func() (int, nvml.Return) {
+					if test.maxWidth == -1 {
+						return 0, nvml.ERROR_UNKNOWN
+					}
+					return test.maxWidth, nvml.SUCCESS
+				}
+				device.GetCurrPcieLinkGenerationFunc = func() (int, nvml.Return) {
+					if test.currentGeneration == -1 {
+						return 0, nvml.ERROR_UNKNOWN
+					}
+					return test.currentGeneration, nvml.SUCCESS
+				}
+				device.GetMaxPcieLinkGenerationFunc = func() (int, nvml.Return) {
+					if test.maxGeneration == -1 {
+						return 0, nvml.ERROR_UNKNOWN
+					}
+					return test.maxGeneration, nvml.SUCCESS
+				}
+			}))
+
+			metricsOut, _, err := pcieLinkMetrics(device)
+			if test.expectedErr == "" {
+				require.NoError(t, err)
+			} else {
+				require.ErrorContains(t, err, test.expectedErr)
+			}
+			require.Len(t, metricsOut, len(test.expectedMetricVals))
+			metricsByName := metricValuesToPointers(metricsOut)
+			for metricName, expectedValue := range test.expectedMetricVals {
+				metric := findMetric(metricsByName, metricName)
+				require.NotNil(t, metric, "expected metric %s", metricName)
+				require.InDelta(t, expectedValue, metric.Value, 1e6)
+				require.Equal(t, metrics.GaugeType, metric.Type)
+			}
+		})
+	}
+}
+
 func findAPICallByName(t *testing.T, apis []apiCallInfo, name string) apiCallInfo {
 	t.Helper()
 	for _, api := range apis {

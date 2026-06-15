@@ -511,7 +511,7 @@ properties:
       remote_config_btf_enabled:
         node_type: setting
         type: boolean
-        default: false
+        default: true
         env_vars:
         - DD_SYSTEM_PROBE_REMOTE_CONFIG_BTF_ENABLED
         tags: []
