@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    Network Configuration Management: SNMP autodiscovery can now automatically
+    generate Network Config Management check configurations for discovered devices
+    that define NCM credentials.
