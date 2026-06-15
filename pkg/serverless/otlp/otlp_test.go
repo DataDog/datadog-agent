@@ -25,6 +25,7 @@ import (
 	taggernoop "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serverless/metrics"
+	"github.com/DataDog/datadog-agent/pkg/serverless/metrics/metricstest"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 )
@@ -76,13 +77,9 @@ func TestServerlessOTLPAgentReceivesTraces(t *testing.T) {
 	traceAgent.SetSpanModifier(mockSpanModifier{traceChan: traceChan})
 
 	// setup metric agent
-	metricAgent := &metrics.ServerlessMetricAgent{
-		SketchesBucketOffset: time.Second * 10,
-	}
-	metricAgent.Start(5*time.Second, &metrics.MetricConfig{}, &metrics.MetricDogStatsD{})
-	defer metricAgent.Stop()
+	deps := metricstest.New(t, taggernoop.NewComponent())
+	metricAgent := &metrics.ServerlessMetricAgent{Demux: deps.Demux}
 	assert.NotNil(metricAgent.Demux)
-	assert.True(metricAgent.IsReady())
 
 	// setup otlp agent
 	otlpAgent := NewServerlessOTLPAgent(metricAgent.Demux.Serializer(), taggernoop.NewComponent())
