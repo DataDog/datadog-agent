@@ -27,7 +27,6 @@ files:
         wait for a response from each hop before timing out.
       required: false
     - name: disable_source_public_ip_collection
-      fleet_configurable: true
       value:
         type: boolean
         example: false
@@ -113,7 +112,6 @@ files:
         Destination service name.
       required: false
     - name: disable_source_public_ip_collection
-      fleet_configurable: true
       value:
         type: boolean
         example: false
