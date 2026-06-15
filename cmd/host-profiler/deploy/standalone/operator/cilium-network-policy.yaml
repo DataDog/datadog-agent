@@ -1,13 +1,13 @@
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
-  name: dd-host-profiler
-  namespace: dd-host-profiler
+  name: host-profiler
+  namespace: host-profiler
 specs:
 - description: Egress DNS
   endpointSelector:
     matchLabels:
-      app.kubernetes.io/name: dd-host-profiler-collector
+      app.kubernetes.io/name: host-profiler-collector
   egress:
   - toPorts:
     - ports:
@@ -21,7 +21,7 @@ specs:
 - description: Egress to Datadog intake
   endpointSelector:
     matchLabels:
-      app.kubernetes.io/name: dd-host-profiler-collector
+      app.kubernetes.io/name: host-profiler-collector
   egress:
   - toFQDNs:
     - matchPattern: "**.datadoghq.com"
@@ -34,7 +34,7 @@ specs:
 - description: Egress to kubelet API
   endpointSelector:
     matchLabels:
-      app.kubernetes.io/name: dd-host-profiler-collector
+      app.kubernetes.io/name: host-profiler-collector
   egress:
   - toPorts:
     - ports:
@@ -43,7 +43,7 @@ specs:
 - description: Egress to Kubernetes API server
   endpointSelector:
     matchLabels:
-      app.kubernetes.io/name: dd-host-profiler-collector
+      app.kubernetes.io/name: host-profiler-collector
   egress:
   - toEntities:
     - kube-apiserver
