@@ -1,5 +1,4 @@
 # Names used by the OpenTelemetry Collector Helm chart for generated resources.
-# If you change these, update the labels/selectors in the NetworkPolicy manifests too.
 nameOverride: host-profiler-collector
 fullnameOverride: host-profiler-collector
 
@@ -91,9 +90,6 @@ extraVolumes:
       path: /var/lib/kubelet/seccomp
       type: DirectoryOrCreate
 
-# Disabled here because this guide provides explicit NetworkPolicy manifests.
-networkPolicy:
-  enabled: false
 
 extraEnvs:
   # helm/otel-config.yaml references DD_API_KEY for profile export and debug
