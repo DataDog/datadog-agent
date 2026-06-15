@@ -94,6 +94,10 @@ go_deps.gazelle_override(
     build_extra_args = ["-build_tags=requirefips"],
     path = "go.opentelemetry.io/collector/config/configtls",
 )
+go_deps.gazelle_override(
+    build_extra_args = ["-build_tags=trivy_no_javadb"],
+    path = "github.com/aquasecurity/trivy",
+)
 use_repo(
     go_deps,
     "cat_dario_mergo",
