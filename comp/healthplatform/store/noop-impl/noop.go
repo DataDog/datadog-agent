@@ -50,16 +50,16 @@ func (n *NoopHealthPlatform) GetIssue(_ string) *healthplatformpayload.Issue {
 	return nil
 }
 
+// SetEgressCallbacks does nothing when the health platform is disabled.
+func (n *NoopHealthPlatform) SetEgressCallbacks(_ healthplatform.EgressCallbacks) {
+}
+
 // ResolveIssue does nothing when the health platform is disabled.
 func (n *NoopHealthPlatform) ResolveIssue(_ string) {
 }
 
 // ResolveAllIssues does nothing when the health platform is disabled.
 func (n *NoopHealthPlatform) ResolveAllIssues() {
-}
-
-// PruneResolvedIssues does nothing when the health platform is disabled.
-func (n *NoopHealthPlatform) PruneResolvedIssues() {
 }
 
 // GetActiveIssueIDsByIssueName returns nil when the health platform is disabled.

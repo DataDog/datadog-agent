@@ -26,6 +26,7 @@ import (
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	telemetrymock "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
+	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 )
 
 // memPersistence stores state in memory, replacing disk I/O in unit tests.
@@ -203,13 +204,20 @@ func TestResolveIssueRemovesFromActive(t *testing.T) {
 	h := newTestStore(t)
 	require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{Id: "t:id", IssueName: "t"}))
 
-	// ResolveIssue keeps the issue active with RESOLVED state so the egress keeps
-	// forwarding it. Cleanup happens on the next restart via loadFromDisk.
+	var cbTombstone *healthplatformpayload.Issue
+	h.SetEgressCallbacks(healthplatformdef.EgressCallbacks{
+		OnResolveIssue: func(tombstone *healthplatformpayload.Issue) {
+			cbTombstone = tombstone
+		},
+	})
+
 	h.ResolveIssue("t:id")
-	issue := h.GetIssue("t:id")
-	require.NotNil(t, issue, "issue must stay in active set after ResolveIssue")
-	require.NotNil(t, issue.PersistedIssue)
-	assert.Equal(t, IssueStateResolved, issue.PersistedIssue.State)
+
+	// Issue must be removed from the active set; the egress gets a tombstone via callback.
+	assert.Nil(t, h.GetIssue("t:id"), "issue must be removed from active set after ResolveIssue")
+	require.NotNil(t, cbTombstone, "OnResolveIssue callback must be called")
+	require.NotNil(t, cbTombstone.PersistedIssue)
+	assert.Equal(t, IssueStateResolved, cbTombstone.PersistedIssue.State)
 
 	require.NotNil(t, h.persistedIssues["t:id"])
 	assert.Equal(t, IssueStateResolved, h.persistedIssues["t:id"].State)

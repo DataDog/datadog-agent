@@ -9,12 +9,13 @@ package egressimpl
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/DataDog/agent-payload/v5/healthplatform"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	egressdef "github.com/DataDog/datadog-agent/comp/healthplatform/egress/def"
@@ -38,16 +39,19 @@ const (
 )
 
 // egress drives the periodic outbound POST to the Datadog intake.
-// On each tick it calls store.GetAllIssues(), builds a HealthReport, and
-// forwards it via forwarder.Send. When health_platform is disabled, lifecycle
-// hooks are never registered so the goroutine is never launched.
+// active issues are re-sent every tick; resolved tombstones (toSendOnce) are
+// trimmed by a slice-length operation after a successful send, so exactly-once
+// forwarding is structural rather than conditional.
 type egress struct {
 	log         log.Component
 	interval    time.Duration
 	hostname    string
 	agentFlavor string
-	store       storedef.Component
 	forwarder   forwarderdef.Component
+
+	pendingMu  sync.Mutex
+	active     map[string]*healthplatform.Issue // re-sent every tick until resolved
+	toSendOnce []*healthplatform.Issue          // tombstones; trimmed after a successful send
 
 	stopCh chan struct{}
 	doneCh chan struct{}
@@ -64,8 +68,6 @@ type Requires struct {
 }
 
 // New creates the egress component and registers its lifecycle hooks.
-// When health_platform.enabled is false, it returns a zero-value struct without
-// registering any lifecycle hooks.
 func New(reqs Requires) egressdef.Component {
 	if !reqs.Config.GetBool("health_platform.enabled") {
 		return &egress{}
@@ -87,11 +89,18 @@ func New(reqs Requires) egressdef.Component {
 		interval:    interval,
 		hostname:    hostname,
 		agentFlavor: flavor.GetFlavor(),
-		store:       reqs.Store,
 		forwarder:   reqs.Forwarder,
+		active:      make(map[string]*healthplatform.Issue),
 		stopCh:      make(chan struct{}),
 		doneCh:      make(chan struct{}),
 	}
+
+	// Callbacks must be registered before OnStart: the store's loadFromDisk fires
+	// first and calls onResolveIssue for any RESOLVED issues found on disk.
+	reqs.Store.SetEgressCallbacks(storedef.EgressCallbacks{
+		OnReportIssue:  e.onReportIssue,
+		OnResolveIssue: e.onResolveIssue,
+	})
 
 	reqs.Lifecycle.Append(compdef.Hook{
 		OnStart: e.start,
@@ -130,28 +139,63 @@ func (e *egress) run() {
 	}
 }
 
+func (e *egress) onReportIssue(issue *healthplatform.Issue) {
+	e.pendingMu.Lock()
+	e.active[issue.Id] = issue
+	e.pendingMu.Unlock()
+}
+
+// onResolveIssue removes the issue from active and queues the tombstone for one send.
+func (e *egress) onResolveIssue(tombstone *healthplatform.Issue) {
+	e.pendingMu.Lock()
+	delete(e.active, tombstone.Id)
+	e.toSendOnce = append(e.toSendOnce, tombstone)
+	e.pendingMu.Unlock()
+}
+
 func (e *egress) tick() {
-	count, issues := e.store.GetAllIssues()
-	if count == 0 {
+	e.pendingMu.Lock()
+	if len(e.active) == 0 && len(e.toSendOnce) == 0 {
+		e.pendingMu.Unlock()
 		e.log.Debug("Health platform egress: no issues to report, skipping tick")
 		return
 	}
 
-	report := e.buildReport(issues)
+	activeSnap := make(map[string]*healthplatform.Issue, len(e.active))
+	for k, v := range e.active {
+		activeSnap[k] = v
+	}
+	// Take a reference without clearing: we trim by length after a successful
+	// send, so tombstones appended by onResolveIssue during the send are kept.
+	resolvedSnap := e.toSendOnce
+	e.pendingMu.Unlock()
 
-	// Fresh context with a fixed timeout per send: the run loop does not carry
-	// a cancellable context, so we derive from Background rather than from an
-	// ancestor that may have already expired or been cancelled.
+	merged := make(map[string]*healthplatform.Issue, len(activeSnap)+len(resolvedSnap))
+	for k, v := range activeSnap {
+		merged[k] = v
+	}
+	for _, t := range resolvedSnap {
+		merged[t.Id] = t
+	}
+
+	report := e.buildReport(merged)
+
+	// Derive from Background: the run loop has no parent context to cancel.
 	ctx, cancel := context.WithTimeout(context.Background(), sendTimeout)
 	defer cancel()
 
 	if err := e.forwarder.Send(ctx, report); err != nil {
-		e.log.Warn(fmt.Sprintf("Health platform egress: failed to send %d issues: %v", count, err))
+		e.log.Warn(fmt.Sprintf("Health platform egress: failed to send %d issues: %v", len(merged), err))
 		return
 	}
 
-	e.log.Info(fmt.Sprintf("Health platform egress: sent report with %d issues", count))
-	e.store.PruneResolvedIssues()
+	e.log.Info(fmt.Sprintf("Health platform egress: sent report with %d issues", len(merged)))
+
+	if len(resolvedSnap) > 0 {
+		e.pendingMu.Lock()
+		e.toSendOnce = e.toSendOnce[len(resolvedSnap):]
+		e.pendingMu.Unlock()
+	}
 }
 
 func (e *egress) buildReport(issues map[string]*healthplatform.Issue) *healthplatform.HealthReport {

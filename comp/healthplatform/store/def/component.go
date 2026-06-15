@@ -15,8 +15,25 @@ import (
 	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 )
 
+// EgressCallbacks groups the functions the egress registers with the store.
+// The store calls these on state transitions; either field may be nil (no-op).
+type EgressCallbacks struct {
+	// OnReportIssue is called after a new or updated issue is stored.
+	// The issue is a fully-hydrated clone safe for the egress to retain.
+	OnReportIssue func(issue *healthplatformpayload.Issue)
+
+	// OnResolveIssue is called when an issue transitions to RESOLVED.
+	// The tombstone is a minimal proto (ID, IssueName, PersistedIssue only).
+	OnResolveIssue func(tombstone *healthplatformpayload.Issue)
+}
+
 // Component is the health platform store component interface.
 type Component interface {
+	// SetEgressCallbacks registers the egress callbacks invoked on state changes.
+	// Must be called before the component's OnStart lifecycle hook fires (i.e.
+	// from the egress constructor, before App.Start).
+	SetEgressCallbacks(cbs EgressCallbacks)
+
 	// ReportIssue records a new or ongoing issue keyed by issue.Id. Two calls
 	// with the same issue.Id update the same instance (state machine: new →
 	// ongoing). issue.IssueName is used as the issue-type key for telemetry
@@ -44,11 +61,6 @@ type Component interface {
 
 	// ResolveAllIssues marks every active issue as resolved.
 	ResolveAllIssues()
-
-	// PruneResolvedIssues removes RESOLVED tombstones from the active set.
-	// Called by the egress after a successful send so that resolved issues are
-	// not re-forwarded on every subsequent tick.
-	PruneResolvedIssues()
 
 	// GetActiveIssueIDsByIssueName returns the IDs of all currently active issues
 	// with the given IssueName (e.g. "docker_file_tailing_disabled").

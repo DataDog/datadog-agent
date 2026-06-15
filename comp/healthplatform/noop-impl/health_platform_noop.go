@@ -53,13 +53,13 @@ func (n *noopHealthPlatform) GetIssue(_ string) *healthplatformpayload.Issue {
 	return nil
 }
 
+func (n *noopHealthPlatform) SetEgressCallbacks(_ healthplatformdef.EgressCallbacks) {
+}
+
 func (n *noopHealthPlatform) ResolveIssue(_ string) {
 }
 
 func (n *noopHealthPlatform) ResolveAllIssues() {
-}
-
-func (n *noopHealthPlatform) PruneResolvedIssues() {
 }
 
 func (n *noopHealthPlatform) GetActiveIssueIDsByIssueName(_ string) []string {
