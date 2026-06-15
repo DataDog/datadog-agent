@@ -20,7 +20,9 @@ func init() {
 }
 
 const (
-	// IssueID is the unique instance id prefix used when reporting check failures.
+	// IssueName is the proto IssueName field value for check execution failures (snake_case).
+	IssueName = "check_execution_failure"
+	// IssueID is the unique instance id prefix used when reporting check failures (kebab-case).
 	IssueID = "check-execution-failure"
 )
 
@@ -37,7 +39,7 @@ func NewModule(config.Component) issues.Module {
 }
 
 func (m *checkFailureModule) IssueName() string {
-	return issueName
+	return IssueName
 }
 
 func (m *checkFailureModule) BuildIssue(context map[string]string) (*healthplatform.Issue, error) {
