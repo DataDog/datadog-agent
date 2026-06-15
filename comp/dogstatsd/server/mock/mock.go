@@ -73,6 +73,3 @@ func (s *serverMock) UDPLocalAddr() string {
 func (s *serverMock) SetMetricFilterList(v []string, _ bool) {
 	s.filterlist = v
 }
-
-// ServerlessFlush is a noop mocked function
-func (s *serverMock) ServerlessFlush(time.Duration) {}
