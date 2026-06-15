@@ -223,9 +223,10 @@ func TestFindControllerConfigMapArg(t *testing.T) {
 		wantNS       string
 		wantName     string
 		wantFound    bool
+		wantErr      error
 	}{
 		{
-			name:         "standard $(POD_NAMESPACE) form",
+			name:         "standard $(POD_NAMESPACE) form is accepted",
 			pod:          newControllerPod("test", "ingress-nginx", "img:v1"),
 			podNamespace: "ingress-nginx",
 			wantNS:       "ingress-nginx",
@@ -233,7 +234,21 @@ func TestFindControllerConfigMapArg(t *testing.T) {
 			wantFound:    true,
 		},
 		{
-			name: "hardcoded namespace form",
+			name: "hardcoded same namespace is accepted",
+			pod: &corev1.Pod{
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{{
+						Args: []string{"--configmap=ingress-nginx/my-config"},
+					}},
+				},
+			},
+			podNamespace: "ingress-nginx",
+			wantNS:       "ingress-nginx",
+			wantName:     "my-config",
+			wantFound:    true,
+		},
+		{
+			name: "hardcoded foreign namespace is rejected (confused-deputy guard)",
 			pod: &corev1.Pod{
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{{
@@ -242,12 +257,58 @@ func TestFindControllerConfigMapArg(t *testing.T) {
 				},
 			},
 			podNamespace: "ingress-nginx",
-			wantNS:       "custom-ns",
-			wantName:     "my-config",
-			wantFound:    true,
+			wantErr:      errCrossNamespaceConfigMap,
 		},
 		{
-			name: "no configmap arg",
+			name: "kube-system reference is rejected",
+			pod: &corev1.Pod{
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{{
+						Args: []string{"--configmap=kube-system/coredns"},
+					}},
+				},
+			},
+			podNamespace: "attacker-ns",
+			wantErr:      errCrossNamespaceConfigMap,
+		},
+		{
+			name: "leading slash with empty namespace is rejected",
+			pod: &corev1.Pod{
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{{
+						Args: []string{"--configmap=/foo"},
+					}},
+				},
+			},
+			podNamespace: "ingress-nginx",
+			wantErr:      errCrossNamespaceConfigMap,
+		},
+		{
+			name: "trailing slash with empty name is rejected",
+			pod: &corev1.Pod{
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{{
+						Args: []string{"--configmap=ingress-nginx/"},
+					}},
+				},
+			},
+			podNamespace: "ingress-nginx",
+			wantErr:      errEmptyConfigMapName,
+		},
+		{
+			name: "no slash skips the arg and falls through to not-found",
+			pod: &corev1.Pod{
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{{
+						Args: []string{"--configmap=foo"},
+					}},
+				},
+			},
+			podNamespace: "ingress-nginx",
+			wantFound:    false,
+		},
+		{
+			name: "no configmap arg falls back to defaults",
 			pod: &corev1.Pod{
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{{
@@ -258,11 +319,45 @@ func TestFindControllerConfigMapArg(t *testing.T) {
 			podNamespace: "ingress-nginx",
 			wantFound:    false,
 		},
+		{
+			name: "multi-container first match wins - malicious arg rejected even if later container is benign",
+			pod: &corev1.Pod{
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{Args: []string{"--configmap=kube-system/coredns"}},
+						{Args: []string{"--configmap=ingress-nginx/legit"}},
+					},
+				},
+			},
+			podNamespace: "ingress-nginx",
+			wantErr:      errCrossNamespaceConfigMap,
+		},
+		{
+			name: "multi-container second container holds the arg",
+			pod: &corev1.Pod{
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{Args: []string{"--election-id=x"}},
+						{Args: []string{"--configmap=ingress-nginx/legit"}},
+					},
+				},
+			},
+			podNamespace: "ingress-nginx",
+			wantNS:       "ingress-nginx",
+			wantName:     "legit",
+			wantFound:    true,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, _, ns, name, found := findControllerConfigMapArg(tt.pod, tt.podNamespace)
+			_, _, ns, name, found, err := findControllerConfigMapArg(tt.pod, tt.podNamespace)
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+				assert.False(t, found)
+				return
+			}
+			require.NoError(t, err)
 			assert.Equal(t, tt.wantFound, found)
 			if tt.wantFound {
 				assert.Equal(t, tt.wantNS, ns)
@@ -430,4 +525,47 @@ func TestMutatePodVersionParseFailed(t *testing.T) {
 	assert.Error(t, err)
 	assert.False(t, mutated)
 	assert.ErrorContains(t, err, "manual extraModules")
+}
+
+// TestMutatePod_CrossNamespaceConfigMapRefused is the bisect anchor for the
+// confused-deputy ConfigMap mitigation. It MUST fail against the unpatched
+// code (which trusted the pod's --configmap arg verbatim) and pass against the
+// patched code.
+func TestMutatePod_CrossNamespaceConfigMapRefused(t *testing.T) {
+	pattern, client := newTestNginxSidecarPattern(t)
+
+	pod := newControllerPod("attacker", "attacker-ns", "registry.k8s.io/ingress-nginx/controller:v1.15.1")
+	pod.Spec.Containers[0].Args = []string{
+		"/nginx-ingress-controller",
+		"--configmap=kube-system/coredns",
+		"--election-id=ingress-nginx-leader",
+	}
+
+	mutated, err := pattern.MutatePod(pod, "attacker-ns", client)
+	require.NoError(t, err, "MutatePod must not fail admission on cross-ns refs (fail-open)")
+	assert.False(t, mutated, "MutatePod must skip mutation on cross-ns refs")
+
+	assert.Empty(t, client.Actions(), "no API operations may occur on rejection")
+
+	assert.Equal(t, "--configmap=kube-system/coredns", pod.Spec.Containers[0].Args[1],
+		"pod arg must be unmodified")
+	assert.Empty(t, pod.Spec.InitContainers, "no init container must be injected")
+	assert.Empty(t, pod.Spec.Volumes, "no volume must be added")
+	assert.Empty(t, pod.Spec.Containers[0].VolumeMounts, "no volume mount must be added")
+}
+
+func TestMutatePod_EmptyConfigMapNameRefused(t *testing.T) {
+	pattern, client := newTestNginxSidecarPattern(t)
+
+	pod := newControllerPod("test", "ingress-nginx", "registry.k8s.io/ingress-nginx/controller:v1.15.1")
+	pod.Spec.Containers[0].Args = []string{
+		"/nginx-ingress-controller",
+		"--configmap=ingress-nginx/",
+	}
+
+	mutated, err := pattern.MutatePod(pod, "ingress-nginx", client)
+	require.NoError(t, err)
+	assert.False(t, mutated)
+	assert.Empty(t, pod.Spec.InitContainers)
+	assert.Empty(t, pod.Spec.Volumes)
 }
