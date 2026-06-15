@@ -1884,7 +1884,6 @@ func TestProcessExit(t *testing.T) {
 
 	t.Run("exit-signaled", func(t *testing.T) {
 		SkipIfNotAvailable(t)
-		flake.MarkOnJobName(t, "ubuntu_25.10")
 
 		test.WaitSignalFromRule(t, func() error {
 			args := []string{"--preserve-status", "--signal=SIGTERM", "2", sleepExec, "9"}
