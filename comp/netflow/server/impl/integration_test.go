@@ -13,13 +13,14 @@ import (
 	"testing"
 	"time"
 
-	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
-	"github.com/DataDog/datadog-agent/comp/netflow/goflowlib"
-	"github.com/DataDog/datadog-agent/comp/netflow/goflowlib/netflowstate"
 	"github.com/netsampler/goflow2/decoders/netflow/templates"
 	"github.com/netsampler/goflow2/utils"
 	"github.com/sirupsen/logrus"
 	"go.uber.org/atomic"
+
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
+	"github.com/DataDog/datadog-agent/comp/netflow/goflowlib"
+	"github.com/DataDog/datadog-agent/comp/netflow/goflowlib/netflowstate"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -273,4 +274,52 @@ func BenchmarkNetflowAdditionalFields(b *testing.B) {
 			require.NoError(b, err, "error processing packet")
 		}
 	})
+}
+
+func TestNetFlow_IntegrationTest_SplitBiflow(t *testing.T) {
+	port, err := ndmtestutils.GetFreePort()
+	require.NoError(t, err)
+
+	var epForwarder forwardermock.MockComponent
+	srv := fxutil.Test[server.Component](t, fx.Options(
+		testOptions,
+		fx.Populate(&epForwarder),
+		fx.Replace(
+			&nfconfig.NetflowConfig{
+				Enabled:                 true,
+				AggregatorFlushInterval: 1,
+				Listeners: []nfconfig.ListenerConfig{{
+					FlowType: common.TypeNetFlow9,
+					BindHost: "127.0.0.1",
+					Port:     port,
+					Mapping: []nfconfig.Mapping{
+						{
+							Field:       11,
+							Destination: "source.port",
+							Type:        common.Integer,
+						},
+						{
+							Field:       7,
+							Destination: "destination.port",
+						},
+						{
+							Field:       32,
+							Destination: "icmp_type",
+							Type:        common.Hex,
+						},
+					},
+				}},
+			},
+		),
+		setTimeNow,
+	)).(*Server)
+
+	flowData, err := testutil.GetBiflowNetflow9Packet()
+	require.NoError(t, err, "error getting packet")
+
+	// expect one biflow record to map into two unidirectional flows
+	testutil.ExpectBiflowPayloadWithAdditionalFields(t, epForwarder)
+	epForwarder.EXPECT().SendEventPlatformEventBlocking(gomock.Any(), "network-devices-metadata").Return(nil).Times(1)
+
+	assertFlowEventsCount(t, port, srv, flowData, 2)
 }
