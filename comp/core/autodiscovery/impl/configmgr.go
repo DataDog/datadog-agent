@@ -157,8 +157,7 @@ func newReconcilingConfigManager(secretResolver secrets.Component, healthPlatfor
 		secretResolver:     secretResolver,
 		healthPlatform:     healthPlatform,
 	}
-	cm.discoveredCh = make(chan integration.ConfigChanges, discoveredChangesBuffer)
-	cm.discoveryWorker = discoverer.NewWorker(disco, cmServiceLookup{cm}, cm.onDiscoveryResult, discoverer.Config{})
+	initDiscoveryWorker(cm, disco)
 	return cm
 }
 
@@ -485,7 +484,7 @@ func (cm *reconcilingConfigManager) resolveTemplateForService(tpl integration.Co
 	// Do not resolve the template through the synchronous path.
 	// Instead enqueue a discovery probe for the template and service pair.
 	if tpl.Discovery != nil {
-		cm.discoveryWorker.Enqueue(svc.GetServiceID(), tpl.Digest(), tpl.Name)
+		cm.scheduleDiscovery(svc.GetServiceID(), tpl.Digest(), tpl.Name)
 		return tpl, false
 	}
 
@@ -552,21 +551,6 @@ func (cm *reconcilingConfigManager) clearTemplateResolutionFailureByID(tplName, 
 	}
 	issueID := "ad-template:" + tplName + ":" + svcID + ":" + tplDigest
 	cm.healthPlatform.ResolveIssue(issueID)
-}
-
-// start implements configManager#start.
-func (cm *reconcilingConfigManager) start() {
-	cm.discoveryWorker.Start()
-}
-
-// stop implements configManager#stop.
-func (cm *reconcilingConfigManager) stop() {
-	cm.discoveryWorker.Stop()
-}
-
-// discoveredChanges implements configManager#discoveredChanges.
-func (cm *reconcilingConfigManager) discoveredChanges() <-chan integration.ConfigChanges {
-	return cm.discoveredCh
 }
 
 // onDiscoveryResult is the callback the discovery worker invokes when a probe

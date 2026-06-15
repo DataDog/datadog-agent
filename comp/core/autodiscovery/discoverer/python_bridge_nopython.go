@@ -7,16 +7,10 @@
 
 package discoverer
 
-import "errors"
-
-type nopythonBridge struct{}
-
-// NewPythonBridge returns a ConfigDiscoverer that permanently fails on every
-// call when the Agent is built without Python support.
+// NewPythonBridge returns nil when the Agent is built without Python support.
+// The nil ConfigDiscoverer causes autodiscovery to skip the Worker entirely,
+// letting the linker dead-code-eliminate all Worker and workqueue code from
+// non-Python binaries (IoT agent, Cluster Agent, etc.).
 func NewPythonBridge() ConfigDiscoverer {
-	return &nopythonBridge{}
-}
-
-func (b *nopythonBridge) DiscoverConfig(_, _ string) (string, error) {
-	return "", PermFail{Err: errors.New("python support is not available")}
+	return nil
 }
