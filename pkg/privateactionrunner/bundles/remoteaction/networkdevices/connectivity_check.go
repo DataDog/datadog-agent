@@ -120,15 +120,15 @@ func (h *ConnectivityCheckHandler) Run(
 		return nil, fmt.Errorf("failed to parse connectivityCheck inputs: %w", err)
 	}
 
-	out, err := runChecks(ctx, req)
+	res, err := runChecks(ctx, req)
 	if err != nil {
 		return nil, fmt.Errorf("connectivityCheck: %w", err)
 	}
-	return out, nil
+
+	return res, nil
 }
 
-// runChecks expands the request targets into host addresses and runs each requested check against
-// every device, classifying any failures. It runs entirely on the local host (no backend).
+// runChecks runs each requested check against every resolved target address.
 func runChecks(ctx context.Context, req ConnectivityCheckRequest) (ConnectivityCheckResult, error) {
 	if len(req.TargetAddresses) == 0 {
 		return ConnectivityCheckResult{}, errors.New("at least one target address is required")
@@ -188,8 +188,7 @@ func runPing(host string, opts *PingOptions) *PingResult {
 	return &PingResult{checkResult: checkResult{Success: true, RttMs: &rtt}, FailureCategory: failureNone}
 }
 
-// runSNMP GETs sysName, measures the request round-trip, and classifies failures. Credentials
-// are used only to build the local client and are never echoed back in the result.
+// runSNMP GETs sysName, measures the request round-trip, and classifies failures.
 func runSNMP(ctx context.Context, host string, opts *SNMPOptions) *SNMPResult {
 	if opts == nil || opts.Version == "" {
 		return &SNMPResult{checkResult: checkResult{Success: false, Error: "snmp options (version) are required when 'snmp' is requested"}, FailureCategory: failureUnknown}
@@ -325,8 +324,7 @@ func classifySNMPError(err error) (category, message string) {
 	return failureUnknown, message
 }
 
-// expandTargets resolves IPs and CIDR ranges into a de-duplicated host list; the backend bounds
-// the target count.
+// expandTargets resolves IPs and CIDR ranges into a de-duplicated host list.
 func expandTargets(targets []string) ([]string, error) {
 	var hosts []string
 	seen := make(map[string]struct{})
