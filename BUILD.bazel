@@ -308,7 +308,6 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/ebpf/bytecode/runtime/integrity_gen.go
 # gazelle:exclude pkg/ebpf/ebpftest/cgo_align.go
 # gazelle:exclude pkg/ebpf/features
-# gazelle:exclude pkg/ebpf/perf
 # gazelle:exclude pkg/ebpf/uprobes
 # gazelle:exclude pkg/ebpf/verifier
 # gazelle:exclude pkg/eventmonitor/consumers
