@@ -42,15 +42,21 @@ If the Datadog Agent is already installed, use one of the Datadog Agent paths so
 
 If something isn't working, see [Troubleshooting](troubleshooting.md).
 
-## Common usage
+## Frequently asked questions
 
-### Service naming
+### Summary
 
-The host profiler determines each process's service name from its `OTEL_SERVICE_NAME` environment variable.
+- Set `OTEL_SERVICE_NAME` or `DD_SERVICE` on workloads so profiles appear under meaningful [service names](#how-does-the-host-profiler-name-services). Set `DD_ENV` and `DD_VERSION` for richer filtering in the Datadog Profiler UI.
+- For compiled languages, keep [debug symbols](#do-i-need-debug-symbols) available or upload them separately for readable function names.
+- The Host Profiler [does not run privileged](#what-security-privileges-does-the-host-profiler-require), but it needs host-level process visibility and specific Linux capabilities; seccomp and AppArmor provide additional hardening.
 
-If `OTEL_SERVICE_NAME` is not set, the profiler infers the service name from the binary name. For interpreted languages, this is the interpreter name (for example, `java` for a Java process). If multiple services share the same interpreter and none set `OTEL_SERVICE_NAME`, their profiles are grouped under the same inferred name.
+### How does the Host Profiler name services?
 
-Set `OTEL_SERVICE_NAME` on each workload to identify them separately:
+The Host Profiler determines each process's service name from `OTEL_SERVICE_NAME` or `DD_SERVICE`.
+
+If neither variable is set, the profiler infers the service name from the binary name. For interpreted languages, this is the interpreter name, such as `java` or `python`. If multiple services share the same interpreter and do not set a service name, their profiles are grouped under the same inferred name.
+
+Set `OTEL_SERVICE_NAME` or `DD_SERVICE` on each workload to identify services separately:
 
 ```yaml
 env:
@@ -58,17 +64,13 @@ env:
     value: my-service
 ```
 
-#### Datadog-specific naming
+Set `DD_ENV` and `DD_VERSION` on your workloads for richer filtering in the Datadog Profiler UI.
 
-The profiler is also compatible with `DD_SERVICE` as replacement for `OTEL_SERVICE_NAME`.
+### Do I need debug symbols?
 
-Set `DD_ENV` and `DD_VERSION` for richer filtering in the Profiler UI.
+For compiled languages such as C, C++, Rust, and Go, debug symbols are required for function names to appear in profiles.
 
-### Manually uploading debug symbols
-
-For compiled languages (C, C++, Rust, Go), the host profiler uploads debug symbols to Datadog for symbolization. Binaries must include debug symbols (not stripped) for function names to appear in profiles.
-
-To upload symbols from stripped binaries:
+The Host Profiler uploads debug symbols to Datadog when they are available. If your production binaries are stripped, upload symbols from your build artifacts separately:
 
 1. Install the [datadog-ci CLI](https://github.com/DataDog/datadog-ci).
 2. Set your API key and site:
@@ -84,10 +86,13 @@ export DD_SITE=<DATADOG_SITE>
 DD_BETA_COMMANDS_ENABLED=1 datadog-ci elf-symbols upload /path/to/build/symbols/
 ```
 
-## Security
+### What security privileges does the Host Profiler require?
 
-The host profiler does not run privileged. It requests only the specific Linux capabilities it needs (`BPF`, `PERFMON`, `SYS_PTRACE`, `SYS_RESOURCE`, `DAC_READ_SEARCH`, `SYSLOG`, `CHECKPOINT_RESTORE`, `IPC_LOCK`).
+The Host Profiler does not run as a privileged container.
 
-**seccomp** further restricts the syscalls the container can make beyond what those capabilities allow. The profile ships at `/etc/dd-host-profiler/seccomp.json` inside the image and is applied automatically in the Helm and standalone deployment paths. In the Datadog Operator preview path, seccomp is optional and must be provisioned manually if you want the extra hardening; a future Operator version is expected to configure it by default.
+In Kubernetes, it runs as a host-level DaemonSet with `hostPID: true` so it can observe processes on the node. The deployment manifests add only the Linux capabilities required for eBPF-based host profiling.
 
-**AppArmor** is optional extra hardening where available. It restricts which binaries the profiler can exec: only `objcopy`, used for symbol extraction, is permitted.
+Seccomp and AppArmor provide additional hardening:
+
+- **seccomp** restricts the syscalls the container can make beyond what those capabilities allow. The seccomp profile ships at `/etc/dd-host-profiler/seccomp.json` inside the image and is applied automatically in Helm and standalone deployment paths. In the Datadog Operator preview path, seccomp is optional and must be provisioned manually if you want the extra hardening; a future Operator version is expected to configure it by default.
+- **AppArmor** is optional where available. The provided profile restricts which binaries the profiler can execute: only `objcopy`, used for symbol extraction, is permitted.
