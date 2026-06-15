@@ -10,6 +10,7 @@ package netflowstate
 import (
 	"bytes"
 	"context"
+	"maps"
 	"sync"
 	"time"
 
@@ -28,16 +29,12 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-// Used to map biflow byte/packet counts through Additional Fields (see formatdriver.go)
-var builtinBiflowMappings = []config.Mapping{
-	{Field: 231, Type: common.Integer, Destination: "initiator_octets", Endian: common.BigEndian},
-	{Field: 232, Type: common.Integer, Destination: "responder_octets", Endian: common.BigEndian},
-	{Field: 298, Type: common.Integer, Destination: "initiator_packets", Endian: common.BigEndian},
-	{Field: 299, Type: common.Integer, Destination: "responder_packets", Endian: common.BigEndian},
-	{Field: 1, Type: common.Integer, Destination: "in_bytes", Endian: common.BigEndian},
-	{Field: 2, Type: common.Integer, Destination: "in_packets", Endian: common.BigEndian},
-	{Field: 23, Type: common.Integer, Destination: "out_bytes", Endian: common.BigEndian},
-	{Field: 24, Type: common.Integer, Destination: "out_packets", Endian: common.BigEndian},
+// Used to map biflow byte/packet counts through additional fields (see formatdriver.go).
+var builtInBiflowMappings = map[uint16]config.Mapping{
+	231: {Field: 231, Type: common.Integer, Destination: "datadog.initiator_octets", Endian: common.BigEndian},
+	232: {Field: 232, Type: common.Integer, Destination: "datadog.responder_octets", Endian: common.BigEndian},
+	298: {Field: 298, Type: common.Integer, Destination: "datadog.initiator_packets", Endian: common.BigEndian},
+	299: {Field: 299, Type: common.Integer, Destination: "datadog.responder_packets", Endian: common.BigEndian},
 }
 
 // StateNetFlow holds a NetflowV9/IPFIX producer
@@ -173,10 +170,7 @@ func (s *StateNetFlow) initConfig() {
 }
 
 func mapFieldsConfig(mappingConfs []config.Mapping) map[uint16]config.Mapping {
-	mappedFieldsConfig := make(map[uint16]config.Mapping)
-	for _, m := range builtinBiflowMappings {
-		mappedFieldsConfig[m.Field] = m
-	}
+	mappedFieldsConfig := maps.Clone(builtInBiflowMappings)
 	for _, conf := range mappingConfs {
 		mappedFieldsConfig[conf.Field] = conf
 	}
