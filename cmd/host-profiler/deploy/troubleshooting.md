@@ -76,4 +76,4 @@ If profiles appear for some workloads but not for a specific process:
 
 For compiled languages such as C, C++, Rust, and Go, debug symbols are required for readable function names.
 
-The Host Profiler uploads debug symbols to Datadog when they are available locally. If your production binaries are stripped, upload symbols from your build artifacts separately. See [Do I need debug symbols?](README.md#do-i-need-debug-symbols).
+The Host Profiler uploads debug symbols to Datadog when they are available locally. If your production binaries are stripped, upload symbols from your build artifacts separately. See [Do I need debug symbols?](faq.md#do-i-need-debug-symbols).
