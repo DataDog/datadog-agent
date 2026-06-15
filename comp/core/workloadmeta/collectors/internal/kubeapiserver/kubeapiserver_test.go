@@ -491,10 +491,6 @@ func Test_metadataCollectionGVRs_WithFunctionalDiscovery(t *testing.T) {
 			},
 		},
 		{
-			// Regression test for CONTP-1749: a CRD served only on a non-preferred
-			// version of its group must still be auto-discovered. Here the preferred
-			// version of datadoghq.com is v2alpha1 (listed first), but datadogslos is
-			// only served on v1alpha1.
 			name: "resource served only on a non-preferred group version is discovered",
 			apiServerResourceList: []*metav1.APIResourceList{
 				{
@@ -528,37 +524,35 @@ func Test_metadataCollectionGVRs_WithFunctionalDiscovery(t *testing.T) {
 			},
 		},
 		{
-			// The preferred version always wins when a resource is served on both
-			// the preferred and a non-preferred version, regardless of list ordering.
 			name: "resource served on both preferred and non-preferred versions resolves to preferred",
 			apiServerResourceList: []*metav1.APIResourceList{
 				{
-					GroupVersion: "datadoghq.com/v1alpha1",
+					GroupVersion: "datadoghq.com/v2alpha1",
 					APIResources: []metav1.APIResource{
 						{
-							Name:       "datadogmetrics",
-							Kind:       "DatadogMetric",
+							Name:       "datadogagents",
+							Kind:       "DatadogAgent",
 							Namespaced: true,
 						},
 					},
 				},
 				{
-					GroupVersion: "datadoghq.com/v2alpha1",
+					GroupVersion: "datadoghq.com/v1alpha1",
 					APIResources: []metav1.APIResource{
 						{
-							Name:       "datadogmetrics",
-							Kind:       "DatadogMetric",
+							Name:       "datadogagents",
+							Kind:       "DatadogAgent",
 							Namespaced: true,
 						},
 					},
 				},
 			},
 			expectedGVRs: []schema.GroupVersionResource{
-				{Resource: "datadogmetrics", Group: "datadoghq.com", Version: "v1alpha1"},
+				{Resource: "datadogagents", Group: "datadoghq.com", Version: "v2alpha1"},
 			},
 			cfg: map[string]interface{}{
 				"cluster_agent.kube_metadata_collection.enabled":   true,
-				"cluster_agent.kube_metadata_collection.resources": "datadoghq.com/datadogmetrics",
+				"cluster_agent.kube_metadata_collection.resources": "datadoghq.com/datadogagents",
 			},
 		},
 	}

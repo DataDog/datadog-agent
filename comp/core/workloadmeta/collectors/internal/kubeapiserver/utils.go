@@ -150,8 +150,7 @@ func getGVRsForRequestedResources(discoveryClient discovery.DiscoveryInterface, 
 // discoverGroupResourceVersions discovers groups, resources, and versions in the kubernetes api server and returns a mapping
 // from GroupResource to Version.
 // A group resource is mapped to the preferred version of its group when the resource is served on that version.
-// Otherwise it falls back to a non-preferred version, so that resources served only on a non-preferred version
-// (e.g. a v1alpha1 CRD in a group whose preferred version is v2alpha1) remain discoverable.
+// Otherwise, it falls back to a non-preferred version, so that resources served only on a non-preferred version remain discoverable.
 func discoverGroupResourceVersions(discoveryClient discovery.DiscoveryInterface) (map[schema.GroupResource]string, error) {
 	apiGroups, apiResourceLists, err := discoveryClient.ServerGroupsAndResources()
 	if err != nil {
@@ -170,8 +169,7 @@ func discoverGroupResourceVersions(discoveryClient discovery.DiscoveryInterface)
 	}
 
 	// groupResourceToVersion maps a group resource to a discovered version.
-	// The preferred version of the group always wins; a non-preferred version is only recorded
-	// when no version has been discovered yet for that resource.
+	// The preferred version of the group always wins out over others.
 	groupResourceToVersion := map[schema.GroupResource]string{}
 	for _, resourceList := range apiResourceLists {
 		_, isPreferred := preferredGroupVersions[resourceList.GroupVersion]
