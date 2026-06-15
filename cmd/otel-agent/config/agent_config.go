@@ -197,6 +197,7 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 	// The otel-agent forces zlib compression, which is incompatible with the v3
 	// metrics intake.
 	pkgconfig.Set("use_v3_api.series.enabled", "false", pkgconfigmodel.SourceAgentRuntime)
+	pkgconfig.Set("serializer_experimental_use_v3_api.series.shadow_sample_rate", float64(0), pkgconfigmodel.SourceAgentRuntime)
 
 	// Log configs
 	pkgconfig.Set("logs_enabled", true, pkgconfigmodel.SourceDefault)
