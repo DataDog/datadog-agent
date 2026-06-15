@@ -9,6 +9,6 @@ go_library(
         "//test/e2e-framework/components/datadog/agentparams",
         "//test/e2e-framework/components/datadog/kubernetesagentparams",
         "//test/e2e-framework/testing/installers/dockeragent",
-        "@com_github_datadog_datadog_agent_test_e2e_framework//testing/runner",
+        "//test/e2e-framework/testing/runner",
     ],
 )

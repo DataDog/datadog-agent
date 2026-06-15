@@ -12,7 +12,7 @@ go_library(
         "//test/e2e-framework/testing/installers/helmagent",
         "//test/e2e-framework/testing/installers/hostagent",
         "//test/e2e-framework/testing/installspec",
-        "@com_github_datadog_datadog_agent_test_e2e_framework//testing/environments",
+        "//test/e2e-framework/testing/environments",
     ],
 )
 

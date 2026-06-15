@@ -8,7 +8,7 @@ go_library(
     deps = [
         "//test/e2e-framework/components",
         "//test/e2e-framework/testing/utils/common",
-        "@com_github_datadog_datadog_agent_test_e2e_framework//testing/environments",
-        "@com_github_datadog_datadog_agent_test_e2e_framework//testing/provisioners",
+        "//test/e2e-framework/testing/environments",
+        "//test/e2e-framework/testing/provisioners",
     ],
 )
