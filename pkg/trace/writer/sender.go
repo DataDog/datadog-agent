@@ -127,7 +127,7 @@ type eventData struct {
 	bytes int
 	// uncompressedBytes represents the number of uncompressed bytes affected by this event.
 	uncompressedBytes int
-	// count specfies the number of payloads that this events refers to.
+	// count specifies the number of payloads that this event refers to.
 	count int
 	// duration specifies the time it took to complete this event. It
 	// is set for eventType{Sent,Retry,Rejected}.
