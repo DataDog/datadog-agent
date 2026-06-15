@@ -61,8 +61,8 @@ type SNMPOptions struct {
 	Retries      int    `json:"retries"`
 }
 
-// Request is the connectivity-check input.
-type Request struct {
+// ConnectivityCheckRequest is the connectivity-check input.
+type ConnectivityCheckRequest struct {
 	TargetAddresses []string     `json:"targetAddresses"`
 	Checks          []string     `json:"checks"`
 	PingOptions     *PingOptions `json:"pingOptions,omitempty"`
@@ -115,7 +115,7 @@ func (h *ConnectivityCheckHandler) Run(
 	task *types.Task,
 	_ *privateconnection.PrivateCredentials,
 ) (interface{}, error) {
-	req, err := types.ExtractInputs[Request](task)
+	req, err := types.ExtractInputs[ConnectivityCheckRequest](task)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse connectivityCheck inputs: %w", err)
 	}
@@ -129,7 +129,7 @@ func (h *ConnectivityCheckHandler) Run(
 
 // runChecks expands the request targets into host addresses and runs each requested check against
 // every device, classifying any failures. It runs entirely on the local host (no backend).
-func runChecks(ctx context.Context, req Request) (ConnectivityCheckResult, error) {
+func runChecks(ctx context.Context, req ConnectivityCheckRequest) (ConnectivityCheckResult, error) {
 	if len(req.TargetAddresses) == 0 {
 		return ConnectivityCheckResult{}, errors.New("at least one target address is required")
 	}
