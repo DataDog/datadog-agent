@@ -236,14 +236,15 @@ def get_bazel_test_targets(ctx, flavor: str, modules: list[GoModule], bazel_flag
     if not bazel_patterns:
         return {}
 
+    flavor_tag = f'flavor_{flavor.name}'
     scope = ' + '.join(bazel_patterns)
-    all_flags = ["-k", "--color=no"] + (bazel_flags or [])
+    all_flags = ['-k', '--color=no'] + (bazel_flags or [])
     # We don't care about failure or stderr. There might be broken packages
     # during development. We enumerate what we can and test those.
     result = _run_bazel(
-        "cquery",
+        'cquery',
         *all_flags,
-        f"kind(go_test, {scope}) except attr(tags, manual, {scope})",
+        f'attr(tags, {flavor_tag}, kind(go_test, {scope})) except attr(tags, manual, {scope})',
     )
     output = result.stdout
 
