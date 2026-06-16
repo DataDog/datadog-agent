@@ -368,6 +368,8 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("admission_controller.appsec.sidecar.resources.limits.cpu", "")
 	config.BindEnvAndSetDefault("admission_controller.appsec.sidecar.resources.limits.memory", "")
 	config.BindEnvAndSetDefault("admission_controller.appsec.sidecar.body_parsing_size_limit", "")
+	config.BindEnvAndSetDefault("admission_controller.appsec.sidecar.uds_path", "/var/run/datadog/extproc.sock")
+	config.BindEnvAndSetDefault("admission_controller.appsec.sidecar.run_as_user", 65532)
 
 	// ingress-nginx injection configuration
 	config.BindEnvAndSetDefault("admission_controller.appsec.nginx.init_image", "datadog/ingress-nginx-injection")

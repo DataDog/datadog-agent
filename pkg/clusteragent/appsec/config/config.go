@@ -97,6 +97,11 @@ type Sidecar struct {
 
 	// Environment variables
 	BodyParsingSizeLimit string // Default: "10000000" (10MB)
+
+	// UDSPath is the in-pod Unix domain socket path the ext_proc sidecar listens on (UDS sidecar mode for Envoy Gateway).
+	UDSPath string
+	// RunAsUser is the UID/GID for the injected sidecar so it can share the UDS volume with the proxy container (default 65532, the Envoy Gateway proxy UID).
+	RunAsUser int64
 }
 
 // Nginx contains configuration specific to ingress-nginx injection
@@ -212,6 +217,19 @@ func validateSidecarConfig(config Sidecar) error {
 		errs = append(errs, fmt.Errorf("sidecar.port and sidecar.health_port cannot be the same: %d", config.Port))
 	}
 
+	if config.UDSPath != "" {
+		if !strings.HasPrefix(config.UDSPath, "/") {
+			errs = append(errs, fmt.Errorf("sidecar.uds_path must be an absolute path, got: %q", config.UDSPath))
+		}
+		if len(config.UDSPath) > 100 {
+			errs = append(errs, fmt.Errorf("sidecar.uds_path must be at most 100 characters to stay under the kernel sun_path limit, got %d", len(config.UDSPath)))
+		}
+	}
+
+	if config.RunAsUser < 0 {
+		errs = append(errs, fmt.Errorf("sidecar.run_as_user must be >= 0, got: %d", config.RunAsUser))
+	}
+
 	return errors.Join(errs...)
 }
 
@@ -253,6 +271,8 @@ func FromComponent(cfg config.Component, logger log.Component) Config {
 		MemoryRequest:        cfg.GetString("admission_controller.appsec.sidecar.resources.requests.memory"),
 		MemoryLimit:          cfg.GetString("admission_controller.appsec.sidecar.resources.limits.memory"),
 		BodyParsingSizeLimit: cfg.GetString("admission_controller.appsec.sidecar.body_parsing_size_limit"),
+		UDSPath:              cfg.GetString("admission_controller.appsec.sidecar.uds_path"),
+		RunAsUser:            int64(cfg.GetInt("admission_controller.appsec.sidecar.run_as_user")),
 	}
 
 	nginxConfig := Nginx{
