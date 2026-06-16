@@ -3,16 +3,18 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !linux || !systemprobechecks
+//go:build !linux || systemprobechecks
 
-// Package process implements the process collector for Workloadmeta.
-package process
+package checks
 
 import (
-	"go.uber.org/fx"
+	"time"
+
+	"github.com/benbjohnson/clock"
 )
 
-// GetFxOptions returns the FX framework options for the collector
-func GetFxOptions() fx.Option {
-	return nil
+func constantMockClock(t time.Time) *clock.Mock {
+	c := clock.NewMock()
+	c.Set(t)
+	return c
 }
