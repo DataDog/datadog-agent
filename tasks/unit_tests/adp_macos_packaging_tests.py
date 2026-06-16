@@ -56,33 +56,51 @@ class TestADPMacOSPackaging(unittest.TestCase):
         self.assertEqual(plist["UserName"], "_dd-agent")
         self.assertEqual(plist["GroupName"], "daemon")
 
-    def test_install_script_kickstarts_adp_when_it_starts_agent(self):
+    def test_sysprobe_launchdaemon_watches_its_config(self):
+        plist_path = REPO_ROOT / "packages/macos/app/launchd.sysprobe.plist.example.in"
+        plist = plistlib.loads(plist_path.read_bytes())
+
+        self.assertEqual(plist["Label"], "com.datadoghq.sysprobe")
+        self.assertEqual(plist["WatchPaths"], ["/opt/datadog-agent/etc/system-probe.yaml"])
+
+    def test_install_script_kickstarts_subprocesses_when_it_starts_agent(self):
         install_script = (REPO_ROOT / "cmd/agent/macos/install_mac_os_v1.sh").read_text()
 
-        self.assertIn("data_plane_service_name=com.datadoghq.data-plane", install_script)
-        self.assertIn("kickstart_data_plane()", install_script)
-        self.assertIn('$sudo_cmd launchctl kickstart "system/$data_plane_service_name"', install_script)
-        kickstart_call = "kickstart_data_plane"
-        self.assertGreater(
-            install_script.find('$cmd_launchctl start $service_name'),
-            -1,
-            "install script should still start the per-user agent",
-        )
-        self.assertGreater(
-            install_script.find(kickstart_call, install_script.find('$cmd_launchctl start $service_name')),
-            -1,
-            "install script should kickstart ADP after restarting the per-user agent",
-        )
-        self.assertGreater(
-            install_script.find('launchctl kickstart "system/$service_name"'),
-            -1,
-            "install script should still kickstart the system agent",
-        )
-        self.assertGreater(
-            install_script.find(kickstart_call, install_script.find('launchctl kickstart "system/$service_name"')),
-            -1,
-            "install script should kickstart ADP after kickstarting the system agent",
-        )
+        subprocesses = [
+            ("data-plane", "data_plane", "com.datadoghq.data-plane"),
+            ("system-probe", "sysprobe", "com.datadoghq.sysprobe"),
+        ]
+        for name, function_prefix, label in subprocesses:
+            with self.subTest(subprocess=name):
+                self.assertIn(f"{function_prefix}_service_name={label}", install_script)
+                self.assertIn(f"kickstart_{function_prefix}()", install_script)
+                self.assertIn(
+                    f'$sudo_cmd launchctl kickstart "system/${function_prefix}_service_name"', install_script
+                )
+                kickstart_call = f"kickstart_{function_prefix}"
+                self.assertGreater(
+                    install_script.find('$cmd_launchctl start $service_name'),
+                    -1,
+                    "install script should still start the per-user agent",
+                )
+                self.assertGreater(
+                    install_script.find(kickstart_call, install_script.find('$cmd_launchctl start $service_name')),
+                    -1,
+                    f"install script should kickstart {name} after restarting the per-user agent",
+                )
+                self.assertGreater(
+                    install_script.find('launchctl kickstart "system/$service_name"'),
+                    -1,
+                    "install script should still kickstart the system agent",
+                )
+                self.assertGreater(
+                    install_script.find(
+                        kickstart_call,
+                        install_script.find('launchctl kickstart "system/$service_name"'),
+                    ),
+                    -1,
+                    f"install script should kickstart {name} after kickstarting the system agent",
+                )
 
     def test_system_launchdaemons_are_managed_consistently(self):
         build_file = (REPO_ROOT / "packages/macos/app/BUILD.bazel").read_text()

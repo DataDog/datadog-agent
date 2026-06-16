@@ -414,6 +414,12 @@ function kickstart_data_plane() {
     fi
 }
 
+function kickstart_sysprobe() {
+    if [ -f "$sysprobe_servicefile_name" ]; then
+        $sudo_cmd launchctl kickstart "system/$sysprobe_service_name" 2>/dev/null || true
+    fi
+}
+
 function sed_inplace_arg() {
     # Check for vanilla OS X sed or GNU sed
     if [ "$(sed --version 2>/dev/null | grep -c "GNU")" -ne 0 ]; then
@@ -706,6 +712,7 @@ You may have to restart it manually using the systray app or the
       fi
 
       $cmd_launchctl start $service_name
+      kickstart_sysprobe
       kickstart_data_plane
     fi
 else
@@ -763,6 +770,7 @@ if [ "$systemdaemon_install" != false ]; then
     $sudo_cmd chown -R "$systemdaemon_user_group" "$etc_dir" "$log_dir" "$run_dir"
     $sudo_cmd launchctl load -w "$systemwide_servicefile_name"
     $sudo_cmd launchctl kickstart "system/$service_name"
+    kickstart_sysprobe
     kickstart_data_plane
 
     # Try to load headless GUI app for current user if they have a user session

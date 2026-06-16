@@ -21,6 +21,10 @@
             <string>-c</string>
             <string>/opt/datadog-agent/etc</string>
         </array>
+        <key>WatchPaths</key>
+        <array>
+            <string>/opt/datadog-agent/etc/system-probe.yaml</string>
+        </array>
         <key>StandardOutPath</key>
         <string>/opt/datadog-agent/logs/launchd_sysprobe.log</string>
         <key>StandardErrorPath</key>
