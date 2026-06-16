@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/metricsstore"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -27,7 +26,6 @@ type workloadKindMetricsSource interface {
 const (
 	tagCapacityTypeSpot     = "capacity_type:spot"
 	tagCapacityTypeOnDemand = "capacity_type:on_demand"
-	tagJoinLeader           = metrics.JoinLeaderLabel + ":" + metrics.JoinLeaderValue
 )
 
 const metricsFlushInterval = 30 * time.Second
@@ -52,15 +50,15 @@ func newTelemetry(s metricsstore.MetricsSender, isLeader func() bool, globalTags
 		globalTagsFunc: globalTagsFunc,
 		isLeader:       isLeader,
 	}
-	t.workloadMetrics = metricsstore.NewMetricsStore(generateWorkloadMetrics, s, isLeader, t.globalTags)
+	t.workloadMetrics = metricsstore.NewMetricsStore(generateWorkloadMetrics, s, isLeader, globalTagsFunc)
 	return t
 }
 
-func (t *telemetry) globalTags() []string {
-	if t.globalTagsFunc == nil {
-		return []string{tagJoinLeader}
+func (t *telemetry) appendGlobalTags(tags []string) []string {
+	if t.globalTagsFunc != nil {
+		return slices.Concat(tags, t.globalTagsFunc())
 	}
-	return append(t.globalTagsFunc(), tagJoinLeader)
+	return tags
 }
 
 // start launches periodic metric emission and blocks until ctx is cancelled.
@@ -89,9 +87,8 @@ func (t *telemetry) refreshWorkloadKindMetrics(cs workloadKindMetricsSource, now
 	}
 	counts := cs.countByKind()
 	fallbacks := cs.countDisabledByKind(now)
-	gt := t.globalTags()
 	for _, r := range spotWorkloadResources {
-		tags := append(workloadKindTags(r.kind), gt...)
+		tags := t.appendGlobalTags(workloadKindTags(r.kind))
 		t.sender.Gauge(MetricNameWorkloads, float64(counts[r.kind]), "", tags)
 		t.sender.Gauge(MetricNameActiveFallbacks, float64(fallbacks[r.kind]), "", tags)
 	}
@@ -99,9 +96,10 @@ func (t *telemetry) refreshWorkloadKindMetrics(cs workloadKindMetricsSource, now
 }
 
 func generateWorkloadMetrics(snap workloadSnapshot) metricsstore.StructuredMetrics {
-	baseTags := workloadTags(snap.ref)
-	spotTags := append(append([]string{}, baseTags...), tagCapacityTypeSpot)
-	onDemandTags := append(append([]string{}, baseTags...), tagCapacityTypeOnDemand)
+	// note: metricsstore.MetricsStore handles global tags itself
+	workloadTags := workloadTags(snap.ref)
+	spotTags := append(workloadTags, tagCapacityTypeSpot)
+	onDemandTags := append(workloadTags, tagCapacityTypeOnDemand)
 	return metricsstore.StructuredMetrics{
 		{Name: MetricNamePods, Type: metricsstore.MetricTypeGauge, Value: float64(snap.spot), Tags: spotTags},
 		{Name: MetricNamePods, Type: metricsstore.MetricTypeGauge, Value: float64(snap.onDemand), Tags: onDemandTags},
@@ -125,7 +123,7 @@ func (t *telemetry) observeFallback(o objectRef) {
 	if !t.isLeader() {
 		return
 	}
-	t.sender.Count(MetricNameFallbacks, 1, "", slices.Concat(t.globalTags(), workloadTags(o)))
+	t.sender.Count(MetricNameFallbacks, 1, "", t.appendGlobalTags(workloadTags(o)))
 	t.sender.Commit()
 }
 
@@ -138,7 +136,7 @@ func (t *telemetry) observeRebalanceEviction(o objectRef, isSpot bool) {
 	if isSpot {
 		capacityType = tagCapacityTypeSpot
 	}
-	t.sender.Count(MetricNameRebalanceEvictions, 1, "", append(slices.Concat(t.globalTags(), workloadTags(o)), capacityType))
+	t.sender.Count(MetricNameRebalanceEvictions, 1, "", t.appendGlobalTags(append(workloadTags(o), capacityType)))
 	t.sender.Commit()
 }
 
@@ -147,7 +145,7 @@ func (t *telemetry) observePendingSeconds(d time.Duration) {
 	if !t.isLeader() {
 		return
 	}
-	t.sender.Distribution(MetricNamePendingSeconds, d.Seconds(), "", t.globalTags())
+	t.sender.Distribution(MetricNamePendingSeconds, d.Seconds(), "", t.appendGlobalTags(nil))
 	t.sender.Commit()
 }
 

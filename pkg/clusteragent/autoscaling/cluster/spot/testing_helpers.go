@@ -150,4 +150,4 @@ func testGlobalTagsFunc() []string {
 	}
 }
 
-var TestGlobalTags = append([]string{"join_leader:true"}, testGlobalTagsFunc()...)
+var TestGlobalTags = testGlobalTagsFunc()
