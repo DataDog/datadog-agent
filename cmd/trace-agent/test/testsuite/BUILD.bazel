@@ -2,6 +2,7 @@ load("@rules_go//go:def.bzl", "go_test")
 load("//tasks:build_tags.bzl", "COMMON_TAGS", "TRACE_AGENT_TAGS")
 
 # gazelle:exclude proxy_test.go
+# gazelle:exclude secrets_test.go
 # gazelle:exclude stats_test.go
 
 # Do not use dd_agent_go_test. Trace agent tests are only done in the base flavor.
@@ -15,7 +16,6 @@ go_test(
         "events_test.go",
         "hostname_test.go",
         "otlp_test.go",
-        "secrets_test.go",
         "span_sampling_test.go",
         "traces_test.go",
         "tracesv1_test.go",
