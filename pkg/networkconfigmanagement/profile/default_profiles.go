@@ -72,6 +72,9 @@ var DefaultProfiles = Map{
 					"copy running-config startup-config"), `Success`),
 			},
 		},
+		Preprocessing: []RedactionRule{
+			MkRedaction(`.*configuration:\s*!\s*!Version.*\s*(?:!export-password:.*\s)?`, WithReplacement(""), WithMultiline()),
+		},
 		Redactions: []RedactionRule{
 			MkRedaction(`^(snmp-server community) \S+(.*)`),
 			MkRedaction(`^(snmp-server host \S+) \S+(.*)`),
@@ -80,7 +83,6 @@ var DefaultProfiles = Map{
 			MkRedaction(`^(tacacs-server host \S+ key) \S+(.*)`),
 			MkRedaction(`^(tacacs-server key).*`),
 			MkRedaction(`^(user \S+ group \S+ password) \S+(.*)`),
-			MkRedaction(`.*configuration:\s*!\s*!Version.*\s*(?:!export-password:.*\s)?`, WithReplacement(""), WithMultiline()),
 		},
 	},
 
@@ -90,6 +92,9 @@ var DefaultProfiles = Map{
 			Verify:     MkCommand("show version", `(Alcatel-Lucent Operating System-Wireless|AOS-W|AOS-10)`),
 			GetRunning: MkCommand("show running-config", `Building Configuration...`),
 			GetVersion: MkCommand("show version"),
+		},
+		Preprocessing: []RedactionRule{
+			MkRedaction(`Building Configuration...\s*`, WithReplacement(""), WithMultiline()),
 		},
 		Redactions: []RedactionRule{
 			MkRedaction(`(?m)^(secret) (\S+)\s?$`),
@@ -111,7 +116,6 @@ var DefaultProfiles = Map{
 			MkRedaction(`community (.*?)\s*$`, WithReplacement("community <secret hidden>")),
 			MkRedaction(`(?m)^(snmp-server host \S+ (?:trap )?version (?:v?[123]c?|v3)) (\S+)(.*)`, WithReplacement("$1 <secret hidden>$3")),
 			MkRedaction(`(?m)^(vrrp \d+.*\n.*\n)(authentication) (\S+)`, WithReplacement("$1$2 <secret hidden>"), WithMultiline()),
-			MkRedaction(`Building Configuration...\s*`, WithReplacement(""), WithMultiline()),
 		},
 	},
 
@@ -165,6 +169,13 @@ var DefaultProfiles = Map{
 				MkCommand("configure replace flash:/dd-rollback-config force"),
 			},
 		},
+		Preprocessing: []RedactionRule{
+			MkRedaction(`(?s)banner (exec|incoming|login) \^C.*?\^C\s*`, WithReplacement(""), WithMultiline()),
+			MkRedaction(`(?m)^\s*Building configuration...\s*`, WithReplacement(""), WithMultiline()),
+			MkRedaction(`Current configuration : (.*)\s*`, WithReplacement(""), WithMultiline()),
+			MkRedaction(`(?m)(?:^!\s*$\s*)?^! Last configuration change at .*?$\s*(?:^!\s*$\s*)?`, WithReplacement(""), WithMultiline()),
+			MkRedaction(`(?s)^\s*Using \d+ out of \d+ bytes\s*`, WithReplacement(""), WithMultiline()),
+		},
 		Redactions: []RedactionRule{
 			MkRedaction(`(?m)^(snmp-server community).*`),
 			MkRedaction(`(?m)^(snmp-server host \S+( vrf \S+)?( informs?)?( version (1|2c))?) +\S+( .*)?$`, WithReplacement("$1 <secret hidden>$6")),
@@ -191,12 +202,6 @@ var DefaultProfiles = Map{
 			MkRedaction(`(?m)^( +domain-password) \S+ ?(.*)`, WithReplacement("$1 <secret hidden> $2")),
 			MkRedaction(`(?m)^( +pre-shared-key).*`),
 			MkRedaction(`(?m)^(.*server-key(?: \d)?) \S+`),
-			MkRedaction(`(?s)banner (exec|incoming|login) \^C.*?\^C\s*`, WithReplacement(""), WithMultiline()),
-			MkRedaction(`(?m)^\s*Building configuration...\s*`, WithReplacement(""), WithMultiline()),
-			MkRedaction(`Current configuration : (.*)\s*`, WithReplacement(""), WithMultiline()),
-			MkRedaction(`(?m)(?:^!\s*$\s*)?^! Last configuration change at .*?$\s*(?:^!\s*$\s*)?`, WithReplacement(""), WithMultiline()),
-			MkRedaction(`(?m)(?:^!\s*$\s*)?^! NVRAM config last updated at .*$\s*(?:^!\s*$\s*)?`, WithReplacement(""), WithMultiline()),
-			MkRedaction(`(?s)^\s*Using \d+ out of \d+ bytes\s*`, WithReplacement(""), WithMultiline()),
 		},
 		MetadataRules: []MetadataRule{
 			{
@@ -222,10 +227,12 @@ var DefaultProfiles = Map{
 			GetRunning: MkCommand("show running-configuration", `! Version (.*)?`),
 			GetStartup: MkCommand("show startup-configuration", `(?m)^hostname\s+\S+`),
 		},
-		Redactions: []RedactionRule{
-			MkRedaction(`(password )(\S+)`, WithReplacement("${1}<secret hidden>")),
+		Preprocessing: []RedactionRule{
 			MkRedaction(`(?m)^! Version .*$\s*(?:^!\s*$\s*)?`, WithReplacement(""), WithMultiline()),
 			MkRedaction(`(?m)^! Last configuration change at .*$\s*(?:^!\s*$\s*)?`, WithReplacement(""), WithMultiline()),
+		},
+		Redactions: []RedactionRule{
+			MkRedaction(`(password )(\S+)`, WithReplacement("${1}<secret hidden>")),
 		},
 		MetadataRules: []MetadataRule{
 			{
@@ -255,6 +262,13 @@ var DefaultProfiles = Map{
 				// MkCommand("delete file:/tmp/dd-rollback-config"),
 			},
 		},
+		Preprocessing: []RedactionRule{
+			MkRedaction(`(?m)^! Command:.*$\n(?:^! device:.*$\n)?(?:^!$\n)*(?:^! boot system.*$\n)?(?:^!$\n)*`, WithReplacement(""), WithMultiline()),
+			MkRedaction(`(?m)^! Command: show startup-config.*$\n`, WithReplacement(""), WithMultiline()),
+			MkRedaction(`(?m)^! Startup-config last modified at.*$\n`, WithReplacement(""), WithMultiline()),
+			// Note that the multiline flag means this only matches a ! at the very beginning of the config.
+			MkRedaction(`^!\n`, WithReplacement(""), WithMultiline()),
+		},
 		Redactions: []RedactionRule{
 			MkRedaction(`^(snmp-server community).*`),
 			MkRedaction(`(secret \w+) (\S+).*`),
@@ -264,10 +278,6 @@ var DefaultProfiles = Map{
 			MkRedaction(`^(radius-server .+ key \d) \S+`),
 			MkRedaction(`( {6}key) ([0-9a-fA-F]+ 7) ([0-9a-fA-F]+).*`),
 			MkRedaction(`(localized|auth (md5|sha\d{0,3})|priv (des|aes\d{0,3})) \S+`),
-			MkRedaction(`(?m)^! Command:.*$\n(?:^! device:.*$\n)?(?:^!$\n)*(?:^! boot system.*$\n)?(?:^!$\n)*`, WithReplacement(""), WithMultiline()),
-			MkRedaction(`(?m)^! Command: show startup-config.*$\n`, WithReplacement(""), WithMultiline()),
-			MkRedaction(`(?m)^! Startup-config last modified at.*$\n`, WithReplacement(""), WithMultiline()),
-			MkRedaction(`^!\n`, WithReplacement(""), WithMultiline()),
 		},
 		MetadataRules: []MetadataRule{
 			{
@@ -346,6 +356,13 @@ var DefaultProfiles = Map{
 				MkCommand("configure replace bootflash:dd-rollback-config"),
 			},
 		},
+		Preprocessing: []RedactionRule{
+			MkRedaction(`!Command: show running-config\s*`, WithReplacement(""), WithMultiline()),
+			MkRedaction(`(?m)^!Running configuration last done at:.*?$\s*(?:^!\s*$\s*)?`, WithReplacement(""), WithMultiline()),
+			MkRedaction(`(?m)^!Time: .*?$\s*(?:^!\s*$\s*)?`, WithReplacement(""), WithMultiline()),
+			MkRedaction(`!Command: show startup-config\s*`, WithReplacement(""), WithMultiline()),
+			MkRedaction(`(?m)^!Startup config saved at: .*?$\s*(?:^!\s*$\s*)?`, WithReplacement(""), WithMultiline()),
+		},
 		Redactions: []RedactionRule{
 			MkRedaction(`^(snmp-server community).*`),
 			MkRedaction(`^(snmp-server user \S+ \S+ auth \S+) \S+( priv \S+) \S+(.*)`, WithReplacement("$1 <secret hidden>$2 <secret hidden>$3")),
@@ -354,11 +371,6 @@ var DefaultProfiles = Map{
 			MkRedaction(`(password \d+) (\S+)`),
 			MkRedaction(`^(radius-server .*key(?: \d+)?) \S+`),
 			MkRedaction(`^(tacacs-server .*key(?: \d+)?) \S+`),
-			MkRedaction(`!Command: show running-config\s*`, WithReplacement(""), WithMultiline()),
-			MkRedaction(`(?m)^!Running configuration last done at:.*?$\s*(?:^!\s*$\s*)?`, WithReplacement(""), WithMultiline()),
-			MkRedaction(`(?m)^!Time: .*?$\s*(?:^!\s*$\s*)?`, WithReplacement(""), WithMultiline()),
-			MkRedaction(`!Command: show startup-config\s*`, WithReplacement(""), WithMultiline()),
-			MkRedaction(`(?m)^!Startup config saved at: .*?$\s*(?:^!\s*$\s*)?`, WithReplacement(""), WithMultiline()),
 		},
 		MetadataRules: []MetadataRule{
 			{
