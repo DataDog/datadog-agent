@@ -1069,9 +1069,10 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("data_plane.telemetry_enabled", false)
 	config.BindEnvAndSetDefault("data_plane.telemetry_listen_addr", "tcp://0.0.0.0:5102")
 	config.BindEnvAndSetDefault("data_plane.log_file", defaultpaths.GetDefaultDataPlaneLogFile())
-	// No default: when unset, ADP derives the topology shutdown timeout from
-	// aggregator_stop_timeout + forwarder_stop_timeout. Setting this key overrides that sum.
-	config.BindEnv("data_plane.stop_timeout") //nolint:forbidigo // intentional: no static default, derived in ADP
+	// 4 matches aggregator_stop_timeout + forwarder_stop_timeout (each defaults to 2 in seconds).
+	// ComputeDataPlaneStopTimeout (post-load override) recomputes this at runtime so it tracks
+	// any user-set values for aggregator_stop_timeout / forwarder_stop_timeout.
+	config.BindEnvAndSetDefault("data_plane.stop_timeout", 4)
 	config.BindEnvAndSetDefault("data_plane.dogstatsd.enabled", true)
 	config.BindEnvAndSetDefault("data_plane.otlp.enabled", false)
 	config.BindEnvAndSetDefault("data_plane.otlp.proxy.enabled", false)
