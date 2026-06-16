@@ -1,9 +1,5 @@
 load("@rules_go//go:def.bzl", "go_library", "go_test")
-
-# This test seesms to be both test helepers and tests.
-# It always fails locally if included in the larger test.
-# It does not link if not included with the othes.
-# gazelle:exclude config_test.go
+load("//tasks:build_tags.bzl", "COMMON_TAGS", "TRACE_AGENT_TAGS")
 
 go_library(
     name = "impl",
@@ -111,19 +107,42 @@ go_library(
     }),
 )
 
+# Warning: this test can fail locally on macos. It is skipped in CI on macos.
+# It should be refatored so we can get better signals.
 go_test(
     name = "impl_test",
     srcs = [
         "aliases_test.go",
         "config_otlp_test.go",
+        "config_test.go",
         "install_signature_test.go",
     ],
     data = glob(["testdata/**"]),
     embed = [":impl"],
-    gotags = ["test"],
+    embedsrcs = ["testdata/stringcode.go.tmpl"],
+    gotags = sorted(["test"] + list(COMMON_TAGS) + list(TRACE_AGENT_TAGS)),
     deps = [
+        "//comp/core/config",
+        "//comp/core/ipc/def",
+        "//comp/core/ipc/mock",
+        "//comp/core/log/def",
+        "//comp/core/log/mock",
+        "//comp/core/tagger/def",
+        "//comp/core/tagger/fx-mock",
+        "//comp/core/tagger/mock",
+        "//comp/core/telemetry/fx-noop",
+        "//comp/core/workloadmeta/def",
+        "//comp/core/workloadmeta/fx-mock",
         "//comp/trace/config/def",
+        "//pkg/config/env",
+        "//pkg/config/setup",
+        "//pkg/trace/config",
+        "//pkg/util/fxutil",
+        "//pkg/util/log",
+        "//pkg/util/testutil",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
+        "@in_yaml_go_yaml_v2//:yaml",
+        "@org_uber_go_fx//:fx",
     ],
 )
