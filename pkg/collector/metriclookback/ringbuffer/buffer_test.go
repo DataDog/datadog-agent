@@ -476,20 +476,19 @@ func TestSeriesExportReconstructsRetainedSamples(t *testing.T) {
 		t.Fatalf("expected sorted canonical tags, got %#v", tags)
 	}
 
-	// Count serie: timestamp falls back to now. CountType is an aggregator-only
-	// type for raw samples, so the dump mirrors the no-aggregation pipeline and
-	// emits it as a gauge.
+	// Count serie: timestamp falls back to now and remains count-like because
+	// Count submissions already represent a scalar count for the check run.
 	count := series[1]
-	if count.MType != metrics.APIGaugeType {
-		t.Fatalf("expected APIGaugeType, got %v", count.MType)
+	if count.MType != metrics.APICountType {
+		t.Fatalf("expected APICountType, got %v", count.MType)
 	}
 	if count.Points[0].Ts != float64(now.UnixMicro())/1e6 || count.Points[0].Value != 7 {
 		t.Fatalf("unexpected count point: %+v", count.Points)
 	}
 
-	// Rate serie maps to APIRateType.
-	if series[2].MType != metrics.APIRateType {
-		t.Fatalf("expected APIRateType, got %v", series[2].MType)
+	// Rate serie stores the submitted scalar without computing a backend rate.
+	if series[2].MType != metrics.APIGaugeType {
+		t.Fatalf("expected APIGaugeType, got %v", series[2].MType)
 	}
 
 	// Export is non-destructive: the buffer still holds the samples.
@@ -514,19 +513,21 @@ func TestSeriesExportReconstructsRetainedSamples(t *testing.T) {
 	}
 }
 
-func TestAPIMetricTypeMatchesNoAggregationRawSampleMapping(t *testing.T) {
+func TestAPIMetricTypeMatchesRawLookbackPlan(t *testing.T) {
 	tests := []struct {
 		name string
 		in   metrics.MetricType
 		want metrics.APIMetricType
 	}{
 		{name: "gauge", in: metrics.GaugeType, want: metrics.APIGaugeType},
-		{name: "counter", in: metrics.CounterType, want: metrics.APIRateType},
-		{name: "rate", in: metrics.RateType, want: metrics.APIRateType},
-		{name: "count", in: metrics.CountType, want: metrics.APIGaugeType},
+		{name: "gauge_with_timestamp", in: metrics.GaugeWithTimestampType, want: metrics.APIGaugeType},
+		{name: "rate", in: metrics.RateType, want: metrics.APIGaugeType},
+		{name: "count", in: metrics.CountType, want: metrics.APICountType},
+		{name: "counter", in: metrics.CounterType, want: metrics.APICountType},
 		{name: "monotonic_count", in: metrics.MonotonicCountType, want: metrics.APIGaugeType},
-		{name: "count_with_timestamp", in: metrics.CountWithTimestampType, want: metrics.APIGaugeType},
+		{name: "count_with_timestamp", in: metrics.CountWithTimestampType, want: metrics.APICountType},
 		{name: "histogram", in: metrics.HistogramType, want: metrics.APIGaugeType},
+		{name: "historate", in: metrics.HistorateType, want: metrics.APIGaugeType},
 	}
 
 	for _, tt := range tests {

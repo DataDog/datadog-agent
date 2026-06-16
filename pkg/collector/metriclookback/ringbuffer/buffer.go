@@ -180,11 +180,12 @@ func (b *Buffer) Append(ctx context.Context, checkID checkid.ID, samples []metri
 // unit, no-index) recorded at append time. This is a non-destructive snapshot:
 // the buffer keeps its samples so a dump can be retried or repeated.
 //
-// MetricType is mapped to the API metric type with best effort, matching the
-// no-aggregation pipeline for raw MetricSamples: gauges stay gauges,
-// counter/rate samples stay rates, and unsupported aggregator-only types are
-// emitted as gauges. The dump intentionally does not re-apply rate intervals;
-// raw retained values are sent as-is at their original timestamps.
+// MetricType is mapped to the API metric type according to the lookback raw
+// scalar semantics: count-like sender submissions stay counts, while rate,
+// monotonic-count, histogram, and historate submissions are emitted as gauges
+// because the dump intentionally does not compute backend rates, monotonic
+// deltas, or histogram rollups. Raw retained values are sent as-is at their
+// original timestamps.
 func (b *Buffer) Series() metrics.Series {
 	if b == nil {
 		return nil
@@ -267,11 +268,11 @@ func (s *serieSliceSource) Count() uint64 {
 // serialized series, on a best-effort basis for lookback dumps.
 func apiMetricType(mtype metrics.MetricType) metrics.APIMetricType {
 	switch mtype {
-	case metrics.CounterType, metrics.RateType:
-		return metrics.APIRateType
+	case metrics.CountType, metrics.CounterType, metrics.CountWithTimestampType:
+		return metrics.APICountType
 	default:
-		// GaugeType and unsupported aggregator-only types such as CountType,
-		// MonotonicCountType, HistogramType, HistorateType, etc.
+		// GaugeType, GaugeWithTimestampType, RateType, MonotonicCountType,
+		// HistogramType, HistorateType, and unsupported/non-scalar types.
 		return metrics.APIGaugeType
 	}
 }
