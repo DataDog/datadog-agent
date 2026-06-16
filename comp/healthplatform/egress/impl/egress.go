@@ -138,8 +138,8 @@ func (e *egress) run() {
 }
 
 func (e *egress) tick() {
-	active := drainCh(e.activeCh)
-	resolved := drainCh(e.resolvedCh)
+	active := snapshotIssues(e.activeCh)
+	resolved := snapshotIssues(e.resolvedCh)
 
 	if len(active) == 0 && len(resolved) == 0 {
 		e.log.Debug("Health platform egress: no issues to report, skipping tick")
@@ -177,22 +177,22 @@ func (e *egress) tick() {
 	}
 }
 
-// drainCh returns a snapshot of all items currently in ch.
-// Items are drained and immediately re-queued, leaving the channel intact
-// for the next tick or concurrent writers.
-func drainCh(ch chan *healthplatform.Issue) []*healthplatform.Issue {
+// snapshotIssues returns a copy of all items currently in ch.
+// Items are drained then immediately re-queued so the channel is left intact.
+// The requeue always runs regardless of early exit from the drain, ensuring
+// no items are lost if concurrent writers consumed slots between len(ch) and reads.
+func snapshotIssues(ch chan *healthplatform.Issue) []*healthplatform.Issue {
 	n := len(ch)
 	if n == 0 {
 		return nil
 	}
 	items := make([]*healthplatform.Issue, 0, n)
-drain:
-	for range n {
+	for i := 0; i < n; i++ {
 		select {
 		case item := <-ch:
 			items = append(items, item)
 		default:
-			break drain
+			n = i // channel drained early; stop without iterating further
 		}
 	}
 	for _, item := range items {

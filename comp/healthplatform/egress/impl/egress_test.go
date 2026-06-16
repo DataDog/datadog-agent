@@ -125,7 +125,7 @@ func TestLifecycleStartStop(t *testing.T) {
 func TestTickFiresOnInterval(t *testing.T) {
 	fwd := &mockForwarder{}
 	e := newTestEgress(t, 30*time.Millisecond, fwd)
-	// Active issues persist across ticks via drainCh re-queue; no goroutine needed.
+	// Active issues persist across ticks via snapshotIssues re-queue; no goroutine needed.
 	e.activeCh <- &healthplatformpayload.Issue{Id: "issue-1"}
 
 	require.NoError(t, e.start(context.Background()))
