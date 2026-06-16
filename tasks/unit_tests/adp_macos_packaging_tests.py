@@ -89,6 +89,14 @@ class TestADPMacOSPackaging(unittest.TestCase):
         self.assertIn("_serviceController.SetCredentials(Constants.DataPlaneServiceName", service_actions)
         self.assertIn("Constants.DataPlaneServiceName,", service_actions)
 
+    def test_windows_runtime_config_and_service_launcher_include_adp(self):
+        config_setup = (REPO_ROOT / "pkg/config/setup/config.go").read_text()
+        dependent_services = (REPO_ROOT / "cmd/agent/subcommands/run/dependent_services_windows.go").read_text()
+
+        self.assertIn('goos == "linux" || goos == "darwin" || goos == "windows"', config_setup)
+        self.assertIn('"data_plane.enabled": coreConf', dependent_services)
+        self.assertIn('serviceName:    "datadog-agent-data-plane"', dependent_services)
+
     def test_macos_app_installs_adp_launchdaemon_template(self):
         build_file = (REPO_ROOT / "packages/macos/app/BUILD.bazel").read_text()
 
