@@ -8,6 +8,7 @@ package metriclookback
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/metriclookback/lookbacksender"
@@ -59,6 +60,14 @@ func (r *Retention) NewSenderManager(ctx context.Context) sender.SenderManager {
 // through the provided serializer as a one-shot iterable series payload. It
 // returns the number of series sent. The dump is non-destructive.
 func (r *Retention) Dump(metricSerializer serializer.MetricSerializer) (int, error) {
+	return r.DumpRange(metricSerializer, time.Time{}, time.Time{})
+}
+
+// DumpRange sends samples whose original timestamps fall in the inclusive
+// [from, to] window through the provided serializer as a one-shot iterable
+// series payload. A zero from or to leaves that side of the window unbounded. It
+// returns the number of series sent. The dump is non-destructive.
+func (r *Retention) DumpRange(metricSerializer serializer.MetricSerializer, from, to time.Time) (int, error) {
 	if r == nil || r.buffer == nil {
 		return 0, errors.New("metric lookback is disabled")
 	}
@@ -66,7 +75,7 @@ func (r *Retention) Dump(metricSerializer serializer.MetricSerializer) (int, err
 		return 0, errors.New("serializer is not available")
 	}
 
-	source := r.buffer.SerieSource()
+	source := r.buffer.SerieSourceBetween(from, to)
 	count := int(source.Count())
 	if count == 0 {
 		return 0, nil

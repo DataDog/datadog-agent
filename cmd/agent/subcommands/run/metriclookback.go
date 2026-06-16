@@ -7,6 +7,7 @@ package run
 
 import (
 	"context"
+	"time"
 
 	demultiplexer "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/def"
 	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
@@ -47,17 +48,22 @@ func newMetricLookbackTrigger(cfg config.Component, logger log.Component, dump a
 
 	metricName := cfg.GetString("metric_lookback.trigger.metric_name")
 	watcher := lookbacktrigger.New(lookbacktrigger.Config{
-		MetricName: metricName,
-		Threshold:  cfg.GetFloat64("metric_lookback.trigger.threshold"),
-		Alpha:      cfg.GetFloat64("metric_lookback.trigger.ewma_alpha"),
-		Cooldown:   cfg.GetDuration("metric_lookback.trigger.cooldown"),
-	}, func() {
-		count, err := dump()
+		MetricName:   metricName,
+		Threshold:    cfg.GetFloat64("metric_lookback.trigger.threshold"),
+		Alpha:        cfg.GetFloat64("metric_lookback.trigger.ewma_alpha"),
+		Cooldown:     cfg.GetDuration("metric_lookback.trigger.cooldown"),
+		PreWindow:    cfg.GetDuration("metric_lookback.trigger.pre_window"),
+		PostWindow:   cfg.GetDuration("metric_lookback.trigger.post_window"),
+		DumpInterval: cfg.GetDuration("metric_lookback.trigger.dump_interval"),
+		SendDelay:    cfg.GetDuration("metric_lookback.trigger.send_delay"),
+	}, func(from, to time.Time) (int, error) {
+		count, err := dump(from, to)
 		if err != nil {
-			logger.Warnf("lookback trigger dump failed: %v", err)
-			return
+			logger.Warnf("lookback trigger dump failed for %q window [%s, %s]: %v", metricName, from.Format(time.RFC3339Nano), to.Format(time.RFC3339Nano), err)
+			return 0, err
 		}
-		logger.Infof("lookback trigger on %q dumped %d series", metricName, count)
+		logger.Infof("lookback trigger on %q dumped %d series for window [%s, %s]", metricName, count, from.Format(time.RFC3339Nano), to.Format(time.RFC3339Nano))
+		return count, nil
 	})
 	if watcher == nil {
 		logger.Warn("metric_lookback.trigger.enabled is set but metric_lookback.trigger.metric_name is empty; trigger inactive")

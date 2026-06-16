@@ -259,7 +259,7 @@ func initAgentDemultiplexer(log log.Component,
 	}
 
 	if options.LookbackTriggerFactory != nil {
-		demux.lookbackTrigger = options.LookbackTriggerFactory(demux.DumpLookback)
+		demux.lookbackTrigger = options.LookbackTriggerFactory(demux.DumpLookbackRange)
 	}
 
 	return demux
@@ -778,6 +778,21 @@ func (d *AgentDemultiplexer) DumpDogstatsdContexts(dest io.Writer) error {
 // The dump is non-destructive: the ring buffer keeps its samples, so callers
 // may dump repeatedly. It is safe to call from any goroutine.
 func (d *AgentDemultiplexer) DumpLookback() (int, error) {
+	return d.dumpLookbackRange(time.Time{}, time.Time{})
+}
+
+// DumpLookbackRange sends samples whose original timestamps fall in the
+// inclusive [from, to] window through the normal serializer (and therefore the
+// forwarder), as a one-shot iterable series payload. A zero from or to leaves
+// that side of the window unbounded. It returns the number of series sent.
+//
+// The dump is non-destructive: the ring buffer keeps its samples, so callers
+// may dump repeatedly. It is safe to call from any goroutine.
+func (d *AgentDemultiplexer) DumpLookbackRange(from, to time.Time) (int, error) {
+	return d.dumpLookbackRange(from, to)
+}
+
+func (d *AgentDemultiplexer) dumpLookbackRange(from, to time.Time) (int, error) {
 	d.m.RLock()
 	defer d.m.RUnlock()
 
@@ -788,7 +803,7 @@ func (d *AgentDemultiplexer) DumpLookback() (int, error) {
 		return 0, errors.New("serializer is not available")
 	}
 
-	count, err := d.lookbackRetention.Dump(d.sharedSerializer)
+	count, err := d.lookbackRetention.DumpRange(d.sharedSerializer, from, to)
 	if err != nil {
 		return 0, err
 	}

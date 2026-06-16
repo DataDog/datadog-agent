@@ -7,14 +7,16 @@ package aggregator
 
 import (
 	"context"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 )
 
-// LookbackDumper dumps retained metric lookback samples and returns the number
-// of series sent.
-type LookbackDumper func() (int, error)
+// LookbackDumper dumps retained metric lookback samples whose original
+// timestamps fall in the inclusive [from, to] window and returns the number of
+// series sent. A zero from or to leaves that side of the window unbounded.
+type LookbackDumper func(from, to time.Time) (int, error)
 
 // LookbackTrigger observes DogStatsD samples and optionally triggers a lookback
 // dump. It is injected into the demultiplexer by binaries that support trigger
@@ -39,7 +41,13 @@ type LookbackRetention interface {
 	// the returned manager so in-flight writes can observe cancellation.
 	NewSenderManager(context.Context) sender.SenderManager
 
-	// Dump sends retained samples through the provided serializer and returns
+	// Dump sends all retained samples through the provided serializer and returns
 	// the number of series sent.
 	Dump(serializer.MetricSerializer) (int, error)
+
+	// DumpRange sends retained samples whose original timestamps fall in the
+	// inclusive [from, to] window through the provided serializer and returns the
+	// number of series sent. A zero from or to leaves that side of the window
+	// unbounded.
+	DumpRange(serializer.MetricSerializer, time.Time, time.Time) (int, error)
 }

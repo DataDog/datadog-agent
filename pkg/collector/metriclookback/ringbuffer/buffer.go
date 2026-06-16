@@ -179,11 +179,19 @@ func (b *Buffer) Append(ctx context.Context, checkID checkid.ID, samples []metri
 	return nil
 }
 
-// Series reconstructs the retained samples into a metrics.Series, ordered by
-// the global append sequence. Each retained sample becomes a single-point
-// serie carrying the canonicalized metric context (name, host, tags, source,
-// unit, no-index) recorded at append time. This is a non-destructive snapshot:
-// the buffer keeps its samples so a dump can be retried or repeated.
+// Series reconstructs every retained sample into a metrics.Series, ordered by
+// the global append sequence.
+func (b *Buffer) Series() metrics.Series {
+	return b.SeriesBetween(time.Time{}, time.Time{})
+}
+
+// SeriesBetween reconstructs retained samples whose original timestamps fall in
+// the inclusive [from, to] window, ordered by the global append sequence. A zero
+// from or to leaves that side of the window unbounded. Each retained sample
+// becomes a single-point serie carrying the canonicalized metric context (name,
+// host, tags, source, unit, no-index) recorded at append time. This is a
+// non-destructive snapshot: the buffer keeps its samples so a dump can be
+// retried or repeated.
 //
 // MetricType is mapped to the API metric type according to the lookback raw
 // scalar semantics: count-like sender submissions stay counts, while rate,
@@ -191,8 +199,8 @@ func (b *Buffer) Append(ctx context.Context, checkID checkid.ID, samples []metri
 // because the dump intentionally does not compute backend rates, monotonic
 // deltas, or histogram rollups. Raw retained values are sent as-is at their
 // original timestamps.
-func (b *Buffer) Series() metrics.Series {
-	if b == nil {
+func (b *Buffer) SeriesBetween(from, to time.Time) metrics.Series {
+	if b == nil || invalidRange(from, to) {
 		return nil
 	}
 
@@ -206,6 +214,9 @@ func (b *Buffer) Series() metrics.Series {
 	series := make(metrics.Series, 0, len(records))
 	for i := range records {
 		rec := &records[i]
+		if !recordInRange(rec, from, to) {
+			continue
+		}
 		ctx, found := contexts[rec.contextID]
 		if !found {
 			// The context was evicted between snapshots; skip the orphan record.
@@ -230,11 +241,33 @@ func (b *Buffer) Series() metrics.Series {
 	return series
 }
 
-// SerieSource returns a metrics.SerieSource over the current retained samples,
+// SerieSource returns a metrics.SerieSource over all current retained samples,
 // suitable for passing directly to serializer.SendIterableSeries. The snapshot
 // is taken eagerly when SerieSource is called.
 func (b *Buffer) SerieSource() metrics.SerieSource {
-	return &serieSliceSource{series: b.Series(), index: -1}
+	return b.SerieSourceBetween(time.Time{}, time.Time{})
+}
+
+// SerieSourceBetween returns a metrics.SerieSource over retained samples whose
+// original timestamps fall in the inclusive [from, to] window. A zero from or to
+// leaves that side of the window unbounded. The snapshot is taken eagerly when
+// SerieSourceBetween is called.
+func (b *Buffer) SerieSourceBetween(from, to time.Time) metrics.SerieSource {
+	return &serieSliceSource{series: b.SeriesBetween(from, to), index: -1}
+}
+
+func invalidRange(from, to time.Time) bool {
+	return !from.IsZero() && !to.IsZero() && from.After(to)
+}
+
+func recordInRange(rec *record, from, to time.Time) bool {
+	if !from.IsZero() && rec.timestampUnixMicro < from.UnixMicro() {
+		return false
+	}
+	if !to.IsZero() && rec.timestampUnixMicro > to.UnixMicro() {
+		return false
+	}
+	return true
 }
 
 // snapshotSortedRecords returns a copy of every retained record ordered by the

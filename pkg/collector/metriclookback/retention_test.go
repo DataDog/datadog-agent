@@ -8,6 +8,7 @@ package metriclookback
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -61,6 +62,25 @@ func TestRetentionDumpSendsRetainedSamples(t *testing.T) {
 	assert.Equal(t, 2, count2)
 }
 
+func TestRetentionDumpRangeSendsOnlyWindow(t *testing.T) {
+	retention := NewRetention("host-a", ringbuffer.Options{})
+	serializer := &retainingSerializer{}
+
+	manager := retention.NewSenderManager(context.Background())
+	sender, err := manager.GetSender(checkid.ID("range-check"))
+	require.NoError(t, err)
+	require.NoError(t, sender.GaugeWithTimestamp("range.before", 1, "", nil, 10))
+	require.NoError(t, sender.GaugeWithTimestamp("range.in", 2, "", nil, 20))
+	require.NoError(t, sender.GaugeWithTimestamp("range.after", 3, "", nil, 30))
+	sender.Commit()
+
+	count, err := retention.DumpRange(serializer, time.Unix(15, 0), time.Unix(25, 0))
+	require.NoError(t, err)
+	assert.Equal(t, 1, count)
+	require.Len(t, serializer.series, 1)
+	assert.Equal(t, "range.in", serializer.series[0].Name)
+}
+
 func TestRetentionDumpEmptyBufferSendsNothing(t *testing.T) {
 	retention := NewRetention("host-a", ringbuffer.Options{})
 	serializer := &retainingSerializer{}
@@ -79,7 +99,11 @@ func TestNewRetentionFromConfigHonorsEnabledFlag(t *testing.T) {
 	cfg.SetInTest("metric_lookback.enabled", true)
 	cfg.SetInTest("metric_lookback.capacity", 10)
 	cfg.SetInTest("metric_lookback.shard_count", 2)
-	assert.NotNil(t, NewRetentionFromConfig(cfg, "host-a"))
+	retention := NewRetentionFromConfig(cfg, "host-a")
+	require.NotNil(t, retention)
+	stats := retention.buffer.Stats()
+	assert.Equal(t, 10, stats.Capacity)
+	assert.Equal(t, 2, stats.ShardCount)
 }
 
 func TestRetentionDumpDisabledReturnsError(t *testing.T) {
