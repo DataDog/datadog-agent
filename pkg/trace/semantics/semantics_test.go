@@ -19,7 +19,7 @@ import (
 // internal fields. Tests that mutate the registry must build their own instance.
 var testRegistry Registry = mustEmbeddedRegistry()
 
-func mustEmbeddedRegistry() Registry {
+func mustEmbeddedRegistry() *EmbeddedRegistry {
 	r, err := NewEmbeddedRegistry()
 	if err != nil {
 		panic(err)
