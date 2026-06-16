@@ -11,7 +11,7 @@
         "AGENT_DATA_PLANE_HASH_LINUX_ARM64": "522dc4620bc9763068d33e56cf5637d2e7ad86a9d75e16990e009279e06bcc4f",
         "AGENT_DATA_PLANE_HASH_WINDOWS_AMD64": "54815812a3debe2dfb2e7d56e1d9687db96e2a4cef4702191b9d059eae9bac86",
         "AGENT_DATA_PLANE_VERSION": "1.2.1",
-        "INTEGRATIONS_CORE_VERSION": "2babaf6bc6735a93aac83a754f2eec1bd868ef26",
+        "INTEGRATIONS_CORE_VERSION": "3a7becefae3e1b7eb4e016ae2e631500eb69a7c1",
         "INTEGRATIONS_WHEELS_STORAGE": "stable",
         "JMXFETCH_HASH": "3eb735171a3e41518c4101a6aee06fee8b93092d015769c2e470eecadb4bd11b",
         "JMXFETCH_VERSION": "0.52.0",
@@ -27,6 +27,6 @@
     },
     "last_stable": {
         "6": "6.53.1",
-        "7": "7.80.0"
+        "7": "7.80.1"
     }
 }

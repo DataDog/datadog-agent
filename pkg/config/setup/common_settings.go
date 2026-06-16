@@ -308,8 +308,6 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	// Datadog cluster agent
 	config.BindEnvAndSetDefault("cluster_agent.enabled", false)
 	config.BindEnvAndSetDefault("cluster_agent.cmd_port", 5005)
-	config.BindEnvAndSetDefault("cluster_agent.mcp.enabled", false)
-	config.BindEnvAndSetDefault("cluster_agent.mcp.endpoint", "/mcp")
 	config.BindEnvAndSetDefault("cluster_agent.allow_legacy_tls", false)
 	config.BindEnvAndSetDefault("cluster_agent.auth_token", "")
 	config.BindEnvAndSetDefault("cluster_agent.url", "")
@@ -1219,7 +1217,7 @@ func agent(config pkgconfigmodel.Setup) {
 	// (~8000 lines) into a *jsonschema.Schema retained globally for the process lifetime.
 	// This adds ~8 MiB of permanent heap even when the agent config is valid.
 	// Enable it deliberately if you need schema validation at startup.
-	config.BindEnvAndSetDefault("health_platform.invalidconfig_check.enabled", false)
+	config.BindEnvAndSetDefault("health_platform.invalidconfig_check.enabled", true)
 	config.BindEnvAndSetDefault("disable_py3_validation", false)
 	config.BindEnvAndSetDefault("win_skip_com_init", false)
 	config.BindEnvAndSetDefault("allow_arbitrary_tags", false)
