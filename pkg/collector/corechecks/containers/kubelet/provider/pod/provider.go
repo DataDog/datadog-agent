@@ -234,7 +234,6 @@ func (p *Provider) generateContainerSpecMetrics(sender sender.Sender, pod *workl
 			log.Warnf("Failed to parse resource quantity %s: %s", value, err)
 			continue
 		}
-		log.Infof("emit limits from /pods pod=%s, container=%s, resource=%s, quantity=%f", pod.Name, containerEntity.Name, r, quantity.AsApproximateFloat64())
 		sender.Gauge(common.KubeletMetricsPrefix+string(r)+".limits", quantity.AsApproximateFloat64(), "", tagList)
 	}
 }

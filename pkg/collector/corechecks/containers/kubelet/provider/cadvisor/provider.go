@@ -473,7 +473,6 @@ func (p *Provider) getPodByMetricLabel(labels prom.Metric) *workloadmeta.Kuberne
 	}
 	if pod, err := p.store.GetKubernetesPodByName(podName, namespace); err == nil {
 		filterablePod := workloadmetafilter.CreatePod(pod)
-		log.Infof("filtered pods: %+v", p.podFilter)
 		if !p.podFilter.IsExcluded(filterablePod) {
 			return pod
 		}
