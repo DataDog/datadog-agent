@@ -469,7 +469,7 @@ func TestSeriesExportReconstructsRetainedSamples(t *testing.T) {
 	if gauge.MType != metrics.APIGaugeType {
 		t.Fatalf("expected APIGaugeType, got %v", gauge.MType)
 	}
-	if gauge.Host != "host-x" || !gauge.NoIndex || gauge.Unit != "req" || gauge.Source != metrics.MetricSourceInternal || gauge.SourceTypeName != "internal" {
+	if gauge.Host != "host-x" || !gauge.NoIndex || gauge.Unit != "req" || gauge.Source != metrics.MetricSourceInternal || gauge.SourceTypeName != "System" {
 		t.Fatalf("unexpected gauge context metadata: %+v", gauge)
 	}
 	if tags := gauge.Tags.UnsafeToReadOnlySliceString(); !reflect.DeepEqual(tags, []string{"a:1", "b:2"}) {

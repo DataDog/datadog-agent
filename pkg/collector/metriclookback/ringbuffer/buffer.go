@@ -31,6 +31,11 @@ const (
 	// DefaultShardCount is the number of independent rings used when
 	// Options.ShardCount is not set.
 	DefaultShardCount = 16
+
+	// checkSeriesSourceTypeName matches the normal check sampler's v1 source type
+	// name for check-originated metric series. The numeric Source field still
+	// carries the more specific source/origin metadata for v2 payloads.
+	checkSeriesSourceTypeName = "System"
 )
 
 type sampleFlags uint8
@@ -217,7 +222,7 @@ func (b *Buffer) Series() metrics.Series {
 			MType:          apiMetricType(ctx.mtype),
 			NoIndex:        ctx.noIndex,
 			Source:         ctx.source,
-			SourceTypeName: sourceTypeName(ctx.source),
+			SourceTypeName: checkSeriesSourceTypeName,
 			Unit:           ctx.unit,
 		}
 		series = append(series, serie)
@@ -275,13 +280,6 @@ func apiMetricType(mtype metrics.MetricType) metrics.APIMetricType {
 		// HistogramType, HistorateType, and unsupported/non-scalar types.
 		return metrics.APIGaugeType
 	}
-}
-
-func sourceTypeName(source metrics.MetricSource) string {
-	if source == metrics.MetricSourceUnknown {
-		return ""
-	}
-	return source.String()
 }
 
 // Stats returns a point-in-time summary of the buffer.
