@@ -243,6 +243,8 @@ if ! command -v /opt/datadog-agent/bin/agent/agent >/dev/null 2>&1; then
     DEBIAN_FRONTEND=noninteractive apt-get install -y datadog-agent{package_version} datadog-signing-keys
 fi
 {config_copy}
+chown dd-agent:dd-agent /etc/datadog-agent/datadog.yaml || true
+chmod 0640 /etc/datadog-agent/datadog.yaml || true
 systemctl restart datadog-agent || service datadog-agent restart
 /opt/datadog-agent/bin/agent/agent version
 """
