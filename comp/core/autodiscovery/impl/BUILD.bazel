@@ -6,6 +6,8 @@ go_library(
         "autoconfig.go",
         "config_poller.go",
         "configmgr.go",
+        "configmgr_discovery.go",
+        "configmgr_nodiscovery.go",
         "multimap.go",
         "secrets.go",
         "stats.go",
