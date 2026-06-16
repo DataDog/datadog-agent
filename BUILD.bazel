@@ -112,7 +112,6 @@ exports_files(["go.mod"])
 # gazelle:exclude cmd/serverless-init/trace
 # gazelle:exclude cmd/system-probe/modules
 # gazelle:exclude cmd/system-probe/subcommands/compliance
-# gazelle:exclude cmd/system-probe/subcommands/ebpf
 # gazelle:exclude cmd/system-probe/subcommands/run
 # gazelle:exclude cmd/system-probe/subcommands/runtime
 # gazelle:exclude cmd/system-probe/subcommands/usm
@@ -165,7 +164,6 @@ exports_files(["go.mod"])
 # gazelle:exclude comp/core/workloadmeta/collectors/catalog-core
 # gazelle:exclude comp/core/workloadmeta/collectors/catalog-dogstatsd
 # gazelle:exclude comp/core/workloadmeta/collectors/catalog-otel
-# gazelle:exclude comp/core/workloadmeta/collectors/catalog-remote
 # gazelle:exclude comp/core/workloadmeta/collectors/internal/cloudfoundry
 # gazelle:exclude comp/core/workloadmeta/collectors/internal/containerd
 # gazelle:exclude comp/core/workloadmeta/collectors/internal/crio
@@ -177,9 +175,7 @@ exports_files(["go.mod"])
 # gazelle:exclude comp/core/workloadmeta/collectors/internal/nvml
 # gazelle:exclude comp/core/workloadmeta/collectors/internal/process
 # gazelle:exclude comp/core/workloadmeta/collectors/internal/remote/processcollector
-# gazelle:exclude comp/core/workloadmeta/collectors/internal/remote/workloadmeta
 # gazelle:exclude comp/core/workloadmeta/defaults
-# gazelle:exclude comp/core/workloadmeta/fx
 # gazelle:exclude comp/core/workloadmeta/init
 # gazelle:exclude comp/dogstatsd/http/fx
 # gazelle:exclude comp/dogstatsd/http/impl/*.go
@@ -240,7 +236,6 @@ exports_files(["go.mod"])
 # gazelle:exclude comp/netflow/server/fx
 # gazelle:exclude comp/netflow/server/impl
 # gazelle:exclude comp/netflow/topn
-# gazelle:exclude comp/networkpath/npcollector/fx
 # gazelle:exclude comp/networkpath/npcollector/mock
 # gazelle:exclude comp/networkpath/traceroute/fx-local
 # gazelle:exclude comp/networkpath/traceroute/impl-local
@@ -441,7 +436,6 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/gpu/safenvml
 # gazelle:exclude pkg/gpu/testutil
 # gazelle:exclude pkg/kubestatemetrics/builder
-# gazelle:exclude pkg/languagedetection/privileged
 # gazelle:exclude pkg/logs/client/http
 # gazelle:exclude pkg/logs/client/tcp
 # gazelle:exclude pkg/logs/internal/tag
@@ -510,13 +504,11 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/sbom/collectors/procfs
 # gazelle:exclude pkg/sbom/scanner
 # gazelle:exclude pkg/security/clihelpers
-# gazelle:exclude pkg/security/config
 # gazelle:exclude pkg/security/ebpf/tests
 # gazelle:exclude pkg/security/events
 # gazelle:exclude pkg/security/generators/backend_doc
 # gazelle:exclude pkg/security/module
 # gazelle:exclude pkg/security/probe/constantfetch
-# gazelle:exclude pkg/security/probe/eventstream
 # gazelle:exclude pkg/security/probe/kfilters
 # gazelle:exclude pkg/security/probe/monitors
 # gazelle:exclude pkg/security/probe/selftests
@@ -538,7 +530,14 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/security/resolvers/usergroup
 # gazelle:exclude pkg/security/resolvers/usersessions
 # gazelle:exclude pkg/security/rules
-# gazelle:exclude pkg/security/security_profile
+# gazelle:exclude pkg/security/security_profile/activity_tree
+# gazelle:exclude pkg/security/security_profile/dump
+# gazelle:exclude pkg/security/security_profile/profile
+# gazelle:exclude pkg/security/security_profile/storage/directory.go
+# gazelle:exclude pkg/security/security_profile/storage/directory_test.go
+# gazelle:exclude pkg/security/security_profile/storage/remote_storage_forwarder.go
+# gazelle:exclude pkg/security/security_profile/storage/storage.go
+# gazelle:exclude pkg/security/security_profile/tests
 # gazelle:exclude pkg/security/serializers
 # gazelle:exclude pkg/serverless/logs
 # gazelle:exclude pkg/serverless/metrics
@@ -549,7 +548,6 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/serverless/trace/trace.go
 # gazelle:exclude pkg/status/clusteragent
 # gazelle:exclude pkg/system-probe/api/client/check_test.go
-# gazelle:exclude pkg/system-probe/api/module
 # gazelle:exclude pkg/util/kubernetes/apiserver/controllers
 # gazelle:exclude pkg/util/kubernetes/apiserver/leaderelection/status_templates
 # TODO(agent-build): re-include the following files once their unmigrated deps are
