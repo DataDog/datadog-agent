@@ -11,6 +11,7 @@ go_library(
         "samplebins.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/gpu/testutil",
+    target_compatible_with = ["@platforms//os:linux"],  # keep
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/gpu/ebpf",
