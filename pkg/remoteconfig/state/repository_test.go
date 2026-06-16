@@ -1207,3 +1207,66 @@ func TestRepositoryConcurrentUpdateAndGetConfigs(t *testing.T) {
 	close(stop)
 	wg.Wait()
 }
+
+// TestRepositoryConcurrentApplyStatusAndUpdate exercises metadataMu under
+// contention: ackers call UpdateApplyStatusIfVersion / UpdateApplyStatus from
+// several goroutines while the main goroutine bumps the config version via
+// Update. metadataMu is what makes each check-then-store atomic against
+// applyUpdateResult's metadata writes — without it, a stale ack's read-modify-
+// store could resurrect an old version's metadata (the exact corruption the
+// async dispatcher would otherwise cause). Must pass under -race.
+func TestRepositoryConcurrentApplyStatusAndUpdate(t *testing.T) {
+	ta := newTestArtifacts()
+	r := ta.repository
+
+	file := newCWSDDFile()
+	path, _, data := addCWSDDFile("test", 1, file, ta.targets)
+	b := signTargets(ta.key, ta.targets)
+	_, err := r.Update(Update{
+		TUFTargets:    b,
+		TargetFiles:   map[string][]byte{path: data},
+		ClientConfigs: []string{path},
+	})
+	require.NoError(t, err)
+
+	var wg sync.WaitGroup
+	stop := make(chan struct{})
+	for i := 0; i < 6; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for {
+				select {
+				case <-stop:
+					return
+				default:
+					// Interleave a stale-version ack (v1, almost always
+					// superseded) and a plain by-path ack.
+					r.UpdateApplyStatusIfVersion(path, 1, ApplyStatus{State: ApplyStateAcknowledged})
+					r.UpdateApplyStatus(path, ApplyStatus{State: ApplyStateAcknowledged})
+				}
+			}
+		}()
+	}
+
+	for v := 2; v <= 60; v++ {
+		_, _, d := addCWSDDFile("test", int64(v), []byte("body"), ta.targets)
+		bb := signTargets(ta.key, ta.targets)
+		_, err := r.Update(Update{
+			TUFTargets:    bb,
+			TargetFiles:   map[string][]byte{path: d},
+			ClientConfigs: []string{path},
+		})
+		require.NoError(t, err)
+	}
+
+	close(stop)
+	wg.Wait()
+
+	// The version must be the latest the writer applied — a concurrent stale
+	// ack must never have rolled it back — and a stale-version ack is rejected.
+	require.EqualValues(t, 60, r.GetConfigs(ProductCWSDD)[path].Metadata.Version)
+	require.False(t, r.UpdateApplyStatusIfVersion(path, 1,
+		ApplyStatus{State: ApplyStateAcknowledged}),
+		"a stale (v1) ack must be rejected after the version advanced")
+}
