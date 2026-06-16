@@ -1,0 +1,20 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "ecsagent",
+    srcs = ["install.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers/ecsagent",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/e2e-framework/components/datadog/ecsagentparams",
+        "@com_github_aws_aws_sdk_go_v2//aws",
+        "@com_github_aws_aws_sdk_go_v2_config//:config",
+        "@com_github_aws_aws_sdk_go_v2_service_ecs//:ecs",
+        "@com_github_aws_aws_sdk_go_v2_service_ecs//types",
+        "@com_github_aws_aws_sdk_go_v2_service_ssm//:ssm",
+        "@com_github_datadog_datadog_agent_test_e2e_framework//testing/environments",
+        "@com_github_datadog_datadog_agent_test_e2e_framework//testing/runner",
+        "@com_github_datadog_datadog_agent_test_e2e_framework//testing/runner/parameters",
+        "@com_github_stretchr_testify//require",
+    ],
+)
