@@ -337,7 +337,6 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/network/encoding
 # gazelle:exclude pkg/network/encoding/marshal
 # gazelle:exclude pkg/network/events
-# gazelle:exclude pkg/network/filter
 # gazelle:exclude pkg/network/netlink
 # gazelle:exclude pkg/network/protocols/http/debugging
 # gazelle:exclude pkg/network/protocols/http/gotls/lookup/luts.go
