@@ -59,10 +59,34 @@ type Scheduler struct {
 
 	cancelOneTime chan bool      // Used to internally communicate a cancel signal to one-time schedule goroutines
 	wgOneTime     sync.WaitGroup // WaitGroup to track the exit of one-time schedule goroutines
+	newTicker     func(time.Duration) Ticker
+}
+
+// Ticker provides scheduler queue ticks. It is injectable for specialized
+// schedulers and tests.
+type Ticker interface {
+	C() <-chan time.Time
+	Stop()
+}
+
+// Options configures scheduler internals. Nil fields preserve normal scheduler
+// behavior.
+type Options struct {
+	NewTicker func(time.Duration) Ticker
 }
 
 // NewScheduler create a Scheduler and returns a pointer to it.
 func NewScheduler(checksPipe chan<- check.Check) *Scheduler {
+	return NewSchedulerWithOptions(checksPipe, Options{})
+}
+
+// NewSchedulerWithOptions creates a Scheduler with injectable internals for
+// specialized scheduling modes.
+func NewSchedulerWithOptions(checksPipe chan<- check.Check, opts Options) *Scheduler {
+	newTicker := opts.NewTicker
+	if newTicker == nil {
+		newTicker = newRealTicker
+	}
 	return &Scheduler{
 		checksPipe:       checksPipe,
 		done:             make(chan bool),
@@ -74,6 +98,7 @@ func NewScheduler(checksPipe chan<- check.Check) *Scheduler {
 		running:          atomic.NewBool(false),
 		cancelOneTime:    make(chan bool),
 		wgOneTime:        sync.WaitGroup{},
+		newTicker:        newTicker,
 	}
 }
 
@@ -97,7 +122,7 @@ func (s *Scheduler) Enter(check check.Check) error {
 	defer s.mu.Unlock()
 
 	if _, ok := s.jobQueues[check.Interval()]; !ok {
-		s.jobQueues[check.Interval()] = newJobQueue(check.Interval())
+		s.jobQueues[check.Interval()] = newJobQueue(check.Interval(), s.newTicker)
 		s.startQueue(s.jobQueues[check.Interval()])
 		if check.IsTelemetryEnabled() {
 			tlmQueuesCount.Inc()
@@ -284,4 +309,20 @@ func expQueues(s *Scheduler) func() interface{} {
 		}
 		return queues
 	}
+}
+
+type realTicker struct {
+	ticker *time.Ticker
+}
+
+func newRealTicker(interval time.Duration) Ticker {
+	return &realTicker{ticker: time.NewTicker(interval)}
+}
+
+func (t *realTicker) C() <-chan time.Time {
+	return t.ticker.C
+}
+
+func (t *realTicker) Stop() {
+	t.ticker.Stop()
 }

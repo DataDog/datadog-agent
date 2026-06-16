@@ -63,7 +63,7 @@ type jobQueue struct {
 	stop                chan bool // to stop this queue
 	stopped             chan bool // signals that this queue has stopped
 	buckets             []*jobBucket
-	bucketTicker        *time.Ticker
+	bucketTicker        Ticker
 	lastTick            time.Time
 	sparseStep          uint
 	currentBucketIdx    uint
@@ -74,13 +74,13 @@ type jobQueue struct {
 }
 
 // newJobQueue creates a new jobQueue instance
-func newJobQueue(interval time.Duration) *jobQueue {
+func newJobQueue(interval time.Duration, newTicker func(time.Duration) Ticker) *jobQueue {
 	jq := &jobQueue{
 		interval:     interval,
 		stop:         make(chan bool),
 		stopped:      make(chan bool),
 		health:       health.RegisterLiveness(fmt.Sprintf("collector-queue-%vs", interval.Seconds())),
-		bucketTicker: time.NewTicker(time.Second),
+		bucketTicker: newTicker(time.Second),
 	}
 
 	var nb int
@@ -176,9 +176,10 @@ func (jq *jobQueue) process(s *Scheduler) bool {
 
 	select {
 	case <-jq.stop:
+		jq.bucketTicker.Stop()
 		_ = jq.health.Deregister()
 		return false
-	case t := <-jq.bucketTicker.C:
+	case t := <-jq.bucketTicker.C():
 		log.Tracef("Bucket ticked... current index: %v", jq.currentBucketIdx)
 		jq.mu.Lock()
 		if !jq.lastTick.Equal(time.Time{}) && t.After(jq.lastTick.Add(2*time.Second)) {
@@ -206,6 +207,7 @@ func (jq *jobQueue) process(s *Scheduler) bool {
 			// blocking, we'll be here as long as it takes
 			case s.checksPipe <- check:
 			case <-jq.stop:
+				jq.bucketTicker.Stop()
 				_ = jq.health.Deregister()
 				return false
 			}

@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
+	collectorscheduler "github.com/DataDog/datadog-agent/pkg/collector/scheduler"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
@@ -102,9 +103,9 @@ func TestShadowSchedulerSharesOneRunnerAcrossShadowChecks(t *testing.T) {
 	scheduler := NewShadowScheduler(ShadowSchedulerOptions{
 		Loader:           loader,
 		NewSenderManager: func(context.Context) aggregatorsender.SenderManager { return &recordingSenderManager{} },
-		NewRunner: func(scheduled runner.ScheduledChecks) ShadowRunner {
+		NewRunner: func() ShadowRunner {
 			runnerCalls++
-			return newRunner(scheduled)
+			return newRunner()
 		},
 		Interval:    time.Second,
 		StopTimeout: time.Second,
@@ -165,7 +166,7 @@ func TestShadowSchedulerConcurrentScheduleKeepsOneShadowCheck(t *testing.T) {
 	for err := range errs {
 		require.NoError(t, err)
 	}
-	assert.Len(t, tickers.Tickers(), 2)
+	assert.Len(t, tickers.Tickers(), 1)
 	assert.Len(t, senderManager.DestroySenderIDs(), 1)
 	assert.Less(t, elapsed, 500*time.Millisecond)
 }
@@ -367,7 +368,7 @@ func TestShadowSchedulerUnscheduleUsesConfigDigestAndInstanceIndex(t *testing.T)
 	require.NoError(t, scheduler.Schedule([]ShadowConfig{first, second}))
 	require.NoError(t, scheduler.Unschedule([]ShadowConfig{first}))
 
-	tickers.TickAndWait(t, 1)
+	tickers.TickAndWait(t, 0)
 	require.Eventually(t, func() bool {
 		return loader.checks[1].RunCount() == 1
 	}, time.Second, 10*time.Millisecond)
@@ -413,6 +414,40 @@ func TestShadowSchedulerDoesNotRunOrRecordStatsAfterUnschedule(t *testing.T) {
 	assert.Equal(t, 1, shadowCheck.RunCount())
 	_, found = expvars.CheckStats(sourceConfig.ShadowCheckID)
 	assert.False(t, found)
+}
+
+func TestShadowSchedulerUnscheduleCancelsPendingEnqueue(t *testing.T) {
+	sourceConfig := newTestShadowConfig()
+	shadowCheck := newTestShadowCheck(sourceConfig.SourceCheckID)
+	shadowCheck.blockRuns = true
+	loader := &testShadowLoader{check: shadowCheck}
+	tickers := &manualTickerFactory{}
+	scheduler := NewShadowScheduler(ShadowSchedulerOptions{
+		Loader:           loader,
+		NewSenderManager: func(context.Context) aggregatorsender.SenderManager { return &recordingSenderManager{} },
+		NewRunner:        newTestShadowRunnerFactory(t),
+		Interval:         time.Second,
+		StopTimeout:      50 * time.Millisecond,
+		NewTicker:        tickers.NewTicker,
+	})
+
+	require.NoError(t, scheduler.Schedule([]ShadowConfig{sourceConfig}))
+	tickers.TickAndWait(t, 0)
+	require.Eventually(t, func() bool {
+		return shadowCheck.RunCount() == 1
+	}, time.Second, 10*time.Millisecond)
+
+	tickers.TickAndWait(t, 0)
+	require.NoError(t, scheduler.Unschedule([]ShadowConfig{sourceConfig}))
+
+	shadowCheck.UnblockRun()
+	require.Eventually(t, func() bool {
+		return !shadowCheck.IsRunning()
+	}, time.Second, 10*time.Millisecond)
+	assert.Equal(t, 1, shadowCheck.RunCount())
+	require.Never(t, func() bool {
+		return shadowCheck.RunCount() > 1
+	}, 100*time.Millisecond, 10*time.Millisecond)
 }
 
 func TestShadowSchedulerLoadErrorCleansUpShadowSenderAndCancelsContext(t *testing.T) {
@@ -481,10 +516,9 @@ func TestShadowSchedulerStopPreventsInFlightLoadFromStarting(t *testing.T) {
 		return len(errs) == 1
 	}, time.Second, 10*time.Millisecond)
 	require.ErrorIs(t, <-errs, errShadowSchedulerStopped)
-	assert.Len(t, tickers.Tickers(), 1)
+	assert.Empty(t, tickers.Tickers())
 	assert.Equal(t, []checkid.ID{sourceConfig.ShadowCheckID}, senderManager.DestroySenderIDs())
 
-	tickers.Tick(0)
 	assert.Equal(t, 0, loader.checks[0].RunCount())
 }
 
@@ -536,9 +570,9 @@ func TestShadowSchedulerScheduleAfterStopDoesNotCreateRunner(t *testing.T) {
 	scheduler := NewShadowScheduler(ShadowSchedulerOptions{
 		Loader:           loader,
 		NewSenderManager: func(context.Context) aggregatorsender.SenderManager { return &recordingSenderManager{} },
-		NewRunner: func(scheduled runner.ScheduledChecks) ShadowRunner {
+		NewRunner: func() ShadowRunner {
 			runnerCalls++
-			return newTestShadowRunnerFactory(t)(scheduled)
+			return newTestShadowRunnerFactory(t)()
 		},
 		Interval:    time.Second,
 		StopTimeout: time.Second,
@@ -757,7 +791,7 @@ type manualTickerFactory struct {
 	tickers []*manualTicker
 }
 
-func (f *manualTickerFactory) NewTicker(time.Duration) ShadowTicker {
+func (f *manualTickerFactory) NewTicker(time.Duration) collectorscheduler.Ticker {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	ticker := &manualTicker{ch: make(chan time.Time, 10)}
@@ -836,7 +870,7 @@ func newTestShadowRunnerFactory(t *testing.T) ShadowRunnerFactory {
 	mockConfig.SetInTest("check_runners", 1)
 	mockConfig.SetInTest("hostname", "myhost")
 
-	return func(scheduled runner.ScheduledChecks) ShadowRunner {
+	return func() ShadowRunner {
 		r := runner.NewRunnerWithOptions(
 			&recordingSenderManager{},
 			haagentmock.NewMockHaAgent(),
@@ -845,7 +879,6 @@ func newTestShadowRunnerFactory(t *testing.T) ShadowRunnerFactory {
 				StatusEmitter: noopStatusEmitter{},
 			},
 		)
-		r.SetScheduler(scheduled)
 		return r
 	}
 }
