@@ -14,6 +14,7 @@ import (
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	secretsnoopimpl "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl"
 	"github.com/DataDog/datadog-agent/comp/logs-library/client"
+	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/comp/logs-library/sender"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
@@ -50,6 +51,7 @@ func (f *mockSenderFactory) NewTCPSender(
 	_ string,
 	queueCount int,
 	workersPerQueue int,
+	_ metrics.PipelineMonitor,
 ) *sender.Sender {
 	f.queueCount = queueCount
 	f.workersPerQueue = workersPerQueue
@@ -76,6 +78,7 @@ func (f *mockSenderFactory) NewHTTPSender(
 	minWorkerConcurrency int,
 	maxWorkerConcurrency int,
 	_ secrets.Component,
+	_ metrics.PipelineMonitor,
 ) *sender.Sender {
 	f.queueCount = queueCount
 	f.workersPerQueue = workersPerQueue
