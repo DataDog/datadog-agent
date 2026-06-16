@@ -370,8 +370,8 @@ drain:
 // re-report after resolve does not lose to an older RESOLVED entry.
 func (h *healthPlatformImpl) notifyReported(lean *healthplatform.Issue, si *storedIssue) {
 	h.aggregatorsMu.RLock()
+	defer h.aggregatorsMu.RUnlock()
 	agg := h.aggregators
-	h.aggregatorsMu.RUnlock()
 	if len(agg) == 0 {
 		return
 	}
@@ -394,8 +394,8 @@ func (h *healthPlatformImpl) notifyReported(lean *healthplatform.Issue, si *stor
 // resolve does not race with a lingering ONGOING entry.
 func (h *healthPlatformImpl) notifyResolved(resolved *healthplatform.Issue) {
 	h.aggregatorsMu.RLock()
+	defer h.aggregatorsMu.RUnlock()
 	agg := h.aggregators
-	h.aggregatorsMu.RUnlock()
 	for _, o := range agg {
 		if o.ResolvedCh != nil {
 			removeFromCh(o.ActiveCh, resolved.Id)
