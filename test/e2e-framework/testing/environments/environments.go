@@ -11,6 +11,8 @@ import (
 	"reflect"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/common"
 )
 
 const (
@@ -58,4 +60,63 @@ func CreateEnv[Env any]() (*Env, []reflect.StructField, []reflect.Value, error) 
 	}
 
 	return &env, retainedFields, retainedValues, nil
+}
+
+// BuildEnvFromResources imports the raw resources returned by a provisioner into the
+// importable fields of an environment, and initializes each imported component.
+//
+// fields and values are the importable fields/values returned by [CreateEnv]; resources
+// is the [provisioners.RawResources] map returned by the provisioner. ctx is passed to
+// every component implementing [common.Initializable]. It is decoupled from *testing.T so
+// non-test callers (e.g. a standalone binary) can drive provisioning.
+func BuildEnvFromResources(ctx common.Context, resources provisioners.RawResources, fields []reflect.StructField, values []reflect.Value) error {
+	if len(fields) != len(values) {
+		panic("fields and values must have the same length")
+	}
+
+	if len(resources) == 0 {
+		return nil
+	}
+
+	for idx, fieldValue := range values {
+		field := fields[idx]
+		importKeyFromTag := field.Tag.Get(importKey)
+
+		// If a field value is nil, it means that it was explicitly set to nil by provisioners, hence not available
+		// We should not find it in the resources map, returning an error in this case.
+		if fieldValue.IsNil() {
+			if _, found := resources[importKeyFromTag]; found {
+				return fmt.Errorf("resource named %s has key %s but is nil", fields[idx].Name, importKeyFromTag)
+			}
+
+			continue
+		}
+
+		importable := fieldValue.Interface().(components.Importable)
+		resourceKey := importable.Key()
+		if importKeyFromTag != "" {
+			resourceKey = importKeyFromTag
+		}
+		if resourceKey == "" {
+			return fmt.Errorf("resource named %s has no import key set and no annotation", field.Name)
+		}
+
+		if rawResource, found := resources[resourceKey]; found {
+			err := importable.Import(rawResource, fieldValue.Interface())
+			if err != nil {
+				return fmt.Errorf("failed to import resource named: %s with key: %s, err: %w", field.Name, resourceKey, err)
+			}
+
+			// See if the component requires init
+			if initializable, ok := fieldValue.Interface().(common.Initializable); ok {
+				if err := initializable.Init(ctx); err != nil {
+					return fmt.Errorf("failed to init resource named: %s with key: %s, err: %w", field.Name, resourceKey, err)
+				}
+			}
+		} else {
+			return fmt.Errorf("expected resource named: %s with key: %s but not returned by provisioners", field.Name, resourceKey)
+		}
+	}
+
+	return nil
 }

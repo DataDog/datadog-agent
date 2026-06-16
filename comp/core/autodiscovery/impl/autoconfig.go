@@ -28,6 +28,7 @@ import (
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	adtypes "github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
 	autodiscoverydef "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
+	discovererPkg "github.com/DataDog/datadog-agent/comp/core/autodiscovery/discoverer"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
@@ -85,6 +86,7 @@ type AutoConfig struct {
 	listenerRetryStop        chan struct{}
 	schedulerController      *scheduler.Controller
 	listenerStop             chan struct{}
+	discoveryStop            chan struct{}
 	healthListening          *health.Handle
 	newService               chan listeners.Service
 	delService               chan listeners.Service
@@ -207,12 +209,13 @@ func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolv
 		log.Infof("Health platform component not available. Issue reporting disabled for config providers.")
 	}
 	staticConfigIndex := listeners.NewStaticConfigIndex()
-	cfgMgr := newReconcilingConfigManager(secretResolver, hpComp, staticConfigIndex)
+	cfgMgr := newReconcilingConfigManager(secretResolver, hpComp, staticConfigIndex, discovererPkg.NewPythonBridge())
 	ac := &AutoConfig{
 		configPollers:            make([]*configPoller, 0, 9),
 		listenerCandidates:       make(map[string]*listenerCandidate),
 		listenerRetryStop:        nil, // We'll open it if needed
 		listenerStop:             make(chan struct{}),
+		discoveryStop:            make(chan struct{}),
 		healthListening:          health.RegisterLiveness("ad-servicelistening"),
 		newService:               make(chan listeners.Service),
 		delService:               make(chan listeners.Service),
@@ -370,6 +373,22 @@ func (ac *AutoConfig) start() {
 	setupAcErrors()
 	// Start the service listener
 	go ac.serviceListening()
+	ac.cfgMgr.start()
+	go ac.discoveredChangesLoop(ac.cfgMgr.discoveredChanges())
+}
+
+// discoveredChangesLoop drains ConfigChanges produced asynchronously by the
+// configuration-discovery worker and forwards them to the scheduler. Exits
+// when discoveryStop is closed.
+func (ac *AutoConfig) discoveredChangesLoop(ch <-chan integration.ConfigChanges) {
+	for {
+		select {
+		case <-ac.discoveryStop:
+			return
+		case changes := <-ch:
+			ac.applyChanges(changes)
+		}
+	}
 }
 
 // stop just shuts down AutoConfig in a clean way.
@@ -383,6 +402,10 @@ func (ac *AutoConfig) stop() {
 
 	// stop the service listener
 	ac.listenerStop <- struct{}{}
+
+	// stop the discovered-changes drain loop and then the worker itself.
+	close(ac.discoveryStop)
+	ac.cfgMgr.stop()
 
 	// stop the meta scheduler
 	ac.schedulerController.Stop()

@@ -1,6 +1,6 @@
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
-github.com/DataDog/agent-payload/v5 v5.0.198 h1:i6OuIo88zLZW+S/XcDFHddu5p5f+5BYv6Wj2c+KB/Oc=
-github.com/DataDog/agent-payload/v5 v5.0.198/go.mod h1:GyA1vuCeRywrNNCbYeR0cOYKE8QkOVNAFDqsH8VNF5M=
+github.com/DataDog/agent-payload/v5 v5.0.201 h1:iQ3rNMRnsNNxe8PmhwrzfdceDPD9wTLKOljdv+N3KsE=
+github.com/DataDog/agent-payload/v5 v5.0.201/go.mod h1:GyA1vuCeRywrNNCbYeR0cOYKE8QkOVNAFDqsH8VNF5M=
 github.com/DataDog/datadog-api-client-go/v2 v2.60.0 h1:YzEB2H42symyDlHzNo0wcjW1mfXSW1E1UCbThHx4xrc=
 github.com/DataDog/datadog-api-client-go/v2 v2.60.0/go.mod h1:d3tOEgUd2kfsr9uuHQdY+nXrWp4uikgTgVCPdKNK30U=
 github.com/DataDog/datadog-go/v5 v5.8.3 h1:s58CUJ9s8lezjhTNJO/SxkPBv2qZjS3ktpRSqGF5n0s=
@@ -444,5 +444,5 @@ gopkg.in/yaml.v2 v2.2.2/go.mod h1:hI93XBmqTisBFMUTm0b8Fm+jr3Dg1NNxqwp+5A1VGuI=
 gopkg.in/yaml.v3 v3.0.0-20200313102051-9f266ea9e77c/go.mod h1:K4uyk7z7BCEPqu6E+C64Yfv1cQ7kz7rIZviUmN+EgEM=
 gopkg.in/yaml.v3 v3.0.1 h1:fxVm/GzAzEWqLHuvctI91KS9hhNmmWOoWu0XTYJS7CA=
 gopkg.in/yaml.v3 v3.0.1/go.mod h1:K4uyk7z7BCEPqu6E+C64Yfv1cQ7kz7rIZviUmN+EgEM=
-k8s.io/apimachinery v0.35.5 h1:lbjjjUfVeVqFbiOpyhqZHc8DhiYkWOxSNij7lHx2U8Y=
-k8s.io/apimachinery v0.35.5/go.mod h1:NNi1taPOpep0jOj+oRha3mBJPqvi0hGdaV8TCqGQ+cc=
+k8s.io/apimachinery v0.35.6 h1:ASSpfmmsOArKb2Hsu8gGlIcbIcEMVTboI3FfsfYuQ8k=
+k8s.io/apimachinery v0.35.6/go.mod h1:NNi1taPOpep0jOj+oRha3mBJPqvi0hGdaV8TCqGQ+cc=

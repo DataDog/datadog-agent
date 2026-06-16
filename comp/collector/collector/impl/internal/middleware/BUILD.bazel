@@ -12,6 +12,7 @@ go_library(
         "//comp/core/agenttelemetry/def",
         "//comp/core/autodiscovery/integration",
         "//comp/core/diagnose/def",
+        "//comp/healthplatform/store/def",
         "//pkg/aggregator/sender",
         "//pkg/collector/check",
         "//pkg/collector/check/id",
@@ -27,6 +28,7 @@ go_test(
     gotags = ["test"],
     deps = [
         "//comp/core/agenttelemetry/def",
+        "//comp/healthplatform/store/def",
         "//pkg/collector/check",
         "//pkg/fleet/installer/telemetry",
         "//pkg/util/option",

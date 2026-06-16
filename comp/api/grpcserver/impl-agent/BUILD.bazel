@@ -34,6 +34,7 @@ go_library(
         "//comp/dogstatsd/pidmap/def",
         "//comp/dogstatsd/replay/def",
         "//comp/dogstatsd/server/def",
+        "//comp/healthplatform/store/def",
         "//comp/metadata/host/impl/hosttags",
         "//comp/remote-config/rcservice/def",
         "//comp/remote-config/rcservicemrf/def",
@@ -54,6 +55,7 @@ go_library(
 go_test(
     name = "impl-agent_test",
     srcs = [
+        "health_platform_test.go",
         "interceptors_test.go",
         "server_test.go",
     ],
@@ -63,7 +65,10 @@ go_test(
         "//comp/core/remoteagentregistry/def",
         "//comp/core/telemetry/def",
         "//comp/core/telemetry/mock",
+        "//comp/healthplatform/store/def",
+        "//comp/healthplatform/store/mock",
         "//pkg/proto/pbgo/core",
+        "@com_github_datadog_agent_payload_v5//healthplatform",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@org_golang_google_grpc//:grpc",
