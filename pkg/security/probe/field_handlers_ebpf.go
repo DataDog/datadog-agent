@@ -417,6 +417,11 @@ func (fh *EBPFFieldHandlers) ResolveAsync(ev *model.Event) bool {
 	return ev.Async
 }
 
+func (fh *EBPFFieldHandlers) ResolveIsPIDFD(ev *model.Event) bool {
+	ev.IsPIDFD = ev.Flags&model.EventFlagsPIDFD > 0
+	return ev.IsPIDFD
+}
+
 func (fh *EBPFFieldHandlers) resolveSBOMFields(ev *model.Event, f *model.FileEvent) {
 	if fh.resolvers.SBOMResolver == nil {
 		return
