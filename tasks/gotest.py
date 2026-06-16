@@ -10,6 +10,8 @@ import glob
 import operator
 import os
 import re
+import shutil
+import subprocess
 import sys
 import time
 from collections import defaultdict
@@ -27,7 +29,6 @@ from tasks.collector import OTEL_CONTRIB_VERSION
 from tasks.coverage import PROFILE_COV, CodecovWorkaround
 from tasks.devcontainer import run_on_devcontainer
 from tasks.flavor import AgentFlavor
-from tasks.libs.build.bazel import bazel
 from tasks.libs.common.color import color_message
 from tasks.libs.common.datadog_api import create_count, send_metrics
 from tasks.libs.common.git import get_modified_files
@@ -168,7 +169,37 @@ def _minimize_bazel_patterns(patterns: list[str]) -> list[str]:
     return result
 
 
-def get_bazel_test_targets(ctx, flavor: str, modules: list[GoModule], bazel_flags: list[str] = None) -> dict[str, str]:
+def _run_bazel(
+    *args: str,
+    verbose: bool = False,
+    **kwargs,
+) -> subprocess.CompletedProcess[str]:
+    """Execute a bazel command.
+
+    args: command args
+    verbose: Echo comand line to stdout.
+
+    Returns:
+       subprocess run result
+    """
+    resolved_bazel = shutil.which("bazel")
+    if not resolved_bazel:
+        raise Exit("bazelisk not found")
+    cmd = [resolved_bazel] + list(args)
+    if kwargs.get("verbose", True):
+        print(" ".join(cmd))
+    result = subprocess.run(
+        cmd,
+        encoding="utf-8",
+        capture_output=True,
+        **kwargs,
+    )
+    return result
+
+
+def get_bazel_test_targets(
+    ctx, flavor: AgentFlavor, modules: list[GoModule], bazel_flags: list[str] = None
+) -> dict[str, str]:
     """Query Bazel for go_test targets within the scope of the given modules.
 
     Returns a dict mapping Bazel label (without config hash) to Go import path.
@@ -207,10 +238,18 @@ def get_bazel_test_targets(ctx, flavor: str, modules: list[GoModule], bazel_flag
     if not bazel_patterns:
         return {}
 
+    flavor_tag = f'flavor_{flavor.name}'
     scope = ' + '.join(bazel_patterns)
-    if not bazel_flags:
-        bazel_flags = []
-    output = bazel(ctx, "cquery", *bazel_flags, f"kind(go_test, {scope})", capture_output=True, capture_stderr=True)
+    all_flags = ['-k', '--color=no'] + (bazel_flags or [])
+    # We don't care about failure or stderr. There might be broken packages
+    # during development. We enumerate what we can and test those.
+    result = _run_bazel(
+        'cquery',
+        *all_flags,
+        f'attr(tags, {flavor_tag}, kind(go_test, {scope})) except attr(tags, manual, {scope})',
+    )
+    output = result.stdout
+
     if not output:
         return {}
 
@@ -264,7 +303,6 @@ def _run_bazel_tests(
     Prints one ✓/∅/FAIL line per target then a DONE summary.
     Returns a TestStats with counts from this run.
     """
-    from invoke.exceptions import UnexpectedExit
 
     if not targets:
         return TestStats()
@@ -272,7 +310,7 @@ def _run_bazel_tests(
     # Windows-safe command-length limit.
     # TODO: on Linux runners, the limit is much higher; consider platform-specific batching.
     MAX_CMD_LENGTH = 32000
-    base_args = ["test", "--keep_going"]
+    base_args = ["test", "--keep_going", "--build_tests_only", "--color=no"]
     if bazel_flags:
         base_args.extend(bazel_flags)
     fixed_len = sum([len(a) for a in base_args]) + len(base_args) + 1  # args + spaces
@@ -297,24 +335,29 @@ def _run_bazel_tests(
     _NOISY_PREFIXES = ('Loading:', 'Analyzing:', 'INFO:', 'WARNING:', 'Computing main repo mapping:')
 
     parsed_results: list[tuple[str, str, str | None, bool]] = []
-    run_failed = False
+    run_failed = False  # Track an overall failure accross batches.
     t_start = time.monotonic()
 
     for batch in batches:
-        try:
-            output = bazel(ctx, *base_args, *batch, capture_output=True, capture_stderr=True)
-        except UnexpectedExit as e:
-            output = (e.result.stdout or "") + (e.result.stderr or "")
-            run_failed = True
-
+        result = _run_bazel(*base_args, *batch, verbose=True)
+        output = result.stdout
         if output:
+            # check output for the individual test pass/fail/skipped/cached.
+            if verbose:
+                print(output)
             for line in output.splitlines():
-                # In non-verbose mode filter Bazel's progress/info noise.
-                if not verbose and line.strip().startswith(_NOISY_PREFIXES):
-                    continue
                 parsed = _parse_bazel_test_line(line)
                 if parsed:
                     parsed_results.append(parsed)
+
+        if result.returncode != 0:
+            run_failed = True
+            # Print the errors to the console/main log.  The individual test
+            # results .xml files have the details. Those get uploaded separately.
+            for line in result.stderr.splitlines():
+                if line.strip().startswith(_NOISY_PREFIXES):
+                    continue
+                print(line)
 
     duration_s = time.monotonic() - t_start
 
@@ -363,6 +406,7 @@ def test_flavor(
     result_json: str = DEFAULT_TEST_OUTPUT_JSON,
     recursive: bool = True,
     exclude_packages: set[str] | None = None,
+    skip_tests_covered_by_bazel: bool = False,
 ):
     """
     Runs unit tests for given flavor, build tags, and modules.
@@ -396,33 +440,65 @@ def test_flavor(
         module_list, recursive, ctx=ctx, build_tags=build_tags, exclude_packages=exclude_packages or None
     )
 
-    with CodecovWorkaround(ctx, result.path, coverage, packages, args) as cov_test_path:
-        res = ctx.run(
-            command=cmd.format(
-                packages=packages,
-                cov_test_path=cov_test_path,
-                **args,
-            ),
-            env=env,
-            out_stream=test_profiler,
-            warn=True,
-        )
-        # early stop on SIGINT: exit code is 128 + signal number, SIGINT is 2, so 130
-        if res is not None and res.exited == 130:
-            raise KeyboardInterrupt()
-
-    if res.exited is None or res.exited > 0:
-        result.failed = True
+    # When skip_tests_covered_by_bazel is True, packages was expanded by `go list`
+    # into individual package names and the list can be very long. Batch them to
+    # stay within Windows command-line length limits (same heuristic as
+    # _run_bazel_tests). Otherwise, treat the whole package list as one batch.
+    #
+    # NOTE: Multiple batches break proper JUnit XML output — each gotestsum
+    # invocation overwrites the previous batch's file, so only the last batch's
+    # results survive. This is a known limitation that we accept here because this
+    # mode is used only to measure test timing, not to load coverage data.
+    if skip_tests_covered_by_bazel:
+        MAX_CMD_LENGTH = 32000
+        package_list = packages.split()
+        batches: list[list[str]] = []
+        current_batch: list[str] = []
+        current_len = 0
+        for pkg in package_list:
+            pkg_len = len(pkg) + 1  # +1 for the separating space
+            if current_batch and current_len + pkg_len > MAX_CMD_LENGTH:
+                batches.append(current_batch)
+                current_batch = [pkg]
+                current_len = pkg_len
+            else:
+                current_batch.append(pkg)
+                current_len += pkg_len
+        if current_batch:
+            batches.append(current_batch)
     else:
-        lines = res.stdout.splitlines()
-        if lines is not None and 'DONE 0 tests' in lines[-1]:
-            cov_path = os.path.join(result.path, PROFILE_COV)
-            print(color_message(f"No tests were run, skipping coverage report. Removing {cov_path}.", "orange"))
-            try:
-                os.remove(cov_path)
-            except FileNotFoundError as e:
-                print(f"Could not remove coverage file {cov_path}\n{e}")
-            return
+        batches = [packages.split()]
+
+    res = None
+    for batch in batches:
+        batch_packages = ' '.join(batch)
+        with CodecovWorkaround(ctx, result.path, coverage, batch_packages, args) as cov_test_path:
+            res = ctx.run(
+                command=cmd.format(
+                    packages=batch_packages,
+                    cov_test_path=cov_test_path,
+                    **args,
+                ),
+                env=env,
+                out_stream=test_profiler,
+                warn=True,
+            )
+            # early stop on SIGINT: exit code is 128 + signal number, SIGINT is 2, so 130
+            if res is not None and res.exited == 130:
+                raise KeyboardInterrupt()
+
+        if res is not None and (res.exited is None or res.exited > 0):
+            result.failed = True
+        elif not skip_tests_covered_by_bazel:
+            lines = res.stdout.splitlines()
+            if lines is not None and 'DONE 0 tests' in lines[-1]:
+                cov_path = os.path.join(result.path, PROFILE_COV)
+                print(color_message(f"No tests were run, skipping coverage report. Removing {cov_path}.", "orange"))
+                try:
+                    os.remove(cov_path)
+                except FileNotFoundError as e:
+                    print(f"Could not remove coverage file {cov_path}\n{e}")
+                return
 
     if result_junit:
         enrich_junitxml(result_junit, flavor)  # type: ignore
@@ -721,6 +797,7 @@ def test(
             coverage=coverage,
             recursive=not only_modified_packages,  # Disable recursive tests when only modified packages is enabled, to avoid testing a package and all its subpackages
             exclude_packages=exclude_packages or None,
+            skip_tests_covered_by_bazel=skip_tests_covered_by_bazel,
         )
 
     # Go test output (only if tests ran)
