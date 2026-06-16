@@ -12,6 +12,20 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// testRegistry is a shared, read-only embedded registry for lookup tests.
+// NewEmbeddedRegistry parses the embedded mappings JSON on every call, so tests
+// that only read from the registry reuse this single instance instead of
+// re-parsing. Tests that mutate the registry must build their own instance.
+var testRegistry = mustEmbeddedRegistry()
+
+func mustEmbeddedRegistry() *EmbeddedRegistry {
+	r, err := NewEmbeddedRegistry()
+	if err != nil {
+		panic(err)
+	}
+	return r
+}
+
 func TestEmbeddedRegistry(t *testing.T) {
 	r, err := NewEmbeddedRegistry()
 	require.NoError(t, err)
@@ -19,8 +33,7 @@ func TestEmbeddedRegistry(t *testing.T) {
 }
 
 func TestGetAttributePrecedence(t *testing.T) {
-	r, err := NewEmbeddedRegistry()
-	require.NoError(t, err)
+	r := testRegistry
 
 	t.Run("known concept returns tags", func(t *testing.T) {
 		tags := r.GetAttributePrecedence(ConceptDBStatement)
@@ -41,16 +54,14 @@ func TestDefaultRegistry(t *testing.T) {
 }
 
 func TestPartialVersionRegistryType(t *testing.T) {
-	r, err := NewEmbeddedRegistry()
-	require.NoError(t, err)
+	r := testRegistry
 	tags := r.GetAttributePrecedence(ConceptDDPartialVersion)
 	require.Len(t, tags, 1, "ConceptDDPartialVersion should have exactly one fallback")
 	assert.Equal(t, ValueTypeFloat64, tags[0].Type, "_dd.partial_version must be float64 to match the Metrics map storage type")
 }
 
 func TestDDTagConceptsRegistered(t *testing.T) {
-	r, err := NewEmbeddedRegistry()
-	require.NoError(t, err)
+	r := testRegistry
 
 	concepts := []struct {
 		concept Concept
@@ -76,8 +87,7 @@ func TestDDTagConceptsRegistered(t *testing.T) {
 }
 
 func TestDDTagConceptLookup(t *testing.T) {
-	r, err := NewEmbeddedRegistry()
-	require.NoError(t, err)
+	r := testRegistry
 
 	meta := map[string]string{
 		"env":                "production",
