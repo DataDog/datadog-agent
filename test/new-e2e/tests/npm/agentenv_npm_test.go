@@ -39,7 +39,7 @@ func (v *vmSuiteEx6) Test1_FakeIntakeNPM() {
 	// This loop waits for agent and system-probe to be ready, stated by
 	// checking we eventually receive a payload
 	v.EventuallyWithT(func(c *assert.CollectT) {
-		v.Env().RemoteHost.MustExecute("curl http://www.datadoghq.com")
+		v.Env().RemoteHost.MustExecuteOn(c, "curl http://www.datadoghq.com")
 
 		hostnameNetID, err := v.Env().FakeIntake.Client().GetConnectionsNames()
 		require.NoError(c, err, "fakeintake GetConnectionsNames() error")

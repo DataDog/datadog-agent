@@ -80,7 +80,7 @@ bazel_dep(name = "rules_rust", version = "0.69.0")
 bazel_dep(name = "rules_rust_prost", version = "0.69.0")
 bazel_dep(name = "rules_shell", version = "0.8.0")
 bazel_dep(name = "supply_chain_tools", version = "0.0.1")
-bazel_dep(name = "toolchains_llvm", version = "1.7.0")
+bazel_dep(name = "toolchains_llvm", version = "1.8.0")
 
 bazel_dep(name = "rules_testing", version = "0.9.0", dev_dependency = True)
 
@@ -134,7 +134,7 @@ http_archive(
     patches = [
         "//bazel/patches:buildifier-build.patch",  # bazelbuild/buildtools#1398
         "//bazel/patches:buildifier-internal-factory.patch",  # bazelbuild/buildtools#1399
-        "//bazel/patches:buildifier-runner-bat-template.patch",  # bazelbuild/buildtools#1400 bazelbuild/buildtools#1404
+        "//bazel/patches:buildifier-runner-bat-template.patch",  # bazelbuild/buildtools#1400
         "//bazel/patches:buildifier-runner-bash-template.patch",  # bazelbuild/buildtools#1454
     ],
     sha256 = "f3b800e9f6ca60bdef3709440f393348f7c18a29f30814288a7326285c80aab9",

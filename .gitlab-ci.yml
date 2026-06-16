@@ -13,7 +13,7 @@
   if: $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+\.x$/
 
 .if_pr_targeting_release_branch: &if_pr_targeting_release_branch
-  if: $CI_MERGE_REQUEST_TARGET_BRANCH_NAME =~ /^[0-9]+\.[0-9]+\.x$/
+  if: $COMPARE_TO_BRANCH =~ /^[0-9]+\.[0-9]+\.x$/
 
 .if_mergequeue: &if_mergequeue
   if: $CI_COMMIT_BRANCH =~ /^mq-working-branch-/
@@ -22,7 +22,7 @@
   if: $DEPLOY_AGENT == "true" || $DDR_WORKFLOW_ID != null
 
 # Windows-specific Go source files, pkg/, and cmd/ (27 paths), need to be splitted because Gitlab has a limit to 50 paths in a single rule
-.windows_path: &windows_path 
+.windows_path: &windows_path
   # Windows-specific Go source files (by filename convention)
   - "**/*_windows.go"
 
@@ -238,6 +238,14 @@ variables:
   TEST_KEYS_URL: apttesting.datad0g.com/test-keys
   INSTALLER_TESTING_S3_BUCKET: installtesting.datad0g.com
   WINDOWS_TESTING_S3_BUCKET: pipelines/A7/$CI_PIPELINE_ID
+  # Shared, accumulating Windows symbol server.
+  # Not pipeline-scoped: PDBs from every pipeline land here, deduplicated by the
+  # GUID-indexed layout, and aged out by a 30-day lifecycle policy on this path.
+  # The path is all-lowercase on purpose: dbgeng (cdb/windbg) lowercases the
+  # symbol-server URL path it requests, and S3 keys are case-sensitive, so an
+  # uppercase path (e.g. A7) would 404.
+  # Symbols for release builds are handled by agent-release-management.
+  WINDOWS_SYMBOLS_S3_BUCKET: pipelines/windows-symbols
   WINDOWS_BUILDS_S3_BUCKET: $WIN_S3_BUCKET/builds
   WINDOWS_POWERSHELL_DIR: $CI_PROJECT_DIR/signed_scripts
   DEB_RPM_TESTING_BUCKET_BRANCH: testing # branch of the DEB_TESTING_S3_BUCKET and RPM_TESTING_S3_BUCKET repos to release to, 'testing'
