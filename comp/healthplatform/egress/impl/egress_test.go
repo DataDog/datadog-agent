@@ -125,21 +125,10 @@ func TestLifecycleStartStop(t *testing.T) {
 func TestTickFiresOnInterval(t *testing.T) {
 	fwd := &mockForwarder{}
 	e := newTestEgress(t, 30*time.Millisecond, fwd)
+	// Active issues persist across ticks via drainCh re-queue; no goroutine needed.
+	e.activeCh <- &healthplatformpayload.Issue{Id: "issue-1"}
 
 	require.NoError(t, e.start(context.Background()))
-
-	// Keep activeCh populated so ticks don't skip.
-	go func() {
-		issue := &healthplatformpayload.Issue{Id: "issue-1"}
-		for {
-			select {
-			case e.activeCh <- issue:
-			case <-e.stopCh:
-				return
-			}
-		}
-	}()
-
 	require.Eventually(t, func() bool {
 		return fwd.sendCount.Load() >= 2
 	}, 2*time.Second, 10*time.Millisecond, "expected at least 2 ticks")
@@ -149,20 +138,9 @@ func TestTickFiresOnInterval(t *testing.T) {
 func TestErrorThenRecovery(t *testing.T) {
 	fwd := &mockForwarder{sendErr: assert.AnError}
 	e := newTestEgress(t, 20*time.Millisecond, fwd)
+	e.activeCh <- &healthplatformpayload.Issue{Id: "issue-1"}
 
 	require.NoError(t, e.start(context.Background()))
-
-	go func() {
-		issue := &healthplatformpayload.Issue{Id: "issue-1"}
-		for {
-			select {
-			case e.activeCh <- issue:
-			case <-e.stopCh:
-				return
-			}
-		}
-	}()
-
 	require.Eventually(t, func() bool { return fwd.sendCount.Load() >= 1 }, 2*time.Second, 5*time.Millisecond)
 
 	fwd.mu.Lock()

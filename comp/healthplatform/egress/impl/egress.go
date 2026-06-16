@@ -138,21 +138,8 @@ func (e *egress) run() {
 }
 
 func (e *egress) tick() {
-	// Snapshot both channels. Active issues are always returned to activeCh after
-	// the tick so they persist until explicitly removed by notifyResolved.
-	// Resolved tombstones are only returned on failure; on success they are consumed.
 	active := drainCh(e.activeCh)
 	resolved := drainCh(e.resolvedCh)
-
-	defer func() {
-		for _, i := range active {
-			select {
-			case e.activeCh <- i:
-			default:
-				e.log.Warnf("Health platform egress: active channel full on requeue, %s", i.Id)
-			}
-		}
-	}()
 
 	if len(active) == 0 && len(resolved) == 0 {
 		e.log.Debug("Health platform egress: no issues to report, skipping tick")
@@ -174,30 +161,47 @@ func (e *egress) tick() {
 
 	if err := e.forwarder.Send(ctx, e.buildReport(merged)); err != nil {
 		e.log.Warn(fmt.Sprintf("Health platform egress: failed to send %d issues: %v", len(merged), err))
-		for _, r := range resolved {
-			select {
-			case e.resolvedCh <- r:
-			default:
-				e.log.Warnf("Health platform egress: resolved channel full on retry, %s recoverable from disk", r.Id)
-			}
-		}
-		return
+		return // items are still in both channels; retried next tick
 	}
 
 	e.log.Info(fmt.Sprintf("Health platform egress: sent report with %d issues", len(merged)))
-}
 
-// drainCh non-blockingly drains all available items from ch into a slice.
-func drainCh(ch chan *healthplatform.Issue) []*healthplatform.Issue {
-	var out []*healthplatform.Issue
-	for {
+	// Consume the resolved tombstones we just sent from the front of resolvedCh.
+	// drainCh re-queued them, so they sit at the front; any tombstones that
+	// arrived during the send remain at the back and are retried next tick.
+	for range len(resolved) {
 		select {
-		case i := <-ch:
-			out = append(out, i)
+		case <-e.resolvedCh:
 		default:
-			return out
 		}
 	}
+}
+
+// drainCh returns a snapshot of all items currently in ch.
+// Items are drained and immediately re-queued, leaving the channel intact
+// for the next tick or concurrent writers.
+func drainCh(ch chan *healthplatform.Issue) []*healthplatform.Issue {
+	n := len(ch)
+	if n == 0 {
+		return nil
+	}
+	items := make([]*healthplatform.Issue, 0, n)
+drain:
+	for range n {
+		select {
+		case item := <-ch:
+			items = append(items, item)
+		default:
+			break drain
+		}
+	}
+	for _, item := range items {
+		select {
+		case ch <- item:
+		default:
+		}
+	}
+	return items
 }
 
 func (e *egress) buildReport(issues map[string]*healthplatform.Issue) *healthplatform.HealthReport {
