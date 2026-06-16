@@ -89,7 +89,7 @@ func TestLegacyIntervalOverride(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			cfg := configmock.New(t)
-			cfg.SetWithoutSource(tc.setting, override)
+			cfg.SetInTest(tc.setting, override)
 			assert.Equal(t, time.Duration(override)*time.Second, GetInterval(cfg, tc.checkName))
 		})
 	}
@@ -115,7 +115,7 @@ func TestProcessDiscoveryInterval(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			cfg := configmock.New(t)
-			cfg.SetWithoutSource("process_config.process_discovery.interval", tc.interval)
+			cfg.SetInTest("process_config.process_discovery.interval", tc.interval)
 
 			assert.Equal(t, tc.expectedInterval, GetInterval(cfg, DiscoveryCheckName))
 		})

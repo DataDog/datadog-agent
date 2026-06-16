@@ -17,6 +17,9 @@ func NewSystemdServiceManager() *SystemdServiceManager {
 	return &SystemdServiceManager{}
 }
 
+// InstallerPath returns "" on non-Linux platforms.
+func (s *SystemdServiceManager) InstallerPath() string { return "" }
+
 // Setup is a no-op on non-Linux platforms.
 func (s *SystemdServiceManager) Setup(_ context.Context) error { return nil }
 

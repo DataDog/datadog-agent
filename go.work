@@ -1,4 +1,4 @@
-go 1.25.10
+go 1.26.4
 
 // Disable new post-quantum key exchange mechanism X25519MLKEM768
 // See https://github.com/DataDog/datadog-agent/issues/34323 for historical context.
@@ -88,7 +88,6 @@ use (
 	internal/tools/independent-lint
 	internal/tools/modformatter
 	internal/tools/modparser
-	internal/tools/proto
 	internal/tools/worksynchronizer
 	pkg/aggregator/ckey
 	pkg/api
@@ -158,6 +157,7 @@ use (
 	pkg/util/cgroups
 	pkg/util/common
 	pkg/util/compression
+	pkg/util/confmaputils
 	pkg/util/containers/image
 	pkg/util/defaultpaths
 	pkg/util/executable
