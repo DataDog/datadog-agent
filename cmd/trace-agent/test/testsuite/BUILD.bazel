@@ -24,6 +24,9 @@ go_test(
     data = glob(["testdata/**"]),
     embedsrcs = ["testdata/v04SpanEvents.msgp"],
     gotags = ["test"] + sorted(COMMON_TAGS | TRACE_AGENT_TAGS),
+    # This will fail in CI because it non-hermetically calls go build
+    # See cmd/trace-agent/test/agent.go::buildBinaries
+    tags = ["manual"],
     deps = [
         "//cmd/trace-agent/test",
         "//pkg/proto/pbgo/trace",
