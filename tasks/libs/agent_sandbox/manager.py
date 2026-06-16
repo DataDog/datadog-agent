@@ -389,6 +389,7 @@ if ! command -v /opt/datadog-agent/bin/agent/agent >/dev/null 2>&1; then
     fi
     DEBIAN_FRONTEND=noninteractive apt-get install -y datadog-agent{package_version} datadog-signing-keys
 fi
+ln -sf /opt/datadog-agent/bin/agent/agent /usr/local/bin/agent
 {config_copy}
 chown dd-agent:dd-agent /etc/datadog-agent/datadog.yaml || true
 chmod 0640 /etc/datadog-agent/datadog.yaml || true
@@ -447,7 +448,9 @@ write_files:
     def create_seed_iso(self, paths: SandboxPaths) -> None:
         if not shutil.which("hdiutil"):
             raise AgentSandboxError("hdiutil is required to create the cloud-init seed ISO")
-        subprocess.run(
+        if paths.seed_iso.exists():
+            paths.seed_iso.unlink()
+        result = subprocess.run(
             [
                 "hdiutil",
                 "makehybrid",
@@ -459,10 +462,13 @@ write_files:
                 "cidata",
                 str(paths.cloud_init_dir),
             ],
-            check=True,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            check=False,
+            text=True,
+            capture_output=True,
         )
+        if result.returncode != 0:
+            detail = (result.stderr or result.stdout or "unknown error").strip()
+            raise AgentSandboxError(f"failed to create cloud-init seed ISO: {detail}")
 
     def ensure_cached_ubuntu_image(self) -> Path:
         image = self.paths().cache_dir / "ubuntu-noble-arm64.img"
@@ -574,10 +580,21 @@ write_files:
             "-o",
             "IdentitiesOnly=yes",
             "-o",
+            f"UserKnownHostsFile={paths.ssh_dir / 'known_hosts'}",
+            "-o",
             "StrictHostKeyChecking=accept-new",
+            "-o",
+            "ConnectTimeout=10",
+            "-o",
+            "ServerAliveInterval=5",
+            "-o",
+            "ServerAliveCountMax=3",
             f"{metadata.guest_user}@{metadata.ssh_host}",
             *(extra_args or []),
         ]
+
+    def shell_command(self, name: str, command: str) -> list[str]:
+        return self.ssh_command(name, ["bash", "-lc", shlex.quote(command)])
 
     def agent_command(self, name: str, agent_args: str) -> list[str]:
         return self.ssh_command(name, ["sudo", "/opt/datadog-agent/bin/agent/agent", *shlex.split(agent_args)])

@@ -1,4 +1,5 @@
 import json
+import shlex
 import tempfile
 import unittest
 from pathlib import Path
@@ -46,6 +47,7 @@ class TestAgentSandboxManager(unittest.TestCase):
         self.assertIn("DD_AGENT_MINOR_VERSION=66.0", script)
         self.assertIn("install_script_agent7.sh", script)
         self.assertIn("/opt/datadog-agent/bin/agent/agent version", script)
+        self.assertIn("ln -sf /opt/datadog-agent/bin/agent/agent /usr/local/bin/agent", script)
         user_data = paths.cloud_init_user_data.read_text()
         self.assertIn("ssh-ed25519 public agent-sandbox", user_data)
         self.assertIn("agent_sandbox_apt_cache", user_data)
@@ -85,9 +87,34 @@ class TestAgentSandboxManager(unittest.TestCase):
         self.assertIn(str(paths.private_key), ssh)
         self.assertIn("2222", ssh)
         self.assertIn("ubuntu@127.0.0.1", ssh)
+        self.assertIn("ConnectTimeout=10", ssh)
+        self.assertIn(f"UserKnownHostsFile={paths.ssh_dir / 'known_hosts'}", ssh)
+
+        shell = self.manager.shell_command("cmd", "echo one; echo two")
+        self.assertEqual(shell[-3:], ["bash", "-lc", shlex.quote("echo one; echo two")])
 
         agent = self.manager.agent_command("cmd", "status --json")
         self.assertEqual(agent[-4:], ["sudo", "/opt/datadog-agent/bin/agent/agent", "status", "--json"])
+
+    def test_create_seed_iso_replaces_stale_iso_and_reports_failures(self):
+        paths = self.manager.ensure_layout("iso")
+        paths.cloud_init_dir.mkdir(parents=True, exist_ok=True)
+        paths.seed_iso.write_text("stale")
+
+        with mock.patch("tasks.libs.agent_sandbox.manager.shutil.which", return_value="/usr/bin/hdiutil"):
+            with mock.patch("tasks.libs.agent_sandbox.manager.subprocess.run") as run:
+                run.return_value = mock.Mock(returncode=0, stdout="", stderr="")
+                self.manager.create_seed_iso(paths)
+
+        self.assertFalse(paths.seed_iso.exists())
+        run.assert_called_once()
+        self.assertIn(str(paths.seed_iso), run.call_args.args[0])
+
+        with mock.patch("tasks.libs.agent_sandbox.manager.shutil.which", return_value="/usr/bin/hdiutil"):
+            with mock.patch("tasks.libs.agent_sandbox.manager.subprocess.run") as run:
+                run.return_value = mock.Mock(returncode=1, stdout="", stderr="hdiutil failed")
+                with self.assertRaisesRegex(AgentSandboxError, "hdiutil failed"):
+                    self.manager.create_seed_iso(paths)
 
     def test_ssh_command_requires_endpoint(self):
         paths = self.manager.ensure_layout("no-endpoint")

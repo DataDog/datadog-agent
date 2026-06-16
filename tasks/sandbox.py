@@ -75,7 +75,9 @@ def _prepare_base(ctx, manager: AgentSandboxManager, name="base-builder", force=
 
 
 def _ensure_prepared_base(ctx, manager: AgentSandboxManager) -> None:
-    cache_prepare(ctx, state_root=str(manager.state_root), helper=False)
+    if manager.prepared_base_path().exists():
+        return
+    _prepare_base(ctx, manager)
 
 
 @task
@@ -185,7 +187,8 @@ def ssh(ctx, name=DEFAULT_SANDBOX_NAME, cmd=None, state_root=None):
         if cmd:
             print(f"Sandbox: {name}")
             print(f"$ {cmd}\n")
-            _run_or_raise(ctx, manager.ssh_command(name, ["bash", "-lc", cmd]))
+            _run_or_raise(ctx, manager.shell_command(name, cmd))
+
         else:
             _run_or_raise(ctx, manager.ssh_command(name))
     except AgentSandboxError as e:
