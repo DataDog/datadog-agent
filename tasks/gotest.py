@@ -779,7 +779,9 @@ def test(
     bazel_targets: dict[str, str] = {}
     bazel_flags = []
     if unit_tests_tags:
-        bazel_flags.append(f"--@rules_go//go/config:tags={','.join(unit_tests_tags)}")
+        # Critically important to sort the gotags because their order matters for configuration calculation.
+        # That is, you don't cache unless they come out the same way.
+        bazel_flags.append(f"--@rules_go//go/config:tags={','.join(sorted(unit_tests_tags))}")
     if skip_tests_covered_by_bazel or write_bazel_test_list or run_bazel_tests:
         bazel_targets = get_bazel_test_targets(ctx, flavor=flavor, modules=list(modules), bazel_flags=bazel_flags)
         print(f"Found {len(bazel_targets)} Bazel-covered go_test targets")
