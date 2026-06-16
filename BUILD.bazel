@@ -138,7 +138,6 @@ exports_files(["go.mod"])
 # gazelle:exclude comp/core/workloadmeta/collectors/catalog-otel
 # gazelle:exclude comp/core/workloadmeta/collectors/catalog-remote
 # gazelle:exclude comp/core/workloadmeta/collectors/internal/cloudfoundry
-# gazelle:exclude comp/core/workloadmeta/collectors/internal/docker
 # gazelle:exclude comp/core/workloadmeta/collectors/internal/kubeapiserver
 # gazelle:exclude comp/core/workloadmeta/collectors/internal/kubemetadata
 # gazelle:exclude comp/core/workloadmeta/collectors/internal/nvml
@@ -433,7 +432,6 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/process/util/containers
 # gazelle:exclude pkg/process/util/status
 # gazelle:exclude pkg/procmgr
-# gazelle:exclude pkg/sbom/collectors/docker
 # gazelle:exclude pkg/sbom/collectors/host
 # gazelle:exclude pkg/sbom/collectors/procfs
 # gazelle:exclude pkg/security/clihelpers

@@ -68,12 +68,12 @@ dd_agent_go_test(
         "image_test.go",
     ],
     embed = [":containerd"],
-    target_compatible_with = ["@platforms//os:linux"],  # keep
     flavors = [
         "base",
         "dogstatsd",
         "fips",
     ],
+    target_compatible_with = ["@platforms//os:linux"],  # keep
     deps = [
         "//comp/core/config",
         "//comp/core/log/def",
