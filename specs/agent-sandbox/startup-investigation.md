@@ -65,8 +65,8 @@ The Fx span for `comp/api/api/apiimpl.newAPIServer.func1()` was around 1ms.
 Run:
 
 ```bash
-dda inv agent-sandbox.create --name fx --fx-trace
-dda inv agent-sandbox.fx-spans --name fx --summary
+dda inv sandbox.up --name fx --fx-trace
+dda inv sandbox.fx-spans --name fx --summary
 ```
 
 Then correlate the top spans with `/var/log/datadog/agent.log` and `journalctl -u datadog-agent`.
