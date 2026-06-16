@@ -180,11 +180,11 @@ func (b *Buffer) Append(ctx context.Context, checkID checkid.ID, samples []metri
 // unit, no-index) recorded at append time. This is a non-destructive snapshot:
 // the buffer keeps its samples so a dump can be retried or repeated.
 //
-// MetricType is mapped to the API metric type with best effort: gauge-like
-// types become APIGaugeType, count-like types become APICountType, and
-// rate/counter types become APIRateType. The dump intentionally does not
-// re-apply rate intervals; raw retained values are sent as-is at their
-// original timestamps.
+// MetricType is mapped to the API metric type with best effort, matching the
+// no-aggregation pipeline for raw MetricSamples: gauges stay gauges,
+// counter/rate samples stay rates, and unsupported aggregator-only types are
+// emitted as gauges. The dump intentionally does not re-apply rate intervals;
+// raw retained values are sent as-is at their original timestamps.
 func (b *Buffer) Series() metrics.Series {
 	if b == nil {
 		return nil
@@ -211,12 +211,13 @@ func (b *Buffer) Series() metrics.Series {
 				Ts:    float64(rec.timestampUnixMicro) / 1e6,
 				Value: rec.value,
 			}},
-			Tags:    tagset.CompositeTagsFromSlice(append([]string(nil), ctx.tags...)),
-			Host:    ctx.host,
-			MType:   apiMetricType(ctx.mtype),
-			NoIndex: ctx.noIndex,
-			Source:  ctx.source,
-			Unit:    ctx.unit,
+			Tags:           tagset.CompositeTagsFromSlice(append([]string(nil), ctx.tags...)),
+			Host:           ctx.host,
+			MType:          apiMetricType(ctx.mtype),
+			NoIndex:        ctx.noIndex,
+			Source:         ctx.source,
+			SourceTypeName: sourceTypeName(ctx.source),
+			Unit:           ctx.unit,
 		}
 		series = append(series, serie)
 	}
@@ -266,14 +267,20 @@ func (s *serieSliceSource) Count() uint64 {
 // serialized series, on a best-effort basis for lookback dumps.
 func apiMetricType(mtype metrics.MetricType) metrics.APIMetricType {
 	switch mtype {
-	case metrics.CountType, metrics.MonotonicCountType, metrics.CountWithTimestampType:
-		return metrics.APICountType
-	case metrics.RateType, metrics.CounterType:
+	case metrics.CounterType, metrics.RateType:
 		return metrics.APIRateType
 	default:
-		// GaugeType, GaugeWithTimestampType, HistogramType, HistorateType, etc.
+		// GaugeType and unsupported aggregator-only types such as CountType,
+		// MonotonicCountType, HistogramType, HistorateType, etc.
 		return metrics.APIGaugeType
 	}
+}
+
+func sourceTypeName(source metrics.MetricSource) string {
+	if source == metrics.MetricSourceUnknown {
+		return ""
+	}
+	return source.String()
 }
 
 // Stats returns a point-in-time summary of the buffer.

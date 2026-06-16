@@ -469,17 +469,19 @@ func TestSeriesExportReconstructsRetainedSamples(t *testing.T) {
 	if gauge.MType != metrics.APIGaugeType {
 		t.Fatalf("expected APIGaugeType, got %v", gauge.MType)
 	}
-	if gauge.Host != "host-x" || !gauge.NoIndex || gauge.Unit != "req" || gauge.Source != metrics.MetricSourceInternal {
+	if gauge.Host != "host-x" || !gauge.NoIndex || gauge.Unit != "req" || gauge.Source != metrics.MetricSourceInternal || gauge.SourceTypeName != "internal" {
 		t.Fatalf("unexpected gauge context metadata: %+v", gauge)
 	}
 	if tags := gauge.Tags.UnsafeToReadOnlySliceString(); !reflect.DeepEqual(tags, []string{"a:1", "b:2"}) {
 		t.Fatalf("expected sorted canonical tags, got %#v", tags)
 	}
 
-	// Count serie: timestamp falls back to now, mapped to APICountType.
+	// Count serie: timestamp falls back to now. CountType is an aggregator-only
+	// type for raw samples, so the dump mirrors the no-aggregation pipeline and
+	// emits it as a gauge.
 	count := series[1]
-	if count.MType != metrics.APICountType {
-		t.Fatalf("expected APICountType, got %v", count.MType)
+	if count.MType != metrics.APIGaugeType {
+		t.Fatalf("expected APIGaugeType, got %v", count.MType)
 	}
 	if count.Points[0].Ts != float64(now.UnixMicro())/1e6 || count.Points[0].Value != 7 {
 		t.Fatalf("unexpected count point: %+v", count.Points)
@@ -509,6 +511,30 @@ func TestSeriesExportReconstructsRetainedSamples(t *testing.T) {
 	}
 	if iterated != 3 {
 		t.Fatalf("expected to iterate 3 series, got %d", iterated)
+	}
+}
+
+func TestAPIMetricTypeMatchesNoAggregationRawSampleMapping(t *testing.T) {
+	tests := []struct {
+		name string
+		in   metrics.MetricType
+		want metrics.APIMetricType
+	}{
+		{name: "gauge", in: metrics.GaugeType, want: metrics.APIGaugeType},
+		{name: "counter", in: metrics.CounterType, want: metrics.APIRateType},
+		{name: "rate", in: metrics.RateType, want: metrics.APIRateType},
+		{name: "count", in: metrics.CountType, want: metrics.APIGaugeType},
+		{name: "monotonic_count", in: metrics.MonotonicCountType, want: metrics.APIGaugeType},
+		{name: "count_with_timestamp", in: metrics.CountWithTimestampType, want: metrics.APIGaugeType},
+		{name: "histogram", in: metrics.HistogramType, want: metrics.APIGaugeType},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := apiMetricType(tt.in); got != tt.want {
+				t.Fatalf("apiMetricType(%s) = %s, want %s", tt.in, got, tt.want)
+			}
+		})
 	}
 }
 
