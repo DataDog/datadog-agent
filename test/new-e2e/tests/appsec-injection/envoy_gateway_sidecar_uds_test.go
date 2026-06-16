@@ -19,7 +19,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/dynamic"
@@ -42,17 +44,8 @@ var egAppSecHelmValues string
 //go:embed testdata/01-gatewayclass.yaml
 var egGatewayClassYAML string
 
-//go:embed testdata/02-envoyproxy.yaml
-var egEnvoyProxyYAML string
-
 //go:embed testdata/03-gateway.yaml
 var egGatewayYAML string
-
-//go:embed testdata/04-backend-uds.yaml
-var egBackendUDSYAML string
-
-//go:embed testdata/05-envoyextensionpolicy.yaml
-var egExtProcPolicyYAML string
 
 //go:embed testdata/06-httproute.yaml
 var egHTTPRouteYAML string
@@ -65,20 +58,47 @@ const (
 	demoNamespace    = "eg-appsec-demo"
 	sidecarContainer = "datadog-appsec"
 	sidecarVolume    = "datadog-appsec-uds"
+	envoyContainer   = "envoy"
+	udsSocketDir     = "/var/run/datadog"
+	extProcName      = "datadog-appsec-extproc"
 	attackUserAgent  = "dd-test-scanner-log-block"
 	gatewayName      = "appsec-gateway"
 	egHelmVersion    = "v1.7.1"
+	egFSGroup        = int64(65532)
+)
+
+var (
+	backendGVR = schema.GroupVersionResource{
+		Group: "gateway.envoyproxy.io", Version: "v1alpha1", Resource: "backends",
+	}
+	extProcGVR = schema.GroupVersionResource{
+		Group: "gateway.envoyproxy.io", Version: "v1alpha1", Resource: "envoyextensionpolicies",
+	}
+	referenceGrantGVR = schema.GroupVersionResource{
+		Group: "gateway.networking.k8s.io", Version: "v1beta1", Resource: "referencegrants",
+	}
+	gatewayGVR = schema.GroupVersionResource{
+		Group: "gateway.networking.k8s.io", Version: "v1", Resource: "gateways",
+	}
 )
 
 type egAppSecSidecarSuite struct {
 	e2e.BaseSuite[environments.Kubernetes]
 }
 
-// TestEnvoyGatewaySidecarUDS is the entry point for the suite.
-// It provisions a Kubernetes cluster with:
-//   - Datadog DaemonSet + cluster-agent with AppSec injector in sidecar mode
-//   - Envoy Gateway v1.7.1 (OCI Helm chart)
-//   - GatewayClass / EnvoyProxy (with Datadog sidecar patch) / Gateway / Backend / ExtProc / HTTPRoute
+// TestEnvoyGatewaySidecarUDS exercises the cluster-agent AppSec injector in
+// SIDECAR mode with Envoy Gateway over a Unix Domain Socket.
+//
+// Manifests applied by the test (Gateway user's responsibility):
+//   - GatewayClass (no parametersRef — no manual sidecar patch)
+//   - Gateway
+//   - HTTPRoute + sample backend
+//
+// Resources created / injected by the cluster-agent (what this suite asserts):
+//   - Backend `datadog-appsec-extproc` (controller, in Gateway namespace)
+//   - EnvoyExtensionPolicy `datadog-appsec-extproc` (controller, in Gateway namespace)
+//   - `datadog-appsec` sidecar container + `datadog-appsec-uds` volume in the
+//     EG data-plane pod (webhook, in envoy-gateway-system)
 func TestEnvoyGatewaySidecarUDS(t *testing.T) {
 	t.Parallel()
 	e2e.Run(t, &egAppSecSidecarSuite{}, e2e.WithProvisioner(Provisioner(ProvisionerOptions{
@@ -89,11 +109,10 @@ func TestEnvoyGatewaySidecarUDS(t *testing.T) {
 	})))
 }
 
-// deployEnvoyGatewayWorkloads is the AgentDependentWorkloadAppFunc that:
-//  1. Installs Envoy Gateway via the OCI Helm chart with Backend extension APIs enabled
-//  2. Applies all EG AppSec UDS manifests in order
-//
-// It is intentionally kept as a simple, sequential Pulumi program.
+// deployEnvoyGatewayWorkloads installs Envoy Gateway and applies only the
+// user-side manifests (GatewayClass, Gateway, HTTPRoute, sample backend).
+// The cluster-agent does the rest: it creates the Backend + EnvoyExtensionPolicy
+// and its webhook injects the sidecar into EG data-plane pods.
 func deployEnvoyGatewayWorkloads(e config.Env, kubeProvider *kubernetes.Provider, dependsOnAgent pulumi.ResourceOption) (*kubeComp.Workload, error) {
 	workload := &kubeComp.Workload{}
 	if err := e.Ctx().RegisterComponentResource("dd:apps", "eg-appsec-sidecar-uds", workload, dependsOnAgent); err != nil {
@@ -103,9 +122,6 @@ func deployEnvoyGatewayWorkloads(e config.Env, kubeProvider *kubernetes.Provider
 	providerOpt := pulumi.Provider(kubeProvider)
 	parentOpt := pulumi.Parent(workload)
 
-	// 1. Install Envoy Gateway via its OCI Helm chart.
-	//    extensionApis.enableBackend is passed as a Helm value so the Backend
-	//    CRD is activated before we apply 04-backend-uds.yaml.
 	egRelease, err := helmv3.NewRelease(e.Ctx(), "envoy-gateway", &helmv3.ReleaseArgs{
 		Chart:           pulumi.String("oci://docker.io/envoyproxy/gateway-helm"),
 		Version:         pulumi.StringPtr(egHelmVersion),
@@ -128,62 +144,42 @@ func deployEnvoyGatewayWorkloads(e config.Env, kubeProvider *kubernetes.Provider
 
 	dependsOnEG := pulumi.DependsOn([]pulumi.Resource{egRelease})
 
-	// 2. Apply the AppSec UDS manifests in dependency order.
-	//    Each ConfigGroup is a separate Pulumi resource so errors are localized.
-	gatewayClassGroup, err := kubeYAML.NewConfigGroup(e.Ctx(), "eg-gatewayclass", &kubeYAML.ConfigGroupArgs{
+	gcGroup, err := kubeYAML.NewConfigGroup(e.Ctx(), "eg-gatewayclass", &kubeYAML.ConfigGroupArgs{
 		YAML: []string{egGatewayClassYAML},
 	}, providerOpt, parentOpt, dependsOnEG)
 	if err != nil {
-		return nil, fmt.Errorf("applying gatewayclass: %w", err)
+		return nil, fmt.Errorf("applying GatewayClass: %w", err)
 	}
 
-	dependsOnGC := pulumi.DependsOn([]pulumi.Resource{gatewayClassGroup})
-
-	envoyProxyGroup, err := kubeYAML.NewConfigGroup(e.Ctx(), "eg-envoyproxy", &kubeYAML.ConfigGroupArgs{
-		YAML: []string{egEnvoyProxyYAML},
-	}, providerOpt, parentOpt, dependsOnGC)
-	if err != nil {
-		return nil, fmt.Errorf("applying envoyproxy: %w", err)
-	}
-
-	gatewayGroup, err := kubeYAML.NewConfigGroup(e.Ctx(), "eg-gateway", &kubeYAML.ConfigGroupArgs{
+	gwGroup, err := kubeYAML.NewConfigGroup(e.Ctx(), "eg-gateway", &kubeYAML.ConfigGroupArgs{
 		YAML: []string{egGatewayYAML},
-	}, providerOpt, parentOpt, pulumi.DependsOn([]pulumi.Resource{envoyProxyGroup}))
+	}, providerOpt, parentOpt, pulumi.DependsOn([]pulumi.Resource{gcGroup}))
 	if err != nil {
-		return nil, fmt.Errorf("applying gateway: %w", err)
+		return nil, fmt.Errorf("applying Gateway: %w", err)
 	}
 
-	backendGroup, err := kubeYAML.NewConfigGroup(e.Ctx(), "eg-backend-uds", &kubeYAML.ConfigGroupArgs{
-		YAML: []string{egBackendUDSYAML},
-	}, providerOpt, parentOpt, pulumi.DependsOn([]pulumi.Resource{gatewayGroup}))
-	if err != nil {
-		return nil, fmt.Errorf("applying backend-uds: %w", err)
-	}
-
-	extProcGroup, err := kubeYAML.NewConfigGroup(e.Ctx(), "eg-extproc-policy", &kubeYAML.ConfigGroupArgs{
-		YAML: []string{egExtProcPolicyYAML},
-	}, providerOpt, parentOpt, pulumi.DependsOn([]pulumi.Resource{backendGroup}))
-	if err != nil {
-		return nil, fmt.Errorf("applying envoyextensionpolicy: %w", err)
-	}
-
-	_, err = kubeYAML.NewConfigGroup(e.Ctx(), "eg-httproute-and-backend", &kubeYAML.ConfigGroupArgs{
+	_, err = kubeYAML.NewConfigGroup(e.Ctx(), "eg-workload", &kubeYAML.ConfigGroupArgs{
 		YAML: []string{egHTTPRouteYAML, egSampleBackendYAML},
-	}, providerOpt, parentOpt, pulumi.DependsOn([]pulumi.Resource{extProcGroup}))
+	}, providerOpt, parentOpt, pulumi.DependsOn([]pulumi.Resource{gwGroup}))
 	if err != nil {
-		return nil, fmt.Errorf("applying httproute and sample-backend: %w", err)
+		return nil, fmt.Errorf("applying HTTPRoute and sample backend: %w", err)
 	}
 
 	return workload, nil
 }
 
-// TestSidecarPodInjected verifies that the Envoy Gateway data-plane pod
-// contains the Datadog AppSec sidecar container and the shared UDS emptyDir volume.
-func (s *egAppSecSidecarSuite) TestSidecarPodInjected() {
+// TestWebhookInjectsSidecar verifies that the cluster-agent admission webhook
+// injected the Datadog AppSec sidecar into the EG data-plane pod.
+//
+// Assertions (all produced by the cluster-agent webhook, NOT by any manual manifest):
+//   - pod has container named "datadog-appsec"
+//   - pod has volume named "datadog-appsec-uds"
+//   - "envoy" container has a VolumeMount for "datadog-appsec-uds" at /var/run/datadog
+//   - pod.spec.securityContext.fsGroup == 65532
+func (s *egAppSecSidecarSuite) TestWebhookInjectsSidecar() {
 	k8s := s.Env().KubernetesCluster.Client()
 
-	var dataPlanePod *corev1.Pod
-
+	var pod *corev1.Pod
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		pods, err := k8s.CoreV1().Pods(egNamespace).List(
 			context.Background(),
@@ -192,44 +188,107 @@ func (s *egAppSecSidecarSuite) TestSidecarPodInjected() {
 			},
 		)
 		require.NoError(c, err, "listing EG data-plane pods")
-		require.NotEmpty(c, pods.Items, "expected at least one EG data-plane pod")
-
 		for i := range pods.Items {
 			if pods.Items[i].Status.Phase == corev1.PodRunning {
-				dataPlanePod = &pods.Items[i]
+				pod = &pods.Items[i]
 				return
 			}
 		}
-		require.Fail(c, "no running EG data-plane pod found yet")
+		require.Fail(c, "no running EG data-plane pod yet")
 	}, 5*time.Minute, 15*time.Second)
 
-	require.NotNil(s.T(), dataPlanePod)
+	require.NotNil(s.T(), pod)
 
-	containerNames := make([]string, 0, len(dataPlanePod.Spec.Containers))
-	for _, c := range dataPlanePod.Spec.Containers {
+	containerNames := make([]string, 0, len(pod.Spec.Containers))
+	for _, c := range pod.Spec.Containers {
 		containerNames = append(containerNames, c.Name)
 	}
 	require.Contains(s.T(), containerNames, sidecarContainer,
-		"EG data-plane pod must contain the %q sidecar; found containers: %v", sidecarContainer, containerNames)
+		"cluster-agent webhook must inject %q container; got %v", sidecarContainer, containerNames)
 
-	volumeNames := make([]string, 0, len(dataPlanePod.Spec.Volumes))
-	for _, v := range dataPlanePod.Spec.Volumes {
+	volumeNames := make([]string, 0, len(pod.Spec.Volumes))
+	for _, v := range pod.Spec.Volumes {
 		volumeNames = append(volumeNames, v.Name)
 	}
 	require.Contains(s.T(), volumeNames, sidecarVolume,
-		"EG data-plane pod must have volume %q; found volumes: %v", sidecarVolume, volumeNames)
+		"cluster-agent webhook must add %q volume; got %v", sidecarVolume, volumeNames)
+
+	var envoyMountFound bool
+	for _, c := range pod.Spec.Containers {
+		if c.Name != envoyContainer {
+			continue
+		}
+		for _, vm := range c.VolumeMounts {
+			if vm.Name == sidecarVolume && vm.MountPath == udsSocketDir {
+				envoyMountFound = true
+			}
+		}
+	}
+	require.True(s.T(), envoyMountFound,
+		"cluster-agent webhook must mount %q at %q in the envoy container", sidecarVolume, udsSocketDir)
+
+	require.NotNil(s.T(), pod.Spec.SecurityContext,
+		"cluster-agent webhook must set pod security context")
+	require.NotNil(s.T(), pod.Spec.SecurityContext.FSGroup,
+		"cluster-agent webhook must set fsGroup")
+	require.Equal(s.T(), egFSGroup, *pod.Spec.SecurityContext.FSGroup,
+		"cluster-agent webhook must set fsGroup=%d for shared emptyDir", egFSGroup)
 }
 
-// TestTrafficBlocking sends a benign HTTP request and an attack request
-// through the Envoy Gateway.  The benign request must return 200; the attack
-// request must return 403 — proving that the Datadog ext_proc sidecar is
-// actively processing traffic over the Unix Domain Socket.
+// TestControllerCreatesExtProcResources verifies that the cluster-agent controller
+// created the Backend and EnvoyExtensionPolicy in the Gateway namespace, and did
+// NOT create a ReferenceGrant (sidecar mode does not need cross-namespace access).
+func (s *egAppSecSidecarSuite) TestControllerCreatesExtProcResources() {
+	kc := s.Env().KubernetesCluster.KubernetesClient
+	dynClient, err := dynamic.NewForConfig(kc.K8sConfig)
+	require.NoError(s.T(), err, "creating dynamic client")
+
+	var backendObj *unstructured.Unstructured
+	s.EventuallyWithT(func(c *assert.CollectT) {
+		obj, err := dynClient.Resource(backendGVR).Namespace(demoNamespace).Get(
+			context.Background(), extProcName, metav1.GetOptions{},
+		)
+		require.NoError(c, err, "cluster-agent controller must create Backend %q in %s", extProcName, demoNamespace)
+		backendObj = obj
+	}, 5*time.Minute, 15*time.Second)
+
+	endpoints, found, err := unstructured.NestedSlice(backendObj.Object, "spec", "endpoints")
+	require.NoError(s.T(), err)
+	require.True(s.T(), found && len(endpoints) > 0, "Backend must have at least one endpoint")
+	ep0, ok := endpoints[0].(map[string]interface{})
+	require.True(s.T(), ok, "endpoint must be a map")
+	unixPath, _, _ := unstructured.NestedString(ep0, "unix", "path")
+	require.NotEmpty(s.T(), unixPath, "Backend endpoint must have a unix socket path")
+
+	s.EventuallyWithT(func(c *assert.CollectT) {
+		_, err := dynClient.Resource(extProcGVR).Namespace(demoNamespace).Get(
+			context.Background(), extProcName, metav1.GetOptions{},
+		)
+		require.NoError(c, err, "cluster-agent controller must create EnvoyExtensionPolicy %q in %s", extProcName, demoNamespace)
+	}, 3*time.Minute, 10*time.Second)
+
+	_, err = dynClient.Resource(referenceGrantGVR).Namespace(demoNamespace).Get(
+		context.Background(), extProcName, metav1.GetOptions{},
+	)
+	require.True(s.T(), errors.IsNotFound(err),
+		"sidecar mode must NOT create a ReferenceGrant; found one in %s", demoNamespace)
+}
+
+// TestTrafficBlocking sends a benign request and an attack request through the
+// Envoy Gateway.  HTTP 403 on the attack proves the injected sidecar processes
+// traffic over the UDS.
+//
+// fakeintake WAF telemetry: not asserted here.  The injected sidecar env has
+// DD_APM_TRACING_ENABLED=false (configured via the cluster-agent injector with
+// the sidecar image's default), so AppSec events do not flow through APM traces
+// to fakeintake in this configuration.  The HTTP 403 + cluster-agent injection
+// assertions (TestWebhookInjectsSidecar, TestControllerCreatesExtProcResources)
+// are the authoritative proof.  Adding fakeintake WAF telemetry is tracked as
+// a follow-up once the sidecar→node-agent→fakeintake path is wired in CI.
 func (s *egAppSecSidecarSuite) TestTrafficBlocking() {
 	k8s := s.Env().KubernetesCluster.Client()
 	kc := s.Env().KubernetesCluster.KubernetesClient
 
-	// Resolve the Gateway service ClusterIP.  The service is labeled with the
-	// owning gateway name in envoy-gateway-system.
 	var gatewaySvcIP string
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		svcs, err := k8s.CoreV1().Services(egNamespace).List(
@@ -258,7 +317,7 @@ func (s *egAppSecSidecarSuite) TestTrafficBlocking() {
 				return
 			}
 		}
-		require.Fail(c, "no running sample-backend pod found yet")
+		require.Fail(c, "no running sample-backend pod yet")
 	}, 5*time.Minute, 15*time.Second)
 
 	gatewayURL := fmt.Sprintf("http://%s:80/", gatewaySvcIP)
@@ -268,9 +327,9 @@ func (s *egAppSecSidecarSuite) TestTrafficBlocking() {
 			demoNamespace, backendPodName, "backend",
 			[]string{"curl", "-s", "-o", "/dev/null", "-w", "%{http_code}", "--max-time", "10", gatewayURL},
 		)
-		require.NoError(c, err, "curl benign request exec")
+		require.NoError(c, err, "curl benign request")
 		require.Equal(c, "200", strings.TrimSpace(stdout),
-			"benign request through EG must return 200, got %q", strings.TrimSpace(stdout))
+			"benign request must return 200, got %q", strings.TrimSpace(stdout))
 	}, 3*time.Minute, 10*time.Second)
 
 	s.EventuallyWithT(func(c *assert.CollectT) {
@@ -282,21 +341,19 @@ func (s *egAppSecSidecarSuite) TestTrafficBlocking() {
 				gatewayURL + "?x=1",
 			},
 		)
-		require.NoError(c, err, "curl attack request exec")
+		require.NoError(c, err, "curl attack request")
 		require.Equal(c, "403", strings.TrimSpace(stdout),
-			"attack request (User-Agent: %s) must be blocked with 403; got %q",
-			attackUserAgent, strings.TrimSpace(stdout))
+			"attack (User-Agent: %s) must be blocked with 403; got %q", attackUserAgent, strings.TrimSpace(stdout))
 	}, 3*time.Minute, 10*time.Second)
 }
 
-// TestReconcileDoesNotStripSidecar verifies the reconcile-loop guard:
-// a no-op annotation update on the Gateway must NOT cause Envoy Gateway to
-// re-roll the data-plane pod or remove the Datadog sidecar.
+// TestReconcileDoesNotStripSidecar verifies the reconcile-loop guard: a no-op
+// Gateway annotation must not cause EG to re-roll the data-plane pod or strip
+// the injected sidecar and volume.
 func (s *egAppSecSidecarSuite) TestReconcileDoesNotStripSidecar() {
 	k8s := s.Env().KubernetesCluster.Client()
 	kc := s.Env().KubernetesCluster.KubernetesClient
 
-	// Record the current data-plane pod name.
 	var podNameBefore string
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		pods, err := k8s.CoreV1().Pods(egNamespace).List(
@@ -305,27 +362,21 @@ func (s *egAppSecSidecarSuite) TestReconcileDoesNotStripSidecar() {
 				LabelSelector: fmt.Sprintf("gateway.envoyproxy.io/owning-gateway-name=%s", gatewayName),
 			},
 		)
-		require.NoError(c, err, "listing EG data-plane pods before reconcile")
+		require.NoError(c, err)
 		for _, p := range pods.Items {
 			if p.Status.Phase == corev1.PodRunning {
 				podNameBefore = p.Name
 				return
 			}
 		}
-		require.Fail(c, "no running EG data-plane pod found")
+		require.Fail(c, "no running EG data-plane pod")
 	}, 3*time.Minute, 10*time.Second)
 
 	require.NotEmpty(s.T(), podNameBefore)
 
-	// Trigger a no-op reconcile by annotating the Gateway resource.
 	dynClient, err := dynamic.NewForConfig(kc.K8sConfig)
-	require.NoError(s.T(), err, "creating dynamic client")
+	require.NoError(s.T(), err)
 
-	gatewayGVR := schema.GroupVersionResource{
-		Group:    "gateway.networking.k8s.io",
-		Version:  "v1",
-		Resource: "gateways",
-	}
 	patchData, err := json.Marshal(map[string]interface{}{
 		"metadata": map[string]interface{}{
 			"annotations": map[string]string{
@@ -342,20 +393,18 @@ func (s *egAppSecSidecarSuite) TestReconcileDoesNotStripSidecar() {
 		patchData,
 		metav1.PatchOptions{},
 	)
-	require.NoError(s.T(), err, "annotating Gateway for no-op reconcile")
+	require.NoError(s.T(), err, "patching Gateway with no-op annotation")
 
-	// Wait one reconcile interval — 30 s is conservative.
 	time.Sleep(30 * time.Second)
 
-	// Assert pod name is unchanged.
 	pods, err := k8s.CoreV1().Pods(egNamespace).List(
 		context.Background(),
 		metav1.ListOptions{
 			LabelSelector: fmt.Sprintf("gateway.envoyproxy.io/owning-gateway-name=%s", gatewayName),
 		},
 	)
-	require.NoError(s.T(), err, "listing EG data-plane pods after reconcile")
-	require.NotEmpty(s.T(), pods.Items, "expected EG data-plane pod to still exist")
+	require.NoError(s.T(), err)
+	require.NotEmpty(s.T(), pods.Items)
 
 	var podNameAfter string
 	for _, p := range pods.Items {
@@ -365,10 +414,8 @@ func (s *egAppSecSidecarSuite) TestReconcileDoesNotStripSidecar() {
 		}
 	}
 	require.Equal(s.T(), podNameBefore, podNameAfter,
-		"EG data-plane pod must NOT be re-rolled after a no-op reconcile: before=%q after=%q",
-		podNameBefore, podNameAfter)
+		"EG data-plane pod must NOT be re-rolled after no-op reconcile")
 
-	// Re-verify the sidecar is still present after the reconcile.
 	var finalPod *corev1.Pod
 	for i := range pods.Items {
 		if pods.Items[i].Name == podNameAfter {
@@ -376,19 +423,19 @@ func (s *egAppSecSidecarSuite) TestReconcileDoesNotStripSidecar() {
 			break
 		}
 	}
-	require.NotNil(s.T(), finalPod, "could not find pod %q after reconcile", podNameAfter)
+	require.NotNil(s.T(), finalPod)
 
 	containerNames := make([]string, 0, len(finalPod.Spec.Containers))
 	for _, c := range finalPod.Spec.Containers {
 		containerNames = append(containerNames, c.Name)
 	}
 	require.Contains(s.T(), containerNames, sidecarContainer,
-		"sidecar %q must still be present after no-op reconcile; found: %v", sidecarContainer, containerNames)
+		"injected sidecar must survive no-op reconcile; found %v", containerNames)
 
 	volumeNames := make([]string, 0, len(finalPod.Spec.Volumes))
 	for _, v := range finalPod.Spec.Volumes {
 		volumeNames = append(volumeNames, v.Name)
 	}
 	require.Contains(s.T(), volumeNames, sidecarVolume,
-		"volume %q must still be present after no-op reconcile; found: %v", sidecarVolume, volumeNames)
+		"injected volume must survive no-op reconcile; found %v", volumeNames)
 }

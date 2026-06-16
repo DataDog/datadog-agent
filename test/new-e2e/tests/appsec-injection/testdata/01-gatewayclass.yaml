@@ -9,8 +9,3 @@ metadata:
   name: eg-appsec-demo
 spec:
   controllerName: gateway.envoyproxy.io/gatewayclass-controller
-  parametersRef:
-    group: gateway.envoyproxy.io
-    kind: EnvoyProxy
-    name: datadog-appsec-sidecar-uds
-    namespace: envoy-gateway-system
