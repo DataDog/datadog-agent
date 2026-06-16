@@ -41,7 +41,9 @@ If your cluster does not enforce NetworkPolicy resources, these values do not re
 
 ## Deploy
 
-Deploy or update the OpenTelemetry Collector Helm release with the provided values files. Adapt this command to your Helm workflow and chosen namespace:
+Deploy or update the OpenTelemetry Collector Helm release with the provided values files. Adapt this command to your Helm workflow and chosen namespace.
+
+The example below uses the Kubernetes NetworkPolicy values file. If your cluster uses Cilium, replace `helm/network-policy-values.yaml` with `helm/cilium-network-policy-values.yaml` before running it.
 
 ```shell
 helm upgrade --install <RELEASE_NAME> open-telemetry/opentelemetry-collector \
@@ -50,8 +52,6 @@ helm upgrade --install <RELEASE_NAME> open-telemetry/opentelemetry-collector \
   --values helm/collector-config-values.yaml \
   --values helm/network-policy-values.yaml
 ```
-
-If your cluster uses Cilium, replace the `network-policy-values.yaml` values file with `cilium-network-policy-values.yaml`.
 
 The provided Helm values configure the required capabilities and seccomp profile automatically. An init container installs the seccomp profile onto each node, so no manual seccomp setup is required.
 

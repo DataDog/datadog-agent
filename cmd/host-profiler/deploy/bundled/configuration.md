@@ -43,6 +43,8 @@ The following settings can be overridden in the Datadog Agent configuration for 
 
 ### Host Profiler self-profiling
 
+These options are for Datadog Support diagnostics only. Leave self-profiling disabled unless Datadog Support asks you to enable it.
+
 | Name                               | Values | Default                   | Description                                                                                                        |
 |:-----------------------------------|:-------|:--------------------------|:-------------------------------------------------------------------------------------------------------------------|
 | `hostprofiler.ddprofiling.enabled` | bool   | `false`                   | Enables Datadog profiling for the Host Profiler process itself. This does not control profiling of your workloads. |
