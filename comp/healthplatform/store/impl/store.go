@@ -336,8 +336,38 @@ func (h *healthPlatformImpl) RegisterEgressAggregator(agg healthplatformdef.Egre
 	h.aggregatorsMu.Unlock()
 }
 
-// notifyReported writes a hydrated clone to each observer's ActiveCh.
+// removeFromCh drains up to len(ch) items from ch, discards entries whose ID
+// matches excludeID, and returns the rest. Bounded by len(ch) so concurrent
+// writers that arrive after the call starts are not affected.
+func removeFromCh(ch chan *healthplatform.Issue, excludeID string) {
+	n := len(ch)
+	if n == 0 {
+		return
+	}
+	var keep []*healthplatform.Issue
+drain:
+	for range n {
+		select {
+		case item := <-ch:
+			if item.Id != excludeID {
+				keep = append(keep, item)
+			}
+		default:
+			break drain
+		}
+	}
+	for _, item := range keep {
+		select {
+		case ch <- item:
+		default:
+		}
+	}
+}
+
+// notifyReported writes a hydrated clone to each aggregator's ActiveCh.
 // Must be called outside issuesMux.
+// Cancels any stale tombstone in ResolvedCh for the same ID first, so a
+// re-report after resolve does not lose to an older RESOLVED entry.
 func (h *healthPlatformImpl) notifyReported(lean *healthplatform.Issue, si *storedIssue) {
 	h.aggregatorsMu.RLock()
 	agg := h.aggregators
@@ -349,6 +379,7 @@ func (h *healthPlatformImpl) notifyReported(lean *healthplatform.Issue, si *stor
 	hydrateIssue(hydrated, si)
 	for _, o := range agg {
 		if o.ActiveCh != nil {
+			removeFromCh(o.ResolvedCh, lean.Id)
 			select {
 			case o.ActiveCh <- hydrated:
 			default:
@@ -358,12 +389,16 @@ func (h *healthPlatformImpl) notifyReported(lean *healthplatform.Issue, si *stor
 	}
 }
 
+// notifyResolved writes a resolved snapshot to each aggregator's ResolvedCh.
+// Cancels any stale active entry in ActiveCh for the same ID first, so a
+// resolve does not race with a lingering ONGOING entry.
 func (h *healthPlatformImpl) notifyResolved(resolved *healthplatform.Issue) {
 	h.aggregatorsMu.RLock()
 	agg := h.aggregators
 	h.aggregatorsMu.RUnlock()
 	for _, o := range agg {
 		if o.ResolvedCh != nil {
+			removeFromCh(o.ActiveCh, resolved.Id)
 			select {
 			case o.ResolvedCh <- resolved:
 			default:

@@ -22,11 +22,11 @@ type EgressAggregator struct {
 	// ActiveCh receives new and ongoing issues as they are stored.
 	// The issue is a fully-hydrated clone; check PersistedIssue.State to
 	// distinguish NEW from ONGOING.
-	ActiveCh chan<- *healthplatformpayload.Issue
+	ActiveCh chan *healthplatformpayload.Issue
 
 	// ResolvedCh receives issues when they transition to RESOLVED, including
 	// resolved issues recovered from disk on startup.
-	ResolvedCh chan<- *healthplatformpayload.Issue
+	ResolvedCh chan *healthplatformpayload.Issue
 }
 
 // Component is the health platform store component interface.
