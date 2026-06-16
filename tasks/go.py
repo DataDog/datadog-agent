@@ -393,6 +393,8 @@ def _bazel_tidy(ctx, verbose: bool):
     bazel(ctx, "mod", "tidy")
     # 5. deps/go.MODULE.bazel + /BUILD.bazel + **/*.go + **/go.mod -> **/BUILD.bazel (infer build rules from Go source)
     bazel(ctx, "run", "//:gazelle")
+    # 6. regenerate agent payload version file from go.mod
+    bazel(ctx, "run", "//tasks:write_agent_payload_version")
 
 
 @task(autoprint=True)
