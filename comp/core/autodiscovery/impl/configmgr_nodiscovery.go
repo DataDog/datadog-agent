@@ -12,6 +12,10 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 )
 
+// discoveryState is empty in non-python builds; the fields are only needed
+// when the discovery worker is active.
+type discoveryState struct{} //nolint:unused
+
 // initDiscoveryWorker is a no-op in non-Python builds. Keeping it empty means
 // the linker never sees a call to discoverer.NewWorker for dead-code elimination.
 func initDiscoveryWorker(_ *reconcilingConfigManager, _ discoverer.ConfigDiscoverer) {}
