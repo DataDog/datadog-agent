@@ -15,13 +15,14 @@ import (
 	"k8s.io/client-go/dynamic"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/metricsstore"
 )
 
 // TestScheduler is an alias for the unexported scheduler type, exposed for testing.
 type TestScheduler = scheduler
 
 // NewTestScheduler creates a scheduler for testing.
-func NewTestScheduler(config Config, s SpotSender, wlm workloadmeta.Component, evictPod func(namespace, name string) error, dynamicClient dynamic.Interface) *TestScheduler {
+func NewTestScheduler(config Config, s metricsstore.MetricsSender, wlm workloadmeta.Component, evictPod func(namespace, name string) error, dynamicClient dynamic.Interface) *TestScheduler {
 	isLeader := func() bool {
 		return true
 	}

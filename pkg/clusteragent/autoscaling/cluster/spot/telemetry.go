@@ -24,12 +24,6 @@ type workloadKindMetricsSource interface {
 	countDisabledByKind(time.Time) map[string]int
 }
 
-// SpotSender is the sender interface used by spot telemetry.
-type SpotSender interface {
-	metricsstore.MetricsSender
-	Histogram(metric string, value float64, hostname string, tags []string)
-}
-
 const (
 	tagCapacityTypeSpot     = "capacity_type:spot"
 	tagCapacityTypeOnDemand = "capacity_type:on_demand"
@@ -46,13 +40,13 @@ type workloadSnapshot struct {
 
 // telemetry emits the spot scheduler's metrics.
 type telemetry struct {
-	sender          SpotSender
+	sender          metricsstore.MetricsSender
 	workloadMetrics *metricsstore.MetricsStore[workloadSnapshot]
 	globalTagsFunc  func() []string
 	isLeader        func() bool
 }
 
-func newTelemetry(s SpotSender, isLeader func() bool, globalTagsFunc func() []string) *telemetry {
+func newTelemetry(s metricsstore.MetricsSender, isLeader func() bool, globalTagsFunc func() []string) *telemetry {
 	t := &telemetry{
 		sender:         s,
 		globalTagsFunc: globalTagsFunc,
@@ -153,7 +147,7 @@ func (t *telemetry) observePendingSeconds(d time.Duration) {
 	if !t.isLeader() {
 		return
 	}
-	t.sender.Histogram(MetricNamePendingSeconds, d.Seconds(), "", t.globalTags())
+	t.sender.Distribution(MetricNamePendingSeconds, d.Seconds(), "", t.globalTags())
 	t.sender.Commit()
 }
 

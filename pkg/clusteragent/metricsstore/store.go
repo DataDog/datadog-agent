@@ -20,6 +20,7 @@ type MetricsSender interface {
 	Gauge(metric string, value float64, hostname string, tags []string)
 	MonotonicCount(metric string, value float64, hostname string, tags []string)
 	Count(metric string, value float64, hostname string, tags []string)
+	Distribution(metric string, value float64, hostname string, tags []string)
 	Commit()
 }
 

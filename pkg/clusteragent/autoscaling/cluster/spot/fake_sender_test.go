@@ -13,7 +13,7 @@ import (
 	"sync"
 )
 
-// fakeSender implements spot.SpotSender for testing.
+// fakeSender implements metricsstore.MetricsSender for testing.
 // It records the latest gauge value and accumulates counter values per metric+tags key.
 type fakeSender struct {
 	mu       sync.Mutex
@@ -41,7 +41,7 @@ func (f *fakeSender) Count(metric string, value float64, _ string, tags []string
 }
 
 func (f *fakeSender) MonotonicCount(_ string, _ float64, _ string, _ []string) {}
-func (f *fakeSender) Histogram(_ string, _ float64, _ string, _ []string)      {}
+func (f *fakeSender) Distribution(_ string, _ float64, _ string, _ []string)   {}
 func (f *fakeSender) Commit()                                                  {}
 
 // getGauge returns the latest gauge value recorded for the given metric and tags (any order).
