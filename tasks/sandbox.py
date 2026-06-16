@@ -80,6 +80,26 @@ def _ensure_prepared_base(ctx, manager: AgentSandboxManager) -> None:
     _prepare_base(ctx, manager)
 
 
+def _ensure_fakeintake(ctx, manager: AgentSandboxManager) -> None:
+    if manager.fakeintake_binary().exists():
+        return
+    bazel = shutil.which("bazelisk") or shutil.which("bazel")
+    if bazel:
+        result = ctx.run(shlex.join([bazel, "build", "//test/fakeintake/cmd/server:server"]), warn=True, pty=True)
+        if result.exited == 0 or manager.fakeintake_binary().exists():
+            return
+    go125 = Path("/opt/homebrew/opt/go@1.25/bin")
+    if go125.exists():
+        result = ctx.run(
+            "PATH=" + shlex.quote(str(go125)) + ':$PATH dda inv fakeintake.build',
+            warn=True,
+            pty=True,
+        )
+        if result.exited == 0 or manager.fakeintake_binary().exists():
+            return
+    raise Exit(message="failed to build fakeintake with bazel/bazelisk or local Go 1.25", code=1)
+
+
 @task
 def up(
     ctx,
@@ -105,6 +125,13 @@ def up(
             print("✓ prepared Ubuntu base ready")
 
         paths = manager.paths(name)
+        fakeintake_url = None
+        fakeintake_pid = None
+        fakeintake_log = None
+        if not paths.metadata_file.exists() and not config:
+            _ensure_fakeintake(ctx, manager)
+            fakeintake_url, fakeintake_pid, fakeintake_log = manager.start_fakeintake_process(name)
+            print(f"✓ fakeintake ready: {fakeintake_url}")
         if not paths.metadata_file.exists():
             manager.prepare_host_sandbox(
                 name=name,
@@ -112,6 +139,9 @@ def up(
                 config=Path(config) if config else None,
                 ubuntu_image=Path(ubuntu_image) if ubuntu_image else None,
                 fx_trace=fx_trace,
+                fakeintake_url=fakeintake_url,
+                fakeintake_pid=fakeintake_pid,
+                fakeintake_log=fakeintake_log,
             )
             print("✓ VM created")
         else:
@@ -170,6 +200,7 @@ def status(ctx, name=DEFAULT_SANDBOX_NAME, state_root=None, json_output=False):
         print(f"Base image: {'prepared' if (manager.prepared_base_path()).exists() else 'raw'}")
         print(f"Apt cache: {_size(manager.paths(name).apt_cache_dir)}")
         print(f"Fx tracing: {'enabled' if data.get('fx_trace') else 'disabled'}")
+        print(f"Fakeintake: {data.get('fakeintake_url') or 'disabled/custom config'}")
         print("\nUseful:")
         print(f"  dda inv sandbox.ssh --name {name}")
         print(f"  dda inv sandbox.ssh --name {name} --cmd 'sudo agent status'")
@@ -325,8 +356,20 @@ def fx_spans(ctx, name=DEFAULT_SANDBOX_NAME, state_root=None, summary=False):
         raise Exit(message=str(e), code=1) from None
 
 
+@task(name="install-timeline")
+def install_timeline(ctx, name=DEFAULT_SANDBOX_NAME, state_root=None):
+    """Show sandbox installer timeline markers."""
+    manager = _manager(state_root)
+    try:
+        _run_or_raise(
+            ctx, manager.ssh_command(name, ["sudo", "cat", "/var/log/datadog/agent-sandbox-install-timeline.log"])
+        )
+    except AgentSandboxError as e:
+        raise Exit(message=str(e), code=1) from None
+
+
 @task
-def benchmark(ctx, state_root=None, name="bench", prepare_base_first=True, fx_trace=False):
+def benchmark(ctx, state_root=None, name="bench", prepare_base_first=True, fx_trace=False, granular=False):
     """Run a local end-to-end Stage A benchmark."""
     manager = _manager(state_root)
     root = str(manager.state_root)
@@ -337,11 +380,52 @@ def benchmark(ctx, state_root=None, name="bench", prepare_base_first=True, fx_tr
     def mark(label):
         print(f"{label} {int(time.time() - start_time)}s")
 
+    def wait_for(label, command, timeout=180):
+        deadline = time.time() + timeout
+        last = ""
+        while time.time() < deadline:
+            result = subprocess.run(command, check=False, text=True, capture_output=True)
+            if result.returncode == 0:
+                mark(label)
+                return
+            last = (result.stdout + result.stderr).strip()
+            time.sleep(1)
+        raise Exit(message=f"timed out waiting for {label}: {last}", code=1)
+
     mark("start")
-    up(ctx, name=name, state_root=root, fx_trace=fx_trace)
-    mark("agent_status_ready")
-    ssh(ctx, name=name, state_root=root, cmd="sudo agent version")
-    mark("agent_version_done")
+    if not granular:
+        up(ctx, name=name, state_root=root, fx_trace=fx_trace)
+        mark("agent_status_ready")
+        ssh(ctx, name=name, state_root=root, cmd="sudo agent version")
+        mark("agent_version_done")
+        down(ctx, name=name, state_root=root)
+        mark("destroy_done")
+        return
+
+    up(ctx, name=name, state_root=root, fx_trace=fx_trace, wait_agent=False)
+    mark("up_no_wait_returned")
+    wait_for("agent_binary_present", manager.shell_command(name, "test -x /opt/datadog-agent/bin/agent/agent"))
+    wait_for("cloud_init_done", manager.shell_command(name, "cloud-init status 2>/dev/null | grep -q 'status: done'"))
+    wait_for("service_active", manager.shell_command(name, "systemctl is-active --quiet datadog-agent"))
+    wait_for("cmd_api_port_open", manager.shell_command(name, "timeout 1 bash -lc '</dev/tcp/127.0.0.1/5001'"))
+    wait_for(
+        "cmd_api_log_seen",
+        manager.shell_command(name, "sudo journalctl -u datadog-agent --no-pager | grep -q \"CMD API Server\""),
+    )
+    rc_seen = subprocess.run(
+        manager.shell_command(
+            name, "sudo journalctl -u datadog-agent --no-pager | grep -q \"first update successful\""
+        ),
+        check=False,
+        text=True,
+        capture_output=True,
+    )
+    if rc_seen.returncode == 0:
+        mark("remote_config_first_update")
+    else:
+        mark("remote_config_disabled_or_no_update")
+    wait_for("agent_status_ready", manager.agent_command(name, "status"))
+    install_timeline(ctx, name=name, state_root=root)
     down(ctx, name=name, state_root=root)
     mark("destroy_done")
 

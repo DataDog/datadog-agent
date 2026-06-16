@@ -66,6 +66,16 @@ class TestAgentSandboxManager(unittest.TestCase):
             with self.assertRaisesRegex(AgentSandboxError, "already exists"):
                 self.manager.prepare_host_sandbox(name="dup")
 
+    def test_default_config_disables_cloud_and_remote_config_and_uses_fakeintake(self):
+        config = Path(self.tmp.name) / "datadog.yaml"
+        self.manager.write_default_datadog_config(config, "http://192.168.64.1:30080")
+
+        content = config.read_text()
+        self.assertIn("cloud_provider_metadata: []", content)
+        self.assertIn("remote_configuration:\n  enabled: false", content)
+        self.assertIn("dd_url: http://192.168.64.1:30080", content)
+        self.assertIn("process_dd_url: http://192.168.64.1:30080", content)
+
     def test_ssh_and_agent_commands_use_managed_metadata(self):
         paths = self.manager.ensure_layout("cmd")
         paths.private_key.write_text("private")

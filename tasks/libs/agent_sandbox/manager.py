@@ -15,6 +15,7 @@ import platform
 import shlex
 import shutil
 import signal
+import socket
 import subprocess
 import textwrap
 import time
@@ -71,6 +72,9 @@ class SandboxMetadata:
     agent_major_version: str = DEFAULT_AGENT_MAJOR_VERSION
     config_source: str | None = None
     fx_trace: bool = False
+    fakeintake_url: str | None = None
+    fakeintake_pid: int | None = None
+    fakeintake_log: str | None = None
     vm_pid: int | None = None
 
 
@@ -142,6 +146,9 @@ class AgentSandboxManager:
         ubuntu_image: Path | str | None = None,
         guest_user: str = DEFAULT_GUEST_USER,
         fx_trace: bool = False,
+        fakeintake_url: str | None = None,
+        fakeintake_pid: int | None = None,
+        fakeintake_log: str | None = None,
     ) -> SandboxMetadata:
         """Create local state, credentials and provisioning inputs for a host sandbox."""
         self.assert_supported_host()
@@ -155,6 +162,8 @@ class AgentSandboxManager:
             raise AgentSandboxError(f"config override does not exist: {config_source}")
         if config_source:
             shutil.copyfile(config_source, paths.provisioning_dir / "datadog.yaml")
+        else:
+            self.write_default_datadog_config(paths.provisioning_dir / "datadog.yaml", fakeintake_url)
 
         metadata = SandboxMetadata(
             name=name,
@@ -165,6 +174,9 @@ class AgentSandboxManager:
             agent_version=agent_version,
             config_source=config_source,
             fx_trace=fx_trace,
+            fakeintake_url=fakeintake_url,
+            fakeintake_pid=fakeintake_pid,
+            fakeintake_log=fakeintake_log,
         )
         self.write_host_install_script(paths.host_install_script, metadata)
         self.write_cloud_init_seed(paths, metadata)
@@ -284,6 +296,28 @@ runcmd:
             return version[len(prefix) :]
         return version
 
+    def write_default_datadog_config(self, path: Path, fakeintake_url: str | None = None) -> None:
+        endpoint_config = ""
+        if fakeintake_url:
+            host_port = fakeintake_url.removeprefix("http://").removeprefix("https://")
+            endpoint_config = f"""
+dd_url: {fakeintake_url}
+logs_config:
+  logs_dd_url: {host_port}
+  logs_no_ssl: true
+apm_config:
+  apm_dd_url: {fakeintake_url}
+process_config:
+  process_dd_url: {fakeintake_url}
+"""
+        path.write_text(
+            f"""api_key: {DUMMY_API_KEY}
+cloud_provider_metadata: []
+remote_configuration:
+  enabled: false
+{endpoint_config}"""
+        )
+
     def write_host_install_script(self, path: Path, metadata: SandboxMetadata) -> None:
         env = {
             "DD_API_KEY": DUMMY_API_KEY,
@@ -295,11 +329,6 @@ runcmd:
             )
 
         exports = " ".join(f"{key}={shlex.quote(value)}" for key, value in env.items())
-        config_copy = ""
-        restart_needed = False
-        if metadata.config_source:
-            config_copy = "\ninstall -m 0644 /var/lib/agent-sandbox/datadog.yaml /etc/datadog-agent/datadog.yaml\n"
-            restart_needed = True
         pre_install_setup = ""
         if metadata.fx_trace:
             pre_install_setup = r'''
@@ -352,9 +381,14 @@ EOF
 systemctl daemon-reload
 systemctl enable --now agent-sandbox-fx-trace-intake.service
 '''
-        restart_command = ""
-        if restart_needed:
-            restart_command = "\nsystemctl restart datadog-agent || service datadog-agent restart\n"
+        restart_command = r'''
+if ! cmp -s /var/lib/agent-sandbox/datadog.yaml /etc/datadog-agent/datadog.yaml; then
+    install -m 0644 /var/lib/agent-sandbox/datadog.yaml /etc/datadog-agent/datadog.yaml
+    chown dd-agent:dd-agent /etc/datadog-agent/datadog.yaml || true
+    chmod 0640 /etc/datadog-agent/datadog.yaml || true
+    systemctl restart datadog-agent || service datadog-agent restart
+fi
+'''
 
         package_version = ""
         if metadata.agent_version:
@@ -368,26 +402,42 @@ systemctl enable --now agent-sandbox-fx-trace-intake.service
         script = f"""#!/usr/bin/env bash
 set -euo pipefail
 
+TIMELINE=/var/log/datadog/agent-sandbox-install-timeline.log
+mkdir -p /var/log/datadog
+mark() {{ echo "$(date +%s.%N) $1" | tee -a "$TIMELINE"; }}
+mark install_start
+
 if ! command -v curl >/dev/null 2>&1; then
+    mark curl_install_start
     apt-get update
     DEBIAN_FRONTEND=noninteractive apt-get install -y curl
+    mark curl_install_done
 fi
 
 {pre_install_setup}
+mark preseed_config_start
+mkdir -p /etc/datadog-agent
+install -m 0644 /var/lib/agent-sandbox/datadog.yaml /etc/datadog-agent/datadog.yaml
+mark preseed_config_done
+mark installer_script_start
 {exports} bash -c "$(curl -L https://s3.amazonaws.com/dd-agent/scripts/install_script_agent7.sh)" || true
+mark installer_script_done
 if ! command -v /opt/datadog-agent/bin/agent/agent >/dev/null 2>&1; then
+    mark fallback_apt_start
     apt-get update
     if ! apt-cache policy datadog-agent | grep -q 'Candidate: .*datadog-agent'; then
         curl -fsSL https://apt.datadoghq.com/dists/stable/7/binary-arm64/Packages \
             -o /var/lib/apt/lists/apt.datadoghq.com_dists_stable_7_binary-arm64_Packages
     fi
     DEBIAN_FRONTEND=noninteractive apt-get install -y datadog-agent{package_version} datadog-signing-keys
+    mark fallback_apt_done
 fi
 ln -sf /opt/datadog-agent/bin/agent/agent /usr/local/bin/agent
-{config_copy}
-chown dd-agent:dd-agent /etc/datadog-agent/datadog.yaml || true
-chmod 0640 /etc/datadog-agent/datadog.yaml || true
-{restart_command}/opt/datadog-agent/bin/agent/agent version
+mark config_reconcile_start
+{restart_command}mark config_reconcile_done
+mark agent_version_start
+/opt/datadog-agent/bin/agent/agent version
+mark agent_version_done
 """
         path.write_text(script)
         path.chmod(0o755)
@@ -398,9 +448,8 @@ chmod 0640 /etc/datadog-agent/datadog.yaml || true
             raise AgentSandboxError("managed SSH public key is missing")
 
         config_write_file = ""
-        if metadata.config_source:
-            config_content = (paths.provisioning_dir / "datadog.yaml").read_text()
-            config_write_file = f"""
+        config_content = (paths.provisioning_dir / "datadog.yaml").read_text()
+        config_write_file = f"""
   - path: /var/lib/agent-sandbox/datadog.yaml
     permissions: '0644'
     owner: root:root
@@ -552,6 +601,52 @@ write_files:
         self.write_metadata(paths.metadata_file, metadata)
         return metadata
 
+    def fakeintake_binary(self) -> Path:
+        for candidate in (
+            Path("bazel-bin/test/fakeintake/cmd/server/server_/server"),
+            Path("bazel-bin/test/fakeintake/cmd/server/server"),
+            Path("test/fakeintake/build/fakeintake"),
+        ):
+            if candidate.exists():
+                return candidate
+        return Path("bazel-bin/test/fakeintake/cmd/server/server_/server")
+
+    def find_free_port(self) -> int:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.bind(("0.0.0.0", 0))
+            return int(sock.getsockname()[1])
+
+    def host_bridge_ip(self) -> str:
+        result = subprocess.run(["ifconfig", "bridge100"], check=False, text=True, capture_output=True)
+        for line in result.stdout.splitlines():
+            line = line.strip()
+            if line.startswith("inet "):
+                return line.split()[1]
+        raise AgentSandboxError("could not discover host bridge100 IP for fakeintake")
+
+    def start_fakeintake_process(self, name: str = DEFAULT_SANDBOX_NAME) -> tuple[str, int, str]:
+        binary = self.fakeintake_binary()
+        if not binary.exists():
+            raise AgentSandboxError("fakeintake is not built; run dda inv fakeintake.build")
+        paths = self.ensure_layout(name)
+        port = self.find_free_port()
+        log_path = paths.instance_dir / "fakeintake.log"
+        log = log_path.open("ab")
+        process = subprocess.Popen(
+            [str(binary), f"-port={port}", "-retention-period=30m"],
+            stdout=log,
+            stderr=subprocess.STDOUT,
+            start_new_session=True,
+        )
+        log.close()
+        for _ in range(50):
+            if not self.pid_is_running(process.pid):
+                break
+            if self.tcp_port_open("127.0.0.1", port, timeout_seconds=1):
+                return f"http://{self.host_bridge_ip()}:{port}", process.pid, str(log_path)
+            time.sleep(0.1)
+        raise AgentSandboxError(f"fakeintake did not become ready; see {log_path}")
+
     def status(self, name: str = DEFAULT_SANDBOX_NAME) -> dict[str, Any]:
         metadata = self.read_metadata(name)
         paths = self.paths(name)
@@ -651,6 +746,18 @@ write_files:
 
     def stop(self, name: str = DEFAULT_SANDBOX_NAME) -> SandboxMetadata:
         metadata = self.read_metadata(name)
+        if metadata.fakeintake_pid and self.pid_is_running(metadata.fakeintake_pid):
+            try:
+                os.kill(metadata.fakeintake_pid, signal.SIGTERM)
+            except ProcessLookupError:
+                pass
+            for _ in range(30):
+                if not self.pid_is_running(metadata.fakeintake_pid):
+                    break
+                time.sleep(0.1)
+            if metadata.fakeintake_pid and self.pid_is_running(metadata.fakeintake_pid):
+                os.kill(metadata.fakeintake_pid, signal.SIGKILL)
+        metadata.fakeintake_pid = None
         if metadata.vm_pid and self.pid_is_running(metadata.vm_pid):
             os_pid = metadata.vm_pid
             try:
@@ -709,8 +816,6 @@ write_files:
         return ":".join(part.lstrip("0") or "0" for part in parts)
 
     def tcp_port_open(self, host: str, port: int, timeout_seconds: int = 2) -> bool:
-        import socket
-
         try:
             with socket.create_connection((host, port), timeout=timeout_seconds):
                 return True
