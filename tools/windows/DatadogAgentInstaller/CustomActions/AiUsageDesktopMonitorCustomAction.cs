@@ -27,12 +27,13 @@ namespace Datadog.CustomActions
             var hostPath = Path.Combine(projectLocation, "bin", "agent", "ai-prompt-logger-native-host.exe");
             var configPath = Path.Combine(configRoot, "ai_usage_native_host.yaml");
             var taskXmlPath = Path.Combine(Path.GetTempPath(), $"datadog-ai-prompt-logger-{Guid.NewGuid():N}.xml");
+            var schtasks = Path.Combine(Environment.SystemDirectory, "schtasks.exe");
 
             try
             {
                 File.WriteAllText(taskXmlPath, BuildTaskXml(hostPath, configPath), Encoding.Unicode);
                 using (var proc = session.RunCommand(
-                           Path.Combine(Environment.SystemDirectory, "schtasks.exe"),
+                           schtasks,
                            $"/Create /TN \"{TaskName}\" /XML \"{taskXmlPath}\" /F"))
                 {
                     if (proc.ExitCode != 0)
@@ -43,6 +44,14 @@ namespace Datadog.CustomActions
                 }
 
                 session.Log("AI Prompt Logger desktop monitor task registered.");
+                using (var runProc = session.RunCommand(schtasks, $"/Run /TN \"{TaskName}\""))
+                {
+                    if (runProc.ExitCode != 0)
+                    {
+                        session.Log($"AI Prompt Logger desktop monitor task start exited with code: {runProc.ExitCode}");
+                    }
+                }
+
                 return ActionResult.Success;
             }
             finally
