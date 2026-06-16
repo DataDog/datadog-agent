@@ -855,6 +855,48 @@ func TestPCIELinkMetrics(t *testing.T) {
 	}
 }
 
+func TestNeedsRecoverySample(t *testing.T) {
+	tests := []struct {
+		name          string
+		action        nvml.DeviceGpuRecoveryAction
+		expectedValue float64
+		expectedTag   string
+	}{
+		{name: "none", action: nvml.GPU_RECOVERY_ACTION_NONE, expectedValue: 0, expectedTag: "recovery_action:none"},
+		{name: "reset", action: nvml.GPU_RECOVERY_ACTION_GPU_RESET, expectedValue: 1, expectedTag: "recovery_action:reset"},
+		{name: "reboot", action: nvml.GPU_RECOVERY_ACTION_NODE_REBOOT, expectedValue: 1, expectedTag: "recovery_action:reboot"},
+		{name: "drain", action: nvml.GPU_RECOVERY_ACTION_DRAIN_P2P, expectedValue: 1, expectedTag: "recovery_action:drain"},
+		{name: "drain_and_reset", action: nvml.GPU_RECOVERY_ACTION_DRAIN_AND_RESET, expectedValue: 1, expectedTag: "recovery_action:drain_and_reset"},
+		{name: "unknown_future_action", action: nvml.DeviceGpuRecoveryAction(99), expectedValue: 1, expectedTag: "recovery_action:unknown_99"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			device := setupMockDevice(t, testutil.WithFieldValuesPartialOverride(map[uint32]testutil.MockFieldValue{
+				nvml.FI_DEV_GET_GPU_RECOVERY_ACTION: testutil.NewFieldValue(uint64(tt.action)),
+			}))
+
+			metricsOut, _, err := needsRecoverySample(device)
+			require.NoError(t, err)
+			require.Len(t, metricsOut, 1)
+
+			metric := metricsOut[0]
+			require.Equal(t, "device.needs_recovery", metric.Name)
+			require.Equal(t, metrics.GaugeType, metric.Type)
+			require.Equal(t, tt.expectedValue, metric.Value)
+			require.Equal(t, []string{tt.expectedTag}, metric.Tags)
+		})
+	}
+}
+
+func TestNeedsRecoverySampleUnsupported(t *testing.T) {
+	device := setupMockDevice(t, testutil.WithUnsupportedFields(nvml.FI_DEV_GET_GPU_RECOVERY_ACTION))
+
+	_, _, err := needsRecoverySample(device)
+	require.Error(t, err)
+	require.True(t, safenvml.IsAPIUnsupportedOnDevice(err, device))
+}
+
 func findAPICallByName(t *testing.T, apis []apiCallInfo, name string) apiCallInfo {
 	t.Helper()
 	for _, api := range apis {

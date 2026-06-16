@@ -280,6 +280,41 @@ func sramEccErrorStatusSample(device ddnvml.Device) ([]Metric, uint64, error) {
 	return metricsOut, 0, nil
 }
 
+// gpuRecoveryActionToTag maps the NVML GPU recovery action enum to the
+// recovery_action tag value used on the device.needs_recovery metric.
+var gpuRecoveryActionToTag = map[nvml.DeviceGpuRecoveryAction]string{
+	nvml.GPU_RECOVERY_ACTION_NONE:            "none",
+	nvml.GPU_RECOVERY_ACTION_GPU_RESET:       "reset",
+	nvml.GPU_RECOVERY_ACTION_NODE_REBOOT:     "reboot",
+	nvml.GPU_RECOVERY_ACTION_DRAIN_P2P:       "drain",
+	nvml.GPU_RECOVERY_ACTION_DRAIN_AND_RESET: "drain_and_reset",
+}
+
+// needsRecoverySample queries the GPU recovery action field and emits a single
+// device.needs_recovery metric: 0 when no action is required, 1 otherwise. The
+// metric is tagged with the specific recovery action.
+func needsRecoverySample(device ddnvml.Device) ([]Metric, uint64, error) {
+	action, err := fieldValueForField(device, nvml.FI_DEV_GET_GPU_RECOVERY_ACTION, "FI_DEV_GET_GPU_RECOVERY_ACTION")
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to get GPU recovery action: %w", err)
+	}
+
+	recoveryAction := nvml.DeviceGpuRecoveryAction(action)
+	actionTag, ok := gpuRecoveryActionToTag[recoveryAction]
+	if !ok {
+		// Unknown future action value: still report that recovery is needed,
+		// tagging it with the raw value so it's not silently dropped.
+		actionTag = "unknown_" + strconv.Itoa(action)
+	}
+
+	return []Metric{{
+		Name:  "device.needs_recovery",
+		Value: boolToFloat(recoveryAction != nvml.GPU_RECOVERY_ACTION_NONE),
+		Type:  metrics.GaugeType,
+		Tags:  []string{"recovery_action:" + actionTag},
+	}}, 0, nil
+}
+
 // pcieGenSpec describes the physical-layer characteristics of a PCIe generation. Values come from the PCI-SIG base
 // specification and are fixed by the standard.
 type pcieGenSpec struct {
@@ -711,6 +746,12 @@ func createStatelessAPIs(deps *CollectorDependencies) []apiCallInfo {
 			Name: "sram_ecc_error_status",
 			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
 				return sramEccErrorStatusSample(device)
+			},
+		},
+		{
+			Name: "needs_recovery",
+			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
+				return needsRecoverySample(device)
 			},
 		},
 		// Process memory APIs (stateless - just current snapshot)
