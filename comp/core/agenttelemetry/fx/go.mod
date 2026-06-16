@@ -57,7 +57,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/uuid v0.69.4 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.75.4 // indirect
 	github.com/DataDog/datadog-agent/pkg/version v0.75.4 // indirect
-	github.com/DataDog/datadog-agent/test/fakeintake v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/go-acl v1.0.1 // indirect
 	github.com/DataDog/viper v1.15.1 // indirect
 	github.com/DataDog/zstd v1.5.8-0.20260421145859-31a7e515a571 // indirect
