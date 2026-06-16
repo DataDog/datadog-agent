@@ -38,9 +38,12 @@ type recordingLookbackRetention struct {
 
 	newSenderManagerCalls int
 	dumpCalls             int
+	dumpRangeCalls        int
 	dumpCount             int
 	dumpErr               error
 	lastSerializer        serializer.MetricSerializer
+	lastFrom              time.Time
+	lastTo                time.Time
 }
 
 func (r *recordingLookbackRetention) NewSenderManager(context.Context) aggregatorsender.SenderManager {
@@ -51,6 +54,14 @@ func (r *recordingLookbackRetention) NewSenderManager(context.Context) aggregato
 func (r *recordingLookbackRetention) Dump(metricSerializer serializer.MetricSerializer) (int, error) {
 	r.dumpCalls++
 	r.lastSerializer = metricSerializer
+	return r.dumpCount, r.dumpErr
+}
+
+func (r *recordingLookbackRetention) DumpRange(metricSerializer serializer.MetricSerializer, from, to time.Time) (int, error) {
+	r.dumpRangeCalls++
+	r.lastSerializer = metricSerializer
+	r.lastFrom = from
+	r.lastTo = to
 	return r.dumpCount, r.dumpErr
 }
 
@@ -135,8 +146,30 @@ func TestDumpLookbackDelegatesToConfiguredRetention(t *testing.T) {
 	count, err := demux.DumpLookback()
 	require.NoError(t, err)
 	assert.Equal(t, 2, count)
-	assert.Equal(t, 1, retention.dumpCalls)
+	assert.Equal(t, 1, retention.dumpRangeCalls)
 	assert.NotNil(t, retention.lastSerializer)
+	assert.True(t, retention.lastFrom.IsZero())
+	assert.True(t, retention.lastTo.IsZero())
+}
+
+func TestDumpLookbackRangeDelegatesToConfiguredRetention(t *testing.T) {
+	configmock.New(t)
+	retention := &recordingLookbackRetention{dumpCount: 2}
+	demux := &AgentDemultiplexer{
+		log:               logmock.New(t),
+		lookbackRetention: retention,
+		dataOutputs:       dataOutputs{sharedSerializer: &MockSerializerIterableSerie{}},
+	}
+	from := time.Unix(10, 0)
+	to := time.Unix(20, 0)
+
+	count, err := demux.DumpLookbackRange(from, to)
+	require.NoError(t, err)
+	assert.Equal(t, 2, count)
+	assert.Equal(t, 1, retention.dumpRangeCalls)
+	assert.NotNil(t, retention.lastSerializer)
+	assert.Equal(t, from, retention.lastFrom)
+	assert.Equal(t, to, retention.lastTo)
 }
 
 func TestDumpLookbackDisabledReturnsError(t *testing.T) {

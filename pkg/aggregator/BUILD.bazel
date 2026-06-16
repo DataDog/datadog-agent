@@ -104,6 +104,7 @@ go_test(
         "demultiplexer_lookback_test.go",
         "demultiplexer_serverless_test.go",
         "demultiplexer_test.go",
+        "lookback_trigger_test.go",
         "main_test.go",
         "no_aggregation_stream_worker_test.go",
         "observer_handle_test.go",

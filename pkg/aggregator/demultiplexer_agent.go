@@ -85,6 +85,9 @@ type AgentDemultiplexer struct {
 	// injected by binaries that support metric lookback so binaries that only
 	// reuse the aggregator do not link the concrete lookback implementation.
 	lookbackRetention LookbackRetention
+	// lookbackTrigger observes DogStatsD samples and triggers lookback dumps when
+	// its configured condition is met. Nil when trigger evaluation is disabled.
+	lookbackTrigger LookbackTrigger
 
 	// sharded statsd time samplers
 	statsd
@@ -99,6 +102,8 @@ type AgentDemultiplexerOptions struct {
 	DontStartForwarders bool // unit tests don't need the forwarders to be instanciated
 
 	LookbackRetention LookbackRetention
+
+	LookbackTriggerFactory LookbackTriggerFactory
 
 	UseDogstatsdContextLimiter bool
 	DogstatsdMaxMetricsTags    int
@@ -253,6 +258,10 @@ func initAgentDemultiplexer(log log.Component,
 		},
 	}
 
+	if options.LookbackTriggerFactory != nil {
+		demux.lookbackTrigger = options.LookbackTriggerFactory(demux.DumpLookbackRange)
+	}
+
 	return demux
 }
 
@@ -265,6 +274,17 @@ func (d *AgentDemultiplexer) LookbackSenderManager(ctx context.Context) sender.S
 		return nil
 	}
 	return d.lookbackRetention.NewSenderManager(ctx)
+}
+
+// observeLookbackTrigger feeds DogStatsD samples to the lookback trigger. It is
+// a no-op (one nil check) when trigger evaluation is disabled.
+func (d *AgentDemultiplexer) observeLookbackTrigger(samples metrics.MetricSampleBatch) {
+	if d.lookbackTrigger == nil {
+		return
+	}
+	for i := range samples {
+		d.lookbackTrigger.Observe(samples[i].Name, samples[i].Value)
+	}
 }
 
 // Options returns options used during the demux initialization.
@@ -677,6 +697,7 @@ func (d *AgentDemultiplexer) SendSamplesWithoutAggregation(samples metrics.Metri
 // AggregateSamples adds a batch of MetricSample into the given DogStatsD time sampler shard.
 // If you have to submit a single metric sample see `AggregateSample`.
 func (d *AgentDemultiplexer) AggregateSamples(shard TimeSamplerID, samples metrics.MetricSampleBatch) {
+	d.observeLookbackTrigger(samples)
 	// distribute the samples on the different statsd samplers using a channel
 	// (in the time sampler implementation) for latency reasons:
 	// its buffering + the fact that it is another goroutine processing the samples,
@@ -687,6 +708,9 @@ func (d *AgentDemultiplexer) AggregateSamples(shard TimeSamplerID, samples metri
 
 // AggregateSample adds a MetricSample in the first DogStatsD time sampler.
 func (d *AgentDemultiplexer) AggregateSample(sample metrics.MetricSample) {
+	if d.lookbackTrigger != nil {
+		d.lookbackTrigger.Observe(sample.Name, sample.Value)
+	}
 	batch := d.GetMetricSamplePool().GetBatch()
 	batch[0] = sample
 	d.statsd.workers[0].addSamples(batch[:1])
@@ -754,6 +778,21 @@ func (d *AgentDemultiplexer) DumpDogstatsdContexts(dest io.Writer) error {
 // The dump is non-destructive: the ring buffer keeps its samples, so callers
 // may dump repeatedly. It is safe to call from any goroutine.
 func (d *AgentDemultiplexer) DumpLookback() (int, error) {
+	return d.dumpLookbackRange(time.Time{}, time.Time{})
+}
+
+// DumpLookbackRange sends samples whose original timestamps fall in the
+// inclusive [from, to] window through the normal serializer (and therefore the
+// forwarder), as a one-shot iterable series payload. A zero from or to leaves
+// that side of the window unbounded. It returns the number of series sent.
+//
+// The dump is non-destructive: the ring buffer keeps its samples, so callers
+// may dump repeatedly. It is safe to call from any goroutine.
+func (d *AgentDemultiplexer) DumpLookbackRange(from, to time.Time) (int, error) {
+	return d.dumpLookbackRange(from, to)
+}
+
+func (d *AgentDemultiplexer) dumpLookbackRange(from, to time.Time) (int, error) {
 	d.m.RLock()
 	defer d.m.RUnlock()
 
@@ -764,7 +803,7 @@ func (d *AgentDemultiplexer) DumpLookback() (int, error) {
 		return 0, errors.New("serializer is not available")
 	}
 
-	count, err := d.lookbackRetention.Dump(d.sharedSerializer)
+	count, err := d.lookbackRetention.DumpRange(d.sharedSerializer, from, to)
 	if err != nil {
 		return 0, err
 	}

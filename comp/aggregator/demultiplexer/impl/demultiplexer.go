@@ -77,7 +77,7 @@ func newDemultiplexer(deps dependencies) (provides, error) {
 			return provides{}, deps.Log.Errorf("Error while getting hostname, exiting: %v", err)
 		}
 	}
-	options := createAgentDemultiplexerOptions(deps.Config, deps.Params)
+	options := createAgentDemultiplexerOptions(deps.Config, deps.Log, deps.Params)
 	if deps.Params.lookbackRetentionFactory != nil {
 		options.LookbackRetention = deps.Params.lookbackRetentionFactory(deps.Config, hostnameDetected)
 	}
@@ -112,10 +112,15 @@ func newDemultiplexer(deps dependencies) (provides, error) {
 	}, nil
 }
 
-func createAgentDemultiplexerOptions(config config.Component, params Params) aggregator.AgentDemultiplexerOptions {
+func createAgentDemultiplexerOptions(config config.Component, logger log.Component, params Params) aggregator.AgentDemultiplexerOptions {
 	options := aggregator.DefaultAgentDemultiplexerOptions()
 	if params.useDogstatsdNoAggregationPipelineConfig {
 		options.EnableNoAggregationPipeline = config.GetBool("dogstatsd_no_aggregation_pipeline")
+	}
+	if params.lookbackTriggerFactory != nil {
+		options.LookbackTriggerFactory = func(dump aggregator.LookbackDumper) aggregator.LookbackTrigger {
+			return params.lookbackTriggerFactory(config, logger, dump)
+		}
 	}
 
 	// Override FlushInterval only if flushInterval is set by the user
