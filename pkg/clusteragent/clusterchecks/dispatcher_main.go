@@ -325,7 +325,10 @@ func (d *dispatcher) logWarmupSummary() {
 
 	clcCount, nodeAgentCount := 0, 0
 	for _, node := range d.store.nodes {
-		switch node.nodetype {
+		node.RLock()
+		nodetype := node.nodetype
+		node.RUnlock()
+		switch nodetype {
 		case cctypes.NodeTypeCLCRunner:
 			clcCount++
 		case cctypes.NodeTypeNodeAgent:
@@ -349,7 +352,10 @@ func (d *dispatcher) UpdateAdvancedDispatchingMode() {
 	// Check if any node agents are in the pool
 	hasNodeAgent := false
 	for _, node := range d.store.nodes {
-		if node.nodetype == cctypes.NodeTypeNodeAgent {
+		node.RLock()
+		nodetype := node.nodetype
+		node.RUnlock()
+		if nodetype == cctypes.NodeTypeNodeAgent {
 			hasNodeAgent = true
 			break
 		}
