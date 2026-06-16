@@ -427,10 +427,7 @@ users:
     sudo: ALL=(ALL) NOPASSWD:ALL
     ssh_authorized_keys:
       - {public_key}
-package_update: true
-packages:
-  - curl
-  - openssh-server
+package_update: false
 write_files:
   - path: /var/lib/agent-sandbox/install-host-agent.sh
     permissions: '0755'

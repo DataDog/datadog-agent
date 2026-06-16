@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 import shlex
+import subprocess
+import time
 from pathlib import Path
 
 from invoke import Exit, task
@@ -50,9 +52,15 @@ def build_helper(ctx, state_root=None, force=False):
 
 
 @task(name="prepare-base")
-def prepare_base(ctx, name="base-builder", state_root=None, helper_path=None):
+def prepare_base(ctx, name="base-builder", state_root=None, helper_path=None, force=False):
     """Build a prepared Ubuntu base image with OS dependencies prebaked."""
     manager = _manager(state_root, helper_path)
+    prepared = manager.prepared_base_path()
+    if prepared.exists() and not force:
+        print(f"Prepared base already exists: {prepared}")
+        return
+    if prepared.exists():
+        prepared.unlink()
     try:
         manager.prepare_base_builder(name=name)
         _run_or_raise(ctx, manager.helper_command(name, "validate"))
@@ -199,13 +207,60 @@ def agent(ctx, args="status", name=DEFAULT_SANDBOX_NAME, state_root=None):
 
 
 @task(name="fx-spans")
-def fx_spans(ctx, name=DEFAULT_SANDBOX_NAME, state_root=None):
+def fx_spans(ctx, name=DEFAULT_SANDBOX_NAME, state_root=None, summary=False):
     """Print captured FX trace spans from a sandbox created with --fx-trace."""
     manager = _manager(state_root)
     try:
-        _run_or_raise(ctx, manager.ssh_command(name, ["sudo", "cat", "/var/log/datadog/fx-trace-spans.jsonl"]))
-    except AgentSandboxError as e:
+        command = manager.ssh_command(name, ["sudo", "cat", "/var/log/datadog/fx-trace-spans.jsonl"])
+        if not summary:
+            _run_or_raise(ctx, command)
+            return
+        result = subprocess.run(command, check=True, text=True, capture_output=True)
+        spans = []
+        for line in result.stdout.splitlines():
+            line = line.strip()
+            if not line or not line[0].isdigit():
+                continue
+            _, payload = line.split(" ", 1)
+            traces = json.loads(payload)
+            for trace in traces:
+                spans.extend(trace)
+        spans.sort(key=lambda span: span.get("duration", 0), reverse=True)
+        print(f"span_count {len(spans)}")
+        for span in spans[:40]:
+            duration = span.get("duration", 0) / 1e9
+            print(f"{duration:8.3f}s {span.get('name')} {span.get('resource')}")
+    except (AgentSandboxError, subprocess.CalledProcessError) as e:
         raise Exit(message=str(e), code=1) from None
+
+
+@task
+def benchmark(ctx, state_root=None, name="bench", prepare_base_first=True, fx_trace=False):
+    """Run a local end-to-end Stage A benchmark."""
+    manager = _manager(state_root)
+    root = str(manager.state_root)
+    if prepare_base_first:
+        prepare_base(ctx, state_root=root)
+    start_time = time.time()
+
+    def mark(label):
+        print(f"{label} {int(time.time() - start_time)}s")
+
+    mark("start")
+    create(ctx, name=name, state_root=root, prepare_only=True, fx_trace=fx_trace)
+    mark("prepare_done")
+    validate_vm(ctx, name=name, state_root=root)
+    mark("validate_done")
+    start(ctx, name=name, state_root=root, wait_for_ssh=False)
+    mark("vm_started")
+    discover_ssh(ctx, name=name, state_root=root)
+    mark("ssh_ready")
+    manager.wait_agent_ready(name)
+    mark("agent_status_ready")
+    agent(ctx, args="version", name=name, state_root=root)
+    mark("agent_version_done")
+    destroy(ctx, name=name, state_root=root)
+    mark("destroy_done")
 
 
 @task
