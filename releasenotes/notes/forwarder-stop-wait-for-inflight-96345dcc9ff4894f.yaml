@@ -1,0 +1,15 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    Added the ``forwarder_stop_wait_for_inflight`` configuration option
+    (default ``false``). When enabled, the forwarder waits for in-flight HTTP
+    transactions to complete on stop instead of cancelling them, so a final
+    flush before process exit is not aborted. This is intended for short-lived
+    processes that stop the forwarder immediately before exiting.
