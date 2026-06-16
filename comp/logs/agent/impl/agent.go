@@ -279,7 +279,7 @@ func (a *logAgent) configureAgent() ([]*config.ProcessingRule, *types.Fingerprin
 func (a *logAgent) startPipeline() {
 
 	// setup the status
-	status.Init(a.started, a.endpoints, a.sources, a.tracker, metrics.LogsExpvars, a.pipelineProvider.GetPipelineMonitor())
+	status.Init(a.started, a.endpoints, a.sources, a.tracker, metrics.LogsExpvars, a.pipelineProvider.GetPipelineMonitor(), a.config)
 
 	starter := startstop.NewStarter(
 		a.destinationsCtx,

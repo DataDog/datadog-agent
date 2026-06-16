@@ -1836,6 +1836,18 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("logs_config.message_channel_size", 100)
 	config.BindEnvAndSetDefault("logs_config.payload_channel_size", 10)
 
+	// Logs Agent performance profile. Selects a curated, pre-tuned bundle of
+	// logs_config.* performance settings (pipelines, batching, channel sizes,
+	// compression). Empty (the default) means "off": the agent uses its normal
+	// default settings. See pkg/config/setup/logs_performance_profiles.go for
+	// the available profiles.
+	config.BindEnvAndSetDefault("logs_config.profile", "")
+	// Version of the selected logs_config.profile. Profile versions are
+	// immutable, so pinning a version guarantees an agent upgrade never changes
+	// a host's effective performance settings. 0 (the default) resolves to
+	// version 1.
+	config.BindEnvAndSetDefault("logs_config.profile_version", 0)
+
 	// maximum time that the unix tailer will hold a log file open after it has been rotated
 	config.BindEnvAndSetDefault("logs_config.close_timeout", 60)
 	// maximum time that the windows tailer will hold a log file open, while waiting for
