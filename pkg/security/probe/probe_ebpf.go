@@ -3607,6 +3607,8 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 
 	// inode
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetInodeIno, "struct inode", "i_ino")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetInodeMode, "struct inode", "i_mode")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetInodeUID, "struct inode", "i_uid")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetInodeGid, "struct inode", "i_gid")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetInodeNlink, "struct inode", "i_nlink")
 	constantFetcher.AppendOffsetofRequestWithFallbacks(
