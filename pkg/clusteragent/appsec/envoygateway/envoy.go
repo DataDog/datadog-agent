@@ -53,13 +53,12 @@ type envoyGatewayInjectionPattern struct {
 }
 
 func (e *envoyGatewayInjectionPattern) Mode() appsecconfig.InjectionMode {
-	// TODO: work on sidecar mode for envoy gateway
-	return appsecconfig.InjectionModeExternal
+	return e.config.Mode
 }
 
 func (e *envoyGatewayInjectionPattern) IsInjectionPossible(ctx context.Context) error {
-	// Check if the processor service name is configured (required for envoy-gateway)
-	if e.config.Processor.ServiceName == "" {
+	// Check if the processor service name is configured (required for envoy-gateway in external mode)
+	if e.Mode() != appsecconfig.InjectionModeSidecar && e.config.Processor.ServiceName == "" {
 		return stdErrors.New("processor service name is required for envoy-gateway proxy type but is not configured")
 	}
 
@@ -87,14 +86,16 @@ func (e *envoyGatewayInjectionPattern) IsInjectionPossible(ctx context.Context) 
 		return fmt.Errorf("%w: error getting Gateway", err)
 	}
 
-	// Check if the ReferenceGrant CRD is present
-	_, err = e.client.Resource(crdGVR).Get(ctx, gvrToName(referenceGrantGVR), metav1.GetOptions{})
-	if errors.IsNotFound(err) {
-		return fmt.Errorf("%w: ReferenceGrant CRD not found, is the Gateway API installed in the cluster? Cannot enable appsec proxy injection for envoy-gateway", err)
-	}
+	if e.Mode() != appsecconfig.InjectionModeSidecar {
+		// Check if the ReferenceGrant CRD is present
+		_, err = e.client.Resource(crdGVR).Get(ctx, gvrToName(referenceGrantGVR), metav1.GetOptions{})
+		if errors.IsNotFound(err) {
+			return fmt.Errorf("%w: ReferenceGrant CRD not found, is the Gateway API installed in the cluster? Cannot enable appsec proxy injection for envoy-gateway", err)
+		}
 
-	if err != nil {
-		return fmt.Errorf("%w: error getting ReferenceGrant", err)
+		if err != nil {
+			return fmt.Errorf("%w: error getting ReferenceGrant", err)
+		}
 	}
 
 	return nil
@@ -123,8 +124,14 @@ func (e *envoyGatewayInjectionPattern) Added(ctx context.Context, obj *unstructu
 		return fmt.Errorf("could not check if Envoy extension policy already exists: %w", err)
 	}
 
-	if err := e.grantManager.AddNamespaceToGrant(ctx, namespace); err != nil {
-		return fmt.Errorf("could not ensure ReferenceGrant for namespace %s: %w", namespace, err)
+	if e.Mode() == appsecconfig.InjectionModeSidecar {
+		if err := e.createBackend(ctx, namespace, e.config.Sidecar.UDSPath); err != nil {
+			return fmt.Errorf("could not create Backend: %w", err)
+		}
+	} else {
+		if err := e.grantManager.AddNamespaceToGrant(ctx, namespace); err != nil {
+			return fmt.Errorf("could not ensure ReferenceGrant for namespace %s: %w", namespace, err)
+		}
 	}
 
 	if err := e.createEnvoyExtensionPolicy(ctx, namespace, name); err != nil {
@@ -194,8 +201,14 @@ func (e *envoyGatewayInjectionPattern) Deleted(ctx context.Context, obj *unstruc
 		e.recordExtensionPolicyDeleted(namespace, name)
 	}
 
-	if rmGrantErr := e.grantManager.RemoveNamespaceToGrant(ctx, namespace); rmGrantErr != nil {
-		err = stdErrors.Join(err, fmt.Errorf("could not remove namespace %s from ReferenceGrant: %w", namespace, rmGrantErr))
+	if e.Mode() == appsecconfig.InjectionModeSidecar {
+		if deleteBackendErr := e.deleteBackend(ctx, namespace); deleteBackendErr != nil {
+			err = stdErrors.Join(err, fmt.Errorf("could not delete Backend: %w", deleteBackendErr))
+		}
+	} else {
+		if rmGrantErr := e.grantManager.RemoveNamespaceToGrant(ctx, namespace); rmGrantErr != nil {
+			err = stdErrors.Join(err, fmt.Errorf("could not remove namespace %s from ReferenceGrant: %w", namespace, rmGrantErr))
+		}
 	}
 
 	return err
@@ -229,6 +242,27 @@ func (e *envoyGatewayInjectionPattern) createEnvoyExtensionPolicy(ctx context.Co
 }
 
 func (e *envoyGatewayInjectionPattern) newPolicy(namespace string) egv1a1.EnvoyExtensionPolicy {
+	backendRefs := []egv1a1.BackendRef{
+		{
+			BackendObjectReference: gwapiv1.BackendObjectReference{
+				Name:      gwapiv1.ObjectName(e.config.Processor.ServiceName),
+				Namespace: ptr.To(gwapiv1.Namespace(e.config.Processor.Namespace)),
+				Port:      ptr.To(gwapiv1.PortNumber(e.config.Processor.Port)),
+			},
+		},
+	}
+	if e.Mode() == appsecconfig.InjectionModeSidecar {
+		backendRefs = []egv1a1.BackendRef{
+			{
+				BackendObjectReference: gwapiv1.BackendObjectReference{
+					Group: ptr.To(gwapiv1.Group("gateway.envoyproxy.io")),
+					Kind:  ptr.To(gwapiv1.Kind("Backend")),
+					Name:  gwapiv1.ObjectName(extProcName),
+				},
+			},
+		}
+	}
+
 	return egv1a1.EnvoyExtensionPolicy{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "gateway.envoyproxy.io/v1alpha1",
@@ -253,15 +287,7 @@ func (e *envoyGatewayInjectionPattern) newPolicy(namespace string) egv1a1.EnvoyE
 				{
 					FailOpen: ptr.To(true),
 					BackendCluster: egv1a1.BackendCluster{
-						BackendRefs: []egv1a1.BackendRef{
-							{
-								BackendObjectReference: gwapiv1.BackendObjectReference{
-									Name:      gwapiv1.ObjectName(e.config.Processor.ServiceName),
-									Namespace: ptr.To(gwapiv1.Namespace(e.config.Processor.Namespace)),
-									Port:      ptr.To(gwapiv1.PortNumber(e.config.Processor.Port)),
-								},
-							},
-						},
+						BackendRefs: backendRefs,
 					},
 					ProcessingMode: &egv1a1.ExtProcProcessingMode{
 						AllowModeOverride: true,
