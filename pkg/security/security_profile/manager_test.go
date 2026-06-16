@@ -976,25 +976,36 @@ func TestActivityDumpManager_getOverweightDumps(t *testing.T) {
 
 // ManagerV2 unit tests
 
+func newTestManagerV2() (*ManagerV2, *lru.Cache[uint32, sampleCookieEntry]) {
+	cookieMap, _ := lru.New[uint32, sampleCookieEntry](128)
+	m := &ManagerV2{
+		sampleCookieMap:       cookieMap,
+		sampleRefreshReceived: atomic.NewUint64(0),
+		sampleRefreshHits:     atomic.NewUint64(0),
+		sampleRefreshMisses:   atomic.NewUint64(0),
+	}
+	return m, cookieMap
+}
+
 func TestManagerV2_HandleSampleRefresh(t *testing.T) {
 	t.Run("unknown_cookie", func(t *testing.T) {
-		cookieMap, _ := lru.New[uint32, sampleCookieEntry](128)
-		m := &ManagerV2{sampleCookieMap: cookieMap}
-
+		m, _ := newTestManagerV2()
 		m.HandleSampleRefresh(42)
+		assert.Equal(t, uint64(1), m.sampleRefreshMisses.Load())
 	})
 
 	t.Run("valid_cookie_updates_process_and_event_node", func(t *testing.T) {
-		cookieMap, _ := lru.New[uint32, sampleCookieEntry](128)
+		m, cookieMap := newTestManagerV2()
 		prof := profile.New()
+		imageTagID := prof.ActivityTree.GetOrInsertImageTag("v1")
+
 		processNode := &activity_tree.ProcessNode{}
 		processNode.NodeBase = activity_tree.NewNodeBase()
-
 		eventNodeBase := activity_tree.NewNodeBase()
 
 		initialTime := time.Now().Add(-time.Hour)
-		processNode.AppendImageTag("v1", initialTime)
-		eventNodeBase.AppendImageTag("v1", initialTime)
+		processNode.AppendImageTagID(imageTagID, initialTime)
+		eventNodeBase.AppendImageTagID(imageTagID, initialTime)
 
 		cookieMap.Add(uint32(1), sampleCookieEntry{
 			profile:       prof,
@@ -1003,21 +1014,27 @@ func TestManagerV2_HandleSampleRefresh(t *testing.T) {
 			imageTag:      "v1",
 		})
 
-		m := &ManagerV2{sampleCookieMap: cookieMap}
 		m.HandleSampleRefresh(1)
 
-		assert.True(t, processNode.Seen["v1"].LastSeen.After(initialTime))
-		assert.True(t, eventNodeBase.Seen["v1"].LastSeen.After(initialTime))
+		procTimes, ok := processNode.GetSeenTimes(imageTagID)
+		assert.True(t, ok)
+		assert.True(t, procTimes.LastSeen.After(initialTime))
+
+		evtTimes, ok := eventNodeBase.GetSeenTimes(imageTagID)
+		assert.True(t, ok)
+		assert.True(t, evtTimes.LastSeen.After(initialTime))
 	})
 
 	t.Run("valid_cookie_nil_event_node_updates_process_only", func(t *testing.T) {
-		cookieMap, _ := lru.New[uint32, sampleCookieEntry](128)
+		m, cookieMap := newTestManagerV2()
 		prof := profile.New()
+		imageTagID := prof.ActivityTree.GetOrInsertImageTag("v1")
+
 		processNode := &activity_tree.ProcessNode{}
 		processNode.NodeBase = activity_tree.NewNodeBase()
 
 		initialTime := time.Now().Add(-time.Hour)
-		processNode.AppendImageTag("v1", initialTime)
+		processNode.AppendImageTagID(imageTagID, initialTime)
 
 		cookieMap.Add(uint32(1), sampleCookieEntry{
 			profile:       prof,
@@ -1026,14 +1043,15 @@ func TestManagerV2_HandleSampleRefresh(t *testing.T) {
 			imageTag:      "v1",
 		})
 
-		m := &ManagerV2{sampleCookieMap: cookieMap}
 		m.HandleSampleRefresh(1)
 
-		assert.True(t, processNode.Seen["v1"].LastSeen.After(initialTime))
+		procTimes, ok := processNode.GetSeenTimes(imageTagID)
+		assert.True(t, ok)
+		assert.True(t, procTimes.LastSeen.After(initialTime))
 	})
 
 	t.Run("nil_process_node_removes_cookie", func(t *testing.T) {
-		cookieMap, _ := lru.New[uint32, sampleCookieEntry](128)
+		m, cookieMap := newTestManagerV2()
 		prof := profile.New()
 
 		cookieMap.Add(uint32(2), sampleCookieEntry{
@@ -1042,14 +1060,12 @@ func TestManagerV2_HandleSampleRefresh(t *testing.T) {
 			imageTag:    "v1",
 		})
 
-		m := &ManagerV2{sampleCookieMap: cookieMap}
 		m.HandleSampleRefresh(2)
-
 		assert.False(t, cookieMap.Contains(uint32(2)))
 	})
 
 	t.Run("empty_seen_map_removes_cookie", func(t *testing.T) {
-		cookieMap, _ := lru.New[uint32, sampleCookieEntry](128)
+		m, cookieMap := newTestManagerV2()
 		prof := profile.New()
 		processNode := &activity_tree.ProcessNode{}
 		processNode.NodeBase = activity_tree.NewNodeBase()
@@ -1060,9 +1076,7 @@ func TestManagerV2_HandleSampleRefresh(t *testing.T) {
 			imageTag:    "v1",
 		})
 
-		m := &ManagerV2{sampleCookieMap: cookieMap}
 		m.HandleSampleRefresh(3)
-
 		assert.False(t, cookieMap.Contains(uint32(3)))
 	})
 }
