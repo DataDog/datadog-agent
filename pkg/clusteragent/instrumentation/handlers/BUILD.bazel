@@ -38,5 +38,6 @@ go_test(
         "@io_k8s_api//autoscaling/v2:autoscaling",
         "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
         "@io_k8s_apimachinery//pkg/runtime",
+        "@io_k8s_apimachinery//pkg/types",
     ],
 )
