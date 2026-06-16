@@ -1668,6 +1668,40 @@ func TestHandleKubeDeployment(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "version-pinned key maps annotations correctly",
+			k8sResourcesAnnotationsAsTags: map[string]map[string]string{
+				// The /{version} suffix is stripped at init time; lookup uses "deployments.apps"
+				"deployments.apps/v1": {
+					"depl_tier": "depl_tier",
+				},
+			},
+			k8sResourcesLabelsAsTags: map[string]map[string]string{},
+			kubeMetadata: workloadmeta.KubernetesMetadata{
+				EntityID: kubeMetadataEntityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: deploymentName,
+					Annotations: map[string]string{
+						"depl_tier": "critical",
+					},
+				},
+				GVR: &schema.GroupVersionResource{
+					Version:  "v1",
+					Group:    "apps",
+					Resource: "deployments",
+				},
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:               kubeMetadataSource,
+					EntityID:             taggerEntityID,
+					HighCardTags:         []string{},
+					OrchestratorCardTags: []string{},
+					LowCardTags:          []string{"depl_tier:critical"},
+					StandardTags:         []string{},
+				},
+			},
+		},
 	}
 
 	for _, test := range tests {

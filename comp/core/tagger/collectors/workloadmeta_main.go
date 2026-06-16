@@ -88,12 +88,23 @@ func (c *WorkloadMetaCollector) initK8sResourcesMetaAsTags(resourcesLabelsAsTags
 	c.globK8sResourcesLabels = map[string]map[string]glob.Glob{}
 
 	for resource, labelsAsTags := range resourcesLabelsAsTags {
-		c.k8sResourcesLabelsAsTags[resource], c.globK8sResourcesLabels[resource] = k8smetadata.InitMetadataAsTags(labelsAsTags)
+		normalizedResource := groupResourceWithoutVersion(resource)
+		c.k8sResourcesLabelsAsTags[normalizedResource], c.globK8sResourcesLabels[normalizedResource] = k8smetadata.InitMetadataAsTags(labelsAsTags)
 	}
 
 	for resource, annotationsAsTags := range resourcesAnnotationsAsTags {
-		c.k8sResourcesAnnotationsAsTags[resource], c.globK8sResourcesAnnotations[resource] = k8smetadata.InitMetadataAsTags(annotationsAsTags)
+		normalizedResource := groupResourceWithoutVersion(resource)
+		c.k8sResourcesAnnotationsAsTags[normalizedResource], c.globK8sResourcesAnnotations[normalizedResource] = k8smetadata.InitMetadataAsTags(annotationsAsTags)
 	}
+}
+
+// groupResourceWithoutVersion strips the optional /{version} suffix from a group resource key.
+func groupResourceWithoutVersion(groupResource string) string {
+	normalized, _, hasVersion := strings.Cut(groupResource, "/")
+	if hasVersion {
+		return normalized
+	}
+	return groupResource
 }
 
 // Run runs the continuous event watching loop and sends new tags to the

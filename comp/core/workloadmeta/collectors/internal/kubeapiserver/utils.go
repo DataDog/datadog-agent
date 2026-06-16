@@ -22,7 +22,7 @@ import (
 
 // groupResourceToGVRString is a helper function that converts a group resource string to
 // a group-version-resource string
-// a group resource string is in the form `{resource}.{group}` or `{resource}` (example: deployments.apps, pods)
+// a group resource string is in the form `{resource}.{group}`, `{resource}.{group}/{version}`, or `{resource}` (example: deployments.apps, datadogdashboards.datadoghq.com/v1alpha1, pods)
 // a group version resource string is in the form `{group}/{version}/{resource}` (example: apps/v1/deployments)
 // if the groupResource argument is not in the correct format, an empty string is returned
 func groupResourceToGVRString(groupResource string) string {
@@ -31,12 +31,18 @@ func groupResourceToGVRString(groupResource string) string {
 		return groupResource
 	} else if len(validation.IsDNS1123Subdomain(groupResource)) == 0 {
 		resource, group, _ := strings.Cut(groupResource, ".")
-		// format is `{group}/{version}/{resource}`
+		// format is `{group}//{resource}` (version auto-discovered)
 		return fmt.Sprintf("%s//%s", group, resource)
+	} else if resourceGroup, version, found := strings.Cut(groupResource, "/"); found &&
+		strings.Contains(resourceGroup, ".") &&
+		len(validation.IsDNS1123Subdomain(resourceGroup)) == 0 {
+		// format is `{resource}.{group}/{version}` (explicit version pinning)
+		resource, group, _ := strings.Cut(resourceGroup, ".")
+		return fmt.Sprintf("%s/%s/%s", group, version, resource)
 	}
 
 	// invalid group resource format
-	log.Errorf("invalid group resource %q. must be a valid RFC1123 subdomain in the format `{resource}.{group}` or `{resource}`", groupResource)
+	log.Errorf("invalid group resource %q. must be a valid RFC1123 subdomain in the format `{resource}.{group}`, `{resource}.{group}/{version}`, or `{resource}`", groupResource)
 	return ""
 }
 

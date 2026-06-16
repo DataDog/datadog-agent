@@ -545,6 +545,17 @@ func TestResourcesWithMetadataCollectionEnabled(t *testing.T) {
 			expectedResources: []string{"//nodes", "//namespaces", "example.com//custom"},
 		},
 		{
+			name: "version-pinned resource in annotations as tags uses explicit version",
+			cfg: map[string]interface{}{
+				"language_detection.enabled":                       false,
+				"language_detection.reporting.enabled":             false,
+				"cluster_agent.kube_metadata_collection.enabled":   false,
+				"cluster_agent.kube_metadata_collection.resources": "",
+				"kubernetes_resources_annotations_as_tags":         `{"datadogdashboards.datadoghq.com/v1alpha1": {"my-annotation": "my-tag"}}`,
+			},
+			expectedResources: []string{"//nodes", "datadoghq.com/v1alpha1/datadogdashboards"},
+		},
+		{
 			name: "generic resources tagging should be exclude invalid resources",
 			cfg: map[string]interface{}{
 				"language_detection.enabled":                       false,
