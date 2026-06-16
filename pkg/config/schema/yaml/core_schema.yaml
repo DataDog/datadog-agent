@@ -1727,6 +1727,8 @@ properties:
             description: |-
               [experimental] Enables Network Path Dynamic Test for monitoring NetFlow destinations via Network Path.
               NetFlow destinations are monitored by IP. Enable `network_path.collector.monitor_ip_without_domain` to allow direct IP targets.
+              NetFlow rows sourced from an IP assigned to this Agent are skipped automatically to avoid self-scheduling loops.
+              For NAT or alias cases where Agent-sourced traffic appears from another source, use `network_path.collector.source_excludes`.
             example: 'true'
             tags:
             - template_section:CoreAgent
