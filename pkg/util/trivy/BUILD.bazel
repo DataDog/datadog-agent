@@ -20,6 +20,7 @@ go_library(
         "trivy.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/trivy",
+    target_compatible_with = ["@platforms//os:linux"],  # keep
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",
@@ -86,6 +87,7 @@ dd_agent_go_test(
         "trivy_test.go",
     ],
     embed = [":trivy"],
+    target_compatible_with = ["@platforms//os:linux"],  # keep
     flavors = [
         "base",
         "fips",
