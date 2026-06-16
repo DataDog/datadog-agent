@@ -48,6 +48,10 @@ type DemultiplexerWithAggregator interface {
 	GetEventPlatformForwarder() (eventplatform.Forwarder, error)
 	GetEventsAndServiceChecksChannels() (chan []*event.Event, chan []*servicecheck.ServiceCheck)
 	DumpDogstatsdContexts(io.Writer) error
+	// DumpLookback sends the retained metric lookback samples through the
+	// serializer and returns the number of series sent. It returns an error
+	// when metric lookback is disabled.
+	DumpLookback() (int, error)
 }
 
 // AgentDemultiplexer is the demultiplexer implementation for the main Agent.
@@ -77,6 +81,11 @@ type AgentDemultiplexer struct {
 
 	filterList filterlist.Component
 
+	// lookbackRetention owns the optional metric lookback retention state. It is
+	// injected by binaries that support metric lookback so binaries that only
+	// reuse the aggregator do not link the concrete lookback implementation.
+	lookbackRetention LookbackRetention
+
 	// sharded statsd time samplers
 	statsd
 }
@@ -88,6 +97,8 @@ type AgentDemultiplexerOptions struct {
 	EnableNoAggregationPipeline bool
 
 	DontStartForwarders bool // unit tests don't need the forwarders to be instanciated
+
+	LookbackRetention LookbackRetention
 
 	UseDogstatsdContextLimiter bool
 	DogstatsdMaxMetricsTags    int
@@ -230,7 +241,8 @@ func initAgentDemultiplexer(log log.Component,
 		hostTagProvider: hosttags.NewHostTagProvider(),
 		senders:         newSenders(agg),
 
-		filterList: filterList,
+		filterList:        filterList,
+		lookbackRetention: options.LookbackRetention,
 
 		// statsd time samplers
 		statsd: statsd{
@@ -242,6 +254,17 @@ func initAgentDemultiplexer(log log.Component,
 	}
 
 	return demux
+}
+
+// LookbackSenderManager returns a shadow sender manager backed by the metric
+// lookback retention buffer, or nil when metric lookback is not configured for
+// this demultiplexer. The 1Hz shadow check scheduler uses this to obtain
+// per-shadow-check senders.
+func (d *AgentDemultiplexer) LookbackSenderManager(ctx context.Context) sender.SenderManager {
+	if d.lookbackRetention == nil {
+		return nil
+	}
+	return d.lookbackRetention.NewSenderManager(ctx)
 }
 
 // Options returns options used during the demux initialization.
@@ -722,6 +745,33 @@ func (d *AgentDemultiplexer) DumpDogstatsdContexts(dest io.Writer) error {
 	}
 
 	return nil
+}
+
+// DumpLookback sends every sample currently retained in the metric lookback
+// ring buffer through the normal serializer (and therefore the forwarder), as a
+// one-shot iterable series payload. It returns the number of series sent.
+//
+// The dump is non-destructive: the ring buffer keeps its samples, so callers
+// may dump repeatedly. It is safe to call from any goroutine.
+func (d *AgentDemultiplexer) DumpLookback() (int, error) {
+	d.m.RLock()
+	defer d.m.RUnlock()
+
+	if d.lookbackRetention == nil {
+		return 0, errors.New("metric lookback is disabled")
+	}
+	if d.sharedSerializer == nil {
+		return 0, errors.New("serializer is not available")
+	}
+
+	count, err := d.lookbackRetention.Dump(d.sharedSerializer)
+	if err != nil {
+		return 0, err
+	}
+	if count > 0 {
+		d.log.Debugf("Dumped %d lookback series to the serializer", count)
+	}
+	return count, nil
 }
 
 // GetSender returns a sender.Sender with passed ID, properly registered with the aggregator

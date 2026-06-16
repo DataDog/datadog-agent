@@ -329,6 +329,7 @@ func initFullAgentOnlyComponents(config pkgconfigmodel.Setup) {
 		setupPrivateActionRunner,
 		remoteflags,
 		anomalyDetection,
+		metricLookback,
 	}
 	for _, f := range comps {
 		f(config)

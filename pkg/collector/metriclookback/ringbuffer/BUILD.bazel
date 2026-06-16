@@ -8,6 +8,7 @@ go_library(
     deps = [
         "//pkg/collector/check/id",
         "//pkg/metrics",
+        "//pkg/tagset",
         "@org_uber_go_atomic//:atomic",
     ],
 )

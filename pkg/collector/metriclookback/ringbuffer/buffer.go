@@ -19,6 +19,7 @@ import (
 
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"go.uber.org/atomic"
 )
 
@@ -30,6 +31,11 @@ const (
 	// DefaultShardCount is the number of independent rings used when
 	// Options.ShardCount is not set.
 	DefaultShardCount = 16
+
+	// checkSeriesSourceTypeName matches the normal check sampler's v1 source type
+	// name for check-originated metric series. The numeric Source field still
+	// carries the more specific source/origin metadata for v2 payloads.
+	checkSeriesSourceTypeName = "System"
 )
 
 type sampleFlags uint8
@@ -173,6 +179,109 @@ func (b *Buffer) Append(ctx context.Context, checkID checkid.ID, samples []metri
 	return nil
 }
 
+// Series reconstructs the retained samples into a metrics.Series, ordered by
+// the global append sequence. Each retained sample becomes a single-point
+// serie carrying the canonicalized metric context (name, host, tags, source,
+// unit, no-index) recorded at append time. This is a non-destructive snapshot:
+// the buffer keeps its samples so a dump can be retried or repeated.
+//
+// MetricType is mapped to the API metric type according to the lookback raw
+// scalar semantics: count-like sender submissions stay counts, while rate,
+// monotonic-count, histogram, and historate submissions are emitted as gauges
+// because the dump intentionally does not compute backend rates, monotonic
+// deltas, or histogram rollups. Raw retained values are sent as-is at their
+// original timestamps.
+func (b *Buffer) Series() metrics.Series {
+	if b == nil {
+		return nil
+	}
+
+	// Collect a stable snapshot of records and the contexts they reference.
+	records := b.snapshotSortedRecords()
+	if len(records) == 0 {
+		return nil
+	}
+	contexts := b.contexts.snapshot()
+
+	series := make(metrics.Series, 0, len(records))
+	for i := range records {
+		rec := &records[i]
+		ctx, found := contexts[rec.contextID]
+		if !found {
+			// The context was evicted between snapshots; skip the orphan record.
+			continue
+		}
+		serie := &metrics.Serie{
+			Name: ctx.name,
+			Points: []metrics.Point{{
+				Ts:    float64(rec.timestampUnixMicro) / 1e6,
+				Value: rec.value,
+			}},
+			Tags:           tagset.CompositeTagsFromSlice(append([]string(nil), ctx.tags...)),
+			Host:           ctx.host,
+			MType:          apiMetricType(ctx.mtype),
+			NoIndex:        ctx.noIndex,
+			Source:         ctx.source,
+			SourceTypeName: checkSeriesSourceTypeName,
+			Unit:           ctx.unit,
+		}
+		series = append(series, serie)
+	}
+	return series
+}
+
+// SerieSource returns a metrics.SerieSource over the current retained samples,
+// suitable for passing directly to serializer.SendIterableSeries. The snapshot
+// is taken eagerly when SerieSource is called.
+func (b *Buffer) SerieSource() metrics.SerieSource {
+	return &serieSliceSource{series: b.Series(), index: -1}
+}
+
+// snapshotSortedRecords returns a copy of every retained record ordered by the
+// global append sequence.
+func (b *Buffer) snapshotSortedRecords() []record {
+	var out []record
+	for i := range b.shards {
+		out = b.shards[i].appendRecordsTo(out)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		return out[i].sequence < out[j].sequence
+	})
+	return out
+}
+
+// serieSliceSource is a metrics.SerieSource backed by a fixed slice of series.
+type serieSliceSource struct {
+	series metrics.Series
+	index  int
+}
+
+func (s *serieSliceSource) MoveNext() bool {
+	s.index++
+	return s.index < len(s.series)
+}
+
+func (s *serieSliceSource) Current() *metrics.Serie {
+	return s.series[s.index]
+}
+
+func (s *serieSliceSource) Count() uint64 {
+	return uint64(len(s.series))
+}
+
+// apiMetricType maps an aggregator MetricType to the API metric type used in
+// serialized series, on a best-effort basis for lookback dumps.
+func apiMetricType(mtype metrics.MetricType) metrics.APIMetricType {
+	switch mtype {
+	case metrics.CountType, metrics.CounterType, metrics.CountWithTimestampType:
+		return metrics.APICountType
+	default:
+		// GaugeType, GaugeWithTimestampType, RateType, MonotonicCountType,
+		// HistogramType, HistorateType, and unsupported/non-scalar types.
+		return metrics.APIGaugeType
+	}
+}
+
 // Stats returns a point-in-time summary of the buffer.
 func (b *Buffer) Stats() Stats {
 	if b == nil {
@@ -245,6 +354,17 @@ func (s *shard) stats() (int, int) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.length, len(s.records)
+}
+
+// appendRecordsTo appends the shard's live records, oldest first, to out.
+func (s *shard) appendRecordsTo(out []record) []record {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for i := 0; i < s.length; i++ {
+		idx := (s.start + i) % len(s.records)
+		out = append(out, s.records[idx])
+	}
+	return out
 }
 
 type metricContext struct {
@@ -345,6 +465,21 @@ func (s *contextStore) stats() (int, uint64) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return len(s.byID), s.totalContextsCreated
+}
+
+// snapshot returns a copy of the active metric contexts keyed by context ID.
+// Tag slices are cloned so callers can retain them safely.
+func (s *contextStore) snapshot() map[uint64]metricContext {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	out := make(map[uint64]metricContext, len(s.byID))
+	for id, entry := range s.byID {
+		ctx := entry.ctx
+		ctx.tags = append([]string(nil), entry.ctx.tags...)
+		out[id] = ctx
+	}
+	return out
 }
 
 func sampleTimestampUnixMicro(timestamp float64) int64 {
