@@ -1704,7 +1704,12 @@ func dogstatsd(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("dogstatsd_log_file_max_size", "10Mb")
 	// Control for how long counter would be sampled to 0 if not received
 	config.BindEnvAndSetDefault("dogstatsd_expiry_seconds", 300)
-	// Control dogstatsd shutdown behaviors
+	// On stop, flush everything still held in memory instead of dropping it.
+	// This drains the dogstatsd server's per-worker batchers into the time
+	// sampler as the workers exit, and then flushes the sampler's final
+	// (incomplete) bucket out to the serializer. Intended for short-lived
+	// processes (e.g. serverless-init) that want their last metrics reported on
+	// shutdown; long-running agents leave it off.
 	config.BindEnvAndSetDefault("dogstatsd_flush_incomplete_buckets", false)
 	// Control how long we keep dogstatsd contexts in memory.
 	config.BindEnvAndSetDefault("dogstatsd_context_expiry_seconds", 20)
