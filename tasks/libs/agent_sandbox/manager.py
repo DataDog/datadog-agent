@@ -165,7 +165,7 @@ class AgentSandboxManager:
         if ubuntu_image:
             self.prepare_disk_image(Path(ubuntu_image).expanduser(), paths.disk_image)
         else:
-            self.prepare_disk_image(self.ensure_cached_ubuntu_image(), paths.disk_image)
+            self.clone_cached_ubuntu_base(paths.disk_image)
         self.write_metadata(paths.metadata_file, metadata)
         return metadata
 
@@ -324,6 +324,26 @@ write_files:
         urllib.request.urlretrieve(DEFAULT_UBUNTU_IMAGE_URL, image)
         return image
 
+    def ensure_cached_ubuntu_base(self) -> Path:
+        base = self.paths().cache_dir / "ubuntu-noble-arm64.raw"
+        if base.exists():
+            return base
+        source = self.ensure_cached_ubuntu_image()
+        tmp = base.with_suffix(".raw.tmp")
+        self.prepare_disk_image(source, tmp)
+        tmp.replace(base)
+        return base
+
+    def clone_cached_ubuntu_base(self, destination: Path) -> None:
+        base = self.ensure_cached_ubuntu_base()
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        if destination.exists():
+            destination.unlink()
+        if platform.system() == "Darwin":
+            subprocess.run(["cp", "-c", str(base), str(destination)], check=True)
+        else:
+            shutil.copyfile(base, destination)
+
     def prepare_disk_image(self, source: Path, destination: Path) -> None:
         if not source.exists():
             raise AgentSandboxError(f"Ubuntu image does not exist: {source}")
@@ -336,7 +356,7 @@ write_files:
             shutil.copyfile(source, destination)
         else:
             subprocess.run(["qemu-img", "convert", "-O", "raw", str(source), str(destination)], check=True)
-        subprocess.run(["qemu-img", "resize", str(destination), "+10G"], check=True)
+        subprocess.run(["qemu-img", "resize", "-f", "raw", str(destination), "+10G"], check=True)
 
     def qemu_image_format(self, source: Path) -> str:
         result = subprocess.run(
@@ -405,6 +425,22 @@ write_files:
 
     def agent_command(self, name: str, agent_args: str) -> list[str]:
         return self.ssh_command(name, ["sudo", "/opt/datadog-agent/bin/agent/agent", *shlex.split(agent_args)])
+
+    def wait_agent_ready(self, name: str = DEFAULT_SANDBOX_NAME, timeout_seconds: int = 240) -> None:
+        deadline = time.time() + timeout_seconds
+        last_output = ""
+        while time.time() < deadline:
+            result = subprocess.run(
+                self.agent_command(name, "status"),
+                check=False,
+                text=True,
+                capture_output=True,
+            )
+            if result.returncode == 0:
+                return
+            last_output = (result.stdout + result.stderr).strip()
+            time.sleep(5)
+        raise AgentSandboxError(f"timed out waiting for Agent command port; last output: {last_output}")
 
     def logs_command(self, name: str, lines: int = 200) -> list[str]:
         return self.ssh_command(name, ["sudo", "journalctl", "-u", "datadog-agent", "-n", str(lines), "--no-pager"])

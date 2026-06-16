@@ -23,13 +23,20 @@ def _run_or_raise(ctx, command: list[str]) -> None:
 
 
 @task
-def build_helper(ctx, state_root=None):
+def build_helper(ctx, state_root=None, force=False):
     """Build the macOS Virtualization.framework helper."""
     manager = _manager(state_root)
     output = manager.state_root / "bin" / "agent-sandbox-vz"
     output.parent.mkdir(parents=True, exist_ok=True)
     source = Path("tools/agent-sandbox/vz-helper.swift")
     entitlements = Path("tools/agent-sandbox/vz-helper.entitlements")
+    if (
+        not force
+        and output.exists()
+        and output.stat().st_mtime >= max(source.stat().st_mtime, entitlements.stat().st_mtime)
+    ):
+        print(f"Helper already up to date: {output}")
+        return
     result = ctx.run(shlex.join(["swiftc", str(source), "-o", str(output)]), warn=True)
     if result.exited != 0:
         raise Exit(code=result.exited)
@@ -52,6 +59,7 @@ def create(
     state_root=None,
     helper_path=None,
     prepare_only=False,
+    wait_agent=True,
 ):
     """Create local state for a host Agent sandbox."""
     manager = _manager(state_root, helper_path)
@@ -72,6 +80,9 @@ def create(
         print(f"Started sandbox {name!r} with helper pid {metadata.vm_pid}")
         endpoint = manager.discover_ssh_endpoint(name)
         print(f"SSH endpoint: {endpoint.ssh_host}:{endpoint.ssh_port}")
+        if wait_agent:
+            manager.wait_agent_ready(name)
+            print("Agent command port is ready")
     except AgentSandboxError as e:
         raise Exit(message=str(e), code=1) from None
 
@@ -87,7 +98,7 @@ def validate_vm(ctx, name=DEFAULT_SANDBOX_NAME, state_root=None, helper_path=Non
 
 
 @task
-def start(ctx, name=DEFAULT_SANDBOX_NAME, state_root=None, helper_path=None, wait_for_ssh=True):
+def start(ctx, name=DEFAULT_SANDBOX_NAME, state_root=None, helper_path=None, wait_for_ssh=True, wait_agent=True):
     """Start the prepared sandbox VM through the macOS helper."""
     manager = _manager(state_root, helper_path)
     try:
@@ -96,6 +107,9 @@ def start(ctx, name=DEFAULT_SANDBOX_NAME, state_root=None, helper_path=None, wai
         if wait_for_ssh:
             endpoint = manager.discover_ssh_endpoint(name)
             print(f"SSH endpoint: {endpoint.ssh_host}:{endpoint.ssh_port}")
+            if wait_agent:
+                manager.wait_agent_ready(name)
+                print("Agent command port is ready")
     except AgentSandboxError as e:
         raise Exit(message=str(e), code=1) from None
 

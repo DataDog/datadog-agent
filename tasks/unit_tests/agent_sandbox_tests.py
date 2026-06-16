@@ -27,10 +27,7 @@ class TestAgentSandboxManager(unittest.TestCase):
             mock.patch.object(self.manager, "assert_supported_host"),
             mock.patch.object(self.manager, "ensure_ssh_key", side_effect=self._write_fake_ssh_key),
             mock.patch.object(self.manager, "create_seed_iso"),
-            mock.patch.object(
-                self.manager, "ensure_cached_ubuntu_image", return_value=Path(self.tmp.name) / "ubuntu.img"
-            ),
-            mock.patch.object(self.manager, "prepare_disk_image"),
+            mock.patch.object(self.manager, "clone_cached_ubuntu_base"),
         ):
             metadata = self.manager.prepare_host_sandbox(name="review", agent_version="7.66.0", config=config)
 
@@ -59,10 +56,7 @@ class TestAgentSandboxManager(unittest.TestCase):
             mock.patch.object(self.manager, "assert_supported_host"),
             mock.patch.object(self.manager, "ensure_ssh_key"),
             mock.patch.object(self.manager, "write_cloud_init_seed"),
-            mock.patch.object(
-                self.manager, "ensure_cached_ubuntu_image", return_value=Path(self.tmp.name) / "ubuntu.img"
-            ),
-            mock.patch.object(self.manager, "prepare_disk_image"),
+            mock.patch.object(self.manager, "clone_cached_ubuntu_base"),
         ):
             self.manager.prepare_host_sandbox(name="dup")
             with self.assertRaisesRegex(AgentSandboxError, "already exists"):
