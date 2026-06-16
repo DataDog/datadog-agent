@@ -51,6 +51,13 @@ func (m *macosInstallSuite) TestInstallAgent() {
 		macosTestClient.MustExecuteOn(c, "sudo /usr/local/bin/datadog-agent status")
 	}, 20*time.Second, 1*time.Second)
 
+	_, err := macosTestClient.Execute("sudo test -x /opt/datadog-agent/embedded/bin/agent-data-plane")
+	assert.NoError(m.T(), err)
+	_, err = macosTestClient.Execute("sudo test -f /Library/LaunchDaemons/com.datadoghq.data-plane.plist")
+	assert.NoError(m.T(), err)
+	_, err = macosTestClient.Execute("sudo launchctl print system/com.datadoghq.data-plane")
+	assert.NoError(m.T(), err)
+
 	// check that there is no world-writable files or directories in /opt/datadog-agent
 	// exclude /opt/datadog-agent/run/ipc which is intentionally world-writable for multi-user GUI sockets
 	worldWritableFiles, err := macosTestClient.Execute("sudo find /opt/datadog-agent \\( -type f -o -type d \\) -perm -002 ! -path '/opt/datadog-agent/run/ipc' ! -path '/opt/datadog-agent/run/ipc/*'")

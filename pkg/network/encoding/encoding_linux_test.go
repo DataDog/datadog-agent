@@ -8,6 +8,7 @@
 package encoding
 
 import (
+	"bytes"
 	"fmt"
 	"slices"
 	"testing"
@@ -257,23 +258,23 @@ func TestKafkaSerializationWithLocalhostTraffic(t *testing.T) {
 		},
 	}
 
-	kafkaOut := &model.DataStreamsAggregations{
-		KafkaAggregations: []*model.KafkaAggregation{
-			{
-				Header: &model.KafkaRequestHeader{
-					RequestType:    kafka.FetchAPIKey,
-					RequestVersion: apiVersion2,
-				},
-				Topic: topicName,
-				StatsByErrorCode: map[int32]*model.KafkaStats{
-					0: {Count: 10, FirstLatencySample: 5},
-				},
-			},
-		},
-	}
-
-	kafkaOutBlob, err := proto.Marshal(kafkaOut)
-	require.NoError(t, err)
+	var kafkaOutBuf bytes.Buffer
+	kafkaAggBuilder := model.NewDataStreamsAggregationsBuilder(&kafkaOutBuf)
+	kafkaAggBuilder.AddKafkaAggregations(func(agg *model.KafkaAggregationBuilder) {
+		agg.SetHeader(func(h *model.KafkaRequestHeaderBuilder) {
+			h.SetRequest_type(uint32(kafka.FetchAPIKey))
+			h.SetRequest_version(uint32(apiVersion2))
+		})
+		agg.SetTopic(topicName)
+		agg.AddStatsByErrorCode(func(e *model.KafkaAggregation_StatsByErrorCodeEntryBuilder) {
+			e.SetKey(0)
+			e.SetValue(func(v *model.KafkaStatsBuilder) {
+				v.SetCount(10)
+				v.SetFirstLatencySample(5)
+			})
+		})
+	})
+	kafkaOutBlob := kafkaOutBuf.Bytes()
 
 	out := &model.Connections{
 		Conns: []*model.Connection{

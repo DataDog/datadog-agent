@@ -41,6 +41,8 @@ func TestObfuscateStatsGroup(t *testing.T) {
 			Resource: resource,
 		}
 	}
+	agnt, stop := agentWithDefaults()
+	defer stop()
 	for _, tt := range []struct {
 		in  *pb.ClientGroupedStats // input stats
 		out string                 // output obfuscated resource
@@ -51,8 +53,6 @@ func TestObfuscateStatsGroup(t *testing.T) {
 		{statsGroup("valkey", "ADD 1, 2"), "ADD"},
 		{statsGroup("other", "ADD 1, 2"), "ADD 1, 2"},
 	} {
-		agnt, stop := agentWithDefaults()
-		defer stop()
 		agnt.obfuscateStatsGroup(tt.in)
 		assert.Equal(t, tt.in.Resource, tt.out)
 	}

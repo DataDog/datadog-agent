@@ -1,0 +1,62 @@
+# Disable the chart's built-in NetworkPolicy because this file defines the
+# Host Profiler egress policy through extraManifests below.
+networkPolicy:
+  enabled: false
+
+# Custom Kubernetes resources rendered by the Helm chart.
+# Requires Cilium. Use this instead of helm/network-policy-values.yaml when you
+# want FQDN-scoped Datadog intake egress.
+extraManifests:
+  - apiVersion: cilium.io/v2
+    kind: CiliumNetworkPolicy
+    metadata:
+      name: '{{ include "opentelemetry-collector.fullname" . }}-egress'
+      namespace: '{{ include "opentelemetry-collector.namespace" . }}'
+    specs:
+      - description: Egress DNS
+        endpointSelector:
+          matchLabels:
+            app.kubernetes.io/name: '{{ include "opentelemetry-collector.name" . }}'
+            app.kubernetes.io/instance: '{{ .Release.Name }}'
+        egress:
+          - toPorts:
+              - ports:
+                  - port: "53"
+                    protocol: UDP
+                  - port: "53"
+                    protocol: TCP
+                rules:
+                  dns:
+                    - matchPattern: "*"
+      - description: Egress to Datadog intake
+        endpointSelector:
+          matchLabels:
+            app.kubernetes.io/name: '{{ include "opentelemetry-collector.name" . }}'
+            app.kubernetes.io/instance: '{{ .Release.Name }}'
+        egress:
+          - toFQDNs:
+              - matchPattern: "**.datadoghq.com"
+              - matchPattern: "**.datadoghq.eu"
+              - matchPattern: "**.ddog-gov.com"
+            toPorts:
+              - ports:
+                  - port: "443"
+                    protocol: TCP
+      - description: Egress to kubelet API
+        endpointSelector:
+          matchLabels:
+            app.kubernetes.io/name: '{{ include "opentelemetry-collector.name" . }}'
+            app.kubernetes.io/instance: '{{ .Release.Name }}'
+        egress:
+          - toPorts:
+              - ports:
+                  - port: "10250"
+                    protocol: TCP
+      - description: Egress to Kubernetes API server
+        endpointSelector:
+          matchLabels:
+            app.kubernetes.io/name: '{{ include "opentelemetry-collector.name" . }}'
+            app.kubernetes.io/instance: '{{ .Release.Name }}'
+        egress:
+          - toEntities:
+              - kube-apiserver

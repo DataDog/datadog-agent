@@ -11,7 +11,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestDDSpanAccessor(t *testing.T) {
@@ -70,8 +69,7 @@ func TestDDSpanAccessor(t *testing.T) {
 	})
 
 	t.Run("http.status_code in metrics resolves via int64 registry entry", func(t *testing.T) {
-		r, err := NewEmbeddedRegistry()
-		require.NoError(t, err)
+		r := testRegistry
 
 		// Newer agents store http.status_code in Metrics as float64(200).
 		a := NewDDSpanAccessor(
@@ -87,8 +85,7 @@ func TestDDSpanAccessor(t *testing.T) {
 	})
 
 	t.Run("http.status_code in meta resolves via string registry entry", func(t *testing.T) {
-		r, err := NewEmbeddedRegistry()
-		require.NoError(t, err)
+		r := testRegistry
 
 		// Older agents store http.status_code in Meta as a string.
 		a := NewDDSpanAccessor(
@@ -232,8 +229,7 @@ func TestDDSpanAccessorV1(t *testing.T) {
 	})
 
 	t.Run("integration: LookupInt64 with IntValue storage", func(t *testing.T) {
-		r, err := NewEmbeddedRegistry()
-		require.NoError(t, err)
+		r := testRegistry
 
 		s := newTestSpanV1()
 		s.SetAttributeFromString("http.status_code", "404") // stored as IntValue
@@ -244,8 +240,7 @@ func TestDDSpanAccessorV1(t *testing.T) {
 	})
 
 	t.Run("integration: LookupInt64 with DoubleValue storage", func(t *testing.T) {
-		r, err := NewEmbeddedRegistry()
-		require.NoError(t, err)
+		r := testRegistry
 
 		s := newTestSpanV1()
 		s.SetFloat64Attribute("http.status_code", 503.0)

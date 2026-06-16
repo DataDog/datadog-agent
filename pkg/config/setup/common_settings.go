@@ -1217,7 +1217,7 @@ func agent(config pkgconfigmodel.Setup) {
 	// (~8000 lines) into a *jsonschema.Schema retained globally for the process lifetime.
 	// This adds ~8 MiB of permanent heap even when the agent config is valid.
 	// Enable it deliberately if you need schema validation at startup.
-	config.BindEnvAndSetDefault("health_platform.invalidconfig_check.enabled", false)
+	config.BindEnvAndSetDefault("health_platform.invalidconfig_check.enabled", true)
 	config.BindEnvAndSetDefault("disable_py3_validation", false)
 	config.BindEnvAndSetDefault("win_skip_com_init", false)
 	config.BindEnvAndSetDefault("allow_arbitrary_tags", false)
