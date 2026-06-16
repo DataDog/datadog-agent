@@ -1,6 +1,7 @@
 load("@rules_go//go:def.bzl", "go_test")
 load("//tasks:build_tags.bzl", "COMMON_TAGS", "TRACE_AGENT_TAGS")
 
+# These tests are non-hermetic, or depend on unmigrated things.
 # gazelle:exclude proxy_test.go
 # gazelle:exclude secrets_test.go
 # gazelle:exclude stats_test.go

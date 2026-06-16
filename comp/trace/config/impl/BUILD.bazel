@@ -1,5 +1,8 @@
 load("@rules_go//go:def.bzl", "go_library", "go_test")
 
+# This test seesms to be both test helepers and tests.
+# It always fails locally if included in the larger test.
+# It does not link if not included with the othes.
 # gazelle:exclude config_test.go
 
 go_library(
