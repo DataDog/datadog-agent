@@ -230,16 +230,28 @@ func TestResolvedReturnedOnSendFailure(t *testing.T) {
 	assert.Len(t, e.resolvedCh, 1, "resolved issue must be returned after failed send")
 }
 
-// TestActiveDrainedNotReturned verifies active issues are drained each tick and
-// not put back (re-populated by the next check run).
-func TestActiveDrainedNotReturned(t *testing.T) {
+// TestActiveReturnedAfterTick verifies active issues are always returned to
+// activeCh after a tick so they persist between sends.
+func TestActiveReturnedAfterTick(t *testing.T) {
+	fwd := &mockForwarder{}
+	e := newTestEgress(t, time.Minute, fwd)
+
+	e.activeCh <- &healthplatformpayload.Issue{Id: "active-issue"}
+	e.tick()
+
+	assert.Len(t, e.activeCh, 1, "active issues must be returned to the channel after a successful send")
+}
+
+// TestActiveReturnedOnSendFailure verifies active issues are also returned when
+// the send fails.
+func TestActiveReturnedOnSendFailure(t *testing.T) {
 	fwd := &mockForwarder{sendErr: assert.AnError}
 	e := newTestEgress(t, time.Minute, fwd)
 
 	e.activeCh <- &healthplatformpayload.Issue{Id: "active-issue"}
 	e.tick()
 
-	assert.Empty(t, e.activeCh, "active issues are not returned on failure — next check run repopulates")
+	assert.Len(t, e.activeCh, 1, "active issues must be returned to the channel after a failed send")
 }
 
 // TestObserverWiresChannels verifies that registering with ActiveCh/ResolvedCh

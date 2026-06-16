@@ -36,10 +36,10 @@ const (
 
 // egress drives the periodic outbound POST to the Datadog intake.
 // Both channels are populated by the registered EgressAggregator:
-//   - activeCh:   new/ongoing issues; drained each tick, re-populated by the
-//     next ReportIssue call from the health checks.
-//   - resolvedCh: resolved issues; drained and flushed on a successful send,
-//     returned to the channel on failure for retry next tick.
+//   - activeCh:   new/ongoing issues; snapshotted each tick and always returned
+//     so they persist until notifyResolved removes them via removeFromCh.
+//   - resolvedCh: resolved tombstones; consumed on a successful send,
+//     returned on failure for retry next tick.
 type egress struct {
 	log         log.Component
 	interval    time.Duration
@@ -138,8 +138,21 @@ func (e *egress) run() {
 }
 
 func (e *egress) tick() {
+	// Snapshot both channels. Active issues are always returned to activeCh after
+	// the tick so they persist until explicitly removed by notifyResolved.
+	// Resolved tombstones are only returned on failure; on success they are consumed.
 	active := drainCh(e.activeCh)
 	resolved := drainCh(e.resolvedCh)
+
+	defer func() {
+		for _, i := range active {
+			select {
+			case e.activeCh <- i:
+			default:
+				e.log.Warnf("Health platform egress: active channel full on requeue, %s", i.Id)
+			}
+		}
+	}()
 
 	if len(active) == 0 && len(resolved) == 0 {
 		e.log.Debug("Health platform egress: no issues to report, skipping tick")
@@ -161,7 +174,6 @@ func (e *egress) tick() {
 
 	if err := e.forwarder.Send(ctx, e.buildReport(merged)); err != nil {
 		e.log.Warn(fmt.Sprintf("Health platform egress: failed to send %d issues: %v", len(merged), err))
-		// Return resolved issues for retry; active issues are re-populated by the next check run.
 		for _, r := range resolved {
 			select {
 			case e.resolvedCh <- r:
@@ -173,7 +185,6 @@ func (e *egress) tick() {
 	}
 
 	e.log.Info(fmt.Sprintf("Health platform egress: sent report with %d issues", len(merged)))
-	// resolvedCh was already drained above; nothing to flush explicitly.
 }
 
 // drainCh non-blockingly drains all available items from ch into a slice.
