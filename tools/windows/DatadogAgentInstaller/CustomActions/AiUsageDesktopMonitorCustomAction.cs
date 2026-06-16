@@ -99,7 +99,7 @@ namespace Datadog.CustomActions
                             new XElement(ns + "GroupId", UsersGroupSid),
                             new XElement(ns + "RunLevel", "LeastPrivilege"))),
                     new XElement(ns + "Settings",
-                        new XElement(ns + "MultipleInstancesPolicy", "IgnoreNew"),
+                        new XElement(ns + "MultipleInstancesPolicy", "Parallel"),
                         new XElement(ns + "DisallowStartIfOnBatteries", "false"),
                         new XElement(ns + "StopIfGoingOnBatteries", "false"),
                         new XElement(ns + "AllowHardTerminate", "true"),

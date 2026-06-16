@@ -11,6 +11,9 @@ use serde::{Deserialize, Serialize};
 use crate::datadog::{AiUsageEvent, DatadogClient, resolve_hostname};
 use crate::protocol::{read_message, write_message};
 
+#[cfg(windows)]
+const ERROR_ALREADY_EXISTS: u32 = 183;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum RunMode {
     NativeHost,
@@ -165,11 +168,85 @@ fn detach_desktop_monitor_console() {
     }
 }
 
+#[cfg(windows)]
+struct DesktopMonitorInstanceGuard(windows_sys::Win32::Foundation::HANDLE);
+
+#[cfg(windows)]
+impl Drop for DesktopMonitorInstanceGuard {
+    fn drop(&mut self) {
+        unsafe {
+            windows_sys::Win32::Foundation::CloseHandle(self.0);
+        }
+    }
+}
+
+#[cfg(not(windows))]
+struct DesktopMonitorInstanceGuard;
+
+#[cfg(windows)]
+fn acquire_desktop_monitor_instance_guard() -> Result<Option<DesktopMonitorInstanceGuard>> {
+    let user_key = desktop_monitor_user_key();
+    let mutex_name = format!("Local\\DatadogAiUsageDesktopMonitor-{user_key}");
+    let mut wide_name: Vec<u16> = mutex_name.encode_utf16().collect();
+    wide_name.push(0);
+
+    let handle = unsafe {
+        windows_sys::Win32::System::Threading::CreateMutexW(std::ptr::null(), 0, wide_name.as_ptr())
+    };
+    if handle.is_null() {
+        return Err(std::io::Error::last_os_error().into());
+    }
+
+    let guard = DesktopMonitorInstanceGuard(handle);
+    let last_error = unsafe { windows_sys::Win32::Foundation::GetLastError() };
+    if last_error == ERROR_ALREADY_EXISTS {
+        return Ok(None);
+    }
+
+    Ok(Some(guard))
+}
+
+#[cfg(not(windows))]
+fn acquire_desktop_monitor_instance_guard() -> Result<Option<DesktopMonitorInstanceGuard>> {
+    Ok(Some(DesktopMonitorInstanceGuard))
+}
+
+#[cfg(windows)]
+fn desktop_monitor_user_key() -> String {
+    let user = env::var("USERNAME").unwrap_or_else(|_| "unknown".to_string());
+    let domain = env::var("USERDOMAIN").unwrap_or_default();
+    sanitize_mutex_name_component(&format!("{domain}_{user}"))
+}
+
+#[cfg(windows)]
+fn sanitize_mutex_name_component(value: &str) -> String {
+    let sanitized: String = value
+        .chars()
+        .map(|ch| {
+            if ch.is_ascii_alphanumeric() || ch == '-' || ch == '_' {
+                ch
+            } else {
+                '_'
+            }
+        })
+        .collect();
+    sanitized.trim_matches('_').to_string()
+}
+
 fn main() -> Result<()> {
     let cli_args = parse_args();
     if cli_args.mode == RunMode::DesktopMonitor {
         detach_desktop_monitor_console();
     }
+
+    let _desktop_monitor_instance_guard = if cli_args.mode == RunMode::DesktopMonitor {
+        match acquire_desktop_monitor_instance_guard()? {
+            Some(guard) => Some(guard),
+            None => return Ok(()),
+        }
+    } else {
+        None
+    };
 
     let dd_client = DatadogClient::load(cli_args.config_path.clone());
 
