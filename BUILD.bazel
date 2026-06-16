@@ -137,7 +137,6 @@ exports_files(["go.mod"])
 # gazelle:exclude comp/core/workloadmeta/collectors/catalog-dogstatsd
 # gazelle:exclude comp/core/workloadmeta/collectors/catalog-otel
 # gazelle:exclude comp/core/workloadmeta/collectors/catalog-remote
-# gazelle:exclude comp/core/workloadmeta/collectors/internal/cloudfoundry
 # gazelle:exclude comp/core/workloadmeta/collectors/internal/kubeapiserver
 # gazelle:exclude comp/core/workloadmeta/collectors/internal/kubemetadata
 # gazelle:exclude comp/core/workloadmeta/collectors/internal/process
