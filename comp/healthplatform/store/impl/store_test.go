@@ -26,6 +26,7 @@ import (
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	telemetrymock "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
+	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 )
 
 // memPersistence stores state in memory, replacing disk I/O in unit tests.
@@ -203,13 +204,17 @@ func TestResolveIssueRemovesFromActive(t *testing.T) {
 	h := newTestStore(t)
 	require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{Id: "t:id", IssueName: "t"}))
 
-	// ResolveIssue keeps the issue active with RESOLVED state so the egress keeps
-	// forwarding it. Cleanup happens on the next restart via loadFromDisk.
+	ch := make(chan *healthplatformpayload.Issue, 1)
+	h.RegisterEgressAggregator(storedef.EgressAggregator{ResolvedCh: ch})
+
 	h.ResolveIssue("t:id")
-	issue := h.GetIssue("t:id")
-	require.NotNil(t, issue, "issue must stay in active set after ResolveIssue")
-	require.NotNil(t, issue.PersistedIssue)
-	assert.Equal(t, IssueStateResolved, issue.PersistedIssue.State)
+
+	// Issue must be removed from the active set; resolved snapshot written to ResolvedCh.
+	assert.Nil(t, h.GetIssue("t:id"), "issue must be removed from active set after ResolveIssue")
+	require.Len(t, ch, 1, "resolved issue must be written to ResolvedCh")
+	got := <-ch
+	require.NotNil(t, got.PersistedIssue)
+	assert.Equal(t, IssueStateResolved, got.PersistedIssue.State)
 
 	require.NotNil(t, h.persistedIssues["t:id"])
 	assert.Equal(t, IssueStateResolved, h.persistedIssues["t:id"].State)
@@ -431,4 +436,115 @@ func TestGetActiveIssueIDsByIssueName(t *testing.T) {
 	h.ResolveIssue("t:1")
 	ids = h.GetActiveIssueIDsByIssueName("t")
 	assert.ElementsMatch(t, []string{"t:2"}, ids)
+}
+
+// ============================================================================
+// EgressAggregator channel integration tests
+//
+// These tests cover the state-transition cases where both ActiveCh and
+// ResolvedCh can hold an entry for the same issue ID, and verify that
+// notifyReported/notifyResolved cancel the stale cross-channel entry.
+// ============================================================================
+
+func newTestAggregator(activeSz, resolvedSz int) storedef.EgressAggregator {
+	return storedef.EgressAggregator{
+		ActiveCh:   make(chan *healthplatformpayload.Issue, activeSz),
+		ResolvedCh: make(chan *healthplatformpayload.Issue, resolvedSz),
+	}
+}
+
+// TestEgressAggregatorNewIssue: first report → activeCh receives NEW.
+func TestEgressAggregatorNewIssue(t *testing.T) {
+	h := newTestStore(t)
+	agg := newTestAggregator(4, 4)
+	h.RegisterEgressAggregator(agg)
+
+	require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{Id: "i:1", IssueName: "t"}))
+
+	require.Len(t, agg.ActiveCh, 1)
+	assert.Empty(t, agg.ResolvedCh)
+	got := <-agg.ActiveCh
+	assert.Equal(t, IssueStateNew, got.PersistedIssue.GetState())
+}
+
+// TestEgressAggregatorOngoingIssue: second report → activeCh receives ONGOING.
+func TestEgressAggregatorOngoingIssue(t *testing.T) {
+	h := newTestStore(t)
+	agg := newTestAggregator(4, 4)
+	h.RegisterEgressAggregator(agg)
+
+	issue := &healthplatformpayload.Issue{Id: "i:1", IssueName: "t"}
+	require.NoError(t, h.ReportIssue(issue))
+	require.NoError(t, h.ReportIssue(issue))
+
+	// Drain both entries; the second one must be ONGOING.
+	assert.Len(t, agg.ActiveCh, 2)
+	<-agg.ActiveCh
+	got := <-agg.ActiveCh
+	assert.Equal(t, IssueStateOngoing, got.PersistedIssue.GetState())
+}
+
+// TestEgressAggregatorResolveAfterActive: resolve while an unread active entry
+// sits in ActiveCh → stale entry cancelled, ResolvedCh gets the tombstone.
+func TestEgressAggregatorResolveAfterActive(t *testing.T) {
+	h := newTestStore(t)
+	agg := newTestAggregator(4, 4)
+	h.RegisterEgressAggregator(agg)
+
+	require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{Id: "i:1", IssueName: "t"}))
+	require.Len(t, agg.ActiveCh, 1)
+
+	h.ResolveIssue("i:1")
+
+	// notifyResolved must have cancelled the stale active entry.
+	assert.Empty(t, agg.ActiveCh, "stale active entry must be removed when issue is resolved")
+	require.Len(t, agg.ResolvedCh, 1)
+	got := <-agg.ResolvedCh
+	assert.Equal(t, IssueStateResolved, got.PersistedIssue.GetState())
+}
+
+// TestEgressAggregatorReReportCancelsResolved: resolve (tombstone queued),
+// then re-report before the egress ticks → tombstone cancelled, ActiveCh
+// gets NEW so the issue is not incorrectly forwarded as RESOLVED.
+func TestEgressAggregatorReReportCancelsResolved(t *testing.T) {
+	h := newTestStore(t)
+	agg := newTestAggregator(4, 4)
+	h.RegisterEgressAggregator(agg)
+
+	issue := &healthplatformpayload.Issue{Id: "i:1", IssueName: "t"}
+	require.NoError(t, h.ReportIssue(issue))
+	<-agg.ActiveCh // simulate egress draining activeCh
+
+	h.ResolveIssue("i:1")
+	require.Len(t, agg.ResolvedCh, 1, "tombstone must be queued after resolve")
+
+	// Re-report before the egress ticks.
+	require.NoError(t, h.ReportIssue(issue))
+
+	// notifyReported must have cancelled the tombstone.
+	assert.Empty(t, agg.ResolvedCh, "stale tombstone must be removed on re-report")
+	require.Len(t, agg.ActiveCh, 1)
+	got := <-agg.ActiveCh
+	assert.Equal(t, IssueStateNew, got.PersistedIssue.GetState())
+}
+
+// TestEgressAggregatorResolveAfterOngoing: ongoing report queued in ActiveCh,
+// then resolved → stale ongoing entry cancelled, ResolvedCh gets tombstone.
+func TestEgressAggregatorResolveAfterOngoing(t *testing.T) {
+	h := newTestStore(t)
+	agg := newTestAggregator(4, 4)
+	h.RegisterEgressAggregator(agg)
+
+	issue := &healthplatformpayload.Issue{Id: "i:1", IssueName: "t"}
+	require.NoError(t, h.ReportIssue(issue))
+	require.NoError(t, h.ReportIssue(issue)) // ONGOING in activeCh
+	<-agg.ActiveCh                           // drain NEW, leave ONGOING unread
+	require.Len(t, agg.ActiveCh, 1)
+
+	h.ResolveIssue("i:1")
+
+	assert.Empty(t, agg.ActiveCh, "stale ongoing entry must be cancelled on resolve")
+	require.Len(t, agg.ResolvedCh, 1)
+	got := <-agg.ResolvedCh
+	assert.Equal(t, IssueStateResolved, got.PersistedIssue.GetState())
 }

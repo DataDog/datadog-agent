@@ -14,7 +14,7 @@ import (
 	"github.com/DataDog/agent-payload/v5/healthplatform"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	egressdef "github.com/DataDog/datadog-agent/comp/healthplatform/egress/def"
@@ -26,28 +26,29 @@ import (
 )
 
 const (
-	// defaultEgressInterval is the default interval between health report submissions.
-	// Matches the previous forwarder default for backward compatibility.
 	defaultEgressInterval = 15 * time.Minute
+	sendTimeout           = 30 * time.Second
+	eventType             = "agent-health-issues"
 
-	// sendTimeout is the HTTP timeout for a single forwarder.Send call.
-	sendTimeout = 30 * time.Second
-
-	// eventType is the health report event type consumed by the intake.
-	eventType = "agent-health-issues"
+	// channel capacity for active and resolved issue delivery.
+	issueChSize = 2048
 )
 
 // egress drives the periodic outbound POST to the Datadog intake.
-// On each tick it calls store.GetAllIssues(), builds a HealthReport, and
-// forwards it via forwarder.Send. When health_platform is disabled, lifecycle
-// hooks are never registered so the goroutine is never launched.
+// Both channels are populated by the registered EgressAggregator:
+//   - activeCh:   new/ongoing issues; snapshotted each tick and always returned
+//     so they persist until notifyResolved removes them via removeFromCh.
+//   - resolvedCh: resolved tombstones; consumed on a successful send,
+//     returned on failure for retry next tick.
 type egress struct {
 	log         log.Component
 	interval    time.Duration
 	hostname    string
 	agentFlavor string
-	store       storedef.Component
 	forwarder   forwarderdef.Component
+
+	activeCh   chan *healthplatform.Issue // new/ongoing issues
+	resolvedCh chan *healthplatform.Issue // resolved issues; flushed after successful send
 
 	stopCh chan struct{}
 	doneCh chan struct{}
@@ -64,8 +65,6 @@ type Requires struct {
 }
 
 // New creates the egress component and registers its lifecycle hooks.
-// When health_platform.enabled is false, it returns a zero-value struct without
-// registering any lifecycle hooks.
 func New(reqs Requires) egressdef.Component {
 	if !reqs.Config.GetBool("health_platform.enabled") {
 		return &egress{}
@@ -87,11 +86,19 @@ func New(reqs Requires) egressdef.Component {
 		interval:    interval,
 		hostname:    hostname,
 		agentFlavor: flavor.GetFlavor(),
-		store:       reqs.Store,
 		forwarder:   reqs.Forwarder,
+		activeCh:    make(chan *healthplatform.Issue, issueChSize),
+		resolvedCh:  make(chan *healthplatform.Issue, issueChSize),
 		stopCh:      make(chan struct{}),
 		doneCh:      make(chan struct{}),
 	}
+
+	// Register before OnStart: loadFromDisk fires first and writes any resolved
+	// issues found on disk into ResolvedCh.
+	reqs.Store.RegisterEgressAggregator(storedef.EgressAggregator{
+		ActiveCh:   e.activeCh,
+		ResolvedCh: e.resolvedCh,
+	})
 
 	reqs.Lifecycle.Append(compdef.Hook{
 		OnStart: e.start,
@@ -131,27 +138,70 @@ func (e *egress) run() {
 }
 
 func (e *egress) tick() {
-	count, issues := e.store.GetAllIssues()
-	if count == 0 {
+	active := snapshotIssues(e.activeCh)
+	resolved := snapshotIssues(e.resolvedCh)
+
+	if len(active) == 0 && len(resolved) == 0 {
 		e.log.Debug("Health platform egress: no issues to report, skipping tick")
 		return
 	}
 
-	report := e.buildReport(issues)
+	merged := make(map[string]*healthplatform.Issue, len(active)+len(resolved))
+	for _, i := range active {
+		merged[i.Id] = i
+	}
+	// resolved overwrites active for the same ID (most recent state wins)
+	for _, r := range resolved {
+		merged[r.Id] = r
+	}
 
-	// Fresh context with a fixed timeout per send: the run loop does not carry
-	// a cancellable context, so we derive from Background rather than from an
-	// ancestor that may have already expired or been cancelled.
+	// Derive from Background: the run loop has no parent context to cancel.
 	ctx, cancel := context.WithTimeout(context.Background(), sendTimeout)
 	defer cancel()
 
-	if err := e.forwarder.Send(ctx, report); err != nil {
-		e.log.Warn(fmt.Sprintf("Health platform egress: failed to send %d issues: %v", count, err))
-		return
+	if err := e.forwarder.Send(ctx, e.buildReport(merged)); err != nil {
+		e.log.Warn(fmt.Sprintf("Health platform egress: failed to send %d issues: %v", len(merged), err))
+		return // items are still in both channels; retried next tick
 	}
 
-	e.log.Info(fmt.Sprintf("Health platform egress: sent report with %d issues", count))
-	e.store.PruneResolvedIssues()
+	e.log.Info(fmt.Sprintf("Health platform egress: sent report with %d issues", len(merged)))
+
+	// Consume the resolved tombstones we just sent from the front of resolvedCh.
+	// drainCh re-queued them, so they sit at the front; any tombstones that
+	// arrived during the send remain at the back and are retried next tick.
+	for range len(resolved) {
+		select {
+		case <-e.resolvedCh:
+		default:
+		}
+	}
+}
+
+// snapshotIssues returns a copy of all items currently in ch.
+// Items are drained then immediately re-queued so the channel is left intact.
+// The requeue always runs regardless of early exit from the drain, ensuring
+// no items are lost if concurrent writers consumed slots between len(ch) and reads.
+func snapshotIssues(ch chan *healthplatform.Issue) []*healthplatform.Issue {
+	n := len(ch)
+	if n == 0 {
+		return nil
+	}
+	items := make([]*healthplatform.Issue, 0, n)
+	for i := 0; i < n; i++ {
+		select {
+		case item := <-ch:
+			items = append(items, item)
+		default:
+			n = i // channel drained early; stop without iterating further
+		}
+	}
+	for _, item := range items {
+		select {
+		case ch <- item:
+		default:
+		}
+	}
+	return items
 }
 
 func (e *egress) buildReport(issues map[string]*healthplatform.Issue) *healthplatform.HealthReport {

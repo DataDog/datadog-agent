@@ -35,6 +35,9 @@ func NewNoopHealthPlatform() *NoopHealthPlatform {
 	return &NoopHealthPlatform{}
 }
 
+// RegisterEgressAggregator does nothing when the health platform is disabled.
+func (n *NoopHealthPlatform) RegisterEgressAggregator(_ healthplatform.EgressAggregator) {}
+
 // ReportIssue does nothing when the health platform is disabled.
 func (n *NoopHealthPlatform) ReportIssue(_ *healthplatformpayload.Issue) error {
 	return nil
@@ -56,10 +59,6 @@ func (n *NoopHealthPlatform) ResolveIssue(_ string) {
 
 // ResolveAllIssues does nothing when the health platform is disabled.
 func (n *NoopHealthPlatform) ResolveAllIssues() {
-}
-
-// PruneResolvedIssues does nothing when the health platform is disabled.
-func (n *NoopHealthPlatform) PruneResolvedIssues() {
 }
 
 // GetActiveIssueIDsByIssueName returns nil when the health platform is disabled.

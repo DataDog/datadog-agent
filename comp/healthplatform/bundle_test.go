@@ -256,7 +256,8 @@ func TestIssueStateLifecycleForwarded(t *testing.T) {
 		return latestHasIssueState(issueAID, healthplatformpayload.IssueState_ISSUE_STATE_NEW)
 	}, waitTimeout, waitInterval, "issueA never appeared as NEW in the latest forwarded payload")
 
-	// RESOLVED must appear in exactly one payload across the full history (PruneResolvedIssues).
+	// RESOLVED must appear in exactly one payload across the full history: the egress
+	// removes tombstones from its pending map after a successful send.
 	allPayloads, err := fiClient.GetAgentHealth()
 	require.NoError(t, err)
 	resolvedCountA, resolvedCountB := 0, 0

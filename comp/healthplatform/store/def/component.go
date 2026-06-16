@@ -15,8 +15,27 @@ import (
 	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 )
 
+// EgressAggregator holds the channels the store writes issue events into.
+// It is the extension point for reactive integrations — e.g. an MCP server
+// exposing issues to AI agents for proactive remediation.
+type EgressAggregator struct {
+	// ActiveCh receives new and ongoing issues as they are stored.
+	// The issue is a fully-hydrated clone; check PersistedIssue.State to
+	// distinguish NEW from ONGOING.
+	ActiveCh chan *healthplatformpayload.Issue
+
+	// ResolvedCh receives issues when they transition to RESOLVED, including
+	// resolved issues recovered from disk on startup.
+	ResolvedCh chan *healthplatformpayload.Issue
+}
+
 // Component is the health platform store component interface.
 type Component interface {
+	// RegisterEgressAggregator registers a state-change listener. Multiple observers
+	// may be registered. Observers registered before OnStart also receive
+	// resolved issues recovered from disk on startup.
+	RegisterEgressAggregator(obs EgressAggregator)
+
 	// ReportIssue records a new or ongoing issue keyed by issue.Id. Two calls
 	// with the same issue.Id update the same instance (state machine: new →
 	// ongoing). issue.IssueName is used as the issue-type key for telemetry
@@ -44,11 +63,6 @@ type Component interface {
 
 	// ResolveAllIssues marks every active issue as resolved.
 	ResolveAllIssues()
-
-	// PruneResolvedIssues removes RESOLVED tombstones from the active set.
-	// Called by the egress after a successful send so that resolved issues are
-	// not re-forwarded on every subsequent tick.
-	PruneResolvedIssues()
 
 	// GetActiveIssueIDsByIssueName returns the IDs of all currently active issues
 	// with the given IssueName (e.g. "docker_file_tailing_disabled").

@@ -80,6 +80,10 @@ type healthPlatformImpl struct {
 	persistedIssues map[string]*PersistedIssue // IssueID → lifecycle state
 	persistence     issuesPersistence
 
+	// Egress aggregators: receive issue events outside issuesMux.
+	aggregatorsMu sync.RWMutex
+	aggregators   []healthplatformdef.EgressAggregator
+
 	// Metrics
 	metrics telemetryMetrics
 }
@@ -324,6 +328,86 @@ func (h *healthPlatformImpl) stop(_ context.Context) error {
 	return nil
 }
 
+// RegisterEgressAggregator appends an aggregator. Aggregators registered after
+// OnStart will miss events that occurred before registration.
+func (h *healthPlatformImpl) RegisterEgressAggregator(agg healthplatformdef.EgressAggregator) {
+	h.aggregatorsMu.Lock()
+	h.aggregators = append(h.aggregators, agg)
+	h.aggregatorsMu.Unlock()
+}
+
+// removeFromCh drains up to len(ch) items from ch, discards entries whose ID
+// matches excludeID, and returns the rest. Bounded by len(ch) so concurrent
+// writers that arrive after the call starts are not affected.
+func removeFromCh(ch chan *healthplatform.Issue, excludeID string) {
+	n := len(ch)
+	if n == 0 {
+		return
+	}
+	var keep []*healthplatform.Issue
+drain:
+	for range n {
+		select {
+		case item := <-ch:
+			if item.Id != excludeID {
+				keep = append(keep, item)
+			}
+		default:
+			break drain
+		}
+	}
+	for _, item := range keep {
+		select {
+		case ch <- item:
+		default:
+		}
+	}
+}
+
+// notifyReported writes a hydrated clone to each aggregator's ActiveCh.
+// Must be called outside issuesMux.
+// Cancels any stale tombstone in ResolvedCh for the same ID first, so a
+// re-report after resolve does not lose to an older RESOLVED entry.
+func (h *healthPlatformImpl) notifyReported(lean *healthplatform.Issue, si *storedIssue) {
+	h.aggregatorsMu.RLock()
+	defer h.aggregatorsMu.RUnlock()
+	agg := h.aggregators
+	if len(agg) == 0 {
+		return
+	}
+	hydrated := proto.Clone(lean).(*healthplatform.Issue)
+	hydrateIssue(hydrated, si)
+	for _, o := range agg {
+		if o.ActiveCh != nil {
+			removeFromCh(o.ResolvedCh, lean.Id)
+			select {
+			case o.ActiveCh <- hydrated:
+			default:
+				h.log.Warnf("health platform: active channel full, %s will resend on next check run", lean.Id)
+			}
+		}
+	}
+}
+
+// notifyResolved writes a resolved snapshot to each aggregator's ResolvedCh.
+// Cancels any stale active entry in ActiveCh for the same ID first, so a
+// resolve does not race with a lingering ONGOING entry.
+func (h *healthPlatformImpl) notifyResolved(resolved *healthplatform.Issue) {
+	h.aggregatorsMu.RLock()
+	defer h.aggregatorsMu.RUnlock()
+	agg := h.aggregators
+	for _, o := range agg {
+		if o.ResolvedCh != nil {
+			removeFromCh(o.ActiveCh, resolved.Id)
+			select {
+			case o.ResolvedCh <- resolved:
+			default:
+				h.log.Warnf("health platform: resolved channel full, %s recoverable from disk", resolved.Id)
+			}
+		}
+	}
+}
+
 // ============================================================================
 // Core Public API
 // ============================================================================
@@ -419,15 +503,12 @@ func (h *healthPlatformImpl) ResolveIssue(issueID string) {
 	h.issuesMux.Lock()
 
 	stateChanged := false
-	if stored, ok := h.issues[issueID]; ok {
+	var resolved *healthplatform.Issue
+
+	if _, ok := h.issues[issueID]; ok {
 		h.log.Info("Cleared issue: " + issueID)
+		delete(h.issues, issueID)
 		stateChanged = true
-		if stored != nil && stored.issue != nil {
-			if stored.issue.PersistedIssue == nil {
-				stored.issue.PersistedIssue = &healthplatform.PersistedIssue{}
-			}
-			stored.issue.PersistedIssue.State = healthplatform.IssueState_ISSUE_STATE_RESOLVED
-		}
 	}
 
 	if persisted := h.persistedIssues[issueID]; persisted != nil {
@@ -438,18 +519,18 @@ func (h *healthPlatformImpl) ResolveIssue(issueID string) {
 			stateChanged = true
 		}
 
-		if _, ok := h.issues[issueID]; !ok {
-			tombstone := &healthplatform.Issue{
-				Id:             issueID,
-				IssueName:      persisted.IssueType,
-				PersistedIssue: persistedIssueToProto(persisted),
-			}
-			h.issues[issueID] = &storedIssue{issue: tombstone}
-			stateChanged = true
+		resolved = &healthplatform.Issue{
+			Id:             issueID,
+			IssueName:      persisted.IssueType,
+			PersistedIssue: persistedIssueToProto(persisted),
 		}
 	}
 
 	h.issuesMux.Unlock()
+
+	if resolved != nil {
+		h.notifyResolved(resolved)
+	}
 
 	if stateChanged {
 		if err := h.saveToDisk(); err != nil {
@@ -458,30 +539,22 @@ func (h *healthPlatformImpl) ResolveIssue(issueID string) {
 	}
 }
 
-// PruneResolvedIssues removes RESOLVED tombstones from h.issues.
-// Called by the egress after a successful send so that resolved issues are
-// not re-forwarded on every subsequent tick.
-func (h *healthPlatformImpl) PruneResolvedIssues() {
-	h.issuesMux.Lock()
-	defer h.issuesMux.Unlock()
-	for id, stored := range h.issues {
-		if stored != nil && stored.issue != nil &&
-			stored.issue.PersistedIssue != nil &&
-			stored.issue.PersistedIssue.State == IssueStateResolved {
-			delete(h.issues, id)
-		}
-	}
-}
-
-// ResolveAllIssues clears all active issues.
+// ResolveAllIssues marks every active issue as resolved.
 func (h *healthPlatformImpl) ResolveAllIssues() {
 	h.issuesMux.Lock()
 
 	now := time.Now().Format(time.RFC3339)
+	var resolved []*healthplatform.Issue
+
 	for _, persisted := range h.persistedIssues {
 		if persisted != nil && persisted.State != IssueStateResolved {
 			persisted.State = IssueStateResolved
 			persisted.ResolvedAt = now
+			resolved = append(resolved, &healthplatform.Issue{
+				Id:             persisted.IssueID,
+				IssueName:      persisted.IssueType,
+				PersistedIssue: persistedIssueToProto(persisted),
+			})
 		}
 	}
 
@@ -490,6 +563,10 @@ func (h *healthPlatformImpl) ResolveAllIssues() {
 	h.log.Info("Cleared all issues")
 
 	h.issuesMux.Unlock()
+
+	for _, t := range resolved {
+		h.notifyResolved(t)
+	}
 
 	if err := h.saveToDisk(); err != nil {
 		h.log.Warn("Failed to persist issues to disk: " + err.Error())
@@ -601,6 +678,8 @@ func (h *healthPlatformImpl) storeIssue(issueType string, issue *healthplatform.
 
 	h.issuesMux.Unlock()
 
+	h.notifyReported(lean, si)
+
 	if err := h.saveToDisk(); err != nil {
 		h.log.Warn("Failed to persist issues to disk: " + err.Error())
 	}
@@ -632,9 +711,10 @@ func (h *healthPlatformImpl) loadFromDisk() error {
 	pruneOldResolvedIssues(state.Issues)
 
 	h.issuesMux.Lock()
-	defer h.issuesMux.Unlock()
 
 	activeCount := 0
+	var resolvedIssues []*healthplatform.Issue
+
 	for issueID, persisted := range state.Issues {
 		if persisted == nil {
 			continue
@@ -642,16 +722,32 @@ func (h *healthPlatformImpl) loadFromDisk() error {
 		persisted.IssueID = issueID
 		h.persistedIssues[issueID] = persisted
 
-		if persisted.State == IssueStateResolved || persisted.IssueType == "" {
+		if persisted.IssueType == "" {
 			continue
 		}
 
-		nameKey := persisted.IssueType
-		h.issuesByName[nameKey] = append(h.issuesByName[nameKey], issueID)
+		if persisted.State == IssueStateResolved {
+			resolvedIssues = append(resolvedIssues, &healthplatform.Issue{
+				Id:             issueID,
+				IssueName:      persisted.IssueType,
+				PersistedIssue: persistedIssueToProto(persisted),
+			})
+			continue
+		}
+
+		h.issuesByName[persisted.IssueType] = append(h.issuesByName[persisted.IssueType], issueID)
 		activeCount++
 	}
 
-	h.log.Info(fmt.Sprintf("Loaded %d persisted issues (%d active)", len(state.Issues), activeCount))
+	h.issuesMux.Unlock()
+
+	h.log.Info(fmt.Sprintf("Loaded %d persisted issues (%d active, %d resolved pending send)",
+		len(state.Issues), activeCount, len(resolvedIssues)))
+
+	for _, t := range resolvedIssues {
+		h.notifyResolved(t)
+	}
+
 	return nil
 }
 
