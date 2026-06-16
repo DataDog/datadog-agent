@@ -1,0 +1,47 @@
+# Datadog Agent OpenMetrics check configuration for Kueue.
+#
+# Kueue exposes Prometheus metrics on the controller-manager metrics service at
+# https://kueue-controller-manager-metrics-service.kueue-system.svc:8443/metrics.
+# The endpoint is HTTPS with a self-signed serving cert and is protected by
+# bearer-token RBAC (the kueue-metrics-reader ClusterRole). The Kueue component
+# binds the Agent node ServiceAccount to that ClusterRole.
+#
+# Authentication: the OpenMetrics v2 check (openmetrics_endpoint) only
+# auto-attaches the projected ServiceAccount token when the scraped host is the
+# Kubernetes API server. For an arbitrary controller-runtime-secured endpoint
+# like Kueue's metrics service, bearer_token_auth/bearer_token_path send no
+# Authorization header and the endpoint returns HTTP 401. The working approach
+# is the explicit auth_token reader/writer block below: read the mounted SA
+# token file and write it as the Authorization header. The literal "<TOKEN>"
+# placeholder is intentional — the Agent substitutes the file contents at scrape
+# time; the pattern strips the trailing newline.
+#
+# Metric coverage: OpenMetrics v2 interprets every `metrics` list entry as a
+# regular expression, so the single entry `kueue_.*` collects the full kueue_*
+# family the controller-manager exposes (build_info, cluster_queue_*,
+# local_queue_*, *_workloads_total, resource usage, latency histograms, etc.).
+# A previous fixed ~15-name allowlist undercollected — only 11 of the 27 exposed
+# kueue_* families were captured, and 4 allowlisted names did not exist on this
+# Kueue version's endpoint at all. The wildcard keeps the lab a complete showcase
+# and is resilient to Kueue renaming/adding metrics across versions.
+#
+# This file is rendered into the Agent via Helm datadog.confd as openmetrics.yaml,
+# so the running check name is `openmetrics`. The authoritative live copy is the
+# confdHelmValues constant in scenarios/aws/kueue/run.go; keep the two in sync.
+init_config:
+instances:
+  - openmetrics_endpoint: https://kueue-controller-manager-metrics-service.kueue-system.svc:8443/metrics
+    namespace: kueue
+    tls_verify: false
+    auth_token:
+      reader:
+        type: file
+        path: /var/run/secrets/kubernetes.io/serviceaccount/token
+        pattern: (.+)
+      writer:
+        type: header
+        name: Authorization
+        value: "Bearer <TOKEN>"
+    min_collection_interval: 30
+    metrics:
+      - kueue_.*

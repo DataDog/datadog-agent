@@ -1,0 +1,32 @@
+# Kueue quota objects backing the lab workload.
+# A ResourceFlavor + ClusterQueue + LocalQueue is the minimal topology required
+# for Kueue to admit Workloads and emit admission/quota metrics
+# (kueue_cluster_queue_status, kueue_pending_workloads, kueue_admitted_active_workloads, ...).
+apiVersion: kueue.x-k8s.io/v1beta1
+kind: ResourceFlavor
+metadata:
+  name: lab-flavor
+---
+apiVersion: kueue.x-k8s.io/v1beta1
+kind: ClusterQueue
+metadata:
+  name: lab-cluster-queue
+spec:
+  namespaceSelector: {}
+  resourceGroups:
+    - coveredResources: ["cpu", "memory"]
+      flavors:
+        - name: lab-flavor
+          resources:
+            - name: "cpu"
+              nominalQuota: 2
+            - name: "memory"
+              nominalQuota: 2Gi
+---
+apiVersion: kueue.x-k8s.io/v1beta1
+kind: LocalQueue
+metadata:
+  name: lab-local-queue
+  namespace: kueue-workload
+spec:
+  clusterQueue: lab-cluster-queue

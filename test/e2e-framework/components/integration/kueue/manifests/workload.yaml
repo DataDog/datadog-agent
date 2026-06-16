@@ -1,0 +1,120 @@
+# Continuous Kueue workload generator.
+#
+# A long-running Deployment repeatedly submits short Kueue-managed Jobs to the
+# lab LocalQueue using bounded randomness. Each Job is suspended until Kueue
+# admits it against the ClusterQueue quota, then runs to completion. Because the
+# ClusterQueue quota is intentionally small (2 CPU / 2Gi), a steady backlog of
+# Workloads cycles through pending -> quota-reserved -> admitted -> finished,
+# which keeps the controller-manager metrics moving:
+#   kueue_pending_workloads, kueue_quota_reserved_workloads_total,
+#   kueue_admitted_active_workloads, kueue_admission_attempts_total,
+#   kueue_cluster_queue_status, kueue_evicted_workloads_total.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kueue-load-generator
+  namespace: kueue-workload
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: kueue-load-generator
+  namespace: kueue-workload
+rules:
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["create", "get", "list", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: kueue-load-generator
+  namespace: kueue-workload
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: kueue-load-generator
+subjects:
+  - kind: ServiceAccount
+    name: kueue-load-generator
+    namespace: kueue-workload
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kueue-load-generator
+  namespace: kueue-workload
+  labels:
+    app: kueue-load-generator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kueue-load-generator
+  template:
+    metadata:
+      labels:
+        app: kueue-load-generator
+    spec:
+      serviceAccountName: kueue-load-generator
+      containers:
+        - name: generator
+          image: bitnami/kubectl:latest
+          resources:
+            requests:
+              cpu: "10m"
+              memory: "32Mi"
+            limits:
+              cpu: "100m"
+              memory: "64Mi"
+          command:
+            - /bin/bash
+            - -c
+            - |
+              set -uo pipefail
+              echo "Starting Kueue load generator against lab-local-queue"
+              while true; do
+                # Bounded randomness: 1-3 jobs per cycle, each requesting
+                # 200-700m CPU and sleeping 20-80s so several Workloads
+                # contend for the small ClusterQueue quota at once.
+                batch=$(( (RANDOM % 3) + 1 ))
+                for i in $(seq 1 "$batch"); do
+                  name="lab-job-$(date +%s)-${i}-${RANDOM}"
+                  cpu=$(( (RANDOM % 6) * 100 + 200 ))
+                  sleep_for=$(( (RANDOM % 60) + 20 ))
+                  cat <<EOF | kubectl apply -f - >/dev/null 2>&1 || true
+              apiVersion: batch/v1
+              kind: Job
+              metadata:
+                name: ${name}
+                namespace: kueue-workload
+                labels:
+                  kueue.x-k8s.io/queue-name: lab-local-queue
+              spec:
+                suspend: true
+                parallelism: 1
+                completions: 1
+                backoffLimit: 0
+                ttlSecondsAfterFinished: 30
+                template:
+                  spec:
+                    restartPolicy: Never
+                    containers:
+                      - name: sleeper
+                        image: busybox:1.36
+                        command: ["sh", "-c", "sleep ${sleep_for}"]
+                        resources:
+                          requests:
+                            cpu: "${cpu}m"
+                            memory: "64Mi"
+                          limits:
+                            cpu: "${cpu}m"
+                            memory: "64Mi"
+              EOF
+                done
+                # Reap any leftover finished jobs (ttl is a safety net).
+                kubectl delete jobs -n kueue-workload \
+                  --field-selector status.successful=1 >/dev/null 2>&1 || true
+                # Pace submissions so a backlog forms but the node is not flooded.
+                sleep $(( (RANDOM % 10) + 10 ))
+              done
