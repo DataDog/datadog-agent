@@ -37,8 +37,8 @@ github.com/AzureAD/microsoft-authentication-library-for-go v1.7.0/go.mod h1:HKpQ
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
 github.com/Code-Hex/go-generics-cache v1.5.1 h1:6vhZGc5M7Y/YD8cIUcY8kcuQLB4cHR7U+0KMqAA0KcU=
 github.com/Code-Hex/go-generics-cache v1.5.1/go.mod h1:qxcC9kRVrct9rHeiYpFWSoW1vxyillCVzX13KZG8dl4=
-github.com/DataDog/agent-payload/v5 v5.0.198 h1:i6OuIo88zLZW+S/XcDFHddu5p5f+5BYv6Wj2c+KB/Oc=
-github.com/DataDog/agent-payload/v5 v5.0.198/go.mod h1:GyA1vuCeRywrNNCbYeR0cOYKE8QkOVNAFDqsH8VNF5M=
+github.com/DataDog/agent-payload/v5 v5.0.201 h1:iQ3rNMRnsNNxe8PmhwrzfdceDPD9wTLKOljdv+N3KsE=
+github.com/DataDog/agent-payload/v5 v5.0.201/go.mod h1:GyA1vuCeRywrNNCbYeR0cOYKE8QkOVNAFDqsH8VNF5M=
 github.com/DataDog/datadog-api-client-go/v2 v2.60.0 h1:YzEB2H42symyDlHzNo0wcjW1mfXSW1E1UCbThHx4xrc=
 github.com/DataDog/datadog-api-client-go/v2 v2.60.0/go.mod h1:d3tOEgUd2kfsr9uuHQdY+nXrWp4uikgTgVCPdKNK30U=
 github.com/DataDog/datadog-go v3.2.0+incompatible/go.mod h1:LButxg5PwREeZtORoXG3tL4fMGNddJ+vMq1mwgfaqoQ=
@@ -1273,8 +1273,8 @@ honnef.co/go/tools v0.0.0-20190102054323-c2f93a96b099/go.mod h1:rf3lG4BRIbNafJWh
 honnef.co/go/tools v0.0.0-20190523083050-ea95bdfd59fc/go.mod h1:rf3lG4BRIbNafJWhAfAdb/ePZxsR/4RtNHQocxwk9r4=
 k8s.io/api v0.35.5 h1:BrFeUDGY/LBtlA1R5RoxhlYRHs76RnQBc6xbm/y7hsQ=
 k8s.io/api v0.35.5/go.mod h1:xWkFhMnoPZdTAQh95Rlw3zZpUUNVlFHcuESUYd06BWM=
-k8s.io/apimachinery v0.35.5 h1:lbjjjUfVeVqFbiOpyhqZHc8DhiYkWOxSNij7lHx2U8Y=
-k8s.io/apimachinery v0.35.5/go.mod h1:NNi1taPOpep0jOj+oRha3mBJPqvi0hGdaV8TCqGQ+cc=
+k8s.io/apimachinery v0.35.6 h1:ASSpfmmsOArKb2Hsu8gGlIcbIcEMVTboI3FfsfYuQ8k=
+k8s.io/apimachinery v0.35.6/go.mod h1:NNi1taPOpep0jOj+oRha3mBJPqvi0hGdaV8TCqGQ+cc=
 k8s.io/client-go v0.35.5 h1:wUrgqVSmFRw75bgSHY7X0G/hZM/QYpV0Hg7SYYOYpFk=
 k8s.io/client-go v0.35.5/go.mod h1:Z0mDcAJsX1Y7RQfuQlJipiRtqf8Mhk2VDu1/JvRqdGo=
 k8s.io/klog/v2 v2.140.0 h1:Tf+J3AH7xnUzZyVVXhTgGhEKnFqye14aadWv7bzXdzc=
