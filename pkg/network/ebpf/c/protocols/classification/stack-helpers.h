@@ -152,4 +152,12 @@ static __always_inline void set_protocol_flag(protocol_stack_t *stack, u8 flag) 
     stack->flags |= flag;
 }
 
+__maybe_unused static __always_inline bool is_tls_classification_done(protocol_stack_t *stack) {
+    if (!stack) {
+        return false;
+    }
+
+    return stack->flags & FLAG_TLS_CLASSIFICATION_DONE;
+}
+
 #endif
