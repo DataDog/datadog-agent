@@ -62,6 +62,9 @@ func (*mockProvider) GetOutputChan() chan *message.Message    { return make(chan
 func (*mockProvider) NextPipelineChanWithMonitor() (chan *message.Message, *metrics.CapacityMonitor) {
 	return make(chan *message.Message), metrics.NewCapacityMonitor("test", "test-instance")
 }
+func (*mockProvider) GetPipelineMonitor() metrics.PipelineMonitor {
+	return metrics.NewNoopPipelineMonitor("")
+}
 func (*mockProvider) Flush(_ context.Context) {}
 
 func createTestResAttrs() pcommon.Resource {

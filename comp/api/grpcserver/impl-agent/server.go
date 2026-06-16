@@ -30,6 +30,7 @@ import (
 	pidmap "github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap/def"
 	dsdReplay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server/def"
+	healthplatformstore "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/host/impl/hosttags"
 	rcservice "github.com/DataDog/datadog-agent/comp/remote-config/rcservice/def"
 	rcservicemrf "github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf/def"
@@ -60,6 +61,7 @@ type serverSecure struct {
 	autodiscovery        autodiscovery.Component
 	configComp           config.Component
 	configStreamServer   *configstreamServer.Server
+	healthPlatformStore  healthplatformstore.Component
 }
 
 // remoteAgentServer implements the dedicated RemoteAgent gRPC service, which owns the remote agent lifecycle
@@ -301,6 +303,53 @@ func refreshRemoteAgent(registry remoteagentregistry.Component, in *pb.RefreshRe
 		return nil, status.Error(codes.NotFound, "no remote agent found with session ID")
 	}
 	return &pb.RefreshRemoteAgentResponse{}, nil
+}
+
+func (s *serverSecure) validateSessionID(sessionID string) error {
+	if sessionID == "" {
+		return nil
+	}
+	if s.remoteAgentRegistry == nil {
+		return status.Error(codes.Unavailable, "remote agent registry not available")
+	}
+	if found := s.remoteAgentRegistry.RefreshRemoteAgent(sessionID); !found {
+		return status.Error(codes.Unauthenticated, "invalid or expired remote agent session")
+	}
+	return nil
+}
+
+func (s *serverSecure) ReportHealthIssue(_ context.Context, in *pb.ReportHealthIssueRequest) (*emptypb.Empty, error) {
+	if err := s.validateSessionID(in.GetRemoteAgentSessionId()); err != nil {
+		return nil, err
+	}
+
+	issue := in.GetIssue()
+	if issue == nil {
+		return nil, status.Error(codes.InvalidArgument, "issue cannot be nil")
+	}
+	if issue.GetId() == "" {
+		return nil, status.Error(codes.InvalidArgument, "issue id cannot be empty")
+	}
+	if issue.GetIssueName() == "" {
+		return nil, status.Error(codes.InvalidArgument, "issue_name cannot be empty")
+	}
+
+	if err := s.healthPlatformStore.ReportIssue(issue); err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to store issue: %v", err)
+	}
+	return &emptypb.Empty{}, nil
+}
+
+func (s *serverSecure) ResolveHealthIssue(_ context.Context, in *pb.ResolveHealthIssueRequest) (*emptypb.Empty, error) {
+	if err := s.validateSessionID(in.GetRemoteAgentSessionId()); err != nil {
+		return nil, err
+	}
+	if in.GetIssueId() == "" {
+		return nil, status.Error(codes.InvalidArgument, "issue_id cannot be empty")
+	}
+
+	s.healthPlatformStore.ResolveIssue(in.GetIssueId())
+	return &emptypb.Empty{}, nil
 }
 
 func (s *serverSecure) AutodiscoveryStreamConfig(_ *emptypb.Empty, out pb.AgentSecure_AutodiscoveryStreamConfigServer) error {
