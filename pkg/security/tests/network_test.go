@@ -934,9 +934,8 @@ func TestNetworkNamespacePIDResolution(t *testing.T) {
 	if !ok {
 		t.Skip("not an ebpf probe")
 	}
-	kv := p.GetKernelVersion()
-	if !kv.HasBpfGetSocketCookieForCgroupSocket() || !kv.HasSkLookupForSchedCLS() ||
-		!kv.HasSKStorageInSchedCLS() || !kv.HasSKStorageInCgroupSock() {
+
+	if !p.IsSkLookupPidResolutionSupported() {
 		t.Skip("bpf_sk_lookup based pid resolution is not supported on this kernel")
 	}
 
