@@ -4850,11 +4850,6 @@ properties:
             node_type: setting
             type: integer
             default: 300
-          enable_biflow_parsing:
-            node_type: setting 
-            type: boolean 
-            default: false 
-            description: Enables splitting of bidirectional flows (for example, in Cisco) ... TODO finish
           forwarder:
             node_type: section
             type: object
