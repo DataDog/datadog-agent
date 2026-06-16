@@ -67,7 +67,7 @@ jobs:
           sign-commits: true
           title: Update OTel Collector dependencies to v${{ steps.collector-update.outputs.OCB_VERSION}}
           body: This PR updates the dependencies of the OTel Collector to v${{ steps.collector-update.outputs.OCB_VERSION}} and generates the OTel Agent code.
-          labels: team:opentelemetry-agent
+          labels: team/opentelemetry-agent
           draft: true
 
       - name: Notify Slack on failure
