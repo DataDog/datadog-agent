@@ -1,12 +1,16 @@
 load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
-    name = "invalidconfig",
-    srcs = ["module.go"],
-    importpath = "github.com/DataDog/datadog-agent/comp/healthplatform/issues/invalidconfig",
+    name = "invalidsysprobeconfig",
+    srcs = [
+        "module.go",
+        "stub.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/healthplatform/issues/invalidsysprobeconfig",
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",
+        "//comp/core/sysprobeconfig/def",
         "//comp/healthplatform/issues",
         "//comp/healthplatform/issues/schemacheck",
         "//comp/healthplatform/runner/def",
@@ -16,14 +20,14 @@ go_library(
 )
 
 go_test(
-    name = "invalidconfig_test",
-    srcs = ["invalidconfig_test.go"],
-    embed = [":invalidconfig"],
+    name = "invalidsysprobeconfig_test",
+    srcs = ["invalidsysprobeconfig_test.go"],
+    embed = [":invalidsysprobeconfig"],
     gotags = ["test"],
     deps = [
         "//comp/core/config",
+        "//comp/core/sysprobeconfig/mock",
         "//comp/healthplatform/issues/schemacheck",
-        "@com_github_datadog_agent_payload_v5//healthplatform",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],

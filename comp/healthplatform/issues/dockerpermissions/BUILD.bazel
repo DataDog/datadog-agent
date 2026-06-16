@@ -15,7 +15,6 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/healthplatform/issues/dockerpermissions",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/core/config",
         "//comp/healthplatform/issues",
         "//comp/healthplatform/runner/def",
         "//pkg/template/text",

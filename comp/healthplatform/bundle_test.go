@@ -151,7 +151,7 @@ func TestBundleStartLifecycle(t *testing.T) {
 // match or restart-based issue resolution silently breaks.
 func TestAllModulesIssueNameMatchesBuiltIssueName(t *testing.T) {
 	cfg := config.NewMock(t)
-	mods := issues.GetAllModules(cfg)
+	mods := issues.GetAllModules(issues.ModuleDeps{Config: cfg})
 	require.NotEmpty(t, mods, "no modules registered")
 	for _, mod := range mods {
 		issue, err := mod.BuildIssue(map[string]string{})

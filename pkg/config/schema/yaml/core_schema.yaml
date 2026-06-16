@@ -8405,6 +8405,16 @@ properties:
             # Disabled by default: loading the compiled core_schema.yaml retains ~8 MiB of heap
             # permanently (sync.Once global). Enable only if startup schema validation is needed.
             default: false
+      invalidsysprobeconfig_check:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            # Disabled by default: loading the compiled system-probe schema retains heap per-process
+            # (sync.Once global). Separate flag so system-probe operators can opt out independently.
+            default: false
   heroku_dyno:
     node_type: setting
     type: boolean
