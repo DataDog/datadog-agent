@@ -96,6 +96,35 @@ class TestAgentSandboxManager(unittest.TestCase):
         agent = self.manager.agent_command("cmd", "status --json")
         self.assertEqual(agent[-4:], ["sudo", "/opt/datadog-agent/bin/agent/agent", "status", "--json"])
 
+    def test_copy_disk_image_uses_clonefile_and_falls_back(self):
+        source = Path(self.tmp.name) / "source.raw"
+        destination = Path(self.tmp.name) / "nested" / "destination.raw"
+        source.write_text("disk")
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_text("old")
+
+        with (
+            mock.patch("tasks.libs.agent_sandbox.manager.platform.system", return_value="Darwin"),
+            mock.patch("tasks.libs.agent_sandbox.manager.subprocess.run") as run,
+            mock.patch("tasks.libs.agent_sandbox.manager.shutil.copyfile") as copyfile,
+        ):
+            run.return_value = mock.Mock(returncode=0)
+            self.manager.copy_disk_image(source, destination)
+
+        run.assert_called_once_with(["/bin/cp", "-c", str(source), str(destination)], check=False)
+        copyfile.assert_not_called()
+        destination.write_text("old")
+
+        with (
+            mock.patch("tasks.libs.agent_sandbox.manager.platform.system", return_value="Darwin"),
+            mock.patch("tasks.libs.agent_sandbox.manager.subprocess.run") as run,
+            mock.patch("tasks.libs.agent_sandbox.manager.shutil.copyfile") as copyfile,
+        ):
+            run.return_value = mock.Mock(returncode=1)
+            self.manager.copy_disk_image(source, destination)
+
+        copyfile.assert_called_once_with(source, destination)
+
     def test_create_seed_iso_replaces_stale_iso_and_reports_failures(self):
         paths = self.manager.ensure_layout("iso")
         paths.cloud_init_dir.mkdir(parents=True, exist_ok=True)

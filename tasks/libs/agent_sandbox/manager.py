@@ -250,13 +250,7 @@ runcmd:
             tmp = base.with_suffix(".raw.tmp")
             self.prepare_disk_image(source, tmp)
             tmp.replace(base)
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        if destination.exists():
-            destination.unlink()
-        if platform.system() == "Darwin":
-            subprocess.run(["cp", "-c", str(base), str(destination)], check=True)
-        else:
-            shutil.copyfile(base, destination)
+        self.copy_disk_image(base, destination)
 
     def mac_address_for_name(self, name: str) -> str:
         digest = hashlib.sha256(name.encode("utf-8")).digest()
@@ -497,13 +491,22 @@ write_files:
 
     def clone_cached_ubuntu_base(self, destination: Path) -> None:
         base = self.ensure_cached_ubuntu_base()
+        self.copy_disk_image(base, destination)
+
+    def copy_disk_image(self, source: Path, destination: Path) -> None:
+        """Copy a disk image, using APFS clonefile when the host supports it."""
         destination.parent.mkdir(parents=True, exist_ok=True)
         if destination.exists():
             destination.unlink()
         if platform.system() == "Darwin":
-            subprocess.run(["cp", "-c", str(base), str(destination)], check=True)
-        else:
-            shutil.copyfile(base, destination)
+            cp = Path("/bin/cp")
+            if cp.exists():
+                result = subprocess.run([str(cp), "-c", str(source), str(destination)], check=False)
+                if result.returncode == 0:
+                    return
+                if destination.exists():
+                    destination.unlink()
+        shutil.copyfile(source, destination)
 
     def prepare_disk_image(self, source: Path, destination: Path) -> None:
         if not source.exists():
