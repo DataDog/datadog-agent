@@ -26,17 +26,19 @@ const (
 
 // AggregatorFormatDriver is used as goflow formatter to forward flow data to aggregator/EP Forwarder
 type AggregatorFormatDriver struct {
-	namespace         string
-	flowAggIn         chan *common.Flow
-	listenerFlowCount *atomic.Int64
+	namespace           string
+	flowAggIn           chan *common.Flow
+	listenerFlowCount   *atomic.Int64
+	enableBiflowParsing bool
 }
 
 // NewAggregatorFormatDriver returns a new AggregatorFormatDriver
-func NewAggregatorFormatDriver(flowAgg chan *common.Flow, namespace string, listenerFlowCount *atomic.Int64) *AggregatorFormatDriver {
+func NewAggregatorFormatDriver(flowAgg chan *common.Flow, namespace string, listenerFlowCount *atomic.Int64, enableBiflowParsing bool) *AggregatorFormatDriver {
 	return &AggregatorFormatDriver{
-		namespace:         namespace,
-		flowAggIn:         flowAgg,
-		listenerFlowCount: listenerFlowCount,
+		namespace:           namespace,
+		flowAggIn:           flowAgg,
+		listenerFlowCount:   listenerFlowCount,
+		enableBiflowParsing: enableBiflowParsing,
 	}
 }
 
@@ -57,12 +59,17 @@ func (d *AggregatorFormatDriver) Format(data interface{}) ([]byte, []byte, error
 		d.listenerFlowCount.Add(1)
 		d.flowAggIn <- ConvertFlow(flow, d.namespace)
 	case *common.FlowMessageWithAdditionalFields:
-		fwd, rev := splitBiflow(ConvertFlowWithAdditionalFields(flow, d.namespace))
-		d.listenerFlowCount.Add(1)
-		d.flowAggIn <- fwd
-		if rev != nil {
+		if d.enableBiflowParsing {
+			fwd, rev := splitBiflow(ConvertFlowWithAdditionalFields(flow, d.namespace))
 			d.listenerFlowCount.Add(1)
-			d.flowAggIn <- rev
+			d.flowAggIn <- fwd
+			if rev != nil {
+				d.listenerFlowCount.Add(1)
+				d.flowAggIn <- rev
+			}
+		} else {
+			d.listenerFlowCount.Add(1)
+			d.flowAggIn <- ConvertFlowWithAdditionalFields(flow, d.namespace)
 		}
 	default:
 		return nil, nil, errors.New("message is not flowpb.FlowMessage or common.FlowMessageWithAdditionalFields")

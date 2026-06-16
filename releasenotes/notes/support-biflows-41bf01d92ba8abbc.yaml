@@ -1,0 +1,23 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    Supports agent parsing of aggregation of Cisco FirePower NetFlow records in the Netflow pipeline. 
+enhancements:
+  - |
+    List enhancements (new behavior that is too small to be
+    considered a new feature), or remove this section.
+issues:
+  - |
+    List known issues here, or remove this section.
+other:
+  - |
+    Add here every other information you want in the CHANGELOG that
+    don't fit in any other section. This section should rarely be
+    used.

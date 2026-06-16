@@ -59,12 +59,12 @@ type StateNetFlow struct {
 }
 
 // NewStateNetFlow initializes a new Netflow/IPFIX producer, with the goflow default producer and the additional fields producer
-func NewStateNetFlow(mappingConfs []config.Mapping) *StateNetFlow {
+func NewStateNetFlow(mappingConfs []config.Mapping, enableBiflowParsing bool) *StateNetFlow {
 	return &StateNetFlow{
 		ctx:                context.Background(),
 		samplinglock:       &sync.RWMutex{},
 		sampling:           make(map[string]producer.SamplingRateSystem),
-		mappedFieldsConfig: mapFieldsConfig(mappingConfs),
+		mappedFieldsConfig: mapFieldsConfig(mappingConfs, enableBiflowParsing),
 	}
 }
 
@@ -169,8 +169,13 @@ func (s *StateNetFlow) initConfig() {
 	s.configMapped = producer.NewProducerConfigMapped(s.Config)
 }
 
-func mapFieldsConfig(mappingConfs []config.Mapping) map[uint16]config.Mapping {
-	mappedFieldsConfig := maps.Clone(builtInBiflowMappings)
+func mapFieldsConfig(mappingConfs []config.Mapping, enableBiflowParsing bool) map[uint16]config.Mapping {
+	var mappedFieldsConfig map[uint16]config.Mapping
+	if enableBiflowParsing {
+		mappedFieldsConfig = maps.Clone(builtInBiflowMappings)
+	} else {
+		mappedFieldsConfig = make(map[uint16]config.Mapping)
+	}
 	for _, conf := range mappingConfs {
 		mappedFieldsConfig[conf.Field] = conf
 	}

@@ -45,9 +45,10 @@ func singleListenerConfig(flowType common.FlowType, port uint16) *nfconfig.Netfl
 		Enabled:                 true,
 		AggregatorFlushInterval: 1,
 		Listeners: []nfconfig.ListenerConfig{{
-			FlowType: flowType,
-			BindHost: "127.0.0.1",
-			Port:     port,
+			FlowType:            flowType,
+			BindHost:            "127.0.0.1",
+			Port:                port,
+			EnableBiflowParsing: true,
 		}},
 	}
 }
@@ -203,7 +204,7 @@ func BenchmarkNetflowAdditionalFields(b *testing.B) {
 		}
 	}()
 
-	formatDriver := goflowlib.NewAggregatorFormatDriver(flowChan, "bench", listenerFlowCount)
+	formatDriver := goflowlib.NewAggregatorFormatDriver(flowChan, "bench", listenerFlowCount, false)
 	logrusLogger := logrus.StandardLogger()
 	ctx := context.Background()
 
@@ -216,7 +217,7 @@ func BenchmarkNetflowAdditionalFields(b *testing.B) {
 	goflowState.Logger = logrusLogger
 	goflowState.TemplateSystem = templateSystem
 
-	customStateWithoutFields := netflowstate.NewStateNetFlow(nil)
+	customStateWithoutFields := netflowstate.NewStateNetFlow(nil, false)
 	customStateWithoutFields.Format = formatDriver
 	customStateWithoutFields.Logger = logrusLogger
 	customStateWithoutFields.TemplateSystem = templateSystem
@@ -237,7 +238,7 @@ func BenchmarkNetflowAdditionalFields(b *testing.B) {
 			Destination: "icmp_type",
 			Type:        common.Hex,
 		},
-	})
+	}, false)
 
 	customState.Format = formatDriver
 	customState.Logger = logrusLogger
@@ -308,6 +309,7 @@ func TestNetFlow_IntegrationTest_SplitBiflow(t *testing.T) {
 							Type:        common.Hex,
 						},
 					},
+					EnableBiflowParsing: true,
 				}},
 			},
 		),
