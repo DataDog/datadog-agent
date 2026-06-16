@@ -5,6 +5,7 @@
 
 //go:build windows
 
+// Package windows provides a Windows registry key secret backend for the Datadog Agent.
 package windows
 
 import (
