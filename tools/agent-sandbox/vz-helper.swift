@@ -19,6 +19,7 @@ struct Options {
     var seed: String?
     var efi: String?
     var serial: String?
+    var aptCache: String?
     var mac: String?
     var cpus: Int = 2
     var memoryMiB: UInt64 = 4096
@@ -39,6 +40,7 @@ func parseOptions(_ args: [String]) -> Options {
         case "--seed": options.seed = value
         case "--efi": options.efi = value
         case "--serial": options.serial = value
+        case "--apt-cache": options.aptCache = value
         case "--mac": options.mac = value
         case "--cpus": options.cpus = Int(value) ?? options.cpus
         case "--memory-mib": options.memoryMiB = UInt64(value) ?? options.memoryMiB
@@ -68,11 +70,23 @@ func ensureParentDirectory(_ path: String?, label: String) -> URL {
     return url
 }
 
+func ensureDirectory(_ path: String?, label: String) -> URL {
+    guard let path = path else { fail("missing --\(label)") }
+    let url = URL(fileURLWithPath: path)
+    do {
+        try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+    } catch {
+        fail("cannot create directory for \(label): \(error)")
+    }
+    return url
+}
+
 func buildConfiguration(options: Options) throws -> VZVirtualMachineConfiguration {
     let diskURL = requireFile(options.disk, label: "disk")
     let seedURL = requireFile(options.seed, label: "seed")
     let efiURL = ensureParentDirectory(options.efi, label: "efi")
     let serialURL = ensureParentDirectory(options.serial, label: "serial")
+    let aptCacheURL = ensureDirectory(options.aptCache, label: "apt-cache")
 
     let configuration = VZVirtualMachineConfiguration()
     configuration.cpuCount = options.cpus
@@ -103,6 +117,12 @@ func buildConfiguration(options: Options) throws -> VZVirtualMachineConfiguratio
 
     configuration.entropyDevices = [VZVirtioEntropyDeviceConfiguration()]
     configuration.memoryBalloonDevices = [VZVirtioTraditionalMemoryBalloonDeviceConfiguration()]
+
+    let sharedDirectory = VZSharedDirectory(url: aptCacheURL, readOnly: false)
+    let directoryShare = VZSingleDirectoryShare(directory: sharedDirectory)
+    let fileSystem = VZVirtioFileSystemDeviceConfiguration(tag: "agent_sandbox_apt_cache")
+    fileSystem.share = directoryShare
+    configuration.directorySharingDevices = [fileSystem]
 
     FileManager.default.createFile(atPath: serialURL.path, contents: nil)
     let serialHandle = try FileHandle(forWritingTo: serialURL)

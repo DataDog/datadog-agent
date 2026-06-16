@@ -48,6 +48,8 @@ class TestAgentSandboxManager(unittest.TestCase):
         self.assertIn("/opt/datadog-agent/bin/agent/agent version", script)
         user_data = paths.cloud_init_user_data.read_text()
         self.assertIn("ssh-ed25519 public agent-sandbox", user_data)
+        self.assertIn("agent_sandbox_apt_cache", user_data)
+        self.assertIn("/var/cache/apt/archives", user_data)
         self.assertIn("/var/lib/agent-sandbox/datadog.yaml", user_data)
         self.assertIn("/var/lib/agent-sandbox/install-host-agent.sh", user_data)
 

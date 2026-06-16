@@ -55,6 +55,7 @@ class SandboxPaths:
     disk_image: Path
     efi_variable_store: Path
     serial_log: Path
+    apt_cache_dir: Path
 
 
 @dataclass
@@ -106,6 +107,7 @@ class AgentSandboxManager:
             disk_image=vm_dir / "ubuntu.raw",
             efi_variable_store=vm_dir / "efi-variable-store",
             serial_log=vm_dir / "serial.log",
+            apt_cache_dir=cache_dir / "apt-archives",
         )
 
     def ensure_layout(self, name: str = DEFAULT_SANDBOX_NAME) -> SandboxPaths:
@@ -118,6 +120,7 @@ class AgentSandboxManager:
             paths.provisioning_dir,
             paths.cloud_init_dir,
             paths.vm_dir,
+            paths.apt_cache_dir,
         ):
             directory.mkdir(parents=True, exist_ok=True)
         return paths
@@ -269,6 +272,10 @@ systemctl restart datadog-agent || service datadog-agent restart
 
         install_script = paths.host_install_script.read_text()
         user_data = f"""#cloud-config
+bootcmd:
+  - mkdir -p /mnt/agent-sandbox-apt-cache /var/cache/apt/archives /mnt/agent-sandbox-apt-cache/partial
+  - mount -t virtiofs agent_sandbox_apt_cache /mnt/agent-sandbox-apt-cache || true
+  - mountpoint -q /mnt/agent-sandbox-apt-cache && mount --bind /mnt/agent-sandbox-apt-cache /var/cache/apt/archives || true
 users:
   - default
   - name: {metadata.guest_user}
@@ -402,6 +409,7 @@ write_files:
             "seed_iso": str(paths.seed_iso),
             "disk_image": str(paths.disk_image),
             "serial_log": str(paths.serial_log),
+            "apt_cache_dir": str(paths.apt_cache_dir),
         }
 
     def ssh_command(self, name: str = DEFAULT_SANDBOX_NAME, extra_args: list[str] | None = None) -> list[str]:
@@ -559,6 +567,8 @@ write_files:
             str(paths.efi_variable_store),
             "--serial",
             str(paths.serial_log),
+            "--apt-cache",
+            str(paths.apt_cache_dir),
             "--mac",
             metadata.mac_address,
         ]
