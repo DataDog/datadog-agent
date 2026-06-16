@@ -9,7 +9,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/netip"
 	"strings"
 	"syscall"
 	"time"
@@ -31,11 +30,18 @@ const (
 	checkPing = "ping"
 	checkSNMP = "snmp"
 
-	failureNone        = "none"
-	failureUnreachable = "unreachable"
-	failureTimeout     = "timeout"
-	failureCredential  = "credential_failure"
-	failureUnknown     = "unknown"
+	failureNone                     = "none"
+	failureUnknown                  = "unknown"
+	failureUnreachable              = "unreachable"
+	failureTimeout                  = "timeout"
+	failureConnectionRefused        = "connection_refused"
+	failureHostUnreachable          = "host_unreachable"
+	failureNetworkUnreachable       = "network_unreachable"
+	failureAuthenticationFailed     = "authentication_failed"
+	failureDecryptionFailed         = "decryption_failed"
+	failureUnknownUser              = "unknown_user"
+	failureUnsupportedSecurityLevel = "unsupported_security_level"
+	failureUnknownEngineID          = "unknown_engine_id"
 )
 
 type PingOptions struct {
@@ -58,10 +64,10 @@ type SNMPOptions struct {
 }
 
 type ConnectivityCheckRequest struct {
-	TargetAddresses []string     `json:"targetAddresses"`
-	Checks          []string     `json:"checks"`
-	PingOptions     *PingOptions `json:"pingOptions,omitempty"`
-	SNMPOptions     *SNMPOptions `json:"snmpOptions,omitempty"`
+	TargetIPs   []string     `json:"targetIPs"`
+	Checks      []string     `json:"checks"`
+	PingOptions *PingOptions `json:"pingOptions,omitempty"`
+	SNMPOptions *SNMPOptions `json:"snmpOptions,omitempty"`
 }
 
 type CheckResult struct {
@@ -72,13 +78,13 @@ type CheckResult struct {
 
 type PingResult struct {
 	CheckResult
-	FailureCategory string `json:"failureCategory"`
+	FailureReason string `json:"failureReason"`
 }
 
 type SNMPResult struct {
 	CheckResult
-	FailureCategory string `json:"failureCategory"`
-	SysName         string `json:"sysName,omitempty"`
+	FailureReason string `json:"failureReason"`
+	SysName       string `json:"sysName,omitempty"`
 }
 
 type DeviceResult struct {
@@ -112,24 +118,29 @@ func (h *ConnectivityCheckHandler) Run(ctx context.Context, task *types.Task, _ 
 }
 
 func runChecks(ctx context.Context, req ConnectivityCheckRequest) (ConnectivityCheckResult, error) {
-	hosts, err := expandTargets(req.TargetAddresses)
-	if err != nil {
-		return ConnectivityCheckResult{}, err
-	}
-
-	devices := make([]DeviceResult, 0, len(hosts))
-	for _, host := range hosts {
+	devices := make([]DeviceResult, 0, len(req.TargetIPs))
+	for _, ip := range req.TargetIPs {
 		if ctx.Err() != nil {
 			break
 		}
 
-		dr := DeviceResult{IPAddress: host}
+		dr := DeviceResult{IPAddress: ip}
 		for _, c := range req.Checks {
 			switch c {
 			case checkPing:
-				dr.PingResult = runPing(host, req.PingOptions)
+				res, err := runPing(ip, req.PingOptions)
+				if err != nil {
+					return ConnectivityCheckResult{}, fmt.Errorf("failed to run ping check for host '%s': %w", ip, err)
+				}
+
+				dr.PingResult = res
 			case checkSNMP:
-				dr.SNMPResult = runSNMP(ctx, host, req.SNMPOptions)
+				res, err := runSNMP(ctx, ip, req.SNMPOptions)
+				if err != nil {
+					return ConnectivityCheckResult{}, fmt.Errorf("failed to run SNMP check for host '%s': %w", ip, err)
+				}
+
+				dr.SNMPResult = res
 			}
 		}
 		devices = append(devices, dr)
@@ -138,42 +149,9 @@ func runChecks(ctx context.Context, req ConnectivityCheckRequest) (ConnectivityC
 	return ConnectivityCheckResult{Devices: devices}, nil
 }
 
-func expandTargets(targetAddresses []string) ([]string, error) {
-	var hosts []string
-
-	for _, a := range targetAddresses {
-		pre, err := netip.ParsePrefix(a)
-		if err == nil {
-			for addr := pre.Masked().Addr(); pre.Contains(addr); addr = addr.Next() {
-				if !addr.IsValid() {
-					break
-				}
-
-				hosts = append(hosts, addr.String())
-			}
-
-			continue
-		}
-
-		addr, err := netip.ParseAddr(a)
-		if err == nil {
-			hosts = append(hosts, addr.String())
-
-			continue
-		}
-
-		return nil, fmt.Errorf("invalid target address: %s", a)
-	}
-
-	return hosts, nil
-}
-
-func runPing(host string, opts *PingOptions) *PingResult {
+func runPing(host string, opts *PingOptions) (*PingResult, error) {
 	if opts == nil {
-		return &PingResult{
-			CheckResult:     CheckResult{Error: fmt.Sprintf("Ping options are required for host '%s'", host)},
-			FailureCategory: failureUnknown,
-		}
+		return nil, errors.New("options are required for ping")
 	}
 
 	p, err := pinger.New(pinger.Config{
@@ -183,55 +161,46 @@ func runPing(host string, opts *PingOptions) *PingResult {
 		UseRawSocket: false,
 	})
 	if err != nil {
-		return &PingResult{
-			CheckResult:     CheckResult{Error: fmt.Sprintf("Failed to create pinger for host '%s': %s", host, err.Error())},
-			FailureCategory: failureUnknown,
-		}
+		return nil, fmt.Errorf("failed to create pinger: %w", err)
 	}
 
 	res, err := p.Ping(host)
 	if err != nil {
 		return &PingResult{
-			CheckResult:     CheckResult{Error: fmt.Sprintf("Failed to reach host '%s': %s", host, err.Error())},
-			FailureCategory: failureUnreachable,
-		}
+			CheckResult:   CheckResult{Error: fmt.Sprintf("Failed to reach host '%s': %s", host, err.Error())},
+			FailureReason: failureUnreachable,
+		}, nil
 	}
 	if res == nil || !res.CanConnect {
 		return &PingResult{
-			CheckResult:     CheckResult{Error: fmt.Sprintf("Failed to connect to host '%s'", host)},
-			FailureCategory: failureUnreachable,
-		}
+			CheckResult:   CheckResult{Error: fmt.Sprintf("Failed to connect to host '%s'", host)},
+			FailureReason: failureUnreachable,
+		}, nil
 	}
 
 	rtt := res.AvgRtt.Milliseconds()
 	return &PingResult{
-		CheckResult:     CheckResult{Success: true, RttMs: &rtt},
-		FailureCategory: failureNone,
-	}
+		CheckResult:   CheckResult{Success: true, RttMs: &rtt},
+		FailureReason: failureNone,
+	}, nil
 }
 
-func runSNMP(ctx context.Context, host string, opts *SNMPOptions) *SNMPResult {
+func runSNMP(ctx context.Context, host string, opts *SNMPOptions) (*SNMPResult, error) {
 	if opts == nil {
-		return &SNMPResult{
-			CheckResult:     CheckResult{Error: fmt.Sprintf("SNMP options are required for host '%s'", host)},
-			FailureCategory: failureUnknown,
-		}
+		return nil, errors.New("options are required for SNMP")
 	}
 
 	client, err := buildSNMPClient(ctx, host, opts)
 	if err != nil {
-		return &SNMPResult{
-			CheckResult:     CheckResult{Error: fmt.Sprintf("Failed to create SNMP client for host '%s': %s", host, err.Error())},
-			FailureCategory: failureUnknown,
-		}
+		return nil, fmt.Errorf("failed to create SNMP client: %w", err)
 	}
 
 	err = client.Connect()
 	if err != nil {
 		return &SNMPResult{
-			CheckResult:     CheckResult{Error: fmt.Sprintf("Failed to connect to SNMP host '%s': %s", host, err.Error())},
-			FailureCategory: classifySNMPError(err),
-		}
+			CheckResult:   CheckResult{Error: fmt.Sprintf("Failed to connect to SNMP host '%s': %s", host, err.Error())},
+			FailureReason: mapSNMPError(err),
+		}, nil
 	}
 	defer func() { _ = client.Conn.Close() }()
 
@@ -239,15 +208,15 @@ func runSNMP(ctx context.Context, host string, opts *SNMPOptions) *SNMPResult {
 	packet, err := client.Get([]string{oidSysName})
 	if err != nil {
 		return &SNMPResult{
-			CheckResult:     CheckResult{Error: fmt.Sprintf("Failed to fetch device name for host '%s': %s", host, err.Error())},
-			FailureCategory: classifySNMPError(err),
-		}
+			CheckResult:   CheckResult{Error: fmt.Sprintf("Failed to fetch device name for host '%s': %s", host, err.Error())},
+			FailureReason: mapSNMPError(err),
+		}, nil
 	}
 	rtt := time.Since(startTime).Milliseconds()
 
 	res := &SNMPResult{
-		CheckResult:     CheckResult{Success: true, RttMs: &rtt},
-		FailureCategory: failureNone,
+		CheckResult:   CheckResult{Success: true, RttMs: &rtt},
+		FailureReason: failureNone,
 	}
 	for _, pdu := range packet.Variables {
 		v, convErr := gosnmplib.GetValueFromPDU(pdu)
@@ -265,7 +234,7 @@ func runSNMP(ctx context.Context, host string, opts *SNMPOptions) *SNMPResult {
 		}
 	}
 
-	return res
+	return res, nil
 }
 
 func buildSNMPClient(ctx context.Context, host string, opts *SNMPOptions) (*gosnmp.GoSNMP, error) {
@@ -329,21 +298,27 @@ func buildSNMPClient(ctx context.Context, host string, opts *SNMPOptions) (*gosn
 	return c, nil
 }
 
-func classifySNMPError(err error) string {
+func mapSNMPError(err error) string {
 	switch {
-	case errors.Is(err, gosnmp.ErrWrongDigest),
-		errors.Is(err, gosnmp.ErrDecryption),
-		errors.Is(err, gosnmp.ErrUnknownUsername),
-		errors.Is(err, gosnmp.ErrUnknownSecurityLevel),
-		errors.Is(err, gosnmp.ErrUnknownEngineID):
-		return failureCredential
+	case errors.Is(err, gosnmp.ErrWrongDigest):
+		return failureAuthenticationFailed
+	case errors.Is(err, gosnmp.ErrDecryption):
+		return failureDecryptionFailed
+	case errors.Is(err, gosnmp.ErrUnknownUsername):
+		return failureUnknownUser
+	case errors.Is(err, gosnmp.ErrUnknownSecurityLevel):
+		return failureUnsupportedSecurityLevel
+	case errors.Is(err, gosnmp.ErrUnknownEngineID):
+		return failureUnknownEngineID
 	case errors.Is(err, context.DeadlineExceeded),
 		strings.Contains(strings.ToLower(err.Error()), "timeout"):
 		return failureTimeout
-	case errors.Is(err, syscall.ECONNREFUSED),
-		errors.Is(err, syscall.EHOSTUNREACH),
-		errors.Is(err, syscall.ENETUNREACH):
-		return failureUnreachable
+	case errors.Is(err, syscall.ECONNREFUSED):
+		return failureConnectionRefused
+	case errors.Is(err, syscall.EHOSTUNREACH):
+		return failureHostUnreachable
+	case errors.Is(err, syscall.ENETUNREACH):
+		return failureNetworkUnreachable
 	default:
 		return failureUnknown
 	}
