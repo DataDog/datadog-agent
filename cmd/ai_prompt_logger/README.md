@@ -137,7 +137,7 @@ HKLM\SOFTWARE\WOW6432Node\Google\Chrome\NativeMessagingHosts\com.datadoghq.ai_pr
 
 The default value for both keys points to the manifest under `bin\agent\dist`. The manifest's `path` field points to the bundled host executable under `bin\agent`, and `allowed_origins` uses the installer default Chrome extension ID (`gkmbhgbippkmmmidcikijiblbagbjgjj`). The active config's `trace_agent_url` is generated from the Agent's `apm_config.receiver_port` in `datadog.yaml`.
 
-The MSI registers a Task Scheduler logon task named `Datadog AI Usage Monitor`. The task launches the same bundled host executable with `--desktop-monitor --config "C:\ProgramData\Datadog\ai_usage_native_host.yaml"` in the interactive user session. Chrome native messaging registration remains separate and continues to launch the host without `--desktop-monitor`.
+The MSI registers a Task Scheduler logon task named `Datadog AI Usage Monitor`. The task launches the same bundled host executable with `--desktop-monitor --config "C:\ProgramData\Datadog\ai_usage_native_host.yaml"` in the interactive user session. Chrome native messaging registration remains separate and continues to launch the host without `--desktop-monitor`. When the `DatadogAgent` service is stopped, the desktop monitor remains resident but skips desktop scans until SCM reports the service running again.
 
 ## macOS install (DMG)
 

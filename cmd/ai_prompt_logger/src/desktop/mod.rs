@@ -43,6 +43,13 @@ trait DesktopDetector {
     fn agent_service_running(&self) -> bool {
         true
     }
+
+    /// Return true to keep the monitor process alive while the Agent service is stopped.
+    ///
+    /// The default preserves the existing behavior: exit when the service stops.
+    fn should_idle_when_agent_service_stopped(&self) -> bool {
+        false
+    }
 }
 
 /// Write an early desktop-monitor warning before the normal monitor logger exists.
@@ -70,10 +77,24 @@ pub fn run(dd_client: &DatadogClient, config: DesktopMonitoringConfig) -> Result
             config.poll_interval_seconds
         ));
         let mut process_activity_tracker = ProcessActivityTracker::default();
+        let mut idle_for_agent_service = false;
         loop {
             if !detector.agent_service_running() {
-                logger.info("desktop monitor exiting because agent service stopped");
-                return Ok(());
+                if !detector.should_idle_when_agent_service_stopped() {
+                    logger.info("desktop monitor exiting because agent service stopped");
+                    return Ok(());
+                }
+                if !idle_for_agent_service {
+                    logger.info("desktop monitor idling because agent service stopped");
+                    process_activity_tracker = ProcessActivityTracker::default();
+                    idle_for_agent_service = true;
+                }
+                thread::sleep(Duration::from_secs(config.poll_interval_seconds.max(1)));
+                continue;
+            }
+            if idle_for_agent_service {
+                logger.info("desktop monitor resumed because agent service is running");
+                idle_for_agent_service = false;
             }
             poll_once(
                 dd_client,

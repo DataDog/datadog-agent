@@ -1,9 +1,15 @@
+use std::mem;
 use std::path::Path;
+use std::ptr;
 
 use anyhow::{Context, Result};
 use windows_sys::Win32::Foundation::{CloseHandle, FILETIME, INVALID_HANDLE_VALUE};
 use windows_sys::Win32::System::Diagnostics::ToolHelp::{
     CreateToolhelp32Snapshot, PROCESSENTRY32W, Process32FirstW, Process32NextW, TH32CS_SNAPPROCESS,
+};
+use windows_sys::Win32::System::Services::{
+    CloseServiceHandle, OpenSCManagerW, OpenServiceW, QueryServiceStatusEx, SC_MANAGER_CONNECT,
+    SC_STATUS_PROCESS_INFO, SERVICE_QUERY_STATUS, SERVICE_RUNNING, SERVICE_STATUS_PROCESS,
 };
 use windows_sys::Win32::System::Threading::{
     GetProcessIoCounters, GetProcessTimes, IO_COUNTERS, OpenProcess,
@@ -15,6 +21,8 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
 
 use crate::desktop::DesktopDetector;
 use crate::desktop::matcher::{ProcessActivity, ProcessInfo, ProcessSnapshot};
+
+const AGENT_SERVICE_NAME: &str = "DatadogAgent";
 
 pub struct WindowsDesktopDetector;
 
@@ -122,6 +130,16 @@ impl DesktopDetector for WindowsDesktopDetector {
 
         Ok(ProcessSnapshot::from_processes(processes))
     }
+
+    /// Report whether the Datadog Agent Windows service is running.
+    fn agent_service_running(&self) -> bool {
+        query_service_running(AGENT_SERVICE_NAME).unwrap_or(true)
+    }
+
+    /// Stay resident in the user session and resume scanning when the Agent starts again.
+    fn should_idle_when_agent_service_stopped(&self) -> bool {
+        true
+    }
 }
 
 struct HandleGuard(windows_sys::Win32::Foundation::HANDLE);
@@ -132,6 +150,52 @@ impl Drop for HandleGuard {
             CloseHandle(self.0);
         }
     }
+}
+
+struct ServiceHandleGuard(windows_sys::Win32::System::Services::SC_HANDLE);
+
+impl Drop for ServiceHandleGuard {
+    fn drop(&mut self) {
+        unsafe {
+            CloseServiceHandle(self.0);
+        }
+    }
+}
+
+fn query_service_running(service_name: &str) -> Result<bool> {
+    let manager = unsafe { OpenSCManagerW(ptr::null(), ptr::null(), SC_MANAGER_CONNECT) };
+    if manager.is_null() {
+        return Err(std::io::Error::last_os_error()).context("OpenSCManagerW failed");
+    }
+    let _manager_guard = ServiceHandleGuard(manager);
+
+    let service_name_wide: Vec<u16> = service_name
+        .encode_utf16()
+        .chain(std::iter::once(0))
+        .collect();
+    let service =
+        unsafe { OpenServiceW(manager, service_name_wide.as_ptr(), SERVICE_QUERY_STATUS) };
+    if service.is_null() {
+        return Err(std::io::Error::last_os_error()).context("OpenServiceW failed");
+    }
+    let _service_guard = ServiceHandleGuard(service);
+
+    let mut status = SERVICE_STATUS_PROCESS::default();
+    let mut bytes_needed = 0u32;
+    let ok = unsafe {
+        QueryServiceStatusEx(
+            service,
+            SC_STATUS_PROCESS_INFO,
+            &mut status as *mut SERVICE_STATUS_PROCESS as *mut u8,
+            mem::size_of::<SERVICE_STATUS_PROCESS>() as u32,
+            &mut bytes_needed,
+        )
+    };
+    if ok == 0 {
+        return Err(std::io::Error::last_os_error()).context("QueryServiceStatusEx failed");
+    }
+
+    Ok(status.dwCurrentState == SERVICE_RUNNING)
 }
 
 /// Query the full executable image path for a process.
