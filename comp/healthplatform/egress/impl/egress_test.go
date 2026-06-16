@@ -242,31 +242,21 @@ func TestActiveDrainedNotReturned(t *testing.T) {
 	assert.Empty(t, e.activeCh, "active issues are not returned on failure — next check run repopulates")
 }
 
-// TestObserverWiresChannels verifies that the observer registered in New routes
-// reported and resolved issues into the correct channels.
+// TestObserverWiresChannels verifies that registering with ActiveCh/ResolvedCh
+// routes issues written by the store directly into the egress channels.
 func TestObserverWiresChannels(t *testing.T) {
 	store := &mockStore{}
 	fwd := &mockForwarder{}
 	e := newTestEgress(t, time.Minute, fwd)
 
 	store.RegisterObserver(storedef.IssueObserver{
-		OnIssueReported: func(issue *healthplatformpayload.Issue) {
-			select {
-			case e.activeCh <- issue:
-			default:
-			}
-		},
-		OnIssueResolved: func(resolved *healthplatformpayload.Issue) {
-			select {
-			case e.resolvedCh <- resolved:
-			default:
-			}
-		},
+		ActiveCh:   e.activeCh,
+		ResolvedCh: e.resolvedCh,
 	})
 
 	store.mu.Lock()
-	store.observer.OnIssueReported(&healthplatformpayload.Issue{Id: "active"})
-	store.observer.OnIssueResolved(&healthplatformpayload.Issue{Id: "resolved"})
+	store.observer.ActiveCh <- &healthplatformpayload.Issue{Id: "active"}
+	store.observer.ResolvedCh <- &healthplatformpayload.Issue{Id: "resolved"}
 	store.mu.Unlock()
 
 	assert.Len(t, e.activeCh, 1)

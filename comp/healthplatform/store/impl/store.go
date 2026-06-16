@@ -336,7 +336,8 @@ func (h *healthPlatformImpl) RegisterObserver(obs healthplatformdef.IssueObserve
 	h.observersMu.Unlock()
 }
 
-// notifyReported fires OnIssueReported; must be called outside issuesMux.
+// notifyReported writes a hydrated clone to each observer's ActiveCh.
+// Must be called outside issuesMux.
 func (h *healthPlatformImpl) notifyReported(lean *healthplatform.Issue, si *storedIssue) {
 	h.observersMu.RLock()
 	obs := h.observers
@@ -347,8 +348,12 @@ func (h *healthPlatformImpl) notifyReported(lean *healthplatform.Issue, si *stor
 	hydrated := proto.Clone(lean).(*healthplatform.Issue)
 	hydrateIssue(hydrated, si)
 	for _, o := range obs {
-		if o.OnIssueReported != nil {
-			o.OnIssueReported(hydrated)
+		if o.ActiveCh != nil {
+			select {
+			case o.ActiveCh <- hydrated:
+			default:
+				h.log.Warnf("health platform: active channel full, %s will resend on next check run", lean.Id)
+			}
 		}
 	}
 }
@@ -358,8 +363,12 @@ func (h *healthPlatformImpl) notifyResolved(resolved *healthplatform.Issue) {
 	obs := h.observers
 	h.observersMu.RUnlock()
 	for _, o := range obs {
-		if o.OnIssueResolved != nil {
-			o.OnIssueResolved(resolved)
+		if o.ResolvedCh != nil {
+			select {
+			case o.ResolvedCh <- resolved:
+			default:
+				h.log.Warnf("health platform: resolved channel full, %s recoverable from disk", resolved.Id)
+			}
 		}
 	}
 }

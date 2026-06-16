@@ -204,18 +204,17 @@ func TestResolveIssueRemovesFromActive(t *testing.T) {
 	h := newTestStore(t)
 	require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{Id: "t:id", IssueName: "t"}))
 
-	var gotResolved *healthplatformpayload.Issue
-	h.RegisterObserver(storedef.IssueObserver{
-		OnIssueResolved: func(resolved *healthplatformpayload.Issue) { gotResolved = resolved },
-	})
+	ch := make(chan *healthplatformpayload.Issue, 1)
+	h.RegisterObserver(storedef.IssueObserver{ResolvedCh: ch})
 
 	h.ResolveIssue("t:id")
 
-	// Issue must be removed from the active set; observer receives the resolved issue.
+	// Issue must be removed from the active set; resolved snapshot written to ResolvedCh.
 	assert.Nil(t, h.GetIssue("t:id"), "issue must be removed from active set after ResolveIssue")
-	require.NotNil(t, gotResolved, "OnIssueResolved must be called")
-	require.NotNil(t, gotResolved.PersistedIssue)
-	assert.Equal(t, IssueStateResolved, gotResolved.PersistedIssue.State)
+	require.Len(t, ch, 1, "resolved issue must be written to ResolvedCh")
+	got := <-ch
+	require.NotNil(t, got.PersistedIssue)
+	assert.Equal(t, IssueStateResolved, got.PersistedIssue.State)
 
 	require.NotNil(t, h.persistedIssues["t:id"])
 	assert.Equal(t, IssueStateResolved, h.persistedIssues["t:id"].State)

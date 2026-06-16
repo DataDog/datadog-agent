@@ -93,23 +93,11 @@ func New(reqs Requires) egressdef.Component {
 		doneCh:      make(chan struct{}),
 	}
 
-	// Register before OnStart: loadFromDisk fires first and calls OnIssueResolved
-	// for any resolved issues found on disk.
+	// Register before OnStart: loadFromDisk fires first and writes any resolved
+	// issues found on disk into ResolvedCh.
 	reqs.Store.RegisterObserver(storedef.IssueObserver{
-		OnIssueReported: func(issue *healthplatform.Issue) {
-			select {
-			case e.activeCh <- issue:
-			default:
-				e.log.Warnf("Health platform egress: active channel full, %s will resend on next check run", issue.Id)
-			}
-		},
-		OnIssueResolved: func(resolved *healthplatform.Issue) {
-			select {
-			case e.resolvedCh <- resolved:
-			default:
-				e.log.Warnf("Health platform egress: resolved channel full, %s recoverable from disk", resolved.Id)
-			}
-		},
+		ActiveCh:   e.activeCh,
+		ResolvedCh: e.resolvedCh,
 	})
 
 	reqs.Lifecycle.Append(compdef.Hook{

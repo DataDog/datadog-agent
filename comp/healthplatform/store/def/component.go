@@ -15,21 +15,18 @@ import (
 	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 )
 
-// IssueObserver listens for issue state changes. It is the extension point for
-// reactive integrations — e.g. an MCP server exposing issues to AI agents for
-// proactive remediation.
-//
-// Callbacks run synchronously outside the store's lock. Implementations must
-// not block; use a goroutine for non-trivial work.
+// IssueObserver holds the channels the store writes issue events into.
+// It is the extension point for reactive integrations — e.g. an MCP server
+// exposing issues to AI agents for proactive remediation.
 type IssueObserver struct {
-	// OnIssueReported is called after a new or updated issue is stored.
+	// ActiveCh receives new and ongoing issues as they are stored.
 	// The issue is a fully-hydrated clone; check PersistedIssue.State to
 	// distinguish NEW from ONGOING.
-	OnIssueReported func(issue *healthplatformpayload.Issue)
+	ActiveCh chan<- *healthplatformpayload.Issue
 
-	// OnIssueResolved is called when an issue transitions to RESOLVED.
-	// Contains the issue ID, name, and PersistedIssue state.
-	OnIssueResolved func(resolved *healthplatformpayload.Issue)
+	// ResolvedCh receives issues when they transition to RESOLVED, including
+	// resolved issues recovered from disk on startup.
+	ResolvedCh chan<- *healthplatformpayload.Issue
 }
 
 // Component is the health platform store component interface.
