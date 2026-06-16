@@ -55,6 +55,12 @@ type HelmInstallationArgs struct {
 	AgentFullImagePath string
 	// ClusterAgentFullImagePath is used to specify the full image path for the cluster agent
 	ClusterAgentFullImagePath string
+	// AgentImageTag overrides the agent image tag (e.g. a version like "7.55.0") when
+	// no full image path is given. Ignored when AgentFullImagePath is set.
+	AgentImageTag string
+	// ClusterAgentImageTag overrides the cluster agent image tag when no full image
+	// path is given. Ignored when ClusterAgentFullImagePath is set.
+	ClusterAgentImageTag string
 	// DisableLogsContainerCollectAll is used to disable the collection of logs from all containers by default
 	DisableLogsContainerCollectAll bool
 	// DualShipping is used to disable dual-shipping
@@ -164,13 +170,13 @@ func NewHelmInstallation(e config.Env, args HelmInstallationArgs, opts ...pulumi
 	}
 
 	// Compute some values
-	agentImagePath := dockerAgentFullImagePath(e, "", "", args.OTelAgent, args.FIPS, args.JMX, args.WindowsImage)
+	agentImagePath := dockerAgentFullImagePath(e, "", args.AgentImageTag, args.OTelAgent, args.FIPS, args.JMX, args.WindowsImage)
 	if args.AgentFullImagePath != "" {
 		agentImagePath = args.AgentFullImagePath
 	}
 	agentImagePath, agentImageTag := utils.ParseImageReference(agentImagePath)
 
-	clusterAgentImagePath := dockerClusterAgentFullImagePath(e, "", args.FIPS)
+	clusterAgentImagePath := dockerClusterAgentFullImagePath(e, "", args.ClusterAgentImageTag, args.FIPS)
 	if args.ClusterAgentFullImagePath != "" {
 		clusterAgentImagePath = args.ClusterAgentFullImagePath
 	}

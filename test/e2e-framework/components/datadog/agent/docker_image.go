@@ -29,8 +29,10 @@ const (
 )
 
 func dockerAgentFullImagePath(e config.Env, repositoryPath, imageTag string, otel bool, fips bool, jmx bool, windowsImage bool) string {
-	// return agent image path if defined
-	if e.AgentFullImagePath() != "" {
+	// return agent image path if defined, unless an explicit image tag is requested
+	// (an explicit per-install tag takes precedence over the environment-level full
+	// image path)
+	if e.AgentFullImagePath() != "" && imageTag == "" {
 		return e.AgentFullImagePath()
 	}
 
@@ -115,16 +117,18 @@ func dockerAgentFullImagePath(e config.Env, repositoryPath, imageTag string, ote
 	return utils.BuildDockerImagePath(repositoryPath, imageTag)
 }
 
-func dockerClusterAgentFullImagePath(e config.Env, repositoryPath string, fips bool) string {
-	// return cluster agent image path if defined
-	if e.ClusterAgentFullImagePath() != "" {
+func dockerClusterAgentFullImagePath(e config.Env, repositoryPath, imageTag string, fips bool) string {
+	// return cluster agent image path if defined, unless an explicit image tag is
+	// requested (an explicit per-install tag takes precedence over the
+	// environment-level full image path)
+	if e.ClusterAgentFullImagePath() != "" && imageTag == "" {
 		return e.ClusterAgentFullImagePath()
 	}
 
 	useFips := fips || e.AgentFIPS()
 
 	// if agent pipeline id and commit sha are defined, use the image from the pipeline pushed on agent QA registry
-	if e.PipelineID() != "" && e.CommitSHA() != "" {
+	if e.PipelineID() != "" && e.CommitSHA() != "" && imageTag == "" {
 		tag := fmt.Sprintf("%s-%s", e.PipelineID(), e.CommitSHA())
 
 		if e.AgentFIPS() {
@@ -142,7 +146,9 @@ func dockerClusterAgentFullImagePath(e config.Env, repositoryPath string, fips b
 		if repositoryPath == "" {
 			repositoryPath = defaultDevAgentImageRepo
 		}
-		imageTag := "main" + fipsSuffix
+		if imageTag == "" {
+			imageTag = "main" + fipsSuffix
+		}
 		e.Ctx().Log.Info("The following image will be used for dca in your test: "+fmt.Sprintf("%s:%s", repositoryPath, imageTag), nil)
 		return utils.BuildDockerImagePath(repositoryPath, imageTag)
 	}
@@ -151,7 +157,11 @@ func dockerClusterAgentFullImagePath(e config.Env, repositoryPath string, fips b
 		repositoryPath = defaultClusterAgentImageRepo
 	}
 
-	return utils.BuildDockerImagePath(repositoryPath, dockerAgentImageTag(e, config.ClusterAgentSemverVersion))
+	if imageTag == "" {
+		imageTag = dockerAgentImageTag(e, config.ClusterAgentSemverVersion)
+	}
+
+	return utils.BuildDockerImagePath(repositoryPath, imageTag)
 }
 
 func dockerOTelAgentGatewayFullImagePath(e config.Env, repositoryPath, imageTag string) string {

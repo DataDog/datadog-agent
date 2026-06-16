@@ -72,16 +72,21 @@ def create_benchmarkeks(
 
     This scenario deploys two independent Datadog Agent installations (baseline and comparison)
     in separate namespaces, pinned to dedicated node pools, to enable performance comparisons of
-    a strictly identical workload. Select the two image builds to compare with the
-    variant-specific full image path parameters.
+    a strictly identical workload. Configure the two variants independently with the
+    variant-specific version or full image path parameters.
 
     Example usage:
+    - Compare two Agent versions:
+      dda inv aws.create-benchmarkeks --baseline-version=7.55.0 --comparison-version=7.56.0
+
+    - Compare specific image builds:
       dda inv aws.create-benchmarkeks \\
         --baseline-full-image-path=datadog/agent:7.55.0 \\
         --comparison-full-image-path=datadog/agent:7.56.0-rc.1
 
-    If a variant-specific image path is not provided, that variant falls back to the default
-    full_image_path / agent_version parameters, so both variants would then be identical.
+    A variant-specific full image path takes precedence over its version. If neither is
+    provided for a variant, it falls back to the default full_image_path / agent_version
+    parameters, so both variants would then be identical.
     """
 
     extra_flags = {

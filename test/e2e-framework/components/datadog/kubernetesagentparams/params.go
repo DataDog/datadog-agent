@@ -53,6 +53,12 @@ type Params struct {
 	AgentFullImagePath string
 	// ClusterAgentFullImagePath is the full path of the docker cluster agent image to use.
 	ClusterAgentFullImagePath string
+	// AgentImageTag is the agent image tag (e.g. a version like "7.55.0") to use when no
+	// full image path is given. Ignored when AgentFullImagePath is set.
+	AgentImageTag string
+	// ClusterAgentImageTag is the cluster agent image tag to use when no full image path
+	// is given. Ignored when ClusterAgentFullImagePath is set.
+	ClusterAgentImageTag string
 	// Namespace is the namespace to deploy the agent to.
 	Namespace string
 	// Hostname is the hostname of the agent.
@@ -154,6 +160,26 @@ func WithAgentFullImagePath(fullImagePath string) func(*Params) error {
 func WithClusterAgentFullImagePath(fullImagePath string) func(*Params) error {
 	return func(p *Params) error {
 		p.ClusterAgentFullImagePath = fullImagePath
+		return nil
+	}
+}
+
+// WithAgentVersion sets the agent version to deploy, used as the image tag on the
+// default agent repository when no full image path is provided. A full image path
+// (WithAgentFullImagePath) takes precedence.
+func WithAgentVersion(version string) func(*Params) error {
+	return func(p *Params) error {
+		p.AgentImageTag = version
+		return nil
+	}
+}
+
+// WithClusterAgentVersion sets the cluster agent version to deploy, used as the image
+// tag on the default cluster agent repository when no full image path is provided. A
+// full image path (WithClusterAgentFullImagePath) takes precedence.
+func WithClusterAgentVersion(version string) func(*Params) error {
+	return func(p *Params) error {
+		p.ClusterAgentImageTag = version
 		return nil
 	}
 }

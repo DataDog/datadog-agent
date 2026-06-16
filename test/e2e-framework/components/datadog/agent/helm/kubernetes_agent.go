@@ -39,6 +39,8 @@ func NewKubernetesAgent(e config.Env, resourceName string, kubeProvider *kuberne
 			Fakeintake:                     params.FakeIntake,
 			AgentFullImagePath:             params.AgentFullImagePath,
 			ClusterAgentFullImagePath:      params.ClusterAgentFullImagePath,
+			AgentImageTag:                  params.AgentImageTag,
+			ClusterAgentImageTag:           params.ClusterAgentImageTag,
 			DualShipping:                   params.DualShipping,
 			DisableLogsContainerCollectAll: params.DisableLogsContainerCollectAll,
 			OTelAgent:                      params.OTelAgent,

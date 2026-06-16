@@ -125,22 +125,35 @@ func Run(ctx *pulumi.Context) error {
 		return err
 	}
 
+	// The Agent installations and the churn orchestrator both require the Agent API
+	// key (via Helm and the churn Fargate sidecar), which is only configured when the
+	// Agent is deployed. Skip them when the Agent is disabled (--no-install-agent).
+	if !awsEnv.AgentDeploy() {
+		return nil
+	}
+
 	for _, param := range []struct {
 		variant               string
 		agentImagePath        string
 		clusterAgentImagePath string
+		agentVersion          string
+		clusterAgentVersion   string
 		deployCRDs            bool
 	}{
 		{
 			variant:               "baseline",
 			agentImagePath:        awsEnv.AgentBaselineFullImagePath(),
 			clusterAgentImagePath: awsEnv.ClusterAgentBaselineFullImagePath(),
+			agentVersion:          awsEnv.AgentBaselineVersion(),
+			clusterAgentVersion:   awsEnv.ClusterAgentBaselineVersion(),
 			deployCRDs:            true,
 		},
 		{
 			variant:               "comparison",
 			agentImagePath:        awsEnv.AgentComparisonFullImagePath(),
 			clusterAgentImagePath: awsEnv.ClusterAgentComparisonFullImagePath(),
+			agentVersion:          awsEnv.AgentComparisonVersion(),
+			clusterAgentVersion:   awsEnv.ClusterAgentComparisonVersion(),
 			deployCRDs:            false,
 		},
 	} {
@@ -150,6 +163,8 @@ func Run(ctx *pulumi.Context) error {
 			kubernetesagentparams.WithClusterName(cluster.ClusterName),
 			kubernetesagentparams.WithAgentFullImagePath(param.agentImagePath),
 			kubernetesagentparams.WithClusterAgentFullImagePath(param.clusterAgentImagePath),
+			kubernetesagentparams.WithAgentVersion(param.agentVersion),
+			kubernetesagentparams.WithClusterAgentVersion(param.clusterAgentVersion),
 			kubernetesagentparams.WithHelmValues(utils.YAMLMustMarshal(map[string]any{
 				"datadog": map[string]any{
 					"nodeLabelsAsTags": map[string]any{
