@@ -16,11 +16,6 @@ go_library(
         "version_linux.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest",
-    # Don't pick this up in ... expansion. It requires gotag linux_bpf to build
-    # but you can't add gotags to go_library. One fix is to test with
-    # --build_tests_only. 'manual' is the other recommended work-around
-    # https://github.com/bazel-contrib/rules_go/issues/3203
-    tags = ["manual"],
     target_compatible_with = ["@platforms//os:linux"],
     visibility = ["//visibility:public"],
     deps = [

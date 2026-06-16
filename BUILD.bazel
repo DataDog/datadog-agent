@@ -140,7 +140,6 @@ exports_files(["go.mod"])
 # gazelle:exclude comp/core/workloadmeta/collectors/internal/cloudfoundry
 # gazelle:exclude comp/core/workloadmeta/collectors/internal/kubeapiserver
 # gazelle:exclude comp/core/workloadmeta/collectors/internal/kubemetadata
-# gazelle:exclude comp/core/workloadmeta/collectors/internal/nvml
 # gazelle:exclude comp/core/workloadmeta/collectors/internal/process
 # gazelle:exclude comp/core/workloadmeta/defaults
 # gazelle:exclude comp/core/workloadmeta/init
@@ -370,8 +369,6 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/fleet/installer/packages/embedded/tmpl
 # gazelle:exclude pkg/gpu/containers
 # gazelle:exclude pkg/gpu/integrationtests
-# gazelle:exclude pkg/gpu/safenvml
-# gazelle:exclude pkg/gpu/testutil
 # gazelle:exclude pkg/kubestatemetrics/builder
 # gazelle:exclude pkg/languagedetection/privileged
 # gazelle:exclude pkg/logs/client/http
