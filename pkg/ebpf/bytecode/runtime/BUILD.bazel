@@ -72,11 +72,15 @@ go_library(
     ],
 )
 
+# This is an integration test that is supposed to run
+# in a target runtime environment. It requires the presence
+# of clang-bpf in the agent's installation path.
 go_test(
     name = "runtime_test",
     srcs = ["helpers_test.go"],
     embed = [":runtime"],
-    gotags = ["test"],
+    gotags = ["linux_bpf"], # keep
+    tags = ["manual"], # keep
     deps = [
         "//pkg/ebpf",
         "//pkg/util/kernel",
