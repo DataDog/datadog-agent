@@ -31,7 +31,7 @@ const (
 	eventType             = "agent-health-issues"
 
 	// channel capacity for active and resolved issue delivery.
-	issueChSize = 1024
+	issueChSize = 2048
 )
 
 // egress drives the periodic outbound POST to the Datadog intake.
