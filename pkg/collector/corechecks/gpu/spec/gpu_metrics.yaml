@@ -741,7 +741,7 @@ metrics:
         mig: false
         physical: true
         vgpu: false
-  needs_recovery:
+  device.needs_recovery:
     metadata:
       metric_type: gauge
       description: >-
