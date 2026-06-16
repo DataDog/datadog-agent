@@ -352,7 +352,9 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/dyninst/testprogs/progs/sample/structs.go
 # gazelle:exclude pkg/dyninst/testprogs/progs/sample/times.go
 # gazelle:exclude pkg/ebpf/_obj
-# gazelle:exclude pkg/ebpf/bytecode/runtime
+# It is a generated via genrule src that shouldn't be added to the runtime
+# library.
+# gazelle:exclude pkg/ebpf/bytecode/runtime/integrity_gen.go
 # gazelle:exclude pkg/ebpf/ebpftest/cgo_align.go
 # gazelle:exclude pkg/ebpf/features
 # gazelle:exclude pkg/ebpf/kernelbugs
