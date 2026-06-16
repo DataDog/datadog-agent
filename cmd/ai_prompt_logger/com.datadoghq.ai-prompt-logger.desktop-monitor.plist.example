@@ -26,11 +26,5 @@
         <key>SuccessfulExit</key>
         <false/>
     </dict>
-
-    <key>StandardOutPath</key>
-    <string>/opt/datadog-agent/logs/ai-usage-desktop-monitor.launchd.log</string>
-
-    <key>StandardErrorPath</key>
-    <string>/opt/datadog-agent/logs/ai-usage-desktop-monitor.launchd.log</string>
 </dict>
 </plist>
