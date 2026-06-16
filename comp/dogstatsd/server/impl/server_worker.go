@@ -60,9 +60,20 @@ func newWorker(s *dsdServer, workerNum int, wmeta option.Option[workloadmeta.Com
 }
 
 func (w *worker) run() {
+	defer w.server.workerWg.Done()
 	for {
 		select {
 		case <-w.server.stopChan:
+			// On stop, optionally flush the batcher's pending samples into the
+			// time sampler before exiting. Gated by
+			// dogstatsd_flush_incomplete_buckets so that short-lived processes
+			// (serverless-init) report everything they have; long-running agents
+			// leave it off and simply exit. stop() waits on workerWg, so the
+			// flush is guaranteed to complete before the demultiplexer is torn
+			// down.
+			if w.server.config.GetBool("dogstatsd_flush_incomplete_buckets") {
+				w.batcher.flush()
+			}
 			return
 		case <-w.server.health.C:
 		case <-w.server.serverlessFlushChan:
