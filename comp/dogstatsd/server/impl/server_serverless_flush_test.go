@@ -74,6 +74,40 @@ func TestStopFlushesAllWorkersWhenEnabled(t *testing.T) {
 	}
 }
 
+// TestStopDrainsQueuedPacketsWhenEnabled verifies that flush-on-stop also
+// rescues packets still queued in packetsIn but not yet parsed. Stopping the
+// listeners can leave assembled packets in packetsIn, and the random select in
+// worker.run could otherwise let a worker exit on stopChan before parsing them,
+// dropping the metrics. drainAndFlush parses the remaining queue before flushing.
+func TestStopDrainsQueuedPacketsWhenEnabled(t *testing.T) {
+	cfg := make(map[string]interface{})
+	cfg["dogstatsd_port"] = listeners.RandomPortName
+	cfg["dogstatsd_workers_count"] = 1
+	cfg["dogstatsd_flush_incomplete_buckets"] = true
+
+	deps := fulfillDepsWithServerlessConfigOverride(t, cfg)
+	s := deps.Server.(*dsdServer)
+	requireStart(t, s)
+	require.Len(t, s.workers, 1)
+
+	// Stop the run loop first so this goroutine can own packetsIn without racing
+	// the worker, then drive drainAndFlush directly — the exact code path the
+	// stopChan case takes when packets are still queued at stop. stop() leaves
+	// packetsIn open, so we can enqueue afterwards.
+	require.NoError(t, s.stop(context.Background()))
+	requireStopped(t, s)
+
+	w := s.workers[0]
+	s.packetsIn <- genTestPackets([]byte("drain.test.metric:42|g"))
+	w.drainAndFlush()
+
+	assert.Empty(t, s.packetsIn, "drainAndFlush must consume every queued packet before returning")
+
+	samples, _ := deps.Demultiplexer.WaitForNumberOfSamples(1, 0, 2*time.Second)
+	require.Len(t, samples, 1, "the queued packet must be parsed and flushed to the sampler")
+	assert.Equal(t, "drain.test.metric", samples[0].Name)
+}
+
 // TestStopDoesNotFlushWhenDisabled verifies the gate is honored: with
 // dogstatsd_flush_incomplete_buckets unset (the long-running-agent default),
 // stop() must NOT drain worker batchers — workers just exit on stopChan. The
