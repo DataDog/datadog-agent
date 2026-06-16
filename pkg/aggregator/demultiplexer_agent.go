@@ -26,8 +26,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
-	"github.com/DataDog/datadog-agent/pkg/collector/metriclookback/lookbacksender"
-	"github.com/DataDog/datadog-agent/pkg/collector/metriclookback/ringbuffer"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -83,15 +81,10 @@ type AgentDemultiplexer struct {
 
 	filterList filterlist.Component
 
-	// lookbackBuffer retains recent shadow check metric samples in a bounded
-	// in-memory ring so they can be dumped to the serializer on demand. It is
-	// fed exclusively by lookbackSenderManager (the 1Hz shadow check path), not
-	// by the normal metric flow. Nil when metric_lookback.enabled is false.
-	lookbackBuffer *ringbuffer.Buffer
-	// lookbackSenderManager hands out shadow check senders that write to
-	// lookbackBuffer on Commit. The shadow check scheduler that drives these
-	// senders is wired separately. Nil when metric_lookback.enabled is false.
-	lookbackSenderManager *lookbacksender.SenderManager
+	// lookbackRetention owns the optional metric lookback retention state. It is
+	// injected by binaries that support metric lookback so binaries that only
+	// reuse the aggregator do not link the concrete lookback implementation.
+	lookbackRetention LookbackRetention
 
 	// sharded statsd time samplers
 	statsd
@@ -104,6 +97,8 @@ type AgentDemultiplexerOptions struct {
 	EnableNoAggregationPipeline bool
 
 	DontStartForwarders bool // unit tests don't need the forwarders to be instanciated
+
+	LookbackRetention LookbackRetention
 
 	UseDogstatsdContextLimiter bool
 	DogstatsdMaxMetricsTags    int
@@ -246,7 +241,8 @@ func initAgentDemultiplexer(log log.Component,
 		hostTagProvider: hosttags.NewHostTagProvider(),
 		senders:         newSenders(agg),
 
-		filterList: filterList,
+		filterList:        filterList,
+		lookbackRetention: options.LookbackRetention,
 
 		// statsd time samplers
 		statsd: statsd{
@@ -257,25 +253,18 @@ func initAgentDemultiplexer(log log.Component,
 		},
 	}
 
-	// Metric lookback: a bounded ring buffer fed exclusively by the lookback
-	// shadow sender (not the normal metric flow). The shadow check scheduler
-	// that drives these senders is wired separately.
-	if pkgconfigsetup.Datadog().GetBool("metric_lookback.enabled") {
-		demux.lookbackBuffer = ringbuffer.New(ringbuffer.Options{
-			Capacity:   pkgconfigsetup.Datadog().GetInt("metric_lookback.capacity"),
-			ShardCount: pkgconfigsetup.Datadog().GetInt("metric_lookback.shard_count"),
-		})
-		demux.lookbackSenderManager = lookbacksender.NewSenderManager(context.Background(), hostname, demux.lookbackBuffer, nil)
-	}
-
 	return demux
 }
 
-// LookbackSenderManager returns the shadow sender manager whose senders write
-// to the metric lookback ring buffer, or nil when metric_lookback.enabled is
-// false. The 1Hz shadow check scheduler uses this to obtain lookback senders.
-func (d *AgentDemultiplexer) LookbackSenderManager() *lookbacksender.SenderManager {
-	return d.lookbackSenderManager
+// LookbackSenderManager returns a shadow sender manager backed by the metric
+// lookback retention buffer, or nil when metric lookback is not configured for
+// this demultiplexer. The 1Hz shadow check scheduler uses this to obtain
+// per-shadow-check senders.
+func (d *AgentDemultiplexer) LookbackSenderManager(ctx context.Context) sender.SenderManager {
+	if d.lookbackRetention == nil {
+		return nil
+	}
+	return d.lookbackRetention.NewSenderManager(ctx)
 }
 
 // Options returns options used during the demux initialization.
@@ -768,22 +757,20 @@ func (d *AgentDemultiplexer) DumpLookback() (int, error) {
 	d.m.RLock()
 	defer d.m.RUnlock()
 
-	if d.lookbackBuffer == nil {
+	if d.lookbackRetention == nil {
 		return 0, errors.New("metric lookback is disabled")
 	}
 	if d.sharedSerializer == nil {
 		return 0, errors.New("serializer is not available")
 	}
 
-	source := d.lookbackBuffer.SerieSource()
-	count := int(source.Count())
-	if count == 0 {
-		return 0, nil
-	}
-	if err := d.sharedSerializer.SendIterableSeries(source); err != nil {
+	count, err := d.lookbackRetention.Dump(d.sharedSerializer)
+	if err != nil {
 		return 0, err
 	}
-	d.log.Debugf("Dumped %d lookback series to the serializer", count)
+	if count > 0 {
+		d.log.Debugf("Dumped %d lookback series to the serializer", count)
+	}
 	return count, nil
 }
 

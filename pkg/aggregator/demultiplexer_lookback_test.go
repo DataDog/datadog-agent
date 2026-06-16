@@ -8,6 +8,7 @@
 package aggregator
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -17,64 +18,87 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	filterlistmock "github.com/DataDog/datadog-agent/comp/filterlist/fx-mock"
 	defaultforwardermock "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/mock"
-	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
+	"github.com/DataDog/datadog-agent/comp/haagent/mock"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx-mock"
+	aggregatorsender "github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
+type recordingLookbackRetention struct {
+	manager aggregatorsender.SenderManager
+
+	newSenderManagerCalls int
+	dumpCalls             int
+	dumpCount             int
+	dumpErr               error
+	lastSerializer        serializer.MetricSerializer
+}
+
+func (r *recordingLookbackRetention) NewSenderManager(context.Context) aggregatorsender.SenderManager {
+	r.newSenderManagerCalls++
+	return r.manager
+}
+
+func (r *recordingLookbackRetention) Dump(metricSerializer serializer.MetricSerializer) (int, error) {
+	r.dumpCalls++
+	r.lastSerializer = metricSerializer
+	return r.dumpCount, r.dumpErr
+}
+
+type recordingSenderManager struct{}
+
+func (recordingSenderManager) GetSender(checkid.ID) (aggregatorsender.Sender, error) { return nil, nil }
+func (recordingSenderManager) SetSender(aggregatorsender.Sender, checkid.ID) error   { return nil }
+func (recordingSenderManager) DestroySender(checkid.ID)                              {}
+func (recordingSenderManager) GetDefaultSender() (aggregatorsender.Sender, error)    { return nil, nil }
+
 // initLookbackTestDemux builds a real demultiplexer through the normal
 // construction path so the metric_lookback wiring under test is exercised.
-func initLookbackTestDemux(t *testing.T) *AgentDemultiplexer {
+func initLookbackTestDemux(t *testing.T, retention LookbackRetention) *AgentDemultiplexer {
 	t.Helper()
 	deps := fxutil.Test[TestDeps](t,
 		fx.Provide(func() secrets.Component { return secretsmock.New(t) }),
 		defaultforwardermock.MockModule(),
 		core.MockBundle(),
 		hostnameimpl.MockModule(),
-		haagentmock.Module(),
+		mock.Module(),
 		logscompression.MockModule(),
 		metricscompression.MockModule(),
 		filterlistmock.MockModule(),
 	)
-	return InitAndStartAgentDemultiplexerForTest(deps, demuxTestOptions(), "lookback-host")
+	options := demuxTestOptions()
+	options.LookbackRetention = retention
+	return InitAndStartAgentDemultiplexerForTest(deps, options, "lookback-host")
 }
 
-// TestLookbackSenderManagerWiredWhenEnabled verifies that, when configured, the
-// demultiplexer exposes a lookback shadow sender manager and that samples
-// committed through one of its senders land in the ring buffer.
-func TestLookbackSenderManagerWiredWhenEnabled(t *testing.T) {
-	cfg := configmock.New(t)
-	cfg.SetInTest("metric_lookback.enabled", true)
-	demux := initLookbackTestDemux(t)
+func TestLookbackSenderManagerUsesConfiguredRetention(t *testing.T) {
+	configmock.New(t)
+	manager := recordingSenderManager{}
+	retention := &recordingLookbackRetention{manager: manager}
+	demux := initLookbackTestDemux(t, retention)
 	defer demux.Stop()
 
-	require.NotNil(t, demux.LookbackSenderManager(), "lookback sender manager should be wired by default")
-	require.NotNil(t, demux.lookbackBuffer)
-
-	sender, err := demux.LookbackSenderManager().GetSender(checkid.ID("shadow:check"))
-	require.NoError(t, err)
-	sender.Gauge("shadow.gauge", 3, "", []string{"a:1"})
-	sender.Commit() // lookback sender writes synchronously to the buffer
-
-	assert.Equal(t, 1, demux.lookbackBuffer.Stats().Records)
+	assert.Equal(t, manager, demux.LookbackSenderManager(context.Background()))
+	assert.Equal(t, 1, retention.newSenderManagerCalls)
 }
 
-// TestLookbackBufferNotFedByNormalFlow is the key guarantee: metrics sent
-// through the normal check sender path must NOT be retained in the lookback
-// buffer. Only the lookback shadow sender feeds it.
-func TestLookbackBufferNotFedByNormalFlow(t *testing.T) {
-	cfg := configmock.New(t)
-	cfg.SetInTest("metric_lookback.enabled", true)
-	demux := initLookbackTestDemux(t)
+// TestLookbackRetentionNotUsedByNormalFlow is the key guarantee: metrics sent
+// through the normal check sender path must NOT interact with metric lookback
+// retention. Only the explicit shadow sender path asks retention for senders.
+func TestLookbackRetentionNotUsedByNormalFlow(t *testing.T) {
+	configmock.New(t)
+	retention := &recordingLookbackRetention{manager: recordingSenderManager{}}
+	demux := initLookbackTestDemux(t, retention)
 	defer demux.Stop()
-	require.NotNil(t, demux.lookbackBuffer)
 
 	// Normal check sender path.
 	normal, err := demux.GetSender(checkid.ID("normal:check"))
@@ -85,23 +109,56 @@ func TestLookbackBufferNotFedByNormalFlow(t *testing.T) {
 
 	// Wait until the aggregator has drained the normal sender's items.
 	require.Eventually(t, demux.aggregator.IsInputQueueEmpty, 2*time.Second, 5*time.Millisecond)
-	assert.Equal(t, 0, demux.lookbackBuffer.Stats().Records, "normal metric flow must not feed the lookback buffer")
+	assert.Zero(t, retention.newSenderManagerCalls, "normal metric flow must not request a lookback sender manager")
 
-	// The shadow sender path, by contrast, does feed it.
-	shadow, err := demux.LookbackSenderManager().GetSender(checkid.ID("normal:check"))
-	require.NoError(t, err)
-	shadow.Gauge("shadow.gauge", 2, "", nil)
-	shadow.Commit()
-	assert.Equal(t, 1, demux.lookbackBuffer.Stats().Records)
+	assert.NotNil(t, demux.LookbackSenderManager(context.Background()))
+	assert.Equal(t, 1, retention.newSenderManagerCalls)
 }
 
-// TestLookbackDisabled verifies the manager and buffer are absent when disabled.
 func TestLookbackDisabled(t *testing.T) {
-	cfg := configmock.New(t)
-	cfg.SetInTest("metric_lookback.enabled", false)
-	demux := initLookbackTestDemux(t)
+	configmock.New(t)
+	demux := initLookbackTestDemux(t, nil)
 	defer demux.Stop()
 
-	assert.Nil(t, demux.LookbackSenderManager())
-	assert.Nil(t, demux.lookbackBuffer)
+	assert.Nil(t, demux.LookbackSenderManager(context.Background()))
 }
+
+func TestDumpLookbackDelegatesToConfiguredRetention(t *testing.T) {
+	configmock.New(t)
+	retention := &recordingLookbackRetention{dumpCount: 2}
+	demux := &AgentDemultiplexer{
+		log:               logmock.New(t),
+		lookbackRetention: retention,
+		dataOutputs:       dataOutputs{sharedSerializer: &MockSerializerIterableSerie{}},
+	}
+
+	count, err := demux.DumpLookback()
+	require.NoError(t, err)
+	assert.Equal(t, 2, count)
+	assert.Equal(t, 1, retention.dumpCalls)
+	assert.NotNil(t, retention.lastSerializer)
+}
+
+func TestDumpLookbackDisabledReturnsError(t *testing.T) {
+	configmock.New(t)
+	demux := &AgentDemultiplexer{
+		log:         logmock.New(t),
+		dataOutputs: dataOutputs{sharedSerializer: &MockSerializerIterableSerie{}},
+	}
+	_, err := demux.DumpLookback()
+	require.Error(t, err)
+}
+
+func TestDumpLookbackSerializerUnavailableReturnsError(t *testing.T) {
+	configmock.New(t)
+	demux := &AgentDemultiplexer{
+		log:               logmock.New(t),
+		lookbackRetention: &recordingLookbackRetention{},
+	}
+	_, err := demux.DumpLookback()
+	require.Error(t, err)
+}
+
+var _ LookbackRetention = (*recordingLookbackRetention)(nil)
+var _ aggregatorsender.SenderManager = recordingSenderManager{}
+var _ serializer.MetricSerializer = (*MockSerializerIterableSerie)(nil)
