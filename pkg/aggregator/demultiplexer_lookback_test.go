@@ -46,11 +46,12 @@ func initLookbackTestDemux(t *testing.T) *AgentDemultiplexer {
 	return InitAndStartAgentDemultiplexerForTest(deps, demuxTestOptions(), "lookback-host")
 }
 
-// TestLookbackSenderManagerWiredByDefault verifies that, with the default
-// configuration, the demultiplexer exposes a lookback shadow sender manager and
-// that samples committed through one of its senders land in the ring buffer.
-func TestLookbackSenderManagerWiredByDefault(t *testing.T) {
-	configmock.New(t) // metric_lookback.enabled defaults to true
+// TestLookbackSenderManagerWiredWhenEnabled verifies that, when configured, the
+// demultiplexer exposes a lookback shadow sender manager and that samples
+// committed through one of its senders land in the ring buffer.
+func TestLookbackSenderManagerWiredWhenEnabled(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.SetInTest("metric_lookback.enabled", true)
 	demux := initLookbackTestDemux(t)
 	defer demux.Stop()
 
@@ -69,7 +70,8 @@ func TestLookbackSenderManagerWiredByDefault(t *testing.T) {
 // through the normal check sender path must NOT be retained in the lookback
 // buffer. Only the lookback shadow sender feeds it.
 func TestLookbackBufferNotFedByNormalFlow(t *testing.T) {
-	configmock.New(t)
+	cfg := configmock.New(t)
+	cfg.SetInTest("metric_lookback.enabled", true)
 	demux := initLookbackTestDemux(t)
 	defer demux.Stop()
 	require.NotNil(t, demux.lookbackBuffer)

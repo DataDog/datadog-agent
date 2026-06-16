@@ -2174,7 +2174,7 @@ func metricLookback(config pkgconfigmodel.Setup) {
 	// shadow sender are retained in a bounded in-memory ring buffer so they can
 	// be dumped to the serializer on demand. The normal metric flow is not
 	// retained by this buffer.
-	config.BindEnvAndSetDefault("metric_lookback.enabled", true)
+	config.BindEnvAndSetDefault("metric_lookback.enabled", false)
 	// Total number of sample slots across all shards. Zero uses the ring buffer default.
 	config.BindEnvAndSetDefault("metric_lookback.capacity", 0)
 	// Number of independent shards. Zero uses the ring buffer default.
