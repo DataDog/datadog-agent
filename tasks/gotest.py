@@ -796,7 +796,7 @@ def test(
             print(f"Skipping {len(exclude_packages)} Bazel-covered packages from go test")
 
     with gitlab_section("Running unit tests", collapsed=True):
-        result_junit = f"junit-out-{flavor}.xml" if junit_tar else ""
+        result_junit = f"junit-out-{flavor.name}.xml" if junit_tar else ""
         test_result = test_flavor(
             ctx,
             flavor=flavor,
