@@ -22,5 +22,5 @@ func InitStatus(coreConfig model.Reader, sources *sources.LogSources) {
 	var isRunning = atomic.NewUint32(StatusRunning)
 	tracker := tailers.NewTailerTracker()
 	endpoints, _ := config.BuildEndpoints(coreConfig, config.HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
-	Init(isRunning, endpoints, sources, tracker, metrics.LogsExpvars)
+	Init(isRunning, endpoints, sources, tracker, metrics.LogsExpvars, metrics.NewNoopPipelineMonitor(""))
 }

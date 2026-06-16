@@ -25,21 +25,30 @@ type CapacityMonitor struct {
 	name         string
 	instance     string
 	tickChan     <-chan time.Time
+	// registry, when non-nil, receives capacity snapshots for the status page. It is supplied by
+	// the owning pipeline monitor; standalone monitors (telemetry only) leave it nil.
+	registry *snapshotRegistry
 }
 
-// NewCapacityMonitor creates a new CapacityMonitor
+// NewCapacityMonitor creates a new CapacityMonitor that reports to telemetry only (no snapshot registry).
 func NewCapacityMonitor(name, instance string) *CapacityMonitor {
-	return newCapacityMonitorWithTick(name, instance, time.NewTicker(1*time.Second).C)
+	return newCapacityMonitor(name, instance, nil)
+}
+
+// newCapacityMonitor creates a CapacityMonitor wired to the given snapshot registry (may be nil).
+func newCapacityMonitor(name, instance string, registry *snapshotRegistry) *CapacityMonitor {
+	return newCapacityMonitorWithTick(name, instance, time.NewTicker(1*time.Second).C, registry)
 }
 
 // newCapacityMonitorWithTick is used for testing.
-func newCapacityMonitorWithTick(name, instance string, tickChan <-chan time.Time) *CapacityMonitor {
+func newCapacityMonitorWithTick(name, instance string, tickChan <-chan time.Time, registry *snapshotRegistry) *CapacityMonitor {
 	return &CapacityMonitor{
 		name:     name,
 		instance: instance,
 		avgItems: 0,
 		avgBytes: 0,
 		tickChan: tickChan,
+		registry: registry,
 	}
 }
 
@@ -74,9 +83,14 @@ func (i *CapacityMonitor) sample() {
 	}
 	select {
 	case <-i.tickChan:
-		i.avgItems = ewma(float64(i.ingress-i.egress), i.avgItems)
-		i.avgBytes = ewma(float64(i.ingressBytes-i.egressBytes), i.avgBytes)
+		rawItems := i.ingress - i.egress
+		rawBytes := i.ingressBytes - i.egressBytes
+		i.avgItems = ewma(float64(rawItems), i.avgItems)
+		i.avgBytes = ewma(float64(rawBytes), i.avgBytes)
 		i.report()
+		if i.registry != nil {
+			i.registry.setCapacity(i.name, i.instance, i.avgItems, i.avgBytes, rawItems, rawBytes)
+		}
 	default:
 	}
 }

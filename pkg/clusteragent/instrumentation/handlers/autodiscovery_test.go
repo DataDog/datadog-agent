@@ -18,6 +18,7 @@ import (
 	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/instrumentation"
@@ -563,4 +564,59 @@ func TestBuildCELSelector(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestCheckStoreIncrementalHash verifies the incremental configHash maintained by
+// writeConfigs/deleteConfigs.
+func TestCheckStoreIncrementalHash(t *testing.T) {
+	cfg := []integration.Config{{Name: "check"}}
+	write := func(cs *CheckStore, key, uid string, gen int64) {
+		cr := newCR(key, "ns", "Deployment", "app", nil)
+		cr.UID = types.UID(uid)
+		cr.Generation = gen
+		cs.writeConfigs(key, cr, cfg)
+	}
+
+	t.Run("empty store hashes to zero", func(t *testing.T) {
+		require.Equal(t, uint64(0), NewCheckStore().Hash())
+	})
+
+	t.Run("add then delete restores empty hash", func(t *testing.T) {
+		cs := NewCheckStore()
+		write(cs, "a", "uid-a", 1)
+		require.NotEqual(t, uint64(0), cs.Hash())
+		cs.deleteConfigs("a")
+		require.Equal(t, uint64(0), cs.Hash())
+	})
+
+	t.Run("update changes hash and revert restores it", func(t *testing.T) {
+		cs := NewCheckStore()
+		write(cs, "a", "uid-a", 1)
+		write(cs, "b", "uid-b", 1)
+		full := cs.Hash()
+		write(cs, "b", "uid-b", 2) // generation bump
+		require.NotEqual(t, full, cs.Hash())
+		write(cs, "b", "uid-b", 1) // revert
+		require.Equal(t, full, cs.Hash())
+	})
+
+	t.Run("hash is independent of apply order", func(t *testing.T) {
+		cs := NewCheckStore()
+		write(cs, "a", "uid-a", 1)
+		write(cs, "b", "uid-b", 1)
+
+		other := NewCheckStore()
+		write(other, "b", "uid-b", 1)
+		write(other, "a", "uid-a", 1)
+
+		require.Equal(t, cs.Hash(), other.Hash())
+	})
+
+	t.Run("hash is different when same cr has new uid", func(t *testing.T) {
+		cs := NewCheckStore()
+		write(cs, "a", "uid-a", 1)
+		prevHash := cs.Hash()
+		write(cs, "a", "uid-b", 1)
+		require.NotEqual(t, prevHash, cs.Hash())
+	})
 }

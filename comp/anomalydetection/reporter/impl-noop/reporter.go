@@ -5,5 +5,6 @@
 
 // Package noopimpl provides a no-op reporter implementation.
 // Reporters in production register via the anomalydetection_reporters Fx group.
-// This stub satisfies the component structure linter until the real impl lands.
+// This stub satisfies the component structure linter; the real implementation
+// lives in reporter/impl.
 package noopimpl
