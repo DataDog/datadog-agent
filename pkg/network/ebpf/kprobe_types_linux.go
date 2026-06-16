@@ -78,6 +78,7 @@ type Telemetry struct {
 	Protocol_classifier_skipped_fully_classified    uint64
 	Protocol_classifier_skipped_fully_classified_v2 uint64
 	Classification_attempt_histogram                [16][16]uint64
+	Full_classification_attempt_histogram           [16][16]uint64
 	Classification_skip_attempt_histogram           [10]uint64
 }
 type PortBinding struct {
@@ -104,11 +105,11 @@ type ProtocolStack struct {
 	Flags       uint8
 }
 type ProtocolStackWrapper struct {
-	Updated                 uint64
-	Stack                   ProtocolStack
-	Classification_attempts uint16
-	Histogram_stamped       uint8
-	Pad_cgo_0               [1]byte
+	Updated                     uint64
+	Stack                       ProtocolStack
+	Classification_attempts     uint16
+	Histogram_stamped           uint8
+	Full_classification_stamped uint8
 }
 type TLSTags struct {
 	Chosen_version   uint16

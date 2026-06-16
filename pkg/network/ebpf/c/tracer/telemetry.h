@@ -126,6 +126,33 @@ static __always_inline void record_classification_attempt_resolved(__u8 app_prot
     __sync_fetch_and_add(&val->classification_attempt_histogram[proto_idx][bucket_idx], 1);
 }
 
+// record_full_classification_attempt records, into the shadow-evaluation full-classification
+// histogram, that a connection became FULLY classified (is_fully_classified true) after
+// `attempts` classification attempts, indexed by its application-layer protocol low byte.
+// Same verifier discipline as record_classification_attempt_resolved (barrier_var before the
+// mask so the 2D map-value access is provably in range). See the NTWK-684 plan doc.
+static __always_inline void record_full_classification_attempt(__u8 app_proto_num, __u16 attempts) {
+    if (app_proto_num == 0 || app_proto_num >= CLASSIFICATION_APP_PROTO_BUCKETS) {
+        return;
+    }
+    __u16 bucket = attempts;
+    if (bucket >= CLASSIFICATION_MAX_ATTEMPT_BUCKETS) {
+        bucket = CLASSIFICATION_MAX_ATTEMPT_BUCKETS - 1;
+    }
+    __u64 key = 0;
+    telemetry_t *val = bpf_map_lookup_elem(&telemetry, &key);
+    if (val == NULL) {
+        return;
+    }
+    __u8 proto_idx = app_proto_num;
+    __u16 bucket_idx = bucket;
+    barrier_var(proto_idx);
+    barrier_var(bucket_idx);
+    proto_idx &= (CLASSIFICATION_APP_PROTO_BUCKETS - 1);
+    bucket_idx &= (CLASSIFICATION_MAX_ATTEMPT_BUCKETS - 1);
+    __sync_fetch_and_add(&val->full_classification_attempt_histogram[proto_idx][bucket_idx], 1);
+}
+
 // record_classification_skip_attempt records, into the shadow-evaluation skip histogram,
 // that a flow's per-flow classification-attempt counter `a` reached an exact depth in
 // CLASSIFICATION_SKIP_EDGES {2,3,4,5,6,7,8,9,10,100}. The counter increments by exactly 1

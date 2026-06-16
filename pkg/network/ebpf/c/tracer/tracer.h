@@ -166,6 +166,11 @@ typedef struct {
     // Shadow-evaluation histogram: count of connections whose application-layer
     // protocol was first observed resolved on a given attempt, per protocol.
     __u64 classification_attempt_histogram[CLASSIFICATION_APP_PROTO_BUCKETS][CLASSIFICATION_MAX_ATTEMPT_BUCKETS];
+    // Shadow-evaluation histogram: count of connections that became FULLY classified
+    // (is_fully_classified true) on a given attempt, per application-layer protocol.
+    // The v1 early-exit knee — when the classifier can stop. TLS/never-classified flows
+    // never reach is_fully_classified under v1, so by construction they don't appear here.
+    __u64 full_classification_attempt_histogram[CLASSIFICATION_APP_PROTO_BUCKETS][CLASSIFICATION_MAX_ATTEMPT_BUCKETS];
     // Shadow-evaluation histogram: per-flow count of connections whose attempt counter
     // reached each exact depth in CLASSIFICATION_SKIP_EDGES {2,3,4,5,6,7,8,9,10,100}.
     // bucket N = flows that reached >= N attempts (flows a cap of N would cut off).

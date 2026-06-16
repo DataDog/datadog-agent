@@ -168,6 +168,17 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
         protocol_stack_wrapper->histogram_stamped = 1;
     }
 
+    // Shadow evaluation: record, once per flow, the attempt at which the flow became
+    // FULLY classified (is_fully_classified true) — the v1 early-exit knee, per protocol.
+    // Placed before the v1 return below so we observe the transition. TLS/never-classified
+    // flows never satisfy is_fully_classified under v1, so they never stamp here.
+    if (protocol_stack_wrapper && !protocol_stack_wrapper->full_classification_stamped &&
+        is_fully_classified(protocol_stack)) {
+        record_full_classification_attempt(protocol_stack->layer_application,
+                                           protocol_stack_wrapper->classification_attempts);
+        protocol_stack_wrapper->full_classification_stamped = 1;
+    }
+
     // Shadow evaluation of the candidate v2 predicate: count packets where v2
     // (v1 OR encryption-layer-known) would short-circuit but v1 did not — i.e.
     // the TLS-flow waste v1 misses. Counted, not enforced (no early return);

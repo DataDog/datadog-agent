@@ -94,11 +94,15 @@ type EbpfTracerTelemetryData struct {
 	// the attempt on which each connection's application-layer protocol was first
 	// observed resolved, labeled by protocol and attempt bucket. See the NTWK-684 plan doc.
 	classificationAttemptHistogram *prometheus.Desc
-	ongoingConnectPidCleaned       telemetryComponent.Counter
-	PidCollisions                  *telemetryComponent.StatCounterWrapper
-	iterationDups                  telemetryComponent.Counter
-	iterationAborts                telemetryComponent.Counter
-	sslCertMissed                  telemetryComponent.Counter
+	// fullClassificationAttemptHistogram is the shadow-evaluation histogram of the attempt
+	// on which each connection became FULLY classified (is_fully_classified), by protocol —
+	// the v1 early-exit knee. See the NTWK-684 plan doc.
+	fullClassificationAttemptHistogram *prometheus.Desc
+	ongoingConnectPidCleaned           telemetryComponent.Counter
+	PidCollisions                      *telemetryComponent.StatCounterWrapper
+	iterationDups                      telemetryComponent.Counter
+	iterationAborts                    telemetryComponent.Counter
+	sslCertMissed                      telemetryComponent.Counter
 
 	mu sync.Mutex
 
@@ -141,6 +145,7 @@ var EbpfTracerTelemetry = EbpfTracerTelemetryData{
 	prometheus.NewDesc(connTracerModuleName+"__protocol_classifier_skipped_max_attempts", "Shadow evaluation: number of flows (counted once each) that reached at least {max_attempts} classification attempts — i.e. flows a max-attempts cap of that value would cut off (counted, not enforced). One series per candidate cap N in {2,3,4,5,6,7,8,9,10,100}; the N=100 series means >=100. Env-independent — measures every candidate cap in a single run.", []string{"max_attempts"}, nil),
 	prometheus.NewDesc(connTracerModuleName+"__protocol_classifier_skipped_fully_classified_v2", "Counter measuring the number of times the candidate v2 predicate (v1 OR encryption-layer-known) WOULD have short-circuited but v1 did not (shadow evaluation: counted but not enforced). Captures TLS-flow waste that v1 misses.", nil, nil),
 	prometheus.NewDesc(connTracerModuleName+"__classification_attempt_histogram", "Shadow-evaluation histogram: count of connections whose application-layer protocol was first observed resolved on a given classification attempt, by protocol. The 'attempts' label is bucketed; the top bucket (15) saturates (15 or more). Low-bucket calibration is approximate (lag-by-one detection + lazy per-flow state creation) so use for knee/relative analysis, not exact single-attempt counts.", []string{"protocol", "attempts"}, nil),
+	prometheus.NewDesc(connTracerModuleName+"__full_classification_attempt_histogram", "Shadow-evaluation histogram: count of connections that became FULLY classified (is_fully_classified) on a given classification attempt, by protocol — the v1 early-exit knee. TLS/never-classified flows never reach is_fully_classified under v1, so they do not appear. Same 'attempts' bucketing and ±1 low-bucket calibration caveat as classification_attempt_histogram.", []string{"protocol", "attempts"}, nil),
 	telemetryimpl.GetCompatComponent().NewCounter(connTracerModuleName, "ongoing_connect_pid_cleaned", []string{}, "Counter measuring the number of tcp_ongoing_connect_pid entries cleaned in userspace"),
 	telemetryComponent.NewStatCounterWrapper(telemetryimpl.GetCompatComponent(), connTracerModuleName, "pid_collisions", []string{}, "Counter measuring number of process collisions"),
 	telemetryimpl.GetCompatComponent().NewCounter(connTracerModuleName, "iteration_dups", []string{}, "Counter measuring the number of connections iterated more than once"),
@@ -813,6 +818,7 @@ func (t *ebpfTracer) Describe(ch chan<- *prometheus.Desc) {
 	ch <- EbpfTracerTelemetry.classificationSkipAttemptHistogram
 	ch <- EbpfTracerTelemetry.protocolClassifierSkippedFullyClassifiedV2
 	ch <- EbpfTracerTelemetry.classificationAttemptHistogram
+	ch <- EbpfTracerTelemetry.fullClassificationAttemptHistogram
 }
 
 // Collect returns the current state of all metrics of the collector
@@ -872,13 +878,12 @@ func (t *ebpfTracer) Collect(ch chan<- prometheus.Metric) {
 	EbpfTracerTelemetry.lastTCPSynRetransmit = int64(ebpfTelemetry.Tcp_syn_retransmit)
 	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.tcpSynRetransmit, prometheus.CounterValue, float64(delta))
 
-	delta = int64(ebpfTelemetry.Protocol_classifier_calls) - EbpfTracerTelemetry.lastProtocolClassifierCalls
-	EbpfTracerTelemetry.lastProtocolClassifierCalls = int64(ebpfTelemetry.Protocol_classifier_calls)
-	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.protocolClassifierCalls, prometheus.CounterValue, float64(delta))
-
-	delta = int64(ebpfTelemetry.Protocol_classifier_skipped_fully_classified) - EbpfTracerTelemetry.lastProtocolClassifierSkippedFullyClassified
-	EbpfTracerTelemetry.lastProtocolClassifierSkippedFullyClassified = int64(ebpfTelemetry.Protocol_classifier_skipped_fully_classified)
-	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.protocolClassifierSkippedFullyClassified, prometheus.CounterValue, float64(delta))
+	// Shadow-evaluation counters are emitted as ABSOLUTE cumulative values (not per-scrape
+	// deltas like the legacy counters above), so they are directly comparable to the
+	// shadow histograms (which are also absolute). Mixing delta scalars with absolute
+	// histograms previously made cross-counter ratios invalid.
+	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.protocolClassifierCalls, prometheus.CounterValue, float64(ebpfTelemetry.Protocol_classifier_calls))
+	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.protocolClassifierSkippedFullyClassified, prometheus.CounterValue, float64(ebpfTelemetry.Protocol_classifier_skipped_fully_classified))
 
 	// Shadow-evaluation max-attempts skip histogram: emit one series per candidate cap N.
 	// Each kernel bucket already counts flows once (exact-match on the monotonic per-flow
@@ -892,9 +897,7 @@ func (t *ebpfTracer) Collect(ch chan<- prometheus.Metric) {
 		ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.classificationSkipAttemptHistogram, prometheus.CounterValue, float64(ebpfTelemetry.Classification_skip_attempt_histogram[i]), strconv.Itoa(n))
 	}
 
-	delta = int64(ebpfTelemetry.Protocol_classifier_skipped_fully_classified_v2) - EbpfTracerTelemetry.lastProtocolClassifierSkippedFullyClassifiedV2
-	EbpfTracerTelemetry.lastProtocolClassifierSkippedFullyClassifiedV2 = int64(ebpfTelemetry.Protocol_classifier_skipped_fully_classified_v2)
-	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.protocolClassifierSkippedFullyClassifiedV2, prometheus.CounterValue, float64(delta))
+	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.protocolClassifierSkippedFullyClassifiedV2, prometheus.CounterValue, float64(ebpfTelemetry.Protocol_classifier_skipped_fully_classified_v2))
 
 	// Shadow-evaluation: emit the per-protocol classification-attempt histogram. Each
 	// cell is the cumulative count of connections whose application-layer protocol was
@@ -912,6 +915,28 @@ func (t *ebpfTracer) Collect(ch chan<- prometheus.Metric) {
 			}
 			ch <- prometheus.MustNewConstMetric(
 				EbpfTracerTelemetry.classificationAttemptHistogram,
+				prometheus.CounterValue,
+				float64(count),
+				protoName,
+				strconv.Itoa(bucket),
+			)
+		}
+	}
+
+	// Shadow-evaluation: emit the per-protocol full-classification histogram — cumulative
+	// count of connections that became fully classified (is_fully_classified) on a given
+	// attempt, by application-layer protocol. The v1 early-exit knee. Absolute cumulative.
+	for protoNum := 1; protoNum < len(ebpfTelemetry.Full_classification_attempt_histogram); protoNum++ {
+		protoName := protocols.Application(uint8(protoNum)).String()
+		if protoName == protocols.Unknown.String() || protoName == "Invalid" {
+			continue
+		}
+		for bucket, count := range ebpfTelemetry.Full_classification_attempt_histogram[protoNum] {
+			if count == 0 {
+				continue
+			}
+			ch <- prometheus.MustNewConstMetric(
+				EbpfTracerTelemetry.fullClassificationAttemptHistogram,
 				prometheus.CounterValue,
 				float64(count),
 				protoName,
