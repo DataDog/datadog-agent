@@ -1599,6 +1599,15 @@ func forwarder(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("forwarder_apikey_validation_interval", DefaultAPIKeyValidationInterval) // in minutes
 	config.BindEnvAndSetDefault("forwarder_num_workers", 1)
 	config.BindEnvAndSetDefault("forwarder_stop_timeout", 2)
+	// forwarder_stop_wait_for_inflight controls whether Worker.Stop waits for
+	// in-flight HTTP transactions to finish before returning (true) or cancels
+	// them immediately (false). serverless-init sets this to true via
+	// preloadEarly so that the final-flush HTTP request is never aborted by a
+	// Stop call. Only safe when the process is about to exit: on
+	// forwarder_stop_timeout overrun the in-flight HTTP goroutines are
+	// leaked (workerCtx has no independent cancellation), so a long-running
+	// process that flips this flag will accumulate goroutines on every Stop.
+	config.BindEnvAndSetDefault("forwarder_stop_wait_for_inflight", false)
 	config.BindEnvAndSetDefault("forwarder_max_concurrent_requests", 10)
 	// Forwarder retry settings
 	config.BindEnvAndSetDefault("forwarder_backoff_factor", 2)
