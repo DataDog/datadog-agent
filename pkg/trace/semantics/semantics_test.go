@@ -15,10 +15,11 @@ import (
 // testRegistry is a shared, read-only embedded registry for lookup tests.
 // NewEmbeddedRegistry parses the embedded mappings JSON on every call, so tests
 // that only read from the registry reuse this single instance instead of
-// re-parsing. Tests that mutate the registry must build their own instance.
-var testRegistry = mustEmbeddedRegistry()
+// re-parsing. It is typed as the Registry interface so callers cannot reach the
+// internal fields. Tests that mutate the registry must build their own instance.
+var testRegistry Registry = mustEmbeddedRegistry()
 
-func mustEmbeddedRegistry() *EmbeddedRegistry {
+func mustEmbeddedRegistry() Registry {
 	r, err := NewEmbeddedRegistry()
 	if err != nil {
 		panic(err)
