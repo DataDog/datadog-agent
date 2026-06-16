@@ -1,19 +1,20 @@
 use std::path::Path;
 
 use anyhow::{Context, Result};
-use windows_sys::Win32::Foundation::{CloseHandle, INVALID_HANDLE_VALUE};
+use windows_sys::Win32::Foundation::{CloseHandle, FILETIME, INVALID_HANDLE_VALUE};
 use windows_sys::Win32::System::Diagnostics::ToolHelp::{
     CreateToolhelp32Snapshot, PROCESSENTRY32W, Process32FirstW, Process32NextW, TH32CS_SNAPPROCESS,
 };
+use windows_sys::Win32::System::ProcessStatus::{GetProcessIoCounters, IO_COUNTERS};
 use windows_sys::Win32::System::Threading::{
-    OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION, QueryFullProcessImageNameW,
+    GetProcessTimes, OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION, QueryFullProcessImageNameW,
 };
 use windows_sys::Win32::UI::WindowsAndMessaging::{
     GetForegroundWindow, GetWindowTextLengthW, GetWindowTextW, GetWindowThreadProcessId,
 };
 
 use crate::desktop::DesktopDetector;
-use crate::desktop::matcher::{ProcessInfo, ProcessSnapshot};
+use crate::desktop::matcher::{ProcessActivity, ProcessInfo, ProcessSnapshot};
 
 pub struct WindowsDesktopDetector;
 
@@ -32,6 +33,7 @@ impl DesktopDetector for WindowsDesktopDetector {
         }
 
         let exe_path = query_process_image_path(pid).ok();
+        let process_activity = query_process_activity(pid).ok();
         let exe_name = exe_path
             .as_deref()
             .and_then(exe_name_from_path)
@@ -58,6 +60,12 @@ impl DesktopDetector for WindowsDesktopDetector {
             process_group_id: None,
             terminal_foreground_process_group_id: None,
             has_controlling_terminal: false,
+            terminal_name: None,
+            terminal_access_time_seconds: None,
+            terminal_activity_age_seconds: None,
+            process_activity,
+            process_activity_delta: None,
+            process_read_write_activity_observed: false,
         }))
     }
 
@@ -87,6 +95,7 @@ impl DesktopDetector for WindowsDesktopDetector {
         while ok != 0 {
             let exe_name = utf16_to_string(&entry.szExeFile);
             if !exe_name.is_empty() {
+                let process_activity = query_process_activity(entry.th32ProcessID).ok();
                 processes.push(ProcessInfo {
                     pid: entry.th32ProcessID,
                     parent_pid: entry.th32ParentProcessID,
@@ -100,6 +109,12 @@ impl DesktopDetector for WindowsDesktopDetector {
                     process_group_id: None,
                     terminal_foreground_process_group_id: None,
                     has_controlling_terminal: false,
+                    terminal_name: None,
+                    terminal_access_time_seconds: None,
+                    terminal_activity_age_seconds: None,
+                    process_activity,
+                    process_activity_delta: None,
+                    process_read_write_activity_observed: false,
                 });
             }
             ok = unsafe { Process32NextW(snapshot, &mut entry) };
@@ -135,6 +150,73 @@ fn query_process_image_path(pid: u32) -> Result<String> {
     }
 
     Ok(String::from_utf16_lossy(&buffer[..size as usize]))
+}
+
+/// Query process read/write counters and CPU timing for activity detection.
+fn query_process_activity(pid: u32) -> Result<ProcessActivity> {
+    let handle = unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid) };
+    if handle.is_null() {
+        return Err(std::io::Error::last_os_error()).context("OpenProcess failed");
+    }
+    let _guard = HandleGuard(handle);
+
+    let mut creation_time = FILETIME {
+        dwLowDateTime: 0,
+        dwHighDateTime: 0,
+    };
+    let mut exit_time = FILETIME {
+        dwLowDateTime: 0,
+        dwHighDateTime: 0,
+    };
+    let mut kernel_time = FILETIME {
+        dwLowDateTime: 0,
+        dwHighDateTime: 0,
+    };
+    let mut user_time = FILETIME {
+        dwLowDateTime: 0,
+        dwHighDateTime: 0,
+    };
+    let ok = unsafe {
+        GetProcessTimes(
+            handle,
+            &mut creation_time,
+            &mut exit_time,
+            &mut kernel_time,
+            &mut user_time,
+        )
+    };
+    if ok == 0 {
+        return Err(std::io::Error::last_os_error()).context("GetProcessTimes failed");
+    }
+
+    let mut counters = IO_COUNTERS {
+        ReadOperationCount: 0,
+        WriteOperationCount: 0,
+        OtherOperationCount: 0,
+        ReadTransferCount: 0,
+        WriteTransferCount: 0,
+        OtherTransferCount: 0,
+    };
+    let ok = unsafe { GetProcessIoCounters(handle, &mut counters) };
+    if ok == 0 {
+        return Err(std::io::Error::last_os_error()).context("GetProcessIoCounters failed");
+    }
+
+    Ok(ProcessActivity {
+        process_start_key: filetime_to_u64(creation_time),
+        read_operation_count: Some(counters.ReadOperationCount),
+        write_operation_count: Some(counters.WriteOperationCount),
+        other_operation_count: Some(counters.OtherOperationCount),
+        read_bytes: Some(counters.ReadTransferCount),
+        write_bytes: Some(counters.WriteTransferCount),
+        other_bytes: Some(counters.OtherTransferCount),
+        user_time_ns: Some(filetime_to_u64(user_time).saturating_mul(100)),
+        system_time_ns: Some(filetime_to_u64(kernel_time).saturating_mul(100)),
+    })
+}
+
+fn filetime_to_u64(value: FILETIME) -> u64 {
+    ((value.dwHighDateTime as u64) << 32) | value.dwLowDateTime as u64
 }
 
 /// Return the executable basename from a full image path.

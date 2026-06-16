@@ -46,8 +46,6 @@ pub struct AiProcessConfig {
     #[serde(default)]
     pub match_scope: AiProcessMatchScope,
     #[serde(default)]
-    pub window_title_hints: Vec<String>,
-    #[serde(default)]
     pub approved: bool,
     #[serde(default)]
     pub secondary: bool,
@@ -70,6 +68,11 @@ pub struct DesktopMonitoringConfig {
     pub debug: u8,
     #[serde(default = "default_desktop_monitoring_poll_interval_seconds")]
     pub poll_interval_seconds: u64,
+    #[serde(
+        default = "default_process_activity_window_seconds",
+        alias = "terminal_activity_window_seconds"
+    )]
+    pub process_activity_window_seconds: u64,
     #[serde(default = "default_ai_process_names")]
     pub ai_process_names: Vec<AiProcessConfig>,
     #[serde(default = "default_host_process_names")]
@@ -89,6 +92,10 @@ fn default_desktop_monitoring_enabled() -> bool {
 
 fn default_desktop_monitoring_poll_interval_seconds() -> u64 {
     60
+}
+
+fn default_process_activity_window_seconds() -> u64 {
+    600
 }
 
 fn default_ai_process_names() -> Vec<AiProcessConfig> {
@@ -120,6 +127,7 @@ fn disabled_desktop_monitoring_config() -> DesktopMonitoringConfig {
         enabled: false,
         debug: 0,
         poll_interval_seconds: default_desktop_monitoring_poll_interval_seconds(),
+        process_activity_window_seconds: default_process_activity_window_seconds(),
         ai_process_names: Vec::new(),
         host_process_names: Vec::new(),
     }
@@ -465,13 +473,14 @@ mod tests {
         assert!(
             cfg.ai_process_names
                 .iter()
-                .any(|process| process.tool == "Visual Studio Code")
+                .any(|process| process.tool == "Cursor")
         );
         assert!(
             cfg.host_process_names
                 .iter()
                 .any(|process| process == "Code")
         );
+        assert_eq!(cfg.process_activity_window_seconds, 600);
     }
 
     #[test]
@@ -505,6 +514,42 @@ desktop_monitoring:
                 .expect("desktop monitoring should be present")
                 .debug,
             2
+        );
+    }
+
+    #[test]
+    fn desktop_monitoring_process_activity_window_can_be_configured_from_yaml() {
+        let cfg: AiUsageNativeHostFile = serde_yaml::from_str(
+            r#"
+desktop_monitoring:
+  process_activity_window_seconds: 300
+"#,
+        )
+        .expect("desktop monitoring config should parse");
+
+        assert_eq!(
+            cfg.desktop_monitoring
+                .expect("desktop monitoring should be present")
+                .process_activity_window_seconds,
+            300
+        );
+    }
+
+    #[test]
+    fn desktop_monitoring_accepts_legacy_terminal_activity_window_key() {
+        let cfg: AiUsageNativeHostFile = serde_yaml::from_str(
+            r#"
+desktop_monitoring:
+  terminal_activity_window_seconds: 300
+"#,
+        )
+        .expect("desktop monitoring config should parse");
+
+        assert_eq!(
+            cfg.desktop_monitoring
+                .expect("desktop monitoring should be present")
+                .process_activity_window_seconds,
+            300
         );
     }
 }

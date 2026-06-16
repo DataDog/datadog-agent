@@ -57,16 +57,16 @@ On Windows and macOS, each poll:
 1. Reads the foreground window.
 2. Resolves the foreground process image name.
 3. Directly matches the foreground process against the configured AI process lookup table.
-4. If the foreground process is a configured host process such as a terminal or IDE, scans the process tree for AI CLI descendants. Windows uses foreground window title hints as a best-effort active-tab signal. macOS prefers the controlling pseudo-terminal foreground process group when available, which avoids matching AI CLIs in inactive tabs or panes.
+4. If the foreground process is a configured host process such as a terminal or IDE, scans the process tree for AI CLI descendants. Hosted candidates emit only after their process-level read/write counters advance since the previous poll; the first poll initializes a baseline.
 5. Sends at most one observed AI usage event for the poll through the same Agent EVP path used by Chrome mode.
 
 Relevant config keys under `desktop_monitoring`:
 
 - `enabled`: disables standalone monitoring when set to `false`.
 - `poll_interval_seconds`: poll interval, default `60`.
-- `ai_process_names`: direct AI app/CLI lookup table. Defaults are loaded from `ai_usage_native_host.yaml.example` and include Cursor, Visual Studio Code, Claude/Claude Code, Claude Cowork service, Codex, OpenClaw, Hermes Agent, and additional Agent Skills client candidates.
+- `ai_process_names`: direct AI app/CLI lookup table. Defaults are loaded from `ai_usage_native_host.yaml.example` and include Cursor, Claude/Claude Code, Claude Cowork service, Codex, OpenClaw, Hermes Agent, and additional Agent Skills client candidates.
 - `ai_process_names[].match_scope`: controls whether an entry applies to direct foreground processes (`direct`), hosted child processes (`hosted_child`), or both (`both`). Matching is case-insensitive, so duplicate process names that only differ by case are unnecessary.
-- `ai_process_names[].window_title_hints`: lowercase title fragments used to confirm hosted CLI matches from terminal multiplexers such as Windows Terminal.
+- `process_activity_window_seconds`: read/write activity observation window, default `600`.
 - `host_process_names`: foreground host lookup table for terminals and IDEs that may contain AI CLI children.
 
 Broad runtime names such as `node.exe`/`node`, `python.exe`/`python`, and `conhost.exe` are not direct AI-tool matches by default because they need command-line or path inspection to avoid false positives.
@@ -75,7 +75,7 @@ Desktop events use the extension-compatible field semantics: tool display name, 
 
 On Windows, `--desktop-monitor` detaches from the scheduler-created console after startup. When file logging is enabled for diagnostics or startup config errors need to be reported, logs are written to `C:\ProgramData\Datadog\logs\ai-usage-desktop-monitor.log`, falling back to `%LOCALAPPDATA%\Datadog\logs\ai-usage-desktop-monitor.log` if the ProgramData log path is unavailable. Each record includes the process ID and user. The log rotates at 10 MB with one `.1` backup.
 
-On macOS, foreground detection uses the frontmost visible CoreGraphics window owner. Terminal-hosted CLI detection uses libproc process metadata and treats a process as active in its terminal session when it has a controlling terminal and its process group matches that terminal's foreground process group. When file logging is enabled for diagnostics or startup config errors need to be reported, logs are written to `$DD_LOG_DIR` when set, then `/opt/datadog-agent/logs/ai-usage-desktop-monitor.log`, then `~/Library/Logs/Datadog/ai-usage-desktop-monitor.log`.
+On macOS, foreground detection uses the frontmost visible CoreGraphics window owner. Terminal metadata remains available in diagnostics, but hosted CLI detection is driven by process read/write counter deltas. When file logging is enabled for diagnostics or startup config errors need to be reported, logs are written to `$DD_LOG_DIR` when set, then `/opt/datadog-agent/logs/ai-usage-desktop-monitor.log`, then `~/Library/Logs/Datadog/ai-usage-desktop-monitor.log`.
 
 ## Protocol
 

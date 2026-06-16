@@ -1,16 +1,18 @@
 use std::collections::{HashSet, VecDeque};
 use std::ffi::{CStr, c_void};
+use std::fs;
+use std::os::unix::fs::MetadataExt;
 use std::path::Path;
 use std::process::Command;
 use std::ptr;
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use anyhow::Result;
 use libc::{c_char, c_int, pid_t};
 
 use crate::desktop::DesktopDetector;
-use crate::desktop::matcher::{ProcessEdge, ProcessInfo, ProcessSnapshot};
+use crate::desktop::matcher::{ProcessActivity, ProcessEdge, ProcessInfo, ProcessSnapshot};
 
 const PROC_ALL_PIDS: u32 = 1;
 const K_CG_WINDOW_LIST_OPTION_ON_SCREEN_ONLY: u32 = 1;
@@ -28,14 +30,51 @@ type CFNumberRef = *const c_void;
 type CFIndex = isize;
 type Boolean = u8;
 type CGWindowID = u32;
+const RUSAGE_INFO_V2: c_int = 2;
+
+#[repr(C)]
+#[derive(Default)]
+struct RUsageInfoV2 {
+    ri_uuid: [u8; 16],
+    ri_user_time: u64,
+    ri_system_time: u64,
+    ri_pkg_idle_wkups: u64,
+    ri_interrupt_wkups: u64,
+    ri_pageins: u64,
+    ri_wired_size: u64,
+    ri_resident_size: u64,
+    ri_phys_footprint: u64,
+    ri_proc_start_abstime: u64,
+    ri_proc_exit_abstime: u64,
+    ri_child_user_time: u64,
+    ri_child_system_time: u64,
+    ri_child_pkg_idle_wkups: u64,
+    ri_child_interrupt_wkups: u64,
+    ri_child_pageins: u64,
+    ri_child_elapsed_abstime: u64,
+    ri_diskio_bytesread: u64,
+    ri_diskio_byteswritten: u64,
+}
+
+unsafe extern "C" {
+    fn devname(dev: libc::dev_t, type_: libc::mode_t) -> *mut c_char;
+    fn proc_pid_rusage(pid: c_int, flavor: c_int, buffer: *mut c_void) -> c_int;
+}
 
 #[link(name = "CoreGraphics", kind = "framework")]
 unsafe extern "C" {
     fn CGWindowListCopyWindowInfo(option: u32, relative_to_window: CGWindowID) -> CFArrayRef;
+    fn CGWindowListCreateDescriptionFromArray(window_array: CFArrayRef) -> CFArrayRef;
 }
 
 #[link(name = "CoreFoundation", kind = "framework")]
 unsafe extern "C" {
+    fn CFArrayCreate(
+        allocator: *const c_void,
+        values: *const *const c_void,
+        num_values: CFIndex,
+        callbacks: *const c_void,
+    ) -> CFArrayRef;
     fn CFArrayGetCount(the_array: CFArrayRef) -> CFIndex;
     fn CFArrayGetValueAtIndex(the_array: CFArrayRef, idx: CFIndex) -> *const c_void;
     fn CFDictionaryGetValueIfPresent(
@@ -71,6 +110,13 @@ impl DesktopDetector for MacosDesktopDetector {
         let exe_path = query_process_path(window.pid);
         let argv = query_process_args(window.pid);
         let argv0 = argv.first().cloned();
+        let terminal_name = bsd_info.as_ref().and_then(terminal_name);
+        let terminal_access_time_seconds = terminal_name
+            .as_deref()
+            .and_then(terminal_access_time_seconds);
+        let terminal_activity_age_seconds =
+            terminal_access_time_seconds.and_then(terminal_activity_age_seconds);
+        let process_activity = process_activity(window.pid);
         let exe_name = exe_path
             .as_deref()
             .and_then(exe_name_from_path)
@@ -95,6 +141,12 @@ impl DesktopDetector for MacosDesktopDetector {
                 .as_ref()
                 .and_then(terminal_foreground_process_group_id),
             has_controlling_terminal: bsd_info.as_ref().is_some_and(has_controlling_terminal),
+            terminal_name,
+            terminal_access_time_seconds,
+            terminal_activity_age_seconds,
+            process_activity,
+            process_activity_delta: None,
+            process_read_write_activity_observed: false,
         }))
     }
 
@@ -172,6 +224,7 @@ impl Drop for CFObject {
 
 /// Return the first on-screen layer-0 window as the foreground application window.
 fn frontmost_window() -> Option<ForegroundWindow> {
+    let window_number_key = CFStringKey::new(c"kCGWindowNumber")?;
     let owner_pid_key = CFStringKey::new(c"kCGWindowOwnerPID")?;
     let owner_name_key = CFStringKey::new(c"kCGWindowOwnerName")?;
     let window_name_key = CFStringKey::new(c"kCGWindowName")?;
@@ -207,14 +260,58 @@ fn frontmost_window() -> Option<ForegroundWindow> {
             continue;
         }
 
+        let window_id = dictionary_i32(window, &window_number_key).unwrap_or_default() as u32;
+        let title = non_empty_string(dictionary_string(window, &window_name_key))
+            .or_else(|| window_title_from_description(window_id, &window_name_key));
+
         return Some(ForegroundWindow {
             pid: pid as u32,
             owner_name: dictionary_string(window, &owner_name_key),
-            title: dictionary_string(window, &window_name_key),
+            title,
         });
     }
 
     None
+}
+
+/// Query CoreGraphics for one window's description and return its title, if published.
+fn window_title_from_description(
+    window_id: CGWindowID,
+    window_name_key: &CFStringKey,
+) -> Option<String> {
+    if window_id == 0 {
+        return None;
+    }
+
+    let window_array = unsafe {
+        CFArrayCreate(
+            ptr::null(),
+            (&window_id as *const CGWindowID).cast(),
+            1,
+            ptr::null(),
+        )
+    };
+    if window_array.is_null() {
+        return None;
+    }
+    let _window_array_guard = CFObject(window_array);
+
+    let window_list = unsafe { CGWindowListCreateDescriptionFromArray(window_array) };
+    if window_list.is_null() {
+        return None;
+    }
+    let _window_list_guard = CFObject(window_list);
+
+    if unsafe { CFArrayGetCount(window_list) } <= 0 {
+        return None;
+    }
+
+    let window = unsafe { CFArrayGetValueAtIndex(window_list, 0) as CFDictionaryRef };
+    if window.is_null() {
+        return None;
+    }
+
+    non_empty_string(dictionary_string(window, window_name_key))
 }
 
 fn dictionary_i32(dictionary: CFDictionaryRef, key: &CFStringKey) -> Option<i32> {
@@ -233,6 +330,10 @@ fn dictionary_i32(dictionary: CFDictionaryRef, key: &CFStringKey) -> Option<i32>
 fn dictionary_string(dictionary: CFDictionaryRef, key: &CFStringKey) -> Option<String> {
     let value = dictionary_value(dictionary, key)?;
     cf_string_to_string(value as CFStringRef)
+}
+
+fn non_empty_string(value: Option<String>) -> Option<String> {
+    value.filter(|value| !value.trim().is_empty())
 }
 
 fn dictionary_value(dictionary: CFDictionaryRef, key: &CFStringKey) -> Option<*const c_void> {
@@ -369,6 +470,13 @@ fn process_info_from_pid(pid: pid_t) -> Option<ProcessInfo> {
     let exe_path = query_process_path(pid as u32);
     let argv = query_process_args(pid as u32);
     let argv0 = argv.first().cloned();
+    let terminal_name = terminal_name(&info);
+    let terminal_access_time_seconds = terminal_name
+        .as_deref()
+        .and_then(terminal_access_time_seconds);
+    let terminal_activity_age_seconds =
+        terminal_access_time_seconds.and_then(terminal_activity_age_seconds);
+    let process_activity = process_activity(pid as u32);
     let exe_name = exe_path
         .as_deref()
         .and_then(exe_name_from_path)
@@ -387,6 +495,12 @@ fn process_info_from_pid(pid: pid_t) -> Option<ProcessInfo> {
         process_group_id: Some(info.pbi_pgid),
         terminal_foreground_process_group_id: terminal_foreground_process_group_id(&info),
         has_controlling_terminal: has_controlling_terminal(&info),
+        terminal_name,
+        terminal_access_time_seconds,
+        terminal_activity_age_seconds,
+        process_activity,
+        process_activity_delta: None,
+        process_read_write_activity_observed: false,
     })
 }
 
@@ -485,6 +599,32 @@ fn process_bsd_comm(info: &libc::proc_bsdinfo) -> Option<String> {
     c_string_from_ptr(info.pbi_comm.as_ptr())
 }
 
+fn process_activity(pid: u32) -> Option<ProcessActivity> {
+    let mut usage = RUsageInfoV2::default();
+    let result = unsafe {
+        proc_pid_rusage(
+            pid as c_int,
+            RUSAGE_INFO_V2,
+            (&mut usage as *mut RUsageInfoV2).cast(),
+        )
+    };
+    if result != 0 {
+        return None;
+    }
+
+    Some(ProcessActivity {
+        process_start_key: usage.ri_proc_start_abstime,
+        read_operation_count: None,
+        write_operation_count: None,
+        other_operation_count: None,
+        read_bytes: Some(usage.ri_diskio_bytesread),
+        write_bytes: Some(usage.ri_diskio_byteswritten),
+        other_bytes: None,
+        user_time_ns: Some(usage.ri_user_time),
+        system_time_ns: Some(usage.ri_system_time),
+    })
+}
+
 fn c_string_from_ptr(ptr: *const c_char) -> Option<String> {
     if ptr.is_null() {
         return None;
@@ -540,6 +680,35 @@ fn has_controlling_terminal(info: &libc::proc_bsdinfo) -> bool {
     info.e_tdev != 0 && info.e_tdev != u32::MAX
 }
 
+/// Return the controlling terminal device name, for example `ttys009`.
+fn terminal_name(info: &libc::proc_bsdinfo) -> Option<String> {
+    if !has_controlling_terminal(info) {
+        return None;
+    }
+
+    let name = unsafe { devname(info.e_tdev as libc::dev_t, libc::S_IFCHR) };
+    c_string_from_ptr(name)
+}
+
+/// Return the tty device node's last access timestamp in Unix seconds.
+fn terminal_access_time_seconds(terminal_name: &str) -> Option<u64> {
+    let metadata = fs::metadata(format!("/dev/{terminal_name}")).ok()?;
+    terminal_access_time_seconds_from_atime(metadata.atime())
+}
+
+fn terminal_access_time_seconds_from_atime(atime: i64) -> Option<u64> {
+    if atime < 0 {
+        return None;
+    }
+
+    Some(atime as u64)
+}
+
+fn terminal_activity_age_seconds(access_time_seconds: u64) -> Option<u64> {
+    let now = SystemTime::now().duration_since(UNIX_EPOCH).ok()?.as_secs();
+    Some(now.saturating_sub(access_time_seconds))
+}
+
 /// Return the terminal foreground process group ID when terminal state is available.
 fn terminal_foreground_process_group_id(info: &libc::proc_bsdinfo) -> Option<u32> {
     if has_controlling_terminal(info) && info.e_tpgid != 0 && info.e_tpgid != u32::MAX {
@@ -581,5 +750,20 @@ system/com.datadoghq.agent = {
 }
 "#
         ));
+    }
+
+    #[test]
+    fn terminal_activity_age_uses_access_timestamp() {
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system clock should be after epoch")
+            .as_secs() as i64;
+
+        let access_time = terminal_access_time_seconds_from_atime(now - 5)
+            .expect("positive access timestamp should parse");
+        let age = terminal_activity_age_seconds(access_time)
+            .expect("positive timestamps should produce an age");
+
+        assert!(age <= 5);
     }
 }

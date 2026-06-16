@@ -17,6 +17,37 @@ pub struct ProcessInfo {
     pub process_group_id: Option<u32>,
     pub terminal_foreground_process_group_id: Option<u32>,
     pub has_controlling_terminal: bool,
+    pub terminal_name: Option<String>,
+    pub terminal_access_time_seconds: Option<u64>,
+    pub terminal_activity_age_seconds: Option<u64>,
+    pub process_activity: Option<ProcessActivity>,
+    pub process_activity_delta: Option<ProcessActivityDelta>,
+    pub process_read_write_activity_observed: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProcessActivity {
+    pub process_start_key: u64,
+    pub read_operation_count: Option<u64>,
+    pub write_operation_count: Option<u64>,
+    pub other_operation_count: Option<u64>,
+    pub read_bytes: Option<u64>,
+    pub write_bytes: Option<u64>,
+    pub other_bytes: Option<u64>,
+    pub user_time_ns: Option<u64>,
+    pub system_time_ns: Option<u64>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ProcessActivityDelta {
+    pub read_operation_count: Option<u64>,
+    pub write_operation_count: Option<u64>,
+    pub other_operation_count: Option<u64>,
+    pub read_bytes: Option<u64>,
+    pub write_bytes: Option<u64>,
+    pub other_bytes: Option<u64>,
+    pub user_time_ns: Option<u64>,
+    pub system_time_ns: Option<u64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -76,10 +107,6 @@ pub fn detect_ai_usage(
     } else {
         Vec::new()
     };
-    let has_terminal_foreground_signal = descendants
-        .iter()
-        .any(|process| process.terminal_foreground_process_group_id.is_some());
-
     if let Some(tool) = find_ai_process_for_location(
         foreground,
         MatchLocation::ForegroundRoot,
@@ -94,29 +121,11 @@ pub fn detect_ai_usage(
         &config.ai_process_names,
     );
     for process in descendants {
-        if has_terminal_foreground_signal && !is_in_terminal_foreground_group(process) {
-            continue;
-        }
         if let Some(tool) = ai_candidates.get(&process.pid) {
-            if foreground_has_title(foreground)
-                && !foreground_title_matches_non_empty_tool_hint(foreground, tool)
-            {
+            if !process.process_read_write_activity_observed {
                 continue;
             }
             return Some(detection_from_match(foreground, process, tool));
-        }
-    }
-
-    if foreground_is_host && foreground_has_title(foreground) {
-        for process in &snapshot.processes {
-            if !is_in_terminal_foreground_group(process) {
-                continue;
-            }
-            if let Some(tool) = ai_candidates.get(&process.pid)
-                && foreground_title_matches_non_empty_tool_hint(foreground, tool)
-            {
-                return Some(detection_from_match(foreground, process, tool));
-            }
         }
     }
 
@@ -180,12 +189,6 @@ fn ai_process_candidates<'a>(
     candidates
 }
 
-fn is_in_terminal_foreground_group(process: &ProcessInfo) -> bool {
-    process.has_controlling_terminal
-        && process.process_group_id.is_some()
-        && process.process_group_id == process.terminal_foreground_process_group_id
-}
-
 fn detection_from_match(
     foreground: &ProcessInfo,
     matched: &ProcessInfo,
@@ -231,30 +234,6 @@ fn process_identity_names(process: &ProcessInfo) -> Vec<&str> {
         names.push(exe_path);
     }
     names
-}
-
-/// Check whether the foreground window title contains a configured non-empty tool hint.
-fn foreground_title_matches_non_empty_tool_hint(
-    foreground: &ProcessInfo,
-    tool: &AiProcessConfig,
-) -> bool {
-    let Some(title) = foreground.window_title.as_deref() else {
-        return false;
-    };
-    let title = title.to_ascii_lowercase();
-    tool.window_title_hints
-        .iter()
-        .filter(|hint| !hint.trim().is_empty())
-        .map(|hint| hint.to_ascii_lowercase())
-        .any(|hint| title.contains(&hint))
-}
-
-/// Return whether foreground window metadata contains a non-empty title.
-fn foreground_has_title(foreground: &ProcessInfo) -> bool {
-    foreground
-        .window_title
-        .as_deref()
-        .is_some_and(|title| !title.trim().is_empty())
 }
 
 /// Normalize executable names and paths for case-insensitive cross-platform matching.
@@ -317,13 +296,13 @@ mod tests {
             enabled: true,
             debug: 0,
             poll_interval_seconds: 60,
+            process_activity_window_seconds: 600,
             ai_process_names: vec![
                 AiProcessConfig {
                     process_names: vec!["Cursor.exe".to_string()],
                     tool: "Cursor".to_string(),
                     provider: "Anysphere".to_string(),
                     match_scope: AiProcessMatchScope::Both,
-                    window_title_hints: vec!["cursor".to_string()],
                     approved: false,
                     secondary: false,
                 },
@@ -332,7 +311,6 @@ mod tests {
                     tool: "Claude".to_string(),
                     provider: "Anthropic".to_string(),
                     match_scope: AiProcessMatchScope::Direct,
-                    window_title_hints: vec!["claude".to_string()],
                     approved: false,
                     secondary: false,
                 },
@@ -341,7 +319,6 @@ mod tests {
                     tool: "Claude Code".to_string(),
                     provider: "Anthropic".to_string(),
                     match_scope: AiProcessMatchScope::HostedChild,
-                    window_title_hints: vec!["claude".to_string()],
                     approved: true,
                     secondary: false,
                 },
@@ -364,6 +341,12 @@ mod tests {
             process_group_id: None,
             terminal_foreground_process_group_id: None,
             has_controlling_terminal: false,
+            terminal_name: None,
+            terminal_access_time_seconds: None,
+            terminal_activity_age_seconds: None,
+            process_activity: None,
+            process_activity_delta: None,
+            process_read_write_activity_observed: false,
         }
     }
 
@@ -381,6 +364,12 @@ mod tests {
             process_group_id: None,
             terminal_foreground_process_group_id: None,
             has_controlling_terminal: false,
+            terminal_name: None,
+            terminal_access_time_seconds: None,
+            terminal_activity_age_seconds: None,
+            process_activity: None,
+            process_activity_delta: None,
+            process_read_write_activity_observed: false,
         }
     }
 
@@ -404,6 +393,15 @@ mod tests {
             process_group_id: Some(process_group_id),
             terminal_foreground_process_group_id: Some(terminal_foreground_process_group_id),
             has_controlling_terminal: true,
+            terminal_name: Some(format!("ttys{pid:03}")),
+            terminal_access_time_seconds: Some(1_000),
+            terminal_activity_age_seconds: Some(0),
+            process_activity: Some(activity(pid as u64, 0, 0)),
+            process_activity_delta: Some(ProcessActivityDelta {
+                read_bytes: Some(1),
+                ..ProcessActivityDelta::default()
+            }),
+            process_read_write_activity_observed: true,
         }
     }
 
@@ -428,6 +426,12 @@ mod tests {
             process_group_id: None,
             terminal_foreground_process_group_id: None,
             has_controlling_terminal: false,
+            terminal_name: None,
+            terminal_access_time_seconds: None,
+            terminal_activity_age_seconds: None,
+            process_activity: None,
+            process_activity_delta: None,
+            process_read_write_activity_observed: false,
         }
     }
 
@@ -450,7 +454,68 @@ mod tests {
             process_group_id: None,
             terminal_foreground_process_group_id: None,
             has_controlling_terminal: false,
+            terminal_name: None,
+            terminal_access_time_seconds: None,
+            terminal_activity_age_seconds: None,
+            process_activity: None,
+            process_activity_delta: None,
+            process_read_write_activity_observed: false,
         }
+    }
+
+    fn activity(process_start_key: u64, read_bytes: u64, write_bytes: u64) -> ProcessActivity {
+        ProcessActivity {
+            process_start_key,
+            read_operation_count: None,
+            write_operation_count: None,
+            other_operation_count: None,
+            read_bytes: Some(read_bytes),
+            write_bytes: Some(write_bytes),
+            other_bytes: None,
+            user_time_ns: None,
+            system_time_ns: None,
+        }
+    }
+
+    fn with_read_activity(mut process: ProcessInfo) -> ProcessInfo {
+        process.process_activity = Some(activity(process.pid as u64, 10, 0));
+        process.process_activity_delta = Some(ProcessActivityDelta {
+            read_bytes: Some(1),
+            ..ProcessActivityDelta::default()
+        });
+        process.process_read_write_activity_observed = true;
+        process
+    }
+
+    fn with_write_activity(mut process: ProcessInfo) -> ProcessInfo {
+        process.process_activity = Some(activity(process.pid as u64, 0, 10));
+        process.process_activity_delta = Some(ProcessActivityDelta {
+            write_bytes: Some(1),
+            ..ProcessActivityDelta::default()
+        });
+        process.process_read_write_activity_observed = true;
+        process
+    }
+
+    fn with_cpu_activity_only(mut process: ProcessInfo) -> ProcessInfo {
+        process.process_activity = Some(ProcessActivity {
+            process_start_key: process.pid as u64,
+            read_operation_count: None,
+            write_operation_count: None,
+            other_operation_count: None,
+            read_bytes: Some(10),
+            write_bytes: Some(10),
+            other_bytes: None,
+            user_time_ns: Some(20),
+            system_time_ns: Some(30),
+        });
+        process.process_activity_delta = Some(ProcessActivityDelta {
+            user_time_ns: Some(10),
+            system_time_ns: Some(10),
+            ..ProcessActivityDelta::default()
+        });
+        process.process_read_write_activity_observed = false;
+        process
     }
 
     fn snapshot(processes: Vec<ProcessInfo>) -> ProcessSnapshot {
@@ -483,7 +548,7 @@ mod tests {
     fn host_process_matches_descendant_ai_process() {
         let foreground = process_with_title(10, 1, "cmd.exe", "claude");
         let child = process(11, 10, "powershell.exe");
-        let grandchild = process(12, 11, "Claude.exe");
+        let grandchild = with_read_activity(process(12, 11, "Claude.exe"));
         let detection = detect_ai_usage(
             &foreground,
             &snapshot(vec![foreground.clone(), child, grandchild]),
@@ -497,9 +562,33 @@ mod tests {
     }
 
     #[test]
+    fn host_process_matches_descendant_when_write_bytes_advance() {
+        let foreground = process_with_title(10, 1, "cmd.exe", "claude");
+        let child = with_write_activity(process(11, 10, "Claude.exe"));
+
+        let detection = detect_ai_usage(
+            &foreground,
+            &snapshot(vec![foreground.clone(), child]),
+            &config(),
+        )
+        .expect("expected hosted Claude Code match from write activity");
+
+        assert_eq!(detection.tool, "Claude Code");
+        assert_eq!(detection.matched_pid, 11);
+    }
+
+    #[test]
     fn host_process_matches_descendant_by_argv0() {
         let foreground = process_with_title(10, 1, "Terminal", "claude");
-        let child = process_with_identity(11, 10, "2.1.172", None, None, Some("claude"));
+        let child = with_read_activity(ProcessInfo {
+            process_group_id: Some(11),
+            terminal_foreground_process_group_id: Some(11),
+            has_controlling_terminal: true,
+            terminal_name: Some("ttys011".to_string()),
+            terminal_access_time_seconds: Some(1_000),
+            terminal_activity_age_seconds: Some(0),
+            ..process_with_identity(11, 10, "2.1.172", None, None, Some("claude"))
+        });
         let mut config = config();
         config.host_process_names.push("Terminal".to_string());
 
@@ -518,7 +607,15 @@ mod tests {
     #[test]
     fn host_process_matches_descendant_by_bsd_name() {
         let foreground = process_with_title(10, 1, "Terminal", "claude");
-        let child = process_with_identity(11, 10, "2.1.172", Some("claude"), None, None);
+        let child = with_read_activity(ProcessInfo {
+            process_group_id: Some(11),
+            terminal_foreground_process_group_id: Some(11),
+            has_controlling_terminal: true,
+            terminal_name: Some("ttys011".to_string()),
+            terminal_access_time_seconds: Some(1_000),
+            terminal_activity_age_seconds: Some(0),
+            ..process_with_identity(11, 10, "2.1.172", Some("claude"), None, None)
+        });
         let mut config = config();
         config.host_process_names.push("Terminal".to_string());
 
@@ -536,7 +633,15 @@ mod tests {
     #[test]
     fn host_process_matches_descendant_by_bsd_comm() {
         let foreground = process_with_title(10, 1, "Terminal", "claude");
-        let child = process_with_identity(11, 10, "2.1.172", None, Some("claude"), None);
+        let child = with_read_activity(ProcessInfo {
+            process_group_id: Some(11),
+            terminal_foreground_process_group_id: Some(11),
+            has_controlling_terminal: true,
+            terminal_name: Some("ttys011".to_string()),
+            terminal_access_time_seconds: Some(1_000),
+            terminal_activity_age_seconds: Some(0),
+            ..process_with_identity(11, 10, "2.1.172", None, Some("claude"), None)
+        });
         let mut config = config();
         config.host_process_names.push("Terminal".to_string());
 
@@ -554,15 +659,23 @@ mod tests {
     #[test]
     fn host_process_matches_descendant_by_command_line_arg_basename() {
         let foreground = process_with_title(10, 1, "Terminal", "hermes");
-        let child = process_with_argv(
-            11,
-            10,
-            "Python",
-            vec![
-                "/opt/homebrew/Cellar/python@3.11/3.11.9/Frameworks/Python.framework/Versions/3.11/Resources/Python.app/Contents/MacOS/Python",
-                "/Users/example/.hermes/hermes-agent/venv/bin/hermes",
-            ],
-        );
+        let child = with_read_activity(ProcessInfo {
+            process_group_id: Some(11),
+            terminal_foreground_process_group_id: Some(11),
+            has_controlling_terminal: true,
+            terminal_name: Some("ttys011".to_string()),
+            terminal_access_time_seconds: Some(1_000),
+            terminal_activity_age_seconds: Some(0),
+            ..process_with_argv(
+                11,
+                10,
+                "Python",
+                vec![
+                    "/opt/homebrew/Cellar/python@3.11/3.11.9/Frameworks/Python.framework/Versions/3.11/Resources/Python.app/Contents/MacOS/Python",
+                    "/Users/example/.hermes/hermes-agent/venv/bin/hermes",
+                ],
+            )
+        });
         let mut config = config();
         config.host_process_names.push("Terminal".to_string());
         config.ai_process_names.push(AiProcessConfig {
@@ -570,7 +683,6 @@ mod tests {
             tool: "Hermes Agent".to_string(),
             provider: "Nous Research".to_string(),
             match_scope: AiProcessMatchScope::HostedChild,
-            window_title_hints: vec!["hermes".to_string()],
             approved: false,
             secondary: false,
         });
@@ -588,22 +700,25 @@ mod tests {
     }
 
     #[test]
-    fn host_process_falls_back_to_title_confirmed_terminal_foreground_candidate() {
+    fn host_process_matches_recent_terminal_activity_with_descriptive_title() {
         let foreground = process_with_title(10, 1, "Terminal", "work - hermes");
-        let candidate = ProcessInfo {
+        let candidate = with_read_activity(ProcessInfo {
             process_group_id: Some(73059),
             terminal_foreground_process_group_id: Some(73059),
             has_controlling_terminal: true,
+            terminal_name: Some("ttys009".to_string()),
+            terminal_access_time_seconds: Some(1_000),
+            terminal_activity_age_seconds: Some(30),
             ..process_with_argv(
                 73059,
-                55775,
+                10,
                 "Python",
                 vec![
                     "/opt/homebrew/Cellar/python@3.11/3.11.9/Frameworks/Python.framework/Versions/3.11/Resources/Python.app/Contents/MacOS/Python",
                     "/Users/example/.hermes/hermes-agent/venv/bin/hermes",
                 ],
             )
-        };
+        });
         let mut config = config();
         config.host_process_names.push("Terminal".to_string());
         config.ai_process_names.push(AiProcessConfig {
@@ -611,7 +726,6 @@ mod tests {
             tool: "Hermes Agent".to_string(),
             provider: "Nous Research".to_string(),
             match_scope: AiProcessMatchScope::HostedChild,
-            window_title_hints: vec!["hermes".to_string()],
             approved: false,
             secondary: false,
         });
@@ -621,29 +735,32 @@ mod tests {
             &snapshot(vec![foreground.clone(), candidate]),
             &config,
         )
-        .expect("expected title-confirmed Hermes fallback match");
+        .expect("expected recent Hermes terminal activity match");
 
         assert_eq!(detection.tool, "Hermes Agent");
         assert_eq!(detection.matched_pid, 73059);
     }
 
     #[test]
-    fn host_process_title_fallback_rejects_unrelated_terminal_foreground_candidate() {
+    fn host_process_matches_recent_terminal_activity_ignoring_unrelated_title() {
         let foreground = process_with_title(10, 1, "Terminal", "work - vim");
-        let candidate = ProcessInfo {
+        let candidate = with_read_activity(ProcessInfo {
             process_group_id: Some(73059),
             terminal_foreground_process_group_id: Some(73059),
             has_controlling_terminal: true,
+            terminal_name: Some("ttys009".to_string()),
+            terminal_access_time_seconds: Some(1_000),
+            terminal_activity_age_seconds: Some(30),
             ..process_with_argv(
                 73059,
-                55775,
+                10,
                 "Python",
                 vec![
                     "/opt/homebrew/Cellar/python@3.11/3.11.9/Frameworks/Python.framework/Versions/3.11/Resources/Python.app/Contents/MacOS/Python",
                     "/Users/example/.hermes/hermes-agent/venv/bin/hermes",
                 ],
             )
-        };
+        });
         let mut config = config();
         config.host_process_names.push("Terminal".to_string());
         config.ai_process_names.push(AiProcessConfig {
@@ -651,28 +768,31 @@ mod tests {
             tool: "Hermes Agent".to_string(),
             provider: "Nous Research".to_string(),
             match_scope: AiProcessMatchScope::HostedChild,
-            window_title_hints: vec!["hermes".to_string()],
             approved: false,
             secondary: false,
         });
 
-        assert!(
-            detect_ai_usage(
-                &foreground,
-                &snapshot(vec![foreground.clone(), candidate]),
-                &config
-            )
-            .is_none()
-        );
+        let detection = detect_ai_usage(
+            &foreground,
+            &snapshot(vec![foreground.clone(), candidate]),
+            &config,
+        )
+        .expect("expected recent Hermes terminal activity to match while ignoring title");
+
+        assert_eq!(detection.tool, "Hermes Agent");
+        assert_eq!(detection.matched_pid, 73059);
     }
 
     #[test]
     fn host_process_matches_candidate_through_opaque_process_edges() {
         let foreground = process_with_title(10, 1, "Terminal", "work - hermes");
-        let candidate = ProcessInfo {
+        let candidate = with_read_activity(ProcessInfo {
             process_group_id: Some(73059),
             terminal_foreground_process_group_id: Some(73059),
             has_controlling_terminal: true,
+            terminal_name: Some("ttys009".to_string()),
+            terminal_access_time_seconds: Some(1_000),
+            terminal_activity_age_seconds: Some(30),
             ..process_with_argv(
                 73059,
                 55775,
@@ -682,7 +802,7 @@ mod tests {
                     "/Users/example/.hermes/hermes-agent/venv/bin/hermes",
                 ],
             )
-        };
+        });
         let mut config = config();
         config.host_process_names.push("Terminal".to_string());
         config.ai_process_names.push(AiProcessConfig {
@@ -690,7 +810,6 @@ mod tests {
             tool: "Hermes Agent".to_string(),
             provider: "Nous Research".to_string(),
             match_scope: AiProcessMatchScope::HostedChild,
-            window_title_hints: vec!["hermes".to_string()],
             approved: false,
             secondary: false,
         });
@@ -716,7 +835,7 @@ mod tests {
         assert_eq!(direct_detection.tool, "Claude");
 
         let host = process_with_title(41, 1, "cmd.exe", "claude");
-        let child = process(42, 41, "Claude.exe");
+        let child = with_read_activity(process(42, 41, "Claude.exe"));
         let hosted_detection =
             detect_ai_usage(&host, &snapshot(vec![host.clone(), child]), &config())
                 .expect("expected hosted Claude Code match");
@@ -757,22 +876,23 @@ mod tests {
     }
 
     #[test]
-    fn host_process_requires_matching_window_title_hint() {
+    fn non_terminal_host_process_matches_descendant_without_title_signal() {
         let foreground = process_with_title(10, 1, "WindowsTerminal.exe", "agent monitor");
-        let child = process(11, 10, "claude.exe");
+        let child = with_read_activity(process(11, 10, "claude.exe"));
         let mut config = config();
         config
             .host_process_names
             .push("WindowsTerminal.exe".to_string());
 
-        assert!(
-            detect_ai_usage(
-                &foreground,
-                &snapshot(vec![foreground.clone(), child]),
-                &config
-            )
-            .is_none()
-        );
+        let detection = detect_ai_usage(
+            &foreground,
+            &snapshot(vec![foreground.clone(), child]),
+            &config,
+        )
+        .expect("expected hosted descendant to match without reading title semantics");
+
+        assert_eq!(detection.tool, "Claude Code");
+        assert_eq!(detection.matched_pid, 11);
     }
 
     #[test]
@@ -812,7 +932,7 @@ mod tests {
     }
 
     #[test]
-    fn terminal_foreground_group_matches_with_window_title_hint() {
+    fn terminal_foreground_group_matches_while_ignoring_descriptive_window_title() {
         let foreground = process_with_title(10, 1, "iTerm2", "✳ Claude Code");
         let child = terminal_process(11, 10, "claude", 11, 11);
         let mut config = config();
@@ -823,23 +943,100 @@ mod tests {
             &snapshot(vec![foreground.clone(), child]),
             &config,
         )
-        .expect("expected title-confirmed terminal process to match");
+        .expect("expected recent terminal activity to match");
 
         assert_eq!(detection.tool, "Claude Code");
         assert_eq!(detection.matched_pid, 11);
     }
 
     #[test]
-    fn terminal_foreground_group_rejects_candidate_when_title_is_unrelated() {
+    fn terminal_foreground_group_matches_recent_activity_ignoring_process_like_title() {
+        let foreground = process_with_title(10, 1, "iTerm2", "Python");
+        let candidate = with_read_activity(ProcessInfo {
+            process_group_id: Some(73059),
+            terminal_foreground_process_group_id: Some(73059),
+            has_controlling_terminal: true,
+            terminal_name: Some("ttys009".to_string()),
+            terminal_access_time_seconds: Some(1_000),
+            terminal_activity_age_seconds: Some(30),
+            ..process_with_argv(
+                73059,
+                10,
+                "Python",
+                vec![
+                    "/opt/homebrew/Cellar/python@3.11/bin/Python",
+                    "/Users/example/.hermes/hermes-agent/venv/bin/hermes",
+                ],
+            )
+        });
+        let mut config = config();
+        config.host_process_names.push("iTerm2".to_string());
+        config.ai_process_names.push(AiProcessConfig {
+            process_names: vec!["hermes".to_string()],
+            tool: "Hermes Agent".to_string(),
+            provider: "Nous Research".to_string(),
+            match_scope: AiProcessMatchScope::HostedChild,
+            approved: false,
+            secondary: false,
+        });
+
+        let detection = detect_ai_usage(
+            &foreground,
+            &snapshot(vec![foreground.clone(), candidate]),
+            &config,
+        )
+        .expect("expected recent Hermes terminal activity to match");
+
+        assert_eq!(detection.tool, "Hermes Agent");
+        assert_eq!(detection.matched_pid, 73059);
+    }
+
+    #[test]
+    fn terminal_foreground_group_matches_recent_activity_ignoring_unrelated_title() {
         let foreground = process_with_title(10, 1, "Terminal", "release — sudo — monitor");
-        let inactive_ai = terminal_process(11, 10, "claude", 11, 11);
+        let active_ai = terminal_process(11, 10, "claude", 11, 11);
+        let mut config = config();
+        config.host_process_names.push("Terminal".to_string());
+
+        let detection = detect_ai_usage(
+            &foreground,
+            &snapshot(vec![foreground.clone(), active_ai]),
+            &config,
+        )
+        .expect("expected recent terminal activity to match while ignoring title");
+
+        assert_eq!(detection.tool, "Claude Code");
+        assert_eq!(detection.matched_pid, 11);
+    }
+
+    #[test]
+    fn hosted_child_rejects_candidate_when_only_cpu_counters_advance() {
+        let foreground = process_with_title(10, 1, "Terminal", "Claude Code");
+        let cpu_only_ai = with_cpu_activity_only(terminal_process(11, 10, "claude", 11, 11));
         let mut config = config();
         config.host_process_names.push("Terminal".to_string());
 
         assert!(
             detect_ai_usage(
                 &foreground,
-                &snapshot(vec![foreground.clone(), inactive_ai]),
+                &snapshot(vec![foreground.clone(), cpu_only_ai]),
+                &config
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn hosted_child_rejects_candidate_without_read_write_activity() {
+        let foreground = process_with_title(10, 1, "Terminal", "Claude Code");
+        let unchanged_ai = process(11, 10, "claude");
+        let mut config = config();
+        config.host_process_names.push("Terminal".to_string());
+
+        assert!(
+            detect_ai_usage(
+                &foreground,
+                &snapshot(vec![foreground.clone(), unchanged_ai]),
                 &config
             )
             .is_none()
@@ -850,7 +1047,11 @@ mod tests {
     fn terminal_foreground_group_ignores_inactive_tab_descendants() {
         let foreground = process(10, 1, "iTerm2");
         let active_shell = terminal_process(11, 10, "zsh", 11, 11);
-        let inactive_ai = terminal_process(12, 10, "claude", 12, 11);
+        let inactive_ai = ProcessInfo {
+            process_read_write_activity_observed: false,
+            process_activity_delta: Some(ProcessActivityDelta::default()),
+            ..terminal_process(12, 10, "claude", 12, 11)
+        };
         let mut config = config();
         config.host_process_names.push("iTerm2".to_string());
 
@@ -865,7 +1066,7 @@ mod tests {
     }
 
     #[test]
-    fn host_window_title_does_not_match_without_descendant_ai_candidate() {
+    fn host_window_title_does_not_create_detection_without_descendant_ai_candidate() {
         let foreground = process_with_title(10, 1, "iTerm2", "✳ Claude Code");
         let active_runtime = terminal_process(11, 10, "node", 11, 11);
         let mut config = config();
@@ -882,7 +1083,7 @@ mod tests {
     }
 
     #[test]
-    fn terminal_window_title_does_not_match_when_no_descendant_matches() {
+    fn terminal_window_title_does_not_create_detection_when_no_descendant_matches() {
         let foreground =
             process_with_title(10, 1, "Terminal", "agent — ✳ Claude Code — claude — 184×44");
         let shell = process(11, 10, "zsh");

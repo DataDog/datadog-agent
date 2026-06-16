@@ -3,15 +3,17 @@ pub mod matcher;
 
 use std::collections::{HashMap, HashSet};
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use anyhow::Result;
 
-use crate::datadog::{AiUsageEvent, DatadogClient, DesktopMonitoringConfig, resolve_hostname};
+use crate::datadog::{
+    AiProcessConfig, AiUsageEvent, DatadogClient, DesktopMonitoringConfig, resolve_hostname,
+};
 use crate::desktop::logger::DesktopLogger;
 use crate::desktop::matcher::{
-    ProcessEdge, ProcessInfo, ProcessSnapshot, detect_ai_usage, find_hosted_ai_process,
-    matches_process_name,
+    ProcessActivity, ProcessActivityDelta, ProcessEdge, ProcessInfo, ProcessSnapshot,
+    detect_ai_usage, find_hosted_ai_process, matches_process_name,
 };
 
 #[cfg(windows)]
@@ -67,12 +69,19 @@ pub fn run(dd_client: &DatadogClient, config: DesktopMonitoringConfig) -> Result
             "desktop monitor started poll_interval_seconds={}",
             config.poll_interval_seconds
         ));
+        let mut process_activity_tracker = ProcessActivityTracker::default();
         loop {
             if !detector.agent_service_running() {
                 logger.info("desktop monitor exiting because agent service stopped");
                 return Ok(());
             }
-            poll_once(dd_client, &detector, &config, &logger);
+            poll_once(
+                dd_client,
+                &detector,
+                &config,
+                &logger,
+                &mut process_activity_tracker,
+            );
             thread::sleep(Duration::from_secs(config.poll_interval_seconds.max(1)));
         }
     }
@@ -89,6 +98,7 @@ fn poll_once(
     detector: &impl DesktopDetector,
     config: &DesktopMonitoringConfig,
     logger: &DesktopLogger,
+    process_activity_tracker: &mut ProcessActivityTracker,
 ) {
     let foreground = match detector.foreground_process() {
         Ok(Some(process)) => process,
@@ -111,7 +121,7 @@ fn poll_once(
         foreground.window_title.as_deref().unwrap_or("")
     ));
 
-    let snapshot = match detector.process_snapshot(foreground.pid) {
+    let mut snapshot = match detector.process_snapshot(foreground.pid) {
         Ok(snapshot) => snapshot,
         Err(err) => {
             logger.warn(format!(
@@ -120,6 +130,7 @@ fn poll_once(
             return;
         }
     };
+    process_activity_tracker.mark_observed_activity(&mut snapshot, config);
 
     log_process_tree_diagnostics(&foreground, &snapshot, config, logger);
 
@@ -155,6 +166,118 @@ fn poll_once(
             event.tool
         ));
     }
+}
+
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
+struct ProcessActivityKey {
+    pid: u32,
+    process_start_key: u64,
+}
+
+#[derive(Default)]
+struct ProcessActivityTracker {
+    activity_by_process: HashMap<ProcessActivityKey, ObservedProcessActivity>,
+}
+
+#[derive(Clone)]
+struct ObservedProcessActivity {
+    activity: ProcessActivity,
+    observed_at_seconds: u64,
+}
+
+impl ProcessActivityTracker {
+    /// Mark processes whose read/write counters advanced since the previous poll.
+    fn mark_observed_activity(
+        &mut self,
+        snapshot: &mut ProcessSnapshot,
+        config: &DesktopMonitoringConfig,
+    ) {
+        let Some(now) = current_unix_seconds() else {
+            return;
+        };
+        let mut latest_activity = HashMap::new();
+        for process in &mut snapshot.processes {
+            process.process_activity_delta = None;
+            process.process_read_write_activity_observed = false;
+            let Some(activity) = process.process_activity.as_ref() else {
+                continue;
+            };
+            let key = ProcessActivityKey {
+                pid: process.pid,
+                process_start_key: activity.process_start_key,
+            };
+
+            if let Some(previous) = self.activity_by_process.get(&key) {
+                let delta = process_activity_delta(&previous.activity, activity);
+                process.process_read_write_activity_observed = read_write_activity_observed(&delta);
+                process.process_activity_delta = Some(delta);
+            }
+            latest_activity.insert(
+                key,
+                ObservedProcessActivity {
+                    activity: activity.clone(),
+                    observed_at_seconds: now,
+                },
+            );
+        }
+
+        self.activity_by_process.extend(latest_activity);
+        self.activity_by_process.retain(|_, observed| {
+            now.saturating_sub(observed.observed_at_seconds)
+                <= config.process_activity_window_seconds
+        });
+    }
+}
+
+fn current_unix_seconds() -> Option<u64> {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .ok()
+        .map(|duration| duration.as_secs())
+}
+
+fn process_activity_delta(
+    previous: &ProcessActivity,
+    current: &ProcessActivity,
+) -> ProcessActivityDelta {
+    ProcessActivityDelta {
+        read_operation_count: counter_delta(
+            previous.read_operation_count,
+            current.read_operation_count,
+        ),
+        write_operation_count: counter_delta(
+            previous.write_operation_count,
+            current.write_operation_count,
+        ),
+        other_operation_count: counter_delta(
+            previous.other_operation_count,
+            current.other_operation_count,
+        ),
+        read_bytes: counter_delta(previous.read_bytes, current.read_bytes),
+        write_bytes: counter_delta(previous.write_bytes, current.write_bytes),
+        other_bytes: counter_delta(previous.other_bytes, current.other_bytes),
+        user_time_ns: counter_delta(previous.user_time_ns, current.user_time_ns),
+        system_time_ns: counter_delta(previous.system_time_ns, current.system_time_ns),
+    }
+}
+
+fn counter_delta(previous: Option<u64>, current: Option<u64>) -> Option<u64> {
+    match (previous, current) {
+        (Some(previous), Some(current)) if current >= previous => Some(current - previous),
+        _ => None,
+    }
+}
+
+fn read_write_activity_observed(delta: &ProcessActivityDelta) -> bool {
+    [
+        delta.read_operation_count,
+        delta.write_operation_count,
+        delta.read_bytes,
+        delta.write_bytes,
+    ]
+    .into_iter()
+    .flatten()
+    .any(|delta| delta > 0)
 }
 
 /// Resolve the user identifier attached to observed desktop usage events.
@@ -228,13 +351,12 @@ impl<'a> ProcessTreeDiagnosticContext<'a> {
 fn hosted_ai_candidates<'a>(
     snapshot: &'a ProcessSnapshot,
     config: &'a DesktopMonitoringConfig,
-) -> Vec<(&'a ProcessInfo, &'a str)> {
+) -> Vec<(&'a ProcessInfo, &'a AiProcessConfig)> {
     snapshot
         .processes
         .iter()
         .filter_map(|process| {
-            find_hosted_ai_process(process, &config.ai_process_names)
-                .map(|tool| (process, tool.tool.as_str()))
+            find_hosted_ai_process(process, &config.ai_process_names).map(|tool| (process, tool))
         })
         .collect()
 }
@@ -273,7 +395,7 @@ fn log_process_tree_summary(
 
 /// Log AI candidates as readable identity, metadata, and ancestry lines.
 fn log_ai_candidate_diagnostics(
-    candidates: &[(&ProcessInfo, &str)],
+    candidates: &[(&ProcessInfo, &AiProcessConfig)],
     context: &ProcessTreeDiagnosticContext,
     logger: &DesktopLogger,
 ) {
@@ -283,7 +405,7 @@ fn log_ai_candidate_diagnostics(
         let is_descendant = context.descendant_pids.contains(&process.pid);
         logger.info_at(2, format!(
             "process_tree candidate[{label}] tool=\"{}\" descendant={} pid={} ppid={} exe=\"{}\" path=\"{}\"",
-            tool,
+            tool.tool,
             is_descendant,
             process.pid,
             process.parent_pid,
@@ -291,13 +413,39 @@ fn log_ai_candidate_diagnostics(
             process.exe_path.as_deref().unwrap_or("")
         ));
         logger.info_at(2, format!(
-            "process_tree candidate[{label}] names bsd_name=\"{}\" bsd_comm=\"{}\" argv0=\"{}\" terminal=\"pgid={} tpgid={} has_ctty={}\"",
+            "process_tree candidate[{label}] names bsd_name=\"{}\" bsd_comm=\"{}\" argv0=\"{}\" terminal=\"pgid={} tpgid={} has_ctty={} tty={} tty_access_time_seconds={} tty_activity_age_seconds={}\"",
             process.bsd_name.as_deref().unwrap_or(""),
             process.bsd_comm.as_deref().unwrap_or(""),
             process.argv0.as_deref().unwrap_or(""),
             format_optional_u32(process.process_group_id),
             format_optional_u32(process.terminal_foreground_process_group_id),
-            process.has_controlling_terminal
+            process.has_controlling_terminal,
+            process.terminal_name.as_deref().unwrap_or(""),
+            format_optional_u64(process.terminal_access_time_seconds),
+            format_optional_u64(process.terminal_activity_age_seconds),
+        ));
+        let activity = process.process_activity.as_ref();
+        let delta = process.process_activity_delta.as_ref();
+        logger.info_at(2, format!(
+            "process_tree candidate[{label}] activity start_key={} read_ops={} write_ops={} other_ops={} read_bytes={} write_bytes={} other_bytes={} user_time_ns={} system_time_ns={} delta_read_ops={} delta_write_ops={} delta_other_ops={} delta_read_bytes={} delta_write_bytes={} delta_other_bytes={} delta_user_time_ns={} delta_system_time_ns={} read_write_activity_observed={}",
+            activity.map(|activity| activity.process_start_key).map_or_else(|| "none".to_string(), |value| value.to_string()),
+            format_optional_u64(activity.and_then(|activity| activity.read_operation_count)),
+            format_optional_u64(activity.and_then(|activity| activity.write_operation_count)),
+            format_optional_u64(activity.and_then(|activity| activity.other_operation_count)),
+            format_optional_u64(activity.and_then(|activity| activity.read_bytes)),
+            format_optional_u64(activity.and_then(|activity| activity.write_bytes)),
+            format_optional_u64(activity.and_then(|activity| activity.other_bytes)),
+            format_optional_u64(activity.and_then(|activity| activity.user_time_ns)),
+            format_optional_u64(activity.and_then(|activity| activity.system_time_ns)),
+            format_optional_u64(delta.and_then(|delta| delta.read_operation_count)),
+            format_optional_u64(delta.and_then(|delta| delta.write_operation_count)),
+            format_optional_u64(delta.and_then(|delta| delta.other_operation_count)),
+            format_optional_u64(delta.and_then(|delta| delta.read_bytes)),
+            format_optional_u64(delta.and_then(|delta| delta.write_bytes)),
+            format_optional_u64(delta.and_then(|delta| delta.other_bytes)),
+            format_optional_u64(delta.and_then(|delta| delta.user_time_ns)),
+            format_optional_u64(delta.and_then(|delta| delta.system_time_ns)),
+            process.process_read_write_activity_observed,
         ));
         logger.info_at(
             2,
@@ -350,6 +498,13 @@ fn format_optional_u32(value: Option<u32>) -> String {
         .unwrap_or_else(|| "none".to_string())
 }
 
+/// Render optional age values in log-friendly form.
+fn format_optional_u64(value: Option<u64>) -> String {
+    value
+        .map(|value| value.to_string())
+        .unwrap_or_else(|| "none".to_string())
+}
+
 /// Index PID edges by parent PID for descendant traversal.
 fn children_by_parent(edges: &[ProcessEdge]) -> HashMap<u32, Vec<u32>> {
     let mut children: HashMap<u32, Vec<u32>> = HashMap::new();
@@ -380,4 +535,149 @@ fn descendant_pids_of(
     }
 
     visited
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::datadog::DesktopMonitoringConfig;
+
+    fn config() -> DesktopMonitoringConfig {
+        DesktopMonitoringConfig {
+            enabled: true,
+            debug: 0,
+            poll_interval_seconds: 60,
+            process_activity_window_seconds: 600,
+            ai_process_names: Vec::new(),
+            host_process_names: Vec::new(),
+        }
+    }
+
+    fn process(pid: u32, start_key: u64, read_bytes: u64, write_bytes: u64) -> ProcessInfo {
+        ProcessInfo {
+            pid,
+            parent_pid: 1,
+            exe_name: "claude".to_string(),
+            bsd_name: Some("claude".to_string()),
+            bsd_comm: Some("claude".to_string()),
+            argv0: Some("claude".to_string()),
+            argv: vec!["claude".to_string()],
+            exe_path: None,
+            window_title: None,
+            process_group_id: Some(pid),
+            terminal_foreground_process_group_id: Some(pid),
+            has_controlling_terminal: true,
+            terminal_name: None,
+            terminal_access_time_seconds: None,
+            terminal_activity_age_seconds: Some(0),
+            process_activity: Some(ProcessActivity {
+                process_start_key: start_key,
+                read_operation_count: None,
+                write_operation_count: None,
+                other_operation_count: None,
+                read_bytes: Some(read_bytes),
+                write_bytes: Some(write_bytes),
+                other_bytes: None,
+                user_time_ns: None,
+                system_time_ns: None,
+            }),
+            process_activity_delta: None,
+            process_read_write_activity_observed: false,
+        }
+    }
+
+    fn process_with_cpu_time(pid: u32, start_key: u64, user_time_ns: u64) -> ProcessInfo {
+        ProcessInfo {
+            process_activity: Some(ProcessActivity {
+                user_time_ns: Some(user_time_ns),
+                ..process(pid, start_key, 10, 10)
+                    .process_activity
+                    .expect("process should have activity")
+            }),
+            ..process(pid, start_key, 10, 10)
+        }
+    }
+
+    fn snapshot(process: ProcessInfo) -> ProcessSnapshot {
+        ProcessSnapshot {
+            edges: vec![ProcessEdge {
+                pid: process.pid,
+                parent_pid: process.parent_pid,
+            }],
+            processes: vec![process],
+        }
+    }
+
+    #[test]
+    fn process_activity_tracker_requires_new_read_write_delta() {
+        let mut tracker = ProcessActivityTracker::default();
+        let config = config();
+
+        let mut first_snapshot = snapshot(process(11, 100, 10, 10));
+        tracker.mark_observed_activity(&mut first_snapshot, &config);
+        assert!(!first_snapshot.processes[0].process_read_write_activity_observed);
+        assert!(first_snapshot.processes[0].process_activity_delta.is_none());
+
+        let mut unchanged_snapshot = snapshot(process(11, 100, 10, 10));
+        tracker.mark_observed_activity(&mut unchanged_snapshot, &config);
+        assert!(!unchanged_snapshot.processes[0].process_read_write_activity_observed);
+        assert_eq!(
+            unchanged_snapshot.processes[0]
+                .process_activity_delta
+                .as_ref()
+                .and_then(|delta| delta.read_bytes),
+            Some(0)
+        );
+
+        let mut advanced_snapshot = snapshot(process(11, 100, 11, 10));
+        tracker.mark_observed_activity(&mut advanced_snapshot, &config);
+        assert!(advanced_snapshot.processes[0].process_read_write_activity_observed);
+        assert_eq!(
+            advanced_snapshot.processes[0]
+                .process_activity_delta
+                .as_ref()
+                .and_then(|delta| delta.read_bytes),
+            Some(1)
+        );
+    }
+
+    #[test]
+    fn process_activity_tracker_ignores_cpu_only_deltas() {
+        let mut tracker = ProcessActivityTracker::default();
+        let config = config();
+
+        let mut first_snapshot = snapshot(process_with_cpu_time(11, 100, 10));
+        tracker.mark_observed_activity(&mut first_snapshot, &config);
+
+        let mut cpu_snapshot = snapshot(process_with_cpu_time(11, 100, 20));
+        tracker.mark_observed_activity(&mut cpu_snapshot, &config);
+
+        assert!(!cpu_snapshot.processes[0].process_read_write_activity_observed);
+        assert_eq!(
+            cpu_snapshot.processes[0]
+                .process_activity_delta
+                .as_ref()
+                .and_then(|delta| delta.user_time_ns),
+            Some(10)
+        );
+    }
+
+    #[test]
+    fn process_activity_tracker_uses_start_key_to_avoid_pid_reuse() {
+        let mut tracker = ProcessActivityTracker::default();
+        let config = config();
+
+        let mut first_snapshot = snapshot(process(11, 100, 10, 10));
+        tracker.mark_observed_activity(&mut first_snapshot, &config);
+
+        let mut reused_pid_snapshot = snapshot(process(11, 200, 11, 10));
+        tracker.mark_observed_activity(&mut reused_pid_snapshot, &config);
+
+        assert!(!reused_pid_snapshot.processes[0].process_read_write_activity_observed);
+        assert!(
+            reused_pid_snapshot.processes[0]
+                .process_activity_delta
+                .is_none()
+        );
+    }
 }

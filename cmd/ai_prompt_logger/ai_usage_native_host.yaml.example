@@ -25,6 +25,10 @@ ai_usage_evp_subdomain: "softinv-intake"
 desktop_monitoring:
   enabled: true
   poll_interval_seconds: 60
+  # Hosted AI CLIs are counted only after their process-level read/write
+  # counters advance since the previous poll. The first poll initializes the
+  # baseline and does not emit AI-usage event.
+  process_activity_window_seconds: 600
 
   # Lookup table 1: direct AI desktop apps or AI CLIs. Process names are matched
   # case-insensitively by executable basename, with or without the .exe suffix.
@@ -33,44 +37,32 @@ desktop_monitoring:
       tool: "Cursor"
       provider: "Anysphere"
       match_scope: "both"
-      window_title_hints: ["cursor"]
-      approved: false
-    - process_names: ["Code.exe", "Code"]
-      tool: "Visual Studio Code"
-      provider: "Microsoft"
-      match_scope: "direct"
-      window_title_hints: ["visual studio code", "code"]
       approved: false
     - process_names: ["Claude.exe", "Claude"]
       tool: "Claude"
       provider: "Anthropic"
       match_scope: "direct"
-      window_title_hints: ["claude"]
       approved: false
     - process_names: ["claude.exe", "claude"]
       tool: "Claude Code"
       provider: "Anthropic"
       match_scope: "hosted_child"
-      window_title_hints: ["Claude Code"]
       approved: false
     - process_names: ["cowork-svc.exe", "cowork-svc"]
       tool: "Claude Cowork"
       provider: "Anthropic"
       match_scope: "hosted_child"
-      window_title_hints: ["claude", "cowork"]
       approved: false
       secondary: true
     - process_names: ["Codex.exe", "codex"]
       tool: "Codex"
       provider: "OpenAI"
       match_scope: "both"
-      window_title_hints: ["codex"]
       approved: false
     - process_names: ["OpenClaw.exe", "openclaw-desktop.exe", "OpenClaw.Tray.WinUI.exe", "OpenClaw", "openclaw-desktop"]
       tool: "OpenClaw"
       provider: "OpenClaw"
       match_scope: "both"
-      window_title_hints: ["openclaw"]
       approved: false
     # Additional Agent Skills client candidates. These entries are intentionally
     # limited to plausible native desktop apps or CLIs; cloud-only products,
@@ -79,151 +71,126 @@ desktop_monitoring:
       tool: "Junie"
       provider: "JetBrains"
       match_scope: "direct"
-      window_title_hints: ["junie"]
       approved: false
     - process_names: ["gemini.exe", "gemini-cli.exe"]
       tool: "Gemini CLI"
       provider: "Google"
       match_scope: "hosted_child"
-      window_title_hints: ["gemini"]
       approved: false
     - process_names: ["hermes.exe", "hermes", "hermes-agent.exe", "hermes-agent"]
       tool: "Hermes Agent"
       provider: "Nous Research"
       match_scope: "hosted_child"
-      window_title_hints: ["hermes"]
       approved: false
     - process_names: ["autohand.exe", "autohand-code.exe"]
       tool: "Autohand Code CLI"
       provider: "Autohand"
       match_scope: "hosted_child"
-      window_title_hints: ["autohand"]
       approved: false
     - process_names: ["opencode.exe"]
       tool: "OpenCode"
       provider: "OpenCode"
       match_scope: "both"
-      window_title_hints: ["opencode"]
       approved: false
     - process_names: ["openhands.exe"]
       tool: "OpenHands"
       provider: "OpenHands"
       match_scope: "both"
-      window_title_hints: ["openhands", "open hands"]
       approved: false
     - process_names: ["mux.exe"]
       tool: "Mux"
       provider: "Coder"
       match_scope: "both"
-      window_title_hints: ["mux"]
       approved: false
     - process_names: ["amp.exe"]
       tool: "Amp"
       provider: "Sourcegraph"
       match_scope: "hosted_child"
-      window_title_hints: ["amp"]
       approved: false
     - process_names: ["letta.exe", "letta-code.exe"]
       tool: "Letta"
       provider: "Letta"
       match_scope: "both"
-      window_title_hints: ["letta"]
       approved: false
     - process_names: ["firebender.exe"]
       tool: "Firebender"
       provider: "Firebender"
       match_scope: "direct"
-      window_title_hints: ["firebender"]
       approved: false
     - process_names: ["goose.exe"]
       tool: "Goose"
       provider: "Block"
       match_scope: "both"
-      window_title_hints: ["goose"]
       approved: false
     - process_names: ["Piebald.exe", "piebald.exe"]
       tool: "Piebald"
       provider: "Piebald"
       match_scope: "both"
-      window_title_hints: ["piebald"]
       approved: false
     - process_names: ["factory.exe"]
       tool: "Factory"
       provider: "Factory"
       match_scope: "hosted_child"
-      window_title_hints: ["factory"]
       approved: false
     - process_names: ["trae.exe", "Trae.exe"]
       tool: "TRAE"
       provider: "ByteDance"
       match_scope: "both"
-      window_title_hints: ["trae"]
       approved: false
     - process_names: ["roo-code.exe", "roocode.exe"]
       tool: "Roo Code"
       provider: "Roo Code"
       match_scope: "hosted_child"
-      window_title_hints: ["roo"]
       approved: false
     - process_names: ["mistral-vibe.exe", "vibe.exe"]
       tool: "Mistral AI Vibe"
       provider: "Mistral AI"
       match_scope: "hosted_child"
-      window_title_hints: ["vibe", "mistral"]
       approved: false
     - process_names: ["command-code.exe", "commandcode.exe"]
       tool: "Command Code"
       provider: "Command Code"
       match_scope: "hosted_child"
-      window_title_hints: ["command code", "commandcode"]
       approved: false
     - process_names: ["vtcode.exe", "vt-code.exe"]
       tool: "VT Code"
       provider: "VT Code"
       match_scope: "hosted_child"
-      window_title_hints: ["vt code", "vtcode"]
       approved: false
     - process_names: ["qodo.exe", "qodo-cli.exe"]
       tool: "Qodo"
       provider: "Qodo"
       match_scope: "both"
-      window_title_hints: ["qodo"]
       approved: false
     - process_names: ["kiro.exe", "Kiro.exe"]
       tool: "Kiro"
       provider: "Kiro"
       match_scope: "both"
-      window_title_hints: ["kiro"]
       approved: false
     - process_names: ["workshop.exe", "Workshop.exe"]
       tool: "Workshop"
       provider: "Workshop"
       match_scope: "both"
-      window_title_hints: ["workshop"]
       approved: false
     - process_names: ["nanobot.exe"]
       tool: "nanobot"
       provider: "nanobot"
       match_scope: "hosted_child"
-      window_title_hints: ["nanobot"]
       approved: false
     - process_names: ["fast-agent.exe", "fastagent.exe"]
       tool: "fast-agent"
       provider: "fast-agent"
       match_scope: "hosted_child"
-      window_title_hints: ["fast-agent", "fast agent"]
       approved: false
     - process_names: ["tabnine.exe", "tabnine-cli.exe"]
       tool: "Tabnine"
       provider: "Tabnine"
       match_scope: "both"
-      window_title_hints: ["tabnine"]
       approved: false
     - process_names: ["emdash.exe"]
       tool: "Emdash"
       provider: "Emdash"
       match_scope: "both"
-      window_title_hints: ["emdash"]
       approved: false
 
   # Lookup table 2: foreground host apps that may contain AI CLI children.
