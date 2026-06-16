@@ -213,7 +213,10 @@ func (t *testConsumer) ConsumeHost(host string) {
 func (t *testConsumer) ConsumeExplicitBoundHistogram(
 	_ context.Context,
 	_ *Dimensions,
-	_ pmetric.HistogramDataPointSlice,
+	_ uint64,
+	_ int64,
+	_ pmetric.HistogramDataPoint,
+	_ bool,
 ) {
 	// no-op: test consumer doesn't need raw histogram data
 }
@@ -222,7 +225,9 @@ func (t *testConsumer) ConsumeExplicitBoundHistogram(
 func (t *testConsumer) ConsumeExponentialHistogram(
 	_ context.Context,
 	_ *Dimensions,
-	_ pmetric.ExponentialHistogramDataPointSlice,
+	_ uint64,
+	_ int64,
+	_ pmetric.ExponentialHistogramDataPoint,
 ) {
 	// no-op: test consumer doesn't need raw histogram data
 }

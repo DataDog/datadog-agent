@@ -13,7 +13,7 @@ import (
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/dogstatsdhttp"
 )
 
-// sketchData implements metrics.SketchData from reader-provided sketch columns and summary.
+// sketchData satisfies metrics.DDSketchProvider from reader-provided sketch columns and summary.
 type sketchData struct {
 	k                  []int32
 	n                  []uint32
@@ -27,6 +27,10 @@ func (s *sketchData) Cols() ([]int32, []uint32) {
 
 func (s *sketchData) BasicStats() (int64, float64, float64, float64, float64) {
 	return s.cnt, s.min, s.max, s.sum, s.avg
+}
+
+func (s *sketchData) SummaryValues() (float64, float64, float64) {
+	return s.min, s.max, s.sum
 }
 
 type sketchIterator struct {

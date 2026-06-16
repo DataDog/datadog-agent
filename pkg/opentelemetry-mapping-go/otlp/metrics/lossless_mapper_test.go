@@ -637,10 +637,10 @@ func TestLossLessMapperMapHistogramMetrics(t *testing.T) {
 	err := mapper.MapHistogramMetrics(context.Background(), consumer, dims, slice, true)
 	require.NoError(t, err)
 
-	// Verify ConsumeExplicitBoundHistogram was called
+	// Verify ConsumeExplicitBoundHistogram was called once (per-point interface)
 	assert.True(t, consumer.explicitBoundCalled)
 	assert.Equal(t, "test.histogram", consumer.dims.Name())
-	assert.Equal(t, 1, consumer.slice.Len())
+	assert.Equal(t, 1, consumer.pointCount)
 }
 
 func TestLossLessMapperMapExponentialHistogramMetrics(t *testing.T) {
@@ -659,10 +659,10 @@ func TestLossLessMapperMapExponentialHistogramMetrics(t *testing.T) {
 
 	mapper.MapExponentialHistogramMetrics(context.Background(), consumer, dims, slice, true)
 
-	// Verify ConsumeExponentialHistogram was called
+	// Verify ConsumeExponentialHistogram was called once (per-point interface)
 	assert.True(t, consumer.exponentialCalled)
 	assert.Equal(t, "test.exp_histogram", consumer.expDims.Name())
-	assert.Equal(t, 1, consumer.expSlice.Len())
+	assert.Equal(t, 1, consumer.expPointCount)
 }
 
 // histogramTestConsumer is a test consumer that tracks histogram method calls
@@ -671,27 +671,32 @@ type histogramTestConsumer struct {
 	explicitBoundCalled bool
 	exponentialCalled   bool
 	dims                *Dimensions
-	slice               pmetric.HistogramDataPointSlice
+	pointCount          int
 	expDims             *Dimensions
-	expSlice            pmetric.ExponentialHistogramDataPointSlice
+	expPointCount       int
 }
 
 func (h *histogramTestConsumer) ConsumeExplicitBoundHistogram(
 	_ context.Context,
 	dims *Dimensions,
-	slice pmetric.HistogramDataPointSlice,
+	_ uint64,
+	_ int64,
+	_ pmetric.HistogramDataPoint,
+	_ bool,
 ) {
 	h.explicitBoundCalled = true
 	h.dims = dims
-	h.slice = slice
+	h.pointCount++
 }
 
 func (h *histogramTestConsumer) ConsumeExponentialHistogram(
 	_ context.Context,
 	dims *Dimensions,
-	slice pmetric.ExponentialHistogramDataPointSlice,
+	_ uint64,
+	_ int64,
+	_ pmetric.ExponentialHistogramDataPoint,
 ) {
 	h.exponentialCalled = true
 	h.expDims = dims
-	h.expSlice = slice
+	h.expPointCount++
 }

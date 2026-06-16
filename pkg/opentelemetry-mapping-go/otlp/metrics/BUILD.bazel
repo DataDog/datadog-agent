@@ -58,6 +58,7 @@ go_test(
         "metrics_translator_test.go",
         "mixed_metrics_test.go",
         "nan_metrics_test.go",
+        "native_histograms_test.go",
         "origin_test.go",
         "sketches_test.go",
         "statspayload_test.go",

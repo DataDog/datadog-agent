@@ -188,7 +188,10 @@ func (m *mockTimeSeriesConsumer) ConsumeSketch(
 func (m *mockTimeSeriesConsumer) ConsumeExplicitBoundHistogram(
 	_ context.Context,
 	_ *Dimensions,
-	_ pmetric.HistogramDataPointSlice,
+	_ uint64,
+	_ int64,
+	_ pmetric.HistogramDataPoint,
+	_ bool,
 ) {
 	panic("unexpected method call to `ConsumeExplicitBoundHistogram` on mock consumer")
 }
@@ -196,8 +199,9 @@ func (m *mockTimeSeriesConsumer) ConsumeExplicitBoundHistogram(
 func (m *mockTimeSeriesConsumer) ConsumeExponentialHistogram(
 	_ context.Context,
 	_ *Dimensions,
-	_ pmetric.ExponentialHistogramDataPointSlice,
-
+	_ uint64,
+	_ int64,
+	_ pmetric.ExponentialHistogramDataPoint,
 ) {
 	panic("unexpected method call to `ConsumeExponentialHistogram` on mock consumer")
 }

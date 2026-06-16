@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer/internal/stream"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/compression/selector"
+	log "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
@@ -493,17 +494,48 @@ func (pb *payloadsBuilderV3) writeSerieToTxn(serie *metrics.Serie) {
 }
 
 func (pb *payloadsBuilderV3) writeSketch(sketch *metrics.SketchSeries) error {
+	if len(sketch.Points) > 0 {
+		if _, ok := sketch.Points[0].Sketch.(metrics.DDSketchProvider); !ok {
+			// TODO(OTAGENT-1079): Implement native OTel histogram encoding with sketchFlags once AMP team delivers Stage 3.
+			//
+			// Access the data via ExplicitBoundProvider / ExponentialProvider type switches:
+			//
+			//   for _, pnt := range sketch.Points {
+			//       switch sd := pnt.Sketch.(type) {
+			//       case metrics.ExplicitBoundProvider:
+			//           bounds := sd.ExplicitBounds()        // []float64
+			//           counts := sd.BucketCounts()          // []uint64
+			//           count  := sd.Count()                 // uint64
+			//           sum    := sd.Sum()                   // float64
+			//
+			//       case metrics.ExponentialProvider:
+			//           scale     := sd.Scale()                  // int32
+			//           zeroCount := sd.ZeroCount()              // uint64
+			//           posOffset := sd.PositiveOffset()         // int32
+			//           posCounts := sd.PositiveBucketCounts()   // []uint64
+			//           negOffset := sd.NegativeOffset()         // int32
+			//           negCounts := sd.NegativeBucketCounts()   // []uint64
+			//           count     := sd.Count()                  // uint64
+			//           sum       := sd.Sum()                    // float64
+			//       }
+			//   }
+			log.Warnf("Native OTel histograms are not yet serialized in the v3 payload path and will be dropped (metric: %s)", sketch.Name)
+			return nil
+		}
+	}
+
 	if !pb.pipelineConfig.Filter.Filter(sketch) {
 		return nil
 	}
 
-	if ok, err := pb.checkPointsLimit(len(sketch.Points)); !ok {
+	nPoints := sketch.NumPoints()
+	if ok, err := pb.checkPointsLimit(nPoints); !ok {
 		return err
 	}
 
 	for {
-		pb.writeSketchToTxn(sketch)
-		err := pb.finishTxn(len(sketch.Points))
+		pb.writeDDSketchToTxn(sketch)
+		err := pb.finishTxn(nPoints)
 		if err == errRetry {
 			continue
 		}
@@ -511,7 +543,7 @@ func (pb *payloadsBuilderV3) writeSketch(sketch *metrics.SketchSeries) error {
 	}
 }
 
-func (pb *payloadsBuilderV3) writeSketchToTxn(sketch *metrics.SketchSeries) {
+func (pb *payloadsBuilderV3) writeDDSketchToTxn(sketch *metrics.SketchSeries) {
 	pb.txn.Reset()
 
 	pb.resourcesBuf = pb.resourcesBuf[:0]
@@ -531,11 +563,9 @@ func (pb *payloadsBuilderV3) writeSketchToTxn(sketch *metrics.SketchSeries) {
 		len(sketch.Points),
 	)
 
-	// find a single smallest type that can fit all summary values
-	// without loss of precision
 	pointKind := pointKindZero
 	for _, pnt := range sketch.Points {
-		_, bMin, bMax, bSum, _ := pnt.Sketch.BasicStats()
+		bMin, bMax, bSum := pnt.Sketch.SummaryValues()
 		pointKind = pointKind.unionOf(bSum)
 		pointKind = pointKind.unionOf(bMin)
 		pointKind = pointKind.unionOf(bMax)
@@ -551,7 +581,8 @@ func (pb *payloadsBuilderV3) writeSketchToTxn(sketch *metrics.SketchSeries) {
 
 	for _, pnt := range sketch.Points {
 		pb.writePointCommon(pnt.Ts)
-		bCnt, bMin, bMax, bSum, _ := pnt.Sketch.BasicStats()
+		dd := pnt.Sketch.(metrics.DDSketchProvider)
+		bCnt, bMin, bMax, bSum, _ := dd.BasicStats()
 
 		switch valueType {
 		case valueZero:
@@ -573,11 +604,10 @@ func (pb *payloadsBuilderV3) writeSketchToTxn(sketch *metrics.SketchSeries) {
 			pb.stats.valuesFloat64 += 3
 		}
 
-		// can share column with sum, min max, if so, cnt must be last.
 		pb.txn.Sint64(columnValueSint64, bCnt)
 		pb.stats.valuesSint64++
 
-		k, n := pnt.Sketch.Cols()
+		k, n := dd.Cols()
 		kDelta := deltaEncoder{}
 		for i := range k {
 			pb.txn.Sint64(columnSketchBinKeys, kDelta.encode(int64(k[i])))

@@ -20,6 +20,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/featuregates"
+	"go.opentelemetry.io/collector/featuregate"
 
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	defaultforwarderimpl "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/impl"
@@ -27,7 +28,24 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
 	otlpmetrics "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/otel"
+)
+
+// NativeHistogramFeatureGate enables lossless OTel histogram export via the Datadog v3 wire format.
+// When enabled, ExponentialHistogram and ExplicitBoundHistogram data points are forwarded as native
+// OTel histograms instead of being converted to DDSketches. Only delta points are emitted;
+// cumulative points are silently skipped.
+//
+// Enable with: --feature-gates=exporter.datadogexporter.NativeOTelHistograms
+//
+// Note: This gate is only effective in the DDOT (Agent embedded collector) path
+// (newFactoryForAgentWithType). The OSS Collector path (NewFactoryForOSSExporter) does not
+// check this gate. See OTAGENT-1079.
+var NativeHistogramFeatureGate = featuregate.GlobalRegistry().MustRegister(
+	"exporter.datadogexporter.NativeOTelHistograms",
+	featuregate.StageAlpha,
+	featuregate.WithRegisterDescription("Send OTel histograms in native v3 wire format (delta only, replaces DDSketch conversion)"),
 )
 
 const (
@@ -108,6 +126,14 @@ func newFactoryForAgentWithType(
 		options = append(options, otlpmetrics.WithInferDeltaInterval())
 	}
 
+	if NativeHistogramFeatureGate.IsEnabled() {
+		// TODO(OTAGENT-1079): Wire WithNativeHistograms() once v3 serialization is implemented (Stages 2-4).
+		// Until then, the gate is accepted but has no effect -- histograms continue through DDSketch.
+		//options = append(options, otlpmetrics.WithNativeHistograms())
+		log.Warnf("Feature gate %q is enabled but native OTel histogram serialization is not yet implemented (OTAGENT-1079). "+
+			"Histograms will continue through the DDSketch conversion path.", NativeHistogramFeatureGate.ID())
+	}
+
 	f := &factory{
 		s:            s,
 		hostProvider: hostGetter,
@@ -144,6 +170,10 @@ func newFactoryForAgentWithType(
 // NewFactoryForOSSExporter creates a new serializer exporter factory for the OSS Datadog exporter.
 // This function is part of the public API consumed by opentelemetry-collector-contrib's datadogexporter.
 // Do not remove or change its signature without coordinating with the upstream repository.
+//
+// Note: NativeOTelHistograms feature gate is NOT wired into the OSS path.
+// Native histogram support is currently limited to the DDOT (Agent embedded collector) path.
+// See OTAGENT-1079 for the roadmap to enable it in the standalone Collector.
 func NewFactoryForOSSExporter(typ component.Type, statsIn chan []byte) exp.Factory {
 	var options []otlpmetrics.TranslatorOption
 	if featuregates.DisableMetricRemappingFeatureGate.IsEnabled() {

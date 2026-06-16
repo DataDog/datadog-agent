@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -206,4 +207,42 @@ func (m *MockSerializer) SendOrchestratorMetadata(_ []types.ProcessMessageBody, 
 
 func (m *MockSerializer) SendOrchestratorManifests(_ []types.ProcessMessageBody, _, _ string) error {
 	return nil
+}
+
+// capturingMockSerializer extends MockSerializer to capture sketch data (including native histograms)
+// passed through SendSketch. Access is synchronized with a mutex because SendSketch runs in
+// a separate goroutine from the test assertions.
+type capturingMockSerializer struct {
+	MockSerializer
+	mu       sync.Mutex
+	sketches []*metrics.SketchSeries
+}
+
+func (m *capturingMockSerializer) SendSketch(src metrics.SketchesSource) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for src.MoveNext() {
+		m.sketches = append(m.sketches, src.Current())
+	}
+	return nil
+}
+
+func (m *capturingMockSerializer) getSketches() []*metrics.SketchSeries {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	result := make([]*metrics.SketchSeries, len(m.sketches))
+	copy(result, m.sketches)
+	return result
+}
+
+func TestSendHistograms_Empty(t *testing.T) {
+	sc := serializerConsumer{
+		hosts:          make(map[string]struct{}),
+		ecsFargateTags: make(map[string]struct{}),
+	}
+
+	mock := &capturingMockSerializer{}
+	err := sc.Send(mock)
+	require.NoError(t, err)
+	assert.Empty(t, mock.sketches)
 }

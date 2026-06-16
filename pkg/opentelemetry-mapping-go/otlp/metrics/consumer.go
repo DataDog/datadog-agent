@@ -100,21 +100,28 @@ type SketchConsumer interface {
 
 // ExplicitBoundHistogramConsumer is an explicit bound histogram consumer.
 type ExplicitBoundHistogramConsumer interface {
-	// ConsumeExplicitBoundHistogram consumes an explicit bound histogram.
+	// ConsumeExplicitBoundHistogram consumes a single explicit bound histogram data point.
+	// delta indicates whether the point is already delta (true) or cumulative (false).
 	ConsumeExplicitBoundHistogram(
 		ctx context.Context,
 		dimensions *Dimensions,
-		pts pmetric.HistogramDataPointSlice,
+		timestamp uint64,
+		interval int64,
+		point pmetric.HistogramDataPoint,
+		delta bool,
 	)
 }
 
 // ExponentialHistogramConsumer is an exponential histogram consumer.
 type ExponentialHistogramConsumer interface {
-	// ConsumeExponentialHistogram consumes an exponential histogram.
+	// ConsumeExponentialHistogram consumes a single exponential histogram data point.
+	// Only delta points are passed; cumulative points are skipped upstream.
 	ConsumeExponentialHistogram(
 		ctx context.Context,
 		dimensions *Dimensions,
-		pts pmetric.ExponentialHistogramDataPointSlice,
+		timestamp uint64,
+		interval int64,
+		point pmetric.ExponentialHistogramDataPoint,
 	)
 }
 

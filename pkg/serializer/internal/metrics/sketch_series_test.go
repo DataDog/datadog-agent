@@ -25,16 +25,14 @@ import (
 
 func check(t *testing.T, in metrics.SketchPoint, pb gogen.SketchPayload_Sketch_Dogsketch) {
 	t.Helper()
-	s := in.Sketch
-	bCnt, bMin, bMax, bSum, bAvg := in.Sketch.BasicStats()
+	dd := in.Sketch.(metrics.DDSketchProvider)
+	bCnt, bMin, bMax, bSum, bAvg := dd.BasicStats()
 	require.Equal(t, in.Ts, pb.Ts)
 
-	// sketch
-	k, n := s.Cols()
+	k, n := dd.Cols()
 	require.Equal(t, k, pb.K)
 	require.Equal(t, n, pb.N)
 
-	// summary
 	require.Equal(t, bCnt, pb.Cnt)
 	require.Equal(t, bMin, pb.Min)
 	require.Equal(t, bMax, pb.Max)

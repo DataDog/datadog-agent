@@ -1,0 +1,9 @@
+---
+features:
+  - |
+    Register the ``exporter.datadogexporter.NativeOTelHistograms`` alpha feature gate
+    for future lossless native OTel histogram export in DDOT.
+    The gate is accepted by ``--feature-gates`` but has no effect yet: histograms
+    continue through the existing DDSketch conversion path. Enabling the gate logs a
+    warning explaining that v3 wire-format serialization is not yet implemented.
+    No behavioral change when the gate is off (default).
