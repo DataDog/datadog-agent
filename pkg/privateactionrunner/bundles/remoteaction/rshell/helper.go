@@ -10,7 +10,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
@@ -29,15 +28,6 @@ func onlyRshellPrefixedCommands(commands []string) []string {
 		}
 	}
 	return prefixedCommands
-}
-
-// selectBackendPathsFromEnv returns the list of allowed paths for the current environment.
-// Falls back to the default (non-containerized) paths.
-func selectBackendPathsFromEnv(m map[string][]string) []string {
-	if env.IsContainerized() {
-		return m[setup.RShellPathAllowMapContainerizedKey]
-	}
-	return m[setup.RShellPathAllowMapDefaultKey]
 }
 
 // cleanPathList applies path.Clean to each element of the list of paths

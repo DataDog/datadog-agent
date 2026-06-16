@@ -68,10 +68,10 @@ func (fi *Server) handlePARDequeue(w http.ResponseWriter, r *http.Request) {
 	// inputs as those signed-task fields so skip-verification e2e flows behave
 	// like a real backend-signed task.
 	if v, ok := task.Inputs["allowedCommands"]; ok {
-		attributes["allowed_commands"] = v
+		attributes["target_commands"] = v
 	}
 	if v, ok := task.Inputs["allowedPaths"]; ok {
-		attributes["allowed_paths"] = v
+		attributes["target_paths"] = v
 	}
 	resp := map[string]interface{}{
 		"data": map[string]interface{}{

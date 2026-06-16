@@ -6,7 +6,6 @@
 package com_datadoghq_remoteaction_rshell
 
 import (
-	"os"
 	"slices"
 	"testing"
 
@@ -478,84 +477,6 @@ func TestIntersectPathLists(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			got := intersectPathLists(tc.list1, tc.list2)
 			assert.ElementsMatch(t, tc.want, got, "set of admitted paths")
-		})
-	}
-}
-
-// TestBackendPathsForEnv pins the env-driven dispatch and the failure
-// modes when the relevant key is missing.
-func TestBackendPathsForEnv(t *testing.T) {
-	cases := []struct {
-		name          string
-		containerized bool
-		in            map[string][]string
-		want          []string
-	}{
-		{
-			name:          "nil map → nil slice (kill-switch downstream)",
-			containerized: false,
-			in:            nil,
-			want:          nil,
-		},
-		{
-			name:          "empty map → nil slice (kill-switch downstream)",
-			containerized: false,
-			in:            map[string][]string{},
-			want:          nil,
-		},
-		{
-			name:          "bare-metal runner picks the default key",
-			containerized: false,
-			in: map[string][]string{
-				setup.RShellPathAllowMapDefaultKey:       {"/var/log", "/etc"},
-				setup.RShellPathAllowMapContainerizedKey: {"/host/var/log"},
-			},
-			want: []string{"/var/log", "/etc"},
-		},
-		{
-			name:          "containerized runner picks the containerized key",
-			containerized: true,
-			in: map[string][]string{
-				setup.RShellPathAllowMapDefaultKey:       {"/var/log", "/etc"},
-				setup.RShellPathAllowMapContainerizedKey: {"/host/var/log"},
-			},
-			want: []string{"/host/var/log"},
-		},
-		{
-			name:          "bare-metal runner with only the containerized key → nil (kill-switch)",
-			containerized: false,
-			in: map[string][]string{
-				setup.RShellPathAllowMapContainerizedKey: {"/host/var/log"},
-			},
-			want: nil,
-		},
-		{
-			name:          "containerized runner with only the default key → nil (kill-switch)",
-			containerized: true,
-			in: map[string][]string{
-				setup.RShellPathAllowMapDefaultKey: {"/var/log"},
-			},
-			want: nil,
-		},
-		{
-			name:          "unknown keys are ignored",
-			containerized: false,
-			in: map[string][]string{
-				setup.RShellPathAllowMapDefaultKey: {"/var/log"},
-				"some_future_env":                  {"/some/path"},
-			},
-			want: []string{"/var/log"},
-		},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			if tc.containerized {
-				t.Setenv("DOCKER_DD_AGENT", "true")
-			} else {
-				os.Unsetenv("DOCKER_DD_AGENT")
-			}
-			got := selectBackendPathsFromEnv(tc.in)
-			assert.Equal(t, tc.want, got)
 		})
 	}
 }

@@ -33,11 +33,9 @@ func makeTask(command string, allowedCommands []string) *types.Task {
 }
 
 // makeTaskWithPaths constructs a task carrying the backend allowlists in the
-// signed-task fields. The backend ships allowedPaths as a per-environment map
-// keyed by "default" / "containerized"; the runner picks the relevant slice
-// based on env.IsContainerized at task time. Use makeTask (without this helper)
-// to exercise the "backend did not send the field" branch — a nil map.
-func makeTaskWithPaths(command string, allowedCommands []string, allowedPaths map[string][]string) *types.Task {
+// signed-task fields. Use makeTask (without this helper) to exercise the
+// "backend did not send the field" branch — a nil slice.
+func makeTaskWithPaths(command string, allowedCommands []string, allowedPaths []string) *types.Task {
 	task := makeTask(command, allowedCommands)
 	task.Data.Attributes.TargetPaths = allowedPaths
 	return task
@@ -162,11 +160,10 @@ func TestFilterAllowedCommandsMatrix(t *testing.T) {
 
 // TestFilterAllowedPathsMatrix pins backend × operator combinations for
 // containment-aware intersection. The function is pure: it takes the
-// already-selected per-environment slice (env-routing happens in
-// backendPathsForEnv, tested separately). Operator paths are stored in
-// cleaned form (path.Clean + trailing "/"), and backend is normalized
-// inside filterAllowedPaths, so all expected outputs in this matrix carry
-// trailing slashes.
+// flat signed backend path list. Operator paths are stored in cleaned form
+// (path.Clean + trailing "/"), and backend is normalized inside
+// filterAllowedPaths, so all expected outputs in this matrix carry trailing
+// slashes.
 func TestFilterAllowedPathsMatrix(t *testing.T) {
 	cases := []struct {
 		name     string
@@ -476,7 +473,7 @@ func TestRunCommandBackendAllowedPathsRestrictsAccess(t *testing.T) {
 
 	task := makeTaskWithPaths("cat /var/log/syslog",
 		[]string{"rshell:cat"},
-		map[string][]string{setup.RShellPathAllowMapDefaultKey: {"/tmp"}})
+		[]string{"/tmp"})
 
 	out, err := handler.Run(context.Background(), task, nil)
 
@@ -502,7 +499,7 @@ func TestRunCommandSandboxWarningsKeepStderrClean(t *testing.T) {
 
 	task := makeTaskWithPaths("echo hello",
 		[]string{"rshell:echo"},
-		map[string][]string{setup.RShellPathAllowMapDefaultKey: {dir, missing}})
+		[]string{dir, missing})
 
 	out, err := handler.Run(context.Background(), task, nil)
 
@@ -525,7 +522,7 @@ func TestRunCommandSandboxWarningsNilWhenCleanConfig(t *testing.T) {
 
 	task := makeTaskWithPaths("echo hi",
 		[]string{"rshell:echo"},
-		map[string][]string{setup.RShellPathAllowMapDefaultKey: {dir}})
+		[]string{dir})
 
 	out, err := handler.Run(context.Background(), task, nil)
 
@@ -568,7 +565,7 @@ func TestRunCommandOutputLimitsReturnActionErrors(t *testing.T) {
 			handler := NewRunCommandHandler([]string{setup.RShellPathAllowAll}, []string{"rshell:cat"})
 			task := makeTaskWithPaths(tc.command,
 				[]string{"rshell:cat"},
-				map[string][]string{setup.RShellPathAllowMapDefaultKey: {dir}})
+				[]string{dir})
 
 			out, err := handler.Run(context.Background(), task, nil)
 
