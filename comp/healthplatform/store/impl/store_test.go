@@ -437,3 +437,114 @@ func TestGetActiveIssueIDsByIssueName(t *testing.T) {
 	ids = h.GetActiveIssueIDsByIssueName("t")
 	assert.ElementsMatch(t, []string{"t:2"}, ids)
 }
+
+// ============================================================================
+// EgressAggregator channel integration tests
+//
+// These tests cover the state-transition cases where both ActiveCh and
+// ResolvedCh can hold an entry for the same issue ID, and verify that
+// notifyReported/notifyResolved cancel the stale cross-channel entry.
+// ============================================================================
+
+func newTestAggregator(activeSz, resolvedSz int) storedef.EgressAggregator {
+	return storedef.EgressAggregator{
+		ActiveCh:   make(chan *healthplatformpayload.Issue, activeSz),
+		ResolvedCh: make(chan *healthplatformpayload.Issue, resolvedSz),
+	}
+}
+
+// TestEgressAggregatorNewIssue: first report → activeCh receives NEW.
+func TestEgressAggregatorNewIssue(t *testing.T) {
+	h := newTestStore(t)
+	agg := newTestAggregator(4, 4)
+	h.RegisterEgressAggregator(agg)
+
+	require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{Id: "i:1", IssueName: "t"}))
+
+	require.Len(t, agg.ActiveCh, 1)
+	assert.Empty(t, agg.ResolvedCh)
+	got := <-agg.ActiveCh
+	assert.Equal(t, IssueStateNew, got.PersistedIssue.GetState())
+}
+
+// TestEgressAggregatorOngoingIssue: second report → activeCh receives ONGOING.
+func TestEgressAggregatorOngoingIssue(t *testing.T) {
+	h := newTestStore(t)
+	agg := newTestAggregator(4, 4)
+	h.RegisterEgressAggregator(agg)
+
+	issue := &healthplatformpayload.Issue{Id: "i:1", IssueName: "t"}
+	require.NoError(t, h.ReportIssue(issue))
+	require.NoError(t, h.ReportIssue(issue))
+
+	// Drain both entries; the second one must be ONGOING.
+	assert.Len(t, agg.ActiveCh, 2)
+	<-agg.ActiveCh
+	got := <-agg.ActiveCh
+	assert.Equal(t, IssueStateOngoing, got.PersistedIssue.GetState())
+}
+
+// TestEgressAggregatorResolveAfterActive: resolve while an unread active entry
+// sits in ActiveCh → stale entry cancelled, ResolvedCh gets the tombstone.
+func TestEgressAggregatorResolveAfterActive(t *testing.T) {
+	h := newTestStore(t)
+	agg := newTestAggregator(4, 4)
+	h.RegisterEgressAggregator(agg)
+
+	require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{Id: "i:1", IssueName: "t"}))
+	require.Len(t, agg.ActiveCh, 1)
+
+	h.ResolveIssue("i:1")
+
+	// notifyResolved must have cancelled the stale active entry.
+	assert.Empty(t, agg.ActiveCh, "stale active entry must be removed when issue is resolved")
+	require.Len(t, agg.ResolvedCh, 1)
+	got := <-agg.ResolvedCh
+	assert.Equal(t, IssueStateResolved, got.PersistedIssue.GetState())
+}
+
+// TestEgressAggregatorReReportCancelsResolved: resolve (tombstone queued),
+// then re-report before the egress ticks → tombstone cancelled, ActiveCh
+// gets NEW so the issue is not incorrectly forwarded as RESOLVED.
+func TestEgressAggregatorReReportCancelsResolved(t *testing.T) {
+	h := newTestStore(t)
+	agg := newTestAggregator(4, 4)
+	h.RegisterEgressAggregator(agg)
+
+	issue := &healthplatformpayload.Issue{Id: "i:1", IssueName: "t"}
+	require.NoError(t, h.ReportIssue(issue))
+	<-agg.ActiveCh // simulate egress draining activeCh
+
+	h.ResolveIssue("i:1")
+	require.Len(t, agg.ResolvedCh, 1, "tombstone must be queued after resolve")
+
+	// Re-report before the egress ticks.
+	require.NoError(t, h.ReportIssue(issue))
+
+	// notifyReported must have cancelled the tombstone.
+	assert.Empty(t, agg.ResolvedCh, "stale tombstone must be removed on re-report")
+	require.Len(t, agg.ActiveCh, 1)
+	got := <-agg.ActiveCh
+	assert.Equal(t, IssueStateNew, got.PersistedIssue.GetState())
+}
+
+// TestEgressAggregatorResolveAfterOngoing: ongoing report queued in ActiveCh,
+// then resolved → stale ongoing entry cancelled, ResolvedCh gets tombstone.
+func TestEgressAggregatorResolveAfterOngoing(t *testing.T) {
+	h := newTestStore(t)
+	agg := newTestAggregator(4, 4)
+	h.RegisterEgressAggregator(agg)
+
+	issue := &healthplatformpayload.Issue{Id: "i:1", IssueName: "t"}
+	require.NoError(t, h.ReportIssue(issue))
+	require.NoError(t, h.ReportIssue(issue)) // ONGOING in activeCh
+	<-agg.ActiveCh                           // drain NEW, leave ONGOING unread
+	require.Len(t, agg.ActiveCh, 1)
+
+	h.ResolveIssue("i:1")
+
+	assert.Empty(t, agg.ActiveCh, "stale ongoing entry must be cancelled on resolve")
+	require.Len(t, agg.ResolvedCh, 1)
+	got := <-agg.ResolvedCh
+	assert.Equal(t, IssueStateResolved, got.PersistedIssue.GetState())
+}
