@@ -59,7 +59,6 @@ go_test(
     deps = [
         "//pkg/collector/corechecks/ebpf/probe/ebpfcheck/model",
         "//pkg/ebpf",
-        "//pkg/ebpf/ebpftest:cgo_align",
         "//pkg/ebpf/maps",
         "//pkg/util/kernel",
         "@com_github_cilium_ebpf//:ebpf",

@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+# gazelle:ignore
+
 load("//bazel/rules/ebpf:cgo_godefs.bzl", "cgo_godefs")
 
 exports_files([
@@ -12,40 +13,4 @@ cgo_godefs(
     hdrs = ["//pkg/network/ebpf/c/prebuilt:prebuilt_headers"],
     visibility = ["//visibility:public"],
     deps = ["//pkg/network/ebpf/c:ebpf_c_network"],
-)
-
-go_library(
-    name = "offsetguess",
-    srcs = [
-        "conntrack.go",
-        "offsetguess.go",
-        "offsetguess_types_linux.go",
-        "overlaps.go",
-        "tracer.go",
-    ],
-    cgo = True,
-    importpath = "github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess",
-    visibility = ["//visibility:public"],
-    deps = [
-        "//pkg/ebpf",
-        "//pkg/ebpf/bytecode",
-        "//pkg/ebpf/maps",
-        "//pkg/network/config",
-        "//pkg/network/ebpf",
-        "//pkg/network/ebpf/probes",
-        "//pkg/util/kernel",
-        "//pkg/util/kernel/netns",
-        "//pkg/util/log",
-        "@com_github_datadog_ebpf_manager//:ebpf-manager",
-        "@com_github_shirou_gopsutil_v4//host",
-        "@com_github_vishvananda_netns//:netns",
-        "@org_golang_x_sys//unix",
-    ],
-)
-
-go_test(
-    name = "offsetguess_test",
-    srcs = ["offsetguess_types_linux_test.go"],
-    embed = [":offsetguess"],
-    gotags = ["test"],
 )

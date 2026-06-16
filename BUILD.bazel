@@ -530,6 +530,7 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/security/resolvers/usergroup
 # gazelle:exclude pkg/security/resolvers/usersessions
 # gazelle:exclude pkg/security/rules
+# gazelle:exclude pkg/security/security_profile/*.go
 # gazelle:exclude pkg/security/security_profile/activity_tree
 # gazelle:exclude pkg/security/security_profile/dump
 # gazelle:exclude pkg/security/security_profile/profile
