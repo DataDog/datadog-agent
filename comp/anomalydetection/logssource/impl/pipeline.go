@@ -87,6 +87,11 @@ func (p *observerPipeline) NextPipelineChanWithMonitor() (chan *message.Message,
 	return p.inputChan, nil //nolint:nilnil
 }
 
+// GetPipelineMonitor implements pipeline.Provider; the observer pipeline does not surface on the status page.
+func (p *observerPipeline) GetPipelineMonitor() metrics.PipelineMonitor {
+	return metrics.NewNoopPipelineMonitor("observer-logs-0")
+}
+
 // GetOutputChan implements pipeline.Provider.
 func (p *observerPipeline) GetOutputChan() chan *message.Message {
 	return p.outputChan
