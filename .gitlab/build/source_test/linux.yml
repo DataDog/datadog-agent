@@ -81,6 +81,11 @@ tests_linux-x64-py3_hybrid:
     CONDA_ENV: ddpy3
     EXPERIMENTAL_USE_BAZEL_TESTS: "1"
   allow_failure: true  # This is for measurement during migration. It is not the actual test job.
+  retry: 0  # allowed to fail, ~35 min exec time
+  rules:
+    - !reference [.except_mergequeue]  # allowed to fail, not a gate at this stage
+    - !reference [.except_disable_unit_tests]
+    - !reference [.fast_on_dev_branch_only]
 
 tests_nodetreemodel:
   extends:
