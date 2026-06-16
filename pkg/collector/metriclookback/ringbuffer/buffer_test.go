@@ -513,6 +513,43 @@ func TestSeriesExportReconstructsRetainedSamples(t *testing.T) {
 	}
 }
 
+func TestSeriesBetweenFiltersByTimestampWindow(t *testing.T) {
+	buffer := New(Options{Capacity: 8, ShardCount: 1})
+	checkID := checkid.ID("window:check")
+
+	for _, sample := range []metrics.MetricSample{
+		{Name: "before", Value: 1, Mtype: metrics.GaugeType, Timestamp: 10},
+		{Name: "start", Value: 2, Mtype: metrics.GaugeType, Timestamp: 20},
+		{Name: "middle", Value: 3, Mtype: metrics.GaugeType, Timestamp: 25},
+		{Name: "end", Value: 4, Mtype: metrics.GaugeType, Timestamp: 30},
+		{Name: "after", Value: 5, Mtype: metrics.GaugeType, Timestamp: 40},
+	} {
+		if err := buffer.Append(context.Background(), checkID, []metrics.MetricSample{sample}); err != nil {
+			t.Fatalf("Append returned error: %v", err)
+		}
+	}
+
+	series := buffer.SeriesBetween(time.Unix(20, 0), time.Unix(30, 0))
+	if len(series) != 3 {
+		t.Fatalf("expected 3 series in window, got %d", len(series))
+	}
+	for i, want := range []string{"start", "middle", "end"} {
+		if series[i].Name != want {
+			t.Fatalf("series[%d].Name = %q, want %q", i, series[i].Name, want)
+		}
+	}
+
+	if got := buffer.SerieSourceBetween(time.Time{}, time.Unix(20, 0)).Count(); got != 2 {
+		t.Fatalf("expected unbounded-start source count 2, got %d", got)
+	}
+	if got := buffer.SerieSourceBetween(time.Unix(30, 0), time.Time{}).Count(); got != 2 {
+		t.Fatalf("expected unbounded-end source count 2, got %d", got)
+	}
+	if series := buffer.SeriesBetween(time.Unix(31, 0), time.Unix(30, 0)); series != nil {
+		t.Fatalf("expected nil series for invalid range, got %#v", series)
+	}
+}
+
 func TestAPIMetricTypeMatchesRawLookbackPlan(t *testing.T) {
 	tests := []struct {
 		name string
