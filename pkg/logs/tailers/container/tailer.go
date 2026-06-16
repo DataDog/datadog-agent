@@ -431,9 +431,11 @@ func buildMessage(tailer *Tailer, output *message.Message) *message.Message {
 	tailer.setLastSince(output.ParsingExtra.Timestamp)
 	origin.Identifier = tailer.Identifier()
 
+	providerTags := tailer.tagProvider.GetTags()
+
 	var tags []string
 	tags = append(tags, output.ParsingExtra.Tags...)
-	tags = append(tags, tailer.tagProvider.GetTags()...)
+	tags = append(tags, providerTags...)
 	origin.SetTags(tags)
 
 	// XXX(remy): is it OK recreating a message here?

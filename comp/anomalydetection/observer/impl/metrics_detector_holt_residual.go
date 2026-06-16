@@ -141,7 +141,7 @@ type HoltResidualDetector struct {
 	series map[holtStateKey]*holtSeriesState
 
 	// cache the discovered series list across Detect calls (mirrors the
-	// scanwelch / scanmw / bocpd / kl pattern).
+	// scanwelch / scanmw / bocpd pattern).
 	cachedSeries []observer.SeriesMeta
 	cachedGen    uint64
 }
