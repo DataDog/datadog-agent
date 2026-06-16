@@ -30,24 +30,52 @@ jobs:
           scope: DataDog/datadog-agent
           policy: self.collector-generate-and-update.create-pr
 
+      - name: Check biweekly schedule
+        id: check-schedule
+        if: github.event_name == 'schedule'
+        run: |
+          WEEK=$(date +%V)
+          if (( WEEK % 2 != 0 )); then
+            echo "Week $WEEK is odd — skipping biweekly run."
+            echo "skip=true" >> $GITHUB_OUTPUT
+          fi
+
       - name: Run Collector Update Script
+        if: steps.check-schedule.outputs.skip != 'true'
         id: collector-update
         env:
           GITHUB_TOKEN: ${{ steps.octo-sts.outputs.token }}
         run: |
           dda inv -- -e install-tools
           dda inv -- -e collector.update
+          OCB_VERSION=$(grep -m1 'OCB_VERSION = ' tasks/collector.py | grep -oP '"\K[^"]+')
           echo "OCB_VERSION=$OCB_VERSION" >> $GITHUB_OUTPUT
           dda inv -- -e collector.generate
           dda inv -- -e generate-licenses
+          dda inv -- -e tidy
+          bazel run //:go_mod_tidy_all
+          dda inv components.lint-components --fix
+          dda inv modules.add-all-replace
 
       - uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
         name: Create pull request
+        if: steps.check-schedule.outputs.skip != 'true'
         with:
           token: ${{ steps.octo-sts.outputs.token }}
           commit-message: Update OTel Collector dependencies to ${{ steps.collector-update.outputs.OCB_VERSION}} and generate OTel Agent
           branch: update-otel-collector-dependencies-${{ steps.collector-update.outputs.OCB_VERSION}}
           sign-commits: true
           title: Update OTel Collector dependencies to v${{ steps.collector-update.outputs.OCB_VERSION}}
-          body: This PR updates the dependencies of the OTel Collector to v{OCB_VERSION} and generates the OTel Agent code.
+          body: This PR updates the dependencies of the OTel Collector to v${{ steps.collector-update.outputs.OCB_VERSION}} and generates the OTel Agent code.
+          labels: team:opentelemetry-agent
           draft: true
+
+      - name: Notify Slack on failure
+        if: failure()
+        uses: slackapi/slack-github-action@45a88b9581bfab2566dc881e2cd66d334e621e2c # v3.0.3
+        with:
+          method: chat.postMessage
+          token: ${{ secrets.SLACK_DATADOG_AGENT_BOT_TOKEN }}
+          payload: |
+            channel: C08R19TR3FS
+            text: ":x: *collector-generate-and-update* failed\nRun: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
