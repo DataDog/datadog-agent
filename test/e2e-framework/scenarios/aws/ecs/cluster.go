@@ -72,7 +72,7 @@ func NewCluster(e aws.Environment, name string, opts ...Option) (*ecsComp.Cluste
 		}
 
 		if params.ManagedInstanceNodeGroup {
-			cpName, err := ecs.NewECSOptimizedNodeGroup(e, ecsCluster.Name, false)
+			cpName, err := ecs.NewECSManagedInstanceNodeGroup(e, ecsCluster.Name)
 			if err != nil {
 				return err
 			}

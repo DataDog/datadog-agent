@@ -36,13 +36,27 @@ Initialize-ECSAgent -Cluster %s -EnableTaskIAMRole -LoggingDrivers '["json-file"
 )
 
 func NewECSOptimizedNodeGroup(e aws.Environment, clusterName pulumi.StringInput, armInstance bool) (pulumi.StringOutput, error) {
+	ngName := "ecs-optimized-ng"
+	if armInstance {
+		ngName = "ecs-optimized-arm-ng"
+	}
+	return newECSOptimizedNodeGroup(e, clusterName, armInstance, ngName)
+}
+
+// NewECSManagedInstanceNodeGroup provisions an ECS-optimized x86_64 node group
+// under a distinct Pulumi resource name so it can coexist with
+// NewECSOptimizedNodeGroup in the same stack (which both NewECSOptimizedNodeGroup
+// and this helper would otherwise share, producing a duplicate URN).
+func NewECSManagedInstanceNodeGroup(e aws.Environment, clusterName pulumi.StringInput) (pulumi.StringOutput, error) {
+	return newECSOptimizedNodeGroup(e, clusterName, false, "ecs-managed-instance-ng")
+}
+
+func newECSOptimizedNodeGroup(e aws.Environment, clusterName pulumi.StringInput, armInstance bool, ngName string) (pulumi.StringOutput, error) {
 	amiParamName := "/aws/service/ecs/optimized-ami/amazon-linux-2/recommended/image_id"
 	instanceType := e.DefaultInstanceType()
-	ngName := "ecs-optimized-ng"
 	if armInstance {
 		amiParamName = "/aws/service/ecs/optimized-ami/amazon-linux-2/arm64/recommended/image_id"
 		instanceType = e.DefaultARMInstanceType()
-		ngName = "ecs-optimized-arm-ng"
 	}
 
 	ecsAmi, err := ssm.LookupParameter(e.Ctx(), &ssm.LookupParameterArgs{
