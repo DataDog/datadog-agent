@@ -31,9 +31,9 @@ import threading
 import time
 import tty
 from collections import deque
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Iterable
 
 from rich import box
 from rich.console import Console, Group
@@ -91,7 +91,7 @@ class KeyReader:
         self.enabled = sys.stdin.isatty()
         self._old: list[int | bytes] | None = None
 
-    def __enter__(self) -> "KeyReader":
+    def __enter__(self) -> KeyReader:
         if self.enabled:
             self._old = termios.tcgetattr(sys.stdin.fileno())
             tty.setcbreak(sys.stdin.fileno())
@@ -179,7 +179,7 @@ class Demo:
             ),
             Step(
                 "DogStatsD trigger",
-                "Send demo.lookback.trigger:1|g; trigger callback dumps retained lookback sample.",
+                "Send demo.lookback.trigger:1|g; trigger session dumps after the configured 17s delay.",
                 self.step_send_trigger,
             ),
             Step(
@@ -282,14 +282,16 @@ class Demo:
         raise TimeoutError(f"{label} did not listen on port {port} within {timeout:.0f}s")
 
     def check_ports_free(self) -> None:
-        in_use = [p for p in (FAKEINTAKE_PORT, CMD_PORT) if self.port_open(p)]
+        in_use = [p for p in (FAKEINTAKE_PORT, CMD_PORT, DOGSTATSD_PORT) if self.port_open(p)]
         if in_use:
             raise RuntimeError(f"ports already in use: {in_use}")
 
     # ----- fakeintake/agent helpers ---------------------------------------
 
     def fakeintakectl(self, *args: str, ok_rcs: set[int] | None = None, timeout: float = 20) -> str:
-        return self.run_cmd([str(self.fakeintakectl_bin), "--url", FAKEINTAKE_URL, *args], timeout=timeout, ok_rcs=ok_rcs)
+        return self.run_cmd(
+            [str(self.fakeintakectl_bin), "--url", FAKEINTAKE_URL, *args], timeout=timeout, ok_rcs=ok_rcs
+        )
 
     def agent_cli(self, *args: str, timeout: float = 60) -> str:
         return self.run_cmd([str(self.agent_bin), *args, "-c", str(self.config_path)], timeout=timeout)
@@ -337,7 +339,11 @@ metric_lookback:
     metric_name: {TRIGGER_METRIC}
     threshold: 1
     ewma_alpha: 1
-    cooldown: 1s
+    cooldown: 30s
+    pre_window: 15s
+    post_window: 15s
+    dump_interval: 10s
+    send_delay: 17s
 """,
             encoding="utf-8",
         )
@@ -376,7 +382,9 @@ metric_lookback:
         )
         self.wait_for_port(FAKEINTAKE_PORT, "fakeintake")
         self.fakeintake_ready = True
-        self.agent_proc = self.start_process("agent", [str(self.agent_bin), "run", "-c", str(self.config_path)], self.agent_log)
+        self.agent_proc = self.start_process(
+            "agent", [str(self.agent_bin), "run", "-c", str(self.config_path)], self.agent_log
+        )
         self.wait_for_port(CMD_PORT, "agent command API", timeout=90)
         self.agent_ready = True
         # Give startup payloads a moment, then make the visual baseline clean.
@@ -419,8 +427,8 @@ metric_lookback:
 
     def step_send_trigger(self) -> None:
         self.send_dogstatsd(f"{TRIGGER_METRIC}:1|g|#{TRIGGER_TAG}\n")
-        self.wait_until_metric(TRIGGERED_METRIC, TRIGGERED_TAG, timeout=25)
-        self.last_action = "DogStatsD trigger fired and dumped the retained trigger demo sample."
+        self.wait_until_metric(TRIGGERED_METRIC, TRIGGERED_TAG, timeout=35)
+        self.last_action = "DogStatsD trigger fired; delayed dump session sent the retained trigger demo sample."
 
     def step_stop_services(self) -> None:
         self.cleanup_processes()
@@ -433,11 +441,20 @@ metric_lookback:
             return []
         try:
             proc = subprocess.run(
-                [str(self.fakeintakectl_bin), "--url", FAKEINTAKE_URL, "filter", "metrics", "--name", name, "--tags", tag],
+                [
+                    str(self.fakeintakectl_bin),
+                    "--url",
+                    FAKEINTAKE_URL,
+                    "filter",
+                    "metrics",
+                    "--name",
+                    name,
+                    "--tags",
+                    tag,
+                ],
                 cwd=ROOT,
                 stdin=subprocess.DEVNULL,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
+                capture_output=True,
                 text=True,
                 timeout=5,
                 check=False,
@@ -461,8 +478,7 @@ metric_lookback:
                         [str(self.fakeintakectl_bin), "--url", FAKEINTAKE_URL, "route-stats"],
                         cwd=ROOT,
                         stdin=subprocess.DEVNULL,
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.PIPE,
+                        capture_output=True,
                         text=True,
                         timeout=5,
                         check=False,
@@ -474,8 +490,14 @@ metric_lookback:
                     self.trigger_signal_series = self.query_metric(TRIGGER_METRIC, TRIGGER_TAG)
                 except Exception as exc:  # noqa: BLE001 - diagnostics only
                     self.route_stats = f"poll error: {exc}"
-            self.fakeintake_ready = self.fakeintake_proc is not None and self.fakeintake_proc.poll() is None and self.port_open(FAKEINTAKE_PORT)
-            self.agent_ready = self.agent_proc is not None and self.agent_proc.poll() is None and self.port_open(CMD_PORT)
+            self.fakeintake_ready = (
+                self.fakeintake_proc is not None
+                and self.fakeintake_proc.poll() is None
+                and self.port_open(FAKEINTAKE_PORT)
+            )
+            self.agent_ready = (
+                self.agent_proc is not None and self.agent_proc.poll() is None and self.port_open(CMD_PORT)
+            )
             time.sleep(1)
 
     # ----- UI --------------------------------------------------------------
@@ -666,8 +688,12 @@ metric_lookback:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run the one-terminal metric lookback live demo.")
-    parser.add_argument("--skip-build", action="store_true", help="Use existing bin/agent/agent and fakeintake binaries.")
-    parser.add_argument("--no-cleanup", action="store_true", help="Leave background agent/fakeintake processes running on exit.")
+    parser.add_argument(
+        "--skip-build", action="store_true", help="Use existing bin/agent/agent and fakeintake binaries."
+    )
+    parser.add_argument(
+        "--no-cleanup", action="store_true", help="Leave background agent/fakeintake processes running on exit."
+    )
     return parser.parse_args()
 
 

@@ -22,6 +22,7 @@ import (
 	demultiplexerComp "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/def"
 	configmock "github.com/DataDog/datadog-agent/comp/core/config"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/metriclookback/lookbacksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/metriclookback/ringbuffer"
 )
@@ -34,12 +35,12 @@ type fakeLookbackDemux struct {
 	demultiplexerComp.Component
 	count         int
 	err           error
-	senderManager *lookbacksender.SenderManager
+	senderManager sender.SenderManager
 }
 
 func (f fakeLookbackDemux) DumpLookback() (int, error) { return f.count, f.err }
 
-func (f fakeLookbackDemux) LookbackSenderManager() *lookbacksender.SenderManager {
+func (f fakeLookbackDemux) LookbackSenderManager(context.Context) sender.SenderManager {
 	return f.senderManager
 }
 

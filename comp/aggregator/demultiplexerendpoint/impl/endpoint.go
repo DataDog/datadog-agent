@@ -8,6 +8,7 @@ package demultiplexerendpointimpl
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"net/http"
 	"os"
@@ -20,8 +21,8 @@ import (
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
-	"github.com/DataDog/datadog-agent/pkg/collector/metriclookback/lookbacksender"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 )
 
@@ -61,7 +62,7 @@ func NewComponent(reqs Requires) Provides {
 }
 
 type lookbackSenderManagerProvider interface {
-	LookbackSenderManager() *lookbacksender.SenderManager
+	LookbackSenderManager(context.Context) sender.SenderManager
 }
 
 // lookbackDumpResponse is the JSON body returned by the /metric-lookback-dump endpoint.
@@ -138,7 +139,7 @@ func (demuxendpoint demultiplexerEndpoint) seedLookback(w http.ResponseWriter, r
 		httputils.SetJSONError(w, demuxendpoint.log.Errorf("demultiplexer does not expose metric lookback sender manager"), http.StatusInternalServerError)
 		return
 	}
-	manager := provider.LookbackSenderManager()
+	manager := provider.LookbackSenderManager(r.Context())
 	if manager == nil {
 		httputils.SetJSONError(w, demuxendpoint.log.Errorf("metric lookback is disabled"), http.StatusConflict)
 		return
