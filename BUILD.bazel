@@ -361,7 +361,6 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/network/usm/maps
 # gazelle:exclude pkg/network/usm/tests
 # gazelle:exclude pkg/network/usm/testutil/grpc
-# gazelle:exclude pkg/network/usm/utils
 # gazelle:exclude pkg/networkpath/traceroute/runner
 # gazelle:exclude pkg/privateactionrunner/autoconnections
 # gazelle:exclude pkg/privateactionrunner/runners
