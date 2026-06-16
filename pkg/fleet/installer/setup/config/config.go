@@ -121,7 +121,25 @@ type DatadogConfigDJM struct {
 
 // DatadogConfigProcessConfig represents the configuration for the process agent
 type DatadogConfigProcessConfig struct {
-	ExpvarPort int `yaml:"expvar_port,omitempty"`
+	ExpvarPort          int                            `yaml:"expvar_port,omitempty"`
+	ProcessCollection   DatadogConfigProcessCollection `yaml:"process_collection,omitempty"`
+	ContainerCollection DatadogConfigProcessContainer  `yaml:"container_collection,omitempty"`
+	ProcessDiscovery    DatadogConfigProcessDiscovery  `yaml:"process_discovery,omitempty"`
+}
+
+// DatadogConfigProcessCollection represents the configuration for live process collection
+type DatadogConfigProcessCollection struct {
+	Enabled *bool `yaml:"enabled,omitempty"`
+}
+
+// DatadogConfigProcessContainer represents the configuration for container collection
+type DatadogConfigProcessContainer struct {
+	Enabled *bool `yaml:"enabled,omitempty"`
+}
+
+// DatadogConfigProcessDiscovery represents the configuration for process discovery
+type DatadogConfigProcessDiscovery struct {
+	Enabled *bool `yaml:"enabled,omitempty"`
 }
 
 // DatadogConfigInstaller represents the configuration for the installer
@@ -284,6 +302,7 @@ type APMConfigurationDefault struct {
 	AppsecEnabled                 *bool   `yaml:"DD_APPSEC_ENABLED,omitempty"`
 	IastEnabled                   *bool   `yaml:"DD_IAST_ENABLED,omitempty"`
 	DataJobsEnabled               *bool   `yaml:"DD_DATA_JOBS_ENABLED,omitempty"`
+	DataJobsOpenLineageEnabled    *bool   `yaml:"DD_DATA_JOBS_OPENLINEAGE_ENABLED,omitempty"`
 	AppsecScaEnabled              *bool   `yaml:"DD_APPSEC_SCA_ENABLED,omitempty"`
 	LogsCollectionEnabled         *bool   `yaml:"DD_APP_LOGS_COLLECTION_ENABLED,omitempty"`
 	RumEnabled                    *bool   `yaml:"DD_RUM_ENABLED,omitempty"`

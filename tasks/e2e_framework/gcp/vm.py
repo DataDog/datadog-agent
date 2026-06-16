@@ -89,7 +89,6 @@ def create_vm(
 
     extra_flags = {
         "ddinfra:env": f"gcp/{account if account else cfg.get_gcp().account}",
-        "ddinfra:gcp/defaultPublicKeyPath": cfg.get_gcp().publicKeyPath,
         "ddinfra:osDescriptor": f"{os_family}:{os_version if os_version else ''}:{os_arch}",
     }
 

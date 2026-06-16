@@ -38,6 +38,7 @@ var defaultFlags = []string{
 	"-Wno-unused-value",
 	"-Wno-pointer-sign",
 	"-Wno-compare-distinct-pointer-types",
+	"-Wno-microsoft-anon-tag",
 	"-Wunused",
 	"-Wall",
 	"-Werror",
@@ -48,6 +49,7 @@ var defaultFlags = []string{
 	"-fno-unwind-tables",
 	"-fno-asynchronous-unwind-tables",
 	"-fno-jump-tables",
+	"-fms-extensions",
 	"-nostdinc",
 }
 

@@ -105,7 +105,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(globalParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewClusterAgentParams(globalParams.ConfFilePath),
-					LogParams:    log.ForDaemon(command.LoggerName, "log_file", defaultpaths.DCALogFile),
+					LogParams:    log.ForDaemon(command.LoggerName, "log_file", defaultpaths.GetDefaultDCALogFile()),
 				}),
 				core.Bundle(core.WithSecrets()),
 				hostnameimpl.Module(),
@@ -200,7 +200,7 @@ func run(
 	mainCtx, mainCtxCancel := context.WithCancel(context.Background())
 	defer mainCtxCancel() // Calling cancel twice is safe
 
-	if !pkgconfigsetup.Datadog().IsSet("api_key") {
+	if !pkgconfigsetup.Datadog().IsConfigured("api_key") {
 		pkglog.Critical("no API key configured, exiting")
 		return nil
 	}
