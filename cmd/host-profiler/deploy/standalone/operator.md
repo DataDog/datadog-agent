@@ -32,6 +32,7 @@ Before deploying, update the provided manifests for your environment:
    - Set `metadata.namespace` to your chosen namespace.
    - Set `DD_SITE` if your Datadog site is not `datadoghq.com`. See [Datadog sites](https://docs.datadoghq.com/getting_started/site/).
    - Adapt the `DD_API_KEY` secret reference if you do not use the example `datadog-secret` Kubernetes Secret.
+   - To use another Datadog container registry, replace the `registry.datadoghq.com` prefix in the Host Profiler image with your preferred registry prefix. See [Changing your container registry](https://docs.datadoghq.com/containers/guide/changing_container_registry/).
    - Review the OpenTelemetry Collector configuration under `spec.config`. Adapt it like any other [OpenTelemetry Collector configuration](https://opentelemetry.io/docs/collector/configuration/).
 
 3. Choose a network policy manifest:

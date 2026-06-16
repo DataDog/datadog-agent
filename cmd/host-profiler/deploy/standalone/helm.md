@@ -27,6 +27,7 @@ Before deploying, update the provided Helm values files for your environment. Th
 1. In [`helm/collector-values.yaml`](helm/collector-values.yaml):
    - Set `DD_SITE` if your Datadog site is not `datadoghq.com`. See [Datadog sites](https://docs.datadoghq.com/getting_started/site/).
    - Adapt the `DD_API_KEY` secret reference if you do not use the example `datadog-secret` Kubernetes Secret.
+   - To use another Datadog container registry, replace the `registry.datadoghq.com` prefix in the Host Profiler image with your preferred registry prefix. See [Changing your container registry](https://docs.datadoghq.com/containers/guide/changing_container_registry/).
    - Review the remaining pod settings. For all supported values, see the [OpenTelemetry Collector Helm chart values](https://github.com/open-telemetry/opentelemetry-helm-charts/blob/main/charts/opentelemetry-collector/values.yaml).
 
 2. In [`helm/collector-config-values.yaml`](helm/collector-config-values.yaml):
