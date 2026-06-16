@@ -1030,7 +1030,10 @@ func (c *WorkloadMetaCollector) extractKueueResourceFlavorTags(flavor *workloadm
 }
 
 func (c *WorkloadMetaCollector) extractKueueWorkloadTags(workload *workloadmeta.KubernetesKueueWorkload, tagList *taglist.TagList) {
-	tagList.AddLow(tags.KueueWorkload, workload.Name)
+	tagList.AddOrchestrator(tags.KueueWorkload, workload.Name)
+	if workload.UID != "" {
+		tagList.AddOrchestrator(tags.KueueWorkloadUID, workload.UID)
+	}
 	if workload.QueueName != "" {
 		tagList.AddLow(tags.KueueLocalQueue, workload.QueueName)
 	}
