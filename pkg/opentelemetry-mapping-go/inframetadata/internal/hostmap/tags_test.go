@@ -84,7 +84,7 @@ func TestGetHostAliases(t *testing.T) {
 				m.FromRaw(map[string]any{hostAliasAttribute: nonInitializedSlice})
 				return m
 			},
-			expected: []string{},
+			expected: uninitializedSlice,
 		},
 	}
 
