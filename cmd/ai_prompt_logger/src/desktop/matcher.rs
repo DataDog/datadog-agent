@@ -96,6 +96,7 @@ pub fn detect_ai_usage(
     config: &DesktopMonitoringConfig,
 ) -> Option<AiUsageDetection> {
     let foreground_is_host = matches_process_name(foreground, &config.host_process_names);
+    let foreground_is_terminal_host = is_terminal_host_process(foreground);
     let process_by_pid: HashMap<u32, &ProcessInfo> = snapshot
         .processes
         .iter()
@@ -123,6 +124,9 @@ pub fn detect_ai_usage(
     for process in descendants {
         if let Some(tool) = ai_candidates.get(&process.pid) {
             if !process.process_read_write_activity_observed {
+                continue;
+            }
+            if foreground_is_terminal_host && !is_in_terminal_foreground_group(process) {
                 continue;
             }
             return Some(detection_from_match(foreground, process, tool));
@@ -187,6 +191,21 @@ fn ai_process_candidates<'a>(
         }
     }
     candidates
+}
+
+fn is_in_terminal_foreground_group(process: &ProcessInfo) -> bool {
+    process.has_controlling_terminal
+        && process.process_group_id.is_some()
+        && process.process_group_id == process.terminal_foreground_process_group_id
+}
+
+fn is_terminal_host_process(process: &ProcessInfo) -> bool {
+    process_identity_names(process).into_iter().any(|name| {
+        matches!(
+            normalize_process_name(name).as_str(),
+            "terminal" | "iterm2" | "ghostty" | "wezterm" | "wezterm-gui" | "alacritty" | "kitty"
+        )
+    })
 }
 
 fn detection_from_match(
@@ -1047,11 +1066,7 @@ mod tests {
     fn terminal_foreground_group_ignores_inactive_tab_descendants() {
         let foreground = process(10, 1, "iTerm2");
         let active_shell = terminal_process(11, 10, "zsh", 11, 11);
-        let inactive_ai = ProcessInfo {
-            process_read_write_activity_observed: false,
-            process_activity_delta: Some(ProcessActivityDelta::default()),
-            ..terminal_process(12, 10, "claude", 12, 11)
-        };
+        let inactive_ai = terminal_process(12, 10, "claude", 12, 11);
         let mut config = config();
         config.host_process_names.push("iTerm2".to_string());
 
