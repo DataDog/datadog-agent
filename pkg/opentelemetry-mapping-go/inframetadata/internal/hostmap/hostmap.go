@@ -260,22 +260,22 @@ func applyResourceAttrs(md *payload.HostMetadata, host string, res pcommon.Resou
 	md.InternalHostname = host
 	md.Meta.Hostname = host
 
-	// Host tags
-	// If a tag was present in a previous resource but is not present
-	// in the current one, it will be removed from the host metadata payload.
+	// Host tags — only updated when the resource explicitly carries tag attributes,
+	// so a metrics-only resource does not erase tags set by a richer prior payload.
 	if tags, tagsErr := getHostTags(res.Attributes()); tagsErr != nil {
 		err = errors.Join(err, tagsErr)
-	} else {
+	} else if len(tags) > 0 {
 		old := md.Tags.OTel
 		changed = changed || !equalSlices[[]string](old, tags)
 		md.Tags.OTel = tags
 	}
 
-	// Host Aliases
-	hostAliases := getHostAliases(res.Attributes())
-	old := md.Meta.HostAliases
-	changed = changed || !equalSlices[[]string](old, hostAliases)
-	md.Meta.HostAliases = hostAliases
+	// Host Aliases — nil means absent; non-nil (possibly empty) means explicitly set.
+	if hostAliases := getHostAliases(res.Attributes()); hostAliases != nil {
+		old := md.Meta.HostAliases
+		changed = changed || !equalSlices[[]string](old, hostAliases)
+		md.Meta.HostAliases = hostAliases
+	}
 
 	// If a tag was present in a previous resource but is not present
 	// in the current one, it will be removed from the host metadata payload.

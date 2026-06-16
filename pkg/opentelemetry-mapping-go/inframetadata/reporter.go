@@ -159,7 +159,8 @@ func (r *Reporter) ConsumeMetrics(md pmetric.Metrics) error {
 		res := rm.Resource()
 
 		if ok, err := hasHostMetadata(res); err != nil {
-			return fmt.Errorf("failed to check resource: %w", err)
+			errs = errors.Join(errs, fmt.Errorf("failed to check resource: %w", err))
+			continue
 		} else if !ok {
 			continue
 		}
