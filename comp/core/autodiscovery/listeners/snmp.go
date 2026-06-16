@@ -63,13 +63,8 @@ type SNMPListener struct {
 	deviceDeduper  devicededuper.DeviceDeduper
 	sessionFactory snmpSessionFactory
 	workerFunc     snmpWorkerFunc
-	// ncmWriteMu guards ncmDevices and serializes writes of the generated NCM autodiscovery
-	// config file.
+	// ncmWriteMu guards ncmDevices and serializes writes of the generated NCM autodiscovery config file
 	ncmWriteMu sync.Mutex
-	// ncmDevices tracks the NCM-eligible devices currently advertised in the generated NCM
-	// config file, keyed by the SNMP entityID. It mirrors snmpSubnet.devices: entries are added
-	// per device when a device is registered and removed when a device is evicted (after
-	// AllowedFailures), so the NCM file is updated device-by-device rather than rebuilt wholesale.
 	ncmDevices map[string]ncmDeviceEntry
 }
 
@@ -623,9 +618,6 @@ func (l *SNMPListener) deleteService(entityID string, subnet *snmpSubnet) {
 		delete(l.services, entityID)
 		delete(subnet.devices, entityID)
 
-		// Only drop the device from the NCM config once it is actually evicted (after
-		// AllowedFailures consecutive failures), mirroring SNMP's grace period so transient
-		// blips don't churn the file.
 		if len(subnet.config.NCM) > 0 {
 			l.removeNCMDevice(entityID)
 		}

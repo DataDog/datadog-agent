@@ -19,34 +19,24 @@ import (
 )
 
 const (
-	// ncmConfigDirName is the conf.d sub-folder (integration name + ".d") that the NCM
-	// check's file autodiscovery provider scans.
-	ncmConfigDirName = "network_config_management.d"
-	// ncmConfigFileName is the agent-generated NCM config file name. Using "auto_conf.yaml"
-	// follows the convention for agent-generated autodiscovery configs (e.g. snmp.d/auto_conf.yaml).
-	ncmConfigFileName = "auto_conf.yaml"
-	// defaultNCMNamespace is used when no namespace is configured on the SNMP listener.
+	ncmConfigDirName    = "network_config_management.d"
+	ncmConfigFileName   = "auto_conf.yaml"
 	defaultNCMNamespace = "default"
 )
 
-// ncmFileConfig is the top-level structure of the generated NCM config file. It mirrors the
-// subset of the NCM check's config format (init_config + instances) needed to schedule checks.
+// ncmFileConfig is the top-level structure of the generated NCM config file.
 type ncmFileConfig struct {
 	InitConfig ncmInitConfig `yaml:"init_config"`
 	Instances  []ncmInstance `yaml:"instances"`
 }
 
-// ncmInitConfig holds the global init_config block of the generated NCM config file. SSH is the
-// global default applied to devices whose credential does not override it; it is omitted when no
-// global SSH settings were configured.
+// ncmInitConfig holds the global init_config block of the generated NCM config file.
 type ncmInitConfig struct {
 	Namespace string        `yaml:"namespace"`
 	SSH       *ncmSSHConfig `yaml:"ssh,omitempty"`
 }
 
-// ncmSSHConfig holds the SSH settings written under init_config.ssh or instances[].auth.ssh. Every
-// field is omitempty so only the settings the user actually specified are emitted (strict
-// pass-through); NCM and the underlying SSH library apply their own defaults for omitted fields.
+// ncmSSHConfig holds the SSH settings written under init_config.ssh or instances[].auth.ssh.
 type ncmSSHConfig struct {
 	Timeout               int      `yaml:"timeout,omitempty"`
 	KnownHostsPath        string   `yaml:"known_hosts_path,omitempty"`
@@ -63,32 +53,24 @@ type ncmInstance struct {
 	Auth      ncmAuth `yaml:"auth"`
 }
 
-// ncmAuth holds the SSH credentials for a device instance. SSH, when set, fully replaces the
-// global init_config.ssh on the NCM side, so the writer fills it with the merged (effective)
-// settings; it is omitted when the credential has no SSH override (the device then inherits
-// init_config.ssh).
+// ncmAuth holds the SSH credentials for a device instance.
 type ncmAuth struct {
 	Username string        `yaml:"username"`
 	Password string        `yaml:"password"`
 	SSH      *ncmSSHConfig `yaml:"ssh,omitempty"`
 }
 
-// ncmDeviceEntry is the per-device NCM state tracked in SNMPListener.ncmDevices. It mirrors the
-// role of snmpSubnet.deviceCache: the unit of state that is added/removed device-by-device.
+// ncmDeviceEntry is the per-device NCM state tracked in SNMPListener.ncmDevices.
 type ncmDeviceEntry struct {
 	ip    string
 	creds []snmp.NCMCredential
 }
 
 // equal reports whether two device entries describe the same device with the same credentials.
-// snmp.NCMCredential now embeds a pointer (SSH) and slices, so it is no longer comparable with
-// ==; reflect.DeepEqual handles the nested SSH config (pointers and slices) correctly.
 func (e ncmDeviceEntry) equal(o ncmDeviceEntry) bool {
 	return e.ip == o.ip && reflect.DeepEqual(e.creds, o.creds)
 }
 
-// ncmConfigEnabled returns true if at least one subnet has NCM credentials configured.
-// When this is false the NCM device tracking and file writing are never exercised.
 func (l *SNMPListener) ncmConfigEnabled() bool {
 	for _, config := range l.config.Configs {
 		if len(config.NCM) > 0 {
@@ -98,14 +80,7 @@ func (l *SNMPListener) ncmConfigEnabled() bool {
 	return false
 }
 
-// recordNCMDevice records (or updates) a discovered NCM-eligible device, mirroring how SNMP adds
-// an entry to snmpSubnet.devices on registration. When the device is new or its credentials
-// changed and write is true, the NCM config file is regenerated. The write flag is false when the
-// device is being re-added from the persistent cache on startup (mirroring SNMP not rewriting its
-// cache for cache-loaded devices); the single startup write in initializeSubnets covers those.
-//
-// It is safe to call while holding the listener lock: it only takes ncmWriteMu and never the
-// listener RWMutex, so the lock order is always (listener lock -> ncmWriteMu).
+// recordNCMDevice records (or updates) a discovered NCM-eligible device.
 func (l *SNMPListener) recordNCMDevice(entityID, deviceIP string, creds []snmp.NCMCredential, write bool) {
 	if len(creds) == 0 {
 		return
@@ -133,9 +108,7 @@ func (l *SNMPListener) recordNCMDevice(entityID, deviceIP string, creds []snmp.N
 	}
 }
 
-// removeNCMDevice drops a device from the NCM config file, mirroring how SNMP deletes an entry
-// from snmpSubnet.devices once the device has been evicted (after AllowedFailures). The file is
-// regenerated only when the device was actually being advertised.
+// removeNCMDevice drops a device from the NCM config file.
 func (l *SNMPListener) removeNCMDevice(entityID string) {
 	l.ncmWriteMu.Lock()
 	defer l.ncmWriteMu.Unlock()
@@ -150,18 +123,14 @@ func (l *SNMPListener) removeNCMDevice(entityID string) {
 	l.writeNCMConfigLocked()
 }
 
-// writeNCMConfig regenerates the NCM config file from the currently tracked devices. It is used
-// for the one-shot startup write (after cache load); per-device updates go through
-// recordNCMDevice / removeNCMDevice.
+// writeNCMConfig regenerates the NCM config file from the currently tracked devices.
 func (l *SNMPListener) writeNCMConfig() {
 	l.ncmWriteMu.Lock()
 	defer l.ncmWriteMu.Unlock()
 	l.writeNCMConfigLocked()
 }
 
-// writeNCMConfigLocked (re)generates the aggregated NCM config file from l.ncmDevices. The caller
-// must hold ncmWriteMu. When no devices remain, any existing file is removed rather than leaving
-// an instance-less (invalid) NCM config.
+// writeNCMConfigLocked (re)generates the aggregated NCM config file from l.ncmDevices.
 func (l *SNMPListener) writeNCMConfigLocked() {
 	confdPath := l.config.ConfdPath
 	if confdPath == "" {
@@ -174,8 +143,6 @@ func (l *SNMPListener) writeNCMConfigLocked() {
 	instances := l.buildNCMInstancesLocked()
 
 	if len(instances) == 0 {
-		// Nothing to advertise: remove any stale file rather than writing an
-		// instance-less config (which the file provider would reject).
 		if err := os.Remove(dest); err != nil && !os.IsNotExist(err) {
 			log.Errorf("Couldn't remove stale NCM autodiscovery config %s: %s", dest, err)
 			return
@@ -187,9 +154,7 @@ func (l *SNMPListener) writeNCMConfigLocked() {
 	fileConfig := ncmFileConfig{
 		InitConfig: ncmInitConfig{
 			Namespace: l.ncmNamespace(),
-			// Strict pass-through of the global SSH defaults (if any). Nothing is injected:
-			// if no host verification is configured anywhere, NCM will reject the device.
-			SSH: toNCMSSH(l.config.InitConfig.SSH),
+			SSH:       toNCMSSH(l.config.InitConfig.SSH),
 		},
 		Instances: instances,
 	}
@@ -213,8 +178,7 @@ func (l *SNMPListener) writeNCMConfigLocked() {
 	log.Infof("Wrote NCM autodiscovery config with %d instance(s) to %s", len(instances), dest)
 }
 
-// buildNCMInstancesLocked returns one instance per (tracked device IP x NCM credential). The
-// caller must hold ncmWriteMu.
+// buildNCMInstancesLocked returns one instance per (tracked device IP x NCM credential).
 func (l *SNMPListener) buildNCMInstancesLocked() []ncmInstance {
 	instances := make([]ncmInstance, 0, len(l.ncmDevices))
 	for _, dev := range l.ncmDevices {
@@ -223,9 +187,6 @@ func (l *SNMPListener) buildNCMInstancesLocked() []ncmInstance {
 				Username: cred.User,
 				Password: cred.Password,
 			}
-			// A credential-level SSH block fully replaces init_config.ssh on the NCM side, so
-			// write the merged (effective) block. Without an override, leave auth.ssh empty so
-			// the device inherits the generated init_config.ssh.
 			if cred.SSH != nil {
 				auth.SSH = mergeNCMSSH(l.config.InitConfig.SSH, cred.SSH)
 			}
@@ -236,7 +197,6 @@ func (l *SNMPListener) buildNCMInstancesLocked() []ncmInstance {
 		}
 	}
 
-	// Sort deterministically so the generated file is stable across runs.
 	sort.Slice(instances, func(i, j int) bool {
 		if instances[i].IPAddress != instances[j].IPAddress {
 			return instances[i].IPAddress < instances[j].IPAddress
@@ -251,8 +211,6 @@ func (l *SNMPListener) buildNCMInstancesLocked() []ncmInstance {
 }
 
 // toNCMSSH converts a snmp.NCMSSHConfig (config representation) into the writer's ncmSSHConfig,
-// copying each field as-is (strict pass-through). It returns nil when src is nil so the caller can
-// omit the SSH block entirely.
 func toNCMSSH(src *snmp.NCMSSHConfig) *ncmSSHConfig {
 	if src == nil {
 		return nil
@@ -268,12 +226,7 @@ func toNCMSSH(src *snmp.NCMSSHConfig) *ncmSSHConfig {
 	}
 }
 
-// mergeNCMSSH builds the effective SSH block for a credential. For each field, the override
-// (credential-level ncm[].ssh) wins when it is set; otherwise the base (global init_config.ssh)
-// value is kept. A field is considered "set" when it holds a non-zero value (non-zero timeout,
-// true bool, non-empty string/slice). As a consequence an override can only turn a boolean on or
-// set a non-zero timeout, never force a global value back to its zero value. override is expected
-// to be non-nil (only called for overrides).
+// mergeNCMSSH builds the effective SSH block for a credential.
 func mergeNCMSSH(base, override *snmp.NCMSSHConfig) *ncmSSHConfig {
 	merged := toNCMSSH(base)
 	if merged == nil {
@@ -303,7 +256,6 @@ func mergeNCMSSH(base, override *snmp.NCMSSHConfig) *ncmSSHConfig {
 	return merged
 }
 
-// ncmNamespace returns the namespace to write into the generated NCM init_config.
 func (l *SNMPListener) ncmNamespace() string {
 	if l.config.Namespace != "" {
 		return l.config.Namespace
@@ -311,8 +263,7 @@ func (l *SNMPListener) ncmNamespace() string {
 	return defaultNCMNamespace
 }
 
-// atomicWriteFile writes data to a temp file in the destination directory and renames it over
-// dest, so readers (the file AD provider) never observe a partially written file.
+// atomicWriteFile writes data to a temp file in the destination directory and renames it over dest.
 func atomicWriteFile(dest string, data []byte) error {
 	dir := filepath.Dir(dest)
 	tmp, err := os.CreateTemp(dir, filepath.Base(dest)+".tmp-*")

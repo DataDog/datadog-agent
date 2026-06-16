@@ -140,20 +140,14 @@ type Config struct {
 	InterfaceConfigs map[string][]snmpintegration.InterfaceConfig
 }
 
-// NCMCredential holds SSH credentials used to generate a Network Config Management (NCM)
-// config entry for a device discovered on this subnet. The optional SSH block lets a credential
-// override the connection settings inherited from the global init_config.ssh, field by field.
+// NCMCredential holds SSH credentials used to generate a NCM config entry
 type NCMCredential struct {
 	User     string        `mapstructure:"user"`
 	Password string        `mapstructure:"pass"`
 	SSH      *NCMSSHConfig `mapstructure:"ssh"`
 }
 
-// NCMSSHConfig holds optional SSH connection settings for Network Config Management (NCM). It is
-// used both as the global default (init_config.ssh) and as a per-credential override. Scalar
-// fields use their zero value as "not set" (timeout 0 = no timeout, bools default to false), which
-// matches the downstream NCM defaults, so a per-credential override can only turn a setting on,
-// not force it back off.
+// NCMSSHConfig holds optional SSH connection settings for Network Config Management (NCM).
 type NCMSSHConfig struct {
 	Timeout               int      `mapstructure:"timeout"`
 	KnownHostsPath        string   `mapstructure:"known_hosts_path"`
@@ -164,9 +158,6 @@ type NCMSSHConfig struct {
 	AllowLegacyAlgorithms bool     `mapstructure:"allow_legacy_algorithms"`
 }
 
-// NCMInitConfig holds the global Network Config Management (NCM) settings configured at the
-// autodiscovery level (network_devices.autodiscovery.init_config). Its SSH block provides defaults
-// that each credential's ncm[].ssh block can override field by field.
 type NCMInitConfig struct {
 	SSH *NCMSSHConfig `mapstructure:"ssh"`
 }
