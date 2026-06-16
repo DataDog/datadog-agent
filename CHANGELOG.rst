@@ -2,6 +2,71 @@
 Release Notes
 =============
 
+.. _Release Notes_7.80.2:
+
+7.80.2
+======
+
+.. _Release Notes_7.80.2_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-06-17
+
+- Please refer to the `7.80.2 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7802>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.80.2_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Compliance: CIS Docker rules (``scope: docker``) are no longer evaluated
+  on Kubernetes nodes where the kubelet's CRI runtime is not Docker (e.g.
+  containerd, CRI-O), avoiding false positives on GKE Container-Optimized
+  OS which ships dockerd alongside containerd. The runtime is read from
+  the kubelet's ``--container-runtime-endpoint`` flag or the
+  ``containerRuntimeEndpoint`` field of its ``--config`` YAML; if it
+  cannot be determined the rules continue to evaluate.
+
+
+.. _Release Notes_7.80.2_Security Notes:
+
+Security Notes
+--------------
+
+- Fixed a confused-deputy vulnerability in the Cluster Agent's AppSec
+  ingress-nginx admission mutator where the pod's
+  ``--configmap=<namespace>/<name>`` argument was trusted verbatim,
+  allowing a user with pod-create permission in one namespace to make
+  the Cluster Agent service account create or update ConfigMaps and add
+  labels and annotations in arbitrary namespaces. The mutator now
+  requires the ``<namespace>`` portion to match the pod's own namespace
+  (or use the ``$(POD_NAMESPACE)`` downward-API substitution) and skips
+  mutation otherwise, emitting a warning event on the pod. The
+  vulnerability affected Cluster Agent releases starting from 7.78.0.
+
+
+.. _Release Notes_7.80.2_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix an issue where container log collection could stop for an individual
+  container without recovering and without any error in the Agent logs. When
+  a container's log stream was idle longer than ``logs_config.docker_client_read_timeout``,
+  the read timeout could cause the underlying Docker connection to close in a
+  way that the tailer treated as a permanent shutdown, silently stopping log
+  collection for that container until it was recreated or the Agent was
+  restarted. The tailer now reconnects in this case, and only stops when the
+  Agent is intentionally shutting down. Low-volume containers (for example,
+  services that log only periodically) were the most affected.
+
+- OTel Agent: Disable v3 series API shadow sampling, which is incompatible
+  with the zlib compression the OTel Agent forces for the metrics intake.
+
+
 .. _Release Notes_7.80.1:
 
 7.80.1
