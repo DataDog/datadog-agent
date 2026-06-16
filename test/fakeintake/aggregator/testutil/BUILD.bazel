@@ -1,0 +1,12 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "testutil",
+    srcs = ["v3payload.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/fakeintake/aggregator/testutil",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/fakeintake/aggregator/internal/apiv3",
+        "@org_golang_google_protobuf//proto",
+    ],
+)
