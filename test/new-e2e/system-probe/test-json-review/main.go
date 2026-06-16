@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux && test
+//go:build linux
 
 // Package main is the test-json-review tool which reports all failed tests from the test JSON output
 package main
