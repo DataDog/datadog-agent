@@ -43,7 +43,7 @@ Currently supported proxy types:
 
 - Envoy Gateway (ProxyTypeEnvoyGateway): Configures EnvoyExtensionPolicy resources
   - EXTERNAL mode: Routes to external processor service
-  - SIDECAR mode: Currently unsupported due to Kubernetes validation constraints on localhost references
+  - SIDECAR mode: Routes to localhost sidecar via Unix Domain Socket (UDS), injects processor container into gateway pods
 
 - ingress-nginx (ProxyTypeIngressNginx): Injects the nginx-datadog WAF module (.so) into controller pods
   - Pod mutation mode only (uses init container, not a running sidecar): Adds init container + emptyDir volume, redirects --configmap to DD-owned ConfigMap
@@ -147,6 +147,8 @@ The package is configured through the Datadog Cluster Agent configuration:
 	        image_tag: "latest"                 # Image tag (optional)
 	        port: 8080                          # Processor port (required)
 	        health_port: 8081                   # Health check port (required, must differ from port)
+	        uds_path: "/var/run/datadog/extproc.sock" # UDS socket path (optional, default: /var/run/datadog/extproc.sock)
+	        run_as_user: 65532                  # User ID for sidecar container (optional, default: 65532)
 	        body_parsing_size_limit: "10000000" # Body size limit in bytes (optional, default: 10MB)
 	        resources:
 	          requests:
@@ -330,23 +332,40 @@ Pod selection criteria:
   - Pods must have label: gateway.networking.k8s.io/gateway-name (set by Istio gateway controller)
   - GatewayClass must have controller: istio.io/gateway-controller
 
-## Envoy Gateway Implementation (EXTERNAL Mode Only)
+## Envoy Gateway Implementation
+
+Envoy Gateway support is implemented via the envoygateway subpackage and works in both EXTERNAL and SIDECAR modes.
+
+### EXTERNAL Mode (envoyGatewayInjectionPattern)
 
 For Envoy Gateway in EXTERNAL mode:
  1. Watches Gateway resources (gateway.networking.k8s.io/v1)
  2. Creates EnvoyExtensionPolicy resources that configure External Processing
- 3. Manages ReferenceGrant resources for cross-namespace access
- 4. Handles cleanup when gateways are deleted
+ 3. EnvoyExtensionPolicy backendRefs point at a Kubernetes Service
+ 4. Manages ReferenceGrant resources for cross-namespace access
+ 5. Handles cleanup when gateways are deleted
 
-The implementation ensures that:
-  - Only one EnvoyExtensionPolicy is created per namespace
-  - ReferenceGrants are properly managed for cross-namespace service references
-  - Resources are labeled and annotated for tracking and management
-  - Kubernetes events are emitted for operational visibility
+### SIDECAR Mode (envoyGatewaySidecarPattern)
 
-SIDECAR mode for Envoy Gateway is currently blocked due to Kubernetes validation preventing
-localhost references in ExtProc BackendRef configuration. See pkg/clusteragent/appsec/envoygateway/envoy_sidecar.go
-for details.
+For Envoy Gateway in SIDECAR mode:
+ 1. Registers webhook with label selector for gateway pods
+ 2. Injects sidecar container into pods with matching labels
+ 3. Creates a Backend (UDS) and an EnvoyExtensionPolicy on first pod injection (lazy initialization)
+ 4. EnvoyExtensionPolicy backendRefs point to the UDS Backend in the same namespace
+ 5. Routes traffic to the sidecar processor via Unix Domain Socket at /var/run/datadog/extproc.sock
+ 6. Cleans up resources when last pod in namespace is deleted
+
+Sidecar Data Flow and Invariants:
+  - The webhook injects the sidecar container and a shared emptyDir volume (datadog-appsec-uds) mounted into both the injected sidecar and the envoy container.
+  - Pod fsGroup and sidecar runAsUser are set to 65532 to ensure shared-socket access.
+  - The controller lazily creates a Backend (UDS) and an EnvoyExtensionPolicy in the Gateway's namespace.
+  - Since the Backend is in the same namespace as the EnvoyExtensionPolicy, no ReferenceGrant is created (the no-ReferenceGrant invariant).
+  - The extensionApis.enableBackend Envoy Gateway prerequisite is detected and warned about if disabled (the cluster-agent does not modify Envoy Gateway config).
+  - The default injector mode is sidecar, so appsec-enabled Envoy Gateways default to sidecar injection.
+
+Pod selection criteria:
+  - Pods must have label: gateway.envoyproxy.io/owning-gateway-name
+  - Pods must have label: gateway.envoyproxy.io/owning-gateway-namespace
 
 ## ingress-nginx Implementation (SIDECAR Mode Only)
 
@@ -505,7 +524,7 @@ New proxy implementations should:
 
   - pkg/clusteragent/appsec/config: Configuration types, parsing, and validation
   - pkg/clusteragent/appsec/istio: Istio implementation (EXTERNAL and SIDECAR modes)
-  - pkg/clusteragent/appsec/envoygateway: Envoy Gateway implementation (EXTERNAL mode only)
+  - pkg/clusteragent/appsec/envoygateway: Envoy Gateway implementation (EXTERNAL and SIDECAR modes)
   - pkg/clusteragent/appsec/nginx: ingress-nginx implementation (SIDECAR mode only, native module injection)
   - pkg/clusteragent/appsec/sidecar: Sidecar container generation logic (ext_proc only, not used by nginx)
   - pkg/clusteragent/admission/mutate/appsec: SIDECAR mode admission webhook
