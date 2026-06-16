@@ -9,33 +9,42 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"google.golang.org/protobuf/types/known/structpb"
 
-	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	privateactionspb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/privateactions"
 )
 
-func TestRemoteActionAllowedPathsByEnv_MapsEnvironments(t *testing.T) {
-	got := remoteActionAllowedPathsByEnv([]*privateactionspb.RemoteActionPathRule{
-		{Environment: privateactionspb.RemoteActionEnvironment_REMOTE_ACTION_ENVIRONMENT_BARE_METAL, Paths: []string{"/var/log"}},
-		{Environment: privateactionspb.RemoteActionEnvironment_REMOTE_ACTION_ENVIRONMENT_CONTAINERIZED, Paths: []string{"/host/var/log"}},
-	})
+func TestMapPbTaskToStructMapsRemoteActionPolicyFields(t *testing.T) {
+	task := &privateactionspb.PrivateActionTask{
+		ActionName:             "runCommand",
+		BundleId:               "com.datadoghq.remoteaction.rshell",
+		OrgId:                  42,
+		TaskId:                 "task-id",
+		Inputs:                 &structpb.Struct{},
+		TargetCommands:         []string{"rshell:cat"},
+		TargetPaths:            []string{"/host/var/log"},
+		RemoteActionAccessMode: privateactionspb.RemoteActionAccessMode_REMOTE_ACTION_ACCESS_MODE_READ_WRITE,
+	}
 
-	assert.Equal(t, map[string][]string{
-		setup.RShellPathAllowMapDefaultKey:       {"/var/log"},
-		setup.RShellPathAllowMapContainerizedKey: {"/host/var/log"},
-	}, got)
+	got := mapPbTaskToStruct(task)
+
+	assert.Equal(t, "task-id", got.Data.ID)
+	assert.Equal(t, "runCommand", got.Data.Attributes.Name)
+	assert.Equal(t, []string{"rshell:cat"}, got.Data.Attributes.TargetCommands)
+	assert.Equal(t, []string{"/host/var/log"}, got.Data.Attributes.TargetPaths)
+	assert.Equal(t,
+		privateactionspb.RemoteActionAccessMode_REMOTE_ACTION_ACCESS_MODE_READ_WRITE,
+		got.Data.Attributes.RemoteActionAccessMode,
+	)
 }
 
-func TestRemoteActionAllowedPathsByEnv_DropsUnknownEnvironment(t *testing.T) {
-	got := remoteActionAllowedPathsByEnv([]*privateactionspb.RemoteActionPathRule{
-		{Environment: privateactionspb.RemoteActionEnvironment_REMOTE_ACTION_ENVIRONMENT_UNSPECIFIED, Paths: []string{"/whatever"}},
-		{Environment: privateactionspb.RemoteActionEnvironment_REMOTE_ACTION_ENVIRONMENT_BARE_METAL, Paths: []string{"/var/log"}},
-	})
+func TestMapPbTaskToStructEmptyRemoteActionPolicyFields(t *testing.T) {
+	got := mapPbTaskToStruct(&privateactionspb.PrivateActionTask{Inputs: &structpb.Struct{}})
 
-	assert.Equal(t, map[string][]string{setup.RShellPathAllowMapDefaultKey: {"/var/log"}}, got)
-}
-
-func TestRemoteActionAllowedPathsByEnv_EmptyReturnsNil(t *testing.T) {
-	assert.Nil(t, remoteActionAllowedPathsByEnv(nil))
-	assert.Nil(t, remoteActionAllowedPathsByEnv([]*privateactionspb.RemoteActionPathRule{}))
+	assert.Nil(t, got.Data.Attributes.TargetCommands)
+	assert.Nil(t, got.Data.Attributes.TargetPaths)
+	assert.Equal(t,
+		privateactionspb.RemoteActionAccessMode_REMOTE_ACTION_ACCESS_MODE_UNSPECIFIED,
+		got.Data.Attributes.RemoteActionAccessMode,
+	)
 }
