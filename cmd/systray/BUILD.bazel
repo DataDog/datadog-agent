@@ -1,0 +1,43 @@
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
+load("//bazel/rules:windows_resources.bzl", "win_resource")
+
+# Xazelle:exclude main_windows.go
+
+win_resource(
+    name = "rsrc",
+    src = "systray.rc",
+    target_compatible_with = ["@platforms//os:windows"],
+    visibility = ["//cmd/systray:__subpackages__"],
+    deps = [
+        "ddtray.exe.manifest",
+        "version.h",
+        "//tools/windows/DatadogAgentInstaller/WixSetup/assets:project.ico",
+    ],
+)
+
+go_library(
+    name = "systray_lib",
+    srcs = [
+        "main_windows.go",
+        "version.h",
+        ":rsrc",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/cmd/systray",
+    target_compatible_with = ["@platforms//os:windows"],
+    visibility = ["//visibility:private"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "//cmd/internal/runcmd",
+            "//cmd/systray/command",
+            "//pkg/util/log",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_binary(
+    name = "systray",
+    embed = [":systray_lib"],
+    target_compatible_with = ["@platforms//os:windows"],
+    visibility = ["//visibility:public"],
+)
