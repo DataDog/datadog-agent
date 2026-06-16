@@ -35,7 +35,7 @@ const (
 )
 
 // egress drives the periodic outbound POST to the Datadog intake.
-// Both channels are populated by the registered IssueObserver:
+// Both channels are populated by the registered EgressAggregator:
 //   - activeCh:   new/ongoing issues; drained each tick, re-populated by the
 //     next ReportIssue call from the health checks.
 //   - resolvedCh: resolved issues; drained and flushed on a successful send,
@@ -95,7 +95,7 @@ func New(reqs Requires) egressdef.Component {
 
 	// Register before OnStart: loadFromDisk fires first and writes any resolved
 	// issues found on disk into ResolvedCh.
-	reqs.Store.RegisterObserver(storedef.IssueObserver{
+	reqs.Store.RegisterEgressAggregator(storedef.EgressAggregator{
 		ActiveCh:   e.activeCh,
 		ResolvedCh: e.resolvedCh,
 	})

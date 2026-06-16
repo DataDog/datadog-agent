@@ -15,10 +15,10 @@ import (
 	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 )
 
-// IssueObserver holds the channels the store writes issue events into.
+// EgressAggregator holds the channels the store writes issue events into.
 // It is the extension point for reactive integrations — e.g. an MCP server
 // exposing issues to AI agents for proactive remediation.
-type IssueObserver struct {
+type EgressAggregator struct {
 	// ActiveCh receives new and ongoing issues as they are stored.
 	// The issue is a fully-hydrated clone; check PersistedIssue.State to
 	// distinguish NEW from ONGOING.
@@ -31,10 +31,10 @@ type IssueObserver struct {
 
 // Component is the health platform store component interface.
 type Component interface {
-	// RegisterObserver registers a state-change listener. Multiple observers
+	// RegisterEgressAggregator registers a state-change listener. Multiple observers
 	// may be registered. Observers registered before OnStart also receive
 	// resolved issues recovered from disk on startup.
-	RegisterObserver(obs IssueObserver)
+	RegisterEgressAggregator(obs EgressAggregator)
 
 	// ReportIssue records a new or ongoing issue keyed by issue.Id. Two calls
 	// with the same issue.Id update the same instance (state machine: new →

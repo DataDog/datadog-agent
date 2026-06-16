@@ -80,9 +80,9 @@ type healthPlatformImpl struct {
 	persistedIssues map[string]*PersistedIssue // IssueID → lifecycle state
 	persistence     issuesPersistence
 
-	// Issue observers: notified on every state transition outside issuesMux.
-	observersMu sync.RWMutex
-	observers   []healthplatformdef.IssueObserver
+	// Egress aggregators: receive issue events outside issuesMux.
+	aggregatorsMu sync.RWMutex
+	aggregators   []healthplatformdef.EgressAggregator
 
 	// Metrics
 	metrics telemetryMetrics
@@ -328,26 +328,26 @@ func (h *healthPlatformImpl) stop(_ context.Context) error {
 	return nil
 }
 
-// RegisterObserver appends an observer. Observers registered after OnStart
-// will miss events that occurred before registration.
-func (h *healthPlatformImpl) RegisterObserver(obs healthplatformdef.IssueObserver) {
-	h.observersMu.Lock()
-	h.observers = append(h.observers, obs)
-	h.observersMu.Unlock()
+// RegisterEgressAggregator appends an aggregator. Aggregators registered after
+// OnStart will miss events that occurred before registration.
+func (h *healthPlatformImpl) RegisterEgressAggregator(agg healthplatformdef.EgressAggregator) {
+	h.aggregatorsMu.Lock()
+	h.aggregators = append(h.aggregators, agg)
+	h.aggregatorsMu.Unlock()
 }
 
 // notifyReported writes a hydrated clone to each observer's ActiveCh.
 // Must be called outside issuesMux.
 func (h *healthPlatformImpl) notifyReported(lean *healthplatform.Issue, si *storedIssue) {
-	h.observersMu.RLock()
-	obs := h.observers
-	h.observersMu.RUnlock()
-	if len(obs) == 0 {
+	h.aggregatorsMu.RLock()
+	agg := h.aggregators
+	h.aggregatorsMu.RUnlock()
+	if len(agg) == 0 {
 		return
 	}
 	hydrated := proto.Clone(lean).(*healthplatform.Issue)
 	hydrateIssue(hydrated, si)
-	for _, o := range obs {
+	for _, o := range agg {
 		if o.ActiveCh != nil {
 			select {
 			case o.ActiveCh <- hydrated:
@@ -359,10 +359,10 @@ func (h *healthPlatformImpl) notifyReported(lean *healthplatform.Issue, si *stor
 }
 
 func (h *healthPlatformImpl) notifyResolved(resolved *healthplatform.Issue) {
-	h.observersMu.RLock()
-	obs := h.observers
-	h.observersMu.RUnlock()
-	for _, o := range obs {
+	h.aggregatorsMu.RLock()
+	agg := h.aggregators
+	h.aggregatorsMu.RUnlock()
+	for _, o := range agg {
 		if o.ResolvedCh != nil {
 			select {
 			case o.ResolvedCh <- resolved:

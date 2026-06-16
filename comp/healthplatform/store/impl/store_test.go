@@ -205,7 +205,7 @@ func TestResolveIssueRemovesFromActive(t *testing.T) {
 	require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{Id: "t:id", IssueName: "t"}))
 
 	ch := make(chan *healthplatformpayload.Issue, 1)
-	h.RegisterObserver(storedef.IssueObserver{ResolvedCh: ch})
+	h.RegisterEgressAggregator(storedef.EgressAggregator{ResolvedCh: ch})
 
 	h.ResolveIssue("t:id")
 

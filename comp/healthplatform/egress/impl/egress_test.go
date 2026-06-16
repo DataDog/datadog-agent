@@ -26,10 +26,10 @@ import (
 // mockStore satisfies storedef.Component; captures the registered observer for assertions.
 type mockStore struct {
 	mu       sync.Mutex
-	observer storedef.IssueObserver
+	observer storedef.EgressAggregator
 }
 
-func (m *mockStore) RegisterObserver(obs storedef.IssueObserver) {
+func (m *mockStore) RegisterEgressAggregator(obs storedef.EgressAggregator) {
 	m.mu.Lock()
 	m.observer = obs
 	m.mu.Unlock()
@@ -249,7 +249,7 @@ func TestObserverWiresChannels(t *testing.T) {
 	fwd := &mockForwarder{}
 	e := newTestEgress(t, time.Minute, fwd)
 
-	store.RegisterObserver(storedef.IssueObserver{
+	store.RegisterEgressAggregator(storedef.EgressAggregator{
 		ActiveCh:   e.activeCh,
 		ResolvedCh: e.resolvedCh,
 	})
