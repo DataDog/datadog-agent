@@ -120,8 +120,8 @@ func (h *ConnectivityCheckHandler) Run(ctx context.Context, task *types.Task, _ 
 func runChecks(ctx context.Context, req ConnectivityCheckRequest) (ConnectivityCheckResult, error) {
 	devices := make([]DeviceResult, 0, len(req.TargetIPs))
 	for _, ip := range req.TargetIPs {
-		if ctx.Err() != nil {
-			break
+		if err := ctx.Err(); err != nil {
+			return ConnectivityCheckResult{}, err
 		}
 
 		dr := DeviceResult{IPAddress: ip}
