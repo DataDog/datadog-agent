@@ -5,6 +5,7 @@
 
 //go:build !windows
 
+// Package windows provides a stub for the Windows registry key secret backend on non-Windows platforms.
 package windows
 
 import (
