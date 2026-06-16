@@ -142,18 +142,24 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
         return;
     }
 
-    classification_context_t *classification_ctx = classification_context_init(skb, &skb_tup, &skb_info);
-    if (!classification_ctx) {
-        return;
-    }
-
-    protocol_stack_t *protocol_stack = get_protocol_stack_if_exists(&classification_ctx->tuple);
+    protocol_stack_t *protocol_stack = get_protocol_stack_if_exists(&skb_tup);
 
     if (is_fully_classified(protocol_stack)) {
         return;
     }
 
     bool encryption_layer_known = is_protocol_layer_known(protocol_stack, LAYER_ENCRYPTION);
+
+    if (encryption_layer_known && protocol_stack && (protocol_stack->flags & FLAG_TLS_CLASSIFICATION_DONE)) {
+        // All cleartext TLS metadata has been captured and the rest of the flow is encrypted, so there's nothing
+        // more we can classify here. USM's uprobes classify the inner protocol on decrypted data in a separate program.
+        return;
+    }
+
+    classification_context_t *classification_ctx = classification_context_init(skb, &skb_tup, &skb_info);
+    if (!classification_ctx) {
+        return;
+    }
 
     // Load information that will be later on used to route tail-calls
     init_routing_cache(classification_ctx, protocol_stack);
@@ -188,6 +194,10 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
                 return;
             }
             if (is_tls_handshake_server_hello(skb, offset, data_end)) {
+                // ServerHello seen: the tail call captures the last cleartext TLS metadata.
+                // Set here, not on the first non-handshake record, so TLS 1.3 0-RTT early data,
+                // which can arrive before ServerHello, won't early-exit and skip ServerHello.
+                set_protocol_flag(protocol_stack, FLAG_TLS_CLASSIFICATION_DONE);
                 bpf_tail_call_compat(skb, &classification_progs, CLASSIFICATION_TLS_SERVER_PROG);
                 return;
             }
