@@ -333,7 +333,6 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/logs/tailers/container
 # gazelle:exclude pkg/logs/tailers/journald
 # gazelle:exclude pkg/network/containers
-# gazelle:exclude pkg/network/dns
 # gazelle:exclude pkg/network/encoding
 # gazelle:exclude pkg/network/encoding/marshal
 # gazelle:exclude pkg/network/events
