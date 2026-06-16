@@ -75,7 +75,7 @@ func enrichErrorLog(e errortracking.ErrorLog) Log {
 		// populate Count. Default to 1 so the wire field stays valid.
 		count = 1
 	}
-	tags := "git.repository_url:DataDog/datadog-agent"
+	tags := "git.repository_url:https://github.com/DataDog/datadog-agent"
 	if agentversion.FullCommit != "" {
 		tags += ",git.commit.sha:" + agentversion.FullCommit
 	}

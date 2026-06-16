@@ -181,7 +181,7 @@ func TestErrorLogToLog_WireShape(t *testing.T) {
 		"ErrorKind must be empty when no error attribute is present in the log record")
 
 	// Git source integration tags.
-	assert.Contains(t, out.Tags, "git.repository_url:DataDog/datadog-agent",
+	assert.Contains(t, out.Tags, "git.repository_url:https://github.com/DataDog/datadog-agent",
 		"Tags must carry git.repository_url for Source Code Integration")
 
 	// Wire schema fields that are intentionally not populated.

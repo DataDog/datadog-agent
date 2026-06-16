@@ -10,6 +10,7 @@ package agenttelemetry
 
 import (
 	_ "embed"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -58,9 +59,16 @@ func TestAgentTelemetryErrorTrackingSuite(t *testing.T) {
 	)
 }
 
+// stackFrameRe matches Go's standard stack frame format:
+// "function\n\tfile:line +0xaddr" — the format the Error Tracking parser expects.
+var stackFrameRe = regexp.MustCompile(`\S+\n\t\S+:\d+ \+0x[0-9a-f]+`)
+
+// commitSHARe matches a git.commit.sha tag carrying a 40-char hex SHA.
+var commitSHARe = regexp.MustCompile(`git\.commit\.sha:[0-9a-f]{40}`)
+
 // TestPayloadShape verifies the happy path: with errortracking enabled and a
 // failing check in place, FakeIntake must receive at least one agent-logs record
-// with the expected wire shape.
+// with the expected wire shape, stack format, and Source Code Integration tags.
 func (s *errorTrackingSuite) TestPayloadShape() {
 	require.NoError(s.T(), s.Env().FakeIntake.Client().FlushServerAndResetAggregators())
 
@@ -73,8 +81,8 @@ func (s *errorTrackingSuite) TestPayloadShape() {
 	}, 1*time.Minute, 5*time.Second, "timed out waiting for agent-logs telemetry to reach fakeintake")
 
 	for _, l := range logs {
+		// Basic wire shape.
 		assert.Equal(s.T(), "ERROR", l.Level)
-		assert.NotEmpty(s.T(), l.StackTrace, "stack_trace must be non-empty")
 		assert.False(s.T(), l.IsCrash, "agent error logs are not crash reports")
 		assert.GreaterOrEqual(s.T(), l.Count, 1)
 		// Message is intentionally empty — user-controlled data is never shipped.
@@ -82,6 +90,19 @@ func (s *errorTrackingSuite) TestPayloadShape() {
 		// ErrorKind is empty for Python check logs: the bridge calls log.Error(string)
 		// with no error-typed slog attribute, so no type name can be extracted.
 		assert.Empty(s.T(), l.ErrorKind, "error_kind must be empty for Python check logs")
+
+		// Stack format: must use Go's standard "function\n\tfile:line +0xaddr"
+		// layout so the Error Tracking backend parser can extract frames.
+		assert.NotEmpty(s.T(), l.StackTrace, "stack_trace must be non-empty")
+		assert.True(s.T(), stackFrameRe.MatchString(l.StackTrace),
+			"stack_trace must follow Go standard format (function\\n\\tfile:line +0xaddr); got:\n%s", l.StackTrace)
+
+		// Source Code Integration tags: git.repository_url is always present;
+		// git.commit.sha is injected via ldflags in CI builds.
+		assert.Contains(s.T(), l.Tags, "git.repository_url:https://github.com/DataDog/datadog-agent",
+			"tags must carry git.repository_url for Source Code Integration")
+		assert.True(s.T(), commitSHARe.MatchString(l.Tags),
+			"tags must carry a 40-char git.commit.sha; got: %q", l.Tags)
 	}
 }
 
