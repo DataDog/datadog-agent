@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"maps"
 	"net"
+	"path"
 	"slices"
 	"strconv"
 	"strings"
@@ -31,6 +32,7 @@ const (
 	AppsecProcessorProxyTypeAnnotation = "appsec.datadoghq.com/proxy-type"
 	// AppsecInjectionVersionAnnotation is the version annotation key used to track the injector version
 	AppsecInjectionVersionAnnotation = "appsec.datadoghq.com/injection-version"
+	maxUDSPathLen                    = 100
 )
 
 // ProxyType represents the type of proxy supported by the AppSec Injection Proxy feature
@@ -221,13 +223,16 @@ func validateSidecarConfig(config Sidecar) error {
 		if !strings.HasPrefix(config.UDSPath, "/") {
 			errs = append(errs, fmt.Errorf("sidecar.uds_path must be an absolute path, got: %q", config.UDSPath))
 		}
-		if len(config.UDSPath) > 100 {
+		if path.Dir(config.UDSPath) == "/" {
+			errs = append(errs, fmt.Errorf("sidecar.uds_path must be inside a non-root directory, got: %q", config.UDSPath))
+		}
+		if len(config.UDSPath) > maxUDSPathLen {
 			errs = append(errs, fmt.Errorf("sidecar.uds_path must be at most 100 characters to stay under the kernel sun_path limit, got %d", len(config.UDSPath)))
 		}
 	}
 
-	if config.RunAsUser < 0 {
-		errs = append(errs, fmt.Errorf("sidecar.run_as_user must be >= 0, got: %d", config.RunAsUser))
+	if config.RunAsUser <= 0 {
+		errs = append(errs, fmt.Errorf("sidecar.run_as_user must be greater than 0 (running the sidecar as root is not allowed), got: %d", config.RunAsUser))
 	}
 
 	return errors.Join(errs...)

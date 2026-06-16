@@ -76,6 +76,14 @@ func (e *envoyGatewaySidecarPattern) PodDeleted(*corev1.Pod, string, dynamic.Int
 	return false, nil
 }
 
+// Added is a no-op in sidecar mode: the Backend + EnvoyExtensionPolicy are created lazily on the
+// first pod mutation (see MutatePod), so Envoy Gateway is never directed at the UDS ext_proc Backend
+// before at least one data-plane pod actually has the injected sidecar/socket. Teardown stays
+// Gateway-informer-driven via the inherited Deleted().
+func (e *envoyGatewaySidecarPattern) Added(context.Context, *unstructured.Unstructured) error {
+	return nil
+}
+
 func (e *envoyGatewaySidecarPattern) MutatePod(pod *corev1.Pod, _ string, _ dynamic.Interface) (bool, error) {
 	for _, container := range pod.Spec.Containers {
 		if container.Name == sidecar.SidecarContainerName {
@@ -111,6 +119,9 @@ func (e *envoyGatewaySidecarPattern) MutatePod(pod *corev1.Pod, _ string, _ dyna
 	}
 
 	volumeName := sidecar.EnsureSharedSocketVolume(pod)
+	if pod.Spec.SecurityContext != nil && pod.Spec.SecurityContext.FSGroup != nil && *pod.Spec.SecurityContext.FSGroup != e.config.Sidecar.RunAsUser {
+		e.logger.Warnf("Pod %s already has fsGroup %d; leaving it unchanged instead of setting appsec sidecar fsGroup %d", mutatecommon.PodString(pod), *pod.Spec.SecurityContext.FSGroup, e.config.Sidecar.RunAsUser)
+	}
 	sidecar.EnsureSocketFSGroup(pod, e.config.Sidecar.RunAsUser)
 
 	mountDir := path.Dir(e.config.Sidecar.UDSPath)

@@ -140,6 +140,42 @@ extensionApis:
 	assert.False(t, enabled)
 }
 
+func TestIsBackendExtensionEnabled_MalformedYAMLReturnsError(t *testing.T) {
+	ctx := context.Background()
+	fakeRecorder := record.NewFakeRecorder(10)
+	pattern, client := newTestPatternForEnableBackend(t, fakeRecorder)
+	seedConfigMap(t, client, envoyGatewaySystemNamespace, "extensionApis: [")
+
+	enabled, found, err := pattern.isBackendExtensionEnabled(ctx, envoyGatewaySystemNamespace)
+	require.Error(t, err)
+	assert.True(t, found)
+	assert.False(t, enabled)
+}
+
+func TestIsBackendExtensionEnabled_MalformedDataValueReturnsError(t *testing.T) {
+	ctx := context.Background()
+	fakeRecorder := record.NewFakeRecorder(10)
+	pattern, client := newTestPatternForEnableBackend(t, fakeRecorder)
+	cm := &unstructured.Unstructured{Object: map[string]any{
+		"apiVersion": "v1",
+		"kind":       "ConfigMap",
+		"metadata": map[string]any{
+			"name":      envoyGatewayConfigMapName,
+			"namespace": envoyGatewaySystemNamespace,
+		},
+		"data": map[string]any{
+			envoyGatewayConfigDataKey: []any{"not", "a", "string"},
+		},
+	}}
+	_, createErr := client.Resource(configMapGVR).Namespace(envoyGatewaySystemNamespace).Create(ctx, cm, metav1.CreateOptions{})
+	require.NoError(t, createErr)
+
+	enabled, found, err := pattern.isBackendExtensionEnabled(ctx, envoyGatewaySystemNamespace)
+	require.Error(t, err)
+	assert.True(t, found)
+	assert.False(t, enabled)
+}
+
 func TestWarnIfBackendDisabled_WarningEventWhenFalse(t *testing.T) {
 	ctx := context.Background()
 	fakeRecorder := record.NewFakeRecorder(10)

@@ -114,6 +114,12 @@ func (e *envoyGatewayInjectionPattern) Added(ctx context.Context, obj *unstructu
 	name := obj.GetName()
 
 	e.logger.Debugf("Processing added gateway for envoygateway: %s/%s", name, namespace)
+	if e.Mode() == appsecconfig.InjectionModeSidecar {
+		if err := e.createBackend(ctx, namespace, e.config.Sidecar.UDSPath); err != nil {
+			return fmt.Errorf("could not create Backend: %w", err)
+		}
+	}
+
 	_, err := e.client.Resource(extensionGVR).Namespace(namespace).Get(ctx, extProcName, metav1.GetOptions{})
 	if err == nil {
 		e.logger.Debug("Envoy extension policy already exists")
@@ -124,11 +130,7 @@ func (e *envoyGatewayInjectionPattern) Added(ctx context.Context, obj *unstructu
 		return fmt.Errorf("could not check if Envoy extension policy already exists: %w", err)
 	}
 
-	if e.Mode() == appsecconfig.InjectionModeSidecar {
-		if err := e.createBackend(ctx, namespace, e.config.Sidecar.UDSPath); err != nil {
-			return fmt.Errorf("could not create Backend: %w", err)
-		}
-	} else {
+	if e.Mode() != appsecconfig.InjectionModeSidecar {
 		if err := e.grantManager.AddNamespaceToGrant(ctx, namespace); err != nil {
 			return fmt.Errorf("could not ensure ReferenceGrant for namespace %s: %w", namespace, err)
 		}

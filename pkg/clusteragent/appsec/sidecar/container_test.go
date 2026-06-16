@@ -78,6 +78,8 @@ func TestBuildExtProcProcessorContainerUDS_SecurityContext(t *testing.T) {
 	assert.Equal(t, int64(65532), *c.SecurityContext.RunAsGroup)
 	require.NotNil(t, c.SecurityContext.AllowPrivilegeEscalation)
 	assert.False(t, *c.SecurityContext.AllowPrivilegeEscalation)
+	require.NotNil(t, c.SecurityContext.RunAsNonRoot)
+	assert.True(t, *c.SecurityContext.RunAsNonRoot)
 }
 
 func TestBuildExtProcProcessorContainerUDS_Probes(t *testing.T) {

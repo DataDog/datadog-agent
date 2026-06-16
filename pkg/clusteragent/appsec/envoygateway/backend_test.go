@@ -9,16 +9,18 @@ package envoygateway
 
 import (
 	"context"
+	stderrors "errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	dynamicfake "k8s.io/client-go/dynamic/fake"
+	k8stesting "k8s.io/client-go/testing"
 	"k8s.io/client-go/tools/record"
 
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
@@ -111,12 +113,36 @@ func TestCreateBackend_Idempotent(t *testing.T) {
 	assert.Len(t, list.Items, 1, "exactly one backend must exist after two creates")
 }
 
+func TestCreateBackend_ReturnsNonAlreadyExistsError(t *testing.T) {
+	ctx := context.Background()
+	pattern, client := newTestPatternWithBackendSupport(t)
+	boom := stderrors.New("create failed")
+	client.PrependReactor("create", "backends", func(_ k8stesting.Action) (bool, runtime.Object, error) {
+		return true, nil, boom
+	})
+
+	err := pattern.createBackend(ctx, "test-ns", testSocketPath)
+	require.ErrorIs(t, err, boom)
+}
+
 func TestDeleteBackend_AbsentIsNoOp(t *testing.T) {
 	ctx := context.Background()
 	pattern, _ := newTestPatternWithBackendSupport(t)
 
 	err := pattern.deleteBackend(ctx, "test-ns")
 	assert.NoError(t, err, "deleting a non-existent backend must return nil")
+}
+
+func TestDeleteBackend_ReturnsNonNotFoundError(t *testing.T) {
+	ctx := context.Background()
+	pattern, client := newTestPatternWithBackendSupport(t)
+	boom := stderrors.New("delete failed")
+	client.PrependReactor("delete", "backends", func(_ k8stesting.Action) (bool, runtime.Object, error) {
+		return true, nil, boom
+	})
+
+	err := pattern.deleteBackend(ctx, "test-ns")
+	require.ErrorIs(t, err, boom)
 }
 
 func TestDeleteBackend_CreateThenDelete(t *testing.T) {
@@ -128,5 +154,5 @@ func TestDeleteBackend_CreateThenDelete(t *testing.T) {
 
 	_, err := client.Resource(backendGVR).Namespace("test-ns").Get(ctx, extProcName, metav1.GetOptions{})
 	require.Error(t, err)
-	assert.True(t, errors.IsNotFound(err), "Get after delete must return IsNotFound")
+	assert.True(t, apierrors.IsNotFound(err), "Get after delete must return IsNotFound")
 }

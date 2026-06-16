@@ -9,6 +9,7 @@ package envoygateway
 
 import (
 	"context"
+	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -27,9 +28,9 @@ const (
 var configMapGVR = schema.GroupVersionResource{Group: "", Version: "v1", Resource: "configmaps"}
 
 type egConfig struct {
-	ExtensionApis struct {
-		EnableBackend bool `yaml:"enableBackend"`
-	} `yaml:"extensionApis"`
+	ExtensionAPIs struct {
+		EnableBackend bool `json:"enableBackend" yaml:"enableBackend"`
+	} `json:"extensionApis" yaml:"extensionApis"`
 }
 
 func (e *envoyGatewayInjectionPattern) isBackendExtensionEnabled(ctx context.Context, namespace string) (enabled bool, found bool, err error) {
@@ -42,7 +43,10 @@ func (e *envoyGatewayInjectionPattern) isBackendExtensionEnabled(ctx context.Con
 	}
 
 	yamlBlob, hasKey, err := unstructured.NestedString(cm.Object, "data", envoyGatewayConfigDataKey)
-	if err != nil || !hasKey || yamlBlob == "" {
+	if err != nil {
+		return false, true, fmt.Errorf("could not read %q from ConfigMap %s/%s: %w", envoyGatewayConfigDataKey, namespace, envoyGatewayConfigMapName, err)
+	}
+	if !hasKey || yamlBlob == "" {
 		return false, false, nil
 	}
 
@@ -51,7 +55,7 @@ func (e *envoyGatewayInjectionPattern) isBackendExtensionEnabled(ctx context.Con
 		return false, true, unmarshalErr
 	}
 
-	return cfg.ExtensionApis.EnableBackend, true, nil
+	return cfg.ExtensionAPIs.EnableBackend, true, nil
 }
 
 func (e *envoyGatewayInjectionPattern) warnIfBackendDisabled(ctx context.Context, namespace string) {

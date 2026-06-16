@@ -1,0 +1,20 @@
+Envoy Gateway UDS sidecar review fixes
+
+Fix 0: Added envoyGatewaySidecarPattern.Added no-op so Gateway informer does not eagerly create sidecar-mode Backend/EnvoyExtensionPolicy; MutatePod still calls embedded base Added lazily.
+Fix 1: Added json tags to egConfig and renamed ExtensionApis to ExtensionAPIs.
+Fix 2: isBackendExtensionEnabled now returns an error for malformed ConfigMap data reads instead of treating them as absent.
+Fix 3: Sidecar-mode base Added now idempotently ensures Backend before returning early for an existing EnvoyExtensionPolicy.
+Fix 4: appsec package docs now describe Envoy Gateway Backend + EnvoyExtensionPolicy creation as lazy on first pod mutation and cleanup as Gateway-informer-driven when the last Gateway in the namespace is deleted; PodDeleted is a no-op.
+Fix 5: MutatePod warns before preserving a pre-existing fsGroup that differs from sidecar.run_as_user.
+Fix 6: UDS sidecar container security context now uses ptr.To for RunAsUser/RunAsGroup/AllowPrivilegeEscalation and sets RunAsNonRoot=true; TCP builder unchanged.
+Fix 7: Sidecar validation now uses maxUDSPathLen, rejects run_as_user <= 0, and rejects root-directory UDS paths.
+Fix 8: Added/updated tests for lazy Added no-op, lazy MutatePod resource creation, Backend error propagation, malformed Envoy Gateway ConfigMap data/YAML, UDS security context, validation, and Backend recreation when policy already exists.
+
+Verification:
+- /opt/homebrew/bin/dda inv test --targets=./pkg/clusteragent/appsec/...: PASS (DONE 259 tests; test report 238 total, 238 passed)
+- /opt/homebrew/bin/dda inv linter.go --targets=./pkg/clusteragent/appsec/...: PASS (0 issues)
+- LSP diagnostics were attempted on changed appsec directories; gopls reported build-tag/workspace false positives for kubeapiserver/test-tagged files despite dda test and linter passing.
+
+Guardrails:
+- FailOpen left unchanged.
+- EXTERNAL mode logic and Istio/TCP builders left behaviorally unchanged.

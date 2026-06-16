@@ -30,6 +30,7 @@ func TestValidateSidecarConfig_Valid(t *testing.T) {
 				ImageTag:             "v1.0",
 				Port:                 8080,
 				HealthPort:           8081,
+				RunAsUser:            65532,
 				CPURequest:           "100m",
 				CPULimit:             "200m",
 				MemoryRequest:        "128Mi",
@@ -43,6 +44,7 @@ func TestValidateSidecarConfig_Valid(t *testing.T) {
 				Image:      "datadog/appsec-processor:latest",
 				Port:       8080,
 				HealthPort: 9090,
+				RunAsUser:  65532,
 			},
 		},
 		{
@@ -51,6 +53,7 @@ func TestValidateSidecarConfig_Valid(t *testing.T) {
 				Image:      "datadog/appsec-processor:latest",
 				Port:       1,
 				HealthPort: 65535,
+				RunAsUser:  65532,
 			},
 		},
 	}
@@ -323,6 +326,7 @@ func TestValidateSidecarConfig_UDSPath(t *testing.T) {
 		Image:      "datadog/appsec:latest",
 		Port:       8080,
 		HealthPort: 8081,
+		RunAsUser:  65532,
 	}
 
 	t.Run("relative path is rejected", func(t *testing.T) {
@@ -341,12 +345,28 @@ func TestValidateSidecarConfig_UDSPath(t *testing.T) {
 		assert.Contains(t, err.Error(), "sidecar.uds_path must be at most 100 characters")
 	})
 
+	t.Run("root directory path is rejected", func(t *testing.T) {
+		cfg := base
+		cfg.UDSPath = "/sock.sock"
+		err := validateSidecarConfig(cfg)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "sidecar.uds_path must be inside a non-root directory")
+	})
+
+	t.Run("zero run_as_user is rejected", func(t *testing.T) {
+		cfg := base
+		cfg.RunAsUser = 0
+		err := validateSidecarConfig(cfg)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "sidecar.run_as_user must be greater than 0")
+	})
+
 	t.Run("negative run_as_user is rejected", func(t *testing.T) {
 		cfg := base
 		cfg.RunAsUser = -1
 		err := validateSidecarConfig(cfg)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "sidecar.run_as_user must be >= 0")
+		assert.Contains(t, err.Error(), "sidecar.run_as_user must be greater than 0")
 	})
 
 	t.Run("valid uds config passes", func(t *testing.T) {

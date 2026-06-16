@@ -17,6 +17,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/utils/ptr"
 
 	appsecconfig "github.com/DataDog/datadog-agent/pkg/clusteragent/appsec/config"
 )
@@ -182,8 +183,6 @@ func BuildExtProcProcessorContainerUDS(config appsecconfig.Sidecar) corev1.Conta
 		requests[corev1.ResourceMemory] = resource.MustParse(config.MemoryRequest)
 	}
 
-	falseVal := false
-
 	return corev1.Container{
 		Name:  SidecarContainerName,
 		Image: image,
@@ -202,9 +201,10 @@ func BuildExtProcProcessorContainerUDS(config appsecconfig.Sidecar) corev1.Conta
 			},
 		},
 		SecurityContext: &corev1.SecurityContext{
-			RunAsUser:                &config.RunAsUser,
-			RunAsGroup:               &config.RunAsUser,
-			AllowPrivilegeEscalation: &falseVal,
+			RunAsUser:                ptr.To(config.RunAsUser),
+			RunAsGroup:               ptr.To(config.RunAsUser),
+			RunAsNonRoot:             ptr.To(true),
+			AllowPrivilegeEscalation: ptr.To(false),
 		},
 		Resources: corev1.ResourceRequirements{
 			Requests: requests,

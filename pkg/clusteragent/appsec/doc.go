@@ -59,7 +59,7 @@ Each proxy type implements the InjectionPattern interface, providing:
 In SIDECAR mode, proxy types additionally implement the SidecarInjectionPattern interface:
   - Pod selection (PodSelector)
   - Sidecar injection (InjectSidecar)
-  - Cleanup handling (SidecarDeleted)
+  - Pod deletion handling (usually no-op; Gateway informer drives proxy-resource cleanup)
 
 # Deployment Modes
 
@@ -182,7 +182,7 @@ gateway pods.
 
 The webhook is registered at the `/appsec-proxies` endpoint and handles:
   - Pod CREATE operations: Inject sidecar container if pod matches selection criteria
-  - Pod DELETE operations: Trigger cleanup of proxy configuration resources
+  - Pod DELETE operations: No-op for Istio and Envoy Gateway sidecar patterns
 
 Key features:
   - CEL-based filtering: Label selectors are compiled into Common Expression Language (CEL)
@@ -218,7 +218,7 @@ Multiple patterns are combined with OR logic to create a unified webhook that ha
 2. **Pattern Matching**: Webhook iterates through registered patterns to find matches
 3. **Already Injected Check**: Skip if sidecar container already exists
 4. **Container Injection**: Add AppSec processor container with configured resources
-5. **Lazy Config Creation**: On first injection, create proxy configuration (EnvoyFilter/EnvoyExtensionPolicy)
+5. **Lazy Config Creation**: On first injection, create proxy configuration (EnvoyFilter, or Envoy Gateway Backend + EnvoyExtensionPolicy)
 6. **Pod Admission**: Return modified pod spec to API server
 
 Example injected sidecar container:
@@ -257,7 +257,7 @@ uses lazy initialization:
 	# Lazy (SIDECAR mode)
 	Start() → Detect proxies → Register webhook → [Wait for pod]
 	                                             ↓
-	Pod created → InjectSidecar() → Create config (first time only)
+	Pod created → MutatePod() → Create config lazily (idempotent)
 	                               ↓
 	              Inject container → Return modified pod
 
@@ -273,18 +273,17 @@ Tradeoff:
 
 ## Cleanup Handling
 
-When a gateway pod with an injected sidecar is deleted:
+For Istio and Envoy Gateway sidecar mode, pod deletion is a no-op. Cleanup remains driven by the
+watched Gateway resources:
 
-1. **Pod Deletion Event**: API server invokes webhook for DELETE operation
-2. **Remaining Pod Count**: Check if other pods in namespace still have sidecars
-3. **Last Pod Logic**: If this is the last pod with sidecar in namespace:
-  - Delete proxy configuration resources (EnvoyFilter/EnvoyExtensionPolicy)
-  - Remove namespace from ReferenceGrant (if applicable)
+ 1. **Pod Deletion Event**: API server may invoke the webhook for DELETE operation
+ 2. **PodDeleted No-op**: Sidecar patterns do not remove proxy configuration from pod deletion
+ 3. **Gateway Deletion**: The Gateway informer deletes proxy configuration resources when the
+    last Gateway in the namespace is deleted
 
 4. **Resource Cleanup**: Kubernetes garbage collection handles pod-owned resources
 
-This ensures configuration is cleaned up when no longer needed while avoiding premature
-deletion when multiple gateway pods exist.
+This avoids removing proxy configuration while replacement gateway pods are still starting.
 
 ## Pattern Wrapper Architecture
 
@@ -300,8 +299,8 @@ The wrapper:
   - Embeds the EXTERNAL mode pattern for proxy configuration logic
   - Implements SidecarInjectionPattern interface for pod injection
   - Delegates Added() calls to no-op (lazy initialization)
-  - Creates config during InjectSidecar() by calling embedded pattern
-  - Handles cleanup via SidecarDeleted() when last pod is removed
+  - Creates config during MutatePod() by calling the embedded pattern
+  - Leaves PodDeleted() as a no-op; Gateway-informer Deleted() handles cleanup when the last Gateway in the namespace is removed
 
 This design maximizes code reuse while maintaining clear separation between deployment modes.
 
@@ -326,7 +325,7 @@ For Istio in SIDECAR mode:
  2. Injects sidecar container into pods with matching labels
  3. Creates EnvoyFilter on first pod injection (lazy initialization)
  4. Routes traffic to localhost:8080 (sidecar processor)
- 5. Cleans up EnvoyFilter when last pod in namespace is deleted
+ 5. Cleans up EnvoyFilter when the last Gateway in the namespace is deleted
 
 Pod selection criteria:
   - Pods must have label: gateway.networking.k8s.io/gateway-name (set by Istio gateway controller)
@@ -353,12 +352,12 @@ For Envoy Gateway in SIDECAR mode:
  3. Creates a Backend (UDS) and an EnvoyExtensionPolicy on first pod injection (lazy initialization)
  4. EnvoyExtensionPolicy backendRefs point to the UDS Backend in the same namespace
  5. Routes traffic to the sidecar processor via Unix Domain Socket at /var/run/datadog/extproc.sock
- 6. Cleans up resources when last pod in namespace is deleted
+ 6. Cleans up resources when the last Gateway in the namespace is deleted; PodDeleted is a no-op
 
 Sidecar Data Flow and Invariants:
   - The webhook injects the sidecar container and a shared emptyDir volume (datadog-appsec-uds) mounted into both the injected sidecar and the envoy container.
   - Pod fsGroup and sidecar runAsUser are set to 65532 to ensure shared-socket access.
-  - The controller lazily creates a Backend (UDS) and an EnvoyExtensionPolicy in the Gateway's namespace.
+  - The Gateway informer does not eagerly create sidecar-mode resources on Gateway add; MutatePod lazily creates a Backend (UDS) and an EnvoyExtensionPolicy in the Gateway's namespace on first matching pod injection.
   - Since the Backend is in the same namespace as the EnvoyExtensionPolicy, no ReferenceGrant is created (the no-ReferenceGrant invariant).
   - The extensionApis.enableBackend Envoy Gateway prerequisite is detected and warned about if disabled (the cluster-agent does not modify Envoy Gateway config).
   - The default injector mode is sidecar, so appsec-enabled Envoy Gateways default to sidecar injection.

@@ -165,6 +165,39 @@ func TestEnvoyGatewaySidecarMutatePodHappyPath(t *testing.T) {
 	assert.Empty(t, grants.Items)
 }
 
+func TestEnvoyGatewaySidecarAddedIsNoOp(t *testing.T) {
+	ctx := context.Background()
+	logger := logmock.New(t)
+	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), envoyGatewaySidecarListKinds())
+	recorder := record.NewFakeRecorder(100)
+	pattern := newTestEnvoyGatewaySidecarPattern(t, client, logger, recorder)
+
+	require.NoError(t, pattern.Added(ctx, newTestGateway("eg-ns", "eg")))
+
+	_, err := client.Resource(backendGVR).Namespace("eg-ns").Get(ctx, extProcName, metav1.GetOptions{})
+	require.Error(t, err)
+	_, err = client.Resource(extensionGVR).Namespace("eg-ns").Get(ctx, extProcName, metav1.GetOptions{})
+	require.Error(t, err)
+}
+
+func TestEnvoyGatewaySidecarMutatePodRecreatesBackendWhenPolicyExists(t *testing.T) {
+	ctx := context.Background()
+	logger := logmock.New(t)
+	existingPolicy := newTestEnvoyExtensionPolicy("eg-ns")
+	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), envoyGatewaySidecarListKinds(), existingPolicy)
+	recorder := record.NewFakeRecorder(100)
+	pattern := newTestEnvoyGatewaySidecarPattern(t, client, logger, recorder)
+	pod := newEnvoyGatewayDataPlanePod("envoy-eg")
+
+	mutated, err := pattern.MutatePod(pod, envoyGatewaySystemNamespace, client)
+	require.NoError(t, err)
+	require.True(t, mutated)
+
+	backend, err := client.Resource(backendGVR).Namespace("eg-ns").Get(ctx, extProcName, metav1.GetOptions{})
+	require.NoError(t, err)
+	assert.Equal(t, extProcName, backend.GetName())
+}
+
 func TestEnvoyGatewaySidecarMutatePodIsIdempotent(t *testing.T) {
 	logger := logmock.New(t)
 	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), envoyGatewaySidecarListKinds())
