@@ -78,6 +78,9 @@ func newDemultiplexer(deps dependencies) (provides, error) {
 		}
 	}
 	options := createAgentDemultiplexerOptions(deps.Config, deps.Params)
+	if deps.Params.lookbackRetentionFactory != nil {
+		options.LookbackRetention = deps.Params.lookbackRetentionFactory(deps.Config, hostnameDetected)
+	}
 	agentDemultiplexer := aggregator.InitAndStartAgentDemultiplexer(
 		deps.Log,
 		deps.SharedForwarder,

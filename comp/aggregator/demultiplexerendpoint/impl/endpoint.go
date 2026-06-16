@@ -37,7 +37,8 @@ type demultiplexerEndpoint struct {
 
 // Provides defines the output of the demultiplexerendpoint component
 type Provides struct {
-	Endpoint api.AgentEndpointProvider
+	Endpoint             api.AgentEndpointProvider
+	LookbackDumpEndpoint api.AgentEndpointProvider
 }
 
 // NewComponent creates a new demultiplexerendpoint component
@@ -49,8 +50,33 @@ func NewComponent(reqs Requires) Provides {
 	}
 
 	return Provides{
-		Endpoint: api.NewAgentEndpointProvider(endpoint.dumpDogstatsdContexts, "/dogstatsd-contexts-dump", "POST"),
+		Endpoint:             api.NewAgentEndpointProvider(endpoint.dumpDogstatsdContexts, "/dogstatsd-contexts-dump", "POST"),
+		LookbackDumpEndpoint: api.NewAgentEndpointProvider(endpoint.dumpLookback, "/metric-lookback-dump", "POST"),
 	}
+}
+
+// lookbackDumpResponse is the JSON body returned by the /metric-lookback-dump endpoint.
+type lookbackDumpResponse struct {
+	SeriesDumped int `json:"series_dumped"`
+}
+
+// dumpLookback flushes the retained metric lookback samples through the
+// serializer and reports how many series were sent.
+func (demuxendpoint demultiplexerEndpoint) dumpLookback(w http.ResponseWriter, _ *http.Request) {
+	count, err := demuxendpoint.demux.DumpLookback()
+	if err != nil {
+		httputils.SetJSONError(w, demuxendpoint.log.Errorf("Failed to dump metric lookback buffer: %v", err), 500)
+		return
+	}
+
+	resp, err := json.Marshal(lookbackDumpResponse{SeriesDumped: count})
+	if err != nil {
+		httputils.SetJSONError(w, demuxendpoint.log.Errorf("Failed to serialize response: %v", err), 500)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(resp)
 }
 
 func (demuxendpoint demultiplexerEndpoint) dumpDogstatsdContexts(w http.ResponseWriter, _ *http.Request) {

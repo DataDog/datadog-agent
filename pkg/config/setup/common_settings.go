@@ -2167,3 +2167,16 @@ func anomalyDetection(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("anomaly_detection.storage.eviction_floor_ratio", 0.5)
 	config.BindEnvAndSetDefault("anomaly_detection.storage.point_retention_secs", 120)
 }
+
+// metricLookback configures the in-memory check metric lookback ring buffer.
+func metricLookback(config pkgconfigmodel.Setup) {
+	// Capture switch. When true, samples emitted through the metric lookback
+	// shadow sender are retained in a bounded in-memory ring buffer so they can
+	// be dumped to the serializer on demand. The normal metric flow is not
+	// retained by this buffer.
+	config.BindEnvAndSetDefault("metric_lookback.enabled", false)
+	// Total number of sample slots across all shards. Zero uses the ring buffer default.
+	config.BindEnvAndSetDefault("metric_lookback.capacity", 0)
+	// Number of independent shards. Zero uses the ring buffer default.
+	config.BindEnvAndSetDefault("metric_lookback.shard_count", 0)
+}
