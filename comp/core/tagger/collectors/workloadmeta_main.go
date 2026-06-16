@@ -98,15 +98,6 @@ func (c *WorkloadMetaCollector) initK8sResourcesMetaAsTags(resourcesLabelsAsTags
 	}
 }
 
-// groupResourceWithoutVersion strips the optional /{version} suffix from a group resource key.
-func groupResourceWithoutVersion(groupResource string) string {
-	normalized, _, hasVersion := strings.Cut(groupResource, "/")
-	if hasVersion {
-		return normalized
-	}
-	return groupResource
-}
-
 // Run runs the continuous event watching loop and sends new tags to the
 // tagger based on the events sent by the workloadmeta.
 func (c *WorkloadMetaCollector) Run(ctx context.Context) {
@@ -234,6 +225,16 @@ func retrieveMappingFromConfig(cfg config.Component, configKey string) map[strin
 		labelsList[strings.ToLower(label)] = value
 	}
 	return labelsList
+}
+
+// groupResourceWithoutVersion strips the optional /{version} suffix from a group resource key
+// so that "datadogdashboards.datadoghq.com/v1alpha1" normalizes to "datadogdashboards.datadoghq.com",
+// matching the format returned by GroupResource().String() used during tag lookup.
+// strings.Cut returns the original string as "before" when the separator is absent, so no
+// special case is needed for keys that have no version suffix.
+func groupResourceWithoutVersion(groupResource string) string {
+	normalized, _, _ := strings.Cut(groupResource, "/")
+	return normalized
 }
 
 // mergeMaps merges two maps, in case of conflict the first argument is prioritized
