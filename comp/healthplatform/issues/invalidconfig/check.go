@@ -7,9 +7,7 @@
 package invalidconfig
 
 import (
-	"fmt"
 	"strconv"
-	"strings"
 
 	"go.yaml.in/yaml/v3"
 
@@ -41,12 +39,16 @@ func (c *checker) validate() ([]runnerdef.IssueReport, error) {
 	}
 	normalized, err := normalizeForSchema(raw)
 	if err != nil {
-		return nil, fmt.Errorf("invalidconfig: normalize config: %w", err)
+		// Normalization failed — treat as no violations so bundle.go still
+		// calls ResolveIssue for any stale issues from a prior run.
+		pkglog.Warnf("invalidconfig: normalize config: %v; skipping check", err)
+		return nil, nil
 	}
 	errs, schemaErr := schema.ValidateCoreConfig(normalized)
 	if schemaErr != nil {
+		// Schema unavailable — same rationale: allow stale-issue resolution.
 		pkglog.Warnf("invalidconfig: schema validator unavailable; skipping check: %v", schemaErr)
-		return nil, schemaErr
+		return nil, nil
 	}
 	if len(errs) == 0 {
 		return nil, nil
@@ -56,11 +58,16 @@ func (c *checker) validate() ([]runnerdef.IssueReport, error) {
 			IssueID:   IssueID,
 			IssueName: IssueID,
 			Source:    "agent",
-			Context: map[string]string{
-				contextKeyConfigPath: c.cfg.ConfigFileUsed(),
-				contextKeyErrorCount: strconv.Itoa(len(errs)),
-				contextKeyErrors:     strings.Join(errs, "\n"),
-			},
+			Context: func() map[string]string {
+				ctx := map[string]string{
+					contextKeyConfigPath: c.cfg.ConfigFileUsed(),
+					contextKeyErrorCount: strconv.Itoa(len(errs)),
+				}
+				for i, e := range errs {
+					ctx[contextErrorKey(i)] = e
+				}
+				return ctx
+			}(),
 		},
 	}, nil
 }

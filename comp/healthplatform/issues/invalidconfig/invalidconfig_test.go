@@ -17,11 +17,13 @@ import (
 )
 
 func TestBuildIssue_SchemaViolationProducesMediumSeverity(t *testing.T) {
-	issue, err := InvalidConfigIssue{}.BuildIssue(map[string]string{
+	ctx := map[string]string{
 		contextKeyConfigPath: "/etc/datadog-agent/datadog.yaml",
 		contextKeyErrorCount: "3",
-		contextKeyErrors:     "/agent_ipc/port: expected integer\n/tags: expected array",
-	})
+	}
+	ctx[contextErrorKey(0)] = "at '/agent_ipc/port': got string, want integer"
+	ctx[contextErrorKey(1)] = "at '/tags': got object, want array"
+	issue, err := InvalidConfigIssue{}.BuildIssue(ctx)
 	require.NoError(t, err)
 	assert.Empty(t, issue.GetId(), "Id is set by the runner (ReportIssue), not by the template")
 	assert.Equal(t, IssueID, issue.GetIssueName())
@@ -33,10 +35,11 @@ func TestBuildIssue_SchemaViolationProducesMediumSeverity(t *testing.T) {
 	assert.Contains(t, issue.GetDescription(), "/tags")
 	assert.Contains(t, issue.GetDescription(), "; ", "description must use a visible delimiter between violations so the UI renders them legibly")
 
-	errorsBlob := issue.GetExtra().GetFields()[contextKeyErrors].GetStringValue()
-	assert.Contains(t, errorsBlob, "agent_ipc/port")
-	assert.Contains(t, errorsBlob, "/tags")
-	assert.Contains(t, errorsBlob, " • ", "extra.errors must use a visible delimiter so the UI renders multi-violation blobs legibly")
+	errorsStruct := issue.GetExtra().GetFields()[contextKeyErrors].GetStructValue()
+	require.NotNil(t, errorsStruct, "extra.errors must be a struct with one entry per violation")
+	assert.Len(t, errorsStruct.GetFields(), 2, "each violation must get its own key")
+	assert.Equal(t, "got string, want integer", errorsStruct.GetFields()["/agent_ipc/port"].GetListValue().GetValues()[0].GetStringValue())
+	assert.Equal(t, "got object, want array", errorsStruct.GetFields()["/tags"].GetListValue().GetValues()[0].GetStringValue())
 }
 
 // A vanilla mock has only defaults, which round-trip through YAML cleanly and
@@ -58,5 +61,5 @@ func TestCheck_SchemaViolationProducesReport(t *testing.T) {
 	require.Len(t, reports, 1)
 	assert.Equal(t, IssueID, reports[0].IssueName)
 	assert.Equal(t, IssueID, reports[0].IssueID)
-	assert.Contains(t, reports[0].Context[contextKeyErrors], "agent_ipc/port")
+	assert.Contains(t, reports[0].Context[contextErrorKey(0)], "agent_ipc/port")
 }
