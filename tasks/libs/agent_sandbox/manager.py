@@ -70,6 +70,7 @@ class SandboxMetadata:
     agent_version: str | None = None
     agent_major_version: str = DEFAULT_AGENT_MAJOR_VERSION
     config_source: str | None = None
+    fx_trace: bool = False
     vm_pid: int | None = None
 
 
@@ -140,6 +141,7 @@ class AgentSandboxManager:
         config: Path | str | None = None,
         ubuntu_image: Path | str | None = None,
         guest_user: str = DEFAULT_GUEST_USER,
+        fx_trace: bool = False,
     ) -> SandboxMetadata:
         """Create local state, credentials and provisioning inputs for a host sandbox."""
         self.assert_supported_host()
@@ -162,6 +164,7 @@ class AgentSandboxManager:
             mac_address=self.mac_address_for_name(name),
             agent_version=agent_version,
             config_source=config_source,
+            fx_trace=fx_trace,
         )
         self.write_host_install_script(paths.host_install_script, metadata)
         self.write_cloud_init_seed(paths, metadata)
@@ -171,6 +174,89 @@ class AgentSandboxManager:
             self.clone_cached_ubuntu_base(paths.disk_image)
         self.write_metadata(paths.metadata_file, metadata)
         return metadata
+
+    def prepare_base_builder(self, name: str = "base-builder") -> SandboxMetadata:
+        self.assert_supported_host()
+        paths = self.ensure_layout(name)
+        if paths.metadata_file.exists():
+            raise AgentSandboxError(f"sandbox {name!r} already exists at {paths.instance_dir}")
+        self.ensure_ssh_key(paths)
+        metadata = SandboxMetadata(
+            name=name,
+            mode="base-builder",
+            state="created",
+            guest_user=DEFAULT_GUEST_USER,
+            mac_address=self.mac_address_for_name(name),
+        )
+        self.write_base_builder_cloud_init_seed(paths, metadata)
+        self.clone_raw_ubuntu_base(paths.disk_image)
+        self.write_metadata(paths.metadata_file, metadata)
+        return metadata
+
+    def write_base_builder_cloud_init_seed(self, paths: SandboxPaths, metadata: SandboxMetadata) -> None:
+        public_key = paths.public_key.read_text().strip() if paths.public_key.exists() else ""
+        if not public_key:
+            raise AgentSandboxError("managed SSH public key is missing")
+        user_data = f"""#cloud-config
+users:
+  - default
+  - name: {metadata.guest_user}
+    groups: [adm, sudo]
+    shell: /bin/bash
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    ssh_authorized_keys:
+      - {public_key}
+package_update: true
+packages:
+  - ca-certificates
+  - curl
+  - gnupg
+  - openssh-server
+runcmd:
+  - systemctl enable --now ssh || systemctl enable --now sshd
+"""
+        paths.cloud_init_user_data.write_text(user_data)
+        paths.cloud_init_meta_data.write_text(
+            f"instance-id: agent-sandbox-{metadata.name}\nlocal-hostname: agent-sandbox-{metadata.name}\n"
+        )
+        self.create_seed_iso(paths)
+
+    def finalize_prepared_base(self, name: str = "base-builder") -> Path:
+        metadata = self.read_metadata(name)
+        paths = self.paths(name)
+        cleanup_script = (
+            "cloud-init clean --logs; "
+            "rm -f /etc/ssh/ssh_host_*; "
+            "truncate -s 0 /etc/machine-id; "
+            "rm -f /var/lib/dbus/machine-id"
+        )
+        subprocess.run(
+            self.ssh_command(name, ["sudo", "bash", "-lc", shlex.quote(cleanup_script)]),
+            check=True,
+        )
+        if metadata.vm_pid:
+            self.stop(name)
+        prepared = self.prepared_base_path()
+        prepared.parent.mkdir(parents=True, exist_ok=True)
+        if prepared.exists():
+            prepared.unlink()
+        shutil.copyfile(paths.disk_image, prepared)
+        return prepared
+
+    def clone_raw_ubuntu_base(self, destination: Path) -> None:
+        base = self.paths().cache_dir / "ubuntu-noble-arm64.raw"
+        if not base.exists():
+            source = self.ensure_cached_ubuntu_image()
+            tmp = base.with_suffix(".raw.tmp")
+            self.prepare_disk_image(source, tmp)
+            tmp.replace(base)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        if destination.exists():
+            destination.unlink()
+        if platform.system() == "Darwin":
+            subprocess.run(["cp", "-c", str(base), str(destination)], check=True)
+        else:
+            shutil.copyfile(base, destination)
 
     def mac_address_for_name(self, name: str) -> str:
         digest = hashlib.sha256(name.encode("utf-8")).digest()
@@ -218,6 +304,17 @@ class AgentSandboxManager:
         config_copy = ""
         if metadata.config_source:
             config_copy = "\ninstall -m 0644 /var/lib/agent-sandbox/datadog.yaml /etc/datadog-agent/datadog.yaml\n"
+        fx_trace_setup = ""
+        if metadata.fx_trace:
+            fx_trace_setup = """
+mkdir -p /etc/systemd/system/datadog-agent.service.d
+cat > /etc/systemd/system/datadog-agent.service.d/agent-sandbox-fx-trace.conf <<'EOF'
+[Service]
+Environment=TRACE_FX=1
+Environment=DD_FX_TRACING_ENABLED=true
+EOF
+systemctl daemon-reload
+"""
 
         package_version = ""
         if metadata.agent_version:
@@ -246,6 +343,7 @@ if ! command -v /opt/datadog-agent/bin/agent/agent >/dev/null 2>&1; then
     DEBIAN_FRONTEND=noninteractive apt-get install -y datadog-agent{package_version} datadog-signing-keys
 fi
 {config_copy}
+{fx_trace_setup}
 chown dd-agent:dd-agent /etc/datadog-agent/datadog.yaml || true
 chmod 0640 /etc/datadog-agent/datadog.yaml || true
 systemctl restart datadog-agent || service datadog-agent restart
@@ -333,7 +431,13 @@ write_files:
         urllib.request.urlretrieve(DEFAULT_UBUNTU_IMAGE_URL, image)
         return image
 
+    def prepared_base_path(self) -> Path:
+        return self.paths().cache_dir / "ubuntu-noble-arm64-prepared.raw"
+
     def ensure_cached_ubuntu_base(self) -> Path:
+        prepared = self.prepared_base_path()
+        if prepared.exists():
+            return prepared
         base = self.paths().cache_dir / "ubuntu-noble-arm64.raw"
         if base.exists():
             return base

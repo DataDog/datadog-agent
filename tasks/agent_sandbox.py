@@ -49,6 +49,25 @@ def build_helper(ctx, state_root=None, force=False):
     print(f"Built {output}")
 
 
+@task(name="prepare-base")
+def prepare_base(ctx, name="base-builder", state_root=None, helper_path=None):
+    """Build a prepared Ubuntu base image with OS dependencies prebaked."""
+    manager = _manager(state_root, helper_path)
+    try:
+        manager.prepare_base_builder(name=name)
+        _run_or_raise(ctx, manager.helper_command(name, "validate"))
+        metadata = manager.start_background(name)
+        print(f"Started base builder {name!r} with helper pid {metadata.vm_pid}")
+        endpoint = manager.discover_ssh_endpoint(name)
+        print(f"SSH endpoint: {endpoint.ssh_host}:{endpoint.ssh_port}")
+        _run_or_raise(ctx, manager.ssh_command(name, ["cloud-init", "status", "--wait"]))
+        prepared = manager.finalize_prepared_base(name)
+        print(f"Prepared base image: {prepared}")
+        manager.destroy(name)
+    except AgentSandboxError as e:
+        raise Exit(message=str(e), code=1) from None
+
+
 @task
 def create(
     ctx,
@@ -60,6 +79,7 @@ def create(
     helper_path=None,
     prepare_only=False,
     wait_agent=True,
+    fx_trace=False,
 ):
     """Create local state for a host Agent sandbox."""
     manager = _manager(state_root, helper_path)
@@ -69,6 +89,7 @@ def create(
             agent_version=agent_version,
             config=Path(config) if config else None,
             ubuntu_image=Path(ubuntu_image) if ubuntu_image else None,
+            fx_trace=fx_trace,
         )
         print(f"Prepared host Agent sandbox {name!r} in {manager.paths(name).instance_dir}")
         print(f"Managed SSH public key: {manager.paths(name).public_key}")
