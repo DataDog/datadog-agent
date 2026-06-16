@@ -13,8 +13,10 @@ import (
 	"crypto/tls"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"maps"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -359,8 +361,11 @@ func (c *Client) Start() {
 //
 // A client that has been closed cannot be restarted.
 func (c *Client) Close() {
+	log.Infof("RC-ASYNC Close: canceling poll loop and waiting for all workers to drain (unbounded)")
 	c.cancelUnderLock()
+	start := time.Now()
 	c.wg.Wait()
+	log.Infof("RC-ASYNC Close: all workers drained in %s", time.Since(start))
 }
 
 // CloseTimeout is like Close but bounds how long it will wait for in-flight
@@ -371,16 +376,20 @@ func (c *Client) Close() {
 // The client context is always canceled before returning, so the poll loop
 // itself exits regardless of the result.
 func (c *Client) CloseTimeout(timeout time.Duration) bool {
+	log.Infof("RC-ASYNC CloseTimeout(%s): canceling poll loop and waiting for workers to drain", timeout)
 	c.cancelUnderLock()
 	done := make(chan struct{})
+	start := time.Now()
 	go func() {
 		c.wg.Wait()
 		close(done)
 	}()
 	select {
 	case <-done:
+		log.Infof("RC-ASYNC CloseTimeout: all workers drained in %s", time.Since(start))
 		return true
 	case <-time.After(timeout):
+		log.Infof("RC-ASYNC CloseTimeout: TIMED OUT after %s — at least one listener is stuck; leaking its worker", timeout)
 		return false
 	}
 }
@@ -471,6 +480,7 @@ func (c *Client) SubscribeAll(product string, listener Listener) {
 		entry.run(c.ctx)
 	}()
 	c.listeners[product] = append(c.listeners[product], entry)
+	log.Infof("RC-ASYNC SubscribeAll product=%s (%T) — worker spawned, now %d listener(s) for this product", product, listener, len(c.listeners[product]))
 }
 
 // Subscribe subscribes to config updates of a product.
@@ -517,6 +527,7 @@ func (c *Client) startFn() {
 		log.Warnf("remote-config: Start called after Close; poll loop not started")
 		return
 	}
+	log.Infof("RC-ASYNC starting poll loop: client_id=%s products=%v poll_interval=%s", c.ID, c.products, c.pollInterval)
 	c.wg.Add(1)
 	go func() {
 		defer c.wg.Done()
@@ -612,10 +623,15 @@ func (c *Client) update() error {
 		return err
 	}
 
+	// RC-ASYNC: time the fetch so a slow/blocking gRPC call is visible.
+	fetchStart := time.Now()
 	response, err := c.configFetcher.ClientGetConfigs(c.ctx, req)
 	if err != nil {
+		log.Infof("RC-ASYNC fetch failed after %s: %v", time.Since(fetchStart), err)
 		return err
 	}
+	log.Infof("RC-ASYNC fetched configs in %s: config_status=%s target_files=%d",
+		time.Since(fetchStart), response.ConfigStatus, len(response.TargetFiles))
 
 	// applyUpdate runs WITHOUT c.m: state.Repository synchronizes its own
 	// `configs` (configsMu) and `metadata` (metadataMu), so the poll loop's
@@ -624,11 +640,14 @@ func (c *Client) update() error {
 	// verification never blocks SubscribeAll / SetAgentName / GetConfigs.
 	changedProducts, err := c.applyUpdate(response)
 	if err != nil {
+		log.Infof("RC-ASYNC applyUpdate error: %v", err)
 		return err
 	}
 	if len(changedProducts) == 0 {
+		log.Infof("RC-ASYNC no changed products this poll (nothing to dispatch)")
 		return nil
 	}
+	log.Infof("RC-ASYNC applyUpdate produced changed_products=%v", changedProducts)
 
 	// c.m is taken only for the dispatch below, which reads Client-owned state
 	// (c.listeners). It is never held across listener work — scheduleUpdate
@@ -642,6 +661,8 @@ func (c *Client) update() error {
 		// Snapshot once per product. state.GetConfigs returns a fresh map
 		// (see pkg/remoteconfig/state/configs.go).
 		configs := c.state.GetConfigs(product)
+		log.Infof("RC-ASYNC dispatching product=%s configs=%d listeners=%d versions=%s",
+			product, len(configs), len(productListeners), formatConfigVersions(configs))
 		// Bind the apply-status callback to the versions in *this* snapshot.
 		// A slow Listener.OnUpdate may finish after the next poll has already
 		// replaced the configs at these paths; without version-binding, the
@@ -660,11 +681,24 @@ func (c *Client) update() error {
 				// (add/delete/replace), matching the per-listener isolation the
 				// synchronous code provided. Config bodies ([]byte) are still
 				// shared, exactly as before; they must be treated read-only.
+				log.Infof("RC-ASYNC staging update for listener product=%s (%T)", product, entry.listener)
 				entry.scheduleUpdate(maps.Clone(configs), applyStatus)
+			} else {
+				log.Infof("RC-ASYNC skipping listener product=%s (signature expired, listener opts out)", product)
 			}
 		}
 	}
 	return nil
+}
+
+// formatConfigVersions renders "path=version" pairs for logging. RC-ASYNC debug
+// helper only; safe to remove with the RC-ASYNC log lines.
+func formatConfigVersions(configs map[string]state.RawConfig) string {
+	parts := make([]string, 0, len(configs))
+	for path, cfg := range configs {
+		parts = append(parts, fmt.Sprintf("%s@v%d", path, cfg.Metadata.Version))
+	}
+	return "[" + strings.Join(parts, " ") + "]"
 }
 
 // boundApplyStatus returns an apply-status callback that drops writes for any
@@ -682,10 +716,13 @@ func (c *Client) boundApplyStatus(snapshot map[string]state.RawConfig) func(stri
 		if !ok {
 			// Path was not in the snapshot the listener received; nothing to
 			// safely write to. Drop.
+			log.Infof("RC-ASYNC apply-status DROPPED (unknown path) path=%s state=%d (not in the snapshot this listener received)", path, status.State)
 			return
 		}
-		if !c.state.UpdateApplyStatusIfVersion(path, expected, status) {
-			log.Debugf("remote-config: dropped stale apply-status for %s (expected v=%d superseded by newer update)", path, expected)
+		if c.state.UpdateApplyStatusIfVersion(path, expected, status) {
+			log.Infof("RC-ASYNC apply-status APPLIED path=%s v=%d state=%d", path, expected, status.State)
+		} else {
+			log.Infof("RC-ASYNC apply-status DROPPED (stale version) path=%s expected_v=%d state=%d (superseded by a newer update before the listener acked)", path, expected, status.State)
 		}
 	}
 }
@@ -701,11 +738,14 @@ func (c *Client) broadcastStateChange(connected bool) {
 	}
 	c.m.Lock()
 	defer c.m.Unlock()
+	n := 0
 	for _, productListeners := range c.listeners {
 		for _, entry := range productListeners {
 			entry.scheduleStateChange(connected)
+			n++
 		}
 	}
+	log.Infof("RC-ASYNC broadcastStateChange(connected=%t) staged for %d listener(s)", connected, n)
 }
 
 func containsProduct(products []string, product string) bool {
@@ -861,9 +901,15 @@ func (e *listenerEntry) scheduleUpdate(configs map[string]state.RawConfig, apply
 	e.mu.Lock()
 	// Overwrite any not-yet-consumed payload: the freshest snapshot supersedes
 	// older ones — that's the point of coalescing.
+	coalesced := e.pendingConfigs != nil
 	e.pendingConfigs = configs
 	e.pendingApplyStatus = applyStatus
 	e.mu.Unlock()
+	if coalesced {
+		// The worker hadn't drained the previous payload yet — it's a slow
+		// listener and we just collapsed an intermediate update into the latest.
+		log.Infof("RC-ASYNC COALESCED update for product=%s (worker still busy; previous snapshot superseded before delivery)", e.product)
+	}
 	e.signal()
 }
 
@@ -891,6 +937,7 @@ func (e *listenerEntry) run(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
+			log.Infof("RC-ASYNC worker exiting product=%s (%T) — context canceled", e.product, e.listener)
 			return
 		case <-e.wake:
 			e.mu.Lock()
@@ -923,10 +970,17 @@ func (e *listenerEntry) deliver(stateChange *bool, configs map[string]state.RawC
 	}()
 
 	if stateChange != nil {
+		log.Infof("RC-ASYNC -> OnStateChange(connected=%t) product=%s (%T)", *stateChange, e.product, e.listener)
 		e.listener.OnStateChange(*stateChange)
 	}
 	if configs != nil {
+		log.Infof("RC-ASYNC -> OnUpdate product=%s (%T) configs=%d — calling listener", e.product, e.listener, len(configs))
+		start := time.Now()
 		e.listener.OnUpdate(configs, applyStatus)
+		elapsed := time.Since(start)
+		// A long elapsed here is the slow-listener case the async dispatch is
+		// designed to tolerate — it no longer blocks polling or other listeners.
+		log.Infof("RC-ASYNC <- OnUpdate returned product=%s (%T) took=%s", e.product, e.listener, elapsed)
 	}
 }
 
