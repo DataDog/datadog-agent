@@ -138,6 +138,14 @@ __attribute__((always_inline)) void resolve_pid(struct __sk_buff *skb, struct pa
         }
     }
 
+    // discard kworkers, no process should be associated (mostly on ingress)
+    if (pkt->pid != 0) {
+        u32 pid_val = (u32)pkt->pid;
+        if (IS_KERNEL_THREAD(pid_val)) {
+            pkt->pid = 0;
+        }
+    }
+
     // pid from socket lookup, falling back to the flow_pid map on unsupported kernels
     if (pkt->pid == 0) {
         if (is_sk_lookup_pid_supported()) {
@@ -145,12 +153,6 @@ __attribute__((always_inline)) void resolve_pid(struct __sk_buff *skb, struct pa
         } else {
             resolve_pid_from_flow_pid(pkt);
         }
-    }
-
-    // discard kworker pids, no process should be associated
-    u32 pid_val = (u32)pkt->pid;
-    if (IS_KERNEL_THREAD(pid_val)) {
-        pkt->pid = 0;
     }
 }
 
