@@ -15,6 +15,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator/testutil"
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 	"github.com/DataDog/datadog-agent/test/fakeintake/server"
 	"github.com/stretchr/testify/assert"
@@ -89,6 +90,83 @@ func TestIntegrationClient(t *testing.T) {
 			"/bar/foo": 1,
 		}
 		assert.Equal(t, expectedStats, stats)
+	})
+
+	t.Run("should track v2 and v3 series endpoints separately in route stats", func(t *testing.T) {
+		fi, _ := server.InitialiseForTests(t)
+		defer fi.Stop()
+
+		client := NewClient(fi.URL())
+
+		// POST to the v2 series endpoint (any body is enough to register the route).
+		resp, err := http.Post(fi.URL()+"/api/v2/series", "application/octet-stream", strings.NewReader("{}"))
+		require.NoError(t, err)
+		defer resp.Body.Close()
+
+		// POST to the v3 series endpoint.
+		resp, err = http.Post(fi.URL()+"/api/intake/metrics/v3/series", "application/x-protobuf", bytes.NewReader(nil))
+		require.NoError(t, err)
+		defer resp.Body.Close()
+
+		stats, err := client.RouteStats()
+		require.NoError(t, err)
+		assert.Equal(t, map[string]int{
+			"/api/v2/series":                1,
+			"/api/intake/metrics/v3/series": 1,
+		}, stats)
+	})
+
+	t.Run("FilterMetrics should find a metric posted to the v3 series endpoint", func(t *testing.T) {
+		fi, _ := server.InitialiseForTests(t)
+		defer fi.Stop()
+
+		client := NewClient(fi.URL())
+
+		payload := testutil.MinimalV3GaugePayload()
+		resp, err := http.Post(fi.URL()+"/api/intake/metrics/v3/series", "application/x-protobuf", bytes.NewReader(payload))
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+
+		series, err := client.FilterMetrics("test.gauge")
+		require.NoError(t, err)
+		require.NotEmpty(t, series, "FilterMetrics must find a metric posted to the v3 endpoint")
+		assert.Equal(t, "test.gauge", series[0].Metric)
+		assert.Equal(t, []string{"env:test"}, series[0].Tags)
+
+		// Confirm the payload landed on the v3 route and not v2.
+		stats, err := client.RouteStats()
+		require.NoError(t, err)
+		assert.Equal(t, 1, stats["/api/intake/metrics/v3/series"])
+		assert.Zero(t, stats["/api/v2/series"])
+	})
+
+	t.Run("FilterMetrics should merge results from v2 and v3 endpoints", func(t *testing.T) {
+		fi, _ := server.InitialiseForTests(t)
+		defer fi.Stop()
+
+		client := NewClient(fi.URL())
+
+		// POST a v3 payload carrying "test.gauge".
+		v3payload := testutil.MinimalV3GaugePayload()
+		resp, err := http.Post(fi.URL()+"/api/intake/metrics/v3/series", "application/x-protobuf", bytes.NewReader(v3payload))
+		require.NoError(t, err)
+		defer resp.Body.Close()
+
+		// POST an empty v2 payload so both routes are recorded.
+		resp, err = http.Post(fi.URL()+"/api/v2/series", "application/octet-stream", strings.NewReader("{}"))
+		require.NoError(t, err)
+		defer resp.Body.Close()
+
+		// FilterMetrics reads from both endpoints; "test.gauge" was only on v3.
+		series, err := client.FilterMetrics("test.gauge")
+		require.NoError(t, err)
+		assert.NotEmpty(t, series, "FilterMetrics must surface metrics from the v3 endpoint")
+
+		stats, err := client.RouteStats()
+		require.NoError(t, err)
+		assert.Equal(t, 1, stats["/api/intake/metrics/v3/series"])
+		assert.Equal(t, 1, stats["/api/v2/series"])
 	})
 
 	t.Run("should receive overridden response when configured on server", func(t *testing.T) {
