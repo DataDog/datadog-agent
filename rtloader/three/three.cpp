@@ -166,6 +166,15 @@ bool Three::init()
         setError("could not import base class: " + std::string(getError()));
     }
 
+    // Mirror the sub-interpreter arm: skip pydantic config-model validation by
+    // replacing load_configuration_models with a no-op, so the SMP A/B differs
+    // only by sub-interpreter isolation and not by per-instance validation cost.
+    if (PyRun_SimpleString(
+            "from datadog_checks.checks import AgentCheck\n"
+            "AgentCheck.load_configuration_models = lambda self: None\n") != 0) {
+        PyErr_Clear();
+    }
+
 done:
     // save thread state and release the GIL
     _threadState = PyEval_SaveThread();
