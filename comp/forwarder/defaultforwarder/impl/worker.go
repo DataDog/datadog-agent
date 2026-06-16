@@ -104,40 +104,44 @@ func NewWorker(
 	return worker
 }
 
-// Stop stops the worker. Behavior depends on w.waitForInflight (sourced from
-// forwarder_stop_wait_for_inflight).
-//
-// When waitForInflight is false, workerCtx is cancelled first so any
-// transactions blocked on semaphore acquisition receive context.Canceled and
-// are requeued, then the Start goroutine exits. If purgeHighPrio is set, a
-// fresh workerCtx is installed so purge transactions can acquire the
-// semaphore.
-//
-// When waitForInflight is true, the Start goroutine is signalled via
-// stopChan, in-flight HTTP requests are allowed to complete, and workerCtx
-// is cancelled last. forwarder_stop_timeout (applied by the caller in
-// DefaultForwarder.Stop) is the outer bound on this wait; if that deadline
-// fires, the goroutines spawned by callProcess continue running with no
-// independent cancellation and finish on their own (or via HTTP timeout).
-//
-// The process is expected to exit shortly after Stop returns, so any
-// in-flight goroutines are reaped on exit. waitForInflight=true is only
-// appropriate for that "Stop is the last thing before process exit"
-// shape — there is no codepath today that calls forwarder.Stop and keeps
-// running, but a future caller that does would observe shutdown returning
-// before HTTP requests complete rather than cancelling them mid-flight.
+// Stop stops the worker, dispatching to one of two implementations depending
+// on w.waitForInflight (sourced from forwarder_stop_wait_for_inflight).
 func (w *Worker) Stop(purgeHighPrio bool) {
-	if !w.waitForInflight {
-		w.cancel()
-		close(w.stopChan)
-		<-w.stopped
-		if purgeHighPrio {
-			w.drainHighPrioWithFreshContext()
-		}
-		w.requestWg.Wait()
-		return
+	if w.waitForInflight {
+		w.stopWaitingForInflight(purgeHighPrio)
+	} else {
+		w.stopWithoutWaitingForInflight(purgeHighPrio)
 	}
+}
 
+// stopWithoutWaitingForInflight cancels workerCtx first so any transactions
+// blocked on semaphore acquisition receive context.Canceled and are requeued,
+// then waits for the Start goroutine to exit. If purgeHighPrio is set, a fresh
+// workerCtx is installed so purge transactions can acquire the semaphore.
+func (w *Worker) stopWithoutWaitingForInflight(purgeHighPrio bool) {
+	w.cancel()
+	close(w.stopChan)
+	<-w.stopped
+	if purgeHighPrio {
+		w.drainHighPrioWithFreshContext()
+	}
+	w.requestWg.Wait()
+}
+
+// stopWaitingForInflight signals the Start goroutine via stopChan, allows
+// in-flight HTTP requests to complete, and cancels workerCtx last.
+// forwarder_stop_timeout (applied by the caller in DefaultForwarder.Stop) is
+// the outer bound on this wait; if that deadline fires, the goroutines spawned
+// by callProcess continue running with no independent cancellation and finish
+// on their own (or via HTTP timeout).
+//
+// The process is expected to exit shortly after Stop returns, so any in-flight
+// goroutines are reaped on exit. This path is only appropriate for that "Stop
+// is the last thing before process exit" shape — there is no codepath today
+// that calls forwarder.Stop and keeps running, but a future caller that does
+// would observe shutdown returning before HTTP requests complete rather than
+// cancelling them mid-flight.
+func (w *Worker) stopWaitingForInflight(purgeHighPrio bool) {
 	close(w.stopChan)
 
 	<-w.stopped
