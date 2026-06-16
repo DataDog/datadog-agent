@@ -156,3 +156,58 @@ func TestGracefulShutdownDrainsMessages(t *testing.T) {
 		t.Fatal("Stop() did not complete within timeout")
 	}
 }
+
+type recordingMonitor struct {
+	*metrics.NoopPipelineMonitor
+	stopped chan struct{}
+}
+
+func (m *recordingMonitor) Stop() { close(m.stopped) }
+
+func TestProviderStopStopsSamplerBeforePipelines(t *testing.T) {
+	assert.NotPanics(t, func() { NewMockProvider().Stop() })
+
+	cfg := configmock.New(t)
+	cfg.SetInTest("logs_config.message_channel_size", 10)
+
+	endpoints := config.NewMockEndpointsWithOptions([]config.Endpoint{config.NewMockEndpoint()}, map[string]interface{}{
+		"use_http": false,
+	})
+
+	mon := &recordingMonitor{NoopPipelineMonitor: metrics.NewNoopPipelineMonitor(""), stopped: make(chan struct{})}
+	snd := &mockSender{inputChan: make(chan *message.Payload), monitor: mon} // unbuffered, never drained: wedges the strategy
+
+	p := newProvider(
+		1,
+		&diagnostic.BufferedMessageReceiver{},
+		nil,
+		endpoints,
+		nil,
+		cfg,
+		compressionfx.NewMockCompressor(),
+		sender.NewServerlessMeta(false),
+		snd,
+	).(*provider)
+	p.Start()
+
+	p.NextPipelineChan() <- createTestMessage("x", "id")
+
+	stopDone := make(chan struct{})
+	go func() { p.Stop(); close(stopDone) }()
+
+	select {
+	case <-mon.stopped:
+	case <-time.After(2 * time.Second):
+		t.Fatal("provider.Stop must stop the sampler before the blocked pipeline stop")
+	}
+
+	for {
+		select {
+		case <-snd.inputChan:
+		case <-stopDone:
+			return
+		case <-time.After(5 * time.Second):
+			t.Fatal("provider.Stop did not complete after draining the sender")
+		}
+	}
+}
