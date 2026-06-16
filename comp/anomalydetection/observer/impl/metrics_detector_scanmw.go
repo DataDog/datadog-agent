@@ -24,7 +24,8 @@ type scanmwStateKey struct {
 // (metrics_detector_bocpd.go). If more scan-based detectors are added,
 // consider extracting a shared scanSeriesState base.
 type scanmwSeriesState struct {
-	lastWriteGen int64
+	lastWriteGen       int64
+	lastProcessedCount int // visible point count (PointCountUpTo) at last Detect
 
 	// Segment tracking: only scan [segmentStartTime, dataTime].
 	// 0 initially (scan full history), advances to changepoint timestamp on fire.
@@ -128,18 +129,14 @@ func (d *ScanMWDetector) RemoveSeries(refs []observer.SeriesRef) {
 // and scans for changepoints. After finding one, the segment start advances
 // so subsequent calls only examine post-change data.
 //
-// Iteration pattern is the same as BOCPD (metrics_detector_bocpd.go:140-221)
+// Iteration pattern is the same as BOCPD (metrics_detector_bocpd.go Detect loop)
 // and ScanWelch — consider dedup if more scan-based detectors are added.
 func (d *ScanMWDetector) Detect(storage observer.StorageReader, dataTime int64) observer.DetectionResult {
 	d.ensureDefaults()
 
 	gen := storage.SeriesGeneration()
 	if d.cachedRefs == nil || gen != d.cachedGen {
-		metas := storage.ListSeries(observer.WorkloadSeriesFilter())
-		d.cachedRefs = make([]observer.SeriesRef, len(metas))
-		for i, m := range metas {
-			d.cachedRefs[i] = m.Ref
-		}
+		d.cachedRefs = workloadSeriesRefs(storage, d.cachedRefs)
 		d.cachedGen = gen
 	}
 
@@ -160,8 +157,15 @@ func (d *ScanMWDetector) Detect(storage observer.StorageReader, dataTime int64) 
 				d.series[sk] = state
 			}
 
-			// Skip if nothing was written since last Detect.
-			if status.writeGeneration == state.lastWriteGen {
+			// Skip unless at least MinSegment new points are visible since the
+			// last scan. Gating on visible point count (not WriteGeneration
+			// alone) is required for replay: storage may already hold future
+			// points, so WriteGeneration reaches its final value before the
+			// simulated dataTime has advanced far enough to expose them, which
+			// would otherwise suppress every scan. WriteGeneration is still
+			// checked to catch same-bucket merges that leave the count
+			// unchanged but move stored values. Mirrors the BOCPD replay gate.
+			if status.pointCount < state.lastProcessedCount+d.MinSegment && status.writeGeneration == state.lastWriteGen {
 				continue
 			}
 
@@ -177,6 +181,7 @@ func (d *ScanMWDetector) Detect(storage observer.StorageReader, dataTime int64) 
 			})
 
 			if seriesMeta == nil || len(state.buf) < d.MinPoints {
+				state.lastProcessedCount = status.pointCount
 				state.lastWriteGen = status.writeGeneration
 				continue
 			}
@@ -188,6 +193,7 @@ func (d *ScanMWDetector) Detect(storage observer.StorageReader, dataTime int64) 
 				state.segmentStartTime = state.buf[changeIdx].Timestamp - 1
 			}
 
+			state.lastProcessedCount = status.pointCount
 			state.lastWriteGen = status.writeGeneration
 		}
 	}

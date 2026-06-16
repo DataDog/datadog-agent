@@ -12,6 +12,19 @@ import (
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 )
 
+func parseAggregateConfig(names []string) []observer.Aggregate {
+	if len(names) == 0 {
+		return nil
+	}
+	aggregations := make([]observer.Aggregate, 0, len(names))
+	for _, name := range names {
+		if agg, ok := parseAggregateSuffix(name); ok {
+			aggregations = append(aggregations, agg)
+		}
+	}
+	return aggregations
+}
+
 // seriesStatus holds point count and write generation for a single series.
 // Used by bulkSeriesStatus and scan-based detectors.
 type seriesStatus struct {
@@ -23,6 +36,37 @@ type seriesStatus struct {
 // implementations that support batch status queries in a single lock acquisition.
 type bulkStatusReader interface {
 	BulkSeriesStatus(refs []observer.SeriesRef, endTime int64) []seriesStatus
+}
+
+// seriesRefLister is an optional optimization interface for StorageReader
+// implementations that can list matching series refs without materializing
+// full SeriesMeta values. The dst slice may be reused for the returned refs.
+type seriesRefLister interface {
+	ListSeriesRefsInto(filter observer.SeriesFilter, dst []observer.SeriesRef) []observer.SeriesRef
+}
+
+// workloadSeriesRefs returns the workload series refs used by detector hot
+// paths. It avoids the metadata-heavy ListSeries allocation when the storage
+// implementation provides a ref-only listing.
+func workloadSeriesRefs(storage observer.StorageReader, dst []observer.SeriesRef) []observer.SeriesRef {
+	return listSeriesRefs(storage, observer.WorkloadSeriesFilter(), dst)
+}
+
+func listSeriesRefs(storage observer.StorageReader, filter observer.SeriesFilter, dst []observer.SeriesRef) []observer.SeriesRef {
+	if lister, ok := storage.(seriesRefLister); ok {
+		return lister.ListSeriesRefsInto(filter, dst)
+	}
+
+	metas := storage.ListSeries(filter)
+	if cap(dst) < len(metas) {
+		dst = make([]observer.SeriesRef, 0, len(metas))
+	} else {
+		dst = dst[:0]
+	}
+	for _, meta := range metas {
+		dst = append(dst, meta.Ref)
+	}
+	return dst
 }
 
 // bulkSeriesStatus returns the point count and write generation for each ref.
@@ -64,7 +108,8 @@ func detectorMedian(vals []float64) float64 {
 // When scaleToSigma is true, the result is scaled by 1.4826 to estimate the
 // standard deviation for normally distributed data. Use scaleToSigma=true when
 // comparing against sigma-based thresholds (e.g. Mann-Whitney's deviation check),
-// and false when using raw MAD as a denominator for relative change scores (e.g. TopK).
+// and false when using raw MAD as a denominator for relative change scores
+// (e.g. ScanMW/ScanWelch preMAD checks).
 func detectorMAD(vals []float64, median float64, scaleToSigma bool) float64 {
 	if len(vals) == 0 {
 		return 0
@@ -101,6 +146,21 @@ func medianPointInterval(points []observer.Point) int64 {
 	intervals := make([]int64, len(points)-1)
 	for i := 1; i < len(points); i++ {
 		intervals[i-1] = points[i].Timestamp - points[i-1].Timestamp
+	}
+	sort.Slice(intervals, func(i, j int) bool { return intervals[i] < intervals[j] })
+	return intervals[len(intervals)/2]
+}
+
+// medianTimestampInterval computes the median gap between consecutive
+// timestamps. It is the timestamp-array equivalent of medianPointInterval for
+// detectors that keep a compact timestamp ring instead of retaining Points.
+func medianTimestampInterval(timestamps []int64) int64 {
+	if len(timestamps) < 2 {
+		return 0
+	}
+	intervals := make([]int64, len(timestamps)-1)
+	for i := 1; i < len(timestamps); i++ {
+		intervals[i-1] = timestamps[i] - timestamps[i-1]
 	}
 	sort.Slice(intervals, func(i, j int) bool { return intervals[i] < intervals[j] })
 	return intervals[len(intervals)/2]

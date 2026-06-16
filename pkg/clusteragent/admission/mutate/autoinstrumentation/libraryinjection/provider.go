@@ -115,6 +115,13 @@ type LibraryInjectionConfig struct {
 	// When non-empty, only libraries from these registries will be injected.
 	// An empty list allows all registries (default).
 	RegistryAllowList []string
+
+	// CSIDriverWatcher caches the Datadog CSI driver state observed via
+	// workloadmeta. AutoProvider consults it to decide between CSI and
+	// init-container injection without hitting workloadmeta on every
+	// admission request. A nil value disables CSI auto-detection and
+	// makes AutoProvider behave as if the feature did not exist.
+	CSIDriverWatcher CSIDriverWatcher
 }
 
 // LibraryInjectionProvider defines the strategy for injecting APM libraries into pods.
@@ -123,6 +130,7 @@ type LibraryInjectionConfig struct {
 // Different implementations can use different mechanisms:
 // - InitContainerProvider: Uses init containers with EmptyDir volumes
 // - CSIProvider: Uses a CSI driver to mount library files
+// - ImageVolumeProvider: Uses Kubernetes image volumes to mount library files
 type LibraryInjectionProvider interface {
 	// InjectInjector mutates the pod to add the APM injector component.
 	// The injector is responsible for the LD_PRELOAD mechanism that enables auto-instrumentation.
@@ -133,4 +141,9 @@ type LibraryInjectionProvider interface {
 	// It adds volumes, volume mounts, and optionally init containers for the library.
 	// Returns MutationStatusError if the language is not supported.
 	InjectLibrary(pod *corev1.Pod, cfg LibraryConfig) MutationResult
+
+	// GetName returns the effective injection mode used by this provider.
+	// For AutoProvider, this reflects the resolved concrete mode suffixed with " (auto)"
+	// (e.g. "csi (auto)" or "init_container (auto)").
+	GetName() string
 }

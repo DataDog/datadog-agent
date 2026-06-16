@@ -10,11 +10,12 @@ import (
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 )
 
 // getDefaultSecurityProfilesDir is the default directory used to store Security Profiles by the runtime security module
 func getDefaultSecurityProfilesDir() string {
-	return filepath.Join(defaultRunPath, "runtime-security", "profiles")
+	return filepath.Join(defaultpaths.GetDefaultRunPath(), "runtime-security", "profiles")
 }
 
 func initCWSSystemProbeConfig(cfg pkgconfigmodel.Setup) {
@@ -74,7 +75,7 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.max_dump_size", 1750)
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.traced_cgroups_count", 5)
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.traced_event_types", []string{"exec", "open", "dns", "imds"})
-	cfg.BindEnv("runtime_security_config.activity_dump.cgroup_dump_timeout") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv' // deprecated in favor of dump_duration
+	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.cgroup_dump_timeout", 900) // deprecated in favor of dump_duration
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.dump_duration", "900s")
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.rate_limiter", 500)
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.cgroup_wait_list_timeout", "4500s")
@@ -125,6 +126,8 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 
 	// CWS - Security Profile V2
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.v2.event_types", []string{"exec", "dns", "bind", "connect"})
+	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.v2.excluded_images", []string{})
+	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.v2.max_dump_size", 5120)
 
 	// CWS - Auto suppression
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.auto_suppression.enabled", true)

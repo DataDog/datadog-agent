@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "sbomcollector",
@@ -26,5 +26,25 @@ go_library(
         "@org_golang_google_grpc//grpclog",
         "@org_golang_google_protobuf//proto",
         "@org_uber_go_fx//:fx",
+    ],
+)
+
+go_test(
+    name = "sbomcollector_test",
+    srcs = ["sbom_collector_test.go"],
+    embed = [":sbomcollector"],
+    gotags = [
+        "test",
+        "trivy",
+    ],
+    deps = [
+        "//comp/core/workloadmeta/collectors/sbomutil",
+        "//comp/core/workloadmeta/def",
+        "//pkg/proto/pbgo/sbom",
+        "//pkg/util/pointer",
+        "@com_github_datadog_agent_payload_v5//cyclonedx_v1_4",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_golang_google_protobuf//proto",
     ],
 )

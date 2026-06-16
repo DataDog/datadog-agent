@@ -291,6 +291,34 @@ func TestAutoinstrumentation(t *testing.T) {
 				containerNames: defaultContainerNames,
 			},
 		},
+		"pod with mutate label and c annotation should mutate": {
+			config: map[string]any{
+				"apm_config.instrumentation.enabled":     false,
+				"admission_controller.mutate_unlabelled": false,
+			},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Annotations: map[string]string{
+					"admission.datadoghq.com/c-lib.version": "v0",
+				},
+				Labels: map[string]string{
+					admissioncommon.EnabledLabelKey: "true",
+				},
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
+			shouldMutate: true,
+			expected: &expected{
+				injectorVersion: defaultInjectorVersion,
+				libraryVersions: map[string]string{
+					"c": "v0",
+				},
+				containerNames: defaultContainerNames,
+			},
+		},
 		"pod with mutate label and ruby annotation should mutate": {
 			config: map[string]any{
 				"apm_config.instrumentation.enabled":     false,
@@ -2680,14 +2708,14 @@ func TestAutoinstrumentation(t *testing.T) {
 			mockMeta := common.FakeStoreWithDeployment(t, test.deployments)
 			mockDynamic := fake.NewSimpleDynamicClient(runtime.NewScheme())
 			// Disable gradual rollout for this test to use the NoOpResolver.
-			mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.gradual_rollout.enabled", false)
+			mockConfig.SetInTest("admission_controller.auto_instrumentation.gradual_rollout.enabled", false)
 
 			// Add the namespaces.
 			for _, ns := range test.namespaces {
 				mockMeta.(workloadmetamock.Mock).Set(&ns)
 			}
 
-			webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta, nil)
+			webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta, nil, nil)
 			require.NoError(t, err)
 
 			// Mutate pod.
@@ -2749,13 +2777,13 @@ func TestAutoinstrumentation_LocalLibInjectionPerContainerOnlyMountsLibraryOnTar
 	})
 	mockMeta := common.FakeStoreWithDeployment(t, defaultDeployments)
 	mockDynamic := fake.NewSimpleDynamicClient(runtime.NewScheme())
-	mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.gradual_rollout.enabled", false)
+	mockConfig.SetInTest("admission_controller.auto_instrumentation.gradual_rollout.enabled", false)
 
 	for _, ns := range defaultNamespaces {
 		mockMeta.(workloadmetamock.Mock).Set(&ns)
 	}
 
-	webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta, nil)
+	webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta, nil, nil)
 	require.NoError(t, err)
 
 	pod := common.FakePodSpec{
@@ -2910,7 +2938,7 @@ func TestEnvVarsAlreadySet(t *testing.T) {
 			mockConfig := common.FakeConfigWithValues(t, test.config)
 			mockMeta := common.FakeStoreWithDeployment(t, test.deployments)
 			mockDynamic := fake.NewSimpleDynamicClient(runtime.NewScheme())
-			mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.gradual_rollout.enabled", false)
+			mockConfig.SetInTest("admission_controller.auto_instrumentation.gradual_rollout.enabled", false)
 
 			// Add the namespaces.
 			for _, ns := range test.namespaces {
@@ -2918,7 +2946,7 @@ func TestEnvVarsAlreadySet(t *testing.T) {
 			}
 
 			// Setup webhook.
-			webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta, nil)
+			webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta, nil, nil)
 			require.NoError(t, err)
 
 			// Mutate pod.
@@ -3109,7 +3137,7 @@ func TestSkippedDueToResources(t *testing.T) {
 			mockConfig := common.FakeConfigWithValues(t, test.config)
 			mockMeta := common.FakeStoreWithDeployment(t, test.deployments)
 			mockDynamic := fake.NewSimpleDynamicClient(runtime.NewScheme())
-			mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.gradual_rollout.enabled", false)
+			mockConfig.SetInTest("admission_controller.auto_instrumentation.gradual_rollout.enabled", false)
 
 			// Add the namespaces.
 			for _, ns := range test.namespaces {
@@ -3117,7 +3145,7 @@ func TestSkippedDueToResources(t *testing.T) {
 			}
 
 			// Setup webhook.
-			webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta, nil)
+			webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta, nil, nil)
 			require.NoError(t, err)
 
 			// Mutate pod.

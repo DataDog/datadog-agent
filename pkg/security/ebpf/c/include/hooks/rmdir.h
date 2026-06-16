@@ -62,25 +62,8 @@ int hook_security_inode_rmdir(ctx_t *ctx) {
         key = syscall->rmdir.file.path_key;
 
         syscall->rmdir.dentry = dentry;
-        syscall->policy = fetch_policy(EVENT_RMDIR);
-
-        approve_syscall(syscall, rmdir_approvers);
-
-        if (is_auid_discarder(EVENT_RMDIR)) {
-            syscall->state = DISCARDED;
-        }
 
         is_cgroup_dentry = is_cgroup2fs(syscall->rmdir.dentry) && S_ISDIR(syscall->rmdir.file.metadata.mode) && !is_runtime_request();
-
-        // let the cgroup event being forwarded as it is used userspace side to track the cgroups
-        if (syscall->state != ACCEPTED && is_cgroup_dentry) {
-            syscall->state = INTERNAL;
-        }
-
-        // do not pop, we want to invalidate the inode even if the syscall is discarded
-        if (syscall->state == DISCARDED) {
-            return 0;
-        }
 
         break;
     case EVENT_UNLINK:
@@ -98,11 +81,6 @@ int hook_security_inode_rmdir(ctx_t *ctx) {
 
         syscall->unlink.dentry = dentry;
 
-        // fake rmdir event as we will generate and rmdir event at the end
-        syscall->policy = fetch_policy(EVENT_RMDIR);
-
-        approve_syscall(syscall, rmdir_approvers);
-
         is_cgroup_dentry = is_cgroup2fs(syscall->unlink.dentry) && S_ISDIR(syscall->unlink.file.metadata.mode) && !is_runtime_request();
 
         break;
@@ -110,22 +88,25 @@ int hook_security_inode_rmdir(ctx_t *ctx) {
         return 0;
     }
 
+    // force the policy to RMDIR — both rmdir and unlink-with-AT_REMOVEDIR are
+    // evaluated against the rmdir approvers below.
+    syscall->policy = fetch_policy(EVENT_RMDIR);
+
+    approve_syscall(syscall, rmdir_approvers);
+
     // let the cgroup event being forwarded as it is used userspace side to track the cgroups
     if (syscall->state != ACCEPTED && is_cgroup_dentry) {
         syscall->state = INTERNAL;
     }
 
-    // do not pop, we want to invalidate the inode even if the syscall is discarded
-    if (syscall->state == DISCARDED) {
-        return 0;
-    }
-
     if (dentry != NULL) {
         syscall->resolver.key = key;
         syscall->resolver.dentry = dentry;
+        // force the resolver event_type to EVENT_RMDIR: unlink with AT_REMOVEDIR is processed as an rmdir userspace side
+        syscall->resolver.event_type = EVENT_RMDIR;
         // disable the dentry-resolver discarder for cgroupfs events: userspace needs them
         // to track cgroup lifecycle, and a discarder match here would drop them.
-        syscall->resolver.discarder_event_type = !is_cgroup_dentry ? dentry_resolver_discarder_event_type(syscall) : 0;
+        syscall->resolver.flags = get_resolver_flags(syscall, !is_cgroup_dentry);
         syscall->resolver.callback = DR_SECURITY_INODE_RMDIR_CALLBACK_KPROBE_KEY;
         syscall->resolver.iteration = 0;
         syscall->resolver.ret = 0;
@@ -144,11 +125,9 @@ TAIL_CALL_FNC(dr_security_inode_rmdir_callback, ctx_t *ctx) {
         return 0;
     }
 
-    if (syscall->resolver.ret == DENTRY_DISCARDED) {
-        monitor_discarded(syscall->type);
-        // do not pop, we want to invalidate the inode even if the syscall is discarded
-        syscall->state = DISCARDED;
-    }
+    // force the resolver event_type to EVENT_RMDIR: unlink with AT_REMOVEDIR is processed as an rmdir userspace side
+    apply_dentry_resolution_outcome(syscall, EVENT_RMDIR);
+
     return 0;
 }
 
@@ -160,6 +139,11 @@ int __attribute__((always_inline)) sys_rmdir_ret(void *ctx, int retval) {
 
     if (IS_UNHANDLED_ERROR(retval)) {
         return 0;
+    }
+
+    if (syscall->state != DISCARDED && is_auid_discarder(EVENT_RMDIR)) {
+        syscall->state = DISCARDED;
+        monitor_discarded(EVENT_RMDIR);
     }
 
     if (syscall->state != DISCARDED) {

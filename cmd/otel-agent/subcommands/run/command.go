@@ -25,7 +25,7 @@ import (
 	delegatedauthnoopfx "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx-noop"
 	fxinstrumentation "github.com/DataDog/datadog-agent/comp/core/fxinstrumentation/fx"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/remotehostnameimpl"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
@@ -48,7 +48,8 @@ import (
 	workloadmetainit "github.com/DataDog/datadog-agent/comp/core/workloadmeta/init"
 	statsd "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/def"
 	statsdotel "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/otel"
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	defaultforwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/def"
+	defaultforwarderfx "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/fx"
 	"github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface"
 	logconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	hostfx "github.com/DataDog/datadog-agent/comp/metadata/host/fx"
@@ -75,10 +76,10 @@ import (
 	traceconfigimpl "github.com/DataDog/datadog-agent/comp/trace/config/impl"
 	payloadmodifierfx "github.com/DataDog/datadog-agent/comp/trace/payload-modifier/fx"
 	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 
@@ -135,7 +136,7 @@ func runOTelAgentCommand(ctx context.Context, params *cliParams, opts ...fx.Opti
 				return acfg
 			}),
 			fx.Provide(func(_ coreconfig.Component) log.Params {
-				return log.ForDaemon(params.LoggerName, "log_file", pkgconfigsetup.DefaultOTelAgentLogFile)
+				return log.ForDaemon(params.LoggerName, "log_file", defaultpaths.GetDefaultOTelAgentLogFile())
 			}),
 			logfx.Module(),
 			ipcfx.ModuleReadWrite(),
@@ -207,7 +208,7 @@ func commonAgentFxOptions(ctx context.Context, params *cliParams, acfg coreconfi
 			return h.Get, nil
 		}),
 		fx.Provide(func(_ coreconfig.Component) log.Params {
-			return log.ForDaemon(params.LoggerName, "log_file", pkgconfigsetup.DefaultOTelAgentLogFile)
+			return log.ForDaemon(params.LoggerName, "log_file", defaultpaths.GetDefaultOTelAgentLogFile())
 		}),
 		fx.Provide(func() logconfig.IntakeOrigin {
 			return logconfig.DDOTIntakeOrigin
@@ -323,7 +324,7 @@ func connectedAgentFxOptions(params *cliParams) fx.Option {
 // new forwarder.BundleWithProvider makes a few assumptions in its generic prototype, and
 // this is the current workaround to leverage it.
 func ForwarderBundle() fx.Option {
-	return defaultforwarder.ModulWithOptionTMP(
+	return defaultforwarderfx.ModuleWithOptionTMP(
 		fx.Provide(func(_ configsync.Component) defaultforwarder.Params {
 			return defaultforwarder.NewParams()
 		}))

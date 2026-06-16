@@ -15,11 +15,11 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
 
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
+	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
 	autodiscoverystream "github.com/DataDog/datadog-agent/comp/core/autodiscovery/stream"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	configstreamServer "github.com/DataDog/datadog-agent/comp/core/configstream/server"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerProto "github.com/DataDog/datadog-agent/comp/core/tagger/proto"
@@ -30,6 +30,7 @@ import (
 	pidmap "github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap/def"
 	dsdReplay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server/def"
+	healthplatformstore "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/host/impl/hosttags"
 	rcservice "github.com/DataDog/datadog-agent/comp/remote-config/rcservice/def"
 	rcservicemrf "github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf/def"
@@ -60,6 +61,14 @@ type serverSecure struct {
 	autodiscovery        autodiscovery.Component
 	configComp           config.Component
 	configStreamServer   *configstreamServer.Server
+	healthPlatformStore  healthplatformstore.Component
+}
+
+// remoteAgentServer implements the dedicated RemoteAgent gRPC service, which owns the remote agent lifecycle
+// (registration and refresh) and the reporting of operational events back to the Core Agent.
+type remoteAgentServer struct {
+	pb.UnimplementedRemoteAgentServer
+	remoteAgentRegistry remoteagentregistry.Component
 }
 
 func (s *agentServer) GetHostname(ctx context.Context, _ *pb.HostnameRequest) (*pb.HostnameReply, error) {
@@ -210,8 +219,57 @@ func (s *serverSecure) WorkloadmetaStreamEntities(in *pb.WorkloadmetaStreamReque
 	return s.workloadmetaServer.StreamEntities(in, out)
 }
 
+// RegisterRemoteAgent is the AgentSecure copy of the remote agent registration RPC.
+//
+// Deprecated: this RPC has moved to the dedicated RemoteAgent service. It remains here so existing clients keep working
+// and can migrate at their own pace; new clients should use RemoteAgent.RegisterRemoteAgent.
 func (s *serverSecure) RegisterRemoteAgent(_ context.Context, in *pb.RegisterRemoteAgentRequest) (*pb.RegisterRemoteAgentResponse, error) {
+	return registerRemoteAgent(s.remoteAgentRegistry, in)
+}
+
+// RefreshRemoteAgent is the AgentSecure copy of the remote agent refresh RPC.
+//
+// Deprecated: this RPC has moved to the dedicated RemoteAgent service. It remains here so existing clients keep working
+// and can migrate at their own pace; new clients should use RemoteAgent.RefreshRemoteAgent.
+func (s *serverSecure) RefreshRemoteAgent(_ context.Context, in *pb.RefreshRemoteAgentRequest) (*pb.RefreshRemoteAgentResponse, error) {
+	return refreshRemoteAgent(s.remoteAgentRegistry, in)
+}
+
+func (s *remoteAgentServer) RegisterRemoteAgent(_ context.Context, in *pb.RegisterRemoteAgentRequest) (*pb.RegisterRemoteAgentResponse, error) {
+	return registerRemoteAgent(s.remoteAgentRegistry, in)
+}
+
+func (s *remoteAgentServer) RefreshRemoteAgent(_ context.Context, in *pb.RefreshRemoteAgentRequest) (*pb.RefreshRemoteAgentResponse, error) {
+	return refreshRemoteAgent(s.remoteAgentRegistry, in)
+}
+
+// ReportRemoteAgentEvent routes operational events reported by a remote agent to the remote agent registry.
+func (s *remoteAgentServer) ReportRemoteAgentEvent(_ context.Context, in *pb.ReportRemoteAgentEventRequest) (*pb.ReportRemoteAgentEventResponse, error) {
 	if s.remoteAgentRegistry == nil {
+		return nil, status.Error(codes.Unimplemented, "remote agent registry not enabled")
+	}
+
+	events := make([]remoteagentregistry.RemoteAgentEvent, 0, len(in.Events))
+	for _, pbEvent := range in.Events {
+		event := remoteagentregistry.RemoteAgentEvent{Message: pbEvent.Message}
+		switch pbEvent.Details.(type) {
+		case *pb.Event_InvalidApiKey:
+			event.Details = &remoteagentregistry.InvalidAPIKey{}
+		}
+		events = append(events, event)
+	}
+
+	if err := s.remoteAgentRegistry.ReportRemoteAgentEvent(in.SessionId, events); err != nil {
+		return nil, status.Error(codes.NotFound, err.Error())
+	}
+
+	return &pb.ReportRemoteAgentEventResponse{}, nil
+}
+
+// registerRemoteAgent is the shared implementation of the RegisterRemoteAgent RPC, used by both the dedicated
+// RemoteAgent service and the deprecated AgentSecure copy so the two cannot drift.
+func registerRemoteAgent(registry remoteagentregistry.Component, in *pb.RegisterRemoteAgentRequest) (*pb.RegisterRemoteAgentResponse, error) {
+	if registry == nil {
 		return nil, status.Error(codes.Unimplemented, "remote agent registry not enabled")
 	}
 
@@ -222,7 +280,7 @@ func (s *serverSecure) RegisterRemoteAgent(_ context.Context, in *pb.RegisterRem
 		APIEndpointURI:   in.ApiEndpointUri,
 		Services:         in.Services,
 	}
-	sessionID, recommendedRefreshIntervalSecs, err := s.remoteAgentRegistry.RegisterRemoteAgent(registration)
+	sessionID, recommendedRefreshIntervalSecs, err := registry.RegisterRemoteAgent(registration)
 	if err != nil {
 		return nil, err
 	}
@@ -233,16 +291,65 @@ func (s *serverSecure) RegisterRemoteAgent(_ context.Context, in *pb.RegisterRem
 	}, nil
 }
 
-func (s *serverSecure) RefreshRemoteAgent(_ context.Context, in *pb.RefreshRemoteAgentRequest) (*pb.RefreshRemoteAgentResponse, error) {
-	if s.remoteAgentRegistry == nil {
+// refreshRemoteAgent is the shared implementation of the RefreshRemoteAgent RPC, used by both the dedicated
+// RemoteAgent service and the deprecated AgentSecure copy so the two cannot drift.
+func refreshRemoteAgent(registry remoteagentregistry.Component, in *pb.RefreshRemoteAgentRequest) (*pb.RefreshRemoteAgentResponse, error) {
+	if registry == nil {
 		return nil, status.Error(codes.Unimplemented, "remote agent registry not enabled")
 	}
 
-	found := s.remoteAgentRegistry.RefreshRemoteAgent(in.SessionId)
+	found := registry.RefreshRemoteAgent(in.SessionId)
 	if !found {
 		return nil, status.Error(codes.NotFound, "no remote agent found with session ID")
 	}
 	return &pb.RefreshRemoteAgentResponse{}, nil
+}
+
+func (s *serverSecure) validateSessionID(sessionID string) error {
+	if sessionID == "" {
+		return nil
+	}
+	if s.remoteAgentRegistry == nil {
+		return status.Error(codes.Unavailable, "remote agent registry not available")
+	}
+	if found := s.remoteAgentRegistry.RefreshRemoteAgent(sessionID); !found {
+		return status.Error(codes.Unauthenticated, "invalid or expired remote agent session")
+	}
+	return nil
+}
+
+func (s *serverSecure) ReportHealthIssue(_ context.Context, in *pb.ReportHealthIssueRequest) (*emptypb.Empty, error) {
+	if err := s.validateSessionID(in.GetRemoteAgentSessionId()); err != nil {
+		return nil, err
+	}
+
+	issue := in.GetIssue()
+	if issue == nil {
+		return nil, status.Error(codes.InvalidArgument, "issue cannot be nil")
+	}
+	if issue.GetId() == "" {
+		return nil, status.Error(codes.InvalidArgument, "issue id cannot be empty")
+	}
+	if issue.GetIssueName() == "" {
+		return nil, status.Error(codes.InvalidArgument, "issue_name cannot be empty")
+	}
+
+	if err := s.healthPlatformStore.ReportIssue(issue); err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to store issue: %v", err)
+	}
+	return &emptypb.Empty{}, nil
+}
+
+func (s *serverSecure) ResolveHealthIssue(_ context.Context, in *pb.ResolveHealthIssueRequest) (*emptypb.Empty, error) {
+	if err := s.validateSessionID(in.GetRemoteAgentSessionId()); err != nil {
+		return nil, err
+	}
+	if in.GetIssueId() == "" {
+		return nil, status.Error(codes.InvalidArgument, "issue_id cannot be empty")
+	}
+
+	s.healthPlatformStore.ResolveIssue(in.GetIssueId())
+	return &emptypb.Empty{}, nil
 }
 
 func (s *serverSecure) AutodiscoveryStreamConfig(_ *emptypb.Empty, out pb.AgentSecure_AutodiscoveryStreamConfigServer) error {

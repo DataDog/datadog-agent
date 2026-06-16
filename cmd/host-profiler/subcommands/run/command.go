@@ -11,6 +11,8 @@ package run
 import (
 	"context"
 	"errors"
+	"log/slog"
+	"os"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
@@ -44,6 +46,7 @@ import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil/logging"
 )
@@ -98,7 +101,7 @@ func runHostProfilerCommand(ctx context.Context, cliParams *cliParams) error {
 			remotehostnameimpl.Module(),
 			fx.Supply(core.BundleParams{
 				ConfigParams: config.NewAgentParams(cliParams.GlobalParams.CoreConfPath),
-				LogParams:    log.ForDaemon(command.LoggerName, "log_file", setup.DefaultHostProfilerLogFile),
+				LogParams:    log.ForDaemon(command.LoggerName, "log_file", defaultpaths.GetDefaultHostProfilerLogFile()),
 			}),
 			fx.Provide(collectorimpl.NewExtraFactoriesWithAgentCore),
 			fx.Invoke(func(l log.Component) {
@@ -112,9 +115,7 @@ func runHostProfilerCommand(ctx context.Context, cliParams *cliParams) error {
 		opts = append(opts, getConfigOptions(cliParams.GlobalParams)...)
 	} else {
 		opts = append(opts,
-			fx.Invoke(func() {
-				pkgconfigenv.DetectFeatures(setup.Datadog())
-			}),
+			fx.Invoke(initStandaloneConfig),
 			fx.Provide(collectorimpl.NewExtraFactoriesWithoutAgentCore),
 		)
 	}
@@ -124,6 +125,21 @@ func runHostProfilerCommand(ctx context.Context, cliParams *cliParams) error {
 
 func run(collector collector.Component) error {
 	return collector.Run()
+}
+
+// initStandaloneConfig performs one-time config setup for standalone mode (no core agent).
+// K8S_NODE_IP is set by upstream Helm charts for the node IP; we use it as
+// kubernetes_kubelet_host so the kubelet client can resolve the node hostname.
+func initStandaloneConfig() {
+	const kubeletHostAgentConfig = "kubernetes_kubelet_host"
+	pkgconfigenv.DetectFeatures(setup.Datadog())
+	k8sNodeIP := os.Getenv("K8S_NODE_IP")
+	// If not set, let's keep DD_KUBERNETES_KUBELET_HOST as fallback
+	if k8sNodeIP != "" {
+		setup.Datadog().Set(kubeletHostAgentConfig, k8sNodeIP, pkgconfigmodel.SourceAgentRuntime)
+	} else if _, exists := os.LookupEnv("DD_KUBERNETES_KUBELET_HOST"); exists {
+		slog.Warn("DD_KUBERNETES_KUBELET_HOST used as fallback to K8S_NODE_IP but is not officially supported")
+	}
 }
 
 func getRemoteTaggerOptions() []fx.Option {

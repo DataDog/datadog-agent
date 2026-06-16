@@ -18,6 +18,7 @@ import (
 
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/gpu/config/consts"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -39,6 +40,8 @@ const (
 	deviceEvents CollectorName = "device_events"
 	nvlinkPLR    CollectorName = "nvlink_plr"
 	nvlinkFEC    CollectorName = "nvlink_fec"
+	nvlinkFields CollectorName = "nvlink_fields"
+	nvlinkGPM    CollectorName = "nvlink_gpm"
 )
 
 // subsystemBuilder is a function that creates a new subsystem Collector. device the device it should collect metrics from. It also receives
@@ -55,6 +58,8 @@ var factory = map[CollectorName]subsystemBuilder{
 	field:        newFieldsCollector,
 	nvlinkPLR:    newNVLinkPLRCollector,
 	nvlinkFEC:    newNVLinkFECCollector,
+	nvlinkFields: newNVLinkFieldsCollector,
+	nvlinkGPM:    newNVLinkGPMCollector,
 	gpm:          newGPMCollector,
 	deviceEvents: newDeviceEventsCollector,
 }
@@ -71,6 +76,8 @@ type CollectorDependencies struct {
 	Telemetry *CollectorTelemetry
 	// Workloadmeta is used for getting auxialiary metadata about containers and GPUs
 	Workloadmeta workloadmeta.Component
+	// Config is used for collector-specific configuration.
+	Config pkgconfigmodel.Reader
 }
 
 // BuildCollectors returns a set of collectors that can be used to collect metrics from NVML.

@@ -177,7 +177,11 @@ func (d *DiscoveryCollector) List(group, version, kind string) []CollectorVersio
 	var result []CollectorVersion
 
 	for cv := range d.cache.CollectorForVersion {
-		if strings.HasSuffix(cv.Kind, "/status") {
+		// Skip subresources (e.g. "nodepools/scale", "pods/status"). Their names
+		// always contain a "/", whereas full resource names never do. Subresources
+		// are not listable/watchable on their own, so collecting them spins up an
+		// informer that can never sync (e.g. karpenter.sh/v1 nodepools/scale).
+		if strings.Contains(cv.Kind, "/") {
 			continue
 		}
 		if !matchesGroupVersion(cv.GroupVersion, group, version) {
