@@ -48,13 +48,13 @@ type ncmInitConfig struct {
 // field is omitempty so only the settings the user actually specified are emitted (strict
 // pass-through); NCM and the underlying SSH library apply their own defaults for omitted fields.
 type ncmSSHConfig struct {
-	Timeout               *int     `yaml:"timeout,omitempty"`
+	Timeout               int      `yaml:"timeout,omitempty"`
 	KnownHostsPath        string   `yaml:"known_hosts_path,omitempty"`
-	InsecureSkipVerify    *bool    `yaml:"insecure_skip_verify,omitempty"`
+	InsecureSkipVerify    bool     `yaml:"insecure_skip_verify,omitempty"`
 	Ciphers               []string `yaml:"ciphers,omitempty"`
 	KeyExchanges          []string `yaml:"key_exchanges,omitempty"`
 	HostKeyAlgorithms     []string `yaml:"host_key_algorithms,omitempty"`
-	AllowLegacyAlgorithms *bool    `yaml:"allow_legacy_algorithms,omitempty"`
+	AllowLegacyAlgorithms bool     `yaml:"allow_legacy_algorithms,omitempty"`
 }
 
 // ncmInstance is a single discovered device entry under instances.
@@ -270,20 +270,22 @@ func toNCMSSH(src *snmp.NCMSSHConfig) *ncmSSHConfig {
 
 // mergeNCMSSH builds the effective SSH block for a credential. For each field, the override
 // (credential-level ncm[].ssh) wins when it is set; otherwise the base (global init_config.ssh)
-// value is kept. A field is considered "set" when its pointer is non-nil, its slice is non-empty,
-// or its string is non-empty. override is expected to be non-nil (only called for overrides).
+// value is kept. A field is considered "set" when it holds a non-zero value (non-zero timeout,
+// true bool, non-empty string/slice). As a consequence an override can only turn a boolean on or
+// set a non-zero timeout, never force a global value back to its zero value. override is expected
+// to be non-nil (only called for overrides).
 func mergeNCMSSH(base, override *snmp.NCMSSHConfig) *ncmSSHConfig {
 	merged := toNCMSSH(base)
 	if merged == nil {
 		merged = &ncmSSHConfig{}
 	}
-	if override.Timeout != nil {
+	if override.Timeout != 0 {
 		merged.Timeout = override.Timeout
 	}
 	if override.KnownHostsPath != "" {
 		merged.KnownHostsPath = override.KnownHostsPath
 	}
-	if override.InsecureSkipVerify != nil {
+	if override.InsecureSkipVerify {
 		merged.InsecureSkipVerify = override.InsecureSkipVerify
 	}
 	if len(override.Ciphers) > 0 {
@@ -295,7 +297,7 @@ func mergeNCMSSH(base, override *snmp.NCMSSHConfig) *ncmSSHConfig {
 	if len(override.HostKeyAlgorithms) > 0 {
 		merged.HostKeyAlgorithms = override.HostKeyAlgorithms
 	}
-	if override.AllowLegacyAlgorithms != nil {
+	if override.AllowLegacyAlgorithms {
 		merged.AllowLegacyAlgorithms = override.AllowLegacyAlgorithms
 	}
 	return merged

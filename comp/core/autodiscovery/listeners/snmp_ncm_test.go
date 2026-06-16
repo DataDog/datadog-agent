@@ -161,9 +161,6 @@ func TestWriteNCMConfigDefaultNamespace(t *testing.T) {
 	assert.Len(t, got.Instances, 1)
 }
 
-func boolPtr(b bool) *bool { return &b }
-func intPtr(i int) *int    { return &i }
-
 // TestNCMSSHGlobalDefaultFallback verifies that, with a global init_config.ssh and a credential
 // without an ssh override, the global block is written to init_config.ssh and the instance has no
 // auth.ssh (the device inherits the global on the NCM side).
@@ -195,7 +192,7 @@ func TestNCMSSHCredentialOverrideMerge(t *testing.T) {
 		SSH: &snmp.NCMSSHConfig{
 			KnownHostsPath: "/etc/ssh/known_hosts",
 			Ciphers:        []string{"aes256-gcm@openssh.com"},
-			Timeout:        intPtr(30),
+			Timeout:        30,
 		},
 	}
 
@@ -218,10 +215,9 @@ func TestNCMSSHCredentialOverrideMerge(t *testing.T) {
 	assert.Equal(t, []string{"aes128-ctr"}, authSSH.Ciphers)
 	// Non-overridden fields are inherited from the global init_config.ssh.
 	assert.Equal(t, "/etc/ssh/known_hosts", authSSH.KnownHostsPath)
-	require.NotNil(t, authSSH.Timeout)
-	assert.Equal(t, 30, *authSSH.Timeout)
-	// Unset everywhere -> absent.
-	assert.Nil(t, authSSH.InsecureSkipVerify)
+	assert.Equal(t, 30, authSSH.Timeout)
+	// Unset everywhere -> zero value.
+	assert.False(t, authSSH.InsecureSkipVerify)
 }
 
 // TestNCMSSHStrictPassthrough verifies that only the fields actually specified are written: a
@@ -255,11 +251,11 @@ func TestNCMSSHStrictPassthrough(t *testing.T) {
 	require.NotNil(t, authSSH)
 	assert.Equal(t, "/etc/ssh/known_hosts", authSSH.KnownHostsPath)
 	assert.Equal(t, []string{"aes128-ctr"}, authSSH.Ciphers)
-	assert.Nil(t, authSSH.InsecureSkipVerify)
-	assert.Nil(t, authSSH.Timeout)
+	assert.False(t, authSSH.InsecureSkipVerify)
+	assert.Zero(t, authSSH.Timeout)
 	assert.Empty(t, authSSH.KeyExchanges)
 	assert.Empty(t, authSSH.HostKeyAlgorithms)
-	assert.Nil(t, authSSH.AllowLegacyAlgorithms)
+	assert.False(t, authSSH.AllowLegacyAlgorithms)
 }
 
 // TestNCMSSHChangeRewrites verifies that a change in a credential's ssh block triggers a rewrite,
@@ -268,7 +264,7 @@ func TestNCMSSHChangeRewrites(t *testing.T) {
 	l, dest := newNCMTestListener(t, "myns")
 
 	creds := []snmp.NCMCredential{
-		{User: "admin", Password: "secret", SSH: &snmp.NCMSSHConfig{InsecureSkipVerify: boolPtr(true)}},
+		{User: "admin", Password: "secret", SSH: &snmp.NCMSSHConfig{InsecureSkipVerify: true}},
 	}
 	l.recordNCMDevice("a1", "10.10.0.5", creds, true)
 	require.FileExists(t, dest)
@@ -276,7 +272,7 @@ func TestNCMSSHChangeRewrites(t *testing.T) {
 	// Re-recording with an identical ssh block must be a no-op (file not recreated after removal).
 	require.NoError(t, os.Remove(dest))
 	sameCreds := []snmp.NCMCredential{
-		{User: "admin", Password: "secret", SSH: &snmp.NCMSSHConfig{InsecureSkipVerify: boolPtr(true)}},
+		{User: "admin", Password: "secret", SSH: &snmp.NCMSSHConfig{InsecureSkipVerify: true}},
 	}
 	l.recordNCMDevice("a1", "10.10.0.5", sameCreds, true)
 	_, err := os.Stat(dest)
@@ -284,12 +280,12 @@ func TestNCMSSHChangeRewrites(t *testing.T) {
 
 	// Changing an ssh field must trigger a rewrite.
 	changedCreds := []snmp.NCMCredential{
-		{User: "admin", Password: "secret", SSH: &snmp.NCMSSHConfig{InsecureSkipVerify: boolPtr(false)}},
+		{User: "admin", Password: "secret", SSH: &snmp.NCMSSHConfig{InsecureSkipVerify: true, Timeout: 60}},
 	}
 	l.recordNCMDevice("a1", "10.10.0.5", changedCreds, true)
 	got := readNCMFile(t, dest)
 	require.Len(t, got.Instances, 1)
 	require.NotNil(t, got.Instances[0].Auth.SSH)
-	require.NotNil(t, got.Instances[0].Auth.SSH.InsecureSkipVerify)
-	assert.False(t, *got.Instances[0].Auth.SSH.InsecureSkipVerify)
+	assert.True(t, got.Instances[0].Auth.SSH.InsecureSkipVerify)
+	assert.Equal(t, 60, got.Instances[0].Auth.SSH.Timeout)
 }

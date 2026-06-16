@@ -150,17 +150,18 @@ type NCMCredential struct {
 }
 
 // NCMSSHConfig holds optional SSH connection settings for Network Config Management (NCM). It is
-// used both as the global default (init_config.ssh) and as a per-credential override. Pointers are
-// used for scalar booleans/ints so that "not set" can be distinguished from a zero value, allowing
-// strict pass-through: only fields the user actually specified are written to the generated config.
+// used both as the global default (init_config.ssh) and as a per-credential override. Scalar
+// fields use their zero value as "not set" (timeout 0 = no timeout, bools default to false), which
+// matches the downstream NCM defaults, so a per-credential override can only turn a setting on,
+// not force it back off.
 type NCMSSHConfig struct {
-	Timeout               *int     `mapstructure:"timeout"`
+	Timeout               int      `mapstructure:"timeout"`
 	KnownHostsPath        string   `mapstructure:"known_hosts_path"`
-	InsecureSkipVerify    *bool    `mapstructure:"insecure_skip_verify"`
+	InsecureSkipVerify    bool     `mapstructure:"insecure_skip_verify"`
 	Ciphers               []string `mapstructure:"ciphers"`
 	KeyExchanges          []string `mapstructure:"key_exchanges"`
 	HostKeyAlgorithms     []string `mapstructure:"host_key_algorithms"`
-	AllowLegacyAlgorithms *bool    `mapstructure:"allow_legacy_algorithms"`
+	AllowLegacyAlgorithms bool     `mapstructure:"allow_legacy_algorithms"`
 }
 
 // NCMInitConfig holds the global Network Config Management (NCM) settings configured at the
