@@ -17,9 +17,20 @@ import (
 	"github.com/DataDog/agent-payload/v5/healthplatform"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/pkg/config/schema"
 	fakeintakeclient "github.com/DataDog/datadog-agent/test/fakeintake/client"
 	fakeintakeserver "github.com/DataDog/datadog-agent/test/fakeintake/server"
 )
+
+// requireSchema skips the test when the compressed schema files haven't been
+// generated yet (run `dda inv schema.generate`). CI always has them; local
+// dev builds do not unless explicitly generated.
+func requireSchema(t *testing.T) {
+	t.Helper()
+	if _, err := schema.GetCoreSchema(); err != nil {
+		t.Skipf("embedded schema not available (%v); run `dda inv schema.generate`", err)
+	}
+}
 
 func TestBuildIssue_SchemaViolationProducesMediumSeverity(t *testing.T) {
 	ctx := map[string]string{
@@ -58,6 +69,7 @@ func TestCheck_HealthyConfigReturnsNil(t *testing.T) {
 // Inject a string into an integer-typed field. Confirms the validator surfaces
 // the violation and the checker wraps it into an IssueReport.
 func TestCheck_SchemaViolationProducesReport(t *testing.T) {
+	requireSchema(t)
 	cfg := config.NewMock(t)
 	cfg.SetInTest("agent_ipc.port", "not-a-number")
 
@@ -72,6 +84,7 @@ func TestCheck_SchemaViolationProducesReport(t *testing.T) {
 // Integration test: checker.Run() → BuildIssue() → HTTP POST to in-process
 // fakeintake → GetAgentHealth(). Requires the embedded schema (Bazel only).
 func TestCheck_ExtraErrorsSurviveHTTPRoundtrip(t *testing.T) {
+	requireSchema(t)
 	ready := make(chan bool, 1)
 	fi := fakeintakeserver.NewServer(fakeintakeserver.WithReadyChannel(ready))
 	fi.Start()
