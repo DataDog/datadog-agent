@@ -328,10 +328,6 @@ func (h *healthPlatformImpl) stop(_ context.Context) error {
 	return nil
 }
 
-// ============================================================================
-// Observer Registration
-// ============================================================================
-
 // RegisterObserver appends an observer. Observers registered after OnStart
 // will miss events that occurred before registration.
 func (h *healthPlatformImpl) RegisterObserver(obs healthplatformdef.IssueObserver) {

@@ -30,20 +30,25 @@ const (
 	sendTimeout           = 30 * time.Second
 	eventType             = "agent-health-issues"
 
-	// resolvedChSize is the capacity of the resolved-issue delivery channel.
-	resolvedChSize = 1024
+	// channel capacity for active and resolved issue delivery.
+	issueChSize = 1024
 )
 
 // egress drives the periodic outbound POST to the Datadog intake.
+// Both channels are populated by the registered IssueObserver:
+//   - activeCh:   new/ongoing issues; drained each tick, re-populated by the
+//     next ReportIssue call from the health checks.
+//   - resolvedCh: resolved issues; drained and flushed on a successful send,
+//     returned to the channel on failure for retry next tick.
 type egress struct {
 	log         log.Component
 	interval    time.Duration
 	hostname    string
 	agentFlavor string
-	store       storedef.Component
 	forwarder   forwarderdef.Component
 
-	resolvedCh chan *healthplatform.Issue // resolved issues pending send; drained each tick
+	activeCh   chan *healthplatform.Issue // new/ongoing issues
+	resolvedCh chan *healthplatform.Issue // resolved issues; flushed after successful send
 
 	stopCh chan struct{}
 	doneCh chan struct{}
@@ -81,9 +86,9 @@ func New(reqs Requires) egressdef.Component {
 		interval:    interval,
 		hostname:    hostname,
 		agentFlavor: flavor.GetFlavor(),
-		store:       reqs.Store,
 		forwarder:   reqs.Forwarder,
-		resolvedCh:  make(chan *healthplatform.Issue, resolvedChSize),
+		activeCh:    make(chan *healthplatform.Issue, issueChSize),
+		resolvedCh:  make(chan *healthplatform.Issue, issueChSize),
 		stopCh:      make(chan struct{}),
 		doneCh:      make(chan struct{}),
 	}
@@ -91,6 +96,13 @@ func New(reqs Requires) egressdef.Component {
 	// Register before OnStart: loadFromDisk fires first and calls OnIssueResolved
 	// for any resolved issues found on disk.
 	reqs.Store.RegisterObserver(storedef.IssueObserver{
+		OnIssueReported: func(issue *healthplatform.Issue) {
+			select {
+			case e.activeCh <- issue:
+			default:
+				e.log.Warnf("Health platform egress: active channel full, %s will resend on next check run", issue.Id)
+			}
+		},
 		OnIssueResolved: func(resolved *healthplatform.Issue) {
 			select {
 			case e.resolvedCh <- resolved:
@@ -138,20 +150,8 @@ func (e *egress) run() {
 }
 
 func (e *egress) tick() {
-	_, active := e.store.GetAllIssues()
-
-	// Drain resolved issues into a tick-local slice; room to return them on failure
-	// is guaranteed since we just freed N slots.
-	var resolved []*healthplatform.Issue
-drain:
-	for {
-		select {
-		case r := <-e.resolvedCh:
-			resolved = append(resolved, r)
-		default:
-			break drain
-		}
-	}
+	active := drainCh(e.activeCh)
+	resolved := drainCh(e.resolvedCh)
 
 	if len(active) == 0 && len(resolved) == 0 {
 		e.log.Debug("Health platform egress: no issues to report, skipping tick")
@@ -159,9 +159,10 @@ drain:
 	}
 
 	merged := make(map[string]*healthplatform.Issue, len(active)+len(resolved))
-	for k, v := range active {
-		merged[k] = v
+	for _, i := range active {
+		merged[i.Id] = i
 	}
+	// resolved overwrites active for the same ID (most recent state wins)
 	for _, r := range resolved {
 		merged[r.Id] = r
 	}
@@ -172,6 +173,7 @@ drain:
 
 	if err := e.forwarder.Send(ctx, e.buildReport(merged)); err != nil {
 		e.log.Warn(fmt.Sprintf("Health platform egress: failed to send %d issues: %v", len(merged), err))
+		// Return resolved issues for retry; active issues are re-populated by the next check run.
 		for _, r := range resolved {
 			select {
 			case e.resolvedCh <- r:
@@ -183,6 +185,20 @@ drain:
 	}
 
 	e.log.Info(fmt.Sprintf("Health platform egress: sent report with %d issues", len(merged)))
+	// resolvedCh was already drained above; nothing to flush explicitly.
+}
+
+// drainCh non-blockingly drains all available items from ch into a slice.
+func drainCh(ch chan *healthplatform.Issue) []*healthplatform.Issue {
+	var out []*healthplatform.Issue
+	for {
+		select {
+		case i := <-ch:
+			out = append(out, i)
+		default:
+			return out
+		}
+	}
 }
 
 func (e *egress) buildReport(issues map[string]*healthplatform.Issue) *healthplatform.HealthReport {
