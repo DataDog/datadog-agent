@@ -283,11 +283,13 @@ fn window_title_from_description(
         return None;
     }
 
+    let window_id_value = window_id as usize as *const c_void;
+    let window_values = [window_id_value];
     let window_array = unsafe {
         CFArrayCreate(
             ptr::null(),
-            (&window_id as *const CGWindowID).cast(),
-            1,
+            window_values.as_ptr(),
+            window_values.len() as CFIndex,
             ptr::null(),
         )
     };
