@@ -17,11 +17,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
-// TestSyncDestinationRetriesRetryableErrors verifies that a retryable failure
-// (5xx) is retried until it succeeds instead of being dropped after one attempt.
-// This is the behavior that lets a coldstart instance's buffered logs reach
-// Datadog once CPU is restored. See SVLS-9268.
-func TestSyncDestinationRetriesRetryableErrors(t *testing.T) {
+// TestSyncDestinationRetryRecovers verifies that a retryable failure (5xx) is
+// retried once and delivered when the retry succeeds. This is the behavior that
+// lets an idle, CPU-throttled instance's send reach Datadog once CPU is restored.
+func TestSyncDestinationRetryRecovers(t *testing.T) {
 	cfg := configmock.New(t)
 	respondChan := make(chan int)
 	server := NewTestServerWithOptions(http.StatusInternalServerError, 1, false, respondChan, cfg)
@@ -35,21 +34,50 @@ func TestSyncDestinationRetriesRetryableErrors(t *testing.T) {
 
 	// First attempt fails with a retryable 500.
 	assert.Equal(t, http.StatusInternalServerError, <-respondChan)
-	// A second attempt proves the payload was retried, not dropped.
+	// Restore the endpoint before the single retry fires (CPU is back).
+	server.ChangeStatus(http.StatusOK)
+	// The retry succeeds and the payload is released exactly once.
+	assert.Equal(t, http.StatusOK, <-respondChan)
+	<-output
+
+	// No third attempt is made.
+	select {
+	case <-respondChan:
+		t.Fatal("payload should be retried at most once")
+	case <-time.After(500 * time.Millisecond):
+	}
+
+	server.Stop()
+}
+
+// TestSyncDestinationDropsAfterOneRetry verifies that a persistently retryable
+// failure is retried exactly once and then dropped, so one failing payload
+// cannot starve the payloads queued behind it on this serial destination.
+func TestSyncDestinationDropsAfterOneRetry(t *testing.T) {
+	cfg := configmock.New(t)
+	respondChan := make(chan int)
+	server := NewTestServerWithOptions(http.StatusInternalServerError, 1, false, respondChan, cfg)
+	dest := NewSyncDestination(server.Endpoint, JSONContentType, server.DestCtx, nil, client.NewNoopDestinationMetadata(), cfg)
+
+	input := make(chan *message.Payload)
+	output := make(chan *message.Payload)
+	dest.Start(input, output, nil)
+
+	input <- &message.Payload{MessageMetas: []*message.MessageMetadata{}, Encoded: []byte("yo")}
+
+	// Two attempts: the initial send and a single retry, both retryable 500s.
+	assert.Equal(t, http.StatusInternalServerError, <-respondChan)
 	assert.Equal(t, http.StatusInternalServerError, <-respondChan)
 
-	// The payload must not have been released yet — the send hasn't succeeded.
-	select {
-	case <-output:
-		t.Fatal("payload was released before the send succeeded")
-	default:
-	}
-
-	// Recover: the next attempt succeeds and the payload is released exactly once.
-	server.ChangeStatus(http.StatusOK)
-	for (<-respondChan) != http.StatusOK { //nolint:revive
-	}
+	// The payload is then dropped and released exactly once.
 	<-output
+
+	// No third attempt is made.
+	select {
+	case <-respondChan:
+		t.Fatal("payload should be retried at most once")
+	case <-time.After(500 * time.Millisecond):
+	}
 
 	server.Stop()
 }

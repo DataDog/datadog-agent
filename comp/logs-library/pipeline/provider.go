@@ -401,10 +401,8 @@ func (p *provider) Flush(ctx context.Context) {
 		p.serverlessMeta.Lock()
 		defer p.serverlessMeta.Unlock()
 		// Wait for the logs sender to finish sending payloads to all destinations before allowing the flush to finish.
-		// The lock must be held for the full duration: Add(1) in batch.go also acquires this lock, so holding it here
-		// prevents any Add from racing with Wait returning on a zero counter (which panics).
-		// The flush context deadline is not surfaceable here without propagating ctx into sendWithRetry; at the hard
-		// process deadline the OS terminates us regardless.
+		// The lock is held across Wait because batch.go takes the same lock to Add to this WaitGroup, and a
+		// WaitGroup panics if an Add races a Wait that has reached a zero counter.
 		p.serverlessMeta.WaitGroup().Wait()
 	}
 }
