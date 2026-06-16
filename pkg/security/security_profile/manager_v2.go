@@ -425,7 +425,7 @@ func (m *ManagerV2) ProcessEvent(event *model.Event) {
 
 	// Try to resolve tags for this workload
 	workloadTags, err := m.resolvers.TagsResolver.ResolveWithErr(workloadID)
-	tagsResolved := err == nil && len(workloadTags) != 0 && utils.GetTagValue("image_name", workloadTags) != ""
+	tagsResolved := err == nil && len(workloadTags) != 0 && utils.GetTagValue("image_tag", workloadTags) != ""
 
 	if tagsResolved {
 		// Set resolved tags on the event for downstream processing
@@ -564,10 +564,6 @@ func (m *ManagerV2) onEventTagsResolved(event *model.Event) {
 			return
 		}
 		imageTag = utils.GetTagValue("version", tags)
-	}
-
-	if imageTag == "" {
-		imageTag = "latest"
 	}
 
 	if workloadID != nil {
