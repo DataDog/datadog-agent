@@ -94,5 +94,5 @@ RUN find /etc -type d,f -perm -o+w -print0 | xargs -r -0 chmod g-w,o-w
 
 ENV DD_OTELCOLLECTOR_ENABLED=true
 
-ENTRYPOINT ["otel-agent", "run"]
-CMD ["--config", "file:/etc/datadog-agent/otel-config.yaml"]
+ENTRYPOINT ["otel-agent"]
+CMD ["run", "--config", "file:/etc/datadog-agent/otel-config.yaml"]
