@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -45,6 +46,9 @@ const (
 	// Basename of the dd-procmgr process definition for DDOT (matches Linux OCI extension hook).
 	ddotProcmgrConfigFileName = "datadog-agent-ddot.yaml"
 	ddProcmgrServiceName      = "dd-procmgr-service"
+
+	// ddProcmgrReloadOrRestartTimeout bounds `dd-procmgr reload` and SCM restart after processes.d changes.
+	ddProcmgrReloadOrRestartTimeout = 120 * time.Second
 )
 
 // preInstallDatadogAgentDDOT performs pre-installation steps for DDOT on Windows
@@ -540,12 +544,42 @@ func postInstallDDOTExtension(ctx HookContext) error {
 	return nil
 }
 
-// preRemoveDDOTExtension removes DDOT process manager config, restarts dd-procmgr-service to drop
-// supervised DDOT, then stops/removes the legacy SCM entry and disables otelcollector in datadog.yaml.
+// reloadOrRestartDDProcmgrForRemovedProcessesD tells dd-procmgrd to re-read processes.d from disk.
+// Prefer `dd-procmgr reload` (gRPC) over an SCM service restart: same effect for config removal,
+// less disruption. Fall back to restarting dd-procmgr-service when the CLI is absent or reload fails.
+func reloadOrRestartDDProcmgrForRemovedProcessesD() {
+	installRoot := paths.DatadogProgramFilesDir
+	if installRoot == "" {
+		log.Warnf("DDOT: DatadogProgramFilesDir is empty; cannot reload or restart %s", ddProcmgrServiceName)
+		return
+	}
+	cli := filepath.Join(installRoot, "bin", "agent", "dd-procmgr.exe")
+	if _, err := os.Stat(cli); err != nil {
+		if err := winutil.RestartServiceWithTimeout(ddProcmgrServiceName, ddProcmgrReloadOrRestartTimeout); err != nil {
+			log.Warnf("DDOT: failed to restart %s after removing DDOT process manager config (no dd-procmgr CLI): %v", ddProcmgrServiceName, err)
+		}
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), ddProcmgrReloadOrRestartTimeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, cli, "reload")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		log.Warnf("DDOT: dd-procmgr reload failed (%v); output: %s; falling back to %s restart", err, strings.TrimSpace(string(out)), ddProcmgrServiceName)
+		if err2 := winutil.RestartServiceWithTimeout(ddProcmgrServiceName, ddProcmgrReloadOrRestartTimeout); err2 != nil {
+			log.Warnf("DDOT: failed to restart %s after removing DDOT process manager config: %v", ddProcmgrServiceName, err2)
+		}
+		return
+	}
+}
+
+// preRemoveDDOTExtension removes DDOT process manager config, reloads dd-procmgrd (or restarts the
+// Windows service as fallback) so supervised DDOT stops before extension files are removed, then
+// stops/removes the legacy SCM entry and disables otelcollector in datadog.yaml.
 func preRemoveDDOTExtension(ctx HookContext) error {
 	procmgrEnabled, err := processManagerEnabledFromDatadogYAML()
 	if err != nil {
-		log.Warnf("DDOT: could not read process_manager from datadog.yaml (%v); skipping dd-procmgr restart after config removal", err)
+		log.Warnf("DDOT: could not read process_manager from datadog.yaml (%v); skipping dd-procmgr reload/restart after config removal", err)
 		procmgrEnabled = false
 	}
 	packagePath := ctx.PackagePath
@@ -556,9 +590,7 @@ func preRemoveDDOTExtension(ctx HookContext) error {
 		log.Warnf("failed to remove DDOT process manager config: %v", err)
 	}
 	if procmgrEnabled {
-		if err := winutil.RestartServiceWithTimeout(ddProcmgrServiceName, 120*time.Second); err != nil {
-			log.Warnf("DDOT: failed to restart %s after removing DDOT process manager config: %v", ddProcmgrServiceName, err)
-		}
+		reloadOrRestartDDProcmgrForRemovedProcessesD()
 	}
 	if err := stopServiceIfExists(otelServiceName); err != nil {
 		log.Warnf("failed to stop DDOT service: %s", err)
