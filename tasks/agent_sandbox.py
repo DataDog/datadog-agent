@@ -198,6 +198,16 @@ def agent(ctx, args="status", name=DEFAULT_SANDBOX_NAME, state_root=None):
         raise Exit(message=str(e), code=1) from None
 
 
+@task(name="fx-spans")
+def fx_spans(ctx, name=DEFAULT_SANDBOX_NAME, state_root=None):
+    """Print captured FX trace spans from a sandbox created with --fx-trace."""
+    manager = _manager(state_root)
+    try:
+        _run_or_raise(ctx, manager.ssh_command(name, ["sudo", "cat", "/var/log/datadog/fx-trace-spans.jsonl"]))
+    except AgentSandboxError as e:
+        raise Exit(message=str(e), code=1) from None
+
+
 @task
 def logs(ctx, name=DEFAULT_SANDBOX_NAME, lines=200, state_root=None):
     """Show recent Datadog Agent service logs through managed SSH."""

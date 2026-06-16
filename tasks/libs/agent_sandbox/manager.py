@@ -302,19 +302,65 @@ runcmd:
 
         exports = " ".join(f"{key}={shlex.quote(value)}" for key, value in env.items())
         config_copy = ""
+        restart_needed = False
         if metadata.config_source:
             config_copy = "\ninstall -m 0644 /var/lib/agent-sandbox/datadog.yaml /etc/datadog-agent/datadog.yaml\n"
-        fx_trace_setup = ""
+            restart_needed = True
+        pre_install_setup = ""
         if metadata.fx_trace:
-            fx_trace_setup = """
-mkdir -p /etc/systemd/system/datadog-agent.service.d
+            pre_install_setup = r'''
+mkdir -p /etc/systemd/system/datadog-agent.service.d /var/lib/agent-sandbox /var/log/datadog
+cat > /var/lib/agent-sandbox/fx-trace-intake.py <<'PY'
+#!/usr/bin/env python3
+import http.server
+import pathlib
+import time
+
+OUT = pathlib.Path('/var/log/datadog/fx-trace-spans.jsonl')
+OUT.parent.mkdir(parents=True, exist_ok=True)
+
+class Handler(http.server.BaseHTTPRequestHandler):
+    def do_PUT(self):
+        length = int(self.headers.get('content-length', '0'))
+        body = self.rfile.read(length)
+        with OUT.open('ab') as f:
+            f.write(str(time.time_ns()).encode())
+            f.write(b' ')
+            f.write(body.replace(b'\n', b''))
+            f.write(b'\n')
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b'OK')
+
+    def log_message(self, fmt, *args):
+        return
+
+http.server.ThreadingHTTPServer(('127.0.0.1', 8126), Handler).serve_forever()
+PY
+chmod 0755 /var/lib/agent-sandbox/fx-trace-intake.py
+cat > /etc/systemd/system/agent-sandbox-fx-trace-intake.service <<'EOF'
+[Unit]
+Description=Agent Sandbox FX trace intake
+Before=datadog-agent.service
+
+[Service]
+ExecStart=/usr/bin/python3 /var/lib/agent-sandbox/fx-trace-intake.py
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+EOF
 cat > /etc/systemd/system/datadog-agent.service.d/agent-sandbox-fx-trace.conf <<'EOF'
 [Service]
 Environment=TRACE_FX=1
 Environment=DD_FX_TRACING_ENABLED=true
 EOF
 systemctl daemon-reload
-"""
+systemctl enable --now agent-sandbox-fx-trace-intake.service
+'''
+        restart_command = ""
+        if restart_needed:
+            restart_command = "\nsystemctl restart datadog-agent || service datadog-agent restart\n"
 
         package_version = ""
         if metadata.agent_version:
@@ -333,6 +379,7 @@ if ! command -v curl >/dev/null 2>&1; then
     DEBIAN_FRONTEND=noninteractive apt-get install -y curl
 fi
 
+{pre_install_setup}
 {exports} bash -c "$(curl -L https://s3.amazonaws.com/dd-agent/scripts/install_script_agent7.sh)" || true
 if ! command -v /opt/datadog-agent/bin/agent/agent >/dev/null 2>&1; then
     apt-get update
@@ -343,11 +390,9 @@ if ! command -v /opt/datadog-agent/bin/agent/agent >/dev/null 2>&1; then
     DEBIAN_FRONTEND=noninteractive apt-get install -y datadog-agent{package_version} datadog-signing-keys
 fi
 {config_copy}
-{fx_trace_setup}
 chown dd-agent:dd-agent /etc/datadog-agent/datadog.yaml || true
 chmod 0640 /etc/datadog-agent/datadog.yaml || true
-systemctl restart datadog-agent || service datadog-agent restart
-/opt/datadog-agent/bin/agent/agent version
+{restart_command}/opt/datadog-agent/bin/agent/agent version
 """
         path.write_text(script)
         path.chmod(0o755)
