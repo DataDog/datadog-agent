@@ -156,6 +156,9 @@ func yamlNestedStringKeyMap(v any) (map[string]any, bool) {
 // matching pkg/config/setup defaults: default true, overridable by DD_PROCESS_MANAGER_ENABLED, then
 // process_manager.enabled in ProgramData datadog.yaml. Missing process_manager section or missing
 // enabled key means true (same as BindEnvAndSetDefault("process_manager.enabled", true)).
+// If datadog.yaml is missing, treat enabled as true: enableOTelCollectorConfigInDatadogYAML does
+// not create the file when absent (fresh install), so this hook can run before any other step
+// lays down datadog.yaml — same default as the Agent when process_manager is unset.
 func processManagerEnabledFromDatadogYAML() (bool, error) {
 	if v, ok := os.LookupEnv("DD_PROCESS_MANAGER_ENABLED"); ok && strings.TrimSpace(v) != "" {
 		return yamlTruthy(v), nil
@@ -163,6 +166,9 @@ func processManagerEnabledFromDatadogYAML() (bool, error) {
 	ddYaml := filepath.Join(paths.DatadogDataDir, "datadog.yaml")
 	data, err := os.ReadFile(ddYaml)
 	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return true, nil
+		}
 		return false, err
 	}
 	var cfg map[string]any
