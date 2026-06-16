@@ -89,10 +89,7 @@ static enum SYSCALL_STATE __attribute__((always_inline)) approve_bind_sample(str
         return DISCARDED;
     }
 
-    // ignore kworkers
-    if (IS_KERNEL_THREAD(pid)) {
-        return DISCARDED;
-    }
+    u32 pid = bpf_get_current_pid_tgid() >> 32;
 
     // ignore kworkers
     if (IS_KERNEL_THREAD(pid)) {
@@ -191,10 +188,7 @@ static enum SYSCALL_STATE __attribute__((always_inline)) approve_connect_sample(
         return DISCARDED;
     }
 
-    // ignore kworkers
-    if (IS_KERNEL_THREAD(pid)) {
-        return DISCARDED;
-    }
+    u32 pid = bpf_get_current_pid_tgid() >> 32;
 
     // ignore kworkers
     if (IS_KERNEL_THREAD(pid)) {

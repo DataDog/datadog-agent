@@ -1296,15 +1296,20 @@ func (m *ManagerV2) HandleSampleRefresh(cookie uint32) {
 	entry.profile.Lock()
 	defer entry.profile.Unlock()
 
-	if entry.processNode == nil || len(entry.processNode.Seen) == 0 {
+	if entry.processNode == nil || entry.processNode.SeenIsEmpty() {
 		m.sampleCookieMap.Remove(cookie)
 		return
 	}
 
+	imageTagID := entry.profile.ActivityTree.GetImageTagID(entry.imageTag)
+	if imageTagID == 0 {
+		return
+	}
+
 	now := time.Now()
-	entry.processNode.AppendImageTag(entry.imageTag, now)
+	entry.processNode.AppendImageTagID(imageTagID, now)
 	if entry.eventNodeBase != nil {
-		entry.eventNodeBase.AppendImageTag(entry.imageTag, now)
+		entry.eventNodeBase.AppendImageTagID(imageTagID, now)
 	}
 }
 

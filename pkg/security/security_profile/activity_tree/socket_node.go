@@ -127,8 +127,8 @@ func (sn *SocketNode) InsertBindEvent(evt *model.BindEvent, event *model.Event, 
 
 		node.AppendImageTagID(imageTagID, event.ResolveEventTime())
 		sn.Bind = append(sn.Bind, node)
-		return true, &node.NodeBase
 		stats.SizeBytes += bindSize(node)
+		return true, &node.NodeBase
 	}
 	return true, nil
 }
