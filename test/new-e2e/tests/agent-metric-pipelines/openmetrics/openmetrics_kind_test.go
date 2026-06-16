@@ -7,6 +7,7 @@ package openmetrics
 
 import (
 	"fmt"
+	"math"
 	"os"
 	"regexp"
 	"strconv"
@@ -14,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	metricspb "github.com/DataDog/agent-payload/v5/gogen"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps"
@@ -114,15 +116,16 @@ func (s *kindOpenMetricsCoreLoaderSuite) TestAutodiscoveryInstancesUseCoreLoader
 		assertMetric(c, s, "openmetrics_e2e_one.prom_counter.count", fakeintakeclient.WithMetricValueHigherThan(0))
 		assertMetric(c, s, "openmetrics_e2e_two.prom_counter.count", fakeintakeclient.WithMetricValueHigherThan(0))
 
-		assertMetric(c, s, "openmetrics_e2e_fixture.target_interval_seconds.sum", fakeintakeclient.WithMetricValueHigherThan(19))
-		assertMetric(c, s, "openmetrics_e2e_fixture.target_interval_seconds.count", fakeintakeclient.WithMetricValueHigherThan(1))
-		assertMetric(c, s, "openmetrics_e2e_fixture.target_interval_seconds.quantile", fakeintakeclient.WithTags[*fakeintakeaggregator.MetricSeries]([]string{"quantile:0.5"}))
-		assertMetric(c, s, "openmetrics_e2e_fixture.go_memstats_alloc_bytes", fakeintakeclient.WithMetricValueHigherThan(100))
-		assertMetric(c, s, "openmetrics_e2e_fixture.http_req_duration_seconds.sum", fakeintakeclient.WithMetricValueHigherThan(1))
-		assertMetric(c, s, "openmetrics_e2e_fixture.http_req_duration_seconds.count", fakeintakeclient.WithMetricValueHigherThan(3))
+		assertMetricValue(c, s, "openmetrics_e2e_fixture.target_interval_seconds.sum", 20, metricspb.MetricPayload_GAUGE)
+		assertMetricValue(c, s, "openmetrics_e2e_fixture.target_interval_seconds.count", 2, metricspb.MetricPayload_GAUGE)
+		assertMetricValue(c, s, "openmetrics_e2e_fixture.target_interval_seconds.quantile", 10, metricspb.MetricPayload_GAUGE, fakeintakeclient.WithTags[*fakeintakeaggregator.MetricSeries]([]string{"quantile:0.5"}))
+		assertMetricValue(c, s, "openmetrics_e2e_fixture.go_memstats_alloc_bytes", 123, metricspb.MetricPayload_GAUGE)
+		assertMetricValue(c, s, "openmetrics_e2e_fixture.http_req_duration_seconds.sum", 1.4, metricspb.MetricPayload_GAUGE)
+		assertMetricValue(c, s, "openmetrics_e2e_fixture.http_req_duration_seconds.count", 4, metricspb.MetricPayload_GAUGE, fakeintakeclient.WithTags[*fakeintakeaggregator.MetricSeries]([]string{"upper_bound:none"}))
 		assertMetric(c, s, "openmetrics_e2e_fixture.go_memstats_mallocs_total", fakeintakeclient.WithMetricValueHigherThan(0))
-		assertMetric(c, s, "openmetrics_e2e_fallback.go_memstats_alloc_bytes", fakeintakeclient.WithMetricValueHigherThan(100))
+		assertMetricValue(c, s, "openmetrics_e2e_fallback.go_memstats_alloc_bytes", 123, metricspb.MetricPayload_GAUGE)
 	}, 5*time.Minute, 10*time.Second)
+	assertNoFixtureMetricLeakage(t, s)
 
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
 		telemetry, err := agentTelemetry(s, s.Env().Agent.LinuxNodeAgent)
@@ -152,8 +155,15 @@ func (s *kindOpenMetricsPythonDefaultSuite) TestAutodiscoveryInstancesUsePythonL
 		assertMetric(c, s, "openmetrics_e2e_two.prom_gauge", fakeintakeclient.WithTags[*fakeintakeaggregator.MetricSeries]([]string{"series:0"}))
 		assertMetric(c, s, "openmetrics_e2e_one.prom_counter.count", fakeintakeclient.WithMetricValueHigherThan(0))
 		assertMetric(c, s, "openmetrics_e2e_two.prom_counter.count", fakeintakeclient.WithMetricValueHigherThan(0))
-		assertMetric(c, s, "openmetrics_e2e_fixture.go_memstats_alloc_bytes", fakeintakeclient.WithMetricValueHigherThan(100))
+		assertMetricValue(c, s, "openmetrics_e2e_fixture.target_interval_seconds.sum", 20, metricspb.MetricPayload_GAUGE)
+		assertMetricValue(c, s, "openmetrics_e2e_fixture.target_interval_seconds.count", 2, metricspb.MetricPayload_GAUGE)
+		assertMetricValue(c, s, "openmetrics_e2e_fixture.target_interval_seconds.quantile", 10, metricspb.MetricPayload_GAUGE, fakeintakeclient.WithTags[*fakeintakeaggregator.MetricSeries]([]string{"quantile:0.5"}))
+		assertMetricValue(c, s, "openmetrics_e2e_fixture.go_memstats_alloc_bytes", 123, metricspb.MetricPayload_GAUGE)
+		assertMetricValue(c, s, "openmetrics_e2e_fixture.http_req_duration_seconds.sum", 1.4, metricspb.MetricPayload_GAUGE)
+		assertMetricValue(c, s, "openmetrics_e2e_fixture.http_req_duration_seconds.count", 4, metricspb.MetricPayload_GAUGE, fakeintakeclient.WithTags[*fakeintakeaggregator.MetricSeries]([]string{"upper_bound:none"}))
+		assertMetricValue(c, s, "openmetrics_e2e_fallback.go_memstats_alloc_bytes", 123, metricspb.MetricPayload_GAUGE)
 	}, 5*time.Minute, 10*time.Second)
+	assertNoFixtureMetricLeakage(t, s)
 
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
 		telemetry, err := agentTelemetry(s, s.Env().Agent.LinuxNodeAgent)
@@ -190,6 +200,46 @@ func assertMetric(c *assert.CollectT, s openMetricsE2ESuite, metricName string, 
 	metrics, err := s.Env().FakeIntake.Client().FilterMetrics(metricName, options...)
 	assert.NoError(c, err)
 	assert.NotEmpty(c, metrics, "no %s metrics found", metricName)
+}
+
+func assertMetricValue(c *assert.CollectT, s openMetricsE2ESuite, metricName string, expected float64, expectedType metricspb.MetricPayload_MetricType, options ...fakeintakeclient.MatchOpt[*fakeintakeaggregator.MetricSeries]) {
+	const epsilon = 0.0001
+
+	metrics, err := s.Env().FakeIntake.Client().FilterMetrics(metricName, options...)
+	if !assert.NoError(c, err) || !assert.NotEmpty(c, metrics, "no %s metrics found", metricName) {
+		return
+	}
+
+	for _, metric := range metrics {
+		if !assert.Equal(c, expectedType, metric.GetType(), "%s type", metricName) {
+			continue
+		}
+		assert.NotEmpty(c, metric.Points, "%s has no points", metricName)
+		for _, point := range metric.Points {
+			if assert.NotNil(c, point, "%s has a nil point", metricName) {
+				assert.LessOrEqual(c, math.Abs(point.Value-expected), epsilon, "%s value", metricName)
+			}
+		}
+	}
+}
+
+func assertNoFixtureMetricLeakage(t *testing.T, s openMetricsE2ESuite) {
+	t.Helper()
+
+	unexpectedMetrics := []string{
+		"openmetrics_e2e_fixture.http_req_duration_seconds.bucket",
+		"openmetrics_e2e_fixture.prometheus_http_request_duration_seconds.bucket",
+		"openmetrics_e2e_fixture.prometheus_http_request_duration_seconds.sum",
+		"openmetrics_e2e_fixture.prometheus_http_request_duration_seconds.count",
+		"openmetrics_e2e_fixture.prometheus_target_interval_length_seconds.sum",
+		"openmetrics_e2e_fixture.prometheus_target_interval_length_seconds.count",
+		"openmetrics_e2e_fixture.prometheus_target_interval_length_seconds.quantile",
+	}
+	for _, metricName := range unexpectedMetrics {
+		metrics, err := s.Env().FakeIntake.Client().FilterMetrics(metricName)
+		require.NoError(t, err)
+		assert.Empty(t, metrics, "unexpected %s metrics found", metricName)
+	}
 }
 
 func openMetricsConfigureTelemetryCount(telemetry, outcome, reason string) float64 {
