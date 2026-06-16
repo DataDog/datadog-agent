@@ -58,6 +58,14 @@ func (m *macosInstallSuite) TestInstallAgent() {
 	_, err = macosTestClient.Execute("sudo launchctl print system/com.datadoghq.data-plane")
 	assert.NoError(m.T(), err)
 
+	_, err = macosTestClient.Execute("printf '%s\\n' 'data_plane:' '  enabled: true' '  dogstatsd:' '    enabled: true' | sudo tee -a /opt/datadog-agent/etc/datadog.yaml")
+	assert.NoError(m.T(), err)
+	_, err = macosTestClient.Execute("sudo launchctl kickstart -k system/com.datadoghq.agent")
+	assert.NoError(m.T(), err)
+	m.EventuallyWithT(func(c *assert.CollectT) {
+		macosTestClient.MustExecuteOn(c, "pid=$(pgrep -f '/agent-data-plane' | head -n 1) && sudo lsof -nP -a -p \"$pid\" -iUDP:8125 | grep '127.0.0.1:8125'")
+	}, time.Minute, 500*time.Millisecond)
+
 	// check that there is no world-writable files or directories in /opt/datadog-agent
 	// exclude /opt/datadog-agent/run/ipc which is intentionally world-writable for multi-user GUI sockets
 	worldWritableFiles, err := macosTestClient.Execute("sudo find /opt/datadog-agent \\( -type f -o -type d \\) -perm -002 ! -path '/opt/datadog-agent/run/ipc' ! -path '/opt/datadog-agent/run/ipc/*'")
