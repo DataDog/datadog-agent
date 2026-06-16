@@ -19,6 +19,10 @@
             <string>/opt/datadog-agent/bin/agent/agent</string>
             <string>run</string>
         </array>
+        <key>WatchPaths</key>
+        <array>
+            <string>/opt/datadog-agent/etc/datadog.yaml</string>
+        </array>
         <key>StandardOutPath</key>
         <string>/opt/datadog-agent/logs/launchd.log</string>
         <key>StandardErrorPath</key>

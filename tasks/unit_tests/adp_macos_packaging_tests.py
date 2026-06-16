@@ -36,6 +36,13 @@ class TestADPMacOSPackaging(unittest.TestCase):
         self.assertIn('out = "etc/com.datadoghq.data-plane.plist.example"', build_file)
         self.assertIn('":launchd_data_plane_plist_example"', build_file)
 
+    def test_agent_launchdaemon_watches_its_config(self):
+        plist_path = REPO_ROOT / "packages/macos/app/launchd.plist.example.in"
+        plist = plistlib.loads(plist_path.read_bytes())
+
+        self.assertEqual(plist["Label"], "com.datadoghq.agent")
+        self.assertEqual(plist["WatchPaths"], ["/opt/datadog-agent/etc/datadog.yaml"])
+
     def test_adp_launchdaemon_invokes_adp_with_macos_config(self):
         plist_path = REPO_ROOT / "packages/macos/app/launchd.data-plane.plist.example.in"
         plist = plistlib.loads(plist_path.read_bytes())
