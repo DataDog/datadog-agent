@@ -81,8 +81,8 @@ func TestCheck_ExtraErrorsSurviveHTTPRoundtrip(t *testing.T) {
 	fic := fakeintakeclient.NewClient(fi.URL(), fakeintakeclient.WithoutStrictFakeintakeIDCheck())
 
 	tests := []struct {
-		name           string
-		buildContext   func(t *testing.T) map[string]string
+		name         string
+		buildContext func(t *testing.T) map[string]string
 		// wantErrors maps each expected config path to the substrings that must
 		// appear in its error messages (one substring per message, in order).
 		wantErrors map[string][]string
