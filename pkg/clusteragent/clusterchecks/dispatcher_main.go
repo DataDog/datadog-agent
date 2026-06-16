@@ -318,6 +318,24 @@ func (d *dispatcher) scanUnscheduledChecks() {
 	}
 }
 
+// logWarmupSummary logs the nodes seen by the leader at the end of the warmup phase.
+func (d *dispatcher) logWarmupSummary() {
+	d.store.RLock()
+	defer d.store.RUnlock()
+
+	clcCount, nodeAgentCount := 0, 0
+	for _, node := range d.store.nodes {
+		switch node.nodetype {
+		case cctypes.NodeTypeCLCRunner:
+			clcCount++
+		case cctypes.NodeTypeNodeAgent:
+			nodeAgentCount++
+		}
+	}
+	log.Infof("Warmup summary: %d nodes registered (%d CLC runners, %d node agents)",
+		len(d.store.nodes), clcCount, nodeAgentCount)
+}
+
 // UpdateAdvancedDispatchingMode checks if any node agents are in the pool
 // and disables advanced dispatching if found
 func (d *dispatcher) UpdateAdvancedDispatchingMode() {
