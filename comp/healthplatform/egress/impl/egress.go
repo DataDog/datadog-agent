@@ -9,7 +9,6 @@ package egressimpl
 import (
 	"context"
 	"fmt"
-	"sync"
 	"time"
 
 	"github.com/DataDog/agent-payload/v5/healthplatform"
@@ -27,31 +26,30 @@ import (
 )
 
 const (
-	// defaultEgressInterval is the default interval between health report submissions.
-	// Matches the previous forwarder default for backward compatibility.
 	defaultEgressInterval = 15 * time.Minute
+	sendTimeout           = 30 * time.Second
+	eventType             = "agent-health-issues"
 
-	// sendTimeout is the HTTP timeout for a single forwarder.Send call.
-	sendTimeout = 30 * time.Second
-
-	// eventType is the health report event type consumed by the intake.
-	eventType = "agent-health-issues"
+	// resolvedChSize is the capacity of the resolved-issue delivery channel.
+	// Sized to comfortably hold all pending resolved issues; overflow is logged
+	// as a warning (items are recoverable from disk on restart).
+	resolvedChSize = 1024
 )
 
 // egress drives the periodic outbound POST to the Datadog intake.
-// active issues are re-sent every tick; resolved tombstones (toSendOnce) are
-// trimmed by a slice-length operation after a successful send, so exactly-once
-// forwarding is structural rather than conditional.
+// Active issues are queried from the store on every tick. Resolved issues are
+// delivered via a channel owned by the egress; observers write to it via the
+// registered IssueObserver. On send failure drained items are returned so they
+// are retried on the next tick.
 type egress struct {
 	log         log.Component
 	interval    time.Duration
 	hostname    string
 	agentFlavor string
+	store       storedef.Component
 	forwarder   forwarderdef.Component
 
-	pendingMu  sync.Mutex
-	active     map[string]*healthplatform.Issue // re-sent every tick until resolved
-	toSendOnce []*healthplatform.Issue          // tombstones; trimmed after a successful send
+	resolvedCh chan *healthplatform.Issue // resolved issues pending send; drained each tick
 
 	stopCh chan struct{}
 	doneCh chan struct{}
@@ -89,17 +87,23 @@ func New(reqs Requires) egressdef.Component {
 		interval:    interval,
 		hostname:    hostname,
 		agentFlavor: flavor.GetFlavor(),
+		store:       reqs.Store,
 		forwarder:   reqs.Forwarder,
-		active:      make(map[string]*healthplatform.Issue),
+		resolvedCh:  make(chan *healthplatform.Issue, resolvedChSize),
 		stopCh:      make(chan struct{}),
 		doneCh:      make(chan struct{}),
 	}
 
-	// Callbacks must be registered before OnStart: the store's loadFromDisk fires
-	// first and calls onResolveIssue for any RESOLVED issues found on disk.
-	reqs.Store.SetEgressCallbacks(storedef.EgressCallbacks{
-		OnReportIssue:  e.onReportIssue,
-		OnResolveIssue: e.onResolveIssue,
+	// Register before OnStart: loadFromDisk fires first and calls OnIssueResolved
+	// for any resolved issues found on disk.
+	reqs.Store.RegisterObserver(storedef.IssueObserver{
+		OnIssueResolved: func(resolved *healthplatform.Issue) {
+			select {
+			case e.resolvedCh <- resolved:
+			default:
+				e.log.Warnf("Health platform egress: resolved channel full, %s recoverable from disk", resolved.Id)
+			}
+		},
 	})
 
 	reqs.Lifecycle.Append(compdef.Hook{
@@ -139,63 +143,52 @@ func (e *egress) run() {
 	}
 }
 
-func (e *egress) onReportIssue(issue *healthplatform.Issue) {
-	e.pendingMu.Lock()
-	e.active[issue.Id] = issue
-	e.pendingMu.Unlock()
-}
-
-// onResolveIssue removes the issue from active and queues the tombstone for one send.
-func (e *egress) onResolveIssue(tombstone *healthplatform.Issue) {
-	e.pendingMu.Lock()
-	delete(e.active, tombstone.Id)
-	e.toSendOnce = append(e.toSendOnce, tombstone)
-	e.pendingMu.Unlock()
-}
-
 func (e *egress) tick() {
-	e.pendingMu.Lock()
-	if len(e.active) == 0 && len(e.toSendOnce) == 0 {
-		e.pendingMu.Unlock()
+	_, active := e.store.GetAllIssues()
+
+	// Drain the resolved-issue channel into a tick-local slice.
+	// We just pulled N items out, so on failure there is always room to return them.
+	var resolved []*healthplatform.Issue
+drain:
+	for {
+		select {
+		case r := <-e.resolvedCh:
+			resolved = append(resolved, r)
+		default:
+			break drain
+		}
+	}
+
+	if len(active) == 0 && len(resolved) == 0 {
 		e.log.Debug("Health platform egress: no issues to report, skipping tick")
 		return
 	}
 
-	activeSnap := make(map[string]*healthplatform.Issue, len(e.active))
-	for k, v := range e.active {
-		activeSnap[k] = v
-	}
-	// Take a reference without clearing: we trim by length after a successful
-	// send, so tombstones appended by onResolveIssue during the send are kept.
-	resolvedSnap := e.toSendOnce
-	e.pendingMu.Unlock()
-
-	merged := make(map[string]*healthplatform.Issue, len(activeSnap)+len(resolvedSnap))
-	for k, v := range activeSnap {
+	merged := make(map[string]*healthplatform.Issue, len(active)+len(resolved))
+	for k, v := range active {
 		merged[k] = v
 	}
-	for _, t := range resolvedSnap {
-		merged[t.Id] = t
+	for _, r := range resolved {
+		merged[r.Id] = r
 	}
-
-	report := e.buildReport(merged)
 
 	// Derive from Background: the run loop has no parent context to cancel.
 	ctx, cancel := context.WithTimeout(context.Background(), sendTimeout)
 	defer cancel()
 
-	if err := e.forwarder.Send(ctx, report); err != nil {
+	if err := e.forwarder.Send(ctx, e.buildReport(merged)); err != nil {
 		e.log.Warn(fmt.Sprintf("Health platform egress: failed to send %d issues: %v", len(merged), err))
+		for _, r := range resolved {
+			select {
+			case e.resolvedCh <- r:
+			default:
+				e.log.Warnf("Health platform egress: resolved channel full on retry, %s recoverable from disk", r.Id)
+			}
+		}
 		return
 	}
 
 	e.log.Info(fmt.Sprintf("Health platform egress: sent report with %d issues", len(merged)))
-
-	if len(resolvedSnap) > 0 {
-		e.pendingMu.Lock()
-		e.toSendOnce = e.toSendOnce[len(resolvedSnap):]
-		e.pendingMu.Unlock()
-	}
 }
 
 func (e *egress) buildReport(issues map[string]*healthplatform.Issue) *healthplatform.HealthReport {

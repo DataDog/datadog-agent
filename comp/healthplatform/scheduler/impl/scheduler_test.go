@@ -53,7 +53,7 @@ func (m *mockStore) ResolveIssue(id string) {
 	defer m.mu.Unlock()
 	m.resolvedIDs = append(m.resolvedIDs, id)
 }
-func (m *mockStore) SetEgressCallbacks(_ storedef.EgressCallbacks)                {}
+func (m *mockStore) RegisterObserver(_ storedef.IssueObserver)                    {}
 func (m *mockStore) ReportIssue(_ *healthplatformpayload.Issue) error             { return nil }
 func (m *mockStore) ResolveAllIssues()                                            {}
 func (m *mockStore) GetIssue(_ string) *healthplatformpayload.Issue               { return nil }

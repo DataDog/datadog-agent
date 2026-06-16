@@ -15,24 +15,31 @@ import (
 	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 )
 
-// EgressCallbacks groups the functions the egress registers with the store.
-// The store calls these on state transitions; either field may be nil (no-op).
-type EgressCallbacks struct {
-	// OnReportIssue is called after a new or updated issue is stored.
-	// The issue is a fully-hydrated clone safe for the egress to retain.
-	OnReportIssue func(issue *healthplatformpayload.Issue)
+// IssueObserver is an optional listener that receives notifications when issues
+// change state. It is the single extension point for reactive integrations —
+// the egress uses it to receive resolved issues for delivery, and future
+// consumers such as an MCP server can use it to expose issues to AI agents for
+// proactive remediation.
+//
+// Callbacks are invoked synchronously by the store outside its internal lock.
+// Implementations must not block; use a goroutine if the work is non-trivial.
+type IssueObserver struct {
+	// OnIssueReported is called after a new or updated issue is stored.
+	// The issue is a fully-hydrated clone; PersistedIssue.State distinguishes
+	// NEW from ONGOING so observers can choose to act only on first occurrence.
+	OnIssueReported func(issue *healthplatformpayload.Issue)
 
-	// OnResolveIssue is called when an issue transitions to RESOLVED.
-	// The tombstone is a minimal proto (ID, IssueName, PersistedIssue only).
-	OnResolveIssue func(tombstone *healthplatformpayload.Issue)
+	// OnIssueResolved is called when an issue transitions to RESOLVED.
+	// The resolved issue contains the ID, name, and PersistedIssue state.
+	OnIssueResolved func(resolved *healthplatformpayload.Issue)
 }
 
 // Component is the health platform store component interface.
 type Component interface {
-	// SetEgressCallbacks registers the egress callbacks invoked on state changes.
-	// Must be called before the component's OnStart lifecycle hook fires (i.e.
-	// from the egress constructor, before App.Start).
-	SetEgressCallbacks(cbs EgressCallbacks)
+	// RegisterObserver registers a listener for issue state-change notifications.
+	// Multiple observers may be registered; each receives all events. Observers
+	// registered before OnStart also receive resolved issues re-queued from disk.
+	RegisterObserver(obs IssueObserver)
 
 	// ReportIssue records a new or ongoing issue keyed by issue.Id. Two calls
 	// with the same issue.Id update the same instance (state machine: new →

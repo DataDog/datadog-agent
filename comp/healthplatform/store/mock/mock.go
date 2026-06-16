@@ -59,9 +59,8 @@ func (m *mockHealthPlatform) GetIssue(checkID string) *healthplatformpayload.Iss
 	return proto.Clone(issue).(*healthplatformpayload.Issue)
 }
 
-// SetEgressCallbacks is a no-op in the mock.
-func (m *mockHealthPlatform) SetEgressCallbacks(_ healthplatform.EgressCallbacks) {
-}
+// RegisterObserver is a no-op in the mock.
+func (m *mockHealthPlatform) RegisterObserver(_ healthplatform.IssueObserver) {}
 
 // ResolveIssue clears issues for a specific check
 func (m *mockHealthPlatform) ResolveIssue(checkID string) {

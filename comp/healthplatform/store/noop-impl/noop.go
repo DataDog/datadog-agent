@@ -35,6 +35,9 @@ func NewNoopHealthPlatform() *NoopHealthPlatform {
 	return &NoopHealthPlatform{}
 }
 
+// RegisterObserver does nothing when the health platform is disabled.
+func (n *NoopHealthPlatform) RegisterObserver(_ healthplatform.IssueObserver) {}
+
 // ReportIssue does nothing when the health platform is disabled.
 func (n *NoopHealthPlatform) ReportIssue(_ *healthplatformpayload.Issue) error {
 	return nil
@@ -48,10 +51,6 @@ func (n *NoopHealthPlatform) GetAllIssues() (int, map[string]*healthplatformpayl
 // GetIssue returns nil when the health platform is disabled.
 func (n *NoopHealthPlatform) GetIssue(_ string) *healthplatformpayload.Issue {
 	return nil
-}
-
-// SetEgressCallbacks does nothing when the health platform is disabled.
-func (n *NoopHealthPlatform) SetEgressCallbacks(_ healthplatform.EgressCallbacks) {
 }
 
 // ResolveIssue does nothing when the health platform is disabled.

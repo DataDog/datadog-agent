@@ -80,8 +80,9 @@ type healthPlatformImpl struct {
 	persistedIssues map[string]*PersistedIssue // IssueID → lifecycle state
 	persistence     issuesPersistence
 
-	// Egress callbacks: registered before OnStart fires; called outside issuesMux.
-	egressCbs healthplatformdef.EgressCallbacks
+	// Issue observers: notified on every state transition outside issuesMux.
+	observersMu sync.RWMutex
+	observers   []healthplatformdef.IssueObserver
 
 	// Metrics
 	metrics telemetryMetrics
@@ -331,10 +332,43 @@ func (h *healthPlatformImpl) stop(_ context.Context) error {
 // Egress Callback Registration
 // ============================================================================
 
-// SetEgressCallbacks registers the callbacks the egress wants to receive on
-// state transitions. Must be called before the component's OnStart hook fires.
-func (h *healthPlatformImpl) SetEgressCallbacks(cbs healthplatformdef.EgressCallbacks) {
-	h.egressCbs = cbs
+// RegisterObserver appends an observer that will be notified on every issue
+// state transition. Safe to call at any time; observers registered after
+// OnStart will miss events that occurred before registration.
+func (h *healthPlatformImpl) RegisterObserver(obs healthplatformdef.IssueObserver) {
+	h.observersMu.Lock()
+	h.observers = append(h.observers, obs)
+	h.observersMu.Unlock()
+}
+
+// notifyReported fires OnIssueReported on all registered observers.
+// Must be called outside issuesMux; lean and si must remain valid for the call.
+func (h *healthPlatformImpl) notifyReported(lean *healthplatform.Issue, si *storedIssue) {
+	h.observersMu.RLock()
+	obs := h.observers
+	h.observersMu.RUnlock()
+	if len(obs) == 0 {
+		return
+	}
+	hydrated := proto.Clone(lean).(*healthplatform.Issue)
+	hydrateIssue(hydrated, si)
+	for _, o := range obs {
+		if o.OnIssueReported != nil {
+			o.OnIssueReported(hydrated)
+		}
+	}
+}
+
+// notifyResolved fires OnIssueResolved on all registered observers.
+func (h *healthPlatformImpl) notifyResolved(resolved *healthplatform.Issue) {
+	h.observersMu.RLock()
+	obs := h.observers
+	h.observersMu.RUnlock()
+	for _, o := range obs {
+		if o.OnIssueResolved != nil {
+			o.OnIssueResolved(resolved)
+		}
+	}
 }
 
 // ============================================================================
@@ -428,12 +462,11 @@ func hydrateIssue(issue *healthplatform.Issue, stored *storedIssue) {
 // ============================================================================
 
 // ResolveIssue marks an issue as resolved and removes it from the active set.
-// It fires OnResolveIssue so the egress can forward the tombstone exactly once.
 func (h *healthPlatformImpl) ResolveIssue(issueID string) {
 	h.issuesMux.Lock()
 
 	stateChanged := false
-	var tombstone *healthplatform.Issue
+	var resolved *healthplatform.Issue
 
 	if _, ok := h.issues[issueID]; ok {
 		h.log.Info("Cleared issue: " + issueID)
@@ -449,9 +482,7 @@ func (h *healthPlatformImpl) ResolveIssue(issueID string) {
 			stateChanged = true
 		}
 
-		// Build tombstone for the egress; issued regardless of whether the
-		// issue was in the active set (covers the post-restart re-resolve case).
-		tombstone = &healthplatform.Issue{
+		resolved = &healthplatform.Issue{
 			Id:             issueID,
 			IssueName:      persisted.IssueType,
 			PersistedIssue: persistedIssueToProto(persisted),
@@ -460,8 +491,8 @@ func (h *healthPlatformImpl) ResolveIssue(issueID string) {
 
 	h.issuesMux.Unlock()
 
-	if tombstone != nil && h.egressCbs.OnResolveIssue != nil {
-		h.egressCbs.OnResolveIssue(tombstone)
+	if resolved != nil {
+		h.notifyResolved(resolved)
 	}
 
 	if stateChanged {
@@ -472,18 +503,18 @@ func (h *healthPlatformImpl) ResolveIssue(issueID string) {
 }
 
 // ResolveAllIssues marks every active issue as resolved.
-// Fires OnResolveIssue for each so the egress forwards them as tombstones.
+// Fires OnResolveIssue for each so the egress forwards them as resolved.
 func (h *healthPlatformImpl) ResolveAllIssues() {
 	h.issuesMux.Lock()
 
 	now := time.Now().Format(time.RFC3339)
-	var tombstones []*healthplatform.Issue
+	var resolved []*healthplatform.Issue
 
 	for _, persisted := range h.persistedIssues {
 		if persisted != nil && persisted.State != IssueStateResolved {
 			persisted.State = IssueStateResolved
 			persisted.ResolvedAt = now
-			tombstones = append(tombstones, &healthplatform.Issue{
+			resolved = append(resolved, &healthplatform.Issue{
 				Id:             persisted.IssueID,
 				IssueName:      persisted.IssueType,
 				PersistedIssue: persistedIssueToProto(persisted),
@@ -497,10 +528,8 @@ func (h *healthPlatformImpl) ResolveAllIssues() {
 
 	h.issuesMux.Unlock()
 
-	if h.egressCbs.OnResolveIssue != nil {
-		for _, t := range tombstones {
-			h.egressCbs.OnResolveIssue(t)
-		}
+	for _, t := range resolved {
+		h.notifyResolved(t)
 	}
 
 	if err := h.saveToDisk(); err != nil {
@@ -613,12 +642,7 @@ func (h *healthPlatformImpl) storeIssue(issueType string, issue *healthplatform.
 
 	h.issuesMux.Unlock()
 
-	if h.egressCbs.OnReportIssue != nil {
-		// Rehydrate Extra/Remediation for the egress copy outside the lock.
-		hydrated := proto.Clone(lean).(*healthplatform.Issue)
-		hydrateIssue(hydrated, si)
-		h.egressCbs.OnReportIssue(hydrated)
-	}
+	h.notifyReported(lean, si)
 
 	if err := h.saveToDisk(); err != nil {
 		h.log.Warn("Failed to persist issues to disk: " + err.Error())
@@ -653,7 +677,7 @@ func (h *healthPlatformImpl) loadFromDisk() error {
 	h.issuesMux.Lock()
 
 	activeCount := 0
-	var resolvedTombstones []*healthplatform.Issue
+	var resolvedIssues []*healthplatform.Issue
 
 	for issueID, persisted := range state.Issues {
 		if persisted == nil {
@@ -667,7 +691,7 @@ func (h *healthPlatformImpl) loadFromDisk() error {
 		}
 
 		if persisted.State == IssueStateResolved {
-			resolvedTombstones = append(resolvedTombstones, &healthplatform.Issue{
+			resolvedIssues = append(resolvedIssues, &healthplatform.Issue{
 				Id:             issueID,
 				IssueName:      persisted.IssueType,
 				PersistedIssue: persistedIssueToProto(persisted),
@@ -682,12 +706,10 @@ func (h *healthPlatformImpl) loadFromDisk() error {
 	h.issuesMux.Unlock()
 
 	h.log.Info(fmt.Sprintf("Loaded %d persisted issues (%d active, %d resolved pending send)",
-		len(state.Issues), activeCount, len(resolvedTombstones)))
+		len(state.Issues), activeCount, len(resolvedIssues)))
 
-	if h.egressCbs.OnResolveIssue != nil {
-		for _, t := range resolvedTombstones {
-			h.egressCbs.OnResolveIssue(t)
-		}
+	for _, t := range resolvedIssues {
+		h.notifyResolved(t)
 	}
 
 	return nil

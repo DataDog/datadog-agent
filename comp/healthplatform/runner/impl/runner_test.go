@@ -42,7 +42,7 @@ func (m *mockStore) ReportIssue(issue *healthplatformpayload.Issue) error {
 	return nil
 }
 
-func (m *mockStore) SetEgressCallbacks(_ storedef.EgressCallbacks)                {}
+func (m *mockStore) RegisterObserver(_ storedef.IssueObserver)                    {}
 func (m *mockStore) ResolveIssue(_ string)                                        {}
 func (m *mockStore) ResolveAllIssues()                                            {}
 func (m *mockStore) GetIssue(_ string) *healthplatformpayload.Issue               { return nil }
