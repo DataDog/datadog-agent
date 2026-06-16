@@ -13,6 +13,7 @@ import (
 	"io"
 	"net/http"
 	"regexp"
+	"time"
 
 	jsoniter "github.com/json-iterator/go"
 	corev1 "k8s.io/api/core/v1"
@@ -73,8 +74,9 @@ type MinimalPodSpec struct {
 
 // MinimalContainer contains only the container fields we need
 type MinimalContainer struct {
-	Name      string                      `json:"name"`
-	Resources corev1.ResourceRequirements `json:"resources,omitempty"`
+	Name         string                         `json:"name"`
+	Resources    corev1.ResourceRequirements    `json:"resources,omitempty"`
+	ResizePolicy []corev1.ContainerResizePolicy `json:"resizePolicy,omitempty"`
 }
 
 // MinimalVolume contains only the volume fields we need
@@ -133,6 +135,13 @@ func (p *MinimalPod) DeepCopyObject() runtime.Object {
 				resOut.Claims = make([]corev1.ResourceClaim, len(resIn.Claims))
 				for j := range resIn.Claims {
 					resIn.Claims[j].DeepCopyInto(&resOut.Claims[j])
+				}
+			}
+
+			if p.Spec.Containers[i].ResizePolicy != nil {
+				out.Spec.Containers[i].ResizePolicy = make([]corev1.ContainerResizePolicy, len(p.Spec.Containers[i].ResizePolicy))
+				for j := range p.Spec.Containers[i].ResizePolicy {
+					p.Spec.Containers[i].ResizePolicy[j].DeepCopyInto(&out.Spec.Containers[i].ResizePolicy[j])
 				}
 			}
 		}
@@ -267,13 +276,28 @@ func (p minimalPodParser) Parse(obj interface{}) workloadmeta.Entity {
 	}
 
 	var ready bool
+	var readyTimestamp *time.Time
 	for _, condition := range pod.Status.Conditions {
 		if condition.Type == corev1.PodReady {
 			if condition.Status == corev1.ConditionTrue {
 				ready = true
+				// Leave readyTimestamp nil when the transition time is unknown (omitted/zero),
+				// so the warmup gate treats the readiness time as unknown rather than year 1.
+				if !condition.LastTransitionTime.IsZero() {
+					t := condition.LastTransitionTime.Time
+					readyTimestamp = &t
+				}
 			}
 			break
 		}
+	}
+
+	// DeletionTimestamp is set once the pod is terminating; cluster-agent workload autoscaling
+	// uses it to exclude terminating pods from its replica calculation (matching the HPA).
+	var deletionTimestamp *time.Time
+	if pod.DeletionTimestamp != nil {
+		t := pod.DeletionTimestamp.Time
+		deletionTimestamp = &t
 	}
 
 	var pvcNames []string
@@ -319,6 +343,7 @@ func (p minimalPodParser) Parse(obj interface{}) workloadmeta.Entity {
 		if memoryLimit, found := container.Resources.Limits[corev1.ResourceMemory]; found {
 			c.Resources.MemoryLimit = kubeutil.FormatMemoryRequests(memoryLimit)
 		}
+		c.ResizePolicy = kubernetesresourceparsers.ResizePolicyFromContainerResizePolicy(container.ResizePolicy)
 		containersList = append(containersList, c)
 	}
 
@@ -344,6 +369,8 @@ func (p minimalPodParser) Parse(obj interface{}) workloadmeta.Entity {
 		GPUVendorList:              gpuVendorList,
 		Containers:                 containersList,
 		CreationTimestamp:          pod.CreationTimestamp.Time,
+		ReadyTimestamp:             readyTimestamp,
+		DeletionTimestamp:          deletionTimestamp,
 		NodeName:                   pod.Spec.NodeName,
 	}
 }

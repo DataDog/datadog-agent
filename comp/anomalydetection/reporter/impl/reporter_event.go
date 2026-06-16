@@ -52,7 +52,7 @@ func (r *EventReporter) SetStorage(storage observerdef.StorageReader) {
 // is removed from seenCorrelations so it fires again on the next activation.
 // Patterns that only ever appear via CorrelationHistory (no active phase) are
 // emitted once and stay seen for the lifetime of the agent.
-func (r *EventReporter) Report(output reporterdef.ReportOutput) {
+func (r *EventReporter) Report(output reporterdef.ReportOutput) bool {
 	if r.seenCorrelations == nil {
 		r.seenCorrelations = make(map[string]bool)
 	}
@@ -71,6 +71,7 @@ func (r *EventReporter) Report(output reporterdef.ReportOutput) {
 	// the pattern unmarked so the next advance retries publication. A
 	// persistent failure will keep producing one error log per advance until
 	// either the forwarder recovers or the correlation goes inactive.
+	emitted := false
 	for _, ac := range output.CorrelationHistory {
 		if !r.seenCorrelations[ac.Pattern] {
 			if err := r.sender.send(ac); err != nil {
@@ -78,6 +79,7 @@ func (r *EventReporter) Report(output reporterdef.ReportOutput) {
 				continue
 			}
 			r.seenCorrelations[ac.Pattern] = true
+			emitted = true
 		}
 	}
 
@@ -96,4 +98,5 @@ func (r *EventReporter) Report(output reporterdef.ReportOutput) {
 	for pattern := range currentlyActive {
 		r.activeBefore[pattern] = true
 	}
+	return emitted
 }

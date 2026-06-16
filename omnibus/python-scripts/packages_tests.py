@@ -1,8 +1,12 @@
 import unittest
 from packages import extract_version, create_python_installed_packages_file, create_diff_installed_packages_file, check_file_owner_system_windows
+from packages import run_command, install_datadog_package, install_dependency_package, install_diff_packages_file
+from packages import IntegrationInstallError, IntegrationsRestoreError
+import packages
 import packaging.requirements
 import os
 import tempfile
+from unittest.mock import patch, call, MagicMock
 
 class TestPackages(unittest.TestCase):
 
@@ -68,3 +72,111 @@ class TestPackages(unittest.TestCase):
         # running rmdir verifies that the directory is empty
         # asserts no extra files are created
         os.rmdir(test_directory)
+
+    # ------------------------------------------------------------------ #
+    # run_command
+    # ------------------------------------------------------------------ #
+
+    def test_run_command_success_returns_zero_rc(self):
+        with patch('subprocess.run') as mock_run:
+            mock_run.return_value = MagicMock(stdout='ok\n', stderr='', returncode=0)
+            stdout, stderr, rc = run_command(['echo', 'ok'])
+        self.assertEqual(rc, 0)
+        self.assertEqual(stdout, 'ok\n')
+
+    def test_run_command_failure_returns_nonzero_rc(self):
+        import subprocess
+        with patch('subprocess.run') as mock_run:
+            exc = subprocess.CalledProcessError(1, ['false'], output='', stderr='something went wrong')
+            mock_run.side_effect = exc
+            stdout, stderr, rc = run_command(['false'])
+        self.assertEqual(rc, 1)
+        self.assertEqual(stderr, 'something went wrong')
+
+    # ------------------------------------------------------------------ #
+    # install_datadog_package — retry logic
+    # ------------------------------------------------------------------ #
+
+    @unittest.skipIf(os.name == 'nt', "Skip on Windows")
+    def test_install_datadog_package_succeeds_on_first_attempt(self):
+        with patch('packages.run_command', return_value=('', '', 0)) as mock_cmd:
+            install_datadog_package('datadog-ping==1.0.2', '/tmp/agent')
+        mock_cmd.assert_called_once()
+
+    @unittest.skipIf(os.name == 'nt', "Skip on Windows")
+    def test_install_datadog_package_succeeds_on_retry(self):
+        """First attempt fails, second succeeds — no exception raised."""
+        with patch('packages.run_command', side_effect=[('', 'err', 1), ('', '', 0)]) as mock_cmd:
+            install_datadog_package('datadog-ping==1.0.2', '/tmp/agent')
+        self.assertEqual(mock_cmd.call_count, 2)
+
+    @unittest.skipIf(os.name == 'nt', "Skip on Windows")
+    def test_install_datadog_package_raises_after_two_failures(self):
+        """Both attempts fail — IntegrationInstallError is raised."""
+        with patch('packages.run_command', return_value=('', 'some error', 2)) as mock_cmd:
+            with self.assertRaises(IntegrationInstallError) as ctx:
+                install_datadog_package('datadog-ping==1.0.2', '/tmp/agent')
+        self.assertEqual(mock_cmd.call_count, 2)
+        self.assertEqual(ctx.exception.package, 'datadog-ping==1.0.2')
+        self.assertEqual(ctx.exception.returncode, 2)
+
+    # ------------------------------------------------------------------ #
+    # install_diff_packages_file — error collection
+    # ------------------------------------------------------------------ #
+
+    @unittest.skipIf(os.name == 'nt', "Skip on Windows")
+    def test_install_diff_packages_file_collects_failures(self):
+        """All packages are attempted even when some fail; IntegrationsRestoreError lists failures."""
+        install_dir = tempfile.mkdtemp()
+        storage_dir = tempfile.mkdtemp()
+        diff_file = os.path.join(storage_dir, '.diff_python_installed_packages.txt')
+        req_file = os.path.join(install_dir, 'requirements-agent-release.txt')
+
+        with open(diff_file, 'w') as f:
+            f.write("# DO NOT REMOVE/MODIFY\n")
+            f.write("datadog-ping==1.0.2\n")
+            f.write("datadog-snmp==1.0.0\n")
+
+        with open(req_file, 'w') as f:
+            f.write('')
+
+        # install_datadog_package always raises
+        with patch('packages.install_datadog_package', side_effect=IntegrationInstallError('pkg', 1, 'err')) as mock_install:
+            with self.assertRaises(IntegrationsRestoreError) as ctx:
+                install_diff_packages_file(install_dir, diff_file, req_file)
+
+        # Both packages were attempted
+        self.assertEqual(mock_install.call_count, 2)
+        self.assertEqual(len(ctx.exception.failures), 2)
+
+        # Cleanup
+        os.remove(diff_file)
+        os.remove(req_file)
+        os.rmdir(install_dir)
+        os.rmdir(storage_dir)
+
+    @unittest.skipIf(os.name == 'nt', "Skip on Windows")
+    def test_install_diff_packages_file_succeeds_silently(self):
+        """When all installs succeed no exception is raised."""
+        install_dir = tempfile.mkdtemp()
+        storage_dir = tempfile.mkdtemp()
+        diff_file = os.path.join(storage_dir, '.diff_python_installed_packages.txt')
+        req_file = os.path.join(install_dir, 'requirements-agent-release.txt')
+
+        with open(diff_file, 'w') as f:
+            f.write("# DO NOT REMOVE/MODIFY\n")
+            f.write("datadog-ping==1.0.2\n")
+
+        with open(req_file, 'w') as f:
+            f.write('')
+
+        with patch('packages.install_datadog_package') as mock_install:
+            install_diff_packages_file(install_dir, diff_file, req_file)  # must not raise
+
+        mock_install.assert_called_once_with('datadog-ping==1.0.2', install_dir)
+
+        # Cleanup
+        os.remove(diff_file)
+        os.remove(req_file)
+        os.rmdir(install_dir)
+        os.rmdir(storage_dir)

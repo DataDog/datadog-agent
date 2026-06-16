@@ -17,7 +17,8 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
-	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/def"
+	forwarderimpl "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/impl"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	orchestratorforwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/def"
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
@@ -117,7 +118,7 @@ type statsd struct {
 }
 
 type forwarders struct {
-	containerLifecycle *forwarder.DefaultForwarder
+	containerLifecycle *forwarderimpl.DefaultForwarder
 }
 
 type dataOutputs struct {
@@ -430,6 +431,19 @@ func (d *AgentDemultiplexer) Stop() {
 		d.noAggStreamWorker.stop()
 	}
 
+	stopCtx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	// If we are flushing incomplete bucket, drain in-flight samples.
+	if forceFlushAll {
+		for _, worker := range d.statsd.workers {
+			worker.shutdown(stopCtx)
+		}
+		for _, worker := range d.statsd.workers {
+			worker.waitForShutdown(stopCtx)
+		}
+	}
+
 	// do a manual complete flush then stop all automatic flush & the mainloop
 	trigger := trigger{
 		time:              time.Now(),
@@ -437,17 +451,15 @@ func (d *AgentDemultiplexer) Stop() {
 		waitForSerializer: true,
 		forceFlushAll:     forceFlushAll,
 	}
-	timeoutStart := time.Now()
 
 	select {
-	case <-time.After(timeout):
+	case <-stopCtx.Done():
 		d.log.Errorf("triggering flushing data on Stop() timed out")
 
 	case d.stopChan <- &trigger:
-		timeout = timeout - time.Since(timeoutStart)
 		select {
 		case <-trigger.blockChan:
-		case <-time.After(timeout):
+		case <-stopCtx.Done():
 			d.log.Errorf("completing flushing data on Stop() timed out")
 		}
 	}
@@ -647,14 +659,14 @@ func (d *AgentDemultiplexer) AggregateSamples(shard TimeSamplerID, samples metri
 	// its buffering + the fact that it is another goroutine processing the samples,
 	// it should get back to the caller as fast as possible once the samples are
 	// in the channel.
-	d.statsd.workers[shard].samplesChan <- samples
+	d.statsd.workers[shard].addSamples(samples)
 }
 
 // AggregateSample adds a MetricSample in the first DogStatsD time sampler.
 func (d *AgentDemultiplexer) AggregateSample(sample metrics.MetricSample) {
 	batch := d.GetMetricSamplePool().GetBatch()
 	batch[0] = sample
-	d.statsd.workers[0].samplesChan <- batch[:1]
+	d.statsd.workers[0].addSamples(batch[:1])
 }
 
 // AggregateCheckSample adds check sample sent by a check from one of the collectors into a check sampler pipeline.

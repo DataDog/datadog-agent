@@ -123,6 +123,8 @@ type LogsConfig struct {
 	// ExperimentalAdaptiveSampling provides per-source overrides for the experimental adaptive sampler.
 	// It maps to the 'experimental_adaptive_sampling' key in the YAML configuration.
 	ExperimentalAdaptiveSampling *SourceAdaptiveSamplingOptions `mapstructure:"experimental_adaptive_sampling" json:"experimental_adaptive_sampling" yaml:"experimental_adaptive_sampling"`
+	// ExperimentalNoisyLogDetection overrides the global noisy log detection toggle for this source when set.
+	ExperimentalNoisyLogDetection *bool `mapstructure:"experimental_noisy_log_detection" json:"experimental_noisy_log_detection" yaml:"experimental_noisy_log_detection"`
 	// CustomSamples holds the raw string content of the 'auto_multi_line_detection_custom_samples' YAML block.
 	// Downstream code will be responsible for parsing this string.
 	AutoMultiLineSamples []*AutoMultilineSample   `mapstructure:"auto_multi_line_detection_custom_samples" json:"auto_multi_line_detection_custom_samples" yaml:"auto_multi_line_detection_custom_samples"`
@@ -165,6 +167,11 @@ type SourceAutoMultiLineOptions struct {
 
 	// TagAggregatedJSON allows to enable or disable the tagging of aggregated JSON logs for this source.
 	TagAggregatedJSON *bool `mapstructure:"tag_aggregated_json" json:"tag_aggregated_json" yaml:"tag_aggregated_json"`
+
+	// StackTraceParsers overrides the list of enabled stack trace parsers for this source.
+	// Valid names match keys in the parser registry (e.g. "go"). An empty list disables
+	// stack trace aggregation for this source.
+	StackTraceParsers *[]string `mapstructure:"stack_trace_parsers" json:"stack_trace_parsers" yaml:"stack_trace_parsers"`
 }
 
 // SourceAdaptiveSamplingOptions defines per-source overrides for the experimental adaptive sampler.
@@ -189,6 +196,9 @@ type SourceAdaptiveSamplingOptions struct {
 
 	// ProtectImportantLogs overrides whether important logs bypass adaptive sampling for this source when set.
 	ProtectImportantLogs *bool `mapstructure:"protect_important_logs" json:"protect_important_logs" yaml:"protect_important_logs"`
+
+	// TagPatternHash overrides whether logs are tagged with their sampler pattern hash for this source when set.
+	TagPatternHash *bool `mapstructure:"tag_pattern_hash" json:"tag_pattern_hash" yaml:"tag_pattern_hash"`
 
 	// Include limits adaptive sampling to logs matching at least one rule when set.
 	Include []*AdaptiveSamplingRule `mapstructure:"include" json:"include" yaml:"include"`

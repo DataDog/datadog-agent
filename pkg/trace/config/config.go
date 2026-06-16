@@ -5,6 +5,8 @@
 
 package config
 
+//go:generate go run go.uber.org/mock/mockgen -source=$GOFILE -package=$GOPACKAGE -destination=mock_remote_client.go -build_constraint test
+
 import (
 	"crypto/tls"
 	"errors"
@@ -552,6 +554,15 @@ type AgentConfig struct {
 	RemoteConfigClient RemoteClient `json:"-"`
 	// MRFRemoteConfigClient retrieves MRF updates from the remote config DC.
 	MRFRemoteConfigClient RemoteClient `json:"-"`
+
+	// RemoteConfigAPMSamplingEnabled gates the trace-agent's APM_SAMPLING subscription.
+	RemoteConfigAPMSamplingEnabled bool
+	// RemoteConfigAgentConfigEnabled gates the trace-agent's AGENT_CONFIG subscription.
+	// When the user has not set remote_configuration.agent_config.enabled explicitly,
+	// this is initialised by inheriting remote_configuration.apm_sampling.enabled.
+	RemoteConfigAgentConfigEnabled bool
+	// RemoteConfigAPMSemanticsEnabled gates the trace-agent's APM_SEMANTIC_CORE_DD subscription.
+	RemoteConfigAPMSemanticsEnabled bool
 
 	// ContainerTags ...
 	ContainerTags func(cid string) ([]string, error) `json:"-"`
