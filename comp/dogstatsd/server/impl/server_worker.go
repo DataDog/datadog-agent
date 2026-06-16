@@ -64,15 +64,15 @@ func (w *worker) run() {
 	for {
 		select {
 		case <-w.server.stopChan:
-			// On stop, optionally flush the batcher's pending samples into the
-			// time sampler before exiting. Gated by
-			// dogstatsd_flush_incomplete_buckets so that short-lived processes
-			// (serverless-init) report everything they have; long-running agents
-			// leave it off and simply exit. stop() waits on workerWg, so the
-			// flush is guaranteed to complete before the demultiplexer is torn
-			// down.
+			// On stop, optionally drain any still-queued packets and flush the
+			// batcher's pending samples into the time sampler before exiting.
+			// Gated by dogstatsd_flush_incomplete_buckets so that short-lived
+			// processes (serverless-init) report everything they have;
+			// long-running agents leave it off and simply exit. stop() waits on
+			// workerWg, so the drain and flush are guaranteed to complete before
+			// the demultiplexer is torn down.
 			if w.server.config.GetBool("dogstatsd_flush_incomplete_buckets") {
-				w.batcher.flush()
+				w.drainAndFlush()
 			}
 			return
 		case <-w.server.health.C:
@@ -81,12 +81,35 @@ func (w *worker) run() {
 		case filterList := <-w.FilterListUpdate:
 			w.filterList = filterList
 		case ps := <-w.server.packetsIn:
-			w.packetsTelemetry.TelemetryUntrackPackets(ps)
-			w.samples = w.samples[0:0]
-			// we return the samples in case the slice was extended
-			// when parsing the packets
-			w.samples = w.server.parsePackets(w.batcher, w.parser, ps, w.samples, &w.filterList)
+			w.handlePackets(ps)
 		}
 
+	}
+}
+
+// handlePackets parses one batch of packets into the worker's batcher.
+func (w *worker) handlePackets(ps packets.Packets) {
+	w.packetsTelemetry.TelemetryUntrackPackets(ps)
+	w.samples = w.samples[0:0]
+	// we return the samples in case the slice was extended
+	// when parsing the packets
+	w.samples = w.server.parsePackets(w.batcher, w.parser, ps, w.samples, &w.filterList)
+}
+
+// drainAndFlush parses any packets still queued in packetsIn, then flushes the
+// batcher into the time sampler. Used on stop: stopping the listeners can leave
+// assembled packets in packetsIn, and the random select in run could otherwise
+// exit before they are parsed, dropping them. The listeners are already stopped
+// by the time stopChan is closed, so no new packets are produced and the
+// non-blocking drain terminates once the queue is empty.
+func (w *worker) drainAndFlush() {
+	for {
+		select {
+		case ps := <-w.server.packetsIn:
+			w.handlePackets(ps)
+		default:
+			w.batcher.flush()
+			return
+		}
 	}
 }
