@@ -384,13 +384,10 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/security/ebpf/tests
 # gazelle:exclude pkg/security/generators/backend_doc
 # gazelle:exclude pkg/security/module
-# gazelle:exclude pkg/security/probe/constantfetch
+# gazelle:exclude pkg/security/probe/constantfetch/btfhub
 # gazelle:exclude pkg/security/probe/selftests
 # gazelle:exclude pkg/security/process_list
 # gazelle:exclude pkg/security/proto/api/transform
-# gazelle:exclude pkg/security/rules
-# gazelle:exclude pkg/security/security_profile
-# gazelle:exclude pkg/security/serializers
 # gazelle:exclude pkg/serverless/logs
 # gazelle:exclude pkg/serverless/metrics
 # gazelle:exclude pkg/serverless/otlp
