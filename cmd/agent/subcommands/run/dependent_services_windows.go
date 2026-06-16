@@ -7,6 +7,9 @@
 package run
 
 import (
+	"os"
+	"path/filepath"
+
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
@@ -100,7 +103,7 @@ func subservices(coreConf model.Reader, sysprobeConf model.Reader) []Servicedef 
 				"otelcollector.enabled": coreConf,
 			},
 			suppressIf: func() bool {
-				return winutil.DDOTProcmgrProcessDefinitionExists() && coreConf.GetBool("process_manager.enabled")
+				return ddotProcmgrProcessDefinitionExists() && coreConf.GetBool("process_manager.enabled")
 			},
 			serviceName:    "datadog-otel-agent",
 			serviceInit:    otelInit,
@@ -231,4 +234,20 @@ func stopDependentServices(coreConf model.Reader, sysprobeConf model.Reader) {
 			log.Infof("Service %s is not configured to stop, not stopping", svc.name)
 		}
 	}
+}
+
+const ddotProcmgrProcessDefinitionFile = "datadog-agent-ddot.yaml"
+
+// ddotProcmgrProcessDefinitionExists reports whether dd-procmgr is configured to supervise DDOT via
+// processes.d (fleet OCI extension layout). When this file is absent, the host still relies on the
+// datadog-otel-agent Windows service started by the Agent. The agent suppresses starting that SCM
+// service when this file exists and process_manager.enabled is true.
+func ddotProcmgrProcessDefinitionExists() bool {
+	installPath, err := winutil.GetProgramFilesDirForProduct("Datadog Agent")
+	if err != nil || installPath == "" {
+		return false
+	}
+	p := filepath.Join(installPath, "processes.d", ddotProcmgrProcessDefinitionFile)
+	st, err := os.Stat(p)
+	return err == nil && !st.IsDir()
 }
