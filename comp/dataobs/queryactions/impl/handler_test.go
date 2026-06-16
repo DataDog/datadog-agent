@@ -41,12 +41,46 @@ func newMockAutodiscovery(t *testing.T, configs []integration.Config) autodiscov
 
 func newTestComponentWithAC(t *testing.T, configs []integration.Config) *component {
 	t.Helper()
-	return &component{
+	c, _ := newTestComponentWithMock(t, configs)
+	return c
+}
+
+// newTestComponentWithMock returns the component together with the mock autodiscovery backing it,
+// so tests can mutate the visible config set between updates (see applyToMock).
+func newTestComponentWithMock(t *testing.T, configs []integration.Config) (*component, *mockAutodiscovery) {
+	t.Helper()
+	m := &mockAutodiscovery{
+		Component: fxutil.Test[autodiscovery.Component](t, noopautoconfig.Module()),
+		configs:   configs,
+	}
+	c := &component{
 		log:           logmock.New(t),
-		ac:            newMockAutodiscovery(t, configs),
+		ac:            m,
 		activeConfigs: make(map[string]activeConfigEntry),
 		managedBases:  make(map[string]*managedBaseEntry),
 	}
+	return c, m
+}
+
+// applyToMock mutates the mock's config list the way autodiscovery reconciles ConfigChanges:
+// unscheduled configs are removed (by digest) and scheduled configs are added. This lets tests
+// exercise the across-update behaviour where GetUnresolvedConfigs reflects the reconciled state
+// (the taken-over base gone, our DO check + remainder present) rather than each provider's
+// emitted set.
+func applyToMock(m *mockAutodiscovery, changes integration.ConfigChanges) {
+	removed := make(map[string]bool, len(changes.Unschedule))
+	for _, cfg := range changes.Unschedule {
+		removed[cfg.Digest()] = true
+	}
+	next := make([]integration.Config, 0, len(m.configs)+len(changes.Schedule))
+	for _, cfg := range m.configs {
+		if removed[cfg.Digest()] {
+			continue
+		}
+		next = append(next, cfg)
+	}
+	next = append(next, changes.Schedule...)
+	m.configs = next
 }
 
 func TestIsSupportedIntegration(t *testing.T) {
@@ -645,6 +679,71 @@ func TestOnRCUpdate_MultipleDOConfigsSameBase(t *testing.T) {
 	remainder := findScheduledWithHost(t, changes2, rdsHost)
 	require.Len(t, remainder.Instances, 1)
 	assert.Equal(t, map[string]bool{rdsHost: true}, hostsOf(t, remainder))
+}
+
+// TestOnRCUpdate_UpdateAcrossReconciledState is the regression test for re-resolving our own
+// output as a base. After the first update, autodiscovery has unscheduled the original base
+// config and scheduled our DO check plus the RDS remainder, so GetUnresolvedConfigs no longer
+// returns the original. A second update for the same config_id must still resolve the genuine
+// base (from the managed-base bookkeeping), leave the RDS remainder alone, and never re-schedule
+// a plain localhost instance alongside the DO check (which would double-collect DBM for localhost).
+func TestOnRCUpdate_UpdateAcrossReconciledState(t *testing.T) {
+	const rdsHost = "rds.example.com"
+	postgresCfg := integration.Config{
+		Name:     "postgres",
+		Provider: "file",
+		Instances: []integration.Data{
+			integration.Data("host: localhost\ndata_observability:\n  enabled: true\n"),
+			integration.Data("host: " + rdsHost + "\ndata_observability:\n  enabled: true\n"),
+		},
+	}
+	c, m := newTestComponentWithMock(t, []integration.Config{postgresCfg})
+
+	mkPayload := func(query string) []byte {
+		b, err := json.Marshal(DOQueryPayload{
+			ConfigID:     "cfg-1",
+			DBIdentifier: DBIdentifier{Type: "self-hosted", Host: "localhost"},
+			Queries:      []QuerySpec{{Type: "run_query", Query: query, IntervalSeconds: 60, TimeoutSeconds: 10}},
+		})
+		require.NoError(t, err)
+		return b
+	}
+
+	// Update 1: take over localhost. Reconcile the mock so GetUnresolvedConfigs now reflects AD's
+	// post-schedule state (original gone; DO check + RDS remainder present).
+	_, changes1 := collectStatuses(c, map[string]state.RawConfig{"path/cfg": {Config: mkPayload("SELECT 1")}})
+	applyToMock(m, changes1)
+	for _, cfg := range m.configs {
+		assert.NotEqual(t, postgresCfg.Digest(), cfg.Digest(), "original base must be unscheduled after update 1")
+	}
+
+	// Update 2: same config_id, new query.
+	_, changes2 := collectStatuses(c, map[string]state.RawConfig{"path/cfg": {Config: mkPayload("SELECT 2")}})
+
+	// Only the new DO check is scheduled; the base is not restored and the remainder is untouched.
+	require.Len(t, changes2.Schedule, 1, "only the new DO check should be scheduled")
+	require.Len(t, changes2.Unschedule, 1, "only the previous DO check should be unscheduled")
+	for _, cfg := range changes2.Schedule {
+		assert.NotEqual(t, postgresCfg.Digest(), cfg.Digest(), "base config must not be restored on a same-id update")
+		for _, instanceData := range cfg.Instances {
+			var instance map[string]any
+			require.NoError(t, yaml.Unmarshal(instanceData, &instance))
+			if instance["host"] == "localhost" {
+				doSection, _ := instance["data_observability"].(map[string]any)
+				_, hasQueries := doSection["queries"]
+				assert.True(t, hasQueries, "a scheduled localhost instance must be the DO check (with queries), never a plain duplicate")
+			}
+		}
+	}
+
+	// The new DO check carries the updated query, and exactly one managed base remains.
+	require.Contains(t, c.activeConfigs, "cfg-1")
+	require.Len(t, c.managedBases, 1, "exactly one managed base must remain (the original), not a second derived from our own output")
+	var doInstance map[string]any
+	require.NoError(t, yaml.Unmarshal(changes2.Schedule[0].Instances[0], &doInstance))
+	queries := doInstance["data_observability"].(map[string]any)["queries"].([]any)
+	require.Len(t, queries, 1)
+	assert.Equal(t, "SELECT 2", queries[0].(map[string]any)["query"])
 }
 
 // TestOnRCUpdate_NoMatchingPostgres_ReportsError verifies that when no postgres instance

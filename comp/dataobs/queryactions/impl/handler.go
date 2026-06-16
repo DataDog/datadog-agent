@@ -294,15 +294,15 @@ func sameConfig(a, b *integration.Config) bool {
 	return a.Digest() == b.Digest()
 }
 
-// findPostgresConfig finds a postgres config that matches the given identifier and has
+// findPostgresConfig finds a base postgres config that matches the given identifier and has
 // data_observability.enabled: true. Returns the matching config and the already-parsed
 // instance map to avoid re-parsing YAML in callers.
 func (c *component) findPostgresConfig(dbID *DBIdentifier) (*integration.Config, map[string]any, error) {
-	cfgs := c.ac.GetUnresolvedConfigs()
+	candidates := c.candidateBaseConfigs()
 
 	var lastParseErr error
-	for cfgIdx := range cfgs {
-		cfg := cfgs[cfgIdx]
+	for cfgIdx := range candidates {
+		cfg := candidates[cfgIdx]
 		if !isSupportedIntegration(cfg.Name) {
 			continue
 		}
@@ -328,6 +328,46 @@ func (c *component) findPostgresConfig(dbID *DBIdentifier) (*integration.Config,
 	}
 	return nil, nil, fmt.Errorf("no postgres config found for identifier: type=%s, host=%s",
 		dbID.Type, dbID.Host)
+}
+
+// candidateBaseConfigs returns the configs findPostgresConfig may treat as base configs.
+//
+// GetUnresolvedConfigs reflects autodiscovery's reconciled state, not each provider's emitted
+// set: once we take over a base config it is unscheduled and disappears from the list, while the
+// DO check configs and remainder configs we schedule appear in it (and autodiscovery stamps them
+// with our provider name, so the provider field cannot distinguish them). If findPostgresConfig
+// searched that list naively, an update to an already-active config would re-resolve our own DO
+// check config as the "base" — restoring the genuine base alongside the new DO check and
+// double-scheduling the targeted instance.
+//
+// To avoid that, the candidate set is:
+//   - the original of every base config we already manage (authoritative: we captured it before
+//     unscheduling it, so it is the genuine pre-DO config even though it is no longer in
+//     GetUnresolvedConfigs), followed by
+//   - the configs currently known to autodiscovery, excluding the DO check configs this provider
+//     has scheduled (identified by digest).
+//
+// Managed originals are listed first; remainder configs need no special handling because every
+// host a remainder contains also appears in its managed original, which is matched first.
+func (c *component) candidateBaseConfigs() []integration.Config {
+	c.activeConfigsMu.Lock()
+	candidates := make([]integration.Config, 0, len(c.managedBases))
+	for _, m := range c.managedBases {
+		candidates = append(candidates, m.original)
+	}
+	ourCheckDigests := make(map[string]bool, len(c.activeConfigs))
+	for _, e := range c.activeConfigs {
+		ourCheckDigests[e.checkConfig.Digest()] = true
+	}
+	c.activeConfigsMu.Unlock()
+
+	for _, cfg := range c.ac.GetUnresolvedConfigs() {
+		if ourCheckDigests[cfg.Digest()] {
+			continue
+		}
+		candidates = append(candidates, cfg)
+	}
+	return candidates
 }
 
 // matchesIdentifier checks if an instance matches the given DB identifier.
