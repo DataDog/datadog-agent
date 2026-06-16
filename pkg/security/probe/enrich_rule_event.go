@@ -26,7 +26,7 @@ import (
 
 // startTimeTolerance covers jiffies precision + boot-time skew between
 // the eBPF-captured ForkTime and gopsutil's /proc/<pid>/stat reading.
-const startTimeTolerance = 50 * time.Millisecond
+const startTimeTolerance = 2 * time.Second
 
 // enrichKind selects which kind of values we re-resolve from /proc on a
 // rule match. Used to share fetch + apply code between argv and envp.
