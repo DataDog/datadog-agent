@@ -82,7 +82,6 @@ pkg_filegroup(
 package_licenses(
     name = "license_files",
     src = ":everything",
-    tags = ["manual"],
     target_compatible_with = select({
         "@platforms//os:windows": ["@platforms//:incompatible"],
         "//conditions:default": [],
