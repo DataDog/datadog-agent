@@ -305,7 +305,7 @@ func New(client dynamic.Interface, logger log.Component, config appsecconfig.Con
 	recorder := eventRecorder{
 		recorder: eventRecorderInstance,
 	}
-	return &envoyGatewayInjectionPattern{
+	base := &envoyGatewayInjectionPattern{
 		client:        client,
 		logger:        logger,
 		config:        config,
@@ -321,4 +321,8 @@ func New(client dynamic.Interface, logger log.Component, config appsecconfig.Con
 			commonAnnotations: config.CommonAnnotations,
 		},
 	}
+	if config.Mode == appsecconfig.InjectionModeSidecar {
+		return &envoyGatewaySidecarPattern{envoyGatewayInjectionPattern: base}
+	}
+	return base
 }

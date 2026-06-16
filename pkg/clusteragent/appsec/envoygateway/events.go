@@ -33,6 +33,7 @@ const (
 // Event reasons for Backend extension API configuration
 const (
 	EventReasonBackendExtensionDisabled = "EnvoyGatewayBackendExtensionDisabled"
+	EventReasonSidecarInjectionSkipped  = "AppSecSidecarInjectionSkipped"
 )
 
 // eventRecorder provides methods to record Kubernetes events for appsec resources
