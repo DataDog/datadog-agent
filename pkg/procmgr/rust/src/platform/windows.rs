@@ -4,6 +4,8 @@
 // Copyright 2026-present Datadog, Inc.
 
 use anyhow::Result;
+use std::ffi::c_void;
+use std::os::windows::ffi::OsStringExt;
 use std::path::PathBuf;
 use std::sync::OnceLock;
 use tokio::sync::Notify;
@@ -252,6 +254,134 @@ pub async fn shutdown_signal() {
         }
         _ = shutdown_notify().notified() => {
             log::info!("received service stop request");
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Child process baseline environment (after `env_clear`)
+// ---------------------------------------------------------------------------
+
+/// Keys copied from the **current** process when `CreateEnvironmentBlock` is unavailable.
+/// Matches the former installer-side snapshot list (minus disk); values come from
+/// dd-procmgrd at spawn time so PATH / profile vars reflect the service account.
+const FALLBACK_ENV_KEYS: &[&str] = &[
+    "SystemRoot",
+    "WINDIR",
+    "SystemDrive",
+    "ProgramData",
+    "ProgramFiles",
+    "ProgramFiles(x86)",
+    "ProgramW6432",
+    "CommonProgramFiles",
+    "CommonProgramFiles(x86)",
+    "CommonProgramW6432",
+    "PUBLIC",
+    "TEMP",
+    "TMP",
+    "Path",
+    "PATHEXT",
+    "LOCALAPPDATA",
+    "APPDATA",
+    "USERPROFILE",
+    "ComSpec",
+];
+
+/// After [`tokio::process::Command::env_clear`], merge a Windows-appropriate baseline so
+/// managed children (e.g. otel-agent) see PATH, profile directories, and system roots for
+/// the **dd-procmgr** process token — not the fleet installer's environment.
+pub fn apply_child_baseline_env(cmd: &mut tokio::process::Command) {
+    if let Err(e) = try_apply_create_environment_block(cmd) {
+        log::warn!("CreateEnvironmentBlock baseline failed ({e:#}); using process-env fallback");
+        apply_fallback_process_env(cmd);
+    }
+}
+
+fn try_apply_create_environment_block(cmd: &mut tokio::process::Command) -> Result<()> {
+    use windows_sys::Win32::Security::{TOKEN_DUPLICATE, TOKEN_QUERY};
+    use windows_sys::Win32::System::Environment::{
+        CreateEnvironmentBlock, DestroyEnvironmentBlock,
+    };
+    use windows_sys::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
+
+    let mut token: HANDLE = std::ptr::null_mut();
+    let ok = unsafe {
+        OpenProcessToken(
+            GetCurrentProcess(),
+            TOKEN_QUERY | TOKEN_DUPLICATE,
+            &mut token,
+        )
+    };
+    if ok == 0 {
+        anyhow::bail!("OpenProcessToken: {}", std::io::Error::last_os_error());
+    }
+
+    let mut env_block: *mut c_void = std::ptr::null_mut();
+    let ok = unsafe { CreateEnvironmentBlock(&mut env_block, token, 0) };
+    if ok == 0 {
+        unsafe {
+            CloseHandle(token);
+        }
+        anyhow::bail!(
+            "CreateEnvironmentBlock: {}",
+            std::io::Error::last_os_error()
+        );
+    }
+
+    merge_wide_env_block_into_cmd(cmd, env_block as *const u16);
+
+    unsafe {
+        let _ = DestroyEnvironmentBlock(env_block as *const c_void);
+        CloseHandle(token);
+    }
+    Ok(())
+}
+
+fn merge_wide_env_block_into_cmd(cmd: &mut tokio::process::Command, block: *const u16) {
+    if block.is_null() {
+        return;
+    }
+    let mut p = block;
+    loop {
+        // SAFETY: `block` must point at a valid NUL-terminated Windows environment block from
+        // `CreateEnvironmentBlock` until `DestroyEnvironmentBlock` is called (caller guarantees).
+        unsafe {
+            if *p == 0 {
+                break;
+            }
+            let entry_start = p;
+            while *p != 0 {
+                p = p.add(1);
+            }
+            let len = (p as usize - entry_start as usize) / std::mem::size_of::<u16>();
+            let slice = std::slice::from_raw_parts(entry_start, len);
+            p = p.add(1);
+            if let Some((k, v)) = split_env_entry_wide(slice) {
+                cmd.env(k, v);
+            }
+        }
+    }
+}
+
+fn split_env_entry_wide(wide: &[u16]) -> Option<(std::ffi::OsString, std::ffi::OsString)> {
+    let eq = wide.iter().position(|&c| c == u16::from(b'='))?;
+    let (k, v) = wide.split_at(eq);
+    let v = &v[1..];
+    if k.is_empty() {
+        return None;
+    }
+    Some((
+        std::ffi::OsString::from_wide(k),
+        std::ffi::OsString::from_wide(v),
+    ))
+}
+
+fn apply_fallback_process_env(cmd: &mut tokio::process::Command) {
+    for &key in FALLBACK_ENV_KEYS {
+        if let Ok(val) = std::env::var(key)
+            && !val.is_empty()
+        {
+            cmd.env(key, val);
         }
     }
 }

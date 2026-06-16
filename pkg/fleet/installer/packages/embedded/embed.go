@@ -36,8 +36,7 @@ var systemdUnits embed.FS
 var DDOTProcessConfig string
 
 // DDOTWindowsProcmgrConfig is the codegen-rendered process manager config for DDOT on Windows
-// (see embedded/tmpl/main.go). Install time replaces __DDOT_*__ placeholders and writes
-// ddot-procmgr-baseline.env next to datadog.yaml for environment_file.
+// (see embedded/tmpl/main.go). Install time replaces __DDOT_*__ placeholders.
 //
 //go:embed tmpl/gen/windows/datadog-agent-ddot.yaml
 var DDOTWindowsProcmgrConfig string

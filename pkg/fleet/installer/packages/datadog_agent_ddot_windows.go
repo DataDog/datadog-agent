@@ -43,18 +43,9 @@ const (
 	coreAgentService = "datadogagent"
 
 	// Basename of the dd-procmgr process definition for DDOT (matches Linux OCI extension hook).
-	ddotProcmgrConfigFileName      = "datadog-agent-ddot.yaml"
-	ddProcmgrServiceName           = "dd-procmgr-service"
-	ddotProcmgrBaselineEnvFileName = "ddot-procmgr-baseline.env"
+	ddotProcmgrConfigFileName = "datadog-agent-ddot.yaml"
+	ddProcmgrServiceName      = "dd-procmgr-service"
 )
-
-// windowsProcmgrBaselineEnvKeys are copied from the installer's process environment into
-// ddot-procmgr-baseline.env so dd-procmgr children inherit a minimal Windows baseline.
-var windowsProcmgrBaselineEnvKeys = []string{
-	"SystemRoot", "WINDIR", "SystemDrive", "ProgramData", "ProgramFiles", "ProgramFiles(x86)", "ProgramW6432",
-	"CommonProgramFiles", "CommonProgramFiles(x86)", "CommonProgramW6432", "PUBLIC", "TEMP", "TMP",
-	"Path", "PATHEXT", "LOCALAPPDATA", "APPDATA", "USERPROFILE", "ComSpec",
-}
 
 // preInstallDatadogAgentDDOT performs pre-installation steps for DDOT on Windows
 func preInstallDatadogAgentDDOT(ctx HookContext) error {
@@ -589,23 +580,6 @@ func writeOTelConfigWindowsExtension(ctx HookContext, extensionPath string) erro
 	return writeOTelConfigCommon(ctx, ddYaml, templatePath, outPath, true, 0o640)
 }
 
-// writeDDOTProcmgrBaselineEnvWindows writes systemd-style KEY=value lines for a minimal Windows
-// environment (PATH, SystemRoot, …) from the current process. dd-procmgr clears the child env;
-// processes.d environment_file merges this file so otel-agent behaves like an SCM-started service.
-func writeDDOTProcmgrBaselineEnvWindows(etcDir string) error {
-	if err := os.MkdirAll(etcDir, 0o755); err != nil {
-		return fmt.Errorf("create etc dir for baseline env: %w", err)
-	}
-	var b strings.Builder
-	for _, k := range windowsProcmgrBaselineEnvKeys {
-		if v, ok := os.LookupEnv(k); ok && v != "" {
-			fmt.Fprintf(&b, "%s=%s\n", k, v)
-		}
-	}
-	p := filepath.Join(etcDir, ddotProcmgrBaselineEnvFileName)
-	return os.WriteFile(p, []byte(b.String()), 0o644)
-}
-
 // writeDDOTProcmgrConfigWindows writes datadog-agent-ddot.yaml next to the MSI install layout so
 // dd-procmgrd picks it up (default_config_dir is InstallPath\processes.d on Windows).
 func writeDDOTProcmgrConfigWindows(installRootResolved string) error {
@@ -629,10 +603,6 @@ func writeDDOTProcmgrConfigWindows(installRootResolved string) error {
 	config = strings.ReplaceAll(config, "__DDOT_ETC_ROOT__", filepath.ToSlash(filepath.Clean(paths.DatadogDataDir)))
 	config = strings.ReplaceAll(config, "__DDOT_FLEET_POLICIES_DIR__", filepath.ToSlash(filepath.Clean(fleetPolicies)))
 
-	if err := writeDDOTProcmgrBaselineEnvWindows(paths.DatadogDataDir); err != nil {
-		return fmt.Errorf("write DDOT procmgr baseline env: %w", err)
-	}
-
 	path := filepath.Join(processesDir, ddotProcmgrConfigFileName)
 	return os.WriteFile(path, []byte(config), 0o644)
 }
@@ -643,9 +613,6 @@ func removeDDOTProcmgrConfigWindows(packageRootResolved string) error {
 		if err := os.Remove(p); err != nil && !os.IsNotExist(err) {
 			return err
 		}
-	}
-	if paths.DatadogDataDir != "" {
-		_ = os.Remove(filepath.Join(paths.DatadogDataDir, ddotProcmgrBaselineEnvFileName))
 	}
 	legacy := filepath.Join(packageRootResolved, "processes.d", ddotProcmgrConfigFileName)
 	if err := os.Remove(legacy); err != nil && !os.IsNotExist(err) {

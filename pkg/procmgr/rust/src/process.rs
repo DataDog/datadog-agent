@@ -264,6 +264,10 @@ impl ManagedProcess {
         cmd.args(&self.config.args);
 
         cmd.env_clear();
+        #[cfg(windows)]
+        {
+            platform::apply_child_baseline_env(&mut cmd);
+        }
         if let Some(ref raw_path) = self.config.environment_file {
             let (optional, path) = if let Some(stripped) = raw_path.strip_prefix('-') {
                 (true, stripped)
