@@ -30,16 +30,10 @@ const (
 	sendTimeout           = 30 * time.Second
 	eventType             = "agent-health-issues"
 
-	// channel capacity for active and resolved issue delivery.
 	issueChSize = 2048
 )
 
 // egress drives the periodic outbound POST to the Datadog intake.
-// Both channels are populated by the registered EgressAggregator:
-//   - activeCh:   new/ongoing issues; snapshotted each tick and always returned
-//     so they persist until notifyResolved removes them via removeFromCh.
-//   - resolvedCh: resolved tombstones; consumed on a successful send,
-//     returned on failure for retry next tick.
 type egress struct {
 	log         log.Component
 	interval    time.Duration
@@ -93,8 +87,7 @@ func New(reqs Requires) egressdef.Component {
 		doneCh:      make(chan struct{}),
 	}
 
-	// Register before OnStart: loadFromDisk fires first and writes any resolved
-	// issues found on disk into ResolvedCh.
+	// Register before OnStart so loadFromDisk can pre-populate resolvedCh.
 	reqs.Store.RegisterEgressAggregator(storedef.EgressAggregator{
 		ActiveCh:   e.activeCh,
 		ResolvedCh: e.resolvedCh,
@@ -150,25 +143,21 @@ func (e *egress) tick() {
 	for _, i := range active {
 		merged[i.Id] = i
 	}
-	// resolved overwrites active for the same ID (most recent state wins)
-	for _, r := range resolved {
+	for _, r := range resolved { // resolved state wins over active for the same ID
 		merged[r.Id] = r
 	}
 
-	// Derive from Background: the run loop has no parent context to cancel.
 	ctx, cancel := context.WithTimeout(context.Background(), sendTimeout)
 	defer cancel()
 
 	if err := e.forwarder.Send(ctx, e.buildReport(merged)); err != nil {
 		e.log.Warn(fmt.Sprintf("Health platform egress: failed to send %d issues: %v", len(merged), err))
-		return // items are still in both channels; retried next tick
+		return
 	}
 
 	e.log.Info(fmt.Sprintf("Health platform egress: sent report with %d issues", len(merged)))
 
-	// Consume the resolved tombstones we just sent from the front of resolvedCh.
-	// drainCh re-queued them, so they sit at the front; any tombstones that
-	// arrived during the send remain at the back and are retried next tick.
+	// Dequeue the tombstones we just sent; any that arrived during the send stay for next tick.
 	for range len(resolved) {
 		select {
 		case <-e.resolvedCh:
@@ -177,10 +166,7 @@ func (e *egress) tick() {
 	}
 }
 
-// snapshotIssues returns a copy of all items currently in ch.
-// Items are drained then immediately re-queued so the channel is left intact.
-// The requeue always runs regardless of early exit from the drain, ensuring
-// no items are lost if concurrent writers consumed slots between len(ch) and reads.
+// snapshotIssues drains up to len(ch) items then re-queues them, leaving the channel intact.
 func snapshotIssues(ch chan *healthplatform.Issue) []*healthplatform.Issue {
 	n := len(ch)
 	if n == 0 {

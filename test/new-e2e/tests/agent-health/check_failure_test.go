@@ -22,8 +22,7 @@ import (
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 )
 
-// healthPlatformAgentConfig is the shared base agent config for health platform E2E tests.
-// The short forwarder interval reduces detection and resolution latency.
+// healthPlatformAgentConfig is the shared base agent config; short forwarder interval reduces test latency.
 //
 //go:embed fixtures/agent_config.yaml
 var healthPlatformAgentConfig string
@@ -38,10 +37,6 @@ var brokenCheckPy string
 
 //go:embed fixtures/fixed_check.py
 var fixedCheckPy string
-
-// ============================================================================
-// Test suite
-// ============================================================================
 
 type checkFailureSuite struct {
 	e2e.BaseSuite[environments.Host]
@@ -67,20 +62,15 @@ func TestCheckFailureSuite(t *testing.T) {
 	)
 }
 
-// TestCheckFailureIssueLifecycle verifies that a check execution failure is
-// detected in fakeintake as NEW and that replacing the failing check with a
-// working version causes the issue to transition to RESOLVED.
-//
-// Cross-restart persistence is tested separately in TestResilienceSuite.
+// TestCheckFailureIssueLifecycle verifies that a check execution failure is detected as NEW
+// and transitions to RESOLVED after the check is fixed. Cross-restart persistence is in TestResilienceSuite.
 func (suite *checkFailureSuite) TestCheckFailureIssueLifecycle() {
 	fakeIntake := suite.Env().FakeIntake.Client()
 
 	const issuePrefix = "check-execution-failure:broken_check"
 
 	suite.T().Run("IssueDetection", func(t *testing.T) {
-		// broken_check.py is deployed by the provisioner; agent is ready at suite start.
-		// Accept NEW or ONGOING: the check may fail multiple times before the first egress
-		// tick fires, so the state could already be ONGOING by the time it reaches fakeintake.
+		// Accept NEW or ONGOING: check may fail multiple times before the first egress tick.
 		var issues []*healthplatform.Issue
 		require.EventuallyWithT(t, func(ct *assert.CollectT) {
 			payloads, err := fakeIntake.GetAgentHealth()
@@ -121,10 +111,7 @@ func (suite *checkFailureSuite) TestCheckFailureIssueLifecycle() {
 			),
 		),
 	))
-	// WithFile only writes the file; it does not reload the Python module
-	// already cached in the agent's interpreter. Restart so fixed_check.py
-	// is imported fresh, clearHealthPlatformIssue is called, and the RESOLVED
-	// state transition is forwarded to fakeintake.
+	// Restart so the agent re-imports fixed_check.py (WithFile doesn't reload cached Python modules).
 	agent := suite.Env().Agent
 	require.NoError(suite.T(), agent.Client.Restart())
 	require.EventuallyWithT(suite.T(), func(ct *assert.CollectT) {

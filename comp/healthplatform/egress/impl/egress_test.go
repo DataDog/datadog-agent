@@ -125,7 +125,6 @@ func TestLifecycleStartStop(t *testing.T) {
 func TestTickFiresOnInterval(t *testing.T) {
 	fwd := &mockForwarder{}
 	e := newTestEgress(t, 30*time.Millisecond, fwd)
-	// Active issues persist across ticks via snapshotIssues re-queue; no goroutine needed.
 	e.activeCh <- &healthplatformpayload.Issue{Id: "issue-1"}
 
 	require.NoError(t, e.start(context.Background()))
@@ -170,8 +169,7 @@ func TestBuildReport(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-// TestResolvedIssueSentOnce verifies that a resolved issue is sent and removed
-// from resolvedCh; activeCh is also drained each tick.
+// TestResolvedIssueSentOnce verifies that resolvedCh is consumed after a successful send.
 func TestResolvedIssueSentOnce(t *testing.T) {
 	fwd := &mockForwarder{}
 	e := newTestEgress(t, time.Minute, fwd)
@@ -208,8 +206,7 @@ func TestResolvedReturnedOnSendFailure(t *testing.T) {
 	assert.Len(t, e.resolvedCh, 1, "resolved issue must be returned after failed send")
 }
 
-// TestActiveReturnedAfterTick verifies active issues are always returned to
-// activeCh after a tick so they persist between sends.
+// TestActiveReturnedAfterTick verifies active issues persist in activeCh between sends.
 func TestActiveReturnedAfterTick(t *testing.T) {
 	fwd := &mockForwarder{}
 	e := newTestEgress(t, time.Minute, fwd)
@@ -220,8 +217,7 @@ func TestActiveReturnedAfterTick(t *testing.T) {
 	assert.Len(t, e.activeCh, 1, "active issues must be returned to the channel after a successful send")
 }
 
-// TestActiveReturnedOnSendFailure verifies active issues are also returned when
-// the send fails.
+// TestActiveReturnedOnSendFailure verifies active issues persist in activeCh after a failed send.
 func TestActiveReturnedOnSendFailure(t *testing.T) {
 	fwd := &mockForwarder{sendErr: assert.AnError}
 	e := newTestEgress(t, time.Minute, fwd)
@@ -232,8 +228,7 @@ func TestActiveReturnedOnSendFailure(t *testing.T) {
 	assert.Len(t, e.activeCh, 1, "active issues must be returned to the channel after a failed send")
 }
 
-// TestObserverWiresChannels verifies that registering with ActiveCh/ResolvedCh
-// routes issues written by the store directly into the egress channels.
+// TestObserverWiresChannels verifies that RegisterEgressAggregator wires the store channels into egress.
 func TestObserverWiresChannels(t *testing.T) {
 	store := &mockStore{}
 	fwd := &mockForwarder{}

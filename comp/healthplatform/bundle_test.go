@@ -148,8 +148,7 @@ func TestBundleStartLifecycle(t *testing.T) {
 	assert.True(t, found, "no received report contained the test issue (id=%s)", testIssueID)
 }
 
-// TestIssueStateLifecycleForwarded exercises the full issue state machine end-to-end
-// in a single sequential scenario:
+// TestIssueStateLifecycleForwarded exercises the full issue state machine end-to-end.
 func TestIssueStateLifecycleForwarded(t *testing.T) {
 	ready := make(chan bool, 1)
 	fi := fakeintakeserver.NewServer(
@@ -198,8 +197,7 @@ func TestIssueStateLifecycleForwarded(t *testing.T) {
 		waitInterval = 10 * time.Millisecond
 	)
 
-	// latestHasIssueState checks the issue state in the most-recently-collected payload.
-	// Uses collectedTime (nanosecond precision) because EmittedAt is RFC3339 (second precision).
+	// latestHasIssueState uses collectedTime (ns precision) rather than EmittedAt (RFC3339, s precision).
 	latestHasIssueState := func(issueID string, state healthplatformpayload.IssueState) bool {
 		payloads, err := fiClient.GetAgentHealth()
 		if err != nil || len(payloads) == 0 {
@@ -227,7 +225,6 @@ func TestIssueStateLifecycleForwarded(t *testing.T) {
 		Source:    testSource,
 	}
 
-	// ── Phase 1: NEW ─────────────────────────────────────────────────────────────
 	deps.HP.ReportIssue(issueA)
 	deps.HP.ReportIssue(issueB)
 	require.Eventually(t, func() bool {
@@ -235,13 +232,11 @@ func TestIssueStateLifecycleForwarded(t *testing.T) {
 			latestHasIssueState(issueBID, healthplatformpayload.IssueState_ISSUE_STATE_NEW)
 	}, waitTimeout, waitInterval, "issueA and issueB never appeared as NEW in forwarded reports")
 
-	// ── Phase 2: ONGOING ─────────────────────────────────────────────────────────
 	deps.HP.ReportIssue(issueA)
 	require.Eventually(t, func() bool {
 		return latestHasIssueState(issueAID, healthplatformpayload.IssueState_ISSUE_STATE_ONGOING)
 	}, waitTimeout, waitInterval, "issueA never transitioned to ONGOING in forwarded reports")
 
-	// ── Phase 3: RESOLVED ──────────────────────────────────────────────
 	deps.HP.ResolveIssue(issueAID)
 	deps.HP.ResolveIssue(issueBID)
 
@@ -250,14 +245,12 @@ func TestIssueStateLifecycleForwarded(t *testing.T) {
 			latestHasIssueState(issueBID, healthplatformpayload.IssueState_ISSUE_STATE_RESOLVED)
 	}, waitTimeout, waitInterval, "expected a forwarded payload with issueA=RESOLVED and issueB=RESOLVED")
 
-	// ── Phase 4: re-report after RESOLVED resets to NEW ───────────────────────────
 	deps.HP.ReportIssue(issueA)
 	require.Eventually(t, func() bool {
 		return latestHasIssueState(issueAID, healthplatformpayload.IssueState_ISSUE_STATE_NEW)
 	}, waitTimeout, waitInterval, "issueA never appeared as NEW in the latest forwarded payload")
 
-	// RESOLVED must appear in exactly one payload across the full history: the egress
-	// removes tombstones from its pending map after a successful send.
+	// RESOLVED must appear exactly once: tombstones are removed after a successful send.
 	allPayloads, err := fiClient.GetAgentHealth()
 	require.NoError(t, err)
 	resolvedCountA, resolvedCountB := 0, 0

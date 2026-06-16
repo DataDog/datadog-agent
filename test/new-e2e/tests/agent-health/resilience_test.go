@@ -21,15 +21,12 @@ import (
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 )
 
-// resilienceSuite tests the health platform's cross-restart persistence and
-// recurrence behaviours. These are framework-level concerns (not issue-specific),
-// so they are covered once here rather than duplicated in every lifecycle test.
+// resilienceSuite tests cross-restart persistence and issue recurrence (framework-level, not issue-specific).
 type resilienceSuite struct {
 	e2e.BaseSuite[environments.Host]
 }
 
-// TestResilienceSuite runs the health platform resilience tests.
-// It reuses the broken_check fixtures from check_failure_test.go (same package).
+// TestResilienceSuite runs the health platform resilience tests (reuses broken_check fixtures).
 func TestResilienceSuite(t *testing.T) {
 	t.Parallel()
 	e2e.Run(t, &resilienceSuite{},
@@ -49,18 +46,15 @@ func TestResilienceSuite(t *testing.T) {
 	)
 }
 
-// TestHealthPlatformResilience verifies that a health issue persists across a
-// graceful agent restart: after restart the issue must be re-reported to
-// fakeintake as ONGOING with the same first_seen timestamp as before.
+// TestHealthPlatformResilience verifies that a health issue persists across a graceful restart,
+// re-reported as ONGOING with the same first_seen timestamp.
 func (suite *resilienceSuite) TestHealthPlatformResilience() {
 	agent := suite.Env().Agent
 	fakeIntake := suite.Env().FakeIntake.Client()
 
 	const issuePrefix = "check-execution-failure:broken_check"
 
-	// Wait for the initial detection (NEW or ONGOING) so we have a first_seen to compare.
-	// The check may fail multiple times before the first egress tick, so the state may
-	// already be ONGOING by the time the report arrives in fakeintake.
+	// Accept NEW or ONGOING: check may fail multiple times before the first egress tick.
 	var initialIssues []*healthplatform.Issue
 	require.EventuallyWithT(suite.T(), func(ct *assert.CollectT) {
 		payloads, err := fakeIntake.GetAgentHealth()
@@ -116,12 +110,8 @@ func (suite *resilienceSuite) TestHealthPlatformResilience() {
 	}
 }
 
-// TestHealthPlatformIssueRecurrence verifies that a previously resolved issue
-// re-appears as NEW (not ONGOING) when the underlying problem recurs, and that
-// first_seen is reset to the new detection time.
-//
-// This tests store.go's state-transition logic: a resolved issue ID that is
-// re-reported reverts to NEW and clears its original first_seen/last_seen.
+// TestHealthPlatformIssueRecurrence verifies that a resolved issue re-appears as NEW (not ONGOING)
+// when the problem recurs, with first_seen reset to the new detection time.
 func (suite *resilienceSuite) TestHealthPlatformIssueRecurrence() {
 	fakeIntake := suite.Env().FakeIntake.Client()
 
