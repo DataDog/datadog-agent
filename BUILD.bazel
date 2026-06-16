@@ -567,9 +567,14 @@ exports_files(["go.mod"])
 # gazelle:exclude test/e2e-framework/scenarios/hyperv
 # gazelle:exclude test/e2e-framework/scenarios/local
 # gazelle:exclude test/e2e-framework/scenarios/outputs
+# gazelle:exclude test/e2e-framework/cmd/e2e-install
+# gazelle:exclude test/e2e-framework/testing/cliutil
 # gazelle:exclude test/e2e-framework/testing/components
 # gazelle:exclude test/e2e-framework/testing/e2e
 # gazelle:exclude test/e2e-framework/testing/environments
+# gazelle:exclude test/e2e-framework/testing/envdesc
+# gazelle:exclude test/e2e-framework/testing/installers
+# gazelle:exclude test/e2e-framework/testing/installspec
 # gazelle:exclude test/e2e-framework/testing/provisioners
 # gazelle:exclude test/e2e-framework/testing/runner
 # gazelle:exclude test/e2e-framework/testing/utils/infra
