@@ -7,6 +7,7 @@ package profile
 
 import (
 	"regexp"
+	"strings"
 )
 
 func MkCommand(command string, requires ...string) *PlainCommand {
@@ -48,6 +49,10 @@ func MkRedaction(regex string, opts ...RedactionOption) RedactionRule {
 	return r
 }
 
+func lines(s ...string) string {
+	return strings.Join(s, "\n")
+}
+
 // DefaultProfiles is the built-in set of NCM device profiles, keyed by profile name.
 var DefaultProfiles = Map{
 	"aoscx": {
@@ -57,6 +62,15 @@ var DefaultProfiles = Map{
 			GetRunning: MkCommand("show running-config", `!Version (.*)?`),
 			GetStartup: MkCommand("show startup-config", `!Version (.*)?`),
 			GetVersion: MkCommand("show version"),
+			PushConfig: []Command{
+				&SCPCommand{
+					RemoteCommand: "scp",
+					Filepath:      "usb:/dd-rollback-config",
+				},
+				MkCommand(lines(
+					"copy usb:/dd-rollback-config running-config overwrite",
+					"copy running-config startup-config"), `Success`),
+			},
 		},
 		Redactions: []RedactionRule{
 			MkRedaction(`^(snmp-server community) \S+(.*)`),
@@ -107,6 +121,17 @@ var DefaultProfiles = Map{
 			Verify:     MkCommand("show version", "Cisco Adaptive Security Appliance Software Version"),
 			GetRunning: MkCommand("more system:running-config", `ASA Version \d+\.\d+\(\d+\)`),
 			GetVersion: MkCommand("show version"),
+			PushConfig: []Command{
+				&SCPCommand{
+					RemoteCommand: "scp",
+					Filepath:      "flash:/dd-rollback-config",
+				},
+				MkCommand(lines(
+					"copy flash:/dd-rollback-config startup-config",
+					"clear configure all",
+					"copy startup-config running-config",
+				), `Success`), // TODO confirm output
+			},
 		},
 		Redactions: []RedactionRule{
 			MkRedaction(`(?m)^(snmp-server community).*`),
@@ -222,8 +247,10 @@ var DefaultProfiles = Map{
 					RemoteCommand: "scp",
 					Filepath:      "/tmp/dd-rollback-config",
 				},
-				MkCommand("configure replace file:/tmp/dd-rollback-config"),
-				MkCommand("write", `Copy completed successfully`),
+				MkCommand(lines(
+					"configure replace file:/tmp/dd-rollback-config",
+					"write",
+				), `Copy completed successfully`),
 				// TODO should we be deleting the file after?
 				// MkCommand("delete file:/tmp/dd-rollback-config"),
 			},
@@ -279,6 +306,13 @@ var DefaultProfiles = Map{
 			Verify:     MkCommand("show version", `Junos:`),
 			GetRunning: MkCommand("show configuration | display omit", `version \d+\.\d+[^;]*;`),
 			GetVersion: MkCommand("show version"),
+			PushConfig: []Command{
+				&SCPCommand{
+					RemoteCommand: "scp",
+					Filepath:      "/tmp/dd-rollback-config",
+				},
+				MkCommand("configure\nload override /tmp/dd-rollback-config\ncommit\nexit", `commit complete`),
+			},
 		},
 		Redactions: []RedactionRule{
 			MkRedaction(`(?m)^(\s*community) (\S+) (\{)`, WithReplacement("$1 <secret hidden> {")),
@@ -304,6 +338,13 @@ var DefaultProfiles = Map{
 			GetRunning: MkCommand("show running-config", `!Command: show running-config`),
 			GetStartup: MkCommand("show startup-config", `!Command: show startup-config`),
 			GetVersion: MkCommand("show version"),
+			PushConfig: []Command{
+				&SCPCommand{
+					RemoteCommand: "scp",
+					Filepath:      "bootflash:dd-rollback-config",
+				},
+				MkCommand("configure replace bootflash:dd-rollback-config"),
+			},
 		},
 		Redactions: []RedactionRule{
 			MkRedaction(`^(snmp-server community).*`),
@@ -348,6 +389,7 @@ var DefaultProfiles = Map{
 	"tmos": {
 		Name: "tmos",
 		Commands: CommandSet{
+			Verify:     MkCommand("cat /config/partitions/*/bigip*.conf", `(^sys global-settings\s*{)|(^ltm (node|pool|virtual) \S+ {)|(^#TMSH-VERSION: \S+)`),
 			GetRunning: MkCommand("cat /config/partitions/*/bigip*.conf", `(^sys global-settings\s*{)|(^ltm (node|pool|virtual) \S+ {)|(^#TMSH-VERSION: \S+)`),
 		},
 		Redactions: []RedactionRule{
