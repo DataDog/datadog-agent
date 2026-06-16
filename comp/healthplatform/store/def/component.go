@@ -15,30 +15,28 @@ import (
 	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 )
 
-// IssueObserver is an optional listener that receives notifications when issues
-// change state. It is the single extension point for reactive integrations —
-// the egress uses it to receive resolved issues for delivery, and future
-// consumers such as an MCP server can use it to expose issues to AI agents for
+// IssueObserver listens for issue state changes. It is the extension point for
+// reactive integrations — e.g. an MCP server exposing issues to AI agents for
 // proactive remediation.
 //
-// Callbacks are invoked synchronously by the store outside its internal lock.
-// Implementations must not block; use a goroutine if the work is non-trivial.
+// Callbacks run synchronously outside the store's lock. Implementations must
+// not block; use a goroutine for non-trivial work.
 type IssueObserver struct {
 	// OnIssueReported is called after a new or updated issue is stored.
-	// The issue is a fully-hydrated clone; PersistedIssue.State distinguishes
-	// NEW from ONGOING so observers can choose to act only on first occurrence.
+	// The issue is a fully-hydrated clone; check PersistedIssue.State to
+	// distinguish NEW from ONGOING.
 	OnIssueReported func(issue *healthplatformpayload.Issue)
 
 	// OnIssueResolved is called when an issue transitions to RESOLVED.
-	// The resolved issue contains the ID, name, and PersistedIssue state.
+	// Contains the issue ID, name, and PersistedIssue state.
 	OnIssueResolved func(resolved *healthplatformpayload.Issue)
 }
 
 // Component is the health platform store component interface.
 type Component interface {
-	// RegisterObserver registers a listener for issue state-change notifications.
-	// Multiple observers may be registered; each receives all events. Observers
-	// registered before OnStart also receive resolved issues re-queued from disk.
+	// RegisterObserver registers a state-change listener. Multiple observers
+	// may be registered. Observers registered before OnStart also receive
+	// resolved issues recovered from disk on startup.
 	RegisterObserver(obs IssueObserver)
 
 	// ReportIssue records a new or ongoing issue keyed by issue.Id. Two calls

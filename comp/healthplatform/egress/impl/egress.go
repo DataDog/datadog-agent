@@ -31,16 +31,10 @@ const (
 	eventType             = "agent-health-issues"
 
 	// resolvedChSize is the capacity of the resolved-issue delivery channel.
-	// Sized to comfortably hold all pending resolved issues; overflow is logged
-	// as a warning (items are recoverable from disk on restart).
 	resolvedChSize = 1024
 )
 
 // egress drives the periodic outbound POST to the Datadog intake.
-// Active issues are queried from the store on every tick. Resolved issues are
-// delivered via a channel owned by the egress; observers write to it via the
-// registered IssueObserver. On send failure drained items are returned so they
-// are retried on the next tick.
 type egress struct {
 	log         log.Component
 	interval    time.Duration
@@ -146,8 +140,8 @@ func (e *egress) run() {
 func (e *egress) tick() {
 	_, active := e.store.GetAllIssues()
 
-	// Drain the resolved-issue channel into a tick-local slice.
-	// We just pulled N items out, so on failure there is always room to return them.
+	// Drain resolved issues into a tick-local slice; room to return them on failure
+	// is guaranteed since we just freed N slots.
 	var resolved []*healthplatform.Issue
 drain:
 	for {

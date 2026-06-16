@@ -329,20 +329,18 @@ func (h *healthPlatformImpl) stop(_ context.Context) error {
 }
 
 // ============================================================================
-// Egress Callback Registration
+// Observer Registration
 // ============================================================================
 
-// RegisterObserver appends an observer that will be notified on every issue
-// state transition. Safe to call at any time; observers registered after
-// OnStart will miss events that occurred before registration.
+// RegisterObserver appends an observer. Observers registered after OnStart
+// will miss events that occurred before registration.
 func (h *healthPlatformImpl) RegisterObserver(obs healthplatformdef.IssueObserver) {
 	h.observersMu.Lock()
 	h.observers = append(h.observers, obs)
 	h.observersMu.Unlock()
 }
 
-// notifyReported fires OnIssueReported on all registered observers.
-// Must be called outside issuesMux; lean and si must remain valid for the call.
+// notifyReported fires OnIssueReported; must be called outside issuesMux.
 func (h *healthPlatformImpl) notifyReported(lean *healthplatform.Issue, si *storedIssue) {
 	h.observersMu.RLock()
 	obs := h.observers
@@ -359,7 +357,6 @@ func (h *healthPlatformImpl) notifyReported(lean *healthplatform.Issue, si *stor
 	}
 }
 
-// notifyResolved fires OnIssueResolved on all registered observers.
 func (h *healthPlatformImpl) notifyResolved(resolved *healthplatform.Issue) {
 	h.observersMu.RLock()
 	obs := h.observers
@@ -503,7 +500,6 @@ func (h *healthPlatformImpl) ResolveIssue(issueID string) {
 }
 
 // ResolveAllIssues marks every active issue as resolved.
-// Fires OnResolveIssue for each so the egress forwards them as resolved.
 func (h *healthPlatformImpl) ResolveAllIssues() {
 	h.issuesMux.Lock()
 
