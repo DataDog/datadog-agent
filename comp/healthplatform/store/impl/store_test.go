@@ -205,7 +205,7 @@ func TestResolveIssueRemovesFromActive(t *testing.T) {
 	require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{Id: "t:id", IssueName: "t"}))
 
 	ch := make(chan *healthplatformpayload.Issue, 1)
-	h.RegisterEgressAggregator(storedef.EgressAggregator{ResolvedCh: ch})
+	h.RegisterIssuesObserver(storedef.IssuesObserver{ResolvedCh: ch})
 
 	h.ResolveIssue("t:id")
 
@@ -438,17 +438,17 @@ func TestGetActiveIssueIDsByIssueName(t *testing.T) {
 	assert.ElementsMatch(t, []string{"t:2"}, ids)
 }
 
-func newTestAggregator(activeSz, resolvedSz int) storedef.EgressAggregator {
-	return storedef.EgressAggregator{
+func newTestAggregator(activeSz, resolvedSz int) storedef.IssuesObserver {
+	return storedef.IssuesObserver{
 		ActiveCh:   make(chan *healthplatformpayload.Issue, activeSz),
 		ResolvedCh: make(chan *healthplatformpayload.Issue, resolvedSz),
 	}
 }
 
-func TestEgressAggregatorNewIssue(t *testing.T) {
+func TestIssuesObserverNewIssue(t *testing.T) {
 	h := newTestStore(t)
 	agg := newTestAggregator(4, 4)
-	h.RegisterEgressAggregator(agg)
+	h.RegisterIssuesObserver(agg)
 
 	require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{Id: "i:1", IssueName: "t"}))
 
@@ -458,10 +458,10 @@ func TestEgressAggregatorNewIssue(t *testing.T) {
 	assert.Equal(t, IssueStateNew, got.PersistedIssue.GetState())
 }
 
-func TestEgressAggregatorOngoingIssue(t *testing.T) {
+func TestIssuesObserverOngoingIssue(t *testing.T) {
 	h := newTestStore(t)
 	agg := newTestAggregator(4, 4)
-	h.RegisterEgressAggregator(agg)
+	h.RegisterIssuesObserver(agg)
 
 	issue := &healthplatformpayload.Issue{Id: "i:1", IssueName: "t"}
 	require.NoError(t, h.ReportIssue(issue))
@@ -474,11 +474,11 @@ func TestEgressAggregatorOngoingIssue(t *testing.T) {
 	assert.Equal(t, IssueStateOngoing, got.PersistedIssue.GetState())
 }
 
-// TestEgressAggregatorResolveAfterActive: unread active entry is cancelled when the issue resolves.
-func TestEgressAggregatorResolveAfterActive(t *testing.T) {
+// TestIssuesObserverResolveAfterActive: unread active entry is cancelled when the issue resolves.
+func TestIssuesObserverResolveAfterActive(t *testing.T) {
 	h := newTestStore(t)
 	agg := newTestAggregator(4, 4)
-	h.RegisterEgressAggregator(agg)
+	h.RegisterIssuesObserver(agg)
 
 	require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{Id: "i:1", IssueName: "t"}))
 	require.Len(t, agg.ActiveCh, 1)
@@ -491,11 +491,11 @@ func TestEgressAggregatorResolveAfterActive(t *testing.T) {
 	assert.Equal(t, IssueStateResolved, got.PersistedIssue.GetState())
 }
 
-// TestEgressAggregatorReReportCancelsResolved: re-report before egress ticks cancels the pending tombstone.
-func TestEgressAggregatorReReportCancelsResolved(t *testing.T) {
+// TestIssuesObserverReReportCancelsResolved: re-report before egress ticks cancels the pending tombstone.
+func TestIssuesObserverReReportCancelsResolved(t *testing.T) {
 	h := newTestStore(t)
 	agg := newTestAggregator(4, 4)
-	h.RegisterEgressAggregator(agg)
+	h.RegisterIssuesObserver(agg)
 
 	issue := &healthplatformpayload.Issue{Id: "i:1", IssueName: "t"}
 	require.NoError(t, h.ReportIssue(issue))
@@ -512,11 +512,11 @@ func TestEgressAggregatorReReportCancelsResolved(t *testing.T) {
 	assert.Equal(t, IssueStateNew, got.PersistedIssue.GetState())
 }
 
-// TestEgressAggregatorResolveAfterOngoing: unread ongoing entry in ActiveCh is cancelled on resolve.
-func TestEgressAggregatorResolveAfterOngoing(t *testing.T) {
+// TestIssuesObserverResolveAfterOngoing: unread ongoing entry in ActiveCh is cancelled on resolve.
+func TestIssuesObserverResolveAfterOngoing(t *testing.T) {
 	h := newTestStore(t)
 	agg := newTestAggregator(4, 4)
-	h.RegisterEgressAggregator(agg)
+	h.RegisterIssuesObserver(agg)
 
 	issue := &healthplatformpayload.Issue{Id: "i:1", IssueName: "t"}
 	require.NoError(t, h.ReportIssue(issue))

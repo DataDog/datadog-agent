@@ -59,8 +59,8 @@ func (m *mockHealthPlatform) GetIssue(checkID string) *healthplatformpayload.Iss
 	return proto.Clone(issue).(*healthplatformpayload.Issue)
 }
 
-// RegisterEgressAggregator is a no-op in the mock.
-func (m *mockHealthPlatform) RegisterEgressAggregator(_ healthplatform.EgressAggregator) {}
+// RegisterIssuesObserver is a no-op in the mock.
+func (m *mockHealthPlatform) RegisterIssuesObserver(_ healthplatform.IssuesObserver) {}
 
 // ResolveIssue clears issues for a specific check
 func (m *mockHealthPlatform) ResolveIssue(checkID string) {

@@ -53,7 +53,7 @@ func (n *noopHealthPlatform) GetIssue(_ string) *healthplatformpayload.Issue {
 	return nil
 }
 
-func (n *noopHealthPlatform) RegisterEgressAggregator(_ healthplatformdef.EgressAggregator) {}
+func (n *noopHealthPlatform) RegisterIssuesObserver(_ healthplatformdef.IssuesObserver) {}
 
 func (n *noopHealthPlatform) ResolveIssue(_ string) {
 }

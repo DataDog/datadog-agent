@@ -35,8 +35,8 @@ func NewNoopHealthPlatform() *NoopHealthPlatform {
 	return &NoopHealthPlatform{}
 }
 
-// RegisterEgressAggregator does nothing when the health platform is disabled.
-func (n *NoopHealthPlatform) RegisterEgressAggregator(_ healthplatform.EgressAggregator) {}
+// RegisterIssuesObserver does nothing when the health platform is disabled.
+func (n *NoopHealthPlatform) RegisterIssuesObserver(_ healthplatform.IssuesObserver) {}
 
 // ReportIssue does nothing when the health platform is disabled.
 func (n *NoopHealthPlatform) ReportIssue(_ *healthplatformpayload.Issue) error {

@@ -88,7 +88,7 @@ func New(reqs Requires) egressdef.Component {
 	}
 
 	// Register before OnStart so loadFromDisk can pre-populate resolvedCh.
-	reqs.Store.RegisterEgressAggregator(storedef.EgressAggregator{
+	reqs.Store.RegisterIssuesObserver(storedef.IssuesObserver{
 		ActiveCh:   e.activeCh,
 		ResolvedCh: e.resolvedCh,
 	})

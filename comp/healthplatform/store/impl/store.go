@@ -80,9 +80,9 @@ type healthPlatformImpl struct {
 	persistedIssues map[string]*PersistedIssue // IssueID → lifecycle state
 	persistence     issuesPersistence
 
-	// Egress aggregators: receive issue events outside issuesMux.
+	// Issue observers: receive issue events outside issuesMux.
 	aggregatorsMu sync.RWMutex
-	aggregators   []healthplatformdef.EgressAggregator
+	aggregators   []healthplatformdef.IssuesObserver
 
 	// Metrics
 	metrics telemetryMetrics
@@ -328,9 +328,9 @@ func (h *healthPlatformImpl) stop(_ context.Context) error {
 	return nil
 }
 
-// RegisterEgressAggregator appends an aggregator. Aggregators registered after
+// RegisterIssuesObserver appends an aggregator. Aggregators registered after
 // OnStart will miss events that occurred before registration.
-func (h *healthPlatformImpl) RegisterEgressAggregator(agg healthplatformdef.EgressAggregator) {
+func (h *healthPlatformImpl) RegisterIssuesObserver(agg healthplatformdef.IssuesObserver) {
 	h.aggregatorsMu.Lock()
 	h.aggregators = append(h.aggregators, agg)
 	h.aggregatorsMu.Unlock()

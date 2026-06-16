@@ -26,10 +26,10 @@ import (
 // mockStore satisfies storedef.Component; captures the registered observer for assertions.
 type mockStore struct {
 	mu       sync.Mutex
-	observer storedef.EgressAggregator
+	observer storedef.IssuesObserver
 }
 
-func (m *mockStore) RegisterEgressAggregator(obs storedef.EgressAggregator) {
+func (m *mockStore) RegisterIssuesObserver(obs storedef.IssuesObserver) {
 	m.mu.Lock()
 	m.observer = obs
 	m.mu.Unlock()
@@ -228,13 +228,13 @@ func TestActiveReturnedOnSendFailure(t *testing.T) {
 	assert.Len(t, e.activeCh, 1, "active issues must be returned to the channel after a failed send")
 }
 
-// TestObserverWiresChannels verifies that RegisterEgressAggregator wires the store channels into egress.
+// TestObserverWiresChannels verifies that RegisterIssuesObserver wires the store channels into egress.
 func TestObserverWiresChannels(t *testing.T) {
 	store := &mockStore{}
 	fwd := &mockForwarder{}
 	e := newTestEgress(t, time.Minute, fwd)
 
-	store.RegisterEgressAggregator(storedef.EgressAggregator{
+	store.RegisterIssuesObserver(storedef.IssuesObserver{
 		ActiveCh:   e.activeCh,
 		ResolvedCh: e.resolvedCh,
 	})
