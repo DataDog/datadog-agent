@@ -11,7 +11,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 )
 
@@ -22,8 +21,7 @@ func newTestAccessor(raw map[string]any) PDataMapAccessor {
 }
 
 func TestLookupString(t *testing.T) {
-	r, err := NewEmbeddedRegistry()
-	require.NoError(t, err)
+	r := testRegistry
 
 	t.Run("finds string value", func(t *testing.T) {
 		accessor := newTestAccessor(map[string]any{"db.statement": "SELECT 1"})
@@ -37,8 +35,7 @@ func TestLookupString(t *testing.T) {
 }
 
 func TestLookupInt64(t *testing.T) {
-	r, err := NewEmbeddedRegistry()
-	require.NoError(t, err)
+	r := testRegistry
 
 	t.Run("finds int64 value via typed accessor", func(t *testing.T) {
 		accessor := newTestAccessor(map[string]any{"http.status_code": int64(200)})
@@ -62,8 +59,7 @@ func TestLookupInt64(t *testing.T) {
 }
 
 func TestLookupFloat64(t *testing.T) {
-	r, err := NewEmbeddedRegistry()
-	require.NoError(t, err)
+	r := testRegistry
 
 	t.Run("converts int64 to float64 via typed accessor", func(t *testing.T) {
 		accessor := newTestAccessor(map[string]any{"http.status_code": int64(200)})
@@ -81,8 +77,7 @@ func TestLookupFloat64(t *testing.T) {
 }
 
 func TestLookup(t *testing.T) {
-	r, err := NewEmbeddedRegistry()
-	require.NoError(t, err)
+	r := testRegistry
 
 	t.Run("returns result with metadata", func(t *testing.T) {
 		accessor := newTestAccessor(map[string]any{"db.statement": "SELECT 1"})
@@ -104,8 +99,7 @@ func TestLookup(t *testing.T) {
 // a legacy fallback when rpc.system=grpc and rpc.system.name is absent. The legacy
 // row's two-condition AND also gives ANDing implicit coverage.
 func TestGRPCStatusCodeConditionalFallback(t *testing.T) {
-	r, err := NewEmbeddedRegistry()
-	require.NoError(t, err)
+	r := testRegistry
 
 	for _, tt := range []struct {
 		name  string
@@ -212,8 +206,7 @@ func TestStringMapAccessor(t *testing.T) {
 	})
 
 	t.Run("with semantic lookup", func(t *testing.T) {
-		r, err := NewEmbeddedRegistry()
-		require.NoError(t, err)
+		r := testRegistry
 
 		accessor := NewStringMapAccessor(map[string]string{"http.status_code": "404"})
 		v, ok := LookupInt64(r, accessor, ConceptHTTPStatusCode)
