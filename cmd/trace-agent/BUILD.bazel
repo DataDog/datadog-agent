@@ -1,4 +1,5 @@
 load("@rules_go//go:def.bzl", "go_binary", "go_library")
+load("//tasks:build_tags.bzl", "COMMON_TAGS", "TRACE_AGENT_TAGS")
 
 go_library(
     name = "trace-agent_lib",
@@ -15,5 +16,6 @@ go_library(
 go_binary(
     name = "trace-agent",
     embed = [":trace-agent_lib"],
+    gotags = sorted(COMMON_TAGS | TRACE_AGENT_TAGS),
     visibility = ["//visibility:public"],
 )

@@ -1,9 +1,12 @@
-load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+load("@rules_go//go:def.bzl", "go_test")
+load("//tasks:build_tags.bzl", "COMMON_TAGS", "TRACE_AGENT_TAGS")
 
 # gazelle:exclude proxy_test.go
 # gazelle:exclude stats_test.go
 
-dd_agent_go_test(
+# Do not use dd_agent_go_test. Trace agent tests are only done in the base flavor.
+# keep
+go_test(
     name = "testsuite_test",
     srcs = [
         "cards_test.go",
@@ -19,6 +22,7 @@ dd_agent_go_test(
     ],
     data = glob(["testdata/**"]),
     embedsrcs = ["testdata/v04SpanEvents.msgp"],
+    gotags = ["test"] + sorted(COMMON_TAGS | TRACE_AGENT_TAGS),
     deps = [
         "//cmd/trace-agent/test",
         "//pkg/proto/pbgo/trace",
