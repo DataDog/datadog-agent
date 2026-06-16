@@ -15,20 +15,42 @@
 package metrics
 
 import (
+	"fmt"
+	"math"
+
+	"github.com/DataDog/sketches-go/ddsketch/mapping"
 	"github.com/DataDog/sketches-go/ddsketch/store"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 )
 
-func toStore(b pmetric.ExponentialHistogramDataPointBuckets) store.Store {
+func toStore(
+	b pmetric.ExponentialHistogramDataPointBuckets,
+	indexMapping *mapping.LogarithmicMapping,
+) (store.Store, error) {
 	offset := b.Offset()
 	bucketCounts := b.BucketCounts()
 
-	store := store.NewDenseStore()
+	denseStore := store.NewDenseStore()
 	for j := 0; j < bucketCounts.Len(); j++ {
 		// Find the real index of the bucket by adding the offset
 		index := j + int(offset)
+		count := bucketCounts.At(j)
+		if count == 0 {
+			continue
+		}
 
-		store.AddWithCount(index, float64(bucketCounts.At(j)))
+		lowerBound := indexMapping.LowerBound(index)
+		upperBound := indexMapping.LowerBound(index + 1)
+		if math.IsNaN(lowerBound) ||
+			math.IsNaN(upperBound) ||
+			math.IsInf(lowerBound, 0) ||
+			math.IsInf(upperBound, 0) ||
+			lowerBound <= 0 ||
+			upperBound <= lowerBound {
+			return nil, fmt.Errorf("bucket index %d has unsupported bounds [%v, %v)", index, lowerBound, upperBound)
+		}
+
+		denseStore.AddWithCount(index, float64(count))
 	}
-	return store
+	return denseStore, nil
 }

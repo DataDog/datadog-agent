@@ -50,6 +50,7 @@ go_test(
         "consume_host_test.go",
         "consumer_test.go",
         "dimensions_test.go",
+        "exponential_histograms_translator_test.go",
         "histograms_test.go",
         "key_hash_cache_test.go",
         "lossless_mapper_test.go",
