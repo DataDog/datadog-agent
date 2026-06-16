@@ -7,6 +7,7 @@
 package serverimpl
 
 import (
+	"context"
 	"strings"
 	"testing"
 
@@ -456,7 +457,9 @@ func TestProcessedMetricsOrigin(t *testing.T) {
 		s := deps.Server.(*dsdServer)
 		assert := assert.New(t)
 
-		s.Stop()
+		// Stop the server so the parser-only assertions below can't race with
+		// the worker goroutines started by fulfillDepsWithConfigOverride.
+		require.NoError(t, s.stop(context.Background()))
 
 		assert.Len(s.cachedOriginCounters, 0, "this cache must be empty")
 		assert.Len(s.cachedOrder, 0, "this cache list must be empty")
