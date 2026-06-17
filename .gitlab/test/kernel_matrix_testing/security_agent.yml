@@ -481,13 +481,18 @@ kmt_run_secagent_tests_arm64_docker:
   script:
     - echo "nothing to do here"
 
-kmt_secagent_tests_join_arm64:
+kmt_secagent_tests_join1_arm64:
   extends:
     - .kmt_secagent_tests_join
   needs:
     - kmt_run_secagent_tests_arm64
     - kmt_run_secagent_tests_arm64_peds
     - kmt_run_secagent_tests_arm64_ad
+
+kmt_secagent_tests_join2_arm64:
+  extends:
+    - .kmt_secagent_tests_join
+  needs:
     - kmt_run_secagent_tests_arm64_ebpfless
     - kmt_run_secagent_tests_arm64_docker
 
@@ -497,7 +502,8 @@ kmt_secagent_cleanup_arm64:
     - .kmt_secagent_cleanup
   needs:
     - kmt_setup_env_secagent_arm64
-    - kmt_secagent_tests_join_arm64
+    - kmt_secagent_tests_join1_arm64
+    - kmt_secagent_tests_join2_arm64
     - upload_secagent_tests_arm64
   variables:
     ARCH: arm64
