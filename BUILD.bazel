@@ -305,6 +305,7 @@ exports_files(["go.mod"])
 # library.
 # gazelle:exclude pkg/ebpf/bytecode/runtime/integrity_gen.go
 # gazelle:exclude pkg/ebpf/ebpftest/cgo_align.go
+# gazelle:resolve go github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest //pkg/ebpf/ebpftest
 # gazelle:exclude pkg/ebpf/features
 # gazelle:exclude pkg/ebpf/uprobes
 # gazelle:exclude pkg/ebpf/verifier

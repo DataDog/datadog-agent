@@ -420,6 +420,7 @@ go_test(
         ],
         "@rules_go//go/platform:windows": [
             "//pkg/config/setup",
+            "//pkg/ebpf/ebpftest",
             "//pkg/security/config",
             "//pkg/security/events",
             "//pkg/security/secl/compiler/eval",

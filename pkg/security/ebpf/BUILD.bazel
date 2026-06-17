@@ -39,6 +39,7 @@ go_test(
     embed = [":ebpf"],
     gotags = ["test"],
     deps = [
+        "//pkg/ebpf/ebpftest",
         "//pkg/security/probe/config",
         "//pkg/system-probe/config",
         "@com_github_stretchr_testify//require",
