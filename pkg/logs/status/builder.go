@@ -46,26 +46,36 @@ type Builder struct {
 // still treated as "actively losing logs" for recommendation purposes.
 const lossRecencyWindow = 5 * time.Minute
 
-// lossWindow turns the monotonic logs-dropped / bytes-missed counters into a
-// recent-loss signal. Each observe records when a counter last increased, so a
-// stale historical loss ages out instead of keeping a recommendation pinned on.
+// lossWindow turns the monotonic logs-dropped / bytes-missed / processed / sent
+// counters into recent-activity signals. Each observe records when a counter
+// last increased, so a stale historical loss ages out instead of keeping a
+// recommendation pinned on, and delivery is judged on the latest interval rather
+// than lifetime totals.
 type lossWindow struct {
 	mu                      sync.Mutex
 	seeded                  bool
 	lastDropped, lastMissed int64
+	lastProcessed, lastSent int64
 	droppedAt, missedAt     time.Time
 }
 
 // observe records the current counter totals at time now and reports whether
-// each kind of loss occurred within lossRecencyWindow. The first call only
-// seeds the baseline (no history to compare against yet).
-func (w *lossWindow) observe(dropped, missed int64, now time.Time) (droppedRecently, missedRecently bool) {
+// each kind of loss occurred within lossRecencyWindow, plus whether the intake
+// is currently delivering. The first call only seeds the baseline (no history to
+// compare against yet), reporting no loss and assuming delivery.
+//
+// delivering is false only when logs advanced through processing in the latest
+// interval but none were sent — a currently rejecting or unreachable intake.
+// Lifetime totals are deliberately not used: an outage after a period of
+// successful delivery leaves LogsSent > 0 forever, which would hide the outage.
+func (w *lossWindow) observe(dropped, missed, processed, sent int64, now time.Time) (droppedRecently, missedRecently, delivering bool) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	if !w.seeded {
 		w.seeded = true
 		w.lastDropped, w.lastMissed = dropped, missed
-		return false, false
+		w.lastProcessed, w.lastSent = processed, sent
+		return false, false, true
 	}
 	if dropped > w.lastDropped {
 		w.droppedAt = now
@@ -73,10 +83,12 @@ func (w *lossWindow) observe(dropped, missed int64, now time.Time) (droppedRecen
 	if missed > w.lastMissed {
 		w.missedAt = now
 	}
+	delivering = !(processed > w.lastProcessed && sent == w.lastSent)
 	w.lastDropped, w.lastMissed = dropped, missed
+	w.lastProcessed, w.lastSent = processed, sent
 	droppedRecently = !w.droppedAt.IsZero() && now.Sub(w.droppedAt) <= lossRecencyWindow
 	missedRecently = !w.missedAt.IsZero() && now.Sub(w.missedAt) <= lossRecencyWindow
-	return droppedRecently, missedRecently
+	return droppedRecently, missedRecently, delivering
 }
 
 // NewBuilder returns a new builder. pipelineMonitor and cfg may be nil (e.g. in
@@ -129,7 +141,7 @@ func (b *Builder) BuildStatus(verbose bool) Status {
 	if profile != nil {
 		activeProfile = profile.Name
 	}
-	droppedRecently, missedRecently := b.loss.observe(b.logsDropped(), b.bytesMissed(), time.Now())
+	droppedRecently, missedRecently, delivering := b.loss.observe(b.logsDropped(), b.bytesMissed(), b.logsProcessed(), b.logsSent(), time.Now())
 	return Status{
 		IsRunning:             b.getIsRunning(),
 		Endpoints:             b.getEndpoints(),
@@ -143,7 +155,7 @@ func (b *Builder) BuildStatus(verbose bool) Status {
 		ComponentUtilization:  utils,
 		Backpressure:          bp,
 		PerformanceProfile:    profile,
-		ProfileRecommendation: b.getProfileRecommendation(utils, activeProfile, b.senderLatencyMs(), droppedRecently, missedRecently, b.destinationDelivering()),
+		ProfileRecommendation: b.getProfileRecommendation(utils, activeProfile, b.senderLatencyMs(), droppedRecently, missedRecently, delivering),
 		BackpressureTable:     b.formatBackpressureSection(utils, bp),
 	}
 }
@@ -333,21 +345,26 @@ func (b *Builder) logsDropped() int64 {
 	return total
 }
 
-// destinationDelivering is false only when logs were processed but none sent
-// (LogsProcessed > 0 && LogsSent == 0) — an intake that is rejecting or
-// unreachable, which no profile can fix.
-func (b *Builder) destinationDelivering() bool {
+// logsProcessed returns the total number of logs that have entered the pipeline, or 0.
+func (b *Builder) logsProcessed() int64 {
 	if b.logsExpVars == nil {
-		return true
+		return 0
 	}
-	var processed, sent int64
 	if v, ok := b.logsExpVars.Get("LogsProcessed").(*expvar.Int); ok && v != nil {
-		processed = v.Value()
+		return v.Value()
+	}
+	return 0
+}
+
+// logsSent returns the total number of logs successfully sent to the intake, or 0.
+func (b *Builder) logsSent() int64 {
+	if b.logsExpVars == nil {
+		return 0
 	}
 	if v, ok := b.logsExpVars.Get("LogsSent").(*expvar.Int); ok && v != nil {
-		sent = v.Value()
+		return v.Value()
 	}
-	return !(processed > 0 && sent == 0)
+	return 0
 }
 
 // isSendStage reports whether the component is part of the network send/transport
