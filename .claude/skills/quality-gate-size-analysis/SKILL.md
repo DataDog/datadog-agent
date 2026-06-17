@@ -2,6 +2,7 @@
 name: quality-gate-size-analysis
 description: Analyze static quality gate on-disk size changes, correlate with Confluence exception records and GitHub PRs by milestone
 argument-hint: "<time-range e.g. 3mo, 6mo> [optional: specific release e.g. 7.77]"
+model: sonnet
 ---
 
 Analyze the agent's static quality gate on-disk size metrics, pull approved exception records from Confluence, fetch PR data from GitHub with milestone-based release attribution, and produce a cross-referenced report.
