@@ -164,6 +164,9 @@ fn windows_activity_fallback(
         .iter()
         .filter_map(|process| {
             let tool = ai_candidates.get(&process.pid)?;
+            if tool.match_scope != AiProcessMatchScope::HostedChild {
+                return None;
+            }
             if !process.process_read_write_activity_observed
                 || !seen_tools.insert(tool.tool.clone())
             {
@@ -1209,7 +1212,7 @@ mod tests {
             process_names: vec!["codex.exe".to_string()],
             tool: "Codex".to_string(),
             provider: "OpenAI".to_string(),
-            match_scope: AiProcessMatchScope::Both,
+            match_scope: AiProcessMatchScope::HostedChild,
             approved: false,
             secondary: false,
         });
@@ -1225,39 +1228,62 @@ mod tests {
             &config,
         );
 
-        assert_eq!(detections.len(), 3);
-        assert_eq!(detections[0].tool, "Cursor");
-        assert_eq!(detections[0].matched_pid, 11);
-        assert_eq!(detections[1].tool, "Claude Code");
-        assert_eq!(detections[1].matched_pid, 12);
-        assert_eq!(detections[2].tool, "Codex");
-        assert_eq!(detections[2].matched_pid, 13);
+        assert_eq!(detections.len(), 2);
+        assert_eq!(detections[0].tool, "Claude Code");
+        assert_eq!(detections[0].matched_pid, 12);
+        assert_eq!(detections[1].tool, "Codex");
+        assert_eq!(detections[1].matched_pid, 13);
     }
 
     #[cfg(windows)]
     #[test]
     fn windows_fallback_coalesces_active_candidates_by_tool() {
         let foreground = process_with_title(10, 1, "WindowsTerminal.exe", "work");
-        let active_cursor_one = with_read_activity(process(11, 29, "Cursor.exe"));
-        let active_cursor_two = with_write_activity(process(12, 30, "Cursor.exe"));
+        let active_hermes_one = with_read_activity(process(11, 29, "hermes.exe"));
+        let active_hermes_two = with_write_activity(process(12, 30, "hermes.exe"));
         let active_claude = with_read_activity(process(13, 31, "claude.exe"));
+        let mut config = config();
+        config.ai_process_names.push(AiProcessConfig {
+            process_names: vec!["hermes.exe".to_string()],
+            tool: "Hermes Agent".to_string(),
+            provider: "Nous Research".to_string(),
+            match_scope: AiProcessMatchScope::HostedChild,
+            approved: false,
+            secondary: false,
+        });
 
         let detections = detect_ai_usages(
             &foreground,
             &snapshot(vec![
                 foreground.clone(),
-                active_cursor_one,
-                active_cursor_two,
+                active_hermes_one,
+                active_hermes_two,
                 active_claude,
             ]),
-            &config(),
+            &config,
         );
 
         assert_eq!(detections.len(), 2);
-        assert_eq!(detections[0].tool, "Cursor");
+        assert_eq!(detections[0].tool, "Hermes Agent");
         assert_eq!(detections[0].matched_pid, 11);
         assert_eq!(detections[1].tool, "Claude Code");
         assert_eq!(detections[1].matched_pid, 13);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_fallback_ignores_both_scope_desktop_app_candidates() {
+        let foreground = process_with_title(10, 1, "WindowsTerminal.exe", "work");
+        let active_cursor = with_read_activity(process(11, 29, "Cursor.exe"));
+
+        assert!(
+            detect_ai_usage(
+                &foreground,
+                &snapshot(vec![foreground.clone(), active_cursor]),
+                &config()
+            )
+            .is_none()
+        );
     }
 
     #[cfg(windows)]
