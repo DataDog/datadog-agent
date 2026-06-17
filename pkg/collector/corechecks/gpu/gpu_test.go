@@ -516,6 +516,7 @@ func TestEmitMetricsCollectsCollectorsInParallel(t *testing.T) {
 func TestRunDoesNotCrashWhenCollectorPanics(t *testing.T) {
 	mockSender := mocksender.NewMockSender("gpu")
 	mockSender.SetupAcceptAll()
+	pkgconfigsetup.Datadog().SetInTest("gpu.parallel_collectors", true)
 
 	check := newConfiguredGPUCheck(
 		t,
@@ -524,7 +525,6 @@ func TestRunDoesNotCrashWhenCollectorPanics(t *testing.T) {
 		mocksender.CreateDefaultDemultiplexer(),
 		nil,
 	)
-	pkgconfigsetup.Datadog().SetInTest("gpu.parallel_collectors", true)
 	nvmlMock := testutil.GetBasicNvmlMockWithOptions(
 		testutil.WithMockAllFunctions(),
 		testutil.WithDeviceCount(1),
@@ -555,14 +555,17 @@ func TestEmitMetricsCollectsCollectorsSeriallyWhenParallelCollectionDisabled(t *
 	mockSender := mocksender.NewMockSender("gpu")
 	mockSender.SetupAcceptAll()
 
-	check := newConfiguredGPUCheck(
-		t,
-		taggerfxmock.SetupFakeTagger(t),
-		testutil.GetWorkloadMetaMock(t),
-		mocksender.CreateDefaultDemultiplexer(),
-		nil,
-	)
+	checkGeneric := newCheck(taggerfxmock.SetupFakeTagger(t), testutil.GetTelemetryMock(t), testutil.GetWorkloadMetaMock(t))
+	check, ok := checkGeneric.(*Check)
+	require.True(t, ok)
+
+	WithGPUConfigEnabled(t)
 	pkgconfigsetup.Datadog().SetInTest("gpu.parallel_collectors", false)
+	check.containerProvider = newMockContainerProvider(t, nil)
+	require.NoError(t, check.Configure(mocksender.CreateDefaultDemultiplexer(), integration.FakeConfigHash, []byte{}, []byte{}, "test", "provider"))
+	t.Cleanup(func() { check.Cancel() })
+
+	pkgconfigsetup.Datadog().SetInTest("gpu.parallel_collectors", true)
 	nvmlMock := testutil.GetBasicNvmlMockWithOptions(
 		testutil.WithMockAllFunctions(),
 		testutil.WithDeviceCount(1),

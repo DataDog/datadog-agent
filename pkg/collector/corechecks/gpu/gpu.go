@@ -55,6 +55,7 @@ type Check struct {
 	workloadTagCache   *WorkloadTagCache                // workloadTagCache caches workload tags for GPU metrics
 	containerProvider  proccontainers.ContainerProvider // containerProvider is used as a fallback to get a PID -> CID mapping when workloadmeta does not have the process data
 	rateCalculator     *nvidia.RateCalculator           // rateCalculator calculates the rate of metrics
+	parallelCollectors bool                             // parallelCollectors controls whether NVML collectors are collected concurrently
 }
 
 type checkTelemetry struct {
@@ -136,6 +137,10 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 	c.disabledCollectors = pkgconfigsetup.Datadog().GetStringSlice("gpu.disabled_collectors")
 	for _, collectorName := range c.disabledCollectors {
 		log.Infof("Collector %s is disabled by configuration", collectorName)
+	}
+	c.parallelCollectors = pkgconfigsetup.Datadog().GetBool("gpu.parallel_collectors")
+	if c.parallelCollectors {
+		log.Infof("Enabled concurrent NVML collector collection")
 	}
 
 	if c.containerProvider == nil {
@@ -367,7 +372,7 @@ func (c *Check) emitMetrics(snd sender.Sender, gpuToContainersMap map[string][]*
 	perDeviceMetrics := make(map[string]*deviceMetricsCollection)
 
 	var collectorResults []collectorMetricsCollection
-	if pkgconfigsetup.Datadog().GetBool("gpu.parallel_collectors") {
+	if c.parallelCollectors {
 		collectorResults = collectMetrics(c.collectors)
 	} else {
 		collectorResults = collectMetricsSerial(c.collectors)
