@@ -67,7 +67,10 @@ func (s *clusterStore) CountNodeTypes() (clcRunnerCount, nodeAgentCount int) {
 		if node == nil {
 			continue
 		}
-		switch node.nodetype {
+		node.RLock()
+		nodetype := node.nodetype
+		node.RUnlock()
+		switch nodetype {
 		case types.NodeTypeCLCRunner:
 			clcRunnerCount++
 		case types.NodeTypeNodeAgent:
