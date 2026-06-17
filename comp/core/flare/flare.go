@@ -140,9 +140,9 @@ func (f *flare) onAgentTaskEvent(taskType rcclienttypes.TaskType, task rcclientt
 	flareSource := task.Config.TaskArgs["source"]
 
 	var tags []string
-	if rawTags, found := task.Config.TaskArgs["tags"]; found && rawTags != "" {
+	if rawTags, ok := task.Config.TaskArgs["tags"]; ok && rawTags != "" {
 		if err := json.Unmarshal([]byte(rawTags), &tags); err != nil {
-			f.log.Warnf("Could not parse flare tags %q from agent task, ignoring: %v", rawTags, err)
+			f.log.Infof("Could not parse flare tags %q from agent task, ignoring: %v", rawTags, err)
 			tags = nil
 		}
 	}

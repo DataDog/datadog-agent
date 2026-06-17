@@ -68,7 +68,7 @@ func HandleRCFlareTask(
 	var tags []string
 	if rawTags, ok := task.Config.TaskArgs["tags"]; ok && rawTags != "" {
 		if err := json.Unmarshal([]byte(rawTags), &tags); err != nil {
-			log.Warnf("[RemoteFlare] Could not parse flare tags %q from agent task, ignoring: %v", rawTags, err)
+			log.Infof("[RemoteFlare] Could not parse flare tags %q from agent task, ignoring: %v", rawTags, err)
 			tags = nil
 		}
 	}
