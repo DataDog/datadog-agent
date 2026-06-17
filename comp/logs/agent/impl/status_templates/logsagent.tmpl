@@ -22,9 +22,31 @@
   {{- end }}
 {{- end }}
 
+{{- if .PerformanceProfile }}
+
+  Performance Profile
+  {{ printDashes "Performance Profile" "=" }}
+    Profile: {{ .PerformanceProfile.Name }} (version {{ .PerformanceProfile.Version }})
+  {{- range $setting := .PerformanceProfile.Settings }}
+    {{ $setting.Key }}: {{ $setting.Value }} (source: {{ $setting.Source }})
+  {{- end }}
+{{- end }}
+
 {{- if .BackpressureTable }}
 
 {{ .BackpressureTable }}
+{{- end }}
+
+{{- if .ProfileRecommendation }}
+
+  Recommended Performance Profile
+  {{ printDashes "Recommended Performance Profile" "=" }}
+    {{ .ProfileRecommendation.Reason }}
+    Recommended profile: {{ .ProfileRecommendation.Profile }}
+
+    To apply, add the following to datadog.yaml and restart the Agent:
+      logs_config:
+        profile: {{ .ProfileRecommendation.Profile }}
 {{- end }}
 
 {{- if .ProcessFileStats }}
