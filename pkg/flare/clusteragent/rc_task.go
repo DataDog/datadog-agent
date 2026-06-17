@@ -52,7 +52,7 @@ func HandleRCFlareTask(
 
 	logFile := cfg.GetString("log_file")
 	if logFile == "" {
-		logFile = defaultpaths.DCALogFile
+		logFile = defaultpaths.GetDefaultDCALogFile()
 	}
 
 	filePath, err := createDCAArchiveFunc(false, defaultpaths.GetDistPath(), logFile, nil, statusComp, diagnoseComp, ipcComp)

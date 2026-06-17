@@ -63,6 +63,30 @@ tests_linux-x64-py3:
   variables:
     CONDA_ENV: ddpy3
 
+tests_linux-x64-py3_hybrid:
+  extends:
+    - .bazel:runner:linux-arm64
+    - .linux_tests
+    - .linux_x64
+  after_script:
+    - !reference [.upload_junit_source]
+    # skip coverage upload for several reasons
+    # 1. It would conflate with coverate from the regular job
+    # 2. the bazel tests are not doing coverage yet
+    # 3. when bazel starts it makes the symlink .cache/bazel/…/execroot/_main/junit-out-AgentFlavor.base.xml
+    #    pointing to <top>/junit-out-AgentFlavor.base.xml. Then the coverage uploader fails on the symlink.
+    #    A possible fix for that is to change `datadog-ci coverage upload` so that it can gracefully
+    #    skip symlinks rather than choking. Or, we move XDG_CACHE out of the CI root.
+  variables:
+    CONDA_ENV: ddpy3
+    EXPERIMENTAL_USE_BAZEL_TESTS: "1"
+  allow_failure: true  # This is for measurement during migration. It is not the actual test job.
+  retry: 0  # allowed to fail, ~35 min exec time
+  rules:
+    - !reference [.except_mergequeue]  # allowed to fail, not a gate at this stage
+    - !reference [.except_disable_unit_tests]
+    - !reference [.fast_on_dev_branch_only]
+
 tests_nodetreemodel:
   extends:
     - .linux_tests
@@ -166,7 +190,7 @@ tests_serverless-init-logs:
     - when: on_success
   script:
     - !reference [.retrieve_linux_go_deps]
-    - go test -tags "serverless otlp test" ./comp/logs/agent/agentimpl/.
+    - go test -tags "serverless otlp test" ./comp/logs/agent/impl/.
 
 # Check consistency of go.mod file with project imports
 go_mod_tidy_check:

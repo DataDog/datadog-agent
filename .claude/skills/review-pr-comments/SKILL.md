@@ -1,6 +1,7 @@
 ---
 name: review-pr-comments
-description: Review and triage PR review comments for the current branch using gh CLI. Fetches review comments, groups them into threads, separates human from bot feedback, and walks through each unresolved comment interactively. Use when the user asks to check PR comments, review feedback, address review comments, or triage PR reviews.
+description: Review and triage PR review comments on the current branch — groups threads by file, separates bots from humans, walks through unresolved comments interactively
+model: sonnet
 ---
 
 # Review PR Comments

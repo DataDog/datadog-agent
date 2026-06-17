@@ -11,6 +11,8 @@ package {{.Name}}
 
 import (
 	{{if has "go:build unix" .BuildTags}}
+	"net"
+
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model/utils"
 	"github.com/google/gopacket"
 	{{end}}
@@ -168,7 +170,13 @@ func {{$funcName}}(fieldToCopy {{$fullType}}) {{$fullType}} {
 			{{- $elemTypePrefix := ""}}
 			{{- if $isPtr}}{{$elemTypePrefix = "*"}}{{end}}
 	copied := make([]{{$elemTypePrefix}}{{$node.Field.OrigType}}, len(fieldToCopy))
-			{{- if $node.Field.IsBasic}}
+			{{- if and $node.Field.IsBasic (eq $node.Field.OrigType "net.IPNet")}}
+	for i := range fieldToCopy {
+		copied[i] = fieldToCopy[i]
+		copied[i].IP = append(net.IP(nil), fieldToCopy[i].IP...)
+		copied[i].Mask = append(net.IPMask(nil), fieldToCopy[i].Mask...)
+	}
+			{{- else if $node.Field.IsBasic}}
 	for i := range fieldToCopy {
 		copied[i] = fieldToCopy[i]
 	}

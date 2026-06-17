@@ -1,0 +1,14 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "mock",
+    srcs = ["mock.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/snmpscan/mock",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/snmpscan/def",
+        "//pkg/snmp/snmpparse",
+        "@com_github_gosnmp_gosnmp//:gosnmp",
+        "@com_github_stretchr_testify//mock",
+    ],
+)

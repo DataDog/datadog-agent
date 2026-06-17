@@ -67,7 +67,10 @@ func (s *clusterStore) CountNodeTypes() (clcRunnerCount, nodeAgentCount int) {
 		if node == nil {
 			continue
 		}
-		switch node.nodetype {
+		node.RLock()
+		nodetype := node.nodetype
+		node.RUnlock()
+		switch nodetype {
 		case types.NodeTypeCLCRunner:
 			clcRunnerCount++
 		case types.NodeTypeNodeAgent:
@@ -184,32 +187,4 @@ func (s *nodeStore) GetBusyness(busynessFunc func(stats types.CLCRunnerStats) in
 		busyness += busynessFunc(stats)
 	}
 	return busyness
-}
-
-// GetMostWeightedClusterCheck returns the Cluster Check with the most weight on the node
-// The nodeStore handles thread safety for this public method
-func (s *nodeStore) GetMostWeightedClusterCheck(busynessFunc func(stats types.CLCRunnerStats) int) (string, int, error) {
-	s.RLock()
-	defer s.RUnlock()
-	if len(s.clcRunnerStats) == 0 {
-		log.Debugf("Node %s has no check stats", s.name)
-		return "", -1, fmt.Errorf("node %s has no check stats", s.name)
-	}
-	firstItr := true
-	checkID := ""
-	checkWeight := 0
-	for id, stats := range s.clcRunnerStats {
-		busyness := busynessFunc(stats)
-		if (busyness > checkWeight || firstItr) && stats.IsClusterCheck {
-			// Only consider Cluster Checks
-			checkWeight = busyness
-			checkID = id
-			firstItr = false
-		}
-	}
-	if firstItr {
-		log.Debugf("Node %s has no check stats for cluster checks: %v", s.name, s.clcRunnerStats)
-		return "", -1, fmt.Errorf("no cluster checks found on node %s", s.name)
-	}
-	return checkID, checkWeight, nil
 }

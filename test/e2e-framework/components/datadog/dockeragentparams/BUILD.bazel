@@ -1,0 +1,17 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "dockeragentparams",
+    srcs = ["params.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/dockeragentparams",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/e2e-framework/common",
+        "//test/e2e-framework/common/config",
+        "//test/e2e-framework/common/utils",
+        "//test/e2e-framework/components/datadog/fakeintake",
+        "//test/e2e-framework/components/docker",
+        "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
+        "@com_github_samber_lo//:lo",
+    ],
+)

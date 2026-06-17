@@ -7,7 +7,7 @@
 package adschedulerimpl
 
 import (
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
+	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
 	logsadscheduler "github.com/DataDog/datadog-agent/pkg/logs/schedulers/ad"

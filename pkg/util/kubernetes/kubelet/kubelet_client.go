@@ -109,8 +109,9 @@ func newForConfig(config kubeletClientConfig, timeout time.Duration) (*kubeletCl
 
 	// Defaulting timeout
 	if timeout == 0 {
-		httpClient.Timeout = 30 * time.Second
+		timeout = 30 * time.Second
 	}
+	httpClient.Timeout = timeout
 
 	return &kubeletClient{
 		client:     httpClient,
@@ -120,13 +121,14 @@ func newForConfig(config kubeletClientConfig, timeout time.Duration) (*kubeletCl
 }
 
 func (kc *kubeletClient) checkConnection(ctx context.Context) error {
-	_, statusCode, err := kc.query(ctx, "/spec")
+	_, statusCode, err := kc.query(ctx, "/healthz")
 	if err != nil {
 		return err
 	}
 
+	// unauthorized error, we can reach it but it's likely a token error
 	if statusCode == http.StatusUnauthorized {
-		return fmt.Errorf("unauthorized to request test kubelet endpoint (/spec) - token used: %t", kc.config.token != "")
+		return fmt.Errorf("unauthorized to request test kubelet endpoint (/healthz) - token used: %t", kc.config.token != "")
 	}
 
 	return nil
@@ -279,10 +281,11 @@ func getKubeletClient(ctx context.Context) (*kubeletClient, error) {
 	if kubeletHTTPSPort > 0 {
 		httpsErr = checkKubeletConnection(ctx, "https", kubeletHTTPSPort, kubeletPathPrefix, potentialHosts, &clientConfig)
 		if httpsErr != nil {
-			log.Debug("Impossible to reach Kubelet through HTTPS")
 			if kubeletHTTPPort <= 0 {
 				return nil, httpsErr
 			}
+
+			log.Warnf("Impossible to reach Kubelet through HTTPS, fallback to HTTP, err=%s", httpsErr.Error())
 		} else {
 			return newForConfig(clientConfig, kubeletTimeout)
 		}

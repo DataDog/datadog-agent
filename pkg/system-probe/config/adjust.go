@@ -11,7 +11,7 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -30,7 +30,7 @@ func Adjust(cfg model.Config) {
 
 	// this check must come first, so we can accurately tell if system_probe was explicitly enabled
 	if cfg.GetBool(spNS("enabled")) &&
-		!cfg.IsSet(netNS("enabled")) &&
+		!cfg.IsConfigured(netNS("enabled")) &&
 		!cfg.GetBool(smNS("enabled")) {
 		// This case exists to preserve backwards compatibility. If system_probe_config.enabled is explicitly set to true, and there is no network_config block,
 		// enable the connections/network check.
@@ -39,7 +39,7 @@ func Adjust(cfg model.Config) {
 		cfg.Set(netNS("enabled"), true, model.SourceAgentRuntime)
 	}
 
-	validateString(cfg, spNS("sysprobe_socket"), setup.DefaultSystemProbeAddress, ValidateSocketAddress)
+	validateString(cfg, spNS("sysprobe_socket"), defaultpaths.GetDefaultSystemProbeAddress(), ValidateSocketAddress)
 
 	deprecateBool(cfg, spNS("allow_precompiled_fallback"), spNS("allow_prebuilt_fallback"))
 	allowPrebuiltEbpfFallback(cfg)
