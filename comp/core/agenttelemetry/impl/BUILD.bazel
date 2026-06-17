@@ -43,7 +43,10 @@ go_test(
         "agenttelemetry_test.go",
         "errortracking_sender_test.go",
     ],
-    data = glob(["testdata/**"], allow_empty = True),
+    data = glob(
+        ["testdata/**"],
+        allow_empty = True,
+    ),
     embed = [":impl"],
     gotags = ["test"],
     deps = [
