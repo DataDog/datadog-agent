@@ -443,19 +443,20 @@ func collectMetrics(collectors []nvidia.Collector) []collectorMetricsCollection 
 	return results
 }
 
-func collectMetric(collector nvidia.Collector) collectorMetricsCollection {
-	name := collector.Name()
-	log.Debugf("Collecting metrics from NVML collector: %s", name)
-
+func collectMetric(collector nvidia.Collector) (result collectorMetricsCollection) {
+	defer func() {
+		if r := recover(); r != nil {
+			result.err = fmt.Errorf("collector panicked: %v", r)
+			log.Errorf("Recovered from panic in collector %s: %v", result.name, r)
+		}
+	}()
+	result.name = collector.Name()
+	log.Debugf("Collecting metrics from NVML collector: %s", result.name)
 	startTime := time.Now()
-	metrics, err := collector.Collect()
-	return collectorMetricsCollection{
-		name:       name,
-		deviceUUID: collector.DeviceUUID(),
-		metrics:    metrics,
-		err:        err,
-		duration:   time.Since(startTime),
-	}
+	result.metrics, result.err = collector.Collect()
+	result.deviceUUID = collector.DeviceUUID()
+	result.duration = time.Since(startTime)
+	return
 }
 
 func (c *Check) emitSingleMetric(metric *nvidia.Metric, snd sender.Sender, currentExecutionTime time.Time, deviceContainers []*workloadmeta.Container, deviceTags []string) error {
