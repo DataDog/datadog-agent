@@ -1527,8 +1527,12 @@ func ApplyUseDogstatsdSuppression(config pkgconfigmodel.Config) {
 // aggregator_stop_timeout + forwarder_stop_timeout. The Agent Data Plane reads
 // this value via the config stream to size its topology graceful-shutdown
 // budget; computing the sum here keeps that budget aligned with the documented
-// core-agent shutdown window even when operators customize the component
+// core-agent shutdown window even when users customize the component
 // timeouts.
+//
+// It is registered as an override func (runs after datadog.yaml loads) and
+// also called explicitly after fleet policy merging, because fleet policies
+// are applied after the initial override pass.
 func ComputeDataPlaneStopTimeout(config pkgconfigmodel.Config) {
 	if config.GetSource("data_plane.stop_timeout") != pkgconfigmodel.SourceDefault {
 		return
