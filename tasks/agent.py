@@ -389,7 +389,7 @@ def image_build(ctx, arch='amd64', base_dir="omnibus", skip_tests=False, tag=Non
         "signed_pull": doc.signed_pull,
         "arch": doc.arch,
         "development": doc.development,
-        "sds": doc.sds,
+        "include_sds": doc.include_sds,
     }
 )
 def hacky_dev_image_build(
@@ -408,7 +408,7 @@ def hacky_dev_image_build(
     arch=None,
     development=True,
     build_exclude=None,
-    sds=False,
+    include_sds=False,
 ):
     """
     Builds the agent or cluster-agent Docker image.
@@ -448,7 +448,7 @@ def hacky_dev_image_build(
         os.environ["LD_LIBRARY_PATH"] = (
             os.environ.get("LD_LIBRARY_PATH", "") + f":{extracted_python_dir}/opt/datadog-agent/embedded/lib"
         )
-        if sds:
+        if include_sds:
             from tasks.sds import build_library as sds_build_library
 
             sds_build_library(ctx)
@@ -457,7 +457,7 @@ def hacky_dev_image_build(
             race=race,
             development=development,
             build_exclude=build_exclude,
-            include_sds=sds,
+            include_sds=include_sds,
             cmake_options=f'-DPython3_ROOT_DIR={extracted_python_dir}/opt/datadog-agent/embedded -DPython3_FIND_STRATEGY=LOCATION',
         )
         ctx.run(
@@ -500,7 +500,7 @@ def hacky_dev_image_build(
     copy_sds_lib = ""
     copy_sds_lib_final = ""
     patch_sds_lib = ""
-    if sds:
+    if include_sds:
         # `sds.build-library` stages libdd_sds.so under dev/lib so the agent (built
         # with the `sds` tag) can link against it. Ship it next to the other
         # embedded libs and rpath-patch it so the agent finds it at runtime.
