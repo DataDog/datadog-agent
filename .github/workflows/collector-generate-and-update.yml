@@ -26,6 +26,9 @@ jobs:
         with:
           features: legacy-tasks
 
+      - name: Set up Bazel cache
+        uses: ./.github/actions/bazel-cache
+
       - uses: DataDog/dd-octo-sts-action@96a25462dbcb10ebf0bfd6e2ccc917d2ab235b9a # v1.0.4
         id: octo-sts
         with:
