@@ -64,8 +64,15 @@ func (p *Preprocessor) Process(msg *message.Message) {
 // aggregator (and sampler) receive the full token slice.
 func (p *Preprocessor) tokenizeLabelAndAggregate(msg *message.Message) {
 	tokens, tokenIndices := p.tokenizer.Tokenize(msg.GetContent())
-	labelTokens, labelIndices := limitTokensToBytes(tokens, tokenIndices, p.labelerMaxBytes)
-	label := p.labeler.Label(msg.GetContent(), labelTokens, labelIndices)
+	var label Label
+	if tokens != nil {
+		labelTokens, labelIndices := limitTokensToBytes(tokens, tokenIndices, p.labelerMaxBytes)
+		label = p.labeler.Label(msg.GetContent(), labelTokens, labelIndices)
+	} else {
+		// Empty lines produce nil tokens; skip the labeler to avoid spurious error logs
+		// from heuristics that require non-nil tokens (UserSamples, TimestampDetector, PatternTable).
+		label = noAggregate
+	}
 	for _, completed := range p.aggregator.Process(msg, label, tokens) {
 		p.sample(completed)
 	}

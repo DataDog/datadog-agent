@@ -16,6 +16,16 @@ import (
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 )
 
+// captureLabeler records whether Label was called.
+type captureLabeler struct {
+	called bool
+}
+
+func (l *captureLabeler) Label(_ []byte, _ []Token, _ []int) Label {
+	l.called = true
+	return noAggregate
+}
+
 // --- test doubles ---
 
 // captureSampler records emitted messages.
@@ -166,4 +176,22 @@ func TestPreprocessor_SamplerReceivesAggregatedMessageWithTokens(t *testing.T) {
 
 	require.Len(t, sampler.emitted, 1, "Sampler should receive the message that aggregator returned")
 	assert.Equal(t, `hello world`, string(sampler.emitted[0].GetContent()))
+}
+
+// TestPreprocessor_EmptyLineSkipsLabeler verifies that blank log lines do not cause the labeler
+// to be called with nil tokens, which would trigger spurious ERROR logs from heuristics that
+// require non-nil tokens (regression introduced by the tokenizer optimization in PR #45734).
+func TestPreprocessor_EmptyLineSkipsLabeler(t *testing.T) {
+	tailerInfo := status.NewInfoRegistry()
+	_ = tailerInfo
+	labeler := &captureLabeler{}
+	aggregator := &captureAggregator{}
+	sampler := &captureSampler{}
+	outputChan := make(chan *message.Message, 10)
+	preprocessor := NewPreprocessor(aggregator, NewTokenizer(1000), labeler, sampler, outputChan, NewNoopJSONAggregator(), 10*time.Second, 0)
+
+	preprocessor.Process(newTestPreprocessorMessage(""))
+
+	assert.False(t, labeler.called, "Labeler must not be called for empty lines (nil tokens)")
+	require.Len(t, aggregator.received, 1, "Empty line should still reach the aggregator")
 }
