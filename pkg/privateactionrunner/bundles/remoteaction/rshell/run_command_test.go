@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -20,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
+	privateactionspb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/privateactions"
 	"github.com/DataDog/rshell/interp"
 )
 
@@ -39,6 +41,84 @@ func makeTaskWithPaths(command string, allowedCommands []string, allowedPaths []
 	task := makeTask(command, allowedCommands)
 	task.Data.Attributes.TargetPaths = allowedPaths
 	return task
+}
+
+func TestRemoteActionRemediationModeEnabled(t *testing.T) {
+	cases := []struct {
+		name string
+		mode privateactionspb.RemoteActionAccessMode
+		want bool
+	}{
+		{
+			name: "unspecified",
+			mode: privateactionspb.RemoteActionAccessMode_REMOTE_ACTION_ACCESS_MODE_UNSPECIFIED,
+			want: false,
+		},
+		{
+			name: "read only",
+			mode: privateactionspb.RemoteActionAccessMode_REMOTE_ACTION_ACCESS_MODE_READ_ONLY,
+			want: false,
+		},
+		{
+			name: "read write",
+			mode: privateactionspb.RemoteActionAccessMode_REMOTE_ACTION_ACCESS_MODE_READ_WRITE,
+			want: true,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, remoteActionRemediationModeEnabled(tc.mode))
+		})
+	}
+}
+
+func TestRshellRunnerOptionsUseRemediationModeForReadWriteAccessMode(t *testing.T) {
+	dir := t.TempDir()
+	target := filepath.Join(dir, "payload.txt")
+	require.NoError(t, os.WriteFile(target, []byte("payload"), 0600))
+
+	cases := []struct {
+		name       string
+		mode       privateactionspb.RemoteActionAccessMode
+		wantStdout string
+	}{
+		{
+			name:       "unspecified keeps read only mode",
+			mode:       privateactionspb.RemoteActionAccessMode_REMOTE_ACTION_ACCESS_MODE_UNSPECIFIED,
+			wantStdout: "writable:1\n",
+		},
+		{
+			name:       "read only keeps read only mode",
+			mode:       privateactionspb.RemoteActionAccessMode_REMOTE_ACTION_ACCESS_MODE_READ_ONLY,
+			wantStdout: "writable:1\n",
+		},
+		{
+			name:       "read write enables remediation mode",
+			mode:       privateactionspb.RemoteActionAccessMode_REMOTE_ACTION_ACCESS_MODE_READ_WRITE,
+			wantStdout: "writable:0\n",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var stdout, stderr bytes.Buffer
+			prog, err := interp.ParseScript("test -w "+strconv.Quote(target)+"; echo writable:$?", "")
+			require.NoError(t, err)
+
+			runner, err := interp.New(rshellRunnerOptions(
+				&stdout,
+				&stderr,
+				[]string{dir + ":rw"},
+				[]string{"rshell:test", "rshell:echo"},
+				tc.mode,
+			)...)
+			require.NoError(t, err)
+			defer runner.Close()
+
+			require.NoError(t, runner.Run(context.Background(), prog))
+			assert.Equal(t, tc.wantStdout, stdout.String())
+			assert.Empty(t, stderr.String())
+		})
+	}
 }
 
 // TestFilterAllowedCommandsMatrix pins backend × operator combinations.

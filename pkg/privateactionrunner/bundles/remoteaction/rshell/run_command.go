@@ -172,6 +172,7 @@ func (h *RunCommandHandler) Run(
 	// policies ∩ Balto), not from user inputs.
 	backendCommands := task.Data.Attributes.TargetCommands
 	backendPaths := task.Data.Attributes.TargetPaths
+	remoteActionAccessMode := task.Data.Attributes.RemoteActionAccessMode
 	effectiveAllowedCommands := h.filterAllowedCommands(backendCommands)
 	effectiveAllowedPaths := h.filterAllowedPaths(backendPaths)
 	log.Debugf("rshell runCommand (mode=%s): command=%q backendAllowedCommands=%v effectiveAllowedCommands=%v backendAllowedPaths=%v effectiveAllowedPaths=%v",
