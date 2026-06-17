@@ -696,6 +696,7 @@ func generateIR(
 		GoMapHashInfo:    processed.goMapHashInfo,
 		CommonTypes:      commonTypes,
 		IsARM64:          arch == "arm64",
+		Redaction:        cfg.redaction,
 	}, nil
 }
 

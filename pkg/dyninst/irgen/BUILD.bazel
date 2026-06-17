@@ -26,6 +26,7 @@ go_library(
         "//pkg/dyninst/gotype",
         "//pkg/dyninst/ir",
         "//pkg/dyninst/object",
+        "//pkg/dyninst/redaction",
         "//pkg/util/log",
         "//pkg/util/safeelf",
         "@org_golang_x_arch//arm64/arm64asm",
