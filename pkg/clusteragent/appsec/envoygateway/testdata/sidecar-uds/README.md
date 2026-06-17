@@ -61,6 +61,16 @@ kubectl explain backend.spec.endpoints.unix
 kubectl explain envoyproxy.spec.provider.kubernetes.envoyDeployment.patch
 ```
 
+## Cluster-agent RBAC (automated path)
+
+The manifests above (`02-envoyproxy.yaml`, `04-backend-uds.yaml`, `05-envoyextensionpolicy.yaml`) reproduce the result **by hand**, which needs no cluster-agent permissions. When the cluster-agent does the work instead — the webhook injecting the `datadog-appsec` sidecar and the controller creating the `Backend` + `EnvoyExtensionPolicy` — its ServiceAccount needs the permissions in [`00-rbac.yaml`](./00-rbac.yaml).
+
+The published Datadog Helm chart's `datadog.appsec.injector.enabled` RBAC block currently grants `envoyextensionpolicies` under `gateway.envoyproxy.io` but **not `backends`**, so UDS sidecar mode fails with `forbidden` on `backends.gateway.envoyproxy.io` until that rule is added. See the handover note `appsec-injector-eg-uds-backend-rbac-handover.md` in the `DataDog/helm-charts` repo. For a local run with a hand-built cluster-agent (or an older chart), apply the reference role and adjust the ServiceAccount subject to your release:
+
+```sh
+kubectl apply -f pkg/clusteragent/appsec/envoygateway/testdata/sidecar-uds/00-rbac.yaml
+```
+
 ## Sidecar image
 
 The real Datadog serviceextensions image was used, not a stand-in:
