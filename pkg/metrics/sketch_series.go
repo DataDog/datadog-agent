@@ -13,15 +13,20 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/quantile"
 )
 
-// A SketchSeries is a timeseries of quantile sketches.
-type SketchSeries struct {
+// SketchMetadata is the per-series metadata required for all distribution variants.
+type SketchMetadata struct {
 	Name     string               `json:"metric"`
 	Tags     tagset.CompositeTags `json:"tags"`
 	Host     string               `json:"host"`
 	Interval int64                `json:"interval"`
-	Points   []SketchPoint        `json:"points"`
 	NoIndex  bool                 `json:"-"` // This is only used by api V2
 	Source   MetricSource         `json:"-"` // This is only used by api V2
+}
+
+// A SketchSeries is a timeseries of quantile sketches.
+type SketchSeries struct {
+	SketchMetadata
+	Points []SketchPoint `json:"points"`
 }
 
 // GetName returns the name of the SketchSeries

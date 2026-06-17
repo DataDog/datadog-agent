@@ -15,18 +15,22 @@ import (
 
 func TestString(t *testing.T) {
 	sketchSerie0 := SketchSeries{
-		Name:     "sketchSerie0",
-		Host:     "hostSketchSerie0",
-		Interval: 10,
+		SketchMetadata: SketchMetadata{
+			Name:     "sketchSerie0",
+			Host:     "hostSketchSerie0",
+			Interval: 10,
+		},
 		Points: []SketchPoint{
 			{Ts: 1},
 			{Ts: 2},
 		},
 	}
 	sketchSerie1 := SketchSeries{
-		Name:     "sketchSerie1",
-		Host:     "hostSketchSerie1",
-		Interval: 100,
+		SketchMetadata: SketchMetadata{
+			Name:     "sketchSerie1",
+			Host:     "hostSketchSerie1",
+			Interval: 100,
+		},
 		Points: []SketchPoint{
 			{Ts: 3},
 			{Ts: 4},

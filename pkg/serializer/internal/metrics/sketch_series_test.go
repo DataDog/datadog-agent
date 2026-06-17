@@ -93,10 +93,12 @@ func TestSketchSeriesMarshalSplitCompressItemTooBigIsDropped(t *testing.T) {
 
 			// A small item (no dropped)
 			sl.Append(&metrics.SketchSeries{
-				Name:     "small",
-				Tags:     tagset.CompositeTagsFromSlice([]string{}),
-				Host:     "",
-				Interval: 0,
+				SketchMetadata: metrics.SketchMetadata{
+					Name:     "small",
+					Tags:     tagset.CompositeTagsFromSlice([]string{}),
+					Host:     "",
+					Interval: 0,
+				},
 			})
 
 			pipelines := testPipelines()

@@ -463,27 +463,35 @@ func TestPayloadsBuilderV3_Sketch(t *testing.T) {
 	tags := tagset.NewCompositeTags([]string{"foo", "bar"}, []string{"ook", "eek"})
 	sketches := metrics.SketchSeriesList{
 		{
-			Name:    "serie1",
-			NoIndex: true,
-			Points:  pointsOf(ts, 0, 0),
+			SketchMetadata: metrics.SketchMetadata{
+				Name:    "serie1",
+				NoIndex: true,
+			},
+			Points: pointsOf(ts, 0, 0),
 		}, {
-			Name:    "serie2",
-			NoIndex: false,
-			Tags:    tags,
-			Points:  pointsOf(ts, -1, 0, 1),
+			SketchMetadata: metrics.SketchMetadata{
+				Name:    "serie2",
+				NoIndex: false,
+				Tags:    tags,
+			},
+			Points: pointsOf(ts, -1, 0, 1),
 		}, {
-			Name:    "serie3",
-			NoIndex: false,
-			Tags:    tags,
-			Host:    "test.example",
-			Source:  metrics.MetricSourceDogstatsd,
-			Points:  pointsOf(ts, 0.5, -0.5),
+			SketchMetadata: metrics.SketchMetadata{
+				Name:    "serie3",
+				NoIndex: false,
+				Tags:    tags,
+				Host:    "test.example",
+				Source:  metrics.MetricSourceDogstatsd,
+			},
+			Points: pointsOf(ts, 0.5, -0.5),
 		}, {
-			Name:    "serie4",
-			NoIndex: true,
-			Host:    "test.example",
-			Source:  metrics.MetricSourceCassandra,
-			Points:  pointsOf(ts, 3.14159, 2.71),
+			SketchMetadata: metrics.SketchMetadata{
+				Name:    "serie4",
+				NoIndex: true,
+				Host:    "test.example",
+				Source:  metrics.MetricSourceCassandra,
+			},
+			Points: pointsOf(ts, 3.14159, 2.71),
 		},
 	}
 
