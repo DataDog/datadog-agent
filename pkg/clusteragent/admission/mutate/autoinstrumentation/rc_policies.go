@@ -13,6 +13,7 @@ import (
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/imageresolver"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/libraryinjection"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/policies"
 	rcclient "github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
@@ -23,25 +24,27 @@ import (
 // into a policy-driven TargetMutator. Targets no longer appear on this path;
 // the wire format is the dd-wls policies document.
 type rcPolicyProvider struct {
-	client        *rcclient.Client
-	config        *Config
-	wmeta         workloadmeta.Component
-	imageResolver imageresolver.Resolver
+	client           *rcclient.Client
+	config           *Config
+	wmeta            workloadmeta.Component
+	imageResolver    imageresolver.Resolver
+	csiDriverWatcher libraryinjection.CSIDriverWatcher
 
 	mu      sync.RWMutex
 	current *TargetMutator
 }
 
-func newRCPolicyProvider(client *rcclient.Client, config *Config, wmeta workloadmeta.Component, imageResolver imageresolver.Resolver) (*rcPolicyProvider, error) {
+func newRCPolicyProvider(client *rcclient.Client, config *Config, wmeta workloadmeta.Component, imageResolver imageresolver.Resolver, csiDriverWatcher libraryinjection.CSIDriverWatcher) (*rcPolicyProvider, error) {
 	if client == nil {
 		return nil, nil
 	}
 
 	provider := &rcPolicyProvider{
-		client:        client,
-		config:        config,
-		wmeta:         wmeta,
-		imageResolver: imageResolver,
+		client:           client,
+		config:           config,
+		wmeta:            wmeta,
+		imageResolver:    imageResolver,
+		csiDriverWatcher: csiDriverWatcher,
 	}
 	client.Subscribe(state.ProductSSITargets, provider.onUpdate)
 	provider.onUpdate(client.GetConfigs(state.ProductSSITargets), client.UpdateApplyStatus)
@@ -98,7 +101,7 @@ func (p *rcPolicyProvider) onUpdate(updates map[string]state.RawConfig, applySta
 	rcInstrumentation.Targets = nil
 	rcConfig.Instrumentation = &rcInstrumentation
 
-	mutator, err := newTargetMutatorFromPolicies(&rcConfig, p.wmeta, p.imageResolver, nil, allPolicies, true)
+	mutator, err := newTargetMutatorFromPolicies(&rcConfig, p.wmeta, p.imageResolver, p.csiDriverWatcher, allPolicies, true)
 	if err != nil {
 		for path := range updates {
 			applyStateCallback(path, state.ApplyStatus{

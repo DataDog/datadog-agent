@@ -39,7 +39,7 @@ func NewAutoInstrumentation(datadogConfig config.Component, wmeta workloadmeta.C
 	if err != nil {
 		return nil, fmt.Errorf("failed to create auto instrumentation namespace mutator: %v", err)
 	}
-	rcProvider, err := newRCPolicyProvider(rcClient, config, wmeta, imageResolver)
+	rcProvider, err := newRCPolicyProvider(rcClient, config, wmeta, imageResolver, csiDriverWatcher)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create auto instrumentation remote policy provider: %v", err)
 	}
