@@ -13,6 +13,20 @@ load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_files", "pkg_mklink")
 
+COMMON_GLOB_EXCLUSIONS = [
+    "BUILD.bazel",
+    ".devcontainer/**",
+    "Android/**",
+    "Doc/**",
+    "InternalDocs/**",
+    "iOS/**",
+    "Tools/msi/**",
+    "Tools/nuget/**",
+    # Tests that don't need to be shipped with the Agent
+    "Lib/idlelib/idle_test/**",
+    "Lib/test/**",
+]
+
 # Keep in sync with the ones on repos.MODULE.bazel
 python_externals = {
     "bzip2": "1.0.8",
@@ -56,7 +70,7 @@ run_binary(
     srcs = (
         glob(
             ["**"],
-            exclude = ["**/*.pyc", "BUILD.bazel"],
+            exclude = COMMON_GLOB_EXCLUSIONS + ["**/*.pyc", "BUILD.bazel"],
         ) + [
             "bzip2_win_dir",
             "mpdecimal_win_dir",
@@ -147,21 +161,10 @@ filegroup(
     name = "all_srcs",
     srcs = glob(
         ["**"],
-        exclude = [
-            "BUILD.bazel",
-            ".devcontainer/**",
-            "Android/**",
-            "Doc/**",
-            "InternalDocs/**",
-            "iOS/**",
-            # Windows related.
+        exclude = COMMON_GLOB_EXCLUSIONS + [
+            # Windows-only tooling.
             "PC/**",
             "PCbuild/**",
-            "Tools/msi/**",
-            "Tools/nuget/**",
-            # Tests that don't need to be shipped with the Agent
-            "Lib/idlelib/idle_test/**",
-            "Lib/test/**",
         ],
     ),
 )
