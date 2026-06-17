@@ -6,7 +6,10 @@
 // Package gpu provides utilities for interacting with GPU resources.
 package gpu
 
-import "strings"
+import (
+	"regexp"
+	"strings"
+)
 
 // ResourceGPU represents a GPU resource
 type ResourceGPU string
@@ -33,6 +36,14 @@ var longToShortGPUName = map[ResourceGPU]string{
 	GpuInteli915:     "intel",
 }
 
+// this regex matches device names from NVML and extracts the GPU type. For example, from "nvidia_a100-80gb" it will extract "a100". The groups are as follows:
+// 1. The optional prefix "nvidia" or "tesla" (T4 GPUs are named "tesla_t4" despite being NVIDIA GPUs)
+// 2. The optional prefix "geforce_" which we ignore
+// 3. The optional prefix "rtx_pro_" or "rtx_", which we use it as it's part of the GPU type
+// 4. The GPU type, which is the next alphanumeric part of the device name. Anything behind it (such as the memory size or whether it's PCI or SXM) is ignored.
+var gpuTypeRegex = regexp.MustCompile(`^(?:nvidia|tesla)_(?:geforce_)?(rtx_pro_|rtx_)?([a-z\d]+)`)
+var gpuNameSeparatorRegex = regexp.MustCompile(`[^a-z\d]+`)
+
 // ExtractSimpleGPUName returns a simplified GPU name.
 // If the resource is not recognized, the second return value is false.
 func ExtractSimpleGPUName(gpuName ResourceGPU) (string, bool) {
@@ -56,4 +67,27 @@ func ExtractSimpleGPUName(gpuName ResourceGPU) (string, bool) {
 func IsNvidiaKubernetesResource(resourceName string) bool {
 	return strings.HasPrefix(resourceName, string(GpuNvidiaMigPrefix)) ||
 		resourceName == string(GpuNvidiaGeneric)
+}
+
+// ExtractGPUType returns the normalized GPU model type from a device name.
+func ExtractGPUType(deviceName string) string {
+	if deviceName == "" {
+		return ""
+	}
+
+	// Normalize case/whitespace and remove leading/trailing noise so regex matching is stable.
+	normalizedName := strings.ToLower(strings.TrimSpace(deviceName))
+	// Collapse any non-alphanumeric separators (spaces, dashes, quotes, punctuation) into underscores.
+	normalizedName = gpuNameSeparatorRegex.ReplaceAllString(normalizedName, "_")
+	// Trim underscores added by leading/trailing separators.
+	normalizedName = strings.Trim(normalizedName, "_")
+
+	// Extract the optional RTX prefix and the GPU model token.
+	matches := gpuTypeRegex.FindStringSubmatch(normalizedName)
+	if len(matches) == 0 {
+		return ""
+	}
+
+	// Combine optional RTX prefix with the model token (e.g., rtx_3090).
+	return matches[1] + matches[2]
 }

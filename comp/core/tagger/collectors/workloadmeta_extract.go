@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	tracermetadata "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
+	gpuutil "github.com/DataDog/datadog-agent/pkg/util/gpu"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/tmplvar"
@@ -972,6 +973,9 @@ func (c *WorkloadMetaCollector) extractKueueResourceFlavorTags(flavor *workloadm
 		switch name {
 		case "nvidia.com/gpu.product":
 			tagList.AddLow(tags.KubeGPUDevice, normalizeNvidiaGPUProductLabel(value))
+			if gpuType := gpuutil.ExtractGPUType(value); gpuType != "" {
+				tagList.AddLow(tags.GPUType, gpuType)
+			}
 		case "nvidia.com/gpu.family":
 			tagList.AddLow(tags.GPUArchitecture, strings.ToLower(value))
 		case "nvidia.com/cuda.driver-version.full":

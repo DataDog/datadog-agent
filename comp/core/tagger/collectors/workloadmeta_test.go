@@ -1594,6 +1594,7 @@ func TestHandleKubeKueueResourceFlavor(t *testing.T) {
 				"gpu_compute_major:8",
 				"gpu_device:nvidia_a100-sxm4-40gb",
 				"gpu_driver_version:535.104.12",
+				"gpu_type:a100",
 				"gpu_vendor:nvidia",
 				"kueue_resource_flavor:a100",
 			},
@@ -1606,6 +1607,7 @@ func TestHandleKubeKueueResourceFlavor(t *testing.T) {
 			},
 			expectedLowCard: []string{
 				"gpu_device:nvidia_a100_80gb_pcie_mig_3g.40gb_shared",
+				"gpu_type:a100",
 				"gpu_vendor:nvidia",
 				"kueue_resource_flavor:a100-pcie-mig",
 			},
@@ -1618,6 +1620,7 @@ func TestHandleKubeKueueResourceFlavor(t *testing.T) {
 			},
 			expectedLowCard: []string{
 				"gpu_device:tesla_t4",
+				"gpu_type:t4",
 				"gpu_vendor:nvidia",
 				"kueue_resource_flavor:t4",
 			},
@@ -1630,6 +1633,7 @@ func TestHandleKubeKueueResourceFlavor(t *testing.T) {
 			},
 			expectedLowCard: []string{
 				"gpu_device:nvidia_h100_nvl_mig_3g.47gb",
+				"gpu_type:h100",
 				"gpu_vendor:nvidia",
 				"kueue_resource_flavor:h100-nvl",
 			},
@@ -1642,6 +1646,7 @@ func TestHandleKubeKueueResourceFlavor(t *testing.T) {
 			},
 			expectedLowCard: []string{
 				"gpu_device:nvidia_rtx_6000_ada_generation",
+				"gpu_type:rtx_6000",
 				"gpu_vendor:nvidia",
 				"kueue_resource_flavor:rtx-6000",
 			},
