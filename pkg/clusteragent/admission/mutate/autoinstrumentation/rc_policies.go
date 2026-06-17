@@ -8,23 +8,21 @@
 package autoinstrumentation
 
 import (
-	"encoding/json"
-	"fmt"
 	"strings"
 	"sync"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/imageresolver"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/policies"
 	rcclient "github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-type rcTargetsPayload struct {
-	Targets []Target `json:"targets"`
-}
-
-type rcTargetProvider struct {
+// rcPolicyProvider subscribes to remote-config SSI policies and compiles them
+// into a policy-driven TargetMutator. Targets no longer appear on this path;
+// the wire format is the dd-wls policies document.
+type rcPolicyProvider struct {
 	client        *rcclient.Client
 	config        *Config
 	wmeta         workloadmeta.Component
@@ -34,12 +32,12 @@ type rcTargetProvider struct {
 	current *TargetMutator
 }
 
-func newRCTargetProvider(client *rcclient.Client, config *Config, wmeta workloadmeta.Component, imageResolver imageresolver.Resolver) (*rcTargetProvider, error) {
+func newRCPolicyProvider(client *rcclient.Client, config *Config, wmeta workloadmeta.Component, imageResolver imageresolver.Resolver) (*rcPolicyProvider, error) {
 	if client == nil {
 		return nil, nil
 	}
 
-	provider := &rcTargetProvider{
+	provider := &rcPolicyProvider{
 		client:        client,
 		config:        config,
 		wmeta:         wmeta,
@@ -50,7 +48,7 @@ func newRCTargetProvider(client *rcclient.Client, config *Config, wmeta workload
 	return provider, nil
 }
 
-func (p *rcTargetProvider) Current() *TargetMutator {
+func (p *rcPolicyProvider) Current() *TargetMutator {
 	if p == nil {
 		return nil
 	}
@@ -60,10 +58,10 @@ func (p *rcTargetProvider) Current() *TargetMutator {
 	return p.current
 }
 
-func (p *rcTargetProvider) onUpdate(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
+func (p *rcPolicyProvider) onUpdate(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
 	filteredUpdates := make(map[string]state.RawConfig, len(updates))
 	for path, update := range updates {
-		if strings.Contains(path, "/DEBUG/ssi-targets-test/") {
+		if strings.Contains(path, "/DEBUG/") {
 			filteredUpdates[path] = update
 		}
 	}
@@ -76,20 +74,20 @@ func (p *rcTargetProvider) onUpdate(updates map[string]state.RawConfig, applySta
 		return
 	}
 
-	log.Infof("SSI targets updated: %v", updates)
+	log.Infof("SSI policies updated: %v", updates)
 
-	targets := make([]Target, 0, len(updates))
+	var allPolicies []policies.Policy
 	for path, update := range updates {
-		payload, err := parseRCTargets(update.Config)
+		parsed, err := policies.ParsePolicies(update.Config)
 		if err != nil {
 			applyStateCallback(path, state.ApplyStatus{
 				State: state.ApplyStateError,
 				Error: err.Error(),
 			})
-			log.Errorf("failed to parse SSI targets from remote config %q: %v", path, err)
+			log.Errorf("failed to parse SSI policies from remote config %q: %v", path, err)
 			return
 		}
-		targets = append(targets, payload.Targets...)
+		allPolicies = append(allPolicies, parsed...)
 	}
 
 	rcConfig := *p.config
@@ -97,10 +95,10 @@ func (p *rcTargetProvider) onUpdate(updates map[string]state.RawConfig, applySta
 	rcInstrumentation.Enabled = true
 	rcInstrumentation.EnabledNamespaces = nil
 	rcInstrumentation.LibVersions = nil
-	rcInstrumentation.Targets = targets
+	rcInstrumentation.Targets = nil
 	rcConfig.Instrumentation = &rcInstrumentation
 
-	mutator, err := newTargetMutatorWithTargets(&rcConfig, p.wmeta, p.imageResolver, nil, targets, true)
+	mutator, err := newTargetMutatorFromPolicies(&rcConfig, p.wmeta, p.imageResolver, nil, allPolicies, true)
 	if err != nil {
 		for path := range updates {
 			applyStateCallback(path, state.ApplyStatus{
@@ -108,7 +106,7 @@ func (p *rcTargetProvider) onUpdate(updates map[string]state.RawConfig, applySta
 				Error: err.Error(),
 			})
 		}
-		log.Errorf("failed to build SSI remote target mutator: %v", err)
+		log.Errorf("failed to build SSI remote policy mutator: %v", err)
 		return
 	}
 
@@ -119,12 +117,4 @@ func (p *rcTargetProvider) onUpdate(updates map[string]state.RawConfig, applySta
 	for path := range updates {
 		applyStateCallback(path, state.ApplyStatus{State: state.ApplyStateAcknowledged})
 	}
-}
-
-func parseRCTargets(raw []byte) (*rcTargetsPayload, error) {
-	var payload rcTargetsPayload
-	if err := json.Unmarshal(raw, &payload); err != nil {
-		return nil, fmt.Errorf("unable to parse SSI remote targets payload: %w", err)
-	}
-	return &payload, nil
 }

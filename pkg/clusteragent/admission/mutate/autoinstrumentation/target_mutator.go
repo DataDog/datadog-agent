@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/annotation"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/imageresolver"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/libraryinjection"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/policies"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -31,6 +32,8 @@ import (
 const (
 	// AppliedTargetEnvVar is the environment variable that contains the JSON of the target that was applied to the pod.
 	AppliedTargetEnvVar = "DD_INSTRUMENTATION_APPLIED_TARGET"
+	// AppliedPolicyEnvVar is the environment variable that contains the compact JSON of the policy that was applied to the pod.
+	AppliedPolicyEnvVar = "DD_INSTRUMENTATION_APPLIED_POLICY"
 )
 
 // TargetMutator is an autoinstrumentation mutator that filters pods based on the target based workload selection.
@@ -38,6 +41,7 @@ type TargetMutator struct {
 	enabled                       bool
 	core                          *mutatorCore
 	targets                       []targetInternal
+	matcher                       *policyMatcher
 	disabledNamespaces            map[string]bool
 	securityClientLibraryMutator  containerMutator
 	profilingClientLibraryMutator containerMutator
@@ -83,6 +87,7 @@ func newTargetMutatorWithTargets(config *Config, wmeta workloadmeta.Component, i
 	m := &TargetMutator{
 		enabled:                       enabled,
 		targets:                       internalTargets,
+		matcher:                       newPolicyMatcher(targets, wmeta),
 		disabledNamespaces:            disabledNamespacesMap,
 		securityClientLibraryMutator:  config.securityClientLibraryMutator,
 		profilingClientLibraryMutator: config.profilingClientLibraryMutator,
@@ -97,6 +102,87 @@ func newTargetMutatorWithTargets(config *Config, wmeta workloadmeta.Component, i
 	m.core = core
 
 	return m, nil
+}
+
+// newTargetMutatorFromPolicies builds a mutator driven directly by policies
+// (e.g. delivered through remote config). The policies are both the match
+// engine and the source of the injection configuration, so no Target is
+// involved on this path. Internal targets are aligned by index with the
+// policies so a match resolves to its injection config.
+func newTargetMutatorFromPolicies(config *Config, wmeta workloadmeta.Component, imageResolver imageresolver.Resolver, csiDriverWatcher libraryinjection.CSIDriverWatcher, ps []policies.Policy, enabled bool) (*TargetMutator, error) {
+	disabledNamespacesMap := make(map[string]bool, len(config.Instrumentation.DisabledNamespaces))
+	for _, ns := range config.Instrumentation.DisabledNamespaces {
+		disabledNamespacesMap[ns] = true
+	}
+
+	defaultLibVersions := getAllLatestDefaultLibraries(config.containerRegistry)
+
+	var internalTargets []targetInternal
+	if enabled {
+		var err error
+		internalTargets, err = buildInternalTargetsFromPolicies(config, wmeta, ps, defaultLibVersions)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	m := &TargetMutator{
+		enabled: enabled,
+		targets: internalTargets,
+		matcher: &policyMatcher{
+			policies:             ps,
+			wmeta:                wmeta,
+			needsNamespaceLabels: usesNamespaceLabels(ps),
+		},
+		disabledNamespaces:            disabledNamespacesMap,
+		securityClientLibraryMutator:  config.securityClientLibraryMutator,
+		profilingClientLibraryMutator: config.profilingClientLibraryMutator,
+		containerRegistry:             config.containerRegistry,
+		mutateUnlabelled:              config.mutateUnlabelled,
+		defaultLibVersions:            defaultLibVersions,
+	}
+
+	m.core = newMutatorCore(config, wmeta, m, imageResolver, csiDriverWatcher)
+	return m, nil
+}
+
+// buildInternalTargetsFromPolicies resolves each policy's outcome (tracer
+// versions and configs) into the internal injection format, mirroring
+// buildInternalTargets but sourced from policies rather than Targets.
+func buildInternalTargetsFromPolicies(config *Config, wmeta workloadmeta.Component, ps []policies.Policy, defaultLibVersions []libInfo) ([]targetInternal, error) {
+	internalTargets := make([]targetInternal, len(ps))
+	for i, p := range ps {
+		var libVersions []libInfo
+		usesDefaultLibs := false
+		if len(p.Outcome.TracerVersions) == 0 {
+			libVersions = defaultLibVersions
+			usesDefaultLibs = true
+		} else {
+			pinnedLibraries := getPinnedLibraries(p.Outcome.TracerVersions, config.containerRegistry, true)
+			usesDefaultLibs = pinnedLibraries.areSetToDefaults
+			libVersions = pinnedLibraries.libs
+		}
+
+		envVars := make([]corev1.EnvVar, len(p.Outcome.TracerConfigs))
+		for j, tc := range p.Outcome.TracerConfigs {
+			if !strings.HasPrefix(tc.Name, "DD_") {
+				return nil, fmt.Errorf("tracer config %q does not start with DD_", tc.Name)
+			}
+			envVars[j] = corev1.EnvVar{Name: tc.Name, Value: tc.Value}
+		}
+
+		internalTargets[i] = targetInternal{
+			name:            p.Name,
+			wmeta:           wmeta,
+			libVersions:     libVersions,
+			envVars:         envVars,
+			json:            createPolicyJSON(p),
+			usesDefaultLibs: usesDefaultLibs,
+			fromPolicy:      true,
+		}
+	}
+
+	return internalTargets, nil
 }
 
 func buildInternalTargets(config *Config, wmeta workloadmeta.Component, targets []Target, defaultLibVersions []libInfo) ([]targetInternal, error) {
@@ -254,14 +340,24 @@ func (m *TargetMutator) MutatePod(pod *corev1.Pod, ns string, _ dynamic.Interfac
 }
 
 func (m *TargetMutator) addTargetJSONInfo(pod *corev1.Pod, target *targetInternal) {
-	// Inject the target json. The is added so that the injector can make use of the target information.
+	// Policy-driven and target-driven injection are surfaced through distinct
+	// annotations/env vars: applied-target keeps its original "configuration
+	// target" contract, while applied-policy carries a compact policy identity.
+	envVarName := AppliedTargetEnvVar
+	annotationKey := annotation.AppliedTarget
+	if target.fromPolicy {
+		envVarName = AppliedPolicyEnvVar
+		annotationKey = annotation.AppliedPolicy
+	}
+
+	// Inject the json so that the injector can make use of the applied information.
 	_ = m.core.mutatePodContainers(pod, envVarMutator(corev1.EnvVar{
-		Name:  AppliedTargetEnvVar,
+		Name:  envVarName,
 		Value: target.json,
 	}), true)
 
-	// Add the annotations to the pod.
-	annotation.Set(pod, annotation.AppliedTarget, target.json)
+	// Add the annotation to the pod.
+	annotation.Set(pod, annotationKey, target.json)
 }
 
 // ShouldMutatePod determines if a pod would be mutated by the target mutator. It is used by other webhook mutators as
@@ -324,6 +420,10 @@ type targetInternal struct {
 	wmeta                workloadmeta.Component
 	json                 string
 	usesDefaultLibs      bool
+	// fromPolicy is true when this internal target was derived from a policy
+	// (remote config) rather than a configuration target. It selects which
+	// annotation/env var carries the applied information.
+	fromPolicy bool
 }
 
 // getTarget determines which target to use for a given a pod, which includes the set of tracing libraries to inject.
@@ -387,6 +487,11 @@ func (m *TargetMutator) getTargetFromAnnotation(pod *corev1.Pod) *annotationResu
 }
 
 // getMatchingTarget filters a pod based on the targets. It returns the target to inject.
+//
+// Matching is delegated to the native policy engine: each target is compiled
+// into an equivalent policy (namespace and pod selectors ANDed together) and
+// the first policy that evaluates to true wins, preserving the previous
+// first-match semantics without relying on CGO or k8s label selectors.
 func (m *TargetMutator) getMatchingTarget(pod *corev1.Pod) *targetInternal {
 	// If instrumentation is disabled, we don't need to check the targets.
 	if !m.enabled {
@@ -398,32 +503,23 @@ func (m *TargetMutator) getMatchingTarget(pod *corev1.Pod) *targetInternal {
 		return nil
 	}
 
-	// Check if the pod matches any of the targets. The first match wins.
-	for _, target := range m.targets {
-		// Check the pod namespace against the namespace selector.
-		matches, err := target.matchesNamespaceSelector(pod.Namespace)
-		if err != nil {
-			log.Errorf("error encountered matching targets, aborting all together to avoid inaccurate match: %v", err)
-			return nil
-
-		}
-		if !matches {
-			continue
-		}
-
-		// Check the pod labels against the pod selector.
-		if !target.matchesPodSelector(pod.Labels) {
-			continue
-		}
-
-		log.Debugf("Pod %q matched target %q", mutatecommon.PodString(pod), target.name)
-
-		// If the namespace and pod selector match, return the libraries to inject.
-		return &target
+	idx, err := m.matcher.matchIndex(pod)
+	if err != nil {
+		log.Errorf("error encountered matching targets, aborting all together to avoid inaccurate match: %v", err)
+		return nil
+	}
+	if idx < 0 || idx >= len(m.targets) {
+		return nil
 	}
 
-	// No target matched.
-	return nil
+	// A matched policy may explicitly deny injection (first match wins).
+	if !m.matcher.policies[idx].Outcome.Inject {
+		log.Debugf("Pod %q matched policy %q which denies injection", mutatecommon.PodString(pod), m.targets[idx].name)
+		return nil
+	}
+
+	log.Debugf("Pod %q matched target %q", mutatecommon.PodString(pod), m.targets[idx].name)
+	return &m.targets[idx]
 }
 
 func (t targetInternal) matchesNamespaceSelector(namespace string) (bool, error) {
@@ -446,10 +542,6 @@ func (t targetInternal) matchesNamespaceSelector(namespace string) (bool, error)
 	// Check if the pod namespace is in the match names.
 	_, ok := t.enabledNamespaces[namespace]
 	return ok, nil
-}
-
-func (t targetInternal) matchesPodSelector(podLabels map[string]string) bool {
-	return t.podSelector.Matches(labels.Set(podLabels))
 }
 
 // createDefaultTarget is used when there are no targets. If a user configures enabledNamespaces and libVersions, which
@@ -483,6 +575,29 @@ func createJSON(t Target) string {
 	if err != nil {
 		log.Errorf("error marshalling target %q: %v", t.Name, err)
 		return fmt.Sprintf("error marshalling target %q: %v", t.Name, err)
+	}
+	return string(data)
+}
+
+// createPolicyJSON creates the compact annotation payload for a policy-driven
+// match. It intentionally omits the rule tree and keeps only the policy
+// identity (name, version) and the tracer versions that were injected.
+func createPolicyJSON(p policies.Policy) string {
+	payload := struct {
+		Name           string            `json:"name,omitempty"`
+		ID             string            `json:"id,omitempty"`
+		Version        int64             `json:"version,omitempty"`
+		TracerVersions map[string]string `json:"ddTraceVersions,omitempty"`
+	}{
+		Name:           p.Name,
+		ID:             p.ID,
+		Version:        p.Version,
+		TracerVersions: p.Outcome.TracerVersions,
+	}
+	data, err := json.Marshal(payload)
+	if err != nil {
+		log.Errorf("error marshalling policy %q: %v", p.Name, err)
+		return ""
 	}
 	return string(data)
 }

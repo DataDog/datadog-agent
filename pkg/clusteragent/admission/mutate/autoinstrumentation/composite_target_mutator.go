@@ -14,10 +14,10 @@ import (
 
 type compositeTargetMutator struct {
 	local *TargetMutator
-	rc    *rcTargetProvider
+	rc    *rcPolicyProvider
 }
 
-func newCompositeTargetMutator(local *TargetMutator, rc *rcTargetProvider) *compositeTargetMutator {
+func newCompositeTargetMutator(local *TargetMutator, rc *rcPolicyProvider) *compositeTargetMutator {
 	return &compositeTargetMutator{
 		local: local,
 		rc:    rc,
