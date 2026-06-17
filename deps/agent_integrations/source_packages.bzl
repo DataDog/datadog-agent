@@ -17,6 +17,10 @@ def _integration_source_packages_impl(rctx):
         stripPrefix = "integrations-core-{}".format(commit),
     )
 
+    packages = ["datadog_checks_base", "datadog_checks_downloader"]
+
+    # Top-level BUILD file contains references to groups of wheels that are meaningful as a unit
+    wheel_srcs = ", ".join(['"//{}:wheel"'.format(pkg) for pkg in packages])
     rctx.file(
         "BUILD.bazel",
         """
@@ -24,17 +28,15 @@ package(default_visibility = ["//visibility:public"])
 
 filegroup(
     name = "base_wheels",
-    srcs = [
-        "//datadog_checks_base:wheel",
-        "//datadog_checks_downloader:wheel",
-    ],
+    srcs = [{}],
 )
-""",
+""".format(wheel_srcs),
     )
 
-    for package in ["datadog_checks_base", "datadog_checks_downloader"]:
+    # Individual packages that need to be built get their own BUILD file for building them as wheels
+    for pkg in packages:
         rctx.file(
-            "{}/BUILD.bazel".format(package),
+            "{}/BUILD.bazel".format(pkg),
             """
 load("@//deps/agent_integrations:defs.bzl", "pyproject_wheel")
 
