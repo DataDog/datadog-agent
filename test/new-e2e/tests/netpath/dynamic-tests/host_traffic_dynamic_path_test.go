@@ -101,6 +101,12 @@ func hostTrafficDynamicPathProvisioner() provisioners.Provisioner {
 			return err
 		}
 
+		// The Ubuntu e2e AMI installs apache2 (via the php meta-package) which binds to
+		// port 80 by default. Stop and disable it so the httpbin container below can
+		// claim the port during docker-compose up.
+		httpbinHost.MustExecute("sudo systemctl stop apache2 || true")
+		httpbinHost.MustExecute("sudo systemctl disable apache2 || true")
+
 		dockerManager, err := docker.NewAWSManager(&awsEnv, httpbinHost)
 		if err != nil {
 			return err
