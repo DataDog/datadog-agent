@@ -59,11 +59,11 @@ jobs:
           OCB_VERSION=$(grep -m1 'OCB_VERSION = ' tasks/collector.py | grep -oP '"\K[^"]+')
           echo "OCB_VERSION=$OCB_VERSION" >> $GITHUB_OUTPUT
           dda inv -- -e collector.generate
-          dda inv -- -e generate-licenses
           dda inv -- -e components.lint-components --fix
           dda inv -- -e modules.add-all-replace
           dda inv -- -e tidy
           bazel run //:go_mod_tidy_all
+          dda inv -- -e generate-licenses
 
       - uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
         name: Create pull request
