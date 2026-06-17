@@ -5,32 +5,37 @@ upgrade of the Agent and its OCI packages via `datadog-installer.exe` and the
 `Install-Datadog.ps1` setup script. Tests cover the happy path (install,
 upgrade, uninstall) and edge cases (rollback, stopping experiments, custom
 agent user/path, config experiments, persisting extensions). DDOT is
-currently the only Agent extension and has its own suite.
+currently the only Agent extension and has its own tests.
 
 Tests run on AWS-provisioned Windows VMs with no pre-installed agent or
 fakeintake. After every test, WER crash dumps are collected; on failure,
 agent logs, installer logs, and Windows event logs are downloaded.
 
-## Directory structure
+## What's tested
 
-```
-installer/windows/
-├── base_suite.go          # BaseSuite: artifact resolution, WER dumps, per-test setup
-├── installer.go           # DatadogInstallerRunner interface + DatadogInstaller impl
-├── install_script.go      # DatadogInstallScript / DatadogInstallExe: runs setup scripts
-├── agent_package.go       # AgentVersionManager: holds MSI + OCI package pair for a version
-├── consts/                # Package names, binary paths, service name, registry keys, OCI registries
-├── remote-host-assertions/ # Chainable assertions targeting a remote Windows host
-├── suite-assertions/      # Suite-level Require() wrapper (returns *SuiteAssertions)
-└── suites/
-    ├── agent-package/     # Agent install, upgrade, rollback, config experiments, domain/GMSA, persisting extensions
-    ├── apm-inject-package/ # APM auto-injection (IIS + Java)
-    ├── apm-library-dotnet-package/ # .NET APM library package
-    ├── ddot-package/      # DDOT Agent extension package
-    ├── install-exe/       # datadog-installer.exe bootstrap
-    ├── install-script/    # Install-Datadog.ps1 setup script and custom agent user
-    └── installer-package/ # (deprecated) Legacy installer MSI tests
-```
+Tests are flat `*_test.go` files directly under `installer/windows/` (package
+`installer`); the old `suites/<package>/` subdirectories were flattened in
+#47161 to speed up pre-building. Each `TestXxx` entry point is selected by name
+with `-run`. The areas covered:
+
+- **Agent package** — install, upgrade (across versions and from GA), downgrade,
+  rollback, config experiments, custom agent user / alternate install dir,
+  hostname change, and domain-controller / GMSA scenarios.
+- **Install script & exe** — `Install-Datadog.ps1` and `datadog-installer.exe`
+  bootstrap/setup, including custom agent user, proxy, and domain-controller hosts.
+- **DDOT extension** — install via MSI, install script, and `agent` subcommand;
+  MSI upgrade; persistence across upgrades.
+- **APM auto-injection** — IIS and Java injection via MSI and install script,
+  injector stats, and system-probe config interplay.
+- **.NET APM library package** — install via MSI and script, with and without IIS.
+- **Installer itself** — `datadog-installer.exe` install/rollback, the experiment
+  lifecycle (see below), and OCI dev-env overrides.
+
+Shared code lives alongside the tests: `base_suite.go`, `installer.go`,
+`install_script.go`, and `agent_package.go` (described below), plus `consts/`
+(package names, paths, service name, registry keys, OCI registries),
+`remote-host-assertions/` and `suite-assertions/` (fluent host/suite assertions),
+and `resources/` / `fixtures/` (test data). `doc.go` has a setup-env quick start.
 
 ## Base suite
 
@@ -80,8 +85,9 @@ package is an MSI rather than a set of loose files. `StartExperiment` and
 followed by a full MSI install of the target version, rather than an in-place
 file swap.
 
-Tests in `suites/agent-package/` exercise all three paths, including rollback
-scenarios where an experiment is stopped after a failed upgrade.
+The agent upgrade tests (`agent_upgrade_test.go`, `TestAgentUpgrades`) exercise
+all three paths, including rollback scenarios where an experiment is stopped
+after a failed upgrade.
 
 ## Key types
 
@@ -121,21 +127,21 @@ this package for installer-specific quick-start instructions.
 
 Jobs are in `.gitlab/windows/test/e2e_install_packages/windows.yml`.
 The `new-e2e-installer-windows` job runs the full `./tests/installer/windows`
-target. Individual package suites (e.g. `new-e2e-windows-ddot-package-a7-x86_64`)
-have their own jobs with specific `needs` for the OCI artifacts they require.
+target. Individual package jobs (e.g. `new-e2e-windows-ddot-package-a7-x86_64`)
+have specific `needs` for the OCI artifacts they require.
 
 ## Adding a new test
 
 1. **Decide where the test belongs.** See `tests/windows/AGENTS.md` "Where to
    add a new test" section. Fleet Automation / OCI package tests belong here.
 
-2. **Add to an existing suite or create a new one.**
-   - If the test fits an existing suite (e.g. agent upgrades go in
-     `suites/agent-package/`, install script scenarios in `suites/install-script/`),
-     add a new method to the existing suite struct.
-   - If it covers a new OCI package or a distinct feature area, create a new
-     suite under `suites/<package-name>/`. The suite struct should embed
-     `BaseSuite` and define a `TestXxx` entry point:
+2. **Add a `TestXxx` to a new or existing `*_test.go` file** directly under
+   `installer/windows/` (package `installer`).
+   - If it fits an existing area, add a method to that suite struct (e.g. agent
+     upgrades in `agent_upgrade_test.go`, install-script scenarios in
+     `install_script_test.go`).
+   - For a new package or feature area, add a new `*_test.go` file with a suite
+     struct that embeds `BaseSuite` and a `TestXxx` entry point:
 
    ```go
    func TestMyPackage(t *testing.T) {
@@ -144,7 +150,7 @@ have their own jobs with specific `needs` for the OCI artifacts they require.
    }
 
    type testMyPackageSuite struct {
-       windows.BaseSuite
+       BaseSuite
    }
 
    func (s *testMyPackageSuite) TestInstallMyPackage() {

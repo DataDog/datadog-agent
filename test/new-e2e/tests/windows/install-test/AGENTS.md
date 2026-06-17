@@ -2,9 +2,10 @@
 
 Tests for the Windows Agent MSI installer. Covers install, uninstall,
 repair, upgrade (including from v5/v6), custom install paths, agent user
-configuration, sub-service options, NPM, autologger, and persisting
-integrations. After every test, WER crash dumps are collected; if a test
-fails, agent logs and Windows event logs are also downloaded.
+configuration, sub-service options, NPM, autologger, persisting
+integrations, and registry/file permission preservation. After every test,
+WER crash dumps are collected; if a test fails, agent logs and Windows event
+logs are also downloaded.
 
 ## What is tested
 
@@ -20,24 +21,11 @@ and post-uninstall state. Checks include:
 - Python version and that Python check commands work
 - Code signing on agent binaries
 
-## Files
-
-```
-install-test/
-├── base.go                        # baseAgentMSISuite: BeforeTest/AfterTest hooks, install helpers
-├── installtester.go               # Tester: post-install expectation helpers
-├── assert.go                      # Standalone assertion functions (user, version, permissions)
-├── system_file_tester.go          # Validates system files are not modified by install/uninstall
-├── install_test.go                # TestInstall, TestRepair, TestInstallOpts, TestInstallFail, ...
-├── upgrade_test.go                # TestUpgrade, TestUpgradeRollback, TestUpgradeChangeUser, ...
-├── agent_user_test.go             # TestAgentUser (user-only, dotslash, hostname, LocalSystem, SYSTEM)
-├── npm_test.go                    # TestNPM* (install with NPM, upgrades)
-├── install_subservices_test.go    # TestSubServicesOpts (all/no subservices)
-├── persisting_integrations_test.go # TestPersistingIntegrations*
-├── autologger_test.go             # TestInstallWithAutologger*
-└── service-test/                  # Sub-package: expected service state definitions used by Tester
-                                   #   (not a runnable test package — only provides data for assertions)
-```
+Tests are `*_test.go` files grouped by scenario area (install/repair, upgrade,
+agent user, NPM, sub-services, persisting integrations, autologger, keep-rights);
+each `TestXxx` is selected by name with `-run`. The `service-test/` sub-package
+is **not** a runnable test package — it only holds expected service-state
+definitions consumed by `Tester`.
 
 ## Base suite
 
