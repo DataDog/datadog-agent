@@ -34,11 +34,12 @@ Map suite names to Go package paths:
 | `service-test` | `./test/new-e2e/tests/windows/service-test` |
 | `fips-test` | `./test/new-e2e/tests/windows/fips-test` |
 | `domain-test` | `./test/new-e2e/tests/windows/domain-test` |
-| `agent-package` | `./test/new-e2e/tests/installer/windows/suites/agent-package` |
-| `install-script` | `./test/new-e2e/tests/installer/windows/suites/install-script` |
-| `install-exe` | `./test/new-e2e/tests/installer/windows/suites/install-exe` |
-| `ddot-package` | `./test/new-e2e/tests/installer/windows/suites/ddot-package` |
-| `apm-inject-package` | `./test/new-e2e/tests/installer/windows/suites/apm-inject-package` |
+| installer / Fleet Automation (agent-package, install-script, install-exe, ddot, apm-inject, …) | `./test/new-e2e/tests/installer/windows` |
+
+The installer / Fleet Automation tests are all one flat package (the
+`suites/<package>/` subdirectories were flattened in #47161) — pick the area by
+test function with `-run` (e.g. `TestAgentUpgrades`, `TestInstallScript`,
+`TestDDOTExtensionViaMSI`, `TestAPMInjectInstalls`).
 
 If the user gives a partial name or test function, search with Glob/Grep under `test/new-e2e/tests/windows/` and `test/new-e2e/tests/installer/windows/` to resolve it.
 

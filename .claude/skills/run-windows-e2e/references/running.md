@@ -79,7 +79,7 @@ go test -v -timeout 30m -tags test ./test/new-e2e/tests/windows/install-test -ru
 go test -v -timeout 30m -tags test ./test/new-e2e/tests/windows/service-test -run TestServiceBehaviorPowerShell$
 
 # Fleet Automation — agent package, specific subtest
-go test -v -timeout 30m -tags test ./test/new-e2e/tests/installer/windows/suites/agent-package -run "TestAgentUpgrades$/TestUpgradeAgentPackage$"
+go test -v -timeout 30m -tags test ./test/new-e2e/tests/installer/windows -run "TestAgentUpgrades$/TestUpgradeAgentPackage$"
 ```
 
 See each suite's `AGENTS.md` for the full list of test functions and the CI job
