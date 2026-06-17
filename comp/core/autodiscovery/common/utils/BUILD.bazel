@@ -1,0 +1,67 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+# gazelle:dd_agent_go_test on
+
+go_library(
+    name = "utils",
+    srcs = [
+        "annotations.go",
+        "container_collect_all.go",
+        "container_labels.go",
+        "doc.go",
+        "endpointslices.go",
+        "endpointslices_nop.go",
+        "kubelet.go",
+        "pod_annotations.go",
+        "prometheus.go",
+        "prometheus_apiserver.go",
+        "prometheus_pods.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/utils",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/autodiscovery/common/types",
+        "//comp/core/autodiscovery/integration",
+        "//comp/core/autodiscovery/providers/names",
+        "//comp/core/workloadmeta/def",
+        "//pkg/config/setup",
+        "//pkg/util/containers",
+        "//pkg/util/kubernetes/apiserver",
+        "//pkg/util/log",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_api//discovery/v1:discovery",
+    ],
+)
+
+dd_agent_go_test(
+    name = "utils_test",
+    srcs = [
+        "annotations_test.go",
+        "container_labels_test.go",
+        "kubelet_test.go",
+        "pod_annotations_test.go",
+        "prometheus_apiserver_test.go",
+        "prometheus_pods_test.go",
+    ],
+    embed = [":utils"],
+    deps = [
+        "//comp/core/autodiscovery/common/types",
+        "//comp/core/autodiscovery/integration",
+        "//comp/core/autodiscovery/providers/names",
+        "//comp/core/config",
+        "//comp/core/log/def",
+        "//comp/core/log/mock",
+        "//comp/core/workloadmeta/def",
+        "//comp/core/workloadmeta/fx-mock",
+        "//comp/core/workloadmeta/mock",
+        "//pkg/config/mock",
+        "//pkg/util/fxutil",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/types",
+        "@org_uber_go_fx//:fx",
+    ],
+)

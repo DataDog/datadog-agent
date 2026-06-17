@@ -580,6 +580,11 @@ func (e *RuleEngine) RuleMatch(ctx *eval.Context, rule *rules.Rule, event eval.E
 		ev.Rules = append(ev.Rules, model.NewMatchedRule(rule.Def.ID, rule.Def.Version, rule.Def.Tags, rule.Policy.Name, rule.Policy.Version))
 	}
 
+	// best-effort: re-resolve the matched process's argv/envp from /proc
+	if !rule.Def.Silent {
+		e.probe.EnrichRuleEvent(ev)
+	}
+
 	e.probe.HandleActions(rule, event)
 
 	if rule.Def.Silent {

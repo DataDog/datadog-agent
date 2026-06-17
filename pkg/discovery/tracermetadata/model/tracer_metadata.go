@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:generate go run github.com/tinylib/msgp
+//go:generate go run github.com/tinylib/msgp -io=false
 //msgp:tag json
 
 // Package model parses the tracer-generated metadata

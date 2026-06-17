@@ -331,7 +331,7 @@ func matchesOnePrefix(text string, prefixes []string) bool {
 	return false
 }
 
-// EnvVars returns a array with the environment variables of the given pid
+// EnvVars returns an array with the environment variables of the given pid.
 func EnvVars(priorityEnvsPrefixes []string, pid uint32, maxEnvVars int) ([]string, bool, error) {
 	filename := procPidPath(pid, "environ")
 
@@ -372,7 +372,7 @@ func EnvVars(priorityEnvsPrefixes []string, pid uint32, maxEnvVars int) ([]strin
 	envs = append(envs, priorityEnvs...)
 
 	for scanner.Scan() {
-		if len(envs) >= sharedconsts.MaxArgsEnvsSize {
+		if len(envs) >= maxEnvVars {
 			return envs, true, nil
 		}
 

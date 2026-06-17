@@ -1,0 +1,39 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+# gazelle:dd_agent_go_test on
+
+go_library(
+    name = "trace",
+    srcs = [
+        "span_modifier.go",
+        "trace.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/cmd/serverless-init/trace",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/proto/pbgo/trace",
+        "//pkg/trace/agent",
+        "//pkg/trace/api",
+        "//pkg/trace/info",
+        "//pkg/trace/sampler",
+        "//pkg/trace/traceutil",
+        "//pkg/util/log",
+    ],
+)
+
+dd_agent_go_test(
+    name = "trace_test",
+    srcs = [
+        "span_modifier_test.go",
+        "trace_test.go",
+    ],
+    embed = [":trace"],
+    deps = [
+        "//pkg/proto/pbgo/trace",
+        "//pkg/trace/api",
+        "//pkg/trace/sampler",
+        "//pkg/trace/traceutil",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

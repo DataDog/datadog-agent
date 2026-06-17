@@ -1,0 +1,84 @@
+load("@py_agent_integrations_tool_requirements//:requirements.bzl", "requirement")
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "REMOVE_BASE_DIRECTORY", "pkg_attributes", "pkg_files")
+load("@rules_python//python:py_binary.bzl", "py_binary")
+load("//deps/agent_integrations:defs.bzl", "install_wheels")
+
+py_binary(
+    name = "install_wheels_tool",
+    srcs = ["install_wheels.py"],
+    main = "install_wheels.py",
+    deps = [requirement("installer")],
+)
+
+embedded_dir = select({
+    "@platforms//os:windows": "embedded3",
+    "//conditions:default": "embedded",
+})
+
+install_wheels(
+    name = "integrations_dependencies",
+    srcs = select(
+        {
+            "//:linux_x86_64": ["@integration_dependency_wheels_linux_x86_64//:dependency_wheels"],
+            "//:linux_arm64": ["@integration_dependency_wheels_linux_aarch64//:dependency_wheels"],
+            "//:macos_x86_64": ["@integration_dependency_wheels_macos_x86_64//:dependency_wheels"],
+            "//:macos_arm64": ["@integration_dependency_wheels_macos_aarch64//:dependency_wheels"],
+            "//:windows_x86_64": ["@integration_dependency_wheels_windows_x86_64//:dependency_wheels"],
+        },
+        no_match_error = "No integration dependency lockfile repo is configured for this target platform.",
+    ),
+    script_interpreter_relative_path = embedded_dir + select({
+        "@platforms//os:windows": "/python.exe",
+        "//conditions:default": "/bin/python3",
+    }),
+    tags = ["manual"],
+)
+
+filegroup(
+    name = "integrations_dependencies_runtime",
+    srcs = [":integrations_dependencies"],
+    output_group = "runtime",
+    tags = ["manual"],
+)
+
+filegroup(
+    name = "integrations_dependencies_bin",
+    srcs = [":integrations_dependencies"],
+    output_group = "bin",
+    tags = ["manual"],
+)
+
+pkg_files(
+    name = "integrations_dependency_runtime_files",
+    srcs = [":integrations_dependencies_runtime"],
+    attributes = pkg_attributes(mode = "0644"),
+    prefix = embedded_dir,
+    renames = {
+        ":integrations_dependencies_runtime": REMOVE_BASE_DIRECTORY,
+    },
+    tags = ["manual"],
+)
+
+pkg_files(
+    name = "integrations_dependency_bin_files",
+    srcs = [":integrations_dependencies_bin"],
+    attributes = pkg_attributes(mode = "0755"),
+    prefix = embedded_dir + select({
+        "@platforms//os:windows": "/Scripts",
+        "//conditions:default": "/bin",
+    }),
+    renames = {
+        ":integrations_dependencies_bin": REMOVE_BASE_DIRECTORY,
+    },
+    tags = ["manual"],
+)
+
+pkg_install(
+    name = "install_dependencies",
+    srcs = [
+        ":integrations_dependency_bin_files",
+        ":integrations_dependency_runtime_files",
+    ],
+    tags = ["manual"],
+)

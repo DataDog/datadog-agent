@@ -3,6 +3,7 @@ name: create-config-field
 description: Add a new configuration field to the Datadog Agent (datadog.yaml)
 allowed-tools: Bash, Read, Write, Edit, Glob, Grep, AskUserQuestion
 argument-hint: "[config.key.name]"
+model: sonnet
 ---
 
 Add a new configuration field to a Datadog Agent. This involves registering the key with defaults/env bindings in Go, and optionally documenting it in the config template.

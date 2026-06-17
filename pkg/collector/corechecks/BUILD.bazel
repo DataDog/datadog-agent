@@ -1,4 +1,7 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+# gazelle:dd_agent_go_test on
 
 go_library(
     name = "corechecks",
@@ -31,7 +34,7 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "corechecks_test",
     srcs = [
         "checkbase_test.go",
@@ -40,7 +43,6 @@ go_test(
         "safesender_test.go",
     ],
     embed = [":corechecks"],
-    gotags = ["test"],
     deps = [
         "//comp/core/autodiscovery/integration",
         "//comp/core/diagnose/def",

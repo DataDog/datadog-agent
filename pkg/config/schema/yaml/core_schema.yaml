@@ -8456,7 +8456,7 @@ properties:
           enabled:
             node_type: setting
             type: boolean
-            default: true
+            default: false
             comment: |-
               health_platform.invalidconfig_check.enabled is off by default because the check calls
               schema.ValidateCoreConfig which decompresses, parses, and compiles the full core_schema.yaml
