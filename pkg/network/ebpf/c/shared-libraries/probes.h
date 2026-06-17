@@ -7,36 +7,15 @@
 #include "pid_tgid.h"
 #include "shared-libraries/types.h"
 
-static __always_inline void fill_path_safe(lib_path_t *path, const char *path_argument) {
-#pragma unroll
-    for (int i = 0; i < LIB_PATH_MAX_SIZE; i++) {
-        bpf_probe_read_user(&path->buf[i], 1, &path_argument[i]);
-        if (path->buf[i] == 0) {
-            path->len = i;
-            break;
-        }
-    }
-}
-
-static __always_inline long fill_path(lib_path_t *path, const char *path_argument) {
-    return bpf_probe_read_user_with_telemetry(&path->buf, sizeof(path->buf), path_argument);
-}
-
 static __always_inline bool fill_lib_path(lib_path_t *path, const char *path_argument) {
     path->pid = GET_USER_MODE_PID(bpf_get_current_pid_tgid());
-
-    if (fill_path(path, path_argument) >= 0) {
-#pragma unroll
-        for (int i = 0; i < LIB_PATH_MAX_SIZE; i++) {
-            if (path->buf[i] == 0) {
-                path->len = i;
-                break;
-            }
-        }
-    } else {
-        fill_path_safe(path, path_argument);
+    // bpf_probe_read_user_str stops at the NUL terminator, so it never over-reads past the end
+    // of the string into an unmapped page the way the fixed-220-byte bpf_probe_read_user did
+    // (~5% EFAULT on the openat fexit path, which then fell back to a byte-by-byte read). (USMON-1552)
+    long ret = bpf_probe_read_user_str_with_telemetry(path->buf, sizeof(path->buf), path_argument);
+    if (ret > 0) {
+        path->len = ret - 1; // ret includes the NUL terminator
     }
-
     return path->len > 0;
 }
 
