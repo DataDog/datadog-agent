@@ -949,8 +949,8 @@ func setupFipsEndpoints(config pkgconfigmodel.Config) error {
 		config.Set("skip_ssl_validation", !config.GetBool("fips.tls_verify"), pkgconfigmodel.SourceAgentRuntime)
 	}
 
-	// The following overwrites should be sync with the documentation for the fips.enabled config setting in the
-	// config_template.yaml
+	// The following overwrites should be kept in sync with the documentation for the fips.enabled config
+	// setting in pkg/config/schema/yaml/.
 
 	// Metrics
 	config.Set("dd_url", protocol+urlFor(metrics), pkgconfigmodel.SourceAgentRuntime)
@@ -1214,12 +1214,12 @@ func sanitizeAPIKeyConfig(config pkgconfigmodel.Config, key string) {
 	config.Set(key, trimmed, pkgconfigmodel.SourceAgentRuntime)
 }
 
-// sanitizeDataPlaneConfig gates data_plane.enabled to Linux only.
-// The Agent Data Plane (ADP) is a Linux-only component. On non-Linux platforms
-// this function always installs a SourceAgentRuntime override of false, which
-// beats file and fleet-policy sources and prevents them from re-enabling ADP
-// after this call returns. A warning is emitted only when the value was
-// explicitly set to true at call time.
+// sanitizeDataPlaneConfig gates data_plane.enabled to supported platforms.
+// The Agent Data Plane (ADP) is supported on Linux and macOS. On unsupported
+// platforms this function always installs a SourceAgentRuntime override of
+// false, which beats file and fleet-policy sources and prevents them from
+// re-enabling ADP after this call returns. A warning is emitted only when the
+// value was explicitly set to true at call time.
 //
 // The goos parameter is the target OS string (normally runtime.GOOS). It is
 // exposed as a parameter so that tests can exercise both branches without
@@ -1228,9 +1228,9 @@ func sanitizeAPIKeyConfig(config pkgconfigmodel.Config, key string) {
 // The envLookup parameter is normally os.Getenv. It is exposed as a parameter
 // so tests can inject a stub without touching global state.
 // When DD_DATA_PLANE_FORCE_ENABLE=true the OS gate is skipped entirely; this
-// is intended for local development on macOS/Windows only.
+// is intended for local development on unsupported platforms only.
 func sanitizeDataPlaneConfig(config pkgconfigmodel.Config, goos string, envLookup func(string) string) {
-	if goos == "linux" || envLookup("DD_DATA_PLANE_FORCE_ENABLE") == "true" {
+	if goos == "linux" || goos == "darwin" || envLookup("DD_DATA_PLANE_FORCE_ENABLE") == "true" {
 		return
 	}
 	if config.GetBool(DataPlaneEnabled) {

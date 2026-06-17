@@ -12,7 +12,6 @@ license "BSD-3-Clause"
 license_file "./LICENSE"
 
 dependency 'python3'
-dependency 'setuptools3'
 
 python_version = "3.13"
 
@@ -83,23 +82,16 @@ build do
   }
 
   # Install dependencies
-  lockfile_name = case
-    when linux_target?
-      arm_target? ? "linux-aarch64" : "linux-x86_64"
-    when osx_target?
-      arm_target? ? "macos-aarch64" : "macos-x86_64"
-    when windows_target?
-      "windows-x86_64"
-  end + "_#{python_version}.txt"
-  lockfile = windows_safe_path(project_dir, ".deps", "resolved", lockfile_name)
-  command "#{python} -m pip install --require-hashes --only-binary=:all: --no-deps -r #{lockfile}"
+  command_on_repo_root "bazelisk run " \
+                       "--//packages/agent:flavor=#{ENV.fetch('AGENT_FLAVOR', 'base')} " \
+                       "--//:install_dir=#{install_dir} " \
+                       "-- //deps/agent_integrations:install_dependencies --destdir=#{install_dir}"
 
   # Prepare build env for integrations
   wheel_build_dir = windows_safe_path(project_dir, ".wheels")
   build_deps_dir = windows_safe_path(project_dir, ".build_deps")
   # We download build dependencies to make them available without an index when installing integrations
   command "#{python} -m pip download --dest #{build_deps_dir} hatchling==0.25.1", :env => pre_build_env
-  command "#{python} -m pip download --dest #{build_deps_dir} setuptools==75.1.0", :env => pre_build_env # Version from ./setuptools3.rb
   build_env = {
     "PIP_FIND_LINKS" => build_deps_dir,
     "PIP_CONFIG_FILE" => pip_config_file,

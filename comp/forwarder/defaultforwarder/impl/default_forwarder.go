@@ -307,9 +307,6 @@ func NewDefaultForwarder(config config.Component, log log.Component, options *Op
 		log.Infof("Retry queue storage on disk is disabled")
 	} else if agentName != "" {
 		storagePath := config.GetString("forwarder_storage_path")
-		if storagePath == "" {
-			storagePath = path.Join(config.GetString("run_path"), "transactions_to_retry")
-		}
 		outdatedFileInDays := config.GetInt("forwarder_outdated_file_in_days")
 		var err error
 
@@ -748,7 +745,7 @@ func (f *DefaultForwarder) SubmitOrchestratorChecks(payload transaction.BytesPay
 	bumpOrchestratorPayload(f.log, payloadType)
 
 	endpoint := endpoints.OrchestratorEndpoint
-	if f.config.IsSet("orchestrator_explorer.use_legacy_endpoint") {
+	if f.config.GetBool("orchestrator_explorer.use_legacy_endpoint") {
 		endpoint = endpoints.LegacyOrchestratorEndpoint
 	}
 	transactions := f.createHTTPTransactions(endpoint, payload, transaction.Process, extra)
