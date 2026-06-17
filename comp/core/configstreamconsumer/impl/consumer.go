@@ -179,7 +179,7 @@ func (c *consumer) start(_ context.Context) error {
 // registerWithBackoff retries forever until ctx is canceled, with no fallback.
 func (c *consumer) registerWithBackoff() error {
 	// Sentinel URI: the consumer registers no services, so core never dials back.
-	apiEndpointURI := "unix:///configstream-consumer/" + c.params.ClientName
+	apiEndpointURI := "https://configstream-consumer/" + c.params.ClientName
 
 	bo := backoff.NewExponentialBackOff()
 	bo.InitialInterval = 500 * time.Millisecond
