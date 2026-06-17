@@ -1,3 +1,6 @@
+ad_identifiers:
+  - _oom_kill
+
 init_config:
 
 instances:

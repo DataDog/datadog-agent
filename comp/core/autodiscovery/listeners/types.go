@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
+	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -76,6 +77,7 @@ type ServiceListernerDeps struct {
 	Tagger            tagger.Component
 	Filter            workloadfilter.Component
 	Wmeta             option.Option[workloadmeta.Component]
+	SysProbeConfig    option.Option[sysprobeconfig.Component]
 	StaticConfigIndex *StaticConfigIndex
 	ServiceTracker    types.ServiceTracker
 }

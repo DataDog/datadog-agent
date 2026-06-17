@@ -41,6 +41,7 @@ import (
 	logComp "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
+	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
@@ -69,6 +70,7 @@ type Requires struct {
 	TaggerComp     tagger.Component
 	Secrets        secrets.Component
 	WMeta          option.Option[workloadmeta.Component]
+	SysProbeConfig option.Option[sysprobeconfig.Component] `optional:"true"`
 	FilterStore    workloadfilter.Component
 	Telemetry      telemetry.Component
 	HealthPlatform option.Option[healthplatformdef.Component]
@@ -103,6 +105,7 @@ type AutoConfig struct {
 	healthPlatform           option.Option[healthplatformdef.Component]
 	staticConfigIndex        *listeners.StaticConfigIndex
 	serviceTracker           adtypes.ServiceTracker
+	sysProbeConfig           option.Option[sysprobeconfig.Component]
 
 	// m covers the `configPollers`, `listenerCandidates`, `listeners`, and `listenerRetryStop`, but
 	// not the values they point to.
@@ -181,6 +184,7 @@ func newAutoConfig(deps Requires) autodiscoverydef.Component {
 	}()
 
 	ac := createNewAutoConfig(schController, deps.Secrets, deps.WMeta, deps.TaggerComp, deps.Log, deps.Telemetry, deps.FilterStore, deps.HealthPlatform, deps.ServiceTracker)
+	ac.sysProbeConfig = deps.SysProbeConfig
 	deps.Lc.Append(compdef.Hook{
 		OnStart: func(_ context.Context) error {
 			ac.start()
@@ -600,6 +604,7 @@ func (ac *AutoConfig) addListenerCandidates(listenerConfigs []pkgconfigsetup.Lis
 			Filter:            ac.filterStore,
 			Tagger:            ac.taggerComp,
 			Wmeta:             ac.wmeta,
+			SysProbeConfig:    ac.sysProbeConfig,
 			StaticConfigIndex: ac.staticConfigIndex,
 			ServiceTracker:    ac.serviceTracker,
 		}
