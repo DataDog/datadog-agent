@@ -490,6 +490,71 @@ func Test_metadataCollectionGVRs_WithFunctionalDiscovery(t *testing.T) {
 				"cluster_agent.kube_metadata_collection.resources": "apps/daemonsets apps/statefulsetsy",
 			},
 		},
+		{
+			name: "resource served only on a non-preferred group version is discovered",
+			apiServerResourceList: []*metav1.APIResourceList{
+				{
+					GroupVersion: "datadoghq.com/v2alpha1",
+					APIResources: []metav1.APIResource{
+						{
+							Name:       "datadogagents",
+							Kind:       "DatadogAgent",
+							Namespaced: true,
+						},
+					},
+				},
+				{
+					GroupVersion: "datadoghq.com/v1alpha1",
+					APIResources: []metav1.APIResource{
+						{
+							Name:       "datadogslos",
+							Kind:       "DatadogSLO",
+							Namespaced: true,
+						},
+					},
+				},
+			},
+			expectedGVRs: []schema.GroupVersionResource{
+				{Resource: "datadogagents", Group: "datadoghq.com", Version: "v2alpha1"},
+				{Resource: "datadogslos", Group: "datadoghq.com", Version: "v1alpha1"},
+			},
+			cfg: map[string]interface{}{
+				"cluster_agent.kube_metadata_collection.enabled":   true,
+				"cluster_agent.kube_metadata_collection.resources": "datadoghq.com/datadogagents datadoghq.com/datadogslos",
+			},
+		},
+		{
+			name: "resource served on both preferred and non-preferred versions resolves to preferred",
+			apiServerResourceList: []*metav1.APIResourceList{
+				{
+					GroupVersion: "datadoghq.com/v2alpha1",
+					APIResources: []metav1.APIResource{
+						{
+							Name:       "datadogagents",
+							Kind:       "DatadogAgent",
+							Namespaced: true,
+						},
+					},
+				},
+				{
+					GroupVersion: "datadoghq.com/v1alpha1",
+					APIResources: []metav1.APIResource{
+						{
+							Name:       "datadogagents",
+							Kind:       "DatadogAgent",
+							Namespaced: true,
+						},
+					},
+				},
+			},
+			expectedGVRs: []schema.GroupVersionResource{
+				{Resource: "datadogagents", Group: "datadoghq.com", Version: "v2alpha1"},
+			},
+			cfg: map[string]interface{}{
+				"cluster_agent.kube_metadata_collection.enabled":   true,
+				"cluster_agent.kube_metadata_collection.resources": "datadoghq.com/datadogagents",
+			},
+		},
 	}
 
 	for _, test := range tests {

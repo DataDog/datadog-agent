@@ -238,20 +238,30 @@ def get_bazel_test_targets(
     if not bazel_patterns:
         return {}
 
-    flavor_tag = f'flavor_{flavor.name}'
     scope = ' + '.join(bazel_patterns)
-    all_flags = ['-k', '--color=no'] + (bazel_flags or [])
+    all_flags = ['-k', '--curses=no', '--color=no'] + (bazel_flags or [])
     # We don't care about failure or stderr. There might be broken packages
     # during development. We enumerate what we can and test those.
     result = _run_bazel(
         'cquery',
         *all_flags,
-        f'attr(tags, {flavor_tag}, kind(go_test, {scope})) except attr(tags, manual, {scope})',
+        f'kind(go_test, {scope}) except attr(tags, manual, {scope})',
     )
     output = result.stdout
 
     if not output:
         return {}
+
+    # We must filter out the tests which are for the other flavors.
+    # The naming pattern of flavorized tests is {name}_test_{flavor}, so we
+    # can detect them by the suffix.
+    other_flavors_suffixes = [f'_test_{flvr.name}' for flvr in AgentFlavor if flvr != flavor]
+
+    def should_skip(label):
+        for suffix in other_flavors_suffixes:
+            if label.endswith(suffix):
+                return True
+        return False
 
     result = {}
     for line in output.splitlines():
@@ -260,7 +270,9 @@ def get_bazel_test_targets(
             continue
         # Strip config hash: //pkg/util/log:log_test (abc1234) -> //pkg/util/log:log_test
         label = line.split(' ')[0]
-        # Get directory from label: //pkg/util/log:log_test -> pkg/util/log
+        if should_skip(label):
+            continue
+        # Keep map of bazel target to Go package name: //pkg/util/log:log_test -> pkg/util/log
         package = label.split(':')[0]
         dir_path = package[2:]  # strip //
         result[label] = f'{MODULE_PREFIX}/{dir_path}'
@@ -767,7 +779,9 @@ def test(
     bazel_targets: dict[str, str] = {}
     bazel_flags = []
     if unit_tests_tags:
-        bazel_flags.append(f"--@rules_go//go/config:tags={','.join(unit_tests_tags)}")
+        # Critically important to sort the gotags because their order matters for configuration calculation.
+        # That is, you don't cache unless they come out the same way.
+        bazel_flags.append(f"--@rules_go//go/config:tags={','.join(sorted(unit_tests_tags))}")
     if skip_tests_covered_by_bazel or write_bazel_test_list or run_bazel_tests:
         bazel_targets = get_bazel_test_targets(ctx, flavor=flavor, modules=list(modules), bazel_flags=bazel_flags)
         print(f"Found {len(bazel_targets)} Bazel-covered go_test targets")
@@ -782,7 +796,7 @@ def test(
             print(f"Skipping {len(exclude_packages)} Bazel-covered packages from go test")
 
     with gitlab_section("Running unit tests", collapsed=True):
-        result_junit = f"junit-out-{flavor}.xml" if junit_tar else ""
+        result_junit = f"junit-out-{flavor.name}.xml" if junit_tar else ""
         test_result = test_flavor(
             ctx,
             flavor=flavor,

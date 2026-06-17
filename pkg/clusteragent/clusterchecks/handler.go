@@ -142,6 +142,7 @@ func (h *Handler) Run(ctx context.Context) {
 
 		// Run discovery and dispatching
 		log.Info("Warmup phase finished, starting to serve configurations")
+		h.dispatcher.logWarmupSummary()
 
 		// Initial mode determination after warmup
 		h.dispatcher.UpdateAdvancedDispatchingMode()

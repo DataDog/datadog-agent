@@ -223,25 +223,59 @@ func (m *HostMap) Update(host string, res pcommon.Resource) (changed bool, md pa
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	md, found := m.newOrFetchHostMetadata(host)
+	changed, err = applyResourceAttrs(&md, host, res, found)
+	m.hosts[host] = md
+
+	var err2 error
+	md, err2 = md.Clone() // Clone to avoid accidentally mutating internal maps of previously returned values
+	err = errors.Join(err, err2)
+	return
+}
+
+// UpdateWithMetrics atomically applies resource attributes and tracked metric values
+// to the stored payload for host under a single lock acquisition, so Flush cannot
+// observe a host entry with CPU data but no hostname.
+// Non-fatal field errors are returned alongside valid partial updates.
+func (m *HostMap) UpdateWithMetrics(host string, res pcommon.Resource, metrics []pmetric.Metric) (changed bool, md payload.HostMetadata, err error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	cur, found := m.newOrFetchHostMetadata(host)
+	changed, err = applyResourceAttrs(&cur, host, res, found)
+	for _, metric := range metrics {
+		if applyMetricData(&cur, metric) {
+			changed = true
+		}
+	}
+	m.hosts[host] = cur
+	var cloneErr error
+	md, cloneErr = cur.Clone()
+	err = errors.Join(err, cloneErr)
+	return
+}
+
+// applyResourceAttrs updates md in-place with attributes from res.
+// found indicates whether md was fetched from the map (false = new host).
+// Non-fatal field errors are accumulated and returned alongside partial updates.
+func applyResourceAttrs(md *payload.HostMetadata, host string, res pcommon.Resource, found bool) (changed bool, err error) {
 	md.InternalHostname = host
 	md.Meta.Hostname = host
 
-	// Host tags
-	// If a tag was present in a previous resource but is not present
-	// in the current one, it will be removed from the host metadata payload.
+	// Host tags — only updated when the resource explicitly carries tag attributes,
+	// so a metrics-only resource does not erase tags set by a richer prior payload.
 	if tags, tagsErr := getHostTags(res.Attributes()); tagsErr != nil {
 		err = errors.Join(err, tagsErr)
-	} else {
+	} else if len(tags) > 0 {
 		old := md.Tags.OTel
 		changed = changed || !equalSlices[[]string](old, tags)
 		md.Tags.OTel = tags
 	}
 
-	// Host Aliases
-	hostAliases := getHostAliases(res.Attributes())
-	old := md.Meta.HostAliases
-	changed = changed || !equalSlices[[]string](old, hostAliases)
-	md.Meta.HostAliases = hostAliases
+	// Host Aliases — nil means absent; non-nil (possibly empty) means explicitly set.
+	if hostAliases := getHostAliases(res.Attributes()); hostAliases != nil {
+		old := md.Meta.HostAliases
+		changed = changed || !equalSlices[[]string](old, hostAliases)
+		md.Meta.HostAliases = hostAliases
+	}
 
 	// If a tag was present in a previous resource but is not present
 	// in the current one, it will be removed from the host metadata payload.
@@ -337,18 +371,13 @@ func (m *HostMap) Update(host string, res pcommon.Resource) (changed bool, md pa
 		}
 	}
 
-	m.hosts[host] = md
-
-	var err2 error
-	md, err2 = md.Clone() // Clone to avoid accidentally mutating internal maps of previously returned values
-	err = errors.Join(err, err2)
-
 	changed = changed || !found
 	return
 }
 
-// UpdateFromMetric updates the host metadata payload for a given host by providing a metric.
-func (m *HostMap) UpdateFromMetric(host string, metric pmetric.Metric) {
+// applyMetricData updates md in-place with the value from metric.
+// Returns true if a CPU field changed.
+func applyMetricData(md *payload.HostMetadata, metric pmetric.Metric) bool {
 	// Take last available point
 	var datapoints pmetric.NumberDataPointSlice
 	switch metric.Type() {
@@ -357,11 +386,11 @@ func (m *HostMap) UpdateFromMetric(host string, metric pmetric.Metric) {
 	case pmetric.MetricTypeSum:
 		datapoints = metric.Sum().DataPoints()
 	default:
-		return // unsupported type
+		return false // unsupported type
 	}
 	nPoints := datapoints.Len()
 	if nPoints == 0 {
-		return // no points
+		return false // no points
 	}
 	lastIndex := nPoints - 1
 	point := datapoints.At(lastIndex)
@@ -375,21 +404,23 @@ func (m *HostMap) UpdateFromMetric(host string, metric pmetric.Metric) {
 		value = point.DoubleValue()
 	default:
 		// unsupported type
-		return
+		return false
 	}
-
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	md, _ := m.newOrFetchHostMetadata(host)
 
 	// Gohai - CPU
 	data, ok := cpuMetricsMap[metric.Name()]
-	if ok {
-		if data.ConversionFactor != 0 {
-			value = value * data.ConversionFactor
-		}
-		md.CPU()[data.FieldName] = fmt.Sprintf("%g", value)
+	if !ok {
+		return false
 	}
+	if data.ConversionFactor != 0 {
+		value = value * data.ConversionFactor
+	}
+	newVal := fmt.Sprintf("%g", value)
+	if md.CPU()[data.FieldName] == newVal {
+		return false
+	}
+	md.CPU()[data.FieldName] = newVal
+	return true
 }
 
 // Flush all the host metadata payloads and clear them from the HostMap.

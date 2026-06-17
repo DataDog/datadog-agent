@@ -186,7 +186,7 @@ func TestUpdate(t *testing.T) {
 				string(conventions.DeploymentEnvironmentKey): "prod",
 			},
 			metric:          BuildMetric[float64](metricSystemCPUFrequency, 400_000_005.5),
-			expectedChanged: false,
+			expectedChanged: true, // new CPU frequency field counts as changed
 		},
 		{
 			// Same as #1 but wrong type and an update
@@ -260,16 +260,17 @@ func TestUpdate(t *testing.T) {
 
 	hostMap := New()
 	for _, info := range hostInfo {
-		changed, _, err := hostMap.Update(info.hostname, testutils.NewResourceFromMap(t, info.attributes))
+		var metrics []pmetric.Metric
+		if info.metric != nil {
+			metrics = []pmetric.Metric{*info.metric}
+		}
+		changed, _, err := hostMap.UpdateWithMetrics(info.hostname, testutils.NewResourceFromMap(t, info.attributes), metrics)
 		assert.Equal(t, info.expectedChanged, changed)
 		if len(info.expectedErrs) > 0 {
 			errStrings := strings.Split(err.Error(), "\n")
 			assert.ElementsMatch(t, info.expectedErrs, errStrings)
 		} else {
 			assert.NoError(t, err)
-		}
-		if info.metric != nil {
-			hostMap.UpdateFromMetric(info.hostname, *info.metric)
 		}
 	}
 
