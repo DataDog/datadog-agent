@@ -631,6 +631,94 @@ func getPodResizeStatus(pod *workloadmeta.KubernetesPod, recommendationID string
 	return PodResizeStatusCompleted, time.Time{}
 }
 
+// isDisruptiveResize reports whether the recommendation changes a resource whose RestartContainer
+// policy would restart a container. Other resizes happen in place and are never throttled.
+func isDisruptiveResize(pod *workloadmeta.KubernetesPod, recommendation *model.VerticalScalingValues) bool {
+	if recommendation == nil {
+		return false
+	}
+	recoByName := make(map[string]datadoghqcommon.DatadogPodAutoscalerContainerResources, len(recommendation.ContainerResources))
+	for _, cr := range recommendation.ContainerResources {
+		recoByName[cr.Name] = cr
+	}
+	for _, c := range pod.Containers {
+		cr, ok := recoByName[c.Name]
+		if !ok {
+			continue
+		}
+		if c.ResizePolicy.CPURestartPolicy == string(corev1.RestartContainer) && cpuChanging(c.Resources, cr) {
+			return true
+		}
+		if c.ResizePolicy.MemoryRestartPolicy == string(corev1.RestartContainer) && memoryChanging(c.Resources, cr) {
+			return true
+		}
+	}
+	return false
+}
+
+// cpuChanging reports whether reco changes the container's CPU request or limit, compared in
+// millicores to avoid float equality across the two code paths.
+func cpuChanging(current workloadmeta.ContainerResources, reco datadoghqcommon.DatadogPodAutoscalerContainerResources) bool {
+	// CPURequest/CPULimit are stored as percentage of 1 CPU (0–100*numCPU); multiply by 10 to get millicores.
+	cpuMilliChanged := func(currentCPUPercent *float64, recoMillis int64) bool {
+		if currentCPUPercent == nil {
+			return true
+		}
+		return int64(*currentCPUPercent*10+0.5) != recoMillis
+	}
+	if q, ok := reco.Requests[corev1.ResourceCPU]; ok && cpuMilliChanged(current.CPURequest, q.MilliValue()) {
+		return true
+	}
+	if q, ok := reco.Limits[corev1.ResourceCPU]; ok && cpuMilliChanged(current.CPULimit, q.MilliValue()) {
+		return true
+	}
+	return false
+}
+
+// memoryChanging reports whether reco changes the container's memory request or limit.
+func memoryChanging(current workloadmeta.ContainerResources, reco datadoghqcommon.DatadogPodAutoscalerContainerResources) bool {
+	memBytesChanged := func(currentBytes *uint64, recoBytes int64) bool {
+		if currentBytes == nil {
+			return true
+		}
+		return int64(*currentBytes) != recoBytes
+	}
+	if q, ok := reco.Requests[corev1.ResourceMemory]; ok && memBytesChanged(current.MemoryRequest, q.Value()) {
+		return true
+	}
+	if q, ok := reco.Limits[corev1.ResourceMemory]; ok && memBytesChanged(current.MemoryLimit, q.Value()) {
+		return true
+	}
+	return false
+}
+
+// countDisruptedPods counts pods that are unavailable or mid-resize. In-flight resizes count even
+// while Ready, since a RestartContainer resize stays Ready while Deferred/InProgress.
+func countDisruptedPods(podsByResizeStatus map[PodResizeStatus][]classifiedPod) int {
+	disrupted := 0
+	for status, cps := range podsByResizeStatus {
+		for _, cp := range cps {
+			if (status == PodResizeStatusNeedsPatch || status == PodResizeStatusCompleted) && cp.pod.Ready {
+				continue
+			}
+			disrupted++
+		}
+	}
+	return disrupted
+}
+
+// allowedDisruptions returns how many more pods may be disrupted this sync to stay within budget.
+func allowedDisruptions(configured int, alreadyDisrupted int) int {
+	pct := pkgconfigsetup.Datadog().GetInt("autoscaling.workload.in_place_vertical_scaling.disruption_tolerance_percent")
+	tolerance := int(float64(configured) * float64(pct) / 100.0)
+	// Allow one disruption when a healthy workload's tolerance truncates to 0, so low-replica
+	// workloads can still make progress.
+	if tolerance == 0 && alreadyDisrupted == 0 && configured > 0 {
+		return 1
+	}
+	return max(0, tolerance-alreadyDisrupted)
+}
+
 func fromAutoscalerToContainerResourcePatches(autoscalerInternal *model.PodAutoscalerInternal, pod *workloadmeta.KubernetesPod) []workloadpatcher.ContainerResourcePatch {
 	containersResources := autoscalerInternal.ScalingValues().Vertical.ContainerResources
 

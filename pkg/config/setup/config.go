@@ -1214,12 +1214,12 @@ func sanitizeAPIKeyConfig(config pkgconfigmodel.Config, key string) {
 	config.Set(key, trimmed, pkgconfigmodel.SourceAgentRuntime)
 }
 
-// sanitizeDataPlaneConfig gates data_plane.enabled to Linux only.
-// The Agent Data Plane (ADP) is a Linux-only component. On non-Linux platforms
-// this function always installs a SourceAgentRuntime override of false, which
-// beats file and fleet-policy sources and prevents them from re-enabling ADP
-// after this call returns. A warning is emitted only when the value was
-// explicitly set to true at call time.
+// sanitizeDataPlaneConfig gates data_plane.enabled to supported platforms.
+// The Agent Data Plane (ADP) is supported on Linux and macOS. On unsupported
+// platforms this function always installs a SourceAgentRuntime override of
+// false, which beats file and fleet-policy sources and prevents them from
+// re-enabling ADP after this call returns. A warning is emitted only when the
+// value was explicitly set to true at call time.
 //
 // The goos parameter is the target OS string (normally runtime.GOOS). It is
 // exposed as a parameter so that tests can exercise both branches without
@@ -1228,9 +1228,9 @@ func sanitizeAPIKeyConfig(config pkgconfigmodel.Config, key string) {
 // The envLookup parameter is normally os.Getenv. It is exposed as a parameter
 // so tests can inject a stub without touching global state.
 // When DD_DATA_PLANE_FORCE_ENABLE=true the OS gate is skipped entirely; this
-// is intended for local development on macOS/Windows only.
+// is intended for local development on unsupported platforms only.
 func sanitizeDataPlaneConfig(config pkgconfigmodel.Config, goos string, envLookup func(string) string) {
-	if goos == "linux" || envLookup("DD_DATA_PLANE_FORCE_ENABLE") == "true" {
+	if goos == "linux" || goos == "darwin" || envLookup("DD_DATA_PLANE_FORCE_ENABLE") == "true" {
 		return
 	}
 	if config.GetBool(DataPlaneEnabled) {
@@ -1520,6 +1520,28 @@ func ApplyUseDogstatsdSuppression(config pkgconfigmodel.Config) {
 		log.Infof("Forcing data_plane.dogstatsd.enabled=false because use_dogstatsd=false")
 		config.Set("data_plane.dogstatsd.enabled", false, pkgconfigmodel.SourceAgentRuntime)
 	}
+}
+
+// ComputeDataPlaneStopTimeout is a post-load override that, when the user has
+// not explicitly set data_plane.stop_timeout, recomputes it from
+// aggregator_stop_timeout + forwarder_stop_timeout. The Agent Data Plane reads
+// this value via the config stream to size its topology graceful-shutdown
+// budget; computing the sum here keeps that budget aligned with the documented
+// core-agent shutdown window even when users customize the component
+// timeouts.
+//
+// It is registered as an override func (runs after datadog.yaml loads) and
+// also called explicitly after fleet policy merging, because fleet policies
+// are applied after the initial override pass.
+func ComputeDataPlaneStopTimeout(config pkgconfigmodel.Config) {
+	if config.GetSource("data_plane.stop_timeout") != pkgconfigmodel.SourceDefault {
+		return
+	}
+	sum := config.GetInt("aggregator_stop_timeout") + config.GetInt("forwarder_stop_timeout")
+	// Keep the source as default: the value is a derived default, not an
+	// agent runtime decision, so it should be filtered out by views that
+	// strip defaults (e.g. config dumps for diagnostics).
+	config.Set("data_plane.stop_timeout", sum, pkgconfigmodel.SourceDefault)
 }
 
 func bindEnvAndSetLogsConfigKeys(config pkgconfigmodel.Setup, prefix string) {

@@ -1,0 +1,8 @@
+---
+enhancements:
+  - |
+    Added the ``data_plane.stop_timeout`` configuration setting, which controls the
+    graceful shutdown budget for the Agent Data Plane (ADP). When unset, it derives
+    its value from ``aggregator_stop_timeout + forwarder_stop_timeout``, so customizing
+    either of those component timeouts now extends ADP's shutdown window in lockstep
+    with the core Agent.
