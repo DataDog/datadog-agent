@@ -76,7 +76,7 @@ func (s *hostAgentSuite) TestFakeIntakeReceivesSystemUptime() {
 // UpdateEnv: it rewrites config files and restarts the agent via SSH without
 // touching the Pulumi stack, making config-only changes fast.
 func (s *hostAgentSuite) TestReconfigure() {
-	s.Env().Agent.Configure(s.T(),
+	s.Env().Agent.Configure(s,
 		agentparams.WithAgentConfig("log_level: debug"),
 	)
 	assert.Contains(s.T(), s.Env().Agent.Client.Config(), "log_level: debug")
@@ -107,7 +107,7 @@ func (s *hostAgentExplicitInstallSuite) SetupSuite() {
 	// Install the agent on the provisioned VM via SSH. hostagent.Install
 	// automatically connects the agent to s.Env().FakeIntake and populates
 	// s.Env().Agent with a ready-to-use agent client.
-	hostagent.Install(s.T(), s.Env(),
+	hostagent.Install(s, s.Env(),
 		agentparams.WithAgentConfig("log_level: info"),
 	)
 }
