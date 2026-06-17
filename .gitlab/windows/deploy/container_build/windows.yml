@@ -33,7 +33,6 @@
       --build-arg CI
       --build-arg GENERAL_ARTIFACTS_CACHE_BUCKET_URL=${GENERAL_ARTIFACTS_CACHE_BUCKET_URL}
       ${BUILD_ARG}
-      --pull
       --file ${BUILD_CONTEXT}/windows/amd64/Dockerfile
       --tag ${TARGET_TAG}
       --label 'org.opencontainers.image.created=${BUILD_DATE}'

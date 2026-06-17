@@ -14,9 +14,23 @@ if ("$env:WITH_FIPS" -ne "true") {
 $maven_sha512 = '03e2d65d4483a3396980629f260e25cac0d8b6f7f2791e4dc20bc83f9514db8d0f05b0479e699a5f34679250c49c8e52e961262ded468a20de0be254d8207076'
 $maven_version = '3.9.11'
 
+function Invoke-WebRequestWithRetry {
+    $MaxAttempts = 5
+    for ($i = 1; $i -le $MaxAttempts; $i++) {
+        try {
+            Invoke-WebRequest @args
+            return
+        } catch {
+            if ($i -ge $MaxAttempts) { throw }
+            Write-Host ("Attempt #{0} failed: {1}" -f $i, $_)
+            Start-Sleep -Seconds ($i * $i)
+        }
+    }
+}
+
 if ("$env:WITH_JMX" -ne "false") {
     cd \fips-build
-    Invoke-WebRequest -Outfile maven.zip https://repo1.maven.org/maven2/org/apache/maven/apache-maven/${maven_version}/apache-maven-${maven_version}-bin.zip
+    Invoke-WebRequestWithRetry -Outfile maven.zip https://repo1.maven.org/maven2/org/apache/maven/apache-maven/${maven_version}/apache-maven-${maven_version}-bin.zip
     if ((Get-FileHash -Algorithm SHA512 maven.zip).Hash -eq $maven_sha512) {
         Write-Host "Maven checksum match"
     } else {

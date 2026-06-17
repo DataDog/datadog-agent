@@ -12,14 +12,28 @@ function Install-Service {
   } else {
       New-Service -Name $SvcName -StartupType Manual -BinaryPathName $BinPath
   }
-  $eventSourceData = new-object System.Diagnostics.EventSourceCreationData("$SvcName", "Application")  
+  $eventSourceData = new-object System.Diagnostics.EventSourceCreationData("$SvcName", "Application")
   $eventSourceData.CategoryResourceFile = $BinPath
   $eventSourceData.MessageResourceFile = $BinPath
 
   If (![System.Diagnostics.EventLog]::SourceExists($eventSourceData.Source))
-  {      
-  [System.Diagnostics.EventLog]::CreateEventSource($eventSourceData)  
-  } 
+  {
+  [System.Diagnostics.EventLog]::CreateEventSource($eventSourceData)
+  }
+}
+
+function Invoke-WebRequestWithRetry {
+  $MaxAttempts = 5
+  for ($i = 1; $i -le $MaxAttempts; $i++) {
+    try {
+      Invoke-WebRequest @args
+      return
+    } catch {
+      if ($i -ge $MaxAttempts) { throw }
+      Write-Host ("Attempt #{0} failed: {1}" -f $i, $_)
+      Start-Sleep -Seconds ($i * $i)
+    }
+  }
 }
 
 if ("$env:WITH_JMX" -ne "false") {
@@ -29,7 +43,7 @@ if ("$env:WITH_JMX" -ne "false") {
     $JDK_SHA256 = "052f09448d5b8d9afb7a8e5049d40d7fafa8f5884afe6043bb2359787fd41e84"
 
     $JDK_DOWNLOAD_URL = if ($env:GENERAL_ARTIFACTS_CACHE_BUCKET_URL) {"${env:GENERAL_ARTIFACTS_CACHE_BUCKET_URL}/openjdk"} else {$JDK_UPSTREAM}
-    Invoke-WebRequest -OutFile jre.zip "${JDK_DOWNLOAD_URL}/${JDK_FILENAME}"
+    Invoke-WebRequestWithRetry -OutFile jre.zip "${JDK_DOWNLOAD_URL}/${JDK_FILENAME}"
     (Get-FileHash -Algorithm SHA256 jre.zip).Hash -eq "$JDK_SHA256"
     Expand-Archive -Path jre.zip -DestinationPath C:/
     Remove-Item jre.zip
