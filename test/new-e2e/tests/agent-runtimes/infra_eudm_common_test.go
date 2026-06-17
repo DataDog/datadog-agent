@@ -97,7 +97,7 @@ func (s *eudmSuite) TestEUDMHostTags() {
 
 	// Hardware tag keys are populated by the agent on macOS and Windows only
 	// (see comp/metadata/host/impl/hosttags/eudm.go). Linux EUDM hosts only
-	// receive the infrastructure_mode marker tag.
+	// receive the infra_mode marker tag.
 	//
 	// device_model is intentionally omitted: it derives from
 	// Win32_ComputerSystem.SystemSKUNumber on Windows, which is empty on
@@ -134,8 +134,8 @@ func (s *eudmSuite) TestEUDMHostTags() {
 			// Latest payload — host_tags are eventually consistent.
 			tags := payloads[len(payloads)-1].HostTags
 
-			assert.Contains(c, tags, "infrastructure_mode:end_user_device",
-				"expected infrastructure_mode marker on host %s; got %v", host, tags)
+			assert.Contains(c, tags, "infra_mode:end_user_device",
+				"expected infra_mode marker on host %s; got %v", host, tags)
 
 			if expectHardwareTags {
 				for _, key := range hardwareTagKeys {
