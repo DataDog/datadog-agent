@@ -1,0 +1,88 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+# gazelle:dd_agent_go_test on
+
+go_library(
+    name = "battery",
+    srcs = [
+        "battery.go",
+        "battery_darwin.go",
+        "battery_darwin.h",
+        "battery_darwin.m",
+        "battery_darwin_testhelpers.go",
+        "battery_nix.go",
+        "battery_windows.go",
+    ],
+    cgo = True,
+    clinkopts = select({
+        "@rules_go//go/platform:darwin": [
+            "-framework Foundation -framework IOKit",
+        ],
+        "@rules_go//go/platform:ios": [
+            "-framework Foundation -framework IOKit",
+        ],
+        "//conditions:default": [],
+    }),
+    copts = select({
+        "@rules_go//go/platform:darwin": [
+            "-x objective-c -fobjc-arc",
+        ],
+        "@rules_go//go/platform:ios": [
+            "-x objective-c -fobjc-arc",
+        ],
+        "//conditions:default": [],
+    }),
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/battery",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/autodiscovery/integration",
+        "//pkg/aggregator/sender",
+        "//pkg/collector/check",
+        "//pkg/collector/corechecks",
+        "//pkg/util/log",
+        "//pkg/util/option",
+    ] + select({
+        "@rules_go//go/platform:windows": [
+            "//pkg/util/winutil",
+            "@org_golang_x_sys//windows",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+dd_agent_go_test(
+    name = "battery_test",
+    srcs = [
+        "battery_darwin_conversion_test.go",
+        "battery_test.go",
+    ],
+    embed = [":battery"],
+    deps = select({
+        "@rules_go//go/platform:darwin": [
+            "//comp/core/autodiscovery/integration",
+            "//pkg/aggregator/mocksender",
+            "//pkg/collector/check",
+            "//pkg/util/option",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//comp/core/autodiscovery/integration",
+            "//pkg/aggregator/mocksender",
+            "//pkg/collector/check",
+            "//pkg/util/option",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:windows": [
+            "//comp/core/autodiscovery/integration",
+            "//pkg/aggregator/mocksender",
+            "//pkg/collector/check",
+            "//pkg/util/option",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "//conditions:default": [],
+    }),
+)
