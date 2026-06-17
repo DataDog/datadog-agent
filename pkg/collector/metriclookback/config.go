@@ -108,7 +108,7 @@ func isNonCoreLoaderSelected(initLoader string, instance integration.Data) bool 
 	}
 
 	// Demo mode keeps explicit Python/JMX bypasses but allows empty loader
-	// configs so packaged default Go checks, such as GPU, can be shadowed.
+	// configs so packaged default Go checks, e.g. GPU, can be shadowed.
 	return selectedLoader != "" && selectedLoader != goCheckLoaderName
 }
 
