@@ -13,7 +13,7 @@ require (
 	// This is the last version of dd-trace-go that isn't just a wrapper around
 	// the v2 package. Note that this tracer does not have support for the
 	// remote config key controlling the SymDB upload.
-	gopkg.in/DataDog/dd-trace-go.v1 v1.73.1
+	gopkg.in/DataDog/dd-trace-go.v2 v2.8.2
 )
 
 require (
