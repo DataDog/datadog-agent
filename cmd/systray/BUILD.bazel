@@ -1,7 +1,7 @@
 load("@rules_go//go:def.bzl", "go_binary", "go_library")
 load("//bazel/rules:windows_resources.bzl", "win_resource")
 
-# Xazelle:exclude main_windows.go
+# gazelle:exclude version.h
 
 win_resource(
     name = "rsrc",
@@ -19,7 +19,7 @@ go_library(
     name = "systray_lib",
     srcs = [
         "main_windows.go",
-        ":rsrc",
+        ":rsrc",  # keep
     ],
     importpath = "github.com/DataDog/datadog-agent/cmd/systray",
     target_compatible_with = ["@platforms//os:windows"],

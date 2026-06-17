@@ -249,8 +249,6 @@ exports_files(["go.mod"])
 # gazelle:exclude comp/snmptraps/status/impl
 # gazelle:exclude comp/softwareinventory/fx
 # gazelle:exclude comp/softwareinventory/impl
-# gazelle:exclude comp/systray/systray/fx
-# gazelle:exclude comp/systray/systray/impl
 # gazelle:exclude comp/trace/config/fx
 # gazelle:exclude comp/trace/config/impl
 # gazelle:exclude comp/trace/config/mock
