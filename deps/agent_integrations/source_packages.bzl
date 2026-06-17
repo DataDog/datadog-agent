@@ -38,7 +38,7 @@ filegroup(
         rctx.file(
             "{}/BUILD.bazel".format(pkg),
             """
-load("@//deps/agent_integrations:defs.bzl", "pyproject_wheel")
+load("@@//deps/agent_integrations:defs.bzl", "pyproject_wheel")
 
 package(default_visibility = ["//visibility:public"])
 
