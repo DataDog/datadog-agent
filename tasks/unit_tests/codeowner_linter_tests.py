@@ -74,54 +74,54 @@ class TestAIArtefactsHaveOwner(unittest.TestCase):
     def test_no_ai_artefacts(self):
         # No AGENTS.md or .claude/ — nothing to check
         codeowner = CodeOwners("")
-        self.assertFalse(ai_artefacts_have_owner(codeowner, ctx=self._ctx()))
+        self.assertFalse(ai_artefacts_have_owner(self._ctx(), codeowner))
 
     def test_agents_md_has_owner(self):
         self._create("pkg/foo/AGENTS.md")
         codeowner = CodeOwners("/pkg/foo/AGENTS.md @DataDog/team-a\n")
-        self.assertFalse(ai_artefacts_have_owner(codeowner, ctx=self._ctx()))
+        self.assertFalse(ai_artefacts_have_owner(self._ctx(), codeowner))
 
     def test_agents_md_missing_owner(self):
         self._create("pkg/foo/AGENTS.md")
         # A rule for a different path does not cover pkg/foo/AGENTS.md
         codeowner = CodeOwners("/pkg/bar/ @DataDog/team-a\n")
-        self.assertTrue(ai_artefacts_have_owner(codeowner, ctx=self._ctx()))
+        self.assertTrue(ai_artefacts_have_owner(self._ctx(), codeowner))
 
     def test_claude_file_has_owner(self):
         self._create(".claude/skills/my-skill.md")
         codeowner = CodeOwners("/.claude/ @DataDog/devx\n")
-        self.assertFalse(ai_artefacts_have_owner(codeowner, ctx=self._ctx()))
+        self.assertFalse(ai_artefacts_have_owner(self._ctx(), codeowner))
 
     def test_claude_file_missing_owner(self):
         self._create(".claude/skills/my-skill.md")
         codeowner = CodeOwners("/pkg/foo/ @DataDog/team-a\n")
-        self.assertTrue(ai_artefacts_have_owner(codeowner, ctx=self._ctx()))
+        self.assertTrue(ai_artefacts_have_owner(self._ctx(), codeowner))
 
     def test_wildcard_covers_agents_md(self):
         self._create("pkg/foo/AGENTS.md", "comp/bar/AGENTS.md")
         codeowner = CodeOwners("**/AGENTS.md @DataDog/devx\n")
-        self.assertFalse(ai_artefacts_have_owner(codeowner, ctx=self._ctx()))
+        self.assertFalse(ai_artefacts_have_owner(self._ctx(), codeowner))
 
     def test_mixed_some_missing(self):
         self._create("pkg/foo/AGENTS.md", "pkg/bar/AGENTS.md")
         # Only pkg/foo/AGENTS.md is covered
         codeowner = CodeOwners("/pkg/foo/AGENTS.md @DataDog/team-a\n")
-        self.assertTrue(ai_artefacts_have_owner(codeowner, ctx=self._ctx()))
+        self.assertTrue(ai_artefacts_have_owner(self._ctx(), codeowner))
 
     def test_catch_all_dot_files_is_not_explicit(self):
         # /.*  matches .claude/ files but is not considered explicit ownership
         self._create(".claude/skills/my-skill.md")
         codeowner = CodeOwners("/.*  @DataDog/agent-devx\n")
-        self.assertTrue(ai_artefacts_have_owner(codeowner, ctx=self._ctx()))
+        self.assertTrue(ai_artefacts_have_owner(self._ctx(), codeowner))
 
     def test_catch_all_md_is_not_explicit(self):
         # /*.md matches root AGENTS.md but is not considered explicit ownership
         self._create("AGENTS.md")
         codeowner = CodeOwners("/*.md @DataDog/agent-devx\n")
-        self.assertTrue(ai_artefacts_have_owner(codeowner, ctx=self._ctx()))
+        self.assertTrue(ai_artefacts_have_owner(self._ctx(), codeowner))
 
     def test_explicit_rule_takes_precedence_over_catch_all(self):
         # Explicit rule listed after the catch-all overrides it (last-match-wins, like GitHub)
         self._create("AGENTS.md")
         codeowner = CodeOwners("/*.md @DataDog/agent-devx\n/AGENTS.md @DataDog/agent-devx\n")
-        self.assertFalse(ai_artefacts_have_owner(codeowner, ctx=self._ctx()))
+        self.assertFalse(ai_artefacts_have_owner(self._ctx(), codeowner))

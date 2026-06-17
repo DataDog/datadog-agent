@@ -133,7 +133,7 @@ def lint_codeowner(ctx, owners_file=".github/CODEOWNERS"):
     linters = [
         directory_has_packages_without_owner,
         codeowner_has_orphans,
-        functools.partial(ai_artefacts_have_owner, ctx=ctx),
+        functools.partial(ai_artefacts_have_owner, ctx),
     ]
 
     # Execute linters
