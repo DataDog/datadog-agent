@@ -6,36 +6,37 @@
 package agenttelemetryimpl
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"runtime"
 	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log/errortracking"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	agentversion "github.com/DataDog/datadog-agent/pkg/version"
 )
 
 // sendLogsBatch takes already-converted wire Log structs (produced by
-// enrichErrorLog) and POSTs them as a single LogsPayload-envelope to
-// every configured endpoint via the shared sendPayload helper.
+// enrichErrorLog) and POSTs them as a single LogsPayload-envelope to every
+// configured endpoint.
 //
-// The marshal -> scrub -> compress -> endpoint-fanout pipeline is owned
-// by sendPayload (see sender.go); this method only constructs the logs
-// payload envelope.
+// The pipeline is: marshal → scrub → replace commitSHAPlaceholder with the
+// real SHA → compress → endpoint fanout. The SHA is injected after scrubbing
+// because the scrubber's appKeyReplacer masks 40-char hex strings (see
+// commitSHAPlaceholder for details).
 //
-// Error semantics: only transport errors (network failures,
-// request-build errors) are joined into the returned error. Non-2xx
-// HTTP statuses (4xx/5xx including 429) are logged at Debug by
-// sendPayload and NOT surfaced to the caller — this matches the
-// existing flushSession contract and keeps the shutdown drain treating
+// Error semantics: only transport errors are joined into the returned error.
+// Non-2xx HTTP statuses are logged at Debug and NOT surfaced to the caller —
+// this matches the flushSession contract and keeps the shutdown drain treating
 // "enqueue-to-HTTP succeeded" as success regardless of server response.
 //
 // This function does NOT log at Error. Doing so would re-enter the
-// errortracking slog handler and feed logs back into the same flush
-// path; callers observe failures via the returned error and log at
-// Debug. The invariant is enforced by convention — see
-// comp/core/agenttelemetry/def/component.go.
+// errortracking slog handler and feed logs back into the same flush path;
+// callers observe failures via the returned error and log at Debug. The
+// invariant is enforced by convention — see comp/core/agenttelemetry/def/component.go.
 func (s *senderImpl) sendLogsBatch(ctx context.Context, logs []Log) error {
 	if len(logs) == 0 {
 		return nil
@@ -46,7 +47,24 @@ func (s *senderImpl) sendLogsBatch(ctx context.Context, logs []Log) error {
 	payload.EventTime = time.Now().Unix()
 	payload.Payload = LogsPayload{Logs: logs}
 
-	return s.sendPayload(ctx, payload, logsPayloadType)
+	payloadJSON, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("marshal %s payload: %w", logsPayloadType, err)
+	}
+	reqBodyRaw, err := scrubber.ScrubJSON(payloadJSON)
+	if err != nil {
+		return fmt.Errorf("scrub %s payload: %w", logsPayloadType, err)
+	}
+
+	// enrichErrorLog embeds commitSHAPlaceholder instead of the real SHA so
+	// the scrubber's appKeyReplacer (which masks 40-char hex strings) does not
+	// touch it. Replace the placeholder with the real value now that scrubbing
+	// is done.
+	if sha := agentversion.FullCommit; sha != "" {
+		reqBodyRaw = bytes.ReplaceAll(reqBodyRaw, []byte(commitSHAPlaceholder), []byte(sha))
+	}
+
+	return s.sendPayloadBytes(ctx, reqBodyRaw, logsPayloadType)
 }
 
 // enrichErrorLog converts an ErrorLog (carried across the pkg/util/log ->
@@ -67,6 +85,14 @@ func (s *senderImpl) sendLogsBatch(ctx context.Context, logs []Log) error {
 //   - Tags   -> git.repository_url + git.commit.sha for Source Code Integration
 //   - Message, TraceID, SpanID -> "" (not populated)
 //   - IsCrash -> false (this path does not emit crash logs)
+//
+// commitSHAPlaceholder is embedded in the tags field by enrichErrorLog instead
+// of the real 40-char hex SHA. The scrubber's appKeyReplacer masks 40-char hex
+// strings (Datadog app-key pattern); this placeholder is not hex so it passes
+// through unmodified. sendLogsBatch replaces it with version.FullCommit after
+// scrubbing is done.
+const commitSHAPlaceholder = "FULL_SHA_TO_BE_REPLACED"
+
 func enrichErrorLog(e errortracking.ErrorLog) Log {
 	count := int(e.Count)
 	if count < 1 {
@@ -75,17 +101,13 @@ func enrichErrorLog(e errortracking.ErrorLog) Log {
 		// populate Count. Default to 1 so the wire field stays valid.
 		count = 1
 	}
-	tags := "git.repository_url:https://github.com/DataDog/datadog-agent"
-	if agentversion.FullCommit != "" {
-		tags += ",git.commit.sha:" + agentversion.FullCommit
-	}
 	out := Log{
 		Level:      LogLevelError,
 		TracerTime: e.Time.Unix(),
 		Count:      count,
 		IsCrash:    false,
 		ErrorKind:  e.ErrorKind,
-		Tags:       tags,
+		Tags:       "git.repository_url:https://github.com/DataDog/datadog-agent,git.commit.sha:" + commitSHAPlaceholder,
 	}
 	out.StackTrace = symbolizeStackFrames(e)
 	return out

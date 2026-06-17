@@ -476,6 +476,17 @@ func (s *senderImpl) sendPayload(ctx context.Context, v any, reqType string) err
 		return fmt.Errorf("scrub %s payload: %w", reqType, err)
 	}
 
+	return s.sendPayloadBytes(ctx, reqBodyRaw, reqType)
+}
+
+// sendPayloadBytes compresses (if configured) and POSTs reqBodyRaw to every
+// configured endpoint. Callers handling scrubbing directly call
+// this directly instead of going through sendPayload.
+//
+// Returns a joined error of every transport failure. Non-2xx HTTP statuses are
+// logged at Debug and do not surface in the error (opportunistic telemetry
+// contract, see PR #50607 F1/F6).
+func (s *senderImpl) sendPayloadBytes(ctx context.Context, reqBodyRaw []byte, reqType string) error {
 	// Try to compress the payload if needed. On compression failure we
 	// fall back to the uncompressed body and emit a Debug log -- this
 	// flush path is opportunistic and must never log at Error (an Error
