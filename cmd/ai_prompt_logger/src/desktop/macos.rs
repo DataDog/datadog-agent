@@ -5,8 +5,7 @@ use std::os::unix::fs::MetadataExt;
 use std::path::Path;
 use std::process::Command;
 use std::ptr;
-use std::thread;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::Result;
 use libc::{c_char, c_int, pid_t};
@@ -19,8 +18,6 @@ const K_CG_WINDOW_LIST_OPTION_ON_SCREEN_ONLY: u32 = 1;
 const K_CG_WINDOW_LIST_EXCLUDE_DESKTOP_ELEMENTS: u32 = 16;
 const K_CF_NUMBER_SINT32_TYPE: c_int = 3;
 const K_CF_STRING_ENCODING_UTF8: u32 = 0x0800_0100;
-const AGENT_SERVICE_STARTUP_WAIT_ATTEMPTS: u32 = 60;
-const AGENT_SERVICE_STARTUP_WAIT_INTERVAL: Duration = Duration::from_secs(1);
 
 type CFTypeRef = *const c_void;
 type CFArrayRef = *const c_void;
@@ -155,17 +152,6 @@ impl DesktopDetector for MacosDesktopDetector {
         Ok(process_snapshot(foreground_pid))
     }
 
-    /// Wait for the system Agent launchd service to publish a running PID.
-    fn wait_for_agent_service(&self) -> bool {
-        for _ in 0..AGENT_SERVICE_STARTUP_WAIT_ATTEMPTS {
-            if self.agent_service_running() {
-                return true;
-            }
-            thread::sleep(AGENT_SERVICE_STARTUP_WAIT_INTERVAL);
-        }
-        false
-    }
-
     /// Report whether launchd currently considers the system Agent service running.
     fn agent_service_running(&self) -> bool {
         let Ok(output) = Command::new("/bin/launchctl")
@@ -175,6 +161,11 @@ impl DesktopDetector for MacosDesktopDetector {
             return true;
         };
         output.status.success() && launchctl_print_has_pid(&String::from_utf8_lossy(&output.stdout))
+    }
+
+    /// Stay resident in the user session and resume scanning when the Agent starts again.
+    fn should_idle_when_agent_service_stopped(&self) -> bool {
+        true
     }
 }
 

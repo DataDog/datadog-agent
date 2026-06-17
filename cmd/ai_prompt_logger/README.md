@@ -149,7 +149,7 @@ For desktop monitoring, the package also ships `com.datadoghq.ai-prompt-logger.d
 /opt/datadog-agent/embedded/bin/ai-prompt-logger-native-host --desktop-monitor --config /opt/datadog-agent/etc/ai_usage_native_host.yaml
 ```
 
-The LaunchAgent uses `RunAtLoad` and `KeepAlive` tied to the system Agent service. Package scripts bootstrap it for the active console user on install, boot it out during upgrade/uninstall, and remove it on uninstall. The monitor also checks `system/com.datadoghq.agent` through `launchctl` and exits when the Agent service is stopped.
+The LaunchAgent uses `RunAtLoad` and `KeepAlive` for non-successful exits. Package scripts bootstrap it for the active console user on install, boot it out during upgrade/uninstall, and remove it on uninstall. The monitor checks `system/com.datadoghq.agent` through `launchctl`; while the Agent service is stopped, it remains resident but skips desktop scans until the service is running again.
 
 The package grants narrow read access for logged-in users to `ai_usage_native_host.yaml` without broadening access to unrelated Agent config files.
 

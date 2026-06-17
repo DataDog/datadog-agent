@@ -18,11 +18,6 @@
 
     <key>KeepAlive</key>
     <dict>
-        <key>OtherJobEnabled</key>
-        <dict>
-            <key>com.datadoghq.agent</key>
-            <true/>
-        </dict>
         <key>SuccessfulExit</key>
         <false/>
     </dict>
