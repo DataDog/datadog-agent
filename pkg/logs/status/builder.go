@@ -13,12 +13,15 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"go.uber.org/atomic"
 
 	logsMetrics "github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	sourcesPkg "github.com/DataDog/datadog-agent/pkg/logs/sources"
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
@@ -35,11 +38,62 @@ type Builder struct {
 	errors          *config.Messages
 	logsExpVars     *expvar.Map
 	pipelineMonitor logsMetrics.PipelineMonitor
+	config          model.Reader
+	loss            lossWindow
 }
 
-// NewBuilder returns a new builder. pipelineMonitor owns the per-component backpressure snapshots
-// (may be nil, e.g. in tests, in which case the backpressure section is empty).
-func NewBuilder(isRunning *atomic.Uint32, endpoints *config.Endpoints, sources *sourcesPkg.LogSources, tracker *tailers.TailerTracker, warnings *config.Messages, errors *config.Messages, logExpVars *expvar.Map, pipelineMonitor logsMetrics.PipelineMonitor) *Builder {
+// lossRecencyWindow is how long after the last observed loss the pipeline is
+// still treated as "actively losing logs" for recommendation purposes.
+const lossRecencyWindow = 5 * time.Minute
+
+// lossWindow turns the monotonic logs-dropped / bytes-missed / processed / sent
+// counters into recent-activity signals. Each observe records when a counter
+// last increased, so a stale historical loss ages out instead of keeping a
+// recommendation pinned on, and delivery is judged on the latest interval rather
+// than lifetime totals.
+type lossWindow struct {
+	mu                      sync.Mutex
+	seeded                  bool
+	lastDropped, lastMissed int64
+	lastProcessed, lastSent int64
+	droppedAt, missedAt     time.Time
+}
+
+// observe records the current counter totals at time now and reports whether
+// each kind of loss occurred within lossRecencyWindow, plus whether the intake
+// is currently delivering. The first call only seeds the baseline (no history to
+// compare against yet), reporting no loss and assuming delivery.
+//
+// delivering is false only when logs advanced through processing in the latest
+// interval but none were sent — a currently rejecting or unreachable intake.
+// Lifetime totals are deliberately not used: an outage after a period of
+// successful delivery leaves LogsSent > 0 forever, which would hide the outage.
+func (w *lossWindow) observe(dropped, missed, processed, sent int64, now time.Time) (droppedRecently, missedRecently, delivering bool) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if !w.seeded {
+		w.seeded = true
+		w.lastDropped, w.lastMissed = dropped, missed
+		w.lastProcessed, w.lastSent = processed, sent
+		return false, false, true
+	}
+	if dropped > w.lastDropped {
+		w.droppedAt = now
+	}
+	if missed > w.lastMissed {
+		w.missedAt = now
+	}
+	delivering = !(processed > w.lastProcessed && sent == w.lastSent)
+	w.lastDropped, w.lastMissed = dropped, missed
+	w.lastProcessed, w.lastSent = processed, sent
+	droppedRecently = !w.droppedAt.IsZero() && now.Sub(w.droppedAt) <= lossRecencyWindow
+	missedRecently = !w.missedAt.IsZero() && now.Sub(w.missedAt) <= lossRecencyWindow
+	return droppedRecently, missedRecently, delivering
+}
+
+// NewBuilder returns a new builder. pipelineMonitor and cfg may be nil (e.g. in
+// tests), in which case the backpressure and performance-profile sections are empty.
+func NewBuilder(isRunning *atomic.Uint32, endpoints *config.Endpoints, sources *sourcesPkg.LogSources, tracker *tailers.TailerTracker, warnings *config.Messages, errors *config.Messages, logExpVars *expvar.Map, pipelineMonitor logsMetrics.PipelineMonitor, cfg model.Reader) *Builder {
 	return &Builder{
 		isRunning:       isRunning,
 		endpoints:       endpoints,
@@ -49,7 +103,29 @@ func NewBuilder(isRunning *atomic.Uint32, endpoints *config.Endpoints, sources *
 		errors:          errors,
 		logsExpVars:     logExpVars,
 		pipelineMonitor: pipelineMonitor,
+		config:          cfg,
 	}
+}
+
+// getPerformanceProfile returns the active profile with each setting's effective
+// value and source, or nil when no profile is active or no config is available.
+func (b *Builder) getPerformanceProfile() *PerformanceProfile {
+	if b.config == nil {
+		return nil
+	}
+	name, version, settings, ok := pkgconfigsetup.ResolvedLogsPerformanceProfile(b.config)
+	if !ok {
+		return nil
+	}
+	pp := &PerformanceProfile{Name: name, Version: version}
+	for _, s := range settings {
+		pp.Settings = append(pp.Settings, PerformanceProfileSetting{
+			Key:    s.Key,
+			Value:  fmt.Sprintf("%v", b.config.Get(s.Key)),
+			Source: string(b.config.GetSource(s.Key)),
+		})
+	}
+	return pp
 }
 
 // BuildStatus returns the status of the logs-agent.
@@ -60,19 +136,27 @@ func (b *Builder) BuildStatus(verbose bool) Status {
 	}
 	utils := b.getComponentUtilization()
 	bp := b.getBackpressureStatus(utils)
+	profile := b.getPerformanceProfile()
+	activeProfile := ""
+	if profile != nil {
+		activeProfile = profile.Name
+	}
+	droppedRecently, missedRecently, delivering := b.loss.observe(b.logsDropped(), b.bytesMissed(), b.logsProcessed(), b.logsSent(), time.Now())
 	return Status{
-		IsRunning:            b.getIsRunning(),
-		Endpoints:            b.getEndpoints(),
-		Integrations:         b.getIntegrations(),
-		Tailers:              tailers,
-		StatusMetrics:        b.getMetricsStatus(),
-		ProcessFileStats:     b.getProcessFileStats(),
-		Warnings:             b.getWarnings(),
-		Errors:               b.getErrors(),
-		UseHTTP:              b.getUseHTTP(),
-		ComponentUtilization: utils,
-		Backpressure:         bp,
-		BackpressureTable:    b.formatBackpressureSection(utils, bp),
+		IsRunning:             b.getIsRunning(),
+		Endpoints:             b.getEndpoints(),
+		Integrations:          b.getIntegrations(),
+		Tailers:               tailers,
+		StatusMetrics:         b.getMetricsStatus(),
+		ProcessFileStats:      b.getProcessFileStats(),
+		Warnings:              b.getWarnings(),
+		Errors:                b.getErrors(),
+		UseHTTP:               b.getUseHTTP(),
+		ComponentUtilization:  utils,
+		Backpressure:          bp,
+		PerformanceProfile:    profile,
+		ProfileRecommendation: b.getProfileRecommendation(utils, activeProfile, b.senderLatencyMs(), droppedRecently, missedRecently, delivering),
+		BackpressureTable:     b.formatBackpressureSection(utils, bp),
 	}
 }
 
@@ -183,26 +267,198 @@ func (b *Builder) getBackpressureStatus(utils []ComponentUtilization) Backpressu
 	if hasCurrSat {
 		dur30m := time.Duration(currSat30m) * time.Second
 		return BackpressureStatus{
-			State:  "SATURATED",
-			Reason: fmt.Sprintf("%s pipeline %s is currently saturated (saturated for %s in the last 30m)", currSatName, currSatInst, fmtDuration(dur30m)),
+			State:     "SATURATED",
+			Reason:    fmt.Sprintf("%s pipeline %s is currently saturated (saturated for %s in the last 30m)", currSatName, currSatInst, fmtDuration(dur30m)),
+			Component: currSatName,
 		}
 	}
 	// WARNING: saturation occurred in the last 1m or 30m but no component is currently at threshold.
 	if maxSat1m > 0 {
 		dur30m := time.Duration(sat30mForMaxSat1m) * time.Second
 		return BackpressureStatus{
-			State:  "WARNING",
-			Reason: fmt.Sprintf("%s pipeline %s is not currently saturated but was saturated for %s in the last 30m", satName1m, satInst1m, fmtDuration(dur30m)),
+			State:     "WARNING",
+			Reason:    fmt.Sprintf("%s pipeline %s is not currently saturated but was saturated for %s in the last 30m", satName1m, satInst1m, fmtDuration(dur30m)),
+			Component: satName1m,
 		}
 	}
 	if maxSat30m > 0 {
 		dur30m := time.Duration(maxSat30m) * time.Second
 		return BackpressureStatus{
-			State:  "WARNING",
-			Reason: fmt.Sprintf("%s pipeline %s is not currently saturated but was saturated for %s in the last 30m", satName30m, satInst30m, fmtDuration(dur30m)),
+			State:     "WARNING",
+			Reason:    fmt.Sprintf("%s pipeline %s is not currently saturated but was saturated for %s in the last 30m", satName30m, satInst30m, fmtDuration(dur30m)),
+			Component: satName30m,
 		}
 	}
 	return BackpressureStatus{State: "HEALTHY"}
+}
+
+// Profiles recommended for specific bottleneck classes. These names must exist
+// in the pkg/config/setup catalog (guarded by a unit test).
+const (
+	profileHighThroughput  = "high-throughput"
+	profileHighConcurrency = "high-concurrency"
+)
+
+// senderLatencyHighThresholdMs is the intake round-trip latency (ms) above which
+// a send bottleneck is treated as latency-bound. Heuristic; tunable.
+const senderLatencyHighThresholdMs = 250
+
+// senderLatencyMs returns the most recent HTTP sender latency to the intake in
+// milliseconds, or 0 when unavailable.
+func (b *Builder) senderLatencyMs() int64 {
+	if b.logsExpVars == nil {
+		return 0
+	}
+	if v, ok := b.logsExpVars.Get("SenderLatency").(*expvar.Int); ok && v != nil {
+		return v.Value()
+	}
+	return 0
+}
+
+// bytesMissed returns total bytes lost before consumption, e.g. a file rotating
+// before the tailer drained it (read-side loss), or 0.
+func (b *Builder) bytesMissed() int64 {
+	if b.logsExpVars == nil {
+		return 0
+	}
+	if v, ok := b.logsExpVars.Get("BytesMissed").(*expvar.Int); ok && v != nil {
+		return v.Value()
+	}
+	return 0
+}
+
+// logsDropped returns total logs dropped across all destinations (send-side loss), or 0.
+func (b *Builder) logsDropped() int64 {
+	if b.logsExpVars == nil {
+		return 0
+	}
+	m, ok := b.logsExpVars.Get("DestinationLogsDropped").(*expvar.Map)
+	if !ok || m == nil {
+		return 0
+	}
+	var total int64
+	m.Do(func(kv expvar.KeyValue) {
+		if v, ok := kv.Value.(*expvar.Int); ok && v != nil {
+			total += v.Value()
+		}
+	})
+	return total
+}
+
+// logsProcessed returns the total number of logs that have entered the pipeline, or 0.
+func (b *Builder) logsProcessed() int64 {
+	if b.logsExpVars == nil {
+		return 0
+	}
+	if v, ok := b.logsExpVars.Get("LogsProcessed").(*expvar.Int); ok && v != nil {
+		return v.Value()
+	}
+	return 0
+}
+
+// logsSent returns the total number of logs successfully sent to the intake, or 0.
+func (b *Builder) logsSent() int64 {
+	if b.logsExpVars == nil {
+		return 0
+	}
+	if v, ok := b.logsExpVars.Get("LogsSent").(*expvar.Int); ok && v != nil {
+		return v.Value()
+	}
+	return 0
+}
+
+// isSendStage reports whether the component is part of the network send/transport
+// stage (the worker pool, the sender aggregation point, or a destination).
+func isSendStage(component string) bool {
+	return component == "worker" || component == logsMetrics.SenderTlmName || strings.HasPrefix(component, "destination_")
+}
+
+// bottleneckComponent returns the most-downstream currently-saturated stage,
+// falling back to recent (1m/30m) saturation, or "" if none.
+func (b *Builder) bottleneckComponent(utils []ComponentUtilization) string {
+	if c := mostDownstreamSaturated(utils, func(u ComponentUtilization) bool { return u.CurrentlySaturated }); c != "" {
+		return c
+	}
+	return mostDownstreamSaturated(utils, func(u ComponentUtilization) bool {
+		return u.Saturated1mSeconds > 0 || u.Saturated30mSeconds > 0
+	})
+}
+
+// mostDownstreamSaturated returns the deepest component for which sat() is true,
+// or "". Backpressure propagates upstream, so the deepest saturated stage is the
+// true bottleneck; the rest are propagation victims.
+func mostDownstreamSaturated(utils []ComponentUtilization, sat func(ComponentUtilization) bool) string {
+	best := ""
+	bestRank := -1
+	for _, u := range utils {
+		if !sat(u) {
+			continue
+		}
+		if r := componentRank(u.Name); r > bestRank {
+			bestRank = r
+			best = u.Name
+		}
+	}
+	return best
+}
+
+// recommendProfileForBottleneck maps the bottleneck component to a profile and a
+// one-line diagnosis: CPU-bound upstream stages want more pipelines; a send-stage
+// bottleneck wants more send concurrency.
+func recommendProfileForBottleneck(component string, latencyMs int64) (profile string, reason string) {
+	switch {
+	case component == "processor":
+		return profileHighThroughput, "The logs pipeline is bottlenecked at the processor stage, which is CPU-bound."
+	case component == "strategy":
+		return profileHighThroughput, "The logs pipeline is bottlenecked at the compression and batching stage, which is CPU-bound."
+	case component == "worker" || component == logsMetrics.SenderTlmName || strings.HasPrefix(component, "destination_"):
+		if latencyMs >= senderLatencyHighThresholdMs {
+			return profileHighConcurrency, fmt.Sprintf("The logs pipeline is bottlenecked at the network send stage, with high intake latency (%dms).", latencyMs)
+		}
+		return profileHighConcurrency, "The logs pipeline is bottlenecked at the network send stage."
+	default:
+		return profileHighThroughput, "The logs pipeline is saturated."
+	}
+}
+
+// getProfileRecommendation suggests a profile only when logs were recently lost
+// (droppedRecently/missedRecently); saturation merely localizes the bottleneck.
+// Returns nil when nothing is being lost, when no profile would help, or when the
+// active profile already covers the suggestion.
+func (b *Builder) getProfileRecommendation(utils []ComponentUtilization, activeProfile string, latencyMs int64, droppedRecently, missedRecently, delivering bool) *ProfileRecommendation {
+	if !droppedRecently && !missedRecently {
+		return nil
+	}
+
+	bottleneck := b.bottleneckComponent(utils)
+
+	// A profile is warranted when recent loss localizes to a stage one can fix:
+	// send-side drops at a saturated, still-delivering send stage; or read-side
+	// backpressure at any saturated stage (but not an idle reader or unreachable
+	// intake, which no profile fixes). Evaluated independently so a recent drop
+	// that maps to nothing does not mask a fixable read-side bottleneck.
+	sendStageLoss := droppedRecently && isSendStage(bottleneck) && delivering
+	backpressureLoss := missedRecently && bottleneck != "" && !(isSendStage(bottleneck) && !delivering)
+	if !sendStageLoss && !backpressureLoss {
+		return nil
+	}
+
+	recommended, reason := recommendProfileForBottleneck(bottleneck, latencyMs)
+	// Skip if nothing to suggest, already active, or the active profile is a
+	// superset of it (a lower-tier "switch" would only lower settings).
+	//
+	// The coverage check compares catalog profiles by name, not effective config
+	// values, and that is sufficient: a profile sets its knobs to the covering
+	// values unless the user explicitly overrode one, and an explicit override
+	// always wins over a profile (see applyLogsPerformanceProfile). So the only
+	// way effective coverage breaks is an explicit override — in which case
+	// switching profiles would not change that knob anyway, so the recommendation
+	// would be futile. We therefore never hide an actionable switch here.
+	if recommended == "" || recommended == activeProfile ||
+		pkgconfigsetup.LogsPerformanceProfileCovers(activeProfile, recommended) {
+		return nil
+	}
+	return &ProfileRecommendation{Profile: recommended, Reason: "Logs are being lost. " + reason}
 }
 
 // formatBackpressureSection renders the backpressure section as preformatted text (omitted from JSON).
@@ -444,11 +700,14 @@ func (b *Builder) getMetricsStatus() map[string]string {
 	var metrics = make(map[string]string)
 	metrics["LogsProcessed"] = strconv.FormatInt(b.logsExpVars.Get("LogsProcessed").(*expvar.Int).Value(), 10)
 	metrics["LogsSent"] = strconv.FormatInt(b.logsExpVars.Get("LogsSent").(*expvar.Int).Value(), 10)
+	metrics["LogsDropped"] = strconv.FormatInt(b.logsDropped(), 10)
+	metrics["BytesMissed"] = strconv.FormatInt(b.bytesMissed(), 10)
 	metrics["BytesSent"] = strconv.FormatInt(b.logsExpVars.Get("BytesSent").(*expvar.Int).Value(), 10)
 	metrics["RetryCount"] = strconv.FormatInt(b.logsExpVars.Get("RetryCount").(*expvar.Int).Value(), 10)
 	metrics["RetryTimeSpent"] = time.Duration(b.logsExpVars.Get("RetryTimeSpent").(*expvar.Int).Value()).String()
 	metrics["EncodedBytesSent"] = strconv.FormatInt(b.logsExpVars.Get("EncodedBytesSent").(*expvar.Int).Value(), 10)
 	metrics["LogsTruncated"] = strconv.FormatInt(b.logsExpVars.Get("LogsTruncated").(*expvar.Int).Value(), 10)
+	metrics["SenderLatency"] = time.Duration(b.senderLatencyMs() * int64(time.Millisecond)).String()
 	return metrics
 }
 
