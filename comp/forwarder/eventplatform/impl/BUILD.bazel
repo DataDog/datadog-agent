@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "epforwarder.go",
         "epforwarder_mockgen.go",
+        "sdsresult.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/impl",
     visibility = ["//visibility:public"],
@@ -12,6 +13,7 @@ go_library(
         "//comp/core/config",
         "//comp/core/diagnose/def",
         "//comp/core/hostname/hostnameinterface/def",
+        "//comp/core/sdsscanner/def",
         "//comp/core/secrets/def",
         "//comp/core/secrets/noop-impl",
         "//comp/def",
@@ -29,10 +31,12 @@ go_library(
         "//pkg/config/model",
         "//pkg/config/setup",
         "//pkg/logs/message",
+        "//pkg/proto/pbgo/sds",
         "//pkg/util/compression",
         "//pkg/util/ecs/metadata",
         "//pkg/util/log",
         "//pkg/util/option",
+        "//pkg/util/sds",
         "//pkg/util/startstop",
         "//pkg/version",
         "@org_uber_go_mock//gomock",
@@ -41,11 +45,15 @@ go_library(
 
 go_test(
     name = "impl_test",
-    srcs = ["epforwarder_test.go"],
+    srcs = [
+        "epforwarder_test.go",
+        "sdsresult_test.go",
+    ],
     embed = [":impl"],
     gotags = ["test"],
     deps = [
         "//comp/core/config",
+        "//comp/core/sdsscanner/def",
         "//comp/core/secrets/noop-impl",
         "//comp/forwarder/eventplatform/def",
         "//comp/forwarder/eventplatformreceiver/def",
@@ -54,7 +62,12 @@ go_test(
         "//comp/logs/agent/config",
         "//comp/serializer/logscompression/def",
         "//comp/serializer/logscompression/fx-mock",
+        "//pkg/proto/pbgo/sds",
         "//pkg/util/fxutil",
+        "//pkg/util/sds",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
         "@com_github_stretchr_testify//suite",
+        "@org_golang_google_protobuf//encoding/protojson",
     ],
 )

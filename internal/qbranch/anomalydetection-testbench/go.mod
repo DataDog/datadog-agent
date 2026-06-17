@@ -81,11 +81,13 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/log/setup v0.77.0-devel.0.20260213154712-e02b9359151a // indirect
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.78.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.78.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/sds v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/sort v0.77.0-devel.0.20260213154712-e02b9359151a // indirect
 	github.com/DataDog/datadog-agent/pkg/util/statstracker v0.78.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system v0.78.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.78.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/version v0.78.1 // indirect
+	github.com/DataDog/dd-sensitive-data-scanner/sds-go/go v0.0.0-20260601185219-3c48e9fa5604 // indirect
 	github.com/DataDog/go-acl v1.0.1 // indirect
 	github.com/DataDog/go-tuf v1.1.1-0.5.2 // indirect
 	github.com/DataDog/viper v1.15.1 // indirect
@@ -361,3 +363,9 @@ replace (
 	github.com/DataDog/datadog-agent/test/new-e2e => ../../../test/new-e2e
 	github.com/DataDog/datadog-agent/test/otel => ../../../test/otel
 )
+
+replace github.com/DataDog/datadog-agent/pkg/util/sds => ../../../pkg/util/sds
+
+replace github.com/DataDog/datadog-agent/comp/core/sdsscanner/def => ../../../comp/core/sdsscanner/def
+
+replace github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def => ../../../comp/forwarder/eventplatform/def
