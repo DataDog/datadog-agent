@@ -14,7 +14,7 @@ import (
 )
 
 func agentInstallRoot() string {
-	return filepath.Clean(filepath.Join(defaultpaths.GetInstallPath(), "..", ".."))
+	return defaultpaths.GetInstallPath()
 }
 
 func procmgrConfigPath(installRoot, configFile string) string {

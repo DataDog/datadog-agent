@@ -3,7 +3,7 @@ module github.com/DataDog/datadog-agent/test/new-e2e
 go 1.26.0
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.198
+	github.com/DataDog/agent-payload/v5 v5.0.201
 	github.com/DataDog/datadog-agent/pkg/util/option v0.76.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.76.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.77.0 // indirect
@@ -19,7 +19,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.68.5 // indirect
 	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
 	github.com/cenkalti/backoff/v5 v5.0.3
-	github.com/docker/cli v29.4.3+incompatible // indirect
+	github.com/docker/cli v29.5.3+incompatible // indirect
 	github.com/fatih/color v1.19.0
 	github.com/google/uuid v1.6.0
 	github.com/kr/pretty v0.3.1
@@ -35,7 +35,7 @@ require (
 	golang.org/x/term v0.43.0
 	gopkg.in/zorkian/go-datadog-api.v2 v2.30.0
 	k8s.io/api v0.35.5
-	k8s.io/apimachinery v0.35.5
+	k8s.io/apimachinery v0.35.6
 	k8s.io/cli-runtime v0.35.5 // indirect
 	k8s.io/client-go v0.35.5
 	k8s.io/kubectl v0.35.5 // indirect
@@ -269,6 +269,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/trace/log v0.77.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/trace/stats v0.77.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/trace/traceutil v0.77.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/defaultpaths v0.64.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.72.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/log v0.77.0 // indirect
