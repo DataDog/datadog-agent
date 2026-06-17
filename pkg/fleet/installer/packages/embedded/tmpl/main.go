@@ -32,56 +32,19 @@ func main() {
 }
 
 func generate(outputDir string) error {
-	err := os.MkdirAll(filepath.Join(outputDir, "oci"), 0755)
-	if err != nil {
-		return fmt.Errorf("failed to create directory for oci: %w", err)
-	}
-	err = os.MkdirAll(filepath.Join(outputDir, "debrpm"), 0755)
-	if err != nil {
-		return fmt.Errorf("failed to create directory for deb-rpm: %w", err)
-	}
-	err = os.MkdirAll(filepath.Join(outputDir, "windows"), 0755)
-	if err != nil {
-		return fmt.Errorf("failed to create directory for windows: %w", err)
-	}
-	windowsDDOTPath := filepath.Join(outputDir, "windows", "datadog-agent-ddot.yaml")
-	if err := os.WriteFile(windowsDDOTPath, mustRenderWindowsDdotProcmgrYAML(), 0644); err != nil {
-		return fmt.Errorf("failed to write %s: %w", windowsDDOTPath, err)
-	}
-	for unit, content := range systemdUnitsOCI {
-		filePath := filepath.Join(outputDir, "oci", unit)
-		if err := os.MkdirAll(filepath.Dir(filePath), 0755); err != nil {
-			return fmt.Errorf("failed to create directory for %s: %w", unit, err)
-		}
-		if err := os.WriteFile(filePath, content, 0644); err != nil {
-			return fmt.Errorf("failed to write %s: %w", unit, err)
+	for _, lay := range windowsProcmgrLayouts {
+		if err := writeFileMap(outputDir, lay.subdir, lay.units); err != nil {
+			return err
 		}
 	}
-	for unit, content := range systemdUnitsDebRpm {
-		filePath := filepath.Join(outputDir, "debrpm", unit)
-		if err := os.MkdirAll(filepath.Dir(filePath), 0755); err != nil {
-			return fmt.Errorf("failed to create directory for %s: %w", unit, err)
-		}
-		if err := os.WriteFile(filePath, content, 0644); err != nil {
-			return fmt.Errorf("failed to write %s: %w", unit, err)
+	for _, lay := range linuxProcmgrYAMLLayouts {
+		if err := writeFileMap(outputDir, lay.subdir, lay.units); err != nil {
+			return err
 		}
 	}
-	for unit, content := range systemdUnitsOCILegacyKernel {
-		filePath := filepath.Join(outputDir, "oci-nocap", unit)
-		if err := os.MkdirAll(filepath.Dir(filePath), 0755); err != nil {
-			return fmt.Errorf("failed to create directory for %s: %w", unit, err)
-		}
-		if err := os.WriteFile(filePath, content, 0644); err != nil {
-			return fmt.Errorf("failed to write %s: %w", unit, err)
-		}
-	}
-	for unit, content := range systemdUnitsDebRpmLegacyKernel {
-		filePath := filepath.Join(outputDir, "debrpm-nocap", unit)
-		if err := os.MkdirAll(filepath.Dir(filePath), 0755); err != nil {
-			return fmt.Errorf("failed to create directory for %s: %w", unit, err)
-		}
-		if err := os.WriteFile(filePath, content, 0644); err != nil {
-			return fmt.Errorf("failed to write %s: %w", unit, err)
+	for _, lay := range systemdEmbeddedLayouts {
+		if err := writeFileMap(outputDir, lay.subdir, lay.units); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -92,7 +55,9 @@ func generate(outputDir string) error {
 //go:embed *.tmpl
 var embedded embed.FS
 
-type systemdTemplateData struct {
+// installerTemplateData holds path and layout inputs for embedded installer templates (systemd units,
+// Linux dd-procmgr YAML, Windows DDOT procmgr YAML). Not systemd-specific despite the capabilities flag name.
+type installerTemplateData struct {
 	InstallDir                   string
 	EtcDir                       string
 	FleetPoliciesDir             string
@@ -102,18 +67,37 @@ type systemdTemplateData struct {
 }
 
 type templateData struct {
-	systemdTemplateData
+	installerTemplateData
 	AmbiantCapabilitiesSupported bool
 }
 
-func mustRenderTemplate(name string, data systemdTemplateData, ambiantCapabilitiesSupported bool) []byte {
+// embeddedLayout is a codegen output subdirectory (e.g. gen/windows, gen/oci) and a map of basename → file content.
+type embeddedLayout struct {
+	subdir string
+	units  map[string][]byte
+}
+
+func writeFileMap(root, subdir string, files map[string][]byte) error {
+	for name, content := range files {
+		path := filepath.Join(root, subdir, name)
+		if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+			return fmt.Errorf("failed to create directory for %s: %w", name, err)
+		}
+		if err := os.WriteFile(path, content, 0644); err != nil {
+			return fmt.Errorf("failed to write %s: %w", path, err)
+		}
+	}
+	return nil
+}
+
+func mustRenderTemplate(name string, data installerTemplateData, ambiantCapabilitiesSupported bool) []byte {
 	tmpl, err := template.ParseFS(embedded, name)
 	if err != nil {
 		panic(err)
 	}
 	var buf bytes.Buffer
 	if err := tmpl.Execute(&buf, templateData{
-		systemdTemplateData:          data,
+		installerTemplateData:        data,
 		AmbiantCapabilitiesSupported: ambiantCapabilitiesSupported,
 	}); err != nil {
 		panic(err)
@@ -121,40 +105,15 @@ func mustRenderTemplate(name string, data systemdTemplateData, ambiantCapabiliti
 	return buf.Bytes()
 }
 
-func mustReadSystemdUnit(name string, data systemdTemplateData, ambiantCapabilitiesSupported bool) []byte {
+func mustReadSystemdUnit(name string, data installerTemplateData, ambiantCapabilitiesSupported bool) []byte {
 	return mustRenderTemplate(name+".tmpl", data, ambiantCapabilitiesSupported)
 }
 
-func mustRenderYAMLConfig(name string, data systemdTemplateData) []byte {
+func mustRenderYAMLConfig(name string, data installerTemplateData) []byte {
 	return mustRenderTemplate(name+".tmpl", data, false)
 }
 
-// windowsDDOTCodegenData drives datadog-agent-ddot-windows.yaml.tmpl at codegen time. Runtime
-// replaces the placeholder tokens (same idea as DDOTProcessConfig + /opt/datadog-agent on Linux).
-var windowsDDOTCodegenData = systemdTemplateData{
-	InstallDir:       "__DDOT_INSTALL_ROOT__",
-	EtcDir:           "__DDOT_ETC_ROOT__",
-	FleetPoliciesDir: "__DDOT_FLEET_POLICIES_DIR__",
-	PIDDir:           "",
-	Stable:           true,
-}
-
-func mustRenderWindowsDdotProcmgrYAML() []byte {
-	tmpl, err := template.ParseFS(embedded, "datadog-agent-ddot-windows.yaml.tmpl")
-	if err != nil {
-		panic(err)
-	}
-	var buf bytes.Buffer
-	if err := tmpl.Execute(&buf, templateData{
-		systemdTemplateData:          windowsDDOTCodegenData,
-		AmbiantCapabilitiesSupported: false,
-	}); err != nil {
-		panic(err)
-	}
-	return buf.Bytes()
-}
-
-func systemdUnits(stableData, expData systemdTemplateData, ambiantCapabilitiesSupported bool) map[string][]byte {
+func systemdUnits(stableData, expData installerTemplateData, ambiantCapabilitiesSupported bool) map[string][]byte {
 	units := map[string][]byte{
 		"datadog-agent.service":                mustReadSystemdUnit("datadog-agent.service", stableData, ambiantCapabilitiesSupported),
 		"datadog-agent-exp.service":            mustReadSystemdUnit("datadog-agent.service", expData, ambiantCapabilitiesSupported),
@@ -176,23 +135,35 @@ func systemdUnits(stableData, expData systemdTemplateData, ambiantCapabilitiesSu
 		"datadog-agent-action-exp.service":     mustReadSystemdUnit("datadog-agent-action.service", expData, ambiantCapabilitiesSupported),
 		"datadog-agent-procmgr.service":        mustReadSystemdUnit("datadog-agent-procmgr.service", stableData, ambiantCapabilitiesSupported),
 		"datadog-agent-procmgr-exp.service":    mustReadSystemdUnit("datadog-agent-procmgr.service", expData, ambiantCapabilitiesSupported),
-
-		// dd-procmgrd process configs
-		"datadog-agent-ddot.yaml":     mustRenderYAMLConfig("datadog-agent-ddot.yaml", stableData),
-		"datadog-agent-ddot-exp.yaml": mustRenderYAMLConfig("datadog-agent-ddot.yaml", expData),
 	}
 	return units
 }
 
+// linuxProcmgrYAMLFiles returns dd-procmgrd process configs for Linux embedded layouts (OCI vs deb/rpm paths).
+// Capabilities flavor does not affect these templates (see mustRenderYAMLConfig).
+func linuxProcmgrYAMLFiles(stableData, expData installerTemplateData) map[string][]byte {
+	return map[string][]byte{
+		"datadog-agent-ddot.yaml":     mustRenderYAMLConfig("datadog-agent-ddot.yaml", stableData),
+		"datadog-agent-ddot-exp.yaml": mustRenderYAMLConfig("datadog-agent-ddot.yaml", expData),
+	}
+}
+
+// windowsProcmgrYAMLFiles returns dd-procmgr process YAML for the Windows embedded installer (gen/windows/).
+func windowsProcmgrYAMLFiles(codegenData installerTemplateData) map[string][]byte {
+	return map[string][]byte{
+		"datadog-agent-ddot.yaml": mustRenderYAMLConfig("datadog-agent-ddot-windows.yaml", codegenData),
+	}
+}
+
 var (
-	stableDataOCI = systemdTemplateData{
+	stableDataOCI = installerTemplateData{
 		InstallDir:       "/opt/datadog-packages/datadog-agent/stable",
 		EtcDir:           "/etc/datadog-agent",
 		FleetPoliciesDir: "/etc/datadog-agent/managed/datadog-agent/stable",
 		PIDDir:           "/opt/datadog-packages/datadog-agent/stable",
 		Stable:           true,
 	}
-	expDataOCI = systemdTemplateData{
+	expDataOCI = installerTemplateData{
 		InstallDir:       "/opt/datadog-packages/datadog-agent/experiment",
 		EtcDir:           "/etc/datadog-agent-exp",
 		FleetPoliciesDir: "/etc/datadog-agent-exp/managed/datadog-agent/stable",
@@ -200,14 +171,14 @@ var (
 		Stable:           false,
 	}
 
-	stableDataDebRpm = systemdTemplateData{
+	stableDataDebRpm = installerTemplateData{
 		InstallDir:       "/opt/datadog-agent",
 		EtcDir:           "/etc/datadog-agent",
 		FleetPoliciesDir: "/etc/datadog-agent/managed/datadog-agent/stable",
 		PIDDir:           "/opt/datadog-agent",
 		Stable:           true,
 	}
-	expDataDebRpm = systemdTemplateData{
+	expDataDebRpm = installerTemplateData{
 		InstallDir:       "/opt/datadog-agent",
 		EtcDir:           "/etc/datadog-agent-exp",
 		FleetPoliciesDir: "/etc/datadog-agent-exp/managed/datadog-agent/stable",
@@ -215,9 +186,31 @@ var (
 		Stable:           false,
 	}
 
-	systemdUnitsOCI    = systemdUnits(stableDataOCI, expDataOCI, true)
-	systemdUnitsDebRpm = systemdUnits(stableDataDebRpm, expDataDebRpm, true)
+	// windowsDDOTCodegenData drives datadog-agent-ddot-windows.yaml.tmpl at codegen time. Runtime
+	// replaces the placeholder tokens (same idea as DDOTProcessConfig + /opt/datadog-agent on Linux).
+	windowsDDOTCodegenData = installerTemplateData{
+		InstallDir:       "__DDOT_INSTALL_ROOT__",
+		EtcDir:           "__DDOT_ETC_ROOT__",
+		FleetPoliciesDir: "__DDOT_FLEET_POLICIES_DIR__",
+		PIDDir:           "",
+		Stable:           true,
+	}
 
-	systemdUnitsOCILegacyKernel    = systemdUnits(stableDataOCI, expDataOCI, false)
-	systemdUnitsDebRpmLegacyKernel = systemdUnits(stableDataDebRpm, expDataDebRpm, false)
+	windowsProcmgrLayouts = []embeddedLayout{
+		{subdir: "windows", units: windowsProcmgrYAMLFiles(windowsDDOTCodegenData)},
+	}
+
+	linuxProcmgrYAMLLayouts = []embeddedLayout{
+		{subdir: "oci", units: linuxProcmgrYAMLFiles(stableDataOCI, expDataOCI)},
+		{subdir: "oci-nocap", units: linuxProcmgrYAMLFiles(stableDataOCI, expDataOCI)},
+		{subdir: "debrpm", units: linuxProcmgrYAMLFiles(stableDataDebRpm, expDataDebRpm)},
+		{subdir: "debrpm-nocap", units: linuxProcmgrYAMLFiles(stableDataDebRpm, expDataDebRpm)},
+	}
+
+	systemdEmbeddedLayouts = []embeddedLayout{
+		{subdir: "oci", units: systemdUnits(stableDataOCI, expDataOCI, true)},
+		{subdir: "debrpm", units: systemdUnits(stableDataDebRpm, expDataDebRpm, true)},
+		{subdir: "oci-nocap", units: systemdUnits(stableDataOCI, expDataOCI, false)},
+		{subdir: "debrpm-nocap", units: systemdUnits(stableDataDebRpm, expDataDebRpm, false)},
+	}
 )
