@@ -62,16 +62,19 @@ func (fi *Server) handlePARDequeue(w http.ResponseWriter, r *http.Request) {
 		"org_id":    0,
 		"inputs":    task.Inputs,
 	}
-	// rshell allowlists are delivered in the signed task fields in production
+	// rshell policy fields are delivered in the signed task fields in production
 	// (resolved from execution policies by the backend). The runner reads them
-	// from attributes, not inputs. Surface any allowlists supplied via the test
-	// inputs as those signed-task fields so skip-verification e2e flows behave
-	// like a real backend-signed task.
+	// from attributes, not inputs. Surface any values supplied via the test inputs
+	// as those signed-task fields so skip-verification e2e flows behave like a
+	// real backend-signed task.
 	if v, ok := task.Inputs["allowedCommands"]; ok {
 		attributes["target_commands"] = v
 	}
 	if v, ok := task.Inputs["allowedPaths"]; ok {
 		attributes["target_paths"] = v
+	}
+	if v, ok := task.Inputs["remoteActionAccessMode"]; ok {
+		attributes["remote_action_access_mode"] = v
 	}
 	resp := map[string]interface{}{
 		"data": map[string]interface{}{
