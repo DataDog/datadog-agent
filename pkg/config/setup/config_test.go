@@ -22,6 +22,7 @@ import (
 	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/nodetreemodel"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
@@ -862,7 +863,9 @@ func TestDataPlaneDefaults(t *testing.T) {
 	assert.True(t, cfg.GetBool("data_plane.remote_agent_enabled"))
 	assert.Equal(t, "tcp://0.0.0.0:5100", cfg.GetString("data_plane.api_listen_address"))
 	assert.Equal(t, "tcp://0.0.0.0:5101", cfg.GetString("data_plane.secure_api_listen_address"))
-	assert.Equal(t, DefaultDataPlaneLogFile, cfg.GetString("data_plane.log_file"))
+	assert.False(t, cfg.GetBool("data_plane.telemetry_enabled"))
+	assert.Equal(t, "tcp://0.0.0.0:5102", cfg.GetString("data_plane.telemetry_listen_addr"))
+	assert.Equal(t, defaultpaths.GetDefaultDataPlaneLogFile(), cfg.GetString("data_plane.log_file"))
 	assert.True(t, cfg.GetBool("data_plane.otlp.proxy.traces.enabled"))
 	assert.True(t, cfg.GetBool("data_plane.otlp.proxy.metrics.enabled"))
 	assert.True(t, cfg.GetBool("data_plane.otlp.proxy.logs.enabled"))
@@ -1231,7 +1234,7 @@ func TestLogDefaults(t *testing.T) {
 	testConfig := newTestConf(t)
 	require.Equal(t, 1, testConfig.GetInt("log_file_max_rolls"))
 	require.Equal(t, "10Mb", testConfig.GetString("log_file_max_size"))
-	require.Equal(t, "", testConfig.GetString("log_file"))
+	require.Equal(t, defaultpaths.GetDefaultLogFile(), testConfig.GetString("log_file"))
 	require.Equal(t, "info", testConfig.GetString("log_level"))
 	require.True(t, testConfig.GetBool("log_to_console"))
 	require.False(t, testConfig.GetBool("log_format_json"))
@@ -1243,7 +1246,7 @@ func TestLogDefaults(t *testing.T) {
 
 	require.Equal(t, 1, SystemProbe.GetInt("log_file_max_rolls"))
 	require.Equal(t, "10Mb", SystemProbe.GetString("log_file_max_size"))
-	require.Equal(t, defaultSystemProbeLogFilePath, SystemProbe.GetString("log_file"))
+	require.Equal(t, defaultpaths.GetDefaultSystemProbeLogFile(), SystemProbe.GetString("log_file"))
 	require.Equal(t, "info", SystemProbe.GetString("log_level"))
 	require.True(t, SystemProbe.GetBool("log_to_console"))
 	require.False(t, SystemProbe.GetBool("log_format_json"))
@@ -1647,11 +1650,11 @@ func TestSanitizeDataPlaneConfig(t *testing.T) {
 			wantSource:   pkgconfigmodel.SourceAgentRuntime,
 		},
 		{
-			name:         "darwin resets true to false",
+			name:         "darwin preserves true",
 			goos:         "darwin",
 			initialValue: true,
-			wantValue:    false,
-			wantSource:   pkgconfigmodel.SourceAgentRuntime,
+			wantValue:    true,
+			wantSource:   pkgconfigmodel.SourceFile,
 		},
 		{
 			// Even when already false, non-Linux writes SourceAgentRuntime so that
@@ -1663,11 +1666,11 @@ func TestSanitizeDataPlaneConfig(t *testing.T) {
 			wantSource:   pkgconfigmodel.SourceAgentRuntime,
 		},
 		{
-			name:         "darwin locks false via SourceAgentRuntime",
+			name:         "darwin preserves false",
 			goos:         "darwin",
 			initialValue: false,
 			wantValue:    false,
-			wantSource:   pkgconfigmodel.SourceAgentRuntime,
+			wantSource:   pkgconfigmodel.SourceFile,
 		},
 		{
 			name:         "darwin bypass: force-enable=true preserves true",
@@ -1686,13 +1689,13 @@ func TestSanitizeDataPlaneConfig(t *testing.T) {
 			wantSource:   pkgconfigmodel.SourceFile,
 		},
 		{
-			// Garbage value in the env var does NOT bypass the gate.
-			name:         "darwin bypass: force-enable=yes is ignored (gate applies)",
+			// Garbage value in the env var has no effect on Darwin because Darwin is supported.
+			name:         "darwin force-enable=yes has no effect",
 			goos:         "darwin",
 			forceEnable:  "yes",
 			initialValue: true,
-			wantValue:    false,
-			wantSource:   pkgconfigmodel.SourceAgentRuntime,
+			wantValue:    true,
+			wantSource:   pkgconfigmodel.SourceFile,
 		},
 		{
 			// When bypass is active and value is already false, gate is still skipped —

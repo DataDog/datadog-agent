@@ -8,6 +8,7 @@ package logsagentexporter
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -103,7 +104,9 @@ func (e *Exporter) consumeRegularLogs(ctx context.Context, ld plog.Logs) (err er
 		OTLPIngestDDOTLogsRequests.Inc()
 		OTLPIngestDDOTLogsEvents.Add(float64(ld.LogRecordCount()))
 	}
+	var errs []error
 	defer func() {
+		err = errors.Join(errs...)
 		if err != nil {
 			newErr, scrubbingErr := scrubber.ScrubString(err.Error())
 			if scrubbingErr != nil {
@@ -125,7 +128,7 @@ func (e *Exporter) consumeRegularLogs(ctx context.Context, ld plog.Logs) (err er
 	}
 
 	payloads := e.translator.MapLogs(ctx, ld, e.gatewaysUsage.GetHostFromAttributesHandler())
-	for _, ddLog := range payloads {
+	for i, ddLog := range payloads {
 		tags := strings.Split(ddLog.GetDdtags(), ",")
 		// Tags are set in the message origin instead
 		ddLog.Ddtags = nil
@@ -150,9 +153,10 @@ func (e *Exporter) consumeRegularLogs(ctx context.Context, ld plog.Logs) (err er
 		}
 		origin.SetSource(src)
 
-		content, err := ddLog.MarshalJSON()
-		if err != nil {
-			e.set.Logger.Error("error parsing log", zap.Error(err))
+		content, marshalErr := ddLog.MarshalJSON()
+		if marshalErr != nil {
+			e.set.Logger.Error("error marshaling log, dropping log record", zap.Error(marshalErr))
+			continue
 		}
 
 		// ingestionTs is an internal field used for latency tracking on the status page, not the actual log timestamp.
@@ -162,7 +166,12 @@ func (e *Exporter) consumeRegularLogs(ctx context.Context, ld plog.Logs) (err er
 			message.Hostname = *ddLog.Hostname
 		}
 
-		e.logsAgentChannel <- message
+		select {
+		case e.logsAgentChannel <- message:
+		case <-ctx.Done():
+			errs = append(errs, fmt.Errorf("logs export interrupted, %d log records remaining: %w", len(payloads)-i, ctx.Err()))
+			return
+		}
 	}
 
 	if e.coatGwUsageMetric != nil {
@@ -170,7 +179,7 @@ func (e *Exporter) consumeRegularLogs(ctx context.Context, ld plog.Logs) (err er
 		e.coatGwUsageMetric.Set(value, e.buildInfo.Version, e.buildInfo.Command)
 	}
 
-	return nil
+	return
 }
 
 // ScopeName represents the name of a scope
