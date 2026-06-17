@@ -79,7 +79,6 @@ import (
 	clusterchecksHandler "github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
 
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -222,13 +221,13 @@ func run(
 
 	// initialize CC Cache
 	var ccCache cloudfoundry.CCCacheI
-	ccCache, err = initializeCCCache(mainCtx)
+	ccCache, err = initializeCCCache(mainCtx, config)
 	if err != nil {
 		_ = pkglog.Errorf("Error initializing Cloud Foundry CCAPI cache, some advanced tagging features may be missing: %v", err)
 	}
 
 	// initialize BBS Cache before starting provider/listener, passing the CC cache for enrichment
-	if err = initializeBBSCache(mainCtx, ccCache); err != nil {
+	if err = initializeBBSCache(mainCtx, config, ccCache); err != nil {
 		return err
 	}
 
