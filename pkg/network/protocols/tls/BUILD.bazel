@@ -1,5 +1,8 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules/ebpf:cgo_godefs.bzl", "cgo_godefs")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+# gazelle:dd_agent_go_test on
 
 exports_files([
     "types_linux.go",
@@ -26,12 +29,11 @@ go_library(
     visibility = ["//visibility:public"],
 )
 
-go_test(
+dd_agent_go_test(
     name = "tls_test",
     srcs = [
         "types_linux_test.go",
         "types_test.go",
     ],
     embed = [":tls"],
-    gotags = ["test"],
 )
