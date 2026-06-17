@@ -6,6 +6,9 @@ def _integration_source_packages_impl(rctx):
     release_info = read_effective_release_json(rctx, rctx.attr._release_info)
     commit = release_info["dependencies"]["INTEGRATIONS_CORE_VERSION"]
 
+    # Note: this requires INTEGRATIONS_CORE_VERSION to be a full commit hash.
+    # This relies on omnibus-wrapping code for resolution in cases where the original INTEGRATIONS_CORE_VERSION
+    # is set to a mutable reference.
     rctx.download_and_extract(
         url = "{base_url}/archive/{commit}.tar.gz".format(
             base_url = rctx.attr.base_url,
