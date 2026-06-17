@@ -26,6 +26,24 @@ def _pyproject_wheel_impl(ctx):
 
     return DefaultInfo(files = depset([wheel_dir]))
 
+def _freeze_impl(ctx):
+    output = ctx.actions.declare_file(ctx.attr.out)
+
+    args = ctx.actions.args()
+    args.add("--output", output.path)
+    args.add_all(ctx.files.srcs)
+
+    ctx.actions.run(
+        mnemonic = "FreezePythonWheels",
+        inputs = ctx.files.srcs,
+        outputs = [output],
+        executable = ctx.executable._freezer,
+        arguments = [args],
+        progress_message = "Freezing Python wheel constraints for %{label}",
+    )
+
+    return DefaultInfo(files = depset([output]))
+
 def _install_wheels_impl(ctx):
     output = ctx.attr.output or ctx.attr.name
     runtime_dir = ctx.actions.declare_directory(output + "_runtime")
@@ -86,6 +104,21 @@ pyproject_wheel = rule(
         ),
     },
     doc = "Builds a wheel from a pyproject.toml-based Python source package.",
+)
+
+freeze = rule(
+    implementation = _freeze_impl,
+    attrs = {
+        "srcs": attr.label_list(allow_files = [".whl"], mandatory = True),
+        "out": attr.string(mandatory = True),
+        "_freezer": attr.label(
+            default = ":freeze_tool",
+            executable = True,
+            cfg = "exec",
+            doc = "Executable target for the constraints generator.",
+        ),
+    },
+    doc = "Generates a pip constraints file from wheel metadata.",
 )
 
 install_wheels = rule(

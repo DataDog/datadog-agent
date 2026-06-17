@@ -2,13 +2,22 @@ load("@py_agent_integrations_tool_requirements//:requirements.bzl", "requirement
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "REMOVE_BASE_DIRECTORY", "pkg_attributes", "pkg_files")
 load("@rules_python//python:py_binary.bzl", "py_binary")
-load("//deps/agent_integrations:defs.bzl", "install_wheels")
+load("@rules_python//python:py_library.bzl", "py_library")
+load("//deps/agent_integrations:defs.bzl", "freeze", "install_wheels")
+
+py_library(
+    name = "wheels_lib",
+    srcs = ["wheels.py"],
+)
 
 py_binary(
     name = "install_wheels_tool",
     srcs = ["install_wheels.py"],
     main = "install_wheels.py",
-    deps = [requirement("installer")],
+    deps = [
+        ":wheels_lib",
+        requirement("installer"),
+    ],
 )
 
 py_binary(
@@ -18,6 +27,16 @@ py_binary(
     deps = [
         requirement("build"),
         requirement("hatchling"),
+    ],
+)
+
+py_binary(
+    name = "freeze_tool",
+    srcs = ["freeze.py"],
+    main = "freeze.py",
+    deps = [
+        ":wheels_lib",
+        requirement("installer"),
     ],
 )
 
@@ -31,23 +50,32 @@ entrypoints_dirname = select({
     "//conditions:default": "bin",
 })
 
+dependency_wheels = select(
+    {
+        "//:linux_x86_64": ["@integration_dependency_wheels_linux_x86_64//:dependency_wheels"],
+        "//:linux_arm64": ["@integration_dependency_wheels_linux_aarch64//:dependency_wheels"],
+        "//:macos_x86_64": ["@integration_dependency_wheels_macos_x86_64//:dependency_wheels"],
+        "//:macos_arm64": ["@integration_dependency_wheels_macos_aarch64//:dependency_wheels"],
+        "//:windows_x86_64": ["@integration_dependency_wheels_windows_x86_64//:dependency_wheels"],
+    },
+    no_match_error = "No integration dependency lockfile repo is configured for this target platform.",
+)
+
 install_wheels(
     name = "integrations",
-    srcs = ["@integration_source_packages//:base_wheels"] + select(
-        {
-            "//:linux_x86_64": ["@integration_dependency_wheels_linux_x86_64//:dependency_wheels"],
-            "//:linux_arm64": ["@integration_dependency_wheels_linux_aarch64//:dependency_wheels"],
-            "//:macos_x86_64": ["@integration_dependency_wheels_macos_x86_64//:dependency_wheels"],
-            "//:macos_arm64": ["@integration_dependency_wheels_macos_aarch64//:dependency_wheels"],
-            "//:windows_x86_64": ["@integration_dependency_wheels_windows_x86_64//:dependency_wheels"],
-        },
-        no_match_error = "No integration dependency lockfile repo is configured for this target platform.",
-    ),
+    srcs = ["@integration_source_packages//:base_wheels"] + dependency_wheels,
     entrypoints_dirname = entrypoints_dirname,
     script_interpreter_relative_path = embedded_dir + select({
         "@platforms//os:windows": "/python.exe",
         "//conditions:default": "/bin/python3",
     }),
+    tags = ["manual"],
+)
+
+freeze(
+    name = "constraints_file",
+    srcs = ["@integration_source_packages//:base_wheels"] + dependency_wheels,
+    out = "final_constraints-py3.txt",
     tags = ["manual"],
 )
 
