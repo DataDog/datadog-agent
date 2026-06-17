@@ -3,20 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build !linux && !windows
-
 package sender
 
 import (
 	"context"
-	"errors"
+
+	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/network"
 )
 
-// New creates a direct sender
-func New(
-	_ context.Context,
-	_ ConnectionsSource,
-	_ Dependencies,
-) (Sender, error) {
-	return nil, errors.New("unsupported platform")
+func getNetworkID(ctx context.Context) (string, error) {
+	return network.GetNetworkID(ctx)
 }

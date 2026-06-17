@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build linux
+//go:build linux || windows
 
 // Package sender handles sending CNM data to the backend
 package sender
@@ -359,8 +359,22 @@ func (d *directSender) batches(conns *network.Connections, groupID int32) iter.S
 	usmEncoders := marshal.InitializeUSMEncoders(conns)
 	d.resolver.resolveDestinationContainerIDs(conns)
 
+	iisTags, procCacheTags, listeners := fetchServiceData(d.tracer)
+	if listeners == nil {
+		listeners = make(map[remoteservice.ListenKey]int32)
+	}
+	var getIISTags func(remotePort, localPort int32) []string
+	if iisTags != nil {
+		getIISTags = func(remotePort, localPort int32) []string {
+			iisKey := strconv.FormatInt(int64(remotePort), 10) + "-" + strconv.FormatInt(int64(localPort), 10)
+			if tags, ok := iisTags[iisKey]; ok {
+				return tags
+			}
+			return nil
+		}
+	}
+
 	// Build remote service resolver for intra-host connection enrichment.
-	listeners := make(map[remoteservice.ListenKey]int32)
 	for _, c := range conns.Conns {
 		// USM supports TCP only; skip UDP connections.
 		if c.IntraHost && c.Pid > 0 && c.SPort > 0 && c.Type == network.TCP {
@@ -378,14 +392,16 @@ func (d *directSender) batches(conns *network.Connections, groupID int32) iter.S
 			return nil
 		},
 		GetProcessTags: func(pid int32) []string {
-			processEntityID := types.NewEntityID(types.Process, strconv.Itoa(int(pid)))
-			tags, err := d.tagger.Tag(processEntityID, types.HighCardinality)
-			if err != nil {
-				return nil
-			}
-			return tags
+			return getProcessTags(pid, procCacheTags, func(_ int32) ([]string, error) {
+				if pid <= 0 {
+					return nil, nil
+				}
+				processEntityID := types.NewEntityID(types.Process, strconv.Itoa(int(pid)))
+				return d.tagger.Tag(processEntityID, types.HighCardinality)
+			})
 		},
-		Listeners: listeners,
+		GetIISTags: getIISTags,
+		Listeners:  listeners,
 	}
 
 	// Sort connections by remote IP/PID for more efficient resolution

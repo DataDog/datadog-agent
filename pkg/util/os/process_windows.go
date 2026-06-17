@@ -3,20 +3,15 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build !linux && !windows
-
-package sender
+// Package os provides additional OS utilities
+package os
 
 import (
-	"context"
-	"errors"
+	"github.com/shirou/gopsutil/v4/process"
 )
 
-// New creates a direct sender
-func New(
-	_ context.Context,
-	_ ConnectionsSource,
-	_ Dependencies,
-) (Sender, error) {
-	return nil, errors.New("unsupported platform")
+// PidExists returns true if the pid is still alive
+func PidExists(pid int) bool {
+	exists, _ := process.PidExists(int32(pid))
+	return exists
 }

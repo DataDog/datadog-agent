@@ -38,4 +38,5 @@ type Dependencies struct {
 type ConnectionsSource interface {
 	RegisterClient(clientID string) error
 	GetActiveConnections(clientID string) (*network.Connections, func(), error)
+	GetProcessCacheTags() map[uint32][]string
 }
