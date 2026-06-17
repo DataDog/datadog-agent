@@ -1,0 +1,26 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "ringbuffer",
+    srcs = ["buffer.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/metriclookback/ringbuffer",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/collector/check/id",
+        "//pkg/metrics",
+        "//pkg/tagset",
+        "@org_uber_go_atomic//:atomic",
+    ],
+)
+
+go_test(
+    name = "ringbuffer_test",
+    srcs = ["buffer_test.go"],
+    embed = [":ringbuffer"],
+    gotags = ["test"],
+    deps = [
+        "//pkg/collector/check/id",
+        "//pkg/collector/metriclookback/lookbacksender",
+        "//pkg/metrics",
+    ],
+)

@@ -310,8 +310,6 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	// Datadog cluster agent
 	config.BindEnvAndSetDefault("cluster_agent.enabled", false)
 	config.BindEnvAndSetDefault("cluster_agent.cmd_port", 5005)
-	config.BindEnvAndSetDefault("cluster_agent.mcp.enabled", false)
-	config.BindEnvAndSetDefault("cluster_agent.mcp.endpoint", "/mcp")
 	config.BindEnvAndSetDefault("cluster_agent.allow_legacy_tls", false)
 	config.BindEnvAndSetDefault("cluster_agent.auth_token", "")
 	config.BindEnvAndSetDefault("cluster_agent.url", "")
@@ -2168,4 +2166,39 @@ func anomalyDetection(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("anomaly_detection.storage.max_series", 50000)
 	config.BindEnvAndSetDefault("anomaly_detection.storage.eviction_floor_ratio", 0.5)
 	config.BindEnvAndSetDefault("anomaly_detection.storage.point_retention_secs", 120)
+}
+
+// metricLookback configures the in-memory check metric lookback ring buffer and
+// the experimental DogStatsD-driven dump trigger.
+func metricLookback(config pkgconfigmodel.Setup) {
+	// Capture switch. When true, samples emitted through the metric lookback
+	// shadow sender are retained in a bounded in-memory ring buffer so they can
+	// be dumped to the serializer on demand. The normal metric flow is not
+	// retained by this buffer.
+	config.BindEnvAndSetDefault("metric_lookback.enabled", false)
+	// Total number of sample slots across all shards. Zero uses the ring buffer default.
+	config.BindEnvAndSetDefault("metric_lookback.capacity", 0)
+	// Number of independent shards. Zero uses the ring buffer default.
+	config.BindEnvAndSetDefault("metric_lookback.shard_count", 0)
+
+	// Experimental trigger: watch a single incoming DogStatsD metric, track an
+	// exponential moving average of its value, and dump the lookback ring buffer
+	// when the average crosses a threshold.
+	config.BindEnvAndSetDefault("metric_lookback.trigger.enabled", false)
+	config.BindEnvAndSetDefault("metric_lookback.trigger.metric_name", "")
+	config.BindEnvAndSetDefault("metric_lookback.trigger.threshold", 0.0)
+	// EWMA smoothing factor in (0,1]. Higher reacts faster; 1 disables smoothing.
+	config.BindEnvAndSetDefault("metric_lookback.trigger.ewma_alpha", 0.3)
+	// Minimum time between dump sessions triggered by this watcher.
+	config.BindEnvAndSetDefault("metric_lookback.trigger.cooldown", "30s")
+	// Window around the trigger timestamp to include in trigger-driven dumps.
+	// The defaults cover a 30s period centered on the trigger.
+	config.BindEnvAndSetDefault("metric_lookback.trigger.pre_window", "15s")
+	config.BindEnvAndSetDefault("metric_lookback.trigger.post_window", "15s")
+	// How often an active trigger dump session wakes up to send newly eligible
+	// samples.
+	config.BindEnvAndSetDefault("metric_lookback.trigger.dump_interval", "10s")
+	// Delay trigger-driven lookback dumps so retained samples arrive after the
+	// normal 15s metric pipeline for the same timestamp, with a 2s cushion.
+	config.BindEnvAndSetDefault("metric_lookback.trigger.send_delay", "17s")
 }

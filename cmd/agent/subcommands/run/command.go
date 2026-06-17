@@ -473,7 +473,11 @@ func getSharedFxOption() fx.Option {
 		grpcAgentfx.Module(),
 		commonendpoints.Module(),
 		filterlist.Module(),
-		demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams(demultiplexerimpl.WithDogstatsdNoAggregationPipelineConfig())),
+		demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams(
+			demultiplexerimpl.WithDogstatsdNoAggregationPipelineConfig(),
+			demultiplexerimpl.WithLookbackRetentionFactory(newMetricLookbackRetention),
+			demultiplexerimpl.WithLookbackTriggerFactory(newMetricLookbackTrigger),
+		)),
 		demultiplexerendpointfx.Module(),
 		dogstatsd.Bundle(dogstatsdServer.Params{Serverless: false}),
 		dogstatsdhttpfx.Module(),

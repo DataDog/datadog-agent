@@ -177,7 +177,7 @@ func TestSenderDropsUnsupportedPayloadsAndRejectsInvalidTimestamps(t *testing.T)
 
 func TestSenderTelemetry(t *testing.T) {
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("telemetry.metric_lookback", "*")
+	mockConfig.SetInTest("telemetry.metric_lookback", "*")
 
 	writer := &recordingWriter{}
 	manager := NewSenderManager(context.Background(), "default-host", writer, func() float64 { return 42 })
