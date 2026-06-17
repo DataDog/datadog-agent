@@ -513,42 +513,20 @@ func TestEmitMetricsCollectsCollectorsInParallel(t *testing.T) {
 	require.Equal(t, int32(collectorCount), started.Load())
 }
 
-func TestRunDoesNotCrashWhenCollectorPanics(t *testing.T) {
-	mockSender := mocksender.NewMockSender("gpu")
-	mockSender.SetupAcceptAll()
-	pkgconfigsetup.Datadog().SetInTest("gpu.parallel_collectors", true)
-
-	check := newConfiguredGPUCheck(
-		t,
-		taggerfxmock.SetupFakeTagger(t),
-		testutil.GetWorkloadMetaMock(t),
-		mocksender.CreateDefaultDemultiplexer(),
-		nil,
-	)
-	nvmlMock := testutil.GetBasicNvmlMockWithOptions(
-		testutil.WithMockAllFunctions(),
-		testutil.WithDeviceCount(1),
-		testutil.WithMIGDisabled(),
-	)
-	ddnvml.WithMockNVML(t, nvmlMock)
-
-	deviceUUID := testutil.GPUUUIDs[0]
-	check.collectors = []nvidia.Collector{
+func TestCollectMetricsDoesNotCrashWhenCollectorPanics(t *testing.T) {
+	results := collectMetrics([]nvidia.Collector{
 		&mockCollector{
-			name:       "panicking-collector",
-			deviceUUID: deviceUUID,
+			name: "panicking-collector",
 			collectFunc: func() ([]*nvidia.Metric, error) {
 				panic("boom")
 			},
 		},
-	}
+	})
 
-	require.NoError(t, check.deviceCache.Refresh())
-	require.NoError(t, check.Run())
-
-	err := check.emitMetrics(mockSender, nil, time.Now())
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "collector panicking-collector failed. collector panicked: boom")
+	require.Len(t, results, 1)
+	assert.Equal(t, nvidia.CollectorName("panicking-collector"), results[0].name)
+	require.Error(t, results[0].err)
+	assert.Contains(t, results[0].err.Error(), "collector panicked: boom")
 }
 
 func TestEmitMetricsCollectsCollectorsSeriallyWhenParallelCollectionDisabled(t *testing.T) {
