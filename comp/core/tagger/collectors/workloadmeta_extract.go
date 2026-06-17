@@ -821,7 +821,7 @@ func (c *WorkloadMetaCollector) handleKubeKueueWorkload(ev workloadmeta.Event) [
 	workload := ev.Entity.(*workloadmeta.KubernetesKueueWorkload)
 
 	tagList := taglist.NewTagList()
-	c.extractKueueWorkloadTags(workload, tagList)
+	c.extractKueueWorkloadAndRelatedTags(workload, "", tagList)
 	low, orch, high, standard := tagList.Compute()
 
 	if len(low)+len(orch)+len(high)+len(standard) == 0 {
@@ -1056,6 +1056,59 @@ func (c *WorkloadMetaCollector) extractKueueWorkloadTags(workload *workloadmeta.
 	}
 }
 
+func (c *WorkloadMetaCollector) extractKueueWorkloadAndRelatedTags(workload *workloadmeta.KubernetesKueueWorkload, podSetName string, tagList *taglist.TagList) {
+	c.extractKueueWorkloadTags(workload, tagList)
+
+	clusterQueueName := workload.ClusterQueueName
+	if workload.QueueName != "" {
+		localQueueID, err := workloadmeta.GenerateKueueQueueEntityID(workloadmeta.KueueLocalQueue, workload.Namespace, workload.QueueName)
+		if err != nil {
+			log.Debugf("Could not generate Kueue LocalQueue entity ID for workload %s/%s: %v", workload.Namespace, workload.Name, err)
+		} else if queue, err := c.store.GetKubernetesKueueQueue(localQueueID); err == nil && queue != nil {
+			c.extractKueueQueueTags(queue, tagList)
+			if clusterQueueName == "" {
+				clusterQueueName = queue.ClusterQueueName
+			}
+		}
+	}
+
+	if clusterQueueName != "" {
+		clusterQueueID, err := workloadmeta.GenerateKueueQueueEntityID(workloadmeta.KueueClusterQueue, "", clusterQueueName)
+		if err != nil {
+			log.Debugf("Could not generate Kueue ClusterQueue entity ID for workload %s/%s: %v", workload.Namespace, workload.Name, err)
+		} else if queue, err := c.store.GetKubernetesKueueQueue(clusterQueueID); err == nil && queue != nil {
+			c.extractKueueQueueTags(queue, tagList)
+		}
+	}
+
+	c.extractKueueWorkloadResourceFlavorTags(workload, podSetName, tagList)
+}
+
+func (c *WorkloadMetaCollector) extractKueueWorkloadResourceFlavorTags(workload *workloadmeta.KubernetesKueueWorkload, podSetName string, tagList *taglist.TagList) {
+	flavorNames := make(map[string]struct{})
+	for _, assignment := range workload.PodSetAssignments {
+		if podSetName != "" && assignment.Name != podSetName {
+			continue
+		}
+		for _, flavorName := range assignment.Flavors {
+			if flavorName != "" {
+				flavorNames[flavorName] = struct{}{}
+			}
+		}
+	}
+
+	for flavorName := range flavorNames {
+		flavorID := workloadmeta.GenerateKueueResourceFlavorEntityID(flavorName)
+		flavor, err := c.store.GetKubernetesKueueResourceFlavor(flavorID)
+		if err != nil || flavor == nil {
+			tagList.AddLow(tags.KueueResourceFlavor, flavorName)
+			continue
+		}
+
+		c.extractKueueResourceFlavorTags(flavor, tagList)
+	}
+}
+
 func nvidiaResourceFlavorNodeLabelTagName(labelName string) (string, bool) {
 	const nvidiaLabelPrefix = "nvidia.com/"
 	tagName, ok := strings.CutPrefix(labelName, nvidiaLabelPrefix)
@@ -1144,40 +1197,8 @@ func (c *WorkloadMetaCollector) extractTagsFromPodKueueWorkloadInfo(pod *workloa
 	}
 
 	podSetName := pod.Labels[kubernetes.KueuePodSetLabelKey]
-	if podSetName == "" {
-		return false
-	}
-
-	assignment := kueuePodSetAssignmentByName(workload.PodSetAssignments, podSetName)
-	if assignment == nil {
-		return false
-	}
-
-	c.extractKueueWorkloadTags(workload, tagList)
-
-	flavorName := assignment.Flavors["nvidia.com/gpu"]
-	if flavorName == "" {
-		return true
-	}
-
-	flavorID := workloadmeta.GenerateKueueResourceFlavorEntityID(flavorName)
-	flavor, err := c.store.GetKubernetesKueueResourceFlavor(flavorID)
-	if err != nil || flavor == nil {
-		tagList.AddLow(tags.KueueResourceFlavor, flavorName)
-		return true
-	}
-
-	c.extractKueueResourceFlavorTags(flavor, tagList)
+	c.extractKueueWorkloadAndRelatedTags(workload, podSetName, tagList)
 	return true
-}
-
-func kueuePodSetAssignmentByName(assignments []workloadmeta.KueuePodSetAssignment, name string) *workloadmeta.KueuePodSetAssignment {
-	for i := range assignments {
-		if assignments[i].Name == name {
-			return &assignments[i]
-		}
-	}
-	return nil
 }
 
 func kueueQueueGroupResource(queueType workloadmeta.KueueQueueType) string {
