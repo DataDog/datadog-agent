@@ -1,0 +1,8 @@
+---
+enhancements:
+  - |
+    Data Observability: Extended the ``queryactions`` component to support
+    SQL Server in addition to PostgreSQL. The component now schedules
+    ``data_observability.queries`` for ``sqlserver`` check instances and
+    correctly resolves Azure SQL Database instances by requiring both host
+    and database equality, preventing cross-database payload injection.
