@@ -221,10 +221,38 @@ func LogsPerformanceProfileCovers(active, candidate string) bool {
 	return true
 }
 
+// profileYieldSources are the sources a profile must not override: anything the
+// user, a policy, or runtime set, as opposed to defaults or the profile's own
+// SourceConfigPostInit writes. This lets a customer pick a profile and still
+// tweak individual logs_config.* knobs on top of it.
+var profileYieldSources = map[pkgconfigmodel.Source]struct{}{
+	pkgconfigmodel.SourceFile:               {},
+	pkgconfigmodel.SourceEnvVar:             {},
+	pkgconfigmodel.SourceFleetPolicies:      {},
+	pkgconfigmodel.SourceSecret:             {},
+	pkgconfigmodel.SourceLocalConfigProcess: {},
+	pkgconfigmodel.SourceAgentRuntime:       {},
+	pkgconfigmodel.SourceRC:                 {},
+	pkgconfigmodel.SourceCLI:                {},
+}
+
+// keyExplicitlySet reports whether key has a value from a source the profile
+// should yield to, read per-source so the profile's own write does not mask it.
+func keyExplicitlySet(config pkgconfigmodel.Reader, key string) bool {
+	for _, vs := range config.GetAllSources(key) {
+		if vs.Value == nil {
+			continue
+		}
+		if _, ok := profileYieldSources[vs.Source]; ok {
+			return true
+		}
+	}
+	return false
+}
+
 // applyLogsPerformanceProfile expands logs_config.profile into the underlying
-// logs_config.* settings. Registered as a config override func, it writes at
-// SourceConfigPostInit: the profile wins over file/env but yields to
-// remote-config and CLI overrides.
+// logs_config.* settings, writing at SourceConfigPostInit. It yields to any key
+// the user, a policy, or runtime set, so explicit settings win over the profile.
 func applyLogsPerformanceProfile(config pkgconfigmodel.Config) {
 	name := config.GetString("logs_config.profile")
 	if isLogsPerformanceProfileOff(name) {
@@ -247,20 +275,20 @@ func applyLogsPerformanceProfile(config pkgconfigmodel.Config) {
 		return
 	}
 
-	var overridden []string
+	var kept []string
 	for _, key := range sortedSettingKeys(profile.settings) {
-		value := resolveProfileSettingValue(profile.settings[key])
-		// Profile wins over an explicitly-configured key, but surface it.
-		if config.IsConfigured(key) {
-			overridden = append(overridden, fmt.Sprintf("%s (was %v, now %v)", key, config.Get(key), value))
+		// An explicitly-set key wins over the profile.
+		if keyExplicitlySet(config, key) {
+			kept = append(kept, fmt.Sprintf("%s (%v)", key, config.Get(key)))
+			continue
 		}
-		config.Set(key, value, pkgconfigmodel.SourceConfigPostInit)
+		config.Set(key, resolveProfileSettingValue(profile.settings[key]), pkgconfigmodel.SourceConfigPostInit)
 	}
 
 	log.Infof("Applied logs performance profile %q (version %d): %s", name, version, profile.description)
-	if len(overridden) > 0 {
-		log.Warnf("Logs performance profile %q (version %d) overrode explicitly-configured settings: %s",
-			name, version, strings.Join(overridden, ", "))
+	if len(kept) > 0 {
+		log.Infof("Logs performance profile %q (version %d) kept explicitly-configured settings: %s",
+			name, version, strings.Join(kept, ", "))
 	}
 }
 

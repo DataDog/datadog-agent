@@ -169,7 +169,7 @@ logs_config:
 	assert.Equal(t, 4, cfg.GetInt("logs_config.pipelines"))
 }
 
-func TestLogsPerformanceProfileWinsOverExplicitUserSetting(t *testing.T) {
+func TestLogsPerformanceProfileYieldsToExplicitUserSetting(t *testing.T) {
 	cfg := confFromYAML(t, `
 logs_config:
   profile: high-throughput
@@ -178,9 +178,25 @@ logs_config:
 
 	applyLogsPerformanceProfile(cfg)
 
-	want := resolveProfileSettingValue(logsPerformanceProfiles["high-throughput"][1].settings["logs_config.pipelines"])
-	assert.EqualValues(t, want, cfg.GetInt("logs_config.pipelines"),
-		"profile must win over an explicitly-configured key")
+	// The explicitly-set key wins over the profile...
+	assert.Equal(t, 1, cfg.GetInt("logs_config.pipelines"),
+		"an explicitly-configured key must win over the profile")
+	// ...but the profile still fills in the keys the user did not set.
+	assert.Equal(t, 20, cfg.GetInt("logs_config.batch_max_concurrent_send"),
+		"the profile must still apply keys the user did not set")
+}
+
+func TestLogsPerformanceProfileYieldsToEnvVarSetting(t *testing.T) {
+	t.Setenv("DD_LOGS_CONFIG_BATCH_MAX_CONCURRENT_SEND", "3")
+	cfg := confFromYAML(t, `
+logs_config:
+  profile: high-throughput
+`)
+
+	applyLogsPerformanceProfile(cfg)
+
+	assert.Equal(t, 3, cfg.GetInt("logs_config.batch_max_concurrent_send"),
+		"an env-var-configured key must win over the profile")
 }
 
 func TestLogsPerformanceProfileCatalogKeysAreKnown(t *testing.T) {
