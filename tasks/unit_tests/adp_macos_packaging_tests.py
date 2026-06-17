@@ -38,6 +38,7 @@ class TestADPMacOSPackaging(unittest.TestCase):
         self.assertIn('package_target = "#{package_target}-fips"', recipe)
         self.assertIn('package_extension = "zip"', recipe)
         self.assertIn("copy 'bin/agent-data-plane.exe'", recipe)
+        self.assertIn("copy 'bin/aws_lc_fips_*_crypto.dll'", recipe)
 
     def test_adp_dependency_is_included_on_windows(self):
         dependencies = (REPO_ROOT / "omnibus/config/software/datadog-agent-dependencies.rb").read_text()
@@ -80,6 +81,7 @@ class TestADPMacOSPackaging(unittest.TestCase):
         self.assertIn(
             "agentBinDir.AddFile(new WixSharp.File(_agentBinaries.AgentDataPlane, dataPlaneService));", installer
         )
+        self.assertIn('agentBinDir.Add(new Files($@"{BinSource}\\aws_lc_fips_*_crypto.dll"));', installer)
 
     def test_windows_custom_actions_manage_adp_service(self):
         service_actions = (
