@@ -220,6 +220,21 @@ func TestCleanPathList(t *testing.T) {
 			in:   []string{"/var/../etc/../usr/local"},
 			want: []string{"/usr/local/"},
 		},
+		{
+			name: "read-only suffix remains at end after path normalization",
+			in:   []string{"/host/var/log:ro"},
+			want: []string{"/host/var/log/:ro"},
+		},
+		{
+			name: "read-write suffix remains at end after path normalization",
+			in:   []string{"/host/datadog:rw"},
+			want: []string{"/host/datadog/:rw"},
+		},
+		{
+			name: "path cleanup happens before access suffix is reattached",
+			in:   []string{"/host/./datadog/../datadog:rw"},
+			want: []string{"/host/datadog/:rw"},
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -325,6 +340,21 @@ func TestReducePathListToBroadest(t *testing.T) {
 			name: "interleaved related and unrelated",
 			in:   []string{"/var/log/", "/etc/foo/", "/var/", "/etc/"},
 			want: []string{"/etc/", "/var/"},
+		},
+		{
+			name: "same access suffix collapses to broadest",
+			in:   []string{"/var/log/:rw", "/var/:rw"},
+			want: []string{"/var/:rw"},
+		},
+		{
+			name: "different access suffixes are not collapsed",
+			in:   []string{"/var/log/:rw", "/var/:ro"},
+			want: []string{"/var/:ro", "/var/log/:rw"},
+		},
+		{
+			name: "implicit read-only and explicit read-only may collapse",
+			in:   []string{"/var/log/:ro", "/var/"},
+			want: []string{"/var/"},
 		},
 	}
 	for _, tc := range cases {
@@ -471,6 +501,30 @@ func TestIntersectPathLists(t *testing.T) {
 			list1: []string{"/var/", "/etc/", "/opt/"},
 			list2: []string{"/var/log/", "/etc/", "/srv/"},
 			want:  []string{"/var/log/", "/etc/"},
+		},
+		{
+			name:  "backend read-write suffix is preserved when operator has no suffix",
+			list1: []string{"/host/"},
+			list2: []string{"/host/datadog/:rw"},
+			want:  []string{"/host/datadog/:rw"},
+		},
+		{
+			name:  "backend read-only suffix is preserved when operator has no suffix",
+			list1: []string{"/host/"},
+			list2: []string{"/host/var/log/:ro"},
+			want:  []string{"/host/var/log/:ro"},
+		},
+		{
+			name:  "operator explicit read-only downgrades backend read-write",
+			list1: []string{"/host/:ro"},
+			list2: []string{"/host/datadog/:rw"},
+			want:  []string{"/host/datadog/:ro"},
+		},
+		{
+			name:  "operator read-write does not upgrade unsuffixed backend path",
+			list1: []string{"/host/:rw"},
+			list2: []string{"/host/datadog/"},
+			want:  []string{"/host/datadog/"},
 		},
 	}
 	for _, tc := range cases {
