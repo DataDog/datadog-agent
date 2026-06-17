@@ -151,7 +151,6 @@ exports_files(["go.mod"])
 # gazelle:exclude comp/netflow/goflowlib/*.go
 # gazelle:exclude comp/netflow/server/fx
 # gazelle:exclude comp/netflow/server/impl
-# gazelle:exclude comp/networkpath/traceroute/fx-local
 # gazelle:exclude comp/notableevents/fx
 # gazelle:exclude comp/otelcol/collector/fx-pipeline
 # gazelle:exclude comp/otelcol/collector/impl-pipeline
