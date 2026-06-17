@@ -120,6 +120,10 @@ enum TC_RAWPACKET_KEYS {
 #define BPF_OBJ_NAME_LEN 16U
 #endif
 
+#ifndef BPF_F_CLONE
+#define BPF_F_CLONE (1U << 9)
+#endif
+
 #define EVENT_GEN_SIZE 16
 
 #ifndef VALID_OPEN_FLAGS
