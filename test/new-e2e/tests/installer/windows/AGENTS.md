@@ -112,9 +112,10 @@ applies env var overrides locally but is a no-op in CI (when `CI` is set).
 
 ## Running tests
 
-See `tests/windows/running_tests.md` for environment setup and `go test`
-invocations. Also see `doc.go` in this package for installer-specific
-quick-start instructions.
+See the `run-windows-e2e` skill references for environment setup and `go test`
+invocations: `.claude/skills/run-windows-e2e/references/setup.md` and
+`.../running.md` (or invoke the `/run-windows-e2e` skill). Also see `doc.go` in
+this package for installer-specific quick-start instructions.
 
 ## CI
 

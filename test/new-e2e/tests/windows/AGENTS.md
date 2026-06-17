@@ -111,8 +111,10 @@ recipe with code templates and CI matrix instructions.
 
 ## Running tests
 
-See `running_tests.md` in this directory for setup-env, local builds,
-and `go test` invocations.
+Setup, `setup-env`, local builds, and `go test` invocations are documented in
+the `run-windows-e2e` skill's references:
+`.claude/skills/run-windows-e2e/references/setup.md` and `.../running.md`. With
+Claude Code, the `/run-windows-e2e` skill drives the whole flow interactively.
 
 ## CI configuration
 

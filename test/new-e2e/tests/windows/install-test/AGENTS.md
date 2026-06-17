@@ -56,7 +56,9 @@ to validate the full post-install/post-uninstall state.
 
 ## Running tests
 
-See `../running_tests.md` for environment setup and `go test` invocations.
+See the `run-windows-e2e` skill references for environment setup and `go test`
+invocations: `.claude/skills/run-windows-e2e/references/setup.md` and
+`.../running.md` (or invoke the `/run-windows-e2e` skill).
 
 ## CI
 
