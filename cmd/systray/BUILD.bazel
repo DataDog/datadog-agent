@@ -19,7 +19,6 @@ go_library(
     name = "systray_lib",
     srcs = [
         "main_windows.go",
-        "version.h",
         ":rsrc",
     ],
     importpath = "github.com/DataDog/datadog-agent/cmd/systray",
