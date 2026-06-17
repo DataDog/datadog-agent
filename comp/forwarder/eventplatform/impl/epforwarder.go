@@ -17,6 +17,7 @@ import (
 	configcomp "github.com/DataDog/datadog-agent/comp/core/config"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	sdsscanner "github.com/DataDog/datadog-agent/comp/core/sdsscanner/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	secretsnoopimpl "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
@@ -53,6 +54,7 @@ type Requires struct {
 	Hostname              hostnameinterface.Component
 	Compression           logscompression.Component
 	Secrets               secrets.Component
+	Scanners              sdsscanner.Component `optional:"true"`
 }
 
 // Provides defines the component's output.
@@ -340,6 +342,19 @@ func getPassthroughPipelines() []passthroughPipelineDesc {
 			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
 			defaultInputChanSize:          500,
 		},
+		{
+			eventType:                     eventplatform.EventTypeSDSResult,
+			category:                      "Data Security",
+			contentType:                   logshttp.ProtobufContentType,
+			endpointsConfigPrefix:         "sds_result.forwarder.",
+			hostnameEndpointPrefix:        "sds-intake.",
+			intakeTrackType:               "sdsresult",
+			defaultBatchMaxConcurrentSend: 10,
+			defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
+			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
+			defaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
+			transformer:                   newSDSResultTransformer(),
+		},
 	}
 
 	if pkgconfigsetup.Datadog().GetBool("kubeactions.enabled") {
@@ -394,6 +409,12 @@ func (s *defaultEventPlatformForwarder) SendEventPlatformEvent(e *message.Messag
 	p, ok := s.pipelines[eventType]
 	if !ok {
 		return fmt.Errorf("unknown eventType=%s", eventType)
+	}
+
+	if p.transformer != nil {
+		if err := p.transformer.Transform(e); err != nil {
+			return err
+		}
 	}
 
 	// Stream to console if debug mode is enabled
@@ -496,6 +517,12 @@ func (s *defaultEventPlatformForwarder) SendEventPlatformEventBlocking(e *messag
 		return fmt.Errorf("unknown eventType=%s", eventType)
 	}
 
+	if p.transformer != nil {
+		if err := p.transformer.Transform(e); err != nil {
+			return err
+		}
+	}
+
 	// Stream to console if debug mode is enabled
 	p.eventPlatformReceiver.HandleMessage(e, []byte{}, eventType)
 
@@ -554,6 +581,7 @@ func (s *defaultEventPlatformForwarder) Stop() {
 type passthroughPipeline struct {
 	sender                *sender.Sender
 	strategy              sender.Strategy
+	transformer           eventplatform.EventTransformer
 	in                    chan *message.Message
 	eventPlatformReceiver eventplatformreceiver.Component
 }
@@ -573,6 +601,7 @@ type passthroughPipelineDesc struct {
 	forceCompressionKind          string
 	forceCompressionLevel         int
 	useStreamStrategy             bool
+	transformer                   eventplatform.EventTransformer
 }
 
 // newHTTPPassthroughPipeline creates a new HTTP-only event platform pipeline that sends messages directly to intake
@@ -696,6 +725,7 @@ func newHTTPPassthroughPipeline(
 	return &passthroughPipeline{
 		sender:                senderImpl,
 		strategy:              strategy,
+		transformer:           desc.transformer,
 		in:                    inputChan,
 		eventPlatformReceiver: eventPlatformReceiver,
 	}, nil
@@ -741,11 +771,29 @@ func joinHosts(endpoints []config.Endpoint) string {
 	return strings.Join(additionalHosts, ",")
 }
 
-func newDefaultEventPlatformForwarder(config model.Reader, eventPlatformReceiver eventplatformreceiver.Component, compression logscompression.Component, hostname string, secretsComp secrets.Component) *defaultEventPlatformForwarder {
+func newDefaultEventPlatformForwarder(config model.Reader, eventPlatformReceiver eventplatformreceiver.Component, compression logscompression.Component, hostname string, secretsComp secrets.Component, scanners sdsscanner.Component) *defaultEventPlatformForwarder {
 	destinationsCtx := client.NewDestinationsContext()
 	destinationsCtx.Start()
+
+	descs := getPassthroughPipelines()
+	// Hand each pipeline transformer all the forwarder dependencies and let it
+	// keep what it needs. A transformer that fails to initialize is dropped so
+	// its pipeline forwards messages unchanged rather than failing the forwarder.
+	transformerDeps := eventplatform.TransformerDependencies{
+		Scanners: scanners,
+	}
+	for i := range descs {
+		if descs[i].transformer == nil {
+			continue
+		}
+		if err := descs[i].transformer.Init(transformerDeps); err != nil {
+			log.Errorf("Failed to initialize event platform transformer for eventType=%s, error=%s", descs[i].eventType, err.Error())
+			descs[i].transformer = nil
+		}
+	}
+
 	pipelines := make(map[string]*passthroughPipeline)
-	for i, desc := range getPassthroughPipelines() {
+	for i, desc := range descs {
 		p, err := newHTTPPassthroughPipeline(config, eventPlatformReceiver, compression, desc, destinationsCtx, i, hostname, secretsComp)
 		if err != nil {
 			log.Errorf("Failed to initialize event platform forwarder pipeline. eventType=%s, error=%s", desc.eventType, err.Error())
@@ -766,7 +814,7 @@ func newEventPlatformForwarder(reqs Requires) eventplatform.Component {
 		forwarder = newNoopEventPlatformForwarder(reqs.Hostname, reqs.Compression)
 	} else if reqs.Params.UseEventPlatformForwarder {
 		hostnameStr := reqs.Hostname.GetSafe(context.Background())
-		forwarder = newDefaultEventPlatformForwarder(reqs.Config, reqs.EventPlatformReceiver, reqs.Compression, hostnameStr, reqs.Secrets)
+		forwarder = newDefaultEventPlatformForwarder(reqs.Config, reqs.EventPlatformReceiver, reqs.Compression, hostnameStr, reqs.Secrets, reqs.Scanners)
 	}
 	if forwarder == nil {
 		return option.NonePtr[eventplatform.Forwarder]()
@@ -792,7 +840,7 @@ func NewNoopEventPlatformForwarder(hostname hostnameinterface.Component, compres
 
 func newNoopEventPlatformForwarder(hostname hostnameinterface.Component, compression logscompression.Component) *defaultEventPlatformForwarder {
 	hostnameStr := hostname.GetSafe(context.Background())
-	f := newDefaultEventPlatformForwarder(pkgconfigsetup.Datadog(), eventplatformreceiverimpl.NewReceiver(hostname, pkgconfigsetup.Datadog()).Comp, compression, hostnameStr, secretsnoopimpl.NewComponent().Comp)
+	f := newDefaultEventPlatformForwarder(pkgconfigsetup.Datadog(), eventplatformreceiverimpl.NewReceiver(hostname, pkgconfigsetup.Datadog()).Comp, compression, hostnameStr, secretsnoopimpl.NewComponent().Comp, nil)
 	// remove the senders
 	for _, p := range f.pipelines {
 		p.strategy = nil

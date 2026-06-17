@@ -5,8 +5,12 @@ go_library(
     srcs = [
         "component.go",
         "params.go",
+        "transformer.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def",
     visibility = ["//visibility:public"],
-    deps = ["//pkg/logs/message"],
+    deps = [
+        "//comp/core/sdsscanner/def",
+        "//pkg/logs/message",
+    ],
 )
