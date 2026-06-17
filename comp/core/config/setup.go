@@ -100,8 +100,11 @@ func setupConfig(config pkgconfigmodel.BuildableConfig, secretComp secrets.Compo
 			}
 		}
 		// Fleet policies are merged after LoadDatadog's override pass, so re-run
-		// suppression logic that depends on values fleet policies may set.
+		// the overrides that depend on values fleet policies may set: DogStatsD
+		// suppression, and the logs performance profile (so a fleet-selected
+		// profile is expanded and a fleet knob override wins over the profile).
 		pkgconfigsetup.ApplyUseDogstatsdSuppression(config)
+		pkgconfigsetup.ApplyLogsPerformanceProfile(config)
 	}
 
 	for k, v := range p.cliOverride {

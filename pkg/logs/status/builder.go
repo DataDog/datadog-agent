@@ -446,6 +446,14 @@ func (b *Builder) getProfileRecommendation(utils []ComponentUtilization, activeP
 	recommended, reason := recommendProfileForBottleneck(bottleneck, latencyMs)
 	// Skip if nothing to suggest, already active, or the active profile is a
 	// superset of it (a lower-tier "switch" would only lower settings).
+	//
+	// The coverage check compares catalog profiles by name, not effective config
+	// values, and that is sufficient: a profile sets its knobs to the covering
+	// values unless the user explicitly overrode one, and an explicit override
+	// always wins over a profile (see applyLogsPerformanceProfile). So the only
+	// way effective coverage breaks is an explicit override — in which case
+	// switching profiles would not change that knob anyway, so the recommendation
+	// would be futile. We therefore never hide an actionable switch here.
 	if recommended == "" || recommended == activeProfile ||
 		pkgconfigsetup.LogsPerformanceProfileCovers(activeProfile, recommended) {
 		return nil

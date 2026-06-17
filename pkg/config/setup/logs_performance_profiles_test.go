@@ -11,6 +11,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
 // throughputLadder is the monotonic superset chain: each profile must contain
@@ -39,7 +41,7 @@ logs_config:
   profile: max-throughput
 `)
 
-	applyLogsPerformanceProfile(cfg)
+	ApplyLogsPerformanceProfile(cfg)
 
 	assert.False(t, cfg.GetBool("logs_config.use_compression"),
 		"max-throughput must disable compression to remove the CPU bottleneck")
@@ -51,7 +53,7 @@ logs_config:
   profile: high-throughput
 `)
 
-	applyLogsPerformanceProfile(cfg)
+	ApplyLogsPerformanceProfile(cfg)
 
 	assert.Equal(t, runtime.GOMAXPROCS(0), cfg.GetInt("logs_config.pipelines"),
 		"high-throughput must scale pipelines to one per core, uncapped")
@@ -65,7 +67,7 @@ func TestLowResourceCapsPipelinesAtTwo(t *testing.T) {
 logs_config:
   profile: low-resource
 `)
-	applyLogsPerformanceProfile(cfg)
+	ApplyLogsPerformanceProfile(cfg)
 
 	assert.Equal(t, 2, cfg.GetInt("logs_config.pipelines"),
 		"low-resource should use few pipelines on a multi-core host")
@@ -81,7 +83,7 @@ func TestLowResourceNeverRaisesPipelinesOnSmallHost(t *testing.T) {
 logs_config:
   profile: low-resource
 `)
-	applyLogsPerformanceProfile(cfg)
+	ApplyLogsPerformanceProfile(cfg)
 
 	assert.Equal(t, 1, cfg.GetInt("logs_config.pipelines"),
 		"low-resource must never raise the pipeline count above the host's core count")
@@ -104,7 +106,7 @@ func TestLogsPerformanceProfileCovers(t *testing.T) {
 func TestLogsPerformanceProfileOffByDefault(t *testing.T) {
 	cfg := confFromYAML(t, ``)
 
-	applyLogsPerformanceProfile(cfg)
+	ApplyLogsPerformanceProfile(cfg)
 
 	// With no profile selected, the agent keeps its normal default settings.
 	assert.Equal(t, 4, cfg.GetInt("logs_config.pipelines"),
@@ -119,7 +121,7 @@ logs_config:
   profile_version: 1
 `)
 
-	applyLogsPerformanceProfile(cfg)
+	ApplyLogsPerformanceProfile(cfg)
 
 	profile := logsPerformanceProfiles["high-throughput"][1]
 	require.NotEmpty(t, profile.settings, "high-throughput v1 must define settings")
@@ -136,7 +138,7 @@ logs_config:
   profile: high-throughput
 `)
 
-	applyLogsPerformanceProfile(cfg)
+	ApplyLogsPerformanceProfile(cfg)
 
 	profile := logsPerformanceProfiles["high-throughput"][1]
 	for key, want := range profile.settings {
@@ -150,7 +152,7 @@ logs_config:
   profile: does-not-exist
 `)
 
-	applyLogsPerformanceProfile(cfg)
+	ApplyLogsPerformanceProfile(cfg)
 
 	// Unknown profile must fail safe to defaults, never crash.
 	assert.Equal(t, 4, cfg.GetInt("logs_config.pipelines"))
@@ -163,7 +165,7 @@ logs_config:
   profile_version: 9999
 `)
 
-	applyLogsPerformanceProfile(cfg)
+	ApplyLogsPerformanceProfile(cfg)
 
 	// Unknown version must fail safe to defaults, never crash.
 	assert.Equal(t, 4, cfg.GetInt("logs_config.pipelines"))
@@ -176,7 +178,7 @@ logs_config:
   pipelines: 1
 `)
 
-	applyLogsPerformanceProfile(cfg)
+	ApplyLogsPerformanceProfile(cfg)
 
 	// The explicitly-set key wins over the profile...
 	assert.Equal(t, 1, cfg.GetInt("logs_config.pipelines"),
@@ -193,7 +195,7 @@ logs_config:
   profile: high-throughput
 `)
 
-	applyLogsPerformanceProfile(cfg)
+	ApplyLogsPerformanceProfile(cfg)
 
 	assert.Equal(t, 3, cfg.GetInt("logs_config.batch_max_concurrent_send"),
 		"an env-var-configured key must win over the profile")
@@ -305,10 +307,62 @@ func TestLogsPerformanceProfileEnvVarsRemainBound(t *testing.T) {
 		"DD_LOGS_CONFIG_PROFILE_VERSION must still feed logs_config.profile_version")
 
 	// The hidden feature must remain fully functional when driven by env vars.
-	applyLogsPerformanceProfile(cfg)
+	ApplyLogsPerformanceProfile(cfg)
 	profile := logsPerformanceProfiles["high-throughput"][1]
 	for key, want := range profile.settings {
 		assert.EqualValues(t, resolveProfileSettingValue(want), cfg.Get(key),
 			"env-var-selected profile must apply %s", key)
 	}
+}
+
+func TestLogsPerformanceProfileReapplyIsIdempotent(t *testing.T) {
+	cfg := confFromYAML(t, `
+logs_config:
+  profile: high-throughput
+`)
+
+	// The full agent runs the override pass, then re-runs after fleet policies
+	// merge. Re-applying with no new sources must not change the result.
+	ApplyLogsPerformanceProfile(cfg)
+	ApplyLogsPerformanceProfile(cfg)
+
+	assert.Equal(t, runtime.GOMAXPROCS(0), cfg.GetInt("logs_config.pipelines"),
+		"re-applying the same profile must be idempotent")
+	assert.Equal(t, 20, cfg.GetInt("logs_config.batch_max_concurrent_send"))
+}
+
+func TestLogsPerformanceProfileSelectedByFleetIsExpanded(t *testing.T) {
+	// No profile in the config file: the first override pass is a no-op.
+	cfg := confFromYAML(t, ``)
+	ApplyLogsPerformanceProfile(cfg)
+	assert.Equal(t, 4, cfg.GetInt("logs_config.pipelines"),
+		"no profile yet: defaults must stand")
+
+	// Fleet policies merge after the first pass and select a profile.
+	cfg.Set("logs_config.profile", "high-throughput", pkgconfigmodel.SourceFleetPolicies)
+	ApplyLogsPerformanceProfile(cfg)
+
+	assert.Equal(t, runtime.GOMAXPROCS(0), cfg.GetInt("logs_config.pipelines"),
+		"a fleet-policy-selected profile must be expanded by the re-run")
+}
+
+func TestLogsPerformanceProfileFleetKnobOverridesProfile(t *testing.T) {
+	// A profile is active from the config file; the first pass expands it.
+	cfg := confFromYAML(t, `
+logs_config:
+  profile: high-throughput
+`)
+	ApplyLogsPerformanceProfile(cfg)
+	require.Equal(t, runtime.GOMAXPROCS(0), cfg.GetInt("logs_config.pipelines"))
+
+	// Fleet policies then pin a knob the profile also sets. The re-run must let
+	// the fleet value win rather than have the first pass's post-init write
+	// (which outranks SourceFleetPolicies) shadow it.
+	cfg.Set("logs_config.pipelines", 1, pkgconfigmodel.SourceFleetPolicies)
+	ApplyLogsPerformanceProfile(cfg)
+
+	assert.Equal(t, 1, cfg.GetInt("logs_config.pipelines"),
+		"a fleet-policy knob override must take precedence over the profile")
+	assert.Equal(t, 20, cfg.GetInt("logs_config.batch_max_concurrent_send"),
+		"the profile must still fill in keys fleet policy did not override")
 }

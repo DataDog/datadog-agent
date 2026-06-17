@@ -250,10 +250,44 @@ func keyExplicitlySet(config pkgconfigmodel.Reader, key string) bool {
 	return false
 }
 
-// applyLogsPerformanceProfile expands logs_config.profile into the underlying
+// allProfileSettingKeys returns the union of every config key any catalog profile
+// can write, sorted. Used to clear a previous apply's writes before re-evaluating.
+func allProfileSettingKeys() []string {
+	seen := map[string]struct{}{}
+	for _, versions := range logsPerformanceProfiles {
+		for _, profile := range versions {
+			for key := range profile.settings {
+				seen[key] = struct{}{}
+			}
+		}
+	}
+	keys := make([]string, 0, len(seen))
+	for key := range seen {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+// ApplyLogsPerformanceProfile expands logs_config.profile into the underlying
 // logs_config.* settings, writing at SourceConfigPostInit. It yields to any key
 // the user, a policy, or runtime set, so explicit settings win over the profile.
-func applyLogsPerformanceProfile(config pkgconfigmodel.Config) {
+//
+// It is idempotent: each call first clears its own prior SourceConfigPostInit
+// writes, so it can be safely re-run after additional config sources merge. The
+// full agent merges fleet policies only after the initial override pass, so this
+// must run again afterward (see comp/core/config) — otherwise a profile selected
+// by fleet policy is never expanded, and the first pass's post-init writes (which
+// outrank SourceFleetPolicies) would shadow a fleet-policy knob override that is
+// meant to win over the profile.
+func ApplyLogsPerformanceProfile(config pkgconfigmodel.Config) {
+	// Drop any values a previous apply wrote so this pass reflects the current
+	// config state instead of stacking on top of, or being shadowed by, stale
+	// post-init writes.
+	for _, key := range allProfileSettingKeys() {
+		config.UnsetForSource(key, pkgconfigmodel.SourceConfigPostInit)
+	}
+
 	name := config.GetString("logs_config.profile")
 	if isLogsPerformanceProfileOff(name) {
 		return
