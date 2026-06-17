@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"maps"
@@ -199,7 +200,7 @@ func parseNetworkPathDebugConfig(cfgPath string, rawConfig state.RawConfig) (int
 		return integration.Config{}, fmt.Errorf("invalid Network Path DEBUG config: %w", err)
 	}
 	if err := decoder.Decode(&struct{}{}); err != io.EOF {
-		return integration.Config{}, fmt.Errorf("invalid Network Path DEBUG config: trailing JSON tokens")
+		return integration.Config{}, errors.New("invalid Network Path DEBUG config: trailing JSON tokens")
 	}
 
 	if scheduled.POC != networkPathDebugPOCMarker {
@@ -209,7 +210,7 @@ func parseNetworkPathDebugConfig(cfgPath string, rawConfig state.RawConfig) (int
 		return integration.Config{}, fmt.Errorf("unsupported Network Path DEBUG config type %q", scheduled.Type)
 	}
 	if scheduled.Configs == nil {
-		return integration.Config{}, fmt.Errorf("invalid Network Path DEBUG config: configs must be provided")
+		return integration.Config{}, errors.New("invalid Network Path DEBUG config: configs must be provided")
 	}
 
 	provenanceTags := networkPathRCProvenanceTags(cfgPath, rawConfig.Metadata)
@@ -235,25 +236,25 @@ func parseNetworkPathDebugConfig(cfgPath string, rawConfig state.RawConfig) (int
 
 func translateNetworkPathDebugTestConfig(cfg networkPathDebugTestConfig, provenanceTags []string) (networkPathInstanceConfig, error) {
 	if strings.TrimSpace(cfg.Hostname) == "" {
-		return networkPathInstanceConfig{}, fmt.Errorf("hostname is required")
+		return networkPathInstanceConfig{}, errors.New("hostname is required")
 	}
 	if cfg.Port != nil && (*cfg.Port < 1 || *cfg.Port > 65535) {
-		return networkPathInstanceConfig{}, fmt.Errorf("port must be between 1 and 65535")
+		return networkPathInstanceConfig{}, errors.New("port must be between 1 and 65535")
 	}
 	if cfg.MaxTTL != nil && (*cfg.MaxTTL < 1 || *cfg.MaxTTL > 255) {
-		return networkPathInstanceConfig{}, fmt.Errorf("max_ttl must be between 1 and 255")
+		return networkPathInstanceConfig{}, errors.New("max_ttl must be between 1 and 255")
 	}
 	if cfg.TimeoutMS != nil && *cfg.TimeoutMS <= 0 {
-		return networkPathInstanceConfig{}, fmt.Errorf("timeout_ms must be > 0")
+		return networkPathInstanceConfig{}, errors.New("timeout_ms must be > 0")
 	}
 	if cfg.IntervalSec != nil && *cfg.IntervalSec <= 0 {
-		return networkPathInstanceConfig{}, fmt.Errorf("interval_sec must be > 0")
+		return networkPathInstanceConfig{}, errors.New("interval_sec must be > 0")
 	}
 	if cfg.TracerouteQueries != nil && *cfg.TracerouteQueries <= 0 {
-		return networkPathInstanceConfig{}, fmt.Errorf("traceroute_queries must be > 0")
+		return networkPathInstanceConfig{}, errors.New("traceroute_queries must be > 0")
 	}
 	if cfg.E2eQueries != nil && *cfg.E2eQueries <= 0 {
-		return networkPathInstanceConfig{}, fmt.Errorf("e2e_queries must be > 0")
+		return networkPathInstanceConfig{}, errors.New("e2e_queries must be > 0")
 	}
 
 	var protocol string
@@ -262,7 +263,7 @@ func translateNetworkPathDebugTestConfig(cfg networkPathDebugTestConfig, provena
 		switch payload.Protocol(protocol) {
 		case payload.ProtocolTCP, payload.ProtocolUDP, payload.ProtocolICMP:
 		default:
-			return networkPathInstanceConfig{}, fmt.Errorf("protocol must be one of TCP, UDP, or ICMP")
+			return networkPathInstanceConfig{}, errors.New("protocol must be one of TCP, UDP, or ICMP")
 		}
 	}
 
@@ -272,7 +273,7 @@ func translateNetworkPathDebugTestConfig(cfg networkPathDebugTestConfig, provena
 		switch payload.TCPMethod(tcpMethod) {
 		case payload.TCPConfigSYN, payload.TCPConfigSACK, payload.TCPConfigPreferSACK, payload.TCPConfigSYNSocket:
 		default:
-			return networkPathInstanceConfig{}, fmt.Errorf("tcp_method must be one of syn, sack, prefer_sack, or syn_socket")
+			return networkPathInstanceConfig{}, errors.New("tcp_method must be one of syn, sack, prefer_sack, or syn_socket")
 		}
 	}
 
@@ -285,10 +286,10 @@ func translateNetworkPathDebugTestConfig(cfg networkPathDebugTestConfig, provena
 	if cfg.TestID != nil {
 		testID := strings.TrimSpace(*cfg.TestID)
 		if testID == "" {
-			return networkPathInstanceConfig{}, fmt.Errorf("test_id must not be empty")
+			return networkPathInstanceConfig{}, errors.New("test_id must not be empty")
 		}
 		if strings.ContainsAny(testID, ",\n\r") {
-			return networkPathInstanceConfig{}, fmt.Errorf("test_id must not contain commas or newlines")
+			return networkPathInstanceConfig{}, errors.New("test_id must not contain commas or newlines")
 		}
 		tags = append(tags, "network_path.test_id:"+testID)
 	}
