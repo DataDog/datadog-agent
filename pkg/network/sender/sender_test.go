@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build linux
+//go:build linux || windows
 
 package sender
 
@@ -66,6 +66,9 @@ type fakeConnectionSource struct{}
 func (f *fakeConnectionSource) RegisterClient(_ string) error { return nil }
 func (f *fakeConnectionSource) GetActiveConnections(_ string) (*network.Connections, func(), error) {
 	return nil, nil, nil
+}
+func (f *fakeConnectionSource) GetProcessCacheTags() map[uint32][]string {
+	return nil
 }
 
 func mockDirectSender(t *testing.T) *directSender {

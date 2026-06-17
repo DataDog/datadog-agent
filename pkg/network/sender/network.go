@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build linux
+//go:build linux || windows
 
 package sender
 
@@ -12,9 +12,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/network"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-	netnsutil "github.com/DataDog/datadog-agent/pkg/util/kernel/netns"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -40,12 +37,4 @@ func retryGetNetworkID(ctx context.Context) (string, error) {
 		}
 	}
 	return "", fmt.Errorf("failed to get network ID after %d attempts: %w", maxRetries, err)
-}
-
-func getNetworkID(ctx context.Context) (id string, err error) {
-	err = netnsutil.WithRootNS(kernel.ProcFSRoot(), func() error {
-		id, err = network.GetNetworkID(ctx)
-		return err
-	})
-	return
 }
