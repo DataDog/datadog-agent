@@ -65,6 +65,8 @@ go_library(
     }),
 )
 
+# gazelle:resolve go github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest //pkg/ebpf/ebpftest:cgo_align
+
 go_test(
     name = "ebpf_test",
     srcs = [

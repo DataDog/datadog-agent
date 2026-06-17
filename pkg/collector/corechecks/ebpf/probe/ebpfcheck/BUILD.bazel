@@ -48,6 +48,8 @@ go_library(
     ],
 )
 
+# gazelle:resolve go github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest //pkg/ebpf/ebpftest:cgo_align
+
 dd_agent_go_test(
     name = "ebpfcheck_test",
     srcs = [
@@ -59,6 +61,7 @@ dd_agent_go_test(
     deps = [
         "//pkg/collector/corechecks/ebpf/probe/ebpfcheck/model",
         "//pkg/ebpf",
+        "//pkg/ebpf/ebpftest:cgo_align",
         "//pkg/ebpf/maps",
         "//pkg/util/kernel",
         "@com_github_cilium_ebpf//:ebpf",
