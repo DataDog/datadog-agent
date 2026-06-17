@@ -248,9 +248,6 @@ func buildTimelineMilestones(bootTime time.Time, ts logonduration.LoginTimestamp
 	}{
 		{"boot_duration", "Boot Duration", bootTime, safeDurationMs(ts.LoginWindowTime, bootTime)},
 		{"login_window_ready", "Login Window Ready", ts.LoginWindowTime, 0},
-		{"user_logon", "User Logon", ts.LoginTime, safeDurationMs(ts.DesktopReadyTime, ts.LoginTime)},
-		// logon_duration mirrors user_logon as a duplicate span, matching the
-		// Windows payload shape (see impl_windows.go).
 		{"logon_duration", "Logon Duration", ts.LoginTime, safeDurationMs(ts.DesktopReadyTime, ts.LoginTime)},
 	}
 
