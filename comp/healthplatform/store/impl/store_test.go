@@ -26,6 +26,7 @@ import (
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	telemetrymock "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
+	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 )
 
 // memPersistence stores state in memory, replacing disk I/O in unit tests.
@@ -203,9 +204,18 @@ func TestResolveIssueRemovesFromActive(t *testing.T) {
 	h := newTestStore(t)
 	require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{Id: "t:id", IssueName: "t"}))
 
+	ch := make(chan *healthplatformpayload.Issue, 1)
+	h.RegisterIssuesObserver(storedef.IssuesObserver{ResolvedCh: ch})
+
 	h.ResolveIssue("t:id")
 
-	assert.Nil(t, h.GetIssue("t:id"))
+	// Issue must be removed from the active set; resolved snapshot written to ResolvedCh.
+	assert.Nil(t, h.GetIssue("t:id"), "issue must be removed from active set after ResolveIssue")
+	require.Len(t, ch, 1, "resolved issue must be written to ResolvedCh")
+	got := <-ch
+	require.NotNil(t, got.PersistedIssue)
+	assert.Equal(t, IssueStateResolved, got.PersistedIssue.State)
+
 	require.NotNil(t, h.persistedIssues["t:id"])
 	assert.Equal(t, IssueStateResolved, h.persistedIssues["t:id"].State)
 	assert.NotEmpty(t, h.persistedIssues["t:id"].ResolvedAt)
@@ -426,4 +436,24 @@ func TestGetActiveIssueIDsByIssueName(t *testing.T) {
 	h.ResolveIssue("t:1")
 	ids = h.GetActiveIssueIDsByIssueName("t")
 	assert.ElementsMatch(t, []string{"t:2"}, ids)
+}
+
+func newTestObserver(resolvedSz int) storedef.IssuesObserver {
+	return storedef.IssuesObserver{
+		ResolvedCh: make(chan *healthplatformpayload.Issue, resolvedSz),
+	}
+}
+
+// TestIssuesObserverResolvedNotification verifies that ResolvedCh receives a tombstone on ResolveIssue.
+func TestIssuesObserverResolvedNotification(t *testing.T) {
+	h := newTestStore(t)
+	obs := newTestObserver(4)
+	h.RegisterIssuesObserver(obs)
+
+	require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{Id: "i:1", IssueName: "t"}))
+	h.ResolveIssue("i:1")
+
+	require.Len(t, obs.ResolvedCh, 1)
+	got := <-obs.ResolvedCh
+	assert.Equal(t, IssueStateResolved, got.PersistedIssue.GetState())
 }

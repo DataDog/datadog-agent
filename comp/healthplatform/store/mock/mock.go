@@ -59,6 +59,9 @@ func (m *mockHealthPlatform) GetIssue(checkID string) *healthplatformpayload.Iss
 	return proto.Clone(issue).(*healthplatformpayload.Issue)
 }
 
+// RegisterIssuesObserver is a no-op in the mock.
+func (m *mockHealthPlatform) RegisterIssuesObserver(_ healthplatform.IssuesObserver) {}
+
 // ResolveIssue clears issues for a specific check
 func (m *mockHealthPlatform) ResolveIssue(checkID string) {
 	delete(m.issues, checkID)
