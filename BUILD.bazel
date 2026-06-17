@@ -776,6 +776,19 @@ config_setting(
     },
 )
 
+# Matches Linux targets built with --//:release=true.
+# More specific than //:is_release (adds a platform constraint), so Bazel's
+# ambiguity resolution prefers it over the plain is_release setting when both
+# would match on Linux.
+# TODO(agent_build): We may need this for other platforms. Feel free to add if needed.
+config_setting(
+    name = "linux_and_release",
+    constraint_values = ["@platforms//os:linux"],
+    flag_values = {
+        "//:release": "True",
+    },
+)
+
 # bazel run //:write_all regenerates all protobuf-generated Go files in the repo.
 write_source_files(
     name = "write_all",
