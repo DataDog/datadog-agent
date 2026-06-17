@@ -7,17 +7,15 @@ properties:
   api_key:
     node_type: setting
     title: Basic Configuration
+    type: string
+    default: ''
     visibility: public
     description: |-
       The Datadog API key used by your Agent to submit metrics and events to Datadog.
       Create a new API key here: https://app.datadoghq.com/organization-settings/api-keys .
       Read more about API keys here: https://docs.datadoghq.com/account_management/api-app-keys/#api-keys .
     tags:
-    - TODO:fix-no-default
-    - TODO:fix-missing-type
     - template_section:Common
-    default: ''
-    type: string
   app_key:
     node_type: setting
     type: string
@@ -31,6 +29,8 @@ properties:
     - template_section:Common
   site:
     node_type: setting
+    type: string
+    default: datadoghq.com
     visibility: public
     description: |-
       The site of the Datadog intake to send Agent data to.
@@ -40,14 +40,9 @@ properties:
       Set to 'us5.datadoghq.com' to send data to the US5 site.
       Set to 'ap1.datadoghq.com' to send data to the AP1 site.
       Set to 'ddog-gov.com' to send data to the US1-FED site.
-    example: datadoghq.com
     tags:
-    - TODO:fix-no-default
-    - TODO:fix-missing-type
     - template_section:Common
-    comment: |-
-      Agent
-      Don't set a default on 'site' to allow detecting with viper whether it's set in config
+    comment: Agent
   infrastructure_mode:
     node_type: setting
     type: string
@@ -68,6 +63,8 @@ properties:
       The possible values are: full, basic, end_user_device, none.
   dd_url:
     node_type: setting
+    type: string
+    default: https://app.datadoghq.com
     env_vars:
     - DD_DD_URL
     - DD_URL
@@ -78,10 +75,7 @@ properties:
       setting defined in "site". It does not affect APM, Logs, Remote Configuration, or Live Process intake which have their
       own "*_dd_url" settings.
       If DD_DD_URL and DD_URL are both set, DD_DD_URL is used in priority.
-    example: https://app.datadoghq.com
     tags:
-    - TODO:fix-no-default
-    - TODO:fix-missing-type
     - template_section:Common
   proxy:
     node_type: section
@@ -312,6 +306,31 @@ properties:
     - template_section:Common
     - full-agent-only:true
     comment: Installer configuration
+  process_manager:
+    node_type: section
+    type: object
+    visibility: public
+    description: |-
+      When true (see `enabled` below), the Datadog process manager daemon (dd-procmgrd) is enabled for this host install.
+      On Windows, the core Agent starts the Windows service `dd-procmgr-service` when this option is true.
+      On Linux, dd-procmgrd is started by systemd (`datadog-agent-procmgr.service` linked to the main Agent unit);
+      This setting is ignored on Linux and does not enable or disable the systemd unit.
+    tags:
+    - template_section:Common
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: true
+        visibility: public
+        description: |-
+          When true (Windows only), the core Agent starts the dd-procmgr-service Windows service.
+          On Linux, the process manager daemon is started by systemd; this option is ignored.
+        tags:
+        - template_section:Common
+        comment: |-
+          Process manager (dd-procmgrd): on Windows the core agent starts dd-procmgr-service when enabled.
+          On Linux, dd-procmgrd is managed by systemd (datadog-agent-procmgr.service); this setting is ignored there.
   tag_value_split_separator:
     node_type: setting
     type: object
@@ -455,6 +474,51 @@ properties:
     description: Forwarder timeout in seconds
     tags:
     - template_section:Common
+  use_v3_api:
+    node_type: section
+    type: object
+    visibility: public
+    description: Controls the use of the v3 metrics intake.
+    tags:
+    - template_section:Common
+    properties:
+      series:
+        node_type: section
+        type: object
+        visibility: public
+        description: Controls the use of the v3 metrics intake for non-distribution
+          metrics (series).
+        tags:
+        - template_section:Common
+        properties:
+          enabled:
+            node_type: setting
+            type: string
+            default: 'true'
+            visibility: public
+            description: |-
+              Global default for the non-distribution metrics intake version. Accepted values:
+                - true: v3 for every destination except Observability Pipelines Worker.
+                - datadog_only: v3 only when the destination URL is a Datadog endpoint.
+                - false: v2 everywhere.
+            tags:
+            - template_section:Common
+          endpoints:
+            node_type: setting
+            type: object
+            default: {}
+            additionalProperties:
+              type: string
+            visibility: public
+            description: |-
+              Per-URL override map for non-distribution metrics intake version. The URL
+              must match exactly what was configured under `dd_url` or `additional_endpoints`.
+              Accepted values:
+                - true: v3 for every destination except Observability Pipelines Worker.
+                - datadog_only: v3 only when the destination URL is a Datadog endpoint.
+                - false: v2 everywhere.
+            tags:
+            - template_section:Common
   forwarder_retry_queue_payloads_max_size:
     node_type: setting
     type: integer
@@ -1083,6 +1147,14 @@ properties:
             example: '"http://127.0.0.1:8080"'
             tags:
             - template_section:Common
+          use_v3_api:
+            node_type: section
+            type: object
+            properties:
+              series:
+                node_type: setting
+                type: boolean
+                default: false
       logs:
         node_type: section
         type: object
@@ -2000,6 +2072,14 @@ properties:
             node_type: setting
             type: integer
             default: 1
+      netflow_monitoring:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
   synthetics:
     node_type: section
     title: 'Synthetics Configuration          '
@@ -2174,6 +2254,8 @@ properties:
     comment: 'Notice: 0 means UDP port closed'
   bind_host:
     node_type: setting
+    type: string
+    default: ''
     visibility: public
     description: |-
       The host to listen on for Dogstatsd and traces. This is ignored by APM when
@@ -2183,8 +2265,6 @@ properties:
       To solve this problem, ensure Dogstatsd is listening on IPv4 by setting this value to "127.0.0.1".
     example: localhost
     tags:
-    - TODO:fix-no-default
-    - TODO:fix-missing-type
     - template_section:Dogstatsd
   dogstatsd_socket:
     node_type: setting
@@ -2342,6 +2422,8 @@ properties:
     - template_section:Dogstatsd
   dogstatsd_mapper_profiles:
     node_type: setting
+    type: array
+    default: []
     env_parser: json
     visibility: public
     description: |-
@@ -2382,8 +2464,6 @@ properties:
                 task_type: '$1'
                 task_name: '$2'
     tags:
-    - TODO:fix-no-default
-    - TODO:fix-missing-type
     - template_section:Dogstatsd
   dogstatsd_mapper_cache_size:
     node_type: setting
@@ -2543,10 +2623,9 @@ properties:
   jmx_log_file:
     node_type: setting
     type: string
-    default: ''
+    default: ${log_path}/jmxfetch.log
     visibility: public
     description: Path of the log file where JMXFetch logs are written.
-    example: <JMXFETCH_LOG_FILE_PATH>
     tags:
     - template_section:CoreAgent
   jmx_max_restarts:
@@ -2670,12 +2749,11 @@ properties:
   log_file:
     node_type: setting
     type: string
-    default: ''
+    default: ${log_path}/agent.log
     visibility: public
     description: |-
       Path of the log file for the Datadog Agent.
       See https://docs.datadoghq.com/agent/guide/agent-log-files/
-    example: <AGENT_LOG_FILE_PATH>
     tags:
     - template_section:Logging
   log_format_json:
@@ -2897,6 +2975,7 @@ properties:
         - kubernetes
         - orchestratorexplorer
         - podman
+        - process
     tags:
     - template_section:CoreAgent
   autoconfig_include_features:
@@ -2920,6 +2999,7 @@ properties:
         - kubernetes
         - orchestratorexplorer
         - podman
+        - process
     tags:
     - template_section:CoreAgent
   container_cgroup_root:
@@ -4591,6 +4671,22 @@ properties:
             tags:
             - template_section:CoreAgent
             comment: in seconds
+          tags:
+            node_type: setting
+            type: array
+            default: []
+            items:
+              type: string
+            visibility: public
+            description: A list of low-cardinality tags (e.g. application, team, environment)
+              attached to every trap forwarded to Datadog and to every SNMP traps
+              telemetry metric emitted by the Agent.
+            example: |2-
+
+                - "application:<APPLICATION_ID>"
+                - "team:<TEAM_NAME>"
+            tags:
+            - template_section:CoreAgent
           forwarder:
             node_type: section
             type: object
@@ -5304,9 +5400,8 @@ properties:
         comment: HA Agent
       group:
         node_type: setting
-        tags:
-        - TODO:fix-no-default
-        - TODO:fix-missing-type
+        type: string
+        default: ''
   config_id:
     node_type: setting
     type: string
@@ -5951,33 +6046,6 @@ properties:
     node_type: section
     type: object
     properties:
-      agent_logs:
-        node_type: section
-        type: object
-        properties:
-          enabled:
-            node_type: setting
-            type: boolean
-            default: true
-            comment: Agent-internal log sampling. Warn+ are never sampled.
-          sample_rate_debug:
-            node_type: setting
-            type: number
-            default: 0.05
-            tags:
-            - golang_type:float64
-          sample_rate_info:
-            node_type: setting
-            type: number
-            default: 0.2
-            tags:
-            - golang_type:float64
-          sample_rate_trace:
-            node_type: setting
-            type: number
-            default: 0
-            tags:
-            - golang_type:float64
       debug:
         node_type: section
         type: object
@@ -5999,6 +6067,30 @@ properties:
         node_type: section
         type: object
         properties:
+          anomaly_scorer:
+            node_type: section
+            type: object
+            properties:
+              alpha:
+                node_type: setting
+                type: number
+                default: 0.014
+                tags:
+                - golang_type:float64
+              enabled:
+                node_type: setting
+                type: boolean
+                default: false
+              saturation_k:
+                node_type: setting
+                type: number
+                default: 5
+                tags:
+                - golang_type:float64
+              window_secs:
+                node_type: setting
+                type: integer
+                default: 15
           bocpd:
             node_type: section
             type: object
@@ -6126,13 +6218,74 @@ properties:
                 node_type: setting
                 type: boolean
                 default: true
+              max_rate_high_priority:
+                node_type: setting
+                type: number
+                default: -1
+                tags:
+                - golang_type:float64
+                comment: unlimited
+              max_rate_low_priority:
+                node_type: setting
+                type: number
+                default: 1
+                tags:
+                - golang_type:float64
+              max_rate_medium_priority:
+                node_type: setting
+                type: number
+                default: 100
+                tags:
+                - golang_type:float64
+              min_severity:
+                node_type: setting
+                type: string
+                default: warn
+                comment: Container log rate limits (enabled flag already set above).
           enabled:
             node_type: setting
             type: boolean
             default: true
             comment: |-
-              Log ingestion gate. When false, container/journald logs are not routed
-              into the anomaly detection pipeline (recording is unaffected).
+              Log ingestion gate. When false, all log sources (container, kubelet, internal)
+              are not routed into the anomaly detection pipeline (recording is unaffected).
+          internal:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: true
+                comment: |-
+                  Internal agent log tap.
+                  min_severity is the minimum level forwarded (logs below it are dropped before sampling).
+                  max_rate_* are in logs/second measured over a 10-second fixed window and apply
+                  after the min_severity gate. -1 means unlimited (no cap); 0 drops all logs of that priority.
+                  high_priority = warn/error/critical, medium_priority = info, low_priority = debug.
+              max_rate_high_priority:
+                node_type: setting
+                type: number
+                default: -1
+                tags:
+                - golang_type:float64
+                comment: unlimited
+              max_rate_low_priority:
+                node_type: setting
+                type: number
+                default: 1
+                tags:
+                - golang_type:float64
+              max_rate_medium_priority:
+                node_type: setting
+                type: number
+                default: 100
+                tags:
+                - golang_type:float64
+              min_severity:
+                node_type: setting
+                type: string
+                default: warn
           kubelet:
             node_type: section
             type: object
@@ -6141,6 +6294,31 @@ properties:
                 node_type: setting
                 type: boolean
                 default: true
+              max_rate_high_priority:
+                node_type: setting
+                type: number
+                default: -1
+                tags:
+                - golang_type:float64
+                comment: unlimited
+              max_rate_low_priority:
+                node_type: setting
+                type: number
+                default: 1
+                tags:
+                - golang_type:float64
+              max_rate_medium_priority:
+                node_type: setting
+                type: number
+                default: 100
+                tags:
+                - golang_type:float64
+              min_severity:
+                node_type: setting
+                type: string
+                default: warn
+                comment: Kubelet journald log rate limits (enabled flag already set
+                  above).
       metrics:
         node_type: section
         type: object
@@ -6179,12 +6357,33 @@ properties:
         node_type: section
         type: object
         properties:
-          enabled:
-            node_type: setting
-            type: boolean
-            default: false
-            comment: Anomaly event reporting. Keep false during evaluation / shadow
-              mode.
+          events:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: false
+                comment: Datadog event reporting. Keep false during evaluation / shadow
+                  mode.
+          stdout:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: true
+                comment: |-
+                  Stdout reporting verbosity.
+                  stdout.enabled: set to false to silence all [observer] stdout log lines.
+                  stdout.verbose: set to true to print individual anomaly series after the title line.
+                  Default: title-only (stdout.enabled=true, stdout.verbose=false).
+              verbose:
+                node_type: setting
+                type: boolean
+                default: false
       storage:
         node_type: section
         type: object
@@ -6353,10 +6552,14 @@ properties:
             node_type: section
             type: object
             properties:
+              disruption_tolerance_percent:
+                node_type: setting
+                type: integer
+                default: 15
               enabled:
                 node_type: setting
                 type: boolean
-                default: false
+                default: true
           limit:
             node_type: setting
             type: integer
@@ -6634,7 +6837,16 @@ properties:
   conf_path:
     node_type: setting
     type: string
-    default: .
+    default: /etc/datadog-agent
+  config_files_discovery:
+    node_type: section
+    type: object
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
+        comment: Config files discovery
   container_exclude:
     node_type: setting
     type: array
@@ -7533,7 +7745,7 @@ properties:
   dogstatsd_log_file:
     node_type: setting
     type: string
-    default: ''
+    default: /var/log/datadog/dogstatsd_info/dogstatsd-stats.log
     comment: Control how dogstatsd-stats logs can be generated
   dogstatsd_log_file_max_rolls:
     node_type: setting
@@ -8067,9 +8279,8 @@ properties:
     - no-env
   fleet_policies_dir:
     node_type: setting
-    tags:
-    - TODO:fix-no-default
-    - TODO:fix-missing-type
+    type: string
+    default: ''
     comment: Directory to store fleet policies
   forwarder_apikey_validation_interval:
     node_type: setting
@@ -8113,7 +8324,7 @@ properties:
   forwarder_storage_path:
     node_type: setting
     type: string
-    default: ''
+    default: /opt/datadog-agent/run/transactions_to_retry
     comment: Forwarder storage on disk
   genresources:
     node_type: section
@@ -8226,15 +8437,32 @@ properties:
       enabled:
         node_type: setting
         type: boolean
-        default: false
+        default: true
       forwarder:
         node_type: section
         type: object
         properties:
           interval:
             node_type: setting
-            type: integer
-            default: 0
+            type: number
+            default: 0s
+            format: duration
+            tags:
+            - golang_type:duration
+      invalidconfig_check:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
+            comment: |-
+              health_platform.invalidconfig_check.enabled is off by default because the check calls
+              schema.ValidateCoreConfig which decompresses, parses, and compiles the full core_schema.yaml
+              (~8000 lines) into a *jsonschema.Schema retained globally for the process lifetime.
+              This adds ~8 MiB of permanent heap even when the agent config is valid.
+              Enable it deliberately if you need schema validation at startup.
       persist_on_kubernetes:
         node_type: setting
         type: boolean
@@ -8351,6 +8579,8 @@ properties:
     type: number
     default: -1ns
     format: duration
+    tags:
+    - golang_type:duration
   ibm_metadata_timeout:
     node_type: setting
     type: integer
@@ -8637,9 +8867,9 @@ properties:
     comment: overridden in IoT Agent main
   ipc_address:
     node_type: setting
-    tags:
-    - TODO:fix-no-default
-    - TODO:fix-missing-type
+    type: string
+    default: localhost
+    comment: 'deprecated: use `cmd_host` instead'
   ipc_cert_file_path:
     node_type: setting
     type: string
@@ -8809,6 +9039,14 @@ properties:
     node_type: setting
     type: boolean
     default: false
+  kubernetes_apiserver_client_burst:
+    node_type: setting
+    type: integer
+    default: 200
+  kubernetes_apiserver_client_qps:
+    node_type: setting
+    type: integer
+    default: 40
   kubernetes_apiserver_informer_client_timeout:
     node_type: setting
     type: integer
@@ -9054,9 +9292,8 @@ properties:
     properties:
       id:
         node_type: setting
-        tags:
-        - TODO:fix-no-default
-        - TODO:fix-missing-type
+        type: string
+        default: ''
         comment: Network
   network_check:
     node_type: section
@@ -9194,9 +9431,8 @@ properties:
     - full-agent-only:true
   provider_kind:
     node_type: setting
-    tags:
-    - TODO:fix-no-default
-    - TODO:fix-missing-type
+    type: string
+    default: ''
   python_lazy_loading:
     node_type: setting
     type: boolean
@@ -9451,7 +9687,7 @@ properties:
           shadow_sample_rate:
             node_type: setting
             type: number
-            default: 0.001
+            default: 0
             tags:
             - golang_type:float64
           shadow_sites:
@@ -9830,9 +10066,10 @@ properties:
     properties:
       checks:
         node_type: setting
-        tags:
-        - TODO:fix-no-default
-        - TODO:fix-missing-type
+        type: array
+        default: []
+        items:
+          type: string
       dogstatsd:
         node_type: section
         type: object
@@ -9896,6 +10133,8 @@ properties:
     type: number
     default: 10s
     format: duration
+    tags:
+    - golang_type:duration
   trace_agent_host_socket_path:
     node_type: setting
     type: string
@@ -9984,6 +10223,14 @@ properties:
             node_type: setting
             type: string
             default: ''
+          use_v3_api:
+            node_type: section
+            type: object
+            properties:
+              series:
+                node_type: setting
+                type: boolean
+                default: false
       traces:
         node_type: section
         type: object

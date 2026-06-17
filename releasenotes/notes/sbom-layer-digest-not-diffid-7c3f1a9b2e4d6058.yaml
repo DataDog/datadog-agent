@@ -1,0 +1,11 @@
+---
+fixes:
+  - |
+    Container image SBOMs no longer report a layer's diff_id as its
+    ``LayerDigest``. A diff_id is the uncompressed-content hash, while the
+    ``LayerDigest`` is the compressed manifest blob digest; the two are
+    distinct identifiers. The CRI-O ``LayerDigest`` is now read from the image
+    manifest CRI-O stores on disk, and its ``LayerDiffID`` is taken from the
+    image config rather than the containers-storage layer ID. Docker exposes no
+    per-layer manifest digest and leaves ``LayerDigest`` empty instead of
+    substituting the diff_id.
