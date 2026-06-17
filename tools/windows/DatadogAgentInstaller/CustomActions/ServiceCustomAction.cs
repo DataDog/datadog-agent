@@ -209,6 +209,7 @@ namespace Datadog.CustomActions
             }
             _serviceController.SetCredentials(Constants.AgentServiceName, ddAgentUserName, ddAgentUserPassword);
             _serviceController.SetCredentials(Constants.TraceAgentServiceName, ddAgentUserName, ddAgentUserPassword);
+            _serviceController.SetCredentials(Constants.DataPlaneServiceName, ddAgentUserName, ddAgentUserPassword);
             if (_serviceController.ServiceExists(Constants.PrivateActionRunnerServiceName))
             {
                 _serviceController.SetCredentials(Constants.PrivateActionRunnerServiceName, ddAgentUserName, ddAgentUserPassword);
@@ -250,6 +251,7 @@ namespace Datadog.CustomActions
                 Constants.ProcessAgentServiceName,
                 Constants.SystemProbeServiceName,
                 Constants.TraceAgentServiceName,
+                Constants.DataPlaneServiceName,
                 Constants.AgentServiceName,
                 Constants.InstallerServiceName,
                 Constants.ProcmgrServiceName,
@@ -377,6 +379,7 @@ namespace Datadog.CustomActions
                     Constants.ProcmgrServiceName,
                     Constants.ProcessAgentServiceName,
                     Constants.TraceAgentServiceName,
+                    Constants.DataPlaneServiceName,
                     Constants.InstallerServiceName,
                     Constants.AgentServiceName
                 };

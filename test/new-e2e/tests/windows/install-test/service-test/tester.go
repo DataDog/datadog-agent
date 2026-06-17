@@ -101,6 +101,7 @@ func (t *Tester) ExpectedServiceConfig() (windowsCommon.ServiceConfigMap, error)
 	m["datadog-process-agent"].ServiceType = windowsCommon.SERVICE_WIN32_OWN_PROCESS
 	m["datadog-security-agent"].ServiceType = windowsCommon.SERVICE_WIN32_OWN_PROCESS
 	m["datadog-system-probe"].ServiceType = windowsCommon.SERVICE_WIN32_OWN_PROCESS
+	m["datadog-agent-data-plane"].ServiceType = windowsCommon.SERVICE_WIN32_OWN_PROCESS
 	m["ddnpm"].ServiceType = windowsCommon.SERVICE_KERNEL_DRIVER
 	m["ddprocmon"].ServiceType = windowsCommon.SERVICE_KERNEL_DRIVER
 
@@ -110,6 +111,7 @@ func (t *Tester) ExpectedServiceConfig() (windowsCommon.ServiceConfigMap, error)
 	m["datadog-process-agent"].StartType = windowsCommon.SERVICE_DEMAND_START
 	m["datadog-security-agent"].StartType = windowsCommon.SERVICE_DEMAND_START
 	m["datadog-system-probe"].StartType = windowsCommon.SERVICE_DEMAND_START
+	m["datadog-agent-data-plane"].StartType = windowsCommon.SERVICE_DEMAND_START
 	m["ddnpm"].StartType = windowsCommon.SERVICE_DISABLED
 	m["ddprocmon"].StartType = windowsCommon.SERVICE_DISABLED
 
@@ -119,6 +121,7 @@ func (t *Tester) ExpectedServiceConfig() (windowsCommon.ServiceConfigMap, error)
 	m["datadog-process-agent"].ServicesDependedOn = []string{"datadogagent"}
 	m["datadog-security-agent"].ServicesDependedOn = []string{"datadogagent"}
 	m["datadog-system-probe"].ServicesDependedOn = []string{"datadogagent"}
+	m["datadog-agent-data-plane"].ServicesDependedOn = []string{"datadogagent"}
 	m["ddnpm"].ServicesDependedOn = []string{}
 	m["ddprocmon"].ServicesDependedOn = []string{}
 
@@ -128,6 +131,7 @@ func (t *Tester) ExpectedServiceConfig() (windowsCommon.ServiceConfigMap, error)
 	m["datadog-process-agent"].DisplayName = "Datadog Process Agent"
 	m["datadog-security-agent"].DisplayName = "Datadog Security Agent"
 	m["datadog-system-probe"].DisplayName = "Datadog System Probe"
+	m["datadog-agent-data-plane"].DisplayName = "Datadog Agent Data Plane"
 	m["ddnpm"].DisplayName = "Datadog Network Performance Monitor"
 	m["ddprocmon"].DisplayName = "Datadog Process Monitor"
 
@@ -144,6 +148,8 @@ func (t *Tester) ExpectedServiceConfig() (windowsCommon.ServiceConfigMap, error)
 	m["datadog-security-agent"].ImagePath = exePath
 	exePath = quotePathIfContainsSpaces(t.expectedInstallPath + "\\bin\\agent\\system-probe.exe")
 	m["datadog-system-probe"].ImagePath = exePath
+	exePath = quotePathIfContainsSpaces(t.expectedInstallPath + "\\bin\\agent\\agent-data-plane.exe")
+	m["datadog-agent-data-plane"].ImagePath = fmt.Sprintf(`%s --config="%s\\datadog.yaml" run --pidfile "%s\\run\\agent-data-plane.pid"`, exePath, t.expectedConfigRoot, t.expectedConfigRoot)
 	// drivers use the kernel path syntax and aren't quoted since they are file paths rather than command lines
 	m["ddnpm"].ImagePath = fmt.Sprintf(`\??\%s\bin\agent\driver\ddnpm.sys`, t.expectedInstallPath)
 	m["ddprocmon"].ImagePath = fmt.Sprintf(`\??\%s\bin\agent\driver\ddprocmon.sys`, t.expectedInstallPath)
@@ -155,6 +161,7 @@ func (t *Tester) ExpectedServiceConfig() (windowsCommon.ServiceConfigMap, error)
 	m["datadog-security-agent"].UserName = expectedServiceUser
 	m["datadog-process-agent"].UserName = "LocalSystem"
 	m["datadog-system-probe"].UserName = "LocalSystem"
+	m["datadog-agent-data-plane"].UserName = expectedServiceUser
 	for _, s := range m {
 		if !windowsCommon.IsUserModeServiceType(s.ServiceType) {
 			continue
@@ -176,6 +183,7 @@ func ExpectedInstalledServices() []string {
 		"datadog-process-agent",
 		"datadog-security-agent",
 		"datadog-system-probe",
+		"datadog-agent-data-plane",
 		"ddnpm",
 		"ddprocmon",
 	}
@@ -201,6 +209,13 @@ func quotePathIfContainsSpaces(path string) string {
 	return path
 }
 
+func normalizeBackslashes(s string) string {
+	for strings.Contains(s, "\\\\") {
+		s = strings.ReplaceAll(s, "\\\\", "\\")
+	}
+	return s
+}
+
 // iterServiceConfigMaps iterates over the expected and actual service config maps and calls the provided function for each element.
 // If the function returns false, the iteration stops and the function returns false.
 // If an expected service is not found in the actual map, the function returns false.
@@ -222,7 +237,13 @@ func iterServiceConfigMaps(t *testing.T, expected windowsCommon.ServiceConfigMap
 func AssertEqualServiceConfigValues(t *testing.T, expected windowsCommon.ServiceConfigMap, actual windowsCommon.ServiceConfigMap) bool {
 	return iterServiceConfigMaps(t, expected, actual, func(expected *windowsCommon.ServiceConfig, actual *windowsCommon.ServiceConfig) bool {
 		assert.Equal(t, expected.DisplayName, actual.DisplayName, "service %s DisplayName should match", actual.ServiceName)
-		assert.Equal(t, expected.ImagePath, actual.ImagePath, "service %s ImagePath should match", actual.ServiceName)
+		assert.Equal(
+			t,
+			normalizeBackslashes(expected.ImagePath),
+			normalizeBackslashes(actual.ImagePath),
+			"service %s ImagePath should match (normalized)",
+			actual.ServiceName,
+		)
 		assert.Equal(t, expected.StartType, actual.StartType, "service %s StartType should match", actual.ServiceName)
 		assert.Equal(t, expected.ServiceType, actual.ServiceType, "service %s ServiceType should match", actual.ServiceName)
 		// Compare UserSID rather than UserNames to avoid needing to handle name formatting differences

@@ -8,7 +8,7 @@ else
   flavor_flag = fips_mode? ? "--//packages/agent:flavor=fips" : ""
 end
 
-dependency 'datadog-agent-data-plane' if (linux_target? || osx_target?) && !heroku_target?
+dependency 'datadog-agent-data-plane' if (linux_target? || osx_target? || windows_target?) && !heroku_target?
 
 dependency 'datadog-agent-integrations-py3'
 
