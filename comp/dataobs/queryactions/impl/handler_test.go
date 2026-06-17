@@ -51,6 +51,7 @@ func newTestComponentWithAC(t *testing.T, configs []integration.Config) *compone
 
 func TestIsSupportedIntegration(t *testing.T) {
 	assert.True(t, isSupportedIntegration("postgres"))
+	assert.True(t, isSupportedIntegration("sap_hana"))
 	assert.False(t, isSupportedIntegration("mysql"))
 	assert.False(t, isSupportedIntegration("redis"))
 	assert.False(t, isSupportedIntegration(""))
