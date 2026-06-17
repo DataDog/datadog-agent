@@ -13,7 +13,7 @@ use crate::datadog::{
 use crate::desktop::logger::DesktopLogger;
 use crate::desktop::matcher::{
     ProcessActivity, ProcessActivityDelta, ProcessEdge, ProcessInfo, ProcessSnapshot,
-    detect_ai_usage, find_hosted_ai_process, matches_process_name,
+    detect_ai_usages, find_hosted_ai_process, matches_process_name,
 };
 
 #[cfg(windows)]
@@ -155,37 +155,42 @@ fn poll_once(
 
     log_process_tree_diagnostics(&foreground, &snapshot, config, logger);
 
-    let Some(detection) = detect_ai_usage(&foreground, &snapshot, config) else {
+    let detections = detect_ai_usages(&foreground, &snapshot, config);
+    if detections.is_empty() {
         return;
-    };
+    }
 
-    logger.info(format!(
-        "detected AI usage tool=\"{}\" provider=\"{}\" matched_process=\"{}\" matched_pid={} foreground_process=\"{}\" foreground_pid={}",
-        detection.tool,
-        detection.provider,
-        detection.matched_process_name,
-        detection.matched_pid,
-        detection.foreground_process_name,
-        detection.foreground_pid
-    ));
-
-    let mut event = AiUsageEvent::new_with_source(
-        "observed",
-        "desktop_app",
-        detection.tool,
-        resolve_user_id(),
-        resolve_hostname(),
-        detection.approved,
-    );
-    event.provider = Some(detection.provider);
-
-    if dd_client.send_event(&event) {
-        logger.info(format!("sent AI usage event tool=\"{}\"", event.tool));
-    } else {
-        logger.warn(format!(
-            "failed to send AI usage event tool=\"{}\"",
-            event.tool
+    let user_id = resolve_user_id();
+    let hostname = resolve_hostname();
+    for detection in detections {
+        logger.info(format!(
+            "detected AI usage tool=\"{}\" provider=\"{}\" matched_process=\"{}\" matched_pid={} foreground_process=\"{}\" foreground_pid={}",
+            detection.tool,
+            detection.provider,
+            detection.matched_process_name,
+            detection.matched_pid,
+            detection.foreground_process_name,
+            detection.foreground_pid
         ));
+
+        let mut event = AiUsageEvent::new_with_source(
+            "observed",
+            "desktop_app",
+            detection.tool,
+            user_id.clone(),
+            hostname.clone(),
+            detection.approved,
+        );
+        event.provider = Some(detection.provider);
+
+        if dd_client.send_event(&event) {
+            logger.info(format!("sent AI usage event tool=\"{}\"", event.tool));
+        } else {
+            logger.warn(format!(
+                "failed to send AI usage event tool=\"{}\"",
+                event.tool
+            ));
+        }
     }
 }
 

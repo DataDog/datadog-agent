@@ -89,12 +89,12 @@ pub struct AiUsageDetection {
     pub foreground_pid: u32,
 }
 
-/// Detect configured AI usage from the foreground process and process snapshot.
-pub fn detect_ai_usage(
+/// Detect all configured AI usage from the foreground process and process snapshot.
+pub fn detect_ai_usages(
     foreground: &ProcessInfo,
     snapshot: &ProcessSnapshot,
     config: &DesktopMonitoringConfig,
-) -> Option<AiUsageDetection> {
+) -> Vec<AiUsageDetection> {
     let foreground_is_host = matches_process_name(foreground, &config.host_process_names);
     let foreground_is_terminal_host = is_terminal_host_process(foreground);
     let process_by_pid: HashMap<u32, &ProcessInfo> = snapshot
@@ -113,7 +113,7 @@ pub fn detect_ai_usage(
         MatchLocation::ForegroundRoot,
         &config.ai_process_names,
     ) {
-        return Some(detection_from_match(foreground, foreground, tool));
+        return vec![detection_from_match(foreground, foreground, tool)];
     }
 
     let ai_candidates = ai_process_candidates(
@@ -121,6 +121,7 @@ pub fn detect_ai_usage(
         MatchLocation::HostedDescendant,
         &config.ai_process_names,
     );
+    let mut detections = Vec::new();
     for process in descendants {
         if let Some(tool) = ai_candidates.get(&process.pid) {
             if !process.process_read_write_activity_observed {
@@ -129,11 +130,48 @@ pub fn detect_ai_usage(
             if foreground_is_terminal_host && !is_in_terminal_foreground_group(process) {
                 continue;
             }
-            return Some(detection_from_match(foreground, process, tool));
+            detections.push(detection_from_match(foreground, process, tool));
         }
     }
+    if !detections.is_empty() {
+        return platform_descendant_detections(detections);
+    }
 
-    None
+    #[cfg(windows)]
+    return windows_activity_fallback(foreground, &snapshot.processes, &ai_candidates);
+    #[cfg(not(windows))]
+    return Vec::new();
+}
+
+#[cfg(windows)]
+fn platform_descendant_detections(detections: Vec<AiUsageDetection>) -> Vec<AiUsageDetection> {
+    detections
+}
+
+#[cfg(not(windows))]
+fn platform_descendant_detections(detections: Vec<AiUsageDetection>) -> Vec<AiUsageDetection> {
+    detections.into_iter().take(1).collect()
+}
+
+#[cfg(windows)]
+fn windows_activity_fallback(
+    foreground: &ProcessInfo,
+    processes: &[ProcessInfo],
+    ai_candidates: &HashMap<u32, &AiProcessConfig>,
+) -> Vec<AiUsageDetection> {
+    let mut seen_tools = HashSet::new();
+    processes
+        .iter()
+        .filter_map(|process| {
+            let tool = ai_candidates.get(&process.pid)?;
+            if !process.process_read_write_activity_observed
+                || !seen_tools.insert(tool.tool.clone())
+            {
+                return None;
+            }
+            Some(detection_from_match(foreground, process, tool))
+        })
+        .collect()
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -344,6 +382,16 @@ mod tests {
             ],
             host_process_names: vec!["cmd.exe".to_string(), "Code.exe".to_string()],
         }
+    }
+
+    fn detect_ai_usage(
+        foreground: &ProcessInfo,
+        snapshot: &ProcessSnapshot,
+        config: &DesktopMonitoringConfig,
+    ) -> Option<AiUsageDetection> {
+        detect_ai_usages(foreground, snapshot, config)
+            .into_iter()
+            .next()
     }
 
     fn process(pid: u32, parent_pid: u32, exe_name: &str) -> ProcessInfo {
@@ -1062,6 +1110,7 @@ mod tests {
         );
     }
 
+    #[cfg(not(windows))]
     #[test]
     fn terminal_foreground_group_ignores_inactive_tab_descendants() {
         let foreground = process(10, 1, "iTerm2");
@@ -1128,6 +1177,119 @@ mod tests {
 
         assert_eq!(detection.tool, "Cursor");
         assert_eq!(detection.matched_pid, 20);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_fallback_matches_active_hosted_candidate_outside_foreground_ancestry() {
+        let foreground = process_with_title(10, 1, "WindowsTerminal.exe", "work");
+        let unrelated_shell = process(11, 10, "cmd.exe");
+        let active_ai = with_read_activity(process(12, 30, "claude.exe"));
+
+        let detections = detect_ai_usages(
+            &foreground,
+            &snapshot(vec![foreground.clone(), unrelated_shell, active_ai]),
+            &config(),
+        );
+
+        assert_eq!(detections.len(), 1);
+        assert_eq!(detections[0].tool, "Claude Code");
+        assert_eq!(detections[0].matched_pid, 12);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_fallback_emits_multiple_active_hosted_candidates() {
+        let foreground = process_with_title(10, 1, "WindowsTerminal.exe", "work");
+        let active_cursor = with_read_activity(process(11, 29, "Cursor.exe"));
+        let active_claude = with_read_activity(process(12, 30, "claude.exe"));
+        let active_codex = with_write_activity(process(13, 31, "codex.exe"));
+        let mut config = config();
+        config.ai_process_names.push(AiProcessConfig {
+            process_names: vec!["codex.exe".to_string()],
+            tool: "Codex".to_string(),
+            provider: "OpenAI".to_string(),
+            match_scope: AiProcessMatchScope::Both,
+            approved: false,
+            secondary: false,
+        });
+
+        let detections = detect_ai_usages(
+            &foreground,
+            &snapshot(vec![
+                foreground.clone(),
+                active_cursor,
+                active_claude,
+                active_codex,
+            ]),
+            &config,
+        );
+
+        assert_eq!(detections.len(), 3);
+        assert_eq!(detections[0].tool, "Cursor");
+        assert_eq!(detections[0].matched_pid, 11);
+        assert_eq!(detections[1].tool, "Claude Code");
+        assert_eq!(detections[1].matched_pid, 12);
+        assert_eq!(detections[2].tool, "Codex");
+        assert_eq!(detections[2].matched_pid, 13);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_fallback_coalesces_active_candidates_by_tool() {
+        let foreground = process_with_title(10, 1, "WindowsTerminal.exe", "work");
+        let active_cursor_one = with_read_activity(process(11, 29, "Cursor.exe"));
+        let active_cursor_two = with_write_activity(process(12, 30, "Cursor.exe"));
+        let active_claude = with_read_activity(process(13, 31, "claude.exe"));
+
+        let detections = detect_ai_usages(
+            &foreground,
+            &snapshot(vec![
+                foreground.clone(),
+                active_cursor_one,
+                active_cursor_two,
+                active_claude,
+            ]),
+            &config(),
+        );
+
+        assert_eq!(detections.len(), 2);
+        assert_eq!(detections[0].tool, "Cursor");
+        assert_eq!(detections[0].matched_pid, 11);
+        assert_eq!(detections[1].tool, "Claude Code");
+        assert_eq!(detections[1].matched_pid, 13);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_fallback_ignores_inactive_hosted_candidate() {
+        let foreground = process_with_title(10, 1, "WindowsTerminal.exe", "work");
+        let inactive_ai = process(12, 30, "claude.exe");
+
+        assert!(
+            detect_ai_usage(
+                &foreground,
+                &snapshot(vec![foreground.clone(), inactive_ai]),
+                &config()
+            )
+            .is_none()
+        );
+    }
+
+    #[cfg(not(windows))]
+    #[test]
+    fn non_windows_rejects_active_hosted_candidate_outside_foreground_ancestry() {
+        let foreground = process_with_title(10, 1, "WindowsTerminal.exe", "work");
+        let active_ai = with_read_activity(process(12, 30, "claude.exe"));
+
+        assert!(
+            detect_ai_usage(
+                &foreground,
+                &snapshot(vec![foreground.clone(), active_ai]),
+                &config()
+            )
+            .is_none()
+        );
     }
 
     #[test]
