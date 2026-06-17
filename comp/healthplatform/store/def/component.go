@@ -19,11 +19,6 @@ import (
 // It is the extension point for reactive integrations — e.g. an MCP server
 // exposing issues to AI agents for proactive remediation.
 type IssuesObserver struct {
-	// ActiveCh receives new and ongoing issues as they are stored.
-	// The issue is a fully-hydrated clone; check PersistedIssue.State to
-	// distinguish NEW from ONGOING.
-	ActiveCh chan *healthplatformpayload.Issue
-
 	// ResolvedCh receives issues when they transition to RESOLVED, including
 	// resolved issues recovered from disk on startup.
 	ResolvedCh chan *healthplatformpayload.Issue

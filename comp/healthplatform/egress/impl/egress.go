@@ -30,19 +30,23 @@ const (
 	sendTimeout           = 30 * time.Second
 	eventType             = "agent-health-issues"
 
-	issueChSize = 2048
+	resolvedChBuf = 64
 )
 
 // egress drives the periodic outbound POST to the Datadog intake.
+// Active issues are fetched via store.GetAllIssues on each tick.
+// Resolved tombstones are pushed by the store through resolvedCh and held in
+// the resolved map until they are successfully sent.
 type egress struct {
 	log         log.Component
 	interval    time.Duration
 	hostname    string
 	agentFlavor string
+	store       storedef.Component
 	forwarder   forwarderdef.Component
 
-	activeCh   chan *healthplatform.Issue // new/ongoing issues
-	resolvedCh chan *healthplatform.Issue // resolved issues; flushed after successful send
+	resolvedCh chan *healthplatform.Issue       // transit: store → run()
+	resolved   map[string]*healthplatform.Issue // dedup store for tombstones; owned by run()
 
 	stopCh chan struct{}
 	doneCh chan struct{}
@@ -80,16 +84,16 @@ func New(reqs Requires) egressdef.Component {
 		interval:    interval,
 		hostname:    hostname,
 		agentFlavor: flavor.GetFlavor(),
+		store:       reqs.Store,
 		forwarder:   reqs.Forwarder,
-		activeCh:    make(chan *healthplatform.Issue, issueChSize),
-		resolvedCh:  make(chan *healthplatform.Issue, issueChSize),
+		resolvedCh:  make(chan *healthplatform.Issue, resolvedChBuf),
+		resolved:    make(map[string]*healthplatform.Issue),
 		stopCh:      make(chan struct{}),
 		doneCh:      make(chan struct{}),
 	}
 
 	// Register before OnStart so loadFromDisk can pre-populate resolvedCh.
 	reqs.Store.RegisterIssuesObserver(storedef.IssuesObserver{
-		ActiveCh:   e.activeCh,
 		ResolvedCh: e.resolvedCh,
 	})
 
@@ -124,6 +128,8 @@ func (e *egress) run() {
 		select {
 		case <-ticker.C:
 			e.tick()
+		case issue := <-e.resolvedCh:
+			e.resolved[issue.Id] = issue
 		case <-e.stopCh:
 			return
 		}
@@ -131,20 +137,20 @@ func (e *egress) run() {
 }
 
 func (e *egress) tick() {
-	active := snapshotIssues(e.activeCh)
-	resolved := snapshotIssues(e.resolvedCh)
-
-	if len(active) == 0 && len(resolved) == 0 {
+	count, active := e.store.GetAllIssues()
+	if count == 0 && len(e.resolved) == 0 {
 		e.log.Debug("Health platform egress: no issues to report, skipping tick")
 		return
 	}
 
-	merged := make(map[string]*healthplatform.Issue, len(active)+len(resolved))
-	for _, i := range active {
-		merged[i.Id] = i
+	// Merge: active entries win over resolved tombstones for the same ID
+	// (a recurrence after a resolve is more recent than the tombstone).
+	merged := make(map[string]*healthplatform.Issue, count+len(e.resolved))
+	for id, issue := range e.resolved {
+		merged[id] = issue
 	}
-	for _, r := range resolved { // resolved state wins over active for the same ID
-		merged[r.Id] = r
+	for id, issue := range active {
+		merged[id] = issue
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), sendTimeout)
@@ -157,37 +163,9 @@ func (e *egress) tick() {
 
 	e.log.Info(fmt.Sprintf("Health platform egress: sent report with %d issues", len(merged)))
 
-	// Dequeue the tombstones we just sent; any that arrived during the send stay for next tick.
-	for range len(resolved) {
-		select {
-		case <-e.resolvedCh:
-		default:
-		}
-	}
-}
-
-// snapshotIssues drains up to len(ch) items then re-queues them, leaving the channel intact.
-func snapshotIssues(ch chan *healthplatform.Issue) []*healthplatform.Issue {
-	n := len(ch)
-	if n == 0 {
-		return nil
-	}
-	items := make([]*healthplatform.Issue, 0, n)
-	for i := 0; i < n; i++ {
-		select {
-		case item := <-ch:
-			items = append(items, item)
-		default:
-			n = i // channel drained early; stop without iterating further
-		}
-	}
-	for _, item := range items {
-		select {
-		case ch <- item:
-		default:
-		}
-	}
-	return items
+	// Resolved tombstones are consumed after a successful send; active issues
+	// are always re-fetched fresh from the store on the next tick.
+	e.resolved = make(map[string]*healthplatform.Issue)
 }
 
 func (e *egress) buildReport(issues map[string]*healthplatform.Issue) *healthplatform.HealthReport {

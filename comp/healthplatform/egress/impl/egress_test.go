@@ -23,10 +23,12 @@ import (
 	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 )
 
-// mockStore satisfies storedef.Component; captures the registered observer for assertions.
+// mockStore satisfies storedef.Component; captures the registered observer and
+// returns configurable active issues from GetAllIssues.
 type mockStore struct {
 	mu       sync.Mutex
 	observer storedef.IssuesObserver
+	issues   map[string]*healthplatformpayload.Issue
 }
 
 func (m *mockStore) RegisterIssuesObserver(obs storedef.IssuesObserver) {
@@ -35,12 +37,17 @@ func (m *mockStore) RegisterIssuesObserver(obs storedef.IssuesObserver) {
 	m.mu.Unlock()
 }
 
-func (m *mockStore) GetAllIssues() (int, map[string]*healthplatformpayload.Issue) { return 0, nil }
-func (m *mockStore) ReportIssue(_ *healthplatformpayload.Issue) error             { return nil }
-func (m *mockStore) ResolveIssue(_ string)                                        {}
-func (m *mockStore) ResolveAllIssues()                                            {}
-func (m *mockStore) GetIssue(_ string) *healthplatformpayload.Issue               { return nil }
-func (m *mockStore) GetActiveIssueIDsByIssueName(_ string) []string               { return nil }
+func (m *mockStore) GetAllIssues() (int, map[string]*healthplatformpayload.Issue) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return len(m.issues), m.issues
+}
+
+func (m *mockStore) ReportIssue(_ *healthplatformpayload.Issue) error { return nil }
+func (m *mockStore) ResolveIssue(_ string)                            {}
+func (m *mockStore) ResolveAllIssues()                                {}
+func (m *mockStore) GetIssue(_ string) *healthplatformpayload.Issue   { return nil }
+func (m *mockStore) GetActiveIssueIDsByIssueName(_ string) []string   { return nil }
 
 // mockForwarder records Send calls.
 type mockForwarder struct {
@@ -63,25 +70,32 @@ func (m *mockForwarder) Send(_ context.Context, report *healthplatformpayload.He
 
 var _ forwarderdef.Component = (*mockForwarder)(nil)
 
-func newTestEgress(t *testing.T, interval time.Duration, fwd *mockForwarder) *egress {
+func newTestEgress(t *testing.T, interval time.Duration, store *mockStore, fwd *mockForwarder) *egress {
 	t.Helper()
 	return &egress{
 		log:         logmock.New(t),
 		interval:    interval,
 		hostname:    "test-host",
 		agentFlavor: "agent",
+		store:       store,
 		forwarder:   fwd,
-		activeCh:    make(chan *healthplatformpayload.Issue, issueChSize),
-		resolvedCh:  make(chan *healthplatformpayload.Issue, issueChSize),
+		resolvedCh:  make(chan *healthplatformpayload.Issue, resolvedChBuf),
+		resolved:    make(map[string]*healthplatformpayload.Issue),
 		stopCh:      make(chan struct{}),
 		doneCh:      make(chan struct{}),
 	}
 }
 
+func newEmptyStore() *mockStore {
+	return &mockStore{issues: make(map[string]*healthplatformpayload.Issue)}
+}
+
 func TestTickSendsActiveIssues(t *testing.T) {
+	store := &mockStore{issues: map[string]*healthplatformpayload.Issue{
+		"issue-1": {Id: "issue-1", Title: "Test"},
+	}}
 	fwd := &mockForwarder{}
-	e := newTestEgress(t, time.Minute, fwd)
-	e.activeCh <- &healthplatformpayload.Issue{Id: "issue-1", Title: "Test"}
+	e := newTestEgress(t, time.Minute, store, fwd)
 
 	e.tick()
 
@@ -96,7 +110,7 @@ func TestTickSendsActiveIssues(t *testing.T) {
 
 func TestTickSkipsWhenEmpty(t *testing.T) {
 	fwd := &mockForwarder{}
-	e := newTestEgress(t, time.Minute, fwd)
+	e := newTestEgress(t, time.Minute, newEmptyStore(), fwd)
 
 	e.tick()
 
@@ -104,9 +118,11 @@ func TestTickSkipsWhenEmpty(t *testing.T) {
 }
 
 func TestTickLogsOnForwarderError(t *testing.T) {
+	store := &mockStore{issues: map[string]*healthplatformpayload.Issue{
+		"issue-1": {Id: "issue-1"},
+	}}
 	fwd := &mockForwarder{sendErr: assert.AnError}
-	e := newTestEgress(t, time.Minute, fwd)
-	e.activeCh <- &healthplatformpayload.Issue{Id: "issue-1"}
+	e := newTestEgress(t, time.Minute, store, fwd)
 
 	e.tick()
 
@@ -115,7 +131,7 @@ func TestTickLogsOnForwarderError(t *testing.T) {
 
 func TestLifecycleStartStop(t *testing.T) {
 	fwd := &mockForwarder{}
-	e := newTestEgress(t, 50*time.Millisecond, fwd)
+	e := newTestEgress(t, 50*time.Millisecond, newEmptyStore(), fwd)
 
 	require.NoError(t, e.start(context.Background()))
 	time.Sleep(30 * time.Millisecond)
@@ -123,9 +139,11 @@ func TestLifecycleStartStop(t *testing.T) {
 }
 
 func TestTickFiresOnInterval(t *testing.T) {
+	store := &mockStore{issues: map[string]*healthplatformpayload.Issue{
+		"issue-1": {Id: "issue-1"},
+	}}
 	fwd := &mockForwarder{}
-	e := newTestEgress(t, 30*time.Millisecond, fwd)
-	e.activeCh <- &healthplatformpayload.Issue{Id: "issue-1"}
+	e := newTestEgress(t, 30*time.Millisecond, store, fwd)
 
 	require.NoError(t, e.start(context.Background()))
 	require.Eventually(t, func() bool {
@@ -135,9 +153,11 @@ func TestTickFiresOnInterval(t *testing.T) {
 }
 
 func TestErrorThenRecovery(t *testing.T) {
+	store := &mockStore{issues: map[string]*healthplatformpayload.Issue{
+		"issue-1": {Id: "issue-1"},
+	}}
 	fwd := &mockForwarder{sendErr: assert.AnError}
-	e := newTestEgress(t, 20*time.Millisecond, fwd)
-	e.activeCh <- &healthplatformpayload.Issue{Id: "issue-1"}
+	e := newTestEgress(t, 20*time.Millisecond, store, fwd)
 
 	require.NoError(t, e.start(context.Background()))
 	require.Eventually(t, func() bool { return fwd.sendCount.Load() >= 1 }, 2*time.Second, 5*time.Millisecond)
@@ -157,7 +177,7 @@ func TestErrorThenRecovery(t *testing.T) {
 
 func TestBuildReport(t *testing.T) {
 	fwd := &mockForwarder{}
-	e := newTestEgress(t, time.Minute, fwd)
+	e := newTestEgress(t, time.Minute, newEmptyStore(), fwd)
 
 	report := e.buildReport(map[string]*healthplatformpayload.Issue{"a": {Id: "a"}, "b": {Id: "b"}})
 
@@ -169,12 +189,11 @@ func TestBuildReport(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-// TestResolvedIssueSentOnce verifies that resolvedCh is consumed after a successful send.
+// TestResolvedIssueSentOnce verifies that resolved tombstones are cleared after a successful send.
 func TestResolvedIssueSentOnce(t *testing.T) {
 	fwd := &mockForwarder{}
-	e := newTestEgress(t, time.Minute, fwd)
-
-	e.resolvedCh <- &healthplatformpayload.Issue{
+	e := newTestEgress(t, time.Minute, newEmptyStore(), fwd)
+	e.resolved["r-issue"] = &healthplatformpayload.Issue{
 		Id: "r-issue",
 		PersistedIssue: &healthplatformpayload.PersistedIssue{
 			State: healthplatformpayload.IssueState_ISSUE_STATE_RESOLVED,
@@ -187,63 +206,64 @@ func TestResolvedIssueSentOnce(t *testing.T) {
 	fwd.mu.Lock()
 	assert.Contains(t, fwd.reports[0].Issues, "r-issue")
 	fwd.mu.Unlock()
+	assert.Empty(t, e.resolved, "resolved map must be cleared after successful send")
 
-	assert.Empty(t, e.resolvedCh, "resolvedCh must be empty after successful send")
-
-	// second tick: both channels empty — skip
 	e.tick()
-	assert.Equal(t, int32(1), fwd.sendCount.Load())
+	assert.Equal(t, int32(1), fwd.sendCount.Load(), "second tick must skip: no active or resolved issues")
 }
 
-// TestResolvedReturnedOnSendFailure verifies resolvedCh items are put back on failure.
-func TestResolvedReturnedOnSendFailure(t *testing.T) {
+// TestResolvedStaysOnSendFailure verifies resolved tombstones are retained when send fails.
+func TestResolvedStaysOnSendFailure(t *testing.T) {
 	fwd := &mockForwarder{sendErr: assert.AnError}
-	e := newTestEgress(t, time.Minute, fwd)
+	e := newTestEgress(t, time.Minute, newEmptyStore(), fwd)
+	e.resolved["fail-issue"] = &healthplatformpayload.Issue{Id: "fail-issue"}
 
-	e.resolvedCh <- &healthplatformpayload.Issue{Id: "fail-issue"}
 	e.tick()
 
-	assert.Len(t, e.resolvedCh, 1, "resolved issue must be returned after failed send")
+	assert.Contains(t, e.resolved, "fail-issue", "resolved map must be retained after failed send")
 }
 
-// TestActiveReturnedAfterTick verifies active issues persist in activeCh between sends.
-func TestActiveReturnedAfterTick(t *testing.T) {
+// TestActiveWinsOverResolvedOnRecurrence verifies that a NEW active entry takes precedence over
+// a stale resolved tombstone for the same ID (issue recurred after being resolved).
+func TestActiveWinsOverResolvedOnRecurrence(t *testing.T) {
+	store := &mockStore{issues: map[string]*healthplatformpayload.Issue{
+		"i:1": {Id: "i:1", PersistedIssue: &healthplatformpayload.PersistedIssue{
+			State: healthplatformpayload.IssueState_ISSUE_STATE_NEW,
+		}},
+	}}
 	fwd := &mockForwarder{}
-	e := newTestEgress(t, time.Minute, fwd)
+	e := newTestEgress(t, time.Minute, store, fwd)
+	e.resolved["i:1"] = &healthplatformpayload.Issue{
+		Id: "i:1",
+		PersistedIssue: &healthplatformpayload.PersistedIssue{
+			State: healthplatformpayload.IssueState_ISSUE_STATE_RESOLVED,
+		},
+	}
 
-	e.activeCh <- &healthplatformpayload.Issue{Id: "active-issue"}
 	e.tick()
 
-	assert.Len(t, e.activeCh, 1, "active issues must be returned to the channel after a successful send")
+	fwd.mu.Lock()
+	defer fwd.mu.Unlock()
+	require.Len(t, fwd.reports, 1)
+	sent := fwd.reports[0].Issues["i:1"]
+	require.NotNil(t, sent)
+	assert.Equal(t, healthplatformpayload.IssueState_ISSUE_STATE_NEW, sent.PersistedIssue.GetState(),
+		"active NEW entry must win over stale resolved tombstone on recurrence")
 }
 
-// TestActiveReturnedOnSendFailure verifies active issues persist in activeCh after a failed send.
-func TestActiveReturnedOnSendFailure(t *testing.T) {
-	fwd := &mockForwarder{sendErr: assert.AnError}
-	e := newTestEgress(t, time.Minute, fwd)
-
-	e.activeCh <- &healthplatformpayload.Issue{Id: "active-issue"}
-	e.tick()
-
-	assert.Len(t, e.activeCh, 1, "active issues must be returned to the channel after a failed send")
-}
-
-// TestObserverWiresChannels verifies that RegisterIssuesObserver wires the store channels into egress.
-func TestObserverWiresChannels(t *testing.T) {
-	store := &mockStore{}
+// TestObserverWiresResolvedCh verifies that RegisterIssuesObserver wires resolvedCh into egress.
+func TestObserverWiresResolvedCh(t *testing.T) {
+	store := newEmptyStore()
 	fwd := &mockForwarder{}
-	e := newTestEgress(t, time.Minute, fwd)
+	e := newTestEgress(t, time.Minute, store, fwd)
 
 	store.RegisterIssuesObserver(storedef.IssuesObserver{
-		ActiveCh:   e.activeCh,
 		ResolvedCh: e.resolvedCh,
 	})
 
 	store.mu.Lock()
-	store.observer.ActiveCh <- &healthplatformpayload.Issue{Id: "active"}
 	store.observer.ResolvedCh <- &healthplatformpayload.Issue{Id: "resolved"}
 	store.mu.Unlock()
 
-	assert.Len(t, e.activeCh, 1)
 	assert.Len(t, e.resolvedCh, 1)
 }
