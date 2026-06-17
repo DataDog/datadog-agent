@@ -7,6 +7,8 @@
 # This file is sourced, never executed directly. Callers control set -e/set -u.
 # No validation of required variables is done here; each script validates its
 # own inputs after sourcing this file.
+# AGENT_SRC is resolved automatically from $0 — callers do not need to pre-set
+# any variable before sourcing this file.
 
 # ── Python version ────────────────────────────────────────────────────────────
 PYTHON_VERSION="3.13.12"
@@ -25,17 +27,15 @@ BUILD_DIR=/opt/dd-build
 STAGING=$BUILD_DIR/staging
 
 # ── Agent source tree ─────────────────────────────────────────────────────────
-# AGENT_SRC is the directory containing the checked-out agent source code. It
-# is always derived here by walking up from the caller's script directory
-# ($SCRIPT_DIR, set by every stage and by build.sh before sourcing this file)
-# until a parent containing .git is found. Failure to find .git anywhere up the tree is a fatal error.
-: "${SCRIPT_DIR:?env.sh requires SCRIPT_DIR to be set by the caller before sourcing}"
-_dir=$SCRIPT_DIR
+# AGENT_SRC is resolved by walking up from the calling script's directory to
+# the nearest .git ancestor. $0 in a sourced file still refers to the calling
+# script's path, so no caller-provided variable is needed.
+_dir=$(cd "$(dirname "$0")" && pwd)
 while [ "$_dir" != "/" ] && [ ! -e "$_dir/.git" ]; do
     _dir=$(dirname "$_dir")
 done
 if [ ! -e "$_dir/.git" ]; then
-    printf 'ERROR: env.sh could not find a .git ancestor of %s\n' "$SCRIPT_DIR" >&2
+    printf 'ERROR: env.sh could not find a .git ancestor of %s\n' "$(dirname "$0")" >&2
     printf '       Run the build from a checkout of the datadog-agent source repo.\n' >&2
     exit 1
 fi

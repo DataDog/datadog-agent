@@ -38,6 +38,9 @@ if [ -z "${AGENT_BUILD:-}" ]; then
     exit 1
 fi
 
+# dirname "$0" returns a relative path when the script is invoked with
+# a relative path and stage scripts use SCRIPT_DIR after cd calls
+# into build directories, so an absolute path is required.
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 # shellcheck source=/dev/null
 . "$SCRIPT_DIR/lib/env.sh"
