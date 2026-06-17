@@ -2,7 +2,10 @@ load("@rules_go//go:def.bzl", "go_binary", "go_library", "go_test")
 
 go_library(
     name = "installer_lib",
-    srcs = ["main.go"],
+    srcs = ["main.go"] + select({
+        "@platforms//os:windows": ["//cmd/installer/windows_resources:rsrc"],
+        "//conditions:default": [],
+    }),
     importpath = "github.com/DataDog/datadog-agent/cmd/installer",
     visibility = ["//visibility:private"],
     deps = [
