@@ -81,8 +81,8 @@ type healthPlatformImpl struct {
 	persistence     issuesPersistence
 
 	// Issue observers: receive issue events outside issuesMux.
-	aggregatorsMu sync.RWMutex
-	aggregators   []healthplatformdef.IssuesObserver
+	observersMu sync.RWMutex
+	observers   []healthplatformdef.IssuesObserver
 
 	// Metrics
 	metrics telemetryMetrics
@@ -326,21 +326,21 @@ func (h *healthPlatformImpl) stop(_ context.Context) error {
 	return nil
 }
 
-// RegisterIssuesObserver appends an aggregator. Aggregators registered after
+// RegisterIssuesObserver appends an observer. Observers registered after
 // OnStart will miss events that occurred before registration.
-func (h *healthPlatformImpl) RegisterIssuesObserver(agg healthplatformdef.IssuesObserver) {
-	h.aggregatorsMu.Lock()
-	h.aggregators = append(h.aggregators, agg)
-	h.aggregatorsMu.Unlock()
+func (h *healthPlatformImpl) RegisterIssuesObserver(obs healthplatformdef.IssuesObserver) {
+	h.observersMu.Lock()
+	defer h.observersMu.Unlock()
+	h.observers = append(h.observers, obs)
 }
 
 // notifyResolved writes a resolved tombstone to each observer's ResolvedCh.
 // Must be called outside issuesMux.
 func (h *healthPlatformImpl) notifyResolved(resolved *healthplatform.Issue) {
-	h.aggregatorsMu.RLock()
-	defer h.aggregatorsMu.RUnlock()
-	agg := h.aggregators
-	for _, o := range agg {
+	h.observersMu.RLock()
+	obs := h.observers
+	h.observersMu.RUnlock()
+	for _, o := range obs {
 		if o.ResolvedCh != nil {
 			select {
 			case o.ResolvedCh <- resolved:
