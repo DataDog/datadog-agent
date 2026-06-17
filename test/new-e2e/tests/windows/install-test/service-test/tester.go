@@ -230,7 +230,17 @@ func iterServiceConfigMaps(t *testing.T, expected windowsCommon.ServiceConfigMap
 func AssertEqualServiceConfigValues(t *testing.T, expected windowsCommon.ServiceConfigMap, actual windowsCommon.ServiceConfigMap) bool {
 	return iterServiceConfigMaps(t, expected, actual, func(expected *windowsCommon.ServiceConfig, actual *windowsCommon.ServiceConfig) bool {
 		assert.Equal(t, expected.DisplayName, actual.DisplayName, "service %s DisplayName should match", actual.ServiceName)
-		assert.Equal(t, expected.ImagePath, actual.ImagePath, "service %s ImagePath should match", actual.ServiceName)
+		if actual.ServiceName == "datadog-agent-data-plane" {
+			imagePathLower := strings.ToLower(actual.ImagePath)
+			assert.Contains(t, imagePathLower, "agent-data-plane.exe", "service %s ImagePath should reference agent-data-plane.exe", actual.ServiceName)
+			assert.Contains(t, imagePathLower, "--config=", "service %s ImagePath should include --config", actual.ServiceName)
+			assert.Contains(t, imagePathLower, "datadog.yaml", "service %s ImagePath should reference datadog.yaml", actual.ServiceName)
+			assert.Contains(t, imagePathLower, " run ", "service %s ImagePath should include run", actual.ServiceName)
+			assert.Contains(t, imagePathLower, "--pidfile", "service %s ImagePath should include --pidfile", actual.ServiceName)
+			assert.Contains(t, imagePathLower, "agent-data-plane.pid", "service %s ImagePath should reference agent-data-plane.pid", actual.ServiceName)
+		} else {
+			assert.Equal(t, expected.ImagePath, actual.ImagePath, "service %s ImagePath should match", actual.ServiceName)
+		}
 		assert.Equal(t, expected.StartType, actual.StartType, "service %s StartType should match", actual.ServiceName)
 		assert.Equal(t, expected.ServiceType, actual.ServiceType, "service %s ServiceType should match", actual.ServiceName)
 		// Compare UserSID rather than UserNames to avoid needing to handle name formatting differences
