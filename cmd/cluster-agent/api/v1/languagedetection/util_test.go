@@ -748,6 +748,53 @@ func TestGetOwnersLanguages(t *testing.T) {
 	defaultNs := "default"
 	customNs := "custom"
 
+	mockStore := newMockStore(t)
+	trueController := true
+	mockStore.Set(&workloadmeta.KubernetesPod{
+		EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: "uid-pod-a"},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:      "pod-a",
+			Namespace: defaultNs,
+			Labels:    map[string]string{"pod-template-hash": "2342347"},
+		},
+		Owners: []workloadmeta.KubernetesPodOwner{{
+			Kind:       "ReplicaSet",
+			Name:       "dummyrs-1-2342347",
+			ID:         "rs-a",
+			Group:      "apps",
+			Controller: &trueController,
+		}},
+	})
+	mockStore.Set(&workloadmeta.KubernetesDeployment{
+		EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesDeployment, ID: defaultNs + "/dummyrs-1"},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:      "dummyrs-1",
+			Namespace: defaultNs,
+		},
+	})
+	mockStore.Set(&workloadmeta.KubernetesPod{
+		EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: "uid-pod-b"},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:      "pod-b",
+			Namespace: customNs,
+			Labels:    map[string]string{"pod-template-hash": "2342347"},
+		},
+		Owners: []workloadmeta.KubernetesPodOwner{{
+			Kind:       "ReplicaSet",
+			Name:       "dummyrs-2-2342347",
+			ID:         "rs-b",
+			Group:      "apps",
+			Controller: &trueController,
+		}},
+	})
+	mockStore.Set(&workloadmeta.KubernetesDeployment{
+		EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesDeployment, ID: customNs + "/dummyrs-2"},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:      "dummyrs-2",
+			Namespace: customNs,
+		},
+	})
+
 	podALanguageDetails := &pbgo.PodLanguageDetails{
 		Namespace: defaultNs,
 		Name:      "pod-a",
@@ -893,7 +940,7 @@ func TestGetOwnersLanguages(t *testing.T) {
 		},
 	}
 
-	actualOwnersLanguages := getOwnersLanguages(mockRequestData, mockExpiration)
+	actualOwnersLanguages := getOwnersLanguages(mockStore, mockRequestData, mockExpiration)
 
 	assert.True(t, reflect.DeepEqual(expectedOwnersLanguages, actualOwnersLanguages), fmt.Sprintf("Expected %v, found %v", expectedOwnersLanguages, actualOwnersLanguages))
 }

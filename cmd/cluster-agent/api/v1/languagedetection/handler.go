@@ -179,7 +179,7 @@ func (handler *languageDetectionHandler) leaderHandler(w http.ResponseWriter, r 
 		return
 	}
 
-	ownersLanguagesFromRequest := getOwnersLanguages(requestData, time.Now().Add(handler.cfg.languageTTL))
+	ownersLanguagesFromRequest := getOwnersLanguages(handler.wlm, requestData, time.Now().Add(handler.cfg.languageTTL))
 	span.SetTag("owner_count", len(ownersLanguagesFromRequest.containersLanguages))
 
 	if log.ShouldLog(log.TraceLvl) { // Avoid call to String() if not needed

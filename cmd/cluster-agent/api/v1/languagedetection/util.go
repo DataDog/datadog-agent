@@ -361,14 +361,19 @@ func getContainersLanguagesFromPodDetail(podDetail *pbgo.PodLanguageDetails, exp
 	return &containersLanguages
 }
 
-// getOwnersLanguages constructs OwnersLanguages from owners (i.e. k8s parent resource)
-func getOwnersLanguages(requestData *pbgo.ParentLanguageAnnotationRequest, expirationTime time.Time) *OwnersLanguages {
+// getOwnersLanguages constructs OwnersLanguages from owners (i.e. k8s parent resource).
+// Pod→Deployment attribution uses workloadmeta (apiserver-backed) instead of the request's ownerRef,
+// so forged ownerReferences in the protobuf cannot steer detected languages to another Deployment.
+func getOwnersLanguages(wlm workloadmeta.Component, requestData *pbgo.ParentLanguageAnnotationRequest, expirationTime time.Time) *OwnersLanguages {
 	ownersContainersLanguages := newOwnersLanguages()
 
 	podDetails := requestData.PodDetails
 
 	for _, podDetail := range podDetails {
-		namespacedOwnerRef := langUtil.GetNamespacedBaseOwnerReference(podDetail)
+		namespacedOwnerRef, ok := authoritativeDeploymentOwnerForPodLanguages(wlm, podDetail.Namespace, podDetail.Name)
+		if !ok {
+			continue
+		}
 
 		if _, found := langUtil.SupportedBaseOwners[namespacedOwnerRef.Kind]; found {
 			containersLanguages := *getContainersLanguagesFromPodDetail(podDetail, expirationTime)

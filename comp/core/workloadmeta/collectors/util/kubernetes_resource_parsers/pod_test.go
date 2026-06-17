@@ -26,15 +26,18 @@ func TestPodParser_Parse(t *testing.T) {
 	parser, err := NewPodParser(filterAnnotations)
 	assert.NoError(t, err)
 
+	ownerController := true
 	referencePod := corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "TestPod",
 			UID:  "uniqueIdentifier",
 			OwnerReferences: []metav1.OwnerReference{
 				{
-					Kind: "ReplicaSet",
-					Name: "deployment-hashrs",
-					UID:  "ownerUID",
+					APIVersion: "apps/v1",
+					Kind:       "ReplicaSet",
+					Name:       "deployment-hashrs",
+					UID:        "ownerUID",
+					Controller: &ownerController,
 				},
 			},
 			Annotations: map[string]string{
@@ -113,9 +116,11 @@ func TestPodParser_Parse(t *testing.T) {
 		Phase: "Running",
 		Owners: []workloadmeta.KubernetesPodOwner{
 			{
-				Kind: "ReplicaSet",
-				Name: "deployment-hashrs",
-				ID:   "ownerUID",
+				Kind:       "ReplicaSet",
+				Name:       "deployment-hashrs",
+				ID:         "ownerUID",
+				Group:      "apps",
+				Controller: &ownerController,
 			},
 		},
 		PersistentVolumeClaimNames: []string{"pvcName"},

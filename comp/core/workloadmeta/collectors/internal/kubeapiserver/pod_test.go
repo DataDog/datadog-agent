@@ -258,6 +258,7 @@ func Test_MinimalPodDeepCopy(t *testing.T) {
 func Test_ParsersProduceSameOutput(t *testing.T) {
 	runtimeClassName := "test-runtime"
 
+	ownerController := true
 	fullPod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test-pod",
@@ -272,9 +273,11 @@ func Test_ParsersProduceSameOutput(t *testing.T) {
 			},
 			OwnerReferences: []metav1.OwnerReference{
 				{
-					Kind: "ReplicaSet",
-					Name: "test-rs",
-					UID:  types.UID("owner-uid"),
+					APIVersion: "apps/v1",
+					Kind:       "ReplicaSet",
+					Name:       "test-rs",
+					UID:        types.UID("owner-uid"),
+					Controller: &ownerController,
 				},
 			},
 		},

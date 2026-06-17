@@ -17,7 +17,7 @@ Language detection and library injection feature is composed of several componen
   - keeps track of a TTL (expiration timestamp) for each detected languages
   - periodically checks for expired languages and removes them
   - parses the requests, extracts detected languages, and pushes them to workload metadata store on the appropriate resource type.
-  - for a pod that is a child of a deployment, the API handler will push its detected languages to the corresponding deployment entity in workload metadata store.
+  - for a pod that is a child of a deployment, the API handler resolves the parent Deployment from **cluster-agent workloadmeta** (apiserver-backed Pod owners: the unique `controller: true` owner must be an `apps` ReplicaSet whose name parses to a Deployment that exists in the store; when the pod carries `pod-template-hash` / `rollouts-pod-template-hash`, it must match the ReplicaSet name suffix). It ignores owner references from the request body so forged `ownerReferences` cannot steer detections to another workload, then pushes detected languages to the corresponding deployment entity in workload metadata store.
 - **patcher**:
   - runs within the cluster agent.
   - responsible for patching pod owner resources (such as deployments, statefulsets, daemonsets, etc.) with language annotations based on languages reported by the language detection client.
