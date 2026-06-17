@@ -72,6 +72,10 @@ def dd_agent_go_binary(name, **kwargs):
     Accepts all go_binary attributes.  x_defs and gc_linkopts are merged with
     the version/run-path definitions; caller-supplied values take precedence
     over the defaults provided here.
+
+    Args:
+      name: target name
+      **kwargs: arguments to be forwarded to go_binary
     """
     agent_version_url_safe = _make_agent_version_url_safe()
 
