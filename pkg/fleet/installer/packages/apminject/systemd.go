@@ -53,8 +53,7 @@ type SystemdServiceManager struct {
 // subcommands the unit invokes. The resolved path is baked into the unit's
 // ExecStart/ExecStop. installerPath is "" when no supported installer is found
 // (no candidate on disk, or only older ones); callers must then skip rendering
-// the unit and fall back to direct ld.so.preload management (see
-// setupHostPreload), since the candidate set is not guaranteed in practice.
+// the unit and fall back to direct ld.so.preload management.
 func NewSystemdServiceManager() *SystemdServiceManager {
 	installerPath, err := resolveInstallerPath(installerPathCandidates, supportsInstrumentSubcommands)
 	if err != nil {
@@ -71,6 +70,14 @@ func NewSystemdServiceManager() *SystemdServiceManager {
 // construction time, or "" if none was found.
 func (s *SystemdServiceManager) InstallerPath() string {
 	return s.installerPath
+}
+
+// serviceFileExists reports whether the unit file has been written to disk.
+// Used to skip Uninstall (and the systemctl calls it issues) when there is
+// nothing to clean up, avoiding spurious error spans in the trace.
+func (s *SystemdServiceManager) serviceFileExists() bool {
+	_, err := os.Stat(s.servicePath)
+	return err == nil
 }
 
 // installerVerifier reports whether the datadog-installer at path supports the
