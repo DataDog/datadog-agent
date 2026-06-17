@@ -9,6 +9,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"runtime"
 	"strings"
 	"syscall"
 	"time"
@@ -49,9 +50,8 @@ type PingOptions struct {
 	TimeoutMs int `json:"timeoutMs"`
 }
 
-type SNMPOptions struct {
+type SNMPCredential struct {
 	Version      string `json:"version"`
-	Port         int    `json:"port"`
 	Community    string `json:"community,omitempty"`
 	User         string `json:"user,omitempty"`
 	AuthProtocol string `json:"authProtocol,omitempty"`
@@ -59,8 +59,13 @@ type SNMPOptions struct {
 	PrivProtocol string `json:"privProtocol,omitempty"`
 	PrivKey      string `json:"privKey,omitempty"`
 	ContextName  string `json:"contextName,omitempty"`
-	TimeoutMs    int    `json:"timeoutMs"`
-	Retries      int    `json:"retries"`
+}
+
+type SNMPOptions struct {
+	Port      int              `json:"port"`
+	Creds     []SNMPCredential `json:"creds"`
+	TimeoutMs int              `json:"timeoutMs"`
+	Retries   int              `json:"retries"`
 }
 
 type ConnectivityCheckRequest struct {
@@ -154,12 +159,7 @@ func runPing(host string, opts *PingOptions) (*PingResult, error) {
 		return nil, errors.New("options are required for ping")
 	}
 
-	p, err := pinger.New(pinger.Config{
-		Count:        opts.Count,
-		Timeout:      time.Duration(opts.TimeoutMs) * time.Millisecond,
-		Interval:     pingInterval,
-		UseRawSocket: false,
-	})
+	p, err := buildPinger(opts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create pinger: %w", err)
 	}
@@ -185,27 +185,64 @@ func runPing(host string, opts *PingOptions) (*PingResult, error) {
 	}, nil
 }
 
+func buildPinger(opts *PingOptions) (pinger.Pinger, error) {
+	var useRawSocket bool
+	switch runtime.GOOS {
+	case "windows":
+		useRawSocket = true
+	case "darwin":
+		useRawSocket = false
+	default:
+		useRawSocket = false
+	}
+
+	return pinger.New(pinger.Config{
+		UseRawSocket: useRawSocket,
+		Count:        opts.Count,
+		Timeout:      time.Duration(opts.TimeoutMs) * time.Millisecond,
+		Interval:     pingInterval,
+	})
+}
+
 func runSNMP(ctx context.Context, host string, opts *SNMPOptions) (*SNMPResult, error) {
 	if opts == nil {
 		return nil, errors.New("options are required for SNMP")
 	}
 
-	client, err := buildSNMPClient(ctx, host, opts)
+	var lastResult *SNMPResult
+	for _, cred := range opts.Creds {
+		res, err := trySNMPCredential(ctx, host, opts, cred)
+		if err != nil {
+			return nil, err
+		}
+
+		if res.Success {
+			return res, nil
+		}
+
+		lastResult = res
+	}
+
+	return lastResult, nil
+}
+
+func trySNMPCredential(ctx context.Context, host string, opts *SNMPOptions, cred SNMPCredential) (*SNMPResult, error) {
+	c, err := buildSNMPClient(ctx, host, opts, cred)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create SNMP client: %w", err)
 	}
 
-	err = client.Connect()
+	err = c.Connect()
 	if err != nil {
 		return &SNMPResult{
 			CheckResult:   CheckResult{Error: fmt.Sprintf("Failed to connect to SNMP host '%s': %s", host, err.Error())},
 			FailureReason: mapSNMPError(err),
 		}, nil
 	}
-	defer func() { _ = client.Conn.Close() }()
+	defer func() { _ = c.Conn.Close() }()
 
 	startTime := time.Now()
-	packet, err := client.Get([]string{oidSysName})
+	packet, err := c.Get([]string{oidSysName})
 	if err != nil {
 		return &SNMPResult{
 			CheckResult:   CheckResult{Error: fmt.Sprintf("Failed to fetch device name for host '%s': %s", host, err.Error())},
@@ -237,9 +274,9 @@ func runSNMP(ctx context.Context, host string, opts *SNMPOptions) (*SNMPResult, 
 	return res, nil
 }
 
-func buildSNMPClient(ctx context.Context, host string, opts *SNMPOptions) (*gosnmp.GoSNMP, error) {
+func buildSNMPClient(ctx context.Context, host string, opts *SNMPOptions, cred SNMPCredential) (*gosnmp.GoSNMP, error) {
 	var ver gosnmp.SnmpVersion
-	switch opts.Version {
+	switch cred.Version {
 	case "1":
 		ver = gosnmp.Version1
 	case "2c":
@@ -247,7 +284,7 @@ func buildSNMPClient(ctx context.Context, host string, opts *SNMPOptions) (*gosn
 	case "3":
 		ver = gosnmp.Version3
 	default:
-		return nil, fmt.Errorf("unknown SNMP version '%s' (expected 1, 2c, or 3)", opts.Version)
+		return nil, fmt.Errorf("unknown SNMP version '%s' (expected 1, 2c, or 3)", cred.Version)
 	}
 
 	c := &gosnmp.GoSNMP{
@@ -261,37 +298,37 @@ func buildSNMPClient(ctx context.Context, host string, opts *SNMPOptions) (*gosn
 	}
 
 	if ver == gosnmp.Version1 || ver == gosnmp.Version2c {
-		c.Community = opts.Community
+		c.Community = cred.Community
 	}
 	if ver == gosnmp.Version3 {
-		authProtocol, err := gosnmplib.GetAuthProtocol(opts.AuthProtocol)
+		authProtocol, err := gosnmplib.GetAuthProtocol(cred.AuthProtocol)
 		if err != nil {
 			return nil, err
 		}
 
-		privProtocol, err := gosnmplib.GetPrivProtocol(opts.PrivProtocol)
+		privProtocol, err := gosnmplib.GetPrivProtocol(cred.PrivProtocol)
 		if err != nil {
 			return nil, err
 		}
 
 		switch {
-		case opts.PrivKey != "":
+		case cred.PrivKey != "":
 			c.MsgFlags = gosnmp.AuthPriv
-		case opts.AuthKey != "":
+		case cred.AuthKey != "":
 			c.MsgFlags = gosnmp.AuthNoPriv
 		default:
 			c.MsgFlags = gosnmp.NoAuthNoPriv
 		}
 
 		c.SecurityModel = gosnmp.UserSecurityModel
-		c.ContextName = opts.ContextName
+		c.ContextName = cred.ContextName
 
 		c.SecurityParameters = &gosnmp.UsmSecurityParameters{
-			UserName:                 opts.User,
+			UserName:                 cred.User,
 			AuthenticationProtocol:   authProtocol,
-			AuthenticationPassphrase: opts.AuthKey,
+			AuthenticationPassphrase: cred.AuthKey,
 			PrivacyProtocol:          privProtocol,
-			PrivacyPassphrase:        opts.PrivKey,
+			PrivacyPassphrase:        cred.PrivKey,
 		}
 	}
 
