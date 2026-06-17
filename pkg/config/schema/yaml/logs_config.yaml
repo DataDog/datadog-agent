@@ -358,8 +358,7 @@ properties:
       stack_trace_parsers:
         node_type: setting
         type: array
-        default:
-        - go
+        default: [go]
         items:
           type: string
       tag_aggregated_json:
