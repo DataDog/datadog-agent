@@ -385,11 +385,12 @@ func (suite *AgentTestSuite) TestStatusOut() {
 			"CoreAgentProcessOpenFiles": 27,
 			"OSFileLimit":               1048576,
 		},
-		Integrations: []logsStatus.Integration{},
-		Tailers:      []logsStatus.Tailer{},
-		Errors:       []string{},
-		Warnings:     []string{},
-		UseHTTP:      true,
+		BackpressureTable: "  Logs Agent Backpressure\n  =======================\n",
+		Integrations:      []logsStatus.Integration{},
+		Tailers:           []logsStatus.Tailer{},
+		Errors:            []string{},
+		Warnings:          []string{},
+		UseHTTP:           true,
 	}
 
 	logsProvider = func(_ bool) logsStatus.Status {
@@ -430,6 +431,10 @@ func (suite *AgentTestSuite) TestStatusOut() {
     world: 13
     CoreAgentProcessOpenFiles: 27
     OSFileLimit: 1048576
+
+  Logs Agent Backpressure
+  =======================
+
 `
 			// We replace windows line break by linux so the tests pass on every OS
 			expectedResult := strings.ReplaceAll(result, "\r\n", "\n")
