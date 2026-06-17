@@ -1,8 +1,15 @@
-# Agent Sandbox Stage A MVP
+# Agent Sandbox Stage A/B MVP
 
-Agent Sandbox provides a local macOS Apple Virtualization.framework-backed Ubuntu VM for inspecting a published Datadog Agent host package.
+Agent Sandbox provides a local macOS Apple Virtualization.framework-backed Ubuntu VM for inspecting published Datadog Agent artifacts.
 
-## Quick demo
+Supported modes:
+
+- Host Agent: installs a published Datadog Agent host package with the real installer script.
+- Kubernetes Agent: starts single-node k3s and deploys a published Datadog Agent container image with Helm.
+
+State is stored under `$HOME/.dd-agent-dev/sandbox` by default. Use `--state-root` to place it elsewhere.
+
+## Host Agent demo
 
 ```bash
 dda inv sandbox.cache-prepare
@@ -12,23 +19,34 @@ dda inv sandbox.logs --name demo --lines 50
 dda inv sandbox.down --name demo
 ```
 
-State is stored under `$HOME/.dd-agent-dev/sandbox` by default. Use `--state-root` to place it elsewhere.
+## Kubernetes Agent demo
+
+```bash
+dda inv sandbox.up --name k8s --kubernetes --agent-image gcr.io/datadoghq/agent:7.80.1
+dda inv sandbox.status --name k8s
+dda inv sandbox.kubeconfig --name k8s
+KUBECONFIG=$HOME/.dd-agent-dev/sandbox/instances/k8s/kubeconfig kubectl get pods -A
+dda inv sandbox.logs --name k8s --lines 50
+dda inv sandbox.down --name k8s
+```
 
 ## Useful commands
 
-- `sandbox.up` — create, boot, SSH-discover, install Agent, and wait for `agent status` readiness.
+- `sandbox.up` — create, boot, SSH-discover, install/deploy the selected Agent artifact, and wait for readiness.
+- `sandbox.up --kubernetes` — create a k3s sandbox, deploy the Agent chart, wait for Agent DaemonSet readiness, and export kubeconfig.
 - `sandbox.status` — show high-level state and useful next commands.
 - `sandbox.ssh` — open direct SSH with managed credentials.
-- `sandbox.ssh --cmd "sudo agent status"` — run a command inside the sandbox.
-- `sandbox.logs` — show recent `datadog-agent` journal logs.
+- `sandbox.ssh --cmd "sudo agent status"` — run a command inside a host Agent sandbox.
+- `sandbox.kubeconfig` — export and print the host-usable kubeconfig path for a Kubernetes sandbox.
+- `sandbox.logs` — show recent host Agent journal logs or Kubernetes Agent pod logs.
 - `sandbox.down` — stop and destroy instance state while preserving caches.
 - `sandbox.cache-prepare` — build helper/base caches ahead of a demo.
-- `sandbox.fx-spans --summary` — summarize captured Fx startup spans from a sandbox created with `--fx-trace`.
-- `sandbox.benchmark` — run the local Stage A benchmark flow.
+- `sandbox.fx-spans --summary` — summarize captured Fx startup spans from a host sandbox created with `--fx-trace`.
+- `sandbox.benchmark --granular` — run the local benchmark flow with readiness markers.
 
 ## Startup tracing
 
-Create a sandbox with Fx tracing enabled:
+Create a host sandbox with Fx tracing enabled:
 
 ```bash
 dda inv sandbox.up --name fx --fx-trace
@@ -39,13 +57,6 @@ dda inv sandbox.fx-spans --name fx --summary
 
 ## Current performance profile
 
-A hot run with prepared base and apt archive cache is roughly:
+A hot Host Agent run with prepared base, fakeintake, and apt archive cache is roughly 32–33s to `agent status` readiness.
 
-- ~4s: APFS clone + cloud-init seed generation
-- ~6s: VM config validation
-- ~18s: SSH reachable
-- ~55s: Agent binary present
-- ~75s: cloud-init done and service active
-- ~100s: `agent status` ready
-
-Dominant remaining costs are the production installer flow and Agent startup topology.
+A fresh Kubernetes Agent run currently takes roughly 2 minutes to k3s readiness, Helm deployment, Agent DaemonSet rollout, and kubeconfig export. Subsequent runs against an already-provisioned k3s sandbox are faster because k3s, Helm, chart state, and images are already present in the mutable instance.

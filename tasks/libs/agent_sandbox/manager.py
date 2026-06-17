@@ -75,6 +75,11 @@ class SandboxMetadata:
     fakeintake_url: str | None = None
     fakeintake_pid: int | None = None
     fakeintake_log: str | None = None
+    kubernetes: bool = False
+    agent_image: str | None = None
+    helm_values_source: str | None = None
+    kubeconfig_path: str | None = None
+    k3s_version: str | None = None
     vm_pid: int | None = None
 
 
@@ -149,6 +154,9 @@ class AgentSandboxManager:
         fakeintake_url: str | None = None,
         fakeintake_pid: int | None = None,
         fakeintake_log: str | None = None,
+        kubernetes: bool = False,
+        agent_image: str | None = None,
+        helm_values_source: str | None = None,
     ) -> SandboxMetadata:
         """Create local state, credentials and provisioning inputs for a host sandbox."""
         self.assert_supported_host()
@@ -167,7 +175,7 @@ class AgentSandboxManager:
 
         metadata = SandboxMetadata(
             name=name,
-            mode="host-agent",
+            mode="kubernetes-agent" if kubernetes else "host-agent",
             state="created",
             guest_user=guest_user,
             mac_address=self.mac_address_for_name(name),
@@ -177,9 +185,15 @@ class AgentSandboxManager:
             fakeintake_url=fakeintake_url,
             fakeintake_pid=fakeintake_pid,
             fakeintake_log=fakeintake_log,
+            kubernetes=kubernetes,
+            agent_image=agent_image,
+            helm_values_source=helm_values_source,
         )
-        self.write_host_install_script(paths.host_install_script, metadata)
-        self.write_cloud_init_seed(paths, metadata)
+        if kubernetes:
+            self.write_kubernetes_cloud_init_seed(paths, metadata)
+        else:
+            self.write_host_install_script(paths.host_install_script, metadata)
+            self.write_cloud_init_seed(paths, metadata)
         if ubuntu_image:
             self.prepare_disk_image(Path(ubuntu_image).expanduser(), paths.disk_image)
         else:
@@ -442,6 +456,33 @@ mark agent_version_done
         path.write_text(script)
         path.chmod(0o755)
 
+    def write_kubernetes_cloud_init_seed(self, paths: SandboxPaths, metadata: SandboxMetadata) -> None:
+        public_key = paths.public_key.read_text().strip() if paths.public_key.exists() else ""
+        if not public_key:
+            raise AgentSandboxError("managed SSH public key is missing")
+        user_data = f"""#cloud-config
+bootcmd:
+  - mkdir -p /mnt/agent-sandbox-apt-cache /var/cache/apt/archives /mnt/agent-sandbox-apt-cache/partial
+  - mount -t virtiofs agent_sandbox_apt_cache /mnt/agent-sandbox-apt-cache || true
+  - mountpoint -q /mnt/agent-sandbox-apt-cache && mount --bind /mnt/agent-sandbox-apt-cache /var/cache/apt/archives || true
+users:
+  - default
+  - name: {metadata.guest_user}
+    groups: [adm, sudo]
+    shell: /bin/bash
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    ssh_authorized_keys:
+      - {public_key}
+package_update: false
+runcmd:
+  - systemctl enable --now ssh || systemctl enable --now sshd
+"""
+        paths.cloud_init_user_data.write_text(user_data)
+        paths.cloud_init_meta_data.write_text(
+            f"instance-id: agent-sandbox-{metadata.name}\nlocal-hostname: agent-sandbox-{metadata.name}\n"
+        )
+        self.create_seed_iso(paths)
+
     def write_cloud_init_seed(self, paths: SandboxPaths, metadata: SandboxMetadata) -> None:
         public_key = paths.public_key.read_text().strip() if paths.public_key.exists() else ""
         if not public_key:
@@ -622,7 +663,7 @@ write_files:
             line = line.strip()
             if line.startswith("inet "):
                 return line.split()[1]
-        raise AgentSandboxError("could not discover host bridge100 IP for fakeintake")
+        return "192.168.64.1"
 
     def start_fakeintake_process(self, name: str = DEFAULT_SANDBOX_NAME) -> tuple[str, int, str]:
         binary = self.fakeintake_binary()
@@ -696,6 +737,166 @@ write_files:
 
     def agent_command(self, name: str, agent_args: str) -> list[str]:
         return self.ssh_command(name, ["sudo", "/opt/datadog-agent/bin/agent/agent", *shlex.split(agent_args)])
+
+    def kubectl_command(self, name: str, kubectl_args: str) -> list[str]:
+        return self.ssh_command(name, ["sudo", "k3s", "kubectl", *shlex.split(kubectl_args)])
+
+    def provision_kubernetes(
+        self, name: str, agent_image: str, helm_values: Path | str | None = None
+    ) -> SandboxMetadata:
+        metadata = self.read_metadata(name)
+        if not metadata.ssh_host:
+            raise AgentSandboxError("sandbox must have SSH before Kubernetes provisioning")
+        fakeintake_url = metadata.fakeintake_url or f"http://{self.host_bridge_ip()}:80"
+        values_path = self.paths(name).provisioning_dir / "datadog-values.yaml"
+        self.write_datadog_helm_values(values_path, agent_image, fakeintake_url, helm_values)
+        self.copy_to_guest(name, values_path, "/var/lib/agent-sandbox/datadog-values.yaml")
+        install_script = self.kubernetes_install_script(name, agent_image)
+        subprocess.run(self.shell_command(name, install_script), check=True)
+        metadata.agent_image = agent_image
+        metadata.helm_values_source = str(Path(helm_values).expanduser()) if helm_values else None
+        metadata.kubernetes = True
+        metadata.mode = "kubernetes-agent"
+        metadata.k3s_version = self.guest_output(name, "k3s --version | head -1 || true")
+        metadata.kubeconfig_path = str(self.export_kubeconfig(name))
+        self.write_metadata(self.paths(name).metadata_file, metadata)
+        return metadata
+
+    def copy_to_guest(self, name: str, source: Path, destination: str) -> None:
+        metadata = self.read_metadata(name)
+        paths = self.paths(name)
+        if not metadata.ssh_host or not metadata.ssh_port:
+            raise AgentSandboxError(f"sandbox {name!r} has no SSH endpoint")
+        subprocess.run(
+            [
+                "scp",
+                "-i",
+                str(paths.private_key),
+                "-P",
+                str(metadata.ssh_port),
+                "-o",
+                "IdentitiesOnly=yes",
+                "-o",
+                f"UserKnownHostsFile={paths.ssh_dir / 'known_hosts'}",
+                "-o",
+                "StrictHostKeyChecking=accept-new",
+                str(source),
+                f"{metadata.guest_user}@{metadata.ssh_host}:/tmp/{Path(destination).name}",
+            ],
+            check=True,
+        )
+        subprocess.run(
+            self.shell_command(
+                name,
+                f"sudo mkdir -p {shlex.quote(str(Path(destination).parent))} && sudo mv /tmp/{shlex.quote(Path(destination).name)} {shlex.quote(destination)}",
+            ),
+            check=True,
+        )
+
+    def guest_output(self, name: str, command: str) -> str:
+        result = subprocess.run(self.shell_command(name, command), check=True, text=True, capture_output=True)
+        return result.stdout.strip()
+
+    def write_datadog_helm_values(
+        self, path: Path, agent_image: str, fakeintake_url: str, helm_values: Path | str | None = None
+    ) -> None:
+        repository, tag = self.split_image(agent_image)
+        host_port = fakeintake_url.removeprefix("http://").removeprefix("https://")
+        content = f"""datadog:
+  apiKey: a0000000000000000000000000000001
+  site: datadoghq.com
+  dd_url: {fakeintake_url}
+  kubelet:
+    tlsVerify: false
+  logs:
+    enabled: false
+  apm:
+    enabled: false
+  processAgent:
+    processCollection: true
+  operator:
+    enabled: false
+agents:
+  image:
+    repository: {repository}
+    tag: {tag}
+  containers:
+    agent:
+      env:
+        - name: DD_REMOTE_CONFIGURATION_ENABLED
+          value: "false"
+        - name: DD_CLOUD_PROVIDER_METADATA
+          value: "[]"
+        - name: DD_PROCESS_CONFIG_PROCESS_DD_URL
+          value: {fakeintake_url}
+        - name: DD_LOGS_CONFIG_LOGS_DD_URL
+          value: {host_port}
+        - name: DD_LOGS_CONFIG_LOGS_NO_SSL
+          value: "true"
+"""
+        if helm_values:
+            content += "\n# User-provided values appended below. Later keys override earlier keys.\n"
+            content += Path(helm_values).expanduser().read_text()
+        path.write_text(content)
+
+    def split_image(self, image: str) -> tuple[str, str]:
+        if ":" not in image.rsplit("/", 1)[-1]:
+            return image, "latest"
+        repository, tag = image.rsplit(":", 1)
+        return repository, tag
+
+    def kubernetes_install_script(self, name: str, agent_image: str) -> str:
+        metadata = self.read_metadata(name)
+        tls_san = metadata.ssh_host or "127.0.0.1"
+        return f"""
+set -euo pipefail
+TIMELINE=/var/log/datadog/agent-sandbox-kubernetes-timeline.log
+sudo mkdir -p /var/log/datadog /var/lib/agent-sandbox
+mark() {{ echo "$(date +%s.%N) $1" | sudo tee -a "$TIMELINE"; }}
+mark k3s_install_start
+if ! command -v k3s >/dev/null 2>&1; then
+  curl -4 --connect-timeout 10 --max-time 120 -sfL https://get.k3s.io | INSTALL_K3S_EXEC='server --disable=traefik --disable=servicelb --disable=metrics-server --write-kubeconfig-mode=0644 --tls-san {tls_san}' sh -
+fi
+mark k3s_install_done
+mark node_ready_start
+for i in $(seq 1 180); do
+  if sudo k3s kubectl wait node --all --for=condition=Ready --timeout=2s >/dev/null 2>&1; then break; fi
+  sleep 1
+  if [ "$i" = "180" ]; then sudo k3s kubectl get nodes -o wide; exit 1; fi
+done
+mark node_ready_done
+mark helm_install_start
+if ! command -v helm >/dev/null 2>&1; then
+  curl -4 --connect-timeout 10 --max-time 120 -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+fi
+export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+helm repo add datadog https://helm.datadoghq.com >/dev/null 2>&1 || true
+helm repo update datadog >/dev/null
+sudo k3s kubectl create namespace datadog --dry-run=client -o yaml | sudo k3s kubectl apply -f -
+helm upgrade --install datadog-agent datadog/datadog \
+  --namespace datadog \
+  --values /var/lib/agent-sandbox/datadog-values.yaml \
+  --wait --timeout 5m
+mark helm_install_done
+mark agent_ready_start
+sudo k3s kubectl -n datadog rollout status daemonset/datadog-agent --timeout=5m
+mark agent_ready_done
+"""
+
+    def export_kubeconfig(self, name: str) -> Path:
+        metadata = self.read_metadata(name)
+        paths = self.paths(name)
+        result = subprocess.run(
+            self.ssh_command(name, ["sudo", "cat", "/etc/rancher/k3s/k3s.yaml"]),
+            check=True,
+            text=True,
+            capture_output=True,
+        )
+        server = f"https://{metadata.ssh_host}:6443"
+        content = result.stdout.replace("https://127.0.0.1:6443", server)
+        kubeconfig = paths.instance_dir / "kubeconfig"
+        kubeconfig.write_text(content)
+        return kubeconfig
 
     def wait_agent_ready(self, name: str = DEFAULT_SANDBOX_NAME, timeout_seconds: int = 240) -> None:
         deadline = time.time() + timeout_seconds

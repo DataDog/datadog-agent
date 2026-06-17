@@ -135,6 +135,24 @@ class TestAgentSandboxManager(unittest.TestCase):
 
         copyfile.assert_called_once_with(source, destination)
 
+    def test_kubernetes_values_render_image_fakeintake_and_operator_disabled(self):
+        values = Path(self.tmp.name) / "values.yaml"
+        self.manager.write_datadog_helm_values(values, "gcr.io/datadoghq/agent:7.80.1", "http://192.168.64.1:12345")
+
+        content = values.read_text()
+        self.assertIn("apiKey: a0000000000000000000000000000001", content)
+        self.assertIn("dd_url: http://192.168.64.1:12345", content)
+        self.assertIn("repository: gcr.io/datadoghq/agent", content)
+        self.assertIn("tag: 7.80.1", content)
+        self.assertIn("operator:\n    enabled: false", content)
+        self.assertIn("DD_PROCESS_CONFIG_PROCESS_DD_URL", content)
+
+    def test_split_image_defaults_latest_when_tag_is_absent(self):
+        self.assertEqual(self.manager.split_image("gcr.io/datadoghq/agent"), ("gcr.io/datadoghq/agent", "latest"))
+        self.assertEqual(
+            self.manager.split_image("gcr.io/datadoghq/agent:7.80.1"), ("gcr.io/datadoghq/agent", "7.80.1")
+        )
+
     def test_create_seed_iso_replaces_stale_iso_and_reports_failures(self):
         paths = self.manager.ensure_layout("iso")
         paths.cloud_init_dir.mkdir(parents=True, exist_ok=True)

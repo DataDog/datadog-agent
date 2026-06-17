@@ -110,6 +110,9 @@ def up(
     state_root=None,
     helper_path=None,
     fx_trace=False,
+    kubernetes=False,
+    agent_image="gcr.io/datadoghq/agent:7",
+    values=None,
     wait_agent=True,
 ):
     """Create/start the sandbox and wait until the Agent is ready."""
@@ -139,6 +142,9 @@ def up(
                 config=Path(config) if config else None,
                 ubuntu_image=Path(ubuntu_image) if ubuntu_image else None,
                 fx_trace=fx_trace,
+                kubernetes=kubernetes,
+                agent_image=agent_image if kubernetes else None,
+                helm_values_source=str(Path(values).expanduser()) if values else None,
                 fakeintake_url=fakeintake_url,
                 fakeintake_pid=fakeintake_pid,
                 fakeintake_log=fakeintake_log,
@@ -159,7 +165,16 @@ def up(
             metadata = manager.discover_ssh_endpoint(name)
         print(f"✓ SSH ready: {metadata.ssh_host}:{metadata.ssh_port}")
 
-        if wait_agent:
+        if kubernetes:
+            metadata = manager.provision_kubernetes(
+                name, agent_image=agent_image, helm_values=Path(values) if values else None
+            )
+            print(f"✓ Kubernetes ready ({metadata.k3s_version})")
+            print(f"✓ Agent image: {metadata.agent_image}")
+            print(
+                f"✓ Kubeconfig: {_human_path(Path(metadata.kubeconfig_path)) if metadata.kubeconfig_path else 'unknown'}"
+            )
+        elif wait_agent:
             manager.wait_agent_ready(name)
             print("✓ Agent status API ready")
 
@@ -175,7 +190,11 @@ def up(
         print("\nNext:")
         print(f"  dda inv sandbox.status --name {name}")
         print(f"  dda inv sandbox.ssh --name {name}")
-        print(f"  dda inv sandbox.ssh --name {name} --cmd 'sudo agent status'")
+        if kubernetes:
+            print(f"  dda inv sandbox.kubeconfig --name {name}")
+            print(f"  KUBECONFIG={manager.paths(name).instance_dir / 'kubeconfig'} kubectl get pods -A")
+        else:
+            print(f"  dda inv sandbox.ssh --name {name} --cmd 'sudo agent status'")
         print(f"  dda inv sandbox.logs --name {name}")
         print(f"  dda inv sandbox.down --name {name}")
     except AgentSandboxError as e:
@@ -192,6 +211,7 @@ def status(ctx, name=DEFAULT_SANDBOX_NAME, state_root=None, json_output=False):
             print(json.dumps(data, indent=2, sort_keys=True))
             return
         print(f"Sandbox: {name}")
+        print(f"Mode: {data.get('mode')}")
         print(f"State: {data['state']}")
         print(f"State root: {_human_path(Path(data['state_root']))}")
         print(f"Instance: {_human_path(Path(data['instance_dir']))}")
@@ -201,9 +221,21 @@ def status(ctx, name=DEFAULT_SANDBOX_NAME, state_root=None, json_output=False):
         print(f"Apt cache: {_size(manager.paths(name).apt_cache_dir)}")
         print(f"Fx tracing: {'enabled' if data.get('fx_trace') else 'disabled'}")
         print(f"Fakeintake: {data.get('fakeintake_url') or 'disabled/custom config'}")
+        if data.get("kubernetes"):
+            print("Kubernetes: enabled")
+            print(f"Agent image: {data.get('agent_image') or 'unknown'}")
+            print(
+                f"Kubeconfig: {_human_path(Path(data['kubeconfig_path'])) if data.get('kubeconfig_path') else 'not exported'}"
+            )
+            _run_or_raise(ctx, manager.kubectl_command(name, "get nodes -o wide"))
+            _run_or_raise(ctx, manager.kubectl_command(name, "-n datadog get pods -o wide"))
         print("\nUseful:")
         print(f"  dda inv sandbox.ssh --name {name}")
-        print(f"  dda inv sandbox.ssh --name {name} --cmd 'sudo agent status'")
+        if data.get("kubernetes"):
+            print(f"  dda inv sandbox.kubeconfig --name {name}")
+            print(f"  KUBECONFIG={data.get('kubeconfig_path')} kubectl get pods -A")
+        else:
+            print(f"  dda inv sandbox.ssh --name {name} --cmd 'sudo agent status'")
         print(f"  dda inv sandbox.logs --name {name}")
         print(f"  dda inv sandbox.down --name {name}")
     except AgentSandboxError as e:
@@ -231,8 +263,32 @@ def logs(ctx, name=DEFAULT_SANDBOX_NAME, lines=200, state_root=None):
     """Show recent Datadog Agent service logs from the sandbox."""
     manager = _manager(state_root)
     try:
-        _run_or_raise(ctx, manager.logs_command(name, int(lines)))
+        metadata = manager.read_metadata(name)
+        if metadata.kubernetes:
+            _run_or_raise(
+                ctx,
+                manager.kubectl_command(
+                    name, f"-n datadog logs -l app=datadog-agent --tail {int(lines)} --all-containers=true"
+                ),
+            )
+        else:
+            _run_or_raise(ctx, manager.logs_command(name, int(lines)))
     except AgentSandboxError as e:
+        raise Exit(message=str(e), code=1) from None
+
+
+@task
+def kubeconfig(ctx, name=DEFAULT_SANDBOX_NAME, state_root=None):
+    """Export/print the host-usable kubeconfig path for a Kubernetes sandbox."""
+    manager = _manager(state_root)
+    try:
+        path = manager.export_kubeconfig(name)
+        metadata = manager.read_metadata(name)
+        metadata.kubeconfig_path = str(path)
+        manager.write_metadata(manager.paths(name).metadata_file, metadata)
+        print(_human_path(path))
+        print(f"export KUBECONFIG={path}")
+    except (AgentSandboxError, subprocess.CalledProcessError) as e:
         raise Exit(message=str(e), code=1) from None
 
 
