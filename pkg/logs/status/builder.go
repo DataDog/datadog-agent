@@ -13,6 +13,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"go.uber.org/atomic"
@@ -38,6 +39,44 @@ type Builder struct {
 	logsExpVars     *expvar.Map
 	pipelineMonitor logsMetrics.PipelineMonitor
 	config          model.Reader
+	loss            lossWindow
+}
+
+// lossRecencyWindow is how long after the last observed loss the pipeline is
+// still treated as "actively losing logs" for recommendation purposes.
+const lossRecencyWindow = 5 * time.Minute
+
+// lossWindow turns the monotonic logs-dropped / bytes-missed counters into a
+// recent-loss signal. Each observe records when a counter last increased, so a
+// stale historical loss ages out instead of keeping a recommendation pinned on.
+type lossWindow struct {
+	mu                      sync.Mutex
+	seeded                  bool
+	lastDropped, lastMissed int64
+	droppedAt, missedAt     time.Time
+}
+
+// observe records the current counter totals at time now and reports whether
+// each kind of loss occurred within lossRecencyWindow. The first call only
+// seeds the baseline (no history to compare against yet).
+func (w *lossWindow) observe(dropped, missed int64, now time.Time) (droppedRecently, missedRecently bool) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if !w.seeded {
+		w.seeded = true
+		w.lastDropped, w.lastMissed = dropped, missed
+		return false, false
+	}
+	if dropped > w.lastDropped {
+		w.droppedAt = now
+	}
+	if missed > w.lastMissed {
+		w.missedAt = now
+	}
+	w.lastDropped, w.lastMissed = dropped, missed
+	droppedRecently = !w.droppedAt.IsZero() && now.Sub(w.droppedAt) <= lossRecencyWindow
+	missedRecently = !w.missedAt.IsZero() && now.Sub(w.missedAt) <= lossRecencyWindow
+	return droppedRecently, missedRecently
 }
 
 // NewBuilder returns a new builder. pipelineMonitor and cfg may be nil (e.g. in
@@ -90,6 +129,7 @@ func (b *Builder) BuildStatus(verbose bool) Status {
 	if profile != nil {
 		activeProfile = profile.Name
 	}
+	droppedRecently, missedRecently := b.loss.observe(b.logsDropped(), b.bytesMissed(), time.Now())
 	return Status{
 		IsRunning:             b.getIsRunning(),
 		Endpoints:             b.getEndpoints(),
@@ -103,7 +143,7 @@ func (b *Builder) BuildStatus(verbose bool) Status {
 		ComponentUtilization:  utils,
 		Backpressure:          bp,
 		PerformanceProfile:    profile,
-		ProfileRecommendation: b.getProfileRecommendation(utils, activeProfile, b.senderLatencyMs(), b.logsDropped(), b.bytesMissed(), b.destinationDelivering()),
+		ProfileRecommendation: b.getProfileRecommendation(utils, activeProfile, b.senderLatencyMs(), droppedRecently, missedRecently, b.destinationDelivering()),
 		BackpressureTable:     b.formatBackpressureSection(utils, bp),
 	}
 }
@@ -364,31 +404,26 @@ func recommendProfileForBottleneck(component string, latencyMs int64) (profile s
 	}
 }
 
-// getProfileRecommendation suggests a profile only when logs are actually being
-// lost (dropped/missed); saturation merely localizes the bottleneck. Returns nil
-// when nothing is lost, when no profile would help, or when the active profile
-// already covers the suggestion.
-func (b *Builder) getProfileRecommendation(utils []ComponentUtilization, activeProfile string, latencyMs, dropped, missed int64, delivering bool) *ProfileRecommendation {
-	if dropped == 0 && missed == 0 {
+// getProfileRecommendation suggests a profile only when logs were recently lost
+// (droppedRecently/missedRecently); saturation merely localizes the bottleneck.
+// Returns nil when nothing is being lost, when no profile would help, or when the
+// active profile already covers the suggestion.
+func (b *Builder) getProfileRecommendation(utils []ComponentUtilization, activeProfile string, latencyMs int64, droppedRecently, missedRecently, delivering bool) *ProfileRecommendation {
+	if !droppedRecently && !missedRecently {
 		return nil
 	}
 
 	bottleneck := b.bottleneckComponent(utils)
 
-	if dropped > 0 {
-		// Send-side drops only warrant a profile when the send stage is saturated
-		// and the intake is delivering; else they're permanent errors / a dead intake.
-		if !isSendStage(bottleneck) || !delivering {
-			return nil
-		}
-	} else {
-		// missed > 0: read-side backpressure loss.
-		if bottleneck == "" {
-			return nil // rotation outran an idle reader; fix is close_timeout, not a profile
-		}
-		if isSendStage(bottleneck) && !delivering {
-			return nil // intake rejecting/unreachable; no profile helps
-		}
+	// A profile is warranted when recent loss localizes to a stage one can fix:
+	// send-side drops at a saturated, still-delivering send stage; or read-side
+	// backpressure at any saturated stage (but not an idle reader or unreachable
+	// intake, which no profile fixes). Evaluated independently so a recent drop
+	// that maps to nothing does not mask a fixable read-side bottleneck.
+	sendStageLoss := droppedRecently && isSendStage(bottleneck) && delivering
+	backpressureLoss := missedRecently && bottleneck != "" && !(isSendStage(bottleneck) && !delivering)
+	if !sendStageLoss && !backpressureLoss {
+		return nil
 	}
 
 	recommended, reason := recommendProfileForBottleneck(bottleneck, latencyMs)
