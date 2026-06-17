@@ -9,6 +9,7 @@ go_library(
         "gpu_detection.go",
         "mocks.go",
         "samplebins.go",
+        "smi.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/gpu/testutil",
     target_compatible_with = ["@platforms//os:linux"],  # keep
