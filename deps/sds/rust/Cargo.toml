@@ -7,7 +7,7 @@ rust-version.workspace = true
 
 [lib]
 name = "dd_sds"
-crate-type = ["staticlib"]
+crate-type = ["cdylib", "staticlib"]
 
 [dependencies]
 dd-sensitive-data-scanner = { workspace = true, features = ["dd_sds_go"] }
