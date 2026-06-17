@@ -13,6 +13,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
+const (
+	pathAccessReadOnly  = ":ro"
+	pathAccessReadWrite = ":rw"
+)
+
 // onlyRshellPrefixedCommands returns the commands that are prefixed with the rshell namespace.
 //
 // Assumptions:
@@ -33,14 +38,17 @@ func onlyRshellPrefixedCommands(commands []string) []string {
 // cleanPathList applies path.Clean to each element of the list of paths
 // and ensures that each path ends with a separator:
 // so that "/var/log" is a prefix of "/var/log/nginx" but not of "/var/logger".
+// It preserves rshell access suffixes (:ro / :rw) at the end of the path spec.
 func cleanPathList(paths []string) []string {
 	cleaned := make([]string, len(paths))
 	for i, p := range paths {
-		cleaned[i] = path.Clean(p)
+		pathPart, accessSuffix := splitPathAccessSuffix(p)
+		cleanedPath := path.Clean(pathPart)
 
-		if !strings.HasSuffix(cleaned[i], "/") {
-			cleaned[i] += "/"
+		if !strings.HasSuffix(cleanedPath, "/") {
+			cleanedPath += "/"
 		}
+		cleaned[i] = cleanedPath + accessSuffix
 	}
 	return cleaned
 }
@@ -58,6 +66,9 @@ func reducePathListToBroadest(paths []string) []string {
 	for _, p := range paths {
 		added := false
 		for j := range reduced {
+			if pathAccessForReduction(p) != pathAccessForReduction(reduced[j]) {
+				continue
+			}
 			if _, broadest := commonPath(p, reduced[j]); broadest != "" {
 				// The path p has a common prefix with the already present path reduced[j],
 				// so we replace the already present path with the broader common prefix.
@@ -91,12 +102,12 @@ func intersectPathLists(list1, list2 []string) []string {
 	for _, p1 := range list1 {
 		for _, p2 := range list2 {
 			if deepest, _ := commonPath(p1, p2); deepest != "" {
-				intersection = append(intersection, deepest)
+				intersection = append(intersection, pathSpecWithAccessSuffix(deepest, intersectPathAccessSuffix(p1, p2)))
 
 				// If the common path is exactly the list1 path,
 				// then we already added the biggest possible path,
 				// so we can ignore the other path from list2.
-				if deepest == p1 {
+				if pathSpecPath(deepest) == pathSpecPath(p1) {
 					break
 				}
 			}
@@ -113,20 +124,64 @@ func intersectPathLists(list1, list2 []string) []string {
 //
 //  2. Both a and b have been normalized (end with a separator).
 func commonPath(a, b string) (deepest string, broadest string) {
-	if a == b {
+	aPath := pathSpecPath(a)
+	bPath := pathSpecPath(b)
+	if aPath == bPath {
 		return a, a
 	}
 
 	// a is "deeper" than b.
-	if strings.HasPrefix(a, b) {
+	if strings.HasPrefix(aPath, bPath) {
 		return a, b
 	}
 
 	// b is "deeper" than a.
-	if strings.HasPrefix(b, a) {
+	if strings.HasPrefix(bPath, aPath) {
 		return b, a
 	}
 
 	// a and b are not related, there is no common path.
 	return "", ""
+}
+
+func splitPathAccessSuffix(pathSpec string) (pathPart string, accessSuffix string) {
+	switch {
+	case strings.HasSuffix(pathSpec, pathAccessReadWrite):
+		return strings.TrimSuffix(pathSpec, pathAccessReadWrite), pathAccessReadWrite
+	case strings.HasSuffix(pathSpec, pathAccessReadOnly):
+		return strings.TrimSuffix(pathSpec, pathAccessReadOnly), pathAccessReadOnly
+	default:
+		return pathSpec, ""
+	}
+}
+
+func pathSpecPath(pathSpec string) string {
+	pathPart, _ := splitPathAccessSuffix(pathSpec)
+	return pathPart
+}
+
+func pathSpecWithAccessSuffix(pathSpec string, accessSuffix string) string {
+	pathPart, _ := splitPathAccessSuffix(pathSpec)
+	return pathPart + accessSuffix
+}
+
+func pathAccessForReduction(pathSpec string) string {
+	_, accessSuffix := splitPathAccessSuffix(pathSpec)
+	if accessSuffix == "" {
+		return pathAccessReadOnly
+	}
+	return accessSuffix
+}
+
+func intersectPathAccessSuffix(operatorPathSpec string, backendPathSpec string) string {
+	_, operatorAccessSuffix := splitPathAccessSuffix(operatorPathSpec)
+	_, backendAccessSuffix := splitPathAccessSuffix(backendPathSpec)
+
+	if operatorAccessSuffix == pathAccessReadOnly || backendAccessSuffix == pathAccessReadOnly {
+		return pathAccessReadOnly
+	}
+	if backendAccessSuffix == pathAccessReadWrite {
+		return pathAccessReadWrite
+	}
+	return ""
 }

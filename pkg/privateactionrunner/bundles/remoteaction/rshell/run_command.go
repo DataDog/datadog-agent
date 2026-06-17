@@ -184,8 +184,9 @@ func (h *RunCommandHandler) Run(
 	}
 
 	for _, p := range effectiveAllowedPaths {
-		if _, err := statFn(p); err != nil {
-			log.Warnf("path %q not found, rshell may fail to execute commands", p)
+		statPath := pathSpecPath(p)
+		if _, err := statFn(statPath); err != nil {
+			log.Warnf("path %q not found, rshell may fail to execute commands", statPath)
 		}
 	}
 	// rshell treats allowed paths as read-only unless carrying a ":rw" suffix,

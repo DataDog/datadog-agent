@@ -38,8 +38,23 @@ func makeTask(command string, allowedCommands []string) *types.Task {
 // signed-task fields. Use makeTask (without this helper) to exercise the
 // "backend did not send the field" branch — a nil slice.
 func makeTaskWithPaths(command string, allowedCommands []string, allowedPaths []string) *types.Task {
+	return makeTaskWithPathsAndMode(
+		command,
+		allowedCommands,
+		allowedPaths,
+		privateactionspb.RemoteActionAccessMode_REMOTE_ACTION_ACCESS_MODE_UNSPECIFIED,
+	)
+}
+
+func makeTaskWithPathsAndMode(
+	command string,
+	allowedCommands []string,
+	allowedPaths []string,
+	mode privateactionspb.RemoteActionAccessMode,
+) *types.Task {
 	task := makeTask(command, allowedCommands)
 	task.Data.Attributes.TargetPaths = allowedPaths
+	task.Data.Attributes.RemoteActionAccessMode = mode
 	return task
 }
 
@@ -296,6 +311,12 @@ func TestFilterAllowedPathsMatrix(t *testing.T) {
 			backend:  []string{"/var/log", "/etc"},
 			operator: []string{"/"},
 			want:     []string{"/etc/", "/var/log/"},
+		},
+		{
+			name:     "wildcard root operator preserves backend access suffixes",
+			backend:  []string{"/host/datadog:rw", "/host/var/log:ro"},
+			operator: []string{"/"},
+			want:     []string{"/host/datadog/:rw", "/host/var/log/:ro"},
 		},
 
 		// Exact-match (after normalization).
@@ -611,6 +632,25 @@ func TestRunCommandSandboxWarningsNilWhenCleanConfig(t *testing.T) {
 	assert.Equal(t, 0, result.ExitCode)
 	assert.Nil(t, result.SandboxWarnings,
 		"a clean sandbox configuration must produce no warnings")
+}
+
+func TestRunCommandPreservesAllowedPathAccessSuffixes(t *testing.T) {
+	dir := t.TempDir()
+	handler := NewRunCommandHandler([]string{setup.RShellPathAllowAll}, []string{"rshell:echo"})
+
+	task := makeTaskWithPathsAndMode("echo ok",
+		[]string{"rshell:echo"},
+		[]string{dir + ":rw"},
+		privateactionspb.RemoteActionAccessMode_REMOTE_ACTION_ACCESS_MODE_READ_WRITE)
+
+	out, err := handler.Run(context.Background(), task, nil)
+
+	require.NoError(t, err)
+	result := out.(*RunCommandOutputs)
+	assert.Equal(t, 0, result.ExitCode)
+	assert.Equal(t, "ok\n", result.Stdout)
+	assert.Empty(t, result.Stderr)
+	assert.Nil(t, result.SandboxWarnings)
 }
 
 func TestRunCommandOutputLimitsReturnActionErrors(t *testing.T) {
