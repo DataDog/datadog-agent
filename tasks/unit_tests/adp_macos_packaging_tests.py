@@ -65,31 +65,31 @@ class TestADPMacOSPackaging(unittest.TestCase):
         ).read_text()
 
         self.assertIn('public string AgentDataPlane => $@"{_binSource}\\agent-data-plane.exe";', binaries)
-        self.assertIn(
-            "agentBinDir.AddFile(new WixSharp.File(_agentBinaries.AgentDataPlane, dataPlaneService));", installer
-        )
+        self.assertIn("agentBinDir.AddFile(new WixSharp.File(_agentBinaries.AgentDataPlane));", installer)
+        self.assertIn('agentBinDir.Add(new Files($@"{BinSource}\\aws_lc_fips_*_crypto.dll"));', installer)
 
-    def test_windows_installer_registers_adp_service(self):
+    def test_windows_installer_writes_adp_procmgr_config(self):
+        config_actions = (
+            REPO_ROOT / "tools/windows/DatadogAgentInstaller/CustomActions/ConfigCustomActions.cs"
+        ).read_text()
+
+        self.assertIn('var adpProcmgrDir = Path.Combine(projectLocation, "processes.d")', config_actions)
+        self.assertIn('var adpProcmgrConfigPath = Path.Combine(adpProcmgrDir, "datadog-agent-data-plane.yaml")', config_actions)
+        self.assertIn('File.WriteAllText(adpProcmgrConfigPath, string.Join("\\n", adpProcmgrConfig))', config_actions)
+
+    def test_windows_installer_does_not_register_adp_as_service(self):
         constants = (REPO_ROOT / "tools/windows/DatadogAgentInstaller/CustomActions/Constants.cs").read_text()
         installer = (
             REPO_ROOT / "tools/windows/DatadogAgentInstaller/WixSetup/Datadog Agent/AgentInstaller.cs"
         ).read_text()
-
-        self.assertIn('public const string DataPlaneServiceName = "datadog-agent-data-plane";', constants)
-        self.assertIn('new Id("ddagentdataplaneservice")', installer)
-        self.assertIn("Constants.DataPlaneServiceName", installer)
-        self.assertIn(
-            "agentBinDir.AddFile(new WixSharp.File(_agentBinaries.AgentDataPlane, dataPlaneService));", installer
-        )
-        self.assertIn('agentBinDir.Add(new Files($@"{BinSource}\\aws_lc_fips_*_crypto.dll"));', installer)
-
-    def test_windows_custom_actions_manage_adp_service(self):
         service_actions = (
             REPO_ROOT / "tools/windows/DatadogAgentInstaller/CustomActions/ServiceCustomAction.cs"
         ).read_text()
 
-        self.assertIn("_serviceController.SetCredentials(Constants.DataPlaneServiceName", service_actions)
-        self.assertIn("Constants.DataPlaneServiceName,", service_actions)
+        self.assertNotIn('public const string DataPlaneServiceName = "datadog-agent-data-plane";', constants)
+        self.assertNotIn('new Id("ddagentdataplaneservice")', installer)
+        self.assertNotIn("Constants.DataPlaneServiceName", installer)
+        self.assertNotIn("Constants.DataPlaneServiceName", service_actions)
 
     def test_windows_runtime_config_and_service_launcher_include_adp(self):
         config_setup = (REPO_ROOT / "pkg/config/setup/config.go").read_text()
@@ -97,7 +97,8 @@ class TestADPMacOSPackaging(unittest.TestCase):
 
         self.assertIn('goos == "linux" || goos == "darwin" || goos == "windows"', config_setup)
         self.assertIn('"data_plane.enabled": coreConf', dependent_services)
-        self.assertIn('serviceName:    "datadog-agent-data-plane"', dependent_services)
+        self.assertIn('name: "procmgr"', dependent_services)
+        self.assertNotIn('serviceName:    "datadog-agent-data-plane"', dependent_services)
 
     def test_macos_app_installs_adp_launchdaemon_template(self):
         build_file = (REPO_ROOT / "packages/macos/app/BUILD.bazel").read_text()

@@ -715,26 +715,11 @@ namespace WixSetup.Datadog_Agent
             });
             agentBinDir.AddFile(new WixSharp.File(_agentBinaries.Procmgr));
 
-            var dataPlaneService = GenerateDependentServiceInstaller(
-                new Id("ddagentdataplaneservice"),
-                Constants.DataPlaneServiceName,
-                "Datadog Agent Data Plane",
-                "Ingest and process telemetry in the Datadog Agent Data Plane",
-                "[DDAGENTUSER_PROCESSED_FQ_NAME]",
-                "[DDAGENTUSER_PROCESSED_PASSWORD]",
-                "--config=\"[APPLICATIONDATADIRECTORY]\\datadog.yaml\" run --pidfile \"[APPLICATIONDATADIRECTORY]\\run\\agent-data-plane.pid\"");
-            agentBinDir.AddFile(new WixSharp.File(_agentBinaries.AgentDataPlane, dataPlaneService));
+            agentBinDir.AddFile(new WixSharp.File(_agentBinaries.AgentDataPlane));
             if (_agentFlavor.FlavorName == Constants.FipsFlavor)
             {
                 agentBinDir.Add(new Files($@"{BinSource}\aws_lc_fips_*_crypto.dll"));
             }
-            agentBinDir.Add(new EventSource
-            {
-                Name = Constants.DataPlaneServiceName,
-                Log = "Application",
-                EventMessageFile = $"[AGENT]{Path.GetFileName(_agentBinaries.AgentDataPlane)}",
-                AttributesDefinition = "SupportsErrors=yes; SupportsInformationals=yes; SupportsWarnings=yes; KeyPath=yes"
-            });
 
             // AI usage Chrome native messaging host (Rust). Plain non-service file in bin\agent.
             // Explicit Id only on the .exe so future custom actions can reference it via [#ai_prompt_logger_native_host].

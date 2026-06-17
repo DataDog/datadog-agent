@@ -470,6 +470,38 @@ namespace Datadog.CustomActions
             File.SetAccessControl(configPath, security);
         }
 
+        private static void WriteADPProcmgrConfig(string projectLocation, string configFolder)
+        {
+            var adpProcmgrDir = Path.Combine(projectLocation, "processes.d");
+            Directory.CreateDirectory(adpProcmgrDir);
+
+            var adpProcmgrConfigPath = Path.Combine(adpProcmgrDir, "datadog-agent-data-plane.yaml");
+            var adpExePath = Path.Combine(projectLocation, "bin", "agent", "agent-data-plane.exe");
+            var datadogYamlPath = Path.Combine(configFolder, "datadog.yaml");
+            var pidfilePath = Path.Combine(configFolder, "run", "agent-data-plane.pid");
+
+            var adpProcmgrConfig = new[]
+            {
+                "description: Datadog Agent Data Plane",
+                $"command: '{adpExePath}'",
+                "args:",
+                "  - --config",
+                $"  - '{datadogYamlPath}'",
+                "  - run",
+                "  - --pidfile",
+                $"  - '{pidfilePath}'",
+                "auto_start: true",
+                $"condition_path_exists: '{adpExePath}'",
+                "restart: on-failure",
+                "restart_sec: 2",
+                "start_limit_interval_sec: 10",
+                "start_limit_burst: 5",
+                "stdout: inherit",
+                "stderr: inherit",
+            };
+            File.WriteAllText(adpProcmgrConfigPath, string.Join("\n", adpProcmgrConfig));
+        }
+
         private static ActionResult WriteConfig(ISession session)
         {
             var configFolder = session.Property("APPLICATIONDATADIRECTORY");
@@ -560,6 +592,7 @@ namespace Datadog.CustomActions
                 }
 
                 WriteAiUsageNativeMessagingManifest(projectLocation, configFolder, session);
+                WriteADPProcmgrConfig(projectLocation, configFolder);
             }
             catch (Exception e)
             {

@@ -112,6 +112,31 @@ random_property: test
 
         [Theory]
         [InlineAutoData]
+        public void WriteConfig_Should_Generate_ADP_ProcessManager_Config(Mock<ISession> sessionMock)
+        {
+            WithTempInstallFolders((configFolder, projectLocation) =>
+            {
+                File.WriteAllText(Path.Combine(configFolder, "datadog.yaml.example"), "api_key:\n");
+                WriteAiUsageNativeHostExample(configFolder);
+                sessionMock.Setup(session => session["APPLICATIONDATADIRECTORY"]).Returns(configFolder);
+                sessionMock.Setup(session => session["PROJECTLOCATION"]).Returns(projectLocation);
+
+                var result = InvokeWriteConfig(sessionMock.Object);
+
+                Assert.Equal(ActionResult.Success, result);
+
+                var adpConfigPath = Path.Combine(projectLocation, "processes.d", "datadog-agent-data-plane.yaml");
+                var adpYaml = File.ReadAllText(adpConfigPath);
+                Assert.Contains("description: Datadog Agent Data Plane", adpYaml);
+                Assert.Contains($"command: '{Path.Combine(projectLocation, "bin", "agent", "agent-data-plane.exe")}'", adpYaml);
+                Assert.Contains($"- '{Path.Combine(configFolder, "datadog.yaml")}'", adpYaml);
+                Assert.Contains($"- '{Path.Combine(configFolder, "run", "agent-data-plane.pid")}'", adpYaml);
+                Assert.Contains("restart: on-failure", adpYaml);
+            });
+        }
+
+        [Theory]
+        [InlineAutoData]
         public void WriteConfig_Should_Generate_AiUsageNativeHostConfig_With_DatadogYaml_Apm_Port(Mock<ISession> sessionMock)
         {
             WithTempInstallFolders((configFolder, projectLocation) =>
