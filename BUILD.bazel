@@ -63,7 +63,7 @@ exports_files(["go.mod"])
 # gazelle:exclude cmd/agent/subcommands/run
 # gazelle:exclude cmd/agent/subcommands/snmp
 # gazelle:exclude cmd/agent/subcommands/validatepodannotation
-# gazelle:exclude cmd/agent/windows
+# gazelle:exclude cmd/agent/windows/service
 # gazelle:exclude cmd/cluster-agent
 # gazelle:exclude cmd/cluster-agent-cloudfoundry
 # gazelle:exclude cmd/dogstatsd
