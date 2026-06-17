@@ -38,6 +38,7 @@ const (
 	processSource          = workloadmetaCollectorName + "-" + string(workloadmeta.KindProcess)
 	kubeMetadataSource     = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubernetesMetadata)
 	deploymentSource       = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubernetesDeployment)
+	kueueQueueSource       = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubernetesKueueQueue)
 	gpuSource              = workloadmetaCollectorName + "-" + string(workloadmeta.KindGPU)
 	crdSource              = workloadmetaCollectorName + "-" + string(workloadmeta.KindCRD)
 	kubeCapabilitiesSource = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubeCapabilities)

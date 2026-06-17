@@ -432,6 +432,16 @@ func (w *workloadmeta) GetKubernetesDeployment(id string) (*wmdef.KubernetesDepl
 	return entity.(*wmdef.KubernetesDeployment), nil
 }
 
+// GetKubernetesKueueQueue implements Store#GetKubernetesKueueQueue
+func (w *workloadmeta) GetKubernetesKueueQueue(id string) (*wmdef.KubernetesKueueQueue, error) {
+	entity, err := w.getEntityByKind(wmdef.KindKubernetesKueueQueue, id)
+	if err != nil {
+		return nil, err
+	}
+
+	return entity.(*wmdef.KubernetesKueueQueue), nil
+}
+
 // ListECSTasks implements Store#ListECSTasks
 func (w *workloadmeta) ListECSTasks() []*wmdef.ECSTask {
 	entities := w.listEntitiesByKind(wmdef.KindECSTask)

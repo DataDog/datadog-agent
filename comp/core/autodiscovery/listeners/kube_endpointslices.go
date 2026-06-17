@@ -201,6 +201,12 @@ func (l *KubeEndpointSlicesListener) serviceUpdated(old, obj interface{}) {
 		return
 	}
 
+	// Detect if prometheus annotations changed
+	if l.promInclAnnot.AnnotationsDiffer(svc.GetAnnotations(), oldSvc.GetAnnotations()) {
+		l.processServiceUpdate(svc.Namespace, svc.Name)
+		return
+	}
+
 	// Detect changes of AD labels for standard tags if the Service is annotated or tracked
 	tracked := l.serviceTracker != nil && l.serviceTracker.HasService(svc.Namespace, svc.Name)
 	if (isServiceAnnotated(svc, kubeEndpointSlicesID) || tracked) &&

@@ -776,3 +776,44 @@ func TestReconcilesServiceOnUpdatedTags(t *testing.T) {
 	assert.Contains(t, newTags, "env:staging")
 	assert.NotContains(t, newTags, "env:prod")
 }
+
+// TestEndpointSlicesServiceUpdatedPrometheusAnnotations verifies that changes to prometheus
+// scrape annotations trigger endpoint service emission.
+func TestEndpointSlicesServiceUpdatedPrometheusAnnotations(t *testing.T) {
+	slice := &discv1.EndpointSlice{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "nginx-svc-abc",
+			Namespace: "default",
+			UID:       types.UID("slice-1"),
+			Labels:    map[string]string{"kubernetes.io/service-name": "nginx-svc"},
+		},
+		Endpoints: []discv1.Endpoint{
+			{Addresses: []string{"10.0.0.1"}},
+			{Addresses: []string{"10.0.0.2"}},
+		},
+	}
+
+	t.Run("annotation added", func(t *testing.T) {
+		svcOld := &v1.Service{ObjectMeta: metav1.ObjectMeta{Name: "nginx-svc", Namespace: "default"}}
+		l, svcIndexer, newCh, _ := newTrackerTestListener(t, nil, svcOld, slice)
+
+		svcNew := svcOld.DeepCopy()
+		svcNew.Annotations = map[string]string{"prometheus.io/scrape": "true"}
+		require.NoError(t, svcIndexer.Update(svcNew))
+		l.serviceUpdated(svcOld, svcNew)
+
+		require.Len(t, newCh, 2, "endpoint services should be emitted when prometheus annotation is added")
+	})
+
+	t.Run("scrape annotation value changed", func(t *testing.T) {
+		svcOld := &v1.Service{ObjectMeta: metav1.ObjectMeta{Name: "nginx-svc", Namespace: "default", Annotations: map[string]string{"prometheus.io/scrape": "false"}}}
+		l, svcIndexer, newCh, _ := newTrackerTestListener(t, nil, svcOld, slice)
+
+		svcNew := svcOld.DeepCopy()
+		svcNew.Annotations["prometheus.io/scrape"] = "true"
+		require.NoError(t, svcIndexer.Update(svcNew))
+		l.serviceUpdated(svcOld, svcNew)
+
+		require.Len(t, newCh, 2, "endpoint services should be emitted when scrape annotation value changes")
+	})
+}

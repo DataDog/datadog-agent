@@ -277,6 +277,14 @@ properties:
           - apps/deployments
           - /nodes
           - nodes
+  kueue:
+    node_type: section
+    type: object
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
   kubernetes_resources_collection:
     node_type: section
     type: object
