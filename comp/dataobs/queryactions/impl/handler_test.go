@@ -49,6 +49,15 @@ func newTestComponentWithAC(t *testing.T, configs []integration.Config) *compone
 	}
 }
 
+func TestIsSupportedIntegration(t *testing.T) {
+	assert.True(t, isSupportedIntegration("postgres"))
+	assert.True(t, isSupportedIntegration("sap_hana"))
+	assert.True(t, isSupportedIntegration("sqlserver"))
+	assert.False(t, isSupportedIntegration("mysql"))
+	assert.False(t, isSupportedIntegration("redis"))
+	assert.False(t, isSupportedIntegration(""))
+}
+
 func TestInstanceHasDOEnabled(t *testing.T) {
 	assert.False(t, instanceHasDOEnabled(map[string]any{}))
 	assert.False(t, instanceHasDOEnabled(map[string]any{"data_observability": "not-a-map"}))
@@ -752,9 +761,9 @@ func TestBuildCheckConfig_PerQueryDBName(t *testing.T) {
 	assert.Equal(t, 200, q2["monitor_id"])
 }
 
-// TestOnRCUpdate_MalformedPostgresYAML_SurfacesParseError verifies that when a postgres
-// instance's YAML is malformed, the error message from findPostgresConfig mentions the
-// parse failure, not just "identifier not found".
+// TestOnRCUpdate_MalformedPostgresYAML_SurfacesParseError verifies that when an integration
+// instance's YAML is malformed, the error message from findSupportedIntegrationConfig mentions
+// the parse failure, not just "identifier not found".
 func TestOnRCUpdate_MalformedPostgresYAML_SurfacesParseError(t *testing.T) {
 	postgresCfg := integration.Config{
 		Name:      "postgres",
@@ -917,10 +926,10 @@ func TestValidateQuerySpec_NeitherSetRejected(t *testing.T) {
 }
 
 // TestValidateQuerySpec_InvalidCronRejected verifies that a query with an invalid cron
-// expression is rejected with ApplyStateError before any postgres config lookup occurs.
+// expression is rejected with ApplyStateError before any integration config lookup occurs.
 func TestValidateQuerySpec_InvalidCronRejected(t *testing.T) {
-	// No postgres configs at all — if validation fires before findPostgresConfig, this test
-	// will still report ApplyStateError (not "no matching postgres config").
+	// No integration configs at all — if validation fires before findSupportedIntegrationConfig,
+	// this test will still report ApplyStateError (not "no matching integration config").
 	c := newTestComponentWithAC(t, []integration.Config{})
 
 	payload := DOQueryPayload{
@@ -998,4 +1007,163 @@ func TestValidateQuerySpec_ValidIntervalOnly(t *testing.T) {
 	assert.Equal(t, 60, q["interval_seconds"], "interval_seconds should be present")
 	_, hasSchedule := q["schedule"]
 	assert.False(t, hasSchedule, "schedule field must be absent when not set on the query")
+}
+
+// --- SQL Server tests ---
+
+// TestOnRCUpdate_SQLServer_SchedulesCheck verifies that a sqlserver integration config
+// is matched and scheduled using the correct integration name (not "postgres").
+func TestOnRCUpdate_SQLServer_SchedulesCheck(t *testing.T) {
+	sqlserverCfg := integration.Config{
+		Name:     "sqlserver",
+		Provider: "file",
+		NodeName: "node1",
+		Instances: []integration.Data{
+			integration.Data("host: sqlserver.example.com\nport: 1433\nusername: datadog\ndata_observability:\n  enabled: true\n"),
+		},
+	}
+	c := newTestComponentWithAC(t, []integration.Config{sqlserverCfg})
+
+	payload := DOQueryPayload{
+		ConfigID:     "cfg-sqlserver",
+		DBIdentifier: DBIdentifier{Type: "self-hosted", Host: "sqlserver.example.com"},
+		Queries: []QuerySpec{
+			{
+				MonitorID:       10,
+				Type:            "run_query",
+				Query:           "SELECT count(*) FROM sys.tables",
+				IntervalSeconds: 60,
+				TimeoutSeconds:  10,
+				Entity:          EntityMetadata{Platform: "sqlserver", Database: "master", Table: "sys.tables"},
+			},
+		},
+	}
+	payloadJSON, err := json.Marshal(payload)
+	require.NoError(t, err)
+
+	statuses, changes := collectStatuses(c, map[string]state.RawConfig{
+		"path/cfg-sqlserver": {Config: payloadJSON, Metadata: state.Metadata{ID: "rc-sqlserver"}},
+	})
+
+	require.Equal(t, state.ApplyStateAcknowledged, statuses["path/cfg-sqlserver"].State)
+	require.Len(t, changes.Schedule, 1)
+	assert.Equal(t, "sqlserver", changes.Schedule[0].Name, "scheduled check must use sqlserver integration name")
+	assert.Equal(t, "file", changes.Schedule[0].Provider)
+	assert.Equal(t, "node1", changes.Schedule[0].NodeName)
+	require.Contains(t, c.activeConfigs, "cfg-sqlserver")
+}
+
+// TestMatchesIdentifier_SQLServer_HostOnly verifies that a self-hosted or Azure VM SQL Server
+// instance matches by host only (no Azure SQL DB deployment_type present).
+func TestMatchesIdentifier_SQLServer_HostOnly(t *testing.T) {
+	instance := map[string]any{
+		"host": "sqlserver.internal",
+		"port": 1433,
+	}
+
+	t.Run("matching host", func(t *testing.T) {
+		dbID := &DBIdentifier{Type: "self-hosted", Host: "sqlserver.internal"}
+		assert.True(t, matchesIdentifier(instance, dbID))
+	})
+
+	t.Run("mismatching host", func(t *testing.T) {
+		dbID := &DBIdentifier{Type: "self-hosted", Host: "other.internal"}
+		assert.False(t, matchesIdentifier(instance, dbID))
+	})
+}
+
+// TestMatchesIdentifier_AzureSQLDB_HostAndDatabase verifies that Azure SQL Database
+// instances require both host and database equality.
+func TestMatchesIdentifier_AzureSQLDB_HostAndDatabase(t *testing.T) {
+	instance := map[string]any{
+		"host": "myserver.database.windows.net",
+		"azure": map[string]any{
+			"deployment_type": "sql_database",
+			"database":        "app_db_1",
+		},
+	}
+
+	t.Run("host and database match", func(t *testing.T) {
+		dbID := &DBIdentifier{Type: "azure", Host: "myserver.database.windows.net", Database: "app_db_1"}
+		assert.True(t, matchesIdentifier(instance, dbID))
+	})
+
+	t.Run("host matches but database does not", func(t *testing.T) {
+		dbID := &DBIdentifier{Type: "azure", Host: "myserver.database.windows.net", Database: "app_db_2"}
+		assert.False(t, matchesIdentifier(instance, dbID), "payload for app_db_2 must not match app_db_1 instance")
+	})
+
+	t.Run("host does not match", func(t *testing.T) {
+		dbID := &DBIdentifier{Type: "azure", Host: "otherserver.database.windows.net", Database: "app_db_1"}
+		assert.False(t, matchesIdentifier(instance, dbID))
+	})
+}
+
+// TestOnRCUpdate_AzureSQLDB_RejectsCrossDBPayload verifies that an RC payload targeting
+// app_db_2 cannot be injected into an app_db_1 instance sharing the same Azure SQL Server host.
+func TestOnRCUpdate_AzureSQLDB_RejectsCrossDBPayload(t *testing.T) {
+	// Instance configured for app_db_1
+	sqlserverCfg := integration.Config{
+		Name:     "sqlserver",
+		Provider: "file",
+		Instances: []integration.Data{
+			integration.Data("host: myserver.database.windows.net\nazure:\n  deployment_type: sql_database\n  database: app_db_1\ndata_observability:\n  enabled: true\n"),
+		},
+	}
+	c := newTestComponentWithAC(t, []integration.Config{sqlserverCfg})
+
+	// Payload targets app_db_2 on the same host — must be rejected
+	payload := DOQueryPayload{
+		ConfigID:     "cfg-wrongdb",
+		DBIdentifier: DBIdentifier{Type: "azure", Host: "myserver.database.windows.net", Database: "app_db_2"},
+		Queries:      []QuerySpec{{Type: "run_query", Query: "SELECT 1", IntervalSeconds: 60, TimeoutSeconds: 10}},
+	}
+	payloadJSON, err := json.Marshal(payload)
+	require.NoError(t, err)
+
+	statuses, changes := collectStatuses(c, map[string]state.RawConfig{
+		"path/cfg-wrongdb": {Config: payloadJSON},
+	})
+
+	assert.Equal(t, state.ApplyStateError, statuses["path/cfg-wrongdb"].State,
+		"payload for app_db_2 must not match app_db_1 instance")
+	assert.Empty(t, changes.Schedule)
+	assert.Empty(t, c.activeConfigs)
+}
+
+// TestOnRCUpdate_SQLServer_DisableRestoresOriginalConfig verifies that sending an empty
+// queries list for a previously active SQL Server config re-schedules the original config.
+func TestOnRCUpdate_SQLServer_DisableRestoresOriginalConfig(t *testing.T) {
+	sqlserverCfg := integration.Config{
+		Name:     "sqlserver",
+		Provider: "file",
+		NodeName: "node1",
+		Instances: []integration.Data{
+			integration.Data("host: sqlserver.example.com\nport: 1433\ndata_observability:\n  enabled: true\n"),
+		},
+	}
+	c := newTestComponentWithAC(t, []integration.Config{sqlserverCfg})
+
+	// First: schedule a DO config so the base config becomes managed.
+	enable := DOQueryPayload{
+		ConfigID:     "cfg-sqlserver-disable",
+		DBIdentifier: DBIdentifier{Type: "self-hosted", Host: "sqlserver.example.com"},
+		Queries:      []QuerySpec{{Type: "run_query", Query: "SELECT 1", IntervalSeconds: 60, TimeoutSeconds: 10}},
+	}
+	enableJSON, err := json.Marshal(enable)
+	require.NoError(t, err)
+	collectStatuses(c, map[string]state.RawConfig{"path/config": {Config: enableJSON}})
+	require.Contains(t, c.activeConfigs, "cfg-sqlserver-disable")
+
+	// Now: empty queries disables the DO config and restores the original sqlserver config.
+	statuses, changes := collectStatuses(c, map[string]state.RawConfig{
+		"path/config": {Config: []byte(`{"config_id": "cfg-sqlserver-disable", "queries": []}`)},
+	})
+
+	assert.Equal(t, state.ApplyStateAcknowledged, statuses["path/config"].State)
+	assert.Empty(t, c.activeConfigs)
+	require.Len(t, changes.Unschedule, 1, "should unschedule the DO sqlserver check")
+	require.Len(t, changes.Schedule, 1, "should re-schedule the original base sqlserver config")
+	assert.Equal(t, sqlserverCfg, changes.Schedule[0])
+	assert.Equal(t, "sqlserver", changes.Schedule[0].Name)
 }
