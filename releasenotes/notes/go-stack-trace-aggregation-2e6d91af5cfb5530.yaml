@@ -1,0 +1,9 @@
+---
+features:
+  - |
+    Add Go stack trace aggregation to the auto multi-line log pipeline. When
+    auto multi-line aggregation is enabled (``logs_config.auto_multi_line_detection``),
+    multi-line Go crash dumps (``panic:``, ``fatal error:``, ``runtime:``
+    errors, signal crashes, and unexpected faults) are automatically detected
+    and combined into a single log entry using a streaming state-machine
+    parser.

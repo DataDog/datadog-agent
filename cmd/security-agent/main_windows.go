@@ -49,8 +49,6 @@ import (
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
-	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
-	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/security/agent"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
@@ -65,10 +63,10 @@ type service struct {
 
 var (
 	defaultSecurityAgentConfigFilePaths = []string{
-		path.Join(defaultpaths.ConfPath, "datadog.yaml"),
-		path.Join(defaultpaths.ConfPath, "security-agent.yaml"),
+		path.Join(defaultpaths.GetDefaultConfPath(), "datadog.yaml"),
+		path.Join(defaultpaths.GetDefaultConfPath(), "security-agent.yaml"),
 	}
-	defaultSysProbeConfPath = path.Join(defaultpaths.ConfPath, "system-probe.yaml")
+	defaultSysProbeConfPath = path.Join(defaultpaths.GetDefaultConfPath(), "system-probe.yaml")
 )
 
 // Name returns the service name
@@ -114,7 +112,7 @@ func (s *service) Run(svcctx context.Context) error {
 		fx.Supply(core.BundleParams{
 			ConfigParams:         config.NewSecurityAgentParams(defaultSecurityAgentConfigFilePaths),
 			SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(defaultSysProbeConfPath)),
-			LogParams:            log.ForDaemon(command.LoggerName, "security_agent.log_file", setup.DefaultSecurityAgentLogFile),
+			LogParams:            log.ForDaemon(command.LoggerName, "security_agent.log_file", defaultpaths.GetDefaultSecurityAgentLogFile()),
 		}),
 		core.Bundle(core.WithSecrets()),
 		remotehostnameimpl.Module(),
@@ -163,10 +161,8 @@ func (s *service) Run(svcctx context.Context) error {
 		autoexitfx.Module(),
 		fx.Provide(func(c config.Component) settings.Params {
 			return settings.Params{
-				Settings: map[string]settings.RuntimeSetting{
-					"log_level": commonsettings.NewLogLevelRuntimeSetting(),
-				},
-				Config: c,
+				Settings: start.RuntimeSettings(),
+				Config:   c,
 			}
 		}),
 		settingsfx.Module(),

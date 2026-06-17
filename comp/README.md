@@ -116,6 +116,12 @@ Package autodiscovery provides the autodiscovery component for the Datadog Agent
 Package config implements a component to handle agent configuration.  This
 component temporarily wraps pkg/config.
 
+### [comp/core/configfilesdiscovery](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/configfilesdiscovery)
+
+*Datadog Team*: agent-discovery
+
+Package configfilesdiscovery defines the config files discovery component.
+
 ### [comp/core/configstream](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/configstream)
 
 *Datadog Team*: agent-configuration
@@ -806,8 +812,8 @@ Package updater is the updater component.
 
 *Datadog Team*: q-branch
 
-Package logssource provides a component that feeds container logs into the
-observer without requiring the logs agent to be enabled.
+Package logssource provides a component that feeds container and kubelet
+journald logs into the observer without requiring the logs agent to be enabled.
 
 ### [comp/anomalydetection/observer](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/anomalydetection/observer)
 

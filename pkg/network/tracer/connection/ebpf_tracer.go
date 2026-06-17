@@ -231,7 +231,9 @@ func newEbpfTracer(config *config.Config, _ telemetryComponent.Component) (Trace
 	mgrOptions.MapSpecEditors[probes.UDPPortBindingsMap] = manager.MapSpecEditor{MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries}
 
 	m, closeTracerFn, err = sk.LoadTracer(config, mgrOptions, connCloseEventHandler)
-	if err != nil && !errors.Is(err, sk.ErrorDisabled) {
+	if err == nil {
+		log.Info("sk tracer loaded successfully")
+	} else if !errors.Is(err, sk.ErrorDisabled) {
 		// failed to load sk tracer
 		return nil, err
 	}
@@ -249,20 +251,23 @@ func newEbpfTracer(config *config.Config, _ telemetryComponent.Component) (Trace
 
 		tracerType = TracerTypeFentry
 		m, closeTracerFn, err = fentry.LoadTracer(config, mgrOptions, connCloseEventHandler)
-		if err != nil && !errors.Is(err, fentry.ErrorDisabled) {
-			// failed to load fentry tracer
-			return nil, err
+		switch {
+		case err == nil:
+			log.Info("fentry tracer loaded successfully")
+		case errors.Is(err, fentry.ErrorDisabled):
+			// fentry not enabled — fall through to kprobe
+		default:
+			return nil, fmt.Errorf("fentry tracer failed to load: %w", err)
 		}
 
 		if err != nil {
-			// load the kprobe tracer
-			log.Info("loading kprobe-based tracer")
 			var kprobeTracerType kprobe.TracerType
 			m, closeTracerFn, kprobeTracerType, err = kprobe.LoadTracer(config, mgrOptions, connCloseEventHandler)
 			if err != nil {
 				return nil, err
 			}
 			tracerType = TracerType(kprobeTracerType)
+			log.Info("kprobe tracer loaded successfully")
 		}
 	}
 	m.DumpHandler = dumpMapsHandler
