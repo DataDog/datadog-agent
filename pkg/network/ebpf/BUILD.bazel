@@ -73,5 +73,13 @@ go_test(
         "tuple_types_linux_test.go",
     ],
     embed = [":ebpf"],
-    gotags = ["test"],
+    gotags = [
+        "test",
+        "linux_bpf",
+    ],
+    # keep: alignment tests require cgo_align, which can not be part
+    # of the canonical ebpftest library.
+    deps = [
+        "//pkg/ebpf/ebpftest:cgo_align",
+    ],
 )
