@@ -330,8 +330,8 @@ func (h *healthPlatformImpl) stop(_ context.Context) error {
 // OnStart will miss events that occurred before registration.
 func (h *healthPlatformImpl) RegisterIssuesObserver(obs healthplatformdef.IssuesObserver) {
 	h.observersMu.Lock()
-	defer h.observersMu.Unlock()
 	h.observers = append(h.observers, obs)
+	h.observersMu.Unlock()
 }
 
 // notifyResolved writes a resolved tombstone to each observer's ResolvedCh.
