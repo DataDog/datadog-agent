@@ -23,7 +23,7 @@ import (
 )
 
 // InfraModeCloudCostTag is the tag appended to eligible integration metrics in cloud_cost_only mode.
-const InfraModeCloudCostTag = "infrastructure_mode:cloud_cost_only"
+const InfraModeCloudCostTag = "infra_mode:cloud_cost_only"
 
 const jmxDogstatsdCheckNameTagPrefix = "dd.internal.jmx_check_name:"
 
@@ -76,7 +76,7 @@ func appendCCMInfraTags(s infraTagsAppender, cfg pkgconfigmodel.Reader) {
 	}
 }
 
-// ApplySenderTags appends infrastructure_mode:<value> to the check sender's infra tags when the
+// ApplySenderTags appends infra_mode:<value> to the check sender's infra tags when the
 // integration is eligible for CCM mode tagging.
 func ApplySenderTags(senderManager sender.SenderManager, id checkid.ID, integrationName string, cfg pkgconfigmodel.Reader) {
 	if !IsTagged(integrationName, cfg) {

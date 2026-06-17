@@ -25,7 +25,7 @@ import (
 )
 
 const (
-	infrastructureModeTag = "infrastructure_mode:cloud_cost_only"
+	infrastructureModeTag = "infra_mode:cloud_cost_only"
 )
 
 type ccmModeSuiteBase struct {

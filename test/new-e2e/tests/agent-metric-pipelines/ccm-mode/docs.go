@@ -4,6 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 // Package ccmmode contains e2e tests for cloud_cost_only infrastructure mode tagging.
-// Tests verify that the infrastructure_mode:cloud_cost_only tag is applied to integration
+// Tests verify that the infra_mode:cloud_cost_only tag is applied to integration
 // metrics from all checks (default) or from a selective list (configured tagged: [...]).
 package ccmmode
