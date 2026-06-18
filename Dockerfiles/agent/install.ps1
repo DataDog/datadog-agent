@@ -22,21 +22,8 @@ function Install-Service {
   }
 }
 
-function Invoke-WebRequestWithRetry {
-  $MaxAttempts = 5
-  for ($i = 1; $i -le $MaxAttempts; $i++) {
-    try {
-      Invoke-WebRequest @args
-      return
-    } catch {
-      if ($i -ge $MaxAttempts) { throw }
-      Write-Host ("Attempt #{0} failed: {1}" -f $i, $_)
-      Start-Sleep -Seconds ($i * $i)
-    }
-  }
-}
-
 if ("$env:WITH_JMX" -ne "false") {
+    . ./install-utils.ps1
     $JDK_UPSTREAM = "https://github.com/adoptium/temurin11-binaries/releases/download/jdk-11.0.25%2B9"
     $JDK_FILENAME = "OpenJDK11U-jre_x64_windows_hotspot_11.0.25_9.zip"
     $JDK_DIR = "jdk-11.0.25+9-jre"
