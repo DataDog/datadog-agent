@@ -218,7 +218,7 @@ require (
 	github.com/go-jose/go-jose/v4 v4.1.4
 	github.com/go-viper/mapstructure/v2 v2.5.0
 	github.com/google/go-containerregistry v0.21.6
-	github.com/hairyhenderson/go-codeowners v0.7.0
+	github.com/hairyhenderson/go-codeowners v0.7.1
 	github.com/pulumi/pulumi-aws/sdk/v7 v7.23.0
 	github.com/pulumi/pulumi-awsx/sdk/v3 v3.3.1
 	gopkg.in/yaml.v3 v3.0.1
