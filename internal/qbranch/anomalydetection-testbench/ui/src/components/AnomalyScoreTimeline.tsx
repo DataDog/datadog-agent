@@ -396,9 +396,7 @@ export function AnomalyScoreTimeline({
               className="absolute z-20 pointer-events-none bg-slate-900/95 border border-slate-600 rounded-lg p-2 shadow-xl text-xs min-w-[140px]"
               style={{
                 top: 4,
-                ...(hoverX > chartW / 2
-                  ? { right: chartW - hoverX + 10 }
-                  : { left: hoverX + 10 }),
+                left: hoverX + 10,
               }}
             >
               <div className="font-mono text-white font-medium mb-1">{formatTs(hoverBucket.startSec)}</div>
