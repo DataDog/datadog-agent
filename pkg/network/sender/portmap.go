@@ -41,10 +41,10 @@ func getListeningPortToPIDMap() map[remoteservice.ListenKey]int32 {
 	ports, changed, err := portPoller.Poll()
 	if err != nil {
 		log.Debugf("failed to poll listening ports: %v", err)
-		return cachedPortMap // return stale data if available
+		return maps.Clone(cachedPortMap) // return stale data if available
 	}
 	if !changed && cachedPortMap != nil {
-		return cachedPortMap
+		return maps.Clone(cachedPortMap)
 	}
 
 	result := make(map[remoteservice.ListenKey]int32, len(ports))
