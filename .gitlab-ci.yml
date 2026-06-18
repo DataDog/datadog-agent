@@ -18,6 +18,9 @@
 .if_mergequeue: &if_mergequeue
   if: $CI_COMMIT_BRANCH =~ /^mq-working-branch-/
 
+.if_mergequeue_targeting_release_branch: &if_mergequeue_targeting_release_branch
+  if: $CI_COMMIT_BRANCH =~ /^mq-working-branch-[0-9]+\.[0-9]+\.x-/
+
 .if_deploy: &if_deploy
   if: $DEPLOY_AGENT == "true" || $DDR_WORKFLOW_ID != null
 
@@ -548,6 +551,10 @@ workflow:
 
 .except_mergequeue:
   - <<: *if_mergequeue
+    when: never
+
+.except_mergequeue_targeting_release_branch:
+  - <<: *if_mergequeue_targeting_release_branch
     when: never
 
 .on_mergequeue:
