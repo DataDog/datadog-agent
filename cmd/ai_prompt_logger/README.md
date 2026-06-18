@@ -64,10 +64,10 @@ Relevant config keys under `desktop_monitoring`:
 
 - `enabled`: disables standalone monitoring when set to `false`.
 - `poll_interval_seconds`: poll interval, default `60`.
-- `ai_process_names`: direct AI app/CLI lookup table. Defaults are loaded from `ai_usage_native_host.yaml.example` and include Cursor, Claude/Claude Code, Claude Cowork service, Codex, OpenClaw, Hermes Agent, and additional Agent Skills client candidates.
+- `ai_process_names`: custom AI app/CLI lookup entries. Built-in defaults are compiled into the monitor and include Cursor, Claude/Claude Code, Claude Cowork service, Codex, OpenClaw, Hermes Agent, and additional Agent Skills client candidates. YAML entries are unioned with built-ins; a YAML entry with the same `tool` value replaces the built-in record.
 - `ai_process_names[].match_scope`: controls whether an entry applies to direct foreground processes (`direct`), hosted child processes (`hosted_child`), or both (`both`). Matching is case-insensitive, so duplicate process names that only differ by case are unnecessary.
 - `process_activity_window_seconds`: read/write activity observation window, default `600`.
-- `host_process_names`: foreground host lookup table for terminals and IDEs that may contain AI CLI children.
+- `host_process_names`: custom foreground host lookup entries for terminals and IDEs that may contain AI CLI children. YAML entries are merged with the built-in host list.
 
 Broad runtime names such as `node.exe`/`node`, `python.exe`/`python`, and `conhost.exe` are not direct AI-tool matches by default because they need command-line or path inspection to avoid false positives.
 

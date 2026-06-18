@@ -1,3 +1,4 @@
+pub(crate) mod config;
 mod logger;
 pub mod matcher;
 

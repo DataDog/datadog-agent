@@ -8,11 +8,14 @@ use serde::Serialize;
 use serde_json::Value;
 
 use crate::desktop;
+use crate::desktop::config::{
+    builtin_ai_process_names, builtin_host_process_names, merge_ai_process_names,
+    merge_host_process_names,
+};
 
 const CONFIG_BASENAME: &str = "ai_usage_native_host.yaml";
 const AI_USAGE_EVP_SUBDOMAIN: &str = "softinv-intake";
 const AI_USAGE_EVP_PATH: &str = "/api/v2/aiusage";
-const DEFAULT_CONFIG_YAML: &str = include_str!("../ai_usage_native_host.yaml.example");
 
 /// Cap for connect + full request so the native host thread cannot block indefinitely
 /// on a stalled trace Agent / network path.
@@ -35,7 +38,7 @@ struct AiUsageNativeHostFile {
     #[serde(default)]
     ai_usage_evp_subdomain: Option<String>,
     #[serde(default)]
-    desktop_monitoring: Option<DesktopMonitoringConfig>,
+    desktop_monitoring: Option<DesktopMonitoringConfigFile>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -60,29 +63,37 @@ pub enum AiProcessMatchScope {
     Both,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct DesktopMonitoringConfig {
-    #[serde(default = "default_desktop_monitoring_enabled")]
     pub enabled: bool,
-    #[serde(default)]
     pub debug: u8,
-    #[serde(default = "default_desktop_monitoring_poll_interval_seconds")]
     pub poll_interval_seconds: u64,
-    #[serde(
-        default = "default_process_activity_window_seconds",
-        alias = "terminal_activity_window_seconds"
-    )]
     pub process_activity_window_seconds: u64,
-    #[serde(default = "default_ai_process_names")]
     pub ai_process_names: Vec<AiProcessConfig>,
-    #[serde(default = "default_host_process_names")]
     pub host_process_names: Vec<String>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+struct DesktopMonitoringConfigFile {
+    enabled: Option<bool>,
+    debug: Option<u8>,
+    poll_interval_seconds: Option<u64>,
+    #[serde(alias = "terminal_activity_window_seconds")]
+    process_activity_window_seconds: Option<u64>,
+    ai_process_names: Option<Vec<AiProcessConfig>>,
+    host_process_names: Option<Vec<String>>,
 }
 
 impl Default for DesktopMonitoringConfig {
     fn default() -> Self {
-        default_desktop_monitoring_from_embedded_yaml()
-            .unwrap_or_else(disabled_desktop_monitoring_config)
+        Self {
+            enabled: default_desktop_monitoring_enabled(),
+            debug: 0,
+            poll_interval_seconds: default_desktop_monitoring_poll_interval_seconds(),
+            process_activity_window_seconds: default_process_activity_window_seconds(),
+            ai_process_names: builtin_ai_process_names(),
+            host_process_names: builtin_host_process_names(),
+        }
     }
 }
 
@@ -98,30 +109,6 @@ fn default_process_activity_window_seconds() -> u64 {
     600
 }
 
-fn default_ai_process_names() -> Vec<AiProcessConfig> {
-    default_desktop_monitoring_from_embedded_yaml()
-        .map(|config| config.ai_process_names)
-        .unwrap_or_default()
-}
-
-fn default_host_process_names() -> Vec<String> {
-    default_desktop_monitoring_from_embedded_yaml()
-        .map(|config| config.host_process_names)
-        .unwrap_or_default()
-}
-
-fn default_desktop_monitoring_from_embedded_yaml() -> Option<DesktopMonitoringConfig> {
-    match serde_yaml::from_str::<AiUsageNativeHostFile>(DEFAULT_CONFIG_YAML) {
-        Ok(file) => file.desktop_monitoring,
-        Err(err) => {
-            desktop::log_startup_warning(format!(
-                "embedded AI usage config YAML is invalid: {err}"
-            ));
-            None
-        }
-    }
-}
-
 fn disabled_desktop_monitoring_config() -> DesktopMonitoringConfig {
     DesktopMonitoringConfig {
         enabled: false,
@@ -130,6 +117,33 @@ fn disabled_desktop_monitoring_config() -> DesktopMonitoringConfig {
         process_activity_window_seconds: default_process_activity_window_seconds(),
         ai_process_names: Vec::new(),
         host_process_names: Vec::new(),
+    }
+}
+
+impl DesktopMonitoringConfigFile {
+    fn merge_with_defaults(self) -> DesktopMonitoringConfig {
+        let mut config = DesktopMonitoringConfig::default();
+        if let Some(enabled) = self.enabled {
+            config.enabled = enabled;
+        }
+        if let Some(debug) = self.debug {
+            config.debug = debug;
+        }
+        if let Some(poll_interval_seconds) = self.poll_interval_seconds {
+            config.poll_interval_seconds = poll_interval_seconds;
+        }
+        if let Some(process_activity_window_seconds) = self.process_activity_window_seconds {
+            config.process_activity_window_seconds = process_activity_window_seconds;
+        }
+        if let Some(ai_process_names) = self.ai_process_names {
+            config.ai_process_names =
+                merge_ai_process_names(config.ai_process_names, ai_process_names);
+        }
+        if let Some(host_process_names) = self.host_process_names {
+            config.host_process_names =
+                merge_host_process_names(config.host_process_names, host_process_names);
+        }
+        config
     }
 }
 
@@ -209,6 +223,7 @@ impl DatadogClient {
                     if let Ok(cfg) = serde_yaml::from_str::<AiUsageNativeHostFile>(&contents) {
                         return cfg
                             .desktop_monitoring
+                            .map(DesktopMonitoringConfigFile::merge_with_defaults)
                             .unwrap_or_else(disabled_desktop_monitoring_config);
                     }
                     log_desktop_monitoring_config_error(format!(
@@ -467,7 +482,7 @@ mod tests {
     }
 
     #[test]
-    fn desktop_monitoring_defaults_are_loaded_from_embedded_yaml() {
+    fn desktop_monitoring_defaults_are_loaded_from_builtins() {
         let cfg = DesktopMonitoringConfig::default();
 
         assert!(
@@ -481,6 +496,126 @@ mod tests {
                 .any(|process| process == "Code")
         );
         assert_eq!(cfg.process_activity_window_seconds, 600);
+    }
+
+    #[test]
+    fn desktop_monitoring_partial_yaml_preserves_builtin_process_lists() {
+        let cfg: AiUsageNativeHostFile = serde_yaml::from_str(
+            r#"
+desktop_monitoring:
+  debug: 2
+  process_activity_window_seconds: 300
+"#,
+        )
+        .expect("desktop monitoring config should parse");
+        let cfg = cfg
+            .desktop_monitoring
+            .expect("desktop monitoring should be present")
+            .merge_with_defaults();
+
+        assert_eq!(cfg.debug, 2);
+        assert_eq!(cfg.process_activity_window_seconds, 300);
+        assert!(
+            cfg.ai_process_names
+                .iter()
+                .any(|process| process.tool == "Cursor")
+        );
+        assert!(
+            cfg.host_process_names
+                .iter()
+                .any(|process| process == "Terminal")
+        );
+    }
+
+    #[test]
+    fn desktop_monitoring_yaml_ai_tools_override_builtin_tools_by_tool_name() {
+        let cfg: AiUsageNativeHostFile = serde_yaml::from_str(
+            r#"
+desktop_monitoring:
+  ai_process_names:
+    - process_names: ["claude-beta"]
+      tool: "Claude Code"
+      provider: "Anthropic Labs"
+      match_scope: "direct"
+      approved: true
+"#,
+        )
+        .expect("desktop monitoring config should parse");
+        let cfg = cfg
+            .desktop_monitoring
+            .expect("desktop monitoring should be present")
+            .merge_with_defaults();
+        let claude_code: Vec<_> = cfg
+            .ai_process_names
+            .iter()
+            .filter(|process| process.tool == "Claude Code")
+            .collect();
+
+        assert_eq!(claude_code.len(), 1);
+        assert_eq!(claude_code[0].process_names, vec!["claude-beta"]);
+        assert_eq!(claude_code[0].provider, "Anthropic Labs");
+        assert_eq!(claude_code[0].match_scope, AiProcessMatchScope::Direct);
+        assert!(claude_code[0].approved);
+    }
+
+    #[test]
+    fn desktop_monitoring_yaml_ai_tools_add_new_tools() {
+        let cfg: AiUsageNativeHostFile = serde_yaml::from_str(
+            r#"
+desktop_monitoring:
+  ai_process_names:
+    - process_names: ["new-tool"]
+      tool: "New Tool"
+      provider: "Example"
+      match_scope: "hosted_child"
+"#,
+        )
+        .expect("desktop monitoring config should parse");
+        let cfg = cfg
+            .desktop_monitoring
+            .expect("desktop monitoring should be present")
+            .merge_with_defaults();
+
+        assert!(
+            cfg.ai_process_names
+                .iter()
+                .any(|process| process.tool == "Cursor")
+        );
+        assert!(
+            cfg.ai_process_names
+                .iter()
+                .any(|process| process.tool == "New Tool")
+        );
+    }
+
+    #[test]
+    fn desktop_monitoring_yaml_host_names_are_merged_and_deduplicated() {
+        let cfg: AiUsageNativeHostFile = serde_yaml::from_str(
+            r#"
+desktop_monitoring:
+  host_process_names:
+    - "Code.exe"
+    - "CustomTerminal"
+"#,
+        )
+        .expect("desktop monitoring config should parse");
+        let cfg = cfg
+            .desktop_monitoring
+            .expect("desktop monitoring should be present")
+            .merge_with_defaults();
+
+        assert_eq!(
+            cfg.host_process_names
+                .iter()
+                .filter(|process| process.as_str() == "Code.exe")
+                .count(),
+            1
+        );
+        assert!(
+            cfg.host_process_names
+                .iter()
+                .any(|process| process == "CustomTerminal")
+        );
     }
 
     #[test]
@@ -509,12 +644,12 @@ desktop_monitoring:
         )
         .expect("desktop monitoring config should parse");
 
-        assert_eq!(
-            cfg.desktop_monitoring
-                .expect("desktop monitoring should be present")
-                .debug,
-            2
-        );
+        let cfg = cfg
+            .desktop_monitoring
+            .expect("desktop monitoring should be present")
+            .merge_with_defaults();
+
+        assert_eq!(cfg.debug, 2);
     }
 
     #[test]
@@ -527,12 +662,12 @@ desktop_monitoring:
         )
         .expect("desktop monitoring config should parse");
 
-        assert_eq!(
-            cfg.desktop_monitoring
-                .expect("desktop monitoring should be present")
-                .process_activity_window_seconds,
-            300
-        );
+        let cfg = cfg
+            .desktop_monitoring
+            .expect("desktop monitoring should be present")
+            .merge_with_defaults();
+
+        assert_eq!(cfg.process_activity_window_seconds, 300);
     }
 
     #[test]
@@ -545,11 +680,11 @@ desktop_monitoring:
         )
         .expect("desktop monitoring config should parse");
 
-        assert_eq!(
-            cfg.desktop_monitoring
-                .expect("desktop monitoring should be present")
-                .process_activity_window_seconds,
-            300
-        );
+        let cfg = cfg
+            .desktop_monitoring
+            .expect("desktop monitoring should be present")
+            .merge_with_defaults();
+
+        assert_eq!(cfg.process_activity_window_seconds, 300);
     }
 }
