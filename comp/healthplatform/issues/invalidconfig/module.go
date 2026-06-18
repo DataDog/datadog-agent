@@ -14,8 +14,8 @@ import (
 )
 
 const (
-	// IssueName is the proto IssueName field value for configuration-schema violations (snake_case).
-	IssueName = "invalid_config"
+	// IssueName is the human-readable issue name for configuration-schema violations.
+	IssueName = "Invalid Config"
 	// IssueID is the stable instance identifier / registry key (kebab-case).
 	IssueID = "invalid-config"
 )

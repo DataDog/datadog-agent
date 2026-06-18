@@ -20,8 +20,8 @@ func init() {
 }
 
 const (
-	// IssueName is the proto IssueName field value for check execution failures (snake_case).
-	IssueName = "check_execution_failure"
+	// IssueName is the human-readable issue name for check execution failures.
+	IssueName = "Check Execution Failure"
 	// IssueID is the unique instance id prefix used when reporting check failures (kebab-case).
 	IssueID = "check-execution-failure"
 )

@@ -220,12 +220,10 @@ func TestRegistryConcurrentAccess(t *testing.T) {
 
 func TestRegisterModuleInvalidIssueName(t *testing.T) {
 	invalid := []string{
-		"kebab-case",
-		"CamelCase",
-		"has space",
-		"UPPER",
-		"mixed-And_stuff",
+		"snake_case",
+		"lower case",
 		"_leading_underscore",
+		"123starts_with_digit",
 	}
 	for _, name := range invalid {
 		t.Run(name, func(t *testing.T) {
@@ -239,12 +237,12 @@ func TestRegisterModuleInvalidIssueName(t *testing.T) {
 
 func TestRegisterModuleValidIssueName(t *testing.T) {
 	valid := []string{
-		"snake_case",
-		"check_execution_failure",
-		"ad_misconfiguration",
-		"simple",
-		"with123numbers",
-		"a",
+		"Check Execution Failure",
+		"Autodiscovery Misconfiguration",
+		"Read-Only Filesystem Error",
+		"Invalid Config",
+		"Simple",
+		"With123Numbers",
 	}
 	for _, name := range valid {
 		t.Run(name, func(t *testing.T) {
