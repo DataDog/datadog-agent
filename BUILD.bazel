@@ -55,7 +55,6 @@ exports_files(["go.mod"])
 # gazelle:exclude cmd/agent/subcommands/dogstatsdreplay
 # gazelle:exclude cmd/agent/subcommands/flare
 # gazelle:exclude cmd/agent/subcommands/import
-# gazelle:exclude cmd/agent/subcommands/integrations
 # gazelle:exclude cmd/agent/subcommands/jmx
 # gazelle:exclude cmd/agent/subcommands/launchgui
 # gazelle:exclude cmd/agent/subcommands/processchecks
