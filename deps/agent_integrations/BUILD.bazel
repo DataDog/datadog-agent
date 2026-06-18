@@ -3,6 +3,7 @@ load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "REMOVE_BASE_DIRECTORY", "pkg_attributes", "pkg_files")
 load("@rules_python//python:py_binary.bzl", "py_binary")
 load("@rules_python//python:py_library.bzl", "py_library")
+load("@rules_python//python:py_test.bzl", "py_test")
 load("//deps/agent_integrations:defs.bzl", "freeze", "install_wheels")
 
 py_library(
@@ -34,6 +35,19 @@ py_binary(
     name = "freeze_tool",
     srcs = ["freeze.py"],
     main = "freeze.py",
+    deps = [
+        ":wheels_lib",
+        requirement("installer"),
+    ],
+)
+
+py_test(
+    name = "freeze_test",
+    size = "small",
+    srcs = [
+        "freeze.py",
+        "freeze_test.py",
+    ],
     deps = [
         ":wheels_lib",
         requirement("installer"),

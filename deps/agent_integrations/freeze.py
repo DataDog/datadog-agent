@@ -31,14 +31,9 @@ def read_name_and_version(wheel: Path) -> tuple[str, str]:
     return name, version
 
 
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--output", required=True, type=Path)
-    parser.add_argument("wheels", nargs="+", type=Path)
-    args = parser.parse_args()
-
+def generate_constraints(wheel_inputs: list[Path]) -> list[str]:
     packages = {}
-    for wheel in expand_wheel_inputs(args.wheels):
+    for wheel in expand_wheel_inputs(wheel_inputs):
         name, version = read_name_and_version(wheel)
         canonical_name = _normalize_name(name)
         existing = packages.get(canonical_name)
@@ -50,11 +45,21 @@ def main():
             continue
         packages[canonical_name] = (name, version)
 
-    args.output.parent.mkdir(parents=True, exist_ok=True)
-    with args.output.open("w", encoding="utf-8") as output:
-        for canonical_name in sorted(packages):
-            name, version = packages[canonical_name]
-            output.write(f"{name}=={version}\n")
+    return [f"{packages[canonical_name][0]}=={packages[canonical_name][1]}" for canonical_name in sorted(packages)]
+
+
+def write_constraints(wheel_inputs: list[Path], output_path: Path):
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text("\n".join(generate_constraints(wheel_inputs)) + "\n", encoding="utf-8")
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--output", required=True, type=Path)
+    parser.add_argument("wheels", nargs="+", type=Path)
+    args = parser.parse_args()
+
+    write_constraints(args.wheels, args.output)
 
 
 if __name__ == "__main__":
