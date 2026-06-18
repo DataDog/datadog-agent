@@ -8,24 +8,34 @@
 --   crossing the aggregator boundary) and the Aggregator contract
 --   (the abstract interface for any line-combining strategy).
 --
---   The aggregator stage consumes labelled log lines and produces
---   completed log messages. Different aggregator implementations
---   combine lines using different strategies — multi-line grouping
---   driven by labelling decisions, regex-pattern grouping, or no
---   grouping at all. This module describes only the abstract
---   contract every aggregator must honour; specific strategies
---   live in their own modules.
+--   The Aggregator stage described here is the post-labelling
+--   line-combining stage. It consumes labelled log lines and
+--   produces completed log messages. Different Aggregator
+--   implementations combine lines using different strategies —
+--   multi-line grouping driven by labelling decisions,
+--   regex-pattern grouping, or no grouping at all. This module
+--   describes only the abstract contract every Aggregator must
+--   honour; specific strategies live in their own modules.
+--
+--   Pre-labelling aggregation stages exist earlier in the
+--   pipeline (the JSONAggregator and StackTraceAggregator stages,
+--   both running before tokenization and labelling) but are
+--   governed by their own contracts and interfaces and do not
+--   fulfil this contract. They operate on raw, pre-tokenized
+--   messages without a label argument. See json_aggregator.allium
+--   for the JSONAggregator contract; the stack-trace aggregator
+--   does not yet have a spec.
 -- Includes: Message value, AggregatedMessageWithTokens value,
 --   Aggregator contract.
 -- Excludes:
---   - Specific aggregator implementations. Each Aggregator-
+--   - Specific Aggregator implementations. Each Aggregator-
 --     fulfilling entity (CombiningAggregator, DetectingAggregator,
---     PassThroughAggregator, RegexAggregator, JSONAggregator) lives
---     in its own spec module and declares fulfils Aggregator
---     against this contract. The pre-existing json_aggregator.allium
---     spec bundles its contract and implementation; it will be
---     split retroactively when the JSONAggregator contract is
---     lifted out into its own module.
+--     PassThroughAggregator, RegexAggregator) lives in its own
+--     spec module and declares fulfils Aggregator against this
+--     contract.
+--   - The pre-labelling JSONAggregator and StackTraceAggregator
+--     stages. Those stages are governed by their own contracts
+--     and do not fulfil Aggregator. See json_aggregator.allium.
 --   - The upstream Labeler stage that produces the Label argument
 --     to Process. The Aggregator contract describes how the
 --     argument is consumed but not how it is computed; the
