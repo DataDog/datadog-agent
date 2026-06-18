@@ -290,7 +290,7 @@ func applyTagFilters(certs []certInfo, f compiledCertFilters) []certInfo {
 		return certs
 	}
 
-	result := certs[:0:0] // reuse backing array; zero length
+	result := certs[:0:0] // cap=0: appends allocate a fresh backing array
 	for _, cert := range certs {
 		if !certMatchesFilters(cert.Tags, f) {
 			continue
