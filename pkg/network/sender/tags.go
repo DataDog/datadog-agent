@@ -20,7 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/encoding/marshal"
 	"github.com/DataDog/datadog-agent/pkg/network/indexedset"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/tls"
-	"github.com/DataDog/datadog-agent/pkg/network/remoteservice"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -75,11 +74,11 @@ func (d *directSender) addContainerTags(builder *model.ConnectionBuilder, source
 	builder.SetLocalContainerTagsIndex(-1)
 }
 
-func (d *directSender) addRemoteServiceTags(builder *model.ConnectionBuilder, nc network.ConnectionStats, resolver *remoteservice.Resolver, tagsEncoder model.TagEncoder) {
+func (d *directSender) addRemoteServiceTags(builder *model.ConnectionBuilder, nc network.ConnectionStats, resolver *serviceResolver, tagsEncoder model.TagEncoder) {
 	srcContainerID := getInternedString(nc.ContainerID.Source)
 	// USM supports TCP only; skip UDP connections.
 	if nc.IntraHost && srcContainerID == "" && nc.Type == network.TCP {
-		if remoteTags := resolver.Resolve(int32(nc.Pid), nc.Dest.String(), int32(nc.DPort), int32(nc.SPort)); len(remoteTags) > 0 {
+		if remoteTags := resolver.Resolve(int32(nc.Pid), nc.Dest.Addr, int32(nc.DPort), int32(nc.SPort)); len(remoteTags) > 0 {
 			builder.SetRemoteServiceTagsIdx(int32(tagsEncoder.Encode(remoteTags)))
 			return
 		}
