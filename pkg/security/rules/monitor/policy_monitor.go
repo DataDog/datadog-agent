@@ -10,6 +10,7 @@ package monitor
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -443,6 +444,12 @@ func NewPoliciesState(rs *rules.RuleSet, filteredRules []*rules.PolicyRule, err 
 	if err != nil && err.Errors != nil {
 		for _, err := range err.Errors {
 			if rerr, ok := err.(*rules.ErrRuleLoad); ok {
+				// Variable conflicts don't prevent the rule from being loaded: the rule is still
+				// reported as loaded by the loop above. Skip them here to avoid reporting the same
+				// rule multiple times (once as loaded and once per conflict) in the same policy state.
+				if errors.Is(rerr, rules.ErrVariableConflict) {
+					continue
+				}
 				for pInfo := range rerr.Rule.Policies(includeInternalPolicies) {
 					policyName := pInfo.Name
 					if policyState, exists = mp[policyName]; !exists {

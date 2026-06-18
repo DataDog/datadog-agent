@@ -46,6 +46,11 @@ var (
 
 	// ErrPolicyIsEmpty is returned when a policy has no rules or macros
 	ErrPolicyIsEmpty = errors.New("the policy is empty")
+
+	// ErrVariableConflict is returned when a rule action defines a variable with options (type or private flag)
+	// that conflict with a previous definition of the same variable. It typically happens when a rule is
+	// overridden by another policy, and does not prevent the rule itself from being loaded.
+	ErrVariableConflict = errors.New("variable conflict")
 )
 
 // ErrNoEventTypeBucket is returned when no bucket could be found for an event type
