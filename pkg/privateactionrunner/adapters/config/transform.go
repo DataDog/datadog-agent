@@ -84,7 +84,7 @@ func FromDDConfig(config config.Component, statsdComp statsdcomp.Component) (*Co
 		HealthCheckEndpoint:       defaultHealthCheckEndpoint,
 		HeartbeatInterval:         heartbeatInterval,
 		Version:                   version.AgentVersion,
-		MetricsClient:             newMetricsClient(statsdComp),
+		MetricsClient:             newMetricsClient(config, statsdComp),
 		ActionsAllowlist:          makeActionsAllowlist(config),
 		Allowlist:                 config.GetStringSlice(setup.PARHttpAllowlist),
 		AllowIMDSEndpoint:         config.GetBool(setup.PARHttpAllowImdsEndpoint),
@@ -233,8 +233,11 @@ func GetBundleInheritedAllowedActions(actionsAllowlist map[string]sets.Set[strin
 	return result
 }
 
-func newMetricsClient(statsdComp statsdcomp.Component) statsd.ClientInterface {
-	client, err := statsdComp.Get()
+func newMetricsClient(config config.Component, statsdComp statsdcomp.Component) statsd.ClientInterface {
+	// Build the client from the Agent's configured DogStatsD host/port (bind_host / dogstatsd_port)
+	// rather than the shared Get() default, which only honors STATSD_URL and otherwise falls back to
+	// the hard-coded 127.0.0.1:8125. CreateForHostPort still lets STATSD_URL win when it is set.
+	client, err := statsdComp.CreateForHostPort(configutils.GetBindHost(config), config.GetInt("dogstatsd_port"))
 	if err != nil {
 		log.Warnf("Failed to get statsd client: %v", err)
 		return &statsd.NoOpClient{}
