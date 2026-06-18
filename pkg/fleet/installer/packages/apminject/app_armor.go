@@ -200,32 +200,50 @@ func reloadAppArmorWithParser(ctx context.Context) error {
 		}
 		return err
 	}
-	profiles, err := appArmorProfiles()
+	enforceProfiles, complainProfiles, err := appArmorProfiles()
 	if err != nil {
 		return err
 	}
-	if len(profiles) == 0 {
-		return nil
+	if len(enforceProfiles) > 0 {
+		if err := telemetry.CommandContext(ctx, "apparmor_parser", append([]string{"-r"}, enforceProfiles...)...).Run(); err != nil {
+			return err
+		}
 	}
-	return telemetry.CommandContext(ctx, "apparmor_parser", append([]string{"-r"}, profiles...)...).Run()
+	if len(complainProfiles) > 0 {
+		return telemetry.CommandContext(ctx, "apparmor_parser", append([]string{"-r", "-C"}, complainProfiles...)...).Run()
+	}
+	return nil
 }
 
-func appArmorProfiles() ([]string, error) {
+func appArmorProfiles() (enforceProfiles []string, complainProfiles []string, err error) {
 	paths, err := filepath.Glob(filepath.Join(appArmorProfileDir, "*"))
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	var profiles []string
 	for _, path := range paths {
 		info, err := os.Stat(path)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
-		if info.Mode().IsRegular() {
-			profiles = append(profiles, path)
+		if !info.Mode().IsRegular() {
+			continue
 		}
+		name := filepath.Base(path)
+		if pathExists(filepath.Join(appArmorProfileDir, "disable", name)) {
+			continue
+		}
+		if pathExists(filepath.Join(appArmorProfileDir, "force-complain", name)) {
+			complainProfiles = append(complainProfiles, path)
+			continue
+		}
+		enforceProfiles = append(enforceProfiles, path)
 	}
-	return profiles, nil
+	return enforceProfiles, complainProfiles, nil
+}
+
+func pathExists(path string) bool {
+	_, err := os.Lstat(path)
+	return err == nil
 }
 
 func isSystemdUnitMasked(ctx context.Context, unit string) (bool, error) {

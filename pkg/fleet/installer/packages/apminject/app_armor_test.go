@@ -220,6 +220,9 @@ fi
 	assert.NotContains(t, string(calls), "systemctl reload apparmor")
 	assert.Contains(t, string(calls), "apparmor_parser -r ")
 	assert.Contains(t, string(calls), "usr.bin.foo")
+	assert.Contains(t, string(calls), "apparmor_parser -r -C ")
+	assert.Contains(t, string(calls), "usr.bin.complain")
+	assert.NotContains(t, string(calls), "usr.bin.disabled")
 }
 
 func TestReloadAppArmorReloadsWhenSystemdUnitIsNotMasked(t *testing.T) {
@@ -260,7 +263,13 @@ func setupAppArmorReloadTest(t *testing.T, systemctlScript string) string {
 	profilesDir := filepath.Join(dir, "apparmor.d")
 	require.NoError(t, os.Mkdir(profilesDir, 0755))
 	require.NoError(t, os.WriteFile(filepath.Join(profilesDir, "usr.bin.foo"), []byte("profile usr.bin.foo {}\n"), 0640))
+	require.NoError(t, os.WriteFile(filepath.Join(profilesDir, "usr.bin.disabled"), []byte("profile usr.bin.disabled {}\n"), 0640))
+	require.NoError(t, os.WriteFile(filepath.Join(profilesDir, "usr.bin.complain"), []byte("profile usr.bin.complain {}\n"), 0640))
 	require.NoError(t, os.Mkdir(filepath.Join(profilesDir, "abstractions"), 0755))
+	require.NoError(t, os.Mkdir(filepath.Join(profilesDir, "disable"), 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(profilesDir, "disable", "usr.bin.disabled"), nil, 0640))
+	require.NoError(t, os.Mkdir(filepath.Join(profilesDir, "force-complain"), 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(profilesDir, "force-complain", "usr.bin.complain"), nil, 0640))
 
 	previousAppArmorProfileDir := appArmorProfileDir
 	appArmorProfileDir = profilesDir
