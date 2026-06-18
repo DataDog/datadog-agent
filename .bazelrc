@@ -13,6 +13,7 @@ common:adms --config=dd-internal
 startup --max_idle_secs=28800 # Keep the server alive for at most 8 hours of inactivity
 
 # Common options -------------------------------------------------------------------------------------------------------
+common --@rules_go//go/config:tags=libsqlite3 # Link mattn/go-sqlite3 against //deps:sqlite3 instead of compiling its bundled amalgamation
 common --@rules_python//python/config_settings:bootstrap_impl=script # https://github.com/bazel-contrib/rules_python/blob/main/BZLMOD_SUPPORT.md
 common --check_direct_dependencies=error # Escalate any bypassed `bazel_dep` to a resolution failure
 common --credential_helper_cache_duration=55m # Refresh a little earlier than the Vault OIDC token TTL (1h)

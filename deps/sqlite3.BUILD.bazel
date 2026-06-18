@@ -1,6 +1,7 @@
 load("@@//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
-load("@rules_cc//cc:defs.bzl", "cc_library", "cc_shared_library")
+load("@rules_cc//cc:defs.bzl", "cc_import", "cc_library", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
 
 package(
     default_package_metadata = [":license"],
@@ -29,6 +30,7 @@ cc_library(
     copts = [
         "-Wall",
         "-DSQLITE_ENABLE_MATH_FUNCTIONS",
+        "-DSQLITE_OMIT_DEPRECATED",
         "-DSQLITE_THREADSAFE=1",
         "-O2",
     ],
@@ -42,9 +44,63 @@ cc_shared_library(
     visibility = ["//visibility:public"],
 )
 
+cc_import(
+    name = "_libsqlite3_shared",
+    shared_library = ":sqlite3",
+)
+
+# This target is meant to be used as a cdeps for go code that relies on sqlite3
+# More specifically, it's intended to avoid rebuilding the sqlite3 amalgamation
+# in github.com/mattn/go-sqlite3.
+#
+# On Linux/macOS we link against the shared :sqlite3 so a single libsqlite3.so
+# / .dylib is reused across consumers (the dedup goal). On Windows we instead
+# fold the static :libsqlite3 into each consumer binary: the Windows loader
+# does not search Bazel's runfiles `_solib_x86_64/` tree for DLLs, and the
+# current set of Windows consumers is small enough (collectorv2 is the only
+# package that imports the binding, and its tests are linux-only) that
+# embedding sqlite3 statically into each Windows .exe is cheaper than wiring
+# up DLL co-location for both runfiles and the install tree.
+#
+# macOS linkopts: go-sqlite3's sqlite3_libsqlite3.go only emits
+# "#cgo linux LDFLAGS: -lsqlite3"; it relies on the macOS linker auto-linking
+# from SDK stubs.  ld64.lld (LLVM's drop-in for Apple's ld64, used on CI)
+# does not do that, so without an explicit -lsqlite3 the linker would pick up
+# Apple's system sqlite3 (which has SQLITE_OMIT_LOAD_EXTENSION) instead of
+# ours.  The -L search path for our library is already provided by the
+# _libsqlite3_shared cc_import's CcInfo; we just need to name the library.
+cc_library(
+    name = "libsqlite3_dynamic",
+    hdrs = _SQLITE3_PUBLIC_HEADERS,
+    includes = ["."],
+    linkopts = select({
+        "@platforms//os:macos": ["-lsqlite3"],
+        "//conditions:default": [],
+    }),
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@platforms//os:windows": [":libsqlite3"],
+        "//conditions:default": [":_libsqlite3_shared"],
+    }),
+)
+
+pkg_files(
+    name = "sqlite3_header_pkg_files",
+    srcs = _SQLITE3_PUBLIC_HEADERS,
+    prefix = "include",
+)
+
 dd_cc_packaged(
     name = "sqlite3_pkg",
     input = ":sqlite3",
+    # Headers are shipped for builds that include go-sqlite3 consumers, so
+    # that dda-inv go builds can find sqlite3.h in the embedded/ directory.
+    # Heroku doesn't include those consumers and doesn't need the headers.
+    # Remove once all go builds are Bazel-managed.
+    installed_files = select({
+        "@@//packages/agent:heroku_flavor": [],
+        "//conditions:default": [":sqlite3_header_pkg_files"],
+    }),
     version = VERSION,
     visibility = ["//visibility:public"],
 )

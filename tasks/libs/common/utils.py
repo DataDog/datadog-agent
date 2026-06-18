@@ -34,11 +34,15 @@ from tasks.libs.types.arch import Arch
 
 if sys.platform == "darwin":
     RTLOADER_LIB_NAME = "libdatadog-agent-rtloader.dylib"
+    SQLITE3_LIB_NAME = "libsqlite3.dylib"
 elif sys.platform == "win32":
     RTLOADER_LIB_NAME = "libdatadog-agent-rtloader.a"
+    SQLITE3_LIB_NAME = None  # linked statically on Windows
 else:
     RTLOADER_LIB_NAME = "libdatadog-agent-rtloader.so"
+    SQLITE3_LIB_NAME = "libsqlite3.so"
 RTLOADER_HEADER_NAME = "datadog_agent_rtloader.h"
+SQLITE3_HEADER_NAME = "sqlite3.h"
 
 
 @dataclass
@@ -177,6 +181,50 @@ def get_rtloader_paths(embedded_path=None, rtloader_root=None):
             rtloader_common_headers = common_path
 
     return rtloader_lib, rtloader_headers, rtloader_common_headers
+
+
+# Build tags whose presence indicates go-sqlite3 is a dependency. Used by
+# apply_sqlite3_build_flags to skip the library lookup for builds that don't need it.
+SQLITE3_DEPENDENT_BUILD_TAGS = frozenset({"trivy", "podman"})
+
+
+def get_sqlite3_paths(embedded_path):
+    """Return (lib_dir, include_dir) if a pre-built libsqlite3 is found under embedded_path, else (None, None)."""
+    if not embedded_path or not SQLITE3_LIB_NAME:
+        return None, None
+    for libdir in ["lib", "lib64"]:
+        lib_path = os.path.join(embedded_path, libdir, SQLITE3_LIB_NAME)
+        if os.path.exists(lib_path):
+            include_dir = os.path.join(embedded_path, "include")
+            if os.path.exists(os.path.join(include_dir, SQLITE3_HEADER_NAME)):
+                return os.path.join(embedded_path, libdir), include_dir
+    return None, None
+
+
+def apply_sqlite3_build_flags(env, build_tags, embedded_path):
+    """Inject libsqlite3 into build_tags and set CGO env vars if the pre-built library is available.
+
+    Only acts when build_tags already contains a tag from SQLITE3_DEPENDENT_BUILD_TAGS,
+    so builds that don't need sqlite3 (IoT agent, dogstatsd, …) are left unchanged.
+    Returns the (possibly updated) build_tags list.
+    """
+    if not (SQLITE3_DEPENDENT_BUILD_TAGS & set(build_tags)):
+        return build_tags
+    sqlite3_lib, sqlite3_headers = get_sqlite3_paths(embedded_path)
+    if not sqlite3_lib:
+        return build_tags
+    build_tags = list(set(build_tags) | {"libsqlite3"})
+    env['DYLD_LIBRARY_PATH'] = env.get('DYLD_LIBRARY_PATH', os.environ.get('DYLD_LIBRARY_PATH', '')) + f":{sqlite3_lib}"
+    env['LD_LIBRARY_PATH'] = env.get('LD_LIBRARY_PATH', os.environ.get('LD_LIBRARY_PATH', '')) + f":{sqlite3_lib}"
+    ldflags = f" -L{sqlite3_lib}"
+    if sys.platform == "darwin":
+        # go-sqlite3's sqlite3_libsqlite3.go only adds -lsqlite3 for Linux; on
+        # macOS we must add it explicitly so the linker binds to our library
+        # rather than auto-linking the system sqlite3 (which omits extension loading).
+        ldflags += " -lsqlite3"
+    env['CGO_LDFLAGS'] = env.get('CGO_LDFLAGS', os.environ.get('CGO_LDFLAGS', '')) + ldflags
+    env['CGO_CFLAGS'] = env.get('CGO_CFLAGS', os.environ.get('CGO_CFLAGS', '')) + f" -I{sqlite3_headers}"
+    return build_tags
 
 
 def get_embedded_path(ctx):
