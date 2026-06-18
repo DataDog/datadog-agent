@@ -17,6 +17,7 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -74,7 +75,9 @@ func ReplaceSecrets(operations *Operations, decryptedSecrets map[string]string) 
 		// Build the full key: SEC[key]
 		fullKey := fmt.Sprintf("SEC[%s]", key)
 
-		// Replace in all file operations
+		// Replace in all file operations. For jq operations, secrets are substituted into
+		// the argument values rather than the transform text, so the transform stays a
+		// static program and secret values are never spliced into the jq source.
 		for i := range operations.FileOperations {
 			if bytes.Contains(operations.FileOperations[i].Patch, []byte(fullKey)) {
 				operations.FileOperations[i].Patch = bytes.ReplaceAll(
@@ -83,20 +86,25 @@ func ReplaceSecrets(operations *Operations, decryptedSecrets map[string]string) 
 					[]byte(decryptedValue),
 				)
 			}
-			if strings.Contains(operations.FileOperations[i].Transform, fullKey) {
-				operations.FileOperations[i].Transform = strings.ReplaceAll(
-					operations.FileOperations[i].Transform,
-					fullKey,
-					decryptedValue,
-				)
+			for argKey, argValue := range operations.FileOperations[i].Arguments {
+				if s, ok := argValue.(string); ok && strings.Contains(s, fullKey) {
+					operations.FileOperations[i].Arguments[argKey] = strings.ReplaceAll(s, fullKey, decryptedValue)
+				}
 			}
 		}
 	}
 
-	// Verify all secrets have been replaced
+	// Verify all secrets have been replaced. The transform text is also checked so that a
+	// stray SEC[...] embedded directly in a transform (which is unsupported) fails loudly
+	// rather than reaching gojq unsubstituted.
 	for _, operation := range operations.FileOperations {
 		if secRegex.Match(operation.Patch) || secRegex.MatchString(operation.Transform) {
 			return errors.New("secrets are not fully replaced, SEC[...] found in the config")
+		}
+		for _, argValue := range operation.Arguments {
+			if s, ok := argValue.(string); ok && secRegex.MatchString(s) {
+				return errors.New("secrets are not fully replaced, SEC[...] found in the config")
+			}
 		}
 	}
 
@@ -126,6 +134,7 @@ type FileOperation struct {
 	DestinationPath   string            `json:"destination_path,omitempty"`
 	Patch             json.RawMessage   `json:"patch,omitempty"`
 	Transform         string            `json:"transform,omitempty"`
+	Arguments         map[string]any    `json:"arguments,omitempty"`
 }
 
 func (a *FileOperation) apply(ctx context.Context, root *os.Root) error {
@@ -224,18 +233,32 @@ func (a *FileOperation) apply(ctx context.Context, root *os.Root) error {
 		}
 		query, err := gojq.Parse(a.Transform)
 		if err != nil {
-			return fmt.Errorf("failed to parse jq query: %w", err)
+			return fmt.Errorf("failed to parse jq transform: %w", err)
 		}
-		code, err := gojq.Compile(query)
+		// Arguments are exposed to the transform as named jq variables ($name), keeping
+		// the transform a static program with its values supplied separately. gojq matches
+		// variable names to values by position, so iterate the sorted keys for both.
+		argNames := make([]string, 0, len(a.Arguments))
+		for name := range a.Arguments {
+			argNames = append(argNames, name)
+		}
+		sort.Strings(argNames)
+		variables := make([]string, len(argNames))
+		argValues := make([]any, len(argNames))
+		for i, name := range argNames {
+			variables[i] = "$" + name
+			argValues[i] = a.Arguments[name]
+		}
+		code, err := gojq.Compile(query, gojq.WithVariables(variables))
 		if err != nil {
-			return fmt.Errorf("failed to compile jq query: %w", err)
+			return fmt.Errorf("failed to compile jq transform: %w", err)
 		}
-		// Run the query over the normalized config. The query may yield any number of
+		// Run the transform over the normalized config. It may yield any number of
 		// outputs; each one is written as its own YAML document so arbitrary
 		// transformations (including those producing multiple documents) are supported.
 		var buf bytes.Buffer
 		encoder := yaml.NewEncoder(&buf)
-		iter := code.Run(convertYAML2UnmarshalToJSONMarshallable(previous))
+		iter := code.Run(convertYAML2UnmarshalToJSONMarshallable(previous), argValues...)
 		outputs := 0
 		for {
 			v, ok := iter.Next()
@@ -243,7 +266,7 @@ func (a *FileOperation) apply(ctx context.Context, root *os.Root) error {
 				break
 			}
 			if err, ok := v.(error); ok {
-				return fmt.Errorf("failed to run jq query: %w", err)
+				return fmt.Errorf("failed to run jq transform: %w", err)
 			}
 			if err := encoder.Encode(v); err != nil {
 				return err

@@ -829,13 +829,14 @@ func TestReplaceSecrets(t *testing.T) {
 		assert.Contains(t, err.Error(), "secrets are not fully replaced")
 	})
 
-	t.Run("replace secrets in jq transform", func(t *testing.T) {
+	t.Run("replace secrets in jq arguments", func(t *testing.T) {
 		ops := Operations{
 			DeploymentID: "test-config",
 			FileOperations: []FileOperation{
 				{
 					FileOperationType: FileOperationJQ,
-					Transform:         `.api_key = "SEC[apikey]"`,
+					Transform:         `.api_key = $api_key`,
+					Arguments:         map[string]any{"api_key": "SEC[apikey]"},
 				},
 			},
 		}
@@ -845,10 +846,32 @@ func TestReplaceSecrets(t *testing.T) {
 		})
 
 		assert.NoError(t, err)
-		assert.Equal(t, `.api_key = "my-api-key"`, ops.FileOperations[0].Transform)
+		// The transform text is untouched; only the argument value is substituted.
+		assert.Equal(t, `.api_key = $api_key`, ops.FileOperations[0].Transform)
+		assert.Equal(t, "my-api-key", ops.FileOperations[0].Arguments["api_key"])
 	})
 
-	t.Run("unreplaced secret in jq transform returns error", func(t *testing.T) {
+	t.Run("unreplaced secret in jq arguments returns error", func(t *testing.T) {
+		ops := Operations{
+			DeploymentID: "test-config",
+			FileOperations: []FileOperation{
+				{
+					FileOperationType: FileOperationJQ,
+					Transform:         `.api_key = $api_key`,
+					Arguments:         map[string]any{"api_key": "SEC[apikey]"},
+				},
+			},
+		}
+
+		err := ReplaceSecrets(&ops, map[string]string{
+			"wrong-key": "some-value",
+		})
+
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "secrets are not fully replaced")
+	})
+
+	t.Run("secret embedded directly in transform is not substituted and errors", func(t *testing.T) {
 		ops := Operations{
 			DeploymentID: "test-config",
 			FileOperations: []FileOperation{
@@ -859,8 +882,10 @@ func TestReplaceSecrets(t *testing.T) {
 			},
 		}
 
+		// Even though the secret is provided, secrets are only substituted into arguments,
+		// so a SEC[...] left in the transform text is rejected.
 		err := ReplaceSecrets(&ops, map[string]string{
-			"wrong-key": "some-value",
+			"apikey": "my-api-key",
 		})
 
 		assert.Error(t, err)
@@ -903,6 +928,98 @@ func TestOperationApply_JQ(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, os.FileMode(0640), stat.Mode().Perm())
 	}
+}
+
+func TestOperationApply_JQWithArguments(t *testing.T) {
+	tmpDir := t.TempDir()
+	filePath := filepath.Join(tmpDir, "datadog.yaml")
+	orig := map[string]any{"tags": []any{"team:fleet"}}
+	origBytes, err := yaml.Marshal(orig)
+	assert.NoError(t, err)
+	err = os.WriteFile(filePath, origBytes, 0644)
+	assert.NoError(t, err)
+
+	root, err := os.OpenRoot(tmpDir)
+	assert.NoError(t, err)
+	defer root.Close()
+
+	// The transform is a static program; the values come from arguments as $vars.
+	op := &FileOperation{
+		FileOperationType: FileOperationJQ,
+		FilePath:          "/datadog.yaml",
+		Transform:         `.api_key = $api_key | .tags += [$env_tag]`,
+		Arguments: map[string]any{
+			"api_key": "abcd1234",
+			"env_tag": "env:prod",
+		},
+	}
+
+	err = op.apply(context.Background(), root)
+	assert.NoError(t, err)
+
+	updated, err := os.ReadFile(filePath)
+	assert.NoError(t, err)
+	var updatedMap map[string]any
+	err = yaml.Unmarshal(updated, &updatedMap)
+	assert.NoError(t, err)
+	assert.Equal(t, "abcd1234", updatedMap["api_key"])
+	assert.Equal(t, []any{"team:fleet", "env:prod"}, updatedMap["tags"])
+}
+
+func TestOperationApply_JQWithTypedArguments(t *testing.T) {
+	tmpDir := t.TempDir()
+	filePath := filepath.Join(tmpDir, "datadog.yaml")
+	err := os.WriteFile(filePath, []byte("foo: bar\n"), 0644)
+	assert.NoError(t, err)
+
+	root, err := os.OpenRoot(tmpDir)
+	assert.NoError(t, err)
+	defer root.Close()
+
+	// Arguments are typed JSON values, not just strings: a number, a bool, and an object.
+	op := &FileOperation{
+		FileOperationType: FileOperationJQ,
+		FilePath:          "/datadog.yaml",
+		Transform:         `.workers = $workers | .logs_enabled = $enabled | .apm_config = $apm`,
+		Arguments: map[string]any{
+			"workers": 4,
+			"enabled": true,
+			"apm":     map[string]any{"enabled": false},
+		},
+	}
+
+	err = op.apply(context.Background(), root)
+	assert.NoError(t, err)
+
+	updated, err := os.ReadFile(filePath)
+	assert.NoError(t, err)
+	var updatedMap map[string]any
+	err = yaml.Unmarshal(updated, &updatedMap)
+	assert.NoError(t, err)
+	assert.Equal(t, 4, updatedMap["workers"])
+	assert.Equal(t, true, updatedMap["logs_enabled"])
+	assert.Equal(t, map[any]any{"enabled": false}, updatedMap["apm_config"])
+}
+
+func TestOperationApply_JQUndeclaredVariable(t *testing.T) {
+	tmpDir := t.TempDir()
+	filePath := filepath.Join(tmpDir, "datadog.yaml")
+	err := os.WriteFile(filePath, []byte("foo: bar\n"), 0644)
+	assert.NoError(t, err)
+
+	root, err := os.OpenRoot(tmpDir)
+	assert.NoError(t, err)
+	defer root.Close()
+
+	// $missing is referenced but not provided as an argument: compile error.
+	op := &FileOperation{
+		FileOperationType: FileOperationJQ,
+		FilePath:          "/datadog.yaml",
+		Transform:         `.foo = $missing`,
+	}
+
+	err = op.apply(context.Background(), root)
+	assert.Error(t, err)
 }
 
 func TestOperationApply_JQConditionalTransform(t *testing.T) {
