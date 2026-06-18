@@ -39,12 +39,16 @@
 --   Character runs: consecutive letters [a-zA-Z] and any byte not
 --     classified above produce a single token encoding the run length:
 --     C1 (1 char) through C10 (10+ chars). Capped at C10.
---     Before emitting, short runs (1-4 chars) are checked for special
+--     Before emitting, runs of length 1-9 are checked for special
 --     token promotion (see Tokenization contract).
 --
---   Special: character runs of 1-4 chars that match known patterns
---     are promoted to one of: Month, Day, Zone, Apm, T.
---     The regular C1-C4 token is replaced by the special token.
+--   Special: character runs of 1-9 chars that match known patterns
+--     are promoted to one of:
+--       Month, Day, Zone, Apm, T
+--       Warn, Fatal, Error, Panic, Alert, Severe, Critical,
+--       Emergency, Exception, Crash, Failure, Deadlock, Timeout
+--     The corresponding regular Cn token is replaced by the
+--     special token.
 
 value TokenSequence {
     -- Ordered sequence of tokens produced by the tokenizer from
@@ -85,8 +89,7 @@ contract Tokenization {
     @invariant SpecialTokenPromotion
         -- Before emitting a character run of length 1-9, the run's
         -- bytes are uppercased and checked against a fixed table.
-        -- If matched, the special token replaces the regular C1-C4
-        -- (or C10 for length 9):
+        -- If matched, the special token replaces the regular Cn:
         --   Length 1: T → time_separator, Z → zone
         --   Length 2: AM, PM → apm
         --   Length 3:
@@ -113,8 +116,7 @@ contract Tokenization {
         --     EMERGENCY → emergency, EXCEPTION → exception
         -- Character runs of length 10+ are never promoted. Runs
         -- of length 1-9 that match no pattern emit the regular
-        -- token (C1-C4 for lengths 1-4; C10 for lengths 5-9, since
-        -- C5-C9 do not exist in the token enum).
+        -- Cn token (C1-C9 for lengths 1-9 respectively).
         -- Matching is case-insensitive: "jan", "JAN", "Jan" all
         -- match month.
         --
