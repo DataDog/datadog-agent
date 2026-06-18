@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import platform
 import shlex
 import shutil
@@ -259,7 +260,8 @@ def ssh(ctx, name=DEFAULT_SANDBOX_NAME, cmd=None, state_root=None):
             _run_or_raise(ctx, manager.shell_command(name, cmd))
 
         else:
-            _run_or_raise(ctx, manager.ssh_command(name))
+            command = manager.ssh_command(name)
+            os.execvp(command[0], command)
     except AgentSandboxError as e:
         raise Exit(message=str(e), code=1) from None
 
