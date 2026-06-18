@@ -65,6 +65,8 @@ const (
 	FileOperationPatch FileOperationType = "patch"
 	// FileOperationMergePatch merges the config at the given path with the given JSON merge patch (RFC 7396).
 	FileOperationMergePatch FileOperationType = "merge-patch"
+	// FileOperationJQ transforms the config at the given path by running a jq transform over it.
+	FileOperationJQ FileOperationType = "jq"
 	// FileOperationDelete deletes the config at the given path.
 	FileOperationDelete FileOperationType = "delete"
 )
@@ -80,6 +82,8 @@ type FileOperation struct {
 	FileOperationType FileOperationType `json:"file_op"`
 	FilePath          string            `json:"file_path"`
 	Patch             json.RawMessage   `json:"patch,omitempty"`
+	Transform         string            `json:"transform,omitempty"`
+	Arguments         json.RawMessage   `json:"arguments,omitempty"`
 }
 
 // getSecretsPubKey gets the public key for the secrets.
