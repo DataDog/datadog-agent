@@ -375,17 +375,15 @@ func TestFromDDConfigPARRestrictedShellAllowedCommandsEmpty(t *testing.T) {
 
 	cfg, err := FromDDConfig(mockConfig)
 	require.NoError(t, err)
-	// Explicit empty list: operator opts in to blocking every command.
-	// Distinct from the unset case above.
+	// Explicit empty list remains distinct from the unset case above.
 	assert.NotNil(t, cfg.RShellAllowedCommands)
 	assert.Empty(t, cfg.RShellAllowedCommands)
 }
 
 // TestFromDDConfigPARRestrictedShellAllowedPathsEmptyYAML pins the
-// kill-switch contract for `allowed_paths: []`: GetStringSlice returns a
+// transform contract for `allowed_paths: []`: GetStringSlice returns a
 // nil slice for the explicit YAML empty list, and the transform forwards
-// that as-is. The handler's downstream dedup pass turns nil into a non-nil
-// empty slice, which produces an empty intersection — the kill-switch.
+// that as-is.
 // The slice value here is "no entries" regardless of nil/non-nil shape.
 func TestFromDDConfigPARRestrictedShellAllowedPathsEmptyYAML(t *testing.T) {
 	yaml := `
@@ -397,7 +395,7 @@ private_action_runner:
 
 	cfg, err := FromDDConfig(mockConfig)
 	require.NoError(t, err)
-	assert.Empty(t, cfg.RShellAllowedPaths, "YAML [] must surface as an empty slice; kill-switch is enforced by the handler intersection on this input")
+	assert.Empty(t, cfg.RShellAllowedPaths, "YAML [] must surface as an empty slice")
 }
 
 func TestFromDDConfigPARRestrictedShellAllowedCommandsEmptyYAML(t *testing.T) {
@@ -410,14 +408,13 @@ private_action_runner:
 
 	cfg, err := FromDDConfig(mockConfig)
 	require.NoError(t, err)
-	assert.Empty(t, cfg.RShellAllowedCommands, "YAML [] must surface as an empty slice; kill-switch is enforced by the handler intersection on this input")
+	assert.Empty(t, cfg.RShellAllowedCommands, "YAML [] must surface as an empty slice")
 }
 
 func TestFromDDConfigPARRestrictedShellAllowedPathsPassesThroughFileEntries(t *testing.T) {
-	// File entries are warned about at load time but not dropped — the
-	// intersection layer and rshell's own sandbox filter them. The
-	// transform's job is to surface the misconfiguration; it does not
-	// rewrite the operator's written list.
+	// Legacy config entries are still parsed and returned as written, even
+	// though rshell execution now uses the signed backend task payload as the
+	// allowlist authority.
 	tmpDir := t.TempDir()
 	fp := filepath.Join(tmpDir, "file.txt")
 	require.NoError(t, os.WriteFile(fp, []byte("x"), 0o600))
@@ -433,10 +430,8 @@ func TestFromDDConfigPARRestrictedShellAllowedPathsPassesThroughFileEntries(t *t
 }
 
 func TestFromDDConfigPARRestrictedShellAllowedPathsPassesThroughBackslash(t *testing.T) {
-	// Backslash-containing entries are preserved in the returned slice so
-	// the handler still sees what the operator wrote; the transform also
-	// logs a warning so a Windows-native path configured by mistake does
-	// not silently produce an empty intersection without feedback.
+	// Backslash-containing entries are preserved in the returned slice for
+	// legacy config compatibility.
 	mockConfig := configmock.New(t)
 	mockConfig.SetInTest(setup.PARPrivateKey, "")
 	mockConfig.SetInTest(setup.PARUrn, "")
@@ -448,11 +443,8 @@ func TestFromDDConfigPARRestrictedShellAllowedPathsPassesThroughBackslash(t *tes
 }
 
 func TestFromDDConfigPARRestrictedShellAllowedCommandsPassesThroughUnnamespaced(t *testing.T) {
-	// Unnamespaced entries are preserved in the returned slice so the
-	// intersection layer can surface them (as silent no-matches). The
-	// transform also emits a log warning about them, which is not asserted
-	// here — the point of this test is that unnamespaced entries do not
-	// cause config load to fail.
+	// Unnamespaced entries are preserved in the returned slice for legacy
+	// config compatibility.
 	mockConfig := configmock.New(t)
 	mockConfig.SetInTest(setup.PARPrivateKey, "")
 	mockConfig.SetInTest(setup.PARUrn, "")
@@ -465,9 +457,8 @@ func TestFromDDConfigPARRestrictedShellAllowedCommandsPassesThroughUnnamespaced(
 
 func TestFromDDConfigPARRestrictedShellAllowedAbsentYAML(t *testing.T) {
 	// No restricted_shell block at all: both axes fall back to their
-	// registered sentinels — ["/"] for paths, ["rshell:*"] for commands —
-	// which the operator-side intersection treats as "allow whatever the
-	// backend allowed".
+	// registered legacy defaults: ["/"] for paths and ["rshell:*"] for
+	// commands.
 	yaml := `
 private_action_runner:
   enabled: true

@@ -7,7 +7,6 @@ package com_datadoghq_remoteaction_rshell
 
 import (
 	"path"
-	"slices"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -53,97 +52,6 @@ func cleanPathList(paths []string) []string {
 	return cleaned
 }
 
-// reducePathListToBroadest reduces the list of paths by removing duplicates and
-// keeping the broadest path for each common prefix.
-//
-// Assumptions:
-//
-//  1. All paths have been cleaned (path.Clean)
-//
-//  2. All paths have been normalized (end with a separator).
-func reducePathListToBroadest(paths []string) []string {
-	reduced := make([]string, 0)
-	for _, p := range paths {
-		added := false
-		for j := range reduced {
-			if pathAccessForReduction(p) != pathAccessForReduction(reduced[j]) {
-				continue
-			}
-			if _, broadest := commonPath(p, reduced[j]); broadest != "" {
-				// The path p has a common prefix with the already present path reduced[j],
-				// so we replace the already present path with the broader common prefix.
-				reduced[j] = broadest
-				added = true
-			}
-		}
-
-		// The path p has nothing in common with existing reduced paths,
-		// so it is a new path to add to the list of reduced paths.
-		if !added {
-			reduced = append(reduced, p)
-		}
-	}
-
-	// Remove duplicates.
-	slices.Sort(reduced)
-	return slices.Compact(reduced)
-}
-
-// intersectPathLists returns the intersection of two lists of paths.
-// Meaning that the returned list contains only the paths that are present in both lists.
-// If one list contains a sub-path of the other, only the sub-path is included in the intersection:
-// the narrower side wins.
-//
-// Assumptions:
-//
-//  1. Both lists have been reduced to the broadest possible paths (reducePathListToBroadest).
-func intersectPathLists(list1, list2 []string) []string {
-	intersection := make([]string, 0)
-	for _, p1 := range list1 {
-		for _, p2 := range list2 {
-			if deepest, _ := commonPath(p1, p2); deepest != "" {
-				intersection = append(intersection, pathSpecWithAccessSuffix(deepest, intersectPathAccessSuffix(p1, p2)))
-
-				// If the common path is exactly the list1 path,
-				// then we already added the biggest possible path,
-				// so we can ignore the other path from list2.
-				if pathSpecPath(deepest) == pathSpecPath(p1) {
-					break
-				}
-			}
-		}
-	}
-	return intersection
-}
-
-// commonPath returns the deepest and the broadest common path between two paths.
-//
-// Assumptions:
-//
-//  1. Both a and b have been cleaned (path.Clean)
-//
-//  2. Both a and b have been normalized (end with a separator).
-func commonPath(a, b string) (deepest string, broadest string) {
-	aPath := pathSpecPath(a)
-	bPath := pathSpecPath(b)
-	if aPath == bPath {
-		return a, a
-	}
-
-	// a is "deeper" than b.
-	if strings.HasPrefix(aPath, bPath) {
-		return a, b
-	}
-
-	// b is "deeper" than a.
-	if strings.HasPrefix(bPath, aPath) {
-		return b, a
-	}
-
-	// a and b are not related, there is no common path.
-	return "", ""
-}
-
 func splitPathAccessSuffix(pathSpec string) (pathPart string, accessSuffix string) {
 	switch {
 	case strings.HasSuffix(pathSpec, pathAccessReadWrite):
@@ -160,28 +68,10 @@ func pathSpecPath(pathSpec string) string {
 	return pathPart
 }
 
-func pathSpecWithAccessSuffix(pathSpec string, accessSuffix string) string {
-	pathPart, _ := splitPathAccessSuffix(pathSpec)
-	return pathPart + accessSuffix
-}
-
-func pathAccessForReduction(pathSpec string) string {
-	_, accessSuffix := splitPathAccessSuffix(pathSpec)
-	if accessSuffix == "" {
-		return pathAccessReadOnly
+func pathSpecPaths(pathSpecs []string) []string {
+	paths := make([]string, len(pathSpecs))
+	for i, pathSpec := range pathSpecs {
+		paths[i] = pathSpecPath(pathSpec)
 	}
-	return accessSuffix
-}
-
-func intersectPathAccessSuffix(operatorPathSpec string, backendPathSpec string) string {
-	_, operatorAccessSuffix := splitPathAccessSuffix(operatorPathSpec)
-	_, backendAccessSuffix := splitPathAccessSuffix(backendPathSpec)
-
-	if operatorAccessSuffix == pathAccessReadOnly || backendAccessSuffix == pathAccessReadOnly {
-		return pathAccessReadOnly
-	}
-	if backendAccessSuffix == pathAccessReadWrite {
-		return pathAccessReadWrite
-	}
-	return ""
+	return paths
 }
