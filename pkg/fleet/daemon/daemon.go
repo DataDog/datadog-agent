@@ -298,21 +298,13 @@ func (d *daemonImpl) decryptSecrets(operations config.Operations, encryptedSecre
 
 	for key, encoded := range encryptedSecrets {
 		// 1. Check if any file operation in the config contains SEC[key], either in a
-		// patch or in a jq operation's argument values.
+		// patch or in a jq operation's arguments. Both are raw JSON blobs, so a flat scan
+		// covers placeholders at any nesting depth.
 		fullKey := fmt.Sprintf("SEC[%s]", key)
 		found := false
 		for _, operation := range operations.FileOperations {
-			if strings.Contains(string(operation.Patch), fullKey) {
+			if strings.Contains(string(operation.Patch), fullKey) || strings.Contains(string(operation.Arguments), fullKey) {
 				found = true
-				break
-			}
-			for _, argValue := range operation.Arguments {
-				if s, ok := argValue.(string); ok && strings.Contains(s, fullKey) {
-					found = true
-					break
-				}
-			}
-			if found {
 				break
 			}
 		}

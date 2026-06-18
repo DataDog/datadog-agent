@@ -7,6 +7,7 @@ package config
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -836,7 +837,7 @@ func TestReplaceSecrets(t *testing.T) {
 				{
 					FileOperationType: FileOperationJQ,
 					Transform:         `.api_key = $api_key`,
-					Arguments:         map[string]any{"api_key": "SEC[apikey]"},
+					Arguments:         json.RawMessage(`{"api_key": "SEC[apikey]"}`),
 				},
 			},
 		}
@@ -848,7 +849,28 @@ func TestReplaceSecrets(t *testing.T) {
 		assert.NoError(t, err)
 		// The transform text is untouched; only the argument value is substituted.
 		assert.Equal(t, `.api_key = $api_key`, ops.FileOperations[0].Transform)
-		assert.Equal(t, "my-api-key", ops.FileOperations[0].Arguments["api_key"])
+		assert.JSONEq(t, `{"api_key": "my-api-key"}`, string(ops.FileOperations[0].Arguments))
+	})
+
+	t.Run("replace secrets nested in jq arguments", func(t *testing.T) {
+		ops := Operations{
+			DeploymentID: "test-config",
+			FileOperations: []FileOperation{
+				{
+					FileOperationType: FileOperationJQ,
+					Transform:         `.auth = $auth`,
+					// Placeholder nested inside an object argument.
+					Arguments: json.RawMessage(`{"auth": {"api_key": "SEC[apikey]", "tokens": ["SEC[apikey]"]}}`),
+				},
+			},
+		}
+
+		err := ReplaceSecrets(&ops, map[string]string{
+			"apikey": "my-api-key",
+		})
+
+		assert.NoError(t, err)
+		assert.JSONEq(t, `{"auth": {"api_key": "my-api-key", "tokens": ["my-api-key"]}}`, string(ops.FileOperations[0].Arguments))
 	})
 
 	t.Run("unreplaced secret in jq arguments returns error", func(t *testing.T) {
@@ -858,7 +880,7 @@ func TestReplaceSecrets(t *testing.T) {
 				{
 					FileOperationType: FileOperationJQ,
 					Transform:         `.api_key = $api_key`,
-					Arguments:         map[string]any{"api_key": "SEC[apikey]"},
+					Arguments:         json.RawMessage(`{"api_key": "SEC[apikey]"}`),
 				},
 			},
 		}
@@ -948,10 +970,7 @@ func TestOperationApply_JQWithArguments(t *testing.T) {
 		FileOperationType: FileOperationJQ,
 		FilePath:          "/datadog.yaml",
 		Transform:         `.api_key = $api_key | .tags += [$env_tag]`,
-		Arguments: map[string]any{
-			"api_key": "abcd1234",
-			"env_tag": "env:prod",
-		},
+		Arguments:         json.RawMessage(`{"api_key": "abcd1234", "env_tag": "env:prod"}`),
 	}
 
 	err = op.apply(context.Background(), root)
@@ -981,11 +1000,7 @@ func TestOperationApply_JQWithTypedArguments(t *testing.T) {
 		FileOperationType: FileOperationJQ,
 		FilePath:          "/datadog.yaml",
 		Transform:         `.workers = $workers | .logs_enabled = $enabled | .apm_config = $apm`,
-		Arguments: map[string]any{
-			"workers": 4,
-			"enabled": true,
-			"apm":     map[string]any{"enabled": false},
-		},
+		Arguments:         json.RawMessage(`{"workers": 4, "enabled": true, "apm": {"enabled": false}}`),
 	}
 
 	err = op.apply(context.Background(), root)

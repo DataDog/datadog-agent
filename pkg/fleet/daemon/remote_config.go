@@ -87,7 +87,7 @@ type installerConfigFileOperation struct {
 	FilePath          string          `json:"file_path"`
 	Patch             json.RawMessage `json:"patch"`
 	Transform         string          `json:"transform"`
-	Arguments         map[string]any  `json:"arguments"`
+	Arguments         json.RawMessage `json:"arguments"`
 }
 
 type legacyInstallerConfig struct {

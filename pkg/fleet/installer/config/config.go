@@ -75,9 +75,11 @@ func ReplaceSecrets(operations *Operations, decryptedSecrets map[string]string) 
 		// Build the full key: SEC[key]
 		fullKey := fmt.Sprintf("SEC[%s]", key)
 
-		// Replace in all file operations. For jq operations, secrets are substituted into
-		// the argument values rather than the transform text, so the transform stays a
-		// static program and secret values are never spliced into the jq source.
+		// Replace in all file operations. Patch and jq Arguments are both raw JSON blobs,
+		// so secrets are substituted with a flat textual replacement that is agnostic to
+		// nesting depth. For jq, secrets live in the arguments rather than the transform
+		// text, so the transform stays a static program and secret values are never spliced
+		// into the jq source.
 		for i := range operations.FileOperations {
 			if bytes.Contains(operations.FileOperations[i].Patch, []byte(fullKey)) {
 				operations.FileOperations[i].Patch = bytes.ReplaceAll(
@@ -86,10 +88,12 @@ func ReplaceSecrets(operations *Operations, decryptedSecrets map[string]string) 
 					[]byte(decryptedValue),
 				)
 			}
-			for argKey, argValue := range operations.FileOperations[i].Arguments {
-				if s, ok := argValue.(string); ok && strings.Contains(s, fullKey) {
-					operations.FileOperations[i].Arguments[argKey] = strings.ReplaceAll(s, fullKey, decryptedValue)
-				}
+			if bytes.Contains(operations.FileOperations[i].Arguments, []byte(fullKey)) {
+				operations.FileOperations[i].Arguments = bytes.ReplaceAll(
+					operations.FileOperations[i].Arguments,
+					[]byte(fullKey),
+					[]byte(decryptedValue),
+				)
 			}
 		}
 	}
@@ -98,13 +102,8 @@ func ReplaceSecrets(operations *Operations, decryptedSecrets map[string]string) 
 	// stray SEC[...] embedded directly in a transform (which is unsupported) fails loudly
 	// rather than reaching gojq unsubstituted.
 	for _, operation := range operations.FileOperations {
-		if secRegex.Match(operation.Patch) || secRegex.MatchString(operation.Transform) {
+		if secRegex.Match(operation.Patch) || secRegex.MatchString(operation.Transform) || secRegex.Match(operation.Arguments) {
 			return errors.New("secrets are not fully replaced, SEC[...] found in the config")
-		}
-		for _, argValue := range operation.Arguments {
-			if s, ok := argValue.(string); ok && secRegex.MatchString(s) {
-				return errors.New("secrets are not fully replaced, SEC[...] found in the config")
-			}
 		}
 	}
 
@@ -134,7 +133,7 @@ type FileOperation struct {
 	DestinationPath   string            `json:"destination_path,omitempty"`
 	Patch             json.RawMessage   `json:"patch,omitempty"`
 	Transform         string            `json:"transform,omitempty"`
-	Arguments         map[string]any    `json:"arguments,omitempty"`
+	Arguments         json.RawMessage   `json:"arguments,omitempty"`
 }
 
 func (a *FileOperation) apply(ctx context.Context, root *os.Root) error {
@@ -238,8 +237,14 @@ func (a *FileOperation) apply(ctx context.Context, root *os.Root) error {
 		// Arguments are exposed to the transform as named jq variables ($name), keeping
 		// the transform a static program with its values supplied separately. gojq matches
 		// variable names to values by position, so iterate the sorted keys for both.
-		argNames := make([]string, 0, len(a.Arguments))
-		for name := range a.Arguments {
+		arguments := make(map[string]any)
+		if len(a.Arguments) > 0 {
+			if err := json.Unmarshal(a.Arguments, &arguments); err != nil {
+				return fmt.Errorf("failed to parse jq arguments: %w", err)
+			}
+		}
+		argNames := make([]string, 0, len(arguments))
+		for name := range arguments {
 			argNames = append(argNames, name)
 		}
 		sort.Strings(argNames)
@@ -247,7 +252,7 @@ func (a *FileOperation) apply(ctx context.Context, root *os.Root) error {
 		argValues := make([]any, len(argNames))
 		for i, name := range argNames {
 			variables[i] = "$" + name
-			argValues[i] = a.Arguments[name]
+			argValues[i] = arguments[name]
 		}
 		code, err := gojq.Compile(query, gojq.WithVariables(variables))
 		if err != nil {
