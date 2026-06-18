@@ -58,6 +58,6 @@ dd_agent_go_binary(
     target_compatible_with = ["@platforms//os:windows"],
     visibility = ["//visibility:public"],
     x_defs = {
-        "github.com/DataDog/datadog-agent/cmd/systray/command/command.subsystem=%s" % SUBSYSTEM,
+        "github.com/DataDog/datadog-agent/cmd/systray/command/command.subsystem": SUBSYSTEM,
     },
 )
