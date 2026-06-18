@@ -1,23 +1,21 @@
 load("@rules_go//go:def.bzl", "go_library")
 
-# crio.go uses //go:build crio && trivy
-# gazelle:build_tags crio,trivy
-
 go_library(
-    name = "crio",
+    name = "docker",
     srcs = [
-        "crio.go",
         "doc.go",
+        "docker.go",
     ],
-    importpath = "github.com/DataDog/datadog-agent/pkg/sbom/collectors/crio",
+    importpath = "github.com/DataDog/datadog-agent/pkg/sbom/collectors/docker",
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",
         "//comp/core/workloadmeta/def",
         "//pkg/sbom",
         "//pkg/sbom/collectors",
-        "//pkg/util/crio",
+        "//pkg/util/docker",
         "//pkg/util/option",
         "//pkg/util/trivy",
+        "@com_github_moby_moby_client//:client",
     ],
 )
