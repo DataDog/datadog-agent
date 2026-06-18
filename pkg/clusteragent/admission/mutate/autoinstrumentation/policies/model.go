@@ -115,18 +115,27 @@ type Policy struct {
 	Outcome Outcome
 }
 
-func leaf(src Source, key string, cmp Cmp, val string) *Node {
+// Leaf builds a leaf condition node reading the given source/key and comparing
+// it to val with cmp.
+func Leaf(src Source, key string, cmp Cmp, val string) *Node {
 	return &Node{Eval: &Evaluator{Source: src, Key: key, Cmp: cmp, Value: val}}
 }
 
-func alwaysTrue() *Node    { return &Node{Eval: &Evaluator{Source: SourceAlwaysTrue}} }
-func alwaysFalse() *Node   { return &Node{Eval: &Evaluator{Source: SourceAlwaysFalse}} }
-func alwaysAbstain() *Node { return &Node{Eval: &Evaluator{Source: SourceAlwaysAbstain}} }
+// AlwaysTrue builds a leaf node that always evaluates to ResultTrue.
+func AlwaysTrue() *Node { return &Node{Eval: &Evaluator{Source: SourceAlwaysTrue}} }
 
-func and(conds []*Node) *Node {
+// AlwaysFalse builds a leaf node that always evaluates to ResultFalse.
+func AlwaysFalse() *Node { return &Node{Eval: &Evaluator{Source: SourceAlwaysFalse}} }
+
+// AlwaysAbstain builds a leaf node that always evaluates to ResultAbstain.
+func AlwaysAbstain() *Node { return &Node{Eval: &Evaluator{Source: SourceAlwaysAbstain}} }
+
+// And combines conds with a logical AND. An empty list matches everything
+// (AlwaysTrue) and a single condition is returned as-is.
+func And(conds []*Node) *Node {
 	switch len(conds) {
 	case 0:
-		return alwaysTrue()
+		return AlwaysTrue()
 	case 1:
 		return conds[0]
 	default:
@@ -134,10 +143,12 @@ func and(conds []*Node) *Node {
 	}
 }
 
-func or(conds []*Node) *Node {
+// Or combines conds with a logical OR. An empty list matches nothing
+// (AlwaysFalse) and a single condition is returned as-is.
+func Or(conds []*Node) *Node {
 	switch len(conds) {
 	case 0:
-		return alwaysFalse()
+		return AlwaysFalse()
 	case 1:
 		return conds[0]
 	default:
@@ -145,4 +156,5 @@ func or(conds []*Node) *Node {
 	}
 }
 
-func not(n *Node) *Node { return &Node{Op: OpNot, Children: []*Node{n}} }
+// Not negates a single node.
+func Not(n *Node) *Node { return &Node{Op: OpNot, Children: []*Node{n}} }

@@ -84,7 +84,7 @@ func TestEmptyCompositeShortCircuit(t *testing.T) {
 	if got := Evaluate(&Node{Op: OpOr}, Facts{}); got != ResultFalse {
 		t.Errorf("empty OR = %v want ResultFalse", got)
 	}
-	if got := Evaluate(not(&Node{Op: OpAnd}), Facts{}); got != ResultFalse {
+	if got := Evaluate(Not(&Node{Op: OpAnd}), Facts{}); got != ResultFalse {
 		t.Errorf("NOT(empty AND) = %v want ResultFalse", got)
 	}
 }
@@ -99,14 +99,14 @@ func TestEvaluateLeafLabels(t *testing.T) {
 		node *Node
 		want Result
 	}{
-		{"pod label match", leaf(SourcePodLabel, "app", CmpExact, "web"), ResultTrue},
-		{"pod label mismatch", leaf(SourcePodLabel, "app", CmpExact, "db"), ResultFalse},
-		{"pod label absent is false", leaf(SourcePodLabel, "missing", CmpExact, "x"), ResultFalse},
-		{"exists present", leaf(SourcePodLabel, "tier", CmpExists, ""), ResultTrue},
-		{"exists absent", leaf(SourcePodLabel, "missing", CmpExists, ""), ResultFalse},
-		{"namespace name match", leaf(SourceNamespaceName, "", CmpExact, "payments"), ResultTrue},
-		{"namespace name mismatch", leaf(SourceNamespaceName, "", CmpExact, "billing"), ResultFalse},
-		{"namespace label source absent", leaf(SourceNamespaceLabel, "team", CmpExact, "x"), ResultFalse},
+		{"pod label match", Leaf(SourcePodLabel, "app", CmpExact, "web"), ResultTrue},
+		{"pod label mismatch", Leaf(SourcePodLabel, "app", CmpExact, "db"), ResultFalse},
+		{"pod label absent is false", Leaf(SourcePodLabel, "missing", CmpExact, "x"), ResultFalse},
+		{"exists present", Leaf(SourcePodLabel, "tier", CmpExists, ""), ResultTrue},
+		{"exists absent", Leaf(SourcePodLabel, "missing", CmpExists, ""), ResultFalse},
+		{"namespace name match", Leaf(SourceNamespaceName, "", CmpExact, "payments"), ResultTrue},
+		{"namespace name mismatch", Leaf(SourceNamespaceName, "", CmpExact, "billing"), ResultFalse},
+		{"namespace label source absent", Leaf(SourceNamespaceLabel, "team", CmpExact, "x"), ResultFalse},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -121,12 +121,12 @@ func TestDecideFirstMatchWins(t *testing.T) {
 	ps := []Policy{
 		{
 			Name:    "java",
-			Rules:   leaf(SourcePodLabel, "app", CmpExact, "db"),
+			Rules:   Leaf(SourcePodLabel, "app", CmpExact, "db"),
 			Outcome: Outcome{TracerVersions: map[string]string{"java": "1"}},
 		},
 		{
 			Name:    "catch-all",
-			Rules:   alwaysTrue(),
+			Rules:   AlwaysTrue(),
 			Outcome: Outcome{TracerVersions: map[string]string{"php": "2"}},
 		},
 	}

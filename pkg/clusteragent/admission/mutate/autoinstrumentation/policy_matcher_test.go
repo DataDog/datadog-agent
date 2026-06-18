@@ -25,37 +25,6 @@ func podWith(ns string, labels map[string]string) *corev1.Pod {
 	}
 }
 
-func TestToPolicyTargets(t *testing.T) {
-	targets := []Target{{
-		Name:        "java",
-		PodSelector: &PodSelector{MatchLabels: map[string]string{"app": "db"}},
-		NamespaceSelector: &NamespaceSelector{
-			MatchExpressions: []SelectorMatchExpression{{
-				Key:      "team",
-				Operator: metav1.LabelSelectorOpIn,
-				Values:   []string{"payments"},
-			}},
-		},
-		TracerVersions: map[string]string{"java": "latest"},
-		TracerConfigs:  []TracerConfig{{Name: "DD_PROFILING_ENABLED", Value: "true"}},
-	}}
-
-	got := toPolicyTargets(targets)
-	if len(got) != 1 {
-		t.Fatalf("expected 1 policy target, got %d", len(got))
-	}
-	pt := got[0]
-	if pt.Name != "java" || pt.PodSelector.MatchLabels["app"] != "db" {
-		t.Errorf("unexpected pod selector mapping: %+v", pt.PodSelector)
-	}
-	if pt.NamespaceSelector.MatchExpressions[0].Operator != policies.OpIn {
-		t.Errorf("operator not mapped: %+v", pt.NamespaceSelector.MatchExpressions[0])
-	}
-	if pt.TracerConfigs[0] != (policies.EnvVar{Name: "DD_PROFILING_ENABLED", Value: "true"}) {
-		t.Errorf("tracer config not mapped: %+v", pt.TracerConfigs)
-	}
-}
-
 func TestPolicyMatcherPodLabels(t *testing.T) {
 	targets := []Target{
 		{
@@ -69,7 +38,7 @@ func TestPolicyMatcherPodLabels(t *testing.T) {
 		},
 	}
 
-	m := newPolicyMatcher(targets, nil)
+	m := newPolicyMatcher(policiesFromTargets(targets), nil)
 	if m.needsNamespaceLabels {
 		t.Errorf("matcher should not require namespace labels for pod-label targets")
 	}
@@ -114,7 +83,7 @@ func TestPolicyMatcherDetectsNamespaceLabels(t *testing.T) {
 		Name:              "by-ns-label",
 		NamespaceSelector: &NamespaceSelector{MatchLabels: map[string]string{"instrument": "true"}},
 	}}
-	m := newPolicyMatcher(targets, nil)
+	m := newPolicyMatcher(policiesFromTargets(targets), nil)
 	if !m.needsNamespaceLabels {
 		t.Errorf("matcher should require namespace labels when a policy reads them")
 	}

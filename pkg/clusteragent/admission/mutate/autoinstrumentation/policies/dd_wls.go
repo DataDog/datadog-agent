@@ -173,11 +173,11 @@ func decodeEvaluatorNode(e wlsEvaluatorNode) (*Node, error) {
 func decodeStrEval(e wlsStrEval) (*Node, error) {
 	switch e.ID {
 	case evalAlwaysTrue:
-		return alwaysTrue(), nil
+		return AlwaysTrue(), nil
 	case evalAlwaysFalse:
-		return alwaysFalse(), nil
+		return AlwaysFalse(), nil
 	case evalAlwaysAbstain:
-		return alwaysAbstain(), nil
+		return AlwaysAbstain(), nil
 	case evalPodLabel:
 		return decodeLabel(SourcePodLabel, e)
 	case evalNamespaceLbl:
@@ -187,7 +187,7 @@ func decodeStrEval(e wlsStrEval) (*Node, error) {
 		if err != nil {
 			return nil, err
 		}
-		return leaf(SourceNamespaceName, "", cmp, e.Value), nil
+		return Leaf(SourceNamespaceName, "", cmp, e.Value), nil
 	default:
 		return nil, fmt.Errorf("unsupported evaluator id %q", e.ID)
 	}
@@ -204,9 +204,9 @@ func decodeLabel(src Source, e wlsStrEval) (*Node, error) {
 	}
 	// "key=" with a prefix comparison is the existence convention.
 	if cmp == CmpPrefix && value == "" {
-		return leaf(src, key, CmpExists, ""), nil
+		return Leaf(src, key, CmpExists, ""), nil
 	}
-	return leaf(src, key, cmp, value), nil
+	return Leaf(src, key, cmp, value), nil
 }
 
 func decodeCmp(cmp string) (Cmp, error) {

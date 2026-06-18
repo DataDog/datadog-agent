@@ -15,87 +15,23 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// toPolicyTargets adapts the agent Target configuration onto the dependency-free
-// policies.Target shape so it can be lowered into the policy model.
-func toPolicyTargets(targets []Target) []policies.Target {
-	out := make([]policies.Target, 0, len(targets))
-	for _, t := range targets {
-		out = append(out, policies.Target{
-			Name:              t.Name,
-			NamespaceSelector: toPolicyNamespaceSelector(t.NamespaceSelector),
-			PodSelector:       toPolicyPodSelector(t.PodSelector),
-			TracerVersions:    t.TracerVersions,
-			TracerConfigs:     toPolicyEnvVars(t.TracerConfigs),
-		})
-	}
-	return out
-}
-
-func toPolicyNamespaceSelector(ns *NamespaceSelector) *policies.NamespaceSelector {
-	if ns == nil {
-		return nil
-	}
-	return &policies.NamespaceSelector{
-		MatchNames:       ns.MatchNames,
-		MatchLabels:      ns.MatchLabels,
-		MatchExpressions: toPolicyExpressions(ns.MatchExpressions),
-	}
-}
-
-func toPolicyPodSelector(ps *PodSelector) *policies.PodSelector {
-	if ps == nil {
-		return nil
-	}
-	return &policies.PodSelector{
-		MatchLabels:      ps.MatchLabels,
-		MatchExpressions: toPolicyExpressions(ps.MatchExpressions),
-	}
-}
-
-func toPolicyExpressions(exprs []SelectorMatchExpression) []policies.LabelSelectorRequirement {
-	if len(exprs) == 0 {
-		return nil
-	}
-	out := make([]policies.LabelSelectorRequirement, len(exprs))
-	for i, e := range exprs {
-		out[i] = policies.LabelSelectorRequirement{
-			Key:      e.Key,
-			Operator: string(e.Operator),
-			Values:   e.Values,
-		}
-	}
-	return out
-}
-
-func toPolicyEnvVars(configs []TracerConfig) []policies.EnvVar {
-	if len(configs) == 0 {
-		return nil
-	}
-	out := make([]policies.EnvVar, len(configs))
-	for i, c := range configs {
-		out[i] = policies.EnvVar{Name: c.Name, Value: c.Value}
-	}
-	return out
-}
-
 // policyMatcher evaluates SSI policies against pods using the pure Go policy
-// engine. It is the native (CGO-free) counterpart of the targetInternal match
-// path and is fed by the same targets, compiled once per remote-config update.
+// engine. It holds the effective ordered policy set (configuration policies,
+// optionally augmented with remote-config ones) and resolves the first match.
 type policyMatcher struct {
 	policies             []policies.Policy
 	wmeta                workloadmeta.Component
 	needsNamespaceLabels bool
 }
 
-// newPolicyMatcher compiles the targets into policies and records whether any
-// rule reads namespace labels, so we only pay the workloadmeta lookup when a
+// newPolicyMatcher builds a matcher over the given policies and records whether
+// any rule reads namespace labels, so we only pay the workloadmeta lookup when a
 // policy actually needs it.
-func newPolicyMatcher(targets []Target, wmeta workloadmeta.Component) *policyMatcher {
-	compiled := policies.FromTargets(toPolicyTargets(targets))
+func newPolicyMatcher(ps []policies.Policy, wmeta workloadmeta.Component) *policyMatcher {
 	return &policyMatcher{
-		policies:             compiled,
+		policies:             ps,
 		wmeta:                wmeta,
-		needsNamespaceLabels: usesNamespaceLabels(compiled),
+		needsNamespaceLabels: usesNamespaceLabels(ps),
 	}
 }
 

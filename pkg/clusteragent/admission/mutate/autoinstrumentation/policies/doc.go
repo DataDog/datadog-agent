@@ -12,8 +12,10 @@
 // no dependency on the surrounding autoinstrumentation package, which keeps it
 // trivial to extract into dd-policy-engine/go later.
 //
-// It also provides a converter (FromTargets) that lowers the existing
-// Kubernetes "targets" configuration into the policy model, giving functional
-// parity with the native target matcher while opening the door to richer,
-// remote-config-distributed policies.
+// Policies are produced either by parsing the remote-config dd-wls document
+// (ParsePolicies) or, for the static agent configuration, by lowering the
+// "targets" configuration into the policy model. The latter lives in the
+// autoinstrumentation package and builds rule trees with the exported node
+// constructors (And, Or, Not, Leaf, ...) so this package stays free of any
+// knowledge of the targets configuration shape.
 package policies

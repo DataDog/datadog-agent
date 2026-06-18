@@ -12,8 +12,8 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"sync/atomic"
 
+	"go.uber.org/atomic"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/dynamic"
@@ -112,6 +112,11 @@ func newTargetMutatorWithTargets(config *Config, wmeta workloadmeta.Component, i
 		targets = nil
 	}
 
+	// Lower the configuration targets into policies once, at the config
+	// boundary. Everything past this point matches on policies only, aligned
+	// by index with the internal targets above.
+	configPolicies := policiesFromTargets(targets)
+
 	m := &TargetMutator{
 		disabledNamespaces:            disabledNamespacesMap,
 		securityClientLibraryMutator:  config.securityClientLibraryMutator,
@@ -121,7 +126,7 @@ func newTargetMutatorWithTargets(config *Config, wmeta workloadmeta.Component, i
 		defaultLibVersions:            defaultLibVersions,
 		base: policySet{
 			targets: internalTargets,
-			matcher: newPolicyMatcher(targets, wmeta),
+			matcher: newPolicyMatcher(configPolicies, wmeta),
 		},
 	}
 	m.active.Store(&m.base)
@@ -160,11 +165,7 @@ func (m *TargetMutator) SetRemotePolicies(ps []policies.Policy) error {
 
 	m.active.Store(&policySet{
 		targets: combinedTargets,
-		matcher: &policyMatcher{
-			policies:             combinedPolicies,
-			wmeta:                m.core.wmeta,
-			needsNamespaceLabels: usesNamespaceLabels(combinedPolicies),
-		},
+		matcher: newPolicyMatcher(combinedPolicies, m.core.wmeta),
 	})
 	return nil
 }
