@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/netip"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -66,7 +67,7 @@ func TestParsePorts(t *testing.T) {
 `,
 			want: map[string]*portMeta{
 				"socket:[34062]": {
-					port: Port{Proto: "tcp", Port: 22, IP: "0.0.0.0"},
+					port: Port{Proto: "tcp", Port: 22, IP: netip.IPv4Unspecified()},
 				},
 			},
 		},
@@ -81,10 +82,10 @@ func TestParsePorts(t *testing.T) {
 `,
 			want: map[string]*portMeta{
 				"socket:[142240557]": {
-					port: Port{Proto: "tcp", Port: 8081, IP: "::"},
+					port: Port{Proto: "tcp", Port: 8081, IP: netip.IPv6Unspecified()},
 				},
 				"socket:[34064]": {
-					port: Port{Proto: "tcp", Port: 22, IP: "::"},
+					port: Port{Proto: "tcp", Port: 22, IP: netip.IPv6Unspecified()},
 				},
 			},
 		},
@@ -104,7 +105,7 @@ func TestParsePorts(t *testing.T) {
 `,
 			want: map[string]*portMeta{
 				"socket:[99999]": {
-					port: Port{Proto: "tcp", Port: 443, IP: "192.168.1.1"},
+					port: Port{Proto: "tcp", Port: 443, IP: netip.MustParseAddr("192.168.1.1")},
 				},
 			},
 		},
@@ -137,15 +138,15 @@ func TestParsePorts(t *testing.T) {
 func TestParseHexIPv4(t *testing.T) {
 	tests := []struct {
 		in   string
-		want string
+		want netip.Addr
 	}{
-		{"00000000", "0.0.0.0"},
-		{"0100007F", "127.0.0.1"},
-		{"0101A8C0", "192.168.1.1"},
-		{"0200000A", "10.0.0.2"},
-		{"invalid", ""},
-		{"0100007", ""},   // too short: 7 valid hex chars
-		{"0100007F0", ""}, // too long: 9 valid hex chars
+		{"00000000", netip.IPv4Unspecified()},
+		{"0100007F", netip.MustParseAddr("127.0.0.1")},
+		{"0101A8C0", netip.MustParseAddr("192.168.1.1")},
+		{"0200000A", netip.MustParseAddr("10.0.0.2")},
+		{"invalid", netip.Addr{}},
+		{"0100007", netip.Addr{}},   // too short: 7 valid hex chars
+		{"0100007F0", netip.Addr{}}, // too long: 9 valid hex chars
 	}
 	for _, tt := range tests {
 		got := parseHexIPv4(tt.in)
@@ -158,13 +159,13 @@ func TestParseHexIPv4(t *testing.T) {
 func TestParseHexIPv6(t *testing.T) {
 	tests := []struct {
 		in   string
-		want string
+		want netip.Addr
 	}{
-		{"00000000000000000000000000000000", "::"},
-		{"00000000000000000000000001000000", "::1"},
-		{"0000000000000000FFFF00000100007F", "127.0.0.1"},
-		{"0000000000000000FFFF0000010120AC", "172.32.1.1"},
-		{"short", ""},
+		{"00000000000000000000000000000000", netip.IPv6Unspecified()},
+		{"00000000000000000000000001000000", netip.IPv6Loopback()},
+		{"0000000000000000FFFF00000100007F", netip.MustParseAddr("127.0.0.1")},
+		{"0000000000000000FFFF0000010120AC", netip.MustParseAddr("172.32.1.1")},
+		{"short", netip.Addr{}},
 	}
 	for _, tt := range tests {
 		got := parseHexIPv6(tt.in)
@@ -320,15 +321,15 @@ func TestArgvSubject(t *testing.T) {
 func TestPollerUDPIPPopulated(t *testing.T) {
 	tests := []struct {
 		addr   string
-		wantIP string
+		wantIP netip.Addr
 	}{
-		{"127.0.0.1:0", "127.0.0.1"},
-		{"[::1]:0", "::1"},
+		{"127.0.0.1:0", netip.MustParseAddr("127.0.0.1")},
+		{"[::1]:0", netip.IPv6Loopback()},
 	}
 
 	type bound struct {
 		port   uint16
-		wantIP string
+		wantIP netip.Addr
 		conn   net.PacketConn
 	}
 	var bounds []bound
