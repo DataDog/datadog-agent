@@ -348,7 +348,7 @@ require (
 	github.com/pulumi/pulumi-gcp/sdk/v7 v7.38.0 // indirect
 	github.com/pulumi/pulumi-libvirt/sdk v0.5.4 // indirect
 	github.com/pulumi/pulumi-random/sdk/v4 v4.18.4 // indirect
-	github.com/pulumi/pulumi-tls/sdk/v4 v4.11.1 // indirect
+	github.com/pulumi/pulumi-tls/sdk/v4 v4.11.4 // indirect
 	github.com/puzpuzpuz/xsync/v3 v3.5.1 // indirect
 	github.com/rs/zerolog v1.35.1 // indirect
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2 // indirect
