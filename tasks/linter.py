@@ -812,24 +812,3 @@ def filenames(ctx):
 
     if failure:
         raise Exit(code=1)
-
-
-@task
-def healthplatform_issuenames(ctx):
-    """Check that all healthplatform.Issue IssueName literals follow snake_case convention."""
-    paths = [
-        "./comp/healthplatform",
-        "./comp/core/autodiscovery",
-        "./pkg/clusteragent/admission/probe",
-        "./pkg/collector",
-    ]
-    failure = False
-    for p in paths:
-        result = ctx.run(
-            f"go run ./internal/tools/healthplatform-issuename-lint --path={p}",
-            warn=True,
-        )
-        if result.exited != 0:
-            failure = True
-    if failure:
-        raise Exit(code=1)

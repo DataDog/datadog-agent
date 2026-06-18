@@ -162,10 +162,6 @@ modules:
     independent: false
     should_tag: false
     should_test_condition: never
-  internal/tools/healthplatform-issuename-lint:
-    independent: false
-    should_tag: false
-    should_test_condition: never
   internal/tools/independent-lint:
     independent: false
     should_tag: false

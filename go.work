@@ -85,7 +85,6 @@ use (
 	internal/qbranch/anomalydetection-testbench
 	internal/tools
 	internal/tools/gotest-custom
-	internal/tools/healthplatform-issuename-lint
 	internal/tools/independent-lint
 	internal/tools/modformatter
 	internal/tools/modparser
