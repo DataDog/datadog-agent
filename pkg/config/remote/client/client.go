@@ -422,6 +422,19 @@ func (c *Client) UpdateApplyStatus(cfgPath string, status state.ApplyStatus) {
 	c.state.UpdateApplyStatus(cfgPath, status)
 }
 
+// UpdateApplyStatusIfVersion is the version-checked counterpart of
+// UpdateApplyStatus, for callers that ack outside of the OnUpdate callback
+// (e.g. a separate load/apply cycle that already holds the config's version).
+// It writes the status only if the repository still holds expectedVersion for
+// cfgPath, and drops the write otherwise so a stale ack can't land on a newer
+// version. Returns true if the status was applied.
+//
+// Listeners that ack from within OnUpdate should instead use the callback they
+// are handed — it is already bound to the snapshot's versions.
+func (c *Client) UpdateApplyStatusIfVersion(cfgPath string, expectedVersion uint64, status state.ApplyStatus) bool {
+	return c.state.UpdateApplyStatusIfVersion(cfgPath, expectedVersion, status)
+}
+
 // SetAgentName updates the agent name of the RC client
 // should only be used by the fx component
 func (c *Client) SetAgentName(agentName string) {

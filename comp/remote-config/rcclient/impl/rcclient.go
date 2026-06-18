@@ -365,7 +365,10 @@ func (rc *rcClient) Subscribe(product data.Product, fn func(update map[string]st
 }
 
 func (rc *rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
-	mergedConfig, err := state.MergeRCAgentConfig(rc.client.UpdateApplyStatus, updates)
+	// Use the version-bound callback handed to this update, not the raw
+	// client.UpdateApplyStatus: the former drops a stale ack if a newer config
+	// version landed while we were processing. See Client.boundApplyStatus.
+	mergedConfig, err := state.MergeRCAgentConfig(applyStateCallback, updates)
 	if err != nil {
 		return
 	}
@@ -451,7 +454,9 @@ func (rc *rcClient) agentTaskUpdateCallback(updates map[string]state.RawConfig, 
 			defer pkglog.Debugf("Agent task %s completed", configPath)
 			task, err := types.ParseConfigAgentTask(c.Config, c.Metadata)
 			if err != nil {
-				rc.client.UpdateApplyStatus(configPath, state.ApplyStatus{
+				// Version-bound callback (not the raw client method) so a stale
+				// parse-error ack can't land on a newer config version.
+				applyStateCallback(configPath, state.ApplyStatus{
 					State: state.ApplyStateError,
 					Error: err.Error(),
 				})
