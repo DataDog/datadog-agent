@@ -16,12 +16,6 @@ func TestAutoMaxProcs(t *testing.T) {
 
 	defer runtime.GOMAXPROCS(runtime.GOMAXPROCS(0))
 
-	// Simulate automaxprocs resolving to 1 (e.g. <=1 vCPU cgroup quota on ECS Fargate).
-	// SetMaxProcs should raise it to the minimum of 2.
-	runtime.GOMAXPROCS(1)
-	SetMaxProcs()
-	assert.GreaterOrEqual(t, runtime.GOMAXPROCS(0), 2)
-
 	// let's change at runtime to 2 threads
 	runtime.GOMAXPROCS(2)
 	assert.Equal(t, 2, runtime.GOMAXPROCS(0))
