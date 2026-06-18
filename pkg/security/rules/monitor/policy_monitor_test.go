@@ -1140,6 +1140,291 @@ func TestPolicyMonitorPolicyState(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "same default rule and custom rules with conflicting set action fields",
+			policies: []*testPolicy{
+				{
+					info: rules.PolicyInfo{
+						Name:         "Default-A",
+						Source:       "test",
+						InternalType: rules.DefaultPolicyType,
+						Version:      "0.0.3",
+					},
+					def: rules.PolicyDef{
+						Rules: []*rules.RuleDefinition{
+							{
+								ID:         "rule_a",
+								Expression: `exec.file.path == "/etc/foo/bar"`,
+								Actions: []*rules.ActionDefinition{
+									{
+										Filter: &[]string{"process.pid != 0 "}[0],
+										Set: &rules.SetDefinition{
+											Name:    "rtl_process_args_qwuUJ",
+											Field:   "process.args",
+											TTL:     &rules.HumanReadableDuration{Duration: 3600000000000},
+											Append:  true,
+											Scope:   "cgroup",
+											Private: true,
+										},
+									},
+									{
+										Filter: &[]string{"process.pid != 0 "}[0],
+										Set: &rules.SetDefinition{
+											Name:    "rtl_process_parent_qwuUJ",
+											Field:   "process.parent.file.path",
+											TTL:     &rules.HumanReadableDuration{Duration: 3600000000000},
+											Append:  true,
+											Scope:   "cgroup",
+											Private: true,
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				{
+					info: rules.PolicyInfo{
+						Name:         "Custom-B",
+						Source:       "test",
+						InternalType: rules.CustomPolicyType,
+						Version:      "0.0.2",
+					},
+					def: rules.PolicyDef{
+						Rules: []*rules.RuleDefinition{
+							{
+								ID:         "rule_a",
+								Expression: `exec.file.path == "/etc/foo/bar"`,
+								Combine:    "override",
+								OverrideOptions: rules.OverrideOptions{
+									Fields: []rules.OverrideField{
+										"actions",
+									},
+								},
+								Actions: []*rules.ActionDefinition{
+									{
+										Filter: &[]string{"process.pid != 0 "}[0],
+										Set: &rules.SetDefinition{
+											Name:    "rtl_process_args_qwuUJ",
+											Field:   "process.args",
+											TTL:     &rules.HumanReadableDuration{Duration: 3600000000000},
+											Append:  true,
+											Scope:   "cgroup",
+											Private: false,
+										},
+									},
+									{
+										Filter: &[]string{"process.pid != 0 "}[0],
+										Set: &rules.SetDefinition{
+											Name:    "rtl_process_parent_qwuUJ",
+											Field:   "process.parent.file.path",
+											TTL:     &rules.HumanReadableDuration{Duration: 3600000000000},
+											Append:  true,
+											Scope:   "cgroup",
+											Private: false,
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				{
+					info: rules.PolicyInfo{
+						Name:         "Custom-C",
+						Source:       "test",
+						InternalType: rules.CustomPolicyType,
+						Version:      "0.0.1",
+					},
+					def: rules.PolicyDef{
+						Rules: []*rules.RuleDefinition{
+							{
+								ID:         "rule_a",
+								Expression: `exec.file.path == "/etc/foo/bar"`,
+								Combine:    "override",
+								OverrideOptions: rules.OverrideOptions{
+									Fields: []rules.OverrideField{
+										"actions",
+									},
+								},
+								Actions: []*rules.ActionDefinition{
+									{
+										Filter: &[]string{"process.pid != 0 "}[0],
+										Set: &rules.SetDefinition{
+											Name:    "rtl_process_args_qwuUJ",
+											Field:   "process.args",
+											TTL:     &rules.HumanReadableDuration{Duration: 3600000000000},
+											Append:  true,
+											Scope:   "cgroup",
+											Private: false,
+										},
+									},
+									{
+										Filter: &[]string{"process.pid != 0 "}[0],
+										Set: &rules.SetDefinition{
+											Name:    "rtl_process_parent_qwuUJ",
+											Field:   "process.parent.file.path",
+											TTL:     &rules.HumanReadableDuration{Duration: 3600000000000},
+											Append:  true,
+											Scope:   "cgroup",
+											Private: false,
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedPolicyStates: []*PolicyState{
+				{
+					PolicyMetadata: PolicyMetadata{
+						Name:    "Custom-B",
+						Source:  "test",
+						Version: "0.0.2",
+					},
+					Status: PolicyStatusLoaded,
+					Rules: []*RuleState{
+						{
+							ID:         "rule_a",
+							Expression: `exec.file.path == "/etc/foo/bar"`,
+							Status:     "loaded",
+							Version:    "0.0.2",
+							ModifiedBy: []*PolicyMetadata{
+								{
+									Name:    "Custom-C",
+									Source:  "test",
+									Version: "0.0.1",
+								},
+							},
+							Actions: []RuleAction{
+								{
+									Filter: &[]string{"process.pid != 0 "}[0],
+									Set: &RuleSetAction{
+										Name:    "rtl_process_args_qwuUJ",
+										Field:   "process.args",
+										TTL:     "1h0m0s",
+										Append:  true,
+										Scope:   "cgroup",
+										Private: true,
+									},
+								},
+								{
+									Filter: &[]string{"process.pid != 0 "}[0],
+									Set: &RuleSetAction{
+										Name:    "rtl_process_parent_qwuUJ",
+										Field:   "process.parent.file.path",
+										TTL:     "1h0m0s",
+										Append:  true,
+										Scope:   "cgroup",
+										Private: true,
+									},
+								},
+							},
+						},
+					},
+				},
+				{
+					PolicyMetadata: PolicyMetadata{
+						Name:    "Custom-C",
+						Source:  "test",
+						Version: "0.0.1",
+					},
+					Status: PolicyStatusLoaded,
+					Rules: []*RuleState{
+						{
+							ID:         "rule_a",
+							Expression: `exec.file.path == "/etc/foo/bar"`,
+							Status:     "loaded",
+							Version:    "0.0.2",
+							ModifiedBy: []*PolicyMetadata{
+								{
+									Name:    "Custom-B",
+									Source:  "test",
+									Version: "0.0.2",
+								},
+							},
+							Actions: []RuleAction{
+								{
+									Filter: &[]string{"process.pid != 0 "}[0],
+									Set: &RuleSetAction{
+										Name:    "rtl_process_args_qwuUJ",
+										Field:   "process.args",
+										TTL:     "1h0m0s",
+										Append:  true,
+										Scope:   "cgroup",
+										Private: true,
+									},
+								},
+								{
+									Filter: &[]string{"process.pid != 0 "}[0],
+									Set: &RuleSetAction{
+										Name:    "rtl_process_parent_qwuUJ",
+										Field:   "process.parent.file.path",
+										TTL:     "1h0m0s",
+										Append:  true,
+										Scope:   "cgroup",
+										Private: true,
+									},
+								},
+							},
+						},
+					},
+				},
+				{
+					PolicyMetadata: PolicyMetadata{
+						Name:    "Default-A",
+						Source:  "test",
+						Version: "0.0.3",
+					},
+					Status: PolicyStatusLoaded,
+					Rules: []*RuleState{
+						{
+							ID:         "rule_a",
+							Expression: `exec.file.path == "/etc/foo/bar"`,
+							Status:     "loaded",
+							Version:    "0.0.2",
+							ModifiedBy: []*PolicyMetadata{
+								{
+									Name:    "Custom-B",
+									Source:  "test",
+									Version: "0.0.2",
+								},
+								{
+									Name:    "Custom-C",
+									Source:  "test",
+									Version: "0.0.1",
+								},
+							},
+							Actions: []RuleAction{
+								{
+									Filter: &[]string{"process.pid != 0 "}[0],
+									Set: &RuleSetAction{
+										Name:    "rtl_process_args_qwuUJ",
+										Field:   "process.args",
+										TTL:     "1h0m0s",
+										Append:  true,
+										Scope:   "cgroup",
+										Private: true,
+									},
+								},
+								{
+									Filter: &[]string{"process.pid != 0 "}[0],
+									Set: &RuleSetAction{
+										Name:    "rtl_process_parent_qwuUJ",
+										Field:   "process.parent.file.path",
+										TTL:     "1h0m0s",
+										Append:  true,
+										Scope:   "cgroup",
+										Private: true,
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
 	}
 
 	if runtime.GOOS == "linux" {
