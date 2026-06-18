@@ -477,6 +477,7 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("gpu.workload_tag_cache_size", 1024)
 	config.BindEnvAndSetDefault("gpu.disabled_collectors", []string{})
 	config.BindEnvAndSetDefault("gpu.nvlink.fec_light_error_threshold", 3)
+	config.BindEnvAndSetDefault("gpu.parallel_collectors", true)
 
 	// NCCL
 	config.BindEnvAndSetDefault("gpu.nccl.enabled", false)
@@ -1070,6 +1071,10 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("data_plane.telemetry_enabled", false)
 	config.BindEnvAndSetDefault("data_plane.telemetry_listen_addr", "tcp://0.0.0.0:5102")
 	config.BindEnvAndSetDefault("data_plane.log_file", defaultpaths.GetDefaultDataPlaneLogFile())
+	// 4 matches aggregator_stop_timeout + forwarder_stop_timeout (each defaults to 2 in seconds).
+	// ComputeDataPlaneStopTimeout (post-load override) recomputes this at runtime so it tracks
+	// any user-set values for aggregator_stop_timeout / forwarder_stop_timeout.
+	config.BindEnvAndSetDefault("data_plane.stop_timeout", 4)
 	config.BindEnvAndSetDefault("data_plane.dogstatsd.enabled", true)
 	config.BindEnvAndSetDefault("data_plane.otlp.enabled", false)
 	config.BindEnvAndSetDefault("data_plane.otlp.proxy.enabled", false)
