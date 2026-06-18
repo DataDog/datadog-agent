@@ -47,7 +47,7 @@ func validatedDDProcmgrCLI() (string, error) {
 		return "", fmt.Errorf("dd-procmgr path layout: %w", err)
 	}
 	if !strings.EqualFold(filepath.ToSlash(rel), filepath.ToSlash(wantRel)) {
-		return "", fmt.Errorf("unexpected dd-procmgr path layout")
+		return "", errors.New("unexpected dd-procmgr path layout")
 	}
 	return cli, nil
 }
