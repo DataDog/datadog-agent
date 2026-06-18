@@ -7,11 +7,10 @@ package sender
 
 import (
 	"context"
-	"net/http"
 
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/network"
 )
 
-func getNetworkID(_ *http.Client) (string, error) {
-	return network.GetNetworkID(context.Background())
+func getNetworkID(ctx context.Context) (string, error) {
+	return network.GetNetworkID(ctx)
 }

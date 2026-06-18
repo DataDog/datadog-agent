@@ -121,17 +121,6 @@ func (d *directSenderConsumer) Start() error {
 // Stop implements eventmonitor.EventConsumer
 func (d *directSenderConsumer) Stop() {}
 
-// Copy implements eventmonitor.EventConsumerHandler
-func (d *directSenderConsumer) Copy(ev *model.Event) any {
-	p := &process{
-		Pid:       ev.GetProcessPid(),
-		PPid:      ev.GetProcessPpid(),
-		EventType: ev.GetEventType(),
-		Cmdline:   ev.GetExecCmdargv(),
-	}
-	return p
-}
-
 var cwdLogLimiter = logutil.NewLogLimit(20, 10*time.Minute)
 
 // HandleEvent implements eventmonitor.EventConsumerHandler

@@ -392,7 +392,7 @@ func (d *directSender) batches(conns *network.Connections, groupID int32) iter.S
 			return nil
 		},
 		GetProcessTags: func(pid int32) []string {
-			return getProcessTags(pid, procCacheTags, func(i int32) ([]string, error) {
+			return getProcessTags(pid, procCacheTags, func(_ int32) ([]string, error) {
 				if pid <= 0 {
 					return nil, nil
 				}

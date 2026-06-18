@@ -11,8 +11,19 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
+// Copy implements eventmonitor.EventConsumerHandler
+func (d *directSenderConsumer) Copy(ev *model.Event) any {
+	p := &process{
+		Pid:       ev.GetProcessPid(),
+		PPid:      ev.GetProcessPpid(),
+		EventType: ev.GetEventType(),
+		Exe:       ev.GetExecFilePath(),
+	}
+	return p
+}
+
 func (d *directSenderConsumer) handleNewProcess(p *process) {
-	if p.Cwd != "" && p.Comm != "" && p.Exe != "" {
+	if p.Cwd != "" && p.Comm != "" && len(p.Cmdline) > 0 {
 		return
 	}
 
@@ -26,8 +37,8 @@ func (d *directSenderConsumer) handleNewProcess(p *process) {
 	if p.Comm == "" {
 		p.Comm, _ = pp.Name()
 	}
-	if p.Exe == "" {
-		p.Exe, _ = pp.Exe()
+	if len(p.Cmdline) == 0 {
+		p.Cmdline, _ = pp.CmdlineSlice()
 	}
 }
 

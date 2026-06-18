@@ -15,6 +15,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
+// Copy implements eventmonitor.EventConsumerHandler
+func (d *directSenderConsumer) Copy(ev *model.Event) any {
+	p := &process{
+		Pid:       ev.GetProcessPid(),
+		PPid:      ev.GetProcessPpid(),
+		EventType: ev.GetEventType(),
+		Cmdline:   ev.GetExecCmdargv(),
+	}
+	return p
+}
+
 func (d *directSenderConsumer) handleNewProcess(p *process) {
 	pidStr := strconv.Itoa(int(p.Pid))
 	if p.Cwd == "" {
