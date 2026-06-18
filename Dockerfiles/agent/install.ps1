@@ -1,5 +1,5 @@
 $ErrorActionPreference = "Stop"
-Trap { Write-Host "Error in install.ps1: $_" }
+Trap { Write-Host "Error in install.ps1: $_"; break }
 
 function Install-Service {
   param(
