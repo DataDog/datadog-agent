@@ -805,7 +805,7 @@ func startPrivateActionRunner(
 	tagger tagger.Component,
 	tracerouteComp traceroute.Component,
 	eventPlatform eventplatform.Component,
-	ipc        ipc.Component,
+	ipc ipc.Component,
 	statsdComp statsd.Component,
 ) (func(), error) {
 	if rcClient == nil {

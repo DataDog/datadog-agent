@@ -121,7 +121,7 @@ func NewPrivateActionRunner(
 	taggerComp tagger.Component,
 	tracerouteComp traceroute.Component,
 	eventPlatform eventplatform.Component,
-	ipcComp    ipc.Component,
+	ipcComp ipc.Component,
 	statsdComp statsdcomp.Component,
 ) (*PrivateActionRunner, error) {
 	return &PrivateActionRunner{
@@ -132,8 +132,8 @@ func NewPrivateActionRunner(
 		tagger:         taggerComp,
 		traceroute:     tracerouteComp,
 		eventPlatform:  eventPlatform,
-		ipc:    ipcComp,
-		statsd: statsdComp,
+		ipc:            ipcComp,
+		statsd:         statsdComp,
 		startChan:      make(chan struct{}),
 	}, nil
 }
