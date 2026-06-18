@@ -25,6 +25,7 @@ go_test(
     srcs = [
         "converter_table_test.go",
         "converters_test.go",
+        "prometheus_test.go",
     ],
     data = glob(["testdata/**"]),
     embed = [":converters"],

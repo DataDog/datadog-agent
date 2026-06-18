@@ -339,6 +339,21 @@ func TestConverterWithoutAgent(t *testing.T) {
 			expected: "no_agent/metrics-covered-user/out.yaml",
 		},
 		{
+			name:     "internal-metrics-covered-with-explicit-scheme-and-metrics-path",
+			provided: "no_agent/metrics-covered-path/in.yaml",
+			expected: "no_agent/metrics-covered-path/out.yaml",
+		},
+		{
+			name:     "internal-metrics-not-covered-custom-metrics-path",
+			provided: "no_agent/metrics-uncovered-path/in.yaml",
+			expected: "no_agent/metrics-uncovered-path/out.yaml",
+		},
+		{
+			name:     "internal-metrics-not-covered-https-scheme",
+			provided: "no_agent/metrics-uncovered-scheme/in.yaml",
+			expected: "no_agent/metrics-uncovered-scheme/out.yaml",
+		},
+		{
 			name:     "internal-metrics-partial-user-pipeline-coverage",
 			provided: "no_agent/metrics-partial-coverage/in.yaml",
 			expected: "no_agent/metrics-partial-coverage/out.yaml",
