@@ -1,5 +1,6 @@
-load("@rules_go//go:def.bzl", "go_binary", "go_library")
+load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules:windows_resources.bzl", "win_resource")
+load("//bazel/rules/go:go_binary.bzl", "dd_agent_go_binary")
 
 # gazelle:exclude version.h
 
@@ -34,9 +35,29 @@ go_library(
     }),
 )
 
-go_binary(
+# It is possible to build this for SUBSYSTEM=console, but it is not done in CI.
+# We can add it if we need it.
+SUBSYSTEM = "windows"
+# TODO: get the flags in
+# ldflags += f"-linkmode external '-extldflags=-Wl,--subsystem,{subsystem}' "
+
+dd_agent_go_binary(
     name = "systray",
+    clinkopts = ["--subsystem,%s" % SUBSYSTEM],
     embed = [":systray_lib"],
+    gc_linkopts = [
+        "--subsystem,%s" % SUBSYSTEM,
+    ] + select({
+        "//:is_release": [
+            "-s",
+            "-w",
+        ],
+        "//conditions:default": None,
+    }),
+    linkmode = "external",
     target_compatible_with = ["@platforms//os:windows"],
     visibility = ["//visibility:public"],
+    x_defs = {
+        "github.com/DataDog/datadog-agent/cmd/systray/command/command.subsystem=%s" % SUBSYSTEM,
+    },
 )
