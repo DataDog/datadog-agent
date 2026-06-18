@@ -725,10 +725,11 @@ func (a *atel) SubmitErrorLog(log errortracking.ErrorLog) {
 	}
 }
 
-// flushErrortracking drains every log currently buffered in errLogsCh
-// and dispatches the entire slice as ONE HTTP call via
-// sender.sendLogsBatch. The drain is non-blocking: the loop exits as
-// soon as the channel has no immediately-available log.
+// flushErrortracking drains logs currently buffered in errLogsCh and
+// dispatches them as ONE HTTP call via sender.sendLogsBatch.
+// The drain is bounded to len(errLogsCh) at flush start: items that
+// arrive after the snapshot are left for the next tick, preventing a
+// hot error stream from holding the flush job indefinitely.
 // A no-op when errortracking is disabled (errLogsCh == nil) or the
 // channel is empty.
 //
@@ -750,14 +751,21 @@ func (a *atel) flushErrortracking(ctx context.Context) {
 	if a.errLogsCh == nil {
 		return
 	}
-	var errLogs []errortracking.ErrorLog
-drain:
-	for {
+	// Snapshot the current queue depth so a hot producer cannot extend
+	// this batch indefinitely: items arriving after the snapshot wait for
+	// the next tick rather than growing errLogs beyond cap(errLogsCh).
+	n := len(a.errLogsCh)
+	if n == 0 {
+		return
+	}
+	errLogs := make([]errortracking.ErrorLog, 0, n)
+	for range n {
 		select {
 		case l := <-a.errLogsCh:
 			errLogs = append(errLogs, l)
 		default:
-			break drain
+			// Channel drained before snapshot count — harmless, stop early.
+			break
 		}
 	}
 	if len(errLogs) == 0 {

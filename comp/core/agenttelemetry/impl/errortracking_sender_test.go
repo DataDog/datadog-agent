@@ -381,6 +381,41 @@ func TestFlushErrortracking_DrainsWholeBufferInOneCall(t *testing.T) {
 	}
 }
 
+// TestFlushErrortracking_DrainIsBoundedToSnapshot: a producer that keeps
+// writing into the channel during a flush must not extend the current
+// batch beyond the items that were already queued at flush start. Only the
+// snapshot-at-start items are dispatched; the new arrivals wait for the
+// next tick.
+func TestFlushErrortracking_DrainIsBoundedToSnapshot(t *testing.T) {
+	sm := &senderMock{}
+	const bufSize = 10
+	a := newTestAtelMinimal(t, sm, bufSize)
+	defer a.cancel()
+
+	// Pre-fill half the buffer before the flush.
+	const preFilled = 5
+	for i := range preFilled {
+		a.SubmitErrorLog(errorLog(fmt.Sprintf("pre-%d", i)))
+	}
+
+	// Inject 3 more items concurrently while the flush runs. Because the
+	// flush is bounded to len(ch) at start (= preFilled), these arrivals
+	// must not be included in this batch.
+	go func() {
+		for i := range 3 {
+			a.SubmitErrorLog(errorLog(fmt.Sprintf("late-%d", i)))
+		}
+	}()
+
+	a.flushErrortracking(context.Background())
+
+	got := sm.capturedLogs()
+	assert.LessOrEqual(t, len(got), preFilled,
+		"flush must not dispatch more than the snapshot count (%d)", preFilled)
+	assert.Equal(t, 1, sm.sendLogsCalls(),
+		"snapshot-bounded flush must still dispatch in exactly one sendLogsBatch call")
+}
+
 // TestFlushErrortracking_FinalDrain: records enqueued shortly before
 // shutdown must be picked up by the final flushErrortracking call in
 // atel.stop. The atel.stop ordering is:
