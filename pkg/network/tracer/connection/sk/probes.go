@@ -18,16 +18,16 @@ var programs = map[string]struct{}{
 	"bpf_iter__task_file_initial_sockets": {},
 	"bpf_iter__task_file_port_bindings":   {},
 
-	"tcp_connect_entry":        {},
-	"inet_csk_accept_exit":     {},
-	"inet_csk_accept_exit_610": {},
-	"tcp_finish_connect_entry": {},
-	"tcp_done_entry":           {},
-	"tcp_close_entry":          {},
-	"tcp_enter_loss_entry":     {},
-	"tcp_enter_recovery_entry": {},
-	"tcp_send_probe0_entry":    {},
-	"tcp_sockops":              {},
+	"tcp_connect_entry":               {},
+	"inet_csk_accept_exit":            {},
+	"inet_csk_accept_exit_pre_6_10_0": {},
+	"tcp_finish_connect_entry":        {},
+	"tcp_done_entry":                  {},
+	"tcp_close_entry":                 {},
+	"tcp_enter_loss_entry":            {},
+	"tcp_enter_recovery_entry":        {},
+	"tcp_send_probe0_entry":           {},
+	"tcp_sockops":                     {},
 
 	"udp_sendpage_exit":       {},
 	"udpv6_sendmsg_exit":      {},
@@ -91,9 +91,9 @@ func enabledPrograms(c *config.Config) (map[string]struct{}, error) {
 		enableProgram(enabled, "tcp_sockops")
 
 		if kv >= kernel.VersionCode(6, 10, 0) {
-			enableProgram(enabled, "inet_csk_accept_exit_610")
-		} else {
 			enableProgram(enabled, "inet_csk_accept_exit")
+		} else {
+			enableProgram(enabled, "inet_csk_accept_exit_pre_6_10_0")
 		}
 	}
 
