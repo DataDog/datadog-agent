@@ -332,10 +332,10 @@ type ScorerConfig struct {
 	// specific detector names. Each entry is [low, medium, high, xhigh] thresholds.
 	// Detectors not in this map default to level 2 (Medium) regardless of their score.
 	DetectorThresholds map[string][4]float64 `json:"detector_thresholds,omitempty"`
-	// MaxBuckets is the maximum number of ScoreBucket entries retained in
-	// ScoreState(). 0 means unlimited (suitable for offline replay). Positive
-	// values cap retention to prevent unbounded growth in the live agent.
-	// DefaultScorerConfig sets this to WindowSecs.
+	// MaxBuckets overrides the number of ScoreBucket entries retained in
+	// ScoreState(). 0 (default) means "cap at WindowSecs", which is the
+	// correct behaviour for the live agent. Set to a large positive value
+	// (e.g. math.MaxInt64) to keep an unlimited history for offline replay.
 	MaxBuckets int64 `json:"max_buckets,omitempty"`
 }
 
