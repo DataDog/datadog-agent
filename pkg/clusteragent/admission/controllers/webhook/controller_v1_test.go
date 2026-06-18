@@ -1334,6 +1334,7 @@ func (f *fixtureV1) createController() (*ControllerV1, informers.SharedInformerF
 		nil,
 		datadogConfig,
 		nil,
+		nil,
 		newFilterStoreFromConfig(f.t, datadogConfig),
 		nil,
 		nil,

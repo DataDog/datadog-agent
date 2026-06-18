@@ -1328,6 +1328,7 @@ func (f *fixtureV1beta1) createController() (*ControllerV1beta1, informers.Share
 		nil,
 		datadogConfig,
 		nil,
+		nil,
 		newFilterStoreFromConfig(f.t, datadogConfig),
 		nil,
 		nil,
