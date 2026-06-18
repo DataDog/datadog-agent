@@ -7,10 +7,12 @@ use anyhow::Result;
 use std::ffi::c_void;
 use std::os::windows::ffi::OsStringExt;
 use std::path::PathBuf;
-use std::sync::OnceLock;
+use std::sync::{Mutex, OnceLock};
 use tokio::sync::Notify;
-use windows_sys::Win32::Foundation::{CloseHandle, HANDLE};
-use windows_sys::Win32::System::Console::{CTRL_BREAK_EVENT, GenerateConsoleCtrlEvent};
+use windows_sys::Win32::Foundation::{CloseHandle, HANDLE, TRUE};
+use windows_sys::Win32::System::Console::{
+    AttachConsole, CTRL_BREAK_EVENT, FreeConsole, GenerateConsoleCtrlEvent, SetConsoleCtrlHandler,
+};
 use windows_sys::Win32::System::JobObjects::{
     AssignProcessToJobObject, CreateJobObjectW, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
     JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JobObjectExtendedLimitInformation,
@@ -21,6 +23,9 @@ use windows_sys::Win32::System::Threading::{
 };
 
 static SHUTDOWN_NOTIFY: OnceLock<Notify> = OnceLock::new();
+
+/// Serialize console attach / ctrl-event / detach: these APIs are process-global.
+static GRACEFUL_CONSOLE_LOCK: Mutex<()> = Mutex::new(());
 
 /// Returns the global shutdown notifier. The SCM control handler calls
 /// `notify_one()` on this from its OS thread to trigger graceful shutdown
@@ -139,17 +144,53 @@ pub fn setup_process_group(cmd: &mut tokio::process::Command) {
     cmd.creation_flags(CREATE_NEW_PROCESS_GROUP);
 }
 
-/// Send CTRL_BREAK to the child's process group (graceful stop).
-///
-/// `GenerateConsoleCtrlEvent` targets the process group whose ID equals the
-/// child's PID (because we created it with `CREATE_NEW_PROCESS_GROUP`).
+/// While injecting CTRL_BREAK for a child, treat any console control delivered to this process as
+/// handled so we do not run default service shutdown logic for the same event.
+unsafe extern "system" fn ignore_console_ctrl_events(_: u32) -> i32 {
+    TRUE
+}
+
+/// Send CTRL_BREAK to the child's process group (`pid` is the group root from `CREATE_NEW_PROCESS_GROUP`).
+/// Services have no console, so we `AttachConsole(pid)` before `GenerateConsoleCtrlEvent`; then detach.
 pub fn send_graceful_stop(pid: u32) -> Result<()> {
-    let ok = unsafe { GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, pid) };
-    if ok == 0 {
-        anyhow::bail!(
-            "GenerateConsoleCtrlEvent(CTRL_BREAK, {pid}) failed: {}",
-            std::io::Error::last_os_error()
-        );
+    let _guard = GRACEFUL_CONSOLE_LOCK
+        .lock()
+        .expect("graceful console lock poisoned");
+
+    unsafe {
+        let _ = FreeConsole();
+        if AttachConsole(pid) == 0 {
+            anyhow::bail!(
+                "AttachConsole({pid}) failed: {}",
+                std::io::Error::last_os_error()
+            );
+        }
+        struct DetachOnDrop;
+        impl Drop for DetachOnDrop {
+            fn drop(&mut self) {
+                unsafe {
+                    let _ = FreeConsole();
+                }
+            }
+        }
+        let _detach = DetachOnDrop;
+
+        if SetConsoleCtrlHandler(Some(ignore_console_ctrl_events), 1) == 0 {
+            anyhow::bail!("SetConsoleCtrlHandler: {}", std::io::Error::last_os_error());
+        }
+        let ok = GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, pid);
+        if SetConsoleCtrlHandler(Some(ignore_console_ctrl_events), 0) == 0 {
+            log::warn!(
+                "SetConsoleCtrlHandler(remove console ctrl ignore handler) failed: {}",
+                std::io::Error::last_os_error()
+            );
+        }
+        if ok == 0 {
+            anyhow::bail!(
+                "GenerateConsoleCtrlEvent(CTRL_BREAK, {pid}) failed: {}",
+                std::io::Error::last_os_error()
+            );
+        }
     }
     Ok(())
 }
