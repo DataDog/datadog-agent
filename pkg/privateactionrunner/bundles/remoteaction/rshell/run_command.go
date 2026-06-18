@@ -21,7 +21,6 @@ import (
 	"github.com/DataDog/rshell/interp"
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
-	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/observability"
@@ -87,46 +86,15 @@ func newRunCommandHandler(operatorAllowedPaths []string, operatorAllowedCommands
 }
 
 // filterAllowedCommands returns the effective command allowlist, passed to rshell:
-// intersection of the operator-configured list and the backend-configured list.
+// the signed backend-configured list, limited to the rshell command namespace.
 func (h *RunCommandHandler) filterAllowedCommands(backendAllowed []string) []string {
-	// If either list is empty, the intersection is an empty list.
-	if len(backendAllowed) == 0 || len(h.operatorAllowedCommands) == 0 {
-		return []string{}
-	}
-
-	// If the operator-configured list contains the wildcard, the intersection is the backend-configured list.
-	// Most of the executions should return here.
-	if slices.Contains(h.operatorAllowedCommands, setup.RShellCommandAllowAllWildcard) {
-		return onlyRshellPrefixedCommands(backendAllowed)
-	}
-
-	filtered := make([]string, 0)
-	for _, c := range backendAllowed {
-		if slices.Contains(h.operatorAllowedCommands, c) {
-			filtered = append(filtered, c)
-		}
-	}
-	return filtered
+	return onlyRshellPrefixedCommands(backendAllowed)
 }
 
-// filterAllowedPaths returns the effective path allowlist, passed to rshell:
-// intersection of the operator-configured list and the backend-configured list.
-// The narrower side wins.
+// filterAllowedPaths returns the effective path allowlist passed to rshell:
+// the signed backend-configured list after path/suffix normalization.
 func (h *RunCommandHandler) filterAllowedPaths(backend []string) []string {
-	// If either list is empty, the intersection is an empty list.
-	if len(backend) == 0 || len(h.operatorAllowedPaths) == 0 {
-		return []string{}
-	}
-
-	backend = reducePathListToBroadest(cleanPathList(backend))
-
-	// If the operator-configured list contains the wildcard, the intersection is the backend-configured list.
-	// Most of the executions should return here.
-	if slices.Contains(h.operatorAllowedPaths, setup.RShellPathAllowAll) {
-		return backend
-	}
-
-	return intersectPathLists(h.operatorAllowedPaths, backend)
+	return cleanPathList(backend)
 }
 
 // RunCommandInputs defines the user-supplied inputs for the runCommand action.

@@ -16,10 +16,11 @@ type RshellBundle struct {
 }
 
 // NewRshellBundle creates the rshell bundle with its registered actions.
-// It reads the operator-configured allowlists (paths and commands) from the config.
-func NewRshellBundle(cfg *config.Config) types.Bundle {
+// The signed backend task payload is the authority for rshell allowlists.
+func NewRshellBundle(_ *config.Config) types.Bundle {
 	return &RshellBundle{
 		actions: map[string]types.Action{
+<<<<<<< HEAD
 			"runCommand": NewRunCommandHandler(
 				cfg.RShellAllowedPaths,
 				cfg.RShellAllowedCommands,
@@ -28,6 +29,14 @@ func NewRshellBundle(cfg *config.Config) types.Bundle {
 				cfg.RShellAllowedPaths,
 				cfg.RShellAllowedCommands,
 			),
+||||||| parent of 85fa249c9ca (fix(privateactionrunner): trust backend rshell allowlists)
+			"runCommand": NewRunCommandHandler(
+				cfg.RShellAllowedPaths,
+				cfg.RShellAllowedCommands,
+			),
+=======
+			"runCommand": NewRunCommandHandler(nil, nil),
+>>>>>>> 85fa249c9ca (fix(privateactionrunner): trust backend rshell allowlists)
 		},
 	}
 }
