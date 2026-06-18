@@ -1522,6 +1522,28 @@ func ApplyUseDogstatsdSuppression(config pkgconfigmodel.Config) {
 	}
 }
 
+// ComputeDataPlaneStopTimeout is a post-load override that, when the user has
+// not explicitly set data_plane.stop_timeout, recomputes it from
+// aggregator_stop_timeout + forwarder_stop_timeout. The Agent Data Plane reads
+// this value via the config stream to size its topology graceful-shutdown
+// budget; computing the sum here keeps that budget aligned with the documented
+// core-agent shutdown window even when users customize the component
+// timeouts.
+//
+// It is registered as an override func (runs after datadog.yaml loads) and
+// also called explicitly after fleet policy merging, because fleet policies
+// are applied after the initial override pass.
+func ComputeDataPlaneStopTimeout(config pkgconfigmodel.Config) {
+	if config.GetSource("data_plane.stop_timeout") != pkgconfigmodel.SourceDefault {
+		return
+	}
+	sum := config.GetInt("aggregator_stop_timeout") + config.GetInt("forwarder_stop_timeout")
+	// Keep the source as default: the value is a derived default, not an
+	// agent runtime decision, so it should be filtered out by views that
+	// strip defaults (e.g. config dumps for diagnostics).
+	config.Set("data_plane.stop_timeout", sum, pkgconfigmodel.SourceDefault)
+}
+
 func bindEnvAndSetLogsConfigKeys(config pkgconfigmodel.Setup, prefix string) {
 	config.BindEnvAndSetDefault(prefix+"logs_dd_url", "") // Send the logs to a proxy. Must respect format '<HOST>:<PORT>' and '<PORT>' to be an integer
 	config.BindEnvAndSetDefault(prefix+"dd_url", "")
