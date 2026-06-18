@@ -19,7 +19,8 @@ use windows_sys::Win32::System::JobObjects::{
     SetInformationJobObject, TerminateJobObject,
 };
 use windows_sys::Win32::System::Threading::{
-    CREATE_NEW_PROCESS_GROUP, OpenProcess, PROCESS_SET_QUOTA, PROCESS_TERMINATE, TerminateProcess,
+    CREATE_NEW_CONSOLE, CREATE_NEW_PROCESS_GROUP, CREATE_NO_WINDOW, OpenProcess, PROCESS_SET_QUOTA,
+    PROCESS_TERMINATE, TerminateProcess,
 };
 
 static SHUTDOWN_NOTIFY: OnceLock<Notify> = OnceLock::new();
@@ -138,10 +139,11 @@ impl Drop for JobObject {
 // Platform functions
 // ---------------------------------------------------------------------------
 
-/// Place the child in its own process group so `GenerateConsoleCtrlEvent`
-/// can target it without affecting the daemon.
+/// Give the child its own hidden console plus a new process group so
+/// `GenerateConsoleCtrlEvent` / `AttachConsole` graceful shutdown can work (null stdio alone
+/// often leaves no attachable console).
 pub fn setup_process_group(cmd: &mut tokio::process::Command) {
-    cmd.creation_flags(CREATE_NEW_PROCESS_GROUP);
+    cmd.creation_flags(CREATE_NEW_PROCESS_GROUP | CREATE_NEW_CONSOLE | CREATE_NO_WINDOW);
 }
 
 /// While injecting CTRL_BREAK for a child, treat any console control delivered to this process as
