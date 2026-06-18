@@ -83,9 +83,9 @@ func ReplaceSecrets(operations *Operations, decryptedSecrets map[string]string) 
 					[]byte(decryptedValue),
 				)
 			}
-			if strings.Contains(operations.FileOperations[i].Query, fullKey) {
-				operations.FileOperations[i].Query = strings.ReplaceAll(
-					operations.FileOperations[i].Query,
+			if strings.Contains(operations.FileOperations[i].Transform, fullKey) {
+				operations.FileOperations[i].Transform = strings.ReplaceAll(
+					operations.FileOperations[i].Transform,
 					fullKey,
 					decryptedValue,
 				)
@@ -95,7 +95,7 @@ func ReplaceSecrets(operations *Operations, decryptedSecrets map[string]string) 
 
 	// Verify all secrets have been replaced
 	for _, operation := range operations.FileOperations {
-		if secRegex.Match(operation.Patch) || secRegex.MatchString(operation.Query) {
+		if secRegex.Match(operation.Patch) || secRegex.MatchString(operation.Transform) {
 			return errors.New("secrets are not fully replaced, SEC[...] found in the config")
 		}
 	}
@@ -125,7 +125,7 @@ type FileOperation struct {
 	FilePath          string            `json:"file_path"`
 	DestinationPath   string            `json:"destination_path,omitempty"`
 	Patch             json.RawMessage   `json:"patch,omitempty"`
-	Query             string            `json:"query,omitempty"`
+	Transform         string            `json:"transform,omitempty"`
 }
 
 func (a *FileOperation) apply(ctx context.Context, root *os.Root) error {
@@ -222,7 +222,7 @@ func (a *FileOperation) apply(ctx context.Context, root *os.Root) error {
 		if err != nil {
 			return err
 		}
-		query, err := gojq.Parse(a.Query)
+		query, err := gojq.Parse(a.Transform)
 		if err != nil {
 			return fmt.Errorf("failed to parse jq query: %w", err)
 		}
@@ -254,7 +254,7 @@ func (a *FileOperation) apply(ctx context.Context, root *os.Root) error {
 			return err
 		}
 		if outputs == 0 {
-			return fmt.Errorf("jq query %q produced no output", a.Query)
+			return fmt.Errorf("jq transform %q produced no output", a.Transform)
 		}
 		err = file.Truncate(0)
 		if err != nil {

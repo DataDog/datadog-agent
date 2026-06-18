@@ -706,7 +706,7 @@ func (d *daemonImpl) handleRemoteAPIRequest(request remoteAPIRequest) (err error
 				FileOperationType: config.FileOperationType(operation.FileOperationType),
 				FilePath:          operation.FilePath,
 				Patch:             operation.Patch,
-				Query:             operation.Query,
+				Transform:         operation.Transform,
 			})
 		}
 		encryptedSecrets := make(map[string]string)

@@ -829,13 +829,13 @@ func TestReplaceSecrets(t *testing.T) {
 		assert.Contains(t, err.Error(), "secrets are not fully replaced")
 	})
 
-	t.Run("replace secrets in jq query", func(t *testing.T) {
+	t.Run("replace secrets in jq transform", func(t *testing.T) {
 		ops := Operations{
 			DeploymentID: "test-config",
 			FileOperations: []FileOperation{
 				{
 					FileOperationType: FileOperationJQ,
-					Query:             `.api_key = "SEC[apikey]"`,
+					Transform:         `.api_key = "SEC[apikey]"`,
 				},
 			},
 		}
@@ -845,16 +845,16 @@ func TestReplaceSecrets(t *testing.T) {
 		})
 
 		assert.NoError(t, err)
-		assert.Equal(t, `.api_key = "my-api-key"`, ops.FileOperations[0].Query)
+		assert.Equal(t, `.api_key = "my-api-key"`, ops.FileOperations[0].Transform)
 	})
 
-	t.Run("unreplaced secret in jq query returns error", func(t *testing.T) {
+	t.Run("unreplaced secret in jq transform returns error", func(t *testing.T) {
 		ops := Operations{
 			DeploymentID: "test-config",
 			FileOperations: []FileOperation{
 				{
 					FileOperationType: FileOperationJQ,
-					Query:             `.api_key = "SEC[apikey]"`,
+					Transform:         `.api_key = "SEC[apikey]"`,
 				},
 			},
 		}
@@ -885,7 +885,7 @@ func TestOperationApply_JQ(t *testing.T) {
 	op := &FileOperation{
 		FileOperationType: FileOperationJQ,
 		FilePath:          "/datadog.yaml",
-		Query:             `.foo = "baz"`,
+		Transform:         `.foo = "baz"`,
 	}
 
 	err = op.apply(context.Background(), root)
@@ -926,7 +926,7 @@ func TestOperationApply_JQConditionalTransform(t *testing.T) {
 	op := &FileOperation{
 		FileOperationType: FileOperationJQ,
 		FilePath:          "/datadog.yaml",
-		Query:             `.tags |= map(ascii_upcase) | .logs_config = {"enabled": .logs_enabled}`,
+		Transform:         `.tags |= map(ascii_upcase) | .logs_config = {"enabled": .logs_enabled}`,
 	}
 
 	err = op.apply(context.Background(), root)
@@ -958,7 +958,7 @@ func TestOperationApply_JQMultipleOutputs(t *testing.T) {
 	op := &FileOperation{
 		FileOperationType: FileOperationJQ,
 		FilePath:          "/datadog.yaml",
-		Query:             `.items[] | {value: .}`,
+		Transform:         `.items[] | {value: .}`,
 	}
 
 	err = op.apply(context.Background(), root)
@@ -992,7 +992,7 @@ func TestOperationApply_JQWithTimestamp(t *testing.T) {
 	op := &FileOperation{
 		FileOperationType: FileOperationJQ,
 		FilePath:          "/datadog.yaml",
-		Query:             `.foo = "baz"`,
+		Transform:         `.foo = "baz"`,
 	}
 
 	err = op.apply(context.Background(), root)
@@ -1020,7 +1020,7 @@ func TestOperationApply_JQInvalidQuery(t *testing.T) {
 	op := &FileOperation{
 		FileOperationType: FileOperationJQ,
 		FilePath:          "/datadog.yaml",
-		Query:             `.foo |`, // syntax error
+		Transform:         `.foo |`, // syntax error
 	}
 
 	err = op.apply(context.Background(), root)
@@ -1041,7 +1041,7 @@ func TestOperationApply_JQRuntimeError(t *testing.T) {
 	op := &FileOperation{
 		FileOperationType: FileOperationJQ,
 		FilePath:          "/datadog.yaml",
-		Query:             `.foo.bar`,
+		Transform:         `.foo.bar`,
 	}
 
 	err = op.apply(context.Background(), root)
@@ -1082,7 +1082,7 @@ func applyJQToTags(t *testing.T, tags []any, query string) []any {
 	op := &FileOperation{
 		FileOperationType: FileOperationJQ,
 		FilePath:          "/datadog.yaml",
-		Query:             query,
+		Transform:         query,
 	}
 	err = op.apply(context.Background(), root)
 	assert.NoError(t, err)
