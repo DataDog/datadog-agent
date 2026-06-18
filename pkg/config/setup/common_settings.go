@@ -477,6 +477,7 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("gpu.workload_tag_cache_size", 1024)
 	config.BindEnvAndSetDefault("gpu.disabled_collectors", []string{})
 	config.BindEnvAndSetDefault("gpu.nvlink.fec_light_error_threshold", 3)
+	config.BindEnvAndSetDefault("gpu.parallel_collectors", true)
 
 	// NCCL
 	config.BindEnvAndSetDefault("gpu.nccl.enabled", false)
