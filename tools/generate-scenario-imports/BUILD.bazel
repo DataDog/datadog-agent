@@ -1,0 +1,14 @@
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "generate-scenario-imports_lib",
+    srcs = ["main.go"],
+    importpath = "github.com/DataDog/datadog-agent/tools/generate-scenario-imports",
+    visibility = ["//visibility:private"],
+)
+
+go_binary(
+    name = "generate-scenario-imports",
+    embed = [":generate-scenario-imports_lib"],
+    visibility = ["//visibility:public"],
+)

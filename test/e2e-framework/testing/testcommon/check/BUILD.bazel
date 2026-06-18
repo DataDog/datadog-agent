@@ -9,6 +9,7 @@ go_library(
 )
 
 go_test(
+    # keep
     name = "check_test",
     srcs = ["parse_test.go"],
     embed = [":check"],

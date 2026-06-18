@@ -99,6 +99,7 @@ from tasks.custom_task.custom_task import custom__call__
 from tasks.e2e_framework import aws as e2e_aws
 from tasks.e2e_framework import azure as e2e_azure
 from tasks.e2e_framework import gcp as e2e_gcp
+from tasks.e2e_framework import generate_scenario_imports
 from tasks.e2e_framework import localpodman as e2e_localpodman
 from tasks.e2e_framework import test as e2e_test
 from tasks.e2e_framework.deploy import check_s3_image_exists
@@ -294,6 +295,11 @@ e2e_ns.add_collection(e2e_test)
 e2e_ns.add_task(check_s3_image_exists)
 
 ns.add_collection(e2e_ns)
+
+# e2e-framework namespace
+e2e_framework_ns = Collection("e2e-framework")
+e2e_framework_ns.add_task(generate_scenario_imports)
+ns.add_collection(e2e_framework_ns)
 ns.configure(
     {
         "run": {
