@@ -57,7 +57,7 @@ type Program struct {
 	IsARM64 bool
 	// Redaction is the policy for scrubbing sensitive captured values. It is
 	// nil when no policy is configured, in which case nothing is redacted.
-	Redaction *redaction.Config
+	Redaction *redaction.Config `json:"-"`
 }
 
 // GoModuledataInfo is information about the runtime-internal structure used to
