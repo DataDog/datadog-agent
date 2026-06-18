@@ -145,6 +145,10 @@ func TestDeriveShadowConfigsSkipsUnsupportedConfigs(t *testing.T) {
 			Instances: []integration.Data{integration.Data("is_jmx: true\nmetric_lookback:\n  enabled: true\n")},
 		},
 		{
+			Name:      "default_loader",
+			Instances: []integration.Data{integration.Data("metric_lookback:\n  enabled: true\n")},
+		},
+		{
 			Name:      "core_explicit",
 			Instances: []integration.Data{integration.Data("loader: " + goCheckLoaderName + "\nmetric_lookback:\n  enabled: true\n")},
 		},
@@ -152,11 +156,12 @@ func TestDeriveShadowConfigsSkipsUnsupportedConfigs(t *testing.T) {
 
 	shadowConfigs := DeriveShadowConfigs(configs, Options{ShadowChecksEnabled: true})
 
-	require.Len(t, shadowConfigs, 1)
-	assert.Equal(t, "core_explicit", shadowConfigs[0].SourceConfig.Name)
+	require.Len(t, shadowConfigs, 2)
+	assert.Equal(t, "default_loader", shadowConfigs[0].SourceConfig.Name)
+	assert.Equal(t, "core_explicit", shadowConfigs[1].SourceConfig.Name)
 }
 
-func TestDeriveShadowConfigsSkipsEmptyLoaderConfigs(t *testing.T) {
+func TestDeriveShadowConfigsAllowsEmptyLoaderConfigs(t *testing.T) {
 	source := integration.Config{
 		Name: "cpu",
 		Instances: []integration.Data{
@@ -167,8 +172,9 @@ func TestDeriveShadowConfigsSkipsEmptyLoaderConfigs(t *testing.T) {
 
 	shadowConfigs := DeriveShadowConfigs([]integration.Config{source}, Options{ShadowChecksEnabled: true})
 
-	require.Len(t, shadowConfigs, 1)
-	assert.Equal(t, 1, shadowConfigs[0].InstanceIndex)
+	require.Len(t, shadowConfigs, 2)
+	assert.Equal(t, 0, shadowConfigs[0].InstanceIndex)
+	assert.Equal(t, 1, shadowConfigs[1].InstanceIndex)
 }
 
 func TestDeriveShadowConfigsHonorsInstanceLoaderOverride(t *testing.T) {

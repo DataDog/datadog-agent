@@ -102,7 +102,7 @@ func TestAppendCanonicalizesContextsAndStoresRecords(t *testing.T) {
 	if !metricContext.noIndex || metricContext.source != metrics.MetricSourceInternal || metricContext.unit != "request" {
 		t.Fatalf("unexpected context metadata: %+v", metricContext)
 	}
-	if !reflect.DeepEqual(metricContext.tags, []string{"a:1", "b:2"}) {
+	if !reflect.DeepEqual(metricContext.tags, []string{"a:1", "b:2", "lookback:true"}) {
 		t.Fatalf("expected sorted deduped tags, got %#v", metricContext.tags)
 	}
 
@@ -404,7 +404,7 @@ func TestLookbackSenderCommitAppendsFormattedSamples(t *testing.T) {
 	if !gaugeContext.noIndex || gaugeContext.source != metrics.CheckNameToMetricSource("cpu") {
 		t.Fatalf("unexpected gauge context metadata: %+v", gaugeContext)
 	}
-	if !reflect.DeepEqual(gaugeContext.tags, []string{"a:1", "b:2", "check_tag:one", "service:svc"}) {
+	if !reflect.DeepEqual(gaugeContext.tags, []string{"a:1", "b:2", "check_tag:one", "lookback:true", "service:svc"}) {
 		t.Fatalf("unexpected gauge tags: %#v", gaugeContext.tags)
 	}
 
@@ -415,7 +415,7 @@ func TestLookbackSenderCommitAppendsFormattedSamples(t *testing.T) {
 	if !countContext.noIndex || countContext.source != metrics.CheckNameToMetricSource("cpu") {
 		t.Fatalf("unexpected count context metadata: %+v", countContext)
 	}
-	if !reflect.DeepEqual(countContext.tags, []string{"check_tag:one", "service:svc", "z:9"}) {
+	if !reflect.DeepEqual(countContext.tags, []string{"check_tag:one", "lookback:true", "service:svc", "z:9"}) {
 		t.Fatalf("unexpected count tags: %#v", countContext.tags)
 	}
 
@@ -472,7 +472,7 @@ func TestSeriesExportReconstructsRetainedSamples(t *testing.T) {
 	if gauge.Host != "host-x" || !gauge.NoIndex || gauge.Unit != "req" || gauge.Source != metrics.MetricSourceInternal || gauge.SourceTypeName != "System" {
 		t.Fatalf("unexpected gauge context metadata: %+v", gauge)
 	}
-	if tags := gauge.Tags.UnsafeToReadOnlySliceString(); !reflect.DeepEqual(tags, []string{"a:1", "b:2"}) {
+	if tags := gauge.Tags.UnsafeToReadOnlySliceString(); !reflect.DeepEqual(tags, []string{"a:1", "b:2", "lookback:true"}) {
 		t.Fatalf("expected sorted canonical tags, got %#v", tags)
 	}
 
@@ -665,7 +665,9 @@ func sampleForShard(t *testing.T, checkID checkid.ID, shardID int) metrics.Metri
 			Mtype: metrics.GaugeType,
 			Tags:  []string{"target_shard:" + strconv.Itoa(shardID)},
 		}
-		key := buildContextKey(checkID, sample, canonicalTags(sample.Tags))
+		// Append adds "lookback:true" before canonicalizing, so mirror that here.
+		tagsWithLookback := append(append([]string(nil), sample.Tags...), "lookback:true")
+		key := buildContextKey(checkID, sample, canonicalTags(tagsWithLookback))
 		if shardIndex(hashString(key), 3) == shardID {
 			return sample
 		}

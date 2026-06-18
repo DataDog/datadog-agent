@@ -72,7 +72,7 @@ func DeriveShadowConfigs(configs []integration.Config, opts Options) []ShadowCon
 			if check.IsJMXInstance(config.Name, instance, config.InitConfig) {
 				continue
 			}
-			if !isCoreLoaderSelected(initLoader, instance) {
+			if isNonCoreLoaderSelected(initLoader, instance) {
 				continue
 			}
 
@@ -101,16 +101,15 @@ func isSupportedCheckConfig(config integration.Config, opts Options) bool {
 	return true
 }
 
-func isCoreLoaderSelected(initLoader string, instance integration.Data) bool {
+func isNonCoreLoaderSelected(initLoader string, instance integration.Data) bool {
 	selectedLoader, err := checkloader.SelectedInstanceLoader(initLoader, instance)
 	if err != nil {
-		return false
+		return true
 	}
 
-	// V1 only supports Go/core shadow checks. An empty loader means the normal
-	// scheduler tries default loaders in priority order, so do not infer core
-	// here; Python may win before core.
-	return selectedLoader == goCheckLoaderName
+	// Demo mode keeps explicit Python/JMX bypasses but allows empty loader
+	// configs so packaged default Go checks, e.g. GPU, can be shadowed.
+	return selectedLoader != "" && selectedLoader != goCheckLoaderName
 }
 
 func instanceLookbackEnabled(instance integration.Data) (enabled bool, found bool) {

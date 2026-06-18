@@ -7,15 +7,20 @@ package run
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"time"
 
 	demultiplexer "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/def"
 	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	noopsimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
 	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
@@ -24,6 +29,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/checkloader"
+	corechecks "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu"
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
 	"github.com/DataDog/datadog-agent/pkg/collector/metriclookback"
 	"github.com/DataDog/datadog-agent/pkg/collector/metriclookback/lookbacksender"
@@ -82,11 +89,13 @@ func registerMetricLookbackScheduler(
 	logReceiver option.Option[integrations.Component],
 	tagger tagger.Component,
 	filterStore workloadfilter.Component,
+	wmeta workloadmeta.Component,
 	haAgent haagent.Component,
 	healthplatform healthplatform.Component,
 	hostname hostnameinterface.Component,
 ) {
-	loader := checkloader.New(loaders.LoaderCatalog(demux, logReceiver, tagger, filterStore), demux, noopShadowLoaderErrorRecorder{})
+	shadowLoaders := append([]check.Loader{noTelemetryGPUShadowLoader{tagger: tagger, wmeta: wmeta}}, loaders.LoaderCatalog(demux, logReceiver, tagger, filterStore)...)
+	loader := checkloader.New(shadowLoaders, demux, noopShadowLoaderErrorRecorder{})
 	shadowScheduler := metriclookback.NewShadowScheduler(metriclookback.ShadowSchedulerOptions{
 		Loader: loader,
 		NewSenderManager: func(ctx context.Context) sender.SenderManager {
@@ -113,6 +122,45 @@ func registerMetricLookbackScheduler(
 		ShadowChecksEnabled: cfg.GetBool("metric_lookback.enabled"),
 		ChecksToShadow:      cfg.GetStringSlice("metric_lookback.enabled_checks"),
 	}, shadowScheduler), true)
+}
+
+type noTelemetryGPUShadowLoader struct {
+	tagger tagger.Component
+	wmeta  workloadmeta.Component
+}
+
+func (l noTelemetryGPUShadowLoader) Name() string {
+	return corechecks.GoCheckLoaderName
+}
+
+func (l noTelemetryGPUShadowLoader) Load(senderManager sender.SenderManager, config integration.Config, instance integration.Data, instanceIndex int) (check.Check, error) {
+	if config.Name != gpu.CheckName {
+		return nil, errors.New("not a gpu check")
+	}
+
+	factoryOpt := gpu.Factory(l.tagger, noopsimpl.NewComponent(), l.wmeta)
+	factory, ok := factoryOpt.Get()
+	if !ok {
+		return nil, errors.New("gpu check factory is unavailable")
+	}
+
+	c := factory()
+	configSource := config.Source
+	if instanceIndex >= 0 {
+		configSource = fmt.Sprintf("%s[%d]", configSource, instanceIndex)
+	}
+	if err := c.Configure(senderManager, config.FastDigest(), instance, config.InitConfig, configSource, config.Provider); err != nil {
+		if errors.Is(err, check.ErrSkipCheckInstance) {
+			return c, err
+		}
+		return c, fmt.Errorf("could not configure check %s: %w", c, err)
+	}
+
+	return c, nil
+}
+
+func (l noTelemetryGPUShadowLoader) String() string {
+	return "Metric Lookback GPU Shadow Loader"
 }
 
 type noopLookbackWriter struct{}
