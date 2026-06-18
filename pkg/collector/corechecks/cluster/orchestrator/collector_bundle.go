@@ -329,6 +329,7 @@ func (cb *CollectorBundle) Initialize() {
 
 func (cb *CollectorBundle) initialize() {
 	informersToSync := make(map[apiserver.InformerName]cache.SharedInformer)
+	informersByName := make(map[apiserver.InformerName]cache.SharedInformer)
 	// informerSynced is a helper map which makes sure that we don't initialize the same informer twice.
 	// i.e. the cluster and nodes resources share the same informer and using both can lead to a race condition activating both concurrently.
 	informerSynced := map[cache.SharedInformer]struct{}{}
@@ -350,7 +351,9 @@ func (cb *CollectorBundle) initialize() {
 		}
 
 		if _, found := informerSynced[informer]; !found {
-			informersToSync[apiserver.InformerName(collectorFullName)] = informer
+			informerName := apiserver.InformerName(collectorFullName)
+			informersToSync[informerName] = informer
+			informersByName[informerName] = informer
 			informerSynced[informer] = struct{}{}
 
 			// add event handlers for terminated resources
@@ -374,23 +377,51 @@ func (cb *CollectorBundle) initialize() {
 
 	for informerName, err := range errors {
 		if err != nil {
-			cb.skipCollector(informerName, err)
+			cb.skipCollectorsForInformer(informersByName[informerName], err)
 		}
 	}
 }
 
-func (cb *CollectorBundle) skipCollector(informerName apiserver.InformerName, err error) {
-	for _, collector := range cb.collectors {
-		collectorFullName := collector.Metadata().FullName()
-		if apiserver.InformerName(collectorFullName) == informerName {
-			collector.Metadata().IsSkipped = true
-			collector.Metadata().SkippedReason = err.Error()
+func (cb *CollectorBundle) skipCollectorsForInformer(informer cache.SharedInformer, err error) {
+	if informer == nil {
+		return
+	}
 
-			// emit metrics
-			skippedResources[collectorFullName].Set(err.Error())
-			tlmSkippedResources.Inc(collectorFullName)
+	for _, collector := range cb.collectors {
+		if collector.Informer() == informer {
+			cb.skipCollector(collector, err)
 		}
 	}
+}
+
+func (*CollectorBundle) skipCollector(collector collectors.K8sCollector, err error) {
+	collectorFullName := collector.Metadata().FullName()
+	collector.Metadata().IsSkipped = true
+	collector.Metadata().SkippedReason = err.Error()
+
+	// emit metrics
+	if _, ok := skippedResources[collectorFullName]; ok {
+		skippedResources[collectorFullName].Set(err.Error())
+	}
+	tlmSkippedResources.Inc(collectorFullName)
+}
+
+func (*CollectorBundle) recoverSkippedCollector(collector collectors.K8sCollector) bool {
+	informer := collector.Informer()
+	if informer == nil || !informer.HasSynced() {
+		return false
+	}
+
+	collectorFullName := collector.Metadata().FullName()
+	collector.Metadata().IsSkipped = false
+	collector.Metadata().SkippedReason = ""
+
+	if _, ok := skippedResources[collectorFullName]; ok {
+		skippedResources[collectorFullName].Set("")
+	}
+
+	log.Infof("Collector %s recovered after informer cache sync completed", collectorFullName)
+	return true
 }
 
 // Run is used to sequentially run all collectors in the bundle.
@@ -403,8 +434,10 @@ func (cb *CollectorBundle) Run(sender sender.Sender) {
 
 	for _, collector := range cb.collectors {
 		if collector.Metadata().IsSkipped {
-			_ = cb.check.Warnf("Collector %s is skipped: %s", collector.Metadata().FullName(), collector.Metadata().SkippedReason)
-			continue
+			if !cb.recoverSkippedCollector(collector) {
+				_ = cb.check.Warnf("Collector %s is skipped: %s", collector.Metadata().FullName(), collector.Metadata().SkippedReason)
+				continue
+			}
 		}
 
 		runStartTime := time.Now()
