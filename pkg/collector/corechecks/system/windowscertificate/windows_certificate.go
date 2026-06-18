@@ -105,6 +105,20 @@ type certChainValidation struct {
 	CertChainPolicyValidationFlags []string `yaml:"policy_validation_flags" json:"policy_validation_flags" nullable:"true"`
 }
 
+// CertFilters holds include/exclude tag-filter rules. Each entry maps a tag
+// key (e.g. "certificate_thumbprint") to a Go regexp pattern matched against
+// the tag's value. An empty map means no filtering for that direction.
+type CertFilters struct {
+	Include map[string]string `yaml:"include" json:"include" nullable:"true"`
+	Exclude map[string]string `yaml:"exclude" json:"exclude" nullable:"true"`
+}
+
+// compiledCertFilters holds the compiled regexp forms of CertFilters.
+type compiledCertFilters struct {
+	include map[string]*regexp.Regexp
+	exclude map[string]*regexp.Regexp
+}
+
 // Config is the configuration options for this check
 // it is exported so that the yaml parser can read it.
 type Config struct {
@@ -127,6 +141,9 @@ type Config struct {
 	SubjectAlternativeNamesTag bool `yaml:"subject_alternative_names_tag" json:"subject_alternative_names_tag" default:"false"`
 	IssuerTag                  bool `yaml:"issuer_tag" json:"issuer_tag" default:"false"`
 	SignatureAlgorithmTag      bool `yaml:"signature_algorithm_tag" json:"signature_algorithm_tag" default:"false"`
+
+	// Filters controls which collected certificates are reported.
+	Filters CertFilters `yaml:"filters" json:"filters" nullable:"true"`
 }
 
 // WinCertChk is the object representing the check
@@ -134,6 +151,7 @@ type WinCertChk struct {
 	core.CheckBase
 	config           Config
 	certStoreRegexes []*regexp.Regexp // non-nil when certificate_store_regex lists at least one pattern
+	certFilters      compiledCertFilters
 }
 
 type crlInfoCopy struct {
@@ -239,6 +257,15 @@ func (w *WinCertChk) Configure(senderManager sender.SenderManager, integrationCo
 		w.certStoreRegexes, compileErr = compileCertificateStoreRegexes(config.CertificateStoreRegex)
 		if compileErr != nil {
 			return compileErr
+		}
+	}
+
+	w.certFilters = compiledCertFilters{}
+	if len(config.Filters.Include) > 0 || len(config.Filters.Exclude) > 0 {
+		var filterErr error
+		w.certFilters, filterErr = compileCertFilters(config.Filters)
+		if filterErr != nil {
+			return filterErr
 		}
 	}
 
@@ -971,4 +998,34 @@ func netAddConnection(remoteName, localName, password, username string) error {
 func netCancelConnection(name string) error {
 	log.Debugf("Canceling connection to %s", name)
 	return winutil.WNetCancelConnection2(name)
+}
+
+// compileCertFilters compiles the regexp patterns in a CertFilters into a
+// compiledCertFilters. Returns an error if any pattern is invalid.
+func compileCertFilters(filters CertFilters) (compiledCertFilters, error) {
+	compiled := compiledCertFilters{}
+
+	if len(filters.Include) > 0 {
+		compiled.include = make(map[string]*regexp.Regexp, len(filters.Include))
+		for key, pattern := range filters.Include {
+			re, err := regexp.Compile(pattern)
+			if err != nil {
+				return compiledCertFilters{}, fmt.Errorf("filters.include[%q]: invalid regular expression: %w", key, err)
+			}
+			compiled.include[key] = re
+		}
+	}
+
+	if len(filters.Exclude) > 0 {
+		compiled.exclude = make(map[string]*regexp.Regexp, len(filters.Exclude))
+		for key, pattern := range filters.Exclude {
+			re, err := regexp.Compile(pattern)
+			if err != nil {
+				return compiledCertFilters{}, fmt.Errorf("filters.exclude[%q]: invalid regular expression: %w", key, err)
+			}
+			compiled.exclude[key] = re
+		}
+	}
+
+	return compiled, nil
 }

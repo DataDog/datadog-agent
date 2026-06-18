@@ -635,6 +635,40 @@ func TestFindCertificatesInStore_PopulatesThumbprint(t *testing.T) {
 	}
 }
 
+func TestConfigureWithValidFilters(t *testing.T) {
+	certCheck := new(WinCertChk)
+	instanceConfig := []byte(`
+certificate_store: ROOT
+filters:
+  include:
+    certificate_thumbprint: "^abc"
+  exclude:
+    subject_CN: "internal"
+`)
+	m := mocksender.NewMockSender(certCheck.ID())
+	m.On("FinalizeCheckServiceTag").Return()
+	certCheck.BuildID(integration.FakeConfigHash, instanceConfig, nil)
+	err := certCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, instanceConfig, nil, "test", "provider")
+	require.NoError(t, err)
+	require.Len(t, certCheck.certFilters.include, 1)
+	require.Len(t, certCheck.certFilters.exclude, 1)
+}
+
+func TestConfigureWithInvalidFilterRegex(t *testing.T) {
+	certCheck := new(WinCertChk)
+	instanceConfig := []byte(`
+certificate_store: ROOT
+filters:
+  include:
+    certificate_thumbprint: "["
+`)
+	m := mocksender.NewMockSender(certCheck.ID())
+	m.On("FinalizeCheckServiceTag").Return()
+	certCheck.BuildID(integration.FakeConfigHash, instanceConfig, nil)
+	err := certCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, instanceConfig, nil, "test", "provider")
+	require.Error(t, err)
+}
+
 func TestRun_WithSubjectFilters_EmitsThumbprintTag(t *testing.T) {
 	t.Parallel()
 
