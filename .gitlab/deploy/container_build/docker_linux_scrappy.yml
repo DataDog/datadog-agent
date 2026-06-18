@@ -77,7 +77,10 @@
       # no PYTHONPATH manipulation is needed.
       COPY scrappy-src.tar.gz /tmp/scrappy-src.tar.gz
 
-      RUN chmod +x /opt/scrappy/scrappy-infer \
+      RUN apt-get update \
+       && apt-get install -y --no-install-recommends ca-certificates \
+       && apt-get clean && rm -rf /var/lib/apt/lists/* \
+       && chmod +x /opt/scrappy/scrappy-infer \
        && pip3 install --no-cache-dir \
             numpy \
             torch --index-url https://download.pytorch.org/whl/cpu \
