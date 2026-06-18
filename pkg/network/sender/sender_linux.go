@@ -6,12 +6,11 @@
 package sender
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/network/remoteservice"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // fetchServiceData fetches IIS tags, process cache tags, and the listeners
-func fetchServiceData(_ ConnectionsSource) (map[string][]string, map[uint32][]string, map[remoteservice.ListenKey]int32) {
+func fetchServiceData(_ ConnectionsSource) (map[string][]string, map[uint32][]string, map[listenKey]int32) {
 	return nil, nil, getListeningPortToPIDMap()
 }
 
