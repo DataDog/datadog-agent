@@ -18,7 +18,7 @@ import (
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
-	bugs "github.com/DataDog/datadog-agent/pkg/ebpf/kernelbugs"
+	ddfeatures "github.com/DataDog/datadog-agent/pkg/ebpf/features"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/perf"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
@@ -46,17 +46,13 @@ func LoadTracer(config *config.Config, mgrOpts manager.Options, connCloseEventHa
 		return nil, nil, ErrorDisabled
 	}
 
-	hasPotentialFentryDeadlock, err := bugs.HasTasksRCUExitLockSymbol()
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to check HasTasksRCUExitLockSymbol: %w", err)
-	}
-	if hasPotentialFentryDeadlock {
-		return nil, nil, fmt.Errorf("%w: this kernel version has a potential deadlock (fixed in kernel v6.9+)", ErrorUnsupported)
+	if err := ddfeatures.SupportsFentry("tcp_recvmsg"); err != nil {
+		return nil, nil, fmt.Errorf("%w: %s", ErrorUnsupported, err)
 	}
 
 	m := ddebpf.NewManagerWithDefault(&manager.Manager{}, "network", &ebpftelemetry.ErrorsTelemetryModifier{}, connCloseEventHandler)
 	var closeFn func()
-	err = ddebpf.LoadCOREAsset(netebpf.ModuleFileName("tracer-fentry", config.BPFDebug), func(ar bytecode.AssetReader, o manager.Options) error {
+	err := ddebpf.LoadCOREAsset(netebpf.ModuleFileName("tracer-fentry", config.BPFDebug), func(ar bytecode.AssetReader, o manager.Options) error {
 		o.RemoveRlimit = mgrOpts.RemoveRlimit
 		o.MapSpecEditors = mgrOpts.MapSpecEditors
 		o.ConstantEditors = mgrOpts.ConstantEditors
