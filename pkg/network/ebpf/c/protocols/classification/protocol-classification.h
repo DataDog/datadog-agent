@@ -194,10 +194,6 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
                 return;
             }
             if (is_tls_handshake_server_hello(skb, offset, data_end)) {
-                // ServerHello seen: the tail call captures the last cleartext TLS metadata.
-                // Set here, not on the first non-handshake record, so TLS 1.3 0-RTT early data,
-                // which can arrive before ServerHello, won't early-exit and skip ServerHello.
-                set_protocol_flag(protocol_stack, FLAG_TLS_CLASSIFICATION_DONE);
                 bpf_tail_call_compat(skb, &classification_progs, CLASSIFICATION_TLS_SERVER_PROG);
                 return;
             }
@@ -267,6 +263,17 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint_tls_ha
     __u32 data_end = classification_ctx->skb_info.data_end;
     if (!parse_server_hello(skb, offset, data_end, tls_info)) {
         return;
+    }
+
+    // ServerHello parsed: all cleartext TLS metadata is captured, so stop reclassifying this
+    // flow. Set here, not on the first non-handshake record, so TLS 1.3 0-RTT early data
+    // (which can arrive before ServerHello) can't trip the early-exit and skip ServerHello.
+    // Set in this tail call rather than in the entrypoint to keep socket__classifier_entry
+    // small (its program size matters to the verifier on older kernels). The stack already
+    // exists (the entrypoint created it before tail-calling here), so look it up.
+    protocol_stack_t *protocol_stack = get_protocol_stack_if_exists(&classification_ctx->tuple);
+    if (protocol_stack) {
+        set_protocol_flag(protocol_stack, FLAG_TLS_CLASSIFICATION_DONE);
     }
 }
 
