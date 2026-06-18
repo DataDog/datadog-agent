@@ -31,7 +31,11 @@ if ("$env:WITH_JMX" -ne "false") {
 
     $JDK_DOWNLOAD_URL = if ($env:GENERAL_ARTIFACTS_CACHE_BUCKET_URL) {"${env:GENERAL_ARTIFACTS_CACHE_BUCKET_URL}/openjdk"} else {$JDK_UPSTREAM}
     Invoke-WebRequestWithRetry -OutFile jre.zip "${JDK_DOWNLOAD_URL}/${JDK_FILENAME}"
-    (Get-FileHash -Algorithm SHA256 jre.zip).Hash -eq "$JDK_SHA256"
+    if ((Get-FileHash -Algorithm SHA256 jre.zip).Hash -eq "$JDK_SHA256") {
+        Write-Host "JDK checksum match"
+    } else {
+        Write-Error "JDK checksum mismatch"
+    }
     Expand-Archive -Path jre.zip -DestinationPath C:/
     Remove-Item jre.zip
     Move-Item "C:/$JDK_DIR/" C:/java
