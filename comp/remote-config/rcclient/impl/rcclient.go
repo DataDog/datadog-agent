@@ -364,6 +364,10 @@ func (rc *rcClient) SubscribeAgentTask() {
 
 // Subscribe is the generic way to start listening to a specific product update
 func (rc *rcClient) Subscribe(product data.Product, fn func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus))) {
+	if rc.client == nil {
+		pkglog.Errorf("No remote-config client")
+		return
+	}
 	rc.client.Subscribe(string(product), fn)
 }
 
