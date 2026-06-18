@@ -1121,7 +1121,37 @@ func TestOperationApply_JQWithTimestamp(t *testing.T) {
 	err = yaml.Unmarshal(updated, &updatedMap)
 	assert.NoError(t, err)
 	assert.Equal(t, "baz", updatedMap["foo"])
-	assert.Equal(t, "2021-01-02T15:04:05Z", updatedMap["created_at"])
+	assert.Equal(t, "2021-01-02T15:04:05Z", updatedMap["created_at"]) // no sub-seconds: RFC3339 and RFC3339Nano are identical
+}
+
+func TestOperationApply_JQWithSubSecondTimestamp(t *testing.T) {
+	tmpDir := t.TempDir()
+	filePath := filepath.Join(tmpDir, "datadog.yaml")
+	// yaml.v2 parses this to a time.Time with nanosecond precision.
+	err := os.WriteFile(filePath, []byte("created_at: 2021-01-02T15:04:05.123456789Z\nfoo: bar\n"), 0644)
+	assert.NoError(t, err)
+
+	root, err := os.OpenRoot(tmpDir)
+	assert.NoError(t, err)
+	defer root.Close()
+
+	op := &FileOperation{
+		FileOperationType: FileOperationJQ,
+		FilePath:          "/datadog.yaml",
+		Transform:         `.foo = "baz"`,
+	}
+
+	err = op.apply(context.Background(), root)
+	assert.NoError(t, err)
+
+	updated, err := os.ReadFile(filePath)
+	assert.NoError(t, err)
+	var updatedMap map[string]any
+	err = yaml.Unmarshal(updated, &updatedMap)
+	assert.NoError(t, err)
+	assert.Equal(t, "baz", updatedMap["foo"])
+	// Sub-second precision must be preserved (RFC3339Nano, not RFC3339).
+	assert.Equal(t, "2021-01-02T15:04:05.123456789Z", updatedMap["created_at"])
 }
 
 func TestOperationApply_JQInvalidQuery(t *testing.T) {

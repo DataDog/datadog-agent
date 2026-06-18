@@ -585,8 +585,8 @@ func convertYAML2UnmarshalToJSONMarshallable(i any) any {
 		return m
 	case time.Time:
 		// yaml.v2 unmarshals timestamps to time.Time, which gojq cannot handle.
-		// Format it as an RFC3339 string, matching what json.Marshal would emit.
-		return x.Format(time.RFC3339)
+		// Use RFC3339Nano to preserve sub-second precision, matching json.Marshal.
+		return x.Format(time.RFC3339Nano)
 	}
 	return i
 }
