@@ -818,6 +818,5 @@ write_source_files(
         "//pkg/proto/pbgo/trace:tracer_payload_gen",
         "//pkg/proto/pbgo/trace:write_pb_go",
         "//pkg/security/proto/api:write_pb_go",
-        "//test/fakeintake/aggregator/internal/apiv3:write_pb_go",
     ],
 )
