@@ -19,7 +19,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
@@ -36,6 +35,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 
 	dto "github.com/prometheus/client_model/go"
+	"go.uber.org/atomic"
 )
 
 type atel struct {
@@ -70,7 +70,7 @@ type atel struct {
 	// opt in pay zero overhead (no buffer, no scheduled job).
 	errortrackingEnabled bool
 	errLogsCh            chan errortracking.ErrorLog
-	errLogsDropped       atomic.Uint64
+	errLogsDropped       *atomic.Uint64
 	errLogsFlushInterval time.Duration
 	errLogsStartupJitter time.Duration
 	shutdownDrainTimeout time.Duration
@@ -220,6 +220,7 @@ func createAtel(
 
 		errortrackingEnabled: errortrackingEnabled,
 		errLogsCh:            errLogsCh,
+		errLogsDropped:       atomic.NewUint64(0),
 		errLogsFlushInterval: flushInterval,
 		errLogsStartupJitter: startupJitter,
 		shutdownDrainTimeout: shutdownDrainTimeout,

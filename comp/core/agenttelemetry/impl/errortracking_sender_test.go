@@ -20,6 +20,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"go.uber.org/atomic"
+
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	logconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log/errortracking"
@@ -263,6 +265,7 @@ func newTestAtelMinimal(t *testing.T, sndr sender, bufSize int) *atel {
 		logComp:              logmock.New(t),
 		sender:               sndr,
 		errLogsCh:            make(chan errortracking.ErrorLog, bufSize),
+		errLogsDropped:       atomic.NewUint64(0),
 		errLogsFlushInterval: 60 * time.Second,
 		shutdownDrainTimeout: 5 * time.Second,
 	}
@@ -274,7 +277,7 @@ func newTestAtelMinimal(t *testing.T, sndr sender, bufSize int) *atel {
 // and drop them silently (no panic, no enqueue, no drop counter bump —
 // because we never reached the enqueue path).
 func TestSubmitErrorLog_DisabledNoOp(t *testing.T) {
-	a := &atel{enabled: false}
+	a := &atel{enabled: false, errLogsDropped: atomic.NewUint64(0)}
 	a.SubmitErrorLog(errorLog("dropped"))
 	assert.Equal(t, uint64(0), a.errLogsDropped.Load())
 }
@@ -314,6 +317,7 @@ func TestSubmitErrorLog_FeatureDisabled_NoChannel(t *testing.T) {
 		enabled:              true,
 		errortrackingEnabled: false,
 		logComp:              logmock.New(t),
+		errLogsDropped:       atomic.NewUint64(0),
 	}
 
 	assert.Nil(t, a.errLogsCh, "feature-disabled atel must not allocate the channel")
