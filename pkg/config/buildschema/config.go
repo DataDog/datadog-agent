@@ -36,10 +36,6 @@ type SchemaBuilder interface {
 	GetSchema() map[string]interface{}
 }
 
-func (b *builder) GetLibType() string {
-	return "builder"
-}
-
 func (b *builder) GetSchema() map[string]interface{} {
 	return b.Schema
 }
