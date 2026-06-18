@@ -260,6 +260,16 @@ if ! launchctl bootstrap system /Library/LaunchDaemons/com.datadoghq.sysprobe.pl
     echo "WARNING: Failed to bootstrap system-probe service."
 fi
 
+# Install Agent Data Plane as system-wide LaunchDaemon
+echo "# Installing Agent Data Plane as system-wide LaunchDaemon"
+cp -vf "$CONF_DIR/com.datadoghq.data-plane.plist.example" /Library/LaunchDaemons/com.datadoghq.data-plane.plist
+chown root:wheel /Library/LaunchDaemons/com.datadoghq.data-plane.plist
+chmod 644 /Library/LaunchDaemons/com.datadoghq.data-plane.plist
+launchctl enable system/com.datadoghq.data-plane 2>/dev/null || true
+if ! launchctl bootstrap system /Library/LaunchDaemons/com.datadoghq.data-plane.plist 2>&1; then
+    echo "WARNING: Failed to bootstrap Agent Data Plane service."
+fi
+
 # Install GUI LaunchAgent for all users (system-wide)
 echo "# Configuring GUI app for system-wide installation"
 cp -vf "$CONF_DIR/com.datadoghq.gui.plist.example" /Library/LaunchAgents/com.datadoghq.gui.plist

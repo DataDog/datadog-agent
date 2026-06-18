@@ -16,6 +16,7 @@ import (
 	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 )
 
 func initCoreAgentFull(config pkgconfigmodel.Setup) {
@@ -307,8 +308,6 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	// Datadog cluster agent
 	config.BindEnvAndSetDefault("cluster_agent.enabled", false)
 	config.BindEnvAndSetDefault("cluster_agent.cmd_port", 5005)
-	config.BindEnvAndSetDefault("cluster_agent.mcp.enabled", false)
-	config.BindEnvAndSetDefault("cluster_agent.mcp.endpoint", "/mcp")
 	config.BindEnvAndSetDefault("cluster_agent.allow_legacy_tls", false)
 	config.BindEnvAndSetDefault("cluster_agent.auth_token", "")
 	config.BindEnvAndSetDefault("cluster_agent.url", "")
@@ -381,6 +380,7 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("admission_controller.appsec.nginx.init_run_as_group", 82)
 
 	config.BindEnvAndSetDefault("cluster_agent.kube_metadata_collection.enabled", false)
+	config.BindEnvAndSetDefault("cluster_agent.kueue.enabled", false)
 	// list of kubernetes resources for which we collect metadata
 	// each resource is specified in the format `{group}/{version}/{resource}` or `{group}/{resource}`
 	// resources that belong to the empty group can be specified simply as `{resource}` or as `/{resource}`
@@ -830,7 +830,7 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("synthetics.collector.flush_interval", "10s")
 	bindEnvAndSetLogsConfigKeys(config, "synthetics.forwarder.")
 
-	config.BindEnvAndSetDefault("sbom.cache_directory", filepath.Join(defaultRunPath, "sbom-agent"))
+	config.BindEnvAndSetDefault("sbom.cache_directory", filepath.Join(defaultpaths.GetDefaultRunPath(), "sbom-agent"))
 	config.BindEnvAndSetDefault("sbom.compute_dependencies", true)
 	config.BindEnvAndSetDefault("sbom.simplify_bom_refs", true)
 	config.BindEnvAndSetDefault("sbom.clear_cache_on_exit", false)
@@ -914,7 +914,7 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	// Datadog security agent (common)
 	config.BindEnvAndSetDefault("security_agent.cmd_port", DefaultSecurityAgentCmdPort)
 	config.BindEnvAndSetDefault("security_agent.expvar_port", 5011)
-	config.BindEnvAndSetDefault("security_agent.log_file", DefaultSecurityAgentLogFile)
+	config.BindEnvAndSetDefault("security_agent.log_file", defaultpaths.GetDefaultSecurityAgentLogFile())
 	config.BindEnvAndSetDefault("security_agent.disable_thp", true)
 
 	// debug config to enable a remote client to receive data from the workloadmeta agent without a timeout
@@ -958,7 +958,7 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	if runtime.GOOS == "windows" {
 		config.BindEnvAndSetDefault("runtime_security_config.socket", "localhost:3335")
 	} else {
-		config.BindEnvAndSetDefault("runtime_security_config.socket", filepath.Join(InstallPath, "run/runtime-security.sock"))
+		config.BindEnvAndSetDefault("runtime_security_config.socket", filepath.Join(defaultpaths.GetInstallPath(), "run/runtime-security.sock"))
 	}
 	config.BindEnvAndSetDefault("runtime_security_config.cmd_socket", "")
 	config.BindEnvAndSetDefault("runtime_security_config.use_secruntime_track", true)
@@ -1067,7 +1067,13 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	// Listen addresses must include a URL scheme (e.g. "tcp://").
 	config.BindEnvAndSetDefault("data_plane.api_listen_address", "tcp://0.0.0.0:5100")
 	config.BindEnvAndSetDefault("data_plane.secure_api_listen_address", "tcp://0.0.0.0:5101")
-	config.BindEnvAndSetDefault("data_plane.log_file", DefaultDataPlaneLogFile)
+	config.BindEnvAndSetDefault("data_plane.telemetry_enabled", false)
+	config.BindEnvAndSetDefault("data_plane.telemetry_listen_addr", "tcp://0.0.0.0:5102")
+	config.BindEnvAndSetDefault("data_plane.log_file", defaultpaths.GetDefaultDataPlaneLogFile())
+	// 4 matches aggregator_stop_timeout + forwarder_stop_timeout (each defaults to 2 in seconds).
+	// ComputeDataPlaneStopTimeout (post-load override) recomputes this at runtime so it tracks
+	// any user-set values for aggregator_stop_timeout / forwarder_stop_timeout.
+	config.BindEnvAndSetDefault("data_plane.stop_timeout", 4)
 	config.BindEnvAndSetDefault("data_plane.dogstatsd.enabled", true)
 	config.BindEnvAndSetDefault("data_plane.otlp.enabled", false)
 	config.BindEnvAndSetDefault("data_plane.otlp.proxy.enabled", false)
@@ -1082,7 +1088,7 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 
 	// Shared library check
 	config.BindEnvAndSetDefault("shared_library_check.enabled", false)
-	config.BindEnvAndSetDefault("shared_library_check.library_folder_path", defaultAdditionalChecksPath)
+	config.BindEnvAndSetDefault("shared_library_check.library_folder_path", defaultpaths.GetDefaultAdditionalChecksPath())
 
 	// Vsock
 	config.BindEnvAndSetDefault("vsock_addr", "")
@@ -1154,13 +1160,13 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("origin_detection_unified", false)
 	config.BindEnvAndSetDefault("env", "")
 	config.BindEnvAndSetDefault("tag_value_split_separator", map[string]string{})
-	config.BindEnvAndSetDefault("conf_path", ".")
-	config.BindEnvAndSetDefault("confd_path", defaultConfdPath)
-	config.BindEnvAndSetDefault("additional_checksd", defaultAdditionalChecksPath)
-	config.BindEnvAndSetDefault("jmx_log_file", "")
+	config.BindEnvAndSetDefault("conf_path", defaultpaths.GetDefaultConfPath())
+	config.BindEnvAndSetDefault("confd_path", defaultpaths.GetDefaultConfdPath())
+	config.BindEnvAndSetDefault("additional_checksd", defaultpaths.GetDefaultAdditionalChecksPath())
+	config.BindEnvAndSetDefault("jmx_log_file", defaultpaths.GetDefaultJmxLogFile())
 	// If enabling log_payloads, ensure the log level is set to at least DEBUG to be able to see the logs
 	config.BindEnvAndSetDefault("log_payloads", false)
-	config.BindEnvAndSetDefault("log_file", "")
+	config.BindEnvAndSetDefault("log_file", defaultpaths.GetDefaultLogFile())
 	config.BindEnvAndSetDefault("log_file_max_size", "10Mb")
 	config.BindEnvAndSetDefault("log_file_max_rolls", 1)
 	config.BindEnvAndSetDefault("log_level", "info")
@@ -1175,7 +1181,7 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("ipc_address", "localhost") // deprecated: use `cmd_host` instead
 	config.BindEnvAndSetDefault("cmd_host", "localhost")
 	config.BindEnvAndSetDefault("cmd_port", 5001)
-	config.BindEnvAndSetDefault("agent_ipc.socket_path", filepath.Join(defaultRunPath, "agent_ipc.socket"))
+	config.BindEnvAndSetDefault("agent_ipc.socket_path", filepath.Join(defaultpaths.GetDefaultRunPath(), "agent_ipc.socket"))
 	config.BindEnvAndSetDefault("agent_ipc.use_socket", false)
 	config.BindEnvAndSetDefault("agent_ipc.host", "localhost")
 	config.BindEnvAndSetDefault("agent_ipc.port", 0)
@@ -1347,6 +1353,7 @@ func autoscaling(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("autoscaling.workload.external_recommender.tls.cert_file", "")
 	config.BindEnvAndSetDefault("autoscaling.workload.external_recommender.tls.key_file", "")
 	config.BindEnvAndSetDefault("autoscaling.workload.in_place_vertical_scaling.enabled", true)
+	config.BindEnvAndSetDefault("autoscaling.workload.in_place_vertical_scaling.disruption_tolerance_percent", 15)
 	config.BindEnvAndSetDefault("autoscaling.failover.metrics", []string{"container.memory.usage", "container.cpu.usage"})
 
 	// Cluster autoscaling product
@@ -1468,7 +1475,7 @@ func debugging(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("tracemalloc_exclude", "")
 	config.BindEnvAndSetDefault("tracemalloc_whitelist", "") // deprecated
 	config.BindEnvAndSetDefault("tracemalloc_blacklist", "") // deprecated
-	config.BindEnvAndSetDefault("run_path", defaultRunPath)
+	config.BindEnvAndSetDefault("run_path", defaultpaths.GetDefaultRunPath())
 	config.BindEnvAndSetDefault("no_proxy_nonexact_match", false)
 }
 
@@ -1598,7 +1605,7 @@ func forwarder(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("forwarder_recovery_reset", false)
 
 	// Forwarder storage on disk
-	config.BindEnvAndSetDefault("forwarder_storage_path", "")
+	config.BindEnvAndSetDefault("forwarder_storage_path", filepath.Join(defaultpaths.GetDefaultRunPath(), "transactions_to_retry"))
 	config.BindEnvAndSetDefault("forwarder_outdated_file_in_days", 10)
 	config.BindEnvAndSetDefault("forwarder_flush_to_disk_mem_ratio", 0.5)
 	config.BindEnvAndSetDefault("forwarder_storage_max_size_in_bytes", 0)                // 0 means disabled. This is a BETA feature.
@@ -1645,8 +1652,8 @@ func dogstatsd(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("dogstatsd_queue_size", 1024)
 
 	config.BindEnvAndSetDefault("dogstatsd_non_local_traffic", false)
-	config.BindEnvAndSetDefault("dogstatsd_socket", defaultStatsdSocket) // Only enabled on unix systems
-	config.BindEnvAndSetDefault("dogstatsd_stream_socket", "")           // Experimental || Notice: empty means feature disabled
+	config.BindEnvAndSetDefault("dogstatsd_socket", defaultpaths.GetDefaultStatsdSocket()) // Only enabled on unix systems
+	config.BindEnvAndSetDefault("dogstatsd_stream_socket", "")                             // Experimental || Notice: empty means feature disabled
 	config.BindEnvAndSetDefault("dogstatsd_stream_log_too_big", false)
 	config.BindEnvAndSetDefault("dogstatsd_pipeline_autoadjust", false)
 	config.BindEnvAndSetDefault("dogstatsd_pipeline_count", 1)
@@ -1655,7 +1662,7 @@ func dogstatsd(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("dogstatsd_stats_buffer", 10)
 	config.BindEnvAndSetDefault("dogstatsd_telemetry_enabled_listener_id", false)
 	// Control how dogstatsd-stats logs can be generated
-	config.BindEnvAndSetDefault("dogstatsd_log_file", "")
+	config.BindEnvAndSetDefault("dogstatsd_log_file", defaultpaths.GetDefaultDogstatsDProtocolLogFile())
 	config.BindEnvAndSetDefault("dogstatsd_logging_enabled", true)
 	config.BindEnvAndSetDefault("dogstatsd_log_file_max_rolls", 3)
 	config.BindEnvAndSetDefault("dogstatsd_log_file_max_size", "10Mb")
@@ -1789,7 +1796,7 @@ func logsagent(config pkgconfigmodel.Setup) {
 	// Configurable API client timeout while communicating with the kubelet to stream logs. Value in seconds.
 	config.BindEnvAndSetDefault("logs_config.kubelet_api_client_read_timeout", "30s")
 	// Internal Use Only: avoid modifying those configuration parameters, this could lead to unexpected results.
-	config.BindEnvAndSetDefault("logs_config.run_path", defaultRunPath)
+	config.BindEnvAndSetDefault("logs_config.run_path", defaultpaths.GetDefaultRunPath())
 	// DEPRECATED in favor of `logs_config.force_use_http`.
 	config.BindEnvAndSetDefault("logs_config.use_http", false)
 	config.BindEnvAndSetDefault("logs_config.force_use_http", false)
@@ -1951,7 +1958,7 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("logs_config.integrations_logs_disk_ratio", 0.80)
 
 	// Control how the stream-logs log file is managed
-	config.BindEnvAndSetDefault("logs_config.streaming.streamlogs_log_file", DefaultStreamlogsLogFile)
+	config.BindEnvAndSetDefault("logs_config.streaming.streamlogs_log_file", defaultpaths.GetDefaultStreamlogsLogFile())
 
 	// If true, then the registry file will be written atomically. This behavior is not supported on ECS Fargate.
 	config.BindEnvAndSetDefault("logs_config.atomic_registry_write", !pkgconfigenv.IsECSFargate())
@@ -2117,8 +2124,15 @@ func anomalyDetection(config pkgconfigmodel.Setup) {
 	// Log-derived virtual metrics are unaffected.
 	config.BindEnvAndSetDefault("anomaly_detection.metrics.enabled", true)
 
-	// Anomaly event reporting. Keep false during evaluation / shadow mode.
-	config.BindEnvAndSetDefault("anomaly_detection.reporting.enabled", false)
+	// Stdout reporting verbosity.
+	// stdout.enabled: set to false to silence all [observer] stdout log lines.
+	// stdout.verbose: set to true to print individual anomaly series after the title line.
+	// Default: title-only (stdout.enabled=true, stdout.verbose=false).
+	config.BindEnvAndSetDefault("anomaly_detection.reporting.stdout.enabled", true)
+	config.BindEnvAndSetDefault("anomaly_detection.reporting.stdout.verbose", false)
+
+	// Datadog event reporting. Keep false during evaluation / shadow mode.
+	config.BindEnvAndSetDefault("anomaly_detection.reporting.events.enabled", false)
 
 	// Parquet recording of raw ingested signals for offline analysis and replay.
 	config.BindEnvAndSetDefault("anomaly_detection.recording.enabled", false)

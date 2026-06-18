@@ -272,6 +272,10 @@ export interface ScorerConfig {
   low_threshold: number;
   high_threshold: number;
   margin_pct: number;
+  /**
+   * cooldown_secs is NOT part of Go's ScorerConfig (it lives on AnomalyScorerConfiguration).
+   * The replay endpoint accepts it alongside ScorerConfig fields in a flat JSON object.
+   */
   cooldown_secs: number;
   /** Per-detector score-to-level thresholds: [low, medium, high, xhigh]. */
   detector_thresholds?: Record<string, [number, number, number, number]>;
