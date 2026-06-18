@@ -8746,7 +8746,7 @@ properties:
               type: string
             comment: |-
               When infrastructure_mode is cloud_cost_only, check names in this list receive the
-              infrastructure_mode:cloud_cost_only tag on scheduler-loaded checks and on JMX metrics
+              infra_mode:cloud_cost_only tag on scheduler-loaded checks and on JMX metrics
               (DogStatsD dd.internal.jmx_check_name). An empty list means all checks except custom_*.
               Plain DogStatsD metrics without the JMX check tag are not tagged.
       excluded:
