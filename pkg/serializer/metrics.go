@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/serializer/internal/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/compression"
 )
 
 type metricsKind int
@@ -42,6 +43,12 @@ func metricsUseV3(resolver resolver.DomainResolver, config config.Component, kin
 	return slices.Contains(
 		config.GetStringSlice(fmt.Sprintf("serializer_experimental_use_v3_api.%s.endpoints", kind)),
 		resolver.GetConfigName())
+}
+
+// zlibForcesV2 reports whether the active metrics compressor is zlib, which is incompatible
+// with the v3 metrics intake.
+func (s *Serializer) zlibForcesV2() bool {
+	return s.Strategy.ContentEncoding() == compression.ZlibEncoding
 }
 
 func metricsValidateV3(config config.Component, kind metricsKind) bool {
@@ -126,6 +133,11 @@ func (s *Serializer) buildPipelinesRng(kind metricsKind, rng prng) metrics.Pipel
 	validateV3 := metricsValidateV3(s.config, kind)
 	shadowRate := metricsShadowSampleRate(s.config, kind)
 	shadowSites := metricsShadowSites(s.config)
+
+	zlib := s.zlibForcesV2()
+	if zlib {
+		shadowRate = 0
+	}
 
 	for _, resolver := range s.Forwarder.GetDomainResolvers() {
 		useV3 := metricsUseV3(resolver, s.config, kind)
