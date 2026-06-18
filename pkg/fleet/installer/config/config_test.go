@@ -828,4 +828,222 @@ func TestReplaceSecrets(t *testing.T) {
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "secrets are not fully replaced")
 	})
+
+	t.Run("replace secrets in jq query", func(t *testing.T) {
+		ops := Operations{
+			DeploymentID: "test-config",
+			FileOperations: []FileOperation{
+				{
+					FileOperationType: FileOperationJQ,
+					Query:             `.api_key = "SEC[apikey]"`,
+				},
+			},
+		}
+
+		err := ReplaceSecrets(&ops, map[string]string{
+			"apikey": "my-api-key",
+		})
+
+		assert.NoError(t, err)
+		assert.Equal(t, `.api_key = "my-api-key"`, ops.FileOperations[0].Query)
+	})
+
+	t.Run("unreplaced secret in jq query returns error", func(t *testing.T) {
+		ops := Operations{
+			DeploymentID: "test-config",
+			FileOperations: []FileOperation{
+				{
+					FileOperationType: FileOperationJQ,
+					Query:             `.api_key = "SEC[apikey]"`,
+				},
+			},
+		}
+
+		err := ReplaceSecrets(&ops, map[string]string{
+			"wrong-key": "some-value",
+		})
+
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "secrets are not fully replaced")
+	})
+}
+
+func TestOperationApply_JQ(t *testing.T) {
+	tmpDir := t.TempDir()
+	filePath := filepath.Join(tmpDir, "datadog.yaml")
+	orig := map[string]any{"foo": "bar"}
+	origBytes, err := yaml.Marshal(orig)
+	assert.NoError(t, err)
+	err = os.WriteFile(filePath, origBytes, 0644)
+	assert.NoError(t, err)
+
+	root, err := os.OpenRoot(tmpDir)
+	assert.NoError(t, err)
+	defer root.Close()
+
+	// JQ: set foo to baz
+	op := &FileOperation{
+		FileOperationType: FileOperationJQ,
+		FilePath:          "/datadog.yaml",
+		Query:             `.foo = "baz"`,
+	}
+
+	err = op.apply(context.Background(), root)
+	assert.NoError(t, err)
+
+	updated, err := os.ReadFile(filePath)
+	assert.NoError(t, err)
+	var updatedMap map[string]any
+	err = yaml.Unmarshal(updated, &updatedMap)
+	assert.NoError(t, err)
+	assert.Equal(t, "baz", updatedMap["foo"])
+
+	if runtime.GOOS != "windows" {
+		stat, err := os.Stat(filePath)
+		assert.NoError(t, err)
+		assert.Equal(t, os.FileMode(0640), stat.Mode().Perm())
+	}
+}
+
+func TestOperationApply_JQConditionalTransform(t *testing.T) {
+	tmpDir := t.TempDir()
+	filePath := filepath.Join(tmpDir, "datadog.yaml")
+	orig := map[string]any{
+		"logs_enabled": true,
+		"tags":         []any{"env:prod", "team:fleet"},
+	}
+	origBytes, err := yaml.Marshal(orig)
+	assert.NoError(t, err)
+	err = os.WriteFile(filePath, origBytes, 0644)
+	assert.NoError(t, err)
+
+	root, err := os.OpenRoot(tmpDir)
+	assert.NoError(t, err)
+	defer root.Close()
+
+	// Conditional restructuring that JSON patch/merge-patch cannot express:
+	// uppercase every tag, and add a flag derived from another field.
+	op := &FileOperation{
+		FileOperationType: FileOperationJQ,
+		FilePath:          "/datadog.yaml",
+		Query:             `.tags |= map(ascii_upcase) | .logs_config = {"enabled": .logs_enabled}`,
+	}
+
+	err = op.apply(context.Background(), root)
+	assert.NoError(t, err)
+
+	updated, err := os.ReadFile(filePath)
+	assert.NoError(t, err)
+	var updatedMap map[string]any
+	err = yaml.Unmarshal(updated, &updatedMap)
+	assert.NoError(t, err)
+	assert.Equal(t, []any{"ENV:PROD", "TEAM:FLEET"}, updatedMap["tags"])
+	assert.Equal(t, map[any]any{"enabled": true}, updatedMap["logs_config"])
+}
+
+func TestOperationApply_JQMultipleOutputs(t *testing.T) {
+	tmpDir := t.TempDir()
+	filePath := filepath.Join(tmpDir, "datadog.yaml")
+	orig := map[string]any{"items": []any{"a", "b"}}
+	origBytes, err := yaml.Marshal(orig)
+	assert.NoError(t, err)
+	err = os.WriteFile(filePath, origBytes, 0644)
+	assert.NoError(t, err)
+
+	root, err := os.OpenRoot(tmpDir)
+	assert.NoError(t, err)
+	defer root.Close()
+
+	// A query yielding more than one output is written as a multi-document YAML stream.
+	op := &FileOperation{
+		FileOperationType: FileOperationJQ,
+		FilePath:          "/datadog.yaml",
+		Query:             `.items[] | {value: .}`,
+	}
+
+	err = op.apply(context.Background(), root)
+	assert.NoError(t, err)
+
+	updated, err := os.ReadFile(filePath)
+	assert.NoError(t, err)
+	decoder := yaml.NewDecoder(strings.NewReader(string(updated)))
+	var docs []map[string]any
+	for {
+		var doc map[string]any
+		if err := decoder.Decode(&doc); err != nil {
+			break
+		}
+		docs = append(docs, doc)
+	}
+	assert.Equal(t, []map[string]any{{"value": "a"}, {"value": "b"}}, docs)
+}
+
+func TestOperationApply_JQWithTimestamp(t *testing.T) {
+	tmpDir := t.TempDir()
+	filePath := filepath.Join(tmpDir, "datadog.yaml")
+	// yaml.v2 decodes this value into a time.Time, which gojq cannot process unless normalized.
+	err := os.WriteFile(filePath, []byte("created_at: 2021-01-02T15:04:05Z\nfoo: bar\n"), 0644)
+	assert.NoError(t, err)
+
+	root, err := os.OpenRoot(tmpDir)
+	assert.NoError(t, err)
+	defer root.Close()
+
+	op := &FileOperation{
+		FileOperationType: FileOperationJQ,
+		FilePath:          "/datadog.yaml",
+		Query:             `.foo = "baz"`,
+	}
+
+	err = op.apply(context.Background(), root)
+	assert.NoError(t, err)
+
+	updated, err := os.ReadFile(filePath)
+	assert.NoError(t, err)
+	var updatedMap map[string]any
+	err = yaml.Unmarshal(updated, &updatedMap)
+	assert.NoError(t, err)
+	assert.Equal(t, "baz", updatedMap["foo"])
+	assert.Equal(t, "2021-01-02T15:04:05Z", updatedMap["created_at"])
+}
+
+func TestOperationApply_JQInvalidQuery(t *testing.T) {
+	tmpDir := t.TempDir()
+	filePath := filepath.Join(tmpDir, "datadog.yaml")
+	err := os.WriteFile(filePath, []byte("foo: bar\n"), 0644)
+	assert.NoError(t, err)
+
+	root, err := os.OpenRoot(tmpDir)
+	assert.NoError(t, err)
+	defer root.Close()
+
+	op := &FileOperation{
+		FileOperationType: FileOperationJQ,
+		FilePath:          "/datadog.yaml",
+		Query:             `.foo |`, // syntax error
+	}
+
+	err = op.apply(context.Background(), root)
+	assert.Error(t, err)
+}
+
+func TestOperationApply_JQRuntimeError(t *testing.T) {
+	tmpDir := t.TempDir()
+	filePath := filepath.Join(tmpDir, "datadog.yaml")
+	err := os.WriteFile(filePath, []byte("foo: bar\n"), 0644)
+	assert.NoError(t, err)
+
+	root, err := os.OpenRoot(tmpDir)
+	assert.NoError(t, err)
+	defer root.Close()
+
+	// .foo is a string, indexing it like an object is a runtime error.
+	op := &FileOperation{
+		FileOperationType: FileOperationJQ,
+		FilePath:          "/datadog.yaml",
+		Query:             `.foo.bar`,
+	}
+
+	err = op.apply(context.Background(), root)
+	assert.Error(t, err)
 }

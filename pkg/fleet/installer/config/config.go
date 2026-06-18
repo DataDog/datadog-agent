@@ -18,8 +18,10 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 
 	patch "github.com/evanphx/json-patch/v5"
+	"github.com/itchyny/gojq"
 	"go.yaml.in/yaml/v2"
 )
 
@@ -31,6 +33,8 @@ const (
 	FileOperationPatch FileOperationType = "patch"
 	// FileOperationMergePatch merges the config at the given path with the given JSON merge patch (RFC 7396).
 	FileOperationMergePatch FileOperationType = "merge-patch"
+	// FileOperationJQ transforms the config at the given path by running an arbitrary jq query over it.
+	FileOperationJQ FileOperationType = "jq"
 	// FileOperationDelete deletes the config at the given path.
 	FileOperationDelete FileOperationType = "delete"
 	// FileOperationDeleteAll deletes the config at the given path and all its subdirectories.
@@ -79,12 +83,19 @@ func ReplaceSecrets(operations *Operations, decryptedSecrets map[string]string) 
 					[]byte(decryptedValue),
 				)
 			}
+			if strings.Contains(operations.FileOperations[i].Query, fullKey) {
+				operations.FileOperations[i].Query = strings.ReplaceAll(
+					operations.FileOperations[i].Query,
+					fullKey,
+					decryptedValue,
+				)
+			}
 		}
 	}
 
 	// Verify all secrets have been replaced
 	for _, operation := range operations.FileOperations {
-		if secRegex.Match(operation.Patch) {
+		if secRegex.Match(operation.Patch) || secRegex.MatchString(operation.Query) {
 			return errors.New("secrets are not fully replaced, SEC[...] found in the config")
 		}
 	}
@@ -114,6 +125,7 @@ type FileOperation struct {
 	FilePath          string            `json:"file_path"`
 	DestinationPath   string            `json:"destination_path,omitempty"`
 	Patch             json.RawMessage   `json:"patch,omitempty"`
+	Query             string            `json:"query,omitempty"`
 }
 
 func (a *FileOperation) apply(ctx context.Context, root *os.Root) error {
@@ -183,6 +195,76 @@ func (a *FileOperation) apply(ctx context.Context, root *os.Root) error {
 			return err
 		}
 		_, err = file.Write(currentYAMLBytes)
+		if err != nil {
+			return err
+		}
+		// Set proper ownership and permissions for the file
+		if err := setFileOwnershipAndPermissions(ctx, root, path, spec); err != nil {
+			return err
+		}
+		return nil
+	case FileOperationJQ:
+		err := ensureDir(root, path)
+		if err != nil {
+			return err
+		}
+		file, err := root.OpenFile(path, os.O_RDWR|os.O_CREATE, 0640)
+		if err != nil {
+			return err
+		}
+		defer file.Close()
+		previousYAMLBytes, err := io.ReadAll(file)
+		if err != nil {
+			return err
+		}
+		previous := make(map[string]any)
+		err = yaml.Unmarshal(previousYAMLBytes, &previous)
+		if err != nil {
+			return err
+		}
+		query, err := gojq.Parse(a.Query)
+		if err != nil {
+			return fmt.Errorf("failed to parse jq query: %w", err)
+		}
+		code, err := gojq.Compile(query)
+		if err != nil {
+			return fmt.Errorf("failed to compile jq query: %w", err)
+		}
+		// Run the query over the normalized config. The query may yield any number of
+		// outputs; each one is written as its own YAML document so arbitrary
+		// transformations (including those producing multiple documents) are supported.
+		var buf bytes.Buffer
+		encoder := yaml.NewEncoder(&buf)
+		iter := code.Run(convertYAML2UnmarshalToJSONMarshallable(previous))
+		outputs := 0
+		for {
+			v, ok := iter.Next()
+			if !ok {
+				break
+			}
+			if err, ok := v.(error); ok {
+				return fmt.Errorf("failed to run jq query: %w", err)
+			}
+			if err := encoder.Encode(v); err != nil {
+				return err
+			}
+			outputs++
+		}
+		if err := encoder.Close(); err != nil {
+			return err
+		}
+		if outputs == 0 {
+			return fmt.Errorf("jq query %q produced no output", a.Query)
+		}
+		err = file.Truncate(0)
+		if err != nil {
+			return err
+		}
+		_, err = file.Seek(0, io.SeekStart)
+		if err != nil {
+			return err
+		}
+		_, err = file.Write(buf.Bytes())
 		if err != nil {
 			return err
 		}
@@ -478,6 +560,10 @@ func convertYAML2UnmarshalToJSONMarshallable(i any) any {
 			m[i] = convertYAML2UnmarshalToJSONMarshallable(v)
 		}
 		return m
+	case time.Time:
+		// yaml.v2 unmarshals timestamps to time.Time, which gojq cannot handle.
+		// Format it as an RFC3339 string, matching what json.Marshal would emit.
+		return x.Format(time.RFC3339)
 	}
 	return i
 }

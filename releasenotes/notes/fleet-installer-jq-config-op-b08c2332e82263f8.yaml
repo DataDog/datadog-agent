@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    The fleet installer now supports a ``jq`` config operation, which applies an
+    arbitrary jq query to a managed config file. This enables transformations
+    that the existing ``patch`` and ``merge-patch`` operations cannot express,
+    such as conditional edits, computed values, and restructuring.
