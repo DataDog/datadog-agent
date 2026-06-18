@@ -25,7 +25,7 @@ replace (
 	// do not exist in the DataDog/cast v1.8.0 fork. Pin viper to v1.20.1 which uses cast v1.7.1.
 	github.com/spf13/viper => github.com/spf13/viper v1.20.1
 	// POC: use the local rshell path-mode branch for private action runner testing.
-	github.com/DataDog/rshell => /Users/matthew.deguzman/worktrees/rshell-path-modes-poc
+	github.com/DataDog/rshell => /Users/matthew.deguzman/go/src/github.com/DataDog/rshell
 	// To update the Datadog/opentelemetry-ebpf-profiler dependency on latest commit on datadog branch, change the following line to:
 	// replace go.opentelemetry.io/ebpf-profiler => github.com/DataDog/opentelemetry-ebpf-profiler datadog
 	// and run `go mod tidy` then `dda inv tidy`
