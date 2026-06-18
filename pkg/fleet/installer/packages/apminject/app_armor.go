@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service/systemd"
@@ -35,6 +36,7 @@ const (
 
 var (
 	appArmorEnabledPath = "/sys/module/apparmor/parameters/enabled"
+	appArmorProfileDir  = "/etc/apparmor.d"
 	systemdIsRunning    = systemd.IsRunning
 )
 
@@ -182,12 +184,48 @@ func reloadAppArmor(ctx context.Context) error {
 			return err
 		}
 		if masked {
-			log.Infof("Installer: apparmor.service is masked, skipping reload")
-			return nil
+			log.Infof("Installer: apparmor.service is masked, reloading profiles with apparmor_parser")
+			return reloadAppArmorWithParser(ctx)
 		}
 		return telemetry.CommandContext(ctx, "systemctl", "reload", "apparmor").Run()
 	}
 	return telemetry.CommandContext(ctx, "service", "apparmor", "reload").Run()
+}
+
+func reloadAppArmorWithParser(ctx context.Context) error {
+	if _, err := exec.LookPath("apparmor_parser"); err != nil {
+		if errors.Is(err, exec.ErrNotFound) {
+			log.Warnf("apparmor_parser not found, skipping AppArmor reload")
+			return nil
+		}
+		return err
+	}
+	profiles, err := appArmorProfiles()
+	if err != nil {
+		return err
+	}
+	if len(profiles) == 0 {
+		return nil
+	}
+	return telemetry.CommandContext(ctx, "apparmor_parser", append([]string{"-r"}, profiles...)...).Run()
+}
+
+func appArmorProfiles() ([]string, error) {
+	paths, err := filepath.Glob(filepath.Join(appArmorProfileDir, "*"))
+	if err != nil {
+		return nil, err
+	}
+	var profiles []string
+	for _, path := range paths {
+		info, err := os.Stat(path)
+		if err != nil {
+			return nil, err
+		}
+		if info.Mode().IsRegular() {
+			profiles = append(profiles, path)
+		}
+	}
+	return profiles, nil
 }
 
 func isSystemdUnitMasked(ctx context.Context, unit string) (bool, error) {

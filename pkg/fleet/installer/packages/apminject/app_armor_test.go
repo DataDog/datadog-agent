@@ -199,9 +199,9 @@ func TestAppArmorBaseProfileUpdates(t *testing.T) {
 	}
 }
 
-func TestReloadAppArmorSkipsMaskedSystemdUnit(t *testing.T) {
+func TestReloadAppArmorUsesParserForMaskedSystemdUnit(t *testing.T) {
 	callsFile := setupAppArmorReloadTest(t, `#!/bin/sh
-echo "$*" >> "$CALLS_FILE"
+echo "systemctl $*" >> "$CALLS_FILE"
 if [ "$1" = "is-enabled" ]; then
 	echo masked
 	exit 1
@@ -216,13 +216,15 @@ fi
 
 	calls, err := os.ReadFile(callsFile)
 	require.NoError(t, err)
-	assert.Contains(t, string(calls), "is-enabled apparmor")
-	assert.NotContains(t, string(calls), "reload apparmor")
+	assert.Contains(t, string(calls), "systemctl is-enabled apparmor")
+	assert.NotContains(t, string(calls), "systemctl reload apparmor")
+	assert.Contains(t, string(calls), "apparmor_parser -r ")
+	assert.Contains(t, string(calls), "usr.bin.foo")
 }
 
 func TestReloadAppArmorReloadsWhenSystemdUnitIsNotMasked(t *testing.T) {
 	callsFile := setupAppArmorReloadTest(t, `#!/bin/sh
-echo "$*" >> "$CALLS_FILE"
+echo "systemctl $*" >> "$CALLS_FILE"
 if [ "$1" = "is-enabled" ]; then
 	echo disabled
 	exit 1
@@ -237,8 +239,9 @@ fi
 
 	calls, err := os.ReadFile(callsFile)
 	require.NoError(t, err)
-	assert.Contains(t, string(calls), "is-enabled apparmor")
-	assert.Contains(t, string(calls), "reload apparmor")
+	assert.Contains(t, string(calls), "systemctl is-enabled apparmor")
+	assert.Contains(t, string(calls), "systemctl reload apparmor")
+	assert.NotContains(t, string(calls), "apparmor_parser")
 }
 
 func setupAppArmorReloadTest(t *testing.T, systemctlScript string) string {
@@ -254,6 +257,17 @@ func setupAppArmorReloadTest(t *testing.T, systemctlScript string) string {
 		appArmorEnabledPath = previousAppArmorEnabledPath
 	})
 
+	profilesDir := filepath.Join(dir, "apparmor.d")
+	require.NoError(t, os.Mkdir(profilesDir, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(profilesDir, "usr.bin.foo"), []byte("profile usr.bin.foo {}\n"), 0640))
+	require.NoError(t, os.Mkdir(filepath.Join(profilesDir, "abstractions"), 0755))
+
+	previousAppArmorProfileDir := appArmorProfileDir
+	appArmorProfileDir = profilesDir
+	t.Cleanup(func() {
+		appArmorProfileDir = previousAppArmorProfileDir
+	})
+
 	previousSystemdIsRunning := systemdIsRunning
 	systemdIsRunning = func() (bool, error) {
 		return true, nil
@@ -265,6 +279,7 @@ func setupAppArmorReloadTest(t *testing.T, systemctlScript string) string {
 	binDir := filepath.Join(dir, "bin")
 	require.NoError(t, os.Mkdir(binDir, 0755))
 	require.NoError(t, os.WriteFile(filepath.Join(binDir, "systemctl"), []byte(strings.TrimSpace(systemctlScript)+"\n"), 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(binDir, "apparmor_parser"), []byte("#!/bin/sh\necho \"apparmor_parser $*\" >> \"$CALLS_FILE\"\n"), 0755))
 	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 
 	callsFile := filepath.Join(dir, "calls")
