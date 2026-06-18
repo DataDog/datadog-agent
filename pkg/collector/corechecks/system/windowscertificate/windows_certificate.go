@@ -600,6 +600,7 @@ func (w *WinCertChk) enumerateStoreContents(storeHandle windows.Handle, store st
 	for i := range crlInfo {
 		crlInfo[i].StoreName = store
 	}
+	certificates = applyTagFilters(certificates, w.certFilters)
 	return certificates, crlInfo, nil
 }
 

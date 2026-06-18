@@ -669,6 +669,24 @@ filters:
 	require.Error(t, err)
 }
 
+func TestConfigureWithFiltersExcludesNonMatchingCerts(t *testing.T) {
+	certCheck := new(WinCertChk)
+	instanceConfig := []byte(`
+certificate_store: ROOT
+filters:
+  include:
+    certificate_thumbprint: "^THISDOESNOTMATCH99999$"
+`)
+	m := mocksender.NewMockSender(certCheck.ID())
+	m.On("FinalizeCheckServiceTag").Return()
+	m.On("Commit").Return()
+	certCheck.BuildID(integration.FakeConfigHash, instanceConfig, nil)
+	require.NoError(t, certCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, instanceConfig, nil, "test", "provider"))
+	require.NoError(t, certCheck.Run())
+	m.AssertNumberOfCalls(t, "Gauge", 0)
+	m.AssertNumberOfCalls(t, "ServiceCheck", 0)
+}
+
 func TestRun_WithSubjectFilters_EmitsThumbprintTag(t *testing.T) {
 	t.Parallel()
 
