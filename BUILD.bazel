@@ -66,7 +66,6 @@ exports_files(["go.mod"])
 # gazelle:exclude cmd/host-profiler/*.go
 # gazelle:exclude cmd/host-profiler/command
 # gazelle:exclude cmd/host-profiler/subcommands
-# gazelle:exclude cmd/installer/subcommands
 # gazelle:exclude cmd/iot-agent
 # gazelle:exclude cmd/otel-agent/command
 # gazelle:exclude cmd/otel-agent/subcommands/flare
@@ -76,8 +75,6 @@ exports_files(["go.mod"])
 # gazelle:exclude cmd/process-agent/api
 # gazelle:exclude cmd/process-agent/command
 # gazelle:exclude cmd/process-agent/subcommands
-# gazelle:exclude cmd/sbomgen
-# gazelle:exclude cmd/secret-generic-connector/main.go
 # gazelle:exclude cmd/security-agent/*.go
 # gazelle:exclude cmd/security-agent/api
 # gazelle:exclude cmd/security-agent/subcommands
@@ -87,7 +84,6 @@ exports_files(["go.mod"])
 # gazelle:exclude cmd/serverless-init/mode
 # gazelle:exclude cmd/system-probe/modules
 # gazelle:exclude cmd/system-probe/subcommands/compliance
-# gazelle:exclude cmd/system-probe/subcommands/ebpf
 # gazelle:exclude cmd/system-probe/subcommands/run
 # gazelle:exclude cmd/system-probe/subcommands/runtime
 # gazelle:exclude cmd/system-probe/subcommands/usm
@@ -97,10 +93,6 @@ exports_files(["go.mod"])
 # gazelle:exclude cmd/trace-agent/subcommands/info
 # gazelle:exclude cmd/trace-agent/subcommands/run
 # gazelle:exclude cmd/trace-agent/test/testsuite
-# gazelle:exclude comp/agent/bundle.go
-# gazelle:exclude comp/agent/bundle_test.go
-# gazelle:exclude comp/agent/cloudfoundrycontainer/fx
-# gazelle:exclude comp/agent/cloudfoundrycontainer/impl
 # gazelle:exclude comp/api/api/apiimpl/api.go
 # gazelle:exclude comp/api/api/apiimpl/api_mock.go
 # gazelle:exclude comp/api/api/apiimpl/api_test.go
