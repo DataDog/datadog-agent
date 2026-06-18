@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/modes"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/regions"
@@ -78,6 +79,7 @@ func ShouldReenroll(agentIdentifier *AgentIdentifier, identity *PersistedIdentit
 // SelfEnroll performs self-registration using API key + application key.
 func SelfEnroll(
 	ctx context.Context,
+	cfg model.Reader,
 	ddSite,
 	runnerNamePrefix,
 	apiKey,
@@ -97,7 +99,7 @@ func SelfEnroll(
 	}
 
 	ddBaseURL := "https://api." + ddSite
-	publicClient := opms.NewPublicClient(ddBaseURL, extraHeaders)
+	publicClient := opms.NewPublicClient(cfg, ddBaseURL, extraHeaders)
 
 	runnerModes := []modes.Mode{modes.ModePull}
 
@@ -137,6 +139,7 @@ func SelfEnroll(
 // SelfEnrollApiKeyOnly performs self-registration using only an API key (no application key).
 func SelfEnrollApiKeyOnly(
 	ctx context.Context,
+	cfg model.Reader,
 	ddSite,
 	runnerNamePrefix,
 	apiKey string,
@@ -155,7 +158,7 @@ func SelfEnrollApiKeyOnly(
 	}
 
 	ddBaseURL := "https://api." + ddSite
-	publicClient := opms.NewPublicClient(ddBaseURL, extraHeaders)
+	publicClient := opms.NewPublicClient(cfg, ddBaseURL, extraHeaders)
 
 	runnerModes := []modes.Mode{modes.ModePull}
 
