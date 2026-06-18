@@ -10,10 +10,10 @@ import (
 )
 
 // MaxStackFrames is the upper bound on captured stack PCs per record.
-// 16 is empirically deep enough to reach user code from any agent
-// error site (the slog plumbing eats ~5 frames, see Handler.Handle's
-// stackSkipBase) and shallow enough that the resulting StackTrace
-// string stays well under typical intake-side per-record limits.
+// 16 is empirically deep enough to cover user code and its immediate
+// callers from any agent error site and shallow enough that the
+// resulting StackTrace string stays well under typical intake-side
+// per-record limits.
 const MaxStackFrames = 16
 
 // ErrorLog is a value-typed snapshot of an error log record. It crosses
@@ -43,8 +43,8 @@ type ErrorLog struct {
 	// PCs is a bounded stack capture starting at the immediate caller
 	// and walking up. PCsLen records the number of valid entries (may
 	// be less than len(PCs) when the stack is shallow). Captured at
-	// log-time by the handler with a calibrated skip offset so slog
-	// plumbing frames are excluded — see Handler.Handle.
+	// log-time by the handler anchored at r.PC so slog and
+	// pkg/util/log wrapper frames are excluded — see Handler.Handle.
 	PCs    [MaxStackFrames]uintptr
 	PCsLen int
 

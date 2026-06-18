@@ -140,13 +140,12 @@ func TestHandler_WithGroup_ReturnsNewInstance(t *testing.T) {
 		"WithGroup must return a new instance, not the receiver")
 }
 
-// TestHandle_StackSkipBase locks the stackSkipBase constant: a real
-// logger.Error(...) call routed through the slog chain must produce a
-// captured stack whose first frame is in the test source file (the user
-// call site), not in slog plumbing. If a future slog version changes
-// the number of internal frames between user code and Handler.Handle,
-// this test fails and the constant must be re-calibrated.
-func TestHandle_StackSkipBase(t *testing.T) {
+// TestHandle_CallSiteIsFirstFrame verifies that PCs[0] points at the
+// actual user call site (this test file), not at any slog or
+// pkg/util/log wrapper frame. The handler anchors PCs at r.PC rather
+// than using a fixed frame-skip constant, so this holds for both
+// direct slog calls and calls routed via the pkg/util/log wrappers.
+func TestHandle_CallSiteIsFirstFrame(t *testing.T) {
 	h, rec := newRecordingHandler(t)
 
 	logger := slog.New(h)
@@ -160,8 +159,8 @@ func TestHandle_StackSkipBase(t *testing.T) {
 	frame, _ := runtime.CallersFrames(e.PCs[:1]).Next()
 	require.NotEmpty(t, frame.File, "frame symbol resolution failed for PCs[0]")
 	assert.Truef(t, strings.HasSuffix(frame.File, "handler_test.go"),
-		"PCs[0] must point at the user call site, got %s (skipBase=%d miscalibrated)",
-		frame.File, stackSkipBase)
+		"PCs[0] must point at the user call site, got %s",
+		frame.File)
 }
 
 // TestHandler_BouncerSuppressesDuplicates: when a Bouncer is attached

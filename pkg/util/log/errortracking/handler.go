@@ -13,20 +13,11 @@ import (
 	"runtime"
 )
 
-// stackSkipBase is the runtime.Callers skip parameter that drops the
-// slog plumbing frames between the user's logger.Error(...) call site
-// and our Handle. The value is locked by TestHandle_StackSkipBase in
-// handler_test.go; do NOT change without re-running that test.
-//
-// Frame layout under runtime.Callers' semantics (skip=N starts at depth N):
-//  0. runtime.Callers
-//  1. Handler.Handle (this method)
-//  2. (*slog.Logger).log
-//  3. (*slog.Logger).Error / .Log
-//  4. user code (the logger.Error(...) call site)
-//
-// skip=4 makes PCs[0] the user call site.
-const stackSkipBase = 4
+// stackSearchBuf is the total PCs to allocate when scanning the current
+// goroutine's stack for r.PC: MaxStackFrames frames we want to keep plus
+// a generous headroom for the slog / pkg/util/log wrapper frames that sit
+// between runtime.Callers and the user call site.
+const stackSearchBuf = MaxStackFrames + 16
 
 var _ slog.Handler = (*Handler)(nil)
 
@@ -130,14 +121,29 @@ func (h *Handler) Handle(_ context.Context, r slog.Record) error {
 		return nil
 	}
 
-	// Capture a bounded multi-frame stack while the calling goroutine
-	// is still on-stack — by the time the agenttelemetry flush
-	// goroutine wakes up, the call chain that produced this record
-	// would be gone. runtime.Callers is cheap (just walks the
-	// stack-frame linked list and copies PC values); symbolization is
-	// deferred to the sender.
+	// Capture the full goroutine stack and anchor the slice at r.PC —
+	// the call-site PC already computed by the caller (slog or the
+	// pkg/util/log Wrapper). This is correct regardless of how many
+	// wrapper frames sit between user code and Handle, whereas a fixed
+	// skip would land inside the wrapper internals when the path goes
+	// through pkg/util/log.Error → Wrapper → Handler.Handle.
+	var buf [stackSearchBuf]uintptr
+	n := runtime.Callers(1, buf[:]) // skip runtime.Callers itself
 	var pcs [MaxStackFrames]uintptr
-	pcsLen := runtime.Callers(stackSkipBase, pcs[:])
+	var pcsLen int
+	for i := 0; i < n; i++ {
+		if buf[i] == r.PC {
+			pcsLen = copy(pcs[:], buf[i:n])
+			break
+		}
+	}
+	if pcsLen == 0 && r.PC != 0 {
+		// r.PC not found in the captured slice (e.g. synthetic record
+		// in tests): store it alone so downstream consumers always
+		// have at least a valid call-site frame.
+		pcs[0] = r.PC
+		pcsLen = 1
+	}
 
 	var count uint32
 	// Bouncer check: a Bouncer is mandatory for submission. Both a nil
