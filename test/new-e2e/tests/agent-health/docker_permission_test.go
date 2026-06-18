@@ -104,13 +104,12 @@ func (suite *dockerPermissionSuite) TestDockerHealthCheckTransientFailure() {
 		for _, p := range payloads {
 			for _, iss := range findIssuesByID(suite.T(), p, issueID) {
 				if iss.PersistedIssue != nil &&
-					(iss.PersistedIssue.State == healthplatform.IssueState_ISSUE_STATE_NEW ||
-						iss.PersistedIssue.State == healthplatform.IssueState_ISSUE_STATE_ONGOING) {
+					(iss.PersistedIssue.State == healthplatform.IssueState_ISSUE_STATE_ACTIVE) {
 					reloadedIssues = append(reloadedIssues, iss)
 				}
 			}
 		}
-		assert.NotEmpty(ct, reloadedIssues, "docker permission issue not found as NEW or ONGOING after crash restart")
+		assert.NotEmpty(ct, reloadedIssues, "docker permission issue not found as ACTIVE after crash restart")
 	}, defaultIssueTimeout, defaultIssuePollInterval, "docker permission issue not re-reported after crash restart")
 
 	require.NotEmpty(suite.T(), reloadedIssues)
@@ -149,13 +148,13 @@ func (suite *dockerPermissionSuite) TestDockerPermissionIssueLifecycle() {
 			issues = nil
 			for _, p := range payloads {
 				for _, iss := range findIssuesByID(t, p, issueID) {
-					if iss.PersistedIssue != nil && iss.PersistedIssue.State == healthplatform.IssueState_ISSUE_STATE_NEW {
+					if iss.PersistedIssue != nil && iss.PersistedIssue.State == healthplatform.IssueState_ISSUE_STATE_ACTIVE {
 						issues = append(issues, iss)
 					}
 				}
 			}
-			assert.NotEmpty(ct, issues, "docker socket permission issue not found as NEW in fakeintake")
-		}, defaultIssueTimeout, defaultIssuePollInterval, "docker socket permission issue not detected as NEW in fakeintake")
+			assert.NotEmpty(ct, issues, "docker socket permission issue not found as ACTIVE in fakeintake")
+		}, defaultIssueTimeout, defaultIssuePollInterval, "docker socket permission issue not detected as ACTIVE in fakeintake")
 
 		require.NotEmpty(t, issues)
 		issue := issues[0]

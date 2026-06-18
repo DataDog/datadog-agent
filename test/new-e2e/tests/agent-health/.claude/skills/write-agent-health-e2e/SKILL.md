@@ -124,13 +124,13 @@ func (suite *{module}Suite) Test{Module}IssueLifecycle() {
             issues = nil
             for _, p := range payloads {
                 for _, iss := range findIssuesByID(t, p, issueID) {
-                    if iss.PersistedIssue != nil && iss.PersistedIssue.State == healthplatform.IssueState_ISSUE_STATE_NEW {
+                    if iss.PersistedIssue != nil && iss.PersistedIssue.State == healthplatform.IssueState_ISSUE_STATE_ACTIVE {
                         issues = append(issues, iss)
                     }
                 }
             }
-            assert.NotEmpty(ct, issues, "issue not found as NEW in fakeintake")
-        }, defaultIssueTimeout, defaultIssuePollInterval, "issue not detected as NEW in fakeintake")
+            assert.NotEmpty(ct, issues, "issue not found as ACTIVE in fakeintake")
+        }, defaultIssueTimeout, defaultIssuePollInterval, "issue not detected as ACTIVE in fakeintake")
 
         require.NotEmpty(t, issues)
         issue := issues[0]
@@ -201,7 +201,7 @@ Never re-declare `healthPlatformAgentConfig` — it is already a `const` in `che
 
 - **Flush order**: restart or `UpdateEnv` first → wait for agent ready → `FlushServerAndResetAggregators()`. Never flush before restarting.
 - **No resilience phase**: `RestartResilience` is covered once in `TestResilienceSuite`. Do not add it here.
-- **No diagnose assertions**: assert only through fakeintake state (`ISSUE_STATE_NEW`, `ISSUE_STATE_RESOLVED`).
+- **No diagnose assertions**: assert only through fakeintake state (`ISSUE_STATE_ACTIVE`, `ISSUE_STATE_RESOLVED`).
 - **No shared lifecycle driver**: phases (`IssueDetection`, `Resolution`) are always inline in the test method.
 - **No agent-ready wait at suite start**: the framework guarantees the agent is ready before the first test method runs.
 - **No `Diagnose()` on the env struct**.
