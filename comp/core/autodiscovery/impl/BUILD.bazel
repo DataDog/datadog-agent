@@ -36,6 +36,7 @@ go_library(
         "//comp/core/secrets/def",
         "//comp/core/secrets/utils",
         "//comp/core/status",
+        "//comp/core/sysprobeconfig/def",
         "//comp/core/tagger/def",
         "//comp/core/telemetry/def",
         "//comp/core/workloadfilter/def",
