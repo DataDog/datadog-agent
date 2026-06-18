@@ -137,26 +137,13 @@ exports_files(["go.mod"])
 # gazelle:exclude comp/core/workloadmeta/collectors/catalog-dogstatsd
 # gazelle:exclude comp/core/workloadmeta/collectors/catalog-otel
 # gazelle:exclude comp/core/workloadmeta/collectors/catalog-remote
-# gazelle:exclude comp/core/workloadmeta/collectors/internal/cloudfoundry
-# gazelle:exclude comp/core/workloadmeta/collectors/internal/containerd
-# gazelle:exclude comp/core/workloadmeta/collectors/internal/crio
-# gazelle:exclude comp/core/workloadmeta/collectors/internal/docker
-# gazelle:exclude comp/core/workloadmeta/collectors/internal/ecs
 # gazelle:exclude comp/core/workloadmeta/collectors/internal/kubeapiserver
-# gazelle:exclude comp/core/workloadmeta/collectors/internal/kubelet
 # gazelle:exclude comp/core/workloadmeta/collectors/internal/kubemetadata
-# gazelle:exclude comp/core/workloadmeta/collectors/internal/nvml
 # gazelle:exclude comp/core/workloadmeta/collectors/internal/process
 # gazelle:exclude comp/core/workloadmeta/defaults
 # gazelle:exclude comp/core/workloadmeta/init
 # gazelle:exclude comp/dogstatsd/http/fx
 # gazelle:exclude comp/dogstatsd/http/impl/*.go
-# gazelle:exclude comp/dogstatsd/replay/fx
-# gazelle:exclude comp/dogstatsd/replay/impl
-# gazelle:exclude comp/dogstatsd/server/fx
-# gazelle:exclude comp/dogstatsd/server/mock
-# gazelle:exclude comp/dogstatsd/status/fx
-# gazelle:exclude comp/dogstatsd/status/impl
 # gazelle:exclude comp/forwarder/orchestrator/orchestratorimpl
 # gazelle:exclude comp/host-profiler/collector/fx
 # gazelle:exclude comp/host-profiler/flare
@@ -359,7 +346,9 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/dyninst/testprogs/progs/sample/structs.go
 # gazelle:exclude pkg/dyninst/testprogs/progs/sample/times.go
 # gazelle:exclude pkg/ebpf/_obj
-# gazelle:exclude pkg/ebpf/bytecode/runtime
+# It is a generated via genrule src that shouldn't be added to the runtime
+# library.
+# gazelle:exclude pkg/ebpf/bytecode/runtime/integrity_gen.go
 # gazelle:exclude pkg/ebpf/ebpftest/cgo_align.go
 # gazelle:exclude pkg/ebpf/features
 # gazelle:exclude pkg/ebpf/kernelbugs
@@ -375,8 +364,6 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/fleet/installer/packages/embedded/tmpl
 # gazelle:exclude pkg/gpu/containers
 # gazelle:exclude pkg/gpu/integrationtests
-# gazelle:exclude pkg/gpu/safenvml
-# gazelle:exclude pkg/gpu/testutil
 # gazelle:exclude pkg/kubestatemetrics/builder
 # gazelle:exclude pkg/languagedetection/privileged
 # gazelle:exclude pkg/logs/client/http
@@ -437,7 +424,6 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/process/util/containers
 # gazelle:exclude pkg/process/util/status
 # gazelle:exclude pkg/procmgr
-# gazelle:exclude pkg/sbom/collectors/docker
 # gazelle:exclude pkg/sbom/collectors/host
 # gazelle:exclude pkg/sbom/collectors/procfs
 # gazelle:exclude pkg/security/clihelpers
@@ -779,6 +765,19 @@ config_setting(
     },
 )
 
+# Matches Linux targets built with --//:release=true.
+# More specific than //:is_release (adds a platform constraint), so Bazel's
+# ambiguity resolution prefers it over the plain is_release setting when both
+# would match on Linux.
+# TODO(agent_build): We may need this for other platforms. Feel free to add if needed.
+config_setting(
+    name = "linux_and_release",
+    constraint_values = ["@platforms//os:linux"],
+    flag_values = {
+        "//:release": "True",
+    },
+)
+
 # bazel run //:write_all regenerates all protobuf-generated Go files in the repo.
 write_source_files(
     name = "write_all",
@@ -805,6 +804,5 @@ write_source_files(
         "//pkg/proto/pbgo/trace:tracer_payload_gen",
         "//pkg/proto/pbgo/trace:write_pb_go",
         "//pkg/security/proto/api:write_pb_go",
-        "//test/fakeintake/aggregator/internal/apiv3:write_pb_go",
     ],
 )

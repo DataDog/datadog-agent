@@ -104,3 +104,7 @@ properties:
     node_type: setting
     type: integer
     default: 1024
+  parallel_collectors:
+    node_type: setting
+    type: boolean
+    default: true
