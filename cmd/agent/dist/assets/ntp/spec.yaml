@@ -1,0 +1,137 @@
+name: ntp
+fleet_configurable: true
+version: 1.0.0
+files:
+- name: ntp.yaml
+  options:
+  - template: init_config
+    options:
+    - name: service
+      fleet_configurable: true
+      value:
+        type: string
+        example: "<SERVICE>"
+      description: |
+        Attach the tag `service:<SERVICE>` to every metric, event, and service check emitted by this integration.
+
+        Additionally, this sets the default `service` for every log source.
+      required: false
+  - template: instances
+    options:
+    - name: offset_threshold
+      fleet_configurable: true
+      required: false
+      value:
+        type: integer
+        example: 60
+        default: 60
+      description: Offset threshold in seconds above which a CRITICAL service check is sent.
+    - name: hosts
+      fleet_configurable: true
+      required: false
+      value:
+        type: array
+        items:
+          type: string
+        example:
+          - 0.datadog.pool.ntp.org
+          - 1.datadog.pool.ntp.org
+          - 2.datadog.pool.ntp.org
+          - 3.datadog.pool.ntp.org
+      description: |
+        List of NTP hosts to connect to. Defaults to the private NTP server of the detected cloud
+        provider, otherwise <X>.datadog.pool.ntp.org where X is between 0 and 3.
+        If both host and hosts are specified, host is prepended to the hosts list (duplicates removed).
+    - name: host
+      fleet_configurable: true
+      required: false
+      value:
+        type: string
+        example: <NTP_SERVER>
+      description: |
+        Single NTP server hostname or IP address to connect to.
+        If both host and hosts are specified, host is prepended to the hosts list (duplicates removed).
+        Use hosts when specifying multiple servers.
+    - name: port
+      fleet_configurable: true
+      required: false
+      value:
+        type: integer
+        example: 123
+        default: 123
+      description: Port to use when reaching the NTP server.
+    - name: version
+      fleet_configurable: true
+      required: false
+      value:
+        type: integer
+        example: 3
+        default: 3
+      description: Version of NTP to use.
+    - name: timeout
+      fleet_configurable: true
+      required: false
+      value:
+        type: integer
+        example: 5
+        default: 5
+      description: Timeout for connecting to the NTP server in seconds.
+    - name: use_local_defined_servers
+      fleet_configurable: true
+      required: false
+      value:
+        type: boolean
+        example: false
+        default: false
+      description: |
+        Use the NTP servers defined in the host configuration.
+        Unix: reads /etc/ntp.conf, /etc/xntp.conf, /etc/chrony.conf, /etc/chrony/chrony.conf,
+        /etc/ntpd.conf, /etc/openntpd/ntpd.conf, /etc/systemd/timesyncd.conf, and *.conf files in
+        /etc/systemd/timesyncd.conf.d, /run/systemd/timesyncd.conf.d,
+        /usr/local/lib/systemd/timesyncd.conf.d, and /usr/lib/systemd/timesyncd.conf.d.
+        Windows: reads HKLM\\SYSTEM\\CurrentControlSet\\Services\\W32Time\\Parameters\\NtpServer.
+    - name: tags
+      fleet_configurable: true
+      required: false
+      value:
+        type: array
+        items:
+          type: string
+        example: ["<KEY_1>:<VALUE_1>", "<KEY_2>:<VALUE_2>"]
+      description: |
+        A list of tags to attach to every metric, event, and service check emitted by this instance.
+
+        Learn more about tagging at https://docs.datadoghq.com/tagging/
+    - name: service
+      fleet_configurable: true
+      value:
+        type: string
+        example: "<SERVICE>"
+      description: |
+        Attach the tag `service:<SERVICE>` to every metric, event, and service check emitted by this integration.
+
+        Overrides any `service` defined in the `init_config` section.
+      required: false
+    - name: min_collection_interval
+      fleet_configurable: true
+      value:
+        type: number
+        example: 900
+        default: 900
+      description: |
+        This changes the collection interval of the check. For more information, see:
+        https://docs.datadoghq.com/developers/write_agent_check/#collection-interval
+
+        Defaults to 900 seconds (15 minutes) to comply with pool.ntp.org query-rate guidelines.
+      required: false
+    - name: empty_default_hostname
+      fleet_configurable: true
+      value:
+        type: boolean
+        example: false
+        default: false
+      description: |
+        This forces the check to send metrics with no hostname.
+
+        This is useful for cluster-level checks.
+      required: false

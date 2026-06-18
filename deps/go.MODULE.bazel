@@ -8,6 +8,13 @@ use_repo(go_sdk, "go_work_sdk")
 
 go_deps = use_extension("@gazelle//:extensions.bzl", "go_deps")
 
+# Expose repos for legacy rules, inspired by https://github.com/bazel-contrib/bazel-gazelle/pull/2361
+inject_repo(
+    go_deps,
+    protobuf = "protobuf",
+    rules_proto = "rules_proto",
+)
+
 # TODO(agent-build): when all Go modules are migrated, use //:go.work instead of @bazelify_go_work//:go.work
 use_repo_rule("//bazel/repo:bazelify_go_work.bzl", "bazelify_go_work")(name = "bazelify_go_work")
 
@@ -72,6 +79,12 @@ go_deps.gazelle_override(
     directives = [
         "gazelle:build_file_generation on",
     ],
+    path = "github.com/GoogleCloudPlatform/docker-credential-gcr",
+)
+go_deps.gazelle_override(
+    directives = [
+        "gazelle:build_file_generation on",
+    ],
     path = "github.com/coreos/etcd",
 )
 go_deps.gazelle_override(
@@ -87,6 +100,10 @@ go_deps.gazelle_override(
 go_deps.gazelle_override(
     build_extra_args = ["-build_tags=requirefips"],
     path = "go.opentelemetry.io/collector/config/configtls",
+)
+go_deps.gazelle_override(
+    build_extra_args = ["-build_tags=trivy_no_javadb"],
+    path = "github.com/aquasecurity/trivy",
 )
 use_repo(
     go_deps,
@@ -264,7 +281,6 @@ use_repo(
     "com_github_moby_moby_api",
     "com_github_moby_moby_client",
     "com_github_moby_sys_mountinfo",
-    "com_github_modelcontextprotocol_go_sdk",
     "com_github_mohae_deepcopy",
     "com_github_netsampler_goflow2",
     "com_github_nvidia_go_nvml",
@@ -294,11 +310,14 @@ use_repo(
     "com_github_open_telemetry_opentelemetry_collector_contrib_processor_resourceprocessor",
     "com_github_open_telemetry_opentelemetry_collector_contrib_processor_tailsamplingprocessor",
     "com_github_open_telemetry_opentelemetry_collector_contrib_processor_transformprocessor",
+    "com_github_open_telemetry_opentelemetry_collector_contrib_receiver_dockerstatsreceiver",
     "com_github_open_telemetry_opentelemetry_collector_contrib_receiver_filelogreceiver",
     "com_github_open_telemetry_opentelemetry_collector_contrib_receiver_fluentforwardreceiver",
     "com_github_open_telemetry_opentelemetry_collector_contrib_receiver_hostmetricsreceiver",
     "com_github_open_telemetry_opentelemetry_collector_contrib_receiver_jaegerreceiver",
     "com_github_open_telemetry_opentelemetry_collector_contrib_receiver_k8sobjectsreceiver",
+    "com_github_open_telemetry_opentelemetry_collector_contrib_receiver_kubeletstatsreceiver",
+    "com_github_open_telemetry_opentelemetry_collector_contrib_receiver_podmanreceiver",
     "com_github_open_telemetry_opentelemetry_collector_contrib_receiver_prometheusreceiver",
     "com_github_open_telemetry_opentelemetry_collector_contrib_receiver_receivercreator",
     "com_github_open_telemetry_opentelemetry_collector_contrib_receiver_zipkinreceiver",

@@ -34,7 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/runner"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
 	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
-	"github.com/DataDog/datadog-agent/pkg/collector/sharedlibrary/sharedlibraryimpl"
+	sharedlibrarycheck "github.com/DataDog/datadog-agent/pkg/collector/sharedlibrary/sharedlibraryimpl"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	collectorStatus "github.com/DataDog/datadog-agent/pkg/status/collector"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -137,6 +137,7 @@ func newCollector(deps dependencies) *collectorImpl {
 		createdAt:              time.Now(),
 	}
 
+	python.SetHealthPlatform(deps.HealthPlatform)
 	if !deps.Config.GetBool("python_lazy_loading") {
 		python.InitPython(common.GetPythonPaths()...)
 	}
@@ -210,7 +211,7 @@ func (c *collectorImpl) RunCheck(inner check.Check) (checkid.ID, error) {
 	c.m.Lock()
 	defer c.m.Unlock()
 
-	ch := middleware.NewCheckWrapper(inner, c.senderManager, c.agentTelemetry)
+	ch := middleware.NewCheckWrapper(inner, c.senderManager, c.agentTelemetry, option.New[healthplatform.Component](c.healthPlatform))
 
 	var emptyID checkid.ID
 
