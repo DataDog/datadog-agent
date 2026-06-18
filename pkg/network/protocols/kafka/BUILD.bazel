@@ -70,7 +70,11 @@ go_test(
         "telemetry_test.go",
         "types_linux_test.go",
     ],
-    data = glob(["testdata/**"]),
+    # FIXME(agent-build) remove allow_empty once we don't build with omnibus
+    data = glob(
+        ["testdata/**"],
+        allow_empty = True,
+    ),
     embed = [":kafka"],
     gotags = ["test"],
     deps = [
