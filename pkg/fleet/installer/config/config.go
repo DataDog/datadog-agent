@@ -263,7 +263,7 @@ func (a *FileOperation) apply(ctx context.Context, root *os.Root) error {
 		// transformations (including those producing multiple documents) are supported.
 		var buf bytes.Buffer
 		encoder := yaml.NewEncoder(&buf)
-		iter := code.Run(convertYAML2UnmarshalToJSONMarshallable(previous), argValues...)
+		iter := code.RunWithContext(ctx, convertYAML2UnmarshalToJSONMarshallable(previous), argValues...)
 		outputs := 0
 		for {
 			v, ok := iter.Next()
