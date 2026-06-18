@@ -1047,3 +1047,62 @@ func TestOperationApply_JQRuntimeError(t *testing.T) {
 	err = op.apply(context.Background(), root)
 	assert.Error(t, err)
 }
+
+// applyJQToTags writes a datadog.yaml with the given tags, applies the jq query,
+// and returns the resulting tags slice.
+func applyJQToTags(t *testing.T, tags []any, query string) []any {
+	t.Helper()
+	tmpDir := t.TempDir()
+	filePath := filepath.Join(tmpDir, "datadog.yaml")
+	origBytes, err := yaml.Marshal(map[string]any{"tags": tags})
+	assert.NoError(t, err)
+	err = os.WriteFile(filePath, origBytes, 0644)
+	assert.NoError(t, err)
+
+	root, err := os.OpenRoot(tmpDir)
+	assert.NoError(t, err)
+	defer root.Close()
+
+	op := &FileOperation{
+		FileOperationType: FileOperationJQ,
+		FilePath:          "/datadog.yaml",
+		Query:             query,
+	}
+	err = op.apply(context.Background(), root)
+	assert.NoError(t, err)
+
+	updated, err := os.ReadFile(filePath)
+	assert.NoError(t, err)
+	var updatedMap map[string]any
+	err = yaml.Unmarshal(updated, &updatedMap)
+	assert.NoError(t, err)
+	got, _ := updatedMap["tags"].([]any)
+	return got
+}
+
+func TestOperationApply_JQAddTagIfMissing(t *testing.T) {
+	// Idempotent add: only append the tag when it is not already present.
+	const query = `if (.tags | index("env:prod")) == null then .tags += ["env:prod"] else . end`
+
+	t.Run("tag missing is added", func(t *testing.T) {
+		got := applyJQToTags(t, []any{"team:fleet"}, query)
+		assert.Equal(t, []any{"team:fleet", "env:prod"}, got)
+	})
+
+	t.Run("tag already present is not duplicated", func(t *testing.T) {
+		got := applyJQToTags(t, []any{"env:prod", "team:fleet"}, query)
+		assert.Equal(t, []any{"env:prod", "team:fleet"}, got)
+	})
+}
+
+func TestOperationApply_JQReplaceTag(t *testing.T) {
+	const query = `.tags |= map(if . == "env:staging" then "env:prod" else . end)`
+	got := applyJQToTags(t, []any{"env:staging", "team:fleet"}, query)
+	assert.Equal(t, []any{"env:prod", "team:fleet"}, got)
+}
+
+func TestOperationApply_JQDeleteTag(t *testing.T) {
+	const query = `.tags -= ["env:staging"]`
+	got := applyJQToTags(t, []any{"env:staging", "team:fleet"}, query)
+	assert.Equal(t, []any{"team:fleet"}, got)
+}
