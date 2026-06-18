@@ -36,7 +36,7 @@ require (
 	code.cloudfoundry.org/lager v2.0.0+incompatible
 	github.com/CycloneDX/cyclonedx-go v0.9.3
 	github.com/DATA-DOG/go-sqlmock v1.5.2
-	github.com/DataDog/agent-payload/v5 v5.0.201
+	github.com/DataDog/agent-payload/v5 v5.0.202-0.20260608085134-d08b6ebf99eb
 	github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/api/api/def v0.76.0-rc.4
@@ -243,7 +243,7 @@ require (
 	github.com/google/btree v1.1.3
 	github.com/google/cel-go v0.28.1
 	github.com/google/go-cmp v0.7.0
-	github.com/google/go-containerregistry v0.21.6
+	github.com/google/go-containerregistry v0.21.7
 	github.com/google/gofuzz v1.2.0
 	github.com/google/gopacket v1.1.19
 	github.com/google/uuid v1.6.0
@@ -379,15 +379,15 @@ require (
 	go4.org/mem v0.0.0-20220726221520-4f986261bf13
 	go4.org/netipx v0.0.0-20231129151722-fdeea329fbba
 	golang.org/x/arch v0.27.0
-	golang.org/x/crypto v0.52.0
+	golang.org/x/crypto v0.53.0
 	golang.org/x/exp v0.0.0-20260529124908-c761662dc8c9
-	golang.org/x/mod v0.36.0
-	golang.org/x/net v0.55.0
-	golang.org/x/sync v0.20.0
-	golang.org/x/sys v0.45.0
-	golang.org/x/text v0.37.0
+	golang.org/x/mod v0.37.0
+	golang.org/x/net v0.56.0
+	golang.org/x/sync v0.21.0
+	golang.org/x/sys v0.46.0
+	golang.org/x/text v0.38.0
 	golang.org/x/time v0.15.0
-	golang.org/x/tools v0.45.0
+	golang.org/x/tools v0.46.0
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da // indirect
 	google.golang.org/grpc v1.81.1
 	google.golang.org/grpc/examples v0.0.0-20221020162917-9127159caf5a
@@ -889,8 +889,8 @@ require (
 	golang.org/x/exp/typeparams v0.0.0-20251125195548-87e1e737ad39 // indirect
 	golang.org/x/lint v0.0.0-20241112194109-818c5a804067 // indirect
 	golang.org/x/oauth2 v0.36.0
-	golang.org/x/telemetry v0.0.0-20260508192327-42602be52be6 // indirect
-	golang.org/x/term v0.43.0
+	golang.org/x/telemetry v0.0.0-20260610154732-fb80ec83bdd9 // indirect
+	golang.org/x/term v0.44.0
 	gomodules.xyz/jsonpatch/v2 v2.5.0 // indirect
 	gonum.org/v1/gonum v0.17.0 // indirect
 	google.golang.org/api v0.279.0 // indirect
@@ -1254,8 +1254,6 @@ replace github.com/iceber/iouring-go => github.com/lebauce/iouring-go v0.0.0-202
 
 // Fork to remove some text/template usage, https://github.com/DataDog/opa/tree/lightweight-1.7.1
 replace github.com/open-policy-agent/opa => github.com/DataDog/opa v0.0.0-20251126100856-d2e1e78e0816
-
-replace github.com/DataDog/agent-payload/v5 => github.com/DataDog/agent-payload/v5 v5.0.201
 
 replace go.opentelemetry.io/otel/sdk/metric v1.43.1-0.20260514180605-442cdbdd9466 => go.opentelemetry.io/otel/sdk/metric v1.44.0
 

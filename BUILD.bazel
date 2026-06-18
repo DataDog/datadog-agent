@@ -132,12 +132,6 @@ exports_files(["go.mod"])
 # gazelle:exclude comp/core/workloadmeta/init
 # gazelle:exclude comp/dogstatsd/http/fx
 # gazelle:exclude comp/dogstatsd/http/impl/*.go
-# gazelle:exclude comp/dogstatsd/replay/fx
-# gazelle:exclude comp/dogstatsd/replay/impl
-# gazelle:exclude comp/dogstatsd/server/fx
-# gazelle:exclude comp/dogstatsd/server/mock
-# gazelle:exclude comp/dogstatsd/status/fx
-# gazelle:exclude comp/dogstatsd/status/impl
 # gazelle:exclude comp/forwarder/orchestrator/orchestratorimpl
 # gazelle:exclude comp/host-profiler/collector/fx
 # gazelle:exclude comp/host-profiler/flare
@@ -798,6 +792,5 @@ write_source_files(
         "//pkg/proto/pbgo/trace:tracer_payload_gen",
         "//pkg/proto/pbgo/trace:write_pb_go",
         "//pkg/security/proto/api:write_pb_go",
-        "//test/fakeintake/aggregator/internal/apiv3:write_pb_go",
     ],
 )

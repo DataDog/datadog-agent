@@ -5,7 +5,7 @@ go 1.26.0
 // every datadog-agent module replaced in the fakeintake go.mod needs to be copied in the Dockerfile
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.201
+	github.com/DataDog/agent-payload/v5 v5.0.202-0.20260608085134-d08b6ebf99eb
 	github.com/DataDog/datadog-agent/comp/netflow/payload v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/metrics v0.64.0
 	github.com/DataDog/datadog-agent/pkg/networkpath/payload v0.0.0-20250128160050-7ac9ccd58c07
@@ -50,9 +50,9 @@ require (
 	go.opentelemetry.io/otel/metric v1.44.0 // indirect
 	go.opentelemetry.io/otel/sdk v1.44.0 // indirect
 	go.opentelemetry.io/otel/trace v1.44.0 // indirect
-	golang.org/x/net v0.55.0 // indirect
-	golang.org/x/sys v0.45.0 // indirect
-	golang.org/x/text v0.37.0 // indirect
+	golang.org/x/net v0.56.0 // indirect
+	golang.org/x/sys v0.46.0 // indirect
+	golang.org/x/text v0.38.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260526163538-3dc84a4a5aaa // indirect
 	google.golang.org/grpc v1.81.1 // indirect
 )

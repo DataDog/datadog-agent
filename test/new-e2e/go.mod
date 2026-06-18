@@ -3,7 +3,7 @@ module github.com/DataDog/datadog-agent/test/new-e2e
 go 1.26.0
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.201
+	github.com/DataDog/agent-payload/v5 v5.0.202-0.20260608085134-d08b6ebf99eb
 	github.com/DataDog/datadog-agent/pkg/util/option v0.76.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.76.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.77.0 // indirect
@@ -30,9 +30,9 @@ require (
 	github.com/stretchr/testify v1.11.1
 	github.com/xeipuuv/gojsonschema v1.2.0
 	go.yaml.in/yaml/v2 v2.4.4
-	golang.org/x/crypto v0.52.0
-	golang.org/x/sys v0.45.0
-	golang.org/x/term v0.43.0
+	golang.org/x/crypto v0.53.0
+	golang.org/x/sys v0.46.0
+	golang.org/x/term v0.44.0
 	gopkg.in/zorkian/go-datadog-api.v2 v2.30.0
 	k8s.io/api v0.35.5
 	k8s.io/apimachinery v0.35.6
@@ -176,13 +176,13 @@ require (
 	go.uber.org/atomic v1.11.0 // indirect
 	go.yaml.in/yaml/v3 v3.0.4
 	golang.org/x/exp v0.0.0-20260529124908-c761662dc8c9 // indirect
-	golang.org/x/mod v0.36.0
-	golang.org/x/net v0.55.0
+	golang.org/x/mod v0.37.0
+	golang.org/x/net v0.56.0
 	golang.org/x/oauth2 v0.36.0 // indirect
-	golang.org/x/sync v0.20.0 // indirect
-	golang.org/x/text v0.37.0
+	golang.org/x/sync v0.21.0 // indirect
+	golang.org/x/text v0.38.0
 	golang.org/x/time v0.15.0 // indirect
-	golang.org/x/tools v0.45.0 // indirect
+	golang.org/x/tools v0.46.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260526163538-3dc84a4a5aaa // indirect
 	google.golang.org/grpc v1.81.1 // indirect
 	google.golang.org/protobuf v1.36.12-0.20260116114154-8c4c4ae446ca // indirect
@@ -217,7 +217,7 @@ require (
 	github.com/digitalocean/go-libvirt v0.0.0-20240812180835-9c6c0a310c6c
 	github.com/go-jose/go-jose/v4 v4.1.4
 	github.com/go-viper/mapstructure/v2 v2.5.0
-	github.com/google/go-containerregistry v0.21.6
+	github.com/google/go-containerregistry v0.21.7
 	github.com/hairyhenderson/go-codeowners v0.7.1
 	github.com/pulumi/pulumi-aws/sdk/v7 v7.23.0
 	github.com/pulumi/pulumi-awsx/sdk/v3 v3.3.1

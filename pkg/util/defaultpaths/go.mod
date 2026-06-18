@@ -6,7 +6,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.61.0
 	github.com/DataDog/datadog-agent/pkg/util/log v0.73.0-rc.5
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.61.0
-	golang.org/x/sys v0.45.0
+	golang.org/x/sys v0.46.0
 )
 
 require (
