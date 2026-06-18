@@ -985,7 +985,7 @@ mark agent_ready_done
             return True
         return True
 
-    def discover_ssh_endpoint(self, name: str = DEFAULT_SANDBOX_NAME, timeout_seconds: int = 180) -> SandboxMetadata:
+    def discover_ssh_endpoint(self, name: str = DEFAULT_SANDBOX_NAME, timeout_seconds: int = 300) -> SandboxMetadata:
         metadata = self.read_metadata(name)
         if not metadata.mac_address:
             raise AgentSandboxError(f"sandbox {name!r} has no managed MAC address")
@@ -995,7 +995,15 @@ mark agent_ready_done
             if host and self.tcp_port_open(host, 22, timeout_seconds=2):
                 return self.update_connection(name, host, 22, state="running")
             time.sleep(2)
-        raise AgentSandboxError(f"timed out waiting for SSH endpoint for MAC {metadata.mac_address}")
+        host = self.ip_for_mac(metadata.mac_address)
+        serial_tail = ""
+        serial_log = self.paths(name).serial_log
+        if serial_log.exists():
+            serial_tail = "\nserial tail:\n" + "\n".join(serial_log.read_text(errors="replace").splitlines()[-20:])
+        detail = f"; last ARP host for MAC: {host}" if host else ""
+        raise AgentSandboxError(
+            f"timed out waiting for SSH endpoint for MAC {metadata.mac_address}{detail}{serial_tail}"
+        )
 
     def ip_for_mac(self, mac_address: str) -> str | None:
         result = subprocess.run(["arp", "-an"], check=False, text=True, capture_output=True)

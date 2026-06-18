@@ -162,7 +162,13 @@ def up(
             print(f"✓ VM already running (pid {metadata.vm_pid})")
 
         if not metadata.ssh_host or not manager.tcp_port_open(metadata.ssh_host, metadata.ssh_port or 22):
-            metadata = manager.discover_ssh_endpoint(name)
+            try:
+                metadata = manager.discover_ssh_endpoint(name)
+            except AgentSandboxError:
+                recovered_host = manager.ip_for_mac(metadata.mac_address or "")
+                if not recovered_host:
+                    raise
+                metadata = manager.update_connection(name, recovered_host, 22, state="running")
         print(f"✓ SSH ready: {metadata.ssh_host}:{metadata.ssh_port}")
 
         if kubernetes:
