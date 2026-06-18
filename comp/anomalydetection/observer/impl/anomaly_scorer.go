@@ -115,8 +115,7 @@ func scorerEventFilterMatches(f observer.ScorerEventFilter, evt observer.Severit
 type scorerSubscription struct {
 	cfg observer.AnomalyScorerConfiguration
 
-	// Per-subscription severity state machine — mirrors the global scorer's
-	// state machine but uses cfg.CooldownSecs as its cooldown parameter.
+	// Per-subscription severity state machine — uses cfg.CooldownSecs as its cooldown parameter.
 	state            observer.SeverityLevel
 	lastStateEntryTs int64
 	stateInitialized bool
@@ -170,7 +169,6 @@ func DefaultScorerConfig() observer.ScorerConfig {
 		LowThreshold:  0.040,
 		HighThreshold: 0.060,
 		MarginPct:     0.20,
-		CooldownSecs:  300,
 		DetectorThresholds: map[string][4]float64{
 			// tukey_biweight scores cap hard at ~50 across all scenarios.
 			// Calibrated: p25≈6, p50≈9, p75≈15, p90≈27, p99≈45 (3-scenario avg).
@@ -221,9 +219,6 @@ func readScorerConfig(r ConfigReader, prefix string) any {
 	}
 	if key := prefix + "margin_pct"; r.IsConfigured(key) {
 		cfg.MarginPct = r.GetFloat64(key)
-	}
-	if key := prefix + "cooldown_secs"; r.IsConfigured(key) {
-		cfg.CooldownSecs = int64(r.GetInt(key))
 	}
 	return cfg
 }
@@ -283,8 +278,7 @@ type secEWMA struct {
 //	Advance(t)     → finalises every second in [lastAdvancedSec+1, t]:
 //	                   merge pending anomalies into windowMap,
 //	                   evict stale series (older than WindowSecs),
-//	                   compute saturation + EWMA from window,
-//	                   run global severity state machine.
+//	                   compute saturation + EWMA from window.
 //	ScoreState()   → returns accumulated telemetry snapshot.
 //	Reset()        → clears all internal state.
 //
@@ -316,19 +310,11 @@ type anomalyScorer struct {
 
 	lastAdvancedSec int64
 
-	// Global severity state machine.
-	state            observer.SeverityLevel
-	lastStateEntryTs int64
-	stateInitialized bool
-
 	// buckets retains the most recent WindowSecs ScoreBucket entries for debug
 	// and replay inspection via ScoreState(). Capped at WindowSecs to prevent
 	// unbounded growth in long-running agents; older entries are discarded.
 	// Not used by the live observer path, which only calls LastScore().
 	buckets []observer.ScoreBucket
-
-	// events accumulates severity state-machine transitions for ScoreState().
-	events []observer.SeverityEvent
 
 	// Subscriptions — guarded by subsMu, independent of mu so that listeners
 	// can be registered or removed while Advance is running.
@@ -413,7 +399,7 @@ func (s *anomalyScorer) ProcessAnomaly(a observer.Anomaly) {
 }
 
 // Advance finalises all 1-second buckets from lastAdvancedSec+1 up to dataTime
-// (inclusive), running merge → evict → saturate → EWMA → global state machine for each.
+// (inclusive), running merge → evict → saturate → EWMA for each.
 // After releasing mu, each subscription's own state machine is advanced with
 // the same EWMA values and calls its listener on any resulting transition.
 func (s *anomalyScorer) Advance(dataTime int64) {
@@ -468,7 +454,6 @@ func (s *anomalyScorer) Advance(dataTime int64) {
 //  2. Evict: remove per-level timestamps that have fallen outside the window.
 //  3. Bucket: count unique live series by their highest active level.
 //  4. Saturate + EWMA: compute the smoothed score from the window count.
-//  5. Severity state machine: update global state and record any transition.
 func (s *anomalyScorer) advanceSecond(sec int64) float64 {
 	anomalies := s.pending[sec]
 	delete(s.pending, sec)
@@ -548,29 +533,6 @@ func (s *anomalyScorer) advanceSecond(sec int64) float64 {
 		s.buckets = trimmed
 	}
 
-	// Step 5: run the global severity state machine.
-	margin := s.config.HighThreshold * s.config.MarginPct
-	if !s.stateInitialized {
-		s.state = rawSeverityLevel(s.ewma, s.config.LowThreshold, s.config.HighThreshold)
-		s.stateInitialized = true
-		return s.ewma
-	}
-	next := nextSeverityLevel(s.ewma, s.state, s.config.LowThreshold, s.config.HighThreshold, margin)
-	if next != s.state {
-		// Suppress de-escalations during global cooldown.
-		if next < s.state && s.config.CooldownSecs > 0 && sec-s.lastStateEntryTs < s.config.CooldownSecs {
-			return s.ewma
-		}
-		s.events = append(s.events, observer.SeverityEvent{
-			Timestamp: sec,
-			FromLevel: s.state,
-			ToLevel:   next,
-			Direction: severityDirection(s.state, next),
-		})
-		s.state = next
-		s.lastStateEntryTs = sec
-	}
-
 	return s.ewma
 }
 
@@ -582,12 +544,8 @@ func (s *anomalyScorer) ScoreState() observer.ScoreState {
 	buckets := make([]observer.ScoreBucket, len(s.buckets))
 	copy(buckets, s.buckets)
 
-	events := make([]observer.SeverityEvent, len(s.events))
-	copy(events, s.events)
-
 	return observer.ScoreState{
 		Buckets: buckets,
-		Events:  events,
 		Config:  s.config,
 	}
 }
@@ -601,10 +559,6 @@ func (s *anomalyScorer) Reset() {
 	s.ewma = 0
 	s.lastAdvancedSec = 0
 	s.buckets = nil
-	s.events = nil
-	s.state = observer.SeverityLow
-	s.lastStateEntryTs = 0
-	s.stateInitialized = false
 	s.mu.Unlock()
 
 	// Reset each subscription's state machine so stale state from before
