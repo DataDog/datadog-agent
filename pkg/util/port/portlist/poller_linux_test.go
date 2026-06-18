@@ -19,6 +19,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"go4.org/mem"
 )
 
@@ -128,7 +129,7 @@ func TestParsePorts(t *testing.T) {
 				pm.keep = true
 				pm.needsProcName = true
 			}
-			if diff := cmp.Diff(li.known, tt.want, cmp.AllowUnexported(Port{}), cmp.AllowUnexported(portMeta{})); diff != "" {
+			if diff := cmp.Diff(li.known, tt.want, cmp.AllowUnexported(Port{}), cmp.AllowUnexported(portMeta{}), cmpopts.EquateComparable(netip.Addr{})); diff != "" {
 				t.Errorf("unexpected parsed ports (-got+want):\n%s", diff)
 			}
 		})
