@@ -13,9 +13,12 @@ import (
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	listv1 "k8s.io/client-go/listers/core/v1"
+	"k8s.io/client-go/tools/cache"
 
 	adtypes "github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
@@ -754,4 +757,60 @@ func TestKubeEndpointsFiltering(t *testing.T) {
 			}
 		})
 	}
+}
+
+func newEndpointsTestListener(t *testing.T, svc *v1.Service, kep *v1.Endpoints) (*KubeEndpointsListener, cache.Indexer, chan Service, chan Service) {
+	svcIndexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
+	require.NoError(t, svcIndexer.Add(svc))
+	epIndexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
+	require.NoError(t, epIndexer.Add(kep))
+
+	newCh := make(chan Service, 10)
+	delCh := make(chan Service, 10)
+	l := &KubeEndpointsListener{
+		endpoints:       make(map[types.UID][]*KubeEndpointService),
+		endpointsLister: listv1.NewEndpointsLister(epIndexer),
+		serviceLister:   listv1.NewServiceLister(svcIndexer),
+		promInclAnnot:   getPrometheusIncludeAnnotations(),
+		filterStore:     workloadfilterfxmock.SetupMockFilter(t),
+		newService:      newCh,
+		delService:      delCh,
+	}
+	return l, svcIndexer, newCh, delCh
+}
+
+// TestEndpointsServiceUpdatedPrometheusAnnotations verifies that changes to prometheus
+// scrape annotations trigger endpoint service emission.
+func TestEndpointsServiceUpdatedPrometheusAnnotations(t *testing.T) {
+	kep := &v1.Endpoints{
+		ObjectMeta: metav1.ObjectMeta{Name: "nginx-svc", Namespace: "default", UID: types.UID("ep-uid")},
+		Subsets: []v1.EndpointSubset{{
+			Addresses: []v1.EndpointAddress{{IP: "10.0.0.1"}, {IP: "10.0.0.2"}},
+			Ports:     []v1.EndpointPort{{Name: "metrics", Port: 9113}},
+		}},
+	}
+
+	t.Run("annotation added", func(t *testing.T) {
+		svcOld := &v1.Service{ObjectMeta: metav1.ObjectMeta{Name: "nginx-svc", Namespace: "default", UID: "svc-uid"}}
+		l, svcIndexer, newCh, _ := newEndpointsTestListener(t, svcOld, kep)
+
+		svcNew := svcOld.DeepCopy()
+		svcNew.Annotations = map[string]string{"prometheus.io/scrape": "true"}
+		require.NoError(t, svcIndexer.Update(svcNew))
+		l.serviceUpdated(svcOld, svcNew)
+
+		require.Len(t, newCh, 2, "endpoint services should be emitted when prometheus annotation is added")
+	})
+
+	t.Run("scrape annotation value changed", func(t *testing.T) {
+		svcOld := &v1.Service{ObjectMeta: metav1.ObjectMeta{Name: "nginx-svc", Namespace: "default", UID: "svc-uid", Annotations: map[string]string{"prometheus.io/scrape": "false"}}}
+		l, svcIndexer, newCh, _ := newEndpointsTestListener(t, svcOld, kep)
+
+		svcNew := svcOld.DeepCopy()
+		svcNew.Annotations["prometheus.io/scrape"] = "true"
+		require.NoError(t, svcIndexer.Update(svcNew))
+		l.serviceUpdated(svcOld, svcNew)
+
+		require.Len(t, newCh, 2, "endpoint services should be emitted when scrape annotation value changes")
+	})
 }
