@@ -9,59 +9,29 @@ package autoinstrumentation
 
 import (
 	"strings"
-	"sync"
 
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/imageresolver"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/libraryinjection"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/policies"
 	rcclient "github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// rcPolicyProvider subscribes to remote-config SSI policies and compiles them
-// into a policy-driven TargetMutator. Targets no longer appear on this path;
-// the wire format is the dd-wls policies document.
-type rcPolicyProvider struct {
-	client           *rcclient.Client
-	config           *Config
-	wmeta            workloadmeta.Component
-	imageResolver    imageresolver.Resolver
-	csiDriverWatcher libraryinjection.CSIDriverWatcher
-
-	mu      sync.RWMutex
-	current *TargetMutator
-}
-
-func newRCPolicyProvider(client *rcclient.Client, config *Config, wmeta workloadmeta.Component, imageResolver imageresolver.Resolver, csiDriverWatcher libraryinjection.CSIDriverWatcher) (*rcPolicyProvider, error) {
+// subscribeRemoteConfig wires the remote-config client to the mutator so that
+// SSI policies delivered over remote config are layered on top of the
+// configuration baseline. It is a no-op when remote config is not available,
+// in which case the mutator keeps matching against its configuration baseline
+// only. Targets no longer appear on this path; the wire format is the dd-wls
+// policies document.
+func (m *TargetMutator) subscribeRemoteConfig(client *rcclient.Client) {
 	if client == nil {
-		return nil, nil
+		return
 	}
 
-	provider := &rcPolicyProvider{
-		client:           client,
-		config:           config,
-		wmeta:            wmeta,
-		imageResolver:    imageResolver,
-		csiDriverWatcher: csiDriverWatcher,
-	}
-	client.Subscribe(state.ProductSSITargets, provider.onUpdate)
-	provider.onUpdate(client.GetConfigs(state.ProductSSITargets), client.UpdateApplyStatus)
-	return provider, nil
+	client.Subscribe(state.ProductSSITargets, m.onRemoteConfigUpdate)
+	m.onRemoteConfigUpdate(client.GetConfigs(state.ProductSSITargets), client.UpdateApplyStatus)
 }
 
-func (p *rcPolicyProvider) Current() *TargetMutator {
-	if p == nil {
-		return nil
-	}
-
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-	return p.current
-}
-
-func (p *rcPolicyProvider) onUpdate(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
+func (m *TargetMutator) onRemoteConfigUpdate(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
 	filteredUpdates := make(map[string]state.RawConfig, len(updates))
 	for path, update := range updates {
 		if strings.Contains(path, "/DEBUG/") {
@@ -71,9 +41,7 @@ func (p *rcPolicyProvider) onUpdate(updates map[string]state.RawConfig, applySta
 	updates = filteredUpdates
 
 	if len(updates) == 0 {
-		p.mu.Lock()
-		p.current = nil
-		p.mu.Unlock()
+		m.ClearRemotePolicies()
 		return
 	}
 
@@ -93,29 +61,16 @@ func (p *rcPolicyProvider) onUpdate(updates map[string]state.RawConfig, applySta
 		allPolicies = append(allPolicies, parsed...)
 	}
 
-	rcConfig := *p.config
-	rcInstrumentation := *p.config.Instrumentation
-	rcInstrumentation.Enabled = true
-	rcInstrumentation.EnabledNamespaces = nil
-	rcInstrumentation.LibVersions = nil
-	rcInstrumentation.Targets = nil
-	rcConfig.Instrumentation = &rcInstrumentation
-
-	mutator, err := newTargetMutatorFromPolicies(&rcConfig, p.wmeta, p.imageResolver, p.csiDriverWatcher, allPolicies, true)
-	if err != nil {
+	if err := m.SetRemotePolicies(allPolicies); err != nil {
 		for path := range updates {
 			applyStateCallback(path, state.ApplyStatus{
 				State: state.ApplyStateError,
 				Error: err.Error(),
 			})
 		}
-		log.Errorf("failed to build SSI remote policy mutator: %v", err)
+		log.Errorf("failed to apply SSI remote policies: %v", err)
 		return
 	}
-
-	p.mu.Lock()
-	p.current = mutator
-	p.mu.Unlock()
 
 	for path := range updates {
 		applyStateCallback(path, state.ApplyStatus{State: state.ApplyStateAcknowledged})

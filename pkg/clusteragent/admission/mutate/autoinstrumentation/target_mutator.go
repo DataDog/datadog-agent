@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync/atomic"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -26,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/libraryinjection"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/policies"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
+	rcclient "github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -36,23 +38,39 @@ const (
 	AppliedPolicyEnvVar = "DD_INSTRUMENTATION_APPLIED_POLICY"
 )
 
+// policySet is an immutable, atomically swappable view of the policies a
+// TargetMutator matches against. matcher.policies and targets are aligned by
+// index, so a match resolves directly to its injection config. A disabled
+// mutator is simply represented by an empty set (no targets, no policies),
+// which naturally matches nothing.
+type policySet struct {
+	targets []targetInternal
+	matcher *policyMatcher
+}
+
 // TargetMutator is an autoinstrumentation mutator that filters pods based on the target based workload selection.
 type TargetMutator struct {
-	enabled                       bool
 	core                          *mutatorCore
-	targets                       []targetInternal
-	matcher                       *policyMatcher
 	disabledNamespaces            map[string]bool
 	securityClientLibraryMutator  containerMutator
 	profilingClientLibraryMutator containerMutator
 	containerRegistry             string
 	mutateUnlabelled              bool
 	defaultLibVersions            []libInfo
+
+	// base is the policy set derived from the agent configuration file. It is
+	// the baseline that remote-config policies are layered on top of.
+	base policySet
+	// active is the effective policy set: base when no remote policies are
+	// present, or remote policies (taking precedence) layered on top of base
+	// otherwise. It is swapped atomically on remote-config updates.
+	active atomic.Pointer[policySet]
 }
 
 // NewTargetMutator creates a new mutator for target based workload selection. We convert the targets to a more
-// efficient internal format for quick lookups.
-func NewTargetMutator(config *Config, wmeta workloadmeta.Component, imageResolver imageresolver.Resolver, csiDriverWatcher libraryinjection.CSIDriverWatcher) (*TargetMutator, error) {
+// efficient internal format for quick lookups. When rcClient is non-nil, the mutator also subscribes to
+// remote-config SSI policies, which are layered on top of the configuration baseline at runtime.
+func NewTargetMutator(config *Config, wmeta workloadmeta.Component, imageResolver imageresolver.Resolver, csiDriverWatcher libraryinjection.CSIDriverWatcher, rcClient *rcclient.Client) (*TargetMutator, error) {
 	// If there are no targets, we should fall back to enabledNamespace/libVersions. If those are also not defined, the
 	// expected behavior is to inject all pods into all namespaces.
 	targets := config.Instrumentation.Targets
@@ -60,7 +78,13 @@ func NewTargetMutator(config *Config, wmeta workloadmeta.Component, imageResolve
 		targets = append(targets, createDefaultTarget(config.Instrumentation.EnabledNamespaces, config.Instrumentation.LibVersions))
 	}
 
-	return newTargetMutatorWithTargets(config, wmeta, imageResolver, csiDriverWatcher, targets, config.Instrumentation.Enabled)
+	m, err := newTargetMutatorWithTargets(config, wmeta, imageResolver, csiDriverWatcher, targets, config.Instrumentation.Enabled)
+	if err != nil {
+		return nil, err
+	}
+
+	m.subscribeRemoteConfig(rcClient)
+	return m, nil
 }
 
 func newTargetMutatorWithTargets(config *Config, wmeta workloadmeta.Component, imageResolver imageresolver.Resolver, csiDriverWatcher libraryinjection.CSIDriverWatcher, targets []Target, enabled bool) (*TargetMutator, error) {
@@ -82,19 +106,25 @@ func newTargetMutatorWithTargets(config *Config, wmeta workloadmeta.Component, i
 		if err != nil {
 			return nil, err
 		}
+	} else {
+		// Keep the matcher aligned with the (empty) internal targets when
+		// instrumentation is disabled so the active set stays consistent.
+		targets = nil
 	}
 
 	m := &TargetMutator{
-		enabled:                       enabled,
-		targets:                       internalTargets,
-		matcher:                       newPolicyMatcher(targets, wmeta),
 		disabledNamespaces:            disabledNamespacesMap,
 		securityClientLibraryMutator:  config.securityClientLibraryMutator,
 		profilingClientLibraryMutator: config.profilingClientLibraryMutator,
 		containerRegistry:             config.containerRegistry,
 		mutateUnlabelled:              config.mutateUnlabelled,
 		defaultLibVersions:            defaultLibVersions,
+		base: policySet{
+			targets: internalTargets,
+			matcher: newPolicyMatcher(targets, wmeta),
+		},
 	}
+	m.active.Store(&m.base)
 
 	// Create the core mutator. This is a bit gross.
 	// The target mutator is also the filter which we are passing in.
@@ -104,46 +134,44 @@ func newTargetMutatorWithTargets(config *Config, wmeta workloadmeta.Component, i
 	return m, nil
 }
 
-// newTargetMutatorFromPolicies builds a mutator driven directly by policies
-// (e.g. delivered through remote config). The policies are both the match
-// engine and the source of the injection configuration, so no Target is
-// involved on this path. Internal targets are aligned by index with the
-// policies so a match resolves to its injection config.
-func newTargetMutatorFromPolicies(config *Config, wmeta workloadmeta.Component, imageResolver imageresolver.Resolver, csiDriverWatcher libraryinjection.CSIDriverWatcher, ps []policies.Policy, enabled bool) (*TargetMutator, error) {
-	disabledNamespacesMap := make(map[string]bool, len(config.Instrumentation.DisabledNamespaces))
-	for _, ns := range config.Instrumentation.DisabledNamespaces {
-		disabledNamespacesMap[ns] = true
+// activeSet returns the effective policy set. It is never nil after the
+// mutator has been constructed.
+func (m *TargetMutator) activeSet() *policySet {
+	return m.active.Load()
+}
+
+// SetRemotePolicies layers remote-config policies on top of the configuration
+// baseline and swaps in the result atomically. Remote policies are evaluated
+// first (they take precedence), then the configuration policies, preserving
+// first-match-wins semantics.
+func (m *TargetMutator) SetRemotePolicies(ps []policies.Policy) error {
+	remoteTargets, err := buildInternalTargetsFromPolicies(m.core.config, m.core.wmeta, ps, m.defaultLibVersions)
+	if err != nil {
+		return err
 	}
 
-	defaultLibVersions := getAllLatestDefaultLibraries(config.containerRegistry)
+	combinedPolicies := make([]policies.Policy, 0, len(ps)+len(m.base.matcher.policies))
+	combinedPolicies = append(combinedPolicies, ps...)
+	combinedPolicies = append(combinedPolicies, m.base.matcher.policies...)
 
-	var internalTargets []targetInternal
-	if enabled {
-		var err error
-		internalTargets, err = buildInternalTargetsFromPolicies(config, wmeta, ps, defaultLibVersions)
-		if err != nil {
-			return nil, err
-		}
-	}
+	combinedTargets := make([]targetInternal, 0, len(remoteTargets)+len(m.base.targets))
+	combinedTargets = append(combinedTargets, remoteTargets...)
+	combinedTargets = append(combinedTargets, m.base.targets...)
 
-	m := &TargetMutator{
-		enabled: enabled,
-		targets: internalTargets,
+	m.active.Store(&policySet{
+		targets: combinedTargets,
 		matcher: &policyMatcher{
-			policies:             ps,
-			wmeta:                wmeta,
-			needsNamespaceLabels: usesNamespaceLabels(ps),
+			policies:             combinedPolicies,
+			wmeta:                m.core.wmeta,
+			needsNamespaceLabels: usesNamespaceLabels(combinedPolicies),
 		},
-		disabledNamespaces:            disabledNamespacesMap,
-		securityClientLibraryMutator:  config.securityClientLibraryMutator,
-		profilingClientLibraryMutator: config.profilingClientLibraryMutator,
-		containerRegistry:             config.containerRegistry,
-		mutateUnlabelled:              config.mutateUnlabelled,
-		defaultLibVersions:            defaultLibVersions,
-	}
+	})
+	return nil
+}
 
-	m.core = newMutatorCore(config, wmeta, m, imageResolver, csiDriverWatcher)
-	return m, nil
+// ClearRemotePolicies reverts the mutator to the configuration baseline.
+func (m *TargetMutator) ClearRemotePolicies() {
+	m.active.Store(&m.base)
 }
 
 // buildInternalTargetsFromPolicies resolves each policy's outcome (tracer
@@ -380,18 +408,16 @@ func (m *TargetMutator) ShouldMutatePod(pod *corev1.Pod) bool {
 
 // IsNamespaceEligible returns true if a namespace is eligible for injection/mutation.
 func (m *TargetMutator) IsNamespaceEligible(namespace string) bool {
-	// Return if the mutator is disabled.
-	if !m.enabled {
-		return false
-	}
+	set := m.activeSet()
 
 	// If the namespace is disabled, we don't need to check the targets.
 	if _, ok := m.disabledNamespaces[namespace]; ok {
 		return false
 	}
 
-	// Check if the namespace matches any of the targets.
-	for _, target := range m.targets {
+	// Check if the namespace matches any of the targets. A disabled mutator has
+	// no targets, so this naturally returns false.
+	for _, target := range set.targets {
 		matches, err := target.matchesNamespaceSelector(namespace)
 		if err != nil {
 			log.Errorf("error encountered matching targets, aborting all together to avoid inaccurate match: %v", err)
@@ -493,33 +519,31 @@ func (m *TargetMutator) getTargetFromAnnotation(pod *corev1.Pod) *annotationResu
 // the first policy that evaluates to true wins, preserving the previous
 // first-match semantics without relying on CGO or k8s label selectors.
 func (m *TargetMutator) getMatchingTarget(pod *corev1.Pod) *targetInternal {
-	// If instrumentation is disabled, we don't need to check the targets.
-	if !m.enabled {
-		return nil
-	}
+	set := m.activeSet()
 
 	// If the namespace is disabled, we don't need to check the targets.
 	if _, ok := m.disabledNamespaces[pod.Namespace]; ok {
 		return nil
 	}
 
-	idx, err := m.matcher.matchIndex(pod)
+	// A disabled mutator has an empty set, so matchIndex returns -1 below.
+	idx, err := set.matcher.matchIndex(pod)
 	if err != nil {
 		log.Errorf("error encountered matching targets, aborting all together to avoid inaccurate match: %v", err)
 		return nil
 	}
-	if idx < 0 || idx >= len(m.targets) {
+	if idx < 0 || idx >= len(set.targets) {
 		return nil
 	}
 
 	// A matched policy may explicitly deny injection (first match wins).
-	if !m.matcher.policies[idx].Outcome.Inject {
-		log.Debugf("Pod %q matched policy %q which denies injection", mutatecommon.PodString(pod), m.targets[idx].name)
+	if !set.matcher.policies[idx].Outcome.Inject {
+		log.Debugf("Pod %q matched policy %q which denies injection", mutatecommon.PodString(pod), set.targets[idx].name)
 		return nil
 	}
 
-	log.Debugf("Pod %q matched target %q", mutatecommon.PodString(pod), m.targets[idx].name)
-	return &m.targets[idx]
+	log.Debugf("Pod %q matched target %q", mutatecommon.PodString(pod), set.targets[idx].name)
+	return &set.targets[idx]
 }
 
 func (t targetInternal) matchesNamespaceSelector(namespace string) (bool, error) {
