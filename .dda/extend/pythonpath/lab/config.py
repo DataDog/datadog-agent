@@ -9,8 +9,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-import yaml
-
 PROFILE_FILENAME = ".test_infra_config.yaml"
 
 
@@ -68,6 +66,7 @@ class AgentConfig:
 class PulumiConfig:
     """Pulumi-specific configuration."""
 
+    passphrase: str | None = None
     log_level: int | None = None
     log_to_stderr: bool | None = None
     verbose_progress_streams: bool | None = None
@@ -138,6 +137,7 @@ class LabConfig:
         # Parse Pulumi config
         pulumi_data = config_params.get("pulumi", {}) or {}
         pulumi = PulumiConfig(
+            passphrase=pulumi_data.get("passphrase"),
             log_level=pulumi_data.get("logLevel"),
             log_to_stderr=pulumi_data.get("logToStdErr"),
             verbose_progress_streams=pulumi_data.get("verboseProgressStreams"),
@@ -180,14 +180,74 @@ def get_config_path(config_path: str | None = None) -> Path:
     return Path.home() / PROFILE_FILENAME
 
 
+def _minimal_yaml_load(path: Path) -> dict | None:
+    """Parse ~/.test_infra_config.yaml without the yaml module.
+
+    Handles nested dicts and scalar values (strings, bools, null).
+    Does not support YAML lists, anchors, or multi-line values — none
+    of which appear in the test infra config format.
+    """
+    try:
+        text = path.read_text()
+    except FileNotFoundError:
+        return None
+
+    root: dict = {}
+    path_stack: list[dict] = [root]
+    indent_stack: list[int] = [-1]
+
+    for line in text.splitlines():
+        stripped = line.lstrip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        indent = len(line) - len(stripped)
+
+        # Pop back to the enclosing level
+        while indent_stack[-1] >= indent:
+            indent_stack.pop()
+            path_stack.pop()
+
+        if ":" not in stripped:
+            continue
+        key_part, _, rest = stripped.partition(":")
+        key = key_part.strip()
+        value = rest.strip()
+
+        # Strip YAML quotes
+        if len(value) >= 2 and value[0] in ('"', "'") and value[-1] == value[0]:
+            value = value[1:-1]
+
+        if value in ("", "null"):
+            if value == "null":
+                path_stack[-1][key] = None
+            else:
+                child: dict = {}
+                path_stack[-1][key] = child
+                path_stack.append(child)
+                indent_stack.append(indent)
+        elif value.lower() == "true":
+            path_stack[-1][key] = True
+        elif value.lower() == "false":
+            path_stack[-1][key] = False
+        else:
+            path_stack[-1][key] = value
+
+    return root
+
+
 def load_config(config_path: str | None = None) -> LabConfig:
     """Load configuration from file."""
     path = get_config_path(config_path)
     try:
-        with open(path) as f:
-            data = yaml.safe_load(f)
-            return LabConfig.from_dict(data)
+        try:
+            import yaml  # noqa: PLC0415 — deferred; absent in dda's bundled Python env
+
+            with open(path) as f:
+                data = yaml.safe_load(f)
+        except ImportError:
+            data = _minimal_yaml_load(path)
     except FileNotFoundError:
         return LabConfig()
-    except yaml.YAMLError as e:
+    except Exception as e:
         raise ValueError(f"Error parsing config file {path}: {e}") from e
+    return LabConfig.from_dict(data)
