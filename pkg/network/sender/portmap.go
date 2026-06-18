@@ -9,7 +9,6 @@ package sender
 
 import (
 	"maps"
-	"net/netip"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -51,10 +50,7 @@ func getListeningPortToPIDMap() map[listenKey]int32 {
 	for _, p := range ports {
 		// USM supports TCP only; skip UDP ports.
 		if p.Pid > 0 && p.Proto == "tcp" {
-			addr, err := netip.ParseAddr(p.IP)
-			if err == nil {
-				result[listenKey{IP: addr, Port: int32(p.Port)}] = int32(p.Pid)
-			}
+			result[listenKey{IP: p.IP, Port: int32(p.Port)}] = int32(p.Pid)
 		}
 	}
 	cachedPortMap = result
