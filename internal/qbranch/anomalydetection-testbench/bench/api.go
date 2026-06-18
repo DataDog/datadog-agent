@@ -1263,15 +1263,13 @@ func (api *BenchAPI) handleScoresReplay(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// Use only metric (non-log) anomalies with a valid timestamp.
-	// Log anomalies have no configured thresholds so the scorer would default
-	// them to Medium level, inflating the EWMA for the log-only period.
+	// Include all anomalies with a valid timestamp, matching live-agent behaviour.
+	// Log anomalies have no entry in DetectorThresholds and fall through to the
+	// default level (Medium) — the same as any metric detector without explicit
+	// thresholds. Filtering them out would diverge from production.
 	raw := sv.Anomalies()
 	anomalies := make([]observerdef.Anomaly, 0, len(raw))
 	for _, a := range raw {
-		if a.Type == observerdef.AnomalyTypeLog {
-			continue
-		}
 		if a.Timestamp == 0 {
 			continue
 		}

@@ -167,8 +167,8 @@ func DefaultScorerConfig() observer.ScorerConfig {
 		Alpha:         0.014,
 		SaturationK:   5.0,
 		WindowSecs:    windowSecs,
-		LowThreshold:  0.040,
-		HighThreshold: 0.060,
+		LowThreshold:  0.15,
+		HighThreshold: 0.40,
 		MarginPct:     0.20,
 		MaxBuckets:    windowSecs, // cap live-agent ScoreState to prevent unbounded growth
 		DetectorThresholds: map[string][4]float64{
