@@ -48,7 +48,8 @@
       publish_with_dd_pkg() {
         dd-pkg version
 
-        local -a args=(publish-image --timeout "${PUBLIC_IMAGES_PUBLISH_TIMEOUT}" --poll-interval 30 --signing=false)
+        # TEST ONLY (do not commit): point dd-pkg at the STAGING artifact-gateway to exercise policy evaluation
+        local -a args=(publish-image --gateway-url "https://artifact-gateway.us1.ddbuild.staging.dog/internal/artifact-gateway" --timeout "${PUBLIC_IMAGES_PUBLISH_TIMEOUT}" --poll-interval 30 --signing=false)
 
         if [[ -n "${IMG_REGISTRIES:-}" ]]; then args+=(--registries "${IMG_REGISTRIES}"); fi
         if [[ -n "${IMG_SOURCES:-}" ]]; then args+=(--sources "${IMG_SOURCES}"); fi
@@ -101,6 +102,9 @@
         use_dd_pkg=false
       fi
       echo "Public-images feature flag result: ${use_dd_pkg}"
+
+      # TEST ONLY (do not commit): force the dd-pkg path regardless of the feature flag
+      use_dd_pkg=true
 
       case "${use_dd_pkg}" in
         true|True|TRUE)
