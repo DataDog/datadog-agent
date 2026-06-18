@@ -25,14 +25,8 @@ import (
 
 // team: agent-metric-pipelines
 
-// ServerlessDogstatsd is the interface for the serverless dogstatsd server.
-type ServerlessDogstatsd interface {
-	server.Component
-	Stop()
-}
-
 //nolint:revive // TODO(AML) Fix revive linter
-func NewServerlessServer(demux aggregator.Demultiplexer, extraTags []string) (ServerlessDogstatsd, error) {
+func NewServerlessServer(demux aggregator.Demultiplexer, extraTags []string) (server.ServerlessDogstatsd, error) {
 	wmeta := option.None[workloadmeta.Component]()
 	s := newServerCompat(pkgconfigsetup.Datadog(), logComponentImpl.NewTemporaryLoggerWithoutInit(), hostnameimpl.NewHostnameService(), replay.NewNoopTrafficCapture(), serverdebugimpl.NewServerlessServerDebug(pkgconfigsetup.Datadog()), true, demux, wmeta, pidmapimpl.NewServerlessPidMap(), telemetry.GetCompatComponent(), filterlistimpl.NewNoopFilterList())
 
