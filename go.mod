@@ -171,7 +171,7 @@ require (
 	github.com/DataDog/go-acl v1.0.1
 	github.com/DataDog/go-sqllexer v0.2.2
 	github.com/DataDog/sketches-go v1.4.8
-	github.com/DataDog/viper v1.15.1
+	github.com/DataDog/viper v1.15.1 // indirect
 	// TODO: pin to a WPA released version once there is a release that includes the apis module
 	github.com/DataDog/watermarkpodautoscaler/apis v0.0.0-20250108152814-82e58d0231d1
 	github.com/DataDog/zstd v1.5.8-0.20260421145859-31a7e515a571
@@ -462,7 +462,6 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/secrets/impl v0.70.0
 	github.com/DataDog/datadog-agent/comp/core/secrets/utils v0.72.0-devel
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.78.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.78.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.78.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface v0.78.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics v0.81.0-devel.0.20260515214905-7c02565fb890 // indirect
@@ -1350,7 +1349,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/config/schema => ./pkg/config/schema
 	github.com/DataDog/datadog-agent/pkg/config/setup => ./pkg/config/setup
 	github.com/DataDog/datadog-agent/pkg/config/structure => ./pkg/config/structure
-	github.com/DataDog/datadog-agent/pkg/config/teeconfig => ./pkg/config/teeconfig
 	github.com/DataDog/datadog-agent/pkg/config/utils => ./pkg/config/utils
 	github.com/DataDog/datadog-agent/pkg/config/viperconfig => ./pkg/config/viperconfig
 	github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model => ./pkg/discovery/tracermetadata/model
