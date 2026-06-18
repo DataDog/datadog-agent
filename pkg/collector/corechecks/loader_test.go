@@ -52,6 +52,75 @@ func TestRegisterCheck(t *testing.T) {
 	}
 }
 
+func TestRegisterCheckWithLoaderSupport(t *testing.T) {
+	RegisterCheckWithLoaderSupport("foo_with_support", testCheckNew(), func(integration.Config, integration.Data) check.LoaderSupport {
+		return check.LoaderSupportUnsupported
+	})
+	entry, found := catalog["foo_with_support"]
+	if !found {
+		t.Fatal("Check foo_with_support not found in catalog")
+	}
+	if entry.loaderSupport == nil {
+		t.Fatal("Check foo_with_support has no loader support predicate")
+	}
+}
+
+func TestSupportsConfigUsesCatalogWithoutConstructingCheck(t *testing.T) {
+	factoryCalls := 0
+	checkName := "metadata_only"
+	RegisterCheck(checkName, option.New(func() check.Check {
+		factoryCalls++
+		return &TestCheck{}
+	}))
+	l, _ := NewGoCheckLoader()
+
+	support := l.SupportsConfig(integration.Config{Name: checkName}, integration.Data("{}"))
+
+	if support != check.LoaderSupportSupported {
+		t.Fatalf("Expected supported, found: %v", support)
+	}
+	if factoryCalls != 0 {
+		t.Fatalf("Expected no factory calls, found: %d", factoryCalls)
+	}
+
+	support = l.SupportsConfig(integration.Config{Name: "missing_metadata_only"}, integration.Data("{}"))
+	if support != check.LoaderSupportUnsupported {
+		t.Fatalf("Expected unsupported, found: %v", support)
+	}
+}
+
+func TestSupportsConfigUsesRegisteredSupportWithoutConstructingCheck(t *testing.T) {
+	factoryCalls := 0
+	supportCalls := 0
+	checkName := "metadata_with_support"
+	RegisterCheckWithLoaderSupport(checkName, option.New(func() check.Check {
+		factoryCalls++
+		return &TestCheck{}
+	}), func(config integration.Config, instance integration.Data) check.LoaderSupport {
+		supportCalls++
+		if config.Name != checkName {
+			t.Fatalf("Expected config name %q, found: %q", checkName, config.Name)
+		}
+		if string(instance) != "{}" {
+			t.Fatalf("Expected instance {}, found: %q", string(instance))
+		}
+		return check.LoaderSupportUnsupported
+	})
+	l, _ := NewGoCheckLoader()
+
+	support := l.SupportsConfig(integration.Config{Name: checkName}, integration.Data("{}"))
+
+	if support != check.LoaderSupportUnsupported {
+		t.Fatalf("Expected unsupported, found: %v", support)
+	}
+	if supportCalls != 1 {
+		t.Fatalf("Expected one support call, found: %d", supportCalls)
+	}
+	if factoryCalls != 0 {
+		t.Fatalf("Expected no factory calls, found: %d", factoryCalls)
+	}
+}
+
 func TestLoad(t *testing.T) {
 	RegisterCheck("foo", testCheckNew())
 

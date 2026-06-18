@@ -11,6 +11,7 @@ import (
 
 	demultiplexer "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/def"
 	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -86,7 +87,8 @@ func registerMetricLookbackScheduler(
 	healthplatform healthplatform.Component,
 	hostname hostnameinterface.Component,
 ) {
-	loader := checkloader.New(loaders.LoaderCatalog(demux, logReceiver, tagger, filterStore), demux, noopShadowLoaderErrorRecorder{})
+	loaderCatalog := loaders.LoaderCatalog(demux, logReceiver, tagger, filterStore)
+	loader := checkloader.New(loaderCatalog, demux, noopShadowLoaderErrorRecorder{})
 	shadowScheduler := metriclookback.NewShadowScheduler(metriclookback.ShadowSchedulerOptions{
 		Loader: loader,
 		NewSenderManager: func(ctx context.Context) sender.SenderManager {
@@ -112,6 +114,10 @@ func registerMetricLookbackScheduler(
 	ac.AddScheduler("metric_lookback", metriclookback.NewAutoConfigShadowAdapter(metriclookback.Options{
 		ShadowChecksEnabled: cfg.GetBool("metric_lookback.enabled"),
 		ChecksToShadow:      cfg.GetStringSlice("metric_lookback.enabled_checks"),
+		ResolveLoader: func(config integration.Config, instance integration.Data) (string, bool) {
+			loaderName, resolved, err := loader.ResolveEffectiveLoader(config, instance)
+			return loaderName, resolved && err == nil
+		},
 	}, shadowScheduler), true)
 }
 

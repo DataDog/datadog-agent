@@ -8,6 +8,7 @@
 package disk
 
 import (
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -20,4 +21,10 @@ const (
 // Factory creates a new check factory
 func Factory() option.Option[func() check.Check] {
 	return option.None[func() check.Check]()
+}
+
+// SupportsCoreLoader reports whether the legacy disk core check should handle the
+// config without constructing the check.
+func SupportsCoreLoader(integration.Config, integration.Data) check.LoaderSupport {
+	return check.LoaderSupportUnsupported
 }

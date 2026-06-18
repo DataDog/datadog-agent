@@ -12,7 +12,11 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	"github.com/DataDog/datadog-agent/pkg/collector/checkloader"
+	corechecks "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 func TestDeriveShadowConfigsFromSystemWideConfig(t *testing.T) {
@@ -156,19 +160,172 @@ func TestDeriveShadowConfigsSkipsUnsupportedConfigs(t *testing.T) {
 	assert.Equal(t, "core_explicit", shadowConfigs[0].SourceConfig.Name)
 }
 
-func TestDeriveShadowConfigsSkipsEmptyLoaderConfigs(t *testing.T) {
+func TestDeriveShadowConfigsAcceptsPackagedDefaultLoaderGPUWithCoreResolver(t *testing.T) {
+	factoryCalls := 0
+	corechecks.RegisterCheck("gpu", option.New(func() check.Check {
+		factoryCalls++
+		return newTestShadowCheck(checkid.ID("gpu"))
+	}))
+	coreLoader, err := corechecks.NewGoCheckLoader()
+	require.NoError(t, err)
+	loader := checkloader.New([]check.Loader{coreLoader}, nil, nil)
+
 	source := integration.Config{
-		Name: "cpu",
+		Name:          "gpu",
+		ADIdentifiers: []string{"_gpu"},
 		Instances: []integration.Data{
-			integration.Data("metric_lookback:\n  enabled: true\n"),
-			integration.Data("loader: core\nmetric_lookback:\n  enabled: true\n"),
+			integration.Data("{}"),
+		},
+		Source:   "file:gpu",
+		Provider: "file",
+	}
+
+	shadowConfigs := DeriveShadowConfigs([]integration.Config{source}, Options{
+		ShadowChecksEnabled: true,
+		ChecksToShadow:      []string{"gpu"},
+		ResolveLoader: func(config integration.Config, instance integration.Data) (string, bool) {
+			loaderName, resolved, err := loader.ResolveEffectiveLoader(config, instance)
+			require.NoError(t, err)
+			return loaderName, resolved
+		},
+	})
+
+	require.Len(t, shadowConfigs, 1)
+	assert.Equal(t, "gpu", shadowConfigs[0].SourceConfig.Name)
+	assert.Equal(t, 0, shadowConfigs[0].InstanceIndex)
+	assert.Equal(t, []string{"_gpu"}, shadowConfigs[0].SourceConfig.ADIdentifiers)
+	assert.Equal(t, 0, factoryCalls)
+}
+
+func TestDeriveShadowConfigsSkipsDefaultLoaderWhenCoreResolverReportsUnsupported(t *testing.T) {
+	factoryCalls := 0
+	corechecks.RegisterCheckWithLoaderSupport("core_disabled", option.New(func() check.Check {
+		factoryCalls++
+		return newTestShadowCheck(checkid.ID("core_disabled"))
+	}), func(integration.Config, integration.Data) check.LoaderSupport {
+		return check.LoaderSupportUnsupported
+	})
+	coreLoader, err := corechecks.NewGoCheckLoader()
+	require.NoError(t, err)
+	loader := checkloader.New([]check.Loader{coreLoader}, nil, nil)
+
+	source := integration.Config{
+		Name: "core_disabled",
+		Instances: []integration.Data{
+			integration.Data("{}"),
+		},
+		Source:   "file:core_disabled",
+		Provider: "file",
+	}
+
+	shadowConfigs := DeriveShadowConfigs([]integration.Config{source}, Options{
+		ShadowChecksEnabled: true,
+		ChecksToShadow:      []string{"core_disabled"},
+		ResolveLoader: func(config integration.Config, instance integration.Data) (string, bool) {
+			loaderName, resolved, err := loader.ResolveEffectiveLoader(config, instance)
+			require.NoError(t, err)
+			return loaderName, resolved
+		},
+	})
+
+	assert.Empty(t, shadowConfigs)
+	assert.Equal(t, 0, factoryCalls)
+}
+
+func TestDeriveShadowConfigsDefaultLoaderResolution(t *testing.T) {
+	tests := []struct {
+		name                          string
+		configName                    string
+		instances                     []integration.Data
+		resolveLoader                 LoaderResolver
+		expectedShadowInstanceIndices []int
+		expectedResolverCalls         int
+	}{
+		{
+			name:       "skips default loader when no resolver is configured",
+			configName: "cpu",
+			instances: []integration.Data{
+				integration.Data("metric_lookback:\n  enabled: true\n"),
+				integration.Data("loader: core\nmetric_lookback:\n  enabled: true\n"),
+			},
+			expectedShadowInstanceIndices: []int{1},
+		},
+		{
+			name:       "includes default loader when resolver reports core",
+			configName: "gpu",
+			instances: []integration.Data{
+				integration.Data("metric_lookback:\n  enabled: true\n"),
+			},
+			resolveLoader: func(integration.Config, integration.Data) (string, bool) {
+				return goCheckLoaderName, true
+			},
+			expectedShadowInstanceIndices: []int{0},
+			expectedResolverCalls:         1,
+		},
+		{
+			name:       "all-on mode includes default loader core configs",
+			configName: "gpu",
+			instances: []integration.Data{
+				integration.Data("name: first\n"),
+				integration.Data("name: second\n"),
+			},
+			resolveLoader: func(integration.Config, integration.Data) (string, bool) {
+				return goCheckLoaderName, true
+			},
+			expectedShadowInstanceIndices: []int{0, 1},
+			expectedResolverCalls:         2,
+		},
+		{
+			name:       "skips ambiguous default loader resolution",
+			configName: "gpu",
+			instances: []integration.Data{
+				integration.Data("metric_lookback:\n  enabled: true\n"),
+			},
+			resolveLoader: func(integration.Config, integration.Data) (string, bool) {
+				return "", false
+			},
+			expectedResolverCalls: 1,
+		},
+		{
+			name:       "skips default loader resolved to non-core",
+			configName: "python_check",
+			instances: []integration.Data{
+				integration.Data("metric_lookback:\n  enabled: true\n"),
+			},
+			resolveLoader: func(integration.Config, integration.Data) (string, bool) {
+				return "python", true
+			},
+			expectedResolverCalls: 1,
 		},
 	}
 
-	shadowConfigs := DeriveShadowConfigs([]integration.Config{source}, Options{ShadowChecksEnabled: true})
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			source := integration.Config{Name: tt.configName, Instances: tt.instances}
+			resolveCalls := 0
+			var resolveLoader LoaderResolver
+			if tt.resolveLoader != nil {
+				resolveLoader = func(config integration.Config, instance integration.Data) (string, bool) {
+					resolveCalls++
+					assert.Equal(t, source.Name, config.Name)
+					assert.Contains(t, source.Instances, instance)
+					return tt.resolveLoader(config, instance)
+				}
+			}
 
-	require.Len(t, shadowConfigs, 1)
-	assert.Equal(t, 1, shadowConfigs[0].InstanceIndex)
+			shadowConfigs := DeriveShadowConfigs([]integration.Config{source}, Options{
+				ShadowChecksEnabled: true,
+				ResolveLoader:       resolveLoader,
+			})
+
+			require.Len(t, shadowConfigs, len(tt.expectedShadowInstanceIndices))
+			for i, expectedIndex := range tt.expectedShadowInstanceIndices {
+				assert.Equal(t, expectedIndex, shadowConfigs[i].InstanceIndex)
+				assert.Equal(t, source.Name, shadowConfigs[i].SourceConfig.Name)
+			}
+			assert.Equal(t, tt.expectedResolverCalls, resolveCalls)
+		})
+	}
 }
 
 func TestDeriveShadowConfigsHonorsInstanceLoaderOverride(t *testing.T) {

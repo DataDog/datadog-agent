@@ -81,6 +81,50 @@ func (l *Loader) LoadInstance(senderManager sender.SenderManager, config integra
 	return l.loadInstance(senderManager, config, initLoader, instance, instanceIndex)
 }
 
+// ResolveEffectiveLoader returns the loader that would claim the config
+// instance using metadata-only probes. The bool is false when no loader can be
+// resolved side-effect free, including ambiguous default-loader cases.
+func (l *Loader) ResolveEffectiveLoader(config integration.Config, instance integration.Data) (string, bool, error) {
+	initLoader, err := InitConfigLoader(config.InitConfig)
+	if err != nil {
+		return "", false, err
+	}
+
+	selectedLoader, err := SelectedInstanceLoader(initLoader, instance)
+	if err != nil {
+		return "", false, err
+	}
+	if selectedLoader != "" {
+		return selectedLoader, true, nil
+	}
+
+	effectiveLoader := ResolveEffectiveLoader(l.loaders, config, instance)
+	return effectiveLoader, effectiveLoader != "", nil
+}
+
+// ResolveEffectiveLoader resolves default-loader selection with metadata-only
+// probes. It returns an empty string when no metadata-capable loader claims the
+// instance or the result is ambiguous because a metadata-capable loader reports
+// unknown support.
+func ResolveEffectiveLoader(loaders []check.Loader, config integration.Config, instance integration.Data) string {
+	for _, loader := range loaders {
+		metadataLoader, ok := loader.(check.MetadataLoader)
+		if !ok {
+			continue
+		}
+
+		switch metadataLoader.SupportsConfig(config, instance) {
+		case check.LoaderSupportSupported:
+			return loader.Name()
+		case check.LoaderSupportUnsupported:
+			continue
+		case check.LoaderSupportUnknown:
+			return ""
+		}
+	}
+	return ""
+}
+
 // InitConfigLoader returns the loader selected by init_config.
 func InitConfigLoader(initConfigData integration.Data) (string, error) {
 	var cfg loaderConfig
