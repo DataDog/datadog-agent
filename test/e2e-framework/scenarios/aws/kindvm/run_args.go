@@ -124,6 +124,20 @@ func WithAgentOptions(opts ...kubernetesagentparams.Option) RunOption {
 	return func(p *RunParams) error { p.agentOptions = append(p.agentOptions, opts...); return nil }
 }
 
+// AgentOptions returns the agent options from the run params. Returns nil if no
+// agent options were set. Used by awskindvm.Provisioner to extract run-level
+// agent options and pass them to PostProvision instead of Pulumi.
+func (p *RunParams) AgentOptions() []kubernetesagentparams.Option {
+	return p.agentOptions
+}
+
+// ClearAgentOptions returns a RunOption that clears agent options, preventing
+// kindvm.RunWithEnv from installing the agent via Pulumi. Used by
+// awskindvm.Provisioner so that PostProvision handles agent installation instead.
+func ClearAgentOptions() RunOption {
+	return func(p *RunParams) error { p.agentOptions = nil; return nil }
+}
+
 // WithFakeintakeOptions sets fakeintake options
 func WithFakeintakeOptions(opts ...fakeintake.Option) RunOption {
 	return func(p *RunParams) error { p.fakeintakeOptions = append(p.fakeintakeOptions, opts...); return nil }

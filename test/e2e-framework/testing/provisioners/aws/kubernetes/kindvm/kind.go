@@ -88,16 +88,26 @@ func (w *kindProvisionerWrapper) PostProvision(t *testing.T, env *environments.K
 
 // Provisioner returns a provisioner for a KinD-on-EC2 Kubernetes environment.
 // The provisioner always installs the Datadog agent via Helm in its PostProvision
-// step — never via Pulumi. Pass WithAgentOptions to supply test-specific Helm
-// values on top of the KinD defaults; pass WithWorkloads to deploy test workloads
-// after agent installation.
+// step — never via Pulumi. Agent options may be supplied via either:
+//   - WithAgentOptions (provisioner-level): applied directly in PostProvision
+//   - WithRunOptions(kindvm.WithAgentOptions(...)): extracted here and merged
+//     into PostProvision; cleared from the Pulumi run params to avoid double install
 func Provisioner(opts ...provisionerOption) provisioners.TypedProvisioner[environments.Kubernetes] {
 	params := getProvisionerParams(opts...)
 	runParams := kindvm.GetRunParams(params.runOptions...)
 
+	// Collect agent options from BOTH sources so PostProvision has the full set:
+	// - run-level options (scenariokindvm.WithAgentOptions inside WithRunOptions)
+	// - provisioner-level options (awskindvm.WithAgentOptions)
+	// Run-level options are cleared from the Pulumi run params below to prevent
+	// kindvm.RunWithEnv from also installing the agent (double install).
+	mergedAgentOpts := append(runParams.AgentOptions(), params.agentOpts...)
+
 	pulumiProvisioner := provisioners.NewTypedPulumiProvisioner(provisionerBaseID+runParams.Name, func(ctx *pulumi.Context, env *environments.Kubernetes) error {
 		params := getProvisionerParams(opts...)
-		runParams := kindvm.GetRunParams(params.runOptions...)
+		// Suppress Pulumi agent install — PostProvision (helmagent.Install) handles it.
+		runOpts := append(params.runOptions, kindvm.ClearAgentOptions())
+		runParams := kindvm.GetRunParams(runOpts...)
 
 		var awsEnv aws.Environment
 		var err error
@@ -118,7 +128,7 @@ func Provisioner(opts ...provisionerOption) provisioners.TypedProvisioner[enviro
 
 	return &kindProvisionerWrapper{
 		TypedProvisioner: pulumiProvisioner,
-		agentOpts:        params.agentOpts,
+		agentOpts:        mergedAgentOpts,
 		workloadOpts:     params.workloadOpts,
 	}
 }
