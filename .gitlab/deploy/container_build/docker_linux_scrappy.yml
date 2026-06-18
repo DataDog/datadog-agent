@@ -1,19 +1,22 @@
 ---
-# Scrappy agent image — overlays the standard agent7 image with the scrappy
+# Scrappy agent image — overlays the JMX agent7 image with the scrappy
 # live-inference detector assets (native engine + PyTorch checkpoint + vocab).
+# Using JMX as the base ensures ca-certificates is present (required by the
+# DataDog/images tmpl-v24 update-ca-certificates step) and provides JMX
+# support needed for staging deployments.
 #
 # scrappy-infer is an AVX2/FMA ELF binary (linux/amd64 only).  To allow the
 # DataDog/images pipeline to assemble a multi-arch manifest (tmpl-v24 requires
 # both amd64 and arm64 source tags), the amd64 build job also re-tags the
-# standard agent7 arm64 image with the -scrappy suffix via crane copy.  On
-# arm64 hosts that image is the plain agent — scrappy inference is silently
-# unavailable there.
+# JMX arm64 image with the -scrappy suffix via crane copy.  On arm64 hosts
+# the container is the JMX agent — scrappy inference is not available there
+# since scrappy-infer is an AVX2/FMA ELF binary.
 #
 # Model weights are fetched from the persistent S3 artefacts bucket at
 #   s3://dd-ci-persistent-artefacts-build-stable/datadog-agent/scrappy/<VERSION>/
 # No GCP credentials are needed; the runner's existing IAM role covers this bucket.
 #
-# Trigger manually from a branch pipeline after docker_build_agent7 completes.
+# Trigger manually from a branch pipeline after docker_build_agent7_jmx completes.
 
 .docker_build_agent7_scrappy:
   stage: container_build
@@ -33,7 +36,7 @@
     # Use the already-built agent image for this pipeline as the base.
     # Overrides the default agent-base-image used by .docker_build_job_definition.
     BASE_IMAGE_NAME: agent
-    BASE_IMAGE_TAG_SUFFIX: -7
+    BASE_IMAGE_TAG_SUFFIX: -7-jmx
     # Persistent S3 path for scrappy model checkpoint + manifest.
     SCRAPPY_MODEL_S3_URI: s3://dd-ci-persistent-artefacts-build-stable/datadog-agent/scrappy/v0.4-run-001/
     # Temp directory used as Docker build context.
@@ -77,10 +80,7 @@
       # no PYTHONPATH manipulation is needed.
       COPY scrappy-src.tar.gz /tmp/scrappy-src.tar.gz
 
-      RUN apt-get update \
-       && apt-get install -y --no-install-recommends ca-certificates \
-       && apt-get clean && rm -rf /var/lib/apt/lists/* \
-       && chmod +x /opt/scrappy/scrappy-infer \
+      RUN chmod +x /opt/scrappy/scrappy-infer \
        && pip3 install --no-cache-dir \
             numpy \
             torch --index-url https://download.pytorch.org/whl/cpu \
@@ -131,7 +131,7 @@
     # DataDog/images (tmpl-v24) can assemble a multi-arch manifest.  On arm64
     # hosts the container is the plain agent — scrappy inference is not
     # available there since scrappy-infer is an AVX2/FMA ELF binary.
-    - ARM64_SRC=${IMAGE}${ECR_RELEASE_SUFFIX}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-arm64
+    - ARM64_SRC=${IMAGE}${ECR_RELEASE_SUFFIX}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-jmx-arm64
     - ARM64_DST=${IMAGE}${ECR_RELEASE_SUFFIX}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-scrappy-arm64
     - echo "Retagging arm64 ${ARM64_SRC} → ${ARM64_DST}"
     - crane copy "${ARM64_SRC}" "${ARM64_DST}"
@@ -139,7 +139,7 @@
 docker_build_agent7_scrappy:
   extends: [.docker_build_agent7_scrappy]
   needs:
-    - job: docker_build_agent7
+    - job: docker_build_agent7_jmx
       artifacts: false
-    - job: docker_build_agent7_arm64
+    - job: docker_build_agent7_jmx_arm64
       artifacts: false
