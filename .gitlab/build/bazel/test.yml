@@ -40,8 +40,9 @@ bazel:test:windows-amd64:
   variables:
     BEP_FILE: $CI_PROJECT_DIR/bazel-bep-$FLAVOR.json
   script:
+    - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
     - bazel test --keep_going --build_tests_only --config=$FLAVOR --build_event_json_file=$BEP_FILE //pkg/... //comp/... //cmd/...
-    - dda inv -- -e bazel.ensure-test-parity --bep $BEP_FILE --flavor-name $FLAVOR
+    - dda inv -- -e bazel.ensure-test-parity --bep $BEP_FILE --flavor-name $FLAVOR --emit-metrics
   artifacts:
     when: always
     paths:
@@ -92,6 +93,9 @@ bazel:test:linux-arm64:iot:
 # `dda inv` and `go list`; the Linux runners already provide them.
 .bazel:test:flavor:macos:
   extends: .bazel:test:flavor
+  id_tokens:
+    CI_IDENTITIES_GITLAB_ID_TOKEN:
+      aud: ci-identities
   before_script:
     - !reference [.install_python_dependencies]
     - !reference [.macos_setup_go]

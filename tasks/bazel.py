@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import json
+import os
+import platform
 import re
 import subprocess
 import sys
 from collections import defaultdict
 from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -342,6 +345,26 @@ def _has_runnable_tests(file_paths: list[str]) -> bool:
     return False
 
 
+def _emit_test_count_metric(flavor: str, count: int) -> None:
+    """Send a datadog.agent.bazel_tests.executed gauge for one flavor job."""
+    from tasks.libs.common.datadog_api import create_gauge
+    from tasks.libs.common.datadog_api import send_metrics as _send_metrics
+
+    if not os.environ.get("DD_API_KEY"):
+        print("DD_API_KEY not set, skipping test count metric", file=sys.stderr)
+        return
+
+    tags = [
+        f"flavor:{flavor}",
+        f"platform:{platform.system().lower()}",
+        f"pipeline_id:{os.environ.get('CI_PIPELINE_ID', 'unknown')}",
+        "repository:datadog-agent",
+    ]
+    timestamp = int(datetime.now().timestamp())
+    _send_metrics([create_gauge("datadog.agent.bazel_tests.executed", timestamp, count, tags)])
+    print(f"Sent metric: datadog.agent.bazel_tests.executed={count} (flavor={flavor})")
+
+
 @task(
     help={
         "flavor_name": f"Agent flavor ({', '.join(f.name for f in AgentFlavor)}). Default: all.",
@@ -349,9 +372,10 @@ def _has_runnable_tests(file_paths: list[str]) -> bool:
         "'bazel test ...' invocation. The same file covers every flavor "
         "variant the test run included.",
         "verbose": "Print passing packages.",
+        "emit_metrics": "Send a datadog.agent.bazel_tests.executed gauge to Datadog (requires DD_API_KEY).",
     },
 )
-def ensure_test_parity(ctx, bep, flavor_name=None, verbose=False):
+def ensure_test_parity(ctx, bep, flavor_name=None, verbose=False, emit_metrics=False):
     """
     Verify every Go test visible to 'dda inv test --flavor=<f>' has a
     matching Bazel go_test target that actually executed at least one test
@@ -387,14 +411,15 @@ def ensure_test_parity(ctx, bep, flavor_name=None, verbose=False):
         test_pkgs = _go_test_packages(tags)
         # Copy so the .discard() below doesn't mutate the coverage set.
         bazel_pkgs = set(coverage.dd_covered.get(flavor.name, set()))
+        test_count = 0
         for import_path, test_files in sorted(test_pkgs.items()):
+            funcs = _test_funcs(test_files)
             if import_path in bazel_pkgs:
                 bazel_pkgs.discard(import_path)
+                test_count += len(funcs)
                 if verbose:
-                    funcs = _test_funcs(test_files)
                     print(f"[PASS] {import_path} [{flavor.name}] ({len(funcs)} tests)")
             else:
-                funcs = _test_funcs(test_files)
                 sample = ", ".join(sorted(funcs)[:3])
                 suffix = ", ..." if len(funcs) > 3 else ""
                 print(f"[FAIL] {import_path} [{flavor.name}] -- no Bazel target ({len(funcs)}: {sample}{suffix})")
@@ -404,6 +429,8 @@ def ensure_test_parity(ctx, bep, flavor_name=None, verbose=False):
         for import_path in sorted(bazel_pkgs):
             print(f"[FAIL] {import_path} [{flavor.name}] -- Bazel target exists but no matching dda inv test package")
             failed = True
+        if emit_metrics:
+            _emit_test_count_metric(flavor.name, test_count)
 
     if failed:
         sys.exit(1)
