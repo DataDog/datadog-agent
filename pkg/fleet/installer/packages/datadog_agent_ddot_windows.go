@@ -12,14 +12,12 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"go.yaml.in/yaml/v2"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/embedded"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/processmanager"
 	windowssvc "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service/windows"
 	windowsuser "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/user/windows"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
@@ -42,13 +40,6 @@ const (
 	agentDDOTPackage = "datadog-agent-ddot"
 	otelServiceName  = "datadog-otel-agent"
 	coreAgentService = "datadogagent"
-
-	// Basename of the dd-procmgr process definition for DDOT (matches Linux OCI extension hook).
-	ddotProcmgrConfigFileName = "datadog-agent-ddot.yaml"
-	ddProcmgrServiceName      = "dd-procmgr-service"
-
-	// ddProcmgrReloadOrRestartTimeout bounds `dd-procmgr reload` and SCM restart after processes.d changes.
-	ddProcmgrReloadOrRestartTimeout = 120 * time.Second
 )
 
 // preInstallDatadogAgentDDOT performs pre-installation steps for DDOT on Windows
@@ -128,84 +119,6 @@ func readAPIKeyFromDatadogYAML() (string, error) {
 		return v, nil
 	}
 	return "", errors.New("api_key not found or empty in datadog.yaml")
-}
-
-// yamlNestedStringKeyMap returns a string-keyed map for a YAML-decoded nested object.
-// yaml.v2 stores nested maps as map[interface{}]interface{} when the parent is map[string]any,
-// so a plain .(map[string]any) on cfg["process_manager"] misses valid configs.
-func yamlNestedStringKeyMap(v any) (map[string]any, bool) {
-	switch m := v.(type) {
-	case map[string]any:
-		return m, true
-	case map[interface{}]interface{}:
-		out := make(map[string]any, len(m))
-		for k, val := range m {
-			ks, ok := k.(string)
-			if !ok {
-				continue
-			}
-			out[ks] = val
-		}
-		return out, true
-	default:
-		return nil, false
-	}
-}
-
-// processManagerEnabledFromDatadogYAML returns whether the process manager should run for DDOT hooks,
-// matching pkg/config/setup defaults: default true, overridable by DD_PROCESS_MANAGER_ENABLED, then
-// process_manager.enabled in ProgramData datadog.yaml. Missing process_manager section or missing
-// enabled key means true (same as BindEnvAndSetDefault("process_manager.enabled", true)).
-// If datadog.yaml is missing, treat enabled as true: enableOTelCollectorConfigInDatadogYAML does
-// not create the file when absent (fresh install), so this hook can run before any other step
-// lays down datadog.yaml — same default as the Agent when process_manager is unset.
-func processManagerEnabledFromDatadogYAML() (bool, error) {
-	if v, ok := os.LookupEnv("DD_PROCESS_MANAGER_ENABLED"); ok && strings.TrimSpace(v) != "" {
-		return yamlTruthy(v), nil
-	}
-	ddYaml := filepath.Join(paths.DatadogDataDir, "datadog.yaml")
-	data, err := os.ReadFile(ddYaml)
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return true, nil
-		}
-		return false, err
-	}
-	var cfg map[string]any
-	if err := yaml.Unmarshal(data, &cfg); err != nil {
-		return false, err
-	}
-	return processManagerEnabledFromCfgMap(cfg), nil
-}
-
-func processManagerEnabledFromCfgMap(cfg map[string]any) bool {
-	pm, ok := yamlNestedStringKeyMap(cfg["process_manager"])
-	if !ok {
-		return true
-	}
-	if _, has := pm["enabled"]; !has {
-		return true
-	}
-	return yamlTruthy(pm["enabled"])
-}
-
-func yamlTruthy(v any) bool {
-	switch x := v.(type) {
-	case bool:
-		return x
-	case string:
-		return strings.EqualFold(x, "true") || x == "1" || strings.EqualFold(x, "yes")
-	case int:
-		return x != 0
-	case int64:
-		return x != 0
-	case float64:
-		return x != 0
-	case uint64:
-		return x != 0
-	default:
-		return false
-	}
 }
 
 // preRemoveDatadogAgentDdot performs pre-removal steps for the DDOT package on Windows
@@ -525,16 +438,16 @@ func postInstallDDOTExtension(ctx HookContext) error {
 		return fmt.Errorf("DDOT binary not found at %s: %w", binaryPath, err)
 	}
 
-	procmgrEnabled, err := processManagerEnabledFromDatadogYAML()
+	procmgrEnabled, err := processmanager.EnabledFromDatadogYAML()
 	if err != nil {
 		log.Warnf("DDOT: could not read process_manager from datadog.yaml (%v); not writing processes.d", err)
 		procmgrEnabled = false
 	}
 	if procmgrEnabled {
-		if err := writeDDOTProcmgrConfigWindows(packagePath); err != nil {
+		if err := processmanager.WriteDDOTProcmgrConfig(packagePath); err != nil {
 			return fmt.Errorf("failed to write DDOT process manager config: %w", err)
 		}
-	} else if err := removeDDOTProcmgrConfigWindows(packagePath); err != nil {
+	} else if err := processmanager.RemoveDDOTProcmgrConfig(packagePath); err != nil {
 		log.Warnf("DDOT: could not remove stale process manager config: %v", err)
 	}
 
@@ -550,40 +463,11 @@ func postInstallDDOTExtension(ctx HookContext) error {
 	return nil
 }
 
-// reloadOrRestartDDProcmgrForRemovedProcessesD tells dd-procmgrd to re-read processes.d from disk.
-// Prefer `dd-procmgr reload` (gRPC) over an SCM service restart: same effect for config removal,
-// less disruption. Fall back to restarting dd-procmgr-service when the CLI is absent or reload fails.
-func reloadOrRestartDDProcmgrForRemovedProcessesD() {
-	installRoot := paths.DatadogProgramFilesDir
-	if installRoot == "" {
-		log.Warnf("DDOT: DatadogProgramFilesDir is empty; cannot reload or restart %s", ddProcmgrServiceName)
-		return
-	}
-	cli := filepath.Join(installRoot, "bin", "agent", "dd-procmgr.exe")
-	if _, err := os.Stat(cli); err != nil {
-		if err := winutil.RestartServiceWithTimeout(ddProcmgrServiceName, ddProcmgrReloadOrRestartTimeout); err != nil {
-			log.Warnf("DDOT: failed to restart %s after removing DDOT process manager config (no dd-procmgr CLI): %v", ddProcmgrServiceName, err)
-		}
-		return
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), ddProcmgrReloadOrRestartTimeout)
-	defer cancel()
-	cmd := exec.CommandContext(ctx, cli, "reload")
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		log.Warnf("DDOT: dd-procmgr reload failed (%v); output: %s; falling back to %s restart", err, strings.TrimSpace(string(out)), ddProcmgrServiceName)
-		if err2 := winutil.RestartServiceWithTimeout(ddProcmgrServiceName, ddProcmgrReloadOrRestartTimeout); err2 != nil {
-			log.Warnf("DDOT: failed to restart %s after removing DDOT process manager config: %v", ddProcmgrServiceName, err2)
-		}
-		return
-	}
-}
-
 // preRemoveDDOTExtension removes DDOT process manager config, reloads dd-procmgrd (or restarts the
 // Windows service as fallback) so supervised DDOT stops before extension files are removed, then
 // stops/removes the legacy SCM entry and disables otelcollector in datadog.yaml.
 func preRemoveDDOTExtension(ctx HookContext) error {
-	procmgrEnabled, err := processManagerEnabledFromDatadogYAML()
+	procmgrEnabled, err := processmanager.EnabledFromDatadogYAML()
 	if err != nil {
 		log.Warnf("DDOT: could not read process_manager from datadog.yaml (%v); skipping dd-procmgr reload/restart after config removal", err)
 		procmgrEnabled = false
@@ -592,11 +476,11 @@ func preRemoveDDOTExtension(ctx HookContext) error {
 	if resolved, err := filepath.EvalSymlinks(ctx.PackagePath); err == nil {
 		packagePath = resolved
 	}
-	if err := removeDDOTProcmgrConfigWindows(packagePath); err != nil {
+	if err := processmanager.RemoveDDOTProcmgrConfig(packagePath); err != nil {
 		log.Warnf("failed to remove DDOT process manager config: %v", err)
 	}
 	if procmgrEnabled {
-		reloadOrRestartDDProcmgrForRemovedProcessesD()
+		processmanager.ReloadOrRestartProcmgr()
 	}
 	if err := stopServiceIfExists(otelServiceName); err != nil {
 		log.Warnf("failed to stop DDOT service: %s", err)
@@ -616,66 +500,6 @@ func writeOTelConfigWindowsExtension(ctx HookContext, extensionPath string) erro
 	templatePath := filepath.Join(extensionPath, "etc", "datadog-agent", "otel-config.yaml.example")
 	outPath := filepath.Join(paths.DatadogDataDir, "otel-config.yaml")
 	return writeOTelConfigCommon(ctx, ddYaml, templatePath, outPath, true, 0o640)
-}
-
-// windowsFleetPoliciesDirForDDOTProcmgr returns the fleet policy directory for DD_FLEET_POLICIES_DIR
-// in the DDOT processes.d definition. Prefer HKLM\...\Datadog Agent\fleet_policies_dir when set
-// (config experiments point this at ...\managed\datadog-agent\experiment); otherwise use the
-// stable managed path. This matches pkg/config/setup.FleetConfigOverride on Windows.
-func windowsFleetPoliciesDirForDDOTProcmgr() string {
-	k, err := registry.OpenKey(registry.LOCAL_MACHINE,
-		`SOFTWARE\Datadog\Datadog Agent`,
-		registry.READ)
-	if err != nil {
-		return filepath.Join(paths.ConfigsPath, "datadog-agent", "stable")
-	}
-	defer k.Close()
-	val, _, err := k.GetStringValue("fleet_policies_dir")
-	if err != nil || val == "" {
-		return filepath.Join(paths.ConfigsPath, "datadog-agent", "stable")
-	}
-	return val
-}
-
-// writeDDOTProcmgrConfigWindows writes datadog-agent-ddot.yaml next to the MSI install layout so
-// dd-procmgrd picks it up (default_config_dir is InstallPath\processes.d on Windows).
-func writeDDOTProcmgrConfigWindows(installRootResolved string) error {
-	otelExe := filepath.Join(installRootResolved, "ext", "ddot", "embedded", "bin", "otel-agent.exe")
-	if _, err := os.Stat(otelExe); err != nil {
-		return nil
-	}
-	installPF := paths.DatadogProgramFilesDir
-	if installPF == "" {
-		return errors.New("DatadogProgramFilesDir is empty; cannot write processes.d for DDOT")
-	}
-	processesDir := filepath.Join(installPF, "processes.d")
-	if err := os.MkdirAll(processesDir, 0o755); err != nil {
-		return fmt.Errorf("create processes.d: %w", err)
-	}
-
-	fleetPolicies := windowsFleetPoliciesDirForDDOTProcmgr()
-
-	config := embedded.DDOTWindowsProcmgrConfig
-	config = strings.ReplaceAll(config, "__DDOT_INSTALL_ROOT__", filepath.ToSlash(filepath.Clean(installRootResolved)))
-	config = strings.ReplaceAll(config, "__DDOT_ETC_ROOT__", filepath.ToSlash(filepath.Clean(paths.DatadogDataDir)))
-	config = strings.ReplaceAll(config, "__DDOT_FLEET_POLICIES_DIR__", filepath.ToSlash(filepath.Clean(fleetPolicies)))
-
-	path := filepath.Join(processesDir, ddotProcmgrConfigFileName)
-	return os.WriteFile(path, []byte(config), 0o644)
-}
-
-func removeDDOTProcmgrConfigWindows(packageRootResolved string) error {
-	if installPF := paths.DatadogProgramFilesDir; installPF != "" {
-		p := filepath.Join(installPF, "processes.d", ddotProcmgrConfigFileName)
-		if err := os.Remove(p); err != nil && !os.IsNotExist(err) {
-			return err
-		}
-	}
-	legacy := filepath.Join(packageRootResolved, "processes.d", ddotProcmgrConfigFileName)
-	if err := os.Remove(legacy); err != nil && !os.IsNotExist(err) {
-		return err
-	}
-	return nil
 }
 
 // ensureDDOTServiceForExtension registers or updates the datadog-otel-agent Windows service as
