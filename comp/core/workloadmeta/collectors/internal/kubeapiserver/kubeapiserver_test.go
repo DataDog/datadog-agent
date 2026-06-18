@@ -126,6 +126,50 @@ func TestShouldHavePodStore(t *testing.T) {
 	}
 }
 
+func TestShouldHaveKueueQueueStores(t *testing.T) {
+	tests := []struct {
+		name     string
+		cfg      map[string]interface{}
+		expected bool
+	}{
+		{
+			name:     "kueue disabled",
+			cfg:      map[string]interface{}{},
+			expected: false,
+		},
+		{
+			name: "kueue enabled",
+			cfg: map[string]interface{}{
+				"cluster_agent.kueue.enabled": true,
+			},
+			expected: true,
+		},
+		{
+			name: "kubernetes tags collection does not enable kueue collection",
+			cfg: map[string]interface{}{
+				"cluster_agent.collect_kubernetes_tags": true,
+				"cluster_agent.kueue.enabled":           false,
+			},
+			expected: false,
+		},
+		{
+			name: "metadata collection disabled does not disable kueue collection",
+			cfg: map[string]interface{}{
+				"cluster_agent.kube_metadata_collection.enabled": false,
+				"cluster_agent.kueue.enabled":                    true,
+			},
+			expected: true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			cfg := config.NewMockWithOverrides(t, test.cfg)
+			assert.Equal(t, test.expected, shouldHaveKueueQueueStores(cfg))
+		})
+	}
+}
+
 func TestPodsRequiredAtStartup(t *testing.T) {
 	tests := []struct {
 		name     string

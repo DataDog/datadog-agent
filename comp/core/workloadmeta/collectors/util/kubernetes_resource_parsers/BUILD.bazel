@@ -6,6 +6,7 @@ go_library(
     srcs = [
         "crd.go",
         "deployment.go",
+        "kueue.go",
         "metadata.go",
         "parser.go",
         "pod.go",
@@ -23,6 +24,7 @@ go_library(
         "@io_k8s_api//core/v1:core",
         "@io_k8s_apiextensions_apiserver//pkg/apis/apiextensions/v1:apiextensions",
         "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1/unstructured",
         "@io_k8s_apimachinery//pkg/runtime/schema",
         "@io_k8s_apimachinery//pkg/util/errors",
     ],
@@ -33,6 +35,7 @@ dd_agent_go_test(
     srcs = [
         "crd_test.go",
         "deployment_test.go",
+        "kueue_test.go",
         "metadata_test.go",
         "pod_test.go",
         "utils_test.go",
@@ -56,6 +59,7 @@ dd_agent_go_test(
         "@io_k8s_apiextensions_apiserver//pkg/apis/apiextensions/v1:apiextensions",
         "@io_k8s_apimachinery//pkg/api/resource",
         "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1/unstructured",
         "@io_k8s_apimachinery//pkg/runtime/schema",
     ],
 )
