@@ -45,7 +45,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/encoding/marshal"
 	"github.com/DataDog/datadog-agent/pkg/network/indexedset"
-	"github.com/DataDog/datadog-agent/pkg/network/remoteservice"
 	"github.com/DataDog/datadog-agent/pkg/process/runner/endpoint"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
@@ -361,7 +360,7 @@ func (d *directSender) batches(conns *network.Connections, groupID int32) iter.S
 
 	iisTags, procCacheTags, listeners := fetchServiceData(d.tracer)
 	if listeners == nil {
-		listeners = make(map[remoteservice.ListenKey]int32)
+		listeners = make(map[listenKey]int32)
 	}
 	var getIISTags func(remotePort, localPort int32) []string
 	if iisTags != nil {
@@ -378,13 +377,13 @@ func (d *directSender) batches(conns *network.Connections, groupID int32) iter.S
 	for _, c := range conns.Conns {
 		// USM supports TCP only; skip UDP connections.
 		if c.IntraHost && c.Pid > 0 && c.SPort > 0 && c.Type == network.TCP {
-			key := remoteservice.ListenKey{IP: c.Source.String(), Port: int32(c.SPort)}
+			key := listenKey{IP: c.Source.Addr, Port: int32(c.SPort)}
 			if _, exists := listeners[key]; !exists {
 				listeners[key] = int32(c.Pid)
 			}
 		}
 	}
-	remoteServiceResolver := &remoteservice.Resolver{
+	remoteServiceResolver := &serviceResolver{
 		GetServiceContext: func(pid int32) []string {
 			if dsc := directSenderConsumerInstance.Load(); dsc != nil {
 				return dsc.extractor.GetServiceContext(pid)

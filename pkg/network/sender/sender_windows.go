@@ -7,7 +7,6 @@ package sender
 
 import (
 	httpprotocol "github.com/DataDog/datadog-agent/pkg/network/protocols/http"
-	"github.com/DataDog/datadog-agent/pkg/network/remoteservice"
 )
 
 // fetchIISTagsCache retrieves the IIS tags cache
@@ -21,7 +20,7 @@ func fetchProcessCacheTags(tracer ConnectionsSource) map[uint32][]string {
 }
 
 // fetchServiceData fetches IIS tags, process cache tags, and the listeners
-func fetchServiceData(tracer ConnectionsSource) (map[string][]string, map[uint32][]string, map[remoteservice.ListenKey]int32) {
+func fetchServiceData(tracer ConnectionsSource) (map[string][]string, map[uint32][]string, map[listenKey]int32) {
 	return fetchIISTagsCache(), fetchProcessCacheTags(tracer), getListeningPortToPIDMap()
 }
 
