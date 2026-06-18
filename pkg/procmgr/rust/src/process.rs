@@ -709,7 +709,8 @@ pub mod tests {
 
         proc.request_stop();
         let status = proc.wait().await.unwrap();
-        assert!(!status.success());
+        proc.set_last_status(status);
+        assert_eq!(proc.state(), ProcessState::Stopped);
     }
 
     #[tokio::test]
