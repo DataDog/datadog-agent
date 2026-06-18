@@ -1,0 +1,31 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "command",
+    srcs = [
+        "command.go",
+        "deprecated.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/cmd/trace-agent/command",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cmd/trace-agent/subcommands",
+        "//cmd/trace-agent/subcommands/config",
+        "//cmd/trace-agent/subcommands/controlsvc",
+        "//cmd/trace-agent/subcommands/coverage",
+        "//cmd/trace-agent/subcommands/info",
+        "//cmd/trace-agent/subcommands/run",
+        "//pkg/cli/subcommands/version",
+        "//pkg/util/cli",
+        "//pkg/util/defaultpaths",
+        "@com_github_spf13_cobra//:cobra",
+    ],
+)
+
+go_test(
+    name = "command_test",
+    srcs = ["deprecated_test.go"],
+    embed = [":command"],
+    gotags = ["test"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)

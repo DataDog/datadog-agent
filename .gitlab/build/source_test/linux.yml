@@ -69,6 +69,8 @@ tests_linux-x64-py3_hybrid:
     - .linux_tests
     - .linux_x64
   after_script:
+    # In the hybrid test, bazel gets run, and that leaves a symlink to junit-out-base.xml. The uploader chokes on symlinks.
+    - find $(bazel info execution_root) -type l -name 'junit-*.xml' -delete
     - !reference [.upload_junit_source]
     # skip coverage upload for several reasons
     # 1. It would conflate with coverate from the regular job
