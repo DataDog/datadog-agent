@@ -51,7 +51,6 @@ exports_files(["go.mod"])
 # gazelle:exclude cmd/agent/subcommands/config
 # gazelle:exclude cmd/agent/subcommands/configcheck
 # gazelle:exclude cmd/agent/subcommands/controlsvc
-# gazelle:exclude cmd/agent/subcommands/coverage
 # gazelle:exclude cmd/agent/subcommands/diagnose
 # gazelle:exclude cmd/agent/subcommands/dogstatsdreplay
 # gazelle:exclude cmd/agent/subcommands/flare
