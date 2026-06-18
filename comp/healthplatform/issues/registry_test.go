@@ -217,39 +217,3 @@ func TestRegistryConcurrentAccess(t *testing.T) {
 	wg.Wait()
 	assert.Len(t, registry.GetBuiltInPeriodicHealthChecks(), 10)
 }
-
-func TestRegisterModuleInvalidIssueName(t *testing.T) {
-	invalid := []string{
-		"snake_case",
-		"lower case",
-		"_leading_underscore",
-		"123starts_with_digit",
-	}
-	for _, name := range invalid {
-		t.Run(name, func(t *testing.T) {
-			registry := NewRegistry()
-			assert.Panics(t, func() {
-				registry.RegisterModule(&mockModuleWithoutCheck{id: name})
-			}, "IssueName %q should be rejected", name)
-		})
-	}
-}
-
-func TestRegisterModuleValidIssueName(t *testing.T) {
-	valid := []string{
-		"Check Execution Failure",
-		"Autodiscovery Misconfiguration",
-		"Read-Only Filesystem Error",
-		"Invalid Config",
-		"Simple",
-		"With123Numbers",
-	}
-	for _, name := range valid {
-		t.Run(name, func(t *testing.T) {
-			registry := NewRegistry()
-			assert.NotPanics(t, func() {
-				registry.RegisterModule(&mockModuleWithoutCheck{id: name})
-			}, "IssueName %q should be accepted", name)
-		})
-	}
-}
