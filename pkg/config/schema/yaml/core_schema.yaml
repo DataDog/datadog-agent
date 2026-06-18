@@ -6112,6 +6112,7 @@ properties:
                 node_type: setting
                 type: integer
                 default: 300
+                comment: "Minimum seconds before the built-in helper subscription can de-escalate. Only used when helper.enabled is true."
               helper:
                 node_type: section
                 type: object
