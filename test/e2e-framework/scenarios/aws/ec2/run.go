@@ -72,6 +72,13 @@ func Run(ctx *pulumi.Context, awsEnv aws.Environment, env outputs.HostOutputs, p
 	} else {
 		// Mark FakeIntake as not provisioned
 		env.DisableFakeIntake()
+		// When not using fakeintake, apply the configured Datadog site so the
+		// agent reports to the correct backend (e.g. datad0g.com for dev stacks).
+		if params.agentOptions != nil {
+			if site := awsEnv.Site(); site != "" {
+				params.agentOptions = append(params.agentOptions, agentparams.WithIntakeHostname("https", site))
+			}
+		}
 	}
 	if !params.installUpdater {
 		// Mark Updater as not provisioned
