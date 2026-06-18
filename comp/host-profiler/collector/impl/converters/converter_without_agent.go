@@ -476,24 +476,21 @@ func (c *converterWithoutAgent) addInternalHealthMetricsPipeline(conf confMap, p
 	}
 
 	// first resolve all the valid telemetry.metrics.readers prometheus targets
-	targets, ok := selectTelemetryPrometheusTargets(conf)
-	if !ok {
-		slog.Info("skipping internal health metrics pipeline",
-			slog.String("reason", "no usable telemetry prometheus reader"))
+	targets, err := selectTelemetryPrometheusTargets(conf)
+	if err != nil {
+		slog.Info("skipping internal health metrics pipeline", slog.String("reason", err.Error()))
 		return nil
 	}
-	// always use the first scrape target if we need to inject our own prometheus receiver
-	defaultTarget := targets[0]
 
-	coveredExporters, ok := getCoveredExportersInMetricsPipelines(conf, targets, isComponentTypeOtlpHTTP)
-	if !ok {
-		slog.Info("skipping internal health metrics pipeline",
-			slog.String("reason", "malformed prometheus receiver config"))
+	coveredExporters, err := getCoveredExportersInMetricsPipelines(conf, targets, isComponentTypeOtlpHTTP)
+	if err != nil {
+		slog.Info("skipping internal health metrics pipeline", slog.String("reason", err.Error()))
 		return nil
 	}
 
 	// then for each profiles exporter, check if it is already covered by a prometheus receiver
 	// i.e. if included in a metrics pipeline with a matching prometheus receiver
+	defaultTarget := targets[0].HostPort
 	metricsExporterNames := []any{}
 	inferredMetricsEndpoints := map[string]string{}
 	for _, exporterNameAny := range profilesExporterNames {
@@ -534,7 +531,7 @@ func (c *converterWithoutAgent) addInternalHealthMetricsPipeline(conf confMap, p
 			inferredMetricsEndpoints[exporterName] = metricsEndpoint
 		}
 
-		if !coveredExporters[exporterName] {
+		if _, ok := coveredExporters[exporterName]; !ok {
 			metricsExporterNames = append(metricsExporterNames, exporterName)
 		}
 	}
