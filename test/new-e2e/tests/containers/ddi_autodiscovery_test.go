@@ -221,7 +221,7 @@ func (s *ddiTestSuit) TestAutodiscoveryLifecycle() {
 	// --- Delete ---
 	s.deleteDDI(ctx, crName)
 
-	time.Sleep(25 * time.Second)
+	time.Sleep(20 * time.Second)
 
 	require.NoError(t, s.Env().FakeIntake.Client().FlushServerAndResetAggregators())
 
