@@ -180,6 +180,59 @@ instances:
     #
     # signature_algorithm_tag: false
 
+    ## @param filters - mapping - optional
+    ## Filters which collected certificates are reported to Datadog.
+    ## Each rule maps a tag key (as emitted by this check) to a Go regexp
+    ## pattern matched against the tag's value.
+    ##
+    ## `include`: a certificate must satisfy ALL include rules to be reported.
+    ##   A certificate that has no tag for a given include key is excluded.
+    ## `exclude`: a certificate is dropped if ANY exclude rule matches one of
+    ##   its tag values.
+    ## When both are specified, include is evaluated first, then exclude.
+    ##
+    ## Tag keys available for filtering (a selection):
+    ##   Always emitted:
+    ##     certificate_thumbprint    SHA-1 hex thumbprint
+    ##     certificate_serial_number serial number in hex
+    ##     subject_CN                Common Name
+    ##     subject_O                 Organization
+    ##   Opt-in (requires the corresponding *_tag: true flag):
+    ##     subject_alt_name_dns      DNS SAN entry
+    ##     subject_alt_name_ip       IP SAN entry
+    ##     subject_alt_name_email    email SAN entry
+    ##     friendly_name             Windows friendly name
+    ##     enhanced_key_usage        EKU short name or OID
+    ##     certificate_template_name template display name
+    ##     certificate_template_oid  template OID (V2 certs)
+    ##     issuer_CN                 issuer Common Name
+    ##     signature_algorithm       e.g. "SHA256-RSA"
+    ##
+    ## Examples:
+    ##
+    ##   # Report only certificates with a specific thumbprint:
+    ##   filters:
+    ##     include:
+    ##       certificate_thumbprint: "^3a7b9c"
+    ##
+    ##   # Exclude internal-only certificates by CN:
+    ##   filters:
+    ##     exclude:
+    ##       subject_CN: "internal\\.example\\.com$"
+    ##
+    ##   # Scope to IIS certificates and exclude staging:
+    ##   filters:
+    ##     include:
+    ##       certificate_template_name: "WebServer"
+    ##     exclude:
+    ##       subject_CN: "staging"
+    #
+    # filters:
+    #   include:
+    #     <cert_tag_key>: <regex_pattern>
+    #   exclude:
+    #     <cert_tag_key>: <regex_pattern>
+
     ## @param tags - list of strings - optional
     ## A list of tags to attach to every metric and service check emitted by this instance.
     ##
