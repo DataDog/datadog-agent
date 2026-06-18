@@ -9,6 +9,7 @@ package apminject
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -30,6 +31,11 @@ const (
 	appArmorProfile              = `/opt/datadog-packages/** rix,
 /proc/@{pid}/** rix,
 /run/datadog/apm.socket rw,`
+)
+
+var (
+	appArmorEnabledPath = "/sys/module/apparmor/parameters/enabled"
+	systemdIsRunning    = systemd.IsRunning
 )
 
 func findAndReplaceAllInFile(filename string, needle string, replaceWith string) error {
@@ -168,16 +174,46 @@ func reloadAppArmor(ctx context.Context) error {
 	if !isAppArmorRunning() {
 		return nil
 	}
-	if running, err := systemd.IsRunning(); err != nil {
+	if running, err := systemdIsRunning(); err != nil {
 		return err
 	} else if running {
+		masked, err := isSystemdUnitMasked(ctx, "apparmor")
+		if err != nil {
+			return err
+		}
+		if masked {
+			log.Infof("Installer: apparmor.service is masked, skipping reload")
+			return nil
+		}
 		return telemetry.CommandContext(ctx, "systemctl", "reload", "apparmor").Run()
 	}
 	return telemetry.CommandContext(ctx, "service", "apparmor", "reload").Run()
 }
 
+func isSystemdUnitMasked(ctx context.Context, unit string) (bool, error) {
+	var stdout bytes.Buffer
+	cmd := telemetry.CommandContext(ctx, "systemctl", "is-enabled", unit).
+		WithExpectedExitCodes(
+			1, // disabled, masked, static, indirect, generated, transient — https://man7.org/linux/man-pages/man1/systemctl.1.html
+			4, // no such unit file — https://man7.org/linux/man-pages/man1/systemctl.1.html
+		)
+	cmd.Stdout = &stdout
+	err := cmd.Run()
+	if strings.TrimSpace(stdout.String()) == "masked" {
+		return true, nil
+	}
+	if err != nil {
+		exitErr := &exec.ExitError{}
+		if errors.As(err, &exitErr) {
+			return false, nil
+		}
+		return false, err
+	}
+	return false, nil
+}
+
 func isAppArmorRunning() bool {
-	data, err := os.ReadFile("/sys/module/apparmor/parameters/enabled")
+	data, err := os.ReadFile(appArmorEnabledPath)
 	if err != nil {
 		return false
 	}

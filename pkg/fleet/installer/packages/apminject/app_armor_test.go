@@ -8,8 +8,10 @@
 package apminject
 
 import (
+	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -195,4 +197,77 @@ func TestAppArmorBaseProfileUpdates(t *testing.T) {
 			assert.Equal(t, tt.expectedBaseProfile, string(content))
 		})
 	}
+}
+
+func TestReloadAppArmorSkipsMaskedSystemdUnit(t *testing.T) {
+	callsFile := setupAppArmorReloadTest(t, `#!/bin/sh
+echo "$*" >> "$CALLS_FILE"
+if [ "$1" = "is-enabled" ]; then
+	echo masked
+	exit 1
+fi
+if [ "$1" = "reload" ]; then
+	exit 9
+fi
+`)
+
+	err := reloadAppArmor(context.Background())
+	require.NoError(t, err)
+
+	calls, err := os.ReadFile(callsFile)
+	require.NoError(t, err)
+	assert.Contains(t, string(calls), "is-enabled apparmor")
+	assert.NotContains(t, string(calls), "reload apparmor")
+}
+
+func TestReloadAppArmorReloadsWhenSystemdUnitIsNotMasked(t *testing.T) {
+	callsFile := setupAppArmorReloadTest(t, `#!/bin/sh
+echo "$*" >> "$CALLS_FILE"
+if [ "$1" = "is-enabled" ]; then
+	echo disabled
+	exit 1
+fi
+if [ "$1" = "reload" ]; then
+	exit 7
+fi
+`)
+
+	err := reloadAppArmor(context.Background())
+	require.Error(t, err)
+
+	calls, err := os.ReadFile(callsFile)
+	require.NoError(t, err)
+	assert.Contains(t, string(calls), "is-enabled apparmor")
+	assert.Contains(t, string(calls), "reload apparmor")
+}
+
+func setupAppArmorReloadTest(t *testing.T, systemctlScript string) string {
+	t.Helper()
+
+	dir := t.TempDir()
+	enabledPath := filepath.Join(dir, "apparmor-enabled")
+	require.NoError(t, os.WriteFile(enabledPath, []byte("Y\n"), 0640))
+
+	previousAppArmorEnabledPath := appArmorEnabledPath
+	appArmorEnabledPath = enabledPath
+	t.Cleanup(func() {
+		appArmorEnabledPath = previousAppArmorEnabledPath
+	})
+
+	previousSystemdIsRunning := systemdIsRunning
+	systemdIsRunning = func() (bool, error) {
+		return true, nil
+	}
+	t.Cleanup(func() {
+		systemdIsRunning = previousSystemdIsRunning
+	})
+
+	binDir := filepath.Join(dir, "bin")
+	require.NoError(t, os.Mkdir(binDir, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(binDir, "systemctl"), []byte(strings.TrimSpace(systemctlScript)+"\n"), 0755))
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	callsFile := filepath.Join(dir, "calls")
+	t.Setenv("CALLS_FILE", callsFile)
+	return callsFile
 }
