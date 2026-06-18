@@ -1255,7 +1255,8 @@ func (api *BenchAPI) handleScoresReplay(w http.ResponseWriter, r *http.Request) 
 	}
 	cfg := req.ScorerConfig
 	// Replay always keeps all buckets so the UI can render the full time range.
-	cfg.MaxBuckets = 0
+	// math.MaxInt64 signals "unlimited" to the trim logic (which defaults to WindowSecs when 0).
+	cfg.MaxBuckets = math.MaxInt64
 
 	sv := api.tb.getStateView()
 	if sv == nil {
