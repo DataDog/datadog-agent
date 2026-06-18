@@ -17,10 +17,11 @@ import (
 	"sync"
 	"time"
 
+	"go.uber.org/atomic"
+
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
-	"go.uber.org/atomic"
 )
 
 const (
@@ -149,6 +150,8 @@ func (b *Buffer) Append(ctx context.Context, checkID checkid.ID, samples []metri
 		}
 
 		sample := samples[i]
+
+		sample.Tags = append(sample.Tags, "lookback:true")
 		timestampUnixMicro := sampleTimestampUnixMicro(sample.Timestamp)
 		if timestampUnixMicro == 0 {
 			if nowUnixMicro == 0 {
