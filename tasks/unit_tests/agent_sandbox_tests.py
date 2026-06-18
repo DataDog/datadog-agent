@@ -147,6 +147,12 @@ class TestAgentSandboxManager(unittest.TestCase):
         self.assertIn("operator:\n    enabled: false", content)
         self.assertIn("DD_PROCESS_CONFIG_PROCESS_DD_URL", content)
 
+    def test_ipv6_link_local_for_mac(self):
+        self.assertEqual(
+            self.manager.ipv6_link_local_for_mac("02:dd:27:35:c6:62"),
+            "fe80::dd:27ff:fe35:c662%bridge100",
+        )
+
     def test_split_image_defaults_latest_when_tag_is_absent(self):
         self.assertEqual(self.manager.split_image("gcr.io/datadoghq/agent"), ("gcr.io/datadoghq/agent", "latest"))
         self.assertEqual(

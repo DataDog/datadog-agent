@@ -710,27 +710,34 @@ write_files:
             raise AgentSandboxError(
                 f"sandbox {name!r} has no SSH endpoint yet; start the VM helper or update connection metadata"
             )
-        return [
+        command = [
             "ssh",
             "-i",
             str(paths.private_key),
             "-p",
             str(metadata.ssh_port),
-            "-o",
-            "IdentitiesOnly=yes",
-            "-o",
-            f"UserKnownHostsFile={paths.ssh_dir / 'known_hosts'}",
-            "-o",
-            "StrictHostKeyChecking=accept-new",
-            "-o",
-            "ConnectTimeout=10",
-            "-o",
-            "ServerAliveInterval=5",
-            "-o",
-            "ServerAliveCountMax=3",
-            f"{metadata.guest_user}@{metadata.ssh_host}",
-            *(extra_args or []),
         ]
+        if ":" in metadata.ssh_host:
+            command.append("-6")
+        command.extend(
+            [
+                "-o",
+                "IdentitiesOnly=yes",
+                "-o",
+                f"UserKnownHostsFile={paths.ssh_dir / 'known_hosts'}",
+                "-o",
+                "StrictHostKeyChecking=accept-new",
+                "-o",
+                "ConnectTimeout=10",
+                "-o",
+                "ServerAliveInterval=5",
+                "-o",
+                "ServerAliveCountMax=3",
+                f"{metadata.guest_user}@{metadata.ssh_host}",
+                *(extra_args or []),
+            ]
+        )
+        return command
 
     def shell_command(self, name: str, command: str) -> list[str]:
         return self.ssh_command(name, ["bash", "-lc", shlex.quote(command)])
@@ -767,13 +774,17 @@ write_files:
         paths = self.paths(name)
         if not metadata.ssh_host or not metadata.ssh_port:
             raise AgentSandboxError(f"sandbox {name!r} has no SSH endpoint")
-        subprocess.run(
+        command = [
+            "scp",
+            "-i",
+            str(paths.private_key),
+            "-P",
+            str(metadata.ssh_port),
+        ]
+        if ":" in metadata.ssh_host:
+            command.append("-6")
+        command.extend(
             [
-                "scp",
-                "-i",
-                str(paths.private_key),
-                "-P",
-                str(metadata.ssh_port),
                 "-o",
                 "IdentitiesOnly=yes",
                 "-o",
@@ -782,9 +793,9 @@ write_files:
                 "StrictHostKeyChecking=accept-new",
                 str(source),
                 f"{metadata.guest_user}@{metadata.ssh_host}:/tmp/{Path(destination).name}",
-            ],
-            check=True,
+            ]
         )
+        subprocess.run(command, check=True)
         subprocess.run(
             self.shell_command(
                 name,
@@ -985,13 +996,13 @@ mark agent_ready_done
             return True
         return True
 
-    def discover_ssh_endpoint(self, name: str = DEFAULT_SANDBOX_NAME, timeout_seconds: int = 300) -> SandboxMetadata:
+    def discover_ssh_endpoint(self, name: str = DEFAULT_SANDBOX_NAME, timeout_seconds: int = 120) -> SandboxMetadata:
         metadata = self.read_metadata(name)
         if not metadata.mac_address:
             raise AgentSandboxError(f"sandbox {name!r} has no managed MAC address")
         deadline = time.time() + timeout_seconds
         while time.time() < deadline:
-            host = self.ip_for_mac(metadata.mac_address)
+            host = self.ip_for_mac(metadata.mac_address) or self.ipv6_link_local_for_mac(metadata.mac_address)
             if host and self.tcp_port_open(host, 22, timeout_seconds=2):
                 return self.update_connection(name, host, 22, state="running")
             time.sleep(2)
@@ -1004,6 +1015,23 @@ mark agent_ready_done
         raise AgentSandboxError(
             f"timed out waiting for SSH endpoint for MAC {metadata.mac_address}{detail}{serial_tail}"
         )
+
+    def ipv6_link_local_for_mac(self, mac_address: str) -> str | None:
+        parts = mac_address.lower().replace("-", ":").split(":")
+        if len(parts) != 6:
+            return None
+        try:
+            octets = [int(part, 16) for part in parts]
+        except ValueError:
+            return None
+        octets[0] ^= 0x02
+        groups = (
+            (octets[0] << 8) | octets[1],
+            (octets[2] << 8) | 0xFF,
+            0xFE00 | octets[3],
+            (octets[4] << 8) | octets[5],
+        )
+        return f"fe80::{groups[0]:x}:{groups[1]:x}:{groups[2]:x}:{groups[3]:x}%bridge100"
 
     def ip_for_mac(self, mac_address: str) -> str | None:
         result = subprocess.run(["arp", "-an"], check=False, text=True, capture_output=True)
