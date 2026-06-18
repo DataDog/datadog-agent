@@ -1086,7 +1086,7 @@ func TestOperationApply_JQMultipleOutputs(t *testing.T) {
 	assert.NoError(t, err)
 	defer root.Close()
 
-	// A query yielding more than one output is written as a multi-document YAML stream.
+	// A transform yielding more than one output is written as a multi-document YAML stream.
 	op := &FileOperation{
 		FileOperationType: FileOperationJQ,
 		FilePath:          "/datadog.yaml",
@@ -1169,7 +1169,7 @@ func TestOperationApply_JQWithSubSecondTimestamp(t *testing.T) {
 	assert.Equal(t, "2021-01-02T15:04:05.123456789Z", updatedMap["created_at"])
 }
 
-func TestOperationApply_JQInvalidQuery(t *testing.T) {
+func TestOperationApply_JQInvalidTransform(t *testing.T) {
 	tmpDir := t.TempDir()
 	filePath := filepath.Join(tmpDir, "datadog.yaml")
 	err := os.WriteFile(filePath, []byte("foo: bar\n"), 0644)
@@ -1211,9 +1211,9 @@ func TestOperationApply_JQRuntimeError(t *testing.T) {
 }
 
 // applyJQToTags writes a realistic datadog.yaml whose `tags` field is set to the
-// given tags, applies the jq query, and returns the resulting tags slice. It also
+// given tags, applies the jq transform, and returns the resulting tags slice. It also
 // asserts that the other (unrelated) config fields are left untouched.
-func applyJQToTags(t *testing.T, tags []any, query string) []any {
+func applyJQToTags(t *testing.T, tags []any, transform string) []any {
 	t.Helper()
 	tmpDir := t.TempDir()
 	filePath := filepath.Join(tmpDir, "datadog.yaml")
@@ -1244,7 +1244,7 @@ func applyJQToTags(t *testing.T, tags []any, query string) []any {
 	op := &FileOperation{
 		FileOperationType: FileOperationJQ,
 		FilePath:          "/datadog.yaml",
-		Transform:         query,
+		Transform:         transform,
 	}
 	err = op.apply(context.Background(), root)
 	assert.NoError(t, err)
@@ -1270,27 +1270,27 @@ func applyJQToTags(t *testing.T, tags []any, query string) []any {
 
 func TestOperationApply_JQAddTagIfMissing(t *testing.T) {
 	// Idempotent add: only append the tag when it is not already present.
-	const query = `if (.tags | index("env:prod")) == null then .tags += ["env:prod"] else . end`
+	const transform = `if (.tags | index("env:prod")) == null then .tags += ["env:prod"] else . end`
 
 	t.Run("tag missing is added", func(t *testing.T) {
-		got := applyJQToTags(t, []any{"team:fleet"}, query)
+		got := applyJQToTags(t, []any{"team:fleet"}, transform)
 		assert.Equal(t, []any{"team:fleet", "env:prod"}, got)
 	})
 
 	t.Run("tag already present is not duplicated", func(t *testing.T) {
-		got := applyJQToTags(t, []any{"env:prod", "team:fleet"}, query)
+		got := applyJQToTags(t, []any{"env:prod", "team:fleet"}, transform)
 		assert.Equal(t, []any{"env:prod", "team:fleet"}, got)
 	})
 }
 
 func TestOperationApply_JQReplaceTag(t *testing.T) {
-	const query = `.tags |= map(if . == "env:staging" then "env:prod" else . end)`
-	got := applyJQToTags(t, []any{"env:staging", "team:fleet"}, query)
+	const transform = `.tags |= map(if . == "env:staging" then "env:prod" else . end)`
+	got := applyJQToTags(t, []any{"env:staging", "team:fleet"}, transform)
 	assert.Equal(t, []any{"env:prod", "team:fleet"}, got)
 }
 
 func TestOperationApply_JQDeleteTag(t *testing.T) {
-	const query = `.tags -= ["env:staging"]`
-	got := applyJQToTags(t, []any{"env:staging", "team:fleet"}, query)
+	const transform = `.tags -= ["env:staging"]`
+	got := applyJQToTags(t, []any{"env:staging", "team:fleet"}, transform)
 	assert.Equal(t, []any{"team:fleet"}, got)
 }

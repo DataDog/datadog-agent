@@ -34,7 +34,7 @@ const (
 	FileOperationPatch FileOperationType = "patch"
 	// FileOperationMergePatch merges the config at the given path with the given JSON merge patch (RFC 7396).
 	FileOperationMergePatch FileOperationType = "merge-patch"
-	// FileOperationJQ transforms the config at the given path by running an arbitrary jq query over it.
+	// FileOperationJQ transforms the config at the given path by running an arbitrary jq transform over it.
 	FileOperationJQ FileOperationType = "jq"
 	// FileOperationDelete deletes the config at the given path.
 	FileOperationDelete FileOperationType = "delete"
@@ -230,7 +230,7 @@ func (a *FileOperation) apply(ctx context.Context, root *os.Root) error {
 		if err != nil {
 			return err
 		}
-		query, err := gojq.Parse(a.Transform)
+		parsed, err := gojq.Parse(a.Transform)
 		if err != nil {
 			return fmt.Errorf("failed to parse jq transform: %w", err)
 		}
@@ -254,7 +254,7 @@ func (a *FileOperation) apply(ctx context.Context, root *os.Root) error {
 			variables[i] = "$" + name
 			argValues[i] = arguments[name]
 		}
-		code, err := gojq.Compile(query, gojq.WithVariables(variables))
+		code, err := gojq.Compile(parsed, gojq.WithVariables(variables))
 		if err != nil {
 			return fmt.Errorf("failed to compile jq transform: %w", err)
 		}
