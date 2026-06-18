@@ -1,32 +1,11 @@
-// Unless explicitly stated otherwise all files in this repository are licensed
-// under the Apache License Version 2.0.
-// This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2026-present Datadog, Inc.
-
-//go:build !e2eunit
-
-// Package instrumentation contains the end-to-end suite for DatadogInstrumentation
-// CRD-backed Autodiscovery check scheduling.
-package instrumentation
+package containers
 
 import (
 	"context"
 	"encoding/json"
+	"regexp"
 	"testing"
 	"time"
-
-	datadoghqv1alpha1 "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1"
-	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	autoscalingv2 "k8s.io/api/autoscaling/v2"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/dynamic"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/nginx"
@@ -42,14 +21,24 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/parameters"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
+	datadoghqv1alpha1 "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1"
+	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
+	"github.com/stretchr/testify/require"
+	autoscalingv2 "k8s.io/api/autoscaling/v2"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/dynamic"
 )
 
 const (
-	nginxNamespace  = "workload-nginx"
+	nginxNamespace  = "ddi-workload-nginx"
 	nginxPort       = 80
 	crName          = "nginx-http"
 	httpCheckName   = "http_check"
-	httpCheckMetric = "network.http.can_connect"
 	nginxImageShort = "apps-nginx-server"
 )
 
@@ -96,18 +85,20 @@ func isLocalMode() bool {
 	return devLocal
 }
 
-type k8sTestSuite struct {
-	e2e.BaseSuite[environments.Kubernetes]
+type ddiTestSuit struct {
+	baseSuite[environments.Kubernetes]
 	dynClient dynamic.Interface
 }
 
-func TestK8sTestSuite(t *testing.T) {
+func TestDDIAutodiscoverySuite(t *testing.T) {
 	t.Parallel()
-	e2e.Run(t, &k8sTestSuite{}, e2e.WithProvisioner(k8sProvisioner()))
+	e2e.Run(t, &ddiTestSuit{}, e2e.WithProvisioner(k8sProvisioner()))
 }
 
-func (s *k8sTestSuite) SetupSuite() {
+func (s *ddiTestSuit) SetupSuite() {
 	s.BaseSuite.SetupSuite()
+	s.Fakeintake = s.Env().FakeIntake.Client()
+	s.clusterName = s.Env().KubernetesCluster.ClusterName
 	dyn, err := dynamic.NewForConfig(s.Env().KubernetesCluster.KubernetesClient.K8sConfig)
 	require.NoError(s.T(), err)
 	s.dynClient = dyn
@@ -118,7 +109,7 @@ func (s *k8sTestSuite) SetupSuite() {
 func newDDI(name string, tags []string) *unstructured.Unstructured {
 	instance := map[string]any{
 		"name": name,
-		"url":  "http://%%host%%:80",
+		"url":  "http://%%host%%:%%port%%",
 	}
 	if tags != nil {
 		instance["tags"] = tags
@@ -161,12 +152,12 @@ func newDDI(name string, tags []string) *unstructured.Unstructured {
 	return &unstructured.Unstructured{Object: obj}
 }
 
-func (s *k8sTestSuite) applyDDI(ctx context.Context, ddi *unstructured.Unstructured) {
+func (s *ddiTestSuit) applyDDI(ctx context.Context, ddi *unstructured.Unstructured) {
 	_, err := s.dynClient.Resource(ddiGVR).Namespace(nginxNamespace).Create(ctx, ddi, metav1.CreateOptions{})
 	require.NoErrorf(s.T(), err, "applying DatadogInstrumentation %s", ddi.GetName())
 }
 
-func (s *k8sTestSuite) deleteDDI(ctx context.Context, name string) {
+func (s *ddiTestSuit) deleteDDI(ctx context.Context, name string) {
 	err := s.dynClient.Resource(ddiGVR).Namespace(nginxNamespace).Delete(ctx, name, metav1.DeleteOptions{})
 	if err != nil && !apierrors.IsNotFound(err) {
 		require.NoErrorf(s.T(), err, "deleting DatadogInstrumentation %s", name)
@@ -178,7 +169,7 @@ func (s *k8sTestSuite) deleteDDI(ctx context.Context, name string) {
 //  1. Create: assert the check runs and reports OK.
 //  2. Update: patch the CR with a distinctive tag, assert it propagates.
 //  3. Delete: remove the CR, assert the check stops running.
-func (s *k8sTestSuite) TestAutodiscoveryLifecycle() {
+func (s *ddiTestSuit) TestAutodiscoveryLifecycle() {
 	t := s.T()
 	ctx := context.Background()
 	const updateTag = "ddi_e2e_phase:updated"
@@ -186,23 +177,23 @@ func (s *k8sTestSuite) TestAutodiscoveryLifecycle() {
 	// --- Create ---
 	s.applyDDI(ctx, newDDI(crName, nil))
 
-	assert.EventuallyWithT(t, func(c *assert.CollectT) {
-		runs, err := s.Env().FakeIntake.Client().FilterCheckRuns(httpCheckName)
-		if !assert.NoError(c, err) {
-			return
-		}
-		if !assert.NotEmpty(c, runs, "no http_check runs reported yet") {
-			return
-		}
-		var sawOK bool
-		for _, r := range runs {
-			if r.Status == 0 {
-				sawOK = true
-				break
-			}
-		}
-		assert.True(c, sawOK, "http_check ran but never reported OK")
-	}, 2*time.Minute, 10*time.Second)
+	s.testCheckRun(&testCheckRunArgs{
+		Filter: testCheckRunFilterArgs{
+			Name: "http.can_connect",
+			Tags: []string{
+				`^kube_namespace:` + nginxNamespace + `$`,
+				`^kube_deployment:nginx$`,
+			},
+		},
+		Expect: testCheckRunExpectArgs{
+			Tags: &[]string{
+				`^container_id:`,
+				`^kube_namespace:` + nginxNamespace + `$`,
+				`^kube_deployment:nginx$`,
+			},
+			AcceptUnexpectedTags: true,
+		},
+	})
 
 	// --- Update ---
 	patchObj := newDDI(crName, []string{updateTag})
@@ -212,28 +203,39 @@ func (s *k8sTestSuite) TestAutodiscoveryLifecycle() {
 	require.NoError(t, err)
 	require.NoError(t, s.Env().FakeIntake.Client().FlushServerAndResetAggregators())
 
-	assert.EventuallyWithT(t, func(c *assert.CollectT) {
-		metrics, err := s.Env().FakeIntake.Client().FilterMetrics(
-			httpCheckMetric,
-			fakeintake.WithTags[*aggregator.MetricSeries]([]string{updateTag}),
-		)
-		if !assert.NoError(c, err) {
-			return
-		}
-		assert.NotEmptyf(c, metrics, "no %s metric with tag %s observed after CR update", httpCheckMetric, updateTag)
-	}, 2*time.Minute, 10*time.Second)
+	s.testCheckRun(&testCheckRunArgs{
+		Filter: testCheckRunFilterArgs{
+			Name: "http.can_connect",
+			Tags: []string{`^` + regexp.QuoteMeta(updateTag) + `$`},
+		},
+		Expect: testCheckRunExpectArgs{
+			Tags: &[]string{
+				`^container_id:`,
+				`^kube_namespace:` + nginxNamespace + `$`,
+				`^kube_deployment:nginx$`,
+			},
+			AcceptUnexpectedTags: true,
+		},
+	})
 
 	// --- Delete ---
 	s.deleteDDI(ctx, crName)
+
+	time.Sleep(25 * time.Second)
+
 	require.NoError(t, s.Env().FakeIntake.Client().FlushServerAndResetAggregators())
 
-	// 90 s quiet window: longer than (DCA poll + node-agent poll + check
-	// interval) so any still-scheduled check would have shown up at least once.
-	assert.Never(t, func() bool {
-		runs, err := s.Env().FakeIntake.Client().FilterCheckRuns(httpCheckName)
+	require.Never(t, func() bool {
+		runs, err := s.Env().FakeIntake.Client().FilterCheckRuns(
+			"http.can_connect",
+			fakeintake.WithMatchingTags[*aggregator.CheckRun]([]*regexp.Regexp{
+				regexp.MustCompile(`^kube_namespace:` + nginxNamespace + `$`),
+				regexp.MustCompile(`^kube_deployment:nginx$`),
+			}),
+		)
 		if err != nil {
 			return false
 		}
 		return len(runs) > 0
-	}, 90*time.Second, 10*time.Second, "http_check kept running after CR delete")
+	}, 30*time.Second, 5*time.Second, "ddi check kept running after CR deletion")
 }
