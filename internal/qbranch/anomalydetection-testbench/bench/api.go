@@ -1233,18 +1233,27 @@ func (api *BenchAPI) handleScoresConfig(w http.ResponseWriter, r *http.Request) 
 // by timestamp and fed second-by-second, with Advance called once per unique
 // second (and for any empty seconds in between).
 //
-// POST /api/scores/replay   body: observerdef.ScorerConfig JSON
+// POST /api/scores/replay   body: { ScorerConfig fields... , "cooldown_secs": N }
 func (api *BenchAPI) handleScoresReplay(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		api.writeError(w, http.StatusMethodNotAllowed, "use POST")
 		return
 	}
 
-	cfg := observerimpl.DefaultScorerConfig()
-	if err := json.NewDecoder(r.Body).Decode(&cfg); err != nil {
+	// replayRequest embeds ScorerConfig and adds CooldownSecs at the same JSON
+	// level, so the frontend can POST a flat object with all scorer parameters.
+	// CooldownSecs is no longer part of ScorerConfig (it lives on the per-subscription
+	// AnomalyScorerConfiguration), but the UI still sends it alongside the other fields.
+	type replayRequest struct {
+		observerdef.ScorerConfig
+		CooldownSecs int64 `json:"cooldown_secs"`
+	}
+	req := replayRequest{ScorerConfig: observerimpl.DefaultScorerConfig()}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		api.writeError(w, http.StatusBadRequest, "invalid config: "+err.Error())
 		return
 	}
+	cfg := req.ScorerConfig
 	// Replay always keeps all buckets so the UI can render the full time range.
 	cfg.MaxBuckets = 0
 
@@ -1289,7 +1298,7 @@ func (api *BenchAPI) handleScoresReplay(w http.ResponseWriter, r *http.Request) 
 	collector := &scorerEventCollector{}
 	unsubscribe := scorer.Subscribe(observerdef.AnomalyScorerConfiguration{
 		Listener:     collector,
-		CooldownSecs: cfg.CooldownSecs,
+		CooldownSecs: req.CooldownSecs,
 	})
 	defer unsubscribe()
 
@@ -1302,9 +1311,13 @@ func (api *BenchAPI) handleScoresReplay(w http.ResponseWriter, r *http.Request) 
 		scorer.Advance(sec)
 	}
 
+	// ScoreState no longer carries Events (transitions are subscription-only).
+	// Return a wrapper that adds the collected events alongside the state snapshot.
 	state := scorer.ScoreState()
-	state.Events = collector.events
-	api.writeJSON(w, state)
+	api.writeJSON(w, struct {
+		observerdef.ScoreState
+		Events []observerdef.SeverityEvent `json:"events"`
+	}{ScoreState: state, Events: collector.events})
 }
 
 // scorerEventCollector implements observerdef.ScorerListener, accumulating every

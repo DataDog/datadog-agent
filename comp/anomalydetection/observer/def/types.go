@@ -328,9 +328,6 @@ type ScorerConfig struct {
 	// MarginPct is the hysteresis margin as a fraction of HighThreshold.
 	// effectiveMargin = HighThreshold × MarginPct.
 	MarginPct float64 `json:"margin_pct"`
-	// CooldownSecs is the minimum seconds to remain in any elevated state before
-	// a downward (de-escalation) transition can occur.
-	CooldownSecs int64 `json:"cooldown_secs"`
 	// DetectorThresholds overrides the default score-to-level boundaries for
 	// specific detector names. Each entry is [low, medium, high, xhigh] thresholds.
 	// Detectors not in this map default to level 2 (Medium) regardless of their score.
@@ -420,17 +417,15 @@ type AnomalyScorerConfiguration struct {
 	Filter ScorerEventFilter
 	// CooldownSecs is the minimum number of seconds that must elapse after a
 	// delivered transition before a downward (de-escalation) transition can be
-	// delivered again. This gives each subscription its own state-machine
-	// cooldown, independent of the global scorer cooldown.
+	// delivered again.
 	// Zero means no cooldown (every matching transition is delivered).
 	CooldownSecs int64
 }
 
 // ScoreState is the accumulated telemetry snapshot from the scorer.
 type ScoreState struct {
-	Buckets []ScoreBucket   `json:"buckets"`
-	Events  []SeverityEvent `json:"events"`
-	Config  ScorerConfig    `json:"config"`
+	Buckets []ScoreBucket `json:"buckets"`
+	Config  ScorerConfig  `json:"config"`
 }
 
 // AnomalyScorer computes a smoothed anomaly intensity signal (EWMA) from the

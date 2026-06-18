@@ -30,6 +30,7 @@ import (
 	pidmap "github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap/def"
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server/def"
+	healthplatformstore "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	rcservice "github.com/DataDog/datadog-agent/comp/remote-config/rcservice/def"
 	rcservicemrf "github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf/def"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
@@ -62,6 +63,7 @@ type Requires struct {
 	Telemetry           telemetry.Component
 	Hostname            hostnameinterface.Component
 	ConfigStream        configstream.Component
+	HealthPlatformStore healthplatformstore.Component
 }
 
 type server struct {
@@ -81,6 +83,7 @@ type server struct {
 	telemetry           telemetry.Component
 	hostname            hostnameinterface.Component
 	configStream        configstream.Component
+	healthPlatformStore healthplatformstore.Component
 }
 
 func (s *server) BuildServer() http.Handler {
@@ -137,6 +140,7 @@ func (s *server) BuildServer() http.Handler {
 		autodiscovery:        s.autodiscovery,
 		configComp:           s.configComp,
 		configStreamServer:   configstreamServer.NewServer(s.configComp, s.configStream, s.remoteAgentRegistry),
+		healthPlatformStore:  s.healthPlatformStore,
 	})
 	pb.RegisterRemoteAgentServer(grpcServer, &remoteAgentServer{
 		remoteAgentRegistry: s.remoteAgentRegistry,
@@ -170,6 +174,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 			telemetry:           reqs.Telemetry,
 			hostname:            reqs.Hostname,
 			configStream:        reqs.ConfigStream,
+			healthPlatformStore: reqs.HealthPlatformStore,
 		},
 	}
 	return provides, nil
