@@ -36,7 +36,12 @@ go_library(
 go_binary(
     name = "sbomgen",
     embed = [":sbomgen_lib"],
-    gotags = ["trivy", "containerd", "docker", "crio"], # keep
-    target_compatible_with = ["@platforms//os:linux"], # keep
+    gotags = [
+        "trivy",
+        "containerd",
+        "docker",
+        "crio",
+    ],  # keep
+    target_compatible_with = ["@platforms//os:linux"],  # keep
     visibility = ["//visibility:public"],
 )
