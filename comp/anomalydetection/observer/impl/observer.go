@@ -270,10 +270,14 @@ func NewComponent(deps Requires) Provides {
 			}
 
 			helper := newAnomalyScorerHelper(scorer.Name(), obsTelemetry.scorerState, reportEvents, sender)
-			c := observerdef.AnomalyScorerConfiguration{Listener: helper}
+			cooldownSecs := int64(cfg.GetInt("anomaly_detection.detectors.anomaly_scorer.cooldown_secs"))
+			c := observerdef.AnomalyScorerConfiguration{
+				Listener:     helper,
+				CooldownSecs: cooldownSecs,
+			}
 			scorer.Subscribe(c)
 			helperCfg = &c
-			pkglog.Infof("[observer] anomaly_scorer_helper registered for scorer %q (report_events=%v)", scorer.Name(), reportEvents)
+			pkglog.Infof("[observer] anomaly_scorer_helper registered for scorer %q (report_events=%v, cooldown=%ds)", scorer.Name(), reportEvents, cooldownSecs)
 		}
 	}
 
