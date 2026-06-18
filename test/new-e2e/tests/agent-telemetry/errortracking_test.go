@@ -20,7 +20,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	ec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
-	awsfakeintake "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
@@ -49,7 +48,6 @@ func TestAgentTelemetryErrorTrackingSuite(t *testing.T) {
 		e2e.WithProvisioner(
 			awshost.Provisioner(
 				awshost.WithRunOptions(
-					ec2.WithFakeIntakeOptions(awsfakeintake.WithoutDDDevForwarding()),
 					ec2.WithAgentOptions(
 						agentparams.WithAgentConfig(errorTrackingEnabledConfig),
 						agentparams.WithIntegration("error_check.d", errorCheckConfig),
@@ -151,7 +149,6 @@ func assertCommonLogShape(t *testing.T, l *aggregator.AgentTelemetryLog) {
 func (s *errorTrackingSuite) TestDisabledByDefault() {
 	s.UpdateEnv(awshost.Provisioner(
 		awshost.WithRunOptions(
-			ec2.WithFakeIntakeOptions(awsfakeintake.WithoutDDDevForwarding()),
 			ec2.WithAgentOptions(
 				agentparams.WithAgentConfig(errorTrackingDisabledConfig),
 				agentparams.WithIntegration("error_check.d", errorCheckConfig),
