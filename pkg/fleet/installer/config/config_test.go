@@ -1048,13 +1048,29 @@ func TestOperationApply_JQRuntimeError(t *testing.T) {
 	assert.Error(t, err)
 }
 
-// applyJQToTags writes a datadog.yaml with the given tags, applies the jq query,
-// and returns the resulting tags slice.
+// applyJQToTags writes a realistic datadog.yaml whose `tags` field is set to the
+// given tags, applies the jq query, and returns the resulting tags slice. It also
+// asserts that the other (unrelated) config fields are left untouched.
 func applyJQToTags(t *testing.T, tags []any, query string) []any {
 	t.Helper()
 	tmpDir := t.TempDir()
 	filePath := filepath.Join(tmpDir, "datadog.yaml")
-	origBytes, err := yaml.Marshal(map[string]any{"tags": tags})
+
+	orig := map[string]any{
+		"api_key":      "0123456789abcdef0123456789abcdef",
+		"site":         "datadoghq.com",
+		"hostname":     "my-host",
+		"log_level":    "info",
+		"tags":         tags,
+		"logs_enabled": true,
+		"logs_config": map[string]any{
+			"container_collect_all": true,
+		},
+		"apm_config": map[string]any{
+			"enabled": true,
+		},
+	}
+	origBytes, err := yaml.Marshal(orig)
 	assert.NoError(t, err)
 	err = os.WriteFile(filePath, origBytes, 0644)
 	assert.NoError(t, err)
@@ -1076,6 +1092,16 @@ func applyJQToTags(t *testing.T, tags []any, query string) []any {
 	var updatedMap map[string]any
 	err = yaml.Unmarshal(updated, &updatedMap)
 	assert.NoError(t, err)
+
+	// Every field other than `tags` must be preserved exactly.
+	assert.Equal(t, "0123456789abcdef0123456789abcdef", updatedMap["api_key"])
+	assert.Equal(t, "datadoghq.com", updatedMap["site"])
+	assert.Equal(t, "my-host", updatedMap["hostname"])
+	assert.Equal(t, "info", updatedMap["log_level"])
+	assert.Equal(t, true, updatedMap["logs_enabled"])
+	assert.Equal(t, map[any]any{"container_collect_all": true}, updatedMap["logs_config"])
+	assert.Equal(t, map[any]any{"enabled": true}, updatedMap["apm_config"])
+
 	got, _ := updatedMap["tags"].([]any)
 	return got
 }
