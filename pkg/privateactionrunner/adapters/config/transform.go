@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/modes"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -132,6 +133,7 @@ func makeActionsAllowlist(config config.Component) map[string]sets.Set[string] {
 // allowlist. The rshell bundle no longer uses this value to filter execution;
 // the signed backend task payload is authoritative.
 func rshellAllowedCommands(config config.Component) []string {
+	warnIfLegacyRShellAllowlistConfigured(config, setup.PARRestrictedShellAllowedCommands)
 	return config.GetStringSlice(setup.PARRestrictedShellAllowedCommands)
 }
 
@@ -139,7 +141,15 @@ func rshellAllowedCommands(config config.Component) []string {
 // allowlist. The rshell bundle no longer uses this value to filter execution;
 // the signed backend task payload is authoritative.
 func rshellAllowedPaths(config config.Component) []string {
+	warnIfLegacyRShellAllowlistConfigured(config, setup.PARRestrictedShellAllowedPaths)
 	return config.GetStringSlice(setup.PARRestrictedShellAllowedPaths)
+}
+
+func warnIfLegacyRShellAllowlistConfigured(config config.Component, key string) {
+	if !config.IsConfigured(key) {
+		return
+	}
+	log.Warnf("%s is configured, but client-side rshell allowlists are no-ops. Configure remote shell permissions with Action Platform execution policies instead.", key)
 }
 
 // getDatadogHost extracts and normalizes the Datadog host from the main endpoint.

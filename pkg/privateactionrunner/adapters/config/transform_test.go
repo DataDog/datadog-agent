@@ -6,6 +6,8 @@
 package config
 
 import (
+	"bufio"
+	"bytes"
 	"os"
 	"path/filepath"
 	"testing"
@@ -17,6 +19,7 @@ import (
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func TestGetBundleInheritedAllowedActions(t *testing.T) {
@@ -338,7 +341,7 @@ func TestFromDDConfigPARRestrictedShellAllowedPathsEmpty(t *testing.T) {
 
 	cfg, err := FromDDConfig(mockConfig)
 	require.NoError(t, err)
-	// Explicit empty: operator opts in to blocking everything.
+	// Explicit empty list remains distinct from the unset case above.
 	assert.NotNil(t, cfg.RShellAllowedPaths)
 	assert.Empty(t, cfg.RShellAllowedPaths)
 }
@@ -469,4 +472,69 @@ private_action_runner:
 	require.NoError(t, err)
 	assert.Equal(t, []string{"/"}, cfg.RShellAllowedPaths)
 	assert.Equal(t, []string{"rshell:*"}, cfg.RShellAllowedCommands)
+}
+
+func TestFromDDConfigPARRestrictedShellAllowedUnsetDoesNotWarn(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest(setup.PARPrivateKey, "")
+	mockConfig.SetInTest(setup.PARUrn, "")
+
+	logs := captureTransformWarnings(t, func() {
+		_, err := FromDDConfig(mockConfig)
+		require.NoError(t, err)
+	})
+
+	assert.NotContains(t, logs, "client-side rshell allowlists are no-ops")
+}
+
+func TestFromDDConfigPARRestrictedShellAllowedPathsConfiguredWarns(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest(setup.PARPrivateKey, "")
+	mockConfig.SetInTest(setup.PARUrn, "")
+	mockConfig.SetInTest(setup.PARRestrictedShellAllowedPaths, []string{"/var/log"})
+
+	logs := captureTransformWarnings(t, func() {
+		_, err := FromDDConfig(mockConfig)
+		require.NoError(t, err)
+	})
+
+	assert.Contains(t, logs, setup.PARRestrictedShellAllowedPaths)
+	assert.Contains(t, logs, "client-side rshell allowlists are no-ops")
+	assert.Contains(t, logs, "Action Platform execution policies")
+}
+
+func TestFromDDConfigPARRestrictedShellAllowedCommandsConfiguredWarns(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest(setup.PARPrivateKey, "")
+	mockConfig.SetInTest(setup.PARUrn, "")
+	mockConfig.SetInTest(setup.PARRestrictedShellAllowedCommands, []string{"rshell:cat"})
+
+	logs := captureTransformWarnings(t, func() {
+		_, err := FromDDConfig(mockConfig)
+		require.NoError(t, err)
+	})
+
+	assert.Contains(t, logs, setup.PARRestrictedShellAllowedCommands)
+	assert.Contains(t, logs, "client-side rshell allowlists are no-ops")
+	assert.Contains(t, logs, "Action Platform execution policies")
+}
+
+func captureTransformWarnings(t *testing.T, fn func()) string {
+	t.Helper()
+
+	var logBuffer bytes.Buffer
+	logWriter := bufio.NewWriter(&logBuffer)
+	logger, err := log.LoggerFromWriterWithMinLevelAndLvlMsgFormat(logWriter, log.WarnLvl)
+	require.NoError(t, err)
+
+	previousLogger := log.Default()
+	t.Cleanup(func() {
+		log.SetupLogger(previousLogger, "debug")
+	})
+	log.SetupLogger(logger, "warn")
+
+	fn()
+
+	require.NoError(t, logWriter.Flush())
+	return logBuffer.String()
 }
