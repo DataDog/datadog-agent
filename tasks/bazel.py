@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import json
+import os
+import platform
 import re
 import subprocess
 import sys
 import tempfile
 import xml.etree.ElementTree as ET
+from datetime import datetime
 from pathlib import Path
 
 from invoke import task
@@ -185,15 +188,36 @@ def _bazel_test_funcs_from_bep(bep_path: Path) -> dict[str, set[str]]:
     return covered
 
 
+def _emit_test_count_metric(flavor: str, count: int) -> None:
+    """Send a datadog.agent.bazel_tests.executed gauge for one flavor job."""
+    from tasks.libs.common.datadog_api import create_gauge
+    from tasks.libs.common.datadog_api import send_metrics as _send_metrics
+
+    if not os.environ.get("DD_API_KEY"):
+        print("DD_API_KEY not set, skipping test count metric", file=sys.stderr)
+        return
+
+    tags = [
+        f"flavor:{flavor}",
+        f"platform:{platform.system().lower()}",
+        f"pipeline_id:{os.environ.get('CI_PIPELINE_ID', 'unknown')}",
+        "repository:datadog-agent",
+    ]
+    timestamp = int(datetime.now().timestamp())
+    _send_metrics([create_gauge("datadog.agent.bazel_tests.executed", timestamp, count, tags)], warn=True)
+    print(f"Sent metric: datadog.agent.bazel_tests.executed={count} (flavor={flavor})")
+
+
 @task(
     help={
         "flavor_name": f"Agent flavor to check ({', '.join(f.name for f in AgentFlavor)}).",
         "bep": "Path to the build_event_json_file produced by the preceding "
         "'bazel test --config=<flavor> ...' invocation.",
         "verbose": "Print passing packages.",
+        "emit_metrics": "Send a datadog.agent.bazel_tests.executed gauge to Datadog (requires DD_API_KEY).",
     },
 )
-def ensure_test_parity(ctx, bep, flavor_name, verbose=False):
+def ensure_test_parity(ctx, bep, flavor_name, verbose=False, emit_metrics=False):
     """
     Verify every Go test visible to 'dda inv test --flavor=<f>' is also
     present and executed in the matching Bazel per-flavor run.
@@ -228,10 +252,12 @@ def ensure_test_parity(ctx, bep, flavor_name, verbose=False):
     extra_in_bazel = {p for p, funcs in coverage.items() if funcs} - go_pkgs
 
     failed = False
+    test_count = 0
     for import_path in sorted(go_pkgs):
         go_funcs = test_pkgs[import_path]
         bazel_funcs = coverage[import_path]
         missing_funcs = go_funcs - bazel_funcs
+        test_count += len(bazel_funcs)
         if missing_funcs:
             sample = ", ".join(sorted(missing_funcs)[:3]) + (", ..." if len(missing_funcs) > 3 else "")
             print(f"[FAIL] {import_path} [{flavor_name}] -- tests missing from Bazel: {sample}")
@@ -243,6 +269,8 @@ def ensure_test_parity(ctx, bep, flavor_name, verbose=False):
     if extra_in_bazel:
         failed = True
 
+    if emit_metrics:
+        _emit_test_count_metric(flavor_name, test_count)
     if failed:
         sys.exit(1)
 
