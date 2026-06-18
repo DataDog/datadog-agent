@@ -29,6 +29,10 @@ import (
 
 const (
 	HelmVersion = "3.155.1"
+
+	// defaultBaseName is the base name used to derive the Helm release and Pulumi
+	// resource names when none is provided.
+	defaultBaseName = "dda"
 )
 
 // HelmInstallationArgs is the set of arguments for creating a new HelmInstallation component
@@ -105,21 +109,30 @@ func NewHelmInstallation(e config.Env, args HelmInstallationArgs, opts ...pulumi
 	appKey := e.AgentAPPKey()
 	baseName := args.BaseName
 	if baseName == "" {
-		baseName = "dda"
+		baseName = defaultBaseName
 	}
 	opts = append(opts, pulumi.Providers(args.KubeProvider), e.WithProviders(config.ProviderRandom), pulumi.DeletedWith(args.KubeProvider))
 
+	// Pulumi builds a resource's URN from its parent *type* chain plus its own name
+	// (the parent component's name is not part of the URN), so per-installation child
+	// resources must carry unique names for several Agents to coexist in one cluster.
+	// For the default base name we keep the historical names to avoid churning the
+	// URNs of existing single-Agent stacks.
+	tokenResourceName := "datadog-cluster-agent-token"
+	credentialsResourceName := "datadog-credentials"
+	if baseName != defaultBaseName {
+		tokenResourceName = baseName + "-" + tokenResourceName
+		credentialsResourceName = baseName + "-" + credentialsResourceName
+	}
+
 	helmComponent := &HelmComponent{}
-	// baseName is the parent component resource name; child resources (random token,
-	// secret, Helm releases) inherit a unique URN path from it, so multiple Agent
-	// installations with distinct base names never collide.
 	if err := e.Ctx().RegisterComponentResource("dd:agent", baseName, helmComponent, opts...); err != nil {
 		return nil, err
 	}
 	opts = append(opts, pulumi.Parent(helmComponent))
 
 	// Create fixed cluster agent token
-	randomClusterAgentToken, err := random.NewRandomString(e.Ctx(), "datadog-cluster-agent-token", &random.RandomStringArgs{
+	randomClusterAgentToken, err := random.NewRandomString(e.Ctx(), tokenResourceName, &random.RandomStringArgs{
 		Lower:   pulumi.Bool(true),
 		Upper:   pulumi.Bool(true),
 		Length:  pulumi.Int(32),
@@ -144,7 +157,7 @@ func NewHelmInstallation(e config.Env, args HelmInstallationArgs, opts ...pulumi
 	opts = append(opts, utils.PulumiDependsOn(ns))
 
 	// Create secret if necessary
-	secret, err := corev1.NewSecret(e.Ctx(), "datadog-credentials", &corev1.SecretArgs{
+	secret, err := corev1.NewSecret(e.Ctx(), credentialsResourceName, &corev1.SecretArgs{
 		Metadata: metav1.ObjectMetaArgs{
 			Namespace: ns.Metadata.Name(),
 			Name:      pulumi.Sprintf("%s-datadog-credentials", baseName),

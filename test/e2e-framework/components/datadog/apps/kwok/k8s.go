@@ -42,7 +42,8 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, opts ...p
 	const releaseBaseURL = "https://github.com/" + kwokRepo + "/releases/latest/download/"
 
 	kwok, err := yaml.NewConfigFile(e.Ctx(), "kwok", &yaml.ConfigFileArgs{
-		File: releaseBaseURL + "kwok.yaml",
+		File:            releaseBaseURL + "kwok.yaml",
+		Transformations: []yaml.Transformation{relaxExemptFlowSchema},
 	}, opts...)
 	if err != nil {
 		return nil, err
@@ -59,4 +60,25 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, opts ...p
 	}
 
 	return k8sComponent, nil
+}
+
+// relaxExemptFlowSchema rewrites KWOK's kwok-controller APF FlowSchema so it no longer
+// references the built-in "exempt" PriorityLevelConfiguration, which managed API servers
+// (e.g. EKS) reject for user-created FlowSchemas. The controller then falls under the
+// default API Priority and Fairness handling instead of being exempt from it.
+func relaxExemptFlowSchema(state map[string]interface{}, _ ...pulumi.ResourceOption) {
+	if state["kind"] != "FlowSchema" {
+		return
+	}
+	spec, ok := state["spec"].(map[string]interface{})
+	if !ok {
+		return
+	}
+	plc, ok := spec["priorityLevelConfiguration"].(map[string]interface{})
+	if !ok {
+		return
+	}
+	if plc["name"] == "exempt" {
+		plc["name"] = "global-default"
+	}
 }
