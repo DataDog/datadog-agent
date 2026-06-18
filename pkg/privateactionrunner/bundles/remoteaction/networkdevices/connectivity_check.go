@@ -51,6 +51,7 @@ type PingOptions struct {
 }
 
 type SNMPCredential struct {
+	ID           string `json:"id"`
 	Version      string `json:"version"`
 	Community    string `json:"community,omitempty"`
 	User         string `json:"user,omitempty"`
@@ -88,6 +89,7 @@ type PingResult struct {
 
 type SNMPResult struct {
 	CheckResult
+	CredID        string `json:"credID,omitempty"`
 	FailureReason string `json:"failureReason"`
 	SysName       string `json:"sysName,omitempty"`
 }
@@ -253,6 +255,7 @@ func trySNMPCredential(ctx context.Context, host string, opts *SNMPOptions, cred
 
 	res := &SNMPResult{
 		CheckResult:   CheckResult{Success: true, RttMs: &rtt},
+		CredID:        cred.ID,
 		FailureReason: failureNone,
 	}
 	for _, pdu := range packet.Variables {
