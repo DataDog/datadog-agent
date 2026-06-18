@@ -58,6 +58,12 @@ type Params struct {
 	Files               map[string]*FileDefinition
 	ExtraAgentConfig    []pulumi.StringInput
 	ResourceOptions     []pulumi.ResourceOption
+	// primaryEndpointConfig holds the mutually-exclusive agent endpoint config
+	// produced by WithSite (a `site:` line) or by WithIntakeHostname/WithFakeintake
+	// (a `dd_url`/`*_dd_url` override block). Since `dd_url` silently takes
+	// precedence over `site`, only one may end up in the config: whichever option
+	// is applied last wins. NewParams materializes it into ExtraAgentConfig.
+	primaryEndpointConfig pulumi.StringInput
 	// This is a list of additional installer flags that can be used to pass installer-specific
 	// parameters like the MSI flags.
 	AdditionalInstallParameters []string
@@ -91,7 +97,17 @@ func NewParams(env config.Env, options ...Option) (*Params, error) {
 	options = append([]Option{defaultFlavor}, options...)
 	options = append([]Option{WithMajorVersion(env.MajorVersion())}, options...)
 	options = append([]Option{defaultVersion}, options...)
-	return common.ApplyOption(p, options)
+	p, err := common.ApplyOption(p, options)
+	if err != nil {
+		return nil, err
+	}
+	// Materialize the mutually-exclusive primary endpoint (site: or dd_url
+	// override) once, so WithSite and WithIntakeHostname/WithFakeintake can never
+	// both land in the config.
+	if p.primaryEndpointConfig != nil {
+		p.ExtraAgentConfig = append(p.ExtraAgentConfig, p.primaryEndpointConfig)
+	}
+	return p, nil
 }
 
 // WithLatest uses the latest Agent 7 version in the stable channel.
@@ -317,7 +333,9 @@ compliance_config.endpoints.logs_dd_url: %[1]s:%[2]d
 compliance_config.endpoints.logs_no_ssl: true
 compliance_config.endpoints.force_use_http: true
 `, hostname, port, scheme)
-		p.ExtraAgentConfig = append(p.ExtraAgentConfig, extraConfig)
+		// Set (not append) the shared primary-endpoint slot so a later WithSite
+		// clears this dd_url override and vice-versa.
+		p.primaryEndpointConfig = extraConfig
 		return nil
 	}
 }
@@ -343,7 +361,9 @@ func WithIntakeHostname(scheme string, hostname string) func(*Params) error {
 // given the TUF root JSON derived from fakeintake's global signing key so it can
 // verify signed payloads without any extra provisioner options.
 //
-// This option is overwritten by `WithIntakeHostname`.
+// The whole fakeintake endpoint config (dd_url override + Remote Config) is
+// mutually exclusive with WithSite/WithIntakeHostname: applying either of those
+// afterwards clears all of it (last one applied wins).
 func WithFakeintake(fi *fakeintake.Fakeintake) func(*Params) error {
 	return func(p *Params) error {
 		p.ResourceOptions = append(p.ResourceOptions, pulumi.DependsOn([]pulumi.Resource{fi}))
@@ -363,7 +383,12 @@ remote_configuration.config_root: '%s'
 remote_configuration.director_root: '%s'
 `, fiURL, rootJSON, rootJSON), nil
 		}).(pulumi.StringOutput)
-		p.ExtraAgentConfig = append(p.ExtraAgentConfig, rcConfig)
+		// Fold RC into the primary-endpoint block (set by withIntakeHostname above)
+		// rather than appending it separately, so a later WithSite replaces
+		// fakeintake's remote-configuration settings too, not just dd_url. Otherwise
+		// the Agent would ship telemetry to the real site while still polling
+		// fakeintake for Remote Config.
+		p.primaryEndpointConfig = pulumi.Sprintf("%s\n%s", p.primaryEndpointConfig, rcConfig)
 		return nil
 	}
 }
@@ -388,6 +413,21 @@ func WithAdditionalInstallParameters(parameters []string) func(*Params) error {
 func WithSkipAPIKeyInConfig() func(*Params) error {
 	return func(p *Params) error {
 		p.SkipAPIKeyInConfig = true
+		return nil
+	}
+}
+
+// WithSite sets the Datadog site the agent reports to (e.g. datad0g.com,
+// datadoghq.com). The agent derives the per-product intakes from it
+// (agent.<site>, agenthealth-intake.<site>, ...). Use this to send directly to
+// an org's backend when not shipping to a fakeintake.
+//
+// This is mutually exclusive with WithIntakeHostname/WithFakeintake: applying
+// WithSite clears any dd_url intake override they set, and vice-versa (last one
+// applied wins).
+func WithSite(site string) func(*Params) error {
+	return func(p *Params) error {
+		p.primaryEndpointConfig = pulumi.String("site: " + site)
 		return nil
 	}
 }

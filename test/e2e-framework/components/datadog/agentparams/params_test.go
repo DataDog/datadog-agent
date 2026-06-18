@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common"
+	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -39,6 +40,22 @@ func TestParams(t *testing.T) {
 		assert.Equal(t, result.Version, PackageVersion{
 			PipelineID: "16362517",
 		})
+	})
+	t.Run("WithSite and WithIntakeHostname are mutually exclusive, last applied wins", func(t *testing.T) {
+		// WithIntakeHostname then WithSite: site: wins, the dd_url override is cleared.
+		p := &Params{}
+		_, err := common.ApplyOption(p, []Option{WithIntakeHostname("https", "fake.example.com"), WithSite("datadoghq.com")})
+		assert.NoError(t, err)
+		site, ok := p.primaryEndpointConfig.(pulumi.String)
+		assert.True(t, ok, "expected a site: config, got a dd_url override")
+		assert.Equal(t, pulumi.String("site: datadoghq.com"), site)
+
+		// WithSite then WithIntakeHostname: the dd_url override wins, site: is cleared.
+		p2 := &Params{}
+		_, err = common.ApplyOption(p2, []Option{WithSite("datadoghq.com"), WithIntakeHostname("https", "fake.example.com")})
+		assert.NoError(t, err)
+		_, isSite := p2.primaryEndpointConfig.(pulumi.String)
+		assert.False(t, isSite, "expected the dd_url override to overwrite the site: config")
 	})
 	t.Run("WithIntegration should correctly add conf.d/integration/conf.yaml to the path", func(t *testing.T) {
 		p := &Params{
