@@ -96,10 +96,6 @@ exports_files(["go.mod"])
 # gazelle:exclude cmd/system-probe/subcommands/usm
 # gazelle:exclude cmd/system-probe/windows
 # gazelle:exclude cmd/systray
-# gazelle:exclude cmd/trace-agent/command
-# gazelle:exclude cmd/trace-agent/subcommands/info
-# gazelle:exclude cmd/trace-agent/subcommands/run
-# gazelle:exclude cmd/trace-agent/test/testsuite
 # gazelle:exclude comp/agent/bundle.go
 # gazelle:exclude comp/agent/bundle_test.go
 # gazelle:exclude comp/agent/cloudfoundrycontainer/fx
@@ -237,9 +233,6 @@ exports_files(["go.mod"])
 # gazelle:exclude comp/softwareinventory/impl
 # gazelle:exclude comp/systray/systray/fx
 # gazelle:exclude comp/systray/systray/impl
-# gazelle:exclude comp/trace/config/fx
-# gazelle:exclude comp/trace/config/impl
-# gazelle:exclude comp/trace/config/mock
 # gazelle:exclude pkg/cli/subcommands/autoscalerlist
 # gazelle:exclude pkg/cli/subcommands/check
 # gazelle:exclude pkg/cli/subcommands/clusterchecks
