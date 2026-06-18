@@ -53,6 +53,9 @@ type rcClient struct {
 	config            configcomp.Component
 	sysprobeConfig    option.Option[sysprobeconfig.Component]
 	isSystemProbe     bool
+	agentName         string
+	agentVersion      string
+	IPC               ipc.Component
 }
 
 // Dependencies defines the dependencies for the rcclient component.
@@ -85,62 +88,32 @@ func NewComponent(deps Dependencies) (rcclient.Component, error) {
 		return nil, errors.New("Remote config client is missing agent name or version parameter")
 	}
 
-	// Append client options
-	optsWithDefault := []func(*client.Options){
-		client.WithPollInterval(5 * time.Second),
-		client.WithAgent(deps.Params.AgentName, deps.Params.AgentVersion),
-	}
-
-	// We have to create the client in the constructor and set its name later
-	c, err := client.NewUnverifiedGRPCClient(
-		ipcAddress,
-		pkgconfigsetup.GetIPCPort(),
-		deps.IPC.GetAuthToken(),
-		deps.IPC.GetTLSClientConfig(),
-		optsWithDefault...,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	var clientMRF *client.Client
-	if pkgconfigsetup.Datadog().GetBool("multi_region_failover.enabled") {
-		clientMRF, err = client.NewUnverifiedMRFGRPCClient(
-			ipcAddress,
-			pkgconfigsetup.GetIPCPort(),
-			deps.IPC.GetAuthToken(),
-			deps.IPC.GetTLSClientConfig(),
-			optsWithDefault...,
-		)
-		if err != nil {
-			return nil, err
-		}
-	}
-
 	rc := &rcClient{
 		listeners:         types.FilterListeners(deps.Listeners),
 		taskListeners:     types.FilterTaskListeners(deps.TaskListeners),
 		m:                 &sync.Mutex{},
-		client:            c,
-		clientMRF:         clientMRF,
 		settingsComponent: deps.SettingsComponent,
 		config:            deps.Config,
 		sysprobeConfig:    deps.SysprobeConfig,
 		isSystemProbe:     deps.Params.IsSystemProbe,
+		agentName:         deps.Params.AgentName,
+		agentVersion:      deps.Params.AgentVersion,
+		IPC:               deps.IPC,
 	}
 
 	if configUtils.IsRemoteConfigEnabled(deps.Config) {
 		deps.Lc.Append(compdef.Hook{
 			OnStart: func(context.Context) error {
-				rc.start()
-				return nil
+				return rc.start()
 			},
 		})
 	}
 
 	deps.Lc.Append(compdef.Hook{
 		OnStop: func(context.Context) error {
-			rc.client.Close()
+			if rc.client != nil {
+				rc.client.Close()
+			}
 			return nil
 		},
 	})
@@ -148,8 +121,52 @@ func NewComponent(deps Dependencies) (rcclient.Component, error) {
 	return rc, nil
 }
 
+func (rc *rcClient) createGRPCClient() error {
+	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+	if err != nil {
+		return err
+	}
+
+	// Append client options
+	optsWithDefault := []func(*client.Options){
+		client.WithPollInterval(5 * time.Second),
+		client.WithAgent(rc.agentName, rc.agentVersion),
+	}
+
+	// We have to create the client in the constructor and set its name later
+	rc.client, err = client.NewUnverifiedGRPCClient(
+		ipcAddress,
+		pkgconfigsetup.GetIPCPort(),
+		rc.IPC.GetAuthToken(),
+		rc.IPC.GetTLSClientConfig(),
+		optsWithDefault...,
+	)
+	if err != nil {
+		return err
+	}
+
+	if pkgconfigsetup.Datadog().GetBool("multi_region_failover.enabled") {
+		rc.clientMRF, err = client.NewUnverifiedMRFGRPCClient(
+			ipcAddress,
+			pkgconfigsetup.GetIPCPort(),
+			rc.IPC.GetAuthToken(),
+			rc.IPC.GetTLSClientConfig(),
+			optsWithDefault...,
+		)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 // start subscribes to AGENT_CONFIG configurations and starts the remote config client
-func (rc *rcClient) start() {
+func (rc *rcClient) start() error {
+	if err := rc.createGRPCClient(); err != nil {
+		return err
+
+	}
 	rc.client.Subscribe(state.ProductAgentConfig, rc.agentConfigUpdateCallback)
 
 	// Register every product for every listener
@@ -165,6 +182,8 @@ func (rc *rcClient) start() {
 		rc.clientMRF.Subscribe(state.ProductAgentFailover, rc.mrfUpdateCallback)
 		rc.clientMRF.Start()
 	}
+
+	return nil
 }
 
 // mrfUpdateCallback is the callback function for the AGENT_FAILOVER configs.
