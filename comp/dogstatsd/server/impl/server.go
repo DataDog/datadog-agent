@@ -21,6 +21,7 @@ import (
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	taggerdef "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
@@ -84,6 +85,7 @@ type dependencies struct {
 	PidMap          pidmap.Component
 	Params          server.Params
 	WMeta           option.Option[workloadmeta.Component]
+	TaggerProcessor option.Option[taggerdef.Processor] `optional:"true"`
 	Telemetry       telemetry.Component
 	Hostname        hostnameinterface.Component
 	FilterList      filterlist.Component
@@ -171,7 +173,13 @@ type dsdServer struct {
 	enrichConfig
 
 	wmeta           option.Option[workloadmeta.Component]
+	taggerProcessor option.Option[taggerdef.Processor]
 	offlineReporter offlinereporter.Component
+
+	gpuJobMetadataProcessesLock   sync.Mutex
+	gpuJobMetadataProcesses       map[string]gpuJobMetadataProcessRecord
+	gpuJobMetadataProcessSequence uint64
+	gpuJobMetadataProcessExists   func(uint32) bool
 
 	// telemetry
 	telemetry               telemetry.Component
@@ -205,7 +213,7 @@ func initTelemetry() {
 // TODO: (components) - merge with newServerCompat once NewServerlessServer is removed
 // NewComponent creates a new dogstatsd server component.
 func NewComponent(deps dependencies) Provides {
-	s := newServerCompat(deps.Config, deps.Log, deps.Hostname, deps.Replay, deps.Debug, deps.Params.Serverless, deps.Demultiplexer, deps.WMeta, deps.PidMap, deps.Telemetry, deps.FilterList)
+	s := newServerCompat(deps.Config, deps.Log, deps.Hostname, deps.Replay, deps.Debug, deps.Params.Serverless, deps.Demultiplexer, deps.WMeta, deps.PidMap, deps.Telemetry, deps.FilterList, deps.TaggerProcessor)
 	s.offlineReporter = deps.OfflineReporter
 
 	dsdConfig := dsdconfig.NewConfig(s.config)
@@ -222,7 +230,7 @@ func NewComponent(deps dependencies) Provides {
 	}
 }
 
-func newServerCompat(cfg model.ReaderWriter, log log.Component, hostname hostnameinterface.Component, capture replay.Component, debug serverdebug.Component, serverless bool, demux aggregator.Demultiplexer, wmeta option.Option[workloadmeta.Component], pidMap pidmap.Component, telemetrycomp telemetry.Component, filterList filterlist.Component) *dsdServer {
+func newServerCompat(cfg model.ReaderWriter, log log.Component, hostname hostnameinterface.Component, capture replay.Component, debug serverdebug.Component, serverless bool, demux aggregator.Demultiplexer, wmeta option.Option[workloadmeta.Component], pidMap pidmap.Component, telemetrycomp telemetry.Component, filterList filterlist.Component, taggerProcessor option.Option[taggerdef.Processor]) *dsdServer {
 	// This needs to be done after the configuration is loaded
 	once.Do(func() { initTelemetry() })
 	var stats *statutil.Stats
@@ -319,13 +327,16 @@ func newServerCompat(cfg model.ReaderWriter, log log.Component, hostname hostnam
 			defaultHostname:           defaultHostname,
 			serverlessMode:            serverless,
 		},
-		wmeta:                   wmeta,
-		telemetry:               telemetrycomp,
-		filterList:              filterList,
-		tlmProcessed:            dogstatsdTelemetryCount,
-		tlmProcessedOk:          dogstatsdTelemetryCount.WithValues("metrics", "ok", ""),
-		tlmProcessedError:       dogstatsdTelemetryCount.WithValues("metrics", "error", ""),
-		stringInternerTelemetry: newSiTelemetry(utils.IsTelemetryEnabled(cfg), telemetrycomp),
+		wmeta:                       wmeta,
+		taggerProcessor:             taggerProcessor,
+		gpuJobMetadataProcesses:     make(map[string]gpuJobMetadataProcessRecord),
+		gpuJobMetadataProcessExists: defaultGPUJobMetadataProcessExists,
+		telemetry:                   telemetrycomp,
+		filterList:                  filterList,
+		tlmProcessed:                dogstatsdTelemetryCount,
+		tlmProcessedOk:              dogstatsdTelemetryCount.WithValues("metrics", "ok", ""),
+		tlmProcessedError:           dogstatsdTelemetryCount.WithValues("metrics", "error", ""),
+		stringInternerTelemetry:     newSiTelemetry(utils.IsTelemetryEnabled(cfg), telemetrycomp),
 	}
 
 	buckets := getBuckets(cfg, log, "telemetry.dogstatsd.aggregator_channel_latency_buckets")
@@ -584,6 +595,7 @@ func (s *dsdServer) handleMessages() {
 	// It is important to set this up after the workers are running so they receive
 	// any updates.
 	s.filterList.OnUpdateMetricFilterList(s.onFilterListUpdate)
+	s.startGPUJobMetadataProcessSweeper()
 }
 
 func (s *dsdServer) UDPLocalAddr() string {
@@ -714,6 +726,9 @@ func (s *dsdServer) parsePackets(batcher dogstatsdBatcher, parser *parser, packe
 				event, err := s.parseEventMessage(parser, message, packet.Origin, packet.ProcessID)
 				if err != nil {
 					s.errLog("Dogstatsd: error parsing event '%q': %s", message, err)
+					continue
+				}
+				if s.handleGPUJobMetadataEvent(event) {
 					continue
 				}
 				batcher.appendEvent(event)

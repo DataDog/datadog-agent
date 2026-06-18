@@ -536,6 +536,35 @@ func TestProcessTagInfo_IsComplete(t *testing.T) {
 	}
 }
 
+func TestProcessTagInfo_PreserveEntityCompleteness(t *testing.T) {
+	entityID := types.NewEntityID(types.ContainerID, "test")
+	telemetryComponent := fxutil.Test[telemetry.Component](t, mocktelemetry.Module())
+	telemetryStore := taggerTelemetry.NewStore(telemetryComponent)
+	tagStore := NewTagStore(telemetryStore)
+
+	tagStore.ProcessTagInfo([]*types.TagInfo{
+		{
+			Source:      "source",
+			EntityID:    entityID,
+			LowCardTags: []string{"low"},
+			IsComplete:  true,
+		},
+	})
+	tagStore.ProcessTagInfo([]*types.TagInfo{
+		{
+			Source:                     "preserving-source",
+			EntityID:                   entityID,
+			OrchestratorCardTags:       []string{"job:123"},
+			PreserveEntityCompleteness: true,
+		},
+	})
+
+	entity, err := tagStore.GetEntity(entityID)
+	require.NoError(t, err)
+	assert.True(t, entity.IsComplete)
+	assert.ElementsMatch(t, []string{"job:123"}, entity.OrchestratorCardinalityTags)
+}
+
 func TestProcessTagInfo_CompletenessDelay(t *testing.T) {
 	entityID := types.NewEntityID(types.ContainerID, "test")
 	prefix := string(types.ContainerID)
