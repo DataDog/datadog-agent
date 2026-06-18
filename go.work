@@ -105,7 +105,6 @@ use (
 	pkg/config/schema
 	pkg/config/setup
 	pkg/config/structure
-	pkg/config/teeconfig
 	pkg/config/utils
 	pkg/config/viperconfig
 	pkg/discovery/tracermetadata/model
