@@ -9,9 +9,8 @@
 
 static __always_inline bool fill_lib_path(lib_path_t *path, const char *path_argument) {
     path->pid = GET_USER_MODE_PID(bpf_get_current_pid_tgid());
-    // bpf_probe_read_user_str stops at the NUL terminator, so it never over-reads past the end
-    // of the string into an unmapped page the way the fixed-220-byte bpf_probe_read_user did
-    // (~5% EFAULT on the openat fexit path, which then fell back to a byte-by-byte read). (USMON-1552)
+    // Using bpf_probe_read_user_str ensures safe reads by stopping at the string's NUL terminator, 
+    // preventing over-reads and unnecessary faults; avoid fixed-length reads that might touch unmapped memory.
     long ret = bpf_probe_read_user_str_with_telemetry(path->buf, sizeof(path->buf), path_argument);
     if (ret > 0) {
         path->len = ret - 1; // ret includes the NUL terminator
