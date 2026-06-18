@@ -43,11 +43,11 @@ func (_m *SecurityModuleEventClient) EXPECT() *SecurityModuleEventClient_Expecte
 // GetActivityDumpStream provides a mock function for the type SecurityModuleEventClient
 func (_mock *SecurityModuleEventClient) GetActivityDumpStream(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (grpc.ServerStreamingClient[api.ActivityDumpStreamMessage], error) {
 	// grpc.CallOption
-	_va := make([]interface{}, len(opts))
+	_va := make([]any, len(opts))
 	for _i := range opts {
 		_va[_i] = opts[_i]
 	}
-	var _ca []interface{}
+	var _ca []any
 	_ca = append(_ca, ctx, in)
 	_ca = append(_ca, _va...)
 	ret := _mock.Called(_ca...)
@@ -85,9 +85,9 @@ type SecurityModuleEventClient_GetActivityDumpStream_Call struct {
 //   - ctx context.Context
 //   - in *emptypb.Empty
 //   - opts ...grpc.CallOption
-func (_e *SecurityModuleEventClient_Expecter) GetActivityDumpStream(ctx interface{}, in interface{}, opts ...interface{}) *SecurityModuleEventClient_GetActivityDumpStream_Call {
+func (_e *SecurityModuleEventClient_Expecter) GetActivityDumpStream(ctx any, in any, opts ...any) *SecurityModuleEventClient_GetActivityDumpStream_Call {
 	return &SecurityModuleEventClient_GetActivityDumpStream_Call{Call: _e.mock.On("GetActivityDumpStream",
-		append([]interface{}{ctx, in}, opts...)...)}
+		append([]any{ctx, in}, opts...)...)}
 }
 
 func (_c *SecurityModuleEventClient_GetActivityDumpStream_Call) Run(run func(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption)) *SecurityModuleEventClient_GetActivityDumpStream_Call {
@@ -130,11 +130,11 @@ func (_c *SecurityModuleEventClient_GetActivityDumpStream_Call) RunAndReturn(run
 // GetEventStream provides a mock function for the type SecurityModuleEventClient
 func (_mock *SecurityModuleEventClient) GetEventStream(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (grpc.ServerStreamingClient[api.SecurityEventMessage], error) {
 	// grpc.CallOption
-	_va := make([]interface{}, len(opts))
+	_va := make([]any, len(opts))
 	for _i := range opts {
 		_va[_i] = opts[_i]
 	}
-	var _ca []interface{}
+	var _ca []any
 	_ca = append(_ca, ctx, in)
 	_ca = append(_ca, _va...)
 	ret := _mock.Called(_ca...)
@@ -172,9 +172,9 @@ type SecurityModuleEventClient_GetEventStream_Call struct {
 //   - ctx context.Context
 //   - in *emptypb.Empty
 //   - opts ...grpc.CallOption
-func (_e *SecurityModuleEventClient_Expecter) GetEventStream(ctx interface{}, in interface{}, opts ...interface{}) *SecurityModuleEventClient_GetEventStream_Call {
+func (_e *SecurityModuleEventClient_Expecter) GetEventStream(ctx any, in any, opts ...any) *SecurityModuleEventClient_GetEventStream_Call {
 	return &SecurityModuleEventClient_GetEventStream_Call{Call: _e.mock.On("GetEventStream",
-		append([]interface{}{ctx, in}, opts...)...)}
+		append([]any{ctx, in}, opts...)...)}
 }
 
 func (_c *SecurityModuleEventClient_GetEventStream_Call) Run(run func(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption)) *SecurityModuleEventClient_GetEventStream_Call {

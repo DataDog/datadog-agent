@@ -62,7 +62,7 @@ type SecurityAgentAPIServer_SendActivityDumpStream_Call struct {
 
 // SendActivityDumpStream is a helper method to define mock.On call
 //   - clientStreamingServer grpc.ClientStreamingServer[api.ActivityDumpStreamMessage, emptypb.Empty]
-func (_e *SecurityAgentAPIServer_Expecter) SendActivityDumpStream(clientStreamingServer interface{}) *SecurityAgentAPIServer_SendActivityDumpStream_Call {
+func (_e *SecurityAgentAPIServer_Expecter) SendActivityDumpStream(clientStreamingServer any) *SecurityAgentAPIServer_SendActivityDumpStream_Call {
 	return &SecurityAgentAPIServer_SendActivityDumpStream_Call{Call: _e.mock.On("SendActivityDumpStream", clientStreamingServer)}
 }
 
@@ -113,7 +113,7 @@ type SecurityAgentAPIServer_SendEvent_Call struct {
 
 // SendEvent is a helper method to define mock.On call
 //   - clientStreamingServer grpc.ClientStreamingServer[api.SecurityEventMessage, emptypb.Empty]
-func (_e *SecurityAgentAPIServer_Expecter) SendEvent(clientStreamingServer interface{}) *SecurityAgentAPIServer_SendEvent_Call {
+func (_e *SecurityAgentAPIServer_Expecter) SendEvent(clientStreamingServer any) *SecurityAgentAPIServer_SendEvent_Call {
 	return &SecurityAgentAPIServer_SendEvent_Call{Call: _e.mock.On("SendEvent", clientStreamingServer)}
 }
 

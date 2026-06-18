@@ -3,10 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package apiv3 provides a reader for the V3 metrics intake wire format.
-//
-// Copied for use in fakeintake. Update when reader.go changes.
-package apiv3
+// Package aggregator provides payload parsers and iterators for the V3 metrics intake wire format.
+package aggregator
 
 import (
 	"encoding/binary"
@@ -16,30 +14,13 @@ import (
 	"slices"
 	"strings"
 	"unicode/utf8"
+
+	intake_v3 "github.com/DataDog/agent-payload/v5/metrics/intake_v3"
 )
 
-// Reader is an iterator over data contained in Payload.
-//
-// Usage:
-//
-//	r := NewReader(payload.Payload)
-//	if err := r.Initialize(); err != nil {
-//	    return err
-//	}
-//	for r.HaveMoreMetrics() {
-//	    if err := r.NextMetric(); err != nil {
-//	        return err
-//
-//	    // Accessors for metric entry data can be called.
-//	    for r.HaveMorePoints() {
-//	        if err := r.NextPoint(); err != nil {
-//	            return err
-//	        }
-//	        // Accessors for metric data point can be called.
-//	    }
-//	 }
-type Reader struct {
-	payload *Payload
+// metricReaderV3 is an iterator over data contained in intake_v3.Payload.
+type metricReaderV3 struct {
+	payload *intake_v3.Payload
 
 	// Indexes point the next unconsumed element
 	metricIdx  int
@@ -69,68 +50,72 @@ type Reader struct {
 	dictUnitStr        []string
 	dictTagsets        [][]string
 	dictResourceStr    []string
-	dictResources      [][]*resource
+	dictResources      [][]*v3resource
 	dictSourceTypeName []string
-	dictOriginInfo     []*originInfo
+	dictOriginInfo     []*v3originInfo
 }
 
-type resource = [2]string
-type originInfo = [3]int32
+type v3resource = [2]string
+type v3originInfo = [3]int32
 
-// NewReader creates an iterator over the data contained in MetricData
+// NewReader creates an iterator over the data contained in intake_v3.MetricData
 // by wrapping it in a Payload
-func NewReader(data *MetricData) *Reader {
-	return &Reader{
-		payload: &Payload{
+//
+//nolint:revive
+func NewReader(data *intake_v3.MetricData) *metricReaderV3 {
+	return &metricReaderV3{
+		payload: &intake_v3.Payload{
 			MetricData: data,
 		},
 	}
 }
 
-// NewPayloadReader creates an iterator over the data contained in Payload
-func NewPayloadReader(payload *Payload) *Reader {
-	return &Reader{
+// NewPayloadReader creates an iterator over the data contained in intake_v3.Payload
+//
+//nolint:revive
+func NewPayloadReader(payload *intake_v3.Payload) *metricReaderV3 {
+	return &metricReaderV3{
 		payload: payload,
 	}
 }
 
 // Initialize reads and normalizes payload dictionaries for fast access.
 // This method must be called before any other method on the reader.
-func (r *Reader) Initialize() error {
+func (r *metricReaderV3) Initialize() error {
 	if r.payload.MetricData == nil {
 		return errors.New("metric data must not be nil")
 	}
 
 	var err error
-	r.dictNameStr, err = unpackStrDict(r.payload.MetricData.DictNameStr, false)
+	r.dictNameStr, err = unpackStrDictV3(r.payload.MetricData.DictNameStr, false)
 	if err != nil {
 		return err
 	}
-	r.dictTagsStr, err = unpackStrDict(r.payload.MetricData.DictTagStr, true)
+	r.dictTagsStr, err = unpackStrDictV3(r.payload.MetricData.DictTagStr, true)
 	if err != nil {
 		return err
 	}
-	r.dictUnitStr, err = unpackStrDict(r.payload.MetricData.DictUnitStr, false)
+	r.dictUnitStr, err = unpackStrDictV3(r.payload.MetricData.DictUnitStr, false)
 	if err != nil {
 		return err
 	}
-	r.dictTagsets, err = r.unpackTagsetsDict()
+	r.dictTagsets, err = r.unpackTagsetsDictV3()
 	if err != nil {
 		return err
 	}
-	r.dictResourceStr, err = unpackStrDict(r.payload.MetricData.DictResourceStr, false)
+	r.dictResourceStr, err = unpackStrDictV3(r.payload.MetricData.DictResourceStr, false)
 	if err != nil {
 		return err
 	}
-	r.dictResources, err = r.unpackResourcesDict()
+	r.dictResources, err = r.unpackResourcesDictV3()
 	if err != nil {
 		return err
 	}
-	r.dictSourceTypeName, err = unpackStrDict(r.payload.MetricData.DictSourceTypeName, false)
+	r.dictSourceTypeName, err = unpackStrDictV3(r.payload.MetricData.DictSourceTypeName, false)
 	if err != nil {
 		return err
 	}
-	r.dictOriginInfo, err = unpackOriginInfoDict(r.payload.MetricData.DictOriginInfo)
+	r.dictOriginInfo, err = unpackOriginInfoDictV3(r.payload.MetricData.DictOriginInfo)
 	if err != nil {
 		return err
 	}
@@ -138,29 +123,29 @@ func (r *Reader) Initialize() error {
 }
 
 var (
-	errUnexpectedEOF = errors.New("unexpected end of column")
-	errOverflow      = errors.New("length field overflow")
-	errBadReference  = errors.New("invalid reference")
-	errInvalidUTF8   = errors.New("invalid UTF-8 string")
+	errV3UnexpectedEOF = errors.New("unexpected end of column")
+	errV3Overflow      = errors.New("length field overflow")
+	errV3BadReference  = errors.New("invalid reference")
+	errV3InvalidUTF8   = errors.New("invalid UTF-8 string")
 )
 
-func unpackStrDict(raw []byte, sanitizeInvalidUTF8 bool) ([]string, error) {
+func unpackStrDictV3(raw []byte, sanitizeInvalidUTF8 bool) ([]string, error) {
 	dict := []string{""}
 
 	for len(raw) > 0 {
 		length, n := binary.Uvarint(raw)
 		if n == 0 {
-			return nil, errUnexpectedEOF
+			return nil, errV3UnexpectedEOF
 		}
 		if n < 0 {
-			return nil, errOverflow
+			return nil, errV3Overflow
 		}
 		if length > uint64(math.MaxInt-n) {
-			return nil, errOverflow
+			return nil, errV3Overflow
 		}
 		end := n + int(length)
 		if end > len(raw) {
-			return nil, errUnexpectedEOF
+			return nil, errV3UnexpectedEOF
 		}
 		str := string(raw[n:end])
 
@@ -168,7 +153,7 @@ func unpackStrDict(raw []byte, sanitizeInvalidUTF8 bool) ([]string, error) {
 			if sanitizeInvalidUTF8 {
 				str = strings.ToValidUTF8(str, string(utf8.RuneError))
 			} else {
-				return nil, errInvalidUTF8
+				return nil, errV3InvalidUTF8
 			}
 		}
 
@@ -178,7 +163,7 @@ func unpackStrDict(raw []byte, sanitizeInvalidUTF8 bool) ([]string, error) {
 	return dict, nil
 }
 
-func (r *Reader) unpackTagsetsDict() ([][]string, error) {
+func (r *metricReaderV3) unpackTagsetsDictV3() ([][]string, error) {
 	packed := r.payload.MetricData.DictTagsets
 	tagsets := [][]string{nil}
 
@@ -188,7 +173,7 @@ func (r *Reader) unpackTagsetsDict() ([][]string, error) {
 		size := packed[0]
 		packed = packed[1:]
 		if size < 0 || size > int64(len(packed)) {
-			return nil, errUnexpectedEOF
+			return nil, errV3UnexpectedEOF
 		}
 		tags := make([]string, 0, int(size)+len(metadataTags))
 
@@ -198,12 +183,12 @@ func (r *Reader) unpackTagsetsDict() ([][]string, error) {
 
 			if idx < 0 {
 				if idx <= -math.MaxInt64 || -idx >= int64(len(tagsets)) {
-					return nil, errBadReference
+					return nil, errV3BadReference
 				}
 				tags = append(tags, tagsets[-idx]...)
 			} else {
 				if idx >= int64(len(r.dictTagsStr)) {
-					return nil, errBadReference
+					return nil, errV3BadReference
 				}
 				tags = append(tags, r.dictTagsStr[idx])
 			}
@@ -252,55 +237,55 @@ func (r *Reader) unpackTagsetsDict() ([][]string, error) {
 	return tagsets, nil
 }
 
-func (r *Reader) unpackResourcesDict() ([][]*resource, error) {
+func (r *metricReaderV3) unpackResourcesDictV3() ([][]*v3resource, error) {
 	packedLen := r.payload.MetricData.DictResourceLen
 	packedType := r.payload.MetricData.DictResourceType
 	packedName := r.payload.MetricData.DictResourceName
-	resourcesDict := make([][]*resource, 1, len(packedLen)+1)
+	resourcesDict := make([][]*v3resource, 1, len(packedLen)+1)
 
 	metadataResources := r.payload.GetMetadata().GetResources()
 
 	// Decode metadata resources once
-	var metaResources []*resource
+	var metaResources []*v3resource
 	if len(metadataResources) > 0 {
 		if len(metadataResources)%2 != 0 {
 			return nil, errors.New("metadata resources must be [Type, Name] pairs")
 		}
 		pairs := len(metadataResources) / 2
-		metaResources = make([]*resource, pairs)
+		metaResources = make([]*v3resource, pairs)
 		for i := 0; i < pairs; i++ {
 			t := metadataResources[2*i]
 			n := metadataResources[2*i+1]
-			metaResources[i] = &resource{t, n}
+			metaResources[i] = &v3resource{t, n}
 		}
 	}
 
 	start := int64(0)
 	for _, size := range packedLen {
 		if size < 0 {
-			return nil, errUnexpectedEOF
+			return nil, errV3UnexpectedEOF
 		}
 		if size > math.MaxInt64-start {
-			return nil, errOverflow
+			return nil, errV3Overflow
 		}
 		end := start + size
 		if end > int64(len(packedType)) || end > int64(len(packedName)) {
-			return nil, errBadReference
+			return nil, errV3BadReference
 		}
 
 		typeRef := int64(0)
 		nameRef := int64(0)
-		resourcesSet := make([]*resource, 0, size+int64(len(metaResources)))
+		resourcesSet := make([]*v3resource, 0, size+int64(len(metaResources)))
 		for i := int64(0); i < size; i++ {
 			typeRef += packedType[start+i]
 			nameRef += packedName[start+i]
 
 			if typeRef < 0 || typeRef >= int64(len(r.dictResourceStr)) ||
 				nameRef < 0 || nameRef >= int64(len(r.dictResourceStr)) {
-				return nil, errBadReference
+				return nil, errV3BadReference
 			}
 
-			resourcesSet = append(resourcesSet, &resource{r.dictResourceStr[typeRef], r.dictResourceStr[nameRef]})
+			resourcesSet = append(resourcesSet, &v3resource{r.dictResourceStr[typeRef], r.dictResourceStr[nameRef]})
 		}
 
 		if len(metaResources) > 0 {
@@ -314,30 +299,30 @@ func (r *Reader) unpackResourcesDict() ([][]*resource, error) {
 	return resourcesDict, nil
 }
 
-func unpackOriginInfoDict(raw []int32) ([]*originInfo, error) {
+func unpackOriginInfoDictV3(raw []int32) ([]*v3originInfo, error) {
 	nelem := len(raw) / 3
 	if len(raw) != nelem*3 {
-		return nil, errUnexpectedEOF
+		return nil, errV3UnexpectedEOF
 	}
-	dict := make([]*originInfo, 1, nelem+1)
+	dict := make([]*v3originInfo, 1, nelem+1)
 	for i := 0; i < len(raw); i += 3 {
-		dict = append(dict, &originInfo{int32(raw[i+0]), int32(raw[i+1]), int32(raw[i+2])})
+		dict = append(dict, &v3originInfo{int32(raw[i+0]), int32(raw[i+1]), int32(raw[i+2])})
 	}
 
 	return dict, nil
 }
 
 // HaveMoreMetrics returns true if there are more metrics to read.
-func (r *Reader) HaveMoreMetrics() bool {
+func (r *metricReaderV3) HaveMoreMetrics() bool {
 	return r.metricIdx < len(r.payload.MetricData.Types)
 }
 
 // NextMetric consumes next metric entry and prepares data for access.
 //
 // If this method returns an error the reader is in an invalid state and calling data access methods may panic.
-func (r *Reader) NextMetric() error {
+func (r *metricReaderV3) NextMetric() error {
 	if !r.HaveMoreMetrics() {
-		return errUnexpectedEOF
+		return errV3UnexpectedEOF
 	}
 
 	if r.metricIdx >= 0 {
@@ -358,66 +343,66 @@ func (r *Reader) NextMetric() error {
 		r.metricIdx > len(r.payload.MetricData.OriginInfoRefs) ||
 		r.metricIdx > len(r.payload.MetricData.Intervals) ||
 		r.metricIdx > len(r.payload.MetricData.NumPoints) {
-		return errUnexpectedEOF
+		return errV3UnexpectedEOF
 	}
 
-	r.pointsRemaining = int(r.NumPoints())
+	r.pointsRemaining = int(r.v3NumPoints())
 
 	r.nameRef += r.payload.MetricData.NameRefs[r.metricIdx-1]
 	if r.nameRef < 0 || r.nameRef >= int64(len(r.dictNameStr)) {
-		return errBadReference
+		return errV3BadReference
 	}
 
 	r.tagsRef += r.payload.MetricData.TagsetRefs[r.metricIdx-1]
 	if r.tagsRef < 0 || r.tagsRef >= int64(len(r.dictTagsets)) {
-		return errBadReference
+		return errV3BadReference
 	}
 
 	if r.HasUnit() {
 		r.unitRefIdx++
 		if r.unitRefIdx > len(r.payload.MetricData.UnitRefs) {
-			return errUnexpectedEOF
+			return errV3UnexpectedEOF
 		}
 		r.unitRef += r.payload.MetricData.UnitRefs[r.unitRefIdx-1]
 		if r.unitRef < 0 || r.unitRef >= int64(len(r.dictUnitStr)) {
-			return errBadReference
+			return errV3BadReference
 		}
 	}
 
 	r.resourcesRef += r.payload.MetricData.ResourcesRefs[r.metricIdx-1]
 	if r.resourcesRef < 0 || r.resourcesRef >= int64(len(r.dictResources)) {
-		return errBadReference
+		return errV3BadReference
 	}
 
 	r.sourceTypeNameRef += r.payload.MetricData.SourceTypeNameRefs[r.metricIdx-1]
 	if r.sourceTypeNameRef < 0 || r.sourceTypeNameRef >= int64(len(r.dictSourceTypeName)) {
-		return errBadReference
+		return errV3BadReference
 	}
 
 	r.originInfoRef += r.payload.MetricData.OriginInfoRefs[r.metricIdx-1]
 	if r.originInfoRef < 0 || r.originInfoRef >= int64(len(r.dictOriginInfo)) {
-		return errBadReference
+		return errV3BadReference
 	}
 
 	return nil
 }
 
-func (r *Reader) packedType() uint64 {
+func (r *metricReaderV3) packedType() uint64 {
 	return r.payload.MetricData.Types[r.metricIdx-1]
 }
 
 // Type returns type of current metric entry.
-func (r *Reader) Type() MetricType {
-	return MetricType(r.packedType() & 0xF)
+func (r *metricReaderV3) Type() intake_v3.MetricType {
+	return intake_v3.MetricType(r.packedType() & 0xF)
 }
 
 // ValueType returns value type of current metric entry.
-func (r *Reader) ValueType() ValueType {
-	return ValueType(r.packedType() & 0xF0)
+func (r *metricReaderV3) ValueType() intake_v3.ValueType {
+	return intake_v3.ValueType(r.packedType() & 0xF0)
 }
 
 // Unit returns unit of current metric entry, or empty string if none.
-func (r *Reader) Unit() string {
+func (r *metricReaderV3) Unit() string {
 	if r.HasUnit() {
 		return r.dictUnitStr[r.unitRef]
 	}
@@ -425,118 +410,118 @@ func (r *Reader) Unit() string {
 }
 
 // Name returns metric name of current metric entry.
-func (r *Reader) Name() string {
+func (r *metricReaderV3) Name() string {
 	return r.dictNameStr[r.nameRef]
 }
 
 // Tags returns set of tags for current metric entry.
-func (r *Reader) Tags() []string {
+func (r *metricReaderV3) Tags() []string {
 	return r.dictTagsets[r.tagsRef]
 }
 
 // Resources returns set of resources for current metric entry.
 //
 //nolint:revive
-func (r *Reader) Resources() []*resource {
+func (r *metricReaderV3) Resources() []*v3resource {
 	return r.dictResources[r.resourcesRef]
 }
 
 // SourceTypeName returns source type identifier for current metric entry.
-func (r *Reader) SourceTypeName() string {
+func (r *metricReaderV3) SourceTypeName() string {
 	return r.dictSourceTypeName[r.sourceTypeNameRef]
 }
 
 // Origin returns product origin information for current metric entry.
 //
 //nolint:revive
-func (r *Reader) Origin() *originInfo {
+func (r *metricReaderV3) Origin() *v3originInfo {
 	return r.dictOriginInfo[r.originInfoRef]
 }
 
 // Interval returns metric time interval for current metric entry.
-func (r *Reader) Interval() uint64 {
+func (r *metricReaderV3) Interval() uint64 {
 	return r.payload.MetricData.Intervals[r.metricIdx-1]
 }
 
-// NumPoints returns number of data points contained in the current metric entry.
-func (r *Reader) NumPoints() uint64 {
+// v3NumPoints returns number of data points contained in the current metric entry.
+func (r *metricReaderV3) v3NumPoints() uint64 {
 	return r.payload.MetricData.NumPoints[r.metricIdx-1]
 }
 
 // NoIndex returns true if the metric should not be indexed.
-func (r *Reader) NoIndex() bool {
-	return r.packedType()&uint64(MetricFlags_flagNoIndex) != 0
+func (r *metricReaderV3) NoIndex() bool {
+	return r.packedType()&uint64(intake_v3.MetricFlags_flagNoIndex) != 0
 }
 
 // HaveMorePoints returns true if there are more points to read.
-func (r *Reader) HaveMorePoints() bool {
+func (r *metricReaderV3) HaveMorePoints() bool {
 	return r.pointsRemaining > 0
 }
 
 // HasUnit returns true if the current metric entry has a unit.
-func (r *Reader) HasUnit() bool {
-	return r.packedType()&uint64(MetricFlags_flagHasUnit) != 0
+func (r *metricReaderV3) HasUnit() bool {
+	return r.packedType()&uint64(intake_v3.MetricFlags_flagHasUnit) != 0
 }
 
 // NextPoint consumes next unread metric data point and prepares data for access.
 //
 // If this method returns an error the reader is in an invalid state and calling data access methods may panic.
-func (r *Reader) NextPoint() error {
+func (r *metricReaderV3) NextPoint() error {
 	if !r.HaveMorePoints() {
-		return errUnexpectedEOF
+		return errV3UnexpectedEOF
 	}
 
 	r.pointIdx++
 	r.pointsRemaining--
 
 	if r.pointIdx > len(r.payload.MetricData.Timestamps) {
-		return errUnexpectedEOF
+		return errV3UnexpectedEOF
 	}
 
 	switch r.Type() {
-	case MetricType_Sketch:
+	case intake_v3.MetricType_Sketch:
 		r.sketchNumBinsIdx++
 		if r.sketchNumBinsIdx > len(r.payload.MetricData.SketchNumBins) {
-			return errUnexpectedEOF
+			return errV3UnexpectedEOF
 		}
 		r.sketchBinsIdx += r.SketchNumBins()
 		switch r.ValueType() {
-		case ValueType_Float64:
+		case intake_v3.ValueType_Float64:
 			r.valsFloat64Idx += 3
 			r.valsSint64Idx++
-		case ValueType_Float32:
+		case intake_v3.ValueType_Float32:
 			r.valsFloat32Idx += 3
 			r.valsSint64Idx++
-		case ValueType_Sint64:
+		case intake_v3.ValueType_Sint64:
 			r.valsSint64Idx += 4
-		case ValueType_Zero:
+		case intake_v3.ValueType_Zero:
 			r.valsSint64Idx++
 		}
 	default:
 		switch r.ValueType() {
-		case ValueType_Float64:
+		case intake_v3.ValueType_Float64:
 			r.valsFloat64Idx++
-		case ValueType_Float32:
+		case intake_v3.ValueType_Float32:
 			r.valsFloat32Idx++
-		case ValueType_Sint64:
+		case intake_v3.ValueType_Sint64:
 			r.valsSint64Idx++
 		}
 	}
 
 	if r.valsFloat64Idx > len(r.payload.MetricData.ValsFloat64) {
-		return errUnexpectedEOF
+		return errV3UnexpectedEOF
 	}
 	if r.valsFloat32Idx > len(r.payload.MetricData.ValsFloat32) {
-		return errUnexpectedEOF
+		return errV3UnexpectedEOF
 	}
 	if r.valsSint64Idx > len(r.payload.MetricData.ValsSint64) {
-		return errUnexpectedEOF
+		return errV3UnexpectedEOF
 	}
 	if r.sketchBinsIdx > len(r.payload.MetricData.SketchBinKeys) {
-		return errUnexpectedEOF
+		return errV3UnexpectedEOF
 	}
 	if r.sketchBinsIdx > len(r.payload.MetricData.SketchBinCnts) {
-		return errUnexpectedEOF
+		return errV3UnexpectedEOF
 	}
 
 	r.timestamp += r.payload.MetricData.Timestamps[r.pointIdx-1]
@@ -545,23 +530,23 @@ func (r *Reader) NextPoint() error {
 }
 
 // Timestamp returns timestamp for current metric data point.
-func (r *Reader) Timestamp() int64 {
+func (r *metricReaderV3) Timestamp() int64 {
 	return r.timestamp
 }
 
 // Value returns metric value for current metric data point.
 //
 // Only valid to call if r.Type() != MetricType_Sketch, panics otherwise.
-func (r *Reader) Value() float64 {
-	if r.Type() == MetricType_Sketch {
+func (r *metricReaderV3) Value() float64 {
+	if r.Type() == intake_v3.MetricType_Sketch {
 		panic("invalid type")
 	}
 	switch r.ValueType() {
-	case ValueType_Float64:
+	case intake_v3.ValueType_Float64:
 		return r.payload.MetricData.ValsFloat64[r.valsFloat64Idx-1]
-	case ValueType_Float32:
+	case intake_v3.ValueType_Float32:
 		return float64(r.payload.MetricData.ValsFloat32[r.valsFloat32Idx-1])
-	case ValueType_Sint64:
+	case intake_v3.ValueType_Sint64:
 		return float64(r.payload.MetricData.ValsSint64[r.valsSint64Idx-1])
 	default:
 		return 0
@@ -571,25 +556,25 @@ func (r *Reader) Value() float64 {
 // SketchSummary returns sketch summary for current metric data point.
 //
 // Only valid if r.Type() == MetricType_Sketch, panics otherwise.
-func (r *Reader) SketchSummary() (sum, min, max float64, cnt uint64) {
-	if r.Type() != MetricType_Sketch {
+func (r *metricReaderV3) SketchSummary() (sum, min, max float64, cnt uint64) {
+	if r.Type() != intake_v3.MetricType_Sketch {
 		panic("invalid type")
 	}
 
 	cnt = uint64(r.payload.MetricData.ValsSint64[r.valsSint64Idx-1])
 
 	switch r.ValueType() {
-	case ValueType_Zero:
-	case ValueType_Sint64:
+	case intake_v3.ValueType_Zero:
+	case intake_v3.ValueType_Sint64:
 		sum = float64(r.payload.MetricData.ValsSint64[r.valsSint64Idx-4])
 		min = float64(r.payload.MetricData.ValsSint64[r.valsSint64Idx-3])
 		max = float64(r.payload.MetricData.ValsSint64[r.valsSint64Idx-2])
 		// -1 is cnt
-	case ValueType_Float32:
+	case intake_v3.ValueType_Float32:
 		sum = float64(r.payload.MetricData.ValsFloat32[r.valsFloat32Idx-3])
 		min = float64(r.payload.MetricData.ValsFloat32[r.valsFloat32Idx-2])
 		max = float64(r.payload.MetricData.ValsFloat32[r.valsFloat32Idx-1])
-	case ValueType_Float64:
+	case intake_v3.ValueType_Float64:
 		sum = r.payload.MetricData.ValsFloat64[r.valsFloat64Idx-3]
 		min = r.payload.MetricData.ValsFloat64[r.valsFloat64Idx-2]
 		max = r.payload.MetricData.ValsFloat64[r.valsFloat64Idx-1]
@@ -601,8 +586,8 @@ func (r *Reader) SketchSummary() (sum, min, max float64, cnt uint64) {
 // SketchNumBins returns number of sketch bins for the current metric data point.
 //
 // Only valid if r.Type() == MetricType_Sketch, panics otherwise.
-func (r *Reader) SketchNumBins() int {
-	if r.Type() != MetricType_Sketch {
+func (r *metricReaderV3) SketchNumBins() int {
+	if r.Type() != intake_v3.MetricType_Sketch {
 		panic("invalid type")
 	}
 	return int(r.payload.MetricData.SketchNumBins[r.sketchNumBinsIdx-1])
@@ -612,25 +597,25 @@ func (r *Reader) SketchNumBins() int {
 // point.
 //
 // Only valid if r.Type() == MetricType_Sketch, panics otherwise.
-func (r *Reader) SketchCols() (k []int32, n []uint32) {
-	if r.Type() != MetricType_Sketch {
+func (r *metricReaderV3) SketchCols() (k []int32, n []uint32) {
+	if r.Type() != intake_v3.MetricType_Sketch {
 		panic("invalid type")
 	}
 	size := r.SketchNumBins()
 	start := r.sketchBinsIdx - size
 	k = slices.Clone(r.payload.MetricData.SketchBinKeys[start:][:size])
 	n = slices.Clone(r.payload.MetricData.SketchBinCnts[start:][:size])
-	deltaDecode(k)
+	deltaDecodeV3(k)
 	return
 }
 
-func deltaDecode(s []int32) {
+func deltaDecodeV3(s []int32) {
 	for i := 1; i < len(s); i++ {
 		s[i] += s[i-1]
 	}
 }
 
-func (r *Reader) Debug() {
+func (r *metricReaderV3) Debug() {
 	fmt.Printf(`--
 	metricIdx      %d
 	pointIdx       %d

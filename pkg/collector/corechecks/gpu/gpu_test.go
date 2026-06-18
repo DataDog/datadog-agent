@@ -8,10 +8,10 @@
 package gpu
 
 import (
+	"errors"
 	"fmt"
 	"slices"
 	"strconv"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/atomic"
 	"go.uber.org/mock/gomock"
 
 	nvmlmock "github.com/NVIDIA/go-nvml/pkg/nvml/mock"
@@ -459,14 +460,176 @@ func TestCollectorsOnMIGDeviceChanges(t *testing.T) {
 	assertCollectors(check.collectors)
 }
 
+func TestEmitMetricsCollectsCollectorsInParallel(t *testing.T) {
+	mockSender := mocksender.NewMockSender("gpu")
+	mockSender.SetupAcceptAll()
+
+	check := newConfiguredGPUCheck(
+		t,
+		taggerfxmock.SetupFakeTagger(t),
+		testutil.GetWorkloadMetaMock(t),
+		mocksender.CreateDefaultDemultiplexer(),
+		nil,
+	)
+	nvmlMock := testutil.GetBasicNvmlMockWithOptions(
+		testutil.WithMockAllFunctions(),
+		testutil.WithDeviceCount(1),
+		testutil.WithMIGDisabled(),
+	)
+	ddnvml.WithMockNVML(t, nvmlMock)
+
+	const collectorCount = 3
+	deviceUUID := testutil.GPUUUIDs[0]
+	allStarted := make(chan struct{})
+	started := atomic.Int32{}
+	check.collectors = make([]nvidia.Collector, 0, collectorCount)
+	for i := range collectorCount {
+		collectorName := nvidia.CollectorName(fmt.Sprintf("parallel-%d", i))
+		metricName := fmt.Sprintf("parallel.metric%d", i)
+		metricValue := float64(i)
+		check.collectors = append(check.collectors, &mockCollector{
+			name:       collectorName,
+			deviceUUID: deviceUUID,
+			collectFunc: func() ([]*nvidia.Metric, error) {
+				if started.Add(1) == collectorCount {
+					close(allStarted)
+				}
+
+				select {
+				case <-allStarted:
+				case <-time.After(time.Second):
+					return nil, fmt.Errorf("collector %s timed out waiting for other collectors", collectorName)
+				}
+
+				return []*nvidia.Metric{
+					{Name: metricName, Value: metricValue, Type: ddmetrics.GaugeType},
+				}, nil
+			},
+		})
+	}
+
+	require.NoError(t, check.deviceCache.Refresh())
+	require.NoError(t, check.emitMetrics(mockSender, nil, time.Now()))
+	require.Equal(t, int32(collectorCount), started.Load())
+}
+
+func TestCollectMetricsDoesNotCrashWhenCollectorPanics(t *testing.T) {
+	results := collectMetrics([]nvidia.Collector{
+		&mockCollector{
+			name: "panicking-collector",
+			collectFunc: func() ([]*nvidia.Metric, error) {
+				panic("boom")
+			},
+		},
+	})
+
+	require.Len(t, results, 1)
+	assert.Equal(t, nvidia.CollectorName("panicking-collector"), results[0].name)
+	require.Error(t, results[0].err)
+	assert.Contains(t, results[0].err.Error(), "collector panicked: boom")
+}
+
+func TestEmitMetricsCollectsCollectorsSeriallyWhenParallelCollectionDisabled(t *testing.T) {
+	mockSender := mocksender.NewMockSender("gpu")
+	mockSender.SetupAcceptAll()
+
+	checkGeneric := newCheck(taggerfxmock.SetupFakeTagger(t), testutil.GetTelemetryMock(t), testutil.GetWorkloadMetaMock(t))
+	check, ok := checkGeneric.(*Check)
+	require.True(t, ok)
+
+	WithGPUConfigEnabled(t)
+	pkgconfigsetup.Datadog().SetInTest("gpu.parallel_collectors", false)
+	check.containerProvider = newMockContainerProvider(t, nil)
+	require.NoError(t, check.Configure(mocksender.CreateDefaultDemultiplexer(), integration.FakeConfigHash, []byte{}, []byte{}, "test", "provider"))
+	t.Cleanup(func() { check.Cancel() })
+
+	pkgconfigsetup.Datadog().SetInTest("gpu.parallel_collectors", true)
+	nvmlMock := testutil.GetBasicNvmlMockWithOptions(
+		testutil.WithMockAllFunctions(),
+		testutil.WithDeviceCount(1),
+		testutil.WithMIGDisabled(),
+	)
+	ddnvml.WithMockNVML(t, nvmlMock)
+
+	started := make(chan struct{})
+	secondStarted := make(chan struct{})
+	releaseFirstCollector := make(chan struct{})
+	deviceUUID := testutil.GPUUUIDs[0]
+	check.collectors = []nvidia.Collector{
+		&mockCollector{
+			name:       "serial-0",
+			deviceUUID: deviceUUID,
+			collectFunc: func() ([]*nvidia.Metric, error) {
+				close(started)
+				select {
+				case <-releaseFirstCollector:
+				case <-time.After(time.Second):
+					return nil, errors.New("collector timed out waiting for release")
+				}
+				return []*nvidia.Metric{
+					{Name: "serial.metric0", Value: 0, Type: ddmetrics.GaugeType},
+				}, nil
+			},
+		},
+		&mockCollector{
+			name:       "serial-1",
+			deviceUUID: deviceUUID,
+			collectFunc: func() ([]*nvidia.Metric, error) {
+				close(secondStarted)
+				return []*nvidia.Metric{
+					{Name: "serial.metric1", Value: 1, Type: ddmetrics.GaugeType},
+				}, nil
+			},
+		},
+	}
+
+	require.NoError(t, check.deviceCache.Refresh())
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- check.emitMetrics(mockSender, nil, time.Now())
+	}()
+
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for first collector to start")
+	}
+
+	select {
+	case err := <-errCh:
+		require.NoError(t, err)
+		t.Fatal("emitMetrics returned before the first collector was released")
+	default:
+	}
+
+	select {
+	case <-secondStarted:
+		t.Fatal("second collector started before the first collector finished")
+	default:
+	}
+
+	close(releaseFirstCollector)
+
+	select {
+	case err := <-errCh:
+		require.NoError(t, err)
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for emitMetrics to finish")
+	}
+}
+
 // mockCollector implements the nvidia.Collector interface for testing
 type mockCollector struct {
-	name       nvidia.CollectorName
-	deviceUUID string
-	metrics    []*nvidia.Metric
+	name        nvidia.CollectorName
+	deviceUUID  string
+	metrics     []*nvidia.Metric
+	collectFunc func() ([]*nvidia.Metric, error)
 }
 
 func (m *mockCollector) Collect() ([]*nvidia.Metric, error) {
+	if m.collectFunc != nil {
+		return m.collectFunc()
+	}
 	return m.metrics, nil
 }
 
