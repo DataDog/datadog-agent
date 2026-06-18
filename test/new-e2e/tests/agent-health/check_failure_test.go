@@ -22,19 +22,6 @@ import (
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 )
 
-// healthPlatformAgentConfig is the shared base agent config; short forwarder interval reduces test latency.
-//
-//go:embed fixtures/agent_config.yaml
-var healthPlatformAgentConfig string
-
-const brokenCheckConf = `init_config:
-instances:
-  - {}
-`
-
-//go:embed fixtures/broken_check.py
-var brokenCheckPy string
-
 //go:embed fixtures/fixed_check.py
 var fixedCheckPy string
 
