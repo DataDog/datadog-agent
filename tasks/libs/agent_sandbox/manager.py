@@ -913,16 +913,22 @@ mark agent_ready_done
         deadline = time.time() + timeout_seconds
         last_output = ""
         while time.time() < deadline:
-            result = subprocess.run(
-                self.agent_command(name, "status"),
-                check=False,
-                text=True,
-                capture_output=True,
-            )
+            try:
+                result = subprocess.run(
+                    self.agent_command(name, "status"),
+                    check=False,
+                    text=True,
+                    capture_output=True,
+                    timeout=20,
+                )
+            except subprocess.TimeoutExpired as e:
+                last_output = f"agent status timed out after {e.timeout}s"
+                time.sleep(2)
+                continue
             if result.returncode == 0:
                 return
             last_output = (result.stdout + result.stderr).strip()
-            time.sleep(5)
+            time.sleep(2)
         raise AgentSandboxError(f"timed out waiting for Agent command port; last output: {last_output}")
 
     def logs_command(self, name: str, lines: int = 200) -> list[str]:
