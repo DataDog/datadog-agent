@@ -221,8 +221,36 @@ pub(crate) fn builtin_host_process_names() -> Vec<String> {
         "Rider",
         "alacritty.exe",
         "mintty.exe",
+        "putty.exe",
+        "kitty.exe",
+        "ttermpro.exe",
+        "cygterm.exe",
+        "tkwinterm.exe",
         "Tabby.exe",
         "Hyper.exe",
+    ])
+}
+
+/// Windows foreground hosts where AttachConsole title correlation is worth trying.
+///
+/// This is intentionally narrower than `builtin_host_process_names`: the broader
+/// host list gates process-tree matching, while this list gates the Windows-only
+/// console title probe that runs near the end of detection.
+#[cfg(windows)]
+pub(crate) fn builtin_console_title_host_process_names() -> Vec<String> {
+    strings(&[
+        "WindowsTerminal.exe",
+        "wt.exe",
+        "cmd.exe",
+        "powershell.exe",
+        "pwsh.exe",
+        "conhost.exe",
+        "mintty.exe",
+        "ttermpro.exe",
+        "Tabby.exe",
+        "Hyper.exe",
+        "alacritty.exe",
+        "wezterm-gui.exe",
     ])
 }
 

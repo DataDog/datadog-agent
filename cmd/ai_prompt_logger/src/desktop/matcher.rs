@@ -182,7 +182,9 @@ fn windows_console_title_matches(
         .filter_map(|process| {
             let tool = ai_candidates.get(&process.pid)?;
             let console_title = process.attached_console_title.as_deref()?;
-            if console_title != foreground_title || !seen_tools.insert(tool.tool.clone()) {
+            if console_title.trim_end() != foreground_title.trim_end()
+                || !seen_tools.insert(tool.tool.clone())
+            {
                 return None;
             }
             Some(detection_from_match(foreground, process, tool))
@@ -1276,6 +1278,23 @@ mod tests {
             )
             .is_none()
         );
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_title_match_ignores_trailing_foreground_padding() {
+        let foreground = process_with_title(10, 1, "mintty.exe", "Claude Code\u{00a0}\u{00a0}");
+        let title_match = with_attached_console_title(process(12, 30, "claude.exe"), "Claude Code");
+
+        let detection = detect_ai_usage(
+            &foreground,
+            &snapshot(vec![foreground.clone(), title_match]),
+            &config(),
+        )
+        .expect("expected title match with trailing padding ignored");
+
+        assert_eq!(detection.tool, "Claude Code");
+        assert_eq!(detection.matched_pid, 12);
     }
 
     #[cfg(windows)]

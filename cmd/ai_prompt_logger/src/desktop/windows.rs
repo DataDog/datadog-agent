@@ -22,19 +22,12 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
 
 use crate::datadog::DesktopMonitoringConfig;
 use crate::desktop::DesktopDetector;
+use crate::desktop::config::builtin_console_title_host_process_names;
 use crate::desktop::matcher::{
     ProcessActivity, ProcessInfo, ProcessSnapshot, find_hosted_ai_process,
 };
 
 const AGENT_SERVICE_NAME: &str = "DatadogAgent";
-const CONSOLE_TITLE_HOST_NAMES: &[&str] = &[
-    "windowsterminal",
-    "wt",
-    "cmd",
-    "powershell",
-    "pwsh",
-    "conhost",
-];
 
 pub struct WindowsDesktopDetector;
 
@@ -362,9 +355,10 @@ fn exe_name_from_path(path: &str) -> Option<String> {
 }
 
 fn is_console_title_host(process: &ProcessInfo) -> bool {
+    let title_host_names = builtin_console_title_host_process_names();
     process_identity_names(process)
         .into_iter()
-        .any(|name| CONSOLE_TITLE_HOST_NAMES.contains(&normalize_process_name(name).as_str()))
+        .any(|name| matches_normalized_name(name, &title_host_names))
 }
 
 fn process_identity_names(process: &ProcessInfo) -> Vec<&str> {
@@ -387,6 +381,13 @@ fn normalize_process_name(name: &str) -> String {
         base_name = stripped.to_string();
     }
     base_name
+}
+
+fn matches_normalized_name(process_name: &str, candidates: &[String]) -> bool {
+    let process_name = normalize_process_name(process_name);
+    candidates
+        .iter()
+        .any(|candidate| process_name == normalize_process_name(candidate))
 }
 
 /// Read the foreground window title text.
