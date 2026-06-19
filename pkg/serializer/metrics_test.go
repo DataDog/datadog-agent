@@ -20,6 +20,8 @@ import (
 	metricscompressionimpl "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/impl"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/serializer/internal/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/compression"
+	implzlib "github.com/DataDog/datadog-agent/pkg/util/compression/impl-zlib"
 	"github.com/DataDog/datadog-agent/pkg/util/testutil"
 )
 
@@ -762,6 +764,36 @@ func TestBuildPipelinesShadowSkippedWhenVectorConfigured(t *testing.T) {
 	pipelines := s.buildPipelinesRng(metricsKindSeries, fixedRand{v: 0})
 	require.Len(t, pipelines, 1, "vector-diverted metrics must not produce a v3beta shadow pipeline")
 
+	for conf, ctx := range pipelines {
+		require.Len(t, ctx.Destinations, 1)
+		dest := ctx.Destinations[0]
+		assert.False(t, conf.V3)
+		assert.Equal(t, endpoints.SeriesEndpoint, dest.Endpoint)
+		assert.Empty(t, dest.ValidationBatchID)
+	}
+}
+
+// TestSeriesV3BetaShadowSuppressedWhenCompressorImplIsZlib covers the shadow analogue of
+// TestSeriesV3ForcedToV2WhenCompressorImplIsZlib: the v3beta shadow sends a v3-format
+// payload, so a zlib compressor must suppress it even when shadow sampling would otherwise
+// fire (rate=1, US1 site, fixedRand below the rate).
+func TestSeriesV3BetaShadowSuppressedWhenCompressorImplIsZlib(t *testing.T) {
+	logger := logmock.New(t)
+	config := configmock.New(t)
+	config.SetWithoutSource("dd_url", "https://app.datadoghq.com")
+	config.SetWithoutSource("api_key", "test_key")
+	config.SetWithoutSource("serializer_experimental_use_v3_api.series.shadow_sample_rate", 1)
+	config.SetWithoutSource("use_v3_api.series.enabled", "false")
+	// Config says zstd, but the injected compressor is zlib, as a zlib-only build would resolve.
+	config.SetWithoutSource("serializer_compressor_kind", "zstd")
+
+	f, err := defaultforwarder.NewTestForwarder(defaultforwarder.Params{}, config, logger, &secretnooptypes.SecretNoop{})
+	require.NoError(t, err)
+	s := NewSerializer(f, nil, implzlib.New(), config, logger, "")
+	require.Equal(t, compression.ZlibEncoding, s.Strategy.ContentEncoding(), "test precondition: compressor must be zlib")
+
+	pipelines := s.buildPipelinesRng(metricsKindSeries, fixedRand{v: 0})
+	require.Len(t, pipelines, 1, "a zlib compressor must suppress the v3beta shadow pipeline")
 	for conf, ctx := range pipelines {
 		require.Len(t, ctx.Destinations, 1)
 		dest := ctx.Destinations[0]
