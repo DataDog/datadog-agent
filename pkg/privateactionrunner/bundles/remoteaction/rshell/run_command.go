@@ -40,11 +40,10 @@ var statFn = os.Stat
 
 // RunCommandHandler implements the runCommand and runRemediationCommand actions.
 //
-// The two actions share all sandboxing logic and differ only in mode: runCommand
-// runs rshell in read-only mode (interp.ModeReadOnly), while runRemediationCommand
-// runs it in remediation mode (interp.ModeRemediation), which additionally permits
-// file-target output redirections (>, >>, 2>, &>, &>>) and write-oriented builtins
-// such as `truncate`, both still confined to the effective AllowedPaths sandbox.
+// The two actions share all sandboxing logic and differ only in mode:
+// - runCommand runs rshell in read-only mode (interp.ModeReadOnly) ;
+// - runRemediationCommand runs it in remediation mode (interp.ModeRemediation)
+// both still confined to the effective AllowedPaths sandbox.
 //
 // Both allow-lists are intersected unconditionally with the per-task backend
 // list before being passed to rshell. They use different equivalence
