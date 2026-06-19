@@ -3254,8 +3254,8 @@ github.com/go-asn1-ber/asn1-ber v1.5.8-0.20250403174932-29230038a667 h1:BP4M0CvQ
 github.com/go-asn1-ber/asn1-ber v1.5.8-0.20250403174932-29230038a667/go.mod h1:hEBeB/ic+5LoWskz+yKT7vGhhPYkProFKoKdwZRWMe0=
 github.com/go-chi/chi v4.1.2+incompatible h1:fGFk2Gmi/YKXk0OmGfBh0WgmN3XB8lVnEyNz34tQRec=
 github.com/go-chi/chi v4.1.2+incompatible/go.mod h1:eB3wogJHnLi3x/kFX2A+IbTBlXxmMeXJVKy9tTv1XzQ=
-github.com/go-delve/delve v1.26.2 h1:YmqVunuA/MLzv6IcW/UnS5aBkAdfB/DBuH9LQpb51JE=
-github.com/go-delve/delve v1.26.2/go.mod h1:Ua/k2AAu4cLrUXGSRVH1b2Nzq2aCK188b9EYlAojlz4=
+github.com/go-delve/delve v1.26.3 h1:uCWPnLLYmVRXLt0yhw305sCi5lQLHzYB2fZ0FB3KLUI=
+github.com/go-delve/delve v1.26.3/go.mod h1:Ua/k2AAu4cLrUXGSRVH1b2Nzq2aCK188b9EYlAojlz4=
 github.com/go-errors/errors v1.5.1 h1:ZwEMSLRCapFLflTpT7NKaAc7ukJ8ZPEjzlxt8rPN8bk=
 github.com/go-errors/errors v1.5.1/go.mod h1:sIVyrIiJhuEF+Pj9Ebtd6P/rEYROXFi3BopGUQ5a5Og=
 github.com/go-fonts/dejavu v0.1.0/go.mod h1:4Wt4I4OU2Nq9asgDCteaAaWZOV24E+0/Pwo0gppep4g=
@@ -5397,8 +5397,8 @@ go.opentelemetry.io/proto/slim/otlp/collector/profiles/v1development v0.3.0 h1:R
 go.opentelemetry.io/proto/slim/otlp/collector/profiles/v1development v0.3.0/go.mod h1:I89cynRj8y+383o7tEQVg2SVA6SRgDVIouWPUVXjx0U=
 go.opentelemetry.io/proto/slim/otlp/profiles/v1development v0.3.0 h1:CQvJSldHRUN6Z8jsUeYv8J0lXRvygALXIzsmAeCcZE0=
 go.opentelemetry.io/proto/slim/otlp/profiles/v1development v0.3.0/go.mod h1:xSQ+mEfJe/GjK1LXEyVOoSI1N9JV9ZI923X5kup43W4=
-go.temporal.io/api v1.62.13 h1:xMa8Nt5oAMX+LvlCJA44wjTCc1H09i2rG9poB1/xvH4=
-go.temporal.io/api v1.62.13/go.mod h1:0k75tRljEuELWGeXjEZZO7zYqBln4+1FrG6+IMOMy7Q=
+go.temporal.io/api v1.62.14 h1:Tree3eqoKRt5Vv+nvYHMPp/ROiGmSOTtFUD9d0w8yJE=
+go.temporal.io/api v1.62.14/go.mod h1:0k75tRljEuELWGeXjEZZO7zYqBln4+1FrG6+IMOMy7Q=
 go.temporal.io/sdk v1.39.0 h1:+rtLK8BtT+0+b0DiSdgeQIFkONrLIUqjNfiIxMPF8VA=
 go.temporal.io/sdk v1.39.0/go.mod h1:ESULA8dXvbPtw53DunYBgZFswk7RB4/8AcVXq5oSe+s=
 go.uber.org/atomic v1.3.2/go.mod h1:gD2HeocX3+yG+ygLZcrzQJaqmWj9AIm7n08wl/qW/PE=
