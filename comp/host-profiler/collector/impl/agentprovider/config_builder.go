@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/params"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/version"
 	"github.com/DataDog/datadog-agent/pkg/util/confmaputils"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type confMap = map[string]any
@@ -173,6 +174,38 @@ func buildMetricsPipeline(conf confMap, enableGoRuntimeMetrics bool, healthMetri
 	metricsPipeline["exporters"] = profilesExporters
 }
 
+// buildCrashPipeline adds a profiles/crash pipeline that receives crash events
+// from the crash receiver, enriches them through the same processor chain as
+// the profiling pipeline, and exports them to the crash exporter.
+func buildCrashPipeline(config confMap, processors []any, agent configManager) {
+	_ = confmaputils.Set(config, "receivers::crash", confMap{})
+
+	var site, apiKey string
+	for _, ep := range agent.endpoints {
+		if len(ep.apiKeys) > 0 {
+			site = ep.site
+			apiKey = ep.apiKeys[0]
+			break
+		}
+	}
+	if site == "" {
+		site = "datadoghq.com"
+	}
+
+	log.Infof("crash pipeline: site=%s, api_key configured=%v", site, apiKey != "")
+
+	_ = confmaputils.Set(config, "exporters::crash", confMap{
+		"site":    site,
+		"api_key": apiKey,
+	})
+
+
+	crashPipeline, _ := confmaputils.Ensure[confMap](config, "service::pipelines::profiles/crash")
+	crashPipeline["receivers"] = []any{"crash"}
+	crashPipeline["processors"] = processors
+	crashPipeline["exporters"] = []any{"crash"}
+}
+
 func buildConfig(agent configManager, p params.CollectorParams) confMap {
 	config := make(confMap)
 
@@ -185,6 +218,8 @@ func buildConfig(agent configManager, p params.CollectorParams) confMap {
 	profilesPipeline["processors"] = profilesProcessors
 	profilesPipeline["exporters"] = profilesExporters
 	profilesPipeline["receivers"] = profilesReceivers
+
+	buildCrashPipeline(config, profilesProcessors, agent)
 
 	buildMetricsTelemetry(config, agent.hostProfilerConfig.HealthMetrics)
 	buildMetricsPipeline(config, p.GetGoRuntimeMetrics(), agent.hostProfilerConfig.HealthMetrics, profilesProcessors, profilesExporters)

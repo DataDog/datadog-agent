@@ -456,6 +456,7 @@ use_repo(
     "io_opentelemetry_go_collector_exporter_nopexporter",
     "io_opentelemetry_go_collector_exporter_otlpexporter",
     "io_opentelemetry_go_collector_exporter_otlphttpexporter",
+    "io_opentelemetry_go_collector_exporter_xexporter",
     "io_opentelemetry_go_collector_extension",
     "io_opentelemetry_go_collector_extension_extensioncapabilities",
     "io_opentelemetry_go_collector_extension_zpagesextension",

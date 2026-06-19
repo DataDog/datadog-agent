@@ -16,21 +16,32 @@ import (
 	"go.opentelemetry.io/collector/receiver"
 	"go.opentelemetry.io/collector/receiver/xreceiver"
 	ebpfcollector "go.opentelemetry.io/ebpf-profiler/collector"
+	"go.opentelemetry.io/ebpf-profiler/reporter"
 )
 
-// NewFactory creates a factory for the receiver.
-func NewFactory(profilerName string) receiver.Factory {
+// NewFactory creates a factory for the profiling receiver.
+// crash is optional: when provided, crash-origin events are routed to it
+// instead of the regular batch reporter.
+func NewFactory(profilerName string, crash reporter.Reporter) receiver.Factory {
 	return xreceiver.NewFactory(
 		component.MustNewType("profiling"),
 		func() component.Config { return defaultConfig(profilerName) },
-		xreceiver.WithProfiles(createProfilesReceiver, component.StabilityLevelAlpha))
+		xreceiver.WithProfiles(makeCreateFunc(crash), component.StabilityLevelAlpha))
+}
+
+func makeCreateFunc(crash reporter.Reporter) xreceiver.CreateProfilesFunc {
+	return func(ctx context.Context, rs receiver.Settings, baseCfg component.Config, nextConsumer xconsumer.Profiles) (xreceiver.Profiles, error) {
+		return createProfilesReceiver(ctx, rs, baseCfg, nextConsumer, crash)
+	}
 }
 
 func createProfilesReceiver(
 	ctx context.Context,
 	rs receiver.Settings,
 	baseCfg component.Config,
-	nextConsumer xconsumer.Profiles) (xreceiver.Profiles, error) {
+	nextConsumer xconsumer.Profiles,
+	crash reporter.Reporter,
+) (xreceiver.Profiles, error) {
 	logger := rs.Logger
 	config, ok := baseCfg.(Config)
 	if !ok {
@@ -39,23 +50,21 @@ func createProfilesReceiver(
 
 	logger.Info("Enabled tracers: " + config.EbpfCollectorConfig.Tracers)
 
-	var createProfiles xreceiver.CreateProfilesFunc
+	opts := []ebpfcollector.Option{}
 	if config.SymbolUploader.Enabled {
 		executableReporter, err := newExecutableReporter(&config.SymbolUploader, logger)
 		if err != nil {
 			return nil, err
 		}
-
-		createProfiles = ebpfcollector.BuildProfilesReceiver(
+		opts = append(opts,
 			ebpfcollector.WithExecutableReporter(executableReporter),
 			ebpfcollector.WithOnShutdown(executableReporter.Stop))
-	} else {
-		createProfiles = ebpfcollector.BuildProfilesReceiver()
+	}
+	if crash != nil {
+		opts = append(opts, WithCrashReporter(crash))
+		config.EbpfCollectorConfig.CrashTracing = true
+		logger.Info("Crash tracing enabled: OOM kills and fatal signals will be captured")
 	}
 
-	return createProfiles(
-		ctx,
-		rs,
-		config.EbpfCollectorConfig,
-		nextConsumer)
+	return ebpfcollector.BuildProfilesReceiver(opts...)(ctx, rs, config.EbpfCollectorConfig, nextConsumer)
 }
