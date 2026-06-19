@@ -962,6 +962,12 @@ func TestUpdateFromPodAutoscalerResyncsOnWatchedMetadata(t *testing.T) {
 	dpa.Annotations["unrelated"] = "x"
 	pai.UpdateFromPodAutoscaler(dpa)
 	assert.True(t, pai.IsBurstable())
+
+	// A tags annotation-only edit (no generation bump) must refresh the cached upstream CR.
+	dpa.Annotations["ad.datadoghq.com/tags"] = `{"team":"foo"}`
+	pai.UpdateFromPodAutoscaler(dpa)
+	assert.Equal(t, `{"team":"foo"}`, pai.UpstreamCR().Annotations["ad.datadoghq.com/tags"],
+		"ad.datadoghq.com/tags edit must be picked up without a generation bump")
 }
 
 // TestSetActiveScalingValues_NilSource_ClearsVertical verifies that a nil verticalActiveSource
