@@ -416,8 +416,10 @@ type anomalyScorer struct {
 	stateGauge telemetry.Gauge // may be nil; set on severity transitions
 
 	// Episode tracking (guarded by mu; only active when correlationEvents is true).
-	openEpisode    *observerdef.ActiveCorrelation  // currently open High period (nil when Low/Medium)
-	closedEpisodes []observerdef.ActiveCorrelation // episodes closed since last ActiveCorrelations drain
+	// openEpisode is the currently open High-severity period; nil when Low/Medium.
+	// Closed episodes are no longer buffered here — they are emitted as EpisodeEnded
+	// CorrelatorEvents via PendingEvents() and accumulated by the engine from there.
+	openEpisode *observerdef.ActiveCorrelation
 
 	// pendingEvents holds lifecycle events (EpisodeStarted/EpisodeEnded) produced
 	// during the last Advance cycle. Drained once by the engine via PendingEvents().
@@ -532,7 +534,6 @@ func (s *anomalyScorer) OnSeverityTransition(evt observerdef.SeverityEvent) {
 		} else if evt.FromLevel == observerdef.SeverityHigh && s.openEpisode != nil {
 			ep := *s.openEpisode
 			ep.LastUpdated = evt.Timestamp
-			s.closedEpisodes = append(s.closedEpisodes, ep)
 			s.openEpisode = nil
 			s.pendingEvents = append(s.pendingEvents, observerdef.CorrelatorEvent{
 				Kind:           observerdef.CorrelatorEventEpisodeEnded,
@@ -581,13 +582,6 @@ func (s *anomalyScorer) ProcessAnomaly(a observerdef.Anomaly) {
 // advanced and may call its listener on resulting transitions.
 func (s *anomalyScorer) Advance(dataTime int64) {
 	s.mu.Lock()
-
-	// Drain closed episodes from the previous advance cycle.
-	// They were already visible via ActiveCorrelations() for a full cycle, and
-	// the engine has already accumulated them before calling Advance. Draining
-	// here (rather than in ActiveCorrelations) makes ActiveCorrelations
-	// snapshot-safe: multiple reads between advances return consistent data.
-	s.closedEpisodes = s.closedEpisodes[:0]
 
 	start := s.lastAdvancedSec + 1
 	if s.lastAdvancedSec == 0 {
@@ -654,11 +648,10 @@ func (s *anomalyScorer) PendingEvents() []observerdef.CorrelatorEvent {
 	return evts
 }
 
-// ActiveCorrelations returns closed High-severity episodes and the currently open
-// episode (if any) when correlation events are enabled.
-// Safe to call multiple times between Advance calls — closed episodes are
-// drained at the start of the next Advance, not here.
-// Returns nil when correlationEvents is false.
+// ActiveCorrelations returns the currently open High-severity episode (if any).
+// Closed episodes are no longer buffered here; they are emitted as EpisodeEnded
+// events via PendingEvents() and accumulated by the engine from there.
+// Returns nil when correlationEvents is false or no episode is open.
 func (s *anomalyScorer) ActiveCorrelations() []observerdef.ActiveCorrelation {
 	if !s.config.CorrelationEvents {
 		return nil
@@ -666,14 +659,10 @@ func (s *anomalyScorer) ActiveCorrelations() []observerdef.ActiveCorrelation {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	var result []observerdef.ActiveCorrelation
-	result = append(result, s.closedEpisodes...)
-
-	// Include the currently open episode (if any).
-	if s.openEpisode != nil {
-		result = append(result, *s.openEpisode)
+	if s.openEpisode == nil {
+		return nil
 	}
-	return result
+	return []observerdef.ActiveCorrelation{*s.openEpisode}
 }
 
 // Reset clears all internal EWMA/window state and resets every subscription's
@@ -687,7 +676,6 @@ func (s *anomalyScorer) Reset() {
 	s.lastAdvancedSec = 0
 	s.buckets = nil
 	s.openEpisode = nil
-	s.closedEpisodes = nil
 	s.pendingEvents = nil
 	s.mu.Unlock()
 

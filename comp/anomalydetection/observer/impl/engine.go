@@ -554,13 +554,27 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []obse
 	// Advance correlators and collect pending events.
 	// accumulateCorrelations is called only in testbench mode (trackCorrelationHistory=true)
 	// to avoid map writes + eviction scans on every live Advance.
+	//
+	// Two accumulation paths:
+	//  1. ActiveCorrelations() before Advance — captures currently-open episodes and
+	//     live cluster state (works for all correlators including the scorer's open episode).
+	//  2. EpisodeStarted/EpisodeEnded PendingEvents after Advance — captures scorer
+	//     episodes that closed during this tick (closedEpisodes no longer buffered in scorer).
 	var allCorrelatorEvents []observerdef.CorrelatorEvent
 	for _, correlator := range correlators {
 		if e.trackCorrelationHistory {
 			e.accumulateCorrelations(correlator.ActiveCorrelations())
 		}
 		correlator.Advance(upTo)
-		allCorrelatorEvents = append(allCorrelatorEvents, correlator.PendingEvents()...)
+		evts := correlator.PendingEvents()
+		if e.trackCorrelationHistory {
+			for _, ce := range evts {
+				if ce.Kind == observerdef.CorrelatorEventEpisodeStarted || ce.Kind == observerdef.CorrelatorEventEpisodeEnded {
+					e.accumulateCorrelations([]observerdef.ActiveCorrelation{ce.Correlation})
+				}
+			}
+		}
+		allCorrelatorEvents = append(allCorrelatorEvents, evts...)
 		e.emit(engineEvent{
 			kind:      eventCorrelationUpdated,
 			timestamp: upTo,
