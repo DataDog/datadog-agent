@@ -19,11 +19,8 @@ type serviceInitFunc func() (err error)
 
 // Servicedef defines a service
 type Servicedef struct {
-	name       string
-	configKeys map[string]model.Reader
-	// suppressIf: when non-nil and returns true, the service is not started even when configKeys match.
-	// Used for datadog-otel-agent: suppress SCM start when OCI DDOT processes.d YAML exists and the
-	// process manager is enabled (otherwise a stale file could block SCM otel after disabling procmgr).
+	name           string
+	configKeys     map[string]model.Reader
 	suppressIf     func() bool
 	shouldShutdown bool
 
@@ -238,10 +235,8 @@ func stopDependentServices(coreConf model.Reader, sysprobeConf model.Reader) {
 
 const ddotProcmgrProcessDefinitionFile = "datadog-agent-ddot.yaml"
 
-// ddotProcmgrProcessDefinitionExists reports whether dd-procmgr is configured to supervise DDOT via
-// processes.d (fleet OCI extension layout). When this file is absent, the host still relies on the
-// datadog-otel-agent Windows service started by the Agent. The agent suppresses starting that SCM
-// service when this file exists and process_manager.enabled is true.
+// True if the fleet DDOT processes.d definition exists (dd-procmgr supervises DDOT). With
+// process_manager.enabled, the Agent skips starting the datadog-otel-agent Windows service.
 func ddotProcmgrProcessDefinitionExists() bool {
 	installPath, err := winutil.GetProgramFilesDirForProduct("Datadog Agent")
 	if err != nil || installPath == "" {
