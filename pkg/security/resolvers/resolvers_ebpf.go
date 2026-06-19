@@ -11,6 +11,7 @@ package resolvers
 import (
 	"context"
 	"fmt"
+	"io"
 	"sort"
 
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
@@ -21,6 +22,7 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/erpc"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
@@ -67,6 +69,7 @@ type EBPFResolvers struct {
 	SignatureResolver    *sign.Resolver
 
 	SnapshotUsingListmount bool
+	networkEnabled         bool
 }
 
 // NewEBPFResolvers creates a new instance of EBPFResolvers
@@ -218,6 +221,7 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 		FileMetadataResolver:   fileMetadataResolver,
 		SnapshotUsingListmount: config.Probe.SnapshotUsingListmount,
 		SignatureResolver:      sign.NewSignatureResolver(),
+		networkEnabled:         config.Probe.NetworkEnabled,
 	}
 
 	return resolvers, nil
@@ -319,7 +323,42 @@ func (r *EBPFResolvers) snapshot() error {
 		r.ProcessResolver.SyncCache(proc)
 	}
 
+	// Populate the flow_pid map for sockets that pre-existed the probe load.
+	r.snapshotFlowPid()
+
 	return nil
+}
+
+// snapshotFlowPid populates the flow_pid eBPF map so that packets of sockets that
+// existed before the probe was started can still be attributed to their owning
+// process. Without it, such packets have no PID attribution.
+// (only works on kernel versions >= 5.11)
+func (r *EBPFResolvers) snapshotFlowPid() {
+	if !r.networkEnabled {
+		return
+	}
+
+	p, ok := r.manager.GetProbe(manager.ProbeIdentificationPair{
+		UID:          probes.SecurityAgentUID,
+		EBPFFuncName: probes.TaskFileIterResolveFlowPidFunc,
+	})
+	if !ok {
+		// the file iterator eBPF program is expected to be unavailable on kernel versions earlier than 5.11
+		return
+	}
+
+	it, err := p.Iterator()
+	if err != nil {
+		seclog.Errorf("couldn't create flow_pid snapshot iterator: %v", err)
+		return
+	}
+	defer it.Close()
+
+	// Reading the iterator to completion runs the eBPF program over every
+	// (task, fd, file) tuple; the return payload itself is empty.
+	if _, err := io.ReadAll(it); err != nil {
+		seclog.Errorf("couldn't run flow_pid snapshot iterator: %v", err)
+	}
 }
 
 // Close cleans up any underlying resolver that requires a cleanup

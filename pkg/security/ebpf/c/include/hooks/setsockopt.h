@@ -1,6 +1,7 @@
 #ifndef _HOOKS_SETSOCKOPT_H_
 #define _HOOKS_SETSOCKOPT_H_
 
+#include "constants/offsets/network.h"
 #include "constants/syscall_macro.h"
 #include "helpers/syscalls.h"
 #include "helpers/process.h"
