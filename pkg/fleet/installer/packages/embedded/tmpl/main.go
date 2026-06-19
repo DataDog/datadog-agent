@@ -78,11 +78,12 @@ type embeddedLayout struct {
 }
 
 func writeFileMap(root, subdir string, files map[string][]byte) error {
+	subdirPath := filepath.Join(root, subdir)
+	if err := os.MkdirAll(subdirPath, 0755); err != nil {
+		return fmt.Errorf("failed to create directory %s: %w", subdirPath, err)
+	}
 	for name, content := range files {
-		path := filepath.Join(root, subdir, name)
-		if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
-			return fmt.Errorf("failed to create directory for %s: %w", name, err)
-		}
+		path := filepath.Join(subdirPath, name)
 		if err := os.WriteFile(path, content, 0644); err != nil {
 			return fmt.Errorf("failed to write %s: %w", path, err)
 		}
