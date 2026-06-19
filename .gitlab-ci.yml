@@ -25,6 +25,7 @@
 .windows_path:
   &windows_path # Windows-specific Go source files (by filename convention)
   - "**/*_windows.go"
+  - "**/*_windows_test.go"
 
   # Windows-specific packages in pkg/
   - pkg/util/winutil/**/*
