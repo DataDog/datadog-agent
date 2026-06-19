@@ -38,6 +38,7 @@ go_test(
         "//comp/core/hostname/hostnameinterface/def",
         "//comp/core/log/mock",
         "//comp/core/telemetry/mock",
+        "//comp/healthplatform/store/def",
         "@com_github_datadog_agent_payload_v5//healthplatform",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
