@@ -115,23 +115,11 @@ func (n *networkDeviceConfigImpl) ReportConfigWithSender(ctx context.Context, de
 	device := dc.device
 	sender := ncmsender.NewNCMSender(baseSender, device.Namespace, n.clock, n.hostname)
 
-	conn, err := n.connect(device)
+	conn, err := n.connectAndEnsureProfile(ctx, dc)
 	if err != nil {
-		log.Errorf("unable to connect to device: %s", err)
 		return err
 	}
 	defer conn.Close()
-
-	if dc.profile == nil {
-		log.Debug("No profile specified, testing known profiles")
-		prof, ok := n.findMatchingProfile(ctx, conn)
-		if !ok {
-			dc.noMatchingProfile = true
-			return fmt.Errorf("no matching NCM profile for device %s", deviceID)
-		}
-		dc.profile = prof
-	}
-	log.Debugf("Using profile %q", dc.profile.Name)
 
 	// Update the remote client's device profile to access the correct commands
 	conn.SetProfile(dc.profile)
@@ -224,10 +212,6 @@ func (n *networkDeviceConfigImpl) RollbackConfig(ctx context.Context, deviceID s
 	// same time they won't collide.
 	dc.Lock()
 	defer dc.Unlock()
-	profile := dc.GetExplicitProfile()
-	if profile == nil {
-		return fmt.Errorf("no NCM profile configured for device %s", deviceID)
-	}
 
 	rawConfig, metadata, err := n.store.GetConfig(configVersion)
 	if err != nil {
@@ -242,12 +226,11 @@ func (n *networkDeviceConfigImpl) RollbackConfig(ctx context.Context, deviceID s
 		return fmt.Errorf("hash mismatch for config %q", configVersion)
 	}
 
-	conn, err := n.connect(dc.device)
+	conn, err := n.connectAndEnsureProfile(ctx, dc)
 	if err != nil {
 		return fmt.Errorf("%v: %w", deviceID, err)
 	}
 	defer conn.Close()
-	conn.SetProfile(profile)
 
 	err = conn.PushConfig(ctx, rawConfig)
 	if err != nil {
@@ -257,6 +240,29 @@ func (n *networkDeviceConfigImpl) RollbackConfig(ctx context.Context, deviceID s
 	// TODO if this fails we should still return success so that the user knows
 	// the rollback itself happened.
 	return n.ReportConfig(ctx, deviceID)
+}
+
+// connectAndEnsureProfile connects to dc.device and sets the profile on the connection, calling findMatchingProfile if dc.profile is not yet set.
+func (n *networkDeviceConfigImpl) connectAndEnsureProfile(ctx context.Context, dc *DeviceContext) (ncmremote.Connection, error) {
+	log := LoggerFromContext(ctx)
+	conn, err := n.connect(dc.device)
+	if err != nil {
+		log.Errorf("unable to connect to device: %s", err)
+		return nil, err
+	}
+	if dc.profile == nil {
+		log.Debug("No profile specified, testing known profiles")
+		prof, ok := n.findMatchingProfile(ctx, conn)
+		if !ok {
+			dc.noMatchingProfile = true
+			_ = conn.Close()
+			return nil, fmt.Errorf("no matching NCM profile for device %s", dc.device.DeviceID())
+		}
+		dc.profile = prof
+	}
+	conn.SetProfile(dc.profile)
+	log.Debugf("Using profile %q", dc.profile.Name)
+	return conn, nil
 }
 
 // findMatchingProfile tests each profile until one is successful.
