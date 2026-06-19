@@ -15,23 +15,41 @@ import (
 
 // sketchData implements metrics.SketchData from reader-provided sketch columns and summary.
 type sketchData struct {
+	ts                 int64
 	k                  []int32
 	n                  []uint32
 	cnt                int64
 	min, max, sum, avg float64
 }
 
-func (s *sketchData) Cols() ([]int32, []uint32) {
-	return s.k, s.n
+type dogstatsdSketchSeries struct {
+	metrics.SketchMetadata
+	Points []sketchData
 }
 
-func (s *sketchData) BasicStats() (int64, float64, float64, float64, float64) {
-	return s.cnt, s.min, s.max, s.sum, s.avg
+// GetName returns the metric name.
+func (s *dogstatsdSketchSeries) GetName() string {
+	return s.Name
+}
+
+// WriteTo emits the buffered points to the writer's DDSketch flavor. May be
+// called multiple times on the same value; iteration always starts over.
+func (s *dogstatsdSketchSeries) WriteTo(w metrics.DistributionWriter) error {
+	dd, err := w.WriteDDSketch(s.SketchMetadata)
+	if err != nil {
+		return err
+	}
+	for _, p := range s.Points {
+		if err := dd.WriteDDSketchPoint(p.ts, p.cnt, p.min, p.max, p.sum, p.avg, p.k, p.n); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 type sketchIterator struct {
 	iteratorCommon
-	buffer metrics.SketchSeries
+	buffer dogstatsdSketchSeries
 }
 
 func newSketchIterator(payload *pb.Payload, origin origin, hostname string) (*sketchIterator, error) {
@@ -92,9 +110,9 @@ func (it *sketchIterator) MoveNext() bool {
 		if cnt > 0 {
 			avg = sum / float64(cnt)
 		}
-		b.Points = append(b.Points, metrics.SketchPoint{
-			Ts: it.reader.Timestamp(),
-			Sketch: &sketchData{
+		b.Points = append(b.Points,
+			sketchData{
+				ts:  it.reader.Timestamp(),
 				k:   k,
 				n:   n,
 				cnt: int64(cnt),
@@ -102,15 +120,14 @@ func (it *sketchIterator) MoveNext() bool {
 				max: max,
 				sum: sum,
 				avg: avg,
-			},
-		})
+			})
 	}
 
 	return true
 }
 
 // Current returns the internal sketch series buffer, populated by MoveNext.
-func (it *sketchIterator) Current() *metrics.SketchSeries {
+func (it *sketchIterator) Current() metrics.Distribution {
 	return &it.buffer
 }
 
