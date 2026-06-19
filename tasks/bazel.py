@@ -271,7 +271,7 @@ def _bazel_covered_packages_from_bep(bep_path: Path) -> BazelCoverage:
                 # BINDIR is "bazel-out/<config-mnemonic>/bin"; testlogs lives
                 # alongside as "bazel-out/<config-mnemonic>/testlogs".
                 if bindir.endswith("/bin"):
-                    config_testlogs[cfg_id] = bindir[: -len("/bin")] + "/testlogs"
+                    config_testlogs[cfg_id] = bindir.removesuffix("/bin") + "/testlogs"
             elif "targetConfigured" in eid:
                 label = eid["targetConfigured"].get("label", "")
                 cfg = event.get("configured", {})
@@ -409,28 +409,31 @@ def ensure_test_parity(ctx, bep, flavor_name=None, verbose=False, emit_metrics=F
     for flavor in flavors:
         tags = compute_build_tags_for_flavor("unit-tests", None, None, flavor)
         test_pkgs = _go_test_packages(tags)
-        # Copy so the .discard() below doesn't mutate the coverage set.
-        bazel_pkgs = set(coverage.dd_covered.get(flavor.name, set()))
-        test_count = 0
-        for import_path, test_files in sorted(test_pkgs.items()):
-            funcs = _test_funcs(test_files)
-            if import_path in bazel_pkgs:
-                bazel_pkgs.discard(import_path)
+        bazel_covered = coverage.dd_covered.get(flavor.name, set())
+        go_pkgs = set(test_pkgs)
+        missing_from_bazel = go_pkgs - bazel_covered
+        extra_in_bazel = bazel_covered - go_pkgs
+
+        if verbose or emit_metrics:
+            test_count = 0
+            for import_path in sorted(go_pkgs & bazel_covered):
+                funcs = _test_funcs(test_pkgs[import_path])
                 test_count += len(funcs)
                 if verbose:
                     print(f"[PASS] {import_path} [{flavor.name}] ({len(funcs)} tests)")
-            else:
-                sample = ", ".join(sorted(funcs)[:3])
-                suffix = ", ..." if len(funcs) > 3 else ""
-                print(f"[FAIL] {import_path} [{flavor.name}] -- no Bazel target ({len(funcs)}: {sample}{suffix})")
-                for reason in coverage.dd_rejections.get((flavor.name, import_path), []):
-                    print(f"       Bazel: {reason}")
-                failed = True
-        for import_path in sorted(bazel_pkgs):
+            if emit_metrics:
+                _emit_test_count_metric(flavor.name, test_count)
+        for import_path in sorted(missing_from_bazel):
+            funcs = _test_funcs(test_pkgs[import_path])
+            sample = ", ".join(sorted(funcs)[:3])
+            suffix = ", ..." if len(funcs) > 3 else ""
+            print(f"[FAIL] {import_path} [{flavor.name}] -- no Bazel target ({len(funcs)}: {sample}{suffix})")
+            for reason in coverage.dd_rejections.get((flavor.name, import_path), []):
+                print(f"       Bazel: {reason}")
+        for import_path in sorted(extra_in_bazel):
             print(f"[FAIL] {import_path} [{flavor.name}] -- Bazel target exists but no matching dda inv test package")
+        if missing_from_bazel or extra_in_bazel:
             failed = True
-        if emit_metrics:
-            _emit_test_count_metric(flavor.name, test_count)
 
     if failed:
         sys.exit(1)
