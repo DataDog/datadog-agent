@@ -7,27 +7,15 @@ package listeners
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
-
-// Checks activated from configuration state (avoid double work to activate it for users)
-var sysProbeConfigChecks = []struct {
-	adIdentifier string
-	configKey    string
-}{
-	{adIdentifier: "_oom_kill", configKey: "system_probe_config.enable_oom_kill"},
-	{adIdentifier: "_tcp_queue_length", configKey: "system_probe_config.enable_tcp_queue_length"},
-}
 
 // EnvironmentListener implements a ServiceListener based on current environment
 type EnvironmentListener struct {
-	newService     chan<- Service
-	sysProbeConfig option.Option[sysprobeconfig.Component]
+	newService chan<- Service
 }
 
 // EnvironmentService represents services generated from EnvironmentListener
@@ -39,8 +27,8 @@ type EnvironmentService struct {
 var _ Service = &EnvironmentService{}
 
 // NewEnvironmentListener creates an EnvironmentListener
-func NewEnvironmentListener(deps ServiceListernerDeps) (ServiceListener, error) {
-	return &EnvironmentListener{sysProbeConfig: deps.SysProbeConfig}, nil
+func NewEnvironmentListener(ServiceListernerDeps) (ServiceListener, error) {
+	return &EnvironmentListener{}, nil
 }
 
 // Listen starts the goroutine to detect checks based on environment
@@ -80,16 +68,6 @@ func (l *EnvironmentListener) createServices() {
 	if env.IsAnyContainerFeaturePresent() {
 		log.Infof("Listener created container service from environment")
 		l.newService <- &EnvironmentService{adIdentifier: "_container"}
-	}
-
-	// Handle checks auto-activated from system-probe configuration state.
-	if sysProbeConfig, ok := l.sysProbeConfig.Get(); ok {
-		for _, check := range sysProbeConfigChecks {
-			if sysProbeConfig.GetBool(check.configKey) {
-				log.Infof("Listener created %s service from system-probe configuration", check.adIdentifier)
-				l.newService <- &EnvironmentService{adIdentifier: check.adIdentifier}
-			}
-		}
 	}
 }
 
