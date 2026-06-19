@@ -48,8 +48,8 @@ LABEL maintainer="Datadog <package@datadoghq.com>"
 ENV DEBIAN_FRONTEND=noninteractive
 # make sure we have recent dependencies -- CVE-fixing time!
 RUN apt update && \
-    apt full-upgrade -y && \
-    apt install -y tzdata ca-certificates adduser && \
+    apt full-upgrade --no-install-recommends -y && \
+    apt install --no-install-recommends -y tzdata ca-certificates adduser && \
     apt clean && \
     rm -rf /var/lib/apt/lists/*
 
