@@ -38,7 +38,7 @@ func kueueResourceFlavorGVRStrings() []string {
 	}
 }
 
-func shouldHaveKueueQueueStores(cfg config.Reader) bool {
+func shouldHaveKueueMetadata(cfg config.Reader) bool {
 	return cfg.GetBool("cluster_agent.kueue.enabled")
 }
 

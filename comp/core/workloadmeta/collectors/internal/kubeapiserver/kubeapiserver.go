@@ -264,7 +264,7 @@ func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Componen
 		go reflector.Run(ctx.Done())
 	}
 
-	if shouldHaveKueueQueueStores(c.config) {
+	if shouldHaveKueueMetadata(c.config) {
 		gvrs, err := getGVRsForRequestedResources(client.Discovery(), kueueQueueGVRStrings())
 		if err != nil {
 			log.Errorf("failed to discover Kueue queue resources: %v", err)
