@@ -604,12 +604,12 @@ func (rs *RuleSet) PopulateFieldsWithRuleActionsData(policyRules []*PolicyRule, 
 				variable.SetVariableOpts(opts)
 
 				if existingVariable := rs.evalOpts.VariableStore.Get(varName); existingVariable != nil && reflect.TypeOf(variable) != reflect.TypeOf(existingVariable) {
-					errs = appendRuleLoadError(errs, rule, fmt.Errorf("%w: conflicting types for variable '%s': %s != %s", ErrVariableConflict, varName, reflect.TypeOf(variable), reflect.TypeOf(existingVariable)))
+					errs = appendRuleLoadError(errs, rule, fmt.Errorf("conflicting types for variable '%s': %s != %s", varName, reflect.TypeOf(variable), reflect.TypeOf(existingVariable)))
 					continue
 				}
 
 				if existingVariable := rs.evalOpts.VariableStore.Get(varName); existingVariable != nil && existingVariable.GetVariableOpts().Private != variable.GetVariableOpts().Private {
-					errs = appendRuleLoadError(errs, rule, fmt.Errorf("%w: conflicting private flag for variable '%s'", ErrVariableConflict, varName))
+					errs = appendRuleLoadError(errs, rule, fmt.Errorf("conflicting private flag for variable '%s'", varName))
 					continue
 				}
 
