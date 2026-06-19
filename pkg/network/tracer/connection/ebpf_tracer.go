@@ -234,8 +234,7 @@ func newEbpfTracer(config *config.Config, _ telemetryComponent.Component) (Trace
 	if err == nil {
 		log.Info("sk tracer loaded successfully")
 	} else if !errors.Is(err, sk.ErrorDisabled) {
-		// failed to load sk tracer
-		return nil, err
+		return nil, fmt.Errorf("sk tracer failed to load: %w", err)
 	}
 
 	if err != nil {
@@ -251,12 +250,9 @@ func newEbpfTracer(config *config.Config, _ telemetryComponent.Component) (Trace
 
 		tracerType = TracerTypeFentry
 		m, closeTracerFn, err = fentry.LoadTracer(config, mgrOptions, connCloseEventHandler)
-		switch {
-		case err == nil:
+		if err == nil {
 			log.Info("fentry tracer loaded successfully")
-		case errors.Is(err, fentry.ErrorDisabled):
-			// fentry not enabled — fall through to kprobe
-		default:
+		} else if !errors.Is(err, fentry.ErrorDisabled) {
 			return nil, fmt.Errorf("fentry tracer failed to load: %w", err)
 		}
 
@@ -264,7 +260,7 @@ func newEbpfTracer(config *config.Config, _ telemetryComponent.Component) (Trace
 			var kprobeTracerType kprobe.TracerType
 			m, closeTracerFn, kprobeTracerType, err = kprobe.LoadTracer(config, mgrOptions, connCloseEventHandler)
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("kprobe tracer failed to load: %w", err)
 			}
 			tracerType = TracerType(kprobeTracerType)
 			log.Info("kprobe tracer loaded successfully")
