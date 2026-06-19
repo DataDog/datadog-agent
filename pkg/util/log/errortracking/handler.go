@@ -19,6 +19,13 @@ import (
 // between runtime.Callers and the user call site.
 const stackSearchBuf = MaxStackFrames + 16
 
+// stackPCsAttrKey is the slog attribute key used by SyncCapture to carry
+// stack PCs captured in the emitting goroutine across an async handler
+// boundary. Handler.Handle reads this attr before falling back to
+// runtime.Callers so full-stack dedup is preserved even when the handler
+// runs in an async worker goroutine.
+const stackPCsAttrKey = "errortracking.pcs"
+
 var _ slog.Handler = (*Handler)(nil)
 
 // Handler is an slog.Handler that captures records at level >= Error and
@@ -121,28 +128,42 @@ func (h *Handler) Handle(_ context.Context, r slog.Record) error {
 		return nil
 	}
 
-	// Capture the full goroutine stack and anchor the slice at r.PC —
-	// the call-site PC already computed by the caller (slog or the
-	// pkg/util/log Wrapper). This is correct regardless of how many
-	// wrapper frames sit between user code and Handle, whereas a fixed
-	// skip would land inside the wrapper internals when the path goes
-	// through pkg/util/log.Error → Wrapper → Handler.Handle.
-	var buf [stackSearchBuf]uintptr
-	n := runtime.Callers(1, buf[:]) // skip runtime.Callers itself
+	// Capture the full call stack anchored at r.PC.
+	//
+	// Preferred path: read PCs pre-captured by a SyncCapture wrapper that
+	// ran synchronously in the emitting goroutine before any async
+	// dispatch. Present when the wiring layer uses NewSyncCapture.
+	//
+	// Fallback path: call runtime.Callers here. Correct only when Handle
+	// is called synchronously in the emitting goroutine (i.e. the handler
+	// is NOT behind handlers.NewAsync or any other async boundary).
 	var pcs [MaxStackFrames]uintptr
 	var pcsLen int
-	for i := 0; i < n; i++ {
-		if buf[i] == r.PC {
-			pcsLen = copy(pcs[:], buf[i:n])
-			break
+	r.Attrs(func(a slog.Attr) bool {
+		if a.Key == stackPCsAttrKey {
+			if captured, ok := a.Value.Any().([]uintptr); ok {
+				pcsLen = copy(pcs[:], captured)
+			}
+			return false
 		}
-	}
-	if pcsLen == 0 && r.PC != 0 {
-		// r.PC not found in the captured slice (e.g. synthetic record
-		// in tests): store it alone so downstream consumers always
-		// have at least a valid call-site frame.
-		pcs[0] = r.PC
-		pcsLen = 1
+		return true
+	})
+	if pcsLen == 0 {
+		var buf [stackSearchBuf]uintptr
+		n := runtime.Callers(1, buf[:]) // skip runtime.Callers itself
+		for i := 0; i < n; i++ {
+			if buf[i] == r.PC {
+				pcsLen = copy(pcs[:], buf[i:n])
+				break
+			}
+		}
+		if pcsLen == 0 && r.PC != 0 {
+			// r.PC not found in the captured slice (async path or
+			// synthetic record): store it alone so downstream consumers
+			// always have at least a valid call-site frame.
+			pcs[0] = r.PC
+			pcsLen = 1
+		}
 	}
 
 	var count uint32
@@ -212,6 +233,66 @@ func hashPCs(pcs []uintptr) uint64 {
 		h.Write(buf[:])
 	}
 	return h.Sum64()
+}
+
+// SyncCapture wraps any slog.Handler and pre-captures the goroutine's full
+// call stack in the emitting goroutine before forwarding the record to the
+// inner handler. This solves the async-boundary problem: when the inner
+// handler is dispatched by an async worker goroutine, runtime.Callers can
+// no longer see the original caller's frames. SyncCapture must be placed in
+// the synchronous layer of the logger chain (before handlers.NewAsync or any
+// other async wrapper) so that Handle is called in the same goroutine that
+// emitted the log record.
+//
+// Handler.Handle reads the pre-captured PCs from the stackPCsAttrKey slog
+// attribute added by SyncCapture.Handle, bypassing its own runtime.Callers
+// call when the attr is present.
+type SyncCapture struct {
+	inner slog.Handler
+}
+
+var _ slog.Handler = (*SyncCapture)(nil)
+
+// NewSyncCapture returns a SyncCapture that wraps inner. Install the returned
+// handler in the synchronous layer of the logger chain so it is always called
+// from the emitting goroutine.
+func NewSyncCapture(inner slog.Handler) *SyncCapture {
+	return &SyncCapture{inner: inner}
+}
+
+// Enabled delegates to the inner handler.
+func (s *SyncCapture) Enabled(ctx context.Context, level slog.Level) bool {
+	return s.inner.Enabled(ctx, level)
+}
+
+// Handle captures the current goroutine's call stack anchored at r.PC,
+// attaches the PCs as a stackPCsAttrKey slog attribute, then forwards to
+// the inner handler. Must be called from the goroutine that emitted r.
+func (s *SyncCapture) Handle(ctx context.Context, r slog.Record) error {
+	if r.Level < slog.LevelError {
+		return s.inner.Handle(ctx, r)
+	}
+	var buf [stackSearchBuf]uintptr
+	n := runtime.Callers(1, buf[:])
+	for i := 0; i < n; i++ {
+		if buf[i] == r.PC {
+			pcs := make([]uintptr, n-i)
+			copy(pcs, buf[i:n])
+			r.AddAttrs(slog.Any(stackPCsAttrKey, pcs))
+			break
+		}
+	}
+	return s.inner.Handle(ctx, r)
+}
+
+// WithAttrs returns a SyncCapture wrapping the inner handler's WithAttrs result.
+func (s *SyncCapture) WithAttrs(attrs []slog.Attr) slog.Handler {
+	return &SyncCapture{inner: s.inner.WithAttrs(attrs)}
+}
+
+// WithGroup returns a SyncCapture wrapping the inner handler's WithGroup result.
+func (s *SyncCapture) WithGroup(name string) slog.Handler {
+	return &SyncCapture{inner: s.inner.WithGroup(name)}
 }
 
 // WithAttrs is a required slog.Handler interface method. Attrs are not
