@@ -85,7 +85,7 @@ func newDomainForwarder(
 		blockedList:               newBlockedEndpoints(config, log),
 		transactionPrioritySorter: transactionPrioritySorter,
 		pointCountTelemetry:       pointCountTelemetry,
-		Client:                    NewSharedConnection(log, isLocal, numberOfWorkers, config, transport),
+		Client:                    NewSharedConnection(log, isLocal, config, transport),
 	}
 }
 
@@ -247,7 +247,7 @@ func (f *domainForwarder) resetConnections() {
 	f.Client.ResetClient()
 }
 
-func newBearerAuthHTTPClient(numberOfWorkers int) *http.Client {
+func newBearerAuthHTTPClient() *http.Client {
 	return &http.Client{
 		Transport: &http.Transport{
 			Proxy: http.ProxyFromEnvironment,
@@ -258,7 +258,6 @@ func newBearerAuthHTTPClient(numberOfWorkers int) *http.Client {
 			ForceAttemptHTTP2:     false,
 			TLSClientConfig:       &tls.Config{InsecureSkipVerify: true},
 			TLSHandshakeTimeout:   5 * time.Second,
-			MaxConnsPerHost:       numberOfWorkers,
 			MaxIdleConnsPerHost:   1,
 			IdleConnTimeout:       60 * time.Second,
 			ExpectContinueTimeout: 1 * time.Second,
@@ -269,8 +268,8 @@ func newBearerAuthHTTPClient(numberOfWorkers int) *http.Client {
 }
 
 // NewHTTPClient creates a new http.Client
-func NewHTTPClient(config config.Component, numberOfWorkers int, log log.Component) *http.Client {
-	transport := NewHTTPTransport(config, numberOfWorkers, log)
+func NewHTTPClient(config config.Component, maxConnsPerHost int, log log.Component) *http.Client {
+	transport := NewHTTPTransport(config, maxConnsPerHost, log)
 	return &http.Client{
 		Timeout:   config.GetDuration("forwarder_timeout") * time.Second,
 		Transport: transport,
@@ -278,19 +277,19 @@ func NewHTTPClient(config config.Component, numberOfWorkers int, log log.Compone
 }
 
 // NewHTTPTransport creates a new http.Transport
-func NewHTTPTransport(config config.Component, numberOfWorkers int, log log.Component) *http.Transport {
+func NewHTTPTransport(config config.Component, maxConnsPerHost int, log log.Component) *http.Transport {
 	var transport *http.Transport
 
 	transportConfig := config.Get("forwarder_http_protocol")
 
 	switch transportConfig {
 	case "http1":
-		transport = httputils.CreateHTTPTransport(config, httputils.MaxConnsPerHost(numberOfWorkers))
+		transport = httputils.CreateHTTPTransport(config, httputils.MaxConnsPerHost(maxConnsPerHost))
 	case "auto":
-		transport = httputils.CreateHTTPTransport(config, httputils.WithHTTP2(), httputils.MaxConnsPerHost(numberOfWorkers))
+		transport = httputils.CreateHTTPTransport(config, httputils.WithHTTP2(), httputils.MaxConnsPerHost(maxConnsPerHost))
 	default:
 		log.Warnf("Invalid http_protocol '%v', falling back to 'auto'", transportConfig)
-		transport = httputils.CreateHTTPTransport(config, httputils.WithHTTP2(), httputils.MaxConnsPerHost(numberOfWorkers))
+		transport = httputils.CreateHTTPTransport(config, httputils.WithHTTP2(), httputils.MaxConnsPerHost(maxConnsPerHost))
 	}
 
 	return transport

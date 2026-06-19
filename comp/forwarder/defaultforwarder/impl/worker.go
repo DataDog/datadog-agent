@@ -12,8 +12,6 @@ import (
 	"sync"
 	"time"
 
-	"golang.org/x/sync/semaphore"
-
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
@@ -41,11 +39,9 @@ type Worker struct {
 	blockedList         *blockedEndpoints
 	pointCountTelemetry PointCountTelemetry
 
-	// The maximum number of HTTP requests we can have inflight at any one time.
-	maxConcurrentRequests *semaphore.Weighted
-	workerCtx             context.Context
-	cancel                context.CancelFunc
-	requestWg             sync.WaitGroup
+	workerCtx context.Context
+	cancel    context.CancelFunc
+	requestWg sync.WaitGroup
 }
 
 // PointCountTelemetry tracks the number of points that were either
@@ -68,28 +64,21 @@ func NewWorker(
 	pointCountTelemetry PointCountTelemetry,
 	httpClient *SharedConnection,
 ) *Worker {
-	maxConcurrentRequests := config.GetInt64("forwarder_max_concurrent_requests")
-	if maxConcurrentRequests <= 0 {
-		log.Warnf("Invalid forwarder_max_concurrent_requests '%d', setting to 1", maxConcurrentRequests)
-		maxConcurrentRequests = 1
-	}
-
 	workerCtx, cancel := context.WithCancel(context.Background())
 
 	worker := &Worker{
-		config:                config,
-		log:                   log,
-		secrets:               secrets,
-		HighPrio:              highPrioChan,
-		LowPrio:               lowPrioChan,
-		RequeueChan:           requeueChan,
-		stopped:               make(chan struct{}),
-		Client:                httpClient,
-		blockedList:           blocked,
-		pointCountTelemetry:   pointCountTelemetry,
-		maxConcurrentRequests: semaphore.NewWeighted(maxConcurrentRequests),
-		workerCtx:             workerCtx,
-		cancel:                cancel,
+		config:              config,
+		log:                 log,
+		secrets:             secrets,
+		HighPrio:            highPrioChan,
+		LowPrio:             lowPrioChan,
+		RequeueChan:         requeueChan,
+		stopped:             make(chan struct{}),
+		Client:              httpClient,
+		blockedList:         blocked,
+		pointCountTelemetry: pointCountTelemetry,
+		workerCtx:           workerCtx,
+		cancel:              cancel,
 	}
 	return worker
 }
@@ -97,7 +86,7 @@ func NewWorker(
 // Stop stops the worker.
 func (w *Worker) Stop(purgeHighPrio bool) {
 	// Cancel our context to kick out any transactions waiting
-	// on the maxConcurrentRequests semaphore.
+	// on the shared request semaphore.
 	w.cancel()
 
 	<-w.stopped
@@ -155,10 +144,11 @@ func (w *Worker) Start() {
 	}()
 }
 
-// acquireRequestSemaphore attempts to acquire a semaphore, which will block
-// if we are already sending too many requests.
+// acquireRequestSemaphore attempts to acquire a concurrency token shared across
+// all workers of the domain, which will block if we are already sending too
+// many requests.
 func (w *Worker) acquireRequestSemaphore(ctx context.Context) error {
-	err := w.maxConcurrentRequests.Acquire(ctx, 1)
+	err := w.Client.Acquire(ctx)
 	if err != nil {
 		return fmt.Errorf("unable to acquire request semaphore: %v", err)
 	}
@@ -167,7 +157,7 @@ func (w *Worker) acquireRequestSemaphore(ctx context.Context) error {
 }
 
 func (w *Worker) releaseRequestSemaphore() {
-	w.maxConcurrentRequests.Release(1)
+	w.Client.Release()
 }
 
 // callProcess will process a transaction and cancel it if we need to stop the

@@ -6,6 +6,7 @@
 package defaultforwarderimpl
 
 import (
+	"context"
 	"net/http"
 	"sync"
 
@@ -16,31 +17,30 @@ import (
 // SharedConnection holds a shared http.Client that is used by each worker.
 // Access to the client is protected by an RWMutex.
 type SharedConnection struct {
-	client          *http.Client
-	lock            *sync.RWMutex
-	log             log.Component
-	isLocal         bool
-	numberOfWorkers int
-	config          config.Component
-	transport       http.RoundTripper
+	client    *http.Client
+	lock      *sync.RWMutex
+	log       log.Component
+	isLocal   bool
+	config    config.Component
+	transport http.RoundTripper
+	semaphore *resizableSemaphore
 }
 
-// NewSharedConnection creates a new shared connection with the given
-// http.Client.
+// NewSharedConnection creates a new shared connection. The concurrency limit
+// is read from forwarder_max_concurrent_requests.
 func NewSharedConnection(
 	log log.Component,
 	isLocal bool,
-	numberOfWorkers int,
 	config config.Component,
 	transport http.RoundTripper,
 ) *SharedConnection {
 	sc := &SharedConnection{
-		lock:            &sync.RWMutex{},
-		log:             log,
-		isLocal:         isLocal,
-		numberOfWorkers: numberOfWorkers,
-		config:          config,
-		transport:       transport,
+		lock:      &sync.RWMutex{},
+		log:       log,
+		isLocal:   isLocal,
+		config:    config,
+		transport: transport,
+		semaphore: newResizableSemaphore(maxConcurrentRequests(config, log)),
 	}
 
 	sc.client = sc.newClient()
@@ -65,15 +65,37 @@ func (sc *SharedConnection) ResetClient() {
 	sc.client = sc.newClient()
 }
 
+// Acquire blocks until the domain is allowed to start another concurrent
+// request or ctx is done.
+func (sc *SharedConnection) Acquire(ctx context.Context) error {
+	return sc.semaphore.Acquire(ctx)
+}
+
+// Release returns a concurrency token taken by Acquire.
+func (sc *SharedConnection) Release() {
+	sc.semaphore.Release()
+}
+
 func (sc *SharedConnection) newClient() *http.Client {
 	var c *http.Client
 	if sc.isLocal {
-		c = newBearerAuthHTTPClient(sc.numberOfWorkers)
+		c = newBearerAuthHTTPClient()
 	} else {
-		c = NewHTTPClient(sc.config, sc.numberOfWorkers, sc.log)
+		// 0 means unlimited connections per host: the concurrency limit is
+		// enforced by the shared semaphore, not the transport.
+		c = NewHTTPClient(sc.config, 0, sc.log)
 	}
 	if sc.transport != nil {
 		c.Transport = sc.transport
 	}
 	return c
+}
+
+func maxConcurrentRequests(config config.Component, log log.Component) int64 {
+	maxConcurrentRequests := config.GetInt64("forwarder_max_concurrent_requests")
+	if maxConcurrentRequests <= 0 {
+		log.Warnf("Invalid forwarder_max_concurrent_requests '%d', setting to 1", maxConcurrentRequests)
+		maxConcurrentRequests = 1
+	}
+	return maxConcurrentRequests
 }
