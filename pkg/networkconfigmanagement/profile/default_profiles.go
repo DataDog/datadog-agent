@@ -170,10 +170,10 @@ var DefaultProfiles = Map{
 			},
 		},
 		Preprocessing: []RedactionRule{
-			MkRedaction(`(?s)banner (exec|incoming|login) \^C.*?\^C\s*`, WithReplacement(""), WithMultiline()),
 			MkRedaction(`(?m)^\s*Building configuration...\s*`, WithReplacement(""), WithMultiline()),
 			MkRedaction(`Current configuration : (.*)\s*`, WithReplacement(""), WithMultiline()),
 			MkRedaction(`(?m)(?:^!\s*$\s*)?^! Last configuration change at .*?$\s*(?:^!\s*$\s*)?`, WithReplacement(""), WithMultiline()),
+			MkRedaction(`(?m)(?:^!\s*$\s*)?^! NVRAM config last updated at .*$\s*(?:^!\s*$\s*)?`, WithReplacement(""), WithMultiline()),
 			MkRedaction(`(?s)^\s*Using \d+ out of \d+ bytes\s*`, WithReplacement(""), WithMultiline()),
 		},
 		Redactions: []RedactionRule{
