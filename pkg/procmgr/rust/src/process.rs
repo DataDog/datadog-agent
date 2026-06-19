@@ -267,6 +267,10 @@ impl ManagedProcess {
         #[cfg(windows)]
         {
             platform::apply_child_baseline_env(&mut cmd);
+            // After graceful stop we call `AttachConsole` / `FreeConsole` on this process; the
+            // service may no longer have a valid console. Inheriting stdin then fails CreateProcess
+            // with ERROR_INVALID_HANDLE (6). Children are non-interactive daemons — discard stdin.
+            cmd.stdin(Stdio::null());
         }
         if let Some(ref raw_path) = self.config.environment_file {
             let (optional, path) = if let Some(stripped) = raw_path.strip_prefix('-') {
