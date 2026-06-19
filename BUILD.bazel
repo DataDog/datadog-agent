@@ -52,7 +52,6 @@ exports_files(["go.mod"])
 # gazelle:exclude cmd/agent/subcommands/configcheck
 # gazelle:exclude cmd/agent/subcommands/controlsvc
 # gazelle:exclude cmd/agent/subcommands/diagnose
-# gazelle:exclude cmd/agent/subcommands/dogstatsdreplay
 # gazelle:exclude cmd/agent/subcommands/flare
 # gazelle:exclude cmd/agent/subcommands/import
 # gazelle:exclude cmd/agent/subcommands/jmx
@@ -89,13 +88,6 @@ exports_files(["go.mod"])
 # gazelle:exclude cmd/system-probe/subcommands/usm
 # gazelle:exclude cmd/system-probe/windows
 # gazelle:exclude cmd/systray
-# gazelle:exclude comp/api/api/apiimpl/api.go
-# gazelle:exclude comp/api/api/apiimpl/api_mock.go
-# gazelle:exclude comp/api/api/apiimpl/api_test.go
-# gazelle:exclude comp/api/api/apiimpl/server.go
-# gazelle:exclude comp/api/api/apiimpl/server_cmd.go
-# gazelle:exclude comp/api/api/apiimpl/server_ipc.go
-# gazelle:exclude comp/api/api/apiimpl/server_test.go
 # gazelle:exclude comp/api/authtoken
 # gazelle:exclude comp/api/commonendpoints
 # gazelle:exclude comp/checks/windowseventlog/fx
