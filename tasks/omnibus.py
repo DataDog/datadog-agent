@@ -681,7 +681,6 @@ def docker_build(
 
     # Build environment variables
     env_args = [
-        "-e OMNIBUS_GIT_CACHE_DIR=/omnibus-state/git-cache",
         f"-e OMNIBUS_WORKERS_OVERRIDE={workers}",
         f"-e DD_CC={cc}",
         f"-e DD_CXX={cxx}",
