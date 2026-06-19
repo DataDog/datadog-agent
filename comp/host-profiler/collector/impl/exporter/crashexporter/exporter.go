@@ -104,11 +104,6 @@ func (e *crashExporter) buildPayload(rp pprofile.ResourceProfiles) map[string]an
 		}
 	}
 
-	attrs.Range(func(k string, v pcommon.Value) bool {
-		log.Info("has attribute", k, "of value ", v.AsRaw())
-		return true
-	})
-
 	// All resource attributes become tags so processor-enriched data
 	// (k8s labels, infra tags, etc.) lands on the crash event automatically.
 	// crash.* keys are internal and excluded.
@@ -214,8 +209,6 @@ func (e *crashExporter) send(ctx context.Context, payload map[string]any) error 
 	if err != nil {
 		return err
 	}
-	log.Debugf("crash exporter: POST %s body=%s", endpoint, body)
-
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
 	if err != nil {
 		return err
@@ -228,9 +221,8 @@ func (e *crashExporter) send(ctx context.Context, payload map[string]any) error 
 		return err
 	}
 	defer resp.Body.Close()
-	respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
-	log.Debugf("crash exporter: intake response status=%d body=%s", resp.StatusCode, respBody)
 	if resp.StatusCode/100 != 2 {
+		respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
 		return fmt.Errorf("crash exporter: unexpected status %d: %s", resp.StatusCode, respBody)
 	}
 	return nil
