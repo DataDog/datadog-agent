@@ -326,6 +326,8 @@ func (s *metadataSnapshot) processKueueResourceFlavorEvent(resolver *kueueResour
 			delete(s.kueueResourceFlavors, key)
 			return true
 		}
+	default:
+		log.Errorf("Unknown event type %d for Kueue resource flavor %s", eventType, key)
 	}
 	return false
 }
