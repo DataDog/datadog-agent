@@ -9,7 +9,6 @@ go_library(
         "anomaly_correlator_time_cluster.go",
         "anomaly_processor_correlator.go",
         "anomaly_scorer.go",
-        "anomaly_scorer_helper.go",
         "component_catalog.go",
         "context_provider.go",
         "correlation_identity.go",

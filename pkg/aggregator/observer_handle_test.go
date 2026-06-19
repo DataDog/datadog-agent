@@ -61,10 +61,6 @@ func (c *recordingComponent) DumpMetrics(_ string) error {
 	return nil
 }
 
-func (c *recordingComponent) SubscribeScorer(_ observer.AnomalyScorerConfiguration) func() {
-	return func() {}
-}
-
 // TestTimeSamplerObserverHandle verifies that ObserveMetric is called for each
 // sample fed to the TimeSampler when an observerHandle is wired.
 func TestTimeSamplerObserverHandle(t *testing.T) {

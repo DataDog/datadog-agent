@@ -71,7 +71,7 @@ type StateView interface {
 	TotalAnomalyCount() int
 
 	// Scoring
-	ScoreState() observerdef.ScoreState
+	ScoreState() observerdef.AnomalyScoreState
 	UniqueAnomalySourceCount() int
 	DetectorAnomalies(name string) []observerdef.Anomaly
 	AnomaliesByDetector() map[string][]observerdef.Anomaly
