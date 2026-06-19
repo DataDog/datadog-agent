@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    GPU: improve GPU metric collection latency by collecting NVIDIA GPU collector data in parallel.

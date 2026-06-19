@@ -77,6 +77,14 @@ properties:
     node_type: setting
     type: boolean
     default: true
+  nvlink:
+    node_type: section
+    type: object
+    properties:
+      fec_light_error_threshold:
+        node_type: setting
+        type: integer
+        default: 3
   nvml_lib_path:
     node_type: setting
     type: string
@@ -96,3 +104,7 @@ properties:
     node_type: setting
     type: integer
     default: 1024
+  parallel_collectors:
+    node_type: setting
+    type: boolean
+    default: true

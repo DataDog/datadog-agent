@@ -546,9 +546,6 @@ func TestLogsEnabledViaEnvironmentVariable(t *testing.T) {
 	c, err := NewConfigComponent(context.Background(), "", []string{fileName})
 	require.NoError(t, err, "NewConfigComponent should succeed with DD_LOGS_ENABLED set")
 	assert.True(t, c.GetBool("logs_enabled"), "logs_enabled should be true when DD_LOGS_ENABLED=true")
-
-	libType := c.GetLibType()
-	assert.NotEmpty(t, libType, "config lib type should be set")
 }
 
 // TestLogsEnabledViaDatadogConfig tests that logs_enabled can be set via a separate
