@@ -966,7 +966,7 @@ require (
 	github.com/rabbitmq/amqp091-go v1.9.0
 	github.com/santhosh-tekuri/jsonschema/v5 v5.3.1
 	gitlab.com/gitlab-org/api/client-go v1.46.0
-	go.etcd.io/etcd/client/v2 v2.305.30
+	go.etcd.io/etcd/client/v2 v2.305.31
 	go.opentelemetry.io/collector/otelcol/otelcoltest v0.154.0
 	go.temporal.io/api v1.62.14
 	go.temporal.io/sdk v1.39.0
