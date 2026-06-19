@@ -1215,14 +1215,24 @@ func (api *BenchAPI) handleScores(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleScoresConfig returns the server-side default ScorerConfig so the UI
-// never needs to hardcode threshold values.
+// never needs to hardcode threshold values. The response also includes
+// cooldown_secs so the Scorer tab can initialise its replay form correctly
+// (cooldown lives on AnomalyScorerConfiguration, not ScorerConfig).
 // GET /api/scores/config
 func (api *BenchAPI) handleScoresConfig(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		api.writeError(w, http.StatusMethodNotAllowed, "use GET")
 		return
 	}
-	api.writeJSON(w, observerimpl.DefaultScorerConfig())
+	type configResponse struct {
+		observerdef.ScorerConfig
+		CooldownSecs int64 `json:"cooldown_secs"`
+	}
+	const defaultCooldownSecs = 300 // mirrors anomaly_scorer.cooldown_secs schema default
+	api.writeJSON(w, configResponse{
+		ScorerConfig: observerimpl.DefaultScorerConfig(),
+		CooldownSecs: defaultCooldownSecs,
+	})
 }
 
 // handleScoresReplay re-runs the scorer over the full retained raw-anomaly set
@@ -1281,7 +1291,16 @@ func (api *BenchAPI) handleScoresReplay(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// Sort by timestamp ascending so the scorer processes time monotonically.
+	// Sort anomalies by timestamp so the scorer processes time monotonically.
+	//
+	// Known limitation: scan detectors (scanmw, scanwelch) emit changepoint timestamps
+	// that are historically earlier than the engine tick at which the anomaly was
+	// produced. In the live agent, ProcessAnomaly clamps such anomalies to
+	// lastAdvancedSec+1 via the engine detection tick. Faithfully replicating that
+	// requires storing the engine arrival time alongside the anomaly timestamp, which
+	// Anomaly.Timestamp does not currently encode. Sorting by Timestamp places scan
+	// anomalies at their changepoint second rather than their detection second; this
+	// is a known approximation in the Scorer tab for scan-detector scenarios.
 	sorted := make([]observerdef.Anomaly, len(anomalies))
 	copy(sorted, anomalies)
 	sort.Slice(sorted, func(i, j int) bool {
@@ -1290,7 +1309,6 @@ func (api *BenchAPI) handleScoresReplay(w http.ResponseWriter, r *http.Request) 
 
 	scorer := observerimpl.NewScorer(cfg)
 
-	// Feed anomalies and advance second-by-second (simulating the 1-second timer).
 	first := sorted[0].Timestamp
 	last := sorted[len(sorted)-1].Timestamp
 
