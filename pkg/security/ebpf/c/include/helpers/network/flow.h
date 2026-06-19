@@ -158,6 +158,22 @@ __attribute__((always_inline)) void register_flow_pid_for_sock(struct sock *sk, 
 #endif
 }
 
+__attribute__((always_inline)) void register_sk_storage_pid_for_sock(struct sock *sk, u32 tgid) {
+    if (sk == NULL || tgid == 0) {
+        return;
+    }
+
+
+    if (!is_sk_lookup_pid_supported()) {
+        return;
+    }
+
+    u32 *stored_tgid = bpf_sk_storage_get(&sk_storage_pid, sk, &tgid, BPF_SK_STORAGE_GET_F_CREATE);
+    if (stored_tgid != NULL) {
+        *stored_tgid = tgid;
+    }
+}
+
 #endif // DO_NOT_USE_TC
 
 #endif

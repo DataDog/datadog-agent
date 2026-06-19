@@ -23,17 +23,11 @@ struct bpf_iter__task_file {
 };
 #endif
 
-// bpf_iter__task_file_resolve_flow_pid walks every (task, fd, file) tuple open on
-// the system and, for each socket file, records a
-// (netns, source addr, source port, l4 protocol) -> pid entry in the flow_pid map.
-//
-// It is attached and run once, from userspace, during the snapshot phase (see
-// EBPFResolvers.snapshotFlowPid). This is the bulk equivalent of the
-// security_sk_classify_flow hook, which only fires for sockets created *after* the
-// probe is attached: without this snapshot, packets of sockets that pre-existed the
-// probe load have no PID attribution — most visibly on ingress, where the
-// bpf_get_current_pid_tgid() fallback runs in softirq context and flow_pid is the
-// only reliable source of the owning PID.
+// bpf_iter__task_file_resolve_flow_pid walks every (task, fd, file) tuple open on the system and,
+// for each socket file, records its owning pid in flow_pid and, on bpf_sk_lookup kernels, in the
+// socket's sk-local storage. It runs once at startup (see EBPFResolvers.snapshotFlowPid).
+// Without it, pre-existing sockets have no PID attribution, this is most visibly on ingress,
+// where the bpf_get_current_pid_tgid() fallback runs in softirq context.
 SEC("iter/task_file")
 int bpf_iter__task_file_resolve_flow_pid(struct bpf_iter__task_file *ctx) {
     struct task_struct *task = ctx->task;
@@ -55,6 +49,10 @@ int bpf_iter__task_file_resolve_flow_pid(struct bpf_iter__task_file *ctx) {
     u32 tgid = get_root_nr_from_task_struct(task);
 
     register_flow_pid_for_sock(sk, tgid);
+
+    // bpf_sk_storage_get needs a verifier-tracked (BTF) sock pointer, so read sock->sk directly
+    // instead of reusing the bpf_probe_read-derived sk above.
+    register_sk_storage_pid_for_sock(sock->sk, tgid);
 
     return 0;
 }
