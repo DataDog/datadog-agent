@@ -163,4 +163,12 @@ bazel:test:windows-amd64:base:
     POWERSHELL_SCRIPT: >-
       bazel test --keep_going --build_tests_only --config=base
       --build_event_json_file=$CI_PROJECT_DIR/bazel-bep-base.json
-      //pkg/... //comp/... //cmd/...
+      //pkg/... //comp/... //cmd/...;
+      dda inv -- -e bazel.ensure-test-parity
+      --bep $CI_PROJECT_DIR/bazel-bep-base.json
+      --flavor-name base
+  artifacts:
+    when: always
+    paths:
+      - bazel-bep-*.json
+    expire_in: 1 week
