@@ -361,7 +361,7 @@ def _emit_test_count_metric(flavor: str, count: int) -> None:
         "repository:datadog-agent",
     ]
     timestamp = int(datetime.now().timestamp())
-    _send_metrics([create_gauge("datadog.agent.bazel_tests.executed", timestamp, count, tags)])
+    _send_metrics([create_gauge("datadog.agent.bazel_tests.executed", timestamp, count, tags)], warn=True)
     print(f"Sent metric: datadog.agent.bazel_tests.executed={count} (flavor={flavor})")
 
 
