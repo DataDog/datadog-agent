@@ -92,8 +92,6 @@ replace github.com/DataDog/datadog-agent/pkg/config/setup => ../../config/setup
 
 replace github.com/DataDog/datadog-agent/pkg/config/structure => ../../config/structure
 
-replace github.com/DataDog/datadog-agent/pkg/config/teeconfig => ../../config/teeconfig
-
 replace github.com/DataDog/datadog-agent/pkg/config/viperconfig => ../../config/viperconfig
 
 replace github.com/DataDog/datadog-agent/pkg/fips => ../../fips
