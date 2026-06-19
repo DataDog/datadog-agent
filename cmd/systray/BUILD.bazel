@@ -43,8 +43,10 @@ SUBSYSTEM = "windows"
 
 dd_agent_go_binary(
     name = "systray",
+    cgo = True,
     clinkopts = ["--subsystem,%s" % SUBSYSTEM],
     embed = [":systray_lib"],
+    # TODO: Move selection of strip flags (-s -w) into dd_agent_go_binary
     gc_linkopts = [
         "--subsystem,%s" % SUBSYSTEM,
     ] + select({
@@ -54,7 +56,7 @@ dd_agent_go_binary(
         ],
         "//conditions:default": None,
     }),
-    linkmode = "external",
+    gotags = ["grpcnotrace"],
     target_compatible_with = ["@platforms//os:windows"],
     visibility = ["//visibility:public"],
     x_defs = {
