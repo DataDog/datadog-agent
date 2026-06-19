@@ -126,7 +126,7 @@ func TestShouldHavePodStore(t *testing.T) {
 	}
 }
 
-func TestshouldHaveKueueMetadata(t *testing.T) {
+func TestShouldHaveKueueMetadata(t *testing.T) {
 	tests := []struct {
 		name     string
 		cfg      map[string]interface{}
