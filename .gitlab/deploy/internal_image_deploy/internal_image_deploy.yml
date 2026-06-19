@@ -10,22 +10,26 @@
   tags: ["arch:amd64", "specific:true"]
   timeout: 1h
   parallel:
-    matrix: # See https://github.com/DataDog/datadog-agent/pull/45778
-      - COMPRESSION: "zstd"
+    matrix:
+      - COMPRESSION: "-zstd"
         RELEASE_TAG_COMPRESSION_SUFFIX: "-zstd"
-      - COMPRESSION: "nydus"
+      - COMPRESSION: "-nydus"
         RELEASE_TAG_COMPRESSION_SUFFIX: "-zstd-nydus"
+      # We use nydus by default without adding the info in the tag
+      - COMPRESSION: ""
+        RELEASE_TAG_COMPRESSION_SUFFIX: ""
+        IMAGE_VERSION: tmpl-v25
   script:
     # Constant variables
     - export RELEASE_STAGING=""
     - export DYNAMIC_BUILD_RENDER_RULES="agent-build-only"
-    - export IMAGES_GIT_REF="master"
+    - export IMAGES_GIT_REF="florent.clarret/agent-test-new-nydus"
     # Job specific variables
     - export BASE_RELEASE_TAG="${CI_COMMIT_REF_NAME//\//-}"
     - export RELEASE_TAG="${BASE_RELEASE_TAG}${RELEASE_TAG_SUFFIX}${RELEASE_TAG_COMPRESSION_SUFFIX}"
     - export TMPL_SRC_IMAGE="v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}${TMPL_SRC_IMAGE_SUFFIX}"
     # Specify the compression
-    - export IMAGE_VERSION="${IMAGE_VERSION}-${COMPRESSION}"
+    - export IMAGE_VERSION="${IMAGE_VERSION}${COMPRESSION}"
     # BUILD_TAG is always RELEASE_TAG
     - export BUILD_TAG="${RELEASE_TAG}"
     # Fetch Gitlab token
