@@ -18,7 +18,10 @@ go_library(
 
 go_test(
     name = "loclist_test",
-    srcs = ["fuzz_test.go"],
+    srcs = [
+        "fuzz_test.go",
+        "parse_test.go",
+    ],
     embed = [":loclist"],
     gotags = ["test"],
 )
