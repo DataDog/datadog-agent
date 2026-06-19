@@ -331,7 +331,7 @@ require (
 	github.com/vishvananda/netlink v1.3.1
 	github.com/vishvananda/netns v0.0.5
 	github.com/vmihailenco/msgpack/v5 v5.4.1
-	github.com/wI2L/jsondiff v0.7.0
+	github.com/wI2L/jsondiff v0.7.1
 	github.com/xeipuuv/gojsonschema v1.2.0
 	github.com/xi2/xz v0.0.0-20171230120015-48954b6210f8
 	github.com/yusufpapurcu/wmi v1.2.4
