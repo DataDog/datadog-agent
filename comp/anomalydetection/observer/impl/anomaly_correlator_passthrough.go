@@ -21,12 +21,14 @@ type DetectorPassthroughCorrelator struct {
 	// anomaliesByDetector groups anomalies by DetectorName.
 	anomaliesByDetector map[string][]observer.Anomaly
 	mu                  sync.RWMutex
+	emitter             correlationEmitter
 }
 
 // NewDetectorPassthroughCorrelator creates a new DetectorPassthroughCorrelator.
 func NewDetectorPassthroughCorrelator() *DetectorPassthroughCorrelator {
 	return &DetectorPassthroughCorrelator{
 		anomaliesByDetector: make(map[string][]observer.Anomaly),
+		emitter:             newCorrelationEmitter("passthrough_correlator"),
 	}
 }
 
@@ -42,31 +44,30 @@ func (c *DetectorPassthroughCorrelator) ProcessAnomaly(anomaly observer.Anomaly)
 	c.anomaliesByDetector[anomaly.DetectorName] = append(c.anomaliesByDetector[anomaly.DetectorName], anomaly)
 }
 
-// Advance is a no-op for the passthrough correlator (no windowing).
-func (c *DetectorPassthroughCorrelator) Advance(_ int64) {}
+// Advance observes the current active correlations for emission.
+func (c *DetectorPassthroughCorrelator) Advance(dataTime int64) {
+	c.mu.RLock()
+	active := c.activeCorrelationsLocked()
+	c.mu.RUnlock()
+	c.emitter.observe(active, dataTime)
+}
 
 // Reset clears all internal state for reanalysis.
 func (c *DetectorPassthroughCorrelator) Reset() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.anomaliesByDetector = make(map[string][]observer.Anomaly)
+	c.emitter.reset()
 }
 
-// ActiveCorrelations returns one ActiveCorrelation per individual anomaly,
-// sorted by detector name then timestamp.
-//
-// Each anomaly becomes its own correlation with:
-//   - Pattern:     "passthrough_{detectorName}_{index}"
-//   - Title:       "Passthrough[{detectorName}]: {anomaly.Source}"
-//   - Anomalies:   single-element slice containing the original anomaly
-//   - FirstSeen/LastUpdated: the anomaly's timestamp
-//
-// This allows the scorer to evaluate each detection independently.
-func (c *DetectorPassthroughCorrelator) ActiveCorrelations() []observer.ActiveCorrelation {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
+// PendingEvents drains CorrelationDetected events accumulated during the last Advance.
+func (c *DetectorPassthroughCorrelator) PendingEvents() []observer.CorrelatorEvent {
+	return c.emitter.drain()
+}
 
-	// Sort detector names for deterministic ordering
+// activeCorrelationsLocked builds active correlations from current state.
+// Caller must hold c.mu (at least read lock).
+func (c *DetectorPassthroughCorrelator) activeCorrelationsLocked() []observer.ActiveCorrelation {
 	detectorNames := make([]string, 0, len(c.anomaliesByDetector))
 	for name := range c.anomaliesByDetector {
 		detectorNames = append(detectorNames, name)
@@ -77,7 +78,6 @@ func (c *DetectorPassthroughCorrelator) ActiveCorrelations() []observer.ActiveCo
 	for _, detName := range detectorNames {
 		anomalies := c.anomaliesByDetector[detName]
 
-		// Sort anomalies by timestamp for deterministic output
 		sorted := make([]observer.Anomaly, len(anomalies))
 		copy(sorted, anomalies)
 		sort.Slice(sorted, func(i, j int) bool { return sorted[i].Timestamp < sorted[j].Timestamp })
@@ -93,6 +93,14 @@ func (c *DetectorPassthroughCorrelator) ActiveCorrelations() []observer.ActiveCo
 			})
 		}
 	}
-
 	return result
+}
+
+// ActiveCorrelations returns one ActiveCorrelation per individual anomaly,
+// sorted by detector name then timestamp. Each anomaly becomes its own
+// correlation, allowing the scorer to evaluate each detection independently.
+func (c *DetectorPassthroughCorrelator) ActiveCorrelations() []observer.ActiveCorrelation {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.activeCorrelationsLocked()
 }

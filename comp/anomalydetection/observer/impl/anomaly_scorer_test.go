@@ -1032,3 +1032,105 @@ func TestEmptySeconds(t *testing.T) {
 		t.Error("expected non-zero EWMA after decaying from seeded value")
 	}
 }
+
+// ---------------------------------------------------------------------------
+// PendingEvents tests
+// ---------------------------------------------------------------------------
+
+// TestPendingEvents_EpisodeStarted verifies that PendingEvents returns a single
+// EpisodeStarted event on the advance that crosses into High severity, and that
+// subsequent calls to PendingEvents return nil (drained).
+func TestPendingEvents_EpisodeStarted(t *testing.T) {
+	cfg := episodeTestCfg()
+	cfg.CorrelationEvents = true
+	s := newScorerWithTelemetry(cfg)
+
+	// Seed state at Low.
+	s.Advance(1000)
+	if got := s.PendingEvents(); got != nil {
+		t.Fatalf("expected nil PendingEvents after seed advance, got %v", got)
+	}
+
+	// Spike: pushes EWMA above HighThreshold → EpisodeStarted.
+	ts := seedAndCrossHighThreshold(s, 1001)
+	evts := s.PendingEvents()
+	if len(evts) != 1 {
+		t.Fatalf("expected 1 PendingEvent after spike, got %d", len(evts))
+	}
+	if evts[0].Kind != observer.CorrelatorEventEpisodeStarted {
+		t.Errorf("expected EpisodeStarted, got kind %d", evts[0].Kind)
+	}
+	if evts[0].ToLevel != observer.SeverityHigh {
+		t.Errorf("expected ToLevel=High, got %d", evts[0].ToLevel)
+	}
+	if evts[0].Timestamp != ts {
+		t.Errorf("expected Timestamp=%d, got %d", ts, evts[0].Timestamp)
+	}
+	if evts[0].Correlation.Pattern == "" {
+		t.Error("expected non-empty Correlation.Pattern")
+	}
+	// Drain is idempotent — second call returns nil.
+	if got := s.PendingEvents(); got != nil {
+		t.Fatalf("expected nil on second PendingEvents call (already drained), got %v", got)
+	}
+}
+
+// TestPendingEvents_EpisodeEnded verifies that PendingEvents returns an EpisodeEnded
+// event on the advance that drops out of High severity.
+func TestPendingEvents_EpisodeEnded(t *testing.T) {
+	cfg := episodeTestCfg()
+	cfg.CorrelationEvents = true
+	s := newScorerWithTelemetry(cfg)
+
+	seedAndCrossHighThreshold(s, 1000)
+	// Drain the EpisodeStarted event.
+	_ = s.PendingEvents()
+
+	// No anomalies → EWMA decays below LowThreshold → High→Low.
+	endTs := triggerDeescalation(s, 1001)
+	evts := s.PendingEvents()
+	if len(evts) != 1 {
+		t.Fatalf("expected 1 PendingEvent after decay, got %d", len(evts))
+	}
+	if evts[0].Kind != observer.CorrelatorEventEpisodeEnded {
+		t.Errorf("expected EpisodeEnded, got kind %d", evts[0].Kind)
+	}
+	if evts[0].FromLevel != observer.SeverityHigh {
+		t.Errorf("expected FromLevel=High, got %d", evts[0].FromLevel)
+	}
+	if evts[0].Correlation.LastUpdated != endTs {
+		t.Errorf("expected Correlation.LastUpdated=%d, got %d", endTs, evts[0].Correlation.LastUpdated)
+	}
+	// Drain is idempotent.
+	if got := s.PendingEvents(); got != nil {
+		t.Fatalf("expected nil on second PendingEvents call (already drained), got %v", got)
+	}
+}
+
+// TestPendingEvents_DisabledWhenCorrelationEventsOff verifies that PendingEvents
+// always returns nil when CorrelationEvents=false, even during severity transitions.
+func TestPendingEvents_DisabledWhenCorrelationEventsOff(t *testing.T) {
+	cfg := episodeTestCfg()
+	cfg.CorrelationEvents = false
+	s := newScorerWithTelemetry(cfg)
+
+	seedAndCrossHighThreshold(s, 1000)
+	if got := s.PendingEvents(); got != nil {
+		t.Fatalf("expected nil PendingEvents with CorrelationEvents=false, got %v", got)
+	}
+}
+
+// TestPendingEvents_ResetClearsPending verifies that Reset() discards any
+// accumulated but unread pending events.
+func TestPendingEvents_ResetClearsPending(t *testing.T) {
+	cfg := episodeTestCfg()
+	cfg.CorrelationEvents = true
+	s := newScorerWithTelemetry(cfg)
+
+	seedAndCrossHighThreshold(s, 1000)
+	// Don't drain — Reset should clear them.
+	s.Reset()
+	if got := s.PendingEvents(); got != nil {
+		t.Fatalf("expected nil PendingEvents after Reset(), got %v", got)
+	}
+}

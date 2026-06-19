@@ -40,6 +40,9 @@ type advanceCompletedEvent struct {
 	// anomalies are the anomalies detected in this advance cycle.
 	// Included so event sinks can forward them without querying engine state.
 	anomalies []observerdef.Anomaly
+	// correlatorEvents are typed lifecycle events (e.g. EpisodeStarted/EpisodeEnded)
+	// drained from correlators after their Advance calls.
+	correlatorEvents []observerdef.CorrelatorEvent
 }
 
 // anomalyCreatedEvent is emitted for each anomaly detected during Advance.
@@ -71,18 +74,15 @@ func (s *reporterEventSink) onEngineEvent(evt engineEvent) {
 	if evt.kind == eventAdvanceCompleted {
 		ac := evt.advanceCompleted
 		output := reporterdef.ReportOutput{
-			AdvancedToSec: ac.advancedToSec,
-			NewAnomalies:  ac.anomalies,
+			AdvancedToSec:    ac.advancedToSec,
+			NewAnomalies:     ac.anomalies,
+			CorrelatorEvents: ac.correlatorEvents,
 		}
 		if s.state != nil {
 			// ActiveCorrelations is the live sliding-window set; reporters
-			// use it to detect when a pattern has gone inactive (so it can
-			// fire again on recurrence). CorrelationHistory is the accumulated
-			// set including batch-detector clusters whose changepoint
-			// timestamps may already be evicted from the sliding window;
-			// reporters drive one-shot emission from this set.
+			// use it for ongoing-count telemetry. Emission is event-driven
+			// via CorrelatorEvents — reporters do not do their own dedup.
 			output.ActiveCorrelations = s.state.ActiveCorrelations()
-			output.CorrelationHistory = s.state.CorrelationHistory()
 		}
 		for _, r := range s.reporters {
 			r.Report(output)

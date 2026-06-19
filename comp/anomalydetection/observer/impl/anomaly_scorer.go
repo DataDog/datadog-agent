@@ -418,6 +418,10 @@ type anomalyScorer struct {
 	// Episode tracking (guarded by mu; only active when correlationEvents is true).
 	openEpisode    *observerdef.ActiveCorrelation  // currently open High period (nil when Low/Medium)
 	closedEpisodes []observerdef.ActiveCorrelation // episodes closed since last ActiveCorrelations drain
+
+	// pendingEvents holds lifecycle events (EpisodeStarted/EpisodeEnded) produced
+	// during the last Advance cycle. Drained once by the engine via PendingEvents().
+	pendingEvents []observerdef.CorrelatorEvent
 }
 
 // StandaloneAnomalyScorer is the public interface for a scorer that is used
@@ -517,15 +521,30 @@ func (s *anomalyScorer) OnSeverityTransition(evt observerdef.SeverityEvent) {
 				FirstSeen:   evt.Timestamp,
 				LastUpdated: evt.Timestamp,
 			}
+			s.pendingEvents = append(s.pendingEvents, observerdef.CorrelatorEvent{
+				Kind:           observerdef.CorrelatorEventEpisodeStarted,
+				CorrelatorName: s.Name(),
+				Timestamp:      evt.Timestamp,
+				Correlation:    *s.openEpisode,
+				FromLevel:      evt.FromLevel,
+				ToLevel:        evt.ToLevel,
+			})
 		} else if evt.FromLevel == observerdef.SeverityHigh && s.openEpisode != nil {
 			ep := *s.openEpisode
 			ep.LastUpdated = evt.Timestamp
 			s.closedEpisodes = append(s.closedEpisodes, ep)
 			s.openEpisode = nil
+			s.pendingEvents = append(s.pendingEvents, observerdef.CorrelatorEvent{
+				Kind:           observerdef.CorrelatorEventEpisodeEnded,
+				CorrelatorName: s.Name(),
+				Timestamp:      evt.Timestamp,
+				Correlation:    ep,
+				FromLevel:      evt.FromLevel,
+				ToLevel:        evt.ToLevel,
+			})
 		}
 		s.mu.Unlock()
 	}
-
 }
 
 // ---------------------------------------------------------------------------
@@ -617,6 +636,24 @@ func (s *anomalyScorer) Advance(dataTime int64) {
 	}
 }
 
+// PendingEvents returns and drains typed lifecycle events accumulated during
+// the last Advance call. The engine calls this once per advance cycle.
+// Returns nil when no events are pending or CorrelationEvents is disabled.
+// Implements observerdef.Correlator.
+func (s *anomalyScorer) PendingEvents() []observerdef.CorrelatorEvent {
+	if !s.config.CorrelationEvents {
+		return nil
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if len(s.pendingEvents) == 0 {
+		return nil
+	}
+	evts := s.pendingEvents
+	s.pendingEvents = nil
+	return evts
+}
+
 // ActiveCorrelations returns closed High-severity episodes and the currently open
 // episode (if any) when correlation events are enabled.
 // Safe to call multiple times between Advance calls — closed episodes are
@@ -651,6 +688,7 @@ func (s *anomalyScorer) Reset() {
 	s.buckets = nil
 	s.openEpisode = nil
 	s.closedEpisodes = nil
+	s.pendingEvents = nil
 	s.mu.Unlock()
 
 	// Reset each subscription's state machine so stale state from before
