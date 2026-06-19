@@ -125,10 +125,17 @@ pub fn detect_ai_usages(
     let mut detections = Vec::new();
     for process in descendants {
         if let Some(tool) = ai_candidates.get(&process.pid) {
-            if !process.process_read_write_activity_observed {
+            let in_terminal_foreground_group =
+                foreground_is_terminal_host && is_in_terminal_foreground_group(process);
+            if foreground_is_terminal_host && !in_terminal_foreground_group {
                 continue;
             }
-            if foreground_is_terminal_host && !is_in_terminal_foreground_group(process) {
+
+            // Require hosted descendants to show read/write IO activity so hidden panels,
+            // background helper windows, and stale AI agent processes do not count as
+            // active usage. POSIX terminal foreground process groups are the exception:
+            // the user may be actively reading output even while IO counters are idle.
+            if !process.process_read_write_activity_observed && !in_terminal_foreground_group {
                 continue;
             }
             detections.push(detection_from_match(foreground, process, tool));
@@ -279,6 +286,14 @@ fn is_in_terminal_foreground_group(process: &ProcessInfo) -> bool {
         && process.process_group_id == process.terminal_foreground_process_group_id
 }
 
+#[cfg(windows)]
+fn is_terminal_host_process(_process: &ProcessInfo) -> bool {
+    // Windows terminals do not expose the POSIX foreground process-group signal
+    // so foreground process group matching is unreliable.
+    false
+}
+
+#[cfg(not(windows))]
 fn is_terminal_host_process(process: &ProcessInfo) -> bool {
     process_identity_names(process).into_iter().any(|name| {
         matches!(
@@ -611,6 +626,7 @@ mod tests {
         process
     }
 
+    #[cfg(not(windows))]
     fn with_cpu_activity_only(mut process: ProcessInfo) -> ProcessInfo {
         process.process_activity = Some(ProcessActivity {
             process_start_key: process.pid as u64,
@@ -1128,21 +1144,23 @@ mod tests {
         assert_eq!(detection.matched_pid, 11);
     }
 
+    #[cfg(not(windows))]
     #[test]
-    fn hosted_child_rejects_candidate_when_only_cpu_counters_advance() {
+    fn terminal_foreground_group_matches_candidate_when_only_cpu_counters_advance() {
         let foreground = process_with_title(10, 1, "Terminal", "Claude Code");
         let cpu_only_ai = with_cpu_activity_only(terminal_process(11, 10, "claude", 11, 11));
         let mut config = config();
         config.host_process_names.push("Terminal".to_string());
 
-        assert!(
-            detect_ai_usage(
-                &foreground,
-                &snapshot(vec![foreground.clone(), cpu_only_ai]),
-                &config
-            )
-            .is_none()
-        );
+        let detection = detect_ai_usage(
+            &foreground,
+            &snapshot(vec![foreground.clone(), cpu_only_ai]),
+            &config,
+        )
+        .expect("expected terminal foreground group match without read/write activity");
+
+        assert_eq!(detection.tool, "Claude Code");
+        assert_eq!(detection.matched_pid, 11);
     }
 
     #[test]
@@ -1157,6 +1175,22 @@ mod tests {
                 &foreground,
                 &snapshot(vec![foreground.clone(), unchanged_ai]),
                 &config
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn non_terminal_host_rejects_candidate_without_read_write_activity() {
+        let foreground =
+            process_with_title(10, 1, "Code.exe", "datadog-agent - Visual Studio Code");
+        let unchanged_ai = process(11, 10, "claude.exe");
+
+        assert!(
+            detect_ai_usage(
+                &foreground,
+                &snapshot(vec![foreground.clone(), unchanged_ai]),
+                &config()
             )
             .is_none()
         );
