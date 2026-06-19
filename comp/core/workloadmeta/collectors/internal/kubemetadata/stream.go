@@ -199,19 +199,21 @@ func (p *streamingProvider) handleWmetaPodEvents(bundle workloadmeta.EventBundle
 func (p *streamingProvider) handleDCAStreamUpdate(update streamUpdate, seenPods map[string]string) {
 	var events []workloadmeta.CollectorEvent
 
-	if update.updateIsFullState {
+	if len(update.updatedKueueQueues) > 0 {
 		events = append(events, p.buildKueueQueueEvents(update.updatedKueueQueues)...)
-		events = append(events, p.buildKueueResourceFlavorEvents(update.updatedKueueResourceFlavors)...)
+	}
 
+	if len(update.updatedKueueResourceFlavors) > 0 {
+		events = append(events, p.buildKueueResourceFlavorEvents(update.updatedKueueResourceFlavors)...)
+	}
+
+	if update.updateIsFullState {
 		for _, uid := range seenPods {
 			if podEvent, ok := p.buildPodEventFromUID(uid); ok {
 				events = append(events, podEvent)
 			}
 		}
 	} else {
-		events = append(events, p.buildKueueQueueEvents(update.updatedKueueQueues)...)
-		events = append(events, p.buildKueueResourceFlavorEvents(update.updatedKueueResourceFlavors)...)
-
 		for namespacedName := range update.updatedPods {
 			uid, ok := seenPods[namespacedName]
 			if !ok {
