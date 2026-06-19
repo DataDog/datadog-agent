@@ -104,17 +104,12 @@ exports_files(["go.mod"])
 # gazelle:exclude comp/core/sysprobeconfig/sysprobeconfigimpl
 # gazelle:exclude comp/core/diagnose/local
 # gazelle:exclude comp/core/workloadmeta/collectors/catalog
-# gazelle:exclude comp/core/workloadmeta/collectors/catalog-clusteragent
 # gazelle:exclude comp/core/workloadmeta/collectors/catalog-core
-# gazelle:exclude comp/core/workloadmeta/collectors/catalog-dogstatsd
-# gazelle:exclude comp/core/workloadmeta/collectors/catalog-otel
 # gazelle:exclude comp/core/workloadmeta/collectors/internal/process
-# gazelle:exclude comp/core/workloadmeta/defaults
 # gazelle:exclude comp/dogstatsd/http/fx
 # gazelle:exclude comp/dogstatsd/http/impl/*.go
 # gazelle:exclude comp/forwarder/orchestrator/orchestratorimpl
 # gazelle:exclude comp/host-profiler/collector/fx
-# gazelle:exclude comp/logonduration/fx
 # gazelle:exclude comp/anomalydetection/logssource/impl
 # gazelle:exclude comp/logs/adscheduler/fx
 # gazelle:exclude comp/logs/adscheduler/impl
