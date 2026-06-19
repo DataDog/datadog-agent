@@ -38,38 +38,42 @@ func newPolicyMatcher(ps []policies.Policy, wmeta workloadmeta.Component) *polic
 // Match returns the outcome of the first policy that matches the pod, mirroring
 // the "first match wins" semantics of the target mutator.
 func (m *policyMatcher) Match(pod *corev1.Pod) (policies.Outcome, bool) {
-	if m == nil || pod == nil {
+	idx := m.matchIndex(pod)
+	if idx < 0 {
 		return policies.Outcome{}, false
 	}
-	facts, err := m.factsForPod(pod)
-	if err != nil {
-		log.Debugf("policy matcher: could not build facts for pod in %q: %v", pod.Namespace, err)
-		return policies.Outcome{}, false
-	}
-	return policies.Decide(m.policies, facts)
+	return m.policies[idx].Outcome, true
 }
 
 // matchIndex returns the index of the first policy that matches the pod, or -1
-// if none match. It returns an error when a required fact (e.g. namespace
-// labels) could not be resolved, so the caller can abort matching rather than
-// risk an inaccurate decision.
-func (m *policyMatcher) matchIndex(pod *corev1.Pod) (int, error) {
+// if none match. Policies are evaluated in order (first match wins).
+//
+// A policy that reads namespace labels which could not be resolved (e.g. the
+// pod's namespace is absent from the workloadmeta store) is skipped rather than
+// fatal: it cannot be evaluated, so it is ignored, and the remaining policies
+// are still evaluated in order. This guarantees that an unrelated unresolvable
+// namespace rule never prevents an otherwise-matching rule from injecting.
+func (m *policyMatcher) matchIndex(pod *corev1.Pod) int {
 	if m == nil || pod == nil {
-		return -1, nil
+		return -1
 	}
-	facts, err := m.factsForPod(pod)
-	if err != nil {
-		return -1, err
-	}
+	facts, namespaceLabelsResolved := m.factsForPod(pod)
 	for i := range m.policies {
+		if !namespaceLabelsResolved && nodeUsesNamespaceLabels(m.policies[i].Rules) {
+			// Cannot evaluate this rule without namespace labels; ignore it.
+			continue
+		}
 		if policies.Evaluate(m.policies[i].Rules, facts) == policies.ResultTrue {
-			return i, nil
+			return i
 		}
 	}
-	return -1, nil
+	return -1
 }
 
-func (m *policyMatcher) factsForPod(pod *corev1.Pod) (policies.Facts, error) {
+// factsForPod builds the evaluation facts for a pod. The boolean reports whether
+// namespace labels were resolved: when a policy needs them but they cannot be
+// fetched, it is false and namespace-label rules are skipped by matchIndex.
+func (m *policyMatcher) factsForPod(pod *corev1.Pod) (policies.Facts, bool) {
 	facts := policies.Facts{
 		NamespaceName: pod.Namespace,
 		PodLabels:     pod.Labels,
@@ -77,11 +81,12 @@ func (m *policyMatcher) factsForPod(pod *corev1.Pod) (policies.Facts, error) {
 	if m.needsNamespaceLabels && m.wmeta != nil {
 		nsLabels, err := getNamespaceLabels(m.wmeta, pod.Namespace)
 		if err != nil {
-			return facts, err
+			log.Debugf("policy matcher: namespace labels unavailable for namespace %q, namespace-label rules will be skipped: %v", pod.Namespace, err)
+			return facts, false
 		}
 		facts.NamespaceLabels = nsLabels
 	}
-	return facts, nil
+	return facts, true
 }
 
 // usesNamespaceLabels reports whether any policy rule reads a namespace label,

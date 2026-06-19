@@ -9,22 +9,23 @@ package autoinstrumentation
 
 import "testing"
 
-// TestMatching_NamespaceMissingFromStore documents an intentional behavior change
-// introduced by the policy-engine matcher.
+// TestMatching_UnresolvableNamespaceRuleIsSkipped documents an intentional
+// behavior change introduced by the policy-engine matcher.
 //
-// When a pod's namespace is absent from the workloadmeta store and at least one
-// target reads namespace labels, the matcher cannot resolve the facts it needs
-// and declines to inject (fail-safe: no injection on an unresolved namespace).
+// When a pod's namespace is absent from the workloadmeta store, a rule that
+// reads namespace labels cannot be evaluated. The matcher now ignores only that
+// rule and keeps evaluating the remaining rules in order, so an unresolvable
+// namespace rule never blocks an otherwise-matching rule from injecting.
 //
-// The legacy label-selector matcher was order-dependent here: a pod-only target
-// placed before the namespace-label target would match without ever resolving
-// namespace labels, so the same pod would be injected. The policy matcher
-// resolves namespace labels once, up front, which removes that order dependence
-// at the cost of not matching the earlier pod-only target in this case. This is
-// considered an improvement (consistent, order-independent fail-safe) and is
-// pinned here so the behavior is explicit and intentional rather than accidental.
-func TestMatching_NamespaceMissingFromStore(t *testing.T) {
-	const cfg = `
+// The legacy label-selector matcher instead aborted all matching as soon as it
+// reached a rule whose namespace could not be resolved (returning "no match").
+// It only injected in this situation by accident of ordering: if a matching
+// pod-only rule happened to come first, it short-circuited before the
+// unresolvable rule was reached. These cases pin the new, order-independent
+// behavior; the "rule first" case is the one that changes versus the legacy
+// matcher (it would previously have aborted).
+func TestMatching_UnresolvableNamespaceRuleIsSkipped(t *testing.T) {
+	const podRuleFirst = `
 apm_config:
   instrumentation:
     enabled: true
@@ -42,9 +43,30 @@ apm_config:
         ddTraceVersions:
           python: "default"
 `
-	// No namespace is registered in the store, so namespace-label resolution
-	// fails for the "ghost" namespace and matching is aborted.
-	runMatchCases(t, cfg, []matchCase{
-		{name: "unresolved namespace declines injection even for an earlier pod-only target", ns: "ghost", podLabels: map[string]string{"app": "web"}, want: ""},
+	const nsRuleFirst = `
+apm_config:
+  instrumentation:
+    enabled: true
+    targets:
+      - name: "ns-label"
+        namespaceSelector:
+          matchLabels:
+            instrument: "true"
+        ddTraceVersions:
+          python: "default"
+      - name: "pod-only"
+        podSelector:
+          matchLabels:
+            app: "web"
+        ddTraceVersions:
+          java: "default"
+`
+	// No namespace is registered in the store, so the namespace-label rule
+	// cannot be evaluated for the "ghost" namespace and is skipped.
+	runMatchCases(t, podRuleFirst, []matchCase{
+		{name: "pod-only rule before the unresolvable rule still matches", ns: "ghost", podLabels: map[string]string{"app": "web"}, want: "pod-only"},
+	})
+	runMatchCases(t, nsRuleFirst, []matchCase{
+		{name: "unresolvable rule first does not block the pod-only rule", ns: "ghost", podLabels: map[string]string{"app": "web"}, want: "pod-only"},
 	})
 }
