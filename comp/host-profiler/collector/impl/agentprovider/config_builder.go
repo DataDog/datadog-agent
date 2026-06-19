@@ -174,36 +174,39 @@ func buildMetricsPipeline(conf confMap, enableGoRuntimeMetrics bool, healthMetri
 	metricsPipeline["exporters"] = profilesExporters
 }
 
-// buildCrashPipeline adds a profiles/crash pipeline that receives crash events
-// from the crash receiver, enriches them through the same processor chain as
-// the profiling pipeline, and exports them to the crash exporter.
 func buildCrashPipeline(config confMap, processors []any, agent configManager) {
 	_ = confmaputils.Set(config, "receivers::crash", confMap{})
 
-	var site, apiKey string
-	for _, ep := range agent.endpoints {
-		if len(ep.apiKeys) > 0 {
-			site = ep.site
-			apiKey = ep.apiKeys[0]
-			break
+	// One crash exporter per profiling endpoint — mirrors buildExporters so
+	// crash events go to the same destinations as profiles.
+	const crashNameFormat = "crash/%s_%d"
+	siteCount := make(map[string]int)
+	crashExporters := make([]any, 0, agent.endpointsTotalLength)
+
+	for _, endpoint := range agent.endpoints {
+		for _, key := range endpoint.apiKeys {
+			index := siteCount[endpoint.site]
+			siteCount[endpoint.site]++
+			name := fmt.Sprintf(crashNameFormat, endpoint.site, index)
+			_ = confmaputils.Set(config, "exporters::"+name, confMap{
+				"site":    endpoint.site,
+				"api_key": key,
+			})
+			crashExporters = append(crashExporters, name)
 		}
 	}
-	if site == "" {
-		site = "datadoghq.com"
+
+	if len(crashExporters) == 0 {
+		log.Warn("crash pipeline: no endpoints configured, crash events will not be exported")
+		return
 	}
 
-	log.Infof("crash pipeline: site=%s, api_key configured=%v", site, apiKey != "")
-
-	_ = confmaputils.Set(config, "exporters::crash", confMap{
-		"site":    site,
-		"api_key": apiKey,
-	})
-
+	log.Infof("crash pipeline: configured %d exporter(s)", len(crashExporters))
 
 	crashPipeline, _ := confmaputils.Ensure[confMap](config, "service::pipelines::profiles/crash")
 	crashPipeline["receivers"] = []any{"crash"}
 	crashPipeline["processors"] = processors
-	crashPipeline["exporters"] = []any{"crash"}
+	crashPipeline["exporters"] = crashExporters
 }
 
 func buildConfig(agent configManager, p params.CollectorParams) confMap {
