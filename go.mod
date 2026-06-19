@@ -166,6 +166,7 @@ require (
 	github.com/DataDog/datadog-go/v5 v5.8.3
 	github.com/DataDog/datadog-operator/api v0.0.0-20260515125012-8e158b708444
 	github.com/DataDog/datadog-traceroute v1.0.17
+	github.com/DataDog/dd-policy-engine/go v0.0.0-20260619124759-08b73482a87e
 	github.com/DataDog/dd-trace-go/v2 v2.8.2
 	github.com/DataDog/ebpf-manager v0.7.18
 	github.com/DataDog/go-acl v1.0.1
