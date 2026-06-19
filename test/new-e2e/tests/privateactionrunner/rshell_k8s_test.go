@@ -22,8 +22,9 @@ import (
 )
 
 const (
-	rshellBundleFQNPrefix = "com.datadoghq.remoteaction.rshell"
-	runCommandAction      = rshellBundleFQNPrefix + ".runCommand"
+	rshellBundleFQNPrefix       = "com.datadoghq.remoteaction.rshell"
+	runCommandAction            = rshellBundleFQNPrefix + ".runCommand"
+	runRemediationCommandAction = rshellBundleFQNPrefix + ".runRemediationCommand"
 
 	parContainerName = "private-action-runner"
 	agentNamespace   = "datadog"
@@ -120,6 +121,47 @@ func (s *parK8sSuite) TestRshellBlockedExecCmd() {
 
 	result := s.pollResult(taskID, 2*time.Minute)
 	assert.NotEqual(s.T(), 0, rshellExitCode(result), "expected non-zero exit code: rm not in allowedCommands so -exec should be blocked")
+}
+
+// TestRshellRemediationWriteFile verifies that the runRemediationCommand action runs
+// rshell in remediation mode, allowing a file-target output redirection inside an
+// allowed path. runCommand (read-only mode) would reject the same redirection. The
+// command writes a file and reads it back to confirm the write landed on disk.
+func (s *parK8sSuite) TestRshellRemediationWriteFile() {
+	target := "/host/var/log/par-e2e-remediation.txt"
+	content := "PAR_REMEDIATION_VALUE=written_by_rshell"
+
+	taskID := uuid.New().String()
+	err := s.Env().FakeIntake.Client().EnqueuePARTask(taskID, runRemediationCommandAction, map[string]interface{}{
+		"command":         fmt.Sprintf("echo %s > %s && cat %s", content, target, target),
+		"allowedCommands": []string{"rshell:echo", "rshell:cat"},
+		"allowedPaths": map[string][]string{
+			setup.RShellPathAllowMapContainerizedKey: {"/host/var/log"},
+		},
+	})
+	s.Require().NoError(err)
+
+	result := s.pollResult(taskID, 2*time.Minute)
+	s.Require().Equal(0, rshellExitCode(result), "expected exit code 0, got %d (stderr: %v)", rshellExitCode(result), result.Outputs["stderr"])
+	assert.Contains(s.T(), result.Outputs["stdout"], content)
+}
+
+// TestRshellRunCommandBlocksWrite verifies that the read-only runCommand action rejects
+// a file-target output redirection even when the path is allowed — the security boundary
+// that distinguishes it from runRemediationCommand.
+func (s *parK8sSuite) TestRshellRunCommandBlocksWrite() {
+	taskID := uuid.New().String()
+	err := s.Env().FakeIntake.Client().EnqueuePARTask(taskID, runCommandAction, map[string]interface{}{
+		"command":         "echo nope > /host/var/log/par-e2e-readonly.txt",
+		"allowedCommands": []string{"rshell:echo"},
+		"allowedPaths": map[string][]string{
+			setup.RShellPathAllowMapContainerizedKey: {"/host/var/log"},
+		},
+	})
+	s.Require().NoError(err)
+
+	result := s.pollResult(taskID, 2*time.Minute)
+	assert.NotEqual(s.T(), 0, rshellExitCode(result), "read-only runCommand must reject file-target redirections")
 }
 
 // --- helpers ---
