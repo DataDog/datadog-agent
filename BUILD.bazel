@@ -97,10 +97,6 @@ exports_files(["go.mod"])
 # gazelle:exclude cmd/system-probe/subcommands/usm
 # gazelle:exclude cmd/system-probe/windows
 # gazelle:exclude cmd/systray
-# gazelle:exclude cmd/trace-agent/command
-# gazelle:exclude cmd/trace-agent/subcommands/info
-# gazelle:exclude cmd/trace-agent/subcommands/run
-# gazelle:exclude cmd/trace-agent/test/testsuite
 # gazelle:exclude comp/agent/bundle.go
 # gazelle:exclude comp/agent/bundle_test.go
 # gazelle:exclude comp/agent/cloudfoundrycontainer/fx
@@ -137,15 +133,8 @@ exports_files(["go.mod"])
 # gazelle:exclude comp/core/workloadmeta/collectors/catalog-dogstatsd
 # gazelle:exclude comp/core/workloadmeta/collectors/catalog-otel
 # gazelle:exclude comp/core/workloadmeta/collectors/catalog-remote
-# gazelle:exclude comp/core/workloadmeta/collectors/internal/cloudfoundry
-# gazelle:exclude comp/core/workloadmeta/collectors/internal/containerd
-# gazelle:exclude comp/core/workloadmeta/collectors/internal/crio
-# gazelle:exclude comp/core/workloadmeta/collectors/internal/docker
-# gazelle:exclude comp/core/workloadmeta/collectors/internal/ecs
 # gazelle:exclude comp/core/workloadmeta/collectors/internal/kubeapiserver
-# gazelle:exclude comp/core/workloadmeta/collectors/internal/kubelet
 # gazelle:exclude comp/core/workloadmeta/collectors/internal/kubemetadata
-# gazelle:exclude comp/core/workloadmeta/collectors/internal/nvml
 # gazelle:exclude comp/core/workloadmeta/collectors/internal/process
 # gazelle:exclude comp/core/workloadmeta/defaults
 # gazelle:exclude comp/core/workloadmeta/init
@@ -246,9 +235,6 @@ exports_files(["go.mod"])
 # gazelle:exclude comp/softwareinventory/impl
 # gazelle:exclude comp/systray/systray/fx
 # gazelle:exclude comp/systray/systray/impl
-# gazelle:exclude comp/trace/config/fx
-# gazelle:exclude comp/trace/config/impl
-# gazelle:exclude comp/trace/config/mock
 # gazelle:exclude pkg/cli/subcommands/autoscalerlist
 # gazelle:exclude pkg/cli/subcommands/check
 # gazelle:exclude pkg/cli/subcommands/clusterchecks
@@ -353,7 +339,9 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/dyninst/testprogs/progs/sample/structs.go
 # gazelle:exclude pkg/dyninst/testprogs/progs/sample/times.go
 # gazelle:exclude pkg/ebpf/_obj
-# gazelle:exclude pkg/ebpf/bytecode/runtime
+# It is a generated via genrule src that shouldn't be added to the runtime
+# library.
+# gazelle:exclude pkg/ebpf/bytecode/runtime/integrity_gen.go
 # gazelle:exclude pkg/ebpf/ebpftest/cgo_align.go
 # gazelle:exclude pkg/ebpf/features
 # gazelle:exclude pkg/ebpf/kernelbugs
@@ -369,8 +357,6 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/fleet/installer/packages/embedded/tmpl
 # gazelle:exclude pkg/gpu/containers
 # gazelle:exclude pkg/gpu/integrationtests
-# gazelle:exclude pkg/gpu/safenvml
-# gazelle:exclude pkg/gpu/testutil
 # gazelle:exclude pkg/kubestatemetrics/builder
 # gazelle:exclude pkg/languagedetection/privileged
 # gazelle:exclude pkg/logs/client/http
@@ -431,7 +417,6 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/process/util/containers
 # gazelle:exclude pkg/process/util/status
 # gazelle:exclude pkg/procmgr
-# gazelle:exclude pkg/sbom/collectors/docker
 # gazelle:exclude pkg/sbom/collectors/host
 # gazelle:exclude pkg/sbom/collectors/procfs
 # gazelle:exclude pkg/security/clihelpers

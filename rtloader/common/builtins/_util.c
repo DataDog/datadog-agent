@@ -237,13 +237,13 @@ PyObject *subprocess_output(PyObject *self, PyObject *args, PyObject *kw)
     PyEval_RestoreThread(Tstate);
     gstate = PyGILState_Ensure();
 
-    if (raise && strlen(c_stdout) == 0) {
-        raiseEmptyOutputError();
+    if (exception) {
+        PyErr_SetString(PyExc_Exception, exception);
         goto cleanup;
     }
 
-    if (exception) {
-        PyErr_SetString(PyExc_Exception, exception);
+    if (raise && (c_stdout == NULL || strlen(c_stdout) == 0)) {
+        raiseEmptyOutputError();
         goto cleanup;
     }
 

@@ -47,6 +47,23 @@ func TestCheck_HealthyConfigReturnsNil(t *testing.T) {
 	assert.Empty(t, reports)
 }
 
+// A duration setting written as a duration string (e.g. "5s") in datadog.yaml is
+// coerced by the config into a time.Duration. time.Duration marshals back to a
+// string through go-yaml, but the schema types duration fields as numbers, so the
+// checker must normalize durations to their numeric form to avoid a spurious
+// "got string, want number" violation. Regression test for the e2e diagnose suite.
+func TestCheck_DurationStringIsNotAViolation(t *testing.T) {
+	for _, yaml := range []string{
+		"remote_configuration.refresh_interval: 5s\n",   // flat dotted key
+		"remote_configuration:\n  refresh_interval: 5s", // nested key
+	} {
+		cfg := config.NewMockFromYAML(t, yaml)
+		reports, err := newChecker(cfg).Run()
+		require.NoError(t, err)
+		assert.Empty(t, reports, "duration string %q should not produce a schema violation: %+v", yaml, reports)
+	}
+}
+
 // Inject a string into an integer-typed field. Confirms the validator surfaces
 // the violation and the checker wraps it into an IssueReport.
 func TestCheck_SchemaViolationProducesReport(t *testing.T) {
