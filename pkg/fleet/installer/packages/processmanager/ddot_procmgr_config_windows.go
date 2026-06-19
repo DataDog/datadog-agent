@@ -5,6 +5,7 @@
 
 //go:build windows
 
+// Package processmanager implements fleet installer helpers for DDOT and dd-procmgr on Windows.
 package processmanager
 
 import (
