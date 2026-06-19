@@ -1508,6 +1508,11 @@ type KubernetesKueueResourceFlavor struct {
 	EntityID
 	EntityMeta
 	NodeLabels map[string]string
+	// ResolvedTags holds the ResourceFlavor's label/annotation tags already resolved
+	// against kubernetes_resources_{labels,annotations}_as_tags. Each entry is
+	// in "name:value" form where a leading '+' on the name denotes a
+	// high-cardinality tag (as interpreted by taglist.AddAuto).
+	ResolvedTags []string
 }
 
 // GetID implements Entity#GetID.
@@ -1540,6 +1545,9 @@ func (rf KubernetesKueueResourceFlavor) String(verbose bool) string {
 	_, _ = fmt.Fprint(&sb, rf.EntityMeta.String(verbose))
 	_, _ = fmt.Fprintln(&sb, "----------- Kueue Resource Flavor -----------")
 	_, _ = fmt.Fprintln(&sb, "Node Labels:", rf.NodeLabels)
+	if verbose {
+		_, _ = fmt.Fprintln(&sb, "Resolved Tags:", rf.ResolvedTags)
+	}
 	return sb.String()
 }
 

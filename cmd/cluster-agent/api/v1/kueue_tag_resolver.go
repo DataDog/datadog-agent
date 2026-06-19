@@ -18,24 +18,21 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 )
 
-// kueueQueueTagResolver resolves the label/annotation tags of a Kueue queue on
-// the cluster agent so that only the final tag strings are streamed to node
-// agents. This keeps the streaming protobuf message free of arbitrary label and
-// annotation maps.
+// kueueResourcesMetadataAsTagsResolver applies kubernetes_resources_{labels,annotations}_as_tags
+// on the cluster agent for Kueue LocalQueues, ClusterQueues, and ResourceFlavors, so only
+// the resulting tag strings are streamed to node agents (no raw label/annotation maps).
 //
-// Only tags derived from kubernetes_resources_{labels,annotations}_as_tags are
-// resolved here; the queue's intrinsic tags (kueue_local_queue,
-// kueue_cluster_queue, kube_namespace) are recomputed by the tagger on the node
-// side from the queue's other fields, so they are not part of the resolved tags.
-type kueueQueueTagResolver struct {
+// Queue intrinsic tags (kueue_local_queue, kueue_cluster_queue, kube_namespace) and
+// ResourceFlavor node-label / GPU tags are not included here; the node tagger derives those.
+type kueueResourcesMetadataAsTagsResolver struct {
 	labelsAsTags      map[string]map[string]string
 	annotationsAsTags map[string]map[string]string
 	globLabels        map[string]map[string]glob.Glob
 	globAnnotations   map[string]map[string]glob.Glob
 }
 
-func newKueueQueueTagResolver(cfg pkgconfigmodel.Reader) *kueueQueueTagResolver {
-	r := &kueueQueueTagResolver{
+func newKueueResourcesMetadataAsTagsResolver(cfg pkgconfigmodel.Reader) *kueueResourcesMetadataAsTagsResolver {
+	r := &kueueResourcesMetadataAsTagsResolver{
 		labelsAsTags:      map[string]map[string]string{},
 		annotationsAsTags: map[string]map[string]string{},
 		globLabels:        map[string]map[string]glob.Glob{},
@@ -58,11 +55,10 @@ func newKueueQueueTagResolver(cfg pkgconfigmodel.Reader) *kueueQueueTagResolver 
 	return r
 }
 
-// resolveKueueQueueTags returns the queue's label/annotation tags already
-// resolved against the configuration. Each returned entry is in "name:value"
-// form where a leading '+' on the name denotes a high-cardinality tag, matching
-// the convention understood by taglist.AddAuto on the node side.
-func (r *kueueQueueTagResolver) resolveKueueQueueTags(queue *workloadmeta.KubernetesKueueQueue) []string {
+// resolveQueueMetadataAsTags returns tags from the queue's labels and annotations
+// per kubernetes_resources_{labels,annotations}_as_tags. Each entry is "name:value";
+// a leading '+' on the name marks a high-cardinality tag (taglist.AddAuto on the node).
+func (r *kueueResourcesMetadataAsTagsResolver) resolveQueueMetadataAsTags(queue *workloadmeta.KubernetesKueueQueue) []string {
 	if r == nil {
 		return nil
 	}
@@ -77,6 +73,36 @@ func (r *kueueQueueTagResolver) resolveKueueQueueTags(queue *workloadmeta.Kubern
 		k8smetadata.AddMetadataAsTags(name, value, r.labelsAsTags[groupResource], r.globLabels[groupResource], tagList)
 	}
 	for name, value := range queue.Annotations {
+		k8smetadata.AddMetadataAsTags(name, value, r.annotationsAsTags[groupResource], r.globAnnotations[groupResource], tagList)
+	}
+
+	low, _, high, _ := tagList.Compute()
+	if len(low)+len(high) == 0 {
+		return nil
+	}
+
+	resolved := make([]string, 0, len(low)+len(high))
+	resolved = append(resolved, low...)
+	for _, tag := range high {
+		resolved = append(resolved, "+"+tag)
+	}
+	return resolved
+}
+
+// resolveResourceFlavorMetadataAsTags is like resolveQueueMetadataAsTags for ResourceFlavor
+// objects (group resource resourceflavors.kueue.x-k8s.io).
+func (r *kueueResourcesMetadataAsTagsResolver) resolveResourceFlavorMetadataAsTags(flavor *workloadmeta.KubernetesKueueResourceFlavor) []string {
+	if r == nil {
+		return nil
+	}
+
+	groupResource := kubernetes.KueueResourceFlavorResourceName + "." + kubernetes.KueueGroupName
+
+	tagList := taglist.NewTagList()
+	for name, value := range flavor.Labels {
+		k8smetadata.AddMetadataAsTags(name, value, r.labelsAsTags[groupResource], r.globLabels[groupResource], tagList)
+	}
+	for name, value := range flavor.Annotations {
 		k8smetadata.AddMetadataAsTags(name, value, r.annotationsAsTags[groupResource], r.globAnnotations[groupResource], tagList)
 	}
 

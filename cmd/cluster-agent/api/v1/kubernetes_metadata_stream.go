@@ -59,11 +59,10 @@ type kueueQueueEntry struct {
 }
 
 type kueueResourceFlavorEntry struct {
-	name        string
-	labels      map[string]string
-	annotations map[string]string
-	uid         string
-	nodeLabels  map[string]string
+	name         string
+	resolvedTags []string
+	uid          string
+	nodeLabels   map[string]string
 }
 
 type metadataSnapshot struct {
@@ -77,7 +76,7 @@ type metadataSnapshot struct {
 type KubeMetadataStreamServer struct {
 	store    *controllers.MetaBundleStore
 	wmeta    workloadmeta.Component
-	resolver *kueueQueueTagResolver
+	resolver *kueueResourcesMetadataAsTagsResolver
 
 	metadataMutex sync.RWMutex
 	metadata      metadataSnapshot
@@ -93,7 +92,7 @@ func NewKubeMetadataStreamServer(store *controllers.MetaBundleStore, wmeta workl
 	return &KubeMetadataStreamServer{
 		store:                store,
 		wmeta:                wmeta,
-		resolver:             newKueueQueueTagResolver(pkgconfigsetup.Datadog()),
+		resolver:             newKueueResourcesMetadataAsTagsResolver(pkgconfigsetup.Datadog()),
 		metadata:             newMetadataSnapshot(),
 		namespaceSubscribers: make(map[string][]chan struct{}),
 	}
@@ -249,11 +248,11 @@ func (srv *KubeMetadataStreamServer) processWmetaEvents(events []workloadmeta.Ev
 				changed = true
 			}
 		case *workloadmeta.KubernetesKueueQueue:
-			if srv.metadata.processKueueQueueEvent(event.Type, entity) {
+			if srv.metadata.processKueueQueueEvent(srv.resolver, event.Type, entity) {
 				changed = true
 			}
 		case *workloadmeta.KubernetesKueueResourceFlavor:
-			if srv.metadata.processKueueResourceFlavorEvent(event.Type, entity) {
+			if srv.metadata.processKueueResourceFlavorEvent(srv.resolver, event.Type, entity) {
 				changed = true
 			}
 		default:
@@ -287,7 +286,7 @@ func (s *metadataSnapshot) processNamespaceEvent(eventType workloadmeta.EventTyp
 	return false
 }
 
-func (s *metadataSnapshot) processKueueQueueEvent(eventType workloadmeta.EventType, queue *workloadmeta.KubernetesKueueQueue) bool {
+func (s *metadataSnapshot) processKueueQueueEvent(resolver *kueueResourcesMetadataAsTagsResolver, eventType workloadmeta.EventType, queue *workloadmeta.KubernetesKueueQueue) bool {
 	key := queue.EntityID.ID
 	switch eventType {
 	case workloadmeta.EventTypeSet:
@@ -296,7 +295,7 @@ func (s *metadataSnapshot) processKueueQueueEvent(eventType workloadmeta.EventTy
 			name:             queue.Name,
 			queueType:        queue.QueueType,
 			clusterQueueName: queue.ClusterQueueName,
-			resolvedTags:     srv.resolver.resolveKueueQueueTags(queue),
+			resolvedTags:     resolver.resolveQueueMetadataAsTags(queue),
 			uid:              queue.UID,
 		}
 		return true
@@ -311,16 +310,15 @@ func (s *metadataSnapshot) processKueueQueueEvent(eventType workloadmeta.EventTy
 	return false
 }
 
-func (s *metadataSnapshot) processKueueResourceFlavorEvent(eventType workloadmeta.EventType, flavor *workloadmeta.KubernetesKueueResourceFlavor) bool {
+func (s *metadataSnapshot) processKueueResourceFlavorEvent(resolver *kueueResourcesMetadataAsTagsResolver, eventType workloadmeta.EventType, flavor *workloadmeta.KubernetesKueueResourceFlavor) bool {
 	key := flavor.EntityID.ID
 	switch eventType {
 	case workloadmeta.EventTypeSet:
 		s.kueueResourceFlavors[key] = kueueResourceFlavorEntry{
-			name:        flavor.Name,
-			labels:      flavor.Labels,
-			annotations: flavor.Annotations,
-			uid:         flavor.UID,
-			nodeLabels:  flavor.NodeLabels,
+			name:         flavor.Name,
+			resolvedTags: resolver.resolveResourceFlavorMetadataAsTags(flavor),
+			uid:          flavor.UID,
+			nodeLabels:   flavor.NodeLabels,
 		}
 		return true
 	case workloadmeta.EventTypeUnset:
@@ -594,12 +592,11 @@ func protoKueueQueue(entry kueueQueueEntry, eventType pb.KubeMetadataEventType) 
 
 func protoKueueResourceFlavor(entry kueueResourceFlavorEntry, eventType pb.KubeMetadataEventType) *pb.KueueResourceFlavor {
 	return &pb.KueueResourceFlavor{
-		Name:        entry.name,
-		Labels:      entry.labels,
-		Annotations: entry.annotations,
-		Uid:         entry.uid,
-		NodeLabels:  entry.nodeLabels,
-		Type:        eventType,
+		Name:         entry.name,
+		ResolvedTags: entry.resolvedTags,
+		Uid:          entry.uid,
+		NodeLabels:   entry.nodeLabels,
+		Type:         eventType,
 	}
 }
 
@@ -615,8 +612,7 @@ func kueueQueueEqual(left, right kueueQueueEntry) bool {
 func kueueResourceFlavorEqual(left, right kueueResourceFlavorEntry) bool {
 	return left.name == right.name &&
 		left.uid == right.uid &&
-		maps.Equal(left.labels, right.labels) &&
-		maps.Equal(left.annotations, right.annotations) &&
+		slices.Equal(left.resolvedTags, right.resolvedTags) &&
 		maps.Equal(left.nodeLabels, right.nodeLabels)
 }
 
