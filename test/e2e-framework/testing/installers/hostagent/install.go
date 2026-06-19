@@ -284,12 +284,12 @@ func installMacOSAgent(t common.Context, host *components.RemoteHost, version ag
 func detectArch(host *components.RemoteHost) string {
 	arch, err := host.Execute("dpkg --print-architecture 2>/dev/null || uname -m")
 	if err != nil {
-		return "amd64"
+		return "x86_64"
 	}
 	arch = strings.TrimSpace(arch)
 	switch arch {
-	case "x86_64":
-		return "amd64"
+	case "amd64":
+		return "x86_64"
 	case "aarch64":
 		return "arm64"
 	default:
