@@ -42,8 +42,11 @@ import (
 )
 
 const (
-	defaultNamespace   = "datadog"
-	defaultReleaseName = "dda"
+	defaultNamespace = "datadog"
+	// defaultReleaseName matches the Pulumi installer's linuxInstallName ("dda-linux"),
+	// so DaemonSet names, pod labels (app: dda-linux-datadog) and secret names stay
+	// identical whether the agent is installed by Pulumi or by helmagent.Install.
+	defaultReleaseName = "dda-linux"
 	defaultChartRepo   = "https://helm.datadoghq.com"
 	defaultChartName   = "datadog"
 	// chartVersion must match the version pinned by the Pulumi installer
@@ -184,7 +187,10 @@ func Install(t common.Context, env *environments.Kubernetes, cloud runner.Cloud,
 		"helm upgrade --install failed",
 	)
 
-	// Initialize agent component with known label selectors from the Helm chart
+	// Initialize agent component with known label selectors from the Helm chart.
+	// Label values match the chart's {{ .Release.Name }}-datadog convention; with
+	// defaultReleaseName = "dda-linux" the pod label is "app: dda-linux-datadog",
+	// matching the Pulumi installer's linuxInstallName = "dda-linux".
 	env.Agent = &components.KubernetesAgent{}
 	env.Agent.LinuxNodeAgent.LabelSelectors = map[string]string{
 		"app": defaultReleaseName + "-datadog",
@@ -199,6 +205,14 @@ func Install(t common.Context, env *environments.Kubernetes, cloud runner.Cloud,
 	// Store baseline options and set the Helm installer for Configure
 	env.Agent.SetBaseOptions(opts...)
 	env.Agent.Installer = &helmInstaller{env: env, cloud: cloud}
+}
+
+// resolveChartVersion returns p.HelmChartVersion when set, otherwise the pinned default.
+func resolveChartVersion(p *kubernetesagentparams.Params) string {
+	if p.HelmChartVersion != "" {
+		return p.HelmChartVersion
+	}
+	return chartVersion
 }
 
 // helmUpgradeInstall runs helm install or helm upgrade using the Helm Go SDK.
@@ -246,11 +260,13 @@ func helmUpgradeInstall(t common.Context, kubeconfig string, p *kubernetesagentp
 
 	// DependencyUpdate is false: charts fetched from a Helm repo already have
 	// dependencies bundled in the tarball, so there is nothing to resolve.
+	resolvedVersion := resolveChartVersion(p)
+
 	if !releaseExists {
 		install := action.NewInstall(actionConfig)
 		install.ReleaseName = defaultReleaseName
 		install.Namespace = p.Namespace
-		install.Version = chartVersion
+		install.Version = resolvedVersion
 		install.RepoURL = p.HelmRepoURL
 		install.Wait = true
 		install.Timeout = time.Duration(p.TimeoutSeconds) * time.Second
@@ -272,7 +288,7 @@ func helmUpgradeInstall(t common.Context, kubeconfig string, p *kubernetesagentp
 
 	upgrade := action.NewUpgrade(actionConfig)
 	upgrade.Namespace = p.Namespace
-	upgrade.Version = chartVersion
+	upgrade.Version = resolvedVersion
 	upgrade.RepoURL = p.HelmRepoURL
 	upgrade.Wait = true
 	upgrade.Timeout = time.Duration(p.TimeoutSeconds) * time.Second
