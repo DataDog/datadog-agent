@@ -133,7 +133,6 @@ func (rc *rcClient) createGRPCClient() error {
 		client.WithAgent(rc.agentName, rc.agentVersion),
 	}
 
-	// We have to create the client in the constructor and set its name later
 	rc.client, err = client.NewUnverifiedGRPCClient(
 		ipcAddress,
 		pkgconfigsetup.GetIPCPort(),
