@@ -85,7 +85,7 @@ func newDomainForwarder(
 		blockedList:               newBlockedEndpoints(config, log),
 		transactionPrioritySorter: transactionPrioritySorter,
 		pointCountTelemetry:       pointCountTelemetry,
-		Client:                    NewSharedConnection(log, isLocal, config, transport),
+		Client:                    NewSharedConnection(log, isLocal, domain, config, transport),
 	}
 }
 
@@ -231,6 +231,7 @@ func (f *domainForwarder) Start() error {
 		w.Start()
 		f.workers = append(f.workers, w)
 	}
+	f.Client.StartScaling()
 	go f.handleFailedTransactions()
 	if f.connectionResetInterval != 0 {
 		go f.scheduleConnectionResets()
@@ -310,6 +311,7 @@ func (f *domainForwarder) Stop(purgeHighPrio bool) {
 		f.stopConnectionReset <- true
 	}
 	f.stopRetry <- true
+	f.Client.StopScaling()
 	for _, w := range f.workers {
 		w.Stop(purgeHighPrio)
 	}

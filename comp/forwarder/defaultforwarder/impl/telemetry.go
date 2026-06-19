@@ -40,6 +40,8 @@ var (
 		[]string{"domain", "endpoint"}, "Transaction retry count")
 	tlmTxRetryQueueSize = telemetryimpl.GetCompatComponent().NewGauge("transactions", "retry_queue_size",
 		[]string{"domain"}, "Retry queue size")
+	tlmConcurrencyLimit = telemetryimpl.GetCompatComponent().NewGauge("transactions", "concurrency_limit",
+		[]string{"domain"}, "Current dynamic limit on concurrent requests of the forwarder")
 )
 
 func init() {

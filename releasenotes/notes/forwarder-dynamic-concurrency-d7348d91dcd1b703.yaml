@@ -1,0 +1,9 @@
+enhancements:
+  - |
+    The forwarder now dynamically scales the number of concurrent requests it
+    sends to each domain. It starts at a single concurrent request and ramps up
+    toward ``forwarder_max_concurrent_requests`` while it cannot keep up with
+    the rate of outgoing payloads, and backs off when the backend responds with
+    HTTP 408, HTTP 429, HTTP 503, or request timeouts.
+    ``forwarder_max_concurrent_requests`` now acts as the upper bound for this
+    scaling.
