@@ -73,6 +73,15 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	// If true, then the go loader will be prioritized over the python loader.
 	config.BindEnvAndSetDefault("prioritize_go_check_loader", true)
 
+	// Staged startup spreads expensive subsystem startup across ordered stages
+	// to flatten the startup memory spike. When disabled, all startup work runs
+	// at once as before.
+	config.BindEnvAndSetDefault("staged_start.enabled", false)
+	// Delay inserted between staged startup stages.
+	config.BindEnvAndSetDefault("staged_start.stage_interval", 5*time.Second)
+	// If true, transient memory is returned to the OS between staged startup stages.
+	config.BindEnvAndSetDefault("staged_start.free_os_memory", true)
+
 	// If true, then new version of disk v2 check will be used.
 	// Otherwise, the python version of disk check will be used.
 	config.BindEnvAndSetDefault("use_diskv2_check", true)

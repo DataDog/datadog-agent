@@ -24,6 +24,8 @@ import (
 	remoteflagsfx "github.com/DataDog/datadog-agent/comp/core/remoteflags/fx"
 	secretsfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
 	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
+	startupsequencerfx "github.com/DataDog/datadog-agent/comp/core/startupsequencer/fx"
+	startupsequencernoopfx "github.com/DataDog/datadog-agent/comp/core/startupsequencer/fx-noop"
 	sysprobeconfigfx "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/fx"
 	sysprobeconfigimpl "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/impl"
 	telemetryfx "github.com/DataDog/datadog-agent/comp/core/telemetry/fx"
@@ -33,8 +35,9 @@ import (
 // team: agent-runtimes
 
 type bundleOptions struct {
-	secretsModule       fx.Option
-	delegatedAuthModule fx.Option
+	secretsModule          fx.Option
+	delegatedAuthModule    fx.Option
+	startupSequencerModule fx.Option
 }
 
 // Option changes some module implementations included in the bundle
@@ -43,8 +46,9 @@ type Option func(params *bundleOptions)
 // Bundle defines the fx options for this bundle.
 func Bundle(options ...Option) fxutil.BundleOptions {
 	params := &bundleOptions{
-		secretsModule:       secretsnoopfx.Module(),
-		delegatedAuthModule: delegatedauthnoopfx.Module(),
+		secretsModule:          secretsnoopfx.Module(),
+		delegatedAuthModule:    delegatedauthnoopfx.Module(),
+		startupSequencerModule: startupsequencernoopfx.Module(),
 	}
 	for _, option := range options {
 		option(params)
@@ -63,11 +67,21 @@ func Bundle(options ...Option) fxutil.BundleOptions {
 		pidfx.Module(), // You must supply pidimpl.NewParams in order to use it
 		params.secretsModule,
 		params.delegatedAuthModule,
+		params.startupSequencerModule,
 	}
 
 	return fxutil.Bundle(
 		opts...,
 	)
+}
+
+// WithStagedStartup swaps the no-op startup sequencer for the real staged one.
+// Only binaries that drive the startup sequence (call Begin after registering
+// all deferred work) should use this; without it, deferred work runs inline.
+func WithStagedStartup() Option {
+	return func(params *bundleOptions) {
+		params.startupSequencerModule = startupsequencerfx.Module()
+	}
 }
 
 // WithSecrets adds the secrets module and delegated auth module to the bundle.

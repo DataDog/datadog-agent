@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
+	startupsequencer "github.com/DataDog/datadog-agent/comp/core/startupsequencer/def"
 	statusComponent "github.com/DataDog/datadog-agent/comp/core/status"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -80,6 +81,7 @@ type Requires struct {
 	Tagger             tagger.Component
 	Compression        logscompression.Component
 	Secrets            secrets.Component
+	StartupSequencer   startupsequencer.Component
 }
 
 type Provides struct {
@@ -162,8 +164,10 @@ func NewComponent(deps Requires) Provides {
 			secrets:            deps.Secrets,
 		}
 		deps.Lc.Append(compdef.Hook{
-			OnStart: logsAgent.start,
-			OnStop:  logsAgent.stop,
+			OnStart: func(context.Context) error {
+				return deps.StartupSequencer.Defer(startupsequencer.StageIngest, "logs-agent", logsAgent.start)
+			},
+			OnStop: logsAgent.stop,
 		})
 
 		return Provides{
