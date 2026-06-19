@@ -82,6 +82,9 @@ func computeRawsTable() map[string]uint64 {
 		OffsetNameRtnlLinkOpsKind:                 16,
 		OffsetNameMntNamespaceNs:                  8,
 		OffsetNameNsCommonInum:                    16,
+		OffsetNameIoSocketStructDomain:            8,
+		OffsetNameIoSocketStructType:              12,
+		OffsetNameIoSocketStructProtocol:          16,
 	}
 }
 

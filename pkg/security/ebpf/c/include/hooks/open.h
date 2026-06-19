@@ -221,6 +221,17 @@ int hook_io_openat2(ctx_t *ctx) {
     return trace_io_openat(ctx);
 }
 
+// io_ftruncate (IORING_OP_FTRUNCATE, kernel 6.9+) calls do_ftruncate -> do_truncate, which
+// is already hooked (hook_do_truncate). As with the ftruncate syscall, we model it as an
+// open with O_TRUNC and let the do_truncate hook resolve the path from the file.
+HOOK_ENTRY("io_ftruncate")
+int hook_io_ftruncate(ctx_t *ctx) {
+    void *raw_req = (void *)CTX_PARM1(ctx);
+    u64 pid_tgid = get_pid_tgid_from_iouring(raw_req);
+    int flags = O_CREAT | O_WRONLY | O_TRUNC;
+    return trace__sys_openat2(ctx, NULL, flags, 0, pid_tgid);
+}
+
 // used by both tail call callback and directly for tracepoints
 int __attribute__((always_inline)) _sys_open_ret(void *ctx, struct syscall_cache_t *syscall) {
     if (IS_UNHANDLED_ERROR(syscall->retval)) {
@@ -305,6 +316,16 @@ HOOK_SYSCALL_COMPAT_EXIT(truncate) {
 
 HOOK_SYSCALL_COMPAT_EXIT(ftruncate) {
     return sys_open_ret(ctx);
+}
+
+HOOK_EXIT("io_ftruncate")
+int rethook_io_ftruncate(ctx_t *ctx) {
+    struct syscall_cache_t *syscall = pop_syscall(EVENT_OPEN);
+    if (!syscall || !syscall->open.dentry) {
+        return 0;
+    }
+    syscall->retval = CTX_PARMRET(ctx);
+    return _sys_open_ret(ctx, syscall);
 }
 
 HOOK_SYSCALL_COMPAT_EXIT(open) {
