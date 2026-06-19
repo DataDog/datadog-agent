@@ -41,6 +41,9 @@ func (sl SketchSeries) String() string {
 type SketchData interface {
 	// Cols returns bin keys and per-bin counts in ascending key order.
 	Cols() (k []int32, n []uint32)
+	// Range calls f for each (k, n) bin pair in ascending key order.
+	// If f returns false, range stops the iteration.
+	Range(f func(k int32, n uint32) bool)
 	// BasicStats returns the five summary fields used in the wire format.
 	BasicStats() (cnt int64, min, max, sum, avg float64)
 }

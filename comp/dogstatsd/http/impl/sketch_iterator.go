@@ -25,6 +25,14 @@ func (s *sketchData) Cols() ([]int32, []uint32) {
 	return s.k, s.n
 }
 
+func (s *sketchData) Range(f func(k int32, n uint32) bool) {
+	for i, k := range s.k {
+		if !f(k, s.n[i]) {
+			return
+		}
+	}
+}
+
 func (s *sketchData) BasicStats() (int64, float64, float64, float64, float64) {
 	return s.cnt, s.min, s.max, s.sum, s.avg
 }
