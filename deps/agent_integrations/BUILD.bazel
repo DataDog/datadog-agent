@@ -129,9 +129,17 @@ pkg_files(
     tags = ["manual"],
 )
 
+pkg_files(
+    name = "constraints_files",
+    srcs = [":constraints_file"],
+    attributes = pkg_attributes(mode = "0644"),
+    tags = ["manual"],
+)
+
 pkg_install(
     name = "install",
     srcs = [
+        ":constraints_files",
         ":integrations_bin_files",
         ":integrations_runtime_files",
     ],
