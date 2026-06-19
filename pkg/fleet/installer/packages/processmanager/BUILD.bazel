@@ -4,7 +4,6 @@ go_library(
     name = "processmanager",
     srcs = [
         "ddot_procmgr_config_windows.go",
-        "enabled_windows.go",
         "reload_windows.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/processmanager",
@@ -16,7 +15,6 @@ go_library(
             "//pkg/fleet/installer/paths",
             "//pkg/util/log",
             "//pkg/util/winutil",
-            "@in_yaml_go_yaml_v2//:yaml",
         ],
         "//conditions:default": [],
     }),

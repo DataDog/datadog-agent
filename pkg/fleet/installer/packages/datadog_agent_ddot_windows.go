@@ -17,6 +17,7 @@ import (
 
 	"go.yaml.in/yaml/v2"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/processmanager"
 	windowssvc "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service/windows"
 	windowsuser "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/user/windows"
@@ -438,11 +439,7 @@ func postInstallDDOTExtension(ctx HookContext) error {
 		return fmt.Errorf("DDOT binary not found at %s: %w", binaryPath, err)
 	}
 
-	procmgrEnabled, err := processmanager.EnabledFromDatadogYAML()
-	if err != nil {
-		log.Warnf("DDOT: could not read process_manager from datadog.yaml (%v); not writing processes.d", err)
-		procmgrEnabled = false
-	}
+	procmgrEnabled := env.FromEnv().ProcessManagerEnabled
 	if procmgrEnabled {
 		if err := processmanager.WriteDDOTProcmgrConfig(packagePath); err != nil {
 			return fmt.Errorf("failed to write DDOT process manager config: %w", err)
@@ -467,11 +464,7 @@ func postInstallDDOTExtension(ctx HookContext) error {
 // Windows service as fallback) so supervised DDOT stops before extension files are removed, then
 // stops/removes the legacy SCM entry and disables otelcollector in datadog.yaml.
 func preRemoveDDOTExtension(ctx HookContext) error {
-	procmgrEnabled, err := processmanager.EnabledFromDatadogYAML()
-	if err != nil {
-		log.Warnf("DDOT: could not read process_manager from datadog.yaml (%v); skipping dd-procmgr reload/restart after config removal", err)
-		procmgrEnabled = false
-	}
+	procmgrEnabled := env.FromEnv().ProcessManagerEnabled
 	packagePath := ctx.PackagePath
 	if resolved, err := filepath.EvalSymlinks(ctx.PackagePath); err == nil {
 		packagePath = resolved
