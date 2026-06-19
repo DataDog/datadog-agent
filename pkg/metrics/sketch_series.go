@@ -42,6 +42,24 @@ func (sl SketchSeries) String() string {
 	return reqBody.String()
 }
 
+// WriteTo emits the DDSketch flavor of this series.
+//
+// WriteTo may be invoked multiple times on the same value. The serializer
+// calls it again on a fresh DistributionWriter after a payload split; iterating
+// over Points from the start is safe and idempotent.
+func (sl *SketchSeries) WriteTo(w DistributionWriter) error {
+	dd, err := w.WriteDDSketch(sl.SketchMetadata)
+	if err != nil {
+		return err
+	}
+	for _, p := range sl.Points {
+		cnt, min, max, sum, avg := p.Sketch.BasicStats()
+		k, n := p.Sketch.Cols()
+		if err := dd.WriteDDSketchPoint(p.Ts, cnt, min, max, sum, avg, k, n); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // A SketchPoint represents a quantile sketch at a specific time
