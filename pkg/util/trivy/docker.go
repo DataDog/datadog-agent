@@ -93,6 +93,7 @@ func convertDockerImage(ctx context.Context, client client.ImageAPIClient, imgMe
 	}
 
 	img := &image{
+		name:    imgMeta.Name,
 		opener:  imageOpener(ctx, DockerCollector, imageID, f, client.ImageSave),
 		inspect: inspectResult.InspectResponse,
 		history: configHistory(historyResult.Items),
