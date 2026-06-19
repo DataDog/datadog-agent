@@ -45,6 +45,13 @@ RUN apt-get update && \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
+# Add the CA certificates needed to verify the GOPROXY endpoint used by the go
+# steps below.
+COPY --from=registry.ddbuild.io/images/datadog-ca-certs:standard /certs/ /usr/local/share/ca-certificates/
+# Make the staged certs non-world-writable, then register them in the trust store.
+RUN chmod -R o-w /usr/local/share/ca-certificates \
+    && update-ca-certificates
+
 # Install Windows cross-compilation tools if building for Windows
 ARG PACKAGE_TYPE
 RUN if [ "$PACKAGE_TYPE" = "windows" ]; then \
