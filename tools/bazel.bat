@@ -2,6 +2,8 @@
 setlocal EnableDelayedExpansion
 >nul chcp 65001
 
+>&2 fsutil 8dot3name query C:
+
 :: Check `bazelisk` properly bootstraps `bazel` or fail with instructions
 if defined BAZEL_REAL if "%BAZELISK_SKIP_WRAPPER%"=="true" goto :bazelisk_ok
 >&2 type "%~dp0bazelisk.md"
