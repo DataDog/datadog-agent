@@ -208,6 +208,11 @@ instances:
     ##     issuer_CN                 issuer Common Name
     ##     signature_algorithm       e.g. "SHA256-RSA"
     ##
+    ## Note: `certificate_store` and `server` are NOT available as filter keys.
+    ## They are appended to metrics after collection and are not visible to the
+    ## filter. Use `certificate_store` / `certificate_store_regex` to scope
+    ## which stores are opened, and `server` to target a remote host.
+    ##
     ## Examples:
     ##
     ##   # Report only certificates with a specific thumbprint:
