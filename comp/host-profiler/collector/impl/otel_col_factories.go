@@ -17,6 +17,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/converters"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/extensions/hpflareextension"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/processor/ddhostnameprocessor"
+	crashexporter "github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/exporter/crashexporter"
+	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/crashreceiver"
 	profilesreceiver "github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/receiver"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/version"
 	ddprofilingextensionimpl "github.com/DataDog/datadog-agent/comp/otelcol/ddprofilingextension/impl"
@@ -199,8 +201,18 @@ func (e extraFactoriesWithoutAgentCore) GetProfilerName() string {
 
 // createFactories creates a function that returns the factories for the collector.
 func createFactories(extraFactories ExtraFactories) func() (otelcol.Factories, error) {
+	// cr is created once per collector instance and wired into both the
+	// profiling receiver (routes crash events to it) and the crash receiver
+	// (sets its downstream OTel consumer). One eBPF tracer, no map duplication.
+	cr := crashreceiver.NewCrashReporter()
+
 	return func() (otelcol.Factories, error) {
-		receiverFactories := []receiver.Factory{profilesreceiver.NewFactory(extraFactories.GetProfilerName()), otlpreceiver.NewFactory(), prometheusreceiver.NewFactory()}
+		receiverFactories := []receiver.Factory{
+			profilesreceiver.NewFactory(extraFactories.GetProfilerName(), cr),
+			crashreceiver.NewFactory(cr),
+			otlpreceiver.NewFactory(),
+			prometheusreceiver.NewFactory(),
+		}
 		receiverFactories = append(receiverFactories, extraFactories.GetReceivers()...)
 		receivers, err := otelcol.MakeFactoryMap(receiverFactories...)
 		if err != nil {
@@ -210,6 +222,7 @@ func createFactories(extraFactories ExtraFactories) func() (otelcol.Factories, e
 		exporters, err := otelcol.MakeFactoryMap(
 			debugexporter.NewFactory(),
 			otlphttpexporter.NewFactory(),
+			crashexporter.NewFactory(),
 		)
 		if err != nil {
 			return otelcol.Factories{}, err

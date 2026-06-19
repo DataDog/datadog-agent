@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/params"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/version"
 	"github.com/DataDog/datadog-agent/pkg/util/confmaputils"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type confMap = map[string]any
@@ -173,6 +174,41 @@ func buildMetricsPipeline(conf confMap, enableGoRuntimeMetrics bool, healthMetri
 	metricsPipeline["exporters"] = profilesExporters
 }
 
+func buildCrashPipeline(config confMap, processors []any, agent configManager) {
+	_ = confmaputils.Set(config, "receivers::crash", confMap{})
+
+	// One crash exporter per profiling endpoint — mirrors buildExporters so
+	// crash events go to the same destinations as profiles.
+	const crashNameFormat = "crash/%s_%d"
+	siteCount := make(map[string]int)
+	crashExporters := make([]any, 0, agent.endpointsTotalLength)
+
+	for _, endpoint := range agent.endpoints {
+		for _, key := range endpoint.apiKeys {
+			index := siteCount[endpoint.site]
+			siteCount[endpoint.site]++
+			name := fmt.Sprintf(crashNameFormat, endpoint.site, index)
+			_ = confmaputils.Set(config, "exporters::"+name, confMap{
+				"site":    endpoint.site,
+				"api_key": key,
+			})
+			crashExporters = append(crashExporters, name)
+		}
+	}
+
+	if len(crashExporters) == 0 {
+		log.Warn("crash pipeline: no endpoints configured, crash events will not be exported")
+		return
+	}
+
+	log.Infof("crash pipeline: configured %d exporter(s)", len(crashExporters))
+
+	crashPipeline, _ := confmaputils.Ensure[confMap](config, "service::pipelines::profiles/crash")
+	crashPipeline["receivers"] = []any{"crash"}
+	crashPipeline["processors"] = processors
+	crashPipeline["exporters"] = crashExporters
+}
+
 func buildConfig(agent configManager, p params.CollectorParams) confMap {
 	config := make(confMap)
 
@@ -185,6 +221,8 @@ func buildConfig(agent configManager, p params.CollectorParams) confMap {
 	profilesPipeline["processors"] = profilesProcessors
 	profilesPipeline["exporters"] = profilesExporters
 	profilesPipeline["receivers"] = profilesReceivers
+
+	buildCrashPipeline(config, profilesProcessors, agent)
 
 	buildMetricsTelemetry(config, agent.hostProfilerConfig.HealthMetrics)
 	buildMetricsPipeline(config, p.GetGoRuntimeMetrics(), agent.hostProfilerConfig.HealthMetrics, profilesProcessors, profilesExporters)
