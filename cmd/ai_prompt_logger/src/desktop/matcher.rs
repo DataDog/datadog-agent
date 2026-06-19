@@ -14,6 +14,7 @@ pub struct ProcessInfo {
     pub argv: Vec<String>,
     pub exe_path: Option<String>,
     pub window_title: Option<String>,
+    pub attached_console_title: Option<String>,
     pub process_group_id: Option<u32>,
     pub terminal_foreground_process_group_id: Option<u32>,
     pub has_controlling_terminal: bool,
@@ -138,6 +139,15 @@ pub fn detect_ai_usages(
     }
 
     #[cfg(windows)]
+    {
+        let detections =
+            windows_console_title_matches(foreground, &snapshot.processes, &ai_candidates);
+        if !detections.is_empty() {
+            return detections;
+        }
+    }
+
+    #[cfg(windows)]
     return windows_activity_fallback(foreground, &snapshot.processes, &ai_candidates);
     #[cfg(not(windows))]
     return Vec::new();
@@ -151,6 +161,33 @@ fn platform_descendant_detections(detections: Vec<AiUsageDetection>) -> Vec<AiUs
 #[cfg(not(windows))]
 fn platform_descendant_detections(detections: Vec<AiUsageDetection>) -> Vec<AiUsageDetection> {
     detections.into_iter().take(1).collect()
+}
+
+#[cfg(windows)]
+fn windows_console_title_matches(
+    foreground: &ProcessInfo,
+    processes: &[ProcessInfo],
+    ai_candidates: &HashMap<u32, &AiProcessConfig>,
+) -> Vec<AiUsageDetection> {
+    let Some(foreground_title) = foreground.window_title.as_deref() else {
+        return Vec::new();
+    };
+    if foreground_title.is_empty() {
+        return Vec::new();
+    }
+
+    let mut seen_tools = HashSet::new();
+    processes
+        .iter()
+        .filter_map(|process| {
+            let tool = ai_candidates.get(&process.pid)?;
+            let console_title = process.attached_console_title.as_deref()?;
+            if console_title != foreground_title || !seen_tools.insert(tool.tool.clone()) {
+                return None;
+            }
+            Some(detection_from_match(foreground, process, tool))
+        })
+        .collect()
 }
 
 #[cfg(windows)]
@@ -408,6 +445,7 @@ mod tests {
             argv: Vec::new(),
             exe_path: None,
             window_title: None,
+            attached_console_title: None,
             process_group_id: None,
             terminal_foreground_process_group_id: None,
             has_controlling_terminal: false,
@@ -431,6 +469,7 @@ mod tests {
             argv: Vec::new(),
             exe_path: None,
             window_title: Some(title.to_string()),
+            attached_console_title: None,
             process_group_id: None,
             terminal_foreground_process_group_id: None,
             has_controlling_terminal: false,
@@ -460,6 +499,7 @@ mod tests {
             argv: vec![exe_name.to_string()],
             exe_path: None,
             window_title: None,
+            attached_console_title: None,
             process_group_id: Some(process_group_id),
             terminal_foreground_process_group_id: Some(terminal_foreground_process_group_id),
             has_controlling_terminal: true,
@@ -493,6 +533,7 @@ mod tests {
             argv: argv0.map(str::to_string).into_iter().collect(),
             exe_path: None,
             window_title: None,
+            attached_console_title: None,
             process_group_id: None,
             terminal_foreground_process_group_id: None,
             has_controlling_terminal: false,
@@ -521,6 +562,7 @@ mod tests {
             argv: argv.into_iter().map(str::to_string).collect(),
             exe_path: None,
             window_title: None,
+            attached_console_title: None,
             process_group_id: None,
             terminal_foreground_process_group_id: None,
             has_controlling_terminal: false,
@@ -585,6 +627,11 @@ mod tests {
             ..ProcessActivityDelta::default()
         });
         process.process_read_write_activity_observed = false;
+        process
+    }
+
+    fn with_attached_console_title(mut process: ProcessInfo, title: &str) -> ProcessInfo {
+        process.attached_console_title = Some(title.to_string());
         process
     }
 
@@ -1180,6 +1227,74 @@ mod tests {
 
         assert_eq!(detection.tool, "Cursor");
         assert_eq!(detection.matched_pid, 20);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_title_match_detects_hosted_candidate_before_activity_fallback() {
+        let foreground = process_with_title(10, 1, "WindowsTerminal.exe", "Claude Code");
+        let inactive_title_match =
+            with_attached_console_title(process(12, 30, "claude.exe"), "Claude Code");
+        let active_fallback_candidate = with_read_activity(process(13, 31, "hermes.exe"));
+        let mut config = config();
+        config.ai_process_names.push(AiProcessConfig {
+            process_names: vec!["hermes.exe".to_string()],
+            tool: "Hermes Agent".to_string(),
+            provider: "Nous Research".to_string(),
+            match_scope: AiProcessMatchScope::HostedChild,
+            approved: false,
+            secondary: false,
+        });
+
+        let detections = detect_ai_usages(
+            &foreground,
+            &snapshot(vec![
+                foreground.clone(),
+                inactive_title_match,
+                active_fallback_candidate,
+            ]),
+            &config,
+        );
+
+        assert_eq!(detections.len(), 1);
+        assert_eq!(detections[0].tool, "Claude Code");
+        assert_eq!(detections[0].matched_pid, 12);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_title_match_ignores_different_console_title() {
+        let foreground = process_with_title(10, 1, "WindowsTerminal.exe", "Claude Code");
+        let inactive_title_mismatch =
+            with_attached_console_title(process(12, 30, "claude.exe"), "Other Tab");
+
+        assert!(
+            detect_ai_usage(
+                &foreground,
+                &snapshot(vec![foreground.clone(), inactive_title_mismatch]),
+                &config()
+            )
+            .is_none()
+        );
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_title_match_coalesces_candidates_by_tool() {
+        let foreground = process_with_title(10, 1, "WindowsTerminal.exe", "Claude Code");
+        let first_match = with_attached_console_title(process(12, 30, "claude.exe"), "Claude Code");
+        let second_match =
+            with_attached_console_title(process(13, 31, "claude.exe"), "Claude Code");
+
+        let detections = detect_ai_usages(
+            &foreground,
+            &snapshot(vec![foreground.clone(), first_match, second_match]),
+            &config(),
+        );
+
+        assert_eq!(detections.len(), 1);
+        assert_eq!(detections[0].tool, "Claude Code");
+        assert_eq!(detections[0].matched_pid, 12);
     }
 
     #[cfg(windows)]

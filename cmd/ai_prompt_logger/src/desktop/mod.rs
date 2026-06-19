@@ -125,7 +125,7 @@ fn poll_once(
     let foreground = match detector.foreground_process() {
         Ok(Some(process)) => process,
         Ok(None) => {
-            logger.info("desktop scan foreground_process=\"none\" foreground_pid=0 foreground_window_title=\"\"");
+            logger.info("desktop scan foreground_process=<none> foreground_pid=0 foreground_window_title=<>");
             return;
         }
         Err(err) => {
@@ -137,7 +137,7 @@ fn poll_once(
     };
 
     logger.info(format!(
-        "desktop scan foreground_process=\"{}\" foreground_pid={} foreground_window_title=\"{}\"",
+        "desktop scan foreground_process=<{}> foreground_pid={} foreground_window_title=<{}>",
         foreground.exe_name,
         foreground.pid,
         foreground.window_title.as_deref().unwrap_or("")
@@ -153,6 +153,8 @@ fn poll_once(
         }
     };
     process_activity_tracker.mark_observed_activity(&mut snapshot, config);
+    #[cfg(windows)]
+    windows::enrich_attached_console_titles(&foreground, &mut snapshot, config);
 
     log_process_tree_diagnostics(&foreground, &snapshot, config, logger);
 
@@ -165,7 +167,7 @@ fn poll_once(
     let hostname = resolve_hostname();
     for detection in detections {
         logger.info(format!(
-            "detected AI usage tool=\"{}\" provider=\"{}\" matched_process=\"{}\" matched_pid={} foreground_process=\"{}\" foreground_pid={}",
+            "detected AI usage tool=<{}> provider=<{}> matched_process=<{}> matched_pid={} foreground_process=<{}> foreground_pid={}",
             detection.tool,
             detection.provider,
             detection.matched_process_name,
@@ -185,10 +187,10 @@ fn poll_once(
         event.provider = Some(detection.provider);
 
         if dd_client.send_event(&event) {
-            logger.info(format!("sent AI usage event tool=\"{}\"", event.tool));
+            logger.info(format!("sent AI usage event tool=<{}>", event.tool));
         } else {
             logger.warn(format!(
-                "failed to send AI usage event tool=\"{}\"",
+                "failed to send AI usage event tool=<{}>",
                 event.tool
             ));
         }
@@ -591,6 +593,7 @@ mod tests {
             argv: vec!["claude".to_string()],
             exe_path: None,
             window_title: None,
+            attached_console_title: None,
             process_group_id: Some(pid),
             terminal_foreground_process_group_id: Some(pid),
             has_controlling_terminal: true,

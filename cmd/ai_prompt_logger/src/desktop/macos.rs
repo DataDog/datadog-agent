@@ -133,6 +133,7 @@ impl DesktopDetector for MacosDesktopDetector {
             argv,
             exe_path,
             window_title: window.title,
+            attached_console_title: None,
             process_group_id: bsd_info.as_ref().map(|info| info.pbi_pgid),
             terminal_foreground_process_group_id: bsd_info
                 .as_ref()
@@ -485,6 +486,7 @@ fn process_info_from_pid(pid: pid_t) -> Option<ProcessInfo> {
         argv,
         exe_path,
         window_title: None,
+        attached_console_title: None,
         process_group_id: Some(info.pbi_pgid),
         terminal_foreground_process_group_id: terminal_foreground_process_group_id(&info),
         has_controlling_terminal: has_controlling_terminal(&info),

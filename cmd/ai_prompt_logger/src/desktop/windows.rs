@@ -4,6 +4,7 @@ use std::ptr;
 
 use anyhow::{Context, Result};
 use windows_sys::Win32::Foundation::{CloseHandle, FILETIME, INVALID_HANDLE_VALUE};
+use windows_sys::Win32::System::Console::{AttachConsole, FreeConsole, GetConsoleTitleW};
 use windows_sys::Win32::System::Diagnostics::ToolHelp::{
     CreateToolhelp32Snapshot, PROCESSENTRY32W, Process32FirstW, Process32NextW, TH32CS_SNAPPROCESS,
 };
@@ -19,10 +20,21 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
     GetForegroundWindow, GetWindowTextLengthW, GetWindowTextW, GetWindowThreadProcessId,
 };
 
+use crate::datadog::DesktopMonitoringConfig;
 use crate::desktop::DesktopDetector;
-use crate::desktop::matcher::{ProcessActivity, ProcessInfo, ProcessSnapshot};
+use crate::desktop::matcher::{
+    ProcessActivity, ProcessInfo, ProcessSnapshot, find_hosted_ai_process,
+};
 
 const AGENT_SERVICE_NAME: &str = "DatadogAgent";
+const CONSOLE_TITLE_HOST_NAMES: &[&str] = &[
+    "windowsterminal",
+    "wt",
+    "cmd",
+    "powershell",
+    "pwsh",
+    "conhost",
+];
 
 pub struct WindowsDesktopDetector;
 
@@ -65,6 +77,7 @@ impl DesktopDetector for WindowsDesktopDetector {
             argv: Vec::new(),
             exe_path,
             window_title: window_title(hwnd),
+            attached_console_title: None,
             process_group_id: None,
             terminal_foreground_process_group_id: None,
             has_controlling_terminal: false,
@@ -114,6 +127,7 @@ impl DesktopDetector for WindowsDesktopDetector {
                     argv: Vec::new(),
                     exe_path: None,
                     window_title: None,
+                    attached_console_title: None,
                     process_group_id: None,
                     terminal_foreground_process_group_id: None,
                     has_controlling_terminal: false,
@@ -142,12 +156,48 @@ impl DesktopDetector for WindowsDesktopDetector {
     }
 }
 
+pub(super) fn enrich_attached_console_titles(
+    foreground: &ProcessInfo,
+    snapshot: &mut ProcessSnapshot,
+    config: &DesktopMonitoringConfig,
+) {
+    if foreground
+        .window_title
+        .as_deref()
+        .map_or(true, |title| title.is_empty())
+        || !is_console_title_host(foreground)
+    {
+        return;
+    }
+
+    for process in &mut snapshot.processes {
+        if find_hosted_ai_process(process, &config.ai_process_names).is_none() {
+            continue;
+        }
+        if let Ok(title) = attached_console_title(process.pid) {
+            if !title.is_empty() {
+                process.attached_console_title = Some(title);
+            }
+        }
+    }
+}
+
 struct HandleGuard(windows_sys::Win32::Foundation::HANDLE);
 
 impl Drop for HandleGuard {
     fn drop(&mut self) {
         unsafe {
             CloseHandle(self.0);
+        }
+    }
+}
+
+struct AttachedConsoleGuard;
+
+impl Drop for AttachedConsoleGuard {
+    fn drop(&mut self) {
+        unsafe {
+            FreeConsole();
         }
     }
 }
@@ -196,6 +246,25 @@ fn query_service_running(service_name: &str) -> Result<bool> {
     }
 
     Ok(status.dwCurrentState == SERVICE_RUNNING)
+}
+
+fn attached_console_title(pid: u32) -> Result<String> {
+    unsafe {
+        FreeConsole();
+    }
+    let attached = unsafe { AttachConsole(pid) };
+    if attached == 0 {
+        return Err(std::io::Error::last_os_error()).context("AttachConsole failed");
+    }
+    let _guard = AttachedConsoleGuard;
+
+    let mut buffer = vec![0u16; 32768];
+    let copied = unsafe { GetConsoleTitleW(buffer.as_mut_ptr(), buffer.len() as u32) };
+    if copied == 0 {
+        return Ok(String::new());
+    }
+
+    Ok(String::from_utf16_lossy(&buffer[..copied as usize]))
 }
 
 /// Query the full executable image path for a process.
@@ -290,6 +359,34 @@ fn exe_name_from_path(path: &str) -> Option<String> {
         .and_then(|name| name.to_str())
         .filter(|name| !name.is_empty())
         .map(str::to_string)
+}
+
+fn is_console_title_host(process: &ProcessInfo) -> bool {
+    process_identity_names(process)
+        .into_iter()
+        .any(|name| CONSOLE_TITLE_HOST_NAMES.contains(&normalize_process_name(name).as_str()))
+}
+
+fn process_identity_names(process: &ProcessInfo) -> Vec<&str> {
+    let mut names = Vec::new();
+    names.push(process.exe_name.as_str());
+    if let Some(exe_path) = process.exe_path.as_deref() {
+        names.push(exe_path);
+    }
+    names
+}
+
+fn normalize_process_name(name: &str) -> String {
+    let mut base_name = Path::new(name)
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or(name)
+        .trim_matches('"')
+        .to_ascii_lowercase();
+    if let Some(stripped) = base_name.strip_suffix(".exe") {
+        base_name = stripped.to_string();
+    }
+    base_name
 }
 
 /// Read the foreground window title text.
