@@ -96,6 +96,7 @@ func (r *runner) toProto(report runnerdef.IssueReport) *healthplatformpayload.Is
 	return &healthplatformpayload.Issue{
 		Id:        report.IssueID,
 		IssueName: report.IssueName,
+		Title:     report.IssueName,
 		Source:    report.Source,
 		Tags:      report.Tags,
 	}

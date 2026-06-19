@@ -993,6 +993,36 @@ func TestSeriesV3ForcedToV2WhenCompressorImplIsZlib(t *testing.T) {
 	}
 }
 
+// TestSeriesV3BetaShadowSuppressedWhenCompressorImplIsZlib covers the shadow analogue of
+// TestSeriesV3ForcedToV2WhenCompressorImplIsZlib: the v3beta shadow sends a v3-format
+// payload, so a zlib compressor must suppress it even when shadow sampling would otherwise
+// fire (rate=1, US1 site, fixedRand below the rate).
+func TestSeriesV3BetaShadowSuppressedWhenCompressorImplIsZlib(t *testing.T) {
+	logger := logmock.New(t)
+	config := configmock.New(t)
+	config.SetInTest("dd_url", "https://app.datadoghq.com")
+	config.SetInTest("api_key", "test_key")
+	config.SetInTest("serializer_experimental_use_v3_api.series.shadow_sample_rate", 1)
+	config.SetInTest("use_v3_api.series.enabled", "false")
+	// Config says zstd, but the injected compressor is zlib, as a zlib-only build would resolve.
+	config.SetInTest("serializer_compressor_kind", "zstd")
+
+	f, err := defaultforwarderimpl.NewTestForwarder(defaultforwarder.Params{}, config, logger, &secretnooptypes.SecretNoop{})
+	require.NoError(t, err)
+	s := NewSerializer(f, nil, implzlib.New(), config, logger, "")
+	require.Equal(t, compression.ZlibEncoding, s.Strategy.ContentEncoding(), "test precondition: compressor must be zlib")
+
+	pipelines := s.buildPipelinesRng(metricsKindSeries, fixedRand{v: 0})
+	require.Len(t, pipelines, 1, "a zlib compressor must suppress the v3beta shadow pipeline")
+	for conf, ctx := range pipelines {
+		require.Len(t, ctx.Destinations, 1)
+		dest := ctx.Destinations[0]
+		assert.False(t, conf.V3)
+		assert.Equal(t, endpoints.SeriesEndpoint, dest.Endpoint)
+		assert.Empty(t, dest.ValidationBatchID)
+	}
+}
+
 // TestEvalSeriesV3 exercises the full string-acceptance surface of
 // use_v3_api.series.enabled / endpoints[url] in one place. The Datadog and
 // non-Datadog resolvers exist so the "datadog_only" branch is observable from

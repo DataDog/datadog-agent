@@ -6,9 +6,9 @@
 package store
 
 const (
-	// ADMisconfigurationIssueName is the snake_case issue name for autodiscovery
+	// ADMisconfigurationIssueName is the human-readable issue name for autodiscovery
 	// misconfiguration issues, used as the template registry key and proto IssueName field.
-	ADMisconfigurationIssueName = "ad_misconfiguration"
+	ADMisconfigurationIssueName = "Autodiscovery Misconfiguration"
 
 	// ADMisconfigurationSource is the Source value reported when the
 	// autodiscovery component detects a misconfiguration.

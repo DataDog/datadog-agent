@@ -654,21 +654,17 @@ PyObject *Three::_importFrom(const char *module, const char *name)
     obj_module = PyImport_ImportModule(module);
     if (obj_module == NULL) {
         setError(_fetchPythonError());
-        goto error;
+        return NULL;
     }
 
     obj_symbol = PyObject_GetAttrString(obj_module, name);
+    Py_DECREF(obj_module);
     if (obj_symbol == NULL) {
         setError(_fetchPythonError());
-        goto error;
+        return NULL;
     }
 
     return obj_symbol;
-
-error:
-    Py_XDECREF(obj_module);
-    Py_XDECREF(obj_symbol);
-    return NULL;
 }
 
 PyObject *Three::_findSubclassOf(PyObject *base, PyObject *module)

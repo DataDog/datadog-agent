@@ -9,17 +9,20 @@ import (
 	"path/filepath"
 
 	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 )
 
 // LoadComponents configures several common Agent components:
 // tagger, collector, scheduler and autodiscovery
-func LoadComponents(ac autodiscovery.Component, confdPath string) {
+func LoadComponents(ac autodiscovery.Component, config config.Component) {
+	confdPath := config.GetString("confd_path")
+
 	confSearchPaths := []string{
 		confdPath,
 		filepath.Join(defaultpaths.GetDistPath(), "conf.d"),
 		"",
 	}
 
-	setupAutoDiscovery(confSearchPaths, ac)
+	setupAutoDiscovery(confSearchPaths, ac, config)
 }

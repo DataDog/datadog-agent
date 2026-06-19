@@ -28,10 +28,15 @@ func SetMaxProcs() bool {
 		log.Infof("runtime: set GOMAXPROCS to: %d", runtime.GOMAXPROCS(0))
 	}()
 
+	// minGOMAXPROCS ensures at least 2 Ps regardless of cgroup CPU quota. A single P
+	// serializes all goroutines onto one OS thread, which stalls event pipelines in
+	// constrained environments (e.g. <=1 vCPU on ECS Fargate).
+	const minGOMAXPROCS = 2
+
 	var set bool
-	// This call will cause GOMAXPROCS to be set to the number of vCPUs allocated to the process
-	// if the process is running in a Linux environment (including when its running in a docker / K8s setup).
-	_, err := maxprocs.Set(maxprocs.Logger(log.Debugf))
+	// Sets GOMAXPROCS to the number of vCPUs allocated to the process in Linux cgroup
+	// environments (Docker, Kubernetes, ECS). maxprocs.Min enforces the floor above.
+	_, err := maxprocs.Set(maxprocs.Logger(log.Debugf), maxprocs.Min(minGOMAXPROCS))
 	if err != nil {
 		log.Errorf("runtime: error auto-setting maxprocs: %v ", err)
 	} else {
@@ -60,10 +65,8 @@ func SetMaxProcs() bool {
 			}
 
 			cpus := milliCPUs / 1000
-			// Floor at 2 to ensure minimal concurrency: Go relies heavily on
-			// goroutines and a single OS thread can cause scheduling stalls.
-			if cpus < 2 {
-				cpus = 2
+			if cpus < minGOMAXPROCS {
+				cpus = minGOMAXPROCS
 			}
 			log.Infof("runtime: GOMAXPROCS millicpu configuration: %s (resolved to %d CPUs), setting GOMAXPROCS to %d", max, milliCPUs/1000, cpus)
 			runtime.GOMAXPROCS(cpus)
@@ -74,6 +77,7 @@ func SetMaxProcs() bool {
 		log.Errorf(
 			"runtime: unhandled GOMAXPROCS value: %s", max)
 	}
+
 	return set
 }
 

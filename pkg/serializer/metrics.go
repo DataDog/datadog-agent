@@ -195,6 +195,9 @@ func (s *Serializer) buildPipelinesRng(kind metricsKind, rng prng) metrics.Pipel
 	shadowSites := metricsShadowSites(s.config)
 
 	zlib := s.zlibForcesV2()
+	if zlib {
+		shadowRate = 0
+	}
 
 	for _, resolver := range s.Forwarder.GetDomainResolvers() {
 		useV3 := metricsUseV3(resolver, s.config, s.logger, kind)

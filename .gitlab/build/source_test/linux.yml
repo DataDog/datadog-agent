@@ -89,24 +89,6 @@ tests_linux-x64-py3_hybrid:
     - !reference [.except_disable_unit_tests]
     - !reference [.fast_on_dev_branch_only]
 
-tests_nodetreemodel:
-  extends:
-    - .linux_tests
-    - .linux_x64
-  after_script:
-    - !reference [.upload_junit_source]
-    - !reference [.upload_coverage]
-    - !reference [.upload_coverage_datadog]
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  rules:
-    - !reference [.except_mergequeue]
-    - !reference [.except_disable_unit_tests]
-    - !reference [.fast_on_dev_branch_only]
-  variables:
-    CONDA_ENV: ddpy3
-    # This env var enables the NTM config implementation
-    DD_CONF_NODETREEMODEL: enable
-
 tests_flavor_iot_linux-x64:
   extends:
     - .linux_tests

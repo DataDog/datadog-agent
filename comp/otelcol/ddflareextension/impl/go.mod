@@ -95,7 +95,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/signin v1.1.2 // indirect
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
 	github.com/buger/jsonparser v1.1.2 // indirect
-	github.com/containerd/platforms v1.0.0-rc.1 // indirect
+	github.com/containerd/platforms v1.0.0-rc.2 // indirect
 	github.com/felixge/fgprof v0.9.5 // indirect
 	github.com/google/pprof v0.0.0-20260507013755-92041b743c96 // indirect
 	github.com/hashicorp/go-metrics v0.5.4 // indirect
@@ -178,7 +178,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.78.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.78.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/structure v0.78.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.78.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/utils v0.78.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.78.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/fips v0.78.1 // indirect
@@ -628,7 +627,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/config/schema => ../../../../pkg/config/schema
 	github.com/DataDog/datadog-agent/pkg/config/setup => ../../../../pkg/config/setup
 	github.com/DataDog/datadog-agent/pkg/config/structure => ../../../../pkg/config/structure
-	github.com/DataDog/datadog-agent/pkg/config/teeconfig => ../../../../pkg/config/teeconfig
 	github.com/DataDog/datadog-agent/pkg/config/utils => ../../../../pkg/config/utils
 	github.com/DataDog/datadog-agent/pkg/config/viperconfig => ../../../../pkg/config/viperconfig
 	github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model => ../../../../pkg/discovery/tracermetadata/model

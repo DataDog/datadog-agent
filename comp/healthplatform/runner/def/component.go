@@ -22,7 +22,7 @@ type IssueReport struct {
 	IssueID string
 
 	// IssueName is the issue name looked up in the issue registry.
-	// Examples: "check_execution_failure", "docker_file_tailing_disabled"
+	// Examples: "Check Execution Failure", "Docker File Tailing Disabled"
 	IssueName string
 
 	// Source is the reporting integration or component name.

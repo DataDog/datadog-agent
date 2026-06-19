@@ -16,10 +16,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestSecretBackendWithMultipleEndpoints tests an edge case of `viper.AllSettings()` when a config
-// key includes the key delimiter. Affects the config package when both secrets and multiple
+// TestSecretBackendWithMultipleEndpoints tests an edge case of the config's AllSettings() when a
+// config key includes the key delimiter. Affects the config package when both secrets and multiple
 // endpoints are configured.
-// Refer to https://github.com/DataDog/viper/pull/2 for more details.
 func TestSecretBackendWithMultipleEndpoints(t *testing.T) {
 	conf := mock.NewFromFile(t, "./tests/datadog_secrets.yaml")
 

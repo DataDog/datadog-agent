@@ -79,12 +79,6 @@ go_deps.gazelle_override(
     directives = [
         "gazelle:build_file_generation on",
     ],
-    path = "github.com/GoogleCloudPlatform/docker-credential-gcr",
-)
-go_deps.gazelle_override(
-    directives = [
-        "gazelle:build_file_generation on",
-    ],
     path = "github.com/coreos/etcd",
 )
 go_deps.gazelle_override(

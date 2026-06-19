@@ -13,7 +13,6 @@ import (
 	"maps"
 	"net"
 	"os"
-	"path/filepath"
 	"runtime"
 	"slices"
 	"strconv"
@@ -192,7 +191,7 @@ func init() {
 	osinit()
 
 	// init default for code that access the config before it initialized
-	InitConfigObjects("", "")
+	InitConfigObjects()
 }
 
 // Variables to initialize at start time
@@ -277,48 +276,12 @@ var commonConfigComponents = []func(pkgconfigmodel.Setup){
 	autoscaling,
 }
 
-type configLibBackend struct {
-	ConfNodeTreeModel string `yaml:"conf_nodetreemodel"`
-}
-
-func resolveConfigLibType(cliPath string, defaultDir string) string {
-	configPath := ""
-	for _, path := range []string{cliPath, defaultDir} {
-		if !strings.HasSuffix(path, ".yaml") && !strings.HasSuffix(path, ".yml") {
-			path = filepath.Join(path, "datadog.yaml")
-		}
-
-		if _, err := os.Stat(path); err == nil {
-			configPath = path
-		}
-	}
-
-	if configPath == "" {
-		return ""
-	}
-
-	yamlFile, err := os.ReadFile(configPath)
-	if err != nil {
-		return ""
-	}
-
-	conf := configLibBackend{}
-	err = yaml.Unmarshal(yamlFile, &conf)
-	if err != nil {
-		return ""
-	}
-	return conf.ConfNodeTreeModel
-}
-
 // InitConfigObjects initializes the global config objects use across the code. This should never be called anywhere
 // but from the main.
-func InitConfigObjects(cliPath string, defaultDir string) {
-	// We first load the configuration to see which config library should be used.
-	configLib := resolveConfigLibType(cliPath, defaultDir)
-
+func InitConfigObjects() {
 	// Assign the config globals, using locks to make the tests happy
-	SetDatadog(create.NewConfig("datadog", configLib))          // nolint: forbidigo // legitimate use of SetDatadog
-	SetSystemProbe(create.NewConfig("system-probe", configLib)) // nolint: forbidigo // legitimate use of SetDatadog
+	SetDatadog(create.NewConfig("datadog"))          // nolint: forbidigo // legitimate use of SetDatadog
+	SetSystemProbe(create.NewConfig("system-probe")) // nolint: forbidigo // legitimate use of SetDatadog
 
 	// Configuration defaults, should only be logic-free calls to BindEnvAndSetDefault / BindEnv / SetDefault
 	initConfig()
@@ -329,8 +292,6 @@ func InitConfigObjects(cliPath string, defaultDir string) {
 	// Build the environment variable layer
 	datadog.(pkgconfigmodel.BuildableConfig).BuildSchema()
 	systemProbe.(pkgconfigmodel.BuildableConfig).BuildSchema()
-
-	log.Infof("config lib used: %s", datadog.GetLibType())
 }
 
 // InitConfig initializes the config defaults on a config used by all agents

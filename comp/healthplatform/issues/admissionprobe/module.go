@@ -22,7 +22,7 @@ func init() {
 const (
 	// IssueName is the identifier for admission controller connectivity issues,
 	// used as the template registry key and the proto IssueName field.
-	IssueName = "admission_controller_unreachable"
+	IssueName = "Admission Controller Unreachable"
 	// IssueID is the unique instance id used when reporting this issue.
 	// Note: kept separate from IssueName — probe.go and E2E tests use this value for issue.Id.
 	IssueID = "admission-controller-connectivity-failure"

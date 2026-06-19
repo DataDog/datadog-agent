@@ -12,5 +12,6 @@ compile_pip_requirements(
 compile_pip_requirements(
     name = "py_agent_integrations_tool_requirements",
     src = "py_agent_integrations_tool_requirements.txt",
+    extra_args = ["--no-annotate"],  # Avoids discrepancies between windows and other lockfiles
     requirements_txt = "py_agent_integrations_tool_requirements_lock.txt",
 )

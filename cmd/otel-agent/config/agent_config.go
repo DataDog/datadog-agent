@@ -93,7 +93,7 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 	//
 	// TODO: should be migrated to a dedicated comp or flavor of the config comp
 	//
-	pkgconfigsetup.InitConfigObjects(ddCfg, "")
+	pkgconfigsetup.InitConfigObjects()
 
 	pkgconfig := pkgconfigsetup.Datadog().RevertFinishedBackToBuilder() //nolint:forbidigo // legitimate use for OTel configuration
 	pkgconfig.SetConfigName("OTel")

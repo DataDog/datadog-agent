@@ -184,7 +184,7 @@ int BPF_PROG(tcp_connect_entry, struct sock *sk) {
 }
 
 SEC("fexit/inet_csk_accept")
-int BPF_PROG(inet_csk_accept_exit, struct sock *orig_sk, int flags, int *err, bool kern, struct sock *sk) {
+int BPF_PROG(inet_csk_accept_exit_pre_6_10_0, struct sock *orig_sk, int flags, int *err, bool kern, struct sock *sk) {
     if (!is_tcp_family_enabled(sk)) {
         return 0;
     }
@@ -201,7 +201,7 @@ int BPF_PROG(inet_csk_accept_exit, struct sock *orig_sk, int flags, int *err, bo
 }
 
 SEC("fexit/inet_csk_accept")
-int BPF_PROG(inet_csk_accept_exit_610, struct sock *orig_sk, struct proto_accept_arg *arg, struct sock *sk) {
+int BPF_PROG(inet_csk_accept_exit, struct sock *orig_sk, struct proto_accept_arg *arg, struct sock *sk) {
     if (!is_tcp_family_enabled(sk)) {
         return 0;
     }

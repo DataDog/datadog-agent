@@ -15,5 +15,9 @@ dd_agent_go_test(
     name = "exitcode_test",
     srcs = ["exitcode_test.go"],
     embed = [":exitcode"],
-    target_compatible_with = ["@platforms//os:linux"],
+    target_compatible_with = select({
+        "@platforms//os:linux": [],
+        "@platforms//os:macos": [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
 )

@@ -43,10 +43,8 @@ go_test(
     deps = [
         "//pkg/config/helper",
         "//pkg/config/model",
-        "//pkg/config/viperconfig",
         "@com_github_spf13_cast//:cast",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
-        "@in_yaml_go_yaml_v2//:yaml",
     ],
 )

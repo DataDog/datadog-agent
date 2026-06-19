@@ -170,8 +170,5 @@ properties:
     default: ''
   refresh_interval:
     node_type: setting
-    type: number
+    type: string
     default: 0s
-    format: duration
-    tags:
-    - golang_type:duration

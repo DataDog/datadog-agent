@@ -171,20 +171,20 @@ require (
 	github.com/DataDog/go-acl v1.0.1
 	github.com/DataDog/go-sqllexer v0.2.2
 	github.com/DataDog/sketches-go v1.4.8
-	github.com/DataDog/viper v1.15.1
+	github.com/DataDog/viper v1.15.1 // indirect
 	// TODO: pin to a WPA released version once there is a release that includes the apis module
 	github.com/DataDog/watermarkpodautoscaler/apis v0.0.0-20250108152814-82e58d0231d1
 	github.com/DataDog/zstd v1.5.8-0.20260421145859-31a7e515a571
 	github.com/Masterminds/semver/v3 v3.5.0
 	github.com/Masterminds/sprig/v3 v3.3.0
 	github.com/Microsoft/go-winio v0.6.2
-	github.com/Microsoft/hcsshim v0.13.0
+	github.com/Microsoft/hcsshim v0.14.0-rc.1
 	github.com/NVIDIA/go-nvml v0.13.1-0
 	github.com/ProtonMail/go-crypto v1.4.1
 	github.com/acobaugh/osrelease v0.1.0
 	github.com/alecthomas/units v0.0.0-20240927000941-0f3dac36c52b
-	github.com/aquasecurity/trivy v0.71.1
-	github.com/aquasecurity/trivy-db v0.0.0-20250604074528-8a8d6e3cc002
+	github.com/aquasecurity/trivy v0.69.1
+	github.com/aquasecurity/trivy-db v0.0.0-20251222105351-a833f47f8f0d
 	github.com/avast/retry-go/v4 v4.7.0
 	github.com/aws/aws-sdk-go-v2 v1.41.10
 	github.com/aws/aws-sdk-go-v2/config v1.32.21
@@ -204,7 +204,7 @@ require (
 	github.com/cloudfoundry-community/go-cfclient/v2 v2.0.1-0.20230503155151-3d15366c5820
 	github.com/containerd/cgroups/v3 v3.1.3
 	github.com/containerd/containerd v1.7.32
-	github.com/containerd/containerd/api v1.9.0
+	github.com/containerd/containerd/api v1.10.0
 	github.com/containerd/errdefs v1.0.0
 	github.com/containerd/typeurl/v2 v2.2.3
 	github.com/containernetworking/cni v1.2.3
@@ -226,7 +226,7 @@ require (
 	github.com/freddierice/go-losetup v0.0.0-20220711213114-2a14873012db
 	github.com/ghodss/yaml v1.0.1-0.20220118164431-d8423dcdf344
 	github.com/glaslos/ssdeep v0.4.0
-	github.com/go-delve/delve v1.26.2
+	github.com/go-delve/delve v1.26.3
 	github.com/go-ini/ini v1.67.0
 	github.com/go-json-experiment/json v0.0.0-20250517221953-25912455fbc8
 	github.com/go-ole/go-ole v1.3.0
@@ -314,7 +314,7 @@ require (
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.0.10
 	github.com/stretchr/testify v1.11.1
-	github.com/swaggest/jsonschema-go v0.3.70
+	github.com/swaggest/jsonschema-go v0.3.79
 	github.com/syndtr/gocapability v0.0.0-20200815063812-42c35b437635
 	github.com/tinylib/msgp v1.6.4
 	github.com/tklauser/go-sysconf v0.3.16 // indirect
@@ -331,7 +331,7 @@ require (
 	github.com/vishvananda/netlink v1.3.1
 	github.com/vishvananda/netns v0.0.5
 	github.com/vmihailenco/msgpack/v5 v5.4.1
-	github.com/wI2L/jsondiff v0.7.0
+	github.com/wI2L/jsondiff v0.7.1
 	github.com/xeipuuv/gojsonschema v1.2.0
 	github.com/xi2/xz v0.0.0-20171230120015-48954b6210f8
 	github.com/yusufpapurcu/wmi v1.2.4
@@ -462,7 +462,6 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/secrets/impl v0.70.0
 	github.com/DataDog/datadog-agent/comp/core/secrets/utils v0.72.0-devel
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.78.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.78.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.78.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface v0.78.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics v0.81.0-devel.0.20260515214905-7c02565fb890 // indirect
@@ -477,7 +476,6 @@ require (
 	github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 // indirect
 	github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f // indirect
 	github.com/DisposaBoy/JsonConfigReader v0.0.0-20201129172854-99cf318d67e7 // indirect
-	github.com/GoogleCloudPlatform/docker-credential-gcr v2.0.5+incompatible // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.33.0 // indirect
 	github.com/Masterminds/goutils v1.1.1 // indirect
 	github.com/NYTimes/gziphandler v1.1.1 // indirect
@@ -489,10 +487,9 @@ require (
 	github.com/antlr4-go/antlr/v4 v4.13.1 // indirect
 	github.com/apache/thrift v0.23.1-0.20260429145742-d2acd3c49e58 // indirect
 	github.com/aquasecurity/go-gem-version v0.0.0-20201115065557-8eed6fe000ce // indirect
-	github.com/aquasecurity/go-npm-version v0.0.1 // indirect
+	github.com/aquasecurity/go-npm-version v0.0.2 // indirect
 	github.com/aquasecurity/go-pep440-version v0.0.1 // indirect
 	github.com/aquasecurity/go-version v0.0.1 // indirect
-	github.com/aquasecurity/jfather v0.0.8 // indirect
 	github.com/aquasecurity/trivy-java-db v0.0.0-20250520062418-66df85428c9e // indirect
 	github.com/armon/go-metrics v0.4.1 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 // indirect
@@ -500,7 +497,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.18.26 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.26 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.26 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ecr v1.45.1 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ecr v1.53.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ecs v1.82.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.10 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.26 // indirect
@@ -519,7 +516,6 @@ require (
 	github.com/blang/semver/v4 v4.0.0 // indirect
 	github.com/bmatcuk/doublestar/v4 v4.10.0
 	github.com/bmizerany/pat v0.0.0-20170815010413-6226ea591a40 // indirect
-	github.com/briandowns/spinner v1.23.0 // indirect
 	github.com/buger/jsonparser v1.1.2 // indirect
 	github.com/cavaliergopher/grab/v3 v3.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0
@@ -531,7 +527,7 @@ require (
 	github.com/containerd/errdefs/pkg v0.3.0 // indirect
 	github.com/containerd/fifo v1.1.0 // indirect
 	github.com/containerd/log v0.1.0 // indirect
-	github.com/containerd/platforms v1.0.0-rc.1 // indirect
+	github.com/containerd/platforms v1.0.0-rc.2 // indirect
 	github.com/containerd/ttrpc v1.2.7 // indirect
 	github.com/containernetworking/plugins v1.4.1 // indirect
 	github.com/dennwc/varint v1.0.0 // indirect
@@ -656,7 +652,6 @@ require (
 	github.com/masahiro331/go-xfs-filesystem v0.0.0-20231205045356-1b22259a6c44 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
-	github.com/mattn/go-runewidth v0.0.19 // indirect
 	github.com/mattn/go-shellwords v1.0.13 // indirect
 	github.com/mdlayher/kobject v0.0.0-20200520190114-19ca17470d7d // indirect
 	github.com/mdlayher/socket v0.6.0 // indirect
@@ -753,7 +748,7 @@ require (
 	github.com/prometheus/prometheus v0.312.0 // indirect
 	github.com/prometheus/sigv4 v0.4.1 // indirect
 	github.com/puzpuzpuz/xsync/v3 v3.5.1 // indirect
-	github.com/rcrowley/go-metrics v0.0.0-20201227073835-cf1acfcdf475 // indirect
+	github.com/rcrowley/go-metrics v0.0.0-20250401214520-65e299d6c5c9 // indirect
 	github.com/richardartoul/molecule v1.0.1-0.20240531184615-7ca0df43c0b3 // indirect
 	github.com/rogpeppe/go-internal v1.14.1 // indirect
 	github.com/rs/cors v1.11.1 // indirect
@@ -773,7 +768,7 @@ require (
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/stackitcloud/stackit-sdk-go/core v0.26.0 // indirect
 	github.com/stretchr/objx v0.5.3 // indirect
-	github.com/swaggest/refl v1.3.0 // indirect
+	github.com/swaggest/refl v1.4.0 // indirect
 	github.com/tchap/go-patricia/v2 v2.3.3 // indirect
 	github.com/tedsuo/ifrit v0.0.0-20191009134036-9a97d0632f00 // indirect
 	github.com/tedsuo/rata v1.0.0 // indirect
@@ -898,7 +893,6 @@ require (
 	google.golang.org/genproto/googleapis/api v0.0.0-20260526163538-3dc84a4a5aaa // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260526163538-3dc84a4a5aaa // indirect
 	gopkg.in/Knetic/govaluate.v3 v3.0.0 // indirect
-	gopkg.in/cheggaaa/pb.v1 v1.0.28 // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.13.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/ini.v1 v1.67.2
@@ -912,7 +906,6 @@ require (
 	k8s.io/kube-openapi v0.0.0-20260330154417-16be699c7b31 // indirect
 	k8s.io/sample-controller v0.35.3 // indirect
 	mellium.im/sasl v0.3.2 // indirect
-	modernc.org/sqlite v1.36.2 // indirect
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.34.0 // indirect
 	sigs.k8s.io/controller-runtime v0.23.3 // indirect
 	sigs.k8s.io/json v0.0.0-20250730193827-2d320260d730 // indirect
@@ -950,7 +943,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/hostport v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace v0.77.0-devel.0.20260211235139-a5361978c2b6
 	github.com/DataDog/datadog-agent/test/fakeintake v0.0.0-00010101000000-000000000000
-	github.com/DataDog/ddtrivy v0.0.0-20260115083325-07614fb0b8d5
+	github.com/DataDog/ddtrivy v0.0.0-20260519164847-bf6bcaf2f9b7
 	github.com/DataDog/rshell v0.0.20
 	github.com/aptly-dev/aptly v1.6.3-0.20260504093056-0d31298f3709
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.41.6
@@ -975,7 +968,7 @@ require (
 	gitlab.com/gitlab-org/api/client-go v1.46.0
 	go.etcd.io/etcd/client/v2 v2.305.30
 	go.opentelemetry.io/collector/otelcol/otelcoltest v0.154.0
-	go.temporal.io/api v1.62.13
+	go.temporal.io/api v1.62.14
 	go.temporal.io/sdk v1.39.0
 	go.uber.org/mock v0.6.0
 	mvdan.cc/sh/v3 v3.13.1
@@ -1039,12 +1032,11 @@ require (
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/circonus-labs/circonus-gometrics v2.3.1+incompatible // indirect
 	github.com/circonus-labs/circonusllhist v0.1.3 // indirect
-	github.com/clipperhouse/stringish v0.1.1 // indirect
 	github.com/clipperhouse/uax29/v2 v2.5.0 // indirect
 	github.com/coreos/etcd v3.3.27+incompatible // indirect
 	github.com/coreos/go-systemd v0.0.0-20191104093116-d3cd4ed1dbcf // indirect
 	github.com/coreos/pkg v0.0.0-20220810130054-c7d1c02cb6cf // indirect
-	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.2.0 // indirect
+	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.0 // indirect
 	github.com/denverdino/aliyungo v0.0.0-20190125010748-a747050bb1ba // indirect
 	github.com/dimchansky/utfbom v1.1.1 // indirect
 	github.com/dlclark/regexp2 v1.12.0 // indirect
@@ -1123,7 +1115,7 @@ require (
 	github.com/joyent/triton-go v1.7.1-0.20200416154420-6801d15b779f // indirect
 	github.com/kelseyhightower/envconfig v1.4.0 // indirect
 	github.com/lestrrat-go/backoff/v2 v2.0.8 // indirect
-	github.com/lestrrat-go/blackmagic v1.0.2 // indirect
+	github.com/lestrrat-go/blackmagic v1.0.4 // indirect
 	github.com/lestrrat-go/httpcc v1.0.1 // indirect
 	github.com/lestrrat-go/iter v1.0.2 // indirect
 	github.com/lestrrat-go/jwx v1.2.29 // indirect
@@ -1151,6 +1143,7 @@ require (
 	github.com/oracle/oci-go-sdk/v60 v60.0.0 // indirect
 	github.com/outscale/osc-sdk-go/v2 v2.34.0 // indirect
 	github.com/packethost/packngo v0.1.1-0.20180711074735-b9cb5096f54c // indirect
+	github.com/pandatix/go-cvss v0.6.2 // indirect
 	github.com/pb33f/jsonpath v0.8.2 // indirect
 	github.com/pb33f/libopenapi v0.37.2 // indirect
 	github.com/pb33f/ordered-map/v2 v2.3.1 // indirect
@@ -1218,8 +1211,12 @@ replace github.com/hashicorp/vault/sdk => github.com/hashicorp/vault/sdk v0.19.1
 
 // Use custom Trivy fork to reduce binary size
 // Pull in replacements needed by upstream Trivy
-// Maps to Trivy fork https://github.com/DataDog/trivy/pull/32
-replace github.com/aquasecurity/trivy => github.com/DataDog/trivy v0.0.0-20260601163858-2f12eac6ff81
+// Maps to Trivy fork https://github.com/DataDog/trivy/tree/djc/main-dd-069
+replace github.com/aquasecurity/trivy => github.com/DataDog/trivy v0.0.0-20260519102929-2926d6041e57
+
+// Stub the progress UI in trivy-db; cheggaaa/pb/v3 transitively activates
+// reflect.MethodByName via text/template, defeating Go's linker DCE.
+replace github.com/aquasecurity/trivy-db => github.com/0intro/trivy-db v0.0.0-20260519151230-bd5a14880f9a
 
 // github.com/docker/docker v28 has known security vulnerabilities (CVE-2026-34040, CVE-2026-33997).
 // Pin to the 28.x branch head which includes the backported security fixes (not yet tagged).
@@ -1350,7 +1347,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/config/schema => ./pkg/config/schema
 	github.com/DataDog/datadog-agent/pkg/config/setup => ./pkg/config/setup
 	github.com/DataDog/datadog-agent/pkg/config/structure => ./pkg/config/structure
-	github.com/DataDog/datadog-agent/pkg/config/teeconfig => ./pkg/config/teeconfig
 	github.com/DataDog/datadog-agent/pkg/config/utils => ./pkg/config/utils
 	github.com/DataDog/datadog-agent/pkg/config/viperconfig => ./pkg/config/viperconfig
 	github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model => ./pkg/discovery/tracermetadata/model
