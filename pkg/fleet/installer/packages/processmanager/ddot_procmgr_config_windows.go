@@ -16,30 +16,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/embedded"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
-
-	"golang.org/x/sys/windows/registry"
 )
 
 const ddotProcmgrConfigFileName = "datadog-agent-ddot.yaml"
-
-// fleetPoliciesDir returns the fleet policy directory for DD_FLEET_POLICIES_DIR in the DDOT
-// processes.d definition. Prefer HKLM\...\Datadog Agent\fleet_policies_dir when set (config
-// experiments point this at ...\managed\datadog-agent\experiment); otherwise use the stable
-// managed path. This matches pkg/config/setup.FleetConfigOverride on Windows.
-func fleetPoliciesDir() string {
-	k, err := registry.OpenKey(registry.LOCAL_MACHINE,
-		`SOFTWARE\Datadog\Datadog Agent`,
-		registry.READ)
-	if err != nil {
-		return filepath.Join(paths.ConfigsPath, "datadog-agent", "stable")
-	}
-	defer k.Close()
-	val, _, err := k.GetStringValue("fleet_policies_dir")
-	if err != nil || val == "" {
-		return filepath.Join(paths.ConfigsPath, "datadog-agent", "stable")
-	}
-	return val
-}
 
 // WriteDDOTProcmgrConfig writes datadog-agent-ddot.yaml next to the MSI install layout so
 // dd-procmgrd picks it up (default_config_dir is InstallPath\processes.d on Windows).
@@ -57,7 +36,7 @@ func WriteDDOTProcmgrConfig(installRootResolved string) error {
 		return fmt.Errorf("create processes.d: %w", err)
 	}
 
-	fleetPolicies := fleetPoliciesDir()
+	fleetPolicies := paths.FleetPoliciesDirForManagedProcess()
 
 	config := embedded.DDOTWindowsProcmgrConfig
 	config = strings.ReplaceAll(config, "__DDOT_INSTALL_ROOT__", filepath.ToSlash(filepath.Clean(installRootResolved)))

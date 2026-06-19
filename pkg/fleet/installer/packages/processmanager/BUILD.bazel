@@ -17,7 +17,6 @@ go_library(
             "//pkg/util/log",
             "//pkg/util/winutil",
             "@in_yaml_go_yaml_v2//:yaml",
-            "@org_golang_x_sys//windows/registry",
         ],
         "//conditions:default": [],
     }),
