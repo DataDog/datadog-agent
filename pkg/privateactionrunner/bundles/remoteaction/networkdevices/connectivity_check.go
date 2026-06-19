@@ -89,8 +89,8 @@ type PingResult struct {
 
 type SNMPResult struct {
 	CheckResult
-	CredID        string `json:"credID,omitempty"`
 	FailureReason string `json:"failureReason"`
+	CredID        string `json:"credID,omitempty"`
 	SysName       string `json:"sysName,omitempty"`
 }
 
@@ -195,7 +195,7 @@ func buildPinger(opts *PingOptions) (pinger.Pinger, error) {
 	case "darwin":
 		useRawSocket = false
 	default:
-		useRawSocket = false
+		useRawSocket = true
 	}
 
 	return pinger.New(pinger.Config{
@@ -255,8 +255,8 @@ func trySNMPCredential(ctx context.Context, host string, opts *SNMPOptions, cred
 
 	res := &SNMPResult{
 		CheckResult:   CheckResult{Success: true, RttMs: &rtt},
-		CredID:        cred.ID,
 		FailureReason: failureNone,
+		CredID:        cred.ID,
 	}
 	for _, pdu := range packet.Variables {
 		v, convErr := gosnmplib.GetValueFromPDU(pdu)
