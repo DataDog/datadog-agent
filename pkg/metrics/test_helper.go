@@ -176,7 +176,7 @@ func (s *SketchesSourceTest) MoveNext() bool {
 	return s.currentIndex < len(s.values)
 }
 
-func (s *SketchesSourceTest) Current() *SketchSeries {
+func (s *SketchesSourceTest) Current() Distribution {
 	return s.values[s.currentIndex]
 }
 

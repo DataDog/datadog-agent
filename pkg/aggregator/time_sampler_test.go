@@ -429,7 +429,7 @@ func testSketchContextSampling(t *testing.T, store *tags.Store) {
 
 	assert.Equal(t, 2, len(flushed))
 	sort.Slice(flushed, func(i, j int) bool {
-		return flushed[i].Name < flushed[j].Name
+		return flushed[i].GetName() < flushed[j].GetName()
 	})
 
 	metrics.AssertSketchSeriesEqual(t, &metrics.SketchSeries{
@@ -587,7 +587,7 @@ func testFlushFilterList(t *testing.T, store *tags.Store) {
 		names = append(names, metric.Name)
 	}
 	for _, sketch := range sketches {
-		names = append(names, sketch.Name)
+		names = append(names, sketch.GetName())
 	}
 	assert.ElementsMatch(t, names, []string{
 		"test.histogram.max",

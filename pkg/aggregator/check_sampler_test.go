@@ -789,7 +789,7 @@ func testFilteredSketches(t *testing.T, store *tags.Store) {
 	require.Equal(t, 3, len(sketches))
 	sketchNames := make(map[string]bool)
 	for _, sketch := range sketches {
-		sketchNames[sketch.Name] = true
+		sketchNames[sketch.GetName()] = true
 	}
 
 	assert.True(t, sketchNames["custom.distribution.one"])
