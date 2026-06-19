@@ -6,6 +6,7 @@
 package gpu
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -139,6 +140,43 @@ func TestExtractGPUType(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.deviceName, func(t *testing.T) {
 			assert.Equal(t, tt.expected, ExtractGPUType(tt.deviceName))
+		})
+	}
+}
+
+func TestGFDLabelToGPUDeviceName(t *testing.T) {
+	// NVML-style display names; GFD round-trip test uses strings.ReplaceAll(name, " ", "-") as the label.
+	deviceNames := []string{
+		"Tesla T4",
+		"NVIDIA T4G",
+		"NVIDIA A10",
+		"NVIDIA A10-4Q",
+		"NVIDIA A10-24Q",
+		"NVIDIA A10G",
+		"NVIDIA A100-SXM4-40GB",
+		"NVIDIA A100 80GB PCIe",
+		"NVIDIA A100-SXM4-40GB MIG 1g.5gb",
+		"NVIDIA A100-SXM4-40GB MIG 2g.10gb",
+		"NVIDIA A100-SXM4-40GB MIG 3g.20gb",
+		"NVIDIA H100 NVL",
+		"NVIDIA H100 NVL MIG 3g.47gb",
+		"NVIDIA H100 80GB HBM3",
+		"NVIDIA H200",
+		"NVIDIA V100-32GB",
+		"NVIDIA L4",
+		"NVIDIA L40S",
+		"NVIDIA RTX PRO 6000 Blackwell Server Edition",
+		"NVIDIA B300 SXM6 AC",
+		"NVIDIA B200",
+		"Tesla M60",
+		"NVIDIA RTX A6000",
+		"NVIDIA RTX 6000 Ada Generation",
+	}
+
+	for _, deviceName := range deviceNames {
+		t.Run(deviceName, func(t *testing.T) {
+			gfdLabel := strings.ReplaceAll(deviceName, " ", "-")
+			assert.Equal(t, NormalizeGPUDeviceName(deviceName), NormalizeGPUDeviceName(GFDLabelToGPUDeviceName(gfdLabel)))
 		})
 	}
 }
