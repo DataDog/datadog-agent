@@ -97,7 +97,6 @@ exports_files(["go.mod"])
 # gazelle:exclude comp/collector/bundle.go
 # gazelle:exclude comp/collector/collector/fx
 # gazelle:exclude comp/collector/collector/impl/*.go
-# gazelle:exclude comp/connectivitychecker/fx
 # gazelle:exclude comp/core/autodiscovery/autodiscoveryimpl
 # gazelle:exclude comp/core/flare/flareimpl
 # gazelle:exclude comp/core/gui/fx
@@ -109,16 +108,12 @@ exports_files(["go.mod"])
 # gazelle:exclude comp/core/workloadmeta/collectors/catalog-core
 # gazelle:exclude comp/core/workloadmeta/collectors/catalog-dogstatsd
 # gazelle:exclude comp/core/workloadmeta/collectors/catalog-otel
-# gazelle:exclude comp/core/workloadmeta/collectors/internal/kubeapiserver
-# gazelle:exclude comp/core/workloadmeta/collectors/internal/kubemetadata
 # gazelle:exclude comp/core/workloadmeta/collectors/internal/process
 # gazelle:exclude comp/core/workloadmeta/defaults
-# gazelle:exclude comp/core/workloadmeta/init
 # gazelle:exclude comp/dogstatsd/http/fx
 # gazelle:exclude comp/dogstatsd/http/impl/*.go
 # gazelle:exclude comp/forwarder/orchestrator/orchestratorimpl
 # gazelle:exclude comp/host-profiler/collector/fx
-# gazelle:exclude comp/host-profiler/flare
 # gazelle:exclude comp/logonduration/fx
 # gazelle:exclude comp/anomalydetection/logssource/impl
 # gazelle:exclude comp/logs/adscheduler/fx
