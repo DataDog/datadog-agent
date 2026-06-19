@@ -164,7 +164,7 @@ pub(super) fn enrich_attached_console_titles(
     if foreground
         .window_title
         .as_deref()
-        .map_or(true, |title| title.is_empty())
+        .is_none_or(|title| title.is_empty())
         || !is_console_title_host(foreground)
     {
         return;
@@ -174,10 +174,10 @@ pub(super) fn enrich_attached_console_titles(
         if find_hosted_ai_process(process, &config.ai_process_names).is_none() {
             continue;
         }
-        if let Ok(title) = attached_console_title(process.pid) {
-            if !title.is_empty() {
-                process.attached_console_title = Some(title);
-            }
+        if let Ok(title) = attached_console_title(process.pid)
+            && !title.is_empty()
+        {
+            process.attached_console_title = Some(title);
         }
     }
 }
