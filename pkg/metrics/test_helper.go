@@ -160,7 +160,7 @@ func NewSketchesSourceTestWithSketch() *SketchesSourceTest {
 	return &SketchesSourceTest{
 		currentIndex: -1,
 		values: SketchSeriesList{
-			&SketchSeries{SketchMetadata: SketchMetadata{Name: "fakename", Host: "fakehost"}},
+			&SketchSeries{DistributionMetadata: DistributionMetadata{Name: "fakename", Host: "fakehost"}},
 		},
 	}
 }

@@ -191,7 +191,7 @@ func (pb *payloadsBuilder) startPayload() error {
 }
 
 // WriteDDSketch implements metrics.DistributionWriter.
-func (pb *payloadsBuilder) WriteDDSketch(meta metrics.SketchMetadata) (metrics.DDSketchWriter, error) {
+func (pb *payloadsBuilder) WriteDDSketch(meta metrics.DistributionMetadata) (metrics.DDSketchWriter, error) {
 	// protobuf field numbers for the data we serialize, taken from
 	// https://github.com/DataDog/agent-payload/v5/blob/a2cd634bc9c088865b75c6410335270e6d780416/proto/metrics/agent_payload.proto#L47-L81
 	// Unused fields are commented out

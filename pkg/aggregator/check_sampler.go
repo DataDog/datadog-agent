@@ -97,7 +97,7 @@ func (cs *CheckSampler) newSketchSeries(ck ckey.ContextKey, points []metrics.Ske
 		return nil
 	}
 	ss := &metrics.SketchSeries{
-		SketchMetadata: metrics.SketchMetadata{
+		DistributionMetadata: metrics.DistributionMetadata{
 			Name: ctx.Name,
 			Tags: ctx.Tags(),
 			Host: ctx.Host,

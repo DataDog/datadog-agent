@@ -20,7 +20,7 @@ import (
 func Makeseries(i int) *metrics.SketchSeries {
 	// Makeseries is deterministic so that we can test for mutation.
 	ss := &metrics.SketchSeries{
-		SketchMetadata: metrics.SketchMetadata{
+		DistributionMetadata: metrics.DistributionMetadata{
 			Name: fmt.Sprintf("name.%d", i),
 			Tags: tagset.CompositeTagsFromSlice([]string{
 				fmt.Sprintf("a:%d", i),

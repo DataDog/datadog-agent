@@ -331,7 +331,7 @@ func testSketch(t *testing.T, store *tags.Store) {
 
 		_, flushed := flushSerie(sampler, now, false)
 		metrics.AssertSketchSeriesEqual(t, &metrics.SketchSeries{
-			SketchMetadata: metrics.SketchMetadata{
+			DistributionMetadata: metrics.DistributionMetadata{
 				Name:     name,
 				Tags:     tagset.CompositeTagsFromSlice(tags),
 				Host:     host,
@@ -384,7 +384,7 @@ func testSketchBucketSampling(t *testing.T, store *tags.Store) {
 
 	assert.Equal(t, 1, len(flushed))
 	metrics.AssertSketchSeriesEqual(t, &metrics.SketchSeries{
-		SketchMetadata: metrics.SketchMetadata{
+		DistributionMetadata: metrics.DistributionMetadata{
 			Name:     "test.metric.name",
 			Tags:     tagset.CompositeTagsFromSlice([]string{"a", "b"}),
 			Interval: 10,
@@ -433,7 +433,7 @@ func testSketchContextSampling(t *testing.T, store *tags.Store) {
 	})
 
 	metrics.AssertSketchSeriesEqual(t, &metrics.SketchSeries{
-		SketchMetadata: metrics.SketchMetadata{
+		DistributionMetadata: metrics.DistributionMetadata{
 			Name:     "test.metric.name1",
 			Tags:     tagset.CompositeTagsFromSlice([]string{"a", "b"}),
 			Interval: 10,
@@ -444,7 +444,7 @@ func testSketchContextSampling(t *testing.T, store *tags.Store) {
 	}, flushed[0])
 
 	metrics.AssertSketchSeriesEqual(t, &metrics.SketchSeries{
-		SketchMetadata: metrics.SketchMetadata{
+		DistributionMetadata: metrics.DistributionMetadata{
 			Name:     "test.metric.name2",
 			Tags:     tagset.CompositeTagsFromSlice([]string{"a", "c"}),
 			Interval: 10,
@@ -504,7 +504,7 @@ func testBucketSamplingWithSketchAndSeries(t *testing.T, store *tags.Store) {
 	expSketch.Insert(quantile.Default(), 1)
 
 	metrics.AssertSketchSeriesEqual(t, &metrics.SketchSeries{
-		SketchMetadata: metrics.SketchMetadata{
+		DistributionMetadata: metrics.DistributionMetadata{
 			Name:     "distribution.metric.name1",
 			Tags:     tagset.CompositeTagsFromSlice([]string{"a", "b"}),
 			Interval: 10,
@@ -668,7 +668,7 @@ func TestForcedFlush(t *testing.T) {
 	expSketch := &quantile.Sketch{}
 	expSketch.Insert(quantile.Default(), 1)
 	metrics.AssertSketchSeriesEqual(t, &metrics.SketchSeries{
-		SketchMetadata: metrics.SketchMetadata{
+		DistributionMetadata: metrics.DistributionMetadata{
 			Name:     testSketch.Name,
 			Tags:     tagset.CompositeTags{},
 			Interval: 10,

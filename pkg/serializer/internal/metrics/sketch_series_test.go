@@ -93,7 +93,7 @@ func TestSketchSeriesMarshalSplitCompressItemTooBigIsDropped(t *testing.T) {
 
 			// A small item (no dropped)
 			sl.Append(&metrics.SketchSeries{
-				SketchMetadata: metrics.SketchMetadata{
+				DistributionMetadata: metrics.DistributionMetadata{
 					Name:     "small",
 					Tags:     tagset.CompositeTagsFromSlice([]string{}),
 					Host:     "",

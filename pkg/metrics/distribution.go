@@ -27,7 +27,7 @@ type Distribution interface {
 // allow implementing the whole set of write interfaces by the same type.
 type DistributionWriter interface {
 	// Write Datadog Sketch series.
-	WriteDDSketch(SketchMetadata) (DDSketchWriter, error)
+	WriteDDSketch(DistributionMetadata) (DDSketchWriter, error)
 }
 
 // DDSketchWriter consumes the points of a DDSketch-backed Distribution.

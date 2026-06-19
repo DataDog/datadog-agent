@@ -536,7 +536,7 @@ func (pb *payloadsBuilderV3) writeSketch(dist metrics.Distribution) error {
 // WriteDDSketch implements metrics.DistributionWriter. It writes the per-series metadata
 // columns immediately; columnType and columnNumPoints are deferred to finishSketchTxn
 // because the narrowed value type and the point count are not yet known.
-func (pb *payloadsBuilderV3) WriteDDSketch(meta metrics.SketchMetadata) (metrics.DDSketchWriter, error) {
+func (pb *payloadsBuilderV3) WriteDDSketch(meta metrics.DistributionMetadata) (metrics.DDSketchWriter, error) {
 	pb.sketchStats = pb.sketchStats[:0]
 	pb.sketchNoIndex = meta.NoIndex
 

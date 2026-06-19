@@ -257,7 +257,7 @@ func testCheckHistogramBucketSampling(t *testing.T, store *tags.Store) {
 
 	// ~3% error seen in this test case for sums (sum error is additive so it's always the worst)
 	metrics.AssertSketchSeriesApproxEqual(t, &metrics.SketchSeries{
-		SketchMetadata: metrics.SketchMetadata{
+		DistributionMetadata: metrics.DistributionMetadata{
 			Name: "my.histogram",
 			Tags: tagset.CompositeTagsFromSlice([]string{"foo", "bar"}),
 		},
@@ -291,7 +291,7 @@ func testCheckHistogramBucketSampling(t *testing.T, store *tags.Store) {
 	assert.Equal(t, 1, len(flushed))
 	// ~3% error seen in this test case for sums (sum error is additive so it's always the worst)
 	metrics.AssertSketchSeriesApproxEqual(t, &metrics.SketchSeries{
-		SketchMetadata: metrics.SketchMetadata{
+		DistributionMetadata: metrics.DistributionMetadata{
 			Name: "my.histogram",
 			Tags: tagset.CompositeTagsFromSlice([]string{"foo", "bar"}),
 		},
@@ -356,7 +356,7 @@ func testCheckHistogramBucketDontFlushFirstValue(t *testing.T, store *tags.Store
 	assert.Equal(t, 1, len(flushed))
 	// ~3% error seen in this test case for sums (sum error is additive so it's always the worst)
 	metrics.AssertSketchSeriesApproxEqual(t, &metrics.SketchSeries{
-		SketchMetadata: metrics.SketchMetadata{
+		DistributionMetadata: metrics.DistributionMetadata{
 			Name: "my.histogram",
 			Tags: tagset.CompositeTagsFromSlice([]string{"foo", "bar"}),
 		},
@@ -427,7 +427,7 @@ func testCheckHistogramBucketReset(t *testing.T, store *tags.Store) {
 
 	require.Len(t, flushed, 2)
 	metrics.AssertSketchSeriesApproxEqual(t, &metrics.SketchSeries{
-		SketchMetadata: metrics.SketchMetadata{
+		DistributionMetadata: metrics.DistributionMetadata{
 			Name: "my.histogram",
 		},
 		Points: []metrics.SketchPoint{
@@ -436,7 +436,7 @@ func testCheckHistogramBucketReset(t *testing.T, store *tags.Store) {
 	}, flushed[0], 0.01)
 
 	metrics.AssertSketchSeriesApproxEqual(t, &metrics.SketchSeries{
-		SketchMetadata: metrics.SketchMetadata{
+		DistributionMetadata: metrics.DistributionMetadata{
 			Name: "my.histogram",
 		},
 		Points: []metrics.SketchPoint{
@@ -502,7 +502,7 @@ func testCheckHistogramBucketMultipleBucketsSampling(t *testing.T, store *tags.S
 	expSketch.InsertInterpolate(10.0, 20.0, 4)
 	expSketch.InsertInterpolate(30.0, 40.0, 6)
 	metrics.AssertSketchSeriesApproxEqual(t, &metrics.SketchSeries{
-		SketchMetadata: metrics.SketchMetadata{
+		DistributionMetadata: metrics.DistributionMetadata{
 			Name: "my.histogram",
 			Tags: tagset.CompositeTagsFromSlice([]string{"foo", "bar"}),
 		},
@@ -545,7 +545,7 @@ func testCheckHistogramBucketMultipleBucketsSampling(t *testing.T, store *tags.S
 	expSketch.InsertInterpolate(10.0, 20.0, 3)
 	expSketch.InsertInterpolate(30.0, 40.0, 5)
 	metrics.AssertSketchSeriesApproxEqual(t, &metrics.SketchSeries{
-		SketchMetadata: metrics.SketchMetadata{
+		DistributionMetadata: metrics.DistributionMetadata{
 			Name: "my.histogram",
 			Tags: tagset.CompositeTagsFromSlice([]string{"foo", "bar"}),
 		},
@@ -596,7 +596,7 @@ func testCheckHistogramBucketInfinityBucket(t *testing.T, store *tags.Store) {
 
 	// ~3% error seen in this test case for sums (sum error is additive so it's always the worst)
 	metrics.AssertSketchSeriesApproxEqual(t, &metrics.SketchSeries{
-		SketchMetadata: metrics.SketchMetadata{
+		DistributionMetadata: metrics.DistributionMetadata{
 			Name: "my.histogram",
 			Tags: tagset.CompositeTagsFromSlice([]string{"foo", "bar"}),
 		},
@@ -635,7 +635,7 @@ func testCheckDistribution(t *testing.T, store *tags.Store) {
 	expSketch.Insert(quantile.Default(), 1)
 
 	metrics.AssertSketchSeriesEqual(t, &metrics.SketchSeries{
-		SketchMetadata: metrics.SketchMetadata{
+		DistributionMetadata: metrics.DistributionMetadata{
 			Name: "my.metric.name",
 			Tags: tagset.CompositeTagsFromSlice([]string{"foo", "bar"}),
 		},

@@ -463,20 +463,20 @@ func TestPayloadsBuilderV3_Sketch(t *testing.T) {
 	tags := tagset.NewCompositeTags([]string{"foo", "bar"}, []string{"ook", "eek"})
 	sketches := metrics.SketchSeriesList{
 		{
-			SketchMetadata: metrics.SketchMetadata{
+			DistributionMetadata: metrics.DistributionMetadata{
 				Name:    "serie1",
 				NoIndex: true,
 			},
 			Points: pointsOf(ts, 0, 0),
 		}, {
-			SketchMetadata: metrics.SketchMetadata{
+			DistributionMetadata: metrics.DistributionMetadata{
 				Name:    "serie2",
 				NoIndex: false,
 				Tags:    tags,
 			},
 			Points: pointsOf(ts, -1, 0, 1),
 		}, {
-			SketchMetadata: metrics.SketchMetadata{
+			DistributionMetadata: metrics.DistributionMetadata{
 				Name:    "serie3",
 				NoIndex: false,
 				Tags:    tags,
@@ -485,7 +485,7 @@ func TestPayloadsBuilderV3_Sketch(t *testing.T) {
 			},
 			Points: pointsOf(ts, 0.5, -0.5),
 		}, {
-			SketchMetadata: metrics.SketchMetadata{
+			DistributionMetadata: metrics.DistributionMetadata{
 				Name:    "serie4",
 				NoIndex: true,
 				Host:    "test.example",

@@ -15,7 +15,7 @@ import (
 
 func TestString(t *testing.T) {
 	sketchSerie0 := SketchSeries{
-		SketchMetadata: SketchMetadata{
+		DistributionMetadata: DistributionMetadata{
 			Name:     "sketchSerie0",
 			Host:     "hostSketchSerie0",
 			Interval: 10,
@@ -26,7 +26,7 @@ func TestString(t *testing.T) {
 		},
 	}
 	sketchSerie1 := SketchSeries{
-		SketchMetadata: SketchMetadata{
+		DistributionMetadata: DistributionMetadata{
 			Name:     "sketchSerie1",
 			Host:     "hostSketchSerie1",
 			Interval: 100,

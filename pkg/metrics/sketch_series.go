@@ -13,8 +13,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/quantile"
 )
 
-// SketchMetadata is the per-series metadata required for all distribution variants.
-type SketchMetadata struct {
+// DistributionMetadata is the per-series metadata required for all distribution variants.
+type DistributionMetadata struct {
 	Name     string               `json:"metric"`
 	Tags     tagset.CompositeTags `json:"tags"`
 	Host     string               `json:"host"`
@@ -25,7 +25,7 @@ type SketchMetadata struct {
 
 // A SketchSeries is a timeseries of quantile sketches.
 type SketchSeries struct {
-	SketchMetadata
+	DistributionMetadata
 	Points []SketchPoint `json:"points"`
 }
 
@@ -48,7 +48,7 @@ func (sl SketchSeries) String() string {
 // calls it again on a fresh DistributionWriter after a payload split; iterating
 // over Points from the start is safe and idempotent.
 func (sl *SketchSeries) WriteTo(w DistributionWriter) error {
-	dd, err := w.WriteDDSketch(sl.SketchMetadata)
+	dd, err := w.WriteDDSketch(sl.DistributionMetadata)
 	if err != nil {
 		return err
 	}

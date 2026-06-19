@@ -23,7 +23,7 @@ type sketchData struct {
 }
 
 type dogstatsdSketchSeries struct {
-	metrics.SketchMetadata
+	metrics.DistributionMetadata
 	Points []sketchData
 }
 
@@ -35,7 +35,7 @@ func (s *dogstatsdSketchSeries) GetName() string {
 // WriteTo emits the buffered points to the writer's DDSketch flavor. May be
 // called multiple times on the same value; iteration always starts over.
 func (s *dogstatsdSketchSeries) WriteTo(w metrics.DistributionWriter) error {
-	dd, err := w.WriteDDSketch(s.SketchMetadata)
+	dd, err := w.WriteDDSketch(s.DistributionMetadata)
 	if err != nil {
 		return err
 	}
