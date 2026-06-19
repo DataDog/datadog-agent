@@ -24,6 +24,7 @@ go_library(
         "//pkg/fleet/installer/telemetry",
         "//pkg/util/hostinfo",
         "//pkg/util/http",
+        "//pkg/util/log/errortracking",
         "//pkg/util/scrubber",
         "//pkg/version",
         "@com_github_datadog_zstd//:zstd",
@@ -35,7 +36,9 @@ go_library(
 
 go_test(
     name = "impl_test",
-    srcs = ["agenttelemetry_test.go"],
+    srcs = [
+        "agenttelemetry_test.go",
+    ],
     embed = [":impl"],
     gotags = ["test"],
     deps = [
@@ -43,6 +46,7 @@ go_test(
         "//comp/core/log/mock",
         "//comp/core/telemetry/def",
         "//comp/core/telemetry/mock",
+        "//comp/logs/agent/config",
         "//pkg/config/mock",
         "//pkg/util/fxutil",
         "//pkg/util/jsonquery",
