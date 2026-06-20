@@ -55,8 +55,6 @@ func generate(outputDir string) error {
 //go:embed *.tmpl
 var embedded embed.FS
 
-// installerTemplateData holds path and layout inputs for embedded installer templates (systemd units,
-// Linux dd-procmgr YAML, Windows DDOT procmgr YAML). Not systemd-specific despite the capabilities flag name.
 type installerTemplateData struct {
 	InstallDir                   string
 	EtcDir                       string
@@ -71,7 +69,6 @@ type templateData struct {
 	AmbiantCapabilitiesSupported bool
 }
 
-// embeddedLayout is a codegen output subdirectory (e.g. gen/windows, gen/oci) and a map of basename → file content.
 type embeddedLayout struct {
 	subdir string
 	units  map[string][]byte
@@ -115,7 +112,7 @@ func mustRenderYAMLConfig(name string, data installerTemplateData) []byte {
 }
 
 func systemdUnits(stableData, expData installerTemplateData, ambiantCapabilitiesSupported bool) map[string][]byte {
-	units := map[string][]byte{
+	return map[string][]byte{
 		"datadog-agent.service":                mustReadSystemdUnit("datadog-agent.service", stableData, ambiantCapabilitiesSupported),
 		"datadog-agent-exp.service":            mustReadSystemdUnit("datadog-agent.service", expData, ambiantCapabilitiesSupported),
 		"datadog-agent-installer.service":      mustReadSystemdUnit("datadog-agent-installer.service", stableData, ambiantCapabilitiesSupported),
@@ -137,11 +134,8 @@ func systemdUnits(stableData, expData installerTemplateData, ambiantCapabilities
 		"datadog-agent-procmgr.service":        mustReadSystemdUnit("datadog-agent-procmgr.service", stableData, ambiantCapabilitiesSupported),
 		"datadog-agent-procmgr-exp.service":    mustReadSystemdUnit("datadog-agent-procmgr.service", expData, ambiantCapabilitiesSupported),
 	}
-	return units
 }
 
-// linuxProcmgrYAMLFiles returns dd-procmgrd process configs for Linux embedded layouts (OCI vs deb/rpm paths).
-// Capabilities flavor does not affect these templates (see mustRenderYAMLConfig).
 func linuxProcmgrYAMLFiles(stableData, expData installerTemplateData) map[string][]byte {
 	return map[string][]byte{
 		"datadog-agent-ddot.yaml":     mustRenderYAMLConfig("datadog-agent-ddot.yaml", stableData),
@@ -149,7 +143,6 @@ func linuxProcmgrYAMLFiles(stableData, expData installerTemplateData) map[string
 	}
 }
 
-// windowsProcmgrYAMLFiles returns dd-procmgr process YAML for the Windows embedded installer (gen/windows/).
 func windowsProcmgrYAMLFiles(codegenData installerTemplateData) map[string][]byte {
 	return map[string][]byte{
 		"datadog-agent-ddot.yaml": mustRenderYAMLConfig("datadog-agent-ddot-windows.yaml", codegenData),
@@ -171,7 +164,6 @@ var (
 		PIDDir:           "/opt/datadog-packages/datadog-agent/experiment",
 		Stable:           false,
 	}
-
 	stableDataDebRpm = installerTemplateData{
 		InstallDir:       "/opt/datadog-agent",
 		EtcDir:           "/etc/datadog-agent",
@@ -186,9 +178,6 @@ var (
 		PIDDir:           "/opt/datadog-agent",
 		Stable:           false,
 	}
-
-	// windowsDDOTCodegenData drives datadog-agent-ddot-windows.yaml.tmpl at codegen time. Runtime
-	// replaces the placeholder tokens (same idea as DDOTProcessConfig + /opt/datadog-agent on Linux).
 	windowsDDOTCodegenData = installerTemplateData{
 		InstallDir:       "__DDOT_INSTALL_ROOT__",
 		EtcDir:           "__DDOT_ETC_ROOT__",
@@ -196,18 +185,15 @@ var (
 		PIDDir:           "",
 		Stable:           true,
 	}
-
 	windowsProcmgrLayouts = []embeddedLayout{
 		{subdir: "windows", units: windowsProcmgrYAMLFiles(windowsDDOTCodegenData)},
 	}
-
 	linuxProcmgrYAMLLayouts = []embeddedLayout{
 		{subdir: "oci", units: linuxProcmgrYAMLFiles(stableDataOCI, expDataOCI)},
 		{subdir: "oci-nocap", units: linuxProcmgrYAMLFiles(stableDataOCI, expDataOCI)},
 		{subdir: "debrpm", units: linuxProcmgrYAMLFiles(stableDataDebRpm, expDataDebRpm)},
 		{subdir: "debrpm-nocap", units: linuxProcmgrYAMLFiles(stableDataDebRpm, expDataDebRpm)},
 	}
-
 	systemdEmbeddedLayouts = []embeddedLayout{
 		{subdir: "oci", units: systemdUnits(stableDataOCI, expDataOCI, true)},
 		{subdir: "debrpm", units: systemdUnits(stableDataDebRpm, expDataDebRpm, true)},
