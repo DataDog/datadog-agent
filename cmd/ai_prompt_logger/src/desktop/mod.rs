@@ -59,8 +59,8 @@ pub(crate) fn log_startup_warning(message: impl AsRef<str>) {
 }
 
 /// Run the desktop monitor polling loop and submit detected AI usage events.
-pub fn run(dd_client: &DatadogClient, config: DesktopMonitoringConfig) -> Result<()> {
-    let logger = DesktopLogger::new(config.debug);
+pub fn run(dd_client: &DatadogClient, mut config: DesktopMonitoringConfig) -> Result<()> {
+    let mut logger = DesktopLogger::new(config.debug);
     if !config.enabled {
         logger.info("desktop monitoring disabled by config");
         return Ok(());
@@ -80,6 +80,12 @@ pub fn run(dd_client: &DatadogClient, config: DesktopMonitoringConfig) -> Result
         let mut process_activity_tracker = ProcessActivityTracker::default();
         let mut idle_for_agent_service = false;
         loop {
+            reload_config(&mut config, &mut logger);
+            if !config.enabled {
+                logger.info_at(1, "desktop monitoring disabled by config");
+                thread::sleep(Duration::from_secs(config.poll_interval_seconds.max(1)));
+                continue;
+            }
             if !detector.agent_service_running() {
                 if !detector.should_idle_when_agent_service_stopped() {
                     logger.info("desktop monitor exiting because agent service stopped");
@@ -111,6 +117,22 @@ pub fn run(dd_client: &DatadogClient, config: DesktopMonitoringConfig) -> Result
     #[cfg(not(any(windows, target_os = "macos")))]
     {
         anyhow::bail!("desktop monitoring is not implemented on this platform yet");
+    }
+}
+
+fn reload_config(config: &mut DesktopMonitoringConfig, logger: &mut DesktopLogger) {
+    let next_config = config::reload_desktop_monitoring_config();
+    let debug_changed = next_config.debug != config.debug;
+    let poll_interval_changed = next_config.poll_interval_seconds != config.poll_interval_seconds;
+    *config = next_config;
+    if debug_changed {
+        *logger = DesktopLogger::new(config.debug);
+    }
+    if debug_changed || poll_interval_changed {
+        logger.info(format!(
+            "desktop monitor config reloaded debug={} poll_interval_seconds={}",
+            config.debug, config.poll_interval_seconds
+        ));
     }
 }
 
