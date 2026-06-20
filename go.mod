@@ -966,7 +966,6 @@ require (
 	github.com/rabbitmq/amqp091-go v1.9.0
 	github.com/santhosh-tekuri/jsonschema/v5 v5.3.1
 	gitlab.com/gitlab-org/api/client-go v1.46.0
-	gitlab.com/gitlab-org/api/client-go/v2 v2.39.0
 	go.etcd.io/etcd/client/v2 v2.305.31
 	go.opentelemetry.io/collector/otelcol/otelcoltest v0.154.0
 	go.temporal.io/api v1.62.14
@@ -1055,6 +1054,7 @@ require (
 	github.com/google/certificate-transparency-go v1.3.2 // indirect
 	github.com/google/go-metrics-stackdriver v0.2.0 // indirect
 	github.com/gophercloud/gophercloud v0.1.0 // indirect
+	github.com/graph-gophers/graphql-go v1.10.2 // indirect
 	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.2 // indirect
 	github.com/gsterjov/go-libsecret v0.0.0-20161001094733-a6f4afe4910c // indirect
 	github.com/hashicorp/cli v1.1.7 // indirect
