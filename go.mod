@@ -206,7 +206,7 @@ require (
 	github.com/containerd/containerd v1.7.33
 	github.com/containerd/containerd/api v1.11.1
 	github.com/containerd/errdefs v1.0.0
-	github.com/containerd/typeurl/v2 v2.2.3
+	github.com/containerd/typeurl/v2 v2.3.0
 	github.com/containernetworking/cni v1.3.0
 	github.com/coreos/go-semver v0.3.1
 	github.com/coreos/go-systemd/v22 v22.7.0
