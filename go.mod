@@ -230,7 +230,7 @@ require (
 	github.com/go-ini/ini v1.67.0
 	github.com/go-json-experiment/json v0.0.0-20250517221953-25912455fbc8
 	github.com/go-ole/go-ole v1.3.0
-	github.com/go-sql-driver/mysql v1.9.3
+	github.com/go-sql-driver/mysql v1.10.0
 	github.com/go-viper/mapstructure/v2 v2.5.0
 	github.com/gobwas/glob v0.2.3
 	github.com/gocomply/scap v0.1.3
@@ -439,7 +439,7 @@ require (
 	code.cloudfoundry.org/tlsconfig v0.0.0-20200131000646-bbe0f8da39b3 // indirect
 	cyphar.com/go-pathrs v0.2.1 // indirect
 	dario.cat/mergo v1.0.2
-	filippo.io/edwards25519 v1.1.1 // indirect
+	filippo.io/edwards25519 v1.2.0 // indirect
 	github.com/AdaLogics/go-fuzz-headers v0.0.0-20240806141605-e8a1dd7889d6 // indirect
 	github.com/AdamKorcz/go-118-fuzz-build v0.0.0-20231105174938-2b5cbb29f3e2 // indirect
 	github.com/AlekSi/pointer v1.2.0 // indirect
