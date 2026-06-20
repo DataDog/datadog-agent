@@ -82,8 +82,6 @@ func TestLinuxTestSuite(t *testing.T) {
 
 func (s *linuxTestSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
-	// SetupSuite needs to defer CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
-	defer s.CleanupOnSetupFailure()
 
 	s.provisionServer()
 }

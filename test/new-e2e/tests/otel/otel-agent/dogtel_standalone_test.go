@@ -103,7 +103,6 @@ var dogtelParams = utils.IAParams{
 
 func (s *dogtelStandaloneTestSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
-	defer s.CleanupOnSetupFailure()
 	// Verify the liveness metric BEFORE TestCalendarApp flushes the aggregators.
 	// The metric is emitted once by dogtelextension.Start() at startup; it must be
 	// captured here before FlushServerAndResetAggregators() clears it.

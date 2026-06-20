@@ -111,8 +111,6 @@ func (s *BaseSuite) StableAgentVersion() *AgentVersionManager {
 // SetupSuite checks that the environment variables are correctly setup for the test
 func (s *BaseSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
-	// SetupSuite needs to defer s.CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
-	defer s.CleanupOnSetupFailure()
 
 	// The below current and stable artifacts can be configured with environment variables.
 	// See doc.go for more information.

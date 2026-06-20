@@ -92,8 +92,6 @@ func TestDDOTInstallScript(t *testing.T) {
 
 func (is *ddotInstallSuite) SetupSuite() {
 	is.BaseSuite.SetupSuite()
-	// SetupSuite needs to defer is.CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
-	defer is.CleanupOnSetupFailure()
 
 	is.host = host.New(is.T, is.Env().RemoteHost, is.osDesc, is.osDesc.Architecture)
 }

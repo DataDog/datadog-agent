@@ -68,7 +68,6 @@ func TestEC2TCPCongestionSuite(t *testing.T) {
 
 func (v *ec2TCPCongestionSuite) SetupSuite() {
 	v.BaseSuite.SetupSuite()
-	defer v.CleanupOnSetupFailure()
 
 	host := v.Env().RemoteHost
 

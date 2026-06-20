@@ -128,7 +128,6 @@ func TestOTelAgentDogtelSecretsStandalone(t *testing.T) {
 
 func (s *dogtelSecretsTestSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
-	defer s.CleanupOnSetupFailure()
 	utils.TestCalendarApp(s, false, utils.CalendarService)
 }
 

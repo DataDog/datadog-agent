@@ -52,8 +52,6 @@ func (s *fipsAgentSuite) SetupSuite() {
 	s.Require().NoError(err)
 
 	s.BaseAgentInstallerSuite.SetupSuite()
-	// SetupSuite needs to defer CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
-	defer s.CleanupOnSetupFailure()
 
 	host := s.Env().RemoteHost
 

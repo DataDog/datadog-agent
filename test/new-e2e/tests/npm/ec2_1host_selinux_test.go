@@ -61,8 +61,6 @@ func (v *ec2VMSELinuxSuite) AfterTest(suiteName, testName string) {
 
 func (v *ec2VMSELinuxSuite) SetupSuite() {
 	v.BaseSuite.SetupSuite()
-	// SetupSuite needs to defer CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
-	defer v.CleanupOnSetupFailure()
 
 	v.Env().RemoteHost.MustExecute("sudo usermod -a -G docker $(whoami)")
 	v.Env().RemoteHost.Reconnect()

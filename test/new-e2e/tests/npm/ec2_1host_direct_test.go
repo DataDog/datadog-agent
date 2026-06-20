@@ -42,8 +42,6 @@ func TestEC2VMDirectSuite(t *testing.T) {
 
 func (v *ec2VMDirectSuite) SetupSuite() {
 	v.BaseSuite.SetupSuite()
-	// SetupSuite needs to defer CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
-	defer v.CleanupOnSetupFailure()
 
 	v.Env().RemoteHost.MustExecute("sudo apt install -y apache2-utils docker.io")
 	v.Env().RemoteHost.MustExecute("sudo usermod -a -G docker ubuntu")

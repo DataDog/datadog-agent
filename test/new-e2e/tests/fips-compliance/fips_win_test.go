@@ -66,8 +66,6 @@ instances: [{}]
 
 func (s *windowsVMSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
-	// SetupSuite needs to defer s.CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
-	defer s.CleanupOnSetupFailure()
 
 	host := s.Env().RemoteHost
 	var err error
