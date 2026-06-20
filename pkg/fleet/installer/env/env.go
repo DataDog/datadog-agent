@@ -186,12 +186,10 @@ type InstallScriptEnv struct {
 
 // Env contains the configuration for the installer.
 type Env struct {
-	APIKey               string
-	Site                 string
-	RemoteUpdates        bool
-	OTelCollectorEnabled bool
-	// ProcessManagerEnabled drives DDOT / dd-procmgr installer hooks on Windows (e.g. processes.d).
-	// Default true when DD_PROCESS_MANAGER_ENABLED is unset or blank; set to false (case-insensitive) to disable.
+	APIKey                string
+	Site                  string
+	RemoteUpdates         bool
+	OTelCollectorEnabled  bool
 	ProcessManagerEnabled bool
 	ConfigID              string
 
@@ -573,11 +571,10 @@ func getBoolEnv(env string) *bool {
 	}
 }
 
-// processManagerEnabledFromEnv mirrors agent defaults: on unless the user explicitly opts out with false.
 func processManagerEnabledFromEnv() bool {
 	v := strings.TrimSpace(os.Getenv(envProcessManagerEnabled))
 	if v == "" {
-		return true
+		return defaultEnv.ProcessManagerEnabled
 	}
 	return !strings.EqualFold(v, "false")
 }
