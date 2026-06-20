@@ -33,17 +33,17 @@ func main() {
 
 func generate(outputDir string) error {
 	for _, lay := range windowsProcmgrLayouts {
-		if err := writeFileMap(outputDir, lay.subdir, lay.units); err != nil {
+		if err := lay.writeFilesToSubdir(outputDir); err != nil {
 			return err
 		}
 	}
 	for _, lay := range linuxProcmgrYAMLLayouts {
-		if err := writeFileMap(outputDir, lay.subdir, lay.units); err != nil {
+		if err := lay.writeFilesToSubdir(outputDir); err != nil {
 			return err
 		}
 	}
 	for _, lay := range systemdEmbeddedLayouts {
-		if err := writeFileMap(outputDir, lay.subdir, lay.units); err != nil {
+		if err := lay.writeFilesToSubdir(outputDir); err != nil {
 			return err
 		}
 	}
@@ -77,12 +77,12 @@ type embeddedLayout struct {
 	units  map[string][]byte
 }
 
-func writeFileMap(root, subdir string, files map[string][]byte) error {
-	subdirPath := filepath.Join(root, subdir)
+func (l embeddedLayout) writeFilesToSubdir(root string) error {
+	subdirPath := filepath.Join(root, l.subdir)
 	if err := os.MkdirAll(subdirPath, 0755); err != nil {
 		return fmt.Errorf("failed to create directory %s: %w", subdirPath, err)
 	}
-	for name, content := range files {
+	for name, content := range l.units {
 		path := filepath.Join(subdirPath, name)
 		if err := os.WriteFile(path, content, 0644); err != nil {
 			return fmt.Errorf("failed to write %s: %w", path, err)
