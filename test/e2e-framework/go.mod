@@ -30,7 +30,7 @@ require (
 	github.com/pkg/sftp v1.13.10
 	github.com/pulumi/pulumi-aws/sdk/v7 v7.32.0
 	github.com/pulumi/pulumi-awsx/sdk/v3 v3.3.1
-	github.com/pulumi/pulumi-azure-native-sdk/authorization/v2 v2.81.0
+	github.com/pulumi/pulumi-azure-native-sdk/authorization/v2 v2.92.3
 	github.com/pulumi/pulumi-azure-native-sdk/compute/v2 v2.92.3
 	github.com/pulumi/pulumi-azure-native-sdk/containerservice/v2 v2.81.0
 	github.com/pulumi/pulumi-azure-native-sdk/managedidentity/v2 v2.92.3
