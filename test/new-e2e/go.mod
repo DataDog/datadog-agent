@@ -338,7 +338,7 @@ require (
 	github.com/pgavlin/fx/v2 v2.0.12 // indirect
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
 	github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/authorization/v2 v2.81.0 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk/authorization/v2 v2.92.3 // indirect
 	github.com/pulumi/pulumi-azure-native-sdk/compute/v2 v2.92.3 // indirect
 	github.com/pulumi/pulumi-azure-native-sdk/containerservice/v2 v2.81.0 // indirect
 	github.com/pulumi/pulumi-azure-native-sdk/managedidentity/v2 v2.92.3 // indirect
