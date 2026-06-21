@@ -953,7 +953,7 @@ require (
 	github.com/creack/pty v1.1.24
 	github.com/go-jose/go-jose/v4 v4.1.4
 	github.com/hashicorp/vault v1.21.4
-	github.com/hashicorp/vault/api v1.22.0
+	github.com/hashicorp/vault/api v1.23.0
 	github.com/hashicorp/vault/api/auth/approle v0.12.0
 	github.com/hashicorp/vault/api/auth/aws v0.11.0
 	github.com/hashicorp/vault/api/auth/ldap v0.11.0
