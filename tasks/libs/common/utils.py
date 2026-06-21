@@ -164,17 +164,18 @@ def get_rtloader_paths(embedded_path=None, rtloader_root=None):
         if not base_path:
             continue
 
-        for libdir in ["lib", "lib64", "build/rtloader"]:
-            if os.path.exists(os.path.join(base_path, libdir, RTLOADER_LIB_NAME)):
-                rtloader_lib.append(os.path.join(base_path, libdir))
+        for candidate_path in [base_path, os.path.join(base_path, "embedded")]:
+            for libdir in ["lib", "lib64", "build/rtloader"]:
+                if os.path.exists(os.path.join(candidate_path, libdir, RTLOADER_LIB_NAME)):
+                    rtloader_lib.append(os.path.join(candidate_path, libdir))
 
-        header_path = os.path.join(base_path, "include")
-        if not rtloader_headers and os.path.exists(os.path.join(header_path, RTLOADER_HEADER_NAME)):
-            rtloader_headers = header_path
+            header_path = os.path.join(candidate_path, "include")
+            if not rtloader_headers and os.path.exists(os.path.join(header_path, RTLOADER_HEADER_NAME)):
+                rtloader_headers = header_path
 
-        common_path = os.path.join(base_path, "common")
-        if not rtloader_common_headers and os.path.exists(common_path):
-            rtloader_common_headers = common_path
+            common_path = os.path.join(candidate_path, "common")
+            if not rtloader_common_headers and os.path.exists(common_path):
+                rtloader_common_headers = common_path
 
     return rtloader_lib, rtloader_headers, rtloader_common_headers
 

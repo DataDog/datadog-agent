@@ -6,6 +6,9 @@ from pathlib import Path
 from unittest import mock
 
 from tasks.libs.common.utils import (
+    RTLOADER_HEADER_NAME,
+    RTLOADER_LIB_NAME,
+    get_rtloader_paths,
     link_or_copy,
     running_in_ci,
     running_in_github_actions,
@@ -83,3 +86,25 @@ class TestLinkOrCopy(unittest.TestCase):
     def test_propagates_last_error(self, symlink_to, hardlink_to, copy2):
         with self.assertRaises(OSError):
             link_or_copy(self.src, self.dst)
+
+
+class TestGetRtloaderPaths(unittest.TestCase):
+    def setUp(self):
+        self._tmpdir = Path(tempfile.mkdtemp(prefix="test-rtloader-paths"))
+
+    def tearDown(self):
+        shutil.rmtree(self._tmpdir)
+
+    def test_finds_bazel_install_under_embedded_dir(self):
+        lib_dir = self._tmpdir / "dev" / "embedded" / "lib"
+        include_dir = self._tmpdir / "dev" / "embedded" / "include"
+        lib_dir.mkdir(parents=True)
+        include_dir.mkdir(parents=True)
+        (lib_dir / RTLOADER_LIB_NAME).touch()
+        (include_dir / RTLOADER_HEADER_NAME).touch()
+
+        rtloader_lib, rtloader_headers, rtloader_common_headers = get_rtloader_paths(embedded_path=self._tmpdir / "dev")
+
+        self.assertEqual(rtloader_lib, [str(lib_dir)])
+        self.assertEqual(rtloader_headers, str(include_dir))
+        self.assertEqual(rtloader_common_headers, "")
