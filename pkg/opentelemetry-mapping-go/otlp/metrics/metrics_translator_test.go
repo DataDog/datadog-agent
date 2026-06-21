@@ -27,6 +27,8 @@ import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"go.uber.org/zap/zaptest/observer"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
@@ -127,6 +129,45 @@ func newTranslatorWithStatsChannel(t *testing.T, logger *zap.Logger, ch chan []b
 
 func newTranslator(t *testing.T, logger *zap.Logger) *defaultTranslator {
 	return newTranslatorWithStatsChannel(t, logger, nil)
+}
+
+func TestExponentialHistogramDropsUnsupportedBucketBounds(t *testing.T) {
+	md := pmetric.NewMetrics()
+	metric := md.ResourceMetrics().AppendEmpty().ScopeMetrics().AppendEmpty().Metrics().AppendEmpty()
+	metric.SetName("test")
+	histogram := metric.SetEmptyExponentialHistogram()
+	histogram.SetAggregationTemporality(pmetric.AggregationTemporalityDelta)
+
+	unsupportedPoint := histogram.DataPoints().AppendEmpty()
+	unsupportedPoint.SetCount(44)
+	unsupportedPoint.SetSum(-44)
+	unsupportedPoint.SetScale(-4)
+	// At scale -4, the histogram base is 65536. Bucket index 64 starts at
+	// 65536^64 = 2^1024, which overflows float64 to +Inf.
+	unsupportedPoint.Negative().SetOffset(64)
+	unsupportedPoint.Negative().BucketCounts().Append(44)
+
+	validPoint := histogram.DataPoints().AppendEmpty()
+	validPoint.SetCount(1)
+	validPoint.SetSum(2)
+	validPoint.SetScale(0)
+	validPoint.Positive().BucketCounts().Append(1)
+
+	core, observedLogs := observer.New(zapcore.DebugLevel)
+	translator := newTranslator(t, zap.New(core))
+	consumer := newTestConsumer()
+
+	require.NotPanics(t, func() {
+		_, err := translator.MapMetrics(context.Background(), md, &consumer, nil)
+		require.NoError(t, err)
+	})
+	require.Len(t, consumer.data.Metrics.Sketches, 1)
+	require.Equal(t, "test", consumer.data.Metrics.Sketches[0].Name)
+
+	entries := observedLogs.FilterMessage("Failed to convert ExponentialHistogram into DDSketch").All()
+	require.Len(t, entries, 1)
+	assert.Equal(t, "test", entries[0].ContextMap()["metric name"])
+	assert.Contains(t, entries[0].ContextMap()["error"], "bucket index 64 has unsupported bounds")
 }
 
 type metric struct {
