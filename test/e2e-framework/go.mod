@@ -31,11 +31,11 @@ require (
 	github.com/pulumi/pulumi-aws/sdk/v7 v7.32.0
 	github.com/pulumi/pulumi-awsx/sdk/v3 v3.3.1
 	github.com/pulumi/pulumi-azure-native-sdk/authorization/v2 v2.81.0
-	github.com/pulumi/pulumi-azure-native-sdk/compute/v2 v2.81.0
+	github.com/pulumi/pulumi-azure-native-sdk/compute/v2 v2.92.3
 	github.com/pulumi/pulumi-azure-native-sdk/containerservice/v2 v2.81.0
 	github.com/pulumi/pulumi-azure-native-sdk/managedidentity/v2 v2.81.0
 	github.com/pulumi/pulumi-azure-native-sdk/network/v2 v2.81.0
-	github.com/pulumi/pulumi-azure-native-sdk/v2 v2.81.0
+	github.com/pulumi/pulumi-azure-native-sdk/v2 v2.92.3
 	github.com/pulumi/pulumi-command/sdk v1.0.1
 	github.com/pulumi/pulumi-docker/sdk/v4 v4.9.0
 	github.com/pulumi/pulumi-eks/sdk/v4 v4.2.0
@@ -44,7 +44,7 @@ require (
 	github.com/pulumi/pulumi-libvirt/sdk v0.5.4
 	github.com/pulumi/pulumi-random/sdk/v4 v4.18.4
 	github.com/pulumi/pulumi-tls/sdk/v4 v4.11.4
-	github.com/pulumi/pulumi/sdk/v3 v3.242.0
+	github.com/pulumi/pulumi/sdk/v3 v3.244.0
 	github.com/pulumiverse/pulumi-time/sdk v0.1.0
 	github.com/samber/lo v1.52.0
 	github.com/stretchr/testify v1.11.1
@@ -64,6 +64,7 @@ require (
 	cloud.google.com/go/auth/oauth2adapt v0.2.8 // indirect
 	cloud.google.com/go/compute/metadata v0.9.0 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20250102033503-faa5f7b0171c // indirect
+	github.com/BurntSushi/toml v1.6.0 // indirect
 	github.com/DataDog/agent-payload/v5 v5.0.202-0.20260608085134-d08b6ebf99eb // indirect
 	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.76.0-rc.4 // indirect
 	github.com/DataDog/datadog-agent/comp/netflow/payload v0.56.0-rc.3 // indirect
@@ -135,7 +136,7 @@ require (
 	github.com/go-errors/errors v1.5.1 // indirect
 	github.com/go-git/gcfg v1.5.1-0.20230307220236-3a3c6141e376 // indirect
 	github.com/go-git/go-billy/v5 v5.9.0 // indirect
-	github.com/go-git/go-git/v5 v5.19.0 // indirect
+	github.com/go-git/go-git/v5 v5.19.1 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-openapi/jsonpointer v0.23.1 // indirect
@@ -184,7 +185,7 @@ require (
 	github.com/liggitt/tabwriter v0.0.0-20181228230101-89fcab3d43de // indirect
 	github.com/lucasb-eyer/go-colorful v1.4.0 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
-	github.com/mattn/go-isatty v0.0.20 // indirect
+	github.com/mattn/go-isatty v0.0.22 // indirect
 	github.com/mattn/go-localereader v0.0.1 // indirect
 	github.com/mattn/go-runewidth v0.0.23 // indirect
 	github.com/mitchellh/go-ps v1.0.0 // indirect
