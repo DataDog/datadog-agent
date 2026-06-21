@@ -428,8 +428,6 @@ github.com/pulumi/pulumi-azure-native-sdk/authorization/v2 v2.92.3 h1:CNyoETY53s
 github.com/pulumi/pulumi-azure-native-sdk/authorization/v2 v2.92.3/go.mod h1:Z9QC26ocUAXUK3fjEAL3RtklbaxQOqlfQFC9IaNfxIQ=
 github.com/pulumi/pulumi-azure-native-sdk/compute/v2 v2.92.3 h1:3/syHYdOXXXFQhUfvqxxtUO1SobQqaZ5U7UmcGMgkIQ=
 github.com/pulumi/pulumi-azure-native-sdk/compute/v2 v2.92.3/go.mod h1:Yq6rDw3Vmzl+LN9OSbsUZNslU+vTgRA9/HO5h/xD7zM=
-github.com/pulumi/pulumi-azure-native-sdk/containerservice/v2 v2.81.0 h1:eQ0/SzOhXcKwESbc0Ahujeo4kI/Y88ghAxblRrcYe6U=
-github.com/pulumi/pulumi-azure-native-sdk/containerservice/v2 v2.81.0/go.mod h1:vsCzO0onkZpFxJWaGsGtFxiD3nV08/P8pNK2wAkTe7w=
 github.com/pulumi/pulumi-azure-native-sdk/containerservice/v2 v2.92.3 h1:yWbbe3zi2/hUmXB34T3gurvN/GmzEyiol5Ow7hDJHrk=
 github.com/pulumi/pulumi-azure-native-sdk/containerservice/v2 v2.92.3/go.mod h1:mvnDmwoUZOg1bBKaovVZtXWdYhcsVdAaic7bKvF5+do=
 github.com/pulumi/pulumi-azure-native-sdk/managedidentity/v2 v2.92.3 h1:3PvybjgW04B2aNcI0p1HHufsU1IEUhHj3Y55fvD7NwE=
