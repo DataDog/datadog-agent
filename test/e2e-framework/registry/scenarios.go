@@ -23,6 +23,7 @@ import (
 	computerun "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/azure/compute/run"
 	gcpcompute "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/gcp/compute/run"
 	localkindmonocontainer "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/local/kindmonocontainer"
+	localmultipassvm "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/local/multipassvm"
 	localpodmanrun "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/local/podman/run"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
@@ -46,6 +47,7 @@ func Scenarios() ScenarioRegistry {
 		"gcp/gke":                 gke.Run,
 		"gcp/openshiftvm":         openshiftvm.Run,
 		"local/kindmonocontainer": localkindmonocontainer.Run,
+		"local/multipassvm": 	   localmultipassvm.Run,
 		"localpodman/vm":          localpodmanrun.VMRun,
 	}
 }
