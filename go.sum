@@ -3852,8 +3852,8 @@ github.com/hashicorp/vault-plugin-secrets-openldap v0.17.0 h1:GpgYcuBL66zzFLkf14
 github.com/hashicorp/vault-plugin-secrets-openldap v0.17.0/go.mod h1:UPWSw0hYY37sC4MeeoG9G8jN88DYi3L4MeJjRauhaBI=
 github.com/hashicorp/vault-plugin-secrets-terraform v0.13.0 h1:Rhahoi3L1dnZjNqlbUh1f59DMdmfdhsfBvaaX1vjejY=
 github.com/hashicorp/vault-plugin-secrets-terraform v0.13.0/go.mod h1:N1fdq0KpTbK/S4Yc4I04JqJ64+mkya4SZ+ychIYd3E4=
-github.com/hashicorp/vault/api v1.22.0 h1:+HYFquE35/B74fHoIeXlZIP2YADVboaPjaSicHEZiH0=
-github.com/hashicorp/vault/api v1.22.0/go.mod h1:IUZA2cDvr4Ok3+NtK2Oq/r+lJeXkeCrHRmqdyWfpmGM=
+github.com/hashicorp/vault/api v1.23.0 h1:gXgluBsSECfRWTSW9niY2jwg2e9mMJc4WoHNv4g3h6A=
+github.com/hashicorp/vault/api v1.23.0/go.mod h1:zransKiB9ftp+kgY8ydjnvCU7Wk8i9L0DYWpXeMj9ko=
 github.com/hashicorp/vault/api/auth/approle v0.12.0 h1:PhF7jrQjydK1DC05EboosXmZg31GDUIKL8bjyilsJ+E=
 github.com/hashicorp/vault/api/auth/approle v0.12.0/go.mod h1:J7BJLpXeQXhuMAWi31Puunu5QOeCoRAgLh2iDti7OLA=
 github.com/hashicorp/vault/api/auth/ldap v0.11.0 h1:jd6gJXeFR4jyDbAh6R4RoW1uq6kmTt7M/vjW41jXczA=
