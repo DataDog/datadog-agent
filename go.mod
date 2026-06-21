@@ -956,7 +956,7 @@ require (
 	github.com/hashicorp/vault/api v1.23.0
 	github.com/hashicorp/vault/api/auth/approle v0.12.0
 	github.com/hashicorp/vault/api/auth/aws v0.12.0
-	github.com/hashicorp/vault/api/auth/ldap v0.11.0
+	github.com/hashicorp/vault/api/auth/ldap v0.12.0
 	github.com/hashicorp/vault/api/auth/userpass v0.11.0
 	github.com/jarcoal/httpmock v1.4.1
 	github.com/mitchellh/mapstructure v1.5.1-0.20231216201459-8508981c8b6c
