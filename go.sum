@@ -3858,8 +3858,6 @@ github.com/hashicorp/vault/api/auth/approle v0.12.0 h1:PhF7jrQjydK1DC05EboosXmZg
 github.com/hashicorp/vault/api/auth/approle v0.12.0/go.mod h1:J7BJLpXeQXhuMAWi31Puunu5QOeCoRAgLh2iDti7OLA=
 github.com/hashicorp/vault/api/auth/ldap v0.12.0 h1:NHrkbKidU///an7pGHx+12IDwSg5bFiOfl6JgtLIKUs=
 github.com/hashicorp/vault/api/auth/ldap v0.12.0/go.mod h1:pxWp5bRYXx+N69TuDA4Afal+pPoQoC53iMNMEWSiCuU=
-github.com/hashicorp/vault/api/auth/userpass v0.11.0 h1:iPw1PL6vzQTn2w14quKd0ZnJV+cfPe+p5CA22M45jsA=
-github.com/hashicorp/vault/api/auth/userpass v0.11.0/go.mod h1:FZ/baZ5rhruevb6kED9eh9KhorGtwM+xxVBvtXSxZsY=
 github.com/hashicorp/vault/api/auth/userpass v0.12.0 h1:w2XiddC7J2pZDrc7Wji7iom2rSYWznVLxV2gPAEqt+g=
 github.com/hashicorp/vault/api/auth/userpass v0.12.0/go.mod h1:Amijnw7qOV05S9Afx6TH40C8eu9wFaBYM1UEtPhloAI=
 github.com/hashicorp/vault/sdk v0.19.1-0.20260305014005-ffe7023c481d h1:QH5hfbpfm+veHoSZEMssfGJspc++SbFZFrvCDbIrWyg=
