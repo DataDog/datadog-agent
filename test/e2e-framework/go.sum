@@ -206,6 +206,8 @@ github.com/go-git/go-git-fixtures/v4 v4.3.2-0.20231010084843-55a94097c399 h1:eMj
 github.com/go-git/go-git-fixtures/v4 v4.3.2-0.20231010084843-55a94097c399/go.mod h1:1OCfN199q1Jm3HZlxleg+Dw/mwps2Wbk9frAWm+4FII=
 github.com/go-git/go-git/v5 v5.19.0 h1:+WkVUQZSy/F1Gb13udrMKjIM2PrzsNfDKFSfo5tkMtc=
 github.com/go-git/go-git/v5 v5.19.0/go.mod h1:Pb1v0c7/g8aGQJwx9Us09W85yGoyvSwuhEGMH7zjDKQ=
+github.com/go-git/go-git/v5 v5.19.1 h1:nX27AnaU43/K5bKktKwgBmR9lawoYVe1Ckg0rgzzN00=
+github.com/go-git/go-git/v5 v5.19.1/go.mod h1:Pb1v0c7/g8aGQJwx9Us09W85yGoyvSwuhEGMH7zjDKQ=
 github.com/go-logr/logr v1.2.2/go.mod h1:jdQByPbusPIv2/zmleS9BjJVeZ6kBagPoEUsqbVz/1A=
 github.com/go-logr/logr v1.4.3 h1:CjnDlHq8ikf6E492q6eKboGOC0T8CDaOvkHCIg8idEI=
 github.com/go-logr/logr v1.4.3/go.mod h1:9T104GzyrTigFIr8wt5mBrctHMim0Nb2HLGrmQ40KvY=
@@ -335,6 +337,8 @@ github.com/mattn/go-isatty v0.0.8/go.mod h1:Iq45c/XA43vh69/j3iqttzPXn0bhXyGjM0Hd
 github.com/mattn/go-isatty v0.0.11/go.mod h1:PhnuNfih5lzO57/f3n+odYbM4JtupLOxQOAqxQCu2WE=
 github.com/mattn/go-isatty v0.0.20 h1:xfD0iDuEKnDkl03q4limB+vH+GxLEtL/jb4xVJSWWEY=
 github.com/mattn/go-isatty v0.0.20/go.mod h1:W+V8PltTTMOvKvAeJH7IuucS94S2C6jfK/D7dTCTo3Y=
+github.com/mattn/go-isatty v0.0.22 h1:j8l17JJ9i6VGPUFUYoTUKPSgKe/83EYU2zBC7YNKMw4=
+github.com/mattn/go-isatty v0.0.22/go.mod h1:ZXfXG4SQHsB/w3ZeOYbR0PrPwLy+n6xiMrJlRFqopa4=
 github.com/mattn/go-localereader v0.0.1 h1:ygSAOl7ZXTx4RdPYinUpg6W99U8jWvWi9Ye2JC/oIi4=
 github.com/mattn/go-localereader v0.0.1/go.mod h1:8fBrzywKY7BI3czFoHkuzRoWE9C+EiG4R1k4Cjx5p88=
 github.com/mattn/go-runewidth v0.0.4/go.mod h1:LwmH8dsx7+W8Uxz3IHJYH5QSwggIsqBzpuz5H//U1FU=
@@ -432,10 +436,14 @@ github.com/pulumi/pulumi-azure-native-sdk/containerservice/v2 v2.81.0 h1:eQ0/SzO
 github.com/pulumi/pulumi-azure-native-sdk/containerservice/v2 v2.81.0/go.mod h1:vsCzO0onkZpFxJWaGsGtFxiD3nV08/P8pNK2wAkTe7w=
 github.com/pulumi/pulumi-azure-native-sdk/managedidentity/v2 v2.81.0 h1:bA2AUo2Mtpyitew41O24kw7wqBqVAhOkUx9Zj4gkTas=
 github.com/pulumi/pulumi-azure-native-sdk/managedidentity/v2 v2.81.0/go.mod h1:cH/JouDXyXfBGvPFBjedwNK9EDYTbWeJmEnoj13Pnpk=
+github.com/pulumi/pulumi-azure-native-sdk/managedidentity/v2 v2.92.3 h1:3PvybjgW04B2aNcI0p1HHufsU1IEUhHj3Y55fvD7NwE=
+github.com/pulumi/pulumi-azure-native-sdk/managedidentity/v2 v2.92.3/go.mod h1:jccW5D0c/4NdPoIGIz59YfYtOL7N6JiWJV+RxSgvmuo=
 github.com/pulumi/pulumi-azure-native-sdk/network/v2 v2.81.0 h1:RST/rJXeyqqedEkYvS3QvipKwfimvfkbYTai51dz+sI=
 github.com/pulumi/pulumi-azure-native-sdk/network/v2 v2.81.0/go.mod h1:pGBaaI/HvyNybS+QVtr5r96IXMepBJpeKg4cXkcIt7U=
 github.com/pulumi/pulumi-azure-native-sdk/v2 v2.81.0 h1:kGzTe5+RY9/i8dqzV5OyUUxkKgFZE2Fc9QR6t48ec7A=
 github.com/pulumi/pulumi-azure-native-sdk/v2 v2.81.0/go.mod h1:UtcE2JL42940vODuX0oAYmBqWIMRIaRhEDBaQGyr+vA=
+github.com/pulumi/pulumi-azure-native-sdk/v2 v2.92.3 h1:3pSh/GqQ5NO7Pb0GuJE5pMHlE+moAoLmAt4FljPD7jI=
+github.com/pulumi/pulumi-azure-native-sdk/v2 v2.92.3/go.mod h1:WJK7jjxUHZh1j7ItxBop/wF02t4vtmmtDN9MJzW2BsI=
 github.com/pulumi/pulumi-command/sdk v1.0.1 h1:ZuBSFT57nxg/fs8yBymUhKLkjJ6qmyN3gNvlY/idiN0=
 github.com/pulumi/pulumi-command/sdk v1.0.1/go.mod h1:C7sfdFbUIoXKoIASfXUbP/U9xnwPfxvz8dBpFodohlA=
 github.com/pulumi/pulumi-docker-build/sdk/go/dockerbuild v0.0.3 h1:NxCXxRvzhUJP9dIvlpNlZKt/A3NHu3i9pC5XO+i8bR0=
@@ -456,6 +464,8 @@ github.com/pulumi/pulumi-tls/sdk/v4 v4.11.4 h1:S7M6vA3XES1oAmohZL/q8QWfNXRr9vtX7
 github.com/pulumi/pulumi-tls/sdk/v4 v4.11.4/go.mod h1:UVLWiEodmuXpBYdm+XdrjBpoWaucl+evAj02dzJlhjo=
 github.com/pulumi/pulumi/sdk/v3 v3.242.0 h1:gQIZ1ALbT5gCMuRoBscGzk7Rdbx9mbOc+YwDFxvRyss=
 github.com/pulumi/pulumi/sdk/v3 v3.242.0/go.mod h1:P9VS6pQws3YBu67uszFRHn24n5AwzeMlyC2hIiHGWHg=
+github.com/pulumi/pulumi/sdk/v3 v3.244.0 h1:oyQ9bwDE58wrQOqS70JrojJSlNoLcVhVcQgK4yusgcg=
+github.com/pulumi/pulumi/sdk/v3 v3.244.0/go.mod h1:BPWWuYPXcPH5YbXGoyy9Rrfa+evrh6IdM51AjDhcDpM=
 github.com/pulumiverse/pulumi-time/sdk v0.1.0 h1:xfi9HKDgV+GgDxQ23oSv9KxC3DQqViGTcMrJICRgJv0=
 github.com/pulumiverse/pulumi-time/sdk v0.1.0/go.mod h1:NUa1zA74DF002WrM6iF111A6UjX9knPpXufVRvBwNyg=
 github.com/rivo/uniseg v0.4.7 h1:WUdvkW8uEhrYfLC4ZzdpI2ztxP1I582+49Oc5Mq64VQ=
