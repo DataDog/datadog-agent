@@ -11,7 +11,7 @@ require (
 	github.com/DataDog/datadog-agent/test/fakeintake v0.56.0-rc.3
 	github.com/DataDog/datadog-api-client-go/v2 v2.60.0
 	github.com/Masterminds/semver/v3 v3.5.0
-	github.com/alessio/shellescape v1.4.2
+	github.com/alessio/shellescape v1.6.0
 	github.com/aws/aws-sdk-go-v2 v1.42.0
 	github.com/aws/aws-sdk-go-v2/config v1.32.25
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.307.0
