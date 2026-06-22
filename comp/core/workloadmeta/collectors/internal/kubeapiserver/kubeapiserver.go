@@ -47,8 +47,9 @@ func shouldHavePodStore(cfg config.Reader) bool {
 	metadataAsTags := configutils.GetMetadataAsTags(cfg)
 	hasPodLabelsAsTags := len(metadataAsTags.GetPodLabelsAsTags()) > 0
 	hasPodAnnotationsAsTags := len(metadataAsTags.GetPodAnnotationsAsTags()) > 0
+	languageDetectionEnabled := cfg.GetBool("language_detection.enabled") && cfg.GetBool("language_detection.reporting.enabled")
 
-	return cfg.GetBool("cluster_agent.collect_kubernetes_tags") || cfg.GetBool("autoscaling.workload.enabled") || cfg.GetBool("autoscaling.cluster.spot.enabled") || hasPodLabelsAsTags || hasPodAnnotationsAsTags
+	return cfg.GetBool("cluster_agent.collect_kubernetes_tags") || cfg.GetBool("autoscaling.workload.enabled") || cfg.GetBool("autoscaling.cluster.spot.enabled") || hasPodLabelsAsTags || hasPodAnnotationsAsTags || languageDetectionEnabled
 }
 
 func shouldHaveDeploymentStore(cfg config.Reader) bool {
