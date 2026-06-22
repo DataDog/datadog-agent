@@ -28,7 +28,7 @@ class DemoOption:
 
         DemoOption(
             name="site",
-            pulumi_key="ddagent:site",
+            pulumi_keys=["ddagent:site"],
             default="datad0g.com",
             help="Datadog site to report to",
         )
@@ -39,8 +39,8 @@ class DemoOption:
     name: str
     """Python kwarg name.  Becomes --name (underscores → dashes) on the CLI."""
 
-    pulumi_key: str
-    """Full Pulumi config key passed as -c <pulumi_key>=<value> to pulumi up."""
+    pulumi_keys: list[str]
+    """Pulumi config keys passed as -c <key>=<value> to pulumi up. All keys receive the same value."""
 
     help: str
     """Help text shown in --help output."""
