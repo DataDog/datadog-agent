@@ -37,17 +37,11 @@ func (p podParser) Parse(obj interface{}) workloadmeta.Entity {
 	owners := make([]workloadmeta.KubernetesPodOwner, 0, len(pod.OwnerReferences))
 	for _, o := range pod.OwnerReferences {
 		gv, _ := schema.ParseGroupVersion(o.APIVersion)
-		var ctrlCopy *bool
-		if o.Controller != nil {
-			c := *o.Controller
-			ctrlCopy = &c
-		}
 		owners = append(owners, workloadmeta.KubernetesPodOwner{
-			Kind:       o.Kind,
-			Name:       o.Name,
-			ID:         string(o.UID),
-			Group:      gv.Group,
-			Controller: ctrlCopy,
+			Kind:  o.Kind,
+			Name:  o.Name,
+			ID:    string(o.UID),
+			Group: gv.Group,
 		})
 	}
 

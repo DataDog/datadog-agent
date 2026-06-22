@@ -61,7 +61,7 @@ func TestStoreGenerators(t *testing.T) {
 				"language_detection.reporting.enabled":  true,
 				"language_detection.enabled":            true,
 			},
-			expectedStoresGenerator: []storeGenerator{newPodStore, newDeploymentStore},
+			expectedStoresGenerator: []storeGenerator{newDeploymentStore},
 		},
 		{
 			name: "Language detection enabled",

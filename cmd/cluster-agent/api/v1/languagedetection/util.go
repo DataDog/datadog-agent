@@ -362,25 +362,22 @@ func getContainersLanguagesFromPodDetail(podDetail *pbgo.PodLanguageDetails, exp
 }
 
 // getOwnersLanguages constructs OwnersLanguages from owners (i.e. k8s parent resource).
-// Pod→Deployment attribution uses workloadmeta (apiserver-backed) instead of the request's ownerRef,
-// so forged ownerReferences in the protobuf cannot steer detected languages to another Deployment.
-func getOwnersLanguages(wlm workloadmeta.Component, requestData *pbgo.ParentLanguageAnnotationRequest, expirationTime time.Time) *OwnersLanguages {
+// A pod is only attributed to a Deployment when its owner reference is a ReplicaSet and its
+// name is consistent with that owner (see deploymentOwnerForPod), which rejects forged pods
+// whose name does not match their owner reference. This is a heuristic, not a complete guarantee.
+func getOwnersLanguages(requestData *pbgo.ParentLanguageAnnotationRequest, expirationTime time.Time) *OwnersLanguages {
 	ownersContainersLanguages := newOwnersLanguages()
 
-	podDetails := requestData.PodDetails
-
-	for _, podDetail := range podDetails {
-		namespacedOwnerRef, ok := authoritativeDeploymentOwnerForPodLanguages(wlm, podDetail.Namespace, podDetail.Name)
+	for _, podDetail := range requestData.PodDetails {
+		namespacedOwnerRef, ok := deploymentOwnerForPod(podDetail)
 		if !ok {
 			continue
 		}
 
-		if _, found := langUtil.SupportedBaseOwners[namespacedOwnerRef.Kind]; found {
-			containersLanguages := *getContainersLanguagesFromPodDetail(podDetail, expirationTime)
-			langsWithDirtyFlag := ownersContainersLanguages.getOrInitialize(namespacedOwnerRef)
-			if modified := langsWithDirtyFlag.languages.Merge(containersLanguages); modified {
-				langsWithDirtyFlag.dirty = true
-			}
+		containersLanguages := *getContainersLanguagesFromPodDetail(podDetail, expirationTime)
+		langsWithDirtyFlag := ownersContainersLanguages.getOrInitialize(namespacedOwnerRef)
+		if modified := langsWithDirtyFlag.languages.Merge(containersLanguages); modified {
+			langsWithDirtyFlag.dirty = true
 		}
 	}
 

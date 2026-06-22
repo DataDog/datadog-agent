@@ -256,19 +256,13 @@ type minimalPodParser struct {
 func (p minimalPodParser) Parse(obj interface{}) workloadmeta.Entity {
 	pod := obj.(*MinimalPod)
 	owners := make([]workloadmeta.KubernetesPodOwner, 0, len(pod.OwnerReferences))
-	for _, owner := range pod.OwnerReferences {
-		gv, _ := schema.ParseGroupVersion(owner.APIVersion)
-		var ctrlCopy *bool
-		if owner.Controller != nil {
-			c := *owner.Controller
-			ctrlCopy = &c
-		}
+	for _, o := range pod.OwnerReferences {
+		gv, _ := schema.ParseGroupVersion(o.APIVersion)
 		owners = append(owners, workloadmeta.KubernetesPodOwner{
-			Kind:       owner.Kind,
-			Name:       owner.Name,
-			ID:         string(owner.UID),
-			Group:      gv.Group,
-			Controller: ctrlCopy,
+			Kind:  o.Kind,
+			Name:  o.Name,
+			ID:    string(o.UID),
+			Group: gv.Group,
 		})
 	}
 

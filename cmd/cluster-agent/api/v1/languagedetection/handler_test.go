@@ -105,29 +105,6 @@ func TestLeaderHandlerSpan_Success(t *testing.T) {
 
 	mockStore := newMockStore(t)
 
-	ownerController := true
-	mockStore.Set(&workloadmeta.KubernetesPod{
-		EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: "handler-test-pod-uid"},
-		EntityMeta: workloadmeta.EntityMeta{
-			Name:      "deploy-a-12345-98765",
-			Namespace: "default",
-		},
-		Owners: []workloadmeta.KubernetesPodOwner{{
-			Kind:       "ReplicaSet",
-			Name:       "deploy-a-12345",
-			ID:         "rs-uid",
-			Group:      "apps",
-			Controller: &ownerController,
-		}},
-	})
-	mockStore.Set(&workloadmeta.KubernetesDeployment{
-		EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesDeployment, ID: "default/deploy-a"},
-		EntityMeta: workloadmeta.EntityMeta{
-			Name:      "deploy-a",
-			Namespace: "default",
-		},
-	})
-
 	handler := &languageDetectionHandler{
 		cfg: handlerConfig{
 			enabled:     true,
