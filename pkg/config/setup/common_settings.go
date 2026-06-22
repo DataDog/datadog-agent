@@ -2191,10 +2191,13 @@ func metricLookback(config pkgconfigmodel.Setup) {
 
 	// Experimental trigger: watch a single incoming DogStatsD metric, track an
 	// exponential moving average of its value, and dump the lookback ring buffer
-	// when the average crosses a threshold.
+	// when the average satisfies the configured threshold direction.
 	config.BindEnvAndSetDefault("metric_lookback.trigger.enabled", false)
 	config.BindEnvAndSetDefault("metric_lookback.trigger.metric_name", "")
 	config.BindEnvAndSetDefault("metric_lookback.trigger.threshold", 0.0)
+	// Threshold direction: "above" fires at/above threshold; "below" fires
+	// at/below threshold.
+	config.BindEnvAndSetDefault("metric_lookback.trigger.threshold_direction", "above")
 	// EWMA smoothing factor in (0,1]. Higher reacts faster; 1 disables smoothing.
 	config.BindEnvAndSetDefault("metric_lookback.trigger.ewma_alpha", 0.3)
 	// Minimum time between dump sessions triggered by this watcher.

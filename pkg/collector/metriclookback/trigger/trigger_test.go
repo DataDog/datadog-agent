@@ -119,6 +119,31 @@ func TestWatcherFiresOnThresholdWithCooldown(t *testing.T) {
 	}
 }
 
+func TestWatcherFiresBelowThreshold(t *testing.T) {
+	fires := atomic.NewInt64(0)
+	var wg sync.WaitGroup
+	w := New(Config{MetricName: "queue.depth", Threshold: 5, ThresholdDirection: ThresholdDirectionBelow, Alpha: 1}, func(time.Time, time.Time) (int, error) {
+		fires.Inc()
+		wg.Done()
+		return 0, nil
+	})
+
+	if w.Observe("queue.depth", 6) {
+		t.Fatal("should not fire while the average is above the drop threshold")
+	}
+
+	wg.Add(1)
+	if !w.Observe("queue.depth", 5) {
+		t.Fatal("should fire at/below the drop threshold")
+	}
+	waitForWaitGroup(t, &wg)
+	waitForSessionIdle(t, w)
+
+	if got := fires.Load(); got != 1 {
+		t.Fatalf("expected callback to run once, got %d", got)
+	}
+}
+
 func TestWatcherSmoothingDelaysFire(t *testing.T) {
 	// With smoothing, seed the average below the threshold so the first sample
 	// does not fire, then confirm a spike pushes the EWMA over the threshold.

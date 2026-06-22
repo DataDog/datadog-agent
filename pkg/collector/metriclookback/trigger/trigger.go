@@ -5,20 +5,32 @@
 
 // Package trigger provides a very simple mechanism for watching a single
 // incoming metric, tracking an exponential moving average of its value, and
-// firing a callback when the average crosses a threshold. It is used as a
-// prototype to trigger metric lookback dumps from a DogStatsD signal.
+// firing a callback when the average satisfies a threshold condition. It is
+// used as a prototype to trigger metric lookback dumps from a DogStatsD signal.
 package trigger
 
 import (
+	"strings"
 	"sync"
 	"time"
 )
+
+// ThresholdDirection controls which side of Threshold is considered unhealthy.
+type ThresholdDirection string
 
 const (
 	// DefaultDumpInterval is used when Config.DumpInterval is not set. The Agent
 	// config supplies an explicit default too; this package-level fallback keeps
 	// direct uses safe from tight retry loops.
 	DefaultDumpInterval = 10 * time.Second
+
+	// ThresholdDirectionAbove fires when the moving average is at or above the
+	// configured threshold. This is the default and preserves the original
+	// trigger behavior.
+	ThresholdDirectionAbove ThresholdDirection = "above"
+	// ThresholdDirectionBelow fires when the moving average is at or below the
+	// configured threshold, for watching drops.
+	ThresholdDirectionBelow ThresholdDirection = "below"
 )
 
 // MovingAverage tracks an exponential moving average (EWMA) of a stream of
@@ -71,9 +83,11 @@ type Config struct {
 	// MetricName is the exact metric name to watch. Samples with other names
 	// are ignored.
 	MetricName string
-	// Threshold is the moving-average value at or above which the watcher
-	// fires.
+	// Threshold is the moving-average value that the watcher compares against.
 	Threshold float64
+	// ThresholdDirection chooses whether the watcher fires at/above or at/below
+	// Threshold. Empty or invalid values default to ThresholdDirectionAbove.
+	ThresholdDirection ThresholdDirection
 	// Alpha is the EWMA smoothing factor passed to NewMovingAverage.
 	Alpha float64
 	// Cooldown is the minimum time between successive dump sessions. A zero
@@ -94,17 +108,19 @@ type Config struct {
 }
 
 // Watcher observes named samples, maintains a moving average of the watched
-// metric, and starts a windowed dump session when the average is at or above the
-// threshold, subject to the cooldown. It is safe for concurrent use.
+// metric, and starts a windowed dump session when the average satisfies the
+// configured threshold condition, subject to the cooldown. It is safe for
+// concurrent use.
 type Watcher struct {
-	metricName   string
-	threshold    float64
-	cooldown     time.Duration
-	preWindow    time.Duration
-	postWindow   time.Duration
-	dumpInterval time.Duration
-	sendDelay    time.Duration
-	dump         DumpFunc
+	metricName         string
+	threshold          float64
+	thresholdDirection ThresholdDirection
+	cooldown           time.Duration
+	preWindow          time.Duration
+	postWindow         time.Duration
+	dumpInterval       time.Duration
+	sendDelay          time.Duration
+	dump               DumpFunc
 
 	// now and sleep are injectable for deterministic tests; they default to
 	// time.Now and time.Sleep.
@@ -128,21 +144,23 @@ func New(cfg Config, dump DumpFunc) *Watcher {
 	}
 	cfg = normalizeConfig(cfg)
 	return &Watcher{
-		metricName:   cfg.MetricName,
-		threshold:    cfg.Threshold,
-		cooldown:     cfg.Cooldown,
-		preWindow:    cfg.PreWindow,
-		postWindow:   cfg.PostWindow,
-		dumpInterval: cfg.DumpInterval,
-		sendDelay:    cfg.SendDelay,
-		dump:         dump,
-		now:          time.Now,
-		sleep:        time.Sleep,
-		avg:          NewMovingAverage(cfg.Alpha),
+		metricName:         cfg.MetricName,
+		threshold:          cfg.Threshold,
+		thresholdDirection: cfg.ThresholdDirection,
+		cooldown:           cfg.Cooldown,
+		preWindow:          cfg.PreWindow,
+		postWindow:         cfg.PostWindow,
+		dumpInterval:       cfg.DumpInterval,
+		sendDelay:          cfg.SendDelay,
+		dump:               dump,
+		now:                time.Now,
+		sleep:              time.Sleep,
+		avg:                NewMovingAverage(cfg.Alpha),
 	}
 }
 
 func normalizeConfig(cfg Config) Config {
+	cfg.ThresholdDirection = normalizeThresholdDirection(cfg.ThresholdDirection)
 	if cfg.Cooldown < 0 {
 		cfg.Cooldown = 0
 	}
@@ -159,6 +177,24 @@ func normalizeConfig(cfg Config) Config {
 		cfg.SendDelay = 0
 	}
 	return cfg
+}
+
+func normalizeThresholdDirection(direction ThresholdDirection) ThresholdDirection {
+	switch ThresholdDirection(strings.ToLower(strings.TrimSpace(string(direction)))) {
+	case "", ThresholdDirectionAbove:
+		return ThresholdDirectionAbove
+	case ThresholdDirectionBelow:
+		return ThresholdDirectionBelow
+	default:
+		return ThresholdDirectionAbove
+	}
+}
+
+func (w *Watcher) thresholdReached(avg float64) bool {
+	if w.thresholdDirection == ThresholdDirectionBelow {
+		return avg <= w.threshold
+	}
+	return avg >= w.threshold
 }
 
 // MetricName returns the metric this watcher reacts to.
@@ -181,7 +217,7 @@ func (w *Watcher) Observe(name string, value float64) bool {
 	w.mu.Lock()
 	avg := w.avg.Update(value)
 	now := w.now()
-	fire := avg >= w.threshold && !w.sessionActive && (!w.hasFired || now.Sub(w.lastFire) >= w.cooldown)
+	fire := w.thresholdReached(avg) && !w.sessionActive && (!w.hasFired || now.Sub(w.lastFire) >= w.cooldown)
 	if fire {
 		w.hasFired = true
 		w.sessionActive = true
