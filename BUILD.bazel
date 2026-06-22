@@ -203,6 +203,7 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/cli/subcommands/check
 # gazelle:exclude pkg/cli/subcommands/clusterchecks
 # gazelle:exclude pkg/cli/subcommands/dcaconfigcheck
+# gazelle:exclude pkg/cli/subcommands/dcaflare
 # gazelle:exclude pkg/cli/subcommands/processchecks
 # gazelle:exclude pkg/clusteragent/admission
 # gazelle:exclude pkg/clusteragent/appsec
@@ -255,7 +256,6 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/collector/corechecks/system/disk
 # gazelle:exclude pkg/collector/corechecks/system/filehandles
 # gazelle:exclude pkg/collector/corechecks/system/wincrashdetect/*.go
-# gazelle:exclude pkg/collector/corechecks/systemd
 # gazelle:exclude pkg/collector/python
 # gazelle:exclude pkg/collector/runner/*.go
 # gazelle:exclude pkg/collector/sharedlibrary/ffi
