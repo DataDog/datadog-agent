@@ -119,57 +119,6 @@ func (HashType) EnumDescriptor() ([]byte, []int) {
 	return file_datadog_privateactionrunner_private_actions_proto_rawDescGZIP(), []int{1}
 }
 
-// RemoteActionAccessMode tells rshell whether the signed task may enable
-// remediation behavior in addition to read-only command execution.
-type RemoteActionAccessMode int32
-
-const (
-	RemoteActionAccessMode_REMOTE_ACTION_ACCESS_MODE_UNSPECIFIED RemoteActionAccessMode = 0
-	RemoteActionAccessMode_REMOTE_ACTION_ACCESS_MODE_READ_ONLY   RemoteActionAccessMode = 1
-	RemoteActionAccessMode_REMOTE_ACTION_ACCESS_MODE_READ_WRITE  RemoteActionAccessMode = 2
-)
-
-// Enum value maps for RemoteActionAccessMode.
-var (
-	RemoteActionAccessMode_name = map[int32]string{
-		0: "REMOTE_ACTION_ACCESS_MODE_UNSPECIFIED",
-		1: "REMOTE_ACTION_ACCESS_MODE_READ_ONLY",
-		2: "REMOTE_ACTION_ACCESS_MODE_READ_WRITE",
-	}
-	RemoteActionAccessMode_value = map[string]int32{
-		"REMOTE_ACTION_ACCESS_MODE_UNSPECIFIED": 0,
-		"REMOTE_ACTION_ACCESS_MODE_READ_ONLY":   1,
-		"REMOTE_ACTION_ACCESS_MODE_READ_WRITE":  2,
-	}
-)
-
-func (x RemoteActionAccessMode) Enum() *RemoteActionAccessMode {
-	p := new(RemoteActionAccessMode)
-	*p = x
-	return p
-}
-
-func (x RemoteActionAccessMode) String() string {
-	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
-}
-
-func (RemoteActionAccessMode) Descriptor() protoreflect.EnumDescriptor {
-	return file_datadog_privateactionrunner_private_actions_proto_enumTypes[2].Descriptor()
-}
-
-func (RemoteActionAccessMode) Type() protoreflect.EnumType {
-	return &file_datadog_privateactionrunner_private_actions_proto_enumTypes[2]
-}
-
-func (x RemoteActionAccessMode) Number() protoreflect.EnumNumber {
-	return protoreflect.EnumNumber(x)
-}
-
-// Deprecated: Use RemoteActionAccessMode.Descriptor instead.
-func (RemoteActionAccessMode) EnumDescriptor() ([]byte, []int) {
-	return file_datadog_privateactionrunner_private_actions_proto_rawDescGZIP(), []int{2}
-}
-
 type CredentialsType int32
 
 const (
@@ -206,11 +155,11 @@ func (x CredentialsType) String() string {
 }
 
 func (CredentialsType) Descriptor() protoreflect.EnumDescriptor {
-	return file_datadog_privateactionrunner_private_actions_proto_enumTypes[3].Descriptor()
+	return file_datadog_privateactionrunner_private_actions_proto_enumTypes[2].Descriptor()
 }
 
 func (CredentialsType) Type() protoreflect.EnumType {
-	return &file_datadog_privateactionrunner_private_actions_proto_enumTypes[3]
+	return &file_datadog_privateactionrunner_private_actions_proto_enumTypes[2]
 }
 
 func (x CredentialsType) Number() protoreflect.EnumNumber {
@@ -219,7 +168,7 @@ func (x CredentialsType) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use CredentialsType.Descriptor instead.
 func (CredentialsType) EnumDescriptor() ([]byte, []int) {
-	return file_datadog_privateactionrunner_private_actions_proto_rawDescGZIP(), []int{3}
+	return file_datadog_privateactionrunner_private_actions_proto_rawDescGZIP(), []int{2}
 }
 
 type RemoteConfigSignatureEnvelope struct {
@@ -362,16 +311,9 @@ type PrivateActionTask struct {
 	ConnectionInfo        *ConnectionInfo        `protobuf:"bytes,10,opt,name=connection_info,json=connectionInfo,proto3" json:"connection_info,omitempty"`
 	ExpirationTime        *timestamppb.Timestamp `protobuf:"bytes,11,opt,name=expiration_time,json=expirationTime,proto3" json:"expiration_time,omitempty"`
 	Client                actionsclient.Client   `protobuf:"varint,12,opt,name=client,proto3,enum=datadog.privateactionrunner.actionsclient.Client" json:"client,omitempty"`
-	// target_commands and target_paths carry the rshell allowlists resolved
-	// from execution policies for remote-action tasks. They are empty for
-	// non-remote-action tasks. target_commands is the flat, namespaced
-	// ("rshell:<command>") command allowlist; target_paths is the flat path
-	// allowlist rshell may operate on.
-	TargetCommands         []string               `protobuf:"bytes,13,rep,name=target_commands,json=targetCommands,proto3" json:"target_commands,omitempty"`
-	TargetPaths            []string               `protobuf:"bytes,14,rep,name=target_paths,json=targetPaths,proto3" json:"target_paths,omitempty"`
-	RemoteActionAccessMode RemoteActionAccessMode `protobuf:"varint,15,opt,name=remote_action_access_mode,json=remoteActionAccessMode,proto3,enum=datadog.privateactionrunner.privateactions.RemoteActionAccessMode" json:"remote_action_access_mode,omitempty"`
-	unknownFields          protoimpl.UnknownFields
-	sizeCache              protoimpl.SizeCache
+	RemoteAction          *RemoteAction          `protobuf:"bytes,16,opt,name=remote_action,json=remoteAction,proto3" json:"remote_action,omitempty"`
+	unknownFields         protoimpl.UnknownFields
+	sizeCache             protoimpl.SizeCache
 }
 
 func (x *PrivateActionTask) Reset() {
@@ -467,25 +409,68 @@ func (x *PrivateActionTask) GetClient() actionsclient.Client {
 	return actionsclient.Client(0)
 }
 
-func (x *PrivateActionTask) GetTargetCommands() []string {
+func (x *PrivateActionTask) GetRemoteAction() *RemoteAction {
+	if x != nil {
+		return x.RemoteAction
+	}
+	return nil
+}
+
+type RemoteAction struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// target_commands and target_paths carry the rshell allowlists resolved
+	// from execution policies for remote-action tasks. They are empty for
+	// non-remote-action tasks. target_commands is the flat, namespaced
+	// ("rshell:<command>") command allowlist; target_paths is the flat path
+	// allowlist rshell may operate on.
+	TargetCommands []string `protobuf:"bytes,1,rep,name=target_commands,json=targetCommands,proto3" json:"target_commands,omitempty"`
+	TargetPaths    []string `protobuf:"bytes,2,rep,name=target_paths,json=targetPaths,proto3" json:"target_paths,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *RemoteAction) Reset() {
+	*x = RemoteAction{}
+	mi := &file_datadog_privateactionrunner_private_actions_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RemoteAction) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RemoteAction) ProtoMessage() {}
+
+func (x *RemoteAction) ProtoReflect() protoreflect.Message {
+	mi := &file_datadog_privateactionrunner_private_actions_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RemoteAction.ProtoReflect.Descriptor instead.
+func (*RemoteAction) Descriptor() ([]byte, []int) {
+	return file_datadog_privateactionrunner_private_actions_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *RemoteAction) GetTargetCommands() []string {
 	if x != nil {
 		return x.TargetCommands
 	}
 	return nil
 }
 
-func (x *PrivateActionTask) GetTargetPaths() []string {
+func (x *RemoteAction) GetTargetPaths() []string {
 	if x != nil {
 		return x.TargetPaths
 	}
 	return nil
-}
-
-func (x *PrivateActionTask) GetRemoteActionAccessMode() RemoteActionAccessMode {
-	if x != nil {
-		return x.RemoteActionAccessMode
-	}
-	return RemoteActionAccessMode_REMOTE_ACTION_ACCESS_MODE_UNSPECIFIED
 }
 
 type ConnectionInfo struct {
@@ -500,7 +485,7 @@ type ConnectionInfo struct {
 
 func (x *ConnectionInfo) Reset() {
 	*x = ConnectionInfo{}
-	mi := &file_datadog_privateactionrunner_private_actions_proto_msgTypes[3]
+	mi := &file_datadog_privateactionrunner_private_actions_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -512,7 +497,7 @@ func (x *ConnectionInfo) String() string {
 func (*ConnectionInfo) ProtoMessage() {}
 
 func (x *ConnectionInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_datadog_privateactionrunner_private_actions_proto_msgTypes[3]
+	mi := &file_datadog_privateactionrunner_private_actions_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -525,7 +510,7 @@ func (x *ConnectionInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConnectionInfo.ProtoReflect.Descriptor instead.
 func (*ConnectionInfo) Descriptor() ([]byte, []int) {
-	return file_datadog_privateactionrunner_private_actions_proto_rawDescGZIP(), []int{3}
+	return file_datadog_privateactionrunner_private_actions_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *ConnectionInfo) GetConnectionId() string {
@@ -577,7 +562,7 @@ type ConnectionToken struct {
 
 func (x *ConnectionToken) Reset() {
 	*x = ConnectionToken{}
-	mi := &file_datadog_privateactionrunner_private_actions_proto_msgTypes[4]
+	mi := &file_datadog_privateactionrunner_private_actions_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -589,7 +574,7 @@ func (x *ConnectionToken) String() string {
 func (*ConnectionToken) ProtoMessage() {}
 
 func (x *ConnectionToken) ProtoReflect() protoreflect.Message {
-	mi := &file_datadog_privateactionrunner_private_actions_proto_msgTypes[4]
+	mi := &file_datadog_privateactionrunner_private_actions_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -602,7 +587,7 @@ func (x *ConnectionToken) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConnectionToken.ProtoReflect.Descriptor instead.
 func (*ConnectionToken) Descriptor() ([]byte, []int) {
-	return file_datadog_privateactionrunner_private_actions_proto_rawDescGZIP(), []int{4}
+	return file_datadog_privateactionrunner_private_actions_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *ConnectionToken) GetNameSegments() []string {
@@ -677,7 +662,7 @@ type ConnectionToken_PlainText struct {
 
 func (x *ConnectionToken_PlainText) Reset() {
 	*x = ConnectionToken_PlainText{}
-	mi := &file_datadog_privateactionrunner_private_actions_proto_msgTypes[5]
+	mi := &file_datadog_privateactionrunner_private_actions_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -689,7 +674,7 @@ func (x *ConnectionToken_PlainText) String() string {
 func (*ConnectionToken_PlainText) ProtoMessage() {}
 
 func (x *ConnectionToken_PlainText) ProtoReflect() protoreflect.Message {
-	mi := &file_datadog_privateactionrunner_private_actions_proto_msgTypes[5]
+	mi := &file_datadog_privateactionrunner_private_actions_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -702,7 +687,7 @@ func (x *ConnectionToken_PlainText) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConnectionToken_PlainText.ProtoReflect.Descriptor instead.
 func (*ConnectionToken_PlainText) Descriptor() ([]byte, []int) {
-	return file_datadog_privateactionrunner_private_actions_proto_rawDescGZIP(), []int{4, 0}
+	return file_datadog_privateactionrunner_private_actions_proto_rawDescGZIP(), []int{5, 0}
 }
 
 func (x *ConnectionToken_PlainText) GetValue() string {
@@ -721,7 +706,7 @@ type ConnectionToken_FileSecret struct {
 
 func (x *ConnectionToken_FileSecret) Reset() {
 	*x = ConnectionToken_FileSecret{}
-	mi := &file_datadog_privateactionrunner_private_actions_proto_msgTypes[6]
+	mi := &file_datadog_privateactionrunner_private_actions_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -733,7 +718,7 @@ func (x *ConnectionToken_FileSecret) String() string {
 func (*ConnectionToken_FileSecret) ProtoMessage() {}
 
 func (x *ConnectionToken_FileSecret) ProtoReflect() protoreflect.Message {
-	mi := &file_datadog_privateactionrunner_private_actions_proto_msgTypes[6]
+	mi := &file_datadog_privateactionrunner_private_actions_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -746,7 +731,7 @@ func (x *ConnectionToken_FileSecret) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConnectionToken_FileSecret.ProtoReflect.Descriptor instead.
 func (*ConnectionToken_FileSecret) Descriptor() ([]byte, []int) {
-	return file_datadog_privateactionrunner_private_actions_proto_rawDescGZIP(), []int{4, 1}
+	return file_datadog_privateactionrunner_private_actions_proto_rawDescGZIP(), []int{5, 1}
 }
 
 func (x *ConnectionToken_FileSecret) GetPath() string {
@@ -765,7 +750,7 @@ type ConnectionToken_YamlFile struct {
 
 func (x *ConnectionToken_YamlFile) Reset() {
 	*x = ConnectionToken_YamlFile{}
-	mi := &file_datadog_privateactionrunner_private_actions_proto_msgTypes[7]
+	mi := &file_datadog_privateactionrunner_private_actions_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -777,7 +762,7 @@ func (x *ConnectionToken_YamlFile) String() string {
 func (*ConnectionToken_YamlFile) ProtoMessage() {}
 
 func (x *ConnectionToken_YamlFile) ProtoReflect() protoreflect.Message {
-	mi := &file_datadog_privateactionrunner_private_actions_proto_msgTypes[7]
+	mi := &file_datadog_privateactionrunner_private_actions_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -790,7 +775,7 @@ func (x *ConnectionToken_YamlFile) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConnectionToken_YamlFile.ProtoReflect.Descriptor instead.
 func (*ConnectionToken_YamlFile) Descriptor() ([]byte, []int) {
-	return file_datadog_privateactionrunner_private_actions_proto_rawDescGZIP(), []int{4, 2}
+	return file_datadog_privateactionrunner_private_actions_proto_rawDescGZIP(), []int{5, 2}
 }
 
 func (x *ConnectionToken_YamlFile) GetPath() string {
@@ -815,7 +800,7 @@ const file_datadog_privateactionrunner_private_actions_proto_rawDesc = "" +
 	"\tSignature\x12N\n" +
 	"\bkey_type\x18\x01 \x01(\x0e23.datadog.privateactionrunner.privateactions.KeyTypeR\akeyType\x12\x15\n" +
 	"\x06key_id\x18\x02 \x01(\tR\x05keyId\x12\x1c\n" +
-	"\tsignature\x18\x03 \x01(\fR\tsignature\"\xbd\x05\n" +
+	"\tsignature\x18\x03 \x01(\fR\tsignature\"\xe3\x04\n" +
 	"\x11PrivateActionTask\x12\x1f\n" +
 	"\vaction_name\x18\x01 \x01(\tR\n" +
 	"actionName\x12\x1b\n" +
@@ -827,11 +812,12 @@ const file_datadog_privateactionrunner_private_actions_proto_rawDesc = "" +
 	"\x0fconnection_info\x18\n" +
 	" \x01(\v2:.datadog.privateactionrunner.privateactions.ConnectionInfoR\x0econnectionInfo\x12C\n" +
 	"\x0fexpiration_time\x18\v \x01(\v2\x1a.google.protobuf.TimestampR\x0eexpirationTime\x12I\n" +
-	"\x06client\x18\f \x01(\x0e21.datadog.privateactionrunner.actionsclient.ClientR\x06client\x12'\n" +
-	"\x0ftarget_commands\x18\r \x03(\tR\x0etargetCommands\x12!\n" +
-	"\ftarget_paths\x18\x0e \x03(\tR\vtargetPaths\x12}\n" +
-	"\x19remote_action_access_mode\x18\x0f \x01(\x0e2B.datadog.privateactionrunner.privateactions.RemoteActionAccessModeR\x16remoteActionAccessModeJ\x04\b\a\x10\bJ\x04\b\b\x10\tJ\x04\b\t\x10\n" +
-	"\"\x8f\x02\n" +
+	"\x06client\x18\f \x01(\x0e21.datadog.privateactionrunner.actionsclient.ClientR\x06client\x12]\n" +
+	"\rremote_action\x18\x10 \x01(\v28.datadog.privateactionrunner.privateactions.RemoteActionR\fremoteActionJ\x04\b\a\x10\bJ\x04\b\b\x10\tJ\x04\b\t\x10\n" +
+	"J\x04\b\r\x10\x0eJ\x04\b\x0e\x10\x0fJ\x04\b\x0f\x10\x10\"Z\n" +
+	"\fRemoteAction\x12'\n" +
+	"\x0ftarget_commands\x18\x01 \x03(\tR\x0etargetCommands\x12!\n" +
+	"\ftarget_paths\x18\x02 \x03(\tR\vtargetPaths\"\x8f\x02\n" +
 	"\x0eConnectionInfo\x12#\n" +
 	"\rconnection_id\x18\x01 \x01(\tR\fconnectionId\x12S\n" +
 	"\x06tokens\x18\x02 \x03(\v2;.datadog.privateactionrunner.privateactions.ConnectionTokenR\x06tokens\x12f\n" +
@@ -859,11 +845,7 @@ const file_datadog_privateactionrunner_private_actions_proto_rawDesc = "" +
 	"\bHashType\x12\x15\n" +
 	"\x11HASH_TYPE_UNKNOWN\x10\x00\x12\n" +
 	"\n" +
-	"\x06SHA256\x10\x01*\x96\x01\n" +
-	"\x16RemoteActionAccessMode\x12)\n" +
-	"%REMOTE_ACTION_ACCESS_MODE_UNSPECIFIED\x10\x00\x12'\n" +
-	"#REMOTE_ACTION_ACCESS_MODE_READ_ONLY\x10\x01\x12(\n" +
-	"$REMOTE_ACTION_ACCESS_MODE_READ_WRITE\x10\x02*N\n" +
+	"\x06SHA256\x10\x01*N\n" +
 	"\x0fCredentialsType\x12\x0f\n" +
 	"\vUNSPECIFIED\x10\x00\x12\x0e\n" +
 	"\n" +
@@ -885,16 +867,16 @@ func file_datadog_privateactionrunner_private_actions_proto_rawDescGZIP() []byte
 	return file_datadog_privateactionrunner_private_actions_proto_rawDescData
 }
 
-var file_datadog_privateactionrunner_private_actions_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
-var file_datadog_privateactionrunner_private_actions_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
+var file_datadog_privateactionrunner_private_actions_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
+var file_datadog_privateactionrunner_private_actions_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
 var file_datadog_privateactionrunner_private_actions_proto_goTypes = []any{
 	(KeyType)(0),                          // 0: datadog.privateactionrunner.privateactions.KeyType
 	(HashType)(0),                         // 1: datadog.privateactionrunner.privateactions.HashType
-	(RemoteActionAccessMode)(0),           // 2: datadog.privateactionrunner.privateactions.RemoteActionAccessMode
-	(CredentialsType)(0),                  // 3: datadog.privateactionrunner.privateactions.CredentialsType
-	(*RemoteConfigSignatureEnvelope)(nil), // 4: datadog.privateactionrunner.privateactions.RemoteConfigSignatureEnvelope
-	(*Signature)(nil),                     // 5: datadog.privateactionrunner.privateactions.Signature
-	(*PrivateActionTask)(nil),             // 6: datadog.privateactionrunner.privateactions.PrivateActionTask
+	(CredentialsType)(0),                  // 2: datadog.privateactionrunner.privateactions.CredentialsType
+	(*RemoteConfigSignatureEnvelope)(nil), // 3: datadog.privateactionrunner.privateactions.RemoteConfigSignatureEnvelope
+	(*Signature)(nil),                     // 4: datadog.privateactionrunner.privateactions.Signature
+	(*PrivateActionTask)(nil),             // 5: datadog.privateactionrunner.privateactions.PrivateActionTask
+	(*RemoteAction)(nil),                  // 6: datadog.privateactionrunner.privateactions.RemoteAction
 	(*ConnectionInfo)(nil),                // 7: datadog.privateactionrunner.privateactions.ConnectionInfo
 	(*ConnectionToken)(nil),               // 8: datadog.privateactionrunner.privateactions.ConnectionToken
 	(*ConnectionToken_PlainText)(nil),     // 9: datadog.privateactionrunner.privateactions.ConnectionToken.PlainText
@@ -907,15 +889,15 @@ var file_datadog_privateactionrunner_private_actions_proto_goTypes = []any{
 var file_datadog_privateactionrunner_private_actions_proto_depIdxs = []int32{
 	1,  // 0: datadog.privateactionrunner.privateactions.RemoteConfigSignatureEnvelope.hash_type:type_name -> datadog.privateactionrunner.privateactions.HashType
 	12, // 1: datadog.privateactionrunner.privateactions.RemoteConfigSignatureEnvelope.expiration_time:type_name -> google.protobuf.Timestamp
-	5,  // 2: datadog.privateactionrunner.privateactions.RemoteConfigSignatureEnvelope.signatures:type_name -> datadog.privateactionrunner.privateactions.Signature
+	4,  // 2: datadog.privateactionrunner.privateactions.RemoteConfigSignatureEnvelope.signatures:type_name -> datadog.privateactionrunner.privateactions.Signature
 	0,  // 3: datadog.privateactionrunner.privateactions.Signature.key_type:type_name -> datadog.privateactionrunner.privateactions.KeyType
 	13, // 4: datadog.privateactionrunner.privateactions.PrivateActionTask.inputs:type_name -> google.protobuf.Struct
 	7,  // 5: datadog.privateactionrunner.privateactions.PrivateActionTask.connection_info:type_name -> datadog.privateactionrunner.privateactions.ConnectionInfo
 	12, // 6: datadog.privateactionrunner.privateactions.PrivateActionTask.expiration_time:type_name -> google.protobuf.Timestamp
 	14, // 7: datadog.privateactionrunner.privateactions.PrivateActionTask.client:type_name -> datadog.privateactionrunner.actionsclient.Client
-	2,  // 8: datadog.privateactionrunner.privateactions.PrivateActionTask.remote_action_access_mode:type_name -> datadog.privateactionrunner.privateactions.RemoteActionAccessMode
+	6,  // 8: datadog.privateactionrunner.privateactions.PrivateActionTask.remote_action:type_name -> datadog.privateactionrunner.privateactions.RemoteAction
 	8,  // 9: datadog.privateactionrunner.privateactions.ConnectionInfo.tokens:type_name -> datadog.privateactionrunner.privateactions.ConnectionToken
-	3,  // 10: datadog.privateactionrunner.privateactions.ConnectionInfo.credentials_type:type_name -> datadog.privateactionrunner.privateactions.CredentialsType
+	2,  // 10: datadog.privateactionrunner.privateactions.ConnectionInfo.credentials_type:type_name -> datadog.privateactionrunner.privateactions.CredentialsType
 	9,  // 11: datadog.privateactionrunner.privateactions.ConnectionToken.plain_text:type_name -> datadog.privateactionrunner.privateactions.ConnectionToken.PlainText
 	10, // 12: datadog.privateactionrunner.privateactions.ConnectionToken.file_secret:type_name -> datadog.privateactionrunner.privateactions.ConnectionToken.FileSecret
 	11, // 13: datadog.privateactionrunner.privateactions.ConnectionToken.yaml_file:type_name -> datadog.privateactionrunner.privateactions.ConnectionToken.YamlFile
@@ -931,7 +913,7 @@ func file_datadog_privateactionrunner_private_actions_proto_init() {
 	if File_datadog_privateactionrunner_private_actions_proto != nil {
 		return
 	}
-	file_datadog_privateactionrunner_private_actions_proto_msgTypes[4].OneofWrappers = []any{
+	file_datadog_privateactionrunner_private_actions_proto_msgTypes[5].OneofWrappers = []any{
 		(*ConnectionToken_PlainText_)(nil),
 		(*ConnectionToken_FileSecret_)(nil),
 		(*ConnectionToken_YamlFile_)(nil),
@@ -941,8 +923,8 @@ func file_datadog_privateactionrunner_private_actions_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_datadog_privateactionrunner_private_actions_proto_rawDesc), len(file_datadog_privateactionrunner_private_actions_proto_rawDesc)),
-			NumEnums:      4,
-			NumMessages:   8,
+			NumEnums:      3,
+			NumMessages:   9,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

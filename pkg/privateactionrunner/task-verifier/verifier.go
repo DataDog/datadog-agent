@@ -129,17 +129,31 @@ func mapPbTaskToStruct(task *privateactionspb.PrivateActionTask) *types.Task {
 			ID:   task.TaskId,
 			Type: "task",
 			Attributes: &types.Attributes{
-				Name:                   task.ActionName,
-				BundleID:               task.BundleId,
-				Client:                 task.Client,
-				SecDatadogHeaderValue:  task.SecDatadogHeaderValue,
-				Inputs:                 task.Inputs.AsMap(),
-				OrgId:                  task.OrgId,
-				ConnectionInfo:         task.ConnectionInfo,
-				TargetCommands:         task.GetTargetCommands(),
-				TargetPaths:            task.GetTargetPaths(),
-				RemoteActionAccessMode: task.GetRemoteActionAccessMode(),
+				Name:                  task.ActionName,
+				BundleID:              task.BundleId,
+				Client:                task.Client,
+				SecDatadogHeaderValue: task.SecDatadogHeaderValue,
+				Inputs:                task.Inputs.AsMap(),
+				OrgId:                 task.OrgId,
+				ConnectionInfo:        task.ConnectionInfo,
+				RemoteAction:          remoteActionAttributes(task),
 			},
 		},
+	}
+}
+
+func remoteActionAttributes(task *privateactionspb.PrivateActionTask) *types.RemoteActionAttributes {
+	remoteAction := task.GetRemoteAction()
+	if remoteAction == nil {
+		return nil
+	}
+	targetCommands := remoteAction.GetTargetCommands()
+	targetPaths := remoteAction.GetTargetPaths()
+	if len(targetCommands) == 0 && len(targetPaths) == 0 {
+		return nil
+	}
+	return &types.RemoteActionAttributes{
+		TargetCommands: targetCommands,
+		TargetPaths:    targetPaths,
 	}
 }
