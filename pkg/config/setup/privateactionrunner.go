@@ -80,12 +80,19 @@ func setupPrivateActionRunner(config pkgconfigmodel.Setup) {
 	config.ParseEnvSplitComma(PARHttpAllowlist)
 	config.BindEnvAndSetDefault(PARHttpAllowImdsEndpoint, false)
 
-	// Restricted shell allow-lists are optional local restrictions layered on
-	// top of Action Platform execution policies delivered in the signed task
-	// payload. Defaults are non-restrictive when the keys are unset; explicit
-	// user configuration narrows the task payload, and an explicit empty JSON
-	// list acts as a kill switch for that axis.
-	config.BindEnvAndSetDefault(PARRestrictedShellAllowedPaths, []string{RShellPathAllowAll})
+	// Restricted shell allow-lists are opt-in restrictions layered on top of
+	// the backend-injected lists. By default, they act as a no-op, allowing
+	// everything: the backend is the only filter.
+	//
+	// To allow none, use an explicit empty list.
+	// Env vars support both CSV and JSON-array forms; the JSON form gives
+	// env/YAML parity, including the explicit kill-switch via "[]".
+	//
+	//   - allowed_paths defaults to ["/"].
+	//   - allowed_commands defaults to ["rshell:*"]. The wildcard token is
+	//     handled as a special case in the operator-side intersection: when
+	//     it appears in the operator list, every backend command in the
+	//     "rshell:" namespace is admitted.config.BindEnvAndSetDefault(PARRestrictedShellAllowedPaths, []string{RShellPathAllowAll})
 	pkgconfighelper.ParseEnvJSONOrComma(PARRestrictedShellAllowedPaths, config)
 
 	config.BindEnvAndSetDefault(PARRestrictedShellAllowedCommands, []string{RShellCommandAllowAllWildcard})
