@@ -219,6 +219,42 @@ func TestHostMetadata_FromMetrics(t *testing.T) {
 	assert.Equal(t, map[string]string{"hostname": "test-host", "os": "test-os"}, hm.Platform())
 }
 
+func TestHostMetadata_CPUFromMetrics(t *testing.T) {
+	c := make(chan payload.HostMetadata)
+	server := createTestServer(t, c)
+	defer server.Close()
+
+	ctx := context.Background()
+	f := createTestFactory(t, server.URL)
+	exporter, err := f.CreateMetrics(ctx, exportertest.NewNopSettings(Type), createTestCfg(t, server.URL))
+	assert.NoError(t, err)
+
+	res := createTestResAttrs()
+	md := pmetric.NewMetrics()
+	rms := md.ResourceMetrics()
+	rm := rms.AppendEmpty()
+	res.MoveTo(rm.Resource())
+	ilms := rm.ScopeMetrics()
+	ilm := ilms.AppendEmpty()
+	metricsArray := ilm.Metrics()
+
+	addGaugeInt := func(name string, val int64) {
+		m := metricsArray.AppendEmpty()
+		m.SetName(name)
+		m.SetEmptyGauge()
+		m.Gauge().DataPoints().AppendEmpty().SetIntValue(val)
+	}
+	addGaugeInt("system.cpu.physical.count", 8)
+	addGaugeInt("system.cpu.logical.count", 16)
+
+	err = exporter.ConsumeMetrics(ctx, md)
+	assert.NoError(t, err)
+
+	hm := <-c
+	assert.Equal(t, "test-host", hm.InternalHostname)
+	assert.Equal(t, map[string]string{"cpu_cores": "8", "cpu_logical_processors": "16"}, hm.CPU())
+}
+
 func TestHostMetadata_FromLogs(t *testing.T) {
 	c := make(chan payload.HostMetadata)
 	server := createTestServer(t, c)
