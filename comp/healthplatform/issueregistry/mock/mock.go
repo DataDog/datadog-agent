@@ -14,47 +14,48 @@ import (
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 )
 
-// Mock is a test implementation of issueregistry.Component.
-// Use RegisterTemplate, RegisterBuiltInPeriodicHealthCheck, and
-// RegisterBuiltInStartupHealthCheck to populate it before the test runs.
-type Mock struct {
+type mockRegistry struct {
 	templates map[string]issuesmod.Template
 	periodic  []*runnerdef.BuiltInPeriodicHealthCheck
 	startup   []*runnerdef.BuiltInHealthCheck
 }
 
-// New returns an empty mock registry.
-func New() *Mock {
-	return &Mock{templates: make(map[string]issuesmod.Template)}
+// Option configures the mock registry returned by New.
+type Option func(*mockRegistry)
+
+// WithTemplate registers a template so that GetTemplate(issueName) succeeds.
+func WithTemplate(issueName string, tmpl issuesmod.Template) Option {
+	return func(m *mockRegistry) { m.templates[issueName] = tmpl }
 }
 
-// RegisterTemplate adds a template so that GetTemplate(issueName) succeeds.
-func (m *Mock) RegisterTemplate(issueName string, tmpl issuesmod.Template) {
-	m.templates[issueName] = tmpl
+// WithPeriodicCheck appends a check returned by GetBuiltInPeriodicHealthChecks.
+func WithPeriodicCheck(check *runnerdef.BuiltInPeriodicHealthCheck) Option {
+	return func(m *mockRegistry) { m.periodic = append(m.periodic, check) }
 }
 
-// RegisterBuiltInPeriodicHealthCheck adds a check returned by GetBuiltInPeriodicHealthChecks.
-func (m *Mock) RegisterBuiltInPeriodicHealthCheck(check *runnerdef.BuiltInPeriodicHealthCheck) {
-	m.periodic = append(m.periodic, check)
+// WithStartupCheck appends a check returned by GetBuiltInStartupHealthChecks.
+func WithStartupCheck(check *runnerdef.BuiltInHealthCheck) Option {
+	return func(m *mockRegistry) { m.startup = append(m.startup, check) }
 }
 
-// RegisterBuiltInStartupHealthCheck adds a check returned by GetBuiltInStartupHealthChecks.
-func (m *Mock) RegisterBuiltInStartupHealthCheck(check *runnerdef.BuiltInHealthCheck) {
-	m.startup = append(m.startup, check)
+// New returns a mock registry pre-populated with the given options.
+func New(opts ...Option) registrydef.Component {
+	m := &mockRegistry{templates: make(map[string]issuesmod.Template)}
+	for _, o := range opts {
+		o(m)
+	}
+	return m
 }
 
-func (m *Mock) GetTemplate(issueName string) (issuesmod.Template, bool) {
+func (m *mockRegistry) GetTemplate(issueName string) (issuesmod.Template, bool) {
 	tmpl, ok := m.templates[issueName]
 	return tmpl, ok
 }
 
-func (m *Mock) GetBuiltInPeriodicHealthChecks() []*runnerdef.BuiltInPeriodicHealthCheck {
+func (m *mockRegistry) GetBuiltInPeriodicHealthChecks() []*runnerdef.BuiltInPeriodicHealthCheck {
 	return m.periodic
 }
 
-func (m *Mock) GetBuiltInStartupHealthChecks() []*runnerdef.BuiltInHealthCheck {
+func (m *mockRegistry) GetBuiltInStartupHealthChecks() []*runnerdef.BuiltInHealthCheck {
 	return m.startup
 }
-
-// ensure Mock satisfies the interface at compile time.
-var _ registrydef.Component = (*Mock)(nil)
