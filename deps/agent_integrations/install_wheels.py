@@ -13,7 +13,7 @@ from deps.agent_integrations.wheels import expand_wheel_inputs
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(fromfile_prefix_chars="@")
     parser.add_argument("--runtime-output", required=True, type=Path)
     parser.add_argument("--bin-output", required=True, type=Path)
     parser.add_argument("--python-version", required=True)
