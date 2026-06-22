@@ -30,7 +30,7 @@ type LoadMode string
 const (
 	// NormalLoadMode constructs a normal collector check.
 	NormalLoadMode LoadMode = "normal"
-	// ShadowLoadMode constructs a metric-lookback shadow check.
+	// ShadowLoadMode constructs a shadow collector check.
 	ShadowLoadMode LoadMode = "shadow"
 )
 

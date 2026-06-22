@@ -118,7 +118,24 @@ func registerMetricLookbackScheduler(
 }
 
 func newMetricLookbackShadowLoaders(demux demultiplexer.Component, logReceiver option.Option[integrations.Component], tagger tagger.Component, filterStore workloadfilter.Component) []check.Loader {
-	return append([]check.Loader{newMetricLookbackShadowCoreLoader()}, loaders.LoaderCatalog(demux, logReceiver, tagger, filterStore)...)
+	return newMetricLookbackShadowLoadersFromCatalog(loaders.LoaderCatalog(demux, logReceiver, tagger, filterStore))
+}
+
+func newMetricLookbackShadowLoadersFromCatalog(catalog []check.Loader) []check.Loader {
+	shadowLoaders := make([]check.Loader, 0, len(catalog)+1)
+	replacedCoreLoader := false
+	for _, loader := range catalog {
+		if _, ok := loader.(*corechecks.GoCheckLoader); ok {
+			shadowLoaders = append(shadowLoaders, newMetricLookbackShadowCoreLoader())
+			replacedCoreLoader = true
+			continue
+		}
+		shadowLoaders = append(shadowLoaders, loader)
+	}
+	if !replacedCoreLoader {
+		shadowLoaders = append(shadowLoaders, newMetricLookbackShadowCoreLoader())
+	}
+	return shadowLoaders
 }
 
 func newMetricLookbackShadowCoreLoader() check.Loader {
