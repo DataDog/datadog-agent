@@ -181,9 +181,17 @@ func (k *kubeEndpointsConfigProvider) invalidateOnServiceDelete(obj interface{})
 	k.Lock()
 	defer k.Unlock()
 
-	if _, wasMonitored := k.monitoredEndpoints[endpointsID]; wasMonitored {
-		log.Tracef("Invalidating configs on deleted monitored service, endpoints entity: %s", endpointsID)
+	_, wasMonitored := k.monitoredEndpoints[endpointsID]
+	if wasMonitored {
 		delete(k.monitoredEndpoints, endpointsID)
+	}
+
+	// Re-run Collect when a monitored service is deleted, or when a service with
+	// endpoint annotations is deleted. The latter covers services whose
+	// annotations failed to parse (and were therefore never monitored) but still
+	// produced a health-platform misconfiguration issue that must now be resolved.
+	if wasMonitored || hasEndpointAnnotations(castedObj) {
+		log.Tracef("Invalidating configs on deleted service, endpoints entity: %s", endpointsID)
 		k.upToDate = false
 	}
 }

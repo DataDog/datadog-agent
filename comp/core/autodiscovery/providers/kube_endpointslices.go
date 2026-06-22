@@ -190,8 +190,16 @@ func (k *kubeEndpointSlicesConfigProvider) invalidateOnServiceDelete(obj interfa
 	k.Lock()
 	defer k.Unlock()
 
-	if k.monitoredServices[serviceKey] {
+	wasMonitored := k.monitoredServices[serviceKey]
+	if wasMonitored {
 		delete(k.monitoredServices, serviceKey)
+	}
+
+	// Re-run Collect when a monitored service is deleted, or when a service with
+	// endpoint annotations is deleted. The latter covers services whose
+	// annotations failed to parse (and were therefore never monitored) but still
+	// produced a health-platform misconfiguration issue that must now be resolved.
+	if wasMonitored || hasEndpointSliceAnnotations(svc) {
 		k.upToDate = false
 	}
 }

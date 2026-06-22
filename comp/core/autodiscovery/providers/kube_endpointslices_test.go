@@ -379,6 +379,19 @@ func TestEndpointSlice_InvalidateOnServiceDelete(t *testing.T) {
 		},
 	}
 
+	serviceWithAnnotations := &v1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "service-2",
+			Namespace: "default",
+			UID:       types.UID("service-2-uid"),
+			Annotations: map[string]string{
+				"ad.datadoghq.com/endpoints.check_names":  "[\"http_check\"]",
+				"ad.datadoghq.com/endpoints.init_configs": "[{}]",
+				"ad.datadoghq.com/endpoints.instances":    "[{\"url\": \"http://%%host%%\"}]",
+			},
+		},
+	}
+
 	tests := []struct {
 		name              string
 		monitoredServices map[string]bool
@@ -398,6 +411,15 @@ func TestEndpointSlice_InvalidateOnServiceDelete(t *testing.T) {
 			monitoredServices: map[string]bool{},
 			deletedService:    service,
 			expectedUpToDate:  true,
+		},
+		{
+			// A service whose annotations failed to parse is never monitored, but
+			// it may have reported a health-platform issue. Deleting it must
+			// invalidate so Collect re-runs and resolves the stale issue.
+			name:              "Delete unmonitored service that has endpoint annotations",
+			monitoredServices: map[string]bool{},
+			deletedService:    serviceWithAnnotations,
+			expectedUpToDate:  false,
 		},
 	}
 
