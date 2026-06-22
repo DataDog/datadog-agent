@@ -2173,6 +2173,8 @@ func (m *mockRCClient) Subscribe(product data.Product, fn func(update map[string
 	fn(m.profiles, m.applyStateCallback)
 }
 
+func (m *mockRCClient) GetConfigs(_ data.Product) map[string]state.RawConfig { return nil }
+
 func TestExplicitRCConfig(t *testing.T) {
 	// language=yaml
 	rawInstanceConfig := []byte(`

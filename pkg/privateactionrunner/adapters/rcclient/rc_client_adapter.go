@@ -13,6 +13,7 @@ import (
 
 type Client interface {
 	Subscribe(product string, fn func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)))
+	GetConfigs(product string) map[string]state.RawConfig
 }
 
 type adapter struct {
@@ -27,4 +28,8 @@ func NewAdapter(comp rcclient.Component) Client {
 
 func (a *adapter) Subscribe(product string, fn func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus))) {
 	a.comp.Subscribe(data.Product(product), fn)
+}
+
+func (a *adapter) GetConfigs(product string) map[string]state.RawConfig {
+	return a.comp.GetConfigs(data.Product(product))
 }

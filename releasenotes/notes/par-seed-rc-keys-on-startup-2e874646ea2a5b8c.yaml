@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Fix Private Action Runner startup behavior where task verification keys were unavailable
+    until the first Remote Config poll cycle completed. The keys manager now seeds from any
+    previously fetched Remote Config state immediately on startup.

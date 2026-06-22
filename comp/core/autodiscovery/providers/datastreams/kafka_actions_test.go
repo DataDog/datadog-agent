@@ -29,6 +29,8 @@ func (m *mockedRcClient) SubscribeAgentTask() {}
 func (m *mockedRcClient) Subscribe(data.Product, func(map[string]state.RawConfig, func(string, state.ApplyStatus))) {
 }
 
+func (m *mockedRcClient) GetConfigs(data.Product) map[string]state.RawConfig { return nil }
+
 type mockedAutodiscoveryActions struct {
 	autodiscovery.Component
 	configs []integration.Config

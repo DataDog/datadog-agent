@@ -348,6 +348,14 @@ func (rc *rcClient) Subscribe(product data.Product, fn func(update map[string]st
 	rc.client.Subscribe(string(product), fn)
 }
 
+// GetConfigs returns the current configs applied for a product.
+func (rc *rcClient) GetConfigs(product data.Product) map[string]state.RawConfig {
+	if rc.client == nil {
+		return nil
+	}
+	return rc.client.GetConfigs(string(product))
+}
+
 func (rc *rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
 	mergedConfig, err := state.MergeRCAgentConfig(rc.client.UpdateApplyStatus, updates)
 	if err != nil {
