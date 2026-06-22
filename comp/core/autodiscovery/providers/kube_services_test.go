@@ -512,9 +512,7 @@ func TestKubeServiceHealthPlatformReporting(t *testing.T) {
 			Namespace: "default",
 			UID:       "123",
 			Annotations: map[string]string{
-				"ad.datadoghq.com/service.check_names":  "[\"some_check\"]",
-				"ad.datadoghq.com/service.init_configs": "[{}]",
-				"ad.datadoghq.com/service.instances":    "[{\"url\" \"%%host%%\"}]", // Invalid JSON (missing ":" after "url")
+				"ad.datadoghq.com/service.checks": `{"some_check": {"instances": [{"url" "%%host%%"}]}}`, // Invalid JSON (missing ":" after "url")
 			},
 		},
 	}
@@ -529,7 +527,7 @@ func TestKubeServiceHealthPlatformReporting(t *testing.T) {
 
 	// Fixing the annotation resolves the issue.
 	fixed := svc.DeepCopy()
-	fixed.Annotations["ad.datadoghq.com/service.instances"] = "[{\"url\": \"%%host%%\"}]"
+	fixed.Annotations["ad.datadoghq.com/service.checks"] = `{"some_check": {"instances": [{"url": "%%host%%"}]}}`
 	_, err = provider.parseServiceAnnotations([]*v1.Service{fixed}, cfg)
 	require.NoError(t, err)
 	assert.Nil(t, hp.GetIssue(issueID))

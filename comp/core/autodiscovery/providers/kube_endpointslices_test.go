@@ -385,9 +385,7 @@ func TestEndpointSlice_InvalidateOnServiceDelete(t *testing.T) {
 			Namespace: "default",
 			UID:       types.UID("service-2-uid"),
 			Annotations: map[string]string{
-				"ad.datadoghq.com/endpoints.check_names":  "[\"http_check\"]",
-				"ad.datadoghq.com/endpoints.init_configs": "[{}]",
-				"ad.datadoghq.com/endpoints.instances":    "[{\"url\": \"http://%%host%%\"}]",
+				"ad.datadoghq.com/endpoints.checks": `{"http_check": {"instances": [{"url": "http://%%host%%"}]}}`,
 			},
 		},
 	}
@@ -802,9 +800,7 @@ func TestKubeEndpointSlicesHealthPlatformReporting(t *testing.T) {
 			Namespace: "default",
 			UID:       "123",
 			Annotations: map[string]string{
-				"ad.datadoghq.com/endpoints.check_names":  "[\"some_check\"]",
-				"ad.datadoghq.com/endpoints.init_configs": "[{}]",
-				"ad.datadoghq.com/endpoints.instances":    "[{\"url\" \"%%host%%\"}]", // Invalid JSON (missing ":" after "url")
+				"ad.datadoghq.com/endpoints.checks": `{"some_check": {"instances": [{"url" "%%host%%"}]}}`, // Invalid JSON (missing ":" after "url")
 			},
 		},
 	}
@@ -818,7 +814,7 @@ func TestKubeEndpointSlicesHealthPlatformReporting(t *testing.T) {
 
 	// Fixing the annotation resolves the issue.
 	fixed := svc.DeepCopy()
-	fixed.Annotations["ad.datadoghq.com/endpoints.instances"] = "[{\"url\": \"%%host%%\"}]"
+	fixed.Annotations["ad.datadoghq.com/endpoints.checks"] = `{"some_check": {"instances": [{"url": "%%host%%"}]}}`
 	provider.parseServiceAnnotationsForEndpointSlices([]*v1.Service{fixed})
 	assert.Nil(t, hp.GetIssue(issueID))
 }
