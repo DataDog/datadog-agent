@@ -44,11 +44,12 @@ func TestResolveQueueMetadataAsTags(t *testing.T) {
 	tags := resolver.resolveQueueMetadataAsTags(queue)
 
 	// High-cardinality tags are prefixed with '+'; labels/annotations without a
-	// matching configuration entry are dropped.
-	assert.ElementsMatch(t, []string{
-		"team:eng",
+	// matching configuration entry are dropped. Tags are sorted to keep stream
+	// diff comparisons stable.
+	assert.Equal(t, []string{
 		"+owner:alice",
 		"cost_center:1234",
+		"team:eng",
 	}, tags)
 }
 
@@ -82,7 +83,7 @@ func TestResolveQueueMetadataAsTagsClusterQueueGroupResource(t *testing.T) {
 		QueueType: workloadmeta.KueueClusterQueue,
 	}
 
-	assert.ElementsMatch(t, []string{"tier:gold"}, resolver.resolveQueueMetadataAsTags(queue))
+	assert.Equal(t, []string{"tier:gold"}, resolver.resolveQueueMetadataAsTags(queue))
 }
 
 func TestResolveResourceFlavorMetadataAsTags(t *testing.T) {
@@ -108,9 +109,9 @@ func TestResolveResourceFlavorMetadataAsTags(t *testing.T) {
 		},
 	}
 
-	assert.ElementsMatch(t, []string{
-		"flavor:gpu",
+	assert.Equal(t, []string{
 		"+owner:alice",
 		"cost_center:1234",
+		"flavor:gpu",
 	}, resolver.resolveResourceFlavorMetadataAsTags(flavor))
 }

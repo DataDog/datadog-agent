@@ -8,6 +8,8 @@
 package v1
 
 import (
+	"slices"
+
 	"github.com/gobwas/glob"
 
 	k8smetadata "github.com/DataDog/datadog-agent/comp/core/tagger/k8s_metadata"
@@ -81,12 +83,7 @@ func (r *kueueResourcesMetadataAsTagsResolver) resolveQueueMetadataAsTags(queue 
 		return nil
 	}
 
-	resolved := make([]string, 0, len(low)+len(high))
-	resolved = append(resolved, low...)
-	for _, tag := range high {
-		resolved = append(resolved, "+"+tag)
-	}
-	return resolved
+	return sortedResolvedTags(low, high)
 }
 
 // resolveResourceFlavorMetadataAsTags is like resolveQueueMetadataAsTags for ResourceFlavor
@@ -111,11 +108,18 @@ func (r *kueueResourcesMetadataAsTagsResolver) resolveResourceFlavorMetadataAsTa
 		return nil
 	}
 
+	return sortedResolvedTags(low, high)
+}
+
+func sortedResolvedTags(low, high []string) []string {
 	resolved := make([]string, 0, len(low)+len(high))
 	resolved = append(resolved, low...)
 	for _, tag := range high {
 		resolved = append(resolved, "+"+tag)
 	}
+	// taglist.Compute returns map-backed slices; sort to keep stream diff
+	// comparisons stable and avoid spurious metadata updates.
+	slices.Sort(resolved)
 	return resolved
 }
 
