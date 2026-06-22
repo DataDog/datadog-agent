@@ -453,6 +453,46 @@ func TestFromDDConfigPARRestrictedShellAllowedPathsPassesThroughBackslash(t *tes
 	assert.True(t, cfg.RShellAllowedPathsConfigured)
 }
 
+func TestFromDDConfigPARRestrictedShellAllowedPathsWarnsForBackslash(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest(setup.PARPrivateKey, "")
+	mockConfig.SetInTest(setup.PARUrn, "")
+	mockConfig.SetInTest(setup.PARRestrictedShellAllowedPaths, []string{`C:\Data`, "/var/log"})
+
+	logs := captureTransformWarnings(t, func() {
+		_, err := FromDDConfig(mockConfig)
+		require.NoError(t, err)
+	})
+
+	assert.Contains(t, logs, setup.PARRestrictedShellAllowedPaths)
+	assert.Contains(t, logs, `C:\\Data`)
+	assert.Contains(t, logs, "contains a backslash")
+	assert.Contains(t, logs, "only forward-slash paths are supported")
+	assert.NotContains(t, logs, "/var/log")
+}
+
+func TestFromDDConfigPARRestrictedShellAllowedPathsWarnsForNonDirectory(t *testing.T) {
+	tmpDir := t.TempDir()
+	fp := filepath.Join(tmpDir, "file.txt")
+	require.NoError(t, os.WriteFile(fp, []byte("x"), 0o600))
+
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest(setup.PARPrivateKey, "")
+	mockConfig.SetInTest(setup.PARUrn, "")
+	mockConfig.SetInTest(setup.PARRestrictedShellAllowedPaths, []string{tmpDir, fp})
+
+	logs := captureTransformWarnings(t, func() {
+		_, err := FromDDConfig(mockConfig)
+		require.NoError(t, err)
+	})
+
+	assert.Contains(t, logs, setup.PARRestrictedShellAllowedPaths)
+	assert.Contains(t, logs, fp)
+	assert.Contains(t, logs, "is not a directory")
+	assert.Contains(t, logs, "Use the containing directory instead")
+	assert.NotContains(t, logs, `entry "`+tmpDir+`" is not a directory`)
+}
+
 func TestFromDDConfigPARRestrictedShellAllowedCommandsPassesThroughUnnamespaced(t *testing.T) {
 	// Unnamespaced entries are preserved in the returned slice.
 	mockConfig := configmock.New(t)
