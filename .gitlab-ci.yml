@@ -21,7 +21,7 @@
 .if_deploy: &if_deploy
   if: $DEPLOY_AGENT == "true" || $DDR_WORKFLOW_ID != null
 
-# Windows-specific Go source files, pkg/, and cmd/ (27 paths), need to be splitted because Gitlab has a limit to 50 paths in a single rule
+# Windows-specific Go source files, pkg/, and cmd/ (26 paths), need to be splitted because Gitlab has a limit to 50 paths in a single rule
 .windows_path:
   &windows_path # Windows-specific Go source files (by filename convention)
   - "**/*_windows.go"
@@ -44,6 +44,8 @@
 
   # Global packages likely to impact windows
   - pkg/config/**/*
+  # pkg/security: changes in platform-agnostic Go files can affect Windows behavior.
+  - pkg/security/**/*
 
   # cmd/
   - cmd/agent/**/*
