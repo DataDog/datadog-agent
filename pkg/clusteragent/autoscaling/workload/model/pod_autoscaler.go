@@ -18,6 +18,7 @@ import (
 	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha2"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 
 	"github.com/twmb/murmur3"
@@ -51,11 +52,14 @@ var resyncLabelKeysFromPodAutoscaler = []string{
 	ProfileLabelKey,
 }
 
-// resyncAnnotationKeysFromPodAutoscaler lists the annotation keys read by UpdateFromPodAutoscaler.
+// resyncAnnotationKeysFromPodAutoscaler lists annotation keys whose value must trigger a re-sync
+// when changed. Edits to these don't bump .metadata.generation, so they're part of the metadata
+// fingerprint. Includes annotations consumed downstream, e.g. ad.datadoghq.com/tags (metric tags).
 var resyncAnnotationKeysFromPodAutoscaler = []string{
 	PreviewAnnotationKey,
 	ProfileTemplateHashAnnotation,
 	CustomRecommenderAnnotationKey,
+	kubernetes.ADTagsAnnotation,
 }
 
 // PodAutoscalerInternal holds the necessary data to work with the `DatadogPodAutoscaler` CRD.

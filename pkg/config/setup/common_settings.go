@@ -380,6 +380,7 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("admission_controller.appsec.nginx.init_run_as_group", 82)
 
 	config.BindEnvAndSetDefault("cluster_agent.kube_metadata_collection.enabled", false)
+	config.BindEnvAndSetDefault("cluster_agent.kueue.enabled", false)
 	// list of kubernetes resources for which we collect metadata
 	// each resource is specified in the format `{group}/{version}/{resource}` or `{group}/{resource}`
 	// resources that belong to the empty group can be specified simply as `{resource}` or as `/{resource}`
@@ -476,6 +477,7 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("gpu.workload_tag_cache_size", 1024)
 	config.BindEnvAndSetDefault("gpu.disabled_collectors", []string{})
 	config.BindEnvAndSetDefault("gpu.nvlink.fec_light_error_threshold", 3)
+	config.BindEnvAndSetDefault("gpu.parallel_collectors", true)
 
 	// NCCL
 	config.BindEnvAndSetDefault("gpu.nccl.enabled", false)
@@ -486,9 +488,11 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("gpu.nccl.host_socket_path", "/var/run/datadog")
 	// In-container directory at which the agent's NCCL socket is mounted in
 	// injected workload pods. Composed with filepath.Base(gpu.nccl.socket_path)
-	// to build the mount destination and NCCL_DD_SOCKET_PATH. Same shape as
-	// admission_controller.inject_config.socket_path used by APM/DSD injection.
-	config.BindEnvAndSetDefault("admission_controller.nccl_profiler.socket_dir", "/var/run/datadog")
+	// to build the mount destination and NCCL_DD_SOCKET_PATH. A dedicated sibling
+	// of /var/run/datadog (not that dir itself like APM/DSD, and not a subdir of
+	// it -- a child mount nested inside the APM/DSD mount is unsupported) so this
+	// directory mount never collides with the APM/DSD config webhook's mount.
+	config.BindEnvAndSetDefault("admission_controller.nccl_profiler.socket_dir", "/var/run/datadog-nccl")
 
 	// Cloud Foundry BBS
 	config.BindEnvAndSetDefault("cloud_foundry_bbs.url", "https://bbs.service.cf.internal:8889")
@@ -1069,6 +1073,10 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("data_plane.telemetry_enabled", false)
 	config.BindEnvAndSetDefault("data_plane.telemetry_listen_addr", "tcp://0.0.0.0:5102")
 	config.BindEnvAndSetDefault("data_plane.log_file", defaultpaths.GetDefaultDataPlaneLogFile())
+	// 4 matches aggregator_stop_timeout + forwarder_stop_timeout (each defaults to 2 in seconds).
+	// ComputeDataPlaneStopTimeout (post-load override) recomputes this at runtime so it tracks
+	// any user-set values for aggregator_stop_timeout / forwarder_stop_timeout.
+	config.BindEnvAndSetDefault("data_plane.stop_timeout", 4)
 	config.BindEnvAndSetDefault("data_plane.dogstatsd.enabled", true)
 	config.BindEnvAndSetDefault("data_plane.otlp.enabled", false)
 	config.BindEnvAndSetDefault("data_plane.otlp.proxy.enabled", false)
@@ -1389,7 +1397,7 @@ func remoteconfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("remote_configuration.no_tls_validation", false)
 	config.BindEnvAndSetDefault("remote_configuration.config_root", "")
 	config.BindEnvAndSetDefault("remote_configuration.director_root", "")
-	config.BindEnvAndSetDefault("remote_configuration.refresh_interval", time.Duration(0))
+	config.BindEnvAndSetDefault("remote_configuration.refresh_interval", "0s")
 	config.BindEnvAndSetDefault("remote_configuration.org_status_refresh_interval", 1*time.Minute)
 	config.BindEnvAndSetDefault("remote_configuration.max_backoff_interval", 5*time.Minute)
 	config.BindEnvAndSetDefault("remote_configuration.clients.ttl_seconds", 30*time.Second)
