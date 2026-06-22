@@ -41,7 +41,7 @@ bazel:test:windows-amd64:
     BEP_FILE: $CI_PROJECT_DIR/bazel-bep-$FLAVOR.json
   script:
     - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
-    - bazel test --keep_going --build_tests_only --config=$FLAVOR --build_event_json_file=$BEP_FILE //pkg/... //comp/... //cmd/...
+    - bazel test --keep_going --build_tests_only --config=$FLAVOR --test_arg=-test.v --build_event_json_file=$BEP_FILE //pkg/... //comp/... //cmd/...
     - dda inv -- -e bazel.ensure-test-parity --bep $BEP_FILE --flavor-name $FLAVOR --emit-metrics
   artifacts:
     when: always
@@ -130,7 +130,7 @@ bazel:test:windows-amd64:base:
       $$PSScriptRoot = "$CI_PROJECT_DIR/tasks/winbuildscripts";
       . "$CI_PROJECT_DIR/tasks/winbuildscripts/common.ps1";
       $$Env:DD_API_KEY = Get-VaultSecret -parameterName $$Env:AGENT_API_KEY_ORG2;
-      bazel test --keep_going --build_tests_only --config=base
+      bazel test --keep_going --build_tests_only --config=base --test_arg=-test.v
       --build_event_json_file=$CI_PROJECT_DIR/bazel-bep-base.json
       //pkg/... //comp/... //cmd/...;
       dda inv -- -e bazel.ensure-test-parity
