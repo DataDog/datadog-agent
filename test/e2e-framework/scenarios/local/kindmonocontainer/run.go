@@ -9,6 +9,8 @@
 package kindmonocontainer
 
 import (
+	"fmt"
+
 	kubernetesProvider "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 	appsv1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/apps/v1"
 	corev1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/core/v1"
@@ -24,7 +26,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/nginx"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/prometheus"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/redis"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/tracegen"
 	fakeintakeComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/fakeintake"
 	kubeComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/local"
@@ -114,7 +115,7 @@ func Run(ctx *pulumi.Context) error {
 		return err
 	}
 
-	if err := deployClusterAgent(ctx, clusterName, clusterAgentImage, clusterAgentToken.Result, providerOpt); err != nil {
+	if err := deployClusterAgent(ctx, clusterName, clusterAgentImage, clusterAgentToken.Result, fakeIntake, providerOpt); err != nil {
 		return err
 	}
 
@@ -130,9 +131,6 @@ func Run(ctx *pulumi.Context) error {
 			return err
 		}
 		if _, err := cpustress.K8sAppDefinition(&localEnv, kubeProvider, "workload-cpustress"); err != nil {
-			return err
-		}
-		if _, err := tracegen.K8sAppDefinition(&localEnv, kubeProvider, "workload-tracegen"); err != nil {
 			return err
 		}
 		if _, err := prometheus.K8sAppDefinition(&localEnv, kubeProvider, "workload-prometheus"); err != nil {
@@ -338,7 +336,39 @@ func deployClusterAgentRBAC(ctx *pulumi.Context, _ config.Env, providerOpt pulum
 	return err
 }
 
-func deployClusterAgent(ctx *pulumi.Context, clusterName, image string, authToken pulumi.StringOutput, providerOpt pulumi.ResourceOption) error {
+func deployClusterAgent(ctx *pulumi.Context, clusterName, image string, authToken pulumi.StringOutput, fakeIntake *fakeintakeComp.Fakeintake, providerOpt pulumi.ResourceOption) error {
+	caEnv := corev1.EnvVarArray{
+		&corev1.EnvVarArgs{Name: pulumi.String("DD_HEALTH_PORT"), Value: pulumi.String("5556")},
+		&corev1.EnvVarArgs{
+			Name: pulumi.String("DD_API_KEY"),
+			ValueFrom: &corev1.EnvVarSourceArgs{
+				SecretKeyRef: &corev1.SecretKeySelectorArgs{
+					Name: pulumi.String("datadog-secret"),
+					Key:  pulumi.String("api-key"),
+				},
+			},
+		},
+		&corev1.EnvVarArgs{Name: pulumi.String("DD_CLUSTER_NAME"), Value: pulumi.String(clusterName)},
+		&corev1.EnvVarArgs{Name: pulumi.String("DD_CLUSTER_CHECKS_ENABLED"), Value: pulumi.String("true")},
+		&corev1.EnvVarArgs{Name: pulumi.String("DD_EXTRA_CONFIG_PROVIDERS"), Value: pulumi.String("kube_endpoints kube_services")},
+		&corev1.EnvVarArgs{Name: pulumi.String("DD_EXTRA_LISTENERS"), Value: pulumi.String("kube_endpoints kube_services")},
+		&corev1.EnvVarArgs{Name: pulumi.String("DD_LEADER_ELECTION"), Value: pulumi.String("true")},
+		&corev1.EnvVarArgs{Name: pulumi.String("DD_LEADER_LEASE_DURATION"), Value: pulumi.String("15")},
+		&corev1.EnvVarArgs{Name: pulumi.String("DD_CLUSTER_AGENT_KUBERNETES_SERVICE_NAME"), Value: pulumi.String("datadog-cluster-agent")},
+		&corev1.EnvVarArgs{Name: pulumi.String("DD_CLUSTER_AGENT_AUTH_TOKEN"), Value: authToken},
+		&corev1.EnvVarArgs{Name: pulumi.String("DD_KUBE_RESOURCES_NAMESPACE"), Value: pulumi.String("default")},
+		&corev1.EnvVarArgs{Name: pulumi.String("DD_COLLECT_KUBERNETES_EVENTS"), Value: pulumi.String("true")},
+		&corev1.EnvVarArgs{Name: pulumi.String("DD_ORCHESTRATOR_EXPLORER_ENABLED"), Value: pulumi.String("true")},
+		&corev1.EnvVarArgs{Name: pulumi.String("DD_ORCHESTRATOR_EXPLORER_CONTAINER_SCRUBBING_ENABLED"), Value: pulumi.String("true")},
+	}
+	if fakeIntake != nil {
+		fiVars, err := fakeintakeEnvVars(fakeIntake)
+		if err != nil {
+			return err
+		}
+		caEnv = append(caEnv, fiVars...)
+	}
+
 	svc, err := corev1.NewService(ctx, "datadog-ca-svc", &corev1.ServiceArgs{
 		Metadata: &metav1.ObjectMetaArgs{
 			Name:      pulumi.String("datadog-cluster-agent"),
@@ -387,30 +417,7 @@ func deployClusterAgent(ctx *pulumi.Context, clusterName, image string, authToke
 								&corev1.ContainerPortArgs{Name: pulumi.String("agentport"), ContainerPort: pulumi.Int(5005), Protocol: pulumi.String("TCP")},
 								&corev1.ContainerPortArgs{Name: pulumi.String("metricsapi"), ContainerPort: pulumi.Int(8443), Protocol: pulumi.String("TCP")},
 							},
-							Env: corev1.EnvVarArray{
-								&corev1.EnvVarArgs{Name: pulumi.String("DD_HEALTH_PORT"), Value: pulumi.String("5556")},
-								&corev1.EnvVarArgs{
-									Name: pulumi.String("DD_API_KEY"),
-									ValueFrom: &corev1.EnvVarSourceArgs{
-										SecretKeyRef: &corev1.SecretKeySelectorArgs{
-											Name: pulumi.String("datadog-secret"),
-											Key:  pulumi.String("api-key"),
-										},
-									},
-								},
-								&corev1.EnvVarArgs{Name: pulumi.String("DD_CLUSTER_NAME"), Value: pulumi.String(clusterName)},
-								&corev1.EnvVarArgs{Name: pulumi.String("DD_CLUSTER_CHECKS_ENABLED"), Value: pulumi.String("true")},
-								&corev1.EnvVarArgs{Name: pulumi.String("DD_EXTRA_CONFIG_PROVIDERS"), Value: pulumi.String("kube_endpoints kube_services")},
-								&corev1.EnvVarArgs{Name: pulumi.String("DD_EXTRA_LISTENERS"), Value: pulumi.String("kube_endpoints kube_services")},
-								&corev1.EnvVarArgs{Name: pulumi.String("DD_LEADER_ELECTION"), Value: pulumi.String("true")},
-								&corev1.EnvVarArgs{Name: pulumi.String("DD_LEADER_LEASE_DURATION"), Value: pulumi.String("15")},
-								&corev1.EnvVarArgs{Name: pulumi.String("DD_CLUSTER_AGENT_KUBERNETES_SERVICE_NAME"), Value: pulumi.String("datadog-cluster-agent")},
-								&corev1.EnvVarArgs{Name: pulumi.String("DD_CLUSTER_AGENT_AUTH_TOKEN"), Value: authToken},
-								&corev1.EnvVarArgs{Name: pulumi.String("DD_KUBE_RESOURCES_NAMESPACE"), Value: pulumi.String("default")},
-								&corev1.EnvVarArgs{Name: pulumi.String("DD_COLLECT_KUBERNETES_EVENTS"), Value: pulumi.String("true")},
-								&corev1.EnvVarArgs{Name: pulumi.String("DD_ORCHESTRATOR_EXPLORER_ENABLED"), Value: pulumi.String("true")},
-								&corev1.EnvVarArgs{Name: pulumi.String("DD_ORCHESTRATOR_EXPLORER_CONTAINER_SCRUBBING_ENABLED"), Value: pulumi.String("true")},
-							},
+							Env: caEnv,
 							LivenessProbe: &corev1.ProbeArgs{
 								HttpGet:             &corev1.HTTPGetActionArgs{Path: pulumi.String("/live"), Port: pulumi.Int(5556), Scheme: pulumi.String("HTTP")},
 								InitialDelaySeconds: pulumi.Int(15),
@@ -472,10 +479,11 @@ func deployNodeAgentDaemonSet(ctx *pulumi.Context, clusterName, image string, au
 	}
 
 	if fakeIntake != nil {
-		env = append(env, &corev1.EnvVarArgs{
-			Name:  pulumi.String("DD_DD_URL"),
-			Value: fakeIntake.URL,
-		})
+		fiVars, err := fakeintakeEnvVars(fakeIntake)
+		if err != nil {
+			return err
+		}
+		env = append(env, fiVars...)
 	}
 
 	_, err := appsv1.NewDaemonSet(ctx, "datadog-agent-ds", &appsv1.DaemonSetArgs{
@@ -566,4 +574,29 @@ func deployNodeAgentDaemonSet(ctx *pulumi.Context, clusterName, image string, au
 		},
 	}, providerOpt)
 	return err
+}
+
+// fakeintakeEnvVars returns the full set of env var overrides needed to route
+// all agent traffic (metrics, APM, logs, process, orchestrator, RC) through the
+// fakeintake, mirroring the Helm path's configureFakeintake logic.
+func fakeintakeEnvVars(fi *fakeintakeComp.Fakeintake) (corev1.EnvVarArray, error) {
+	rootJSON, err := fakeintakeComp.RCRootJSON()
+	if err != nil {
+		return nil, fmt.Errorf("fakeintake rc root json: %w", err)
+	}
+	return corev1.EnvVarArray{
+		&corev1.EnvVarArgs{Name: pulumi.String("DD_DD_URL"), Value: fi.URL},
+		&corev1.EnvVarArgs{Name: pulumi.String("DD_APM_DD_URL"), Value: fi.URL},
+		&corev1.EnvVarArgs{Name: pulumi.String("DD_PROCESS_CONFIG_PROCESS_DD_URL"), Value: fi.URL},
+		&corev1.EnvVarArgs{Name: pulumi.String("DD_LOGS_CONFIG_LOGS_DD_URL"), Value: fi.URL},
+		&corev1.EnvVarArgs{Name: pulumi.String("DD_ORCHESTRATOR_EXPLORER_ORCHESTRATOR_DD_URL"), Value: fi.URL},
+		&corev1.EnvVarArgs{Name: pulumi.String("DD_LOGS_CONFIG_USE_HTTP"), Value: pulumi.String("true")},
+		&corev1.EnvVarArgs{Name: pulumi.String("DD_SKIP_SSL_VALIDATION"), Value: pulumi.String("true")},
+		&corev1.EnvVarArgs{Name: pulumi.String("DD_REMOTE_CONFIGURATION_RC_DD_URL"), Value: fi.URL},
+		&corev1.EnvVarArgs{Name: pulumi.String("DD_REMOTE_CONFIGURATION_NO_TLS"), Value: pulumi.String("true")},
+		&corev1.EnvVarArgs{Name: pulumi.String("DD_REMOTE_CONFIGURATION_NO_TLS_VALIDATION"), Value: pulumi.String("true")},
+		&corev1.EnvVarArgs{Name: pulumi.String("DD_REMOTE_CONFIGURATION_CONFIG_ROOT"), Value: pulumi.String(rootJSON)},
+		&corev1.EnvVarArgs{Name: pulumi.String("DD_REMOTE_CONFIGURATION_DIRECTOR_ROOT"), Value: pulumi.String(rootJSON)},
+		&corev1.EnvVarArgs{Name: pulumi.String("DD_REMOTE_CONFIGURATION_REFRESH_INTERVAL"), Value: pulumi.String("5s")},
+	}, nil
 }
