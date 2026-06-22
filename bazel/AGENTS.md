@@ -187,9 +187,24 @@ generators and for other languages, sourced from third-party rulesets or written
 **The workflow for any new package is always:**
 
 ```sh
-bazel run //:gazelle -- update ./path/to/package   # generate or update BUILD.bazel
+bazel run //:gazelle                               # generate or update BUILD.bazel (whole repo)
 bazel run //bazel/buildifier                       # format
 ```
+
+Run Gazelle over the **whole repo** (no path argument). Two pitfalls otherwise:
+
+- **Never pass `update`/`fix` as the first `--` argument** (e.g. `bazel run //:gazelle -- update ./path`). The
+  gazelle-runner script *replaces* the configured args when the first arg is a known subcommand, discarding the
+  `build_tags = GAZELLE_BUILD_TAGS` setting. The result strips every build-tag-gated `.go` file (`clusterchecks`,
+  `kubeapiserver`, …) from `srcs`. To restrict to a directory, append a bare path so the args are *appended* instead:
+  `bazel run //:gazelle -- ./path/to/package`.
+- **A single-directory run cannot resolve cross-package imports.** Gazelle only indexes the directories it processes, so
+  pointing it at one package leaves new imports of *other* in-repo packages unresolved (the dep is silently not added).
+  Run over the whole repo so the import index is complete.
+
+If Gazelle does not add a dependency you expect (e.g. for a custom rule kind like `dd_agent_go_test` whose `deps` it may
+not fully manage), add the label manually in sorted order — matching how other `BUILD.bazel` files list the same target
+— then run buildifier and verify with `bazel build`/`bazel test` on the affected target.
 
 Do not hand-write `BUILD.bazel` content that Gazelle can infer. A Gazelle extension's job is precisely to keep that
 content in sync with source files automatically. When a new language or generator is added to the binary, its rules
