@@ -17,7 +17,7 @@ import (
 func TestSeedGlobalBuilderResolvesIPCArtifactsNextToDatadogYaml(t *testing.T) {
 	dir := t.TempDir()
 	yamlPath := filepath.Join(dir, "datadog.yaml")
-	pkgconfigsetup.InitConfigObjects(yamlPath, "")
+	pkgconfigsetup.InitConfigObjects()
 	SeedGlobalBuilder(Settings{CmdHost: "localhost", CmdPort: 5001}, yamlPath)
 	require.Equal(t, filepath.Join(dir, "auth_token"), AuthTokenFilepath())
 }

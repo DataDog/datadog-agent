@@ -79,7 +79,7 @@ func setupFakeCoreAgent(t *testing.T, dir string) (addr string, mock *mockCoreAg
 
 	// Seed the global config so cert/auth helpers know where to put their files.
 	// GlobalConfigBuilder needed here: it's the only accessor that exposes SetConfigFile (Setup interface).
-	pkgconfigsetup.InitConfigObjects(filepath.Join(dir, "datadog.yaml"), "")
+	pkgconfigsetup.InitConfigObjects()
 	cfg := pkgconfigsetup.GlobalConfigBuilder()
 	cfg.SetConfigFile(filepath.Join(dir, "datadog.yaml"))
 
