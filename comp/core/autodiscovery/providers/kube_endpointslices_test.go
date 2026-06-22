@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	provTypes "github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
+	healthplatformmock "github.com/DataDog/datadog-agent/comp/healthplatform/store/mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/stretchr/testify/assert"
@@ -763,4 +764,42 @@ func TestHasEndpointSliceAnnotations(t *testing.T) {
 			assert.Equal(t, tc.expected, result)
 		})
 	}
+}
+
+func TestKubeEndpointSlicesHealthPlatformReporting(t *testing.T) {
+	configmock.New(t)
+	hp := healthplatformmock.Mock(t)
+
+	provider := kubeEndpointSlicesConfigProvider{
+		configErrors:   map[string]provTypes.ErrorMsgSet{},
+		healthPlatform: hp,
+	}
+
+	const issueID = "ad-annotation:default/withErrors"
+
+	svc := &v1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "withErrors",
+			Namespace: "default",
+			UID:       "123",
+			Annotations: map[string]string{
+				"ad.datadoghq.com/endpoints.check_names":  "[\"some_check\"]",
+				"ad.datadoghq.com/endpoints.init_configs": "[{}]",
+				"ad.datadoghq.com/endpoints.instances":    "[{\"url\" \"%%host%%\"}]", // Invalid JSON (missing ":" after "url")
+			},
+		},
+	}
+
+	// A malformed annotation is reported as a health-platform issue.
+	provider.parseServiceAnnotationsForEndpointSlices([]*v1.Service{svc})
+	issue := hp.GetIssue(issueID)
+	require.NotNil(t, issue)
+	assert.Equal(t, issueID, issue.Id)
+	assert.Contains(t, issue.Description, "endpoint annotation")
+
+	// Fixing the annotation resolves the issue.
+	fixed := svc.DeepCopy()
+	fixed.Annotations["ad.datadoghq.com/endpoints.instances"] = "[{\"url\": \"%%host%%\"}]"
+	provider.parseServiceAnnotationsForEndpointSlices([]*v1.Service{fixed})
+	assert.Nil(t, hp.GetIssue(issueID))
 }

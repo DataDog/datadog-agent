@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
+	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -47,6 +48,7 @@ type kubeEndpointSlicesConfigProvider struct {
 	monitoredServices   map[string]bool // Key: "namespace/serviceName"
 	configErrors        map[string]types.ErrorMsgSet
 	telemetryStore      *telemetry.Store
+	healthPlatform      healthplatformdef.Component
 }
 
 // configInfoSlices contains an endpoint slice check config template with its namespace and service name
@@ -60,7 +62,7 @@ type configInfoSlices struct {
 // NewKubeEndpointSlicesConfigProvider returns a new ConfigProvider connected to apiserver using EndpointSlices.
 // Connectivity is not checked at this stage to allow for retries, Collect will do it.
 // Using GetAPIClient (no wait) as Client should already be initialized by Cluster Agent main entrypoint before
-func NewKubeEndpointSlicesConfigProvider(_ *pkgconfigsetup.ConfigurationProviders, telemetryStore *telemetry.Store) (types.ConfigProvider, error) {
+func NewKubeEndpointSlicesConfigProvider(_ *pkgconfigsetup.ConfigurationProviders, hp healthplatformdef.Component, telemetryStore *telemetry.Store) (types.ConfigProvider, error) {
 	ac, err := apiserver.GetAPIClient()
 	if err != nil {
 		return nil, fmt.Errorf("cannot connect to apiserver: %s", err)
@@ -76,6 +78,7 @@ func NewKubeEndpointSlicesConfigProvider(_ *pkgconfigsetup.ConfigurationProvider
 		monitoredServices: make(map[string]bool),
 		configErrors:      make(map[string]types.ErrorMsgSet),
 		telemetryStore:    telemetryStore,
+		healthPlatform:    hp,
 	}
 
 	if _, err := servicesInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
@@ -278,6 +281,13 @@ func (k *kubeEndpointSlicesConfigProvider) parseServiceAnnotationsForEndpointSli
 
 	setServiceKeys := map[string]struct{}{}
 
+	// Snapshot the services currently in error so we can resolve health-platform
+	// issues for any that recover or are deleted during this parse.
+	previousErrorIDs := make(map[string]struct{}, len(k.configErrors))
+	for serviceKey := range k.configErrors {
+		previousErrorIDs[serviceKey] = struct{}{}
+	}
+
 	for _, svc := range services {
 		if svc == nil || svc.ObjectMeta.UID == "" {
 			log.Debug("Ignoring a nil service")
@@ -298,6 +308,7 @@ func (k *kubeEndpointSlicesConfigProvider) parseServiceAnnotationsForEndpointSli
 				errMsgSet[err.Error()] = struct{}{}
 			}
 			k.configErrors[serviceKey] = errMsgSet
+			reportConfigurationError(k.healthPlatform, serviceKey, errMsgSet, types.KubeEndpointAnnotationSource)
 		} else {
 			delete(k.configErrors, serviceKey)
 		}
@@ -323,6 +334,13 @@ func (k *kubeEndpointSlicesConfigProvider) parseServiceAnnotationsForEndpointSli
 	}
 
 	k.cleanErrorsOfDeletedServices(setServiceKeys)
+
+	// Resolve health-platform issues for services that recovered or were deleted.
+	for serviceKey := range previousErrorIDs {
+		if _, stillErroring := k.configErrors[serviceKey]; !stillErroring {
+			clearConfigurationErrors(k.healthPlatform, serviceKey)
+		}
+	}
 
 	if k.telemetryStore != nil {
 		k.telemetryStore.Errors.Set(float64(len(k.configErrors)), names.KubeEndpoints)

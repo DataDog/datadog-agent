@@ -26,8 +26,10 @@ const (
 // These constants match the string values of types.ErrorSource to avoid a
 // cross-package import. The values are passed as strings in the issue context.
 const (
-	containerLabelSource     = "container_label"
-	templateResolutionSource = "template_resolution"
+	containerLabelSource         = "container_label"
+	templateResolutionSource     = "template_resolution"
+	kubeServiceAnnotationSource  = "kube_service_annotation"
+	kubeEndpointAnnotationSource = "kube_endpoint_annotation"
 )
 
 type issueContent struct {
@@ -112,6 +114,28 @@ func buildSourceSpecificContent(errorMessage, errorSource string) issueContent {
 				{Order: 1, Text: "Validate JSON syntax in all com.datadoghq.ad.* container labels"},
 				{Order: 2, Text: "Ensure check_names, init_configs, and instances arrays have matching lengths"},
 				{Order: 3, Text: "Verify the container label values match the expected Autodiscovery format"},
+			},
+		}
+	case kubeServiceAnnotationSource:
+		return issueContent{
+			title:       "Autodiscovery Service Annotation Misconfiguration",
+			description: "Autodiscovery service annotation error: " + errorMessage,
+			summary:     "Review and fix autodiscovery annotations on the affected Kubernetes service",
+			steps: []*healthplatform.RemediationStep{
+				{Order: 1, Text: "Validate JSON syntax in all ad.datadoghq.com/service.* annotations on the service"},
+				{Order: 2, Text: "Ensure check_names, init_configs, and instances arrays have matching lengths"},
+				{Order: 3, Text: "Verify the annotation values match the expected Autodiscovery format for cluster checks"},
+			},
+		}
+	case kubeEndpointAnnotationSource:
+		return issueContent{
+			title:       "Autodiscovery Endpoint Annotation Misconfiguration",
+			description: "Autodiscovery endpoint annotation error: " + errorMessage,
+			summary:     "Review and fix autodiscovery annotations on the affected Kubernetes service",
+			steps: []*healthplatform.RemediationStep{
+				{Order: 1, Text: "Validate JSON syntax in all ad.datadoghq.com/endpoints.* annotations on the service"},
+				{Order: 2, Text: "Ensure check_names, init_configs, and instances arrays have matching lengths"},
+				{Order: 3, Text: "Verify the annotation values match the expected Autodiscovery format for endpoint checks"},
 			},
 		}
 	default:
