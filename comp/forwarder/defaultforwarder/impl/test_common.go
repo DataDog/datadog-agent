@@ -30,6 +30,9 @@ type testTransaction struct {
 	pointCount   int
 	kind         transaction.Kind
 	destination  transaction.Destination
+	// shouldBlock causes Process to block on the worker's context, simulating
+	// a request that aborts when its context is cancelled.
+	shouldBlock bool
 	// release, if non-nil, causes Process to block until the channel is
 	// closed (or receives a value). Used to simulate an in-flight HTTP
 	// request that hasn't yet returned.
@@ -63,7 +66,7 @@ func (t *testTransaction) GetCreatedAt() time.Time {
 	return t.Called().Get(0).(time.Time)
 }
 
-func (t *testTransaction) Process(_ context.Context, _ config.Component, _ log.Component, _ secrets.Component, client *http.Client, pointCountTelemetry transaction.PointCountTelemetry) error {
+func (t *testTransaction) Process(ctx context.Context, _ config.Component, _ log.Component, _ secrets.Component, client *http.Client, pointCountTelemetry transaction.PointCountTelemetry) error {
 	defer func() { t.processed <- true }()
 
 	var ret error
@@ -73,6 +76,10 @@ func (t *testTransaction) Process(_ context.Context, _ config.Component, _ log.C
 		ret = t.Called().Error(0)
 	} else {
 		ret = t.Called(client).Error(0)
+	}
+
+	if t.shouldBlock {
+		<-ctx.Done()
 	}
 
 	if t.release != nil {
