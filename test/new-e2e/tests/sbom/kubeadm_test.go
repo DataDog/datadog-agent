@@ -290,7 +290,7 @@ var containerTargets = []containerTarget{
 		layerDigests: []string{
 			"sha256:9a785c83dc42af66688cf5d3dd8e0500ce65bad5a679b45744d62c2fffbb60d8",
 		},
-		componentCount: 191,
+		componentCount: 189,
 		components: []expectedComponent{
 			{name: "glibc", layer: true},    // rpm (OS)
 			{name: "bash"},                  // rpm (OS)
@@ -314,7 +314,7 @@ var containerTargets = []containerTarget{
 			"sha256:3da9d5da9c0d150232a8d10166e9501729302ed14fd8716bcb813eba4f01132c",
 			"sha256:919d6b60d4b0380d56f4687d3bbe5d21add847eaf593a71049d4ff0aa6083007",
 		},
-		componentCount: 479,
+		componentCount: 475,
 		components: []expectedComponent{
 			{name: "glibc", layer: true},    // rpm glibc (OS)
 			{purlPrefix: "pkg:rpm/redhat/"}, // rpm package

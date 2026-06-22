@@ -26,4 +26,10 @@ type Component interface {
 
 	// DumpMetrics writes all stored metrics to the specified file (for debugging).
 	DumpMetrics(path string) error
+
+	// SubscribeScorer registers a scorer event listener described by cfg.
+	// cfg.Listener is called synchronously on the data clock for every severity
+	// transition that matches cfg.Filter. The zero-value filter delivers all
+	// transitions. Returns an unsubscribe function; call it to stop delivery.
+	SubscribeScorer(cfg AnomalyScorerConfiguration) func()
 }
