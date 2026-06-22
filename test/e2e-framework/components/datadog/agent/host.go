@@ -131,20 +131,6 @@ func (h *HostAgent) installAgent(env config.Env, params *agentparams.Params, bas
 	}
 
 	afterInstallOpts := utils.MergeOptions(baseOpts, utils.PulumiDependsOn(installCmd))
-
-	// Ensure the dd-agent service account can reach the Docker API when Docker is present.
-	dockerAccessCmd, err := h.Host.OS.Runner().Command(
-		h.namer.ResourceName("ensure-docker-socket-access"),
-		&command.Args{
-			Create: pulumi.String("bash -c 'if getent group docker >/dev/null && getent passwd dd-agent >/dev/null; then usermod -a -G docker dd-agent; fi'"),
-			Sudo:   true,
-		},
-		afterInstallOpts...,
-	)
-	if err != nil {
-		return err
-	}
-	afterInstallOpts = utils.MergeOptions(afterInstallOpts, utils.PulumiDependsOn(dockerAccessCmd))
 	configFiles := make(map[string]pulumi.StringInput)
 
 	// Update core Agent
