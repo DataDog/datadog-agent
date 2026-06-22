@@ -429,9 +429,7 @@ func RegisterRemoteAgent(ctx context.Context, client pbcore.AgentSecureClient, r
 
 	refreshInterval := time.Duration(resp.RecommendedRefreshIntervalSecs) * time.Second
 	if resp.RecommendedRefreshIntervalSecs == 0 {
-		if defaultRefreshInterval > 0 {
-			log.Warnf("Recommended refresh interval is 0 seconds, using default refresh interval of %s", defaultRefreshInterval)
-		}
+		log.Warnf("Recommended refresh interval is 0 seconds, using default refresh interval of %s", defaultRefreshInterval)
 		refreshInterval = defaultRefreshInterval
 	}
 	return resp.SessionId, refreshInterval, nil

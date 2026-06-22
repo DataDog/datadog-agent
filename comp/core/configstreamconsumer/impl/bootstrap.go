@@ -8,24 +8,16 @@ package configstreamconsumerimpl
 import (
 	"os"
 	"path/filepath"
-	"runtime"
 	"strconv"
 	"strings"
 
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/DataDog/datadog-agent/pkg/configstreambootstrap"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 )
 
 const enabledEnvVar = "DD_REMOTE_AGENT_CONFIGSTREAM_CONSUMER_ENABLED"
-
-// defaultConfPath mirrors comp/core/config.DefaultConfPath without taking that dep.
-var defaultConfPath = func() string {
-	if runtime.GOOS == "windows" {
-		return `C:\ProgramData\Datadog`
-	}
-	return "/etc/datadog-agent"
-}()
 
 // isEnabled reports whether the consumer should run, from env or datadog.yaml.
 func isEnabled(cliConfigPath string) bool {
@@ -54,7 +46,7 @@ func isEnabled(cliConfigPath string) bool {
 	return false
 }
 
-// readSettings overlays values from datadog.yaml onto defaults+env from the global builder.
+// readSettings overlays values from datadog.yaml onto a subset of the global config (defaults+env).
 func readSettings(cliConfigPath string) configstreambootstrap.Settings {
 	bs := configstreambootstrap.ReadBaseSettings()
 
@@ -102,7 +94,7 @@ func readSettings(cliConfigPath string) configstreambootstrap.Settings {
 
 func yamlCandidates(cliConfigPath string) []string {
 	out := make([]string, 0, 2)
-	for _, path := range []string{cliConfigPath, defaultConfPath} {
+	for _, path := range []string{cliConfigPath, defaultpaths.GetDefaultConfPath()} {
 		if path == "" {
 			continue
 		}

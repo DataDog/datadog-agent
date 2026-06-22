@@ -34,14 +34,6 @@ func clearEnv(t *testing.T) {
 	}
 }
 
-// reinitGlobals re-runs InitConfigObjects so nodetreemodel's env layer picks up t.Setenv changes
-// (env layer is frozen at BuildSchema time).
-func reinitGlobals(t *testing.T) {
-	t.Helper()
-	configstreambootstrap.InitGlobalConfig("", "")
-	t.Cleanup(func() { configstreambootstrap.InitGlobalConfig("", "") })
-}
-
 func writeYAML(t *testing.T, body string) string {
 	t.Helper()
 	dir := t.TempDir()
@@ -83,7 +75,7 @@ remote_agent:
 	t.Run("yaml overrides env", func(t *testing.T) {
 		t.Setenv(envCmdHost, "192.168.1.1")
 		t.Setenv(envCmdPort, "7000")
-		reinitGlobals(t)
+		configstreambootstrap.UseDynamicSchema(t)
 		path := writeYAML(t, `
 cmd_host: 10.0.0.5
 cmd_port: 9000
@@ -101,7 +93,7 @@ remote_agent:
 		clearEnv(t)
 		t.Setenv(envAuthTokenFilePath, "/env/auth")
 		t.Setenv(envCmdHost, "192.168.1.1")
-		reinitGlobals(t)
+		configstreambootstrap.UseDynamicSchema(t)
 		got := readSettings(writeYAML(t, ""))
 		require.Equal(t, "/env/auth", got.AuthTokenFilePath)
 		require.Equal(t, "192.168.1.1", got.CmdHost)

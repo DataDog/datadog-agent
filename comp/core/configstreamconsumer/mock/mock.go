@@ -23,6 +23,7 @@ type Mock struct {
 func (m *Mock) IsActive() bool { return m.Active }
 
 // New creates a new mock configstreamconsumer component.
-func New(_ *testing.T) configstreamconsumer.Component {
+func New(t *testing.T) configstreamconsumer.Component {
+	t.Helper()
 	return &Mock{}
 }

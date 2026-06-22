@@ -20,6 +20,7 @@ import (
 	"net"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/cenkalti/backoff/v5"
@@ -42,7 +43,7 @@ import (
 // queryTimeout caps RegisterRemoteAgent and stream open; stream Recv uses ctx.
 const queryTimeout = 30 * time.Second
 
-// Requires omits comp/core/log to avoid the config → consumer → log → sysprobeconfig → config cycle.
+// Requires defines the dependencies for the configstreamconsumer component
 type Requires struct {
 	compdef.In
 
@@ -75,7 +76,8 @@ type consumer struct {
 	stream     pb.AgentSecure_StreamConfigEventsClient
 	streamLock sync.Mutex
 
-	lastSeqID int32
+	// lastSeqID is accessed only from the single streamLoop goroutine; atomic for clarity.
+	lastSeqID atomic.Int32
 
 	ready     bool
 	readyCh   chan struct{}
@@ -92,10 +94,11 @@ type consumer struct {
 	droppedStaleUpdates  telemetry.Counter
 }
 
+func (c *consumer) IsActive() bool { return c.ready }
+
 // noopConsumer is returned when configstream is disabled.
 type noopConsumer struct{}
 
-func (c *consumer) IsActive() bool  { return c.ready }
 func (noopConsumer) IsActive() bool { return false }
 
 // NewComponent returns a no-op when configstream is disabled; otherwise it blocks until
@@ -129,7 +132,8 @@ func NewComponent(reqs Requires) (Provides, error) {
 	configstreambootstrap.DisableLocalEnvLayer(reqs.Params.ClientName)
 
 	c := &consumer{
-		// NewWrapper avoids the config → consumer → log → sysprobeconfig → config FX cycle that an explicit log.Component dep would create.
+		// pkglog.NewWrapper avoids the config → configstreamconsumer → log → config FX cycle
+		// in system-probe's binary (log.Component depends on config).
 		log:       pkglog.NewWrapper(2),
 		telemetry: reqs.Telemetry,
 		params:    reqs.Params,
@@ -321,9 +325,9 @@ func (c *consumer) handleConfigEvent(event *pb.ConfigEvent) error {
 }
 
 func (c *consumer) applySnapshot(snapshot *pb.ConfigSnapshot) error {
-	if snapshot.SequenceId <= c.lastSeqID {
+	if snapshot.SequenceId <= c.lastSeqID.Load() {
 		c.log.Errorf("Received snapshot with seq_id %d <= current %d; the core agent may have restarted. "+
-			"This sub-process must be restarted to accept a new configuration.", snapshot.SequenceId, c.lastSeqID)
+			"This sub-process must be restarted to accept a new configuration.", snapshot.SequenceId, c.lastSeqID.Load())
 		c.droppedStaleUpdates.Inc()
 		return nil
 	}
@@ -333,7 +337,7 @@ func (c *consumer) applySnapshot(snapshot *pb.ConfigSnapshot) error {
 	for _, setting := range snapshot.Settings {
 		configstreambootstrap.ApplySetting(setting.Key, setting.Value, setting.Source)
 	}
-	c.lastSeqID = snapshot.SequenceId
+	c.lastSeqID.Store(snapshot.SequenceId)
 	c.lastSeqIDMetric.Set(float64(snapshot.SequenceId))
 
 	c.readyOnce.Do(func() {
@@ -348,20 +352,20 @@ func (c *consumer) applySnapshot(snapshot *pb.ConfigSnapshot) error {
 }
 
 func (c *consumer) applyUpdate(update *pb.ConfigUpdate) error {
-	if update.SequenceId <= c.lastSeqID {
-		c.log.Warnf("Ignoring stale update (seq_id: %d <= %d)", update.SequenceId, c.lastSeqID)
+	if update.SequenceId <= c.lastSeqID.Load() {
+		c.log.Warnf("Ignoring stale update (seq_id: %d <= %d)", update.SequenceId, c.lastSeqID.Load())
 		c.droppedStaleUpdates.Inc()
 		return nil
 	}
 
-	if update.SequenceId != c.lastSeqID+1 {
-		return fmt.Errorf("seq_id discontinuity: expected %d, got %d", c.lastSeqID+1, update.SequenceId)
+	if update.SequenceId != c.lastSeqID.Load()+1 {
+		return fmt.Errorf("seq_id discontinuity: expected %d, got %d", c.lastSeqID.Load()+1, update.SequenceId)
 	}
 
 	c.log.Debugf("Applying config update (seq_id: %d, key: %s)", update.SequenceId, update.Setting.Key)
 
 	configstreambootstrap.ApplySetting(update.Setting.Key, update.Setting.Value, update.Setting.Source)
-	c.lastSeqID = update.SequenceId
+	c.lastSeqID.Store(update.SequenceId)
 	c.lastSeqIDMetric.Set(float64(update.SequenceId))
 
 	return nil

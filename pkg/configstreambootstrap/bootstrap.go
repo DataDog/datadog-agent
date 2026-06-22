@@ -32,14 +32,9 @@ type Settings struct {
 	RARRegistryEnabled bool
 }
 
-// InitGlobalConfig wraps pkgconfigsetup.InitConfigObjects (forbidden from comp/).
-func InitGlobalConfig(cliConfigPath, defaultConfPath string) {
-	pkgconfigsetup.InitConfigObjects(cliConfigPath, defaultConfPath)
-}
-
-// ReadBaseSettings returns defaults+env from the global builder. Callers layer YAML on top.
+// ReadBaseSettings returns the bootstrap settings from the global config (defaults + env layer).
 func ReadBaseSettings() Settings {
-	b := pkgconfigsetup.GlobalConfigBuilder()
+	b := pkgconfigsetup.Datadog()
 	return Settings{
 		AuthTokenFilePath:  b.GetString("auth_token_file_path"),
 		IPCCertFilePath:    b.GetString("ipc_cert_file_path"),
@@ -79,7 +74,7 @@ func SeedGlobalBuilder(s Settings, configFile string) {
 // DisableLocalEnvLayer drops the env layer (nodetreemodel only) so local DD_* vars
 // can't override streamed values. Viper-backed configs cannot clear env vars.
 func DisableLocalEnvLayer(clientName string) {
-	b := pkgconfigsetup.GlobalConfigBuilder()
+	b := pkgconfigsetup.Datadog()
 	type envVarClearer interface{ ClearEnvVars() }
 	if clearer, ok := b.(envVarClearer); ok {
 		clearer.ClearEnvVars()
@@ -93,20 +88,20 @@ func DisableLocalEnvLayer(clientName string) {
 
 // AuthTokenFilepath resolves the auth-token path via pkg/api/security's fallback rules.
 func AuthTokenFilepath() string {
-	return pkgtoken.GetAuthTokenFilepath(pkgconfigsetup.GlobalConfigBuilder())
+	return pkgtoken.GetAuthTokenFilepath(pkgconfigsetup.Datadog())
 }
 
 // IPCCertFilepath returns the configured ipc_cert_file_path.
 func IPCCertFilepath() string {
-	return pkgconfigsetup.GlobalConfigBuilder().GetString("ipc_cert_file_path")
+	return pkgconfigsetup.Datadog().GetString("ipc_cert_file_path")
 }
 
-// ApplySetting writes one streamed setting to the global builder, preserving the source.
+// ApplySetting writes one streamed setting to the global config, preserving the source.
 func ApplySetting(key string, value *structpb.Value, source string) {
-	pkgconfigsetup.GlobalConfigBuilder().Set(key, pbValueToGo(value), pkgconfigmodel.Source(source))
+	pkgconfigsetup.Datadog().Set(key, pbValueToGo(value), pkgconfigmodel.Source(source))
 }
 
-// pbValueToGo preserves integer types that structpb widens to float64.
+// pbValueToGo converts a protobuf Value to a Go value. It preserves integer types that structpb widens to float64.
 // Bounded to |x| <= 2^53 — beyond that float64 loses integer precision.
 func pbValueToGo(v *structpb.Value) any {
 	if v == nil {

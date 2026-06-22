@@ -9,7 +9,7 @@ import "github.com/DataDog/datadog-agent/pkg/config/model"
 
 // IsViperBacked reports whether the config impl reads through viper (directly
 // or via a teeconfig wrapper).
-func IsViperBacked(b model.BuildableConfig) bool {
+func IsViperBacked(b model.Reader) bool {
 	switch b.GetLibType() {
 	case "viper", "tee":
 		return true
