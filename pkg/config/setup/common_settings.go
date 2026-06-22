@@ -487,9 +487,11 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("gpu.nccl.host_socket_path", "/var/run/datadog")
 	// In-container directory at which the agent's NCCL socket is mounted in
 	// injected workload pods. Composed with filepath.Base(gpu.nccl.socket_path)
-	// to build the mount destination and NCCL_DD_SOCKET_PATH. Same shape as
-	// admission_controller.inject_config.socket_path used by APM/DSD injection.
-	config.BindEnvAndSetDefault("admission_controller.nccl_profiler.socket_dir", "/var/run/datadog")
+	// to build the mount destination and NCCL_DD_SOCKET_PATH. A dedicated sibling
+	// of /var/run/datadog (not that dir itself like APM/DSD, and not a subdir of
+	// it -- a child mount nested inside the APM/DSD mount is unsupported) so this
+	// directory mount never collides with the APM/DSD config webhook's mount.
+	config.BindEnvAndSetDefault("admission_controller.nccl_profiler.socket_dir", "/var/run/datadog-nccl")
 
 	// Cloud Foundry BBS
 	config.BindEnvAndSetDefault("cloud_foundry_bbs.url", "https://bbs.service.cf.internal:8889")
