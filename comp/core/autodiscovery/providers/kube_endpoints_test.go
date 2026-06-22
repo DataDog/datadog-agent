@@ -704,10 +704,7 @@ func TestInvalidateOnServiceDelete(t *testing.T) {
 			expectedUpToDate:   true,
 		},
 		{
-			// A service whose annotations failed to parse is never monitored, but
-			// it may have reported a health-platform issue. Deleting it must
-			// invalidate so Collect re-runs and resolves the stale issue.
-			name:               "Delete unmonitored service that has endpoint annotations",
+			name:               "Delete unmonitored service with endpoint annotations invalidates",
 			monitoredEndpoints: map[string]bool{},
 			deletedService:     serviceWithAnnotations,
 			expectedUpToDate:   false,

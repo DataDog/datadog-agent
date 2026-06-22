@@ -186,10 +186,7 @@ func (k *kubeEndpointsConfigProvider) invalidateOnServiceDelete(obj interface{})
 		delete(k.monitoredEndpoints, endpointsID)
 	}
 
-	// Re-run Collect when a monitored service is deleted, or when a service with
-	// endpoint annotations is deleted. The latter covers services whose
-	// annotations failed to parse (and were therefore never monitored) but still
-	// produced a health-platform misconfiguration issue that must now be resolved.
+	// Check annotations too: a service with unparseable annotations is never monitored but may have a reported issue to resolve.
 	if wasMonitored || hasEndpointAnnotations(castedObj) {
 		log.Tracef("Invalidating configs on deleted service, endpoints entity: %s", endpointsID)
 		k.upToDate = false
@@ -281,8 +278,6 @@ func (k *kubeEndpointsConfigProvider) parseServiceAnnotationsForEndpoints(servic
 
 	setEndpointIDs := map[string]struct{}{}
 
-	// Snapshot the endpoints currently in error so we can resolve health-platform
-	// issues for any that recover or are deleted during this parse.
 	previousErrorIDs := make(map[string]struct{}, len(k.configErrors))
 	for endpointsID := range k.configErrors {
 		previousErrorIDs[endpointsID] = struct{}{}
@@ -336,7 +331,6 @@ func (k *kubeEndpointsConfigProvider) parseServiceAnnotationsForEndpoints(servic
 
 	k.cleanErrorsOfDeletedEndpoints(setEndpointIDs)
 
-	// Resolve health-platform issues for endpoints that recovered or were deleted.
 	for endpointsID := range previousErrorIDs {
 		if _, stillErroring := k.configErrors[endpointsID]; !stillErroring {
 			clearConfigurationErrors(k.healthPlatform, endpointsID)

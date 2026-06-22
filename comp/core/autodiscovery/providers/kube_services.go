@@ -212,8 +212,6 @@ func (k *KubeServiceConfigProvider) parseServiceAnnotations(services []*v1.Servi
 	}
 	k.configErrorsMu.Unlock()
 
-	// Report current misconfigurations and resolve issues for services that
-	// recovered or were deleted since the previous Collect.
 	for serviceID, errMsgSet := range newErrors {
 		reportConfigurationError(k.healthPlatform, serviceID, errMsgSet, types.KubeServiceAnnotationSource)
 	}
