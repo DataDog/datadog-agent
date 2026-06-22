@@ -69,6 +69,7 @@ bazel_dep(name = "rules_rust", version = "0.71.0")
 bazel_dep(name = "rules_rust_prost", version = "0.71.0")
 bazel_dep(name = "rules_shell", version = "0.8.0")
 bazel_dep(name = "supply_chain_tools", version = "0.0.1")
+bazel_dep(name = "toml.bzl", version = "0.4.1")
 bazel_dep(name = "toolchains_llvm", version = "1.8.0")
 
 bazel_dep(name = "rules_testing", version = "0.9.0", dev_dependency = True)
