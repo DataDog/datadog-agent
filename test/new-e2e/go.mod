@@ -148,7 +148,7 @@ require (
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/pulumi/appdash v0.0.0-20231130102222-75f619a67231 // indirect
 	github.com/pulumi/esc v0.24.0 // indirect
-	github.com/pulumi/pulumi-docker/sdk/v4 v4.9.0 // indirect
+	github.com/pulumi/pulumi-docker/sdk/v4 v4.11.2 // indirect
 	github.com/pulumiverse/pulumi-time/sdk v0.1.0 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/rogpeppe/go-internal v1.14.1 // indirect
@@ -220,7 +220,7 @@ require (
 	github.com/google/go-containerregistry v0.21.7
 	github.com/hairyhenderson/go-codeowners v0.7.1
 	github.com/pulumi/pulumi-aws/sdk/v7 v7.32.0
-	github.com/pulumi/pulumi-awsx/sdk/v3 v3.3.1
+	github.com/pulumi/pulumi-awsx/sdk/v3 v3.6.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
@@ -349,7 +349,7 @@ require (
 	github.com/pulumi/pulumi-eks/sdk/v4 v4.2.0 // indirect
 	github.com/pulumi/pulumi-gcp/sdk/v7 v7.38.0 // indirect
 	github.com/pulumi/pulumi-libvirt/sdk v0.5.4 // indirect
-	github.com/pulumi/pulumi-random/sdk/v4 v4.18.4 // indirect
+	github.com/pulumi/pulumi-random/sdk/v4 v4.21.0 // indirect
 	github.com/pulumi/pulumi-tls/sdk/v4 v4.11.4 // indirect
 	github.com/puzpuzpuz/xsync/v3 v3.5.1 // indirect
 	github.com/rs/zerolog v1.35.1 // indirect
