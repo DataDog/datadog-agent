@@ -61,6 +61,18 @@ type Check interface {
 	IsHASupported() bool
 }
 
+// ShadowAware is implemented by check wrappers that execute through the
+// metric-lookback shadow path.
+type ShadowAware interface {
+	IsShadow() bool
+}
+
+// IsShadow returns whether the check should execute through the shadow path.
+func IsShadow(c Check) bool {
+	shadow, ok := c.(ShadowAware)
+	return ok && shadow.IsShadow()
+}
+
 // Info is an interface to pull information from types capable to run checks. This is a subsection from the Check
 // interface with only read only method.
 type Info interface {

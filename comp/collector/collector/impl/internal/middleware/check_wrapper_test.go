@@ -61,6 +61,14 @@ func (c *issueAwareCheck) SetIssueReporter(r healthplatformstore.Component) {
 	c.reporter = r
 }
 
+type shadowAwareCheck struct {
+	mockCheck
+}
+
+func (c *shadowAwareCheck) IsShadow() bool {
+	return true
+}
+
 func TestCheckWrapperInjectsIssueReporter(t *testing.T) {
 	reporter := &mockIssueReporter{}
 	inner := &issueAwareCheck{}
@@ -117,4 +125,16 @@ func TestCheckWrapperCreatesSpan(t *testing.T) {
 	// Verify a span was started
 	assert.True(t, mockTelemetry.spanStarted)
 	assert.Equal(t, "check.mock_check", mockTelemetry.spanName)
+}
+
+func TestCheckWrapperForwardsShadowIdentity(t *testing.T) {
+	wrapper := NewCheckWrapper(
+		&shadowAwareCheck{},
+		nil,
+		option.None[agenttelemetry.Component](),
+		option.None[healthplatformstore.Component](),
+	)
+
+	assert.True(t, check.IsShadow(wrapper))
+	assert.False(t, check.IsShadow(&mockCheck{}))
 }

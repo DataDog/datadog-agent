@@ -46,6 +46,13 @@ const (
 	started
 )
 
+type checkRunnerKind uint8
+
+const (
+	normalRunnerKind checkRunnerKind = iota
+	shadowRunnerKind
+)
+
 type dependencies struct {
 	compdef.In
 
@@ -78,7 +85,10 @@ type collectorImpl struct {
 
 	scheduler      *scheduler.Scheduler
 	runner         *runner.Runner
+	shadowRunner   *runner.Runner
+	dispatcher     *checkDispatcher
 	checks         map[checkid.ID]*middleware.CheckWrapper
+	checkRunners   map[checkid.ID]checkRunnerKind
 	eventReceivers []collector.EventReceiver
 
 	cancelCheckTimeout     time.Duration
@@ -95,6 +105,126 @@ type provides struct {
 	StatusProvider   status.InformationProvider
 	MetadataProvider metadata.Provider
 }
+
+type checkDispatcher struct {
+	in          chan check.Check
+	normalOut   chan<- check.Check
+	shadowRoute *shadowCheckRoute
+	stop        chan struct{}
+	done        chan struct{}
+}
+
+func newCheckDispatcher(normalOut chan<- check.Check) *checkDispatcher {
+	return &checkDispatcher{
+		in:          make(chan check.Check),
+		normalOut:   normalOut,
+		shadowRoute: newShadowCheckRoute(),
+		stop:        make(chan struct{}),
+		done:        make(chan struct{}),
+	}
+}
+
+func (d *checkDispatcher) run() {
+	go func() {
+		defer close(d.done)
+		for {
+			select {
+			case <-d.stop:
+				return
+			case c := <-d.in:
+				if check.IsShadow(c) {
+					d.shadowRoute.enqueue(c)
+					continue
+				}
+				select {
+				case d.normalOut <- c:
+				case <-d.stop:
+					return
+				}
+			}
+		}
+	}()
+}
+
+func (d *checkDispatcher) stopAndWait() {
+	close(d.stop)
+	<-d.done
+	d.shadowRoute.stopAndWait()
+}
+
+func (d *checkDispatcher) setShadowOut(out chan<- check.Check) {
+	d.shadowRoute.setOut(out)
+}
+
+type shadowCheckRoute struct {
+	out     chan<- check.Check
+	done    chan struct{}
+	wg      sync.WaitGroup
+	mu      sync.Mutex
+	pending map[checkid.ID]struct{}
+	stopped bool
+}
+
+func newShadowCheckRoute() *shadowCheckRoute {
+	return &shadowCheckRoute{
+		done:    make(chan struct{}),
+		pending: make(map[checkid.ID]struct{}),
+	}
+}
+
+func (r *shadowCheckRoute) setOut(out chan<- check.Check) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.out = out
+}
+
+func (r *shadowCheckRoute) enqueue(c check.Check) {
+	id := c.ID()
+
+	r.mu.Lock()
+	out := r.out
+	if r.stopped || out == nil {
+		r.mu.Unlock()
+		return
+	}
+	if _, found := r.pending[id]; found {
+		r.mu.Unlock()
+		return
+	}
+	r.pending[id] = struct{}{}
+	r.wg.Add(1)
+	r.mu.Unlock()
+
+	go func() {
+		defer func() {
+			r.mu.Lock()
+			delete(r.pending, id)
+			r.mu.Unlock()
+			r.wg.Done()
+		}()
+
+		select {
+		case out <- c:
+		case <-r.done:
+		}
+	}()
+}
+
+func (r *shadowCheckRoute) stopAndWait() {
+	r.mu.Lock()
+	if r.stopped {
+		r.mu.Unlock()
+		return
+	}
+	r.stopped = true
+	close(r.done)
+	r.mu.Unlock()
+	r.wg.Wait()
+}
+
+type noopCheckStatusEmitter struct{}
+
+func (noopCheckStatusEmitter) Emit(context.Context, check.Check, error, []error) {}
 
 // Module defines the fx options for this component.
 func Module() fxutil.Module {
@@ -130,6 +260,7 @@ func newCollector(deps dependencies) *collectorImpl {
 		metricSerializer:       deps.MetricSerializer,
 		agentTelemetry:         deps.AgentTelemetry,
 		checks:                 make(map[checkid.ID]*middleware.CheckWrapper),
+		checkRunners:           make(map[checkid.ID]checkRunnerKind),
 		state:                  atomic.NewUint32(stopped),
 		checkInstances:         int64(0),
 		cancelCheckTimeout:     deps.Config.GetDuration("check_cancel_timeout"),
@@ -174,19 +305,37 @@ func (c *collectorImpl) start(_ context.Context) error {
 	defer c.m.Unlock()
 
 	run := runner.NewRunner(c.senderManager, c.haAgent, c.healthPlatform)
-	sched := scheduler.NewScheduler(run.GetChan())
+	dispatcher := newCheckDispatcher(run.GetChan())
+	sched := scheduler.NewScheduler(dispatcher.in)
 
 	// let the runner some visibility into the scheduler
 	run.SetScheduler(sched)
+	dispatcher.run()
 	sched.Run()
 
 	c.scheduler = sched
 	c.runner = run
+	c.dispatcher = dispatcher
 	c.state.Store(started)
 
 	c.log.Debug("Collector up and running!")
 
 	return nil
+}
+
+func (c *collectorImpl) ensureShadowRunnerLocked() {
+	if c.shadowRunner != nil {
+		return
+	}
+	shadowRun := runner.NewRunnerWithOptions(
+		c.senderManager,
+		c.haAgent,
+		c.healthPlatform,
+		runner.Options{StatusEmitter: noopCheckStatusEmitter{}},
+	)
+	shadowRun.SetScheduler(c.scheduler)
+	c.shadowRunner = shadowRun
+	c.dispatcher.setShadowOut(shadowRun.GetChan())
 }
 
 // stop halts any component involved in running a Check
@@ -198,9 +347,17 @@ func (c *collectorImpl) stop(_ context.Context) error {
 		_ = c.scheduler.Stop()
 		c.scheduler = nil
 	}
+	if c.dispatcher != nil {
+		c.dispatcher.stopAndWait()
+		c.dispatcher = nil
+	}
 	if c.runner != nil {
 		c.runner.Stop()
 		c.runner = nil
+	}
+	if c.shadowRunner != nil {
+		c.shadowRunner.Stop()
+		c.shadowRunner = nil
 	}
 	c.state.Store(stopped)
 	return nil
@@ -223,23 +380,32 @@ func (c *collectorImpl) RunCheck(inner check.Check) (checkid.ID, error) {
 		return emptyID, fmt.Errorf("a check with ID %s is already running", ch.ID())
 	}
 
+	runnerKind := normalRunnerKind
+	if check.IsShadow(ch) {
+		c.ensureShadowRunnerLocked()
+		runnerKind = shadowRunnerKind
+	}
+
 	if err := c.scheduler.Enter(ch); err != nil {
 		return emptyID, fmt.Errorf("unable to schedule the check: %s", err)
 	}
 
-	// Track the total number of checks running in order to have an appropriate number of workers
-	c.checkInstances++
-	if ch.Interval() == 0 {
-		// Adding a temporary runner for long running check in case the
-		// number of runners is lower than the number of long running
-		// checks.
-		c.log.Infof("Adding an extra runner for the '%s' long running check", ch)
-		c.runner.AddWorker()
-	} else {
-		c.runner.UpdateNumWorkers(c.checkInstances)
+	if runnerKind == normalRunnerKind {
+		// Track the total number of checks running in order to have an appropriate number of workers
+		c.checkInstances++
+		if ch.Interval() == 0 {
+			// Adding a temporary runner for long running check in case the
+			// number of runners is lower than the number of long running
+			// checks.
+			c.log.Infof("Adding an extra runner for the '%s' long running check", ch)
+			c.runner.AddWorker()
+		} else {
+			c.runner.UpdateNumWorkers(c.checkInstances)
+		}
 	}
 
 	c.checks[ch.ID()] = ch
+	c.checkRunners[ch.ID()] = runnerKind
 	c.notify(ch.ID(), collector.CheckRun)
 	return ch.ID(), nil
 }
@@ -248,7 +414,7 @@ func (c *collectorImpl) RunCheck(inner check.Check) (checkid.ID, error) {
 func (c *collectorImpl) StopCheck(id checkid.ID) error {
 	var ch check.Check
 	var collectorScheduler *scheduler.Scheduler
-	var collectorRunner *runner.Runner
+	var checkRunner *runner.Runner
 
 	// This lock is needed because stop() can be called concurrently and sets
 	// c.runner and c.scheduler to nil
@@ -266,7 +432,10 @@ func (c *collectorImpl) StopCheck(id checkid.ID) error {
 
 	// These two are not nil because we checked that the collector is started
 	collectorScheduler = c.scheduler
-	collectorRunner = c.runner
+	checkRunner = c.runner
+	if c.checkRunners[id] == shadowRunnerKind {
+		checkRunner = c.shadowRunner
+	}
 	c.m.RUnlock()
 
 	// unschedule the instance
@@ -285,7 +454,7 @@ func (c *collectorImpl) StopCheck(id checkid.ID) error {
 		stats.SetStateCancelling()
 	}
 
-	if err := collectorRunner.StopCheck(id); err != nil {
+	if err := checkRunner.StopCheck(id); err != nil {
 		// still attempt to cancel the check before returning the error
 		_ = c.cancelCheck(ch, c.cancelCheckTimeout)
 		return fmt.Errorf("an error occurred while stopping the check: %s", err)
@@ -329,6 +498,7 @@ func (c *collectorImpl) delete(id checkid.ID) {
 	defer c.m.Unlock()
 
 	delete(c.checks, id)
+	delete(c.checkRunners, id)
 	c.notify(id, collector.CheckStop)
 }
 

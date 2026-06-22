@@ -170,3 +170,8 @@ func (c *CheckWrapper) GetDiagnoses() ([]diagnose.Diagnosis, error) {
 func (c *CheckWrapper) IsHASupported() bool {
 	return c.inner.IsHASupported()
 }
+
+// IsShadow forwards shadow execution identity from the wrapped check.
+func (c *CheckWrapper) IsShadow() bool {
+	return check.IsShadow(c.inner)
+}
