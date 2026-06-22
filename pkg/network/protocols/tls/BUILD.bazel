@@ -24,7 +24,10 @@ go_library(
         "tags_nolinux.go",
         "types_linux.go",
     ],
-    cgo = True,
+    cgo = select({
+        "@platforms//os:linux": True,
+        "//conditions:default": False,
+    }),  # keep
     importpath = "github.com/DataDog/datadog-agent/pkg/network/protocols/tls",
     visibility = ["//visibility:public"],
 )
