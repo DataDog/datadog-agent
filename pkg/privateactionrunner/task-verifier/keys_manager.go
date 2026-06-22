@@ -62,7 +62,7 @@ func (k *keysManager) Start(ctx context.Context) {
 	// Seed from any configs already fetched before this subscription was registered.
 	if existing := k.rcClient.GetConfigs(state.ProductActionPlatformRunnerKeys); len(existing) > 0 {
 		log.FromContext(ctx).Info("Seeding keys from previously fetched remote config")
-		k.AgentConfigUpdateCallback(existing, func(_ string, _ state.ApplyStatus) {})
+		k.AgentConfigUpdateCallback(existing, k.rcClient.UpdateApplyStatus)
 	}
 }
 

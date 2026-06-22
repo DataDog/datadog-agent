@@ -31,6 +31,8 @@ func (m *mockedRcClient) Subscribe(data.Product, func(map[string]state.RawConfig
 
 func (m *mockedRcClient) GetConfigs(data.Product) map[string]state.RawConfig { return nil }
 
+func (m *mockedRcClient) UpdateApplyStatus(_ string, _ state.ApplyStatus) {}
+
 type mockedAutodiscoveryActions struct {
 	autodiscovery.Component
 	configs []integration.Config

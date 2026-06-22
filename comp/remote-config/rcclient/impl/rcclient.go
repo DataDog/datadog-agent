@@ -356,6 +356,14 @@ func (rc *rcClient) GetConfigs(product data.Product) map[string]state.RawConfig 
 	return rc.client.GetConfigs(string(product))
 }
 
+// UpdateApplyStatus updates the apply status of a config in the RC repository.
+func (rc *rcClient) UpdateApplyStatus(cfgPath string, status state.ApplyStatus) {
+	if rc.client == nil {
+		return
+	}
+	rc.client.UpdateApplyStatus(cfgPath, status)
+}
+
 func (rc *rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
 	mergedConfig, err := state.MergeRCAgentConfig(rc.client.UpdateApplyStatus, updates)
 	if err != nil {
