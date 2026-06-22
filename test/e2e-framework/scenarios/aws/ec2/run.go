@@ -83,6 +83,12 @@ func Run(ctx *pulumi.Context, awsEnv aws.Environment, env outputs.HostOutputs, p
 			}
 		}
 	}
+	// Tags are agent metadata and apply regardless of fakeintake.
+	if params.agentOptions != nil {
+		if tags := awsEnv.Tags(); len(tags) > 0 {
+			params.agentOptions = append(params.agentOptions, agentparams.WithTags(tags))
+		}
+	}
 	if !params.installUpdater {
 		// Mark Updater as not provisioned
 		env.DisableUpdater()
