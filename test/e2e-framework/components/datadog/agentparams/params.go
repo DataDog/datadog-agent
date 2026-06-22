@@ -308,6 +308,9 @@ data_streams.forwarder.logs_dd_url: %[1]s:%[2]d
 data_streams.forwarder.logs_no_ssl: true
 event_management.forwarder.logs_dd_url: %[1]s:%[2]d
 event_management.forwarder.logs_no_ssl: true
+compliance_config.endpoints.logs_dd_url: %[1]s:%[2]d
+compliance_config.endpoints.logs_no_ssl: true
+compliance_config.endpoints.force_use_http: true
 `, hostname, port, scheme)
 		p.ExtraAgentConfig = append(p.ExtraAgentConfig, extraConfig)
 		return nil
@@ -410,4 +413,3 @@ func WithV3MetricsDisabled() func(*Params) error {
 		return nil
 	}
 }
-
