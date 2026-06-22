@@ -17,7 +17,7 @@ if ($Env:CI_COMMIT_BRANCH -match '^(main|\d+\.\d+\.x|mq-working-branch-main-.*)$
 
 while ($retryCount -lt $maxRetries) {
     if ($parameterField) {
-        $result = (vault kv get -field="$parameterField" "$VaultPath"/"$parameterName" 2> errorFile.txt)
+        $result = (vault kv get -field="$parameterField" "$VaultPath/$parameterName" 2> errorFile.txt)
     } else {
         $result = (aws ssm get-parameter --region us-east-1 --name $parameterName --with-decryption --query "Parameter.Value" --output text 2> errorFile.txt)
     }
