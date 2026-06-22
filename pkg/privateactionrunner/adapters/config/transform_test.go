@@ -6,6 +6,8 @@
 package config
 
 import (
+	"bufio"
+	"bytes"
 	"os"
 	"path/filepath"
 	"testing"
@@ -17,6 +19,7 @@ import (
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func TestGetBundleInheritedAllowedActions(t *testing.T) {
@@ -463,6 +466,37 @@ func TestFromDDConfigPARRestrictedShellAllowedCommandsPassesThroughUnnamespaced(
 	assert.True(t, cfg.RShellAllowedCommandsConfigured)
 }
 
+func TestFromDDConfigPARRestrictedShellAllowedCommandsWarnsForConfiguredUnnamespaced(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest(setup.PARPrivateKey, "")
+	mockConfig.SetInTest(setup.PARUrn, "")
+	mockConfig.SetInTest(setup.PARRestrictedShellAllowedCommands, []string{"cat", "rshell:ls"})
+
+	logs := captureTransformWarnings(t, func() {
+		_, err := FromDDConfig(mockConfig)
+		require.NoError(t, err)
+	})
+
+	assert.Contains(t, logs, setup.PARRestrictedShellAllowedCommands)
+	assert.Contains(t, logs, `"cat"`)
+	assert.Contains(t, logs, `"rshell:"`)
+	assert.Contains(t, logs, `"rshell:cat"`)
+	assert.NotContains(t, logs, `"rshell:ls"`)
+}
+
+func TestFromDDConfigPARRestrictedShellAllowedCommandsDefaultDoesNotWarn(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest(setup.PARPrivateKey, "")
+	mockConfig.SetInTest(setup.PARUrn, "")
+
+	logs := captureTransformWarnings(t, func() {
+		_, err := FromDDConfig(mockConfig)
+		require.NoError(t, err)
+	})
+
+	assert.Empty(t, logs)
+}
+
 func TestFromDDConfigPARRestrictedShellAllowedAbsentYAML(t *testing.T) {
 	// No restricted_shell block at all: both axes fall back to their registered
 	// defaults and remain marked as unconfigured.
@@ -478,4 +512,24 @@ private_action_runner:
 	assert.Equal(t, []string{"rshell:*"}, cfg.RShellAllowedCommands)
 	assert.False(t, cfg.RShellAllowedPathsConfigured)
 	assert.False(t, cfg.RShellAllowedCommandsConfigured)
+}
+
+func captureTransformWarnings(t *testing.T, fn func()) string {
+	t.Helper()
+
+	var logBuffer bytes.Buffer
+	logWriter := bufio.NewWriter(&logBuffer)
+	logger, err := log.LoggerFromWriterWithMinLevelAndLvlMsgFormat(logWriter, log.WarnLvl)
+	require.NoError(t, err)
+
+	previousLogger := log.Default()
+	t.Cleanup(func() {
+		log.SetupLogger(previousLogger, "debug")
+	})
+	log.SetupLogger(logger, "warn")
+
+	fn()
+
+	require.NoError(t, logWriter.Flush())
+	return logBuffer.String()
 }
