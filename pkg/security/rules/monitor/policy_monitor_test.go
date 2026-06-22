@@ -1159,8 +1159,8 @@ func TestPolicyMonitorPolicyState(t *testing.T) {
 									{
 										Filter: &[]string{"process.pid != 0 "}[0],
 										Set: &rules.SetDefinition{
-											Name:    "rtl_process_args_qwuUJ",
-											Field:   "process.args",
+											Name:    "rtl_process_path_qwuUJ",
+											Field:   "process.file.path", // use field available for both Linux and Windows
 											TTL:     &rules.HumanReadableDuration{Duration: 3600000000000},
 											Append:  true,
 											Scope:   "process",
@@ -1205,8 +1205,8 @@ func TestPolicyMonitorPolicyState(t *testing.T) {
 									{
 										Filter: &[]string{"process.pid != 0 "}[0],
 										Set: &rules.SetDefinition{
-											Name:    "rtl_process_args_qwuUJ",
-											Field:   "process.args",
+											Name:    "rtl_process_path_qwuUJ",
+											Field:   "process.file.path", // use field available for both Linux and Windows
 											TTL:     &rules.HumanReadableDuration{Duration: 3600000000000},
 											Append:  true,
 											Scope:   "process",
@@ -1251,8 +1251,8 @@ func TestPolicyMonitorPolicyState(t *testing.T) {
 									{
 										Filter: &[]string{"process.pid != 0 "}[0],
 										Set: &rules.SetDefinition{
-											Name:    "rtl_process_args_qwuUJ",
-											Field:   "process.args",
+											Name:    "rtl_process_path_qwuUJ",
+											Field:   "process.file.path", // use field available for both Linux and Windows
 											TTL:     &rules.HumanReadableDuration{Duration: 3600000000000},
 											Append:  true,
 											Scope:   "process",
@@ -1301,8 +1301,8 @@ func TestPolicyMonitorPolicyState(t *testing.T) {
 								{
 									Filter: &[]string{"process.pid != 0 "}[0],
 									Set: &RuleSetAction{
-										Name:    "rtl_process_args_qwuUJ",
-										Field:   "process.args",
+										Name:    "rtl_process_path_qwuUJ",
+										Field:   "process.file.path", // use field available for both Linux and Windows
 										TTL:     "1h0m0s",
 										Append:  true,
 										Scope:   "process",
@@ -1348,8 +1348,8 @@ func TestPolicyMonitorPolicyState(t *testing.T) {
 								{
 									Filter: &[]string{"process.pid != 0 "}[0],
 									Set: &RuleSetAction{
-										Name:    "rtl_process_args_qwuUJ",
-										Field:   "process.args",
+										Name:    "rtl_process_path_qwuUJ",
+										Field:   "process.file.path", // use field available for both Linux and Windows
 										TTL:     "1h0m0s",
 										Append:  true,
 										Scope:   "process",
@@ -1400,8 +1400,8 @@ func TestPolicyMonitorPolicyState(t *testing.T) {
 								{
 									Filter: &[]string{"process.pid != 0 "}[0],
 									Set: &RuleSetAction{
-										Name:    "rtl_process_args_qwuUJ",
-										Field:   "process.args",
+										Name:    "rtl_process_path_qwuUJ",
+										Field:   "process.file.path", // use field available for both Linux and Windows
 										TTL:     "1h0m0s",
 										Append:  true,
 										Scope:   "process",
