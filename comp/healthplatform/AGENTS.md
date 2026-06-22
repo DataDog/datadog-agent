@@ -99,7 +99,7 @@ Each issue module exposes three identity fields. Get them wrong and either the r
 
 ### `IssueName` — Title Case, stable per type
 
-- Format: must match `^[A-Z][a-zA-Z0-9 -]*$` — the registry **panics at startup** if not
+- Format: must match `^[A-Z][a-zA-Z0-9 -]*$`
 - Scope: unique per issue *type* — used as the template registry key
 - Must be *identical* for every instance of the same type; never vary it per-instance
 - Export as `const IssueName` in `module.go` and alias it as a package-private `const issueName = IssueName` in `issue.go`
@@ -177,26 +177,6 @@ Use when the condition can only change at restart (filesystem layout, config sch
 ### Periodic check
 
 Use when the condition can change while the agent is running (connectivity, remote endpoint). Return a `*runnerdef.BuiltInPeriodicHealthCheck` with an explicit `Interval`. Use `Interval: 0` to fall back to the scheduler's default.
-
-### Config-gating rule
-
-Gate inside `Fn`, **not** at registration time or in `init()`:
-
-```go
-func (m *myModule) BuiltInStartupHealthCheck() *runnerdef.BuiltInHealthCheck {
-    return &runnerdef.BuiltInHealthCheck{
-        Source: "agent",
-        Fn: func() ([]runnerdef.IssueReport, error) {
-            if !m.cfg.GetBool("health_platform.mycheck.enabled") {
-                return nil, nil
-            }
-            return m.checker.Run()
-        },
-    }
-}
-```
-
-Gating inside `Fn` means the `IssueNames`-based stale-issue resolution still fires after restart even when the check is disabled — returning `nil` resolves any previously-stored issue rather than leaving it orphaned. See `invalidconfig/module.go` for the authoritative comment on why.
 
 ### `IssueNames` — never set it
 
@@ -322,8 +302,7 @@ dda inv new-e2e-tests.run --targets=./tests/agent-health/... --run=^Test<Module>
 
 | Anti-pattern | Why it breaks |
 |---|---|
-| Setting `issue.Id` in `BuildIssue` | `Id` is set by `ReportIssue`; the template must not set it |
-| Varying `IssueName` per instance | Breaks registry lookup and UI aggregation; panics at startup if the format is wrong |
+| Varying `IssueName` per instance | Breaks registry lookup and UI aggregation |
 | Gating `RegisterModuleFactory` on a config value in `init()` | Config is not available at init time |
 | Gating the entire check at registration time rather than inside `Fn` | Stale issues from a prior run are never resolved when the check is disabled |
 | Setting `IssueNames` on `BuiltInHealthCheck` | Overwritten by `RegisterModule`; no effect but signals misunderstanding |
