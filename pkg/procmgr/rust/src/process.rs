@@ -207,11 +207,7 @@ impl ManagedProcess {
 
     pub fn spawn(&mut self) -> Result<()> {
         if !self.state.can_transition_to(ProcessState::Starting) {
-            bail!(
-                "[{}] cannot spawn: invalid state {}",
-                self.name,
-                self.state
-            );
+            bail!("[{}] cannot spawn: invalid state {}", self.name, self.state);
         }
         self.transition_to(ProcessState::Starting);
         let result = self.try_spawn();
@@ -275,13 +271,10 @@ impl ManagedProcess {
         #[cfg(windows)]
         {
             platform::apply_child_baseline_env(&mut cmd);
-            // After graceful stop we call `AttachConsole` / `FreeConsole` on this process; the
-            // service may no longer have a valid console. Inheriting stdin then fails CreateProcess
-            // with ERROR_INVALID_HANDLE (6). Children are non-interactive daemons — discard stdin.
+            // Don't inherit stdin: invalid after AttachConsole/FreeConsole on stop.
             cmd.stdin(Stdio::null());
-            // Without an interactive console, inheriting stdout/stderr from the parent is unsafe
-            // for repeated spawns (same os error 6 as stdin).
-            let null_instead_of_inherit = platform::lacks_console();
+            // Fall back to null stdout/stderr when parent handles are unusable.
+            let null_instead_of_inherit = platform::lacks_inheritable_stdio();
             cmd.stdout(stdio_for_windows(
                 &self.config.stdout,
                 null_instead_of_inherit,
