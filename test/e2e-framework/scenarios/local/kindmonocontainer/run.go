@@ -302,6 +302,19 @@ func deployClusterAgentRBAC(ctx *pulumi.Context, _ config.Env, providerOpt pulum
 				Resources: pulumi.StringArray{pulumi.String("cronjobs"), pulumi.String("jobs")},
 				Verbs:     pulumi.StringArray{pulumi.String("list"), pulumi.String("get"), pulumi.String("watch")},
 			},
+			// coordination.k8s.io Leases are used by the leader-election code on
+			// modern Kubernetes instead of the legacy ConfigMap path.
+			&rbacv1.PolicyRuleArgs{
+				ApiGroups:     pulumi.StringArray{pulumi.String("coordination.k8s.io")},
+				Resources:     pulumi.StringArray{pulumi.String("leases")},
+				ResourceNames: pulumi.StringArray{pulumi.String("datadog-cluster-agent-leader-election")},
+				Verbs:         pulumi.StringArray{pulumi.String("get"), pulumi.String("update")},
+			},
+			&rbacv1.PolicyRuleArgs{
+				ApiGroups: pulumi.StringArray{pulumi.String("coordination.k8s.io")},
+				Resources: pulumi.StringArray{pulumi.String("leases")},
+				Verbs:     pulumi.StringArray{pulumi.String("create")},
+			},
 		},
 	}, providerOpt)
 	if err != nil {
