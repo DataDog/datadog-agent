@@ -60,7 +60,13 @@ exports_files(["go.mod"])
 # gazelle:exclude cmd/agent/subcommands/run/internal/clcrunnerapi/*.go
 # gazelle:exclude cmd/agent/subcommands/snmp
 # gazelle:exclude cmd/agent/windows
-# gazelle:exclude cmd/cluster-agent
+# gazelle:exclude cmd/cluster-agent/*.go
+# gazelle:exclude cmd/cluster-agent/admission
+# gazelle:exclude cmd/cluster-agent/api/*.go
+# gazelle:exclude cmd/cluster-agent/api/agent
+# gazelle:exclude cmd/cluster-agent/api/v1/*.go
+# gazelle:exclude cmd/cluster-agent/custommetrics
+# gazelle:exclude cmd/cluster-agent/subcommands
 # gazelle:exclude cmd/cluster-agent-cloudfoundry
 # gazelle:exclude cmd/dogstatsd
 # gazelle:exclude cmd/host-profiler/*.go
