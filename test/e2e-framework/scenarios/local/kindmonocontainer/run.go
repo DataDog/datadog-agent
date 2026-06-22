@@ -23,7 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
 	agentComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/cpustress"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/etcd"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/nginx"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/prometheus"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/redis"
@@ -145,9 +144,7 @@ func Run(ctx *pulumi.Context) error {
 		if _, err := prometheus.K8sAppDefinition(&localEnv, kubeProvider, "workload-prometheus"); err != nil {
 			return err
 		}
-		if _, err := etcd.K8sAppDefinition(&localEnv, kubeProvider); err != nil {
-			return err
-		}
+
 	}
 
 	return nil
