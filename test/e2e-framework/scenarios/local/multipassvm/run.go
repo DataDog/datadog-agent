@@ -48,7 +48,10 @@ func Run(ctx *pulumi.Context) error {
 	}
 
 	if env.AgentDeploy() {
-		agentOptions := []agentparams.Option{}
+		agentOptions := []agentparams.Option{
+			agentparams.WithLogs(),
+			agentparams.WithAgentConfig("logs_config.container_collect_all: true"),
+		}
 		if env.AgentUseFakeintake() {
 			fi, err := fakeintake.NewLocalDockerFakeintake(&env, "fakeintake")
 			if err != nil {
