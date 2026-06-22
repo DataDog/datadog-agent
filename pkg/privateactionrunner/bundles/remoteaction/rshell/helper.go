@@ -80,7 +80,7 @@ func intersectAllowedPathsByAccess(agentAllowed []string, backendAllowed []strin
 
 	for _, agentPath := range agentAllowed {
 		for _, backendPath := range backendAllowed {
-			pathToKeep, ok := narrowerPathWithCompatibleAccess(agentPath, backendPath)
+			pathToKeep, ok := narrowerPathWithSameAccess(agentPath, backendPath)
 			if !ok {
 				continue
 			}
@@ -113,40 +113,23 @@ func pathAccessGroup(pathSpec string) string {
 	return pathAccessReadOnly
 }
 
-func pathAccessCompatible(agentPath, backendPath string) bool {
-	_, agentAccessSuffix := splitPathAccessSuffix(agentPath)
-	if agentAccessSuffix == "" {
-		return true
-	}
-	return agentAccessSuffix == pathAccessGroup(backendPath)
-}
-
 func pathSpecPath(pathSpec string) string {
 	pathPart, _ := splitPathAccessSuffix(pathSpec)
 	return pathPart
 }
 
-func narrowerPathWithCompatibleAccess(a, b string) (string, bool) {
-	if !pathAccessCompatible(a, b) {
+func narrowerPathWithSameAccess(a, b string) (string, bool) {
+	if pathAccessGroup(a) != pathAccessGroup(b) {
 		return "", false
 	}
 	aPath := pathSpecPath(a)
 	bPath := pathSpecPath(b)
 	switch {
 	case aPath == bPath || strings.HasPrefix(aPath, bPath):
-		return pathSpecWithBackendAccess(a, b), true
+		return a, true
 	case strings.HasPrefix(bPath, aPath):
 		return b, true
 	default:
 		return "", false
 	}
-}
-
-func pathSpecWithBackendAccess(pathSpec, backendPathSpec string) string {
-	_, pathAccessSuffix := splitPathAccessSuffix(pathSpec)
-	_, backendAccessSuffix := splitPathAccessSuffix(backendPathSpec)
-	if pathAccessSuffix == "" && backendAccessSuffix != "" {
-		return pathSpec + backendAccessSuffix
-	}
-	return pathSpec
 }
