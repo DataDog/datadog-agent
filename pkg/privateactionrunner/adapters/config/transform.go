@@ -186,8 +186,10 @@ func warnUnnamespacedCommands(commands []string) {
 // AND the backend's allowed paths list. (intersection operation)
 func rshellAllowedPaths(config config.Component) []string {
 	paths := config.GetStringSlice(setup.PARRestrictedShellAllowedPaths)
-	warnBackslashPaths(paths)
-	warnNonDirectoryPaths(paths)
+	if config.IsConfigured(setup.PARRestrictedShellAllowedPaths) {
+		warnBackslashPaths(paths)
+		warnNonDirectoryPaths(paths)
+	}
 	return paths
 }
 
