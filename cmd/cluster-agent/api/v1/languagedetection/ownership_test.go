@@ -25,44 +25,41 @@ func boolPtr(b bool) *bool {
 	return &b
 }
 
+func newOwnershipTestStore(t *testing.T) workloadmetamock.Mock {
+	return fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		core.MockBundle(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+}
+
 func TestAuthoritativeDeploymentOwnerForPodLanguages(t *testing.T) {
 	const (
 		ns       = "default"
-		podName  = "my-pod"
+		podName  = "nginx-7d4f8b9c6-2x9qd"
 		podUID   = "pod-uid-1"
 		rsName   = "nginx-7d4f8b9c6"
-		hash     = "7d4f8b9c6"
 		deploy   = "nginx"
 		deployID = ns + "/" + deploy
 	)
 
-	t.Run("happy path", func(t *testing.T) {
-		store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
-			core.MockBundle(),
-			workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-		))
+	rsControllerOwner := workloadmeta.KubernetesPodOwner{
+		Kind:       "ReplicaSet",
+		Name:       rsName,
+		ID:         "rs-uid",
+		Group:      "apps",
+		Controller: boolPtr(true),
+	}
 
+	t.Run("happy path", func(t *testing.T) {
+		store := newOwnershipTestStore(t)
 		store.Set(&workloadmeta.KubernetesPod{
-			EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: podUID},
-			EntityMeta: workloadmeta.EntityMeta{
-				Name:      podName,
-				Namespace: ns,
-				Labels:    map[string]string{podTemplateHashLabelKey: hash},
-			},
-			Owners: []workloadmeta.KubernetesPodOwner{{
-				Kind:       "ReplicaSet",
-				Name:       rsName,
-				ID:         "rs-uid",
-				Group:      "apps",
-				Controller: boolPtr(true),
-			}},
+			EntityID:   workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: podUID},
+			EntityMeta: workloadmeta.EntityMeta{Name: podName, Namespace: ns},
+			Owners:     []workloadmeta.KubernetesPodOwner{rsControllerOwner},
 		})
 		store.Set(&workloadmeta.KubernetesDeployment{
-			EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesDeployment, ID: deployID},
-			EntityMeta: workloadmeta.EntityMeta{
-				Name:      deploy,
-				Namespace: ns,
-			},
+			EntityID:   workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesDeployment, ID: deployID},
+			EntityMeta: workloadmeta.EntityMeta{Name: deploy, Namespace: ns},
 		})
 
 		got, ok := authoritativeDeploymentOwnerForPodLanguages(store, ns, podName)
@@ -71,18 +68,11 @@ func TestAuthoritativeDeploymentOwnerForPodLanguages(t *testing.T) {
 		assert.Equal(t, want, got)
 	})
 
-	t.Run("reject deployment controller (forged owner ref pattern)", func(t *testing.T) {
-		store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
-			core.MockBundle(),
-			workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-		))
-
+	t.Run("reject pod controlled directly by a deployment (forged owner ref pattern)", func(t *testing.T) {
+		store := newOwnershipTestStore(t)
 		store.Set(&workloadmeta.KubernetesPod{
-			EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: podUID},
-			EntityMeta: workloadmeta.EntityMeta{
-				Name:      podName,
-				Namespace: ns,
-			},
+			EntityID:   workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: podUID},
+			EntityMeta: workloadmeta.EntityMeta{Name: podName, Namespace: ns},
 			Owners: []workloadmeta.KubernetesPodOwner{{
 				Kind:       "Deployment",
 				Name:       "victim",
@@ -100,56 +90,30 @@ func TestAuthoritativeDeploymentOwnerForPodLanguages(t *testing.T) {
 		assert.False(t, ok)
 	})
 
-	t.Run("reject when pod-template-hash mismatches ReplicaSet suffix", func(t *testing.T) {
-		store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
-			core.MockBundle(),
-			workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-		))
-
+	t.Run("reject when pod name does not match the owner reference (forged pod name)", func(t *testing.T) {
+		// Mirrors the PoC: an attacker-named pod whose ownerRef points at the victim's ReplicaSet.
+		const forgedPodName = "forged-owner-pod"
+		store := newOwnershipTestStore(t)
 		store.Set(&workloadmeta.KubernetesPod{
-			EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: podUID},
-			EntityMeta: workloadmeta.EntityMeta{
-				Name:      podName,
-				Namespace: ns,
-				Labels:    map[string]string{podTemplateHashLabelKey: "wronghash"},
-			},
-			Owners: []workloadmeta.KubernetesPodOwner{{
-				Kind:       "ReplicaSet",
-				Name:       rsName,
-				ID:         "rs-uid",
-				Group:      "apps",
-				Controller: boolPtr(true),
-			}},
+			EntityID:   workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: podUID},
+			EntityMeta: workloadmeta.EntityMeta{Name: forgedPodName, Namespace: ns},
+			Owners:     []workloadmeta.KubernetesPodOwner{rsControllerOwner},
 		})
 		store.Set(&workloadmeta.KubernetesDeployment{
 			EntityID:   workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesDeployment, ID: deployID},
 			EntityMeta: workloadmeta.EntityMeta{Name: deploy, Namespace: ns},
 		})
 
-		_, ok := authoritativeDeploymentOwnerForPodLanguages(store, ns, podName)
+		_, ok := authoritativeDeploymentOwnerForPodLanguages(store, ns, forgedPodName)
 		assert.False(t, ok)
 	})
 
 	t.Run("reject when deployment missing from workloadmeta", func(t *testing.T) {
-		store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
-			core.MockBundle(),
-			workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-		))
-
+		store := newOwnershipTestStore(t)
 		store.Set(&workloadmeta.KubernetesPod{
-			EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: podUID},
-			EntityMeta: workloadmeta.EntityMeta{
-				Name:      podName,
-				Namespace: ns,
-				Labels:    map[string]string{podTemplateHashLabelKey: hash},
-			},
-			Owners: []workloadmeta.KubernetesPodOwner{{
-				Kind:       "ReplicaSet",
-				Name:       rsName,
-				ID:         "rs-uid",
-				Group:      "apps",
-				Controller: boolPtr(true),
-			}},
+			EntityID:   workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: podUID},
+			EntityMeta: workloadmeta.EntityMeta{Name: podName, Namespace: ns},
+			Owners:     []workloadmeta.KubernetesPodOwner{rsControllerOwner},
 		})
 
 		_, ok := authoritativeDeploymentOwnerForPodLanguages(store, ns, podName)

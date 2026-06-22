@@ -109,9 +109,8 @@ func TestLeaderHandlerSpan_Success(t *testing.T) {
 	mockStore.Set(&workloadmeta.KubernetesPod{
 		EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: "handler-test-pod-uid"},
 		EntityMeta: workloadmeta.EntityMeta{
-			Name:      "pod-a",
+			Name:      "deploy-a-12345-98765",
 			Namespace: "default",
-			Labels:    map[string]string{"pod-template-hash": "12345"},
 		},
 		Owners: []workloadmeta.KubernetesPodOwner{{
 			Kind:       "ReplicaSet",
@@ -142,7 +141,7 @@ func TestLeaderHandlerSpan_Success(t *testing.T) {
 		PodDetails: []*pbgo.PodLanguageDetails{
 			{
 				Namespace: "default",
-				Name:      "pod-a",
+				Name:      "deploy-a-12345-98765",
 				ContainerDetails: []*pbgo.ContainerLanguageDetails{
 					{
 						ContainerName: "container-1",

@@ -753,9 +753,8 @@ func TestGetOwnersLanguages(t *testing.T) {
 	mockStore.Set(&workloadmeta.KubernetesPod{
 		EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: "uid-pod-a"},
 		EntityMeta: workloadmeta.EntityMeta{
-			Name:      "pod-a",
+			Name:      "dummyrs-1-2342347-98765",
 			Namespace: defaultNs,
-			Labels:    map[string]string{"pod-template-hash": "2342347"},
 		},
 		Owners: []workloadmeta.KubernetesPodOwner{{
 			Kind:       "ReplicaSet",
@@ -775,9 +774,8 @@ func TestGetOwnersLanguages(t *testing.T) {
 	mockStore.Set(&workloadmeta.KubernetesPod{
 		EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: "uid-pod-b"},
 		EntityMeta: workloadmeta.EntityMeta{
-			Name:      "pod-b",
+			Name:      "dummyrs-2-2342347-98765",
 			Namespace: customNs,
-			Labels:    map[string]string{"pod-template-hash": "2342347"},
 		},
 		Owners: []workloadmeta.KubernetesPodOwner{{
 			Kind:       "ReplicaSet",
@@ -797,7 +795,7 @@ func TestGetOwnersLanguages(t *testing.T) {
 
 	podALanguageDetails := &pbgo.PodLanguageDetails{
 		Namespace: defaultNs,
-		Name:      "pod-a",
+		Name:      "dummyrs-1-2342347-98765",
 		ContainerDetails: []*pbgo.ContainerLanguageDetails{
 			{
 				ContainerName: "container-1",
@@ -839,7 +837,7 @@ func TestGetOwnersLanguages(t *testing.T) {
 
 	podBLanguageDetails := &pbgo.PodLanguageDetails{
 		Namespace: customNs,
-		Name:      "pod-b",
+		Name:      "dummyrs-2-2342347-98765",
 		ContainerDetails: []*pbgo.ContainerLanguageDetails{
 			{
 				ContainerName: "container-5",

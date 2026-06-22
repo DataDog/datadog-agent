@@ -8,16 +8,10 @@
 package languagedetection
 
 import (
-	"strings"
-
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	langUtil "github.com/DataDog/datadog-agent/pkg/languagedetection/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-)
-
-const (
-	podTemplateHashLabelKey = "pod-template-hash"
 )
 
 // authoritativeDeploymentOwnerForPodLanguages resolves the Deployment that should receive
@@ -25,7 +19,15 @@ const (
 // workloadmeta (from kube-apiserver watches).
 //
 // It mitigates forged owner references in client payloads by ignoring the request's owner
-// and re-deriving the parent Deployment from the live Pod object in the store.
+// and re-deriving the parent Deployment from the live Pod object in the store:
+//   - the pod's unique controller owner must be a ReplicaSet (pods that reference a
+//     Deployment directly are rejected),
+//   - the pod name must be consistent with that owner: a Deployment pod is named
+//     "<deployment>-<replicaset-hash>-<pod-hash>", so the Deployment parsed from the pod
+//     name must match the Deployment parsed from the ReplicaSet owner. Kubernetes does not
+//     enforce this consistency, so a forged pod (arbitrary name pointing at another
+//     workload's ReplicaSet) is rejected here,
+//   - the resolved Deployment must exist in the store.
 //
 // The second return value is false when the pod cannot be attributed safely.
 func authoritativeDeploymentOwnerForPodLanguages(wlm workloadmeta.Component, podNamespace, podName string) (langUtil.NamespacedOwnerReference, bool) {
@@ -47,8 +49,8 @@ func authoritativeDeploymentOwnerForPodLanguages(wlm workloadmeta.Component, pod
 		return langUtil.NamespacedOwnerReference{}, false
 	}
 	rsGroup := ctrl.Group
-	if rsGroup == "" && ctrl.Kind == langUtil.KindReplicaset {
-		// Older objects or partial metadata may omit apiVersion; ReplicaSet is always under apps (or legacy extensions).
+	if rsGroup == "" {
+		// Older objects may omit apiVersion; ReplicaSet is always under apps (or legacy extensions).
 		rsGroup = "apps"
 	}
 	if rsGroup != "apps" && rsGroup != "extensions" {
@@ -62,8 +64,10 @@ func authoritativeDeploymentOwnerForPodLanguages(wlm workloadmeta.Component, pod
 		return langUtil.NamespacedOwnerReference{}, false
 	}
 
-	if !replicaSetTemplateHashMatchesPod(ctrl.Name, pod) {
-		log.Debugf("language detection: skipping pod %s/%s: pod-template-hash does not match ReplicaSet %q", podNamespace, podName, ctrl.Name)
+	// Cross-check the pod name against the owner reference. The Deployment parsed from the
+	// pod name must match the Deployment parsed from the (validated) ReplicaSet owner.
+	if fromName := kubernetes.ParseDeploymentForPodName(podName); fromName != deploymentName {
+		log.Debugf("language detection: skipping pod %s/%s: pod name resolves to deployment %q but owner reference resolves to %q", podNamespace, podName, fromName, deploymentName)
 		return langUtil.NamespacedOwnerReference{}, false
 	}
 
@@ -76,6 +80,8 @@ func authoritativeDeploymentOwnerForPodLanguages(wlm workloadmeta.Component, pod
 	return langUtil.NewNamespacedOwnerReference("apps/v1", langUtil.KindDeployment, deploymentName, podNamespace), true
 }
 
+// findUniqueControllerOwner returns the single owner reference marked as controller.
+// It returns nil if there is no controller owner or more than one.
 func findUniqueControllerOwner(owners []workloadmeta.KubernetesPodOwner) *workloadmeta.KubernetesPodOwner {
 	var found *workloadmeta.KubernetesPodOwner
 	for i := range owners {
@@ -89,38 +95,4 @@ func findUniqueControllerOwner(owners []workloadmeta.KubernetesPodOwner) *worklo
 		found = owner
 	}
 	return found
-}
-
-func replicaSetTemplateHashMatchesPod(rsName string, pod *workloadmeta.KubernetesPod) bool {
-	rsHash := replicaSetTemplateHashFromName(rsName)
-	if rsHash == "" {
-		return false
-	}
-	podHash := podRolloutTemplateHash(pod)
-	if podHash == "" {
-		// Older or non-standard pods may omit the label; still allow RS→Deployment parsing and deployment existence checks.
-		return true
-	}
-	return podHash == rsHash
-}
-
-func replicaSetTemplateHashFromName(rsName string) string {
-	idx := strings.LastIndexByte(rsName, '-')
-	if idx == -1 || idx == len(rsName)-1 {
-		return ""
-	}
-	return rsName[idx+1:]
-}
-
-func podRolloutTemplateHash(pod *workloadmeta.KubernetesPod) string {
-	if pod == nil {
-		return ""
-	}
-	if h := pod.Labels[podTemplateHashLabelKey]; h != "" {
-		return h
-	}
-	if h := pod.Labels[kubernetes.ArgoRolloutLabelKey]; h != "" {
-		return h
-	}
-	return ""
 }
