@@ -13,7 +13,6 @@ import (
 
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 	schedulerdef "github.com/DataDog/datadog-agent/comp/healthplatform/scheduler/def"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 type mockScheduler struct{}
@@ -25,9 +24,4 @@ func (m *mockScheduler) Schedule(_ string, _ runnerdef.HealthCheckFunc, _ time.D
 // New returns a no-op mock scheduler for testing.
 func New() schedulerdef.Component {
 	return &mockScheduler{}
-}
-
-// MockModule provides a mock scheduler via fx.
-func MockModule() fxutil.Module {
-	return fxutil.Component(fxutil.ProvideComponentConstructor(New))
 }

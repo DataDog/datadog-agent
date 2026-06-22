@@ -8,6 +8,5 @@ go_library(
     deps = [
         "//comp/healthplatform/runner/def",
         "//comp/healthplatform/scheduler/def",
-        "//pkg/util/fxutil",
     ],
 )

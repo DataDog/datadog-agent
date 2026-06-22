@@ -12,7 +12,6 @@ import (
 	registrydef "github.com/DataDog/datadog-agent/comp/healthplatform/issueregistry/def"
 	issuesmod "github.com/DataDog/datadog-agent/comp/healthplatform/issues"
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 type mockRegistry struct {
@@ -22,11 +21,6 @@ type mockRegistry struct {
 // New returns an empty mock registry. Call RegisterTemplate to add templates.
 func New() registrydef.Component {
 	return &mockRegistry{templates: make(map[string]issuesmod.Template)}
-}
-
-// MockModule provides the mock registry via fx.
-func MockModule() fxutil.Module {
-	return fxutil.Component(fxutil.ProvideComponentConstructor(New))
 }
 
 // RegisterTemplate adds a template under issueName so that GetTemplate succeeds.

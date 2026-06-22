@@ -10,7 +10,6 @@ package mock
 
 import (
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 type mockRunner struct{}
@@ -22,9 +21,4 @@ func (m *mockRunner) Run(_ string, _ runnerdef.HealthCheckFunc) ([]string, error
 // New returns a no-op mock runner for testing.
 func New() runnerdef.Component {
 	return &mockRunner{}
-}
-
-// MockModule provides a mock runner via fx.
-func MockModule() fxutil.Module {
-	return fxutil.Component(fxutil.ProvideComponentConstructor(New))
 }

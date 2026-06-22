@@ -10,7 +10,6 @@ package mock
 
 import (
 	egressdef "github.com/DataDog/datadog-agent/comp/healthplatform/egress/def"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 type mockEgress struct{}
@@ -18,9 +17,4 @@ type mockEgress struct{}
 // New returns a no-op mock egress for testing.
 func New() egressdef.Component {
 	return &mockEgress{}
-}
-
-// MockModule provides a mock egress via fx.
-func MockModule() fxutil.Module {
-	return fxutil.Component(fxutil.ProvideComponentConstructor(New))
 }
