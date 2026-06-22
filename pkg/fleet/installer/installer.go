@@ -39,6 +39,10 @@ const (
 	packageAPMLibraryDotnet = "datadog-apm-library-dotnet"
 )
 
+func shouldPreActivatePackage(pkg string) bool {
+	return runtime.GOOS == "windows" && pkg == packageAPMLibraryDotnet
+}
+
 // Installer is a package manager that installs and uninstalls packages.
 type Installer interface {
 	IsInstalled(ctx context.Context, pkg string) (bool, error)
@@ -313,7 +317,8 @@ func (i *installerImpl) doInstall(ctx context.Context, url string, args []string
 	if !shouldInstallPredicate(dbPkg, pkg) {
 		return nil
 	}
-	upgrade := !errors.Is(err, db.ErrPackageNotFound) && dbPkg.Version != pkg.Version
+	installed := !errors.Is(err, db.ErrPackageNotFound)
+	upgrade := installed && dbPkg.Version != pkg.Version
 	if upgrade {
 		err = i.hooks.PreRemove(ctx, pkg.Name, packages.PackageTypeOCI, true)
 		if err != nil {
@@ -345,8 +350,20 @@ func (i *installerImpl) doInstall(ctx context.Context, url string, args []string
 	if err != nil {
 		return fmt.Errorf("could not extract package config layer: %w", err)
 	}
-	err = i.packages.CreateWithPreActivateHook(ctx, pkg.Name, pkg.Version, tmpDir, i.preActivateHook(ctx, pkg.Name, packages.PackageTypeOCI, upgrade, args))
+	preActivate := i.preActivateHook(ctx, pkg.Name, packages.PackageTypeOCI, upgrade, args)
+	err = i.db.DeletePackage(pkg.Name)
 	if err != nil {
+		return fmt.Errorf("could not clear package installation from db: %w", err)
+	}
+	err = i.packages.CreateWithPreActivateHook(ctx, pkg.Name, pkg.Version, tmpDir, preActivate)
+	if err != nil {
+		if preActivate != nil && installed {
+			// A pre-activate failure preserves the old stable link, so keep the
+			// database aligned with that preserved repository state.
+			if restoreErr := i.db.SetPackage(dbPkg); restoreErr != nil {
+				return fmt.Errorf("could not create repository: %w (also could not restore package installation in db: %v)", err, restoreErr)
+			}
+		}
 		return fmt.Errorf("could not create repository: %w", err)
 	}
 	err = i.hooks.PostInstall(ctx, pkg.Name, packages.PackageTypeOCI, upgrade, args)
@@ -438,7 +455,7 @@ func (i *installerImpl) InstallExperiment(ctx context.Context, url string) error
 }
 
 func (i *installerImpl) preActivateHook(ctx context.Context, pkg string, pkgType packages.PackageType, upgrade bool, args []string) repository.PreActivateHook {
-	if runtime.GOOS != "windows" || pkg != packageAPMLibraryDotnet {
+	if !shouldPreActivatePackage(pkg) {
 		return nil
 	}
 	return func(packagePath string) error {
@@ -447,7 +464,7 @@ func (i *installerImpl) preActivateHook(ctx context.Context, pkg string, pkgType
 }
 
 func (i *installerImpl) preActivateExperimentHook(ctx context.Context, pkg string) repository.PreActivateHook {
-	if runtime.GOOS != "windows" || pkg != packageAPMLibraryDotnet {
+	if !shouldPreActivatePackage(pkg) {
 		return nil
 	}
 	return func(packagePath string) error {

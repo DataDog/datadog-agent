@@ -8,11 +8,8 @@ package packages
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io/fs"
-	"os"
 	"path/filepath"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/exec"
@@ -32,7 +29,6 @@ var apmLibraryDotnetPackage = hooks{
 
 const (
 	packageAPMLibraryDotnet = "datadog-apm-library-dotnet"
-	dotnetActivationGateEnv = "DD_TEST_APM_LIBRARY_DOTNET_ACTIVATION_GATE"
 )
 
 var (
@@ -70,9 +66,6 @@ func installDotnetLibraryVersion(ctx HookContext, installDir string) (err error)
 	if installDir == "" {
 		return errors.New("package path is required to install the .NET APM library")
 	}
-	if err := waitForDotnetActivationGate(ctx); err != nil {
-		return err
-	}
 	dotnetExec := exec.NewDotnetLibraryExec(getExecutablePath(installDir))
 	_, err = dotnetExec.InstallVersion(ctx, getLibraryPath(installDir))
 	if err != nil {
@@ -86,38 +79,6 @@ func postStartExperimentAPMLibraryDotnet(ctx HookContext) (err error) {
 	span, ctx := ctx.StartSpan("start_apm_library_dotnet_experiment")
 	defer func() { span.Finish(err) }()
 	return instrumentDotnetLibraryIfNeeded(ctx, "experiment")
-}
-
-func waitForDotnetActivationGate(ctx context.Context) error {
-	gatePath := os.Getenv(dotnetActivationGateEnv)
-	if gatePath == "" {
-		return nil
-	}
-	readyPath := gatePath + ".ready"
-	releasePath := gatePath + ".release"
-	if err := os.WriteFile(readyPath, []byte("ready"), 0644); err != nil {
-		return fmt.Errorf("could not write .NET activation gate ready file: %w", err)
-	}
-	ticker := time.NewTicker(500 * time.Millisecond)
-	defer ticker.Stop()
-	timeout := time.NewTimer(10 * time.Minute)
-	defer timeout.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-timeout.C:
-			return errors.New("timed out waiting for .NET activation gate release file")
-		case <-ticker.C:
-			_, err := os.Stat(releasePath)
-			if err == nil {
-				return nil
-			}
-			if !errors.Is(err, fs.ErrNotExist) {
-				return fmt.Errorf("could not stat .NET activation gate release file: %w", err)
-			}
-		}
-	}
 }
 
 // preStopExperimentAPMLibraryDotnet stops a .NET APM library experiment.
