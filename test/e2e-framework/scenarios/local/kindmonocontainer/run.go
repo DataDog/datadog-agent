@@ -20,6 +20,7 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
 	agentComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/cpustress"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/etcd"
@@ -95,6 +96,14 @@ func Run(ctx *pulumi.Context) error {
 	agentImage := agentComp.DockerAgentFullImagePath(&localEnv)
 	clusterAgentImage := agentComp.DockerClusterAgentFullImagePath(&localEnv)
 
+	var imgPullSecret *corev1.Secret
+	if localEnv.ImagePullRegistry() != "" {
+		imgPullSecret, err = utils.NewImagePullSecret(&localEnv, "default", providerOpt)
+		if err != nil {
+			return err
+		}
+	}
+
 	if _, err := corev1.NewSecret(ctx, "datadog-secret", &corev1.SecretArgs{
 		Metadata: &metav1.ObjectMetaArgs{
 			Name:      pulumi.String("datadog-secret"),
@@ -115,11 +124,11 @@ func Run(ctx *pulumi.Context) error {
 		return err
 	}
 
-	if err := deployClusterAgent(ctx, clusterName, clusterAgentImage, clusterAgentToken.Result, fakeIntake, providerOpt); err != nil {
+	if err := deployClusterAgent(ctx, clusterName, clusterAgentImage, clusterAgentToken.Result, fakeIntake, imgPullSecret, providerOpt); err != nil {
 		return err
 	}
 
-	if err := deployNodeAgentDaemonSet(ctx, clusterName, agentImage, clusterAgentToken.Result, fakeIntake, providerOpt); err != nil {
+	if err := deployNodeAgentDaemonSet(ctx, clusterName, agentImage, clusterAgentToken.Result, fakeIntake, imgPullSecret, providerOpt); err != nil {
 		return err
 	}
 
@@ -336,7 +345,7 @@ func deployClusterAgentRBAC(ctx *pulumi.Context, _ config.Env, providerOpt pulum
 	return err
 }
 
-func deployClusterAgent(ctx *pulumi.Context, clusterName, image string, authToken pulumi.StringOutput, fakeIntake *fakeintakeComp.Fakeintake, providerOpt pulumi.ResourceOption) error {
+func deployClusterAgent(ctx *pulumi.Context, clusterName, image string, authToken pulumi.StringOutput, fakeIntake *fakeintakeComp.Fakeintake, imgPullSecret *corev1.Secret, providerOpt pulumi.ResourceOption) error {
 	caEnv := corev1.EnvVarArray{
 		&corev1.EnvVarArgs{Name: pulumi.String("DD_HEALTH_PORT"), Value: pulumi.String("5556")},
 		&corev1.EnvVarArgs{
@@ -408,6 +417,7 @@ func deployClusterAgent(ctx *pulumi.Context, clusterName, image string, authToke
 				Spec: &corev1.PodSpecArgs{
 					ServiceAccountName: pulumi.String("datadog-cluster-agent"),
 					NodeSelector:       pulumi.StringMap{"kubernetes.io/os": pulumi.String("linux")},
+					ImagePullSecrets:   imagePullSecrets(imgPullSecret),
 					Containers: corev1.ContainerArray{
 						&corev1.ContainerArgs{
 							Name:            pulumi.String("cluster-agent"),
@@ -443,7 +453,7 @@ func deployClusterAgent(ctx *pulumi.Context, clusterName, image string, authToke
 	return err
 }
 
-func deployNodeAgentDaemonSet(ctx *pulumi.Context, clusterName, image string, authToken pulumi.StringOutput, fakeIntake *fakeintakeComp.Fakeintake, providerOpt pulumi.ResourceOption) error {
+func deployNodeAgentDaemonSet(ctx *pulumi.Context, clusterName, image string, authToken pulumi.StringOutput, fakeIntake *fakeintakeComp.Fakeintake, imgPullSecret *corev1.Secret, providerOpt pulumi.ResourceOption) error {
 	env := corev1.EnvVarArray{
 		&corev1.EnvVarArgs{
 			Name: pulumi.String("DD_API_KEY"),
@@ -502,6 +512,7 @@ func deployNodeAgentDaemonSet(ctx *pulumi.Context, clusterName, image string, au
 				},
 				Spec: &corev1.PodSpecArgs{
 					ServiceAccountName: pulumi.String("datadog"),
+					ImagePullSecrets:   imagePullSecrets(imgPullSecret),
 					Tolerations: corev1.TolerationArray{
 						&corev1.TolerationArgs{Operator: pulumi.String("Exists")},
 					},
@@ -574,6 +585,17 @@ func deployNodeAgentDaemonSet(ctx *pulumi.Context, clusterName, image string, au
 		},
 	}, providerOpt)
 	return err
+}
+
+// imagePullSecrets returns a LocalObjectReferenceArray referencing the pull
+// secret, or nil if no pull secret is configured.
+func imagePullSecrets(secret *corev1.Secret) corev1.LocalObjectReferenceArray {
+	if secret == nil {
+		return nil
+	}
+	return corev1.LocalObjectReferenceArray{
+		&corev1.LocalObjectReferenceArgs{Name: secret.Metadata.Name()},
+	}
 }
 
 // fakeintakeEnvVars returns the full set of env var overrides needed to route
