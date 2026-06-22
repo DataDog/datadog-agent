@@ -174,11 +174,8 @@ func TestCleanPathListDoesNotMutateInput(t *testing.T) {
 	assert.Equal(t, original, in, "input must not be mutated")
 }
 
-func TestPathSpecPathsStripsAccessSuffixes(t *testing.T) {
-	in := []string{"/host/datadog/:rw", "/host/var/log/:ro", "/etc/"}
-
-	got := pathSpecPaths(in)
-
-	assert.Equal(t, []string{"/host/datadog/", "/host/var/log/", "/etc/"}, got)
-	assert.Equal(t, []string{"/host/datadog/:rw", "/host/var/log/:ro", "/etc/"}, in, "input must not be mutated")
+func TestPathSpecPathStripsAccessSuffixForLocalStat(t *testing.T) {
+	assert.Equal(t, "/host/datadog/", pathSpecPath("/host/datadog/:rw"))
+	assert.Equal(t, "/host/var/log/", pathSpecPath("/host/var/log/:ro"))
+	assert.Equal(t, "/etc/", pathSpecPath("/etc/"))
 }

@@ -67,11 +67,3 @@ func pathSpecPath(pathSpec string) string {
 	pathPart, _ := splitPathAccessSuffix(pathSpec)
 	return pathPart
 }
-
-func pathSpecPaths(pathSpecs []string) []string {
-	paths := make([]string, len(pathSpecs))
-	for i, pathSpec := range pathSpecs {
-		paths[i] = pathSpecPath(pathSpec)
-	}
-	return paths
-}

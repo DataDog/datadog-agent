@@ -10,7 +10,6 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/task-verifier",
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/config/setup",
         "//pkg/privateactionrunner/adapters/config",
         "//pkg/privateactionrunner/adapters/constants",
         "//pkg/privateactionrunner/adapters/logging",
@@ -31,8 +30,8 @@ go_test(
     embed = [":task-verifier"],
     gotags = ["test"],
     deps = [
-        "//pkg/config/setup",
         "//pkg/proto/pbgo/privateactionrunner/privateactions",
         "@com_github_stretchr_testify//assert",
+        "@org_golang_google_protobuf//types/known/structpb",
     ],
 )
