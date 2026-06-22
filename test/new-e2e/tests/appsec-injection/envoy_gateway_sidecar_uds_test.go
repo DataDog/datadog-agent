@@ -12,6 +12,7 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -184,7 +185,7 @@ func (s *egAppSecSidecarSuite) TestWebhookInjectsSidecar() {
 		pods, err := k8s.CoreV1().Pods(egNamespace).List(
 			context.Background(),
 			metav1.ListOptions{
-				LabelSelector: fmt.Sprintf("gateway.envoyproxy.io/owning-gateway-name=%s", gatewayName),
+				LabelSelector: "gateway.envoyproxy.io/owning-gateway-name=" + gatewayName,
 			},
 		)
 		require.NoError(c, err, "listing EG data-plane pods")
@@ -294,7 +295,7 @@ func (s *egAppSecSidecarSuite) TestTrafficBlocking() {
 		svcs, err := k8s.CoreV1().Services(egNamespace).List(
 			context.Background(),
 			metav1.ListOptions{
-				LabelSelector: fmt.Sprintf("gateway.envoyproxy.io/owning-gateway-name=%s", gatewayName),
+				LabelSelector: "gateway.envoyproxy.io/owning-gateway-name=" + gatewayName,
 			},
 		)
 		require.NoError(c, err, "listing Gateway services")
@@ -337,7 +338,7 @@ func (s *egAppSecSidecarSuite) TestTrafficBlocking() {
 			demoNamespace, backendPodName, "backend",
 			[]string{
 				"curl", "-s", "-o", "/dev/null", "-w", "%{http_code}", "--max-time", "10",
-				"-H", fmt.Sprintf("User-Agent: %s", attackUserAgent),
+				"-H", "User-Agent: " + attackUserAgent,
 				gatewayURL + "?x=1",
 			},
 		)
@@ -359,7 +360,7 @@ func (s *egAppSecSidecarSuite) TestReconcileDoesNotStripSidecar() {
 		pods, err := k8s.CoreV1().Pods(egNamespace).List(
 			context.Background(),
 			metav1.ListOptions{
-				LabelSelector: fmt.Sprintf("gateway.envoyproxy.io/owning-gateway-name=%s", gatewayName),
+				LabelSelector: "gateway.envoyproxy.io/owning-gateway-name=" + gatewayName,
 			},
 		)
 		require.NoError(c, err)
@@ -380,7 +381,7 @@ func (s *egAppSecSidecarSuite) TestReconcileDoesNotStripSidecar() {
 	patchData, err := json.Marshal(map[string]interface{}{
 		"metadata": map[string]interface{}{
 			"annotations": map[string]string{
-				"appsec.datadoghq.com/noop-reconcile": fmt.Sprintf("%d", time.Now().Unix()),
+				"appsec.datadoghq.com/noop-reconcile": strconv.FormatInt(time.Now().Unix(), 10),
 			},
 		},
 	})
@@ -400,7 +401,7 @@ func (s *egAppSecSidecarSuite) TestReconcileDoesNotStripSidecar() {
 	pods, err := k8s.CoreV1().Pods(egNamespace).List(
 		context.Background(),
 		metav1.ListOptions{
-			LabelSelector: fmt.Sprintf("gateway.envoyproxy.io/owning-gateway-name=%s", gatewayName),
+			LabelSelector: "gateway.envoyproxy.io/owning-gateway-name=" + gatewayName,
 		},
 	)
 	require.NoError(s.T(), err)
