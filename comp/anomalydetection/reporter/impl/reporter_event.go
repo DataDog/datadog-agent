@@ -12,9 +12,13 @@ import (
 )
 
 // EventReporter sends Datadog events for correlator lifecycle events.
-// It is a stateless forwarder: all deduplication and recurrence logic lives
-// inside each correlator via the correlationEmitter helper. Reporters simply
-// iterate output.CorrelatorEvents and dispatch to the appropriate sender method.
+// Deduplication and recurrence logic live inside each correlator via the
+// correlationEmitter helper. The reporter forwards each CorrelatorEvent to the
+// appropriate sender method.
+//
+// All events are at-most-once: a transient forwarder failure logs an error and
+// discards the event. The correlator has already drained the event from its
+// pending queue so there is no replay mechanism.
 //
 // It implements reporterdef.StorageConsumer so the observer can inject engine
 // storage post-construction for windowed log-rate annotations in change messages.
@@ -44,8 +48,8 @@ func (r *EventReporter) SetStorage(storage observerdef.StorageReader) {
 //   - EpisodeStarted / EpisodeEnded  → sendEpisodeEvent (scorer severity transitions)
 //   - CorrelationDetected            → send (cluster/pattern first-seen, emitter-deduplicated)
 //
-// Events are at-most-once: a transient forwarder error drops the event (the
-// correlator already drained it). This matches the existing scorer episode model.
+// All events are at-most-once: a transient forwarder error logs the failure and
+// discards the event. The correlator has already drained it from its pending queue.
 func (r *EventReporter) Report(output reporterdef.ReportOutput) bool {
 	emitted := false
 	for _, ce := range output.CorrelatorEvents {

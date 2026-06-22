@@ -103,18 +103,31 @@ func (r *stdoutReporter) Name() string { return "stdout_reporter" }
 func (r *stdoutReporter) Report(output reporterdef.ReportOutput) bool {
 	emitted := false
 
+	// Build the set of newly-detected patterns from this cycle so they can be
+	// excluded from the "ongoing" telemetry path below.
+	newlyDetected := make(map[string]struct{}, len(output.CorrelatorEvents))
+
 	// Log all correlator events at info level and drive the emitted counter.
-	if r.stdoutEnabled {
-		for _, ce := range output.CorrelatorEvents {
-			switch ce.Kind {
-			case observerdef.CorrelatorEventEpisodeStarted:
+	// emittedCounter counts only CorrelationDetected events (new pattern first-seen
+	// or recurrence); episode events are not counted.
+	for _, ce := range output.CorrelatorEvents {
+		switch ce.Kind {
+		case observerdef.CorrelatorEventEpisodeStarted:
+			if r.stdoutEnabled {
 				r.logger.Infof("[observer] scorer episode started: scorer=%s pattern=%s t=%d",
 					ce.CorrelatorName, ce.Correlation.Pattern, ce.Timestamp)
-			case observerdef.CorrelatorEventEpisodeEnded:
+			}
+		case observerdef.CorrelatorEventEpisodeEnded:
+			if r.stdoutEnabled {
 				r.logger.Infof("[observer] scorer episode ended: scorer=%s pattern=%s t=%d duration=%ds",
 					ce.CorrelatorName, ce.Correlation.Pattern, ce.Timestamp,
 					ce.Correlation.LastUpdated-ce.Correlation.FirstSeen)
-			case observerdef.CorrelatorEventCorrelationDetected:
+			}
+		case observerdef.CorrelatorEventCorrelationDetected:
+			newlyDetected[ce.Correlation.Pattern] = struct{}{}
+			r.emittedCounter.Add(1)
+			emitted = true
+			if r.stdoutEnabled {
 				r.logger.Infof("[observer] anomaly detection report: pattern=%s title=%q members=%d",
 					ce.Correlation.Pattern, ce.Correlation.Title, len(ce.Correlation.Members))
 				if r.stdoutVerbose {
@@ -127,22 +140,23 @@ func (r *stdoutReporter) Report(output reporterdef.ReportOutput) bool {
 			}
 		}
 	}
-	for range output.CorrelatorEvents {
-		r.emittedCounter.Add(1)
-		emitted = true
-	}
 
-	// Ongoing counter: at least one correlation is currently active.
-	if len(output.ActiveCorrelations) > 0 {
-		r.ongoingCounter.Add(1)
-	}
-
-	// Debug log for ongoing correlations.
-	if r.stdoutEnabled {
-		for _, ac := range output.ActiveCorrelations {
-			r.logger.Debugf("[observer] ongoing anomaly correlation: pattern=%s members=%d",
-				ac.Pattern, len(ac.Members))
+	// Ongoing counter: fires when at least one active correlation was already
+	// seen in a prior cycle (i.e. not newly detected this cycle). This mirrors
+	// the pre-refactor semantics where ongoingCounter incremented once per
+	// advance that had any pattern not in the freshly-emitted set.
+	hasOngoing := false
+	for _, ac := range output.ActiveCorrelations {
+		if _, isNew := newlyDetected[ac.Pattern]; !isNew {
+			if r.stdoutEnabled {
+				r.logger.Debugf("[observer] ongoing anomaly correlation: pattern=%s members=%d",
+					ac.Pattern, len(ac.Members))
+			}
+			hasOngoing = true
 		}
+	}
+	if hasOngoing {
+		r.ongoingCounter.Add(1)
 	}
 
 	// Debug log for raw new anomalies detected this cycle.
