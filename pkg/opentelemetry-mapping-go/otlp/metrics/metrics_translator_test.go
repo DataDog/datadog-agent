@@ -157,17 +157,51 @@ func TestExponentialHistogramDropsUnsupportedBucketBounds(t *testing.T) {
 	translator := newTranslator(t, zap.New(core))
 	consumer := newTestConsumer()
 
+	var err error
 	require.NotPanics(t, func() {
-		_, err := translator.MapMetrics(context.Background(), md, &consumer, nil)
-		require.NoError(t, err)
+		_, err = translator.MapMetrics(t.Context(), md, &consumer, nil)
 	})
+	require.NoError(t, err)
 	require.Len(t, consumer.data.Metrics.Sketches, 1)
 	require.Equal(t, "test", consumer.data.Metrics.Sketches[0].Name)
 
 	entries := observedLogs.FilterMessage("Failed to convert ExponentialHistogram into DDSketch").All()
 	require.Len(t, entries, 1)
 	assert.Equal(t, "test", entries[0].ContextMap()["metric name"])
-	assert.Contains(t, entries[0].ContextMap()["error"], "bucket index 64 has unsupported bounds")
+	assert.Contains(t, entries[0].ContextMap()["error"], "bucket index range [64, 65) has unsupported bounds")
+}
+
+func TestExponentialHistogramIgnoresUnsupportedEmptyBuckets(t *testing.T) {
+	mapper := newTranslator(t, zap.NewNop()).getMapper().(*defaultMapper)
+
+	tests := []struct {
+		name         string
+		offset       int32
+		bucketCounts []uint64
+	}{
+		{
+			name:         "all buckets empty",
+			offset:       64,
+			bucketCounts: []uint64{0},
+		},
+		{
+			name:         "unsupported trailing bucket empty",
+			offset:       62,
+			bucketCounts: []uint64{1, 0},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			point := pmetric.NewExponentialHistogramDataPoint()
+			point.SetScale(-4)
+			point.Positive().SetOffset(test.offset)
+			point.Positive().BucketCounts().FromRaw(test.bucketCounts)
+
+			_, err := mapper.exponentialHistogramToDDSketch(point, true)
+			require.NoError(t, err)
+		})
+	}
 }
 
 type metric struct {
