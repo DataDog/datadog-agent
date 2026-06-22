@@ -64,6 +64,37 @@ func psLiteralPathExists(path string) string {
 	)
 }
 
+func psLiteralPathNotExists(path string) string {
+	return fmt.Sprintf(
+		`powershell -NoProfile -Command "if (Test-Path -LiteralPath '%s') { exit 1 }"`,
+		psEscapeSingleQuoted(path),
+	)
+}
+
+// AssertNoFleetDDOTProcmgrConfigFileWindows asserts the fleet DDOT extension did not write
+// processes.d/datadog-agent-ddot.yaml (e.g. when DD_PROCESS_MANAGER_ENABLED=false during install hooks).
+func AssertNoFleetDDOTProcmgrConfigFileWindows(t *testing.T, host *components.RemoteHost) {
+	t.Helper()
+	installRoot, err := windowsagent.GetInstallPathFromRegistry(host)
+	require.NoError(t, err)
+	cfg := filepath.Join(installRoot, "processes.d", procmgrConfigName)
+	// Normalize slashes for PowerShell -LiteralPath (tests may build paths on non-Windows).
+	cfg = strings.ReplaceAll(cfg, "/", `\`)
+	_, err = host.Execute(psLiteralPathNotExists(cfg))
+	require.NoError(t, err, "fleet DDOT processes.d config should be absent when installer procmgr wiring is disabled (expected missing: %s)", cfg)
+}
+
+// AssertWindowsDDOTRunningLegacySCM waits until datadog-otel-agent is Running (DDOT on the legacy
+// Windows SCM path rather than fleet processes.d under dd-procmgr).
+func AssertWindowsDDOTRunningLegacySCM(t *testing.T, host *components.RemoteHost) {
+	t.Helper()
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		_, err := host.Execute(
+			`powershell -NoProfile -Command "$s = Get-Service -Name '` + WindowsLegacyDDOTSCMServiceName + `' -ErrorAction SilentlyContinue; if ($null -eq $s) { exit 1 }; if ($s.Status -ne 'Running') { exit 1 }; exit 0"`)
+		assert.NoError(c, err, "%s should be Running when DDOT is not wired via fleet processes.d", WindowsLegacyDDOTSCMServiceName)
+	}, 3*time.Minute, 3*time.Second)
+}
+
 // psProcmgr runs a dd-procmgr subcommand (e.g. "status", "describe datadog-agent-ddot").
 func psProcmgr(cliExe, invocation string) string {
 	return fmt.Sprintf(
