@@ -105,6 +105,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/kubernetes/core",
     visibility = ["//visibility:public"],
     deps = [
+        "//pkg/clusteragent/helmactions",
         "//pkg/privateactionrunner/bundle-support/kubernetes",
         "//pkg/privateactionrunner/libs/privateconnection",
         "//pkg/privateactionrunner/types",

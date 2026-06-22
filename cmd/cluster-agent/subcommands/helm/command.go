@@ -96,14 +96,14 @@ func runRollback(_ log.Component, _ config.Component, params *rollbackCliParams)
 	}
 
 	executor := helmactions.NewRollbackExecutor(client)
-	job, err := executor.Run(context.Background(), helmactions.RollbackOptions{
-		Release:            params.release,
-		ReleaseNamespace:   params.releaseNamespace,
-		Revision:           params.revision,
-		JobNamespace:       params.jobNamespace,
-		ServiceAccountName: params.serviceAccount,
-		Image:              params.image,
-		Driver:             params.driver,
+	job, err := executor.Run(context.Background(), helmactions.RollbackInputs{
+		Release:               params.release,
+		ReleaseNamespace:      params.releaseNamespace,
+		Revision:              params.revision,
+		JobNamespace:          params.jobNamespace,
+		JobServiceAccountName: params.serviceAccount,
+		Image:                 params.image,
+		Driver:                params.driver,
 	})
 	if err != nil {
 		return err
