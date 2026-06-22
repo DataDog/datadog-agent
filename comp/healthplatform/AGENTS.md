@@ -4,15 +4,27 @@
 
 The Health Platform detects, stores, and ships agent health issues to the Datadog backend.
 
+Two paths lead issues into the store:
+
 ```
+Path A — built-in checks (runner-mediated)
+
 HealthCheckFunc (detect)
         │
         ▼
-  IssueReport  ──►  Runner  ──►  Registry.BuildIssue  ──►  Store  ──►  Egress  ──►  Forwarder
-                                                                                        │
-                                                              POST /api/v2/agenthealth  ▼
-                                                                             agenthealth-intake.<site>
+  IssueReport  ──►  Runner  ──►  Registry.BuildIssue  ──►  Store
+                                                              │
+Path B — external reporters (direct)                         │
+                                                              │
+  component calls store.ReportIssue(issue) ─────────────────►┘
+                                                              │
+                                                           Egress  ──►  Forwarder
+                                                                            │
+                                          POST /api/v2/agenthealth  ▼
+                                                         agenthealth-intake.<site>
 ```
+
+Use **Path A** when detection logic belongs inside the health platform (self-contained checks). Use **Path B** when an existing component (the collector, autodiscovery) already detects the condition and should call `store.ReportIssue` directly with a fully-built proto `Issue`. In both cases the module's `BuildIssue` template is still required — Path B callers build the `Issue` themselves using `registry.BuildIssue` before calling the store.
 
 Sub-package roles:
 
@@ -98,10 +110,10 @@ Declare every context key your module reads as a package-private `const` at the 
 | `IssueName` | Must equal the `IssueName` const — never vary |
 | `Title` | Embed the most actionable instance-specific value; avoid static titles |
 | `Description` | One-sentence diagnosis; include the raw error message |
-| `Category` | Subsystem slug: `"check-execution"`, `"autodiscovery"`, `"filesystem"`, `"configuration"` |
-| `Location` | Where detected: `"collector"`, `"agent"`, `"autodiscovery"` |
-| `Severity` | One of `ISSUE_SEVERITY_LOW/MEDIUM/HIGH/CRITICAL` |
-| `Source` | Reporting component: `"agent"`, `"collector"`, `"autodiscovery"` |
+| `Category` | Subsystem slug (examples: `"check-execution"`, `"autodiscovery"`, `"filesystem"`, `"configuration"`). New values can be created for new issue types. |
+| `Location` | Where the issue was detected (examples: `"collector"`, `"agent"`, `"autodiscovery"`). New values can be created. |
+| `Severity` | One of `ISSUE_SEVERITY_LOW`, `ISSUE_SEVERITY_MEDIUM`, `ISSUE_SEVERITY_HIGH` |
+| `Source` | Reporting component (examples: `"agent"`, `"collector"`, `"autodiscovery"`). New values can be created. |
 | `Remediation.Summary` | One actionable sentence |
 | `Remediation.Steps` | Numbered, ordered from fastest/cheapest to most invasive |
 | `Tags` | Lowercase slugs; always include the subsystem and any relevant entity name |
@@ -236,10 +248,31 @@ Required test cases:
 - Test both the "issue found" and "no issue" return paths
 - Use real objects (temp dirs, real config) — do not mock the thing being checked
 
+### Integration tests with fakeintake — when the issue is self-contained
+
+Use a fakeintake-backed integration test when the issue can be triggered and verified entirely from agent behavior, with no special environment needed (e.g. the agent runs a startup check and the result arrives in fakeintake):
+
+- Test lives in `test/new-e2e/tests/agent-health/<module>_test.go`
+- Assert via `fakeIntake.GetAgentHealth()` — never via `agent diagnose`
+- Follow the lifecycle pattern: `IssueDetection` sub-test first, then `Resolution` sub-test
+- See existing tests (`invalidconfig`, `check_failure`) for the full pattern
+- Use the `/write-agent-health-e2e` skill (invoked from `test/new-e2e/tests/agent-health/`) to scaffold the test file
+
+### E2E tests — when the issue requires a specific environment
+
+Use a full E2E test when triggering the issue requires a specific OS state, Docker daemon, or runtime condition that cannot be faked locally (e.g. a read-only filesystem, a live Docker socket):
+
+- Still lives in `test/new-e2e/tests/agent-health/<module>_test.go`
+- Use a custom provisioner (e.g. Docker-enabled host) rather than the default `awshost.Provisioner`
+- Trigger the condition via `suite.Env().RemoteHost.MustExecute(...)` inside the `IssueDetection` sub-test
+- Fix it via `suite.UpdateEnv(...)` (config change) or another `MustExecute` + agent restart in `Resolution`
+- See `docker_permission_test.go` and `admission_probe_test.go` for the pattern
+- Use the `/write-agent-health-e2e` skill to scaffold the test file, then adapt the provisioner
+
 ### Running tests
 
 ```bash
-go test -tags test ./comp/healthplatform/issues/<pkgname>/...
+dda inv test --targets=./comp/healthplatform/issues/<pkgname>/...
 ```
 
 ---
