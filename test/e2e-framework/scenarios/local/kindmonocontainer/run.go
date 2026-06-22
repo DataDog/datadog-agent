@@ -18,6 +18,7 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
+	agentComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/cpustress"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/etcd"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/nginx"
@@ -29,10 +30,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/local"
 )
 
-const (
-	defaultAgentImage        = "datadog/agent:latest"
-	defaultClusterAgentImage = "gcr.io/datadoghq/cluster-agent:latest"
-)
 
 func Run(ctx *pulumi.Context) error {
 	localEnv, err := local.NewEnvironment(ctx)
@@ -94,15 +91,8 @@ func Run(ctx *pulumi.Context) error {
 
 	clusterName := ctx.Stack()
 
-	agentImage := localEnv.AgentFullImagePath()
-	if agentImage == "" {
-		agentImage = defaultAgentImage
-	}
-
-	clusterAgentImage := localEnv.ClusterAgentFullImagePath()
-	if clusterAgentImage == "" {
-		clusterAgentImage = defaultClusterAgentImage
-	}
+	agentImage := agentComp.DockerAgentFullImagePath(&localEnv)
+	clusterAgentImage := agentComp.DockerClusterAgentFullImagePath(&localEnv)
 
 	if _, err := corev1.NewSecret(ctx, "datadog-secret", &corev1.SecretArgs{
 		Metadata: &metav1.ObjectMetaArgs{
