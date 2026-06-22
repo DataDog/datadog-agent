@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/checkloader"
+	corechecks "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
 	"github.com/DataDog/datadog-agent/pkg/collector/metriclookback"
 	"github.com/DataDog/datadog-agent/pkg/collector/metriclookback/lookbacksender"
@@ -86,7 +87,8 @@ func registerMetricLookbackScheduler(
 	healthplatform healthplatform.Component,
 	hostname hostnameinterface.Component,
 ) {
-	loader := checkloader.New(loaders.LoaderCatalog(demux, logReceiver, tagger, filterStore), demux, noopShadowLoaderErrorRecorder{})
+	shadowLoaders := newMetricLookbackShadowLoaders(demux, logReceiver, tagger, filterStore)
+	loader := checkloader.New(shadowLoaders, demux, noopShadowLoaderErrorRecorder{})
 	shadowScheduler := metriclookback.NewShadowScheduler(metriclookback.ShadowSchedulerOptions{
 		Loader: loader,
 		NewSenderManager: func(ctx context.Context) sender.SenderManager {
@@ -113,6 +115,32 @@ func registerMetricLookbackScheduler(
 		ShadowChecksEnabled: cfg.GetBool("metric_lookback.enabled"),
 		ChecksToShadow:      cfg.GetStringSlice("metric_lookback.enabled_checks"),
 	}, shadowScheduler), true)
+}
+
+func newMetricLookbackShadowLoaders(demux demultiplexer.Component, logReceiver option.Option[integrations.Component], tagger tagger.Component, filterStore workloadfilter.Component) []check.Loader {
+	return newMetricLookbackShadowLoadersFromCatalog(loaders.LoaderCatalog(demux, logReceiver, tagger, filterStore))
+}
+
+func newMetricLookbackShadowLoadersFromCatalog(catalog []check.Loader) []check.Loader {
+	shadowLoaders := make([]check.Loader, 0, len(catalog)+1)
+	replacedCoreLoader := false
+	for _, loader := range catalog {
+		if _, ok := loader.(*corechecks.GoCheckLoader); ok {
+			shadowLoaders = append(shadowLoaders, newMetricLookbackShadowCoreLoader())
+			replacedCoreLoader = true
+			continue
+		}
+		shadowLoaders = append(shadowLoaders, loader)
+	}
+	if !replacedCoreLoader {
+		shadowLoaders = append(shadowLoaders, newMetricLookbackShadowCoreLoader())
+	}
+	return shadowLoaders
+}
+
+func newMetricLookbackShadowCoreLoader() check.Loader {
+	shadowCoreLoader, _ := corechecks.NewGoCheckLoader(corechecks.WithLoadMode(corechecks.ShadowLoadMode))
+	return shadowCoreLoader
 }
 
 type noopLookbackWriter struct{}
