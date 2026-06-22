@@ -22,7 +22,7 @@ import (
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	agenterrors "github.com/DataDog/datadog-agent/pkg/errors"
@@ -1271,6 +1271,144 @@ func TestNewWorkloadTagCache_DistinctSubsystemsCoexist(t *testing.T) {
 		require.NoError(t, err, "second cache with distinct subsystem should construct cleanly")
 		require.NotNil(t, ncclCache)
 	}, "two caches with different subsystems must coexist")
+}
+
+// TestFilterAutoscalingDistTags verifies that only keys in autoscalingDistTagKeys survive.
+func TestFilterAutoscalingDistTags(t *testing.T) {
+	input := []string{
+		// must pass through
+		"env:prod",
+		"service:my-svc",
+		"version:v1",
+		"kube_container_name:main",
+		"kube_deployment:my-deploy",
+		"kube_namespace:default",
+		"kube_ownerref_kind:Deployment",
+		"kube_ownerref_name:my-deploy",
+		"kube_stateful_set:my-sts",
+		"kube_daemon_set:my-ds",
+		"kube_autoscaler_kind:WPA",
+		"kube_argo_rollout:my-rollout",
+		// must be dropped
+		"host:i-12345",
+		"image_name:ubuntu",
+		"container_id:abc",
+		"kube_cluster_name:prod-cluster",
+		"orch_cluster_id:123",
+		"gpu_uuid:GPU-1234",
+		"badtag",
+		":nokey",
+	}
+	got := filterAutoscalingDistTags(input)
+	assert.ElementsMatch(t, []string{
+		"env:prod",
+		"service:my-svc",
+		"version:v1",
+		"kube_container_name:main",
+		"kube_deployment:my-deploy",
+		"kube_namespace:default",
+		"kube_ownerref_kind:Deployment",
+		"kube_ownerref_name:my-deploy",
+		"kube_stateful_set:my-sts",
+		"kube_daemon_set:my-ds",
+		"kube_autoscaler_kind:WPA",
+		"kube_argo_rollout:my-rollout",
+	}, got)
+}
+
+// TestResolveContainerIDContainer verifies that a container workload resolves to itself.
+func TestResolveContainerIDContainer(t *testing.T) {
+	cache, _ := setupWorkloadTagCache(t)
+	containerID := "test-container"
+	wid := newContainerWorkloadID(containerID)
+	got, err := cache.resolveContainerID(wid)
+	require.NoError(t, err)
+	assert.Equal(t, containerID, got)
+}
+
+// TestResolveContainerIDProcessViaOwner verifies process -> container resolution through Owner.
+func TestResolveContainerIDProcessViaOwner(t *testing.T) {
+	cache, mocks := setupWorkloadTagCache(t)
+	pid := int32(2222)
+	containerID := "container-owner"
+	process := &workloadmeta.Process{
+		EntityID: newProcessWorkloadID(pid),
+		NsPid:    pid,
+		Owner:    &workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: containerID},
+	}
+	mocks.workloadMeta.Set(process)
+	got, err := cache.resolveContainerID(newProcessWorkloadID(pid))
+	require.NoError(t, err)
+	assert.Equal(t, containerID, got)
+}
+
+// TestResolveContainerIDProcessViaContainerID verifies fallback to process.ContainerID.
+func TestResolveContainerIDProcessViaContainerID(t *testing.T) {
+	cache, mocks := setupWorkloadTagCache(t)
+	pid := int32(3333)
+	containerID := "container-via-field"
+	process := &workloadmeta.Process{
+		EntityID:    newProcessWorkloadID(pid),
+		NsPid:       pid,
+		Owner:       nil,
+		ContainerID: containerID,
+	}
+	mocks.workloadMeta.Set(process)
+	mocks.containerProvider.EXPECT().
+		GetPidToCid(time.Duration(0)).
+		Return(map[int]string{}).
+		AnyTimes()
+	got, err := cache.resolveContainerID(newProcessWorkloadID(pid))
+	require.NoError(t, err)
+	assert.Equal(t, containerID, got)
+}
+
+// TestGetLowCardContainerTagsFiltersToAllowlist verifies that GetLowCardContainerTags
+// returns only allowed tags for a container workload.
+func TestGetLowCardContainerTagsFiltersToAllowlist(t *testing.T) {
+	cache, mocks := setupWorkloadTagCache(t)
+	containerID := "container-lowcard"
+	wid := newContainerWorkloadID(containerID)
+
+	setWorkloadInWorkloadMeta(t, mocks.workloadMeta, wid, workloadmeta.ContainerRuntimeContainerd)
+
+	// Tagger returns a mix of allowed and non-allowed tags at low cardinality
+	containerEntityID := taggertypes.NewEntityID(taggertypes.ContainerID, containerID)
+	mocks.tagger.SetTags(containerEntityID, fakeTaggerSource,
+		[]string{"kube_namespace:default", "kube_deployment:my-deploy", "host:node1", "image_name:ubuntu"},
+		nil, nil, nil,
+	)
+
+	got, err := cache.GetLowCardContainerTags(wid)
+	require.NoError(t, err)
+	assert.ElementsMatch(t, []string{"kube_namespace:default", "kube_deployment:my-deploy"}, got)
+}
+
+// TestGetLowCardContainerTagsForProcessWorkload verifies that a process workload
+// resolves to its owning container's low-card tags.
+func TestGetLowCardContainerTagsForProcessWorkload(t *testing.T) {
+	cache, mocks := setupWorkloadTagCache(t)
+	pid := int32(5555)
+	containerID := "container-for-process"
+	process := &workloadmeta.Process{
+		EntityID: newProcessWorkloadID(pid),
+		NsPid:    pid,
+		Owner:    &workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: containerID},
+	}
+	mocks.workloadMeta.Set(process)
+
+	containerWID := newContainerWorkloadID(containerID)
+	setWorkloadInWorkloadMeta(t, mocks.workloadMeta, containerWID, workloadmeta.ContainerRuntimeContainerd)
+
+	containerEntityID := taggertypes.NewEntityID(taggertypes.ContainerID, containerID)
+	mocks.tagger.SetTags(containerEntityID, fakeTaggerSource,
+		[]string{"kube_namespace:gpu-ns", "env:staging", "host:my-node"},
+		nil, nil, nil,
+	)
+
+	got, err := cache.GetLowCardContainerTags(containerID)
+	require.NoError(t, err)
+	assert.ElementsMatch(t, []string{"kube_namespace:gpu-ns", "env:staging"}, got)
 }
 
 // TestNewWorkloadTagCache_DuplicateSubsystemPanics pins the contract that
