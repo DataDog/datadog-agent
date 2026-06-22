@@ -243,16 +243,16 @@ type secEWMA struct {
 type AnomalyScorerConfig struct {
 	observerdef.AnomalyScorerConfig
 	// Logs controls whether severity transitions are logged via pkglog.
-	Logs bool
+	Logs bool `json:"logs"`
 	// CorrelationEvents controls whether High-severity episodes are tracked
 	// and returned by ActiveCorrelations() for the reporter pipeline.
-	CorrelationEvents bool
+	CorrelationEvents bool `json:"correlation_events"`
 	// CooldownSecs is the minimum interval between de-escalation callbacks
 	// from the internal watcher subscription.
-	CooldownSecs int64
+	CooldownSecs int64 `json:"cooldown_secs"`
 	// MaxEpisodeAnomalies caps the number of anomalies stored per episode.
 	// 0 means no cap.
-	MaxEpisodeAnomalies int
+	MaxEpisodeAnomalies int `json:"max_episode_anomalies"`
 }
 
 // DefaultAnomalyScorerConfig returns calibrated defaults.

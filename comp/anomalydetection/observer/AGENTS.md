@@ -63,11 +63,11 @@ Registered in `impl/component_catalog.go`. Enabled by default unless noted:
 
 Toggle detectors/correlators/extractors via `anomaly_detection.detectors.<name>.enabled` in datadog.yaml.
 
-The `anomaly_scorer` correlator has a **dedicated config namespace** under `anomaly_detection.scorer.*` (not `detectors.*`) with an `output` sub-section controlling logs and correlation events:
+The `anomaly_scorer` correlator has a **dedicated config namespace** under `anomaly_detection.anomaly_scorer.*` (not `detectors.*`) with an `output` sub-section controlling logs and correlation events:
 
 ```yaml
 anomaly_detection:
-  scorer:
+  anomaly_scorer:
     enabled: true
     alpha: 0.3
     window_secs: 30
