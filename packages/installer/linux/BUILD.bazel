@@ -1,4 +1,8 @@
-"""Installer package components specific to Linux."""
+"""Installer package components specific to Linux.
+
+Much of this package is tagged "manual" to avoid graph explosion on
+license gathering in bazel test ... expansion.
+"""
 
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load(
@@ -26,7 +30,8 @@ package_name_variables(
 # The installer binary, placed at bin/installer/ within the install dir.
 pkg_files(
     name = "installer_binary",
-    srcs = ["@installer_binary//:installer"],
+    srcs = ["//cmd/installer"],
+    attributes = pkg_attributes(mode = "0755"),
     prefix = "bin/installer",
 )
 
@@ -77,6 +82,10 @@ pkg_filegroup(
 package_licenses(
     name = "license_files",
     src = ":everything",
+    target_compatible_with = select({
+        "@platforms//os:windows": ["@platforms//:incompatible"],
+        "//conditions:default": [],
+    }),
 )
 
 pkg_filegroup(
@@ -85,6 +94,7 @@ pkg_filegroup(
         ":everything",
         ":license_files",
     ],
+    tags = ["manual"],
 )
 
 pkg_tar(
@@ -93,6 +103,7 @@ pkg_tar(
     compression_level = get_compression_level(),
     extension = "tar.xz",
     owner = "0.0",
+    tags = ["manual"],
 )
 
 # README.md generation — platform-specific uninstall command substituted into the template.
@@ -136,6 +147,7 @@ pkg_tar(
     compression_level = get_compression_level(),
     extension = "tar.xz",
     owner = "0.0",
+    tags = ["manual"],
 )
 
 _DESCRIPTION = """Datadog Installer
@@ -161,6 +173,7 @@ dd_pkg_deb(
     priority = "extra",
     recommends = ["datadog-signing-keys (>= 1:1.4.0)"],
     section = "utils",
+    tags = ["manual"],
     version = "7",  # TODO: stamp from pipeline (ABLD-364)
 )
 
@@ -191,6 +204,7 @@ pkg_rpm(
         ],
     },
     summary = "Datadog Installer",
+    tags = ["manual"],
     url = "http://www.datadoghq.com",
     version = "7",  # TODO: pick up from pipeline
 )

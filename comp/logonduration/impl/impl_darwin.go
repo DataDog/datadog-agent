@@ -240,42 +240,46 @@ func safeDurationMs(a, b time.Time) int64 {
 func buildTimelineMilestones(bootTime time.Time, ts logonduration.LoginTimestamps) []Milestone {
 	const tsFmt = "2006-01-02T15:04:05.000Z"
 
-	formatTS := func(t time.Time) string {
-		if t.IsZero() {
-			return ""
-		}
-		return t.UTC().Format(tsFmt)
+	candidates := []struct {
+		id       string
+		name     string
+		ts       time.Time
+		duration int64
+	}{
+		{"boot_duration", "Boot Duration", bootTime, safeDurationMs(ts.LoginWindowTime, bootTime)},
+		{"login_window_ready", "Login Window Ready", ts.LoginWindowTime, 0},
+		{"logon_duration", "Logon Duration", ts.LoginTime, safeDurationMs(ts.DesktopReadyTime, ts.LoginTime)},
 	}
 
-	milestones := []Milestone{
-		{
-			ID:         "boot_start",
-			Name:       "Boot Start",
-			OffsetMs:   0,
-			DurationMs: float64(safeDurationMs(ts.LoginWindowTime, bootTime)),
-			Timestamp:  bootTime.UTC().Format(tsFmt),
-		},
-		{
-			ID:         "login_window_ready",
-			Name:       "Login Window Ready",
-			OffsetMs:   float64(safeDurationMs(ts.LoginWindowTime, bootTime)),
-			DurationMs: 0,
-			Timestamp:  formatTS(ts.LoginWindowTime),
-		},
-		{
-			ID:         "user_login",
-			Name:       "User Login",
-			OffsetMs:   float64(safeDurationMs(ts.LoginTime, bootTime)),
-			DurationMs: float64(safeDurationMs(ts.DesktopReadyTime, ts.LoginTime)),
-			Timestamp:  formatTS(ts.LoginTime),
-		},
-		{
-			ID:         "desktop_ready",
-			Name:       "Desktop Ready",
-			OffsetMs:   float64(safeDurationMs(ts.DesktopReadyTime, bootTime)),
-			DurationMs: 0,
-			Timestamp:  formatTS(ts.DesktopReadyTime),
-		},
+	hasBootRef := !bootTime.IsZero()
+
+	// gap is the idle time at the login screen (LoginWindowTime -> LoginTime).
+	// It is collapsed out of post-login offsets so the timeline renders
+	// contiguously; the per-milestone Timestamp retains wall-clock truth.
+	gap := time.Duration(0)
+	if !ts.LoginWindowTime.IsZero() && !ts.LoginTime.IsZero() && ts.LoginTime.After(ts.LoginWindowTime) {
+		gap = ts.LoginTime.Sub(ts.LoginWindowTime)
+	}
+
+	var milestones []Milestone
+	for _, c := range candidates {
+		if c.ts.IsZero() {
+			continue
+		}
+		var offset float64
+		if hasBootRef {
+			offset = float64(c.ts.Sub(bootTime).Milliseconds())
+			if gap > 0 && !c.ts.Before(ts.LoginTime) {
+				offset -= float64(gap.Milliseconds())
+			}
+		}
+		milestones = append(milestones, Milestone{
+			ID:         c.id,
+			Name:       c.name,
+			OffsetMs:   offset,
+			DurationMs: float64(c.duration),
+			Timestamp:  c.ts.UTC().Format(tsFmt),
+		})
 	}
 
 	return milestones
@@ -296,6 +300,11 @@ func buildCustomPayload(bootTime time.Time, ts logonduration.LoginTimestamps) ma
 	durations["total_boot_duration_ms"] = bootMs + logonMs
 
 	for _, milestone := range milestones {
+		// boot_duration and logon_duration are already represented by the
+		// authoritative boot_duration_ms / logon_duration_ms keys above.
+		if milestone.ID == "boot_duration" || milestone.ID == "logon_duration" {
+			continue
+		}
 		if milestone.DurationMs > 0 {
 			durations[milestone.ID] = milestone.DurationMs
 		}
@@ -315,6 +324,12 @@ func buildCustomPayload(bootTime time.Time, ts logonduration.LoginTimestamps) ma
 func (c *logonDurationComponent) submitEvent(bootTime time.Time, ts logonduration.LoginTimestamps) error {
 	custom := buildCustomPayload(bootTime, ts)
 
+	haveBoot := !bootTime.IsZero() && !ts.LoginWindowTime.IsZero()
+	haveLogon := !ts.LoginTime.IsZero() && !ts.DesktopReadyTime.IsZero()
+	complete := haveBoot && haveLogon
+	totalMs := safeDurationMs(ts.LoginWindowTime, bootTime) + safeDurationMs(ts.DesktopReadyTime, ts.LoginTime)
+	title := buildEventTitle(complete, totalMs)
+
 	msg := "Total boot duration analysis after reboot"
 	if durations, ok := custom["durations"].(map[string]interface{}); ok {
 		if totalMs, ok := durations["total_boot_duration_ms"]; ok {
@@ -324,6 +339,7 @@ func (c *logonDurationComponent) submitEvent(bootTime time.Time, ts logonduratio
 
 	return sendEvent(c.eventPlatformForwarder, eventInput{
 		Hostname:  c.hostname.GetSafe(context.TODO()),
+		Title:     title,
 		Message:   msg,
 		Timestamp: bootTime,
 		Custom:    custom,

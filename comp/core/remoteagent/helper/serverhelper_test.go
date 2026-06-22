@@ -14,6 +14,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -24,6 +25,7 @@ import (
 	"google.golang.org/grpc/examples/features/proto/echo"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
+	"google.golang.org/grpc/test/bufconn"
 
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
@@ -402,52 +404,49 @@ func TestRegistrationRefreshContention(t *testing.T) {
 	ipcComp := ipcmock.New(t)
 	logComp := logmock.New(t)
 	configComp := configmock.New(t)
-
-	// Set a short query timeout for faster test
-	configComp.SetInTest("remote_agent.registry.query_timeout", 50*time.Millisecond)
-
-	registerCallCount := 0
-	refreshCallCount := 0
-	var mu sync.Mutex
-
-	// Create a mock core agent server where registration hangs the 2 first calls
-	mockCoreAgent := newMockCoreAgentServer(t, ipcComp,
-		func(ctx context.Context, _ *pbcore.RegisterRemoteAgentRequest) (*pbcore.RegisterRemoteAgentResponse, error) {
-			mu.Lock()
-			registerCallCount++
-			if registerCallCount > 2 {
-				defer mu.Unlock()
-				return &pbcore.RegisterRemoteAgentResponse{
-					SessionId:                      "uuid_session_id",
-					RecommendedRefreshIntervalSecs: 1,
-				}, nil
-			}
-			mu.Unlock()
-
-			// Block forever to prevent registration from completing
-			<-ctx.Done()
-			return nil, ctx.Err()
-		},
-		func(_ context.Context, _ *pbcore.RefreshRemoteAgentRequest) (*pbcore.RefreshRemoteAgentResponse, error) {
-			mu.Lock()
-			refreshCallCount++
-			mu.Unlock()
-			return &pbcore.RefreshRemoteAgentResponse{}, nil
-		},
-	)
-	defer mockCoreAgent.stop()
-
-	// Create the remote agent server
 	server, err := NewUnimplementedRemoteAgentServer(
 		ipcComp,
 		logComp,
 		configComp,
 		lc,
-		mockCoreAgent.address,
+		"test.invalid",
 		"test-agent",
 		"Test Agent",
 	)
 	require.NoError(t, err)
+
+	synctest.Test(t, func(t *testing.T) {
+		syncTestRegistrationRefreshContention(t, lc, server)
+	})
+}
+
+func syncTestRegistrationRefreshContention(t *testing.T, lc *compdef.TestLifecycle, server *UnimplementedRemoteAgentServer) {
+	registerCallCount := 0
+	refreshCallCount := 0
+	registered := make(chan struct{})
+	require.NoError(t, server.listener.Close())
+	server.listener = bufconn.Listen(1 << 20)
+
+	// Create a fake agent client where registration hangs the 2 first calls
+	server.agentClient = &fakeRemoteAgentClient{
+		func(ctx context.Context, _ *pbcore.RegisterRemoteAgentRequest) (*pbcore.RegisterRemoteAgentResponse, error) {
+			registerCallCount++
+			if registerCallCount > 2 {
+				close(registered)
+				return &pbcore.RegisterRemoteAgentResponse{
+					SessionId:                      "uuid_session_id",
+					RecommendedRefreshIntervalSecs: 1,
+				}, nil
+			}
+			// Block forever to prevent registration from completing
+			<-ctx.Done()
+			return nil, ctx.Err()
+		},
+		func(_ context.Context, _ *pbcore.RefreshRemoteAgentRequest) (*pbcore.RefreshRemoteAgentResponse, error) {
+			refreshCallCount++
+			return &pbcore.RefreshRemoteAgentResponse{}, nil
+		},
+	}
 
 	// Start the server (impls call this explicitly after registering services).
 	server.Start()
@@ -455,22 +454,16 @@ func TestRegistrationRefreshContention(t *testing.T) {
 
 	// Wait for registration to be retried after the first two timeouts.
 	// The third attempt should succeed and bring the counter to 3.
-	require.Eventually(t, func() bool {
-		mu.Lock()
-		defer mu.Unlock()
-		return registerCallCount == 3
-	}, 3*time.Second, 50*time.Millisecond, "Registration should have been retried after timeout")
+	<-registered
+	assert.Equal(t, 3, registerCallCount, "Registration should have been retried after timeout")
 
 	// Now test refresh contention - the server should be registered by now
 	// Wait a bit more to ensure refresh is called
-	time.Sleep(2 * time.Second)
+	time.Sleep(1500 * time.Millisecond) // at midpoint between 1st and 2nd tick
+	synctest.Wait()                     // for the bubble to quiesce
 
-	mu.Lock()
-	refCount := refreshCallCount
-	mu.Unlock()
-
-	// We should have at least one refresh call by now
-	assert.Greater(t, refCount, 0, "Refresh should have been called")
+	// We should have exactly one refresh call by now
+	assert.Equal(t, 1, refreshCallCount, "Refresh should have been called exactly once")
 }
 
 // TestSessionIDInResponseMetadata tests that the session ID is properly
@@ -536,6 +529,25 @@ func TestSessionIDInResponseMetadata(t *testing.T) {
 }
 
 // Helper types and functions
+
+// fakeRemoteAgentClient implements pbcore.RemoteAgentClient via callbacks, with no gRPC transport
+// goroutines nor timers, safe to use inside a synctest bubble.
+type fakeRemoteAgentClient struct {
+	registerFunc func(context.Context, *pbcore.RegisterRemoteAgentRequest) (*pbcore.RegisterRemoteAgentResponse, error)
+	refreshFunc  func(context.Context, *pbcore.RefreshRemoteAgentRequest) (*pbcore.RefreshRemoteAgentResponse, error)
+}
+
+func (f *fakeRemoteAgentClient) RegisterRemoteAgent(ctx context.Context, req *pbcore.RegisterRemoteAgentRequest, _ ...grpc.CallOption) (*pbcore.RegisterRemoteAgentResponse, error) {
+	return f.registerFunc(ctx, req)
+}
+
+func (f *fakeRemoteAgentClient) RefreshRemoteAgent(ctx context.Context, req *pbcore.RefreshRemoteAgentRequest, _ ...grpc.CallOption) (*pbcore.RefreshRemoteAgentResponse, error) {
+	return f.refreshFunc(ctx, req)
+}
+
+func (f *fakeRemoteAgentClient) ReportRemoteAgentEvent(_ context.Context, _ *pbcore.ReportRemoteAgentEventRequest, _ ...grpc.CallOption) (*pbcore.ReportRemoteAgentEventResponse, error) {
+	return &pbcore.ReportRemoteAgentEventResponse{}, nil
+}
 
 // mockStatusProvider implements a mock status provider
 type mockStatusProvider struct {

@@ -384,7 +384,7 @@ def _go_only_tidy(ctx, verbose: bool):
 
 def _bazel_tidy(ctx, verbose: bool):
     # 1. deps/go.MODULE.bazel ↺ (prune stale use_repo declarations to not hinder next `bazel` commands)
-    bazel(ctx, "mod", "tidy")
+    bazel(ctx, "mod", "--ui_event_filters=-DEBUG", "tidy")  # inhibit `No sum for … found` (go_mod_tidy_all will fix it)
     # 2. go.work + **/go.mod -> **/go.mod (sync each workspace module's deps to the workspace build list)
     bazel(ctx, "run", "//:go", "work", "sync")
     # 3. **/*.go + **/go.mod -> **/go.mod, **/go.sum (reconcile each module's requirements with its actual imports)
@@ -393,6 +393,8 @@ def _bazel_tidy(ctx, verbose: bool):
     bazel(ctx, "mod", "tidy")
     # 5. deps/go.MODULE.bazel + /BUILD.bazel + **/*.go + **/go.mod -> **/BUILD.bazel (infer build rules from Go source)
     bazel(ctx, "run", "//:gazelle")
+    # 6. regenerate agent payload version file from go.mod
+    bazel(ctx, "run", "//tasks:write_agent_payload_version")
 
 
 @task(autoprint=True)
