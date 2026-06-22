@@ -7,7 +7,7 @@ package anomalydetection
 
 // scorer_helper_nix_test.go — anomaly scorer integration test.
 //
-// Verifies that when anomaly_detection.scorer is enabled with output.logs=true and
+// Verifies that when anomaly_detection.anomaly_scorer is enabled with output.logs=true and
 // the EWMA exceeds low_threshold (driven by simultaneous anomalies on multiple
 // metric series), the internal watcher fires OnSeverityTransition and emits its
 // distinctive log line to the agent journal.
@@ -73,7 +73,7 @@ anomaly_detection:
     enabled: true
   logs:
     enabled: false
-  scorer:
+  anomaly_scorer:
     enabled: true
     alpha: 0.3
     window_secs: 5

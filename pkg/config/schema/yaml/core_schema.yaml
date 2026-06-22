@@ -6063,7 +6063,7 @@ properties:
             node_type: setting
             type: string
             default: ''
-      scorer:
+      anomaly_scorer:
         node_type: section
         type: object
         properties:

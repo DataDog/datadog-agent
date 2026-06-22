@@ -159,8 +159,8 @@ func settingsFromAgentConfig(catalog *componentCatalog, cfg config.Component) Co
 		}
 	}
 
-	// Dedicated scorer read path under anomaly_detection.scorer.*
-	const scorerPrefix = "anomaly_detection.scorer."
+	// Dedicated scorer read path under anomaly_detection.anomaly_scorer.*
+	const scorerPrefix = "anomaly_detection.anomaly_scorer."
 	if cfg.IsConfigured(scorerPrefix + "enabled") {
 		settings.Enabled["anomaly_scorer"] = cfg.GetBool(scorerPrefix + "enabled")
 	}

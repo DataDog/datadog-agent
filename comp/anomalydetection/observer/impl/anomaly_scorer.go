@@ -289,7 +289,7 @@ func DefaultAnomalyScorerConfig() AnomalyScorerConfig {
 }
 
 // readAnomalyScorerConfig reads scorer settings from the agent config.
-// prefix is the key prefix, e.g. "anomaly_detection.scorer.".
+// prefix is the key prefix, e.g. "anomaly_detection.anomaly_scorer.".
 func readAnomalyScorerConfig(r ConfigReader, prefix string) AnomalyScorerConfig {
 	cfg := DefaultAnomalyScorerConfig()
 	ewma := &cfg.AnomalyScorerConfig
