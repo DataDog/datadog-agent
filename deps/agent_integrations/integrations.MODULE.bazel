@@ -3,6 +3,13 @@ integration_dependency_wheels = use_repo_rule(
     "integration_dependency_wheels",
 )
 
+integration_source_packages = use_repo_rule(
+    "//deps/agent_integrations:source_packages.bzl",
+    "integration_source_packages",
+)
+
+integration_source_packages(name = "integration_source_packages")
+
 integration_dependency_wheels(
     name = "integration_dependency_wheels_linux_x86_64",
     arch = "x86_64",
