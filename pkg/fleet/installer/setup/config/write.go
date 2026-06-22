@@ -81,7 +81,10 @@ func WriteConfig(path string, config any, perms os.FileMode, merge bool) error {
 	if err := enc.Encode(&root); err != nil {
 		return err
 	}
-	return os.WriteFile(path, buf.Bytes(), perms)
+	if err := os.WriteFile(path, buf.Bytes(), perms); err != nil {
+		return err
+	}
+	return ensureReadablePermissions(path, perms)
 }
 
 // mergeNodes merges the src node into the dst node
@@ -240,7 +243,10 @@ func BackfillFromTemplate(configPath, templatePath string, perms os.FileMode) er
 	if err := enc.Encode(&templateRoot); err != nil {
 		return fmt.Errorf("could not encode merged config: %w", err)
 	}
-	return os.WriteFile(configPath, buf.Bytes(), perms)
+	if err := os.WriteFile(configPath, buf.Bytes(), perms); err != nil {
+		return err
+	}
+	return ensureReadablePermissions(configPath, perms)
 }
 
 // readConfig returns the Agent config bytes from path and performs the following normalizations:

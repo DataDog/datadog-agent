@@ -5,13 +5,20 @@ go_library(
     srcs = [
         "config.go",
         "write.go",
+        "write_nix.go",
+        "write_windows.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/config",
     visibility = ["//visibility:public"],
     deps = [
         "@in_yaml_go_yaml_v3//:yaml",
         "@org_golang_x_text//encoding/unicode",
-    ],
+    ] + select({
+        "@rules_go//go/platform:windows": [
+            "//pkg/fleet/installer/paths",
+        ],
+        "//conditions:default": [],
+    }),
 )
 
 go_test(
@@ -19,6 +26,7 @@ go_test(
     srcs = [
         "config_test.go",
         "write_test.go",
+        "write_windows_test.go",
     ],
     embed = [":config"],
     gotags = ["test"],
@@ -28,5 +36,10 @@ go_test(
         "@in_yaml_go_yaml_v3//:yaml",
         "@org_golang_x_text//encoding",
         "@org_golang_x_text//encoding/unicode",
-    ],
+    ] + select({
+        "@rules_go//go/platform:windows": [
+            "@org_golang_x_sys//windows",
+        ],
+        "//conditions:default": [],
+    }),
 )

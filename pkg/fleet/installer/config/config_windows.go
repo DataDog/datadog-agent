@@ -190,34 +190,5 @@ func setFileOwnershipAndPermissions(_ context.Context, root *os.Root, path strin
 	if spec.mode&0o004 == 0 {
 		return nil
 	}
-	return setFileReadableByEveryone(filepath.Join(root.Name(), path))
-}
-
-// setFileReadableByEveryone grants Everyone read access on a file while preserving the
-// owner/group and the ACEs inherited from the parent directory (SYSTEM, Administrators, and
-// ddagentuser keep write access for subsequent config updates).
-func setFileReadableByEveryone(path string) error {
-	// D:AI - DACL, Auto-Inherit ("inherit permissions from the parent folder").
-	// (A;;GR;;;WD) - Allow Generic Read to Everyone (World Domain).
-	sddl := "D:AI(A;;GR;;;WD)"
-
-	sd, err := windows.SecurityDescriptorFromString(sddl)
-	if err != nil {
-		return fmt.Errorf("failed to create security descriptor: %w", err)
-	}
-	dacl, _, err := sd.DACL()
-	if err != nil {
-		return fmt.Errorf("failed to get DACL: %w", err)
-	}
-	// Set the explicit DACL and allow inheritance from the parent directory.
-	// Not using PROTECTED_DACL_SECURITY_INFORMATION so the file inherits ACEs from the parent.
-	return windows.SetNamedSecurityInfo(
-		path,
-		windows.SE_FILE_OBJECT,
-		windows.DACL_SECURITY_INFORMATION,
-		nil,  // owner - leave unchanged
-		nil,  // group - leave unchanged
-		dacl, // DACL - set this
-		nil,  // SACL - leave unchanged
-	)
+	return paths.SetFileReadableByEveryone(filepath.Join(root.Name(), path))
 }

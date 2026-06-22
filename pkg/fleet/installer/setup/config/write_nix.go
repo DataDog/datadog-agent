@@ -1,0 +1,16 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build !windows
+
+package config
+
+import "os"
+
+// ensureReadablePermissions is a no-op on non-Windows platforms: os.WriteFile already applies
+// the POSIX mode (including the world-read bit) when the file is written.
+func ensureReadablePermissions(_ string, _ os.FileMode) error {
+	return nil
+}
