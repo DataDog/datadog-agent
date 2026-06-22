@@ -390,10 +390,19 @@ func (b *Backend) runDaemonCommandWithRestart(command string, args ...string) (s
 
 func (b *Backend) runDaemonCommand(command string, args ...string) (string, error) {
 	var baseCommand string
-	var sanitizeCharacter string
+	// quoteArg wraps an argument so the remote shell passes it through
+	// literally. We single-quote rather than double-quote because the JSON
+	// payloads contain characters that are significant inside double quotes on
+	// both shells: pre-escaped quotes (\") produced by json.Marshal and jq
+	// variables (e.g. $new_env). Inside single quotes these are all literal.
+	var quoteArg func(string) string
 	switch b.host.RemoteHost.OSFamily {
 	case e2eos.LinuxFamily:
-		sanitizeCharacter = `\"`
+		// POSIX shells treat everything inside single quotes literally; an
+		// embedded single quote is emitted as '\''.
+		quoteArg = func(arg string) string {
+			return `'` + strings.ReplaceAll(arg, `'`, `'\''`) + `'`
+		}
 		baseCommand = "sudo datadog-installer daemon"
 		_, err := b.host.RemoteHost.Execute(baseCommand + " --help")
 		if err != nil {
@@ -403,7 +412,11 @@ func (b *Backend) runDaemonCommand(command string, args ...string) (string, erro
 			baseCommand = "sudo DD_BUNDLED_AGENT=installer datadog-agent daemon"
 		}
 	case e2eos.WindowsFamily:
-		sanitizeCharacter = "\\`\""
+		// PowerShell single-quoted strings are verbatim; an embedded single
+		// quote is escaped by doubling it.
+		quoteArg = func(arg string) string {
+			return `'` + strings.ReplaceAll(arg, `'`, `''`) + `'`
+		}
 		baseCommand = `& "C:\Program Files\Datadog\Datadog Agent\bin\datadog-installer.exe" daemon`
 	default:
 		return "", fmt.Errorf("unsupported OS family: %v", b.host.RemoteHost.OSFamily)
@@ -419,8 +432,7 @@ func (b *Backend) runDaemonCommand(command string, args ...string) (string, erro
 
 	var sanitizedArgs []string
 	for _, arg := range args {
-		arg = `"` + strings.ReplaceAll(arg, `"`, sanitizeCharacter) + `"`
-		sanitizedArgs = append(sanitizedArgs, arg)
+		sanitizedArgs = append(sanitizedArgs, quoteArg(arg))
 	}
 	return b.host.RemoteHost.Execute(fmt.Sprintf("%s %s %s", baseCommand, command, strings.Join(sanitizedArgs, " ")))
 }
