@@ -19,138 +19,27 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
-	privateactionspb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/privateactions"
 	"github.com/DataDog/rshell/interp"
 )
 
 func makeTask(command string, allowedCommands []string) *types.Task {
 	task := &types.Task{}
 	task.Data.Attributes = &types.Attributes{
-		Inputs:         map[string]any{"command": command},
-		TargetCommands: allowedCommands,
+		Inputs: map[string]any{"command": command},
+		RemoteAction: &types.RemoteActionAttributes{
+			TargetCommands: allowedCommands,
+		},
 	}
 	return task
 }
 
 // makeTaskWithPaths constructs a task carrying the backend allowlists in the
-// signed-task fields. Use makeTask (without this helper) to exercise the
-// "backend did not send the field" branch — a nil slice.
+// signed task's nested remote_action policy. Use makeTask (without this helper)
+// to exercise the "backend did not send target_paths" branch: a nil slice.
 func makeTaskWithPaths(command string, allowedCommands []string, allowedPaths []string) *types.Task {
-	return makeTaskWithPathsAndMode(
-		command,
-		allowedCommands,
-		allowedPaths,
-		privateactionspb.RemoteActionAccessMode_REMOTE_ACTION_ACCESS_MODE_UNSPECIFIED,
-	)
-}
-
-func makeTaskWithPathsAndMode(
-	command string,
-	allowedCommands []string,
-	allowedPaths []string,
-	mode privateactionspb.RemoteActionAccessMode,
-) *types.Task {
 	task := makeTask(command, allowedCommands)
-	task.Data.Attributes.TargetPaths = allowedPaths
-	task.Data.Attributes.RemoteActionAccessMode = mode
+	task.Data.Attributes.RemoteAction.TargetPaths = allowedPaths
 	return task
-}
-
-func TestRemoteActionRemediationModeEnabled(t *testing.T) {
-	cases := []struct {
-		name string
-		mode privateactionspb.RemoteActionAccessMode
-		want bool
-	}{
-		{
-			name: "unspecified",
-			mode: privateactionspb.RemoteActionAccessMode_REMOTE_ACTION_ACCESS_MODE_UNSPECIFIED,
-			want: false,
-		},
-		{
-			name: "read only",
-			mode: privateactionspb.RemoteActionAccessMode_REMOTE_ACTION_ACCESS_MODE_READ_ONLY,
-			want: false,
-		},
-		{
-			name: "read write",
-			mode: privateactionspb.RemoteActionAccessMode_REMOTE_ACTION_ACCESS_MODE_READ_WRITE,
-			want: true,
-		},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			assert.Equal(t, tc.want, remoteActionRemediationModeEnabled(tc.mode))
-		})
-	}
-}
-
-func TestRshellRunnerOptionsUseRemediationModeForReadWriteAccessMode(t *testing.T) {
-	cases := []struct {
-		name        string
-		mode        privateactionspb.RemoteActionAccessMode
-		wantContent string
-		wantCode    int
-	}{
-		{
-			name:        "unspecified keeps read only mode",
-			mode:        privateactionspb.RemoteActionAccessMode_REMOTE_ACTION_ACCESS_MODE_UNSPECIFIED,
-			wantContent: "payload",
-			wantCode:    2,
-		},
-		{
-			name:        "read only keeps read only mode",
-			mode:        privateactionspb.RemoteActionAccessMode_REMOTE_ACTION_ACCESS_MODE_READ_ONLY,
-			wantContent: "payload",
-			wantCode:    2,
-		},
-		{
-			name:        "read write enables remediation mode",
-			mode:        privateactionspb.RemoteActionAccessMode_REMOTE_ACTION_ACCESS_MODE_READ_WRITE,
-			wantContent: "patched",
-			wantCode:    0,
-		},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			dir := t.TempDir()
-			target := filepath.Join(dir, "payload.txt")
-			require.NoError(t, os.WriteFile(target, []byte("payload"), 0600))
-
-			var stdout, stderr bytes.Buffer
-			prog, err := interp.ParseScript("printf patched > payload.txt", "")
-			require.NoError(t, err)
-
-			runner, err := interp.New(rshellRunnerOptions(
-				&stdout,
-				&stderr,
-				[]string{dir + ":rw"},
-				[]string{"rshell:printf"},
-				tc.mode,
-			)...)
-			require.NoError(t, err)
-			defer runner.Close()
-
-			runErr := runner.Run(context.Background(), prog)
-			exitCode := 0
-			if runErr != nil {
-				var exitStatus interp.ExitStatus
-				require.True(t, errors.As(runErr, &exitStatus), "unexpected run error: %v", runErr)
-				exitCode = int(exitStatus)
-			}
-
-			content, err := os.ReadFile(target)
-			require.NoError(t, err)
-			assert.Equal(t, tc.wantCode, exitCode)
-			assert.Equal(t, tc.wantContent, string(content))
-			assert.Empty(t, stdout.String())
-			if tc.wantCode == 0 {
-				assert.Empty(t, stderr.String())
-			} else {
-				assert.NotEmpty(t, stderr.String())
-			}
-		})
-	}
 }
 
 func TestFilterAllowedCommandsUsesBackendPayload(t *testing.T) {
@@ -447,6 +336,21 @@ func TestRunCommandNoAllowedCommandsBlocksExecution(t *testing.T) {
 	assert.Contains(t, result.Stderr, "command not allowed")
 }
 
+func TestRunCommandMissingRemoteActionPolicyBlocksExecution(t *testing.T) {
+	handler := NewRunCommandHandler(RunCommandHandlerConfig{})
+	task := &types.Task{}
+	task.Data.Attributes = &types.Attributes{
+		Inputs: map[string]any{"command": "echo hello"},
+	}
+
+	out, err := handler.Run(context.Background(), task, nil)
+
+	require.NoError(t, err)
+	result := out.(*RunCommandOutputs)
+	assert.Equal(t, 127, result.ExitCode)
+	assert.Contains(t, result.Stderr, "command not allowed")
+}
+
 func TestRunCommandWithBackendAllowedCommand(t *testing.T) {
 	handler := NewRunCommandHandler(RunCommandHandlerConfig{})
 
@@ -572,10 +476,9 @@ func TestRunCommandPreservesAllowedPathAccessSuffixes(t *testing.T) {
 	dir := t.TempDir()
 	handler := NewRunCommandHandler(RunCommandHandlerConfig{})
 
-	task := makeTaskWithPathsAndMode("echo ok",
+	task := makeTaskWithPaths("echo ok",
 		[]string{"rshell:echo"},
-		[]string{dir + ":rw"},
-		privateactionspb.RemoteActionAccessMode_REMOTE_ACTION_ACCESS_MODE_READ_WRITE)
+		[]string{dir + ":rw"})
 
 	out, err := handler.Run(context.Background(), task, nil)
 

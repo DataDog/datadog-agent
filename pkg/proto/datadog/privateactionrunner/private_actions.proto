@@ -40,7 +40,7 @@ message Signature {
 }
 
 message PrivateActionTask {
-  reserved 7, 8, 9;
+  reserved 7, 8, 9, 13, 14, 15;
   string action_name = 1;
   string bundle_id = 2;
   int64 org_id = 3;
@@ -50,22 +50,17 @@ message PrivateActionTask {
   ConnectionInfo connection_info = 10;
   google.protobuf.Timestamp expiration_time = 11;
   actionsclient.Client client = 12;
+  RemoteAction remote_action = 16;
+}
+
+message RemoteAction {
   // target_commands and target_paths carry the rshell allowlists resolved
   // from execution policies for remote-action tasks. They are empty for
   // non-remote-action tasks. target_commands is the flat, namespaced
   // ("rshell:<command>") command allowlist; target_paths is the flat path
   // allowlist rshell may operate on.
-  repeated string target_commands = 13;
-  repeated string target_paths = 14;
-  RemoteActionAccessMode remote_action_access_mode = 15;
-}
-
-// RemoteActionAccessMode tells rshell whether the signed task may enable
-// remediation behavior in addition to read-only command execution.
-enum RemoteActionAccessMode {
-  REMOTE_ACTION_ACCESS_MODE_UNSPECIFIED = 0;
-  REMOTE_ACTION_ACCESS_MODE_READ_ONLY = 1;
-  REMOTE_ACTION_ACCESS_MODE_READ_WRITE = 2;
+  repeated string target_commands = 1;
+  repeated string target_paths = 2;
 }
 
 message ConnectionInfo {

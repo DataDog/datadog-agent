@@ -108,8 +108,8 @@ func (h *RunCommandHandler) filterAllowedPaths(backend []string) []string {
 //
 // The command allowlists are no longer carried in inputs: they are resolved
 // from execution policies on the backend and delivered in the signed task
-// (Attributes.TargetCommands / Attributes.TargetPaths). Inputs only carry the
-// command to run.
+// (Attributes.RemoteAction.TargetCommands / Attributes.RemoteAction.TargetPaths).
+// Inputs only carry the command to run.
 type RunCommandInputs struct {
 	Command string `json:"command"`
 }
@@ -143,14 +143,17 @@ func (h *RunCommandHandler) Run(
 		return nil, errors.New("command is required")
 	}
 
-	// The backend allowlists come from the signed task (resolved from execution
-	// policies ∩ Balto), not from user inputs.
-	backendCommands := task.Data.Attributes.TargetCommands
-	backendPaths := task.Data.Attributes.TargetPaths
+	// The backend allowlists come from the signed task, not from user inputs.
+	var backendCommands []string
+	var backendPaths []string
+	if task.Data.Attributes.RemoteAction != nil {
+		backendCommands = task.Data.Attributes.RemoteAction.TargetCommands
+		backendPaths = task.Data.Attributes.RemoteAction.TargetPaths
+	}
 	effectiveAllowedCommands := h.filterAllowedCommands(backendCommands)
 	effectiveAllowedPaths := h.filterAllowedPaths(backendPaths)
 	log.Debugf("rshell runCommand (mode=%s): command=%q backendAllowedCommands=%v effectiveAllowedCommands=%v backendAllowedPaths=%v effectiveAllowedPaths=%v",
-		h.mode, inputs.Command, task.Data.Attributes.TargetCommands, effectiveAllowedCommands, backendPaths, effectiveAllowedPaths)
+		h.mode, inputs.Command, backendCommands, effectiveAllowedCommands, backendPaths, effectiveAllowedPaths)
 
 	prog, err := syntax.NewParser().Parse(strings.NewReader(inputs.Command), "")
 	if err != nil {

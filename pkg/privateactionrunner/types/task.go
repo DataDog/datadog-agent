@@ -36,12 +36,15 @@ type Attributes struct {
 	ConnectionInfo        *privateactionspb.ConnectionInfo                `json:"connection_info"`
 	TraceId               uint64                                          `json:"trace_id,omitempty"`
 	SpanId                uint64                                          `json:"span_id,omitempty"`
-	// TargetCommands, TargetPaths, and RemoteActionAccessMode are resolved from
-	// execution policies on the backend and carried in the signed task. They are
-	// empty for non-remote-action tasks.
-	TargetCommands         []string                                `json:"target_commands,omitempty"`
-	TargetPaths            []string                                `json:"target_paths,omitempty"`
-	RemoteActionAccessMode privateactionspb.RemoteActionAccessMode `json:"remote_action_access_mode,omitempty"`
+	// RemoteAction carries backend-resolved Datadog policy for remote-action
+	// tasks, separate from user-provided action inputs and global task
+	// attributes.
+	RemoteAction *RemoteActionAttributes `json:"remote_action,omitempty"`
+}
+
+type RemoteActionAttributes struct {
+	TargetCommands []string `json:"target_commands,omitempty"`
+	TargetPaths    []string `json:"target_paths,omitempty"`
 }
 
 // TimeoutSeconds returns the timeout from the task inputs if present, positive, and within int32
