@@ -15,7 +15,6 @@ import (
 
 func buildPayload(aggFlow *common.Flow, hostname string, flushTime time.Time) payload.FlowPayload {
 	return payload.FlowPayload{
-		// TODO: Implement Tos
 		FlushTimestamp: flushTime.UnixMilli(),
 		FlowType:       string(aggFlow.FlowType),
 		SamplingRate:   aggFlow.SamplingRate,
@@ -32,6 +31,9 @@ func buildPayload(aggFlow *common.Flow, hostname string, flushTime time.Time) pa
 		Packets:    aggFlow.Packets,
 		EtherType:  format.EtherType(aggFlow.EtherType),
 		IPProtocol: format.IPProtocol(aggFlow.IPProtocol),
+		Tos:        aggFlow.Tos,
+		Dscp:       aggFlow.Tos >> 2,
+		DscpName:   format.DSCP(aggFlow.Tos >> 2),
 		Source: payload.Endpoint{
 			IP:                 format.IPAddr(aggFlow.SrcAddr),
 			Port:               format.Port(aggFlow.SrcPort),
