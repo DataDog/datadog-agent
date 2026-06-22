@@ -65,16 +65,28 @@ func (a *LogMetricsExtractor) ProcessLog(log observer.LogView) observer.LogMetri
 		return observer.LogMetricsExtractorOutput{}
 	}
 
+	var containerID string
+	var patternHash string
 	metricName := patternCountMetricName(patternSig)
+	if tokenized, ok := log.(observer.TokenizedLogView); ok {
+		containerID = tokenized.GetContainerID()
+		if tokenized.GetPattern() != "" && tokenized.GetPatternHash() != "" {
+			patternSig = tokenized.GetPattern()
+			patternHash = tokenized.GetPatternHash()
+			metricName = patternCountMetricNameFromHash(patternHash)
+		}
+	}
 
 	metrics := []observer.MetricOutput{{
 		Name:  metricName,
 		Value: 1,
 		Tags:  tags,
 		Context: &observer.MetricContext{
-			Pattern: patternSig,
-			Example: content,
-			Source:  "log_metrics_extractor",
+			Pattern:     patternSig,
+			Example:     content,
+			Source:      "log_metrics_extractor",
+			ContainerID: containerID,
+			PatternHash: patternHash,
 		},
 	}}
 
@@ -164,6 +176,10 @@ func coerceNumber(v any) (float64, bool) {
 
 func patternCountMetricName(signature string) string {
 	return "log.pattern." + strconv.FormatUint(fnv64aString(signature), 16) + ".count"
+}
+
+func patternCountMetricNameFromHash(hash string) string {
+	return "log.pattern." + sanitizeMetricFragment(hash) + ".count"
 }
 
 func sanitizeMetricFragment(s string) string {

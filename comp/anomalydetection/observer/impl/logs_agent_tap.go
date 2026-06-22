@@ -1,0 +1,105 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2026-present Datadog, Inc.
+
+package observerimpl
+
+import (
+	"context"
+
+	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	config "github.com/DataDog/datadog-agent/comp/core/config"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
+	"github.com/DataDog/datadog-agent/pkg/logs/adaptivesampling"
+	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
+const anomalyDetectionLogsAgentTapEnabledKey = "anomaly_detection.logs.agent_tap.enabled"
+
+func installLogsAgentTokenizedLogTap(obs *observerImpl, cfg config.Component, lifecycle compdef.Lifecycle, analysisEnabled, recorderEnabled, logsEnabled bool) {
+	if obs == nil || cfg == nil || !logsEnabled || (!analysisEnabled && !recorderEnabled) {
+		return
+	}
+	if !configBoolDefaultTrue(cfg, anomalyDetectionLogsAgentTapEnabledKey) || !logsAgentCollectionEnabled(cfg) {
+		return
+	}
+
+	handle := obs.GetHandle("logs-agent-tap")
+	tapCleanup := adaptivesampling.SetTokenizedLogObserver(&logsAgentTapSink{handle: handle})
+	boostCleanup := obs.engine.Subscribe(newSamplingBoostEventSink(scorerConfigFromAgentConfig(cfg)))
+	pkglog.Infof("[logs/adaptive-sampling] tokenized log tap registered")
+
+	lifecycle.Append(compdef.Hook{
+		OnStop: func(_ context.Context) error {
+			tapCleanup()
+			boostCleanup()
+			return nil
+		},
+	})
+}
+
+func logsAgentCollectionEnabled(cfg config.Component) bool {
+	return cfg.GetBool("logs_enabled") || cfg.GetBool("log_enabled")
+}
+
+func configBoolDefaultTrue(cfg config.Component, key string) bool {
+	return !cfg.IsConfigured(key) || cfg.GetBool(key)
+}
+
+func scorerConfigFromAgentConfig(cfg config.Component) observerdef.ScorerConfig {
+	if cfg == nil {
+		return DefaultScorerConfig()
+	}
+	if scorerCfg, ok := readScorerConfig(cfg, "anomaly_detection.detectors.anomaly_scorer.").(observerdef.ScorerConfig); ok {
+		return scorerCfg
+	}
+	return DefaultScorerConfig()
+}
+
+type logsAgentTapSink struct {
+	handle observerdef.Handle
+}
+
+func (s *logsAgentTapSink) ObserveTokenizedLog(event adaptivesampling.TokenizedLogEvent) {
+	if s == nil || s.handle == nil {
+		return
+	}
+	s.handle.ObserveLog(newTokenizedLogEventView(event))
+}
+
+type tokenizedLogEventView struct {
+	event adaptivesampling.TokenizedLogEvent
+	tags  []string
+}
+
+var _ observerdef.TokenizedLogView = (*tokenizedLogEventView)(nil)
+
+func newTokenizedLogEventView(event adaptivesampling.TokenizedLogEvent) *tokenizedLogEventView {
+	tags := append([]string(nil), event.Tags...)
+	if event.ContainerID != "" && !containsExactTag(tags, "container_id:"+event.ContainerID) {
+		tags = append(tags, "container_id:"+event.ContainerID)
+	}
+	return &tokenizedLogEventView{
+		event: event,
+		tags:  tags,
+	}
+}
+
+func (v *tokenizedLogEventView) GetContent() string           { return v.event.Content }
+func (v *tokenizedLogEventView) GetStatus() string            { return v.event.Status }
+func (v *tokenizedLogEventView) Tags() []string               { return v.tags }
+func (v *tokenizedLogEventView) GetHostname() string          { return v.event.Hostname }
+func (v *tokenizedLogEventView) GetTimestampUnixMilli() int64 { return v.event.TimestampUnixMilli }
+func (v *tokenizedLogEventView) GetContainerID() string       { return v.event.ContainerID }
+func (v *tokenizedLogEventView) GetPattern() string           { return v.event.Pattern }
+func (v *tokenizedLogEventView) GetPatternHash() string       { return v.event.PatternHash }
+
+func containsExactTag(tags []string, want string) bool {
+	for _, tag := range tags {
+		if tag == want {
+			return true
+		}
+	}
+	return false
+}

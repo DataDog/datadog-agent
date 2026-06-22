@@ -23,6 +23,7 @@ func TestLogSourceSettings(t *testing.T) {
 			name: "defaults",
 			want: logSourceSettings{
 				logsEnabled:             true,
+				agentTapEnabled:         true,
 				containerSourcesEnabled: true,
 				kubeletSourceEnabled:    true,
 			},
@@ -34,6 +35,7 @@ func TestLogSourceSettings(t *testing.T) {
 			},
 			want: logSourceSettings{
 				logsEnabled:             true,
+				agentTapEnabled:         true,
 				containerSourcesEnabled: false,
 				kubeletSourceEnabled:    true,
 			},
@@ -45,6 +47,7 @@ func TestLogSourceSettings(t *testing.T) {
 			},
 			want: logSourceSettings{
 				logsEnabled:             true,
+				agentTapEnabled:         true,
 				containerSourcesEnabled: true,
 				kubeletSourceEnabled:    false,
 			},
@@ -56,6 +59,20 @@ func TestLogSourceSettings(t *testing.T) {
 			},
 			want: logSourceSettings{
 				logsEnabled:             false,
+				agentTapEnabled:         true,
+				containerSourcesEnabled: true,
+				kubeletSourceEnabled:    true,
+			},
+		},
+		{
+			name: "logs agent enabled",
+			overrides: map[string]interface{}{
+				"logs_enabled": true,
+			},
+			want: logSourceSettings{
+				logsEnabled:             true,
+				agentTapEnabled:         true,
+				logsAgentEnabled:        true,
 				containerSourcesEnabled: true,
 				kubeletSourceEnabled:    true,
 			},
@@ -73,6 +90,7 @@ func TestLogSourceSettings(t *testing.T) {
 func TestLogSourceSettingsShouldStart(t *testing.T) {
 	defaultSettings := logSourceSettings{
 		logsEnabled:             true,
+		agentTapEnabled:         true,
 		containerSourcesEnabled: true,
 		kubeletSourceEnabled:    true,
 	}
@@ -98,6 +116,7 @@ func TestLogSourceSettingsShouldStart(t *testing.T) {
 			name: "kubelet only does not require workloadmeta",
 			settings: logSourceSettings{
 				logsEnabled:             true,
+				agentTapEnabled:         true,
 				containerSourcesEnabled: false,
 				kubeletSourceEnabled:    true,
 			},
@@ -109,6 +128,7 @@ func TestLogSourceSettingsShouldStart(t *testing.T) {
 			name: "container only requires workloadmeta",
 			settings: logSourceSettings{
 				logsEnabled:             true,
+				agentTapEnabled:         true,
 				containerSourcesEnabled: true,
 				kubeletSourceEnabled:    false,
 			},
@@ -121,6 +141,7 @@ func TestLogSourceSettingsShouldStart(t *testing.T) {
 			name: "container only skips without workloadmeta",
 			settings: logSourceSettings{
 				logsEnabled:             true,
+				agentTapEnabled:         true,
 				containerSourcesEnabled: true,
 				kubeletSourceEnabled:    false,
 			},
@@ -131,7 +152,8 @@ func TestLogSourceSettingsShouldStart(t *testing.T) {
 		{
 			name: "both source gates disabled",
 			settings: logSourceSettings{
-				logsEnabled: true,
+				logsEnabled:     true,
+				agentTapEnabled: true,
 			},
 			observerAvailable:     true,
 			workloadmetaAvailable: true,
@@ -141,6 +163,7 @@ func TestLogSourceSettingsShouldStart(t *testing.T) {
 		{
 			name: "parent logs disabled without recording",
 			settings: logSourceSettings{
+				agentTapEnabled:         true,
 				containerSourcesEnabled: true,
 				kubeletSourceEnabled:    true,
 			},
@@ -165,6 +188,34 @@ func TestLogSourceSettingsShouldStart(t *testing.T) {
 			observerAvailable:     true,
 			workloadmetaAvailable: true,
 			recordingEnabled:      true,
+			want:                  true,
+		},
+		{
+			name: "logs agent tap replaces independent sources",
+			settings: logSourceSettings{
+				logsEnabled:             true,
+				agentTapEnabled:         true,
+				logsAgentEnabled:        true,
+				containerSourcesEnabled: true,
+				kubeletSourceEnabled:    true,
+			},
+			observerAvailable:     true,
+			workloadmetaAvailable: true,
+			analysisEnabled:       true,
+			want:                  false,
+		},
+		{
+			name: "agent tap disabled keeps independent sources",
+			settings: logSourceSettings{
+				logsEnabled:             true,
+				agentTapEnabled:         false,
+				logsAgentEnabled:        true,
+				containerSourcesEnabled: true,
+				kubeletSourceEnabled:    true,
+			},
+			observerAvailable:     true,
+			workloadmetaAvailable: true,
+			analysisEnabled:       true,
 			want:                  true,
 		},
 	}

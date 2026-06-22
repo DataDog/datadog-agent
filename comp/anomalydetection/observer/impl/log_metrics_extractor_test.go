@@ -78,6 +78,28 @@ func TestLogMetricsExtractor_UnstructuredPatternCount(t *testing.T) {
 	assert.Equal(t, fmt.Sprintf("log.pattern.%x.count", h.Sum64()), res.Metrics[0].Name)
 }
 
+func TestLogMetricsExtractor_UsesTokenizedPatternWhenAvailable(t *testing.T) {
+	a := NewLogMetricsExtractor(LogMetricsExtractorConfig{})
+
+	log := &mockTokenizedLogView{
+		mockLogView: mockLogView{
+			content: "Request completed in 45ms",
+			tags:    []string{"service:web"},
+		},
+		containerID: "container-a",
+		pattern:     "CCC CCC DDCC",
+		patternHash: "abc123",
+	}
+
+	res := a.ProcessLog(log)
+	require.Len(t, res.Metrics, 1)
+	assert.Equal(t, "log.pattern.abc123.count", res.Metrics[0].Name)
+	require.NotNil(t, res.Metrics[0].Context)
+	assert.Equal(t, "CCC CCC DDCC", res.Metrics[0].Context.Pattern)
+	assert.Equal(t, "container-a", res.Metrics[0].Context.ContainerID)
+	assert.Equal(t, "abc123", res.Metrics[0].Context.PatternHash)
+}
+
 func TestLogMetricsExtractor_JSONIncludeFields(t *testing.T) {
 	a := NewLogMetricsExtractor(LogMetricsExtractorConfig{
 		IncludeFields: map[string]struct{}{
@@ -169,3 +191,14 @@ func TestLogMetricsExtractor_ContextDiffersPerTagSet(t *testing.T) {
 	assert.Equal(t, "Request completed in 45ms", ctxB.Example)
 	assert.Equal(t, ctxA.Pattern, ctxB.Pattern)
 }
+
+type mockTokenizedLogView struct {
+	mockLogView
+	containerID string
+	pattern     string
+	patternHash string
+}
+
+func (m *mockTokenizedLogView) GetContainerID() string { return m.containerID }
+func (m *mockTokenizedLogView) GetPattern() string     { return m.pattern }
+func (m *mockTokenizedLogView) GetPatternHash() string { return m.patternHash }

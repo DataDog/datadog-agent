@@ -12,7 +12,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/adaptivesampling"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 )
 
@@ -65,6 +68,14 @@ func (a *flushCaptureAggregator) Flush() []AggregatedMessageWithTokens {
 
 func (a *flushCaptureAggregator) IsEmpty() bool {
 	return a.pending == nil
+}
+
+type captureTokenizedLogObserver struct {
+	events []adaptivesampling.TokenizedLogEvent
+}
+
+func (o *captureTokenizedLogObserver) ObserveTokenizedLog(event adaptivesampling.TokenizedLogEvent) {
+	o.events = append(o.events, event)
 }
 
 // --- helpers ---
@@ -166,4 +177,25 @@ func TestPreprocessor_SamplerReceivesAggregatedMessageWithTokens(t *testing.T) {
 
 	require.Len(t, sampler.emitted, 1, "Sampler should receive the message that aggregator returned")
 	assert.Equal(t, `hello world`, string(sampler.emitted[0].GetContent()))
+}
+
+func TestPreprocessor_EmitsTokenizedLogBeforeSampling(t *testing.T) {
+	observer := &captureTokenizedLogObserver{}
+	cleanup := adaptivesampling.SetTokenizedLogObserver(observer)
+	t.Cleanup(cleanup)
+
+	preprocessor, _, _ := newTestPreprocessor(false)
+	msg := newTestPreprocessorMessage(`request completed id=123`)
+	msg.Origin = message.NewOrigin(sources.NewLogSource("test", &logsconfig.LogsConfig{
+		Identifier: "container-a",
+	}))
+
+	preprocessor.Process(msg)
+
+	require.Len(t, observer.events, 1)
+	event := observer.events[0]
+	assert.Equal(t, `request completed id=123`, event.Content)
+	assert.Equal(t, "container-a", event.ContainerID)
+	assert.NotEmpty(t, event.Pattern)
+	assert.NotEmpty(t, event.PatternHash)
 }

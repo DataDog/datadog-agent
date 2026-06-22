@@ -13,7 +13,9 @@ import (
 	"time"
 
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
+	"github.com/DataDog/datadog-agent/pkg/logs/adaptivesampling"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Sampler is the final stage of the Preprocessor. It receives one completed log
@@ -73,14 +75,18 @@ func adaptiveSamplerSampledCountTag(count int64) string {
 
 const adaptiveSamplerNoisyLogTag = "noisy_log:true"
 
-func adaptiveSamplerLogHashTag(tokens []Token) string {
+func adaptiveSamplerLogHash(tokens []Token) string {
 	var b [1]byte
 	h := fnv.New64a()
 	for _, t := range tokens {
 		b[0] = byte(t)
 		_, _ = h.Write(b[:])
 	}
-	return "log_hash:" + strconv.FormatUint(h.Sum64(), 16)
+	return strconv.FormatUint(h.Sum64(), 16)
+}
+
+func adaptiveSamplerLogHashTag(tokens []Token) string {
+	return "log_hash:" + adaptiveSamplerLogHash(tokens)
 }
 
 // AdaptiveSamplerConfig holds the configuration for the AdaptiveSampler.
@@ -123,11 +129,19 @@ type AdaptiveSamplerFilter struct {
 
 // samplerEntry tracks the credit-based rate limiting state for a single log pattern.
 type samplerEntry struct {
-	tokens     []Token
-	credits    float64   // remaining log allowance; decremented on each emitted log
-	lastSeen   time.Time // used for credit refill
-	matchCount int64     // total number of times this pattern has matched; drives sort order
-	sampled    int64     // number of dropped matches since the last emitted log
+	tokens         []Token
+	credits        float64   // remaining log allowance; decremented on each emitted log
+	lastSeen       time.Time // used for credit refill
+	matchCount     int64     // total number of times this pattern has matched; drives sort order
+	sampled        int64     // number of dropped matches since the last emitted log
+	appliedBoostID uint64    // latest boost whose one-time credit grant was applied
+}
+
+type adaptiveSamplerLimits struct {
+	rateLimit float64
+	burstSize float64
+	boost     adaptivesampling.SamplingBoost
+	boosted   bool
 }
 
 // AdaptiveSampler rate-limits logs by structural pattern using per-pattern credit allowances.
@@ -228,27 +242,54 @@ func (s *AdaptiveSampler) Process(msg *message.Message, tokens []Token) *message
 	}
 	now := s.now()
 	detectionOnly := s.config.DetectionOnly
+	limits := s.samplingLimits(msg, tokens, now)
 
 	for i := range s.entries {
 		if IsMatch(s.entries[i].tokens, tokens, s.config.MatchThreshold) {
-			return s.processMatchedEntry(i, msg, now, detectionOnly)
+			return s.processMatchedEntry(i, msg, now, detectionOnly, limits)
 		}
 	}
-	return s.trackNewPattern(msg, tokens, now)
+	return s.trackNewPattern(msg, tokens, now, limits)
+}
+
+func (s *AdaptiveSampler) samplingLimits(msg *message.Message, tokens []Token, now time.Time) adaptiveSamplerLimits {
+	limits := adaptiveSamplerLimits{
+		rateLimit: s.config.RateLimit,
+		burstSize: s.config.BurstSize,
+	}
+
+	containerID := adaptiveSamplerContainerID(msg)
+	if containerID == "" {
+		return limits
+	}
+	boost, ok := adaptivesampling.DefaultSamplingBoostStore().Lookup(containerID, adaptiveSamplerLogHash(tokens), now)
+	if !ok {
+		return limits
+	}
+	limits.boost = boost
+	limits.boosted = true
+	limits.rateLimit *= boost.RateMultiplier
+	limits.burstSize *= boost.BurstMultiplier
+	return limits
 }
 
 // processMatchedEntry handles a log that matched the pattern at index i: it refills
 // and spends credits, updates tags and counters, re-sorts the pattern table, and
 // returns the message when emitted or nil when dropped.
-func (s *AdaptiveSampler) processMatchedEntry(i int, msg *message.Message, now time.Time, detectionOnly bool) *message.Message {
+func (s *AdaptiveSampler) processMatchedEntry(i int, msg *message.Message, now time.Time, detectionOnly bool, limits adaptiveSamplerLimits) *message.Message {
 	e := &s.entries[i]
 	matchedTokens := e.tokens
 
 	// Refill credits based on time elapsed since last seen.
 	elapsed := now.Sub(e.lastSeen).Seconds()
-	e.credits += elapsed * s.config.RateLimit
-	if e.credits > s.config.BurstSize {
-		e.credits = s.config.BurstSize
+	e.credits += elapsed * limits.rateLimit
+	if limits.boosted && limits.boost.ID != e.appliedBoostID {
+		e.credits += limits.boost.CreditGrant
+		e.appliedBoostID = limits.boost.ID
+		s.logBoostApplied(limits)
+	}
+	if e.credits > limits.burstSize {
+		e.credits = limits.burstSize
 	}
 	e.lastSeen = now
 	e.matchCount++
@@ -284,22 +325,38 @@ func (s *AdaptiveSampler) processMatchedEntry(i int, msg *message.Message, now t
 
 // trackNewPattern records a never-before-seen pattern, evicting the
 // least-frequently-matched entry when the table is full, and emits the message.
-func (s *AdaptiveSampler) trackNewPattern(msg *message.Message, tokens []Token, now time.Time) *message.Message {
+func (s *AdaptiveSampler) trackNewPattern(msg *message.Message, tokens []Token, now time.Time, limits adaptiveSamplerLimits) *message.Message {
 	tlmAdaptiveSamplerNewPatterns.Inc(s.source)
 	if len(s.entries) >= s.config.MaxPatterns {
 		tlmAdaptiveSamplerEvictions.Inc(s.source)
 		s.entries = s.entries[:len(s.entries)-1]
 	}
+	credits := limits.burstSize - 1
+	var appliedBoostID uint64
+	if limits.boosted && limits.boost.CreditGrant > 0 {
+		credits += limits.boost.CreditGrant
+		if credits > limits.burstSize {
+			credits = limits.burstSize
+		}
+		appliedBoostID = limits.boost.ID
+		s.logBoostApplied(limits)
+	}
 	// New patterns start with matchCount=1 and belong at the end of the sorted list.
 	s.entries = append(s.entries, samplerEntry{
-		tokens:     tokens,
-		credits:    s.config.BurstSize - 1,
-		lastSeen:   now,
-		matchCount: 1,
-		sampled:    0,
+		tokens:         tokens,
+		credits:        credits,
+		lastSeen:       now,
+		matchCount:     1,
+		sampled:        0,
+		appliedBoostID: appliedBoostID,
 	})
 	tlmAdaptiveSamplerKept.Inc(s.source)
 	return msg
+}
+
+func (s *AdaptiveSampler) logBoostApplied(limits adaptiveSamplerLimits) {
+	pkglog.Infof("[logs/adaptive-sampling] boost applied source=%s container_id=%s pattern_hash=%s rate=%.2f burst=%.2f credit_grant=%.2f boost_id=%d",
+		s.source, limits.boost.ContainerID, limits.boost.PatternHash, limits.rateLimit, limits.burstSize, limits.boost.CreditGrant, limits.boost.ID)
 }
 
 // Flush is a no-op — the adaptive sampler does not buffer messages.
