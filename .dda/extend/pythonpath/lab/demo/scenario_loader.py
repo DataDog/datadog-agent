@@ -362,7 +362,8 @@ def _make_create_command(team_dir: str, env_name: str, demo_env: Any) -> click.C
         for opt in demo_env.create_options:
             value = kwargs.get(opt.name)
             if value is not None:
-                config_args += ["-c", f"{opt.pulumi_key}={value}"]
+                for key in opt.pulumi_keys:
+                    config_args += ["-c", f"{key}={value}"]
 
         if for_scenario:
             if for_scenario not in demo_env.scenarios:
