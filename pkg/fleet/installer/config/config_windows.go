@@ -179,8 +179,45 @@ func secureCreateTargetDirectoryWithSourcePermissions(sourcePath, targetPath str
 	return paths.SecureCreateDirectory(targetPath, sddl)
 }
 
-// setFileOwnershipAndPermissions is a no-op on Windows as file ownership and permissions
-// are handled differently through ACLs, not POSIX ownership and modes.
-func setFileOwnershipAndPermissions(_ context.Context, _ *os.Root, _ string, _ *configFileSpec) error {
-	return nil
+// setFileOwnershipAndPermissions sets ACLs for a config file based on its configFileSpec.
+//
+// Windows has no POSIX ownership; ACLs are inherited from C:\ProgramData\Datadog, which is
+// restricted to Administrators and ddagentuser. For files Linux makes world-readable
+// (mode 0644 — only application_monitoring.yaml), we grant Everyone read so non-admin
+// identities (e.g. IIS App Pool) can read fleet config. Restricted files (mode 0640) keep the
+// inherited admin/ddagentuser-only ACL.
+func setFileOwnershipAndPermissions(_ context.Context, root *os.Root, path string, spec *configFileSpec) error {
+	if spec.mode&0o004 == 0 {
+		return nil
+	}
+	return setFileReadableByEveryone(filepath.Join(root.Name(), path))
+}
+
+// setFileReadableByEveryone grants Everyone read access on a file while preserving the
+// owner/group and the ACEs inherited from the parent directory (SYSTEM, Administrators, and
+// ddagentuser keep write access for subsequent config updates).
+func setFileReadableByEveryone(path string) error {
+	// D:AI - DACL, Auto-Inherit ("inherit permissions from the parent folder").
+	// (A;;GR;;;WD) - Allow Generic Read to Everyone (World Domain).
+	sddl := "D:AI(A;;GR;;;WD)"
+
+	sd, err := windows.SecurityDescriptorFromString(sddl)
+	if err != nil {
+		return fmt.Errorf("failed to create security descriptor: %w", err)
+	}
+	dacl, _, err := sd.DACL()
+	if err != nil {
+		return fmt.Errorf("failed to get DACL: %w", err)
+	}
+	// Set the explicit DACL and allow inheritance from the parent directory.
+	// Not using PROTECTED_DACL_SECURITY_INFORMATION so the file inherits ACEs from the parent.
+	return windows.SetNamedSecurityInfo(
+		path,
+		windows.SE_FILE_OBJECT,
+		windows.DACL_SECURITY_INFORMATION,
+		nil,  // owner - leave unchanged
+		nil,  // group - leave unchanged
+		dacl, // DACL - set this
+		nil,  // SACL - leave unchanged
+	)
 }

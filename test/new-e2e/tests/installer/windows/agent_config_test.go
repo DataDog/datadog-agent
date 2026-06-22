@@ -92,6 +92,39 @@ func (s *testAgentConfigSuite) TestConfigUpgradeSuccessful() {
 	s.Require().Equal(configSDDLBeforeExperiment, perms.SDDL, "config dir permissions should not have changed")
 }
 
+// TestApplicationMonitoringGlobalRead verifies that application_monitoring.yaml written via a
+// config experiment grants global (Everyone) read access, so non-admin identities such as an
+// IIS App Pool identity can read fleet/stable config. See WINA-2854.
+func (s *testAgentConfigSuite) TestApplicationMonitoringGlobalRead() {
+	appMonitoringPath := windowsagent.DefaultConfigRoot + `\application_monitoring.yaml`
+
+	// Arrange
+	s.setAgentConfig()
+	s.installCurrentAgentVersion()
+	s.AssertSuccessfulConfigPromoteExperiment("empty")
+
+	// Act
+	config := ConfigExperiment{
+		ID: "config-1",
+		Files: []ConfigExperimentFile{
+			{
+				Path:     "/application_monitoring.yaml",
+				Contents: json.RawMessage(`{"apm_configuration_default": {"DD_TRACE_DEBUG": "true"}}`),
+			},
+		},
+	}
+
+	// Assert the file is globally readable both while the experiment is running and after it is
+	// promoted to stable.
+	s.mustStartConfigExperiment(config)
+	s.Require().Host(s.Env().RemoteHost).
+		HasGlobalReadAccess(appMonitoringPath)
+
+	s.mustPromoteConfigExperiment(config)
+	s.Require().Host(s.Env().RemoteHost).
+		HasGlobalReadAccess(appMonitoringPath)
+}
+
 // TestConfigUpgradeFailure tests that the Agent's config can be rolled back
 // through the experiment (start/promote) workflow.
 func (s *testAgentConfigSuite) TestConfigUpgradeFailure() {
