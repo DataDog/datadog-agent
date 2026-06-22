@@ -1,4 +1,4 @@
 ---
 features:
   - |
-    Added two new GPU distribution metrics: `container.gpu.core.usage.dist` and `container.gpu.memory.usage.dist`.
+    Added two new GPU distribution metrics: ``container.gpu.core.usage.dist`` and ``container.gpu.memory.usage.dist``.
