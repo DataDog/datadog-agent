@@ -213,6 +213,32 @@ func TestGetRefAndKeychain(t *testing.T) {
 			expectedRef:            "gcr.io/datadoghq/agent-package@sha256:1234",
 			expectedKeychain:       google.Keychain,
 		},
+		// Userinfo in the override URL is dropped (credentials must use the
+		// dedicated RegistryUsername / RegistryPassword fields).
+		{
+			url:              "install.datad0g.com/agent-package:latest",
+			registryOverride: "https://user:pass@fake.io",
+			expectedRef:      "fake.io/agent-package:latest",
+			expectedKeychain: authn.DefaultKeychain,
+		},
+		{
+			url:              "install.datad0g.com/agent-package:latest",
+			registryOverride: "user:pass@fake.io",
+			expectedRef:      "fake.io/agent-package:latest",
+			expectedKeychain: authn.DefaultKeychain,
+		},
+		{
+			url:              "install.datad0g.com/agent-package:latest",
+			registryOverride: "http://user@fake.io:8080",
+			expectedRef:      "fake.io:8080/agent-package:latest",
+			expectedKeychain: authn.DefaultKeychain,
+		},
+		{
+			url:                "install.datad0g.com/agent-package:latest",
+			regOverrideByImage: map[string]string{"agent-package": "https://user:pass@fake.io"},
+			expectedRef:        "fake.io/agent-package:latest",
+			expectedKeychain:   authn.DefaultKeychain,
+		},
 	}
 
 	for _, tt := range tests {
@@ -225,6 +251,31 @@ func TestGetRefAndKeychain(t *testing.T) {
 		actual := getRefAndKeychain(env, tt.url)
 		assert.Equal(t, tt.expectedRef, actual.ref)
 		assert.Equal(t, tt.expectedKeychain, actual.keychain)
+	}
+}
+
+func TestFormatImageRef(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{name: "bare host", in: "fake.io", want: "fake.io"},
+		{name: "bare host with port", in: "fake.io:443", want: "fake.io:443"},
+		{name: "https prefix", in: "https://fake.io", want: "fake.io"},
+		{name: "http prefix", in: "http://fake.io", want: "fake.io"},
+		{name: "https with port", in: "https://fake.io:443", want: "fake.io:443"},
+		{name: "userinfo with scheme", in: "https://user:pass@fake.io", want: "fake.io"},
+		{name: "userinfo without scheme", in: "user:pass@fake.io", want: "fake.io"},
+		{name: "user-only userinfo", in: "https://user@fake.io", want: "fake.io"},
+		{name: "userinfo with port", in: "http://user:pass@fake.io:8080", want: "fake.io:8080"},
+		{name: "userinfo with path", in: "https://user:pass@fake.io/repo", want: "fake.io/repo"},
+		{name: "trailing slash preserved", in: "fake.io/", want: "fake.io/"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, formatImageRef(tt.in))
+		})
 	}
 }
 

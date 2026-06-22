@@ -81,6 +81,10 @@ var ErrNoLayerMatchesAnnotations = errors.New("no layer matches the requested an
 // them (see RegistryErrors) and present each attempt to the user with its
 // registry context — similar to how os.LinkError carries the path alongside
 // the underlying error.
+//
+// Registry is the ref returned by getRefAndKeychain, which guarantees no
+// embedded userinfo (formatImageRef strips it). Callers do not need to
+// re-redact before logging or exporting Registry.
 type RegistryError struct {
 	Registry string // the registry URL / reference that was attempted
 	Err      error  // the underlying error returned by that registry
@@ -338,9 +342,21 @@ func getRefAndKeychain(env *env.Env, url string) urlWithKeychain {
 	}
 }
 
-// formatImageRef formats the image ref by removing the http:// or https:// prefix.
+// formatImageRef formats the image ref by removing the http:// or https://
+// prefix and dropping any embedded userinfo. Credentials must be supplied via
+// the dedicated RegistryUsername / RegistryPassword config fields; userinfo
+// in the URL is unsupported and would otherwise leak into logs and spans.
 func formatImageRef(override string) string {
-	return strings.TrimPrefix(strings.TrimPrefix(override, "https://"), "http://")
+	override = strings.TrimPrefix(strings.TrimPrefix(override, "https://"), "http://")
+	// Parse with a scheme so url.Parse populates User; bare host[:port]/path
+	// inputs would otherwise be treated as opaque.
+	u, err := url.Parse("https://" + override)
+	if err != nil || u.User == nil {
+		return override
+	}
+	log.Warnf("ignoring userinfo in registry override URL; use installer.registry.username / installer.registry.password instead")
+	u.User = nil
+	return strings.TrimPrefix(u.String(), "https://")
 }
 
 // downloadRegistry downloads the image from a remote registry.
@@ -376,13 +392,7 @@ func (d *Downloader) downloadRegistry(ctx context.Context, rawURL string) (oci.I
 			continue
 		}
 		if span, ok := telemetry.SpanFromContext(ctx); ok {
-			// Strip userinfo from ref to avoid leaking registry credentials into telemetry.
-			safeRef := refAndKeychain.ref
-			if u, err := url.Parse("oci://" + refAndKeychain.ref); err == nil && u.User != nil {
-				u.User = nil
-				safeRef = strings.TrimPrefix(u.String(), "oci://")
-			}
-			span.SetTag("registry.ref", safeRef)
+			span.SetTag("registry.ref", refAndKeychain.ref)
 		}
 		return d.downloadIndex(index)
 	}
