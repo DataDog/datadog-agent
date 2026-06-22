@@ -11,7 +11,8 @@ use std::sync::{Mutex, OnceLock};
 use tokio::sync::Notify;
 use windows_sys::Win32::Foundation::{CloseHandle, HANDLE, TRUE};
 use windows_sys::Win32::System::Console::{
-    AttachConsole, CTRL_BREAK_EVENT, FreeConsole, GenerateConsoleCtrlEvent, SetConsoleCtrlHandler,
+    AttachConsole, CTRL_BREAK_EVENT, FreeConsole, GenerateConsoleCtrlEvent, GetConsoleWindow,
+    SetConsoleCtrlHandler,
 };
 use windows_sys::Win32::System::JobObjects::{
     AssignProcessToJobObject, CreateJobObjectW, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
@@ -138,6 +139,15 @@ impl Drop for JobObject {
 // ---------------------------------------------------------------------------
 // Platform functions
 // ---------------------------------------------------------------------------
+
+/// True when this process has no attached console (typical for Windows services).
+///
+/// In that mode, inheriting stdin/stdout/stderr from the parent for `CreateProcess`
+/// often yields invalid handles; the first spawn may succeed while a later one
+/// fails with Windows error `ERROR_INVALID_HANDLE` (6).
+pub fn lacks_console() -> bool {
+    unsafe { GetConsoleWindow().is_null() }
+}
 
 /// Give the child its own hidden console plus a new process group so
 /// `GenerateConsoleCtrlEvent` / `AttachConsole` graceful shutdown can work (null stdio alone

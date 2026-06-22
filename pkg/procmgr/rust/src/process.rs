@@ -7,7 +7,7 @@ use crate::config::{ProcessConfig, RestartPolicy};
 use crate::env::parse_environment_file;
 use crate::platform;
 use crate::state::ProcessState;
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, bail};
 use log::{info, warn};
 use std::collections::VecDeque;
 use std::process::Stdio;
@@ -206,6 +206,14 @@ impl ManagedProcess {
     }
 
     pub fn spawn(&mut self) -> Result<()> {
+        if !self.state.can_transition_to(ProcessState::Starting) {
+            bail!(
+                "[{}] cannot spawn: invalid state {}",
+                self.name,
+                self.state
+            );
+        }
+        self.transition_to(ProcessState::Starting);
         let result = self.try_spawn();
         if result.is_err() {
             self.transition_to(ProcessState::Failed);
@@ -271,6 +279,17 @@ impl ManagedProcess {
             // service may no longer have a valid console. Inheriting stdin then fails CreateProcess
             // with ERROR_INVALID_HANDLE (6). Children are non-interactive daemons — discard stdin.
             cmd.stdin(Stdio::null());
+            // Without an interactive console, inheriting stdout/stderr from the parent is unsafe
+            // for repeated spawns (same os error 6 as stdin).
+            let null_instead_of_inherit = platform::lacks_console();
+            cmd.stdout(stdio_for_windows(
+                &self.config.stdout,
+                null_instead_of_inherit,
+            ));
+            cmd.stderr(stdio_for_windows(
+                &self.config.stderr,
+                null_instead_of_inherit,
+            ));
         }
         if let Some(ref raw_path) = self.config.environment_file {
             let (optional, path) = if let Some(stripped) = raw_path.strip_prefix('-') {
@@ -300,8 +319,11 @@ impl ManagedProcess {
             cmd.current_dir(dir);
         }
 
-        cmd.stdout(stdio_from_str(&self.config.stdout));
-        cmd.stderr(stdio_from_str(&self.config.stderr));
+        #[cfg(not(windows))]
+        {
+            cmd.stdout(stdio_from_str(&self.config.stdout));
+            cmd.stderr(stdio_from_str(&self.config.stderr));
+        }
 
         platform::setup_process_group(&mut cmd);
 
@@ -548,6 +570,15 @@ fn stdio_from_str(s: &str) -> Stdio {
     }
 }
 
+#[cfg(windows)]
+fn stdio_for_windows(yaml_value: &str, null_instead_of_inherit: bool) -> Stdio {
+    if null_instead_of_inherit && (yaml_value == "inherit" || yaml_value.is_empty()) {
+        Stdio::null()
+    } else {
+        stdio_from_str(yaml_value)
+    }
+}
+
 #[cfg(test)]
 pub mod tests {
     use super::*;
@@ -724,6 +755,32 @@ pub mod tests {
         assert!(proc.spawn().is_err());
         assert!(!proc.is_running());
         assert_eq!(proc.state(), ProcessState::Failed);
+    }
+
+    #[tokio::test]
+    async fn test_spawn_failure_after_stop_goes_through_starting_to_failed() {
+        let (cmd, args) = test_helpers::sleep_cmd(60);
+        let mut proc = ManagedProcess::new_config(
+            "svc".into(),
+            test_helpers::test_uuid(),
+            test_helpers::make_config(cmd, args),
+        );
+        proc.spawn().unwrap();
+        proc.request_stop();
+        let mut child = proc.take_child().unwrap();
+        let status = child.wait().await.unwrap();
+        proc.set_last_status(status);
+        assert_eq!(proc.state(), ProcessState::Stopped);
+
+        let mut bad_cfg = proc.config().clone();
+        bad_cfg.command = "/nonexistent/binary".to_string();
+        proc.set_config(bad_cfg);
+        assert!(proc.spawn().is_err());
+        assert_eq!(
+            proc.state(),
+            ProcessState::Failed,
+            "Stopped -> Starting -> Failed is the spawn-failure path"
+        );
     }
 
     #[tokio::test]
