@@ -1733,7 +1733,7 @@ func TestHandleKubeKueueWorkload(t *testing.T) {
 		EntityMeta: workloadmeta.EntityMeta{
 			Name: "a100",
 		},
-		NodeLabels: map[string]string{
+		NodeAffinityLabels: map[string]string{
 			"nvidia.com/gpu.product": "NVIDIA-A100-SXM4-40GB",
 		},
 	})
@@ -1749,6 +1749,12 @@ func TestHandleKubeKueueWorkload(t *testing.T) {
 				Name:      "job-sample",
 				Namespace: "default",
 				UID:       "uid-job-sample",
+					Labels: map[string]string{
+						"team": "ml",
+					},
+					Annotations: map[string]string{
+						"owner": "team-a",
+					},
 			},
 			QueueName:        "batch",
 			ClusterQueueName: "cluster-batch",
@@ -1762,10 +1768,12 @@ func TestHandleKubeKueueWorkload(t *testing.T) {
 
 	expected := []*types.TagInfo{
 		{
-			Source:       kueueWorkloadSource,
-			EntityID:     types.NewEntityID(types.KueueWorkload, workloadID.ID),
-			IsComplete:   true,
-			HighCardTags: []string{},
+			Source:     kueueWorkloadSource,
+			EntityID:   types.NewEntityID(types.KueueWorkload, workloadID.ID),
+			IsComplete: true,
+			HighCardTags: []string{
+				"workload_owner:team-a",
+			},
 			OrchestratorCardTags: []string{
 				"kueue_workload:job-sample",
 				"kueue_workload_uid:uid-job-sample",
@@ -1778,6 +1786,7 @@ func TestHandleKubeKueueWorkload(t *testing.T) {
 				"kueue_local_queue:batch",
 				"kueue_resource_flavor:a100",
 				"kueue_resource_flavor:default",
+				"workload_team:ml",
 			},
 			StandardTags: []string{},
 		},
@@ -1852,7 +1861,7 @@ func TestKueueWorkloadResourceFlavorTagsPropagateToPodContainers(t *testing.T) {
 				EntityMeta: workloadmeta.EntityMeta{
 					Name: "a100",
 				},
-				NodeLabels: map[string]string{
+				NodeAffinityLabels: map[string]string{
 					"nvidia.com/gpu.product": "NVIDIA-A100-SXM4-40GB",
 					"nvidia.com/gpu.family":  "Ampere",
 				},
@@ -1865,7 +1874,7 @@ func TestKueueWorkloadResourceFlavorTagsPropagateToPodContainers(t *testing.T) {
 				EntityMeta: workloadmeta.EntityMeta{
 					Name: "h100",
 				},
-				NodeLabels: map[string]string{
+				NodeAffinityLabels: map[string]string{
 					"nvidia.com/gpu.product": "NVIDIA-H100-80GB-HBM3",
 					"nvidia.com/gpu.family":  "Hopper",
 				},

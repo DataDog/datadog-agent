@@ -23,6 +23,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
@@ -679,6 +680,13 @@ func TestProcessKueueWorkloadEvents(t *testing.T) {
 				EntityMeta: workloadmeta.EntityMeta{
 					Name:      "job-sample",
 					Namespace: "team-a",
+					Labels: map[string]string{
+						"team":  "eng",
+						"owner": "alice",
+					},
+					Annotations: map[string]string{
+						"cost-center": "1234",
+					},
 				},
 				QueueName:        "gpu",
 				ClusterQueueName: "team-a-gpu",
@@ -695,6 +703,13 @@ func TestProcessKueueWorkloadEvents(t *testing.T) {
 	assert.Equal(t, "job-sample", entry.name)
 	assert.Equal(t, "gpu", entry.queueName)
 	assert.Equal(t, "team-a-gpu", entry.clusterQueueName)
+	assert.Equal(t, map[string]string{
+		"team":  "eng",
+		"owner": "alice",
+	}, entry.labels)
+	assert.Equal(t, map[string]string{
+		"cost-center": "1234",
+	}, entry.annotations)
 	assert.Equal(t, []kueuePodSetAssignmentEntry{
 		{name: "main", flavors: map[string]string{"nvidia.com/gpu": "a100"}},
 	}, entry.podSetAssignments)
@@ -721,6 +736,7 @@ func TestComputeKueueWorkloadDiff(t *testing.T) {
 			name:             "job-a",
 			queueName:        "gpu",
 			clusterQueueName: "old-cq",
+			labels:           map[string]string{"team": "old"},
 			podSetAssignments: []kueuePodSetAssignmentEntry{
 				{name: "main", flavors: map[string]string{"nvidia.com/gpu": "old"}},
 			},
@@ -736,6 +752,7 @@ func TestComputeKueueWorkloadDiff(t *testing.T) {
 			name:             "job-a",
 			queueName:        "gpu",
 			clusterQueueName: "team-a-gpu",
+			labels:           map[string]string{"team": "new"},
 			podSetAssignments: []kueuePodSetAssignmentEntry{
 				{name: "main", flavors: map[string]string{"nvidia.com/gpu": "a100"}},
 			},
@@ -750,6 +767,7 @@ func TestComputeKueueWorkloadDiff(t *testing.T) {
 			Name:         "job-a",
 			Queue:        "gpu",
 			ClusterQueue: "team-a-gpu",
+			Labels:       map[string]string{"team": "new"},
 			PodSetAssignments: []*pb.KueuePodSetAssignment{
 				{Name: "main", Flavors: map[string]string{"nvidia.com/gpu": "a100"}},
 			},
@@ -785,6 +803,7 @@ func TestFullStateResponse(t *testing.T) {
 		name:             "job-sample",
 		queueName:        "gpu",
 		clusterQueueName: "team-a-gpu",
+		labels:           map[string]string{"team": "eng"},
 		podSetAssignments: []kueuePodSetAssignmentEntry{
 			{name: "main", flavors: map[string]string{"nvidia.com/gpu": "a100"}},
 		},
@@ -823,6 +842,7 @@ func TestFullStateResponse(t *testing.T) {
 				Name:         "job-sample",
 				Queue:        "gpu",
 				ClusterQueue: "team-a-gpu",
+				Labels:       map[string]string{"team": "eng"},
 				PodSetAssignments: []*pb.KueuePodSetAssignment{
 					{Name: "main", Flavors: map[string]string{"nvidia.com/gpu": "a100"}},
 				},

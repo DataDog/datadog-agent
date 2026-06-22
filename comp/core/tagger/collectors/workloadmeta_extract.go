@@ -1016,17 +1016,6 @@ func (c *WorkloadMetaCollector) extractKueueResourceFlavorTags(flavor *workloadm
 			}
 		}
 	}
-
-	// Label/annotation tags are resolved by the cluster agent and streamed as
-	// already-resolved "name:value" entries (a leading '+' on the name denotes a
-	// high-cardinality tag). AddAuto restores the original cardinality.
-	for _, tag := range flavor.ResolvedTags {
-		name, value, found := strings.Cut(tag, ":")
-		if !found {
-			continue
-		}
-		tagList.AddAuto(name, value)
-	}
 }
 
 func (c *WorkloadMetaCollector) extractKueueWorkloadTags(workload *workloadmeta.KubernetesKueueWorkload, tagList *taglist.TagList) {
