@@ -336,10 +336,16 @@ func TestFilterAllowedPathsIntersectsConfiguredAgentAllowlistByAccess(t *testing
 			expected: []string{"/var/log/:ro"},
 		},
 		{
-			name:     "backend descendant of agent path is not kept",
+			name:     "backend descendant of agent path is kept",
 			agent:    []string{"/var/log:ro"},
 			backend:  []string{"/var/log/datadog:ro"},
-			expected: []string{},
+			expected: []string{"/var/log/datadog/:ro"},
+		},
+		{
+			name:     "explicit agent root keeps narrower backend paths",
+			agent:    []string{"/"},
+			backend:  []string{"/var/log:ro", "/etc"},
+			expected: []string{"/var/log/:ro", "/etc/"},
 		},
 		{
 			name:     "unrelated paths are not kept",

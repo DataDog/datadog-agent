@@ -80,18 +80,15 @@ func intersectAllowedPathsByAccess(agentAllowed []string, backendAllowed []strin
 
 	for _, agentPath := range agentAllowed {
 		for _, backendPath := range backendAllowed {
-			if pathAccessGroup(agentPath) != pathAccessGroup(backendPath) {
+			pathToKeep, ok := narrowerPathWithSameAccess(agentPath, backendPath)
+			if !ok {
 				continue
 			}
-			if !pathIsDescendantOrSame(agentPath, backendPath) {
+			if _, ok := seen[pathToKeep]; ok {
 				continue
 			}
-			if _, ok := seen[agentPath]; ok {
-				break
-			}
-			filtered = append(filtered, agentPath)
-			seen[agentPath] = struct{}{}
-			break
+			filtered = append(filtered, pathToKeep)
+			seen[pathToKeep] = struct{}{}
 		}
 	}
 	return filtered
@@ -121,8 +118,18 @@ func pathSpecPath(pathSpec string) string {
 	return pathPart
 }
 
-func pathIsDescendantOrSame(pathSpec, ancestorSpec string) bool {
-	pathPart := pathSpecPath(pathSpec)
-	ancestorPart := pathSpecPath(ancestorSpec)
-	return pathPart == ancestorPart || strings.HasPrefix(pathPart, ancestorPart)
+func narrowerPathWithSameAccess(a, b string) (string, bool) {
+	if pathAccessGroup(a) != pathAccessGroup(b) {
+		return "", false
+	}
+	aPath := pathSpecPath(a)
+	bPath := pathSpecPath(b)
+	switch {
+	case aPath == bPath || strings.HasPrefix(aPath, bPath):
+		return a, true
+	case strings.HasPrefix(bPath, aPath):
+		return b, true
+	default:
+		return "", false
+	}
 }
