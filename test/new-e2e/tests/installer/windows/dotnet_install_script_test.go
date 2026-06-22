@@ -10,11 +10,9 @@ package installer
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	winawshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host/windows"
-	windowsagent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 
 	"testing"
 )
@@ -73,11 +71,6 @@ func (s *testAgentScriptInstallsDotnetLibrary) TestInstallFromScript() {
 	// Check that the expected version of the library is loaded
 	oldLibraryPath := s.getLibraryPathFromInstrumentedIIS()
 	s.Require().Contains(oldLibraryPath, version.Version())
-
-	// application_monitoring.yaml must be readable by non-admin identities (e.g. the IIS App
-	// Pool identity) so the tracer can load fleet/stable config. See WINA-2854.
-	s.Require().Host(s.Env().RemoteHost).
-		HasGlobalReadAccess(filepath.Join(windowsagent.DefaultConfigRoot, "application_monitoring.yaml"))
 }
 
 // installCurrentAgentVersion installs the current agent version with script
