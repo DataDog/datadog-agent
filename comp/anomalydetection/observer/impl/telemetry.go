@@ -6,48 +6,69 @@
 package observerimpl
 
 import (
+	"runtime"
 	"sync/atomic"
 
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 )
 
 const (
-	telemetryObsChannelDropped               = "observer.channel.dropped"                     // Observations dropped when the observer channel is full.
-	telemetryRRCFScore                       = "observer.rrcf.score"                          // Latest RRCF score per detector.
-	telemetryRRCFThreshold                   = "observer.rrcf.threshold"                      // Current RRCF anomaly threshold per detector.
-	telemetryLogPatternExtractorPatternCount = "observer.log_pattern_extractor.pattern_count" // Delta of active log-pattern count.
-	telemetryLogsIngested                    = "observer.logs.ingested"                       // Number of logs ingested by anomaly detection.
-	telemetryProcessedLogSize                = "observer.logs.processed_bytes"                // Total bytes processed from ingested logs.
-	telemetryDroppedLogs                     = "observer.logs.dropped"                        // Number of logs dropped before processing.
-	telemetrySeriesCount                     = "observer.series.count"                        // Number of active non-telemetry observer series.
-	telemetryLogsInFlightCount               = "observer.logs.in_flight"                      // Number of logs currently queued/in flight.
-	telemetryStorageSeriesEvicted            = "observer.storage.series_evicted"              // Number of storage series evicted to enforce bounds.
-	telemetryStorageCapacityHit              = "observer.storage.capacity_hit"                // Number of times storage capacity eviction was triggered.
-	telemetryAdvanceSkipped                  = "observer.scheduler.advance_skipped"           // Number of advance requests skipped as already analyzed.
-	telemetryLogsSamplerDropped              = "observer.logs.sampler_dropped"                // Logs dropped by the source sampler before reaching the observer, by source and priority.
-	telemetryDetectorProcessingTimeNs        = "observer.detector.processing_time_ns"         // Per-detector processing time in nanoseconds.
-	telemetryScorerEWMA                      = "observer.scorer.ewma"                         // Anomaly scorer smoothed EWMA signal, updated every second.
-	telemetryScorerState                     = "observer.scorer.state"                        // Anomaly scorer severity level on transition (0=Low,1=Medium,2=High).
+	telemetryObsChannelDropped               = "observer.channel.dropped"                            // Observations dropped when the observer channel is full.
+	telemetryRRCFScore                       = "observer.rrcf.score"                                 // Latest RRCF score per detector.
+	telemetryRRCFThreshold                   = "observer.rrcf.threshold"                             // Current RRCF anomaly threshold per detector.
+	telemetryRRCFAllScoresCount              = "observer.rrcf.all_scores_count"                      // Number of entries in the unbounded allScores history slice.
+	telemetryLogPatternExtractorPatternCount = "observer.log_pattern_extractor.pattern_count"        // Delta of active log-pattern count.
+	telemetryLogPatternExtractorPatternGauge = "observer.log_pattern_extractor.pattern_count_live"   // Live gauge of active log-pattern cluster count.
+	telemetryLogsIngested                    = "observer.logs.ingested"                              // Number of logs ingested by anomaly detection.
+	telemetryProcessedLogSize                = "observer.logs.processed_bytes"                       // Total bytes processed from ingested logs.
+	telemetryDroppedLogs                     = "observer.logs.dropped"                               // Number of logs dropped before processing.
+	telemetrySeriesCount                     = "observer.series.count"                               // Number of active non-telemetry observer series.
+	telemetryStorageTotalPoints              = "observer.storage.total_points"                       // Total data points stored per namespace.
+	telemetryStorageIDStatsSlots             = "observer.storage.id_stats_slots"                     // Length of seriesIDStats slice including nil holes from evictions.
+	telemetryStorageObservationTimestamps    = "observer.storage.observation_timestamps"             // Number of entries in the observation-timestamps map (log mode only).
+	telemetryLogsInFlightCount               = "observer.logs.in_flight"                             // Number of logs currently queued/in flight.
+	telemetryStorageSeriesEvicted            = "observer.storage.series_evicted"                     // Number of storage series evicted to enforce bounds.
+	telemetryStorageCapacityHit              = "observer.storage.capacity_hit"                       // Number of times storage capacity eviction was triggered.
+	telemetryAdvanceSkipped                  = "observer.scheduler.advance_skipped"                  // Number of advance requests skipped as already analyzed.
+	telemetryAdvanceCount                    = "observer.advance.count"                              // Number of successful advance cycles completed.
+	telemetryLogsSamplerDropped              = "observer.logs.sampler_dropped"                       // Logs dropped by the source sampler before reaching the observer, by source and priority.
+	telemetryDetectorProcessingTimeNs        = "observer.detector.processing_time_ns"                // Per-detector processing time in nanoseconds.
+	telemetryScorerEWMA                      = "observer.scorer.ewma"                                // Anomaly scorer smoothed EWMA signal, updated every second.
+	telemetryScorerState                     = "observer.scorer.state"                               // Anomaly scorer severity level on transition (0=Low,1=Medium,2=High).
+	telemetryCorrelatorClusterCount          = "observer.correlator.cluster_count"                   // Number of active time clusters per correlator.
+	telemetryGoHeapAllocBytes                = "observer.go.heap_alloc_bytes"                        // Go runtime: bytes of allocated heap objects.
+	telemetryGoHeapSysBytes                  = "observer.go.heap_sys_bytes"                          // Go runtime: bytes of heap memory obtained from the OS.
+	telemetryGoNumGC                         = "observer.go.num_gc"                                  // Go runtime: number of completed GC cycles.
 )
 
 type observerTelemetry struct {
 	channelDropped  telemetry.Counter
 	rrcfScore       telemetry.Gauge
 	rrcfThreshold   telemetry.Gauge
+	rrcfAllScores   telemetry.Gauge
 	logPatternCount telemetry.Counter
+	logPatternGauge telemetry.Gauge
 
 	logsIngested     telemetry.Counter
 	processedLogSize telemetry.Counter
 	droppedLogs      telemetry.Counter
 	seriesCount      telemetry.Gauge
+	storageTotalPts  telemetry.Gauge
+	storageIDSlots   telemetry.Gauge
+	storageObsTS     telemetry.Gauge
 	logsInFlight     telemetry.Gauge
 	storageEvicted   telemetry.Counter
 	storageCapHit    telemetry.Counter
 	advanceSkipped   telemetry.Counter
+	advanceCount     telemetry.Counter
 	samplerDropped   telemetry.Counter
 	processingTime   telemetry.Gauge
 	scorerEwma       telemetry.Gauge
 	scorerState      telemetry.Gauge
+	correlatorClusters telemetry.Gauge
+	goHeapAlloc      telemetry.Gauge
+	goHeapSys        telemetry.Gauge
+	goNumGC          telemetry.Gauge
 
 	inFlightInternal   atomic.Int64
 	inFlightKubelet    atomic.Int64
@@ -74,11 +95,23 @@ func newObserverTelemetry(telemetryComp telemetry.Component) *observerTelemetry 
 			[]string{"detector"},
 			"RRCF dynamic anomaly detection threshold (post-warmup)",
 		),
+		rrcfAllScores: telemetryComp.NewGauge(
+			"observer",
+			telemetryRRCFAllScoresCount,
+			[]string{"detector"},
+			"Number of entries in the RRCF allScores history slice; grows monotonically until Reset",
+		),
 		logPatternCount: telemetryComp.NewCounter(
 			"observer",
 			telemetryLogPatternExtractorPatternCount,
 			[]string{"detector"},
-			"Log pattern extractor number of active patterns",
+			"Delta of active log-pattern cluster count (positive on insert, negative on eviction/GC)",
+		),
+		logPatternGauge: telemetryComp.NewGauge(
+			"observer",
+			telemetryLogPatternExtractorPatternGauge,
+			[]string{"detector"},
+			"Live count of active log-pattern clusters per extractor, updated on each advance",
 		),
 		logsIngested: telemetryComp.NewCounter(
 			"observer",
@@ -104,6 +137,24 @@ func newObserverTelemetry(telemetryComp telemetry.Component) *observerTelemetry 
 			nil,
 			"Number of non-telemetry series currently stored in observer storage",
 		),
+		storageTotalPts: telemetryComp.NewGauge(
+			"observer",
+			telemetryStorageTotalPoints,
+			[]string{"namespace"},
+			"Total data points stored per namespace; proxy for per-namespace storage memory",
+		),
+		storageIDSlots: telemetryComp.NewGauge(
+			"observer",
+			telemetryStorageIDStatsSlots,
+			nil,
+			"Length of the seriesIDStats slice including nil holes; diverges from series.count after evictions",
+		),
+		storageObsTS: telemetryComp.NewGauge(
+			"observer",
+			telemetryStorageObservationTimestamps,
+			nil,
+			"Number of entries in the observation-timestamps map; grows one entry per second of log activity",
+		),
 		logsInFlight: telemetryComp.NewGauge(
 			"observer",
 			telemetryLogsInFlightCount,
@@ -127,6 +178,12 @@ func newObserverTelemetry(telemetryComp telemetry.Component) *observerTelemetry 
 			telemetryAdvanceSkipped,
 			[]string{"reason"},
 			"Number of skipped advance requests by trigger reason",
+		),
+		advanceCount: telemetryComp.NewCounter(
+			"observer",
+			telemetryAdvanceCount,
+			nil,
+			"Number of successful advance cycles completed by the observer engine",
 		),
 		samplerDropped: telemetryComp.NewCounter(
 			"observer",
@@ -152,7 +209,42 @@ func newObserverTelemetry(telemetryComp telemetry.Component) *observerTelemetry 
 			[]string{"scorer", "direction"},
 			"Anomaly scorer severity level on transition (0=Low, 1=Medium, 2=High)",
 		),
+		correlatorClusters: telemetryComp.NewGauge(
+			"observer",
+			telemetryCorrelatorClusterCount,
+			[]string{"correlator"},
+			"Number of active time clusters per correlator",
+		),
+		goHeapAlloc: telemetryComp.NewGauge(
+			"observer",
+			telemetryGoHeapAllocBytes,
+			nil,
+			"Go runtime: bytes of live allocated heap objects (from runtime.MemStats.HeapAlloc)",
+		),
+		goHeapSys: telemetryComp.NewGauge(
+			"observer",
+			telemetryGoHeapSysBytes,
+			nil,
+			"Go runtime: bytes of heap memory obtained from the OS (from runtime.MemStats.HeapSys)",
+		),
+		goNumGC: telemetryComp.NewGauge(
+			"observer",
+			telemetryGoNumGC,
+			nil,
+			"Go runtime: cumulative number of completed GC cycles (from runtime.MemStats.NumGC)",
+		),
 	}
+}
+
+// updateGoMemStats reads Go runtime memory statistics and emits heap gauges.
+// Called once per advance cycle; ReadMemStats acquires a lock but does not
+// stop the world since Go 1.15.
+func (t *observerTelemetry) updateGoMemStats() {
+	var ms runtime.MemStats
+	runtime.ReadMemStats(&ms)
+	t.goHeapAlloc.Set(float64(ms.HeapAlloc))
+	t.goHeapSys.Set(float64(ms.HeapSys))
+	t.goNumGC.Set(float64(ms.NumGC))
 }
 
 func (t *observerTelemetry) recordChannelDropped(source string) {
@@ -250,4 +342,32 @@ func classifyLogSource(source string, tags []string) string {
 
 func (t *observerTelemetry) recordProcessingTime(detectorTag string, durationNs float64) {
 	t.processingTime.Set(durationNs, detectorTag)
+}
+
+func (t *observerTelemetry) recordRRCFAllScoresCount(detectorName string, count int) {
+	t.rrcfAllScores.Set(float64(count), detectorName)
+}
+
+func (t *observerTelemetry) recordLogPatternCountGauge(detectorName string, count int) {
+	t.logPatternGauge.Set(float64(count), detectorName)
+}
+
+func (t *observerTelemetry) recordStorageTotalPoints(namespace string, count int64) {
+	t.storageTotalPts.Set(float64(count), namespace)
+}
+
+func (t *observerTelemetry) recordStorageIDStatsSlots(count int) {
+	t.storageIDSlots.Set(float64(count))
+}
+
+func (t *observerTelemetry) recordStorageObservationTimestamps(count int) {
+	t.storageObsTS.Set(float64(count))
+}
+
+func (t *observerTelemetry) recordAdvance() {
+	t.advanceCount.Add(1)
+}
+
+func (t *observerTelemetry) recordCorrelatorClusterCount(correlatorName string, count int) {
+	t.correlatorClusters.Set(float64(count), correlatorName)
 }

@@ -285,6 +285,13 @@ func (c *TimeClusterCorrelator) GetClusters() []TimeClusterInfo {
 	return result
 }
 
+// ClusterCount returns the number of active time clusters.
+func (c *TimeClusterCorrelator) ClusterCount() int {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return len(c.clusters)
+}
+
 // GetStats returns statistics about the correlator state.
 func (c *TimeClusterCorrelator) GetStats() map[string]interface{} {
 	c.mu.RLock()

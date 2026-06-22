@@ -176,6 +176,13 @@ func (e *LogPatternExtractor) SetObserverTelemetry(t *observerTelemetry) {
 	e.telemetry = t
 }
 
+// PatternCount returns the current number of active log pattern clusters across
+// all tag groups. This is the live gauge counterpart to the delta
+// observer.log_pattern_extractor.pattern_count counter.
+func (e *LogPatternExtractor) PatternCount() int {
+	return e.taggedClusterer.TotalClusterCount()
+}
+
 // ProcessLog clusters the log message and emits a count metric for its pattern.
 func (e *LogPatternExtractor) ProcessLog(log observerdef.LogView) observerdef.LogMetricsExtractorOutput {
 	logUnixSec := log.GetTimestampUnixMilli() / 1000

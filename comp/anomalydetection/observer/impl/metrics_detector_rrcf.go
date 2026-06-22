@@ -442,6 +442,7 @@ func (r *RRCFDetector) scoreAndDetect(shingles []shingle, _ int64) observer.Dete
 		})
 		if r.telemetry != nil {
 			r.telemetry.recordRRCFScore(r.Name(), score)
+			r.telemetry.recordRRCFAllScoresCount(r.Name(), len(r.allScores))
 		}
 
 		// Skip warmup phase — scores are artificial during forest filling

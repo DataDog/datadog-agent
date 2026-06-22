@@ -93,6 +93,9 @@ type engine struct {
 	onStorageCapacityHit   func()
 	onAdvanceSkipped       func(reason string)
 	onProcessingTime       func(detectorTag string, durationNs float64)
+	// onAdvanceCompleted is called at the end of every successful advance with
+	// the correlator snapshot used in that cycle. Nil means no-op.
+	onAdvanceCompleted func(correlators []observerdef.Correlator)
 
 	// Event subscription management.
 	sinks   []eventSink
@@ -484,6 +487,10 @@ func (e *engine) advanceWithReason(upToSec int64, reason advanceReason) advanceR
 			correlatorEvents: result.correlatorEvents,
 		},
 	})
+
+	if e.onAdvanceCompleted != nil {
+		e.onAdvanceCompleted(correlators)
+	}
 
 	return result
 }

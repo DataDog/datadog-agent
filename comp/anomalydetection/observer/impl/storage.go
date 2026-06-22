@@ -1312,6 +1312,40 @@ func (s *timeSeriesStorage) RecordObservationTime(timestamp int64) {
 	s.observationTimestamps[timestamp] = struct{}{}
 }
 
+// SampleCountByNamespace returns the total number of data points per namespace
+// across all live series. The returned map is a fresh snapshot; callers must not
+// modify it. Acquired under the read lock so it is safe to call concurrently.
+func (s *timeSeriesStorage) SampleCountByNamespace() map[string]int64 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	result := make(map[string]int64)
+	for _, stats := range s.seriesIDStats {
+		if stats == nil {
+			continue
+		}
+		result[stats.Namespace] += int64(stats.pointCount())
+	}
+	return result
+}
+
+// IDStatsSlotCount returns the length of the seriesIDStats slice, including nil
+// slots left by evicted series. This value diverges from TotalSeriesCount when
+// series are evicted; a large gap indicates append-only slice fragmentation.
+func (s *timeSeriesStorage) IDStatsSlotCount() int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return len(s.seriesIDStats)
+}
+
+// ObservationTimestampCount returns the number of entries in the observation
+// timestamps map. Each entry represents a unique second in which at least one
+// log observation was recorded. This map grows monotonically and is never evicted.
+func (s *timeSeriesStorage) ObservationTimestampCount() int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return len(s.observationTimestamps)
+}
+
 // WriteGeneration returns a counter that increments on every Add call
 // (including same-bucket merges). Detectors use this to detect value
 // changes that don't create new buckets.
