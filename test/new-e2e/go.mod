@@ -220,7 +220,7 @@ require (
 	github.com/google/go-containerregistry v0.21.7
 	github.com/hairyhenderson/go-codeowners v0.7.1
 	github.com/pulumi/pulumi-aws/sdk/v7 v7.32.0
-	github.com/pulumi/pulumi-awsx/sdk/v3 v3.3.1
+	github.com/pulumi/pulumi-awsx/sdk/v3 v3.6.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
