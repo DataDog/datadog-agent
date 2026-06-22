@@ -29,6 +29,7 @@ type hooks struct {
 	preInstall  packageHook
 	preRemove   packageHook
 	postInstall packageHook
+	preActivate packageHook
 
 	preStartExperiment    packageHook
 	postStartExperiment   packageHook
@@ -51,9 +52,11 @@ type Hooks interface {
 	PreInstall(ctx context.Context, pkg string, pkgType PackageType, upgrade bool) error
 	PreRemove(ctx context.Context, pkg string, pkgType PackageType, upgrade bool) error
 	PostInstall(ctx context.Context, pkg string, pkgType PackageType, upgrade bool, winArgs []string) error
+	PreActivate(ctx context.Context, pkg string, pkgType PackageType, packagePath string, upgrade bool, winArgs []string) error
 
 	PreStartExperiment(ctx context.Context, pkg string) error
 	PostStartExperiment(ctx context.Context, pkg string) error
+	PreActivateExperiment(ctx context.Context, pkg string, packagePath string) error
 	PreStopExperiment(ctx context.Context, pkg string) error
 	PostStopExperiment(ctx context.Context, pkg string) error
 	PrePromoteExperiment(ctx context.Context, pkg string) error
@@ -96,6 +99,11 @@ func (h *hooksCLI) PostInstall(ctx context.Context, pkg string, pkgType PackageT
 	return h.callHook(ctx, false, pkg, "postInstall", pkgType, upgrade, winArgs, "")
 }
 
+// PreActivate calls the pre-activation hook for the package.
+func (h *hooksCLI) PreActivate(ctx context.Context, pkg string, pkgType PackageType, packagePath string, upgrade bool, winArgs []string) error {
+	return h.callHookWithPackagePath(ctx, false, pkg, "preActivate", pkgType, upgrade, winArgs, "", packagePath)
+}
+
 // PreStartExperiment calls the pre-start-experiment hook for the package.
 func (h *hooksCLI) PreStartExperiment(ctx context.Context, pkg string) error {
 	return h.callHook(ctx, false, pkg, "preStartExperiment", PackageTypeOCI, false, nil, "")
@@ -104,6 +112,11 @@ func (h *hooksCLI) PreStartExperiment(ctx context.Context, pkg string) error {
 // PostStartExperiment calls the post-start-experiment hook for the package.
 func (h *hooksCLI) PostStartExperiment(ctx context.Context, pkg string) error {
 	return h.callHook(ctx, true, pkg, "postStartExperiment", PackageTypeOCI, false, nil, "")
+}
+
+// PreActivateExperiment calls the pre-activation hook for an experiment package.
+func (h *hooksCLI) PreActivateExperiment(ctx context.Context, pkg string, packagePath string) error {
+	return h.callHookWithPackagePath(ctx, true, pkg, "preActivate", PackageTypeOCI, false, nil, "", packagePath)
 }
 
 // PreStopExperiment calls the pre-stop-experiment hook for the package.
@@ -232,11 +245,18 @@ func (h *hooksCLI) extensionPackageType(pkg string) PackageType {
 }
 
 func (h *hooksCLI) callHook(ctx context.Context, experiment bool, pkg string, name string, packageType PackageType, upgrade bool, windowsArgs []string, extension string) error {
+	return h.callHookWithPackagePath(ctx, experiment, pkg, name, packageType, upgrade, windowsArgs, extension, "")
+}
+
+func (h *hooksCLI) callHookWithPackagePath(ctx context.Context, experiment bool, pkg string, name string, packageType PackageType, upgrade bool, windowsArgs []string, extension string, explicitPackagePath string) error {
 	hooksCLIPath, err := exec.GetExecutable()
 	if err != nil {
 		return fmt.Errorf("failed to get executable path: %w", err)
 	}
 	pkgPath := h.getPath(pkg, packageType, experiment)
+	if explicitPackagePath != "" {
+		pkgPath = explicitPackagePath
+	}
 
 	hooksWithoutReExec := []string{
 		"preInstall",
@@ -297,6 +317,8 @@ func getHook(pkg string, name string) packageHook {
 	switch name {
 	case "postInstall":
 		return h.postInstall
+	case "preActivate":
+		return h.preActivate
 	case "preRemove":
 		return h.preRemove
 	case "preInstall":

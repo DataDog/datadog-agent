@@ -76,8 +76,14 @@ func (r *Repositories) Get(pkg string) *Repository {
 
 // Create creates a new repository for the given package name.
 func (r *Repositories) Create(ctx context.Context, pkg string, version string, stableSourcePath string) error {
+	return r.CreateWithPreActivateHook(ctx, pkg, version, stableSourcePath, nil)
+}
+
+// CreateWithPreActivateHook creates a new repository for the given package name
+// and runs preActivate before publishing the stable/experiment links.
+func (r *Repositories) CreateWithPreActivateHook(ctx context.Context, pkg string, version string, stableSourcePath string, preActivate PreActivateHook) error {
 	repository := r.newRepository(pkg)
-	err := repository.Create(ctx, version, stableSourcePath)
+	err := repository.CreateWithPreActivateHook(ctx, version, stableSourcePath, preActivate)
 	if err != nil {
 		return fmt.Errorf("could not create repository for package %s: %w", pkg, err)
 	}

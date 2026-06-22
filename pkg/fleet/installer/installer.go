@@ -336,10 +336,6 @@ func (i *installerImpl) doInstall(ctx context.Context, url string, args []string
 		return fmt.Errorf("could not create temporary directory: %w", err)
 	}
 	defer os.RemoveAll(tmpDir)
-	err = i.db.DeletePackage(pkg.Name)
-	if err != nil {
-		return fmt.Errorf("could not remove package installation in db: %w", err)
-	}
 	configDir := filepath.Join(i.userConfigsDir, "datadog-agent")
 	err = pkg.ExtractLayers(oci.DatadogPackageLayerMediaType, tmpDir)
 	if err != nil {
@@ -349,7 +345,7 @@ func (i *installerImpl) doInstall(ctx context.Context, url string, args []string
 	if err != nil {
 		return fmt.Errorf("could not extract package config layer: %w", err)
 	}
-	err = i.packages.Create(ctx, pkg.Name, pkg.Version, tmpDir)
+	err = i.packages.CreateWithPreActivateHook(ctx, pkg.Name, pkg.Version, tmpDir, i.preActivateHook(ctx, pkg.Name, packages.PackageTypeOCI, upgrade, args))
 	if err != nil {
 		return fmt.Errorf("could not create repository: %w", err)
 	}
@@ -419,7 +415,7 @@ func (i *installerImpl) InstallExperiment(ctx context.Context, url string) error
 		return fmt.Errorf("could not install experiment: %w", err)
 	}
 	repository := i.packages.Get(pkg.Name)
-	err = repository.SetExperiment(ctx, pkg.Version, tmpDir)
+	err = repository.SetExperimentWithPreActivateHook(ctx, pkg.Version, tmpDir, i.preActivateExperimentHook(ctx, pkg.Name))
 	if err != nil {
 		return installerErrors.Wrap(
 			installerErrors.ErrFilesystemIssue,
@@ -439,6 +435,24 @@ func (i *installerImpl) InstallExperiment(ctx context.Context, url string) error
 		return fmt.Errorf("could not install experiment: %w", err)
 	}
 	return nil
+}
+
+func (i *installerImpl) preActivateHook(ctx context.Context, pkg string, pkgType packages.PackageType, upgrade bool, args []string) repository.PreActivateHook {
+	if runtime.GOOS != "windows" || pkg != packageAPMLibraryDotnet {
+		return nil
+	}
+	return func(packagePath string) error {
+		return i.hooks.PreActivate(ctx, pkg, pkgType, packagePath, upgrade, args)
+	}
+}
+
+func (i *installerImpl) preActivateExperimentHook(ctx context.Context, pkg string) repository.PreActivateHook {
+	if runtime.GOOS != "windows" || pkg != packageAPMLibraryDotnet {
+		return nil
+	}
+	return func(packagePath string) error {
+		return i.hooks.PreActivateExperiment(ctx, pkg, packagePath)
+	}
 }
 
 // RemoveExperiment removes an experiment.

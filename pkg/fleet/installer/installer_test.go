@@ -92,6 +92,14 @@ func (h *testHooks) PostInstall(ctx context.Context, pkg string, pkgType package
 	return nil
 }
 
+func (h *testHooks) PreActivate(ctx context.Context, pkg string, pkgType packages.PackageType, packagePath string, upgrade bool, winArgs []string) error {
+	if h.noop {
+		return nil
+	}
+	h.Called(ctx, pkg, pkgType, packagePath, upgrade, winArgs)
+	return nil
+}
+
 func (h *testHooks) PreRemove(ctx context.Context, pkg string, pkgType packages.PackageType, upgrade bool) error {
 	if h.noop {
 		return nil
@@ -113,6 +121,14 @@ func (h *testHooks) PostStartExperiment(ctx context.Context, pkg string) error {
 		return nil
 	}
 	h.Called(ctx, pkg)
+	return nil
+}
+
+func (h *testHooks) PreActivateExperiment(ctx context.Context, pkg string, packagePath string) error {
+	if h.noop {
+		return nil
+	}
+	h.Called(ctx, pkg, packagePath)
 	return nil
 }
 

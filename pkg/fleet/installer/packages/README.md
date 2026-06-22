@@ -12,7 +12,8 @@ The following is valid for `deb`, `rpm`, and `oci` packages.
 [Source](https://docs.google.com/drawings/d/1wsqV_Id_utKt7VrT8DAAsP28edk4diBRae59TqnLOAk/edit)
 
 1. v1's files are written to disk.
-2. v1's `PostInstall` hook is executed.
+2. v1's `PreActivate` hook is executed, if the package defines one. OCI packages receive the immutable package path before the stable link is published.
+3. v1's `PostInstall` hook is executed.
 
 ### Removal
 
@@ -28,8 +29,10 @@ The following is valid for `deb`, `rpm`, and `oci` packages.
 [Source](https://docs.google.com/drawings/d/17RHy35YWuriaeCXTQ5eQciC3goYgle2_Qwe2nhRzzho/edit)
 
 1. v1's `PreRemove` hook is executed. Note that we inform the hook that the package is being upgraded.
-2. v2's files are written to disk and v1's files are removed.
-3. v2's `PostInstall` hook is executed. Note that we inform the hook that the package is being upgraded.
+2. v2's files are written to disk.
+3. v2's `PreActivate` hook is executed, if the package defines one. OCI packages receive the immutable package path before the stable link is published.
+4. v1's files are removed.
+5. v2's `PostInstall` hook is executed. Note that we inform the hook that the package is being upgraded.
 
 ## Experiment upgrades
 
@@ -46,7 +49,8 @@ The installer supports a safer upgrade path for `oci` packages called "experimen
 
 1. v1's `PreStartExperiment` hook is executed.
 2. v2's files are written to disk. v1's files are kept intact.
-3. v2's `PostStartExperiment` hook is executed.
+3. v2's `PreActivate` hook is executed, if the package defines one. OCI packages receive the immutable package path before the experiment link is published.
+4. v2's `PostStartExperiment` hook is executed.
 
 ### Stop experiment
 

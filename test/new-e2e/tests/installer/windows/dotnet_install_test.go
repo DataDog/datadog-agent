@@ -9,7 +9,10 @@ package installer
 
 import (
 	_ "embed"
+	"fmt"
+	"io"
 	"strings"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
@@ -19,6 +22,8 @@ import (
 
 	"testing"
 )
+
+const dotnetActivationGateEnv = "DD_TEST_APM_LIBRARY_DOTNET_ACTIVATION_GATE"
 
 var (
 	//go:embed resources/dotnet/web.config
@@ -107,6 +112,39 @@ func (s *testDotnetLibraryInstallSuite) TestUpdate() {
 	s.Require().NoErrorf(err, "failed to garbage collect: %s", output)
 	s.Require().Host(s.Env().RemoteHost).NoDirExists(oldLibraryPath, "the old library path:%s should no longer exist after garbage collection", oldLibraryPath)
 
+}
+
+func (s *testDotnetLibraryInstallSuite) TestUpgradeDoesNotPublishStableBeforeActivation() {
+	const (
+		initialVersion = "3.19.0-pipeline.67299728.beta.sha-c05ddfb1-1"
+		upgradeVersion = "3.19.0-pipeline.67351320.beta.sha-c05ddfb1-1"
+	)
+
+	s.installDotnetAPMLibraryWithVersion(initialVersion)
+	s.assertDotnetStableTargetContains(initialVersion)
+
+	gatePath := `C:\ProgramData\Datadog\Installer\dotnet-activation-gate`
+	host := s.Env().RemoteHost
+	_, _ = host.Execute(fmt.Sprintf(`Remove-Item -Force -ErrorAction SilentlyContinue '%s.ready', '%s.release'`, gatePath, gatePath))
+
+	session, stdout, err := s.Installer().StartInstallPackage("datadog-apm-library-dotnet",
+		map[string]string{dotnetActivationGateEnv: gatePath},
+		unixinstaller.WithVersion(upgradeVersion),
+		unixinstaller.WithRegistry("install.datad0g.com.internal.dda-testing.com"),
+	)
+	s.Require().NoError(err)
+	defer session.Close() //nolint:errcheck
+
+	s.waitForRemoteFile(gatePath+".ready", 2*time.Minute)
+	s.assertDotnetStableTargetContains(initialVersion)
+
+	_, err = host.Execute(fmt.Sprintf(`New-Item -ItemType File -Force -Path '%s.release' | Out-Null`, gatePath))
+	s.Require().NoError(err)
+
+	output, readErr := io.ReadAll(stdout)
+	s.Require().NoError(readErr)
+	s.Require().NoErrorf(session.Wait(), "failed to install upgraded dotnet library: %s", string(output))
+	s.assertDotnetStableTargetContains(upgradeVersion)
 }
 
 func (s *testDotnetLibraryInstallSuite) TestRemovePackageFailsIfInUse() {
@@ -200,6 +238,24 @@ func (s *testDotnetLibraryInstallSuite) installDotnetAPMLibraryWithVersion(versi
 func (s *testDotnetLibraryInstallSuite) removeDotnetAPMLibrary() {
 	output, err := s.Installer().RemovePackage("datadog-apm-library-dotnet")
 	s.Require().NoErrorf(err, "failed to remove the dotnet library package: %s", output)
+}
+
+func (s *testDotnetLibraryInstallSuite) assertDotnetStableTargetContains(version string) {
+	output, err := s.Env().RemoteHost.Execute(fmt.Sprintf(`(Get-Item -LiteralPath '%s').Target`, consts.GetStableDirFor("datadog-apm-library-dotnet")))
+	s.Require().NoErrorf(err, "failed to read dotnet stable target: %s", output)
+	s.Require().Contains(strings.TrimSpace(output), version)
+}
+
+func (s *testDotnetLibraryInstallSuite) waitForRemoteFile(path string, timeout time.Duration) {
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		output, err := s.Env().RemoteHost.Execute(fmt.Sprintf(`Test-Path -LiteralPath '%s'`, path))
+		if err == nil && strings.EqualFold(strings.TrimSpace(output), "true") {
+			return
+		}
+		time.Sleep(time.Second)
+	}
+	s.Require().FailNowf("timed out waiting for remote file", "path: %s", path)
 }
 
 // pathJoin and pathDir are helper functions to work with paths in Windows.

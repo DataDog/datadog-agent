@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path"
 	"path/filepath"
@@ -16,6 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
+	"golang.org/x/crypto/ssh"
 
 	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 
@@ -38,6 +40,7 @@ type DatadogInstallerRunner interface {
 	PromoteExperiment(packageName string) (string, error)
 	StopExperiment(packageName string) (string, error)
 	InstallPackage(packageName string, opts ...installer.PackageOption) (string, error)
+	StartInstallPackage(packageName string, envVars map[string]string, opts ...installer.PackageOption) (*ssh.Session, io.Reader, error)
 	InstallExperiment(packageName string, opts ...installer.PackageOption) (string, error)
 	RemovePackage(packageName string) (string, error)
 	RemoveExperiment(packageName string) (string, error)
@@ -209,6 +212,38 @@ func (d *DatadogInstaller) StopExperiment(packageName string) (string, error) {
 // Note: This command is a direct call to the installer and does not use the daemon.
 func (d *DatadogInstaller) InstallPackage(packageName string, opts ...installer.PackageOption) (string, error) {
 	return d.runCommand("install", packageName, opts...)
+}
+
+func (d *DatadogInstaller) StartInstallPackage(packageName string, extraEnvVars map[string]string, opts ...installer.PackageOption) (*ssh.Session, io.Reader, error) {
+	var packageConfigFound = false
+	var packageConfig installer.TestPackageConfig
+	for _, packageConfig = range installer.PackagesConfig {
+		if packageConfig.Name == packageName {
+			packageConfigFound = true
+			break
+		}
+	}
+	if !packageConfigFound {
+		return nil, nil, fmt.Errorf("unknown package %s", packageName)
+	}
+	if err := optional.ApplyOptions(&packageConfig, opts); err != nil {
+		return nil, nil, err
+	}
+
+	registryTag := packageName
+	if packageConfig.Alias != "" {
+		registryTag = packageConfig.Alias
+	}
+	envVars := installer.InstallScriptEnvWithPackages(e2eos.AMD64Arch, []installer.TestPackageConfig{packageConfig})
+	for key, value := range extraEnvVars {
+		envVars[key] = value
+	}
+	packageURL := fmt.Sprintf("oci://%s/%s:%s", packageConfig.Registry, registryTag, packageConfig.Version)
+	session, _, stdout, err := d.env.RemoteHost.Start(
+		fmt.Sprintf("& \"%s\" install %s", d.binaryPath, packageURL),
+		client.WithEnvVariables(envVars),
+	)
+	return session, stdout, err
 }
 
 // InstallExperiment will attempt to use the Datadog Installer to start an experiment for the package given in parameter.

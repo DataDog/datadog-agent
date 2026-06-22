@@ -8,8 +8,11 @@ package packages
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io/fs"
+	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/exec"
@@ -20,6 +23,7 @@ import (
 )
 
 var apmLibraryDotnetPackage = hooks{
+	preActivate:         preActivateAPMLibraryDotnet,
 	postInstall:         postInstallAPMLibraryDotnet,
 	preRemove:           preRemoveAPMLibraryDotnet,
 	postStartExperiment: postStartExperimentAPMLibraryDotnet,
@@ -28,6 +32,7 @@ var apmLibraryDotnetPackage = hooks{
 
 const (
 	packageAPMLibraryDotnet = "datadog-apm-library-dotnet"
+	dotnetActivationGateEnv = "DD_TEST_APM_LIBRARY_DOTNET_ACTIVATION_GATE"
 )
 
 var (
@@ -46,14 +51,26 @@ func getLibraryPath(installDir string) string {
 	return filepath.Join(installDir, "library")
 }
 
-// postInstallAPMLibraryDotnet runs on the first install of the .NET APM library after the files are laid out on disk.
+// preActivateAPMLibraryDotnet runs after the .NET APM library files are laid out on disk,
+// but before the package symlink is updated to point to them.
+func preActivateAPMLibraryDotnet(ctx HookContext) (err error) {
+	span, ctx := ctx.StartSpan("pre_activate_apm_library_dotnet")
+	defer func() { span.Finish(err) }()
+	return installDotnetLibraryVersion(ctx, ctx.PackagePath)
+}
+
+// postInstallAPMLibraryDotnet runs after the package symlink points to the activated .NET APM library.
 func postInstallAPMLibraryDotnet(ctx HookContext) (err error) {
 	span, ctx := ctx.StartSpan("setup_apm_library_dotnet")
 	defer func() { span.Finish(err) }()
-	// Register GAC + set env variables
-	var installDir string
-	installDir, err = filepath.EvalSymlinks(getTargetPath("stable"))
-	if err != nil {
+	return instrumentDotnetLibraryIfNeeded(ctx, "stable")
+}
+
+func installDotnetLibraryVersion(ctx HookContext, installDir string) (err error) {
+	if installDir == "" {
+		return errors.New("package path is required to install the .NET APM library")
+	}
+	if err := waitForDotnetActivationGate(ctx); err != nil {
 		return err
 	}
 	dotnetExec := exec.NewDotnetLibraryExec(getExecutablePath(installDir))
@@ -61,25 +78,46 @@ func postInstallAPMLibraryDotnet(ctx HookContext) (err error) {
 	if err != nil {
 		return err
 	}
-	return instrumentDotnetLibraryIfNeeded(ctx, "stable")
+	return nil
 }
 
 // postStartExperimentAPMLibraryDotnet starts a .NET APM library experiment.
 func postStartExperimentAPMLibraryDotnet(ctx HookContext) (err error) {
 	span, ctx := ctx.StartSpan("start_apm_library_dotnet_experiment")
 	defer func() { span.Finish(err) }()
-	// Register GAC + set env variables new version
-	var installDir string
-	installDir, err = filepath.EvalSymlinks(getTargetPath("experiment"))
-	if err != nil {
-		return err
-	}
-	dotnetExec := exec.NewDotnetLibraryExec(getExecutablePath(installDir))
-	_, err = dotnetExec.InstallVersion(ctx, getLibraryPath(installDir))
-	if err != nil {
-		return err
-	}
 	return instrumentDotnetLibraryIfNeeded(ctx, "experiment")
+}
+
+func waitForDotnetActivationGate(ctx context.Context) error {
+	gatePath := os.Getenv(dotnetActivationGateEnv)
+	if gatePath == "" {
+		return nil
+	}
+	readyPath := gatePath + ".ready"
+	releasePath := gatePath + ".release"
+	if err := os.WriteFile(readyPath, []byte("ready"), 0644); err != nil {
+		return fmt.Errorf("could not write .NET activation gate ready file: %w", err)
+	}
+	ticker := time.NewTicker(500 * time.Millisecond)
+	defer ticker.Stop()
+	timeout := time.NewTimer(10 * time.Minute)
+	defer timeout.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-timeout.C:
+			return errors.New("timed out waiting for .NET activation gate release file")
+		case <-ticker.C:
+			_, err := os.Stat(releasePath)
+			if err == nil {
+				return nil
+			}
+			if !errors.Is(err, fs.ErrNotExist) {
+				return fmt.Errorf("could not stat .NET activation gate release file: %w", err)
+			}
+		}
+	}
 }
 
 // preStopExperimentAPMLibraryDotnet stops a .NET APM library experiment.

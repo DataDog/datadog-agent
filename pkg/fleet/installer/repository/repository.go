@@ -38,6 +38,10 @@ var (
 // when running the hook.
 type PreRemoveHook func(context.Context, string) (bool, error)
 
+// PreActivateHook is called after package files are moved into their immutable
+// repository path, but before the stable or experiment link points at them.
+type PreActivateHook func(string) error
+
 // Repository contains the stable and experimental package of a single artifact managed by the updater.
 //
 // On disk the repository is structured as follows:
@@ -129,6 +133,13 @@ func (r *Repository) GetState() (State, error) {
 // 3. Move the stable source to the repository.
 // 4. Create the stable link.
 func (r *Repository) Create(ctx context.Context, name string, stableSourcePath string) error {
+	return r.CreateWithPreActivateHook(ctx, name, stableSourcePath, nil)
+}
+
+// CreateWithPreActivateHook is like Create, but when preActivate is not nil it
+// runs the hook after moving the package to its immutable repository path and
+// before publishing the stable/experiment links.
+func (r *Repository) CreateWithPreActivateHook(ctx context.Context, name string, stableSourcePath string, preActivate PreActivateHook) error {
 	err := os.MkdirAll(r.rootPath, 0755)
 	if err != nil {
 		return fmt.Errorf("could not create packages root directory: %w", err)
@@ -137,6 +148,10 @@ func (r *Repository) Create(ctx context.Context, name string, stableSourcePath s
 	repository, err := readRepository(r.rootPath, r.preRemoveHooks)
 	if err != nil {
 		return err
+	}
+
+	if preActivate != nil {
+		return repository.createWithPreActivateHook(ctx, name, stableSourcePath, preActivate)
 	}
 
 	// Remove symlinks as we are (re)-installing the package
@@ -222,6 +237,13 @@ func (r *Repository) Delete(ctx context.Context) error {
 // 2. Move the experiment source to the repository.
 // 3. Set the experiment link to the experiment package.
 func (r *Repository) SetExperiment(ctx context.Context, name string, sourcePath string) error {
+	return r.SetExperimentWithPreActivateHook(ctx, name, sourcePath, nil)
+}
+
+// SetExperimentWithPreActivateHook is like SetExperiment, but when preActivate
+// is not nil it runs the hook after moving the package to its immutable
+// repository path and before publishing the experiment link.
+func (r *Repository) SetExperimentWithPreActivateHook(ctx context.Context, name string, sourcePath string, preActivate PreActivateHook) error {
 	repository, err := readRepository(r.rootPath, r.preRemoveHooks)
 	if err != nil {
 		return err
@@ -246,7 +268,11 @@ func (r *Repository) SetExperiment(ctx context.Context, name string, sourcePath 
 	if filepath.Base(*repository.stable.packagePath) == name {
 		return errors.New("cannot set new experiment to the same version as stable")
 	}
-	err = repository.setExperiment(ctx, name, sourcePath)
+	if preActivate != nil {
+		err = repository.setExperimentWithPreActivateHook(ctx, name, sourcePath, preActivate)
+	} else {
+		err = repository.setExperiment(ctx, name, sourcePath)
+	}
 	if err != nil {
 		return fmt.Errorf("could not set experiment: %w", err)
 	}
@@ -362,6 +388,17 @@ func (r *repositoryFiles) setExperiment(ctx context.Context, name string, source
 	return r.experiment.Set(path)
 }
 
+func (r *repositoryFiles) setExperimentWithPreActivateHook(ctx context.Context, name string, sourcePath string, preActivate PreActivateHook) error {
+	path, err := movePackageFromSource(ctx, name, r.rootPath, sourcePath)
+	if err != nil {
+		return fmt.Errorf("could not move experiment source: %w", err)
+	}
+	if err := preActivate(path); err != nil {
+		return fmt.Errorf("could not pre-activate experiment: %w", err)
+	}
+	return r.experiment.Set(path)
+}
+
 // setExperimentToStable moves the experiment to stable.
 func (r *repositoryFiles) setExperimentToStable() error {
 	return r.experiment.Set(r.stable.linkPath)
@@ -374,6 +411,31 @@ func (r *repositoryFiles) setStable(ctx context.Context, name string, sourcePath
 	}
 
 	return r.stable.Set(path)
+}
+
+func (r *repositoryFiles) createWithPreActivateHook(ctx context.Context, name string, stableSourcePath string, preActivate PreActivateHook) error {
+	err := r.cleanup(ctx)
+	if err != nil {
+		return fmt.Errorf("could not cleanup repository: %w", err)
+	}
+
+	path, err := movePackageFromSource(ctx, name, r.rootPath, stableSourcePath)
+	if err != nil {
+		return fmt.Errorf("could not move stable source: %w", err)
+	}
+	if err := preActivate(path); err != nil {
+		return fmt.Errorf("could not pre-activate stable: %w", err)
+	}
+	if err := r.stable.Set(path); err != nil {
+		return fmt.Errorf("could not set stable: %w", err)
+	}
+	if err := r.setExperimentToStable(); err != nil {
+		return fmt.Errorf("could not set experiment to stable: %w", err)
+	}
+	if err := r.cleanup(ctx); err != nil {
+		return fmt.Errorf("could not cleanup repository: %w", err)
+	}
+	return nil
 }
 
 func movePackageFromSource(ctx context.Context, packageName string, rootPath string, sourcePath string) (string, error) {
