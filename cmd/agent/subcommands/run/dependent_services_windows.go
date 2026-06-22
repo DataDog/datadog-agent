@@ -103,6 +103,7 @@ func subservices(coreConf model.Reader, sysprobeConf model.Reader) []Servicedef 
 			name: "procmgr",
 			configKeys: map[string]model.Reader{
 				"process_manager.enabled": coreConf,
+				"data_plane.enabled":      coreConf,
 			},
 			serviceName:    "dd-procmgr-service",
 			serviceInit:    procmgrInit,

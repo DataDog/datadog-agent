@@ -1176,7 +1176,7 @@ func sanitizeAPIKeyConfig(config pkgconfigmodel.Config, key string) {
 }
 
 // sanitizeDataPlaneConfig gates data_plane.enabled to supported platforms.
-// The Agent Data Plane (ADP) is supported on Linux and macOS. On unsupported
+// The Agent Data Plane (ADP) is supported on Linux, macOS, and Windows. On unsupported
 // platforms this function always installs a SourceAgentRuntime override of
 // false, which beats file and fleet-policy sources and prevents them from
 // re-enabling ADP after this call returns. A warning is emitted only when the
@@ -1191,7 +1191,7 @@ func sanitizeAPIKeyConfig(config pkgconfigmodel.Config, key string) {
 // When DD_DATA_PLANE_FORCE_ENABLE=true the OS gate is skipped entirely; this
 // is intended for local development on unsupported platforms only.
 func sanitizeDataPlaneConfig(config pkgconfigmodel.Config, goos string, envLookup func(string) string) {
-	if goos == "linux" || goos == "darwin" || envLookup("DD_DATA_PLANE_FORCE_ENABLE") == "true" {
+	if goos == "linux" || goos == "darwin" || goos == "windows" || envLookup("DD_DATA_PLANE_FORCE_ENABLE") == "true" {
 		return
 	}
 	if config.GetBool(DataPlaneEnabled) {

@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    Adds Agent Data Plane packaging and Windows process-manager (dd-procmgrd) support to Windows Agent packages.

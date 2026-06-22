@@ -327,6 +327,12 @@ func (t *Tester) testCurrentVersionExpectations(tt *testing.T) {
 		}
 	})
 
+	tt.Run("creates adp process manager config", func(tt *testing.T) {
+		adpProcmgrConfigPath := filepath.Join(t.expectedInstallPath, "processes.d", "datadog-agent-data-plane.yaml")
+		_, err := t.host.Lstat(adpProcmgrConfigPath)
+		assert.NoError(tt, err, "install should create %s", adpProcmgrConfigPath)
+	})
+
 	tt.Run("removes embedded extraction artifacts", func(tt *testing.T) {
 		paths := []string{
 			filepath.Join(t.expectedInstallPath, "embedded3.COMPRESSED"),
@@ -396,6 +402,9 @@ func (t *Tester) testCurrentVersionExpectations(tt *testing.T) {
 				}
 			}, 1*time.Minute, 1*time.Second, "%s should be in the expected state", serviceName)
 		}
+
+		_, err := windows.GetServiceStatus(t.host, "datadog-agent-data-plane")
+		assert.Error(tt, err, "datadog-agent-data-plane should not be registered as a service")
 	})
 
 	tt.Run("user is a member of expected groups", func(tt *testing.T) {
