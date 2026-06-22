@@ -3,7 +3,7 @@
 
 package driver
 
-const Signature = 0xddfd00000018
+const Signature = 0xddfd00000019
 
 const (
 	GetStatsIOCTL             = 0x122004
@@ -184,21 +184,25 @@ const (
 )
 
 type HttpTransactionType struct {
-	RequestStarted     uint64
-	ResponseLastSeen   uint64
-	Tup                ConnTupleType
-	RequestMethod      uint32
-	ResponseStatusCode uint16
-	MaxRequestFragment uint16
-	SzRequestFragment  uint16
-	Pad                [6]uint8
-	RequestFragment    *uint8
+	RequestStarted      uint64
+	ResponseLastSeen    uint64
+	Tup                 ConnTupleType
+	RequestMethod       uint32
+	ResponseStatusCode  uint16
+	MaxRequestFragment  uint16
+	SzRequestFragment   uint16
+	MaxResponseFragment uint16
+	SzResponseFragment  uint16
+	Pad                 [6]uint8
+	Pad_cgo_0           [16]byte
 }
 type HttpConfigurationSettings struct {
 	MaxTransactions        uint64
 	NotificationThreshold  uint64
 	MaxRequestFragment     uint16
 	EnableAutoETWExclusion uint16
+	MaxResponseFragment    uint16
+	ParseInAgent           uint16
 }
 type ConnTupleType struct {
 	LocalAddr  [16]byte
@@ -219,8 +223,8 @@ const (
 	TcpStatusEstablished = 0x2
 )
 const (
-	HttpTransactionTypeSize        = 0x50
-	HttpSettingsTypeSize           = 0x14
+	HttpTransactionTypeSize        = 0x5c
+	HttpSettingsTypeSize           = 0x18
 	ClassificationSettingsTypeSize = 0x8
 )
 

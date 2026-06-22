@@ -105,6 +105,15 @@ type USMConfig struct {
 	// HTTPMaxRequestFragment is the size of the HTTP path buffer to be retrieved (Windows only)
 	HTTPMaxRequestFragment int64
 
+	// HTTPMaxResponseFragment is the size of the raw HTTP response buffer shipped from the driver
+	// for agent-side status parsing (Windows only)
+	HTTPMaxResponseFragment int64
+
+	// HTTPParseInAgent toggles where HTTP fields are parsed (Windows only):
+	// false = the ddnpm driver extracts method/status (legacy), true = the driver ships raw
+	// request/response fragments and the agent parses them.
+	HTTPParseInAgent bool
+
 	// ========================================
 	// HTTP2 Protocol Configuration
 	// ========================================
@@ -214,6 +223,8 @@ func NewUSMConfig(cfg model.Config) *USMConfig {
 		MaxTrackedHTTPConnections: cfg.GetInt64(sysconfig.FullKeyPath(smNS, "http", "max_tracked_connections")),
 		HTTPNotificationThreshold: cfg.GetInt64(sysconfig.FullKeyPath(smNS, "http", "notification_threshold")),
 		HTTPMaxRequestFragment:    cfg.GetInt64(sysconfig.FullKeyPath(smNS, "http", "max_request_fragment")),
+		HTTPMaxResponseFragment:   cfg.GetInt64(sysconfig.FullKeyPath(smNS, "http", "max_response_fragment")),
+		HTTPParseInAgent:          cfg.GetBool(sysconfig.FullKeyPath(smNS, "http", "parse_in_agent")),
 
 		// HTTP2 Protocol Configuration
 		EnableHTTP2Monitoring:               cfg.GetBool(sysconfig.FullKeyPath(smNS, "http2", "enabled")),

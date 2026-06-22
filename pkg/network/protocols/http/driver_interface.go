@@ -30,8 +30,13 @@ import (
 
 //nolint:revive // TODO(WKIT) Fix revive linter
 type WinHttpTransaction struct {
-	Txn             driver.HttpTransactionType
-	RequestFragment []byte
+	Txn              driver.HttpTransactionType
+	RequestFragment  []byte
+	ResponseFragment []byte
+	// ParseInAgent records which mode produced this transaction: when true the driver shipped
+	// raw fragments and Method()/StatusCode() parse them; when false the driver-populated fields
+	// (Txn.RequestMethod / Txn.ResponseStatusCode) are trusted.
+	ParseInAgent bool
 
 	// ... plus some extra that's only valid when it's an ETW transactoin
 	AppPool string
@@ -66,22 +71,43 @@ type HttpDriverInterface struct {
 	maxTransactions       uint64
 	notificationThreshold uint64
 	maxRequestFragment    uint64
+	maxResponseFragment   uint64
+	parseInAgent          bool
 }
+
+// driverMaxFragmentLimit mirrors MAX_INSPECTION_BUFFER_LENGTH in the ddnpm driver. The driver
+// caps each fragment at this size, so the agent must size its read buffer with the same cap to
+// keep the flush layout consistent.
+const driverMaxFragmentLimit = 512
 
 //nolint:revive // TODO(WKIT) Fix revive linter
 func NewDriverInterface(c *config.Config, dh driver.Handle) (*HttpDriverInterface, error) {
 	maxRequestFragment := uint64(c.HTTPMaxRequestFragment)
+	maxResponseFragment := uint64(c.HTTPMaxResponseFragment)
 	if c.DiscoveryServiceMapEnabled {
 		// Discovery mode drops path from the aggregation key, so we only
 		// need enough bytes for the driver to identify the request as HTTP.
 		// 16 bytes covers the method + minimal path (e.g., "GET / HTTP/1.1").
 		maxRequestFragment = 16
+		// Discovery mode does not use the response status code either, so keep the
+		// response fragment minimal.
+		maxResponseFragment = 16
+	}
+	// Defensive clamp to the driver's hard limit so the agent's read buffer stride matches the
+	// driver's per-entry copy size (the driver caps fragments at driverMaxFragmentLimit).
+	if maxRequestFragment > driverMaxFragmentLimit {
+		maxRequestFragment = driverMaxFragmentLimit
+	}
+	if maxResponseFragment > driverMaxFragmentLimit {
+		maxResponseFragment = driverMaxFragmentLimit
 	}
 
 	d := &HttpDriverInterface{
 		maxTransactions:       uint64(c.MaxTrackedHTTPConnections),
 		notificationThreshold: uint64(c.HTTPNotificationThreshold),
 		maxRequestFragment:    maxRequestFragment,
+		maxResponseFragment:   maxResponseFragment,
+		parseInAgent:          c.HTTPParseInAgent,
 	}
 	err := d.setupHTTPHandle(dh)
 	if err != nil {
@@ -101,6 +127,8 @@ func (di *HttpDriverInterface) setupHTTPHandle(dh driver.Handle) error {
 		NotificationThreshold:  di.notificationThreshold,
 		MaxRequestFragment:     uint16(di.maxRequestFragment),
 		EnableAutoETWExclusion: uint16(1),
+		MaxResponseFragment:    uint16(di.maxResponseFragment),
+		ParseInAgent:           boolToUint16(di.parseInAgent),
 	}
 
 	_, err := dh.SynchronousDeviceIoControl(
@@ -165,8 +193,15 @@ func (di *HttpDriverInterface) StartReadingBuffers() {
 }
 
 // func (di *httpDriverInterface) flushPendingTransactions() ([]driver.HttpTransactionType, error) {
+func boolToUint16(b bool) uint16 {
+	if b {
+		return 1
+	}
+	return 0
+}
+
 func (di *HttpDriverInterface) readPendingTransactions() ([]WinHttpTransaction, error) {
-	buf := make([]byte, (driver.HttpTransactionTypeSize+di.maxRequestFragment)*di.maxTransactions)
+	buf := make([]byte, (driver.HttpTransactionTypeSize+di.maxRequestFragment+di.maxResponseFragment)*di.maxTransactions)
 
 	bytesRead, err := di.driverHTTPHandle.SynchronousDeviceIoControl(
 		driver.FlushPendingHttpTxnsIOCTL,
@@ -185,10 +220,17 @@ func (di *HttpDriverInterface) readPendingTransactions() ([]WinHttpTransaction, 
 	for i := uint32(0); i < bytesRead; {
 		var tx WinHttpTransaction
 		tx.Txn = *(*driver.HttpTransactionType)(unsafe.Pointer(&buf[i]))
-		tx.RequestFragment = make([]byte, tx.Txn.MaxRequestFragment)
+		tx.ParseInAgent = di.parseInAgent
 		i += driver.HttpTransactionTypeSize
+		// The driver lays the trailing buffers out contiguously: [requestFragment][responseFragment].
+		// Stride by the per-transaction sizes the driver reported, not the agent's config, so we
+		// stay aligned even if the driver capped a fragment size.
+		tx.RequestFragment = make([]byte, tx.Txn.MaxRequestFragment)
 		copy(tx.RequestFragment, buf[i:i+uint32(tx.Txn.MaxRequestFragment)])
 		i += uint32(tx.Txn.MaxRequestFragment)
+		tx.ResponseFragment = make([]byte, tx.Txn.MaxResponseFragment)
+		copy(tx.ResponseFragment, buf[i:i+uint32(tx.Txn.MaxResponseFragment)])
+		i += uint32(tx.Txn.MaxResponseFragment)
 		transactionBatch = append(transactionBatch, tx)
 	}
 

@@ -63,6 +63,11 @@ func initUSMSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("service_monitoring_config.http_max_request_fragment", 512)
 	cfg.BindEnvAndSetDefault("network_config.http_max_request_fragment", 512)
 
+	// Windows-only: size of the raw HTTP response fragment shipped from the driver for
+	// agent-side status parsing, and the toggle that moves HTTP field parsing into the agent.
+	cfg.BindEnvAndSetDefault("service_monitoring_config.http.max_response_fragment", 256) // capped at the NPM driver hard limit (512)
+	cfg.BindEnvAndSetDefault("service_monitoring_config.http.parse_in_agent", false)
+
 	cfg.BindEnvAndSetDefault("service_monitoring_config.http.map_cleaner_interval_seconds", 300)
 	// Deprecated flat keys for backward compatibility
 	cfg.BindEnvAndSetDefault("service_monitoring_config.http_map_cleaner_interval_in_s", 300)

@@ -85,13 +85,62 @@ func (tx *WinHttpTransaction) ConnTuple() types.ConnectionKey {
 	}
 }
 
+// parseMethodFromFragment extracts the HTTP method from the start of a raw request fragment.
+// It mirrors the driver's HttpParseData prefix matching so agent-parse mode produces the same
+// result the driver would have. Returns MethodUnknown if no known method prefix is present.
+func parseMethodFromFragment(b []byte) Method {
+	switch {
+	case len(b) >= 4 && b[0] == 'P' && b[1] == 'O' && b[2] == 'S' && b[3] == 'T':
+		return MethodPost
+	case len(b) >= 3 && b[0] == 'P' && b[1] == 'U' && b[2] == 'T':
+		return MethodPut
+	case len(b) >= 5 && b[0] == 'P' && b[1] == 'A' && b[2] == 'T' && b[3] == 'C' && b[4] == 'H':
+		return MethodPatch
+	case len(b) >= 3 && b[0] == 'G' && b[1] == 'E' && b[2] == 'T':
+		return MethodGet
+	case len(b) >= 4 && b[0] == 'H' && b[1] == 'E' && b[2] == 'A' && b[3] == 'D':
+		return MethodHead
+	case len(b) >= 7 && b[0] == 'O' && b[1] == 'P' && b[2] == 'T' && b[3] == 'I' && b[4] == 'O' && b[5] == 'N' && b[6] == 'S':
+		return MethodOptions
+	case len(b) >= 6 && b[0] == 'D' && b[1] == 'E' && b[2] == 'L' && b[3] == 'E' && b[4] == 'T' && b[5] == 'E':
+		return MethodDelete
+	default:
+		return MethodUnknown
+	}
+}
+
+// parseStatusFromFragment extracts the status code from the start of a raw response fragment.
+// It mirrors the driver's GetHttpStatusCode: the second whitespace-delimited token of
+// "HTTP-Version SP Status-Code SP Reason-Phrase". Returns 0 for anything outside [100,600).
+func parseStatusFromFragment(b []byte) uint16 {
+	var code uint16
+	spaces := 0
+	for i := 0; i < len(b) && spaces < 2; i++ {
+		if b[i] == ' ' {
+			spaces++
+		} else if spaces == 1 {
+			code = code*10 + uint16(b[i]-'0')
+		}
+	}
+	if code < 100 || code >= 600 {
+		return 0
+	}
+	return code
+}
+
 //nolint:revive // TODO(WKIT) Fix revive linter
 func (tx *WinHttpTransaction) Method() Method {
+	if tx.ParseInAgent {
+		return parseMethodFromFragment(tx.RequestFragment)
+	}
 	return Method(tx.Txn.RequestMethod)
 }
 
 //nolint:revive // TODO(WKIT) Fix revive linter
 func (tx *WinHttpTransaction) StatusCode() uint16 {
+	if tx.ParseInAgent {
+		return parseStatusFromFragment(tx.ResponseFragment)
+	}
 	return tx.Txn.ResponseStatusCode
 }
 
