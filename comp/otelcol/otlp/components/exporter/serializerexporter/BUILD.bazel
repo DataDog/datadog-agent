@@ -73,6 +73,7 @@ go_test(
     srcs = [
         "apm_stats_test.go",
         "config_test.go",
+        "consumer_collector_test.go",
         "consumer_test.go",
         "exporter_test.go",
         "factory_test.go",

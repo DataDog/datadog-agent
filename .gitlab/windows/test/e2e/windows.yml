@@ -40,6 +40,7 @@ new-e2e-agent-subcommands-windows:
     - !reference [.on_e2e_main_release_or_rc]
     - changes:
         paths:
+          - pkg/config/schema/**/* # DataDog/datadog-agent#52358
           - test/new-e2e/tests/agent-subcommands/**/*
         compare_to: $COMPARE_TO_BRANCH
     - !reference [.manual]

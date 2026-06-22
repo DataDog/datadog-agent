@@ -4301,7 +4301,7 @@ properties:
                     visibility: public
                     description: |-
                       Send pings in a privileged fashion using a raw socket.
-                      This may be required if your system doesn't support  sending pings in an unprivileged fashion (using a UDP
+                      This may be required if your system doesn't support sending pings in an unprivileged fashion (using a UDP
                       socket).
                       If `use_raw_socket` is set to true, you MUST also enable system-probe which has elevated privileges. To
                       enable it, see system-probe.yaml.example.
@@ -4534,7 +4534,7 @@ properties:
                   #         - "tagKey2:tagValue2"
                   #       disabled: true         # (optional) disables monitoring for matched interfaces, default value is false
 
-                  interface_config:
+                  interface_configs:
                     "10.0.0.1":
                       - match_field: name
                         match_value: eth0
@@ -4666,9 +4666,8 @@ properties:
             type: integer
             default: 5
             visibility: public
-            description: |-
-              stop_timeout - float - optional - default: 5.0
-              The maximum number of seconds to wait for the trap server to stop when the Agent shuts down.
+            description: The maximum number of seconds to wait for the trap server
+              to stop when the Agent shuts down.
             tags:
             - template_section:CoreAgent
             comment: in seconds
@@ -4821,7 +4820,7 @@ properties:
                                          Default port differ by flow type: netflow5(2055), netflow9(2055), ipfix(4739), sflow5(6343)
                * bind_host    - string - (Optional) The hostname to listen on for incoming netflow packets.
                                          Binds to 0.0.0.0 by default (accepting all packets).
-               * workers      - string - (Optional) Number of workers to use for this listener.
+               * workers      - integer - (Optional) Number of workers to use for this listener.
                                          Defaults to 1.
                * mapping      - (Optional) List of NetflowV9/IPFIX fields to additionally collect.
                                            Defaults to None.
@@ -6092,6 +6091,40 @@ properties:
                 node_type: setting
                 type: integer
                 default: 15
+                comment: Sliding deduplication window in seconds. An anomaly series
+                  is counted at most once per window.
+              low_threshold:
+                node_type: setting
+                type: number
+                golang_type: float64
+                default: 0.040
+              high_threshold:
+                node_type: setting
+                type: number
+                golang_type: float64
+                default: 0.060
+              margin_pct:
+                node_type: setting
+                type: number
+                golang_type: float64
+                default: 0.20
+              cooldown_secs:
+                node_type: setting
+                type: integer
+                default: 300
+                comment: "Minimum seconds before the built-in helper subscription can de-escalate. Only used when helper.enabled is true."
+              helper:
+                node_type: section
+                type: object
+                properties:
+                  enabled:
+                    node_type: setting
+                    type: boolean
+                    default: true
+                  report_events:
+                    node_type: setting
+                    type: boolean
+                    default: false
           bocpd:
             node_type: section
             type: object
@@ -7132,6 +7165,14 @@ properties:
         node_type: setting
         type: string
         default: tcp://0.0.0.0:5101
+      stop_timeout:
+        node_type: setting
+        type: integer
+        default: 4
+        comment: |-
+          4 matches aggregator_stop_timeout + forwarder_stop_timeout (each defaults to 2 in seconds).
+          ComputeDataPlaneStopTimeout (post-load override) recomputes this at runtime so it tracks
+          any user-set values for aggregator_stop_timeout / forwarder_stop_timeout.
       telemetry_enabled:
         node_type: setting
         type: boolean
@@ -8457,7 +8498,7 @@ properties:
           enabled:
             node_type: setting
             type: boolean
-            default: false
+            default: true
             comment: |-
               health_platform.invalidconfig_check.enabled is off by default because the check calls
               schema.ValidateCoreConfig which decompresses, parses, and compiles the full core_schema.yaml
