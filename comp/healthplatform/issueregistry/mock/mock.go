@@ -14,34 +14,47 @@ import (
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 )
 
-type mockRegistry struct {
+// Mock is a test implementation of issueregistry.Component.
+// Use RegisterTemplate, RegisterBuiltInPeriodicHealthCheck, and
+// RegisterBuiltInStartupHealthCheck to populate it before the test runs.
+type Mock struct {
 	templates map[string]issuesmod.Template
+	periodic  []*runnerdef.BuiltInPeriodicHealthCheck
+	startup   []*runnerdef.BuiltInHealthCheck
 }
 
-// New returns an empty mock registry. Call RegisterTemplate to add templates.
-func New() registrydef.Component {
-	return &mockRegistry{templates: make(map[string]issuesmod.Template)}
+// New returns an empty mock registry.
+func New() *Mock {
+	return &Mock{templates: make(map[string]issuesmod.Template)}
 }
 
-// RegisterTemplate adds a template under issueName so that GetTemplate succeeds.
-// Panics if r was not created by New() — intentional, test-only helper.
-func RegisterTemplate(r registrydef.Component, issueName string, tmpl issuesmod.Template) {
-	m, ok := r.(*mockRegistry)
-	if !ok {
-		panic("RegisterTemplate: r was not created by mock.New()")
-	}
+// RegisterTemplate adds a template so that GetTemplate(issueName) succeeds.
+func (m *Mock) RegisterTemplate(issueName string, tmpl issuesmod.Template) {
 	m.templates[issueName] = tmpl
 }
 
-func (m *mockRegistry) GetTemplate(issueName string) (issuesmod.Template, bool) {
+// RegisterBuiltInPeriodicHealthCheck adds a check returned by GetBuiltInPeriodicHealthChecks.
+func (m *Mock) RegisterBuiltInPeriodicHealthCheck(check *runnerdef.BuiltInPeriodicHealthCheck) {
+	m.periodic = append(m.periodic, check)
+}
+
+// RegisterBuiltInStartupHealthCheck adds a check returned by GetBuiltInStartupHealthChecks.
+func (m *Mock) RegisterBuiltInStartupHealthCheck(check *runnerdef.BuiltInHealthCheck) {
+	m.startup = append(m.startup, check)
+}
+
+func (m *Mock) GetTemplate(issueName string) (issuesmod.Template, bool) {
 	tmpl, ok := m.templates[issueName]
 	return tmpl, ok
 }
 
-func (m *mockRegistry) GetBuiltInPeriodicHealthChecks() []*runnerdef.BuiltInPeriodicHealthCheck {
-	return nil
+func (m *Mock) GetBuiltInPeriodicHealthChecks() []*runnerdef.BuiltInPeriodicHealthCheck {
+	return m.periodic
 }
 
-func (m *mockRegistry) GetBuiltInStartupHealthChecks() []*runnerdef.BuiltInHealthCheck {
-	return nil
+func (m *Mock) GetBuiltInStartupHealthChecks() []*runnerdef.BuiltInHealthCheck {
+	return m.startup
 }
+
+// ensure Mock satisfies the interface at compile time.
+var _ registrydef.Component = (*Mock)(nil)

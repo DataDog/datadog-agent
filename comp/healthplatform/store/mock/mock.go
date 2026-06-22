@@ -78,7 +78,13 @@ func (m *mockHealthPlatform) ResolveAllIssues() {
 	m.issues = make(map[string]*healthplatformpayload.Issue)
 }
 
-// GetActiveIssueIDsByIssueName returns nil in the mock.
-func (m *mockHealthPlatform) GetActiveIssueIDsByIssueName(_ string) []string {
-	return nil
+// GetActiveIssueIDsByIssueName returns the IDs of all active issues with the given IssueName.
+func (m *mockHealthPlatform) GetActiveIssueIDsByIssueName(issueName string) []string {
+	var ids []string
+	for id, issue := range m.issues {
+		if issue != nil && issue.IssueName == issueName {
+			ids = append(ids, id)
+		}
+	}
+	return ids
 }

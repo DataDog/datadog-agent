@@ -12,13 +12,27 @@ import (
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 )
 
-type mockRunner struct{}
+// Mock is a test implementation of runner.Component.
+// Run calls fn and returns the IssueID of each emitted report, mirroring the
+// real runner without the registry lookup or store interaction.
+type Mock struct{}
 
-func (m *mockRunner) Run(_ string, _ runnerdef.HealthCheckFunc) ([]string, error) {
-	return nil, nil
-}
+// New returns a mock runner for testing.
+func New() *Mock { return &Mock{} }
 
-// New returns a no-op mock runner for testing.
-func New() runnerdef.Component {
-	return &mockRunner{}
+// Run calls fn and collects the IssueID from each emitted IssueReport.
+// Returns nil ids on error, matching the real runner's partial-result contract.
+func (m *Mock) Run(_ string, fn runnerdef.HealthCheckFunc) ([]string, error) {
+	if fn == nil {
+		return nil, nil
+	}
+	reports, err := fn()
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]string, 0, len(reports))
+	for _, r := range reports {
+		ids = append(ids, r.IssueID)
+	}
+	return ids, nil
 }
