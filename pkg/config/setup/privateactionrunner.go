@@ -92,7 +92,8 @@ func setupPrivateActionRunner(config pkgconfigmodel.Setup) {
 	//   - allowed_commands defaults to ["rshell:*"]. The wildcard token is
 	//     handled as a special case in the operator-side intersection: when
 	//     it appears in the operator list, every backend command in the
-	//     "rshell:" namespace is admitted.config.BindEnvAndSetDefault(PARRestrictedShellAllowedPaths, []string{RShellPathAllowAll})
+	//     "rshell:" namespace is admitted.
+	config.BindEnvAndSetDefault(PARRestrictedShellAllowedPaths, []string{RShellPathAllowAll})
 	pkgconfighelper.ParseEnvJSONOrComma(PARRestrictedShellAllowedPaths, config)
 
 	config.BindEnvAndSetDefault(PARRestrictedShellAllowedCommands, []string{RShellCommandAllowAllWildcard})
