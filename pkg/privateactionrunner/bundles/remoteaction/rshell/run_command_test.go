@@ -348,6 +348,18 @@ func TestFilterAllowedPathsIntersectsConfiguredAgentAllowlistByAccess(t *testing
 			expected: []string{"/var/log/:ro", "/etc/"},
 		},
 		{
+			name:     "explicit agent root keeps narrower backend read-write paths",
+			agent:    []string{"/"},
+			backend:  []string{"/var/log:rw"},
+			expected: []string{"/var/log/:rw"},
+		},
+		{
+			name:     "agent path without suffix narrows backend read-write path",
+			agent:    []string{"/var/log/datadog"},
+			backend:  []string{"/var/log:rw"},
+			expected: []string{"/var/log/datadog/:rw"},
+		},
+		{
 			name:     "unrelated paths are not kept",
 			agent:    []string{"/opt/datadog:ro"},
 			backend:  []string{"/var/log:ro"},
