@@ -47,15 +47,17 @@ func newMetricLookbackTrigger(cfg config.Component, logger log.Component, dump a
 	}
 
 	metricName := cfg.GetString("metric_lookback.trigger.metric_name")
+	thresholdDirection := lookbacktrigger.ThresholdDirection(cfg.GetString("metric_lookback.trigger.threshold_direction"))
 	watcher := lookbacktrigger.New(lookbacktrigger.Config{
-		MetricName:   metricName,
-		Threshold:    cfg.GetFloat64("metric_lookback.trigger.threshold"),
-		Alpha:        cfg.GetFloat64("metric_lookback.trigger.ewma_alpha"),
-		Cooldown:     cfg.GetDuration("metric_lookback.trigger.cooldown"),
-		PreWindow:    cfg.GetDuration("metric_lookback.trigger.pre_window"),
-		PostWindow:   cfg.GetDuration("metric_lookback.trigger.post_window"),
-		DumpInterval: cfg.GetDuration("metric_lookback.trigger.dump_interval"),
-		SendDelay:    cfg.GetDuration("metric_lookback.trigger.send_delay"),
+		MetricName:         metricName,
+		Threshold:          cfg.GetFloat64("metric_lookback.trigger.threshold"),
+		ThresholdDirection: thresholdDirection,
+		Alpha:              cfg.GetFloat64("metric_lookback.trigger.ewma_alpha"),
+		Cooldown:           cfg.GetDuration("metric_lookback.trigger.cooldown"),
+		PreWindow:          cfg.GetDuration("metric_lookback.trigger.pre_window"),
+		PostWindow:         cfg.GetDuration("metric_lookback.trigger.post_window"),
+		DumpInterval:       cfg.GetDuration("metric_lookback.trigger.dump_interval"),
+		SendDelay:          cfg.GetDuration("metric_lookback.trigger.send_delay"),
 	}, func(from, to time.Time) (int, error) {
 		count, err := dump(from, to)
 		if err != nil {
