@@ -18,6 +18,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/clusteragent/autoscaling",
+        "//pkg/util/kubernetes",
         "//pkg/util/pointer",
         "@com_github_datadog_agent_payload_v5//autoscaling/kubernetes",
         "@com_github_datadog_datadog_operator_api//datadoghq/common",

@@ -39,8 +39,7 @@ func IsCheckTelemetryEnabled(checkName string, cfg pkgconfigmodel.Reader) bool {
 
 // IsTelemetryEnabled returns whether or not telemetry is enabled
 func IsTelemetryEnabled(cfg pkgconfigmodel.Reader) bool {
-	return cfg.IsSet("telemetry.enabled") && cfg.GetBool("telemetry.enabled") ||
-		(IsAgentTelemetryEnabled(cfg))
+	return cfg.GetBool("telemetry.enabled") || IsAgentTelemetryEnabled(cfg)
 }
 
 // IsAgentTelemetryEnabled returns true if Agent Telemetry is enabled
