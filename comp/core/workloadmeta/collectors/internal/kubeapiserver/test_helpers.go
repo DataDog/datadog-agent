@@ -30,8 +30,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-const dummySubscriber = "dummy-subscriber"
-
 func testCollectEvent(t *testing.T, createResource func(*fake.Clientset) error, newStore storeGenerator, expected workloadmeta.EventBundle) {
 	// Create a fake client to mock API calls.
 	client := fake.NewSimpleClientset()
@@ -57,6 +55,8 @@ func testCollectEvent(t *testing.T, createResource func(*fake.Clientset) error, 
 	ctx := context.TODO()
 
 	store, _ := newStore(ctx, wlm, wlm.GetConfig(), client)
+	subscriberName := t.Name()
+	ch := wlm.Subscribe(subscriberName, workloadmeta.NormalPriority, nil)
 	stopStore := make(chan struct{})
 	go store.Run(stopStore)
 
@@ -64,9 +64,6 @@ func testCollectEvent(t *testing.T, createResource func(*fake.Clientset) error, 
 	// - The reflector has already populated wlm with the resource, in that case the first call to <-ch will contain the event
 	// - The reflector is still initializing. In that case the second call to <-ch will contain the event
 
-	time.Sleep(5 * time.Second)
-
-	ch := wlm.Subscribe(dummySubscriber, workloadmeta.NormalPriority, nil)
 	var bundle workloadmeta.EventBundle
 	read := assert.Eventually(t, func() bool {
 		select {
@@ -125,6 +122,8 @@ func testCollectMetadataEvent(t *testing.T, createObjects func() []runtime.Objec
 	assert.NoError(t, err)
 	store, _ := newMetadataStore(ctx, wlm, wlm.GetConfig(), metadataclient, gvr)
 
+	subscriberName := t.Name()
+	ch := wlm.Subscribe(subscriberName, workloadmeta.NormalPriority, nil)
 	stopStore := make(chan struct{})
 	go store.Run(stopStore)
 
@@ -132,9 +131,6 @@ func testCollectMetadataEvent(t *testing.T, createObjects func() []runtime.Objec
 	// - The reflector has already populated wlm with the resource, in that case the first call to <-ch will contain the event
 	// - The reflector is still initializing. In that case the second call to <-ch will contain the event
 
-	time.Sleep(5 * time.Second)
-
-	ch := wlm.Subscribe(dummySubscriber, workloadmeta.NormalPriority, nil)
 	var bundle workloadmeta.EventBundle
 	read := assert.Eventually(t, func() bool {
 		select {
