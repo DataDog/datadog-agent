@@ -113,8 +113,8 @@ func dockerPermissionEnvProvisioner() provisioners.PulumiEnvRunFunc[dockerPermis
 			agentOpts = append(agentOpts, agentparams.WithIntakeHostname("https", site))
 		}
 
-		if tagsCSV := awsEnv.AgentConfig.Get("tags"); tagsCSV != "" {
-			agentOpts = append(agentOpts, agentparams.WithTags(strings.Split(tagsCSV, ",")))
+		if tags := awsEnv.Tags(); len(tags) > 0 {
+			agentOpts = append(agentOpts, agentparams.WithTags(tags))
 		}
 
 		hostAgent, err := agent.NewHostAgent(&awsEnv, remoteHost, agentOpts...)
