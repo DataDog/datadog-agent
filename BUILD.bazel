@@ -157,8 +157,6 @@ exports_files(["go.mod"])
 # gazelle:exclude comp/notableevents/fx
 # gazelle:exclude comp/otelcol/collector/fx-pipeline
 # gazelle:exclude comp/otelcol/collector/impl-pipeline
-# gazelle:exclude comp/otelcol/converter/examples
-# gazelle:exclude comp/otelcol/ddflareextension/image
 # gazelle:exclude comp/otelcol/otlp/integrationtest
 # gazelle:exclude comp/privateactionrunner/fx
 # gazelle:exclude comp/privateactionrunner/impl
@@ -205,7 +203,6 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/cli/subcommands/check
 # gazelle:exclude pkg/cli/subcommands/clusterchecks
 # gazelle:exclude pkg/cli/subcommands/dcaconfigcheck
-# gazelle:exclude pkg/cli/subcommands/dcaflare
 # gazelle:exclude pkg/cli/subcommands/processchecks
 # gazelle:exclude pkg/clusteragent/admission
 # gazelle:exclude pkg/clusteragent/appsec
@@ -235,17 +232,13 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/collector/corechecks/network-devices/cisco-sdwan/sdwan.go
 # gazelle:exclude pkg/collector/corechecks/network-devices/versa/*.go
 # gazelle:exclude pkg/collector/corechecks/network-devices/versa/client/*.go
-# gazelle:exclude pkg/collector/corechecks/network-devices/versa/client/fixtures
 # gazelle:exclude pkg/collector/corechecks/network-devices/versa/payload
 # gazelle:exclude pkg/collector/corechecks/network-devices/versa/report
 # gazelle:exclude pkg/collector/corechecks/networkconfigmanagement
 # gazelle:exclude pkg/collector/corechecks/networkpath
 # gazelle:exclude pkg/collector/corechecks/nvidia
 # gazelle:exclude pkg/collector/corechecks/oracle/*.go
-# gazelle:exclude pkg/collector/corechecks/oracle/compose
 # gazelle:exclude pkg/collector/corechecks/oracle/config
-# gazelle:exclude pkg/collector/corechecks/oracle/sql
-# gazelle:exclude pkg/collector/corechecks/oracle/test-utils
 # gazelle:exclude pkg/collector/corechecks/orchestrator/ecs
 # gazelle:exclude pkg/collector/corechecks/orchestrator/kubeletconfig
 # gazelle:exclude pkg/collector/corechecks/orchestrator/pod
@@ -273,9 +266,6 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/config/autodiscovery
 # gazelle:exclude pkg/config/legacy
 # gazelle:exclude pkg/discovery/language
-# gazelle:exclude pkg/discovery/module/rust/include
-# gazelle:exclude pkg/discovery/module/rust/src
-# gazelle:exclude pkg/discovery/module/rust/tests
 # gazelle:exclude pkg/dyninst/ebpfbench
 # gazelle:exclude pkg/dyninst/irgen/cli
 # gazelle:exclude pkg/dyninst/module
@@ -529,7 +519,6 @@ exports_files(["go.mod"])
 # gazelle:exclude test/regression
 # gazelle:exclude test/required_files
 # gazelle:exclude test/static
-# gazelle:exclude internal/qbranch/anomalydetection-scorer
 # gazelle:exclude internal/qbranch/anomalydetection-testbench
 # gazelle:exclude tools/agent_QA
 # gazelle:exclude tools/retry_file_dump
