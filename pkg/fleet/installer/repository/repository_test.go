@@ -82,7 +82,7 @@ func TestCreateWithPreActivateHookPublishesStableAfterHook(t *testing.T) {
 	hookCalled := false
 	err := repository.CreateWithPreActivateHook(context.Background(), "v2", downloadPackagePath, func(packagePath string) error {
 		hookCalled = true
-		assert.Equal(t, path.Join(repository.rootPath, "v2"), packagePath)
+		assert.Equal(t, filepath.Join(repository.rootPath, "v2"), packagePath)
 		assert.DirExists(t, packagePath)
 		assertLinkTarget(t, repository, stableVersionLink, "v1")
 		assertLinkTarget(t, repository, experimentVersionLink, "stable")
@@ -171,7 +171,7 @@ func TestSetExperimentWithPreActivateHookPublishesExperimentAfterHook(t *testing
 	hookCalled := false
 	err := repository.SetExperimentWithPreActivateHook(context.Background(), "v2", experimentDownloadPackagePath, func(packagePath string) error {
 		hookCalled = true
-		assert.Equal(t, path.Join(repository.rootPath, "v2"), packagePath)
+		assert.Equal(t, filepath.Join(repository.rootPath, "v2"), packagePath)
 		assert.DirExists(t, packagePath)
 		assertLinkTarget(t, repository, stableVersionLink, "v1")
 		assertLinkTarget(t, repository, experimentVersionLink, "stable")
