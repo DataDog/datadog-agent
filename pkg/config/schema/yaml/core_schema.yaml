@@ -8443,8 +8443,8 @@ properties:
         properties:
           interval:
             node_type: setting
-            type: number
-            default: 0s
+            type: string
+            default: 15m
             format: duration
             tags:
             - golang_type:duration
