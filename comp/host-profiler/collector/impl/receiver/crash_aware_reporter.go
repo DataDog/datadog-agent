@@ -27,12 +27,16 @@ type crashAwareReporter struct {
 }
 
 func (r *crashAwareReporter) Start(ctx context.Context) error {
-	// not clean, there may be a better way to do this but rn the 'regular' Start function will start crash tracing if
-	// it has the flag that gets enabled by the factory (super ultra spaghetti)
+	if err := r.crash.Start(ctx); err != nil {
+		return err
+	}
 	return r.regular.Start(ctx)
 }
 
-func (r *crashAwareReporter) Stop() { r.regular.Stop() }
+func (r *crashAwareReporter) Stop() {
+	r.crash.Stop()
+	r.regular.Stop()
+}
 
 func (r *crashAwareReporter) ReportTraceEvent(trace *libpf.Trace, meta *samples.TraceEventMeta) error {
 	if meta.Origin == support.TraceOriginCrash {

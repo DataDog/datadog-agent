@@ -74,33 +74,33 @@ func (e *crashExporter) buildPayload(rp pprofile.ResourceProfiles) map[string]an
 		sigName = fmt.Sprintf("SIG%d", signo)
 	}
 
-	// Build frame list from the crash.frames Slice of Maps.
-	// Strip kernel frames (path == "vmlinux") — they show the crash delivery
-	// path, not what the process was actually doing.
-	frames := []map[string]any{}
-	if framesVal, ok := attrs.Get("crash.frames"); ok && framesVal.Type() == pcommon.ValueTypeSlice {
-		sl := framesVal.Slice()
+	frames := decodeFrames(attrs, "crash.frames")
+
+	// Decode non-primary threads from crash.threads.
+	var threads []map[string]any
+	if threadsVal, ok := attrs.Get("crash.threads"); ok && threadsVal.Type() == pcommon.ValueTypeSlice {
+		sl := threadsVal.Slice()
 		for i := range sl.Len() {
 			entry := sl.At(i)
 			if entry.Type() != pcommon.ValueTypeMap {
 				continue
 			}
-			m := entry.Map()
-			frame := map[string]any{}
-			m.Range(func(k string, v pcommon.Value) bool {
-				switch v.Type() {
-				case pcommon.ValueTypeStr:
-					// mirror omitempty: skip empty strings so the JSON
-					// matches oomtrace's StackFrame encoding exactly.
-					if s := v.Str(); s != "" {
-						frame[k] = s
-					}
-				case pcommon.ValueTypeInt:
-					frame[k] = v.Int()
-				}
-				return true
+			tm := entry.Map()
+			name := ""
+			if v, ok := tm.Get("name"); ok {
+				name = v.Str()
+			}
+			threadFrames := decodeFrameSlice(tm, "frames")
+			threads = append(threads, map[string]any{
+				"crashed": false,
+				"name":    name,
+				"state":   "S",
+				"stack": map[string]any{
+					"format":     "Datadog Crashtracker 1.0",
+					"frames":     threadFrames,
+					"incomplete": false,
+				},
 			})
-			frames = append(frames, frame)
 		}
 	}
 
@@ -150,22 +150,27 @@ func (e *crashExporter) buildPayload(rp pprofile.ResourceProfiles) map[string]an
 		siCodeName = "SI_KERNEL"
 	}
 
+	errObj := map[string]any{
+		"type":        sigName,
+		"message":     crashMessage(signo),
+		"is_crash":    true,
+		"fingerprint": fp,
+		"source_type": "Crashtracking",
+		"stack": map[string]any{
+			"format": "Datadog Crashtracker 1.0",
+			"frames": frames,
+		},
+	}
+	if len(threads) > 0 {
+		errObj["threads"] = threads
+	}
+
 	return map[string]any{
 		"timestamp": tsMs,
 		"ddsource":  "crashtracker",
 		"ddtags":    strings.Join(tags, ","),
-		"error": map[string]any{
-			"type":        sigName,
-			"message":     crashMessage(signo),
-			"is_crash":    true,
-			"fingerprint": fp,
-			"source_type": "Crashtracking",
-			"stack": map[string]any{
-				"format": "Datadog Crashtracker 1.0",
-				"frames": frames,
-			},
-		},
-		"os_info": collectOSInfo(),
+		"error":     errObj,
+		"os_info":   collectOSInfo(),
 		"sig_info": map[string]any{
 			"si_code":                 siCode,
 			"si_code_human_readable":  siCodeName,
@@ -246,6 +251,48 @@ func crashMessage(signo int) string {
 }
 
 func (e *crashExporter) Capabilities() any { return nil }
+
+// decodeFrames reads a Slice of Maps from resource attrs and converts to
+// []map[string]any, skipping empty strings (mirrors StackFrame omitempty).
+func decodeFrames(attrs pcommon.Map, key string) []map[string]any {
+	val, ok := attrs.Get(key)
+	if !ok || val.Type() != pcommon.ValueTypeSlice {
+		return nil
+	}
+	return decodeSlice(val.Slice())
+}
+
+func decodeFrameSlice(m pcommon.Map, key string) []map[string]any {
+	val, ok := m.Get(key)
+	if !ok || val.Type() != pcommon.ValueTypeSlice {
+		return nil
+	}
+	return decodeSlice(val.Slice())
+}
+
+func decodeSlice(sl pcommon.Slice) []map[string]any {
+	frames := make([]map[string]any, 0, sl.Len())
+	for i := range sl.Len() {
+		entry := sl.At(i)
+		if entry.Type() != pcommon.ValueTypeMap {
+			continue
+		}
+		frame := map[string]any{}
+		entry.Map().Range(func(k string, v pcommon.Value) bool {
+			switch v.Type() {
+			case pcommon.ValueTypeStr:
+				if s := v.Str(); s != "" {
+					frame[k] = s
+				}
+			case pcommon.ValueTypeInt:
+				frame[k] = v.Int()
+			}
+			return true
+		})
+		frames = append(frames, frame)
+	}
+	return frames
+}
 
 // collectOSInfo gathers host OS information for the os_info payload field.
 func collectOSInfo() map[string]any {
