@@ -35,6 +35,7 @@ go_test(
         "//pkg/config/mock",
         "//pkg/config/setup",
         "//pkg/util/flavor",
+        "//pkg/util/log",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@io_k8s_apimachinery//pkg/util/sets",

@@ -20,7 +20,6 @@ type RshellBundle struct {
 func NewRshellBundle(_ *config.Config) types.Bundle {
 	return &RshellBundle{
 		actions: map[string]types.Action{
-<<<<<<< HEAD
 			"runCommand": NewRunCommandHandler(
 				cfg.RShellAllowedPaths,
 				cfg.RShellAllowedCommands,
@@ -29,14 +28,6 @@ func NewRshellBundle(_ *config.Config) types.Bundle {
 				cfg.RShellAllowedPaths,
 				cfg.RShellAllowedCommands,
 			),
-||||||| parent of 85fa249c9ca (fix(privateactionrunner): trust backend rshell allowlists)
-			"runCommand": NewRunCommandHandler(
-				cfg.RShellAllowedPaths,
-				cfg.RShellAllowedCommands,
-			),
-=======
-			"runCommand": NewRunCommandHandler(nil, nil),
->>>>>>> 85fa249c9ca (fix(privateactionrunner): trust backend rshell allowlists)
 		},
 	}
 }

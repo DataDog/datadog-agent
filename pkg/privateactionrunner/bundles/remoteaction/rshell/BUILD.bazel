@@ -17,6 +17,7 @@ go_library(
         "//pkg/privateactionrunner/libs/privateconnection",
         "//pkg/privateactionrunner/observability",
         "//pkg/privateactionrunner/types",
+        "//pkg/proto/pbgo/privateactionrunner/privateactions",
         "//pkg/util/log",
         "@cc_mvdan_sh_v3//syntax",
         "@com_github_datadog_rshell//interp",
@@ -33,8 +34,8 @@ go_test(
     gotags = ["test"],
     deps = [
         "//pkg/config/setup",
-        "//pkg/privateactionrunner/adapters/config",
         "//pkg/privateactionrunner/types",
+        "//pkg/proto/pbgo/privateactionrunner/privateactions",
         "@com_github_datadog_rshell//interp",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
