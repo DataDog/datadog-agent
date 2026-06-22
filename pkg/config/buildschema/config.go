@@ -36,10 +36,6 @@ type SchemaBuilder interface {
 	GetSchema() map[string]interface{}
 }
 
-func (b *builder) GetLibType() string {
-	return "builder"
-}
-
 func (b *builder) GetSchema() map[string]interface{} {
 	return b.Schema
 }
@@ -307,7 +303,7 @@ func (b *builder) Set(_ string, _ interface{}, _ model.Source) {
 	// pass
 }
 
-func (b *builder) SetWithoutSource(_ string, _ interface{}) {
+func (b *builder) SetInTest(_ string, _ interface{}) {
 	b.notImplemented()
 }
 

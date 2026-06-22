@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "apiserver",
@@ -32,12 +33,14 @@ go_library(
         "//pkg/config/setup",
         "//pkg/errors",
         "//pkg/util/cache",
+        "//pkg/util/flavor",
         "//pkg/util/kubernetes/apiserver/common",
         "//pkg/util/kubernetes/apiserver/common/namespace",
         "//pkg/util/kubernetes/kubelet",
         "//pkg/util/log",
         "//pkg/util/pointer",
         "//pkg/util/retry",
+        "//pkg/version",
         "@io_k8s_api//authorization/v1:authorization",
         "@io_k8s_api//core/v1:core",
         "@io_k8s_api//discovery/v1:discovery",
@@ -72,7 +75,7 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "apiserver_test",
     srcs = [
         "endpoints_test.go",
@@ -83,7 +86,10 @@ go_test(
         "warning_handler_test.go",
     ],
     embed = [":apiserver"],
-    gotags = ["test"],
+    flavors = [
+        "base",
+        "fips",
+    ],
     deps = [
         "//pkg/clusteragent/api/v1:api",
         "//pkg/config/model",

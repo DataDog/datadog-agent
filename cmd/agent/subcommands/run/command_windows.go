@@ -67,7 +67,7 @@ import (
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server/def"
 	defaultforwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/def"
 	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
-	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
+	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent/def"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	haagentmetadata "github.com/DataDog/datadog-agent/comp/metadata/haagent/def"
 	host "github.com/DataDog/datadog-agent/comp/metadata/host/def"
@@ -205,7 +205,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			fx.Supply(core.BundleParams{
 				ConfigParams:         config.NewAgentParams(""),
 				SysprobeConfigParams: sysprobeconfigimpl.NewParams(),
-				LogParams:            log.ForDaemon(command.LoggerName, "log_file", defaultpaths.LogFile),
+				LogParams:            log.ForDaemon(command.LoggerName, "log_file", defaultpaths.GetDefaultLogFile()),
 			}),
 			getSharedFxOption(),
 			getPlatformModules(),

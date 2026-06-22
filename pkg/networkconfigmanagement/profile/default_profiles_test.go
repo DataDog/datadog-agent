@@ -115,6 +115,16 @@ func Test_DefaultProfiles_Running(t *testing.T) {
 	}
 }
 
+func Test_TMOSGetRunningValidator(t *testing.T) {
+	v := DefaultProfile(t, "tmos").Commands.GetRunning.Validator
+	assert.NoError(t, v.Validate("#TMSH-VERSION: 17.1.3\n"))
+	assert.NoError(t, v.Validate("sys global-settings {\n"))
+	assert.NoError(t, v.Validate("ltm virtual /Common/x {\n"))
+	assert.NoError(t, v.Validate("ltm pool /Common/pool_1 {\n"))
+	assert.NoError(t, v.Validate("ltm node /Common/node_1 {\n"))
+	assert.Error(t, v.Validate("not a tmos config header\n"))
+}
+
 func Test_DefaultProfiles_Startup(t *testing.T) {
 	tests := []struct {
 		name                      string

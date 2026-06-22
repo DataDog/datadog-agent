@@ -85,6 +85,12 @@ func setupSerializer(config pkgconfigmodel.Config, cfg *ExporterConfig) {
 	config.Set("serializer_zstd_compressor_level", pkgconfigsetup.DefaultZstdCompressionLevel, pkgconfigmodel.SourceDefault)
 
 	config.Set("use_v2_api.series", true, pkgconfigmodel.SourceDefault)
+
+	// The serializer exporter forces zlib compression (metricscompressionfx
+	// fx-otel), which is incompatible with the v3 metrics intake.
+	config.Set("use_v3_api.series.enabled", "false", pkgconfigmodel.SourceAgentRuntime)
+	config.Set("serializer_experimental_use_v3_api.series.shadow_sample_rate", float64(0), pkgconfigmodel.SourceAgentRuntime)
+
 	// Serializer: allow user to blacklist any kind of payload to be sent
 	config.Set("enable_payloads.events", true, pkgconfigmodel.SourceDefault)
 	config.Set("enable_payloads.series", true, pkgconfigmodel.SourceDefault)
@@ -126,7 +132,7 @@ func InitSerializer(logger *zap.Logger, cfg *ExporterConfig, sourceProvider sour
 		fx.Supply(logger),
 		fxutil.FxAgentBase(),
 		fx.Provide(func() config.Component {
-			pkgconfig := create.NewConfig("DD", "")
+			pkgconfig := create.NewConfig("DD")
 			pkgconfigsetup.InitConfig(pkgconfig)
 			pkgconfig.BuildSchema()
 
@@ -134,7 +140,7 @@ func InitSerializer(logger *zap.Logger, cfg *ExporterConfig, sourceProvider sour
 			pkgconfig.Set("api_key", string(cfg.API.Key), pkgconfigmodel.SourceFile)
 			pkgconfig.Set("site", cfg.API.Site, pkgconfigmodel.SourceFile)
 			if cfg.Metrics.Metrics.TCPAddrConfig.Endpoint != "" {
-				pkgconfig.Set("dd_url", cfg.Metrics.Metrics.TCPAddrConfig.Endpoint, pkgconfigmodel.SourceDefault)
+				pkgconfig.Set("dd_url", cfg.Metrics.Metrics.TCPAddrConfig.Endpoint, pkgconfigmodel.SourceFile)
 			}
 			setupSerializer(pkgconfig, cfg)
 			setupForwarder(pkgconfig)

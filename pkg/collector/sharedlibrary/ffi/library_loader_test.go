@@ -17,16 +17,18 @@ import (
 )
 
 func TestOpen_NonExistentFile(t *testing.T) {
-	loader := NewSharedLibraryLoader(t.TempDir())
+	loader, err := NewSharedLibraryLoader(t.TempDir())
+	require.NoError(t, err)
 
-	_, err := loader.Open("/path/that/does/not/exist.so")
+	_, err = loader.Open("/path/that/does/not/exist.so")
 	assert.Error(t, err)
 }
 
 func TestRun_NullLibraryPointer(t *testing.T) {
-	loader := NewSharedLibraryLoader(t.TempDir())
+	loader, err := NewSharedLibraryLoader(t.TempDir())
+	require.NoError(t, err)
 
-	err := loader.Run(nil, "", "", "")
+	err = loader.Run(nil, "", "", "")
 	assert.EqualError(t, err, "Pointer to 'Library' struct is NULL")
 
 	_, err = loader.Version(nil)
@@ -37,11 +39,12 @@ func TestRun_NullLibraryPointer(t *testing.T) {
 }
 
 func TestRun_LibraryWithNullSymbols(t *testing.T) {
-	loader := NewSharedLibraryLoader(t.TempDir())
+	loader, err := NewSharedLibraryLoader(t.TempDir())
+	require.NoError(t, err)
 
 	lib := NewLibraryWithNullSymbols()
 
-	err := loader.Run(lib, "", "", "")
+	err = loader.Run(lib, "", "", "")
 	assert.EqualError(t, err, "Failed to run check: pointer to 'Run' symbol of the shared library is NULL")
 
 	_, err = loader.Version(lib)
@@ -50,7 +53,8 @@ func TestRun_LibraryWithNullSymbols(t *testing.T) {
 
 func TestComputeLibraryPath_Valid(t *testing.T) {
 	folder := t.TempDir()
-	loader := NewSharedLibraryLoader(folder)
+	loader, err := NewSharedLibraryLoader(folder)
+	require.NoError(t, err)
 
 	cases := []string{
 		"mycheck",
@@ -73,7 +77,8 @@ func TestComputeLibraryPath_Valid(t *testing.T) {
 }
 
 func TestComputeLibraryPath_RejectsInvalidNames(t *testing.T) {
-	loader := NewSharedLibraryLoader(t.TempDir())
+	loader, err := NewSharedLibraryLoader(t.TempDir())
+	require.NoError(t, err)
 
 	cases := []string{
 		// empty

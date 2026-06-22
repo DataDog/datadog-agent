@@ -243,30 +243,12 @@ func RemoveCustomIntegrations(ctx context.Context, installPath string) (err erro
 	return nil
 }
 
-// RemoveCompiledFiles removes compiled Python files (.pyc, .pyo) and __pycache__ directories
+// RemoveCompiledFiles removes compiled Python files (__pycache__ folders)
 func RemoveCompiledFiles(installPath string) error {
-	// Remove files in in "{installPath}/embedded/.py_compiled_files.txt"
-	_, err := os.Stat(filepath.Join(installPath, "embedded/.py_compiled_files.txt"))
-	if err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("failed to check if compiled files list exists: %w", err)
-	}
-	if !os.IsNotExist(err) {
-		compiledFiles, err := os.ReadFile(filepath.Join(installPath, "embedded/.py_compiled_files.txt"))
+	// Remove files in {installPath}/embedded
+	err := filepath.WalkDir(filepath.Join(installPath, "embedded"), func(path string, d os.DirEntry, err error) error {
 		if err != nil {
-			return fmt.Errorf("failed to read compiled files list: %w", err)
-		}
-		for file := range strings.SplitSeq(string(compiledFiles), "\n") {
-			if strings.HasPrefix(file, installPath) {
-				if err := os.Remove(file); err != nil && !os.IsNotExist(err) {
-					return fmt.Errorf("failed to remove compiled file %s: %w", file, err)
-				}
-			}
-		}
-	}
-	// Remove files in {installPath}/bin/agent/dist
-	err = filepath.WalkDir(filepath.Join(installPath, "bin", "agent", "dist"), func(path string, d os.DirEntry, err error) error {
-		if err != nil {
-			if !os.IsNotExist(err) {
+			if os.IsNotExist(err) {
 				return nil
 			}
 			return err
@@ -275,10 +257,26 @@ func RemoveCompiledFiles(installPath string) error {
 			if err := os.RemoveAll(path); err != nil && !os.IsNotExist(err) {
 				return err
 			}
-		} else if strings.HasSuffix(d.Name(), ".pyc") || strings.HasSuffix(d.Name(), ".pyo") {
-			if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+			return filepath.SkipDir
+		}
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("failed to remove compiled files: %w", err)
+	}
+	// Remove files in {installPath}/bin/agent/dist
+	err = filepath.WalkDir(filepath.Join(installPath, "bin", "agent", "dist"), func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			if os.IsNotExist(err) {
+				return nil
+			}
+			return err
+		}
+		if d.IsDir() && d.Name() == "__pycache__" {
+			if err := os.RemoveAll(path); err != nil && !os.IsNotExist(err) {
 				return err
 			}
+			return filepath.SkipDir
 		}
 		return nil
 	})
@@ -288,7 +286,7 @@ func RemoveCompiledFiles(installPath string) error {
 	// Remove files in {installPath}/python-scripts
 	err = filepath.WalkDir(filepath.Join(installPath, "python-scripts"), func(path string, d os.DirEntry, err error) error {
 		if err != nil {
-			if !os.IsNotExist(err) {
+			if os.IsNotExist(err) {
 				return nil
 			}
 			return err
@@ -297,10 +295,7 @@ func RemoveCompiledFiles(installPath string) error {
 			if err := os.RemoveAll(path); err != nil && !os.IsNotExist(err) {
 				return err
 			}
-		} else if strings.HasSuffix(d.Name(), ".pyc") || strings.HasSuffix(d.Name(), ".pyo") {
-			if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
-				return err
-			}
+			return filepath.SkipDir
 		}
 		return nil
 	})

@@ -10,12 +10,15 @@ package netflowstate
 import (
 	"bytes"
 	"context"
-	"github.com/DataDog/datadog-agent/comp/netflow/common"
-	"github.com/DataDog/datadog-agent/comp/netflow/config/def"
-	"github.com/DataDog/datadog-agent/comp/netflow/goflowlib/additionalfields"
-	"github.com/netsampler/goflow2/utils"
+	"maps"
 	"sync"
 	"time"
+
+	"github.com/netsampler/goflow2/utils"
+
+	"github.com/DataDog/datadog-agent/comp/netflow/common"
+	config "github.com/DataDog/datadog-agent/comp/netflow/config/def"
+	"github.com/DataDog/datadog-agent/comp/netflow/goflowlib/additionalfields"
 
 	"github.com/netsampler/goflow2/decoders/netflow"
 	"github.com/netsampler/goflow2/decoders/netflow/templates"
@@ -25,6 +28,14 @@ import (
 	"github.com/netsampler/goflow2/transport"
 	"github.com/prometheus/client_golang/prometheus"
 )
+
+// Used to map biflow byte/packet counts through additional fields (see formatdriver.go).
+var builtInBiflowMappings = map[uint16]config.Mapping{
+	231: {Field: 231, Type: common.Integer, Destination: "datadog.initiator_octets", Endian: common.BigEndian},
+	232: {Field: 232, Type: common.Integer, Destination: "datadog.responder_octets", Endian: common.BigEndian},
+	298: {Field: 298, Type: common.Integer, Destination: "datadog.initiator_packets", Endian: common.BigEndian},
+	299: {Field: 299, Type: common.Integer, Destination: "datadog.responder_packets", Endian: common.BigEndian},
+}
 
 // StateNetFlow holds a NetflowV9/IPFIX producer
 type StateNetFlow struct {
@@ -48,12 +59,12 @@ type StateNetFlow struct {
 }
 
 // NewStateNetFlow initializes a new Netflow/IPFIX producer, with the goflow default producer and the additional fields producer
-func NewStateNetFlow(mappingConfs []config.Mapping) *StateNetFlow {
+func NewStateNetFlow(mappingConfs []config.Mapping, enableBiflowParsing bool) *StateNetFlow {
 	return &StateNetFlow{
 		ctx:                context.Background(),
 		samplinglock:       &sync.RWMutex{},
 		sampling:           make(map[string]producer.SamplingRateSystem),
-		mappedFieldsConfig: mapFieldsConfig(mappingConfs),
+		mappedFieldsConfig: mapFieldsConfig(mappingConfs, enableBiflowParsing),
 	}
 }
 
@@ -158,8 +169,13 @@ func (s *StateNetFlow) initConfig() {
 	s.configMapped = producer.NewProducerConfigMapped(s.Config)
 }
 
-func mapFieldsConfig(mappingConfs []config.Mapping) map[uint16]config.Mapping {
-	mappedFieldsConfig := make(map[uint16]config.Mapping)
+func mapFieldsConfig(mappingConfs []config.Mapping, enableBiflowParsing bool) map[uint16]config.Mapping {
+	var mappedFieldsConfig map[uint16]config.Mapping
+	if enableBiflowParsing {
+		mappedFieldsConfig = maps.Clone(builtInBiflowMappings)
+	} else {
+		mappedFieldsConfig = make(map[uint16]config.Mapping)
+	}
 	for _, conf := range mappingConfs {
 		mappedFieldsConfig[conf.Field] = conf
 	}

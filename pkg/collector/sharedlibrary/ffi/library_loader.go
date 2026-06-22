@@ -12,11 +12,13 @@ import (
 	"errors"
 	"fmt"
 	"path"
+	"path/filepath"
 	"regexp"
 	"runtime"
 	"unsafe"
 
 	_ "github.com/DataDog/datadog-agent/pkg/collector/aggregator" // import submit functions
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 )
 
 /*
@@ -98,10 +100,24 @@ func isPathConfined(libPath, folderPath string) bool {
 type SharedLibraryLoader struct {
 	folderPath string
 	aggregator *C.aggregator_t
+	permission *filesystem.Permission
 }
 
 // Open looks for a shared library with the corresponding name and check if it has the required symbols
 func (l *SharedLibraryLoader) Open(path string) (*Library, error) {
+	// Check the containing directory first: if it is owned by a trusted user and not
+	// world-writable, an attacker cannot stage a replacement library between our
+	// permission check and the actual dlopen call (TOCTOU mitigation).
+	if err := l.permission.CheckOwnerIsTrusted(filepath.Dir(path)); err != nil {
+		return nil, fmt.Errorf("shared library directory owner check failed: %w", err)
+	}
+
+	// Note: there is an inherent TOCTOU race between this check and dlopen below.
+	// It is mitigated by the library directory being owned by a trusted user (above).
+	if err := l.permission.CheckOwnerAndPermissionsAreRestricted(path); err != nil {
+		return nil, err
+	}
+
 	cPath := C.CString(path)
 	defer C.free(unsafe.Pointer(cPath))
 
@@ -192,9 +208,14 @@ func (l *SharedLibraryLoader) ComputeLibraryPath(name string) (string, error) {
 }
 
 // NewSharedLibraryLoader creates a new SharedLibraryLoader
-func NewSharedLibraryLoader(folderPath string) *SharedLibraryLoader {
+func NewSharedLibraryLoader(folderPath string) (*SharedLibraryLoader, error) {
+	permission, err := filesystem.NewPermission()
+	if err != nil {
+		return nil, err
+	}
 	return &SharedLibraryLoader{
 		folderPath: folderPath,
 		aggregator: C.get_aggregator(),
-	}
+		permission: permission,
+	}, nil
 }

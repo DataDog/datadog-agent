@@ -53,6 +53,7 @@ func init() {
 	registerFeature(PodResources)
 	registerFeature(KubernetesDevicePlugins)
 	registerFeature(NVML)
+	registerFeature(Process)
 	registerFeature(NonstandardCRIRuntime)
 }
 
@@ -82,6 +83,13 @@ func detectContainerFeatures(features FeatureMap, cfg model.ReaderWriter) {
 	detectPodResources(features, cfg)
 	detectDevicePlugins(features, cfg)
 	detectNVML(features, cfg)
+	detectProcess(features)
+}
+
+func detectProcess(features FeatureMap) {
+	if runtime.GOOS == "linux" {
+		features[Process] = struct{}{}
+	}
 }
 
 func detectKubernetes(features FeatureMap, cfg model.Reader) {
@@ -178,12 +186,8 @@ func mergeContainerdNamespaces(cfg model.ReaderWriter) {
 	)
 
 	// Workaround: convert to []interface{}.
-	// The MergeConfigOverride func in "github.com/DataDog/viper" (tested in
-	// v1.10.0) raises an error if we send a []string{} in Set():
-	// "svType != tvType; key=containerd_namespace, st=[]interface {}, tt=[]string, sv=[], tv=[]"
-	// The reason is that when reading from a config file, all the arrays are
-	// considered as []interface{} by Viper, and the merge fails when the types
-	// are different.
+	// Arrays read from a config file are decoded as []interface{}, so setting a []string{}
+	// here could raise a type-mismatch error when the value is merged with the existing one.
 	convertedNamespaces := make([]interface{}, len(namespaces))
 	for i, namespace := range namespaces {
 		convertedNamespaces[i] = namespace

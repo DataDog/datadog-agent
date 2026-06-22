@@ -17,7 +17,7 @@ if heroku_target?
 elsif fips_mode?
   flavor_flag = "--//packages/agent:flavor=fips"
 end
-bazel_flags = "--config=release #{flavor_flag} --//:install_dir='#{install_dir}'"
+bazel_flags = "#{flavor_flag} --//:install_dir='#{install_dir}'"
 
 # We don't want to build any dependencies in "repackaging mode" so all usual dependencies
 # need to go under this guard.
@@ -77,13 +77,16 @@ build do
     if ENV['WINDOWS_DDNPM_DRIVER'] and not ENV['WINDOWS_DDNPM_DRIVER'].empty?
       do_windows_sysprobe = "--windows-sysprobe"
     end
-    command_on_repo_root "bazelisk run #{bazel_flags} -- //rtloader:install --destdir=\"#{install_dir}"
+    command_on_repo_root "bazelisk run #{bazel_flags} -- //rtloader:install --destdir=\"#{install_dir}",
+      :live_stream => Omnibus.logger.live_stream(:info)
     # Put the static rtloader library where it gets picked up by the go build linking to it
-    command_on_repo_root "bazelisk run #{bazel_flags} -- //rtloader:install_static --destdir=\"#{project_dir}/rtloader/build/rtloader\""
+    command_on_repo_root "bazelisk run #{bazel_flags} -- //rtloader:install_static --destdir=\"#{project_dir}/rtloader/build/rtloader\"",
+      :live_stream => Omnibus.logger.live_stream(:info)
     command "dda inv -- -e agent.build --exclude-rtloader --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded #{do_windows_sysprobe} --flavor #{flavor_arg}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
     command "dda inv -- -e systray.build", env: env, :live_stream => Omnibus.logger.live_stream(:info)
   else
-    command_on_repo_root "bazelisk run #{bazel_flags} -- //rtloader:install --destdir='#{install_dir}'"
+    command_on_repo_root "bazelisk run #{bazel_flags} -- //rtloader:install --destdir='#{install_dir}'",
+      :live_stream => Omnibus.logger.live_stream(:info)
     command "dda inv -- -e agent.build --exclude-rtloader --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded --flavor #{flavor_arg}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
   end
 

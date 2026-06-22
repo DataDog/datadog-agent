@@ -9,15 +9,18 @@ import (
 	"fmt"
 	"math/rand/v2"
 	"slices"
+	"strings"
 
 	"github.com/google/uuid"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/serializer/internal/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/compression"
 )
 
 type metricsKind int
@@ -38,10 +41,74 @@ func (k metricsKind) String() string {
 	}
 }
 
-func metricsUseV3(resolver resolver.DomainResolver, config config.Component, kind metricsKind) bool {
-	return slices.Contains(
+// metricsUseV3 decides whether a given resolver should ship the given metrics kind via the v3 intake.
+func metricsUseV3(r resolver.DomainResolver, config config.Component, logger log.Component, kind metricsKind) bool {
+	exp := slices.Contains(
 		config.GetStringSlice(fmt.Sprintf("serializer_experimental_use_v3_api.%s.endpoints", kind)),
-		resolver.GetConfigName())
+		r.GetConfigName())
+	if exp {
+		return true
+	}
+
+	if kind == metricsKindSeries {
+		return seriesUseV3(r, config, logger)
+	}
+
+	return false
+}
+
+// zlibForcesV2 reports whether the active metrics compressor is zlib, which is incompatible
+// with the v3 metrics intake.
+func (s *Serializer) zlibForcesV2() bool {
+	return s.Strategy.ContentEncoding() == compression.ZlibEncoding
+}
+
+// warnZlibDisablesV3 logs, once per serializer, that zlib compression is forcing
+// requested v3 pipelines back to v2.
+func (s *Serializer) warnZlibDisablesV3() {
+	s.zlibV3WarnOnce.Do(func() {
+		s.logger.Info(
+			"the active metrics compressor is zlib (deflate); disabling v3 metrics intake " +
+				"(use_v3_api.* and serializer_experimental_use_v3_api.*.endpoints are ignored). " +
+				"Switch to zstd to use the v3 endpoint.")
+	})
+}
+
+// evalSeriesV3 maps a single use_v3_api.series.enabled / endpoints[url] value onto a
+// v3-vs-v2 decision for r.
+func evalSeriesV3(key, value string, r resolver.DomainResolver, logger log.Component) bool {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "true", "1", "t", "yes", "on": // yaml truth values
+		return true
+	case "false", "0", "f", "no", "off": // yaml false values
+		return false
+	case "datadog_only":
+		return configutils.IsDatadogURL(r.GetConfigName())
+	}
+	logger.Warnf("%s value %q is invalid, using false", key, value)
+	return false
+}
+
+func vectorSeriesUseV3(config config.Component) bool {
+	if config.GetBool("observability_pipelines_worker.metrics.enabled") {
+		return config.GetBool("observability_pipelines_worker.metrics.use_v3_api.series")
+	}
+	return config.GetBool("vector.metrics.use_v3_api.series")
+}
+
+func seriesUseV3(r resolver.DomainResolver, config config.Component, logger log.Component) bool {
+	if r.IsMetricToVector() {
+		return vectorSeriesUseV3(config)
+	}
+
+	endpointsKey := "use_v3_api.series.endpoints"
+	endpoints := config.GetStringMapString(endpointsKey)
+	if value, ok := endpoints[r.GetConfigName()]; ok {
+		key := fmt.Sprintf("%s.%q", endpointsKey, r.GetConfigName())
+		return evalSeriesV3(key, value, r, logger)
+	}
+
+	return evalSeriesV3("use_v3_api.series.enabled", config.GetString("use_v3_api.series.enabled"), r, logger)
 }
 
 func metricsValidateV3(config config.Component, kind metricsKind) bool {
@@ -127,8 +194,17 @@ func (s *Serializer) buildPipelinesRng(kind metricsKind, rng prng) metrics.Pipel
 	shadowRate := metricsShadowSampleRate(s.config, kind)
 	shadowSites := metricsShadowSites(s.config)
 
+	zlib := s.zlibForcesV2()
+	if zlib {
+		shadowRate = 0
+	}
+
 	for _, resolver := range s.Forwarder.GetDomainResolvers() {
-		useV3 := metricsUseV3(resolver, s.config, kind)
+		useV3 := metricsUseV3(resolver, s.config, s.logger, kind)
+		if zlib && useV3 {
+			s.warnZlibDisablesV3()
+			useV3 = false
+		}
 
 		dest := metrics.PipelineDestination{
 			Resolver: resolver,
@@ -137,6 +213,9 @@ func (s *Serializer) buildPipelinesRng(kind metricsKind, rng prng) metrics.Pipel
 
 		switch {
 		case resolver.IsLocal():
+			// Cluster agent only speaks v2
+			dest.Endpoint = metricsEndpointFor(kind, false, s.config)
+
 			if autoscalingFilter != nil && kind == metricsKindSeries {
 				conf := metrics.PipelineConfig{
 					Filter: autoscalingFilter,
