@@ -20,7 +20,6 @@ import (
 
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	logComponentImpl "github.com/DataDog/datadog-agent/comp/core/log/impl"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
@@ -76,11 +75,6 @@ type serverDebugImpl struct {
 	tagsAccumulator *tagset.HashingTagsAccumulator
 	// dogstatsdDebugLogger is an instance of the logger config that can be used to create new logger for dogstatsd-stats metrics
 	dogstatsdDebugLogger pkglog.LoggerInterface
-}
-
-// NewServerlessServerDebug creates a new instance of serverDebug.Component
-func NewServerlessServerDebug(cfg model.Reader) serverdebug.Component {
-	return newServerDebugCompat(logComponentImpl.NewTemporaryLoggerWithoutInit(), cfg)
 }
 
 func newServerDebugCompat(l log.Component, cfg model.Reader) serverdebug.Component {

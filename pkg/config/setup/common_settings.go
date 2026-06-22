@@ -1599,6 +1599,13 @@ func forwarder(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("forwarder_apikey_validation_interval", DefaultAPIKeyValidationInterval) // in minutes
 	config.BindEnvAndSetDefault("forwarder_num_workers", 1)
 	config.BindEnvAndSetDefault("forwarder_stop_timeout", 2)
+	// forwarder_stop_wait_for_inflight controls whether Worker.Stop waits for
+	// in-flight HTTP transactions to finish before returning (true) or cancels
+	// them immediately (false). Only safe when the process is about to exit: on
+	// forwarder_stop_timeout overrun the in-flight HTTP goroutines are
+	// leaked (workerCtx has no independent cancellation), so a long-running
+	// process that flips this flag will accumulate goroutines on every Stop.
+	config.BindEnvAndSetDefault("forwarder_stop_wait_for_inflight", false)
 	config.BindEnvAndSetDefault("forwarder_max_concurrent_requests", 10)
 	// Forwarder retry settings
 	config.BindEnvAndSetDefault("forwarder_backoff_factor", 2)
@@ -1671,7 +1678,12 @@ func dogstatsd(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("dogstatsd_log_file_max_size", "10Mb")
 	// Control for how long counter would be sampled to 0 if not received
 	config.BindEnvAndSetDefault("dogstatsd_expiry_seconds", 300)
-	// Control dogstatsd shutdown behaviors
+	// On stop, flush everything still held in memory instead of dropping it.
+	// This drains the dogstatsd server's per-worker batchers into the time
+	// sampler as the workers exit, and then flushes the sampler's final
+	// (incomplete) bucket out to the serializer. Intended for short-lived
+	// processes (e.g. serverless-init) that want their last metrics reported on
+	// shutdown; long-running agents leave it off.
 	config.BindEnvAndSetDefault("dogstatsd_flush_incomplete_buckets", false)
 	// Control how long we keep dogstatsd contexts in memory.
 	config.BindEnvAndSetDefault("dogstatsd_context_expiry_seconds", 20)
