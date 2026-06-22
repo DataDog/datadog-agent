@@ -8,6 +8,8 @@
 package mocksender
 
 import (
+	"reflect"
+	"testing"
 	"time"
 
 	"github.com/stretchr/testify/mock"
@@ -32,12 +34,13 @@ import (
 
 // NewMockSender initiates the aggregator and returns a
 // functional mocked Sender for testing
-func NewMockSender(id checkid.ID) *MockSender {
-	return NewMockSenderWithSenderManager(id, CreateDefaultDemultiplexer())
+func NewMockSender(tb testing.TB, id checkid.ID) *MockSender {
+	return NewMockSenderWithSenderManager(id, CreateDefaultDemultiplexer(tb))
 }
 
-// CreateDefaultDemultiplexer creates a default demultiplexer for testing
-func CreateDefaultDemultiplexer() *aggregator.AgentDemultiplexer {
+// CreateDefaultDemultiplexer creates a default demultiplexer for testing and
+// registers t.Cleanup to stop it when the test ends.
+func CreateDefaultDemultiplexer(tb testing.TB) *aggregator.AgentDemultiplexer {
 	opts := aggregator.DefaultAgentDemultiplexerOptions()
 	opts.FlushInterval = 1 * time.Hour
 	opts.DontStartForwarders = true
@@ -47,7 +50,12 @@ func CreateDefaultDemultiplexer() *aggregator.AgentDemultiplexer {
 	eventPlatformForwarder := option.NewPtr[eventplatform.Forwarder](eventplatformimpl.NewNoopEventPlatformForwarder(hostnameimpl.NewHostnameService(), logscompressionmock.NewMockCompressor()))
 	taggerComponent := nooptagger.NewComponent()
 	filterList := filterlist.NewNoopFilterList()
-	return aggregator.InitAndStartAgentDemultiplexer(log, sharedForwarder, &orchestratorForwarder, opts, eventPlatformForwarder, haagentmock.NewMockHaAgent(), metricscompressionmock.NewMockCompressor(), taggerComponent, filterList, "")
+	demux := aggregator.InitAndStartAgentDemultiplexer(log, sharedForwarder, &orchestratorForwarder, opts, eventPlatformForwarder, haagentmock.NewMockHaAgent(), metricscompressionmock.NewMockCompressor(), taggerComponent, filterList, "")
+	//TODO(agent-build): remove guard due to `newSysCheck(nil)` in pkg/collector/corechecks/oracle/init_test.go
+	if tb != nil && !reflect.ValueOf(tb).IsNil() {
+		tb.Cleanup(demux.Stop)
+	}
+	return demux
 }
 
 // NewMockSenderWithSenderManager returns a functional mocked Sender for testing
