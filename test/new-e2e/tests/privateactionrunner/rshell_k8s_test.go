@@ -127,8 +127,12 @@ func (s *parK8sSuite) TestRshellBlockedExecCmd() {
 // rshell in remediation mode, allowing a file-target output redirection inside an
 // allowed path. runCommand (read-only mode) would reject the same redirection. The
 // command writes a file and reads it back to confirm the write landed on disk.
+//
+// The target lives under /tmp (the PAR container's own writable filesystem), not the
+// /host/* mounts used by the read tests: host paths are mounted read-only, so a write
+// there would fail regardless of rshell's mode.
 func (s *parK8sSuite) TestRshellRemediationWriteFile() {
-	target := "/host/var/log/par-e2e-remediation.txt"
+	target := "/tmp/par-e2e-remediation.txt"
 	content := "PAR_REMEDIATION_VALUE=written_by_rshell"
 
 	taskID := uuid.New().String()
@@ -136,7 +140,7 @@ func (s *parK8sSuite) TestRshellRemediationWriteFile() {
 		"command":         fmt.Sprintf("echo %s > %s && cat %s", content, target, target),
 		"allowedCommands": []string{"rshell:echo", "rshell:cat"},
 		"allowedPaths": map[string][]string{
-			setup.RShellPathAllowMapContainerizedKey: {"/host/var/log"},
+			setup.RShellPathAllowMapContainerizedKey: {"/tmp"},
 		},
 	})
 	s.Require().NoError(err)
@@ -152,10 +156,10 @@ func (s *parK8sSuite) TestRshellRemediationWriteFile() {
 func (s *parK8sSuite) TestRshellRunCommandBlocksWrite() {
 	taskID := uuid.New().String()
 	err := s.Env().FakeIntake.Client().EnqueuePARTask(taskID, runCommandAction, map[string]interface{}{
-		"command":         "echo nope > /host/var/log/par-e2e-readonly.txt",
+		"command":         "echo nope > /tmp/par-e2e-readonly.txt",
 		"allowedCommands": []string{"rshell:echo"},
 		"allowedPaths": map[string][]string{
-			setup.RShellPathAllowMapContainerizedKey: {"/host/var/log"},
+			setup.RShellPathAllowMapContainerizedKey: {"/tmp"},
 		},
 	})
 	s.Require().NoError(err)
