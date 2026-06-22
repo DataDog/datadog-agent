@@ -15,14 +15,14 @@ import (
 // Mock is a test implementation of runner.Component.
 // Run calls fn and returns the IssueID of each emitted report, mirroring the
 // real runner without the registry lookup or store interaction.
-type Mock struct{}
+type mockRunner struct{}
 
 // New returns a mock runner for testing.
-func New() *Mock { return &Mock{} }
+func New() *mockRunner { return &mockRunner{} }
 
 // Run calls fn and collects the IssueID from each emitted IssueReport.
 // Returns nil ids on error, matching the real runner's partial-result contract.
-func (m *Mock) Run(_ string, fn runnerdef.HealthCheckFunc) ([]string, error) {
+func (m *mockRunner) Run(_ string, fn runnerdef.HealthCheckFunc) ([]string, error) {
 	if fn == nil {
 		return nil, nil
 	}

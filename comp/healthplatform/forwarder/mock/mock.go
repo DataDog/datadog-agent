@@ -18,16 +18,16 @@ import (
 
 // Mock is a test implementation of forwarder.Component that records every
 // report passed to Send() so tests can assert on what would be forwarded.
-type Mock struct {
+type mockForwarder struct {
 	mu      sync.Mutex
 	reports []*healthplatformpayload.HealthReport
 }
 
 // New returns a mock forwarder for testing.
-func New() *Mock { return &Mock{} }
+func New() *mockForwarder { return &mockForwarder{} }
 
 // Send records a deep clone of the report. It never returns an error.
-func (m *Mock) Send(_ context.Context, report *healthplatformpayload.HealthReport) error {
+func (m *mockForwarder) Send(_ context.Context, report *healthplatformpayload.HealthReport) error {
 	clone := proto.Clone(report).(*healthplatformpayload.HealthReport)
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -36,7 +36,7 @@ func (m *Mock) Send(_ context.Context, report *healthplatformpayload.HealthRepor
 }
 
 // SentReports returns a snapshot of all reports passed to Send().
-func (m *Mock) SentReports() []*healthplatformpayload.HealthReport {
+func (m *mockForwarder) SentReports() []*healthplatformpayload.HealthReport {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	out := make([]*healthplatformpayload.HealthReport, len(m.reports))

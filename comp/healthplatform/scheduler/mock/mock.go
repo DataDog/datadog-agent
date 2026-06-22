@@ -27,17 +27,17 @@ type ScheduleCall struct {
 // Mock is a test implementation of scheduler.Component.
 // It validates inputs the same way the real scheduler does and records calls
 // for test inspection via ScheduledChecks().
-type Mock struct {
+type mockScheduler struct {
 	mu        sync.Mutex
 	scheduled []ScheduleCall
 }
 
 // New returns a mock scheduler for testing.
-func New() *Mock { return &Mock{} }
+func New() *mockScheduler { return &mockScheduler{} }
 
 // Schedule validates inputs and records the call. It mirrors the real
 // scheduler's error conditions (empty source, nil fn, duplicate source).
-func (m *Mock) Schedule(source string, fn runnerdef.HealthCheckFunc, interval time.Duration, _ []string) error {
+func (m *mockScheduler) Schedule(source string, fn runnerdef.HealthCheckFunc, interval time.Duration, _ []string) error {
 	if source == "" {
 		return errors.New("source cannot be empty")
 	}
@@ -56,7 +56,7 @@ func (m *Mock) Schedule(source string, fn runnerdef.HealthCheckFunc, interval ti
 }
 
 // ScheduledChecks returns a snapshot of all registered Schedule() calls.
-func (m *Mock) ScheduledChecks() []ScheduleCall {
+func (m *mockScheduler) ScheduledChecks() []ScheduleCall {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	out := make([]ScheduleCall, len(m.scheduled))
