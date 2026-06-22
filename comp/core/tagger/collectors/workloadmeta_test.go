@@ -1779,7 +1779,8 @@ func TestHandleKubeKueueWorkload(t *testing.T) {
 				"kueue_workload_uid:uid-job-sample",
 			},
 			LowCardTags: []string{
-				"gpu_device:NVIDIA-A100-SXM4-40GB",
+				"gpu_device:nvidia_a100-sxm4-40gb",
+				"gpu_type:a100",
 				"gpu_vendor:nvidia",
 				"kube_namespace:default",
 				"kueue_cluster_queue:cluster-batch",
@@ -1913,7 +1914,8 @@ func TestKueueWorkloadResourceFlavorTagsPropagateToPodContainers(t *testing.T) {
 				}
 				assert.Subset(t, tagInfo.LowCardTags, []string{
 					"gpu_architecture:ampere",
-					"gpu_device:NVIDIA-A100-SXM4-40GB",
+					"gpu_device:nvidia_a100-sxm4-40gb",
+					"gpu_type:a100",
 					"gpu_vendor:nvidia",
 					"kueue_cluster_queue:cluster-batch",
 					"kueue_local_queue:batch",
@@ -1923,7 +1925,8 @@ func TestKueueWorkloadResourceFlavorTagsPropagateToPodContainers(t *testing.T) {
 					"kueue_workload:job-sample",
 				})
 				assert.NotContains(t, tagInfo.LowCardTags, "gpu_architecture:hopper")
-				assert.NotContains(t, tagInfo.LowCardTags, "gpu_device:NVIDIA-H100-80GB-HBM3")
+				assert.NotContains(t, tagInfo.LowCardTags, "gpu_device:nvidia_h100-80gb-hbm3")
+				assert.NotContains(t, tagInfo.LowCardTags, "gpu_type:h100")
 				assert.NotContains(t, tagInfo.LowCardTags, "kueue_resource_flavor:h100")
 				return
 			}
