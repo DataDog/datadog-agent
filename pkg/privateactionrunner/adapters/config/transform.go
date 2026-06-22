@@ -139,8 +139,19 @@ func makeActionsAllowlist(config config.Component) map[string]sets.Set[string] {
 	return allowlist
 }
 
-// rshellAllowedCommands returns the operator-configured rshell command
-// allowlist. It is used only when the user explicitly configured the key; the
+// rshellAllowedCommands returns the operator-configured rshell command allowlist.
+//
+// The default value is a wildcard ["rshell:*"] created to match all commands in the rshell namespace.
+// See pkg/config/setup/privateactionrunner.go for more details.
+//
+// If the wildcard "rshell:*" is present, the operator-configured list acts as an ALLOW ALL:
+// only the backend will be used to filter the commands.
+//
+// If the wildcard "rshell:*" is not present, the operator-configured list is used to filter the commands.
+// For a command to be executed by rshell, it needs to be present in both the operator-configured list
+// AND the backend's allowed commands list. (intersection operation)
+//
+// This list is used only when the user explicitly configured the key; the
 // registered default is preserved as a non-restrictive compatibility value.
 func rshellAllowedCommands(config config.Component) []string {
 	commands := config.GetStringSlice(setup.PARRestrictedShellAllowedCommands)
