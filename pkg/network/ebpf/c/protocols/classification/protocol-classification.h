@@ -161,6 +161,13 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
         return;
     }
 
+    // Re-fetch after classification_context_init. The lookup above (used for the early-exit
+    // checks) returns a map-value-or-NULL pointer; holding it live across
+    // classification_context_init makes older verifiers (e.g. 4.14, 5.4) lose the NULL
+    // refinement and reject a later protocol_stack read as an invalid access. Re-fetching here
+    // keeps the pointer's scope tight, matching the pattern the verifier already accepts.
+    protocol_stack = get_protocol_stack_if_exists(&classification_ctx->tuple);
+
     // Load information that will be later on used to route tail-calls
     init_routing_cache(classification_ctx, protocol_stack);
 
