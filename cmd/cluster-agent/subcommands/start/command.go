@@ -100,6 +100,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/provider"
 	pkgclusterchecks "github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/helmactions"
 	instrumentationhandlers "github.com/DataDog/datadog-agent/pkg/clusteragent/instrumentation/handlers"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/kubeactions"
 	clusteragentMetricsStatus "github.com/DataDog/datadog-agent/pkg/clusteragent/metricsstatus"
@@ -608,6 +609,21 @@ func start(log log.Component,
 		}
 		log.Info("Kubernetes actions subsystem started successfully")
 	}
+
+	// Helm Actions. Job status puller !!!
+	var helmactionsRetriever *helmactions.ConfigRetriever
+	if config.GetBool("helmactions.enabled") {
+		if rcClient == nil {
+			return errors.New("remote config is disabled or failed to initialize, remote config is a required dependency for helmactions")
+		}
+		log.Infof("[HelmActions] Starting with cluster_id=%s, cluster_name=%s", clusterID, clusterName)
+
+		if helmactionsRetriever, err = helmactions.Setup(mainCtx, apiCl.Cl, clusterName, clusterID, le.IsLeader, rcClient); err != nil {
+			return fmt.Errorf("error while starting helm actions: %v", err)
+		}
+		log.Info("Helm actions subsystem started successfully")
+	}
+	_ = helmactionsRetriever
 
 	// Compliance
 	if config.GetBool("compliance_config.enabled") {

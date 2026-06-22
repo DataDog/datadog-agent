@@ -37,8 +37,8 @@ const (
 	defaultTTLSecondsAfterFinished int32 = 3600
 )
 
-// RollbackOptions describes a single `helm rollback` invocation.
-type RollbackOptions struct {
+// RollbackInputs describes a single `helm rollback` invocation.
+type RollbackInputs struct {
 	// Release is the name of the Helm release to roll back. Required.
 	Release string
 	// ReleaseNamespace is the namespace of the Helm release. Required.
@@ -48,11 +48,11 @@ type RollbackOptions struct {
 	Revision int
 	// JobNamespace is the namespace where the K8s Job will be created. Required.
 	JobNamespace string
-	// ServiceAccountName is the service account the Job pod runs as. Required:
+	// JobServiceAccountName is the service account the Job pod runs as. Required:
 	// it must have the RBAC permissions helm needs to act on the release
 	// (typically: read/write secrets in the release namespace, plus permissions
 	// on the resources the chart manages).
-	ServiceAccountName string
+	JobServiceAccountName string
 	// Image overrides the helm container image. Defaults to DefaultHelmImage.
 	Image string
 	// Driver selects the helm storage backend that holds the release state.
@@ -73,7 +73,7 @@ type RollbackOptions struct {
 	ExtraLabels map[string]string
 }
 
-func (o RollbackOptions) validate() error {
+func (o RollbackInputs) validate() error {
 	switch {
 	case o.Release == "":
 		return errors.New("release is required")
@@ -81,7 +81,7 @@ func (o RollbackOptions) validate() error {
 		return errors.New("release namespace is required")
 	case o.JobNamespace == "":
 		return errors.New("job namespace is required")
-	case o.ServiceAccountName == "":
+	case o.JobServiceAccountName == "":
 		return errors.New("service account name is required")
 	case o.Revision < 0:
 		return fmt.Errorf("revision must be >= 0, got %d", o.Revision)
@@ -103,7 +103,7 @@ func NewRollbackExecutor(clientset kubernetes.Interface) *RollbackExecutor {
 // Run validates opts and creates a Job that runs `helm rollback <release>
 // [<revision>] --namespace <release-namespace>`. It returns the created Job;
 // callers that need to observe completion should watch the Job or its Pods.
-func (e *RollbackExecutor) Run(ctx context.Context, opts RollbackOptions) (*batchv1.Job, error) {
+func (e *RollbackExecutor) Run(ctx context.Context, opts RollbackInputs) (*batchv1.Job, error) {
 	if err := opts.validate(); err != nil {
 		return nil, err
 	}
@@ -118,7 +118,7 @@ func (e *RollbackExecutor) Run(ctx context.Context, opts RollbackOptions) (*batc
 	return created, nil
 }
 
-func buildRollbackJob(opts RollbackOptions) *batchv1.Job {
+func buildRollbackJob(opts RollbackInputs) *batchv1.Job {
 	image := opts.Image
 	if image == "" {
 		image = DefaultHelmImage
@@ -170,7 +170,7 @@ func buildRollbackJob(opts RollbackOptions) *batchv1.Job {
 				},
 				Spec: corev1.PodSpec{
 					RestartPolicy:      corev1.RestartPolicyNever,
-					ServiceAccountName: opts.ServiceAccountName,
+					ServiceAccountName: opts.JobServiceAccountName,
 					Containers: []corev1.Container{
 						{
 							Name:    helmContainerName,

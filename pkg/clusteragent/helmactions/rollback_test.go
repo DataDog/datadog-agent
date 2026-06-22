@@ -18,29 +18,29 @@ import (
 	"k8s.io/client-go/kubernetes/fake"
 )
 
-func validOptions() RollbackOptions {
-	return RollbackOptions{
-		Release:            "myrel",
-		ReleaseNamespace:   "prod",
-		JobNamespace:       "ops",
-		ServiceAccountName: "helm-sa",
+func validOptions() RollbackInputs {
+	return RollbackInputs{
+		Release:               "myrel",
+		ReleaseNamespace:      "prod",
+		JobNamespace:          "ops",
+		JobServiceAccountName: "helm-sa",
 	}
 }
 
 func TestRollbackOptionsValidate(t *testing.T) {
 	tests := []struct {
 		name    string
-		mutate  func(*RollbackOptions)
+		mutate  func(*RollbackInputs)
 		wantErr bool
 	}{
-		{"valid", func(*RollbackOptions) {}, false},
-		{"missing release", func(o *RollbackOptions) { o.Release = "" }, true},
-		{"missing release namespace", func(o *RollbackOptions) { o.ReleaseNamespace = "" }, true},
-		{"missing job namespace", func(o *RollbackOptions) { o.JobNamespace = "" }, true},
-		{"missing service account", func(o *RollbackOptions) { o.ServiceAccountName = "" }, true},
-		{"negative revision", func(o *RollbackOptions) { o.Revision = -1 }, true},
-		{"zero revision is allowed", func(o *RollbackOptions) { o.Revision = 0 }, false},
-		{"positive revision is allowed", func(o *RollbackOptions) { o.Revision = 7 }, false},
+		{"valid", func(*RollbackInputs) {}, false},
+		{"missing release", func(o *RollbackInputs) { o.Release = "" }, true},
+		{"missing release namespace", func(o *RollbackInputs) { o.ReleaseNamespace = "" }, true},
+		{"missing job namespace", func(o *RollbackInputs) { o.JobNamespace = "" }, true},
+		{"missing service account", func(o *RollbackInputs) { o.JobServiceAccountName = "" }, true},
+		{"negative revision", func(o *RollbackInputs) { o.Revision = -1 }, true},
+		{"zero revision is allowed", func(o *RollbackInputs) { o.Revision = 0 }, false},
+		{"positive revision is allowed", func(o *RollbackInputs) { o.Revision = 7 }, false},
 	}
 
 	for _, tt := range tests {
@@ -150,7 +150,7 @@ func TestRollbackExecutor_Run_ValidationError(t *testing.T) {
 	clientset := fake.NewSimpleClientset()
 	executor := NewRollbackExecutor(clientset)
 
-	_, err := executor.Run(context.Background(), RollbackOptions{})
+	_, err := executor.Run(context.Background(), RollbackInputs{})
 	assert.Error(t, err)
 
 	jobs, listErr := clientset.BatchV1().Jobs("").List(context.Background(), metav1.ListOptions{})
