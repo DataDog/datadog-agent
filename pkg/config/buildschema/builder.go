@@ -88,12 +88,12 @@ func (b *builder) addToSchema(name string, val interface{}, envVars []string, no
 			}
 		case time.Duration:
 			node = map[string]interface{}{
-				"type":   "number",
+				"type":   "string",
 				"format": "duration",
 				"tags":   []string{"golang_type:duration"},
 			}
 			if !noDefault {
-				node["default"] = v
+				node["default"] = v.String()
 			}
 		case float64:
 			node = map[string]interface{}{
