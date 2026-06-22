@@ -77,6 +77,15 @@ func subservices(coreConf model.Reader, sysprobeConf model.Reader) []Servicedef 
 			shouldShutdown: false,
 		},
 		{
+			name: "data-plane",
+			configKeys: map[string]model.Reader{
+				"data_plane.enabled": coreConf,
+			},
+			serviceName:    "datadog-agent-data-plane",
+			serviceInit:    dataPlaneInit,
+			shouldShutdown: false,
+		},
+		{
 			name: "datadog-installer",
 			configKeys: map[string]model.Reader{
 				"remote_updates": coreConf,
@@ -131,6 +140,10 @@ func sysprobeInit() error {
 }
 
 func securityInit() error {
+	return nil
+}
+
+func dataPlaneInit() error {
 	return nil
 }
 
