@@ -7,6 +7,7 @@ package decoder
 
 import (
 	"regexp"
+	"slices"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
@@ -317,9 +318,23 @@ func buildLineHandler(source *sources.ReplaceableSource, multiLinePattern *regex
 	sourceConfig := source.Config()
 	switch resolveSamplerMode(sourceConfig.ExperimentalAdaptiveSampling, sourceConfig.ExperimentalNoisyLogDetection) {
 	case samplerAdaptiveSampling:
-		sampler = preprocessor.NewAdaptiveSampler(resolveAdaptiveSamplerConfig(sourceConfig.ExperimentalAdaptiveSampling, tok), source.UnderlyingSource().Name, baseBytesEstimate)
+		cfg := resolveAdaptiveSamplerConfig(sourceConfig.ExperimentalAdaptiveSampling, tok)
+		cfg.IsSourceDisabled = func() bool {
+			return slices.Contains(
+				pkgconfigsetup.Datadog().GetStringSlice("logs_config.experimental_adaptive_sampling.disabled_sources"),
+				source.Config().Source,
+			)
+		}
+		sampler = preprocessor.NewAdaptiveSampler(cfg, source.UnderlyingSource().Name, baseBytesEstimate)
 	case samplerNoisyLogDetection:
-		sampler = preprocessor.NewAdaptiveSampler(resolveNoisyLogDetectionConfig(sourceConfig.ExperimentalAdaptiveSampling, tok), source.UnderlyingSource().Name, baseBytesEstimate)
+		cfg := resolveNoisyLogDetectionConfig(sourceConfig.ExperimentalAdaptiveSampling, tok)
+		cfg.IsSourceDisabled = func() bool {
+			return slices.Contains(
+				pkgconfigsetup.Datadog().GetStringSlice("logs_config.experimental_adaptive_sampling.disabled_sources"),
+				source.Config().Source,
+			)
+		}
+		sampler = preprocessor.NewAdaptiveSampler(cfg, source.UnderlyingSource().Name, baseBytesEstimate)
 	default:
 		sampler = preprocessor.NewNoopSampler()
 	}
