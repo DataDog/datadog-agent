@@ -31,9 +31,9 @@ const (
 
 var (
 	errRepositoryNotCreated = errors.New("repository not created")
-	// ErrPrepareForPublishFailed indicates that a package failed to prepare before
+	// ErrBeforePublishFailed indicates that a package failed to prepare before
 	// the stable or experiment link was updated to the new package.
-	ErrPrepareForPublishFailed = errors.New("prepare for publish failed")
+	ErrBeforePublishFailed = errors.New("before publish failed")
 )
 
 // PreRemoveHook are called before a package is removed.  It returns a boolean
@@ -41,9 +41,9 @@ var (
 // when running the hook.
 type PreRemoveHook func(context.Context, string) (bool, error)
 
-// PrepareForPublishFunc is called after package files are moved into their immutable
+// BeforePublishHook is called after package files are moved into their immutable
 // repository path, but before the stable or experiment link points at them.
-type PrepareForPublishFunc func(context.Context, string) error
+type BeforePublishHook func(context.Context, string) error
 
 // Repository contains the stable and experimental package of a single artifact managed by the updater.
 //
@@ -61,9 +61,9 @@ type PrepareForPublishFunc func(context.Context, string) error
 // It is possible to end up with garbage left on disk if an error happens during some operations. This
 // is cleaned up during the next operation.
 type Repository struct {
-	rootPath          string
-	preRemoveHooks    map[string]PreRemoveHook
-	prepareForPublish map[string]PrepareForPublishFunc
+	rootPath       string
+	preRemoveHooks map[string]PreRemoveHook
+	beforePublish  map[string]BeforePublishHook
 }
 
 // PackageStates contains the state all installed packages
@@ -110,7 +110,7 @@ func (r *Repository) ExperimentPath() string {
 
 // GetState returns the state of the repository.
 func (r *Repository) GetState() (State, error) {
-	repository, err := readRepository(r.rootPath, r.preRemoveHooks, r.prepareForPublish)
+	repository, err := readRepository(r.rootPath, r.preRemoveHooks, r.beforePublish)
 	if errors.Is(err, errRepositoryNotCreated) {
 		return State{}, nil
 	}
@@ -142,13 +142,13 @@ func (r *Repository) Create(ctx context.Context, name string, stableSourcePath s
 		return fmt.Errorf("could not create packages root directory: %w", err)
 	}
 
-	repository, err := readRepository(r.rootPath, r.preRemoveHooks, r.prepareForPublish)
+	repository, err := readRepository(r.rootPath, r.preRemoveHooks, r.beforePublish)
 	if err != nil {
 		return err
 	}
 
-	if prepareForPublish := repository.prepareForPublishFunc(); prepareForPublish != nil {
-		return repository.createWithPrepareForPublish(ctx, name, stableSourcePath, prepareForPublish)
+	if beforePublish := repository.beforePublishFunc(); beforePublish != nil {
+		return repository.createWithBeforePublish(ctx, name, stableSourcePath, beforePublish)
 	}
 
 	// Remove symlinks as we are (re)-installing the package
@@ -188,7 +188,7 @@ func (r *Repository) Create(ctx context.Context, name string, stableSourcePath s
 // 3. Remove the root directory.
 func (r *Repository) Delete(ctx context.Context) error {
 	// Remove symlinks first so that cleanup will attempt to remove all package versions
-	repositoryFiles, err := readRepository(r.rootPath, r.preRemoveHooks, r.prepareForPublish)
+	repositoryFiles, err := readRepository(r.rootPath, r.preRemoveHooks, r.beforePublish)
 	if err != nil {
 		return err
 	}
@@ -234,7 +234,7 @@ func (r *Repository) Delete(ctx context.Context) error {
 // 2. Move the experiment source to the repository.
 // 3. Set the experiment link to the experiment package.
 func (r *Repository) SetExperiment(ctx context.Context, name string, sourcePath string) error {
-	repository, err := readRepository(r.rootPath, r.preRemoveHooks, r.prepareForPublish)
+	repository, err := readRepository(r.rootPath, r.preRemoveHooks, r.beforePublish)
 	if err != nil {
 		return err
 	}
@@ -258,8 +258,8 @@ func (r *Repository) SetExperiment(ctx context.Context, name string, sourcePath 
 	if filepath.Base(*repository.stable.packagePath) == name {
 		return errors.New("cannot set new experiment to the same version as stable")
 	}
-	if prepareForPublish := repository.prepareForPublishFunc(); prepareForPublish != nil {
-		err = repository.setExperimentWithPrepareForPublish(ctx, name, sourcePath, prepareForPublish)
+	if beforePublish := repository.beforePublishFunc(); beforePublish != nil {
+		err = repository.setExperimentWithBeforePublish(ctx, name, sourcePath, beforePublish)
 	} else {
 		err = repository.setExperiment(ctx, name, sourcePath)
 	}
@@ -275,7 +275,7 @@ func (r *Repository) SetExperiment(ctx context.Context, name string, sourcePath 
 // 2. Set the stable link to the experiment package. The experiment link stays in place.
 // 3. Cleanup the repository to remove the previous stable package.
 func (r *Repository) PromoteExperiment(ctx context.Context) error {
-	repository, err := readRepository(r.rootPath, r.preRemoveHooks, r.prepareForPublish)
+	repository, err := readRepository(r.rootPath, r.preRemoveHooks, r.beforePublish)
 	if err != nil {
 		return err
 	}
@@ -309,7 +309,7 @@ func (r *Repository) PromoteExperiment(ctx context.Context) error {
 // 2. Sets the experiment link to the stable link.
 // 3. Cleanup the repository to remove the previous experiment package.
 func (r *Repository) DeleteExperiment(ctx context.Context) error {
-	repository, err := readRepository(r.rootPath, r.preRemoveHooks, r.prepareForPublish)
+	repository, err := readRepository(r.rootPath, r.preRemoveHooks, r.beforePublish)
 	if err != nil {
 		return err
 	}
@@ -336,7 +336,7 @@ func (r *Repository) DeleteExperiment(ctx context.Context) error {
 
 // Cleanup calls the cleanup function of the repository
 func (r *Repository) Cleanup(ctx context.Context) error {
-	repository, err := readRepository(r.rootPath, r.preRemoveHooks, r.prepareForPublish)
+	repository, err := readRepository(r.rootPath, r.preRemoveHooks, r.beforePublish)
 	if err != nil {
 		return err
 	}
@@ -344,15 +344,15 @@ func (r *Repository) Cleanup(ctx context.Context) error {
 }
 
 type repositoryFiles struct {
-	rootPath          string
-	preRemoveHooks    map[string]PreRemoveHook
-	prepareForPublish map[string]PrepareForPublishFunc
+	rootPath       string
+	preRemoveHooks map[string]PreRemoveHook
+	beforePublish  map[string]BeforePublishHook
 
 	stable     *link
 	experiment *link
 }
 
-func readRepository(rootPath string, preRemoveHooks map[string]PreRemoveHook, prepareForPublish map[string]PrepareForPublishFunc) (*repositoryFiles, error) {
+func readRepository(rootPath string, preRemoveHooks map[string]PreRemoveHook, beforePublish map[string]BeforePublishHook) (*repositoryFiles, error) {
 	stableLink, err := newLink(filepath.Join(rootPath, stableVersionLink))
 	if err != nil {
 		return nil, fmt.Errorf("could not load stable link: %w", err)
@@ -363,16 +363,16 @@ func readRepository(rootPath string, preRemoveHooks map[string]PreRemoveHook, pr
 	}
 
 	return &repositoryFiles{
-		rootPath:          rootPath,
-		preRemoveHooks:    preRemoveHooks,
-		prepareForPublish: prepareForPublish,
-		stable:            stableLink,
-		experiment:        experimentLink,
+		rootPath:       rootPath,
+		preRemoveHooks: preRemoveHooks,
+		beforePublish:  beforePublish,
+		stable:         stableLink,
+		experiment:     experimentLink,
 	}, nil
 }
 
-func (r *repositoryFiles) prepareForPublishFunc() PrepareForPublishFunc {
-	return r.prepareForPublish[filepath.Base(r.rootPath)]
+func (r *repositoryFiles) beforePublishFunc() BeforePublishHook {
+	return r.beforePublish[filepath.Base(r.rootPath)]
 }
 
 func (r *repositoryFiles) setExperiment(ctx context.Context, name string, sourcePath string) error {
@@ -384,13 +384,13 @@ func (r *repositoryFiles) setExperiment(ctx context.Context, name string, source
 	return r.experiment.Set(path)
 }
 
-func (r *repositoryFiles) setExperimentWithPrepareForPublish(ctx context.Context, name string, sourcePath string, prepareForPublish PrepareForPublishFunc) error {
+func (r *repositoryFiles) setExperimentWithBeforePublish(ctx context.Context, name string, sourcePath string, beforePublish BeforePublishHook) error {
 	path, err := movePackageFromSource(ctx, name, r.rootPath, sourcePath)
 	if err != nil {
 		return fmt.Errorf("could not move experiment source: %w", err)
 	}
-	if err := prepareForPublish(ctx, path); err != nil {
-		return fmt.Errorf("%w: %w", ErrPrepareForPublishFailed, err)
+	if err := beforePublish(ctx, path); err != nil {
+		return fmt.Errorf("%w: %w", ErrBeforePublishFailed, err)
 	}
 	return r.experiment.Set(path)
 }
@@ -409,7 +409,7 @@ func (r *repositoryFiles) setStable(ctx context.Context, name string, sourcePath
 	return r.stable.Set(path)
 }
 
-func (r *repositoryFiles) createWithPrepareForPublish(ctx context.Context, name string, stableSourcePath string, prepareForPublish PrepareForPublishFunc) error {
+func (r *repositoryFiles) createWithBeforePublish(ctx context.Context, name string, stableSourcePath string, beforePublish BeforePublishHook) error {
 	err := r.cleanup(ctx)
 	if err != nil {
 		return fmt.Errorf("could not cleanup repository: %w", err)
@@ -419,8 +419,8 @@ func (r *repositoryFiles) createWithPrepareForPublish(ctx context.Context, name 
 	if err != nil {
 		return fmt.Errorf("could not move stable source: %w", err)
 	}
-	if err := prepareForPublish(ctx, path); err != nil {
-		return fmt.Errorf("%w: %w", ErrPrepareForPublishFailed, err)
+	if err := beforePublish(ctx, path); err != nil {
+		return fmt.Errorf("%w: %w", ErrBeforePublishFailed, err)
 	}
 	if err := r.stable.Set(path); err != nil {
 		return fmt.Errorf("could not set stable: %w", err)

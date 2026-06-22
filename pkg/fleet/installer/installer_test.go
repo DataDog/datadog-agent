@@ -271,8 +271,8 @@ func TestInstallClearsDBBeforePostInstall(t *testing.T) {
 	assert.False(t, installed)
 }
 
-func TestInstallRestoresDBWhenPrepareForPublishFails(t *testing.T) {
-	sentinel := errors.New("prepare for publish failed")
+func TestInstallRestoresDBWhenBeforePublishFails(t *testing.T) {
+	sentinel := errors.New("before publish failed")
 	s := fixtures.NewServer(t)
 	rootPath := t.TempDir()
 	installer := newTestPackageManager(t, s, rootPath)
@@ -284,7 +284,7 @@ func TestInstallRestoresDBWhenPrepareForPublishFails(t *testing.T) {
 	err := installer.Install(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil)
 	assert.NoError(t, err)
 
-	installer.packages = repository.NewRepositories(rootPath, nil, map[string]repository.PrepareForPublishFunc{
+	installer.packages = repository.NewRepositories(rootPath, nil, map[string]repository.BeforePublishHook{
 		fixtures.FixtureSimpleV1.Package: func(_ context.Context, _ string) error {
 			return sentinel
 		},
@@ -293,7 +293,7 @@ func TestInstallRestoresDBWhenPrepareForPublishFails(t *testing.T) {
 	installer.testHooks.On("PreInstall", testCtx, fixtures.FixtureSimpleV1.Package, packages.PackageTypeOCI, true).Return(nil).NotBefore(preRemoveCall)
 
 	err = installer.Install(testCtx, s.PackageURL(fixtures.FixtureSimpleV2), nil)
-	assert.ErrorIs(t, err, repository.ErrPrepareForPublishFailed)
+	assert.ErrorIs(t, err, repository.ErrBeforePublishFailed)
 	assert.ErrorIs(t, err, sentinel)
 
 	installed, err := installer.IsInstalled(testCtx, fixtures.FixtureSimpleV1.Package)

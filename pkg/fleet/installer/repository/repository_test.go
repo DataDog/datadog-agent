@@ -74,13 +74,13 @@ func TestCreateOverwrite(t *testing.T) {
 	assert.NoDirExists(t, path.Join(oldRepository.rootPath, "old"))
 }
 
-func TestCreateWithPrepareForPublishPublishesStableAfterPreparation(t *testing.T) {
+func TestCreateWithBeforePublishPublishesStableAfterPreparation(t *testing.T) {
 	dir := t.TempDir()
 	repository := createTestRepository(t, dir, "v1", nil)
 	downloadPackagePath := createTestDownloadedPackage(t, dir, "v2")
 
 	preparationCalled := false
-	repository.prepareForPublish = map[string]PrepareForPublishFunc{"repository": func(_ context.Context, packagePath string) error {
+	repository.beforePublish = map[string]BeforePublishHook{"repository": func(_ context.Context, packagePath string) error {
 		preparationCalled = true
 		assert.Equal(t, filepath.Join(repository.rootPath, "v2"), packagePath)
 		assert.DirExists(t, packagePath)
@@ -100,17 +100,17 @@ func TestCreateWithPrepareForPublishPublishesStableAfterPreparation(t *testing.T
 	assertLinkTarget(t, repository, experimentVersionLink, "stable")
 }
 
-func TestCreateWithPrepareForPublishFailurePreservesStable(t *testing.T) {
+func TestCreateWithBeforePublishFailurePreservesStable(t *testing.T) {
 	dir := t.TempDir()
 	repository := createTestRepository(t, dir, "v1", nil)
 	downloadPackagePath := createTestDownloadedPackage(t, dir, "v2")
-	sentinel := errors.New("prepare for publish failed")
+	sentinel := errors.New("before publish failed")
 
-	repository.prepareForPublish = map[string]PrepareForPublishFunc{"repository": func(_ context.Context, _ string) error {
+	repository.beforePublish = map[string]BeforePublishHook{"repository": func(_ context.Context, _ string) error {
 		return sentinel
 	}}
 	err := repository.Create(context.Background(), "v2", downloadPackagePath)
-	assert.ErrorIs(t, err, ErrPrepareForPublishFailed)
+	assert.ErrorIs(t, err, ErrBeforePublishFailed)
 	assert.ErrorIs(t, err, sentinel)
 
 	state, err := repository.GetState()
@@ -166,13 +166,13 @@ func TestSetExperiment(t *testing.T) {
 	assertLinkTarget(t, repository, experimentVersionLink, "v2")
 }
 
-func TestSetExperimentWithPrepareForPublishPublishesExperimentAfterPreparation(t *testing.T) {
+func TestSetExperimentWithBeforePublishPublishesExperimentAfterPreparation(t *testing.T) {
 	dir := t.TempDir()
 	repository := createTestRepository(t, dir, "v1", nil)
 	experimentDownloadPackagePath := createTestDownloadedPackage(t, dir, "v2")
 
 	preparationCalled := false
-	repository.prepareForPublish = map[string]PrepareForPublishFunc{"repository": func(_ context.Context, packagePath string) error {
+	repository.beforePublish = map[string]BeforePublishHook{"repository": func(_ context.Context, packagePath string) error {
 		preparationCalled = true
 		assert.Equal(t, filepath.Join(repository.rootPath, "v2"), packagePath)
 		assert.DirExists(t, packagePath)

@@ -23,13 +23,14 @@ import (
 )
 
 type packageHook func(ctx HookContext) error
+type packagePathHook func(context.Context, string) error
 
 // hooks represents the hooks for a package.
 type hooks struct {
-	preInstall        packageHook
-	preRemove         packageHook
-	postInstall       packageHook
-	prepareForPublish repository.PrepareForPublishFunc
+	preInstall    packageHook
+	preRemove     packageHook
+	postInstall   packageHook
+	beforePublish packagePathHook
 
 	preStartExperiment    packageHook
 	postStartExperiment   packageHook
@@ -77,17 +78,17 @@ func NewHooks(env *env.Env, packages *repository.Repositories) Hooks {
 	}
 }
 
-// PrepareForPublishFuncs returns package-specific functions that must run after
+// BeforePublishHooks returns package-specific functions that must run after
 // files are placed in their immutable repository path and before that path is
 // published through stable or experiment.
-func PrepareForPublishFuncs() map[string]repository.PrepareForPublishFunc {
-	prepareForPublish := make(map[string]repository.PrepareForPublishFunc)
+func BeforePublishHooks() map[string]repository.BeforePublishHook {
+	beforePublish := make(map[string]repository.BeforePublishHook)
 	for pkg, h := range packagesHooks {
-		if h.prepareForPublish != nil {
-			prepareForPublish[pkg] = h.prepareForPublish
+		if h.beforePublish != nil {
+			beforePublish[pkg] = repository.BeforePublishHook(h.beforePublish)
 		}
 	}
-	return prepareForPublish
+	return beforePublish
 }
 
 type hooksCLI struct {
