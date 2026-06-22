@@ -33,6 +33,18 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def expand_wheels(paths: list[Path]) -> list[Path]:
+    # paths might be direct references to wheels or to folders containing wheels.
+    # This handles both cases and returns a uniformized and sorted list of paths to wheels.
+    wheels = []
+    for path in paths:
+        if path.is_dir():
+            wheels.extend(path.glob("*.whl"))
+        else:
+            wheels.append(path)
+    return sorted(wheels)
+
+
 def main():
     args = parse_args()
     args.runtime_output.mkdir(parents=True, exist_ok=True)
@@ -65,7 +77,7 @@ def main():
         bytecode_optimization_levels=[],
     )
 
-    for wheel in sorted(args.wheels):
+    for wheel in expand_wheels(args.wheels):
         with WheelFile.open(wheel) as source:
             install(
                 source=source,
