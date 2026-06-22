@@ -301,6 +301,7 @@ def run(
     flavor=AgentFlavor.base.name,
     skip_build=False,
     config_path=None,
+    no_bazel=False,
 ):
     """
     Execute the agent binary.
@@ -309,7 +310,7 @@ def run(
     passed. It accepts the same set of options as agent.build.
     """
     if not skip_build:
-        build(ctx, rebuild, race, build_include, build_exclude, flavor)
+        build(ctx, rebuild, race, build_include, build_exclude, flavor, no_bazel=no_bazel)
 
     agent_bin = os.path.join(BIN_PATH, bin_name("agent"))
     config_path = os.path.join(BIN_PATH, "dist", "datadog.yaml") if not config_path else config_path
