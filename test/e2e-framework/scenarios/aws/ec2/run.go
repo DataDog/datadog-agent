@@ -52,6 +52,10 @@ func Run(ctx *pulumi.Context, awsEnv aws.Environment, env outputs.HostOutputs, p
 		}
 	}
 
+	// Agent config (site, tags) lives in the agent-config environment, not the AWS
+	// infra environment.
+	ddagentEnv := awsEnv.CommonEnvironment
+
 	// Create FakeIntake if required
 	if params.fakeintakeOptions != nil {
 		fakeIntake, err := fakeintakescenario.NewECSFargateInstance(awsEnv, params.Name, params.fakeintakeOptions...)
@@ -74,12 +78,17 @@ func Run(ctx *pulumi.Context, awsEnv aws.Environment, env outputs.HostOutputs, p
 		env.DisableFakeIntake()
 		// When not using fakeintake, set the configured Datadog site so the agent
 		// reports directly to that org's backend (default datad0g.com; datadoghq.com
-		// for prod/demo orgs). Read from the agent-config environment.
-		ddagentEnv := awsEnv.CommonEnvironment
+		// for prod/demo orgs).
 		if params.agentOptions != nil {
 			if site := ddagentEnv.Site(); site != "" {
 				params.agentOptions = append(params.agentOptions, agentparams.WithSite(site))
 			}
+		}
+	}
+	// Tags are agent metadata and apply regardless of fakeintake.
+	if params.agentOptions != nil {
+		if tags := ddagentEnv.Tags(); len(tags) > 0 {
+			params.agentOptions = append(params.agentOptions, agentparams.WithTags(tags))
 		}
 	}
 	if !params.installUpdater {
