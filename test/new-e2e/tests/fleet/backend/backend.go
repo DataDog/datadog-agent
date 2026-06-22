@@ -415,14 +415,12 @@ func (b *Backend) runDaemonCommand(command string, args ...string) (string, erro
 	case e2eos.WindowsFamily:
 		// On Windows the command passes through two parsers: PowerShell (which
 		// runs the command) and the Microsoft C runtime (which the native
-		// installer.exe uses to split its command line). We wrap the argument in
-		// a PowerShell single-quoted string so PowerShell performs no
-		// interpolation — in particular leaving jq's $variables intact — and
-		// passes the content through verbatim. The content is pre-escaped for
-		// the C runtime (windowsCRTEscape) so embedded double quotes and the
-		// backslashes preceding them survive; the spaces inside the JSON make
-		// PowerShell add the outer quoting the C runtime needs. An embedded
-		// single quote in a PowerShell literal is escaped by doubling it.
+		// installer.exe uses to split its command line). windowsCRTEscape produces
+		// a fully-quoted argument for the C runtime; we then wrap that in a
+		// PowerShell single-quoted string so PowerShell performs no interpolation
+		// — in particular leaving jq's $variables intact — and passes the
+		// C-runtime-quoted content through verbatim. An embedded single quote in a
+		// PowerShell literal is escaped by doubling it.
 		quoteArg = func(arg string) string {
 			return `'` + strings.ReplaceAll(windowsCRTEscape(arg), `'`, `''`) + `'`
 		}
@@ -446,23 +444,24 @@ func (b *Backend) runDaemonCommand(command string, args ...string) (string, erro
 	return b.host.RemoteHost.Execute(fmt.Sprintf("%s %s %s", baseCommand, command, strings.Join(sanitizedArgs, " ")))
 }
 
-// windowsCRTEscape escapes a string for the Microsoft C runtime command-line
-// parser (the rules CommandLineToArgvW implements) so it can be embedded in a
-// command line handed to a native executable. Each double quote is escaped as
-// \" and any run of backslashes immediately preceding a quote is doubled, so
-// that the argument is decoded back to its original bytes.
+// windowsCRTEscape escapes a string into a fully-quoted argument for the
+// Microsoft C runtime command-line parser (the rules CommandLineToArgvW
+// implements), so it can be embedded in a command line handed to a native
+// executable and decoded back to its original bytes. This mirrors Go's
+// syscall.EscapeArg (which is only built on Windows, hence the reimplementation
+// here): the argument is wrapped in double quotes, each inner double quote is
+// escaped as \", and runs of backslashes that precede a quote — or the closing
+// quote — are doubled. Backslashes elsewhere (e.g. json.Marshal's \n or \uXXXX
+// escapes) are passed through as-is.
 //
-// It deliberately does not add surrounding quotes: the JSON payloads contain
-// spaces, which makes PowerShell add the surrounding quotes itself when it
-// builds the native process command line. Backslashes that do not precede a
-// quote (e.g. json.Marshal's \n or \uXXXX escapes) are passed through as-is.
+// We always add the surrounding quotes ourselves rather than letting PowerShell
+// add them: PowerShell does not quote an argument that already contains double
+// quotes (which our JSON payloads always do), so any spaces in the payload would
+// otherwise split it into multiple arguments. PowerShell passes our quoted form
+// through verbatim, and the C runtime then decodes it into a single argument.
 func windowsCRTEscape(s string) string {
-	// PowerShell appends surrounding double quotes when it serializes an
-	// argument containing whitespace onto the native command line. Trailing
-	// backslashes must be doubled only in that case, otherwise they would
-	// escape the closing quote PowerShell adds.
-	quotedByPowerShell := strings.ContainsAny(s, " \t")
 	var b strings.Builder
+	b.WriteByte('"')
 	backslashes := 0
 	for i := 0; i < len(s); i++ {
 		switch s[i] {
@@ -479,11 +478,9 @@ func windowsCRTEscape(s string) string {
 			backslashes = 0
 		}
 	}
-	if quotedByPowerShell {
-		b.WriteString(strings.Repeat(`\`, backslashes*2))
-	} else {
-		b.WriteString(strings.Repeat(`\`, backslashes))
-	}
+	// Double trailing backslashes so they don't escape the closing quote.
+	b.WriteString(strings.Repeat(`\`, backslashes*2))
+	b.WriteByte('"')
 	return b.String()
 }
 

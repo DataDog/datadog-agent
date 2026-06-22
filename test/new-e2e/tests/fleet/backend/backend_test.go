@@ -83,16 +83,11 @@ func TestWindowsCRTEscapeRoundTrip(t *testing.T) {
 	}
 
 	for _, arg := range cases {
-		esc := windowsCRTEscape(arg)
-		// Model PowerShell's native command-line serialization: it wraps the
-		// argument in double quotes when it contains whitespace, otherwise it
-		// passes it through verbatim. The C runtime must decode that back to the
-		// original argument.
-		nativeCmdline := esc
-		if strings.ContainsAny(arg, " \t") {
-			nativeCmdline = `"` + esc + `"`
-		}
-		require.Equal(t, []string{arg}, crtDecode(nativeCmdline),
+		// windowsCRTEscape emits a fully-quoted argument that PowerShell passes
+		// through to the native command line verbatim (it does not re-quote an
+		// argument that already contains double quotes). The C runtime must decode
+		// it back to exactly the original argument.
+		require.Equal(t, []string{arg}, crtDecode(windowsCRTEscape(arg)),
 			"argument should round-trip through PowerShell + C runtime for %q", arg)
 	}
 }
