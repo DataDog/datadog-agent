@@ -275,19 +275,7 @@ EOF`),
 		return nil, err
 	}
 
-	ddAgentGroupCmd, err := d.Host.OS.Runner().Command(
-		d.namer.ResourceName("group-dd-agent"),
-		&command.Args{
-			Create: pulumi.String("bash -c 'if getent passwd dd-agent >/dev/null; then usermod -a -G docker dd-agent; fi'"),
-			Sudo:   true,
-		},
-		utils.MergeOptions(opts, utils.PulumiDependsOn(groupCmd))...,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	return ddAgentGroupCmd, err
+	return groupCmd, err
 }
 
 // assertCompose verifies that docker-compose at composeVersion is already
