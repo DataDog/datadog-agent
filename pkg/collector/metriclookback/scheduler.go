@@ -16,14 +16,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
-	"github.com/DataDog/datadog-agent/pkg/collector/runner"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
-	defaultShadowInterval    = time.Second
-	defaultShadowStopTimeout = 5 * time.Second
+	defaultShadowInterval = time.Second
 )
 
 var errShadowSchedulerStopped = errors.New("shadow scheduler is stopped")
@@ -37,44 +35,32 @@ type CheckInstanceLoader interface {
 	LoadInstance(sender.SenderManager, integration.Config, integration.Data, int) (check.Check, bool, error)
 }
 
-// ShadowRunner runs shadow checks on an isolated execution pipeline.
-type ShadowRunner interface {
-	GetChan() chan<- check.Check
-	Stop()
+// CheckScheduler registers shadow checks with the collector scheduling path.
+type CheckScheduler interface {
+	RunCheck(check.Check) (checkid.ID, error)
+	StopCheck(checkid.ID) error
 }
-
-// ShadowRunnerFactory creates one runner scoped to all shadow check execution.
-// The runner must suppress normal integration status emission; shadow checks
-// must not emit datadog.agent.check_status service checks to the backend.
-type ShadowRunnerFactory func(runner.ScheduledChecks) ShadowRunner
 
 // ShadowSchedulerOptions configures the shadow scheduler component.
 type ShadowSchedulerOptions struct {
 	Loader           CheckInstanceLoader
 	NewSenderManager SenderManagerFactory
-	NewRunner        ShadowRunnerFactory
+	Collector        CheckScheduler
 	Interval         time.Duration
-	StopTimeout      time.Duration
-	NewTicker        func(time.Duration) ShadowTicker
 }
 
 // ShadowScheduler reuses normal check-loading semantics through CheckInstanceLoader,
-// but owns the shadow lifecycle policy. Keep this separate from the normal
-// scheduler/runner instances so :shadow identity, lookback sender isolation,
-// dedicated runner backpressure, and bounded stop/cancel behavior do not affect
-// normal checks.
+// but owns the shadow lifecycle policy: :shadow identity, lookback sender
+// isolation, and cleanup of lookback-owned sender/stats state.
 type ShadowScheduler struct {
 	loader           CheckInstanceLoader
 	newSenderManager SenderManagerFactory
-	newRunner        ShadowRunnerFactory
+	collector        CheckScheduler
 	interval         time.Duration
-	stopTimeout      time.Duration
-	newTicker        func(time.Duration) ShadowTicker
 
 	mu         sync.Mutex
 	checks     map[shadowKey]*shadowCheckHandle
 	checksByID map[checkid.ID]shadowKey
-	runner     ShadowRunner
 	stopped    bool
 }
 
@@ -84,21 +70,11 @@ func NewShadowScheduler(opts ShadowSchedulerOptions) *ShadowScheduler {
 	if interval == 0 {
 		interval = defaultShadowInterval
 	}
-	stopTimeout := opts.StopTimeout
-	if stopTimeout == 0 {
-		stopTimeout = defaultShadowStopTimeout
-	}
-	newTicker := opts.NewTicker
-	if newTicker == nil {
-		newTicker = newRealShadowTicker
-	}
 	return &ShadowScheduler{
 		loader:           opts.Loader,
 		newSenderManager: opts.NewSenderManager,
-		newRunner:        opts.NewRunner,
+		collector:        opts.Collector,
 		interval:         interval,
-		stopTimeout:      stopTimeout,
-		newTicker:        newTicker,
 		checks:           make(map[shadowKey]*shadowCheckHandle),
 		checksByID:       make(map[checkid.ID]shadowKey),
 	}
@@ -112,8 +88,8 @@ func (s *ShadowScheduler) Schedule(configs []ShadowConfig) error {
 	if s.newSenderManager == nil {
 		return errors.New("shadow scheduler sender manager factory is nil")
 	}
-	if s.newRunner == nil {
-		return errors.New("shadow scheduler runner factory is nil")
+	if s.collector == nil {
+		return errors.New("shadow scheduler collector is nil")
 	}
 
 	var firstErr error
@@ -145,7 +121,7 @@ func (s *ShadowScheduler) Schedule(configs []ShadowConfig) error {
 		// scheduler state after loading to avoid late-starting after Stop.
 		if s.stopped {
 			s.mu.Unlock()
-			_ = handle.stop(s.stopTimeout)
+			handle.cleanup()
 			if firstErr == nil {
 				firstErr = errShadowSchedulerStopped
 			}
@@ -154,24 +130,25 @@ func (s *ShadowScheduler) Schedule(configs []ShadowConfig) error {
 		if _, exists := s.checks[key]; exists {
 			s.mu.Unlock()
 			log.Warnf("shadow check %s was already scheduled while loading", config.ShadowCheckID)
-			_ = handle.stop(s.stopTimeout)
+			handle.cleanup()
 			continue
 		}
 		s.checks[key] = handle
 		s.checksByID[config.ShadowCheckID] = key
-		handle.runner = s.getOrCreateRunnerLocked()
-		handle.start()
+		if _, err := s.collector.RunCheck(handle.check); err != nil {
+			delete(s.checks, key)
+			delete(s.checksByID, config.ShadowCheckID)
+			s.mu.Unlock()
+			handle.cleanup()
+			if firstErr == nil {
+				firstErr = fmt.Errorf("schedule shadow check %s: %w", config.ShadowCheckID, err)
+			}
+			continue
+		}
 		s.mu.Unlock()
 	}
 
 	return firstErr
-}
-
-func (s *ShadowScheduler) getOrCreateRunnerLocked() ShadowRunner {
-	if s.runner == nil {
-		s.runner = s.newRunner(s)
-	}
-	return s.runner
 }
 
 func (s *ShadowScheduler) load(config ShadowConfig) (*shadowCheckHandle, error) {
@@ -198,9 +175,6 @@ func (s *ShadowScheduler) load(config ShadowConfig) (*shadowCheckHandle, error) 
 		check:         &shadowCheck{Check: loadedCheck, id: config.ShadowCheckID, interval: s.interval},
 		cancel:        cancel,
 		senderManager: shadowSenderManager,
-		ticker:        s.newTicker(s.interval),
-		stopCh:        make(chan struct{}),
-		stoppedCh:     make(chan struct{}),
 	}
 	return handle, nil
 }
@@ -224,9 +198,10 @@ func (s *ShadowScheduler) Unschedule(configs []ShadowConfig) error {
 			continue
 		}
 
-		if err := handle.stop(s.stopTimeout); err != nil && firstErr == nil {
+		if err := s.collector.StopCheck(config.ShadowCheckID); err != nil && firstErr == nil {
 			firstErr = err
 		}
+		handle.cleanup()
 	}
 	return firstErr
 }
@@ -242,21 +217,15 @@ func (s *ShadowScheduler) Stop() error {
 		delete(s.checks, key)
 		delete(s.checksByID, handle.check.ID())
 	}
-	shadowRunner := s.runner
-	s.runner = nil
 	s.stopped = true
 	s.mu.Unlock()
 
 	var firstErr error
 	for _, handle := range handles {
-		if err := handle.stop(s.stopTimeout); err != nil && firstErr == nil {
+		if err := s.collector.StopCheck(handle.check.ID()); err != nil && firstErr == nil {
 			firstErr = err
 		}
-	}
-	if shadowRunner != nil {
-		if err := callWithTimeout(shadowRunner.Stop, s.stopTimeout); err != nil && firstErr == nil {
-			firstErr = fmt.Errorf("timeout while stopping shadow runner: %w", err)
-		}
+		handle.cleanup()
 	}
 	return firstErr
 }
@@ -285,117 +254,20 @@ type shadowCheckHandle struct {
 	check         check.Check
 	cancel        context.CancelFunc
 	senderManager sender.SenderManager
-	runner        ShadowRunner
-	ticker        ShadowTicker
-	stopCh        chan struct{}
-	stoppedCh     chan struct{}
 	stopOnce      sync.Once
-
-	mu      sync.Mutex
-	started bool
 }
 
-func (h *shadowCheckHandle) start() {
-	h.mu.Lock()
-	h.started = true
-	h.mu.Unlock()
-
-	go func() {
-		defer close(h.stoppedCh)
-		for {
-			select {
-			case <-h.stopCh:
-				return
-			case <-h.ticker.C():
-				checks := h.runner.GetChan()
-				select {
-				case checks <- h.check:
-					continue
-				default:
-				}
-
-				start := time.Now()
-				select {
-				case checks <- h.check:
-					enqueueDuration := time.Since(start)
-					checkName := checkid.IDToCheckName(h.check.ID())
-					tlmShadowEnqueueDelays.Inc(checkName)
-					tlmShadowEnqueueDelayDuration.Set(enqueueDuration.Seconds(), checkName)
-					if enqueueDuration > h.check.Interval() {
-						log.Debugf("Shadow check %s tick delayed by %s while enqueueing", h.check.ID(), enqueueDuration)
-					}
-				case <-h.stopCh:
-					return
-				}
-			}
-		}
-	}()
-}
-
-func (h *shadowCheckHandle) stop(timeout time.Duration) error {
-	var started bool
+func (h *shadowCheckHandle) cleanup() {
 	h.stopOnce.Do(func() {
-		h.mu.Lock()
-		started = h.started
-		h.mu.Unlock()
-		close(h.stopCh)
-		h.ticker.Stop()
 		h.cancel()
+		h.senderManager.DestroySender(h.check.ID())
+		// Shadow runs reuse the runner expvar stats source under the :shadow ID.
+		// Remove those stats on unschedule/stop so status does not show stale
+		// shadow checks after their source config is gone.
+		if _, found := expvars.CheckStats(h.check.ID()); found {
+			expvars.RemoveCheckStats(h.check.ID())
+		}
 	})
-
-	var firstErr error
-	if err := callWithTimeout(h.check.Stop, timeout); err != nil {
-		firstErr = fmt.Errorf("timeout while calling Stop on shadow check %s: %w", h.check.ID(), err)
-	}
-	if err := callWithTimeout(h.check.Cancel, timeout); err != nil {
-		err = fmt.Errorf("timeout while calling Cancel on shadow check %s: %w", h.check.ID(), err)
-		if firstErr == nil {
-			firstErr = err
-		}
-	}
-	if started {
-		if err := waitWithTimeout(h.stoppedCh, timeout); err != nil && firstErr == nil {
-			firstErr = fmt.Errorf("timeout while waiting for shadow check %s loop to stop: %w", h.check.ID(), err)
-		}
-	}
-	h.senderManager.DestroySender(h.check.ID())
-	// Shadow runs reuse the runner expvar stats source under the :shadow ID.
-	// Remove those stats on unschedule/stop so status does not show stale
-	// shadow checks after their source config is gone.
-	if _, found := expvars.CheckStats(h.check.ID()); found {
-		expvars.RemoveCheckStats(h.check.ID())
-	}
-	return firstErr
-}
-
-func callWithTimeout(fn func(), timeout time.Duration) error {
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		fn()
-	}()
-
-	timer := time.NewTimer(timeout)
-	defer timer.Stop()
-
-	select {
-	case <-done:
-		return nil
-	case <-timer.C:
-		return context.DeadlineExceeded
-	}
-}
-
-func waitWithTimeout(done <-chan struct{}, timeout time.Duration) error {
-	timer := time.NewTimer(timeout)
-	defer timer.Stop()
-
-	select {
-	case <-done:
-		return nil
-	case <-timer.C:
-		return context.DeadlineExceeded
-	}
 }
 
 type shadowCheck struct {
@@ -410,6 +282,10 @@ func (c *shadowCheck) ID() checkid.ID {
 
 func (c *shadowCheck) Interval() time.Duration {
 	return c.interval
+}
+
+func (c *shadowCheck) IsShadow() bool {
+	return true
 }
 
 type shadowSenderManager struct {
@@ -439,26 +315,4 @@ func (m *shadowSenderManager) mapID(id checkid.ID) checkid.ID {
 		return m.shadowID
 	}
 	return id
-}
-
-// ShadowTicker provides scheduler ticks. It is injectable for tests.
-type ShadowTicker interface {
-	C() <-chan time.Time
-	Stop()
-}
-
-type realShadowTicker struct {
-	ticker *time.Ticker
-}
-
-func newRealShadowTicker(interval time.Duration) ShadowTicker {
-	return &realShadowTicker{ticker: time.NewTicker(interval)}
-}
-
-func (t *realShadowTicker) C() <-chan time.Time {
-	return t.ticker.C
-}
-
-func (t *realShadowTicker) Stop() {
-	t.ticker.Stop()
 }

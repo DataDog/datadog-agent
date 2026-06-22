@@ -10,25 +10,22 @@ import (
 	"time"
 
 	demultiplexer "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/def"
+	collector "github.com/DataDog/datadog-agent/comp/collector/collector/def"
 	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
-	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
-	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/checkloader"
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
 	"github.com/DataDog/datadog-agent/pkg/collector/metriclookback"
 	"github.com/DataDog/datadog-agent/pkg/collector/metriclookback/lookbacksender"
 	lookbacktrigger "github.com/DataDog/datadog-agent/pkg/collector/metriclookback/trigger"
-	collectorrunner "github.com/DataDog/datadog-agent/pkg/collector/runner"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -82,9 +79,8 @@ func registerMetricLookbackScheduler(
 	logReceiver option.Option[integrations.Component],
 	tagger tagger.Component,
 	filterStore workloadfilter.Component,
-	haAgent haagent.Component,
-	healthplatform healthplatform.Component,
 	hostname hostnameinterface.Component,
+	collectorComponent collector.Component,
 ) {
 	loader := checkloader.New(loaders.LoaderCatalog(demux, logReceiver, tagger, filterStore), demux, noopShadowLoaderErrorRecorder{})
 	shadowScheduler := metriclookback.NewShadowScheduler(metriclookback.ShadowSchedulerOptions{
@@ -97,16 +93,7 @@ func registerMetricLookbackScheduler(
 			}
 			return lookbacksender.NewSenderManager(ctx, hostname.GetSafe(ctx), noopLookbackWriter{}, nil)
 		},
-		NewRunner: func(scheduled collectorrunner.ScheduledChecks) metriclookback.ShadowRunner {
-			r := collectorrunner.NewRunnerWithOptions(
-				demux,
-				haAgent,
-				healthplatform,
-				collectorrunner.Options{StatusEmitter: noopShadowStatusEmitter{}},
-			)
-			r.SetScheduler(scheduled)
-			return r
-		},
+		Collector: collectorComponent,
 	})
 
 	ac.AddScheduler("metric_lookback", metriclookback.NewAutoConfigShadowAdapter(metriclookback.Options{
@@ -120,10 +107,6 @@ type noopLookbackWriter struct{}
 func (noopLookbackWriter) Append(context.Context, checkid.ID, []metrics.MetricSample) error {
 	return nil
 }
-
-type noopShadowStatusEmitter struct{}
-
-func (noopShadowStatusEmitter) Emit(context.Context, check.Check, error, []error) {}
 
 type noopShadowLoaderErrorRecorder struct{}
 

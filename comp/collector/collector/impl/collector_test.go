@@ -61,6 +61,14 @@ func (c *TestCheck) String() string {
 	return "TestCheck"
 }
 
+type ShadowTestCheck struct {
+	TestCheck
+}
+
+func (c *ShadowTestCheck) IsShadow() bool {
+	return true
+}
+
 func NewCheck() *TestCheck {
 	c := &TestCheck{
 		stop: make(chan bool),
@@ -73,6 +81,11 @@ func NewCheckUnique(id checkid.ID, name string) *TestCheck {
 	c := NewCheck()
 	c.uniqueID = id
 	c.name = name
+	return c
+}
+
+func NewShadowCheckUnique(id checkid.ID, name string) *ShadowTestCheck {
+	c := &ShadowTestCheck{TestCheck: *NewCheckUnique(id, name)}
 	return c
 }
 
@@ -119,6 +132,8 @@ func (suite *CollectorTestSuite) TearDownTest() {
 
 func (suite *CollectorTestSuite) TestNewCollector() {
 	assert.NotNil(suite.T(), suite.c.runner)
+	assert.Nil(suite.T(), suite.c.shadowRunner)
+	assert.NotNil(suite.T(), suite.c.dispatcher)
 	assert.NotNil(suite.T(), suite.c.scheduler)
 	assert.Equal(suite.T(), started, suite.c.state.Load())
 }
@@ -126,6 +141,8 @@ func (suite *CollectorTestSuite) TestNewCollector() {
 func (suite *CollectorTestSuite) TestStop() {
 	suite.c.stop(context.TODO())
 	assert.Nil(suite.T(), suite.c.runner)
+	assert.Nil(suite.T(), suite.c.shadowRunner)
+	assert.Nil(suite.T(), suite.c.dispatcher)
 	assert.Nil(suite.T(), suite.c.scheduler)
 	assert.Equal(suite.T(), stopped, suite.c.state.Load())
 }
@@ -146,6 +163,17 @@ func (suite *CollectorTestSuite) TestRunCheck() {
 	assert.Equal(suite.T(), "a check with ID TestCheck is already running", err.Error())
 }
 
+func (suite *CollectorTestSuite) TestRunCheckTracksShadowRunnerKind() {
+	ch := NewShadowCheckUnique("shadow:test", "TestCheck")
+
+	id, err := suite.c.RunCheck(ch)
+
+	assert.NotNil(suite.T(), id)
+	assert.Nil(suite.T(), err)
+	assert.Equal(suite.T(), shadowRunnerKind, suite.c.checkRunners[id])
+	assert.True(suite.T(), check.IsShadow(suite.c.checks[id]))
+}
+
 func (suite *CollectorTestSuite) TestStopCheck() {
 	ch := NewCheck()
 
@@ -158,6 +186,28 @@ func (suite *CollectorTestSuite) TestStopCheck() {
 	assert.Nil(suite.T(), err)
 	assert.Zero(suite.T(), len(suite.c.checks))
 	ch.AssertNumberOfCalls(suite.T(), "Cancel", 1)
+}
+
+func TestCheckDispatcherShadowBlockDoesNotBlockNormal(t *testing.T) {
+	normalOut := make(chan check.Check)
+	shadowOut := make(chan check.Check)
+	dispatcher := newCheckDispatcher(normalOut)
+	dispatcher.setShadowOut(shadowOut)
+	dispatcher.run()
+	t.Cleanup(dispatcher.stopAndWait)
+
+	shadowCheck := NewShadowCheckUnique("shadow:test", "TestCheck")
+	normalCheck := NewCheckUnique("normal:test", "TestCheck")
+
+	dispatcher.in <- shadowCheck
+	dispatcher.in <- normalCheck
+
+	select {
+	case got := <-normalOut:
+		assert.Equal(t, normalCheck.ID(), got.ID())
+	case <-time.After(time.Second):
+		t.Fatal("normal check was blocked behind shadow route")
+	}
 }
 
 func (suite *CollectorTestSuite) TestCancelCheck_TimeoutIsApplied() {
