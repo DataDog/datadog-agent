@@ -68,6 +68,7 @@ core,github.com/Azure/azure-sdk-for-go/sdk/azcore/to,MIT,Copyright (c) Microsoft
 core,github.com/Azure/azure-sdk-for-go/sdk/azcore/tracing,MIT,Copyright (c) Microsoft Corporation | Copyright (c) Microsoft Corporation.
 core,github.com/Azure/azure-sdk-for-go/sdk/azidentity,MIT,Copyright (c) Microsoft Corporation | Copyright (c) Microsoft Corporation.
 core,github.com/Azure/azure-sdk-for-go/sdk/azidentity/internal,MIT,Copyright (c) Microsoft Corporation | Copyright (c) Microsoft Corporation.
+core,github.com/Azure/azure-sdk-for-go/sdk/azidentity/internal/customtokenproxy,MIT,Copyright (c) Microsoft Corporation | Copyright (c) Microsoft Corporation.
 core,github.com/Azure/azure-sdk-for-go/sdk/internal/diag,MIT,Copyright (c) Microsoft Corporation | Copyright (c) Microsoft Corporation.
 core,github.com/Azure/azure-sdk-for-go/sdk/internal/errorinfo,MIT,Copyright (c) Microsoft Corporation | Copyright (c) Microsoft Corporation.
 core,github.com/Azure/azure-sdk-for-go/sdk/internal/exported,MIT,Copyright (c) Microsoft Corporation | Copyright (c) Microsoft Corporation.
