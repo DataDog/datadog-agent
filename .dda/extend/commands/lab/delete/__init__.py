@@ -143,6 +143,11 @@ def cmd(app: Application, *, id: str | None, yes: bool) -> None:
                     f"Local record kept — re-run 'dda lab delete {id}' after fixing credentials."
                 )
                 return
+            app.subprocess.run(
+                ["pulumi", "stack", "rm", "--yes", "-s", stack, "-C", pulumi_dir],
+                check=False,
+                env=_pulumi_env,
+            )
         else:
             app.display_warning(f"Provider '{env.env_type}' not found, removing from storage only.")
 
