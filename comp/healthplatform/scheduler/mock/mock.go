@@ -15,7 +15,6 @@ import (
 	"time"
 
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
-	schedulerdef "github.com/DataDog/datadog-agent/comp/healthplatform/scheduler/def"
 )
 
 // ScheduleCall records the arguments of a single Schedule() call.
@@ -64,6 +63,3 @@ func (m *Mock) ScheduledChecks() []ScheduleCall {
 	copy(out, m.scheduled)
 	return out
 }
-
-// ensure Mock satisfies the interface at compile time.
-var _ schedulerdef.Component = (*Mock)(nil)

@@ -14,8 +14,6 @@ import (
 
 	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 	"google.golang.org/protobuf/proto"
-
-	forwarder "github.com/DataDog/datadog-agent/comp/healthplatform/forwarder/def"
 )
 
 // Mock is a test implementation of forwarder.Component that records every
@@ -45,6 +43,3 @@ func (m *Mock) SentReports() []*healthplatformpayload.HealthReport {
 	copy(out, m.reports)
 	return out
 }
-
-// ensure Mock satisfies the interface at compile time.
-var _ forwarder.Component = (*Mock)(nil)
