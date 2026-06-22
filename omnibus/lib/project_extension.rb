@@ -59,23 +59,23 @@ module Omnibus
 
       normalize_package_path(install_dir)
       Array(extra_package_files).each do |path|
-        normalize_package_path(path)
+        normalize_package_path(path, external: external_package_path?(path))
       end
     end
 
-    def normalize_package_path(path)
+    def normalize_package_path(path, external: false)
       return unless File.exist?(path)
 
-      normalize_path_tree_permissions(path)
+      normalize_path_tree_permissions(path, external: external)
     end
 
-    def normalize_path_tree_permissions(root)
+    def normalize_path_tree_permissions(root, external: false)
       if File.directory?(root)
         Find.find(root) do |path|
-          normalize_path_permissions(path)
+          normalize_path_permissions(path, external: external)
         end
       else
-        normalize_path_permissions(root)
+        normalize_path_permissions(root, external: external)
       end
     end
 
@@ -91,7 +91,7 @@ module Omnibus
       path == root || path.start_with?("#{root}/")
     end
 
-    def normalize_path_permissions(path)
+    def normalize_path_permissions(path, external: false)
       return unless File.exist?(path)
 
       # The Linux build image may make files group-writable and directories
@@ -112,6 +112,15 @@ module Omnibus
       if normalized_mode != mode && (Process.euid == 0 || stat.uid == Process.euid)
         File.chmod(normalized_mode, path)
       end
+
+      # Do not force root:root on external shared OS directories such as
+      # /var/log/datadog or /usr/bin/dd-agent. These are co-owned with other
+      # Datadog packages (datadog-fips-proxy, datadog-dogstatsd, datadog-iot-agent)
+      # built outside this project, so recording root ownership here makes RPM's
+      # transaction test reject co-installation ("file ... conflicts between
+      # attempted installs"). Their runtime ownership is set by the postinst
+      # scripts anyway, so the package metadata owner is not load-bearing.
+      return if external
 
       # Best-effort filesystem cleanup for root-run Omnibus builds. Package
       # metadata should be root-owned regardless of the builder user, but
