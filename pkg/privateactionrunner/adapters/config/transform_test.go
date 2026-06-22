@@ -22,6 +22,7 @@ import (
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func TestGetBundleInheritedAllowedActions(t *testing.T) {
@@ -506,6 +507,37 @@ func TestFromDDConfigPARRestrictedShellAllowedCommandsPassesThroughUnnamespaced(
 	assert.True(t, cfg.RShellAllowedCommandsConfigured)
 }
 
+func TestFromDDConfigPARRestrictedShellAllowedCommandsWarnsForConfiguredUnnamespaced(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest(setup.PARPrivateKey, "")
+	mockConfig.SetInTest(setup.PARUrn, "")
+	mockConfig.SetInTest(setup.PARRestrictedShellAllowedCommands, []string{"cat", "rshell:ls"})
+
+	logs := captureTransformWarnings(t, func() {
+		_, err := FromDDConfig(mockConfig)
+		require.NoError(t, err)
+	})
+
+	assert.Contains(t, logs, setup.PARRestrictedShellAllowedCommands)
+	assert.Contains(t, logs, `"cat"`)
+	assert.Contains(t, logs, `"rshell:"`)
+	assert.Contains(t, logs, `"rshell:cat"`)
+	assert.NotContains(t, logs, `"rshell:ls"`)
+}
+
+func TestFromDDConfigPARRestrictedShellAllowedCommandsDefaultDoesNotWarn(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest(setup.PARPrivateKey, "")
+	mockConfig.SetInTest(setup.PARUrn, "")
+
+	logs := captureTransformWarnings(t, func() {
+		_, err := FromDDConfig(mockConfig)
+		require.NoError(t, err)
+	})
+
+	assert.Empty(t, logs)
+}
+
 func TestFromDDConfigPARRestrictedShellAllowedAbsentYAML(t *testing.T) {
 	// No restricted_shell block at all: both axes fall back to their registered
 	// defaults and remain marked as unconfigured.
@@ -523,6 +555,7 @@ private_action_runner:
 	assert.False(t, cfg.RShellAllowedCommandsConfigured)
 }
 
+<<<<<<< HEAD
 func TestNewMetricsClient(t *testing.T) {
 	createErr := errors.New("permission denied")
 	tests := []struct {
@@ -667,6 +700,9 @@ func TestFromDDConfigPARRestrictedShellAllowedCommandsConfiguredWarns(t *testing
 	assert.Contains(t, logs, "Action Platform execution policies")
 }
 
+||||||| parent of f231493c55d (Warn on unprefixed configured rshell commands)
+=======
+>>>>>>> f231493c55d (Warn on unprefixed configured rshell commands)
 func captureTransformWarnings(t *testing.T, fn func()) string {
 	t.Helper()
 

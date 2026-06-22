@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/modes"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -142,7 +143,25 @@ func makeActionsAllowlist(config config.Component) map[string]sets.Set[string] {
 // allowlist. It is used only when the user explicitly configured the key; the
 // registered default is preserved as a non-restrictive compatibility value.
 func rshellAllowedCommands(config config.Component) []string {
-	return config.GetStringSlice(setup.PARRestrictedShellAllowedCommands)
+	commands := config.GetStringSlice(setup.PARRestrictedShellAllowedCommands)
+	if config.IsConfigured(setup.PARRestrictedShellAllowedCommands) {
+		warnUnnamespacedCommands(commands)
+	}
+	return commands
+}
+
+func warnUnnamespacedCommands(commands []string) {
+	for _, c := range commands {
+		if !strings.HasPrefix(c, RshellCommandNamespacePrefix) {
+			log.Warnf(
+				"%s entry %q is missing the %q prefix and will never match a backend command; use %q instead",
+				setup.PARRestrictedShellAllowedCommands,
+				c,
+				RshellCommandNamespacePrefix,
+				RshellCommandNamespacePrefix+c,
+			)
+		}
+	}
 }
 
 // rshellAllowedPaths returns the operator-configured rshell path allowlist. It
