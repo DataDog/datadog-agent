@@ -16,14 +16,15 @@ type RshellBundle struct {
 }
 
 // NewRshellBundle creates the rshell bundle with its registered actions.
-// The signed backend task payload is the authority for rshell allowlists.
-func NewRshellBundle(_ *config.Config) types.Bundle {
+func NewRshellBundle(cfg *config.Config) types.Bundle {
 	return &RshellBundle{
 		actions: map[string]types.Action{
-			"runCommand": NewRunCommandHandler(
-				cfg.RShellAllowedPaths,
-				cfg.RShellAllowedCommands,
-			),
+			"runCommand": NewRunCommandHandler(RunCommandHandlerConfig{
+				AgentAllowedPaths:              cfg.RShellAllowedPaths,
+				AgentAllowedPathsConfigured:    cfg.RShellAllowedPathsConfigured,
+				AgentAllowedCommands:           cfg.RShellAllowedCommands,
+				AgentAllowedCommandsConfigured: cfg.RShellAllowedCommandsConfigured,
+			}),
 			"runRemediationCommand": NewRunRemediationCommandHandler(
 				cfg.RShellAllowedPaths,
 				cfg.RShellAllowedCommands,

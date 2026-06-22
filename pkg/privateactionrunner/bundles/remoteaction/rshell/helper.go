@@ -21,7 +21,7 @@ const (
 //
 // Assumptions:
 //
-//  1. The list comes from the backend, and should only contain commmands that "make sense" to be run by rshell.
+//  1. The list comes from the backend, and should only contain commands that "make sense" to be run by rshell.
 func onlyRshellPrefixedCommands(commands []string) []string {
 	prefixedCommands := make([]string, 0, len(commands))
 	for _, c := range commands {
@@ -32,6 +32,28 @@ func onlyRshellPrefixedCommands(commands []string) []string {
 		}
 	}
 	return prefixedCommands
+}
+
+func intersectAllowedCommands(backendAllowed []string, agentAllowed []string) []string {
+	agentAllowedSet := make(map[string]struct{}, len(agentAllowed))
+	for _, c := range agentAllowed {
+		switch {
+		case c == setup.RShellCommandAllowAllWildcard:
+			return append([]string(nil), backendAllowed...)
+		case c == setup.RShellCommandNamespacePrefix || c == "":
+			continue
+		case strings.HasPrefix(c, setup.RShellCommandNamespacePrefix):
+			agentAllowedSet[c] = struct{}{}
+		}
+	}
+
+	filtered := make([]string, 0, len(backendAllowed))
+	for _, c := range backendAllowed {
+		if _, ok := agentAllowedSet[c]; ok {
+			filtered = append(filtered, c)
+		}
+	}
+	return filtered
 }
 
 // cleanPathList applies path.Clean to each element of the list of paths
@@ -52,6 +74,29 @@ func cleanPathList(paths []string) []string {
 	return cleaned
 }
 
+func intersectAllowedPathsByAccess(agentAllowed []string, backendAllowed []string) []string {
+	filtered := make([]string, 0, len(agentAllowed))
+	seen := make(map[string]struct{}, len(agentAllowed))
+
+	for _, agentPath := range agentAllowed {
+		for _, backendPath := range backendAllowed {
+			if pathAccessGroup(agentPath) != pathAccessGroup(backendPath) {
+				continue
+			}
+			if !pathIsDescendantOrSame(agentPath, backendPath) {
+				continue
+			}
+			if _, ok := seen[agentPath]; ok {
+				break
+			}
+			filtered = append(filtered, agentPath)
+			seen[agentPath] = struct{}{}
+			break
+		}
+	}
+	return filtered
+}
+
 func splitPathAccessSuffix(pathSpec string) (pathPart string, accessSuffix string) {
 	switch {
 	case strings.HasSuffix(pathSpec, pathAccessReadWrite):
@@ -63,7 +108,21 @@ func splitPathAccessSuffix(pathSpec string) (pathPart string, accessSuffix strin
 	}
 }
 
+func pathAccessGroup(pathSpec string) string {
+	_, accessSuffix := splitPathAccessSuffix(pathSpec)
+	if accessSuffix == pathAccessReadWrite {
+		return pathAccessReadWrite
+	}
+	return pathAccessReadOnly
+}
+
 func pathSpecPath(pathSpec string) string {
 	pathPart, _ := splitPathAccessSuffix(pathSpec)
 	return pathPart
+}
+
+func pathIsDescendantOrSame(pathSpec, ancestorSpec string) bool {
+	pathPart := pathSpecPath(pathSpec)
+	ancestorPart := pathSpecPath(ancestorSpec)
+	return pathPart == ancestorPart || strings.HasPrefix(pathPart, ancestorPart)
 }

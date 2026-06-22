@@ -6,8 +6,6 @@
 package config
 
 import (
-	"bufio"
-	"bytes"
 	"os"
 	"path/filepath"
 	"testing"
@@ -19,7 +17,6 @@ import (
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func TestGetBundleInheritedAllowedActions(t *testing.T) {
@@ -320,6 +317,7 @@ func TestFromDDConfigPARRestrictedShellAllowedPathsUnset(t *testing.T) {
 	cfg, err := FromDDConfig(mockConfig)
 	require.NoError(t, err)
 	assert.Equal(t, []string{"/"}, cfg.RShellAllowedPaths)
+	assert.False(t, cfg.RShellAllowedPathsConfigured)
 }
 
 func TestFromDDConfigPARRestrictedShellAllowedPathsSet(t *testing.T) {
@@ -331,6 +329,7 @@ func TestFromDDConfigPARRestrictedShellAllowedPathsSet(t *testing.T) {
 	cfg, err := FromDDConfig(mockConfig)
 	require.NoError(t, err)
 	assert.Equal(t, []string{"/var/log", "/tmp"}, cfg.RShellAllowedPaths)
+	assert.True(t, cfg.RShellAllowedPathsConfigured)
 }
 
 func TestFromDDConfigPARRestrictedShellAllowedPathsEmpty(t *testing.T) {
@@ -344,6 +343,7 @@ func TestFromDDConfigPARRestrictedShellAllowedPathsEmpty(t *testing.T) {
 	// Explicit empty list remains distinct from the unset case above.
 	assert.NotNil(t, cfg.RShellAllowedPaths)
 	assert.Empty(t, cfg.RShellAllowedPaths)
+	assert.True(t, cfg.RShellAllowedPathsConfigured)
 }
 
 func TestFromDDConfigPARRestrictedShellAllowedCommandsUnset(t *testing.T) {
@@ -357,6 +357,7 @@ func TestFromDDConfigPARRestrictedShellAllowedCommandsUnset(t *testing.T) {
 	cfg, err := FromDDConfig(mockConfig)
 	require.NoError(t, err)
 	assert.Equal(t, []string{"rshell:*"}, cfg.RShellAllowedCommands)
+	assert.False(t, cfg.RShellAllowedCommandsConfigured)
 }
 
 func TestFromDDConfigPARRestrictedShellAllowedCommandsSet(t *testing.T) {
@@ -368,6 +369,7 @@ func TestFromDDConfigPARRestrictedShellAllowedCommandsSet(t *testing.T) {
 	cfg, err := FromDDConfig(mockConfig)
 	require.NoError(t, err)
 	assert.Equal(t, []string{"cat", "ls"}, cfg.RShellAllowedCommands)
+	assert.True(t, cfg.RShellAllowedCommandsConfigured)
 }
 
 func TestFromDDConfigPARRestrictedShellAllowedCommandsEmpty(t *testing.T) {
@@ -381,6 +383,7 @@ func TestFromDDConfigPARRestrictedShellAllowedCommandsEmpty(t *testing.T) {
 	// Explicit empty list remains distinct from the unset case above.
 	assert.NotNil(t, cfg.RShellAllowedCommands)
 	assert.Empty(t, cfg.RShellAllowedCommands)
+	assert.True(t, cfg.RShellAllowedCommandsConfigured)
 }
 
 // TestFromDDConfigPARRestrictedShellAllowedPathsEmptyYAML pins the
@@ -399,6 +402,7 @@ private_action_runner:
 	cfg, err := FromDDConfig(mockConfig)
 	require.NoError(t, err)
 	assert.Empty(t, cfg.RShellAllowedPaths, "YAML [] must surface as an empty slice")
+	assert.True(t, cfg.RShellAllowedPathsConfigured)
 }
 
 func TestFromDDConfigPARRestrictedShellAllowedCommandsEmptyYAML(t *testing.T) {
@@ -412,12 +416,12 @@ private_action_runner:
 	cfg, err := FromDDConfig(mockConfig)
 	require.NoError(t, err)
 	assert.Empty(t, cfg.RShellAllowedCommands, "YAML [] must surface as an empty slice")
+	assert.True(t, cfg.RShellAllowedCommandsConfigured)
 }
 
 func TestFromDDConfigPARRestrictedShellAllowedPathsPassesThroughFileEntries(t *testing.T) {
-	// Legacy config entries are still parsed and returned as written, even
-	// though rshell execution now uses the signed backend task payload as the
-	// allowlist authority.
+	// Config entries are parsed and returned as written; path normalization and
+	// containment matching happen in the rshell bundle.
 	tmpDir := t.TempDir()
 	fp := filepath.Join(tmpDir, "file.txt")
 	require.NoError(t, os.WriteFile(fp, []byte("x"), 0o600))
@@ -430,11 +434,11 @@ func TestFromDDConfigPARRestrictedShellAllowedPathsPassesThroughFileEntries(t *t
 	cfg, err := FromDDConfig(mockConfig)
 	require.NoError(t, err)
 	assert.Equal(t, []string{tmpDir, fp}, cfg.RShellAllowedPaths)
+	assert.True(t, cfg.RShellAllowedPathsConfigured)
 }
 
 func TestFromDDConfigPARRestrictedShellAllowedPathsPassesThroughBackslash(t *testing.T) {
-	// Backslash-containing entries are preserved in the returned slice for
-	// legacy config compatibility.
+	// Backslash-containing entries are preserved in the returned slice.
 	mockConfig := configmock.New(t)
 	mockConfig.SetInTest(setup.PARPrivateKey, "")
 	mockConfig.SetInTest(setup.PARUrn, "")
@@ -443,11 +447,11 @@ func TestFromDDConfigPARRestrictedShellAllowedPathsPassesThroughBackslash(t *tes
 	cfg, err := FromDDConfig(mockConfig)
 	require.NoError(t, err)
 	assert.Equal(t, []string{`C:\Data`, "/var/log"}, cfg.RShellAllowedPaths)
+	assert.True(t, cfg.RShellAllowedPathsConfigured)
 }
 
 func TestFromDDConfigPARRestrictedShellAllowedCommandsPassesThroughUnnamespaced(t *testing.T) {
-	// Unnamespaced entries are preserved in the returned slice for legacy
-	// config compatibility.
+	// Unnamespaced entries are preserved in the returned slice.
 	mockConfig := configmock.New(t)
 	mockConfig.SetInTest(setup.PARPrivateKey, "")
 	mockConfig.SetInTest(setup.PARUrn, "")
@@ -456,12 +460,12 @@ func TestFromDDConfigPARRestrictedShellAllowedCommandsPassesThroughUnnamespaced(
 	cfg, err := FromDDConfig(mockConfig)
 	require.NoError(t, err)
 	assert.Equal(t, []string{"cat", "rshell:ls"}, cfg.RShellAllowedCommands)
+	assert.True(t, cfg.RShellAllowedCommandsConfigured)
 }
 
 func TestFromDDConfigPARRestrictedShellAllowedAbsentYAML(t *testing.T) {
-	// No restricted_shell block at all: both axes fall back to their
-	// registered legacy defaults: ["/"] for paths and ["rshell:*"] for
-	// commands.
+	// No restricted_shell block at all: both axes fall back to their registered
+	// defaults and remain marked as unconfigured.
 	yaml := `
 private_action_runner:
   enabled: true
@@ -472,69 +476,6 @@ private_action_runner:
 	require.NoError(t, err)
 	assert.Equal(t, []string{"/"}, cfg.RShellAllowedPaths)
 	assert.Equal(t, []string{"rshell:*"}, cfg.RShellAllowedCommands)
-}
-
-func TestFromDDConfigPARRestrictedShellAllowedUnsetDoesNotWarn(t *testing.T) {
-	mockConfig := configmock.New(t)
-	mockConfig.SetInTest(setup.PARPrivateKey, "")
-	mockConfig.SetInTest(setup.PARUrn, "")
-
-	logs := captureTransformWarnings(t, func() {
-		_, err := FromDDConfig(mockConfig)
-		require.NoError(t, err)
-	})
-
-	assert.NotContains(t, logs, "client-side rshell allowlists are no-ops")
-}
-
-func TestFromDDConfigPARRestrictedShellAllowedPathsConfiguredWarns(t *testing.T) {
-	mockConfig := configmock.New(t)
-	mockConfig.SetInTest(setup.PARPrivateKey, "")
-	mockConfig.SetInTest(setup.PARUrn, "")
-	mockConfig.SetInTest(setup.PARRestrictedShellAllowedPaths, []string{"/var/log"})
-
-	logs := captureTransformWarnings(t, func() {
-		_, err := FromDDConfig(mockConfig)
-		require.NoError(t, err)
-	})
-
-	assert.Contains(t, logs, setup.PARRestrictedShellAllowedPaths)
-	assert.Contains(t, logs, "client-side rshell allowlists are no-ops")
-	assert.Contains(t, logs, "Action Platform execution policies")
-}
-
-func TestFromDDConfigPARRestrictedShellAllowedCommandsConfiguredWarns(t *testing.T) {
-	mockConfig := configmock.New(t)
-	mockConfig.SetInTest(setup.PARPrivateKey, "")
-	mockConfig.SetInTest(setup.PARUrn, "")
-	mockConfig.SetInTest(setup.PARRestrictedShellAllowedCommands, []string{"rshell:cat"})
-
-	logs := captureTransformWarnings(t, func() {
-		_, err := FromDDConfig(mockConfig)
-		require.NoError(t, err)
-	})
-
-	assert.Contains(t, logs, setup.PARRestrictedShellAllowedCommands)
-	assert.Contains(t, logs, "client-side rshell allowlists are no-ops")
-	assert.Contains(t, logs, "Action Platform execution policies")
-}
-
-func captureTransformWarnings(t *testing.T, fn func()) string {
-	t.Helper()
-
-	var logBuffer bytes.Buffer
-	logWriter := bufio.NewWriter(&logBuffer)
-	logger, err := log.LoggerFromWriterWithMinLevelAndLvlMsgFormat(logWriter, log.WarnLvl)
-	require.NoError(t, err)
-
-	previousLogger := log.Default()
-	t.Cleanup(func() {
-		log.SetupLogger(previousLogger, "debug")
-	})
-	log.SetupLogger(logger, "warn")
-
-	fn()
-
-	require.NoError(t, logWriter.Flush())
-	return logBuffer.String()
+	assert.False(t, cfg.RShellAllowedPathsConfigured)
+	assert.False(t, cfg.RShellAllowedCommandsConfigured)
 }

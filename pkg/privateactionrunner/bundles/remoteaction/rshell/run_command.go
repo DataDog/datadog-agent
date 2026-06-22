@@ -13,7 +13,6 @@ import (
 	"io"
 	"os"
 	"path"
-	"slices"
 	"strings"
 
 	"mvdan.cc/sh/v3/syntax"
@@ -37,7 +36,15 @@ const (
 // and can be overridden in tests.
 var statFn = os.Stat
 
-// RunCommandHandler implements the runCommand and runRemediationCommand actions.
+// RunCommandHandlerConfig carries agent-side rshell policy settings.
+type RunCommandHandlerConfig struct {
+	AgentAllowedPaths              []string
+	AgentAllowedPathsConfigured    bool
+	AgentAllowedCommands           []string
+	AgentAllowedCommandsConfigured bool
+}
+
+// RunCommandHandler implements the runCommand action.
 //
 // The two actions share all sandboxing logic and differ only in mode:
 // - runCommand runs rshell in read-only mode (interp.ModeReadOnly) ;
@@ -58,43 +65,43 @@ var statFn = os.Stat
 //
 // On either axis, an explicit empty operator list is the kill-switch.
 type RunCommandHandler struct {
-	operatorAllowedPaths    []string
-	operatorAllowedCommands []string
-	mode                    interp.Mode
+	agentAllowedPaths              []string
+	agentAllowedPathsConfigured    bool
+	agentAllowedCommands           []string
+	agentAllowedCommandsConfigured bool
+	mode                           interp.Mode
 }
 
-// NewRunCommandHandler builds the read-only runCommand handler.
-func NewRunCommandHandler(operatorAllowedPaths []string, operatorAllowedCommands []string) *RunCommandHandler {
-	return newRunCommandHandler(operatorAllowedPaths, operatorAllowedCommands, interp.ModeReadOnly)
-}
-
-// NewRunRemediationCommandHandler builds the write-capable runRemediationCommand
-// handler. It shares all sandboxing with runCommand and only switches rshell into
-// remediation mode.
-func NewRunRemediationCommandHandler(operatorAllowedPaths []string, operatorAllowedCommands []string) *RunCommandHandler {
-	return newRunCommandHandler(operatorAllowedPaths, operatorAllowedCommands, interp.ModeRemediation)
-}
-
-func newRunCommandHandler(operatorAllowedPaths []string, operatorAllowedCommands []string, mode interp.Mode) *RunCommandHandler {
-	operatorAllowedCommandsClone := slices.Clone(operatorAllowedCommands)
-	slices.Sort(operatorAllowedCommandsClone)
+func NewRunCommandHandler(cfg RunCommandHandlerConfig) *RunCommandHandler {
 	return &RunCommandHandler{
-		operatorAllowedPaths:    reducePathListToBroadest(cleanPathList(operatorAllowedPaths)),
-		operatorAllowedCommands: slices.Compact(operatorAllowedCommandsClone),
-		mode:                    mode,
+		agentAllowedPaths:              append([]string(nil), cfg.AgentAllowedPaths...),
+		agentAllowedPathsConfigured:    cfg.AgentAllowedPathsConfigured,
+		agentAllowedCommands:           append([]string(nil), cfg.AgentAllowedCommands...),
+		agentAllowedCommandsConfigured: cfg.AgentAllowedCommandsConfigured,
+		mode:                           interp.ModeReadOnly,
 	}
 }
 
 // filterAllowedCommands returns the effective command allowlist, passed to rshell:
-// the signed backend-configured list, limited to the rshell command namespace.
+// the signed task list limited to the rshell command namespace, optionally
+// narrowed by explicitly configured agent-side commands.
 func (h *RunCommandHandler) filterAllowedCommands(backendAllowed []string) []string {
-	return onlyRshellPrefixedCommands(backendAllowed)
+	backendAllowed = onlyRshellPrefixedCommands(backendAllowed)
+	if !h.agentAllowedCommandsConfigured {
+		return backendAllowed
+	}
+	return intersectAllowedCommands(backendAllowed, h.agentAllowedCommands)
 }
 
 // filterAllowedPaths returns the effective path allowlist passed to rshell:
-// the signed backend-configured list after path/suffix normalization.
+// the signed task list after path/suffix normalization, optionally narrowed by
+// explicitly configured agent-side paths.
 func (h *RunCommandHandler) filterAllowedPaths(backend []string) []string {
-	return cleanPathList(backend)
+	backendPaths := cleanPathList(backend)
+	if !h.agentAllowedPathsConfigured {
+		return backendPaths
+	}
+	return intersectAllowedPathsByAccess(cleanPathList(h.agentAllowedPaths), backendPaths)
 }
 
 // RunCommandInputs defines the user-supplied inputs for the runCommand action.
@@ -140,11 +147,10 @@ func (h *RunCommandHandler) Run(
 	// policies ∩ Balto), not from user inputs.
 	backendCommands := task.Data.Attributes.TargetCommands
 	backendPaths := task.Data.Attributes.TargetPaths
-	remoteActionAccessMode := task.Data.Attributes.RemoteActionAccessMode
 	effectiveAllowedCommands := h.filterAllowedCommands(backendCommands)
 	effectiveAllowedPaths := h.filterAllowedPaths(backendPaths)
 	log.Debugf("rshell runCommand (mode=%s): command=%q backendAllowedCommands=%v effectiveAllowedCommands=%v backendAllowedPaths=%v effectiveAllowedPaths=%v",
-		h.mode, inputs.Command, inputs.AllowedCommands, effectiveAllowedCommands, backendPaths, effectiveAllowedPaths)
+		h.mode, inputs.Command, task.Data.Attributes.TargetCommands, effectiveAllowedCommands, backendPaths, effectiveAllowedPaths)
 
 	prog, err := syntax.NewParser().Parse(strings.NewReader(inputs.Command), "")
 	if err != nil {
