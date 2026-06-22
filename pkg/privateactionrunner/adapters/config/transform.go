@@ -8,6 +8,7 @@ package config
 import (
 	"crypto/ecdsa"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -175,11 +176,38 @@ func warnUnnamespacedCommands(commands []string) {
 	}
 }
 
-// rshellAllowedPaths returns the operator-configured rshell path allowlist. It
-// is used only when the user explicitly configured the key; the registered
-// default is preserved as a non-restrictive compatibility value.
+// rshellAllowedPaths returns the operator-configured rshell path allowlist.
+//
+// The default value is ["/"] matching all paths.
+// See pkg/config/setup/privateactionrunner.go for more details.
+//
+// The operator-configured list is used to filter the paths.
+// For a path to be accessible by rshell, it needs to be present in both the operator-configured list
+// AND the backend's allowed paths list. (intersection operation)
 func rshellAllowedPaths(config config.Component) []string {
-	return config.GetStringSlice(setup.PARRestrictedShellAllowedPaths)
+	paths := config.GetStringSlice(setup.PARRestrictedShellAllowedPaths)
+	warnBackslashPaths(paths)
+	warnNonDirectoryPaths(paths)
+	return paths
+}
+
+func warnBackslashPaths(paths []string) {
+	for _, p := range paths {
+		if strings.ContainsRune(p, '\\') {
+			log.Warnf("%s entry %q contains a backslash; only forward-slash paths are supported and this entry will never match a backend rule",
+				setup.PARRestrictedShellAllowedPaths, p)
+		}
+	}
+}
+
+func warnNonDirectoryPaths(paths []string) {
+	for _, p := range paths {
+		info, err := os.Stat(p)
+		if err == nil && !info.IsDir() {
+			log.Warnf("%s entry %q is not a directory; rshell's sandbox only accepts directory entries and will drop this entry at runtime. Use the containing directory instead.",
+				setup.PARRestrictedShellAllowedPaths, p)
+		}
+	}
 }
 
 // getDatadogHost extracts and normalizes the Datadog host from the main endpoint.
