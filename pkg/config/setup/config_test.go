@@ -856,6 +856,40 @@ data_plane:
 	})
 }
 
+func TestComputeDataPlaneStopTimeout(t *testing.T) {
+	t.Run("unset stop timeout derives from component timeouts", func(t *testing.T) {
+		cfg := confFromYAML(t, "")
+
+		ComputeDataPlaneStopTimeout(cfg)
+
+		assert.Equal(t, 4, cfg.GetInt("data_plane.stop_timeout"))
+		assert.Equal(t, pkgconfigmodel.SourceDefault, cfg.GetSource("data_plane.stop_timeout"))
+	})
+
+	t.Run("explicit stop timeout is preserved", func(t *testing.T) {
+		cfg := confFromYAML(t, `
+data_plane:
+  stop_timeout: 11
+`)
+
+		ComputeDataPlaneStopTimeout(cfg)
+
+		assert.Equal(t, 11, cfg.GetInt("data_plane.stop_timeout"))
+		assert.Equal(t, pkgconfigmodel.SourceFile, cfg.GetSource("data_plane.stop_timeout"))
+	})
+
+	t.Run("recomputes default after component timeout changes", func(t *testing.T) {
+		cfg := confFromYAML(t, "")
+		cfg.Set("aggregator_stop_timeout", 3, pkgconfigmodel.SourceFleetPolicies)
+		cfg.Set("forwarder_stop_timeout", 7, pkgconfigmodel.SourceFleetPolicies)
+
+		ComputeDataPlaneStopTimeout(cfg)
+
+		assert.Equal(t, 10, cfg.GetInt("data_plane.stop_timeout"))
+		assert.Equal(t, pkgconfigmodel.SourceDefault, cfg.GetSource("data_plane.stop_timeout"))
+	})
+}
+
 func TestDataPlaneDefaults(t *testing.T) {
 	cfg := confFromYAML(t, "")
 
