@@ -91,11 +91,12 @@ func SaveCustomIntegrations(ctx context.Context, installPath string) (err error)
 	return nil
 }
 
-// migrateLegacyOCIFile seeds storageDir with a save/restore file an older OCI
-// package wrote to the legacy RootTmpDir, so an upgrade to a RunPath-based version
-// still finds it. It copies the legacy file when the destination is missing or
-// older than the legacy copy, leaving a newer (authoritative) destination untouched.
-// No-op if the legacy file does not exist.
+// migrateLegacyOCIFile seeds storageDir with a save/restore file an OCI package before
+// this change wrote to the legacy RootTmpDir (the storage location used since 7.67.0,
+// #36084), so an upgrade to a RunPath-based version still finds it. It copies the legacy
+// file when the destination is missing, older than the legacy copy, or shares the legacy
+// mtime but differs in content; a strictly newer destination is left untouched. No-op if
+// the legacy file does not exist.
 func migrateLegacyOCIFile(legacyDir, storageDir, fileName string) error {
 	legacyPath := filepath.Join(legacyDir, fileName)
 	storagePath := filepath.Join(storageDir, fileName)
@@ -110,10 +111,37 @@ func migrateLegacyOCIFile(legacyDir, storageDir, fileName string) error {
 	if err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("failed to stat %s: %w", storagePath, err)
 	}
-	if err == nil && !legacyInfo.ModTime().After(storageInfo.ModTime()) {
-		return nil
+	if err == nil {
+		// A strictly newer destination is authoritative, so keep it. Equal mtimes are
+		// ambiguous (e.g. both stamped within the same operation), so fall back to a
+		// content comparison and only refresh when the bytes actually differ.
+		if legacyInfo.ModTime().Before(storageInfo.ModTime()) {
+			return nil
+		}
+		if legacyInfo.ModTime().Equal(storageInfo.ModTime()) {
+			same, err := sameFileContents(legacyPath, storagePath)
+			if err != nil {
+				return err
+			}
+			if same {
+				return nil
+			}
+		}
 	}
 	return copyOCIFile(legacyDir, storageDir, fileName)
+}
+
+// sameFileContents reports whether the files at the two paths have identical contents.
+func sameFileContents(a, b string) (bool, error) {
+	dataA, err := os.ReadFile(a)
+	if err != nil {
+		return false, fmt.Errorf("failed to read %s: %w", a, err)
+	}
+	dataB, err := os.ReadFile(b)
+	if err != nil {
+		return false, fmt.Errorf("failed to read %s: %w", b, err)
+	}
+	return string(dataA) == string(dataB), nil
 }
 
 // copyOCIFile copies fileName from srcDir to dstDir, overwriting any existing

@@ -27,12 +27,15 @@ func TestMigrateLegacyOCIFile(t *testing.T) {
 		legacyContent  string // "" means no legacy file
 		storageContent string // "" means no pre-existing storage file
 		legacyNewer    bool   // when both files exist, stamp legacy newer than storage
+		equalMtime     bool   // when both files exist, stamp identical mtimes (tie-break)
 		want           string // "" means the storage file should not exist
 	}{
-		{"migrated when storage absent", legacyContent, "", false, legacyContent},
-		{"stale storage refreshed from newer legacy", legacyContent, existingContent, true, legacyContent},
-		{"newer storage not clobbered by older legacy", legacyContent, existingContent, false, existingContent},
-		{"no legacy file is a no-op", "", "", false, ""},
+		{"migrated when storage absent", legacyContent, "", false, false, legacyContent},
+		{"stale storage refreshed from newer legacy", legacyContent, existingContent, true, false, legacyContent},
+		{"newer storage not clobbered by older legacy", legacyContent, existingContent, false, false, existingContent},
+		{"equal mtime refreshes when content differs", legacyContent, existingContent, false, true, legacyContent},
+		{"equal mtime kept when content identical", legacyContent, legacyContent, false, true, legacyContent},
+		{"no legacy file is a no-op", "", "", false, false, ""},
 	}
 
 	for _, fileName := range []string{baselineFileName, diffFileName} {
@@ -59,7 +62,10 @@ func TestMigrateLegacyOCIFile(t *testing.T) {
 					// on filesystem timestamp granularity between the two writes above.
 					older, newer := time.Now().Add(-time.Hour), time.Now()
 					legacyTime, storageTime := older, newer
-					if tt.legacyNewer {
+					switch {
+					case tt.equalMtime:
+						legacyTime, storageTime = newer, newer
+					case tt.legacyNewer:
 						legacyTime, storageTime = newer, older
 					}
 					if err := os.Chtimes(filepath.Join(legacyDir, fileName), legacyTime, legacyTime); err != nil {
