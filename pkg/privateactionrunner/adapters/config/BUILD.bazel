@@ -19,7 +19,6 @@ go_library(
         "//pkg/privateactionrunner/observability",
         "//pkg/privateactionrunner/util",
         "//pkg/util/flavor",
-        "//pkg/util/log",
         "//pkg/version",
         "@com_github_datadog_datadog_go_v5//statsd",
         "@com_github_gobwas_glob//:glob",

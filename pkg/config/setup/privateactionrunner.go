@@ -79,12 +79,11 @@ func setupPrivateActionRunner(config pkgconfigmodel.Setup) {
 	config.ParseEnvSplitComma(PARHttpAllowlist)
 	config.BindEnvAndSetDefault(PARHttpAllowImdsEndpoint, false)
 
-	// Restricted shell allow-lists are legacy compatibility keys. Remote shell
-	// permissions are resolved by Action Platform execution policies and
-	// delivered in the signed task payload; the runner no longer intersects
-	// them with these local values. Defaults are kept so the keys remain present
-	// in the config schema, and explicit user configuration logs a warning that
-	// the values are no-ops.
+	// Restricted shell allow-lists are optional local restrictions layered on
+	// top of Action Platform execution policies delivered in the signed task
+	// payload. Defaults are non-restrictive when the keys are unset; explicit
+	// user configuration narrows the task payload, and an explicit empty JSON
+	// list acts as a kill switch for that axis.
 	config.BindEnvAndSetDefault(PARRestrictedShellAllowedPaths, []string{RShellPathAllowAll})
 	pkgconfighelper.ParseEnvJSONOrComma(PARRestrictedShellAllowedPaths, config)
 

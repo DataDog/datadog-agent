@@ -19,7 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/modes"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -71,40 +70,42 @@ func FromDDConfig(config config.Component, metricsClient statsd.ClientInterface)
 	}
 
 	return &Config{
-		MaxBackoff:                maxBackoff,
-		MinBackoff:                minBackoff,
-		MaxAttempts:               maxAttempts,
-		WaitBeforeRetry:           waitBeforeRetry,
-		LoopInterval:              loopInterval,
-		OpmsRequestTimeout:        opmsRequestTimeout,
-		RunnerPoolSize:            config.GetInt32(setup.PARTaskConcurrency),
-		HealthCheckInterval:       healthCheckInterval,
-		HttpServerReadTimeout:     defaultHTTPServerReadTimeout,
-		HttpServerWriteTimeout:    defaultHTTPServerWriteTimeout,
-		HTTPTimeout:               httpTimeout,
-		TaskTimeoutSeconds:        taskTimeoutSeconds,
-		RunnerAccessTokenHeader:   runnerAccessTokenHeader,
-		RunnerAccessTokenIdHeader: runnerAccessTokenIDHeader,
-		Port:                      defaultPort,
-		JWTRefreshInterval:        defaultJwtRefreshInterval,
-		HealthCheckEndpoint:       defaultHealthCheckEndpoint,
-		HeartbeatInterval:         heartbeatInterval,
-		Version:                   version.AgentVersion,
-		MetricsClient:             metricsClient,
-		ActionsAllowlist:          makeActionsAllowlist(config),
-		Allowlist:                 config.GetStringSlice(setup.PARHttpAllowlist),
-		AllowIMDSEndpoint:         config.GetBool(setup.PARHttpAllowImdsEndpoint),
-		RShellAllowedPaths:        rshellAllowedPaths(config),
-		RShellAllowedCommands:     rshellAllowedCommands(config),
-		OpmsExtraHeaders:          config.GetStringMapString(setup.PAROpmsExtraHeaders),
-		DDHost:                    ddHost,
-		DDApiHost:                 "api." + ddSite,
-		Modes:                     []modes.Mode{modes.ModePull},
-		OrgId:                     orgID,
-		PrivateKey:                privateKey,
-		RunnerId:                  runnerID,
-		Urn:                       urn,
-		DatadogSite:               ddSite,
+		MaxBackoff:                      maxBackoff,
+		MinBackoff:                      minBackoff,
+		MaxAttempts:                     maxAttempts,
+		WaitBeforeRetry:                 waitBeforeRetry,
+		LoopInterval:                    loopInterval,
+		OpmsRequestTimeout:              opmsRequestTimeout,
+		RunnerPoolSize:                  config.GetInt32(setup.PARTaskConcurrency),
+		HealthCheckInterval:             healthCheckInterval,
+		HttpServerReadTimeout:           defaultHTTPServerReadTimeout,
+		HttpServerWriteTimeout:          defaultHTTPServerWriteTimeout,
+		HTTPTimeout:                     httpTimeout,
+		TaskTimeoutSeconds:              taskTimeoutSeconds,
+		RunnerAccessTokenHeader:         runnerAccessTokenHeader,
+		RunnerAccessTokenIdHeader:       runnerAccessTokenIDHeader,
+		Port:                            defaultPort,
+		JWTRefreshInterval:              defaultJwtRefreshInterval,
+		HealthCheckEndpoint:             defaultHealthCheckEndpoint,
+		HeartbeatInterval:               heartbeatInterval,
+		Version:                         version.AgentVersion,
+		MetricsClient:                   &statsd.NoOpClient{},
+		ActionsAllowlist:                makeActionsAllowlist(config),
+		Allowlist:                       config.GetStringSlice(setup.PARHttpAllowlist),
+		AllowIMDSEndpoint:               config.GetBool(setup.PARHttpAllowImdsEndpoint),
+		RShellAllowedPaths:              rshellAllowedPaths(config),
+		RShellAllowedPathsConfigured:    config.IsConfigured(setup.PARRestrictedShellAllowedPaths),
+		RShellAllowedCommands:           rshellAllowedCommands(config),
+		RShellAllowedCommandsConfigured: config.IsConfigured(setup.PARRestrictedShellAllowedCommands),
+		OpmsExtraHeaders:                config.GetStringMapString(setup.PAROpmsExtraHeaders),
+		DDHost:                          ddHost,
+		DDApiHost:                       "api." + ddSite,
+		Modes:                           []modes.Mode{modes.ModePull},
+		OrgId:                           orgID,
+		PrivateKey:                      privateKey,
+		RunnerId:                        runnerID,
+		Urn:                             urn,
+		DatadogSite:                     ddSite,
 	}, nil
 }
 
@@ -137,27 +138,18 @@ func makeActionsAllowlist(config config.Component) map[string]sets.Set[string] {
 	return allowlist
 }
 
-// rshellAllowedCommands returns the legacy operator-configured rshell command
-// allowlist. The rshell bundle no longer uses this value to filter execution;
-// the signed backend task payload is authoritative.
+// rshellAllowedCommands returns the operator-configured rshell command
+// allowlist. It is used only when the user explicitly configured the key; the
+// registered default is preserved as a non-restrictive compatibility value.
 func rshellAllowedCommands(config config.Component) []string {
-	warnIfLegacyRShellAllowlistConfigured(config, setup.PARRestrictedShellAllowedCommands)
 	return config.GetStringSlice(setup.PARRestrictedShellAllowedCommands)
 }
 
-// rshellAllowedPaths returns the legacy operator-configured rshell path
-// allowlist. The rshell bundle no longer uses this value to filter execution;
-// the signed backend task payload is authoritative.
+// rshellAllowedPaths returns the operator-configured rshell path allowlist. It
+// is used only when the user explicitly configured the key; the registered
+// default is preserved as a non-restrictive compatibility value.
 func rshellAllowedPaths(config config.Component) []string {
-	warnIfLegacyRShellAllowlistConfigured(config, setup.PARRestrictedShellAllowedPaths)
 	return config.GetStringSlice(setup.PARRestrictedShellAllowedPaths)
-}
-
-func warnIfLegacyRShellAllowlistConfigured(config config.Component, key string) {
-	if !config.IsConfigured(key) {
-		return
-	}
-	log.Warnf("%s is configured, but client-side rshell allowlists are no-ops. Configure remote shell permissions with Action Platform execution policies instead.", key)
 }
 
 // getDatadogHost extracts and normalizes the Datadog host from the main endpoint.
