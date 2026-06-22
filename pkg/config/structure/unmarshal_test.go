@@ -44,7 +44,7 @@ type trapsConfig struct {
 // we can't use pkg/config/mock here because that package depends upon this one, so
 // this avoids a circular dependency
 func newEmptyMockConf(_ *testing.T) model.BuildableConfig {
-	cfg := create.NewConfig("test", "")
+	cfg := create.NewConfig("test")
 	cfg.SetTestOnlyDynamicSchema(true)
 	return cfg
 }
@@ -1536,32 +1536,24 @@ func TestUnmarshalKeyIntSliceFromEnv(t *testing.T) {
 	const key = "my_feature.ports"
 	const envVar = "DD_MY_FEATURE_PORTS"
 
-	build := func(t *testing.T, backend, env string) model.Config {
+	build := func(t *testing.T, env string) model.Config {
 		t.Setenv(envVar, env)
-		viperConf, ntmConf := constructBothConfigs("", false, func(cfg model.Setup) {
+		return constructNtmConfig("", false, func(cfg model.Setup) {
 			cfg.BindEnvAndSetDefault(key, []int{53})
 		})
-		if backend == "viper" {
-			return viperConf
-		}
-		return ntmConf
 	}
 
 	for _, tc := range []struct {
-		name    string
-		backend string
-		env     string
-		want    []int
+		name string
+		env  string
+		want []int
 	}{
-		{"ntm/space-separated", "ntm", "53 5353", []int{53, 5353}},
-		{"ntm/single", "ntm", "5353", []int{5353}},
-		{"ntm/json", "ntm", "[53,5353]", []int{53, 5353}},
-		{"viper/space-separated", "viper", "53 5353", []int{53, 5353}},
-		{"viper/single", "viper", "5353", []int{5353}},
-		{"viper/json", "viper", "[53,5353]", []int{53, 5353}},
+		{"space-separated", "53 5353", []int{53, 5353}},
+		{"single", "5353", []int{5353}},
+		{"json", "[53,5353]", []int{53, 5353}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			cfg := build(t, tc.backend, tc.env)
+			cfg := build(t, tc.env)
 			var got []int
 			err := UnmarshalKey(cfg, key, &got)
 			require.NoError(t, err)
