@@ -2,7 +2,10 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "configstreambootstrap",
-    srcs = ["bootstrap.go"],
+    srcs = [
+        "bootstrap.go",
+        "testhelpers.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/pkg/configstreambootstrap",
     visibility = ["//visibility:public"],
     deps = [

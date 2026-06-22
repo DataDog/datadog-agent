@@ -18,6 +18,7 @@ go_library(
         "//pkg/api/security/cert",
         "//pkg/configstreambootstrap",
         "//pkg/proto/pbgo/core",
+        "//pkg/util/defaultpaths",
         "//pkg/util/flavor",
         "//pkg/util/log",
         "@com_github_cenkalti_backoff_v5//:backoff",

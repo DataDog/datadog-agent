@@ -536,15 +536,13 @@ static __always_inline int handle_inet_csk_accept_exit(struct sock *sk) {
     return 0;
 }
 
-// Used on kernels < 6.10 where inet_csk_accept takes (sk, flags, err, kern).
 SEC("fexit/inet_csk_accept")
-int BPF_PROG(inet_csk_accept_exit, struct sock *_sk, int flags, int *err, bool kern, struct sock *sk) {
+int BPF_PROG(inet_csk_accept_exit_pre_6_10_0, struct sock *_sk, int flags, int *err, bool kern, struct sock *sk) {
     return handle_inet_csk_accept_exit(sk);
 }
 
-// Used on kernels >= 6.10 where inet_csk_accept takes (sk, proto_accept_arg).
 SEC("fexit/inet_csk_accept")
-int BPF_PROG(inet_csk_accept_exit_610, struct sock *_sk, struct proto_accept_arg *arg, struct sock *sk) {
+int BPF_PROG(inet_csk_accept_exit, struct sock *_sk, struct proto_accept_arg *arg, struct sock *sk) {
     return handle_inet_csk_accept_exit(sk);
 }
 
