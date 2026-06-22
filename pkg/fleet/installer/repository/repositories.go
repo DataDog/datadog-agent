@@ -21,25 +21,25 @@ const (
 
 // Repositories manages multiple repositories.
 type Repositories struct {
-	rootPath        string
-	preRemoveHooks  map[string]PreRemoveHook
-	prePublishHooks map[string]PrePublishHook
+	rootPath          string
+	preRemoveHooks    map[string]PreRemoveHook
+	prepareForPublish map[string]PrepareForPublishFunc
 }
 
 // NewRepositories returns a new Repositories.
-func NewRepositories(rootPath string, preRemoveHooks map[string]PreRemoveHook, prePublishHooks map[string]PrePublishHook) *Repositories {
+func NewRepositories(rootPath string, preRemoveHooks map[string]PreRemoveHook, prepareForPublish map[string]PrepareForPublishFunc) *Repositories {
 	return &Repositories{
-		rootPath:        rootPath,
-		preRemoveHooks:  preRemoveHooks,
-		prePublishHooks: prePublishHooks,
+		rootPath:          rootPath,
+		preRemoveHooks:    preRemoveHooks,
+		prepareForPublish: prepareForPublish,
 	}
 }
 
 func (r *Repositories) newRepository(pkg string) *Repository {
 	return &Repository{
-		rootPath:        filepath.Join(r.rootPath, pkg),
-		preRemoveHooks:  r.preRemoveHooks,
-		prePublishHooks: r.prePublishHooks,
+		rootPath:          filepath.Join(r.rootPath, pkg),
+		preRemoveHooks:    r.preRemoveHooks,
+		prepareForPublish: r.prepareForPublish,
 	}
 }
 
