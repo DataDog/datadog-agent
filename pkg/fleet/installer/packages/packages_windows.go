@@ -30,4 +30,10 @@ var (
 	AsyncPreRemoveHooks = map[string]repository.PreRemoveHook{
 		"datadog-apm-library-dotnet": asyncPreRemoveHookAPMLibraryDotnet,
 	}
+
+	// PrePublishHooks is called after package files are moved into their immutable
+	// repository path, but before the stable or experiment link points at them.
+	PrePublishHooks = map[string]repository.PrePublishHook{
+		"datadog-apm-library-dotnet": prePublishAPMLibraryDotnet,
+	}
 )

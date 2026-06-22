@@ -148,7 +148,7 @@ func (i *InstallerExec) RemoveExperiment(ctx context.Context, pkg string) (err e
 	// on windows we need to make a copy of installer binary so that it isn't in use
 	// while the MSI tries to remove it
 	if runtime.GOOS == "windows" && pkg == "datadog-agent" {
-		repositories := repository.NewRepositories(paths.PackagesPath, nil)
+		repositories := repository.NewRepositories(paths.PackagesPath, nil, nil)
 		tmpDir, err := repositories.MkdirTemp()
 		if err != nil {
 			return fmt.Errorf("error creating temp dir: %w", err)
@@ -332,7 +332,7 @@ func (i *InstallerExec) Setup(ctx context.Context) (err error) {
 
 // AvailableDiskSpace returns the available disk space.
 func (i *InstallerExec) AvailableDiskSpace() (uint64, error) {
-	repositories := repository.NewRepositories(paths.PackagesPath, nil)
+	repositories := repository.NewRepositories(paths.PackagesPath, nil, nil)
 	return repositories.AvailableDiskSpace()
 }
 

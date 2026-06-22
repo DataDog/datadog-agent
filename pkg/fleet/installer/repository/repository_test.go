@@ -74,20 +74,21 @@ func TestCreateOverwrite(t *testing.T) {
 	assert.NoDirExists(t, path.Join(oldRepository.rootPath, "old"))
 }
 
-func TestCreateWithPreActivateHookPublishesStableAfterHook(t *testing.T) {
+func TestCreateWithPrePublishHookPublishesStableAfterHook(t *testing.T) {
 	dir := t.TempDir()
 	repository := createTestRepository(t, dir, "v1", nil)
 	downloadPackagePath := createTestDownloadedPackage(t, dir, "v2")
 
 	hookCalled := false
-	err := repository.CreateWithPreActivateHook(context.Background(), "v2", downloadPackagePath, func(packagePath string) error {
+	repository.prePublishHooks = map[string]PrePublishHook{"repository": func(_ context.Context, packagePath string) error {
 		hookCalled = true
 		assert.Equal(t, filepath.Join(repository.rootPath, "v2"), packagePath)
 		assert.DirExists(t, packagePath)
 		assertLinkTarget(t, repository, stableVersionLink, "v1")
 		assertLinkTarget(t, repository, experimentVersionLink, "stable")
 		return nil
-	})
+	}}
+	err := repository.Create(context.Background(), "v2", downloadPackagePath)
 	assert.NoError(t, err)
 	assert.True(t, hookCalled)
 
@@ -99,15 +100,17 @@ func TestCreateWithPreActivateHookPublishesStableAfterHook(t *testing.T) {
 	assertLinkTarget(t, repository, experimentVersionLink, "stable")
 }
 
-func TestCreateWithPreActivateHookFailurePreservesStable(t *testing.T) {
+func TestCreateWithPrePublishHookFailurePreservesStable(t *testing.T) {
 	dir := t.TempDir()
 	repository := createTestRepository(t, dir, "v1", nil)
 	downloadPackagePath := createTestDownloadedPackage(t, dir, "v2")
-	sentinel := errors.New("pre-activate failed")
+	sentinel := errors.New("pre-publish failed")
 
-	err := repository.CreateWithPreActivateHook(context.Background(), "v2", downloadPackagePath, func(_ string) error {
+	repository.prePublishHooks = map[string]PrePublishHook{"repository": func(_ context.Context, _ string) error {
 		return sentinel
-	})
+	}}
+	err := repository.Create(context.Background(), "v2", downloadPackagePath)
+	assert.ErrorIs(t, err, ErrPrePublishFailed)
 	assert.ErrorIs(t, err, sentinel)
 
 	state, err := repository.GetState()
@@ -163,20 +166,21 @@ func TestSetExperiment(t *testing.T) {
 	assertLinkTarget(t, repository, experimentVersionLink, "v2")
 }
 
-func TestSetExperimentWithPreActivateHookPublishesExperimentAfterHook(t *testing.T) {
+func TestSetExperimentWithPrePublishHookPublishesExperimentAfterHook(t *testing.T) {
 	dir := t.TempDir()
 	repository := createTestRepository(t, dir, "v1", nil)
 	experimentDownloadPackagePath := createTestDownloadedPackage(t, dir, "v2")
 
 	hookCalled := false
-	err := repository.SetExperimentWithPreActivateHook(context.Background(), "v2", experimentDownloadPackagePath, func(packagePath string) error {
+	repository.prePublishHooks = map[string]PrePublishHook{"repository": func(_ context.Context, packagePath string) error {
 		hookCalled = true
 		assert.Equal(t, filepath.Join(repository.rootPath, "v2"), packagePath)
 		assert.DirExists(t, packagePath)
 		assertLinkTarget(t, repository, stableVersionLink, "v1")
 		assertLinkTarget(t, repository, experimentVersionLink, "stable")
 		return nil
-	})
+	}}
+	err := repository.SetExperiment(context.Background(), "v2", experimentDownloadPackagePath)
 	assert.NoError(t, err)
 	assert.True(t, hookCalled)
 

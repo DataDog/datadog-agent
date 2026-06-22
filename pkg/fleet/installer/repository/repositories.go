@@ -21,22 +21,25 @@ const (
 
 // Repositories manages multiple repositories.
 type Repositories struct {
-	rootPath       string
-	preRemoveHooks map[string]PreRemoveHook
+	rootPath        string
+	preRemoveHooks  map[string]PreRemoveHook
+	prePublishHooks map[string]PrePublishHook
 }
 
 // NewRepositories returns a new Repositories.
-func NewRepositories(rootPath string, preRemoveHooks map[string]PreRemoveHook) *Repositories {
+func NewRepositories(rootPath string, preRemoveHooks map[string]PreRemoveHook, prePublishHooks map[string]PrePublishHook) *Repositories {
 	return &Repositories{
-		rootPath:       rootPath,
-		preRemoveHooks: preRemoveHooks,
+		rootPath:        rootPath,
+		preRemoveHooks:  preRemoveHooks,
+		prePublishHooks: prePublishHooks,
 	}
 }
 
 func (r *Repositories) newRepository(pkg string) *Repository {
 	return &Repository{
-		rootPath:       filepath.Join(r.rootPath, pkg),
-		preRemoveHooks: r.preRemoveHooks,
+		rootPath:        filepath.Join(r.rootPath, pkg),
+		preRemoveHooks:  r.preRemoveHooks,
+		prePublishHooks: r.prePublishHooks,
 	}
 }
 
@@ -76,14 +79,8 @@ func (r *Repositories) Get(pkg string) *Repository {
 
 // Create creates a new repository for the given package name.
 func (r *Repositories) Create(ctx context.Context, pkg string, version string, stableSourcePath string) error {
-	return r.CreateWithPreActivateHook(ctx, pkg, version, stableSourcePath, nil)
-}
-
-// CreateWithPreActivateHook creates a new repository for the given package name
-// and runs preActivate before publishing the stable/experiment links.
-func (r *Repositories) CreateWithPreActivateHook(ctx context.Context, pkg string, version string, stableSourcePath string, preActivate PreActivateHook) error {
 	repository := r.newRepository(pkg)
-	err := repository.CreateWithPreActivateHook(ctx, version, stableSourcePath, preActivate)
+	err := repository.Create(ctx, version, stableSourcePath)
 	if err != nil {
 		return fmt.Errorf("could not create repository for package %s: %w", pkg, err)
 	}
