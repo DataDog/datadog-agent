@@ -77,7 +77,7 @@ func NewNginxDeploymentManifest(namespace string, nginxPort int, mods ...Deploym
 							Resources: &corev1.ResourceRequirementsArgs{
 								Limits: pulumi.StringMap{
 									"cpu":    pulumi.String("100m"),
-									"memory": pulumi.String("64Mi"),
+									"memory": pulumi.String("32Mi"),
 								},
 								Requests: pulumi.StringMap{
 									"cpu":    pulumi.String("10m"),
