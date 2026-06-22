@@ -390,16 +390,17 @@ func (b *Backend) runDaemonCommandWithRestart(command string, args ...string) (s
 
 func (b *Backend) runDaemonCommand(command string, args ...string) (string, error) {
 	var baseCommand string
-	// quoteArg wraps an argument so the remote shell passes it through
-	// literally. We single-quote rather than double-quote because the JSON
-	// payloads contain characters that are significant inside double quotes on
-	// both shells: pre-escaped quotes (\") produced by json.Marshal and jq
-	// variables (e.g. $new_env). Inside single quotes these are all literal.
+	// quoteArg wraps an argument so the remote shell passes it through to the
+	// daemon executable byte-for-byte. The JSON payloads we send contain
+	// characters that are significant to the shell: double quotes (both bare,
+	// from json.Marshal's structure, and backslash-escaped, from quoted string
+	// values such as a jq transform), spaces, and jq variables like $new_env.
 	var quoteArg func(string) string
 	switch b.host.RemoteHost.OSFamily {
 	case e2eos.LinuxFamily:
-		// POSIX shells treat everything inside single quotes literally; an
-		// embedded single quote is emitted as '\''.
+		// POSIX shells treat everything inside single quotes literally, so the
+		// argument reaches the daemon unchanged. An embedded single quote is
+		// emitted as '\''.
 		quoteArg = func(arg string) string {
 			return `'` + strings.ReplaceAll(arg, `'`, `'\''`) + `'`
 		}
@@ -412,10 +413,18 @@ func (b *Backend) runDaemonCommand(command string, args ...string) (string, erro
 			baseCommand = "sudo DD_BUNDLED_AGENT=installer datadog-agent daemon"
 		}
 	case e2eos.WindowsFamily:
-		// PowerShell single-quoted strings are verbatim; an embedded single
-		// quote is escaped by doubling it.
+		// On Windows the command passes through two parsers: PowerShell (which
+		// runs the command) and the Microsoft C runtime (which the native
+		// installer.exe uses to split its command line). We wrap the argument in
+		// a PowerShell single-quoted string so PowerShell performs no
+		// interpolation — in particular leaving jq's $variables intact — and
+		// passes the content through verbatim. The content is pre-escaped for
+		// the C runtime (windowsCRTEscape) so embedded double quotes and the
+		// backslashes preceding them survive; the spaces inside the JSON make
+		// PowerShell add the outer quoting the C runtime needs. An embedded
+		// single quote in a PowerShell literal is escaped by doubling it.
 		quoteArg = func(arg string) string {
-			return `'` + strings.ReplaceAll(arg, `'`, `''`) + `'`
+			return `'` + strings.ReplaceAll(windowsCRTEscape(arg), `'`, `''`) + `'`
 		}
 		baseCommand = `& "C:\Program Files\Datadog\Datadog Agent\bin\datadog-installer.exe" daemon`
 	default:
@@ -435,6 +444,47 @@ func (b *Backend) runDaemonCommand(command string, args ...string) (string, erro
 		sanitizedArgs = append(sanitizedArgs, quoteArg(arg))
 	}
 	return b.host.RemoteHost.Execute(fmt.Sprintf("%s %s %s", baseCommand, command, strings.Join(sanitizedArgs, " ")))
+}
+
+// windowsCRTEscape escapes a string for the Microsoft C runtime command-line
+// parser (the rules CommandLineToArgvW implements) so it can be embedded in a
+// command line handed to a native executable. Each double quote is escaped as
+// \" and any run of backslashes immediately preceding a quote is doubled, so
+// that the argument is decoded back to its original bytes.
+//
+// It deliberately does not add surrounding quotes: the JSON payloads contain
+// spaces, which makes PowerShell add the surrounding quotes itself when it
+// builds the native process command line. Backslashes that do not precede a
+// quote (e.g. json.Marshal's \n or \uXXXX escapes) are passed through as-is.
+func windowsCRTEscape(s string) string {
+	// PowerShell appends surrounding double quotes when it serializes an
+	// argument containing whitespace onto the native command line. Trailing
+	// backslashes must be doubled only in that case, otherwise they would
+	// escape the closing quote PowerShell adds.
+	quotedByPowerShell := strings.ContainsAny(s, " \t")
+	var b strings.Builder
+	backslashes := 0
+	for i := 0; i < len(s); i++ {
+		switch s[i] {
+		case '\\':
+			backslashes++
+		case '"':
+			// Double the preceding backslashes, then add one more to escape the quote.
+			b.WriteString(strings.Repeat(`\`, backslashes*2+1))
+			b.WriteByte('"')
+			backslashes = 0
+		default:
+			b.WriteString(strings.Repeat(`\`, backslashes))
+			b.WriteByte(s[i])
+			backslashes = 0
+		}
+	}
+	if quotedByPowerShell {
+		b.WriteString(strings.Repeat(`\`, backslashes*2))
+	} else {
+		b.WriteString(strings.Repeat(`\`, backslashes))
+	}
+	return b.String()
 }
 
 func (b *Backend) getDaemonPID() (int, error) {
