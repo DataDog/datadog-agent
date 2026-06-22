@@ -23,9 +23,9 @@ import (
 	filter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/collector/ccmtags"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	"github.com/DataDog/datadog-agent/pkg/collector/infratags"
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -210,7 +210,7 @@ func (s *CheckScheduler) getChecks(config integration.Config) ([]check.Check, er
 			c, err := loader.Load(s.senderManager, config, instance, instanceIndex)
 			if err == nil {
 				log.Debugf("%v: successfully loaded check '%s'", loader, config.Name)
-				ccmtags.ApplySenderTags(s.senderManager, c.ID(), config.Name, setup.Datadog())
+				infratags.ApplySenderTags(s.senderManager, c.ID(), config.Name, setup.Datadog())
 				checks = append(checks, c)
 				break
 			}

@@ -12,7 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/constants"
-	"github.com/DataDog/datadog-agent/pkg/collector/ccmtags"
+	"github.com/DataDog/datadog-agent/pkg/collector/infratags"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	metricsevent "github.com/DataDog/datadog-agent/pkg/metrics/event"
@@ -42,7 +42,7 @@ type enrichConfig struct {
 	defaultHostname           string
 	entityIDPrecedenceEnabled bool
 	serverlessMode            bool
-	ccmCfg                    model.Reader // optional: cloud_cost_only JMX DogStatsD tagging; nil skips
+	infraCfg                  model.Reader // optional: infra mode JMX DogStatsD tagging; nil skips
 }
 
 func tagsHaveJMXDogstatsdCheckName(tags []string) bool {
@@ -157,13 +157,13 @@ func tsToFloatForSamples(ts time.Time) float64 {
 func enrichMetricSample(dest []metrics.MetricSample, ddSample dogstatsdMetricSample, origin string, processID uint32, listenerID string, conf enrichConfig, filterList *utilstrings.Matcher) []metrics.MetricSample {
 	metricName := ddSample.name
 	// extractTagsMetadata compacts tags in-place and strips dd.internal.jmx_check_name.
-	// When CCM may tag JMX samples, pass a copy so ddSample.tags stays intact for AppendJMXDogstatsdCCMTags.
+	// When infra mode tags JMX samples, pass a copy so ddSample.tags stays intact for AppendJMXDogstatsdInfraTags.
 	tagsInput := ddSample.tags
-	if conf.ccmCfg != nil && tagsHaveJMXDogstatsdCheckName(ddSample.tags) {
+	if conf.infraCfg != nil && tagsHaveJMXDogstatsdCheckName(ddSample.tags) {
 		tagsInput = append([]string(nil), ddSample.tags...)
 	}
 	tags, hostnameFromTags, extractedOrigin, metricSource := extractTagsMetadata(tagsInput, origin, processID, ddSample.localData, ddSample.externalData, ddSample.cardinality, conf)
-	tags = ccmtags.AppendJMXDogstatsdCCMTags(tags, ddSample.tags, conf.ccmCfg)
+	tags = infratags.AppendJMXDogstatsdInfraTags(tags, ddSample.tags, conf.infraCfg)
 
 	if !isExcluded(metricName, conf.metricPrefix, conf.metricPrefixBlacklist) {
 		metricName = conf.metricPrefix + metricName

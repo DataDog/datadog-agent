@@ -1,9 +1,9 @@
 load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
-    name = "ccmtags",
-    srcs = ["ccmtags.go"],
-    importpath = "github.com/DataDog/datadog-agent/pkg/collector/ccmtags",
+    name = "infratags",
+    srcs = ["infratags.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/infratags",
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/collector/check/id",
@@ -14,9 +14,9 @@ go_library(
 )
 
 go_test(
-    name = "ccmtags_test",
-    srcs = ["ccmtags_test.go"],
-    embed = [":ccmtags"],
+    name = "infratags_test",
+    srcs = ["infratags_test.go"],
+    embed = [":infratags"],
     gotags = ["test"],
     deps = [
         "//pkg/collector/check/id",

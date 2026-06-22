@@ -47,6 +47,8 @@ import (
 	statutil "github.com/DataDog/datadog-agent/pkg/util/stat"
 	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 	tagutil "github.com/DataDog/datadog-agent/pkg/util/tags"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/infratags"
 )
 
 var (
@@ -261,9 +263,9 @@ func newServerCompat(cfg model.ReaderWriter, log log.Component, hostname hostnam
 	}
 	sort.UniqInPlace(extraTags)
 
-	var ccmCfg model.Reader
-	if cfg.GetString("infrastructure_mode") == "cloud_cost_only" {
-		ccmCfg = cfg
+	var infraCfg model.Reader
+	if infratags.IsTaggableMode(cfg) {
+		infraCfg = cfg
 	}
 
 	entityIDPrecedenceEnabled := cfg.GetBool("dogstatsd_entity_id_precedence")
@@ -323,7 +325,7 @@ func newServerCompat(cfg model.ReaderWriter, log log.Component, hostname hostnam
 			entityIDPrecedenceEnabled: entityIDPrecedenceEnabled,
 			defaultHostname:           defaultHostname,
 			serverlessMode:            serverless,
-			ccmCfg:                    ccmCfg,
+			infraCfg:                  infraCfg,
 		},
 		wmeta:                   wmeta,
 		telemetry:               telemetrycomp,
