@@ -16,14 +16,16 @@ import (
 func InitPython(paths ...string) {
 	pyVer, pyHome, pyPath := pySetup(paths...)
 
-	// print the Python info if the interpreter was embedded
 	if pyVer != "" {
 		log.Infof("Embedding Python %s", pyVer)
 		log.Debugf("Python Home: %s", pyHome)
 		log.Debugf("Python path: %s", pyPath)
 	}
 
-	// Prepare python environment if necessary
+	if !IsPythonRuntimeAvailable() {
+		return
+	}
+
 	if err := pyPrepareEnv(); err != nil {
 		log.Errorf("Unable to perform additional configuration of the python environment: %v", err)
 	}
@@ -31,8 +33,16 @@ func InitPython(paths ...string) {
 
 func pySetup(paths ...string) (pythonVersion, pythonHome, pythonPath string) {
 	if err := Initialize(paths...); err != nil {
+		setPythonRuntimeAvailable(false)
+		if pythonRuntimeOptional() {
+			log.Warnf("Python runtime is unavailable, disabling Python features: %s", err)
+			return "", "", ""
+		}
 		log.Errorf("Could not initialize Python: %s", err)
+		return PythonVersion, PythonHome, PythonPath
 	}
+
+	setPythonRuntimeAvailable(true)
 	return PythonVersion, PythonHome, PythonPath
 }
 
