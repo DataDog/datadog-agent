@@ -59,6 +59,9 @@ const (
 	// AppliedTarget is the JSON of the target that was applied to the pod.
 	// Example value: {"name":"python","podSelector":{"matchLabels":{"language":"python"}},"ddTraceVersions":{"python ":"3"}}
 	AppliedTarget = "internal.apm.datadoghq.com/applied-target"
+	// AppliedPolicy is the compact JSON of the remote-config policy that was applied to the pod.
+	// Example value: {"name":"python","version":3,"ddTraceVersions":{"python":"3"}}
+	AppliedPolicy = "internal.apm.datadoghq.com/applied-policy"
 	// InjectionError is set by the webhook when there was an error during mutation.
 	// Example value: The overall pod's containers limit is too low, cpu pod_limit=5m needed=50m, memory pod_limit=4Mi needed=100Mi
 	InjectionError = "internal.apm.datadoghq.com/injection-error"
