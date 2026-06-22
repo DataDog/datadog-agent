@@ -38,6 +38,34 @@ Sub-package roles:
 | `egress/` | Periodically fetches issues from the store and sends them |
 | `forwarder/` | Stateless HTTP client; POSTs a `HealthReport` to the Datadog intake |
 
+### Consuming healthplatform components from other code
+
+**From an Fx component** — add the interface to your `Requires` struct; Fx injects it automatically:
+
+```go
+import (
+    runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
+    storedef  "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
+)
+
+type Requires struct {
+    fx.In
+    // ... your other deps
+    HPRunner runnerdef.Component  // call runner.Run(source, fn) to report via a HealthCheckFunc
+    HPStore  storedef.Component   // call store.ReportIssue(issue) for direct reporting (Path B)
+}
+```
+
+**From non-component code** (a legacy package, a utility, etc.) — receive the interface as a parameter; never import the `impl` package directly:
+
+```go
+func NewMyChecker(store storedef.Component) *MyChecker {
+    return &MyChecker{store: store}
+}
+```
+
+The `def` packages (`runner/def`, `store/def`, etc.) contain only interfaces and types — safe to import from anywhere with no circular-dependency risk.
+
 ---
 
 ## Module file layout
@@ -110,7 +138,7 @@ Declare every context key your module reads as a package-private `const` at the 
 | `IssueName` | Must equal the `IssueName` const — never vary |
 | `Title` | Embed the most actionable instance-specific value; avoid static titles |
 | `Description` | One-sentence diagnosis; include the raw error message |
-| `Category` | Subsystem slug (examples: `"check-execution"`, `"autodiscovery"`, `"filesystem"`, `"configuration"`). New values can be created for new issue types. |
+| `Category` | Subsystem slug. Controls UI tab routing: `"configuration"` → Configuration tab; `"integration"` or `"check"` → Integrations tab; other values → default tab. Examples from existing modules: `"check-execution"`, `"autodiscovery"`, `"filesystem"`. New values can be created. |
 | `Location` | Where the issue was detected (examples: `"collector"`, `"agent"`, `"autodiscovery"`). New values can be created. |
 | `Severity` | One of `ISSUE_SEVERITY_LOW`, `ISSUE_SEVERITY_MEDIUM`, `ISSUE_SEVERITY_HIGH` |
 | `Source` | Reporting component (examples: `"agent"`, `"collector"`, `"autodiscovery"`). New values can be created. |
@@ -250,29 +278,42 @@ Required test cases:
 
 ### Integration tests with fakeintake — when the issue is self-contained
 
-Use a fakeintake-backed integration test when the issue can be triggered and verified entirely from agent behavior, with no special environment needed (e.g. the agent runs a startup check and the result arrives in fakeintake):
+Use a fakeintake-backed integration test when the issue can be triggered and verified entirely in-process — no provisioned VM or real agent binary needed. These live in **`comp/healthplatform/bundle_test.go`** alongside the existing bundle tests.
 
-- Test lives in `test/new-e2e/tests/agent-health/<module>_test.go`
-- Assert via `fakeIntake.GetAgentHealth()` — never via `agent diagnose`
-- Follow the lifecycle pattern: `IssueDetection` sub-test first, then `Resolution` sub-test
-- See existing tests (`invalidconfig`, `check_failure`) for the full pattern
-- Use the `/write-agent-health-e2e` skill (invoked from `test/new-e2e/tests/agent-health/`) to scaffold the test file
+The pattern (see `TestIssueStateLifecycleForwarded`):
+1. Start an in-process fakeintake server: `fi := fakeintakeserver.NewServer(...); fi.Start()`
+2. Boot the full bundle with `fxutil.Test`, pointing `dd_url` at `fi.URL()`
+3. Trigger the condition by calling `store.ReportIssue(...)` or `scheduler.Schedule(...)`
+4. Poll `fiClient.GetAgentHealth()` and assert on issue state (`ISSUE_STATE_NEW`, `ISSUE_STATE_RESOLVED`)
+
+Use this when the issue is triggered by agent-internal logic (a startup check, a config validation) and does not require a specific OS environment.
 
 ### E2E tests — when the issue requires a specific environment
 
-Use a full E2E test when triggering the issue requires a specific OS state, Docker daemon, or runtime condition that cannot be faked locally (e.g. a read-only filesystem, a live Docker socket):
+Use a full E2E test when triggering the issue requires a specific OS state, Docker daemon, or runtime condition (e.g. a read-only filesystem, a live Docker socket). These live in **`test/new-e2e/tests/agent-health/<module>_test.go`**.
 
-- Still lives in `test/new-e2e/tests/agent-health/<module>_test.go`
-- Use a custom provisioner (e.g. Docker-enabled host) rather than the default `awshost.Provisioner`
+The pattern:
+- Use `awshost.Provisioner` for standard host issues, or a Docker-enabled provisioner for Docker-specific ones
 - Trigger the condition via `suite.Env().RemoteHost.MustExecute(...)` inside the `IssueDetection` sub-test
 - Fix it via `suite.UpdateEnv(...)` (config change) or another `MustExecute` + agent restart in `Resolution`
-- See `docker_permission_test.go` and `admission_probe_test.go` for the pattern
-- Use the `/write-agent-health-e2e` skill to scaffold the test file, then adapt the provisioner
+- Assert only via `fakeIntake.GetAgentHealth()` — never via `agent diagnose`
+- See `docker_permission_test.go` and `admission_probe_test.go` for the full pattern
+- Use the `/write-agent-health-e2e` skill (invoked from `test/new-e2e/tests/agent-health/`) to scaffold the test file
 
 ### Running tests
 
+Unit and integration tests:
 ```bash
+# Unit tests for an issue module
 dda inv test --targets=./comp/healthplatform/issues/<pkgname>/...
+
+# Bundle integration tests (includes fakeintake lifecycle tests)
+dda inv test --targets=./comp/healthplatform/...
+```
+
+E2E tests:
+```bash
+dda inv new-e2e-tests.run --targets=./tests/agent-health/... --run=^Test<Module>Suite$
 ```
 
 ---
