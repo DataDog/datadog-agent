@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"math"
 	"strconv"
-	"strings"
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
@@ -27,40 +26,6 @@ import (
 )
 
 const workloadTagCacheTelemetrySubsystem = consts.GpuTelemetryModule + "__workload_tag_cache"
-
-// autoscalingDistTagKeys is a copy of containerTagsToExtract from
-// dd-go/process/apps/container-distributions/worker.go
-var autoscalingDistTagKeys = map[string]struct{}{
-	// Standard tags
-	"env":     {},
-	"service": {},
-	"version": {},
-	// Kube tags
-	"kube_container_name":  {},
-	"kube_deployment":      {},
-	"kube_namespace":       {},
-	"kube_ownerref_kind":   {},
-	"kube_ownerref_name":   {},
-	"kube_stateful_set":    {},
-	"kube_daemon_set":      {},
-	"kube_autoscaler_kind": {},
-	"kube_argo_rollout":    {},
-}
-
-// filterAutoscalingDistTags keeps only the keys listed in autoscalingDistTagKeys.
-func filterAutoscalingDistTags(tags []string) []string {
-	out := make([]string, 0, len(tags))
-	for _, t := range tags {
-		i := strings.IndexByte(t, ':')
-		if i <= 0 {
-			continue
-		}
-		if _, ok := autoscalingDistTagKeys[t[:i]]; ok {
-			out = append(out, t)
-		}
-	}
-	return out
-}
 
 type workloadTagCacheEntry struct {
 	tags  []string
@@ -239,30 +204,21 @@ func (c *WorkloadTagCache) buildProcessTags(processID string) ([]string, error) 
 	// always available (e.g., a process hasn't still been detected by the
 	// process collector, or it might have been removed)
 	var nspid int32
-	var containerID string
 	process, err := c.wmeta.GetProcess(pid)
 	if err == nil {
 		nspid = process.NsPid
-		if process.Owner != nil && process.Owner.Kind == workloadmeta.KindContainer {
-			containerID = process.Owner.ID
-		} else if process.ContainerID != "" {
-			// Fallback in case the new collector is not enabled yet
-			containerID = process.ContainerID
-		}
+	} else {
+		process = nil
 	}
 
-	// Fallbacks in case workloadmeta does not have the data we need
-	var contErr, nspidErr error
-	usedFallbacks := false
-	if containerID == "" {
-		usedFallbacks = true
-
-		containerID, contErr = c.getContainerID(pid)
-		if contErr != nil && !agenterrors.IsNotFound(contErr) {
-			multiErr = errors.Join(multiErr, fmt.Errorf("error getting container ID for process %d: %w", pid, contErr))
-		}
+	// Resolve the container ID, falling back to the container provider if needed.
+	containerID, usedFallbackForContainer, contErr := c.resolveContainerIDForProcess(process, pid)
+	if contErr != nil && !agenterrors.IsNotFound(contErr) {
+		multiErr = errors.Join(multiErr, fmt.Errorf("error getting container ID for process %d: %w", pid, contErr))
 	}
+	usedFallbacks := usedFallbackForContainer
 
+	var nspidErr error
 	if nspid == 0 {
 		usedFallbacks = true
 
@@ -359,47 +315,21 @@ func (c *WorkloadTagCache) onLRUEvicted(workloadID workloadmeta.EntityID, _ *wor
 	c.telemetry.cacheEvictions.Inc(string(workloadID.Kind))
 }
 
-// GetLowCardContainerTags returns the tags for the given container ID, filtered through autoscalingDistTagKeys.
-func (c *WorkloadTagCache) GetLowCardContainerTags(containerID string) ([]string, error) {
-	if containerID == "" {
-		return nil, nil
-	}
-	entityID := taggertypes.NewEntityID(taggertypes.ContainerID, containerID)
-	tags, err := c.tagger.Tag(entityID, taggertypes.LowCardinality)
-	if err != nil {
-		return nil, err
-	}
-	return filterAutoscalingDistTags(tags), nil
-}
-
-// resolveContainerID returns the owning container ID for the given workload,
-// or empty string if none is known. Returns an error only for unsupported
-// workload kinds or unrecoverable lookup failures.
-func (c *WorkloadTagCache) resolveContainerID(workloadID workloadmeta.EntityID) (string, error) {
-	switch workloadID.Kind {
-	case workloadmeta.KindContainer:
-		return workloadID.ID, nil
-	case workloadmeta.KindProcess:
-		pidInt, err := strconv.ParseInt(workloadID.ID, 10, 32)
-		if err != nil {
-			return "", fmt.Errorf("error converting process ID to int: %w", err)
+// resolveContainerIDForProcess resolves the container ID for a process using
+// the standard fallback chain: Owner → ContainerID → getContainerID. If process
+// is nil, it goes straight to the getContainerID fallback.
+// usedFallback is true only when getContainerID was called.
+func (c *WorkloadTagCache) resolveContainerIDForProcess(process *workloadmeta.Process, pid int32) (containerID string, usedFallback bool, err error) {
+	if process != nil {
+		if process.Owner != nil && process.Owner.Kind == workloadmeta.KindContainer {
+			return process.Owner.ID, false, nil
 		}
-		pid := int32(pidInt)
-		if process, perr := c.wmeta.GetProcess(pid); perr == nil {
-			if process.Owner != nil && process.Owner.Kind == workloadmeta.KindContainer {
-				return process.Owner.ID, nil
-			}
-			if process.ContainerID != "" {
-				return process.ContainerID, nil
-			}
+		if process.ContainerID != "" {
+			return process.ContainerID, false, nil
 		}
-		containerID, gerr := c.getContainerID(pid)
-		if gerr != nil && !agenterrors.IsNotFound(gerr) {
-			return "", gerr
-		}
-		return containerID, nil
 	}
-	return "", fmt.Errorf("unsupported workload kind: %s", workloadID.Kind)
+	cid, cerr := c.getContainerID(pid)
+	return cid, true, cerr
 }
 
 // NewWorkloadTagCacheWithSubsystem creates a WorkloadTagCache that registers

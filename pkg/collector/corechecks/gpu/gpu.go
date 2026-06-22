@@ -33,27 +33,8 @@ import (
 )
 
 const (
-	gpuMetricsNs             = "gpu."
-	processCoreUsageMetric   = "process.core.usage"
-	processMemoryUsageMetric = "process.memory.usage"
-
-	// Container-level distribution metric names not in the gpu. namespace
-	containerGPUCoreUsageDist   = "container.gpu.core.usage.dist"
-	containerGPUMemoryUsageDist = "container.gpu.memory.usage.dist"
+	gpuMetricsNs = "gpu."
 )
-
-// containerGPUDistributionName maps a per-process source gauge name to its
-// corresponding per-container distribution metric name. Returns false for any
-// metric that does not have a distribution counterpart.
-func containerGPUDistributionName(sourceMetric string) (string, bool) {
-	switch sourceMetric {
-	case processCoreUsageMetric:
-		return containerGPUCoreUsageDist, true
-	case processMemoryUsageMetric:
-		return containerGPUMemoryUsageDist, true
-	}
-	return "", false
-}
 
 // logLimitCheck is used to limit the number of times we log messages about streams and cuda events, as that can be very verbose
 var logLimitCheck = log.NewLogLimit(20, 10*time.Minute)
@@ -540,28 +521,7 @@ func (c *Check) emitSingleMetric(metric *nvidia.Metric, snd sender.Sender, curre
 		multiErr = append(multiErr, fmt.Errorf("error sending metric: %w", err))
 	}
 
-	// Emit container-level distributions
-	if distName, ok := containerGPUDistributionName(metric.Name); ok {
-		seenContainers := make(map[string]struct{})
-		for _, workloadID := range metricWorkloads {
-			// Deduplicate by container ID
-			containerID, _ := c.workloadTagCache.resolveContainerID(workloadID)
-			if containerID == "" {
-				continue
-			}
-			if _, seen := seenContainers[containerID]; seen {
-				continue
-			}
-			seenContainers[containerID] = struct{}{}
-
-			distTags, terr := c.workloadTagCache.GetLowCardContainerTags(containerID)
-			if terr != nil && !agenterrors.IsNotFound(terr) {
-				multiErr = append(multiErr, fmt.Errorf("error collecting low-card container tags for distribution %s workload %s: %w", distName, workloadID.ID, terr))
-			}
-
-			snd.Distribution(distName, metric.Value, "", distTags)
-		}
-	}
+	multiErr = append(multiErr, c.emitContainerDistributions(metric, metricWorkloads, snd)...)
 
 	return errors.Join(multiErr...)
 }
