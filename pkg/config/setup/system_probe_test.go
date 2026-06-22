@@ -53,6 +53,7 @@ func TestSystemProbeDefaultConfig(t *testing.T) {
 		{key: "system_probe_config.closed_channel_size", defaultValue: 0},
 		{key: "network_config.closed_channel_size", defaultValue: 500},
 		{key: "gpu_monitoring.nvml_lib_path", defaultValue: ""},
+		{key: "discovery.service_collection_batch_size", defaultValue: 500},
 	} {
 		t.Run(tc.key, func(t *testing.T) {
 			switch expected := tc.defaultValue.(type) {

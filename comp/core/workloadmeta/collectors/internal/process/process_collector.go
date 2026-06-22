@@ -50,7 +50,8 @@ const (
 	cacheValidityNoRT = 2 * time.Second
 
 	// Service discovery constants
-	maxPortCheckTries = 10
+	maxPortCheckTries                   = 10
+	serviceCollectionBatchSizeConfigKey = "discovery.service_collection_batch_size"
 )
 
 type collector struct {
@@ -387,6 +388,99 @@ func (c *collector) getDiscoveryServices(newPids []int32, heartbeatPids []int32)
 	return &response, nil
 }
 
+type serviceDiscoveryPIDBatch struct {
+	newPids       []int32
+	heartbeatPids []int32
+}
+
+func buildServiceDiscoveryPIDBatches(newPids []int32, heartbeatPids []int32, batchSize int) []serviceDiscoveryPIDBatch {
+	if len(newPids) == 0 && len(heartbeatPids) == 0 {
+		return nil
+	}
+
+	if batchSize == 0 {
+		return []serviceDiscoveryPIDBatch{
+			{
+				newPids:       newPids,
+				heartbeatPids: heartbeatPids,
+			},
+		}
+	}
+
+	batches := make([]serviceDiscoveryPIDBatch, 0, (len(newPids)+len(heartbeatPids)+batchSize-1)/batchSize)
+	current := serviceDiscoveryPIDBatch{
+		newPids:       make([]int32, 0, min(len(newPids), batchSize)),
+		heartbeatPids: make([]int32, 0, min(len(heartbeatPids), batchSize)),
+	}
+
+	addPID := func(pid int32, isHeartbeat bool) {
+		if len(current.newPids)+len(current.heartbeatPids) == batchSize {
+			batches = append(batches, current)
+			current = serviceDiscoveryPIDBatch{
+				newPids:       make([]int32, 0, min(len(newPids), batchSize)),
+				heartbeatPids: make([]int32, 0, min(len(heartbeatPids), batchSize)),
+			}
+		}
+
+		if isHeartbeat {
+			current.heartbeatPids = append(current.heartbeatPids, pid)
+			return
+		}
+		current.newPids = append(current.newPids, pid)
+	}
+
+	for _, pid := range newPids {
+		addPID(pid, false)
+	}
+	for _, pid := range heartbeatPids {
+		addPID(pid, true)
+	}
+
+	if len(current.newPids) > 0 || len(current.heartbeatPids) > 0 {
+		batches = append(batches, current)
+	}
+
+	return batches
+}
+
+func mergeServiceDiscoveryResponses(dst *model.ServicesResponse, src *model.ServicesResponse) {
+	if src == nil {
+		return
+	}
+
+	dst.Services = append(dst.Services, src.Services...)
+	dst.InjectedPIDs = append(dst.InjectedPIDs, src.InjectedPIDs...)
+	dst.GPUPIDs = append(dst.GPUPIDs, src.GPUPIDs...)
+}
+
+func (c *collector) getDiscoveryServicesBatched(newPids []int32, heartbeatPids []int32) (*model.ServicesResponse, []int32, []int32) {
+	batches := buildServiceDiscoveryPIDBatches(newPids, heartbeatPids, c.systemProbeConfig.GetInt(serviceCollectionBatchSizeConfigKey))
+	mergedResponse := &model.ServicesResponse{}
+	successfulNewPids := make([]int32, 0, len(newPids))
+	successfulHeartbeatPids := make([]int32, 0, len(heartbeatPids))
+
+	for batchIndex, batch := range batches {
+		log.Debugf("Requesting service discovery batch %d/%d with %d new PIDs and %d heartbeat PIDs",
+			batchIndex+1, len(batches), len(batch.newPids), len(batch.heartbeatPids))
+
+		resp, err := c.getDiscoveryServices(batch.newPids, batch.heartbeatPids)
+		if err != nil {
+			// CheckClient handles startup warnings internally, but we still need to suppress
+			// the error if system-probe hasn't started yet.
+			if sysprobeclient.IgnoreStartupError(err) != nil {
+				log.Errorf("failed to get services: %s", err)
+			}
+			return mergedResponse, successfulNewPids, successfulHeartbeatPids
+		}
+
+		mergeServiceDiscoveryResponses(mergedResponse, resp)
+		successfulNewPids = append(successfulNewPids, batch.newPids...)
+		successfulHeartbeatPids = append(successfulHeartbeatPids, batch.heartbeatPids...)
+	}
+
+	return mergedResponse, successfulNewPids, successfulHeartbeatPids
+}
+
 func (c *collector) handleServiceRetries(pid int32) {
 	tries := c.serviceRetries[pid]
 	tries++
@@ -495,20 +589,22 @@ func (c *collector) getProcessEntitiesFromServices(newPids []int32, heartbeatPid
 
 // updateServices retrieves service discovery data for alive processes and returns workloadmeta entities
 func (c *collector) updateServices(alivePids core.PidSet, procs map[int32]*procutil.Process) ([]*workloadmeta.Process, core.PidSet) {
-	newPids, heartbeatPids, pidsToService := c.filterPidsToRequest(alivePids, procs)
+	newPids, heartbeatPids, _ := c.filterPidsToRequest(alivePids, procs)
 	if len(newPids) == 0 && len(heartbeatPids) == 0 {
 		return nil, nil
 	}
 
-	resp, err := c.getDiscoveryServices(newPids, heartbeatPids)
-	if err != nil {
-		// CheckClient handles startup warnings internally, but we still need to suppress
-		// the error if system-probe hasn't started yet
-		if sysprobeclient.IgnoreStartupError(err) == nil {
-			return nil, nil
-		}
-		log.Errorf("failed to get services: %s", err)
+	resp, successfulNewPids, successfulHeartbeatPids := c.getDiscoveryServicesBatched(newPids, heartbeatPids)
+	if len(successfulNewPids) == 0 && len(successfulHeartbeatPids) == 0 {
 		return nil, nil
+	}
+
+	pidsToService := make(map[int32]*model.Service, len(successfulNewPids)+len(successfulHeartbeatPids))
+	for _, pid := range successfulNewPids {
+		pidsToService[pid] = nil
+	}
+	for _, pid := range successfulHeartbeatPids {
+		pidsToService[pid] = nil
 	}
 
 	for i, service := range resp.Services {
@@ -525,7 +621,7 @@ func (c *collector) updateServices(alivePids core.PidSet, procs map[int32]*procu
 		gpuPids.Add(int32(pid))
 	}
 
-	return c.getProcessEntitiesFromServices(newPids, heartbeatPids, pidsToService, injectedPids, gpuPids), injectedPids
+	return c.getProcessEntitiesFromServices(successfulNewPids, successfulHeartbeatPids, pidsToService, injectedPids, gpuPids), injectedPids
 }
 
 func (c *collector) updateServicesNoCache(alivePids core.PidSet, procs map[int32]*procutil.Process) []*workloadmeta.Process {
@@ -579,21 +675,23 @@ func (c *collector) getProcessDataForServices() (core.PidSet, map[int32]*procuti
 	return alivePids, procs, nil
 }
 
-func (c *collector) getCachedProcessData() (core.PidSet, error) {
+func (c *collector) getCachedProcessData() (core.PidSet, map[int32]*procutil.Process, error) {
 	// Get alive PIDs from last collected processes (populated by collectProcesses)
 	c.mux.RLock()
 	defer c.mux.RUnlock()
 
 	if len(c.lastCollectedProcesses) == 0 {
-		return nil, nil // no processes to check
+		return nil, nil, nil // no processes to check
 	}
 
 	alivePids := make(core.PidSet, len(c.lastCollectedProcesses))
-	for pid := range c.lastCollectedProcesses {
+	procs := make(map[int32]*procutil.Process, len(c.lastCollectedProcesses))
+	for pid, proc := range c.lastCollectedProcesses {
 		alivePids.Add(pid)
+		procs[pid] = proc
 	}
 
-	return alivePids, nil
+	return alivePids, procs, nil
 }
 
 // cleanPidMaps deletes dead PIDs from the provided maps.
@@ -747,7 +845,7 @@ func (c *collector) collectServicesCached(ctx context.Context, collectionTicker 
 	for {
 		select {
 		case <-collectionTicker.C:
-			alivePids, err := c.getCachedProcessData()
+			alivePids, procs, err := c.getCachedProcessData()
 			if err != nil {
 				log.Errorf("Error getting processes for service discovery: %v", err)
 				continue
@@ -781,9 +879,7 @@ func (c *collector) collectServicesCached(ctx context.Context, collectionTicker 
 				})
 			}
 
-			c.mux.RLock()
-			wlmServiceEntities, _ := c.updateServices(alivePids, c.lastCollectedProcesses)
-			c.mux.RUnlock()
+			wlmServiceEntities, _ := c.updateServices(alivePids, procs)
 
 			if len(wlmServiceEntities) > 0 || len(wlmDeletedProcs) > 0 {
 				c.processEventsCh <- &Event{
