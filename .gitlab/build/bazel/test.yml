@@ -127,15 +127,12 @@ bazel:test:windows-amd64:base:
   extends: [ .bazel:test, .bazel:runner:windows-amd64 ]
   variables:
     POWERSHELL_SCRIPT: >-
-      $$PSScriptRoot = "$CI_PROJECT_DIR/tasks/winbuildscripts";
-      . "$CI_PROJECT_DIR/tasks/winbuildscripts/common.ps1";
-      $$Env:DD_API_KEY = Get-VaultSecret -parameterName $$Env:AGENT_API_KEY_ORG2;
       bazel test --keep_going --build_tests_only --config=base --test_arg=-test.v
       --build_event_json_file=$CI_PROJECT_DIR/bazel-bep-base.json
       //pkg/... //comp/... //cmd/...;
       dda inv -- -e bazel.ensure-test-parity
       --bep $CI_PROJECT_DIR/bazel-bep-base.json
-      --flavor-name base --emit-metrics
+      --flavor-name base
   artifacts:
     when: always
     paths:
