@@ -459,10 +459,11 @@ func TestNetworkConnectionTagsWithService(t *testing.T) {
 	dsch = dsc.(eventmonitor.EventConsumerHandler)
 	e := evmodel.NewFakeEvent()
 	e.Type = uint32(evmodel.ExecEventType)
-	e.ProcessContext = &evmodel.ProcessContext{Process: evmodel.Process{PIDContext: evmodel.PIDContext{Pid: p[0].Pid}, Argv: []string{"my-server.sh"}}}
+	e.ProcessContext = &evmodel.ProcessContext{Process: evmodel.Process{PIDContext: evmodel.PIDContext{Pid: p[0].Pid}}}
 	e.Exec.Process = &e.ProcessContext.Process
 	copiedEvent := dsch.Copy(e)
 	proc := copiedEvent.(*process)
+	proc.Cmdline = []string{"my-server.sh"}
 	proc.Cwd = t.TempDir()
 	proc.Comm = "my-server.sh"
 	proc.Exe = "/usr/bin/bash"
