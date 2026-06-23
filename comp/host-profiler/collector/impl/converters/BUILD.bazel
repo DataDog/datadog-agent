@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "converter_without_agent.go",
         "converters.go",
+        "prometheus.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/converters",
     visibility = ["//visibility:public"],
@@ -12,6 +13,7 @@ go_library(
         "//comp/host-profiler/version",
         "//pkg/config/utils",
         "//pkg/util/confmaputils",
+        "//pkg/util/hostport",
         "@io_opentelemetry_go_collector_confmap//:confmap",
         "@io_opentelemetry_go_collector_confmap_xconfmap//:xconfmap",
         "@org_uber_go_zap_exp//zapslog",
@@ -23,6 +25,7 @@ go_test(
     srcs = [
         "converter_table_test.go",
         "converters_test.go",
+        "prometheus_test.go",
     ],
     data = glob(["testdata/**"]),
     embed = [":converters"],

@@ -7,6 +7,7 @@ package buildschema
 
 import (
 	"testing"
+	"time"
 )
 
 // nodeAt returns the nested node at the given dot-separated path inside the schema.
@@ -73,6 +74,29 @@ func TestLeafNodeHasNodeTypeSettings(t *testing.T) {
 				t.Errorf("leaf node has node_type=%q, want %q", nodeType, "setting")
 			}
 		})
+	}
+}
+
+// TestDurationNodeIsStringType verifies that a time.Duration default produces
+// type:"string" (not "number") and serialises the default as a human-readable
+// string so that the generated schema stays consistent with the YAML schema.
+func TestDurationNodeIsStringType(t *testing.T) {
+	b := NewSchemaBuilder("", "", nil).(*builder)
+	b.BindEnvAndSetDefault("my.interval", 15*time.Minute)
+
+	leaf := nodeAt(b.Schema, "my", "interval")
+	if leaf == nil {
+		t.Fatal("leaf node not found")
+	}
+
+	if got := leaf["type"]; got != "string" {
+		t.Errorf("duration node type = %q, want %q", got, "string")
+	}
+	if got := leaf["format"]; got != "duration" {
+		t.Errorf("duration node format = %q, want %q", got, "duration")
+	}
+	if got := leaf["default"]; got != "15m0s" {
+		t.Errorf("duration node default = %q, want %q", got, "15m0s")
 	}
 }
 

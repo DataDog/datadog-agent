@@ -1,0 +1,25 @@
+receivers:
+  profiling:
+    symbol_uploader:
+      enabled: false
+service:
+  telemetry:
+    metrics:
+      readers:
+      - pull:
+          exporter:
+            prometheus:
+              host: 127.0.0.12
+              port: 9999
+  pipelines:
+    profiles:
+      processors: []
+      receivers:
+      - profiling
+      exporters:
+      - otlp_http
+exporters:
+  otlp_http:
+    headers:
+      dd-api-key: test-api-key
+    profiles_endpoint: https://intake.profile.datadoghq.com/v1development/profiles

@@ -11,6 +11,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "@com_github_evanphx_json_patch_v5//:json-patch",
+        "@com_github_itchyny_gojq//:gojq",
         "@in_yaml_go_yaml_v2//:yaml",
     ] + select({
         "@rules_go//go/platform:aix": [

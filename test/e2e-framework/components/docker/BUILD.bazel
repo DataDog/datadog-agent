@@ -6,6 +6,7 @@ go_library(
         "component.go",
         "compose.go",
         "ecr.go",
+        "install.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/components/docker",
     visibility = ["//visibility:public"],

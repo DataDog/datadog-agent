@@ -25,8 +25,8 @@ require (
 	github.com/kr/pretty v0.3.1
 	github.com/pkg/sftp v1.13.10 // indirect
 	github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.23.0
-	github.com/pulumi/pulumi/sdk/v3 v3.244.0
-	github.com/samber/lo v1.52.0
+	github.com/pulumi/pulumi/sdk/v3 v3.246.0
+	github.com/samber/lo v1.53.0
 	github.com/stretchr/testify v1.11.1
 	github.com/xeipuuv/gojsonschema v1.2.0
 	go.yaml.in/yaml/v2 v2.4.4
@@ -219,7 +219,7 @@ require (
 	github.com/go-viper/mapstructure/v2 v2.5.0
 	github.com/google/go-containerregistry v0.21.7
 	github.com/hairyhenderson/go-codeowners v0.7.1
-	github.com/pulumi/pulumi-aws/sdk/v7 v7.32.0
+	github.com/pulumi/pulumi-aws/sdk/v7 v7.33.0
 	github.com/pulumi/pulumi-awsx/sdk/v3 v3.6.0
 	gopkg.in/yaml.v3 v3.0.1
 )

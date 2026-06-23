@@ -11,6 +11,7 @@ build_windows_container_entrypoint:
     ARCH: "x64"
   script:
     - $ErrorActionPreference = "Stop"
+    - !reference [.sanitize_goproxy_windows]
     - if (Test-Path build-out) { remove-item -recurse -force build-out }
     - >
       docker run --rm

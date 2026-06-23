@@ -1,0 +1,27 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "dump",
+    srcs = ["activity_dump.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/security/security_profile/dump",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/security/resolvers",
+            "//pkg/security/secl/model",
+            "//pkg/security/security_profile/activity_tree",
+            "//pkg/security/security_profile/profile",
+            "//pkg/security/utils",
+            "@org_uber_go_atomic//:atomic",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/security/resolvers",
+            "//pkg/security/secl/model",
+            "//pkg/security/security_profile/activity_tree",
+            "//pkg/security/security_profile/profile",
+            "//pkg/security/utils",
+            "@org_uber_go_atomic//:atomic",
+        ],
+        "//conditions:default": [],
+    }),
+)

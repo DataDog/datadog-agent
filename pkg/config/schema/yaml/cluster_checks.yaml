@@ -150,7 +150,7 @@ properties:
       improves the current one by this.
   rebalance_period:
     node_type: setting
-    type: number
+    type: string
     default: 10m0s
     format: duration
     tags:

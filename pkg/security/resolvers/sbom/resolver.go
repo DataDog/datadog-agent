@@ -100,6 +100,8 @@ type SBOM struct {
 	forwardRetryCount int
 
 	invalidated bool
+
+	usrMerged bool
 }
 
 type workloadKey string
@@ -116,7 +118,7 @@ func (s *SBOM) IsComputed() bool {
 // SetReport sets the SBOM report
 func (s *SBOM) setReport(pkgs []sbomtypes.PackageWithInstalledFiles) {
 	// build file cache
-	s.data.files = newFileQuerier(pkgs)
+	s.data.files = newFileQuerier(pkgs, s.usrMerged)
 }
 
 func (s *SBOM) stop() {
@@ -251,6 +253,7 @@ func (r *Resolver) Start(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
+		r.hostSBOM.usrMerged = isUsrMerged(hostRoot)
 		r.hostSBOM.setReport(report)
 		r.hostSBOM.state.Store(computedState)
 	}
@@ -434,6 +437,14 @@ func (r *Resolver) generateSBOM(root string) ([]sbomtypes.PackageWithInstalledFi
 	return report, nil
 }
 
+// isUsrMerged reports whether root uses the merged-/usr layout, where /bin is a
+// symlink into /usr/bin. There the package database and a resolved exec path may
+// disagree on the /bin vs /usr/bin prefix for the same file.
+func isUsrMerged(root string) bool {
+	fi, err := os.Lstat(root + "/bin")
+	return err == nil && fi.Mode()&fs.ModeSymlink != 0
+}
+
 // escapeFilePathForRule escapes special characters in file paths for use in rule expressions
 // This prevents filenames with quotes, backslashes, or other special characters from breaking the syntax
 func escapeFilePathForRule(path string) string {
@@ -535,6 +546,7 @@ func (r *Resolver) doScan(sbom *SBOM) ([]sbomtypes.PackageWithInstalledFiles, er
 		}
 
 		if report, lastErr = r.generateSBOM(containerProcRootPath); lastErr == nil {
+			sbom.usrMerged = isUsrMerged(containerProcRootPath)
 			sbom.setReport(report)
 			scanned = true
 			break
@@ -674,7 +686,7 @@ func (r *Resolver) analyzeWorkload(sb *SBOM) error {
 	}
 
 	data := &Data{
-		files:    newFileQuerier(report),
+		files:    newFileQuerier(report, sb.usrMerged),
 		packages: report, // Store original packages for forwarding with LastAccess
 	}
 	sb.data = data

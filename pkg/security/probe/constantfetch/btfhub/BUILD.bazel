@@ -1,0 +1,4 @@
+exports_files([
+    "constants_amd64.json",
+    "constants_arm64.json",
+])

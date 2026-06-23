@@ -1,5 +1,4 @@
-# gazelle:ignore
-
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 load("//bazel/rules/ebpf:cgo_godefs.bzl", "cgo_godefs")
 
 exports_files([
@@ -12,4 +11,50 @@ cgo_godefs(
     src = "ebpf_types.go",
     visibility = ["//visibility:public"],
     deps = ["//pkg/network/ebpf/c:ebpf_c_network"],
+)
+
+go_library(
+    name = "protocols",
+    srcs = [
+        "common.go",
+        "common_linux.go",
+        "ebpf.go",
+        "ebpf_types_linux.go",
+        "map_dumper.go",
+        "modifier.go",
+        "protocols.go",
+        "sketchespool.go",
+        "types.go",
+    ],
+    cgo = True,
+    importpath = "github.com/DataDog/datadog-agent/pkg/network/protocols",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/ebpf",
+        "//pkg/network/config",
+        "//pkg/network/usm/buildmode",
+        "//pkg/util/sync",
+        "@com_github_cilium_ebpf//:ebpf",
+        "@com_github_datadog_ebpf_manager//:ebpf-manager",
+        "@com_github_datadog_sketches_go//ddsketch",
+    ] + select({
+        "@rules_go//go/platform:android": [
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/util/log",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "protocols_test",
+    srcs = [
+        "common_test.go",
+        "ebpf_types_linux_test.go",
+    ],
+    embed = [":protocols"],
+    gotags = ["test"],
+    deps = ["@com_github_stretchr_testify//require"],
 )
