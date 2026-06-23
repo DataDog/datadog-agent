@@ -11,7 +11,6 @@ import (
 	"io"
 	"path/filepath"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -61,7 +60,7 @@ func (t *Tailer) read() (int, error) {
 	}
 
 	t.lastReadOffset.Add(int64(n))
-	msg := decoder.NewInput(inBuf[:n])
+	msg := t.newDecoderInput(inBuf[:n])
 	t.decoder.InputChan() <- msg
 	return n, nil
 }

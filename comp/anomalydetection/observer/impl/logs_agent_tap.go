@@ -50,7 +50,18 @@ func installLogsAgentTokenizedLogTap(obs *observerImpl, cfg config.Component, li
 
 	handle := obs.GetHandle("logs-agent-tap")
 	tapCleanup := adaptivesampling.SetTokenizedLogObserver(&logsAgentTapSink{handle: handle})
-	boostCleanup := obs.engine.Subscribe(newSamplingBoostEventSink(scorerConfigFromAgentConfig(cfg)))
+	boostSink := newSamplingBoostEventSink(scorerConfigFromAgentConfig(cfg))
+	boostCleanup := obs.engine.Subscribe(boostSink)
+	var scorerCleanups []func()
+	for _, scorer := range obs.engine.scorers {
+		scorerCleanups = append(scorerCleanups, scorer.Subscribe(observerdef.AnomalyScorerConfiguration{
+			Listener: boostSink,
+			Filter: observerdef.ScorerEventFilter{
+				ToLevels:  []observerdef.SeverityLevel{observerdef.SeverityHigh},
+				Direction: observerdef.ScorerEventEscalation,
+			},
+		}))
+	}
 	pkglog.Infof("%s tokenized log tap registered analysis_enabled=%t recorder_enabled=%t logs_enabled=%t logs_agent_enabled=%t",
 		adaptivesampling.DebugLogPrefix,
 		analysisEnabled,
@@ -62,6 +73,9 @@ func installLogsAgentTokenizedLogTap(obs *observerImpl, cfg config.Component, li
 		OnStop: func(_ context.Context) error {
 			tapCleanup()
 			boostCleanup()
+			for _, scorerCleanup := range scorerCleanups {
+				scorerCleanup()
+			}
 			return nil
 		},
 	})

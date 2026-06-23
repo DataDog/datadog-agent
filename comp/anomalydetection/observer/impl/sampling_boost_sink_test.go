@@ -79,3 +79,75 @@ func TestSamplingBoostEventSinkSkipsMediumLogPatternAnomaly(t *testing.T) {
 	_, ok := store.Lookup("container-a", "abc123", now)
 	assert.False(t, ok)
 }
+
+func TestSamplingBoostEventSinkEmitsRecentMediumLogPatternWhenScorerEscalatesHigh(t *testing.T) {
+	store := adaptivesampling.NewSamplingBoostStore()
+	now := time.Unix(100, 0)
+	sink := &samplingBoostEventSink{
+		store:     store,
+		scorerCfg: DefaultScorerConfig(),
+		now:       func() time.Time { return now },
+	}
+
+	sink.onEngineEvent(engineEvent{
+		kind: eventAnomalyCreated,
+		anomalyCreated: &anomalyCreatedEvent{anomaly: observerdef.Anomaly{
+			Source: observerdef.SeriesDescriptor{
+				Namespace: LogMetricsExtractorName,
+				Name:      "log.pattern.abc123.count",
+			},
+			DetectorName: "bocpd",
+			Context: &observerdef.MetricContext{
+				ContainerID: "container-a",
+				PatternHash: "abc123",
+			},
+		}},
+	})
+	_, ok := store.Lookup("container-a", "abc123", now)
+	require.False(t, ok)
+
+	sink.OnSeverityTransition(observerdef.SeverityEvent{
+		FromLevel: observerdef.SeverityMedium,
+		ToLevel:   observerdef.SeverityHigh,
+		Direction: observerdef.ScorerEventEscalation,
+	})
+
+	boost, ok := store.Lookup("container-a", "abc123", now)
+	require.True(t, ok)
+	assert.Equal(t, samplingBoostRateMultiplier, boost.RateMultiplier)
+	assert.Equal(t, samplingBoostBurstMultiplier, boost.BurstMultiplier)
+	assert.Equal(t, samplingBoostCreditGrant, boost.CreditGrant)
+}
+
+func TestSamplingBoostEventSinkEmitsMediumLogPatternWhileScorerHighGateActive(t *testing.T) {
+	store := adaptivesampling.NewSamplingBoostStore()
+	now := time.Unix(100, 0)
+	sink := &samplingBoostEventSink{
+		store:     store,
+		scorerCfg: DefaultScorerConfig(),
+		now:       func() time.Time { return now },
+	}
+	sink.OnSeverityTransition(observerdef.SeverityEvent{
+		FromLevel: observerdef.SeverityMedium,
+		ToLevel:   observerdef.SeverityHigh,
+		Direction: observerdef.ScorerEventEscalation,
+	})
+
+	sink.onEngineEvent(engineEvent{
+		kind: eventAnomalyCreated,
+		anomalyCreated: &anomalyCreatedEvent{anomaly: observerdef.Anomaly{
+			Source: observerdef.SeriesDescriptor{
+				Namespace: LogMetricsExtractorName,
+				Name:      "log.pattern.abc123.count",
+			},
+			DetectorName: "bocpd",
+			Context: &observerdef.MetricContext{
+				ContainerID: "container-a",
+				PatternHash: "abc123",
+			},
+		}},
+	})
+
+	_, ok := store.Lookup("container-a", "abc123", now)
+	assert.True(t, ok)
+}

@@ -111,6 +111,20 @@ func TestTailerIdentifier(t *testing.T) {
 	assert.Equal(t, "docker:test", tailer.Identifier())
 }
 
+func TestTailerNewDecoderInputCarriesOrigin(t *testing.T) {
+	source := sources.NewLogSource("test", &config.LogsConfig{Identifier: "test"})
+	tailer := &Tailer{
+		ContainerID: "test",
+		Source:      source,
+	}
+
+	msg := tailer.newDecoderInput([]byte("hello"))
+
+	assert.NotNil(t, msg.Origin)
+	assert.Equal(t, source, msg.Origin.LogSource)
+	assert.Equal(t, "docker:test", msg.Origin.Identifier)
+}
+
 func TestGetLastSince(t *testing.T) {
 	_time := time.Date(2008, 1, 12, 1, 1, 1, 1, time.UTC)
 	tailer := &Tailer{lastSince: _time.Format(config.DateFormat)}

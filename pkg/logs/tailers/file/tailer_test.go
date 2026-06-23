@@ -283,6 +283,17 @@ func (suite *TailerTestSuite) TestTailerIdentifier() {
 		suite.tailer.Identifier())
 }
 
+func (suite *TailerTestSuite) TestTailerNewDecoderInputCarriesOrigin() {
+	suite.tailer.StartFromBeginning()
+
+	msg := suite.tailer.newDecoderInput([]byte("hello"))
+
+	suite.Require().NotNil(msg.Origin)
+	suite.Equal(suite.source.UnderlyingSource(), msg.Origin.LogSource)
+	suite.Equal(suite.tailer.Identifier(), msg.Origin.Identifier)
+	suite.Equal(suite.testPath, msg.Origin.FilePath)
+}
+
 func (suite *TailerTestSuite) TestOriginTagsWhenTailingFiles() {
 
 	suite.tailer.StartFromBeginning()

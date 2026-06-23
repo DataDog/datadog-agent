@@ -135,6 +135,15 @@ type Tailer struct {
 	fileOpener      opener.FileOpener
 }
 
+func (t *Tailer) newDecoderInput(content []byte) *message.Message {
+	msg := decoder.NewInput(content)
+	origin := message.NewOrigin(t.file.Source.UnderlyingSource())
+	origin.Identifier = t.Identifier()
+	origin.FilePath = t.file.Path
+	msg.Origin = origin
+	return msg
+}
+
 // TailerOptions holds all possible parameters that NewTailer requires in addition to optional parameters that can be optionally passed into. This can be used for more optional parameters if required in future
 type TailerOptions struct {
 	OutputChan      chan *message.Message    // Required

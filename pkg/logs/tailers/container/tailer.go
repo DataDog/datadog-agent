@@ -395,9 +395,17 @@ func (t *Tailer) readForever() {
 				t.wait()
 				continue
 			}
-			t.decoder.InputChan() <- decoder.NewInput(inBuf[:n])
+			t.decoder.InputChan() <- t.newDecoderInput(inBuf[:n])
 		}
 	}
+}
+
+func (t *Tailer) newDecoderInput(content []byte) *message.Message {
+	msg := decoder.NewInput(content)
+	origin := message.NewOrigin(t.Source)
+	origin.Identifier = t.Identifier()
+	msg.Origin = origin
+	return msg
 }
 
 // read implement a timeout on t.reader.Read() because it can be blocking (it's a

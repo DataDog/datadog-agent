@@ -8,6 +8,7 @@ package observerimpl
 import (
 	"fmt"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -22,6 +23,7 @@ const (
 	samplingBoostRateMultiplier  = 10.0
 	samplingBoostBurstMultiplier = 10.0
 	samplingBoostCreditGrant     = 100.0
+	samplingBoostScorerHighTTL   = samplingBoostTTL
 )
 
 var samplingBoostDecisionDebugCount atomic.Uint64
@@ -30,13 +32,23 @@ type samplingBoostEventSink struct {
 	store     *adaptivesampling.SamplingBoostStore
 	scorerCfg observerdef.ScorerConfig
 	now       func() time.Time
+
+	mu               sync.Mutex
+	scorerHighUntil  time.Time
+	recentCandidates map[string]recentBoostCandidate
+}
+
+type recentBoostCandidate struct {
+	anomaly   observerdef.Anomaly
+	expiresAt time.Time
 }
 
 func newSamplingBoostEventSink(scorerCfg observerdef.ScorerConfig) *samplingBoostEventSink {
 	return &samplingBoostEventSink{
-		store:     adaptivesampling.DefaultSamplingBoostStore(),
-		scorerCfg: scorerCfg,
-		now:       time.Now,
+		store:            adaptivesampling.DefaultSamplingBoostStore(),
+		scorerCfg:        scorerCfg,
+		now:              time.Now,
+		recentCandidates: make(map[string]recentBoostCandidate),
 	}
 }
 
@@ -44,26 +56,64 @@ func (s *samplingBoostEventSink) onEngineEvent(evt engineEvent) {
 	if s == nil || evt.kind != eventAnomalyCreated || evt.anomalyCreated == nil {
 		return
 	}
-	MaybeEmitSamplingBoostForAnomaly(evt.anomalyCreated.anomaly, s.store, s.scorerCfg, s.now())
+	s.maybeEmitSamplingBoostForAnomaly(evt.anomalyCreated.anomaly)
+}
+
+func (s *samplingBoostEventSink) OnSeverityTransition(evt observerdef.SeverityEvent) {
+	if s == nil || evt.Direction != observerdef.ScorerEventEscalation || evt.ToLevel != observerdef.SeverityHigh {
+		return
+	}
+	now := s.now()
+	candidates := s.openScorerHighGate(now)
+	pkglog.Infof("%s scorer high boost gate opened ttl=%s recent_candidates=%d",
+		adaptivesampling.DebugLogPrefix,
+		samplingBoostScorerHighTTL,
+		len(candidates))
+	for _, anomaly := range candidates {
+		emitSamplingBoostForAnomaly(anomaly, s.store, now)
+	}
+}
+
+func (s *samplingBoostEventSink) maybeEmitSamplingBoostForAnomaly(anomaly observerdef.Anomaly) bool {
+	if s.store == nil {
+		logSamplingBoostDecision(anomaly, 0, false, "nil boost store", false)
+		return false
+	}
+	now := s.now()
+	boostable, reason := boostableLogPatternAnomaly(anomaly)
+	level := anomalyLevel(anomaly, s.scorerCfg)
+	scorerHigh := s.scorerHighActive(now)
+	logSamplingBoostDecision(anomaly, level, boostable, reason, scorerHigh)
+	if !boostable {
+		return false
+	}
+	s.rememberCandidate(anomaly, now)
+	if level < samplingBoostMinAnomalyLevel && !scorerHigh {
+		return false
+	}
+	return emitSamplingBoostForAnomaly(anomaly, s.store, now)
 }
 
 // MaybeEmitSamplingBoostForAnomaly converts a high log-pattern anomaly into a
 // short-lived adaptive-sampling boost. It returns true when a boost is emitted.
 func MaybeEmitSamplingBoostForAnomaly(anomaly observerdef.Anomaly, store *adaptivesampling.SamplingBoostStore, scorerCfg observerdef.ScorerConfig, now time.Time) bool {
 	if store == nil {
-		logSamplingBoostDecision(anomaly, 0, false, "nil boost store")
+		logSamplingBoostDecision(anomaly, 0, false, "nil boost store", false)
 		return false
 	}
 	boostable, reason := boostableLogPatternAnomaly(anomaly)
 	level := anomalyLevel(anomaly, scorerCfg)
-	logSamplingBoostDecision(anomaly, level, boostable, reason)
+	logSamplingBoostDecision(anomaly, level, boostable, reason, false)
 	if !boostable {
 		return false
 	}
 	if level < samplingBoostMinAnomalyLevel {
 		return false
 	}
+	return emitSamplingBoostForAnomaly(anomaly, store, now)
+}
 
+func emitSamplingBoostForAnomaly(anomaly observerdef.Anomaly, store *adaptivesampling.SamplingBoostStore, now time.Time) bool {
 	boost := store.Set(adaptivesampling.SamplingBoost{
 		ContainerID:     anomaly.Context.ContainerID,
 		PatternHash:     anomaly.Context.PatternHash,
@@ -75,6 +125,52 @@ func MaybeEmitSamplingBoostForAnomaly(anomaly observerdef.Anomaly, store *adapti
 	pkglog.Infof("[logs/adaptive-sampling] boost emitted container_id=%s pattern_hash=%s ttl=%s rate_multiplier=%.2f burst_multiplier=%.2f credit_grant=%.2f boost_id=%d",
 		boost.ContainerID, boost.PatternHash, samplingBoostTTL, boost.RateMultiplier, boost.BurstMultiplier, boost.CreditGrant, boost.ID)
 	return true
+}
+
+func (s *samplingBoostEventSink) rememberCandidate(anomaly observerdef.Anomaly, now time.Time) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.recentCandidates == nil {
+		s.recentCandidates = make(map[string]recentBoostCandidate)
+	}
+	s.evictExpiredCandidatesLocked(now)
+	s.recentCandidates[boostCandidateKey(anomaly)] = recentBoostCandidate{
+		anomaly:   anomaly,
+		expiresAt: now.Add(samplingBoostScorerHighTTL),
+	}
+}
+
+func (s *samplingBoostEventSink) scorerHighActive(now time.Time) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.scorerHighUntil.After(now)
+}
+
+func (s *samplingBoostEventSink) openScorerHighGate(now time.Time) []observerdef.Anomaly {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.scorerHighUntil = now.Add(samplingBoostScorerHighTTL)
+	s.evictExpiredCandidatesLocked(now)
+	candidates := make([]observerdef.Anomaly, 0, len(s.recentCandidates))
+	for _, candidate := range s.recentCandidates {
+		candidates = append(candidates, candidate.anomaly)
+	}
+	return candidates
+}
+
+func (s *samplingBoostEventSink) evictExpiredCandidatesLocked(now time.Time) {
+	for key, candidate := range s.recentCandidates {
+		if !candidate.expiresAt.After(now) {
+			delete(s.recentCandidates, key)
+		}
+	}
+}
+
+func boostCandidateKey(anomaly observerdef.Anomaly) string {
+	if anomaly.Context == nil {
+		return ""
+	}
+	return anomaly.Context.ContainerID + "\x00" + anomaly.Context.PatternHash
 }
 
 func boostableLogPatternAnomaly(anomaly observerdef.Anomaly) (bool, string) {
@@ -96,7 +192,7 @@ func boostableLogPatternAnomaly(anomaly observerdef.Anomaly) (bool, string) {
 	return true, "boostable"
 }
 
-func logSamplingBoostDecision(anomaly observerdef.Anomaly, level int, boostable bool, reason string) {
+func logSamplingBoostDecision(anomaly observerdef.Anomaly, level int, boostable bool, reason string, scorerHigh bool) {
 	count := samplingBoostDecisionDebugCount.Add(1)
 	if !adaptivesampling.ShouldLogDebugSample(count) {
 		return
@@ -107,13 +203,14 @@ func logSamplingBoostDecision(anomaly observerdef.Anomaly, level int, boostable 
 		patternHash = anomaly.Context.PatternHash
 		pattern = anomaly.Context.Pattern
 	}
-	pkglog.Infof("%s boost decision count=%d boostable=%t reason=%q level=%d min_level=%d namespace=%q metric=%q detector=%q score=%s container_id=%q pattern_hash=%q pattern=%q",
+	pkglog.Infof("%s boost decision count=%d boostable=%t reason=%q level=%d min_level=%d scorer_high=%t namespace=%q metric=%q detector=%q score=%s container_id=%q pattern_hash=%q pattern=%q",
 		adaptivesampling.DebugLogPrefix,
 		count,
 		boostable,
 		reason,
 		level,
 		samplingBoostMinAnomalyLevel,
+		scorerHigh,
 		anomaly.Source.Namespace,
 		anomaly.Source.Name,
 		anomaly.DetectorName,
