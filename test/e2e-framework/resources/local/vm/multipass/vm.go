@@ -89,7 +89,7 @@ ssh_authorized_keys:
 		case "Stopped", "Suspended":
 			return fmt.Sprintf("multipass start %s", args.Name), nil
 		case "Deleted":
-			return fmt.Sprintf("multipass purge && %s", cloudInitScript(cloudInit, launchCmd)), nil
+			return fmt.Sprintf("multipass delete --purge %s && %s", args.Name, cloudInitScript(cloudInit, launchCmd)), nil
 		default:
 			return cloudInitScript(cloudInit, launchCmd), nil
 		}
