@@ -25,6 +25,7 @@
 .windows_path:
   &windows_path # Windows-specific Go source files (by filename convention)
   - "**/*_windows.go"
+  - "**/*_windows_test.go"
 
   # Windows-specific packages in pkg/
   - pkg/util/winutil/**/*
@@ -294,9 +295,9 @@ variables:
   CI_IMAGE_RPM_ARM64_SUFFIX: ""
   CI_IMAGE_RPM_ARMHF: v120029388-43933fee
   CI_IMAGE_RPM_ARMHF_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2022_X64: v119961810-e18b0f68
+  CI_IMAGE_WIN_LTSC2022_X64: v120143276-cb5277fb
   CI_IMAGE_WIN_LTSC2022_X64_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2025_X64: v119961810-e18b0f68
+  CI_IMAGE_WIN_LTSC2025_X64: v120143276-cb5277fb
   CI_IMAGE_WIN_LTSC2025_X64_SUFFIX: ""
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
