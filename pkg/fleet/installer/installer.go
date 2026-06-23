@@ -100,7 +100,7 @@ func NewInstaller(ctx context.Context, env *env.Env) (Installer, error) {
 	if err != nil {
 		return nil, fmt.Errorf("could not create packages db: %w", err)
 	}
-	pkgs := repository.NewRepositories(paths.PackagesPath, packages.AsyncPreRemoveHooks, packages.ActivationHooks())
+	pkgs := repository.NewRepositories(paths.PackagesPath, packages.AsyncPreRemoveHooks, packages.PreActivateHooks())
 	i := &installerImpl{
 		env:        env,
 		db:         db,
@@ -352,8 +352,8 @@ func (i *installerImpl) doInstall(ctx context.Context, url string, args []string
 	}
 	err = i.packages.Create(ctx, pkg.Name, pkg.Version, tmpDir)
 	if err != nil {
-		if installed && errors.Is(err, repository.ErrActivationFailed) {
-			// A before-publish failure preserves the old stable link, so keep the
+		if installed && errors.Is(err, repository.ErrPreActivateFailed) {
+			// A pre-activate failure preserves the old stable link, so keep the
 			// database aligned with that preserved repository state.
 			if restoreErr := i.db.SetPackage(dbPkg); restoreErr != nil {
 				return fmt.Errorf("could not create repository: %w (also could not restore package installation in db: %v)", err, restoreErr)

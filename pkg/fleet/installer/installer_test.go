@@ -271,8 +271,8 @@ func TestInstallClearsDBBeforePostInstall(t *testing.T) {
 	assert.False(t, installed)
 }
 
-func TestInstallRestoresDBWhenActivationFails(t *testing.T) {
-	sentinel := errors.New("activation failed")
+func TestInstallRestoresDBWhenPreActivateFails(t *testing.T) {
+	sentinel := errors.New("pre-activate failed")
 	s := fixtures.NewServer(t)
 	rootPath := t.TempDir()
 	installer := newTestPackageManager(t, s, rootPath)
@@ -284,7 +284,7 @@ func TestInstallRestoresDBWhenActivationFails(t *testing.T) {
 	err := installer.Install(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil)
 	assert.NoError(t, err)
 
-	installer.packages = repository.NewRepositories(rootPath, nil, map[string]repository.ActivationHook{
+	installer.packages = repository.NewRepositories(rootPath, nil, map[string]repository.PreActivateHook{
 		fixtures.FixtureSimpleV1.Package: func(_ context.Context, _ string) error {
 			return sentinel
 		},
@@ -293,7 +293,7 @@ func TestInstallRestoresDBWhenActivationFails(t *testing.T) {
 	installer.testHooks.On("PreInstall", testCtx, fixtures.FixtureSimpleV1.Package, packages.PackageTypeOCI, true).Return(nil).NotBefore(preRemoveCall)
 
 	err = installer.Install(testCtx, s.PackageURL(fixtures.FixtureSimpleV2), nil)
-	assert.ErrorIs(t, err, repository.ErrActivationFailed)
+	assert.ErrorIs(t, err, repository.ErrPreActivateFailed)
 	assert.ErrorIs(t, err, sentinel)
 
 	installed, err := installer.IsInstalled(testCtx, fixtures.FixtureSimpleV1.Package)

@@ -30,7 +30,7 @@ type hooks struct {
 	preInstall  packageHook
 	preRemove   packageHook
 	postInstall packageHook
-	activate    packagePathHook
+	preActivate packagePathHook
 
 	preStartExperiment    packageHook
 	postStartExperiment   packageHook
@@ -78,17 +78,16 @@ func NewHooks(env *env.Env, packages *repository.Repositories) Hooks {
 	}
 }
 
-// ActivationHooks returns package-specific activation functions that must run
-// after files are placed in their immutable repository path and before that path
-// is published through stable or experiment.
-func ActivationHooks() map[string]repository.ActivationHook {
-	activate := make(map[string]repository.ActivationHook)
+// PreActivateHooks returns package-specific hooks that must run after files are
+// placed in their immutable repository path and before stable or experiment is activated.
+func PreActivateHooks() map[string]repository.PreActivateHook {
+	preActivate := make(map[string]repository.PreActivateHook)
 	for pkg, h := range packagesHooks {
-		if h.activate != nil {
-			activate[pkg] = repository.ActivationHook(h.activate)
+		if h.preActivate != nil {
+			preActivate[pkg] = repository.PreActivateHook(h.preActivate)
 		}
 	}
-	return activate
+	return preActivate
 }
 
 type hooksCLI struct {
