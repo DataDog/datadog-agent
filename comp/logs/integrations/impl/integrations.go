@@ -8,8 +8,21 @@ package integrationsimpl
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 )
+
+// Requires defines the dependencies for the integrations component
+type Requires struct {
+	compdef.In
+}
+
+// Provides defines the output of the integrations component constructor
+type Provides struct {
+	compdef.Out
+
+	Comp integrations.Component
+}
 
 // Logsintegration is the integrations component implementation
 type Logsintegration struct {
@@ -17,7 +30,18 @@ type Logsintegration struct {
 	integrationChan chan integrations.IntegrationConfig
 }
 
-// NewLogsIntegration creates a new integrations instance
+// NewComponent creates a new integrations component
+func NewComponent(_ Requires) Provides {
+	return Provides{
+		Comp: &Logsintegration{
+			logChan:         make(chan integrations.IntegrationLog),
+			integrationChan: make(chan integrations.IntegrationConfig),
+		},
+	}
+}
+
+// NewLogsIntegration creates a new integrations instance.
+// Deprecated: use NewComponent instead.
 func NewLogsIntegration() *Logsintegration {
 	return &Logsintegration{
 		logChan:         make(chan integrations.IntegrationLog),
