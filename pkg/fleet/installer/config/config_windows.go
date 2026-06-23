@@ -185,10 +185,11 @@ func secureCreateTargetDirectoryWithSourcePermissions(sourcePath, targetPath str
 // restricted to Administrators and ddagentuser. For files Linux makes world-readable
 // (mode 0644 — only application_monitoring.yaml), we grant Everyone read so non-admin
 // identities (e.g. IIS App Pool) can read fleet config. Restricted files (mode 0640) keep the
-// inherited admin/ddagentuser-only ACL.
+// inherited admin/ddagentuser-only ACL, including after moves from world-readable files.
 func setFileOwnershipAndPermissions(_ context.Context, root *os.Root, path string, spec *configFileSpec) error {
+	fullPath := filepath.Join(root.Name(), path)
 	if spec.mode&0o004 == 0 {
-		return nil
+		return paths.RemoveFileReadableByEveryone(fullPath)
 	}
-	return paths.SetFileReadableByEveryone(filepath.Join(root.Name(), path))
+	return paths.SetFileReadableByEveryone(fullPath)
 }

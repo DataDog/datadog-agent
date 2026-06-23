@@ -573,28 +573,56 @@ func SetRepositoryPermissions(path string) error {
 // world-readable (0644) file on Linux and lets non-admin identities (e.g. an IIS App Pool
 // identity) read fleet config such as application_monitoring.yaml.
 func SetFileReadableByEveryone(path string) error {
-	// D:AI - DACL, Auto-Inherit ("inherit permissions from the parent folder").
-	// (A;;GR;;;WD) - Allow Generic Read to Everyone (World Domain).
-	sddl := "D:AI(A;;GR;;;WD)"
+	return setFileEveryoneReadAccess(path, windows.GRANT_ACCESS)
+}
 
-	sd, err := windows.SecurityDescriptorFromString(sddl)
+// RemoveFileReadableByEveryone removes the explicit read access granted to the Everyone group
+// while preserving the owner/group and the rest of the DACL.
+func RemoveFileReadableByEveryone(path string) error {
+	return setFileEveryoneReadAccess(path, windows.REVOKE_ACCESS)
+}
+
+func setFileEveryoneReadAccess(path string, accessMode windows.ACCESS_MODE) error {
+	everyone, err := windows.CreateWellKnownSid(windows.WinWorldSid)
 	if err != nil {
-		return fmt.Errorf("failed to create security descriptor: %w", err)
+		return fmt.Errorf("failed to create Everyone SID: %w", err)
 	}
+
+	sd, err := windows.GetNamedSecurityInfo(path, windows.SE_FILE_OBJECT, windows.DACL_SECURITY_INFORMATION)
+	if err != nil {
+		return fmt.Errorf("failed to get security info: %w", err)
+	}
+
 	dacl, _, err := sd.DACL()
 	if err != nil {
 		return fmt.Errorf("failed to get DACL: %w", err)
 	}
-	// Set the explicit DACL and allow inheritance from the parent directory.
-	// Not using PROTECTED_DACL_SECURITY_INFORMATION so the file inherits ACEs from the parent.
+
+	newDACL, err := windows.ACLFromEntries([]windows.EXPLICIT_ACCESS{
+		{
+			AccessPermissions: windows.ACCESS_MASK(windows.GENERIC_READ),
+			AccessMode:        accessMode,
+			Inheritance:       windows.NO_INHERITANCE,
+			Trustee: windows.TRUSTEE{
+				TrusteeForm:  windows.TRUSTEE_IS_SID,
+				TrusteeType:  windows.TRUSTEE_IS_GROUP,
+				TrusteeValue: windows.TrusteeValueFromSID(everyone),
+			},
+		},
+	}, dacl)
+	if err != nil {
+		return fmt.Errorf("failed to update DACL: %w", err)
+	}
+
+	// Set the merged DACL and allow inheritance from the parent directory.
 	return windows.SetNamedSecurityInfo(
 		path,
 		windows.SE_FILE_OBJECT,
-		windows.DACL_SECURITY_INFORMATION,
-		nil,  // owner - leave unchanged
-		nil,  // group - leave unchanged
-		dacl, // DACL - set this
-		nil,  // SACL - leave unchanged
+		windows.DACL_SECURITY_INFORMATION|windows.UNPROTECTED_DACL_SECURITY_INFORMATION,
+		nil,     // owner - leave unchanged
+		nil,     // group - leave unchanged
+		newDACL, // DACL - set this
+		nil,     // SACL - leave unchanged
 	)
 }
 
