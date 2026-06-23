@@ -5,6 +5,8 @@
 
 require "./lib/project_extension.rb"
 
+ENV['OMNIBUS_REPO_ROOT'] = File.expand_path(File.join(__dir__, ".."))
+
 if ENV["WINDOWS_BUILD_32_BIT"]
     windows_arch :x86
 else
