@@ -24,6 +24,10 @@ func NewRshellBundle(cfg *config.Config) types.Bundle {
 				cfg.RShellAllowedPaths,
 				cfg.RShellAllowedCommands,
 			),
+			"runRemediationCommand": NewRunRemediationCommandHandler(
+				cfg.RShellAllowedPaths,
+				cfg.RShellAllowedCommands,
+			),
 		},
 	}
 }

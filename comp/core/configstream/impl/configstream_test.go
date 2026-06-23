@@ -103,6 +103,7 @@ func TestClientConnectsAndReceivesStream(t *testing.T) {
 		updates := make([]*pb.ConfigUpdate, 0)
 		timeout := time.After(2 * time.Second)
 
+	loop:
 		for i := 0; i < 3; i++ {
 			select {
 			case event := <-eventChan:
@@ -111,7 +112,7 @@ func TestClientConnectsAndReceivesStream(t *testing.T) {
 					updates = append(updates, update)
 				}
 			case <-timeout:
-				break
+				break loop
 			}
 		}
 
@@ -309,6 +310,7 @@ func newConfigStreamForTest(t *testing.T, cfg config.Component, logger log.Compo
 
 	cs := provides.Comp.(*configStream)
 	go cs.run()
+	t.Cleanup(func() { close(cs.stopChan) })
 
 	return cs
 }
