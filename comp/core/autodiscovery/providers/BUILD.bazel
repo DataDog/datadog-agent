@@ -6,7 +6,6 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 go_library(
     name = "providers",
     srcs = [
-        "ad_misconfig_reporting.go",
         "cloudfoundry.go",
         "cloudfoundry_nop.go",
         "clusterchecks.go",
