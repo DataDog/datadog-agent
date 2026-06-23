@@ -188,14 +188,18 @@ func (v *ssiSuite) TestInjectionMode() {
 			podValidator.RequireInjectorVersion(v.T(), "0.54.0")
 			podValidator.RequireLibraryVersions(v.T(), map[string]string{"python": "v3.18.1"})
 
-			// Validate the webhook outcome annotations. CSI driver detection is
-			// enabled for this suite (see injection_mode.yaml) and the driver is
-			// installed with APM support, so every injected pod records the
-			// driver status regardless of its configured injection mode.
+			// Validate the webhook outcome annotations.
 			podValidator.RequireEffectiveInjectionMode(v.T(), tc.effectiveMode)
 			podValidator.RequireInjectionStatus(v.T(), testutils.InjectionStatusInjected)
-			podValidator.RequireCSIDriverStatus(v.T(), testutils.CSIDriverStatusAPMEnabled)
 			podValidator.RequireInjectedLibraries(v.T(), map[string]string{"injector": "injected", "python": "injected"})
+
+			// csi-driver-status records the watcher's state at admission time for every
+			// mode, but only the auto pod is re-admitted above once the watcher has synced.
+			// The explicit modes do not depend on the watcher and may carry a stale status
+			// if they were admitted during the initial sync window, so only assert it here.
+			if tc.name == "injection-mode-app-auto" {
+				podValidator.RequireCSIDriverStatus(v.T(), testutils.CSIDriverStatusAPMEnabled)
+			}
 
 			require.Eventually(v.T(), func() bool {
 				traces := FindTracesForService(v.T(), intake, tc.name)
