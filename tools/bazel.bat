@@ -2,14 +2,6 @@
 setlocal EnableDelayedExpansion
 >nul chcp 65001
 
-:: TODO(agent-build): remove once done with Omnibus
-if defined OMNIBUS_REPO_ROOT if /i "%~dp0" neq "%OMNIBUS_REPO_ROOT:/=\%\tools\" (
-  cd /d "%OMNIBUS_REPO_ROOT%"
-  set "OMNIBUS_REPO_ROOT="
-  call "tools\%~nx0" %*
-  exit /b !errorlevel!
-)
-
 :: Check `bazelisk` properly bootstraps `bazel` or fail with instructions
 if defined BAZEL_REAL if "%BAZELISK_SKIP_WRAPPER%"=="true" goto :bazelisk_ok
 >&2 type "%~dp0bazelisk.md"
