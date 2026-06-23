@@ -38,35 +38,104 @@ Call `mcp__atlassian__jira_search` with:
 - `fields`: `"summary,status,issuetype,assignee,labels"`
 - `limit`: `50`
 
-Collect each child issue's `key`, `summary`, and `status.name`. These keys (plus the Epic key itself) become the search terms for finding PRs in Step 4.
+Collect each child issue's `key`, `summary`, `status.name`, and `status.category` (or `status.statusCategory.key` depending on the API shape — accept both).
 
-If the search returns zero children, that is fine — some Epics are resolved by PRs that reference the Epic key directly. Continue with just `<EPIC-KEY>` as the search term.
+**Filter out unfinished work.** A resolution recap is about what shipped, so drop any child issue whose `status.category` (or `statusCategory.key`) is `To Do` / `new` / `indeterminate`. Keep only children in the `Done` category (statuses like `Done`, `Closed`, `Resolved`). Record the dropped children in a `skipped_children` list so you can mention them in the preview if the user asks.
+
+If the resulting list of completed children is empty, that is fine — some Epics are resolved by PRs that reference the Epic key directly. Continue with just `<EPIC-KEY>` as the search term.
 
 ## Step 4: Find merged PRs
 
-Build the list of Jira keys to search for: `[EPIC-KEY, <child keys>]`.
+Build the list of Jira keys to search for: `[EPIC-KEY, <completed child keys from Step 3>]`.
 
-For each key (run in parallel as separate Bash invocations when more than one), search merged PRs across the `DataDog` GitHub org:
+### Phase A — Jira Development panel (Tier 0)
+
+For each key, call `jira_get_issue_development_info` on the `user-atlassian` server with:
+- `issue_key`: `<KEY>`
+- `application_type`: `"GitHub"` (**CamelCase is mandatory** — lowercase `"github"` returns empty results; this is a Jira REST API quirk in `/rest/dev-status/1.0/issue/detail`)
+
+Do **not** use the batch tool `jira_get_issues_development_info` — it returns HTTP 500 when `application_type` is passed.
+
+From each response, collect `pullRequests` entries where `status == "MERGED"`. Record each as a **Tier 0** PR with fields: `id` (e.g. `#52248`), `name` (title), `url`, `status`, `source.branch`, `destination.branch`, `author`, `reviewers`, `lastUpdate`, `repositoryUrl`.
+
+**Tier 0 PRs are auto-included with the highest confidence** — they are explicitly linked to the Jira issue by the GitHub↔Jira integration. No heuristic filtering is needed.
+
+If a call returns empty `pullRequests` or errors, that is fine — Phase B covers it. Log it and continue.
+
+Deduplicate Tier 0 results by `(repository, PR number)` across all keys.
+
+### Phase B — GitHub search (Tiers 1–4)
+
+**Skip keys that already have at least one Tier 0 PR from Phase A** — unless you want maximum recall. For keys with zero Tier 0 results, and optionally for all keys to catch PRs missed by Jira integration, run `gh search prs`.
+
+**One key per request — `OR` is not supported.** `gh search prs` treats the query as a literal string, so `"OTAGENT-410 OR OTAGENT-411"` will match zero PRs (verified in the wild). Issue one `gh search prs` call per Jira key:
 
 ```bash
 gh search prs \
   --owner DataDog \
   --merged \
-  --limit 50 \
-  --json repository,title,url,number,labels,body,author \
+  --limit 20 \
+  --json repository,title,url,number,labels,author \
   -- "<KEY>"
 ```
 
+**Throttling — avoid GitHub's secondary rate limit.** GitHub's search API has a low secondary limit (~30 req/min); a batch of 10+ keys easily trips it. Apply both:
+- Cap parallelism at **at most 4 concurrent `gh search prs` calls** (smaller batches are safer).
+- Sleep **~500 ms between waves** of parallel calls. A simple `sleep 0.5` between batches is sufficient.
+
+If a call returns HTTP 403 with a `secondary rate limit` message, follow the back-off in the "Errors and edge cases" section (60 s pause then retry the failing keys one at a time).
+
 Notes:
-- The `--` separates flags from the query; the bare key goes in the query.
-- `gh search prs` matches the key in title, body, and commit messages.
-- Deduplicate by `(repository.nameWithOwner, number)` across all keys.
+- The `--` separates flags from the query; the bare key goes in the query (no quotes around the key needed inside the JSON shell array).
+- `gh search prs` matches the key in title, body, and commit messages — which is exactly the source of false positives below.
+- Deduplicate by `(repository.nameWithOwner, number)` across all keys **and** against Tier 0 PRs from Phase A. If a PR was already collected as Tier 0, do not downgrade it — keep Tier 0.
 
-Filter out:
-- PRs whose title or body explicitly says "revert" of another PR in the list (keep both if they end up cancelling out — let the user decide during preview).
-- Bot PRs (`author.is_bot == true`, or author login ending with `[bot]`) unless they touch release notes or code.
+### Tier classification (Phase B PRs only)
 
-If zero PRs are found, ask the user via `AskUserQuestion` whether to:
+**Classify each PR from Phase B into one of four tiers, based on where the searched key `<KEY>` appears.** This trades aggressive precision (lots of false positives, e.g. cross-references) for recall, and is precision-over-recall by design — Tier 3 is shown in preview so the user can opt-in to include borderline items.
+
+Apply the tiers in order; the first match wins.
+
+**Tier 1 — auto-include (key in PR title).** Word-boundary match `\b<KEY>\b` against `title`. Standard forms:
+- `[OTAGENT-410] …` (bracketed, the standard `team/opentelemetry-agent` format)
+- bare `OTAGENT-410` as a word
+- `(OTAGENT-410)` inside parentheses
+
+**Tier 2 — auto-include (key with closing keyword in body).** Match the key in `body` only when it is preceded by a standard GitHub closing keyword or a JIRA-field label, on the same logical line, at the start of a line (multiline mode):
+
+```regex
+^\s*(Resolves|Closes|Fixes|Fix|JIRA|Jira ticket)[:\s]+\b<KEY>\b
+```
+
+The `^` anchor (multiline) is critical — it rejects mentions buried inside paragraphs and only accepts explicit "this PR closes X" statements. Treat the body's `\r\n` line endings as line boundaries when applying the regex.
+
+**Tier 3 — auto-EXCLUDE by default, show in preview (key in body, no closing keyword).** Anything else where `\b<KEY>\b` matches in body but Tier 1/2 didn't fire. This includes:
+- `### Motivation\n<URL containing the key>` (very common in datadog-agent PRs — but ambiguous between "this PR closes the ticket" and "this PR was motivated by the ticket but doesn't fully close it")
+- Bare key mentions in the middle of a paragraph
+- Markdown links to the Jira ticket without a closing keyword
+
+Record these as `tier3_candidates` with: PR URL, title, and the 1-2 surrounding lines from the body that contain the key. Step 10 surfaces this list in the preview so the user can opt-in via `Edit`.
+
+**Tier 4 — auto-exclude (key in body with explicit cross-reference language).** Apply this BEFORE checking Tier 3. If `\b<KEY>\b` is preceded within 60 characters on the same line by any of:
+
+```regex
+(?i)\b(follow[- ]?up|related[ -]?to|see also|supersedes|cf\.|referenced in|context for|after|before|companion to|part of)\b[^\n]{0,60}\b<KEY>\b
+```
+
+… the PR is a cross-reference, not a resolution of the searched key. Drop it silently — these would be noise in the preview's skipped-list too. Reasoning: when an author writes "Follow-up to OTAGENT-392" in the body, they are not claiming to resolve OTAGENT-392.
+
+**Filter order summary (Phase B only; Tier 0 PRs bypass this entirely):**
+1. Tier 1 (title match) → include
+2. Tier 4 (cross-reference language in body) → exclude silently
+3. Tier 2 (closing keyword in body) → include
+4. Tier 3 (any other body match) → exclude by default, surface in preview
+
+### Additional drop rules (apply after tier classification, all tiers including Tier 0)
+
+- **Drop reverts** — PRs whose title or body explicitly says "revert" of another PR in the list (keep both if they end up cancelling out — let the user decide during preview).
+- **Drop bot PRs** — `author.is_bot == true`, or author login ending with `[bot]`, unless they touch release notes or code. Backport bot PRs (e.g. titled `[Backport X.Y.x] [OTAGENT-XXX] …`) should be deduplicated against the primary PR by Jira key; keep the primary and drop the backport from the recap (mention only in a footnote if relevant).
+
+If zero PRs are found across both phases, ask the user via `AskUserQuestion` whether to:
 - Provide PR URLs manually (comma-separated list)
 - Continue with an empty PR section (recap will rely on Epic description + user input)
 - Cancel
@@ -108,6 +177,8 @@ gh api "repos/<owner>/<repo>/contents/<path>?ref=<mergeSha>" \
 ```
 
 Parse each YAML release note and collect the section name (`features`, `enhancements`, `fixes`, `upgrade`, `deprecations`, `security`, `other`, `issues`) and its prose. Keep the original wording — release notes are already customer-facing.
+
+**Empty release notes are common, not an error.** Several teams (notably `team/opentelemetry-agent`, which routinely labels DDOT PRs `changelog/no-changelog`) ship user-visible behaviour without reno entries. If no release notes are found across all PRs, do not stop or warn — Step 9 has an explicit fallback that derives `What's new` from PR titles and bodies. Record this fact so the preview can mention `_None of the linked PRs included release notes_` at the bottom of the `Linked PRs` section.
 
 ## Step 7: Classify the change
 
@@ -152,8 +223,8 @@ Read [recap-template.md](recap-template.md) and substitute each `{{placeholder}}
 |---|---|
 | `{{epic_key}}` | Step 1 |
 | `{{epic_summary}}` | Step 2 |
-| `{{summary}}` | Synthesised 1-2 sentences combining Epic summary + release-note headlines, written for PMs |
-| `{{whats_new}}` | Bullet list of user-facing wins, primarily from release-note prose (`features` and `enhancements` sections) |
+| `{{summary}}` | Synthesised 1-2 sentences for PMs. Prefer combining the Epic summary + release-note headlines. If no release notes exist (see fallback below), combine the Epic summary with the most user-relevant PR titles. |
+| `{{whats_new}}` | Bullet list of user-facing wins. Sources, in order of preference: (1) release-note prose from the `features` and `enhancements` sections; (2) `fixes` / `upgrade` / `deprecations` sections if user-visible; (3) **fallback when release notes are empty**: derive one bullet per PR using the PR title (stripped of the `[OTAGENT-XXX]` prefix and rewritten in user-facing language) plus a one-sentence summary of the PR body's `### What does this PR do?` section. Many DDOT and trace PRs are labelled `changelog/no-changelog` even when they ship user-visible behaviour changes, so the fallback is the normal path for some teams. Drop bullets that describe purely internal refactors, dep bumps with no behaviour change, or test-only PRs. |
 | `{{signal_path}}` | Step 7 values as a bullet list, or omit the section if empty |
 | `{{signal_type}}` | Step 7 values as a bullet list, or omit the section if empty |
 | `{{api_config_changes}}` | Step 7 content, or omit the section if "None" and no relevant release notes |
@@ -161,7 +232,7 @@ Read [recap-template.md](recap-template.md) and substitute each `{{placeholder}}
 | `{{agent_footprint}}` | Step 8 answer, or omit the section if `No change` AND no footprint-relevant release notes exist |
 | `{{repositories_touched}}` | Step 7 list, bullet form |
 | `{{customer_tracking}}` | Step 8 answer, or omit the section if `Not tracked yet` |
-| `{{linked_prs}}` | Bullet list. Format per PR: `- [<repo>#<number>](<url>) — <title>` followed by indented bullets listing release notes (`  - <section>: <one-line excerpt>`) |
+| `{{linked_prs}}` | Bullet list. Format per PR: `- [<repo>#<number>](<url>) — <title>` followed by indented bullets listing release notes (`  - <section>: <one-line excerpt>`). Group Tier 0 PRs (from Jira Development panel) first with a `_(linked via Jira)_` annotation, then Tier 1/2 PRs from GitHub search. |
 
 Drop the HTML rendering-rules comment from the template before producing the final markdown.
 
@@ -169,13 +240,40 @@ When omitting an optional section, remove its `##` heading too — do not leave 
 
 ## Step 10: Preview and approval
 
-Print the rendered markdown to the chat under a heading like `### Preview — <EPIC-KEY> recap`. Then call `AskUserQuestion` with options:
+Print the rendered markdown to the chat under a heading like `### Preview — <EPIC-KEY> recap`.
+
+**Before the recap, print a one-line PR discovery summary** so the user can see what was found where:
+
+```
+> Found N PRs: X via Jira Development panel (Tier 0), Y via GitHub search (Tier 1/2). Z Tier 3 candidates skipped (see below).
+```
+
+**After the rendered recap, if `tier3_candidates` from Step 4 is non-empty, print a separate `### Skipped (Tier 3 — opt-in)` block.** This block lives outside the recap markdown — it is not part of what gets posted to Jira, only shown to the user. Format:
+
+```
+### Skipped (Tier 3 — opt-in)
+
+The following PRs mention the searched Jira keys in their body but without a closing keyword (`Resolves`/`Closes`/`Fixes`/`JIRA:`). They are excluded from the recap by default. Pick `Edit` and say "include #N, #M" to add them.
+
+- [<repo>#<number>](<url>) — <title>
+  - Searched key: <KEY>
+  - Body context: «…<the 1-2 lines around the key match>…»
+- …
+```
+
+Then call `AskUserQuestion` with options:
 
 - `Post` — proceed to Step 11
-- `Edit` — ask the user for free-text instructions (e.g. "shorten the summary", "drop the perf section", "add a note about backport"). Apply the edits and loop back to the preview.
+- `Edit` — ask the user for free-text instructions. Common edits:
+  - "shorten the summary"
+  - "drop the perf section"
+  - "include #N" / "include all Tier 3" — promote one or more Tier 3 candidates into the recap, then re-render
+  - "add a note about backport"
+
+  Apply the edits and loop back to the preview.
 - `Cancel` — go to Step 12 (save and exit).
 
-If `--dry-run` was set in Step 1, skip the question entirely and jump straight to Step 12 with `cancel` semantics. Print a notice that the recap was not posted because of `--dry-run`.
+If `--dry-run` was set in Step 1, skip the question entirely and jump straight to Step 12 with `cancel` semantics. Print a notice that the recap was not posted because of `--dry-run`. The Tier 3 skipped block is still printed in dry-run mode so the user can review what was filtered.
 
 ## Step 11: Post the comment
 
@@ -203,6 +301,7 @@ When the user picks `Cancel` or `--dry-run` was specified:
 ## Errors and edge cases
 
 - **Authentication failure on Atlassian MCP** — stop, do not try a different transport, ask the user to authenticate.
+- **`jira_get_issue_development_info` returns empty or errors** — this is expected for some projects where the GitHub↔Jira integration is partially configured, or when `application_type` casing is wrong. Phase B (GitHub search) covers these cases. Log a note like `Jira dev panel returned no PRs for <KEY>, falling back to GitHub search` and continue.
 - **`gh` not authenticated** — run `gh auth status`; if it fails, ask the user to run `gh auth login`.
 - **`gh search prs` rate-limited** — back off once for 60 seconds, then retry once; if still failing, ask the user to provide PR URLs manually (Step 4 fallback).
 - **Very large PR set (> 25 PRs)** — present a numbered list and ask the user via `AskUserQuestion` whether to include all of them or to narrow down by date / label / repo.
