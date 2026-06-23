@@ -150,6 +150,15 @@ func TestMountSocketIntoContainer_ContainerNotFound(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestMountSocketIntoContainer_MountPathConflict(t *testing.T) {
+	pod := podWithContainer("envoy")
+	pod.Spec.Containers[0].VolumeMounts = []corev1.VolumeMount{{Name: "other-vol", MountPath: "/var/run/datadog"}}
+	err := MountSocketIntoContainer(pod, "envoy", SharedSocketVolumeName, "/var/run/datadog")
+	require.Error(t, err, "a different volume already at the mount path must be a conflict, not a duplicate append")
+	require.Len(t, pod.Spec.Containers[0].VolumeMounts, 1)
+	assert.Equal(t, "other-vol", pod.Spec.Containers[0].VolumeMounts[0].Name)
+}
+
 func TestEnsureSocketFSGroup_NilSecurityContext(t *testing.T) {
 	pod := &corev1.Pod{}
 	EnsureSocketFSGroup(pod, 65532)

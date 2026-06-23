@@ -274,3 +274,103 @@ func TestEnvoyGatewayNewModeSelection(t *testing.T) {
 	_, ok = New(client, logger, externalConfig, recorder).(appsecconfig.SidecarInjectionPattern)
 	assert.False(t, ok)
 }
+
+func TestEnvoyGatewaySidecarMutatePodHonorsGatewayOptOut(t *testing.T) {
+	ctx := context.Background()
+	logger := logmock.New(t)
+	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), envoyGatewaySidecarListKinds())
+	gw := newTestGateway("eg-ns", "eg")
+	gw.SetLabels(map[string]string{appsecEnabledLabel: "false"})
+	_, err := client.Resource(gatewayGVR).Namespace("eg-ns").Create(ctx, gw, metav1.CreateOptions{})
+	require.NoError(t, err)
+	recorder := record.NewFakeRecorder(100)
+	pattern := newTestEnvoyGatewaySidecarPattern(t, client, logger, recorder)
+	pod := newEnvoyGatewayDataPlanePod("envoy-eg")
+
+	mutated, err := pattern.MutatePod(pod, envoyGatewaySystemNamespace, client)
+	require.NoError(t, err)
+	assert.False(t, mutated)
+	assert.Nil(t, findContainer(pod, sidecar.SidecarContainerName))
+	assert.Equal(t, 0, countVolumes(pod, sidecar.SharedSocketVolumeName))
+
+	_, err = client.Resource(backendGVR).Namespace("eg-ns").Get(ctx, extProcName, metav1.GetOptions{})
+	require.Error(t, err)
+	_, err = client.Resource(extensionGVR).Namespace("eg-ns").Get(ctx, extProcName, metav1.GetOptions{})
+	require.Error(t, err)
+}
+
+func TestEnvoyGatewaySidecarMutatePodInjectsWhenGatewayOptedIn(t *testing.T) {
+	ctx := context.Background()
+	logger := logmock.New(t)
+	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), envoyGatewaySidecarListKinds())
+	gw := newTestGateway("eg-ns", "eg")
+	gw.SetLabels(map[string]string{appsecEnabledLabel: "true"})
+	_, err := client.Resource(gatewayGVR).Namespace("eg-ns").Create(ctx, gw, metav1.CreateOptions{})
+	require.NoError(t, err)
+	recorder := record.NewFakeRecorder(100)
+	pattern := newTestEnvoyGatewaySidecarPattern(t, client, logger, recorder)
+	pod := newEnvoyGatewayDataPlanePod("envoy-eg")
+
+	mutated, err := pattern.MutatePod(pod, envoyGatewaySystemNamespace, client)
+	require.NoError(t, err)
+	require.True(t, mutated)
+	assert.NotNil(t, findContainer(pod, sidecar.SidecarContainerName))
+
+	_, err = client.Resource(backendGVR).Namespace("eg-ns").Get(ctx, extProcName, metav1.GetOptions{})
+	require.NoError(t, err)
+}
+
+func TestEnvoyGatewaySidecarMutatePodFailsOpenOnEmptyUDSPath(t *testing.T) {
+	ctx := context.Background()
+	logger := logmock.New(t)
+	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), envoyGatewaySidecarListKinds())
+	recorder := record.NewFakeRecorder(100)
+
+	config := appsecconfig.Config{
+		Product: appsecconfig.Product{
+			Mode: appsecconfig.InjectionModeSidecar,
+			Sidecar: appsecconfig.Sidecar{
+				UDSPath:   "",
+				RunAsUser: 65532,
+			},
+		},
+		Injection: appsecconfig.Injection{
+			CommonLabels:      map[string]string{"app": "datadog"},
+			CommonAnnotations: map[string]string{"managed-by": "datadog"},
+		},
+	}
+	pattern, ok := New(client, logger, config, recorder).(appsecconfig.SidecarInjectionPattern)
+	require.True(t, ok)
+	pod := newEnvoyGatewayDataPlanePod("envoy-eg")
+
+	mutated, err := pattern.MutatePod(pod, envoyGatewaySystemNamespace, client)
+	require.NoError(t, err)
+	assert.False(t, mutated)
+	assert.Nil(t, findContainer(pod, sidecar.SidecarContainerName))
+	assert.Equal(t, 0, countVolumes(pod, sidecar.SharedSocketVolumeName))
+
+	_, err = client.Resource(backendGVR).Namespace("eg-ns").Get(ctx, extProcName, metav1.GetOptions{})
+	require.Error(t, err)
+}
+
+func TestEnvoyGatewaySidecarIsNamespaceEligibleHonorsConfig(t *testing.T) {
+	logger := logmock.New(t)
+	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), envoyGatewaySidecarListKinds())
+	recorder := record.NewFakeRecorder(100)
+
+	def := newTestEnvoyGatewaySidecarPattern(t, client, logger, recorder)
+	assert.True(t, def.IsNamespaceEligible(envoyGatewaySystemNamespace), "default config must accept envoy-gateway-system")
+	assert.False(t, def.IsNamespaceEligible("custom-eg"))
+
+	config := appsecconfig.Config{
+		Product: appsecconfig.Product{
+			Mode:    appsecconfig.InjectionModeSidecar,
+			Sidecar: appsecconfig.Sidecar{UDSPath: "/var/run/datadog/extproc.sock", RunAsUser: 65532},
+		},
+		Injection: appsecconfig.Injection{EnvoyGatewayNamespace: "custom-eg"},
+	}
+	custom, ok := New(client, logger, config, recorder).(appsecconfig.SidecarInjectionPattern)
+	require.True(t, ok)
+	assert.True(t, custom.IsNamespaceEligible("custom-eg"), "configured namespace must be eligible")
+	assert.False(t, custom.IsNamespaceEligible(envoyGatewaySystemNamespace), "non-configured namespace must be rejected")
+}

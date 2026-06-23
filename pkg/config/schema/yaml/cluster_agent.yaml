@@ -173,6 +173,14 @@ properties:
             type: boolean
             default: false
             comment: AppSec Injector in the cluster agent ( Preview )
+          envoy_gateway:
+            node_type: section
+            type: object
+            properties:
+              namespace:
+                node_type: setting
+                type: string
+                default: envoy-gateway-system
           istio:
             node_type: section
             type: object

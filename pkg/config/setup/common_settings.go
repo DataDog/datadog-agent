@@ -351,6 +351,7 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.processor.service.name", "")
 	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.processor.service.namespace", "")
 	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.istio.namespace", "istio-system")
+	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.envoy_gateway.namespace", "envoy-gateway-system")
 	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.mode", "sidecar")
 
 	// APM tracing for the cluster agent itself (currently covers cluster check dispatching)

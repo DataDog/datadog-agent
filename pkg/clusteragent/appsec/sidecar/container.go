@@ -259,8 +259,11 @@ func MountSocketIntoContainer(pod *corev1.Pod, containerName, volumeName, mountD
 			continue
 		}
 		for _, vm := range pod.Spec.Containers[i].VolumeMounts {
-			if vm.Name == volumeName && vm.MountPath == mountDir {
-				return nil
+			if vm.MountPath == mountDir {
+				if vm.Name == volumeName {
+					return nil
+				}
+				return fmt.Errorf("mount path %q in container %q is already used by volume %q", mountDir, containerName, vm.Name)
 			}
 		}
 		pod.Spec.Containers[i].VolumeMounts = append(pod.Spec.Containers[i].VolumeMounts, corev1.VolumeMount{

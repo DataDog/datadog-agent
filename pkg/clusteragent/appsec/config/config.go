@@ -166,6 +166,10 @@ type Injection struct {
 
 	// IstioNamespace is used to determine where we will inject the `EnvoyFilter` object to make it global to the cluster.
 	IstioNamespace string
+
+	// EnvoyGatewayNamespace is the namespace where Envoy Gateway runs its data-plane pods; it scopes which pods
+	// the sidecar webhook accepts and where the Backend extension ConfigMap is read. Defaults to envoy-gateway-system.
+	EnvoyGatewayNamespace string
 }
 
 // Config represents the configuration of the AppSec Injection Proxy feature passed down to [InjectionPattern] implementations
@@ -338,7 +342,8 @@ func FromComponent(cfg config.Component, logger log.Component) Config {
 			BaseBackoff:       cfg.GetDuration("cluster_agent.appsec.injector.base_backoff"),
 			MaxBackoff:        cfg.GetDuration("cluster_agent.appsec.injector.max_backoff"),
 
-			IstioNamespace: cfg.GetString("cluster_agent.appsec.injector.istio.namespace"),
+			IstioNamespace:        cfg.GetString("cluster_agent.appsec.injector.istio.namespace"),
+			EnvoyGatewayNamespace: cfg.GetString("cluster_agent.appsec.injector.envoy_gateway.namespace"),
 		},
 	}
 }

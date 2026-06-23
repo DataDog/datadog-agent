@@ -11,12 +11,15 @@ import (
 	"context"
 	"fmt"
 	"path"
+	"strings"
 
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	appsecconfig "github.com/DataDog/datadog-agent/pkg/clusteragent/appsec/config"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/appsec/sidecar"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/client-go/dynamic"
 )
@@ -25,6 +28,7 @@ const (
 	owningGatewayNameLabel      = "gateway.envoyproxy.io/owning-gateway-name"
 	owningGatewayNamespaceLabel = "gateway.envoyproxy.io/owning-gateway-namespace"
 	envoyProxyContainerName     = "envoy"
+	appsecEnabledLabel          = "appsec.datadoghq.com/enabled"
 )
 
 var _ appsecconfig.SidecarInjectionPattern = (*envoyGatewaySidecarPattern)(nil)
@@ -40,7 +44,16 @@ func (e *envoyGatewaySidecarPattern) MatchCondition() admissionregistrationv1.Ma
 }
 
 func (e *envoyGatewaySidecarPattern) IsNamespaceEligible(ns string) bool {
-	return ns == envoyGatewaySystemNamespace
+	return ns == e.envoyGatewayNamespace()
+}
+
+// envoyGatewayNamespace returns the configured Envoy Gateway data-plane namespace, falling back to
+// the envoy-gateway-system default when unset (e.g. in tests that build Config directly).
+func (e *envoyGatewayInjectionPattern) envoyGatewayNamespace() string {
+	if ns := e.config.EnvoyGatewayNamespace; ns != "" {
+		return ns
+	}
+	return envoyGatewaySystemNamespace
 }
 
 func (e *envoyGatewaySidecarPattern) ShouldMutatePod(pod *corev1.Pod) bool {
@@ -98,7 +111,12 @@ func (e *envoyGatewaySidecarPattern) MutatePod(pod *corev1.Pod, _ string, _ dyna
 		}
 	}
 
-	e.warnIfBackendDisabled(context.TODO(), envoyGatewaySystemNamespace)
+	if strings.TrimSpace(e.config.Sidecar.UDSPath) == "" {
+		e.logger.Warnf("Cannot inject appsec UDS sidecar into pod %s: sidecar.uds_path is empty; skipping injection", mutatecommon.PodString(pod))
+		return false, nil
+	}
+
+	e.warnIfBackendDisabled(context.TODO(), e.envoyGatewayNamespace())
 
 	gwName := pod.Labels[owningGatewayNameLabel]
 	if gwName == "" {
@@ -109,6 +127,18 @@ func (e *envoyGatewaySidecarPattern) MutatePod(pod *corev1.Pod, _ string, _ dyna
 	if gwNamespace == "" {
 		e.logger.Warnf("Cannot resolve Envoy Gateway for pod %s: missing %q label; skipping appsec sidecar injection", mutatecommon.PodString(pod), owningGatewayNamespaceLabel)
 		return false, nil
+	}
+
+	// The Gateway informer honors the appsec.datadoghq.com/enabled=false opt-out, but in sidecar
+	// mode resources are created here (Added is a no-op), so re-check the owning Gateway's opt-out
+	// label before mutating. Fail open: if the Gateway cannot be read, proceed with injection.
+	if gw, err := e.client.Resource(gatewayGVR).Namespace(gwNamespace).Get(context.TODO(), gwName, metav1.GetOptions{}); err == nil {
+		if gw.GetLabels()[appsecEnabledLabel] == "false" {
+			e.logger.Debugf("Envoy Gateway %s/%s opted out of appsec (%s=false); skipping sidecar injection for pod %s", gwNamespace, gwName, appsecEnabledLabel, mutatecommon.PodString(pod))
+			return false, nil
+		}
+	} else if !errors.IsNotFound(err) {
+		e.logger.Warnf("Could not read Envoy Gateway %s/%s to check appsec opt-out, proceeding with injection: %v", gwNamespace, gwName, err)
 	}
 
 	gw := &unstructured.Unstructured{}
