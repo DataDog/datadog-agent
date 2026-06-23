@@ -13,7 +13,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/fs"
 	"os"
 	"path"
 	"path/filepath"
@@ -260,29 +259,6 @@ func (a *FileOperation) apply(ctx context.Context, root *os.Root) error {
 	default:
 		return fmt.Errorf("unknown operation type: %s", a.FileOperationType)
 	}
-}
-
-func applyConfigFilePermissions(ctx context.Context, root *os.Root) error {
-	return fs.WalkDir(root.FS(), ".", func(walkPath string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if d.IsDir() {
-			return nil
-		}
-
-		configPath := "/" + filepath.ToSlash(walkPath)
-		spec := getConfigFileSpec(configPath)
-		if spec == nil {
-			return nil
-		}
-
-		rootPath := filepath.FromSlash(walkPath)
-		if err := setFileOwnershipAndPermissions(ctx, root, rootPath, spec); err != nil {
-			return fmt.Errorf("error setting permissions for %s: %w", configPath, err)
-		}
-		return nil
-	})
 }
 
 func ensureDir(root *os.Root, filePath string) error {

@@ -12,6 +12,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -200,4 +201,31 @@ func setFileOwnershipAndPermissions(_ context.Context, root *os.Root, path strin
 		return paths.RemoveFileReadableByEveryone(fullPath)
 	}
 	return paths.SetFileReadableByEveryone(fullPath)
+}
+
+// applyConfigFilePermissions walks the config tree and re-applies each file's ACL based on its
+// configFileSpec. This is needed on Windows because robocopy (used to back up/restore the config
+// directory during experiments) does not carry the explicit Everyone-read ACE, so it must be
+// reapplied after a restore (rollback).
+func applyConfigFilePermissions(ctx context.Context, root *os.Root) error {
+	return fs.WalkDir(root.FS(), ".", func(walkPath string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			return nil
+		}
+
+		configPath := "/" + filepath.ToSlash(walkPath)
+		spec := getConfigFileSpec(configPath)
+		if spec == nil {
+			return nil
+		}
+
+		rootPath := filepath.FromSlash(walkPath)
+		if err := setFileOwnershipAndPermissions(ctx, root, rootPath, spec); err != nil {
+			return fmt.Errorf("error setting permissions for %s: %w", configPath, err)
+		}
+		return nil
+	})
 }
