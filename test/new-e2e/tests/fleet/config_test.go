@@ -122,16 +122,25 @@ func (s *configSuite) TestConfigJQReplaceTag() {
 	err = s.Backend.PromoteConfigExperiment()
 	require.NoError(s.T(), err)
 
-	// Replace the env:staging tag with the production value passed as an argument,
-	// leaving every other tag in place.
+	// Replace the env:staging tag with the production value, leaving every other
+	// tag in place. Both the matched value ($old) and the replacement ($new) are
+	// supplied as typed jq arguments.
+	//
+	// The transform is written without spaces or string literals on purpose: the
+	// daemon command is dispatched through PowerShell on Windows, and PowerShell
+	// 5.1 cannot pass an argument that contains both spaces and double quotes to a
+	// native executable (it re-quotes the argument and the embedded quotes break
+	// it). Keeping the transform free of spaces means the serialized operations
+	// JSON stays compact, so it survives the PowerShell -> installer.exe handoff.
+	// Any jq transform exercised on Windows must observe the same constraint.
 	err = s.Backend.StartConfigExperiment(backend.ConfigOperations{
 		DeploymentID: "jq-replace-tag",
 		FileOperations: []backend.FileOperation{
 			{
 				FileOperationType: backend.FileOperationJQ,
 				FilePath:          "/datadog.yaml",
-				Transform:         `.tags |= map(if . == "env:staging" then $new_env else . end)`,
-				Arguments:         []byte(`{"new_env": "env:prod"}`),
+				Transform:         `.tags|=map(if(.==$old)then($new)else(.)end)`,
+				Arguments:         []byte(`{"old":"env:staging","new":"env:prod"}`),
 			},
 		},
 	}, nil)
