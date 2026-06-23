@@ -13,6 +13,7 @@ import (
 	"io"
 	"os"
 	"path"
+	"slices"
 	"strings"
 
 	"mvdan.cc/sh/v3/syntax"
@@ -72,14 +73,27 @@ type RunCommandHandler struct {
 	mode                           interp.Mode
 }
 
-func NewRunCommandHandler(cfg RunCommandHandlerConfig) *RunCommandHandler {
+func newRunCommandHandler(operatorAllowedPaths []string, operatorAllowedCommands []string, mode interp.Mode, pathsConfigured, commandsConfigured bool) *RunCommandHandler {
+	orderedCommands := slices.Clone(operatorAllowedCommands)
+	slices.Sort(orderedCommands)
 	return &RunCommandHandler{
-		agentAllowedPaths:              append([]string(nil), cfg.AgentAllowedPaths...),
-		agentAllowedPathsConfigured:    cfg.AgentAllowedPathsConfigured,
-		agentAllowedCommands:           append([]string(nil), cfg.AgentAllowedCommands...),
-		agentAllowedCommandsConfigured: cfg.AgentAllowedCommandsConfigured,
-		mode:                           interp.ModeReadOnly,
+		agentAllowedPaths:              slices.Clone(operatorAllowedPaths),
+		agentAllowedPathsConfigured:    pathsConfigured,
+		agentAllowedCommands:           orderedCommands,
+		agentAllowedCommandsConfigured: commandsConfigured,
+		mode:                           mode,
 	}
+}
+
+func NewRunCommandHandler(cfg RunCommandHandlerConfig) *RunCommandHandler {
+	return newRunCommandHandler(cfg.AgentAllowedPaths, cfg.AgentAllowedCommands, interp.ModeReadOnly, cfg.AgentAllowedPathsConfigured, cfg.AgentAllowedCommandsConfigured)
+}
+
+// NewRunRemediationCommandHandler builds the write-capable runRemediationCommand
+// handler. It shares all sandboxing with runCommand and only switches rshell into
+// remediation mode.
+func NewRunRemediationCommandHandler(cfg RunCommandHandlerConfig) *RunCommandHandler {
+	return newRunCommandHandler(cfg.AgentAllowedPaths, cfg.AgentAllowedCommands, interp.ModeRemediation, cfg.AgentAllowedPathsConfigured, cfg.AgentAllowedCommandsConfigured)
 }
 
 // filterAllowedCommands returns the effective command allowlist, passed to rshell:
