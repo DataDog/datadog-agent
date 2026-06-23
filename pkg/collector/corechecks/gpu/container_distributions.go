@@ -75,13 +75,13 @@ func filterAutoscalingDistTags(tags []string) []string {
 	return out
 }
 
-// GetLowCardContainerTags returns the tags for the given container ID, filtered through autoscalingDistTagKeys.
-func (c *WorkloadTagCache) GetLowCardContainerTags(containerID string) ([]string, error) {
+// GetOrchestratorCardContainerTags returns the tags for the given container ID, filtered through autoscalingDistTagKeys.
+func (c *WorkloadTagCache) GetOrchestratorCardContainerTags(containerID string) ([]string, error) {
 	if containerID == "" {
 		return nil, nil
 	}
 	entityID := taggertypes.NewEntityID(taggertypes.ContainerID, containerID)
-	tags, err := c.tagger.Tag(entityID, taggertypes.LowCardinality)
+	tags, err := c.tagger.Tag(entityID, taggertypes.OrchestratorCardinality)
 	if err != nil {
 		return nil, err
 	}
@@ -161,7 +161,7 @@ func (c *Check) accumulateContainerDistributions(acc *containerDistAccumulator, 
 func (c *Check) emitContainerDistributions(acc *containerDistAccumulator, snd sender.Sender) []error {
 	var errs []error
 	for _, key := range acc.order {
-		distTags, terr := c.workloadTagCache.GetLowCardContainerTags(key.containerID)
+		distTags, terr := c.workloadTagCache.GetOrchestratorCardContainerTags(key.containerID)
 		if terr != nil && !agenterrors.IsNotFound(terr) {
 			errs = append(errs, fmt.Errorf("error collecting low-card container tags for distribution %s container %s: %w", key.distName, key.containerID, terr))
 			continue

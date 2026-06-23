@@ -110,9 +110,9 @@ func TestResolveContainerIDProcessViaContainerID(t *testing.T) {
 	assert.Equal(t, containerID, got)
 }
 
-// TestGetLowCardContainerTagsFiltersToAllowlist verifies that GetLowCardContainerTags
+// TestGetOrchestratorCardContainerTagsFiltersToAllowlist verifies that GetOrchestratorCardContainerTags
 // returns only allowed tags for a container workload.
-func TestGetLowCardContainerTagsFiltersToAllowlist(t *testing.T) {
+func TestGetOrchestratorCardContainerTagsFiltersToAllowlist(t *testing.T) {
 	cache, mocks := setupWorkloadTagCache(t)
 	containerID := "container-lowcard"
 	wid := newContainerWorkloadID(containerID)
@@ -126,14 +126,14 @@ func TestGetLowCardContainerTagsFiltersToAllowlist(t *testing.T) {
 		nil, nil, nil,
 	)
 
-	got, err := cache.GetLowCardContainerTags(containerID)
+	got, err := cache.GetOrchestratorCardContainerTags(containerID)
 	require.NoError(t, err)
 	assert.ElementsMatch(t, []string{"kube_namespace:default", "kube_deployment:my-deploy"}, got)
 }
 
-// TestGetLowCardContainerTagsForProcessWorkload verifies that a process workload
-// resolves to its owning container's low-card tags.
-func TestGetLowCardContainerTagsForProcessWorkload(t *testing.T) {
+// TestGetOrchestratorCardContainerTagsForProcessWorkload verifies that a process workload
+// resolves to its owning container's orchestrator card tags.
+func TestGetOrchestratorCardContainerTagsForProcessWorkload(t *testing.T) {
 	cache, mocks := setupWorkloadTagCache(t)
 	pid := int32(5555)
 	containerID := "container-for-process"
@@ -153,7 +153,7 @@ func TestGetLowCardContainerTagsForProcessWorkload(t *testing.T) {
 		nil, nil, nil,
 	)
 
-	got, err := cache.GetLowCardContainerTags(containerID)
+	got, err := cache.GetOrchestratorCardContainerTags(containerID)
 	require.NoError(t, err)
 	assert.ElementsMatch(t, []string{"kube_namespace:gpu-ns", "env:staging"}, got)
 }
