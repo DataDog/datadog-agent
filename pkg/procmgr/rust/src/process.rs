@@ -267,58 +267,13 @@ impl ManagedProcess {
         let mut cmd = Command::new(&self.config.command);
         cmd.args(&self.config.args);
 
-        cmd.env_clear();
-        #[cfg(windows)]
-        {
-            platform::apply_child_baseline_env(&mut cmd);
-            // Don't inherit stdin: invalid after AttachConsole/FreeConsole on stop.
-            cmd.stdin(Stdio::null());
-        }
-        if let Some(ref raw_path) = self.config.environment_file {
-            let (optional, path) = if let Some(stripped) = raw_path.strip_prefix('-') {
-                (true, stripped)
-            } else {
-                (false, raw_path.as_str())
-            };
-            if optional && !std::path::Path::new(path).exists() {
-                info!(
-                    "[{}] optional environment file not found, skipping: {path}",
-                    self.name
-                );
-            } else {
-                let vars = parse_environment_file(path).with_context(|| {
-                    format!("[{}] failed to read environment file: {path}", self.name)
-                })?;
-                for (k, v) in &vars {
-                    cmd.env(k, v);
-                }
-            }
-        }
-        for (k, v) in &self.config.env {
-            cmd.env(k, v);
-        }
+        apply_child_environment(&mut cmd, self.name(), &self.config)?;
 
         if let Some(ref dir) = self.config.working_dir {
             cmd.current_dir(dir);
         }
 
-        #[cfg(windows)]
-        {
-            // After env validation: path-valued stdout/stderr use File::create.
-            cmd.stdout(stdio_for_windows(
-                &self.config.stdout,
-                !platform::stdout_inheritable(),
-            ));
-            cmd.stderr(stdio_for_windows(
-                &self.config.stderr,
-                !platform::stderr_inheritable(),
-            ));
-        }
-        #[cfg(not(windows))]
-        {
-            cmd.stdout(stdio_from_str(&self.config.stdout));
-            cmd.stderr(stdio_from_str(&self.config.stderr));
-        }
+        apply_child_stdio(&mut cmd, &self.config);
 
         platform::setup_process_group(&mut cmd);
 
@@ -551,6 +506,56 @@ impl ManagedProcess {
     }
 }
 
+fn apply_child_environment(
+    cmd: &mut Command,
+    name: &str,
+    config: &ProcessConfig,
+) -> Result<()> {
+    cmd.env_clear();
+    #[cfg(windows)]
+    platform::apply_child_baseline_env(cmd);
+
+    if let Some(ref raw_path) = config.environment_file {
+        let (optional, path) = if let Some(stripped) = raw_path.strip_prefix('-') {
+            (true, stripped)
+        } else {
+            (false, raw_path.as_str())
+        };
+        if optional && !std::path::Path::new(path).exists() {
+            info!(
+                "[{name}] optional environment file not found, skipping: {path}"
+            );
+        } else {
+            let vars = parse_environment_file(path).with_context(|| {
+                format!("[{name}] failed to read environment file: {path}")
+            })?;
+            for (k, v) in &vars {
+                cmd.env(k, v);
+            }
+        }
+    }
+    for (k, v) in &config.env {
+        cmd.env(k, v);
+    }
+    Ok(())
+}
+
+fn apply_child_stdio(cmd: &mut Command, config: &ProcessConfig) {
+    #[cfg(windows)]
+    {
+        // Don't inherit stdin: invalid after AttachConsole/FreeConsole on stop.
+        cmd.stdin(Stdio::null());
+    }
+    cmd.stdout(stdio_from_config(
+        &config.stdout,
+        platform::stdout_inheritable(),
+    ));
+    cmd.stderr(stdio_from_config(
+        &config.stderr,
+        platform::stderr_inheritable(),
+    ));
+}
+
 fn stdio_from_str(s: &str) -> Stdio {
     match s {
         "null" => Stdio::null(),
@@ -565,13 +570,14 @@ fn stdio_from_str(s: &str) -> Stdio {
     }
 }
 
-#[cfg(windows)]
-fn stdio_for_windows(yaml_value: &str, null_instead_of_inherit: bool) -> Stdio {
-    if null_instead_of_inherit && (yaml_value == "inherit" || yaml_value.is_empty()) {
-        Stdio::null()
-    } else {
-        stdio_from_str(yaml_value)
+fn stdio_from_config(yaml_value: &str, inheritable: bool) -> Stdio {
+    #[cfg(not(windows))]
+    let _ = inheritable;
+    #[cfg(windows)]
+    if !inheritable && (yaml_value == "inherit" || yaml_value.is_empty()) {
+        return Stdio::null();
     }
+    stdio_from_str(yaml_value)
 }
 
 #[cfg(test)]
