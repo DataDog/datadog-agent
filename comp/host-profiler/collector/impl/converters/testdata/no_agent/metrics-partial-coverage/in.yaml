@@ -1,0 +1,44 @@
+receivers:
+  profiling:
+    symbol_uploader:
+      enabled: false
+  prometheus/user-defined:
+    config:
+      scrape_configs:
+      - job_name: collector-internal
+        static_configs:
+        - targets:
+          - 127.0.0.1:9999
+service:
+  telemetry:
+    metrics:
+      readers:
+      - pull:
+          exporter:
+            prometheus:
+              host: 127.0.0.1
+              port: 9999
+  pipelines:
+    metrics:
+      receivers:
+      - prometheus/user-defined
+      processors: []
+      exporters:
+      - otlp_http/covered
+    profiles:
+      processors: []
+      receivers:
+      - profiling
+      exporters:
+      - otlp_http/covered
+      - otlp_http/uncovered
+exporters:
+  otlp_http/covered:
+    headers:
+      dd-api-key: test-api-key-covered
+    profiles_endpoint: https://intake.profile.datadoghq.com/v1development/profiles
+    metrics_endpoint: https://custom.metrics.example.com/v1/metrics
+  otlp_http/uncovered:
+    headers:
+      dd-api-key: test-api-key-uncovered
+    profiles_endpoint: https://intake.profile.us3.datadoghq.com/v1development/profiles
