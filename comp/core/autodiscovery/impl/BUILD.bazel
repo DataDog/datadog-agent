@@ -1,7 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library")
-load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
-
-# gazelle:dd_agent_go_test on
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "impl",
@@ -62,7 +59,7 @@ go_library(
     ],
 )
 
-dd_agent_go_test(
+go_test(
     name = "impl_test",
     srcs = [
         "autoconfig_cel_test.go",
@@ -76,7 +73,8 @@ dd_agent_go_test(
         "store_test.go",
     ],
     embed = [":impl"],
-    tags = ["manual"],
+    gotags = ["test"],
+    tags = ["manual"],  # keep
     deps = [
         "//comp/core",
         "//comp/core/autodiscovery/common/types",
@@ -99,6 +97,7 @@ dd_agent_go_test(
         "//comp/core/workloadmeta/mock",
         "//comp/healthplatform/store/def",
         "//comp/healthplatform/store/mock",
+        "//comp/healthplatform/store/noop-impl",
         "//pkg/collector/check/id",
         "//pkg/config/mock",
         "//pkg/config/setup",

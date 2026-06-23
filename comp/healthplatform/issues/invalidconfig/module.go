@@ -13,8 +13,12 @@ import (
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 )
 
-// IssueID is the stable Agent Health identifier for configuration-schema violations
-const IssueID = "invalid-config"
+const (
+	// IssueName is the human-readable issue name for configuration-schema violations.
+	IssueName = "Invalid Config"
+	// IssueID is the stable instance identifier / registry key (kebab-case).
+	IssueID = "invalid-config"
+)
 
 func init() {
 	issues.RegisterModuleFactory(NewModule)
@@ -31,7 +35,7 @@ func NewModule(cfg config.Component) issues.Module {
 }
 
 func (m *invalidConfigModule) IssueName() string {
-	return IssueID
+	return IssueName
 }
 
 func (m *invalidConfigModule) BuildIssue(context map[string]string) (*healthplatform.Issue, error) {

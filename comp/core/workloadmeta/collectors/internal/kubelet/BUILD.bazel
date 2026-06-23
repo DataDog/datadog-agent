@@ -1,0 +1,50 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "kubelet",
+    srcs = [
+        "kubelet.go",
+        "kubelet_nop.go",
+        "stub.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/kubelet",
+    visibility = ["//comp/core/workloadmeta/collectors:__subpackages__"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/workloadmeta/collectors/util",
+        "//comp/core/workloadmeta/def",
+        "//pkg/config/env",
+        "//pkg/errors",
+        "//pkg/util/containers",
+        "//pkg/util/kubernetes/kubelet",
+        "@org_uber_go_fx//:fx",
+    ],
+)
+
+dd_agent_go_test(
+    name = "kubelet_test",
+    srcs = ["kubelet_test.go"],
+    embed = [":kubelet"],
+    flavors = [
+        "base",
+        "dogstatsd",
+        "fips",
+    ],
+    deps = [
+        "//comp/core",
+        "//comp/core/workloadmeta/collectors/util",
+        "//comp/core/workloadmeta/def",
+        "//comp/core/workloadmeta/fx-mock",
+        "//comp/core/workloadmeta/mock",
+        "//pkg/util/fxutil",
+        "//pkg/util/kubernetes",
+        "//pkg/util/kubernetes/kubelet",
+        "//pkg/util/pointer",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/api/resource",
+        "@org_uber_go_fx//:fx",
+    ],
+)

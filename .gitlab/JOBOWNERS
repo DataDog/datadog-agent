@@ -28,7 +28,6 @@ tests_windows_sysprobe*                 @DataDog/windows-products
 tests_windows_secagent*                 @DataDog/windows-products @DataDog/agent-security
 tests_flavor_*                          @DataDog/agent-runtimes
 tests_flavor_dogstatsd*                 @DataDog/agent-metric-pipelines
-tests_nodetreemodel                     @DataDog/agent-configuration
 tests_rtloader*                         @DataDog/agent-runtimes
 tests_serverless-init*                  @DataDog/serverless-azure-gcp
 security_go_generate_check              @DataDog/agent-security
