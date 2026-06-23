@@ -1,0 +1,17 @@
+# Each section from every release note are combined when the
+# CHANGELOG-DCA.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Fixed an issue where the Cluster Agent could associate a pod's detected
+    languages with the wrong Deployment when the pod's name was not consistent
+    with its owner reference. The Cluster Agent now only attributes a pod's
+    detected languages to a Deployment when the pod is owned by a ReplicaSet and
+    the Deployment derived from the pod name matches the one derived from the
+    ReplicaSet owner. Pods that are not owned by a ReplicaSet are no longer
+    considered for Deployment-level language detection.
