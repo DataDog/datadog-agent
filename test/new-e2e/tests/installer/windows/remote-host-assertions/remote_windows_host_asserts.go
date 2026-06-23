@@ -347,7 +347,10 @@ func (r *RemoteWindowsHostAssertions) HasGlobalReadAccess(path string) *RemoteWi
 
 	hasReadAccess := false
 	for _, rule := range everyoneRules {
-		if rule.IsAllow() && (rule.Rights&common.FileRead) == common.FileRead {
+		// Accept either the expanded file-specific read mask or the generic GENERIC_READ
+		// bit: the ACL is written as SDDL "(A;;GR;;;WD)", and Get-Acl may surface it either
+		// as the raw generic mask (0x80000000) or as expanded FILE_GENERIC_READ bits.
+		if rule.IsAllow() && ((rule.Rights&common.FileRead) == common.FileRead || (rule.Rights&common.GENERIC_READ) != 0) {
 			hasReadAccess = true
 			break
 		}
