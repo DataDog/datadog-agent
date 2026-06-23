@@ -62,4 +62,15 @@ func TestDeploymentOwnerForPod(t *testing.T) {
 		})
 		assert.False(t, ok)
 	})
+
+	t.Run("reject when pod name shares the deployment prefix but a different ReplicaSet", func(t *testing.T) {
+		// Same Deployment ("victim") but a different ReplicaSet hash: the pod is not a member
+		// of the reported ReplicaSet and must be rejected.
+		_, ok := deploymentOwnerForPod(&pbgo.PodLanguageDetails{
+			Namespace: "default",
+			Name:      "victim-bcdfg-2x9qd",
+			Ownerref:  &pbgo.KubeOwnerInfo{Kind: "ReplicaSet", Name: "victim-7d4f8b9c6"},
+		})
+		assert.False(t, ok)
+	})
 }

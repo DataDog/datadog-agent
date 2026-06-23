@@ -9,9 +9,8 @@
 fixes:
   - |
     Fixed an issue where the Cluster Agent could associate a pod's detected
-    languages with the wrong Deployment when the pod's name was not consistent
-    with its owner reference. The Cluster Agent now only attributes a pod's
+    languages with the wrong Deployment. The Cluster Agent now only attributes a pod's
     detected languages to a Deployment when the pod is owned by a ReplicaSet and
-    the Deployment derived from the pod name matches the one derived from the
-    ReplicaSet owner. Pods that are not owned by a ReplicaSet are no longer
-    considered for Deployment-level language detection.
+    the ReplicaSet derived from the pod name matches the owner ReplicaSet. Pods
+    that are not owned by a ReplicaSet are no longer considered for
+    Deployment-level language detection.

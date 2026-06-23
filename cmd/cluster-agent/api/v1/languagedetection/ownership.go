@@ -19,9 +19,11 @@ import (
 //
 // A pod created by a Deployment is owned by a ReplicaSet and named
 // "<deployment>-<replicaset-hash>-<pod-hash>". We therefore require:
-//   - the owner to be a ReplicaSet (pods that reference a Deployment directly are rejected), and
-//   - the Deployment parsed from the pod name to match the Deployment parsed from the
-//     ReplicaSet owner name.
+//   - the owner to be a ReplicaSet (pods that reference a Deployment directly are rejected),
+//   - the ReplicaSet parsed from the pod name to match the owner ReplicaSet name exactly (so a
+//     pod cannot be attributed to a ReplicaSet it does not belong to, even if both names share
+//     the same Deployment prefix), and
+//   - the owner ReplicaSet name to parse to a Deployment.
 func deploymentOwnerForPod(podDetail *pbgo.PodLanguageDetails) (langUtil.NamespacedOwnerReference, bool) {
 	owner := podDetail.Ownerref
 	if owner == nil || owner.Kind != langUtil.KindReplicaset {
@@ -29,14 +31,14 @@ func deploymentOwnerForPod(podDetail *pbgo.PodLanguageDetails) (langUtil.Namespa
 		return langUtil.NamespacedOwnerReference{}, false
 	}
 
-	deploymentName := kubernetes.ParseDeploymentForReplicaSet(owner.Name)
-	if deploymentName == "" {
-		log.Debugf("language detection: skipping pod %s/%s: could not parse deployment from ReplicaSet %q", podDetail.Namespace, podDetail.Name, owner.Name)
+	if rsFromName := kubernetes.ParseReplicaSetForPodName(podDetail.Name); rsFromName != owner.Name {
+		log.Debugf("language detection: skipping pod %s/%s: pod name resolves to ReplicaSet %q but owner reference is %q", podDetail.Namespace, podDetail.Name, rsFromName, owner.Name)
 		return langUtil.NamespacedOwnerReference{}, false
 	}
 
-	if fromName := kubernetes.ParseDeploymentForPodName(podDetail.Name); fromName != deploymentName {
-		log.Debugf("language detection: skipping pod %s/%s: pod name resolves to deployment %q but owner reference resolves to %q", podDetail.Namespace, podDetail.Name, fromName, deploymentName)
+	deploymentName := kubernetes.ParseDeploymentForReplicaSet(owner.Name)
+	if deploymentName == "" {
+		log.Debugf("language detection: skipping pod %s/%s: could not parse deployment from ReplicaSet %q", podDetail.Namespace, podDetail.Name, owner.Name)
 		return langUtil.NamespacedOwnerReference{}, false
 	}
 
