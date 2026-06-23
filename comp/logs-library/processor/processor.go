@@ -296,6 +296,21 @@ func (p *Processor) applyRedactingRules(msg *message.Message) bool {
 				msg.RecordProcessingRule(rule.Type, rule.Name)
 				return false
 			}
+		case config.ExcludeAtJQMatch:
+			if matched, err := rule.JQFilter(content); err == nil && matched {
+				msg.RecordProcessingRule(rule.Type, rule.Name)
+				return false
+			}
+		case config.IncludeAtJQMatch:
+			matched, err := rule.JQFilter(content)
+			if err != nil {
+				// Non-JSON or runtime error: pass through unchanged.
+				break
+			}
+			if !matched {
+				return false
+			}
+			msg.RecordProcessingRule(rule.Type, rule.Name)
 		case config.RemapSource:
 			for _, match := range rule.Matching {
 				if val, ok := msg.GetStructuredAttribute(match.Attribute); ok && val == match.Value {

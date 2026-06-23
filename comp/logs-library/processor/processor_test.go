@@ -791,3 +791,91 @@ func TestRemapSource_EscapedDotPath(t *testing.T) {
 		assert.Equal("fallback", msg.Origin.Source())
 	})
 }
+
+func newJQSource(ruleType, pattern string) sources.LogSource {
+	rule := &config.ProcessingRule{
+		Type:    ruleType,
+		Name:    ruleName,
+		Pattern: pattern,
+	}
+	if err := config.CompileProcessingRules([]*config.ProcessingRule{rule}); err != nil {
+		panic(err)
+	}
+	return *sources.NewLogSource("", &config.LogsConfig{ProcessingRules: []*config.ProcessingRule{rule}})
+}
+
+func TestJQExclusion(t *testing.T) {
+	p := &Processor{}
+
+	tests := []struct {
+		name          string
+		pattern       string
+		input         []byte
+		shouldProcess bool
+	}{
+		{
+			name:          "drops matching JSON",
+			pattern:       `select(.level == "debug")`,
+			input:         []byte(`{"level":"debug","msg":"verbose"}`),
+			shouldProcess: false,
+		},
+		{
+			name:          "passes non-matching JSON",
+			pattern:       `select(.level == "debug")`,
+			input:         []byte(`{"level":"error","msg":"boom"}`),
+			shouldProcess: true,
+		},
+		{
+			name:          "passes non-JSON content unchanged",
+			pattern:       `select(.level == "debug")`,
+			input:         []byte("plain text log line"),
+			shouldProcess: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			src := newJQSource(config.ExcludeAtJQMatch, tc.pattern)
+			msg := newMessage(tc.input, &src, "")
+			assert.Equal(t, tc.shouldProcess, p.applyRedactingRules(msg))
+		})
+	}
+}
+
+func TestJQInclusion(t *testing.T) {
+	p := &Processor{}
+
+	tests := []struct {
+		name          string
+		pattern       string
+		input         []byte
+		shouldProcess bool
+	}{
+		{
+			name:          "keeps matching JSON",
+			pattern:       `select(.level == "error")`,
+			input:         []byte(`{"level":"error","msg":"boom"}`),
+			shouldProcess: true,
+		},
+		{
+			name:          "drops non-matching JSON",
+			pattern:       `select(.level == "error")`,
+			input:         []byte(`{"level":"debug","msg":"verbose"}`),
+			shouldProcess: false,
+		},
+		{
+			name:          "passes non-JSON content unchanged",
+			pattern:       `select(.level == "error")`,
+			input:         []byte("plain text log line"),
+			shouldProcess: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			src := newJQSource(config.IncludeAtJQMatch, tc.pattern)
+			msg := newMessage(tc.input, &src, "")
+			assert.Equal(t, tc.shouldProcess, p.applyRedactingRules(msg))
+		})
+	}
+}
