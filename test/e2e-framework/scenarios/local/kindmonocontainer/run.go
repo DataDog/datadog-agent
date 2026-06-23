@@ -24,7 +24,6 @@ import (
 	agentComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/cpustress"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/nginx"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/prometheus"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/redis"
 	fakeintakeComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/fakeintake"
 	kubeComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
@@ -122,11 +121,12 @@ func Run(ctx *pulumi.Context) error {
 		return err
 	}
 
-	if err := deployClusterAgent(ctx, clusterName, clusterAgentImage, clusterAgentToken.Result, fakeIntake, imgPullSecret, providerOpt); err != nil {
+	clusterAgentSvc, err := deployClusterAgent(ctx, clusterName, clusterAgentImage, clusterAgentToken.Result, fakeIntake, imgPullSecret, providerOpt)
+	if err != nil {
 		return err
 	}
 
-	if err := deployNodeAgentDaemonSet(ctx, clusterName, agentImage, clusterAgentToken.Result, fakeIntake, imgPullSecret, providerOpt); err != nil {
+	if err := deployNodeAgentDaemonSet(ctx, clusterName, agentImage, clusterAgentToken.Result, fakeIntake, imgPullSecret, pulumi.DependsOn([]pulumi.Resource{clusterAgentSvc}), providerOpt); err != nil {
 		return err
 	}
 
@@ -140,10 +140,6 @@ func Run(ctx *pulumi.Context) error {
 		if _, err := cpustress.K8sAppDefinition(&localEnv, kubeProvider, "workload-cpustress"); err != nil {
 			return err
 		}
-		if _, err := prometheus.K8sAppDefinition(&localEnv, kubeProvider, "workload-prometheus"); err != nil {
-			return err
-		}
-
 	}
 
 	return nil
@@ -354,7 +350,7 @@ func deployClusterAgentRBAC(ctx *pulumi.Context, _ config.Env, providerOpt pulum
 	return err
 }
 
-func deployClusterAgent(ctx *pulumi.Context, clusterName, image string, authToken pulumi.StringOutput, fakeIntake *fakeintakeComp.Fakeintake, imgPullSecret *corev1.Secret, providerOpt pulumi.ResourceOption) error {
+func deployClusterAgent(ctx *pulumi.Context, clusterName, image string, authToken pulumi.StringOutput, fakeIntake *fakeintakeComp.Fakeintake, imgPullSecret *corev1.Secret, providerOpt pulumi.ResourceOption) (*corev1.Service, error) {
 	caEnv := corev1.EnvVarArray{
 		&corev1.EnvVarArgs{Name: pulumi.String("DD_HEALTH_PORT"), Value: pulumi.String("5556")},
 		&corev1.EnvVarArgs{
@@ -382,7 +378,7 @@ func deployClusterAgent(ctx *pulumi.Context, clusterName, image string, authToke
 	if fakeIntake != nil {
 		fiVars, err := fakeintakeEnvVars(fakeIntake)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		caEnv = append(caEnv, fiVars...)
 	}
@@ -405,7 +401,7 @@ func deployClusterAgent(ctx *pulumi.Context, clusterName, image string, authToke
 		},
 	}, providerOpt)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	_, err = appsv1.NewDeployment(ctx, "datadog-ca-deploy", &appsv1.DeploymentArgs{
@@ -459,10 +455,10 @@ func deployClusterAgent(ctx *pulumi.Context, clusterName, image string, authToke
 			},
 		},
 	}, providerOpt, pulumi.DependsOn([]pulumi.Resource{svc}))
-	return err
+	return svc, err
 }
 
-func deployNodeAgentDaemonSet(ctx *pulumi.Context, clusterName, image string, authToken pulumi.StringOutput, fakeIntake *fakeintakeComp.Fakeintake, imgPullSecret *corev1.Secret, providerOpt pulumi.ResourceOption) error {
+func deployNodeAgentDaemonSet(ctx *pulumi.Context, clusterName, image string, authToken pulumi.StringOutput, fakeIntake *fakeintakeComp.Fakeintake, imgPullSecret *corev1.Secret, opts ...pulumi.ResourceOption) error {
 	env := corev1.EnvVarArray{
 		&corev1.EnvVarArgs{
 			Name: pulumi.String("DD_API_KEY"),
@@ -600,7 +596,7 @@ func deployNodeAgentDaemonSet(ctx *pulumi.Context, clusterName, image string, au
 				},
 			},
 		},
-	}, providerOpt)
+	}, opts...)
 	return err
 }
 
