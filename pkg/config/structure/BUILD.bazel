@@ -25,7 +25,6 @@ go_test(
         "//pkg/config/create",
         "//pkg/config/model",
         "//pkg/config/nodetreemodel",
-        "//pkg/config/viperconfig",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],

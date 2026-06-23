@@ -255,10 +255,8 @@ func (e *engine) registerHandle(h *handle) {
 // passes a statically-defined string constant. As of this writing the full
 // set is:
 //   - "all-metrics"          (pkg/aggregator/demultiplexer_agent.go)
-//   - "dogstatsd"            (comp/dogstatsd/server/server.go)
-//   - "logs"                 (comp/observer/logssource/impl/component.go)
-//   - "agent-internal-logs"  (comp/observer/impl/observer.go)
-//   - "profile-agent"        (comp/observer/impl/observer.go)
+//   - "logs"                 (comp/anomalydetection/logssource/impl/logssource.go)
+//   - "agent-internal-logs"  (comp/anomalydetection/observer/impl/observer.go)
 //
 // If a future caller ever passes a user-controlled or per-container source
 // string, the COW map becomes unbounded and this memoisation strategy is
@@ -368,13 +366,13 @@ func (e *engine) removeEvictedMetricSeries(namespace string, evictedNames []stri
 // SeriesRemover interface that the listed SeriesRefs have been freed by
 // storage. This keeps detector-side per-series state (BOCPD posterior maps,
 // ScanMW/ScanWelch segment trackers, seriesDetectorAdapter visible-count
-// maps) symmetric with storage so the LRU caps placed on extractorsâ
+// maps) symmetric with storage so the LRU caps placed on extractors'
 // contexts actually translate into bounded heap usage end-to-end.
 //
-// The caller (removeContextRefsForEvictedKeys / Reset / future GC paths)
-// is responsible for invoking this with whatever refs storage actually
-// freed. Detectors are expected to ignore unknown refs, so itâs safe to
-// broadcast the same ref list to all of them.
+// The caller (removeEvictedMetricSeries / Reset / future GC paths) is
+// responsible for invoking this with whatever refs storage actually freed.
+// Detectors are expected to ignore unknown refs, so it's safe to broadcast
+// the same ref list to all of them.
 //
 // Concurrency invariant: this method, like every method on engine and
 // every detector RemoveSeries / Detect callback, runs only on the single

@@ -18,6 +18,7 @@ import (
 	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha2"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 
 	"github.com/twmb/murmur3"
@@ -51,11 +52,14 @@ var resyncLabelKeysFromPodAutoscaler = []string{
 	ProfileLabelKey,
 }
 
-// resyncAnnotationKeysFromPodAutoscaler lists the annotation keys read by UpdateFromPodAutoscaler.
+// resyncAnnotationKeysFromPodAutoscaler lists annotation keys whose value must trigger a re-sync
+// when changed. Edits to these don't bump .metadata.generation, so they're part of the metadata
+// fingerprint. Includes annotations consumed downstream, e.g. ad.datadoghq.com/tags (metric tags).
 var resyncAnnotationKeysFromPodAutoscaler = []string{
 	PreviewAnnotationKey,
 	ProfileTemplateHashAnnotation,
 	CustomRecommenderAnnotationKey,
+	kubernetes.ADTagsAnnotation,
 }
 
 // PodAutoscalerInternal holds the necessary data to work with the `DatadogPodAutoscaler` CRD.
@@ -161,6 +165,9 @@ type PodAutoscalerInternal struct {
 
 	// inPlacePDBBlockedCount is the number of times eviction was blocked by a PodDisruptionBudget
 	inPlacePDBBlockedCount uint
+
+	// inPlaceDisruptionThrottledCount is the number of disruptive in-place resizes deferred to stay within the disruption budget
+	inPlaceDisruptionThrottledCount uint
 
 	// inPlaceResizeCompletedCount is the number of times all pods in a resize cycle completed successfully
 	inPlaceResizeCompletedCount uint
@@ -906,6 +913,17 @@ func (p *PodAutoscalerInternal) InPlacePDBBlockedCount() uint {
 // InPlacePDBBlockedInc increments the PDB blocked counter
 func (p *PodAutoscalerInternal) InPlacePDBBlockedInc() {
 	p.inPlacePDBBlockedCount++
+}
+
+// InPlaceDisruptionThrottledCount returns the number of disruptive in-place resizes deferred
+// because the disruption budget was already consumed.
+func (p *PodAutoscalerInternal) InPlaceDisruptionThrottledCount() uint {
+	return p.inPlaceDisruptionThrottledCount
+}
+
+// InPlaceDisruptionThrottledAdd adds count deferred disruptive resizes to the throttle counter.
+func (p *PodAutoscalerInternal) InPlaceDisruptionThrottledAdd(count uint) {
+	p.inPlaceDisruptionThrottledCount += count
 }
 
 // InPlaceResizeCompletedCount returns the number of times all pods completed an in-place resize cycle

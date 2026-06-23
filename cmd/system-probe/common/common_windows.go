@@ -5,7 +5,9 @@
 
 package common
 
-const (
-	// DefaultLogFile is the default path to the system-probe log file
-	DefaultLogFile = "c:\\programdata\\datadog\\logs\\system-probe.log"
-)
+import "github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
+
+// DefaultLogFile returns the default path to the system-probe log file
+func DefaultLogFile() string {
+	return defaultpaths.GetDefaultSystemProbeLogFile()
+}

@@ -11,7 +11,9 @@ import (
 	"sync"
 
 	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
+
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/configresolver"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/discoverer"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
@@ -56,6 +58,16 @@ type configManager interface {
 
 	// getActiveServices returns the currently active services
 	getActiveServices() map[string]listeners.Service
+
+	// start spins up background discovery worker.
+	start()
+
+	// stop tears down background discovery worker.
+	stop()
+
+	// discoveredChanges returns a channel that emits ConfigChanges produced
+	// asynchronously by the configuration-discovery worker.
+	discoveredChanges() <-chan integration.ConfigChanges
 }
 
 // serviceAndADIDs bundles a service and its associated AD identifiers.
@@ -115,13 +127,15 @@ type reconcilingConfigManager struct {
 
 	secretResolver secrets.Component
 	healthPlatform healthplatformdef.Component
+
+	discoveryState //nolint:unused
 }
 
 var _ configManager = &reconcilingConfigManager{}
 
 // newReconcilingConfigManager creates a new, empty reconcilingConfigManager.
-func newReconcilingConfigManager(secretResolver secrets.Component, healthPlatform healthplatformdef.Component, staticConfigIndex *listeners.StaticConfigIndex) configManager {
-	return &reconcilingConfigManager{
+func newReconcilingConfigManager(secretResolver secrets.Component, healthPlatform healthplatformdef.Component, staticConfigIndex *listeners.StaticConfigIndex, disco discoverer.ConfigDiscoverer) configManager {
+	cm := &reconcilingConfigManager{
 		activeConfigs:      map[string]integration.Config{},
 		activeServices:     map[string]serviceAndADIDs{},
 		templatesByADID:    newMultimap(),
@@ -132,6 +146,8 @@ func newReconcilingConfigManager(secretResolver secrets.Component, healthPlatfor
 		secretResolver:     secretResolver,
 		healthPlatform:     healthPlatform,
 	}
+	initDiscoveryWorker(cm, disco)
+	return cm
 }
 
 // processNewService implements configManager#processNewService.
@@ -187,6 +203,8 @@ func (cm *reconcilingConfigManager) processDelService(svc listeners.Service) int
 	//  2. update templatesByADID or servicesByADID to match
 	for _, adID := range svcAndADIDs.adIDs {
 		cm.servicesByADID.remove(adID, svcID)
+		// No explicit cancellation of in-flight discovery probes needed.
+		// When they dequeue, ServiceLookup fails and aborts the disocvery.
 	}
 
 	//  3. update serviceResolutions, generating changes
@@ -430,9 +448,17 @@ func (cm *reconcilingConfigManager) reconcileService(svcID string) integration.C
 }
 
 // resolveTemplateForService resolves a template config for the given service,
-// updating errorStats in the process.  If the resolution fails, this method
-// returns false.
+// updating errorStats in the process. If the resolution fails or discovery is enabled,
+// this method returns false.
 func (cm *reconcilingConfigManager) resolveTemplateForService(tpl integration.Config, svc listeners.Service) (integration.Config, bool) {
+	// Configuration Discovery is enabled on the integration template.
+	// Do not resolve the template through the synchronous path.
+	// Instead enqueue a discovery probe for the template and service pair.
+	if tpl.Discovery != nil {
+		cm.scheduleDiscovery(svc.GetServiceID(), tpl.Digest(), tpl.Name)
+		return tpl, false
+	}
+
 	digest := tpl.Digest()
 	config, err := configresolver.Resolve(tpl, svc)
 	if err != nil {
@@ -469,6 +495,7 @@ func (cm *reconcilingConfigManager) reportTemplateResolutionFailure(tpl integrat
 		issue = &healthplatformpayload.Issue{
 			Id:        issueID,
 			IssueName: healthplatformdef.ADMisconfigurationIssueName,
+			Title:     "Autodiscovery Misconfiguration on '" + tpl.Name + " (" + svc.GetServiceID() + ")'",
 			Source:    healthplatformdef.ADMisconfigurationSource,
 		}
 	} else {

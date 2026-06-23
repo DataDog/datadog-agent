@@ -263,7 +263,8 @@ func (p *Probe) reportHealthIssue() {
 	if buildErr != nil {
 		issue = &healthplatformpayload.Issue{
 			Id:        healthIssueID,
-			IssueName: healthIssueID,
+			IssueName: admissionprobe.IssueName,
+			Title:     "Admission Controller Unreachable",
 			Source:    "cluster-agent",
 		}
 	} else {
