@@ -113,7 +113,7 @@ func TestErrorThenRecovery(t *testing.T) {
 	store := storemock.New(t, storemock.WithIssue(&healthplatformpayload.Issue{Id: "issue-1"}))
 	var (
 		mu          sync.Mutex
-		sendErr     error = assert.AnError
+		sendErr     = assert.AnError
 		callCount   int32
 		successSent []*healthplatformpayload.HealthReport
 	)
