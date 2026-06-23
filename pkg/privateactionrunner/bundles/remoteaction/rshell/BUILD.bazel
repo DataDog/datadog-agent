@@ -33,6 +33,7 @@ go_test(
     gotags = ["test"],
     deps = [
         "//pkg/config/setup",
+        "//pkg/privateactionrunner/adapters/config",
         "//pkg/privateactionrunner/types",
         "@com_github_datadog_rshell//interp",
         "@com_github_stretchr_testify//assert",

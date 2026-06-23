@@ -18,7 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/gpu/config"
+	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 	"github.com/DataDog/rshell/interp"
 )
@@ -581,7 +581,7 @@ func TestResolveProcPathContainerizedWithoutHostMount(t *testing.T) {
 // TestNewRshellBundleRegistersBothModes verifies the bundle exposes both
 // actions and that each carries the expected rshell execution mode.
 func TestNewRshellBundleRegistersBothModes(t *testing.T) {
-	bundle := NewRshellBundle(&config.Config{})
+	bundle := NewRshellBundle(&parconfig.Config{})
 
 	runCommand, ok := bundle.GetAction("runCommand").(*RunCommandHandler)
 	require.True(t, ok, "runCommand should be registered")
@@ -599,13 +599,10 @@ func TestRunRemediationCommandAllowsFileRedirect(t *testing.T) {
 	dir := t.TempDir()
 	target := filepath.Join(dir, "out.txt")
 
-	handler := NewRunRemediationCommandHandler(
-		[]string{setup.RShellPathAllowAll},
-		[]string{setup.RShellCommandAllowAllWildcard},
-	)
+	handler := NewRunRemediationCommandHandler(RunCommandHandlerConfig{})
 	task := makeTaskWithPaths("echo hello > "+target,
 		[]string{"rshell:echo"},
-		map[string][]string{setup.RShellPathAllowMapDefaultKey: {dir}})
+		[]string{dir + ":rw"})
 
 	out, err := handler.Run(context.Background(), task, nil)
 
@@ -625,13 +622,10 @@ func TestRunCommandReadOnlyBlocksFileRedirect(t *testing.T) {
 	dir := t.TempDir()
 	target := filepath.Join(dir, "out.txt")
 
-	handler := NewRunCommandHandler(
-		[]string{setup.RShellPathAllowAll},
-		[]string{setup.RShellCommandAllowAllWildcard},
-	)
+	handler := NewRunCommandHandler(RunCommandHandlerConfig{})
 	task := makeTaskWithPaths("echo hello > "+target,
 		[]string{"rshell:echo"},
-		map[string][]string{setup.RShellPathAllowMapDefaultKey: {dir}})
+		[]string{dir + ":rw"})
 
 	out, err := handler.Run(context.Background(), task, nil)
 
@@ -651,14 +645,11 @@ func TestRunRemediationCommandRedirectOutsideSandboxBlocked(t *testing.T) {
 	allowedDir := t.TempDir()
 	outsideTarget := filepath.Join(t.TempDir(), "out.txt")
 
-	handler := NewRunRemediationCommandHandler(
-		[]string{setup.RShellPathAllowAll},
-		[]string{setup.RShellCommandAllowAllWildcard},
-	)
+	handler := NewRunRemediationCommandHandler(RunCommandHandlerConfig{})
 	// Only allowedDir is in the sandbox; the write targets a sibling temp dir.
 	task := makeTaskWithPaths("echo hello > "+outsideTarget,
 		[]string{"rshell:echo"},
-		map[string][]string{setup.RShellPathAllowMapDefaultKey: {allowedDir}})
+		[]string{allowedDir + ":rw"})
 
 	out, err := handler.Run(context.Background(), task, nil)
 
