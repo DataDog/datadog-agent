@@ -10,9 +10,14 @@ $maxRetries = 4
 # To catch the error message from aws cli
 $ErrorActionPreference = "Continue"
 
+$ciIdentitiesExe = "C:\devtools\ci-identities-gitlab-job-client.exe"
+if (-not (Test-Path $ciIdentitiesExe)) {
+    $ciIdentitiesExe = "C:\ci-identities-gitlab-job-client.exe"
+}
+
 while ($retryCount -lt $maxRetries) {
     if ($parameterField) {
-        $result = (C:\devtools\ci-identities-gitlab-job-client.exe secrets read "$parameterName" "$parameterField" 2> errorFile.txt)
+        $result = (& $ciIdentitiesExe secrets read "$parameterName" "$parameterField" 2> errorFile.txt)
     } else {
         $result = (aws ssm get-parameter --region us-east-1 --name $parameterName --with-decryption --query "Parameter.Value" --output text 2> errorFile.txt)
     }
