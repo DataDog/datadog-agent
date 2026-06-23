@@ -11,22 +11,30 @@ package mock
 import (
 	"testing"
 
+	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
+
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
+	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 )
 
 // mockRunner is a test implementation of runner.Component.
-// Run calls fn and returns the IssueID of each emitted report, mirroring the
-// real runner without the registry lookup or store interaction.
+// It calls fn, forwards each emitted report to store.ReportIssue (using a
+// minimal proto — no registry template lookup), and returns the reported IDs,
+// mirroring the real runner's contract.
 type mockRunner struct {
-	t testing.TB
+	t     testing.TB
+	store storedef.Component
 }
 
 // New returns a mock runner for testing.
-func New(t testing.TB) *mockRunner { return &mockRunner{t: t} }
+// store is used to forward issues, matching the real runner's behaviour.
+func New(t testing.TB, store storedef.Component) *mockRunner {
+	return &mockRunner{t: t, store: store}
+}
 
-// Run calls fn and collects the IssueID from each emitted IssueReport.
-// Returns nil ids on error, matching the real runner's partial-result contract.
-func (m *mockRunner) Run(_ string, fn runnerdef.HealthCheckFunc) ([]string, error) {
+// Run calls fn, reports each IssueReport to the store, and returns the IDs
+// that were successfully reported. Returns nil ids on error.
+func (m *mockRunner) Run(source string, fn runnerdef.HealthCheckFunc) ([]string, error) {
 	m.t.Helper()
 	if fn == nil {
 		return nil, nil
@@ -37,7 +45,17 @@ func (m *mockRunner) Run(_ string, fn runnerdef.HealthCheckFunc) ([]string, erro
 	}
 	ids := make([]string, 0, len(reports))
 	for _, r := range reports {
-		ids = append(ids, r.IssueID)
+		if r.Source == "" {
+			r.Source = source
+		}
+		issue := &healthplatformpayload.Issue{
+			Id:        r.IssueID,
+			IssueName: r.IssueName,
+			Source:    r.Source,
+		}
+		if reportErr := m.store.ReportIssue(issue); reportErr == nil {
+			ids = append(ids, r.IssueID)
+		}
 	}
 	return ids, nil
 }

@@ -19,21 +19,26 @@ import (
 )
 
 // mockScheduler is a test implementation of scheduler.Component.
-// Schedule validates inputs the same way the real scheduler does
-// (empty source, nil fn, duplicate source) but does not run any goroutines.
+// It validates inputs the same way the real scheduler does (empty source,
+// nil fn, duplicate source) and runs each check once synchronously via the
+// injected runner when Schedule is called, mirroring the real scheduler's
+// first-tick behaviour without background goroutines.
 type mockScheduler struct {
 	t          testing.TB
+	runner     runnerdef.Component
 	mu         sync.Mutex
 	registered map[string]struct{}
 }
 
 // New returns a mock scheduler for testing.
-func New(t testing.TB) *mockScheduler {
-	return &mockScheduler{t: t, registered: make(map[string]struct{})}
+// runner is used to execute each registered check once synchronously.
+func New(t testing.TB, runner runnerdef.Component) *mockScheduler {
+	return &mockScheduler{t: t, runner: runner, registered: make(map[string]struct{})}
 }
 
-// Schedule validates inputs and records the source. It mirrors the real
-// scheduler's error conditions (empty source, nil fn, duplicate source).
+// Schedule validates inputs, records the source, and runs fn once
+// synchronously via the injected runner, mirroring the real scheduler's
+// immediate first-tick on registration.
 func (m *mockScheduler) Schedule(source string, fn runnerdef.HealthCheckFunc, _ time.Duration, _ []string) error {
 	m.t.Helper()
 	if source == "" {
@@ -43,10 +48,13 @@ func (m *mockScheduler) Schedule(source string, fn runnerdef.HealthCheckFunc, _ 
 		return errors.New("health check function cannot be nil")
 	}
 	m.mu.Lock()
-	defer m.mu.Unlock()
 	if _, exists := m.registered[source]; exists {
+		m.mu.Unlock()
 		return fmt.Errorf("health check for source %q is already registered", source)
 	}
 	m.registered[source] = struct{}{}
+	m.mu.Unlock()
+
+	_, _ = m.runner.Run(source, fn)
 	return nil
 }
