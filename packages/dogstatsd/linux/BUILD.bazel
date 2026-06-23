@@ -76,21 +76,6 @@ pkg_files(
 # Install-dir directories
 # ---------------------------------------------------------------------------
 
-# dogstatsd writes its PID file to run/.
-pkg_mkdirs(
-    name = "dogstatsd_dirs",
-    attributes = pkg_attributes(mode = "0755"),
-    dirs = ["run"],
-)
-
-# Anchor dirs under the install prefix so pkg_install --destdir=/ places
-# them at /opt/datadog-dogstatsd/run/.
-pkg_filegroup(
-    name = "install_dir_dirs",
-    srcs = [":dogstatsd_dirs"],
-    prefix = "/opt/datadog-dogstatsd",
-)
-
 # System directories required by dogstatsd but outside the install prefix.
 pkg_mkdirs(
     name = "system_dirs",
@@ -106,7 +91,6 @@ pkg_filegroup(
     name = "debian_files",
     srcs = [
         ":config_example_files",
-        ":install_dir_dirs",
         ":system_dirs",
         ":systemd_service_gen",
         ":upstart_debian_files",
@@ -122,7 +106,6 @@ pkg_filegroup(
     name = "redhat_files",
     srcs = [
         ":config_example_files",
-        ":install_dir_dirs",
         ":system_dirs",
         ":systemd_service_gen",
         ":upstart_redhat_files",

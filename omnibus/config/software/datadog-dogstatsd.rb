@@ -46,11 +46,11 @@ build do
     elsif redhat_target? || suse_target?
       install_target = "//packages/dogstatsd/linux:install_redhat"
     end
-    # Bazel places the yaml example (via @dogstatsd_config prebuilt_file), init
-    # scripts, service file, and creates /etc/datadog-dogstatsd/, /var/log/datadog/,
-    # and /opt/datadog-dogstatsd/run/.
+    # Bazel places the yaml example, init scripts, service file, and creates
+    # /etc/datadog-dogstatsd/ and /var/log/datadog/.
     command_on_repo_root "bazelisk run --//:install_dir=#{install_dir} -- #{install_target} --destdir=/",
       :live_stream => Omnibus.logger.live_stream(:info)
+    mkdir "#{install_dir}/run"
 
     project.extra_package_file '/etc/init/datadog-dogstatsd.conf'
     project.extra_package_file '/lib/systemd/system/datadog-dogstatsd.service'
