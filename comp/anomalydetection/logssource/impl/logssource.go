@@ -23,6 +23,7 @@ import (
 	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/flare"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
+	"github.com/DataDog/datadog-agent/pkg/logs/adaptivesampling"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
 	containerLauncher "github.com/DataDog/datadog-agent/pkg/logs/launchers/container"
 	filelauncher "github.com/DataDog/datadog-agent/pkg/logs/launchers/file"
@@ -100,6 +101,17 @@ func NewComponent(deps Requires) (Provides, error) {
 	// Skip when the observer is absent, neither logs ingestion nor recording is
 	// requested, or no enabled source can start.
 	if !logSourceSettings.shouldStart(obsOk, wmetaOk, analysisEnabled, recordingEnabled) {
+		deps.Log.Infof("%s observer logssource not started observer_available=%t workloadmeta_available=%t analysis_enabled=%t recording_enabled=%t anomaly_logs_enabled=%t logs_agent_tap_enabled=%t logs_agent_enabled=%t container_sources_enabled=%t kubelet_source_enabled=%t",
+			adaptivesampling.DebugLogPrefix,
+			obsOk,
+			wmetaOk,
+			analysisEnabled,
+			recordingEnabled,
+			logSourceSettings.logsEnabled,
+			logSourceSettings.agentTapEnabled,
+			logSourceSettings.logsAgentEnabled,
+			logSourceSettings.containerSourcesEnabled,
+			logSourceSettings.kubeletSourceEnabled)
 		return Provides{Comp: &logssourceComponent{}}, nil
 	}
 	containerSourcesActive := logSourceSettings.containerSourcesEnabled && wmetaOk

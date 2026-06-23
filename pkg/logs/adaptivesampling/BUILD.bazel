@@ -4,6 +4,7 @@ go_library(
     name = "adaptivesampling",
     srcs = [
         "boost.go",
+        "debug.go",
         "tap.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/logs/adaptivesampling",

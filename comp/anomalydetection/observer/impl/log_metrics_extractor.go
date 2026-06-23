@@ -9,9 +9,12 @@ import (
 	"encoding/json"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"unicode"
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	"github.com/DataDog/datadog-agent/pkg/logs/adaptivesampling"
+	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // LogMetricsExtractorConfig holds configuration for the LogMetricsExtractor.
@@ -48,6 +51,8 @@ type LogMetricsExtractor struct {
 	config LogMetricsExtractorConfig
 }
 
+var logMetricsTokenizedDebugCount atomic.Uint64
+
 // NewLogMetricsExtractor creates a LogMetricsExtractor with the given config.
 func NewLogMetricsExtractor(config LogMetricsExtractorConfig) *LogMetricsExtractor {
 	return &LogMetricsExtractor{config: config}
@@ -74,6 +79,7 @@ func (a *LogMetricsExtractor) ProcessLog(log observer.LogView) observer.LogMetri
 			patternSig = tokenized.GetPattern()
 			patternHash = tokenized.GetPatternHash()
 			metricName = patternCountMetricNameFromHash(patternHash)
+			logTokenizedPatternMetric(containerID, patternHash, metricName, patternSig, content, tags)
 		}
 	}
 
@@ -96,6 +102,22 @@ func (a *LogMetricsExtractor) ProcessLog(log observer.LogView) observer.LogMetri
 	}
 
 	return observer.LogMetricsExtractorOutput{Metrics: metrics}
+}
+
+func logTokenizedPatternMetric(containerID, patternHash, metricName, pattern, content string, tags []string) {
+	count := logMetricsTokenizedDebugCount.Add(1)
+	if !adaptivesampling.ShouldLogDebugSample(count) {
+		return
+	}
+	pkglog.Infof("%s observer extractor emitted tokenizer-derived log pattern metric count=%d metric=%q container_id=%q pattern_hash=%q pattern=%q content=%q tag_count=%d",
+		adaptivesampling.DebugLogPrefix,
+		count,
+		metricName,
+		containerID,
+		patternHash,
+		adaptivesampling.TruncateDebugString(pattern, 180),
+		adaptivesampling.TruncateDebugString(content, 180),
+		len(tags))
 }
 
 func isJSONObject(s string) bool {

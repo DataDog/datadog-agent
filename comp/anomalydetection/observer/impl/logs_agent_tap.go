@@ -7,6 +7,7 @@ package observerimpl
 
 import (
 	"context"
+	"sync/atomic"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	config "github.com/DataDog/datadog-agent/comp/core/config"
@@ -18,17 +19,44 @@ import (
 const anomalyDetectionLogsAgentTapEnabledKey = "anomaly_detection.logs.agent_tap.enabled"
 
 func installLogsAgentTokenizedLogTap(obs *observerImpl, cfg config.Component, lifecycle compdef.Lifecycle, analysisEnabled, recorderEnabled, logsEnabled bool) {
-	if obs == nil || cfg == nil || !logsEnabled || (!analysisEnabled && !recorderEnabled) {
+	if obs == nil {
+		pkglog.Infof("%s tokenized log tap not registered reason=%q", adaptivesampling.DebugLogPrefix, "observer unavailable")
 		return
 	}
-	if !configBoolDefaultTrue(cfg, anomalyDetectionLogsAgentTapEnabledKey) || !logsAgentCollectionEnabled(cfg) {
+	if cfg == nil {
+		pkglog.Infof("%s tokenized log tap not registered reason=%q", adaptivesampling.DebugLogPrefix, "config unavailable")
+		return
+	}
+	if !logsEnabled {
+		pkglog.Infof("%s tokenized log tap not registered reason=%q", adaptivesampling.DebugLogPrefix, "anomaly_detection.logs.enabled is false")
+		return
+	}
+	if !analysisEnabled && !recorderEnabled {
+		pkglog.Infof("%s tokenized log tap not registered reason=%q", adaptivesampling.DebugLogPrefix, "analysis and recording are disabled")
+		return
+	}
+	if !configBoolDefaultTrue(cfg, anomalyDetectionLogsAgentTapEnabledKey) {
+		pkglog.Infof("%s tokenized log tap not registered reason=%q", adaptivesampling.DebugLogPrefix, anomalyDetectionLogsAgentTapEnabledKey+" is false")
+		return
+	}
+	if !logsAgentCollectionEnabled(cfg) {
+		pkglog.Infof("%s tokenized log tap not registered reason=%q logs_enabled=%t log_enabled=%t",
+			adaptivesampling.DebugLogPrefix,
+			"logs agent collection is disabled",
+			cfg.GetBool("logs_enabled"),
+			cfg.GetBool("log_enabled"))
 		return
 	}
 
 	handle := obs.GetHandle("logs-agent-tap")
 	tapCleanup := adaptivesampling.SetTokenizedLogObserver(&logsAgentTapSink{handle: handle})
 	boostCleanup := obs.engine.Subscribe(newSamplingBoostEventSink(scorerConfigFromAgentConfig(cfg)))
-	pkglog.Infof("[logs/adaptive-sampling] tokenized log tap registered")
+	pkglog.Infof("%s tokenized log tap registered analysis_enabled=%t recorder_enabled=%t logs_enabled=%t logs_agent_enabled=%t",
+		adaptivesampling.DebugLogPrefix,
+		analysisEnabled,
+		recorderEnabled,
+		logsEnabled,
+		logsAgentCollectionEnabled(cfg))
 
 	lifecycle.Append(compdef.Hook{
 		OnStop: func(_ context.Context) error {
@@ -58,14 +86,31 @@ func scorerConfigFromAgentConfig(cfg config.Component) observerdef.ScorerConfig 
 }
 
 type logsAgentTapSink struct {
-	handle observerdef.Handle
+	handle     observerdef.Handle
+	debugCount atomic.Uint64
 }
 
 func (s *logsAgentTapSink) ObserveTokenizedLog(event adaptivesampling.TokenizedLogEvent) {
 	if s == nil || s.handle == nil {
 		return
 	}
+	s.logReceived(event)
 	s.handle.ObserveLog(newTokenizedLogEventView(event))
+}
+
+func (s *logsAgentTapSink) logReceived(event adaptivesampling.TokenizedLogEvent) {
+	count := s.debugCount.Add(1)
+	if !adaptivesampling.ShouldLogDebugSample(count) {
+		return
+	}
+	pkglog.Infof("%s observer received tokenized log observation count=%d container_id=%q pattern_hash=%q pattern=%q content=%q tag_count=%d",
+		adaptivesampling.DebugLogPrefix,
+		count,
+		event.ContainerID,
+		event.PatternHash,
+		adaptivesampling.TruncateDebugString(event.Pattern, 180),
+		adaptivesampling.TruncateDebugString(event.Content, 180),
+		len(event.Tags))
 }
 
 type tokenizedLogEventView struct {

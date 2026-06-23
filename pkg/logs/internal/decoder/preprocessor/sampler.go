@@ -10,6 +10,7 @@ import (
 	"hash/fnv"
 	"regexp"
 	"strconv"
+	"sync/atomic"
 	"time"
 
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
@@ -157,6 +158,8 @@ type AdaptiveSampler struct {
 	source            string // used as a telemetry tag
 	now               func() time.Time
 	baseBytesEstimate int
+	boostLookupLogs   atomic.Uint64
+	boostOutcomeLogs  atomic.Uint64
 }
 
 // NewAdaptiveSampler creates a new AdaptiveSampler.
@@ -270,6 +273,7 @@ func (s *AdaptiveSampler) samplingLimits(msg *message.Message, tokens []Token, n
 	limits.boosted = true
 	limits.rateLimit *= boost.RateMultiplier
 	limits.burstSize *= boost.BurstMultiplier
+	s.logBoostLookup(msg, tokens, limits)
 	return limits
 }
 
@@ -297,6 +301,9 @@ func (s *AdaptiveSampler) processMatchedEntry(i int, msg *message.Message, now t
 	allow := e.credits >= 1.0
 	if allow {
 		e.credits--
+	}
+	if limits.boosted {
+		s.logBoostOutcome(limits, allow, detectionOnly, false, e.credits, e.matchCount, e.sampled)
 	}
 
 	// Compute tag bytes from the user-originated ParsingExtra.Tags before
@@ -341,6 +348,9 @@ func (s *AdaptiveSampler) trackNewPattern(msg *message.Message, tokens []Token, 
 		appliedBoostID = limits.boost.ID
 		s.logBoostApplied(limits)
 	}
+	if limits.boosted {
+		s.logBoostOutcome(limits, true, s.config.DetectionOnly, true, credits, 1, 0)
+	}
 	// New patterns start with matchCount=1 and belong at the end of the sorted list.
 	s.entries = append(s.entries, samplerEntry{
 		tokens:         tokens,
@@ -357,6 +367,48 @@ func (s *AdaptiveSampler) trackNewPattern(msg *message.Message, tokens []Token, 
 func (s *AdaptiveSampler) logBoostApplied(limits adaptiveSamplerLimits) {
 	pkglog.Infof("[logs/adaptive-sampling] boost applied source=%s container_id=%s pattern_hash=%s rate=%.2f burst=%.2f credit_grant=%.2f boost_id=%d",
 		s.source, limits.boost.ContainerID, limits.boost.PatternHash, limits.rateLimit, limits.burstSize, limits.boost.CreditGrant, limits.boost.ID)
+}
+
+func (s *AdaptiveSampler) logBoostLookup(msg *message.Message, tokens []Token, limits adaptiveSamplerLimits) {
+	count := s.boostLookupLogs.Add(1)
+	if !adaptivesampling.ShouldLogDebugSample(count) {
+		return
+	}
+	pkglog.Infof("%s sampler found active boost count=%d source=%q container_id=%q pattern_hash=%q boost_id=%d rate=%.2f burst=%.2f credit_grant=%.2f detection_only=%t pattern=%q content=%q",
+		adaptivesampling.DebugLogPrefix,
+		count,
+		s.source,
+		limits.boost.ContainerID,
+		limits.boost.PatternHash,
+		limits.boost.ID,
+		limits.rateLimit,
+		limits.burstSize,
+		limits.boost.CreditGrant,
+		s.config.DetectionOnly,
+		adaptivesampling.TruncateDebugString(TokensToString(tokens), 180),
+		adaptivesampling.TruncateDebugString(string(msg.GetContent()), 180))
+}
+
+func (s *AdaptiveSampler) logBoostOutcome(limits adaptiveSamplerLimits, allowed, detectionOnly, newPattern bool, credits float64, matchCount int64, sampledPending int64) {
+	count := s.boostOutcomeLogs.Add(1)
+	if !adaptivesampling.ShouldLogDebugSample(count) {
+		return
+	}
+	pkglog.Infof("%s sampler processed boosted log count=%d source=%q container_id=%q pattern_hash=%q boost_id=%d allowed=%t new_pattern=%t detection_only=%t credits_remaining=%.2f match_count=%d sampled_pending=%d rate=%.2f burst=%.2f",
+		adaptivesampling.DebugLogPrefix,
+		count,
+		s.source,
+		limits.boost.ContainerID,
+		limits.boost.PatternHash,
+		limits.boost.ID,
+		allowed,
+		newPattern,
+		detectionOnly,
+		credits,
+		matchCount,
+		sampledPending,
+		limits.rateLimit,
+		limits.burstSize)
 }
 
 // Flush is a no-op — the adaptive sampler does not buffer messages.

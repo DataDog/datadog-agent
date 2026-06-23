@@ -6,7 +6,9 @@
 package observerimpl
 
 import (
+	"fmt"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
@@ -21,6 +23,8 @@ const (
 	samplingBoostBurstMultiplier = 10.0
 	samplingBoostCreditGrant     = 100.0
 )
+
+var samplingBoostDecisionDebugCount atomic.Uint64
 
 type samplingBoostEventSink struct {
 	store     *adaptivesampling.SamplingBoostStore
@@ -47,12 +51,16 @@ func (s *samplingBoostEventSink) onEngineEvent(evt engineEvent) {
 // short-lived adaptive-sampling boost. It returns true when a boost is emitted.
 func MaybeEmitSamplingBoostForAnomaly(anomaly observerdef.Anomaly, store *adaptivesampling.SamplingBoostStore, scorerCfg observerdef.ScorerConfig, now time.Time) bool {
 	if store == nil {
+		logSamplingBoostDecision(anomaly, 0, false, "nil boost store")
 		return false
 	}
-	if !isBoostableLogPatternAnomaly(anomaly) {
+	boostable, reason := boostableLogPatternAnomaly(anomaly)
+	level := anomalyLevel(anomaly, scorerCfg)
+	logSamplingBoostDecision(anomaly, level, boostable, reason)
+	if !boostable {
 		return false
 	}
-	if anomalyLevel(anomaly, scorerCfg) < samplingBoostMinAnomalyLevel {
+	if level < samplingBoostMinAnomalyLevel {
 		return false
 	}
 
@@ -70,11 +78,59 @@ func MaybeEmitSamplingBoostForAnomaly(anomaly observerdef.Anomaly, store *adapti
 }
 
 func isBoostableLogPatternAnomaly(anomaly observerdef.Anomaly) bool {
+	boostable, _ := boostableLogPatternAnomaly(anomaly)
+	return boostable
+}
+
+func boostableLogPatternAnomaly(anomaly observerdef.Anomaly) (bool, string) {
 	if anomaly.Source.Namespace != LogMetricsExtractorName {
-		return false
+		return false, "namespace is not log_metrics_extractor"
 	}
 	if !strings.HasPrefix(anomaly.Source.Name, "log.pattern.") || !strings.HasSuffix(anomaly.Source.Name, ".count") {
-		return false
+		return false, "metric is not log.pattern.*.count"
 	}
-	return anomaly.Context != nil && anomaly.Context.ContainerID != "" && anomaly.Context.PatternHash != ""
+	if anomaly.Context == nil {
+		return false, "missing anomaly context"
+	}
+	if anomaly.Context.ContainerID == "" {
+		return false, "missing container_id"
+	}
+	if anomaly.Context.PatternHash == "" {
+		return false, "missing pattern_hash"
+	}
+	return true, "boostable"
+}
+
+func logSamplingBoostDecision(anomaly observerdef.Anomaly, level int, boostable bool, reason string) {
+	count := samplingBoostDecisionDebugCount.Add(1)
+	if !adaptivesampling.ShouldLogDebugSample(count) {
+		return
+	}
+	var containerID, patternHash, pattern string
+	if anomaly.Context != nil {
+		containerID = anomaly.Context.ContainerID
+		patternHash = anomaly.Context.PatternHash
+		pattern = anomaly.Context.Pattern
+	}
+	pkglog.Infof("%s boost decision count=%d boostable=%t reason=%q level=%d min_level=%d namespace=%q metric=%q detector=%q score=%s container_id=%q pattern_hash=%q pattern=%q",
+		adaptivesampling.DebugLogPrefix,
+		count,
+		boostable,
+		reason,
+		level,
+		samplingBoostMinAnomalyLevel,
+		anomaly.Source.Namespace,
+		anomaly.Source.Name,
+		anomaly.DetectorName,
+		scoreForDebug(anomaly.Score),
+		containerID,
+		patternHash,
+		adaptivesampling.TruncateDebugString(pattern, 180))
+}
+
+func scoreForDebug(score *float64) string {
+	if score == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("%.4f", *score)
 }
