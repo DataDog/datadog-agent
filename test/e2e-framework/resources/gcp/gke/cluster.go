@@ -68,7 +68,7 @@ func NewCluster(e gcp.Environment, name string, autopilot bool, opts ...pulumi.R
 
 	// Autopilot clusters manage nodes automatically, so we don't specify node configuration
 	if !autopilot {
-		clusterArgs.InitialNodeCount = pulumi.Int(1)
+		clusterArgs.InitialNodeCount = pulumi.Int(e.DefaultGKENodeCount())
 		clusterArgs.NodeVersion = pulumi.String(e.KubernetesVersion())
 		clusterArgs.NodeLocations = pulumi.StringArray{pulumi.String(e.Zone())}
 		clusterArgs.NodeConfig = &container.ClusterNodeConfigArgs{
