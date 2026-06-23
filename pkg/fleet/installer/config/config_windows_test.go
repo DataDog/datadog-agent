@@ -317,6 +317,32 @@ func TestOperationApply_MoveReadableConfigToRestrictedFileRemovesEveryoneRead(t 
 	assert.False(t, everyoneCanRead(t, destinationPath), "datadog.yaml (0640) should not keep Everyone read after move")
 }
 
+func TestRemoveExperiment_RestoresApplicationMonitoringEveryoneRead(t *testing.T) {
+	stablePath := t.TempDir()
+	experimentPath := t.TempDir()
+	filePath := filepath.Join(stablePath, "application_monitoring.yaml")
+	assert.NoError(t, os.WriteFile(filePath, []byte("enabled: true\n"), 0600))
+	assert.NoError(t, paths.SetFileReadableByEveryone(filePath))
+	assert.True(t, everyoneCanRead(t, filePath), "application_monitoring.yaml should start with Everyone read")
+
+	dirs := &Directories{
+		StablePath:     stablePath,
+		ExperimentPath: experimentPath,
+	}
+	err := dirs.WriteExperiment(context.Background(), Operations{
+		DeploymentID: "delete-application-monitoring",
+		FileOperations: []FileOperation{
+			{FileOperationType: FileOperationDelete, FilePath: "/application_monitoring.yaml"},
+		},
+	})
+	assert.NoError(t, err)
+	assert.NoFileExists(t, filePath)
+
+	assert.NoError(t, dirs.RemoveExperiment(context.Background()))
+	assert.FileExists(t, filePath)
+	assert.True(t, everyoneCanRead(t, filePath), "application_monitoring.yaml should regain Everyone read after rollback restore")
+}
+
 // TestDeploymentIDAfterRollback reproduces the bug where RemoveExperiment incorrectly
 // copies the experiment deployment ID to stable during rollback.
 func TestDeploymentIDAfterRollback(t *testing.T) {

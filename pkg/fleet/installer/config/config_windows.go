@@ -111,7 +111,15 @@ func (d *Directories) RemoveExperiment(ctx context.Context) error {
 	// Skip copying deployment ID during rollback - we want to preserve stable's deployment ID
 	err = backupOrRestoreDirectory(ctx, d.ExperimentPath, d.StablePath)
 	if err != nil {
-		return fmt.Errorf("error backing up stable directory: %w", err)
+		return fmt.Errorf("error restoring stable directory: %w", err)
+	}
+	root, err := os.OpenRoot(d.StablePath)
+	if err != nil {
+		return fmt.Errorf("error opening stable directory: %w", err)
+	}
+	defer root.Close()
+	if err := applyConfigFilePermissions(ctx, root); err != nil {
+		return fmt.Errorf("error applying stable directory permissions: %w", err)
 	}
 	err = os.RemoveAll(d.ExperimentPath)
 	if err != nil {
