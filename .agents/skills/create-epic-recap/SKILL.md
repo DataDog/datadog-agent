@@ -50,29 +50,54 @@ Build the list of Jira keys to search for: `[EPIC-KEY, <completed child keys fro
 
 ### Phase A — Jira Development panel (Tier 0)
 
+Phase A has two sub-steps: A1 tries to get full PR details, A2 falls back to a cached summary for validation.
+
+#### A1 — Detail endpoint (full PR info)
+
 For each key, call `jira_get_issue_development_info` on the `user-atlassian` server with:
 - `issue_key`: `<KEY>`
 - `application_type`: `"GitHub"` (**CamelCase is mandatory** — lowercase `"github"` returns empty results; this is a Jira REST API quirk in `/rest/dev-status/1.0/issue/detail`)
+- `data_type`: `"pullrequest"` (**mandatory** — the Jira Cloud API requires `dataType` in the query; omitting it causes HTTP 500 with `"message":"dataType"`)
 
 Do **not** use the batch tool `jira_get_issues_development_info` — it returns HTTP 500 when `application_type` is passed.
 
 **Throttling — Jira dev-status API does not tolerate parallel calls.** Parallel requests to `/rest/dev-status/1.0/issue/detail` trigger server-side rate limiting (HTTP 500). Apply all of the following:
 - **Sequential calls only** — issue one `jira_get_issue_development_info` at a time, never in parallel.
 - **~1 s pause** between calls (`sleep 1` or equivalent).
-- **Retry once on 500** — wait 5 s, then retry the failing key. If the retry also fails, record the key as "Phase A miss" and move on.
-- **Fail-fast after 3 consecutive 500s** — the API is likely overloaded or down. Stop Phase A entirely, log `Phase A aborted after 3 consecutive 500s, falling back to Phase B for all keys`, and proceed to Phase B with the full key list.
+- **Retry once on 500** — wait 5 s, then retry the failing key. If the retry also fails, record the key as "Phase A1 miss" and move on.
+- **Fail-fast after 3 consecutive 500s** — the endpoint is likely down. Stop A1 entirely, log `Phase A1 aborted after 3 consecutive 500s, falling back to A2`, and proceed to A2 for **all** keys.
 
 From each successful response, collect `pullRequests` entries where `status == "MERGED"`. Record each as a **Tier 0** PR with fields: `id` (e.g. `#52248`), `name` (title), `url`, `status`, `source.branch`, `destination.branch`, `author`, `reviewers`, `lastUpdate`, `repositoryUrl`.
 
 **Tier 0 PRs are auto-included with the highest confidence** — they are explicitly linked to the Jira issue by the GitHub↔Jira integration. No heuristic filtering is needed.
 
-If a call returns empty `pullRequests` or errors, that is fine — Phase B covers it. Log it and continue.
-
 Deduplicate Tier 0 results by `(repository, PR number)` across all keys.
+
+#### A2 — Development summary field (fallback for PR count validation)
+
+If A1 failed (fail-fast triggered) or returned zero Tier 0 PRs for any key, fetch the cached development summary. This does **not** use the flaky `dev-status` endpoint — it reads a standard Jira custom field via the stable `/rest/api/2/issue/` API.
+
+Call `jira_get_issue` on the `user-atlassian` server with:
+- `issue_key`: `<KEY>`
+- `fields`: `"customfield_10000"` (the "Development" field, type `com.atlassian.jira.plugins.jira-development-integration-plugin:devsummarycf`)
+- `comment_limit`: `0`
+
+Parse the response's `customfield_10000.value` — it contains a nested JSON with `cachedValue.summary.pullrequest.overall.count` (number of linked PRs) and `state` (`MERGED`, `OPEN`, etc.).
+
+Record the expected PR count per key in a `jira_pr_counts` map: `{ "OTAGENT-307": 4, "OTAGENT-510": 3, … }`. Keys with no `pullrequest` in the summary (or where `customfield_10000` is null) have count 0.
+
+This map is used in Phase B for **cross-validation**: after tier classification, compare the number of included PRs (Tier 0 + Tier 1 + Tier 2) per key against `jira_pr_counts`. If Phase B found fewer, show a warning in the preview:
+
+```
+⚠️ Jira says OTAGENT-307 has 4 linked PRs, but only 2 were found via GitHub search.
+   Check the Jira Development panel manually or promote Tier 3 candidates.
+```
+
+A2 calls can run **in parallel** (they use the standard Jira API, not `dev-status`). Batch them with Step 2/3 calls when possible.
 
 ### Phase B — GitHub search (Tiers 1–4)
 
-**Skip keys that already have at least one Tier 0 PR from Phase A** — unless you want maximum recall. For keys with zero Tier 0 results, and optionally for all keys to catch PRs missed by Jira integration, run `gh search prs`.
+**Always run Phase B for all keys** — even those with Tier 0 PRs from A1. This ensures maximum recall: the Jira integration may not capture all PRs (e.g., PRs in other repos, or PRs where the key is only in the body). Run `gh search prs` for every key.
 
 **One key per request — `OR` is not supported.** `gh search prs` treats the query as a literal string, so `"OTAGENT-410 OR OTAGENT-411"` will match zero PRs (verified in the wild). Issue one `gh search prs` call per Jira key:
 
@@ -254,6 +279,12 @@ Print the rendered markdown to the chat under a heading like `### Preview — <E
 > Found N PRs: X via Jira Development panel (Tier 0), Y via GitHub search (Tier 1/2). Z Tier 3 candidates skipped (see below).
 ```
 
+If `jira_pr_counts` from Phase A2 is available and any key has more Jira-linked PRs than Phase B found, print a warning block after the summary line:
+
+```
+> ⚠️ OTAGENT-307: Jira says 4 linked PRs, found 2. Check Tier 3 candidates or the Jira Development panel.
+```
+
 **After the rendered recap, if `tier3_candidates` from Step 4 is non-empty, print a separate `### Skipped (Tier 3 — opt-in)` block.** This block lives outside the recap markdown — it is not part of what gets posted to Jira, only shown to the user. Format:
 
 ```
@@ -307,7 +338,7 @@ When the user picks `Cancel` or `--dry-run` was specified:
 ## Errors and edge cases
 
 - **Authentication failure on Atlassian MCP** — stop, do not try a different transport, ask the user to authenticate.
-- **`jira_get_issue_development_info` returns empty or errors** — this is expected for some projects where the GitHub↔Jira integration is partially configured, or when `application_type` casing is wrong. Phase B (GitHub search) covers these cases. Log a note like `Jira dev panel returned no PRs for <KEY>, falling back to GitHub search` and continue.
+- **`jira_get_issue_development_info` returns 500 or empty** — the `/rest/dev-status/1.0/issue/detail` endpoint is fragile: it does not tolerate parallel calls, occasionally goes down entirely, and requires exact CamelCase `"GitHub"` for `application_type`. When A1 fails, A2 (`customfield_10000`) provides PR counts for cross-validation. Phase B (GitHub search) always provides actual PR details regardless of A1 status.
 - **`gh` not authenticated** — run `gh auth status`; if it fails, ask the user to run `gh auth login`.
 - **`gh search prs` rate-limited** — back off once for 60 seconds, then retry once; if still failing, ask the user to provide PR URLs manually (Step 4 fallback).
 - **Very large PR set (> 25 PRs)** — present a numbered list and ask the user via `AskUserQuestion` whether to include all of them or to narrow down by date / label / repo.
