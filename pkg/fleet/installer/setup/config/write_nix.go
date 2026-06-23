@@ -7,10 +7,8 @@
 
 package config
 
-import "os"
-
-// ensureReadablePermissions is a no-op on non-Windows platforms: os.WriteFile already applies
-// the POSIX mode (including the world-read bit) when the file is written.
-func ensureReadablePermissions(_ string, _ os.FileMode) error {
+// grantEveryoneRead is a no-op on non-Windows platforms: os.WriteFile already applies the POSIX
+// mode (including the world-read bit) when the file is written.
+func grantEveryoneRead(_ string) error {
 	return nil
 }

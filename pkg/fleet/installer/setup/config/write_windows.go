@@ -7,21 +7,13 @@
 
 package config
 
-import (
-	"os"
+import "github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
-)
-
-// ensureReadablePermissions grants the Everyone group read access on Windows for files written
-// with the world-read bit (e.g. 0644, such as application_monitoring.yaml), mirroring the POSIX
-// mode that os.WriteFile applies on other platforms. The perms argument is effectively ignored
-// for ACLs on Windows, so the read ACE must be set explicitly; otherwise the file inherits the
-// restrictive C:\ProgramData\Datadog ACL and non-admin identities (e.g. an IIS App Pool
-// identity) cannot read it.
-func ensureReadablePermissions(path string, perms os.FileMode) error {
-	if perms&0o004 == 0 {
-		return nil
-	}
+// grantEveryoneRead grants the Everyone group read access on a file: the Windows ACL equivalent
+// of a world-readable (0644) file on Linux. os.WriteFile ignores the POSIX mode on Windows, so
+// the read ACE must be set explicitly; otherwise the file inherits the restrictive
+// C:\ProgramData\Datadog ACL and non-admin identities (e.g. an IIS App Pool identity) cannot
+// read it.
+func grantEveryoneRead(path string) error {
 	return paths.SetFileReadableByEveryone(path)
 }

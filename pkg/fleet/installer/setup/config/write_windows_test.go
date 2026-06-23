@@ -47,8 +47,9 @@ func everyoneCanRead(t *testing.T, path string) bool {
 }
 
 // TestWriteConfigsGrantsEveryoneRead verifies that setup-time config writes (the install-script /
-// DJM path) grant Everyone read on world-readable files (application_monitoring.yaml, written
-// 0644) while keeping restricted files (datadog.yaml, written 0640) admin/ddagentuser-only.
+// DJM path) grant Everyone read on application_monitoring.yaml only. Other config files stay
+// admin/ddagentuser-only — including conf.d integration configs, which are also written 0644 but
+// may contain credentials, so they must NOT be world-readable.
 func TestWriteConfigsGrantsEveryoneRead(t *testing.T) {
 	tempDir := t.TempDir()
 	config := Config{
@@ -56,6 +57,9 @@ func TestWriteConfigsGrantsEveryoneRead(t *testing.T) {
 			Default: APMConfigurationDefault{
 				TraceDebug: BoolToPtr(true),
 			},
+		},
+		IntegrationConfigs: map[string]IntegrationConfig{
+			"mycheck.yaml": {InitConfig: nil, Instances: []any{map[string]any{"host": "localhost"}}},
 		},
 	}
 	config.DatadogYAML.APIKey = "1234567890"
@@ -65,10 +69,16 @@ func TestWriteConfigsGrantsEveryoneRead(t *testing.T) {
 	appMonitoring := filepath.Join(tempDir, "application_monitoring.yaml")
 	assert.FileExists(t, appMonitoring)
 	assert.True(t, everyoneCanRead(t, appMonitoring),
-		"application_monitoring.yaml (0644) should grant Everyone read")
+		"application_monitoring.yaml should grant Everyone read")
 
 	datadogYAML := filepath.Join(tempDir, datadogConfFile)
 	assert.FileExists(t, datadogYAML)
 	assert.False(t, everyoneCanRead(t, datadogYAML),
 		"datadog.yaml (0640) should not grant Everyone read")
+
+	// conf.d integration configs are written 0644 but must not be world-readable on Windows.
+	confDCheck := filepath.Join(tempDir, "conf.d", "mycheck.yaml")
+	assert.FileExists(t, confDCheck)
+	assert.False(t, everyoneCanRead(t, confDCheck),
+		"conf.d integration configs should not grant Everyone read")
 }

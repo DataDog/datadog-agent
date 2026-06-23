@@ -81,10 +81,7 @@ func WriteConfig(path string, config any, perms os.FileMode, merge bool) error {
 	if err := enc.Encode(&root); err != nil {
 		return err
 	}
-	if err := os.WriteFile(path, buf.Bytes(), perms); err != nil {
-		return err
-	}
-	return ensureReadablePermissions(path, perms)
+	return os.WriteFile(path, buf.Bytes(), perms)
 }
 
 // mergeNodes merges the src node into the dst node
