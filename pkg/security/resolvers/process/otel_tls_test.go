@@ -130,7 +130,7 @@ func TestResolveOTelTLSStaticPIEMain(t *testing.T) {
 	skipUnsupportedOTelTLSArch(t)
 
 	dir := t.TempDir()
-	bin, ok := compileOptionalOTelTLSFixture(t, dir, "static-pie-main", otelTLSFixtureMain, "-static-pie", "-Wl,--export-dynamic")
+	bin, ok := compileOptionalOTelTLSFixture(t, dir, "static-pie-main", otelTLSFixtureMain, "-static-pie", "-Wl,--export-dynamic-symbol=otel_thread_ctx_v1")
 	if !ok {
 		t.Skip("C toolchain cannot build static PIE fixture")
 	}

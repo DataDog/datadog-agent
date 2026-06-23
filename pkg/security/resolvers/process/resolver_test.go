@@ -12,7 +12,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"os"
 	"os/exec"
 	"testing"
 	"time"
