@@ -48,4 +48,7 @@ const (
 	PARActionsAllowlist       = "private_action_runner.actions_allowlist"
 	PARDefaultActionsEnabled  = "private_action_runner.default_actions_enabled"
 	PARExecutorIdleTimeout    = "private_action_runner.executor_idle_timeout"
+	// PARExecutorMode selects the executor implementation. Values are defined in
+	// pkg/privateactionrunner/executor (ModeInProcess, ModeBinary, ModeIPC).
+	PARExecutorMode = "private_action_runner.executor_mode"
 )

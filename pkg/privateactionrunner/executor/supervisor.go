@@ -21,7 +21,11 @@ import (
 )
 
 const (
-	defaultReadyTimeout = 30 * time.Second
+	// defaultReadyTimeout bounds how long SubmitTask waits for a freshly spawned
+	// executor to come up. A cold executor subprocess re-runs the full agent
+	// bootstrap and fetches verification keys from remote config, which can take
+	// well over 30s, so allow up to 90s before failing the first task.
+	defaultReadyTimeout = 90 * time.Second
 	statusPollInterval  = 200 * time.Millisecond
 )
 
@@ -35,8 +39,9 @@ type Supervisor struct {
 	command        command
 	client         *http.Client
 
-	mu  sync.Mutex
-	cmd *exec.Cmd
+	mu          sync.Mutex
+	cmd         *exec.Cmd
+	noAutoStart bool
 }
 
 type command struct {
@@ -66,7 +71,7 @@ func NewSupervisor(socketPath, confPath string, extraConfFiles []string, capacit
 func (s *Supervisor) SetBinaryPath(path string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.command = command{path: path, description: path}
+	s.command = command{path: path, baseArgs: []string{"executor"}, description: path + " executor"}
 }
 
 // WaitForCapacity blocks until a running executor has free capacity. If the executor
@@ -170,6 +175,9 @@ func (s *Supervisor) ShutdownExisting(ctx context.Context) {
 func (s *Supervisor) ensureRunning(ctx context.Context) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.noAutoStart {
+		return nil
+	}
 	if s.cmd != nil && s.cmd.Process != nil && s.cmd.ProcessState == nil {
 		return nil
 	}

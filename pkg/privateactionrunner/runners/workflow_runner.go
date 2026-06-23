@@ -36,7 +36,7 @@ type WorkflowRunner struct {
 	config       *config.Config
 	keysManager  taskverifier.KeysManager
 	taskVerifier taskverifier.TaskVerifier
-	executor     *executor.Supervisor
+	executor     executor.Executor
 	taskLoop     *Loop
 }
 
@@ -48,7 +48,7 @@ func NewWorkflowRunner(
 	traceroute traceroute.Component,
 	eventPlatform eventplatform.Component,
 	ipcClient ipc.HTTPClient,
-	executorSupervisor *executor.Supervisor,
+	taskExecutor executor.Executor,
 ) (*WorkflowRunner, error) {
 	return &WorkflowRunner{
 		registry:     privatebundles.NewRegistry(configuration, traceroute, eventPlatform, ipcClient),
@@ -57,7 +57,7 @@ func NewWorkflowRunner(
 		config:       configuration,
 		keysManager:  keysManager,
 		taskVerifier: verifier,
-		executor:     executorSupervisor,
+		executor:     taskExecutor,
 	}, nil
 }
 
@@ -67,13 +67,32 @@ func (n *WorkflowRunner) Start(ctx context.Context) error {
 		log.FromContext(ctx).Warn("WorkflowRunner already started")
 		return nil
 	}
+	n.taskLoop = NewLoop(n)
+	if n.executor != nil {
+		// The loop only dequeues tasks and submits them to the executor over IPC;
+		// task verification (and thus the keys manager) lives in the executor, not
+		// here. Start polling immediately without waiting on the keys manager.
+		go n.taskLoop.Run(ctx)
+		return nil
+	}
+	// All-in-one mode: the loop verifies tasks locally, so it needs the keys manager.
 	startTime := time.Now()
 	n.keysManager.Start(ctx)
-	n.taskLoop = NewLoop(n)
 	go func() {
 		n.WaitForKeysManagerReady(ctx, startTime)
 		n.taskLoop.Run(ctx)
 	}()
+	return nil
+}
+
+// Prepare readies the runner to handle tasks by starting the verification-key
+// manager and blocking until keys are available. It satisfies executor.TaskHandler
+// so an executor that runs the handler in this process can ready it before
+// serving tasks.
+func (n *WorkflowRunner) Prepare(ctx context.Context) error {
+	startTime := time.Now()
+	n.StartKeysManager(ctx)
+	n.WaitForKeysManagerReady(ctx, startTime)
 	return nil
 }
 

@@ -88,6 +88,7 @@ type PrivateActionRunner struct {
 
 	workflowRunner *runners.WorkflowRunner
 	commonRunner   *runners.CommonRunner
+	taskExecutor   executor.Executor
 	executorServer *executor.Server
 
 	telemetry *telemetry.Telemetry
@@ -255,13 +256,30 @@ func (p *PrivateActionRunner) start(ctx context.Context) error {
 	if socketPath == "" {
 		socketPath = executor.SocketPath(p.coreConfig)
 	}
-	var executorSupervisor *executor.Supervisor
+	executorMode := p.coreConfig.GetString(privateactionrunner.PARExecutorMode)
+
 	if p.params.Mode != privateactionrunner.ModeExecutor {
-		executorSupervisor = executor.NewSupervisor(socketPath, p.params.ConfPath, p.params.ExtraConfFiles, cfg.RunnerPoolSize, p.ipc.GetAuthToken())
-		executorSupervisor.ShutdownExisting(ctx)
+		p.logger.Infof("==> Executor mode : %s", executorMode)
+		p.taskExecutor, err = executor.NewExecutor(executor.Params{
+			Mode:           executorMode,
+			SocketPath:     socketPath,
+			ConfPath:       p.params.ConfPath,
+			ExtraConfFiles: p.params.ExtraConfFiles,
+			Capacity:       cfg.RunnerPoolSize,
+			AuthToken:      p.ipc.GetAuthToken(),
+			Version:        cfg.Version,
+			OnShutdown: executor.LogShutdown(ctx, func() {
+				if p.shutdowner != nil {
+					_ = p.shutdowner.Shutdown()
+				}
+			}),
+		})
+		if err != nil {
+			return err
+		}
 	}
 
-	p.workflowRunner, err = runners.NewWorkflowRunner(cfg, keysManager, taskVerifier, opmsClient, p.traceroute, p.eventPlatform, p.ipc.GetClient(), executorSupervisor)
+	p.workflowRunner, err = runners.NewWorkflowRunner(cfg, keysManager, taskVerifier, opmsClient, p.traceroute, p.eventPlatform, p.ipc.GetClient(), p.taskExecutor)
 	if err != nil {
 		return err
 	}
@@ -269,8 +287,13 @@ func (p *PrivateActionRunner) start(ctx context.Context) error {
 		return p.startExecutor(ctx, cfg, socketPath)
 	}
 	p.commonRunner = runners.NewCommonRunner(cfg)
-	err = p.workflowRunner.Start(ctx)
-	if err != nil {
+	// Bring the executor up before the orchestrator loop so it is ready by the time
+	// the loop starts submitting tasks. Each executor implementation readies its
+	// handler as needed (e.g. the in-process one loads verification keys here).
+	if err := p.taskExecutor.Start(ctx, p.workflowRunner); err != nil {
+		return err
+	}
+	if err := p.workflowRunner.Start(ctx); err != nil {
 		return err
 	}
 	return p.commonRunner.Start(ctx)
@@ -278,9 +301,9 @@ func (p *PrivateActionRunner) start(ctx context.Context) error {
 
 func (p *PrivateActionRunner) startExecutor(ctx context.Context, cfg *parconfig.Config, socketPath string) error {
 	p.logger.Infof("Starting Private Action Runner executor on %s", socketPath)
-	startTime := time.Now()
-	p.workflowRunner.StartKeysManager(ctx)
-	p.workflowRunner.WaitForKeysManagerReady(ctx, startTime)
+	if err := p.workflowRunner.Prepare(ctx); err != nil {
+		return err
+	}
 	listener, err := executor.Listen(socketPath)
 	if err != nil {
 		return fmt.Errorf("failed to listen on executor socket: %w", err)
@@ -327,6 +350,15 @@ func (p *PrivateActionRunner) Stop(ctx context.Context) error {
 			return err
 		}
 	}
+	// taskExecutor (orchestrator side) tears down an in-process server; no-op for
+	// the binary/ipc modes.
+	if p.taskExecutor != nil {
+		err := p.taskExecutor.Stop(ctx)
+		if err != nil {
+			return err
+		}
+	}
+	// executorServer is only set when this process is the dedicated executor.
 	if p.executorServer != nil {
 		err := p.executorServer.Stop(ctx)
 		if err != nil {

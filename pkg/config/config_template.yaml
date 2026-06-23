@@ -5141,6 +5141,19 @@ api_key:
 #
 #   executor_idle_timeout: 5m
 
+#   # @param executor_mode - string - optional - default: in-process
+#   # @env DD_PRIVATE_ACTION_RUNNER_EXECUTOR_MODE - string - optional - default: in-process
+#   # Controls how the orchestrator manages the executor process.
+#   #   - in-process (default): run the executor as a goroutine inside the
+#   #     orchestrator process. No subprocess is spawned.
+#   #   - binary: spawn the executor as a subprocess. The orchestrator re-execs
+#   #     itself (works with both installed binaries and `go run`).
+#   #   - ipc: assume an executor is already running on the socket path and
+#   #     connect to it. The orchestrator never spawns or shuts down an executor;
+#   #     useful when starting the executor manually for debugging.
+#
+#   executor_mode: in-process
+
 #   # @param actions_allowlist - list of strings - optional - default: []
 #   # @env DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST - comma-separated list of strings - optional - default: []
 #   # List of actions that the Private Action Runner is allowed to execute.
