@@ -39,8 +39,8 @@ type statusProvider struct {
 	Config config.Component
 }
 
-// NewStatus creates a new rcstatus component.
-func NewStatus(deps Requires) Provides {
+// NewComponent creates a new rcstatus component.
+func NewComponent(deps Requires) Provides {
 	return Provides{
 		StatusProvider: status.NewInformationProvider(statusProvider{
 			Config: deps.Config,
