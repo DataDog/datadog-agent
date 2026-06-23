@@ -240,14 +240,29 @@ func GetBundleInheritedAllowedActions(actionsAllowlist map[string]sets.Set[strin
 	return result
 }
 
-// NewMetricsClient builds a DogStatsD client from the Agent's configured endpoint
-// (bind_host / dogstatsd_port). Used by deployments that send metrics over a socket/UDP
-// (the standalone runner); the Cluster Agent submits in-process instead.
+// NewMetricsClient builds a DogStatsD client from the Agent's configured endpoint.
+// Used by deployments that send metrics over a socket/UDP;
+// the Cluster Agent submits in-process instead.
+//
+// Endpoint selection mirrors the rest of the Agent (see the trace-agent's findAddr):
+// UDP if dogstatsd_port > 0, otherwise the Windows pipe, otherwise the Unix socket,
+// otherwise no-op. This avoids building a dead udp://host:0 client when UDP is disabled
+// (dogstatsd_port: 0) and DogStatsD is reachable only via socket/pipe. STATSD_URL still
+// wins over the chosen address when set.
 func NewMetricsClient(config config.Component, statsdComp statsdcomp.Component) statsd.ClientInterface {
-	// Build the client from the Agent's configured DogStatsD host/port (bind_host / dogstatsd_port)
-	// rather than the shared Get() default, which only honors STATSD_URL and otherwise falls back to
-	// the hard-coded 127.0.0.1:8125. CreateForHostPort still lets STATSD_URL win when it is set.
-	client, err := statsdComp.CreateForHostPort(configutils.GetBindHost(config), config.GetInt("dogstatsd_port"))
+	var client statsd.ClientInterface
+	var err error
+	switch {
+	case config.GetInt("dogstatsd_port") > 0:
+		client, err = statsdComp.CreateForHostPort(configutils.GetBindHost(config), config.GetInt("dogstatsd_port"))
+	case config.GetString("dogstatsd_pipe_name") != "":
+		client, err = statsdComp.CreateForAddr(`\\.\pipe\` + config.GetString("dogstatsd_pipe_name"))
+	case config.GetString("dogstatsd_socket") != "":
+		client, err = statsdComp.CreateForAddr("unix://" + config.GetString("dogstatsd_socket"))
+	default:
+		log.Warn("No DogStatsD endpoint configured (dogstatsd_port: 0, no socket/pipe); PAR metrics disabled")
+		return &statsd.NoOpClient{}
+	}
 	if err != nil {
 		log.Warnf("Failed to get statsd client: %v", err)
 		return &statsd.NoOpClient{}
