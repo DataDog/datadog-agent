@@ -14,6 +14,9 @@ import (
 	"net"
 	"strconv"
 	"strings"
+	"time"
+
+	"github.com/benbjohnson/clock"
 
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -24,11 +27,15 @@ import (
 // RollbackConfigHandler handles the rollbackConfig action for network config management
 type RollbackConfigHandler struct {
 	ipcClient ipc.HTTPClient
+	clock     clock.Clock
 }
 
 // NewRollbackConfigHandler creates a new RollbackConfigHandler
 func NewRollbackConfigHandler(client ipc.HTTPClient) *RollbackConfigHandler {
-	return &RollbackConfigHandler{ipcClient: client}
+	return &RollbackConfigHandler{
+		ipcClient: client,
+		clock:     clock.New(),
+	}
 }
 
 // RollbackConfigInputs defines the inputs for the rollbackConfig action
@@ -44,8 +51,9 @@ type RollbackConfigInputs struct {
 
 // RollbackConfigOutputs is the output of a rollbackConfig action.
 type RollbackConfigOutputs struct {
-	Success bool   `json:"success,omitempty"`
-	Error   string `json:"error,omitempty"`
+	Success    bool       `json:"success,omitempty"`
+	Error      string     `json:"error,omitempty"`
+	FinishedAt *time.Time `json:"finished_at,omitempty"`
 }
 
 // Run executes the rollbackConfig action
@@ -91,5 +99,6 @@ func (h *RollbackConfigHandler) Run(
 		return RollbackConfigOutputs{Error: errMsg}, err
 	}
 
-	return RollbackConfigOutputs{Success: true}, nil
+	t := h.clock.Now()
+	return RollbackConfigOutputs{Success: true, FinishedAt: &t}, nil
 }

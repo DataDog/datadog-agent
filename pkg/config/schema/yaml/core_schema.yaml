@@ -6090,6 +6090,40 @@ properties:
                 node_type: setting
                 type: integer
                 default: 15
+                comment: Sliding deduplication window in seconds. An anomaly series
+                  is counted at most once per window.
+              low_threshold:
+                node_type: setting
+                type: number
+                golang_type: float64
+                default: 0.040
+              high_threshold:
+                node_type: setting
+                type: number
+                golang_type: float64
+                default: 0.060
+              margin_pct:
+                node_type: setting
+                type: number
+                golang_type: float64
+                default: 0.20
+              cooldown_secs:
+                node_type: setting
+                type: integer
+                default: 300
+                comment: "Minimum seconds before the built-in helper subscription can de-escalate. Only used when helper.enabled is true."
+              helper:
+                node_type: section
+                type: object
+                properties:
+                  enabled:
+                    node_type: setting
+                    type: boolean
+                    default: true
+                  report_events:
+                    node_type: setting
+                    type: boolean
+                    default: false
           bocpd:
             node_type: section
             type: object
@@ -8463,7 +8497,7 @@ properties:
           enabled:
             node_type: setting
             type: boolean
-            default: false
+            default: true
             comment: |-
               health_platform.invalidconfig_check.enabled is off by default because the check calls
               schema.ValidateCoreConfig which decompresses, parses, and compiles the full core_schema.yaml
