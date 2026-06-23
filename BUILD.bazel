@@ -311,7 +311,6 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/gpu/containers
 # gazelle:exclude pkg/gpu/integrationtests
 # gazelle:exclude pkg/kubestatemetrics/builder
-# gazelle:exclude pkg/languagedetection/privileged
 # gazelle:exclude pkg/logs/client/http
 # gazelle:exclude pkg/logs/client/tcp
 # gazelle:exclude pkg/logs/internal/util/adlistener
@@ -357,11 +356,8 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/security/clihelpers
 # gazelle:exclude pkg/security/ebpf/tests
 # gazelle:exclude pkg/security/generators/backend_doc
-# gazelle:exclude pkg/security/module
 # gazelle:exclude pkg/security/probe/constantfetch/btfhub
-# gazelle:exclude pkg/security/probe/selftests
-# gazelle:exclude pkg/security/process_list
-# gazelle:exclude pkg/security/proto/api/transform
+# gazelle:exclude pkg/security/module
 # gazelle:exclude pkg/serverless/logs
 # gazelle:exclude pkg/serverless/metrics
 # gazelle:exclude pkg/serverless/otlp
