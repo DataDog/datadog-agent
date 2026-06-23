@@ -2160,6 +2160,7 @@ metrics:
         physical: true
         vgpu: false
   container.gpu.core.usage.dist:
+    absolute_name: true
     metadata:
       metric_type: distribution
       unit: core
@@ -2176,6 +2177,7 @@ metrics:
         physical: true
         vgpu: true
   container.gpu.memory.usage.dist:
+    absolute_name: true
     metadata:
       metric_type: distribution
       unit: byte

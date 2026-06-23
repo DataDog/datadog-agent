@@ -215,6 +215,9 @@ func PrefixedMetricName(specs *Specs, metricName string) string {
 	if specs.Metrics.MetricPrefix == "" {
 		return metricName
 	}
+	if metricSpec, ok := specs.Metrics.Metrics[metricName]; ok && metricSpec.AbsoluteName {
+		return metricName
+	}
 	if strings.HasPrefix(metricName, specs.Metrics.MetricPrefix+".") {
 		return metricName
 	}
