@@ -54,6 +54,8 @@ ENV_PASSHTROUGH = {
     'rvm_prefix': 'rvm / Ruby stuff to make sure Omnibus itself runs correctly',
     'rvm_version': 'rvm / Ruby stuff to make sure Omnibus itself runs correctly',
     'AGENT_DATA_PLANE_VERSION': 'Agent Data Plane Version',
+    'CI_JOB_ID': 'CI Job ID',
+    'CI_PROJECT_NAME': 'CI Project Name',
 }
 
 OS_SPECIFIC_ENV_PASSTHROUGH = {
