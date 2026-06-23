@@ -29,9 +29,9 @@ def _integration_source_packages_impl(rctx):
     )
 
     base_packages = ["datadog_checks_base", "datadog_checks_downloader"]
-    integrations_per_platform = _integrations_per_platform(rctx, arm_incompatible_integrations = ARM_EXCLUSIONS)
+    integrations_by_platform = classify_integrations(rctx, arm_incompatible_integrations = ARM_EXCLUSIONS)
     integration_packages = set()
-    integration_packages.update(*integrations_per_platform.values())
+    integration_packages.update(*integrations_by_platform.values())
 
     packages = base_packages + list(integration_packages)
 
@@ -62,7 +62,7 @@ pyproject_wheel(
 }})""".format(
         "\n".join([
             '"{}": [{}],'.format(platform, ", ".join(['"//{}:wheel"'.format(pkg) for pkg in sorted(integrations)]))
-            for platform, integrations in integrations_per_platform.items()
+            for platform, integrations in integrations_by_platform.items()
         ]),
     )
     rctx.file(
@@ -87,9 +87,17 @@ filegroup(
 
     return rctx.repo_metadata(reproducible = True)
 
-def _integrations_per_platform(rctx, *, arm_incompatible_integrations = []):
-    """Collects all integrations from toplevel packages and assigns them to a Bazel platform."""
-    integrations_per_platform = {
+def classify_integrations(rctx, *, arm_incompatible_integrations = []):
+    """Classifies toplevel integration packages by Bazel target platform.
+
+    Args:
+      rctx: The repository_ctx to use.
+      arm_incompatible_integrations: Integrations that can't be shipped for ARM systems.
+
+    Returns:
+      A dictionary mapping Bazel platform labels to sets of integration names.
+    """
+    integrations_by_platform = {
         "@@//:linux_x86_64": set(),
         "@@//:linux_arm64": set(),
         "@@//:macos_x86_64": set(),
@@ -104,23 +112,23 @@ def _integrations_per_platform(rctx, *, arm_incompatible_integrations = []):
             continue
 
         # Skip folders that are not Python packages
-        if not rctx.path(entry).get_child("pyproject.toml").exists:
+        if not entry.get_child("pyproject.toml").exists:
             continue
 
         supported_platforms = _supported_platforms(rctx, entry, manifest_platform_overrides)
 
         if "linux" in supported_platforms:
-            integrations_per_platform["@@//:linux_x86_64"].add(integration_name)
+            integrations_by_platform["@@//:linux_x86_64"].add(integration_name)
             if integration_name not in arm_incompatible_integrations:
-                integrations_per_platform["@@//:linux_arm64"].add(integration_name)
+                integrations_by_platform["@@//:linux_arm64"].add(integration_name)
         if "mac_os" in supported_platforms:
-            integrations_per_platform["@@//:macos_x86_64"].add(integration_name)
+            integrations_by_platform["@@//:macos_x86_64"].add(integration_name)
             if integration_name not in arm_incompatible_integrations:
-                integrations_per_platform["@@//:macos_arm64"].add(integration_name)
+                integrations_by_platform["@@//:macos_arm64"].add(integration_name)
         if "windows" in supported_platforms:
-            integrations_per_platform["@@//:windows_x86_64"].add(integration_name)
+            integrations_by_platform["@@//:windows_x86_64"].add(integration_name)
 
-    return integrations_per_platform
+    return integrations_by_platform
 
 def _load_manifest_platform_overrides(rctx):
     """Reads .ddev/config.toml manifest platform overrides for integrations without manifest.json."""
@@ -137,7 +145,7 @@ def _load_manifest_platform_overrides(rctx):
 def _supported_platforms(rctx, entry, manifest_platform_overrides):
     """Returns the supported platforms for a package, using manifest.json or .ddev/config.toml overrides."""
     integration_name = entry.basename
-    manifest_path = rctx.path(entry).get_child("manifest.json")
+    manifest_path = entry.get_child("manifest.json")
     if not manifest_path.exists:
         return manifest_platform_overrides.get(integration_name, [])
 

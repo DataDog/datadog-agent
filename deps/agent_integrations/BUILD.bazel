@@ -4,12 +4,15 @@ load("@rules_pkg//pkg:mappings.bzl", "REMOVE_BASE_DIRECTORY", "pkg_attributes", 
 load("@rules_python//python:py_binary.bzl", "py_binary")
 load("@rules_python//python:py_library.bzl", "py_library")
 load("@rules_python//python:py_test.bzl", "py_test")
-load("//deps/agent_integrations:defs.bzl", "freeze", "install_wheels")
+load(":defs.bzl", "freeze", "install_wheels")
+load(":source_packages_test.bzl", "source_packages_test_suite")
 
 py_library(
     name = "wheels_lib",
     srcs = ["wheels.py"],
 )
+
+source_packages_test_suite(name = "source_packages_tests")
 
 py_binary(
     name = "install_wheels_tool",
