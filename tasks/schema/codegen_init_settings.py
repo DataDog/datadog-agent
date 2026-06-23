@@ -20,7 +20,8 @@ class BufferedSetting:
 class CodeGeneratorTarget:
     def __init__(self):
         self.buffer = None
-        self.result = []
+        self.output_full_agent = []
+        self.output_everything = []
         self.header_text = None
         self.filesystem = None
 
@@ -32,9 +33,12 @@ class CodeGeneratorTarget:
     def add_header(self, text):
         self.header_text = text
 
-    def add(self, path, sourcecode):
+    def add(self, path, schema, sourcecode):
         if self.buffer is None:
-            self.result = self.result + sourcecode
+            if retrieve_output_mode(path.split('.'), schema) == 'full-agent-only':
+                self.output_full_agent += sourcecode
+            else:
+                self.output_everything += sourcecode
             return
         self.buffer[path] = BufferedSetting(path, sourcecode)
 
@@ -111,10 +115,13 @@ class CodeGeneratorTarget:
     def result_as_single_func(self):
         res = self.header_text.split('\n')
         res += self._add_imports(False)
-        res += ['func declareSettings(config pkgconfigmodel.Setup) {']
-        res += self.result
+        res += ['func initCoreAgentFull(config pkgconfigmodel.Setup) {']
+        res += self.output_full_agent
+        res += ['}', '']
+        res += ['func initEverything(config pkgconfigmodel.Setup) {']
+        res += self.output_everything
         res += ['}']
-        self.filesystem = {'settings.go': res}
+        self.filesystem = {'all_settings.go': res}
 
     def write_to_directory(self, out_dir):
         for filename in self.filesystem:
@@ -233,6 +240,14 @@ def get_node(keypath, schema):
         curr = curr['properties']
         curr = curr[k]
     return curr
+
+
+def retrieve_output_mode(keypath, schema):
+    node = get_node(keypath, schema)
+    tags = node.get('tags')
+    if tags and 'full-agent-only:true' in tags:
+        return 'full-agent-only'
+    return None
 
 
 def retrieve_default_value(keypath, schema):
@@ -385,6 +400,7 @@ def env_parser_to_func_call(name, env_parser, get_vartype):
 def output_single_setting(name, kind, internal_comment, schema, target):
     sourcecode = []
 
+    # basic info: name, default value, env vars
     settingname = '"%s"' % name
     defaultval = retrieve_default_value(name.split('.'), schema)
     envsuffix = ''
@@ -393,6 +409,7 @@ def output_single_setting(name, kind, internal_comment, schema, target):
         envvars = ['"%s"' % ev for ev in envvars]
         envsuffix = ', ' + ', '.join(envvars)
 
+    # env parser function
     env_parser = retrieve_env_parser(name.split('.'), schema)
     if env_parser:
 
@@ -408,6 +425,7 @@ def output_single_setting(name, kind, internal_comment, schema, target):
         for text in internal_comment.split('\n'):
             sourcecode.append('\t// %s' % text)
 
+    # method name to use for declaring the setting
     method_name = retrieve_method_to_declare(name.split('.'), schema)
     if method_name == 'BindEnvAndSetDefault':
         line = f"\tconfig.BindEnvAndSetDefault({settingname}, {defaultval}{envsuffix})"
@@ -421,7 +439,7 @@ def output_single_setting(name, kind, internal_comment, schema, target):
     # the line of code that defines the setting
     sourcecode.append(line)
     # write to our target
-    target.add(name, sourcecode)
+    target.add(name, schema, sourcecode)
 
 
 config_setup_func_names = [
