@@ -2159,37 +2159,3 @@ metrics:
         mig: false
         physical: true
         vgpu: false
-  container.gpu.core.usage.dist:
-    absolute_name: true
-    metadata:
-      metric_type: distribution
-      unit: core
-      description: >-
-        Distribution of average GPU core usage per container in the collection
-        interval.
-    workload_only: true
-    tagsets:
-      - container
-    support:
-      unsupported_architectures: []
-      device_modes:
-        mig: true
-        physical: true
-        vgpu: true
-  container.gpu.memory.usage.dist:
-    absolute_name: true
-    metadata:
-      metric_type: distribution
-      unit: byte
-      description: >-
-        Distribution of GPU memory usage per container in the collection
-        interval.
-    workload_only: true
-    tagsets:
-      - container
-    support:
-      unsupported_architectures: []
-      device_modes:
-        mig: true
-        physical: true
-        vgpu: true

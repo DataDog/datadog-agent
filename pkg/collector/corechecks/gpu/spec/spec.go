@@ -140,7 +140,6 @@ type MetricSpec struct {
 	WorkloadOnly bool                `yaml:"workload_only,omitempty"`
 	Support      MetricSupportSpec   `yaml:"support"`
 	Validator    *MetricValidator    `yaml:"validator,omitempty"`
-	AbsoluteName bool                `yaml:"absolute_name,omitempty"`
 }
 
 // MetricValidatorRange defines an inclusive numeric range validator.
