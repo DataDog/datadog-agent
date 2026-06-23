@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
+	"os"
 	"time"
 
 	"go.uber.org/atomic"
@@ -35,6 +36,7 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
+	helmcollector "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors/k8s/helm"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	orchcfg "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
@@ -232,7 +234,41 @@ func (o *OrchestratorCheck) Run() error {
 	// Run all collectors.
 	o.collectorBundle.Run(sender)
 
+	// Helm release collection (proof-of-concept, env-gated and log-only).
+	o.collectAndLogHelmReleases()
+
 	return nil
+}
+
+// collectAndLogHelmReleases is a temporary, env-gated proof-of-concept that
+// collects every Helm release stored as a ConfigMap and logs a summary of each.
+// It is a no-op unless DD_ORCHESTRATOR_EXPLORER_HELM_RELEASES_ENABLED is "true",
+// and is intended to be replaced by a proper collector that ships the data
+// through the orchestrator pipeline.
+func (o *OrchestratorCheck) collectAndLogHelmReleases() {
+	if os.Getenv("DD_ORCHESTRATOR_EXPLORER_HELM_RELEASES_ENABLED") != "true" {
+		return
+	}
+
+	releases, err := helmcollector.CollectReleases(context.TODO(), o.apiClient.Cl)
+	if err != nil {
+		_ = log.Warnc(fmt.Sprintf("helm: failed to collect releases: %v", err), orchestrator.ExtraLogContext...)
+		return
+	}
+
+	log.Infoc(fmt.Sprintf("helm: collected %d release(s)", len(releases)), orchestrator.ExtraLogContext...)
+	for _, r := range releases {
+		var chart string
+		var templates int
+		if r.Chart != nil {
+			templates = len(r.Chart.Templates)
+			if r.Chart.Metadata != nil {
+				chart = fmt.Sprintf("%s-%s", r.Chart.Metadata.Name, r.Chart.Metadata.Version)
+			}
+		}
+		log.Infoc(fmt.Sprintf("helm: release=%s/%s revision=%d chart=%s templates=%d manifestBytes=%d",
+			r.Namespace, r.Name, r.Version, chart, templates, len(r.Manifest)), orchestrator.ExtraLogContext...)
+	}
 }
 
 // Cancel cancels the orchestrator check
