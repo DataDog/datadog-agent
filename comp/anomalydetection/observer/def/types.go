@@ -514,9 +514,9 @@ type SeriesFilter struct {
 }
 
 // WorkloadSeriesFilter returns a filter for anomaly detectors: all namespaces
-// except TelemetryNamespace.
+// except TelemetryNamespace and AgentNamespace.
 func WorkloadSeriesFilter() SeriesFilter {
-	return SeriesFilter{ExcludeNamespaces: []string{TelemetryNamespace}}
+	return SeriesFilter{ExcludeNamespaces: []string{TelemetryNamespace, AgentNamespace}}
 }
 
 // SeriesMeta describes a series discovered via ListSeries.

@@ -55,9 +55,10 @@ type Provides struct {
 
 // observation is a message sent from handles to the observer.
 type observation struct {
-	source string
-	metric *metricObs
-	log    *logObs
+	source    string
+	namespace string
+	metric    *metricObs
+	log       *logObs
 	// flush, when non-nil, is closed by the dispatch loop once this observation
 	// is reached, signalling that all prior observations have been processed.
 	flush chan struct{}
@@ -402,7 +403,11 @@ func (o *observerImpl) run() {
 		o.replayMu.Lock()
 		var requests []advanceRequest
 		if obs.metric != nil {
-			requests = o.engine.IngestMetric(obs.source, obs.metric)
+			namespace := obs.namespace
+			if namespace == "" {
+				namespace = obs.source
+			}
+			requests = o.engine.IngestMetric(namespace, obs.metric)
 		}
 		if obs.log != nil {
 			logRequests := o.engine.IngestLog(obs.source, obs.log)
