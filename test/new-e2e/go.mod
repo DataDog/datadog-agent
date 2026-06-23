@@ -26,7 +26,7 @@ require (
 	github.com/pkg/sftp v1.13.10 // indirect
 	github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.23.0
 	github.com/pulumi/pulumi/sdk/v3 v3.244.0
-	github.com/samber/lo v1.52.0
+	github.com/samber/lo v1.53.0
 	github.com/stretchr/testify v1.11.1
 	github.com/xeipuuv/gojsonschema v1.2.0
 	go.yaml.in/yaml/v2 v2.4.4
