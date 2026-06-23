@@ -171,6 +171,18 @@ func (v *ssiSuite) TestInjectionMode() {
 	for _, tc := range testCases {
 		v.Run(tc.name, func() {
 			pod := FindPodInNamespace(v.T(), k8s, "injection-mode", tc.name)
+
+			// The cluster-agent's CSI driver watcher learns about the CSIDriver
+			// asynchronously from workloadmeta. The auto pod may have been admitted
+			// before the watcher synced, resolving it to init_container (pods are never
+			// re-mutated). If the pod did not observe the APM-enabled driver, re-admit it
+			// once: this case runs last, so the watcher is synced by now and the fresh
+			// admission resolves to the CSI provider.
+			if tc.name == "injection-mode-app-auto" && pod.Annotations[testutils.CSIDriverStatusAnnotation] != testutils.CSIDriverStatusAPMEnabled {
+				RestartPod(v.T(), k8s, "injection-mode", tc.name)
+				pod = FindPodInNamespace(v.T(), k8s, "injection-mode", tc.name)
+			}
+
 			podValidator := testutils.NewPodValidator(pod, tc.mode)
 			podValidator.RequireInjection(v.T(), []string{tc.name})
 			podValidator.RequireInjectorVersion(v.T(), "0.54.0")
