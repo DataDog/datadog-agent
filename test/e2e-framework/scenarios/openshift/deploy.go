@@ -94,7 +94,7 @@ func DeployComponents(
 
 		if env.DogstatsdDeploy() {
 			// Standalone dogstatsd
-			if _, err := dogstatsdstandalone.K8sAppDefinition(env, kubeProvider, "dogstatsd-standalone", "/run/crio/crio.sock", fakeIntake, true, ""); err != nil {
+			if _, err := dogstatsdstandalone.K8sAppDefinition(env, kubeProvider, "dogstatsd-standalone", "/run/crio/crio.sock", fakeIntake, false, ""); err != nil {
 				return err
 			}
 
