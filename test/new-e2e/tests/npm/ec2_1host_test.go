@@ -59,7 +59,6 @@ func hostDockerHttpbinEnvProvisioner(opt ...ec2.Option) provisioners.PulumiEnvRu
 			return err
 		}
 
-		// install docker.io
 		manager, err := docker.NewAWSManager(&awsEnv, nginxHost)
 		if err != nil {
 			return err
@@ -93,7 +92,6 @@ func (v *ec2VMSuite) SetupSuite() {
 	// SetupSuite needs to defer CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
 	defer v.CleanupOnSetupFailure()
 
-	v.Env().RemoteHost.MustExecute("sudo apt install -y apache2-utils docker.io")
 	v.Env().RemoteHost.MustExecute("sudo usermod -a -G docker ubuntu")
 	v.Env().RemoteHost.Reconnect()
 
