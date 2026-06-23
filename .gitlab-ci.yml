@@ -41,6 +41,7 @@
   - pkg/logs/tailers/windowsevent/**/*
   - pkg/logs/util/windowsevent/**/*
   - pkg/network/driver/**/*
+  - pkg/procmgr/**/*
 
   # Global packages likely to impact windows
   - pkg/config/**/*
