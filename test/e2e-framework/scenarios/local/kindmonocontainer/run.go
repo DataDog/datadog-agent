@@ -10,6 +10,7 @@ package kindmonocontainer
 
 import (
 	"fmt"
+	"strings"
 
 	kubernetesProvider "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 	appsv1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/apps/v1"
@@ -35,6 +36,10 @@ const clusterAgentLeaderElectionName = "datadog-leader-election"
 func Run(ctx *pulumi.Context) error {
 	localEnv, err := local.NewEnvironment(ctx)
 	if err != nil {
+		return err
+	}
+
+	if err := validateLocalAgentImageConfig(&localEnv); err != nil {
 		return err
 	}
 
@@ -143,6 +148,29 @@ func Run(ctx *pulumi.Context) error {
 	}
 
 	return nil
+}
+
+func validateLocalAgentImageConfig(e config.Env) error {
+	if !e.AgentDeploy() || e.InitOnly() || e.PipelineID() == "" || e.CommitSHA() == "" {
+		return nil
+	}
+
+	var missing []string
+	if e.AgentFullImagePath() == "" {
+		missing = append(missing, "ddagent:"+config.DDAgentFullImagePathParamName)
+	}
+	if e.ClusterAgentFullImagePath() == "" {
+		missing = append(missing, "ddagent:"+config.DDClusterAgentFullImagePathParamName)
+	}
+	if len(missing) == 0 {
+		return nil
+	}
+
+	return fmt.Errorf("local/kindmonocontainer cannot use ddagent:%s and ddagent:%s without %s; local environments do not have an internal CI image registry, so set explicit full image paths instead",
+		config.DDAgentPipelineID,
+		config.DDAgentCommitSHA,
+		strings.Join(missing, " and "),
+	)
 }
 
 func deployNodeAgentRBAC(ctx *pulumi.Context, _ config.Env, providerOpt pulumi.ResourceOption) error {
