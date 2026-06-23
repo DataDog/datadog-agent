@@ -45,6 +45,9 @@ func NewLocalOpenShiftCluster(env config.Env, name string, pullSecretPath, cpus,
 			Delete: pulumi.String("(crc stop || true) && crc delete -f && crc cleanup"),
 			Triggers: pulumi.Array{
 				pulumi.String(pullSecretPath),
+				pulumi.String(cpus),
+				pulumi.String(memory),
+				pulumi.String(disk),
 			},
 		}, utils.MergeOptions(opts, utils.PulumiDependsOn(crcSetup))...)
 		if err != nil {
