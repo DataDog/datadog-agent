@@ -133,8 +133,9 @@ func (s *netflowDockerSuite) TestNetflow() {
 		type ndmflowStats struct {
 			flowTypes   map[string]int
 			ipProtocols map[string]int
+			dscpNames   map[string]int
 		}
-		stats := ndmflowStats{make(map[string]int), make(map[string]int)}
+		stats := ndmflowStats{make(map[string]int), make(map[string]int), make(map[string]int)}
 
 		ndmflows, err := fakeintake.GetNDMFlows()
 		assert.NoError(c, err)
@@ -145,6 +146,9 @@ func (s *netflowDockerSuite) TestNetflow() {
 		for _, ndmflow := range ndmflows {
 			stats.flowTypes[ndmflow.FlowType]++
 			stats.ipProtocols[ndmflow.IPProtocol]++
+			stats.dscpNames[ndmflow.DscpName]++
+			assert.NotEmpty(c, ndmflow.DscpName, "dscp_name should always be populated (falls back to DSCP-<n>)")
+			assert.Equal(c, ndmflow.Tos>>2, ndmflow.Dscp, "dscp should be the top 6 bits of the tos byte")
 		}
 		s.T().Logf("flows_flushed metric shows that agent sent %d flows, fakeintake received %d ndmflows", int(totalFlowsFlushed), len(ndmflows))
 		s.T().Logf("stats: %+v", stats)
