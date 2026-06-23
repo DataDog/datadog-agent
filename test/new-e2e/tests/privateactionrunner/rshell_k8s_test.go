@@ -135,9 +135,7 @@ func (s *parK8sSuite) TestRshellRemediationWriteFile() {
 	err := s.Env().FakeIntake.Client().EnqueuePARTask(taskID, runRemediationCommandAction, map[string]interface{}{
 		"command":         fmt.Sprintf("echo %s > %s && cat %s", content, target, target),
 		"allowedCommands": []string{"rshell:echo", "rshell:cat"},
-		"allowedPaths": map[string][]string{
-			setup.RShellPathAllowMapContainerizedKey: {"/tmp"},
-		},
+		"allowedPaths":    []string{"/tmp:rw"},
 	})
 	s.Require().NoError(err)
 
@@ -154,9 +152,7 @@ func (s *parK8sSuite) TestRshellRunCommandBlocksWrite() {
 	err := s.Env().FakeIntake.Client().EnqueuePARTask(taskID, runCommandAction, map[string]interface{}{
 		"command":         "echo nope > /tmp/par-e2e-readonly.txt",
 		"allowedCommands": []string{"rshell:echo"},
-		"allowedPaths": map[string][]string{
-			setup.RShellPathAllowMapContainerizedKey: {"/tmp"},
-		},
+		"allowedPaths":    []string{"/tmp:rw"},
 	})
 	s.Require().NoError(err)
 

@@ -79,6 +79,7 @@ go_library(
 go_test(
     name = "server_test",
     srcs = [
+        "par_test.go",
         "rc_test.go",
         "redact_test.go",
         "server_test.go",
