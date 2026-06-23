@@ -41,7 +41,7 @@ type trafficCapture struct {
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
-func NewTrafficCapture(deps Requires) replay.Component {
+func NewComponent(deps Requires) replay.Component {
 	tc := &trafficCapture{
 		config: deps.Config,
 		tagger: deps.Tagger,
