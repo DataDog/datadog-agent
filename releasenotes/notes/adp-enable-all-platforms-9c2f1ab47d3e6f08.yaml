@@ -1,0 +1,8 @@
+---
+enhancements:
+  - |
+    The Agent Data Plane (``data_plane.enabled``) can now be enabled on every
+    platform the Agent supports. Previously ``data_plane.enabled`` was ignored
+    on platforms other than Linux and macOS unless ``DD_DATA_PLANE_FORCE_ENABLE``
+    was set; that platform gate and the override have been removed now that the
+    Agent Data Plane supports macOS and Windows.
