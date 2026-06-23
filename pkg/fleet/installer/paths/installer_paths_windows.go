@@ -568,21 +568,11 @@ func SetRepositoryPermissions(path string) error {
 }
 
 // SetFileReadableByEveryone grants the Everyone group (S-1-1-0) read access on a file while
-// preserving the owner/group and the ACEs inherited from the parent directory (SYSTEM,
-// Administrators, and ddagentuser keep their access). This is the Windows equivalent of a
-// world-readable (0644) file on Linux and lets non-admin identities (e.g. an IIS App Pool
-// identity) read fleet config such as application_monitoring.yaml.
+// preserving the owner/group and the rest of the DACL (SYSTEM, Administrators, and ddagentuser
+// keep their access). This is the Windows equivalent of a world-readable (0644) file on Linux
+// and lets non-admin identities (e.g. an IIS App Pool identity) read fleet config such as
+// application_monitoring.yaml.
 func SetFileReadableByEveryone(path string) error {
-	return setFileEveryoneReadAccess(path, windows.GRANT_ACCESS)
-}
-
-// RemoveFileReadableByEveryone removes the explicit read access granted to the Everyone group
-// while preserving the owner/group and the rest of the DACL.
-func RemoveFileReadableByEveryone(path string) error {
-	return setFileEveryoneReadAccess(path, windows.REVOKE_ACCESS)
-}
-
-func setFileEveryoneReadAccess(path string, accessMode windows.ACCESS_MODE) error {
 	everyone, err := windows.CreateWellKnownSid(windows.WinWorldSid)
 	if err != nil {
 		return fmt.Errorf("failed to create Everyone SID: %w", err)
@@ -609,10 +599,11 @@ func setFileEveryoneReadAccess(path string, accessMode windows.ACCESS_MODE) erro
 		return fmt.Errorf("failed to get DACL: %w", err)
 	}
 
+	// Merge a Generic Read grant for Everyone into the existing DACL, preserving all other ACEs.
 	newDACL, err := windows.ACLFromEntries([]windows.EXPLICIT_ACCESS{
 		{
 			AccessPermissions: windows.ACCESS_MASK(windows.GENERIC_READ),
-			AccessMode:        accessMode,
+			AccessMode:        windows.GRANT_ACCESS,
 			Inheritance:       windows.NO_INHERITANCE,
 			Trustee: windows.TRUSTEE{
 				TrusteeForm:  windows.TRUSTEE_IS_SID,
@@ -625,7 +616,6 @@ func setFileEveryoneReadAccess(path string, accessMode windows.ACCESS_MODE) erro
 		return fmt.Errorf("failed to update DACL: %w", err)
 	}
 
-	// Set the merged DACL and allow inheritance from the parent directory.
 	return windows.SetNamedSecurityInfo(
 		path,
 		windows.SE_FILE_OBJECT,

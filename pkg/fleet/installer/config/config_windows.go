@@ -12,7 +12,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -114,13 +113,10 @@ func (d *Directories) RemoveExperiment(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("error restoring stable directory: %w", err)
 	}
-	root, err := os.OpenRoot(d.StablePath)
-	if err != nil {
-		return fmt.Errorf("error opening stable directory: %w", err)
-	}
-	defer root.Close()
-	if err := applyConfigFilePermissions(ctx, root); err != nil {
-		return fmt.Errorf("error applying stable directory permissions: %w", err)
+	// robocopy does not carry ACLs, so re-grant Everyone read on application_monitoring.yaml
+	// (the only world-readable config file) after restoring the stable directory.
+	if err := grantApplicationMonitoringReadAccess(d.StablePath); err != nil {
+		return fmt.Errorf("error applying application_monitoring.yaml permissions: %w", err)
 	}
 	err = os.RemoveAll(d.ExperimentPath)
 	if err != nil {
@@ -194,38 +190,26 @@ func secureCreateTargetDirectoryWithSourcePermissions(sourcePath, targetPath str
 // restricted to Administrators and ddagentuser. For files Linux makes world-readable
 // (mode 0644 — only application_monitoring.yaml), we grant Everyone read so non-admin
 // identities (e.g. IIS App Pool) can read fleet config. Restricted files (mode 0640) keep the
-// inherited admin/ddagentuser-only ACL, including after moves from world-readable files.
+// inherited admin/ddagentuser-only ACL — we only ever grant, never modify other files' ACLs.
 func setFileOwnershipAndPermissions(_ context.Context, root *os.Root, path string, spec *configFileSpec) error {
-	fullPath := filepath.Join(root.Name(), path)
 	if spec.mode&0o004 == 0 {
-		return paths.RemoveFileReadableByEveryone(fullPath)
+		return nil
 	}
-	return paths.SetFileReadableByEveryone(fullPath)
+	return paths.SetFileReadableByEveryone(filepath.Join(root.Name(), path))
 }
 
-// applyConfigFilePermissions walks the config tree and re-applies each file's ACL based on its
-// configFileSpec. This is needed on Windows because robocopy (used to back up/restore the config
-// directory during experiments) does not carry the explicit Everyone-read ACE, so it must be
-// reapplied after a restore (rollback).
-func applyConfigFilePermissions(ctx context.Context, root *os.Root) error {
-	return fs.WalkDir(root.FS(), ".", func(walkPath string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if d.IsDir() {
-			return nil
-		}
-
-		configPath := "/" + filepath.ToSlash(walkPath)
-		spec := getConfigFileSpec(configPath)
-		if spec == nil {
-			return nil
-		}
-
-		rootPath := filepath.FromSlash(walkPath)
-		if err := setFileOwnershipAndPermissions(ctx, root, rootPath, spec); err != nil {
-			return fmt.Errorf("error setting permissions for %s: %w", configPath, err)
-		}
+// grantApplicationMonitoringReadAccess re-grants Everyone read on application_monitoring.yaml
+// under stablePath, if it exists. application_monitoring.yaml is the only world-readable config
+// file, and robocopy (used to restore the stable directory during a rollback) does not carry
+// ACLs, so the ACE must be reapplied afterward.
+func grantApplicationMonitoringReadAccess(stablePath string) error {
+	appMonitoringPath := filepath.Join(stablePath, "application_monitoring.yaml")
+	_, err := os.Stat(appMonitoringPath)
+	if os.IsNotExist(err) {
 		return nil
-	})
+	}
+	if err != nil {
+		return fmt.Errorf("error checking application_monitoring.yaml: %w", err)
+	}
+	return paths.SetFileReadableByEveryone(appMonitoringPath)
 }

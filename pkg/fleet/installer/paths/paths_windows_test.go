@@ -123,11 +123,6 @@ func TestFileReadableByEveryonePreservesDACLProtection(t *testing.T) {
 	sd, err = getSecurityDescriptor(path)
 	require.NoError(t, err)
 	assertDACLProtected(t, sd)
-
-	require.NoError(t, RemoveFileReadableByEveryone(path))
-	sd, err = getSecurityDescriptor(path)
-	require.NoError(t, err)
-	assertDACLProtected(t, sd)
 }
 
 func TestCreateDirIfNotExists(t *testing.T) {
