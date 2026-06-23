@@ -18,7 +18,6 @@ import (
 
 type Loop struct {
 	runner          *WorkflowRunner
-	sem             chan struct{}
 	shutdownChannel chan struct{}
 	wg              sync.WaitGroup
 }
@@ -26,7 +25,6 @@ type Loop struct {
 func NewLoop(runner *WorkflowRunner) *Loop {
 	return &Loop{
 		runner:          runner,
-		sem:             make(chan struct{}, runner.config.RunnerPoolSize), // todo: we may consider moving to the semaphore before release.
 		shutdownChannel: make(chan struct{}),
 	}
 }
@@ -34,11 +32,12 @@ func NewLoop(runner *WorkflowRunner) *Loop {
 func (l *Loop) Run(parentCtx context.Context) {
 	// Detach from the parent context's deadline and cancellation so the
 	// polling loop isn't bounded by the startup timeout.
-	// Proper shutdown is handled by the Close method through the shutdownChannel which will let in flight task complete.
+	// Shutdown is handled by Close through shutdownChannel; accepted task
+	// completion is owned by the executor.
 	ctx, cancel := context.WithCancel(context.WithoutCancel(parentCtx))
 	defer cancel()
 	logger := log.FromContext(ctx)
-	l.wg.Add(1) // Increment the WaitGroup counter
+	l.wg.Add(1)
 
 	logger.Info("Starting loop")
 
@@ -59,11 +58,9 @@ func (l *Loop) Run(parentCtx context.Context) {
 		default:
 		}
 
-		if l.runner.executor != nil {
-			if err := l.runner.executor.WaitForCapacity(ctx); err != nil {
-				logger.Error("executor capacity wait failed", log.ErrorField(err))
-				continue
-			}
+		if err := l.runner.executor.WaitForCapacity(ctx); err != nil {
+			logger.Error("executor capacity wait failed", log.ErrorField(err))
+			continue
 		}
 
 		var task *types.Task
@@ -97,45 +94,10 @@ func (l *Loop) Run(parentCtx context.Context) {
 			continue
 		}
 
-		if l.runner.executor != nil {
-			if err := l.runner.executor.SubmitTask(ctx, task); err != nil {
-				logger.Error("failed to submit task to executor", log.String(observability.TaskIDTagName, task.Data.ID), log.ErrorField(err))
-				l.runner.publishFailure(ctx, task, err)
-			}
-			continue
+		if err := l.runner.executor.SubmitTask(ctx, task); err != nil {
+			logger.Error("failed to submit task to executor", log.String(observability.TaskIDTagName, task.Data.ID), log.ErrorField(err))
+			publishFailure(ctx, l.runner.opmsClient, task, err)
 		}
-
-		if err := task.Validate(); err != nil {
-			logger.Error("could not validate workflow task", log.ErrorField(err))
-			l.runner.publishFailure(ctx, task, err)
-			continue
-		}
-		unwrappedTask, err := l.runner.taskVerifier.UnwrapTask(task)
-		if err != nil {
-			logger.Error("could not verify workflow task", log.ErrorField(err))
-			l.runner.publishFailure(ctx, task, err)
-			continue
-		}
-		logger.Info("task verified successfully", log.String(observability.TaskIDTagName, unwrappedTask.Data.ID))
-
-		// JobId is generated on dequeue so its not part of the signature, it will be checked by the backend when publishing the result
-		unwrappedTask.Data.Attributes.JobId = task.Data.Attributes.JobId
-		// TraceId/SpanId are dequeue-time observability metadata, not part of the signed task
-		unwrappedTask.Data.Attributes.TraceId = task.Data.Attributes.TraceId
-		unwrappedTask.Data.Attributes.SpanId = task.Data.Attributes.SpanId
-		task = unwrappedTask
-
-		credential, err := l.runner.resolver.ResolveConnectionInfoToCredential(ctx, task.Data.Attributes.ConnectionInfo, nil)
-		if err != nil {
-			logger.Error("could not resolve connection", log.String(observability.TaskIDTagName, task.Data.ID), log.ErrorField(err))
-			l.runner.publishFailure(ctx, task, err)
-			continue
-		}
-		l.sem <- struct{}{}
-		go func() {
-			l.runner.handleTask(ctx, task, credential)
-			<-l.sem
-		}()
 	}
 }
 

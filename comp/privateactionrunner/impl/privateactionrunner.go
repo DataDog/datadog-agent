@@ -86,10 +86,11 @@ type PrivateActionRunner struct {
 	params         privateactionrunner.Params
 	shutdowner     fx.Shutdowner
 
-	workflowRunner *runners.WorkflowRunner
-	commonRunner   *runners.CommonRunner
-	taskExecutor   executor.Executor
-	executorServer *executor.Server
+	workflowRunner      *runners.WorkflowRunner
+	workflowTaskHandler *runners.WorkflowTaskHandler
+	commonRunner        *runners.CommonRunner
+	taskExecutor        executor.Executor
+	executorServer      *executor.Server
 
 	telemetry *telemetry.Telemetry
 
@@ -249,14 +250,20 @@ func (p *PrivateActionRunner) start(ctx context.Context) error {
 	p.logger.Info("==> API Host : " + cfg.DDApiHost)
 	p.logger.Info("==> URN : " + cfg.Urn)
 
-	keysManager := taskverifier.NewKeyManager(p.rcClient)
-	taskVerifier := taskverifier.NewTaskVerifier(keysManager, cfg)
 	opmsClient := opms.NewClient(cfg)
 	socketPath := p.params.ExecutorSocketPath
 	if socketPath == "" {
 		socketPath = executor.SocketPath(p.coreConfig)
 	}
 	executorMode := p.coreConfig.GetString(privateactionrunner.PARExecutorMode)
+	if p.params.Mode == privateactionrunner.ModeExecutor || executorMode == "" || executorMode == executor.ModeInProcess {
+		keysManager := taskverifier.NewKeyManager(p.rcClient)
+		taskVerifier := taskverifier.NewTaskVerifier(keysManager, cfg)
+		p.workflowTaskHandler, err = runners.NewWorkflowTaskHandler(cfg, keysManager, taskVerifier, opmsClient, p.traceroute, p.eventPlatform, p.ipc.GetClient())
+		if err != nil {
+			return err
+		}
+	}
 
 	if p.params.Mode != privateactionrunner.ModeExecutor {
 		p.logger.Infof("==> Executor mode : %s", executorMode)
@@ -279,18 +286,22 @@ func (p *PrivateActionRunner) start(ctx context.Context) error {
 		}
 	}
 
-	p.workflowRunner, err = runners.NewWorkflowRunner(cfg, keysManager, taskVerifier, opmsClient, p.traceroute, p.eventPlatform, p.ipc.GetClient(), p.taskExecutor)
-	if err != nil {
-		return err
-	}
 	if p.params.Mode == privateactionrunner.ModeExecutor {
 		return p.startExecutor(ctx, cfg, socketPath)
+	}
+	p.workflowRunner, err = runners.NewWorkflowRunner(cfg, opmsClient, p.taskExecutor)
+	if err != nil {
+		return err
 	}
 	p.commonRunner = runners.NewCommonRunner(cfg)
 	// Bring the executor up before the orchestrator loop so it is ready by the time
 	// the loop starts submitting tasks. Each executor implementation readies its
 	// handler as needed (e.g. the in-process one loads verification keys here).
-	if err := p.taskExecutor.Start(ctx, p.workflowRunner); err != nil {
+	var taskHandler executor.TaskHandler
+	if p.workflowTaskHandler != nil {
+		taskHandler = p.workflowTaskHandler
+	}
+	if err := p.taskExecutor.Start(ctx, taskHandler); err != nil {
 		return err
 	}
 	if err := p.workflowRunner.Start(ctx); err != nil {
@@ -301,7 +312,10 @@ func (p *PrivateActionRunner) start(ctx context.Context) error {
 
 func (p *PrivateActionRunner) startExecutor(ctx context.Context, cfg *parconfig.Config, socketPath string) error {
 	p.logger.Infof("Starting Private Action Runner executor on %s", socketPath)
-	if err := p.workflowRunner.Prepare(ctx); err != nil {
+	if p.workflowTaskHandler == nil {
+		return fmt.Errorf("private action runner executor requires a workflow task handler")
+	}
+	if err := p.workflowTaskHandler.Prepare(ctx); err != nil {
 		return err
 	}
 	listener, err := executor.Listen(socketPath)
@@ -309,7 +323,7 @@ func (p *PrivateActionRunner) startExecutor(ctx context.Context, cfg *parconfig.
 		return fmt.Errorf("failed to listen on executor socket: %w", err)
 	}
 	p.executorServer = executor.NewServer(
-		p.workflowRunner,
+		p.workflowTaskHandler,
 		cfg.Version,
 		cfg.ExecutorIdleTimeout,
 		p.ipc.GetAuthToken(),
