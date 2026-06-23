@@ -274,10 +274,10 @@ func TestFilterAllowedPathsIntersectsConfiguredAgentAllowlistByAccess(t *testing
 			expected: []string{"/var/log/datadog/"},
 		},
 		{
-			name:     "read-only and read-write groups are combined in agent order",
+			name:     "read-only and read-write groups are combined after path reduction",
 			agent:    []string{"/var/log/datadog:ro", "/opt/datadog:rw", "/tmp/cache:ro"},
 			backend:  []string{"/var/log:ro", "/opt:rw", "/tmp:rw"},
-			expected: []string{"/var/log/datadog/:ro", "/opt/datadog/:rw"},
+			expected: []string{"/opt/datadog/:rw", "/var/log/datadog/:ro"},
 		},
 	}
 	for _, tc := range cases {
@@ -315,6 +315,21 @@ func TestNewRunCommandHandlerDoesNotMutateInputs(t *testing.T) {
 
 	assert.Equal(t, pathsCopy, paths, "AgentAllowedPaths input must not be mutated")
 	assert.Equal(t, commandsCopy, commands, "AgentAllowedCommands input must not be mutated")
+}
+
+func TestNewRunCommandHandlerReducesOperatorAllowedPathsByAccess(t *testing.T) {
+	handler := NewRunCommandHandler(RunCommandHandlerConfig{
+		OperatorAllowedPaths: []string{
+			"/var/log",
+			"/var/log/datadog",
+			"/var/log:rw",
+			"/var/log/datadog:rw",
+			"/etc:ro",
+			"/etc/datadog:ro",
+		},
+	})
+
+	assert.Equal(t, []string{"/etc/:ro", "/var/log/", "/var/log/:rw"}, handler.operatorAllowedPaths)
 }
 
 func TestRunCommandEmptyCommandReturnsError(t *testing.T) {

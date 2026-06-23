@@ -7,6 +7,7 @@ package com_datadoghq_remoteaction_rshell
 
 import (
 	"path"
+	"slices"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -129,6 +130,90 @@ func narrowerPathWithSameAccess(a, b string) (string, bool) {
 		return a, true
 	case strings.HasPrefix(bPath, aPath):
 		return b, true
+	default:
+		return "", false
+	}
+}
+
+// reducePathListToBroadest reduces the list of paths by removing duplicates and
+// keeping the broadest path for each common prefix.
+// Read-only and read-write paths are reduced independently so write access does
+// not collapse into a broader read-only path with the same prefix.
+//
+// Assumptions:
+//
+//  1. All paths have been cleaned (path.Clean)
+//
+//  2. All paths have been normalized (end with a separator).
+func reducePathListToBroadest(paths []string) []string {
+	if len(paths) == 0 {
+		return []string{}
+	}
+
+	readOnlyPaths, readWritePaths := splitPathListByAccess(paths)
+	reducedReadOnly := reducePathSpecsToBroadest(readOnlyPaths)
+	reducedReadWrite := reducePathSpecsToBroadest(readWritePaths)
+
+	reduced := slices.Concat(reducedReadOnly, reducedReadWrite)
+
+	slices.Sort(reduced)
+	return slices.Compact(reduced)
+}
+
+func splitPathListByAccess(paths []string) (readOnly []string, readWrite []string) {
+	for _, p := range paths {
+		_, accessSuffix := splitPathAccessSuffix(p)
+		if accessSuffix == pathAccessReadWrite {
+			readWrite = append(readWrite, p)
+			continue
+		}
+		readOnly = append(readOnly, p)
+	}
+	return readOnly, readWrite
+}
+
+func reducePathSpecsToBroadest(paths []string) []string {
+	reduced := make([]string, 0, len(paths))
+	for _, p := range paths {
+		added := false
+		for j := range reduced {
+			if broadest, ok := broadestPathSpec(p, reduced[j]); ok {
+				// The path p has a common prefix with the already present path reduced[j],
+				// so we replace the already present path with the broader common prefix.
+				reduced[j] = broadest
+				added = true
+			}
+		}
+
+		// The path p has nothing in common with existing reduced paths,
+		// so it is a new path to add to the list of reduced paths.
+		if !added {
+			reduced = append(reduced, p)
+		}
+	}
+
+	// Remove duplicates.
+	slices.Sort(reduced)
+	return slices.Compact(reduced)
+}
+
+func broadestPathSpec(a, b string) (string, bool) {
+	aPath := pathSpecPath(a)
+	bPath := pathSpecPath(b)
+
+	switch {
+	case aPath == bPath:
+		if strings.HasSuffix(a, pathAccessReadOnly) {
+			return a, true
+		}
+		if strings.HasSuffix(b, pathAccessReadOnly) {
+			return b, true
+		}
+		return a, true
+	case strings.HasPrefix(aPath, bPath):
+		return b, true
+	case strings.HasPrefix(bPath, aPath):
+		return a, true
 	default:
 		return "", false
 	}

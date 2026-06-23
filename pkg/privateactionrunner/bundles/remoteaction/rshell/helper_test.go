@@ -179,3 +179,140 @@ func TestPathSpecPathStripsAccessSuffixForLocalStat(t *testing.T) {
 	assert.Equal(t, "/host/var/log/", pathSpecPath("/host/var/log/:ro"))
 	assert.Equal(t, "/etc/", pathSpecPath("/etc/"))
 }
+
+func TestReducePathListToBroadest(t *testing.T) {
+	cases := []struct {
+		name string
+		in   []string
+		want []string
+	}{
+		{
+			name: "nil input",
+			in:   nil,
+			want: []string{},
+		},
+		{
+			name: "empty input",
+			in:   []string{},
+			want: []string{},
+		},
+		{
+			name: "read-only paths reduce to broadest prefix",
+			in:   []string{"/var/log/", "/var/log/datadog/", "/etc/"},
+			want: []string{"/etc/", "/var/log/"},
+		},
+		{
+			name: "read-only paths reduce when broadest appears last",
+			in:   []string{"/var/log/datadog/", "/var/log/datadog/agent/", "/var/log/"},
+			want: []string{"/var/log/"},
+		},
+		{
+			name: "read-only paths reduce through multiple replacements",
+			in:   []string{"/var/log/datadog/agent/", "/var/log/datadog/", "/var/log/"},
+			want: []string{"/var/log/"},
+		},
+		{
+			name: "unrelated read-only sibling prefixes are preserved",
+			in:   []string{"/var/log/", "/var/logger/", "/var/logs/"},
+			want: []string{"/var/log/", "/var/logger/", "/var/logs/"},
+		},
+		{
+			name: "read-write paths reduce independently",
+			in:   []string{"/var/log/:rw", "/var/log/datadog/:rw", "/etc/"},
+			want: []string{"/etc/", "/var/log/:rw"},
+		},
+		{
+			name: "read-write paths reduce when broadest appears last",
+			in:   []string{"/var/log/datadog/agent/:rw", "/var/log/datadog/:rw", "/var/log/:rw"},
+			want: []string{"/var/log/:rw"},
+		},
+		{
+			name: "unrelated read-write sibling prefixes are preserved",
+			in:   []string{"/var/log/:rw", "/var/logger/:rw", "/var/logs/:rw"},
+			want: []string{"/var/log/:rw", "/var/logger/:rw", "/var/logs/:rw"},
+		},
+		{
+			name: "read-only path does not swallow read-write descendant",
+			in:   []string{"/var/log/", "/var/log/datadog/:rw"},
+			want: []string{"/var/log/", "/var/log/datadog/:rw"},
+		},
+		{
+			name: "read-write path does not swallow read-only descendant",
+			in:   []string{"/var/log/:rw", "/var/log/datadog/"},
+			want: []string{"/var/log/:rw", "/var/log/datadog/"},
+		},
+		{
+			name: "same path can exist in read-only and read-write buckets",
+			in:   []string{"/var/log/", "/var/log/:rw"},
+			want: []string{"/var/log/", "/var/log/:rw"},
+		},
+		{
+			name: "explicit read-only suffix is preserved",
+			in:   []string{"/var/log/:ro", "/var/log/datadog/:ro"},
+			want: []string{"/var/log/:ro"},
+		},
+		{
+			name: "explicit read-only suffix is preserved when broadest appears after unsuffixed descendant",
+			in:   []string{"/var/log/datadog/", "/var/log/:ro"},
+			want: []string{"/var/log/:ro"},
+		},
+		{
+			name: "unsuffixed broadest path wins over explicit read-only descendant",
+			in:   []string{"/var/log/datadog/:ro", "/var/log/"},
+			want: []string{"/var/log/"},
+		},
+		{
+			name: "duplicate read-only path keeps explicit read-only suffix",
+			in:   []string{"/var/log/", "/var/log/:ro"},
+			want: []string{"/var/log/:ro"},
+		},
+		{
+			name: "duplicate read-only path keeps explicit read-only suffix regardless of order",
+			in:   []string{"/var/log/:ro", "/var/log/"},
+			want: []string{"/var/log/:ro"},
+		},
+		{
+			name: "duplicates are removed per access bucket",
+			in:   []string{"/var/log/:rw", "/var/log/:rw", "/var/log/", "/var/log/"},
+			want: []string{"/var/log/", "/var/log/:rw"},
+		},
+		{
+			name: "root read-only reduces all read-only paths only",
+			in:   []string{"/var/log/", "/etc/", "/"},
+			want: []string{"/"},
+		},
+		{
+			name: "root read-write reduces all read-write paths only",
+			in:   []string{"/var/log/:rw", "/etc/:rw", "/:rw", "/"},
+			want: []string{"/", "/:rw"},
+		},
+		{
+			name: "mixed access reductions stay isolated",
+			in: []string{
+				"/var/log/datadog/:rw",
+				"/var/log/:rw",
+				"/var/log/datadog/agent/",
+				"/var/log/datadog/:ro",
+				"/opt/datadog/:rw",
+				"/opt/",
+			},
+			want: []string{
+				"/opt/",
+				"/opt/datadog/:rw",
+				"/var/log/:rw",
+				"/var/log/datadog/:ro",
+			},
+		},
+		{
+			name: "output is sorted after reduction",
+			in:   []string{"/zeta/", "/alpha/:rw", "/alpha/beta/:rw", "/beta/"},
+			want: []string{"/alpha/:rw", "/beta/", "/zeta/"},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, reducePathListToBroadest(tc.in))
+		})
+	}
+}
