@@ -198,13 +198,20 @@ func doStopService(ctx context.Context, service *mgr.Service) error {
 
 // StopService stops a service and any services that depend on it
 func StopService(serviceName string) error {
+	return StopServiceWithTimeout(serviceName, DefaultServiceCommandTimeout*time.Second)
+}
+
+// StopServiceWithTimeout stops a service and its dependents like StopService, but uses
+// perServiceTimeout for the wait budget multiplier: total deadline is
+// (len(dependents)+1) * perServiceTimeout.
+func StopServiceWithTimeout(serviceName string, perServiceTimeout time.Duration) error {
 	desiredStopAccess := uint32(windows.SERVICE_STOP | windows.SERVICE_QUERY_STATUS | windows.SERVICE_ENUMERATE_DEPENDENTS)
 	manager, service, err := openManagerService(serviceName, desiredStopAccess)
 	if err != nil {
 		return err
 	}
 	defer closeManagerService(manager, service)
-	return doStopServiceWithDependencies(manager, service, svc.AnyActivity, nil)
+	return doStopServiceWithDependencies(manager, service, svc.AnyActivity, nil, perServiceTimeout)
 }
 
 // We need to get all dependent services (windows.SERVICE_STATE_ALL) to attempt to stop them,
@@ -236,7 +243,7 @@ func StopService(serviceName string) error {
 //
 // Callback is invoked to help unit tests to setup race condition in deterministic way
 func doStopServiceWithDependencies(manager *mgr.Mgr, service *mgr.Service,
-	depenStatus svc.ActivityStatus, callback stopServiceCallback) error {
+	depenStatus svc.ActivityStatus, callback stopServiceCallback, perServiceTimeout time.Duration) error {
 
 	// open dependent services
 	depServiceNames, err := service.ListDependentServices(depenStatus)
@@ -257,7 +264,7 @@ func doStopServiceWithDependencies(manager *mgr.Mgr, service *mgr.Service,
 	}
 
 	// extend deadline to account for all services we are trying to stop
-	totalTimeout := time.Duration(len(depServices)+1) * DefaultServiceCommandTimeout * time.Second
+	totalTimeout := time.Duration(len(depServices)+1) * perServiceTimeout
 	ctx, cancel := context.WithTimeout(context.Background(), totalTimeout)
 	defer cancel()
 
@@ -385,8 +392,14 @@ func WaitForPendingStateChange(ctx context.Context, serviceName string, currentS
 	return waitForPendingStateChange(ctx, service, currentState)
 }
 
-// RestartService stops a service and thenif the stop was successful starts it again
+// RestartService stops a service and then, if the stop was successful, starts it again.
 func RestartService(serviceName string) error {
+	return RestartServiceWithTimeout(serviceName, DefaultServiceCommandTimeout*time.Second)
+}
+
+// RestartServiceWithTimeout is like RestartService but uses perServiceTimeout for the stop phase
+// (same semantics as StopServiceWithTimeout: total stop deadline scales with dependent count).
+func RestartServiceWithTimeout(serviceName string, perServiceTimeout time.Duration) error {
 	restartFlags := uint32(windows.SERVICE_ENUMERATE_DEPENDENTS | windows.SERVICE_START |
 		windows.SERVICE_STOP | windows.SERVICE_QUERY_STATUS)
 	manager, service, err := openManagerService(serviceName, restartFlags)
@@ -395,7 +408,7 @@ func RestartService(serviceName string) error {
 	}
 	defer closeManagerService(manager, service)
 
-	if err = doStopServiceWithDependencies(manager, service, svc.AnyActivity, nil); err == nil {
+	if err = doStopServiceWithDependencies(manager, service, svc.AnyActivity, nil, perServiceTimeout); err == nil {
 		err = doStartService(service)
 	}
 	return err

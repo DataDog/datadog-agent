@@ -13,7 +13,7 @@ require (
 	github.com/cenkalti/backoff/v5 v5.0.3
 	github.com/evanphx/json-patch/v5 v5.9.11
 	github.com/fatih/color v1.19.0
-	github.com/google/go-containerregistry v0.21.6
+	github.com/google/go-containerregistry v0.21.7
 	github.com/google/uuid v1.6.0
 	github.com/itchyny/gojq v0.12.19
 	github.com/shirou/gopsutil/v4 v4.26.5
@@ -24,9 +24,9 @@ require (
 	go.uber.org/multierr v1.11.0
 	go.yaml.in/yaml/v2 v2.4.4
 	go.yaml.in/yaml/v3 v3.0.4
-	golang.org/x/net v0.55.0
-	golang.org/x/sys v0.45.0
-	golang.org/x/text v0.37.0
+	golang.org/x/net v0.56.0
+	golang.org/x/sys v0.46.0
+	golang.org/x/text v0.38.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
@@ -42,7 +42,7 @@ require (
 	github.com/klauspost/compress v1.18.6 // indirect
 	github.com/lufia/plan9stats v0.0.0-20260216142805-b3301c5f2a88 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
-	github.com/mattn/go-isatty v0.0.20 // indirect
+	github.com/mattn/go-isatty v0.0.22 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.1.1 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
@@ -54,7 +54,7 @@ require (
 	github.com/tklauser/numcpus v0.11.0 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	golang.org/x/oauth2 v0.36.0 // indirect
-	golang.org/x/sync v0.20.0 // indirect
+	golang.org/x/sync v0.21.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
 	gotest.tools/v3 v3.5.2 // indirect
 )
@@ -93,8 +93,6 @@ replace github.com/DataDog/datadog-agent/pkg/config/nodetreemodel => ../../confi
 replace github.com/DataDog/datadog-agent/pkg/config/setup => ../../config/setup
 
 replace github.com/DataDog/datadog-agent/pkg/config/structure => ../../config/structure
-
-replace github.com/DataDog/datadog-agent/pkg/config/teeconfig => ../../config/teeconfig
 
 replace github.com/DataDog/datadog-agent/pkg/config/viperconfig => ../../config/viperconfig
 

@@ -479,7 +479,7 @@ func (suite *ConfigTestSuite) TestProxyEnvVarsNone() {
 
 	assert.Equal(t, "", pkgconfig.GetString("proxy.http"))
 	assert.Equal(t, "", pkgconfig.GetString("proxy.https"))
-	assert.Equal(t, []string(nil), pkgconfig.GetStringSlice("proxy.no_proxy"))
+	assert.Equal(t, []string{}, pkgconfig.GetStringSlice("proxy.no_proxy"))
 }
 
 func (suite *ConfigTestSuite) TestProxyEnvVarsNOProxyOnly() {
@@ -546,9 +546,6 @@ func TestLogsEnabledViaEnvironmentVariable(t *testing.T) {
 	c, err := NewConfigComponent(context.Background(), "", []string{fileName})
 	require.NoError(t, err, "NewConfigComponent should succeed with DD_LOGS_ENABLED set")
 	assert.True(t, c.GetBool("logs_enabled"), "logs_enabled should be true when DD_LOGS_ENABLED=true")
-
-	libType := c.GetLibType()
-	assert.NotEmpty(t, libType, "config lib type should be set")
 }
 
 // TestLogsEnabledViaDatadogConfig tests that logs_enabled can be set via a separate
