@@ -704,7 +704,8 @@ namespace WixSetup.Datadog_Agent
                 Constants.ProcmgrServiceName,
                 "Datadog Process Manager",
                 "Manage Datadog agent processes",
-                "LocalSystem");
+                "[DDAGENTUSER_PROCESSED_FQ_NAME]",
+                "[DDAGENTUSER_PROCESSED_PASSWORD]");
             agentBinDir.AddFile(new WixSharp.File(_agentBinaries.ProcmgrService, procmgrService));
             agentBinDir.Add(new EventSource
             {

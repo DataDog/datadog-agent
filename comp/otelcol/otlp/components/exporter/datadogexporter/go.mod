@@ -136,7 +136,7 @@ require (
 	github.com/DataDog/go-tuf v1.1.1-0.5.2 // indirect
 	github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 // indirect
 	github.com/DataDog/sketches-go v1.4.8 // indirect
-	github.com/DataDog/viper v1.15.1 // indirect
+	github.com/DataDog/viper v1.15.3 // indirect
 	github.com/DataDog/zstd v1.5.8-0.20260421145859-31a7e515a571 // indirect
 	github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
@@ -172,7 +172,7 @@ require (
 	github.com/lufia/plan9stats v0.0.0-20260216142805-b3301c5f2a88 // indirect
 	github.com/magiconair/properties v1.8.10 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
-	github.com/mattn/go-isatty v0.0.20 // indirect
+	github.com/mattn/go-isatty v0.0.22 // indirect
 	github.com/mdlayher/socket v0.6.0 // indirect
 	github.com/mdlayher/vsock v1.3.0 // indirect
 	github.com/mitchellh/copystructure v1.2.0 // indirect

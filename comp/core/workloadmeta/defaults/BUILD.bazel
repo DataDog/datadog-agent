@@ -1,0 +1,16 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "defaults",
+    srcs = [
+        "defaults.go",
+        "doc.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/workloadmeta/defaults",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/workloadmeta/def",
+        "//comp/core/workloadmeta/init",
+        "//pkg/util/flavor",
+    ],
+)
