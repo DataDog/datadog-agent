@@ -50,7 +50,7 @@ message PrivateActionTask {
   ConnectionInfo connection_info = 10;
   google.protobuf.Timestamp expiration_time = 11;
   actionsclient.Client client = 12;
-  RemoteAction remote_action = 16;
+  RemoteAction remote_action = 13;
 }
 
 message RemoteAction {
