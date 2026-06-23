@@ -17,7 +17,6 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
@@ -45,7 +44,6 @@ func getProvisionerOptions(agentParams []func(*agentparams.Params) error) []awsh
 	return []awshost.ProvisionerOption{
 		awshost.WithRunOptions(
 			ec2.WithAgentOptions(agentParams...),
-			ec2.WithEC2InstanceOptions(ec2.WithAMI("ami-090c309e8ced8ecc2", os.Ubuntu2204, os.AMD64Arch)),
 		),
 	}
 }
@@ -62,15 +60,6 @@ func TestLanguageDetectionSuite(t *testing.T) {
 	}
 
 	e2e.Run(t, &languageDetectionSuite{}, options...)
-}
-
-func (s *languageDetectionSuite) SetupSuite() {
-	s.BaseSuite.SetupSuite()
-	// SetupSuite needs to defer s.CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
-	defer s.CleanupOnSetupFailure()
-
-	s.installPython()
-	s.installPHP()
 }
 
 func (s *languageDetectionSuite) checkDetectedLanguage(pid string, language string, source string) {
