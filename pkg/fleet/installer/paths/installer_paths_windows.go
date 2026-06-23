@@ -593,6 +593,17 @@ func setFileEveryoneReadAccess(path string, accessMode windows.ACCESS_MODE) erro
 		return fmt.Errorf("failed to get security info: %w", err)
 	}
 
+	control, _, err := sd.Control()
+	if err != nil {
+		return fmt.Errorf("failed to get security descriptor control flags: %w", err)
+	}
+	var flags windows.SECURITY_INFORMATION = windows.DACL_SECURITY_INFORMATION
+	if control&windows.SE_DACL_PROTECTED != 0 {
+		flags |= windows.PROTECTED_DACL_SECURITY_INFORMATION
+	} else {
+		flags |= windows.UNPROTECTED_DACL_SECURITY_INFORMATION
+	}
+
 	dacl, _, err := sd.DACL()
 	if err != nil {
 		return fmt.Errorf("failed to get DACL: %w", err)
@@ -618,7 +629,7 @@ func setFileEveryoneReadAccess(path string, accessMode windows.ACCESS_MODE) erro
 	return windows.SetNamedSecurityInfo(
 		path,
 		windows.SE_FILE_OBJECT,
-		windows.DACL_SECURITY_INFORMATION|windows.UNPROTECTED_DACL_SECURITY_INFORMATION,
+		flags,
 		nil,     // owner - leave unchanged
 		nil,     // group - leave unchanged
 		newDACL, // DACL - set this
