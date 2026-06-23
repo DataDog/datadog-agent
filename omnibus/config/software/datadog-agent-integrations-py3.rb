@@ -61,43 +61,53 @@ build do
   #
 
   block "Install integration configuration" do
-    # Discover integrations from the packages installed by Bazel above, so the copied configuration
+    # Discover configuration from the packages installed by Bazel above, so the copied configuration
     # matches the actual installed wheels without going through the legacy collect-integrations task.
-    checks_to_install = Dir.glob(File.join(site_packages_path, "datadog_checks", "*"))
-                           .select do |path|
-                             File.directory?(path) && File.directory?(File.join(project_dir, File.basename(path)))
-                           end
-                           .map { |path| File.basename(path) }
-                           .sort
-    raise "No installed integrations found under #{site_packages_path}/datadog_checks" if checks_to_install.empty?
+    config_files = Dir.glob(
+      File.join(
+        site_packages_path,
+        "datadog_checks",
+        "*",
+        "data",
+        "{conf.yaml.example,conf.yaml.default,metrics.yaml,auto_conf.yaml}",
+      )
+    ).sort
+    profile_dirs = Dir.glob(
+      File.join(
+        site_packages_path,
+        "datadog_checks",
+        "*",
+        "data",
+        "{profiles,default_profiles}",
+      )
+    ).select { |path| File.directory?(path) }.sort
+    raise "No integration configuration found under #{site_packages_path}/datadog_checks" if config_files.empty? && profile_dirs.empty?
 
-    checks_to_install.each do |check|
-      check_dir = File.join(project_dir, check)
-      check_conf_dir = "#{conf_dir}/#{check}.d"
+    # For each conf file, if it already exists, that means the `datadog-agent` software def
+    # wrote it first. In that case, since the agent's confs take precedence, skip the conf.
+    config_files.each do |src|
+      data_dir = File.dirname(src)
+      check = File.basename(File.dirname(data_dir))
+      check_conf_dir = File.join(conf_dir, "#{check}.d")
+      filename = File.basename(src)
 
-      # For each conf file, if it already exists, that means the `datadog-agent` software def
-      # wrote it first. In that case, since the agent's confs take precedence, skip the conf
-      conf_files = ["conf.yaml.example", "conf.yaml.default", "metrics.yaml", "auto_conf.yaml"]
-      conf_files.each do |filename|
-        src = windows_safe_path(check_dir, "datadog_checks", check, "data", filename)
-        dest = check_conf_dir
-        if File.exist?(src) and !File.exist?(windows_safe_path(dest, filename))
-          FileUtils.mkdir_p(dest)
-          FileUtils.cp_r(src, dest)
-        end
-
-        # Drop the example files from the installed packages since they are copied in /etc/datadog-agent/conf.d and not used here
-        delete "#{site_packages_path}/datadog_checks/#{check}/data/#{filename}"
+      unless File.exist?(windows_safe_path(check_conf_dir, filename))
+        FileUtils.mkdir_p(check_conf_dir)
+        FileUtils.cp_r(src, check_conf_dir)
       end
+    end
 
-      # Copy SNMP profiles
-      profile_folders = ['profiles', 'default_profiles']
-      profile_folders.each do |profile_folder|
-        folder_path = "#{check_dir}/datadog_checks/#{check}/data/#{profile_folder}"
-        if File.exist? folder_path
-          FileUtils.cp_r folder_path, "#{check_conf_dir}/"
-        end
-      end
+    # Drop the example files from the installed packages since they are copied in /etc/datadog-agent/conf.d and not used here.
+    FileUtils.rm_f(config_files)
+
+    # Copy SNMP profiles.
+    profile_dirs.each do |src|
+      data_dir = File.dirname(src)
+      check = File.basename(File.dirname(data_dir))
+      check_conf_dir = File.join(conf_dir, "#{check}.d")
+
+      FileUtils.mkdir_p(check_conf_dir)
+      FileUtils.cp_r(src, check_conf_dir)
     end
   end
 
