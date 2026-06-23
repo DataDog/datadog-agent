@@ -164,6 +164,7 @@ func (c *Check) emitContainerDistributions(acc *containerDistAccumulator, snd se
 		distTags, terr := c.workloadTagCache.GetLowCardContainerTags(key.containerID)
 		if terr != nil && !agenterrors.IsNotFound(terr) {
 			errs = append(errs, fmt.Errorf("error collecting low-card container tags for distribution %s container %s: %w", key.distName, key.containerID, terr))
+			continue
 		}
 
 		snd.Distribution(key.distName, acc.totals[key], "", distTags)
